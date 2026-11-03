@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import {
   createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH, PREY_STARTLE, STILL_SPEED, CAT_SPEED_CAP,
-  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay,
+  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay, twolegHead,
 } from '../src/critters.js';
 import { mulberry32 } from '../src/rng.js';
 import { gorgeGround, SHOULDER, CLIFFTOP } from '../src/world/gorgeshape.js';
@@ -1119,6 +1119,31 @@ describe('villager Twolegs', () => {
     const wave = reach(2.6);
     expect(wave.max.y).toBeGreaterThan(arm.position.y + 0.3);       // the hand up in the air
     expect(wave.max.x).toBeGreaterThan(arm.position.x + 0.2);       // and out to the side
+  });
+
+  it('hair never covers the eyes: every front hair vertex is above the eye tops', () => {
+    const HAIR = 0x123456;
+    const parts = twolegHead({ top: 'hair', hair: HAIR, skin: 0xe0b090 });
+    // parts: neck, head, two eyes, then the hair cap and the back fall.
+    let eyeTop = -Infinity;
+    for (const e of parts.slice(2, 4)) {
+      e.computeBoundingBox();
+      eyeTop = Math.max(eyeTop, e.boundingBox.max.y);
+    }
+    expect(eyeTop).toBeCloseTo(1.5075, 4);
+    const hair = new THREE.Color(HAIR);
+    let front = 0;
+    for (const p of parts.slice(4)) {
+      const pos = p.getAttribute('position');
+      const col = p.getAttribute('color');
+      expect(col.getX(0)).toBeCloseTo(hair.r, 6);
+      for (let i = 0; i < pos.count; i++) {
+        if (pos.getZ(i) >= -0.05) continue; // behind the face (the face looks down -z)
+        front++;
+        expect(pos.getY(i)).toBeGreaterThan(eyeTop);
+      }
+    }
+    expect(front).toBeGreaterThan(0);
   });
 
   it('chooses its look from its spawn, the same every time', () => {

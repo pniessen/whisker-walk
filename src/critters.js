@@ -159,7 +159,8 @@ function twolegBody(look) {
   return parts;
 }
 
-function twolegHead(look) {
+// Exported for the critters tests (the hair-over-the-eyes check).
+export function twolegHead(look) {
   const parts = [
     tpart(new THREE.CylinderGeometry(0.07, 0.07, 0.1, 6).translate(0, 1.38, 0), look.skin),
     tpart(new THREE.SphereGeometry(0.15, 8, 6).translate(0, 1.47, 0), look.skin),
@@ -176,8 +177,10 @@ function twolegHead(look) {
     parts.push(tpart(new THREE.CylinderGeometry(0.15, 0.158, 0.07, 8).translate(0, 1.59, 0), TWOLEG_CAP));
     parts.push(tpart(new THREE.BoxGeometry(0.2, 0.025, 0.12).translate(0, 1.575, -0.15), TWOLEG_CAP));
   } else {
-    // Hair: a cap over the crown and a fall at the back of the head.
-    parts.push(tpart(new THREE.SphereGeometry(0.158, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.45).translate(0, 1.475, 0), look.hair));
+    // Hair: a cap over the crown and a fall at the back of the head. The cap
+    // stops at 0.42 pi, so its rim (y ~1.514) sits above the eyes' tops (1.5075)
+    // instead of cutting through them as 0.45 pi (rim ~1.500) did.
+    parts.push(tpart(new THREE.SphereGeometry(0.158, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.42).translate(0, 1.475, 0), look.hair));
     parts.push(tpart(new THREE.BoxGeometry(0.26, 0.14, 0.08).translate(0, 1.44, 0.11), look.hair));
   }
   return parts;
