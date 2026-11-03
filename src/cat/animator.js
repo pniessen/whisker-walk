@@ -58,14 +58,36 @@ const TAIL_HOOK_SIDE = -1; // the cat's left (-x)
 const TAIL_HOOK_X = [0, 0, -0.05, -0.15, -0.2];
 const TAIL_SWAY_DAMP = [0, 0.2, 0.6, 0.8, 0.8];
 
-// Polish 1a, Task 5: the poses in which a worn collar follows the neck instead
-// of the head. The collar hangs on the head (model.js), which is right while
-// the head sits over the chest; the stalk drops the head low and forward of
-// the chest, and a head-locked collar's front then stuck out under the chin as
-// a black rod with the tag dangling in the air. Here the collar keeps its
-// place on the neck instead (fitNeck). The sniff and the pinned pose drop the
-// head the same way to a lesser degree, and do the same (fix wave, polish-5).
-const COLLAR_ON_NECK = new Set(['stalk', 'sniff', 'pinned']);
+// Polish 1a, Task 5 brought a worn collar onto the neck in the stalk (the
+// head dropped low and forward of the chest, and a head-locked collar's front
+// stuck out under the chin as a black rod with the tag dangling in the air);
+// the fix wave (polish-5) did the same for the sniff and the pinned pose.
+// Accessories polish Task 4: the collar and the neck pieces now ride the neck
+// in EVERY pose (fitNeck), so a head that lifts, turns or tucks (the walk, the
+// sit, the nap, the groom) never swings them forward under the jaw. At rest
+// the carry is the identity: the standing cat wears them exactly as built.
+//
+// Two poses fold the cat so the chest-to-head line stops being a neck. The
+// nap squashes the torso until the chest centre sits level with the head and
+// just in front of it (the line swings ~55° back and sideways): turned with
+// it, the streamers, tie and charms stuck straight out forward, and carried
+// at the head's own drop the streamers went 9 cm into the ground. So in the
+// nap they take a little of the neck's turn (0.15) about a point a third of
+// the way from the chest to the head (NECK_FIT: `turn` the share of the turn
+// taken; `anchor` -1 at the chest, 0 at the neck's midpoint, 1 at the head;
+// any other pose takes the neck's own move, { turn: 1, anchor: 0 }). Measured
+// on every preset with each neck item and the full kit at t 0.4/1.3/2.2:
+// clear of the ground (0.2 mm at the least; the head-locked items went 9 mm
+// in), behind the nose and below the mouth. The stretch's play bow drops the
+// head below the chest (~118°): carried, the ring flipped onto the back of
+// the head, and moved without the turn it sank into the head; there they are
+// worn on the head as built (HEAD_NECKWEAR), which reads as a collar round
+// the lowered head. So they are in the swim, which sinks the shoulders and
+// holds the head up out of the water: carried on the neck, Digit's tag collar
+// dipped under the waterline; on the head it stays up with it.
+const NECK_FIT = { nap: { turn: 0.15, anchor: -0.35 } };
+const NECK_FIT_DEFAULT = { turn: 1, anchor: 0 };
+const HEAD_NECKWEAR = new Set(['stretch', 'swim']);
 
 // v20 "Ruffled Fur" — the 'cross' pose.
 //
@@ -483,14 +505,20 @@ function dropChest(body, underside) {
   underside.position.add(_c);
 }
 
-// The collar on the neck (COLLAR_ON_NECK). The neck joins the chest (the
-// underside's chestCentre) to the head's centre. Resting, the collar sits on
-// it as built; in a COLLAR_ON_NECK pose it is carried from the resting neck to
-// the posed one: moved with the neck's midpoint and turned as the neck turned
-// (chest-to-head direction), so it keeps its place and tilt on the neck and
-// the tag still hangs at the throat. Everything is in the cat's own frame, then
-// put back into the head's. In any other pose the collar is put back where it
-// was built (its rest, remembered the first time it is moved). Deterministic.
+// The collar on the neck, in every pose (accessories polish Task 4; it was
+// only the stalk, the sniff and the pinned pose before). The neck joins the
+// chest (the underside's chestCentre) to the head's centre. Resting, the
+// collar sits on it as built (model.js NECK_RING_TILT squares its ring to that
+// neck); in any pose it is carried from the resting neck to the posed one:
+// moved with the neck's midpoint and turned as the neck turned (chest-to-head
+// direction), so it keeps its place and tilt on the neck and the tag still
+// hangs at the throat, whatever the head does. Everything is in the cat's own
+// frame, then put back into the head's. At rest (follow, breathing at 0) the
+// carry is the identity. A rig with no underside (Hagrid) has no chest to
+// carry from: his collar is put back where it was built (its rest, remembered
+// the first time it is moved), as always; so is everyone's in the stretch
+// and the swim (HEAD_NECKWEAR). The nap takes a little of the neck's move (NECK_FIT).
+// Deterministic.
 //
 // Fix wave (polish-5): the posed chest is read through the underside
 // (keepChestUnderHead holds it at the unyawed point once the torso yaws, which
@@ -517,17 +545,18 @@ function fitNeck(cat, state) {
   const neckwear = head.userData.neckwear;
   const wearsCollar = collar?.parent === head;
   if (!wearsCollar && !neckwear?.length) return;
-  if (!COLLAR_ON_NECK.has(state) || !cat.userData.parts.underside) {
+  if (!cat.userData.parts.underside || HEAD_NECKWEAR.has(state)) {
     if (wearsCollar) restore(collar);
     if (neckwear) for (const item of neckwear) restore(item);
     return;
   }
-  neckMove(cat);
+  const { turn, anchor } = NECK_FIT[state] ?? NECK_FIT_DEFAULT;
+  neckMove(cat, turn, anchor);
   if (wearsCollar) carry(collar);
   if (neckwear) for (const item of neckwear) carry(item);
 }
 
-// Exported for the tests (a torso yawed under a neck pose): the chest, then the neck.
+// Exported for the tests (a torso yawed under a pose): the chest, then the neck.
 export function refitNeck(cat, state) {
   const { body, underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(body, underside);
@@ -546,10 +575,12 @@ function carry(item) {
   _M.decompose(item.position, item.quaternion, _sc);
 }
 
-// _X = head⁻¹ · T(neck1) · R(turn) · T(-neck0) · H0: the neck's move, in the head's frame
-function neckMove(cat) {
+// _X = head⁻¹ · T(neck1) · R(turn) · T(-neck0) · H0: the neck's move, in the head's frame.
+// NECK_FIT: the turn taken `w` of the way; neck0/neck1 the point (1 + a) / 2 of
+// the way from the chest to the head (a = 0: the neck's midpoint).
+function neckMove(cat, w, a) {
   const { head, body, underside } = cat.userData.parts;
-  const { bodyY, bodyScale: [sx, sy, sz], headPos } = cat.userData.base;
+  const { bodyY, bodyScale: [sx, sy, sz], headPos } = cat.userData.base ?? CAT_BASE;
   const [cx, cy, cz] = underside.userData.chestCentre;
   // the resting neck: head and body as pose()'s reset leaves them
   _h0.fromArray(headPos);
@@ -560,9 +591,10 @@ function neckMove(cat) {
   _n0.subVectors(_h0, _c0).normalize();
   _n1.subVectors(head.position, _c1).normalize();
   _turn.setFromUnitVectors(_n0, _n1);
+  if (w !== 1) _turn.slerp(_noTurn, 1 - w);
   _X.compose(_h0, _noTurn, head.scale);
-  _c0.add(_h0).multiplyScalar(0.5); // neck0
-  _c1.add(head.position).multiplyScalar(0.5); // neck1
+  _c0.lerp(_h0, 0.5 + a / 2); // neck0
+  _c1.lerp(head.position, 0.5 + a / 2); // neck1
   _X.premultiply(_R.makeTranslation(-_c0.x, -_c0.y, -_c0.z));
   _X.premultiply(_R.makeRotationFromQuaternion(_turn));
   _X.premultiply(_R.makeTranslation(_c1.x, _c1.y, _c1.z));

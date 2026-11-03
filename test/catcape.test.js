@@ -311,6 +311,36 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
     }
   });
 
+  // Accessories polish Task 4: polish-pose found a brooch centre 5.6 cm inside
+  // the Maine Coon's chest in the cross, where the underside counter-yaws
+  // under the turned torso (animator.js keepChestUnderHead) and bulges over
+  // the shoulder (the arch, the other fight pose, did the same). Every breed,
+  // both capes, the cross and the arch at the sweep's times:
+  // each brooch centre (clasp userData.at), carried to the world on the posed
+  // body, is outside the posed fur (body and underside), along the ray from
+  // the body centre through it.
+  const outsideFur = (cat, P) => {
+    const { body, underside } = cat.userData.parts, s = cat.scale.x;
+    const C = body.getWorldPosition(new THREE.Vector3());
+    const Pw = P.clone().multiplyScalar(s);
+    const dir = Pw.clone().sub(C).normalize(), F = Pw.clone().addScaledVector(dir, 1);
+    ray.set(F, dir.clone().negate());
+    const hit = ray.intersectObjects([body, underside], false)[0];
+    return hit ? (hit.distance - F.distanceTo(Pw)) / s : Infinity;
+  };
+  it.each(BREEDS.flatMap((b) => CAPES.map((id) => [b, id])))('%s %s: in the cross and the arch both brooches sit outside the fur', (b, id) => {
+    for (const [state, t] of ['cross', 'arch'].flatMap((st) => [0.4, 1.3, 2.2].map((tt) => [st, tt]))) {
+      const cat = kitCat(b, id, false);
+      animateCat(cat, state, t, 0, false);
+      cat.updateMatrixWorld(true);
+      const s = cat.scale.x, { body } = cat.userData.parts;
+      claspOf(cat).userData.at.forEach((p, i) => {
+        const c = body.localToWorld(new THREE.Vector3(...p)).divideScalar(s);
+        expect(outsideFur(cat, c), `${state} t ${t} brooch ${i}`).toBeGreaterThanOrEqual(0);
+      });
+    }
+  });
+
   it('Hagrid wears no cape (his rig shows none)', () => {
     for (const id of CAPES) {
       const hen = buildCat('hagrid', { ...BARE, body: id });

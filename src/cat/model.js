@@ -114,11 +114,19 @@ export const CAPE = Object.freeze({ zFront: -0.8, zBack: 0.68, zBackSide: 0.98, 
 // is still covered from the shoulders to the hips.
 export const CAPE_SIT = Object.freeze({ ...CAPE, zBackSide: 0.75, wrapBack: 1.0 });
 // The clasp: a gold brooch (radius r, flattened to `flat` through the cloth)
-// on the front of each shoulder, at the neck edge (s 0, a ±a), `lift` off the
-// cloth. Not at the spine: the head hides the neck edge there from every side,
-// and not at the throat, where the collar, its bell or tag and the neck items
-// already are. At a ±0.62 each is outside the head's outline from the front.
-const CAPE_CLASP = Object.freeze({ a: 0.62, r: 0.032, flat: 0.7, lift: 0.012 });
+// on the front of each shoulder, just behind the neck edge (s, a ±a), `lift`
+// off the cloth. Not at the spine: the head hides the neck edge there from
+// every side, and not at the throat, where the collar, its bell or tag and
+// the neck items already are. At a ±0.62 each is outside the head's outline
+// from the front. Accessories polish Task 4: at the neck edge itself (s 0) the
+// brooch on the side the torso turns toward sank 5.6-6.7 cm into the chest in
+// the cross (and 4-8 cm in the arch), where the underside counter-yaws to stay
+// under the head (animator.js keepChestUnderHead) and bulges over the
+// shoulder. A fifth of the way back (s 0.2) it clears the chest in every pose
+// (3.5 cm out at the least; s 0.14 cleared the cross but not the arch): on the
+// standing tabby that is 13 cm further back and 7 cm further out along the
+// shoulder, still on its front, still within 3 cm of the fur.
+const CAPE_CLASP = Object.freeze({ a: 0.62, s: 0.2, r: 0.032, flat: 0.7, lift: 0.012 });
 const CAPE_DOTS = [[-0.5, 0.25], [0.3, 0.2], [0.75, 0.45], [-0.15, 0.45], [-0.8, 0.6], [0.45, 0.65], [0.1, 0.8], [-0.45, 0.85]];
 const SNEAKER_WHITE = 0xf2f2f2;
 const SNEAKER_ACCENT = 0xd8303c;
@@ -126,6 +134,23 @@ const RAINBOOT_COLOR = 0x3a6ea5;
 // Wave-2 catalog balance: every slot gets 4 choices
 // `tag` is not in the shop: it is the built-in collar of a cat whose STYLE row
 // sets `tagCollar` — a plain black band with a round silver name tag.
+// The neck rings (collar, cozy scarf, the streamer scarf's band and stripe)
+// lie square to the cat's resting neck, which leans ~19° forward of upright
+// from the chest to the head (animator.js fitNeck): front low at the throat,
+// back high at the nape. They were tilted the other way (front up 0.32-0.35),
+// and from the side the ring's front ran forward under the jaw like a stick
+// held in the mouth, with the bell or tag dangling 10 cm below it
+// (accessories polish Task 4). Hagrid's rings are re-set round his own neck
+// (ringTheNeck; the chicken's collar ring is zeroed), so he never reads this.
+const NECK_RING_TILT = 0.33;
+// ...and set back (+z, head frame) so the ring's front lies on the throat
+// rather than 8-10 cm out in the air ahead of it: the collar's ring and the
+// scarf's and streamer scarf's bands. The scarf's tail and the streamers stay
+// where they hung; the collar's charm (bell, heart, tag, sparkle star) hangs
+// just under the ring's front, on the chest (COLLAR_CHARM, head frame less
+// the collar's seat).
+const COLLAR_CHARM = [0, -0.095, -0.10];
+const NECK_RING_BACK = { collar: 0.065, scarf: 0.085, streamer: 0.1 };
 const COLLAR_COLORS = { glow: 0x7ef2c0, heart: 0xf27ab0, studded: 0x2c2c34, tag: 0x1c1c22, sparklecollar: 0x8a5cf0 }; // default red below
 const TAG_SILVER = 0xc8ccd4;
 const HEART_CHARM = 0xe0447a;
@@ -402,7 +427,7 @@ function dirOn(point, centre, scale) {
 function buildCollar(style, ringR, tubeR, charmPos) {
   const group = new THREE.Group();
   const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, tubeR, 6, 12), mat(COLLAR_COLORS[style] ?? 0xd84040));
-  ring.rotation.x = Math.PI / 2 + 0.32;
+  ring.rotation.x = Math.PI / 2 - NECK_RING_TILT;
   group.add(ring);
   if (style === 'bell') {
     const bell = ball(tubeR * 1.35, 0xf2c14e, 1, 1, 1, 8, 6);
@@ -563,16 +588,16 @@ function addPrizeFace(head, id, { k, x, y, z, starZ, skull }) {
   }
 }
 
-function addPrizeNeck(head, id, { k, y, z, ringR }) {
+function addPrizeNeck(head, id, { k, y, z, ringR, ringBack = 0 }) {
   if (id === 'streamerscarf') {
     // a fat red wrap with a gold stripe, and four fanned streamers hanging at the front
     const band = new THREE.Mesh(new THREE.TorusGeometry(ringR, 0.05 * k, 6, 12), mat(PRIZE_STREAMERS[0]));
-    band.rotation.x = Math.PI / 2 + 0.35;
-    band.position.set(0, y, z);
+    band.rotation.x = Math.PI / 2 - NECK_RING_TILT;
+    band.position.set(0, y, z + ringBack);
     head.add(band);
     const stripe = new THREE.Mesh(new THREE.TorusGeometry(ringR + 0.02 * k, 0.018 * k, 5, 12), mat(PRIZE_STREAMERS[1]));
-    stripe.rotation.x = Math.PI / 2 + 0.35;
-    stripe.position.set(0, y + 0.02 * k, z);
+    stripe.rotation.x = Math.PI / 2 - NECK_RING_TILT;
+    stripe.position.set(0, y + 0.02 * k, z + ringBack);
     head.add(stripe);
     for (let i = 0; i < 4; i++) {
       const tail = new THREE.Mesh(new THREE.BoxGeometry(0.055 * k, 0.22 * k, 0.014 * k), mat(PRIZE_STREAMERS[i]));
@@ -1274,7 +1299,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // the accessory replaces the built-in one rather than stacking on it.
   const collarStyle = accessories.collar ?? (s.tagCollar ? 'tag' : null);
   if (collarStyle) {
-    const collar = buildCollar(collarStyle, 0.15, 0.028, new THREE.Vector3(0, -0.06, -0.12));
+    const collar = buildCollar(collarStyle, 0.15, 0.028, new THREE.Vector3(...COLLAR_CHARM));
+    collar.children[0].position.z = NECK_RING_BACK.collar;
     collar.position.set(0, -0.14 + neckY, 0.1 + neckZ);
     collar.name = 'collar';
     head.add(collar);
@@ -1322,8 +1348,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const neckwear = [];
   let neckFrom = head.children.length;
   if (accessories.neck === 'bandana') {
+    // a flat face to the front, its third corner tucked back into the neck
+    // (accessories polish Task 4: with the corner forward, a head turned to
+    // groom left it poking out past the nose like a little flag)
     const tri = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.17, 3), mat(0x3a6ea5));
-    tri.rotation.x = Math.PI;
+    tri.rotation.set(Math.PI, Math.PI, 0);
     tri.position.set(0, -0.18 + neckY, 0.02 + neckZ);
     head.add(tri);
   } else if (accessories.neck === 'necktie') {
@@ -1346,12 +1375,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
   } else if (accessories.neck === 'scarf') {
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.035, 6, 12), mat(SCARF_COLOR));
-    band.rotation.x = Math.PI / 2 + 0.35;
-    band.position.set(0, -0.15 + neckY, 0.08 + neckZ);
+    band.rotation.x = Math.PI / 2 - NECK_RING_TILT;
+    band.position.set(0, -0.15 + neckY, 0.08 + neckZ + NECK_RING_BACK.scarf);
     head.add(band);
+    // the tail hangs from the band's front down the chest, leaning back with
+    // it (accessories polish Task 4: it hung straight down 6 cm further back,
+    // inside the chest with only its foot showing below it)
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.02), mat(SCARF_COLOR));
-    tail.position.set(0.06, -0.28 + neckY, 0.1 + neckZ);
-    tail.rotation.z = 0.15;
+    tail.position.set(0.06, -0.28 + neckY, 0.04 + neckZ);
+    tail.rotation.set(-0.38, 0, 0.15);
     head.add(tail);
   }
 
@@ -1361,7 +1393,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // prizes are hats now, built above)
   addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
   neckFrom = head.children.length;
-  addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15 + neckY, z: 0.08 + neckZ, ringR: 0.15 });
+  addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15 + neckY, z: 0.08 + neckZ, ringR: 0.15, ringBack: NECK_RING_BACK.streamer });
   neckwear.push(...head.children.slice(neckFrom));
   if (neckwear.length) head.userData.neckwear = neckwear;
 
@@ -1473,7 +1505,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     cape.userData.cape = true;
     cape.userData.capeGeo = geo;
     body.add(cape);
-    const pins = [-1, 1].map((side) => onCape(new THREE.SphereGeometry(CAPE_CLASP.r, 6, 5).scale(1, 1, CAPE_CLASP.flat), side * CAPE_CLASP.a, 0, CAPE_CLASP.lift));
+    const pins = [-1, 1].map((side) => onCape(new THREE.SphereGeometry(CAPE_CLASP.r, 6, 5).scale(1, 1, CAPE_CLASP.flat), side * CAPE_CLASP.a, CAPE_CLASP.s, CAPE_CLASP.lift));
     const clasp = new THREE.Mesh(mergeGeometries(pins), mat(accent));
     clasp.geometry.computeVertexNormals();
     clasp.userData.capeClasp = true;

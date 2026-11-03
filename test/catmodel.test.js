@@ -737,6 +737,52 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     }
   });
 
+  // Accessories polish Task 4: the collar and the neck pieces ride the neck in
+  // every pose (animator.js fitNeck), and the rings lie square to it (model.js
+  // NECK_RING_TILT, NECK_RING_BACK). Walking, sitting for a pet, perched,
+  // napping, grooming and cross, on the cat posed as the game poses it (cat
+  // frame, front is -z): every item's front-most point is behind the posed
+  // nose's tip and below the posed mouth (the nose's bottom), and nothing
+  // pokes forward the way a ring did when it rode the head ("a stick held in
+  // the mouth": its front ran forward under the jaw, 8-14 cm out in front of
+  // the chest). The ring itself stays within 6 cm of the posed chest's front
+  // (the torso's front-most point), its front lower than its back. The
+  // hanging pieces (bell, charms, studs, beads, bandana, tie, streamers,
+  // tails) rest on the chest and are deeper than 6 cm themselves (the bell
+  // alone is 7.6 cm across), so nothing of any item is more than 10 cm out.
+  const NECK_STATES = [['follow', 0.4, 1.5], ['follow', 1.3, 1.5], ['follow', 2.2, 1.5], ['requestPet', 1.3, 0], ['perch', 1.3, 0], ['nap', 1.3, 0], ['groom', 1.3, 0], ['cross', 1.3, 0]];
+  const NECK_IDS = ['bell', 'sparklecollar', 'studded', 'scarf', 'streamerscarf', 'bandana', 'necktie', 'bowtie'];
+  const _v = new THREE.Vector3();
+  const vertsOf = (meshes, fn) => { for (const m of meshes) { const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i++) fn(m.getVertexPosition(i, _v).applyMatrix4(m.matrixWorld), m); } };
+  const neckReading = (breed, id, state, t, speed) => {
+    const cat = buildCat(breed, { [CATALOG.accessories[id].slot]: id });
+    animateCat(cat, state, t, speed, false); cat.updateMatrixWorld(true);
+    const { head, body, underside } = cat.userData.parts, k = cat.scale.x;
+    const items = [head.userData.collar, ...(head.userData.neckwear ?? [])].filter((o) => o?.parent === head);
+    const meshes = []; for (const o of items) o.traverse((m) => { if (m.isMesh) meshes.push(m); });
+    const rings = meshes.filter((m) => m.geometry.type === 'TorusGeometry');
+    let chest = Infinity; vertsOf([body, underside], (v) => { chest = Math.min(chest, v.z); });
+    let front = null, out = -Infinity;
+    vertsOf(meshes, (v) => { if (!front || v.z < front.z) front = v.clone(); out = Math.max(out, (chest - v.z) / k); });
+    const ring = rings.length ? { front: null, back: null, out: -Infinity } : null;
+    vertsOf(rings, (v) => {
+      if (!ring.front || v.z < ring.front.z) ring.front = v.clone();
+      if (!ring.back || v.z > ring.back.z) ring.back = v.clone();
+      ring.out = Math.max(ring.out, (chest - v.z) / k);
+    });
+    return { nose: noseBox(cat), front, out, ring, k };
+  };
+  it.each(['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => NECK_IDS.map((id) => [b, id])))('%s: the %s stays round the neck in every pose: behind the nose, below the mouth, nothing poking forward', (breed, id) => {
+    for (const [state, t, speed] of NECK_STATES) {
+      const at = `${state} t ${t} speed ${speed}`, r = neckReading(breed, id, state, t, speed);
+      expect(r.front.z, `${at}: behind the nose`).toBeGreaterThan(r.nose.min.z);
+      expect(r.front.y, `${at}: below the mouth`).toBeLessThan(r.nose.min.y);
+      expect(r.out, `${at}: nothing more than 10 cm out in front of the chest`).toBeLessThanOrEqual(0.10);
+      if (!r.ring) continue;
+      expect(r.ring.out, `${at}: the ring within 6 cm of the chest's front`).toBeLessThanOrEqual(0.06);
+      expect(r.ring.front.y, `${at}: the ring's front lower than its back`).toBeLessThan(r.ring.back.y);
+    }
+  }, 120_000);
   // Body refinement, Task 7: on a fluffy cat the neck items rest on the new
   // small bib (NECK_FLUFFY), not floating out where the torus used to be. For
   // each item mesh in front of the ring's centre (as onChest), a ray from the
