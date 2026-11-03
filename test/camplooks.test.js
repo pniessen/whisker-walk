@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { addCamp, CAMP_LOOKS, campLook } = await import('../src/world/camp.js');
+const { addCamp, CAMP_LOOKS, campLook, campDressing } = await import('../src/world/camp.js');
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
 
 const CAMPS = ['woods', 'river', 'moor', 'pines'];
@@ -73,6 +73,7 @@ describe('CAMP_LOOKS', () => {
       const look = CAMP_LOOKS[a];
       const clearing = scene.getObjectByName('campClearing');
       expect(clearing.material.color.getHex(), a).toBe(look.floor.color);
+      expect(clearing.material.map?.name, a).toBe(`surface:${look.floor.surface}`);
       expect(scene.getObjectByName('campRock').material.color.getHex(), a).toBe(look.rock);
     }
     expect(CAMP_LOOKS.river.floor.surface).toBe('gravel');
@@ -84,17 +85,24 @@ describe('CAMP_LOOKS', () => {
       const look = CAMP_LOOKS[a];
       const col = build(a).getObjectByName('campRing').geometry.attributes.color;
       const tris = col.count / 3;
+      // clump triangles (28 a clump: 20 + 8) come first in the merged ring,
+      // the strands' after them
+      const clumpTris = 28 * campDressing(a, []).ring.clumps.length;
+      expect(tris, a).toBeGreaterThan(clumpTris);
       const specks = look.ring.specks.map(([hex, share]) => ({ c: lin(hex), share, n: 0 }));
       for (let t = 0; t < tris; t++) {
         for (const s of specks) {
           const hits = [0, 1, 2].filter((k) => sameColor(col, t * 3 + k, s.c)).length;
           expect(hits === 0 || hits === 3, `${a} tri ${t}: ${hits} speck corners`).toBe(true);
-          if (hits === 3) s.n++;
+          if (hits === 3) {
+            expect(t, `${a} speck on a strand triangle`).toBeLessThan(clumpTris);
+            s.n++;
+          }
         }
       }
       for (const s of specks) {
         expect(s.n, `${a} ${s.c.getHexString()}`).toBeGreaterThanOrEqual(1);
-        expect(s.n / tris, `${a} ${s.c.getHexString()}`).toBeLessThanOrEqual(2 * s.share);
+        expect(s.n / clumpTris, `${a} ${s.c.getHexString()}`).toBeLessThanOrEqual(1.5 * s.share);
       }
     }
   }, 120_000);
@@ -119,6 +127,28 @@ describe('CAMP_LOOKS', () => {
         expect(denCols[CAMPS[i]], `${CAMPS[i]}/${CAMPS[j]}`).not.toEqual(denCols[CAMPS[j]]);
       }
     }
+  }, 120_000);
+
+  it('the ring strands and the den frame take the clan\'s colours', () => {
+    // some vertex whose colour is `base` times one factor in [lo, hi]
+    const scaled = (col, base, lo, hi) => {
+      for (let i = 0; i < col.count; i++) {
+        const k = [col.getX(i) / base.r, col.getY(i) / base.g, col.getZ(i) / base.b];
+        if (k.every((v) => v >= lo - 1e-4 && v <= hi + 1e-4 && Math.abs(v - k[0]) < 1e-3)) return true;
+      }
+      return false;
+    };
+    const rings = {};
+    for (const a of CAMPS) {
+      const scene = build(a);
+      const look = CAMP_LOOKS[a];
+      const ring = scene.getObjectByName('campRing').geometry.attributes.color;
+      rings[a] = Array.from(ring.array);
+      expect(scaled(ring, lin(look.ring.strand), 0.85, 1.15), `${a} strand`).toBe(true);
+      const den = scene.getObjectByName('campDen').geometry.attributes.color;
+      expect(scaled(den, lin(look.den.frame), 0.8, 1.2), `${a} den frame`).toBe(true);
+    }
+    expect(rings.woods).not.toEqual(rings.pines);
   }, 120_000);
 
   it('no new vertices', () => {

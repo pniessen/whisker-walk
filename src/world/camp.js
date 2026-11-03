@@ -614,9 +614,9 @@ function speckle(geo, specks, salt) {
 // half torus (24 triangles) standing upright between their crowns, its arch
 // squashed where it would rise over 1 m (ruling R3). The clan's greens by
 // hash, dark at the foot, with the clan's specks on the lumps (speckle); the
-// strands in the clan's strand colour. One vertex-coloured mesh, out of the shadow
-// pass: ~3,360 triangles a camp, so the River and the Moor stay under the
-// area's 60,000 (test/budget.test.js; ruling R7).
+// strands in the clan's strand colour. One vertex-coloured mesh, out of the
+// shadow pass: ~3,360 triangles a camp, so the River and the Moor stay under
+// the area's 60,000 (test/budget.test.js; ruling R7).
 //
 // Ruling R4: the wall has no collider. A collider would change the walkable
 // ground, the clan cats' routes and the flat trace for the Woods, River, Moor
@@ -676,10 +676,10 @@ function ringMesh(ring, cx, cz, look) {
 
 // The clearing: the camp's trampled floor in the clan's colour and surface
 // (trampled earth, pale pebbles, cropped turf, needle litter), a disc with a
-// hash-jittered edge, lifted
-// 1.5 cm and pulled towards the camera (polygonOffset) so it never fights the
-// ground or a path. A CircleGeometry lying flat at the top level: grass.js's
-// flatFootprints reads it as a disc and grows no tufts through it.
+// hash-jittered edge, lifted 1.5 cm and pulled towards the camera
+// (polygonOffset) so it never fights the ground or a path. A CircleGeometry
+// lying flat at the top level: grass.js's flatFootprints reads it as a disc
+// and grows no tufts through it.
 function clearingMesh(clearing, look) {
   const { x, z, r } = clearing;
   const geo = new THREE.CircleGeometry(r, CLEARING.segments);
