@@ -932,7 +932,7 @@ function init() {
       session.carry.items.update(dt); // v21 3b: a held thing follows its holder's mouth
       tickCarryRain(session, dt); // v21 3b: falling rain loosens the grip; the item slips
       session.scent.update(dt);
-      session.fx.update(dt);
+      session.fx.update(dt, camera);
       session.skyLife.update(dt);
       // Water and wind both stay on REAL dt/t, never the slow-mo `wdt` above.
       // The slow-mo beat exists to slow CRITTERS for a pounce; dragging the
