@@ -690,7 +690,7 @@ export function house(x, z, bodyColor = 0xe8d8b0, roofColor = 0xb05a4a, bodySurf
 // `walkRng` — either would render a different canopy for the same tree on
 // two clients, which is a desync of the visible world exactly as wind.js's
 // header warns walkRng's per-frame misuse would be.
-function hash01(x, z, salt) {
+export function hash01(x, z, salt) {
   const h = Math.sin(x * 12.9898 + z * 78.233 + salt * 37.719) * 43758.5453;
   return h - Math.floor(h);
 }
@@ -1139,6 +1139,13 @@ const DROP_AT = 0.02;
 // Within this many metres of a `keepLow` zone the band rises back from the
 // waterline to its usual height.
 const KEEP_LOW_RAMP = 4;
+// A `shoreLip` (see horizonBand): how high its flat stretch stands over the
+// band's sunk zero (just above the 0.03 waterline), how far in front of
+// CLOSE_FROM it climbs out of the water, and over how much height above the
+// lip its colour fades back into the hills'.
+const LIP_H = 0.3;
+const LIP_RISE = 2;
+const LIP_FADE = 1.2;
 
 // The unit square's perimeter at parameter u in [0, 1): four sides, corner to
 // corner. A SQUARE ring rather than a circular one, because every area's
@@ -1349,6 +1356,69 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint,
   for (let i = before; i < parts.length; i++) bases.push(tint);
 }
 
+// rooftops.style 'houses' (polish-places): the Woods' Twolegplace as small
+// cottages sunk behind the crest, rather than skyline blocks. The blocks were
+// up to 19 x 16 m and 7 m tall on a 6 m wall of hill, windowless at that
+// distance, and from the Woods' spawn they filled the top of the screen.
+// Each cottage is 5-8.5 m by 4-6.5 m, its walls `height` x 0.75-1.1, sunk
+// 55% of that into the band (so from the area it is mostly roof over the
+// crest), with a terracotta pitched roof (rise 0.45 of its depth), 1-3 small
+// windows and a door on the face turned toward the area, and sometimes a
+// short chimney. Same arc, spots and tints as the blocks. Made under the
+// caller's withLocalUuids, so it moves no area's Math.random draw count.
+const HOUSE_WINDOW = [0.16, 0.17, 0.21];
+const HOUSE_DOOR = [0.3, 0.19, 0.12];
+const HOUSE_SINK = 0.55;
+function addHouse(parts, tones, bases, { k, x, z, yaw, surface, height, salt, tint }) {
+  const bw = 5 + 3.5 * hash01(k, 2, salt + 3);
+  const bd = 4 + 2.5 * hash01(k, 3, salt + 4);
+  const wh = height * (0.75 + 0.35 * hash01(k, 4, salt + 5));
+  const rise = 0.45 * bd;
+  const base = surface - HOUSE_SINK * wh;
+  const wallTint = tint.clone().lerp(WALL_CREAM, 0.7);
+  const tone = SKYLINE_TONES[Math.floor(hash01(k, 9, salt + 10) * 3)];
+  const place = (g, tn, tt, y) => {
+    g.rotateY(yaw);
+    g.translate(x, y, z);
+    parts.push(g);
+    tones.push(tn);
+    bases.push(tt);
+  };
+  // The walls: a box without its buried bottom face.
+  place(dropBottom(new THREE.BoxGeometry(bw, wh, bd)), tone, wallTint, base + wh / 2);
+  // The face toward the area is local -z (yaw turns +z outward). A door at
+  // one end of it, then 1-3 windows spread along the rest, all up in the
+  // part of the wall that shows over the crest.
+  const front = -bd / 2 - 0.06;
+  const doorAt = (hash01(k, 12, salt + 13) < 0.5 ? -1 : 1) * (bw / 2 - 1.1);
+  const door = new THREE.PlaneGeometry(0.9, 1.7);
+  door.rotateY(Math.PI);
+  door.translate(doorAt, wh / 2 - 0.3 - 0.85, front);
+  place(door, HOUSE_DOOR, WHITE_TINT, base + wh / 2);
+  // The windows share out the stretch of wall from the far corner to the door.
+  const sd = Math.sign(doorAt);
+  const from = -sd * (bw / 2 - 0.6);
+  const to = doorAt - sd * 0.9;
+  const nWin = Math.max(1, Math.min(1 + Math.floor(hash01(k, 13, salt + 14) * 2.999), Math.floor(Math.abs(to - from) / 1.1)));
+  for (let i = 0; i < nWin; i++) {
+    const w = new THREE.PlaneGeometry(0.7, 0.8);
+    w.rotateY(Math.PI);
+    w.translate(from + (to - from) * (i + 0.5) / nWin, wh / 2 - 0.7, front);
+    place(w, HOUSE_WINDOW, WHITE_TINT, base + wh / 2);
+  }
+  // The roof, with a little eave over the front and back walls.
+  const rt = ROOF_TERRACOTTA[Math.floor(hash01(k, 10, salt + 11) * ROOF_TERRACOTTA.length)];
+  place(roofPrism(bw + 0.2, bd + 0.4, rise), rt, WHITE_TINT, base + wh);
+  // A short chimney on some, its top under the ridge + 0.4 m.
+  if (hash01(k, 5, salt + 6) > 0.5) {
+    const cx2 = (hash01(k, 8, salt + 9) - 0.5) * bw * 0.6;
+    const ch = 0.6 * rise + 0.4;
+    const c = new THREE.BoxGeometry(0.55, ch, 0.55);
+    c.translate(cx2, 0, bd * 0.15);
+    place(c, tone, wallTint, base + wh + 0.4 * rise + ch / 2);
+  }
+}
+
 // =============================================================================
 // THE GROUND'S EDGE (polish "edges"). Turning round at a spawn used to show the
 // lawn stopping at a hard line, a flat pale strip (the band's sunk FLAT
@@ -1365,8 +1435,9 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint,
 // (userData.noCast), vertex-coloured and flat-shaded like the band, and dusk
 // tints it with the band (userData.duskTint, render/dusk.js). Its pieces are
 // hand-built low-poly solids (a mound is 10 triangles, a reed blade 1, a wall
-// block 14, a tree 18-26), and where an area's ceiling is tight the ring only
-// runs along the arc a kid sees on turning round at the spawn (`arcs`).
+// block 14, a tree 18-26). A style may limit its ring to arcs of the
+// perimeter (`arcs`); none does now (the River's and the Moor's ran only along
+// the arc behind the spawn until polish-places freed room for the whole ring).
 //
 // The heights are set by the camera, not by taste: the main camera can stand
 // up to 11m behind the cat at 6.5m up, and every area's bounds come within 5m
@@ -1379,18 +1450,17 @@ const freezeDeep = (o) => {
   for (const v of Object.values(o)) if (v && typeof v === 'object') freezeDeep(v);
   return Object.freeze(o);
 };
-// The River's spawn (44, 40) and the Moor's (46, 44) both sit near the +x/+z
-// corner. This arc (squarePoint's perimeter parameter) runs the +x side from
-// z ~ 12 round that corner to x ~ 7 on the +z side: everything a kid sees on
-// turning round at either spawn. Those two areas have under 1,000 triangles
-// left under their ceilings, so their near ring runs only here.
-const SPAWN_CORNER_ARC = [[0.15, 0.36]];
 // Per style: the palette and the sizes its pieces are drawn from. `max` is the
 // tallest any near piece may reach; `crowns` colour the far tree row, `tree`
 // is its shape ('oak', 'round' or 'pine'). `arcs` [[u0, u1], ...] limits the
 // near ring to those arcs of the perimeter (squarePoint's u: 0-0.25 the +x
 // side running toward +z, 0.25-0.5 the +z side running toward -x, ...);
-// omitted, it runs all the way round. `trees: false` leaves the far row out.
+// omitted, it runs all the way round. `trees: false` leaves the far row out;
+// `treeSkip` is the share of the row's spots left empty (TREE_SKIP when
+// omitted), and a round tree's `treeShape` { trunk: [min, range], r: [min,
+// range], ry, lean } sets its trunk height, crown radius, crown height (as a
+// share of the radius) and how far the crown is blown downwind (+x, the
+// moor's westerly), omitted: the Woods' bushy low round tree.
 // `jitter` is how far a piece wanders in and out of the line (EDGE_JITTER
 // when omitted): a wall is laid straighter than a hedge grows.
 export const EDGE_STYLES = freezeDeep({
@@ -1404,17 +1474,35 @@ export const EDGE_STYLES = freezeDeep({
   },
   reeds: {
     step: 2.9, greens: [0x8a9a5a, 0x9aa868, 0x7f9a56, 0xa7a86a], blades: 12, wMin: 0.16, wMax: 0.3, hMin: 0.7, hMax: 1.25,
-    crowns: [0x6f8a4e, 0x7a9256, 0x66804a], max: 1.3, arcs: SPAWN_CORNER_ARC, trees: false,
+    // The far row: low round marsh trees (alder, willow), half the spots
+    // empty, under 3.6m.
+    crowns: [0x6f8a4e, 0x7a9256, 0x66804a], trunk: 0x5a4a38, tree: 'round', max: 1.3, treeSkip: 0.5,
+    treeShape: { trunk: [0.8, 0.3], r: [1.3, 0.6], ry: 0.72, lean: 0 },
   },
   wall: {
     step: 2.2, greys: [0x7f7b73, 0x938f86, 0x726f69], cap: 0xaba79c, hMin: 0.7, hMax: 0.9, jitter: 0.08,
     gorse: 0x5a6630, bloom: 0xd8b84a, rMin: 0.6, rMax: 0.85, gorseH: 0.6,
-    crowns: [0x5a6a3a, 0x64703e, 0x545f36], max: 1.2, arcs: SPAWN_CORNER_ARC, trees: false,
+    // The far row: lone wind-bent hawthorns, two spots in three empty, each a
+    // leaning trunk under a squat crown blown east, under 3.5m.
+    crowns: [0x5a6a3a, 0x64703e, 0x545f36], trunk: 0x4a3c30, tree: 'round', max: 1.2, treeSkip: 0.65,
+    treeShape: { trunk: [1.2, 0.4], r: [1.0, 0.4], ry: 0.7, lean: 0.6 },
   },
   pinescrub: {
     step: 2.9, greens: [0x2f4a34, 0x3a5a3c], rMin: 0.6, rMax: 1.0, hMin: 0.6, hMax: 0.95,
     sapling: { r: 0.6, h: 1.5, sides: 5 }, crowns: [0x2a4430, 0x34503a, 0x2f4a36], trunk: 0x4a3a2c,
     tree: 'pine', max: 1.6,
+  },
+  // The Seaside's backing dunes (polish-places): marram tufts (single-triangle
+  // blades fanned from one root, pale sea-green and straw), every third spot
+  // a pair of weathered grey sand-fence posts with a sagging rope between,
+  // and the area's own `props` (beach huts, a lifeguard chair) past the edge.
+  dune: {
+    step: 3.2, greens: [0x8fa47c, 0x9db287, 0xaab68a, 0xc2b680, 0xb7a873], blades: 7, tufts: 3,
+    wMin: 0.1, wMax: 0.18, hMin: 0.45, hMax: 0.95,
+    post: [0x8c877e, 0x9d978c, 0x7d796f], postH: 1.0, rope: 0xb09a78,
+    huts: [[0xf2a7b5, 0xd9707f], [0x9fdcc0, 0x5fae8c], [0x9cc8ec, 0x5c8fc2], [0xf3dc7a, 0xd8a842], [0xc4b0e6, 0x8f78c0]],
+    trim: 0xf6f2ea, chair: 0xf2efe8, chairRed: 0xd8463c,
+    max: 1.1, trees: false,
   },
 });
 // An edge style by name; an unknown one is a typo in an area file, and a
@@ -1456,13 +1544,15 @@ const onArcs = (arcs, u) => !arcs || arcs.some(([a, b]) => u >= a && u <= b);
 /**
  * edgeSpots(edge, salt, avoid) — where horizonBand's `edge` puts its pieces,
  * as [{ x, z, yaw, kind, u }]: 'piece' (or the style's variant, 'gorse' for
- * the wall and 'sapling' for the pine scrub), 'corner', 'gate' (hedges only,
- * one per gap, with the gap's `r`) and 'tree' (the far row). `u` is the spot's
+ * the wall, 'sapling' for the pine scrub and 'post' for the dunes), 'corner',
+ * 'gate' (hedges only, one per gap, with the gap's `r`), the edge's own
+ * `props` ({ x, z, yaw, kind: 'hut' | 'chair' }, `u` null) and 'tree' (the
+ * far row). `u` is the spot's
  * perimeter parameter (see EDGE_STYLES' `arcs`). Pure, so a test can check
  * placement without a mesh. A spot within EDGE_DRY of water in `avoid`, inside
  * a gap disc or off the style's arcs is left out (a gate is the gap's own).
  */
-export function edgeSpots({ half, style, gaps = [] }, salt = 0, avoid = []) {
+export function edgeSpots({ half, style, gaps = [], props = [] }, salt = 0, avoid = []) {
   const S = edgeStyle(style);
   const st = salt + EDGE_SALT;
   const spots = [];
@@ -1485,7 +1575,14 @@ export function edgeSpots({ half, style, gaps = [] }, salt = 0, avoid = []) {
     if (k % perSide === 0) kind = 'corner';
     else if (style === 'wall' && k % 3 === 0) kind = 'gorse';
     else if (style === 'pinescrub' && k % 4 === 0) kind = 'sapling';
+    else if (style === 'dune' && k % 3 === 0) kind = 'post';
     spots.push({ x, z, yaw, kind, u });
+  }
+  // An area's own props (the Seaside's huts and lifeguard chair), where it
+  // put them, with the yaw it gave; dropped like any piece when wet.
+  for (const p of props) {
+    if (!dry(p.x, p.z)) continue;
+    spots.push({ x: p.x, z: p.z, yaw: p.yaw ?? 0, kind: p.kind, u: null });
   }
   if (style === 'hedge') {
     for (const g of gaps) {
@@ -1497,7 +1594,7 @@ export function edgeSpots({ half, style, gaps = [] }, salt = 0, avoid = []) {
   const tMid = half + (TREE_FROM + TREE_TO) / 2;
   const m = 4 * Math.max(1, Math.round((2 * tMid) / TREE_STEP));
   for (let k = 0; k < m; k++) {
-    if (hash01(k, 3, st) < TREE_SKIP) continue;
+    if (hash01(k, 3, st) < (S.treeSkip ?? TREE_SKIP)) continue;
     const u = (k + 0.2 + 0.6 * hash01(k, 4, st)) / m;
     if (Array.isArray(S.trees) && !onArcs(S.trees, u)) continue;
     const [px, pz] = squarePoint(u);
@@ -1670,6 +1767,117 @@ function wallBlock(L, d0, d1, hMid, greyLo, greyHi, cap, h) {
   return facetGeo(tris, (f) => shade(greys[tone[f]], 0.9 + 0.16 * h(12 + (f % 6))), [0, hMid / 2, 0]);
 }
 
+// A square beam of width w from point a to point b (local [x, y, z]), its
+// four sides and a cap at b (the foot end is sunk or out of sight): 10
+// triangles in one colour, wound out from its own middle.
+function beam(a, b, w, col, { capA = false } = {}) {
+  const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]).normalize();
+  const up = Math.abs(d.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+  const u = new THREE.Vector3().crossVectors(d, up).normalize().multiplyScalar(w / 2);
+  const v = new THREE.Vector3().crossVectors(d, u).normalize().multiplyScalar(w / 2);
+  const ring = (p) => [[1, 1], [-1, 1], [-1, -1], [1, -1]]
+    .map(([i, j]) => [p[0] + u.x * i + v.x * j, p[1] + u.y * i + v.y * j, p[2] + u.z * i + v.z * j]);
+  const A = ring(a);
+  const B = ring(b);
+  const tris = [];
+  for (let i = 0; i < 4; i++) {
+    const i1 = (i + 1) % 4;
+    tris.push([A[i], A[i1], B[i1]], [A[i], B[i1], B[i]]);
+  }
+  tris.push([B[0], B[1], B[2]], [B[0], B[2], B[3]]);
+  if (capA) tris.push([A[0], A[1], A[2]], [A[0], A[2], A[3]]);
+  return facetGeo(tris, () => col, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]);
+}
+
+// A closed box (12 triangles) centred on c with sizes s, coloured per face by
+// faceColor(f).
+function slab(c, s, faceColor) {
+  const P = (i, j, k) => [c[0] + i * s[0] / 2, c[1] + j * s[1] / 2, c[2] + k * s[2] / 2];
+  const tris = [];
+  const quad = (a, b2, c2, d) => tris.push([a, b2, c2], [a, c2, d]);
+  for (const e of [-1, 1]) {
+    quad(P(e, -1, -1), P(e, 1, -1), P(e, 1, 1), P(e, -1, 1));
+    quad(P(-1, e, -1), P(1, e, -1), P(1, e, 1), P(-1, e, 1));
+    quad(P(-1, -1, e), P(1, -1, e), P(1, 1, e), P(-1, 1, e));
+  }
+  return facetGeo(tris, faceColor, c);
+}
+
+// A beach hut (the Seaside's dune edge), front door facing local +z: walls
+// in vertical stripes of its pastel and white, a pastel door, white gables
+// and a pitched roof in the deeper pastel, a timber step at the door.
+// 2.2m wide, 1.9m deep, 2.6m to the ridge. ~58 triangles, as two parts.
+function beachHut([pastel, deep], trim, h) {
+  const W = 2.2;
+  const D = 1.9;
+  const Hw = 1.85;
+  const ridge = 2.58;
+  const o = 0.14;
+  const tris = [];
+  const cols = [];
+  const quad = (a, b2, c2, d, col) => {
+    tris.push([a, b2, c2], [a, c2, d]);
+    cols.push(col, col);
+  };
+  const tone = (col, j) => shade(col, 0.94 + 0.1 * h(50 + j));
+  // Stripes across a wall from p0 to p1 (bottom corners), n strips.
+  const stripes = (p0, p1, n, j) => {
+    for (let i = 0; i < n; i++) {
+      const a = i / n;
+      const b2 = (i + 1) / n;
+      const lerp = (t) => [p0[0] + (p1[0] - p0[0]) * t, 0, p0[2] + (p1[2] - p0[2]) * t];
+      const l = lerp(a);
+      const r = lerp(b2);
+      quad(l, r, [r[0], Hw, r[2]], [l[0], Hw, l[2]], tone(i % 2 ? trim : pastel, j));
+    }
+  };
+  stripes([-W / 2, 0, D / 2], [W / 2, 0, D / 2], 5, 0);
+  stripes([W / 2, 0, D / 2], [W / 2, 0, -D / 2], 4, 1);
+  stripes([W / 2, 0, -D / 2], [-W / 2, 0, -D / 2], 4, 2);
+  stripes([-W / 2, 0, -D / 2], [-W / 2, 0, D / 2], 4, 3);
+  // The door, just proud of the front stripes.
+  const dz = D / 2 + 0.015;
+  quad([-0.34, 0.05, dz], [0.34, 0.05, dz], [0.34, 1.5, dz], [-0.34, 1.5, dz], tone(deep, 4));
+  for (const e of [-1, 1]) {
+    tris.push([[-W / 2, Hw, e * D / 2], [W / 2, Hw, e * D / 2], [0, ridge, e * D / 2]]);
+    cols.push(tone(trim, 5));
+  }
+  for (const s of [-1, 1]) {
+    quad([s * (W / 2 + o), Hw - 0.1, -(D / 2 + o)], [s * (W / 2 + o), Hw - 0.1, D / 2 + o],
+      [0, ridge + 0.04, D / 2 + o], [0, ridge + 0.04, -(D / 2 + o)], tone(deep, 6 + (s > 0 ? 1 : 0)));
+  }
+  const hut = facetGeo(tris, (f) => cols[f], [0, Hw * 0.55, 0]);
+  const wood = shade(0x9a7a55, 0.92 + 0.12 * h(58));
+  const step = slab([0, 0.06, D / 2 + 0.24], [1.0, 0.16, 0.44], () => wood);
+  return [hut, step];
+}
+
+// A lifeguard chair (the Seaside's dune edge), facing local +z: four white
+// splayed legs with two ladder rungs at the front, a white platform, a red
+// seat back and a red sun canopy on two posts. 2.5m tall. ~112 triangles.
+function lifeguardChair(white, red, h) {
+  const w = (j) => shade(white, 0.94 + 0.08 * h(60 + j));
+  const r = (j) => shade(red, 0.92 + 0.1 * h(66 + j));
+  const parts = [];
+  const legAt = (sx, sz, y) => {
+    const t = (y + 0.2) / 1.75;
+    return [sx * (0.78 - 0.26 * t), y, sz * (0.68 - 0.22 * t)];
+  };
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) parts.push(beam(legAt(sx, sz, -0.2), legAt(sx, sz, 1.55), 0.1, w(sx + sz + 2)));
+  }
+  for (const y of [0.5, 1.02]) parts.push(beam(legAt(-1, 1, y), legAt(1, 1, y), 0.07, w(5), { capA: true }));
+  parts.push(slab([0, 1.6, 0], [1.2, 0.09, 1.08], () => w(0)));
+  parts.push(slab([0, 1.98, -0.46], [1.04, 0.68, 0.07], () => r(0)));
+  for (const sx of [-1, 1]) parts.push(beam([sx * 0.5, 1.6, -0.52], [sx * 0.5, 2.42, -0.52], 0.06, w(1)));
+  // The canopy tips down toward the front a little, its top red, its
+  // underside and rim white.
+  const can = slab([0, 2.46, -0.2], [1.3, 0.06, 1.15], (f) => (f === 8 || f === 9 ? r(1) : w(2)));
+  can.rotateX(0.1);
+  parts.push(can);
+  return parts;
+}
+
 // A box standing on the ground never shows its underside: leave its bottom
 // face out (BoxGeometry's groups run +x, -x, +y, -y, +z, -z).
 function dropBottom(g) {
@@ -1711,6 +1919,7 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
     out.push(g);
   };
   const pick = (list, hv) => list[Math.min(list.length - 1, Math.floor(hv * list.length))];
+  let hutCount = 0;
 
   spots.forEach((sp, k) => {
     const { x, z, yaw, kind } = sp;
@@ -1739,6 +1948,26 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
       // A round tree: a trunk and one crown, top under 5m. The hedge's oaks
       // stand taller on their trunks; the Woods' trees are bushier and low.
       const oak = S.tree === 'oak';
+      const TS = S.treeShape;
+      if (TS) {
+        // A style's own round tree (the River's marsh trees, the Moor's
+        // hawthorns): its crown pushed `lean` downwind (+x in the world, so
+        // the whole row bends one way) and the trunk's top leaning after it.
+        const trunkH = TS.trunk[0] + TS.trunk[1] * h(1);
+        const r = TS.r[0] + TS.r[1] * h(3);
+        const ry = TS.ry * r;
+        const lx = TS.lean * Math.cos(yaw);
+        const lz = TS.lean * Math.sin(yaw);
+        const tg = trunk(0.2, trunkH + 0.3 * ry, shade(S.trunk, 0.9 + 0.2 * h(2)));
+        const tp = tg.attributes.position;
+        for (let v = 0; v < tp.count; v++) {
+          const f = Math.max(0, tp.getY(v)) / (trunkH + 0.3 * ry);
+          tp.setXYZ(v, tp.getX(v) + 0.6 * lx * f, tp.getY(v), tp.getZ(v) + 0.6 * lz * f);
+        }
+        place(tg, x, z, yaw, r);
+        place(crown(r, ry, trunkH + 0.85 * ry, faces(1), hh).translate(lx, 0, lz), x, z, yaw, r);
+        return;
+      }
       const trunkH = oak ? 1.8 + 0.6 * h(1) : 1.0 + 0.4 * h(1);
       const r = oak ? Math.min(1.6 + 0.5 * h(3), (5 - trunkH) / 1.5) : 1.6 + 0.8 * h(3);
       const ry = Math.min(0.85 * r, (5 - trunkH) / 1.85);
@@ -1792,6 +2021,87 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
         paintGeo(brace, () => wood(9));
         put(brace);
       }
+      return;
+    }
+
+    if (kind === 'hut' || kind === 'chair') {
+      // The area's own props, each all-or-nothing (one geometry, so the
+      // per-vertex water check keeps or drops the whole of it). Huts take
+      // the style's pastel pairs in turn, so a row never repeats a colour.
+      const parts = kind === 'hut'
+        ? beachHut(S.huts[(hutCount++) % S.huts.length], S.trim, h)
+        : lifeguardChair(S.chair, S.chairRed, h);
+      const g = mergeGeometries(parts, false);
+      for (const p of parts) p.dispose();
+      place(g, x, z, yaw, kind === 'hut' ? 1.2 : 0.9);
+      return;
+    }
+
+    if (edge.style === 'dune') {
+      // Marram: S.tufts tufts a piece (one more at a corner, one fewer at a
+      // post), each S.blades single-triangle blades fanned out from one root
+      // and arching away from it, every blade wound to face in toward the
+      // area like the reeds'. A 'post' spot also gets two weathered grey
+      // sand-fence posts with a rope sagging between them.
+      const nT = kind === 'corner' ? S.tufts + 1 : kind === 'post' ? S.tufts - 1 : S.tufts;
+      const tris = [];
+      const tones = [];
+      for (let q = 0; q < nT; q++) {
+        const hq = (j) => h(30 + 40 * q + j);
+        const tc = nT === 1 ? (hq(0) - 0.5) * 1.2 : ((q + 0.5) / nT - 0.5) * S.step + (hq(0) - 0.5) * 0.6;
+        const [cx, cz] = at(tc, (hq(1) - 0.5) * 1.0);
+        const tall = 0.8 + 0.4 * hq(2);
+        const tone = pick(S.greens, hq(3));
+        for (let i = 0; i < S.blades; i++) {
+          const hb = (j) => hq(4 + 5 * i + j);
+          // Around the root, mostly across the line (a blade turned edge-on
+          // to the camera vanishes), leaning out from the root.
+          const ang = ((i + 0.5) / S.blades - 0.5) * Math.PI * 1.1 + (hb(0) - 0.5) * 0.3;
+          const dx = tx * Math.sin(ang) - ox * Math.cos(ang) * 0.35;
+          const dz = tz * Math.sin(ang) - oz * Math.cos(ang) * 0.35;
+          const w = S.wMin + (S.wMax - S.wMin) * hb(1);
+          const ht = Math.min(S.max, (S.hMin + (S.hMax - S.hMin) * hb(2)) * tall);
+          const lean = 0.15 + 0.35 * hb(3);
+          const bx = cx - x + dx * 0.08;
+          const bz = cz - z + dz * 0.08;
+          tris.push([
+            [bx - tx * w / 2, 0, bz - tz * w / 2],
+            [bx + tx * w / 2, 0, bz + tz * w / 2],
+            [bx + dx * lean, ht, bz + dz * lean],
+          ]);
+          tones.push(i % 3 === 2 ? pick(S.greens, hb(4)) : tone);
+        }
+      }
+      const g = facetGeo(tris, (f) => shade(tones[f], 0.86 + 0.26 * hash01(f, k, st + 21)), [ox * 1e3, 0.4, oz * 1e3]);
+      if (kind !== 'post') {
+        place(g, x, z, 0, 1.8);
+        return;
+      }
+      // The posts, 1.8m apart along the line just inside the tufts, each
+      // leaning its own way, and the rope between their tops.
+      const parts = [g];
+      const tops = [];
+      for (const side of [-1, 1]) {
+        const hp = (j) => h(70 + 6 * (side + 1) + j);
+        const [px2, pz2] = at(side * 0.9, -0.35);
+        const ph = S.postH * (0.82 + 0.18 * hp(0));
+        const top = [px2 - x + (hp(1) - 0.5) * 0.12, ph, pz2 - z + (hp(2) - 0.5) * 0.12];
+        tops.push(top);
+        parts.push(beam([px2 - x, -0.2, pz2 - z], top, 0.11, shade(pick(S.post, hp(3)), 0.9 + 0.15 * hp(4))));
+      }
+      const sag = 0.2 + 0.1 * h(80);
+      const mid = [(tops[0][0] + tops[1][0]) / 2, (tops[0][1] + tops[1][1]) / 2 - sag, (tops[0][2] + tops[1][2]) / 2];
+      // Two flat 5cm ribbon segments a little under the post tops.
+      const rope = [];
+      const dn = (p, d) => [p[0], p[1] - d, p[2]];
+      for (const [a, c] of [[tops[0], mid], [mid, tops[1]]]) {
+        rope.push([dn(a, 0.06), dn(c, 0.06), dn(c, 0.11)], [dn(a, 0.06), dn(c, 0.11), dn(a, 0.11)]);
+      }
+      const ropeCol = shade(S.rope, 0.95 + 0.1 * h(81));
+      parts.push(facetGeo(rope, () => ropeCol, [ox * 1e3, 0.4, oz * 1e3]));
+      const all = mergeGeometries(parts, false);
+      for (const p of parts) p.dispose();
+      place(all, x, z, 0, 1.8);
       return;
     }
 
@@ -1969,14 +2279,24 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
  *             by smoothstep to its usual colour (side tint or `color`) by
  *             flat + ramp/2: the lawn carries on instead of stopping at a pale
  *             strip. Vertex colours then, material white. Omitted: none.
- *   edge      { half, style, gaps, avoid } — low dressing straddling the
+ *   shoreLip  { width, color } — where the far side of `shore` lifts the hills
+ *             over a water that runs on past the bounds, the band first climbs
+ *             out of the water to a flat lip LIP_H over its zero (a beach, in
+ *             `color`), holds it for `width` metres, and only then ramps up
+ *             into the hills (the ramp moved out by `width`). Without it the
+ *             hills rose straight out of the water as a dark face. Vertex
+ *             colours then, material white. Omitted: the band is
+ *             byte-for-byte what it was.
+ *   edge      { half, style, gaps, avoid, props } — low dressing straddling the
  *             ground plane's edge (`half` its half-size) and a sparse tree row
  *             well outside it, in one of EDGE_STYLES (see edgeSpots), as ONE
  *             separate mesh 'horizonEdge', a noCast child of the band (see
  *             edgeMesh). `gaps` [{ x, z, r }] are left open (a hedge gets a
  *             gate in each); `avoid` (default: the band's) is the water the
- *             pieces keep off. The band itself is byte-for-byte what it is
- *             without an edge. Omitted: no child.
+ *             pieces keep off. `props` [{ x, z, yaw, kind }] are the
+ *             area's own set pieces drawn into the same mesh (the dune
+ *             edge's 'hut' and 'chair'). The band itself is byte-for-byte
+ *             what it is without an edge. Omitted: no child.
  */
 export function horizonBand({
   kind = 'hills',
@@ -2000,6 +2320,7 @@ export function horizonBand({
   keepLow = [],
   nearColor = null,
   edge = null,
+  shoreLip = null,
 } = {}) {
   const span = outer - inner;
   // The vertical profile, as a pure function of how far out a point is. See
@@ -2047,15 +2368,31 @@ export function horizonBand({
     for (const k of keepLow) m = Math.min(m, segmentDist(x, z, k) - k.r);
     return smoothstep(0, KEEP_LOW_RAMP, m);
   };
+  // With a `shoreLip` the far rise starts `width` further out, and `lipAt`
+  // (0-1) is how much of the lip stands at a point: past CLOSE_FROM, as much
+  // as the point is water rather than dry shore, never over a keepLow zone.
+  const lipW = shoreLip ? shoreLip.width : 0;
   const shore = (x, z, d) => {
     if (avoid.length === 0) return 1;
     const c = waterClearance(avoid, x, z);
     const dry = smoothstep(0, SHORE_RAMP, c);
-    const far = closeWater ? smoothstep(CLOSE_FROM * span, CLOSE_TO * span, d) : 0;
+    const far = closeWater
+      ? (shoreLip ? smoothstep(CLOSE_FROM * span + lipW, CLOSE_TO * span + lipW, d)
+        : smoothstep(CLOSE_FROM * span, CLOSE_TO * span, d))
+      : 0;
     const f = Math.max(c < 0 ? 0 : dry, far);
     return keepLow.length ? Math.min(f, lowZone(x, z)) : f;
   };
-  const heightAt = (x, z, d) => -BAND_SINK + ringHeight * relief(x, z) * lift(d) * shore(x, z, d);
+  const lipAt = (x, z, d) => {
+    if (!shoreLip || !closeWater || avoid.length === 0) return 0;
+    const c = waterClearance(avoid, x, z);
+    const k = (1 - (c < 0 ? 0 : smoothstep(0, SHORE_RAMP, c)))
+      * smoothstep(CLOSE_FROM * span - LIP_RISE, CLOSE_FROM * span, d);
+    return keepLow.length ? k * lowZone(x, z) : k;
+  };
+  const heightAt = shoreLip
+    ? (x, z, d) => -BAND_SINK + Math.max(ringHeight * relief(x, z) * lift(d) * shore(x, z, d), LIP_H * lipAt(x, z, d))
+    : (x, z, d) => -BAND_SINK + ringHeight * relief(x, z) * lift(d) * shore(x, z, d);
   const wet = (x, z) => avoid.length > 0 && waterClearance(avoid, x, z) < 0;
 
   // ---- the ring surface ----------------------------------------------------
@@ -2140,16 +2477,34 @@ export function horizonBand({
     // Salted apart from the skyline kind's own blocks, so a band that has both
     // does not stack two blocks on the same spot.
     const rsalt = salt + ROOFTOP_SALT;
+    const houses = rooftops.style === 'houses';
     rooftopSpots(rooftops, inner, outer, rsalt).forEach(({ x, z, yaw }, k) => {
       if (wet(x, z)) return;
       // No height given: the band's own, the same default the skyline kind's
       // blocks are scaled from. Without it every block would be NaN tall.
-      const bh = (rooftops.height ?? height) * (0.40 + 0.75 * hash01(k, 4, rsalt + 5));
-      const base = heightAt(x, z, Math.max(Math.abs(x), Math.abs(z)) - inner) - 0.5;
-      addRoofBlock(parts, tones, bases, {
-        k, x, z, yaw, base, bh, salt: rsalt, pitched: true,
-        tint: sideTints ? sideTintColor(x, z, sideTints) : new THREE.Color(color),
-      });
+      // (Houses: the retired blocks' height, `legacyHeight`, see below.)
+      const bh = ((houses ? rooftops.legacyHeight : undefined) ?? rooftops.height ?? height)
+        * (0.40 + 0.75 * hash01(k, 4, rsalt + 5));
+      const surface = heightAt(x, z, Math.max(Math.abs(x), Math.abs(z)) - inner);
+      const base = surface - 0.5;
+      const tint = sideTints ? sideTintColor(x, z, sideTints) : new THREE.Color(color);
+      if (!houses) {
+        addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt: rsalt, pitched: true, tint });
+        return;
+      }
+      // The Woods' Math.random draw count is pinned (test/waterlooks.test.js,
+      // woods 11344) and the flat trace seeds Math.random before each build:
+      // every THREE geometry the old block made outside withLocalUuids drew 4
+      // numbers for its uuid. So the old block is still built, at the old
+      // height (`legacyHeight`, which sets how many window quads it has), into
+      // throwaway arrays and disposed at once; nothing of it is drawn. The
+      // cottage itself is made under its own uuid stream.
+      const junk = [];
+      addRoofBlock(junk, [], [], { k, x, z, yaw, base, bh, salt: rsalt, pitched: true, tint });
+      for (const g of junk) g.dispose();
+      withLocalUuids(`band-houses-${rsalt}-${k}`, () => addHouse(parts, tones, bases, {
+        k, x, z, yaw, surface, height: rooftops.height ?? height, salt: rsalt, tint,
+      }));
     });
   }
 
@@ -2159,11 +2514,13 @@ export function horizonBand({
   // own colour moves into the vertex colours. (Rooftops: a roof block's tint already IS the band colour, so on a
   // band-coloured material it would be applied twice. Every shipped band with
   // rooftops has sideTints and was white already, so none changes.)
-  const white = !!sideTints || nearColor != null || !!rooftops;
+  const white = !!sideTints || nearColor != null || !!rooftops || !!shoreLip;
   const plain = white && !sideTints ? new THREE.Color(color) : null;
   const near = nearColor != null ? new THREE.Color(nearColor) : null;
   const nearMix = new THREE.Color();
-  const coloured = kind === 'skyline' || !!sideTints || !!rooftops || nearColor != null;
+  const lipCol = shoreLip ? new THREE.Color(shoreLip.color) : null;
+  const lipMix = new THREE.Color();
+  const coloured = kind === 'skyline' || !!sideTints || !!rooftops || nearColor != null || !!shoreLip;
   if (coloured) {
     parts.forEach((p, i) => {
       if (p.attributes.color) return;
@@ -2177,6 +2534,15 @@ export function horizonBand({
         if (i === 0 && near) {
           const d = Math.max(Math.abs(pp.getX(v)), Math.abs(pp.getZ(v))) - inner;
           t = nearMix.copy(near).lerp(t, smoothstep(flat, flat + 0.5 * ramp, d));
+        }
+        if (i === 0 && lipCol) {
+          // The lip in its own colour, fading into the hills' as they rise
+          // above it.
+          const x = pp.getX(v);
+          const z = pp.getZ(v);
+          const d = Math.max(Math.abs(x), Math.abs(z)) - inner;
+          const k = lipAt(x, z, d) * (1 - smoothstep(LIP_H - BAND_SINK, LIP_H - BAND_SINK + LIP_FADE, pp.getY(v)));
+          if (k > 0) t = lipMix.copy(t).lerp(lipCol, k);
         }
         c[v * 3] = r * (t ? t.r : 1);
         c[v * 3 + 1] = g2 * (t ? t.g : 1);
@@ -3273,12 +3639,21 @@ export function fallenLog(x, z, length, yaw) {
 // at most 1.0 m before the lean (the budget is 1.1 m). A bed is wide and low,
 // so it opts out of the caster sweep like the stones do.
 const REED_BLADES = 5;
+// A reed blade's 4 cm square top is never seen and its bottom is buried: leave
+// both faces out of the index (BoxGeometry's groups run +x, -x, +y, -y, +z,
+// -z), in place, so no new geometry object is made (each draws on Math.random).
+function dropEnds(g) {
+  const idx = Array.from(g.index.array).filter((_, i) => i < g.groups[2].start || i >= g.groups[4].start);
+  g.setIndex(idx);
+  g.clearGroups();
+  return g;
+}
 export function reedBed(spots, seed) {
   const geoms = [];
   spots.forEach((sp, i) => {
     for (let k = 0; k < REED_BLADES; k++) {
       const h = 0.6 + 0.4 * hash01(sp.x + k, sp.z + i, seed + 1);
-      const blade = new THREE.BoxGeometry(0.04, h, 0.04);
+      const blade = dropEnds(new THREE.BoxGeometry(0.04, h, 0.04));
       blade.translate(0, h / 2, 0);
       blade.rotateX((hash01(sp.x, sp.z + k, seed + 2) - 0.5) * 0.3);
       blade.rotateZ((hash01(sp.x + k, sp.z, seed + 3) - 0.5) * 0.3);
@@ -3360,6 +3735,26 @@ const HEATHER_STEM = 0x46532f;
 const HEATHER_SPIKE_ROOT = 0x8e4f8e;
 const HEATHER_SPIKE_TIP = 0xe39ad6;
 const HEATHER_SPIKES_PER_CUSHION = 6;
+// A cushion sits on the ground, so the faces that point down into it are never
+// seen: keep only faces whose normal is not clearly downward. Swaps the
+// attributes on the same geometry (BufferAttribute has no uuid).
+function dropDownFaces(g) {
+  const keep = [];
+  const ny = g.attributes.normal;
+  for (let f = 0; f < ny.count; f += 3) {
+    if ((ny.getY(f) + ny.getY(f + 1) + ny.getY(f + 2)) / 3 >= -0.3) keep.push(f);
+  }
+  for (const name of ['position', 'normal', 'uv']) {
+    const a = g.attributes[name];
+    if (!a) continue;
+    const out = new Float32Array(keep.length * 3 * a.itemSize);
+    let o = 0;
+    for (const f of keep) for (let v = 0; v < 3; v++) for (let c = 0; c < a.itemSize; c++) out[o++] = a.array[(f + v) * a.itemSize + c];
+    g.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
+  }
+  g.boundingBox = null;
+  g.boundingSphere = null;
+}
 export function heatherBed(spots, seed) {
   const geoms = [];
   const cushions = [];
@@ -3372,6 +3767,7 @@ export function heatherBed(spots, seed) {
       // sat on the ground: its lowest point at y 0
       const top = cushion.boundingBox.max.y - cushion.boundingBox.min.y;
       cushion.translate(0, -cushion.boundingBox.min.y, 0);
+      dropDownFaces(cushion);
       const a = hash01(k, i, seed + 2) * Math.PI * 2;
       const d = k === 0 ? 0 : 0.3 + 0.2 * hash01(i, k, seed + 3);
       const cx = sp.x + Math.cos(a) * d;

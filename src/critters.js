@@ -322,10 +322,20 @@ function buildCritter(type, def = {}) {
     // real Math.random draws are exactly the peg's. The look comes from the
     // spawn's position, never a roll. Faces -z, like the other critters.
     const look = twolegLook(def);
+    // The figure Group holds body, head and arm so a spawn can ask the Twoleg
+    // to stand off its spawn point (def.standOff, metres, group frame). The
+    // group itself never moves: critter positions are recorded in the flat
+    // trace. Ranges (wave, dismay, scratch, quest) measure from the figure's
+    // world spot instead, via villagerPos().
+    const figure = withLocalUuids('twoleg-figure', () => new THREE.Group());
+    figure.position.x = def.standOff?.x ?? 0;
+    figure.position.z = def.standOff?.z ?? 0;
+    g.add(figure);
+    g.userData.figure = figure;
     const body = new THREE.Mesh(mergeGeometries(withLocalUuids('twoleg-body', () => twolegBody(look)), false), twolegMat());
-    g.add(body);
+    figure.add(body);
     const head = new THREE.Mesh(mergeGeometries(withLocalUuids('twoleg-head', () => twolegHead(look)), false), twolegMat());
-    g.add(head);
+    figure.add(head);
     // The arm hangs DOWN from its shoulder pivot. Baked 0.2 rad inward, so
     // update()'s rest pose (rotation.z 0.4) holds it a little out from the
     // coat and its wave (2.6 +/- 0.3) swings the hand up and out.
@@ -334,13 +344,22 @@ function buildCritter(type, def = {}) {
     const arm = new THREE.Mesh(armGeo, twolegMat());
     arm.position.set(0.27, 1.3, 0);
     arm.rotation.z = 0.4;
-    g.add(arm);
+    figure.add(arm);
     g.userData.arm = arm;
   }
   return g;
 }
 
 let nextId = 1;
+
+// Where a villager visibly stands: its figure (offset by the spawn's standOff)
+// when it has one, else the group. `out` is filled and returned. Interaction
+// ranges for villagers measure from here, never from group.position.
+export function villagerPos(c, out) {
+  return c.figure ? c.figure.getWorldPosition(out) : out.copy(c.group.position);
+}
+
+const _vp = new THREE.Vector3();
 
 export function createCritters(scene, spawns, opts = {}) {
   const fleeScale = opts.fleeScale ?? 1;
@@ -388,6 +407,7 @@ export function createCritters(scene, spawns, opts = {}) {
       type: def.type,
       def,
       group,
+      figure: group.userData.figure, // villagers only
       spottable: true,
       fleeing: false,
       phase: Math.random() * Math.PI * 2,
@@ -439,6 +459,7 @@ export function createCritters(scene, spawns, opts = {}) {
 
   function remove(c) {
     scene.remove(c.group);
+    if (c.figure) c.figure.visible = false; // contactshadows drops the decal
     list.splice(list.indexOf(c), 1);
   }
 
@@ -508,7 +529,7 @@ export function createCritters(scene, spawns, opts = {}) {
     },
     dismayNear(pos, range) {
       for (const c of list) {
-        if (!c.hidden && c.type === 'villager' && c.group.position.distanceTo(pos) < range) c.meowWaveT = 1.5;
+        if (!c.hidden && c.type === 'villager' && villagerPos(c, _vp).distanceTo(pos) < range) c.meowWaveT = 1.5;
       }
     },
     // reactToMeow(pos, { far }) — someone meowed at `pos`. The villager wave
@@ -538,7 +559,7 @@ export function createCritters(scene, spawns, opts = {}) {
       for (const c of list) {
         if (c.hidden) continue; // in cover for the walk: it hears nothing
         const d = c.group.position.distanceTo(pos);
-        if (c.type === 'villager' && d < 6) c.meowWaveT = 1.5;
+        if (c.type === 'villager' && villagerPos(c, _vp).distanceTo(pos) < 6) c.meowWaveT = 1.5;
         if ((c.type === 'bird' || c.type === 'seagull') && !c.fleeing && d < 5) {
           c.fleeing = true;
           c.cooldown = 18;
@@ -764,15 +785,16 @@ export function createCritters(scene, spawns, opts = {}) {
         } else if (c.type === 'villager') {
           const arm = c.group.userData.arm;
           if (c.meowWaveT > 0) c.meowWaveT -= dt;
-          if (dPlayer < 5 || c.meowWaveT > 0) {
+          const dWave = villagerPos(c, _vp).distanceTo(playerPos);
+          if (dWave < 5 || c.meowWaveT > 0) {
             arm.rotation.z = 2.6 + Math.sin(t * 6) * 0.3; // wave
-            if (!c.waved && dPlayer < 5) {
+            if (!c.waved && dWave < 5) {
               c.waved = true;
               bus.emit('villager:wave', { id: c.id });
             }
           } else {
             arm.rotation.z = 0.4;
-            if (dPlayer > 8) c.waved = false;
+            if (dWave > 8) c.waved = false;
           }
         }
       }

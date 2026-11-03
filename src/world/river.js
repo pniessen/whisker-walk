@@ -119,6 +119,10 @@ export const RIVER_HORIZON = Object.freeze({
   sideTints: Object.freeze({ north: 0x3f5a46, east: 0x4f7a48, south: 0x8a9a62, west: 0xa3a878 }),
   nearColor: 0x7d9c55,
   edge: Object.freeze({ half: 60, style: 'reeds', avoid: RIVER_WATERS }),
+  // Where the lake and the rivers run out under the hills, a pale muddy
+  // shore first, then the hills (builder.horizonBand's `shoreLip`). The reeds
+  // run all the way round, with low marsh trees out on the hills.
+  shoreLip: Object.freeze({ width: 6, color: 0xa8a47a }),
 });
 
 // How each water is drawn. One peaty green-blue for the lake, river and pond

@@ -10,11 +10,21 @@
 // the first one whose lines to both cats (paws, body and head, everywhere the
 // fight can put them) clear every solid, that keeps both cats in the frame
 // above the fight sheet, and that is inside the map and out of every
-// collider. Spots where the intruder stands in front of our cat, or nearer
-// the camera than it, are tried later (ourCatHidden, itNearer): the kid's own
-// cat is the one in front. (A lifted top, an action's leap or rear-up, must be in frame but
+// collider. Spots where the intruder stands nearer the camera than our cat
+// or hides much of it, or where our cat hides most of the intruder, are
+// tried only after every other spot (itNearer, ourCatHidden, intruderHidden):
+// the kid's own cat is the one in front, and the intruder's move is seen. (A lifted top, an action's leap or rear-up, must be in frame but
 // only ranks the views by whether it is seen: see chooseFightView.) The choice is made a handful of times per fight, never per frame,
 // and only against the trees near the pair: no raycast into the scene at all.
+//
+// Polish fightcam2: the nearest rings are now 2.5, 3.0 and 3.4 m, so on a wide
+// screen the cats fill more of it; spots side-on to the pair come first
+// (both cats in profile), ahead of keeping the current angle; and a tree in
+// front of the pair that fills the frame without crossing a line to a cat (a
+// trunk beside the camera) makes a spot cost more by the share of the frame
+// it covers (frameClutter). One that still covers CLUTTER_HIDE of the chosen
+// view is hidden for the fight with the blockers (`clutter`, a list of its own).
+// Clutter never buys a spot with the intruder in front (the order above).
 //
 // The solids grow by a margin and by as far as the wind can lean each tree.
 // If no spot is clear (on the shipped maps only where a cat stands beside a
@@ -86,27 +96,39 @@ export function frameBottomFor(sheetTop) {
 }
 // Camera spots round the pair's middle: distance and height, best first.
 // Low rings look in under the canopies; high ones over the undergrowth. The
-// first two are tight, close shots; where they do not frame the pair (a
-// phone held upright, side-on) the chooser falls through to the wider ones.
-// `rank` prices a ring (RING_COST each): the wider rings keep their old
-// order and spacing, just behind the tight pair, and the first wide ring
-// straight on (rank 0.4) beats a tight one turned a yaw step (rank 0 + 1
-// step), so a screen the tight rings do not fit keeps today's angle rather
-// than swinging round for a closer shot.
+// first five are tight, close shots (2.5, 3.0 and 3.4 m since polish
+// fightcam2: at 4.2 m a landscape screen showed the cats small); where they
+// do not frame the pair (a phone held upright, side-on) the chooser falls
+// through to the wider ones. `rank` prices a ring (RING_COST each): the five
+// tight rings sit close together (0, 0.1, 0.2, 0.3, 0.45), and the wide rings
+// keep their old order and spacing just behind them (rank 0.6 on).
 export const RINGS = Object.freeze([
-  { d: 4.2, h: 1.5, rank: 0 }, { d: 4.6, h: 1.1, rank: 0.25 },
+  { d: 2.5, h: 1.0, rank: 0 }, { d: 3.0, h: 1.15, rank: 0.1 }, { d: 3.4, h: 1.3, rank: 0.2 },
+  { d: 4.2, h: 1.5, rank: 0.3 }, { d: 4.6, h: 1.1, rank: 0.45 },
   ...[
     { d: 5.5, h: 2.2 }, { d: 5.0, h: 1.3 }, { d: 6.5, h: 2.8 }, { d: 4.6, h: 1.0 },
     { d: 7.5, h: 3.4 }, { d: 6.0, h: 1.1 }, { d: 4.2, h: 0.8 }, { d: 8.5, h: 1.4 },
-  ].map((r, i) => ({ ...r, rank: i + 0.4 })),
+  ].map((r, i) => ({ ...r, rank: i + 0.6 })),
 ].map((r) => Object.freeze(r)));
-// The last resort's ring: the first wide ring (rank 0.4, d 5.5 h 2.2), the
-// one that came first before the tight pair joined the list.
-const LAST_RESORT_RING = RINGS.findIndex((r) => r.rank === 0.4);
+// The last resort's ring: the first wide ring (d 5.5 h 2.2), the one that
+// came first before the tight rings joined the list.
+const LAST_RESORT_RING = RINGS.findIndex((r) => r.d === 5.5 && r.h === 2.2);
 const YAW_STEPS = 24;               // every 15 degrees round
 const RING_COST = 2;                // one ring further down the list costs two yaw steps
 const AXIS_COST = 4;                // looking down the line between the cats, where one hides the other
 const AXIS_ANGLE = (25 * Math.PI) / 180;
+// Side-on is the fight's best angle (polish fightcam2): both cats in profile,
+// neither behind the other. A spot costs SIDE_COST x |cos| of its angle to the
+// line between the cats: 0 side-on, SIDE_COST looking straight down it. It
+// outweighs keeping the current angle (one cost per yaw step).
+export const SIDE_COST = 8;
+// A tree in front of the pair that fills the frame (a trunk beside the
+// camera, off every line to the cats) costs CLUTTER_COST x the share of the
+// open frame it covers (frameClutter), so the chooser steers round it...
+export const CLUTTER_COST = 20;
+// ...and one that still covers at least this share of the chosen view is
+// hidden for the fight, like a blocker (`clutter`), when it can be.
+export const CLUTTER_HIDE = 0.12;
 const HIDE_COST = 10;               // ...times the share of our cat the intruder hides (ourCatHidden)
 const NEAR_COST = 5;                // the intruder nearer the camera than our cat (itNearer)
 const COLLIDER_GAP = 0.3;           // m the camera keeps off a collider
@@ -352,6 +374,58 @@ function inFrame(view, pts, aspect, fovY, bottom = FIGHT_FRAME.bottom) {
   return true;
 }
 
+// The share (0..1) of the open frame (the screen above `bottom`) a tree
+// covers in `view` (from `pos`), counting only its shapes nearer the camera
+// than `nearDepth` (in front of the pair: the trees behind it are only
+// backdrop). Each shape counts as its screen rectangle: a trunk (cylinder)
+// its radius wide and its height tall about its mid-height, a canopy
+// (ellipsoid) r wide and ry tall about its centre, at its centre's depth
+// (never under 0.3 m, so one at the lens is big, not infinite), clipped to
+// the open frame. Overlaps count twice; a sum over 1 is 1. Bare solids: the
+// pads are for lines of sight, not for what the screen shows.
+const CLUTTER_MIN_DEPTH = 0.3;
+const clutterCentre = { x: 0, y: 0, z: 0 };
+// (`pos` is view.pos; it is kept in the signature for the interface.)
+export function frameClutter(pos, view, occluder, aspect, fovY, bottom, nearDepth) {
+  const tanV = Math.tan((fovY * Math.PI) / 360);
+  let sum = 0;
+  for (const s of occluder.shapes) {
+    const cyl = s.t === 'cyl';
+    clutterCentre.x = s.x; clutterCentre.z = s.z;
+    clutterCentre.y = cyl ? (s.y0 + s.y1) / 2 : s.y;
+    const q = projectPoint(view, clutterCentre, aspect, fovY);
+    if (q.z >= nearDepth || q.z <= -s.r) continue; // behind the pair, or wholly behind the lens
+    const z = Math.max(CLUTTER_MIN_DEPTH, q.z);
+    // the centre's screen spot at the clamped depth (projectPoint divides by the true one)
+    const cx = (q.x * q.z) / z, cy = (q.y * q.z) / z;
+    const hw = s.r / (z * tanV * aspect);
+    const hh = (cyl ? (s.y1 - s.y0) / 2 : s.ry) / (z * tanV);
+    const w = Math.min(1, cx + hw) - Math.max(-1, cx - hw);
+    const h = Math.min(1, cy + hh) - Math.max(bottom, cy - hh);
+    if (w > 0 && h > 0) sum += w * h;
+  }
+  return Math.min(1, sum / (2 * (1 - bottom)));
+}
+
+// The depth (in `view`) nearer than which a tree stands in front of the pair:
+// the nearer cat's anchor, less a body's reach.
+function nearDepthFor(view, subject, lookY, aspect, fovY) {
+  let d = Infinity;
+  for (const a of [subject.me[0], subject.it[0]]) {
+    d = Math.min(d, projectPoint(view, { x: a.x, y: lookY, z: a.z }, aspect, fovY).z);
+  }
+  return d - CAT_BODY;
+}
+
+// The trees (of `near`) in front of the pair in `pos`'s ground plan: nearer
+// pos than the pair's middle is. The rest stand behind it.
+function frontOf(pos, mid, near) {
+  const D = Math.hypot(pos.x - mid.x, pos.z - mid.z);
+  const out = [];
+  for (const o of near) if (Math.hypot(o.x - pos.x, o.z - pos.z) < D) out.push(o);
+  return out;
+}
+
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 // Gorge part 1 (R8, R11): a camera spot is in rock when it is under the
@@ -433,6 +507,19 @@ export function ourCatHidden(pos, subject, g0 = 0) {
   return hiddenShare(pos, ownHalf(subject, 'me'), ownHalf(subject, 'it'), g0);
 }
 
+// The mirror: how much of the intruder our cat hides from `pos` (the kid
+// has to read the intruder's move), with our cat's body as the post.
+export function intruderHidden(pos, subject, g0 = 0) {
+  return hiddenShare(pos, ownHalf(subject, 'it'), ownHalf(subject, 'me'), g0);
+}
+
+// A spot goes behind every other (candidates) when the intruder stands
+// nearer the camera than our cat, or hides at least this share of it, or
+// our cat hides at least BEHIND_IT of the intruder. Less is a soft cost
+// (HIDE_COST x the share).
+export const BEHIND_OURS = 0.25;
+export const BEHIND_IT = 0.5;
+
 // ourCatHidden with each cat's own-half spots already picked (candidates
 // picks them once for every spot it prices).
 function hiddenShare(pos, me, it, g0) {
@@ -469,10 +556,16 @@ export function itNearer(pos, subject) {
 
 // The camera spots to try, cheapest first: yaw0 itself, then 15-degree steps
 // either way, on each ring; ring0 (the ring already in use) costs nothing.
-// A spot where the intruder hides our cat, or stands nearer the camera than
-// our cat, costs more (HIDE_COST, NEAR_COST): the kid's own cat is in front.
+// A spot where the intruder stands nearer the camera than our cat, hides
+// BEHIND_OURS of it, or where our cat hides BEHIND_IT of the intruder, comes
+// after every spot where none of that holds; each cat's hidden share costs
+// HIDE_COST x it and an intruder nearer NEAR_COST: the kid's own cat is in
+// front, and the intruder's move stays readable.
+// A spot off side-on costs SIDE_COST x |cos| of its angle to the cats' line,
+// and one with trees in front of the pair filling its frame CLUTTER_COST x
+// their share (frameClutter, at today's aim over `bottom`).
 // These only reorder the spots; every check in chooseFightView still applies.
-function candidates(subject, yaw0, ring0, g0 = 0) {
+function candidates(subject, yaw0, ring0, g0, near, aspect, fovY, bottom, lookY) {
   const list = [];
   const ax = Math.atan2(subject.axis.x, subject.axis.z);
   const { mid } = subject;
@@ -486,22 +579,48 @@ function candidates(subject, yaw0, ring0, g0 = 0) {
       const off = Math.abs(wrap(yaw - ax));
       const along = off < AXIS_ANGLE || Math.PI - off < AXIS_ANGLE;
       pos.x = mid.x + Math.sin(yaw) * ring.d; pos.y = ring.h + g0; pos.z = mid.z + Math.cos(yaw) * ring.d;
-      const ours = HIDE_COST * hiddenShare(pos, me, it, g0) + (itNearer(pos, subject) ? NEAR_COST : 0);
-      list.push({ yaw, ri, cost: Math.abs(step) + rc + (along ? AXIS_COST : 0) + ours });
+      const hid = hiddenShare(pos, me, it, g0);
+      const nearer = itNearer(pos, subject);
+      // our cat hides the intruder only from a spot nearer our cat's anchor
+      // than the intruder's (half the spots: this is the costly part)
+      const a = subject.me[0], b = subject.it[0];
+      const itHid = (a.x - pos.x) ** 2 + (a.z - pos.z) ** 2 < (b.x - pos.x) ** 2 + (b.z - pos.z) ** 2
+        ? hiddenShare(pos, it, me, g0) : 0;
+      const ours = HIDE_COST * (hid + itHid) + (nearer ? NEAR_COST : 0);
+      let clutter = 0;
+      const front = frontOf(pos, mid, near);
+      if (front.length) {
+        const view = viewFrom(pos, mid, fovY, lookY);
+        const nd = nearDepthFor(view, subject, lookY, aspect, fovY);
+        for (const o of front) clutter += frameClutter(pos, view, o, aspect, fovY, bottom, nd);
+      }
+      list.push({ yaw, ri, behind: nearer || hid >= BEHIND_OURS || itHid >= BEHIND_IT ? 1 : 0, cost: Math.abs(step) + rc + (along ? AXIS_COST : 0) + SIDE_COST * Math.abs(Math.cos(yaw - ax)) + ours + CLUTTER_COST * clutter });
     }
   });
-  // a stable sort: equal costs keep their order, so the choice is deterministic
-  return list.map((c, i) => ({ ...c, i })).sort((p, q) => p.cost - q.cost || p.i - q.i);
+  // Our cat in front comes first, whatever the rest costs: a spot where the
+  // intruder stands nearer the camera, or hides a good part of our cat
+  // (BEHIND_OURS), or our cat hides most of the intruder (BEHIND_IT, a view
+  // down the line from behind our cat), is tried only after every spot where
+  // none of that holds (final review: a woods fight on a phone held upright
+  // turned to a 3/4 view with the intruder in front, two yaw steps from the
+  // current angle, over the side-on view eleven steps round; then, with any
+  // sliver of our cat hidden counted, to a view from right behind our cat
+  // with the intruder hidden behind it). Then
+  // the cheapest; a stable sort: equal costs keep their order, so the choice
+  // is deterministic.
+  return list.map((c, i) => ({ ...c, i })).sort((p, q) => p.behind - q.behind || p.cost - q.cost || p.i - q.i);
 }
 
-// The fight view: { pos, look, yaw, ring, clear, blockers, brushed }. Every
+// The fight view: { pos, look, yaw, ring, clear, blockers, brushed, clutter }. Every
 // point that is not a lifted top (subjectPoints(…, false)) is hard: a view
 // must clear them all, or (no spot can) hide the fewest trees for them.
 // Lifted tops are soft: among the views that clear every hard point, the one
 // with the fewest tops behind a tree that cannot be hidden (`brushed`), then
 // the fewest trees to hide for the rest, then the cheapest, wins. clear is
 // true only when nothing is hidden and nothing brushed; blockers lists the
-// trees (each with its Group) to hide.
+// trees (each with its Group) to hide. clutter (always an array) lists the
+// other hideable trees in front of the pair that still cover CLUTTER_HIDE of
+// the chosen view's open frame: hidden for the fight like the blockers.
 // `ground` (src/ground.js): every height rides g0, the ground under the
 // pair's middle, and a spot in rock or over a ceiling is never taken (R11).
 // `frameBottom` (frameBottomFor, Task 5b): the frame's bottom over the real
@@ -516,10 +635,25 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
   const seePts = subjectPoints(subject, true, false, g0);
   const liftPts = liftedPoints(subject, g0);
   const bottom = frameBottom ?? FIGHT_FRAME.bottom;
+  // every view leaves with its clutter
+  const done = (v) => {
+    const clutter = [];
+    const front = frontOf(v.pos, mid, near);
+    if (front.length) {
+      const nd = nearDepthFor(v, subject, lookY, aspect, fovY);
+      for (const o of front) {
+        if (!o.obj || v.blockers.includes(o)) continue;
+        if (frameClutter(v.pos, v, o, aspect, fovY, bottom, nd) >= CLUTTER_HIDE) clutter.push(o);
+      }
+    }
+    v.clutter = clutter;
+    return v;
+  };
   let best = null;     // the best view that clears every hard point
   let fallback = null; // the spot with the fewest blockers, every one of them hideable
   let least = null;    // the spot with the fewest blockers of any kind, while there is no fallback
-  for (const c of candidates(subject, yaw0, ring0, g0)) {
+  const order = candidates(subject, yaw0, ring0, g0, near, aspect, fovY, bottom, lookY);
+  for (const c of order) {
     const ring = RINGS[c.ri];
     const pos = { x: mid.x + Math.sin(c.yaw) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(c.yaw) * ring.d };
     if (bounds && (pos.x < bounds.minX + BOUNDS_GAP || pos.x > bounds.maxX - BOUNDS_GAP ||
@@ -540,8 +674,9 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
         // A view that clears every hard point beats any that does not.
         if (best) { whole = false; break scan; }
         // Stop once this spot can beat neither the fallback nor the least
-        // blocked spot (which counts only while there is no fallback).
-        const noFallback = !hideable || (fallback && blockers.size >= fallback.blockers.length);
+        // blocked spot (which counts only while there is no fallback). A
+        // spot with the intruder in front never beats a fallback without.
+        const noFallback = !hideable || (fallback && (c.behind > fallback.behind || blockers.size >= fallback.blockers.length));
         const noLeast = !!fallback || (least && blockers.size >= least.count);
         if (noFallback && noLeast) { whole = false; break scan; }
       }
@@ -561,30 +696,37 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
       if (worse) continue;
       if (!best || brushed < best.brushed || (brushed === best.brushed && hide.size < best.blockers.length)) {
         best = { ...view, yaw: c.yaw, ring: c.ri, clear: brushed === 0 && hide.size === 0, blockers: [...hide], brushed };
-        if (best.clear) return best;
+        if (best.clear) return done(best);
       }
       continue;
     }
     if (best) continue;
-    if (hideable && (!fallback || blockers.size < fallback.blockers.length)) {
-      fallback = { ...view, yaw: c.yaw, ring: c.ri, clear: false, blockers: [...blockers] };
+    // The fallback: our cat in front first (a spot with the intruder in
+    // front never replaces one without), then the fewest blockers; ties keep
+    // the earlier, cheaper spot.
+    if (hideable && (!fallback || (c.behind === fallback.behind ? blockers.size < fallback.blockers.length : c.behind < fallback.behind))) {
+      fallback = { ...view, yaw: c.yaw, ring: c.ri, clear: false, blockers: [...blockers], behind: c.behind };
     }
     // ties keep the earlier spot, which is the one nearer the current view
     if (!fallback && whole && (!least || blockers.size < least.count)) {
       least = { view, yaw: c.yaw, ring: c.ri, count: blockers.size, blockers: [...blockers] };
     }
   }
-  if (best) return best;
+  if (best) return done(best);
   // The lifted tops a last-resort view leaves behind a tree it does not hide.
   const brushedFor = (pos, hidden) => liftPts.filter((p) => near.some((o) => !hidden.includes(o) && segmentBlocked(pos, p, o))).length;
-  if (fallback) return { ...fallback, brushed: brushedFor(fallback.pos, fallback.blockers) };
+  if (fallback) {
+    const v = { ...fallback, brushed: brushedFor(fallback.pos, fallback.blockers) };
+    delete v.behind;
+    return done(v);
+  }
   // No spot is clear even with trees hidden (the blockers include stand
   // pines, which cannot be hidden one by one): the spot with the fewest
   // blockers, hiding those that can be.
   if (least) {
     const blockers = least.blockers.filter((o) => o.obj);
-    return { ...least.view, yaw: least.yaw, ring: least.ring, clear: false,
-      blockers, unhidden: least.blockers.filter((o) => !o.obj).length, brushed: brushedFor(least.view.pos, blockers) };
+    return done({ ...least.view, yaw: least.yaw, ring: least.ring, clear: false,
+      blockers, unhidden: least.blockers.filter((o) => !o.obj).length, brushed: brushedFor(least.view.pos, blockers) });
   }
   // No spot frames the pair at all (a cat pinned in a corner of the map): the
   // first wide ring straight back, as the follow camera would be (the tight
@@ -595,7 +737,7 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
   let ring = RINGS[ri];
   let yaw = yaw0;
   if (!ground.flat && inRock({ x: mid.x + Math.sin(yaw0) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(yaw0) * ring.d }, mid, lookY, ground)) {
-    for (const c of candidates(subject, yaw0, ring0, g0)) {
+    for (const c of order) {
       const r = RINGS[c.ri];
       const q = { x: mid.x + Math.sin(c.yaw) * r.d, y: r.h + g0, z: mid.z + Math.cos(c.yaw) * r.d };
       if (bounds && (q.x < bounds.minX + BOUNDS_GAP || q.x > bounds.maxX - BOUNDS_GAP ||
@@ -607,7 +749,7 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
     }
   }
   const pos = { x: mid.x + Math.sin(yaw) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(yaw) * ring.d };
-  return { ...viewFrom(pos, mid, fovY, lookY), yaw, ring: ri, clear: false, blockers: [], brushed: brushedFor(pos, []) };
+  return done({ ...viewFrom(pos, mid, fovY, lookY), yaw, ring: ri, clear: false, blockers: [], brushed: brushedFor(pos, []) });
 }
 
 // --- the blend ---------------------------------------------------------------
@@ -682,7 +824,7 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
       aspect: camera.aspect, fovY: camera.fov, ground, frameBottom,
     });
     show();
-    for (const o of next.blockers) { o.obj.visible = false; hidden.push(o); }
+    for (const o of [...next.blockers, ...next.clutter]) { o.obj.visible = false; hidden.push(o); }
     return next;
   }
 
@@ -716,10 +858,13 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
         lastSheetTop = null;
         maxSheetTop = null;
         from = null;
-        show();
         if (cameraMode || reducedMotion) w = 0;
         else w = Math.max(0, w - dt / EASE_OUT);
-        if (w === 0) { view = null; cur = null; return false; }
+        // The hidden trees come back only once the camera is home: while it
+        // eases out it still stands by the fight view, where a clutter trunk
+        // would pop back in beside the lens (treefade.js covers only the
+        // trees on the line to my cat). Reduced motion and photo mode are home at once.
+        if (w === 0) { show(); view = null; cur = null; return false; }
       } else if (subject !== lastSubject || camera.aspect !== lastAspect || sheetMoved(sheetTop)) {
         // what is on screen right now, before this frame's move
         const base = from ?? follow;

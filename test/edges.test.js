@@ -68,8 +68,10 @@ const edgesIn = (scene) => {
   scene.traverse((o) => { if (o.name === 'horizonEdge') out.push(o); });
   return out;
 };
-// The two areas whose ceilings leave room only for the arc behind the spawn.
-const ARC_ONLY = ['river', 'moor'];
+// The two areas whose ceilings once left room only for the arc behind the
+// spawn (EDGE_STYLES `arcs`). polish-places Task 5 spent the room Task 1 freed
+// (trimmed reed beds and heather) on the whole ring and a sparser tree row.
+const ONCE_ARC_ONLY = ['river', 'moor'];
 
 describe('edgeSpots', () => {
   for (const name of Object.keys(AREAS)) {
@@ -84,7 +86,7 @@ describe('edgeSpots', () => {
       const a = b.edgeSpots(opts.edge, opts.salt, avoid);
       const c = b.edgeSpots(opts.edge, opts.salt, avoid);
       expect(a).toEqual(c);
-      expect(a.length).toBeGreaterThan(ARC_ONLY.includes(name) ? 30 : 100);
+      expect(a.length).toBeGreaterThan(100);
       const bd = rec.bounds;
       for (const s of a) {
         // the side it sits on is the axis it is furthest along
@@ -97,31 +99,33 @@ describe('edgeSpots', () => {
     });
   }
 
-  it('EDGE_STYLES is frozen and has the five styles', () => {
+  it('EDGE_STYLES is frozen and has the six styles', () => {
+    // polish-places Task 4 added 'dune' (the Seaside's; test/seaside.test.js).
     expect(Object.isFrozen(b.EDGE_STYLES)).toBe(true);
-    expect(Object.keys(b.EDGE_STYLES).sort()).toEqual(['hedge', 'pinescrub', 'reeds', 'scrub', 'wall']);
+    expect(Object.keys(b.EDGE_STYLES).sort()).toEqual(['dune', 'hedge', 'pinescrub', 'reeds', 'scrub', 'wall']);
   });
 
-  it('the River and the Moor: the near ring only on the arc behind the spawn, no tree row', () => {
-    for (const name of ARC_ONLY) {
+  // Until polish-places Task 5 this pinned the River's and the Moor's ring to
+  // the spawn-corner arc with no tree row; they now run all the way round like
+  // the rest, their tree rows sparser (style `treeSkip`), and the stretch
+  // behind the spawn is still dressed.
+  it('every edge runs all the way round with a tree row; the River and the Moor still dress the spawn corner', () => {
+    for (const name of ONCE_ARC_ONLY) {
       const { opts, rec } = built[name];
-      const arcs = b.EDGE_STYLES[opts.edge.style].arcs;
-      expect(arcs, name).toBeTruthy();
       const spots = b.edgeSpots(opts.edge, opts.salt, opts.edge.avoid ?? opts.avoid ?? []);
-      expect(spots.filter((s) => s.kind === 'tree')).toHaveLength(0);
-      for (const s of spots) expect(arcs.some(([u0, u1]) => s.u >= u0 && s.u <= u1), `${name} u ${s.u}`).toBe(true);
-      // ... and that arc is the one behind the spawn: the stretch of edge
-      // nearest the spawn on each of its two near sides is dressed.
       const { x: sx, z: sz } = rec.spawn;
       expect(spots.some((s) => s.x > 55 && Math.abs(s.z - sz) < 4), `${name} +x side abreast of the spawn`).toBe(true);
       expect(spots.some((s) => s.z > 55 && Math.abs(s.x - sx) < 4), `${name} +z side abreast of the spawn`).toBe(true);
+      expect(b.EDGE_STYLES[opts.edge.style].treeSkip, name).toBeGreaterThan(0.4);
+      expect(spots.filter((s) => s.kind === 'tree').length, name).toBeGreaterThan(8);
     }
-    // The others run all the way round, with trees.
-    for (const name of Object.keys(AREAS).filter((n) => !ARC_ONLY.includes(n))) {
+    for (const name of Object.keys(AREAS)) {
       const { opts } = built[name];
       expect(b.EDGE_STYLES[opts.edge.style].arcs, name).toBeUndefined();
       const spots = b.edgeSpots(opts.edge, opts.salt, opts.edge.avoid ?? opts.avoid ?? []);
-      expect(spots.filter((s) => s.kind === 'tree').length, name).toBeGreaterThan(20);
+      const sides = new Set(spots.filter((s) => s.kind !== 'tree' && s.u !== null).map((s) => Math.floor(s.u * 4) % 4));
+      expect(sides.size, name).toBe(4);
+      if (!ONCE_ARC_ONLY.includes(name)) expect(spots.filter((s) => s.kind === 'tree').length, name).toBeGreaterThan(20);
     }
   });
 

@@ -25,6 +25,7 @@ vi.stubGlobal('document', {
 const b = await import('../src/world/builder.js');
 const { createWind } = await import('../src/render/wind.js');
 const { surfaceProps } = await import('../src/render/materials.js');
+const { GORGE_HORIZON } = await import('../src/world/gorge.js');
 
 // The peak lean a registered object reaches, measured by sweeping absolute
 // time rather than by reading wind.js's internals: the module deliberately
@@ -486,6 +487,47 @@ describe('horizonBand side tints and rooftops', () => {
     }))).toBe('923b0516f4882a6a');
   });
 
+  // polish-places Task 5 added `shoreLip`. The Pines' and Gorge's hashes were
+  // taken from the code before it existed; the Woods' (ad43278f378768ec) was
+  // taken after Task 2 (houses) and before Task 5, so it pins only what
+  // Task 5 must leave alone. The Woods', Pines' and Gorge's bands (water, keepLow, side
+  // tints, near colour, an edge, the Gorge's rooftops) do not use it and must
+  // be byte-identical.
+  it('bands without shoreLip are unchanged', async () => {
+    const { WOODS_HORIZON } = await import('../src/world/woods.js');
+    const { PINES_HORIZON } = await import('../src/world/pines.js');
+    for (const o of [WOODS_HORIZON, PINES_HORIZON, GORGE_HORIZON]) expect(o.shoreLip).toBeUndefined();
+    expect(fingerprint(b.horizonBand(WOODS_HORIZON))).toBe('ad43278f378768ec');
+    expect(fingerprint(b.horizonBand(PINES_HORIZON))).toBe('eb0eea2daee4dc8d');
+    expect(fingerprint(b.horizonBand(GORGE_HORIZON))).toBe('c9031015d29d5c21');
+  });
+
+  it('shoreLip leaves a band with no water alone in shape, and lifts a far water to a lip', () => {
+    const base = { kind: 'hills', inner: 56, outer: 116, height: 8, color: 0x8ac27e, salt: 5 };
+    const pos = (m) => Array.from(m.geometry.attributes.position.array);
+    expect(pos(b.horizonBand({ ...base, shoreLip: { width: 8, color: 0xffffff } }))).toEqual(pos(b.horizonBand(base)));
+    // a water running out past the bounds to the west
+    const avoid = [{ id: 'w', kind: 'rect', minX: -130, maxX: -20, minZ: -10, maxZ: 10 }];
+    const plain = b.horizonBand({ ...base, avoid });
+    const lipped = b.horizonBand({ ...base, avoid, shoreLip: { width: 8, color: 0xd0c090 } });
+    const heightAt = (m, x) => {
+      const p = m.geometry.attributes.position;
+      let best = null;
+      for (let v = 0; v < p.count; v++) {
+        if (Math.abs(p.getZ(v)) > 0.5) continue;
+        if (!best || Math.abs(p.getX(v) - x) < Math.abs(best[0] - x)) best = [p.getX(v), p.getY(v)];
+      }
+      return best[1];
+    };
+    // 0.4 of the 60 m span out is 24 m past the inner edge, x = -80: there the
+    // plain band starts to climb; the lipped one holds a lip past it.
+    const lipY = heightAt(lipped, -86);
+    expect(lipY).toBeGreaterThan(0.1);
+    expect(lipY).toBeLessThan(0.45);
+    expect(heightAt(plain, -86)).toBeGreaterThan(lipY);
+    expect(lipped.material.vertexColors).toBe(true);
+  });
+
   const tints = { north: 0x336633, east: 0x884422, south: 0x224488, west: 0x888822 };
 
   it('sideTint gives each side its colour', () => {
@@ -545,6 +587,78 @@ describe('horizonBand side tints and rooftops', () => {
     expect(c.getX(0)).toBeCloseTo(band.r, 5);
     expect(c.getY(0)).toBeCloseTo(band.g, 5);
     expect(c.getZ(0)).toBeCloseTo(band.b, 5);
+  });
+
+  // polish-places Task 2. The Gorge's band (the one other band with
+  // rooftops, 693 triangles under its ceiling) must not move by a byte: the
+  // hash was taken from the code before rooftops grew a `style`.
+  it('rooftops without a style are byte-identical', () => {
+    const gorge = b.horizonBand(GORGE_HORIZON);
+    expect(fingerprint(gorge)).toBe('c9031015d29d5c21');
+    expect(gorge.geometry.index.count / 3).toBe(3942);
+    const explicit = b.horizonBand({ ...GORGE_HORIZON, rooftops: { ...GORGE_HORIZON.rooftops, style: undefined } });
+    expect(fingerprint(explicit)).toBe('c9031015d29d5c21');
+  });
+
+  it("houses: small, sunk, windowed", () => {
+    const opts = { kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34, color: 0x5d8a55, salt: 31, sideTints: tints };
+    const rooftops = { from: 0.1, to: 0.25, count: 14, height: 3.6, style: 'houses' };
+    const m = b.horizonBand({ ...opts, rooftops });
+    const ring = b.horizonBand(opts);
+    const RING = ring.geometry.attributes.position.count;
+    const spots = b.rooftopSpots(rooftops, 56, 116, 31 + b.ROOFTOP_SALT);
+    expect(spots).toHaveLength(14);
+    // The band surface under a spot, read off the bare ring by a ray.
+    const ray = new THREE.Raycaster();
+    const surface = ({ x, z }) => {
+      ray.set(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
+      const hit = ray.intersectObject(ring, false)[0];
+      expect(hit, `surface at (${x}, ${z})`).toBeTruthy();
+      return hit.point.y;
+    };
+    const geo = m.geometry;
+    const pos = geo.attributes.position;
+    const col = geo.attributes.color;
+    const top = spots.map(() => -Infinity);
+    const ext = spots.map(() => ({ minA: Infinity, maxA: -Infinity, minB: Infinity, maxB: -Infinity }));
+    const owner = new Int32Array(pos.count).fill(-1);
+    for (let v = RING; v < pos.count; v++) {
+      const x = pos.getX(v), z = pos.getZ(v);
+      let best = 0, bd = Infinity;
+      spots.forEach((s, k) => { const d = Math.hypot(x - s.x, z - s.z); if (d < bd) { bd = d; best = k; } });
+      owner[v] = best;
+      const s = spots[best];
+      top[best] = Math.max(top[best], pos.getY(v));
+      // the house's own frame: a along its facade (local x), b toward the area
+      const dx = x - s.x, dz = z - s.z;
+      const a = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw);
+      const bb = dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw);
+      const e = ext[best];
+      e.minA = Math.min(e.minA, a); e.maxA = Math.max(e.maxA, a);
+      e.minB = Math.min(e.minB, bb); e.maxB = Math.max(e.maxB, bb);
+    }
+    spots.forEach((s, k) => {
+      expect(top[k], `house ${k} drawn`).toBeGreaterThan(-Infinity);
+      expect(top[k], `house ${k} ridge`).toBeLessThanOrEqual(surface(s) + 6.5);
+      expect(ext[k].maxA - ext[k].minA, `house ${k} width`).toBeLessThanOrEqual(9);
+      expect(ext[k].maxB - ext[k].minB, `house ${k} depth`).toBeLessThanOrEqual(7);
+    });
+    // Windows and doors: dark quads on the faces turned toward the area.
+    const idx = geo.index;
+    const p0 = new THREE.Vector3(), p1 = new THREE.Vector3(), p2 = new THREE.Vector3(), n = new THREE.Vector3();
+    let darkTris = 0;
+    const housesWithWindows = new Set();
+    for (let t = 0; t < idx.count / 3; t++) {
+      const i0 = idx.getX(t * 3), i1 = idx.getX(t * 3 + 1), i2 = idx.getX(t * 3 + 2);
+      if (i0 < RING) continue;
+      p0.fromBufferAttribute(pos, i0); p1.fromBufferAttribute(pos, i1); p2.fromBufferAttribute(pos, i2);
+      n.subVectors(p1, p0).cross(p2.clone().sub(p0)).normalize();
+      const inward = new THREE.Vector3(-p0.x, 0, -p0.z).normalize();
+      const lum = 0.3 * col.getX(i0) + 0.59 * col.getY(i0) + 0.11 * col.getZ(i0);
+      if (n.dot(inward) > 0.7 && lum < 0.2) { darkTris++; housesWithWindows.add(owner[i0]); }
+    }
+    expect(darkTris / 2).toBeGreaterThanOrEqual(14);
+    expect(housesWithWindows.size).toBe(14);
   });
 
   it('horizonBand with rooftops and side tints is still one mesh, with colours', () => {
@@ -778,6 +892,34 @@ describe('the Woods builders', () => {
     expect(m.castShadow).toBe(false);
     expect(m.userData.noCast).toBe(true);
   });
+  it('reedBed blades have no top or bottom faces', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 1, z: 0.5 }, { x: -2, z: 3 }];
+    const m = b.reedBed(spots, 3);
+    const g = m.geometry;
+    const pos = g.attributes.position;
+    const idx = g.index ? Array.from(g.index.array) : Array.from({ length: pos.count }, (_, i) => i);
+    expect(idx.length / 3).toBe(spots.length * 5 * 8);
+    const a = new THREE.Vector3(); const bb = new THREE.Vector3(); const c = new THREE.Vector3();
+    for (let t = 0; t < idx.length; t += 3) {
+      a.fromBufferAttribute(pos, idx[t]); bb.fromBufferAttribute(pos, idx[t + 1]); c.fromBufferAttribute(pos, idx[t + 2]);
+      const n = bb.clone().sub(a).cross(c.clone().sub(a)).normalize();
+      expect(Math.abs(n.y)).toBeLessThan(0.9);
+    }
+  });
+
+  it('heatherBed cushions keep no face that points down into the ground', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 4, z: 1 }];
+    const base = b.heatherBed(spots, 5).getObjectByName('heatherBase');
+    const pos = base.geometry.attributes.position;
+    expect(pos.count / 3).toBeLessThan(spots.length * 2 * 20);
+    const a = new THREE.Vector3(); const bb = new THREE.Vector3(); const c = new THREE.Vector3();
+    for (let t = 0; t < pos.count; t += 3) {
+      a.fromBufferAttribute(pos, t); bb.fromBufferAttribute(pos, t + 1); c.fromBufferAttribute(pos, t + 2);
+      const n = bb.clone().sub(a).cross(c.clone().sub(a)).normalize();
+      expect(n.y).toBeGreaterThanOrEqual(-0.3);
+    }
+  });
+
   it('willow is three meshes and its curtain never hangs below 1.2', () => {
     const g = b.willow(3, 4);
     expect(g.children.filter((o) => o.isMesh)).toHaveLength(3);
@@ -1670,5 +1812,70 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     const pos = (x) => Array.from(x.children[0].geometry.attributes.position.array);
     expect(pos(b.scree(spots, 4))).toEqual(pos(g));
     expect(() => b.scree([], 4)).not.toThrow();
+  });
+});
+
+// polish-places Task 4: the Seaside's backing dunes get an edge of their own.
+describe('the dune edge', () => {
+  it('the dune edge: marram tufts and fence posts, dry, under 1.6 near the edge', async () => {
+    const { SEA_VIEW } = await import('../src/world/seaside.js');
+    const spots = b.edgeSpots({ half: 70, style: 'dune' }, 59, [SEA_VIEW]);
+    expect(spots.length).toBeGreaterThan(60);
+    for (const s of spots) expect(b.waterClearance([SEA_VIEW], s.x, s.z)).toBeGreaterThanOrEqual(1.5);
+    const kinds = new Set(spots.map((s) => s.kind));
+    expect(kinds.has('piece')).toBe(true);
+    expect(kinds.has('post')).toBe(true);
+    expect(kinds.has('tree')).toBe(false);
+    // Deterministic: the same spots twice.
+    expect(b.edgeSpots({ half: 70, style: 'dune' }, 59, [SEA_VIEW])).toEqual(spots);
+
+    // Built without props, every piece is low: tufts and posts only.
+    const band = b.horizonBand({
+      kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26, salt: 59,
+      avoid: [SEA_VIEW], closeWater: false, edge: { half: 70, style: 'dune' },
+    });
+    const edge = band.children.find((c) => c.name === 'horizonEdge');
+    expect(edge.userData.noCast).toBe(true);
+    const pos = edge.geometry.attributes.position;
+    expect(pos.count).toBeGreaterThan(0);
+    for (let v = 0; v < pos.count; v++) {
+      expect(pos.getY(v)).toBeLessThanOrEqual(1.6);
+      expect(b.waterClearance([SEA_VIEW], pos.getX(v), pos.getZ(v))).toBeGreaterThanOrEqual(1.0);
+    }
+  });
+
+  it('props: huts and a chair stand where the edge puts them, taller than the ring, and wet ones are dropped', async () => {
+    const { SEA_VIEW } = await import('../src/world/seaside.js');
+    const props = [
+      { x: 10, z: 74, yaw: Math.PI, kind: 'hut' },
+      { x: 20, z: 73, yaw: Math.PI, kind: 'chair' },
+      { x: 40, z: 74, yaw: Math.PI, kind: 'hut' }, // in the sea
+    ];
+    const spots = b.edgeSpots({ half: 70, style: 'dune', props }, 59, [SEA_VIEW]);
+    expect(spots.filter((s) => s.kind === 'hut')).toHaveLength(1);
+    expect(spots.filter((s) => s.kind === 'chair')).toHaveLength(1);
+    const band = b.horizonBand({
+      kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26, salt: 59,
+      avoid: [SEA_VIEW], closeWater: false, edge: { half: 70, style: 'dune', props },
+    });
+    const pos = band.children[0].geometry.attributes.position;
+    const topNear = (px, pz, r) => {
+      let top = -Infinity;
+      for (let v = 0; v < pos.count; v++) {
+        if (Math.hypot(pos.getX(v) - px, pos.getZ(v) - pz) < r) top = Math.max(top, pos.getY(v));
+      }
+      return top;
+    };
+    expect(topNear(10, 74, 1.8)).toBeGreaterThan(2.3);
+    expect(topNear(10, 74, 1.8)).toBeLessThan(2.8);
+    expect(topNear(20, 73, 1.2)).toBeGreaterThan(2.2);
+    expect(topNear(20, 73, 1.2)).toBeLessThan(2.7);
+  });
+
+  it('no other style grows posts, props or a different ring', () => {
+    for (const style of ['hedge', 'scrub', 'reeds', 'wall', 'pinescrub']) {
+      const spots = b.edgeSpots({ half: 60, style }, 7, []);
+      expect(spots.some((s) => s.kind === 'post' || s.kind === 'hut' || s.kind === 'chair'), style).toBe(false);
+    }
   });
 });

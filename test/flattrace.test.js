@@ -197,7 +197,7 @@ function traceArea(areaId, world) {
   decals.follow(cat);
   for (const st of strays.strays) decals.follow(st.group);
   for (const c of clan?.list ?? []) decals.follow(c.group);
-  for (const c of critters.list) decals.follow(c.group);
+  for (const c of critters.list) decals.follow(c.figure ?? c.group);
   if (intruders?.anchor) decals.follow(intruders.anchor, INTRUDER_DECAL_RADIUS);
   for (const g of ghosts.list) decals.follow(g.group);
 

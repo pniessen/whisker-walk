@@ -832,6 +832,21 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.session.prompt.kind).toBe('carry');
       });
 
+      it('a villager standing off its spawn is scratched from beside its figure, not its spawn', () => {
+        const h = carryHarness();
+        const group = new THREE.Group();
+        group.position.set(5, 0, 10); // inside the oak's collider
+        const figure = new THREE.Group();
+        figure.position.set(1.5, 0, -1.4);
+        group.add(figure);
+        group.updateMatrixWorld(true);
+        h.session.critters.list = [{ type: 'villager', scratched: false, group, figure }];
+        h.walkTo(6.5 + 0.7, 8.6 - 0.7); // 1 m from the figure on its open side, ~3 m from the group
+        expect(h.session.prompt?.kind).toBe('scratch');
+        h.walkTo(5, 10.5); // 0.5 m from the spawn but 2.4 m from the figure: out of range
+        expect(h.session.prompt?.kind).not.toBe('scratch');
+      });
+
       it('carry still wins over scratching a mark into a post beside it', () => {
         const POST = propsFor('neighborhood').markables.find((m) => m.id === 'neighborhood-post-1');
         const at = { x: POST.x + 0.6, z: POST.z };
