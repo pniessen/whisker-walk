@@ -111,7 +111,23 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
-//   gorge             54       36      43051   (43 / 26 merged; part 4's camp
+//   gorge             60       36      59247   (polish-gorgeway, from
+//                                               59 / 36 / 54,581: the
+//                                               narrowsDressing, +1 noCast mesh,
+//                                               1,066 tris (30 shelf and 33
+//                                               crest tufts, 16 crest shrubs and
+//                                               the 560-tri view out to the
+//                                               Moor); the corridors' tunnels,
+//                                               merged into each caveRoom:<id>
+//                                               (no new mesh), 2,935 tris (echo
+//                                               942, snug 931, glitter 1,062);
+//                                               lumpier chamber moss, +665.
+//                                               ONLY 753 TRIANGLES LEFT under
+//                                               the 60,000 ceiling: the next
+//                                               Gorge build must trim or raise
+//                                               it, with a written reason.
+//                                               Earlier: 54 / 36 / 43051,
+//                                               43 / 26 merged; part 4's camp
 //                                               adds two meshes: the leader's
 //                                               rock (a caster, 36 tris) and the
 //                                               den's bedding (noCast, six discs

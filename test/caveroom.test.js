@@ -24,7 +24,8 @@ vi.stubGlobal('document', {
 });
 
 const gorge = await import('../src/world/gorge.js');
-const { GORGE_CAVES, CHAMBER_HEADROOM } = await import('../src/world/gorgeshape.js');
+const gorgeshapeMod = await import('../src/world/gorgeshape.js');
+const { GORGE_CAVES, CHAMBER_HEADROOM } = gorgeshapeMod;
 const caveroom = await import('../src/world/caveroom.js');
 const { COVE_FROM, LINER_IN, CORNER_R, STALACTITE_MIN_Y } = caveroom;
 const { segDist } = await import('../src/segdist.js');
@@ -176,7 +177,61 @@ describe('caveroom: the deep caves\' chambers', () => {
 
   it('keeps each room under 5,000 triangles', () => {
     for (const cave of GORGE_CAVES) expect(trisOf(roomOf(cave.id).geometry), cave.id).toBeLessThanOrEqual(5000);
+    // polish-gorgeway Task 3: the lumpy moss grows each room by at most 300
+    // against what it was before it (echo 2300, snug 2296, glitter 1916)
+    const before = { echo: 2300, snug: 2296, glitter: 1916 };
+    for (const cave of GORGE_CAVES) expect(trisOf(roomOf(cave.id).geometry), cave.id).toBeLessThanOrEqual(before[cave.id] + 300);
   }, T);
+
+  // --- lumpy moss (polish-gorgeway Task 3) ----------------------------------------
+
+  it('moss is lumpy: each floor mound rises 0.05-0.15 m and its outline is uneven', () => {
+    for (const cave of GORGE_CAVES) {
+      const room = roomOf(cave.id);
+      expect(room.mossBlobs.length, cave.id).toBeGreaterThan(0);
+      for (const b of room.mossBlobs) {
+        const where = `${cave.id} (${b.x.toFixed(2)}, ${b.z.toFixed(2)})`;
+        expect(b.top - cave.y, where).toBeGreaterThanOrEqual(0.05);
+        expect(b.top - cave.y, where).toBeLessThanOrEqual(0.15);
+        // the outer ring, as appended: low on the floor, within 1.25 rad, uneven
+        expect(b.rim.length, where).toBe(9);
+        const radii = b.rim.map((p) => Math.hypot(p.x - b.x, p.z - b.z));
+        for (const p of b.rim) expect(p.y, where).toBeLessThan(cave.y + 0.02);
+        for (const d of radii) expect(d, where).toBeLessThanOrEqual(1.25 * b.rad);
+        expect(Math.max(...radii) / Math.min(...radii), where).toBeGreaterThanOrEqual(1.15);
+      }
+    }
+  }, T);
+
+  it('wall moss stands off the liner', () => {
+    let n = 0;
+    for (const cave of GORGE_CAVES) {
+      const room = roomOf(cave.id);
+      for (const w of room.wallMoss) {
+        n++;
+        const front = (w.top.x - w.x) * w.nx + (w.top.z - w.z) * w.nz;
+        const liner = room.linerDepth(w.x, w.top.y, w.z, w.nx, w.nz);
+        expect(front - liner, `${cave.id} (${w.x.toFixed(2)}, ${w.y.toFixed(2)}, ${w.z.toFixed(2)})`).toBeGreaterThanOrEqual(0.04);
+      }
+    }
+    expect(n).toBeGreaterThan(0);
+  }, T);
+
+  it('exports the mound builder: 45 triangles of moss facing along the normal', () => {
+    const m = caveroom.mesher();
+    const top = caveroom.mossLump(m, { x: 1, y: 2, z: 3, nx: 1, ny: 0, nz: 0, rad: 0.2, color: new THREE.Color(0x4f6b3a), salt: 5 });
+    expect(m.parts.moss).toBe(45);
+    expect(m.idx.length).toBe(135);
+    expect(top.x - 1).toBeGreaterThanOrEqual(0.03);
+    expect(top.y).toBeCloseTo(2, 6);
+    expect(top.z).toBeCloseTo(3, 6);
+    const v = (i) => new THREE.Vector3(m.pos[i * 3], m.pos[i * 3 + 1], m.pos[i * 3 + 2]);
+    for (let t = 0; t < m.idx.length; t += 3) {
+      const [a, b, c] = [v(m.idx[t]), v(m.idx[t + 1]), v(m.idx[t + 2])];
+      const n = b.sub(a).cross(c.sub(a));
+      expect(n.x, `tri ${t / 3}`).toBeGreaterThan(0);
+    }
+  });
 
   it('is one hidden, shadowless mesh inside each cave\'s interior group (Review Focus 5)', () => {
     const scene = new THREE.Scene();
@@ -316,4 +371,249 @@ describe('caveroom: the deep caves\' chambers', () => {
       expect(top, cave.id).toBeLessThanOrEqual(0.75 * gorge.CRYSTAL_SIZE[cave.id] + 1e-3);
     }
   }, T);
+
+  // --- the corridor's tunnel (polish-gorgeway Task 4) -------------------------------
+
+  describe('the tunnel through the corridor and bend', () => {
+    const { CORRIDOR_HEADROOM } = gorgeshapeMod;
+    const tunnels = new Map();
+    const tunnelOf = (id) => {
+      if (!tunnels.has(id)) tunnels.set(id, gorge.caveTunnelFor(id));
+      return tunnels.get(id);
+    };
+    const passage = (cave) => cave.rects.filter((r) => !r.tag.endsWith('-chamber'));
+    // A liner vertex's place in its station's profile frame: u lateral (±1.5 on
+    // the box's side walls; a corner station's axis is scaled, so |u| = 1.5 is
+    // still on the walls), h over the cave floor, and the lateral as a unit.
+    const linerVerts = (cave, t) => {
+      const p = t.geometry.attributes.position;
+      const out = [];
+      for (const st of t.stations) {
+        const l2 = st.lx * st.lx + st.lz * st.lz, ll = Math.sqrt(l2);
+        for (const i of st.ids) {
+          const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+          const u = ((x - st.x) * st.lx + (z - st.z) * st.lz) / l2;
+          out.push({ x, y, z, i, u, h: y - cave.y, ux: st.lx / ll, uz: st.lz / ll, st });
+        }
+      }
+      return out;
+    };
+
+    it('exports its constants', () => {
+      expect([caveroom.TUNNEL_BUMP_LOW, caveroom.TUNNEL_BUMP_VAULT, caveroom.ROOT_MIN_Y]).toEqual([0.12, 0.2, 1.7]);
+    });
+
+    it('each tunnel stays in its corridor and bend, on its floor and under its roof', () => {
+      for (const cave of GORGE_CAVES) {
+        const rs = passage(cave);
+        for (const v of vertsOf(tunnelOf(cave.id).geometry)) {
+          const where = `${cave.id} (${v.x.toFixed(2)}, ${v.y.toFixed(3)}, ${v.z.toFixed(2)})`;
+          expect(Math.max(...rs.map((r) => inside(r, v.x, v.z))), where).toBeGreaterThanOrEqual(-0.01);
+          expect(v.y, where).toBeGreaterThanOrEqual(cave.y - 0.03);
+          expect(v.y, where).toBeLessThanOrEqual(cave.y + CORRIDOR_HEADROOM + 1e-6);
+        }
+      }
+    }, T);
+
+    it('keeps low vertices off the walking line and the finds', () => {
+      for (const cave of GORGE_CAVES) {
+        const rs = passage(cave);
+        const finds = gorge.caveFinds(cave);
+        let n = 0;
+        for (const v of vertsOf(tunnelOf(cave.id).geometry)) {
+          if (v.y >= cave.y + COVE_FROM) continue;
+          if (Math.max(...rs.map((r) => inside(r, v.x, v.z))) <= 0.05) continue;
+          n++;
+          const where = `${cave.id} (${v.x.toFixed(2)}, ${v.y.toFixed(3)}, ${v.z.toFixed(2)})`;
+          expect(pathDist(cave, v.x, v.z), where).toBeGreaterThanOrEqual(gorge.CAVE_PATH_CLEAR);
+          for (const f of finds) expect(Math.hypot(v.x - f.x, v.z - f.z), `${where} by ${f.id}`).toBeGreaterThanOrEqual(gorge.CAVE_FIND_CLEAR);
+        }
+        expect(n, cave.id).toBeGreaterThan(20);
+      }
+    }, T);
+
+    it('low walls stand in at most TUNNEL_BUMP_LOW (the camera stays in front of them)', () => {
+      for (const cave of GORGE_CAVES) {
+        let n = 0, most = 0;
+        for (const v of linerVerts(cave, tunnelOf(cave.id))) {
+          if (v.h < 0.3 || v.h > 1.6) continue;
+          n++;
+          const inBy = 1.5 - Math.abs(v.u);
+          most = Math.max(most, inBy);
+          expect(inBy, `${cave.id} (${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`).toBeLessThanOrEqual(caveroom.TUNNEL_BUMP_LOW + 0.005);
+          expect(inBy).toBeGreaterThanOrEqual(-1e-6);
+        }
+        expect(n, cave.id).toBeGreaterThan(60);
+        expect(most, cave.id).toBeGreaterThan(0.05); // it is rough
+      }
+    }, T);
+
+    it('is rounded under the roof', () => {
+      for (const cave of GORGE_CAVES) {
+        let n = 0;
+        for (const v of linerVerts(cave, tunnelOf(cave.id))) {
+          if (v.y <= cave.y + 2.3) continue;
+          n++;
+          expect(Math.abs(v.u), `${cave.id} (${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`).toBeLessThanOrEqual(1.2);
+        }
+        expect(n, cave.id).toBeGreaterThan(20);
+      }
+    }, T);
+
+    it('faces into the tunnel', () => {
+      for (const cave of GORGE_CAVES) {
+        const t = tunnelOf(cave.id);
+        const nor = t.geometry.attributes.normal;
+        let n = 0;
+        for (const v of linerVerts(cave, t)) {
+          if (v.h < 0.3 || v.h > 1.5) continue;
+          n++;
+          const s = -Math.sign(v.u); // away from the nearer side wall
+          const dot = (nor.getX(v.i) * v.ux + nor.getZ(v.i) * v.uz) * s;
+          expect(dot, `${cave.id} (${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`).toBeGreaterThan(0.3);
+        }
+        expect(n, cave.id).toBeGreaterThan(60);
+      }
+    }, T);
+
+    it('hangs stubby stalactites and roots high', () => {
+      for (const cave of GORGE_CAVES) {
+        const t = tunnelOf(cave.id);
+        const [mx, mz] = cave.path[0];
+        expect(t.stalactiteTips.length, cave.id).toBe(2);
+        for (const s of t.stalactiteTips) {
+          const where = `${cave.id} (${s.x.toFixed(2)}, ${s.z.toFixed(2)})`;
+          expect(s.y, where).toBeGreaterThanOrEqual(cave.y + STALACTITE_MIN_Y);
+          expect(s.root - s.y, where).toBeLessThanOrEqual(0.6);
+          expect(Math.hypot(s.x - mx, s.z - mz), where).toBeGreaterThanOrEqual(2);
+        }
+        expect(t.parts.stalactites, cave.id).toBeGreaterThan(0);
+        expect(t.rootTips.length, cave.id).toBe(3);
+        for (const r of t.rootTips) expect(r.y, cave.id).toBeGreaterThanOrEqual(cave.y + caveroom.ROOT_MIN_Y);
+        expect(t.parts.roots, cave.id).toBeGreaterThan(0);
+        expect(t.parts.moss, cave.id).toBe(3 * 45);
+      }
+    }, T);
+
+    it('each stalactite shows 0.25-0.5 m under the bumped vault', () => {
+      // Straight up from the tip to the liner (bumps and all): a root set at
+      // the bare vault's height once left a 5 cm nub under a bumped-down vault.
+      const a = new THREE.Vector3(), bb = new THREE.Vector3(), cc = new THREE.Vector3(), hit = new THREE.Vector3();
+      const ray = new THREE.Ray();
+      for (const cave of GORGE_CAVES) {
+        const t = tunnelOf(cave.id);
+        const p = t.geometry.attributes.position;
+        const ix = t.geometry.index.array;
+        const [lo, hi] = t.ranges.liner;
+        for (const s of t.stalactiteTips) {
+          ray.origin.set(s.x, s.y + 0.001, s.z);
+          ray.direction.set(0, 1, 0);
+          let vault = Infinity;
+          for (let i = 0; i < ix.length; i += 3) {
+            if (ix[i] < lo || ix[i] >= hi) continue;
+            a.fromBufferAttribute(p, ix[i]); bb.fromBufferAttribute(p, ix[i + 1]); cc.fromBufferAttribute(p, ix[i + 2]);
+            if (ray.intersectTriangle(a, bb, cc, false, hit)) vault = Math.min(vault, hit.y);
+          }
+          const where = `${cave.id} (${s.x.toFixed(2)}, ${s.z.toFixed(2)})`;
+          expect(vault - s.y, where).toBeGreaterThanOrEqual(0.25);
+          expect(vault - s.y, where).toBeLessThanOrEqual(0.5);
+          expect(s.root, where).toBeGreaterThan(vault); // buried in the vault
+        }
+      }
+    }, T);
+
+    it('nothing but the walls comes below the roots\' line over the corridor', () => {
+      // stalactites and roots: every vertex at or over ROOT_MIN_Y
+      for (const cave of GORGE_CAVES) {
+        const t = tunnelOf(cave.id);
+        const p = t.geometry.attributes.position;
+        for (const [a, b] of [t.ranges.stalactites, t.ranges.roots]) {
+          for (let i = a; i < b; i++) expect(p.getY(i), cave.id).toBeGreaterThanOrEqual(cave.y + caveroom.ROOT_MIN_Y - 1e-6);
+        }
+      }
+    }, T);
+
+    it('every tunnel moss rim vertex lies within 0.02 m of the liner behind it (none floats)', () => {
+      // Back along the wall's normal from each rim vertex onto the liner: a
+      // mound once stood off by the deepest bump anywhere near it, leaving
+      // its rim hanging up to 14 cm in front of a shallower wall.
+      const a = new THREE.Vector3(), bb = new THREE.Vector3(), cc = new THREE.Vector3(), hit = new THREE.Vector3();
+      const ray = new THREE.Ray();
+      for (const cave of GORGE_CAVES) {
+        const t = tunnelOf(cave.id);
+        const p = t.geometry.attributes.position;
+        const ix = t.geometry.index.array;
+        const [lo, hi] = t.ranges.liner;
+        expect(t.mossMounds.length, cave.id).toBe(3);
+        for (const md of t.mossMounds) {
+          for (const id of md.rim) {
+            const v = new THREE.Vector3().fromBufferAttribute(p, id);
+            ray.origin.set(v.x + md.nx * 0.3, v.y, v.z + md.nz * 0.3);
+            ray.direction.set(-md.nx, 0, -md.nz);
+            let best = Infinity;
+            for (let i = 0; i < ix.length; i += 3) {
+              if (ix[i] < lo || ix[i] >= hi) continue;
+              a.fromBufferAttribute(p, ix[i]); bb.fromBufferAttribute(p, ix[i + 1]); cc.fromBufferAttribute(p, ix[i + 2]);
+              if (ray.intersectTriangle(a, bb, cc, false, hit)) best = Math.min(best, hit.distanceTo(ray.origin));
+            }
+            const where = `${cave.id} (${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`;
+            expect(best, where).toBeLessThan(Infinity);
+            // how far in front of the liner the rim vertex stands (the liner
+            // is met `best` along from 0.3 in front of the vertex)
+            const front = best - 0.3;
+            expect(front, where).toBeLessThanOrEqual(0.02);
+            expect(front, where).toBeGreaterThanOrEqual(-0.08); // seated, not buried deep
+          }
+        }
+      }
+    }, T);
+
+    it('takes the chamber\'s crystal glow by the chamber, and only within GLOW_R of a cluster', () => {
+      let tinted = 0;
+      for (const cave of GORGE_CAVES) {
+        const lit = tunnelOf(cave.id), bare = gorge.caveTunnelFor(cave.id, { glow: false });
+        const p = lit.geometry.attributes.position;
+        const ca = lit.geometry.attributes.color.array, cb = bare.geometry.attributes.color.array;
+        expect(Array.from(bare.geometry.attributes.position.array)).toEqual(Array.from(p.array));
+        const spots = gorge.caveCrystalSpots(cave);
+        for (let i = 0; i < p.count; i++) {
+          const changed = [0, 1, 2].some((k) => ca[i * 3 + k] !== cb[i * 3 + k]);
+          if (!changed) continue;
+          tinted++;
+          const d = Math.min(...spots.map((sp) => Math.hypot(p.getX(i) - sp.x, p.getY(i) - (cave.y + 0.35), p.getZ(i) - sp.z)));
+          expect(d, `${cave.id} vertex ${i}`).toBeLessThan(caveroom.GLOW_R);
+          const inLinerOrFrames = [lit.ranges.liner, lit.ranges.frames].some(([a, b]) => i >= a && i < b);
+          expect(inLinerOrFrames, `${cave.id} vertex ${i}`).toBe(true);
+        }
+      }
+      expect(tinted).toBeGreaterThan(0);
+    }, T);
+
+    it('closes its ends', () => {
+      for (const cave of GORGE_CAVES) expect(tunnelOf(cave.id).parts.frames, cave.id).toBeGreaterThan(0);
+    }, T);
+
+    it('under 1,100 triangles, deterministic', () => {
+      for (const cave of GORGE_CAVES) {
+        const a = tunnelOf(cave.id);
+        const { liner, frames, stalactites, roots, moss } = a.parts;
+        expect(liner + frames + stalactites + roots + moss, cave.id).toBe(trisOf(a.geometry));
+        expect(trisOf(a.geometry), cave.id).toBeLessThanOrEqual(1100);
+        const b = gorge.caveTunnelFor(cave.id);
+        expect(Array.from(b.geometry.attributes.position.array)).toEqual(Array.from(a.geometry.attributes.position.array));
+        expect(Array.from(b.geometry.attributes.color.array)).toEqual(Array.from(a.geometry.attributes.color.array));
+        expect(Object.keys(a.geometry.attributes).sort()).toEqual(Object.keys(roomOf(cave.id).geometry.attributes).sort());
+        for (const v of a.geometry.attributes.normal.array) expect(Number.isFinite(v)).toBe(true);
+      }
+    }, T);
+
+    it('the caveRoom mesh carries the tunnel', () => {
+      const scene = new THREE.Scene();
+      gorge.build(scene);
+      for (const cave of GORGE_CAVES) {
+        const m = scene.getObjectByName(`caveRoom:${cave.id}`);
+        expect(trisOf(m.geometry), cave.id).toBe(trisOf(roomOf(cave.id).geometry) + trisOf(tunnelOf(cave.id).geometry));
+      }
+    }, T);
+  });
 });
