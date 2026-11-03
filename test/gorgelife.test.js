@@ -439,11 +439,13 @@ describe('gorge life: the caves', () => {
   });
 
   it('on any other area none of this exists', async () => {
-    // Only the Gorge hands walk.js a `life`, so no other area gets a light.
+    // Only the Gorge and the River hand walk.js a `life`, and only the Gorge's
+    // has a light: the River's (marshlife.js) is its mist and dragonflies.
     const { readFileSync, readdirSync } = await import('node:fs');
     const dir = new URL('../src/world/', import.meta.url);
     const withLife = readdirSync(dir).filter((f) => f.endsWith('.js') && /\blife\s*:/.test(readFileSync(new URL(f, dir), 'utf8')));
-    expect(withLife).toEqual(['gorge.js']);
+    expect(withLife).toEqual(['gorge.js', 'river.js']);
+    expect(readFileSync(new URL('marshlife.js', dir), 'utf8')).not.toMatch(/Light\(/);
     const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(walk).toMatch(/areaData\.life\?\.\(\{[^}]*\bweather\b[^}]*\}\) \?\? NO_AREA_LIFE/);
     expect(walk).toMatch(/const NO_AREA_LIFE = \{ update\(\) \{\}, dispose\(\) \{\} \};/);

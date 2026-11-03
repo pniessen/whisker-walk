@@ -11,6 +11,7 @@ import { addCamp } from './camp.js';
 import { tintGround } from './dressing.js';
 import { withLocalUuids } from './localuuids.js';
 import { addRiverDressing, riverGroundTint } from './riverdress.js';
+import { marshMist, dragonflies, riverDragonflyHomes, createMarshLife } from './marshlife.js';
 
 // =============================================================================
 // The River and Marshes.
@@ -635,6 +636,17 @@ export function build(scene, { water = {}, wind } = {}) {
   // so the build's Math.random draws stay what they were.
   withLocalUuids('river-dressing', () => addRiverDressing(scene, {}));
 
+  // --- the marsh's life -----------------------------------------------------------
+  // A soft low mist over the water at dusk and sunset, and dragonflies darting
+  // over it by day (marshlife.js): two noCast meshes, driven by the walk's
+  // life hook. Their uuids come from a local stream too.
+  const life = withLocalUuids('river-life', () => {
+    const mist = marshMist(RIVER_WATERS, BOUNDS);
+    const flies = dragonflies(riverDragonflyHomes());
+    scene.add(mist, flies);
+    return { mist, flies };
+  });
+
   return {
     name: 'The River and Marshes',
     colliders,
@@ -657,5 +669,7 @@ export function build(scene, { water = {}, wind } = {}) {
     groundBounce: 0x7d9c55,
     skyDusk: { top: 0x283652, horizon: 0x6a6478 },
     perches,
+    // The mist and the dragonflies, run by walk.js once a walk.
+    life: (ctx) => createMarshLife({ ...ctx, ...life }),
   };
 }
