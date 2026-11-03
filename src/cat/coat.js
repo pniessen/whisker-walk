@@ -131,23 +131,28 @@ export function paintCoat(geo, coat) {
 // its rim, so stripes, patches, Robbie's bib and D2's band run on over it.
 // `inner`/`outer` are cosine distances off the front axis (0 on the axis, 1 at
 // 90° off it).
-// The chest's axis looks forward and a little UP, (0, 0.15, -1): the sit
-// pitches the torso nose-down by 0.5 rad, and an axis tilted down (the first
-// try, (0, -0.35, -1)) put the pale part at the very bottom of the ball there,
-// under a striped top. Tilted up it points 8° up standing and 20° down in the
-// sit, so a front camera sees the bib's middle in both. On this axis the chest
-// meets the torso no nearer than 1.13 off it (its lower edge, ~97°), so the bib
-// holds full colour out to 0.25 (~41°) and fades to the coat by 1.0 (90°).
+// The chest's axis looks forward and a little DOWN, (0, -0.27, -1), 15° below
+// level (polish-sit Task 3). The sit now pitches the torso NOSE-UP by 0.75
+// rad (torso.js SIT), and the old axis, (0, 0.15, -1), 8° up, put the bib's
+// pale cap 56-67° up in the sit: a pale band under the chin, the ball's lower
+// half the coat. Tilted down, the cap (the mean of its palest vertices, from
+// the chest's centre; catcoat.test.js) looks 15-22° DOWN standing and 14-23°
+// UP sitting on every preset, so a front camera sees the bib's middle in
+// both. On this axis the chest meets the torso nearer the axis (its lower
+// edge on D2 and the socks look), so the band is pulled in: full colour out
+// to 0.05 (~18°), the coat by 0.8 (~78°). Measured against catcoat.test.js:
+// outer 0.85 leaves D2's rim 0.13 off its coat (allowed 0.12); 0.75 puts 91%
+// of the change on one edge of the simple Digit's chest (allowed 90%).
 // The belly hugs the torso (never more than ~4 mm proud) and sinks under the
 // coat from ~0.2-0.45 off straight down, so its band is tight: a soft pale
 // smudge, mostly hidden. Brief's starting values were { inner: 0.35, outer:
 // 0.85 } on the down-tilted axis: past that axis's rim (0.67), so it kept a
 // pale edge.
-export const UNDER_BLEND = Object.freeze({ inner: 0.25, outer: 1 });
+export const UNDER_BLEND = Object.freeze({ inner: 0.05, outer: 0.8 });
 export const BELLY_BLEND = Object.freeze({ inner: 0, outer: 0.38 });
 // The parts' front axes, cat frame (nose at -z).
 export const UNDER_FRONT = Object.freeze({
-  chest: Object.freeze(new THREE.Vector3(0, 0.15, -1).normalize().toArray()),
+  chest: Object.freeze(new THREE.Vector3(0, -0.27, -1).normalize().toArray()),
   belly: Object.freeze([0, -1, 0]),
 });
 

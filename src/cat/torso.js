@@ -69,35 +69,97 @@ export const REF_RIG = { HIP_Y: 0.30, REACH: 0.2585 + 0.062 * 0.62 };
 // Per-state correction (metres, added after the pose and the long-leg fit):
 // `body` moves every non-leg part, `head` overrides it for the head. Filled by
 // measurement against the old rig's pose baseline (test/fixtures/catpose-baseline.json).
-// The sit (requestPet, perch): with the shaped torso (deep chest, belly tucked
-// toward the hips) the tilted-back rump rests 0.0204 above ground at fit 0 against
-// 0.0246 for the old torso, so it comes UP by 0.004 and rests where the old one did.
+// The sit (requestPet, perch), re-measured for the upright sit (polish-sit,
+// 2026-11-02): at fit 0 the nose-up torso's rump (its lowest point) rests
+// 0.0058 under the ground on every preset (0.0055 simple), so it comes UP by
+// 0.006 and rests on it (0.0002 / 0.0005 above). The old 0.004 was measured
+// for the nose-down torso, whose rump rested 0.0204 above ground.
 export const POSE_FIT = Object.freeze({
-  requestPet: Object.freeze({ body: 0.004 }),
-  perch: Object.freeze({ body: 0.004 }),
+  requestPet: Object.freeze({ body: 0.006 }),
+  perch: Object.freeze({ body: 0.006 }),
 });
 
-// The front sit (requestPet, perch), polish-catlooks (2026-11-02): from the
-// front the sit read as a snowman, a round chest ball with stub forelegs stuck
-// on behind and under it. animator.js flattens the chest and stands the
-// forelegs forward in front of it:
+// The sit (requestPet, perch): the classic Warrior Cats sit (polish-sit,
+// 2026-11-02). It was a nose-down torso (rotation.x -0.5) on tucked haunches,
+// which from the side read as a cat crouching to pounce. Now the torso pitches
+// nose-UP, its rump on the ground and its shoulders high over the forelegs.
+// Cats only (animator.js; ruling R1): Hagrid keeps his sit. Measured in the
+// cat's frame on every preset, full and simple:
+//   pitch (rad, + lifts the nose, which faces -z): 0.75, the spine about 43°
+//     up. 0.85 stood the shoulders 0.716 high, where the head (held under the
+//     standing cat's top, R3) sank into them; 0.65 still read as a crouch.
+//   bodyDY (m, added to the sit's old bodyY - 0.02): -0.045, so the rump's
+//     low point rests on the ground (with POSE_FIT). It is -(FOLDS.sit.drop -
+//     0.02): the hind fold's top sits at the lowered hip (limbs.js).
+//   bodyZ (m, body.position.z): -0.06. Pitched about its centre the torso's
+//     shoulders swing back over the hips; moved forward, its rump's low point
+//     is at z +0.075 (behind the centre), its top (0.689, the chest; 0.659 once
+//     chestDrop lowers it) at z -0.20, and the
+//     front hips sit inside the chest (top 0.61 over a 0.39 hip, its
+//     underside 0.21).
+//   headDY, headDZ (m, the head's offset from where it stands; were +0.06 and
+//     +0.1): +0.09 and +0.06. The head is held high (its centre 0.706, over
+//     the shoulders' 0.689) and forward over the chest, so the sitting cat is
+//     still no taller than the standing one (+0.0065; R3, the name tag's
+//     margin) and the throat clears the chest: a bowtie's nearest point is
+//     1.0-1.5 cm off the fur, a necktie's 0.7-1.7 cm (catsit.test.js; tabby,
+//     Persian, Siamese, Maine Coon, Digit, with chestDrop; 0.14-0.66 cm before it).
+//     Further back (+0.16, the first try) the neck items sank 5 cm into the chest.
 //   chestDepth: the underside's own z (torso-local) is scaled by this about the
-//     chest centre (keepChestUnderHead holds the centre put), so the chest stops
-//     bulging forward like a ball. The plan asked for 0.78; measured, the sit's
-//     nose-down tip makes the chest ball's TOP its front-most point, which a z
-//     scale barely moves, so 0.78 brought a simple build's front back only
-//     1.84 cm (cat frame). 0.75 brings every build back 2.1-2.3 cm.
+//     chest centre (keepChestUnderHead holds the centre put), so the chest does
+//     not bulge forward like a ball (polish-catlooks: 0.75 brought every build's
+//     front back 2.1-2.3 cm).
+//   chestDrop (m, straight down in the cat's frame; polish-sit Task 3): 0.03.
+//     The pitched torso carries the chest ball up under the chin, where it
+//     stood 3-10 cm proud of the torso as a band between head and body: from
+//     the front, with the shaded underside of the skull above it, it read as
+//     a collar on a cat wearing none. Lowered, the ball reads as a bib on the
+//     breast. 0.04 and 0.05 let the torso's top poke through between chin and
+//     chest (the Persian's front shot); the neck items still sit on the fur
+//     (catsit.test.js) and the rump on the ground (catsitupright.test.js).
 //   foreZ (metres, cat frame, - is forward): both front hips move forward by
-//     this. The flattened chest's front is at z -0.437 (cat frame; the same on
-//     every breed, Digit's narrow frame and long legs too) and a standing paw
-//     sits 0.012 ahead of its hip, so -0.17 puts the paws at -0.422, at the
-//     chest's front, the shoulders still tucked against the torso (-0.18 left
-//     them standing proud of it, seen from the side).
+//     this: -0.06, the hips at z -0.30, inside the chest; the paws stand 8.3 cm
+//     behind the chest's front (the upper chest, y 0.46-0.48), as a sitting
+//     cat's breast sits over its forelegs. (Digit's four hips also come in by
+//     its torso's width share, animator.js.)
 //   foreTilt (rad): 0, the legs hang plumb (the paw's own 0.012 offset leans
 //     the hip-to-paw line 0.03 rad, Digit's longer leg 0.025). No swing means
 //     fitLongLegs leaves each leg its fitted length, so the soles stay on the
 //     ground at every legLen.
-export const SIT = Object.freeze({ chestDepth: 0.75, foreZ: -0.17, foreTilt: 0 });
+export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, headDY: 0.09, headDZ: 0.06, chestDepth: 0.75, chestDrop: 0.03, foreZ: -0.06, foreTilt: 0 });
+
+// polish-sit Task 2 (2026-11-02): the sitting tail lies round the paws, the
+// Warrior Cats sit's other half (animator.js; cats with folds only, Hagrid's
+// fan keeps his). Before, the root stayed where the standing cat carries it
+// (y 0.446, 18 cm off the pitched rump) and the tail stuck straight out behind.
+// Measured in the cat's frame on every preset, full and simple, t 0..3:
+//   ROOT [y, z] (m, the torso's own frame before the body's scale and pitch,
+//     i.e. the offset from the torso centre in an unpitched cat): [0.035,
+//     0.347]. Carried through the posed body's matrix the root lands low on
+//     the rump (y 0.070, z 0.218), 1.0 cm under its fur: a sitting cat's tail
+//     leaves the bottom of the spine, at the ground. (Rooted higher, 0.157,
+//     the first link fell straight down and the tail turned in a hard L.)
+//   rotX (tail.rotation.x, + tips the chain down): 0.425.
+//   pivotX, pivotY (each pivot's rotation.x and the size of its rotation.y,
+//     swung to TAIL_HOOK_SIDE, the cat's left, as the walking tail's hook):
+//     link 0 already turns left out of the rump, and the chain runs in one
+//     even curve round the back and the left haunch, low along the ground
+//     (lowest vertex 0.4 cm up, the tip 3.5 cm at most), at least 3.5 cm
+//     clear of the torso past the root link, and off the hind foot. The
+//     tip ends at x -0.18..-0.21, z -0.14..-0.15 (the hind hips are at
+//     +0.24, the front paws at -0.31), turned in toward the front paws: the
+//     tail is 0.6 m long and the haunch 0.45 m wide, so it cannot reach the
+//     paws themselves. Fitted by a search over all twelve numbers on tabby
+//     and Digit (the narrowest torso) for: tip forward, every link outside
+//     the torso and the legs at either end of the flick, nothing in the
+//     ground, even bends.
+export const SIT_TAIL = Object.freeze({
+  ROOT: [0.035, 0.347],
+  rotX: 0.425,
+  pivotX: [-0.3, 0.281, 0.241, 0.219, 0.116],
+  pivotY: [1.299, 0.728, 0.672, 0.499, 0.159],
+  flick: 0.15, // the tip link's sideways flick, sin(t*2.2)
+});
 
 // A point on the unit sphere (nose at -z, rump at +z) pushed into the cat's torso.
 export function deformTorso(x, y, z, S = TORSO.SHAPE) {

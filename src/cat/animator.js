@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT, LEGS, REF_RIG } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, LEGS, REF_RIG } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 
@@ -179,6 +179,16 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const { underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
+  // The sit carries the body- and back-slot items on the posed torso (below,
+  // rideBody). Each remembers its rest here, before fitLongLegs first moves
+  // it; every other state puts it back there first, so fitLongLegs and the
+  // pose fit move it exactly as they always did.
+  const sitting = (state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds;
+  for (const item of cat.children) {
+    if (!item.userData.ridesBody) continue;
+    item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone(), scale: item.scale.clone() };
+    if (!sitting) restore(item);
+  }
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
   // The stalk's tail root rides the body (STALK_TAIL), once the body is where
@@ -188,6 +198,19 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     const { tail, body } = cat.userData.parts;
     // (The z half is set in pose(), with the stalk's other folds offsets.)
     tail.position.y = body.position.y + STALK_TAIL.DY;
+  }
+  // The sitting tail's root rides the posed body (SIT_TAIL.ROOT, polish-sit
+  // Task 2), once the pose fit has set the body down: the tail hangs on the
+  // cat, so without this it stayed 18 cm off the pitched rump. Only y and z
+  // are written (x stays 0); fitLongLegs and pose() put both back next frame.
+  if (sitting) {
+    const { tail, body } = cat.userData.parts;
+    const [, sy, sz] = cat.userData.base.bodyScale;
+    body.updateMatrix();
+    _anchor.set(0, SIT_TAIL.ROOT[0] / sy, SIT_TAIL.ROOT[1] / sz).applyMatrix4(body.matrix);
+    tail.position.y = _anchor.y;
+    tail.position.z = _anchor.z;
+    rideBody(cat);
   }
   fitNeck(cat, state);
   // Last: a scar rides the head and torso where everything above left them.
@@ -225,13 +248,74 @@ function rideTail(cat) {
   tail.position.copy(_anchor);
 }
 
+// The sit's back and body items (polish-sit Task 3, ruling R4). The capes,
+// clasps, backpack, wings, jetpack and balloons hang on the cat, not on the
+// body (model.js tags them userData.ridesBody), so the upright sit's nose-up
+// pitch (SIT.pitch 0.75) left them floating behind the back. Here each is
+// carried by the posed body: position = bodyPosed · bodyRest⁻¹ · rest (the
+// body's rest being (0, base.bodyY, 0), unrotated, at base.bodyScale), turned
+// by the body's own rotation. Its rest (as built) is remembered by animateCat
+// before anything moves it, which also puts it back in every other state.
+//
+// The capes and the wings are the exceptions (fix round 1): turned with the
+// torso they read as a plank leaning off the rump and as plates drooping down
+// the haunch. They keep their built orientation and only move:
+//   * a wing (userData.sitShift) goes to its sit spot over the shoulders
+//     (model.js WING_SIT_Z), rest + sitShift, carried by the body;
+//   * a cape (userData.hang) moves with its clasp (rest + clasp offset,
+//     carried), so it hangs at its authored tilt behind the rump as it does
+//     standing. Its top edge then sits only ~0.25 above the ground and its
+//     0.4 m would reach into it, so it is shortened, scaled in its own y about
+//     that top edge, until its lowest corner is CAPE_HEM_CLEAR off the ground.
+// Allocates nothing.
+const _ride = new THREE.Matrix4();
+const _rideAt = new THREE.Vector3();
+const _rideScale = new THREE.Vector3();
+const _hinge = new THREE.Vector3();
+const _top = new THREE.Vector3();
+const CAPE_HEM_CLEAR = 0.01;  // its lowest corner over the ground
+const CAPE_THICK_HALF = 0.02; // the cape is 4 cm thick (model.js)
+function rideBody(cat) {
+  const { body } = cat.userData.parts;
+  const { bodyY, bodyScale } = cat.userData.base;
+  body.updateMatrix();
+  _ride.compose(_rideAt.set(0, bodyY, 0), _noTurn, _rideScale.fromArray(bodyScale)).invert().premultiply(body.matrix);
+  for (const item of cat.children) {
+    if (!item.userData.ridesBody) continue;
+    const { rest, hang, sitShift } = item.userData;
+    if (sitShift) {
+      item.position.fromArray(sitShift).add(rest.position).applyMatrix4(_ride);
+      item.quaternion.copy(rest.quaternion);
+      continue;
+    }
+    if (hang) {
+      // the clasp's move, carried
+      _hinge.fromArray(hang.clasp).add(rest.position);
+      _top.copy(_hinge).applyMatrix4(_ride).sub(_hinge);           // the move
+      _top.add(rest.position);                                      // the cape's centre, moved
+      item.quaternion.copy(rest.quaternion);
+      // its top edge: centre + R·(0, half, 0); its lowest corner: the hem's inner edge
+      const c = Math.cos(hang.tilt), sn = Math.sin(hang.tilt);
+      const topY = _top.y + hang.half * c, topZ = _top.z - hang.half * sn;
+      const k = Math.min(1, (topY - CAPE_THICK_HALF * sn - CAPE_HEM_CLEAR) / (2 * hang.half * c));
+      item.scale.y = k;
+      item.position.set(_top.x, topY - hang.half * k * c, topZ + hang.half * k * sn);
+      continue;
+    }
+    item.position.copy(rest.position).applyMatrix4(_ride);
+    item.quaternion.multiplyQuaternions(body.quaternion, rest.quaternion);
+  }
+}
+
 //
 // The sit flattens the underside (its own z scaled by SIT.chestDepth, set in
 // pose(); every other state leaves it at 1). Scaled about the underside's
 // origin that would slide the chest centre back too, so the position also
 // carries R_y(-θ)·(c − K·c), K the underside's scale: the chest centre lands
 // exactly where the unscaled underside put it (polish-catlooks, 2026-11-02).
-// At K = 1 that term is exactly zero (+ 0 turns its -0 into 0).
+// At K = 1 that term is exactly zero (+ 0 turns its -0 into 0). The sit also
+// lowers the whole underside by SIT.chestDrop (userData.drop, which pose()
+// sets in the sit and zeroes in every other state; dropChest below).
 const _k = new THREE.Vector3();
 function keepChestUnderHead(body, underside) {
   const yaw = body.rotation.y;
@@ -241,6 +325,7 @@ function keepChestUnderHead(body, underside) {
   if (!yaw) {
     underside.rotation.y = 0;
     underside.position.copy(_k);
+    if (underside.userData.drop) dropChest(body, underside);
     return;
   }
   underside.rotation.y = -yaw;
@@ -251,6 +336,13 @@ function keepChestUnderHead(body, underside) {
   _c.applyQuaternion(_yaw);                                                             // R_y(-θ)·c
   _p.sub(_c).add(_k.applyQuaternion(_yaw));                                             // + R_y(-θ)·(c − K·c)
   underside.position.set(_p.x + 0, _p.y + 0, _p.z + 0);
+  if (underside.userData.drop) dropChest(body, underside);
+}
+// The sit lowers the underside by SIT.chestDrop, straight down in the cat's
+// frame: in the body's own frame that is S⁻¹·Q⁻¹·(0, -drop, 0).
+function dropChest(body, underside) {
+  _c.set(0, -underside.userData.drop, 0).applyQuaternion(_q.copy(body.quaternion).invert()).divide(body.scale);
+  underside.position.add(_c);
 }
 
 // The collar on the neck (COLLAR_ON_NECK). The neck joins the chest (the
@@ -306,7 +398,7 @@ export function refitNeck(cat, state) {
 
 function restore(item) {
   const rest = item.userData.rest;
-  if (rest) { item.position.copy(rest.position); item.quaternion.copy(rest.quaternion); }
+  if (rest) { item.position.copy(rest.position); item.quaternion.copy(rest.quaternion); if (rest.scale) item.scale.copy(rest.scale); }
 }
 
 // item (head frame) = _X · rest, its rest remembered the first time it is moved
@@ -484,11 +576,11 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     // The sit moves the front hips forward (SIT.foreZ); every other state puts
     // them back where they were built (remembered the first time).
     leg.position.z = leg.userData.hipZ ??= leg.position.z;
-    leg.position.x = leg.userData.hipX ??= leg.position.x; // the stalk brings Digit's in
+    leg.position.x = leg.userData.hipX ??= leg.position.x; // the stalk and the sit bring Digit's in
   }
   tail.position.z = tail.userData.rootZ ??= tail.position.z; // the stalk moves it (STALK_TAIL)
   const { underside } = cat.userData.parts;
-  if (underside) underside.scale.set(1, 1, 1); // the sit flattens it (SIT.chestDepth)
+  if (underside) { underside.scale.set(1, 1, 1); underside.userData.drop = 0; } // the sit flattens and lowers it (SIT.chestDepth, chestDrop)
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
   // The folds (body refinement Task 5, R1/R3): each leg takes its state's fold
   // (a write only when the fold changes). A rig with folds no longer squashes a
@@ -594,9 +686,17 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
 
   if (state === 'requestPet' || state === 'perch') {
     // upright sit
-    body.rotation.x = -0.5;
-    body.position.y = base.bodyY - 0.02;
-    if (!folds) {
+    if (folds) {
+      // polish-sit (2026-11-02): the Warrior Cats sit (torso.js SIT). The
+      // torso pitches nose-UP, lowered and moved forward so the rump rests on
+      // the ground and the shoulders stand high over the forelegs. Cats only
+      // (ruling R1): Hagrid, without folds, keeps his sit below line for line.
+      body.rotation.x = SIT.pitch;
+      body.position.y = base.bodyY - 0.02 + SIT.bodyDY;
+      body.position.z = SIT.bodyZ;
+    } else {
+      body.rotation.x = -0.5;
+      body.position.y = base.bodyY - 0.02;
       legs[2].scale.y = 0.45;
       legs[3].scale.y = 0.45;
       legs[2].rotation.x = -0.5;
@@ -604,18 +704,39 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     }
     if (underside) {
       // polish-catlooks (2026-11-02): no snowman. The chest is flattened (its
-      // centre held by keepChestUnderHead) and the forelegs stand forward as
-      // columns in front of it (torso.js SIT). Cats only: Hagrid has no
-      // underside, and his legs are a chicken's.
+      // centre held by keepChestUnderHead) and the forelegs stand as columns
+      // from inside the chest (torso.js SIT). Cats only: Hagrid has no
+      // underside, and his legs are a chicken's. Digit's torso is 0.8 as wide
+      // (STYLE.body) on the same hips, so all four hips come in by that share,
+      // as the stalk's do: at full width its front hips stood out of the side
+      // of its narrow chest, and its tucked thigh lay 2 mm under a hind scar
+      // (1 on every other cat, which is left as it was).
       underside.scale.z = SIT.chestDepth;
+      underside.userData.drop = SIT.chestDrop;
+      const k = bsx / TORSO.SCALE[0];
+      if (k !== 1) for (const leg of legs) leg.position.x = leg.userData.hipX * k;
       for (let i = 0; i < 2; i++) {
         const leg = legs[i];
         leg.position.z = leg.userData.hipZ + SIT.foreZ;
         leg.rotation.x = SIT.foreTilt;
       }
     }
-    head.position.set(hx, hy + 0.06, hz + 0.1);
+    if (folds) head.position.set(hx, hy + SIT.headDY, hz + SIT.headDZ);
+    else head.position.set(hx, hy + 0.06, hz + 0.1);
     head.rotation.x = state === 'perch' ? 0.05 : -0.18;
+    if (folds) {
+      // polish-sit Task 2: the tail lies round the paws (torso.js SIT_TAIL).
+      // Every pivot is written outright, so the sit's resting curl
+      // (TAIL_CURL_BY_STATE, c) is dropped here: bending each link up would
+      // lift the chain off the ground it lies on. The root rides the posed
+      // body (animateCat, after the pose fit). Only the tip link flicks.
+      tail.rotation.set(SIT_TAIL.rotX, 0, 0);
+      for (let i = 0; i < tailPivots.length; i++) {
+        tailPivots[i].rotation.set(SIT_TAIL.pivotX[i], TAIL_HOOK_SIDE * SIT_TAIL.pivotY[i], 0);
+      }
+      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 2.2) * SIT_TAIL.flick; // the tip flicks
+      return;
+    }
     tail.rotation.set(-0.1 + c, 0, 0);
     for (const p of tailPivots) p.rotation.y = 0.5; // tail curled round the front
     tailPivots[0].rotation.y = 0.2 + Math.sin(t * 2.2) * 0.15; // tip flicks

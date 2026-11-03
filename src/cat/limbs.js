@@ -215,13 +215,22 @@ const fold = (points, radii, paw, pawRotX = 0, flat = 1) => Object.freeze({
 });
 export const FOLDS = Object.freeze({
   stand: Object.freeze({ crouch: false }),
-  // Hind only: an upright tucked haunch, the thigh down to a knee a little
-  // forward, the shin straight down into the heel of a foot flat in front.
-  // The sit's torso is tipped (rotation.x -0.5), so its belly at the hip is
-  // high: the top sits a little forward of the hip, inside it.
+  // Hind only: the haunch tucked under the rump, the knee forward, the foot
+  // flat in front under the belly. polish-sit (2026-11-02): the sit's torso
+  // now pitches nose-UP (torso.js SIT), lowered 4.5 cm more (drop 0.065), its
+  // rump resting on the ground. The old thigh (top 0.28 at z -0.05, r 0.10)
+  // then stood out of the lowered rump as a round lump on the back, seen from
+  // the side. The top comes down to the lowered hip (0.235) and 13 cm forward
+  // (z -0.18), slimmer (0.08), where the rump is deep and wide: the thigh is
+  // inside the haunch, which the torso's own shape draws (still, its worst
+  // vertex is 8.3-8.5 cm under the back on every build, Digit's too, its hips
+  // brought in by animator.js; folds.test.js).
+  // Three points with one gentle bend at the knee (0.13, -0.24), so no face
+  // folds over; the heel (0.045, -0.22) ends inside the paw, which sits 25 cm
+  // ahead of the hip, its front peeking out under the belly behind the forelegs.
   sit: Object.freeze({
-    crouch: true, drop: 0.02,
-    hind: fold([[0.28, -0.05], [0.18, -0.07], [0.12, 0.005], [0.05, -0.005]], [0.10, 0.078, 0.048, 0.036], [0.0415, -0.03]),
+    crouch: true, drop: 0.065,
+    hind: fold([[0.235, -0.18], [0.13, -0.24], [0.045, -0.22]], [0.08, 0.07, 0.036], [0.0415, -0.25]),
   }),
   // All four under the body: forearms forward (paws peeking out in front),
   // the hind shin back to a hock on the ground and the foot flat forward
