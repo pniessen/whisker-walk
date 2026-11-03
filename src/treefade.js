@@ -18,11 +18,20 @@
 // again the original goes back; clones are kept for reuse and disposed in
 // dispose(). `visible` is never written: the fight camera owns it.
 //
-// Merged pine stands (occluder.obj === null) are left alone: their pines
-// cannot be faded one by one without per-instance work (parked).
+// Merged pine stands (builder.pineStand: occluder.obj === null, with
+// occluder.stand and occluder.index) fade one pine at a time. Every pine in a
+// stand has the same parts, merged in tree order, so pine i owns the index
+// range [i * per, (i + 1) * per) of each stand mesh, per = index.count / trees
+// (a stand whose meshes do not split that way is left alone for good). Each
+// stand pine eases on its own like a Group tree; while any is below full
+// opacity the mesh's material becomes [original, ...one clone per faded pine]
+// and geometry.groups covers the index buffer in order: a run of unfaded
+// pines is one group on the original, each faded pine its own group on its
+// clone. When none is faded the original goes back and the groups are
+// cleared. The shadow pass still draws every group, so the shadow stays.
 import { segmentBlocked } from './fightcam.js';
 
-export const FADE_OPACITY = 0.28;
+export const FADE_OPACITY = 0.1;
 const FADE_DOWN_S = 0.2; // full → FADE_OPACITY
 const FADE_UP_S = 0.4; // FADE_OPACITY → full
 const LINE_PAD = 0.15;
@@ -42,10 +51,23 @@ function cloneFor(m) {
 
 export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   const trees = [];
+  const stands = new Map(); // stand Group → its state (see prepareStand)
+  const standTrees = [];
   for (const occ of occluders) {
     if (occ.obj) trees.push({ occ, obj: occ.obj, op: 1, swapped: false, meshes: null, originals: null, clones: null, base: null, cache: null });
+    else if (occ.stand && Number.isInteger(occ.index)) {
+      let st = stands.get(occ.stand);
+      if (!st) {
+        st = { group: occ.stand, ok: null, meshes: null, originals: null, base: null, per: null, trees: [], shown: '', applied: false };
+        stands.set(occ.stand, st);
+      }
+      const t = { occ, st, index: occ.index, op: 1, clones: null };
+      st.trees.push(t);
+      standTrees.push(t);
+    }
   }
   const faded = new Set();
+  const moved = new Set(); // stands with a tree that eased this frame (reused)
   const cam = { x: 0, y: 0, z: 0 }; // reused every frame
   let disposed = false;
 
@@ -82,28 +104,113 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
     faded.delete(t.obj);
   }
 
+  // First use of a stand: its meshes, and whether each splits into one equal
+  // index range per tree (every pine has the same parts). If not, never again.
+  function prepareStand(st) {
+    if (st.ok !== null) return st.ok;
+    const n = st.group.userData?.occluderStand?.trees?.length ?? 0;
+    const meshes = [];
+    st.group.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    st.ok = n > 0 && meshes.length > 0
+      && st.trees.every((t) => t.index >= 0 && t.index < n)
+      && meshes.every((m) => {
+        const idx = m.geometry?.index;
+        return idx && idx.count > 0 && idx.count % (n * 3) === 0
+          && m.geometry.groups.length === 0 && !Array.isArray(m.material);
+      });
+    if (!st.ok) return false;
+    st.meshes = meshes;
+    st.originals = meshes.map((m) => m.material);
+    st.base = st.originals.map((m) => m.opacity);
+    st.per = meshes.map((m) => m.geometry.index.count / n);
+    return true;
+  }
+
+  // Put a stand's meshes into the state for the given faded trees (sorted by
+  // index): the originals when there are none, else material arrays + groups.
+  function applyStand(st, fadedTrees) {
+    for (let k = 0; k < st.meshes.length; k++) {
+      const m = st.meshes[k], geo = m.geometry, orig = st.originals[k];
+      geo.clearGroups();
+      if (fadedTrees.length === 0) { m.material = orig; continue; }
+      const mats = [orig];
+      const per = st.per[k];
+      let runStart = 0; // start of the current run of unfaded trees
+      for (const t of fadedTrees) {
+        const start = t.index * per;
+        if (start > runStart) geo.addGroup(runStart, start - runStart, 0);
+        if (!t.clones) t.clones = st.originals.map(cloneFor);
+        mats.push(t.clones[k]);
+        geo.addGroup(start, per, mats.length - 1);
+        runStart = start + per;
+      }
+      if (runStart < geo.index.count) geo.addGroup(runStart, geo.index.count - runStart, 0);
+      m.material = mats;
+    }
+    st.applied = fadedTrees.length > 0;
+  }
+
+  function setStandOpacity(t) {
+    const st = t.st;
+    for (let k = 0; k < t.clones.length; k++) t.clones[k].opacity = st.base[k] * t.op;
+  }
+
+  // After the per-tree pass, for a stand one of whose trees moved this frame:
+  // rebuild it when its set of faded trees changed, then set the opacities.
+  function syncStand(st) {
+    if (!st.ok) return;
+    const fadedTrees = st.trees.filter((t) => t.op < 1).sort((a, b) => a.index - b.index);
+    const key = fadedTrees.map((t) => t.index).join(',');
+    if (key !== st.shown) { applyStand(st, fadedTrees); st.shown = key; }
+    for (const t of fadedTrees) setStandOpacity(t);
+  }
+
+  function restoreStand(st) {
+    if (!st.ok) return;
+    if (st.applied) applyStand(st, []);
+    st.shown = '';
+    for (const t of st.trees) t.op = 1;
+  }
+
+  // Eases the tree toward faded (in the way) or full; false when it is full and
+  // clear, so there is nothing to do.
+  function step(t, dt, look, camDist, hidden) {
+    const o = t.occ;
+    let want = false;
+    // quick reject: a tree farther from the cat than the camera can reach
+    if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + o.R) {
+      want = (Math.hypot(cam.x - o.x, cam.z - o.z) < o.R && cam.y < o.top)
+        || segmentBlocked(cam, look, o, LINE_PAD);
+    }
+    if (!want && t.op >= 1) return false;
+    const target = want ? FADE_OPACITY : 1;
+    // A tree the fight camera hid (fightcam.js) snaps: it reappears already
+    // faded instead of opaque-then-easing in front of the cat.
+    if (reducedMotion || (want && hidden)) t.op = target;
+    else if (want) t.op = Math.max(target, t.op - DOWN_RATE * dt);
+    else t.op = Math.min(1, t.op + UP_RATE * dt);
+    if (t.op >= 1) t.op = 1;
+    return true;
+  }
+
   return {
     update(dt, camera, look) {
-      if (disposed || trees.length === 0) return;
+      if (disposed || (trees.length === 0 && standTrees.length === 0)) return;
       const p = camera.position;
       cam.x = p.x; cam.y = p.y; cam.z = p.z;
       const camDist = Math.hypot(cam.x - look.x, cam.y - look.y, cam.z - look.z);
+      for (let i = 0; i < standTrees.length; i++) {
+        const t = standTrees[i];
+        const st = t.st;
+        if (st.ok === false) continue;
+        if (!step(t, dt, look, camDist, st.group.visible === false)) continue;
+        if (t.op < 1 && !prepareStand(st)) { for (const u of st.trees) u.op = 1; continue; }
+        moved.add(st);
+      }
+      if (moved.size > 0) { for (const st of moved) syncStand(st); moved.clear(); }
       for (let i = 0; i < trees.length; i++) {
         const t = trees[i];
-        const o = t.occ;
-        let want = false;
-        // quick reject: a tree farther from the cat than the camera can reach
-        if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + o.R) {
-          want = (Math.hypot(cam.x - o.x, cam.z - o.z) < o.R && cam.y < o.top)
-            || segmentBlocked(cam, look, o, LINE_PAD);
-        }
-        if (!want && t.op >= 1) continue;
-        const target = want ? FADE_OPACITY : 1;
-        // A tree the fight camera hid (fightcam.js) snaps: it reappears already
-        // faded instead of opaque-then-easing in front of the cat.
-        if (reducedMotion || (want && t.obj.visible === false)) t.op = target;
-        else if (want) t.op = Math.max(target, t.op - DOWN_RATE * dt);
-        else t.op = Math.min(1, t.op + UP_RATE * dt);
+        if (!step(t, dt, look, camDist, t.obj.visible === false)) continue;
         if (t.op >= 1) {
           t.op = 1;
           if (t.swapped) swapOut(t);
@@ -128,7 +235,20 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         if (!kinds.has(key)) { kinds.add(key); picked.push(t); }
       }
       for (const t of picked) swapIn(t);
-      try { compile(); } finally { for (const t of picked) swapOut(t); }
+      // ...and tree 0 of each usable stand in its faded state.
+      const warm = [];
+      for (const st of stands.values()) {
+        if (!prepareStand(st)) continue;
+        const t = st.trees.reduce((a, b) => (b.index < a.index ? b : a));
+        applyStand(st, [t]);
+        for (let k = 0; k < t.clones.length; k++) t.clones[k].opacity = st.base[k] * FADE_OPACITY;
+        warm.push(st);
+      }
+      try { compile(); } finally {
+        for (const t of picked) swapOut(t);
+        // back to what the walk had shown
+        for (const st of warm) { st.shown = null; syncStand(st); }
+      }
     },
     // The tree Groups currently below full opacity (live; read-only).
     faded() { return faded; },
@@ -138,6 +258,13 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         t.op = 1;
         if (t.cache) for (const c of t.cache.values()) c.dispose();
         t.meshes = t.originals = t.clones = t.base = t.cache = null;
+      }
+      for (const st of stands.values()) {
+        restoreStand(st);
+        for (const t of st.trees) {
+          if (t.clones) for (const c of t.clones) c.dispose();
+          t.clones = null;
+        }
       }
       faded.clear();
       disposed = true;
