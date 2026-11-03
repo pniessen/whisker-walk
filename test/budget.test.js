@@ -98,6 +98,10 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               78 / 48 / 40158 just before, and the
 //                                               older 76 / 50 / 40288 predated the
 //                                               Pines trail)
+//                                               2026-11-02: heather redrawn as green clumps
+//                                               with pink flower spikes (was purple lumps
+//                                               that read as rocks): ~57,800 triangles,
+//                                               meshes +1 (the spikes)
 //   pines            112       75      44642   (109 / 72 merged; 27 swaying pines,
 //                                               83 in the one merged stand, 136 ferns,
 //                                               47 toadstool clusters, 160 reeds (19
