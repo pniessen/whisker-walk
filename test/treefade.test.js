@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { tree, pine, pineStand } from '../src/world/builder.js';
 import { findOccluders } from '../src/fightcam.js';
-import { createTreeFade, FADE_OPACITY } from '../src/treefade.js';
+import { createTreeFade, FADE_OPACITY, PAST_LOOK } from '../src/treefade.js';
 import { closeDiffs } from './helpers/closeto.js';
 
 const meshesOf = (g) => {
@@ -189,9 +189,27 @@ describe('treefade', () => {
     expect(() => fade.prewarm(() => {})).not.toThrow(); // after dispose, a no-op
   });
 
-  it('FADE_OPACITY is 0.1', () => {
-    expect(FADE_OPACITY).toBe(0.1);
+  it('FADE_OPACITY is 0.05', () => {
+    expect(FADE_OPACITY).toBe(0.05);
   });
+
+  // Ruling R11: the fade line runs PAST_LOOK beyond the look point, level, so
+  // a trunk just behind the cat (the Pines island) fades too.
+  it('a tree 1 m beyond the look point on the camera line fades; one 2 m beyond does not', () => {
+    expect(PAST_LOOK).toBe(1.2);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+    camera.position.set(0, 2, -3);
+    for (const [dz, want] of [[1, true], [2, false]]) {
+      const scene = new THREE.Scene();
+      const t = tree(0, LOOK.z + dz);
+      scene.add(t);
+      const fade = createTreeFade(findOccluders(scene));
+      fade.update(1, camera, LOOK);
+      expect(fade.faded().has(t)).toBe(want);
+      fade.dispose();
+    }
+  });
+
 
   // A merged pine stand: three pines on a line along x.
   function standWorld() {
@@ -283,6 +301,23 @@ describe('treefade', () => {
       expect(m.material.length).toBe(3);
     }
     fade.dispose();
+  });
+
+  it('a stand tree 1 m beyond the look point on the camera line fades; one 2 m beyond does not', () => {
+    // stand pines at x 0, 6, 12 on z = 0; the look point sits short of pine 1
+    for (const [dz, want] of [[1, true], [2, false]]) {
+      const { occ, camera, meshes, originals } = standWorld();
+      const fade = createTreeFade(occ);
+      camera.position.set(6, 1.5, -8 - dz);
+      fade.update(1, camera, { x: 6, y: 0.6, z: -dz });
+      meshes.forEach((m, k) => {
+        if (want) {
+          const per = m.geometry.index.count / 3;
+          expect(groupsOf(m).filter((g) => g[2] !== 0)).toEqual([[per, 2 * per, 1]]);
+        } else expect(m.material).toBe(originals[k]);
+      });
+      fade.dispose();
+    }
   });
 
   it('a stand tree eases rather than snapping', () => {

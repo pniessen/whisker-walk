@@ -7,9 +7,13 @@
 // frame, AFTER player.update and the fight camera have placed the camera.
 //
 // "In the way" reuses the fight camera's tree shapes (findOccluders): the
-// line from the camera to the cat's look point passes through the tree
+// line from the camera to the cat's look point, carried on PAST_LOOK (1.2 m)
+// beyond the look point level with it, passes through the tree
 // (segmentBlocked with a 0.15 pad), or the camera stands inside the tree's
-// padded bounding cylinder.
+// padded bounding cylinder. The extension is ruling R11: on the Pines island
+// a stand pine just behind the cat filled the phone screen without ever being
+// on the camera→cat line. It runs horizontally (look.y), so it reaches a
+// trunk behind the cat and not the ground or a canopy far above it.
 //
 // Fading swaps each mesh's material for a per-tree clone (transparent, no
 // depth write), so a material another tree shares is never touched, and the
@@ -31,7 +35,8 @@
 // cleared. The shadow pass still draws every group, so the shadow stays.
 import { segmentBlocked } from './fightcam.js';
 
-export const FADE_OPACITY = 0.1;
+export const FADE_OPACITY = 0.05;
+export const PAST_LOOK = 1.2; // m the fade line runs on beyond the look point (R11)
 const FADE_DOWN_S = 0.2; // full → FADE_OPACITY
 const FADE_UP_S = 0.4; // FADE_OPACITY → full
 const LINE_PAD = 0.15;
@@ -69,6 +74,7 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   const faded = new Set();
   const moved = new Set(); // stands with a tree that eased this frame (reused)
   const cam = { x: 0, y: 0, z: 0 }; // reused every frame
+  const far = { x: 0, y: 0, z: 0 }; // the fade line's end, PAST_LOOK beyond the look point (reused)
   let disposed = false;
 
   // First fade of a tree: find its meshes, remember their materials, clone.
@@ -177,10 +183,10 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   function step(t, dt, look, camDist, hidden) {
     const o = t.occ;
     let want = false;
-    // quick reject: a tree farther from the cat than the camera can reach
-    if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + o.R) {
+    // quick reject: a tree farther from the cat than the fade line can reach
+    if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + o.R + PAST_LOOK) {
       want = (Math.hypot(cam.x - o.x, cam.z - o.z) < o.R && cam.y < o.top)
-        || segmentBlocked(cam, look, o, LINE_PAD);
+        || segmentBlocked(cam, far, o, LINE_PAD);
     }
     if (!want && t.op >= 1) return false;
     const target = want ? FADE_OPACITY : 1;
@@ -199,6 +205,12 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
       const p = camera.position;
       cam.x = p.x; cam.y = p.y; cam.z = p.z;
       const camDist = Math.hypot(cam.x - look.x, cam.y - look.y, cam.z - look.z);
+      const h = Math.hypot(look.x - cam.x, look.z - cam.z);
+      if (h > 1e-3) {
+        far.x = look.x + ((look.x - cam.x) / h) * PAST_LOOK;
+        far.z = look.z + ((look.z - cam.z) / h) * PAST_LOOK;
+      } else { far.x = look.x; far.z = look.z; }
+      far.y = look.y;
       for (let i = 0; i < standTrees.length; i++) {
         const t = standTrees[i];
         const st = t.st;
