@@ -75,6 +75,10 @@ export const RAIN_LOOK = Object.freeze({
   grassTint: [0.5, 0.62, 0.72],
   ringGrow: 0.9, ringMin: 0.05, ringMax: 0.45, ringY: 0.03,
   ringPale: 0xdfe9f2, ringFade: 0x6f8798,
+  // A streak is a world-space quad, so one passing the lens became a white
+  // plank across the screen. Inside nearFadeStart..End it fades out, and its
+  // half-width never exceeds dist * maxHalfAngle (about 3 px on a phone).
+  nearFadeStart: 1.2, nearFadeEnd: 2.4, maxHalfAngle: 0.0025,
   dropsHigh: 900, dropsMedium: 650, dropsLow: 400,
 });
 
@@ -84,6 +88,14 @@ export function rainDropCount(tier) {
   if (tier?.name === 'low') return RAIN_LOOK.dropsLow;
   if (tier?.name === 'medium') return RAIN_LOOK.dropsMedium;
   return RAIN_LOOK.dropsHigh;
+}
+
+// JS mirror of the rain shader's near-camera treatment (same RAIN_LOOK numbers),
+// so the look can be tested without a GPU.
+export function streakShape(dist, halfWidth) {
+  const L = RAIN_LOOK;
+  const t = Math.min(1, Math.max(0, (dist - L.nearFadeStart) / (L.nearFadeEnd - L.nearFadeStart)));
+  return { alpha: t * t * (3 - 2 * t), halfWidth: Math.min(halfWidth, dist * L.maxHalfAngle) };
 }
 
 // One merged mesh of thin vertical quads (four verts a drop), seeded so two
@@ -112,8 +124,20 @@ function buildDrops(count) {
     const v = i * 4;
     indices.set([v, v + 1, v + 2, v + 2, v + 1, v + 3], i * 6);
   }
+  // Static per-vertex data for the near-camera shader: which edge of the quad
+  // a vertex is on, and the drop's half-width.
+  const side = new Float32Array(count * 4);
+  const half = new Float32Array(count * 4);
+  for (let i = 0; i < count; i++) {
+    for (let k = 0; k < 4; k++) {
+      side[i * 4 + k] = k % 2 === 0 ? -1 : 1;
+      half[i * 4 + k] = drop[i * 4 + 2];
+    }
+  }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSide', new THREE.BufferAttribute(side, 1));
+  geo.setAttribute('aHalf', new THREE.BufferAttribute(half, 1));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   const writeDrop = (i) => {
     const x = drop[i * 4];
@@ -135,6 +159,34 @@ function buildDrops(count) {
     // make three draw this transparent mesh in two passes.
     depthWrite: false, fog: true, side: THREE.FrontSide,
   });
+  // Fade and width-cap near the lens (see RAIN_LOOK.nearFade*). Distance is the
+  // view-space length to the edge pair's centre line (vertex minus its side
+  // offset), so both edges of a quad scale together and the top verts' lean
+  // stays in the position rather than the width.
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uNear0 = { value: L.nearFadeStart };
+    shader.uniforms.uNear1 = { value: L.nearFadeEnd };
+    shader.uniforms.uMaxHalf = { value: L.maxHalfAngle };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+attribute float aSide;
+attribute float aHalf;
+uniform float uNear0;
+uniform float uNear1;
+uniform float uMaxHalf;
+varying float vRainNear;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vec3 rainCentre = transformed - vec3(aSide * aHalf, 0.0, 0.0);
+float rainDist = length((modelViewMatrix * vec4(rainCentre, 1.0)).xyz);
+transformed.x = rainCentre.x + aSide * min(aHalf, rainDist * uMaxHalf);
+vRainNear = smoothstep(uNear0, uNear1, rainDist);`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying float vRainNear;`)
+      .replace('#include <opaque_fragment>', `diffuseColor.a *= vRainNear;
+#include <opaque_fragment>`);
+  };
+  mat.customProgramCacheKey = () => 'whisker-rain';
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'rain-drops';
   mesh.frustumCulled = false;
