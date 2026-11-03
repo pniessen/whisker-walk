@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as THREE from 'three';
 import { createWater, WATER_TUNING } from '../src/render/water.js';
 
 // The sun's highlight (and the probe's hot facets) broke up through the
@@ -38,5 +39,41 @@ describe('water glare', () => {
     const src = readFileSync(new URL('../src/world/seaside.js', import.meta.url), 'utf8');
     const call = src.slice(src.indexOf('createWater(SEA'), src.indexOf('});', src.indexOf('createWater(SEA')));
     expect(call).toContain('glare: WATER_TUNING.GLARE_SEA');
+  });
+
+  // The glint is also clamped in the shader: a glare-only cut dulled the whole
+  // surface (0.3 looked flat), so the peak is capped instead.
+  it('every water clamps its specular below white in the shader', () => {
+    const bodies = [
+      [POND, { quality: 'high' }],
+      [POND, { quality: 'low' }],
+      [SEA, { shores: ['minX'], glare: WATER_TUNING.GLARE_SEA }],
+    ];
+    for (const [fp, opts] of bodies) {
+      const w = createWater(fp, opts);
+      expect(typeof w.material.onBeforeCompile).toBe('function');
+      expect(w.material.customProgramCacheKey()).toBe('whisker-water');
+      const shader = {
+        fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+        vertexShader: THREE.ShaderLib.physical.vertexShader,
+        uniforms: {},
+      };
+      w.material.onBeforeCompile(shader);
+      const f = shader.fragmentShader;
+      expect(f).toContain('uSpecCap');
+      expect(f.lastIndexOf('uSpecCap')).toBeGreaterThan(f.indexOf('#include <lights_fragment_end>'));
+      expect(shader.uniforms.uSpecCap.value).toBe(WATER_TUNING.SPEC_CAP);
+      w.dispose();
+    }
+  });
+
+  it('SPEC_CAP is a sane cap and can be overridden', () => {
+    expect(WATER_TUNING.SPEC_CAP).toBeGreaterThanOrEqual(0.3);
+    expect(WATER_TUNING.SPEC_CAP).toBeLessThanOrEqual(0.9);
+    const w = createWater(POND, { specCap: 0.4 });
+    const shader = { fragmentShader: THREE.ShaderLib.physical.fragmentShader, uniforms: {} };
+    w.material.onBeforeCompile(shader);
+    expect(shader.uniforms.uSpecCap.value).toBe(0.4);
+    w.dispose();
   });
 });
