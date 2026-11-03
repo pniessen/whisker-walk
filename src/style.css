@@ -666,14 +666,23 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
      pause now rides the top row), so the objective drops below the map and its
      caption, level with the roster. */
   .hud-objective { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 34px); }
-  /* The top row shares its width with the map (and, left-handed, the pause
-     button too): keep both pills on one line, and let a long rank title
-     ("Neighborhood Legend") end in an ellipsis rather than wrap down over
-     the goals list. */
-  .hud-top { font-size: 1rem; gap: 6px; }
+  /* The top row shares its width with the map (and the touch pause button),
+     so side by side the rank was always cut off ("Mythic…"). On a phone the
+     rank goes on a second line under the points, a size smaller, where the
+     longest titles ("Neighborhood Legend", "Mythical Feline") fit whole in
+     either hand. The ellipsis stays only as a last fallback. */
+  .hud-top { font-size: 1rem; flex-direction: column; align-items: flex-start; gap: 4px; }
   .hud-points, .hud-rank { padding: 5px 10px; white-space: nowrap; }
   .hud-points { flex-shrink: 0; }
-  .hud-rank { font-size: 0.85rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .hud-rank {
+    font-size: 0.75rem; padding: 3px 8px; margin: 0;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* The goals list steps down under the two-line top row (points ~36px with
+     the emoji, 4px gap, rank ~26px: it ends ~66px below the top inset), with
+     ~10px of air. Its three lines then end ~156px down, just above the
+     objective (map + 34px = 160px). */
+  .hud-goals { top: calc(max(16px, env(safe-area-inset-top)) + 76px); }
   .hud-roster-chip { font-size: 0.68rem; padding: 2px 8px; }
   /* Edge to edge: the scrim spans the screen, and padding (not a max-width
      margin) keeps the content in. */
@@ -702,6 +711,59 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
   background: transparent; color: #cdd6e4; font-size: 13px; cursor: pointer; }
 body.left-handed .chat-wheel { left: 16px; right: auto; }
 body.left-handed .chat-tray { left: 0; right: auto; }
+/* On a touch screen the spot above sits right on the 📷 button (the bottom
+   cell of the action cluster), so a kid tapping for a photo opened the chat.
+   There the chat button joins the zoom row under the cluster instead, as a
+   third 44px round button to the left of + and − (right 136px = the row's
+   28px + its 98px width + a 10px gap), dressed like them. Left-handed mirrors
+   it. Both sides stay out of the joystick's 40%. The tray opens above the
+   row, fixed to the screen and clamped to its width (280px outside, the
+   desktop tray's 260px plus padding), and scrolls rather than running off
+   the top of a landscape phone. Desktop keeps the spot above. */
+@media (pointer: coarse) {
+  .chat-wheel {
+    right: max(136px, calc(120px + env(safe-area-inset-right)));
+    bottom: max(24px, calc(24px + env(safe-area-inset-bottom)));
+  }
+  .chat-toggle {
+    width: 44px; height: 44px;
+    border: 2px solid rgba(255,255,255,0.5); background: rgba(20,26,38,0.55);
+    font-size: 20px; line-height: 1; padding: 0;
+  }
+  .chat-tray {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(80px, calc(80px + env(safe-area-inset-bottom)));
+    width: min(280px, calc(100vw - 32px)); box-sizing: border-box;
+    max-height: calc(100vh - 140px); overflow-y: auto;
+  }
+  body.left-handed .chat-wheel {
+    right: auto;
+    left: max(136px, calc(120px + env(safe-area-inset-left)));
+  }
+  body.left-handed .chat-tray { right: auto; left: max(16px, env(safe-area-inset-left)); }
+}
+body.touch-mode .chat-wheel {
+  right: max(136px, calc(120px + env(safe-area-inset-right)));
+  bottom: max(24px, calc(24px + env(safe-area-inset-bottom)));
+}
+body.touch-mode .chat-toggle {
+  width: 44px; height: 44px;
+  border: 2px solid rgba(255,255,255,0.5); background: rgba(20,26,38,0.55);
+  font-size: 20px; line-height: 1; padding: 0;
+}
+body.touch-mode .chat-tray {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(80px, calc(80px + env(safe-area-inset-bottom)));
+  width: min(280px, calc(100vw - 32px)); box-sizing: border-box;
+  max-height: calc(100vh - 140px); overflow-y: auto;
+}
+body.left-handed.touch-mode .chat-wheel {
+  right: auto;
+  left: max(136px, calc(120px + env(safe-area-inset-left)));
+}
+body.left-handed.touch-mode .chat-tray { right: auto; left: max(16px, env(safe-area-inset-left)); }
 
 /* Boot splash (A2 mascot) — shown on load, fades into the game */
 #splash { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center;

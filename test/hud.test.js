@@ -424,6 +424,56 @@ describe('HUD layout (style.css)', () => {
     });
   });
 
+  describe('chat button and rank on phones (polish-hud2)', () => {
+    const block = (head) => {
+      const at = css.indexOf(head);
+      return at < 0 ? '' : css.slice(at, css.indexOf('\n}\n', at));
+    };
+    const right = 'right: max(136px, calc(120px + env(safe-area-inset-right)))';
+    const bottom = 'bottom: max(24px, calc(24px + env(safe-area-inset-bottom)))';
+    const left = 'left: max(136px, calc(120px + env(safe-area-inset-left)))';
+    test('desktop keeps the chat button where it was', () => {
+      const r = rule('.chat-wheel');
+      expect(r).toContain('right: 16px');
+      expect(r).toContain('bottom: 96px');
+      expect(r).toContain('z-index: 5');
+    });
+    test('on touch the chat button joins the zoom row, off the camera button', () => {
+      // the zoom row it lines up with
+      expect(rule('.tui-zoom')).toContain(bottom);
+      expect(rule('body.touch-mode .chat-wheel')).toContain(right);
+      expect(rule('body.touch-mode .chat-wheel')).toContain(bottom);
+      const coarse = block('@media (pointer: coarse) {\n  .chat-wheel');
+      expect(coarse).toMatch(new RegExp(`\\.chat-wheel \\{[^}]*${right.replace(/[()+.]/g, '\\$&')}`));
+      expect(coarse).toContain(bottom);
+      expect(rule('body.touch-mode .chat-toggle')).toMatch(/width: 44px; height: 44px/);
+      expect(coarse).toMatch(/\.chat-toggle \{[^}]*width: 44px; height: 44px/);
+    });
+    test('left-handed touch mirrors it, out-ranking the desktop left-handed rule', () => {
+      const lh = rule('body.left-handed.touch-mode .chat-wheel');
+      expect(lh).toContain('right: auto');
+      expect(lh).toContain(left);
+      const coarse = block('@media (pointer: coarse) {\n  .chat-wheel');
+      expect(coarse).toMatch(/body\.left-handed \.chat-wheel \{[^}]*right: auto;[^}]*left: max\(136px/);
+      expect(css.indexOf('body.left-handed.touch-mode .chat-wheel {'))
+        .toBeGreaterThan(css.indexOf('body.left-handed .chat-wheel {'));
+      expect(rule('body.left-handed.touch-mode .chat-tray')).toContain('left: max(16px, env(safe-area-inset-left))');
+    });
+    test('on touch the tray is fixed to the screen, width-capped and scrollable', () => {
+      for (const r of [rule('body.touch-mode .chat-tray'), block('@media (pointer: coarse) {\n  .chat-wheel')]) {
+        expect(r).toContain('position: fixed');
+        expect(r).toContain('width: min(280px, calc(100vw - 32px))');
+        expect(r).toContain('max-height: calc(100vh - 140px); overflow-y: auto');
+      }
+    });
+    test('on a phone the rank goes under the points and the goals step down', () => {
+      const phone = block('@media (max-width: 480px) {\n  .homebase-scroll');
+      expect(phone).toMatch(/\.hud-top \{[^}]*flex-direction: column/);
+      expect(phone).toMatch(/\.hud-rank \{[^}]*margin: 0;[^}]*max-width: 100%/);
+      expect(phone).toMatch(/\.hud-goals \{ top: calc\(max\(16px, env\(safe-area-inset-top\)\) \+ 76px\); \}/);
+    });
+  });
+
   describe('desktop toasts', () => {
     test('toasts sit above the prompt pill, and above the fight pill when it is up', () => {
       expect(rule('.hud-toasts')).toContain('bottom: 146px');
