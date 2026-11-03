@@ -1,6 +1,19 @@
 import { bus } from '../events.js';
 import { objectiveDistance } from '../questscent.js';
 
+// Toasts (polish-hud2, R2/R3). At most two on screen: a burst of discoveries
+// used to stack four or five pills in a column that climbed over the cat. A
+// new toast past the cap retires the oldest at once. Each toast lives 2.6 s,
+// then fades for 0.35 s (style.css .toast) and leaves the DOM. The fade is
+// short so the text never outlives its dark pill as "ghost text".
+export const MAX_TOASTS = 2;
+export const TOAST_LIFE_MS = 2600;
+export const TOAST_FADE_MS = 350;
+
+const withPoints = (text, points) => (points ? `${text}  +${points} 🐾` : text);
+// Several critters spotted in a row fold into one toast that counts them.
+const crittersText = (n, points) => withPoints(`You spotted ${n} critters`, points);
+
 export function createHud() {
   const root = document.getElementById('hud');
   root.innerHTML = `
@@ -30,6 +43,21 @@ export function createHud() {
   const promptTapHandlers = [];
   let lastPrompt = { text: null, tappable: null };
   let lastObjective = { text: null, dist: null };
+  // Live toasts, oldest first; a toast leaves this list as it starts to fade.
+  const liveToasts = [];
+  // Retire a toast: fade it now, take it out of the DOM after the fade. Its
+  // life timer is cleared so it can't fire on a toast already on its way out.
+  const retireToast = (t) => {
+    const i = liveToasts.indexOf(t);
+    if (i >= 0) liveToasts.splice(i, 1);
+    clearTimeout(t.life);
+    t.el.classList.add('fade');
+    t.gone = setTimeout(() => t.el.remove(), TOAST_FADE_MS);
+  };
+  const startToastLife = (t) => {
+    clearTimeout(t.life);
+    t.life = setTimeout(() => retireToast(t), TOAST_LIFE_MS);
+  };
 
   const api = {
     show() { root.classList.remove('hidden'); },
@@ -71,13 +99,28 @@ export function createHud() {
     onPromptTap(fn) {
       promptTapHandlers.push(fn);
     },
-    toast(text, points) {
+    // opts.merge: a key. When the newest live toast has the same key, this
+    // one folds into it (count and points add up, the text is rebuilt by
+    // opts.mergeText(count, points)) and its clock starts again.
+    toast(text, points, opts = {}) {
+      const key = opts.merge || null;
+      const newest = liveToasts[liveToasts.length - 1];
+      if (key && newest && newest.key === key) {
+        newest.count += 1;
+        newest.points += points || 0;
+        const build = opts.mergeText || ((n, p) => withPoints(`${text} ×${n}`, p));
+        newest.el.textContent = build(newest.count, newest.points);
+        startToastLife(newest);
+        return;
+      }
+      while (liveToasts.length >= MAX_TOASTS) retireToast(liveToasts[0]);
       const el = document.createElement('div');
       el.className = 'toast';
-      el.textContent = points ? `${text}  +${points} 🐾` : text;
+      el.textContent = withPoints(text, points);
       toastsEl.appendChild(el);
-      setTimeout(() => el.classList.add('fade'), 2600);
-      setTimeout(() => el.remove(), 3400);
+      const t = { el, key, count: 1, points: points || 0, life: null, gone: null };
+      liveToasts.push(t);
+      startToastLife(t);
     },
     // Called every frame while a quest is active (the metre count follows the
     // cat), so, like setPrompt, it caches the last value and no-ops when
@@ -138,7 +181,10 @@ export function createHud() {
   // off Mossjaw! 🛡️"): a win is not something you spotted.
   bus.on('discovery', ({ type, label, points, repeat }) => {
     const lead = type === 'intruder' ? '' : repeat ? 'Again — ' : 'You spotted ';
-    api.toast(`${lead}${label}`, points);
+    // Critters merge (R3): a burst of songbirds and squirrels reads as one
+    // toast, "You spotted 3 critters  +15 🐾". Nothing else merges.
+    if (type === 'critter') api.toast(`${lead}${label}`, points, { merge: 'critter', mergeText: crittersText });
+    else api.toast(`${lead}${label}`, points);
   });
 
   return api;

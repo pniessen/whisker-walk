@@ -1,6 +1,6 @@
 import { describe, it, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createHud } from '../src/ui/hud.js';
+import { createHud, MAX_TOASTS } from '../src/ui/hud.js';
 import { bus } from '../src/events.js';
 
 // The project has no DOM environment (no jsdom/happy-dom); like den.test.js and
@@ -24,9 +24,15 @@ class FakeEl {
   get textContent() { return this.own + this.children.map((c) => c.textContent).join(''); }
   set textContent(v) { this.writes += 1; this.own = String(v); this.children = []; }
   set className(v) { this.cls = new Set(String(v).split(/\s+/).filter(Boolean)); }
-  appendChild(c) { this.writes += 1; this.children.push(c); return c; }
+  appendChild(c) { this.writes += 1; this.children.push(c); c.parent = this; return c; }
   addEventListener() {}
-  remove() {}
+  // Detaches from its parent, so "how many toasts are on screen" is countable.
+  remove() {
+    if (!this.parent) return;
+    const i = this.parent.children.indexOf(this);
+    if (i >= 0) this.parent.children.splice(i, 1);
+    this.parent = null;
+  }
 }
 
 let byId;
@@ -199,6 +205,114 @@ describe('the discovery toast', () => {
   });
 });
 
+// polish-hud2 (R2, R3): at most two toasts on screen, the oldest retired at
+// once with a short fade; a burst of critters folds into one counting toast.
+describe('toast cap and merge', () => {
+  const box = () => byId.get('hud-toasts');
+  const texts = () => box().children.map((c) => c.textContent);
+  const critter = (label, points = 5, repeat = false) =>
+    bus.emit('discovery', { type: 'critter', key: label, label, points, repeat });
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.runAllTimers(); vi.useRealTimers(); });
+
+  it('keeps at most two on screen, retiring the oldest first', () => {
+    const hud = createHud();
+    expect(MAX_TOASTS).toBe(2);
+    hud.toast('one', 1);
+    hud.toast('two', 2);
+    const first = box().children[0];
+    hud.toast('three', 3);
+    expect(first.cls.has('fade')).toBe(true); // at once
+    expect(box().children[1].cls.has('fade')).toBe(false);
+    expect(box().children[2].cls.has('fade')).toBe(false);
+    vi.advanceTimersByTime(350);
+    expect(texts()).toEqual(['two  +2 🐾', 'three  +3 🐾']);
+    hud.toast('four');
+    vi.advanceTimersByTime(350);
+    expect(texts()).toEqual(['three  +3 🐾', 'four']);
+  });
+
+  it('lives 2.6 s, then fades and leaves', () => {
+    const hud = createHud();
+    hud.toast('hello', 2);
+    const el = box().children[0];
+    vi.advanceTimersByTime(2599);
+    expect(el.cls.has('fade')).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(el.cls.has('fade')).toBe(true);
+    expect(box().children).toHaveLength(1);
+    vi.advanceTimersByTime(350);
+    expect(box().children).toHaveLength(0);
+  });
+
+  it('a retired toast is not touched again by its old timers', () => {
+    const hud = createHud();
+    hud.toast('one');
+    vi.advanceTimersByTime(1000);
+    hud.toast('two');
+    hud.toast('three'); // retires "one"
+    vi.advanceTimersByTime(350);
+    expect(texts()).toEqual(['two', 'three']);
+    vi.advanceTimersByTime(1250); // "one"'s old 2.6 s mark
+    expect(texts()).toEqual(['two', 'three']);
+    expect(box().children.every((c) => !c.cls.has('fade'))).toBe(true);
+  });
+
+  it('critters spotted back to back fold into one toast that counts them', () => {
+    createHud();
+    critter('a songbird');
+    expect(texts()).toEqual(['You spotted a songbird  +5 🐾']);
+    critter('a squirrel');
+    critter('a songbird', 5, true);
+    expect(texts()).toEqual(['You spotted 3 critters  +15 🐾']);
+  });
+
+  it('a single repeat critter keeps its own words', () => {
+    createHud();
+    critter('a songbird', 2, true);
+    expect(texts()).toEqual(['Again — a songbird  +2 🐾']);
+  });
+
+  it('a treasure after critters does not merge', () => {
+    createHud();
+    critter('a songbird');
+    critter('a squirrel');
+    bus.emit('discovery', { type: 'treasure', key: 't', label: 'a lost marble', points: 8, repeat: false });
+    expect(texts()).toEqual(['You spotted 2 critters  +10 🐾', 'You spotted a lost marble  +8 🐾']);
+  });
+
+  it('a critter after a non-critter toast starts a new toast', () => {
+    createHud();
+    critter('a songbird');
+    bus.emit('discovery', { type: 'flower', key: 'f', label: 'a daisy 🌼', points: 2, repeat: false });
+    critter('a squirrel');
+    vi.advanceTimersByTime(350);
+    expect(texts()).toEqual(['You spotted a daisy 🌼  +2 🐾', 'You spotted a squirrel  +5 🐾']);
+  });
+
+  it('merging restarts the clock', () => {
+    createHud();
+    critter('a songbird');
+    vi.advanceTimersByTime(1500);
+    critter('a squirrel');
+    vi.advanceTimersByTime(1100); // 2.6 s after the first
+    expect(texts()).toEqual(['You spotted 2 critters  +10 🐾']);
+    expect(box().children[0].cls.has('fade')).toBe(false);
+    vi.advanceTimersByTime(1500); // 2.6 s after the merge
+    expect(box().children[0].cls.has('fade')).toBe(true);
+    vi.advanceTimersByTime(350);
+    expect(box().children).toHaveLength(0);
+  });
+
+  it('a fading critter toast is not merged into', () => {
+    createHud();
+    critter('a songbird');
+    vi.advanceTimersByTime(2700); // fading
+    critter('a squirrel');
+    expect(texts()).toEqual(['You spotted a songbird  +5 🐾', 'You spotted a squirrel  +5 🐾']);
+  });
+});
+
 // Polish pass 1a, Task 5 (2026-11-02): the "white dot on the cat's nape" in the
 // walk was the HUD's centre crosshair (a "·" at 50%/50%), which the walk camera
 // always lands on the back of the cat's head. It only helps line up a photo,
@@ -277,6 +391,36 @@ describe('HUD layout (style.css)', () => {
     test('left-handed keeps its own pause spot and top-row inset', () => {
       expect(rule('body.left-handed .tui-pause')).toContain('right: calc(');
       expect(rule('body.left-handed .hud-top')).toContain('+ 64px');
+    });
+  });
+
+  describe('toast fade and phone placement (polish-hud2)', () => {
+    test('a toast fades in 0.35 s with a small rise, and no rise under reduced motion', () => {
+      expect(rule('.toast')).toContain('transition: opacity 0.35s, transform 0.35s');
+      expect(rule('.toast.fade')).toMatch(/opacity: 0;\s*transform: translateY\(-6px\)/);
+      expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.toast\.fade \{ transform: none; \}/);
+    });
+    const top = 'top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 78px); bottom: auto;';
+    const block = (head) => {
+      const at = css.indexOf(head);
+      return at < 0 ? '' : css.slice(at, css.indexOf('\n}\n', at));
+    };
+    test('on a phone held upright the walk toasts move under the map (coarse pointer)', () => {
+      const b = block('@media (pointer: coarse) and (max-width: 480px) and (min-height: 501px) {\n  #hud-toasts');
+      expect(b).toContain(top);
+      expect(b).toContain('#hud.fight-asking #hud-toasts');
+      expect(b).not.toContain('.hud-toasts'); // #cloud-toasts keeps its place
+    });
+    test('…and the touch-mode twin matches', () => {
+      const b = block('@media (max-width: 480px) and (min-height: 501px) {\n  body.touch-mode #hud-toasts');
+      expect(b).toContain(top);
+      expect(b).toContain('body.touch-mode #hud.fight-asking #hud-toasts');
+      expect(b).not.toContain('.hud-toasts');
+    });
+    test('the phone rules come after the touch and landscape toast rules', () => {
+      const phone = css.indexOf('@media (pointer: coarse) and (max-width: 480px) and (min-height: 501px)');
+      expect(phone).toBeGreaterThan(css.indexOf('body.touch-mode .hud-toasts {'));
+      expect(phone).toBeGreaterThan(css.indexOf('body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(210px'));
     });
   });
 

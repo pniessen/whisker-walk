@@ -104,11 +104,18 @@ body.touch-mode .hud-area { font-size: 0.72rem; }
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
 #hud.fight-asking .hud-toasts { bottom: 210px; }
+/* A toast fades in 0.35 s with a small rise (hud.js removes it right after).
+   The fade is short so the white text never outlives its dark pill, which
+   left "ghost text" over the cat when the old 0.8 s fade overlapped a busy
+   column. Reduced motion keeps the fade and drops the rise. */
 .toast {
   background: rgba(20,26,38,0.75); padding: 8px 18px; border-radius: 999px;
-  transition: opacity 0.8s; font-size: 1.05rem;
+  transition: opacity 0.35s, transform 0.35s; font-size: 1.05rem;
 }
-.toast.fade { opacity: 0; }
+.toast.fade { opacity: 0; transform: translateY(-6px); }
+@media (prefers-reduced-motion: reduce) {
+  .toast.fade { transform: none; }
+}
 .hud-prompt {
   position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%);
   background: rgba(242,193,78,0.92); color: #3a2a10; font-weight: 700;
@@ -174,6 +181,27 @@ body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-ar
   body.touch-mode .hud-prompt { bottom: calc(96px + env(safe-area-inset-bottom)); }
   body.touch-mode .hud-toasts { bottom: calc(165px + env(safe-area-inset-bottom)); }
   body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(210px + env(safe-area-inset-bottom)); }
+}
+/* A phone held upright: the walk toasts move to the top, under the corner map
+   and its caption, and grow downward. The camera keeps the cat mid-screen, so
+   toasts rising from above the action cluster landed right on it. Only the
+   walk's #hud-toasts moves; the cloud-sync toasts (#cloud-toasts, same class)
+   keep their place. Tablets, desktop and landscape keep their bottom anchors.
+   The fight rules are matched too, so a fight pill or sheet never pulls them
+   back down (bottom: auto, or the box would stretch between the two). */
+@media (pointer: coarse) and (max-width: 480px) and (min-height: 501px) {
+  #hud-toasts,
+  #hud.fight-asking #hud-toasts,
+  #hud.fighting #hud-toasts {
+    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 78px); bottom: auto;
+  }
+}
+@media (max-width: 480px) and (min-height: 501px) {
+  body.touch-mode #hud-toasts,
+  body.touch-mode #hud.fight-asking #hud-toasts,
+  body.touch-mode #hud.fighting #hud-toasts {
+    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 78px); bottom: auto;
+  }
 }
 .hud-crosshair {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
