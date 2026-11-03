@@ -38,8 +38,6 @@ const CAKE_JAM = 0xd8607e;
 const PRIZE_FROSTING = 0xfff4e0;
 const PRIZE_FLAME = 0xffb02e;
 const FLAME_TIP = 0xfff2a0;
-// The candle hat's elastic: tests find it by this vertex colour.
-export const HAT_ELASTIC = 0xf7d8e4;
 const POMPOM = 0xf5f5f5;
 const FLOWERS = [[0xf2a0c0, 0xf2c14e], [0xf2e04e, 0xe0862e], [0xffffff, 0xf2c14e]]; // [petal, centre]
 
@@ -385,11 +383,11 @@ function beanie(simple) {
 // 0.15 — above the brow, under the ears' tips.
 const BAND = { front: 0.12, back: 0.15 };
 const bandY = (phi) => (BAND.front + BAND.back) / 2 - ((BAND.back - BAND.front) / 2) * Math.cos(phi);
-function bandRing(segs, out) {
+function bandRing(segs, out, yAt = bandY) {
   const centres = [], normals = [];
   for (let i = 0; i < segs; i++) {
     const phi = (i / segs) * Math.PI * 2;
-    const p = ringPoint(phi, bandY(phi)), n = skullNormal(p);
+    const p = ringPoint(phi, yAt(phi)), n = skullNormal(p);
     centres.push(p.addScaledVector(n, out)); normals.push(n);
   }
   return { centres, normals };
@@ -491,12 +489,19 @@ function partycrown(simple) {
   return finish('partycrown', parts);
 }
 
-// Leaf Crown: laurel. A brown twig round the head on the skull, and fourteen
-// pointed leaves lying on it in two overlapping rows, seven a side, their tips
-// swept back toward a gap at the nape.
-const LAUREL = { perSide: 7, from: 0.06, step: 0.36, len: 0.074, width: 0.03, rowOff: 0.003, slant: 0.42 };
+// Leaf Crown: laurel. A brown twig round the head on the skull, and twenty
+// pointed leaves lying on it in two overlapping rows, ten a side, each leaf's
+// stem on the twig and its tip swept forward along it, toward the brow. The
+// twig is not on the flower crown's band (front 0.12, back 0.15): from the 3/4
+// view and from behind (the walk camera) that ring's back half, high over the
+// back of the skull and bare of leaves behind ±2.7 rad, read as a twig hoop
+// floating over the head (final review). The laurel's ring is as low at the
+// back as at the front (front 0.12, back 0.105, laurelY) and its leaves run
+// all round: the last pair's stems at ±3.075 rad, a V of 0.13 rad at the nape.
+const LAUREL = { perSide: 10, from: 0.06, step: 0.335, len: 0.074, width: 0.03, rowOff: 0.003, slant: 0.42, front: 0.12, back: 0.105 };
+const laurelY = (phi) => (LAUREL.front + LAUREL.back) / 2 - ((LAUREL.back - LAUREL.front) / 2) * Math.cos(phi);
 function leaf(phi, side, row, hex, simple) {
-  const [c0, n0] = drape(ringPoint(phi, bandY(phi)), 0);
+  const [c0, n0] = drape(ringPoint(phi, laurelY(phi)), 0);
   const up = upSkull(c0, n0);
   // the band's direction toward the back on this side
   const back = new THREE.Vector3().crossVectors(n0, up).multiplyScalar(-side).normalize();
@@ -517,7 +522,7 @@ function leaf(phi, side, row, hex, simple) {
 }
 function leafcrown(simple) {
   const segs = simple ? 14 : 28, sides = simple ? 4 : 5;
-  const { centres, normals } = bandRing(segs, 0.006);
+  const { centres, normals } = bandRing(segs, 0.006, laurelY);
   const twig = tube(centres, normals, {
     closed: true, sides, radius: () => 0.0048,
     colour: (i, a) => (Math.cos(a) > 0 ? TWIG : shade(TWIG, 0.75)),
@@ -534,8 +539,9 @@ function leafcrown(simple) {
 
 // Candle hat: the little birthday cake seated on the crown of the head (its
 // bottom follows the dome), pink with a jam layer, white frosting with five
-// drips down the side, a striped candle and its flame on top, and a thin
-// elastic from the cake down each cheek (in front of the ears) to under the jaw.
+// drips down the side, and a striped candle and its flame on top. (The thin
+// elastic it had down the cheeks and under the jaw was cut in the final
+// review: it read as a wire circle across the face.)
 const CAKE = { r: 0.056, h: 0.042, frost: 0.012, drips: 5, candleR: 0.0075, candleH: 0.045 };
 function candlehat(simple) {
   const parts = [];
@@ -577,21 +583,6 @@ function candlehat(simple) {
   parts.push(blob(fr, simple ? 5 : 6, simple ? 4 : 5, new THREE.Vector3(0, cy + CAKE.candleH + fr * 1.1, 0), [0.85, 1.6, 0.85],
     (uy) => mix(PRIZE_FLAME, FLAME_TIP, Math.max(0, uy)),
     (x, y, z) => { const k = y > 0 ? 1 - 0.6 * (y / fr) : 1; return [x * k, y, z * k]; }));
-  // the elastic: one loop from the cake's right side, down the cheek (in
-  // front of the ear), under the jaw and up the other cheek, on the fur. Its
-  // lower half lies in a plane tipped forward (the unit direction's z stays
-  // at -0.6), so it passes under the chin just behind the muzzle and the
-  // cheeks (head-local y -0.167, z -0.10), not down round the throat.
-  const n = simple ? 20 : 36, b0 = 0.22;
-  const centres = [], normals = [];
-  for (let k = 0; k < n; k++) {
-    const b = b0 + ((2 * Math.PI - 2 * b0) * k) / (n - 1);
-    const sb = Math.sin(b), cb = Math.cos(b);
-    const fwd = cb < 0 ? 0.6 : 0.6 * Math.abs(sb);
-    const [p, nn] = drape(new THREE.Vector3(sb * SA, cb * SB, -fwd * SC), 0.0035);
-    centres.push(p); normals.push(nn);
-  }
-  parts.push(tube(centres, normals, { sides: 3, radius: () => 0.0022, colour: () => HAT_ELASTIC }));
   return finish('candlehat', parts);
 }
 
