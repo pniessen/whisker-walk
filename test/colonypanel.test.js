@@ -250,6 +250,8 @@ describe('renderColonyHtml', () => {
   it('renders the empty state, the full line and a pairing placeholder', () => {
     const empty = render(colonyOf());
     expect(empty).toContain('No colony cats yet — touch noses with a stray, then feed it 🐟');
+    expect(empty).toContain('class="empty-state empty-colony');
+    expect(empty).toMatch(/<svg[^>]*aria-hidden="true"/);
     expect(empty).not.toContain('colony-bar');
     expect(empty).toContain('<div id="colony-pairing"></div>');
     expect(empty).not.toContain('is full');

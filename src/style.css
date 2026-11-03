@@ -16,7 +16,7 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
 #hud { pointer-events: none; }
 /* The corner map's diameter: coin-sized, smaller on phones and tablets.
    Everything that has to clear the map reads this one value. */
-:root { --map-size: 150px; }
+:root { --map-size: 150px; --btn-off-bg: rgba(231,169,160,.30); --btn-off-fg: #f6dcd7; }
 body.touch-mode { --map-size: 110px; }
 /* Points on the left, rank centred in what is left. The right edge stops
    short of the corner map, so the rank can never slide under it. */
@@ -361,6 +361,7 @@ body.touch-mode:not(.left-handed) .hud-top {
   gap: 10px; padding: 18px 12px 8px; text-align: center; grid-column: 1 / -1; }
 .empty-state svg { width: 120px; height: auto; display: block; }
 .empty-state p { margin: 0; color: #f1e0c2; font-size: 1rem; line-height: 1.4; max-width: 26ch; }
+.empty-colony p { max-width: 30ch; }
 .journal-footer { margin-top: 10px; font-size: 0.85rem; color: #f2c14e; font-weight: 700; }
 
 #homebase { background: linear-gradient(#2a3550, #1c2431); overflow-y: auto; }
@@ -454,7 +455,7 @@ body.touch-mode:not(.left-handed) .hud-top {
 .friend-code-confirm { background: rgba(255,255,255,0.06); border-radius: 8px; padding: 10px 12px; }
 .friend-code-confirm .sync-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
 .friend-code-confirm .primary { background: #f2c14e; color: #3a2a10; }
-.friend-code-confirm .primary:disabled { background: #6a6250; color: #a89e88; cursor: default; }
+.friend-code-confirm .primary:disabled { background: var(--btn-off-bg); color: var(--btn-off-fg); cursor: default; }
 .dusk { color: #c8b8f0; }
 .walk-together { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 14px 16px; }
 .settings-section {
@@ -564,7 +565,7 @@ body.touch-mode:not(.left-handed) .hud-top {
 .sync-actions .danger { background: transparent; color: #d08080; }
 .sync-cloud .primary { background: #f2c14e; color: #3a2a10; }
 .sync-cloud .primary:hover { background: #f2c14e; filter: brightness(1.08); }
-.sync-cloud .primary:disabled { background: #6a6250; color: #a89e88; cursor: default; }
+.sync-cloud .primary:disabled { background: var(--btn-off-bg); color: var(--btn-off-fg); cursor: default; }
 @media (max-width: 480px) {
   .sync-compare { grid-template-columns: 1fr; gap: 8px; }
 }
@@ -837,7 +838,7 @@ body.left-handed.touch-mode .chat-tray { right: auto; left: max(16px, env(safe-a
    .card / .card-name / .tag. --- */
 .colony-mode { font-size: 0.85rem; color: #a8c0e0; margin-bottom: 12px; }
 .colony-banner { font-size: 1rem; margin: 0 0 4px; color: #e8f0ff; }
-.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0; max-width: 60ch; }
+p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0; max-width: 60ch; }
 .colony-full { color: #f2c14e; font-weight: 700; }
 .colony-cards { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .colony-card { min-width: 0; }
@@ -1133,7 +1134,7 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .dr-dock .where { display: none; }
 .dr .dr-dock #btn-start, .dr .dr-dock .primary { background: var(--pink); color: var(--navy); border-radius: 999px;
   padding: 13px 22px; font-weight: 700; font-size: 17px; width: 100%; min-height: 48px; }
-.dr .dr-dock #btn-start:disabled, .dr .dr-dock .primary:disabled { background: #6a6250; color: #a89e88; }
+.dr .dr-dock #btn-start:disabled, .dr .dr-dock .primary:disabled { background: var(--btn-off-bg); color: var(--btn-off-fg); }
 /* Play together beside Start (v21): Start keeps most of the row. */
 .dr-start-row { display: flex; gap: 8px; align-items: stretch; }
 .dr-start-row #btn-start { flex: 1 1 auto; min-width: 0; }
@@ -1170,9 +1171,20 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .dr-homes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .dr .dr-home { position: relative; display: block; width: auto; border: 0; border-radius: 12px; text-align: left; padding: 9px; min-height: 44px; color: #fff; font-weight: 700; font-size: 13px;
   background: linear-gradient(165deg, #6f9a74, #3f6648); }
+.dr .dr-home-woods { background: linear-gradient(165deg, #47804a, #2f5a33); }
+.dr .dr-home-river { background: linear-gradient(165deg, #3a789a, #24516b); }
+.dr .dr-home-moor { background: linear-gradient(165deg, #865f92, #5c3f68); }
+.dr .dr-home-pines { background: linear-gradient(165deg, #56609c, #353d68); }
+.dr .dr-home-gorge { background: linear-gradient(165deg, #965f3c, #6b4128); }
+.dr-home-name { display: flex; align-items: center; }
+.dr-home-emblem { display: inline-flex; align-items: center; justify-content: center; flex: none; vertical-align: middle;
+  width: 30px; height: 30px; margin-right: 6px; border-radius: 50%; background: #f1e0c2; }
 .dr-home small { display: block; font-weight: 400; font-size: 11px; opacity: .92; }
 .dr-home .dr-home-soon { font-style: italic; opacity: .8; }
 .dr-home .dr-home-tag { font-weight: 700; opacity: 1; }
+/* on the coloured (pickable) cards the small text is full strength: at .92 / .8
+   the lighter stops (woods #47804a, river #3a789a) fell under 4.5:1 at 11px */
+.dr .dr-home:not(.dr-home-off) small, .dr .dr-home:not(.dr-home-off) .dr-home-soon { opacity: 1; }
 .dr-home.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
 /* a clan whose camp isn't built yet: greyed, and nothing happens on a tap */
 /* no opacity on the card: its white text (and the .8 "coming soon") keeps
@@ -1307,7 +1319,7 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .hb-sheet-dock .dr-start-row { flex: 1 1 260px; }
 .hb-sheet-dock #btn-start { flex: 1 1 200px; min-height: 48px; padding: 13px 22px; border: 0; border-radius: 999px;
   background: #e7a9a0; color: #1c2431; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
-.hb-sheet-dock #btn-start:disabled { background: #6a6250; color: #a89e88; cursor: default; }
+.hb-sheet-dock #btn-start:disabled { background: var(--btn-off-bg); color: var(--btn-off-fg); cursor: default; }
 @media (max-width: 480px) {
   .hb-sheet-dock { margin-left: -14px; margin-right: -14px; padding-left: 14px; padding-right: 14px; }
 }
@@ -1580,7 +1592,10 @@ body.den-shop-open .chat-wheel { display: none !important; }
 .dr .cb-foot [data-cb-cancel], .dr .cb-done { min-height: 48px; border-radius: 999px; font-weight: 700; }
 .dr .cb-foot [data-cb-cancel] { padding: 10px 16px; background: var(--panel); }
 .dr .cb-done { padding: 10px 18px; background: var(--pink); color: var(--navy); font-size: 16px; }
-.dr .cb-done:disabled { background: #6a6250; color: #a89e88; }
+.dr .cb-done:disabled { background: rgba(231,169,160,.30); color: #f6dcd7; }
+/* a row passing under the bar dissolves instead of being sliced */
+.cb-foot::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 28px;
+  background: linear-gradient(to bottom, transparent, var(--navy)); pointer-events: none; }
 .cb-leave { order: 2; position: sticky; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 4;
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px;
   background: var(--frame); border: 1.5px solid var(--pink); font-weight: 700;
@@ -1597,6 +1612,7 @@ body.den-shop-open .chat-wheel { display: none !important; }
   /* the room's 14 px side padding: cover it too, so no row peeks past the stuck stage */
   .dr-building .dr-hero { box-shadow: -14px 0 0 var(--navy), 14px 0 0 var(--navy); }
   .cb-foot { box-shadow: -14px 0 0 var(--navy), 14px 0 0 var(--navy); }
+  .cb-foot::before { left: -14px; right: -14px; }
   .dr.dr-building .cb { order: 2; }
 }
 /* desktop: the stage on the left, the rows on the right, like the room */
@@ -1627,11 +1643,11 @@ body.den-shop-open .chat-wheel { display: none !important; }
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; /* over .touch-ui (1), the prompt (2), the chat wheel (5); under #overlay (10) */
   pointer-events: auto; touch-action: manipulation;
   display: flex; flex-direction: column; gap: 8px;
-  padding: 10px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+  padding: 8px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
   background: linear-gradient(to top, rgba(20,26,38,0.92), rgba(20,26,38,0.72));
   border-radius: 18px 18px 0 0; color: #fff; user-select: none; -webkit-user-select: none;
 }
-.fight-top { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; min-height: 120px; }
+.fight-top { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 100px; }
 .fight-pips { display: flex; gap: 18px; }
 .fight-side { display: flex; align-items: center; gap: 3px; font-size: 1.05rem; font-weight: 700; }
 .pip { display: inline-flex; opacity: 1; }
@@ -1647,10 +1663,18 @@ body.den-shop-open .chat-wheel { display: none !important; }
   font: inherit; font-size: 1.2rem; font-weight: 800; cursor: pointer;
 }
 .fight-move:active { transform: scale(0.97); }
-.fight-moves.idle .fight-move { opacity: 0.6; }
+.fight-moves.idle .fight-move {
+  background: rgba(242,193,78,.14); color: #ffd45a;
+  box-shadow: inset 0 0 0 2px rgba(255,212,90,.55);
+  animation: fight-wait 1.6s ease-in-out infinite alternate;
+}
+@keyframes fight-wait { from { opacity: .7; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .fight-moves.idle .fight-move { animation: none; opacity: .85; }
+}
 /* Owned special moves: a smaller row above the three big buttons (>= 48 px).
-   Expected portrait sheet with four specials (390x844, 34 px home bar): 10 pad
-   + 120 top + 52 specials + 88 moves + ~30 teach (2 lines) + 3x8 gaps + 46 pad
+   Expected portrait sheet with four specials (390x844, 34 px home bar): 8 pad
+   + 100 top + 52 specials + 88 moves + ~30 teach (2 lines) + 3x8 gaps + 46 pad
    = ~370 px <= 46vh (388). On 375x667 (46vh = 307) the short-portrait rule
    below trims the top block: ~280 px. */
 .fight-specials { display: flex; flex-direction: row; gap: 6px; width: 100%; }
@@ -1671,7 +1695,7 @@ body.den-shop-open .chat-wheel { display: none !important; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: ellipsis;
 }
 /* Short portrait phones (375x667): shrink the clue block so four specials fit
-   in 46vh (307 px): 10 + (30 pips + 48 icon + 4) + 52 + 88 + ~26 + 24 + 12 = ~294. */
+   in 46vh (307 px): 8 + (30 pips + 48 icon + 4) + 52 + 88 + ~26 + 24 + 12 = ~292. */
 @media (min-height: 501px) and (max-height: 760px) {
   .hud-fight.has-specials .fight-top { min-height: 0; }
   .hud-fight.has-specials .fight-clue-icon { font-size: 48px; }

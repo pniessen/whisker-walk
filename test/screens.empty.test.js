@@ -42,8 +42,16 @@ describe('emptyStateHtml', () => {
     expect(h).toContain(`<p>${FRIENDS_LINE}</p>`);
   });
 
+  it('colony: a decorative svg picture and the exact line', () => {
+    const h = emptyStateHtml('colony');
+    expect(h.startsWith('<div class="empty-state empty-colony colony-empty">')).toBe(true);
+    expect(h).toMatch(/<svg[^>]*aria-hidden="true"/);
+    expect(h).toContain('<p>No colony cats yet — touch noses with a stray, then feed it 🐟</p>');
+    expect(h.endsWith('</div>')).toBe(true);
+  });
+
   it('is static: no animation in the pictures', () => {
-    for (const k of ['album', 'friends']) {
+    for (const k of ['album', 'friends', 'colony']) {
       expect(emptyStateHtml(k)).not.toMatch(/<animate|animation/);
     }
   });

@@ -10,7 +10,7 @@ import { menuThumbnails, customThumbnails, accessoryFraming } from '../thumbnail
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { CUSTOM_MAX, lookKey } from '../customcats.js';
 import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, resolveSheet } from './dressingroom.js';
-import { newBuilder, editBuilder, reduceBuilder, isDirty, buildBuilderModel, renderBuilderHtml } from './catbuilder.js';
+import { newBuilder, editBuilder, reduceBuilder, isDirty, buildBuilderModel, renderBuilderHtml, doneLabel } from './catbuilder.js';
 
 const PILLS = ['wearing', 'where', 'more'];
 export const INITIAL_DRESSING_UI = Object.freeze({ pill: 'wearing', openSlot: null, previewCat: null, tryOn: null, builder: null });
@@ -361,7 +361,7 @@ export function createDressingRoom({
       const bm = buildBuilderModel(ui.builder);
       const root = t.closest?.('.dr');
       const done = root?.querySelector?.('[data-cb-done]');
-      if (done) done.disabled = !bm.canDone;
+      if (done) { done.disabled = !bm.canDone; done.textContent = doneLabel(bm.canDone); }
       const name = root?.querySelector?.('.dr-hero-name');
       if (name) name.textContent = bm.name || YOUR_CAT;
       return true;

@@ -17,6 +17,7 @@ import { clanNameOf, colonyRankFor } from '../clannames.js';
 import { RANK_WORDS, RANK_KEYS } from '../clanwords.js';
 import { roleFor } from '../clanroles.js';
 import { isTradeableAccessory } from '../progression.js';
+import { emptyStateHtml } from './emptystates.js';
 import { placeName, accessoryName } from '../edition.js';
 
 // Duplicated from hometabs.js rather than imported (a copy beats a shared
@@ -300,7 +301,7 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
   const header = `<p class="colony-mode" data-mode="${escapeHtml(mode)}">${escapeHtml(modeLine(mode, partnerName))}</p>`;
   const list = rows.length
     ? `<div class="cards colony-cards">${rows.map((r) => catCard(r.cat, r.p, ctx)).join('')}</div>`
-    : `<p class="colony-empty">No colony cats yet — touch noses with a stray, then feed it 🐟</p>`;
+    : emptyStateHtml('colony');
   // Full at the same cap canFeed uses: 12 alone, 24 as a pair.
   const cap = colonyCap(members);
   const roomTogether = cap < COLONY_MAX ? ` Share it with your brother or sister to make room for ${COLONY_MAX}.` : '';
