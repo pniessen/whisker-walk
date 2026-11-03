@@ -89,9 +89,14 @@ export const HEN_SWIPE = f({
   tail: -1.1, fan: 1.1, comb: 0.15,
 });
 // The boxing: tall on long legs, leant forward against the group's 0.9 rad
-// nose-up rear, wings slapping forward in turn, beak pecking.
+// nose-up rear, wings slapping forward in turn, beak pecking. The fight tips
+// the whole group nose-up about his heels (fightactions.js placeFrame, hindZ
+// only ~8 cm for him), so a foot swung back goes under: the legs stay straight
+// in his frame, hips raised as far as they lengthen, which keeps the lowest
+// foot point 0-3 cm above the ground from the leap's 0.5 rad scratch to the
+// rear-up's 0.9 rad (test/henfight.test.js).
 export const HEN_REAR_UP = f({
-  hip: 0.06, len: 1.2, legSwing: -0.7, body: f([1.05, 1.1, 1]), pitch: -0.55, lift: 0.06,
+  hip: 0.1, len: 1.2, legSwing: 0, body: f([1.05, 1.1, 1]), pitch: -0.55, lift: 0.06,
   head: f([0, -0.06, -0.1]), headTip: -0.3, peck: 0.07, peckRate: 9,
   open: 1.3, swingMid: 1.6, slap: 0.7, slapRate: 8, tail: -1.1, fan: 1.15, comb: 0.15,
 });
@@ -113,7 +118,7 @@ export const HEN_PINNING = f({
 // sticking out sideways, head forward low, the comb dizzily wobbling.
 export const HEN_PINNED = f({
   drop: 0.16, hip: -0.14, len: 0.9, splay: 1.2, body: f([1.15, 0.7, 1.1]),
-  head: f([0, -0.42, -0.1]), headTip: 0.5,
+  head: f([0, -0.3, -0.14]), headTip: 0.3,
   open: 1.5, swing: 0.6, tip: 0.35, tail: -0.1, fan: 1.2, comb: 0, wobble: 0.3, wobbleRate: 6,
 });
 // The tumble: a feather ball. Round, legs tucked right up, head tucked in,
@@ -129,6 +134,16 @@ export const HEN_SCARED = f({
   open: 2.5, flap: 0.2, flapRate: 14, swing: 0.25, tip: -0.3,
   hop: 0.06, hopRate: 8, tail: 0.3, fan: 0.7, comb: 0.1, wobble: 0.3, wobbleRate: 16,
 });
+
+// How much higher than his standing top a fight pose puts Hagrid's top,
+// beyond placeFrame's y, as a fraction of that top: game/clanfight.js
+// reachYFor's POSE_TOP, for the hen (catDims hands it over as `poseTop`; the
+// fight camera takes the larger of the two). Only the poses where his raised
+// wings go above the cats' numbers. Measured over every action (either role,
+// big or not), beat and prelude frame placed and tilted as the fight does,
+// t over 0-3 s (rearUp 0.233, scared 0.113, pounce 0.106, flinch 0.081), each
+// with at least 0.03 to spare, as POSE_TOP's are.
+export const HEN_POSE_TOP = f({ rearUp: 0.27, scared: 0.15, pounce: 0.14, flinch: 0.12 });
 
 // --- the rig ---------------------------------------------------------------
 
@@ -163,6 +178,18 @@ function ensureRig(cat) {
   });
   cat.userData.henRig = rig;
   return rig;
+}
+
+// At walk teardown, before the scene traversal: the rig keeps both body
+// geometries and only one is on the body (the traversal frees that one, and
+// the wings, which are the body's children), so the spare one is freed here.
+// A no-op for a cat or a hen that never fought.
+export function disposeHenRig(cat) {
+  const rig = cat?.userData?.henRig;
+  if (!rig) return;
+  const on = cat.userData.parts.body.geometry;
+  if (rig.bodyGeo !== on) rig.bodyGeo.dispose();
+  if (rig.winglessGeo !== on) rig.winglessGeo.dispose();
 }
 
 // Every frame, for Hagrid: in a hen state the wingless body and both fight

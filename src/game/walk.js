@@ -30,6 +30,7 @@ import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn, createLampPools } from '../render/dusk.js';
 import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
+import { disposeHenRig } from '../cat/henfight.js';
 import { activeCat, scarKey } from '../customcats.js';
 import { herCatPortrait } from '../thumbnails.js';
 import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion } from '../ui/screencards.js';
@@ -2043,6 +2044,7 @@ export function createWalkLifecycle({
     session.rest = null; // and a nap ends with the walk: no tick, no purr
     session.dog.dispose();
     session.playerMarks?.dispose();
+    disposeHenRig(session.cat); // Hagrid's spare body geometry, if he fought
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {

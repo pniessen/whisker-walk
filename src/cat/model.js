@@ -5,7 +5,7 @@ import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt, undersideColourAt, U
 import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
-import { henFightState } from './henfight.js';
+import { henFightState, HEN_POSE_TOP } from './henfight.js';
 import { setCatScars } from './scarmesh.js';
 import { ruffGeometry } from './ruff.js';
 import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
@@ -1747,11 +1747,14 @@ export function catPivot(group) {
 // Everything the fight needs to know about a cat's size, measured once:
 // `top` (the standing cat's highest point, accessories included), `backY`
 // and `pinnedBackY` (catBackY standing and pinned) and catPivot's hindZ and
-// pivotY. Leaves the cat standing ('follow' at t 0).
+// pivotY. Hagrid's also carry `poseTop` (henfight.js HEN_POSE_TOP: how far
+// his raised wings put his top up, for the fight camera). Leaves the cat
+// standing ('follow' at t 0).
 export function catDims(group) {
-  const pinnedBackY = catBackY(group, group.userData.breed === 'hagrid' ? henFightState('pinned') : 'pinned');
+  const hagrid = group.userData.breed === 'hagrid';
+  const pinnedBackY = catBackY(group, hagrid ? henFightState('pinned') : 'pinned');
   const { hindZ, pivotY } = catPivot(group);
   const backY = catBackY(group);
   const top = localBox(group, group, true).max.y;
-  return { top, backY, pinnedBackY, hindZ, pivotY };
+  return hagrid ? { top, backY, pinnedBackY, hindZ, pivotY, poseTop: HEN_POSE_TOP } : { top, backY, pinnedBackY, hindZ, pivotY };
 }

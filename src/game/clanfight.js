@@ -207,6 +207,8 @@ const POSE_TOP = Object.freeze({
   pinned: 0, roll: 0,
 });
 const POSE_TOP_MAX = 0.2;
+// A cat whose dims carry its own `poseTop` (Hagrid: henfight.js HEN_POSE_TOP,
+// his wings raised in a hen pose) gets the larger of the two for that pose.
 // Samples over each action, beat and prelude: the pin's flight, the fastest
 // move, covers 0.03 m between two.
 const REACH_US = 240;
@@ -230,8 +232,9 @@ export function reachYFor(meDims, itDims, gap) {
     placeFrame(f, d, placed);
     const along = placed.dAlong;
     const side = placed.dSide - d.pivotY * Math.sin(f.roll || 0);
-    const y = placed.y - d.pivotY * (1 - Math.cos(f.roll || 0))
-      + (Object.hasOwn(POSE_TOP, f.pose) ? POSE_TOP[f.pose] : POSE_TOP_MAX) * d.top;
+    const catTop = Object.hasOwn(POSE_TOP, f.pose) ? POSE_TOP[f.pose] : POSE_TOP_MAX;
+    const ownTop = d.poseTop && Object.hasOwn(d.poseTop, f.pose) ? d.poseTop[f.pose] : 0;
+    const y = placed.y - d.pivotY * (1 - Math.cos(f.roll || 0)) + Math.max(catTop, ownTop) * d.top;
     if (!(y > 0)) return;
     const key = `${Math.round(along / REACH_CELL)},${Math.round(side / REACH_CELL)}`;
     const c = cells[who].get(key);
@@ -265,7 +268,9 @@ export function reachYFor(meDims, itDims, gap) {
 
 function cleanDims(d) {
   const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
-  return { top: n(d?.top), backY: n(d?.backY), pinnedBackY: n(d?.pinnedBackY), hindZ: n(d?.hindZ), pivotY: n(d?.pivotY) };
+  const out = { top: n(d?.top), backY: n(d?.backY), pinnedBackY: n(d?.pinnedBackY), hindZ: n(d?.hindZ), pivotY: n(d?.pivotY) };
+  if (d?.poseTop && typeof d.poseTop === 'object') out.poseTop = d.poseTop;
+  return out;
 }
 
 
