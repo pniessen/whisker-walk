@@ -278,6 +278,25 @@ describe('createRace — candy hoop, faint hoops, pennant, near fade', () => {
     pennant.traverse((o) => { if (o.isMesh) { expect(o.castShadow).toBe(false); expect(o.userData.noCast).toBe(true); } });
   });
 
+  // Fix wave: the flag's front (+Z, where the number reads un-mirrored) turns
+  // to the camera, so the number never reads backwards.
+  it('the pennant turns its front to the camera', () => {
+    const course = makeCourse();
+    const race = createRace(fakeScene(), course, SPAWN);
+    const pennant = race.group.getObjectByName('racePennant');
+    const flag = pennant.children.find((m) => m.geometry.type === 'BufferGeometry');
+    const n = flag.geometry.getAttribute('normal');
+    expect([n.getX(0), n.getY(0), n.getZ(0)]).toEqual([0, 0, 1]); // front is +Z
+    for (const [dx, dz] of [[5, 0], [0, -7], [-3, 4], [2, 9]]) {
+      const camera = { position: { x: course[0].x + dx, y: 3, z: course[0].z + dz } };
+      race.update(0.016, { x: 9999, z: 9999 }, camera);
+      pennant.updateWorldMatrix(true, false);
+      const front = new THREE.Vector3(0, 0, 1).transformDirection(pennant.matrixWorld);
+      const to = new THREE.Vector3(dx, 0, dz).normalize();
+      expect(front.dot(to)).toBeCloseTo(1, 6);
+    }
+  });
+
   it('a ring near the camera fades, whatever the race state', () => {
     const course = makeCourse();
     const race = createRace(fakeScene(), course, SPAWN);

@@ -257,7 +257,8 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 
       return kind === 'climb' ? 'the climb to the clifftop' : 'the daily zoomies race';
     },
     // update(dt, catPos, camera) — first, whatever the state, any ring near
-    // the camera fades (NEAR_FADE); with no camera the fades stay as they are.
+    // the camera fades (NEAR_FADE) and the pennant turns to face the camera;
+    // with no camera the fades and the pennant stay as they are.
     // Then, while running, accumulates elapsed time and checks the cat against
     // ONLY the current ring (rings[currentRing - 1]); crossing it marks that
     // ring passed, advances to the next (the candy hoop and the pennant move
@@ -271,6 +272,9 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 
           r.fade = NEAR_FADE.min + (1 - NEAR_FADE.min) * k;
           r.mesh.material.opacity = r.stateOpacity * r.fade;
         }
+        // The flag's front (+Z, the number reads un-mirrored on it) turns to
+        // the camera, a snap each frame, so the number never reads backwards.
+        pennant.rotation.y = Math.atan2(cp.x - pennant.position.x, cp.z - pennant.position.z);
       }
       if (state !== 'running') return;
       timeMs += dt * 1000;
