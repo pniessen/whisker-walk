@@ -852,8 +852,7 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     head.add(tail);
   }
 
-  // visit prizes (collar prizes go through buildCollar above; the head
-  // prizes are hats now, built above)
+  // visit prizes (collar prizes go through buildCollar above)
   // The rings sit ON his head (skull top ~0.137, ~0.10-0.12 under the ring),
   // round the comb, which pokes up through the middle like a real crown's.
   addPrizeHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06, ringY: 0.115 });

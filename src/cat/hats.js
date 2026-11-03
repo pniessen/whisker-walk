@@ -38,7 +38,8 @@ const CAKE_JAM = 0xd8607e;
 const PRIZE_FROSTING = 0xfff4e0;
 const PRIZE_FLAME = 0xffb02e;
 const FLAME_TIP = 0xfff2a0;
-const ELASTIC = 0xf7d8e4;
+// The candle hat's elastic: tests find it by this vertex colour.
+export const HAT_ELASTIC = 0xf7d8e4;
 const POMPOM = 0xf5f5f5;
 const FLOWERS = [[0xf2a0c0, 0xf2c14e], [0xf2e04e, 0xe0862e], [0xffffff, 0xf2c14e]]; // [petal, centre]
 
@@ -250,7 +251,8 @@ function finish(id, parts) {
 // --- the hats -------------------------------------------------------------
 
 // Top hat: a black crown with a red band on a brim draped over the dome, set
-// back 2 cm and tipped 0.12 rad to the cat's left (+x) — jaunty.
+// back 2 cm and 2 cm off-centre toward +x, and tipped 0.12 rad the same way —
+// jaunty, worn a little to one side.
 const TOPHAT = { at: [0.02, 0.02], tip: 0.12, brimIn: 0.06, brimR: 0.12, crownR: 0.075, crownH: 0.13 };
 function tophat(simple) {
   const segs = simple ? 12 : 24;
@@ -575,17 +577,21 @@ function candlehat(simple) {
   parts.push(blob(fr, simple ? 5 : 6, simple ? 4 : 5, new THREE.Vector3(0, cy + CAKE.candleH + fr * 1.1, 0), [0.85, 1.6, 0.85],
     (uy) => mix(PRIZE_FLAME, FLAME_TIP, Math.max(0, uy)),
     (x, y, z) => { const k = y > 0 ? 1 - 0.6 * (y / fr) : 1; return [x * k, y, z * k]; }));
-  // the elastic: one loop from the cake's right side, down the cheek, under
-  // the jaw and up the other cheek, on the fur
+  // the elastic: one loop from the cake's right side, down the cheek (in
+  // front of the ear), under the jaw and up the other cheek, on the fur. Its
+  // lower half lies in a plane tipped forward (the unit direction's z stays
+  // at -0.6), so it passes under the chin just behind the muzzle and the
+  // cheeks (head-local y -0.167, z -0.10), not down round the throat.
   const n = simple ? 20 : 36, b0 = 0.22;
   const centres = [], normals = [];
   for (let k = 0; k < n; k++) {
     const b = b0 + ((2 * Math.PI - 2 * b0) * k) / (n - 1);
-    const sb = Math.sin(b);
-    const [p, nn] = drape(new THREE.Vector3(sb * SA, Math.cos(b) * SB, -0.6 * Math.abs(sb) * SC), 0.004);
+    const sb = Math.sin(b), cb = Math.cos(b);
+    const fwd = cb < 0 ? 0.6 : 0.6 * Math.abs(sb);
+    const [p, nn] = drape(new THREE.Vector3(sb * SA, cb * SB, -fwd * SC), 0.0035);
     centres.push(p); normals.push(nn);
   }
-  parts.push(tube(centres, normals, { sides: 3, radius: () => 0.0026, colour: () => ELASTIC }));
+  parts.push(tube(centres, normals, { sides: 3, radius: () => 0.0022, colour: () => HAT_ELASTIC }));
   return finish('candlehat', parts);
 }
 

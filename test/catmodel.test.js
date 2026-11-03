@@ -10,6 +10,7 @@ import { VISIT_PRIZES } from '../src/visits.js';
 import { ruffGeometry, RUFF, jawFluffColour } from '../src/cat/ruff.js';
 import { DEFAULT_LOOK, lookToStyle } from '../src/customcats.js';
 import { SKULL } from '../src/cat/torso.js';
+import { HAT_ELASTIC } from '../src/cat/hats.js';
 
 // Wave 6 (docs/VISUAL-PASS.md) reshaped the cat. These are the properties that
 // wave established and that a later edit could silently undo — none of them are
@@ -389,11 +390,13 @@ describe('visit prize placement', () => {
     const hats = head.children.filter((o) => o.isMesh && o.userData.hat === id);
     expect(hats).toHaveLength(1);
     const skullTop = new THREE.Box3().setFromObject(head.children[0]).max.y;
-    const p = hats[0].geometry.attributes.position;
+    const p = hats[0].geometry.attributes.position, col = hats[0].geometry.attributes.color;
+    const elastic = new THREE.Color(HAT_ELASTIC);
     let minY = Infinity, maxY = -Infinity;
     for (let i = 0; i < p.count; i++) {
+      // the candle hat's elastic (found by its colour) is not the seat
+      if (Math.abs(col.getX(i) - elastic.r) + Math.abs(col.getY(i) - elastic.g) + Math.abs(col.getZ(i) - elastic.b) < 1e-4) continue;
       const v = new THREE.Vector3().fromBufferAttribute(p, i);
-      if (v.y < 0) continue; // the candle hat's elastic, under the jaw
       v.applyMatrix4(hats[0].matrixWorld);
       minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
     }
