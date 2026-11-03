@@ -187,6 +187,12 @@ export function pauseCardHtml({ welcome, touch, portrait = null }) {
 // between the dots, never inside "E interact/sniff".
 const TOUCH_HINT = ['Joystick to move', 'drag to look', 'buttons to pounce/meow/yarn/camera', '+ − or pinch to zoom', 'tap the prompt to interact'];
 const KEYS_HINT = ['Arrows move', 'Shift stalk', 'Space pounce/climb', 'E interact/sniff', 'V meow', 'T yarn', 'C camera', '+/− or wheel zoom'];
+// The walk's chat hint. Phones have no number keys, so they're pointed at
+// the 💬 button (in the zoom row) instead.
+export function chatHintLine(touch) {
+  return touch ? 'Tap 💬 to chat' : 'Press 1–9 to chat · Enter for phrases';
+}
+
 function hintHtml(segs) {
   return segs.map((t) => `<span class="hint-seg">${escapeHtml(t)}</span>`).join(' · ');
 }
@@ -1737,7 +1743,10 @@ export function createWalkLifecycle({
     });
     session.chatWheel = chatWheel;
     chatWheel.setVisible(true);
-    hud.toast('Press 1–9 to chat · Enter for phrases'); // once per walk (startWalk runs once per walk)
+    // The chat hint, once per walk (startWalk runs once per walk). It waits
+    // on the session like the arrival line: under the Ready? card a toast is
+    // never seen. main.js toasts chatHintLine on the first engage.
+    session.chatHintPending = true;
     // R18: moves the save granted on load (fights she won before moves
     // existed) are toasted once, at the next Clan Edition walk. The lines wait
     // on the session (the Ready? card covers toasts); main.js toasts them on
