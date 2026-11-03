@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
-import { buildBackItem, backAnchor, placeOnBack, BACK_ITEM_IDS, STRAP_GREY, buildHood, HOOD, DRAWSTRING_WHITE } from '../src/cat/backitems.js';
+import { buildBackItem, backAnchor, placeOnBack, BACK_ITEM_IDS, STRAP_GREY, buildHood, slideHoodTo, HOOD, DRAWSTRING_WHITE } from '../src/cat/backitems.js';
 import { TORSO } from '../src/cat/torso.js';
 
 // Accessories polish, Task 2 (2026-11-03): the owner said "the back
@@ -272,7 +272,7 @@ describe('hoods lie on the neck behind the head (accessories polish Task 3)', ()
       expect(hoods).toHaveLength(1);
       expect(hoods[0].parent).toBe(cat.userData.parts.body);
       expect(hoods[0].material.vertexColors).toBe(true);
-      expect(hoods[0].morphTargetInfluences).toEqual([0]);
+      expect(hoods[0].morphTargetInfluences).toEqual(new Array(HOOD.steps).fill(0));
       // neither the old ball nor the bunched torus, anywhere on the cat
       cat.traverse((o) => {
         if (!o.isMesh) return;
@@ -328,7 +328,8 @@ describe('hoods lie on the neck behind the head (accessories polish Task 3)', ()
     cat.updateMatrixWorld(true);
     const [hood] = hoodOf(cat);
     const head = cat.userData.parts.head.getWorldPosition(new THREE.Vector3()).divideScalar(cat.scale.x);
-    const skullHalfHeight = 0.21 * 0.92 * cat.userData.parts.head.scale.y;
+    const skull = cat.userData.parts.head.children[0];   // the skull (model.js buildCat)
+    const skullHalfHeight = skull.geometry.parameters.radius * skull.scale.y * cat.userData.parts.head.scale.y;
     const box = new THREE.Box3().setFromObject(hood, true);
     box.min.divideScalar(cat.scale.x); box.max.divideScalar(cat.scale.x);
     expect(box.max.y).toBeLessThanOrEqual(head.y + 0.3 * skullHalfHeight);
@@ -338,34 +339,42 @@ describe('hoods lie on the neck behind the head (accessories polish Task 3)', ()
     for (const v of scoop) expect(v.z).toBeGreaterThan(head.z);
   });
 
-  // It lies on the coat: every scoop vertex outside the shell and the hood
-  // within 1.5 cm of it, standing and slid back in the nap.
-  it.each(HOODS)('%s: the hood rests on the coat, standing and slid back for the nap', (id) => {
+  // It lies on the coat: every vertex outside the shell and the hood within
+  // 1.5 cm of it, standing, slid back for the nap, in the cross (part way)
+  // and at every quarter of the slide in between (fix round 1: one straight
+  // morph from end to end sagged 5-8 mm into the coat part way). Every vertex
+  // is cast onto the shell from outside; a ray that misses it is counted.
+  const SLIDES = [['follow', 0], ['nap', 1], ['requestPet', 0], ['cross', null], ['follow', 0.25], ['follow', 0.5], ['follow', 0.75]];
+  it.each([...HOODS.map(([id]) => [id, null]), ['hoodie', 'backpack']])('%s (back %s): the hood rests on the coat all along its slide', (id, back) => {
     for (const breed of ['tabby', 'digit']) {
-      const cat = coat(breed, id);
+      const cat = buildCat(breed, { ...BARE, body: id, back });
       const [hood] = hoodOf(cat);
       const torso = cat.userData.parts.body;
-      const shell = torso.children.filter((c) => c.isMesh && c !== hood && c !== cat.userData.parts.underside)
+      const shell = torso.children.filter((c) => c.isMesh && c !== hood && c !== cat.userData.parts.underside && !c.userData.backItem)
         .sort((a, b) => b.geometry.attributes.position.count - a.geometry.attributes.position.count)[0];
-      for (const [state, slid] of [['follow', 0], ['nap', 1], ['requestPet', 0]]) {
+      for (const [state, slide] of SLIDES) {
         animateCat(cat, state, 1.3, 0, false);
+        const where = `${breed} ${state} slide ${slide}`;
+        if (state === 'follow' && slide > 0) slideHoodTo(hood, slide);
+        else if (slide !== null) expect(hood.userData.hoodSlide, where).toBeCloseTo(slide, 6);
+        else expect(hood.userData.hoodSlide, where).toBeGreaterThan(0.2);   // the cross: part way
         cat.updateMatrixWorld(true);
-        expect(hood.morphTargetInfluences[0], state).toBeCloseTo(slid, 6);
         const C = torso.getWorldPosition(new THREE.Vector3());
         const ray = new THREE.Raycaster();
-        let nearest = Infinity;
+        let nearest = Infinity, misses = 0;
         const p = hood.geometry.attributes.position;
-        for (let i = 0; i < p.count; i += 3) {
+        for (let i = 0; i < p.count; i++) {
           const v = hood.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(hood.matrixWorld);
           const dir = v.clone().sub(C).normalize();
           ray.set(v.clone().addScaledVector(dir, 1), dir.clone().negate());
           const hit = ray.intersectObject(shell, false)[0];
-          if (!hit) continue;
+          if (!hit) { misses++; continue; }
           const off = (hit.distance - 1) / cat.scale.x;
-          expect(off, `${breed} ${state} vertex ${i}`).toBeGreaterThanOrEqual(-0.003);
+          expect(off, `${where} vertex ${i}`).toBeGreaterThanOrEqual(-0.003);
           nearest = Math.min(nearest, off);
         }
-        expect(nearest, `${breed} ${state}`).toBeLessThanOrEqual(0.015);
+        expect(misses, `${where}: rays that missed the shell`).toBeLessThanOrEqual(p.count * 0.01);
+        expect(nearest, where).toBeLessThanOrEqual(0.015);
       }
     }
   }, 120_000);

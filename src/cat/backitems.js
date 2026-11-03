@@ -584,9 +584,10 @@ export function buildBackItem(id, { bodyScale = TORSO.SCALE, cover = 'fur', simp
 // `wrap` and `taper` its bend round the neck and its narrowing toward the
 // tail, `thick` the shell, `roll` the rolled rim's radius, `fold` where the
 // fold line crosses (0 the crown's end .. 1 the mouth), the shades of rim,
-// lining and fold; `slide`, `still` and `tuck` for slideHood and buildHood.
+// lining and fold; `slide`, `still`, `tuck` and `steps` for slideHood and
+// buildHood.
 export const HOOD = Object.freeze({
-  dir: [0, 0.93, -0.36], napDir: [0, 0.99, 0.12], slide: 0.07, still: 0.005, tuck: 0.1, size: [0.24, 0.05, 0.15], open: [0, 0.3, -0.95], cut: 0.05, flat: 0.12, wrap: 3, taper: 0.35,
+  dir: [0, 0.93, -0.36], napDir: [0, 0.99, 0.12], slide: 0.07, still: 0.005, tuck: 0.1, steps: 4, size: [0.24, 0.05, 0.15], open: [0, 0.3, -0.95], cut: 0.05, flat: 0.12, wrap: 3, taper: 0.35,
   thick: 0.012, roll: 0.009, fold: 0.6, rimShade: 0.72, liningShade: 0.55, foldShade: 0.68,
 });
 export const DRAWSTRING_WHITE = 0xf4f4f0;
@@ -725,27 +726,51 @@ export function hoodGeometry(color, { bodyScale = TORSO.SCALE, simple = false, d
 // body-local, userData.hood = true; body.add it. When the head comes back
 // over the shoulders (the cross cat's drawn-back chin, the pounce, the nap's
 // head laid on the front of the back) it would sink into the hood, so the
-// hood slides back along the back with it: the geometry's one morph target
-// (relative) carries every vertex from where it lies standing (HOOD.dir) to
-// where it lies in the nap (HOOD.napDir, draped there too; the drawstrings
-// stay where they hang), and animator.js slideHood sets
-// its influence from how much nearer the hood the head has come (HOOD.slide).
+// hood slides back along the back with it, from where it lies standing
+// (HOOD.dir) to where it lies in the nap (HOOD.napDir; the drawstrings stay
+// where they hang). One straight morph from end to end would cut a chord
+// through the curved back (~28° of it) and sag into the coat partway, so the
+// slide is HOOD.steps morph targets (relative), each the hood draped at
+// slide s = k / steps along the way (its dir lerped from dir to napDir), and
+// slideHoodTo(mesh, s) blends the two neighbours of s: the chord between
+// neighbours is short enough to stay on the coat. animator.js slideHood
+// sets s from how much nearer the hood the head has come (HOOD.slide).
 // With a back item on (`tuck`), the spot it slides to is under the backpack
-// or jetpack, behind the wings' roots, so there it is also pressed flat
-// (height × HOOD.tuck), tucked under the pack like a patch of the coat.
+// or jetpack, behind the wings' roots, so as it slides it is also pressed
+// flat (height × 1 → HOOD.tuck), tucked under the pack like a patch of coat.
 export function buildHood(color, { bodyScale = TORSO.SCALE, simple = false, drawstrings = false, tuck = false } = {}) {
   const opts = { bodyScale, simple, drawstrings };
   const geo = hoodGeometry(color, { ...opts, dir: HOOD.dir });
-  const nap = hoodGeometry(color, { ...opts, dir: HOOD.napDir, flat: tuck ? HOOD.tuck : 1 });
-  const a = geo.attributes.position.array, b = nap.attributes.position.array, d = new Float32Array(a.length);
-  for (let i = 0; i < a.length; i++) d[i] = b[i] - a[i];
-  nap.dispose();
-  geo.morphAttributes.position = [new THREE.BufferAttribute(d, 3)];
+  const a = geo.attributes.position.array, targets = [];
+  const d0 = new THREE.Vector3(...HOOD.dir).normalize(), d1 = new THREE.Vector3(...HOOD.napDir).normalize();
+  for (let k = 1; k <= HOOD.steps; k++) {
+    const f = k / HOOD.steps;
+    const dir = d0.clone().lerp(d1, f).normalize().toArray();
+    const at = hoodGeometry(color, { ...opts, dir, flat: tuck ? 1 + (HOOD.tuck - 1) * f : 1 });
+    const b = at.attributes.position.array, d = new Float32Array(a.length);
+    for (let i = 0; i < a.length; i++) d[i] = b[i] - a[i];
+    at.dispose();
+    targets.push(new THREE.BufferAttribute(d, 3));
+  }
+  geo.morphAttributes.position = targets;
   geo.morphTargetsRelative = true;
   const m = new THREE.Mesh(geo, litMaterial(0xffffff, { vertexColors: true }));
   m.userData.hood = true;
+  m.userData.hoodSlide = 0;
   // the standing hood's spot, body-scaled frame (animator.js slideHood)
   m.userData.hoodRef = backAnchor(HOOD.dir, { bodyScale, cover: 'shell' }).at.toArray();
   m.name = 'hood';
   return m;
+}
+
+// Slide the hood to s (0 standing .. 1 the nap's spot): blend the morph
+// targets either side of s (target j lies at s = (j + 1) / steps; s = 0 is
+// the geometry itself). Allocates nothing.
+export function slideHoodTo(mesh, s) {
+  const w = mesh.morphTargetInfluences, n = w.length;
+  const x = Math.min(1, Math.max(0, s)) * n, k = Math.min(n - 1, Math.floor(x)), f = x - k;
+  w.fill(0);
+  if (k > 0) w[k - 1] = 1 - f;
+  w[k] = f;
+  mesh.userData.hoodSlide = s;
 }
