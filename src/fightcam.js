@@ -23,9 +23,7 @@
 // trunk beside the camera) makes a spot cost more by the share of the frame
 // it covers (frameClutter). One that still covers CLUTTER_HIDE of the chosen
 // view is hidden for the fight with the blockers (`clutter`, a list of its own).
-// Clutter never buys a spot with the intruder in front (the order above);
-// where no spot is clear, a tree a spot hides anyway as a blocker adds no
-// clutter to it.
+// Clutter never buys a spot with the intruder in front (the order above).
 //
 // The solids grow by a margin and by as far as the wind can lean each tree.
 // If no spot is clear (on the shipped maps only where a cat stands beside a
@@ -569,17 +567,13 @@ function candidates(subject, yaw0, ring0, g0, near, aspect, fovY, bottom, lookY)
       const nearer = itNearer(pos, subject);
       const ours = HIDE_COST * hid + (nearer ? NEAR_COST : 0);
       let clutter = 0;
-      let shares = null; // [tree, its share], each tree that adds to `clutter`
       const front = frontOf(pos, mid, near);
       if (front.length) {
         const view = viewFrom(pos, mid, fovY, lookY);
         const nd = nearDepthFor(view, subject, lookY, aspect, fovY);
-        for (const o of front) {
-          const share = frameClutter(pos, view, o, aspect, fovY, bottom, nd);
-          if (share > 0) { clutter += share; (shares ??= []).push(o, share); }
-        }
+        for (const o of front) clutter += frameClutter(pos, view, o, aspect, fovY, bottom, nd);
       }
-      list.push({ yaw, ri, behind: hid > 0 || nearer ? 1 : 0, clutter, shares, cost: Math.abs(step) + rc + (along ? AXIS_COST : 0) + SIDE_COST * Math.abs(Math.cos(yaw - ax)) + ours + CLUTTER_COST * clutter });
+      list.push({ yaw, ri, behind: hid > 0 || nearer ? 1 : 0, cost: Math.abs(step) + rc + (along ? AXIS_COST : 0) + SIDE_COST * Math.abs(Math.cos(yaw - ax)) + ours + CLUTTER_COST * clutter });
     }
   });
   // Our cat in front comes first, whatever the rest costs: a spot where the
@@ -655,12 +649,9 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
         // A view that clears every hard point beats any that does not.
         if (best) { whole = false; break scan; }
         // Stop once this spot can beat neither the fallback nor the least
-        // blocked spot (which counts only while there is no fallback). With
-        // as many blockers as the fallback it can still win on its cost
-        // without its own blockers' clutter (below), but only when that
-        // clutter could make up the difference.
-        const noFallback = !hideable || (fallback && (blockers.size > fallback.blockers.length ||
-          (blockers.size === fallback.blockers.length && c.cost - CLUTTER_COST * c.clutter >= fallback.cost)));
+        // blocked spot (which counts only while there is no fallback). A
+        // spot with the intruder in front never beats a fallback without.
+        const noFallback = !hideable || (fallback && (c.behind > fallback.behind || blockers.size >= fallback.blockers.length));
         const noLeast = !!fallback || (least && blockers.size >= least.count);
         if (noFallback && noLeast) { whole = false; break scan; }
       }
@@ -685,16 +676,11 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
       continue;
     }
     if (best) continue;
-    // The fallback: the fewest blockers, then the cheapest, not counting the
-    // clutter of the trees it hides anyway (final review: in the Woods, with
-    // a trunk hidden for every view, its clutter steered the camera off the
-    // tight rings to a wide one that hid the same trunk).
-    if (hideable) {
-      let cost = c.cost;
-      if (c.shares) for (let k = 0; k < c.shares.length; k += 2) if (blockers.has(c.shares[k])) cost -= CLUTTER_COST * c.shares[k + 1];
-      if (!fallback || blockers.size < fallback.blockers.length || (blockers.size === fallback.blockers.length && cost < fallback.cost)) {
-        fallback = { ...view, yaw: c.yaw, ring: c.ri, clear: false, blockers: [...blockers], cost };
-      }
+    // The fallback: our cat in front first (a spot with the intruder in
+    // front never replaces one without), then the fewest blockers; ties keep
+    // the earlier, cheaper spot.
+    if (hideable && (!fallback || (c.behind === fallback.behind ? blockers.size < fallback.blockers.length : c.behind < fallback.behind))) {
+      fallback = { ...view, yaw: c.yaw, ring: c.ri, clear: false, blockers: [...blockers], behind: c.behind };
     }
     // ties keep the earlier spot, which is the one nearer the current view
     if (!fallback && whole && (!least || blockers.size < least.count)) {
@@ -706,7 +692,7 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
   const brushedFor = (pos, hidden) => liftPts.filter((p) => near.some((o) => !hidden.includes(o) && segmentBlocked(pos, p, o))).length;
   if (fallback) {
     const v = { ...fallback, brushed: brushedFor(fallback.pos, fallback.blockers) };
-    delete v.cost;
+    delete v.behind;
     return done(v);
   }
   // No spot is clear even with trees hidden (the blockers include stand

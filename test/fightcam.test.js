@@ -1185,18 +1185,66 @@ describe('the Woods spot from the live check', async () => {
     }
   });
 
-  // Desktop: the side-on spots on the oak's side are blocked by it (a real
-  // line of sight), so every view there hides it; its clutter no longer
-  // counts against the tight rings that hide it anyway.
-  test('desktop: the walk-over from the oak\'s side takes a tight ring and hides the oak', () => {
-    const DESK_ = { aspect: 16 / 9, fovY: 70, px: 720 };
-    for (const yaw0 of [-48, -45, -30].map((a) => (a * Math.PI) / 180)) {
-      const v = choose(walk, DESK_, 0.336, yaw0);
-      const at = `yaw0 ${(yaw0 * 180 / Math.PI).toFixed(0)}: ring ${RINGS[v.ring].d}`;
-      expect(RINGS[v.ring].d, at).toBeLessThanOrEqual(3.4);
-      expect(sideOnCos(v, walk), at).toBeLessThan(Math.sin((20 * Math.PI) / 180));
-      expect(itNearer(v.pos, walk), at).toBe(false);
-      expect(v.blockers, at).toContain(oak);
+  // Re-review of the final fix: the walk-over (no spot clear: the oak is
+  // hidden for every view) and the rounds that follow it (yaw0 the walk-over
+  // view's, ring0 its ring) must stay on one side of the pair. Pricing the
+  // oak's clutter at nothing on the walk-over (a rule since removed) sent it
+  // to the oak's side, and the rounds, clear only on the far side, swung
+  // round ~180 degrees: 35 of these 72 with the rounds at the phone's anchors.
+  const frames3 = { PHONE: { aspect: 390 / 844, fovY: 70, px: 844, sheet: 0.31 }, DESK: { aspect: 16 / 9, fovY: 70, px: 720, sheet: 0.336 }, LAND: { aspect: 844 / 390, fovY: 70, px: 390, sheet: 0.4 } };
+  function turns(rounds) {
+    const out = [];
+    for (const [name, f] of Object.entries(frames3)) {
+      for (let k = 0; k < 24; k++) {
+        const yaw0 = (k * Math.PI) / 12 - Math.PI;
+        const w = choose(walk, f, f.sheet, yaw0);
+        const r = chooseFightView({
+          subject: rounds, occluders: occ, colliders: area.colliders, bounds: area.bounds, ...f,
+          yaw0: Math.atan2(w.pos.x - rounds.mid.x, w.pos.z - rounds.mid.z), ring0: w.ring,
+          frameBottom: frameBottomFor(sheetTopFrom(f.sheet * f.px, f.px)),
+        });
+        const a = Math.atan2(w.pos.x - walk.mid.x, w.pos.z - walk.mid.z), b2 = Math.atan2(r.pos.x - rounds.mid.x, r.pos.z - rounds.mid.z);
+        const turn = Math.abs(Math.atan2(Math.sin(b2 - a), Math.cos(b2 - a))) * 180 / Math.PI;
+        if (turn >= 90) out.push(`${name} yaw0 ${(yaw0 * 180 / Math.PI).toFixed(0)}: ${turn.toFixed(0)} deg`);
+      }
     }
+    return out;
+  }
+  test('the walk-over and the rounds stay on one side of the pair', () => {
+    // the rounds where the walk-over arrives (the gap spot): never a swing
+    expect(turns(subjects.roundsAtGap)).toEqual([]);
+    // the rounds at the phone's reading, 0.47 m short of the gap: on a
+    // phone held upright never; on a wide screen, with the camera on the
+    // oak's side (yaw0 -60..-30), the walk-over hides the oak on that side
+    // and the rounds, clear only on the far side, still turn round (a hard-
+    // clear view outranks one that hides a tree; 2 of each before this
+    // branch, 3 now). Measured, pinned.
+    const far = turns(subjects.rounds);
+    process.stderr.write(`\nwoods spot walk-over -> rounds swings (phone's anchors): ${far.length} of 72: ${far.join('; ')}\n`);
+    expect(far.filter((t) => t.startsWith('PHONE'))).toEqual([]);
+    expect(far.length).toBeLessThanOrEqual(6);
+  });
+
+  // Re-review (b): in the fallback tier (no spot clear) a spot with the
+  // intruder in front never replaces one with our cat in front, even with
+  // fewer trees to hide.
+  test('the fallback keeps our cat in front over fewer hidden trees', () => {
+    const subj2 = subject({ x: 0.8, z: 0 }, { x: -0.8, z: 0 });
+    const ball = (x, y, z, r, ry = r) => ({ obj: { visible: true }, x, z, R: r, top: y + ry, shapes: [{ t: 'ell', x, y, z, r, ry, p: 0 }] });
+    // one round our cat's paws: every spot is blocked, none is clear
+    const occ2 = [ball(0.8, 0.08, 0, 0.04)];
+    // small upright eggs round our cat's body, every 15 degrees but on the
+    // intruder's side (west, where the intruder is nearer the camera): a
+    // spot with our cat in front hides at least one more tree
+    for (let deg = -180; deg < 180; deg += 15) {
+      if (Math.abs(deg + 90) <= 40) continue;
+      const a = (deg * Math.PI) / 180;
+      occ2.push(ball(0.8 + Math.sin(a) * 0.3, 0.4, Math.cos(a) * 0.3, 0.12, 0.5));
+    }
+    const v = chooseFightView({ subject: subj2, occluders: occ2, colliders: [], bounds: BOUNDS, yaw0: 0.3, ...DESK });
+    expect(v.clear).toBe(false);
+    expect(v.blockers.length).toBeGreaterThan(1);
+    expect(itNearer(v.pos, subj2)).toBe(false);
+    expect(ourCatHidden(v.pos, subj2)).toBe(0);
   });
 });

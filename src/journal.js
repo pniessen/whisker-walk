@@ -7,7 +7,7 @@
 // legs, shoes, a coat flaring at the hips, a scarf, a round head, a bobble
 // hat, one arm waving). Static, no ids/text/links; the silhouette filter
 // darkens it like an emoji.
-const TWOLEG_ART = '<svg viewBox="0 0 24 32" width="0.75em" height="1em" aria-hidden="true">'
+const TWOLEG_ART = '<svg viewBox="0 0 24 32" width="0.9em" height="1.2em" aria-hidden="true">'
   + '<rect x="7.5" y="24" width="3.6" height="6" fill="#4a5468"/>'
   + '<rect x="12.9" y="24" width="3.6" height="6" fill="#4a5468"/>'
   + '<ellipse cx="8.4" cy="30.2" rx="3" ry="1.5" fill="#3a3330"/>'
