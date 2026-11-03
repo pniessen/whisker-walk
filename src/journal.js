@@ -3,6 +3,27 @@
 
 // All content here is a fixed, static catalog (ids/emoji/names/hints are
 // never user- or network-supplied), so none of it needs HTML-escaping.
+// The neighbour as a dressed Twoleg (matches the in-game villager: trouser
+// legs, shoes, a coat flaring at the hips, a scarf, a round head, a bobble
+// hat, one arm waving). Static, no ids/text/links; the silhouette filter
+// darkens it like an emoji.
+const TWOLEG_ART = '<svg viewBox="0 0 24 32" width="0.9em" height="1.2em" aria-hidden="true">'
+  + '<rect x="7.5" y="24" width="3.6" height="6" fill="#4a5468"/>'
+  + '<rect x="12.9" y="24" width="3.6" height="6" fill="#4a5468"/>'
+  + '<ellipse cx="8.4" cy="30.2" rx="3" ry="1.5" fill="#3a3330"/>'
+  + '<ellipse cx="15.6" cy="30.2" rx="3" ry="1.5" fill="#3a3330"/>'
+  + '<polygon points="8,14.5 16,14.5 18,25.5 6,25.5" fill="#6a8ac0"/>'
+  + '<polygon points="8.2,15 5.2,16 4.4,23 6.6,23.4 7.6,18" fill="#6a8ac0"/>'
+  + '<polygon points="15.8,15 17.6,16.4 20.6,8.2 18.4,7.2 16.4,13" fill="#6a8ac0"/>'
+  + '<circle cx="19.6" cy="6.4" r="1.7" fill="#e8c8a8"/>'
+  + '<rect x="8" y="13.2" width="8" height="2.4" rx="1.1" fill="#d8a640"/>'
+  + '<rect x="9.2" y="14.6" width="2.2" height="5" rx="0.8" fill="#d8a640"/>'
+  + '<circle cx="12" cy="9.6" r="3.7" fill="#e8c8a8"/>'
+  + '<path d="M7.9 8.8 Q8.2 3.8 12 3.8 Q15.8 3.8 16.1 8.8 Z" fill="#d8503a"/>'
+  + '<rect x="7.4" y="7.8" width="9.2" height="1.6" rx="0.8" fill="#d8503a"/>'
+  + '<circle cx="12" cy="2.9" r="1.7" fill="#f4f0e8"/>'
+  + '</svg>';
+
 export const CRITTER_INFO = [
   { id: 'bird', emoji: '🐦', name: 'Chirpy Bird', hint: 'Move slowly and stay downwind to get close.' },
   { id: 'squirrel', emoji: '🐿️', name: 'Bushy Squirrel', hint: 'Chase it toward a tree trunk!' },
@@ -11,7 +32,7 @@ export const CRITTER_INFO = [
   { id: 'seagull', emoji: '🕊️', name: 'Squawking Seagull', hint: 'Follow the shoreline at the seaside.' },
   { id: 'crab', emoji: '🦀', name: 'Sideways Crab', hint: 'Check the sand near the tide line.' },
   { id: 'dog', emoji: '🐕', name: 'Friendly Dog', hint: 'Spot it from outside its lawn — it chases cats off the grass!' },
-  { id: 'villager', emoji: '🧑', name: 'Neighborhood Villager', hint: 'Wave hello as you walk past.' },
+  { id: 'villager', emoji: '🧑', name: 'Neighborhood Villager', hint: 'Wave hello as you walk past.', art: TWOLEG_ART },
   { id: 'firefly', emoji: '✨', name: 'Glowing Firefly', hint: 'Comes out after dusk — watch for the twinkle.' },
   { id: 'mouse', emoji: '🐭', name: 'Quick Mouse', hint: 'Stalk quietly, then pounce!' },
   // v18 Task 2.6 — the eleventh page, and The Old Docks' own critter. Hint
@@ -41,7 +62,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
     const count = Number.isFinite(raw) ? raw : 0;
     if (count > 0) {
       return `<div class="journal-card spotted">
-        <span class="journal-emoji">${c.emoji}</span>
+        <span class="journal-emoji">${c.art || c.emoji}</span>
         <span class="journal-name">${c.name}</span>
         <span class="journal-count">×${count}</span>
       </div>`;
@@ -50,7 +71,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
     // .silhouette), its name kept back. The shape is decorative; the card's
     // label says what it means.
     return `<div class="journal-card unspotted" role="group" aria-label="Not found yet">
-      <span class="journal-emoji silhouette" aria-hidden="true">${c.emoji}</span>
+      <span class="journal-emoji silhouette" aria-hidden="true">${c.art || c.emoji}</span>
       <span class="journal-hint">${c.hint}</span>
     </div>`;
   }).join('');

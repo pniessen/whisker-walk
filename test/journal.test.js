@@ -99,3 +99,25 @@ describe('the intruders line (Clan Life Part 2)', () => {
     expect(src).toContain('isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {}');
   });
 });
+
+describe('the villager card art', () => {
+  const art = () => CRITTER_INFO.find((c) => c.id === 'villager').art;
+
+  it('the villager is drawn as a Twoleg', () => {
+    expect(art().startsWith('<svg')).toBe(true);
+    expect(art()).toContain('viewBox');
+    expect(art()).toContain('aria-hidden="true"');
+    expect(art().match(/<(path|rect|circle|ellipse|polygon)\b/g).length).toBeGreaterThanOrEqual(7);
+    expect(art()).not.toMatch(/<script|<text|\bid=|href/);
+  });
+
+  it('the villager card renders the art, spotted and not', () => {
+    const cold = renderJournalHtml({ villager: 0 }, 0, 9);
+    expect(cold).toContain(`<span class="journal-emoji silhouette" aria-hidden="true">${art()}</span>`);
+    expect(cold).not.toContain('🧑');
+    const warm = renderJournalHtml({ villager: 2 }, 0, 9);
+    expect(warm).toContain(`<span class="journal-emoji">${art()}</span>`);
+    expect(warm).toContain('×2');
+    expect(warm).not.toContain('🧑');
+  });
+});
