@@ -191,3 +191,30 @@ test('clancast.js stays pure', () => {
   const allowed = ['./clanhomes.js', './clanwords.js', './rivalclans.js', './rng.js', './straynames.js'];
   for (const s of specs) expect(allowed, s).toContain(s);
 });
+
+const lightness = (hex) => {
+  const r = ((hex >> 16) & 255) / 255, g = ((hex >> 8) & 255) / 255, b = (hex & 255) / 255;
+  return (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
+};
+
+test("BrookClan's cast shows at least three clearly different coats", () => {
+  const cast = clanCast('river');
+  expect(new Set(cast.map((c) => c.style)).size).toBeGreaterThanOrEqual(4);
+  const rowsUsed = [...new Set(cast.slice(0, CAST_CORE).map((c) => c.style))];
+  expect(rowsUsed.length).toBeGreaterThanOrEqual(3);
+  expect(rowsUsed.some((s) => s.stripes)).toBe(true);
+  expect(rowsUsed.some((s) => !s.stripes)).toBe(true);
+  expect(cast.every((c) => c.breed === 'siamese')).toBe(true);
+});
+
+test('every clan\'s core nine use at least three distinct coat rows', () => {
+  for (const id of Object.keys(CLAN_COATS)) {
+    const core = clanCast(id).slice(0, CAST_CORE);
+    expect(new Set(core.map((c) => c.style)).size, id).toBeGreaterThanOrEqual(3);
+  }
+});
+
+test('BrookClan is not one blue-grey: the core nine span a wide lightness range', () => {
+  const lights = clanCast('river').slice(0, CAST_CORE).map((c) => lightness(c.style.base));
+  expect(Math.max(...lights) - Math.min(...lights)).toBeGreaterThanOrEqual(0.3);
+});

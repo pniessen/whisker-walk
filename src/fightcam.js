@@ -128,14 +128,14 @@ const REACH = Math.max(...RINGS.map((r) => r.d)) + 3;
 export function findOccluders(scene) {
   const out = [];
   scene.updateMatrixWorld?.(true);
-  const add = (obj, px, py, pz, s, shapes, sways) => {
+  const add = (obj, px, py, pz, s, shapes, sways, extra) => {
     const lean = sways ? maxLean(s) : 0;
     const placed = shapes.map((sh) => (sh.t === 'cyl'
       ? { t: 'cyl', x: px, z: pz, r: sh.r * s, y0: py + sh.y0 * s, y1: py + sh.y1 * s, p: OCCLUDER_PAD + sh.y1 * s * lean }
       : { t: 'ell', x: px, y: py + sh.y * s, z: pz, r: sh.r * s, ry: sh.ry * s, p: OCCLUDER_PAD + sh.y * s * lean }));
     const R = Math.max(...placed.map((p) => p.r + p.p));
     const top = Math.max(...placed.map((p) => (p.t === 'cyl' ? p.y1 : p.y + p.ry) + p.p));
-    out.push({ obj, x: px, z: pz, R, top, shapes: placed });
+    out.push({ obj, ...extra, x: px, z: pz, R, top, shapes: placed });
   };
   scene.traverse((o) => {
     const one = o.userData?.occluder;
@@ -146,7 +146,8 @@ export function findOccluders(scene) {
     if (one) add(o, e[12], e[13], e[14], s, one, true);
     // A stand tree's own y (builder.pineStand: the Gorge's west-top stand) is
     // in the stand's frame, like its x and z; flat stands carry none.
-    if (stand) for (const t of stand.trees) add(null, e[12] + t.x * s, e[13] + (t.y ?? 0) * s, e[14] + t.z * s, s * t.scale, stand.shapes, false);
+    // Each also names its stand and its place in it (treefade.js fades it alone).
+    if (stand) stand.trees.forEach((t, i) => add(null, e[12] + t.x * s, e[13] + (t.y ?? 0) * s, e[14] + t.z * s, s * t.scale, stand.shapes, false, { stand: o, index: i }));
   });
   return out;
 }

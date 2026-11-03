@@ -153,22 +153,31 @@ export function campDiscs(areaId) {
 }
 
 // ---------------------------------------------------------------------------
-// The camp's dressing (polish-camps): a low bramble ring round the camp with
+// The camp's dressing (polish-camps): a bramble wall round the camp with
 // one gap, a sandy clearing inside it, a moss nest under each elder and kit,
 // and a fresh-kill pile beside the leader's rock. All of it is visual only:
 // no collider, no seat, no route changes. campDressing is pure (no THREE) and
 // seeded from the area id alone (never walkRng), so every device agrees.
 const RING_IN = 0.6;          // the ring's radius: disc.r - 0.6
 const RING_GAP_HALF = 0.33;   // radians either side of the gap's centre
-const RING_STEP = 0.55;       // metres of arc per clump
-const RING_JITTER = 0.12;     // ± radial jitter, metres
+// polish-viewclear: a wall, not a dotted circle. Clumps every 0.36 m of arc in
+// two staggered rows (slot i's row is i % 2: row 0 sits 0.16 m in from the
+// ring, row 1 0.16 m out), so neighbours sit close and the wall reads solid; the
+// clumps at the two ends of the gap (the first and last slot) are the gate
+// posts, 1.25 times as tall (to 0.95 m at most).
+const RING_STEP = 0.36;       // metres of arc per clump
+const RING_JITTER = 0.06;     // ± radial jitter, metres
+const RING_ROW = 0.16;        // a row's radial offset, in (row 0) or out (row 1)
 const CLUMP_S = [0.8, 1.2];
-const CLUMP_H = [0.3, 0.55];
+const CLUMP_H = [0.55, 0.8];
+const GATE_H = 1.25;          // a gate clump's h, times
+const GATE_CAP = 0.95;
 // A clump's footprint at s = 1 (the drawn clump's horizontal radius is
 // CLUMP_R · s). A clump is dropped where its centre is nearer a collider's
-// edge than max(0.25, CLUMP_R · s + 0.05): 0.25 to 0.29 m, so the plan's flat
-// r + 0.25 holds at every s and the drawn clump still misses the collider.
-export const CLUMP_R = 0.2;
+// edge than max(0.25, CLUMP_R · s + 0.05): 0.26 to 0.362 m, so the plan's
+// flat r + 0.25 holds at every s and the drawn clump still misses the
+// collider.
+export const CLUMP_R = 0.26;
 const CLUMP_SEAT_GAP = 0.5;   // from any seat, and from the den's and rock's edges
 const CLEARING_IN = 0.7;      // the clearing's radius: ring.r - 0.7
 const NEST_R = 0.4;
@@ -185,14 +194,16 @@ const LEDGE_KILL = frozen({ gorge: frozen({ x: 9.4, z: 42.7 }) });
 
 /**
  * campDressing(areaId, colliders = []) -> null | {
- *   ring: null | { r, gap: { a, half }, clumps: [{ x, z, s, h, rot }] },
+ *   ring: null | { r, gap: { a, half }, clumps: [{ x, z, s, h, rot, row, gate }] },
  *   clearing: null | { x, z, r }, nests: [{ x, z, r }], kill: { x, z } }
  *
  * The camp's dressing, positions only. `colliders` is the area's collider
  * list as addCamp sees it: a clump that would meet one is dropped (every slot
  * draws its numbers first, so a dropped clump never shifts the others). Every
  * clump keeps 0.5 m off every seat and off the den's and the rock's edges. The
- * ring's gap is centred on CAMP_TURN + π, the side away from the den. A ledge
+ * ring's gap is centred on CAMP_TURN + π, the side away from the den. A
+ * clump's `row` is 0 (inner) or 1 (outer), alternating slot by slot; `gate`
+ * is true for the first and last slot, the clumps either side of the gap. A ledge
  * camp has no ring and no clearing. Null where campLayout is null. A fresh
  * object every call.
  */
@@ -218,11 +229,14 @@ export function campDressing(areaId, colliders = []) {
   for (let i = 0; i < n; i++) {
     // slot centres strictly inside the arc, half a step in from each gap edge
     const a = gapA + RING_GAP_HALF + ((i + 0.5) / n) * span;
-    const d = ringR + (rng() * 2 - 1) * RING_JITTER;
+    const row = i % 2;
+    const gate = i === 0 || i === n - 1;
+    const d = ringR + (rng() * 2 - 1) * RING_JITTER + (row ? RING_ROW : -RING_ROW);
     const s = lerp(CLUMP_S, rng());
-    const h = lerp(CLUMP_H, rng());
+    const h0 = lerp(CLUMP_H, rng());
+    const h = gate ? Math.min(GATE_CAP, h0 * GATE_H) : h0;
     const rot = rng() * Math.PI * 2;
-    const c = { x: cx + Math.cos(a) * d, z: cz + Math.sin(a) * d, s, h, rot };
+    const c = { x: cx + Math.cos(a) * d, z: cz + Math.sin(a) * d, s, h, rot, row, gate };
     if (seats.some((p) => near(c, p) < CLUMP_SEAT_GAP)) continue;
     if ([L.den, L.rock].some((p) => near(c, p) - p.r < CLUMP_SEAT_GAP)) continue;
     if (cols.some((k) => near(c, k) < k.r + Math.max(0.25, CLUMP_R * s + 0.05))) continue;
@@ -272,7 +286,15 @@ const DEN_LOOK = {
 // `at` is how far out from the den's centre its middle sits, at height y.
 const DOOR = { w: 0.3, y: 0.3, at: 1.04, tilt: 0.31 };
 const FRAME_AT = 1.02;
-const RING_LOOK = { greens: [0x2e5524, 0x3f6b2c], foot: 0.62, crown: 1.12 };
+const RING_LOOK = {
+  greens: [0x2e5524, 0x3f6b2c, 0x24451c], // two greens and a darker one, by hash
+  foot: 0.62,
+  crown: 1.12,
+  strand: 0x2a3a1a,   // the arched bramble strands between clumps
+  strandTube: 0.025,
+  strandMax: 0.6,     // clumps further apart than this get no strand
+  top: 1.0,           // ruling R3: no ring vertex above 1 m
+};
 // y 0.011: over the path strips (0.01) and wet sand (0.008), under the paw
 // prints (pawprints PRINT_Y 0.012) and the contact-shadow decals (DECAL_Y
 // 0.015), so the opaque sand neither hides the prints nor ties the shadows.
@@ -423,33 +445,50 @@ function doorGeometry(den, out) {
   return geo;
 }
 
-// The Highrock: the leader's dodecahedron (she stands on it at rock.h), a
-// tall back stone on the side away from the camp's centre rising to ~1.5 m,
-// and a smaller step stone to one side. All within 0.75 m of the rock's centre
-// (camp.test.js); the collider is still the rock's r 0.6. Baked in world space.
+// The Highrock (polish-viewclear): two stacked flat-topped slabs, 7-sided,
+// each side corner pushed in or out by up to 6 % (hash01, x and z only, so
+// the top stays level): the lower one radius 0.6 at the foot to 0.52 at 0.45 m,
+// the upper 0.5 to 0.44, its top face exactly at rock.h (0.8), where the
+// leader stands. Behind her, on the side away from the camp's centre, a tall
+// back stone 0.56 m out and 0.14 deep, its front face 0.43 m from the centre
+// (the leader's 0.42 m stays clear, so she no longer clips into it), rising
+// to ~1.64 m. (The brief's 0.6 m and 0.16 put the Woods camp group 6.55 m
+// deep, over the contact-shadow scan's MAX_SPAN 6.5; at 0.56/0.14 it is
+// 6.49.) And a smaller step stone to one side, its top under 0.45 m. Every
+// vertex within 0.8 m of the rock's centre (camp.test.js); the collider is
+// still the rock's r 0.6. Merged and non-indexed (flat-shaded), baked in
+// world space.
+const SLABS = [
+  { rTop: 0.52, rBottom: 0.6, h: 0.45 },
+  { rTop: 0.44, rBottom: 0.5, h: 0.35 },
+];
 function highrockGeometry(rockSpot, cx, cz) {
-  const base = new THREE.DodecahedronGeometry(rockSpot.r, 0);
-  base.computeBoundingBox();
-  const { min, max } = base.boundingBox;
-  const sy = rockSpot.h / (max.y - min.y);
-  base.scale(1, sy, 1);
-  base.translate(0, -min.y * sy, 0);
+  const parts = [];
+  let y = rockSpot.h - SLABS.reduce((sum, b) => sum + b.h, 0); // 0 for rock.h 0.8
+  for (const [k, b] of SLABS.entries()) {
+    const slab = new THREE.CylinderGeometry(b.rTop, b.rBottom, b.h, 7, 1);
+    const pos = slab.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const px = pos.getX(i);
+      const pz = pos.getZ(i);
+      if (Math.hypot(px, pz) < 1e-6) continue; // the caps' centres
+      const push = 1 + (hash01(px, k, pz, 17) * 2 - 1) * 0.06;
+      pos.setXYZ(i, px * push, pos.getY(i), pz * push);
+    }
+    parts.push(bake(slab, place(rockSpot.x, y + b.h / 2, rockSpot.z, 1, 1, 1)));
+    y += b.h;
+  }
 
   const away = Math.atan2(rockSpot.z - cz, rockSpot.x - cx);
-  const at = (d, a) => [Math.cos(a) * d, Math.sin(a) * d];
-  const [bx, bz] = at(0.45, away);
-  const back = new THREE.DodecahedronGeometry(1, 0);
-  back.applyMatrix4(place(bx, 0.72, bz, 0.27, 0.78, 0.19, Math.PI / 2 - away));
+  const at = (d, a) => [rockSpot.x + Math.cos(a) * d, rockSpot.z + Math.sin(a) * d];
+  // local x along the ring round the rock, local z out from the centre
+  const [bx, bz] = at(0.56, away);
+  parts.push(bake(new THREE.DodecahedronGeometry(1, 0), place(bx, 0.85, bz, 0.22, 0.85, 0.14, Math.PI / 2 - away)));
   const side = hash01(rockSpot.x, 0, rockSpot.z, 9) < 0.5 ? 1 : -1;
   const [stx, stz] = at(0.48, away + side * 1.25);
-  const step = new THREE.DodecahedronGeometry(1, 0);
-  step.applyMatrix4(place(stx, 0.2, stz, 0.2, 0.27, 0.2, away));
-
-  for (const g of [base, back, step]) g.translate(rockSpot.x, 0, rockSpot.z);
-  const geo = mergeGeometries([base, back, step], false);
-  for (const g of [base, back, step]) g.dispose();
-  geo.computeVertexNormals();
-  return geo;
+  // y scale 0.26: the dodecahedron's top vertex (0.934) lands at 0.443 m
+  parts.push(bake(new THREE.DodecahedronGeometry(1, 0), place(stx, 0.2, stz, 0.2, 0.26, 0.2, away)));
+  return merged(parts);
 }
 
 // THREE's generateUUID takes four Math.random() draws for every Object3D,
@@ -477,30 +516,68 @@ function adopt(local) {
   return g;
 }
 
-// The bramble ring: each clump two low, squashed icosahedrons side by side
-// along the ring (40 triangles), every vertex within CLUMP_R · s of the
-// clump's spot and no higher than its h, dark at the foot. One mesh.
+// The bramble wall (polish-viewclear): each clump a wide main lump (an
+// icosahedron, 20 triangles) and a taller, smaller one behind it on the outer
+// side (an octahedron, 8), every vertex within CLUMP_R · s of the clump's spot
+// and no higher than its h; the staggered rows (campDressing) put neighbours
+// 0.41 to 0.57 m apart and 0.36 m along the ring, about the main lumps' own
+// width (0.39 to 0.59 m across), so big neighbours meet or overlap and small
+// ones leave a gap the other row's lumps and the back lumps mostly fill.
+// Over every other gap between consecutive KEPT clumps (the kept list's
+// 0-1, 2-3, ... pairs, not campDressing's slots, so a dropped clump shifts
+// the pairing; pairs 0.6 m or less apart) one arched bramble strand: a thin
+// half torus (24 triangles) standing upright between their crowns, its arch
+// squashed where it would rise over 1 m (ruling R3). Greens by hash, dark at
+// the foot; the strands darker. One vertex-coloured mesh, out of the shadow
+// pass: ~3,360 triangles a camp, so the River and the Moor stay under the
+// area's 60,000 (test/budget.test.js; ruling R7).
+//
+// Ruling R4: the wall has no collider. A collider would change the walkable
+// ground, the clan cats' routes and the flat trace for the Woods, River, Moor
+// and Pines (test/flattrace.test.js); cats walk through brambles.
 function ringMesh(ring, cx, cz) {
   const parts = [];
-  for (const c of ring.clumps) {
+  const cs = ring.clumps;
+  for (const c of cs) {
     const R = CLUMP_R * c.s;
-    const along = Math.atan2(c.z - cz, c.x - cx) + Math.PI / 2;
-    const ux = Math.cos(along);
-    const uz = Math.sin(along);
-    const green = new THREE.Color(RING_LOOK.greens[hash01(c.x, c.rot, c.z, 10) < 0.5 ? 0 : 1]);
+    const out = Math.atan2(c.z - cz, c.x - cx);
+    const along = out + Math.PI / 2;
+    const ox = Math.cos(out);
+    const oz = Math.sin(out);
+    const green = new THREE.Color(RING_LOOK.greens[Math.floor(hash01(c.x, c.rot, c.z, 10) * 3)]);
     const at = (vx, vy, vz, col) => {
       const t = Math.max(0, Math.min(1, vy / c.h));
       col.copy(green).multiplyScalar(RING_LOOK.foot + (RING_LOOK.crown - RING_LOOK.foot) * t * (0.8 + 0.4 * hash01(vx, vy, vz, 11)));
     };
-    // [offset along the ring, half-width along, half-depth across, share of h]
-    for (const [off, sa, sd, sh] of [[0.3, 0.68, 0.6, 1], [-0.32, 0.64, 0.56, 0.75]]) {
-      const top = c.h * sh;
-      const sy = (top + 0.03) / (2 * ICO_Y);
-      const yaw = -along + Math.sin(c.rot) * 0.15;
-      // a widest corner turned onto the lump's long axis, so neighbours touch
-      const lump = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
-      parts.push(bake(lump, place(c.x + ux * off * R, top - ICO_Y * sy, c.z + uz * off * R, sa * R, sy, sd * R, yaw), at));
-    }
+    const yaw = -along + Math.sin(c.rot) * 0.15;
+    // the main lump, a widest corner turned onto the ring, so neighbours touch
+    const mainTop = c.h * 0.85;
+    const msy = mainTop / (2 * ICO_Y);
+    const main = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
+    parts.push(bake(main, place(c.x, mainTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.8 * R, yaw), at));
+    // the back lump, 0.4 R out: its reach, 0.4 + 0.55, stays under R
+    const bsy = c.h / 2;
+    const back = new THREE.OctahedronGeometry(1, 0);
+    parts.push(bake(back, place(c.x + ox * 0.4 * R, bsy, c.z + oz * 0.4 * R, 0.55 * R, bsy, 0.55 * R, yaw + Math.PI / 4), at));
+  }
+  // The strands: from crown to crown, the arch's feet a little down in the
+  // lumps, its rise the half-span or what is left under 1 m.
+  const tube = RING_LOOK.strandTube;
+  const strandAt = (vx, vy, vz, col) => col.setHex(RING_LOOK.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 18));
+  for (let i = 1; i < cs.length; i += 2) {
+    const p = cs[i - 1];
+    const q = cs[i];
+    const span = Math.hypot(q.x - p.x, q.z - p.z);
+    if (span > RING_LOOK.strandMax) continue;
+    const half = span / 2;
+    const foot = 0.85 * Math.min(p.h, q.h);
+    const rise = Math.max(0, Math.min(half, RING_LOOK.top - tube - foot));
+    const arch = new THREE.TorusGeometry(half, tube, 3, 4, Math.PI);
+    // the torus lies in its xy plane, feet at (±half, 0): squash its rise,
+    // then stand it on the line from p to q
+    arch.scale(1, rise / half, 1);
+    const yaw = -Math.atan2(q.z - p.z, q.x - p.x);
+    parts.push(bake(arch, place((p.x + q.x) / 2, foot, (p.z + q.z) / 2, 1, 1, 1, yaw), strandAt));
   }
   const mesh = new THREE.Mesh(merged(parts), vcMaterial());
   mesh.name = 'campRing';

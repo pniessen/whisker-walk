@@ -4,9 +4,72 @@ import { litMaterial } from './render/materials.js';
 import { FLAT_GROUND } from './ground.js';
 
 const RING_RADIUS = 1.1;
-const RING_TUBE = 0.08;
 export const RING_Y = 1.1; // metres above the ground under the ring
 const CROSS_DIST = 1.2; // horizontal distance that counts as "through" a ring/on the pad
+
+// Polish (view clear): a ring close to the camera fades out of the way. Inside
+// `end` metres (3D, camera to ring centre) it sits at `min` of its state's
+// opacity; past `start` it is back to full; linear in between.
+export const NEAR_FADE = { start: 2.5, end: 1.2, min: 0.12 };
+
+// The next ring is a thick candy-striped hoop; every other ring is a thin faint
+// one, a little fainter once passed. Ring materials stay transparent for good
+// (opacity 1 when solid), so nothing toggles `transparent` while running.
+const THICK_TUBE = 0.09;
+const THIN_TUBE = 0.04;
+const STRIPES = 12;
+const CANDY_RED = 0xff5a5f;
+const CANDY_CREAM = 0xfff4dc;
+const RING_LOOK = {
+  current: { color: 0xffffff, emissive: 0x6a2a10, opacity: 1 },
+  upcoming: { color: 0xbfe3ff, emissive: 0x16303f, opacity: 0.55 },
+  passed: { color: 0xb8e0a8, emissive: 0x16301a, opacity: 0.3 },
+};
+const POLE_H = 0.6;
+const FLAG_YELLOW = 0xffd23f;
+
+// The thick hoop, non-indexed so each triangle carries its own colour: 12
+// stripes around the hoop, by the triangle centroid's angle about the centre.
+function candyHoopGeometry() {
+  const geo = new THREE.TorusGeometry(RING_RADIUS, THICK_TUBE, 10, 36).toNonIndexed();
+  const pos = geo.getAttribute('position');
+  const colors = new Float32Array(pos.count * 3);
+  const red = new THREE.Color(CANDY_RED);
+  const cream = new THREE.Color(CANDY_CREAM);
+  for (let t = 0; t < pos.count; t += 3) {
+    const cx = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3;
+    const cy = (pos.getY(t) + pos.getY(t + 1) + pos.getY(t + 2)) / 3;
+    const a = Math.atan2(cy, cx) + Math.PI; // 0..2π
+    const stripe = Math.min(STRIPES - 1, Math.floor((a / (Math.PI * 2)) * STRIPES));
+    const c = stripe % 2 === 0 ? red : cream;
+    for (let v = t; v < t + 3; v++) {
+      colors[v * 3] = c.r;
+      colors[v * 3 + 1] = c.g;
+      colors[v * 3 + 2] = c.b;
+    }
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.userData.tube = THICK_TUBE;
+  return geo;
+}
+
+function thinHoopGeometry() {
+  const geo = new THREE.TorusGeometry(RING_RADIUS, THIN_TUBE, 6, 32);
+  const n = geo.getAttribute('position').count;
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).fill(1), 3));
+  return geo;
+}
+
+// The pennant's flag: one triangle off the pole's top, UVs for the number.
+function flagGeometry() {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+    0.02, POLE_H, 0, 0.02, POLE_H - 0.3, 0, 0.44, POLE_H - 0.15, 0,
+  ]), 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0.5]), 2));
+  geo.computeVertexNormals();
+  return geo;
+}
 
 // raceCourse(pois, seed) — pure. mulberry32(seed)-seeded Fisher-Yates
 // shuffle of a COPY of the area's pois (never mutates the caller's array —
@@ -56,15 +119,6 @@ export function raceCourse(pois, seed) {
   return course;
 }
 
-function disposeGroup(group) {
-  group.traverse((o) => {
-    o.geometry?.dispose();
-    if (o.material) {
-      for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose();
-    }
-  });
-}
-
 // createRace(scene, course, spawn) — course is the 5-waypoint array from
 // raceCourse; spawn is the area's own spawn point (areaData.spawn). Builds a
 // start pad just off spawn plus one upright ring per waypoint, and returns
@@ -85,24 +139,87 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 
   pad.position.set(spawn.x + 2, ground.y(spawn.x + 2, spawn.z - 3) + 0.02, spawn.z - 3);
   group.add(pad);
 
-  // Two shared materials, swapped onto whichever ring mesh is "current"
-  // (bright) vs. already passed or not-yet-current (dim) — cheaper than a
-  // unique material per ring since at most one ring is ever bright at a
-  // time. TorusGeometry's default orientation already lies in the XY plane
-  // (hole axis along Z), which is exactly the upright/vertical hoop the cat
-  // runs through — no extra rotation needed (unlike the flat start pad
-  // above, which is deliberately rotated flat onto the ground).
-  const brightMat = litMaterial(0xffe27a, { emissive: 0xcc9a20 });
-  const dimMat = litMaterial(0x707078, { emissive: 0x18181c });
+  // Two shared hoop geometries; each ring has its own material so a ring
+  // near the camera can fade on its own. TorusGeometry already lies in the XY
+  // plane (hole along Z): the upright hoop the cat runs through.
+  const thickGeo = candyHoopGeometry();
+  const thinGeo = thinHoopGeometry();
 
   const rings = course.map((wp) => {
-    const mesh = new THREE.Mesh(new THREE.TorusGeometry(RING_RADIUS, RING_TUBE, 12, 24), dimMat);
+    const mat = litMaterial(0xffffff, { vertexColors: true, transparent: true, emissive: 0x000000 });
+    const mesh = new THREE.Mesh(thinGeo, mat);
+    mesh.userData.raceRing = true;
     const gy = ground.y(wp.x, wp.z);
     mesh.position.set(wp.x, gy + RING_Y, wp.z);
     group.add(mesh);
-    return { x: wp.x, z: wp.z, y: gy, mesh };
+    return { x: wp.x, z: wp.z, y: gy, mesh, stateOpacity: 1, fade: 1 };
   });
-  if (rings.length > 0) rings[0].mesh.material = brightMat;
+
+  // paint(ring, state) — geometry, colour, glow and opacity for one state.
+  function paint(ring, state) {
+    const look = RING_LOOK[state];
+    ring.mesh.geometry = state === 'current' ? thickGeo : thinGeo;
+    ring.mesh.material.color.setHex(look.color);
+    ring.mesh.material.emissive.setHex(look.emissive);
+    ring.stateOpacity = look.opacity;
+    ring.mesh.material.opacity = look.opacity * ring.fade;
+  }
+  rings.forEach((r, i) => paint(r, i === 0 ? 'current' : 'upcoming'));
+
+  // The pennant: a pole and a yellow flag with the next ring's number, standing
+  // on top of the current ring. The number is drawn on one small canvas, only
+  // where there is a document (never in node tests).
+  const pennant = new THREE.Group();
+  pennant.name = 'racePennant';
+  const poleGeo = new THREE.CylinderGeometry(0.025, 0.025, POLE_H, 6);
+  const poleMat = litMaterial(0xf4efe6);
+  const pole = new THREE.Mesh(poleGeo, poleMat);
+  pole.position.y = POLE_H / 2;
+  const flagGeo = flagGeometry();
+  let numberCanvas = null;
+  let numberTex = null;
+  if (typeof document !== 'undefined') {
+    numberCanvas = document.createElement('canvas');
+    numberCanvas.width = 128;
+    numberCanvas.height = 128;
+    numberTex = new THREE.CanvasTexture(numberCanvas);
+    numberTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  const flagMat = litMaterial(FLAG_YELLOW, {
+    side: THREE.DoubleSide, emissive: 0x5a4400, ...(numberTex ? { map: numberTex } : {}),
+  });
+  const flag = new THREE.Mesh(flagGeo, flagMat);
+  for (const m of [pole, flag]) {
+    m.castShadow = false;
+    m.userData.noCast = true;
+    pennant.add(m);
+  }
+  group.add(pennant);
+
+  function drawNumber(n) {
+    const ctx = numberCanvas?.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = '#3a2a10';
+    ctx.font = 'bold 60px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(n), 44, 66);
+    numberTex.needsUpdate = true;
+  }
+
+  function placePennant(n) {
+    const ring = rings[n - 1];
+    if (!ring) {
+      pennant.visible = false;
+      return;
+    }
+    pennant.visible = true;
+    pennant.position.set(ring.x, ring.y + RING_Y + RING_RADIUS, ring.z);
+    drawNumber(n);
+  }
+  placePennant(1);
 
   // Plain positions for the corner map, built once so the per-frame read
   // allocates nothing.
@@ -139,23 +256,40 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 
     get finishLabel() {
       return kind === 'climb' ? 'the climb to the clifftop' : 'the daily zoomies race';
     },
-    // update(dt, catPos) — while running, accumulates elapsed time and
-    // checks the cat against ONLY the current ring (rings[currentRing - 1]);
-    // crossing it dims that ring, advances to the next (brightening it), or
-    // — on the fifth ring — ends the race.
-    update(dt, catPos) {
+    // update(dt, catPos, camera) — first, whatever the state, any ring near
+    // the camera fades (NEAR_FADE) and the pennant turns to face the camera;
+    // with no camera the fades and the pennant stay as they are.
+    // Then, while running, accumulates elapsed time and checks the cat against
+    // ONLY the current ring (rings[currentRing - 1]); crossing it marks that
+    // ring passed, advances to the next (the candy hoop and the pennant move
+    // on), or — on the fifth ring — ends the race.
+    update(dt, catPos, camera = null) {
+      if (camera) {
+        const cp = camera.position;
+        for (const r of rings) {
+          const d = Math.hypot(cp.x - r.x, cp.y - (r.y + RING_Y), cp.z - r.z);
+          const k = Math.min(1, Math.max(0, (d - NEAR_FADE.end) / (NEAR_FADE.start - NEAR_FADE.end)));
+          r.fade = NEAR_FADE.min + (1 - NEAR_FADE.min) * k;
+          r.mesh.material.opacity = r.stateOpacity * r.fade;
+        }
+        // The flag's front (+Z, the number reads un-mirrored on it) turns to
+        // the camera, a snap each frame, so the number never reads backwards.
+        pennant.rotation.y = Math.atan2(cp.x - pennant.position.x, cp.z - pennant.position.z);
+      }
       if (state !== 'running') return;
       timeMs += dt * 1000;
       const ring = rings[currentRing - 1];
       if (!ring) return;
       if (Math.hypot(catPos.x - ring.x, catPos.z - ring.z) < CROSS_DIST
           && ground.sameLevel(catPos.x, catPos.z, ring.x, ring.z)) {
-        ring.mesh.material = dimMat;
+        paint(ring, 'passed');
         if (currentRing >= rings.length) {
           state = 'done';
+          placePennant(0);
         } else {
           currentRing += 1;
-          rings[currentRing - 1].mesh.material = brightMat;
+          paint(rings[currentRing - 1], 'current');
+          placePennant(currentRing);
         }
       }
     },
@@ -176,11 +310,11 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 
     },
     dispose() {
       scene.remove(group);
-      // brightMat/dimMat are each referenced by multiple ring meshes, so
-      // this traversal calls .dispose() on the same shared material more
-      // than once — Three's Material.dispose() is idempotent (just fires a
-      // 'dispose' event), so that's harmless, unlike a geometry leak would be.
-      disposeGroup(group);
+      // Each geometry, material and texture once (the hoop geometries are
+      // shared between rings, and swap between them).
+      for (const g of [pad.geometry, thickGeo, thinGeo, poleGeo, flagGeo]) g.dispose();
+      for (const m of [padMat, poleMat, flagMat, ...rings.map((r) => r.mesh.material)]) m.dispose();
+      numberTex?.dispose();
     },
   };
 }

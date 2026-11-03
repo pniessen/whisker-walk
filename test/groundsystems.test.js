@@ -949,10 +949,10 @@ describe('things on the ground sit on the ground', () => {
   it('race rings float over the ground', () => {
     const area = buildHeightFixture(new THREE.Scene());
     const race = createRace(new THREE.Scene(), [{ x: 8, z: 0 }, { x: -10, z: 0 }], { x: 6, z: 1 }, { ground: area.ground });
-    const rings = race.group.children.filter((m) => m.geometry.type === 'TorusGeometry');
+    const rings = race.group.children.filter((m) => m.userData.raceRing);
     expect(rings[0].position.y).toBe(3 + RING_Y);
     expect(rings[1].position.y).toBe(RING_Y);
-    const pad = race.group.children.find((m) => m.geometry.type === 'RingGeometry');
+    const pad = race.group.children.find((m) => m.geometry?.type === 'RingGeometry');
     expect(pad.position.y).toBe(3 + 0.02);
   });
 

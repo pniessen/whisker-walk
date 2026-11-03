@@ -875,7 +875,7 @@ function init() {
       // race running alongside an active quest never clobbers what the
       // player is actually supposed to be doing.
       const wasRacing = session.race.state === 'running';
-      session.race.update(dt, session.cat.position);
+      session.race.update(dt, session.cat.position, camera);
       const questActive = session.quest?.state === 'active';
       if (session.race.state === 'running') {
         if (questActive) {
