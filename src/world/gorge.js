@@ -16,7 +16,8 @@ import { withLocalUuids } from './localuuids.js';
 import {
   narrowsTint, NARROWS_TINT_KEY, narrowsDressing, NARROWS_VIEW,
 } from './narrows.js';
-import { caveRoom, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
+import { caveRoom, caveTunnel, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 
@@ -706,6 +707,15 @@ export function caveRoomFor(caveId, { glow = true } = {}) {
     crystals: glow ? { spots: caveCrystalSpots(cave), color: CAVE_COLORS[cave.id] } : null,
   });
 }
+// The corridor's and the bend's rounded, rough tunnel (caveroom.js's
+// caveTunnel), with its roots, stalactites and moss. Seeded by the cave's name.
+export function caveTunnelFor(caveId) {
+  const cave = GORGE_CAVES.find((c) => c.id === caveId);
+  return caveTunnel(cave, {
+    clear: (x, z, reach) => caveClear(cave, x, z, reach),
+    seed: seedFromCode('gorge-cavetunnel-' + cave.id),
+  });
+}
 // Where each crystal cluster stands: its spot moved out from the wall by the
 // liner's depth there (the deepest of a few heights up the cluster), so the
 // liner never swallows a cluster.
@@ -768,6 +778,7 @@ export function glitterFleckSpots() {
 
 // One group per deep cave, `caveInterior:<id>`, hidden until gorgelife.js
 // shows it (only near its cave and on its level, C5).
+// The chamber's room and the corridor's tunnel are one mesh, `caveRoom:<id>`.
 // The chamber's room and its crystal clusters (caveroom.js) are made on local
 // uuids, so they take no Math.random draws from the Gorge build (pinned in
 // waterlooks.test.js). The clusters and the Glitter Cave's flecks sit on or in
@@ -779,7 +790,11 @@ function caveInterior(cave) {
   g.userData.caveId = cave.id;
   const { room, mesh, crystals } = withLocalUuids(`gorge-uuids-caveroom-${cave.id}`, () => {
     const made = caveRoomFor(cave.id);
-    const m = new THREE.Mesh(made.geometry, litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('cobble') }));
+    // the corridor's tunnel rides in the same mesh: no new draw
+    const tunnel = caveTunnelFor(cave.id);
+    const geometry = mergeGeometries([made.geometry, tunnel.geometry]);
+    tunnel.geometry.dispose();
+    const m = new THREE.Mesh(geometry, litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('cobble') }));
     m.name = `caveRoom:${cave.id}`;
     m.castShadow = false;
     m.userData.noCast = true;
