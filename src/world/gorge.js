@@ -709,11 +709,13 @@ export function caveRoomFor(caveId, { glow = true } = {}) {
 }
 // The corridor's and the bend's rounded, rough tunnel (caveroom.js's
 // caveTunnel), with its roots, stalactites and moss. Seeded by the cave's name.
-export function caveTunnelFor(caveId) {
+// Its walls by the chamber catch the crystals' glow as the chamber's do.
+export function caveTunnelFor(caveId, { glow = true } = {}) {
   const cave = GORGE_CAVES.find((c) => c.id === caveId);
   return caveTunnel(cave, {
     clear: (x, z, reach) => caveClear(cave, x, z, reach),
     seed: seedFromCode('gorge-cavetunnel-' + cave.id),
+    crystals: glow ? { spots: caveCrystalSpots(cave), color: CAVE_COLORS[cave.id] } : null,
   });
 }
 // Where each crystal cluster stands: its spot moved out from the wall by the
@@ -793,6 +795,9 @@ function caveInterior(cave) {
     // the corridor's tunnel rides in the same mesh: no new draw
     const tunnel = caveTunnelFor(cave.id);
     const geometry = mergeGeometries([made.geometry, tunnel.geometry]);
+    // the merged copy is the one drawn; room.linerDepth (used below for the
+    // clusters and flecks) reads the room's own position list, not its geometry
+    made.geometry.dispose();
     tunnel.geometry.dispose();
     const m = new THREE.Mesh(geometry, litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('cobble') }));
     m.name = `caveRoom:${cave.id}`;

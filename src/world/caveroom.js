@@ -190,8 +190,8 @@ function spike(m, part, x, z, yBase, yTip, r0, sides, turn, col0, col1) {
 // One lumpy mound, appended to a mesher() as part 'moss': a centre and three
 // rings of 9 at 0.35, 0.7 and 1.0 of `rad` round (x, y, z) in the plane across
 // the normal (nx, ny, nz), lifted along it by 0.4, 0.28 and 0.02 of `rad` (the
-// centre a touch over the first ring, at least 0.03 m; the whole mound no
-// higher than MOUND_MAX). Each ring vertex's radius is jittered ±20% (by a
+// centre a touch over the first ring, at least 0.03 m; no vertex higher
+// than MOUND_MAX, the jittered first ring clamped to it too). Each ring vertex's radius is jittered ±20% (by a
 // wobble round the mound that all three rings share, so neighbouring rings
 // keep their order and the rim's slope never folds over) and its lift ±30%,
 // all by hashOf on (x, z, salt): it draws nothing. Darker at the rim (×0.9),
@@ -231,7 +231,7 @@ export function mossLump(m, { x, y, z, nx, ny, nz, rad, color, salt = 0 }) {
       const a = turn + ((i + 0.5 * ri) / MOUND_SEGS) * Math.PI * 2;
       const jr = 1 + 0.2 * wobble(a);
       const jl = 1 + 0.6 * (hashOf(z * 1.9 + i * 2.11 + salt, x * 1.3 + ri * 3.7) - 0.5);
-      return m.vert(...at(a, rad * kr * jr, rad * kl * k * jl), c);
+      return m.vert(...at(a, rad * kr * jr, Math.min(MOUND_MAX, rad * kl * k * jl)), c);
     });
   });
   for (let i = 0; i < MOUND_SEGS; i++) {
@@ -247,6 +247,23 @@ export function mossLump(m, { x, y, z, nx, ny, nz, rad, color, salt = 0 }) {
     }
   }
   return { x: top[0], y: top[1], z: top[2], rim: rings[rings.length - 1] };
+}
+
+// The baked glow: vertices [from, to) of a mesher() within GLOW_R of a
+// crystal cluster (its spot, GLOW_CENTRE_Y over the floor y0) go toward the
+// cluster's colour, by GLOW_MIX right by it, fading out by GLOW_R.
+function glowTint(m, crystals, y0, from, to) {
+  const glow = new THREE.Color(crystals.color ?? 0xffffff);
+  for (let i = from; i < to; i++) {
+    const x = m.pos[i * 3], y = m.pos[i * 3 + 1], z = m.pos[i * 3 + 2];
+    let d = Infinity;
+    for (const sp of crystals.spots) d = Math.min(d, Math.hypot(x - sp.x, y - (y0 + GLOW_CENTRE_Y), z - sp.z));
+    if (d >= GLOW_R) continue;
+    const w = GLOW_MIX * (1 - d / GLOW_R) ** 2;
+    m.col[i * 3] = lerp(m.col[i * 3], glow.r, w);
+    m.col[i * 3 + 1] = lerp(m.col[i * 3 + 1], glow.g, w);
+    m.col[i * 3 + 2] = lerp(m.col[i * 3 + 2], glow.b, w);
+  }
 }
 
 // `crystals` (optional): { spots: [{ x, z }], color } — the liner and the moss
@@ -467,23 +484,8 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
 
   // --- the glow: the liner and the moss near a crystal cluster catch its colour
   if (crystals?.spots?.length) {
-    const glow = new THREE.Color(crystals.color ?? 0xffffff);
-    const near = (i) => {
-      const x = m.pos[i * 3], y = m.pos[i * 3 + 1], z = m.pos[i * 3 + 2];
-      let d = Infinity;
-      for (const sp of crystals.spots) d = Math.min(d, Math.hypot(x - sp.x, y - (y0 + GLOW_CENTRE_Y), z - sp.z));
-      return d;
-    };
-    const tint = (i) => {
-      const d = near(i);
-      if (d >= GLOW_R) return;
-      const w = GLOW_MIX * (1 - d / GLOW_R) ** 2;
-      m.col[i * 3] = lerp(m.col[i * 3], glow.r, w);
-      m.col[i * 3 + 1] = lerp(m.col[i * 3 + 1], glow.g, w);
-      m.col[i * 3 + 2] = lerp(m.col[i * 3 + 2], glow.b, w);
-    };
-    for (let i = 0; i < linerVerts; i++) tint(i);
-    for (let i = mossFrom; i < m.pos.length / 3; i++) tint(i);
+    glowTint(m, crystals, y0, 0, linerVerts);
+    glowTint(m, crystals, y0, mossFrom, m.pos.length / 3);
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -565,6 +567,7 @@ const TUNNEL_STALACTITES = 2;
 const HANG_BURY = 0.1; // a tunnel stalactite's root, this far up into the vault
 const TUNNEL_ROOTS = 3;
 const TUNNEL_MOSS = 3;
+const MOSS_SEAT = 0.02; // a tunnel moss mound's foot, this far behind the liner's face
 
 // Seeded value noise on (s along the tunnel, p along the profile), two octaves.
 function tunnelNoise(rng, sLen, pLen) {
@@ -593,7 +596,7 @@ function vaultHeight(au) {
   return side[side.length - 1][1];
 }
 
-export function caveTunnel(cave, { clear, seed } = {}) {
+export function caveTunnel(cave, { clear, seed, crystals } = {}) {
   const y0 = cave.y;
   const [p0, pc, p2] = cave.path;
   const L1 = Math.hypot(pc[0] - p0[0], pc[1] - p0[1]);
@@ -809,8 +812,30 @@ export function caveTunnel(cave, { clear, seed } = {}) {
   mark('roots', from);
 
   // --- moss on the low walls, in the first 4 m ---------------------------------------
+  // Each mound is draped over the liner: every vertex moves in along the
+  // wall's normal by the liner's own depth at its spot (the bumps interpolated
+  // between stations and up the low wall's profile points), less MOSS_SEAT,
+  // so the rim sits a touch into the rock and none of it hangs in front.
+  // (The mounds stand on the first leg, s < 4.3 < L1 - 1.5, where a
+  // station's lateral axis is a unit.)
   from = m.pos.length / 3;
   const mossA = new THREE.Color(MOSS[0]), mossB = new THREE.Color(MOSS[1]);
+  // the liner's depth in from the wall line at (s, h) on a low side wall: on
+  // the very triangles the liner's quads split into (a-b-cc and a-cc-d, a at
+  // station i's profile point k, cc at station i + 1's point k + 1)
+  const wallDepth = (s, h, side) => {
+    const kWall = side > 0 ? [0, 1, 2] : [10, 9, 8]; // up the wall: h -0.02, 0.8, 1.55
+    let i = 0;
+    while (i + 2 < stations.length && stations[i + 1].s < s) i++;
+    let w = 0;
+    while (w + 2 < kWall.length && P[kWall[w + 1]][1] < h) w++;
+    const k = Math.min(kWall[w], kWall[w + 1]);
+    const ts = clamp01((s - stations[i].s) / (stations[i + 1].s - stations[i].s));
+    const th = clamp01((h - P[k][1]) / (P[k + 1][1] - P[k][1]));
+    const at = (j, kk) => bumps[j][kk] * Math.hypot(stations[j].lx, stations[j].lz);
+    const da = at(i, k), db = at(i + 1, k), dc = at(i + 1, k + 1), dd = at(i, k + 1);
+    return ts >= th ? da + ts * (db - da) + th * (dc - db) : da + th * (dd - da) + ts * (dc - dd);
+  };
   const mounds = [];
   for (let t = 0; t < 60; t++) {
     const s = 0.9 + rng() * 3.1, side = rng() < 0.5 ? -1 : 1, h = 0.35 + rng() * 0.4;
@@ -818,31 +843,43 @@ export function caveTunnel(cave, { clear, seed } = {}) {
     if (mounds.length >= TUNNEL_MOSS) continue;
     if (!mounds.every((o) => Math.abs(o.s - s) >= 0.8)) continue;
     const fr = frameAt(s);
-    // in front of every low wall vertex it could cover
-    const kWall = side > 0 ? [0, 1, 2] : [8, 9, 10];
-    let depth = 0;
-    stations.forEach((st, i) => {
-      if (Math.abs(st.s - s) <= rad * MOSS_REACH + TUNNEL_STEP) for (const k of kWall) depth = Math.max(depth, bumps[i][k]);
-    });
     const ll = Math.hypot(...fr.l);
-    const q = world(fr, side * (H - depth / ll - 0.02 / ll), h);
+    const depth = Math.max(0, wallDepth(s, h, side) - MOSS_SEAT);
+    const q = world(fr, side * (H - depth / ll), h);
     if (!clear(q.x, q.z, rad * MOSS_REACH + 0.15)) continue;
-    mounds.push({ s, q, nx: -side * fr.l[0] / ll, nz: -side * fr.l[1] / ll, rad, tint });
+    mounds.push({ s, side, h, q, nx: -side * fr.l[0] / ll, nz: -side * fr.l[1] / ll, fx: fr.f[0], fz: fr.f[1], depth, rad, tint });
   }
+  const mossMounds = [];
   for (const md of mounds) {
-    mossLump(m, {
+    const first = m.pos.length / 3;
+    const { rim } = mossLump(m, {
       x: md.q.x, y: md.q.y, z: md.q.z, nx: md.nx, ny: 0, nz: md.nz,
       rad: md.rad, color: mossA.clone().lerp(mossB, md.tint).multiplyScalar(0.95), salt: md.s,
     });
+    for (let i = first; i < m.pos.length / 3; i++) {
+      const dx = m.pos[i * 3] - md.q.x, dz = m.pos[i * 3 + 2] - md.q.z;
+      const sv = md.s + dx * md.fx + dz * md.fz, hv = m.pos[i * 3 + 1] - y0;
+      const shift = Math.max(0, wallDepth(sv, hv, md.side) - MOSS_SEAT) - md.depth;
+      m.pos[i * 3] += md.nx * shift;
+      m.pos[i * 3 + 2] += md.nz * shift;
+    }
+    mossMounds.push({ s: md.s, nx: md.nx, nz: md.nz, rim });
   }
   mark('moss', from);
+
+  // the chamber's glow reaches the tunnel's last stations and its end frame too
+  // (the same rule as caveRoom's), so no colour seam shows where they meet
+  if (crystals?.spots?.length) {
+    glowTint(m, crystals, y0, ...ranges.liner);
+    glowTint(m, crystals, y0, ...ranges.frames);
+  }
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(m.pos, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(m.col, 3));
   geometry.setIndex(m.idx);
   geometry.computeVertexNormals();
-  return { geometry, parts: { ...m.parts }, stalactiteTips, rootTips, stations, ranges };
+  return { geometry, parts: { ...m.parts }, stalactiteTips, rootTips, stations, ranges, mossMounds };
 }
 
 // How far (x, z) stands inside the chamber's rounded corners (Infinity away from them).

@@ -533,6 +533,62 @@ describe('caveroom: the deep caves\' chambers', () => {
       }
     }, T);
 
+    it('every tunnel moss rim vertex lies within 0.02 m of the liner behind it (none floats)', () => {
+      // Back along the wall's normal from each rim vertex onto the liner: a
+      // mound once stood off by the deepest bump anywhere near it, leaving
+      // its rim hanging up to 14 cm in front of a shallower wall.
+      const a = new THREE.Vector3(), bb = new THREE.Vector3(), cc = new THREE.Vector3(), hit = new THREE.Vector3();
+      const ray = new THREE.Ray();
+      for (const cave of GORGE_CAVES) {
+        const t = tunnelOf(cave.id);
+        const p = t.geometry.attributes.position;
+        const ix = t.geometry.index.array;
+        const [lo, hi] = t.ranges.liner;
+        expect(t.mossMounds.length, cave.id).toBe(3);
+        for (const md of t.mossMounds) {
+          for (const id of md.rim) {
+            const v = new THREE.Vector3().fromBufferAttribute(p, id);
+            ray.origin.set(v.x + md.nx * 0.3, v.y, v.z + md.nz * 0.3);
+            ray.direction.set(-md.nx, 0, -md.nz);
+            let best = Infinity;
+            for (let i = 0; i < ix.length; i += 3) {
+              if (ix[i] < lo || ix[i] >= hi) continue;
+              a.fromBufferAttribute(p, ix[i]); bb.fromBufferAttribute(p, ix[i + 1]); cc.fromBufferAttribute(p, ix[i + 2]);
+              if (ray.intersectTriangle(a, bb, cc, false, hit)) best = Math.min(best, hit.distanceTo(ray.origin));
+            }
+            const where = `${cave.id} (${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`;
+            expect(best, where).toBeLessThan(Infinity);
+            // how far in front of the liner the rim vertex stands (the liner
+            // is met `best` along from 0.3 in front of the vertex)
+            const front = best - 0.3;
+            expect(front, where).toBeLessThanOrEqual(0.02);
+            expect(front, where).toBeGreaterThanOrEqual(-0.08); // seated, not buried deep
+          }
+        }
+      }
+    }, T);
+
+    it('takes the chamber\'s crystal glow by the chamber, and only within GLOW_R of a cluster', () => {
+      let tinted = 0;
+      for (const cave of GORGE_CAVES) {
+        const lit = tunnelOf(cave.id), bare = gorge.caveTunnelFor(cave.id, { glow: false });
+        const p = lit.geometry.attributes.position;
+        const ca = lit.geometry.attributes.color.array, cb = bare.geometry.attributes.color.array;
+        expect(Array.from(bare.geometry.attributes.position.array)).toEqual(Array.from(p.array));
+        const spots = gorge.caveCrystalSpots(cave);
+        for (let i = 0; i < p.count; i++) {
+          const changed = [0, 1, 2].some((k) => ca[i * 3 + k] !== cb[i * 3 + k]);
+          if (!changed) continue;
+          tinted++;
+          const d = Math.min(...spots.map((sp) => Math.hypot(p.getX(i) - sp.x, p.getY(i) - (cave.y + 0.35), p.getZ(i) - sp.z)));
+          expect(d, `${cave.id} vertex ${i}`).toBeLessThan(caveroom.GLOW_R);
+          const inLinerOrFrames = [lit.ranges.liner, lit.ranges.frames].some(([a, b]) => i >= a && i < b);
+          expect(inLinerOrFrames, `${cave.id} vertex ${i}`).toBe(true);
+        }
+      }
+      expect(tinted).toBeGreaterThan(0);
+    }, T);
+
     it('closes its ends', () => {
       for (const cave of GORGE_CAVES) expect(tunnelOf(cave.id).parts.frames, cave.id).toBeGreaterThan(0);
     }, T);
