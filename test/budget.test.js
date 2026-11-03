@@ -215,6 +215,14 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // after: river 59,895 -> 49,235; moor 59,761 -> 51,061; pines 52,934 ->
 // 49,734; woods 53,873 -> 51,953. The other areas, and every ceiling, are
 // unchanged.
+//
+// 2026-11-03, polish-places Task 2: the Woods' Twolegplace is 14 small
+// cottages (rooftops style 'houses': walls, roof, door, 1-3 windows, a short
+// chimney on some) in place of the skyline blocks, its band 3,782 -> 3,788
+// triangles, and the lookout is a lumpy stacked rock (three merged
+// icosahedra, 240 triangles) in place of a 7-sided cylinder. Woods 51,953 ->
+// 52,171, meshes 181 (unchanged). The Gorge, whose band also has rooftops,
+// is byte-identical (59,307).
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the

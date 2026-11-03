@@ -688,7 +688,7 @@ export function house(x, z, bodyColor = 0xe8d8b0, roofColor = 0xb05a4a, bodySurf
 // `walkRng` — either would render a different canopy for the same tree on
 // two clients, which is a desync of the visible world exactly as wind.js's
 // header warns walkRng's per-frame misuse would be.
-function hash01(x, z, salt) {
+export function hash01(x, z, salt) {
   const h = Math.sin(x * 12.9898 + z * 78.233 + salt * 37.719) * 43758.5453;
   return h - Math.floor(h);
 }
@@ -1345,6 +1345,69 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint,
     return;
   }
   for (let i = before; i < parts.length; i++) bases.push(tint);
+}
+
+// rooftops.style 'houses' (polish-places): the Woods' Twolegplace as small
+// cottages sunk behind the crest, rather than skyline blocks. The blocks were
+// up to 19 x 16 m and 7 m tall on a 6 m wall of hill, windowless at that
+// distance, and from the Woods' spawn they filled the top of the screen.
+// Each cottage is 5-8.5 m by 4-6.5 m, its walls `height` x 0.75-1.1, sunk
+// 55% of that into the band (so from the area it is mostly roof over the
+// crest), with a terracotta pitched roof (rise 0.45 of its depth), 1-3 small
+// windows and a door on the face turned toward the area, and sometimes a
+// short chimney. Same arc, spots and tints as the blocks. Made under the
+// caller's withLocalUuids, so it moves no area's Math.random draw count.
+const HOUSE_WINDOW = [0.16, 0.17, 0.21];
+const HOUSE_DOOR = [0.3, 0.19, 0.12];
+const HOUSE_SINK = 0.55;
+function addHouse(parts, tones, bases, { k, x, z, yaw, surface, height, salt, tint }) {
+  const bw = 5 + 3.5 * hash01(k, 2, salt + 3);
+  const bd = 4 + 2.5 * hash01(k, 3, salt + 4);
+  const wh = height * (0.75 + 0.35 * hash01(k, 4, salt + 5));
+  const rise = 0.45 * bd;
+  const base = surface - HOUSE_SINK * wh;
+  const wallTint = tint.clone().lerp(WALL_CREAM, 0.7);
+  const tone = SKYLINE_TONES[Math.floor(hash01(k, 9, salt + 10) * 3)];
+  const place = (g, tn, tt, y) => {
+    g.rotateY(yaw);
+    g.translate(x, y, z);
+    parts.push(g);
+    tones.push(tn);
+    bases.push(tt);
+  };
+  // The walls: a box without its buried bottom face.
+  place(dropBottom(new THREE.BoxGeometry(bw, wh, bd)), tone, wallTint, base + wh / 2);
+  // The face toward the area is local -z (yaw turns +z outward). A door at
+  // one end of it, then 1-3 windows spread along the rest, all up in the
+  // part of the wall that shows over the crest.
+  const front = -bd / 2 - 0.06;
+  const doorAt = (hash01(k, 12, salt + 13) < 0.5 ? -1 : 1) * (bw / 2 - 1.1);
+  const door = new THREE.PlaneGeometry(0.9, 1.7);
+  door.rotateY(Math.PI);
+  door.translate(doorAt, wh / 2 - 0.3 - 0.85, front);
+  place(door, HOUSE_DOOR, WHITE_TINT, base + wh / 2);
+  // The windows share out the stretch of wall from the far corner to the door.
+  const sd = Math.sign(doorAt);
+  const from = -sd * (bw / 2 - 0.6);
+  const to = doorAt - sd * 0.9;
+  const nWin = Math.max(1, Math.min(1 + Math.floor(hash01(k, 13, salt + 14) * 2.999), Math.floor(Math.abs(to - from) / 1.1)));
+  for (let i = 0; i < nWin; i++) {
+    const w = new THREE.PlaneGeometry(0.7, 0.8);
+    w.rotateY(Math.PI);
+    w.translate(from + (to - from) * (i + 0.5) / nWin, wh / 2 - 0.7, front);
+    place(w, HOUSE_WINDOW, WHITE_TINT, base + wh / 2);
+  }
+  // The roof, with a little eave over the front and back walls.
+  const rt = ROOF_TERRACOTTA[Math.floor(hash01(k, 10, salt + 11) * ROOF_TERRACOTTA.length)];
+  place(roofPrism(bw + 0.2, bd + 0.4, rise), rt, WHITE_TINT, base + wh);
+  // A short chimney on some, its top under the ridge + 0.4 m.
+  if (hash01(k, 5, salt + 6) > 0.5) {
+    const cx2 = (hash01(k, 8, salt + 9) - 0.5) * bw * 0.6;
+    const ch = 0.6 * rise + 0.4;
+    const c = new THREE.BoxGeometry(0.55, ch, 0.55);
+    c.translate(cx2, 0, bd * 0.15);
+    place(c, tone, wallTint, base + wh + 0.4 * rise + ch / 2);
+  }
 }
 
 // =============================================================================
@@ -2138,16 +2201,34 @@ export function horizonBand({
     // Salted apart from the skyline kind's own blocks, so a band that has both
     // does not stack two blocks on the same spot.
     const rsalt = salt + ROOFTOP_SALT;
+    const houses = rooftops.style === 'houses';
     rooftopSpots(rooftops, inner, outer, rsalt).forEach(({ x, z, yaw }, k) => {
       if (wet(x, z)) return;
       // No height given: the band's own, the same default the skyline kind's
       // blocks are scaled from. Without it every block would be NaN tall.
-      const bh = (rooftops.height ?? height) * (0.40 + 0.75 * hash01(k, 4, rsalt + 5));
-      const base = heightAt(x, z, Math.max(Math.abs(x), Math.abs(z)) - inner) - 0.5;
-      addRoofBlock(parts, tones, bases, {
-        k, x, z, yaw, base, bh, salt: rsalt, pitched: true,
-        tint: sideTints ? sideTintColor(x, z, sideTints) : new THREE.Color(color),
-      });
+      // (Houses: the retired blocks' height, `legacyHeight`, see below.)
+      const bh = ((houses ? rooftops.legacyHeight : undefined) ?? rooftops.height ?? height)
+        * (0.40 + 0.75 * hash01(k, 4, rsalt + 5));
+      const surface = heightAt(x, z, Math.max(Math.abs(x), Math.abs(z)) - inner);
+      const base = surface - 0.5;
+      const tint = sideTints ? sideTintColor(x, z, sideTints) : new THREE.Color(color);
+      if (!houses) {
+        addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt: rsalt, pitched: true, tint });
+        return;
+      }
+      // The Woods' Math.random draw count is pinned (test/waterlooks.test.js,
+      // woods 11344) and the flat trace seeds Math.random before each build:
+      // every THREE geometry the old block made outside withLocalUuids drew 4
+      // numbers for its uuid. So the old block is still built, at the old
+      // height (`legacyHeight`, which sets how many window quads it has), into
+      // throwaway arrays and disposed at once; nothing of it is drawn. The
+      // cottage itself is made under its own uuid stream.
+      const junk = [];
+      addRoofBlock(junk, [], [], { k, x, z, yaw, base, bh, salt: rsalt, pitched: true, tint });
+      for (const g of junk) g.dispose();
+      withLocalUuids(`band-houses-${rsalt}-${k}`, () => addHouse(parts, tones, bases, {
+        k, x, z, yaw, surface, height: rooftops.height ?? height, salt: rsalt, tint,
+      }));
     });
   }
 

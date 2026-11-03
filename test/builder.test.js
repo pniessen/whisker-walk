@@ -25,6 +25,7 @@ vi.stubGlobal('document', {
 const b = await import('../src/world/builder.js');
 const { createWind } = await import('../src/render/wind.js');
 const { surfaceProps } = await import('../src/render/materials.js');
+const { GORGE_HORIZON } = await import('../src/world/gorge.js');
 
 // The peak lean a registered object reaches, measured by sweeping absolute
 // time rather than by reading wind.js's internals: the module deliberately
@@ -480,6 +481,78 @@ describe('horizonBand side tints and rooftops', () => {
     expect(c.getX(0)).toBeCloseTo(band.r, 5);
     expect(c.getY(0)).toBeCloseTo(band.g, 5);
     expect(c.getZ(0)).toBeCloseTo(band.b, 5);
+  });
+
+  // polish-places Task 2. The Gorge's band (the one other band with
+  // rooftops, 693 triangles under its ceiling) must not move by a byte: the
+  // hash was taken from the code before rooftops grew a `style`.
+  it('rooftops without a style are byte-identical', () => {
+    const gorge = b.horizonBand(GORGE_HORIZON);
+    expect(fingerprint(gorge)).toBe('c9031015d29d5c21');
+    expect(gorge.geometry.index.count / 3).toBe(3942);
+    const explicit = b.horizonBand({ ...GORGE_HORIZON, rooftops: { ...GORGE_HORIZON.rooftops, style: undefined } });
+    expect(fingerprint(explicit)).toBe('c9031015d29d5c21');
+  });
+
+  it("houses: small, sunk, windowed", () => {
+    const opts = { kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34, color: 0x5d8a55, salt: 31, sideTints: tints };
+    const rooftops = { from: 0.1, to: 0.25, count: 14, height: 3.6, style: 'houses' };
+    const m = b.horizonBand({ ...opts, rooftops });
+    const ring = b.horizonBand(opts);
+    const RING = ring.geometry.attributes.position.count;
+    const spots = b.rooftopSpots(rooftops, 56, 116, 31 + b.ROOFTOP_SALT);
+    expect(spots).toHaveLength(14);
+    // The band surface under a spot, read off the bare ring by a ray.
+    const ray = new THREE.Raycaster();
+    const surface = ({ x, z }) => {
+      ray.set(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
+      const hit = ray.intersectObject(ring, false)[0];
+      expect(hit, `surface at (${x}, ${z})`).toBeTruthy();
+      return hit.point.y;
+    };
+    const geo = m.geometry;
+    const pos = geo.attributes.position;
+    const col = geo.attributes.color;
+    const top = spots.map(() => -Infinity);
+    const ext = spots.map(() => ({ minA: Infinity, maxA: -Infinity, minB: Infinity, maxB: -Infinity }));
+    const owner = new Int32Array(pos.count).fill(-1);
+    for (let v = RING; v < pos.count; v++) {
+      const x = pos.getX(v), z = pos.getZ(v);
+      let best = 0, bd = Infinity;
+      spots.forEach((s, k) => { const d = Math.hypot(x - s.x, z - s.z); if (d < bd) { bd = d; best = k; } });
+      owner[v] = best;
+      const s = spots[best];
+      top[best] = Math.max(top[best], pos.getY(v));
+      // the house's own frame: a along its facade (local x), b toward the area
+      const dx = x - s.x, dz = z - s.z;
+      const a = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw);
+      const bb = dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw);
+      const e = ext[best];
+      e.minA = Math.min(e.minA, a); e.maxA = Math.max(e.maxA, a);
+      e.minB = Math.min(e.minB, bb); e.maxB = Math.max(e.maxB, bb);
+    }
+    spots.forEach((s, k) => {
+      expect(top[k], `house ${k} drawn`).toBeGreaterThan(-Infinity);
+      expect(top[k], `house ${k} ridge`).toBeLessThanOrEqual(surface(s) + 6.5);
+      expect(ext[k].maxA - ext[k].minA, `house ${k} width`).toBeLessThanOrEqual(9);
+      expect(ext[k].maxB - ext[k].minB, `house ${k} depth`).toBeLessThanOrEqual(7);
+    });
+    // Windows and doors: dark quads on the faces turned toward the area.
+    const idx = geo.index;
+    const p0 = new THREE.Vector3(), p1 = new THREE.Vector3(), p2 = new THREE.Vector3(), n = new THREE.Vector3();
+    let darkTris = 0;
+    const housesWithWindows = new Set();
+    for (let t = 0; t < idx.count / 3; t++) {
+      const i0 = idx.getX(t * 3), i1 = idx.getX(t * 3 + 1), i2 = idx.getX(t * 3 + 2);
+      if (i0 < RING) continue;
+      p0.fromBufferAttribute(pos, i0); p1.fromBufferAttribute(pos, i1); p2.fromBufferAttribute(pos, i2);
+      n.subVectors(p1, p0).cross(p2.clone().sub(p0)).normalize();
+      const inward = new THREE.Vector3(-p0.x, 0, -p0.z).normalize();
+      const lum = 0.3 * col.getX(i0) + 0.59 * col.getY(i0) + 0.11 * col.getZ(i0);
+      if (n.dot(inward) > 0.7 && lum < 0.2) { darkTris++; housesWithWindows.add(owner[i0]); }
+    }
+    expect(darkTris / 2).toBeGreaterThanOrEqual(14);
+    expect(housesWithWindows.size).toBe(14);
   });
 
   it('horizonBand with rooftops and side tints is still one mesh, with colours', () => {

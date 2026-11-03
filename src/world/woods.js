@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
@@ -8,6 +9,7 @@ import { segDist } from '../segdist.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { addIslandView, islandKeepLow } from './lake.js';
 import { addCamp } from './camp.js';
+import { withLocalUuids } from './localuuids.js';
 
 // =============================================================================
 // The Woods.
@@ -104,7 +106,11 @@ export const WOODS_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34,
   color: 0x5d8a55, salt: 31, avoid: Object.freeze([LAKE]), keepLow: islandKeepLow('woods'),
   sideTints: Object.freeze({ north: 0x9a8a9c, east: 0x7e9a6e, south: 0x4f7a48, west: 0x8fa070 }),
-  rooftops: Object.freeze({ from: 0.1, to: 0.25, count: 14, height: 6 }),
+  // Cottages sunk behind the crest (polish-places); `legacyHeight` is the
+  // height the skyline blocks they replaced were built at, which the band
+  // still uses for its throwaway block pass so the Woods' pinned Math.random
+  // draw count does not move (builder.js horizonBand, rooftops).
+  rooftops: Object.freeze({ from: 0.1, to: 0.25, count: 14, height: 3.6, style: 'houses', legacyHeight: 6 }),
   nearColor: 0x5f9a4a,
   edge: Object.freeze({ half: 60, style: 'scrub', avoid: WOODS_WATERS }),
 });
@@ -380,6 +386,66 @@ function mossyBoulder(x, z) {
   return m;
 }
 
+// The lookout rock's geometry, base at y 0 round the origin: two stacked
+// lumps and a third leaning on the lower one, each a low-poly icosahedron
+// squashed and pushed in and out per vertex by hash01 (keyed on the vertex's
+// own position, so the copies of one corner move together and no crack
+// opens), flattened at LOOKOUT_TOP.y into the top a cat stands on. Grey
+// stone, with moss on the faces that look up from the upper half. Everything
+// here is made under withLocalUuids; the caller copies the result out.
+const ROCK_GREYS = [0x8e8c88, 0x86847f, 0x96938c];
+const ROCK_MOSS = [0x6f8a4a, 0x62803f, 0x7a9152];
+function lookoutRockGeometry() {
+  return withLocalUuids('woods-lookout', () => {
+    const top = LOOKOUT_TOP.y;
+    const lumps = [
+      // [radius, sx, sy, sz, cx, cy, cz, salt]
+      [1, 1.05, 0.95, 0.95, 0, 0.62, 0, 1],
+      [0.78, 1.05, 0.55, 0.95, 0.05, 1.6, -0.03, 2],
+      [0.5, 1.0, 0.8, 1.0, 0.52, 0.32, -0.5, 3],
+    ];
+    const parts = lumps.map(([r, sx, sy, sz, cx, cy, cz, salt]) => {
+      const g = new THREE.IcosahedronGeometry(r, 1);
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const k = 0.9 + 0.2 * b.hash01(Math.round(x * 1000), Math.round(z * 1000) + Math.round(y * 1000) * 7, salt);
+        let ny = cy + y * sy * k;
+        let nx = cx + x * sx * k;
+        let nz = cz + z * sz * k;
+        // The standing top: nothing above it, a flat-ish table round the centre.
+        if (ny > top) ny = top - 0.03 * b.hash01(Math.round(x * 1000), Math.round(z * 1000), salt + 9);
+        // Keep the footprint near the collider.
+        const rr = Math.hypot(nx, nz);
+        if (rr > 1.15) { nx *= 1.15 / rr; nz *= 1.15 / rr; }
+        p.setXYZ(i, nx, ny, nz);
+      }
+      return g;
+    });
+    const merged = mergeGeometries(parts, false);
+    for (const g of parts) g.dispose();
+    merged.computeVertexNormals();
+    // One colour a face (the geometry is non-indexed, three vertices a face).
+    const pos = merged.attributes.position;
+    const nrm = merged.attributes.normal;
+    const colors = new Float32Array(pos.count * 3);
+    const c = new THREE.Color();
+    for (let f = 0; f < pos.count / 3; f++) {
+      const i = f * 3;
+      const cy = (pos.getY(i) + pos.getY(i + 1) + pos.getY(i + 2)) / 3;
+      const ny = (nrm.getY(i) + nrm.getY(i + 1) + nrm.getY(i + 2)) / 3;
+      const h = b.hash01(f, 0, 77);
+      const moss = cy > 1.15 && ny > 0.5;
+      c.setHex((moss ? ROCK_MOSS : ROCK_GREYS)[Math.floor(h * 3)]);
+      for (let v = 0; v < 3; v++) c.toArray(colors, (i + v) * 3);
+    }
+    merged.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    merged.computeBoundingBox();
+    merged.computeBoundingSphere();
+    return merged;
+  });
+}
+
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0xa8d8c0, 0xd0ead8);
   scene.add(b.ground(120, 0x5f9a4a, { surface: 'grass' }));
@@ -481,11 +547,18 @@ export function build(scene, { water = {}, wind } = {}) {
   // is 0.63 m, narrower than a cat, so one more collider closes it rather than
   // leave a dead-end notch (test/water.test.js finds it as a stranded cell).
   addC(OAK_ROOT.x, OAK_ROOT.z, OAK_ROOT.r);
+  // The lookout (polish-places): a lumpy stacked boulder with a mossy cap,
+  // not the grey 7-sided bin it was. Its parts are made and merged under
+  // their own uuid stream; the ONE BufferGeometry it is copied into here, the
+  // material and the mesh stand where the cylinder, its material and its mesh
+  // stood, so the Woods' pinned Math.random draw count (11344) is unchanged.
+  const lookoutGeo = new THREE.BufferGeometry().copy(lookoutRockGeometry());
   const lookout = new THREE.Mesh(
-    new THREE.CylinderGeometry(LOOKOUT_TOP.rTop, LOOKOUT_TOP.rBottom, LOOKOUT_TOP.y, 7),
-    litMaterial(0x8e8c88, surfaceProps('cobble')),
+    lookoutGeo,
+    litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true, flatShading: true }),
   );
-  lookout.position.set(LOOKOUT_TOP.x, LOOKOUT_TOP.y / 2, LOOKOUT_TOP.z);
+  lookout.name = 'lookoutRock';
+  lookout.position.set(LOOKOUT_TOP.x, 0, LOOKOUT_TOP.z);
   scene.add(lookout);
   addC(LOOKOUT_TOP.x, LOOKOUT_TOP.z, LOOKOUT_TOP.r);
   perches.push(...CHAIN_PERCHES.map((p) => ({ ...p })));
