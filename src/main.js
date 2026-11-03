@@ -109,7 +109,8 @@ function init() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // three 0.185 deprecates the soft variant and swaps in PCFShadowMap with a console warning; same filter.
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.1;
   // Grazing-angle sharpness for the tiled surface maps. Set once from the
