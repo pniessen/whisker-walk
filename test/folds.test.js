@@ -517,8 +517,10 @@ describe('the stalk reads as one body (polish-catlooks Task 6)', () => {
     }
   }, 120_000);
 
+  // polish-tails (2026-11-03): plumed tails (fuller first link) are held too.
+  const TAIL_CATS = [...CATS, ...['persian', 'mainecoon', 'fluffy'].flatMap((n) => [[n, false], [n, true]])];
   it('the tail root does not bulge above the rump in the stalk', () => {
-    for (const [name, simple] of CATS) {
+    for (const [name, simple] of TAIL_CATS) {
       const cat = make(name, simple);
       for (const [t, speed] of poses()) {
         const r = tailRootAboveRump(pose(cat, 'stalk', t, speed));

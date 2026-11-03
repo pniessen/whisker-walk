@@ -12,15 +12,15 @@ import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
 import { buildBackItem, buildHood } from './backitems.js';
 import { CAPE, CAPE_SIT, capePoint, capeGeometry } from './cape.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
-import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
+import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
   siamese:   { base: 0xe8dcc8, belly: 0xf2ead9, accent: 0x4a3b32, scale: 0.95, points: true },
-  persian:   { base: 0xcfcfd4, belly: 0xe8e8ec, accent: 0xb5b5bc, scale: 1.05, fluffy: true },
+  persian:   { base: 0xcfcfd4, belly: 0xe8e8ec, accent: 0xb5b5bc, scale: 1.05, fluffy: true, tailPlume: 1 },
   black:     { base: 0x2a2a30, belly: 0x3a3a42, accent: 0x1c1c22, scale: 1.0 },
   calico:    { base: 0xf0ead8, belly: 0xf8f4e8, accent: 0xd88030, scale: 1.0, patches: true },
-  mainecoon: { base: 0x7a5b3a, belly: 0xb99a72, accent: 0x5a4028, scale: 1.3, fluffy: true, tufts: true },
+  mainecoon: { base: 0x7a5b3a, belly: 0xb99a72, accent: 0x5a4028, scale: 1.3, fluffy: true, tufts: true, tailPlume: 1 },
   // the family pets
   zeetoo:    { base: 0xa8825a, belly: 0xe0ccA0, accent: 0x74582f, scale: 1.0, stripes: true },
   // Robbie is a black cat with white socks and flanks — he used to be drawn as
@@ -29,7 +29,7 @@ const STYLE = {
   robbie:    { base: 0x1a1a1e, belly: 0xf5f5f5, accent: 0xf5f5f5, scale: 1.05, cow: true, whiteLegs: true },
   // D2 is a large tabby-and-white: tabby cap with the "M", white muzzle, chest,
   // belly and legs, a white band over the shoulders, dark tabby back and tail.
-  d2:        { base: 0x5a4a3a, belly: 0xf5f5f2, accent: 0x2e261e, scale: 1.15, stripes: true, headStripes: true, whiteLegs: true, band: true, fluffy: true },
+  d2:        { base: 0x5a4a3a, belly: 0xf5f5f2, accent: 0x2e261e, scale: 1.15, stripes: true, headStripes: true, whiteLegs: true, band: true, fluffy: true, tailPlume: 0 },
   // Digit is young and slender — all legs and ears — with bold stripes, four
   // white socks, a small white chin and a black collar with a round tag. At
   // scale 0.82 on the standard torso he read as a small STOCKY cat in the eye
@@ -65,7 +65,14 @@ const STYLE = {
 //   headPatch   — hex of the skull patch when `patches` is set, default the
 //                 calico orange 0xd88030.
 //   tailFluff   — factor on every tail link and joint radius, default 1 (the
-//                 root ball is unchanged). Long fur thickens the tail with it.
+//                 root ball is unchanged). Long fur thickens the tail with it;
+//                 a plumed tail (below) ignores it, so long fur's 1.3 now
+//                 only selects the full plume (tailFluff > 1).
+//   tailPlume   — 0..1, how much of the plume (torso.js PLUME) the tail has:
+//                 fuller all along, widest at 40%, a soft tip. Default derived
+//                 from the row: tailFluff > 1 (the builder's long fur) 1,
+//                 fluffy 0.5, else 0. 0 is today's taper exactly. D2 sets 0:
+//                 her tail is drawn from photos and signed off.
 //   bib         — a belly-coloured chest bib (see coat.js).
 //   tagCollar   — a built-in black collar with a round silver tag, drawn only
 //                 when no collar accessory is worn (never two collars).
@@ -914,6 +921,9 @@ export function coatColor(breed, look = null) {
   return (Object.hasOwn(STYLE, breed) ? STYLE[breed] : STYLE.tabby).base;
 }
 
+// A copy of a breed's STYLE row (read-only: tests build a cat from a variant).
+export const catStyle = (breed) => Object.freeze({ ...STYLE[breed] });
+
 export function buildCat(breed, accessories = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, opts = {}) {
   if (breed === 'hagrid') return buildChicken(accessories);
   // opts.style (Clan Life Part 1): a whole STYLE-shaped row, e.g. a clan coat
@@ -1115,7 +1125,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // blending from the coat into the tip colour (TIP_FROM) and the rest dark.
   const tail = new THREE.Group();
   const tailPivots = [];
-  const TF = s.tailFluff ?? 1;
+  // polish-tails: a plumed tail (long fur) takes its radii from tailRadius
+  // and ignores tailFluff; with no plume the tail is today's, vertex for vertex.
+  const plume = s.tailPlume ?? (s.tailFluff > 1 ? 1 : s.fluffy ? 0.5 : 0);
+  const TF = plume > 0 ? 1 : (s.tailFluff ?? 1);
+  const tailRad = (u) => tailRadius(u, plume) * TF;
   const darkTip = !!(s.stripes || s.points);
   let parent = tail;
   for (let i = 0; i < 5; i++) {
@@ -1125,15 +1139,22 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // The link runs from its pivot along +z: the cylinder's +y axis turned onto
     // +z. Open-ended; the balls below close every end. The blended link has
     // rings at each third of its length, for its colours to change along.
-    const parts = [new THREE.CylinderGeometry(tailR((i + 1) / 5) * TF, tailR(i / 5) * TF, TAIL.LINK, 12, blend ? 3 : 1, true)
+    const parts = [new THREE.CylinderGeometry(tailRad((i + 1) / 5), tailRad(i / 5), TAIL.LINK, 12, blend ? 3 : 1, true)
       .rotateX(Math.PI / 2).translate(0, 0, TAIL.LINK / 2)];
     // A simple build (strays, rivals, ghosts) rounds them at 8×5: Digit's
     // simple cat sits at the 5,500-triangle cap once the chest is in.
     const [rw, rh, jw, jh] = opts.simple ? [8, 5, 8, 5] : [12, 8, 10, 6];
+    // A plume's balls are fat enough for the 10-sided ball (its pole across
+    // the tail) to zigzag through the 12-sided link at every joint. Plumed,
+    // each ball is 12 around with its pole along the tail, so its equator is
+    // the link's own end ring and the ball only shows round the bend.
+    const ball = plume > 0
+      ? (r) => new THREE.SphereGeometry(r, 12, opts.simple ? 4 : 8).rotateX(Math.PI / 2)
+      : (r, w = jw, h = jh) => new THREE.SphereGeometry(r, w, h);
     parts.push(i === 0
-      ? new THREE.SphereGeometry(TAIL.ROOT_BALL, rw, rh)   // the root, into the rump
-      : new THREE.SphereGeometry(tailR(i / 5) * TF, jw, jh));   // a rounded joint
-    if (i === 4) parts.push(new THREE.SphereGeometry(tailR(1) * TF, jw, jh).translate(0, 0, TAIL.LINK)); // the tip
+      ? ball(plume > 0 ? tailRad(0) : TAIL.ROOT_BALL, rw, rh)   // the root, into the rump
+      : ball(tailRad(i / 5)));   // a rounded joint
+    if (i === 4) parts.push(ball(tailRad(1)).translate(0, 0, TAIL.LINK)); // the tip
     const geo = mergeGeometries(parts);
     const seg = new THREE.Mesh(geo, blend
       ? litMaterial(0xffffff, { vertexColors: true })
@@ -1643,6 +1664,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   g.userData.base = {
     bodyY, bodyScale: [...BODY_SCALE], headPos, tailRotX: TAIL.ROOT_TILT, tailCurl: TAIL.CURL,
     hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT,
+    // polish-tails: a plumed tail lies along its own sit and nap curves, and
+    // stalking droops its fuller first link (animator.js STALK_CARRIAGE).
+    ...(plume > 0 && { tailPlume: plume, sitTail: lyingTail(SIT_TAIL, SIT_TAIL_PLUME, plume), napTail: lyingTail(NAP_TAIL, NAP_TAIL_PLUME, plume) }),
   };
   // opts.scars (fight moves and scars): scars.js render entries. Only a scarred
   // cat gets the scar mesh; without one, nothing here runs.
