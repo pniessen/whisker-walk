@@ -86,6 +86,20 @@ const surfNoMap = (color, surface) => litMaterial(color, surfaceProps(surface));
 // Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
 export const SPAWN = Object.freeze({ x: 0, z: 45 });
 
+// The horizon band (see the note at its scene.add in build). Polish "edges":
+// the strip past the lawn's edge is the lawn's own colour, and a clipped
+// hedge runs round the edge with a field gate where the gravel path from the
+// south gate (3 m wide, on x = 0) runs out.
+export const PARK_HORIZON = Object.freeze({
+  kind: 'hills', inner: 56, outer: 116, height: 8, wavelength: 40,
+  color: 0x8ac27e, salt: 23,
+  nearColor: 0x6cb058,
+  edge: Object.freeze({
+    half: 60, style: 'hedge', avoid: Object.freeze([POND]),
+    gaps: Object.freeze([Object.freeze({ x: 0, z: 60.6, r: 2 })]),
+  }),
+});
+
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0xaee0d0, 0xd8f0e0);
   // The lawn. The repeat comes from the plane's own 120m inside ground(), and
@@ -109,10 +123,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // area's own horizon stop (0xd8f0e0, from applySky above) — aerial
   // perspective painted in, because fog does not begin until 40m and the near
   // corner of the band sits inside that.
-  scene.add(b.horizonBand({
-    kind: 'hills', inner: 56, outer: 116, height: 8, wavelength: 40,
-    color: 0x8ac27e, salt: 23,
-  }));
+  scene.add(b.horizonBand(PARK_HORIZON));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });

@@ -169,6 +169,10 @@ export const MOOR_HORIZON = Object.freeze({
   avoid: Object.freeze([LAKE, LAKE_FAR, RIVER_SOUTH]),
   keepLow: islandKeepLow('moor'),
   sideTints: Object.freeze({ north: 0x9a8a9c, east: 0x8a8478, south: 0x4f7a48, west: 0x3f5a46 }),
+  // Polish "edges": the strip past the ground's edge is the moor's own
+  // colour, and a dry-stone wall with gorse runs round it, off the water.
+  nearColor: 0x8a9558,
+  edge: Object.freeze({ half: 60, style: 'wall', avoid: MOOR_WATERS }),
 });
 
 // --- the things to find ------------------------------------------------------

@@ -96,6 +96,19 @@ const RIVER_NORTH = Object.freeze({
 
 export const WOODS_WATERS = Object.freeze([LAKE, POND, RIVER_WEST, RIVER_NORTH]);
 
+// The horizon band (see the note at its scene.add in build). Polish "edges":
+// the strip past the ground's edge is the ground's own colour, and woodland
+// scrub lines the edge, keeping off every water (the rivers too, which the
+// band's own `avoid` leaves out).
+export const WOODS_HORIZON = Object.freeze({
+  kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34,
+  color: 0x5d8a55, salt: 31, avoid: Object.freeze([LAKE]), keepLow: islandKeepLow('woods'),
+  sideTints: Object.freeze({ north: 0x9a8a9c, east: 0x7e9a6e, south: 0x4f7a48, west: 0x8fa070 }),
+  rooftops: Object.freeze({ from: 0.1, to: 0.25, count: 14, height: 6 }),
+  nearColor: 0x5f9a4a,
+  edge: Object.freeze({ half: 60, style: 'scrub', avoid: WOODS_WATERS }),
+});
+
 // How each water is drawn. One peaty green-blue for all of it, because the
 // pond, the river and the lake are one water. The heights differ where the
 // footprints overlap (the pond over the river, river-west over river-north)
@@ -378,12 +391,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // rooftops over the fence on the south-east stretch. At the lake the hills
   // come down to the water and rise again further out (builder.horizonBand's
   // `shore`), but never over the island or its bridge (`keepLow`).
-  scene.add(b.horizonBand({
-    kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34,
-    color: 0x5d8a55, salt: 31, avoid: [LAKE], keepLow: islandKeepLow('woods'),
-    sideTints: { north: 0x9a8a9c, east: 0x7e9a6e, south: 0x4f7a48, west: 0x8fa070 },
-    rooftops: { from: 0.1, to: 0.25, count: 14, height: 6 },
-  }));
+  scene.add(b.horizonBand(WOODS_HORIZON));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
