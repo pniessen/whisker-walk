@@ -114,11 +114,21 @@ export function duskLawnColor(color, look) {
 // the 'color' attribute is swapped, and dispose() puts the original back. (A
 // geometry shared by two such meshes is tinted once, for the first; ground
 // meshes do not share band geometry today.)
+//
+// A ground mesh's descendants flagged userData.duskTint are tinted with it, by
+// the same rule (world/builder.js's 'horizonEdge', the hedges and walls round
+// the ground's edge, hangs off the band as a child; walk.js hands this the
+// band, a top-level mesh, and the edge comes with it).
 export function tintDuskLawn({ ground, grass, look }) {
   const swaps = [];
   const attrSwaps = new Map();
   const c = new THREE.Color();
+  const meshes = new Set();
   for (const mesh of ground ?? []) {
+    meshes.add(mesh);
+    mesh.traverse?.((o) => { if (o !== mesh && o.isMesh && o.userData?.duskTint) meshes.add(o); });
+  }
+  for (const mesh of meshes) {
     const orig = mesh.material;
     if (Array.isArray(orig) || !orig?.color) continue;
     const tinted = orig.clone();

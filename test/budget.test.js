@@ -179,14 +179,29 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //
 // 2026-11-03, polish "edges": each green area's horizon band gained a ring of
 // low hedges (with field gates), scrub, reeds, pine scrub or a dry-stone wall
-// along the ground's edge and a sparse tree row past it, merged into the
-// band's one mesh: +4,800 to +6,300 triangles per area. The band is a
-// never-culled shadow caster, so those triangles draw again in the shadow
-// pass; meshes, casters and draw calls are unchanged. Measured totals after
-// it: neighborhood 30,719, park 21,711, woods 55,177, river 64,315, moor
-// 63,725, pines 54,631. The Woods, River, Moor and Pines ceilings are those
-// totals rounded up to the next 500 plus 3,000 (58,500 / 67,500 / 67,000 /
-// 58,000), so the next pass that adds triangles there has to say so here.
+// along the ground's edge and, where there is room, a sparse tree row past it.
+// It is ONE separate mesh per green area, 'horizonEdge' (a child of the band,
+// userData.noCast, so it is +1 mesh and +0 casters, and its triangles draw
+// once, not again in the shadow pass), built from hand-made low-poly pieces.
+// Its triangles count here like any other mesh's. The ceilings did not move
+// (a first cut merged into the band raised four of them; that was undone):
+// where there was not room for the whole ring, it runs only along the arc a
+// kid sees on turning round at the spawn (builder.js EDGE_STYLES `arcs`).
+//
+//   area          edge mesh   build total   ceiling   (ring)
+//   neighborhood      3,860        29,759    60,000   all round, tree row
+//   park              3,634        20,535    40,000   all round, tree row
+//   woods             3,484        53,873    60,000   all round, tree row
+//   pines             3,425        52,934    60,000   all round, tree row
+//   river               424        59,895    60,000   +x/+z corner arc only,
+//                                                     no trees (105 left)
+//   moor                756        59,761    60,000   +x/+z corner arc only,
+//                                                     no trees (239 left)
+//
+// THE RIVER AND THE MOOR ARE NOW WITHIN A FEW HUNDRED TRIANGLES OF THEIR
+// CEILINGS: the next build that adds triangles there must trim something,
+// or raise the ceiling with a written reason.
+//
 // The same pass gave the Seaside's cliff and overlook a finer face grid so
 // their gullies can be cut: the two rock boxes went from 2,292 triangles
 // (1,872 + 420) to 10,096 (7,776 + 2,320), and with the boats' cabins and
@@ -233,14 +248,12 @@ const AREAS = [
   ['docks', buildDocks, 600, 500, 90000],
   ['seaside', buildSeaside, 85, 45, 30000],
   ['den', buildDen, 340, 220, 40000],
-  // The Woods keeps the Cozy Neighborhood's mesh and caster ceilings (the
-  // area the iPhone was measured holding 60 fps in, plan Global Constraints);
-  // its triangle ceiling, like the River's, Moor's and Pines', is its measured
-  // total plus ~3,000 since polish "edges" (see above).
-  ['woods', buildWoods, 450, 380, 58500],
-  ['river', buildRiver, 450, 380, 67500],
-  ['moor', buildMoor, 450, 380, 67000],
-  ['pines', buildPines, 450, 380, 58000],
+  // The Woods is held to the Cozy Neighborhood's numbers: the area the iPhone
+  // was measured holding 60 fps in (plan Global Constraints).
+  ['woods', buildWoods, 450, 380, 60000],
+  ['river', buildRiver, 450, 380, 60000],
+  ['moor', buildMoor, 450, 380, 60000],
+  ['pines', buildPines, 450, 380, 60000],
   ['gorge', buildGorge, 450, 380, 60000],
 ];
 

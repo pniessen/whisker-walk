@@ -146,6 +146,56 @@ describe('dusk lawns', () => {
       expect(geo.getAttribute('color')).toBe(attr);
     }
   });
+  it('a ground mesh\'s duskTint descendants (the horizon band\'s edge) are tinted per vertex with it, and restored', () => {
+    const vc = (n, f) => {
+      const a = new Float32Array(n * 3);
+      for (let v = 0; v < n; v++) a.set(f(v), v * 3);
+      return new THREE.BufferAttribute(a, 3);
+    };
+    const bandGeo = new THREE.PlaneGeometry(1, 1);
+    bandGeo.setAttribute('color', vc(bandGeo.attributes.position.count, (v) => [0.3, 0.6 - 0.05 * v, 0.2]));
+    const bandMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true });
+    const band = new THREE.Mesh(bandGeo, bandMat);
+    const edgeGeo = new THREE.BoxGeometry(1, 1, 1);
+    const n = edgeGeo.attributes.position.count;
+    const edgeAttr = vc(n, (v) => [0.25 + 0.01 * v, 0.55, 0.15]);
+    edgeGeo.setAttribute('color', edgeAttr);
+    const edgeBefore = Array.from(edgeAttr.array);
+    const edgeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true });
+    const edge = new THREE.Mesh(edgeGeo, edgeMat);
+    edge.userData.duskTint = true;
+    // A child without the flag is not the lawn's business.
+    const otherMat = new THREE.MeshStandardMaterial({ color: 0x88cc66 });
+    const other = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), otherMat);
+    band.add(edge, other);
+    const look = duskLook({});
+    const h = tintDuskLawn({ ground: [band], grass: null, look });
+    expect(other.material).toBe(otherMat);
+    expect(edge.material).not.toBe(edgeMat);
+    expect(edge.geometry).toBe(edgeGeo);
+    const tc = edgeGeo.getAttribute('color');
+    expect(tc).not.toBe(edgeAttr);
+    const t = edge.material.color;
+    for (let v = 0; v < n; v++) {
+      const want = duskLawnColor(new THREE.Color(edgeAttr.getX(v), edgeAttr.getY(v), edgeAttr.getZ(v)), look);
+      expect(Math.abs(t.r * tc.getX(v) - want.r)).toBeLessThan(1e-6);
+      expect(Math.abs(t.g * tc.getY(v) - want.g)).toBeLessThan(1e-6);
+      expect(Math.abs(t.b * tc.getZ(v) - want.b)).toBeLessThan(1e-6);
+    }
+    // Passing the edge too (as well as the band) tints it once, not twice.
+    h.dispose();
+    const h2 = tintDuskLawn({ ground: [band, edge], grass: null, look });
+    const tc2 = edgeGeo.getAttribute('color');
+    const want0 = duskLawnColor(new THREE.Color(edgeAttr.getX(0), edgeAttr.getY(0), edgeAttr.getZ(0)), look);
+    expect(Math.abs(edge.material.color.g * tc2.getY(0) - want0.g)).toBeLessThan(1e-6);
+    h2.dispose();
+    expect(edge.material).toBe(edgeMat);
+    expect(band.material).toBe(bandMat);
+    expect(edgeGeo.getAttribute('color')).toBe(edgeAttr);
+    expect(Array.from(edgeAttr.array)).toEqual(edgeBefore);
+    h2.dispose();
+    expect(edgeGeo.getAttribute('color')).toBe(edgeAttr);
+  });
   it('skips array materials and materials without a colour', () => {
     const a = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), [new THREE.MeshStandardMaterial()]);
     const b = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial());

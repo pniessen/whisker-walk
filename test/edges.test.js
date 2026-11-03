@@ -5,7 +5,8 @@ import * as THREE from 'three';
 // hard line, a flat pale strip, then hills. horizonBand now takes `nearColor`
 // (the strip under and just past the ground's edge takes the lawn's colour)
 // and `edge` (low hedges, scrub, reeds or walls straddling the ground's edge,
-// plus a sparse row of trees well outside it), all merged into the one band.
+// plus a sparse row of trees well outside it), drawn as one separate noCast
+// mesh, 'horizonEdge', a child of the band; the band itself is untouched.
 
 vi.stubGlobal('document', {
   createElement: () => ({
@@ -26,6 +27,9 @@ vi.stubGlobal('document', {
 });
 
 const b = await import('../src/world/builder.js');
+const { assignShadowCasters } = await import('../src/render/rig.js');
+const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+const { scanFootprints } = await import('../src/render/contactshadows.js');
 
 const RING = 152 * 13; // horizonBand's default ring: 152 around by 13 out
 const AREAS = {
@@ -55,9 +59,17 @@ for (const [name, key] of Object.entries(AREAS)) {
   const scene = new THREE.Scene();
   const rec = mod.build(scene);
   const opts = mod[key];
-  const { edge: _e, nearColor: _n, ...plainOpts } = opts ?? {};
-  built[name] = { mod, scene, rec, opts, plain: opts ? b.horizonBand(plainOpts) : null };
+  const { edge: _e, ...noEdge } = opts ?? {};
+  built[name] = { mod, scene, rec, opts, noEdge: opts ? b.horizonBand(noEdge) : null };
 }
+const bandOf = (scene) => scene.children.filter((c) => c.name === 'horizonBand');
+const edgesIn = (scene) => {
+  const out = [];
+  scene.traverse((o) => { if (o.name === 'horizonEdge') out.push(o); });
+  return out;
+};
+// The two areas whose ceilings leave room only for the arc behind the spawn.
+const ARC_ONLY = ['river', 'moor'];
 
 describe('edgeSpots', () => {
   for (const name of Object.keys(AREAS)) {
@@ -72,7 +84,7 @@ describe('edgeSpots', () => {
       const a = b.edgeSpots(opts.edge, opts.salt, avoid);
       const c = b.edgeSpots(opts.edge, opts.salt, avoid);
       expect(a).toEqual(c);
-      expect(a.length).toBeGreaterThan(100);
+      expect(a.length).toBeGreaterThan(ARC_ONLY.includes(name) ? 30 : 100);
       const bd = rec.bounds;
       for (const s of a) {
         // the side it sits on is the axis it is furthest along
@@ -90,6 +102,29 @@ describe('edgeSpots', () => {
     expect(Object.keys(b.EDGE_STYLES).sort()).toEqual(['hedge', 'pinescrub', 'reeds', 'scrub', 'wall']);
   });
 
+  it('the River and the Moor: the near ring only on the arc behind the spawn, no tree row', () => {
+    for (const name of ARC_ONLY) {
+      const { opts, rec } = built[name];
+      const arcs = b.EDGE_STYLES[opts.edge.style].arcs;
+      expect(arcs, name).toBeTruthy();
+      const spots = b.edgeSpots(opts.edge, opts.salt, opts.edge.avoid ?? opts.avoid ?? []);
+      expect(spots.filter((s) => s.kind === 'tree')).toHaveLength(0);
+      for (const s of spots) expect(arcs.some(([u0, u1]) => s.u >= u0 && s.u <= u1), `${name} u ${s.u}`).toBe(true);
+      // ... and that arc is the one behind the spawn: the stretch of edge
+      // nearest the spawn on each of its two near sides is dressed.
+      const { x: sx, z: sz } = rec.spawn;
+      expect(spots.some((s) => s.x > 55 && Math.abs(s.z - sz) < 4), `${name} +x side abreast of the spawn`).toBe(true);
+      expect(spots.some((s) => s.z > 55 && Math.abs(s.x - sx) < 4), `${name} +z side abreast of the spawn`).toBe(true);
+    }
+    // The others run all the way round, with trees.
+    for (const name of Object.keys(AREAS).filter((n) => !ARC_ONLY.includes(n))) {
+      const { opts } = built[name];
+      expect(b.EDGE_STYLES[opts.edge.style].arcs, name).toBeUndefined();
+      const spots = b.edgeSpots(opts.edge, opts.salt, opts.edge.avoid ?? opts.avoid ?? []);
+      expect(spots.filter((s) => s.kind === 'tree').length, name).toBeGreaterThan(20);
+    }
+  });
+
   it('skips spots in the water and in the gaps, and puts a gate in each hedge gap', () => {
     const gaps = [{ x: 0, z: 60.6, r: 3 }];
     const water = [{ id: 'w', kind: 'rect', minX: 50, maxX: 120, minZ: -10, maxZ: 10 }];
@@ -104,26 +139,53 @@ describe('edgeSpots', () => {
   });
 });
 
-describe('the edge, merged into the band', () => {
+describe('the edge, its own noCast mesh under the band', () => {
+  // The band's surface under (x, z), from above.
+  const ray = new THREE.Raycaster();
+  const surfaceAt = (band, x, z) => {
+    ray.set(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
+    const hit = ray.intersectObject(band, false)[0];
+    return hit ? hit.point.y : null;
+  };
+
   for (const name of Object.keys(AREAS)) {
-    it(`${name}: one band, grown, low near the bounds, dry, gaps open`, () => {
-      const { scene, rec, opts, plain } = built[name];
-      const bands = scene.children.filter((c) => c.name === 'horizonBand');
+    it(`${name}: the band is ring only, one 'horizonEdge' child holds the dressing, low near the bounds, dry, gaps open, seated`, () => {
+      const { scene, rec, opts, noEdge } = built[name];
+      const bands = bandOf(scene);
       expect(bands).toHaveLength(1);
       const band = bands[0];
       expect(band.frustumCulled).toBe(false);
-      const pos = band.geometry.attributes.position;
-      const col = band.geometry.attributes.color;
-      const start = plain.geometry.attributes.position.count;
-      expect(pos.count).toBeGreaterThan(start);
-      expect(start).toBeGreaterThanOrEqual(RING);
+      // The band has no edge vertices: it is exactly the band built without one.
+      expect(Array.from(band.geometry.attributes.position.array))
+        .toEqual(Array.from(noEdge.geometry.attributes.position.array));
+      expect(Array.from(band.geometry.attributes.color.array))
+        .toEqual(Array.from(noEdge.geometry.attributes.color.array));
+      expect(band.geometry.attributes.position.count).toBeGreaterThanOrEqual(RING);
+      // One edge mesh in the whole scene, and it is the band's child.
+      const edges = edgesIn(scene);
+      expect(edges).toHaveLength(1);
+      const edge = edges[0];
+      expect(edge.parent).toBe(band);
+      expect(edge.isMesh).toBe(true);
+      expect(edge.userData.noCast).toBe(true);
+      expect(edge.userData.duskTint).toBe(true);
+      expect(edge.frustumCulled).toBe(false);
+      expect(edge.material.vertexColors).toBe(true);
+      expect(edge.material.flatShading).toBe(true);
+      expect(edge.material.color.getHex()).toBe(0xffffff);
+      expect(edge.position.toArray()).toEqual([0, 0, 0]);
+      expect(band.position.toArray()).toEqual([0, 0, 0]);
+
+      const pos = edge.geometry.attributes.position;
+      const col = edge.geometry.attributes.color;
+      expect(pos.count).toBeGreaterThan(0);
       const waters = rec.waters ?? [];
       // Every area but the Neighbourhood has water, so the dry check below
       // must have something to check against.
       if (name !== 'neighborhood') expect(waters.length, `${name} waters`).toBeGreaterThan(0);
       const gaps = opts.edge.gaps ?? [];
       let near = 0;
-      for (let v = start; v < pos.count; v++) {
+      for (let v = 0; v < pos.count; v++) {
         const x = pos.getX(v);
         const y = pos.getY(v);
         const z = pos.getZ(v);
@@ -139,6 +201,25 @@ describe('the edge, merged into the band', () => {
         }
       }
       expect(near).toBeGreaterThan(0);
+
+      // Seated: at every spot something of the piece reaches down to (into)
+      // the band's surface under it (which is sunk just under the ground
+      // plane where the two overlap). Nothing floats.
+      const spots = b.edgeSpots(opts.edge, opts.salt, opts.edge.avoid ?? opts.avoid ?? []);
+      let checked = 0;
+      for (const sp of spots) {
+        const ground = surfaceAt(band, sp.x, sp.z);
+        if (ground === null) continue;
+        let low = Infinity;
+        for (let v = 0; v < pos.count; v++) {
+          if (Math.hypot(pos.getX(v) - sp.x, pos.getZ(v) - sp.z) < 1.6) low = Math.min(low, pos.getY(v));
+        }
+        if (low === Infinity) continue; // a piece dropped for water
+        checked++;
+        expect(low, `${sp.kind} at ${sp.x.toFixed(1)},${sp.z.toFixed(1)} (ground ${ground.toFixed(2)})`)
+          .toBeLessThanOrEqual(ground + 1e-6);
+      }
+      expect(checked).toBeGreaterThan(spots.length * 0.8);
     }, 120_000);
   }
 
@@ -147,15 +228,15 @@ describe('the edge, merged into the band', () => {
     expect(() => b.edgeSpots({ half: 60, style: 'nope' }, 1, [])).toThrow(/unknown style/);
   });
 
-  it('the neighbourhood band has gates: brown vertices inside each gap, none over 1.1 m', () => {
+  it('the neighbourhood edge has gates: brown vertices inside each gap, none over 1.1 m', () => {
     const { scene, opts } = built.neighborhood;
-    const band = scene.getObjectByName('horizonBand');
-    const pos = band.geometry.attributes.position;
-    const col = band.geometry.attributes.color;
+    const edge = edgesIn(scene)[0];
+    const pos = edge.geometry.attributes.position;
+    const col = edge.geometry.attributes.color;
     expect(opts.edge.gaps.length).toBeGreaterThan(0);
     for (const gp of opts.edge.gaps) {
       let brown = 0;
-      for (let v = RING; v < pos.count; v++) {
+      for (let v = 0; v < pos.count; v++) {
         if (Math.hypot(pos.getX(v) - gp.x, pos.getZ(v) - gp.z) < gp.r && !green(col.getX(v), col.getY(v))) {
           brown++;
           expect(pos.getY(v)).toBeLessThanOrEqual(1.1);
@@ -164,6 +245,53 @@ describe('the edge, merged into the band', () => {
       expect(brown, `gate at ${gp.x},${gp.z}`).toBeGreaterThan(0);
     }
   });
+
+  it('the moor wall is stone in at least two greys with an uneven top, and its gorse sits inside it', () => {
+    const { scene } = built.moor;
+    const edge = edgesIn(scene)[0];
+    const pos = edge.geometry.attributes.position;
+    const col = edge.geometry.attributes.color;
+    const greys = new Set();
+    const tops = new Set();
+    let gorseIn = 0;
+    for (let v = 0; v < pos.count; v++) {
+      const r = col.getX(v); const g = col.getY(v); const bl = col.getZ(v);
+      const grey = Math.max(r, g, bl) - Math.min(r, g, bl) < 0.2 * Math.max(r, g, bl);
+      if (grey) {
+        greys.add(Math.round((r + g + bl) * 20));
+        if (pos.getY(v) > 0.5) tops.add(Math.round(pos.getY(v) * 50));
+      } else if (Math.max(Math.abs(pos.getX(v)), Math.abs(pos.getZ(v))) < 60.3) gorseIn++;
+    }
+    expect(greys.size).toBeGreaterThanOrEqual(2);
+    expect(tops.size).toBeGreaterThanOrEqual(5);
+    expect(gorseIn).toBeGreaterThan(0);
+  });
+
+  it('the shadow sweep, the prop merge and the contact shadows leave the edge alone', () => {
+    for (const name of ['neighborhood', 'moor']) {
+      const scene = new THREE.Scene();
+      built[name].mod.build(scene);
+      const band = bandOf(scene)[0];
+      const edge = edgesIn(scene)[0];
+      const geo = edge.geometry;
+      // Contact shadows: top-level scan, the band (and its child) ruled out
+      // by size — the same footprints with or without the edge.
+      const withEdge = scanFootprints(scene).length;
+      band.remove(edge);
+      expect(scanFootprints(scene).length).toBe(withEdge);
+      band.add(edge);
+      // Merge: the band is a top-level mesh and is skipped with its child.
+      mergeStaticProps(scene);
+      expect(edge.parent).toBe(band);
+      expect(band.parent).toBe(scene);
+      expect(edge.geometry).toBe(geo);
+      // Shadows: the band casts, the edge neither casts nor is swept.
+      assignShadowCasters(scene);
+      expect(band.castShadow, name).toBe(true);
+      expect(edge.castShadow, name).toBe(false);
+      expect(edge.receiveShadow, name).toBe(false);
+    }
+  }, 120_000);
 });
 
 describe('near colour', () => {
@@ -201,21 +329,25 @@ describe('determinism and shape', () => {
     const s2 = new THREE.Scene();
     build(s1);
     build(s2);
-    const g1 = s1.getObjectByName('horizonBand').geometry;
-    const g2 = s2.getObjectByName('horizonBand').geometry;
-    expect(Array.from(g1.attributes.position.array)).toEqual(Array.from(g2.attributes.position.array));
-    expect(Array.from(g1.attributes.color.array)).toEqual(Array.from(g2.attributes.color.array));
+    for (const nm of ['horizonBand', 'horizonEdge']) {
+      const g1 = s1.getObjectByName(nm).geometry;
+      const g2 = s2.getObjectByName(nm).geometry;
+      expect(Array.from(g1.attributes.position.array)).toEqual(Array.from(g2.attributes.position.array));
+      expect(Array.from(g1.attributes.color.array)).toEqual(Array.from(g2.attributes.color.array));
+    }
   }, 120_000);
 
-  it('b.horizonBand with an edge is still one named mesh with a material colour', () => {
-    const m = b.horizonBand({
-      kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5,
-      nearColor: 0x7cb860, edge: { half: 60, style: 'scrub' },
-    });
+  it('b.horizonBand with an edge: the same band, plus one horizonEdge child', () => {
+    const opts = { kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5, nearColor: 0x7cb860 };
+    const m = b.horizonBand({ ...opts, edge: { half: 60, style: 'scrub' } });
+    const plain = b.horizonBand(opts);
     expect(m.isMesh).toBe(true);
     expect(m.name).toBe('horizonBand');
-    expect(m.material.color).toBeDefined();
-    expect(m.geometry.attributes.color).toBeDefined();
+    expect(Array.from(m.geometry.attributes.position.array)).toEqual(Array.from(plain.geometry.attributes.position.array));
+    expect(m.children).toHaveLength(1);
+    expect(m.children[0].name).toBe('horizonEdge');
+    expect(m.children[0].geometry.attributes.color).toBeDefined();
+    expect(plain.children).toHaveLength(0);
   });
 });
 
