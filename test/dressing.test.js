@@ -159,15 +159,22 @@ describe('dressing helpers', () => {
     m.updateMatrix();
     const spy = vi.spyOn(Math, 'random');
     try {
-      // The geometries get uuids (Math.random) from Three, so, as callers do,
-      // build them inside withLocalUuids: the real Math.random stays untouched.
-      withLocalUuids('t', () => {
-        ribbon([[0, 0], [6, 2]], 1, {});
-        blob(0, 0, 1, {});
-      });
+      // Three itself draws Math.random for a geometry's uuid: measure that.
+      const base = spy.mock.calls.length;
+      new THREE.BufferGeometry();
+      const perGeometry = spy.mock.calls.length - base;
+      expect(perGeometry).toBeGreaterThan(0);
+      // Each helper builds exactly one geometry, so it may draw no more than that.
+      let before = spy.mock.calls.length;
+      ribbon([[0, 0], [6, 2]], 1, {});
+      expect(spy.mock.calls.length - before).toBe(perGeometry);
+      before = spy.mock.calls.length;
+      blob(0, 0, 1, {});
+      expect(spy.mock.calls.length - before).toBe(perGeometry);
+      before = spy.mock.calls.length;
       smoothField(1, 2, 3, 10);
       tintGround(m, () => [0.9, 0.9, 0.9]);
-      expect(spy).not.toHaveBeenCalled();
+      expect(spy.mock.calls.length).toBe(before);
     } finally {
       spy.mockRestore();
     }
