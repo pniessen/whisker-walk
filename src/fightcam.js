@@ -16,7 +16,7 @@
 // only ranks the views by whether it is seen: see chooseFightView.) The choice is made a handful of times per fight, never per frame,
 // and only against the trees near the pair: no raycast into the scene at all.
 //
-// Polish fightcam2: the nearest rings are now 3.0 and 3.4 m, so on a wide
+// Polish fightcam2: the nearest rings are now 2.5, 3.0 and 3.4 m, so on a wide
 // screen the cats fill more of it; spots side-on to the pair come first
 // (both cats in profile), ahead of keeping the current angle; and a tree in
 // front of the pair that fills the frame without crossing a line to a cat (a
@@ -94,15 +94,15 @@ export function frameBottomFor(sheetTop) {
 }
 // Camera spots round the pair's middle: distance and height, best first.
 // Low rings look in under the canopies; high ones over the undergrowth. The
-// first four are tight, close shots (3.0 and 3.4 m since polish fightcam2:
-// at 4.2 m a landscape screen showed the cats small); where they do not frame
-// the pair (a phone held upright, side-on) the chooser falls through to the
-// wider ones. `rank` prices a ring (RING_COST each): the four tight rings sit
-// close together (0, 0.1, 0.25, 0.4), and the wide rings keep their old order
-// and spacing just behind them (rank 0.6 on).
+// first five are tight, close shots (2.5, 3.0 and 3.4 m since polish
+// fightcam2: at 4.2 m a landscape screen showed the cats small); where they
+// do not frame the pair (a phone held upright, side-on) the chooser falls
+// through to the wider ones. `rank` prices a ring (RING_COST each): the five
+// tight rings sit close together (0, 0.1, 0.2, 0.3, 0.45), and the wide rings
+// keep their old order and spacing just behind them (rank 0.6 on).
 export const RINGS = Object.freeze([
-  { d: 3.0, h: 1.15, rank: 0 }, { d: 3.4, h: 1.3, rank: 0.1 },
-  { d: 4.2, h: 1.5, rank: 0.25 }, { d: 4.6, h: 1.1, rank: 0.4 },
+  { d: 2.5, h: 1.0, rank: 0 }, { d: 3.0, h: 1.15, rank: 0.1 }, { d: 3.4, h: 1.3, rank: 0.2 },
+  { d: 4.2, h: 1.5, rank: 0.3 }, { d: 4.6, h: 1.1, rank: 0.45 },
   ...[
     { d: 5.5, h: 2.2 }, { d: 5.0, h: 1.3 }, { d: 6.5, h: 2.8 }, { d: 4.6, h: 1.0 },
     { d: 7.5, h: 3.4 }, { d: 6.0, h: 1.1 }, { d: 4.2, h: 0.8 }, { d: 8.5, h: 1.4 },
@@ -383,6 +383,7 @@ function inFrame(view, pts, aspect, fovY, bottom = FIGHT_FRAME.bottom) {
 // pads are for lines of sight, not for what the screen shows.
 const CLUTTER_MIN_DEPTH = 0.3;
 const clutterCentre = { x: 0, y: 0, z: 0 };
+// (`pos` is view.pos; it is kept in the signature for the interface.)
 export function frameClutter(pos, view, occluder, aspect, fovY, bottom, nearDepth) {
   const tanV = Math.tan((fovY * Math.PI) / 360);
   let sum = 0;

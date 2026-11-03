@@ -378,7 +378,7 @@ describe('our cat stays in view, tight and low', () => {
   test('on open ground at desktop it takes a tight ring, with the pair low in the open part of the screen', () => {
     for (const yaw0 of [0, 1, Math.PI, -2.5]) {
       const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...DESK });
-      expect(v.ring).toBeLessThanOrEqual(3);
+      expect(v.ring).toBeLessThanOrEqual(4);
       expect(RINGS[v.ring].d).toBeLessThan(5);
       const m = projectPoint(v, { x: subj.mid.x, y: 0.3, z: subj.mid.z }, DESK.aspect, DESK.fovY);
       expect(m.y).toBeLessThan(0.2);
@@ -423,20 +423,21 @@ describe('framing: tight, side-on, no trunk wall', () => {
     expect(ourCatHidden(v.pos, subj)).toBe(0);
   });
 
-  // The brief asked for a quarter of the frame height; at fovY 70 a cat's
-  // 0.77 m (paws 0.08 to head 0.85) fills a quarter only from about 2.2 m,
-  // nearer than the tightest ring (3.0 m, measured 0.18). Before this task
-  // landscape took the 4.2 m ring: 0.125. The game always measures the sheet
-  // in a fight (main.js sheetTop), so the frame bottom is passed; with none,
-  // today's aim frames the real subject's paws too low for the tight rings.
-  test('landscape cats fill more of the frame height: the 3.0 m ring, about 0.18 of it', () => {
+  // At fovY 70 a cat's 0.77 m (paws 0.08 to head 0.85) fills a quarter of
+  // the frame height only from about 2.2 m. The 2.5 m ring (a controller
+  // ruling, fix round 1) gives 0.224, measured; the 3.0 m ring gave 0.18, and
+  // before this task landscape took the 4.2 m ring: 0.125. The game always
+  // measures the sheet in a fight (main.js sheetTop), so the frame bottom is
+  // passed; with none, today's aim frames the real subject's paws too low for
+  // the tight rings.
+  test('landscape cats fill more of the frame height: the 2.5 m ring, over a fifth of it', () => {
     const f = fightReach({ x: FIGHT_GAP / 2, z: 0 }, { x: -FIGHT_GAP / 2, z: 0 }, () => true, { actions: true });
     const v = chooseFightView({ subject: f, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, frameBottom: FIGHT_FRAME.bottom, ...LAND });
-    expect(RINGS[v.ring].d).toBeLessThanOrEqual(3.0);
+    expect(RINGS[v.ring].d).toBeLessThanOrEqual(2.5);
     const a = f.me[0];
     const bottom = projectPoint(v, { x: a.x, y: 0.08, z: a.z }, LAND.aspect, LAND.fovY);
     const top = projectPoint(v, { x: a.x, y: 0.85, z: a.z }, LAND.aspect, LAND.fovY);
-    expect((top.y - bottom.y) / 2).toBeGreaterThanOrEqual(0.17);
+    expect((top.y - bottom.y) / 2).toBeGreaterThanOrEqual(0.22);
   });
 
   test('a big oak beside the line is avoided', () => {
@@ -445,6 +446,12 @@ describe('framing: tight, side-on, no trunk wall', () => {
     const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0, ...DESK });
     const share = frameClutter(v.pos, v, oak, DESK.aspect, DESK.fovY, FIGHT_FRAME.bottom, nearDepthOf(v, subj, DESK));
     expect(share < CLUTTER_HIDE || v.clutter.includes(oak), `share ${share}`).toBe(true);
+    // the cost steers: without the oak the camera would stand elsewhere, where
+    // the oak would cover more of the frame
+    const v0 = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ...DESK });
+    expect(Math.hypot(v.pos.x - v0.pos.x, v.pos.y - v0.pos.y, v.pos.z - v0.pos.z)).toBeGreaterThan(0.1);
+    const share0 = frameClutter(v0.pos, v0, oak, DESK.aspect, DESK.fovY, FIGHT_FRAME.bottom, nearDepthOf(v0, subj, DESK));
+    expect(share, `with the oak ${share}, without ${share0}`).toBeLessThan(share0);
   });
 
   test('frameClutter: a trunk right beside the camera covers much of the frame; one behind the pair none', () => {
@@ -732,7 +739,7 @@ describe('camera moves are checked: ease only when every step of it is clear', (
     // the 4.2 m ring this test was written for (ring0 holds it: from the
     // 3.0 m ring the straight move's middle comes in close enough to cut a
     // cat off the frame, which blendClear rightly fails)
-    const a = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ring0: 2, ...DESK });
+    const a = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ring0: 3, ...DESK });
     expect(RINGS[a.ring].d).toBe(4.2);
     const turn = (p, t) => ({ x: p.x * Math.cos(t) + p.z * Math.sin(t), y: p.y, z: -p.x * Math.sin(t) + p.z * Math.cos(t) });
     const c = { pos: turn(a.pos, 1.1), look: turn(a.look, 1.1) };
