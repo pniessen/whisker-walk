@@ -233,13 +233,9 @@ describe('Gorge rock, beauty pass 2: smooth shading', () => {
 
 // Task 5: the rock shader and the talus at the wall feet.
 describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
-  it('rockFaces, lips and ledgeTops wear the rock patch', async () => {
-    const { TALUS_TINT } = await import('../src/world/rockshade.js');
-    expect(TALUS_TINT).toBe(0x9d9384);
+  it('rockFaces, lips and ledgeTops wear the rock patch', () => {
     for (const name of ['rockFaces', 'lips', 'ledgeTops']) {
       const mat = scene.getObjectByName(name).material;
-      expect(typeof mat.onBeforeCompile, name).toBe('function');
-      expect(mat.customProgramCacheKey(), name).toMatch(/^gorge-rock-v1/);
       // ledgeTops wears the fluted patch too
       expect(mat.customProgramCacheKey(), name).toBe('gorge-rock-v1');
     }

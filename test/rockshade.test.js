@@ -53,6 +53,17 @@ describe('rock shader patch', () => {
     expect(called).toBe(1);
   });
 
+  it('combines an earlier cache key set on the material', () => {
+    const mat = new THREE.MeshStandardMaterial();
+    mat.customProgramCacheKey = () => 'earlier-';
+    expect(patchRockMaterial(mat).customProgramCacheKey()).toBe('earlier-gorge-rock-v1');
+  });
+
+  it('every derivative is taken outside any branch', () => {
+    expect(ROCK_FRAGMENT).toMatch(/fwidth/);
+    expect(ROCK_FRAGMENT).not.toMatch(/\bif\s*\(/);
+  });
+
   it('the patch is shared and cheap', () => {
     const a = patchRockMaterial(new THREE.MeshStandardMaterial());
     const b = patchRockMaterial(new THREE.MeshStandardMaterial({ color: 0x123456 }));
