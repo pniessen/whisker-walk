@@ -150,11 +150,20 @@ function gully(u, salt) {
   const n = hash1(Math.round(u * 4) + salt * 31);
   return Math.min(GULLY_MAX, Math.max(0, 0.85 * g + 0.25 * n - 0.2));
 }
-// A band's tone index: hashed, then nudged so two neighbours never match.
+// A band's tone index: hashed, then nudged off the band below's FINAL tone,
+// so two neighbours never match. Carried up from a fixed floor band (a face's
+// lowest band is -1: h >= 0 and the wobble is under 0.4), so it is
+// deterministic and every vertex of a band agrees.
+const BAND_FLOOR = -2;
 function bandTone(band, salt) {
-  const pick = (k) => Math.floor(hash1(k + salt * 13) * ROCK_TONES.length) % ROCK_TONES.length;
-  const t = pick(band);
-  return t === pick(band - 1) ? (t + 1) % ROCK_TONES.length : t;
+  const n = ROCK_TONES.length;
+  const pick = (k) => Math.floor(hash1(k + salt * 13) * n) % n;
+  let prev = -1;
+  for (let b = Math.min(band, BAND_FLOOR); b <= band; b++) {
+    const t = pick(b);
+    prev = t === prev ? (t + 1) % n : t;
+  }
+  return prev;
 }
 function strata(geo, worldX, salt) {
   const pos = geo.attributes.position;
