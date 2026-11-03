@@ -1170,6 +1170,14 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .dr-homes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .dr .dr-home { position: relative; display: block; width: auto; border: 0; border-radius: 12px; text-align: left; padding: 9px; min-height: 44px; color: #fff; font-weight: 700; font-size: 13px;
   background: linear-gradient(165deg, #6f9a74, #3f6648); }
+.dr .dr-home-woods { background: linear-gradient(165deg, #47804a, #2f5a33); }
+.dr .dr-home-river { background: linear-gradient(165deg, #3a789a, #24516b); }
+.dr .dr-home-moor { background: linear-gradient(165deg, #865f92, #5c3f68); }
+.dr .dr-home-pines { background: linear-gradient(165deg, #56609c, #353d68); }
+.dr .dr-home-gorge { background: linear-gradient(165deg, #965f3c, #6b4128); }
+.dr-home-name { display: flex; align-items: center; }
+.dr-home-emblem { display: inline-flex; align-items: center; justify-content: center; flex: none; vertical-align: middle;
+  width: 30px; height: 30px; margin-right: 6px; border-radius: 50%; background: #f1e0c2; }
 .dr-home small { display: block; font-weight: 400; font-size: 11px; opacity: .92; }
 .dr-home .dr-home-soon { font-style: italic; opacity: .8; }
 .dr-home .dr-home-tag { font-weight: 700; opacity: 1; }

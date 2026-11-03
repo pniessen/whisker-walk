@@ -17,6 +17,27 @@ function escapeHtml(str) {
   }[c]));
 }
 
+// One small hand-drawn emblem per clan, in its dark gradient colour, for the
+// cream badge on its card. Keyed by territory id; an unknown id gets none.
+const emblem = (body) => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">${body}</svg>`;
+export const CLAN_EMBLEMS = Object.freeze({
+  // storm cloud with a gold bolt
+  woods: emblem('<path fill="#2f5a33" d="M7 15a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 6.6 4.2 4.2 0 0 1 17.5 15z"/>'
+    + '<path fill="#f2c14e" d="M13 11l-3.2 5h2.4l-1.2 5 4.2-6.2h-2.5z"/>'),
+  // fish
+  river: emblem('<path fill="#24516b" d="M3 12c3-5 9-6 13-1.5L21 7v10l-5-3.5C12 18 6 17 3 12z"/>'
+    + '<circle cx="8" cy="11" r="1.1" fill="#f1e0c2"/>'),
+  // three wind swooshes
+  moor: emblem('<g fill="none" stroke="#5c3f68" stroke-width="2" stroke-linecap="round">'
+    + '<path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12.5h16a3 3 0 1 1-3 3"/><path d="M3 17h8"/></g>'),
+  // crescent moon with a small star
+  pines: emblem('<path fill="#353d68" d="M14.5 3.5a9 9 0 1 0 6 13.5A7.5 7.5 0 0 1 14.5 3.5z"/>'
+    + '<circle cx="17.5" cy="6.5" r="1.4" fill="#353d68"/>'),
+  // flat-topped cliff with a step
+  gorge: emblem('<path fill="#6b4128" d="M3 20V9h8V5h10v15z"/>'
+    + '<path fill="none" stroke="#f1e0c2" stroke-width="1.2" d="M7 20v-6M15 20v-9"/>'),
+});
+
 // The line on a clan's card that can't be picked yet (G10): its territory is
 // walkable, but its camp comes later.
 export const CAMP_SOON_LINE = 'camp coming soon';
@@ -53,10 +74,12 @@ export function renderClanPickerHtml(model, partnerName) {
   // A card that can't be picked is greyed, with no pick attribute, so a tap on
   // it finds nothing to pick.
   const open = (c) => (c.pickable
-    ? `<button class="dr-home ${c.mine ? 'sel' : ''}" ${PICK_ATTR}="${escapeHtml(c.id)}" aria-pressed="${c.mine}">`
+    ? `<button class="dr-home ${c.mine ? 'sel' : ''} dr-home-${escapeHtml(c.id)}" ${PICK_ATTR}="${escapeHtml(c.id)}" aria-pressed="${c.mine}">`
     : '<button class="dr-home dr-home-off" type="button" aria-disabled="true">');
   const buttons = model.cards.map((c) => open(c)
-    + `<span class="dr-home-name">${escapeHtml(c.name)}</span>`
+    + (c.pickable
+      ? `<span class="dr-home-name"><span class="dr-home-emblem">${CLAN_EMBLEMS[c.id] ?? ''}</span>${escapeHtml(c.name)}</span>`
+      : `<span class="dr-home-name">${escapeHtml(c.name)}</span>`)
     + `<small>of ${escapeHtml(c.place)}</small>`
     + `<small>${escapeHtml(c.line)}</small>`
     + (c.soon && c.pickable ? '<small class="dr-home-soon">territory coming soon</small>' : '')
