@@ -31,6 +31,10 @@ export const DUSK = Object.freeze({
   collarDistance: 4,
   collarDecay: 2,
   collarLift: 0.45,
+  // Lawns read greener at dusk than by day because the warm low sun and the
+  // dimmed fill leave the saturated albedo to carry the colour. Pull the
+  // green toward grey, darken it, and push it a little blue.
+  lawnTint: Object.freeze({ desat: 0.35, dark: 0.78, cool: Object.freeze([0.94, 0.98, 1.1]) }),
 });
 
 export function duskLook(areaData) {
@@ -77,4 +81,44 @@ export function addCollarGlow(cat, look) {
   light.position.set(0, look.collarLift, 0);
   cat.add(light);
   return light;
+}
+
+// Lawn colour at dusk: lerp toward the colour's own luminance grey (Rec.709 on
+// the linear components), then darken and cool per channel. Returns a new Color.
+export function duskLawnColor(color, look) {
+  const { desat, dark, cool } = look.lawnTint;
+  const grey = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+  const f = (v, i) => (v + (grey - v) * desat) * dark * cool[i];
+  return new THREE.Color(f(color.r, 0), f(color.g, 1), f(color.b, 2));
+}
+
+// Same shape as the rain tint in weather.js: ground meshes wear a tinted clone
+// (the shared original is never written), the grass material is tinted in place
+// because it is per-walk and patched with onBeforeCompile, so it must not be
+// cloned. dispose() puts everything back exactly and is safe to call twice.
+export function tintDuskLawn({ ground, grass, look }) {
+  const swaps = [];
+  for (const mesh of ground ?? []) {
+    const orig = mesh.material;
+    if (Array.isArray(orig) || !orig?.color) continue;
+    const tinted = orig.clone();
+    tinted.color.copy(duskLawnColor(orig.color, look));
+    mesh.material = tinted;
+    swaps.push({ mesh, orig, tinted });
+  }
+  const saved = grass?.color ? grass.color.clone() : null;
+  if (saved) grass.color.copy(duskLawnColor(saved, look));
+  let done = false;
+  return {
+    dispose() {
+      if (done) return;
+      done = true;
+      for (const w of swaps) {
+        if (w.mesh.material === w.tinted) w.mesh.material = w.orig;
+        w.tinted.dispose();
+      }
+      swaps.length = 0;
+      if (saved) grass.color.copy(saved);
+    },
+  };
 }
