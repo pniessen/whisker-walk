@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import { PRESETS } from './helpers/catfingerprint.js';
+import { closeDiffs } from './helpers/closeto.js';
 
 // polish-pose Task 1 (2026-11-02): the napping tail lies flush and curls
 // round. Before, the nap lowered the body 10 cm and squashed it, but the tail
@@ -121,12 +122,14 @@ describe('the napping tail lies flush and curls round (polish-pose Task 1)', () 
   });
 
   // Ruling P1: Hagrid's fan rides his body (rideTail) and keeps his nap tail.
-  // Read from the tree before this change (a6f7971).
+  // Read from the tree before this change (a6f7971). The root's y comes
+  // through sin() and the body's matrix, so it is compared within 1e-9
+  // (closeDiffs): Linux CI can round its last digit differently.
   it('Hagrid keeps his nap tail', () => {
     const cat = buildCat('hagrid');
     animateCat(cat, 'nap', 1.3, 0, false);
     const { tail, tailPivots } = cat.userData.parts;
-    expect(tail.position.toArray()).toEqual([0, 0.3872391733223395, 0.2848]);
+    expect(closeDiffs(tail.position.toArray(), [0, 0.3872391733223395, 0.2848])).toEqual([]);
     expect(tail.rotation.toArray().slice(0, 3)).toEqual([-0.12, 0, 0]);
     expect(tailPivots.map((p) => p.rotation.toArray().slice(0, 3))).toEqual([[0, 0.55, 0], [0, 0.55, 0], [0, 0.55, 0], [0, 0.55, 0], [0, 0.55, 0]]);
   });

@@ -92,10 +92,27 @@ const CAPE_ACCENT = 0xf2c14e;      // gold clasp
 // `inflate` more, the lower edge pushed out sideways by up to `flare` so it
 // hangs off the flank like cloth. Measured on every preset, full and simple,
 // in every state at t 0.4/1.3/2.2 (and walking at 1.5): the cloth is never
-// nearer the fur than 1.5 cm (nap) nor the ground than 1.6 cm (the sit), and
+// nearer the fur than 1.5 cm (nap) nor the ground than 16 cm (the stalk; the
+// sit wears CAPE_SIT, below, which is 15.6 cm up; this cloth was 1.6), and
 // never nearer the tail's root than 4.2 cm (stretch) — a longer spine (zBack)
 // reaches it. The neck edge's spine end lies under the head.
 export const CAPE = Object.freeze({ zFront: -0.8, zBack: 0.68, zBackSide: 0.98, wrapFront: 1.9, wrapMid: 1.85, wrapBack: 1.7, inflate: 1.03, flare: 0.08 });
+// The sit's cloth (polish-pose fix wave): the same cloak with its haunch hem
+// taken up, worn only in the sit (animator.js swaps the geometry; both are
+// built here). The upright sit curls the tail forward round the left haunch
+// on the ground, and the standing hem (zBackSide 0.98, half-wrap 1.7 down the
+// flank, flared) lay over that curl: from behind and above 192 of 464 seen
+// tabby tail vertices were under the cloth, and it came within 0.1 mm of
+// link 2 (it clipped). Here the hem ends further forward round the haunch
+// (zBackSide 0.75) and higher up the flank (wrapBack 1.0 rad). Measured on
+// every preset, full and simple, both sits at t 0..3 every 0.5, from behind
+// and from behind-left at the walk camera's distance: no seen tail vertex is
+// under the cloth (wrapBack 1.1 left Digit's flicking tip 3-5% under it), and
+// the cloth is at least 4.5 cm from every tail vertex (Digit; 5.7 the
+// others). Its lowest point is 15.6 cm off the ground (the standing cloth came to 1.6 in the sit). The
+// neck edge (s 0) is the same, so the clasp does not move; the sitting back
+// is still covered from the shoulders to the hips.
+export const CAPE_SIT = Object.freeze({ ...CAPE, zBackSide: 0.75, wrapBack: 1.0 });
 // The clasp: a gold brooch (radius r, flattened to `flat` through the cloth)
 // on the front of each shoulder, at the neck edge (s 0, a ±a), `lift` off the
 // cloth. Not at the spine: the head hides the neck edge there from every side,
@@ -166,8 +183,7 @@ const BALL_H = 12;
 // other), s along (0 the neck edge, 1 the hem). Body-local, before the body's
 // scale (the frame of the torso's own geometry). See CAPE.
 const capeSmooth = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
-export function capePoint(a, s, out = new THREE.Vector3()) {
-  const C = CAPE;
+export function capePoint(a, s, out = new THREE.Vector3(), C = CAPE) {
   const wrap = s < 0.5
     ? C.wrapFront + (C.wrapMid - C.wrapFront) * capeSmooth(0, 0.5, s)
     : C.wrapMid + (C.wrapBack - C.wrapMid) * capeSmooth(0.5, 1, s);
@@ -183,12 +199,12 @@ export function capePoint(a, s, out = new THREE.Vector3()) {
 }
 
 // The cape's cloth: a grid of (a, s), 24×20 (12×10 simple), double-sided.
-export function capeGeometry(simple) {
+export function capeGeometry(simple, C = CAPE) {
   const [na, ns] = simple ? [12, 10] : [24, 20];
   const pos = new Float32Array((na + 1) * (ns + 1) * 3), idx = [], p = new THREE.Vector3();
   for (let j = 0; j <= ns; j++) {
     for (let i = 0; i <= na; i++) {
-      capePoint(-1 + (2 * i) / na, j / ns, p);
+      capePoint(-1 + (2 * i) / na, j / ns, p, C);
       p.toArray(pos, (j * (na + 1) + i) * 3);
       if (i < na && j < ns) {
         const q = j * (na + 1) + i, r = q + na + 1;
@@ -1479,9 +1495,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // brought back into the body's frame by 1 / BODY_SCALE, so the torso's
   // scale does not squash it (as the raincoat's buttons are counter-scaled).
   const scaled = new THREE.Vector3(...BODY_SCALE);
-  const onCape = (geo, a, s, lift, colour) => {
-    const P = capePoint(a, s).multiply(scaled);
-    const A = capePoint(a + 0.01, s).multiply(scaled).sub(P), S = capePoint(a, s + 0.01).multiply(scaled).sub(P);
+  const onCape = (geo, a, s, lift, colour, C = CAPE) => {
+    const P = capePoint(a, s, undefined, C).multiply(scaled);
+    const A = capePoint(a + 0.01, s, undefined, C).multiply(scaled).sub(P), S = capePoint(a, s + 0.01, undefined, C).multiply(scaled).sub(P);
     const n = new THREE.Vector3().crossVectors(S, A).normalize();
     if (n.dot(P) < 0) n.negate();
     geo.deleteAttribute('uv');
@@ -1496,11 +1512,23 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
     return geo;
   };
+  // A cloth that changes for the sit (CAPE_SIT) keeps both geometries in
+  // userData.capeGeo; the animator wears one or the other. Whichever is worn
+  // is disposed with the cat, and takes the other with it.
+  const sitPair = (stand, sit) => {
+    let gone = false;
+    const both = () => { if (gone) return; gone = true; stand.dispose(); sit.dispose(); };
+    stand.addEventListener('dispose', both);
+    sit.addEventListener('dispose', both);
+    return { stand, sit };
+  };
   const capeOn = (color, accent) => {
     const material = mat(color);
     material.side = THREE.DoubleSide;
-    const cape = new THREE.Mesh(capeGeometry(opts.simple), material);
+    const geo = sitPair(capeGeometry(opts.simple), capeGeometry(opts.simple, CAPE_SIT));
+    const cape = new THREE.Mesh(geo.stand, material);
     cape.userData.cape = true;
+    cape.userData.capeGeo = geo;
     body.add(cape);
     const pins = [-1, 1].map((side) => onCape(new THREE.SphereGeometry(CAPE_CLASP.r, 6, 5).scale(1, 1, CAPE_CLASP.flat), side * CAPE_CLASP.a, 0, CAPE_CLASP.lift));
     const clasp = new THREE.Mesh(mergeGeometries(pins), mat(accent));
@@ -1513,11 +1541,16 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // each a flattened ball lying on the cloth, merged into ONE vertex-coloured
   // mesh.
   const confettiOnCape = () => {
-    const dots = new THREE.Mesh(mergeGeometries(CAPE_DOTS.map(([a, s], i) =>
-      onCape(new THREE.SphereGeometry(0.022, 5, 4).scale(1, 1, 0.4), a, s, 0.004, PRIZE_CONFETTI[i % PRIZE_CONFETTI.length]))),
-    litMaterial(0xffffff, { vertexColors: true }));
-    dots.geometry.computeVertexNormals();
+    const dotsOn = (C) => {
+      const g = mergeGeometries(CAPE_DOTS.map(([a, s], i) =>
+        onCape(new THREE.SphereGeometry(0.022, 5, 4).scale(1, 1, 0.4), a, s, 0.004, PRIZE_CONFETTI[i % PRIZE_CONFETTI.length], C)));
+      g.computeVertexNormals();
+      return g;
+    };
+    const geo = sitPair(dotsOn(CAPE), dotsOn(CAPE_SIT));   // the dots stay on the sit's cloth too
+    const dots = new THREE.Mesh(geo.stand, litMaterial(0xffffff, { vertexColors: true }));
     dots.userData.capeDots = true;
+    dots.userData.capeGeo = geo;
     body.add(dots);
   };
   if (accessories.body === 'hoodie') {

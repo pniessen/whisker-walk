@@ -124,6 +124,32 @@ describe('balloons float upright in every pose (polish-pose Task 3)', () => {
     }
   }, 120_000);
 
+  // Walking (follow and stalk at speed 1.5): the walk bobs and rolls the
+  // body, and the tie rides it, so every balloon and knot still stands as
+  // built and every string runs from the carried tie upward (reviewer's
+  // measure: the foot within 7.1 mm of the tie, up.y at least 0.71).
+  it.each(CASES)('%s (simple %s) %s: walking, the balloons stay upright and the strings tied', (b, simple, back) => {
+    const builtPieces = pieces(kitCat(b, simple, back));
+    const cat = kitCat(b, simple, back);
+    for (const state of ['follow', 'stalk']) {
+      for (let t = 0; t <= 3; t += 0.25) {
+        animateCat(cat, state, t, 1.5, false);
+        const at = `${state} walking t ${t}`;
+        pieces(cat).forEach((p, i) => {
+          if (!p.userData.span) {
+            expect(p.quaternion.angleTo(builtPieces[i].quaternion), `${at}: piece ${i} upright`).toBeLessThan(1e-9);
+            return;
+          }
+          const tie = carriedTie(cat, p.userData.float.tie);
+          const up = new THREE.Vector3(0, 1, 0).applyQuaternion(p.quaternion);
+          const foot = p.position.clone().addScaledVector(up, -0.5 * p.userData.span.len * p.scale.y);
+          expect(foot.distanceTo(tie), `${at}: string ${i} tied at the carried tie`).toBeLessThanOrEqual(0.01);
+          expect(up.y, `${at}: string ${i} rises`).toBeGreaterThanOrEqual(0.6);
+        });
+      }
+    }
+  });
+
   it.each(CASES)('%s (simple %s) %s: leaving a sit or a nap puts every piece back as a fresh follow has it', (b, simple, back) => {
     for (const state of ['requestPet', 'perch', 'nap']) {
       const cat = kitCat(b, simple, back);

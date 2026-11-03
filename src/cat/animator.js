@@ -193,6 +193,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone(), scale: item.scale.clone() };
     if (ridesBody && !sitting) restore(item);
   }
+  wearCape(cat.userData.parts.body, sitting);
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
   // The stalk's tail root rides the body (STALK_TAIL), once the body is where
@@ -228,6 +229,18 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   if (cat.userData.parts.scars) fitScars(cat);
 }
 
+// A cape (and the confetti cape's dots) wears its sit cloth in the sit and
+// its standing cloth in every other pose (model.js CAPE_SIT, userData.capeGeo:
+// both built with the cat, so this only points at one). In the sit the
+// standing hem lay over the tail curled round the haunch. Allocates nothing.
+function wearCape(body, sitting) {
+  const kids = body.children;
+  for (let i = 0; i < kids.length; i++) {
+    const geo = kids[i].userData.capeGeo;
+    if (geo) kids[i].geometry = sitting ? geo.sit : geo.stand;
+  }
+}
+
 // R4: the underside hangs on the torso, so a yawed torso ('cross') would swing
 // the chest out from under the chin. It turns back by the yaw, but the torso's
 // scale is not uniform, so R_y(θ)·S·R_y(-θ) is not the identity: the chest
@@ -260,8 +273,9 @@ function rideTail(cat) {
 }
 
 // The sit's back items (polish-sit Task 3, ruling R4). The backpack, wings,
-// jetpack hang on the cat, not on the body (model.js tags them userData.ridesBody), so the upright sit's nose-up
-// pitch (SIT.pitch 0.75) left them floating behind the back. Here each is
+// jetpack hang on the cat, not on the body (model.js tags them
+// userData.ridesBody), so the upright sit's nose-up pitch (SIT.pitch 0.75)
+// left them floating behind the back. Here each is
 // carried by the posed body: position = bodyPosed · bodyRest⁻¹ · rest (the
 // body's rest being (0, base.bodyY, 0), unrotated, at base.bodyScale), turned
 // by the body's own rotation. Its rest (as built) is remembered by animateCat

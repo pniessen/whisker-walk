@@ -159,10 +159,14 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
       const s = cat.scale.x, { body, tail } = cat.userData.parts;
       const C = body.getWorldPosition(new THREE.Vector3());
       const label = `${state} t ${t} speed ${speed}`;
-      // a tail vertex near the fur with the cape between it and the body centre
+      // a tail vertex near the fur with the cape between it and the body
+      // centre; in the sit every tail vertex, near the fur or not (the curl
+      // lies more than 2 cm out, beside the haunch; the sit's own checks
+      // below look from the camera)
+      const sit = state === 'requestPet' || state === 'perch';
       let covered = 0;
       for (const P of meshVerts(tail, s)) {
-        if (outside(cat, P) > 0.02) continue;
+        if (!sit && outside(cat, P) > 0.02) continue;
         const Pw = P.clone().multiplyScalar(s), d = Pw.distanceTo(C);
         cast.set(C, Pw.clone().sub(C).normalize());
         cast.far = d;
@@ -176,6 +180,79 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
       expect(near, `${label}: the tail root clear of the cape`).toBeGreaterThanOrEqual(0.04);
     }
   }, 180_000);
+
+  // The sit (polish-pose fix wave). The upright sit curls the tail forward
+  // round the left haunch, on the ground beside it, well over 2 cm out of the
+  // fur, so the check above did not see the standing hem lying over it (192
+  // of 464 seen tabby tail vertices from behind and above, the cloth within
+  // 0.1 mm of link 2). In the sit the cape wears its sit cloth (model.js
+  // CAPE_SIT). Seen from the walk camera's distance and height behind the
+  // cat and behind-left (the side the tail curls to), of the tail vertices
+  // that the body, chest and legs do not hide, at most 3% may be behind a
+  // cape piece; and no tail vertex comes within 1 cm of the cloth.
+  const SITS = ['requestPet', 'perch'].flatMap((st) => [0, 0.5, 1, 1.5, 2, 2.5, 3].map((t) => [st, t]));
+  const EYES = { behind: [0, 1.3, 2.0], behindLeft: [-0.8, 1.3, 2.0] };
+  const capePieces = (cat) => cat.userData.parts.body.children.filter((c) => c.userData.cape || c.userData.capeClasp || c.userData.capeDots);
+  it.each(CASES)('%s %s (simple %s): sitting, the whole tail curl shows from behind', (b, id, simple) => {
+    const cat = kitCat(b, id, simple);
+    const cast = new THREE.Raycaster(), d = new THREE.Vector3(), E = new THREE.Vector3();
+    for (const [state, t] of SITS) {
+      animateCat(cat, state, t, 0, false);
+      cat.updateMatrixWorld(true);
+      const s = cat.scale.x, { body, underside, legs, tail } = cat.userData.parts;
+      const fur = [body, underside], cloth = capePieces(cat);
+      for (const [eye, at] of Object.entries(EYES)) {
+        E.fromArray(at).multiplyScalar(s);
+        let seen = 0, under = 0;
+        for (const P of meshVerts(tail, s)) {
+          const Pw = P.multiplyScalar(s), far = d.subVectors(Pw, E).length();
+          cast.set(E, d.normalize());
+          cast.far = far - 1e-4;
+          if (cast.intersectObjects(fur, false).length || cast.intersectObjects(legs, true).length) continue;
+          seen++;
+          if (cast.intersectObjects(cloth, false).length) under++;
+        }
+        expect(seen, `${state} t ${t} ${eye}: tail seen`).toBeGreaterThan(0);
+        expect(under / seen, `${state} t ${t} ${eye}: ${under}/${seen} under the cape`).toBeLessThanOrEqual(0.03);
+      }
+    }
+  }, 180_000);
+
+  it.each(CASES)('%s %s (simple %s): sitting, the cloth never comes within 1 cm of the tail', (b, id, simple) => {
+    const cat = kitCat(b, id, simple);
+    const tri = new THREE.Triangle(), q = new THREE.Vector3();
+    for (const [state, t] of SITS) {
+      animateCat(cat, state, t, 0, false);
+      cat.updateMatrixWorld(true);
+      const s = cat.scale.x, tv = meshVerts(cat.userData.parts.tail, s);
+      let near = Infinity;
+      for (const m of capePieces(cat)) {
+        const cv = verts(m, s), ix = m.geometry.index.array;
+        for (let f = 0; f < ix.length; f += 3) {
+          const A = cv[ix[f]], B = cv[ix[f + 1]], C = cv[ix[f + 2]];
+          tri.set(A, B, C);
+          // a quick bound first: no face edge is longer than 0.3 here
+          for (const P of tv) {
+            if (P.distanceTo(A) - 0.3 > near) continue;
+            tri.closestPointToPoint(P, q);
+            near = Math.min(near, q.distanceTo(P));
+          }
+        }
+      }
+      expect(near, `${state} t ${t}: the cloth's nearest to the tail`).toBeGreaterThanOrEqual(0.01);
+    }
+  }, 180_000);
+
+  it.each(CAPES)('%s: the sit cloth is worn only in the sit', (id) => {
+    const cat = kitCat('tabby', id, false);
+    const cloth = capePieces(cat).filter((m) => m.userData.capeGeo);
+    expect(cloth).toHaveLength(id === 'cape' ? 1 : 2);
+    for (const state of [...STATES, 'follow']) {
+      animateCat(cat, state, 1.3, 0, false);
+      const sit = state === 'requestPet' || state === 'perch';
+      for (const m of cloth) expect(m.geometry, state).toBe(sit ? m.userData.capeGeo.sit : m.userData.capeGeo.stand);
+    }
+  });
 
   // Leaving a pose puts it back: the cape and clasp never move on the body,
   // so after a sit or a nap a follow gives a fresh follow's cloak exactly.
@@ -192,6 +269,7 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
       animateCat(cat, 'follow', 2.1, 0, false);
       cat.updateMatrixWorld(true);
       expect(pieces(cat).map((m) => m.matrixWorld.toArray()), state).toEqual(want);
+      for (const m of pieces(cat)) if (m.userData.capeGeo) expect(m.geometry === m.userData.capeGeo.stand, `${state}: the standing cloth back on`).toBe(true);
     }
   });
 
