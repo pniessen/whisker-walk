@@ -129,6 +129,6 @@ export function renderBuilderHtml(model) {
   return `<div class="cb-head"><h2>${e(model.title)}</h2></div>`
     + rows
     + `<div class="cb-foot"><button data-cb-cancel>✕ Not now</button>`
-    + `<button class="cb-done" data-cb-done${model.canDone ? '' : ' disabled'}>Done, now dress it up →</button></div>`
+    + `<button class="cb-done" data-cb-done${model.canDone ? '>Done, now dress it up →' : ' disabled>Name your cat first ✏️'}</button></div>`
     + leave;
 }

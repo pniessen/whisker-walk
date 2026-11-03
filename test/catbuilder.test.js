@@ -82,4 +82,18 @@ describe('the builder', () => {
       expect(h).not.toMatch(new RegExp(`\\b${w.toLowerCase()}\\b`));
     }
   });
+
+  it('Done asks for a name while it is disabled', () => {
+    expect(html(newBuilder())).toContain('data-cb-done disabled>Name your cat first ✏️</button>');
+    const b = reduceBuilder(newBuilder(), { type: 'name', value: 'Mossy' });
+    expect(html(b)).toContain('data-cb-done>Done, now dress it up →</button>');
+  });
+
+  it('the disabled Done is dimmed pink, not khaki', () => {
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.cb-done:disabled \{[^}]*\}/)[0];
+    expect(rule).toContain('rgba(231,169,160,.30)');
+    expect(rule).not.toContain('#6a6250');
+    expect(css).toContain('.cb-foot::before');
+  });
 });

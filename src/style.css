@@ -1588,7 +1588,10 @@ body.den-shop-open .chat-wheel { display: none !important; }
 .dr .cb-foot [data-cb-cancel], .dr .cb-done { min-height: 48px; border-radius: 999px; font-weight: 700; }
 .dr .cb-foot [data-cb-cancel] { padding: 10px 16px; background: var(--panel); }
 .dr .cb-done { padding: 10px 18px; background: var(--pink); color: var(--navy); font-size: 16px; }
-.dr .cb-done:disabled { background: #6a6250; color: #a89e88; }
+.dr .cb-done:disabled { background: rgba(231,169,160,.30); color: #f6dcd7; }
+/* a row passing under the bar dissolves instead of being sliced */
+.cb-foot::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 28px;
+  background: linear-gradient(to bottom, transparent, var(--navy)); pointer-events: none; }
 .cb-leave { order: 2; position: sticky; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 4;
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px;
   background: var(--frame); border: 1.5px solid var(--pink); font-weight: 700;
@@ -1605,6 +1608,7 @@ body.den-shop-open .chat-wheel { display: none !important; }
   /* the room's 14 px side padding: cover it too, so no row peeks past the stuck stage */
   .dr-building .dr-hero { box-shadow: -14px 0 0 var(--navy), 14px 0 0 var(--navy); }
   .cb-foot { box-shadow: -14px 0 0 var(--navy), 14px 0 0 var(--navy); }
+  .cb-foot::before { left: -14px; right: -14px; }
   .dr.dr-building .cb { order: 2; }
 }
 /* desktop: the stage on the left, the rows on the right, like the room */
