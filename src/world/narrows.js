@@ -96,7 +96,9 @@ export function narrowsTint(x, y, z, rgb, recess) {
 // =============================================================================
 
 // The band is held at the waterline along this capsule, so the view shows.
-export const NARROWS_VIEW = Object.freeze({ x1: -58, z1: -11, x2: -130, z2: -11, r: 8 });
+// r 16: wide enough that the band's rising sides (KEEP_LOW_RAMP more) stay
+// outside what the corridor's slot shows of it.
+export const NARROWS_VIEW = Object.freeze({ x1: -58, z1: -11, x2: -130, z2: -11, r: 16 });
 
 const WALL_N = -16; // the north wall's line (rock at z < -16, facing +z)
 const WALL_S = -6; // the south wall's line (rock at z > -6, facing -z)
@@ -259,7 +261,15 @@ function shrub(B, s) {
 }
 
 // --- the view out: a low Moor past the corridor's west end -------------------
-const VIEW = Object.freeze({ x0: -60, x1: -130, z0: -44, z1: 22, n: 12, rise: 5, bump: 1.5 });
+// The sheet starts under the ground plane's edge (x -60), at EDGE_Y: a hair
+// below the plane, over the band's floor (-0.03), so neither the band nor a
+// gap shows where the Gorge's ground ends. Its first column is short (x0 to
+// x0b) and its colour runs from the Gorge's floor sand to the Moor's by
+// x -70, so the seam doesn't read as a line across the floor.
+const VIEW = Object.freeze({ x0: -58, x0b: -62, x1: -130, z0: -44, z1: 22, n: 12, rise: 5, bump: 1.5 });
+const EDGE_Y = -0.015;
+const VIEW_START = -60; // where the rise and the bumps begin
+const SAND_TO = -70; // the sand blends into the Moor's colours by here
 const MOOR_GREEN = 0x7f8f55, HEATHER = 0x9a6f8c, DRY = 0xa89a6a;
 const MOUNDS = Object.freeze([
   { x: -92, z: -20, r: 14, h: 7 },
@@ -272,23 +282,29 @@ const PINES = Object.freeze([
 ]);
 const PINE_GREEN = 0x4f6a3c, TRUNK = 0x6b5440;
 const VIEW_SEED = seedFromCode('narrows-view');
+// gorge.js's GORGE_FLOOR_COLOR (not imported: gorge.js imports this file).
+const FLOOR_SAND = 0x9a8a6a;
 
 const sheetY = (x, z) => {
-  const t = clamp01((VIEW.x0 - x) / (VIEW.x0 - VIEW.x1));
+  if (x > VIEW_START) return EDGE_Y; // under the ground plane
+  const t = clamp01((VIEW_START - x) / (VIEW_START - VIEW.x1));
   const bump = VIEW.bump * (2 * noise3(x / 16, 0, z / 16, VIEW_SEED) - 1);
-  return VIEW.rise * smoothstep(0, 1, t) + bump * smoothstep(0, 0.3, t);
+  // never under EDGE_Y, so the band's floor never shows through a dip
+  return Math.max(EDGE_Y, VIEW.rise * smoothstep(0, 1, t) + bump * smoothstep(0.03, 0.3, t));
 };
 const _cg = new THREE.Color(MOOR_GREEN), _ch = new THREE.Color(HEATHER), _cd = new THREE.Color(DRY);
+const _cs = new THREE.Color(FLOOR_SAND);
 const sheetColor = (x, z) => {
   const heather = smoothstep(0.45, 0.7, noise3(x / 12, 1, z / 12, VIEW_SEED + 1));
   const dry = smoothstep(0.5, 0.75, noise3(x / 18, 2, z / 18, VIEW_SEED + 2));
-  return _cg.clone().lerp(_cd, dry * 0.8).lerp(_ch, heather * 0.85);
+  const moor = _cg.clone().lerp(_cd, dry * 0.8).lerp(_ch, heather * 0.85);
+  return _cs.clone().lerp(moor, smoothstep(VIEW_START, SAND_TO, x));
 };
 
 function view(B) {
-  const { x0, x1, z0, z1, n } = VIEW;
+  const { x0, x0b, x1, z0, z1, n } = VIEW;
   const P = (i, j) => {
-    const x = x0 + ((x1 - x0) * i) / n, z = z0 + ((z1 - z0) * j) / n;
+    const x = i === 0 ? x0 : x0b + ((x1 - x0b) * (i - 1)) / (n - 1), z = z0 + ((z1 - z0) * j) / n;
     return [x, sheetY(x, z), z];
   };
   for (let i = 0; i < n; i++) {

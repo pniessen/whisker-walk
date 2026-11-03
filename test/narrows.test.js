@@ -154,6 +154,16 @@ describe('the Narrows dressing', () => {
     let inside = 0;
     for (let i = p.length - n; i < p.length; i += 3) if (p[i] > -58) inside++;
     expect(inside).toBe(0);
+    // The sheet (its first 12 x 12 x 2 triangles) starts under the ground
+    // plane's edge (x -60) and never dips to the horizon band's floor (-0.03),
+    // so no pale strip of band shows where the Gorge's ground ends.
+    let under = 0, past = 0;
+    for (let i = p.length - n; i < p.length - n + 288 * 9; i += 3) {
+      if (p[i + 1] < -0.02) under++;
+      if (p[i] > -60) past++;
+    }
+    expect(under).toBe(0);
+    expect(past).toBeGreaterThan(0);
   }, 120_000);
 
   it('every tuft sits on the rock', () => {

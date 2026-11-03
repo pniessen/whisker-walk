@@ -131,14 +131,14 @@ export const PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xb8a27e });
 // the west. The hills come down to the stream where it leaves the map. Out
 // of the Narrows' west end they dip to the ground (NARROWS_VIEW, a keepLow
 // capsule; it works because `avoid` is not empty), so the low Moor of the
-// Narrows dressing shows through the gap; the west tint is lighter, toward
-// the haze.
+// Narrows dressing shows through the gap; the west tint is a muted moor
+// green-grey (a lilac one read as a pale wall beside the gap).
 export const GORGE_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 40, wavelength: 40,
   color: 0xa8957a, salt: 53,
   avoid: Object.freeze([STREAM]),
   keepLow: Object.freeze([NARROWS_VIEW]),
-  sideTints: Object.freeze({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0xa99aa4 }),
+  sideTints: Object.freeze({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0x9d9f8f }),
   rooftops: Object.freeze({ from: 0.28, to: 0.47, count: 10, height: 6 }),
 });
 
