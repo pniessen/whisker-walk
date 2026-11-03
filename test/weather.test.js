@@ -20,7 +20,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { rollWeather, createRainSchedule, createWeather, rainDropCount, RAIN_LOOK } = await import('../src/weather.js');
+const { rollWeather, createRainSchedule, createWeather, rainDropCount, RAIN_LOOK, streakShape } = await import('../src/weather.js');
 const { mulberry32 } = await import('../src/rng.js');
 const { skyBackground } = await import('../src/render/sky.js');
 
@@ -590,5 +590,73 @@ describe('createWeather — rain that reads', () => {
     const d = dropsOf(scene);
     const n = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), d.rotation.y);
     expect(n.x).toBeCloseTo(-1, 3);
+  });
+});
+
+// Survey 2 broken #2: a streak that passes near the camera is a world-space
+// quad, so it filled the screen as a white plank. The shader fades it out and
+// caps its width; streakShape is the JS mirror the numbers are tested through.
+describe('rain near the camera', () => {
+  const rainMesh = () => {
+    let mesh = null;
+    const scene = {
+      background: new THREE.Color(0x445566),
+      fog: new THREE.Fog(0x123456, 40, 130),
+      add: (o) => { if (o.name === 'rain-drops') mesh = o; },
+    };
+    const sun = { color: new THREE.Color(), intensity: 2.2, position: new THREE.Vector3(-36, 15, -24) };
+    createWeather(scene, sun, 'rain', () => 0, false);
+    return mesh;
+  };
+
+  it('fades to nothing right at the camera and is fully there by a few metres', () => {
+    expect(streakShape(0.3, 0.01).alpha).toBe(0);
+    expect(streakShape(5, 0.01).alpha).toBe(1);
+    let prev = -1;
+    for (let d = 0; d <= 5; d += 0.05) {
+      const a = streakShape(d, 0.01).alpha;
+      expect(a).toBeGreaterThanOrEqual(prev);
+      prev = a;
+    }
+  });
+
+  it('caps the half-width by distance but leaves far streaks alone', () => {
+    expect(streakShape(0.5, 0.01).halfWidth).toBeLessThanOrEqual(0.5 * RAIN_LOOK.maxHalfAngle);
+    expect(streakShape(20, 0.006).halfWidth).toBe(0.006);
+  });
+
+  it('gives each quad an aSide (-1 left, +1 right) and a per-drop aHalf', () => {
+    const geo = rainMesh().geometry;
+    const side = geo.getAttribute('aSide');
+    const half = geo.getAttribute('aHalf');
+    expect(side.itemSize).toBe(1);
+    expect(half.itemSize).toBe(1);
+    for (let i = 0; i < 20; i++) {
+      const v = i * 4;
+      expect([0, 1, 2, 3].map((k) => side.getX(v + k))).toEqual([-1, 1, -1, 1]);
+      expect(half.getX(v)).toBeGreaterThan(0);
+      for (let k = 1; k < 4; k++) expect(half.getX(v + k)).toBe(half.getX(v));
+    }
+  });
+
+  it('patches the basic shader, keyed so it never shares a program', () => {
+    const mat = rainMesh().material;
+    expect(mat.customProgramCacheKey()).toBe('whisker-rain');
+    const shader = {
+      vertexShader: THREE.ShaderLib.basic.vertexShader,
+      fragmentShader: THREE.ShaderLib.basic.fragmentShader,
+      uniforms: {},
+    };
+    mat.onBeforeCompile(shader);
+    expect(shader.vertexShader).not.toBe(THREE.ShaderLib.basic.vertexShader);
+    expect(shader.fragmentShader).not.toBe(THREE.ShaderLib.basic.fragmentShader);
+    expect(shader.vertexShader).toContain('aSide');
+    expect(shader.fragmentShader).toContain('vRainNear');
+    // The shared #include <common> edits alone satisfy the checks above, so
+    // prove the injection points exist upstream and the real bodies landed.
+    expect(THREE.ShaderLib.basic.vertexShader).toContain('#include <begin_vertex>');
+    expect(THREE.ShaderLib.basic.fragmentShader).toContain('#include <opaque_fragment>');
+    expect(shader.vertexShader).toContain('rainDist');
+    expect(shader.fragmentShader).toContain('diffuseColor.a *= vRainNear');
   });
 });

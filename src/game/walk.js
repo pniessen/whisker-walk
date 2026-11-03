@@ -27,7 +27,7 @@ import * as gorge from '../world/gorge.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
-import { applyDusk, duskEnv, addCollarGlow } from '../render/dusk.js';
+import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn } from '../render/dusk.js';
 import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { activeCat, scarKey } from '../customcats.js';
@@ -651,6 +651,10 @@ export function createWalkLifecycle({
       if (equipped.collar === 'glow') addCollarGlow(cat, duskLookNow);
     }
 
+    // Dusk lawns: the same ground list rain darkens, taken before anything else is added.
+    // The far band (lawn, hills, skylines; builder.js horizonBand) joins the ground here, or
+    // the tinted near lawn ends in a bright neon strip at the fog line.
+    const duskGround = duskLookNow ? scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path' || c.name === 'horizonBand')) : [];
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, tintWet() {}, dispose() {} };
     if (!duskActive && !isDen) {
       // The ground and paths in the scene right now (the area's own, before
@@ -1190,6 +1194,9 @@ export function createWalkLifecycle({
     const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
     // The blades dominate a lawn's look, so a rainy walk darkens them too.
     if (grass.mesh) weather.tintWet?.(grass.mesh.material);
+    const duskLawn = duskLookNow
+      ? tintDuskLawn({ ground: duskGround, grass: grass.mesh?.material ?? null, look: duskLookNow })
+      : { dispose() {} };
     // Stream 4 round four — paw prints (render/pawprints.js). After the same
     // scans as the grass, for the same reason (1 main-pass draw, 0 shadow).
     // Purely local: no wire event, and never walkRng. The den gets the stub.
@@ -1294,6 +1301,7 @@ export function createWalkLifecycle({
       wind,
       // Lawn tufts, same shape again; updated beside wind in the render loop.
       grass,
+      duskLawn,
       paws,
       splash,
       // Stream 4 round four — drifting sky clouds (render/clouds.js), same
@@ -1980,6 +1988,7 @@ export function createWalkLifecycle({
     session.skyLife.dispose();
     // A rainy walk ending mid-rain: the ground and the fill go back as found.
     session.weather.dispose?.();
+    session.duskLawn.dispose();
     // Hands the sun and fill back and takes the area's birds out, before the
     // traversal below. Every way a walk ends comes through here.
     session.areaLife.dispose();

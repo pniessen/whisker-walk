@@ -36,8 +36,10 @@ import { shorePieces } from '../world/builder.js';
 // 10cm swell is invisible. What actually reads as "water" from here is the
 // specular highlight sliding around, which is a NORMALS effect. Scrolling
 // normals give exactly that for two Vector2 writes per frame, need no shader
-// injection (onBeforeCompile against a version-specific chunk name is the most
-// fragile thing we could put in a PWA that must keep working offline), and
+// injection for the MOVEMENT (onBeforeCompile against a version-specific chunk
+// name is the most fragile thing we could put in a PWA that must keep working
+// offline; the one small exception, a specular clamp, is described at SPEC_CAP
+// and is tested against three's own physical shader), and
 // cost zero CPU per vertex — where displacing the seaside's 80x140 plane finely
 // enough to see would mean thousands of CPU-touched vertices every frame on
 // the very devices that get the low tier.
@@ -262,12 +264,20 @@ const ENV_INTENSITY_LOW = 1.0;
 // and the grazing sheen come down together and the ripple still sparkles. 0.4
 // was picked side by side against 1, 0.55 and 0.3 at the same moment of the
 // same walk: at 0.55 a low sun still nearly whited out the Pines lake, at
-// 0.3 the water went dull. No shader injection (see the header).
+// 0.3 the water went dull. The one small shader patch is the SPEC_CAP clamp below.
 //
 // The sea keeps closer to today's look (GLARE_SEA): its pale, sunny palette is
 // the Seaside's identity, and its glare reads as a bright day at the beach.
 const GLARE = 0.4;
 const GLARE_SEA = 0.8;
+
+// SPEC_CAP — a ceiling on the specular light, per channel, linear. Cutting
+// GLARE alone to tame the sun's glint (0.3 was tried) dulled the whole
+// surface; capping the peak leaves the rest of the sparkle alone and just
+// stops the one hot patch from blowing out to white. It is a one-line patch
+// after lights_fragment_end; if three ever renames that chunk the test in
+// test/waterglare.test.js fails loudly rather than the glint silently returning.
+const SPEC_CAP = 0.55;
 
 // Segments around a circular footprint's rim. The shipped pond used 20, whose
 // 2.2m chords are plainly visible as a polygon once there is a light foam band
@@ -283,7 +293,7 @@ export const WATER_TUNING = Object.freeze({
   RIPPLE_TEX, RIPPLE_TILE_M, SLOPE, NORMAL_SCALE, DRIFT_U, DRIFT_V,
   SWELL_PERIOD, SWELL_DEPTH, RAMP_TEXEL_M, RAMP_MIN, RAMP_MAX,
   SHELF_M, FOAM_M, FOAM_STRENGTH, ROUGH_DEEP, ROUGH_SHORE, ROUGH_FOAM,
-  ROUGH_LOW, ENV_INTENSITY, ENV_INTENSITY_LOW, CIRCLE_SEGMENTS, GLARE, GLARE_SEA,
+  ROUGH_LOW, ENV_INTENSITY, ENV_INTENSITY_LOW, CIRCLE_SEGMENTS, GLARE, GLARE_SEA, SPEC_CAP,
 });
 
 // --- small pure helpers ------------------------------------------------------
@@ -904,6 +914,8 @@ function islandGeometry(w, box, segments) {
  *                          'clear' here). Also read by waterdress.js.
  *   glare        {number}  specular strength, 0..1 (default GLARE). The
  *                          seaside passes GLARE_SEA.
+ *   specCap      {number}  ceiling on direct + indirect specular, linear per
+ *                          channel (default SPEC_CAP).
  *   seed         {number}  ripple phase seed. Defaults to the footprint's own
  *                          id, so the three bodies ripple differently and each
  *                          one ripples identically on every walk and on every
@@ -926,6 +938,7 @@ export function createWater(footprint, options = {}) {
     seed,
     waters,
     glare = GLARE,
+    specCap = SPEC_CAP,
     style = 'clear',
   } = options;
 
@@ -983,6 +996,20 @@ export function createWater(footprint, options = {}) {
     normalMap: ripple?.texture ?? null,
     envMapIntensity: tier === 'high' ? ENV_INTENSITY : ENV_INTENSITY_LOW,
   });
+  const prevCompile = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    prevCompile?.call(material, shader, renderer);
+    shader.uniforms.uSpecCap = { value: specCap };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'uniform float uSpecCap;\nvoid main() {')
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+  reflectedLight.directSpecular = min(reflectedLight.directSpecular, vec3(uSpecCap));
+  reflectedLight.indirectSpecular = min(reflectedLight.indirectSpecular, vec3(uSpecCap));`,
+      );
+  };
+  material.customProgramCacheKey = () => 'whisker-water';
   if (ripple) {
     material.normalScale = new THREE.Vector2(NORMAL_SCALE, NORMAL_SCALE);
     // One ripple tile every RIPPLE_TILE_M metres, derived from the footprint's

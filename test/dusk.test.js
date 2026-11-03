@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { DUSK, duskLook, applyDusk, duskEnv, addCollarGlow } from '../src/render/dusk.js';
+import { readFileSync } from 'node:fs';
+import { DUSK, duskLook, applyDusk, duskEnv, addCollarGlow, duskLawnColor, tintDuskLawn } from '../src/render/dusk.js';
 import {
   createSun, createFill, SUN_COLOR, SUN_INTENSITY, HEMI_SKY, HEMI_INTENSITY,
 } from '../src/render/rig.js';
@@ -69,5 +70,74 @@ describe('duskEnv / addCollarGlow', () => {
     expect(l.intensity).toBe(1.6);
     expect(l.distance).toBe(4);
     expect(l.decay).toBe(2);
+  });
+});
+
+describe('dusk lawns', () => {
+  const sat = (c) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
+  it('duskLawnColor is darker, less saturated and cooler', () => {
+    const c = new THREE.Color(0.3, 0.6, 0.2);
+    const d = duskLawnColor(c, duskLook({}));
+    expect(d).not.toBe(c);
+    expect(d.r).toBeLessThanOrEqual(c.r);
+    expect(d.g).toBeLessThanOrEqual(c.g);
+    expect(sat(d)).toBeLessThan(sat(c));
+    expect(d.b / d.g).toBeGreaterThan(c.b / c.g);
+  });
+  const mk = () => {
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.3, 0.6, 0.2) });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+    return { mat, mesh };
+  };
+  it('swaps in a tinted clone, tints grass in place, and restores exactly once', () => {
+    const { mat, mesh } = mk();
+    const before = mat.color.toArray();
+    const grass = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.25, 0.55, 0.15) });
+    const grassBefore = grass.color.toArray();
+    const look = duskLook({});
+    const h = tintDuskLawn({ ground: [mesh], grass, look });
+    const clone = mesh.material;
+    expect(clone).not.toBe(mat);
+    expect(clone.color.toArray()).toEqual(duskLawnColor(new THREE.Color(...before), look).toArray());
+    expect(mat.color.toArray()).toEqual(before);
+    expect(grass.color.toArray()).not.toEqual(grassBefore);
+    let n = 0;
+    const orig = clone.dispose.bind(clone);
+    clone.dispose = () => { n++; orig(); };
+    h.dispose();
+    expect(mesh.material).toBe(mat);
+    expect(n).toBe(1);
+    expect(grass.color.toArray()).toEqual(grassBefore);
+    h.dispose();
+    expect(n).toBe(1);
+    expect(grass.color.toArray()).toEqual(grassBefore);
+  });
+  it('skips array materials and materials without a colour', () => {
+    const a = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), [new THREE.MeshStandardMaterial()]);
+    const b = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial());
+    const am = a.material; const bm = b.material;
+    const h = tintDuskLawn({ ground: [a, b], grass: null, look: duskLook({}) });
+    expect(a.material).toBe(am);
+    expect(b.material).toBe(bm);
+    h.dispose();
+  });
+  it('an area lawnTint override reaches the tint', () => {
+    const c = new THREE.Color(0.3, 0.6, 0.2);
+    const look = duskLook({ duskLight: { lawnTint: { desat: 0, dark: 0.5, cool: [1, 1, 1] } } });
+    expect(duskLawnColor(c, look).g).toBeCloseTo(0.3, 6);
+  });
+  it('a partial lawnTint override keeps the other defaults', () => {
+    const look = duskLook({ duskLight: { lawnTint: { dark: 0.6 } } });
+    expect(look.lawnTint.dark).toBe(0.6);
+    expect(look.lawnTint.desat).toBe(DUSK.lawnTint.desat);
+    expect(look.lawnTint.cool).toEqual(DUSK.lawnTint.cool);
+    expect(Object.isFrozen(look.lawnTint)).toBe(true);
+    const c = duskLawnColor(new THREE.Color(0.3, 0.6, 0.2), look);
+    expect([c.r, c.g, c.b].every(Number.isFinite)).toBe(true);
+  });
+  it('walk.js wires the tint and its disposal', () => {
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    expect(src).toContain('tintDuskLawn(');
+    expect(src).toContain('duskLawn.dispose()');
   });
 });
