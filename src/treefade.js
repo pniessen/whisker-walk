@@ -97,16 +97,27 @@ export function findFadeOccluders(scene) {
     out.push({ obj: o, x: px, z: pz, R, top, shapes: placed, near: NEAR_POLE });
   });
   for (const child of scene.children) {
-    if (child.isMesh || child.userData?.occluder || child.userData?.occluderStand) continue;
+    if (child.isMesh || child.userData?.occluder || child.userData?.occluderStand || child.userData?.fadeOccluder) continue;
     let hasWindow = false;
     child.traverse((o) => { if (o.isMesh && o.userData?.window) hasWindow = true; });
     if (!hasWindow) continue;
-    const b = new THREE.Box3().setFromObject(child);
+    // The y extent comes from every mesh; the xz extent only from wall-level
+    // meshes (world min.y below half the building's height), so a house's
+    // overhanging pyramid roof does not widen the box past its walls. Precise
+    // boxes: a rotated cone's AABB is not its real extent.
+    const all = [];
+    child.traverse((o) => { if (o.isMesh) all.push(o); });
+    const mb = new THREE.Box3(), yb = new THREE.Box3(), xb = new THREE.Box3();
+    const bounds = all.map((m) => mb.setFromObject(m, true).clone());
+    for (const b of bounds) yb.union(b);
+    const half = (yb.min.y + yb.max.y) / 2;
+    for (let i = 0; i < bounds.length; i++) if (bounds[i].min.y < half) xb.union(bounds[i]);
+    const b = { min: { x: xb.min.x, z: xb.min.z }, max: { x: xb.max.x, z: xb.max.z } };
     out.push({
       obj: child,
-      box: { minX: b.min.x, maxX: b.max.x, minY: b.min.y, maxY: b.max.y, minZ: b.min.z, maxZ: b.max.z },
+      box: { minX: b.min.x, maxX: b.max.x, minY: yb.min.y, maxY: yb.max.y, minZ: b.min.z, maxZ: b.max.z },
       x: (b.min.x + b.max.x) / 2, z: (b.min.z + b.max.z) / 2,
-      R: Math.hypot(b.max.x - b.min.x, b.max.z - b.min.z) / 2, top: b.max.y,
+      R: Math.hypot(b.max.x - b.min.x, b.max.z - b.min.z) / 2, top: yb.max.y,
     });
   }
   return out;
@@ -256,7 +267,7 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
       if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + o.R + BUILDING_PAD) {
         const b = o.box;
         want = (cam.x >= b.minX - BUILDING_PAD && cam.x <= b.maxX + BUILDING_PAD
-          && cam.y >= b.minY - BUILDING_PAD && cam.y <= b.maxY + BUILDING_PAD
+          && cam.y >= b.minY - BUILDING_PAD && cam.y <= b.maxY
           && cam.z >= b.minZ - BUILDING_PAD && cam.z <= b.maxZ + BUILDING_PAD)
           || segmentHitsBox(cam, look, b);
       }
@@ -320,10 +331,11 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
       if (disposed) return;
       const kinds = new Set(), picked = [];
       for (const t of trees) {
-        let key = '';
+        const parts = new Set();
         t.obj.traverse((o) => {
-          if (o.isMesh) for (const m of [].concat(o.material)) key += `${m.type}:${m.customProgramCacheKey()}:${m.vertexColors}:${m.side}:${m.flatShading}:${!!m.map}|`;
+          if (o.isMesh) for (const m of [].concat(o.material)) parts.add(`${m.type}:${m.customProgramCacheKey()}:${m.vertexColors}:${m.side}:${m.flatShading}:${!!m.map}`);
         });
+        const key = [...parts].sort().join('|');
         if (!kinds.has(key)) { kinds.add(key); picked.push(t); }
       }
       for (const t of picked) swapIn(t);

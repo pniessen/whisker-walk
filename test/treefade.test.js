@@ -444,14 +444,55 @@ describe('treefade buildings and fade shapes', () => {
     scene.add(h, w, tree(0, 0));
     const out = findFadeOccluders(scene);
     expect(out.length).toBe(2);
+    // Explicit numbers: xz from the wall-level meshes (a house's pyramid roof and a
+    // warehouse's parapet are left out), y from everything, door/window/lintel depth included.
+    const want = new Map([
+      [h, [7.5, 12.5, 0, 5, 3, 7.06]], // house(10, 5): x 10 +- 2.5, z 5 - 2 .. 5 + 2.06 (door)
+      [w, [-26.06, -13.94, 0, 6.3, -1.06, 7.15]], // warehouse(-20, 3, 12, 8, 6): windows, lintel, parapet top
+    ]);
     for (const g of [h, w]) {
       const e = out.find((o) => o.obj === g);
-      const b = new THREE.Box3().setFromObject(g);
-      expect(closeDiffs([e.box.minX, e.box.maxX, e.box.minY, e.box.maxY, e.box.minZ, e.box.maxZ],
-        [b.min.x, b.max.x, b.min.y, b.max.y, b.min.z, b.max.z])).toEqual([]);
-      expect(closeDiffs([e.x, e.z, e.top], [(b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2, b.max.y])).toEqual([]);
-      expect(closeDiffs(e.R, Math.hypot(b.max.x - b.min.x, b.max.z - b.min.z) / 2)).toEqual([]);
+      const exp = want.get(g);
+      expect(closeDiffs([e.box.minX, e.box.maxX, e.box.minY, e.box.maxY, e.box.minZ, e.box.maxZ], exp, 1e-6)).toEqual([]);
+      expect(closeDiffs([e.x, e.z, e.top], [(exp[0] + exp[1]) / 2, (exp[4] + exp[5]) / 2, exp[3]], 1e-6)).toEqual([]);
+      expect(closeDiffs(e.R, Math.hypot(exp[1] - exp[0], exp[5] - exp[4]) / 2, 1e-6)).toEqual([]);
     }
+  });
+
+  it('a camera just above a box top (0.2 m) over its middle does not fade it; inside does', () => {
+    const { h, camera, entries } = bworld();
+    const b = entries[0].box;
+    const look = { x: 30, y: b.maxY + 0.2, z: 30 }; // level with the camera, so the line stays above the box
+    for (const [y, want] of [[b.maxY + 0.2, false], [b.maxY - 0.2, true]]) {
+      const fade = createTreeFade(entries);
+      camera.position.set((b.minX + b.maxX) / 2, y, (b.minZ + b.maxZ) / 2);
+      fade.update(1, camera, look);
+      expect(fade.faded().has(h)).toBe(want);
+      fade.dispose();
+    }
+  });
+
+  it('a fadeOccluder group holding a window mesh yields one entry only', () => {
+    const scene = new THREE.Scene();
+    const g = house(0, 0);
+    g.userData.fadeOccluder = [{ t: 'cyl', r: 0.5, y0: 0, y1: 3 }];
+    scene.add(g);
+    const out = findFadeOccluders(scene);
+    expect(out.filter((e) => e.obj === g).length).toBe(1);
+    expect(out.length).toBe(1);
+  });
+
+  it('prewarm swaps one warehouse of two with different window counts (one kind)', () => {
+    const scene = new THREE.Scene();
+    const a = warehouse(0, 0, 8, 6, 4), c = warehouse(30, 0, 14, 6, 6);
+    scene.add(a, c);
+    const fade = createTreeFade(findFadeOccluders(scene));
+    let swapped = null;
+    fade.prewarm(() => {
+      swapped = [a, c].map((g) => meshesOf(g).every((m) => [].concat(m.material).every((x) => x.transparent && !x.depthWrite)));
+    });
+    expect(swapped.filter(Boolean).length).toBe(1);
+    fade.dispose();
   });
 
   it('finds a tagged group with its shapes placed at the group', () => {
