@@ -33,8 +33,10 @@ export const DUSK = Object.freeze({
   collarLift: 0.45,
   // Lawns read greener at dusk than by day because the warm low sun and the
   // dimmed fill leave the saturated albedo to carry the colour. Pull the
-  // green toward grey, darken it, and push it a little blue.
-  lawnTint: Object.freeze({ desat: 0.35, dark: 0.78, cool: Object.freeze([0.94, 0.98, 1.1]) }),
+  // green toward grey, darken it, and push it a little blue. Picked side by
+  // side on the Woods at dusk: more grey than this read as a fog wash, and
+  // darker-but-still-green reads as evening rather than a dull lawn.
+  lawnTint: Object.freeze({ desat: 0.25, dark: 0.72, cool: Object.freeze([0.96, 1.0, 1.08]) }),
 });
 
 export function duskLook(areaData) {

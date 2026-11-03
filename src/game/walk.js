@@ -652,7 +652,9 @@ export function createWalkLifecycle({
     }
 
     // Dusk lawns: the same ground list rain darkens, taken before anything else is added.
-    const duskGround = duskLookNow ? scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path')) : [];
+    // The far lawn and hills (builder.js horizonBand) join the ground here, or
+    // the tinted near lawn ends in a bright neon strip at the fog line.
+    const duskGround = duskLookNow ? scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path' || c.name === 'horizonBand')) : [];
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, tintWet() {}, dispose() {} };
     if (!duskActive && !isDen) {
       // The ground and paths in the scene right now (the area's own, before
