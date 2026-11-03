@@ -554,3 +554,198 @@ export function buildBackItem(id, { bodyScale = TORSO.SCALE, cover = 'fur', simp
   }
   return [];
 }
+
+// --- the hood ---------------------------------------------------------------
+
+// HOODS THAT LIE ON THE NECK (accessories polish Task 3, 2026-11-03).
+//
+// The hoodie's and raincoat's hood was a 0.17 ball behind the head (it read as
+// Mickey-Mouse ears), a torus "bunch" at the neck under a hat, and it hung on
+// the cat group at a head-relative spot, so in the nap it swung out through
+// the face. The ruling: the hood is always DOWN, hat or no hat.
+//
+// It is a soft scoop lying on the coat shell at the withers, just behind the
+// head: half an ellipsoidal shell (HOOD.size: wide × tall × deep), cut open by
+// a plane whose normal (HOOD.open) faces up and toward the head, so its mouth
+// looks forward at the back of the head, with a rolled rim in a darker shade
+// of the coat along that mouth, a darker lining inside, and a fold line
+// across its back. Its lower half is pressed nearly flat (HOOD.flat) and the
+// whole thing is draped on the shell: every vertex keeps its height above the
+// surface under it, so it follows the back's curve. The hoodie adds two white
+// drawstrings with toggles hanging down the chest. One vertex-coloured mesh,
+// hung on the body, so it follows every pose as the coat does.
+//
+// HOOD: `dir` the unit direction it lies over standing (the brief's
+// (0, 0.75, -0.66) is inside the skull on this torso, whose back line is level
+// with the head's centre; here the scoop's front is ~1.8 cm behind the
+// skull), `napDir` where it slides to (animator.js slideHood), `size` [wide,
+// tall, deep], `open` the mouth's normal (sphere space) and `cut` how far
+// along it the mouth is cut, `flat` how much the lower half is pressed flat,
+// `wrap` and `taper` its bend round the neck and its narrowing toward the
+// tail, `thick` the shell, `roll` the rolled rim's radius, `fold` where the
+// fold line crosses (0 the crown's end .. 1 the mouth), the shades of rim,
+// lining and fold; `slide`, `still` and `tuck` for slideHood and buildHood.
+export const HOOD = Object.freeze({
+  dir: [0, 0.93, -0.36], napDir: [0, 0.99, 0.12], slide: 0.07, still: 0.005, tuck: 0.1, size: [0.24, 0.05, 0.15], open: [0, 0.3, -0.95], cut: 0.05, flat: 0.12, wrap: 3, taper: 0.35,
+  thick: 0.012, roll: 0.009, fold: 0.6, rimShade: 0.72, liningShade: 0.55, foldShade: 0.68,
+});
+export const DRAWSTRING_WHITE = 0xf4f4f0;
+// The drawstrings: down the chest from unit-direction height top to bottom
+// (`run`), `x` either side of the midline, `out` off the shell; a cord of
+// radius `r` and a toggle (half length `tl`, radius `tr`) at its end. They
+// hang low on the chest, below where the chin comes down in the sit, the
+// stalk and the nap.
+export const DRAWSTRING = Object.freeze({ x: 0.075, run: [-0.36, -0.74], out: 0.005, r: 0.0035, tl: 0.013, tr: 0.0075 });
+
+// The hood's scoop in its item frame (x side, y out of the back, z toward the
+// tail), before it is draped: a grid wrapping round the mouth (u) from the
+// outer pole, over the outer shell to the mouth, over the rolled rim, and down
+// the lining to the inner pole (v).
+function hoodScoop(color, simple) {
+  const [W, H, D] = HOOD.size, A = W / 2, C = D / 2, t = HOOD.thick;
+  const n = new THREE.Vector3(...HOOD.open).normalize();
+  const e1 = new THREE.Vector3(1, 0, 0), e2 = new THREE.Vector3().crossVectors(n, e1).normalize();
+  const psiMax = Math.acos(-HOOD.cut);
+  const flat = (y, floor) => (y >= 0 ? y : y * HOOD.flat) + floor;
+  // a point on the unit sphere's cap (psi from the pole -n), onto the
+  // ellipsoid with half axes ax, the lower half pressed flat
+  const onShell = (psi, th, ax, floor) => {
+    const s = n.clone().multiplyScalar(-Math.cos(psi))
+      .addScaledVector(e1, Math.cos(th) * Math.sin(psi)).addScaledVector(e2, Math.sin(th) * Math.sin(psi));
+    return new THREE.Vector3(s.x * ax[0], flat(s.y * ax[1], floor), s.z * ax[2]);
+  };
+  const outer = [A, H, C], inner = [A - t, H - t, C - t];
+  const outerRows = simple ? [0, 0.4, 0.7, 1] : [0, 0.22, 0.42, 0.6, 0.66, 0.72, 0.86, 1];
+  const innerRows = simple ? [1, 0.6, 0] : [1, 0.75, 0.45, 0];
+  const rollSteps = simple ? 3 : 5;
+  const sides = simple ? 10 : 16;
+  // the mouth's outward normal in the item frame (the plane's normal through
+  // the ellipsoid map), for the roll
+  const m = new THREE.Vector3(n.x / A, n.y / H, n.z / C).normalize();
+  const rim = shade(color, HOOD.rimShade), lining = shade(color, HOOD.liningShade), fold = shade(color, HOOD.foldShade);
+  const rows = [];
+  for (const f of outerRows) rows.push({ kind: 'outer', f });
+  for (let k = 0; k <= rollSteps; k++) rows.push({ kind: 'roll', f: k / rollSteps });
+  for (const f of innerRows) rows.push({ kind: 'inner', f });
+  return grid(sides, rows.length, { wrapU: true }, (i, j) => {
+    const th = (i / sides) * Math.PI * 2, row = rows[j];
+    if (row.kind === 'outer') {
+      const p = onShell(psiMax * row.f, th, outer, 0);
+      const isFold = !simple && Math.abs(row.f - HOOD.fold) < 0.04;
+      if (isFold) p.y *= 0.9;   // the crease dips in a little
+      return { p, c: isFold ? fold : color, out: p.clone().sub(new THREE.Vector3(0, H * 0.3, 0)) };
+    }
+    if (row.kind === 'inner') {
+      const p = onShell(psiMax * row.f, th, inner, t * 0.6);
+      return { p, c: lining };
+    }
+    // the roll: half a turn over the lip from the outer shell's edge to the lining's
+    const po = onShell(psiMax, th, outer, 0), pi = onShell(psiMax, th, inner, t * 0.6);
+    const c = po.clone().add(pi).multiplyScalar(0.5);
+    const r = po.clone().sub(pi), g = r.length() / 2;
+    r.normalize();
+    const up = m.clone().addScaledVector(r, -m.dot(r)).normalize();
+    const b = row.f * Math.PI, rr = Math.max(g, HOOD.roll);
+    return { p: c.addScaledVector(r, Math.cos(b) * rr).addScaledVector(up, Math.sin(b) * rr), c: rim };
+  });
+}
+
+// Lay item-frame geometry on the cover round an anchor: each vertex keeps its
+// height (y) above the surface point under it (x, z on the anchor's tangent
+// plane), plus `gap`, along the anchor's normal. Body-scaled frame.
+function drape(geo, anchor, cover, bodyScale, gap) {
+  const f = frameOf(anchor), X = new THREE.Vector3(), Y = new THREE.Vector3(), Z = new THREE.Vector3();
+  f.extractBasis(X, Y, Z);
+  const p = geo.attributes.position, q = new THREE.Vector3(), u = [0, 0, 0], S = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    q.copy(anchor.at).addScaledVector(X, p.getX(i)).addScaledVector(Z, p.getZ(i));
+    torsoUnitAt([q.x / bodyScale[0], q.y / bodyScale[1], q.z / bodyScale[2]], u);
+    coverLocal(u[0], u[1], u[2], cover, S).multiply(_v3(bodyScale));
+    // the surface point under q along the anchor's normal: S is on the ray
+    // from the centre; step along Y to the plane through S
+    S.addScaledVector(Y, p.getY(i) + gap);
+    p.setXYZ(i, S.x, S.y, S.z);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// A drawstring hanging down the chest: a thin cord on the shell from `top` to
+// `bottom` (unit-direction heights) at side x, and a toggle at its end.
+function drawstring(side, [top, bottom], bodyScale, simple) {
+  const S = DRAWSTRING, steps = simple ? 4 : 7, sides = simple ? 4 : 5;
+  const C = [];
+  for (let k = 0; k <= steps; k++) {
+    const uy = top + (bottom - top) * (k / steps);
+    const a = backAnchor([side * S.x, uy, -1], { bodyScale, cover: 'shell' }, S.out + S.r);
+    C.push(a);
+  }
+  const cord = grid(C.length, sides + 1, {}, (i, j) => {
+    const a = C[i], tg = C[Math.min(C.length - 1, i + 1)].at.clone().sub(C[Math.max(0, i - 1)].at).normalize();
+    const nn = a.n.clone().addScaledVector(tg, -a.n.dot(tg)).normalize(), bn = new THREE.Vector3().crossVectors(tg, nn);
+    const th = (j / sides) * Math.PI * 2, out = nn.clone().multiplyScalar(Math.cos(th)).addScaledVector(bn, Math.sin(th));
+    return { p: a.at.clone().addScaledVector(out, S.r), c: DRAWSTRING_WHITE, out };
+  });
+  const end = C[C.length - 1], prev = C[C.length - 2];
+  const dir = end.at.clone().sub(prev.at).normalize();
+  const base = end.at.clone().addScaledVector(end.n, S.tr - S.r);
+  const toggle = lathe([[0, 0, shade(DRAWSTRING_WHITE, 0.82)], [0.002, S.tr * 0.8, shade(DRAWSTRING_WHITE, 0.82)], [S.tl * 0.5, S.tr, shade(DRAWSTRING_WHITE, 0.9)],
+    [S.tl * 1.5, S.tr, shade(DRAWSTRING_WHITE, 0.9)], [2 * S.tl - 0.002, S.tr * 0.8, shade(DRAWSTRING_WHITE, 0.82)], [2 * S.tl, 0, shade(DRAWSTRING_WHITE, 0.82)]], simple ? 5 : 6, base, dir);
+  return [cord, toggle];
+}
+
+// The hood's geometry, body-local: its scoop over `dir` and the drawstrings,
+// if any.
+export function hoodGeometry(color, { bodyScale = TORSO.SCALE, simple = false, drawstrings = false, dir = HOOD.dir, flat = 1 } = {}) {
+  const scoop = hoodScoop(color, simple);
+  // pressed flat, the scoop's underside sits at y >= -flat·H; lift it onto 0
+  let low = Infinity;
+  const p = scoop.attributes.position;
+  for (let i = 0; i < p.count; i++) low = Math.min(low, p.getY(i));
+  scoop.translate(0, -low, 0);
+  if (flat !== 1) scoop.scale(1, flat, 1);
+  // the crown narrows toward the tail (x × 1 - taper at its end) and the
+  // sides come forward round the back of the neck (z -= wrap·x²)
+  const C = HOOD.size[2] / 2;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i) * (1 - HOOD.taper * smooth(0, C, p.getZ(i)));
+    p.setX(i, x);
+    p.setZ(i, p.getZ(i) - HOOD.wrap * x * x);
+  }
+  drape(scoop, backAnchor(dir, { bodyScale, cover: 'shell' }), 'shell', bodyScale, SEAT);
+  const parts = [scoop];
+  if (drawstrings) for (const side of [-1, 1]) parts.push(...drawstring(side, DRAWSTRING.run, bodyScale, simple));
+  const geo = mergeGeometries(parts);
+  geo.scale(1 / bodyScale[0], 1 / bodyScale[1], 1 / bodyScale[2]);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// The hood (and, for the hoodie, its drawstrings): ONE vertex-coloured mesh,
+// body-local, userData.hood = true; body.add it. When the head comes back
+// over the shoulders (the cross cat's drawn-back chin, the pounce, the nap's
+// head laid on the front of the back) it would sink into the hood, so the
+// hood slides back along the back with it: the geometry's one morph target
+// (relative) carries every vertex from where it lies standing (HOOD.dir) to
+// where it lies in the nap (HOOD.napDir, draped there too; the drawstrings
+// stay where they hang), and animator.js slideHood sets
+// its influence from how much nearer the hood the head has come (HOOD.slide).
+// With a back item on (`tuck`), the spot it slides to is under the backpack
+// or jetpack, behind the wings' roots, so there it is also pressed flat
+// (height × HOOD.tuck), tucked under the pack like a patch of the coat.
+export function buildHood(color, { bodyScale = TORSO.SCALE, simple = false, drawstrings = false, tuck = false } = {}) {
+  const opts = { bodyScale, simple, drawstrings };
+  const geo = hoodGeometry(color, { ...opts, dir: HOOD.dir });
+  const nap = hoodGeometry(color, { ...opts, dir: HOOD.napDir, flat: tuck ? HOOD.tuck : 1 });
+  const a = geo.attributes.position.array, b = nap.attributes.position.array, d = new Float32Array(a.length);
+  for (let i = 0; i < a.length; i++) d[i] = b[i] - a[i];
+  nap.dispose();
+  geo.morphAttributes.position = [new THREE.BufferAttribute(d, 3)];
+  geo.morphTargetsRelative = true;
+  const m = new THREE.Mesh(geo, litMaterial(0xffffff, { vertexColors: true }));
+  m.userData.hood = true;
+  // the standing hood's spot, body-scaled frame (animator.js slideHood)
+  m.userData.hoodRef = backAnchor(HOOD.dir, { bodyScale, cover: 'shell' }).at.toArray();
+  m.name = 'hood';
+  return m;
+}

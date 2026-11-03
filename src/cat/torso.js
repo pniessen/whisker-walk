@@ -303,9 +303,3 @@ export const NECK_FLUFFY = { forward: 0, drop: 0 };
 // radius R scaled by SCALE (x also by the frame's fx), at y CENTRE_Y + DY and
 // z Z·fz, cat frame.
 export const CHEST = Object.freeze({ R: 0.15, SCALE: Object.freeze([1.05, 1.1, 0.9]), DY: 0.06, Z: -0.33 });
-// The hood bunched at the neck (under a hat) keeps its old head-relative spot,
-// HEAD.POS + (0, -0.06, 0.08) x HEAD.SCALE, mostly hidden in the neck fur: no
-// NECK_FORWARD, no NECK_FLUFFY (forward, the roll crossed the face at mouth
-// level). It is lowered by HOOD_BUNCH_DROP (head-local y) so that no part of
-// it reaches above the mouth (the bottom of the nose) on any cat.
-export const HOOD_BUNCH_DROP = 0.08;

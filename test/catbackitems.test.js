@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
-import { buildBackItem, backAnchor, placeOnBack, BACK_ITEM_IDS, STRAP_GREY } from '../src/cat/backitems.js';
+import { buildBackItem, backAnchor, placeOnBack, BACK_ITEM_IDS, STRAP_GREY, buildHood, HOOD, DRAWSTRING_WHITE } from '../src/cat/backitems.js';
 import { TORSO } from '../src/cat/torso.js';
 
 // Accessories polish, Task 2 (2026-11-03): the owner said "the back
@@ -223,5 +223,163 @@ describe('back items are shaped things on the back (accessories polish Task 2)',
       expect(disposed, id).toBe(0);
       for (const m of itemsOf(b)) expect(m.geometry.attributes.position.count).toBeGreaterThan(0);
     }
+  });
+});
+
+// Accessories polish, Task 3 (2026-11-03): the hoodie's and raincoat's hood was
+// a 0.17 ball behind the head (it read as Mickey-Mouse ears), a torus bunched
+// at the neck under a hat, and it hung on the cat group, so in the nap it
+// swung out through the face. The ruling: the hood is always down. It is one
+// vertex-coloured mesh on the body, a soft scoop lying on the coat at the
+// withers just behind the head (backitems.js buildHood), which slides back
+// along the back when the head comes back or down onto it (animator.js
+// slideHood, its morph target).
+describe('hoods lie on the neck behind the head (accessories polish Task 3)', () => {
+  const HOODS = [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e]];
+  const hoodOf = (cat) => {
+    const out = [];
+    cat.traverse((o) => { if (o.isMesh && o.userData.hood) out.push(o); });
+    return out;
+  };
+  const coat = (breed, body, head = null, simple = false) => buildCat(breed, { ...BARE, body, head }, { simple });
+  // the hood's vertices in the cat's frame (world / cat.scale.x), morph applied
+  const hoodVerts = (cat, hood) => {
+    const p = hood.geometry.attributes.position, out = [];
+    for (let i = 0; i < p.count; i++) out.push(hood.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(hood.matrixWorld).divideScalar(cat.scale.x));
+    return out;
+  };
+  // How far (cat frame, a lower bound) a world point is outside the skull and
+  // the muzzle (the head's first two children, model.js buildCat): the point
+  // lies on the ellipsoid scaled by q, which is at least (q - 1) × its
+  // shortest half axis off the ellipsoid itself.
+  const outOfHead = (cat, w) => {
+    const head = cat.userData.parts.head, k = cat.scale.x, hs = head.getWorldScale(new THREE.Vector3()).x;
+    const local = w.clone().multiplyScalar(k).applyMatrix4(head.matrixWorld.clone().invert());
+    let worst = Infinity;
+    for (const m of [head.children[0], head.children[1]]) {
+      const a = [0, 1, 2].map((i) => m.geometry.parameters.radius * m.scale.getComponent(i));
+      const d = local.clone().sub(m.position);
+      const q = Math.hypot(d.x / a[0], d.y / a[1], d.z / a[2]);
+      worst = Math.min(worst, ((q - 1) * Math.min(...a) * hs) / k);
+    }
+    return worst;
+  };
+
+  it.each(HOODS.flatMap(([id]) => [null, 'tophat', 'crown'].map((hat) => [id, hat])))('%s (hat %s): the hood is one vertex-coloured mesh on the body', (id, hat) => {
+    for (const simple of [false, true]) {
+      const cat = coat('tabby', id, hat, simple);
+      const hoods = hoodOf(cat);
+      expect(hoods).toHaveLength(1);
+      expect(hoods[0].parent).toBe(cat.userData.parts.body);
+      expect(hoods[0].material.vertexColors).toBe(true);
+      expect(hoods[0].morphTargetInfluences).toEqual([0]);
+      // neither the old ball nor the bunched torus, anywhere on the cat
+      cat.traverse((o) => {
+        if (!o.isMesh) return;
+        expect(o.geometry.type === 'SphereGeometry' && o.geometry.parameters.radius === 0.17).toBe(false);
+        expect(o.geometry.type).not.toBe('TorusGeometry');
+      });
+    }
+  });
+
+  it('the hoodie has white drawstrings and the raincoat none; triangle budget', () => {
+    const white = new THREE.Color(DRAWSTRING_WHITE);
+    const whites = (m) => {
+      const c = m.geometry.attributes.color;
+      let n = 0;
+      for (let i = 0; i < c.count; i++) if (Math.abs(c.getX(i) - white.r) + Math.abs(c.getY(i) - white.g) + Math.abs(c.getZ(i) - white.b) < 1e-4) n++;
+      return n;
+    };
+    expect(whites(buildHood(0x6a4c93, { drawstrings: true }))).toBeGreaterThan(20);
+    expect(whites(buildHood(0xf2c94e))).toBe(0);
+    for (const drawstrings of [false, true]) {
+      const full = tris(buildHood(0x6a4c93, { drawstrings })), simple = tris(buildHood(0x6a4c93, { drawstrings, simple: true }));
+      expect(full).toBeLessThanOrEqual(900);
+      expect(simple).toBeLessThanOrEqual(full / 2 + 1);
+    }
+  });
+
+  // The nap's "hood through the face" case, and every other pose of the
+  // brief: no vertex of the hood (drawstrings included) within 1 cm of the
+  // posed skull or muzzle. (The sit is requestPet.)
+  const STATES = [['nap', 0], ['stalk', 0], ['requestPet', 0], ['perch', 0], ['follow', 1.5], ['cross', 0], ['follow', 0], ['pounce', 0], ['flinch', 0]];
+  it.each(['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => HOODS.map(([id]) => [b, id])))('%s %s: the hood stays out of the head in every pose', (breed, id) => {
+    const cat = coat(breed, id);
+    const [hood] = hoodOf(cat);
+    for (const [state, speed] of STATES) {
+      for (const t of [0.3, 1.3, 2.9]) {
+        animateCat(cat, state, t, speed, false);
+        cat.updateMatrixWorld(true);
+        let worst = Infinity;
+        for (const v of hoodVerts(cat, hood)) worst = Math.min(worst, outOfHead(cat, v));
+        expect(worst, `${state} t ${t} v ${speed}`).toBeGreaterThanOrEqual(0.01);
+      }
+    }
+  }, 120_000);
+
+  // It lies on the neck, it is not ears. (The brief asked for its top at or
+  // below the head's centre; the coat's own top at the withers is already
+  // only 1.4 cm under it, so the hood, lying on the coat, tops out within
+  // 0.3 of the skull's half height above the centre: well under the ears and
+  // the old ball's centre, 8.5 cm up.)
+  it.each(['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => HOODS.map(([id]) => [b, id])))('%s %s: the hood lies low behind the head when standing', (breed, id) => {
+    const cat = coat(breed, id);
+    animateCat(cat, 'follow', 1.3, 0, false);
+    cat.updateMatrixWorld(true);
+    const [hood] = hoodOf(cat);
+    const head = cat.userData.parts.head.getWorldPosition(new THREE.Vector3()).divideScalar(cat.scale.x);
+    const skullHalfHeight = 0.21 * 0.92 * cat.userData.parts.head.scale.y;
+    const box = new THREE.Box3().setFromObject(hood, true);
+    box.min.divideScalar(cat.scale.x); box.max.divideScalar(cat.scale.x);
+    expect(box.max.y).toBeLessThanOrEqual(head.y + 0.3 * skullHalfHeight);
+    // the scoop is behind the head's centre (the drawstrings hang on the chest)
+    const scoop = hoodVerts(cat, hood).filter((v) => v.y > 0.5);
+    expect(scoop.length).toBeGreaterThan(50);
+    for (const v of scoop) expect(v.z).toBeGreaterThan(head.z);
+  });
+
+  // It lies on the coat: every scoop vertex outside the shell and the hood
+  // within 1.5 cm of it, standing and slid back in the nap.
+  it.each(HOODS)('%s: the hood rests on the coat, standing and slid back for the nap', (id) => {
+    for (const breed of ['tabby', 'digit']) {
+      const cat = coat(breed, id);
+      const [hood] = hoodOf(cat);
+      const torso = cat.userData.parts.body;
+      const shell = torso.children.filter((c) => c.isMesh && c !== hood && c !== cat.userData.parts.underside)
+        .sort((a, b) => b.geometry.attributes.position.count - a.geometry.attributes.position.count)[0];
+      for (const [state, slid] of [['follow', 0], ['nap', 1], ['requestPet', 0]]) {
+        animateCat(cat, state, 1.3, 0, false);
+        cat.updateMatrixWorld(true);
+        expect(hood.morphTargetInfluences[0], state).toBeCloseTo(slid, 6);
+        const C = torso.getWorldPosition(new THREE.Vector3());
+        const ray = new THREE.Raycaster();
+        let nearest = Infinity;
+        const p = hood.geometry.attributes.position;
+        for (let i = 0; i < p.count; i += 3) {
+          const v = hood.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(hood.matrixWorld);
+          const dir = v.clone().sub(C).normalize();
+          ray.set(v.clone().addScaledVector(dir, 1), dir.clone().negate());
+          const hit = ray.intersectObject(shell, false)[0];
+          if (!hit) continue;
+          const off = (hit.distance - 1) / cat.scale.x;
+          expect(off, `${breed} ${state} vertex ${i}`).toBeGreaterThanOrEqual(-0.003);
+          nearest = Math.min(nearest, off);
+        }
+        expect(nearest, `${breed} ${state}`).toBeLessThanOrEqual(0.015);
+      }
+    }
+  }, 120_000);
+
+  it('the hood keeps its spot over HOOD.dir; disposing one cat leaves another intact', () => {
+    const at = backAnchor(HOOD.dir, { bodyScale: TORSO.SCALE, cover: 'shell' }).at;
+    const hood = buildHood(0x6a4c93, { drawstrings: true });
+    expect(hood.userData.hoodRef).toEqual(at.toArray());
+    const a = coat('tabby', 'hoodie'), b = coat('tabby', 'hoodie');
+    const [ha] = hoodOf(a), [hb] = hoodOf(b);
+    expect(ha.geometry).not.toBe(hb.geometry);
+    let disposed = 0;
+    hb.geometry.addEventListener('dispose', () => disposed++);
+    ha.geometry.dispose();
+    expect(disposed).toBe(0);
   });
 });

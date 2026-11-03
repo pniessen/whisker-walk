@@ -9,9 +9,9 @@ import { setCatScars } from './scarmesh.js';
 import { ruffGeometry } from './ruff.js';
 import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
 import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
-import { buildBackItem } from './backitems.js';
+import { buildBackItem, buildHood } from './backitems.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
-import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
+import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -992,8 +992,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const onBack = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz]);
   // Neck items, the neck prize and the collar sit NECK_FORWARD ahead of where
   // they sat on the old torso. A fluffy cat's rest on its small bib, at a
-  // tabby's spot (NECK_FLUFFY). (Not the hood bunch:
-  // see HOOD_BUNCH_DROP.)
+  // tabby's spot (NECK_FLUFFY).
   const neckZ = NECK_FORWARD + (s.fluffy ? NECK_FLUFFY.forward : 0);
   const neckY = s.fluffy ? -NECK_FLUFFY.drop : 0;
   // The coat is painted into the torso's vertex colours (coat.js): tabby
@@ -1371,9 +1370,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // the back than under the belly), hung on the torso with no scale of their
   // own: they take its BODY_SCALE, so a narrow cat's coat is narrow too, and
   // follow every pose. The capes are cloth cut from the same surface and hung
-  // on the torso the same way (CAPE, polish-pose Task 2). The hood and bunch
-  // sit relative to the head.
-  const hoodItems = [];
+  // on the torso the same way (CAPE, polish-pose Task 2). The hood lies on
+  // the coat at the withers (hoodOn, below).
   // The back slot hangs only the balloons on g: they float (polish-pose
   // Task 3, ruling P3). (The backpack, wings and jetpack once hung here too,
   // tagged userData.ridesBody and carried on the posed torso in the sit; since
@@ -1398,7 +1396,6 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     string.userData.span = { top: top.toArray(), len };
     return floatOn(string, tie);
   };
-  const headRel = (dx, dy, dz) => [HEAD.POS[0] + dx * HEAD.SCALE, HEAD.POS[1] + dy * HEAD.SCALE, HEAD.POS[2] + dz * HEAD.SCALE];
   const coatShell = (color, paint) => {
     // A full shell is 32×32 (the torso itself is 40×40; the simple shell uses
     // the torso's simple grid), fine enough that the shell does not sag
@@ -1426,20 +1423,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     body.add(shell);
     return shell;
   };
-  const hoodOrBunch = (color) => {
-    // hood-up/hood-down rule: a hat needs the head clear, so the hood only
-    // goes up when no head item is equipped — otherwise it bunches at the neck.
-    if (!accessories.head) {
-      const hood = ball(0.17, color, 1, 1, 0.9, 8, 6);
-      hood.position.set(...headRel(0, 0.08, 0.16));
-      hoodItems.push(hood);
-    } else {
-      const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(color));
-      bunch.rotation.x = Math.PI / 2 + 0.3;
-      bunch.position.set(...headRel(0, -0.06 - HOOD_BUNCH_DROP, 0.08));   // see HOOD_BUNCH_DROP
-      hoodItems.push(bunch);
-    }
-  };
+  // The hood is always DOWN, hat or no hat (accessories polish Task 3): a
+  // soft scoop lying on the coat at the withers behind the head, with the
+  // hoodie's drawstrings down the chest, ONE mesh on the body (backitems.js
+  // buildHood), so it follows every pose with the coat.
+  // With a backpack, jetpack or wings on, the hood presses flat as it slides
+  // back (tuck), under the pack rather than into it.
+  const tuck = accessories.back === 'backpack' || accessories.back === 'jetpack' || accessories.back === 'wings';
+  const hoodOn = (color, drawstrings) => body.add(buildHood(color, { bodyScale: BODY_SCALE, simple: !!opts.simple, drawstrings, tuck }));
   // A cape is a cloak on the body (CAPE): the cloth shell, fastened by a gold
   // brooch on the front of each shoulder (CAPE_CLASP), both in ONE mesh. Small
   // round parts lie ON the cloth (onCape): each is built round in the scaled
@@ -1507,14 +1498,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   };
   if (accessories.body === 'hoodie') {
     coatShell(HOODIE_COLOR);
-    hoodOrBunch(HOODIE_COLOR);
+    hoodOn(HOODIE_COLOR, true);
   } else if (accessories.body === 'cape' || accessories.body === 'confetticape') {
     const prize = accessories.body === 'confetticape';
     capeOn(prize ? PRIZE_CAPE : CAPE_COLOR, prize ? PRIZE_GOLD : CAPE_ACCENT);
     if (prize) confettiOnCape();
   } else if (accessories.body === 'raincoat') {
     coatShell(RAINCOAT_COLOR);
-    hoodOrBunch(RAINCOAT_COLOR);
+    hoodOn(RAINCOAT_COLOR, false);
     for (let i = 0; i < 2; i++) { // toggle buttons down the chest (front is -z)
       // on the shell, in body-local space, so it rides the coat; counter-scaled
       // so the torso's own scale does not squash it
@@ -1566,7 +1557,6 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     floatOn(balloon, foot);
   }
 
-  for (const item of hoodItems) g.add(item);
 
   // feet: small shells on the paw positions. Cuff and stripe hang from the paw.
   // Every item first swaps the toed foot for today's plain paw (R8), so it

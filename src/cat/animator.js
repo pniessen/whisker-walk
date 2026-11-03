@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG } from './torso.js';
 import { fitScars } from './scarmesh.js';
+import { HOOD } from './backitems.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
@@ -227,6 +228,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   // Every state, once the body is where the pose fit left it.
   floatBalloons(cat);
   fitNeck(cat, state);
+  slideHood(cat);
   // Last: a scar rides the head and torso where everything above left them.
   if (cat.userData.parts.scars) fitScars(cat);
 }
@@ -240,6 +242,36 @@ function wearCape(body, sitting) {
   for (let i = 0; i < kids.length; i++) {
     const geo = kids[i].userData.capeGeo;
     if (geo) kids[i].geometry = sitting ? geo.sit : geo.stand;
+  }
+}
+
+// The hood (backitems.js buildHood) slides back along the back when the head
+// comes back over the shoulders or down onto them (the cross cat's drawn-back
+// chin, the pounce's crouch, the nap's head laid on the front of the back):
+// its morph target's influence is how much nearer the head's centre has come
+// to the hood (userData.hoodRef, the standing hood's spot) than where it
+// rests, less HOOD.still (so the breathing does not shuffle it), over
+// HOOD.slide, clamped to 0..1. Measured in the body's frame at
+// its resting scale, so the body's turn, pitch and squash count as well as
+// the head's move: in the sit the pitched torso takes the hood away from the
+// head and it stays put. Allocates nothing.
+const _hoodV = new THREE.Vector3();
+const _hoodR = new THREE.Vector3();
+const _hoodQ = new THREE.Quaternion();
+function slideHood(cat) {
+  const { body, head } = cat.userData.parts;
+  const kids = body.children;
+  for (let i = 0; i < kids.length; i++) {
+    const hood = kids[i];
+    if (!hood.userData.hood) continue;
+    const { bodyY, bodyScale, headPos } = cat.userData.base;
+    _hoodR.fromArray(hood.userData.hoodRef);
+    // the resting distance: head and body as pose()'s reset leaves them
+    hood.userData.hoodRest ??= Math.hypot(headPos[0] - _hoodR.x, headPos[1] - bodyY - _hoodR.y, headPos[2] - _hoodR.z);
+    _hoodV.subVectors(head.position, body.position).applyQuaternion(_hoodQ.copy(body.quaternion).invert());
+    _hoodV.set(_hoodV.x / body.scale.x * bodyScale[0], _hoodV.y / body.scale.y * bodyScale[1], _hoodV.z / body.scale.z * bodyScale[2]);
+    const nearer = hood.userData.hoodRest - _hoodV.distanceTo(_hoodR);
+    hood.morphTargetInfluences[0] = Math.min(1, Math.max(0, (nearer - HOOD.still) / HOOD.slide));
   }
 }
 

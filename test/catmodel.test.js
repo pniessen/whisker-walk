@@ -590,7 +590,7 @@ describe('cat model: shells take the new torso shape (Task 7)', () => {
     for (const breed of ['tabby', 'digit']) for (const st of STATES) {
       const cat = buildCat(breed, { body: 'raincoat' }); animateCat(cat, st, 1.3, 0, false); cat.updateMatrixWorld(true);
       const { body } = cat.userData.parts, shell = shellOf(cat, 0xf2c94e), c = body.getWorldPosition(new THREE.Vector3());
-      const buttons = body.children.filter((m) => m !== shell && m !== cat.userData.parts.underside);
+      const buttons = body.children.filter((m) => m !== shell && m !== cat.userData.parts.underside && !m.userData.hood);
       expect(buttons).toHaveLength(2);
       for (const b of buttons) {
         const bp = b.getWorldPosition(new THREE.Vector3());
@@ -602,11 +602,13 @@ describe('cat model: shells take the new torso shape (Task 7)', () => {
   it('a sweater is one mesh now, not four', () => {
     expect(meshCount(buildCat('tabby', { body: 'sweater' })) - meshCount(buildCat('tabby'))).toBe(1);
   });
-  it.each(['hoodie', 'raincoat'])('%s hood sits on the head where it did', (id) => {
+  // Accessories polish Task 3: the hood lies down on the coat behind the head
+  // (backitems.js buildHood), one mesh on the body, not a ball on the cat.
+  it.each(['hoodie', 'raincoat'])('%s hood lies on the coat behind the head, hung on the body', (id) => {
     const cat = buildCat('tabby', { body: id });
-    const hood = cat.children.find((m) => m.isMesh && m.geometry.type === 'SphereGeometry' && m.geometry.parameters.radius === 0.17);
-    const h = cat.userData.parts.head.position;
-    expect(hood.position.toArray().map((v, i) => (v - h.getComponent(i)) / 1.06)).toEqual([0, 0.08, 0.16].map((v) => expect.closeTo(v, 6)));
+    const hoods = cat.userData.parts.body.children.filter((m) => m.userData.hood);
+    expect(hoods).toHaveLength(1);
+    expect(cat.children.some((m) => m.isMesh && m.geometry.type === 'SphereGeometry' && m.geometry.parameters.radius === 0.17)).toBe(false);
   });
 });
 
@@ -718,18 +720,20 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     const bare = posed({}, breed), cat = posed({ [CATALOG.accessories[id].slot]: id }, breed);
     underChin(bare, addedToHead(cat, bare));
   });
-  // The hood bunched at the neck (under a hat) sits at its old head-relative
-  // spot, mostly hidden in the neck fur, never across the face: every vertex of
-  // the roll is below the mouth and behind the nose tip.
-  it.each(['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e]].map(([id, hex]) => [b, id, hex])))('%s: the %s bunched at the neck stays below the mouth and behind the nose', (breed, id, hex) => {
-    const nose = noseBox(posed({}, breed)), cat = posed({ body: id, head: 'tophat' }, breed);
-    const bunch = itemMeshes(cat, [hex]).filter((m) => m.geometry.type === 'TorusGeometry');
-    expect(bunch).toHaveLength(1);
-    const p = bunch[0].geometry.attributes.position;
+  // The hood is always down (accessories polish Task 3), hat or no hat, and
+  // never across the face: on the posed cat every vertex of it is behind the
+  // nose tip, and whatever of it comes forward of the head's centre (the
+  // hoodie's drawstrings on the chest) is below the mouth.
+  it.each(['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => ['hoodie', 'raincoat'].flatMap((id) => [null, 'tophat'].map((hat) => [b, id, hat]))))('%s: the %s hood (hat %s) stays below the mouth and behind the nose', (breed, id, hat) => {
+    const nose = noseBox(posed({}, breed)), cat = posed({ body: id, head: hat }, breed);
+    const head = cat.userData.parts.head.getWorldPosition(new THREE.Vector3());
+    const hoods = []; cat.traverse((o) => { if (o.isMesh && o.userData.hood) hoods.push(o); });
+    expect(hoods).toHaveLength(1);
+    const p = hoods[0].geometry.attributes.position;
     for (let i = 0; i < p.count; i++) {
-      const v = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(bunch[0].matrixWorld);
-      expect(v.y).toBeLessThan(nose.min.y);
+      const v = hoods[0].getVertexPosition(i, new THREE.Vector3()).applyMatrix4(hoods[0].matrixWorld);
       expect(v.z).toBeGreaterThan(nose.min.z);
+      if (v.z < head.z) expect(v.y).toBeLessThan(nose.min.y);
     }
   });
 
