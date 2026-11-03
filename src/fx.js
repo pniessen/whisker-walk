@@ -26,6 +26,7 @@ function defaultMakeText(text) {
 // keep this much air between them (the text reads ~0.25 m tall).
 const POPUP_RISE_FROM = 1.03;
 const POPUP_GAP = 0.32;
+const POPUP_NEAR = 1.5; // m: only floaters this close (across the ground) stack
 
 // Reused across burst spawns to avoid per-call allocation of the velocity scratch vector.
 const _tmpVec = new THREE.Vector3();
@@ -133,7 +134,7 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
     if (key && newest && newest.key === key) {
       effect = newest;
       effect.total += value;
-      const fresh = makeText(opts.mergeText ? opts.mergeText(effect.total) : text);
+      const fresh = makeText(opts.mergeText ? opts.mergeText(effect.total) : `+${effect.total}`);
       scene.remove(effect.obj);
       if (effect.obj.material) {
         if (effect.obj.material.map) effect.obj.material.map.dispose();
@@ -155,7 +156,8 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
     // push the floaters above it up, lowest first, so each clears the last
     let floor = effect.obj.position.y + POPUP_GAP;
     const above = effects
-      .filter((e) => e.kind === 'popup' && e !== effect)
+      .filter((e) => e.kind === 'popup' && e !== effect
+        && Math.hypot(e.obj.position.x - effect.obj.position.x, e.obj.position.z - effect.obj.position.z) < POPUP_NEAR)
       .sort((a, b) => a.obj.position.y - b.obj.position.y);
     for (const e of above) {
       if (e.obj.position.y < floor) e.obj.position.y = floor;

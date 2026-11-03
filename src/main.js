@@ -568,12 +568,13 @@ function init() {
     // starts (the Ready? card covers the toasts). Pointer lock and the touch
     // engage both land here; the line is given once, then cleared.
     if (session && locked) {
+      // The chat hint goes first: if a big unlock overfills the toast queue,
+      // the oldest line (this hint) is the one dropped. isTouch is read here,
+      // not at walk start: a hybrid device's engage tap reveals it as touch.
+      if (session.chatHintPending) { session.chatHintPending = false; hud.toast(chatHintLine(isTouch)); }
       const line = takeArrivalLine(session);
       if (line) hud.toast(line);
       for (const moveLine of takeMoveLines(session)) hud.toast(moveLine);
-      // isTouch is read here, not at walk start: a hybrid device's engage
-      // tap is what reveals it as touch.
-      if (session.chatHintPending) { session.chatHintPending = false; hud.toast(chatHintLine(isTouch)); }
     }
   });
   bus.on('villager:wave', ({ id }) => {

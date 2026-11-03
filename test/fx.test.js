@@ -226,3 +226,22 @@ describe('createFx.popup — merging and stacking', () => {
     expect(first.position.y).toBe(y);
   });
 });
+
+describe('createFx.popup — review follow-ups', () => {
+  const mk = (t) => { const o = new THREE.Object3D(); o.userData.text = t; return o; };
+  it('a merge without mergeText still shows the running total', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: mk });
+    fx.popup(new THREE.Vector3(), '+5', { merge: 'k', value: 5 });
+    fx.popup(new THREE.Vector3(), '+5', { merge: 'k', value: 5 });
+    expect(spawned(scene)[0].userData.text).toBe('+10');
+  });
+  it('a floater left far behind is not pushed by a new one', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: mk });
+    fx.popup(new THREE.Vector3(10, 0, 0), '+5', { value: 5 });
+    const far = spawned(scene)[0];
+    fx.popup(new THREE.Vector3(0, 0, 0), '+12', { value: 12 });
+    expect(far.position.y).toBeCloseTo(1.03, 5);
+  });
+});
