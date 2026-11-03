@@ -4444,7 +4444,12 @@ function rockDressing({ walks, masses, ceilings, seed, mouths, field, rockColour
 // resting on y 0 (a caller seats them on raised ground). One merged mesh,
 // never taller than 0.25 m, out of the caster sweep like the other low beds.
 export const SCREE_COLOR = 0x857f76;
-export function scree(spots, seed) {
+//
+// { pebble: true } (opt-in; the Gorge) makes each stone an octahedron, 8
+// triangles instead of 20, still one geometry per stone, with the normals of
+// the ellipsoid it stands for so it shades as a smooth pebble. Pebbles are
+// flattened a little more so they stay under the old stones' 0.18 m.
+export function scree(spots, seed, { pebble = false } = {}) {
   const stones = [];
   spots.forEach((sp, i) => {
     const n = 3 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 4);
@@ -4453,8 +4458,22 @@ export function scree(spots, seed) {
       const flat = 0.4 + 0.2 * hash01(k, i, seed + 3);
       const a = hash01(k, i, seed + 4) * Math.PI * 2;
       const d = 0.5 * hash01(i + k, k, seed + 5);
-      const geo = new THREE.IcosahedronGeometry(r, 0);
-      geo.scale(1, flat, 1);
+      const geo = pebble ? new THREE.OctahedronGeometry(r, 0) : new THREE.IcosahedronGeometry(r, 0);
+      const fy = pebble ? flat * 0.8 : flat;
+      geo.scale(1, fy, 1);
+      if (pebble) {
+        // Ellipsoid normal normalize(p / s^2), set before the turn so rotateY
+        // carries it; a fresh attribute, so no Math.random draws.
+        const pp = geo.attributes.position;
+        const nn = new Float32Array(pp.count * 3);
+        const sy = r * fy;
+        for (let v = 0; v < pp.count; v++) {
+          const nx = pp.getX(v) / (r * r), ny = pp.getY(v) / (sy * sy), nz = pp.getZ(v) / (r * r);
+          const l = Math.hypot(nx, ny, nz) || 1;
+          nn[v * 3] = nx / l; nn[v * 3 + 1] = ny / l; nn[v * 3 + 2] = nz / l;
+        }
+        geo.setAttribute('normal', new THREE.BufferAttribute(nn, 3));
+      }
       geo.rotateY(hash01(i, k, seed + 6) * Math.PI * 2);
       geo.computeBoundingBox();
       geo.translate(sp.x + Math.cos(a) * d, -geo.boundingBox.min.y, sp.z + Math.sin(a) * d);

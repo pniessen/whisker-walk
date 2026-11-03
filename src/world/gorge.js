@@ -874,6 +874,46 @@ export const GORGE_ROCK_MOUTHS = Object.freeze([
 // the highest camera (G11); defined in gorgelife.js beside the wheeling birds.
 export { GORGE_BIRD_Y };
 
+// The lawn plane is 120 m square but the rock masses stand on most of it, so
+// most of it is never seen. Drop each triangle every point of a 0.25 m lattice
+// over which (vertices, edges, interior) lies strictly inside a mass at least
+// 0.5 m tall and under no cave or den ceiling. The index is rebuilt in place on
+// the same geometry (no new THREE objects, so no Math.random draws); returns
+// the number of triangles dropped.
+const HIDE_STEP = 0.25;
+export function trimHiddenGround(plane, masses) {
+  plane.updateMatrixWorld();
+  const g = plane.geometry;
+  const pos = g.attributes.position;
+  const idx = g.index;
+  const tall = masses.filter((m) => m.y1 >= 0.5);
+  const buried = (x, z) => tall.some((m) => x > m.minX && x < m.maxX && z > m.minZ && z < m.maxZ)
+    && !CEILINGS.some((c) => x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ);
+  const v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const keep = [];
+  let dropped = 0;
+  for (let t = 0; t < idx.count; t += 3) {
+    for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, idx.getX(t + k)).applyMatrix4(plane.matrixWorld);
+    const [a, bb, c] = v;
+    const longest = Math.max(a.distanceTo(bb), bb.distanceTo(c), c.distanceTo(a));
+    const n = Math.max(1, Math.ceil(longest / HIDE_STEP));
+    let hidden = true;
+    for (let i = 0; i <= n && hidden; i++) {
+      for (let j = 0; j <= n - i; j++) {
+        const u = i / n, w = j / n, s = 1 - u - w;
+        if (!buried(a.x * s + bb.x * u + c.x * w, a.z * s + bb.z * u + c.z * w)) { hidden = false; break; }
+      }
+    }
+    if (hidden) dropped++;
+    else keep.push(idx.getX(t), idx.getX(t + 1), idx.getX(t + 2));
+  }
+  if (dropped) {
+    const Arr = pos.count > 65535 ? Uint32Array : Uint16Array;
+    g.setIndex(new THREE.BufferAttribute(new Arr(keep), 1));
+  }
+  return dropped;
+}
+
 export function build(scene, { water = {}, wind } = {}) {
   const ground = gorgeGround();
   const colliders = [];
@@ -881,6 +921,7 @@ export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, GORGE_SKY.top, GORGE_SKY.horizon);
   const plane = b.ground(120, GROUND_COLOR, { surface: 'grass' });
   plane.name = 'groundPlane';
+  trimHiddenGround(plane, MASSES);
   scene.add(plane);
   scene.add(b.horizonBand(GORGE_HORIZON));
 
@@ -965,7 +1006,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // --- the scree ----------------------------------------------------------------
   // One merged bed, out of the shadow pass, on the floor (so at y 0), and no
   // collider: a cat walks over loose stones.
-  const scree = b.scree(gorgeScree(), seedFromCode('gorge-scree'));
+  const scree = b.scree(gorgeScree(), seedFromCode('gorge-scree'), { pebble: true });
   scree.name = 'screeBed';
   scene.add(scree);
 
