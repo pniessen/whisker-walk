@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS } = await import('../src/world/camp.js');
+const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS, CLUMP_R } = await import('../src/world/camp.js');
 const { CAMP_DEN, WIDE_LEDGE_RECT, gorgeGround } = await import('../src/world/gorgeshape.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { DISCS } = await import('../src/rivalclans.js');
@@ -157,10 +157,48 @@ describe('addCamp', () => {
       }
       let top = -Infinity;
       for (const v of worldVerts(group.getObjectByName('campRock'))) {
-        expect(Math.hypot(v.x - L.rock.x, v.z - L.rock.z), `${a} rock`).toBeLessThanOrEqual(0.75);
+        expect(Math.hypot(v.x - L.rock.x, v.z - L.rock.z), `${a} rock`).toBeLessThanOrEqual(0.8);
         top = Math.max(top, v.y);
       }
-      expect(top, a).toBeGreaterThanOrEqual(1.3);
+      expect(top, a).toBeGreaterThanOrEqual(1.5);
+    }
+  });
+
+  it('gives the Highrock a flat top at rock.h the leader stands on, nothing to clip into', () => {
+    for (const a of CAMPS) {
+      const scene = new THREE.Scene();
+      addCamp(scene, { colliders: [] }, a);
+      scene.updateMatrixWorld(true);
+      const L = campLayout(a);
+      expect(L.seats.leader.y).toBe(0.8);
+      let flat = 0;
+      for (const v of worldVerts(scene.getObjectByName('campRock'))) {
+        if (Math.hypot(v.x - L.rock.x, v.z - L.rock.z) > 0.42) continue;
+        const at = `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
+        expect(v.y, at).toBeLessThanOrEqual(0.82);
+        expect(v.y, at).toBeLessThanOrEqual(0.85);
+        if (v.y >= 0.78 && v.y <= 0.82) flat++;
+      }
+      expect(flat, a).toBeGreaterThanOrEqual(6);
+    }
+  });
+
+  it('the ring is taller and arched, out of the shadow pass, under 12,000 triangles', () => {
+    for (const a of CAMPS) {
+      const scene = new THREE.Scene();
+      addCamp(scene, { colliders: [] }, a);
+      scene.updateMatrixWorld(true);
+      const ring = scene.getObjectByName('campRing');
+      let top = -Infinity;
+      for (const v of worldVerts(ring)) top = Math.max(top, v.y);
+      expect(top, a).toBeGreaterThanOrEqual(0.7);
+      expect(top, a).toBeLessThanOrEqual(1.0);
+      expect(ring.userData.noCast, a).toBe(true);
+      expect(ring.castShadow, a).toBe(false);
+      const g = ring.geometry;
+      const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
+      expect(tris, a).toBeLessThanOrEqual(12000);
+      expect(g.attributes.color, a).toBeDefined();
     }
   });
 
@@ -199,14 +237,25 @@ describe('addCamp', () => {
       scene.updateMatrixWorld(true);
       const D = campDressing(a);
       const { cx, cz } = DISCS[a];
-      // every ring vertex is near a clump, inside its footprint
+      // every ring vertex is a clump's, inside its footprint and under its
+      // h, or a bramble strand's, over the line between two neighbouring
+      // clumps (0.6 m or less apart), under 1 m
       const verts = worldVerts(scene.getObjectByName('campRing'));
+      const cs = D.ring.clumps;
+      const nearSeg = (v, p, q) => {
+        const dx = q.x - p.x;
+        const dz = q.z - p.z;
+        const t = Math.max(0, Math.min(1, ((v.x - p.x) * dx + (v.z - p.z) * dz) / (dx * dx + dz * dz)));
+        return Math.hypot(v.x - (p.x + dx * t), v.z - (p.z + dz * t));
+      };
       for (const v of verts) {
-        const fits = D.ring.clumps.some((c) => Math.hypot(v.x - c.x, v.z - c.z) <= 0.2 * c.s + 1e-6 && v.y <= c.h + 1e-6);
-        expect(fits, `${a} ${v.x.toFixed(2)},${v.z.toFixed(2)}`).toBe(true);
+        const inClump = cs.some((c) => Math.hypot(v.x - c.x, v.z - c.z) <= CLUMP_R * c.s + 1e-6 && v.y <= c.h + 1e-6);
+        const onStrand = cs.some((c, i) => i > 0 && Math.hypot(c.x - cs[i - 1].x, c.z - cs[i - 1].z) <= 0.6 && nearSeg(v, cs[i - 1], c) <= 0.03);
+        expect(inClump || onStrand, `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`).toBe(true);
+        expect(v.y).toBeLessThanOrEqual(1.0);
       }
       // ...and every clump is drawn
-      for (const c of D.ring.clumps) expect(verts.some((v) => Math.hypot(v.x - c.x, v.z - c.z) <= 0.2 * c.s)).toBe(true);
+      for (const c of cs) expect(verts.some((v) => Math.hypot(v.x - c.x, v.z - c.z) <= CLUMP_R * c.s)).toBe(true);
       // the clearing lies flat just over the ground, within its radius
       const clearing = scene.getObjectByName('campClearing');
       for (const v of worldVerts(clearing)) {
