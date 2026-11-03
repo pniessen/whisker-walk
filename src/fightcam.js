@@ -11,8 +11,8 @@
 // fight can put them) clear every solid, that keeps both cats in the frame
 // above the fight sheet, and that is inside the map and out of every
 // collider. Spots where the intruder stands in front of our cat, or nearer
-// the camera than it, are tried later (ourCatHidden, itNearer): the kid's own
-// cat is the one in front. (A lifted top, an action's leap or rear-up, must be in frame but
+// the camera than it, are tried only after every other spot (ourCatHidden,
+// itNearer): the kid's own cat is the one in front. (A lifted top, an action's leap or rear-up, must be in frame but
 // only ranks the views by whether it is seen: see chooseFightView.) The choice is made a handful of times per fight, never per frame,
 // and only against the trees near the pair: no raycast into the scene at all.
 //
@@ -23,6 +23,9 @@
 // trunk beside the camera) makes a spot cost more by the share of the frame
 // it covers (frameClutter). One that still covers CLUTTER_HIDE of the chosen
 // view is hidden for the fight with the blockers (`clutter`, a list of its own).
+// Clutter never buys a spot with the intruder in front (the order above);
+// where no spot is clear, a tree a spot hides anyway as a blocker adds no
+// clutter to it.
 //
 // The solids grow by a margin and by as far as the wind can lean each tree.
 // If no spot is clear (on the shipped maps only where a cat stands beside a
@@ -542,7 +545,8 @@ export function itNearer(pos, subject) {
 // The camera spots to try, cheapest first: yaw0 itself, then 15-degree steps
 // either way, on each ring; ring0 (the ring already in use) costs nothing.
 // A spot where the intruder hides our cat, or stands nearer the camera than
-// our cat, costs more (HIDE_COST, NEAR_COST): the kid's own cat is in front.
+// our cat, comes after every spot where it does not (and among those costs
+// HIDE_COST, NEAR_COST): the kid's own cat is in front.
 // A spot off side-on costs SIDE_COST x |cos| of its angle to the cats' line,
 // and one with trees in front of the pair filling its frame CLUTTER_COST x
 // their share (frameClutter, at today's aim over `bottom`).
@@ -561,19 +565,31 @@ function candidates(subject, yaw0, ring0, g0, near, aspect, fovY, bottom, lookY)
       const off = Math.abs(wrap(yaw - ax));
       const along = off < AXIS_ANGLE || Math.PI - off < AXIS_ANGLE;
       pos.x = mid.x + Math.sin(yaw) * ring.d; pos.y = ring.h + g0; pos.z = mid.z + Math.cos(yaw) * ring.d;
-      const ours = HIDE_COST * hiddenShare(pos, me, it, g0) + (itNearer(pos, subject) ? NEAR_COST : 0);
+      const hid = hiddenShare(pos, me, it, g0);
+      const nearer = itNearer(pos, subject);
+      const ours = HIDE_COST * hid + (nearer ? NEAR_COST : 0);
       let clutter = 0;
+      let shares = null; // [tree, its share], each tree that adds to `clutter`
       const front = frontOf(pos, mid, near);
       if (front.length) {
         const view = viewFrom(pos, mid, fovY, lookY);
         const nd = nearDepthFor(view, subject, lookY, aspect, fovY);
-        for (const o of front) clutter += frameClutter(pos, view, o, aspect, fovY, bottom, nd);
+        for (const o of front) {
+          const share = frameClutter(pos, view, o, aspect, fovY, bottom, nd);
+          if (share > 0) { clutter += share; (shares ??= []).push(o, share); }
+        }
       }
-      list.push({ yaw, ri, cost: Math.abs(step) + rc + (along ? AXIS_COST : 0) + SIDE_COST * Math.abs(Math.cos(yaw - ax)) + ours + CLUTTER_COST * clutter });
+      list.push({ yaw, ri, behind: hid > 0 || nearer ? 1 : 0, clutter, shares, cost: Math.abs(step) + rc + (along ? AXIS_COST : 0) + SIDE_COST * Math.abs(Math.cos(yaw - ax)) + ours + CLUTTER_COST * clutter });
     }
   });
-  // a stable sort: equal costs keep their order, so the choice is deterministic
-  return list.map((c, i) => ({ ...c, i })).sort((p, q) => p.cost - q.cost || p.i - q.i);
+  // Our cat in front comes first, whatever the rest costs: a spot where the
+  // intruder hides it or stands nearer the camera is tried only after every
+  // spot where it does not (final review: a woods fight on a phone held
+  // upright turned to a 3/4 view with the intruder in front, two yaw steps
+  // from the current angle, over the side-on view eleven steps round). Then
+  // the cheapest; a stable sort: equal costs keep their order, so the choice
+  // is deterministic.
+  return list.map((c, i) => ({ ...c, i })).sort((p, q) => p.behind - q.behind || p.cost - q.cost || p.i - q.i);
 }
 
 // The fight view: { pos, look, yaw, ring, clear, blockers, brushed, clutter }. Every
@@ -639,8 +655,12 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
         // A view that clears every hard point beats any that does not.
         if (best) { whole = false; break scan; }
         // Stop once this spot can beat neither the fallback nor the least
-        // blocked spot (which counts only while there is no fallback).
-        const noFallback = !hideable || (fallback && blockers.size >= fallback.blockers.length);
+        // blocked spot (which counts only while there is no fallback). With
+        // as many blockers as the fallback it can still win on its cost
+        // without its own blockers' clutter (below), but only when that
+        // clutter could make up the difference.
+        const noFallback = !hideable || (fallback && (blockers.size > fallback.blockers.length ||
+          (blockers.size === fallback.blockers.length && c.cost - CLUTTER_COST * c.clutter >= fallback.cost)));
         const noLeast = !!fallback || (least && blockers.size >= least.count);
         if (noFallback && noLeast) { whole = false; break scan; }
       }
@@ -665,8 +685,16 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
       continue;
     }
     if (best) continue;
-    if (hideable && (!fallback || blockers.size < fallback.blockers.length)) {
-      fallback = { ...view, yaw: c.yaw, ring: c.ri, clear: false, blockers: [...blockers] };
+    // The fallback: the fewest blockers, then the cheapest, not counting the
+    // clutter of the trees it hides anyway (final review: in the Woods, with
+    // a trunk hidden for every view, its clutter steered the camera off the
+    // tight rings to a wide one that hid the same trunk).
+    if (hideable) {
+      let cost = c.cost;
+      if (c.shares) for (let k = 0; k < c.shares.length; k += 2) if (blockers.has(c.shares[k])) cost -= CLUTTER_COST * c.shares[k + 1];
+      if (!fallback || blockers.size < fallback.blockers.length || (blockers.size === fallback.blockers.length && cost < fallback.cost)) {
+        fallback = { ...view, yaw: c.yaw, ring: c.ri, clear: false, blockers: [...blockers], cost };
+      }
     }
     // ties keep the earlier spot, which is the one nearer the current view
     if (!fallback && whole && (!least || blockers.size < least.count)) {
@@ -676,7 +704,11 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
   if (best) return done(best);
   // The lifted tops a last-resort view leaves behind a tree it does not hide.
   const brushedFor = (pos, hidden) => liftPts.filter((p) => near.some((o) => !hidden.includes(o) && segmentBlocked(pos, p, o))).length;
-  if (fallback) return done({ ...fallback, brushed: brushedFor(fallback.pos, fallback.blockers) });
+  if (fallback) {
+    const v = { ...fallback, brushed: brushedFor(fallback.pos, fallback.blockers) };
+    delete v.cost;
+    return done(v);
+  }
   // No spot is clear even with trees hidden (the blockers include stand
   // pines, which cannot be hidden one by one): the spot with the fewest
   // blockers, hiding those that can be.
@@ -815,10 +847,13 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
         lastSheetTop = null;
         maxSheetTop = null;
         from = null;
-        show();
         if (cameraMode || reducedMotion) w = 0;
         else w = Math.max(0, w - dt / EASE_OUT);
-        if (w === 0) { view = null; cur = null; return false; }
+        // The hidden trees come back only once the camera is home: while it
+        // eases out it still stands by the fight view, where a clutter trunk
+        // would pop back in beside the lens (treefade.js covers only the
+        // trees on the line to my cat). Reduced motion and photo mode are home at once.
+        if (w === 0) { show(); view = null; cur = null; return false; }
       } else if (subject !== lastSubject || camera.aspect !== lastAspect || sheetMoved(sheetTop)) {
         // what is on screen right now, before this frame's move
         const base = from ?? follow;
