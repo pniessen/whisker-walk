@@ -178,7 +178,7 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
     update(dt, t) {
       for (const g of ghosts) {
         if (g.state === 'greet') {
-          animateCat(g.group, 'requestPet', t, 0); // tail up, head raised toward you
+          animateCat(g.group, 'requestPet', t, 0); // sitting up, head raised toward you
           g.timer -= dt;
           if (g.timer <= 0) {
             g.state = 'idle';

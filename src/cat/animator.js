@@ -697,8 +697,6 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     } else {
       body.rotation.x = -0.5;
       body.position.y = base.bodyY - 0.02;
-    }
-    if (!folds) {
       legs[2].scale.y = 0.45;
       legs[3].scale.y = 0.45;
       legs[2].rotation.x = -0.5;
@@ -736,7 +734,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       for (let i = 0; i < tailPivots.length; i++) {
         tailPivots[i].rotation.set(SIT_TAIL.pivotX[i], TAIL_HOOK_SIDE * SIT_TAIL.pivotY[i], 0);
       }
-      tailPivots[4].rotation.y += Math.sin(t * 2.2) * SIT_TAIL.flick; // the tip flicks
+      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 2.2) * SIT_TAIL.flick; // the tip flicks
       return;
     }
     tail.rotation.set(-0.1 + c, 0, 0);

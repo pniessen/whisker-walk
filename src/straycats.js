@@ -959,7 +959,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
         s.timer -= dt;
 
         if (s.state === 'greet') {
-          animateCat(s.group, 'requestPet', t, 0); // tail up, head raised toward you
+          animateCat(s.group, 'requestPet', t, 0); // sitting up, head raised toward you
           if (s.timer <= 0) {
             s.state = 'idle';
             s.pose = 'follow';
