@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { animateCat, refitNeck } from '../src/cat/animator.js';
+import { animateCat, refitNeck, STALK_CARRIAGE } from '../src/cat/animator.js';
 import { buildCat } from '../src/cat/model.js';
 import { SIT_TAIL, NAP_TAIL } from '../src/cat/torso.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
@@ -16,6 +16,18 @@ const pose = (state, { t = 1.3, speed = 0, reducedMotion = false } = {}) => {
   animateCat(cat, state, t, speed, reducedMotion);
   return cat.userData.parts;
 };
+
+
+// polish-tails Task 2 (2026-11-03): a stalking cat's pivots bend as
+// STALK_CARRIAGE says, the tip's lift twitch on top (never more than lift).
+function expectStalkCarriage(t, speed) {
+  const cat = buildCat('tabby'); animateCat(cat, 'stalk', t, speed, false);
+  const ps = cat.userData.parts.tailPivots;
+  ps.slice(0, -1).forEach((p, i) => expect(p.rotation.x).toBeCloseTo(STALK_CARRIAGE.pivotX[i], 9));
+  const tip = ps[ps.length - 1].rotation.x - STALK_CARRIAGE.pivotX[ps.length - 1];
+  expect(tip).toBeLessThanOrEqual(0);
+  expect(tip).toBeGreaterThanOrEqual(-STALK_CARRIAGE.twitch.lift);
+}
 
 describe("animateCat 'cross'", () => {
   it('accepts the state without throwing on the simple (whiskerless) stray rig', () => {
@@ -147,10 +159,13 @@ describe('animateCat: the resting tail curl (Task 5, R3)', () => {
     expect(elev(4)).toBeCloseTo(1.12, 6);
   });
   it('cross and scared keep today\'s straight tail (R3)', () => {
-    for (const s of ['cross', 'scared', 'stalk', 'pounce', 'stretch']) {
+    for (const s of ['cross', 'scared', 'pounce', 'stretch']) {
       const cat = buildCat('tabby'); animateCat(cat, s, 1.3, 0, false);
       for (const p of cat.userData.parts.tailPivots) expect(p.rotation.x).toBe(0);
     }
+    // polish-tails Task 2 (2026-11-03): the stalk no longer holds the straight
+    // tail; it writes its own low curve (STALK_CARRIAGE, test/stalktail.test.js).
+    expectStalkCarriage(1.3, 0);
     const cross = buildCat('tabby'); animateCat(cross, 'cross', 0, 0, false);
     expect(cross.userData.parts.tail.rotation.x).toBeCloseTo(-1.5, 6);
   });
@@ -404,10 +419,11 @@ describe('animateCat: the walking tail is carried in a soft S (polish 1a, Task 5
     expect(base0(1.5)).toBeGreaterThan(base0(0.3));
   });
   it('the stalk and the fight poses keep their own tails; the sniff keeps the resting curl, not the carriage', () => {
-    for (const s of ['stalk', 'cross', 'scared']) {
+    for (const s of ['cross', 'scared']) {
       const cat = buildCat('tabby'); animateCat(cat, s, 1.3, 1.5, false);
       for (const p of cat.userData.parts.tailPivots) expect(p.rotation.x).toBe(0);
     }
+    expectStalkCarriage(1.3, 1.5); // polish-tails Task 2: the stalk's own curve
     // the carriage is a walking 'follow' only: a sniffing cat on the move keeps its curl
     const sniff = buildCat('tabby'); animateCat(sniff, 'sniff', 1.3, 1.5, false);
     for (const p of sniff.userData.parts.tailPivots) expect(p.rotation.x).toBeCloseTo(-0.28, 6);

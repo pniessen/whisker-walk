@@ -9,9 +9,9 @@ const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: 
 
 // R3: the tail's resting curl (base.tailCurl per link) by state. Standing,
 // walking, grooming and sniffing get the full curl; sitting a fifth, so the
-// tail lies round the cat. Every other state (cross, scared, stalk, pounce,
-// stretch) keeps today's straight chain. A rig without tailCurl (Hagrid) gets
-// no curl in any state. The nap took a fifth too until polish-pose Task 1:
+// tail lies round the cat. Every other state (cross, scared, pounce, stretch)
+// keeps today's straight chain; the stalk writes its own (STALK_CARRIAGE).
+// A rig without tailCurl (Hagrid) gets no curl in any state. The nap took a fifth too until polish-pose Task 1:
 // its pivots are now written outright (torso.js NAP_TAIL), as the sit's are.
 const TAIL_CURL_BY_STATE = { follow: 1, sniff: 1, groom: 1, land: 1, perch: 0.2, requestPet: 0.2 };
 
@@ -221,7 +221,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   if (state === 'stalk' && cat.userData.parts.legs[0].userData.folds) {
     const { tail, body } = cat.userData.parts;
     // (The z half is set in pose(), with the stalk's other folds offsets.)
-    tail.position.y = body.position.y + STALK_TAIL.DY;
+    tail.position.y = body.position.y + STALK_TAIL.DY - STALK_CARRIAGE.plumeSink * (base.tailPlume ?? 0);
   }
   // The sitting tail's root rides the posed body (SIT_TAIL.ROOT, polish-sit
   // Task 2), once the pose fit has set the body down: the tail hangs on the
@@ -234,7 +234,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   if (sitting || napping) {
     const { tail, body } = cat.userData.parts;
     const [, sy, sz] = cat.userData.base.bodyScale;
-    const root = (sitting ? SIT_TAIL : NAP_TAIL).ROOT;
+    const root = (sitting ? sitTail(cat) : napTail(cat)).ROOT;
     body.updateMatrix();
     _anchor.set(0, root[0] / sy, root[1] / sz).applyMatrix4(body.matrix);
     tail.position.y = _anchor.y;
@@ -678,6 +678,31 @@ export const STALK_SWING = 0.3;
 // line (0.04 stood 1.7 cm over its end).
 const STALK_TAIL = Object.freeze({ DY: 0.02, DZ: -0.03 });
 
+// polish-tails (2026-11-03), Task 2: the stalking tail's carriage. It was a
+// straight spike down-back from the rump, its tip the lowest point. Now the
+// root leaves as it did (today's root tilt on the generic slow bob: a
+// steeper root lifted the root ring 1-2 cm over the rump's line, folds.test.js
+// 'the tail root does not bulge'), link 1 droops so the middle hangs ~12 cm
+// over the ground, and the last links bend up so the end is lifted ~7 cm
+// over that, bent evenly over the last three joints so it reads as one
+// soft line (pivotX: + tips a link down). A plume's first link is fuller
+// (torso.js PLUME): its top stood 1-1.6 cm over the rump, so a plumed tail
+// (base.tailPlume) has its stalk root sunk plumeSink (times the plume)
+// deeper into the rump (animateCat, with STALK_TAIL.DY); bending link 0
+// instead only moved the bulge from the root ring to the link's far end.
+// The side sway is damped near the root (swayKeep: a stalking tail is
+// still) and the last two links
+// twitch: a fast flick under a slow envelope, plus a small slow flick so it
+// is never dead still, and the tip lifts with the fast flick. All of it is a
+// function of t; reducedMotion keeps the curve and the slow flick only.
+// Cats with folds only (base.tailCurl): Hagrid keeps the generic chain.
+export const STALK_CARRIAGE = Object.freeze({
+  plumeSink: 0.014,
+  pivotX: Object.freeze([0.00, 0.22, -0.34, -0.38, -0.36]),
+  swayKeep: Object.freeze([0.2, 0.2, 0.3, 0.5, 0.5]),
+  twitch: Object.freeze({ amp: 0.2, freq: 9, slow: 0.7, flick: 0.08, flickFreq: 2.3, lift: 0.08, share: Object.freeze([0, 0, 0.3, 0.6, 0.8]) }),
+});
+
 // polish-catlooks Task 6 (2026-11-02): the walking stalk swings a crouched leg
 // about its hip pivot, which a long-legged cat carries higher (base.hipY) over
 // the same crouched top (limbs.js FOLDS.crouch, at the lowered hip): Digit's
@@ -694,6 +719,11 @@ function stalkReach(base) {
 
 // Swimming (sketch A): the legs paddle in diagonal pairs.
 const PADDLE_PHASE = [0, Math.PI, Math.PI, 0];
+
+// The lying tails: a plumed cat's own (model.js base.sitTail / napTail,
+// torso.js SIT_TAIL_PLUME / NAP_TAIL_PLUME), else today's.
+const sitTail = (cat) => cat.userData.base?.sitTail ?? SIT_TAIL;
+const napTail = (cat) => cat.userData.base?.napTail ?? NAP_TAIL;
 
 function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   const { body, head, tail, tailPivots, legs, earL, earR } = cat.userData.parts;
@@ -805,11 +835,12 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // the nap no longer takes the resting curl (TAIL_CURL_BY_STATE drops
       // it): bending each link up would lift the chain off the ground. The
       // root rides the posed body (animateCat). The tip link sways slowly.
-      tail.rotation.set(NAP_TAIL.rotX, 0, 0);
+      const NT = napTail(cat);
+      tail.rotation.set(NT.rotX, 0, 0);
       for (let i = 0; i < tailPivots.length; i++) {
-        tailPivots[i].rotation.set(NAP_TAIL.pivotX[i], TAIL_HOOK_SIDE * NAP_TAIL.pivotY[i], 0);
+        tailPivots[i].rotation.set(NT.pivotX[i], TAIL_HOOK_SIDE * NT.pivotY[i], 0);
       }
-      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 0.9) * NAP_TAIL.sway; // the tip sways
+      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 0.9) * NT.sway; // the tip sways
     } else {
       // Hagrid (ruling P1): his fan rides his body (rideTail) and keeps this.
       tail.rotation.set(-0.12 + c, 0, 0);
@@ -888,11 +919,12 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // (TAIL_CURL_BY_STATE, c) is dropped here: bending each link up would
       // lift the chain off the ground it lies on. The root rides the posed
       // body (animateCat, after the pose fit). Only the tip link flicks.
-      tail.rotation.set(SIT_TAIL.rotX, 0, 0);
+      const ST = sitTail(cat);
+      tail.rotation.set(ST.rotX, 0, 0);
       for (let i = 0; i < tailPivots.length; i++) {
-        tailPivots[i].rotation.set(SIT_TAIL.pivotX[i], TAIL_HOOK_SIDE * SIT_TAIL.pivotY[i], 0);
+        tailPivots[i].rotation.set(ST.pivotX[i], TAIL_HOOK_SIDE * ST.pivotY[i], 0);
       }
-      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 2.2) * SIT_TAIL.flick; // the tip flicks
+      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 2.2) * ST.flick; // the tip flicks
       return;
     }
     tail.rotation.set(-0.1 + c, 0, 0);
@@ -1134,5 +1166,17 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // in a follow, rotation.y here is the plain sway the loop above wrote
       tailPivots[i].rotation.y = tailPivots[i].rotation.y * (1 - TAIL_SWAY_DAMP[i] * w) + TAIL_HOOK_SIDE * TAIL_HOOK[i] * w; // the question mark (TAIL_HOOK)
     }
+  }
+  // The stalking carriage (STALK_CARRIAGE), on a rig with the resting curl.
+  if (state === 'stalk' && base.tailCurl) {
+    const SC = STALK_CARRIAGE, TW = SC.twitch;
+    // (the root keeps the generic chain's tilt and slow bob, written above)
+    const fast = reducedMotion ? 0 : Math.max(0, Math.sin(t * TW.slow)) * Math.sin(t * TW.freq);
+    const side = TW.amp * fast + TW.flick * Math.sin(t * TW.flickFreq);
+    for (let i = 0; i < tailPivots.length; i++) {
+      tailPivots[i].rotation.x = SC.pivotX[i];
+      tailPivots[i].rotation.y = tailPivots[i].rotation.y * SC.swayKeep[i] + TW.share[i] * side;
+    }
+    tailPivots[tailPivots.length - 1].rotation.x -= TW.lift * Math.abs(fast); // the tip lifts as it flicks
   }
 }
