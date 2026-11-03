@@ -350,24 +350,133 @@ describe('rock relief: it does something', () => {
     expect(deep).toBeGreaterThanOrEqual(0.3);
   }, SWEEP);
 
-  it('the 20 m rims have jagged crests (max dy > 0.5)', () => {
-    let max = 0;
+  // The owner asked for rounded, weathered rock, not saw-tooth crests: the
+  // old test here asked the 20 m rims for jagged crests (max dy > 0.5). The
+  // crest term now rounds a rim's edge down (a convex bullnose, deepest at
+  // the drop) and only undulates it gently, so the test asks for that.
+  it('rims are rounded', () => {
+    const groundT = (x, z) => SOLIDS.reduce((g, sol) => (inRect(sol.s, x, z) ? Math.max(g, sol.hi(x, z)) : g), 0);
+    const nearKeep = (x, z) => KEEP.some((k) => Math.sqrt((x - k.x) ** 2 + (z - k.z) ** 2) < k.r + 1);
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, Math.SQRT1_2], [Math.SQRT1_2, -Math.SQRT1_2], [-Math.SQRT1_2, -Math.SQRT1_2]];
+    const dys = [];
     for (const m of MASSES.filter((s) => s.y0 === 20)) {
-      for (let i = 0; i <= 40; i++) {
-        const t = i / 40;
-        for (const inset of [0, 0.3, 0.7]) {
+      for (let i = 0; i <= 80; i++) {
+        const t = i / 80;
+        for (const inset of [0, 0.05, 0.1]) {
           const pts = [
             [m.minX + inset, m.minZ + t * (m.maxZ - m.minZ)],
             [m.maxX - inset, m.minZ + t * (m.maxZ - m.minZ)],
             [m.minX + t * (m.maxX - m.minX), m.minZ + inset],
             [m.minX + t * (m.maxX - m.minX), m.maxZ - inset],
           ];
-          for (const [x, z] of pts) max = Math.max(max, field.at(x, 20, z).dy);
+          for (const [x, z] of pts) {
+            // a rim top (20 m is the highest top here), clear of the frame's
+            // fade and the keep discs
+            if (Math.abs(x) > FRAME - 5 || Math.abs(z) > FRAME - 5 || nearKeep(x, z)) continue;
+            if (groundT(x, z) !== 20) continue;
+            // within 0.15 m of a drop of at least 5 m
+            if (!dirs.some(([ux, uz]) => [0.05, 0.1, 0.15].some((d) => groundT(x + ux * d, z + uz * d) <= 15))) continue;
+            dys.push(field.at(x, 20, z).dy);
+          }
         }
       }
     }
-    console.log(`[rockrelief] max rim crest dy ${max.toFixed(3)}`);
-    expect(max).toBeGreaterThan(0.5);
+    const mean = dys.reduce((a, v) => a + v, 0) / dys.length;
+    const sd = Math.sqrt(dys.reduce((a, v) => a + (v - mean) ** 2, 0) / dys.length);
+    const lo = Math.min(...dys);
+    const hi = Math.max(...dys);
+    console.log(`[rockrelief] rim crest edge: n ${dys.length}, mean dy ${mean.toFixed(3)}, sd ${sd.toFixed(3)}, range ${lo.toFixed(3)}..${hi.toFixed(3)}`);
+    expect(dys.length).toBeGreaterThan(200);
+    expect(mean).toBeLessThanOrEqual(-0.3);
+    expect(lo).toBeGreaterThanOrEqual(-R.CREST_JAG);
+    expect(hi).toBeLessThanOrEqual(R.CREST_JAG);
+    expect(sd).toBeGreaterThanOrEqual(0.1);
+  }, SWEEP);
+});
+
+describe('rock relief: carved walls', () => {
+  it('exports the carving constants', () => {
+    expect(R.GULLY).toBe(0.4);
+    expect(R.UNDERCUT).toBe(0.3);
+    expect(R.RIM_ROUND).toBe(0.65);
+  });
+
+  it('at() reports foot', () => {
+    // the west top's face over the floor at x -18 (rock west of it, floor at 0)
+    expect(field.rockAt(-18 - 1e-4, 2, 30)).toBe(true);
+    expect(field.rockAt(-18 + 1e-4, 2, 30)).toBe(false);
+    expect(Math.abs(field.at(-18, 2, 30).foot - 2)).toBeLessThanOrEqual(1e-6);
+    for (const s of ROCK_WALKS.filter((w) => w.kind === 'walk').slice(0, 20)) {
+      const x = (s.minX + s.maxX) / 2;
+      const z = (s.minZ + s.maxZ) / 2;
+      expect([s.tag, field.at(x, shapeY(s, x, z), z).foot]).toEqual([s.tag, 0]);
+    }
+  });
+
+  // A wall point's own wall: its normal axis, read from the rock either side.
+  const wallAxis = (p) => {
+    const e = 1e-4;
+    if (field.rockAt(p.x - e, p.y, p.z) !== field.rockAt(p.x + e, p.y, p.z)) return 'x';
+    if (field.rockAt(p.x, p.y, p.z - e) !== field.rockAt(p.x, p.y, p.z + e)) return 'z';
+    return null;
+  };
+  const isWall = (x, y, z, axis, inside) => {
+    const e = 1e-4;
+    const [ox, oz] = axis === 'x' ? [e, 0] : [0, e];
+    return field.rockAt(x + inside * ox, y, z + inside * oz) === true && field.rockAt(x - inside * ox, y, z - inside * oz) === false;
+  };
+
+  it('recess varies along a wall nearly as much as up it', () => {
+    let hSum = 0;
+    let hN = 0;
+    let vSum = 0;
+    let vN = 0;
+    for (const p of WALL) {
+      if (p.cave) continue;
+      const axis = wallAxis(p);
+      if (!axis) continue;
+      const inside = field.rockAt(axis === 'x' ? p.x - 1e-4 : p.x, p.y, axis === 'x' ? p.z : p.z - 1e-4) ? -1 : 1;
+      const r0 = field.at(p.x, p.y, p.z).recess;
+      // 1.2 m along the wall, same y
+      for (const s of [1, -1]) {
+        const x = axis === 'x' ? p.x : p.x + 1.2 * s;
+        const z = axis === 'x' ? p.z + 1.2 * s : p.z;
+        if (!isWall(x, p.y, z, axis, inside)) continue;
+        hSum += Math.abs(field.at(x, p.y, z).recess - r0);
+        hN++;
+        break;
+      }
+      // 1.0 m up or down it (a row), same x, z
+      for (const s of [1, -1]) {
+        const y = p.y + 1.0 * s;
+        if (!isWall(p.x, y, p.z, axis, inside)) continue;
+        vSum += Math.abs(field.at(p.x, y, p.z).recess - r0);
+        vN++;
+        break;
+      }
+    }
+    const h = hSum / hN;
+    const v = vSum / vN;
+    console.log(`[rockrelief] fluting: mean |dr| along ${h.toFixed(3)} (n ${hN}), up ${v.toFixed(3)} (n ${vN})`);
+    expect(hN).toBeGreaterThan(1000);
+    expect(vN).toBeGreaterThan(1000);
+    expect(h).toBeGreaterThan(0.6 * v);
+  }, SWEEP);
+
+  it('walls are undercut near the foot', () => {
+    const low = [];
+    const mid = [];
+    for (const p of WALL) {
+      if (p.cave) continue;
+      const m = field.at(p.x, p.y, p.z);
+      if (m.foot >= 0.9 && m.foot <= 2.2) low.push(m.recess);
+      else if (m.foot >= 3 && m.foot <= 6) mid.push(m.recess);
+    }
+    const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+    console.log(`[rockrelief] undercut: mean recess foot 0.9..2.2 ${mean(low).toFixed(3)} (n ${low.length}), 3..6 ${mean(mid).toFixed(3)} (n ${mid.length})`);
+    expect(low.length).toBeGreaterThan(100);
+    expect(mid.length).toBeGreaterThan(100);
+    expect(mean(low) - mean(mid)).toBeGreaterThanOrEqual(0.08);
   }, SWEEP);
 });
 
