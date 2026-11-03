@@ -63,6 +63,8 @@ describe('plume tails (polish-tails Task 1)', () => {
     expect(fluffy).toBeLessThan(long * 0.9);
   }, 120_000);
 
+  // For tabby, digit and siamese this pins the default (no plume) only; the
+  // real guard on their old tail is catgolden.json, unchanged for them.
   it('short-haired cats and D2 keep today\'s tail, vertex for vertex', () => {
     expect(catStyle('d2').tailPlume).toBe(0);
     for (const opts of BUILDS) for (const breed of ['tabby', 'd2', 'digit', 'siamese']) {

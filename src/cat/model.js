@@ -66,7 +66,8 @@ const STYLE = {
 //                 calico orange 0xd88030.
 //   tailFluff   — factor on every tail link and joint radius, default 1 (the
 //                 root ball is unchanged). Long fur thickens the tail with it;
-//                 a plumed tail (below) ignores it.
+//                 a plumed tail (below) ignores it, so long fur's 1.3 now
+//                 only selects the full plume (tailFluff > 1).
 //   tailPlume   — 0..1, how much of the plume (torso.js PLUME) the tail has:
 //                 fuller all along, widest at 40%, a soft tip. Default derived
 //                 from the row: tailFluff > 1 (the builder's long fur) 1,
@@ -1663,8 +1664,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   g.userData.base = {
     bodyY, bodyScale: [...BODY_SCALE], headPos, tailRotX: TAIL.ROOT_TILT, tailCurl: TAIL.CURL,
     hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT,
-    // polish-tails: a plumed tail lies along its own sit and nap curves.
-    ...(plume > 0 && { sitTail: lyingTail(SIT_TAIL, SIT_TAIL_PLUME, plume), napTail: lyingTail(NAP_TAIL, NAP_TAIL_PLUME, plume) }),
+    // polish-tails: a plumed tail lies along its own sit and nap curves, and
+    // stalking droops its fuller first link (animator.js STALK_CARRIAGE).
+    ...(plume > 0 && { tailPlume: plume, sitTail: lyingTail(SIT_TAIL, SIT_TAIL_PLUME, plume), napTail: lyingTail(NAP_TAIL, NAP_TAIL_PLUME, plume) }),
   };
   // opts.scars (fight moves and scars): scars.js render entries. Only a scarred
   // cat gets the scar mesh; without one, nothing here runs.

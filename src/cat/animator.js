@@ -9,9 +9,9 @@ const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: 
 
 // R3: the tail's resting curl (base.tailCurl per link) by state. Standing,
 // walking, grooming and sniffing get the full curl; sitting a fifth, so the
-// tail lies round the cat. Every other state (cross, scared, stalk, pounce,
-// stretch) keeps today's straight chain. A rig without tailCurl (Hagrid) gets
-// no curl in any state. The nap took a fifth too until polish-pose Task 1:
+// tail lies round the cat. Every other state (cross, scared, pounce, stretch)
+// keeps today's straight chain; the stalk writes its own (STALK_CARRIAGE).
+// A rig without tailCurl (Hagrid) gets no curl in any state. The nap took a fifth too until polish-pose Task 1:
 // its pivots are now written outright (torso.js NAP_TAIL), as the sit's are.
 const TAIL_CURL_BY_STATE = { follow: 1, sniff: 1, groom: 1, land: 1, perch: 0.2, requestPet: 0.2 };
 
@@ -221,7 +221,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   if (state === 'stalk' && cat.userData.parts.legs[0].userData.folds) {
     const { tail, body } = cat.userData.parts;
     // (The z half is set in pose(), with the stalk's other folds offsets.)
-    tail.position.y = body.position.y + STALK_TAIL.DY;
+    tail.position.y = body.position.y + STALK_TAIL.DY - STALK_CARRIAGE.plumeSink * (base.tailPlume ?? 0);
   }
   // The sitting tail's root rides the posed body (SIT_TAIL.ROOT, polish-sit
   // Task 2), once the pose fit has set the body down: the tail hangs on the
@@ -680,19 +680,24 @@ const STALK_TAIL = Object.freeze({ DY: 0.02, DZ: -0.03 });
 
 // polish-tails (2026-11-03), Task 2: the stalking tail's carriage. It was a
 // straight spike down-back from the rump, its tip the lowest point. Now the
-// root leaves as it did (rotX, today's root tilt on the generic slow bob: a
+// root leaves as it did (today's root tilt on the generic slow bob: a
 // steeper root lifted the root ring 1-2 cm over the rump's line, folds.test.js
 // 'the tail root does not bulge'), link 1 droops so the middle hangs ~12 cm
 // over the ground, and the last links bend up so the end is lifted ~7 cm
 // over that, bent evenly over the last three joints so it reads as one
-// soft line (pivotX: + tips a link down). The side sway is damped near
-// the root (swayKeep: a stalking tail is still) and the last two links
+// soft line (pivotX: + tips a link down). A plume's first link is fuller
+// (torso.js PLUME): its top stood 1-1.6 cm over the rump, so a plumed tail
+// (base.tailPlume) has its stalk root sunk plumeSink (times the plume)
+// deeper into the rump (animateCat, with STALK_TAIL.DY); bending link 0
+// instead only moved the bulge from the root ring to the link's far end.
+// The side sway is damped near the root (swayKeep: a stalking tail is
+// still) and the last two links
 // twitch: a fast flick under a slow envelope, plus a small slow flick so it
 // is never dead still, and the tip lifts with the fast flick. All of it is a
 // function of t; reducedMotion keeps the curve and the slow flick only.
 // Cats with folds only (base.tailCurl): Hagrid keeps the generic chain.
 export const STALK_CARRIAGE = Object.freeze({
-  rotX: 0.28, // TAIL.ROOT_TILT
+  plumeSink: 0.014,
   pivotX: Object.freeze([0.00, 0.22, -0.34, -0.38, -0.36]),
   swayKeep: Object.freeze([0.2, 0.2, 0.3, 0.5, 0.5]),
   twitch: Object.freeze({ amp: 0.2, freq: 9, slow: 0.7, flick: 0.08, flickFreq: 2.3, lift: 0.08, share: Object.freeze([0, 0, 0.3, 0.6, 0.8]) }),
@@ -1165,7 +1170,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   // The stalking carriage (STALK_CARRIAGE), on a rig with the resting curl.
   if (state === 'stalk' && base.tailCurl) {
     const SC = STALK_CARRIAGE, TW = SC.twitch;
-    tail.rotation.x = SC.rotX + Math.sin(t * 2.1) * 0.08; // the generic slow bob
+    // (the root keeps the generic chain's tilt and slow bob, written above)
     const fast = reducedMotion ? 0 : Math.max(0, Math.sin(t * TW.slow)) * Math.sin(t * TW.freq);
     const side = TW.amp * fast + TW.flick * Math.sin(t * TW.flickFreq);
     for (let i = 0; i < tailPivots.length; i++) {
