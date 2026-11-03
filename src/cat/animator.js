@@ -234,7 +234,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   if (sitting || napping) {
     const { tail, body } = cat.userData.parts;
     const [, sy, sz] = cat.userData.base.bodyScale;
-    const root = (sitting ? SIT_TAIL : NAP_TAIL).ROOT;
+    const root = (sitting ? sitTail(cat) : napTail(cat)).ROOT;
     body.updateMatrix();
     _anchor.set(0, root[0] / sy, root[1] / sz).applyMatrix4(body.matrix);
     tail.position.y = _anchor.y;
@@ -695,6 +695,11 @@ function stalkReach(base) {
 // Swimming (sketch A): the legs paddle in diagonal pairs.
 const PADDLE_PHASE = [0, Math.PI, Math.PI, 0];
 
+// The lying tails: a plumed cat's own (model.js base.sitTail / napTail,
+// torso.js SIT_TAIL_PLUME / NAP_TAIL_PLUME), else today's.
+const sitTail = (cat) => cat.userData.base?.sitTail ?? SIT_TAIL;
+const napTail = (cat) => cat.userData.base?.napTail ?? NAP_TAIL;
+
 function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   const { body, head, tail, tailPivots, legs, earL, earR } = cat.userData.parts;
   const base = cat.userData.base ?? CAT_BASE;
@@ -805,11 +810,12 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // the nap no longer takes the resting curl (TAIL_CURL_BY_STATE drops
       // it): bending each link up would lift the chain off the ground. The
       // root rides the posed body (animateCat). The tip link sways slowly.
-      tail.rotation.set(NAP_TAIL.rotX, 0, 0);
+      const NT = napTail(cat);
+      tail.rotation.set(NT.rotX, 0, 0);
       for (let i = 0; i < tailPivots.length; i++) {
-        tailPivots[i].rotation.set(NAP_TAIL.pivotX[i], TAIL_HOOK_SIDE * NAP_TAIL.pivotY[i], 0);
+        tailPivots[i].rotation.set(NT.pivotX[i], TAIL_HOOK_SIDE * NT.pivotY[i], 0);
       }
-      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 0.9) * NAP_TAIL.sway; // the tip sways
+      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 0.9) * NT.sway; // the tip sways
     } else {
       // Hagrid (ruling P1): his fan rides his body (rideTail) and keeps this.
       tail.rotation.set(-0.12 + c, 0, 0);
@@ -888,11 +894,12 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // (TAIL_CURL_BY_STATE, c) is dropped here: bending each link up would
       // lift the chain off the ground it lies on. The root rides the posed
       // body (animateCat, after the pose fit). Only the tip link flicks.
-      tail.rotation.set(SIT_TAIL.rotX, 0, 0);
+      const ST = sitTail(cat);
+      tail.rotation.set(ST.rotX, 0, 0);
       for (let i = 0; i < tailPivots.length; i++) {
-        tailPivots[i].rotation.set(SIT_TAIL.pivotX[i], TAIL_HOOK_SIDE * SIT_TAIL.pivotY[i], 0);
+        tailPivots[i].rotation.set(ST.pivotX[i], TAIL_HOOK_SIDE * ST.pivotY[i], 0);
       }
-      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 2.2) * SIT_TAIL.flick; // the tip flicks
+      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 2.2) * ST.flick; // the tip flicks
       return;
     }
     tail.rotation.set(-0.1 + c, 0, 0);

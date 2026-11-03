@@ -41,6 +41,23 @@ export const TAIL = { LINK: 0.14, R: 0.072, TAPER: 0.8125, CURL: 0.28, ROOT_TILT
 // The tail's radius at fraction u of its length (0 root, 1 tip).
 export const tailR = (u) => TAIL.R * (1 - TAIL.TAPER * u);
 
+// The plume (polish-tails, 2026-11-03): a long-furred cat's tail radius at
+// u = 0, 0.2, ... 1, in the same units as tailR. Thicker all along, widest
+// around 40% of the length, then tapering to a soft rounded tip (the tip ball
+// is the last knot). The root stays near tailR(0), so the plume still comes
+// out from under a cape's hem and the root ball still covers the join.
+export const PLUME = Object.freeze([0.074, 0.090, 0.097, 0.088, 0.062, 0.024]);
+
+// The tail's radius at u with `plume` (0 none, 1 full) of the PLUME blended in,
+// linear between the knots. plume 0 is exactly tailR(u).
+export function tailRadius(u, plume = 0) {
+  const r = tailR(u);
+  if (!plume) return r;
+  const n = PLUME.length - 1, x = Math.min(n, Math.max(0, u * n)), k = Math.min(n - 1, Math.floor(x));
+  const knot = PLUME[k] + (PLUME[k + 1] - PLUME[k]) * (x - k);
+  return r + plume * (knot - r);
+}
+
 // The paw centre in leg-local space, so the sole stays exactly where it is today
 // (old hip 0.3, old paw 0.2585 below it).
 export const PAW_Y = -(LEGS.HIP_Y - 0.3 + 0.2585);
@@ -200,6 +217,40 @@ export const NAP_TAIL = Object.freeze({
   // centre moves between 1.5 and 3.3 cm up, a sleeping tail's twitch.
   sway: 0.08,
 });
+
+// polish-tails (2026-11-03): the lying tails of a plumed cat (PLUME). A
+// plume is up to 5 cm fatter than the thin tail, so laid along SIT_TAIL or
+// NAP_TAIL it sank 4 cm into the ground and, sitting, 1 cm into the haunch.
+// These are the same curves with the root raised (1.3 cm sitting, 2 cm
+// napping) and the first links drooping a little less and turning a little
+// wider, so the plume rests on the ground clear of the torso (and, sitting,
+// out from under a cape). Fitted by a search on the Persian and the Maine
+// Coon (full and simple, bare and caped) against the sit, nap and cape
+// tests' own measures, staying as near today's numbers as it could:
+// sitting, lowest vertex 0.7 cm in the ground, the haunch cleared by 0.4 cm,
+// no tail under the cape, the tip 23 cm out to the side; napping, lowest
+// vertex 0.2-0.5 cm over the ground, 2.3 cm clear of the torso. Same meanings as SIT_TAIL and
+// NAP_TAIL; a partial plume takes the blend (lyingTail).
+export const SIT_TAIL_PLUME = Object.freeze({
+  ...SIT_TAIL,
+  ROOT: [0.048, 0.34],
+  rotX: 0.44,
+  pivotX: [-0.295, 0.111, 0.211, 0.219, 0.116],
+  pivotY: [1.209, 0.698, 0.687, 0.499, 0.159],
+});
+export const NAP_TAIL_PLUME = Object.freeze({
+  ...NAP_TAIL,
+  ROOT: [-0.074, 0.346],
+  rotX: 0.36,
+  pivotX: [0.512, 0.425, 0.537, 0.628, 0.136],
+  pivotY: [0.884, 0.469, 0.487, -0.014, 0.049],
+});
+
+// A lying tail `plume` of the way from `thin` (today's) to `full` (the plume's).
+export function lyingTail(thin, full, plume) {
+  const mix = (a, b) => (Array.isArray(a) ? Object.freeze(a.map((v, i) => mix(v, b[i]))) : a + plume * (b - a));
+  return Object.freeze(Object.fromEntries(Object.keys(thin).map((k) => [k, mix(thin[k], full[k])])));
+}
 
 // A point on the unit sphere (nose at -z, rump at +z) pushed into the cat's torso.
 export function deformTorso(x, y, z, S = TORSO.SHAPE) {

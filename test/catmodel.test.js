@@ -1155,13 +1155,27 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
     return [rho(links[0], 0), ...links.map((m) => rho(m, L))];
   };
 
+  // polish-tails (2026-11-03): the Persian was the third breed here; it now
+  // has a plume, fullest at 40% of the tail (test/tailplume.test.js), so the
+  // even taper is held on D2 instead (fluffy, but her tail is kept as signed
+  // off) and the Persian's plume gets its own shape check below.
   it('the tail tapers evenly from root to a rounded tip: no bulb, no spike', () => {
-    for (const breed of ['tabby', 'digit', 'persian']) for (const simple of [false, true]) {
+    for (const breed of ['tabby', 'digit', 'd2']) for (const simple of [false, true]) {
       const r = tailRadii(buildCat(breed, undefined, { simple }));
       const drops = r.slice(1).map((v, i) => r[i] - v);
       for (const d of drops) expect(d, `${breed} ${simple}: radii ${r}`).toBeGreaterThan(0); // never wider than the link before
       expect(Math.max(...drops), `${breed}: an even taper, radii ${r}`).toBeLessThanOrEqual(1.5 * Math.min(...drops));
       expect(r[5], `${breed}: a rounded tip, not the old 6 mm spike`).toBeGreaterThanOrEqual(0.012);
+    }
+  });
+
+  it('a plume swells to its fullest at 40% and then narrows all the way to a rounded tip', () => {
+    for (const breed of ['persian', 'mainecoon']) for (const simple of [false, true]) {
+      const r = tailRadii(buildCat(breed, undefined, { simple }));
+      expect(r.indexOf(Math.max(...r)), `${breed} ${simple}: radii ${r}`).toBe(2);
+      for (let i = 3; i < r.length; i++) expect(r[i], `${breed} ${simple}: radii ${r}`).toBeLessThan(r[i - 1]); // no bulb past the middle
+      expect(r[5], `${breed}: a rounded tip, not a spike`).toBeGreaterThanOrEqual(0.012);
+      expect(r[5], `${breed}: a tip, not a club`).toBeLessThanOrEqual(0.4 * r[2]);
     }
   });
 
