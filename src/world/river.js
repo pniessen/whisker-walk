@@ -8,6 +8,10 @@ import { segDist } from '../segdist.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { addIslandView, fromWoodsDisc, islandKeepLow } from './lake.js';
 import { addCamp } from './camp.js';
+import { tintGround } from './dressing.js';
+import { withLocalUuids } from './localuuids.js';
+import { addRiverDressing, riverGroundTint } from './riverdress.js';
+import { marshMist, dragonflies, riverDragonflyHomes, createMarshLife } from './marshlife.js';
 
 // =============================================================================
 // The River and Marshes.
@@ -135,7 +139,7 @@ export const RIVER_HORIZON = Object.freeze({
 // is hidden under it.
 const WATER_COLOR = 0x5f98a8;
 const POOL_COLOR = 0x6f8f80;
-const WATER_LOOK = {
+export const WATER_LOOK = {
   lake: { y: 0.03, shores: ['minX', 'maxZ', 'minZ'], foamStrength: 0.22 },
   'lake-far': { y: 0.025, shores: ['minX', 'maxZ', 'minZ'], foamStrength: 0.22 },
   'river-west': { y: 0.035, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.22 },
@@ -241,9 +245,17 @@ export const RIVER_KEEP_CLEAR = Object.freeze([
 
 // The wet meadow round the first POI: open sky, no trees, no reeds.
 const MEADOW = { x: 2, z: 28, r: 9 };
+export const RIVER_MEADOW = MEADOW;
 // The west reedbed, the marsh's densest stand.
 const REEDBED = { minX: -50, maxX: -31, minZ: -27, maxZ: 22 };
+export const RIVER_REEDBED = REEDBED;
 const DECKS = [LOG_BRIDGE, STEPPING_STONES];
+export const RIVER_DECKS = DECKS;
+// The crossings' shapes, for the marsh dressing (riverdress.js) to put moss on.
+export const RIVER_LOG = Object.freeze({
+  x: LOG_X, w: LOG_W, top: LOG_TOP, flat: LOG_FLAT, minZ: LOG_BRIDGE.minZ, maxZ: LOG_BRIDGE.maxZ,
+});
+export const RIVER_STONES = Object.freeze({ x: STONES_X, z1: -15, z2: -8, ...STONES });
 // Every water with its decks taken away: a deck is dry for a cat, but it is
 // still a river for a tree or a reed.
 const OPEN_WATERS = RIVER_WATERS.map((w) => ({ ...w, decks: [] }));
@@ -267,6 +279,7 @@ function fallenLogEnds() {
   return [FALLEN_LOG.x - sx * h, FALLEN_LOG.z - sz * h, FALLEN_LOG.x + sx * h, FALLEN_LOG.z + sz * h];
 }
 const LOG_SEG = fallenLogEnds();
+export const RIVER_FALLEN_LOG = LOG_SEG;
 
 // Rounded so the spots are clean data (they end up in colliders and perches).
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -488,7 +501,10 @@ function mossyBoulder(x, z, material) {
 
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0xa9d4e0, 0xdde8dc);
-  scene.add(b.ground(120, 0x7d9c55, { surface: 'grass' }));
+  // The ground, tinted where the marsh is wet, peaty or dry (riverdress.js).
+  const groundMesh = b.ground(120, 0x7d9c55, { surface: 'grass' });
+  tintGround(groundMesh, riverGroundTint);
+  scene.add(groundMesh);
 
   // The horizon. Hills all round, each side tinted for the neighbour over it:
   // dark pine to the north, the Woods' oak green to the east, a drier green
@@ -614,6 +630,23 @@ export function build(scene, { water = {}, wind } = {}) {
   // device draws it, Legacy too, whatever the picks.
   addCamp(scene, { colliders }, 'river');
 
+  // --- the marsh dressing -------------------------------------------------------
+  // Mud banks, tussocks, cattails, osiers, flowering lilies, the mossy log and
+  // stones: two noCast meshes, looks only. Its uuids come from a local stream
+  // so the build's Math.random draws stay what they were.
+  withLocalUuids('river-dressing', () => addRiverDressing(scene, {}));
+
+  // --- the marsh's life -----------------------------------------------------------
+  // A soft low mist over the water at dusk and sunset, and dragonflies darting
+  // over it by day (marshlife.js): two noCast meshes, driven by the walk's
+  // life hook. Their uuids come from a local stream too.
+  const life = withLocalUuids('river-life', () => {
+    const mist = marshMist(RIVER_WATERS, BOUNDS);
+    const flies = dragonflies(riverDragonflyHomes());
+    scene.add(mist, flies);
+    return { mist, flies };
+  });
+
   return {
     name: 'The River and Marshes',
     colliders,
@@ -636,5 +669,7 @@ export function build(scene, { water = {}, wind } = {}) {
     groundBounce: 0x7d9c55,
     skyDusk: { top: 0x283652, horizon: 0x6a6478 },
     perches,
+    // The mist and the dragonflies, run by walk.js once a walk.
+    life: (ctx) => createMarshLife({ ...ctx, ...life, quality: water.quality ?? 'high' }),
   };
 }

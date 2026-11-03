@@ -8,6 +8,9 @@ import { segDist } from '../segdist.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { addIslandView, fromWoodsDisc, islandKeepLow } from './lake.js';
 import { addCamp } from './camp.js';
+import { tintGround } from './dressing.js';
+import { withLocalUuids } from './localuuids.js';
+import { addMoorDressing, moorGroundTint } from './moordress.js';
 
 // =============================================================================
 // The Moor.
@@ -229,7 +232,7 @@ const CHAIN_ROCKS = [
 const HAWTHORN_ROOT = { x: -2.83, z: 37.27, r: 0.35 };
 // The pillar is as wide at its foot as its collider, so a cat walking round it
 // never stops short of the stone it sees.
-const HIGH_TOR = { x: -19, z: -35, y: 1.9, r: 0.9, rTop: 0.75, rBottom: 0.9 };
+export const HIGH_TOR = { x: -19, z: -35, y: 1.9, r: 0.9, rTop: 0.75, rBottom: 0.9 };
 const CHAIN_PERCHES = [
   { x: -3.6, z: 36.6, y: 0.72, kind: 'stone' },
   { x: OLD_HAWTHORN.x, z: OLD_HAWTHORN.z, y: 2.1, kind: 'tree', label: 'old hawthorn lookout', vantage: true },
@@ -285,6 +288,11 @@ const r2 = (v) => Math.round(v * 100) / 100;
 const rectDist = (d, x, z) => Math.hypot(
   Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
 const DECKS = [LOG_BRIDGE, STEPPING_STONES];
+// For the dressing (moordress.js): the same records, no value changes.
+export const MOOR_DECKS = DECKS;
+export const MOOR_LAKE = LAKE;
+export const MOOR_RIVER_MOUTH = RIVER_MOUTH;
+export const MOOR_CHAIN_ROCKS = CHAIN_ROCKS;
 // The waters with their decks taken away: a deck is dry for a cat, but it is
 // still a river for a tree or a reed.
 const UNDECKED = MOOR_WATERS.map((w) => ({ ...w, decks: [] }));
@@ -400,6 +408,7 @@ function trunks() {
   const { thorns, pines } = placedTrees();
   return [...thorns, ...pines, { x: OLD_HAWTHORN.x, z: OLD_HAWTHORN.z, scale: OLD_HAWTHORN.scale }];
 }
+export const moorTrunks = trunks;
 
 // The low beds: heather all over the moor and a few clumps of gorse, each on
 // its own jittered grid. None has a collider (a cat pushes through), and every
@@ -508,7 +517,11 @@ function greyBoulder(x, z, material) {
 
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0x9cc4e4, 0xe4e6d8);
-  scene.add(b.ground(120, 0x8a9558, { surface: 'grass' }));
+  // The ground, tinted so the moor rolls: pale crests, darker hollows,
+  // bracken patches, greener by the water (moordress.js).
+  const groundMesh = b.ground(120, 0x8a9558, { surface: 'grass' });
+  tintGround(groundMesh, moorGroundTint);
+  scene.add(groundMesh);
   scene.add(b.horizonBand(MOOR_HORIZON));
 
   const colliders = [];
@@ -634,6 +647,12 @@ export function build(scene, { water = {}, wind } = {}) {
   // The clan's den and the leader's rock, in the camp disc (camp.js). Every
   // device draws it, Legacy too, whatever the picks.
   addCamp(scene, { colliders }, 'moor');
+
+  // --- the dressing ---------------------------------------------------------------
+  // Looks only, last: the rolling tint's sheep paths and shingle (groundPaint),
+  // and the clitter, boulders, shore stones, moor grass and far tors
+  // (dressing). Every Three object in it draws its uuid from a local stream.
+  withLocalUuids('moor-dressing', () => addMoorDressing(scene));
 
   return {
     name: 'The Moor',

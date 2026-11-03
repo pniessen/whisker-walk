@@ -254,6 +254,24 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //
 // The Woods', Pines' and Gorge's bands are byte-identical (test/builder.test.js
 // pins their hashes); every other area and every ceiling unchanged.
+//
+// 2026-11-03, polish-rivermoor: the River becomes a marsh and the Moor a rolling
+// granite moor, all visual. Each gains a 'dressing' mesh (tussocks, cattails,
+// osier clumps, flowering lily pads, moss on the log and the ford; on the Moor
+// wind-bent grass, tor clitter, boulders, lake-shore stones and five far tors
+// past the bounds) and a 'groundPaint' decal mesh (mud banks; sheep paths and
+// lake shingle), both noCast, built under withLocalUuids so the build draw
+// counts and the flat trace do not move; the ground's own vertex colours are
+// re-tinted in place (no triangles). The River also gains 'marshMist' (dusk and
+// sunset only) and 'dragonflies', two shader-animated noCast meshes driven by
+// its life hook (src/world/marshlife.js). Ceilings unchanged.
+//
+//   area     meshes      casters     merged      triangles          new meshes (triangles)
+//   river    167 -> 171  135 -> 135  165 -> 169  51,111 -> 58,501   dressing 5,398, groundPaint 1,320, marshMist 532, dragonflies 140
+//   moor      85 -> 87    48 -> 48    84 -> 86    53,891 -> 59,303   dressing 4,840, groundPaint 572
+//
+// River has 1,499 and the Moor 697 triangles left under the 60,000 ceiling: the
+// next build adding to either must trim first.
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the
