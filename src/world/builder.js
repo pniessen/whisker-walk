@@ -2003,9 +2003,12 @@ export function horizonBand({
 
   // Vertex colours: the skyline's per-block tones, and/or the side tints. A
   // part's colour is its tint (white when there are none) times its tone.
-  // With `nearColor` or `edge` the material is white too, so the band's own
-  // colour moves into the vertex colours; an edge piece brings its own.
-  const white = !!sideTints || nearColor != null || !!edge;
+  // With `nearColor`, `edge` or `rooftops` the material is white too, so the
+  // band's own colour moves into the vertex colours; an edge piece brings its
+  // own. (Rooftops: a roof block's tint already IS the band colour, so on a
+  // band-coloured material it would be applied twice. Every shipped band with
+  // rooftops has sideTints and was white already, so none changes.)
+  const white = !!sideTints || nearColor != null || !!edge || !!rooftops;
   const plain = white && !sideTints ? new THREE.Color(color) : null;
   const near = nearColor != null ? new THREE.Color(nearColor) : null;
   const nearMix = new THREE.Color();
