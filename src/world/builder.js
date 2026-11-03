@@ -1265,8 +1265,44 @@ export function rooftopSpots({ from, to, count }, inner, outer, salt) {
 // band's local frame, pushed onto `parts` with its tone and, when the band has
 // side tints, the tint its position falls under. Shared by the skyline kind and
 // by `rooftops` so the two cannot drift apart.
-function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint }) {
+//
+// `pitched` (rooftops only; the skyline kind leaves it off and is unchanged):
+// the walls take the side tint warmed toward cream, and a terracotta prism
+// roof is added, its colour not multiplied by any tint. `tint` must then be a
+// Color (the band's own colour when it has no side tints).
+const ROOF_TERRACOTTA = [0xb5533c, 0xa04a36, 0x8e4a3a].map((h) => {
+  const c = new THREE.Color(h);
+  return [c.r, c.g, c.b];
+});
+const WALL_CREAM = new THREE.Color(0xe6d6bc);
+const WHITE_TINT = new THREE.Color(1, 1, 1);
+
+// A triangular prism over a bw x bd footprint, ridge (along local x) `rise`
+// above its base at y = 0, indexed with position/normal/uv like a Box.
+function roofPrism(bw, bd, rise) {
+  const hw = bw / 2;
+  const hd = bd / 2;
+  const pos = [
+    -hw, 0, -hd, hw, 0, -hd, // 0,1 back eave
+    -hw, 0, hd, hw, 0, hd, // 2,3 front eave
+    -hw, rise, 0, hw, rise, 0, // 4,5 ridge
+  ];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex([
+    2, 3, 5, 2, 5, 4, // front slope
+    1, 0, 4, 1, 4, 5, // back slope
+    0, 2, 4, // gable -x
+    3, 1, 5, // gable +x
+  ]);
+  g.computeVertexNormals();
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(12), 2));
+  return g;
+}
+
+function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint, pitched = false }) {
   const before = parts.length;
+  const wallTint = pitched ? tint.clone().lerp(WALL_CREAM, 0.55) : tint;
   const bw = 6 + 13 * hash01(k, 2, salt + 3);
   const bd = 5 + 11 * hash01(k, 3, salt + 4);
   const g = new THREE.BoxGeometry(bw, bh, bd);
@@ -1283,6 +1319,7 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint 
     f.translate(x, base + bh / 2, z);
     parts.push(f);
     tones.push(f === g ? tone : SKYLINE_WINDOW);
+    if (pitched) bases.push(f === g ? wallTint : tint);
   }
   // A roof feature on the taller half, because a skyline with a level top
   // edge is a wall. Chimneys and tanks are what break a real one.
@@ -1295,6 +1332,17 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint 
     c.translate(x + Math.cos(yaw) * cx2, base + bh + ch / 2, z - Math.sin(yaw) * cx2);
     parts.push(c);
     tones.push(tone);
+    if (pitched) bases.push(wallTint);
+  }
+  if (pitched) {
+    const rt = ROOF_TERRACOTTA[Math.floor(hash01(k, 10, salt + 11) * ROOF_TERRACOTTA.length)];
+    const roof = withLocalUuids(`band-roofs-${salt}`, () => roofPrism(bw, bd, 0.35 * bd));
+    roof.rotateY(yaw);
+    roof.translate(x, base + bh, z);
+    parts.push(roof);
+    tones.push(rt);
+    bases.push(WHITE_TINT);
+    return;
   }
   for (let i = before; i < parts.length; i++) bases.push(tint);
 }
@@ -1929,7 +1977,8 @@ export function horizonBand({
       const bh = (rooftops.height ?? height) * (0.40 + 0.75 * hash01(k, 4, rsalt + 5));
       const base = heightAt(x, z, Math.max(Math.abs(x), Math.abs(z)) - inner) - 0.5;
       addRoofBlock(parts, tones, bases, {
-        k, x, z, yaw, base, bh, salt: rsalt, tint: sideTints ? sideTintColor(x, z, sideTints) : null,
+        k, x, z, yaw, base, bh, salt: rsalt, pitched: true,
+        tint: sideTints ? sideTintColor(x, z, sideTints) : new THREE.Color(color),
       });
     });
   }

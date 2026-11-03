@@ -218,3 +218,19 @@ describe('determinism and shape', () => {
     expect(m.geometry.attributes.color).toBeDefined();
   });
 });
+
+describe('Twolegplace rooftops', () => {
+  it('the woods rooftops carry terracotta pitched roofs, all after the ring', () => {
+    const geo = built.woods.scene.getObjectByName('horizonBand').geometry;
+    const col = geo.attributes.color.array;
+    let n = 0;
+    for (let v = 0; v < geo.attributes.position.count; v++) {
+      const r = col[v * 3], g = col[v * 3 + 1], bl = col[v * 3 + 2];
+      if (r > g * 1.25 && r > bl * 1.4) {
+        n++;
+        expect(v).toBeGreaterThanOrEqual(RING);
+      }
+    }
+    expect(n).toBeGreaterThanOrEqual(14 * 6);
+  }, 120_000);
+});
