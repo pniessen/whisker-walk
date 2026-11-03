@@ -111,7 +111,14 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
-//   gorge             60       36      59307   (polish-edges' red roofs on
+//   gorge             60       36      57655   (gorge-rock2 beauty pass: was 59,307;
+//                                               scree pebbles 12,260 -> 4,904, ground
+//                                               plane under the rock trimmed 4,608 ->
+//                                               2,436, finer wall grid (shell 10,337
+//                                               -> 16,197), round tors 1,188 -> 2,640,
+//                                               talus in the meadow +462; 2,345 tris
+//                                               of headroom under the cap.
+//                                               Before it: polish-edges' red roofs on
 //                                               its rooftop blocks, +60 in
 //                                               the horizon band, no mesh; it
 //                                               was 59,247 after polish-gorgeway,

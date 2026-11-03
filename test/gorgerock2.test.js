@@ -20,6 +20,7 @@ vi.stubGlobal('document', {
 });
 
 const { build } = await import('../src/world/gorge.js');
+const { WALK_SHAPES, GORGE_CAVES, GORGE_DENS, CAMP_DEN } = await import('../src/world/gorgeshape.js');
 
 // One Gorge build for the whole file; later tasks add to it.
 const scene = new THREE.Scene();
@@ -304,4 +305,144 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
     expect(triCount(meadow) - 3136).toBeLessThanOrEqual(700);
     expect(triCount(meadow)).toBeGreaterThan(3136);
   });
+
+  it('the drawn rock agrees with the ground the cat walks on', () => {
+    const { ground, colliders } = area;
+    // Every drawn rock triangle in world space, bucketed on a 2 m xz grid.
+    const B = 2;
+    const buckets = new Map();
+    const tris = [];
+    const sources = [];
+    const rockGroup = scene.getObjectByName('gorgeRock');
+    for (const n of ['rockFaces', 'ledgeTops', 'lips']) sources.push(rockGroup.getObjectByName(n));
+    scene.getObjectByName('tors').traverse((o) => { if (o.isMesh) sources.push(o); });
+    sources.push(scene.getObjectByName('summitRock'), scene.getObjectByName('summitRockBoulder'));
+    const v = [0, 1, 2].map(() => new THREE.Vector3());
+    for (const mesh of sources) {
+      expect(mesh, 'a rock source mesh').toBeTruthy();
+      mesh.updateWorldMatrix(true, false);
+      const g = mesh.geometry;
+      const pos = g.attributes.position;
+      const n = g.index ? g.index.count : pos.count;
+      for (let t = 0; t < n; t += 3) {
+        for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, g.index ? g.index.getX(t + k) : t + k).applyMatrix4(mesh.matrixWorld);
+        const tri = [v[0].x, v[0].y, v[0].z, v[1].x, v[1].y, v[1].z, v[2].x, v[2].y, v[2].z];
+        const id = tris.length;
+        tris.push(tri);
+        const x0 = Math.floor(Math.min(tri[0], tri[3], tri[6]) / B), x1 = Math.floor(Math.max(tri[0], tri[3], tri[6]) / B);
+        const z0 = Math.floor(Math.min(tri[2], tri[5], tri[8]) / B), z1 = Math.floor(Math.max(tri[2], tri[5], tri[8]) / B);
+        for (let i = x0; i <= x1; i++) for (let j = z0; j <= z1; j++) {
+          const key = i * 100003 + j;
+          if (!buckets.has(key)) buckets.set(key, []);
+          buckets.get(key).push(id);
+        }
+      }
+    }
+    const near = (x, z) => buckets.get(Math.floor(x / B) * 100003 + Math.floor(z / B)) || [];
+    // Heights of every triangle over (x, z) (a vertical line), exact barycentric.
+    const heightsAt = (x, z) => {
+      const out = [];
+      for (const id of near(x, z)) {
+        const [ax, ay, az, bx, by, bz, cx, cy, cz] = tris[id];
+        const d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+        if (Math.abs(d) < 1e-12) continue;
+        const l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d;
+        const l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d;
+        const l3 = 1 - l1 - l2;
+        if (l1 < -1e-9 || l2 < -1e-9 || l3 < -1e-9) continue;
+        out.push(l1 * ay + l2 * by + l3 * cy);
+      }
+      return out;
+    };
+    const inDisc = (x, z) => colliders.some((c) => Math.hypot(x - c.x, z - c.z) <= c.r);
+    const shapeY = (s, z) => (s.along === 'z' ? s.y0 + (s.y1 - s.y0) * (z - s.minZ) / (s.maxZ - s.minZ) : s.y0);
+
+    const INSET = 0.45;
+    const shapes = [...WALK_SHAPES, ...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, CAMP_DEN];
+    let samples = 0, skippedDisc = 0, skippedOverlap = 0, worst = 0, worstAt = null;
+    const bad = [];
+    for (const s of shapes) {
+      for (let x = s.minX + INSET; x <= s.maxX - INSET + 1e-9; x += 0.5) {
+        for (let z = s.minZ + INSET; z <= s.maxZ - INSET + 1e-9; z += 0.5) {
+          const y = shapeY(s, z);
+          if (inDisc(x, z)) { skippedDisc++; continue; }
+          if (Math.abs(ground.y(x, z) - y) > 0.02) { skippedOverlap++; continue; } // another shape's surface is here
+          const roof = ground.ceil(x, z);
+          const top = roof !== Infinity ? roof - 0.05 : y + 3;
+          const hs = heightsAt(x, z).filter((h) => h <= top);
+          const first = hs.length ? Math.max(...hs) : null;
+          samples++;
+          // A floor at y 0 has no drawn surface of its own (the ground plane is not rock).
+          const dev = first === null ? (Math.abs(y) < 1e-9 ? 0 : Infinity) : (Math.abs(y) < 1e-9 && first < 0.02 ? 0 : Math.abs(first - y));
+          if (dev > worst || dev === Infinity) { worst = dev; worstAt = `${s.tag} (${x.toFixed(2)}, ${z.toFixed(2)}) shapeY ${y.toFixed(3)} first ${first}`; }
+          if (dev > 0.02) bad.push(`${s.tag} (${x.toFixed(2)}, ${z.toFixed(2)}) shapeY ${y.toFixed(3)} first ${first}`);
+        }
+      }
+    }
+    console.log(`gorge tolerance: ${samples} surface samples, ${skippedDisc} in colliders, ${skippedOverlap} on overlapping shapes, worst ${worst} at ${worstAt}`);
+    expect(bad.slice(0, 20)).toEqual([]);
+    expect(samples).toBeGreaterThan(1000);
+
+    // Floor points near a wall: nothing the paw could sink into.
+    const dist2 = (px, pz, t) => {
+      // distance from (px, pz) to the triangle's xz shadow
+      const P = [[t[0], t[2]], [t[3], t[5]], [t[6], t[8]]];
+      const sgn = (a, b) => (px - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (pz - b[1]);
+      const d1 = sgn(P[0], P[1]), d2 = sgn(P[1], P[2]), d3 = sgn(P[2], P[0]);
+      if (!((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0)) && (d1 !== 0 || d2 !== 0 || d3 !== 0)) return 0; // inside (a degenerate, edge-on triangle falls through to its edges)
+      let best = Infinity;
+      for (let i = 0; i < 3; i++) {
+        const a = P[i], b = P[(i + 1) % 3];
+        const dx = b[0] - a[0], dz = b[1] - a[1];
+        const L = dx * dx + dz * dz;
+        const u = L ? Math.max(0, Math.min(1, ((px - a[0]) * dx + (pz - a[1]) * dz) / L)) : 0;
+        best = Math.min(best, Math.hypot(px - a[0] - dx * u, pz - a[1] - dz * u));
+      }
+      return best;
+    };
+    let floorSamples = 0, floorBad = [], closest = Infinity, closestAt = null;
+    for (let x = -50; x <= 50; x += 0.25) {
+      for (let z = -50; z <= 50; z += 0.25) {
+        if (ground.y(x, z) !== 0 || ground.ceil(x, z) !== Infinity || inDisc(x, z)) continue;
+        // distance to the nearest wall by probing outward
+        let wall = Infinity;
+        for (let r = 0.05; r <= 1.2 && wall === Infinity; r += 0.05) {
+          for (let k = 0; k < 24; k++) {
+            const a = (k / 24) * Math.PI * 2;
+            const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+            if (ground.y(px, pz) > 0.05 || ground.ceil(px, pz) !== Infinity) { wall = r; break; }
+          }
+        }
+        if (wall === Infinity || wall < INSET) continue; // no wall within 1.2 m, or too close to stand in
+        floorSamples++;
+        for (const id of near(x, z).concat(near(x + 0.3, z), near(x - 0.3, z), near(x, z + 0.3), near(x, z - 0.3))) {
+          const t = tris[id];
+          if (Math.min(t[1], t[4], t[7]) > 0.6 || Math.max(t[1], t[4], t[7]) < 0.05) continue;
+          // The part of the triangle between y 0.05 and 0.6 (Sutherland-Hodgman against both planes).
+          let poly = [[t[0], t[1], t[2]], [t[3], t[4], t[5]], [t[6], t[7], t[8]]];
+          for (const [lo, bound] of [[true, 0.05], [false, 0.6]]) {
+            const outp = [];
+            for (let i = 0; i < poly.length; i++) {
+              const a = poly[i], b = poly[(i + 1) % poly.length];
+              const ina = lo ? a[1] >= bound : a[1] <= bound, inb = lo ? b[1] >= bound : b[1] <= bound;
+              if (ina) outp.push(a);
+              if (ina !== inb) { const u = (bound - a[1]) / (b[1] - a[1]); outp.push([a[0] + (b[0] - a[0]) * u, bound, a[2] + (b[2] - a[2]) * u]); }
+            }
+            poly = outp;
+          }
+          if (poly.length < 3) continue;
+          let d = Infinity;
+          for (let i = 1; i + 1 < poly.length; i++) {
+            const a = poly[0], b = poly[i], c = poly[i + 1];
+            d = Math.min(d, dist2(x, z, [a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]]));
+          }
+          if (d < closest) { closest = d; closestAt = `(${x}, ${z}) wall ${wall.toFixed(2)}`; }
+          if (d < 0.3) floorBad.push(`(${x}, ${z}) wall ${wall.toFixed(2)} tri y ${t[1].toFixed(2)},${t[4].toFixed(2)},${t[7].toFixed(2)}`);
+        }
+      }
+    }
+    console.log(`gorge floor check: ${floorSamples} floor samples, closest rock ${closest} at ${closestAt}`);
+    expect(floorBad.slice(0, 20)).toEqual([]);
+    expect(floorSamples).toBeGreaterThan(500);
+  }, 180_000);
 });
