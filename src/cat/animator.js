@@ -484,7 +484,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     // The sit moves the front hips forward (SIT.foreZ); every other state puts
     // them back where they were built (remembered the first time).
     leg.position.z = leg.userData.hipZ ??= leg.position.z;
-    leg.position.x = leg.userData.hipX ??= leg.position.x; // the stalk brings Digit's in
+    leg.position.x = leg.userData.hipX ??= leg.position.x; // the stalk and the sit bring Digit's in
   }
   tail.position.z = tail.userData.rootZ ??= tail.position.z; // the stalk moves it (STALK_TAIL)
   const { underside } = cat.userData.parts;
@@ -594,8 +594,18 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
 
   if (state === 'requestPet' || state === 'perch') {
     // upright sit
-    body.rotation.x = -0.5;
-    body.position.y = base.bodyY - 0.02;
+    if (folds) {
+      // polish-sit (2026-11-02): the Warrior Cats sit (torso.js SIT). The
+      // torso pitches nose-UP, lowered and moved forward so the rump rests on
+      // the ground and the shoulders stand high over the forelegs. Cats only
+      // (ruling R1): Hagrid, without folds, keeps his sit below line for line.
+      body.rotation.x = SIT.pitch;
+      body.position.y = base.bodyY - 0.02 + SIT.bodyDY;
+      body.position.z = SIT.bodyZ;
+    } else {
+      body.rotation.x = -0.5;
+      body.position.y = base.bodyY - 0.02;
+    }
     if (!folds) {
       legs[2].scale.y = 0.45;
       legs[3].scale.y = 0.45;
@@ -604,17 +614,24 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     }
     if (underside) {
       // polish-catlooks (2026-11-02): no snowman. The chest is flattened (its
-      // centre held by keepChestUnderHead) and the forelegs stand forward as
-      // columns in front of it (torso.js SIT). Cats only: Hagrid has no
-      // underside, and his legs are a chicken's.
+      // centre held by keepChestUnderHead) and the forelegs stand as columns
+      // from inside the chest (torso.js SIT). Cats only: Hagrid has no
+      // underside, and his legs are a chicken's. Digit's torso is 0.8 as wide
+      // (STYLE.body) on the same hips, so all four hips come in by that share,
+      // as the stalk's do: at full width its front hips stood out of the side
+      // of its narrow chest, and its tucked thigh lay 2 mm under a hind scar
+      // (1 on every other cat, which is left as it was).
       underside.scale.z = SIT.chestDepth;
+      const k = bsx / TORSO.SCALE[0];
+      if (k !== 1) for (const leg of legs) leg.position.x = leg.userData.hipX * k;
       for (let i = 0; i < 2; i++) {
         const leg = legs[i];
         leg.position.z = leg.userData.hipZ + SIT.foreZ;
         leg.rotation.x = SIT.foreTilt;
       }
     }
-    head.position.set(hx, hy + 0.06, hz + 0.1);
+    if (folds) head.position.set(hx, hy + SIT.headDY, hz + SIT.headDZ);
+    else head.position.set(hx, hy + 0.06, hz + 0.1);
     head.rotation.x = state === 'perch' ? 0.05 : -0.18;
     tail.rotation.set(-0.1 + c, 0, 0);
     for (const p of tailPivots) p.rotation.y = 0.5; // tail curled round the front

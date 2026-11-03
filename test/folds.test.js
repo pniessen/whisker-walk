@@ -58,8 +58,13 @@ const limbOf = (leg) => leg.children[0];
 // The body drop each fold state's pose() gives (PINNED.bodyDrop for pinned),
 // and its head offset; every state but the roll is a crouch (the body comes
 // down by legLift with it, as the old squash did).
-const DROP = { nap: 0.1, stalk: 0.1, pinned: 0.1, requestPet: 0.02, perch: 0.02, roll: 0 };
-const HEAD_DY = { nap: -0.24, stalk: -0.16, pinned: -0.22, requestPet: 0.06, perch: 0.06, roll: -0.1 };
+// polish-sit (2026-11-02): the sit is the upright Warrior Cats sit (torso.js
+// SIT): its body comes down 0.065 (0.02 + SIT.bodyDY 0.045, FOLDS.sit.drop) so
+// the nose-up torso's rump rests on the ground, and its head goes up 0.09
+// (SIT.headDY) to be held high over the chest; was 0.02 and 0.06 for the
+// nose-down torso.
+const DROP = { nap: 0.1, stalk: 0.1, pinned: 0.1, requestPet: 0.065, perch: 0.065, roll: 0 };
+const HEAD_DY = { nap: -0.24, stalk: -0.16, pinned: -0.22, requestPet: 0.09, perch: 0.09, roll: -0.1 };
 
 // The poke measure and Task 1's baseline table (T1) live in helpers/catpoke.js.
 const pokes = (cat, state, opts) => pokesOf(cat, (i) => kindOf(state, i) !== 'stand', opts);
@@ -78,6 +83,8 @@ const _o = new THREE.Vector3();
 // 0.0367). That is the shoulder in front of the chest, not a leg through the
 // back; Digit (0.1656 / 0.1691) stays under its own Task 1 ceiling. The
 // sit's only standing legs are the front pair, so this ceiling is theirs.
+// (polish-sit, 2026-11-02: in the upright sit the shoulder tops are inside the
+// chest, -0.092 to -0.120 on every standard-frame look, so the ceiling is loose.)
 const SIT_FRONT = { requestPet: 0.0728, perch: 0.0728 };
 const allowed = (name, state) => Math.max(0.005, ((name !== 'digit' && SIT_FRONT[state]) || T1[name === 'digit' ? 'digit' : 'tabby'][state]) + 0.002);
 // Folded legs get their own, tight ceiling: measured + 0.002, floor 0.005. The
@@ -150,10 +157,11 @@ describe('legs fold at the joints (Task 5)', () => {
         expect(head.position.y, `${label(v)} ${state}`).toBeCloseTo(base.headPos[1] + HEAD_DY[state] - lift + (fit.head ?? fit.body ?? 0), 9);
       }
     }
-    // As measured on main.
+    // As measured on main. The sit's 0.324 is now 0.281 (polish-sit): 4.5 cm
+    // lower (SIT.bodyDY) and 0.2 cm up (POSE_FIT 0.004 -> 0.006), the rump on the ground.
     const tabby = make('tabby', false);
     expect(pose(tabby, 'nap').userData.parts.body.position.y).toBeCloseTo(0.24, 9);
-    expect(pose(tabby, 'requestPet').userData.parts.body.position.y).toBeCloseTo(0.324, 9);
+    expect(pose(tabby, 'requestPet').userData.parts.body.position.y).toBeCloseTo(0.281, 9);
     expect(pose(tabby, 'stalk').userData.parts.body.position.y).toBeCloseTo(0.24, 9);
   });
 

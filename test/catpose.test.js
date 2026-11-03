@@ -62,6 +62,14 @@ describe('poses on the new body (R1, R2)', () => {
         expect(Math.abs(cat.userData.parts.body.position.y - (oldY + rise(b)))).toBeLessThanOrEqual(0.02);
       } else if (STANDING.includes(s)) {
         expect(Math.abs(now.torsoMin - (was.torsoMin + rise(b)))).toBeLessThanOrEqual(0.02); // R1
+      } else if (s === 'requestPet' || s === 'perch') {
+        // polish-sit (2026-11-02): the upright sit rests the nose-up torso's
+        // rump ON the ground (0.0002 above it, torso.js POSE_FIT), where the
+        // old rig's nose-down sit held its belly 2.46 cm up, so the band
+        // below (no lower than the old one less 1 cm) no longer holds: the rump
+        // is on the ground, never in it, never hovering over it.
+        expect(now.torsoMin).toBeGreaterThanOrEqual(-0.01);
+        expect(now.torsoMin).toBeLessThanOrEqual(0.03);
       } else {
         expect(now.torsoMin).toBeGreaterThanOrEqual(Math.max(was.torsoMin - 0.01, -0.01));
         expect(now.torsoMin).toBeLessThanOrEqual(Math.max(was.torsoMin, 0) + 0.02);

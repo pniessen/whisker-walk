@@ -50,9 +50,10 @@ function standOff(spot) {
 
 const mat = (color) => new THREE.MeshLambertMaterial({ color });
 
-// How far a boxed cat sinks. It sits up (requestPet), whose torso top is 1.03 cm
-// lower than the old rig's (0.6051 vs 0.6154), so -0.2 + 0.0103 shows as much as before.
-export const BOX_SIT_Y = -0.19;
+// How far a boxed cat sinks. It sits up (requestPet), whose torso top is 7.35 cm
+// higher than the old rig's (0.6889 vs 0.6154) since the upright sit (polish-sit,
+// 2026-11-02: the torso pitched nose-up), so -0.2 - 0.0735 shows as much as before.
+export const BOX_SIT_Y = -0.2735;
 
 // An open-top cardboard box, 1.05 x 1.05 x 0.42, built from thin panels so it
 // is a hollow box (you see into it) rather than a solid block. Two flaps fold
