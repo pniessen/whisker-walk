@@ -12,15 +12,19 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 export const NARROWS_ZONE = Object.freeze({ minX: -62, maxX: -20, minZ: -18, maxZ: -4 });
 export const NARROWS_FADE = 3; // metres of blend outside the zone
 // Part of rockTerrain's cache key: bump it whenever narrowsTint changes.
-export const NARROWS_TINT_KEY = 'narrows-1';
+export const NARROWS_TINT_KEY = 'narrows-2';
 
 const SEED = seedFromCode('gorge-rock'); // the rock's own seed, so the bands match its shelves
 const FOOT = new THREE.Color(0x8a7560); // warm umber at the wall foot
 const CREST = new THREE.Color(0xd9b98c); // sunlit sandstone near the top
 const SUN = new THREE.Color(0xf2d29a); // the rim's light
-// Per band (mod 3): rust, cream, ochre.
-const HUES = [[1.08, 0.94, 0.84], [1.04, 1.02, 0.96], [1.06, 1.0, 0.86]];
-const BAND_SHADE = 0.14;
+// Per band (mod 3): rust, cream, ochre, each with its own shade (darker,
+// lighter, between) so two neighbouring 1.1 m bands always read apart; a
+// little seeded noise on top keeps the repeat from showing.
+const HUES = [[1.18, 0.88, 0.74], [1.03, 1.04, 1.02], [1.12, 1.0, 0.72]];
+const BAND_LEVEL = [-1, 1, -0.1];
+const BAND_SHADE = 0.22;
+const BAND_NOISE = 0.15; // of BAND_SHADE
 const RECESS_DARK = 0.3;
 const RIM_LIFT = 0.28;
 const RIM_SUN = 0.25;
@@ -61,8 +65,10 @@ export function narrowsTint(x, y, z, rgb, recess) {
   const top = localTop(x, z);
   const t = top > 0 ? clamp01(y / top) ** 0.8 : 0;
   const band = strataBand(x, y, z, SEED);
-  const hue = HUES[((band % 3) + 3) % 3];
-  const shade = (1 + BAND_SHADE * (2 * noise3(band, 0, 0, SEED + 5) - 1))
+  const b3 = ((band % 3) + 3) % 3;
+  const hue = HUES[b3];
+  const level = (1 - BAND_NOISE) * BAND_LEVEL[b3] + BAND_NOISE * (2 * noise3(band, 0, 0, SEED + 5) - 1);
+  const shade = (1 + BAND_SHADE * level)
     * (1 - RECESS_DARK * clamp01(recess / RELIEF_DEPTH));
   // No mass near (a lip out on the floor): no rim to light.
   const rim = top > 0 ? smoothstep(top - 1.6, top - 0.2, y) : 0;

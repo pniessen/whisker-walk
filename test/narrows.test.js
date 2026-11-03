@@ -46,23 +46,31 @@ describe('the Narrows tint', () => {
     expect(r - bl).toBeGreaterThanOrEqual(0.08);
   });
 
-  it('neighbouring strata differ', () => {
-    // Raw mean luminance per band, walking up the wall at (-30, -16); the
-    // first two consecutive bands found are compared.
-    const byBand = new Map();
-    for (let i = 2; i <= 86; i++) {
-      const y = i / 10;
-      const band = strataBand(-30, y, -16, SEED);
-      if (!byBand.has(band)) byBand.set(band, []);
-      byBand.get(band).push(lum(narrowsTint(-30, y, -16, [0.5, 0.5, 0.5], 0)));
+  it('neighbouring strata differ at every band boundary', () => {
+    // Walking up both walls at several x, the luminance step across each
+    // band boundary (3 cm either side): every one at least 10%, the median
+    // at least 15%, so neighbouring 1.1 m bands always read apart.
+    const steps = [];
+    const rgb = [0.55, 0.5, 0.45];
+    for (let x = -22; x >= -46; x -= 4) {
+      for (const z of [-16, -6]) {
+        const top = localTop(x, z);
+        let prev = strataBand(x, 0.2, z, SEED);
+        for (let i = 21; i / 100 < top - 0.2; i++) {
+          const y = i / 100;
+          const band = strataBand(x, y, z, SEED);
+          if (band === prev) continue;
+          prev = band;
+          const lo = lum(narrowsTint(x, y - 0.03, z, rgb, 0));
+          const hi = lum(narrowsTint(x, y + 0.03, z, rgb, 0));
+          steps.push(Math.abs(hi - lo) / Math.max(hi, lo));
+        }
+      }
     }
-    const bands = [...byBand.keys()].sort((p, q) => p - q);
-    const k = bands.findIndex((band, i) => i > 0 && bands[i - 1] === band - 1);
-    expect(k).toBeGreaterThan(0);
-    const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
-    const lo = mean(byBand.get(bands[k - 1]));
-    const hi = mean(byBand.get(bands[k]));
-    expect(Math.abs(hi - lo) / Math.max(hi, lo)).toBeGreaterThanOrEqual(0.06);
+    expect(steps.length).toBeGreaterThan(50);
+    steps.sort((p, q) => p - q);
+    expect(steps[0]).toBeGreaterThanOrEqual(0.1);
+    expect(steps[steps.length >> 1]).toBeGreaterThanOrEqual(0.15);
   });
 
   it('the rim is lit', () => {
