@@ -1,6 +1,6 @@
 import { describe, it, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createHud, MAX_TOASTS } from '../src/ui/hud.js';
+import { createHud, discoveryText, MAX_TOASTS, MIN_SHOWN_MS, MAX_QUEUED_TOASTS } from '../src/ui/hud.js';
 import { bus } from '../src/events.js';
 
 // The project has no DOM environment (no jsdom/happy-dom); like den.test.js and
@@ -205,8 +205,38 @@ describe('the discovery toast', () => {
   });
 });
 
-// polish-hud2 (R2, R3): at most two toasts on screen, the oldest retired at
-// once with a short fade; a burst of critters folds into one counting toast.
+describe('discovery lead words (polish-hud2)', () => {
+  it('goals, the race finish, the jackpot and duo goals read as their own lines', () => {
+    expect(discoveryText({ type: 'goal', label: 'goal complete: Spot 4 critters' })).toBe('Goal complete: Spot 4 critters');
+    expect(discoveryText({ type: 'goal', label: 'the daily zoomies race' })).toBe('You finished the daily zoomies race');
+    expect(discoveryText({ type: 'goal', label: 'the climb to the clifftop' })).toBe('You finished the climb to the clifftop');
+    expect(discoveryText({ type: 'jackpot', label: 'ALL GOALS COMPLETE! 🎯' })).toBe('ALL GOALS COMPLETE! 🎯');
+    expect(discoveryText({ type: 'duogoal', label: 'a goal completed TOGETHER! 🤝' })).toBe('A goal completed TOGETHER! 🤝');
+  });
+  it('everything else still leads with "You spotted" / "Again —", and an intruder stands alone', () => {
+    expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: false })).toBe('You spotted a lost marble');
+    expect(discoveryText({ type: 'treasure', label: 'a lost marble', repeat: true })).toBe('Again — a lost marble');
+    expect(discoveryText({ type: 'intruder', label: 'You chased off Mossjaw! 🛡️' })).toBe('You chased off Mossjaw! 🛡️');
+  });
+  it('the listener uses them', () => {
+    vi.useFakeTimers();
+    try {
+      const hud = createHud();
+      const toast = vi.spyOn(hud, 'toast');
+      bus.emit('discovery', { type: 'goal', key: 'goal-1', label: 'goal complete: Spot 4 critters', points: 15, repeat: false });
+      expect(toast).toHaveBeenLastCalledWith('Goal complete: Spot 4 critters', 15);
+      bus.emit('discovery', { type: 'duogoal', key: 'd', label: 'a goal completed TOGETHER! 🤝', points: 10, repeat: false });
+      expect(toast).toHaveBeenLastCalledWith('A goal completed TOGETHER! 🤝', 10);
+    } finally {
+      vi.runAllTimers();
+      vi.useRealTimers();
+    }
+  });
+});
+
+// polish-hud2 (R2, R3): at most two toasts on screen; lines past that wait and
+// show as the oldest fades (each read for at least 1.2 s); a burst of critters
+// folds into one counting toast.
 describe('toast cap and merge', () => {
   const box = () => byId.get('hud-toasts');
   const texts = () => box().children.map((c) => c.textContent);
@@ -215,21 +245,118 @@ describe('toast cap and merge', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.runAllTimers(); vi.useRealTimers(); });
 
-  it('keeps at most two on screen, retiring the oldest first', () => {
+  // Every toast's on-screen life: when it appeared and when it began to fade.
+  // Watches the box after every tick of fake time.
+  const watch = () => {
+    const seen = new Map();
+    let maxShown = 0;
+    const look = () => {
+      const now = Date.now();
+      let shown = 0;
+      for (const c of box().children) {
+        if (!seen.has(c)) seen.set(c, { text: c.textContent, at: now, fadeAt: null });
+        const s = seen.get(c);
+        s.text = c.textContent;
+        if (c.cls.has('fade')) { if (s.fadeAt === null) s.fadeAt = now; } else shown += 1;
+      }
+      maxShown = Math.max(maxShown, shown);
+    };
+    look();
+    return {
+      run(ms) { for (let i = 0; i < ms; i++) { vi.advanceTimersByTime(1); look(); } },
+      get all() { return [...seen.values()]; },
+      get maxShown() { return maxShown; },
+    };
+  };
+
+  it('keeps at most two on screen; a third waits, then shows as the oldest fades at 1.2 s', () => {
     const hud = createHud();
     expect(MAX_TOASTS).toBe(2);
+    expect(MIN_SHOWN_MS).toBe(1200);
     hud.toast('one', 1);
     hud.toast('two', 2);
-    const first = box().children[0];
     hud.toast('three', 3);
-    expect(first.cls.has('fade')).toBe(true); // at once
-    expect(box().children[1].cls.has('fade')).toBe(false);
-    expect(box().children[2].cls.has('fade')).toBe(false);
+    expect(texts()).toEqual(['one  +1 🐾', 'two  +2 🐾']); // "three" waits
+    expect(box().children.some((c) => c.cls.has('fade'))).toBe(false);
+    vi.advanceTimersByTime(1199);
+    expect(texts()).toEqual(['one  +1 🐾', 'two  +2 🐾']);
+    vi.advanceTimersByTime(1);
+    expect(box().children[0].cls.has('fade')).toBe(true); // "one" makes room
+    expect(texts()).toEqual(['one  +1 🐾', 'two  +2 🐾', 'three  +3 🐾']);
     vi.advanceTimersByTime(350);
     expect(texts()).toEqual(['two  +2 🐾', 'three  +3 🐾']);
-    hud.toast('four');
-    vi.advanceTimersByTime(350);
-    expect(texts()).toEqual(['three  +3 🐾', 'four']);
+  });
+
+  it('three toasts in one tick each get at least 1.2 s and never more than two show at once', () => {
+    const hud = createHud();
+    hud.toast('You chased off Mossjaw! 🛡️', 12);
+    hud.toast('RANK UP — Brave Paw! 🏆');
+    hud.toast('New move: Pounce');
+    const w = watch();
+    w.run(8000);
+    expect(w.all.map((s) => s.text)).toEqual(['You chased off Mossjaw! 🛡️  +12 🐾', 'RANK UP — Brave Paw! 🏆', 'New move: Pounce']);
+    for (const s of w.all) expect(s.fadeAt - s.at).toBeGreaterThanOrEqual(MIN_SHOWN_MS);
+    expect(w.maxShown).toBe(2);
+    expect(box().children).toHaveLength(0);
+  });
+
+  it('a five-line burst shows all five, in order', () => {
+    const hud = createHud();
+    const lines = ['a', 'b', 'c', 'd', 'e'];
+    for (const l of lines) hud.toast(l);
+    const w = watch();
+    w.run(10000);
+    expect(w.all.map((s) => s.text)).toEqual(lines);
+    const starts = w.all.map((s) => s.at);
+    expect([...starts].sort((x, y) => x - y)).toEqual(starts);
+    for (const s of w.all) expect(s.fadeAt - s.at).toBeGreaterThanOrEqual(MIN_SHOWN_MS);
+    expect(w.maxShown).toBe(2);
+  });
+
+  it('with nothing waiting a toast keeps its full 2.6 s', () => {
+    const hud = createHud();
+    hud.toast('one');
+    hud.toast('two');
+    vi.advanceTimersByTime(2000);
+    expect(box().children.some((c) => c.cls.has('fade'))).toBe(false);
+    vi.advanceTimersByTime(600);
+    expect(box().children.every((c) => c.cls.has('fade'))).toBe(true);
+  });
+
+  it('a line arriving after the oldest has been up 1.2 s retires it at once', () => {
+    const hud = createHud();
+    hud.toast('one');
+    hud.toast('two');
+    vi.advanceTimersByTime(1500);
+    hud.toast('three');
+    expect(box().children[0].cls.has('fade')).toBe(true);
+    expect(texts()).toEqual(['one', 'two', 'three']);
+  });
+
+  it(`at most ${MAX_QUEUED_TOASTS} lines wait; past that the oldest waiting line is dropped`, () => {
+    const hud = createHud();
+    for (let i = 1; i <= 10; i++) hud.toast(`line ${i}`);
+    const w = watch();
+    w.run(20000);
+    // two shown at once, the next two waiting lines dropped, the last six shown
+    expect(w.all.map((s) => s.text)).toEqual(['line 1', 'line 2', 'line 5', 'line 6', 'line 7', 'line 8', 'line 9', 'line 10']);
+  });
+
+  it('a critter folds into a waiting critter line', () => {
+    const hud = createHud();
+    hud.toast('one');
+    hud.toast('two');
+    critter('a songbird');
+    critter('a squirrel', 3);
+    bus.emit('discovery', { type: 'treasure', key: 't', label: 'a lost marble', points: 8, repeat: false });
+    critter('a frog'); // the last waiting line is the marble: a line of its own
+    const w = watch();
+    w.run(10000);
+    expect(w.all.map((s) => s.text).slice(2)).toEqual([
+      'You spotted 2 critters  +8 🐾',
+      'You spotted a lost marble  +8 🐾',
+      'You spotted a frog  +5 🐾',
+    ]);
   });
 
   it('lives 2.6 s, then fades and leaves', () => {
@@ -245,15 +372,15 @@ describe('toast cap and merge', () => {
     expect(box().children).toHaveLength(0);
   });
 
-  it('a retired toast is not touched again by its old timers', () => {
+  it('a toast retired early is not touched again by its old timers', () => {
     const hud = createHud();
     hud.toast('one');
     vi.advanceTimersByTime(1000);
     hud.toast('two');
-    hud.toast('three'); // retires "one"
-    vi.advanceTimersByTime(350);
+    hud.toast('three'); // waits; "one" makes room at 1.2 s
+    vi.advanceTimersByTime(200 + 350);
     expect(texts()).toEqual(['two', 'three']);
-    vi.advanceTimersByTime(1250); // "one"'s old 2.6 s mark
+    vi.advanceTimersByTime(1050); // "one"'s old 2.6 s mark
     expect(texts()).toEqual(['two', 'three']);
     expect(box().children.every((c) => !c.cls.has('fade'))).toBe(true);
   });
@@ -285,8 +412,8 @@ describe('toast cap and merge', () => {
     createHud();
     critter('a songbird');
     bus.emit('discovery', { type: 'flower', key: 'f', label: 'a daisy 🌼', points: 2, repeat: false });
-    critter('a squirrel');
-    vi.advanceTimersByTime(350);
+    critter('a squirrel'); // waits for the songbird's 1.2 s
+    vi.advanceTimersByTime(1200 + 350);
     expect(texts()).toEqual(['You spotted a daisy 🌼  +2 🐾', 'You spotted a squirrel  +5 🐾']);
   });
 
@@ -400,7 +527,7 @@ describe('HUD layout (style.css)', () => {
       expect(rule('.toast.fade')).toMatch(/opacity: 0;\s*transform: translateY\(-6px\)/);
       expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.toast\.fade \{ transform: none; \}/);
     });
-    const top = 'top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 78px); bottom: auto;';
+    const top = 'top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 100px); bottom: auto;\n    flex-direction: column-reverse;';
     const block = (head) => {
       const at = css.indexOf(head);
       return at < 0 ? '' : css.slice(at, css.indexOf('\n}\n', at));
@@ -416,6 +543,11 @@ describe('HUD layout (style.css)', () => {
       expect(b).toContain(top);
       expect(b).toContain('body.touch-mode #hud.fight-asking #hud-toasts');
       expect(b).not.toContain('.hud-toasts');
+    });
+    test('on a phone the left-handed den-shop button steps down clear of the two-line rank', () => {
+      const at = css.indexOf('@media (max-width: 480px) {\n  body.left-handed .hud-den-shop');
+      expect(at).toBeGreaterThan(css.indexOf('body.left-handed .hud-den-shop { right: auto;'));
+      expect(css.slice(at)).toMatch(/^@media \(max-width: 480px\) \{\n  body\.left-handed \.hud-den-shop \{ top: calc\(max\(16px, env\(safe-area-inset-top\)\) \+ 76px\); \}/);
     });
     test('the phone rules come after the touch and landscape toast rules', () => {
       const phone = css.indexOf('@media (pointer: coarse) and (max-width: 480px) and (min-height: 501px)');

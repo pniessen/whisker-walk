@@ -182,9 +182,13 @@ body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-ar
   body.touch-mode .hud-toasts { bottom: calc(165px + env(safe-area-inset-bottom)); }
   body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(210px + env(safe-area-inset-bottom)); }
 }
-/* A phone held upright: the walk toasts move to the top, under the corner map
-   and its caption, and grow downward. The camera keeps the cat mid-screen, so
-   toasts rising from above the action cluster landed right on it. Only the
+/* A phone held upright: the walk toasts move to the top, under the corner map,
+   its caption and the objective pill (which starts at map + 34px and can wrap
+   to two lines, ending near map + 75px: hence + 100px), and grow downward.
+   The column is reversed so the newest toast sits on top and the oldest,
+   which leaves first, at the bottom: nothing hops up when one goes. The
+   camera keeps the cat mid-screen, so toasts rising from above the action
+   cluster landed right on it. Only the
    walk's #hud-toasts moves; the cloud-sync toasts (#cloud-toasts, same class)
    keep their place. Tablets, desktop and landscape keep their bottom anchors.
    The fight rules are matched too, so a fight pill or sheet never pulls them
@@ -193,14 +197,16 @@ body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-ar
   #hud-toasts,
   #hud.fight-asking #hud-toasts,
   #hud.fighting #hud-toasts {
-    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 78px); bottom: auto;
+    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 100px); bottom: auto;
+    flex-direction: column-reverse;
   }
 }
 @media (max-width: 480px) and (min-height: 501px) {
   body.touch-mode #hud-toasts,
   body.touch-mode #hud.fight-asking #hud-toasts,
   body.touch-mode #hud.fighting #hud-toasts {
-    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 78px); bottom: auto;
+    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 100px); bottom: auto;
+    flex-direction: column-reverse;
   }
 }
 .hud-crosshair {
@@ -678,9 +684,9 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
     font-size: 0.75rem; padding: 3px 8px; margin: 0;
     max-width: 100%; overflow: hidden; text-overflow: ellipsis;
   }
-  /* The goals list steps down under the two-line top row (points ~36px with
-     the emoji, 4px gap, rank ~26px: it ends ~66px below the top inset), with
-     ~10px of air. Its three lines then end ~156px down, just above the
+  /* The goals list steps down under the two-line top row (points and rank,
+     4px apart: about 55-66px tall, the taller end with the emoji's line
+     height), with at least ~10px of air. Its three lines then end ~156px down, just above the
      objective (map + 34px = 160px). */
   .hud-goals { top: calc(max(16px, env(safe-area-inset-top)) + 76px); }
   .hud-roster-chip { font-size: 0.68rem; padding: 2px 8px; }
@@ -1324,6 +1330,15 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .hud-den-shop:hover { background: rgba(20,26,38,0.9); }
 /* left-handed mode moves the ⏸ button to the top right */
 body.left-handed .hud-den-shop { right: auto; left: max(16px, env(safe-area-inset-left)); }
+/* On a phone the rank sits on a second line under the points (polish-hud2),
+   so the top row ends about 66px below the top inset and the left-handed
+   button at 64px covered the rank's bottom. It steps down to + 76px, the
+   goals list's phone spot: a den walk has no goals (walk.js, Task 7.2) and
+   no quest objective, so that band is free there. This rule must follow the
+   one above (same selector), so it lives here, not in the phone block. */
+@media (max-width: 480px) {
+  body.left-handed .hud-den-shop { top: calc(max(16px, env(safe-area-inset-top)) + 76px); }
+}
 /* desktop hint: only on a den walk, only with a mouse, only while the pause card is up */
 .den-shop-hint { display: none; }
 @media (hover: hover) and (pointer: fine) {
