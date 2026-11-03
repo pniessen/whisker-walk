@@ -856,12 +856,14 @@ const GROUND_COLOR = GORGE_FLOOR_COLOR;
 // the shoulder is 2 m wide there, its top one crest cell across, so a lifted
 // vertex on its west edge (x 2) tilts the top under the goat. At 0.6 the top
 // stood 0.13 m high at (3, -16.3), at 0.9 0.09 m and at 1.2 0.04 m at (3, -16);
-// 1.4 keeps x 3..7.5 within 0.03 of 14 (test/gorge.test.js).
+// 1.4 keeps x 3..7.5 within 0.03 of 14 (test/gorge.test.js). The east end
+// (7.5, -16) is 0.8: the finer wall grid (ROCK_CELL 1.2) puts a crest vertex
+// near it that 0.6 let lift the top 0.04 m.
 export const GORGE_ROCK_KEEP = Object.freeze([
   { x: 8, z: -12.5, r: 1.0 },
   { x: 3.5, z: -16, r: 1.4 },
   { x: 5.5, z: -16, r: 0.6 },
-  { x: 7.5, z: -16, r: 0.6 },
+  { x: 7.5, z: -16, r: 0.8 },
 ].map(Object.freeze));
 
 // Every cave and den mouth, the camp den's too: no foot boulder is set

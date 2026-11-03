@@ -1128,17 +1128,10 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     }
     return { n, flipped };
   };
-  // One known exception in this build (seed 7), none in the Gorge's own: a
-  // 0.02 m2 fan sliver at the top of eastMass's south wall (z -18), 0.1 m
-  // wide at one end and 1.4 m long, from the crest band's corner at x 13.7
-  // fanned to the row line's (15, 19.6). Its middle vertex sits 0.03 m off
-  // the line through the other two, so the crest jag's 0.095 m difference
-  // in lift over the 0.1 m between x 13.6 and 13.7 turns it. It stands
-  // edge-on in a vertical wall and its neighbours close round it (the open
-  // edges test above). Pinned exactly: a new flip, or this one gone, fails.
-  const KNOWN_FLIPS = [
-    'rockFaces area 0.0200: 13.6,20,-18,13.7,20,-18,15,19.6,-18 -> 13.6,20.383,-17.724,13.7,20.288,-17.728,15,19.6,-18.025',
-  ];
+  // None known. (At the old 1.6 m grid this build had one 0.02 m2 edge-on fan
+  // sliver at the top of eastMass's south wall; the finer wall grid for
+  // polish-gorgerock2 cut it away. A new flip fails.)
+  const KNOWN_FLIPS = [];
   it('no shell triangle flips', () => {
     const { n, flipped } = flipsOf(build({ relief: false }), terrain);
     expect(n).toBeGreaterThan(5000);
@@ -1198,7 +1191,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       expect(t[n], n).toBeLessThanOrEqual(tris(meshes[n]));
     }
     // the whole rock, its dressing included
-    expect(tris(meshes.rockFaces) + tris(meshes.ledgeTops) + tris(meshes.lips)).toBeLessThanOrEqual(16000);
+    expect(tris(meshes.rockFaces) + tris(meshes.ledgeTops) + tris(meshes.lips)).toBeLessThanOrEqual(21500); // finer wall grid for polish-gorgerock2; area cap unchanged
   });
 
   // ROCK_PROUD (Global Constraints): no drawn rock vertex over walkable
@@ -1464,7 +1457,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
 
   it('only exposed rock is drawn, within its triangle cap', () => {
     const rock = meshes.rockFaces;
-    expect(tris(rock)).toBeLessThanOrEqual(15000);
+    expect(tris(rock)).toBeLessThanOrEqual(15500); // finer wall grid for polish-gorgerock2; area cap unchanged
     const pos = rock.geometry.attributes.position;
     for (let i = 0; i < pos.count; i += 3) {
       for (const axis of ['getX', 'getZ']) {

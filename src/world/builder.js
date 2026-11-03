@@ -3826,10 +3826,10 @@ export function toadstools(spots, seed) {
 export const ROCK_LOW = 0x6f6a66;
 export const ROCK_HIGH = 0xc8b496;
 export const LEDGE_COLOR = 0xbca682;
-const ROCK_CELL = 1.6; // side faces (and a top's ring) are cut into steps about this wide
-const ROCK_ROW = 1.4; // and walls into rows at whole multiples of this height
+const ROCK_CELL = 1.2; // side faces (and a top's ring) are cut into steps about this wide (was 1.6; finer for polish-gorgerock2)
+const ROCK_ROW = 1.0; // and walls into rows at whole multiples of this height
 // (CREST_BAND, how deep the cut ring round a rock top is, is the relief's own.)
-const ROW_MIN = 0.35; // a row line this close to a face's foot or top is left out (no slivers)
+const ROW_MIN = 0.3; // a row line this close to a face's foot or top is left out (no slivers)
 const ROCK_STRATA = 0.09; // each strata band is +-9% lighter or darker
 const STRATA_WARM = [1.03, 0.99, 0.95]; // alternate bands tinted warm
 const STRATA_CREAM = [1.01, 1.01, 1.00]; // and cream
