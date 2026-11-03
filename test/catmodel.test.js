@@ -378,10 +378,28 @@ describe('visit prize placement', () => {
     expect(worn.max.y).toBeLessThan(1.1);
     expect(worn.max.y).toBeGreaterThan(bare.max.y);
   });
-  it('candle hat does not rise above the party crown', () => {
-    const hat = boxOfMesh(buildCat('tabby', { ...bareSet, head: 'candlehat' }));
-    const crown = boxOfMesh(buildCat('tabby', { ...bareSet, head: 'partycrown' }));
-    expect(hat.max.y).toBeLessThanOrEqual(crown.max.y + 0.02);
+  // Accessories polish Task 1: the head prizes are one hat mesh each, seated
+  // on the skull (cathats.test.js has the full sweep). The cake and the crown's
+  // points rise over the skull's top but start on it, and stay under the top
+  // hat's top; the laurel lies round the head, all of it under the skull's top.
+  it.each([['partycrown', true], ['leafcrown', false], ['candlehat', true]])('%s is one hat mesh, seated, under the top hat (rises over the skull: %s)', (id, rises) => {
+    const cat = buildCat('tabby', { ...bareSet, head: id });
+    cat.updateMatrixWorld(true);
+    const { head } = cat.userData.parts;
+    const hats = head.children.filter((o) => o.isMesh && o.userData.hat === id);
+    expect(hats).toHaveLength(1);
+    const skullTop = new THREE.Box3().setFromObject(head.children[0]).max.y;
+    const p = hats[0].geometry.attributes.position;
+    let minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < p.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(p, i);
+      v.applyMatrix4(hats[0].matrixWorld);
+      minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
+    }
+    if (rises) expect(maxY).toBeGreaterThan(skullTop);
+    else expect(maxY).toBeLessThan(skullTop);
+    expect(minY).toBeLessThan(skullTop);
+    expect(maxY).toBeLessThanOrEqual(boxOfMesh(buildCat('tabby', { ...bareSet, head: 'tophat' })).max.y);
   });
 });
 
@@ -568,7 +586,7 @@ describe('cat model: shells take the new torso shape (Task 7)', () => {
     for (const breed of ['tabby', 'digit']) for (const st of STATES) {
       const cat = buildCat(breed, { body: 'raincoat' }); animateCat(cat, st, 1.3, 0, false); cat.updateMatrixWorld(true);
       const { body } = cat.userData.parts, shell = shellOf(cat, 0xf2c94e), c = body.getWorldPosition(new THREE.Vector3());
-      const buttons = body.children.filter((m) => m !== shell && m !== cat.userData.parts.underside);
+      const buttons = body.children.filter((m) => m !== shell && m !== cat.userData.parts.underside && !m.userData.hood);
       expect(buttons).toHaveLength(2);
       for (const b of buttons) {
         const bp = b.getWorldPosition(new THREE.Vector3());
@@ -580,50 +598,49 @@ describe('cat model: shells take the new torso shape (Task 7)', () => {
   it('a sweater is one mesh now, not four', () => {
     expect(meshCount(buildCat('tabby', { body: 'sweater' })) - meshCount(buildCat('tabby'))).toBe(1);
   });
-  it.each(['hoodie', 'raincoat'])('%s hood sits on the head where it did', (id) => {
+  // Accessories polish Task 3: the hood lies down on the coat behind the head
+  // (backitems.js buildHood), one mesh on the body, not a ball on the cat.
+  it.each(['hoodie', 'raincoat'])('%s hood lies on the coat behind the head, hung on the body', (id) => {
     const cat = buildCat('tabby', { body: id });
-    const hood = cat.children.find((m) => m.isMesh && m.geometry.type === 'SphereGeometry' && m.geometry.parameters.radius === 0.17);
-    const h = cat.userData.parts.head.position;
-    expect(hood.position.toArray().map((v, i) => (v - h.getComponent(i)) / 1.06)).toEqual([0, 0.08, 0.16].map((v) => expect.closeTo(v, 6)));
+    const hoods = cat.userData.parts.body.children.filter((m) => m.userData.hood);
+    expect(hoods).toHaveLength(1);
+    expect(cat.children.some((m) => m.isMesh && m.geometry.type === 'SphereGeometry' && m.geometry.parameters.radius === 0.17)).toBe(false);
   });
 });
 
 describe('cat model: back items, neck items and collars on the new body (Task 8)', () => {
   const ACCESSORY_DELTA = JSON.parse(fs.readFileSync(new URL('./fixtures/accessory-mesh-delta.json', import.meta.url), 'utf8'));
   const COLOURS = {
-    backpack: [0x3a6ea5], jetpack: [0xb8bcc4, 0xf2822e], wings: [0xf29a8a, 0x9fc9a0], cape: [0xd8303c, 0xf2c14e], confetticape: [0x5b3fa8, 0xf5c518],
+    cape: [0xd8303c, 0xf2c14e], confetticape: [0x5b3fa8, 0xf5c518],
     bandana: [0x3a6ea5], necktie: [0x7a2436], bowtie: [0x2c3e6b], scarf: [0xd6602f], streamerscarf: [0xe0405a, 0xf2c14e, 0x4ec9d4, 0x8a6cf2],
     bell: [0xf2c14e], heart: [0xe0447a],
   };
   const itemMeshes = (cat, hexes) => { const out = []; cat.traverse((o) => { if (o.isMesh && !o.material.vertexColors && hexes.includes(o.material.color.getHex())) out.push(o); }); return out; };
   const posed = (acc, breed = 'tabby') => { const c = buildCat(breed, acc); animateCat(c, 'follow', 0, 0, false); c.updateMatrixWorld(true); return c; };
-  // Each back item's main piece (its largest mesh: the pack, each tank, each
-  // wing) rests on the fur: centre outside it, touching within 2 cm. Its small
-  // parts (nozzles) move rigidly with it: each keeps its old authored offset
-  // from the main piece it hangs on (cat-group frame). The capes left this
-  // list in polish-pose Task 2: a cape is a cloak on the body now, not a
-  // slab with a clasp offset (the next test, and catcape.test.js).
-  const SUB_OFFSET = { jetpack: [0, -0.12, 0.025] };
-  const vol = (m) => { const s = new THREE.Box3().setFromBufferAttribute(m.geometry.attributes.position).getSize(new THREE.Vector3()); return s.x * s.y * s.z; };
-  it.each(['backpack', 'jetpack', 'wings'])('%s rests on the back: main piece touching, not sinking; small parts ride it', (id) => {
+  // Each back item (accessories polish Task 2: backitems.js) is hung on the
+  // body and rests on the back: every vertex is outside the fur, the nearest
+  // touches it (within 2 cm) and the item stands over 5 cm off it. catbackitems.test.js sweeps
+  // them through the poses and over the coats and capes.
+  it.each(['backpack', 'jetpack', 'wings'])('%s rests on the back: on the body, touching, not sinking', (id) => {
     const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id }), { body } = cat.userData.parts;
     const c = body.getWorldPosition(new THREE.Vector3());
-    const meshes = itemMeshes(cat, COLOURS[id]);
-    const big = Math.max(...meshes.map(vol));
-    const mains = meshes.filter((m) => vol(m) > big * 0.999), subs = meshes.filter((m) => !mains.includes(m));
-    expect(mains.length).toBeGreaterThan(0);
-    for (const m of mains) {
-      const b = new THREE.Box3().setFromObject(m), mid = b.getCenter(new THREE.Vector3());
-      const hit = surfaceHit([body], c, mid);
-      expect(mid.distanceTo(c)).toBeGreaterThan(hit.distanceTo(c));      // centre outside the fur
-      expect(b.distanceToPoint(hit)).toBeLessThanOrEqual(0.02);            // and touching it
-    }
-    expect(subs.length).toBe(SUB_OFFSET[id] ? mains.length : 0);
-    const inCat = (m) => cat.worldToLocal(m.getWorldPosition(new THREE.Vector3()));
-    for (const sub of subs) {
-      const p = inCat(sub);
-      const main = mains.map(inCat).sort((a, b) => a.distanceTo(p) - b.distanceTo(p))[0];
-      expect(p.sub(main).toArray()).toEqual(SUB_OFFSET[id].map((v) => expect.closeTo(v, 6)));
+    const meshes = []; body.traverse((m) => { if (m.isMesh && m.userData.backItem === id) meshes.push(m); });
+    expect(meshes.length).toBe(ACCESSORY_DELTA[id]);
+    for (const m of meshes) {
+      // (not the bounding box's centre: the straps wrap round the shoulders)
+      // (the fur alone: surfaceHit would also hit the items hung on the body)
+      const p = m.geometry.attributes.position, v = new THREE.Vector3(), ray = new THREE.Raycaster();
+      let nearest = Infinity, farthest = -Infinity;
+      for (let i = 0; i < p.count; i += 3) {
+        v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld);
+        const d = v.clone().sub(c).normalize();
+        ray.set(c.clone().addScaledVector(d, 3), d.clone().negate());
+        const out = v.distanceTo(c) - ray.intersectObject(body, false)[0].point.distanceTo(c);
+        nearest = Math.min(nearest, out); farthest = Math.max(farthest, out);
+      }
+      expect(nearest).toBeGreaterThanOrEqual(0);                                                 // out of the fur
+      expect(nearest).toBeLessThanOrEqual(0.02);                                                 // and touching it
+      expect(farthest).toBeGreaterThan(0.05);                                                    // standing on it, not painted on
     }
   });
   // A cape (polish-pose Task 2) rests on the back: hung on the torso, its
@@ -699,21 +716,69 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     const bare = posed({}, breed), cat = posed({ [CATALOG.accessories[id].slot]: id }, breed);
     underChin(bare, addedToHead(cat, bare));
   });
-  // The hood bunched at the neck (under a hat) sits at its old head-relative
-  // spot, mostly hidden in the neck fur, never across the face: every vertex of
-  // the roll is below the mouth and behind the nose tip.
-  it.each(['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e]].map(([id, hex]) => [b, id, hex])))('%s: the %s bunched at the neck stays below the mouth and behind the nose', (breed, id, hex) => {
-    const nose = noseBox(posed({}, breed)), cat = posed({ body: id, head: 'tophat' }, breed);
-    const bunch = itemMeshes(cat, [hex]).filter((m) => m.geometry.type === 'TorusGeometry');
-    expect(bunch).toHaveLength(1);
-    const p = bunch[0].geometry.attributes.position;
+  // The hood is always down (accessories polish Task 3), hat or no hat, and
+  // never across the face: on the posed cat every vertex of it is behind the
+  // nose tip, and whatever of it comes forward of the head's centre (the
+  // hoodie's drawstrings on the chest) is below the mouth.
+  it.each(['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => ['hoodie', 'raincoat'].flatMap((id) => [null, 'tophat'].map((hat) => [b, id, hat]))))('%s: the %s hood (hat %s) stays below the mouth and behind the nose', (breed, id, hat) => {
+    const nose = noseBox(posed({}, breed)), cat = posed({ body: id, head: hat }, breed);
+    const head = cat.userData.parts.head.getWorldPosition(new THREE.Vector3());
+    const hoods = []; cat.traverse((o) => { if (o.isMesh && o.userData.hood) hoods.push(o); });
+    expect(hoods).toHaveLength(1);
+    const p = hoods[0].geometry.attributes.position;
     for (let i = 0; i < p.count; i++) {
-      const v = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(bunch[0].matrixWorld);
-      expect(v.y).toBeLessThan(nose.min.y);
+      const v = hoods[0].getVertexPosition(i, new THREE.Vector3()).applyMatrix4(hoods[0].matrixWorld);
       expect(v.z).toBeGreaterThan(nose.min.z);
+      if (v.z < head.z) expect(v.y).toBeLessThan(nose.min.y);
     }
   });
 
+  // Accessories polish Task 4: the collar and the neck pieces ride the neck in
+  // every pose (animator.js fitNeck), and the rings lie square to it (model.js
+  // NECK_RING_TILT, NECK_RING_BACK). Walking, sitting for a pet, perched,
+  // napping, grooming, cross, swiping, scared and rolling, on the cat posed as the game poses it (cat
+  // frame, front is -z): every item's front-most point is behind the posed
+  // nose's tip and below the posed mouth (the nose's bottom), and nothing
+  // pokes forward the way a ring did when it rode the head ("a stick held in
+  // the mouth": its front ran forward under the jaw, 8-14 cm out in front of
+  // the chest). The ring itself stays within 6 cm of the posed chest's front
+  // (the torso's front-most point), its front lower than its back. The
+  // hanging pieces (bell, charms, studs, beads, bandana, tie, streamers,
+  // tails) rest on the chest and are deeper than 6 cm themselves (the bell
+  // alone is 7.6 cm across), so nothing of any item is more than 10 cm out.
+  const NECK_STATES = [['follow', 0.4, 1.5], ['follow', 1.3, 1.5], ['follow', 2.2, 1.5], ['requestPet', 1.3, 0], ['perch', 1.3, 0], ['nap', 1.3, 0], ['groom', 1.3, 0], ['cross', 1.3, 0], ['swipe', 1.3, 0], ['scared', 1.3, 0], ['roll', 1.3, 0]];
+  const NECK_IDS = ['bell', 'sparklecollar', 'studded', 'scarf', 'streamerscarf', 'bandana', 'necktie', 'bowtie'];
+  const _v = new THREE.Vector3();
+  const vertsOf = (meshes, fn) => { for (const m of meshes) { const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i++) fn(m.getVertexPosition(i, _v).applyMatrix4(m.matrixWorld), m); } };
+  const neckReading = (breed, id, state, t, speed) => {
+    const cat = buildCat(breed, { [CATALOG.accessories[id].slot]: id });
+    animateCat(cat, state, t, speed, false); cat.updateMatrixWorld(true);
+    const { head, body, underside } = cat.userData.parts, k = cat.scale.x;
+    const items = [head.userData.collar, ...(head.userData.neckwear ?? [])].filter((o) => o?.parent === head);
+    const meshes = []; for (const o of items) o.traverse((m) => { if (m.isMesh) meshes.push(m); });
+    const rings = meshes.filter((m) => m.geometry.type === 'TorusGeometry');
+    let chest = Infinity; vertsOf([body, underside], (v) => { chest = Math.min(chest, v.z); });
+    let front = null, out = -Infinity;
+    vertsOf(meshes, (v) => { if (!front || v.z < front.z) front = v.clone(); out = Math.max(out, (chest - v.z) / k); });
+    const ring = rings.length ? { front: null, back: null, out: -Infinity } : null;
+    vertsOf(rings, (v) => {
+      if (!ring.front || v.z < ring.front.z) ring.front = v.clone();
+      if (!ring.back || v.z > ring.back.z) ring.back = v.clone();
+      ring.out = Math.max(ring.out, (chest - v.z) / k);
+    });
+    return { nose: noseBox(cat), front, out, ring, k };
+  };
+  it.each(['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => NECK_IDS.map((id) => [b, id])))('%s: the %s stays round the neck in every pose: behind the nose, below the mouth, nothing poking forward', (breed, id) => {
+    for (const [state, t, speed] of NECK_STATES) {
+      const at = `${state} t ${t} speed ${speed}`, r = neckReading(breed, id, state, t, speed);
+      expect(r.front.z, `${at}: behind the nose`).toBeGreaterThan(r.nose.min.z);
+      expect(r.front.y, `${at}: below the mouth`).toBeLessThan(r.nose.min.y);
+      expect(r.out, `${at}: nothing more than 10 cm out in front of the chest`).toBeLessThanOrEqual(0.10);
+      if (!r.ring) continue;
+      expect(r.ring.out, `${at}: the ring within 6 cm of the chest's front`).toBeLessThanOrEqual(0.06);
+      expect(r.ring.front.y, `${at}: the ring's front lower than its back`).toBeLessThan(r.ring.back.y);
+    }
+  }, 120_000);
   // Body refinement, Task 7: on a fluffy cat the neck items rest on the new
   // small bib (NECK_FLUFFY), not floating out where the torus used to be. For
   // each item mesh in front of the ring's centre (as onChest), a ray from the
@@ -764,7 +829,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     expect(meshCount(buildCat('tabby', { [slot]: id })) - meshCount(buildCat('tabby'))).toBeLessThanOrEqual(ACCESSORY_DELTA[id]);
   });
   // kept elsewhere in this file: balloon bunch top < 1.1 and above the bare cat;
-  // candle hat <= party crown + 0.02; Digit wears exactly one collar.
+  // the head prizes are seated hats under the top hat; Digit wears exactly one collar.
 });
 
 // Body refinement, Task 6 (R9): the fluffy cat's ruff is a small bib tucked

@@ -8,8 +8,11 @@ import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
 import { ruffGeometry } from './ruff.js';
 import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
+import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
+import { buildBackItem, buildHood } from './backitems.js';
+import { CAPE, CAPE_SIT, capePoint, capeGeometry } from './cape.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
-import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, CHEST, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
+import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -71,81 +74,57 @@ const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbi
 
 // Cat Couture: palette for the twelve new per-slot accessory items (plus the
 // four re-homed ones, which keep their original colors inline below).
-const HAT_BLACK = 0x1c1c22;        // tophat
-const BEANIE_COLOR = 0xd6602f;     // cozy rust knit
 const NECKTIE_COLOR = 0x7a2436;    // maroon
 const BOWTIE_COLOR = 0x2c3e6b;     // navy
 const SCARF_COLOR = 0xd6602f;      // cozy rust knit, matches beanie
 const HOODIE_COLOR = 0x6a4c93;     // purple hoodie
 const CAPE_COLOR = 0xd8303c;       // superhero red
 const CAPE_ACCENT = 0xf2c14e;      // gold clasp
-// A cape (either) is a cloak (polish-pose Task 2): cloth hung on the torso
-// (capeGeometry, below), with no scale of its own, so it follows every pose as
-// the coats do. It was a 32×40 cm slab behind the rump that read, the owner
-// said, "like a dishtowel draped over the tail". Its grid runs across a (-1 one
-// flank, 0 the spine, +1 the other) and along s (0 the neck edge, 1 the hem):
-// the unit direction's z goes from zFront to zBackAt(a) = zBack + (zBackSide -
-// zBack)·a², short at the spine so the tail comes out from under the hem, long
-// round the haunches; its half-wrap from the top line blends wrapFront (over
-// the shoulders) through wrapMid to wrapBack (the haunch), radians. A point is
-// the torso's own surface there, inflated like a coat (shellInflate) and by
-// `inflate` more, the lower edge pushed out sideways by up to `flare` so it
-// hangs off the flank like cloth. Measured on every preset, full and simple,
-// in every state at t 0.4/1.3/2.2 (and walking at 1.5): the cloth is never
-// nearer the fur than 1.5 cm (nap) nor the ground than 16 cm (the stalk; the
-// sit wears CAPE_SIT, below, which is 15.6 cm up; this cloth was 1.6), and
-// never nearer the tail's root than 4.2 cm (stretch) — a longer spine (zBack)
-// reaches it. The neck edge's spine end lies under the head.
-export const CAPE = Object.freeze({ zFront: -0.8, zBack: 0.68, zBackSide: 0.98, wrapFront: 1.9, wrapMid: 1.85, wrapBack: 1.7, inflate: 1.03, flare: 0.08 });
-// The sit's cloth (polish-pose fix wave): the same cloak with its haunch hem
-// taken up, worn only in the sit (animator.js swaps the geometry; both are
-// built here). The upright sit curls the tail forward round the left haunch
-// on the ground, and the standing hem (zBackSide 0.98, half-wrap 1.7 down the
-// flank, flared) lay over that curl: from behind and above 192 of 464 seen
-// tabby tail vertices were under the cloth, and it came within 0.1 mm of
-// link 2 (it clipped). Here the hem ends further forward round the haunch
-// (zBackSide 0.75) and higher up the flank (wrapBack 1.0 rad). Measured on
-// every preset, full and simple, both sits at t 0..3 every 0.5, from behind
-// and from behind-left at the walk camera's distance: no seen tail vertex is
-// under the cloth (wrapBack 1.1 left Digit's flicking tip 3-5% under it), and
-// the cloth is at least 4.5 cm from every tail vertex (Digit; 5.7 the
-// others). Its lowest point is 15.6 cm off the ground (the standing cloth came to 1.6 in the sit). The
-// neck edge (s 0) is the same, so the clasp does not move; the sitting back
-// is still covered from the shoulders to the hips.
-export const CAPE_SIT = Object.freeze({ ...CAPE, zBackSide: 0.75, wrapBack: 1.0 });
 // The clasp: a gold brooch (radius r, flattened to `flat` through the cloth)
-// on the front of each shoulder, at the neck edge (s 0, a ±a), `lift` off the
-// cloth. Not at the spine: the head hides the neck edge there from every side,
-// and not at the throat, where the collar, its bell or tag and the neck items
-// already are. At a ±0.62 each is outside the head's outline from the front.
-const CAPE_CLASP = Object.freeze({ a: 0.62, r: 0.032, flat: 0.7, lift: 0.012 });
+// on the front of each shoulder, just behind the neck edge (s, a ±a), `lift`
+// off the cloth. Not at the spine: the head hides the neck edge there from
+// every side, and not at the throat, where the collar, its bell or tag and
+// the neck items already are. At a ±0.62 each is outside the head's outline
+// from the front. Accessories polish Task 4: at the neck edge itself (s 0) the
+// brooch on the side the torso turns toward sank 5.6-6.7 cm into the chest in
+// the cross (and 4-8 cm in the arch), where the underside counter-yaws to stay
+// under the head (animator.js keepChestUnderHead) and bulges over the
+// shoulder. A fifth of the way back (s 0.2) it clears the chest in every pose
+// (3.5 cm out at the least; s 0.14 cleared the cross but not the arch): on the
+// standing tabby that is 13 cm further back and 7 cm further out along the
+// shoulder, still on its front, still within 3 cm of the fur.
+const CAPE_CLASP = Object.freeze({ a: 0.62, s: 0.2, r: 0.032, flat: 0.7, lift: 0.012 });
 const CAPE_DOTS = [[-0.5, 0.25], [0.3, 0.2], [0.75, 0.45], [-0.15, 0.45], [-0.8, 0.6], [0.45, 0.65], [0.1, 0.8], [-0.45, 0.85]];
-// Where a wing's centre goes in the sit (animator.js rideBody), in the
-// standing torso's frame before it is carried: `out` to the side (× the
-// frame's width), `up` over the torso centre, `z` from it (- is forward).
-// Standing, the wings sit over the rump (z +0.25), which the upright sit puts
-// on the ground; this spot carries to just behind the withers (cat frame
-// y 0.68, z +0.04), each wing 2.3-2.8 cm clear of the fur at its nearest on
-// every preset. Nearer the spine (out 0.14) or lower (up 0.31) the plates cut
-// into the sloping back; further forward they crowd the head.
-const WING_SIT = Object.freeze({ out: 0.18, up: 0.36, z: -0.2 });
-const WING_COLORS = [0xf29a8a, 0x9fc9a0]; // coral / sage, mirrored
 const SNEAKER_WHITE = 0xf2f2f2;
 const SNEAKER_ACCENT = 0xd8303c;
 const RAINBOOT_COLOR = 0x3a6ea5;
 // Wave-2 catalog balance: every slot gets 4 choices
 // `tag` is not in the shop: it is the built-in collar of a cat whose STYLE row
 // sets `tagCollar` — a plain black band with a round silver name tag.
+// The neck rings (collar, cozy scarf, the streamer scarf's band and stripe)
+// lie square to the cat's resting neck, which leans ~19° forward of upright
+// from the chest to the head (animator.js fitNeck): front low at the throat,
+// back high at the nape. They were tilted the other way (front up 0.32-0.35),
+// and from the side the ring's front ran forward under the jaw like a stick
+// held in the mouth, with the bell or tag dangling 10 cm below it
+// (accessories polish Task 4). Hagrid's rings are re-set round his own neck
+// (ringTheNeck; the chicken's collar ring is zeroed), so he never reads this.
+const NECK_RING_TILT = 0.33;
+// ...and set back (+z, head frame) so the ring's front lies on the throat
+// rather than 8-10 cm out in the air ahead of it: the collar's ring and the
+// scarf's and streamer scarf's bands. The scarf's tail and the streamers stay
+// where they hung; the collar's charm (bell, heart, tag, sparkle star) hangs
+// just under the ring's front, on the chest (COLLAR_CHARM, head frame less
+// the collar's seat).
+const COLLAR_CHARM = [0, -0.095, -0.10];
+const NECK_RING_BACK = { collar: 0.065, scarf: 0.085, streamer: 0.1 };
 const COLLAR_COLORS = { glow: 0x7ef2c0, heart: 0xf27ab0, studded: 0x2c2c34, tag: 0x1c1c22, sparklecollar: 0x8a5cf0 }; // default red below
 const TAG_SILVER = 0xc8ccd4;
 const HEART_CHARM = 0xe0447a;
-const WIZARD_COLOR = 0x4a3b8c;
 const RAINCOAT_COLOR = 0xf2c94e;
 const SWEATER_BASE = 0x2c6e63;
 const SWEATER_STRIPE = 0xf2ead9;
 const SWEATER_STRIPE_Z = [-0.324, 0.093, 0.509]; // the old rings' centres, legacy unit z
-const JETPACK_SILVER = 0xb8bcc4;
-const JETPACK_FLAME = 0xf2822e;
 const BALLOON_COLOR = 0xf25c8a;
 // Visit prizes (src/visits.js): bright and a little magical, so they read as
 // earned rather than bought.
@@ -163,6 +142,10 @@ const PRIZE_BALLOONS = [0xf25c8a, 0x4ec9d4, 0xf2c14e];
 const PRIZE_STREAMERS = [0xe0405a, 0xf2c14e, 0x4ec9d4, 0x8a6cf2];
 const SOCK_COLORS = [0xf27ab0, 0x7ec9b8, 0xf2c14e, 0xf5f5f5]; // mismatched on purpose
 
+// The cape's cloth lives in cape.js (a leaf module, so backitems.js can read
+// it without importing this file); re-exported for existing imports.
+export { CAPE, CAPE_SIT, capePoint, capeGeometry };
+
 const mat = (color) => litMaterial(color);
 
 // Wave 6. The default segment counts for the LARGE forms only — every small
@@ -178,46 +161,6 @@ const mat = (color) => litMaterial(color);
 // segments in a close-up, for no extra mesh and no extra draw call.
 const BALL_W = 16;
 const BALL_H = 12;
-
-// The cape's point at (a, s): a across (-1 one flank, 0 the spine, +1 the
-// other), s along (0 the neck edge, 1 the hem). Body-local, before the body's
-// scale (the frame of the torso's own geometry). See CAPE.
-const capeSmooth = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
-export function capePoint(a, s, out = new THREE.Vector3(), C = CAPE) {
-  const wrap = s < 0.5
-    ? C.wrapFront + (C.wrapMid - C.wrapFront) * capeSmooth(0, 0.5, s)
-    : C.wrapMid + (C.wrapBack - C.wrapMid) * capeSmooth(0.5, 1, s);
-  const zBackAt = C.zBack + (C.zBackSide - C.zBack) * a * a;
-  const uz = C.zFront + (zBackAt - C.zFront) * s;
-  const r = Math.sqrt(1 - uz * uz), phi = a * wrap;
-  const dx = r * Math.sin(phi), dy = r * Math.cos(phi);
-  const [x, y, z] = deformTorso(dx, dy, uz);
-  const k = TORSO.R * shellInflate(dy) * C.inflate;
-  out.set(x * k, y * k, z * k);
-  out.x += Math.sign(dx) * C.flare * capeSmooth(0.3, -0.2, dy);
-  return out;
-}
-
-// The cape's cloth: a grid of (a, s), 24×20 (12×10 simple), double-sided.
-export function capeGeometry(simple, C = CAPE) {
-  const [na, ns] = simple ? [12, 10] : [24, 20];
-  const pos = new Float32Array((na + 1) * (ns + 1) * 3), idx = [], p = new THREE.Vector3();
-  for (let j = 0; j <= ns; j++) {
-    for (let i = 0; i <= na; i++) {
-      capePoint(-1 + (2 * i) / na, j / ns, p, C);
-      p.toArray(pos, (j * (na + 1) + i) * 3);
-      if (i < na && j < ns) {
-        const q = j * (na + 1) + i, r = q + na + 1;
-        idx.push(q, r, q + 1, q + 1, r, r + 1);
-      }
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setIndex(idx);
-  geo.computeVertexNormals();
-  return geo;
-}
 
 function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = BALL_W, hSeg = BALL_H) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(r, wSeg, hSeg), mat(color));
@@ -415,7 +358,8 @@ function dirOn(point, centre, scale) {
 function buildCollar(style, ringR, tubeR, charmPos) {
   const group = new THREE.Group();
   const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, tubeR, 6, 12), mat(COLLAR_COLORS[style] ?? 0xd84040));
-  ring.rotation.x = Math.PI / 2 + 0.32;
+  ring.rotation.x = Math.PI / 2 - NECK_RING_TILT;
+  ring.name = 'collarRing';
   group.add(ring);
   if (style === 'bell') {
     const bell = ball(tubeR * 1.35, 0xf2c14e, 1, 1, 1, 8, 6);
@@ -576,16 +520,16 @@ function addPrizeFace(head, id, { k, x, y, z, starZ, skull }) {
   }
 }
 
-function addPrizeNeck(head, id, { k, y, z, ringR }) {
+function addPrizeNeck(head, id, { k, y, z, ringR, ringBack = 0 }) {
   if (id === 'streamerscarf') {
     // a fat red wrap with a gold stripe, and four fanned streamers hanging at the front
     const band = new THREE.Mesh(new THREE.TorusGeometry(ringR, 0.05 * k, 6, 12), mat(PRIZE_STREAMERS[0]));
-    band.rotation.x = Math.PI / 2 + 0.35;
-    band.position.set(0, y, z);
+    band.rotation.x = Math.PI / 2 - NECK_RING_TILT;
+    band.position.set(0, y, z + ringBack);
     head.add(band);
     const stripe = new THREE.Mesh(new THREE.TorusGeometry(ringR + 0.02 * k, 0.018 * k, 5, 12), mat(PRIZE_STREAMERS[1]));
-    stripe.rotation.x = Math.PI / 2 + 0.35;
-    stripe.position.set(0, y + 0.02 * k, z);
+    stripe.rotation.x = Math.PI / 2 - NECK_RING_TILT;
+    stripe.position.set(0, y + 0.02 * k, z + ringBack);
     head.add(stripe);
     for (let i = 0; i < 4; i++) {
       const tail = new THREE.Mesh(new THREE.BoxGeometry(0.055 * k, 0.22 * k, 0.014 * k), mat(PRIZE_STREAMERS[i]));
@@ -733,12 +677,13 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     const q = new THREE.Quaternion().setFromUnitVectors(_Z, axis);
     const charm = front.clone().multiplyScalar(0.17).addScaledVector(axis, 0.01).applyQuaternion(q.clone().invert());
     const collar = buildCollar(accessories.collar, 0.135, 0.024, charm);
-    collar.children[0].rotation.set(0, 0, 0);
+    collar.getObjectByName('collarRing').rotation.set(0, 0, 0);
     // the charms are built facing forward (-z) in the head's frame: undo the
     // ring's turn on each, about the charm's spot, so the tag, star and heart
     // still face forward rather than down the neck
     const qInv = q.clone().invert();
-    for (const piece of collar.children.slice(1)) {
+    for (const piece of collar.children) {
+      if (piece.name === 'collarRing') continue;
       piece.position.sub(charm).applyQuaternion(qInv).add(charm);
       piece.quaternion.premultiply(qInv);
     }
@@ -1000,17 +945,12 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const BODY_R = TORSO.R;
   const [fx, fy, fz] = s.body ?? [1, 1, 1];
   const BODY_SCALE = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
-  // A back-slot point authored on the old torso, re-placed on the new one at
-  // the same distance from the fur (torso.js torsoRetarget). An item's main
-  // piece is never left sunk in the fur (BACK_MIN_RHO); its small parts keep
-  // their old offsets from it (`from`).
+  // A balloon's tie, authored on the old torso, re-placed on the new one at
+  // the same distance from the fur (torso.js torsoRetarget).
   const onBack = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz]);
-  const onBackMain = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz], BACK_MIN_RHO);
-  const from = (main, dx, dy, dz) => [main[0] + dx, main[1] + dy, main[2] + dz];
   // Neck items, the neck prize and the collar sit NECK_FORWARD ahead of where
   // they sat on the old torso. A fluffy cat's rest on its small bib, at a
-  // tabby's spot (NECK_FLUFFY). (Not the hood bunch:
-  // see HOOD_BUNCH_DROP.)
+  // tabby's spot (NECK_FLUFFY).
   const neckZ = NECK_FORWARD + (s.fluffy ? NECK_FLUFFY.forward : 0);
   const neckY = s.fluffy ? -NECK_FLUFFY.drop : 0;
   // The coat is painted into the torso's vertex colours (coat.js): tabby
@@ -1292,49 +1232,21 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // the accessory replaces the built-in one rather than stacking on it.
   const collarStyle = accessories.collar ?? (s.tagCollar ? 'tag' : null);
   if (collarStyle) {
-    const collar = buildCollar(collarStyle, 0.15, 0.028, new THREE.Vector3(0, -0.06, -0.12));
+    const collar = buildCollar(collarStyle, 0.15, 0.028, new THREE.Vector3(...COLLAR_CHARM));
+    collar.getObjectByName('collarRing').position.z = NECK_RING_BACK.collar;
     collar.position.set(0, -0.14 + neckY, 0.1 + neckZ);
     collar.name = 'collar';
     head.add(collar);
-    // The animator moves it onto the neck in a pose that drops the head
-    // forward of the chest (animator.js COLLAR_ON_NECK).
+    // The animator carries it on the neck in every pose (animator.js
+    // fitNeck; on the head as built in the stretch and the swim).
     head.userData.collar = collar;
   }
 
-  // head: above the skull, hats sit between the ears
-  if (accessories.head === 'crown') {
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2;
-      const petal = ball(0.026, [0xf2a0c0, 0xf2e04e, 0xffffff][i % 3], 1, 1, 1, 5, 4);
-      petal.position.set(Math.cos(a) * 0.11, 0.24, Math.sin(a) * 0.07);
-      head.add(petal);
-    }
-  } else if (accessories.head === 'tophat') {
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.02, 10), mat(HAT_BLACK));
-    brim.position.set(0, 0.23, 0);
-    head.add(brim);
-    const crownPart = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.14, 10), mat(HAT_BLACK));
-    crownPart.position.set(0, 0.3, 0);
-    head.add(crownPart);
-  } else if (accessories.head === 'beanie') {
-    const cap = ball(0.14, BEANIE_COLOR, 1, 0.65, 1, 8, 6);
-    cap.position.set(0, 0.25, 0);
-    head.add(cap);
-    const pompom = ball(0.032, 0xf5f5f5, 1, 1, 1, 6, 5);
-    pompom.position.set(0, 0.35, 0);
-    head.add(pompom);
-  } else if (accessories.head === 'wizard') {
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 10), mat(WIZARD_COLOR));
-    brim.position.set(0, 0.23, 0);
-    head.add(brim);
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.26, 10), mat(WIZARD_COLOR));
-    cone.position.set(0, 0.36, 0);
-    cone.rotation.z = 0.12;
-    head.add(cone);
-    const star = ball(0.022, CAPE_ACCENT, 1, 1, 0.5, 5, 4);
-    star.position.set(0.05, 0.31, -0.075);
-    head.add(star);
-  }
+  // head: every hat is one vertex-coloured mesh seated ON the skull, its
+  // brim or band draped over the head with the ears poking through (hats.js;
+  // accessories polish Task 1 — they used to float 4-5 cm over the head).
+  const hat = buildHat(accessories.head, { simple: opts.simple });
+  if (hat) head.add(hat);
 
   // face: eye level — thick frames, a faint tinted lens and a glint, the
   // rims just in front of the eyes (glasses.js; polish-catlooks 2026-11-02:
@@ -1369,9 +1281,12 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const neckwear = [];
   let neckFrom = head.children.length;
   if (accessories.neck === 'bandana') {
+    // a flat face to the front, its third corner tucked back into the neck
+    // (accessories polish Task 4: with the corner forward, a head turned to
+    // groom left it poking out past the nose like a little flag)
     const tri = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.17, 3), mat(0x3a6ea5));
-    tri.rotation.x = Math.PI;
-    tri.position.set(0, -0.18 + neckY, 0.02 + neckZ);
+    tri.rotation.set(Math.PI, Math.PI, 0);
+    tri.position.set(0, -0.18 + neckY, 0.03 + neckZ);
     head.add(tri);
   } else if (accessories.neck === 'necktie') {
     const knot = ball(0.028, NECKTIE_COLOR, 1, 0.8, 0.8, 6, 5);
@@ -1393,22 +1308,25 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
   } else if (accessories.neck === 'scarf') {
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.035, 6, 12), mat(SCARF_COLOR));
-    band.rotation.x = Math.PI / 2 + 0.35;
-    band.position.set(0, -0.15 + neckY, 0.08 + neckZ);
+    band.rotation.x = Math.PI / 2 - NECK_RING_TILT;
+    band.position.set(0, -0.15 + neckY, 0.08 + neckZ + NECK_RING_BACK.scarf);
     head.add(band);
+    // the tail hangs from the band's front down the chest, leaning back with
+    // it (accessories polish Task 4: it hung straight down 6 cm further back,
+    // inside the chest with only its foot showing below it)
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.02), mat(SCARF_COLOR));
-    tail.position.set(0.06, -0.28 + neckY, 0.1 + neckZ);
-    tail.rotation.z = 0.15;
+    tail.position.set(0.06, -0.28 + neckY, 0.04 + neckZ);
+    tail.rotation.set(-0.38, 0, 0.15);
     head.add(tail);
   }
 
   neckwear.push(...head.children.slice(neckFrom));
 
-  // visit prizes (collar prizes go through buildCollar above)
-  addPrizeHead(head, accessories.head, { k: 1, y: 0.24, rx: 0.11, rz: 0.07 });
+  // visit prizes (collar prizes go through buildCollar above; the head
+  // prizes are hats now, built above)
   addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
   neckFrom = head.children.length;
-  addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15 + neckY, z: 0.08 + neckZ, ringR: 0.15 });
+  addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15 + neckY, z: 0.08 + neckZ, ringR: 0.15, ringBack: NECK_RING_BACK.streamer });
   neckwear.push(...head.children.slice(neckFrom));
   if (neckwear.length) head.userData.neckwear = neckwear;
 
@@ -1417,21 +1335,18 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // the back than under the belly), hung on the torso with no scale of their
   // own: they take its BODY_SCALE, so a narrow cat's coat is narrow too, and
   // follow every pose. The capes are cloth cut from the same surface and hung
-  // on the torso the same way (CAPE, polish-pose Task 2). The hood and bunch
-  // sit relative to the head.
-  const hoodItems = [];
-  // Everything the back slot hangs on g (backpack, wings, jetpack tanks and
-  // nozzles) is tagged userData.ridesBody below: animator.js carries them on
-  // the posed torso in the sit (polish-sit Task 3, ruling R4). Not the hood
-  // items (added after), not the shells, buttons, capes and clasps (they hang
-  // on the body), and not the balloons: they float (polish-pose Task 3, ruling
-  // P3). Each balloon piece remembers its tie (userData.float.tie, cat frame,
-  // where its string is tied on the back) and each string its knot end and
+  // on the torso the same way (CAPE, polish-pose Task 2). The hood lies on
+  // the coat at the withers (hoodOn, below).
+  // The back slot hangs only the balloons on g: they float (polish-pose
+  // Task 3, ruling P3). (The backpack, wings and jetpack once hung here too,
+  // tagged userData.ridesBody and carried on the posed torso in the sit; since
+  // accessories polish Task 2 they hang on the body, backitems.js.) Each
+  // balloon piece remembers its tie (userData.float.tie, cat frame, where its
+  // string is tied on the back) and each string its knot end and
   // built length (userData.span); animator.js floatBalloons carries the tie on
   // the posed torso in every state, keeps the balloons and the knot upright at
   // their built height unless the tie rises, and stretches each string from
   // the tie to its knot end.
-  const ridersFrom = g.children.length;
   const floatOn = (piece, tie) => {
     piece.userData.float = { tie: tie.toArray() };
     g.add(piece);
@@ -1446,7 +1361,6 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     string.userData.span = { top: top.toArray(), len };
     return floatOn(string, tie);
   };
-  const headRel = (dx, dy, dz) => [HEAD.POS[0] + dx * HEAD.SCALE, HEAD.POS[1] + dy * HEAD.SCALE, HEAD.POS[2] + dz * HEAD.SCALE];
   const coatShell = (color, paint) => {
     // A full shell is 32×32 (the torso itself is 40×40; the simple shell uses
     // the torso's simple grid), fine enough that the shell does not sag
@@ -1474,20 +1388,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     body.add(shell);
     return shell;
   };
-  const hoodOrBunch = (color) => {
-    // hood-up/hood-down rule: a hat needs the head clear, so the hood only
-    // goes up when no head item is equipped — otherwise it bunches at the neck.
-    if (!accessories.head) {
-      const hood = ball(0.17, color, 1, 1, 0.9, 8, 6);
-      hood.position.set(...headRel(0, 0.08, 0.16));
-      hoodItems.push(hood);
-    } else {
-      const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(color));
-      bunch.rotation.x = Math.PI / 2 + 0.3;
-      bunch.position.set(...headRel(0, -0.06 - HOOD_BUNCH_DROP, 0.08));   // see HOOD_BUNCH_DROP
-      hoodItems.push(bunch);
-    }
-  };
+  // The hood is always DOWN, hat or no hat (accessories polish Task 3): a
+  // soft scoop lying on the coat at the withers behind the head, with the
+  // hoodie's drawstrings down the chest, ONE mesh on the body (backitems.js
+  // buildHood), so it follows every pose with the coat.
+  // With a backpack, jetpack or wings on, the hood presses flat as it slides
+  // back (tuck), under the pack rather than into it.
+  const tuck = accessories.back === 'backpack' || accessories.back === 'jetpack' || accessories.back === 'wings';
+  const hoodOn = (color, drawstrings) => body.add(buildHood(color, { bodyScale: BODY_SCALE, simple: !!opts.simple, drawstrings, tuck }));
   // A cape is a cloak on the body (CAPE): the cloth shell, fastened by a gold
   // brooch on the front of each shoulder (CAPE_CLASP), both in ONE mesh. Small
   // round parts lie ON the cloth (onCape): each is built round in the scaled
@@ -1530,7 +1438,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     cape.userData.cape = true;
     cape.userData.capeGeo = geo;
     body.add(cape);
-    const pins = [-1, 1].map((side) => onCape(new THREE.SphereGeometry(CAPE_CLASP.r, 6, 5).scale(1, 1, CAPE_CLASP.flat), side * CAPE_CLASP.a, 0, CAPE_CLASP.lift));
+    const pins = [-1, 1].map((side) => onCape(new THREE.SphereGeometry(CAPE_CLASP.r, 6, 5).scale(1, 1, CAPE_CLASP.flat), side * CAPE_CLASP.a, CAPE_CLASP.s, CAPE_CLASP.lift));
     const clasp = new THREE.Mesh(mergeGeometries(pins), mat(accent));
     clasp.geometry.computeVertexNormals();
     clasp.userData.capeClasp = true;
@@ -1555,14 +1463,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   };
   if (accessories.body === 'hoodie') {
     coatShell(HOODIE_COLOR);
-    hoodOrBunch(HOODIE_COLOR);
+    hoodOn(HOODIE_COLOR, true);
   } else if (accessories.body === 'cape' || accessories.body === 'confetticape') {
     const prize = accessories.body === 'confetticape';
     capeOn(prize ? PRIZE_CAPE : CAPE_COLOR, prize ? PRIZE_GOLD : CAPE_ACCENT);
     if (prize) confettiOnCape();
   } else if (accessories.body === 'raincoat') {
     coatShell(RAINCOAT_COLOR);
-    hoodOrBunch(RAINCOAT_COLOR);
+    hoodOn(RAINCOAT_COLOR, false);
     for (let i = 0; i < 2; i++) { // toggle buttons down the chest (front is -z)
       // on the shell, in body-local space, so it rides the coat; counter-scaled
       // so the torso's own scale does not squash it
@@ -1578,38 +1486,17 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     coatShell(null, true); // knit stripes are painted: one mesh
   }
 
-  // back: behind the shoulders. Authored on the old torso and re-placed on the
-  // new one by onBack, which also follows a narrower or shallower torso; the
-  // pack slims by fx so 18cm across does not overhang a kitten's back.
-  if (accessories.back === 'backpack') {
-    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.18 * fx, 0.13, 0.1), mat(0x3a6ea5));
-    pack.position.set(...onBackMain(0, 0.56, 0.12));
-    g.add(pack);
-  } else if (accessories.back === 'wings') {
-    for (const side of [-1, 1]) {
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.32, 0.02), mat(WING_COLORS[side === -1 ? 0 : 1]));
-      const at = onBackMain(side * 0.22 * fx, 0.44, 0.3);
-      wing.position.set(...at);
-      // in the sit it stands off the shoulders (WING_SIT): shifted there, then carried
-      const sitAt = [side * WING_SIT.out * fx, TORSO.CENTRE_Y + WING_SIT.up, WING_SIT.z];
-      wing.userData.sitShift = Object.freeze([sitAt[0] - at[0], sitAt[1] - at[1], sitAt[2] - at[2]]);
-      wing.rotation.z = side * 0.5;
-      wing.rotation.y = side * 0.3;
-      g.add(wing);
-    }
-  } else if (accessories.back === 'jetpack') {
-    for (const side of [-1, 1]) {
-      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 8), mat(JETPACK_SILVER));
-      const at = onBackMain(side * 0.07 * fx, 0.52, 0.16);
-      tank.position.set(...at);
-      tank.rotation.x = 0.15;
-      g.add(tank);
-      const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.06, 8), mat(JETPACK_FLAME));
-      nozzle.rotation.x = Math.PI;
-      nozzle.position.set(...from(at, 0, -0.12, 0.025));
-      g.add(nozzle);
-    }
-  } else if (accessories.back === 'balloonbunch') {
+  // back: the backpack, jetpack and wings are shaped things built ON the
+  // torso and hung on the body (backitems.js, accessories polish Task 2), so
+  // they follow every pose; each rests on whatever is outermost on the back —
+  // the cape's cloth, a coat shell or the fur. The balloons (below) float.
+  if (accessories.back === 'backpack' || accessories.back === 'jetpack' || accessories.back === 'wings') {
+    const isCape = accessories.body === 'cape' || accessories.body === 'confetticape';
+    const isShell = accessories.body === 'hoodie' || accessories.body === 'raincoat' || accessories.body === 'sweater';
+    const cover = isCape ? 'cape' : isShell ? 'shell' : 'fur';
+    for (const item of buildBackItem(accessories.back, { bodyScale: BODY_SCALE, cover, simple: !!opts.simple })) body.add(item);
+  }
+  if (accessories.back === 'balloonbunch') {
     // three balloons on three strings tied at one point over the tail; kept
     // under ~y 1.05 so the whole-cat shop thumbnail still frames them. Only
     // the tie moves onto the new back; the balloons keep their heights.
@@ -1635,8 +1522,6 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     floatOn(balloon, foot);
   }
 
-  for (const item of g.children.slice(ridersFrom)) if (!item.userData.float) item.userData.ridesBody = true;
-  for (const item of hoodItems) g.add(item);
 
   // feet: small shells on the paw positions. Cuff and stripe hang from the paw.
   // Every item first swaps the toed foot for today's plain paw (R8), so it

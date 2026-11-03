@@ -10,6 +10,10 @@ import { animateCat } from '../cat/animator.js';
 // sit animateCat gives him (P5).
 export const STAGE_POSE = Object.freeze({ state: 'requestPet', t: 1.3 });
 
+// Trying on a back item (wings, jetpack, backpack) turns the hero so the
+// new thing is in view: the yaw added to the spin angle, in radians.
+export const BACK_TURN = 2.85;
+
 // Skips objects without a rig (the tests' bare groups, anything unbuilt).
 export function defaultPoseCat(cat) {
   if (!cat?.userData?.parts) return;
@@ -128,6 +132,10 @@ export function createCatStage({
   let disposed = false;
   let img = null;
   let bounds = null; // the current cat's spin-proof bounds (measure)
+  let lastBreed = null;
+  let lastSig = null; // the look and scars last shown
+  let lastAcc = null; // the accessories last shown (null before the first show)
+  let turn = 0; // yaw offset on top of the spin angle
   let activeId = null; // the one pointer currently dragging
   const spin = createSpin();
   const stage = { failed: false };
@@ -263,7 +271,7 @@ export function createCatStage({
 
   function draw() {
     if (!renderer || stage.failed) return;
-    if (cat) cat.rotation.y = spin.angle;
+    if (cat) cat.rotation.y = spin.angle + turn;
     renderer.render(scene, camera);
   }
 
@@ -366,7 +374,20 @@ export function createCatStage({
     else cat = scarred ? buildCat(breed, accessories, { scars }) : buildCat(breed, accessories);
     poseCat(cat);
     bounds = look ? lookBounds(cat) : measure(cat);
-    cat.rotation.y = spin.angle;
+    const acc = accessories || {};
+    const sig = JSON.stringify([look || null, scarred ? scars : null]);
+    if (!lastAcc || breed !== lastBreed || sig !== lastSig) {
+      turn = 0;
+    } else {
+      const keys = new Set([...Object.keys(lastAcc), ...Object.keys(acc)]);
+      const changed = [...keys].filter((k) => (lastAcc[k] ?? null) !== (acc[k] ?? null));
+      if (changed.length === 1 && changed[0] === 'back' && acc.back) turn = BACK_TURN;
+      else if (changed.length) turn = 0; // no change at all keeps the turn
+    }
+    lastBreed = breed;
+    lastSig = sig;
+    lastAcc = { ...acc };
+    cat.rotation.y = spin.angle + turn;
     scene.add(cat);
     frameCat();
     if (el && visible) draw();

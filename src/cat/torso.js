@@ -268,8 +268,8 @@ export function torsoUnitAt(dir, out = [0, 0, 0]) {
 // with the same "how far from the fur": its unit-ellipsoid coordinates in
 // LEGACY_BODY (scaled by the cat's body factors f), radius ρ and direction d,
 // land on the new deformed torso at the same ρ along d. `minRho` floors ρ, so
-// an item's main piece that sat sunk in the old fur is pushed out onto the new
-// surface (BACK_MIN_RHO). A point far off the body (ρ > 1.5, e.g. something
+// a point that sat sunk in the old fur can be pushed out onto the new
+// surface. A point far off the body (ρ > 1.5, e.g. something
 // floating) just rises with the torso, 0.09.
 // Returned in the cat group's own frame (g-local, before g.scale and before the
 // leg lift), as [x, y, z].
@@ -283,11 +283,6 @@ export function torsoRetarget(point, f = [1, 1, 1], minRho = 0) {
   const k = TORSO.R * Math.max(rho, minRho);
   return [TORSO.SCALE[0] * f[0] * x * k, TORSO.CENTRE_Y + TORSO.SCALE[1] * f[1] * y * k, TORSO.SCALE[2] * f[2] * z * k];
 }
-
-// The least ρ a back item's main piece (pack, tank, wing, cape) sits at: its
-// centre just outside the fur, so it rests on the back rather than in it. Its
-// small parts (nozzles, clasps) keep their old offsets from it.
-export const BACK_MIN_RHO = 1.04;
 
 // How far the neck-slot items, the visit-prize neck items and the cat's collar
 // move forward (head-local z, front is -z) to lie on the new deeper chest
@@ -308,9 +303,3 @@ export const NECK_FLUFFY = { forward: 0, drop: 0 };
 // radius R scaled by SCALE (x also by the frame's fx), at y CENTRE_Y + DY and
 // z Z·fz, cat frame.
 export const CHEST = Object.freeze({ R: 0.15, SCALE: Object.freeze([1.05, 1.1, 0.9]), DY: 0.06, Z: -0.33 });
-// The hood bunched at the neck (under a hat) keeps its old head-relative spot,
-// HEAD.POS + (0, -0.06, 0.08) x HEAD.SCALE, mostly hidden in the neck fur: no
-// NECK_FORWARD, no NECK_FLUFFY (forward, the roll crossed the face at mouth
-// level). It is lowered by HOOD_BUNCH_DROP (head-local y) so that no part of
-// it reaches above the mouth (the bottom of the nose) on any cat.
-export const HOOD_BUNCH_DROP = 0.08;

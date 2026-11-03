@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG } from './torso.js';
 import { fitScars } from './scarmesh.js';
+import { HOOD, slideHoodTo } from './backitems.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
@@ -57,14 +58,36 @@ const TAIL_HOOK_SIDE = -1; // the cat's left (-x)
 const TAIL_HOOK_X = [0, 0, -0.05, -0.15, -0.2];
 const TAIL_SWAY_DAMP = [0, 0.2, 0.6, 0.8, 0.8];
 
-// Polish 1a, Task 5: the poses in which a worn collar follows the neck instead
-// of the head. The collar hangs on the head (model.js), which is right while
-// the head sits over the chest; the stalk drops the head low and forward of
-// the chest, and a head-locked collar's front then stuck out under the chin as
-// a black rod with the tag dangling in the air. Here the collar keeps its
-// place on the neck instead (fitNeck). The sniff and the pinned pose drop the
-// head the same way to a lesser degree, and do the same (fix wave, polish-5).
-const COLLAR_ON_NECK = new Set(['stalk', 'sniff', 'pinned']);
+// Polish 1a, Task 5 brought a worn collar onto the neck in the stalk (the
+// head dropped low and forward of the chest, and a head-locked collar's front
+// stuck out under the chin as a black rod with the tag dangling in the air);
+// the fix wave (polish-5) did the same for the sniff and the pinned pose.
+// Accessories polish Task 4: the collar and the neck pieces now ride the neck
+// in EVERY pose (fitNeck), so a head that lifts, turns or tucks (the walk, the
+// sit, the nap, the groom) never swings them forward under the jaw. At rest
+// the carry is the identity: the standing cat wears them exactly as built.
+//
+// Two poses fold the cat so the chest-to-head line stops being a neck. The
+// nap squashes the torso until the chest centre sits level with the head and
+// just in front of it (the line swings ~55° back and sideways): turned with
+// it, the streamers, tie and charms stuck straight out forward, and carried
+// at the head's own drop the streamers went 9 cm into the ground. So in the
+// nap they take a little of the neck's turn (0.15) about a point a third of
+// the way from the chest to the head (NECK_FIT: `turn` the share of the turn
+// taken; `anchor` -1 at the chest, 0 at the neck's midpoint, 1 at the head;
+// any other pose takes the neck's own move, { turn: 1, anchor: 0 }). Measured
+// on every preset with each neck item and the full kit at t 0.4/1.3/2.2:
+// clear of the ground (0.2 mm at the least; the head-locked items went 9 mm
+// in), behind the nose and below the mouth. The stretch's play bow drops the
+// head below the chest (~118°): carried, the ring flipped onto the back of
+// the head, and moved without the turn it sank into the head; there they are
+// worn on the head as built (HEAD_NECKWEAR), which reads as a collar round
+// the lowered head. So they are in the swim, which sinks the shoulders and
+// holds the head up out of the water: carried on the neck, Digit's tag collar
+// dipped under the waterline; on the head it stays up with it.
+const NECK_FIT = { nap: { turn: 0.15, anchor: -0.35 } };
+const NECK_FIT_DEFAULT = { turn: 1, anchor: 0 };
+const HEAD_NECKWEAR = new Set(['stretch', 'swim']);
 
 // v20 "Ruffled Fur" — the 'cross' pose.
 //
@@ -180,20 +203,16 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const { underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
-  // The sit carries the back-slot items on the posed torso (below,
-  // rideBody). Each remembers its rest here, before fitLongLegs first moves
-  // it; every other state puts it back there first, so fitLongLegs and the
-  // pose fit move it exactly as they always did.
   const sitting = (state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds;
   // The balloons (userData.float, below: floatBalloons) remember their rest
-  // the same way; they are written outright every frame, so never restored.
+  // here, before fitLongLegs first moves anything; they are written outright
+  // every frame, so never restored.
   for (const item of cat.children) {
-    const { ridesBody, float } = item.userData;
-    if (!ridesBody && !float) continue;
+    if (!item.userData.float) continue;
     item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone(), scale: item.scale.clone() };
-    if (ridesBody && !sitting) restore(item);
   }
   wearCape(cat.userData.parts.body, sitting);
+  flutterWings(cat.userData.parts.body, t, reducedMotion, sitting);
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
   // The stalk's tail root rides the body (STALK_TAIL), once the body is where
@@ -220,11 +239,11 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     _anchor.set(0, root[0] / sy, root[1] / sz).applyMatrix4(body.matrix);
     tail.position.y = _anchor.y;
     tail.position.z = _anchor.z;
-    if (sitting) rideBody(cat);
   }
   // Every state, once the body is where the pose fit left it.
   floatBalloons(cat);
   fitNeck(cat, state);
+  slideHood(cat);
   // Last: a scar rides the head and torso where everything above left them.
   if (cat.userData.parts.scars) fitScars(cat);
 }
@@ -238,6 +257,82 @@ function wearCape(body, sitting) {
   for (let i = 0; i < kids.length; i++) {
     const geo = kids[i].userData.capeGeo;
     if (geo) kids[i].geometry = sitting ? geo.sit : geo.stand;
+  }
+}
+
+// The hood (backitems.js buildHood) slides back along the back when the head
+// comes back over the shoulders or down onto them (the cross cat's drawn-back
+// chin, the pounce's crouch, the nap's head laid on the front of the back):
+// how far it slides (0..1, backitems.js slideHoodTo) is how much nearer the
+// head's centre has come to the hood (userData.hoodRef, the standing hood's
+// spot) than where it rests, less HOOD.still (so the breathing does not
+// shuffle it), over HOOD.slide. Measured in the body's frame at its resting
+// scale, so the body's turn, pitch and squash count as well as
+// the head's move: in the sit the pitched torso takes the hood away from the
+// head and it stays put. Allocates nothing.
+const _hoodV = new THREE.Vector3();
+const _hoodR = new THREE.Vector3();
+const _hoodQ = new THREE.Quaternion();
+function slideHood(cat) {
+  const { body, head } = cat.userData.parts;
+  const { bodyY, bodyScale, headPos } = cat.userData.base ?? CAT_BASE;
+  const kids = body.children;
+  for (let i = 0; i < kids.length; i++) {
+    const hood = kids[i];
+    if (!hood.userData.hood) continue;
+    _hoodR.fromArray(hood.userData.hoodRef);
+    // the resting distance: head and body as pose()'s reset leaves them
+    hood.userData.hoodRest ??= Math.hypot(headPos[0] - _hoodR.x, headPos[1] - bodyY - _hoodR.y, headPos[2] - _hoodR.z);
+    _hoodV.subVectors(head.position, body.position).applyQuaternion(_hoodQ.copy(body.quaternion).invert());
+    _hoodV.set(_hoodV.x / body.scale.x * bodyScale[0], _hoodV.y / body.scale.y * bodyScale[1], _hoodV.z / body.scale.z * bodyScale[2]);
+    const nearer = hood.userData.hoodRest - _hoodV.distanceTo(_hoodR);
+    slideHoodTo(hood, Math.min(1, Math.max(0, (nearer - HOOD.still) / HOOD.slide)));
+  }
+}
+
+// The butterfly wings flutter (accessories polish Task 2): each wing hangs
+// under a pivot on the body (userData.wingPivot, scale 1 / bodyScale), so the
+// pivot's frame is the body-SCALED frame and a turn there is a true rotation.
+// The wing (the pivot's mesh, userData.wing -1 | 1) turns about its hinge
+// (userData.hinge: the root point and the in-plane upright, pivot frame) by
+// side · WING_FLUTTER.amp · sin(t · WING_FLUTTER.rate), the two sides
+// mirrored. At sin 0, and always under reducedMotion, it is exactly as built:
+// its rest (remembered on first use, as restore() reads it) is copied back.
+// In the sit the torso pitches nose-up (SIT.pitch), which tipped the wings
+// back to lie along the sloping back like flaps; there each wing also turns
+// back by WING_FLUTTER.sitStand (all) of the body's pitch about the x axis
+// through its point nearest the back (userData.hinge.low), so it stands as it
+// does standing, and rises WING_FLUTTER.sitLift (1 cm, pivot frame) so that
+// point stays off the sloping sitting back (Digit's dipped 1.4 mm without it).
+// Allocates nothing after the first frame.
+export const WING_FLUTTER = Object.freeze({ amp: 0.12, rate: 3, sitStand: 1, sitLift: 0.01 });
+const _hingeQ = new THREE.Quaternion();
+const _hingeAxis = new THREE.Vector3();
+const _hingeAt = new THREE.Vector3();
+const _standQ = new THREE.Quaternion();
+const _X1 = new THREE.Vector3(1, 0, 0);
+function flutterWings(body, t, reducedMotion, sitting) {
+  const kids = body.children;
+  const stand = sitting ? -WING_FLUTTER.sitStand * body.rotation.x : 0;
+  for (let i = 0; i < kids.length; i++) {
+    if (!kids[i].userData.wingPivot) continue;
+    const w = kids[i].children[0], side = w.userData.wing;
+    const rest = (w.userData.rest ??= { position: w.position.clone(), quaternion: w.quaternion.clone() });
+    const angle = reducedMotion ? 0 : side * WING_FLUTTER.amp * Math.sin(t * WING_FLUTTER.rate);
+    if (angle === 0 && stand === 0) { w.position.copy(rest.position); w.quaternion.copy(rest.quaternion); continue; }
+    const { point, dir, low } = w.userData.hinge;
+    _hingeQ.setFromAxisAngle(_hingeAxis.fromArray(dir), angle);
+    w.quaternion.multiplyQuaternions(_hingeQ, rest.quaternion);
+    _hingeAt.fromArray(point);
+    w.position.copy(rest.position).sub(_hingeAt).applyQuaternion(_hingeQ).add(_hingeAt);
+    if (stand) {
+      // then the sit's stand, about the wing's lowest point (as fluttered)
+      _standQ.setFromAxisAngle(_X1, stand);
+      _hingeAt.fromArray(low).applyQuaternion(w.quaternion).add(w.position);
+      w.quaternion.premultiply(_standQ);
+      w.position.sub(_hingeAt).applyQuaternion(_standQ).add(_hingeAt);
+      w.position.y += WING_FLUTTER.sitLift;
+    }
   }
 }
 
@@ -272,48 +367,18 @@ function rideTail(cat) {
   tail.position.copy(_anchor);
 }
 
-// The sit's back items (polish-sit Task 3, ruling R4). The backpack, wings,
-// jetpack hang on the cat, not on the body (model.js tags them
-// userData.ridesBody), so the upright sit's nose-up pitch (SIT.pitch 0.75)
-// left them floating behind the back. Here each is
-// carried by the posed body: position = bodyPosed · bodyRest⁻¹ · rest (the
-// body's rest being (0, base.bodyY, 0), unrotated, at base.bodyScale), turned
-// by the body's own rotation. Its rest (as built) is remembered by animateCat
-// before anything moves it, which also puts it back in every other state.
-//
-// The wings are the exception (fix round 1): turned with the torso they read
-// as plates drooping down the haunch. They keep their built orientation and
-// only move: a wing (userData.sitShift) goes to its sit spot over the
-// shoulders (model.js WING_SIT), rest + sitShift, carried by the body.
-// The capes no longer ride: since polish-pose Task 2 they are cloth on the
-// body itself (model.js CAPE), so they follow the sit like the coats do.
+// The posed body's carry: _ride = bodyPosed · bodyRest⁻¹, the body's rest
+// being (0, base.bodyY, 0), unrotated, at base.bodyScale (floatBalloons).
 // Allocates nothing.
 const _ride = new THREE.Matrix4();
 const _rideAt = new THREE.Vector3();
 const _rideScale = new THREE.Vector3();
-// _ride = bodyPosed · bodyRest⁻¹ (rideBody and floatBalloons)
 function carryBody(cat) {
   const { body } = cat.userData.parts;
   const { bodyY, bodyScale } = cat.userData.base;
   body.updateMatrix();
   _ride.compose(_rideAt.set(0, bodyY, 0), _noTurn, _rideScale.fromArray(bodyScale)).invert().premultiply(body.matrix);
 }
-function rideBody(cat) {
-  const { body } = cat.userData.parts;
-  carryBody(cat);
-  for (const item of cat.children) {
-    if (!item.userData.ridesBody) continue;
-    const { rest, sitShift } = item.userData;
-    if (sitShift) {
-      item.position.fromArray(sitShift).add(rest.position).applyMatrix4(_ride);
-      item.quaternion.copy(rest.quaternion);
-      continue;
-    }
-    item.position.copy(rest.position).applyMatrix4(_ride);
-    item.quaternion.multiplyQuaternions(body.quaternion, rest.quaternion);
-  }
-}
-
 // The balloons float upright in every pose (polish-pose Task 3, ruling P3).
 // Carried like the sit's back items they leaned back ~45° with the sitting
 // torso, and in the nap the string's tie hung in the air over the lowered
@@ -413,14 +478,20 @@ function dropChest(body, underside) {
   underside.position.add(_c);
 }
 
-// The collar on the neck (COLLAR_ON_NECK). The neck joins the chest (the
-// underside's chestCentre) to the head's centre. Resting, the collar sits on
-// it as built; in a COLLAR_ON_NECK pose it is carried from the resting neck to
-// the posed one: moved with the neck's midpoint and turned as the neck turned
-// (chest-to-head direction), so it keeps its place and tilt on the neck and
-// the tag still hangs at the throat. Everything is in the cat's own frame, then
-// put back into the head's. In any other pose the collar is put back where it
-// was built (its rest, remembered the first time it is moved). Deterministic.
+// The collar on the neck, in every pose (accessories polish Task 4; it was
+// only the stalk, the sniff and the pinned pose before). The neck joins the
+// chest (the underside's chestCentre) to the head's centre. Resting, the
+// collar sits on it as built (model.js NECK_RING_TILT squares its ring to that
+// neck); in any pose it is carried from the resting neck to the posed one:
+// moved with the neck's midpoint and turned as the neck turned (chest-to-head
+// direction), so it keeps its place and tilt on the neck and the tag still
+// hangs at the throat, whatever the head does. Everything is in the cat's own
+// frame, then put back into the head's. At rest (follow, breathing at 0) the
+// carry is the identity. A rig with no underside (Hagrid) has no chest to
+// carry from: his collar is put back where it was built (its rest, remembered
+// the first time it is moved), as always; so is everyone's in the stretch
+// and the swim (HEAD_NECKWEAR). The nap takes a little of the neck's move (NECK_FIT).
+// Deterministic.
 //
 // Fix wave (polish-5): the posed chest is read through the underside
 // (keepChestUnderHead holds it at the unyawed point once the torso yaws, which
@@ -447,17 +518,18 @@ function fitNeck(cat, state) {
   const neckwear = head.userData.neckwear;
   const wearsCollar = collar?.parent === head;
   if (!wearsCollar && !neckwear?.length) return;
-  if (!COLLAR_ON_NECK.has(state) || !cat.userData.parts.underside) {
+  if (!cat.userData.parts.underside || HEAD_NECKWEAR.has(state)) {
     if (wearsCollar) restore(collar);
     if (neckwear) for (const item of neckwear) restore(item);
     return;
   }
-  neckMove(cat);
+  const { turn, anchor } = NECK_FIT[state] ?? NECK_FIT_DEFAULT;
+  neckMove(cat, turn, anchor);
   if (wearsCollar) carry(collar);
   if (neckwear) for (const item of neckwear) carry(item);
 }
 
-// Exported for the tests (a torso yawed under a neck pose): the chest, then the neck.
+// Exported for the tests (a torso yawed under a pose): the chest, then the neck.
 export function refitNeck(cat, state) {
   const { body, underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(body, underside);
@@ -476,10 +548,12 @@ function carry(item) {
   _M.decompose(item.position, item.quaternion, _sc);
 }
 
-// _X = head⁻¹ · T(neck1) · R(turn) · T(-neck0) · H0: the neck's move, in the head's frame
-function neckMove(cat) {
+// _X = head⁻¹ · T(neck1) · R(turn) · T(-neck0) · H0: the neck's move, in the head's frame.
+// NECK_FIT: the turn taken `w` of the way; neck0/neck1 the point (1 + a) / 2 of
+// the way from the chest to the head (a = 0: the neck's midpoint).
+function neckMove(cat, w, a) {
   const { head, body, underside } = cat.userData.parts;
-  const { bodyY, bodyScale: [sx, sy, sz], headPos } = cat.userData.base;
+  const { bodyY, bodyScale: [sx, sy, sz], headPos } = cat.userData.base ?? CAT_BASE;
   const [cx, cy, cz] = underside.userData.chestCentre;
   // the resting neck: head and body as pose()'s reset leaves them
   _h0.fromArray(headPos);
@@ -490,9 +564,10 @@ function neckMove(cat) {
   _n0.subVectors(_h0, _c0).normalize();
   _n1.subVectors(head.position, _c1).normalize();
   _turn.setFromUnitVectors(_n0, _n1);
+  if (w !== 1) _turn.slerp(_noTurn, 1 - w);
   _X.compose(_h0, _noTurn, head.scale);
-  _c0.add(_h0).multiplyScalar(0.5); // neck0
-  _c1.add(head.position).multiplyScalar(0.5); // neck1
+  _c0.lerp(_h0, 0.5 + a / 2); // neck0
+  _c1.lerp(head.position, 0.5 + a / 2); // neck1
   _X.premultiply(_R.makeTranslation(-_c0.x, -_c0.y, -_c0.z));
   _X.premultiply(_R.makeRotationFromQuaternion(_turn));
   _X.premultiply(_R.makeTranslation(_c1.x, _c1.y, _c1.z));
