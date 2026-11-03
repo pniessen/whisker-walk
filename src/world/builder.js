@@ -6,6 +6,7 @@ import { conformTriangles } from './meshconform.js';
 import { withLocalUuids } from './localuuids.js';
 import { makeRustleMaterial } from '../render/rustle.js';
 import { createRockRelief, strataBand, noise3, CREST_BAND, RELIEF_DEPTH } from './rockrelief.js';
+import { smoothNormals } from './rocknormals.js';
 
 const mat = (color) => litMaterial(color);
 
@@ -3826,6 +3827,9 @@ export function toadstools(spots, seed) {
 export const ROCK_LOW = 0x6f6a66;
 export const ROCK_HIGH = 0xc8b496;
 export const LEDGE_COLOR = 0xbca682;
+// Folds sharper than this keep their edge in the rock's shading (a walk top
+// against its wall, a step's corner); gentler ones shade smooth.
+export const ROCK_CREASE = 60;
 const ROCK_CELL = 1.2; // side faces (and a top's ring) are cut into steps about this wide (was 1.6; finer for polish-gorgerock2)
 const ROCK_ROW = 1.0; // and walls into rows at whole multiples of this height
 // (CREST_BAND, how deep the cut ring round a rock top is, is the relief's own.)
@@ -3951,7 +3955,7 @@ export function rockTerrain({
 }
 
 // rockTerrain's arrays: per mesh, positions, colours (rockFaces and lips)
-// and flat normals, and the counts its userData carries.
+// and normals (smooth, creased), and the counts its userData carries.
 function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mouths, tint: recolour }) {
   const groundShapes = [...walks, ...masses];
   const caps = ceilings
@@ -4191,9 +4195,12 @@ function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mou
   // The dressing, appended after the shells (see rockDressing below).
   const dress = dressing
     ? rockDressing({ walks, masses, ceilings, seed, mouths, field: field ?? createRockRelief({ walks, masses, ceilings, seed, keep }), rockColour })
-    : { rock: { pos: [], col: [] }, lip: { pos: [], col: [] }, lipStones: 0, footBoulders: 0 };
+    : { rock: { pos: [], col: [], nor: [] }, lip: { pos: [], col: [], nor: [] }, lipStones: 0, footBoulders: 0 };
 
-  const arraysOf = (verts, coloured, extra = { pos: [], col: [] }) => {
+  // Normals: the shell smooth-shaded, welded by its pre-relief positions and
+  // creased at ROCK_CREASE (so a walk top stays flat against its walls); the
+  // dressing brings its own rounded normals.
+  const arraysOf = (verts, coloured, extra = { pos: [], col: [], nor: [] }) => {
     const n = verts.length * 3;
     const pos = new Float32Array(n + extra.pos.length);
     const col = coloured ? new Float32Array(n + extra.col.length) : null;
@@ -4206,10 +4213,14 @@ function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mou
     });
     pos.set(extra.pos, n);
     if (col) col.set(extra.col, n);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.computeVertexNormals(); // non-indexed: flat, from the moved triangles
-    return { pos, col, nor: geo.attributes.normal.array };
+    const nor = new Float32Array(pos.length);
+    nor.set(smoothNormals(pos.subarray(0, n), verts, ROCK_CREASE));
+    nor.set(extra.nor, n);
+    // The flat normals came from a scratch BufferGeometry, whose uuid drew 4
+    // Math.random numbers; the area builds are pinned to their draw count
+    // (test/waterlooks.test.js BUILD_DRAWS), so the same uuid is still drawn.
+    THREE.MathUtils.generateUUID();
+    return { pos, col, nor };
   };
   return {
     rockFaces: arraysOf(conf.rock, true, dress.rock),
@@ -4270,11 +4281,12 @@ const ICO_FACES = [
 const STONE_FACES = [[0, 2, 6, 4], [1, 3, 7, 5], [0, 1, 5, 4], [2, 3, 7, 6], [0, 1, 3, 2], [4, 5, 7, 6]];
 
 function rockDressing({ walks, masses, ceilings, seed, mouths, field, rockColour }) {
-  const out = { rock: { pos: [], col: [] }, lip: { pos: [], col: [] }, lipStones: 0, footBoulders: 0 };
+  const out = { rock: { pos: [], col: [], nor: [] }, lip: { pos: [], col: [], nor: [] }, lipStones: 0, footBoulders: 0 };
   // A hash in [0, 1) at a whole lattice point.
   const H = (i, j, k, salt) => noise3(i, j, k, seed + salt);
-  // One triangle wound outward of c, coloured as the rock at each vertex's height x shade.
-  const put = (bin, a, p, q, c, shade) => {
+  // One triangle wound outward of c, coloured as the rock at each vertex's
+  // height x shade, each corner's normal from round(face normal, corner, c).
+  const put = (bin, a, p, q, c, shade, round) => {
     const ux = p[0] - a[0], uy = p[1] - a[1], uz = p[2] - a[2];
     const vx = q[0] - a[0], vy = q[1] - a[1], vz = q[2] - a[2];
     const nx = uy * vz - uz * vy;
@@ -4283,12 +4295,33 @@ function rockDressing({ walks, masses, ceilings, seed, mouths, field, rockColour
     const mx = (a[0] + p[0] + q[0]) / 3 - c[0];
     const my = (a[1] + p[1] + q[1]) / 3 - c[1];
     const mz = (a[2] + p[2] + q[2]) / 3 - c[2];
-    const tri = nx * mx + ny * my + nz * mz >= 0 ? [a, p, q] : [a, q, p];
+    const outward = nx * mx + ny * my + nz * mz >= 0;
+    const tri = outward ? [a, p, q] : [a, q, p];
+    const fl = Math.hypot(nx, ny, nz) * (outward ? 1 : -1) || 1;
+    const f = [nx / fl, ny / fl, nz / fl];
     for (const v of tri) {
       out[bin].pos.push(v[0], v[1], v[2]);
+      out[bin].nor.push(...round(f, v, c));
       const k = rockColour(v[0], v[1], v[2], 0);
       out[bin].col.push(k[0] * shade, k[1] * shade, k[2] * shade);
     }
+  };
+
+  const unit = (x, y, z) => {
+    const l = Math.hypot(x, y, z) || 1;
+    return [x / l, y / l, z / l];
+  };
+  // A lip stone: its face normal leaned 0.6 toward the corner's way out of
+  // the stone, so the box's edges shade round.
+  const stoneNormal = (f, v, c) => {
+    const d = unit(v[0] - c[0], v[1] - c[1], v[2] - c[2]);
+    return unit(f[0] + 0.6 * d[0], f[1] + 0.6 * d[1], f[2] + 0.6 * d[2]);
+  };
+  // A foot boulder: the normal of the (1, 0.7, 1) ellipsoid it stands for,
+  // 70/30 with its face normal.
+  const boulderNormal = (f, v, c) => {
+    const e = unit(v[0] - c[0], (v[1] - c[1]) / 0.49, v[2] - c[2]);
+    return unit(0.7 * e[0] + 0.3 * f[0], 0.7 * e[1] + 0.3 * f[1], 0.7 * e[2] + 0.3 * f[2]);
   };
 
   // ---- lip stones ----
@@ -4329,8 +4362,8 @@ function rockDressing({ walks, masses, ceilings, seed, mouths, field, rockColour
       const c = world(...mid);
       const shade = 0.9 + 0.15 * H(li, k, 5, 101);
       for (const [p, q, s, t] of STONE_FACES) {
-        put('lip', corners[p], corners[q], corners[s], c, shade);
-        put('lip', corners[p], corners[s], corners[t], c, shade);
+        put('lip', corners[p], corners[q], corners[s], c, shade, stoneNormal);
+        put('lip', corners[p], corners[s], corners[t], c, shade, stoneNormal);
       }
       out.lipStones++;
       u += len + joint;
@@ -4433,7 +4466,7 @@ function rockDressing({ walks, masses, ceilings, seed, mouths, field, rockColour
   const n = Math.min(FOOT_MAX, kept.length);
   for (let i = 0; i < n; i++) {
     const { verts, c, shade } = kept[Math.floor((i * kept.length) / n)];
-    for (const [a, p, q] of ICO_FACES) put('rock', verts[a], verts[p], verts[q], c, shade);
+    for (const [a, p, q] of ICO_FACES) put('rock', verts[a], verts[p], verts[q], c, shade, boulderNormal);
     out.footBoulders++;
   }
   return out;

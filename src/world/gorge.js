@@ -19,6 +19,8 @@ import {
 import { caveRoom, caveTunnel, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
+import { smoothNormals } from './rocknormals.js';
+import { noise3 } from './rockrelief.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 
 // =============================================================================
@@ -296,6 +298,62 @@ function torFits(t, y, kept) {
   if (!kept.every((o) => Math.hypot(t.x - o.x, t.z - o.z) >= t.r + o.r + 3)) return false;
   return oneShape(t.x, t.z, t.r + 2);
 }
+// The Gorge's tors are rounder than the Moor's granite (b.tor, shared, is
+// left alone): roundTor redraws a tor's three blocks as noisy icosahedra
+// (IcosahedronGeometry(1, 1), 80 triangles a block, each vertex pushed in or
+// out up to 10% by noise3 on its unit position), sized and placed exactly as
+// b.tor sizes and places its dodecahedra (same reach, heights, bottoms,
+// drifts and turns, so the collider r and perch h still fit), smooth-shaded.
+// The new arrays replace the attributes of the tor's own geometry; the
+// temporary geometries are made under local uuids (BUILD_DRAWS stays put).
+// Called with the (x, z) and seed b.tor was given, before it is moved.
+const TOR_BLOCKS = [[1, 0, 0.5, 0], [0.7, 0.35, 0.45, 0.15], [0.5, 0.65, 0.35, 0.12]]; // as b.tor's
+export const GORGE_TOR_COLOR = 0xa39582; // weathered sandstone: grey granite read foreign here
+const torHash = (x, z, salt) => {
+  // builder.js's private hash01, copied: b.tor turns and drifts its blocks by it
+  const v = Math.sin(x * 12.9898 + z * 78.233 + salt * 37.719) * 43758.5453;
+  return v - Math.floor(v);
+};
+export function roundTor(mesh, { x, z, r, h, seed }) {
+  withLocalUuids('gorge-uuids-tors', () => {
+    const geoms = TOR_BLOCKS.map(([rs, bottom, tall, drift], i) => {
+      const g = new THREE.IcosahedronGeometry(1, 1);
+      const pos = g.attributes.position;
+      for (let v = 0; v < pos.count; v++) {
+        const ux = pos.getX(v), uy = pos.getY(v), uz = pos.getZ(v);
+        const k = 1 + 0.2 * (noise3(ux * 1.7 + 5.3 * i, uy * 1.7, uz * 1.7, 977 + 31 * seed + i) - 0.5);
+        pos.setXYZ(v, ux * k, uy * k, uz * k);
+      }
+      if (i > 0) g.rotateY(torHash(x, z, seed + i) * Math.PI);
+      g.computeBoundingBox();
+      let reach = 0;
+      for (let v = 0; v < pos.count; v++) reach = Math.max(reach, Math.hypot(pos.getX(v), pos.getZ(v)));
+      // numbers, not the box: scale() recomputes the box in place (b.tor
+      // reads its min after that, which sinks each block a little; here each
+      // block's foot is at h * bottom, so the top block's crown is at h)
+      const minY = g.boundingBox.min.y;
+      const sy = (h * tall) / (g.boundingBox.max.y - minY);
+      g.scale((r * rs) / reach, sy, (r * rs) / reach);
+      g.translate(0, h * bottom - minY * sy, 0);
+      const a = torHash(x, z, seed + 10 + i) * Math.PI * 2;
+      g.translate(x + Math.cos(a) * r * drift, 0, z + Math.sin(a) * r * drift);
+      return g;
+    });
+    const merged = mergeGeometries(geoms, false);
+    const pos = merged.attributes.position.array;
+    const geo = mesh.geometry;
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(smoothNormals(pos, null, 180), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(merged.attributes.uv.array, 2));
+    geo.boundingBox = null;
+    geo.boundingSphere = null;
+    for (const g of geoms) g.dispose();
+    merged.dispose();
+  });
+  mesh.material.color.set(GORGE_TOR_COLOR);
+  return mesh;
+}
+
 let torsOnce = null;
 export function gorgeTors() {
   if (torsOnce) return torsOnce;
@@ -964,6 +1022,10 @@ export function build(scene, { water = {}, wind } = {}) {
   // walk). Each is set on the clifftop with seatOnGround.
   const rockMat = litMaterial(ROCK_COLOR, surfaceProps('cobble'));
   const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), rockMat);
+  // shaded round: its normals smoothed in place, no new attribute
+  const bn = boulder.geometry.attributes.normal;
+  bn.array.set(smoothNormals(boulder.geometry.attributes.position.array, null, 180));
+  bn.needsUpdate = true;
   boulder.name = 'summitRockBoulder';
   boulder.position.set(SUMMIT_BOULDER.x, 0.3, SUMMIT_BOULDER.z);
   scene.add(seatOnGround(boulder, ground));
@@ -983,7 +1045,7 @@ export function build(scene, { water = {}, wind } = {}) {
   const tors = new THREE.Group();
   tors.name = 'tors';
   gorgeTors().forEach(({ x, z, r, h }, i) => {
-    const t = b.tor(x, z, { r, h, seed: i });
+    const t = roundTor(b.tor(x, z, { r, h, seed: i }), { x, z, r, h, seed: i });
     t.geometry.translate(-x, 0, -z);
     t.position.set(x, 0, z);
     t.name = `tor-${i}`;

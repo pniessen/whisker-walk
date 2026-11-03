@@ -109,3 +109,124 @@ describe('Gorge rock, beauty pass 2: triangle headroom', () => {
     expect(n).toBeGreaterThan(1000);
   }, 120_000);
 });
+
+// Task 3: smooth shading and rounded loose rocks.
+const deg = (a, b) => {
+  const d = (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (Math.hypot(...a) * Math.hypot(...b));
+  return (Math.acos(Math.min(1, Math.max(-1, d))) * 180) / Math.PI;
+};
+// The face normal of triangle t (non-indexed), as three computes it.
+const faceNormal = (p, t) => {
+  const A = new THREE.Vector3().fromArray(p, 9 * t);
+  const B = new THREE.Vector3().fromArray(p, 9 * t + 3);
+  const C = new THREE.Vector3().fromArray(p, 9 * t + 6);
+  const n = C.sub(B).cross(A.sub(B));
+  return n.lengthSq() > 0 ? n.normalize().toArray() : null;
+};
+
+describe('Gorge rock, beauty pass 2: smooth shading', () => {
+  const rockGroup = scene.getObjectByName('gorgeRock');
+
+  it('walk tops stay flat-shaded', async () => {
+    const { ROCK_WALKS } = await import('../src/world/gorge.js');
+    rockGroup.updateMatrixWorld(true);
+    const tops = scene.getObjectByName('ledgeTops');
+    expect(tops.matrixWorld.equals(new THREE.Matrix4())).toBe(true);
+    const p = tops.geometry.attributes.position.array;
+    const n = tops.geometry.attributes.normal.array;
+    const e = 1e-6;
+    let checked = 0;
+    for (const w of ROCK_WALKS) {
+      if (w.kind !== 'walk') continue;
+      // the walk's own plane: flat, or a ramp along z
+      const slope = w.along === 'z' ? (w.y1 - w.y0) / (w.maxZ - w.minZ) : 0;
+      const want = new THREE.Vector3(0, 1, -slope).normalize();
+      const yAt = (z) => (w.along === 'z' ? w.y0 + slope * (z - w.minZ) : w.y0);
+      for (let i = 0; i < p.length; i += 3) {
+        const [x, y, z] = [p[i], p[i + 1], p[i + 2]];
+        if (!(x > w.minX + e && x < w.maxX - e && z > w.minZ + e && z < w.maxZ - e)) continue;
+        if (Math.abs(y - yAt(z)) >= 1e-4) continue;
+        checked++;
+        expect(Math.abs(n[i] - want.x)).toBeLessThan(1e-6);
+        expect(Math.abs(n[i + 1] - want.y)).toBeLessThan(1e-6);
+        expect(Math.abs(n[i + 2] - want.z)).toBeLessThan(1e-6);
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+  }, 120_000);
+
+  it('the rock walls are smooth-shaded', () => {
+    const faces = scene.getObjectByName('rockFaces');
+    const p = faces.geometry.attributes.position.array;
+    const n = faces.geometry.attributes.normal.array;
+    const shell = rockGroup.userData.shellTris.rockFaces;
+    let walls = 0;
+    let smooth = 0;
+    for (let t = 0; t < shell; t++) {
+      const f = faceNormal(p, t);
+      if (!f || Math.abs(f[1]) >= 0.5) continue;
+      for (let k = 0; k < 3; k++) {
+        const i = 9 * t + 3 * k;
+        walls++;
+        if (deg(f, [n[i], n[i + 1], n[i + 2]]) > 2) smooth++;
+      }
+    }
+    expect(walls).toBeGreaterThan(10000);
+    expect(smooth / walls).toBeGreaterThanOrEqual(0.6);
+  }, 120_000);
+
+  it('foot boulders and lip stones have rounded normals', () => {
+    for (const name of ['rockFaces', 'lips']) {
+      const mesh = scene.getObjectByName(name);
+      const p = mesh.geometry.attributes.position.array;
+      const n = mesh.geometry.attributes.normal.array;
+      const from = rockGroup.userData.shellTris[name];
+      const to = p.length / 9;
+      expect(to - from).toBeGreaterThan(100);
+      let sum = 0;
+      let count = 0;
+      for (let t = from; t < to; t++) {
+        const f = faceNormal(p, t);
+        if (!f) continue;
+        for (let k = 0; k < 3; k++) {
+          const i = 9 * t + 3 * k;
+          const v = [n[i], n[i + 1], n[i + 2]];
+          expect(Math.abs(Math.hypot(...v) - 1)).toBeLessThan(1e-3);
+          sum += deg(f, v);
+          count++;
+        }
+      }
+      expect(sum / count).toBeGreaterThan(10);
+    }
+  });
+
+  it('tors are round, the size of their colliders, as high as their perch', async () => {
+    const { gorgeTors } = await import('../src/world/gorge.js');
+    const tors = gorgeTors();
+    expect(tors.length).toBe(11);
+    tors.forEach(({ x, z, r, h }, i) => {
+      const mesh = scene.getObjectByName(`tor-${i}`);
+      mesh.updateMatrixWorld(true);
+      expect(triCount(mesh)).toBeGreaterThanOrEqual(200);
+      const g = mesh.geometry;
+      const pos = g.attributes.position;
+      const nor = g.attributes.normal;
+      expect(nor.count).toBe(pos.count);
+      if (g.attributes.uv) expect(g.attributes.uv.count).toBe(pos.count);
+      const ground = area.ground.y(x, z);
+      const v = new THREE.Vector3();
+      let maxY = -Infinity;
+      let reach = 0;
+      for (let k = 0; k < pos.count; k++) {
+        v.fromBufferAttribute(pos, k).applyMatrix4(mesh.matrixWorld);
+        maxY = Math.max(maxY, v.y);
+        reach = Math.max(reach, Math.hypot(v.x - x, v.z - z));
+        expect(Math.abs(Math.hypot(nor.getX(k), nor.getY(k), nor.getZ(k)) - 1)).toBeLessThan(1e-3);
+      }
+      expect(maxY - ground).toBeLessThanOrEqual(h + 0.05);
+      expect(maxY - ground).toBeGreaterThanOrEqual(h - 0.1);
+      expect(reach).toBeGreaterThanOrEqual(0.85 * r);
+      expect(reach).toBeLessThanOrEqual(r + 0.05);
+    });
+  });
+});
