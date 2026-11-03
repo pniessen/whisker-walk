@@ -266,19 +266,11 @@ describe('the back and body items ride the upright sit (polish-sit Task 3)', () 
         new THREE.Vector3(0, bodyY, 0), new THREE.Quaternion(), new THREE.Vector3(...bodyScale)).invert());
       const builtItems = riders(built);
       items.forEach((item, i) => {
-        const { hang, sitShift } = item.userData;
+        // (the capes no longer ride: since polish-pose Task 2 they are cloth
+        // on the body, which catcape.test.js sweeps through every state)
+        const { sitShift } = item.userData;
         const restPos = builtItems[i].position, restQ = builtItems[i].quaternion;
-        if (hang) {
-          // a cape moves with its clasp and keeps its built tilt (shortened, if
-          // at all, about its top edge): its top edge's centre made the clasp's move
-          const clasp = restPos.clone().add(new THREE.Vector3(...hang.clasp));
-          const move = clasp.clone().applyMatrix4(carry).sub(clasp);
-          const topRest = new THREE.Vector3(0, hang.half, 0).applyQuaternion(restQ).add(restPos);
-          const top = new THREE.Vector3(0, hang.half * item.scale.y, 0).applyQuaternion(item.quaternion).add(item.position);
-          expect(top.distanceTo(topRest.add(move)), `${kit.body}: moves with its clasp`).toBeLessThanOrEqual(0.01);
-          expect(item.quaternion.angleTo(restQ), `${kit.body}: its built tilt`).toBeLessThan(1e-6);
-          expect(item.scale.y).toBeLessThanOrEqual(1);
-        } else if (sitShift) {
+        if (sitShift) {
           // a wing: at its shoulder spot, carried, standing as built
           const want = restPos.clone().add(new THREE.Vector3(...sitShift)).applyMatrix4(carry);
           expect(item.position.distanceTo(want), `wing ${i}: at its carried shoulder spot`).toBeLessThanOrEqual(0.01);
@@ -293,8 +285,10 @@ describe('the back and body items ride the upright sit (polish-sit Task 3)', () 
     }
   });
 
-  // The capes and wings stay out of the fur, and a cape out of the tail too
-  // (swept over the tip's flick).
+  // The wings stay out of the fur (swept over the tail tip's flick). The capes
+  // were checked here too, as a box hung on the group; since polish-pose
+  // Task 2 they are cloth on the body, and catcape.test.js holds them out of
+  // the fur, the ground and the tail in every state.
   const ray = new THREE.Raycaster();
   const outside = (cat, Pw) => {
     const { body, underside } = cat.userData.parts;
@@ -313,25 +307,16 @@ describe('the back and body items ride the upright sit (polish-sit Task 3)', () 
     });
     return out;
   };
-  it.each(CASES)('%s (simple %s) %s: capes and wings stay out of the fur, a cape out of the tail', (b, simple, state) => {
-    for (const kit of [{ back: 'wings', body: 'cape' }, { back: null, body: 'confetticape' }]) {
+  it.each(CASES)('%s (simple %s) %s: wings stay out of the fur, over a cape too', (b, simple, state) => {
+    for (const kit of [{ back: 'wings', body: 'cape' }]) {
       const cat = kitCat(b, kit, simple);
       for (const t of [0, 0.7, 1.3, 2.1, 2.9]) {
         animateCat(cat, state, t, 0, false);
         cat.updateMatrixWorld(true);
-        for (const item of riders(cat).filter((c) => c.userData.hang || c.userData.sitShift)) {
+        for (const item of riders(cat).filter((c) => c.userData.sitShift)) {
           let worst = Infinity;
           for (const P of meshVerts(item)) worst = Math.min(worst, outside(cat, P));
           expect(worst, `${kit.back}+${kit.body} t ${t}: out of the fur`).toBeGreaterThanOrEqual(0);
-          if (!item.userData.hang) continue;
-          // no tail vertex inside the cape's box (its own frame: 0.32 x 0.4 x 0.04)
-          const inv = item.matrixWorld.clone().invert();
-          let inside = 0;
-          for (const P of meshVerts(cat.userData.parts.tail)) {
-            const q = P.applyMatrix4(inv);
-            if (Math.abs(q.x) < 0.16 && Math.abs(q.y) < 0.2 && Math.abs(q.z) < 0.02) inside++;
-          }
-          expect(inside, `${kit.body} t ${t}: no tail through the cape`).toBe(0);
         }
       }
     }

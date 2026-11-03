@@ -598,12 +598,14 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   const itemMeshes = (cat, hexes) => { const out = []; cat.traverse((o) => { if (o.isMesh && !o.material.vertexColors && hexes.includes(o.material.color.getHex())) out.push(o); }); return out; };
   const posed = (acc, breed = 'tabby') => { const c = buildCat(breed, acc); animateCat(c, 'follow', 0, 0, false); c.updateMatrixWorld(true); return c; };
   // Each back item's main piece (its largest mesh: the pack, each tank, each
-  // wing, the cape) rests on the fur: centre outside it, touching within 2 cm.
-  // Its small parts (nozzles, clasps) move rigidly with it: each keeps its old
-  // authored offset from the main piece it hangs on (cat-group frame).
-  const SUB_OFFSET = { jetpack: [0, -0.12, 0.025], cape: [0, 0.2, -0.17], confetticape: [0, 0.2, -0.17] };
+  // wing) rests on the fur: centre outside it, touching within 2 cm. Its small
+  // parts (nozzles) move rigidly with it: each keeps its old authored offset
+  // from the main piece it hangs on (cat-group frame). The capes left this
+  // list in polish-pose Task 2: a cape is a cloak on the body now, not a
+  // slab with a clasp offset (the next test, and catcape.test.js).
+  const SUB_OFFSET = { jetpack: [0, -0.12, 0.025] };
   const vol = (m) => { const s = new THREE.Box3().setFromBufferAttribute(m.geometry.attributes.position).getSize(new THREE.Vector3()); return s.x * s.y * s.z; };
-  it.each(['backpack', 'jetpack', 'wings', 'cape', 'confetticape'])('%s rests on the back: main piece touching, not sinking; small parts ride it', (id) => {
+  it.each(['backpack', 'jetpack', 'wings'])('%s rests on the back: main piece touching, not sinking; small parts ride it', (id) => {
     const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id }), { body } = cat.userData.parts;
     const c = body.getWorldPosition(new THREE.Vector3());
     const meshes = itemMeshes(cat, COLOURS[id]);
@@ -622,6 +624,25 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
       const p = inCat(sub);
       const main = mains.map(inCat).sort((a, b) => a.distanceTo(p) - b.distanceTo(p))[0];
       expect(p.sub(main).toArray()).toEqual(SUB_OFFSET[id].map((v) => expect.closeTo(v, 6)));
+    }
+  });
+  // A cape (polish-pose Task 2) rests on the back: hung on the torso, its
+  // cloth lies over the spine from the shoulders to the hips, out of the fur
+  // and within 3 cm of it, and its clasp is on the body too.
+  it.each(['cape', 'confetticape'])('%s rests on the back: on the torso, over the spine, touching, not sinking', (id) => {
+    const cat = posed({ body: id }), { body } = cat.userData.parts;
+    const [cape] = itemMeshes(cat, COLOURS[id].slice(0, 1)), [clasp] = itemMeshes(cat, COLOURS[id].slice(1));
+    expect(cape.parent).toBe(body);
+    expect(clasp.parent).toBe(body);
+    const c = body.getWorldPosition(new THREE.Vector3());
+    for (const dz of [-0.15, 0, 0.15]) {
+      const from = new THREE.Vector3(c.x, c.y + 2, c.z + dz), down = new THREE.Vector3(0, -1, 0);
+      const onCape = new THREE.Raycaster(from, down).intersectObject(cape, false)[0];
+      const onFur = new THREE.Raycaster(from, down).intersectObject(body, false)[0];
+      expect(onCape, `over the spine at ${dz}`).toBeTruthy();
+      const gap = onFur.distance - onCape.distance;
+      expect(gap, `out of the fur at ${dz}`).toBeGreaterThan(0);
+      expect(gap, `touching it at ${dz}`).toBeLessThanOrEqual(0.03);
     }
   });
   const onChest = (cat, meshes) => {
