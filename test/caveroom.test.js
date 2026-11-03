@@ -495,6 +495,33 @@ describe('caveroom: the deep caves\' chambers', () => {
       }
     }, T);
 
+    it('each stalactite shows 0.25-0.5 m under the bumped vault', () => {
+      // Straight up from the tip to the liner (bumps and all): a root set at
+      // the bare vault's height once left a 5 cm nub under a bumped-down vault.
+      const a = new THREE.Vector3(), bb = new THREE.Vector3(), cc = new THREE.Vector3(), hit = new THREE.Vector3();
+      const ray = new THREE.Ray();
+      for (const cave of GORGE_CAVES) {
+        const t = tunnelOf(cave.id);
+        const p = t.geometry.attributes.position;
+        const ix = t.geometry.index.array;
+        const [lo, hi] = t.ranges.liner;
+        for (const s of t.stalactiteTips) {
+          ray.origin.set(s.x, s.y + 0.001, s.z);
+          ray.direction.set(0, 1, 0);
+          let vault = Infinity;
+          for (let i = 0; i < ix.length; i += 3) {
+            if (ix[i] < lo || ix[i] >= hi) continue;
+            a.fromBufferAttribute(p, ix[i]); bb.fromBufferAttribute(p, ix[i + 1]); cc.fromBufferAttribute(p, ix[i + 2]);
+            if (ray.intersectTriangle(a, bb, cc, false, hit)) vault = Math.min(vault, hit.y);
+          }
+          const where = `${cave.id} (${s.x.toFixed(2)}, ${s.z.toFixed(2)})`;
+          expect(vault - s.y, where).toBeGreaterThanOrEqual(0.25);
+          expect(vault - s.y, where).toBeLessThanOrEqual(0.5);
+          expect(s.root, where).toBeGreaterThan(vault); // buried in the vault
+        }
+      }
+    }, T);
+
     it('nothing but the walls comes below the roots\' line over the corridor', () => {
       // stalactites and roots: every vertex at or over ROOT_MIN_Y
       for (const cave of GORGE_CAVES) {

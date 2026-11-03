@@ -562,6 +562,7 @@ const EDGE_R = 0.08; // the L's inner corner, rounded to this radius low down
 const EDGE_FADE = 0.6; // ... blending into the legs' bumps over this
 const ROOT_COLORS = [0x5e452d, 0x6b4f33];
 const TUNNEL_STALACTITES = 2;
+const HANG_BURY = 0.1; // a tunnel stalactite's root, this far up into the vault
 const TUNNEL_ROOTS = 3;
 const TUNNEL_MOSS = 3;
 
@@ -718,6 +719,25 @@ export function caveTunnel(cave, { clear, seed } = {}) {
   mark('frames', from);
 
   // --- stalactites ---------------------------------------------------------------------
+  // The liner's height over the floor at (s, u) on a leg, |u| < 0.9: across
+  // the two stations either side of s, between the vault's profile points
+  // (u 0.9, 0, -0.9), bumps and all.
+  const clamp01 = (t) => Math.min(1, Math.max(0, t));
+  const linerVault = (s, u) => {
+    let i = 0;
+    while (i + 2 < stations.length && stations[i + 1].s < s) i++;
+    const heightOn = (st) => {
+      const pts = [4, 5, 6].map((k) => {
+        const id = st.ids[k];
+        const dx = m.pos[id * 3] - st.x, dz = m.pos[id * 3 + 2] - st.z;
+        return [dx * st.lx + dz * st.lz, m.pos[id * 3 + 1] - y0];
+      }).sort((a, b) => a[0] - b[0]);
+      const [a, b] = u <= pts[1][0] ? [pts[0], pts[1]] : [pts[1], pts[2]];
+      return lerp(a[1], b[1], clamp01((u - a[0]) / (b[0] - a[0])));
+    };
+    const s0 = stations[i], s1 = stations[i + 1];
+    return lerp(heightOn(s0), heightOn(s1), clamp01((s - s0.s) / (s1.s - s0.s)));
+  };
   from = m.pos.length / 3;
   const hangColor = base.clone().multiplyScalar(1.05);
   const tipColor = base.clone().lerp(new THREE.Color(0xffffff), 0.15);
@@ -730,12 +750,16 @@ export function caveTunnel(cave, { clear, seed } = {}) {
     const q = world(frameAt(s), u, 0);
     if (Math.hypot(q.x - p0[0], q.z - p0[1]) < MOUTH_KEEP) continue;
     if (!hangs.every((o) => Math.abs(o.s - s) >= 1.5)) continue;
-    const root = vaultHeight(Math.abs(u));
-    hangs.push({ s, x: q.x, z: q.z, root, tipH: Math.max(STALACTITE_MIN_Y + 0.01, root - len), sides, turn });
+    // Measured from the liner's bumped vault there (it can stand 0.2 lower
+    // than the bare one): the visible length stays len, and the root goes
+    // HANG_BURY up into the vault, no higher than the box's roof.
+    const vault = linerVault(s, u);
+    const root = Math.min(vault + HANG_BURY, CORRIDOR_HEADROOM - 0.005);
+    hangs.push({ s, x: q.x, z: q.z, root, vault, tipH: Math.max(STALACTITE_MIN_Y + 0.01, vault - len), sides, turn });
   }
   const stalactiteTips = [];
   for (const h of hangs) {
-    const len = h.root - h.tipH;
+    const len = h.vault - h.tipH;
     spike(m, 'stalactites', h.x, h.z, y0 + h.root, y0 + h.tipH, 0.13 + 0.12 * len, h.sides, h.turn, hangColor, tipColor);
     stalactiteTips.push({ x: h.x, y: y0 + h.tipH, z: h.z, root: y0 + h.root });
   }
