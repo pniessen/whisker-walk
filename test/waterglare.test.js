@@ -61,7 +61,12 @@ describe('water glare', () => {
       w.material.onBeforeCompile(shader);
       const f = shader.fragmentShader;
       expect(f).toContain('uSpecCap');
-      expect(f.lastIndexOf('uSpecCap')).toBeGreaterThan(f.indexOf('#include <lights_fragment_end>'));
+      // The order check alone could pass via the uniform declaration if the
+      // include vanished, so pin the include upstream and the clamp itself.
+      expect(THREE.ShaderLib.physical.fragmentShader).toContain('#include <lights_fragment_end>');
+      expect(f).toContain('uniform float uSpecCap;');
+      expect(f).toContain('reflectedLight.directSpecular = min(');
+      expect(f.indexOf('reflectedLight.directSpecular = min(')).toBeGreaterThan(f.indexOf('#include <lights_fragment_end>'));
       expect(shader.uniforms.uSpecCap.value).toBe(WATER_TUNING.SPEC_CAP);
       w.dispose();
     }

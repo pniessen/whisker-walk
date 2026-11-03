@@ -264,7 +264,7 @@ const ENV_INTENSITY_LOW = 1.0;
 // and the grazing sheen come down together and the ripple still sparkles. 0.4
 // was picked side by side against 1, 0.55 and 0.3 at the same moment of the
 // same walk: at 0.55 a low sun still nearly whited out the Pines lake, at
-// 0.3 the water went dull. No shader injection (see the header).
+// 0.3 the water went dull. The one small shader patch is the SPEC_CAP clamp below.
 //
 // The sea keeps closer to today's look (GLARE_SEA): its pale, sunny palette is
 // the Seaside's identity, and its glare reads as a bright day at the beach.

@@ -40,7 +40,11 @@ export const DUSK = Object.freeze({
 });
 
 export function duskLook(areaData) {
-  return Object.freeze({ ...DUSK, ...(areaData?.duskLight ?? {}) });
+  const over = areaData?.duskLight ?? {};
+  // lawnTint merges one level deep: an area that only sets { dark } keeps the
+  // default desat and cool instead of leaving them undefined (NaN colours).
+  const lawnTint = Object.freeze({ ...DUSK.lawnTint, ...(over.lawnTint ?? {}) });
+  return Object.freeze({ ...DUSK, ...over, lawnTint });
 }
 
 export function applyDusk({ scene, sun, fill, areaData }) {

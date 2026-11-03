@@ -126,6 +126,15 @@ describe('dusk lawns', () => {
     const look = duskLook({ duskLight: { lawnTint: { desat: 0, dark: 0.5, cool: [1, 1, 1] } } });
     expect(duskLawnColor(c, look).g).toBeCloseTo(0.3, 6);
   });
+  it('a partial lawnTint override keeps the other defaults', () => {
+    const look = duskLook({ duskLight: { lawnTint: { dark: 0.6 } } });
+    expect(look.lawnTint.dark).toBe(0.6);
+    expect(look.lawnTint.desat).toBe(DUSK.lawnTint.desat);
+    expect(look.lawnTint.cool).toEqual(DUSK.lawnTint.cool);
+    expect(Object.isFrozen(look.lawnTint)).toBe(true);
+    const c = duskLawnColor(new THREE.Color(0.3, 0.6, 0.2), look);
+    expect([c.r, c.g, c.b].every(Number.isFinite)).toBe(true);
+  });
   it('walk.js wires the tint and its disposal', () => {
     const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(src).toContain('tintDuskLawn(');

@@ -652,5 +652,11 @@ describe('rain near the camera', () => {
     expect(shader.fragmentShader).not.toBe(THREE.ShaderLib.basic.fragmentShader);
     expect(shader.vertexShader).toContain('aSide');
     expect(shader.fragmentShader).toContain('vRainNear');
+    // The shared #include <common> edits alone satisfy the checks above, so
+    // prove the injection points exist upstream and the real bodies landed.
+    expect(THREE.ShaderLib.basic.vertexShader).toContain('#include <begin_vertex>');
+    expect(THREE.ShaderLib.basic.fragmentShader).toContain('#include <opaque_fragment>');
+    expect(shader.vertexShader).toContain('rainDist');
+    expect(shader.fragmentShader).toContain('diffuseColor.a *= vRainNear');
   });
 });
