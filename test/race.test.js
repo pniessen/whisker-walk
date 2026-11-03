@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { raceCourse, createRace } from '../src/race.js';
+import * as THREE from 'three';
+import { raceCourse, createRace, RING_Y, NEAR_FADE } from '../src/race.js';
 import { mulberry32 } from '../src/rng.js';
 
 // Mirrors the real world files' pois shape (8 entries, x/z only) — see
@@ -92,11 +93,12 @@ function makeCourse() {
 }
 
 describe('createRace', () => {
-  it('adds a group to the scene with a start pad + 5 rings (6 children)', () => {
+  it('adds a group to the scene with a start pad + 5 rings + the pennant (7 children)', () => {
     const scene = fakeScene();
     const race = createRace(scene, makeCourse(), SPAWN);
     expect(scene.objects.has(race.group)).toBe(true);
-    expect(race.group.children.length).toBe(6);
+    expect(race.group.children.length).toBe(7);
+    expect(race.group.getObjectByName('racePennant')).toBeTruthy();
   });
 
   it('starts idle, at ring 1, with timeMs 0', () => {
@@ -203,5 +205,124 @@ describe('createRace — positions for the corner map', () => {
     const race = createRace(fakeScene(), course, SPAWN);
     expect(race.rings).toEqual(course.map((p) => ({ x: p.x, z: p.z })));
     expect(race.pad).toEqual({ x: SPAWN.x + 2, z: SPAWN.z - 3 });
+  });
+});
+
+// Polish (view clear), task 2: the rings used to be dim grey tori that often
+// filled the foreground. Now the next ring is a thick candy-striped hoop with a
+// numbered pennant, the rest are thin faint hoops, and any ring close to the
+// camera fades out of the way.
+const RING_RADIUS = 1.1;
+const ringMeshes = (race) => race.group.children.filter((o) => o.userData.raceRing);
+const tubeOf = (g) => g.parameters?.tube ?? g.userData.tube;
+function distinctColours(geo) {
+  const c = geo.getAttribute('color');
+  const seen = new Set();
+  for (let i = 0; i < c.count; i++) seen.add(`${c.getX(i).toFixed(3)},${c.getY(i).toFixed(3)},${c.getZ(i).toFixed(3)}`);
+  return seen.size;
+}
+
+describe('createRace — candy hoop, faint hoops, pennant, near fade', () => {
+  it('the current ring is a thick striped hoop; the others are thin and faint', () => {
+    const race = createRace(fakeScene(), makeCourse(), SPAWN);
+    const rings = ringMeshes(race);
+    expect(rings).toHaveLength(5);
+    const cur = rings[0];
+    expect(cur.geometry.getAttribute('color')).toBeTruthy();
+    expect(distinctColours(cur.geometry)).toBeGreaterThanOrEqual(2);
+    expect(tubeOf(cur.geometry)).toBeGreaterThanOrEqual(0.08);
+    expect(cur.material.opacity).toBe(1);
+    expect(cur.material.transparent).toBe(true);
+    const thin = rings[1].geometry;
+    for (const r of rings.slice(1)) {
+      expect(r.geometry).toBe(thin);
+      expect(tubeOf(r.geometry)).toBeLessThanOrEqual(0.05);
+      expect(r.material.opacity).toBeLessThanOrEqual(0.6);
+      expect(r.material.transparent).toBe(true);
+      expect(r.material).not.toBe(cur.material);
+    }
+  });
+
+  it('passed rings go fainter than upcoming ones', () => {
+    const course = makeCourse();
+    const race = createRace(fakeScene(), course, SPAWN);
+    const rings = ringMeshes(race);
+    const thick = rings[0].geometry;
+    race.begin();
+    race.update(0.1, { x: course[0].x, z: course[0].z });
+    expect(race.currentRing).toBe(2);
+    expect(rings[0].material.opacity).toBeLessThan(rings[2].material.opacity);
+    expect(rings[1].geometry).toBe(thick);
+    expect(rings[1].material.opacity).toBe(1);
+    expect(tubeOf(rings[0].geometry)).toBeLessThanOrEqual(0.05);
+  });
+
+  it('the pennant sits on the current ring and moves on', () => {
+    const course = makeCourse();
+    const race = createRace(fakeScene(), course, SPAWN);
+    const pennant = race.group.getObjectByName('racePennant');
+    const at = () => { pennant.updateWorldMatrix(true, false); return new THREE.Vector3().setFromMatrixPosition(pennant.matrixWorld); };
+    let p = at();
+    expect(p.x).toBeCloseTo(course[0].x);
+    expect(p.z).toBeCloseTo(course[0].z);
+    expect(p.y).toBeGreaterThanOrEqual(RING_Y + RING_RADIUS - 1e-6);
+    expect(pennant.visible).toBe(true);
+    race.begin();
+    race.update(0.1, { x: course[0].x, z: course[0].z });
+    p = at();
+    expect(p.x).toBeCloseTo(course[1].x);
+    expect(p.z).toBeCloseTo(course[1].z);
+    for (let i = 1; i < course.length; i++) race.update(0.1, { x: course[i].x, z: course[i].z });
+    expect(race.state).toBe('done');
+    expect(pennant.visible).toBe(false);
+    pennant.traverse((o) => { if (o.isMesh) { expect(o.castShadow).toBe(false); expect(o.userData.noCast).toBe(true); } });
+  });
+
+  it('a ring near the camera fades, whatever the race state', () => {
+    const course = makeCourse();
+    const race = createRace(fakeScene(), course, SPAWN);
+    const rings = ringMeshes(race);
+    const farCat = { x: 9999, z: 9999 };
+    const ring = course[2];
+    const stateOpacity = rings[2].material.opacity;
+    const before = rings.map((r) => r.material.opacity);
+    race.update(0.016, farCat); // no camera: opacities untouched
+    expect(rings.map((r) => r.material.opacity)).toEqual(before);
+    const camera = { position: { x: ring.x, y: RING_Y, z: ring.z + 1.0 } };
+    race.update(0.016, farCat, camera);
+    expect(race.state).toBe('idle');
+    expect(rings[2].material.opacity).toBeLessThanOrEqual(stateOpacity * (NEAR_FADE.min + 0.01));
+    camera.position.z = ring.z + 10;
+    race.update(0.016, farCat, camera);
+    expect(rings[2].material.opacity).toBeCloseTo(stateOpacity);
+    // the current ring too, while running
+    race.begin();
+    camera.position.x = course[0].x; camera.position.z = course[0].z + 1.0;
+    race.update(0.016, farCat, camera);
+    expect(rings[0].material.opacity).toBeLessThanOrEqual(1 * (NEAR_FADE.min + 0.01));
+  });
+
+  it('createRace works with no document (node)', () => {
+    expect(typeof document).toBe('undefined');
+    let race;
+    expect(() => { race = createRace(fakeScene(), makeCourse(), SPAWN); }).not.toThrow();
+    expect(race.group.getObjectByName('racePennant')).toBeTruthy();
+    expect(() => race.dispose()).not.toThrow();
+  });
+
+  it('uses only a handful of distinct geometries', () => {
+    const race = createRace(fakeScene(), makeCourse(), SPAWN);
+    const geos = new Set();
+    race.group.traverse((o) => { if (o.geometry) geos.add(o.geometry); });
+    expect(geos.size).toBeLessThanOrEqual(5);
+  });
+
+  it('NEAR_FADE has the plan\'s values', () => {
+    expect(NEAR_FADE).toEqual({ start: 2.5, end: 1.2, min: 0.12 });
+  });
+
+  it('main.js hands the camera to the race', () => {
+    const src = readFileSync(fileURLToPath(new URL('../src/main.js', import.meta.url)), 'utf8');
+    expect(src).toContain('session.race.update(dt, session.cat.position, camera)');
   });
 });
