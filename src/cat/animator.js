@@ -682,9 +682,10 @@ const STALK_TAIL = Object.freeze({ DY: 0.02, DZ: -0.03 });
 // straight spike down-back from the rump, its tip the lowest point. Now the
 // root leaves as it did (rotX, today's root tilt on the generic slow bob: a
 // steeper root lifted the root ring 1-2 cm over the rump's line, folds.test.js
-// 'the tail root does not bulge'), link 1 droops so the middle hangs ~11 cm
+// 'the tail root does not bulge'), link 1 droops so the middle hangs ~12 cm
 // over the ground, and the last links bend up so the end is lifted ~7 cm
-// over that (pivotX: + tips a link down). The side sway is damped near
+// over that, bent evenly over the last three joints so it reads as one
+// soft line (pivotX: + tips a link down). The side sway is damped near
 // the root (swayKeep: a stalking tail is still) and the last two links
 // twitch: a fast flick under a slow envelope, plus a small slow flick so it
 // is never dead still, and the tip lifts with the fast flick. All of it is a
@@ -692,9 +693,9 @@ const STALK_TAIL = Object.freeze({ DY: 0.02, DZ: -0.03 });
 // Cats with folds only (base.tailCurl): Hagrid keeps the generic chain.
 export const STALK_CARRIAGE = Object.freeze({
   rotX: 0.28, // TAIL.ROOT_TILT
-  pivotX: Object.freeze([0.00, 0.22, -0.20, -0.45, -0.50]),
+  pivotX: Object.freeze([0.00, 0.22, -0.34, -0.38, -0.36]),
   swayKeep: Object.freeze([0.2, 0.2, 0.3, 0.5, 0.5]),
-  twitch: Object.freeze({ amp: 0.2, freq: 9, slow: 0.7, flick: 0.08, flickFreq: 2.3, lift: 0.12, share: Object.freeze([0, 0, 0.3, 0.6, 0.8]) }),
+  twitch: Object.freeze({ amp: 0.2, freq: 9, slow: 0.7, flick: 0.08, flickFreq: 2.3, lift: 0.08, share: Object.freeze([0, 0, 0.3, 0.6, 0.8]) }),
 });
 
 // polish-catlooks Task 6 (2026-11-02): the walking stalk swings a crouched leg
