@@ -22,6 +22,16 @@
 // again the original goes back; clones are kept for reuse and disposed in
 // dispose(). `visible` is never written: the fight camera owns it.
 //
+// Buildings and lamps (polish-viewclear2). findFadeOccluders adds two more
+// kinds of entry, fed to the same per-object path. A top-level scene group that
+// holds a userData.window mesh (builder.house, builder.warehouse) gets a box;
+// the whole building fades when the camera is inside the box or within
+// BUILDING_PAD of it, or when the camera→look segment (not the PAST_LOOK
+// extension: a building beyond the cat stays solid) meets the box. A group with
+// userData.fadeOccluder (a lamp post) gets its shapes placed like a trunk, with
+// no wind lean, and fades by the same line test as a tree, and also when the
+// camera is within NEAR_POLE of it (a pole beside the lens, off the line).
+//
 // Merged pine stands (builder.pineStand: occluder.obj === null, with
 // occluder.stand and occluder.index) fade one pine at a time. Every pine in a
 // stand has the same parts, merged in tree order, so pine i owns the index
@@ -33,6 +43,7 @@
 // pines is one group on the original, each faded pine its own group on its
 // clone. When none is faded the original goes back and the groups are
 // cleared. The shadow pass still draws every group, so the shadow stays.
+import * as THREE from 'three';
 import { segmentBlocked } from './fightcam.js';
 
 export const FADE_OPACITY = 0.05;
@@ -40,9 +51,77 @@ export const PAST_LOOK = 1.2; // m the fade line runs on beyond the look point (
 const FADE_DOWN_S = 0.2; // full → FADE_OPACITY
 const FADE_UP_S = 0.4; // FADE_OPACITY → full
 const LINE_PAD = 0.15;
+export const NEAR_POLE = 1.5; // m: a tagged pole this close to the camera (horizontally) fades even off the line
+export const BUILDING_PAD = 0.4; // m: a camera this close to a building's box counts as inside it
 
 const DOWN_RATE = (1 - FADE_OPACITY) / FADE_DOWN_S;
 const UP_RATE = (1 - FADE_OPACITY) / FADE_UP_S;
+
+// Whether the segment a→b meets the box (slab test). No allocation.
+export function segmentHitsBox(a, b, box) {
+  let t0 = 0, t1 = 1;
+  for (let k = 0; k < 3; k++) {
+    const a0 = k === 0 ? a.x : k === 1 ? a.y : a.z;
+    const d = (k === 0 ? b.x : k === 1 ? b.y : b.z) - a0;
+    const lo = k === 0 ? box.minX : k === 1 ? box.minY : box.minZ;
+    const hi = k === 0 ? box.maxX : k === 1 ? box.maxY : box.maxZ;
+    if (Math.abs(d) < 1e-12) {
+      if (a0 < lo || a0 > hi) return false;
+    } else {
+      let u = (lo - a0) / d, v = (hi - a0) / d;
+      if (u > v) { const w = u; u = v; v = w; }
+      if (u > t0) t0 = u;
+      if (v < t1) t1 = v;
+      if (t0 > t1) return false;
+    }
+  }
+  return true;
+}
+
+// Fade-only entries for the walk camera: tagged shapes (userData.fadeOccluder)
+// and window-bearing building groups. Same entry shape as findOccluders.
+export function findFadeOccluders(scene) {
+  const out = [];
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => {
+    const shapes = o.userData?.fadeOccluder;
+    if (!shapes) return;
+    const e = o.matrixWorld.elements;
+    const s = Math.hypot(e[0], e[1], e[2]);
+    const px = e[12], py = e[13], pz = e[14];
+    const placed = shapes.map((sh) => (sh.t === 'cyl'
+      ? { t: 'cyl', x: px, z: pz, r: sh.r * s, y0: py + sh.y0 * s, y1: py + sh.y1 * s, p: 0 }
+      : { t: 'ell', x: px, y: py + sh.y * s, z: pz, r: sh.r * s, ry: sh.ry * s, p: 0 }));
+    const R = Math.max(...placed.map((q) => q.r));
+    const top = Math.max(...placed.map((q) => (q.t === 'cyl' ? q.y1 : q.y + q.ry)));
+    out.push({ obj: o, x: px, z: pz, R, top, shapes: placed, near: NEAR_POLE });
+  });
+  for (const child of scene.children) {
+    if (child.isMesh || child.userData?.occluder || child.userData?.occluderStand || child.userData?.fadeOccluder) continue;
+    let hasWindow = false;
+    child.traverse((o) => { if (o.isMesh && o.userData?.window) hasWindow = true; });
+    if (!hasWindow) continue;
+    // The y extent comes from every mesh; the xz extent only from wall-level
+    // meshes (world min.y below half the building's height), so a house's
+    // overhanging pyramid roof does not widen the box past its walls. Precise
+    // boxes: a rotated cone's AABB is not its real extent.
+    const all = [];
+    child.traverse((o) => { if (o.isMesh) all.push(o); });
+    const mb = new THREE.Box3(), yb = new THREE.Box3(), xb = new THREE.Box3();
+    const bounds = all.map((m) => mb.setFromObject(m, true).clone());
+    for (const b of bounds) yb.union(b);
+    const half = (yb.min.y + yb.max.y) / 2;
+    for (let i = 0; i < bounds.length; i++) if (bounds[i].min.y < half) xb.union(bounds[i]);
+    const b = { min: { x: xb.min.x, z: xb.min.z }, max: { x: xb.max.x, z: xb.max.z } };
+    out.push({
+      obj: child,
+      box: { minX: b.min.x, maxX: b.max.x, minY: yb.min.y, maxY: yb.max.y, minZ: b.min.z, maxZ: b.max.z },
+      x: (b.min.x + b.max.x) / 2, z: (b.min.z + b.max.z) / 2,
+      R: Math.hypot(b.max.x - b.min.x, b.max.z - b.min.z) / 2, top: yb.max.y,
+    });
+  }
+  return out;
+}
 
 function cloneFor(m) {
   const c = m.clone();
@@ -183,9 +262,21 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   function step(t, dt, look, camDist, hidden) {
     const o = t.occ;
     let want = false;
-    // quick reject: a tree farther from the cat than the fade line can reach
-    if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + o.R + PAST_LOOK) {
-      want = (Math.hypot(cam.x - o.x, cam.z - o.z) < o.R && cam.y < o.top)
+    if (o.box) {
+      // a building: the camera inside (or within BUILDING_PAD), or the cam→look segment through it
+      if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + o.R + BUILDING_PAD) {
+        const b = o.box;
+        want = (cam.x >= b.minX - BUILDING_PAD && cam.x <= b.maxX + BUILDING_PAD
+          && cam.y >= b.minY - BUILDING_PAD && cam.y <= b.maxY
+          && cam.z >= b.minZ - BUILDING_PAD && cam.z <= b.maxZ + BUILDING_PAD)
+          || segmentHitsBox(cam, look, b);
+      }
+    } else if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + Math.max(o.R, o.near || 0) + PAST_LOOK) {
+      // quick reject passed: a tree farther from the cat than the fade line can reach is skipped
+      // (a `near` pole is also kept when it stands within o.near of the camera)
+      const dCam = Math.hypot(cam.x - o.x, cam.z - o.z);
+      want = (dCam < o.R && cam.y < o.top)
+        || (o.near !== undefined && dCam < o.near && cam.y < o.top)
         || segmentBlocked(cam, far, o, LINE_PAD);
     }
     if (!want && t.op >= 1) return false;
@@ -240,10 +331,11 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
       if (disposed) return;
       const kinds = new Set(), picked = [];
       for (const t of trees) {
-        let key = '';
+        const parts = new Set();
         t.obj.traverse((o) => {
-          if (o.isMesh) for (const m of [].concat(o.material)) key += `${m.type}:${m.customProgramCacheKey()}:${m.vertexColors}:${m.side}:${m.flatShading}:${!!m.map}|`;
+          if (o.isMesh) for (const m of [].concat(o.material)) parts.add(`${m.type}:${m.customProgramCacheKey()}:${m.vertexColors}:${m.side}:${m.flatShading}:${!!m.map}`);
         });
+        const key = [...parts].sort().join('|');
         if (!kinds.has(key)) { kinds.add(key); picked.push(t); }
       }
       for (const t of picked) swapIn(t);

@@ -2469,6 +2469,8 @@ export function lampPost(x, z) {
   // The globe's height, for render/ambient.js's dusk moths (read off the
   // scene, so a lamp added in a world file gets moths with no second edit).
   g.userData.lampGlobeY = lamp.position.y;
+  // The walk tree fade's tag (polish-viewclear2): the pole and globe shapes.
+  g.userData.fadeOccluder = [{ t: 'cyl', r: 0.08, y0: 0, y1: 3.2 }, { t: 'ell', y: 3.3, r: 0.22, ry: 0.22 }];
   return g;
 }
 
