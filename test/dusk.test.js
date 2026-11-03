@@ -112,6 +112,40 @@ describe('dusk lawns', () => {
     expect(n).toBe(1);
     expect(grass.color.toArray()).toEqual(grassBefore);
   });
+  it('a vertex-coloured mesh is desaturated per vertex and its colour attribute restored', () => {
+    const geo = new THREE.PlaneGeometry(1, 1);
+    const n = geo.attributes.position.count;
+    const cols = new Float32Array(n * 3);
+    for (let v = 0; v < n; v++) cols.set([0.2 + 0.1 * v, 0.7 - 0.05 * v, 0.1 + 0.03 * v], v * 3);
+    const attr = new THREE.BufferAttribute(cols, 3);
+    geo.setAttribute('color', attr);
+    const before = Array.from(cols);
+    for (const matColor of [0xffffff, 0x88cc66]) {
+      const mat = new THREE.MeshStandardMaterial({ color: matColor, vertexColors: true });
+      const mesh = new THREE.Mesh(geo, mat);
+      const look = duskLook({});
+      const h = tintDuskLawn({ ground: [mesh], grass: null, look });
+      expect(mesh.geometry).toBe(geo);
+      const tc = geo.getAttribute('color');
+      expect(tc).not.toBe(attr);
+      const m = mat.color; const t = mesh.material.color;
+      for (let v = 0; v < n; v++) {
+        const eff = new THREE.Color(m.r * attr.getX(v), m.g * attr.getY(v), m.b * attr.getZ(v));
+        const want = duskLawnColor(eff, look);
+        expect(Math.abs(t.r * tc.getX(v) - want.r)).toBeLessThan(1e-6);
+        expect(Math.abs(t.g * tc.getY(v) - want.g)).toBeLessThan(1e-6);
+        expect(Math.abs(t.b * tc.getZ(v) - want.b)).toBeLessThan(1e-6);
+      }
+      // really desaturated: the vertex green/red ratio drops, not just scales
+      expect((t.g * tc.getY(0)) / (t.r * tc.getX(0))).toBeLessThan((m.g * attr.getY(0)) / (m.r * attr.getX(0)));
+      h.dispose();
+      expect(geo.getAttribute('color')).toBe(attr);
+      expect(Array.from(attr.array)).toEqual(before);
+      expect(mesh.material).toBe(mat);
+      h.dispose();
+      expect(geo.getAttribute('color')).toBe(attr);
+    }
+  });
   it('skips array materials and materials without a colour', () => {
     const a = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), [new THREE.MeshStandardMaterial()]);
     const b = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial());
