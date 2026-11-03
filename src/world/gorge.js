@@ -13,6 +13,7 @@ import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
 import { addCamp } from './camp.js';
 import { withLocalUuids } from './localuuids.js';
+import { narrowsTint, NARROWS_TINT_KEY } from './narrows.js';
 import { caveRoom, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
@@ -859,7 +860,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // --- the rock ---------------------------------------------------------------
   const rock = b.rockTerrain({
     walks: ROCK_WALKS, masses: MASSES, ceilings: CEILINGS, seed: seedFromCode('gorge-rock'), keep: GORGE_ROCK_KEEP,
-    mouths: GORGE_ROCK_MOUTHS,
+    mouths: GORGE_ROCK_MOUTHS, tint: narrowsTint, tintKey: NARROWS_TINT_KEY,
   });
   rock.name = 'gorgeRock';
   scene.add(rock);

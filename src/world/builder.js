@@ -3061,6 +3061,8 @@ export function toadstools(spots, seed) {
 //              sides, warm sand-grey, one plain material. Casts.
 //   lips       the low rock bands at the edges (G3), coloured as the rock.
 //              noCast: they are thin, and the sweep would cast anything wide.
+// `tint(x, y, z, rgb, recess) => [r, g, b]` (optional) recolours every rock
+// colour after rockColour (faces, lips, their dressing; not ledgeTops); give a `tintKey` for the cache.
 // The dressing (rockDressing, below) is appended to rockFaces and lips after
 // their shells: lip stones along every lip, boulders at the wall feet.
 // userData.shellTris counts the shells alone; userData.dressing counts
@@ -3155,12 +3157,14 @@ const rockCacheSlot = (walks, masses, ceilings) => {
   return byKey;
 };
 
-export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, keep = [], dressing = true, mouths = [] }) {
+export function rockTerrain({
+  walks, masses, ceilings, seed = 0, relief = true, keep = [], dressing = true, mouths = [], tint = null, tintKey = '',
+}) {
   const slot = rockCacheSlot(walks, masses, ceilings);
-  const key = JSON.stringify([seed, relief, dressing, keep, mouths]);
+  const key = JSON.stringify([seed, relief, dressing, keep, mouths, tintKey]);
   let built = slot.get(key);
   if (!built) {
-    built = rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mouths });
+    built = rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mouths, tint });
     slot.set(key, built);
   }
   const geoOf = ({ pos, col, nor }) => {
@@ -3194,7 +3198,7 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, 
 
 // rockTerrain's arrays: per mesh, positions, colours (rockFaces and lips)
 // and flat normals, and the counts its userData carries.
-function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mouths }) {
+function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mouths, tint: recolour }) {
   const groundShapes = [...walks, ...masses];
   const caps = ceilings
     .map((c) => ({ ...c, top: capTopFor(c, masses) }))
@@ -3239,7 +3243,7 @@ function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mou
   const tint = new THREE.Color();
   // A vertex's colour, from where it was before the relief moved it (so a
   // stratum's colour stays with its shelf) and how deep it was recessed.
-  const rockColour = (x, y, z, recess) => {
+  const plainColour = (x, y, z, recess) => {
     tint.copy(low).lerp(high, topY > 0 ? clamp01(y / topY) : 0);
     const band = strataBand(x, y, z, seed);
     const shade = (1 + ROCK_STRATA * (2 * noise3(band, 0, 0, seed + 5) - 1))
@@ -3247,6 +3251,9 @@ function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mou
     const hue = band % 2 === 0 ? STRATA_WARM : STRATA_CREAM;
     return [tint.r * shade * hue[0], tint.g * shade * hue[1], tint.b * shade * hue[2]];
   };
+  const rockColour = recolour
+    ? (x, y, z, recess) => recolour(x, y, z, plainColour(x, y, z, recess), recess)
+    : plainColour;
 
   const bins = { rock: [], ledge: [], lip: [] };
   const tri = (out, a, c, d, nx, ny, nz) => {
