@@ -234,3 +234,89 @@ describe('Twolegplace rooftops', () => {
     expect(n).toBeGreaterThanOrEqual(14 * 6);
   }, 120_000);
 });
+
+// Task 3: the Seaside's boats get a cabin and a sail; the cliff gets real rock.
+describe('Seaside boats and cliff', () => {
+  const buildSea = async () => {
+    const { build } = await import('../src/world/seaside.js');
+    const scene = new THREE.Scene();
+    build(scene);
+    return scene;
+  };
+  const boatsOf = (scene) => {
+    const out = [];
+    scene.traverse((o) => { if (o.isGroup && o.userData.boat) out.push(o); });
+    return out;
+  };
+  const cliffOf = (scene) => scene.children.find((c) => c.isMesh
+    && Math.abs(c.position.x + 10) < 1e-6 && Math.abs(c.position.y - 4) < 1e-6 && Math.abs(c.position.z + 46) < 1e-6);
+
+  it('three boats, each a hull with a cabin and a sail in vertex colours plus a mast', async () => {
+    const scene = await buildSea();
+    const boats = boatsOf(scene);
+    expect(boats).toHaveLength(3);
+    for (const boat of boats) {
+      const meshes = boat.children.filter((c) => c.isMesh);
+      expect(meshes).toHaveLength(2);
+      const hull = meshes.find((m) => m.geometry.attributes.color);
+      expect(hull).toBeDefined();
+      expect(hull.material.vertexColors).toBe(true);
+      expect(hull.material.color.getHex()).toBe(0xffffff);
+      hull.geometry.computeBoundingBox();
+      const bb = hull.geometry.boundingBox;
+      expect(bb.max.y - bb.min.y).toBeGreaterThan(3);
+      const col = hull.geometry.attributes.color;
+      const tones = new Set();
+      for (let v = 0; v < col.count; v++) {
+        tones.add(`${col.getX(v).toFixed(3)},${col.getY(v).toFixed(3)},${col.getZ(v).toFixed(3)}`);
+      }
+      expect(tones.size).toBeGreaterThanOrEqual(3);
+    }
+  }, 120_000);
+
+  it('the cliff never leaves its face, wears a green cap and four band tones', async () => {
+    const scene = await buildSea();
+    const cliff = cliffOf(scene);
+    expect(cliff).toBeDefined();
+    const geo = cliff.geometry;
+    const pos = geo.attributes.position;
+    const nrm = geo.attributes.normal;
+    const col = geo.attributes.color;
+    let pushed = 0;
+    for (let v = 0; v < pos.count; v++) {
+      expect(pos.getZ(v) + cliff.position.z).toBeLessThanOrEqual(-37 + 1e-3);
+      if (pos.getZ(v) + cliff.position.z < -37 - 0.2 && pos.getZ(v) + cliff.position.z > -38.5) pushed++;
+    }
+    expect(pushed).toBeGreaterThan(0); // gullies cut into the face
+    let caps = 0;
+    for (let v = 0; v < pos.count; v++) {
+      if (nrm.getY(v) > 0.9) {
+        caps++;
+        expect(col.getY(v)).toBeGreaterThan(col.getX(v));
+      }
+    }
+    expect(caps).toBeGreaterThan(0);
+    // The seaward face is BoxGeometry's fifth group (px, nx, py, ny, pz, nz).
+    const g = geo.groups[4];
+    const idx = geo.index.array;
+    const bottom = Math.min(...Array.from({ length: pos.count }, (_, v) => pos.getY(v)));
+    const tones = new Set();
+    for (let k = g.start; k < g.start + g.count; k++) {
+      const v = idx[k];
+      if (pos.getY(v) - bottom < 0.95) continue; // the damp foot
+      tones.add(`${col.getX(v).toFixed(3)},${col.getY(v).toFixed(3)},${col.getZ(v).toFixed(3)}`);
+    }
+    expect(tones.size).toBeGreaterThanOrEqual(4);
+  }, 120_000);
+
+  it('building the seaside twice gives the same hulls and cliff', async () => {
+    const a = await buildSea();
+    const c = await buildSea();
+    const arrs = (s) => [...boatsOf(s).map((bt) => bt.children.find((m) => m.geometry?.attributes.color)),
+      cliffOf(s)].map((m) => Array.from(m.geometry.attributes.position.array));
+    const A = arrs(a);
+    const C = arrs(c);
+    expect(A).toHaveLength(4);
+    for (let i = 0; i < A.length; i++) expect(A[i]).toEqual(C[i]);
+  }, 120_000);
+});

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { withLocalUuids } from './localuuids.js';
 import { litMaterial, repeatFor, surfaceProps } from '../render/materials.js';
 import { createWater, WATER_TUNING } from '../render/water.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
@@ -38,8 +40,9 @@ const surfNoMap = (color, surface) => litMaterial(color, surfaceProps(surface));
 //     waterline: darker, a little smoother, with a wavy wet edge, so the sea
 //     meets damp sand instead of dry.
 //   * CLIFF STRATA (0 draws): the bluff and the overlook take vertex-coloured
-//     rock layers and an uneven top edge. Their faces do not move, so the
-//     cliff colliders still line up.
+//     rock layers and an uneven top edge. Their faces only ever move INTO the
+//     rock (polish "edges" Task 3 cut gullies), so the cliff colliders still
+//     line up.
 //   * DUNE GRASS on the back beach — render/grass.js's 'dune' style (+1 draw).
 // -----------------------------------------------------------------------------
 export const BEACH = 0xdcc28e;
@@ -103,40 +106,147 @@ function wetSandBand() {
   return m;
 }
 
-// Rock layers and a broken top edge for a sandstone box (the cliff and the
-// overlook). Only the TOP vertices move, and only in y, so every face keeps
-// its plane and the colliders along the cliff face still match it. Vertices
-// on the same (x, z) get the same lift, so the top face and the side faces
-// stay joined.
+// Rock for a sandstone box (the cliff and the overlook): layered bands, a
+// grass cap, gullies and a broken top edge (polish "edges" Task 3).
+//
+//   * BANDS about a metre thick that dip gently along the face, in four tones
+//     (cream, ochre, rust, pale) picked per band by hash1, never the same tone
+//     twice running, as multipliers on cliffMat's white. The damp foot stays.
+//   * A GRASS CAP: BoxGeometry gives the top face its own vertices, so they
+//     alone turn green and the side faces' top edge keeps its rock colour — a
+//     crisp green rim rather than a smear down the face.
+//   * RELIEF: every vertex lying on the seaward (+z) face or either end face is
+//     pushed INTO the rock by 0..0.9m — vertical gullies about every 3.5m plus
+//     a small per-column hash. The push is a function of the vertex's original
+//     position only, so the top, bottom and side faces' copies of an edge
+//     vertex all move together and no seam opens. It depends on x (seaward
+//     face) or z (end faces) and not on y: each column stays a column, which
+//     is what the cliff's own shape test reads its top edge from. Never
+//     outward, so the colliders on z -37 still stand on the face.
+//   * THE TOP JAG is +-0.8m of sine, eased into the 7..8.5m the bluff has
+//     always stood at, and spread over the top 1.5m of the face so the finer
+//     rows below the edge never fold over it. Still y only.
+const ROCK_TONES = [0xe2cfa8, 0xc9a46c, 0xb07c58, 0xd8c4a0].map((h) => new THREE.Color(h));
+const CAP_TONES = [0x8a9a5a, 0x7d8f50].map((h) => new THREE.Color(h));
+// How far a face point sits inside the rock, 0..0.9m, by its position along
+// the face. The ridges between gullies come out at 0, so the outermost ribs
+// still stand on the face's old plane (and on the collider line).
+function gully(u, salt) {
+  const g = Math.abs(Math.sin(u * 0.9 + salt)) ** 3;
+  const n = hash1(Math.round(u * 4) + salt * 31);
+  return Math.min(0.9, Math.max(0, 0.85 * g + 0.25 * n - 0.2));
+}
+// A band's tone index: hashed, then nudged so two neighbours never match.
+function bandTone(band, salt) {
+  const pick = (k) => Math.floor(hash1(k + salt * 13) * ROCK_TONES.length) % ROCK_TONES.length;
+  const t = pick(band);
+  return t === pick(band - 1) ? (t + 1) % ROCK_TONES.length : t;
+}
 function strata(geo, worldX, salt) {
   const pos = geo.attributes.position;
+  const nrm = geo.attributes.normal;
   geo.computeBoundingBox();
-  const top = geo.boundingBox.max.y;
-  const bottom = geo.boundingBox.min.y;
+  const { min, max } = geo.boundingBox;
+  const top = max.y;
+  const bottom = min.y;
+  const eps = 1e-4;
   const col = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i) + worldX;
-    const z = pos.getZ(i);
+    const lx = pos.getX(i);
+    const lz = pos.getZ(i);
+    const x = lx + worldX;
     let y = pos.getY(i);
-    if (y > top - 1e-4) {
-      y += 0.45 * Math.sin(x * 0.41 + salt) + 0.3 * Math.sin(x * 1.13 + z * 0.6 + salt * 2) - 0.25;
+    if (y > top - 1.5 - eps) {
+      const raw = 0.8 * Math.sin(x * 0.41 + salt) + 0.3 * Math.sin(x * 1.13 + lz * 0.6 + salt * 2);
+      const jag = -0.25 + 0.74 * Math.tanh(raw / 0.74); // inside -0.99..+0.49
+      y += jag * Math.min(1, (y - (top - 1.5)) / 1.5);
       pos.setY(i, y);
     }
-    const h = y - bottom;
-    // Bands about a metre thick that dip gently along the face.
-    const band = Math.floor(h / 1.05 + 0.35 * Math.sin(x * 0.17 + salt));
-    let v = 0.76 + 0.28 * hash1(band + salt * 13); // wide: ACES flattens the top end
-    if (h < 0.9) v *= 0.86 + 0.14 * (h / 0.9); // a darker, damp foot
-    col[i * 3] = v * 1.01;
-    col[i * 3 + 1] = v;
-    col[i * 3 + 2] = v * 0.97;
+    if (lz > max.z - eps) pos.setZ(i, lz - gully(x, salt));
+    if (lx > max.x - eps) pos.setX(i, lx - gully(lz - 50, salt + 0.7));
+    else if (lx < min.x + eps) pos.setX(i, lx + gully(lz + 50, salt + 1.3));
+    let c;
+    let v = 1;
+    if (nrm.getY(i) > 0.9) {
+      c = CAP_TONES[Math.floor(hash1(Math.round(x * 3) * 7 + Math.round(lz * 3) + salt) * 2) % 2];
+    } else {
+      const h = y - bottom;
+      const band = Math.floor(h / 1.05 + 0.35 * Math.sin(x * 0.17 + salt));
+      c = ROCK_TONES[bandTone(band, salt)];
+      if (h < 0.9) v = 0.86 + 0.14 * (h / 0.9); // a darker, damp foot
+    }
+    col[i * 3] = c.r * v;
+    col[i * 3 + 1] = c.g * v;
+    col[i * 3 + 2] = c.b * v;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeVertexNormals();
   return geo;
 }
 const cliffMat = (w, h) =>
-  litMaterial(0xb09878, { surface: 'sand', repeat: repeatFor('sand', w, h), vertexColors: true, flatShading: true });
+  litMaterial(0xffffff, { surface: 'sand', repeat: repeatFor('sand', w, h), vertexColors: true, flatShading: true });
+
+// A fishing boat's hull, stripe, wheelhouse and sail, in the boat's own frame
+// (bow toward -z, 4.5m long, 2m beam, keel at y 0), each part non-indexed
+// with position, normal, uv and colour so mergeGeometries takes them all.
+// Must be called inside withLocalUuids: every part is a throwaway geometry.
+const BOAT_MAST_Z = -0.7;
+function paint(geo, hex) {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  const c = new THREE.Color(hex);
+  const col = new Float32Array(g.attributes.position.count * 3);
+  for (let v = 0; v < col.length; v += 3) { col[v] = c.r; col[v + 1] = c.g; col[v + 2] = c.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+// A box whose bow-end (-z) vertices are pulled in to bowW wide: three
+// segments along its length, so only the front third tapers to the stem.
+function boatBox(w, h, d, bowW, y0) {
+  const geo = new THREE.BoxGeometry(w, h, d, 1, 1, 3);
+  const pos = geo.attributes.position;
+  for (let v = 0; v < pos.count; v++) {
+    if (pos.getZ(v) < -d / 2 + 1e-6) pos.setX(v, Math.sign(pos.getX(v)) * bowW / 2);
+  }
+  geo.translate(0, y0 + h / 2, 0);
+  geo.computeVertexNormals();
+  return geo;
+}
+// One flat triangle wound both ways, so it shows from either side.
+function sailTri(a, b, c, hex) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c, ...a, ...c, ...b], 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Array(12).fill(0), 2));
+  geo.computeVertexNormals();
+  return paint(geo, hex);
+}
+function boatParts(color, striped) {
+  const parts = [
+    paint(boatBox(2, 0.8, 4.5, 0.2, 0), color),
+    // The gunwale stripe: 2cm proud of the hull sides, its top 1cm under the
+    // deck so the two never fight for the same pixels.
+    paint(boatBox(2.04, 0.12, 4.52, 0.24, 0.67), 0xf2efe6),
+  ];
+  const cabin = new THREE.BoxGeometry(1.1, 0.9, 1.2);
+  cabin.translate(0, 0.8 + 0.45, 1.6);
+  parts.push(paint(cabin, 0xf2ead8));
+  const roof = new THREE.BoxGeometry(1.3, 0.1, 1.4);
+  roof.translate(0, 1.75, 1.6);
+  parts.push(paint(roof, 0x5a4a3e));
+  // The sail: from the mast at y 0.9 to the masthead at y 3.4, its foot 1.6m
+  // aft along +z, which ends just short of the wheelhouse at z 1.0.
+  const zm = BOAT_MAST_Z;
+  const tack = [0.07, 0.9, zm];
+  const head = [0.07, 3.4, zm];
+  const clew = [0.07, 0.9, zm + 1.6];
+  const sail = 0xf4efe2;
+  if (striped) {
+    const mid = [0.07, 2.15, zm];
+    parts.push(sailTri(tack, clew, mid, color), sailTri(mid, clew, head, sail));
+  } else {
+    parts.push(sailTri(tack, clew, head, sail));
+  }
+  return parts;
+}
 
 // =============================================================================
 // Seaside.
@@ -379,25 +489,33 @@ export function build(scene, { water = {}, wind } = {}) {
   pier.position.set((PIER.minX + PIER.maxX) / 2, 0.25, (PIER.minZ + PIER.maxZ) / 2);
   scene.add(pier);
 
-  // fishing boats bobbing offshore
-  for (const [x, z, color] of [[40, 8, 0xd06048], [50, -22, 0x4a6ea5], [44, 28, 0x6a9a4a]]) {
+  // fishing boats bobbing offshore — each a pointed hull with a white stripe
+  // at the gunwale, a wheelhouse at the stern and a sail on the mast
+  // (polish "edges" Task 3), all ONE geometry: the parts are made under
+  // withLocalUuids (so their throwaway uuids leave Math.random alone) and
+  // merged outside it, which makes exactly the one geometry uuid the plain
+  // box hull used to. Group, hull, mast: the same objects as before.
+  for (const [i, [x, z, color]] of [[40, 8, 0xd06048], [50, -22, 0x4a6ea5], [44, 28, 0x6a9a4a]].entries()) {
     const boat = new THREE.Group();
+    boat.userData.boat = true;
     // 'paintedMetal' — the same call the Docks' barge hull takes, and for the
     // same two reasons. These are working boats in red, blue and green: what
     // you see is the paint, and paintedMetal is the preset that keeps
     // metalness at 0 so a red boat stays red. It also carries no map, which
     // matters here — a box maps 0..1 per face with v running up +y, so the
     // plank tile's grain would run VERTICALLY up an 0.8m hull side and stave
-    // it like a barrel rather than planking it like a boat.
-    const hull = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 4.5),
-      litMaterial(color, { surface: 'paintedMetal' }));
-    hull.position.y = 0.4;
+    // it like a barrel rather than planking it like a boat. The paint now
+    // rides in the vertex colours, so the material itself is white.
+    const hull = new THREE.Mesh(
+      mergeGeometries(withLocalUuids('seaside-boat-' + i, () => boatParts(color, i === 0))),
+      litMaterial(0xffffff, { surface: 'paintedMetal', vertexColors: true }));
     boat.add(hull);
     // A 6-sided 12cm spar: cylinder rule and thin-member rule at once, so it
-    // takes timber's roughness with the tile left off.
+    // takes timber's roughness with the tile left off. It stands a little
+    // forward of amidships so the sail's foot clears the wheelhouse.
     const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 3, 6),
       surfNoMap(0x7a5230, 'wood'));
-    mast.position.y = 2;
+    mast.position.set(0, 2, BOAT_MAST_Z);
     boat.add(mast);
     boat.position.set(x, 0, z);
     scene.add(boat);
@@ -414,13 +532,16 @@ export function build(scene, { water = {}, wind } = {}) {
   // rather than a pattern that visibly changes size around a corner (brick
   // courses would do exactly that), and by the distance either end face is
   // seen, mipmapping has resolved both to their mean anyway.
-  const cliff = new THREE.Mesh(strata(new THREE.BoxGeometry(60, 8, 18, 30, 8, 6), -10, 1.7),
+  // A 1m x 0.33m grid on the faces (Task 3): fine enough for gullies every
+  // ~3.5m and for metre-thick bands that change tone in a third of a metre
+  // rather than smearing across a whole metre-tall row.
+  const cliff = new THREE.Mesh(strata(new THREE.BoxGeometry(60, 8, 18, 60, 24, 6), -10, 1.7),
     cliffMat(60, 8));
   cliff.position.set(-10, 4, -46);
   scene.add(cliff);
   for (let i = 0; i < 12; i++) addC(-38 + i * 5, -37, 2.5); // cliff face blocks walking through
   // Square in plan, so its four faces tile identically — no end-face caveat.
-  const overlook = new THREE.Mesh(strata(new THREE.BoxGeometry(10, 8, 10, 5, 8, 5), -40, 4.2),
+  const overlook = new THREE.Mesh(strata(new THREE.BoxGeometry(10, 8, 10, 10, 24, 10), -40, 4.2),
     cliffMat(10, 8));
   overlook.position.set(-40, 4, -40);
   scene.add(overlook);
