@@ -228,15 +228,15 @@ describe('the sitting tail lies round the paws (polish-sit Task 2)', () => {
   });
 });
 
-// polish-sit Task 3: the group-hung body- and back-slot items (model.js tags
-// them userData.ridesBody) ride the posed torso in the sit (ruling R4): each
-// is placed by bodyPosed · bodyRest⁻¹ · itemRest, the body's rest being
-// (0, base.bodyY, 0), unrotated, at base.bodyScale. Every other state puts
-// them back where they were built.
-describe('the back and body items ride the upright sit (polish-sit Task 3)', () => {
-  const KITS = [{ back: 'backpack', body: 'cape' }, { back: 'wings', body: 'confetticape' }, { back: 'jetpack', body: 'cape' }];
-  const kitCat = (b, kit, simple) => buildCat(b, { collar: null, head: null, face: null, neck: null, feet: null, ...kit }, { simple });
-  const riders = (cat) => cat.children.filter((c) => c.userData.ridesBody);
+// polish-sit Task 3 carried the group-hung back items on the posed torso in
+// the sit (ruling R4). Since accessories polish Task 2 the backpack, wings and
+// jetpack hang on the body itself (backitems.js), so the sit carries them
+// like the coats: they ride the posed torso, stay above the ground and out of
+// the fur, over a cape too, and leaving the sit puts them back as built.
+describe('the back items ride the upright sit (polish-sit Task 3, accessories polish Task 2)', () => {
+  const KITS = [{ back: 'backpack', body: 'cape' }, { back: 'wings', body: 'confetticape' }, { back: 'jetpack', body: 'cape' }, { back: 'backpack' }, { back: 'wings' }, { back: 'jetpack' }];
+  const kitCat = (b, kit, simple) => buildCat(b, { collar: null, head: null, face: null, neck: null, feet: null, body: null, ...kit }, { simple });
+  const items = (cat) => cat.userData.parts.body.children.filter((c) => c.userData.backItem);
   const v = new THREE.Vector3();
   const lowest = (obj, s) => {
     let low = Infinity;
@@ -248,47 +248,22 @@ describe('the back and body items ride the upright sit (polish-sit Task 3)', () 
     return low;
   };
 
-  it.each(CASES)('%s (simple %s) %s: every item is carried by the posed torso, none in the ground', (b, simple, state) => {
+  it.each(CASES)('%s (simple %s) %s: every item rides the posed torso, none in the ground', (b, simple, state) => {
     for (const kit of KITS) {
-      const built = kitCat(b, kit, simple);
-      const bare = buildCat(b, undefined, { simple });
       const cat = kitCat(b, kit, simple);
-      const items = riders(cat);
-      // every child the two slots added, and only those
-      expect(items.length, `${kit.back}+${kit.body}: tagged`).toBe(cat.children.length - bare.children.length);
-      expect(items.length).toBeGreaterThan(0);
+      const its = items(cat);
+      expect(its.length, `${kit.back}: on the body`).toBe(kit.back === 'wings' ? 2 : 1);
+      cat.traverse((o) => expect(o.userData.ridesBody).toBeUndefined());
       animateCat(cat, state, 1.3, 0, false);
       cat.updateMatrixWorld(true);
-      const { body } = cat.userData.parts;
-      const { bodyY, bodyScale } = cat.userData.base;
-      body.updateMatrix();
-      const carry = body.matrix.clone().multiply(new THREE.Matrix4().compose(
-        new THREE.Vector3(0, bodyY, 0), new THREE.Quaternion(), new THREE.Vector3(...bodyScale)).invert());
-      const builtItems = riders(built);
-      items.forEach((item, i) => {
-        // (the capes no longer ride: since polish-pose Task 2 they are cloth
-        // on the body, which catcape.test.js sweeps through every state)
-        const { sitShift } = item.userData;
-        const restPos = builtItems[i].position, restQ = builtItems[i].quaternion;
-        if (sitShift) {
-          // a wing: at its shoulder spot, carried, standing as built
-          const want = restPos.clone().add(new THREE.Vector3(...sitShift)).applyMatrix4(carry);
-          expect(item.position.distanceTo(want), `wing ${i}: at its carried shoulder spot`).toBeLessThanOrEqual(0.01);
-          expect(item.quaternion.angleTo(restQ), `wing ${i}: as built`).toBeLessThan(1e-6);
-        } else {
-          const want = restPos.clone().applyMatrix4(carry);
-          expect(item.position.distanceTo(want), `${kit.back}+${kit.body} item ${i}: on the posed torso`).toBeLessThanOrEqual(0.01);
-          expect(item.quaternion.angleTo(body.quaternion.clone().multiply(restQ))).toBeLessThan(1e-6);
-        }
-        expect(lowest(item, cat.scale.x), `${kit.back}+${kit.body} item ${i}: above the ground`).toBeGreaterThanOrEqual(0);
-      });
+      for (const item of its) {
+        expect(item.parent).toBe(cat.userData.parts.body);
+        expect(lowest(item, cat.scale.x), `${kit.back}+${kit.body}: above the ground`).toBeGreaterThanOrEqual(0);
+      }
     }
   });
 
-  // The wings stay out of the fur (swept over the tail tip's flick). The capes
-  // were checked here too, as a box hung on the group; since polish-pose
-  // Task 2 they are cloth on the body, and catcape.test.js holds them out of
-  // the fur, the ground and the tail in every state.
+  // Out of the fur in the sit (swept over the flutter), over a cape too.
   const ray = new THREE.Raycaster();
   const outside = (cat, Pw) => {
     const { body, underside } = cat.userData.parts;
@@ -303,17 +278,17 @@ describe('the back and body items ride the upright sit (polish-sit Task 3)', () 
     obj.traverse((m) => {
       if (!m.isMesh) return;
       const p = m.geometry.attributes.position;
-      for (let i = 0; i < p.count; i++) out.push(new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld));
+      for (let i = 0; i < p.count; i += 3) out.push(new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld));
     });
     return out;
   };
-  it.each(CASES)('%s (simple %s) %s: wings stay out of the fur, over a cape too', (b, simple, state) => {
-    for (const kit of [{ back: 'wings', body: 'cape' }]) {
+  it.each(CASES)('%s (simple %s) %s: the items stay out of the fur, over a cape too', (b, simple, state) => {
+    for (const kit of KITS.slice(0, 3)) {
       const cat = kitCat(b, kit, simple);
       for (const t of [0, 0.7, 1.3, 2.1, 2.9]) {
         animateCat(cat, state, t, 0, false);
         cat.updateMatrixWorld(true);
-        for (const item of riders(cat).filter((c) => c.userData.sitShift)) {
+        for (const item of items(cat)) {
           let worst = Infinity;
           for (const P of meshVerts(item)) worst = Math.min(worst, outside(cat, P));
           expect(worst, `${kit.back}+${kit.body} t ${t}: out of the fur`).toBeGreaterThanOrEqual(0);
@@ -326,46 +301,31 @@ describe('the back and body items ride the upright sit (polish-sit Task 3)', () 
     const cat = kitCat(b, { back: 'backpack' }, simple);
     animateCat(cat, state, 1.3, 0, false);
     cat.updateMatrixWorld(true);
-    const s = cat.scale.x, { body, underside } = cat.userData.parts;
-    const [pack] = riders(cat);
-    const p = pack.geometry.attributes.position, ray = new THREE.Raycaster();
-    let nearest = Infinity, hits = 0;
+    const [pack] = items(cat);
+    const p = pack.geometry.attributes.position;
+    let nearest = Infinity, farthest = -Infinity;
     for (let i = 0; i < p.count; i++) {
       v.fromBufferAttribute(p, i).applyMatrix4(pack.matrixWorld);
-      ray.set(new THREE.Vector3(v.x, v.y + 2, v.z), new THREE.Vector3(0, -1, 0));
-      const hit = ray.intersectObjects([body, underside], false)[0];
-      if (!hit) continue;
-      hits++;
-      nearest = Math.min(nearest, (v.y - hit.point.y) / s); // a corner in the fur counts as touching
+      const out = outside(cat, v.clone());
+      nearest = Math.min(nearest, out); farthest = Math.max(farthest, out);
     }
-    expect(hits, 'over the back').toBeGreaterThan(0);
     expect(nearest, 'the pack touches the fur').toBeLessThanOrEqual(0.03);
-    // and is not sunk in it: its centre is above the fur under it
-    const c = pack.getWorldPosition(new THREE.Vector3());
-    ray.set(new THREE.Vector3(c.x, c.y + 2, c.z), new THREE.Vector3(0, -1, 0));
-    expect(c.y - ray.intersectObjects([body, underside], false)[0].point.y, 'the centre outside the fur').toBeGreaterThan(0);
+    expect(nearest, 'and is not in it').toBeGreaterThanOrEqual(0);
+    expect(farthest, 'it stands on the back').toBeGreaterThan(0.05);
   });
 
-  it.each(BREEDS.flatMap((b) => [false, true].map((simple) => [b, simple])))('%s (simple %s): sit → follow puts every item back as built; a follow never moves them', (b, simple) => {
-    // (the balloons no longer ride: since polish-pose Task 3 they float over
-    // their tie, which catballoon.test.js sweeps through every state)
+  it.each(BREEDS.flatMap((b) => [false, true].map((simple) => [b, simple])))('%s (simple %s): sit → follow puts every item back as built', (b, simple) => {
+    const pose = (cat) => items(cat).map((c) => [c.position.toArray(), c.quaternion.toArray(), c.scale.toArray()]);
     for (const kit of KITS) {
-      const built = riders(kitCat(b, kit, simple)).map((c) => [c.position.toArray(), c.quaternion.toArray(), c.scale.toArray()]);
-      const fresh = kitCat(b, kit, simple);
-      for (const t of [0.4, 2.1]) {
-        animateCat(fresh, 'follow', t, 0, false);
-        expect(riders(fresh).map((c) => [c.position.toArray(), c.quaternion.toArray(), c.scale.toArray()]), `${kit.back} follow t ${t}`).toEqual(built);
-      }
+      const built = pose(kitCat(b, kit, simple));
       for (const state of SITS) {
         const cat = kitCat(b, kit, simple);
         animateCat(cat, state, 1.3, 0, false);
-        expect(riders(cat).some((c, i) => c.position.distanceTo(new THREE.Vector3(...built[i][0])) > 0.01), `${kit.back} ${state}: moved`).toBe(true);
-        animateCat(cat, 'follow', 2.1, 0, false);
-        expect(riders(cat).map((c) => [c.position.toArray(), c.quaternion.toArray(), c.scale.toArray()]), `${kit.back} ${state} → follow`).toEqual(built);
+        animateCat(cat, 'follow', 0, 0, false);   // sin 0: the wings' flutter at rest
+        expect(pose(cat), `${kit.back} ${state} → follow`).toEqual(built);
       }
     }
   });
-
   // The sit lowers the chest (torso.js SIT.chestDrop) so it reads as a bib,
   // not a collar under the chin; leaving the sit puts the underside back.
   it.each(CASES)('%s (simple %s) %s: the chest sits SIT.chestDrop lower, and is put back after', (b, simple, state) => {

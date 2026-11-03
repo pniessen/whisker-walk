@@ -613,39 +613,36 @@ describe('cat model: shells take the new torso shape (Task 7)', () => {
 describe('cat model: back items, neck items and collars on the new body (Task 8)', () => {
   const ACCESSORY_DELTA = JSON.parse(fs.readFileSync(new URL('./fixtures/accessory-mesh-delta.json', import.meta.url), 'utf8'));
   const COLOURS = {
-    backpack: [0x3a6ea5], jetpack: [0xb8bcc4, 0xf2822e], wings: [0xf29a8a, 0x9fc9a0], cape: [0xd8303c, 0xf2c14e], confetticape: [0x5b3fa8, 0xf5c518],
+    cape: [0xd8303c, 0xf2c14e], confetticape: [0x5b3fa8, 0xf5c518],
     bandana: [0x3a6ea5], necktie: [0x7a2436], bowtie: [0x2c3e6b], scarf: [0xd6602f], streamerscarf: [0xe0405a, 0xf2c14e, 0x4ec9d4, 0x8a6cf2],
     bell: [0xf2c14e], heart: [0xe0447a],
   };
   const itemMeshes = (cat, hexes) => { const out = []; cat.traverse((o) => { if (o.isMesh && !o.material.vertexColors && hexes.includes(o.material.color.getHex())) out.push(o); }); return out; };
   const posed = (acc, breed = 'tabby') => { const c = buildCat(breed, acc); animateCat(c, 'follow', 0, 0, false); c.updateMatrixWorld(true); return c; };
-  // Each back item's main piece (its largest mesh: the pack, each tank, each
-  // wing) rests on the fur: centre outside it, touching within 2 cm. Its small
-  // parts (nozzles) move rigidly with it: each keeps its old authored offset
-  // from the main piece it hangs on (cat-group frame). The capes left this
-  // list in polish-pose Task 2: a cape is a cloak on the body now, not a
-  // slab with a clasp offset (the next test, and catcape.test.js).
-  const SUB_OFFSET = { jetpack: [0, -0.12, 0.025] };
-  const vol = (m) => { const s = new THREE.Box3().setFromBufferAttribute(m.geometry.attributes.position).getSize(new THREE.Vector3()); return s.x * s.y * s.z; };
-  it.each(['backpack', 'jetpack', 'wings'])('%s rests on the back: main piece touching, not sinking; small parts ride it', (id) => {
+  // Each back item (accessories polish Task 2: backitems.js) is hung on the
+  // body and rests on the back: every vertex is outside the fur, the nearest
+  // touches it (within 2 cm) and the item stands over 5 cm off it. catbackitems.test.js sweeps
+  // them through the poses and over the coats and capes.
+  it.each(['backpack', 'jetpack', 'wings'])('%s rests on the back: on the body, touching, not sinking', (id) => {
     const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id }), { body } = cat.userData.parts;
     const c = body.getWorldPosition(new THREE.Vector3());
-    const meshes = itemMeshes(cat, COLOURS[id]);
-    const big = Math.max(...meshes.map(vol));
-    const mains = meshes.filter((m) => vol(m) > big * 0.999), subs = meshes.filter((m) => !mains.includes(m));
-    expect(mains.length).toBeGreaterThan(0);
-    for (const m of mains) {
-      const b = new THREE.Box3().setFromObject(m), mid = b.getCenter(new THREE.Vector3());
-      const hit = surfaceHit([body], c, mid);
-      expect(mid.distanceTo(c)).toBeGreaterThan(hit.distanceTo(c));      // centre outside the fur
-      expect(b.distanceToPoint(hit)).toBeLessThanOrEqual(0.02);            // and touching it
-    }
-    expect(subs.length).toBe(SUB_OFFSET[id] ? mains.length : 0);
-    const inCat = (m) => cat.worldToLocal(m.getWorldPosition(new THREE.Vector3()));
-    for (const sub of subs) {
-      const p = inCat(sub);
-      const main = mains.map(inCat).sort((a, b) => a.distanceTo(p) - b.distanceTo(p))[0];
-      expect(p.sub(main).toArray()).toEqual(SUB_OFFSET[id].map((v) => expect.closeTo(v, 6)));
+    const meshes = body.children.filter((m) => m.userData.backItem === id);
+    expect(meshes.length).toBe(ACCESSORY_DELTA[id]);
+    for (const m of meshes) {
+      // (not the bounding box's centre: the straps wrap round the shoulders)
+      // (the fur alone: surfaceHit would also hit the items hung on the body)
+      const p = m.geometry.attributes.position, v = new THREE.Vector3(), ray = new THREE.Raycaster();
+      let nearest = Infinity, farthest = -Infinity;
+      for (let i = 0; i < p.count; i += 3) {
+        v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld);
+        const d = v.clone().sub(c).normalize();
+        ray.set(c.clone().addScaledVector(d, 3), d.clone().negate());
+        const out = v.distanceTo(c) - ray.intersectObject(body, false)[0].point.distanceTo(c);
+        nearest = Math.min(nearest, out); farthest = Math.max(farthest, out);
+      }
+      expect(nearest).toBeGreaterThanOrEqual(0);                                                 // out of the fur
+      expect(nearest).toBeLessThanOrEqual(0.02);                                                 // and touching it
+      expect(farthest).toBeGreaterThan(0.05);                                                    // standing on it, not painted on
     }
   });
   // A cape (polish-pose Task 2) rests on the back: hung on the torso, its

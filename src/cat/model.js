@@ -9,8 +9,9 @@ import { setCatScars } from './scarmesh.js';
 import { ruffGeometry } from './ruff.js';
 import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
 import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
+import { buildBackItem } from './backitems.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
-import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, CHEST, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
+import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -119,16 +120,6 @@ export const CAPE_SIT = Object.freeze({ ...CAPE, zBackSide: 0.75, wrapBack: 1.0 
 // already are. At a ±0.62 each is outside the head's outline from the front.
 const CAPE_CLASP = Object.freeze({ a: 0.62, r: 0.032, flat: 0.7, lift: 0.012 });
 const CAPE_DOTS = [[-0.5, 0.25], [0.3, 0.2], [0.75, 0.45], [-0.15, 0.45], [-0.8, 0.6], [0.45, 0.65], [0.1, 0.8], [-0.45, 0.85]];
-// Where a wing's centre goes in the sit (animator.js rideBody), in the
-// standing torso's frame before it is carried: `out` to the side (× the
-// frame's width), `up` over the torso centre, `z` from it (- is forward).
-// Standing, the wings sit over the rump (z +0.25), which the upright sit puts
-// on the ground; this spot carries to just behind the withers (cat frame
-// y 0.68, z +0.04), each wing 2.3-2.8 cm clear of the fur at its nearest on
-// every preset. Nearer the spine (out 0.14) or lower (up 0.31) the plates cut
-// into the sloping back; further forward they crowd the head.
-const WING_SIT = Object.freeze({ out: 0.18, up: 0.36, z: -0.2 });
-const WING_COLORS = [0xf29a8a, 0x9fc9a0]; // coral / sage, mirrored
 const SNEAKER_WHITE = 0xf2f2f2;
 const SNEAKER_ACCENT = 0xd8303c;
 const RAINBOOT_COLOR = 0x3a6ea5;
@@ -142,8 +133,6 @@ const RAINCOAT_COLOR = 0xf2c94e;
 const SWEATER_BASE = 0x2c6e63;
 const SWEATER_STRIPE = 0xf2ead9;
 const SWEATER_STRIPE_Z = [-0.324, 0.093, 0.509]; // the old rings' centres, legacy unit z
-const JETPACK_SILVER = 0xb8bcc4;
-const JETPACK_FLAME = 0xf2822e;
 const BALLOON_COLOR = 0xf25c8a;
 // Visit prizes (src/visits.js): bright and a little magical, so they read as
 // earned rather than bought.
@@ -998,13 +987,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const BODY_R = TORSO.R;
   const [fx, fy, fz] = s.body ?? [1, 1, 1];
   const BODY_SCALE = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
-  // A back-slot point authored on the old torso, re-placed on the new one at
-  // the same distance from the fur (torso.js torsoRetarget). An item's main
-  // piece is never left sunk in the fur (BACK_MIN_RHO); its small parts keep
-  // their old offsets from it (`from`).
+  // A balloon's tie, authored on the old torso, re-placed on the new one at
+  // the same distance from the fur (torso.js torsoRetarget).
   const onBack = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz]);
-  const onBackMain = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz], BACK_MIN_RHO);
-  const from = (main, dx, dy, dz) => [main[0] + dx, main[1] + dy, main[2] + dz];
   // Neck items, the neck prize and the collar sit NECK_FORWARD ahead of where
   // they sat on the old torso. A fluffy cat's rest on its small bib, at a
   // tabby's spot (NECK_FLUFFY). (Not the hood bunch:
@@ -1389,18 +1374,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // on the torso the same way (CAPE, polish-pose Task 2). The hood and bunch
   // sit relative to the head.
   const hoodItems = [];
-  // Everything the back slot hangs on g (backpack, wings, jetpack tanks and
-  // nozzles) is tagged userData.ridesBody below: animator.js carries them on
-  // the posed torso in the sit (polish-sit Task 3, ruling R4). Not the hood
-  // items (added after), not the shells, buttons, capes and clasps (they hang
-  // on the body), and not the balloons: they float (polish-pose Task 3, ruling
-  // P3). Each balloon piece remembers its tie (userData.float.tie, cat frame,
+  // The back slot hangs only the balloons on g: they float (polish-pose
+  // Task 3, ruling P3). (The backpack, wings and jetpack once hung here too,
+  // tagged userData.ridesBody and carried on the posed torso in the sit; since
+  // accessories polish Task 2 they hang on the body, backitems.js.) Each balloon piece remembers its tie (userData.float.tie, cat frame,
   // where its string is tied on the back) and each string its knot end and
   // built length (userData.span); animator.js floatBalloons carries the tie on
   // the posed torso in every state, keeps the balloons and the knot upright at
   // their built height unless the tie rises, and stretches each string from
   // the tie to its knot end.
-  const ridersFrom = g.children.length;
   const floatOn = (piece, tie) => {
     piece.userData.float = { tie: tie.toArray() };
     g.add(piece);
@@ -1547,38 +1529,17 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     coatShell(null, true); // knit stripes are painted: one mesh
   }
 
-  // back: behind the shoulders. Authored on the old torso and re-placed on the
-  // new one by onBack, which also follows a narrower or shallower torso; the
-  // pack slims by fx so 18cm across does not overhang a kitten's back.
-  if (accessories.back === 'backpack') {
-    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.18 * fx, 0.13, 0.1), mat(0x3a6ea5));
-    pack.position.set(...onBackMain(0, 0.56, 0.12));
-    g.add(pack);
-  } else if (accessories.back === 'wings') {
-    for (const side of [-1, 1]) {
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.32, 0.02), mat(WING_COLORS[side === -1 ? 0 : 1]));
-      const at = onBackMain(side * 0.22 * fx, 0.44, 0.3);
-      wing.position.set(...at);
-      // in the sit it stands off the shoulders (WING_SIT): shifted there, then carried
-      const sitAt = [side * WING_SIT.out * fx, TORSO.CENTRE_Y + WING_SIT.up, WING_SIT.z];
-      wing.userData.sitShift = Object.freeze([sitAt[0] - at[0], sitAt[1] - at[1], sitAt[2] - at[2]]);
-      wing.rotation.z = side * 0.5;
-      wing.rotation.y = side * 0.3;
-      g.add(wing);
-    }
-  } else if (accessories.back === 'jetpack') {
-    for (const side of [-1, 1]) {
-      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 8), mat(JETPACK_SILVER));
-      const at = onBackMain(side * 0.07 * fx, 0.52, 0.16);
-      tank.position.set(...at);
-      tank.rotation.x = 0.15;
-      g.add(tank);
-      const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.06, 8), mat(JETPACK_FLAME));
-      nozzle.rotation.x = Math.PI;
-      nozzle.position.set(...from(at, 0, -0.12, 0.025));
-      g.add(nozzle);
-    }
-  } else if (accessories.back === 'balloonbunch') {
+  // back: the backpack, jetpack and wings are shaped things built ON the
+  // torso and hung on the body (backitems.js, accessories polish Task 2), so
+  // they follow every pose; each rests on whatever is outermost on the back —
+  // the cape's cloth, a coat shell or the fur. The balloons (below) float.
+  if (accessories.back === 'backpack' || accessories.back === 'jetpack' || accessories.back === 'wings') {
+    const isCape = accessories.body === 'cape' || accessories.body === 'confetticape';
+    const isShell = accessories.body === 'hoodie' || accessories.body === 'raincoat' || accessories.body === 'sweater';
+    const cover = isCape ? 'cape' : isShell ? 'shell' : 'fur';
+    for (const item of buildBackItem(accessories.back, { bodyScale: BODY_SCALE, cover, simple: !!opts.simple })) body.add(item);
+  }
+  if (accessories.back === 'balloonbunch') {
     // three balloons on three strings tied at one point over the tail; kept
     // under ~y 1.05 so the whole-cat shop thumbnail still frames them. Only
     // the tie moves onto the new back; the balloons keep their heights.
@@ -1604,7 +1565,6 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     floatOn(balloon, foot);
   }
 
-  for (const item of g.children.slice(ridersFrom)) if (!item.userData.float) item.userData.ridesBody = true;
   for (const item of hoodItems) g.add(item);
 
   // feet: small shells on the paw positions. Cuff and stripe hang from the paw.

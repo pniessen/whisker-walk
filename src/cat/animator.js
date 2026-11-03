@@ -180,8 +180,9 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const { underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
-  // The sit carries the back-slot items on the posed torso (below,
-  // rideBody). Each remembers its rest here, before fitLongLegs first moves
+  // The sit carries any group-hung rider (userData.ridesBody; none today —
+  // the back items hang on the body) on the posed torso (below, rideBody).
+  // Each remembers its rest here, before fitLongLegs first moves
   // it; every other state puts it back there first, so fitLongLegs and the
   // pose fit move it exactly as they always did.
   const sitting = (state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds;
@@ -194,6 +195,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     if (ridesBody && !sitting) restore(item);
   }
   wearCape(cat.userData.parts.body, sitting);
+  flutterWings(cat.userData.parts.body, t, reducedMotion, sitting);
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
   // The stalk's tail root rides the body (STALK_TAIL), once the body is where
@@ -241,6 +243,48 @@ function wearCape(body, sitting) {
   }
 }
 
+// The butterfly wings flutter (accessories polish Task 2): each wing (a body
+// child with userData.wing, -1 | 1) turns about its hinge (userData.hinge,
+// body-local: the root point and the root line's direction) by
+// side · WING_FLUTTER.amp · sin(t · WING_FLUTTER.rate), the two sides
+// mirrored. At sin 0, and always under reducedMotion, it is exactly as built:
+// its rest (remembered on first use, as restore() reads it) is copied back.
+// In the sit the torso pitches nose-up (SIT.pitch), which tipped the wings
+// back to lie along the sloping back like flaps; there each wing also turns
+// back by WING_FLUTTER.sitStand of the body's pitch, about its point nearest
+// the back (userData.hinge.low), so it stands nearly as it does standing and
+// still rests on the back.
+// Allocates nothing after the first frame.
+export const WING_FLUTTER = Object.freeze({ amp: 0.12, rate: 3, sitStand: 0.7 });
+const _hingeQ = new THREE.Quaternion();
+const _hingeAxis = new THREE.Vector3();
+const _hingeAt = new THREE.Vector3();
+const _standQ = new THREE.Quaternion();
+const _X1 = new THREE.Vector3(1, 0, 0);
+function flutterWings(body, t, reducedMotion, sitting) {
+  const kids = body.children;
+  const stand = sitting ? -WING_FLUTTER.sitStand * body.rotation.x : 0;
+  for (let i = 0; i < kids.length; i++) {
+    const w = kids[i], side = w.userData.wing;
+    if (!side) continue;
+    const rest = (w.userData.rest ??= { position: w.position.clone(), quaternion: w.quaternion.clone() });
+    const angle = reducedMotion ? 0 : side * WING_FLUTTER.amp * Math.sin(t * WING_FLUTTER.rate);
+    if (angle === 0 && stand === 0) { w.position.copy(rest.position); w.quaternion.copy(rest.quaternion); continue; }
+    const { point, dir, low } = w.userData.hinge;
+    _hingeQ.setFromAxisAngle(_hingeAxis.fromArray(dir), angle);
+    w.quaternion.multiplyQuaternions(_hingeQ, rest.quaternion);
+    _hingeAt.fromArray(point);
+    w.position.copy(rest.position).sub(_hingeAt).applyQuaternion(_hingeQ).add(_hingeAt);
+    if (stand) {
+      // then the sit's stand, about the wing's lowest point (as fluttered)
+      _standQ.setFromAxisAngle(_X1, stand);
+      _hingeAt.fromArray(low).applyQuaternion(w.quaternion).add(w.position);
+      w.quaternion.premultiply(_standQ);
+      w.position.sub(_hingeAt).applyQuaternion(_standQ).add(_hingeAt);
+    }
+  }
+}
+
 // R4: the underside hangs on the torso, so a yawed torso ('cross') would swing
 // the chest out from under the chin. It turns back by the yaw, but the torso's
 // scale is not uniform, so R_y(θ)·S·R_y(-θ) is not the identity: the chest
@@ -272,21 +316,16 @@ function rideTail(cat) {
   tail.position.copy(_anchor);
 }
 
-// The sit's back items (polish-sit Task 3, ruling R4). The backpack, wings,
-// jetpack hang on the cat, not on the body (model.js tags them
-// userData.ridesBody), so the upright sit's nose-up pitch (SIT.pitch 0.75)
-// left them floating behind the back. Here each is
-// carried by the posed body: position = bodyPosed · bodyRest⁻¹ · rest (the
-// body's rest being (0, base.bodyY, 0), unrotated, at base.bodyScale), turned
-// by the body's own rotation. Its rest (as built) is remembered by animateCat
-// before anything moves it, which also puts it back in every other state.
+// The sit's riders (polish-sit Task 3, ruling R4): an item hung on the cat
+// group, not on the body, and tagged userData.ridesBody, is carried by the
+// posed body in the sit: position = bodyPosed · bodyRest⁻¹ · rest (the body's
+// rest being (0, base.bodyY, 0), unrotated, at base.bodyScale), turned by the
+// body's own rotation. Its rest (as built) is remembered by animateCat before
+// anything moves it, which also puts it back in every other state.
 //
-// The wings are the exception (fix round 1): turned with the torso they read
-// as plates drooping down the haunch. They keep their built orientation and
-// only move: a wing (userData.sitShift) goes to its sit spot over the
-// shoulders (model.js WING_SIT), rest + sitShift, carried by the body.
-// The capes no longer ride: since polish-pose Task 2 they are cloth on the
-// body itself (model.js CAPE), so they follow the sit like the coats do.
+// Nothing is tagged today: the backpack, wings and jetpack hang on the body
+// itself since accessories polish Task 2 (backitems.js), as the capes do
+// since polish-pose Task 2, so they follow the sit and every other pose.
 // Allocates nothing.
 const _ride = new THREE.Matrix4();
 const _rideAt = new THREE.Vector3();
@@ -303,12 +342,7 @@ function rideBody(cat) {
   carryBody(cat);
   for (const item of cat.children) {
     if (!item.userData.ridesBody) continue;
-    const { rest, sitShift } = item.userData;
-    if (sitShift) {
-      item.position.fromArray(sitShift).add(rest.position).applyMatrix4(_ride);
-      item.quaternion.copy(rest.quaternion);
-      continue;
-    }
+    const { rest } = item.userData;
     item.position.copy(rest.position).applyMatrix4(_ride);
     item.quaternion.multiplyQuaternions(body.quaternion, rest.quaternion);
   }
