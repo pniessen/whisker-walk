@@ -12,6 +12,37 @@ export const PAINT_Y = 0.005;
 
 const _c = new THREE.Color();
 
+// Small shared helpers for the River's and the Moor's dressing (riverdress.js,
+// moordress.js): pure maths, plus Tris, which makes a Three geometry only
+// when its geometry() is called (inside the caller's withLocalUuids).
+export const r2 = (v) => Math.round(v * 100) / 100;
+export const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+export const smoothstep = (a, b, v) => { const t = clamp01((v - a) / (b - a)); return t * t * (3 - 2 * t); };
+// Distance from (x, z) to an axis-aligned rect (0 inside it).
+export const rectDist = (d, x, z) => Math.hypot(
+  Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
+// A list worked out on first call and kept.
+export const once = (fn) => { let v; return () => (v ??= fn()); };
+export const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+// A hex colour (sRGB) as linear [r, g, b].
+export const lin = (hex) => { _c.setHex(hex); return [_c.r, _c.g, _c.b]; };
+export const scale3 = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+export const unit = (x, y, z) => { const l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]; };
+
+// Collects raw triangles (position, normal, colour per vertex) into one
+// geometry with colorParts' attributes, so it merges with the rest.
+export class Tris {
+  constructor() { this.p = []; this.n = []; this.c = []; }
+  v(x, y, z, n, c) { this.p.push(x, y, z); this.n.push(n[0], n[1], n[2]); this.c.push(c[0], c[1], c[2]); }
+  geometry() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.p), 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(this.n), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(this.c), 3));
+    return g;
+  }
+}
+
 // A NON-indexed copy of `geo` carrying only position, normal and a 3-component
 // vertex colour. `color` is a hex number, [r,g,b] (linear 0..1) or a function
 // (x, y, z) => [r,g,b] of the vertex position. Disposes the input if it had

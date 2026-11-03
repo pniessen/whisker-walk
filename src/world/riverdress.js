@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { hash01, waterGap, inWater } from './builder.js';
 import { segDist } from '../segdist.js';
 import { DISCS } from '../rivalclans.js';
-import { colorParts, dressMesh, paintMesh, ribbon, smoothField, bothSidesLit } from './dressing.js';
+import {
+  colorParts, dressMesh, paintMesh, ribbon, smoothField, bothSidesLit,
+  Tris, lin, scale3, unit, lerp3, clamp01, smoothstep, rectDist, once, r2,
+} from './dressing.js';
 import {
   RIVER_WATERS, RIVER_PATHS, RIVER_KEEP_CLEAR, RIVER_DECKS, RIVER_LOG, RIVER_STONES,
   RIVER_MEADOW, RIVER_REEDBED, RIVER_FALLEN_LOG, SPAWN, WATER_LOOK, riverTrees, riverLilyPads,
@@ -33,11 +36,6 @@ import {
 
 const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
 const inBounds = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
-const r2 = (v) => Math.round(v * 100) / 100;
-const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
-const smoothstep = (a, b, v) => { const t = clamp01((v - a) / (b - a)); return t * t * (3 - 2 * t); };
-const rectDist = (d, x, z) => Math.hypot(
-  Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
 // How far (x, z) is from the nearest water's edge, decks ignored (negative
 // inside the water).
 const waterDist = (x, z) => {
@@ -47,7 +45,6 @@ const waterDist = (x, z) => {
 };
 const byId = (id) => RIVER_WATERS.find((w) => w.id === id);
 
-const once = (fn) => { let v; return () => (v ??= fn()); };
 const trunks = once(() => { const t = riverTrees(); return [...t.willows, ...t.alders, ...t.pines]; });
 const openWaters = once(() => RIVER_WATERS.map((w) => ({ ...w, decks: [] })));
 
@@ -290,7 +287,6 @@ const WET = [0.68, 0.82, 0.62];
 const DRY = [1.18, 1.08, 0.74];
 const LUSH = [0.66, 0.86, 0.6];
 const PEATY = [0.78, 0.8, 0.64];
-const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 export function riverGroundTint(x, z) {
   const near = smoothstep(0, 0.7, 1 - waterDist(x, z) / 6);
   const hollow = smoothstep(0.25, 0.6, smoothField(x, z, 81, 14)) * 0.85;
@@ -305,25 +301,7 @@ export function riverGroundTint(x, z) {
   return lerp3(m, WET, wet);
 }
 
-// --- geometry -----------------------------------------------------------------------
-const _c = new THREE.Color();
-const lin = (hex) => { _c.setHex(hex); return [_c.r, _c.g, _c.b]; };
-const scale3 = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
-
-// Collects raw triangles (position, normal, colour per vertex) into one
-// geometry with colorParts' attributes, so it merges with the rest.
-class Tris {
-  constructor() { this.p = []; this.n = []; this.c = []; }
-  v(x, y, z, n, c) { this.p.push(x, y, z); this.n.push(n[0], n[1], n[2]); this.c.push(c[0], c[1], c[2]); }
-  geometry() {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.p), 3));
-    g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(this.n), 3));
-    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(this.c), 3));
-    return g;
-  }
-}
-const unit = (x, y, z) => { const l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]; };
+// --- geometry (Tris, lin and the rest are dressing.js's) ----------------------------
 
 // Six tapered blades, each one triangle, splayed out from the root: olive at
 // the root to straw at the tip.

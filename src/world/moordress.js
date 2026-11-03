@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { hash01, waterGap } from './builder.js';
 import { segDist } from '../segdist.js';
 import { DISCS } from '../rivalclans.js';
-import { colorParts, dressMesh, paintMesh, ribbon, smoothField, bothSidesLit } from './dressing.js';
+import {
+  colorParts, dressMesh, paintMesh, ribbon, smoothField, bothSidesLit,
+  Tris, lin, scale3, unit, lerp3, clamp01, smoothstep, rectDist, once, r2,
+} from './dressing.js';
 import {
   MOOR_WATERS, MOOR_PATHS, MOOR_TRAIL, MOOR_GORGE_TRAIL, MOOR_KEEP_CLEAR, MOOR_DECKS, MOOR_LAKE,
   MOOR_RIVER_MOUTH, HIGH_TOR, MOOR_CHAIN_ROCKS, TORS, SPAWN, moorTrunks, moorReeds, moorHeather, moorGorse,
@@ -37,11 +40,6 @@ import {
 
 const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
 const inBounds = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
-const r2 = (v) => Math.round(v * 100) / 100;
-const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
-const smoothstep = (a, b, v) => { const t = clamp01((v - a) / (b - a)); return t * t * (3 - 2 * t); };
-const rectDist = (d, x, z) => Math.hypot(
-  Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
 // How far (x, z) is from the nearest water's edge, decks ignored (negative
 // inside the water).
 const waterDist = (x, z) => {
@@ -49,7 +47,6 @@ const waterDist = (x, z) => {
   for (const w of MOOR_WATERS) m = Math.min(m, waterGap(w, x, z));
   return m;
 };
-const once = (fn) => { let v; return () => (v ??= fn()); };
 const nearest = (list, x, z) => {
   let m = Infinity;
   for (const p of list) m = Math.min(m, Math.hypot(x - p.x, z - p.z));
@@ -134,6 +131,16 @@ const sheepDist = (x, z) => {
 // its collider, ruling R4), never on a path or a trail (1.2 m clear of the
 // path's edge), and clear of the High Tor's chain boulder so the hop onto it
 // stays open.
+// Clitter keeps off every find (the High Tor's own perch and golden mouse,
+// on its pillar, excepted), the decks, the camp and the spawn.
+const clitterClear = (x, z) => {
+  if (MOOR_KEEP_CLEAR.some(([px, pz]) => Math.hypot(px - HIGH_TOR.x, pz - HIGH_TOR.z) > HIGH_TOR.r
+    && Math.hypot(x - px, z - pz) < 1.5)) return false;
+  if (MOOR_DECKS.some((d) => rectDist(d, x, z) < 3)) return false;
+  const disc = DISCS.moor;
+  if (Math.hypot(x - disc.cx, z - disc.cz) < disc.r + 1) return false;
+  return Math.hypot(x - SPAWN.x, z - SPAWN.z) >= 5;
+};
 export const moorClitter = once(() => {
   const out = [];
   const paths = MOOR_PATHS, trails = TRAILS();
@@ -155,6 +162,7 @@ export const moorClitter = once(() => {
       if (trails.some((s) => segDist(x, z, ...s) - 1 < 1.2)) continue;
       if (MOOR_CHAIN_ROCKS.some((c) => Math.hypot(x - c.x, z - c.z) < 1.2)) continue;
       if (waterDist(x, z) < 1) continue;
+      if (!clitterClear(x, z)) continue;
       // smaller round the High Tor's slim pillar
       const r = r2(0.18 + (t.r < 1 ? 0.17 : 0.27) * hash01(x, z, 957));
       if (mine.some((c) => Math.hypot(c.x - x, c.z - z) < (c.r + r) * 0.6)) continue;
@@ -257,8 +265,10 @@ export const moorGrass = once(() => {
 // Stones along the lake's north shore (z 8, west of the river mouth and east
 // of it) and its east shore (x -14), their centres from 0.6 m out in the water
 // to 0.5 m up the bank, in clumps, low (tops at most 0.22 m), and not within
-// 1.5 m of a reed clump or a deck.
-export const MAX_SHORE_STONES = 70;
+// 1.0 m of a reed clump (fix round 1 ruling: at 1.5 m the reeds every 2.5 m
+// left room for one stone a gap) or 1.5 m of a deck.
+// 60 rather than the brief's 70 cap: the triangle allowance (fix round 1)
+export const MAX_SHORE_STONES = 60;
 const MOUTH_SKIP = [-41, -34]; // the river mouth's x, ±1 m
 export const moorShoreStones = once(() => {
   const L = MOOR_LAKE;
@@ -293,7 +303,7 @@ export const moorShoreStones = once(() => {
     if (!inBounds(x, z)) continue;
     if (Math.abs(waterGap(L, x, z)) > 0.65) continue;
     if (waterGap(MOOR_RIVER_MOUTH, x, z) < 0.4) continue;
-    if (nearest(reeds(), x, z) < 1.5) continue;
+    if (nearest(reeds(), x, z) < 1.0) continue;
     if (MOOR_DECKS.some((d) => rectDist(d, x, z) < 1.5)) continue;
     if (MOOR_KEEP_CLEAR.some(([px, pz]) => Math.hypot(x - px, z - pz) < 1.5)) continue;
     const r = r2(0.18 + 0.24 * hash01(x, z, 1471));
@@ -327,7 +337,6 @@ const BRACKEN_TINT = [1.06, 0.82, 0.64];
 const WET = [0.9, 0.98, 0.88];
 const SUN = (() => { const l = Math.hypot(-36, -24); return [-36 / l, -24 / l]; })();
 const SLOPE_LIGHT = 0.8;
-const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 export function moorGroundTint(x, z) {
   const u = ROLL(x, z);
   let m = lerp3([1, 1, 1], CREST, smoothstep(0, 0.6, u));
@@ -342,23 +351,7 @@ export function moorGroundTint(x, z) {
   return lerp3(m, WET, wet);
 }
 
-// --- geometry ------------------------------------------------------------------------
-const _c = new THREE.Color();
-const lin = (hex) => { _c.setHex(hex); return [_c.r, _c.g, _c.b]; };
-const scale3 = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
-const unit = (x, y, z) => { const l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]; };
-
-class Tris {
-  constructor() { this.p = []; this.n = []; this.c = []; }
-  v(x, y, z, n, c) { this.p.push(x, y, z); this.n.push(n[0], n[1], n[2]); this.c.push(c[0], c[1], c[2]); }
-  geometry() {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.p), 3));
-    g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(this.n), 3));
-    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(this.c), 3));
-    return g;
-  }
-}
+// --- geometry (Tris, lin and the rest are dressing.js's) ----------------------------
 
 // Four single-triangle blades per tuft, broadside to the wind and leaning
 // 25-40 degrees along it, a little fanned; dark at the root, pale at the tip.
@@ -432,7 +425,7 @@ function rockParts() {
 }
 
 // A far tor: three squashed icosahedra stacked, widest at the foot, each
-// drifting a little off the one below, and three fallen rocks round it (all
+// drifting a little off the one below, and two fallen rocks round it (all
 // past the bounds).
 function farTorParts() {
   const parts = [];
@@ -445,7 +438,7 @@ function farTorParts() {
       const z = t.z + Math.sin(a) * t.r * drift;
       parts.push(rockPart(x, z, t.r * rs, t.h * tall, 1711 + i * 7 + k, { buried: k === 0 ? 0.4 : 0.15, y0: t.h * foot }));
     });
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < 2; k++) {
       const a = hash01(t.z, t.x + k, 1771) * Math.PI * 2;
       const d = t.r * (1.15 + 0.35 * hash01(t.x + k, t.z, 1785));
       const rr = 0.4 + 0.35 * hash01(k, t.x, 1799);
@@ -483,7 +476,9 @@ function paintParts() {
   lines.forEach((pts, i) => {
     parts.push(colorParts(ribbon(pts, 0.38, { salt: 1901 + i, wobble: 0.3, step: 0.8 }), mottled(TRACK_A, TRACK_B, 1911 + i)));
   });
-  parts.push(colorParts(ribbon(offsetLine(lines[0], 0.45), 0.15, { salt: 1921, wobble: 0.3, step: 0.8 }), mottled(TRACK_A, TRACK_B, 1931)));
+  // the rut 0.7 m off, unwobbled: the track's edge wobbles out to 0.49 m and
+  // the rut's to 0.15, so the two never overlap in the one plane
+  parts.push(colorParts(ribbon(offsetLine(lines[0], 0.7), 0.15, { salt: 1921, wobble: 0, step: 0.8 }), mottled(TRACK_A, TRACK_B, 1931)));
   // the shingle, 0.95 m up the bank from the waterline, about 1.6 m wide
   const L = MOOR_LAKE;
   const off = 0.95;

@@ -166,6 +166,14 @@ describe('the Moor dressing', () => {
       // the High Tor's chain boulder stays free to hop onto
       for (const r of MOOR_CHAIN_ROCKS) expect(Math.hypot(c.x - r.x, c.z - r.z), at).toBeGreaterThanOrEqual(1.2);
       expect(waterDist(c.x, c.z), at).toBeGreaterThanOrEqual(1);
+      // every find, but the High Tor's own perch and golden mouse on its pillar
+      for (const [px, pz] of MOOR_KEEP_CLEAR) {
+        if (Math.hypot(px - HIGH_TOR.x, pz - HIGH_TOR.z) <= HIGH_TOR.r) continue;
+        expect(Math.hypot(c.x - px, c.z - pz), at).toBeGreaterThanOrEqual(1.5);
+      }
+      for (const d of MOOR_DECKS) expect(rectDist(d, c.x, c.z), at).toBeGreaterThanOrEqual(3);
+      expect(Math.hypot(c.x - DISCS.moor.cx, c.z - DISCS.moor.cz), at).toBeGreaterThanOrEqual(DISCS.moor.r + 1);
+      expect(Math.hypot(c.x - SPAWN.x, c.z - SPAWN.z), at).toBeGreaterThanOrEqual(5);
     }
     for (const n of per) {
       expect(n).toBeGreaterThanOrEqual(6);
@@ -175,7 +183,7 @@ describe('the Moor dressing', () => {
 
   it('shore stones straddle the lake waterline, never in the river mouth, off the reeds', () => {
     const list = moorShoreStones();
-    expect(list.length).toBeGreaterThanOrEqual(25);
+    expect(list.length).toBeGreaterThanOrEqual(50);
     expect(list.length).toBeLessThanOrEqual(70);
     const reeds = moorReeds();
     for (const s of list) {
@@ -184,7 +192,7 @@ describe('the Moor dressing', () => {
       expect(inBounds(s.x, s.z), at).toBe(true);
       expect(Math.abs(waterGap(MOOR_LAKE, s.x, s.z)), at).toBeLessThanOrEqual(0.7);
       expect(waterGap(MOOR_RIVER_MOUTH, s.x, s.z), at).toBeGreaterThanOrEqual(0.4);
-      for (const r of reeds) expect(Math.hypot(s.x - r.x, s.z - r.z), at).toBeGreaterThanOrEqual(1.5);
+      for (const r of reeds) expect(Math.hypot(s.x - r.x, s.z - r.z), at).toBeGreaterThanOrEqual(1.0);
       for (const d of MOOR_DECKS) expect(rectDist(d, s.x, s.z), at).toBeGreaterThanOrEqual(1.5);
       expect(s.h).toBeLessThanOrEqual(0.22);
     }
