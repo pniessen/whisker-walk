@@ -90,11 +90,25 @@ const GROUND_EASE = 4;
 // the scene. Expressed this way, the high tier (2.0 cm texels) gets 1.4 cm and
 // the low tier (3.9 cm) gets 2.7 cm from one line, where the old code gave
 // both the same 2 cm and therefore over-biased high and under-biased low.
-// 0.7 rather than 1.0: PCFSoftShadowMap already spreads its taps, so a full
+// 0.7 rather than 1.0: the PCF kernel already spreads its taps, so a full
 // texel of normal offset detaches contact shadows visibly at the grazing sun
 // angle this pass introduces — and a detached contact shadow is the exact
 // thing the whole item exists to fix.
 const NORMAL_BIAS_TEXELS = 0.7;
+
+// SOFTER, LIGHTER SUN SHADOWS. three 0.185's PCF is a fixed 5-tap Vogel disk
+// of hardware 2x2 compares; `shadow.radius` only spreads those taps. It is a
+// uniform, so there is no shader change, no extra taps, and the shadow-pass
+// draws are unchanged. The radius is derived from WORLD metres (softness /
+// texelSize), so every tier gets the same penumbra: HIGH 2048 -> ~2.05 texels,
+// LOW 1024 -> ~1.02 texels, i.e. LOW is effectively unchanged from three's default of 1.
+// 4 cm was picked from a live sweep: a radius of 3+ texels on HIGH washed out
+// the cat's own cast shadow on the Neighborhood street; 2 kept it. Intensity
+// 0.8 lightens the pine wedges ("ink") without losing them. The contact-shadow
+// decals (contactshadows.js) are separate and untouched, so the cat stays
+// grounded.
+export const SHADOW_SOFTNESS_M = 0.04;
+export const SHADOW_INTENSITY = 0.8;
 
 // The orthonormal light-space basis, matching THREE's own to the sign.
 //
@@ -185,7 +199,10 @@ export function fitCentre(camera, lead, out = new THREE.Vector3(), groundY = 0) 
 //
 // `lead` defaults from the radius and exists as an option purely so
 // verify-lighting.html can sweep it; nothing in the game passes it.
-export function createShadowFit(sun, camera, { radius, mapSize, lead = radius * LEAD_FRACTION }) {
+export function createShadowFit(sun, camera, {
+  radius, mapSize, lead = radius * LEAD_FRACTION,
+  softness = SHADOW_SOFTNESS_M, intensity = SHADOW_INTENSITY,
+}) {
   sun.castShadow = true;
   sun.shadow.mapSize.set(mapSize, mapSize);
 
@@ -200,6 +217,8 @@ export function createShadowFit(sun, camera, { radius, mapSize, lead = radius * 
 
   const texelSize = (2 * radius) / mapSize;
   sun.shadow.normalBias = texelSize * NORMAL_BIAS_TEXELS;
+  sun.shadow.radius = softness / texelSize;
+  sun.shadow.intensity = intensity;
 
   const direction = sun.position.clone().sub(sun.target.position).normalize();
   const basis = lightBasis(direction);

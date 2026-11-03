@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { lightBasis, snapToTexelGrid, fitCentre, createShadowFit } from '../src/render/shadowfit.js';
+import { lightBasis, snapToTexelGrid, fitCentre, createShadowFit, SHADOW_SOFTNESS_M, SHADOW_INTENSITY } from '../src/render/shadowfit.js';
 import { resolveQuality } from '../src/render/quality.js';
 
 // render/shadowfit.js touches no DOM and no WebGL — it only ever reads and
@@ -188,6 +188,33 @@ describe('createShadowFit', () => {
     expect(high.shadow.normalBias).toBeLessThan(0.02); // the old flat value
   });
 
+  it('spreads PCF over the same world width on every tier, so LOW keeps its one-texel kernel', () => {
+    const high = fakeSun(); const low = fakeSun();
+    createShadowFit(high, chaseCamera(), { radius: HIGH.shadowFitRadius, mapSize: HIGH.shadowMapSize });
+    createShadowFit(low, chaseCamera(), { radius: LOW.shadowFitRadius, mapSize: LOW.shadowMapSize });
+    const texel = (t) => (2 * t.shadowFitRadius) / t.shadowMapSize;
+    expect(high.shadow.radius * texel(HIGH)).toBeCloseTo(SHADOW_SOFTNESS_M, 6);
+    expect(low.shadow.radius * texel(LOW)).toBeCloseTo(SHADOW_SOFTNESS_M, 6);
+    expect(high.shadow.radius).toBeGreaterThan(1.9);
+    expect(high.shadow.radius).toBeLessThan(2.6); // >=3 washes out the cat's own shadow
+    expect(low.shadow.radius).toBeLessThanOrEqual(1.05); // LOW no wider than three's default
+  });
+
+  it('lightens the sun shadow to SHADOW_INTENSITY, and sets it even on a light someone already touched', () => {
+    const sun = fakeSun(); sun.shadow.intensity = 0.3; sun.shadow.radius = 9;
+    createShadowFit(sun, chaseCamera(), { radius: 20, mapSize: 2048 });
+    expect(SHADOW_INTENSITY).toBe(0.8);
+    expect(sun.shadow.intensity).toBe(0.8);
+    expect(sun.shadow.radius).toBeLessThan(3);
+  });
+
+  it('takes softness and intensity overrides for the verify harnesses', () => {
+    const sun = fakeSun();
+    createShadowFit(sun, chaseCamera(), { radius: 20, mapSize: 2048, softness: 0, intensity: 1 });
+    expect(sun.shadow.radius).toBe(0);
+    expect(sun.shadow.intensity).toBe(1);
+  });
+
   it('fits on construction, so the walk’s first frame is not centred on the world origin', () => {
     const sun = fakeSun();
     createShadowFit(sun, chaseCamera(0, 45), { radius: 20, mapSize: 2048 });
@@ -293,6 +320,11 @@ describe('the shadow fit and the hemisphere fill are actually wired up', () => {
   const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   // The key light and the fill are built in render/rig.js, which walk.js calls.
   const rigSrc = readFileSync(new URL('../src/render/rig.js', import.meta.url), 'utf8');
+
+  it('asks three for PCFShadowMap by name (0.185 maps PCFSoftShadowMap to it with a warning)', () => {
+    expect(mainSrc).toMatch(/shadowMap\.type = THREE\.PCFShadowMap;/);
+    expect(mainSrc).not.toMatch(/PCFSoftShadowMap/);
+  });
 
   // THE KEY LIGHT'S TWO TUNED NUMBERS, pinned against render/rig.js's source.
   //
