@@ -8,6 +8,7 @@ import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
 import { ruffGeometry } from './ruff.js';
 import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
+import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
 import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, CHEST, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
 
@@ -71,8 +72,6 @@ const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbi
 
 // Cat Couture: palette for the twelve new per-slot accessory items (plus the
 // four re-homed ones, which keep their original colors inline below).
-const HAT_BLACK = 0x1c1c22;        // tophat
-const BEANIE_COLOR = 0xd6602f;     // cozy rust knit
 const NECKTIE_COLOR = 0x7a2436;    // maroon
 const BOWTIE_COLOR = 0x2c3e6b;     // navy
 const SCARF_COLOR = 0xd6602f;      // cozy rust knit, matches beanie
@@ -139,7 +138,6 @@ const RAINBOOT_COLOR = 0x3a6ea5;
 const COLLAR_COLORS = { glow: 0x7ef2c0, heart: 0xf27ab0, studded: 0x2c2c34, tag: 0x1c1c22, sparklecollar: 0x8a5cf0 }; // default red below
 const TAG_SILVER = 0xc8ccd4;
 const HEART_CHARM = 0xe0447a;
-const WIZARD_COLOR = 0x4a3b8c;
 const RAINCOAT_COLOR = 0xf2c94e;
 const SWEATER_BASE = 0x2c6e63;
 const SWEATER_STRIPE = 0xf2ead9;
@@ -854,7 +852,8 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     head.add(tail);
   }
 
-  // visit prizes (collar prizes go through buildCollar above)
+  // visit prizes (collar prizes go through buildCollar above; the head
+  // prizes are hats now, built above)
   // The rings sit ON his head (skull top ~0.137, ~0.10-0.12 under the ring),
   // round the comb, which pokes up through the middle like a real crown's.
   addPrizeHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06, ringY: 0.115 });
@@ -1301,40 +1300,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     head.userData.collar = collar;
   }
 
-  // head: above the skull, hats sit between the ears
-  if (accessories.head === 'crown') {
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2;
-      const petal = ball(0.026, [0xf2a0c0, 0xf2e04e, 0xffffff][i % 3], 1, 1, 1, 5, 4);
-      petal.position.set(Math.cos(a) * 0.11, 0.24, Math.sin(a) * 0.07);
-      head.add(petal);
-    }
-  } else if (accessories.head === 'tophat') {
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.02, 10), mat(HAT_BLACK));
-    brim.position.set(0, 0.23, 0);
-    head.add(brim);
-    const crownPart = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.14, 10), mat(HAT_BLACK));
-    crownPart.position.set(0, 0.3, 0);
-    head.add(crownPart);
-  } else if (accessories.head === 'beanie') {
-    const cap = ball(0.14, BEANIE_COLOR, 1, 0.65, 1, 8, 6);
-    cap.position.set(0, 0.25, 0);
-    head.add(cap);
-    const pompom = ball(0.032, 0xf5f5f5, 1, 1, 1, 6, 5);
-    pompom.position.set(0, 0.35, 0);
-    head.add(pompom);
-  } else if (accessories.head === 'wizard') {
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 10), mat(WIZARD_COLOR));
-    brim.position.set(0, 0.23, 0);
-    head.add(brim);
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.26, 10), mat(WIZARD_COLOR));
-    cone.position.set(0, 0.36, 0);
-    cone.rotation.z = 0.12;
-    head.add(cone);
-    const star = ball(0.022, CAPE_ACCENT, 1, 1, 0.5, 5, 4);
-    star.position.set(0.05, 0.31, -0.075);
-    head.add(star);
-  }
+  // head: every hat is one vertex-coloured mesh seated ON the skull, its
+  // brim or band draped over the head with the ears poking through (hats.js;
+  // accessories polish Task 1 — they used to float 4-5 cm over the head).
+  const hat = buildHat(accessories.head, { simple: opts.simple });
+  if (hat) head.add(hat);
 
   // face: eye level — thick frames, a faint tinted lens and a glint, the
   // rims just in front of the eyes (glasses.js; polish-catlooks 2026-11-02:
@@ -1404,8 +1374,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
 
   neckwear.push(...head.children.slice(neckFrom));
 
-  // visit prizes (collar prizes go through buildCollar above)
-  addPrizeHead(head, accessories.head, { k: 1, y: 0.24, rx: 0.11, rz: 0.07 });
+  // visit prizes (collar prizes go through buildCollar above; the head
+  // prizes are hats now, built above)
   addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
   neckFrom = head.children.length;
   addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15 + neckY, z: 0.08 + neckZ, ringR: 0.15 });

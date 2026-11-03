@@ -378,10 +378,29 @@ describe('visit prize placement', () => {
     expect(worn.max.y).toBeLessThan(1.1);
     expect(worn.max.y).toBeGreaterThan(bare.max.y);
   });
-  it('candle hat does not rise above the party crown', () => {
-    const hat = boxOfMesh(buildCat('tabby', { ...bareSet, head: 'candlehat' }));
-    const crown = boxOfMesh(buildCat('tabby', { ...bareSet, head: 'partycrown' }));
-    expect(hat.max.y).toBeLessThanOrEqual(crown.max.y + 0.02);
+  // Accessories polish Task 1: the head prizes are one hat mesh each, seated
+  // on the skull (cathats.test.js has the full sweep). The cake and the crown's
+  // points rise over the skull's top but start on it, and stay under the top
+  // hat's top; the laurel lies round the head, all of it under the skull's top.
+  it.each([['partycrown', true], ['leafcrown', false], ['candlehat', true]])('%s is one hat mesh, seated, under the top hat (rises over the skull: %s)', (id, rises) => {
+    const cat = buildCat('tabby', { ...bareSet, head: id });
+    cat.updateMatrixWorld(true);
+    const { head } = cat.userData.parts;
+    const hats = head.children.filter((o) => o.isMesh && o.userData.hat === id);
+    expect(hats).toHaveLength(1);
+    const skullTop = new THREE.Box3().setFromObject(head.children[0]).max.y;
+    const p = hats[0].geometry.attributes.position;
+    let minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < p.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(p, i);
+      if (v.y < 0) continue; // the candle hat's elastic, under the jaw
+      v.applyMatrix4(hats[0].matrixWorld);
+      minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
+    }
+    if (rises) expect(maxY).toBeGreaterThan(skullTop);
+    else expect(maxY).toBeLessThan(skullTop);
+    expect(minY).toBeLessThan(skullTop);
+    expect(maxY).toBeLessThanOrEqual(boxOfMesh(buildCat('tabby', { ...bareSet, head: 'tophat' })).max.y);
   });
 });
 
@@ -764,7 +783,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     expect(meshCount(buildCat('tabby', { [slot]: id })) - meshCount(buildCat('tabby'))).toBeLessThanOrEqual(ACCESSORY_DELTA[id]);
   });
   // kept elsewhere in this file: balloon bunch top < 1.1 and above the bare cat;
-  // candle hat <= party crown + 0.02; Digit wears exactly one collar.
+  // the head prizes are seated hats under the top hat; Digit wears exactly one collar.
 });
 
 // Body refinement, Task 6 (R9): the fluffy cat's ruff is a small bib tucked
