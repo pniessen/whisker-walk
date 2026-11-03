@@ -32,9 +32,9 @@ Clan card colours (src/ui/clanpicker.js emblems): woods #2f5a33, river #24516b, 
 | ring.specks | [[0x4a1430, 0.07], [0x9a2630, 0.03]] (blackberries) | [[0x5a3a22, 0.06]] (bulrush heads) | [[0xe0b62a, 0.12], [0x9a5a8e, 0.09]] (gorse, heather) | [[0x4f7a3a, 0.07]] (fern tips) | — |
 | den.base / streak | 0x34481f / 0x62803a | 0x5a6a3a / 0xa29e62 (woven reed, straw) | 0x4a4030 / 0x8a5a80 (dry heather) | 0x1e3228 / 0x3e5e3a (moss) | — |
 | den.strand / frame | 0x3a2c1c / 0x5a4128 | 0x4a5a34 / 0x6a5a3a | 0x3a3022 / 0x6a5a3e | 0x2a2620 / 0x3e2e22 | — |
-| floor color / surface | 0xa4845c / 'sand' (trampled earth) | 0xcfcabb / 'gravel' (pale pebbles) | 0xb3b07a / 'grass' (cropped turf) | 0x7a5a3c / 'sand' (needle litter) | — (ledge) |
+| floor color / surface | 0xa4845c / 'sand' (trampled earth) | 0xbdb8a8 / 'gravel' (pale pebbles) | 0x7e9c4c / 'grass' (cropped turf) | 0x7a5a3c / 'sand' (needle litter) | — (ledge) |
 | nest moss / bracken | 0x6f8f3a / 0x8a6a3a | 0x6f9a6a / 0xb0a46a | 0x8a6a80 / 0xa89a62 | 0x5f8a3a / 0x6a4a30 | 0xa08a50 / 0xc8b48a |
-| rock | 0x8a8a80 | 0x7d8890 | 0x9a9488 | 0x5e6070 | 0xc49a6c |
+| rock | 0x8a8a80 | 0x7d8890 | 0x9a9488 | 0x5e6070 | 0xb8825a |
 
 The gorge row only needs `nest` and `rock` (a ledge camp has no ring, den or floor); give it the woods values for the rest so `campLook` always returns a full record.
 
@@ -61,7 +61,7 @@ The gorge row only needs `nest` and `rock` (a ledge camp has no ring, den or flo
 
 - [ ] **Step 2: Write the failing tests in `test/camplooks.test.js`:**
   - `'every clan camp has its own look'`: for the five ids, all `floor.color` distinct among the four flat ones, all `rock` distinct across five, `ring.greens[0]` distinct across the four flat ones; `campLook('legacy-x')` equals `CAMP_LOOKS.woods`.
-  - `'addCamp paints the floor and the rock in the clan's colours'`: for each flat id, `campClearing.material.color.getHex()` === look.floor.color and `campRock.material.color.getHex()` === look.rock; gorge: `campRock` color === 0xc49a6c.
+  - `'addCamp paints the floor and the rock in the clan's colours'`: for each flat id, `campClearing.material.color.getHex()` === look.floor.color and `campRock.material.color.getHex()` === look.rock; gorge: `campRock` color === 0xb8825a.
   - `'the ring carries the clan's specks as whole facets'`: for each flat id, walk the ring colour attribute in triangles; count triangles whose three vertex colours all equal (within 1e-6) a speck hex; each speck colour appears on ≥ 1 triangle and its share of triangles is within ±0.5 of its target share × (clump triangles / all triangles) … keep simple: ≥1 triangle and ≤ 2× the target share of all triangles; no triangle has exactly one or two vertices at a speck colour.
   - `'the den and the nests take the clan's colours'`: the den colour attribute's mean is closer to the clan's `den.base`/`streak` blend than to any other clan's (or simpler: woods den colours differ from pines den colours array-wise); nests contain a vertex colour derived from look.nest.moss (moss × factor in [0.8, 1.15] per channel ratio).
   - `'no new vertices'`: every pinned `BASE_VERTS` entry equal after the change.
