@@ -412,7 +412,7 @@ export function build(scene, { water = {}, wind } = {}) {
       { type: 'duck', x: -14, z: 2 }, { type: 'duck', x: -12, z: 0 }, { type: 'duck', x: -16, z: 4 },
       { type: 'mouse', x: -9, z: 25, x2: -4, z2: 30 },
       { type: 'mouse', x: 6, z: -18, x2: 2, z2: -24 },
-      { type: 'villager', x: 4, z: 27 }, { type: 'villager', x: -8, z: -22 },
+      { type: 'villager', x: 4, z: 27, standOff: { x: 1.5, z: -1.4 } }, { type: 'villager', x: -8, z: -22 },
     ],
     moments: [
       { id: 'duck-parade', label: 'a duckling parade crossing the path!', x: -8, z: 8, from: { x: -14, z: 2 } },

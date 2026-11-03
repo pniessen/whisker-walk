@@ -170,9 +170,15 @@ export const MOOR_HORIZON = Object.freeze({
   keepLow: islandKeepLow('moor'),
   sideTints: Object.freeze({ north: 0x9a8a9c, east: 0x8a8478, south: 0x4f7a48, west: 0x3f5a46 }),
   // Polish "edges": the strip past the ground's edge is the moor's own
-  // colour, and a dry-stone wall with gorse runs round it, off the water.
+  // colour, and a dry-stone wall with gorse runs round it, off the water
+  // (all the way round since polish-places, with a few wind-bent hawthorns
+  // out on the hills).
   nearColor: 0x8a9558,
   edge: Object.freeze({ half: 60, style: 'wall', avoid: MOOR_WATERS }),
+  // Where the lake runs out west under the hills, a pale peaty beach first,
+  // so a cat swimming out sees the water reach a shore before the hills rise
+  // (builder.horizonBand's `shoreLip`).
+  shoreLip: Object.freeze({ width: 8, color: 0xb8ac80 }),
 });
 
 // --- the things to find ------------------------------------------------------

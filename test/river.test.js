@@ -32,7 +32,7 @@ const { seedFromCode } = await import('../src/rng.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { inWater, waterGap } = await import('../src/world/builder.js');
 const { isWalkableAt } = await import('../src/player.js');
-const { ISLAND_WOODS } = await import('../src/world/lake.js');
+const { ISLAND_WOODS, islandKeepLow } = await import('../src/world/lake.js');
 
 const {
   build, SPAWN, RIVER_WATERS, RIVER_PATHS, RIVER_ISLAND, RIVER_KEEP_CLEAR,
@@ -286,6 +286,65 @@ describe('the River: the island and the horizon', () => {
 
   it('paints one horizon band', () => {
     expect(scene.children.filter((o) => o.name === 'horizonBand')).toHaveLength(1);
+  });
+});
+
+// polish-places Task 5: the reeds used to run only along the arc behind the
+// spawn; Task 1's trimmed reed beds paid for the whole ring and a row of low
+// marsh trees. The waters that run off the map end at a pale muddy shore
+// before the far hills (the band's `shoreLip`).
+const b = await import('../src/world/builder.js');
+describe('the River: the edge all the way round', () => {
+  const { RIVER_HORIZON } = river;
+  const side = (u) => Math.floor(u * 4) % 4;
+
+  it('the edge runs round every corner', () => {
+    const E = RIVER_HORIZON.edge;
+    const spots = b.edgeSpots(E, RIVER_HORIZON.salt, E.avoid);
+    const near = new Set(spots.filter((s) => s.kind !== 'tree' && s.u !== null).map((s) => side(s.u)));
+    expect([...near].sort()).toEqual([0, 1, 2, 3]);
+    const trees = spots.filter((s) => s.kind === 'tree');
+    expect(new Set(trees.map((s) => side(s.u))).size).toBeGreaterThanOrEqual(3);
+    const edge = scene.getObjectByName('horizonEdge');
+    const pos = edge.geometry.attributes.position;
+    for (let v = 0; v < pos.count; v++) {
+      expect(b.waterClearance(area.waters, pos.getX(v), pos.getZ(v)), `vertex ${v}`).toBeGreaterThanOrEqual(1.0);
+    }
+  }, 120_000);
+
+  it('the lake ends at a shore before the far hills', () => {
+    expect(RIVER_HORIZON.shoreLip).toEqual({ width: 6, color: 0xa8a47a });
+    const band = scene.getObjectByName('horizonBand');
+    const ray = new THREE.Raycaster();
+    const at = (x, z) => {
+      ray.set(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
+      const hit = ray.intersectObject(band, false)[0];
+      return hit ? hit.point.y : -Infinity; // a dropped cell: open water
+    };
+    // the lake runs east past the bounds (x to 120): walk out along it
+    for (const z of [-50, -70]) {
+      const xs = [];
+      for (let x = 60; x <= 114; x += 0.25) xs.push([x, at(x, z)]);
+      expect(xs[0][1], `z ${z}`).toBeLessThan(0.1);
+      const out = xs.findIndex(([, y]) => y >= 0.1);
+      const up = xs.findIndex(([, y]) => y >= 0.6);
+      expect(out, `z ${z}: the band comes out of the water`).toBeGreaterThan(0);
+      expect(up, `z ${z}: the hills rise`).toBeGreaterThan(out);
+      // a lip of 4 m or more under 0.6 m before the hills
+      expect(xs[up][0] - xs[out][0], `z ${z}`).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it('the island keeps its waterline: no lip inside its keepLow zone', () => {
+    const band = scene.getObjectByName('horizonBand');
+    const ray = new THREE.Raycaster();
+    const [zone] = islandKeepLow('river');
+    for (const [dx, dz] of [[0, 0], [zone.r * 0.5, 0], [0, -zone.r * 0.5], [-zone.r * 0.5, zone.r * 0.5]]) {
+      ray.set(new THREE.Vector3(zone.x1 + dx, 50, zone.z1 + dz), new THREE.Vector3(0, -1, 0));
+      const hit = ray.intersectObject(band, false)[0];
+      const y = hit ? hit.point.y : -Infinity;
+      expect(y, `${dx},${dz}`).toBeLessThanOrEqual(0.05);
+    }
   });
 });
 

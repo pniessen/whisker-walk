@@ -39,6 +39,8 @@ import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
 import { postNear } from '../borderposts.js';
 import { postStatus, promptFor } from '../bordercross.js';
+import * as THREE from 'three';
+import { villagerPos } from '../critters.js';
 import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js';
 
 // How far off the cat spots the Gorge's goat for the journal: past its 6 m
@@ -113,6 +115,8 @@ function overDeck(s) {
   const at = held ? s.carry.items?.list.find((it) => it.id === held.id)?.mesh?.position : null;
   return !!at && Number.isFinite(at.x) && Number.isFinite(at.z) && onDeck(at.x, at.z);
 }
+
+const _vpos = new THREE.Vector3(); // scratch for villagerPos
 
 export function createInteractions({
   // getIsTouch, not a captured boolean: a hybrid device upgrades into touch
@@ -812,7 +816,7 @@ export function createInteractions({
     }
     if (!s.prompt && s.quest && s.questGiver) {
       if (s.quest.state === 'offered' &&
-          s.questGiver.group.position.distanceTo(catP) < 2.5) {
+          villagerPos(s.questGiver, _vpos).distanceTo(catP) < 2.5) {
         s.prompt = { kind: 'quest-accept' };
         setPrompt('E — meow at the neighbor');
       } else if (s.quest.state === 'active' &&
@@ -1034,7 +1038,7 @@ export function createInteractions({
     if (!s.prompt) {
       for (const c of s.critters.list) {
         if (c.type !== 'villager' || c.scratched) continue;
-        if (c.group.position.distanceTo(catP) < 2.2) {
+        if (villagerPos(c, _vpos).distanceTo(catP) < 2.2) {
           s.prompt = { kind: 'scratch', data: c };
           setPrompt('E — get head scratches');
           break;
@@ -1042,7 +1046,7 @@ export function createInteractions({
       }
     }
     for (const c of s.critters.list) {
-      if (c.type === 'villager' && c.scratched && c.group.position.distanceTo(catP) > 4) c.scratched = false;
+      if (c.type === 'villager' && c.scratched && villagerPos(c, _vpos).distanceTo(catP) > 4) c.scratched = false;
     }
     if (!s.prompt) {
       const remote = s.remotes.nearest(catP, 1.5);

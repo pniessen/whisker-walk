@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import {
   createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH, PREY_STARTLE, STILL_SPEED, CAT_SPEED_CAP,
-  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay, twolegHead,
+  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay, twolegHead, villagerPos,
 } from '../src/critters.js';
 import { mulberry32 } from '../src/rng.js';
 import { gorgeGround, SHOULDER, CLIFFTOP } from '../src/world/gorgeshape.js';
@@ -1089,10 +1089,11 @@ describe('villager Twolegs', () => {
   it('is three vertex-coloured meshes, one of them the arm, 1.55-1.75 m tall', () => {
     const v = build(4, 0);
     const g = v.group;
-    expect(g.children).toHaveLength(3);
-    expect(g.children.every((m) => m.isMesh)).toBe(true);
-    expect(g.children).toContain(g.userData.arm);
-    for (const m of g.children) {
+    const parts = v.figure.children;
+    expect(parts).toHaveLength(3);
+    expect(parts.every((m) => m.isMesh)).toBe(true);
+    expect(parts).toContain(g.userData.arm);
+    for (const m of parts) {
       expect(m.geometry.getAttribute('color')).toBeTruthy();
       expect(m.material.vertexColors).toBe(true);
     }
@@ -1147,10 +1148,10 @@ describe('villager Twolegs', () => {
   });
 
   it('chooses its look from its spawn, the same every time', () => {
-    const colours = (v) => Array.from(v.group.children[0].geometry.getAttribute('color').array);
+    const colours = (v) => Array.from(v.figure.children[0].geometry.getAttribute('color').array);
     // The coat's colour, read off a vertex of its shoulder rim (y 1.35, r 0.21).
     const coat = (v) => {
-      const geo = v.group.children[0].geometry;
+      const geo = v.figure.children[0].geometry;
       const p = geo.getAttribute('position');
       const c = geo.getAttribute('color');
       for (let i = 0; i < p.count; i++) {
@@ -1162,12 +1163,94 @@ describe('villager Twolegs', () => {
     const a2 = build(4, 0);
     const b = build(10, 3); // hashes to another coat than (4, 0)
     for (let i = 0; i < 3; i++) {
-      expect(Array.from(a.group.children[i].geometry.getAttribute('position').array))
-        .toEqual(Array.from(a2.group.children[i].geometry.getAttribute('position').array));
+      expect(Array.from(a.figure.children[i].geometry.getAttribute('position').array))
+        .toEqual(Array.from(a2.figure.children[i].geometry.getAttribute('position').array));
     }
     expect(colours(a)).toEqual(colours(a2));
     expect(coat(a)).not.toBe(null);
     expect(coat(b)).not.toBe(null);
     expect(coat(a)).not.toEqual(coat(b));
+  });
+});
+
+describe('a Twoleg steps out of its spawn (polish-places)', () => {
+  const world = (o) => { const p = new THREE.Vector3(); o.updateWorldMatrix(true, false); return o.getWorldPosition(p); };
+  const dad = { type: 'villager', x: 4, z: 27 };
+  const meshPositions = (c) => c.figure.children.map((m) => Array.from(m.geometry.getAttribute('position').array));
+
+  it('the figure stands at its standOff and the group stays on the spawn', () => {
+    const c = createCritters(scene, [{ ...dad, standOff: { x: 1.1, z: -1.3 } }]).list[0];
+    expect(c.group.position.x).toBe(4);
+    expect(c.group.position.y).toBe(0);
+    expect(c.group.position.z).toBe(27);
+    const w = world(c.figure);
+    expect([w.x, w.y, w.z].map((v) => +v.toFixed(6))).toEqual([5.1, 0, 25.7]);
+    expect(c.group.userData.figure).toBe(c.figure);
+    let p = c.group.userData.arm;
+    while (p && p !== c.figure) p = p.parent;
+    expect(p).toBe(c.figure);
+  });
+
+  it('a villager with no standOff is unchanged', () => {
+    const c = createCritters(scene, [dad]).list[0];
+    expect(c.figure.position.toArray()).toEqual([0, 0, 0]);
+    expect(c.figure.children).toHaveLength(3);
+    expect(c.figure.children[2]).toBe(c.group.userData.arm);
+    expect(c.group.children).toEqual([c.figure]);
+    c.group.position.set(4, 0.3, 27);
+    c.group.rotation.y = 0.7;
+    c.group.updateMatrixWorld(true);
+    expect(world(c.figure).toArray()).toEqual(c.group.position.toArray());
+    for (const m of c.figure.children) {
+      m.updateMatrix();
+      const direct = c.group.matrixWorld.clone().multiply(m.matrix);
+      m.matrixWorld.elements.forEach((e, i) => expect(e).toBeCloseTo(direct.elements[i], 9));
+    }
+    const off = createCritters(scene, [{ ...dad, standOff: { x: 2, z: 1 } }]).list[0];
+    expect(meshPositions(off)).toEqual(meshPositions(c));
+  });
+
+  it('villagerPos is the figure for a standOff villager, the group otherwise', () => {
+    const off = createCritters(scene, [{ ...dad, standOff: { x: 1.5, z: -1.4 } }]).list[0];
+    const out = new THREE.Vector3();
+    expect(villagerPos(off, out)).toBe(out);
+    expect(out.toArray().map((v) => +v.toFixed(6))).toEqual([5.5, 0, 25.6]);
+    const plain = createCritters(scene, [dad]).list[0];
+    expect(villagerPos(plain, out).toArray()).toEqual([4, 0, 27]);
+    expect(villagerPos({ group: plain.group }, out).toArray()).toEqual([4, 0, 27]);
+  });
+
+  it('a standOff villager waves and is dismayed by what is near its figure, not its spawn', () => {
+    const crit = createCritters(scene, [{ ...dad, standOff: { x: 1.5, z: -1.4 } }]);
+    const c = crit.list[0];
+    const near = new THREE.Vector3(6.2, 0, 24.9); // 1 m from the figure, 3.3 m from the group
+    crit.dismayNear(near, 2);
+    expect(c.meowWaveT).toBe(1.5);
+    c.meowWaveT = 0;
+    crit.dismayNear(new THREE.Vector3(4, 0, 27), 1); // on the spawn, 2 m from the figure
+    expect(c.meowWaveT).toBe(0);
+  });
+
+  it('removing a villager hides its figure', () => {
+    const crit = createCritters(scene, [dad]);
+    const c = crit.list[0];
+    crit.dispose(); // removes every critter
+    expect(c.figure.visible).toBe(false);
+  });
+
+  it('other critters have no figure', () => {
+    expect(createCritters(scene, [{ type: 'bird', x: 1, z: 1 }]).list[0].figure).toBeUndefined();
+  });
+
+  it('building a villager draws on Math.random exactly as before', () => {
+    const count = (def) => {
+      const real = Math.random; let n = 0;
+      Math.random = () => { n++; return real(); };
+      try { createCritters(scene, [def]); } finally { Math.random = real; }
+      return n;
+    };
+    const plain = count(dad);
+    expect(count({ ...dad, standOff: { x: 1.5, z: -1.4 } })).toBe(plain);
+    expect(plain).toBe(41); // the same 41 the peg-era test above pins
   });
 });
