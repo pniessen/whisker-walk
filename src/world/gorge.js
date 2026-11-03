@@ -587,14 +587,22 @@ export function gorgeMeadow() {
   for (const [wx1, wz1, wx2, wz2, nx, nz] of FLOOR_WALLS) {
     const len = Math.hypot(wx2 - wx1, wz2 - wz1);
     const tx = (wx2 - wx1) / len, tz = (wz2 - wz1) / len;
-    for (let k = 0; k + 1 <= len + 1e-9; k++) {
-      const d = r2(TALUS_OUT + TALUS_VAR * tr()); // every cell draws whether kept or not
+    // One depth per cell CORNER, shared by the two cells that meet there, so
+    // the apron's outer edge is a continuous line, not a staircase. Every
+    // corner draws its number whether its cells are kept or not.
+    const cells = Math.floor(len + 1e-9);
+    const corner = Array.from({ length: cells + 1 }, () => r2(TALUS_OUT + TALUS_VAR * tr()));
+    // the mesh's tangent (-nz, nx) points along the wall or against it
+    const along = -nz * tx + nx * tz > 0;
+    for (let k = 0; k < cells; k++) {
+      const d0 = corner[k], d1 = corner[k + 1];
+      const d = r2((d0 + d1) / 2);
       const bx = wx1 + tx * (k + 0.5), bz = wz1 + tz * (k + 0.5);
-      const pts = [0.1, d / 2, d].map((f) => [bx + nx * f, bz + nz * f]);
+      const pts = [0.1, d / 2, Math.max(d0, d1)].map((f) => [bx + nx * f, bz + nz * f]);
       if (pts.some(([x, z]) => !inBounds(x, z) || g.y(x, z) !== FLOOR || pathDist(x, z) < MEADOW_PATH_CLEAR
         || holeDist(x, z) <= 0 || mouthDist(x, z) < 1.5 || rectDist(STREAM, x, z) < 0.5)) continue;
       if (g.y(bx - nx * 0.1, bz - nz * 0.1) < 0.3) continue; // no rock there
-      talus.push(Object.freeze({ x: r2(pts[1][0]), z: r2(pts[1][1]), w: 1, d, nx, nz }));
+      talus.push(Object.freeze({ x: r2(pts[1][0]), z: r2(pts[1][1]), w: 1, d, dm: along ? d0 : d1, dp: along ? d1 : d0, nx, nz }));
     }
   }
   meadowOnce = Object.freeze({ patches: Object.freeze(patches), tufts: Object.freeze(tufts), talus: Object.freeze(talus) });
@@ -643,9 +651,10 @@ function meadowMesh() {
     // wall edge in gravel, outer edge faded into the floor
     const tx = -t.nz * t.w / 2, tz = t.nx * t.w / 2;
     const ox = t.x - t.nx * t.d / 2, oz = t.z - t.nz * t.d / 2;
-    const ex = t.x + t.nx * t.d / 2, ez = t.z + t.nz * t.d / 2;
     const y = FLOOR + MEADOW_LIFT;
-    const q = [[ox - tx, oz - tz, gravel], [ox + tx, oz + tz, gravel], [ex + tx, ez + tz, sand], [ex - tx, ez - tz, sand]];
+    // the outer corners take the depths shared with the neighbouring cells
+    const q = [[ox - tx, oz - tz, gravel], [ox + tx, oz + tz, gravel],
+      [ox + tx + t.nx * t.dp, oz + tz + t.nz * t.dp, sand], [ox - tx + t.nx * t.dm, oz - tz + t.nz * t.dm, sand]];
     for (const tri of [[0, 1, 2], [0, 2, 3]]) {
       const [a, b, c] = tri.map((i) => q[i]);
       // wound to face up whichever way the wall faces
@@ -975,14 +984,26 @@ export { GORGE_BIRD_Y };
 // most of it is never seen. Drop each triangle every point of a 0.25 m lattice
 // over which (vertices, edges, interior) lies strictly inside a mass at least
 // 0.5 m tall and under no cave or den ceiling. The index is rebuilt in place on
-// the same geometry (no new THREE objects, so no Math.random draws); returns
+// the same geometry (no new uuid'd objects, so no Math.random draws); returns
 // the number of triangles dropped.
+//
+// Two shortcuts, both exact (the dropped set is the full lattice's): a triangle
+// whose xz box lies strictly inside one tall mass and touches no ceiling is
+// dropped without the lattice (rects are convex); and the kept index of the
+// stock plane (PlaneGeometry(120, 120, 48, 48), always the same under the same
+// masses) is remembered per masses array, so the walk's later starts reuse it.
 const HIDE_STEP = 0.25;
-export function trimHiddenGround(plane, masses) {
+const hiddenCache = new WeakMap(); // masses -> { verts, count, keep: Uint16Array|Uint32Array, dropped }
+export function trimHiddenGround(plane, masses, { cache = true } = {}) {
   plane.updateMatrixWorld();
   const g = plane.geometry;
   const pos = g.attributes.position;
   const idx = g.index;
+  const hit = cache ? hiddenCache.get(masses) : null;
+  if (hit && hit.verts === pos.count && hit.count === idx.count) {
+    g.setIndex(new THREE.BufferAttribute(hit.keep.slice(), 1));
+    return hit.dropped;
+  }
   const tall = masses.filter((m) => m.y1 >= 0.5);
   const buried = (x, z) => tall.some((m) => x > m.minX && x < m.maxX && z > m.minZ && z < m.maxZ)
     && !CEILINGS.some((c) => x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ);
@@ -992,6 +1013,13 @@ export function trimHiddenGround(plane, masses) {
   for (let t = 0; t < idx.count; t += 3) {
     for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, idx.getX(t + k)).applyMatrix4(plane.matrixWorld);
     const [a, bb, c] = v;
+    const lx = Math.min(a.x, bb.x, c.x), hx = Math.max(a.x, bb.x, c.x);
+    const lz = Math.min(a.z, bb.z, c.z), hz = Math.max(a.z, bb.z, c.z);
+    if (tall.some((m) => lx > m.minX && hx < m.maxX && lz > m.minZ && hz < m.maxZ)
+      && !CEILINGS.some((q) => hx >= q.minX && lx <= q.maxX && hz >= q.minZ && lz <= q.maxZ)) {
+      dropped++;
+      continue;
+    }
     const longest = Math.max(a.distanceTo(bb), bb.distanceTo(c), c.distanceTo(a));
     const n = Math.max(1, Math.ceil(longest / HIDE_STEP));
     let hidden = true;
@@ -1006,7 +1034,13 @@ export function trimHiddenGround(plane, masses) {
   }
   if (dropped) {
     const Arr = pos.count > 65535 ? Uint32Array : Uint16Array;
-    g.setIndex(new THREE.BufferAttribute(new Arr(keep), 1));
+    const kept = new Arr(keep);
+    g.setIndex(new THREE.BufferAttribute(kept, 1));
+    // only the stock plane is remembered: same vertex and index counts mean
+    // the same grid (the plane is a fixed-size, fixed-place ground)
+    if (cache && pos.count === 49 * 49 && idx.count === 48 * 48 * 6) {
+      hiddenCache.set(masses, { verts: pos.count, count: idx.count, keep: kept.slice(), dropped });
+    }
   }
   return dropped;
 }

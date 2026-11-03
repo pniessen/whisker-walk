@@ -88,6 +88,48 @@ describe('Gorge rock, beauty pass 2: triangle headroom', () => {
     }
   });
 
+  it('the box shortcut and the cache drop exactly what the full lattice drops', async () => {
+    const { trimHiddenGround } = await import('../src/world/gorge.js');
+    const { MASSES, CEILINGS } = await import('../src/world/gorgeshape.js');
+    const b = await import('../src/world/builder.js');
+    // the reference: the lattice test alone, on every triangle
+    const tall = MASSES.filter((m) => m.y1 >= 0.5);
+    const buried = (x, z) => tall.some((m) => x > m.minX && x < m.maxX && z > m.minZ && z < m.maxZ)
+      && !CEILINGS.some((c) => x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ);
+    const fresh = () => { const p = b.ground(120, 0x9a8a6a, { surface: 'grass' }); p.updateMatrixWorld(); return p; };
+    const ref = fresh();
+    const pos = ref.geometry.attributes.position, idx = ref.geometry.index;
+    const keepRef = [];
+    const v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+    for (let t = 0; t < idx.count; t += 3) {
+      for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, idx.getX(t + k)).applyMatrix4(ref.matrixWorld);
+      const [a, bb, c] = v;
+      const n = Math.max(1, Math.ceil(Math.max(a.distanceTo(bb), bb.distanceTo(c), c.distanceTo(a)) / 0.25));
+      let hidden = true;
+      for (let i = 0; i <= n && hidden; i++) for (let j = 0; j <= n - i; j++) {
+        const u = i / n, w = j / n, s = 1 - u - w;
+        if (!buried(a.x * s + bb.x * u + c.x * w, a.z * s + bb.z * u + c.z * w)) { hidden = false; break; }
+      }
+      if (!hidden) keepRef.push(idx.getX(t), idx.getX(t + 1), idx.getX(t + 2));
+    }
+    const masses = [...MASSES]; // a new array: nothing cached for it yet
+    const first = fresh();
+    const dropped = trimHiddenGround(first, masses);
+    expect(Array.from(first.geometry.index.array)).toEqual(keepRef);
+    expect(dropped).toBe((idx.count - keepRef.length) / 3);
+    // a second build of the same plane takes the remembered index (a copy, not shared)
+    const second = fresh();
+    expect(trimHiddenGround(second, masses)).toBe(dropped);
+    expect(Array.from(second.geometry.index.array)).toEqual(keepRef);
+    expect(second.geometry.index.array).not.toBe(first.geometry.index.array);
+    // a plane of another size is never served from the cache
+    const other = b.ground(60, 0x9a8a6a, { surface: 'grass' });
+    other.updateMatrixWorld();
+    const before = other.geometry.index.count;
+    trimHiddenGround(other, masses);
+    expect(other.geometry.index.count).toBeLessThanOrEqual(before);
+  });
+
   it('every walkable or cave-floor point still has ground plane under it', () => {
     const plane = scene.getObjectByName('groundPlane');
     const tris = planeTris(plane);
@@ -357,6 +399,8 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
     const inDisc = (x, z) => colliders.some((c) => Math.hypot(x - c.x, z - c.z) <= c.r);
     const shapeY = (s, z) => (s.along === 'z' ? s.y0 + (s.y1 - s.y0) * (z - s.minZ) / (s.maxZ - s.minZ) : s.y0);
 
+    // The floor check starts 0.45 m from a wall: walls are colliders, so the
+    // cat's centre never stands nearer, and lip stones/boulders are <= 0.12 proud.
     const INSET = 0.45;
     const shapes = [...WALK_SHAPES, ...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, CAMP_DEN];
     let samples = 0, skippedDisc = 0, skippedOverlap = 0, worst = 0, worstAt = null;
@@ -382,6 +426,8 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
     console.log(`gorge tolerance: ${samples} surface samples, ${skippedDisc} in colliders, ${skippedOverlap} on overlapping shapes, worst ${worst} at ${worstAt}`);
     expect(bad.slice(0, 20)).toEqual([]);
     expect(samples).toBeGreaterThan(1000);
+    expect(skippedOverlap).toBe(0);
+    expect(skippedDisc).toBeLessThan(150);
 
     // Floor points near a wall: nothing the paw could sink into.
     const dist2 = (px, pz, t) => {

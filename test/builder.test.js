@@ -1091,7 +1091,7 @@ const { seedFromCode } = await import('../src/rng.js');
 const { floodGorge } = await import('./helpers/gorgeflood.js');
 const { findTJunctions } = await import('./helpers/meshcheck.js');
 const { MAX_PASSES } = await import('../src/world/meshconform.js');
-const { createRockRelief, ROCK_PROUD, CAVE_PROUD } = await import('../src/world/rockrelief.js');
+const { createRockRelief, ROCK_PROUD, CAVE_PROUD, CREST_JAG } = await import('../src/world/rockrelief.js');
 
 describe('the Gorge rock: rockTerrain and scree', () => {
   const { WALK_SHAPES, MASSES, CEILINGS } = gorgeShape;
@@ -1490,7 +1490,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     // The rims are rounded now (polish-gorgerock2 task 4), not jagged: their
     // edges come down (this asked for a crest lifted 0.5 m over 20 before).
     expect(rimLow).toBeLessThanOrEqual(19.5);
-    expect(highest).toBeLessThanOrEqual(20 + 1.2);
+    expect(highest).toBeLessThanOrEqual(20 + CREST_JAG);
   }, 120_000);
 
   // The rays start ROCK_PROUD + 0.05 in from the edge: a wall may stand

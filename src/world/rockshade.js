@@ -161,6 +161,9 @@ const inject = (src, anchor, code) => {
   return src.replace(anchor, `${anchor}\n${code}`);
 };
 
+// Note: mergeprops' material key ignores this patch, so two meshes whose
+// materials differ only in `flutes` must not share material parameters (or
+// the merge folds them together); give such a mesh userData.noMerge.
 export function patchRockMaterial(material, { flutes = true } = {}) {
   const prev = material.onBeforeCompile;
   material.onBeforeCompile = function onBeforeCompile(shader, renderer) {

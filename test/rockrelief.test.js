@@ -426,7 +426,7 @@ describe('rock relief: carved walls', () => {
     return field.rockAt(x + inside * ox, y, z + inside * oz) === true && field.rockAt(x - inside * ox, y, z - inside * oz) === false;
   };
 
-  it('walls are fluted: recess varies more along a wall than up it', () => {
+  it('recess varies along a wall nearly as much as up it', () => {
     let hSum = 0;
     let hN = 0;
     let vSum = 0;
