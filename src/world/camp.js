@@ -297,7 +297,7 @@ export const CAMP_LOOKS = deepFreeze({
   woods: WOODS_LOOK,
   // BrookClan: reeds and pebbles, bulrush heads; a woven reed and straw den
   river: {
-    ring: { greens: [0x5e7f48, 0x6f8c50, 0x4a7466], strand: 0x56603a, specks: [[0x5a3a22, 0.06]] },
+    ring: { greens: [0x5e7f48, 0x6f8c50, 0x4a7466], strand: 0x56603a, specks: [[0x5e4630, 0.04]] },
     den: { base: 0x5a6a3a, streak: 0xa29e62, strand: 0x4a5a34, frame: 0x6a5a3a },
     floor: { color: 0xbdb8a8, surface: 'gravel' }, // pale pebbles
     nest: { moss: 0x6f9a6a, bracken: 0xb0a46a },
@@ -305,9 +305,9 @@ export const CAMP_LOOKS = deepFreeze({
   },
   // GaleClan: gorse and heather in flower; a dry heather den
   moor: {
-    ring: { greens: [0x56632a, 0x667030, 0x48522a], strand: 0x3e3622, specks: [[0xe0b62a, 0.12], [0x9a5a8e, 0.09]] },
+    ring: { greens: [0x56632a, 0x667030, 0x48522a], strand: 0x3e3622, specks: [[0xc9a42e, 0.06], [0x8a5a80, 0.05]] },
     den: { base: 0x4a4030, streak: 0x8a5a80, strand: 0x3a3022, frame: 0x6a5a3e },
-    floor: { color: 0x7e9c4c, surface: 'grass' },  // cropped turf
+    floor: { color: 0x84984f, surface: 'grass' },  // cropped turf
     nest: { moss: 0x8a6a80, bracken: 0xa89a62 },
     rock: 0x9a9488,
   },

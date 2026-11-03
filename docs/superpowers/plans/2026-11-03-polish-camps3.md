@@ -29,10 +29,10 @@ Clan card colours (src/ui/clanpicker.js emblems): woods #2f5a33, river #24516b, 
 |---|---|---|---|---|---|
 | ring.greens | 0x34521f, 0x46632a, 0x2a421c | 0x5e7f48, 0x6f8c50, 0x4a7466 | 0x56632a, 0x667030, 0x48522a | 0x1d3a2f, 0x27483a, 0x15302a | — |
 | ring.strand | 0x3a2a18 | 0x56603a | 0x3e3622 | 0x24263a | — |
-| ring.specks | [[0x4a1430, 0.07], [0x9a2630, 0.03]] (blackberries) | [[0x5a3a22, 0.06]] (bulrush heads) | [[0xe0b62a, 0.12], [0x9a5a8e, 0.09]] (gorse, heather) | [[0x4f7a3a, 0.07]] (fern tips) | — |
+| ring.specks | [[0x4a1430, 0.07], [0x9a2630, 0.03]] (blackberries) | [[0x5e4630, 0.04]] (bulrush heads) | [[0xc9a42e, 0.06], [0x8a5a80, 0.05]] (gorse, heather) | [[0x4f7a3a, 0.07]] (fern tips) | — |
 | den.base / streak | 0x34481f / 0x62803a | 0x5a6a3a / 0xa29e62 (woven reed, straw) | 0x4a4030 / 0x8a5a80 (dry heather) | 0x1e3228 / 0x3e5e3a (moss) | — |
 | den.strand / frame | 0x3a2c1c / 0x5a4128 | 0x4a5a34 / 0x6a5a3a | 0x3a3022 / 0x6a5a3e | 0x2a2620 / 0x3e2e22 | — |
-| floor color / surface | 0xa4845c / 'sand' (trampled earth) | 0xbdb8a8 / 'gravel' (pale pebbles) | 0x7e9c4c / 'grass' (cropped turf) | 0x7a5a3c / 'sand' (needle litter) | — (ledge) |
+| floor color / surface | 0xa4845c / 'sand' (trampled earth) | 0xbdb8a8 / 'gravel' (pale pebbles) | 0x84984f / 'grass' (cropped turf) | 0x7a5a3c / 'sand' (needle litter) | — (ledge) |
 | nest moss / bracken | 0x6f8f3a / 0x8a6a3a | 0x6f9a6a / 0xb0a46a | 0x8a6a80 / 0xa89a62 | 0x5f8a3a / 0x6a4a30 | 0xa08a50 / 0xc8b48a |
 | rock | 0x8a8a80 | 0x7d8890 | 0x9a9488 | 0x5e6070 | 0xb8825a |
 
