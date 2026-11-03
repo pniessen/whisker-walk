@@ -111,7 +111,11 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
-//   gorge             60       36      59247   (polish-gorgeway, from
+//   gorge             60       36      59307   (polish-edges' red roofs on
+//                                               its rooftop blocks, +60 in
+//                                               the horizon band, no mesh; it
+//                                               was 59,247 after polish-gorgeway,
+//                                               from
 //                                               59 / 36 / 54,581: the
 //                                               narrowsDressing, +1 noCast mesh,
 //                                               1,066 tris (30 shelf and 33
@@ -122,10 +126,11 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               (no new mesh), 2,935 tris (echo
 //                                               942, snug 931, glitter 1,062);
 //                                               lumpier chamber moss, +665.
-//                                               ONLY 753 TRIANGLES LEFT under
-//                                               the 60,000 ceiling: the next
-//                                               Gorge build must trim or raise
-//                                               it, with a written reason.
+//                                               ONLY 693 TRIANGLES LEFT under
+//                                               the 60,000 ceiling (753 before
+//                                               the red roofs): the next Gorge
+//                                               build must trim or raise it,
+//                                               with a written reason.
 //                                               Earlier: 54 / 36 / 43051,
 //                                               43 / 26 merged; part 4's camp
 //                                               adds two meshes: the leader's
@@ -182,6 +187,12 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // 63,725, pines 54,631. The Woods, River, Moor and Pines ceilings are those
 // totals rounded up to the next 500 plus 3,000 (58,500 / 67,500 / 67,000 /
 // 58,000), so the next pass that adds triangles there has to say so here.
+// The same pass gave the Seaside's cliff and overlook a finer face grid so
+// their gullies can be cut: the two rock boxes went from 2,292 triangles
+// (1,872 + 420) to 10,096 (7,776 + 2,320), and with the boats' cabins and
+// sails the Seaside's build is 23,740 (it was 15,724 with main's seaside.js),
+// still under its 30,000 ceiling. The Gorge's rooftop blocks gained red
+// pitched roofs: +60 triangles in its band, 59,307 in all (see its row).
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the
