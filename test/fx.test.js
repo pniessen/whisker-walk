@@ -153,3 +153,76 @@ describe('createFx.slash', () => {
     expect(slashes(s2)).toHaveLength(0);
   });
 });
+
+// polish-floaters: score floaters that land together stay readable.
+describe('createFx.popup — merging and stacking', () => {
+  const textOf = () => {
+    const made = [];
+    const mk = (t) => { const o = new THREE.Object3D(); o.userData.text = t; o.material = { opacity: 1, dispose() { o.disposed = true; } }; made.push(o); return o; };
+    return { made, mk };
+  };
+  const critter = (fx, at, v = 5) => fx.popup(at, `+${v} 🐾`, { merge: 'critter', value: v, mergeText: (n) => `+${n} 🐾` });
+
+  it('folds back-to-back critters into one floater with their total', () => {
+    const scene = fakeScene();
+    const { made, mk } = textOf();
+    const fx = createFx(scene, { makeText: mk });
+    const at = new THREE.Vector3(0, 0, 0);
+    for (let i = 0; i < 4; i++) { critter(fx, at); fx.update(0.35); }
+    expect(fx.active()).toBe(1);
+    expect(spawned(scene)).toHaveLength(1);
+    expect(spawned(scene)[0].userData.text).toBe('+20 🐾');
+    // the swapped-out sprites were disposed
+    expect(made.slice(0, 3).every((o) => o.disposed)).toBe(true);
+  });
+
+  it('a merge restarts the floater\'s clock and pops it from the head again', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: textOf().mk });
+    const at = new THREE.Vector3(0, 0, 0);
+    critter(fx, at);
+    fx.update(1.0); // nearly gone
+    critter(fx, at);
+    expect(spawned(scene)[0].position.y).toBeCloseTo(1.03, 5);
+    fx.update(1.0);
+    expect(fx.active()).toBe(1); // still alive: the clock restarted
+  });
+
+  it('does not merge across a different floater, or without a key', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: textOf().mk });
+    const at = new THREE.Vector3();
+    critter(fx, at);
+    fx.popup(at, '+12 🐾', { value: 12 });
+    critter(fx, at);
+    expect(fx.active()).toBe(3);
+    fx.popup(at, '+12 🐾', { value: 12 });
+    fx.popup(at, '+12 🐾', { value: 12 });
+    expect(fx.active()).toBe(5);
+  });
+
+  it('floaters spawned in the same instant stack with clear air between them', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: textOf().mk });
+    const at = new THREE.Vector3(2, 0, 3);
+    fx.popup(at, '+5 🐾', { value: 5 });
+    fx.popup(at, '+12 🐾', { value: 12 });
+    fx.popup(at, '+8 🐾', { value: 8 });
+    const ys = spawned(scene).map((o) => o.position.y).sort((a, b) => a - b);
+    expect(ys[0]).toBeCloseTo(1.03, 5); // the newest sits over the head
+    expect(ys[1] - ys[0]).toBeGreaterThanOrEqual(0.32 - 1e-9);
+    expect(ys[2] - ys[1]).toBeGreaterThanOrEqual(0.32 - 1e-9);
+  });
+
+  it('leaves a floater alone once it has risen clear', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: textOf().mk });
+    const at = new THREE.Vector3();
+    fx.popup(at, '+5 🐾', { value: 5 });
+    fx.update(0.5); // risen 0.6 m
+    const first = spawned(scene)[0];
+    const y = first.position.y;
+    fx.popup(at, '+12 🐾', { value: 12 });
+    expect(first.position.y).toBe(y);
+  });
+});

@@ -31,7 +31,7 @@ import { createAvatarUpdater } from './game/avatar.js';
 import { createRooms } from './game/rooms.js';
 import { createComposerRig } from './game/composer.js';
 import { createQualityAdapter } from './game/adaptquality.js';
-import { createWalkLifecycle } from './game/walk.js';
+import { createWalkLifecycle, chatHintLine } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
@@ -542,7 +542,13 @@ function init() {
     } else {
       audio.chime();
     }
-    if (session?.fx && points > 0) session.fx.popup(session.cat.position, `+${points} 🐾`);
+    // Critters fold into one floater, as they do into one toast ("You
+    // spotted 4 critters +20" over a "+20 🐾"); the rest stack (fx.js).
+    if (session?.fx && points > 0) {
+      session.fx.popup(session.cat.position, `+${points} 🐾`, type === 'critter'
+        ? { merge: 'critter', value: points, mergeText: (total) => `+${total} 🐾` }
+        : { value: points });
+    }
     if (session && type !== 'goal' && type !== 'jackpot') session.discoveryCount += 1;
     noteGoal(type);
     if (session) {
@@ -565,6 +571,9 @@ function init() {
       const line = takeArrivalLine(session);
       if (line) hud.toast(line);
       for (const moveLine of takeMoveLines(session)) hud.toast(moveLine);
+      // isTouch is read here, not at walk start: a hybrid device's engage
+      // tap is what reveals it as touch.
+      if (session.chatHintPending) { session.chatHintPending = false; hud.toast(chatHintLine(isTouch)); }
     }
   });
   bus.on('villager:wave', ({ id }) => {

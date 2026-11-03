@@ -22,6 +22,11 @@ function defaultMakeText(text) {
   return sprite;
 }
 
+// Score floaters start this far above the cat's feet (over the head) and
+// keep this much air between them (the text reads ~0.25 m tall).
+const POPUP_RISE_FROM = 1.03;
+const POPUP_GAP = 0.32;
+
 // Reused across burst spawns to avoid per-call allocation of the velocity scratch vector.
 const _tmpVec = new THREE.Vector3();
 
@@ -57,7 +62,7 @@ function slashGeometry() {
 }
 
 export function createFx(scene, { reducedMotion = false, makeText = defaultMakeText } = {}) {
-  /** @type {Array<{ obj: THREE.Object3D, life: number, ttl: number, kind: 'popup' | 'burst', velocities?: Float32Array }>} */
+  /** @type {Array<{ obj: THREE.Object3D, life: number, ttl: number, kind: 'popup' | 'burst', velocities?: Float32Array, key?: string | null, total?: number }>} */
   const effects = [];
 
   // The slash mesh is built here, with the walk, and drawn (fully transparent)
@@ -112,11 +117,55 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
     slashMesh.scale.setScalar(1 + 0.25 * u);
   }
 
-  function popup(position, text) {
-    const obj = makeText(text);
-    obj.position.copy(position).add(_tmpVec.set(0, 1.03, 0));
-    scene.add(obj);
-    effects.push({ obj, life: 0, ttl: 1.1, kind: 'popup' });
+  // Floaters that land together must not print over each other. Two rules:
+  //  - opts.merge (a key, like the HUD toasts'): when the newest live floater
+  //    has the same key, this one folds into it. Its value adds up, its text
+  //    is rebuilt by opts.mergeText(total), and it pops again from the head
+  //    with a fresh clock (so 4 critters read "+20", like their toast).
+  //  - every floater keeps POPUP_GAP of air above the one under it: a new
+  //    one starts at the head and pushes any live floater still too close
+  //    upward, so a burst reads as a short column of numbers.
+  function popup(position, text, opts = {}) {
+    const key = opts.merge || null;
+    const value = Number.isFinite(opts.value) ? opts.value : 0;
+    const newest = lastPopup();
+    let effect;
+    if (key && newest && newest.key === key) {
+      effect = newest;
+      effect.total += value;
+      const fresh = makeText(opts.mergeText ? opts.mergeText(effect.total) : text);
+      scene.remove(effect.obj);
+      if (effect.obj.material) {
+        if (effect.obj.material.map) effect.obj.material.map.dispose();
+        effect.obj.material.dispose();
+      }
+      effect.obj = fresh;
+      scene.add(fresh);
+      effect.life = 0;
+      // re-file it as the newest effect, so a later floater stacks on it
+      effects.splice(effects.indexOf(effect), 1);
+      effects.push(effect);
+    } else {
+      const obj = makeText(text);
+      scene.add(obj);
+      effect = { obj, life: 0, ttl: 1.1, kind: 'popup', key, total: value };
+      effects.push(effect);
+    }
+    effect.obj.position.copy(position).add(_tmpVec.set(0, POPUP_RISE_FROM, 0));
+    // push the floaters above it up, lowest first, so each clears the last
+    let floor = effect.obj.position.y + POPUP_GAP;
+    const above = effects
+      .filter((e) => e.kind === 'popup' && e !== effect)
+      .sort((a, b) => a.obj.position.y - b.obj.position.y);
+    for (const e of above) {
+      if (e.obj.position.y < floor) e.obj.position.y = floor;
+      floor = e.obj.position.y + POPUP_GAP;
+    }
+  }
+
+  function lastPopup() {
+    for (let i = effects.length - 1; i >= 0; i--) if (effects[i].kind === 'popup') return effects[i];
+    return null;
   }
 
   // Shared particle spawner behind burst() and shimmer(). `speed` scales the
