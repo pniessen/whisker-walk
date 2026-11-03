@@ -136,14 +136,23 @@ function clearance(geo, cover, bodyScale, which = null) {
   return low;
 }
 
-// Place item-frame geometry on the anchor and lift it along the normal until
-// its closest vertex is `gap` off the surface. Returns the lift used; the
-// geometry stays in the body-scaled frame.
-function seat(geo, anchor, cover, bodyScale, gap) {
-  geo.applyMatrix4(frameOf(anchor));
-  const lift = gap - clearance(geo, cover, bodyScale);
-  geo.translate(anchor.n.x * lift, anchor.n.y * lift, anchor.n.z * lift);
-  return lift;
+// How far along the anchor's normal item-frame geometry must be lifted so its
+// closest vertex is `gap` off the surface.
+function seatLift(geo, anchor, cover, bodyScale, gap) {
+  return gap - clearance(geo.clone().applyMatrix4(frameOf(anchor)), cover, bodyScale);
+}
+// The anchor over `dir`, lifted so `geo` (item frame) rests `gap` off the surface.
+function seatedAnchor(geo, dir, cover, bodyScale, gap) {
+  const lift = seatLift(geo, backAnchor(dir, { bodyScale, cover }), cover, bodyScale, gap);
+  return backAnchor(dir, { bodyScale, cover }, lift);
+}
+// Straps (body-scaled frame) brought into the body's frame and merged with
+// the placed item.
+function withStraps(item, straps, bodyScale) {
+  for (const g of straps) g.scale(1 / bodyScale[0], 1 / bodyScale[1], 1 / bodyScale[2]);
+  const geo = mergeGeometries([item, ...straps]);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 // --- geometry builders ----------------------------------------------------
@@ -317,19 +326,21 @@ function strap(from, side, cover, bodyScale, steps) {
 
 // A soft rounded pack (half sizes, corner radius) bent to the back's curve
 // (y -= x² / bend), centred over the unit direction `dir` (mid-back, behind
-// the shoulder blades); a darker flap over the top front half with a yellow
+// the shoulder blades toward the middle, where the walk camera sees it; fix
+// round 1 made it 1.35× the brief's 16 cm and moved it back from z 0.05, `k`
+// scales its small parts); a darker flap over the top front half with a yellow
 // buckle; a small pocket on the tail end; two grey straps.
-export const PACK = Object.freeze({ dir: [0, 0.93, 0.05], size: [0.16, 0.085, 0.13], r: 0.03, bend: 0.5, puff: 0.012, belly: 0.07 });
+export const PACK = Object.freeze({ dir: [0, 0.94, 0.18], size: [0.216, 0.115, 0.175], r: 0.04, bend: 0.5, puff: 0.016, belly: 0.07, k: 1.35 });
 function backpack({ bodyScale, cover, simple, fx }) {
-  const h = [PACK.size[0] / 2 * fx, PACK.size[1] / 2, PACK.size[2] / 2];
+  const h = [PACK.size[0] / 2 * fx, PACK.size[1] / 2, PACK.size[2] / 2], K = PACK.k;
   const lift = h[1];   // the item frame's origin is on the surface; the pack stands on it
-  const body = roundedBox(h, PACK.r, simple ? [4, 2, 3] : [7, 4, 6], (x, y, z) => (y < -h[1] + 0.012 ? shade(PACK_BLUE, 0.85) : PACK_BLUE));
+  const body = roundedBox(h, PACK.r, simple ? [4, 2, 3] : [7, 4, 6], (x, y, z) => (y < -h[1] + 0.012 * K ? shade(PACK_BLUE, 0.85) : PACK_BLUE));
   body.translate(0, lift, 0);
   // the flap: over the top's front half and down the front face, 3 mm off it,
   // its edges tucked onto the pack; the tongue longer in the middle
   const [fi, fj] = simple ? [5, 6] : [8, 9];
-  const fw = h[0] - 0.008, frontRows = Math.round(fj * 0.35);
-  const tongue = (x) => 0.012 - 0.03 * (x / fw) ** 2;
+  const fw = h[0] - 0.008 * K, frontRows = Math.round(fj * 0.35);
+  const tongue = (x) => (0.012 - 0.03 * (x / fw) ** 2) * K;
   const flap = grid(fi, fj, {}, (i, j) => {
     const x = -fw + (2 * fw * i) / (fi - 1);
     let q;
@@ -339,13 +350,13 @@ function backpack({ bodyScale, cover, simple, fx }) {
     const [p, n] = rbPoint(q, h, PACK.r, edge ? 0.0012 : 0.0032);
     return { p: p.add(new THREE.Vector3(0, lift, 0)), c: j === fj - 1 ? shade(PACK_FLAP, 0.85) : PACK_FLAP, out: n };
   });
-  const buckle = paint(new THREE.BoxGeometry(0.022, 0.008, 0.016), PACK_BUCKLE);
+  const buckle = paint(new THREE.BoxGeometry(0.022 * K, 0.008 * K, 0.016 * K), PACK_BUCKLE);
   buckle.deleteAttribute('uv');
-  buckle.translate(0, lift + h[1] + 0.006, tongue(0) - 0.006);
+  buckle.translate(0, lift + h[1] + 0.006 * K, tongue(0) - 0.006 * K);
   // the pocket on the tail end, its top edge (the zip) in the flap's colour
-  const ph = [Math.min(0.05, h[0] - 0.02), 0.022, 0.014];
-  const pocket = roundedBox(ph, 0.01, simple ? [2, 1, 1] : [4, 2, 2], (x, y) => (y > ph[1] - 0.006 ? PACK_FLAP : shade(PACK_BLUE, 1.06)));
-  pocket.translate(0, lift - 0.01, h[2] + ph[2] - 0.006);
+  const ph = [Math.min(0.05 * K, h[0] - 0.02 * K), 0.022 * K, 0.014 * K];
+  const pocket = roundedBox(ph, 0.01 * K, simple ? [2, 1, 1] : [4, 2, 2], (x, y) => (y > ph[1] - 0.006 * K ? PACK_FLAP : shade(PACK_BLUE, 1.06)));
+  pocket.translate(0, lift - 0.01 * K, h[2] + ph[2] - 0.006 * K);
   const parts = [body, flap, buckle, pocket];
   // soft: the top domes up to PACK.puff in the middle and the sides belly out
   // (x × 1 + PACK.belly at mid-height); then the whole pack bends to the back
@@ -355,28 +366,21 @@ function backpack({ bodyScale, cover, simple, fx }) {
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), y = p.getY(i) - lift, z = p.getZ(i);
       const dome = y > 0 ? PACK.puff * free(x, h[0]) * free(z, h[2]) * (y / h[1]) : 0;
-      const nx = x * (1 + PACK.belly * free(z, h[2] + 0.01) * free(y, h[1] + 0.01));
+      const nx = x * (1 + PACK.belly * free(z, h[2] + 0.01 * K) * free(y, h[1] + 0.01 * K));
       p.setXYZ(i, nx, y + lift + dome - nx ** 2 / PACK.bend, z);
     }
     g.computeVertexNormals();
   }
   const pack = mergeGeometries(parts);
-  const anchor = backAnchor(PACK.dir, { bodyScale, cover });
+  const anchor = seatedAnchor(pack, PACK.dir, cover, bodyScale, SEAT);
   const m = frameOf(anchor);
-  const up = seat(pack, anchor, cover, bodyScale, SEAT);
-  // the straps start under the pack's front corners
+  // the straps start under the pack's front corners (its front edge)
   const corners = [-1, 1].map((side) => {
-    const x = side * (h[0] - 0.02);
-    return new THREE.Vector3(x, lift - h[1] + 0.006 - x * x / PACK.bend, -h[2] + 0.015).applyMatrix4(m).addScaledVector(anchor.n, up);
+    const x = side * (h[0] - 0.02 * K);
+    return new THREE.Vector3(x, lift - h[1] + 0.006 - x * x / PACK.bend, -h[2] + 0.015 * K).applyMatrix4(m);
   });
   const straps = corners.map((c, k) => strap(c, k ? 1 : -1, cover, bodyScale, simple ? 10 : 18));
-  return [finish(mergeGeometries([pack, ...straps]), bodyScale)];
-}
-
-function finish(geo, bodyScale) {
-  geo.scale(1 / bodyScale[0], 1 / bodyScale[1], 1 / bodyScale[2]);
-  geo.computeVertexNormals();
-  return geo;
+  return [withStraps(placeOnBack(pack, anchor, bodyScale), straps, bodyScale)];
 }
 
 // --- the jetpack ----------------------------------------------------------
@@ -385,7 +389,9 @@ function finish(geo, bodyScale) {
 // spine either side (x ±tankX, radius tankR, length tankL), silver, red nose
 // cones toward the head; at the tail end two dark nozzle bells and orange
 // flame cones pointing back and down; small red fins; straps like the pack's.
-export const JETPACK = Object.freeze({ dir: [0, 0.95, 0.1], plate: [0.15, 0.025, 0.17], plateR: 0.011, tankX: 0.055, tankR: 0.04, tankL: 0.2, flameDir: [0, -0.32, 1] });
+// Built at the brief's sizes and scaled by `k` (fix round 1: 1.2×, and moved
+// back from z 0.1, so the walk camera sees it past the head).
+export const JETPACK = Object.freeze({ dir: [0, 0.94, 0.17], k: 1.2, plate: [0.15, 0.025, 0.17], plateR: 0.011, tankX: 0.055, tankR: 0.04, tankL: 0.2, flameDir: [0, -0.32, 1] });
 function jetpack({ bodyScale, cover, simple, fx }) {
   const J = JETPACK;
   const h = [J.plate[0] / 2 * fx, J.plate[1] / 2, J.plate[2] / 2];
@@ -418,16 +424,15 @@ function jetpack({ bodyScale, cover, simple, fx }) {
     parts.push(fin(new THREE.Vector3(cx + side * R * 0.9, fy, 0.02), new THREE.Vector3(cx + side * R * 0.9, fy, 0.085),
       new THREE.Vector3(cx + side * (R + 0.03), fy - 0.012, 0.095), new THREE.Vector3(0, 1, 0), 0.005, RED));
   }
-  const pack = mergeGeometries(parts);
-  const anchor = backAnchor(J.dir, { bodyScale, cover });
+  const pack = mergeGeometries(parts).scale(J.k, J.k, J.k);
+  const anchor = seatedAnchor(pack, J.dir, cover, bodyScale, SEAT);
   const m = frameOf(anchor);
-  const up = seat(pack, anchor, cover, bodyScale, SEAT);
   const corners = [-1, 1].map((side) => {
-    const x = side * (h[0] - 0.015);
-    return new THREE.Vector3(x, 0.004, -h[2] + 0.012).applyMatrix4(m).addScaledVector(anchor.n, up);
+    const x = side * (h[0] - 0.015) * J.k;
+    return new THREE.Vector3(x, 0.004 * J.k, (-h[2] + 0.012) * J.k).applyMatrix4(m);
   });
   const straps = corners.map((c, k) => strap(c, k ? 1 : -1, cover, bodyScale, simple ? 10 : 16));
-  return [finish(mergeGeometries([pack, ...straps]), bodyScale)];
+  return [withStraps(placeOnBack(pack, anchor, bodyScale), straps, bodyScale)];
 }
 
 // --- the wings ------------------------------------------------------------
@@ -444,10 +449,15 @@ function jetpack({ bodyScale, cover, simple, fx }) {
 // `sweep` (its outer edge toward the tail), and the root seated on the back
 // at the withers. The flutter turns each wing about its in-plane upright
 // (the hinge), so the wings swing open and shut without dipping into the back.
+// Fix round 1: 1.5× the brief's sizes (forewing 0.34), so from behind they
+// spread wider than the body and show beside the head. Each wing hangs under
+// a pivot (body child, scale 1 / bodyScale), so it lives in the body-SCALED
+// frame and its flutter and sit stand are true rotations, not sheared by the
+// torso's non-uniform scale.
 export const WINGS = Object.freeze({
-  dir: [0.12, 0.97, -0.15], lean: 0.44, sweep: 0.3, cup: 0.15, layer: 0.006, band: 0.82,
-  fore: { len: 0.24, from: 0.3, to: 1.42, shape: [[0, 0.6], [0.35, 0.95], [0.6, 1], [0.85, 0.82], [1, 0.58]] },
-  hind: { len: 0.16, from: -0.28, to: 0.42, shape: [[0, 0.68], [0.4, 1], [0.75, 0.92], [1, 0.62]] },
+  dir: [0.12, 0.97, -0.1], lean: 0.44, sweep: 0.3, cup: 0.1, layer: 0.006, band: 0.82,
+  fore: { len: 0.34, from: 0.22, to: 1.38, shape: [[0, 0.6], [0.35, 0.95], [0.6, 1], [0.85, 0.82], [1, 0.58]] },
+  hind: { len: 0.24, from: -0.28, to: 0.42, shape: [[0, 0.68], [0.4, 1], [0.75, 0.92], [1, 0.62]] },
 });
 function outline(shape, t) {
   for (let k = 1; k < shape.length; k++) {
@@ -460,7 +470,7 @@ function outline(shape, t) {
 }
 function wingPanel(W, { body, spots }, side, simple, layer) {
   const spokes = simple ? 8 : 13, rings = simple ? [0, 0.4, 0.7, 0.86, 1] : [0, 0.3, 0.55, 0.75, 0.88, 1];
-  const r0 = 0.01;
+  const r0 = 0.012;
   const veinEvery = simple ? 2 : 3;
   return grid(spokes, rings.length, {}, (i, j) => {
     const t = i / (spokes - 1), psi = W.from + (W.to - W.from) * t;
@@ -494,20 +504,13 @@ function wing(side, { bodyScale, cover, simple }) {
     .multiply(new THREE.Matrix4().makeRotationX(WINGS.lean));
   geo.applyMatrix4(turn);
   const hingeDir = new THREE.Vector3(0, 1, 0).applyMatrix4(turn).normalize();
-  const anchor = backAnchor([side * WINGS.dir[0], WINGS.dir[1], WINGS.dir[2]], { bodyScale, cover });
+  const anchor = seatedAnchor(geo, [side * WINGS.dir[0], WINGS.dir[1], WINGS.dir[2]], cover, bodyScale, WING_SEAT);
   const m = frameOf(anchor);
-  const lift = seat(geo, anchor, cover, bodyScale, WING_SEAT);
-  const root = new THREE.Vector3().applyMatrix4(m).addScaledVector(anchor.n, lift);
-  const dirScaled = hingeDir.transformDirection(m);
+  geo.applyMatrix4(m);   // body-scaled frame (the pivot's)
   // the vertex nearest the surface: the sit stands the wing up about it
   const low = new THREE.Vector3();
   clearance(geo, cover, bodyScale, low);
-  geo.scale(1 / bodyScale[0], 1 / bodyScale[1], 1 / bodyScale[2]);
-  const hinge = {
-    point: [root.x / bodyScale[0], root.y / bodyScale[1], root.z / bodyScale[2]],
-    low: [low.x / bodyScale[0], low.y / bodyScale[1], low.z / bodyScale[2]],
-    dir: new THREE.Vector3(dirScaled.x / bodyScale[0], dirScaled.y / bodyScale[1], dirScaled.z / bodyScale[2]).normalize().toArray(),
-  };
+  const hinge = { point: anchor.at.toArray(), dir: hingeDir.transformDirection(m).toArray(), low: low.toArray() };
   return { geo, hinge };
 }
 
@@ -522,10 +525,13 @@ function mesh(id, geo, side) {
   return m;
 }
 
-// The meshes for a back item, body-local: body.add each. `cover` is the
+// The objects for a back item, body-local: body.add each. `cover` is the
 // outer surface it rests on: 'cape' (either cape), 'shell' (hoodie, raincoat,
-// sweater) or 'fur'. Wings are two meshes (userData.wing -1 | 1 and
-// userData.hinge, body-local { point, dir, low }, for animator.js's flutter).
+// sweater) or 'fur'. The backpack and jetpack are one mesh each. The wings
+// are two pivots (userData.wingPivot, scale 1 / bodyScale), each holding one
+// wing mesh (userData.wing -1 | 1 and userData.hinge { point, dir, low } in
+// the pivot's body-scaled frame, for animator.js's flutter). Every mesh has
+// userData.backItem = id.
 export function buildBackItem(id, { bodyScale = TORSO.SCALE, cover = 'fur', simple = false } = {}) {
   const fx = bodyScale[0] / TORSO.SCALE[0];
   const opts = { bodyScale, cover, simple, fx };
@@ -538,7 +544,12 @@ export function buildBackItem(id, { bodyScale = TORSO.SCALE, cover = 'fur', simp
       const m = mesh(id, geo, true);
       m.userData.wing = side;
       m.userData.hinge = hinge;
-      return m;
+      const pivot = new THREE.Object3D();
+      pivot.name = `back:${id}:pivot`;
+      pivot.userData.wingPivot = true;
+      pivot.scale.set(1 / bodyScale[0], 1 / bodyScale[1], 1 / bodyScale[2]);
+      pivot.add(m);
+      return pivot;
     });
   }
   return [];

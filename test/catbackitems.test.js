@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
-import { buildBackItem, backAnchor, placeOnBack, BACK_ITEM_IDS } from '../src/cat/backitems.js';
+import { buildBackItem, backAnchor, placeOnBack, BACK_ITEM_IDS, STRAP_GREY } from '../src/cat/backitems.js';
 import { TORSO } from '../src/cat/torso.js';
 
 // Accessories polish, Task 2 (2026-11-03): the owner said "the back
@@ -22,6 +22,11 @@ const itemsOf = (cat) => {
   return out;
 };
 const tris = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
+const meshTris = (objs) => { let n = 0; for (const o of objs) o.traverse((m) => { if (m.isMesh) n += tris(m); }); return n; };
+// strap vertices (found by their colour): they lie on the cover by design, so
+// "resting on it" is measured over the item itself
+const STRAP = new THREE.Color(STRAP_GREY);
+const isStrap = (col, i) => Math.abs(col.getX(i) - STRAP.r) + Math.abs(col.getY(i) - STRAP.g) + Math.abs(col.getZ(i) - STRAP.b) < 1e-4;
 
 describe('back items are shaped things on the back (accessories polish Task 2)', () => {
   it.each(BACK_ITEM_IDS)('%s hangs on the body', (id) => {
@@ -29,7 +34,11 @@ describe('back items are shaped things on the back (accessories polish Task 2)',
     const items = itemsOf(cat);
     expect(items.length).toBeGreaterThan(0);
     for (const m of items) {
-      expect(m.parent).toBe(cat.userData.parts.body);
+      // on the body; a wing under its pivot (scale 1 / bodyScale) on the body
+      if (id === 'wings') {
+        expect(m.parent.userData.wingPivot).toBe(true);
+        expect(m.parent.parent).toBe(cat.userData.parts.body);
+      } else expect(m.parent).toBe(cat.userData.parts.body);
       expect(m.userData.backItem).toBe(id);
       expect(m.material.vertexColors).toBe(true);
     }
@@ -54,8 +63,8 @@ describe('back items are shaped things on the back (accessories polish Task 2)',
     const BUDGET = { backpack: 1200, jetpack: 1400, wings: 900 };
     for (const id of BACK_ITEM_IDS) {
       for (const cover of ['fur', 'shell', 'cape']) {
-        const full = buildBackItem(id, { bodyScale: TORSO.SCALE, cover }).reduce((a, m) => a + tris(m), 0);
-        const simple = buildBackItem(id, { bodyScale: TORSO.SCALE, cover, simple: true }).reduce((a, m) => a + tris(m), 0);
+        const full = meshTris(buildBackItem(id, { bodyScale: TORSO.SCALE, cover }));
+        const simple = meshTris(buildBackItem(id, { bodyScale: TORSO.SCALE, cover, simple: true }));
         expect(full, `${id} ${cover}`).toBeLessThanOrEqual(BUDGET[id]);
         expect(simple, `${id} ${cover} simple`).toBeLessThanOrEqual(BUDGET[id] / 2);
         expect(simple, `${id} ${cover} simple vs full`).toBeLessThanOrEqual(full / 2 + 1);
@@ -114,7 +123,7 @@ describe('back items are shaped things on the back (accessories polish Task 2)',
       const s = cat.scale.x;
       torso.getWorldPosition(C);
       for (const m of itemsOf(cat)) {
-        const p = m.geometry.attributes.position;
+        const p = m.geometry.attributes.position, col = m.geometry.attributes.color;
         let nearest = Infinity;
         for (let i = 0; i < p.count; i++) {
           v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld);
@@ -125,7 +134,7 @@ describe('back items are shaped things on the back (accessories polish Task 2)',
           const cov = cover ? ray.intersectObject(cover, false)[0] : null;
           const over = cov && (!fur || cov.distance < fur.distance) ? cov : null;
           const toSurface = ((over ?? fur)?.distance ?? Infinity) - 1;
-          nearest = Math.min(nearest, toSurface / s);
+          if (!isStrap(col, i)) nearest = Math.min(nearest, toSurface / s);
           if (i % 7) continue;
           const where = `${state} t ${t} v ${speed} vertex ${i}`;
           expect(fur ? (fur.distance - 1) / s : 1, `${where}: outside the fur`).toBeGreaterThanOrEqual(0);
@@ -159,7 +168,7 @@ describe('back items are shaped things on the back (accessories polish Task 2)',
     expect(now()).toEqual(rest);
     animateCat(cat, 'follow', 0.5, 0, false);
     const moved = itemsOf(cat);
-    for (const w of moved) expect(w.quaternion.angleTo(new THREE.Quaternion(...rest[0][1]))).toBeGreaterThan(0.1);
+    moved.forEach((w, k) => expect(w.quaternion.angleTo(new THREE.Quaternion(...rest[k][1]))).toBeGreaterThan(0.1));
     // the two sides mirror each other: their hinge turns have opposite signs
     const [a, b] = moved;
     expect(Math.sign(a.quaternion.x * a.userData.hinge.dir[0] + a.quaternion.y * a.userData.hinge.dir[1] + a.quaternion.z * a.userData.hinge.dir[2]))
@@ -167,13 +176,39 @@ describe('back items are shaped things on the back (accessories polish Task 2)',
     // the hinge point stays put
     for (const w of moved) {
       const h = new THREE.Vector3(...w.userData.hinge.point);
-      const before = h.clone();   // a point on the hinge, in the wing's own frame at rest = body frame
+      const before = h.clone();   // a point on the hinge, in the wing's own frame at rest = the pivot's
       expect(h.applyQuaternion(w.quaternion).add(w.position).distanceTo(before)).toBeLessThan(1e-9);
     }
     animateCat(cat, 'follow', 0.5, 0, true);
     expect(now()).toEqual(rest);
     animateCat(cat, 'nap', 2.1, 0, true);
     expect(now()).toEqual(rest);
+  });
+
+  // The flutter and the sit's stand are true rotations: each wing hangs under a
+  // pivot that undoes the body's scale, so its world-space edges keep their
+  // built lengths (× the cat's scale) in the sit and mid-flutter (within 1%;
+  // follow at t 1.745 has the breathing at ~0 and the flutter near its peak).
+  it.each(['tabby', 'digit', 'mainecoon'])('%s: the wings keep their shape in the sit and mid-flutter', (breed) => {
+    for (const [state, t] of [['requestPet', 1.3], ['perch', 0.5], ['follow', Math.PI / 1.8]]) {
+      const cat = kitCat(breed, 'wings', 'cape');
+      animateCat(cat, state, t, 0, false);
+      cat.updateMatrixWorld(true);
+      const s = cat.scale.x;
+      for (const w of itemsOf(cat)) {
+        const p = w.geometry.attributes.position, ix = w.geometry.index.array;
+        const a = new THREE.Vector3(), b = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3();
+        let worst = 0;
+        for (let k = 0; k < ix.length; k += 3) {
+          a.fromBufferAttribute(p, ix[k]); b.fromBufferAttribute(p, ix[k + 1]);
+          const built = a.distanceTo(b);
+          if (built < 1e-4) continue;
+          A.copy(a).applyMatrix4(w.matrixWorld); B.copy(b).applyMatrix4(w.matrixWorld);
+          worst = Math.max(worst, Math.abs(A.distanceTo(B) / s / built - 1));
+        }
+        expect(worst, `${state} t ${t} wing ${w.userData.wing}`).toBeLessThanOrEqual(0.01);
+      }
+    }
   });
 
   it('disposing one cat leaves another intact (no geometry shared)', () => {

@@ -236,7 +236,7 @@ describe('the sitting tail lies round the paws (polish-sit Task 2)', () => {
 describe('the back items ride the upright sit (polish-sit Task 3, accessories polish Task 2)', () => {
   const KITS = [{ back: 'backpack', body: 'cape' }, { back: 'wings', body: 'confetticape' }, { back: 'jetpack', body: 'cape' }, { back: 'backpack' }, { back: 'wings' }, { back: 'jetpack' }];
   const kitCat = (b, kit, simple) => buildCat(b, { collar: null, head: null, face: null, neck: null, feet: null, body: null, ...kit }, { simple });
-  const items = (cat) => cat.userData.parts.body.children.filter((c) => c.userData.backItem);
+  const items = (cat) => { const out = []; cat.userData.parts.body.traverse((c) => { if (c.isMesh && c.userData.backItem) out.push(c); }); return out; };
   const v = new THREE.Vector3();
   const lowest = (obj, s) => {
     let low = Infinity;
@@ -257,7 +257,7 @@ describe('the back items ride the upright sit (polish-sit Task 3, accessories po
       animateCat(cat, state, 1.3, 0, false);
       cat.updateMatrixWorld(true);
       for (const item of its) {
-        expect(item.parent).toBe(cat.userData.parts.body);
+        expect(kit.back === 'wings' ? item.parent.parent : item.parent).toBe(cat.userData.parts.body);
         expect(lowest(item, cat.scale.x), `${kit.back}+${kit.body}: above the ground`).toBeGreaterThanOrEqual(0);
       }
     }
@@ -314,10 +314,18 @@ describe('the back items ride the upright sit (polish-sit Task 3, accessories po
     expect(farthest, 'it stands on the back').toBeGreaterThan(0.05);
   });
 
-  it.each(BREEDS.flatMap((b) => [false, true].map((simple) => [b, simple])))('%s (simple %s): sit → follow puts every item back as built', (b, simple) => {
+  it.each(BREEDS.flatMap((b) => [false, true].map((simple) => [b, simple])))('%s (simple %s): sit → follow puts every item back as built; a follow never moves the pack or jetpack', (b, simple) => {
     const pose = (cat) => items(cat).map((c) => [c.position.toArray(), c.quaternion.toArray(), c.scale.toArray()]);
     for (const kit of KITS) {
       const built = pose(kitCat(b, kit, simple));
+      // a follow never moves the pack or the jetpack (the wings flutter)
+      if (kit.back !== 'wings') {
+        const fresh = kitCat(b, kit, simple);
+        for (const t of [0.4, 2.1]) {
+          animateCat(fresh, 'follow', t, 0, false);
+          expect(pose(fresh), `${kit.back} follow t ${t}`).toEqual(built);
+        }
+      }
       for (const state of SITS) {
         const cat = kitCat(b, kit, simple);
         animateCat(cat, state, 1.3, 0, false);

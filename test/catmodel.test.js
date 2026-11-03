@@ -626,7 +626,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   it.each(['backpack', 'jetpack', 'wings'])('%s rests on the back: on the body, touching, not sinking', (id) => {
     const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id }), { body } = cat.userData.parts;
     const c = body.getWorldPosition(new THREE.Vector3());
-    const meshes = body.children.filter((m) => m.userData.backItem === id);
+    const meshes = []; body.traverse((m) => { if (m.isMesh && m.userData.backItem === id) meshes.push(m); });
     expect(meshes.length).toBe(ACCESSORY_DELTA[id]);
     for (const m of meshes) {
       // (not the bounding box's centre: the straps wrap round the shoulders)

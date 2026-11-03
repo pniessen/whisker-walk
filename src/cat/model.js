@@ -1377,8 +1377,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // The back slot hangs only the balloons on g: they float (polish-pose
   // Task 3, ruling P3). (The backpack, wings and jetpack once hung here too,
   // tagged userData.ridesBody and carried on the posed torso in the sit; since
-  // accessories polish Task 2 they hang on the body, backitems.js.) Each balloon piece remembers its tie (userData.float.tie, cat frame,
-  // where its string is tied on the back) and each string its knot end and
+  // accessories polish Task 2 they hang on the body, backitems.js.) Each
+  // balloon piece remembers its tie (userData.float.tie, cat frame, where its
+  // string is tied on the back) and each string its knot end and
   // built length (userData.span); animator.js floatBalloons carries the tie on
   // the posed torso in every state, keeps the balloons and the knot upright at
   // their built height unless the tie rises, and stretches each string from

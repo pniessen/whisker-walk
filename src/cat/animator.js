@@ -243,19 +243,22 @@ function wearCape(body, sitting) {
   }
 }
 
-// The butterfly wings flutter (accessories polish Task 2): each wing (a body
-// child with userData.wing, -1 | 1) turns about its hinge (userData.hinge,
-// body-local: the root point and the root line's direction) by
+// The butterfly wings flutter (accessories polish Task 2): each wing hangs
+// under a pivot on the body (userData.wingPivot, scale 1 / bodyScale), so the
+// pivot's frame is the body-SCALED frame and a turn there is a true rotation.
+// The wing (the pivot's mesh, userData.wing -1 | 1) turns about its hinge
+// (userData.hinge: the root point and the in-plane upright, pivot frame) by
 // side · WING_FLUTTER.amp · sin(t · WING_FLUTTER.rate), the two sides
 // mirrored. At sin 0, and always under reducedMotion, it is exactly as built:
 // its rest (remembered on first use, as restore() reads it) is copied back.
 // In the sit the torso pitches nose-up (SIT.pitch), which tipped the wings
 // back to lie along the sloping back like flaps; there each wing also turns
-// back by WING_FLUTTER.sitStand of the body's pitch, about its point nearest
-// the back (userData.hinge.low), so it stands nearly as it does standing and
-// still rests on the back.
+// back by WING_FLUTTER.sitStand (all) of the body's pitch about the x axis
+// through its point nearest the back (userData.hinge.low), so it stands as it
+// does standing, and rises WING_FLUTTER.sitLift (1 cm, pivot frame) so that
+// point stays off the sloping sitting back (Digit's dipped 1.4 mm without it).
 // Allocates nothing after the first frame.
-export const WING_FLUTTER = Object.freeze({ amp: 0.12, rate: 3, sitStand: 0.7 });
+export const WING_FLUTTER = Object.freeze({ amp: 0.12, rate: 3, sitStand: 1, sitLift: 0.01 });
 const _hingeQ = new THREE.Quaternion();
 const _hingeAxis = new THREE.Vector3();
 const _hingeAt = new THREE.Vector3();
@@ -265,8 +268,8 @@ function flutterWings(body, t, reducedMotion, sitting) {
   const kids = body.children;
   const stand = sitting ? -WING_FLUTTER.sitStand * body.rotation.x : 0;
   for (let i = 0; i < kids.length; i++) {
-    const w = kids[i], side = w.userData.wing;
-    if (!side) continue;
+    if (!kids[i].userData.wingPivot) continue;
+    const w = kids[i].children[0], side = w.userData.wing;
     const rest = (w.userData.rest ??= { position: w.position.clone(), quaternion: w.quaternion.clone() });
     const angle = reducedMotion ? 0 : side * WING_FLUTTER.amp * Math.sin(t * WING_FLUTTER.rate);
     if (angle === 0 && stand === 0) { w.position.copy(rest.position); w.quaternion.copy(rest.quaternion); continue; }
@@ -281,6 +284,7 @@ function flutterWings(body, t, reducedMotion, sitting) {
       _hingeAt.fromArray(low).applyQuaternion(w.quaternion).add(w.position);
       w.quaternion.premultiply(_standQ);
       w.position.sub(_hingeAt).applyQuaternion(_standQ).add(_hingeAt);
+      w.position.y += WING_FLUTTER.sitLift;
     }
   }
 }
