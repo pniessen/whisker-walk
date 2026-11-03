@@ -740,7 +740,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   // Accessories polish Task 4: the collar and the neck pieces ride the neck in
   // every pose (animator.js fitNeck), and the rings lie square to it (model.js
   // NECK_RING_TILT, NECK_RING_BACK). Walking, sitting for a pet, perched,
-  // napping, grooming and cross, on the cat posed as the game poses it (cat
+  // napping, grooming, cross, swiping, scared and rolling, on the cat posed as the game poses it (cat
   // frame, front is -z): every item's front-most point is behind the posed
   // nose's tip and below the posed mouth (the nose's bottom), and nothing
   // pokes forward the way a ring did when it rode the head ("a stick held in
@@ -750,7 +750,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   // hanging pieces (bell, charms, studs, beads, bandana, tie, streamers,
   // tails) rest on the chest and are deeper than 6 cm themselves (the bell
   // alone is 7.6 cm across), so nothing of any item is more than 10 cm out.
-  const NECK_STATES = [['follow', 0.4, 1.5], ['follow', 1.3, 1.5], ['follow', 2.2, 1.5], ['requestPet', 1.3, 0], ['perch', 1.3, 0], ['nap', 1.3, 0], ['groom', 1.3, 0], ['cross', 1.3, 0]];
+  const NECK_STATES = [['follow', 0.4, 1.5], ['follow', 1.3, 1.5], ['follow', 2.2, 1.5], ['requestPet', 1.3, 0], ['perch', 1.3, 0], ['nap', 1.3, 0], ['groom', 1.3, 0], ['cross', 1.3, 0], ['swipe', 1.3, 0], ['scared', 1.3, 0], ['roll', 1.3, 0]];
   const NECK_IDS = ['bell', 'sparklecollar', 'studded', 'scarf', 'streamerscarf', 'bandana', 'necktie', 'bowtie'];
   const _v = new THREE.Vector3();
   const vertsOf = (meshes, fn) => { for (const m of meshes) { const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i++) fn(m.getVertexPosition(i, _v).applyMatrix4(m.matrixWorld), m); } };

@@ -1304,8 +1304,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     collar.position.set(0, -0.14 + neckY, 0.1 + neckZ);
     collar.name = 'collar';
     head.add(collar);
-    // The animator moves it onto the neck in a pose that drops the head
-    // forward of the chest (animator.js COLLAR_ON_NECK).
+    // The animator carries it on the neck in every pose (animator.js
+    // fitNeck; on the head as built in the stretch and the swim).
     head.userData.collar = collar;
   }
 
@@ -1353,7 +1353,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // groom left it poking out past the nose like a little flag)
     const tri = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.17, 3), mat(0x3a6ea5));
     tri.rotation.set(Math.PI, Math.PI, 0);
-    tri.position.set(0, -0.18 + neckY, 0.02 + neckZ);
+    tri.position.set(0, -0.18 + neckY, 0.03 + neckZ);
     head.add(tri);
   } else if (accessories.neck === 'necktie') {
     const knot = ball(0.028, NECKTIE_COLOR, 1, 0.8, 0.8, 6, 5);

@@ -282,7 +282,7 @@ const _hoodR = new THREE.Vector3();
 const _hoodQ = new THREE.Quaternion();
 function slideHood(cat) {
   const { body, head } = cat.userData.parts;
-  const { bodyY, bodyScale, headPos } = cat.userData.base;
+  const { bodyY, bodyScale, headPos } = cat.userData.base ?? CAT_BASE;
   const kids = body.children;
   for (let i = 0; i < kids.length; i++) {
     const hood = kids[i];
