@@ -138,7 +138,9 @@ export const CLUSTERS = Object.freeze([
 const radiusOf = (c) => RADIUS[c.kind] * (c.s ?? 1);
 
 // ---- gulls and boats -----------------------------------------------------------
-// Static, all of them (ruling R1): no bob, no per-frame hook.
+// The boats are static (ruling R1). The gulls move, but only in the vertex
+// shader of the one merged props mesh (polish-gulls, see gullMotion below):
+// gulls on the water bob, perched gulls turn their heads now and then.
 
 // The boats: rowing and fishing boats moored along both banks in the free
 // stretches of canal — between the east barge and the quay's end, west of the
@@ -182,6 +184,16 @@ export const GULL_SPOTS = Object.freeze([
   { ...onBow(BOATS[0]), rot: 1.5 },
 ].map((g) => Object.freeze(g)));
 
+// Gulls afloat on the canal (polish-gulls): no legs, the body sitting low in
+// the water (y is the gull's origin, 0.125 under the canal's 0.04 surface, deep
+// enough that the top of its 2.5 cm bob never lifts the body clear), and
+// clear of both bridges, both barges, every boat and both duck circles.
+export const FLOAT_GULLS = Object.freeze([
+  { x: -4.5, z: 1.6, y: -0.085, rot: -2.0 },
+  { x: 21, z: -1.3, y: -0.085, rot: 0.9 },
+  { x: -35, z: -0.8, y: -0.085, rot: 2.4 },
+].map((g) => Object.freeze(g)));
+
 // The decorative wet patches (polish-docks Task 3): darker blue-grey stone a
 // shower left behind, each with its own sky streaks, out in open cobble —
 // off every path and a metre clear of every gameplay point, like the yard
@@ -205,6 +217,7 @@ export function itemsOf() {
   return [
     ...CLUSTERS.map((c) => ({ x: c.x, z: c.z, r: radiusOf(c), what: c.kind })),
     ...GULL_SPOTS.map((g) => ({ x: g.x, z: g.z, y: g.y, r: 0.25, what: 'gull' })),
+    ...FLOAT_GULLS.map((g) => ({ x: g.x, z: g.z, y: g.y, r: 0.25, what: 'gull' })),
     ...BOATS.map((b) => ({ x: b.x, z: b.z, r: Math.hypot(b.len / 2, BEAM / 2), what: 'boat' })),
     ...GLINT_PUDDLES.map((p) => ({ x: p.x, z: p.z, r: p.r, what: 'glint' })),
   ];
@@ -461,11 +474,22 @@ function blob(x, z, r) {
 
 // A herring gull standing, about 0.36 tall, facing local +z, feet at the
 // origin: white body and head, pale grey folded wings, dark wingtips crossed
-// over the tail, a yellow beak and yellow legs. ~130 triangles.
-function gullParts(g) {
+// over the tail, a yellow beak and yellow legs. ~130 triangles. A floating
+// gull (`afloat`) has no legs.
+//
+// Every part carries `aGull` for the motion shader (gullMotion): xyz is the
+// pivot and w is kind + phase. A floating gull is all kind 1, pivoting at its
+// origin; a perched gull's head and beak are kind 2, pivoting at its neck, and
+// the rest of it is kind 0 (still). The phase is the spot's own hash, so no
+// two gulls move in step.
+const NECK = new THREE.Vector3(0, 0.25, 0.12);
+function gullParts(g, afloat = false) {
   const p = [];
-  for (const lx of [-0.035, 0.035]) {
-    p.push(paint(new THREE.CylinderGeometry(0.012, 0.012, 0.1, 3, 1, true), 0xe0a848).translate(lx, 0.05, 0));
+  const head = [];
+  if (!afloat) {
+    for (const lx of [-0.035, 0.035]) {
+      p.push(paint(new THREE.CylinderGeometry(0.012, 0.012, 0.1, 3, 1, true), 0xe0a848).translate(lx, 0.05, 0));
+    }
   }
   p.push(paint(new THREE.SphereGeometry(1, 6, 4), 0xf4f4f0, 0.03).scale(0.085, 0.085, 0.2).translate(0, 0.17, -0.01));
   for (const sx of [-1, 1]) {
@@ -475,11 +499,77 @@ function gullParts(g) {
     p.push(paint(new THREE.ConeGeometry(0.035, 0.15, 4), 0x2a2a30)
       .rotateX(-Math.PI / 2 - 0.15).translate(sx * 0.03, 0.215, -0.24));
   }
-  p.push(paint(new THREE.SphereGeometry(0.065, 6, 4), 0xf4f4f0).translate(0, 0.29, 0.15));
-  p.push(paint(new THREE.ConeGeometry(0.018, 0.08, 4), 0xf0c040).rotateX(Math.PI / 2).translate(0, 0.28, 0.24));
+  head.push(paint(new THREE.SphereGeometry(0.065, 6, 4), 0xf4f4f0).translate(0, 0.29, 0.15));
+  head.push(paint(new THREE.ConeGeometry(0.018, 0.08, 4), 0xf0c040).rotateX(Math.PI / 2).translate(0, 0.28, 0.24));
   const m = new THREE.Matrix4().makeRotationY(g.rot).setPosition(g.x, g.y, g.z);
-  for (const geo of p) geo.applyMatrix4(m);
-  return p;
+  const phase = Math.min(0.999, hash01(g.x, g.z, 31));
+  const neck = NECK.clone().applyMatrix4(m);
+  for (const geo of p) setGull(geo.applyMatrix4(m), afloat ? [g.x, g.y, g.z, 1 + phase] : [0, 0, 0, 0]);
+  for (const geo of head) setGull(geo.applyMatrix4(m), afloat ? [g.x, g.y, g.z, 1 + phase] : [neck.x, neck.y, neck.z, 2 + phase]);
+  return [...p, ...head];
+}
+
+// Gives every vertex of geo the same aGull value (see gullParts).
+function setGull(geo, v) {
+  const n = geo.attributes.position.count;
+  const a = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) a.set(v, i * 4);
+  geo.setAttribute('aGull', new THREE.BufferAttribute(a, 4));
+  return geo;
+}
+
+// The motion itself, in the props material's vertex shader: one uniform, set
+// once a frame from the mesh's onBeforeRender, and nothing else per frame.
+// A floating gull rises and falls 2.5 cm on a ~4.8 s swell and rolls and
+// pitches a few degrees; a perched gull's head holds a direction for 3.5 s,
+// then turns (up to ~30 degrees either way) in about half a second. The head
+// targets come from a GLSL hash of the hold's index and the gull's phase:
+// visual only, never a Math.random draw. The normal turns with the vertex.
+// Static props have aGull.w 0 and skip all of it.
+export const GULL_SHADER_KEY = 'docks-gulls-v1';
+export function gullMotion(material) {
+  const uniforms = { uGullTime: { value: 0 } };
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+attribute vec4 aGull;
+uniform float uGullTime;
+float gullHash(float n) { return fract(sin(n * 12.9898) * 43758.5453); }
+mat3 gullTurn(vec4 g) {
+  float kind = floor(g.w);
+  float ph = fract(g.w) * 6.2831853;
+  if (kind < 0.5) return mat3(1.0);
+  if (kind < 1.5) {
+    float r = sin(uGullTime * 1.6 + ph) * 0.07;
+    float p = sin(uGullTime * 1.05 + ph * 1.7) * 0.05;
+    mat3 roll = mat3(cos(r), sin(r), 0.0, -sin(r), cos(r), 0.0, 0.0, 0.0, 1.0);
+    mat3 pitch = mat3(1.0, 0.0, 0.0, 0.0, cos(p), sin(p), 0.0, -sin(p), cos(p));
+    return roll * pitch;
+  }
+  float t = uGullTime / 3.5 + fract(g.w) * 7.0;
+  float hold = floor(t);
+  float seed = fract(g.w) * 97.0;
+  float a0 = gullHash(hold - 1.0 + seed) - 0.5;
+  float a1 = gullHash(hold + seed) - 0.5;
+  float y = mix(a0, a1, smoothstep(0.0, 0.15, fract(t))) * 1.1;
+  return mat3(cos(y), 0.0, -sin(y), 0.0, 1.0, 0.0, sin(y), 0.0, cos(y));
+}
+float gullLift(vec4 g) {
+  float kind = floor(g.w);
+  return (kind > 0.5 && kind < 1.5) ? sin(uGullTime * 1.3 + fract(g.w) * 6.2831853) * 0.025 : 0.0;
+}`)
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+mat3 gTurn = gullTurn(aGull);
+objectNormal = gTurn * objectNormal;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+if (aGull.w > 0.5) {
+  transformed = aGull.xyz + gTurn * (transformed - aGull.xyz);
+  transformed.y += gullLift(aGull);
+}`);
+  };
+  material.customProgramCacheKey = () => GULL_SHADER_KEY;
+  return uniforms;
 }
 
 // Triangles out of [x, y, z] points, each turned to face `out` (so a hull
@@ -924,14 +1014,26 @@ const tag = (mesh, receive = true) => {
 
 // `area` is the record build() is about to return; nothing here writes to it
 // (rule 2), and later dressing reads it.
-export function dressDocks(scene, area) {
+// `reducedMotion` (walk.js's setting, via docks.js's water options) leaves the
+// gulls perfectly still: no shader patch, no per-frame hook.
+export function dressDocks(scene, area, { reducedMotion = false } = {}) {
   const meshes = withLocalUuids(DRESSING_SEED, () => {
     const parts = [];
     for (const c of CLUSTERS) parts.push(...partsOf(c));
     for (const g of GULL_SPOTS) parts.push(...gullParts(g));
     for (const b of BOATS) parts.push(...boatParts(b));
+    for (const g of FLOAT_GULLS) parts.push(...gullParts(g, true));
+    // everything that is not a gull holds still (aGull.w 0)
+    for (const geo of parts) if (!geo.attributes.aGull) setGull(geo, [0, 0, 0, 0]);
     const props = tag(new THREE.Mesh(mergeParts(parts), dressingMaterial({ roughness: 0.85 })));
     props.name = 'docksDressing';
+    if (!reducedMotion) {
+      const u = gullMotion(props.material);
+      props.userData.gulls = u;
+      // Wrapped well before float precision matters; the jump once an hour
+      // is a single frame's twitch.
+      props.onBeforeRender = () => { u.uGullTime.value = (performance.now() / 1000) % 3600; };
+    }
 
     const blobs = mergeParts(CLUSTERS.map((c) => blob(c.x, c.z, radiusOf(c) + 0.3)));
     const shade = tag(new THREE.Mesh(blobs, new THREE.MeshBasicMaterial({

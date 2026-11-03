@@ -570,6 +570,6 @@ export function build(scene, { water = {} } = {}) {
   // polish-docks: the harbour dressing — crates, barrels, nets, rope and
   // lobster pots, on their own local uuid stream and adding no record. Last,
   // so its meshes are the scene's last children. See world/docksdressing.js.
-  dressDocks(scene, area);
+  dressDocks(scene, area, { reducedMotion: water.reducedMotion ?? false });
   return area;
 }
