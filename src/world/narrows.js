@@ -216,16 +216,18 @@ function builder() {
 }
 
 // Three blades, front and back faces, as gorge.js's meadow tufts.
+// Sized to read from the floor (a shelf 2-8 m up): blades as wide and leaning
+// as far as their height asks. One tuft in five is dry.
 function tuft(B, t, height) {
-  const k3 = Math.floor(t.seed * 3);
-  const base = new THREE.Color(k3 === 2 ? TUFT_DRY : TUFT_GREENS[k3]);
+  const dry = t.seed >= 0.8;
+  const base = new THREE.Color(dry ? TUFT_DRY : TUFT_GREENS[t.seed < 0.4 ? 0 : 1]);
   const tip = base.clone().multiplyScalar(1.12);
   const rot = t.seed * 97.3;
   for (let k = 0; k < 3; k++) {
     const a = rot + (k * Math.PI * 2) / 3;
-    const lean = 0.06 + 0.04 * k;
-    const w = 0.035;
-    const bx = t.x + Math.cos(a) * 0.04, bz = t.z + Math.sin(a) * 0.04;
+    const lean = height * (0.18 + 0.1 * k);
+    const w = 0.09 * height;
+    const bx = t.x + Math.cos(a) * 0.05, bz = t.z + Math.sin(a) * 0.05;
     const px = -Math.sin(a) * w, pz = Math.cos(a) * w;
     const tx = bx + Math.cos(a) * lean, tz = bz + Math.sin(a) * lean;
     const h = height * (0.85 + 0.15 * k);
@@ -373,8 +375,8 @@ function compute(rockFaces) {
   const tris = narrowsRockTris(rockFaces);
   const { shelf, crest, shrubs } = placements(tris);
   const B = builder();
-  for (const t of shelf) tuft(B, t, 0.25 + 0.2 * hash01(t.x, t.z, SALT + 9));
-  for (const t of crest) tuft(B, t, 0.35 + 0.25 * hash01(t.x, t.z, SALT + 9));
+  for (const t of shelf) tuft(B, t, 0.4 + 0.3 * hash01(t.x, t.z, SALT + 9));
+  for (const t of crest) tuft(B, t, 0.5 + 0.4 * hash01(t.x, t.z, SALT + 9));
   for (const s of shrubs) shrub(B, s);
   const before = B.pos.length / 9;
   view(B);
