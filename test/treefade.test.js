@@ -551,3 +551,42 @@ describe('treefade buildings and fade shapes', () => {
     expect(BUILDING_PAD).toBe(0.4);
   });
 });
+
+describe('treefade near poles (viewclear2)', () => {
+  function pole(x, z) {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 0.1), new THREE.MeshStandardMaterial()));
+    g.userData.fadeOccluder = [{ t: 'cyl', r: 0.08, y0: 0, y1: 3.2 }, { t: 'ell', y: 3.3, r: 0.22, ry: 0.22 }];
+    g.position.set(x, 0, z);
+    return g;
+  }
+  const run = (g) => {
+    const scene = new THREE.Scene();
+    scene.add(g);
+    const fade = createTreeFade(findFadeOccluders(scene).concat(findOccluders(scene)));
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+    camera.position.set(0, 2, -3);
+    fade.update(1, camera, LOOK);
+    return fade.faded().has(g);
+  };
+  it('a pole 1 m beside the camera, off the line, fades', () => { expect(run(pole(1, -3))).toBe(true); });
+  it('a pole 2 m beside the camera, off the line, does not', () => { expect(run(pole(2, -3))).toBe(false); });
+  it('a pole 1 m beside but above the camera does not', () => {
+    const g = pole(1, -3);
+    const scene = new THREE.Scene();
+    scene.add(g);
+    const fade = createTreeFade(findFadeOccluders(scene));
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+    camera.position.set(0, 4, -3);
+    fade.update(1, camera, LOOK);
+    expect(fade.faded().has(g)).toBe(false);
+  });
+  it('a tree 1 m beside the camera, outside its R and off the line, is unchanged', () => {
+    const t = tree(1, -3);
+    const [o] = findOccluders((() => { const s = new THREE.Scene(); s.add(t); return s; })());
+    expect(o.near).toBeUndefined();
+    // off the line and not inside its canopy: only the old rules apply
+    const inside = o.R > 1;
+    expect(run(t)).toBe(inside);
+  });
+});

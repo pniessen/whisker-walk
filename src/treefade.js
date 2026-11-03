@@ -29,7 +29,8 @@
 // BUILDING_PAD of it, or when the camera→look segment (not the PAST_LOOK
 // extension: a building beyond the cat stays solid) meets the box. A group with
 // userData.fadeOccluder (a lamp post) gets its shapes placed like a trunk, with
-// no wind lean, and fades by the same line test as a tree.
+// no wind lean, and fades by the same line test as a tree, and also when the
+// camera is within NEAR_POLE of it (a pole beside the lens, off the line).
 //
 // Merged pine stands (builder.pineStand: occluder.obj === null, with
 // occluder.stand and occluder.index) fade one pine at a time. Every pine in a
@@ -50,6 +51,7 @@ export const PAST_LOOK = 1.2; // m the fade line runs on beyond the look point (
 const FADE_DOWN_S = 0.2; // full → FADE_OPACITY
 const FADE_UP_S = 0.4; // FADE_OPACITY → full
 const LINE_PAD = 0.15;
+export const NEAR_POLE = 1.5; // m: a tagged pole this close to the camera (horizontally) fades even off the line
 export const BUILDING_PAD = 0.4; // m: a camera this close to a building's box counts as inside it
 
 const DOWN_RATE = (1 - FADE_OPACITY) / FADE_DOWN_S;
@@ -92,7 +94,7 @@ export function findFadeOccluders(scene) {
       : { t: 'ell', x: px, y: py + sh.y * s, z: pz, r: sh.r * s, ry: sh.ry * s, p: 0 }));
     const R = Math.max(...placed.map((q) => q.r));
     const top = Math.max(...placed.map((q) => (q.t === 'cyl' ? q.y1 : q.y + q.ry)));
-    out.push({ obj: o, x: px, z: pz, R, top, shapes: placed });
+    out.push({ obj: o, x: px, z: pz, R, top, shapes: placed, near: NEAR_POLE });
   });
   for (const child of scene.children) {
     if (child.isMesh || child.userData?.occluder || child.userData?.occluderStand) continue;
@@ -258,9 +260,12 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
           && cam.z >= b.minZ - BUILDING_PAD && cam.z <= b.maxZ + BUILDING_PAD)
           || segmentHitsBox(cam, look, b);
       }
-    } else if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + o.R + PAST_LOOK) {
+    } else if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + Math.max(o.R, o.near || 0) + PAST_LOOK) {
       // quick reject passed: a tree farther from the cat than the fade line can reach is skipped
-      want = (Math.hypot(cam.x - o.x, cam.z - o.z) < o.R && cam.y < o.top)
+      // (a `near` pole is also kept when it stands within o.near of the camera)
+      const dCam = Math.hypot(cam.x - o.x, cam.z - o.z);
+      want = (dCam < o.R && cam.y < o.top)
+        || (o.near !== undefined && dCam < o.near && cam.y < o.top)
         || segmentBlocked(cam, far, o, LINE_PAD);
     }
     if (!want && t.op >= 1) return false;
