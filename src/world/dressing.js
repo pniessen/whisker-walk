@@ -36,6 +36,7 @@ export function colorParts(geo, color) {
     col[i * 3 + 1] = rgb[1];
     col[i * 3 + 2] = rgb[2];
   }
+  // For a non-indexed input the output shares its position/normal attributes.
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', pos);
   out.setAttribute('normal', src.attributes.normal);

@@ -141,24 +141,35 @@ describe('dressing helpers', () => {
     }
   });
 
-  it('the helpers draw no Math.random inside withLocalUuids', () => {
-    const real = Math.random;
-    let n = 0;
-    Math.random = () => { n++; return real(); };
-    try {
-      withLocalUuids('t', () => {
-        const parts = [
-          colorParts(new THREE.BoxGeometry(1, 1, 1), 0xff0000),
-          colorParts(ribbon([[0, 0], [6, 2]], 1, {}), [0.2, 0.3, 0.1]),
-        ];
-        dressMesh(parts, { name: 'x' });
-        paintMesh([colorParts(blob(0, 0, 1, {}), 0x335522)], {});
-      });
-    } finally {
-      Math.random = real;
+  it('ribbon triangles face +y', () => {
+    const g = ribbon([[0, 0], [4, 3], [8, 3]], 1, { salt: 2 });
+    const p = g.attributes.position;
+    const a = new THREE.Vector3(), c = new THREE.Vector3(), d = new THREE.Vector3(), nrm = new THREE.Vector3();
+    for (let t = 0; t < p.count / 3; t++) {
+      a.fromBufferAttribute(p, t * 3);
+      c.fromBufferAttribute(p, t * 3 + 1).sub(a);
+      d.fromBufferAttribute(p, t * 3 + 2).sub(a);
+      nrm.crossVectors(c, d);
+      expect(nrm.y).toBeGreaterThan(0);
     }
-    // withLocalUuids swaps Math.random for its own stream, so our counter is
-    // never reached: any draw would have gone to the local stream instead.
-    expect(n).toBe(0);
+  });
+
+  it('the pure helpers draw no Math.random', () => {
+    const m = b.ground(40, 0x7d9c55, { surface: 'grass' });
+    m.updateMatrix();
+    const spy = vi.spyOn(Math, 'random');
+    try {
+      // The geometries get uuids (Math.random) from Three, so, as callers do,
+      // build them inside withLocalUuids: the real Math.random stays untouched.
+      withLocalUuids('t', () => {
+        ribbon([[0, 0], [6, 2]], 1, {});
+        blob(0, 0, 1, {});
+      });
+      smoothField(1, 2, 3, 10);
+      tintGround(m, () => [0.9, 0.9, 0.9]);
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
