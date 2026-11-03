@@ -1751,10 +1751,18 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
       // so it reads as wood and not hedge.
       const span = 2 * sp.r;
       const wood = (i) => shade(S.gate, 0.88 + 0.22 * hash01(i, k, st + 3));
+      // Not seated like the rest (the gate stands on the flat stretch), but
+      // held to the same per-vertex water clearance.
       const put = (g) => {
         const gx = edgePart(g);
         gx.rotateY(yaw);
         gx.translate(x, -BAND_SINK, z);
+        const p = gx.attributes.position;
+        if (avoid.length) {
+          for (let v = 0; v < p.count; v++) {
+            if (waterClearance(avoid, p.getX(v), p.getZ(v)) < EDGE_VERTEX_DRY) return gx.dispose();
+          }
+        }
         out.push(gx);
       };
       const post = (t, i) => {
@@ -1868,8 +1876,10 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
         const t = kind === 'corner' ? (hb(0) - 0.5) * 1.6 : ((i + 0.5) / count - 0.5) * S.step + (hb(0) - 0.5) * 0.3;
         const nOut = (hb(1) - 0.5) * 0.8 + (kind === 'corner' ? (hb(6) - 0.5) * 1.2 : 0);
         const [bx, bz] = at(t, nOut);
-        // The blade's base runs across at up to 50 degrees off the line.
-        const turn = (hb(2) - 0.5) * 1.7;
+        // The blade's base runs across at up to ~29 degrees off the line: a
+        // blade is one-sided, so turned further it vanishes edge-on from an
+        // oblique camera.
+        const turn = (hb(2) - 0.5) * 1.0;
         const ax = tx * Math.cos(turn) + ox * Math.sin(turn);
         const az = tz * Math.cos(turn) + oz * Math.sin(turn);
         const w = S.wMin + (S.wMax - S.wMin) * hb(3);
