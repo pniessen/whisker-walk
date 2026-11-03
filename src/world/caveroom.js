@@ -11,7 +11,7 @@ import { litMaterial } from '../render/materials.js';
 // plan at every corner and curving inward as a cove under the roof, with a
 // soft seeded unevenness; a few stubby STALACTITES hanging from the cove and
 // the roof (the Echo Cave the most, with two little stalagmites under them);
-// MOSS in low flat blobs along the wall feet and on the lower walls; and in
+// MOSS in lumpy mounds along the wall feet and on the lower walls; and in
 // the Snug Cave, a NEST of twigs lined with moss and fur. Near the cave's
 // crystal clusters the liner and the moss are tinted toward their colour, a
 // baked glow (Task 6). The clusters themselves are crystalClusters, below.
@@ -55,11 +55,13 @@ const TWIGS = [0x6b4f33, 0x7f6142, 0x5e452d];
 const FUR = 0xa89f94;
 
 const STALACTITES = { echo: [7, 3], glitter: [5, 3], snug: [4, 2] }; // [min, spread]
-const FLOOR_MOSS = { echo: 9, glitter: 5, snug: 14 };
+// The Snug Cave keeps its first 11 floor mounds (of 14 flat blobs): a mound
+// is 45 triangles, and the room may grow by 300 at most (polish-gorgeway Task 3).
+const FLOOR_MOSS = { echo: 9, glitter: 5, snug: 11 };
 const WALL_MOSS = { echo: 3, glitter: 1, snug: 4 };
 const NEST_R = 0.45;
 const NEST_RIM = 0.02; // the twig rim's jitter reaches a little past NEST_R
-const MOSS_REACH = 1.2; // a floor blob's outer ring reaches 1.175 of its radius
+const MOSS_REACH = 1.25; // a floor mound's rim reaches at most 1.2 of its radius
 const MOUTH_KEEP = 2.0; // no stalactite this near the opening, where the camera mostly is
 const GLOW_MIX = 0.6; // how far a vertex right by a cluster goes toward its colour
 const GLOW_CENTRE_Y = 0.35; // the glow's centre, over a cluster's spot
@@ -138,7 +140,7 @@ const coveHeight = (d) => {
 };
 
 // One growing list of triangles, by part.
-function mesher() {
+export function mesher() {
   const pos = [], col = [], idx = [];
   const parts = { liner: 0, stalactites: 0, moss: 0, nest: 0 };
   return {
@@ -146,6 +148,69 @@ function mesher() {
     vert(x, y, z, c) { pos.push(x, y, z); col.push(c.r, c.g, c.b); return pos.length / 3 - 1; },
     tri(part, a, b, c) { idx.push(a, b, c); parts[part]++; },
   };
+}
+
+// --- a moss mound -------------------------------------------------------------------
+// One lumpy mound, appended to a mesher() as part 'moss': a centre and three
+// rings of 9 at 0.35, 0.7 and 1.0 of `rad` round (x, y, z) in the plane across
+// the normal (nx, ny, nz), lifted along it by 0.4, 0.28 and 0.02 of `rad` (the
+// centre a touch over the first ring, at least 0.03 m; the whole mound no
+// higher than MOUND_MAX). Each ring vertex's radius is jittered ±20% (by a
+// wobble round the mound that all three rings share, so neighbouring rings
+// keep their order and the rim's slope never folds over) and its lift ±30%,
+// all by hashOf on (x, z, salt): it draws nothing. Darker at the rim (×0.9),
+// lighter on top (×1.08). 45 triangles, facing along the normal.
+// Returns the centre's top point, and the rim as appended: `rim` (vertex ids).
+const MOUND_SEGS = 9;
+const MOUND_RINGS = [[0.35, 0.4, 1.05], [0.7, 0.28, 0.99], [1.0, 0.02, 0.9]]; // [radius, lift, shade]
+const MOUND_TOP = 0.42; // the centre's lift, of rad
+const MOUND_MAX = 0.14; // no mound stands taller than this, however wide
+export function mossLump(m, { x, y, z, nx, ny, nz, rad, color, salt = 0 }) {
+  const nl = Math.hypot(nx, ny, nz) || 1;
+  nx /= nl; ny /= nl; nz /= nl;
+  // u across the normal (level where it can be), v = n × u: u × v = n
+  let ux, uy, uz;
+  if (Math.abs(ny) < 0.9) { ux = nz; uy = 0; uz = -nx; } else { ux = 0; uy = -nz; uz = ny; }
+  const ul = Math.hypot(ux, uy, uz);
+  ux /= ul; uy /= ul; uz /= ul;
+  const vx = ny * uz - nz * uy, vy = nz * ux - nx * uz, vz = nx * uy - ny * ux;
+  const k = Math.min(1, MOUND_MAX / (MOUND_TOP * rad)); // a wide mound is squatter
+  const turn = hashOf(x + salt, z - salt) * Math.PI * 2;
+  // the outline's wobble round the mound, -1..1: two lobes and three, at hashed
+  // phases. Every ring follows it, so a ring never reaches past the next one out.
+  const p2 = hashOf(x * 1.7 - salt, z + 0.3) * Math.PI * 2, p3 = hashOf(z * 2.3 + salt, x - 0.7) * Math.PI * 2;
+  const wobble = (a) => 0.6 * Math.sin(2 * a + p2) + 0.4 * Math.sin(3 * a + p3);
+  const c = new THREE.Color();
+  const at = (a, rr, lift) => {
+    const cu = Math.cos(a) * rr, sv = Math.sin(a) * rr;
+    return [x + ux * cu + vx * sv + nx * lift, y + uy * cu + vy * sv + ny * lift, z + uz * cu + vz * sv + nz * lift];
+  };
+  c.copy(color).multiplyScalar(1.08);
+  const lift0 = Math.max(0.03, MOUND_TOP * rad * k);
+  const top = at(0, 0, lift0);
+  const mid = m.vert(...top, c);
+  const rings = MOUND_RINGS.map(([kr, kl, shade], ri) => {
+    c.copy(color).multiplyScalar(shade);
+    return Array.from({ length: MOUND_SEGS }, (_, i) => {
+      const a = turn + ((i + 0.5 * ri) / MOUND_SEGS) * Math.PI * 2;
+      const jr = 1 + 0.2 * wobble(a);
+      const jl = 1 + 0.6 * (hashOf(z * 1.9 + i * 2.11 + salt, x * 1.3 + ri * 3.7) - 0.5);
+      return m.vert(...at(a, rad * kr * jr, rad * kl * k * jl), c);
+    });
+  });
+  for (let i = 0; i < MOUND_SEGS; i++) {
+    const j = (i + 1) % MOUND_SEGS;
+    // round from u toward v, i.e. anticlockwise seen from along the normal
+    m.tri('moss', mid, rings[0][i], rings[0][j]);
+    // each ring sits half a step round from the one inside it: ring ri + 1's
+    // vertex i stands between ring ri's i and j
+    for (let ri = 0; ri + 1 < rings.length; ri++) {
+      const a = rings[ri][i], b = rings[ri][j], d = rings[ri + 1][i], e = rings[ri + 1][j];
+      m.tri('moss', a, d, b);
+      m.tri('moss', b, d, e);
+    }
+  }
+  return { x: top[0], y: top[1], z: top[2], rim: rings[rings.length - 1] };
 }
 
 // `crystals` (optional): { spots: [{ x, z }], color } — the liner and the moss
@@ -357,30 +422,20 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     if (!blobs.every((o) => Math.hypot(o.x - x, o.z - z) >= 0.6 * (o.rad + rad))) continue;
     blobs.push({ x, z, rad, tint, turn });
   }
+  // Each a lumpy mound on the floor; any rim point past the chamber's walls is
+  // pulled back inside them, as the flat blobs' were.
+  const mossBlobs = [];
   for (const bl of blobs) {
-    const col0 = mossA.clone().lerp(mossB, bl.tint);
-    const segsN = 9;
-    c.copy(col0).multiplyScalar(1.08);
-    const mid = m.vert(bl.x, y0 + 0.028, bl.z, c);
-    const ring = (k, y, jit, shade) => Array.from({ length: segsN }, (_, i) => {
-      const a = bl.turn + (i / segsN) * Math.PI * 2;
-      const rr = bl.rad * k * (1 + jit * (hashOf(bl.x + i, bl.z) - 0.5));
-      const x = Math.min(r.maxX - 0.005, Math.max(r.minX + 0.005, bl.x + Math.cos(a) * rr));
-      const z = Math.min(r.maxZ - 0.005, Math.max(r.minZ + 0.005, bl.z + Math.sin(a) * rr));
-      c.copy(col0).multiplyScalar(shade);
-      return m.vert(x, y0 + y, z, c);
-    });
-    const inner = ring(0.55, 0.022, 0.2, 1.0);
-    const outer = ring(1.0, 0.004, 0.35, 0.92);
-    for (let i = 0; i < segsN; i++) {
-      const j = (i + 1) % segsN;
-      // counter-clockwise seen from above (x east, z south): up-facing
-      m.tri('moss', mid, inner[j], inner[i]);
-      m.tri('moss', inner[i], inner[j], outer[j]);
-      m.tri('moss', inner[i], outer[j], outer[i]);
+    const from = m.pos.length / 3;
+    const top = mossLump(m, { x: bl.x, y: y0, z: bl.z, nx: 0, ny: 1, nz: 0, rad: bl.rad, color: mossA.clone().lerp(mossB, bl.tint), salt: bl.turn });
+    for (let i = from; i < m.pos.length / 3; i++) {
+      m.pos[i * 3] = Math.min(r.maxX - 0.005, Math.max(r.minX + 0.005, m.pos[i * 3]));
+      m.pos[i * 3 + 2] = Math.min(r.maxZ - 0.005, Math.max(r.minZ + 0.005, m.pos[i * 3 + 2]));
     }
+    const rim = top.rim.map((i) => ({ x: m.pos[i * 3], y: m.pos[i * 3 + 1], z: m.pos[i * 3 + 2] }));
+    mossBlobs.push({ x: bl.x, z: bl.z, rad: bl.rad, top: top.y, rim });
   }
-  // A few on the lower walls, lying on the liner.
+  // A few on the lower walls.
   const wallCap = WALL_MOSS[cave.id] ?? 1;
   const patches = [];
   for (let t = 0; t < 60; t++) {
@@ -392,27 +447,17 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     if (!patches.every((o) => Math.abs(o.s - s) >= 0.8)) continue;
     patches.push({ s, h, rad, tint });
   }
+  // Each a mound standing out of the liner at its spot, along the wall's
+  // normal into the room, 0.02 off it.
+  const wallMoss = [];
   for (const pt of patches) {
-    const col0 = mossA.clone().lerp(mossB, pt.tint).multiplyScalar(0.95);
-    const segsN = 8;
-    const on = (ds, dh, lift) => {
-      const q = linerAt(pt.s + ds, pt.h + dh);
-      const p = q.p;
-      return [q.x + p.nx * lift, q.y, q.z + p.nz * lift];
-    };
-    c.copy(col0).multiplyScalar(1.06);
-    const mid = m.vert(...on(0, 0, 0.03), c);
-    const ring = Array.from({ length: segsN }, (_, i) => {
-      const a = (i / segsN) * Math.PI * 2;
-      const k = 1 + 0.3 * (hashOf(pt.s + i, pt.h) - 0.5);
-      c.copy(col0);
-      return m.vert(...on(Math.cos(a) * pt.rad * k, Math.sin(a) * pt.rad * k * 0.8, 0.02), c);
+    const q = linerAt(pt.s, pt.h);
+    const p = q.p;
+    const top = mossLump(m, {
+      x: q.x + p.nx * 0.02, y: q.y, z: q.z + p.nz * 0.02, nx: p.nx, ny: 0, nz: p.nz,
+      rad: pt.rad, color: mossA.clone().lerp(mossB, pt.tint).multiplyScalar(0.95), salt: pt.s + pt.h,
     });
-    for (let i = 0; i < segsN; i++) {
-      const j = (i + 1) % segsN;
-      // ring runs along the walk (+s) and up (+h): faces into the room
-      m.tri('moss', mid, ring[i], ring[j]);
-    }
+    wallMoss.push({ x: p.wx, y: q.y, z: p.wz, nx: p.nx, nz: p.nz, top: { x: top.x, y: top.y, z: top.z } });
   }
 
   // --- the glow: the liner and the moss near a crystal cluster catch its colour
@@ -463,7 +508,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     return Math.max(0, best ?? 0);
   };
 
-  return { geometry, parts: { ...m.parts }, stalactiteTips, nest, linerDepth };
+  return { geometry, parts: { ...m.parts }, stalactiteTips, nest, linerDepth, mossBlobs, wallMoss };
 }
 
 // How far (x, z) stands inside the chamber's rounded corners (Infinity away from them).

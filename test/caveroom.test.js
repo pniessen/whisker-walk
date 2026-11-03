@@ -176,7 +176,61 @@ describe('caveroom: the deep caves\' chambers', () => {
 
   it('keeps each room under 5,000 triangles', () => {
     for (const cave of GORGE_CAVES) expect(trisOf(roomOf(cave.id).geometry), cave.id).toBeLessThanOrEqual(5000);
+    // polish-gorgeway Task 3: the lumpy moss grows each room by at most 300
+    // against what it was before it (echo 2300, snug 2296, glitter 1916)
+    const before = { echo: 2300, snug: 2296, glitter: 1916 };
+    for (const cave of GORGE_CAVES) expect(trisOf(roomOf(cave.id).geometry), cave.id).toBeLessThanOrEqual(before[cave.id] + 300);
   }, T);
+
+  // --- lumpy moss (polish-gorgeway Task 3) ----------------------------------------
+
+  it('moss is lumpy: each floor mound rises 0.05-0.15 m and its outline is uneven', () => {
+    for (const cave of GORGE_CAVES) {
+      const room = roomOf(cave.id);
+      expect(room.mossBlobs.length, cave.id).toBeGreaterThan(0);
+      for (const b of room.mossBlobs) {
+        const where = `${cave.id} (${b.x.toFixed(2)}, ${b.z.toFixed(2)})`;
+        expect(b.top - cave.y, where).toBeGreaterThanOrEqual(0.05);
+        expect(b.top - cave.y, where).toBeLessThanOrEqual(0.15);
+        // the outer ring, as appended: low on the floor, within 1.25 rad, uneven
+        expect(b.rim.length, where).toBe(9);
+        const radii = b.rim.map((p) => Math.hypot(p.x - b.x, p.z - b.z));
+        for (const p of b.rim) expect(p.y, where).toBeLessThan(cave.y + 0.02);
+        for (const d of radii) expect(d, where).toBeLessThanOrEqual(1.25 * b.rad);
+        expect(Math.max(...radii) / Math.min(...radii), where).toBeGreaterThanOrEqual(1.15);
+      }
+    }
+  }, T);
+
+  it('wall moss stands off the liner', () => {
+    let n = 0;
+    for (const cave of GORGE_CAVES) {
+      const room = roomOf(cave.id);
+      for (const w of room.wallMoss) {
+        n++;
+        const front = (w.top.x - w.x) * w.nx + (w.top.z - w.z) * w.nz;
+        const liner = room.linerDepth(w.x, w.top.y, w.z, w.nx, w.nz);
+        expect(front - liner, `${cave.id} (${w.x.toFixed(2)}, ${w.y.toFixed(2)}, ${w.z.toFixed(2)})`).toBeGreaterThanOrEqual(0.04);
+      }
+    }
+    expect(n).toBeGreaterThan(0);
+  }, T);
+
+  it('exports the mound builder: 45 triangles of moss facing along the normal', () => {
+    const m = caveroom.mesher();
+    const top = caveroom.mossLump(m, { x: 1, y: 2, z: 3, nx: 1, ny: 0, nz: 0, rad: 0.2, color: new THREE.Color(0x4f6b3a), salt: 5 });
+    expect(m.parts.moss).toBe(45);
+    expect(m.idx.length).toBe(135);
+    expect(top.x - 1).toBeGreaterThanOrEqual(0.03);
+    expect(top.y).toBeCloseTo(2, 6);
+    expect(top.z).toBeCloseTo(3, 6);
+    const v = (i) => new THREE.Vector3(m.pos[i * 3], m.pos[i * 3 + 1], m.pos[i * 3 + 2]);
+    for (let t = 0; t < m.idx.length; t += 3) {
+      const [a, b, c] = [v(m.idx[t]), v(m.idx[t + 1]), v(m.idx[t + 2])];
+      const n = b.sub(a).cross(c.sub(a));
+      expect(n.x, `tri ${t / 3}`).toBeGreaterThan(0);
+    }
+  });
 
   it('is one hidden, shadowless mesh inside each cave\'s interior group (Review Focus 5)', () => {
     const scene = new THREE.Scene();
