@@ -311,9 +311,11 @@ function patchNoise(x, z, size = PATCH_SIZE, salt = 7) {
 //              (GROUND_TINTS): 0 = not at all, 1 = the full multiplier
 //   hue        0..1, strength of the patch-scale hue drift (warm/cool lean
 //              over ~5m patches) every tuft's colour gets
+//   flowers    fraction of tufts with a white or yellow flower on their tips
+//              (lawn only: daisies and buttercups in mown turf)
 // ---------------------------------------------------------------------------
 const LAWN = Object.freeze({
-  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: null, ground: 0, hue: 0.12,
+  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: null, ground: 0, hue: 0.12, flowers: 0.03,
 });
 
 const smooth01 = (a, b, v) => {
@@ -332,7 +334,7 @@ export function duneDensity(x, z) {
   return 0.92 * zone * smooth01(0.48, 0.76, patchNoise(x, z, 2.6, 11));
 }
 const DUNE = Object.freeze({
-  color: 0x96a466, hMin: 0.12, hMax: 0.3, width: 0.9, warm: 0.28, sway: 0.3, reach: 1.5, density: duneDensity, ground: 0, hue: 0.1,
+  color: 0x96a466, hMin: 0.12, hMax: 0.3, width: 0.9, warm: 0.28, sway: 0.3, reach: 1.5, density: duneDensity, ground: 0, hue: 0.1, flowers: 0,
 });
 
 // The Woods' undergrowth: short, deep green, in patches among the trees.
@@ -340,7 +342,7 @@ export function woodsDensity(x, z) {
   return 0.85 * smooth01(0.42, 0.72, patchNoise(x, z, 3.4, 29));
 }
 const WOODLAND = Object.freeze({
-  color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity, ground: 0, hue: 0.1,
+  color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity, ground: 0, hue: 0.1, flowers: 0,
 });
 
 // The River's marsh: taller, yellower-green tufts in broad patches, so the
@@ -349,7 +351,7 @@ export function marshDensity(x, z) {
   return 0.9 * smooth01(0.3, 0.6, patchNoise(x, z, 4.4, 43));
 }
 const MARSH = Object.freeze({
-  color: 0x86a457, hMin: 0.14, hMax: 0.36, width: 1.0, warm: 0.14, sway: 0.4, reach: 1.4, density: marshDensity, ground: 0.9, hue: 0.12,
+  color: 0x86a457, hMin: 0.14, hMax: 0.36, width: 1.0, warm: 0.14, sway: 0.4, reach: 1.4, density: marshDensity, ground: 0.9, hue: 0.12, flowers: 0,
 });
 
 // The Moor: knee-high tawny-green tufts in wide patches with bare earth
@@ -358,7 +360,7 @@ export function moorDensity(x, z) {
   return 0.95 * smooth01(0.25, 0.55, patchNoise(x, z, 6.0, 53));
 }
 const MOOR = Object.freeze({
-  color: 0x8f9a5a, hMin: 0.08, hMax: 0.24, width: 1.0, warm: 0.18, sway: 0.6, reach: 1.4, density: moorDensity, ground: 0.9, hue: 0.14,
+  color: 0x8f9a5a, hMin: 0.08, hMax: 0.24, width: 1.0, warm: 0.18, sway: 0.6, reach: 1.4, density: moorDensity, ground: 0.9, hue: 0.14, flowers: 0,
 });
 
 // The Pines: a thin, short, dark-green grass between the needles, so the forest
@@ -367,7 +369,7 @@ export function pineFloorDensity(x, z) {
   return 0.7 * smooth01(0.35, 0.65, patchNoise(x, z, 5.0, 61));
 }
 const PINE_FLOOR = Object.freeze({
-  color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity, ground: 0, hue: 0.08,
+  color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity, ground: 0, hue: 0.08, flowers: 0,
 });
 
 // The Gorge: a little short, olive grass in patches, only on the base floor
@@ -393,7 +395,7 @@ export function gorgeFloorDensity(x, z) {
   return 0.45 * smooth01(0.35, 0.65, patchNoise(x, z, 5, 67));
 }
 const GORGE_FLOOR = Object.freeze({
-  color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity, ground: 0, hue: 0.06,
+  color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity, ground: 0, hue: 0.06, flowers: 0,
 });
 
 export const GRASS_STYLES = Object.freeze({
@@ -461,6 +463,10 @@ export function tintSampler(fn, bounds, cell = 1) {
   return s;
 }
 
+// Flower tip colours (sRGB hex). The shader swaps a flowered tuft's tip
+// colour for these, so a lawn has the odd daisy and buttercup.
+export const FLOWER_COLORS = Object.freeze({ white: 0xf6f2e8, yellow: 0xf2cf3a });
+
 // tuftAt(ix, iz, spacing, style) — the tuft that lattice cell (ix, iz) always
 // grows, or null for a bare cell. Pure function of the world cell.
 export function tuftAt(ix, iz, spacing, style = LAWN) {
@@ -488,7 +494,11 @@ export function tuftAt(ix, iz, spacing, style = LAWN) {
   const r = v * (1 + warm) * (1 + drift);
   const g = drift < 0 ? v * (1 - drift * 0.3) : v;
   const b = drift > 0 ? v * (1 - warm) * (1 - drift) : v * (1 - warm);
-  return { x, z, h, s, rot, tint: [r, g, b] };
+  // A few lawn tufts carry a flower: half daisy-white, half buttercup-yellow.
+  const flower = hashCell(ix, iz, 13) < style.flowers
+    ? (hashCell(ix, iz, 14) < 0.5 ? 'white' : 'yellow')
+    : null;
+  return { x, z, h, s, rot, tint: [r, g, b], flower };
 }
 
 // groundFinds(areaData, goldMice) — the things a kid hunts for at ground
@@ -616,7 +626,12 @@ uniform float uTime;
 uniform float uAmp;
 uniform vec2 uFocus;
 uniform vec2 uFade;
-uniform vec2 uWindDir;`)
+uniform vec2 uWindDir;
+attribute vec4 aFlower;`)
+      .replace('#include <color_vertex>', `#include <color_vertex>
+  // Flower tips (lawn): tip vertices sit at local y 1.0 / 0.8, roots at 0,
+  // so step() picks the tips and the blade shades from green into the flower.
+  vColor.rgb = mix(vColor.rgb, aFlower.rgb, aFlower.a * step(0.75, position.y));`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 {
   // Instance root in world space (the mesh itself sits at the origin).
@@ -658,6 +673,19 @@ uniform vec2 uWindDir;`)
   // Allocate instanceColor up front at full capacity.
   mesh.setColorAt(0, new THREE.Color(1, 1, 1));
   mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  // Flower tips: rgb is the flower colour DIVIDED by the material colour
+  // (both linear), because the shader's vColor is multiplied by
+  // material.color — so the tip lands on the flower colour itself. a is 1
+  // for a flowered tuft, 0 otherwise. One attribute on the one mesh.
+  const flowerAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
+  flowerAttr.setUsage(THREE.DynamicDrawUsage);
+  mesh.geometry.setAttribute('aFlower', flowerAttr);
+  const flowerRGB = {};
+  for (const [name, hex] of Object.entries(FLOWER_COLORS)) {
+    const fc = new THREE.Color(hex); // sRGB hex -> linear working space
+    const mc = material.color;
+    flowerRGB[name] = [fc.r / Math.max(mc.r, 1e-4), fc.g / Math.max(mc.g, 1e-4), fc.b / Math.max(mc.b, 1e-4)];
+  }
   scene.add(mesh);
 
   const m4 = new THREE.Matrix4();
@@ -689,6 +717,10 @@ uniform vec2 uWindDir;`)
         c.setRGB(t.tint[0], t.tint[1], t.tint[2]);
       }
       mesh.setColorAt(i, c);
+      // The buffer is reused across re-lays: write every slot, zeros too.
+      const f = t.flower ? flowerRGB[t.flower] : null;
+      if (f) flowerAttr.setXYZW(i, f[0], f[1], f[2], 1);
+      else flowerAttr.setXYZW(i, 0, 0, 0, 0);
     }, style);
     mesh.count = n;
     mesh.instanceMatrix.clearUpdateRanges();
@@ -697,6 +729,9 @@ uniform vec2 uWindDir;`)
     mesh.instanceColor.clearUpdateRanges();
     mesh.instanceColor.addUpdateRange(0, n * 3);
     mesh.instanceColor.needsUpdate = true;
+    flowerAttr.clearUpdateRanges();
+    flowerAttr.addUpdateRange(0, n * 4);
+    flowerAttr.needsUpdate = true;
   }
 
   // update(t, intensity) — once per rendered frame, after the camera moved.

@@ -23,7 +23,7 @@ const {
   hashCell, snapCentre, chunkCellsFor, layoutRadius, capacityFor, flatFootprints,
   buildGrassMask, grassAllowed, tuftAt, layoutTufts, createGrass, GRASS_AREAS,
   TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, marshDensity, moorDensity, pineFloorDensity, gorgeFloorDensity, groundFinds,
-  GROUND_TINTS, tintSampler,
+  GROUND_TINTS, tintSampler, FLOWER_COLORS,
 } = await import('../src/render/grass.js');
 const LAWN_STYLE = GRASS_STYLES.park;
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
@@ -569,7 +569,7 @@ describe('natural variation (hue drift, tall stalks)', () => {
 describe('floor grass (the Gorge)', () => {
   it('the Gorge grows a little floor grass', () => {
     expect(GRASS_STYLES.gorge).toEqual({
-      color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity, ground: 0, hue: 0.06,
+      color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity, ground: 0, hue: 0.06, flowers: 0,
     });
     let hi = -Infinity; let bare = 0; let some = 0;
     for (let x = -50; x <= 50; x++) {
@@ -758,6 +758,105 @@ describe('ground tint under tufts', () => {
     aimAt(camera, 0, 0);
     const grass = createGrass(scene, { areaId: 'park', areaData, tier, camera });
     expect(grass.tint).toBeNull();
+    grass.dispose();
+  }, 120_000);
+});
+
+describe('lawn flowers (white and yellow tips)', () => {
+  it('about 3% of lawn tufts flower, half white half yellow', () => {
+    for (const [name, style] of Object.entries(GRASS_STYLES)) {
+      let grown = 0; let white = 0; let yellow = 0;
+      for (let i = -75; i < 75; i++) {
+        for (let j = -75; j < 75; j++) {
+          const t = tuftAt(i, j, 0.3, style);
+          if (!t) continue;
+          grown++;
+          if (t.flower === 'white') white++;
+          else if (t.flower === 'yellow') yellow++;
+          else expect(t.flower).toBeNull();
+        }
+      }
+      const flowers = white + yellow;
+      if (style === LAWN_STYLE) {
+        expect(flowers / grown).toBeGreaterThanOrEqual(0.02);
+        expect(flowers / grown).toBeLessThanOrEqual(0.04);
+        expect(white / flowers).toBeGreaterThanOrEqual(0.35);
+        expect(white / flowers).toBeLessThanOrEqual(0.65);
+      } else {
+        expect(flowers, name).toBe(0);
+      }
+    }
+  });
+
+  it('flowers ride the one grass mesh', () => {
+    const { scene, areaData, camera, tier } = walkScene('park');
+    aimAt(camera, 0, 0);
+    const grass = createGrass(scene, { areaId: 'park', areaData, tier, camera });
+    const { mesh } = grass;
+    const a = mesh.geometry.attributes.aFlower;
+    expect(a).toBeDefined();
+    expect(a.isInstancedBufferAttribute).toBe(true);
+    expect(a.itemSize).toBe(4);
+    expect(a.count).toBe(grass.capacity);
+    expect(a.usage).toBe(THREE.DynamicDrawUsage);
+    const lin = {
+      white: new THREE.Color(FLOWER_COLORS.white),
+      yellow: new THREE.Color(FLOWER_COLORS.yellow),
+    };
+    const mc = mesh.material.color;
+    const m = new THREE.Matrix4();
+    const p = new THREE.Vector3();
+    const spacing = tier.grassSpacing;
+    let flowered = 0;
+    for (let i = 0; i < mesh.count; i++) {
+      mesh.getMatrixAt(i, m);
+      p.setFromMatrixPosition(m);
+      // Recover the lattice cell (jitter is < half a cell).
+      const t = tuftAt(Math.floor(p.x / spacing), Math.floor(p.z / spacing), spacing, LAWN_STYLE);
+      expect(t).not.toBeNull();
+      expect(t.x).toBeCloseTo(p.x, 4);
+      if (t.flower) {
+        flowered++;
+        expect(a.getW(i)).toBe(1);
+        expect(a.getX(i) * mc.r).toBeCloseTo(lin[t.flower].r, 4);
+        expect(a.getY(i) * mc.g).toBeCloseTo(lin[t.flower].g, 4);
+        expect(a.getZ(i) * mc.b).toBeCloseTo(lin[t.flower].b, 4);
+      } else {
+        expect(a.getW(i)).toBe(0);
+      }
+    }
+    expect(flowered).toBeGreaterThan(5);
+    expect(flowered / mesh.count).toBeLessThan(0.06);
+    // A re-lay elsewhere reuses the buffer and clears old flowers.
+    aimAt(camera, 6.3, 0);
+    grass.update(1, 1);
+    for (let i = 0; i < mesh.count; i++) {
+      mesh.getMatrixAt(i, m);
+      p.setFromMatrixPosition(m);
+      const t = tuftAt(Math.floor(p.x / spacing), Math.floor(p.z / spacing), spacing, LAWN_STYLE);
+      expect(a.getW(i)).toBe(t.flower ? 1 : 0);
+    }
+    const grassMeshes = [];
+    scene.traverse((o) => { if (o.name === 'grass') grassMeshes.push(o); });
+    expect(grassMeshes).toHaveLength(1);
+    expect(mesh.castShadow).toBe(false);
+    expect(TRIANGLES_PER_TUFT).toBe(10);
+    grass.dispose();
+  }, 120_000);
+
+  it('the shader mixes flowers into tips only', () => {
+    const { scene, areaData, camera, tier } = walkScene('park');
+    const grass = createGrass(scene, { areaId: 'park', areaData, tier, camera });
+    const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: '' };
+    expect(shader.vertexShader).toContain('#include <color_vertex>');
+    grass.mesh.material.onBeforeCompile(shader);
+    const vs = shader.vertexShader;
+    expect(vs).toContain('attribute vec4 aFlower;');
+    const at = vs.indexOf('#include <color_vertex>');
+    expect(at).toBeGreaterThan(-1);
+    const mix = vs.indexOf('aFlower.a * step(0.75, position.y)');
+    expect(mix).toBeGreaterThan(at);
+    expect(vs.indexOf('attribute vec4 aFlower;')).toBeLessThan(at);
     grass.dispose();
   }, 120_000);
 });
