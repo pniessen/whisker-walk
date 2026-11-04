@@ -202,6 +202,11 @@ const BITE_COLOR_AT = 0.6;
 // A bitten stream's foam line is a line of wet mud, at every time of day.
 const MUD_FOAM = 0x4a4330;
 const MUD_FOAM_A = 0.6;
+// A bitten pond's foam line is a soft grey-blue, not a bright rim: at full
+// strength the clear foam reads as a pale white ring round the duck pond.
+// Evening foam colours still apply; the scale holds at POND_FOAM_A.
+const POND_FOAM = 0xcfe0e4;
+const POND_FOAM_A = 0.45;
 
 // Polish-streams — riffles. A few small stones mid-stream, just breaking the
 // surface, each trailing one or two short pale streaks of foam on the water
@@ -224,6 +229,9 @@ const RIFFLE_DECK = 2.5;
 const STREAK_LEN = [0.5, 0.4];
 const STREAK_HALF_W = [0.04, 0.02];
 const STREAK_ALPHA = 0.45;
+// A streak that would leave open water is cut to these fractions of its
+// length in turn (the first that stays on the water wins), else dropped.
+const STREAK_CUTS = [1, 0.7, 0.45];
 
 // Polish-streams — the Park's duck pond plants: a few clumps of reeds (some
 // with a brown cattail) on two arcs of the south shore, and a little raft of
@@ -717,7 +725,7 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
     const sampled = sampleChain(ch, w);
     if (fillets) for (const f of fillets) bendOntoFillet(sampled.samples, f);
     const seed = ci ? seedFromCode(`waterdress-${areaId}-${w.id}-${ci}`) : seed0;
-    if (kind) biteChain(sampled, { seed: seed + 3, kind, fillets, waters: areaData.waters, fillY });
+    if (kind) biteChain(sampled, { seed: seed + 3, kind, fillets, waters: areaData.waters, fillY, box });
     const ctx = {
       seed,
       stoneSeed: seed + 7,
@@ -740,6 +748,7 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
     if (ev) ctx.foamA = ev.clearA;
     // a bitten stream's rim is wet mud, not white foam
     if (kind === 'stream') { ctx.foamC = new THREE.Color(MUD_FOAM); ctx.foamA = MUD_FOAM_A; }
+    if (kind === 'pond') { ctx.foamC = new THREE.Color(ev ? ev.clear : POND_FOAM); ctx.foamA = POND_FOAM_A; }
     for (const run of clipRuns(sampled, box)) out.push({ ...run, w, ctx });
   }
   return out;
@@ -899,8 +908,10 @@ function bendOntoFillet(samples, f) {
 // and land normal (x0, z0, nx0, nz0) and gets `bite`, metres moved into the
 // water after the tapers; a bitten sample moves there, takes its normal from
 // its neighbours, and its band rows over the strip ride over it (fillTop).
-// Samples already bent onto a fillet keep bite 0.
-function biteChain(sampled, { seed, kind, fillets, waters, fillY }) {
+// Samples already bent onto a fillet keep bite 0. The bite also tapers like
+// an open end toward the edge of the drawn box, where clipRuns cuts the run:
+// no square step where the strip stops.
+function biteChain(sampled, { seed, kind, fillets, waters, fillY, box = null }) {
   const { samples, closed, length } = sampled;
   const period = closed ? length : 0;
   for (const p of samples) {
@@ -908,6 +919,10 @@ function biteChain(sampled, { seed, kind, fillets, waters, fillY }) {
     if (p.fillet) continue;
     let t = 1;
     if (!closed) t *= smooth01((Math.min(p.s, length - p.s) - BITE_END_DEAD) / BITE_END);
+    if (box && t > 0) {
+      const edge = Math.min(p.x - box.minX, box.maxX - p.x, p.z - box.minZ, box.maxZ - p.z);
+      t *= smooth01((edge - BITE_END_DEAD) / BITE_END);
+    }
     if (t > 0) t *= smooth01((deckDistance(waters, p.x, p.z) - BITE_DECK) / BITE_DECK_RAMP);
     for (const f of fillets ?? []) {
       if (t > 0) t *= smooth01((Math.hypot(p.x - f.x, p.z - f.z) - 2 * f.r) / BITE_FILLET_RAMP);
@@ -954,9 +969,8 @@ function inFilletFill(fillets, x, z) {
 // The area's ground plane, if it is one fillets can borrow: a top-level mesh
 // tagged userData.ground (builder.js ground()) with a PlaneGeometry.
 function fillGround(scene) {
-  const g = scene?.children?.find((c) => c.isMesh && c.userData?.ground && c.name !== 'path' && c.visible !== false);
-  if (!g || g.geometry?.type !== 'PlaneGeometry' || !g.geometry.parameters) return null;
-  return g;
+  return scene?.children?.find((c) => c.isMesh && c.userData?.ground && c.name !== 'path' && c.visible !== false
+    && c.geometry?.type === 'PlaneGeometry' && c.geometry.parameters) ?? null;
 }
 
 // The ground's grid, ready to sample: its inverse world matrix, normal
@@ -1106,17 +1120,31 @@ function riffles(h, { areaId, areaData, box, undecked, evening, keepOut }) {
         });
       }
       const x = alongX ? a : mid + lat, z = alongX ? mid + lat : a;
+      // along the stream (tx, tz), across it (nx, nz)
+      const tx = alongX ? 1 : 0, tz = alongX ? 0 : 1;
       if (x < box.minX || x > box.maxX || z < box.minZ || z > box.maxZ) continue;
       if (!(waterClearance(undecked, x, z) < -(BITE_MAX + RIFFLE_CLEAR))) continue;
       if (deckDistance(areaData.waters, x, z) < RIFFLE_DECK) continue;
       if (colliders.some((k) => Math.hypot(x - k.x, z - k.z) <= k.r + 0.1)) continue;
       if (keepOut.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + STONE_KEEP_GAP)) continue;
-      const stone = stones.length;
-      stones.push({ x, z, r, y: hy - RIFFLE_SINK * r, floor: hy, spin, tone, water: w.id });
-      // along the stream (tx, tz), across it (nx, nz)
-      const tx = alongX ? 1 : 0, tz = alongX ? 0 : 1;
+      // (every draw is made above, before any filter) A streak must stay on
+      // open water, clear of the deepest bite by its own half width, all
+      // along its length; one that would run onto a bitten bank (a stone
+      // near a junction) is cut short, or dropped. A stone with no streak
+      // left is dropped too: a riffle stone always trails foam.
+      const kept = [];
       for (const k of plan) {
         const sx = x + tx * k.dir * r * 0.6 + tz * k.side, sz = z + tz * k.dir * r * 0.6 + tx * k.side;
+        const onWater = (len) => [0, 0.5, 1].every((f) => waterClearance(undecked,
+          sx + tx * k.dir * len * f, sz + tz * k.dir * len * f) < -(BITE_MAX + k.halfW));
+        const len = STREAK_CUTS.map((c) => k.len * c).find(onWater);
+        if (len !== undefined) kept.push({ ...k, sx, sz, len });
+      }
+      if (kept.length === 0) continue;
+      const stone = stones.length;
+      stones.push({ x, z, r, y: hy - RIFFLE_SINK * r, floor: hy, spin, tone, water: w.id });
+      for (const k of kept) {
+        const { sx, sz } = k;
         const samples = [0, 0.5, 1].map((f) => ({
           x: sx + tx * k.dir * k.len * f, z: sz + tz * k.dir * k.len * f,
           s: k.len * f, nx: tz, nz: tx, k: f === 0.5 ? 1 : 0,
@@ -1282,11 +1310,15 @@ const STYLE_BUILDERS = { clear: genericRuns, bog: genericRuns, sea: seaRuns };
  * `evening` (null | 'sunset' | 'dusk') warms or quietens the foam and tints
  * the sea apron like the water (see EVENING_FOAM); null is the day's look.
  *
+ * `debug` keeps each bitten run's full per-sample record in
+ * band.userData.bites (for tests); without it each run keeps only
+ * { water, maxBite }.
+ *
  * Reads areaData.waterFx (water.js's handles). Areas not in DRESSED_AREAS —
  * the docks, the gorge, the den, the neighbourhood — get a no-op stub and
  * add nothing to the scene.
  */
-export function createWaterDressing(scene, { areaId, areaData, tier, reducedMotion = false, keepOut = [], evening = null } = {}) {
+export function createWaterDressing(scene, { areaId, areaData, tier, reducedMotion = false, keepOut = [], evening = null, debug = false } = {}) {
   if (!DRESSED_AREAS.includes(areaId) || !areaData?.waterFx?.length) return NO_DRESSING;
   const low = (typeof tier === 'string' ? tier : tier?.name) === 'low';
   const bounds = areaData.bounds ?? { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
@@ -1361,15 +1393,18 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
     && r.samples.reduce((k, p) => Math.max(k, p.bite ?? 0), 0) >= BITE_MIN);
   if (biteRuns.length) {
     // for tests and anything that wants to know where the visual shore is
-    band.userData.bites = biteRuns.map((r) => ({
-      water: r.w.id,
-      maxBite: r.samples.reduce((k, p) => Math.max(k, p.bite), 0),
-      seed: r.ctx.seed,
-      period: r.ctx.period,
-      closed: r.ctx.chainClosed,
-      length: r.ctx.chainLength,
-      samples: r.samples.map(({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite }) => ({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite })),
-    }));
+    band.userData.bites = biteRuns.map((r) => {
+      const out = { water: r.w.id, maxBite: r.samples.reduce((k, p) => Math.max(k, p.bite), 0) };
+      if (!debug) return out;
+      return {
+        ...out,
+        seed: r.ctx.seed,
+        period: r.ctx.period,
+        closed: r.ctx.chainClosed,
+        length: r.ctx.chainLength,
+        samples: r.samples.map(({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite }) => ({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite })),
+      };
+    });
   }
 
   // The fill (fillet fans and bite strips), on every tier, sharing the
@@ -1386,9 +1421,10 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
     }
     band.userData.fillets = fillets.map(({ x, z, r, samples }) => ({ x, z, r, samples }));
   }
+  let fill = null;
   if (fillets || biteRuns.length) {
     const { geo, filletVerts } = fillGeometry(fillets ?? [], biteRuns, ground);
-    const fill = new THREE.Mesh(geo, ground.material);
+    fill = new THREE.Mesh(geo, ground.material);
     fill.name = 'waterdress:fill';
     fill.renderOrder = FILLET_ORDER;
     fill.userData.sharedMaterial = true;
@@ -1446,7 +1482,11 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   return {
     meshes,
     update(dt = 0) {
-      if (!animated || disposed) return;
+      if (disposed) return;
+      // The rain swaps the ground's material for a wet clone and later puts
+      // the dry one back (and frees the clone): the fill follows, still or not.
+      if (fill && fill.material !== ground.material) fill.material = ground.material;
+      if (!animated) return;
       elapsed += dt;
       swash.value = ((elapsed / SEA_SWASH_S) % 1) * TAU;
       breathe.value = BREATHE_LO + (1 - BREATHE_LO) * (0.5 + 0.5 * Math.sin((elapsed / BREATHE_S) * TAU));

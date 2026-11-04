@@ -548,6 +548,45 @@ describe('water dressing', () => {
     matSpy.mockRestore();
   }, 120_000);
 
+  it('the fill follows the ground material when the rain swaps it (and under reduced motion)', () => {
+    for (const reducedMotion of [false, true]) {
+      const { fx, ground } = dressOnGround('woods', { reducedMotion });
+      const fill = byName(fx, 'waterdress:fill');
+      const dry = ground.material;
+      expect(fill.material).toBe(dry);
+      const wet = dry.clone();
+      ground.material = wet;
+      fx.update(0);
+      expect(fill.material, `reducedMotion ${reducedMotion}`).toBe(wet);
+      // the rain stops: the dry lawn is back and the wet clone is freed
+      ground.material = dry;
+      wet.dispose();
+      fx.update(0);
+      expect(fill.material, `reducedMotion ${reducedMotion}`).toBe(dry);
+      const spy = vi.spyOn(dry, 'dispose');
+      fx.dispose();
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    }
+  }, 120_000);
+
+  it('finds the ground plane whatever the scene order', () => {
+    const { areaData } = area('woods');
+    const scene = new THREE.Scene();
+    // a ground-tagged mesh that is no plane, a path and a hidden plane first
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+    box.userData.ground = true;
+    const path = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial());
+    path.userData.ground = true; path.name = 'path';
+    const hidden = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial());
+    hidden.userData.ground = true; hidden.visible = false;
+    const ground = groundOf('woods').clone();
+    scene.add(box, path, hidden, ground);
+    const fx = createWaterDressing(scene, { areaId: 'woods', areaData, tier: HIGH });
+    expect(byName(fx, 'waterdress:fill').material).toBe(ground.material);
+    fx.dispose();
+  }, 120_000);
+
   it('at dusk the fillet takes the tinted lawn: its material and its vertex colours', () => {
     const { areaData } = area('woods');
     const g = groundOf('woods').clone();
@@ -666,8 +705,10 @@ describe('water dressing', () => {
     });
 
     it('on ground every stream bank is bitten, the lip over the water, the bite wandering', () => {
+      const lips = {}, varied = {};
       for (const id of STREAM_AREAS) {
-        const { fx, areaData } = dressOnGround(id);
+        lips[id] = 0; varied[id] = 0;
+        const { fx, areaData } = dressOnGround(id, { debug: true });
         const bites = bitesOf(fx);
         const band = byName(fx, 'waterdress:band');
         const waters = undecked(areaData.waters);
@@ -695,6 +736,7 @@ describe('water dressing', () => {
             const wob = bankWobble(b.seed, p.s, b.period);
             const lx = p.x + p.nx * wob, lz = p.z + p.nz * wob;
             const at = `${id} ${b.water} lip at ${lx.toFixed(2)},${lz.toFixed(2)}`;
+            lips[id]++;
             expect(drawn(lx, lz), at).toBe(true);
             expect(waterClearance(waters, lx, lz), at).toBeLessThan(0);
             // the bitten point is the true shore moved bite metres into the water
@@ -703,17 +745,48 @@ describe('water dressing', () => {
           }
           const span = b.samples[b.samples.length - 1].s - b.samples[0].s;
           if (span >= 20) {
+            varied[id]++;
             const vals = b.samples.map((p) => p.bite);
             expect(Math.max(...vals) - Math.min(...vals), `${id} ${b.water} span ${span.toFixed(1)}`).toBeGreaterThanOrEqual(0.4);
           }
         }
       }
+      for (const id of STREAM_AREAS) {
+        expect(lips[id], `${id} lips checked`).toBeGreaterThan(20);
+        expect(varied[id], `${id} chains checked for variation`).toBeGreaterThan(0);
+      }
+    }, 120_000);
+
+    it('in production the band keeps only { water, maxBite } per bitten run', () => {
+      const bites = bitesOf(dressOnGround('woods').fx);
+      expect(bites.length).toBeGreaterThan(0);
+      for (const b of bites) expect(Object.keys(b).sort()).toEqual(['maxBite', 'water']);
+      const dbg = bitesOf(dressOnGround('woods', { debug: true }).fx);
+      expect(dbg[0].samples.length).toBeGreaterThan(0);
+    }, 120_000);
+
+    it('the bite tapers to nothing at the edge of the drawn box (bounds + 10 m)', () => {
+      let n = 0;
+      for (const id of STREAM_AREAS) {
+        const { fx, areaData } = dressOnGround(id, { debug: true });
+        const b = areaData.bounds;
+        const box = { minX: b.minX - 10, maxX: b.maxX + 10, minZ: b.minZ - 10, maxZ: b.maxZ + 10 };
+        for (const r of bitesOf(fx)) {
+          for (const p of r.samples) {
+            const d = Math.min(p.x0 - box.minX, box.maxX - p.x0, p.z0 - box.minZ, box.maxZ - p.z0);
+            if (d > 0.3) continue;
+            n++;
+            expect(p.bite, `${id} ${r.water} ${p.x0.toFixed(2)},${p.z0.toFixed(2)}`).toBeLessThanOrEqual(0.05);
+          }
+        }
+      }
+      expect(n).toBeGreaterThan(0);
     }, 120_000);
 
     it('the bite tapers to nothing at open ends, by decks and by the fillet', () => {
       let ends = 0, decks = 0, corner = 0;
       for (const id of STREAM_AREAS) {
-        const { fx, areaData } = dressOnGround(id);
+        const { fx, areaData } = dressOnGround(id, { debug: true });
         const fillets = BANK_FILLETS[id] ?? [];
         for (const b of bitesOf(fx)) {
           for (const p of b.samples) {
@@ -734,7 +807,9 @@ describe('water dressing', () => {
     it('fish leap only well past the deepest bite', () => {
       for (const id of [...STREAM_AREAS, 'park']) {
         const { areaData } = area(id);
-        for (const f of fishSpots(id, areaData)) {
+        const spots = fishSpots(id, areaData);
+        expect(spots.length, id).toBeGreaterThan(0);
+        for (const f of spots) {
           expect(waterClearance(areaData.waters, f.x, f.z), `${id} ${f.x},${f.z}`).toBeLessThan(-(BITE_MAX + 1));
         }
       }
@@ -777,7 +852,7 @@ describe('water dressing', () => {
       const ray = new THREE.Raycaster();
       const down = new THREE.Vector3(0, -1, 0);
       for (const id of STREAM_AREAS) {
-        const { fx } = dressOnGround(id);
+        const { fx } = dressOnGround(id, { debug: true });
         const fill = byName(fx, 'waterdress:fill');
         let hit = 0;
         for (const b of bitesOf(fx)) {
@@ -903,6 +978,24 @@ describe('water dressing', () => {
       }
     }, 120_000);
 
+    it('foam streaks stay on the water, never over a bitten bank', () => {
+      for (const id of STREAM_AREAS) {
+        const { fx, areaData } = dressOnGround(id);
+        const band = byName(fx, 'waterdress:band');
+        const pos = band.geometry.getAttribute('position');
+        const waters = undecked(areaData.waters);
+        let n = 0;
+        for (const { verts: [v0, k] } of band.userData.streaks) {
+          for (let v = v0; v < v0 + k; v++) {
+            n++;
+            expect(waterClearance(waters, pos.getX(v), pos.getZ(v)), `${id} streak vert ${pos.getX(v).toFixed(2)},${pos.getZ(v).toFixed(2)}`)
+              .toBeLessThan(-BITE_MAX);
+          }
+        }
+        expect(n, id).toBeGreaterThan(0);
+      }
+    }, 120_000);
+
     it('LOW tier: no riffle stones and no streaks', () => {
       for (const id of STREAM_AREAS) {
         const hi = byName(dressOnGround(id).fx, 'waterdress:band');
@@ -990,6 +1083,28 @@ describe('water dressing', () => {
       const near = u.centres.filter((c) => Math.hypot(c.x - C.x, c.z - C.z) <= 8.5);
       expect(near.length).toBeGreaterThanOrEqual(4);
       console.log('park pond plants', JSON.stringify({ reeds: u.reeds.length, lilies: u.lilies.length, rimStones: near.length }));
+    }, 120_000);
+
+    it('the pond wears a soft foam line, not a pale rim', () => {
+      for (const evening of [null, 'sunset', 'dusk']) {
+        const { fx } = dressOnGround('park', { evening });
+        const g = byName(fx, 'waterdress:band').geometry;
+        const pos = g.getAttribute('position'), col = g.getAttribute('color'), foam = g.getAttribute('aFoam');
+        let n = 0;
+        const soft = new THREE.Color(0xcfe0e4);
+        for (let i = 0; i < foam.count; i++) {
+          if (foam.getX(i) !== 1) continue;
+          if (Math.hypot(pos.getX(i) - C.x, pos.getZ(i) - C.z) > 9) continue;
+          n++;
+          expect(col.getW(i), `${evening} v${i}`).toBeLessThanOrEqual(0.5 * 0.45 + 1e-6);
+          if (evening === null) {
+            expect(col.getX(i)).toBeCloseTo(soft.r, 6);
+            expect(col.getY(i)).toBeCloseTo(soft.g, 6);
+            expect(col.getZ(i)).toBeCloseTo(soft.b, 6);
+          }
+        }
+        expect(n, String(evening)).toBeGreaterThan(50);
+      }
     }, 120_000);
 
     it('LOW tier: band and fill only', () => {
