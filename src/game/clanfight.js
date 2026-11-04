@@ -62,6 +62,13 @@ const CIRCLE_SLACK = 0.05;         // m over FIGHT_GAP the tumble still circles
 const POUNCE_HOP = 0.25;           // m
 const TUMBLE_HOP = 0.12;           // m
 const DUST = 0xcbb8a0;
+// Hagrid's feathers (cat/hen.js FEATHER russet and a cream): a puff of both when
+// the intruder takes a beat off him. fx.burst is a no-op under reduced motion,
+// and the counts drop to 2 each there regardless.
+const FEATHER_RUST = 0xb06a30;
+const FEATHER_CREAM = 0xf3e6c8;
+const FEATHER_AT = 0.5;    // of an action, when the hen's feathers fly
+const FEATHER_OPTS = { ttl: 1.3, gravity: 1.0, speed: 1.2, size: 0.2 };
 // Gorge part 1 (R11): a fight stands on one level. A staged spot whose ground
 // differs from my anchor spot's by more than this is never stood on.
 export const FIGHT_LEVEL_TOL = 0.3;
@@ -859,6 +866,15 @@ export function createClanFight({
       const sy = hit.y + (top > 0 ? top * SLASH_UP : SLASH_Y);
       fx.slash?.({ x: sx, y: T ? T.y(hit.x, hit.z) + sy : sy, z: sz },
         byMe ? myYaw : yawToward(foeAt.x, foeAt.z, spot.x, spot.z));
+    }
+    // Mid-action (at its start under reduced motion): not every action carries a cue.
+    if (!r.feathered && !scars && r.a.by !== 'me' && u >= (reducedMotion ? 0 : FEATHER_AT)) {
+      r.feathered = true; // the hen lost this beat: a puff of feathers at his chest
+      const top = dims.me.top;
+      const fy = (T ? T.y(me.x, me.z) : 0) + me.y + (top > 0 ? top * SLASH_UP : SLASH_Y);
+      const at = { x: me.x, y: fy, z: me.z };
+      fx.burst(at, FEATHER_RUST, reducedMotion ? 2 : 5, FEATHER_OPTS);
+      fx.burst(at, FEATHER_CREAM, reducedMotion ? 2 : 5, FEATHER_OPTS);
     }
     for (let i = 0; i < cues.dust; i++) {
       const mx = (me.x + it.x) / 2, mz = (me.z + it.z) / 2;
