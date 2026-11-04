@@ -995,6 +995,7 @@ function clearingMesh(clearing, look) {
     floor({ vertexColors: true, transparent: true, depthWrite: false }),
   ]);
   mesh.name = 'campClearing';
+  mesh.userData.duskTint = true; // walk.js hands it to render/dusk.js's tintDuskLawn
   mesh.renderOrder = CLEARING.order;
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.set(x, CLEARING.y, z);
