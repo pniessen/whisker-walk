@@ -31,11 +31,11 @@ const ALL = [...CAMPS, 'gorge'];
 // polish-camps3 (addCamp into a fresh Scene, { colliders: [] }; the Gorge with
 // its ground).
 const BASE_VERTS = {
-  woods: { campRing: 10080, campDen: 3474, campRock: 384, campNests: 1620, campClearing: 30 },
-  river: { campRing: 10080, campDen: 3474, campRock: 384, campNests: 1620, campClearing: 30 },
-  moor: { campRing: 10080, campDen: 3474, campRock: 384, campNests: 1620, campClearing: 30 },
-  pines: { campRing: 10080, campDen: 3474, campRock: 384, campNests: 1620, campClearing: 30 },
-  gorge: { campBedding: 1620, campRock: 108 },
+  woods: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 30 },
+  river: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 30 },
+  moor: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 30 },
+  pines: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 30 },
+  gorge: { campBedding: 1620, campRock: 348 },
 };
 
 const build = (a) => {

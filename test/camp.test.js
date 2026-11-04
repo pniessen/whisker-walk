@@ -142,7 +142,7 @@ describe('addCamp', () => {
     }
   });
 
-  it('keeps the den inside its footprint and gives the Highrock a tall back stone', () => {
+  it('keeps the den inside its footprint', () => {
     for (const a of CAMPS) {
       const scene = new THREE.Scene();
       addCamp(scene, { colliders: [] }, a);
@@ -155,30 +155,94 @@ describe('addCamp', () => {
           expect(v.y, `${a} ${name}`).toBeLessThan(1.0);
         }
       }
+    }
+  });
+
+  // The Highrock in all five camps (the Gorge's seated on its ledge): every
+  // vertex relative to the rock's spot and the ground under it.
+  const ROCK_CAMPS = [...CAMPS, 'gorge'];
+  const buildRock = (a) => {
+    const scene = new THREE.Scene();
+    const ground = a === 'gorge' ? gorgeGround() : null;
+    addCamp(scene, ground ? { colliders: [], ground } : { colliders: [] }, a);
+    scene.updateMatrixWorld(true);
+    const L = campLayout(a);
+    const base = ground ? ground.y(L.rock.x, L.rock.z) : 0;
+    const rock = scene.getObjectByName('campRock');
+    const verts = worldVerts(rock).map((v) => ({ x: v.x - L.rock.x, y: v.y - base, z: v.z - L.rock.z }));
+    return { scene, L, rock, verts, base };
+  };
+
+  it('the Highrock is a boulder outcrop: within 0.8 m of its spot, 1.0 to 1.2 m tall, no more triangles than before', () => {
+    for (const a of ROCK_CAMPS) {
+      const { rock, verts } = buildRock(a);
       let top = -Infinity;
-      for (const v of worldVerts(group.getObjectByName('campRock'))) {
-        expect(Math.hypot(v.x - L.rock.x, v.z - L.rock.z), `${a} rock`).toBeLessThanOrEqual(0.8);
+      for (const v of verts) {
+        expect(Math.hypot(v.x, v.z), `${a} rock`).toBeLessThanOrEqual(0.8);
+        expect(v.y, `${a} rock`).toBeGreaterThanOrEqual(-0.01);
         top = Math.max(top, v.y);
       }
-      expect(top, a).toBeGreaterThanOrEqual(1.5);
+      // a low, round back stone she leans on, not a tall slab behind her
+      expect(top, a).toBeGreaterThanOrEqual(1.0);
+      expect(top, a).toBeLessThanOrEqual(1.2);
+      const g = rock.geometry;
+      expect(g.index, a).toBeNull();
+      expect(g.attributes.position.count / 3, a).toBeLessThanOrEqual(128);
+    }
+  });
+
+  it('the Highrock is shaded per face, dark at its foot, in the clan\'s rock colour', async () => {
+    const { campLook } = await import('../src/world/camp.js');
+    for (const a of ROCK_CAMPS) {
+      const { rock, verts } = buildRock(a);
+      const col = rock.geometry.attributes.color;
+      expect(col, a).toBeDefined();
+      expect(rock.material.vertexColors, a).toBe(true);
+      expect(rock.material.color.getHex(), a).toBe(campLook(a).rock);
+      let low = 0, lowN = 0, high = 0, highN = 0;
+      for (let t = 0; t < col.count; t += 3) {
+        // one colour a face: all three corners the same
+        for (const k of [1, 2]) expect(col.getX(t + k), `${a} face ${t / 3}`).toBeCloseTo(col.getX(t), 6);
+        const y = (verts[t].y + verts[t + 1].y + verts[t + 2].y) / 3;
+        if (y < 0.25) { low += col.getX(t); lowN++; }
+        if (y > 0.7) { high += col.getX(t); highN++; }
+        expect(col.getX(t)).toBeGreaterThan(0.5);
+        expect(col.getX(t)).toBeLessThanOrEqual(1.1);
+      }
+      expect(low / lowN, a).toBeLessThan(high / highN);
     }
   });
 
   it('gives the Highrock a flat top at rock.h the leader stands on, nothing to clip into', () => {
-    for (const a of CAMPS) {
-      const scene = new THREE.Scene();
-      addCamp(scene, { colliders: [] }, a);
-      scene.updateMatrixWorld(true);
-      const L = campLayout(a);
+    for (const a of ROCK_CAMPS) {
+      const { L, verts } = buildRock(a);
       expect(L.seats.leader.y).toBe(0.8);
       let flat = 0;
-      for (const v of worldVerts(scene.getObjectByName('campRock'))) {
-        if (Math.hypot(v.x - L.rock.x, v.z - L.rock.z) > 0.42) continue;
+      for (const v of verts) {
+        if (Math.hypot(v.x, v.z) > 0.42) continue;
         const at = `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
         expect(v.y, at).toBeLessThanOrEqual(0.82);
         if (v.y >= 0.78 && v.y <= 0.82) flat++;
       }
       expect(flat, a).toBeGreaterThanOrEqual(6);
+    }
+  });
+
+  it("the Highrock's stones keep clear of the fresh-kill pile and the deputy's seat", () => {
+    for (const a of ROCK_CAMPS) {
+      const { scene, L, verts } = buildRock(a);
+      const kill = worldVerts(scene.getObjectByName('campKill')).map((v) => ({ x: v.x - L.rock.x, z: v.z - L.rock.z }));
+      expect(kill.length, a).toBeGreaterThan(0);
+      const dep = { x: L.seats.deputy.x - L.rock.x, z: L.seats.deputy.z - L.rock.z };
+      // the main boulder's 56 triangles come first, then the back stone and
+      // the two steps (20 each): the stones keep 0.25 m off the pile (the
+      // boulder is the collider's size, and the pile 0.3 m off its edge)
+      expect(verts.length, a).toBe(3 * (56 + 60));
+      for (const [i, v] of verts.entries()) {
+        const at = `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
+        if (i >= 3 * 56) for (const k of kill) expect(Math.hypot(v.x - k.x, v.z - k.z), at).toBeGreaterThanOrEqual(0.25);
+        expect(Math.hypot(v.x - dep.x, v.z - dep.z), at).toBeGreaterThanOrEqual(0.45);
+      }
     }
   });
 
@@ -422,8 +486,11 @@ describe('the ledge camp in the Gorge', () => {
     scene.updateMatrixWorld(true);
     const rb = lowest(rock);
     expect(Math.abs(rb.min.y - 8)).toBeLessThanOrEqual(0.01);
-    expect(Math.abs(rb.max.y - 8.8)).toBeLessThanOrEqual(0.01);
-    expect((rb.min.x + rb.max.x) / 2).toBeCloseTo(8.3, 1);
+    // the Highrock: its top at rock.h, its back stone to 1.0-1.2 m
+    expect(rb.max.y - 8).toBeGreaterThanOrEqual(1.0);
+    expect(rb.max.y - 8).toBeLessThanOrEqual(1.2);
+    expect(Math.abs((rb.min.x + rb.max.x) / 2 - 8.3)).toBeLessThanOrEqual(0.2);
+    expect(Math.abs((rb.min.z + rb.max.z) / 2 - 41.5)).toBeLessThanOrEqual(0.2);
     const bb = lowest(bedding);
     expect(bb.min.y - 8).toBeGreaterThanOrEqual(-0.05); // the nests rest within 5 cm of the ground
     expect(bb.min.y - 8).toBeLessThanOrEqual(0.05);

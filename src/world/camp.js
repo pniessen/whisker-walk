@@ -502,50 +502,164 @@ function doorGeometry(den, out) {
   return geo;
 }
 
-// The Highrock (polish-viewclear): two stacked flat-topped slabs, 7-sided,
-// each side corner pushed in or out by up to 6 % (hash01, x and z only, so
-// the top stays level): the lower one radius 0.6 at the foot to 0.52 at 0.45 m,
-// the upper 0.5 to 0.44, its top face exactly at rock.h (0.8), where the
-// leader stands. Behind her, on the side away from the camp's centre, a tall
-// back stone 0.56 m out and 0.14 deep, its front face 0.43 m from the centre
-// (the leader's 0.42 m stays clear, so she no longer clips into it), rising
-// to ~1.64 m. (The brief's 0.6 m and 0.16 put the Woods camp group 6.55 m
-// deep, over the contact-shadow scan's MAX_SPAN 6.5; at 0.56/0.14 it is
-// 6.49.) And a smaller step stone to one side, its top under 0.45 m. Every
-// vertex within 0.8 m of the rock's centre (camp.test.js); the collider is
-// still the rock's r 0.6. Merged and non-indexed (flat-shaded), baked in
-// world space.
-const SLABS = [
-  { rTop: 0.52, rBottom: 0.6, h: 0.45 },
-  { rTop: 0.44, rBottom: 0.5, h: 0.35 },
-];
-function highrockGeometry(rockSpot, cx, cz) {
-  const parts = [];
-  let y = rockSpot.h - SLABS.reduce((sum, b) => sum + b.h, 0); // 0 for rock.h 0.8
-  for (const [k, b] of SLABS.entries()) {
-    const slab = new THREE.CylinderGeometry(b.rTop, b.rBottom, b.h, 7, 1);
-    const pos = slab.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const px = pos.getX(i);
-      const pz = pos.getZ(i);
-      if (Math.hypot(px, pz) < 1e-6) continue; // the caps' centres
-      const push = 1 + (hash01(px, k, pz, 17) * 2 - 1) * 0.06;
-      pos.setXYZ(i, px * push, pos.getY(i), pz * push);
+// The Highrock (polish-camps4): a stepped boulder the leader stands on, not
+// the armchair of slabs it was. Built around the origin (x, z 0, its foot at
+// y 0) in a frame turned to `away`, the direction from the rock to its back
+// (a flat camp's is away from the camp's centre; the Gorge's is +x, inland,
+// as its leader looks west over the gorge), and moved to the rock's spot by
+// the caller. Four stones, all in one non-indexed, flat-shaded geometry:
+//  - the main boulder: eight sides, rings at y 0, 0.4, 0.68 and rock.h with
+//    radii 0.62, 0.66, 0.58 and 0.44, a little wider along the ring round
+//    the camp than out from its centre, every corner pushed in or out by up
+//    to 8 % (hash01; the top ring inward only) and a flat top cap at exactly
+//    rock.h (0.8), where the leader stands. 56 triangles, no bottom cap.
+//  - a back stone she leans on: a round, hash-jittered icosahedron behind her
+//    and turned off to one side (towards the fresh-kill pile), its top under
+//    1.15 m; its corners above 0.82 m all stay more than 0.44 m from the
+//    centre, so she never sinks into it.
+//  - two step boulders (icosahedra), tops ~0.45 and ~0.22 m, climbing round
+//    the side away from the pile, the low one nearer the camp, so the rock
+//    reads as a climb up to the top.
+// No vertex is further than 0.78 m (x and z) from the centre, none further
+// back than 0.68 m along `away` (the Woods camp group stays under the
+// contact-shadow scan's MAX_SPAN 6.5) and none below y 0; the collider is
+// still the rock's r 0.6. Each face is coloured flat, a grey multiplier on
+// the material's look.rock: dark at the foot (0.72) to light at the top
+// (1.0), up-facing faces a touch lighter, ±6 % by a hash of the face. Every
+// hash takes the rock's spot as well, so no two camps' rocks are alike.
+// 116 triangles (it was 128).
+const HIGHROCK = {
+  rings: [[0, 0.62], [0.4, 0.66], [0.68, 0.58], [null, 0.44]], // [y, r]; null: rock.h
+  sides: 8,
+  along: 1.05,   // the ring-wise stretch ...
+  out: 0.93,     // ... and the outward squash
+  push: 0.08,
+  stepSide: 0.16, // the boulder drawn in this share where the steps climb
+  reach: 0.78,   // no vertex further from the centre (x and z)
+  back: 0.68,    // nor further back along `away`
+  clear: 0.44,   // a corner above clearY stays this far from the centre
+  clearY: 0.82,
+  // stones: [turn off `away` (times side), out, y, rOut, rAlong, rY, tint, salt]
+  stones: [
+    [-0.9, 0.5, 0.74, 0.27, 0.34, 0.38, 0.95, 31], // the back stone, to the pile's side
+    [1.25, 0.5, 0.25, 0.27, 0.3, 0.29, 0.9, 32],    // the high step, top ~0.5
+    [2.05, 0.58, 0.12, 0.22, 0.27, 0.15, 0.88, 33], // the low step, top ~0.25
+  ],
+};
+function highrockGeometry(rockSpot, away, opts = {}) {
+  const ox = rockSpot.x;
+  const oz = rockSpot.z;
+  const top = rockSpot.h;
+  const bx = Math.cos(away);
+  const bz = Math.sin(away);
+  // the step side: away from the pile (side +1 is +90 degrees from `away`)
+  const k = opts.kill;
+  const side = k && (-bz * k.x + bx * k.z) > 0 ? -1 : 1;
+  // local (u out along away, v round the ring) to x, z
+  const toXZ = (u, v) => [u * bx - v * bz, u * bz + v * bx];
+  const pos = [];
+  const tints = [];
+  let tint = 1;
+  const tri = (p, q, r) => { pos.push(...p, ...q, ...r); tints.push(tint); };
+
+  // the main boulder
+  const { sides } = HIGHROCK;
+  const phase = hash01(ox, 0, oz, 30) * (Math.PI * 2 / sides);
+  const rings = HIGHROCK.rings.map(([y0, r], ri) => {
+    const y = y0 ?? top;
+    const last = ri === HIGHROCK.rings.length - 1;
+    const pts = [];
+    for (let j = 0; j < sides; j++) {
+      // each ring turned half a side on from the one under it, so the
+      // faces are triangles, not upright panels
+      const a = phase + ((j + ri / 2) / sides) * Math.PI * 2;
+      const h = hash01(ox + j, ri, oz, 34);
+      const push = last ? 1 - h * HIGHROCK.push : 1 + (h * 2 - 1) * HIGHROCK.push;
+      const dy = ri === 1 || ri === 2 ? (hash01(ox, ri, oz + j, 35) - 0.5) * 0.08 : 0;
+      // drawn in round the steps' side, so they stand out of it
+      const lean = Math.max(0, Math.cos(a - side * 1.6)) ** 2 * HIGHROCK.stepSide;
+      const rr = r * push * (1 - (last ? 0 : lean));
+      const [x, z] = toXZ(Math.cos(a) * rr * HIGHROCK.out, Math.sin(a) * rr * HIGHROCK.along);
+      pts.push([x, y + dy, z]);
     }
-    parts.push(bake(slab, place(rockSpot.x, y + b.h / 2, rockSpot.z, 1, 1, 1)));
-    y += b.h;
+    return pts;
+  });
+  for (let ri = 0; ri + 1 < rings.length; ri++) {
+    const lo = rings[ri];
+    const hi = rings[ri + 1];
+    for (let j = 0; j < sides; j++) {
+      const n = (j + 1) % sides;
+      tri(lo[j], hi[j], lo[n]);
+      tri(lo[n], hi[j], hi[n]);
+    }
+  }
+  const crown = rings[rings.length - 1];
+  for (let j = 0; j < sides; j++) tri([0, top, 0], crown[(j + 1) % sides], crown[j]);
+
+  // the back stone and the steps
+  for (const [turn, d, y, rOut, rAlong, rY, stoneTint, salt] of HIGHROCK.stones) {
+    tint = stoneTint;
+    const a = away + turn * side;
+    const cxs = Math.cos(a) * d;
+    const czs = Math.sin(a) * d;
+    const ico = new THREE.IcosahedronGeometry(1, 0);
+    const p = ico.attributes.position;
+    const ca = Math.cos(a);
+    const sa = Math.sin(a);
+    const yaw = hash01(ox, salt, oz, 36) * Math.PI;
+    for (let i = 0; i < p.count; i += 3) {
+      const face = [];
+      for (let m = 0; m < 3; m++) {
+        let ux = p.getX(i + m);
+        const uy = p.getY(i + m);
+        let uz = p.getZ(i + m);
+        const j = 1 + (hash01(ux + ox, uy + salt, uz + oz, 37) * 2 - 1) * 0.12;
+        // a turn about y, so no two stones show the same face
+        [ux, uz] = [ux * Math.cos(yaw) - uz * Math.sin(yaw), ux * Math.sin(yaw) + uz * Math.cos(yaw)];
+        const lo = ux * rOut * j;
+        const la = uz * rAlong * j;
+        face.push([cxs + lo * ca - la * sa, Math.max(0, y + uy * rY * j), czs + lo * sa + la * ca]);
+      }
+      tri(face[0], face[1], face[2]);
+    }
+    ico.dispose();
   }
 
-  const away = Math.atan2(rockSpot.z - cz, rockSpot.x - cx);
-  const at = (d, a) => [rockSpot.x + Math.cos(a) * d, rockSpot.z + Math.sin(a) * d];
-  // local x along the ring round the rock, local z out from the centre
-  const [bx, bz] = at(0.56, away);
-  parts.push(bake(new THREE.DodecahedronGeometry(1, 0), place(bx, 0.85, bz, 0.22, 0.85, 0.14, Math.PI / 2 - away)));
-  const side = hash01(rockSpot.x, 0, rockSpot.z, 9) < 0.5 ? 1 : -1;
-  const [stx, stz] = at(0.48, away + side * 1.25);
-  // y scale 0.26: the dodecahedron's top vertex (0.934) lands at 0.443 m
-  parts.push(bake(new THREE.DodecahedronGeometry(1, 0), place(stx, 0.2, stz, 0.2, 0.26, 0.2, away)));
-  return merged(parts);
+  // the limits: reach, back, the leader's clearance
+  for (let i = 0; i < pos.length; i += 3) {
+    let x = pos[i];
+    let z = pos[i + 2];
+    const back = x * bx + z * bz;
+    if (back > HIGHROCK.back) {
+      x -= bx * (back - HIGHROCK.back);
+      z -= bz * (back - HIGHROCK.back);
+    }
+    const d = Math.hypot(x, z);
+    const want = pos[i + 1] > HIGHROCK.clearY ? Math.max(d, HIGHROCK.clear) : d;
+    const s = d > 1e-9 ? Math.min(want, HIGHROCK.reach) / d : 1;
+    pos[i] = x * s;
+    pos[i + 2] = z * s;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  const nrm = geo.attributes.normal;
+  const col = new Float32Array(pos.length);
+  for (let t = 0; t < pos.length; t += 9) {
+    const cy = (pos[t + 1] + pos[t + 4] + pos[t + 7]) / 3;
+    const cx = (pos[t] + pos[t + 3] + pos[t + 6]) / 3;
+    const cz = (pos[t + 2] + pos[t + 5] + pos[t + 8]) / 3;
+    let g = 0.72 + 0.28 * Math.min(1, cy / top);
+    g *= tints[t / 9] * (1 + (hash01(cx + ox, cy, cz + oz, 38) * 2 - 1) * 0.06);
+    if (nrm.getY(t / 3) > 0.6) g += 0.04;
+    g = Math.min(1.06, g);
+    for (let m = 0; m < 9; m++) col[t + m] = g;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return geo;
 }
 
 // THREE's generateUUID takes four Math.random() draws for every Object3D,
@@ -765,21 +879,12 @@ function killMesh(kill, groundY = () => 0) {
   return mesh;
 }
 
-// The leader's rock: a dodecahedron squashed to rock.h, its base at y 0, in
-// the clan's rock colour.
-function campRockMesh(rockSpot, hex) {
-  const rockGeo = new THREE.DodecahedronGeometry(rockSpot.r, 0);
-  rockGeo.computeBoundingBox();
-  const { min, max } = rockGeo.boundingBox;
-  const sy = rockSpot.h / (max.y - min.y);
-  const rock = new THREE.Mesh(rockGeo, litMaterial(hex, surfaceProps('cobble')));
-  rock.name = 'campRock';
-  rock.scale.set(1, sy, 1);
-  rock.position.set(rockSpot.x, -min.y * sy, rockSpot.z);
-  return rock;
-}
+// The Highrock's material: the clan's rock colour, shaded per face by the
+// geometry's grey multipliers.
+const rockMaterial = (look) => litMaterial(look.rock, { ...surfaceProps('cobble'), vertexColors: true });
 
-// A ledge camp: three top-level meshes, the rock, the bedding (moss nests) and the fresh-kill pile, and one
+// A ledge camp: three top-level meshes, the Highrock (highrockGeometry), the
+// bedding (moss nests) and the fresh-kill pile, and one
 // collider, the rock (a cave den is the rock round it). They are separate
 // children of the scene, not a Group, because the contact-shadow scan boxes
 // one top-level child at a time and the bedding sits ~17 m from the rock: in
@@ -793,19 +898,26 @@ function addLedgeCamp(scene, area, L) {
   const groundY = (x, z) => (ground && !ground.flat ? ground.y(x, z) : 0);
 
   const look = campLook('gorge');
-  const rock = campRockMesh(L.rock, look.rock);
-  if (ground) seatOnGround(rock, ground);
-  scene.add(rock);
-
-  // The nests and the pile are drawn under withLocalUuids, so the Gorge's
-  // build takes the Math.random draws it always took (camp.test.js): the
-  // bedding is handed over to a fresh mesh, geometry and material, as the old
-  // discs were, and the pile adds nothing on Math.random.
+  // The rock, the nests and the pile are drawn under withLocalUuids, so the
+  // Gorge's build takes the Math.random draws it always took (camp.test.js):
+  // the rock and the bedding are each handed over to a fresh mesh, geometry
+  // and material, as the old dodecahedron and discs were, and the pile adds
+  // nothing on Math.random.
   const D = campDressing('gorge', area.colliders);
   const made = withLocalUuids('gorge', () => ({
+    // the leader looks west, so the rock's back is +x (away 0), inland
+    rock: highrockGeometry(L.rock, 0, { kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z } }),
     nests: nestsMesh(D.nests, look, groundY, 0.5),
     kill: killMesh(D.kill, groundY),
   }));
+  // The rock: a fresh geometry, material and mesh on Math.random, as the old
+  // dodecahedron's were, built round the origin and seated on the ground
+  // under its spot.
+  const rock = new THREE.Mesh(adopt(made.rock), rockMaterial(look));
+  rock.name = 'campRock';
+  rock.position.set(L.rock.x, 0, L.rock.z);
+  if (ground) seatOnGround(rock, ground);
+  scene.add(rock);
   const bedding = new THREE.Mesh(adopt(made.nests.geometry), vcMaterial({ roughness: 0.9 }));
   bedding.name = 'campBedding';
   bedding.userData.noCast = true;
@@ -855,7 +967,9 @@ export function addCamp(scene, area, areaId) {
   const made = withLocalUuids(areaId, () => ({
     den: denGeometry(L.den, out, look),
     door: doorGeometry(L.den, out),
-    rock: highrockGeometry(L.rock, L.cx, L.cz),
+    rock: highrockGeometry(L.rock, Math.atan2(L.rock.z - L.cz, L.rock.x - L.cx), {
+      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z },
+    }).translate(L.rock.x, 0, L.rock.z),
     nests: nestsMesh(D.nests, look),
     kill: killMesh(D.kill),
     ring: ringMesh(D.ring, L.cx, L.cz, look),
@@ -871,7 +985,7 @@ export function addCamp(scene, area, areaId) {
   door.name = 'campDoor';
   door.userData.noCast = true;
   door.userData.noMerge = true;
-  const rock = new THREE.Mesh(adopt(made.rock), litMaterial(look.rock, surfaceProps('cobble')));
+  const rock = new THREE.Mesh(adopt(made.rock), rockMaterial(look));
   rock.name = 'campRock';
   group.add(den, door, rock, made.nests, made.kill);
 
