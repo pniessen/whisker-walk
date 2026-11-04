@@ -98,7 +98,7 @@ import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from '../ch
 import { replyFor, countsAsGreet } from '../catreplies.js';
 import { litMaterial } from '../render/materials.js';
 import { setTextureTier } from '../render/textures.js';
-import { waterRig } from '../render/water.js';
+import { waterRig, eveningWater } from '../render/water.js';
 import { createWind } from '../render/wind.js';
 import { createSun, createFill, SUN_BIAS, assignShadowCasters, assignShadowCastersFor } from '../render/rig.js';
 import { createIntruders, isHostile, NO_INTRUDERS, INTRUDER_DECAL_RADIUS } from '../intruders.js';
@@ -1218,7 +1218,11 @@ export function createWalkLifecycle({
     // and the prop merge, so it is neither decaled nor merged and casts
     // nothing (at most 3 main-pass draws, 0 shadow). Areas without dressed
     // water (the den, the park, the docks, the gorge) get the no-op stub.
-    const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut });
+    // Polish-waterlife — the water warms at sunset and darkens at dusk, and
+    // the foam goes quiet at dusk (water.js eveningWater; waterdress `evening`).
+    const evening = duskLookNow ? 'dusk' : weather.condition === 'sunset' ? 'sunset' : null;
+    eveningWater(areaData.waterFx ?? [], evening);
+    const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut, evening });
     // Polish-waterlife — now and then a little silver fish leaps from a lake
     // (render/fishjump.js): 1 draw only while one is in the air, 0 shadow.
     const fish = createFishJumps(scene, { areaId, areaData, tier, reducedMotion, splash, cat, camera });

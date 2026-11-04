@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { waterGap, waterClearance, deckDistance } from '../world/builder.js';
-import { bankPieces, waterRamp } from './water.js';
+import { bankPieces, waterRamp, WATER_EVENING } from './water.js';
 
 // ---------------------------------------------------------------------------
 // WATER DRESSING — the edge where the water meets the land (polish-water
@@ -109,6 +109,16 @@ const SEA_SWASH = 0.22;
 const SEA_SWASH_S = 6.5;
 const SEA_STAGGER = 23;
 const SEA_FOAM = 0xf3f7f5;
+// Polish-waterlife — the foam in the evening (createWaterDressing's `evening`:
+// null | 'sunset' | 'dusk'). At sunset the foam warms to the sky's peach; at
+// dusk it goes a quiet blue-grey and fainter, because the day's near-white
+// foam glows against a dark island. `a` scales the foam rows' alpha only
+// (so the breathe's low end shrinks with it). Bog foam and the wet-earth
+// bank colours are unchanged: the lawn light already darkens those.
+const EVENING_FOAM = Object.freeze({
+  sunset: Object.freeze({ clear: 0xf4dcc6, sea: 0xf6dcc4, clearA: 1, seaA: 1 }),
+  dusk: Object.freeze({ clear: 0x7d8a94, sea: 0x8e9aa6, clearA: 0.55, seaA: 0.6 }),
+});
 // Never more than this far out over the water (the band-follows-real-shore
 // rule is 1 m).
 const SEA_OUT_MAX = 0.95;
@@ -280,12 +290,13 @@ function bankProfile(p, ctx) {
   const shoulder = clear(onLand + 0.45);
   const outer = Math.max(clear(width), shoulder + 0.05);
   const { wetC, dampC, foamC } = ctx;
+  const fa = FOAM_ALPHA * (ctx.foamA ?? 1);
   // water side first: the foam line just off the lip, then the lip
   // itself, then up onto the land and out to nothing.
   // [offset, y, colour, alpha, foam flag, swash metres]
   return [
     [wob - 0.34, waterY + LIP_LIFT, foamC, 0, 1, 0],
-    [wob - 0.12, waterY + LIP_LIFT, foamC, FOAM_ALPHA, 1, 0],
+    [wob - 0.12, waterY + LIP_LIFT, foamC, fa, 1, 0],
     [wob, waterY + LIP_LIFT, wetC, BAND_ALPHA.lip * strength, 0, 0],
     [onLand, waterY + LIP_LIFT, wetC, BAND_ALPHA.lip * strength, 0, 0],
     [shoulder, LAND_Y, wetC, BAND_ALPHA.shoulder * strength, 0, 0],
@@ -315,13 +326,14 @@ function seaProfile(p, ctx) {
   const fade = ctx.fadeFrom === undefined ? 1
     : smooth01((p.s - ctx.fadeFrom) / SEA_FADE) * smooth01((ctx.fadeTo - p.s) / SEA_FADE);
   const f = ctx.foamC;
+  const k = ctx.foamA ?? 1;
   const out = (o) => Math.max(o, -SEA_OUT_MAX);
   return [
     [out(lip - 1.15), y, f, 0, 1, SEA_SWASH],
-    [out(lip - 0.7), y, f, 0.4 * fade, 1, SEA_SWASH],
-    [lip - 0.38, y, f, 0.22 * fade, 1, SEA_SWASH],
-    [lip - 0.12, y, f, 0.85 * fade, 1, SEA_SWASH],
-    [lip, y, f, 0.9 * fade, 1, SEA_SWASH],
+    [out(lip - 0.7), y, f, 0.4 * fade * k, 1, SEA_SWASH],
+    [lip - 0.38, y, f, 0.22 * fade * k, 1, SEA_SWASH],
+    [lip - 0.12, y, f, 0.85 * fade * k, 1, SEA_SWASH],
+    [lip, y, f, 0.9 * fade * k, 1, SEA_SWASH],
     [lip + 0.14, y, f, 0, 1, SEA_SWASH],
   ];
 }
@@ -490,7 +502,7 @@ function stonesGeometry(spots) {
 
 // The generic bank for a water: its shore runs, each carrying what the band
 // and the stones need to draw it.
-function genericRuns(h, { areaId, areaData, box, undecked }) {
+function genericRuns(h, { areaId, areaData, box, undecked, evening = null }) {
   const w = h.footprint;
   const pieces = bankPieces(w, h.waters ?? areaData.waters);
   if (pieces.length === 0) return [];
@@ -515,7 +527,9 @@ function genericRuns(h, { areaId, areaData, box, undecked }) {
     };
     ctx.wetC = new THREE.Color(ctx.colors.wet);
     ctx.dampC = new THREE.Color(ctx.colors.damp);
-    ctx.foamC = new THREE.Color(bog ? FOAM_COLORS.bog : FOAM_COLORS.clear);
+    const ev = bog ? null : EVENING_FOAM[evening];
+    ctx.foamC = new THREE.Color(bog ? FOAM_COLORS.bog : (ev ? ev.clear : FOAM_COLORS.clear));
+    if (ev) ctx.foamA = ev.clearA;
     for (const run of clipRuns(sampled, box)) out.push({ ...run, w, ctx });
   }
   return out;
@@ -525,7 +539,7 @@ function genericRuns(h, { areaId, areaData, box, undecked }) {
 // `shores`), carried on along its own line SEA_REACH metres past the
 // walkable bounds — past the slab's own end where that comes first, so the
 // waterline runs on over the apron instead of stopping with the slab.
-function seaRuns(h, { areaId, areaData }) {
+function seaRuns(h, { areaId, areaData, evening = null }) {
   const w = h.footprint;
   const pieces = bankPieces(w, h.waters ?? areaData.waters);
   if (pieces.length === 0) return [];
@@ -537,7 +551,8 @@ function seaRuns(h, { areaId, areaData }) {
   const seed = seedFromCode(`waterdress-${areaId}-${w.id}`);
   const ctx0 = {
     seed, waterY: h.y ?? 0.05, rows: SEA_ROWS, profile: seaProfile, noStones: true,
-    foamC: new THREE.Color(SEA_FOAM),
+    foamC: new THREE.Color(EVENING_FOAM[evening]?.sea ?? SEA_FOAM),
+    ...(EVENING_FOAM[evening] ? { foamA: EVENING_FOAM[evening].seaA } : {}),
   };
   const out = [];
   for (const [ci, ch] of chains(pieces).entries()) {
@@ -599,7 +614,7 @@ function apronQuads(h) {
   ].filter(([x0, x1, z0, z1]) => x1 - x0 > 1e-6 && z1 - z0 > 1e-6).map((q) => [...q, y]);
 }
 
-function apronMesh(quads, color) {
+function apronMesh(quads, color, mul = null) {
   const pos = new Float32Array(quads.length * 12);
   const index = [];
   let v = 0;
@@ -617,7 +632,7 @@ function apronMesh(quads, color) {
   geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(v * 3).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
   geo.setIndex(index);
   geo.computeBoundingSphere();
-  const [r, g, b] = color;
+  const [r, g, b] = mul ? color.map((c, i) => Math.min(255, c * mul[i])) : color;
   const mat = new THREE.MeshStandardMaterial({
     color: new THREE.Color().setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace),
     roughness: APRON_ROUGHNESS,
@@ -637,14 +652,17 @@ const STYLE_BUILDERS = { clear: genericRuns, bog: genericRuns, sea: seaRuns };
 // ---------------------------------------------------------------------------
 
 /**
- * createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut })
+ * createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut, evening })
  *   → { meshes, update(dt), dispose() }
+ *
+ * `evening` (null | 'sunset' | 'dusk') warms or quietens the foam and tints
+ * the sea apron like the water (see EVENING_FOAM); null is the day's look.
  *
  * Reads areaData.waterFx (water.js's handles). Areas not in DRESSED_AREAS —
  * the park, the docks, the gorge, the den, the neighbourhood — get a no-op
  * stub and add nothing to the scene.
  */
-export function createWaterDressing(scene, { areaId, areaData, tier, reducedMotion = false, keepOut = [] } = {}) {
+export function createWaterDressing(scene, { areaId, areaData, tier, reducedMotion = false, keepOut = [], evening = null } = {}) {
   if (!DRESSED_AREAS.includes(areaId) || !areaData?.waterFx?.length) return NO_DRESSING;
   const low = (typeof tier === 'string' ? tier : tier?.name) === 'low';
   const bounds = areaData.bounds ?? { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
@@ -659,7 +677,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   const runs = [];
   for (const h of areaData.waterFx) {
     const build = STYLE_BUILDERS[h.style ?? 'clear'] ?? genericRuns;
-    runs.push(...build(h, { areaId, areaData, box, undecked }));
+    runs.push(...build(h, { areaId, areaData, box, undecked, evening }));
   }
   if (runs.length === 0) return NO_DRESSING;
 
@@ -682,7 +700,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   // The far-sea apron, on every tier: without it the sea ends in a corner.
   const seas = areaData.waterFx.filter((h) => h.style === 'sea');
   const quads = seas.flatMap(apronQuads);
-  if (quads.length) meshes.push(apronMesh(quads, waterRamp(seas[0].color ?? 0x4a90c0).deep));
+  if (quads.length) meshes.push(apronMesh(quads, waterRamp(seas[0].color ?? 0x4a90c0).deep, WATER_EVENING[evening]?.mul ?? null));
 
   if (!low) {
     const spots = stoneSpots(runs, areaData, keepOut);
