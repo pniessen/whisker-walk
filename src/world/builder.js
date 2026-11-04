@@ -3627,10 +3627,22 @@ function plankEdgeUVs(geo, w, thick, len) {
 // and into the water. A deck record should be no wider than `flat`, so a cat
 // on the deck is on the log.
 //
-// Extruded from the trunk's cross-section (a circle with its top sliced off)
-// rather than built as a sunk cylinder: a sunk 12-sided cylinder shows only
-// the ridge between its two top facets, about 7.5 x its height above the
-// water, so a walkable width meant a trunk several metres across.
+// Built from the trunk's cross-section (a circle with its top sliced off)
+// rather than as a sunk cylinder: a sunk 12-sided cylinder shows only the
+// ridge between its two top facets, about 7.5 x its height above the water,
+// so a walkable width meant a trunk several metres across.
+//
+// The section is swept by hand into one indexed geometry with vertex colours
+// (logTrunkGeometry below), so it reads as a log and not a brown plank:
+// round, smooth-shaded bark flanks (dense where they show above the water,
+// coarse underneath), a pale hewn top in three strips (the paw-worn middle a
+// touch lighter), end grain with a bark rim, sapwood and growth rings over the
+// band of each end that shows above the bank, moss on one upper flank and a
+// short broken branch stub. Same objects as the old ExtrudeGeometry (Group,
+// Shape, one BufferGeometry, Mesh, one material), because every uuid is a
+// pinned Math.random draw (test/waterlooks.test.js); the Shape stays as the
+// record of the section the sweep follows. Variation comes from hash01 on
+// the endpoints, so both cats' screens agree.
 export function logBridge(x1, z1, x2, z2, w = 1.6, y = 0.14, flat = w * 0.6) {
   const g = new THREE.Group();
   const len = Math.hypot(x2 - x1, z2 - z1);
@@ -3643,14 +3655,219 @@ export function logBridge(x1, z1, x2, z2, w = 1.6, y = 0.14, flat = w * 0.6) {
   shape.lineTo(hw, c);
   // clockwise from the flat's right end, round under the bottom, to its left end
   shape.absarc(0, 0, r, phi, Math.PI - phi, true);
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: len, bevelEnabled: false, curveSegments: 20 });
-  geo.translate(0, -c, -len / 2);
-  const trunk = new THREE.Mesh(geo, surfNoMap(0x6e4a2c, 'bark'));
+  const seed = (k) => hash01(x1 * 0.37 + x2 * 0.61 + k, z1 * 0.43 + z2 * 0.29 + k * 1.7, 83 + k);
+  const geo = logTrunkGeometry(len, r, hw, c, phi, seed);
+  const trunk = new THREE.Mesh(geo, litMaterial(0xffffff, { ...surfaceProps('bark'), vertexColors: true }));
   trunk.position.y = y;
   g.add(trunk);
   g.position.set((x1 + x2) / 2, 0, (z1 + z2) / 2);
   g.rotation.y = Math.atan2(x2 - x1, z2 - z1);
   return g;
+}
+
+const LOG_BARK = new THREE.Color(0x5a4230);
+const LOG_BARK_LOW = new THREE.Color(0x4e3826);
+const LOG_BARK_BAND = new THREE.Color(0x45321f); // just under the hewn edge
+const LOG_MOSS = new THREE.Color(0x5f7038);
+const LOG_HEWN_EDGE = new THREE.Color(0x8e6b46);
+const LOG_HEWN = new THREE.Color(0x9e7a52);
+const LOG_HEWN_WORN = new THREE.Color(0xac885c);
+const LOG_RIM = new THREE.Color(0x3f2d1e);
+const LOG_SAPWOOD = new THREE.Color(0xc9a978);
+const LOG_RING = new THREE.Color(0x9a7a50);
+const LOG_PALE = new THREE.Color(0xc2a270);
+const LOG_HEART = new THREE.Color(0xa58456);
+const LOG_STUB_TIP = new THREE.Color(0x9c7c56);
+// End-grain loops, as fractions of the radius, and the colour of the band
+// inside each: bark rim, sapwood, a growth ring, pale wood, a second ring;
+// the core inside the last is pale, darkening to the heart at the axis. The
+// bridges' hewn top cuts the trunk at about 0.77 r, so the outer bands show
+// at the end's two top corners and the inner ring runs under the middle.
+const LOG_LOOPS = [1, 0.955, 0.87, 0.83, 0.72, 0.69];
+const LOG_BANDS = [LOG_RIM, LOG_SAPWOOD, LOG_RING, LOG_PALE, LOG_RING];
+const LOG_RINGS = 4; // cross-sections along the length: the ends and the thirds
+const LOG_STUB_SIDES = 5;
+
+// The trunk in its own frame: along z (-len/2..len/2), the hewn top level at
+// y 0, the axis at y -c. Section coordinates (x, s) put the axis at the origin
+// and the top at s = c. `seed(k)` is the bridge's own hash.
+function logTrunkGeometry(len, r, hw, c, phi, seed) {
+  const k = r / 1.5; // sizes below are set for the bridges' 3 m trunk
+  const pos = [], nor = [], col = [], idx = [];
+  const vert = (x, s, z, n, colour) => {
+    pos.push(x, s - c, z); nor.push(n[0], n[1], n[2]); col.push(colour.r, colour.g, colour.b);
+    return pos.length / 3 - 1;
+  };
+  // A triangle, wound to face the way its vertices' normals point; slivers
+  // with no area (two loops both clipped flat along the top) are left out.
+  const tri = (a, b, d) => {
+    const ax = pos[a * 3], ay = pos[a * 3 + 1], az = pos[a * 3 + 2];
+    const ux = pos[b * 3] - ax, uy = pos[b * 3 + 1] - ay, uz = pos[b * 3 + 2] - az;
+    const vx = pos[d * 3] - ax, vy = pos[d * 3 + 1] - ay, vz = pos[d * 3 + 2] - az;
+    const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+    if (Math.hypot(cx, cy, cz) < 1e-7) return;
+    let dot = 0;
+    for (const i of [a, b, d]) dot += cx * nor[i * 3] + cy * nor[i * 3 + 1] + cz * nor[i * 3 + 2];
+    if (dot >= 0) idx.push(a, b, d);
+    else idx.push(a, d, b);
+  };
+  const quad = (a, b, d, e) => { tri(a, b, d); tri(a, d, e); };
+  const shade = (base, v) => base.clone().multiplyScalar(v);
+
+  // The outline. Each upper flank runs from the hewn edge down to 0.6 m
+  // below the top in three steps packed toward the edge, where it shows
+  // above the water; underneath, four coarse steps round the bottom.
+  const sLow = Math.asin(Math.max(-1, Math.min(1, (c - 0.6 * k) / r)));
+  const upper = [0, 0.3, 0.6, 1].map((f) => phi - (phi - sLow) * f);
+  const U = upper.length - 1;
+  // right to left, under the trunk: level with the axis on each side (the
+  // trunk's full width) and the bottom
+  const bottom = [0, -Math.PI / 2, -Math.PI];
+  const sx = hw / 3; // the strip lines across the hewn top
+  // Outline points right to left over the top: {th, x, s}, exact, shared by
+  // the flanks, the top and the ends' outer loop so nothing cracks.
+  const onRim = (th) => ({ th, x: r * Math.cos(th), s: r * Math.sin(th) });
+  const right = upper.map((th, j) => (j === 0 ? { th, x: hw, s: c } : onRim(th)));
+  const left = upper.map((th, j) => (j === 0 ? { th: Math.PI - th, x: -hw, s: c } : onRim(Math.PI - th)));
+  const over = [
+    ...[...right].reverse(),
+    { th: Math.acos(sx / r), x: sx, s: c },
+    { th: Math.acos(-sx / r), x: -sx, s: c },
+    ...left,
+  ];
+  const under = bottom.map(onRim); // right to left
+  const radial = (th) => [Math.cos(th), Math.sin(th), 0];
+
+  const zs = [];
+  for (let i = 0; i < LOG_RINGS; i++) zs.push(-len / 2 + (len * i) / (LOG_RINGS - 1));
+
+  // The bark flanks: shared vertices with radial normals so they shade round.
+  // Darker just under the hewn edge; moss on one side's upper flank, thick
+  // toward one end and gone by the other.
+  const mossSide = seed(1) < 0.5 ? 1 : -1;
+  const mossFromStart = seed(2) < 0.5;
+  const MOSS_BY_STEP = [0.15, 0.5, 0.7, 0.35];
+  const BARK_BY_STEP = [LOG_BARK_BAND, LOG_BARK_BAND.clone().lerp(LOG_BARK, 0.5), LOG_BARK, LOG_BARK_LOW];
+  const flank = new Map(); // side -> [ring][step]
+  for (const side of [1, -1]) {
+    const pts = side === 1 ? right : left;
+    const rows = [];
+    for (let i = 0; i < LOG_RINGS; i++) {
+      const t = i / (LOG_RINGS - 1);
+      const mossAlong = Math.max(0, 1 - (mossFromStart ? t : 1 - t) * 1.25);
+      rows.push(pts.map((p, j) => {
+        const cc = shade(BARK_BY_STEP[j], 0.9 + 0.16 * seed(10 + i * 9 + j + (side + 1) * 40));
+        if (side === mossSide) cc.lerp(LOG_MOSS, MOSS_BY_STEP[j] * mossAlong * (0.8 + 0.3 * seed(5 + i)));
+        return vert(p.x, p.s, zs[i], radial(p.th), cc);
+      }));
+    }
+    for (let i = 0; i < LOG_RINGS - 1; i++) {
+      for (let j = 0; j < U; j++) quad(rows[i][j], rows[i][j + 1], rows[i + 1][j + 1], rows[i + 1][j]);
+    }
+    flank.set(side, rows);
+  }
+  // Underneath, vertices only at the two ends: never seen, one span the length.
+  const belly = [0, LOG_RINGS - 1].map((i) => [
+    flank.get(1)[i][U],
+    ...under.map((p) => vert(p.x, p.s, zs[i], radial(p.th), shade(LOG_BARK_LOW, 0.8))),
+    flank.get(-1)[i][U],
+  ]);
+  for (let m = 0; m < belly[0].length - 1; m++) quad(belly[0][m], belly[0][m + 1], belly[1][m + 1], belly[1][m]);
+
+  // The hewn top: its own vertices, facing up, in three strips. The middle
+  // strip is worn paler by paws; the edge strips darken toward the bark.
+  const UP = [0, 1, 0];
+  const strips = [[hw, sx, LOG_HEWN_EDGE, LOG_HEWN], [sx, -sx, LOG_HEWN_WORN, LOG_HEWN_WORN], [-sx, -hw, LOG_HEWN, LOG_HEWN_EDGE]];
+  strips.forEach(([xa, xb, ca, cb], si) => {
+    const a = [], b = [];
+    for (let i = 0; i < LOG_RINGS; i++) {
+      const v = 0.94 + 0.1 * seed(60 + i * 3 + si);
+      a.push(vert(xa, c, zs[i], UP, shade(ca, v)));
+      b.push(vert(xb, c, zs[i], UP, shade(cb, v)));
+    }
+    for (let i = 0; i < LOG_RINGS - 1; i++) quad(a[i], b[i], b[i + 1], a[i + 1]);
+  });
+
+  // The ends. Over the band that shows above the bank (the outline from the
+  // first flank step on each side, over the top) concentric loops round the
+  // axis, clipped by the hewn top, each band flat-coloured on its own
+  // vertices so the rings stay crisp; the outer loop is the outline itself.
+  // The rest of the end is one coarse fan from the axis, under the ground.
+  // At the hewn edges a loop that reaches the top meets it where its circle
+  // does, so each band runs into the top edge as it should (sampled at the
+  // edge's angle instead, the outer bands would smear along the whole top).
+  const from = U - 1, to = over.length - U; // ringed: over[from..to]
+  const loop = (q, p) => {
+    if (q === 0) return [p.x, p.s];
+    const rho = LOG_LOOPS[q] * r;
+    if (p.s === c && Math.abs(p.x) === hw && rho > c) return [Math.sign(p.x) * Math.sqrt(rho * rho - c * c), c];
+    return [rho * Math.cos(p.th), Math.min(rho * Math.sin(p.th), c)];
+  };
+  for (const nz of [-1, 1]) {
+    const z = (nz * len) / 2, n = [0, 0, nz];
+    const axis = vert(0, 0, z, n, LOG_HEART);
+    const fan = [...over.slice(to), ...under.slice().reverse(), ...over.slice(0, from + 1)];
+    for (let m = 0; m < fan.length - 1; m++) {
+      tri(axis, vert(fan[m].x, fan[m].s, z, n, LOG_RIM), vert(fan[m + 1].x, fan[m + 1].s, z, n, LOG_RIM));
+    }
+    LOG_BANDS.forEach((band, q) => {
+      const cc = shade(band, 0.95 + 0.08 * seed(80 + q + (nz + 1) * 5));
+      let po = -1, pi = -1;
+      for (let a = from; a <= to; a++) {
+        const [ox, os] = loop(q, over[a]), [ix, is] = loop(q + 1, over[a]);
+        const o = vert(ox, os, z, n, cc), i = vert(ix, is, z, n, cc);
+        if (a > from) quad(po, o, i, pi);
+        po = o; pi = i;
+      }
+    });
+    let prev = -1;
+    for (let a = from; a <= to; a++) {
+      const [x, s] = loop(LOG_LOOPS.length - 1, over[a]);
+      const v = vert(x, s, z, n, LOG_PALE);
+      if (a > from) tri(axis, prev, v);
+      prev = v;
+    }
+  }
+
+  // A broken branch stub out of one flank a third of the way along, just
+  // under the hewn edge so it shows above the water, leaning out and a little
+  // up and along. Kept inside the trunk's width and below its top.
+  const side = seed(3) < 0.5 ? 1 : -1;
+  const th = phi - 0.1;
+  const zAt = (seed(4) < 0.5 ? -1 : 1) * (len / 6);
+  const surf = new THREE.Vector3(side * r * Math.cos(th), r * Math.sin(th), zAt);
+  const dir = new THREE.Vector3(side, 0.1, (seed(6) < 0.5 ? -1 : 1) * 0.45).normalize();
+  const upv = new THREE.Vector3(0, 1, 0).addScaledVector(dir, -dir.y).normalize();
+  const sidev = new THREE.Vector3().crossVectors(dir, upv);
+  const base = surf.clone().addScaledVector(dir, -0.12 * k);
+  const tip = surf.clone().addScaledVector(dir, 0.4 * k);
+  const ringAt = (centre, rad, colour, normalFn) => {
+    const ids = [];
+    for (let m = 0; m < LOG_STUB_SIDES; m++) {
+      const a = (m / LOG_STUB_SIDES) * Math.PI * 2;
+      const off = upv.clone().multiplyScalar(Math.cos(a)).addScaledVector(sidev, Math.sin(a));
+      const p = centre.clone().addScaledVector(off, rad);
+      ids.push(vert(p.x, p.y, p.z, normalFn(off), colour));
+    }
+    return ids;
+  };
+  const toArr = (v) => [v.x, v.y, v.z];
+  const stubBark = shade(LOG_BARK, 0.95);
+  const ringB = ringAt(base, 0.09 * k, stubBark, toArr);
+  const ringT = ringAt(tip, 0.05 * k, stubBark, toArr);
+  for (let m = 0; m < LOG_STUB_SIDES; m++) {
+    const m2 = (m + 1) % LOG_STUB_SIDES;
+    quad(ringB[m], ringB[m2], ringT[m2], ringT[m]);
+  }
+  const cap = ringAt(tip, 0.05 * k, LOG_STUB_TIP, () => toArr(dir));
+  for (let m = 1; m < LOG_STUB_SIDES - 1; m++) tri(cap[0], cap[m], cap[m + 1]);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  return geo;
 }
 
 // Flat stones across a shallow ford, one merged geometry. They are wide and
