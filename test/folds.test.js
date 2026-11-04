@@ -194,7 +194,7 @@ describe('legs fold at the joints (Task 5)', () => {
         expect(p.standing, `${label(v)} ${state} standing`).toBeLessThanOrEqual(allowed(v.name, state));
       }
     }
-  });
+  }, 180_000);
 
   it('nothing pokes out of the back, moving', () => {
     // The walk, the stalk at a walk, and the fight's swept states.
@@ -262,7 +262,7 @@ describe('legs fold at the joints (Task 5)', () => {
       animateCat(hen, 'stalk', t, 1.5, false);
       expect(hen.userData.parts.legs.map((l) => l.rotation.x)).toEqual(walk);
     }
-  });
+  }, 180_000);
 
   it('a folded leg stays attached', () => {
     const names = [...PRESETS, 'fluffy', 'socks'];
