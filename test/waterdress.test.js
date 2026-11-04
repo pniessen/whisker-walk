@@ -27,7 +27,7 @@ vi.stubGlobal('document', {
   exitPointerLock() {},
 });
 
-const { createWaterDressing, FILL_LIFT, bankWobble, DRESSED_AREAS, BANK_FILLETS, isStream, bankBite, BITE_CIRCLES, BITE_MAX } = await import('../src/render/waterdress.js');
+const { createWaterDressing, FILL_LIFT, bankWobble, DRESSED_AREAS, BANK_FILLETS, isStream, bankBite, BITE_CIRCLES, BITE_MAX, BITE_MIN } = await import('../src/render/waterdress.js');
 const { fishSpots } = await import('../src/render/fishjump.js');
 const { tintDuskLawn, duskLook } = await import('../src/render/dusk.js');
 const { resolveQuality } = await import('../src/render/quality.js');
@@ -91,6 +91,40 @@ function distToPieces(pieces, x, z) {
 
 const undecked = (waters) => waters.map(({ decks, ...w }) => w);
 const triangles = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.getAttribute('position').count) / 3;
+
+// A vertical ray from above, both faces: topY(mesh)(x, z) is the highest y the
+// ray meets on the mesh (null if it misses). A raycaster's answer, but on a
+// 0.5 m grid of triangles so thousands of rays stay fast.
+function topY(mesh) {
+  mesh.updateMatrixWorld(true);
+  const pts = worldPoints(mesh);
+  const idx = mesh.geometry.index;
+  const tri = idx ? Array.from({ length: idx.count }, (_, i) => idx.getX(i)) : pts.map((_, i) => i);
+  const C = 0.5, grid = new Map();
+  for (let t = 0; t < tri.length; t += 3) {
+    const [a, b, c] = [pts[tri[t]], pts[tri[t + 1]], pts[tri[t + 2]]];
+    const x0 = Math.floor(Math.min(a.x, b.x, c.x) / C), x1 = Math.floor(Math.max(a.x, b.x, c.x) / C);
+    const z0 = Math.floor(Math.min(a.z, b.z, c.z) / C), z1 = Math.floor(Math.max(a.z, b.z, c.z) / C);
+    for (let i = x0; i <= x1; i++) for (let j = z0; j <= z1; j++) {
+      const k = `${i},${j}`;
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push([a, b, c]);
+    }
+  }
+  return (x, z) => {
+    let best = null;
+    for (const [a, b, c] of grid.get(`${Math.floor(x / C)},${Math.floor(z / C)}`) ?? []) {
+      const d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+      if (Math.abs(d) < 1e-12) continue;
+      const u = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d;
+      const v = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / d;
+      if (u < -1e-9 || v < -1e-9 || u + v > 1 + 1e-9) continue;
+      const y = u * a.y + v * b.y + (1 - u - v) * c.y;
+      if (best === null || y > best) best = y;
+    }
+    return best;
+  };
+}
 
 describe('water dressing', () => {
   it('dresses exactly the seven water areas', () => {
@@ -699,11 +733,14 @@ describe('water dressing', () => {
 
   describe('stream bites', () => {
     const STREAM_AREAS = ['woods', 'river', 'moor', 'pines'];
+    // the invariants every bitten stream keeps, the Gorge's lighter band too
+    const BITTEN_AREAS = [...STREAM_AREAS, 'gorge'];
     const STREAMS = {
       woods: ['river-west', 'river-north'],
       river: ['river-west', 'river-bend', 'river-east'],
       moor: ['river-south', 'river-west', 'river-mouth'],
       pines: ['mire-north', 'mire-west'],
+      gorge: ['stream'],
     };
     const bitesOf = (fx) => byName(fx, 'waterdress:band').userData.bites ?? [];
 
@@ -734,7 +771,7 @@ describe('water dressing', () => {
           const b = bites.find((q) => q.water === w);
           expect(b, `${id} ${w}`).toBeTruthy();
           expect(b.maxBite, `${id} ${w}`).toBeLessThanOrEqual(0.6 + 1e-9);
-          expect(b.maxBite, `${id} ${w}`).toBeGreaterThanOrEqual(0.02);
+          expect(b.maxBite, `${id} ${w}`).toBeGreaterThanOrEqual(BITE_MIN);
         }
         // no clear white foam round those rings, at any time of day
         for (const evening of [null, 'sunset', 'dusk']) {
@@ -886,7 +923,7 @@ describe('water dressing', () => {
 
     it('the bite tapers to nothing at open ends, by decks and by the fillet', () => {
       let ends = 0, decks = 0, corner = 0;
-      for (const id of STREAM_AREAS) {
+      for (const id of BITTEN_AREAS) {
         const { fx, areaData } = dressOnGround(id, { debug: true });
         const fillets = BANK_FILLETS[id] ?? [];
         for (const b of bitesOf(fx)) {
@@ -951,7 +988,7 @@ describe('water dressing', () => {
 
     it('every fill vertex rides FILL_LIFT over its own water, for every dressed area with a fill', () => {
       expect(FILL_LIFT).toBeGreaterThanOrEqual(0.01);
-      for (const id of ['woods', 'river', 'moor', 'pines', 'park']) {
+      for (const id of ['woods', 'river', 'moor', 'pines', 'park', 'gorge']) {
         const { fx, areaData } = dressOnGround(id, { debug: true });
         const fill = byName(fx, 'waterdress:fill');
         expect(fill, id).toBeTruthy();
@@ -999,42 +1036,42 @@ describe('water dressing', () => {
       }
     }, 120_000);
 
-    it('band vertices over a fill strip are never under the fill', () => {
-      let checked = 0;
-      for (const id of ['woods', 'river', 'moor', 'pines', 'park']) {
+    it('a ray just inside the fill\'s water edge meets the band on or over the fill, never under it', () => {
+      const checked = {};
+      const under = [];
+      for (const id of ['woods', 'river', 'moor', 'park', 'gorge']) {
         const { fx } = dressOnGround(id, { debug: true });
-        const band = byName(fx, 'waterdress:band');
-        const grid = new Map();
-        const key = (x, z) => `${Math.round(x * 50)},${Math.round(z * 50)}`;
-        for (const q of worldPoints(band)) {
-          const k = key(q.x, q.z);
-          if (!grid.has(k)) grid.set(k, []);
-          grid.get(k).push(q);
-        }
-        const found = (x, z) => {
-          const gx = Math.round(x * 50), gz = Math.round(z * 50), out = [];
-          for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-            for (const q of grid.get(`${gx + i},${gz + j}`) ?? []) if (Math.hypot(q.x - x, q.z - z) < 1e-4) out.push(q);
-          }
-          return out;
-        };
+        const bandY = topY(byName(fx, 'waterdress:band'));
+        const fillY = topY(byName(fx, 'waterdress:fill'));
+        checked[id] = 0;
         for (const b of bitesOf(fx)) {
-          for (const p of b.samples) {
-            if (!(p.bite > 0.05) || p.fillTop === undefined) continue;
-            const wob = bankWobble(b.seed, p.s, b.period);
-            const fillY = b.fillY;
-            for (const o of [wob - 0.34, wob - 0.12, wob]) {
-              // strictly inside the bite, well clear of the strip's ends
-              if (!(o > 0.02 && o < p.bite) || p.nx * p.nx0 + p.nz * p.nz0 < 0.9) continue;
-              for (const q of found(p.x + p.nx * o, p.z + p.nz * o)) {
-                checked++;
-                expect(q.y, `${id} ${b.water} at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBeGreaterThanOrEqual(fillY - 1e-6);
+          const ss = b.samples;
+          const n = ss.length;
+          for (let i = 0; i < n; i++) {
+            const p = ss[i];
+            if (!(p.bite > 0.05)) continue;
+            // the bitten point (the fill's water edge) and the mid-spans either side
+            const at = [[p.x, p.z]];
+            for (const q of [ss[i - 1] ?? (b.closed ? ss[n - 1] : null), ss[i + 1] ?? (b.closed ? ss[0] : null)]) {
+              if (q) at.push([(p.x + q.x) / 2, (p.z + q.z) / 2]);
+            }
+            for (const [x, z] of at) {
+              // 5..20 mm inside the fill, onto the land
+              for (const f of [0.005, 0.01, 0.02]) {
+                const rx = x + p.nx0 * f, rz = z + p.nz0 * f;
+                const fy = fillY(rx, rz), by = bandY(rx, rz);
+                if (fy === null || by === null) continue;
+                checked[id]++;
+                if (by < fy - 1e-6) under.push(`${id} ${b.water} ${rx.toFixed(3)},${rz.toFixed(3)} ${((fy - by) * 1000).toFixed(2)} mm`);
               }
             }
           }
         }
       }
-      expect(checked).toBeGreaterThan(0);
+      const perArea = Object.fromEntries(Object.keys(checked).map((id) => [id, under.filter((u) => u.startsWith(`${id} `)).length]));
+      console.log('band-over-fill rays', JSON.stringify(checked), 'under', JSON.stringify(perArea));
+      expect(under.slice(0, 10), `${under.length} rays meet the band under the fill`).toEqual([]);
+      for (const [id, k] of Object.entries(checked)) expect(k, id).toBeGreaterThan(100);
     }, 120_000);
 
     it('Moor: the fill and band triangle counts are unchanged by the lift', () => {
@@ -1056,12 +1093,15 @@ describe('water dressing', () => {
     it('the fill covers the bitten strip', () => {
       const ray = new THREE.Raycaster();
       const down = new THREE.Vector3(0, -1, 0);
-      for (const id of STREAM_AREAS) {
+      for (const id of BITTEN_AREAS) {
         const { fx } = dressOnGround(id, { debug: true });
         const fill = byName(fx, 'waterdress:fill');
         let hit = 0;
         for (const b of bitesOf(fx)) {
-          for (const p of b.samples.filter((q, i) => i % 5 === 2 && q.bite > 0.2)) {
+          // (not a run's end sample: its ray would graze the strip's end edge;
+          // the Gorge samples every 3 m, so every one of its samples is tried)
+          const every = id === 'gorge' ? 1 : 5;
+          for (const p of b.samples.filter((q, i, ss) => i % every === 2 % every && (b.closed || (i > 0 && i < ss.length - 1)) && q.bite > 0.2)) {
             // halfway between the true shore and the bitten line
             ray.set(new THREE.Vector3(p.x0 - p.nx0 * p.bite * 0.5, 5, p.z0 - p.nz0 * p.bite * 0.5), down);
             expect(ray.intersectObject(fill).length, `${id} ${b.water}`).toBeGreaterThan(0);
@@ -1091,7 +1131,7 @@ describe('water dressing', () => {
     }, 120_000);
 
     it('leaves the gameplay water data untouched', () => {
-      for (const id of STREAM_AREAS) {
+      for (const id of BITTEN_AREAS) {
         const { areaData } = area(id);
         const before = JSON.stringify(areaData.waters);
         const fxBefore = JSON.stringify(areaData.waterFx.map((h) => h.footprint));
@@ -1111,7 +1151,9 @@ describe('water dressing', () => {
       river: ['river-west', 'river-bend', 'river-east'],
       moor: ['river-south', 'river-west', 'river-mouth'],
       pines: ['mire-north', 'mire-west'],
+      gorge: ['stream'],
     };
+    const BITTEN_AREAS = [...STREAM_AREAS, 'gorge'];
     const LIP = 0.004;
 
     it('every stream area gets riffle stones well inside the water, clear of decks, just breaking the surface', () => {
@@ -1184,17 +1226,20 @@ describe('water dressing', () => {
     }, 120_000);
 
     it('foam streaks stay on the water, never over a bitten bank', () => {
-      for (const id of STREAM_AREAS) {
+      for (const id of BITTEN_AREAS) {
         const { fx, areaData } = dressOnGround(id);
         const band = byName(fx, 'waterdress:band');
         const pos = band.geometry.getAttribute('position');
         const waters = undecked(areaData.waters);
+        // past the deepest bite drawn here (the Gorge's is scaled to half)
+        const deepest = Math.max(...(band.userData.bites ?? []).map((q) => q.maxBite));
+        expect(deepest, id).toBeLessThanOrEqual(BITE_MAX + 1e-9);
         let n = 0;
         for (const { verts: [v0, k] } of band.userData.streaks) {
           for (let v = v0; v < v0 + k; v++) {
             n++;
             expect(waterClearance(waters, pos.getX(v), pos.getZ(v)), `${id} streak vert ${pos.getX(v).toFixed(2)},${pos.getZ(v).toFixed(2)}`)
-              .toBeLessThan(-BITE_MAX);
+              .toBeLessThan(-deepest);
           }
         }
         expect(n, id).toBeGreaterThan(0);
@@ -1242,8 +1287,8 @@ describe('water dressing', () => {
       expect(bites).toHaveLength(2);
       // the stream is only 1.5 m wide: the two bites never close it
       for (const b of bites) {
-        expect(b.maxBite).toBeGreaterThanOrEqual(0.02);
-        expect(b.maxBite).toBeLessThanOrEqual(0.5);
+        expect(b.maxBite).toBeGreaterThanOrEqual(BITE_MIN);
+        expect(b.maxBite).toBeLessThanOrEqual(BITE_MAX * 0.5 + 1e-9);
       }
       const stones = byName(fx, 'waterdress:stones');
       expect(stones).toBeTruthy();

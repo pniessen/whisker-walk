@@ -255,7 +255,7 @@ const BITE_FILLET_RAMP = 1.5;
 // deepest bite is under BITE_MIN draws no strip.
 const BITE_TUCK = 0.08;
 const BITE_TUCK_FULL = 0.15;
-const BITE_MIN = 0.02;
+export const BITE_MIN = 0.02;
 // The ground's colour for a bite is sampled this far onto the land (the
 // ground under the water may be painted as stream bed).
 const BITE_COLOR_AT = 0.6;
@@ -527,15 +527,20 @@ function bankProfile(p, ctx) {
   // A sample bent onto a fillet's arc: its land side lies over the fill,
   // which rides over the water, so those rows ride over the fill.
   const landY = (y) => (p.fillTop === undefined ? y : Math.max(y, p.fillTop));
-  // a water-side row whose offset reaches past the bitten point lies over the fill
-  const lipY = (o) => (o > 0 ? landY(waterY + LIP_LIFT) : waterY + LIP_LIFT);
+  // Over a bite the foam row and the lip ride over the fill, wherever the
+  // wobble puts them: the fill's water edge (offset 0) lies past the lip or
+  // between it and onLand when wob <= 0, between the foam row and the lip when
+  // wob > 0 (wob - 0.12 <= -0.02 always), so both ends of the segment crossing
+  // it are lifted and the band never dips under the fill there. Only the
+  // outer foam feather (wob - 0.34) stays down on the water.
+  const lipY = landY(waterY + LIP_LIFT);
   // water side first: the foam line just off the lip, then the lip
   // itself, then up onto the land and out to nothing.
   // [offset, y, colour, alpha, foam flag, swash metres]
   return [
-    [wob - 0.34, lipY(wob - 0.34), foamC, 0, 1, 0],
-    [wob - 0.12, lipY(wob - 0.12), foamC, fa, 1, 0],
-    [wob, lipY(wob), wetC, BAND_ALPHA.lip * strength, 0, 0],
+    [wob - 0.34, waterY + LIP_LIFT, foamC, 0, 1, 0],
+    [wob - 0.12, lipY, foamC, fa, 1, 0],
+    [wob, lipY, wetC, BAND_ALPHA.lip * strength, 0, 0],
     [onLand, landY(waterY + LIP_LIFT), wetC, BAND_ALPHA.lip * strength, 0, 0],
     [shoulder, landY(LAND_Y), wetC, BAND_ALPHA.shoulder * strength, 0, 0],
     [outer, landY(LAND_Y), dampC, 0, 0, 0],
@@ -1047,6 +1052,21 @@ function biteChain(sampled, { seed, kind, fillets, waters, heights = [], fillY, 
     p.fillY = fy;
     if (bitten) p.fillTop = fy + LIP_LIFT * 0.5;
   }
+  // An unbitten sample beside a bitten one carries the zero-width end of the
+  // strip's taper triangle: its band rows ride over the fill too, or the band
+  // dips under that triangle mid-span. And where the fill steps up between two
+  // samples (a strip end inside a higher water), the band and the fill split
+  // that span's quads on different diagonals: the band rides over the higher
+  // of the fills either side of it.
+  const tops = samples.map((p, i) => {
+    if (p.fillet) return p.fillTop;
+    const prev = closed ? samples[(i - 1 + m) % m] : samples[i - 1];
+    const next = closed ? samples[(i + 1) % m] : samples[i + 1];
+    const beside = [prev, next].filter((q) => q && q.bite > 0 && !q.fillet);
+    if (!(p.bite > 0) && beside.length === 0) return undefined;
+    return Math.max(p.fillY, ...beside.map((q) => q.fillY)) + LIP_LIFT * 0.5;
+  });
+  for (let i = 0; i < m; i++) if (tops[i] !== undefined) samples[i].fillTop = tops[i];
 }
 
 // Is (x, z) in a fillet's fill: inside the square r x r cell at the corner
