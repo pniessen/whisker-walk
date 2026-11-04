@@ -431,21 +431,58 @@ describe('water dressing', () => {
     const fx = createWaterDressing(scene, { areaId: id, areaData, tier: HIGH, reducedMotion: false, ...opts });
     return { scene, fx, areaData, ground };
   }
+  const LAKE = { x: -14, z: -34 };
+  const LAKE_R = 4;
   const CORNER = { x: 23, z: -9 };
   const CENTRE = { x: 21.4, z: -10.6 };
   const inCell = (p, e = 1e-6) => p.x >= 21.4 - e && p.x <= 23 + e && p.z >= -10.6 - e && p.z <= -9 + e;
 
-  it('BANK_FILLETS names the Woods bend, frozen', () => {
-    expect(BANK_FILLETS).toEqual({ woods: [{ x: 23, z: -9, r: 1.6, wx: -1, wz: -1 }] });
+  it('BANK_FILLETS names the Woods bend and the lake corner, frozen', () => {
+    expect(BANK_FILLETS).toEqual({ woods: [{ x: 23, z: -9, r: 1.6, wx: -1, wz: -1 }, { x: -14, z: -34, r: LAKE_R, wx: -1, wz: -1 }] });
     expect(Object.isFrozen(BANK_FILLETS)).toBe(true);
     expect(Object.isFrozen(BANK_FILLETS.woods)).toBe(true);
     expect(Object.isFrozen(BANK_FILLETS.woods[0])).toBe(true);
+    expect(Object.isFrozen(BANK_FILLETS.woods[1])).toBe(true);
   });
+
+  it('the Woods lake corner (-14,-34) is rounded: no band sample within 0.3·R of the square corner', () => {
+    const band = byName(dressOnGround('woods').fx, 'waterdress:band');
+    const f = band.userData.fillets;
+    expect(f).toHaveLength(2);
+    const samples = f[1].samples;
+    expect(samples.length).toBeGreaterThanOrEqual(6);
+    for (const p of samples) {
+      expect(Math.hypot(p.x - LAKE.x, p.z - LAKE.z), `${p.x},${p.z}`).toBeGreaterThan(0.3 * LAKE_R);
+    }
+    const cx = LAKE.x - LAKE_R, cz = LAKE.z - LAKE_R;
+    const near = samples.filter((p) => p.x >= cx - 1e-6 && p.x <= LAKE.x + 1e-6 && p.z >= cz - 1e-6 && p.z <= LAKE.z + 1e-6);
+    expect(near.length).toBeGreaterThanOrEqual(6);
+    for (const p of near) expect(Math.abs(Math.hypot(p.x - cx, p.z - cz) - LAKE_R), `${p.x},${p.z}`).toBeLessThan(0.02);
+  }, 120_000);
+
+  it('the lake fillet fan covers no fish spot, keeps 1 m off them, and sits off every path and deck', () => {
+    const { fx, areaData } = dressOnGround('woods');
+    const fill = byName(fx, 'waterdress:fill');
+    const [f0, fn] = fill.userData.filletVerts;
+    const lakePts = worldPoints(fill).slice(f0, f0 + fn).filter((p) => p.x < 0);
+    expect(lakePts.length).toBeGreaterThanOrEqual(12);
+    for (const p of lakePts) {
+      expect(p.x).toBeGreaterThanOrEqual(LAKE.x - LAKE_R - 1e-6);
+      expect(p.x).toBeLessThanOrEqual(LAKE.x + 1e-6);
+      expect(p.z).toBeGreaterThanOrEqual(LAKE.z - LAKE_R - 1e-6);
+      expect(p.z).toBeLessThanOrEqual(LAKE.z + 1e-6);
+    }
+    for (const s of fishSpots('woods', areaData)) {
+      const dx = Math.max(LAKE.x - LAKE_R - s.x, 0, s.x - LAKE.x), dz = Math.max(LAKE.z - LAKE_R - s.z, 0, s.z - LAKE.z);
+      expect(Math.hypot(dx, dz), `${s.x},${s.z}`).toBeGreaterThanOrEqual(1);
+    }
+    for (const p of lakePts) expect(deckDistance(areaData.waters, p.x, p.z)).toBeGreaterThan(1);
+  }, 120_000);
 
   it('the Woods stream bend has a rounded bank: no band sample of the bend lies within 0.3 m of the square corner (23, -9)', () => {
     const band = byName(dressOnGround('woods').fx, 'waterdress:band');
     const f = band.userData.fillets;
-    expect(f).toHaveLength(1);
+    expect(f).toHaveLength(2);
     const samples = f[0].samples;
     // both footprints' chains run round this corner, so both bend
     expect(samples.length).toBeGreaterThanOrEqual(6);
@@ -495,15 +532,16 @@ describe('water dressing', () => {
     expect(fx.meshes).toContain(fill);
     // the fan's own vertices (the rest of the mesh is the streams' bites)
     const [f0, fn] = fill.userData.filletVerts;
-    const pts = worldPoints(fill).slice(f0, f0 + fn);
+    const pts = worldPoints(fill).slice(f0, f0 + fn).filter((p) => p.x > 0);
     const waterY = areaData.waterFx.find((h) => h.footprint.id === 'river-west').y;
     for (const p of pts) {
       expect(inCell(p), `${p.x},${p.z}`).toBe(true);
       expect(p.y).toBeCloseTo(waterY + FILL_LIFT, 6);
     }
     // one triangle per arc segment: 10..16 of them
-    expect(fn - 2).toBeGreaterThanOrEqual(10);
-    expect(fn - 2).toBeLessThanOrEqual(16);
+    // (two fans: the bend's and the lake's)
+    expect(fn / 2 - 2).toBeGreaterThanOrEqual(10);
+    expect(fn / 2 - 2).toBeLessThanOrEqual(16);
     const ray = new THREE.Raycaster();
     const down = new THREE.Vector3(0, -1, 0);
     // the true corner is covered (from above: the faces look up)

@@ -169,9 +169,14 @@ const STONE_COLORS = [0x8a8378, 0x7a7266, 0x958c7e, 0x6f6a60];
 // With no ground plane to borrow (or one that is not a PlaneGeometry) there is
 // no fill and no bending, so the band never rounds a corner it can't cover.
 // The Woods: river-west (x <= 23, z -14..-9) turns north into river-north
-// (x 18..23, z <= -9); the bend's outer corner is (23, -9).
+// (x 18..23, z <= -9); the bend's outer corner is (23, -9). The Woods lake's
+// north-east corner (-14, -34) pokes into the land the same way and gets a
+// wider arc.
 export const BANK_FILLETS = Object.freeze({
-  woods: Object.freeze([Object.freeze({ x: 23, z: -9, r: 1.6, wx: -1, wz: -1 })]),
+  woods: Object.freeze([
+    Object.freeze({ x: 23, z: -9, r: 1.6, wx: -1, wz: -1 }),
+    Object.freeze({ x: -14, z: -34, r: 4, wx: -1, wz: -1 }),
+  ]),
 });
 // Polish-streams — the wandering bank (BITES). A stream is a rect footprint
 // with ruler-straight edges, and the footprint is gameplay (the collider, the
