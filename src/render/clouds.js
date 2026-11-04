@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { createNightSky } from './nightsky.js';
 
 // ---------------------------------------------------------------------------
 // CLOUDS — a few soft low-poly clouds drifting across the outdoor skies
@@ -42,6 +43,10 @@ import { mulberry32, seedFromCode } from '../rng.js';
 // colour is the sky's own horizon stop (world/builder.js applySky), the dusk
 // horizon (walk.js), or the rain/sunset horizon (weather.js), so the clouds
 // re-tint by themselves when a shower clears and the sky comes back.
+//
+// NIGHT SKY. On a dusk walk the rig also owns the stars and moon
+// (render/nightsky.js), even on a tier with clouds off: they cost two cheap
+// draws and dusk is where the magic is. `night` on the rig is null by day.
 //
 // FOG. The material has fog off: scene fog runs out at 110-130m and every
 // cloud is further than that, so fogged clouds would vanish into the haze. A
@@ -296,13 +301,14 @@ export function puffGeometry(detail = 1) {
   return g;
 }
 
-const NO_CLOUDS = Object.freeze({ mesh: null, clouds: [], update() {}, dispose() {} });
+const NO_CLOUDS = Object.freeze({ mesh: null, clouds: [], night: null, update() {}, dispose() {} });
 
 // createClouds(scene, { areaId, tier, camera, reducedMotion, dusk, sunset, centre })
 // — the per-walk rig, in the session's { update, dispose } shape. Call it
 // AFTER rig.js's assignShadowCasters and mergeStaticProps have scanned the
 // scene (both also skip `userData.clouds`, belt and braces). A no-op stub for
-// the den, an unknown area, or a tier with clouds off. `centre` is the area's
+// the den, an unknown area, or a tier with clouds off (unless it is dusk:
+// then the night sky alone). `centre` is the area's
 // middle, used once to measure the horizon band; it defaults to the origin
 // every world is built around. `sunset` is a sunset-weather walk (walk.js
 // passes weather.condition === 'sunset'); weather never rolls on a dusk walk,
@@ -312,7 +318,13 @@ export function createClouds(scene, {
   areaId, tier, camera, reducedMotion = false, dusk = false, sunset = false, centre,
 } = {}) {
   const count = tier?.cloudCount ?? 0;
-  if (!CLOUD_AREAS.includes(areaId) || !(count > 0) || !camera) return NO_CLOUDS;
+  if (!CLOUD_AREAS.includes(areaId) || !camera) return NO_CLOUDS;
+  const night = dusk ? createNightSky(scene, { areaId, camera, reducedMotion }) : null;
+  if (!(count > 0)) {
+    if (!night) return NO_CLOUDS;
+    // Clouds off, stars on.
+    return { mesh: null, clouds: [], night, update: (t = 0) => night.update(t), dispose: () => night.dispose() };
+  }
 
   // Lay out once at the floor to learn the reach, then raise the base if the
   // band needs it, and lay out again at that base (same seed, same shapes).
@@ -408,6 +420,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
     mesh.instanceMatrix.needsUpdate = true;
     // Follow the sky: a shower that clears hands the fog its old colour back.
     if (scene.fog) cloudPalette(scene.fog.color, mood, palette);
+    night?.update(t);
   }
 
   function dispose() {
@@ -415,8 +428,9 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
     mesh.geometry.dispose();
     material.dispose();
     mesh.dispose();
+    night?.dispose();
   }
 
   update(0); // placed before the first frame
-  return { mesh, clouds, palette, update, dispose };
+  return { mesh, clouds, palette, night, update, dispose };
 }
