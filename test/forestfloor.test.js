@@ -23,12 +23,11 @@ const { forestFloorMesh, canopyShade, woodsFloorTint, pinesFloorTint } = await i
 const woods = await import('../src/world/woods.js');
 const b = await import('../src/world/builder.js');
 const { waterGap } = b;
-const { build, SPAWN, WOODS_WATERS, WOODS_PATHS, woodsTreeSpots, woodsFloor, woodsGroundTint } = woods;
+const { build, SPAWN, WOODS_WATERS, WOODS_PATHS, woodsTreeSpots, woodsFloor, woodsGroundTint, CLEARING, FALLEN_LOG } = woods;
 const pines = await import('../src/world/pines.js');
 const { ISLAND_LAND, BRIDGE_DECK } = await import('../src/world/island.js');
 const { DISCS } = await import('../src/rivalclans.js');
 
-const CLEARING = { x: 4, z: 12, r: 9 };
 const PATH_W = 3;
 
 function segDist(x, z, [x1, z1, x2, z2]) {
@@ -71,6 +70,30 @@ describe('forestFloorMesh', () => {
       expect(maxY(m)).toBeGreaterThan(0);
     });
   }
+
+  it('lays each leaf as a pointed oval: two triangles on four points, 0.12-0.18 m long, folded at the vein', () => {
+    const m = forestFloorMesh({ leaves: spots });
+    expect(trianglesOf(m.geometry)).toBe(2 * spots.length);
+    const pos = m.geometry.attributes.position;
+    const nor = m.geometry.attributes.normal;
+    for (let k = 0; k < spots.length; k++) {
+      const pts = [];
+      for (let i = 0; i < 6; i++) pts.push([pos.getX(k * 6 + i), pos.getY(k * 6 + i), pos.getZ(k * 6 + i)]);
+      const keys = new Set(pts.map((q) => q.map((v) => v.toFixed(5)).join(',')));
+      expect(keys.size).toBe(4);
+      let len = 0;
+      for (const a of pts) for (const c of pts) len = Math.max(len, Math.hypot(a[0] - c[0], a[2] - c[2]));
+      expect(len).toBeGreaterThanOrEqual(0.12 - 1e-6);
+      expect(len).toBeLessThanOrEqual(0.18 + 1e-6);
+      for (const q of pts) expect(q[1]).toBeGreaterThanOrEqual(0.018);
+      // the two halves face up, at slightly different slopes (the vein fold)
+      const n0 = [nor.getX(k * 6), nor.getY(k * 6), nor.getZ(k * 6)];
+      const n1 = [nor.getX(k * 6 + 3), nor.getY(k * 6 + 3), nor.getZ(k * 6 + 3)];
+      expect(n0[1]).toBeGreaterThan(0.9);
+      expect(n1[1]).toBeGreaterThan(0.9);
+      expect(n0[0] * n1[0] + n0[1] * n1[1] + n0[2] * n1[2]).toBeLessThan(0.9999);
+    }
+  });
 });
 
 describe('the Woods floor tint', () => {
@@ -139,7 +162,7 @@ describe('the Woods floor', () => {
 
   it('keeps every trunk-foot moss cushion at least 0.45 x scale out from its trunk', () => {
     // the log's moss lies within 0.6 m of its centreline (woods.js FALLEN_LOG)
-    const L = { x: -2, z: 16, length: 5, yaw: 0.3 };
+    const L = FALLEN_LOG;
     const h = L.length / 2;
     const log = [L.x - Math.sin(L.yaw) * h, L.z - Math.cos(L.yaw) * h, L.x + Math.sin(L.yaw) * h, L.z + Math.cos(L.yaw) * h];
     const feet = floor.moss.filter((p) => segDist(p.x, p.z, log) > 0.7);

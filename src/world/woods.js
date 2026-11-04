@@ -154,11 +154,12 @@ export const WOODS_PATHS = Object.freeze([
 const PATH_W = 3;
 const PATH_STYLE = { surface: 'sand', color: 0x9c7c58 };
 
-// The sunny clearing: no trees.
-const CLEARING = { x: 4, z: 12, r: 9 };
+// The sunny clearing: no trees. Exported read-only for the tests.
+export const CLEARING = Object.freeze({ x: 4, z: 12, r: 9 });
 
 // The fallen log on the edge of the clearing, a seat and a first hop.
-const FALLEN_LOG = { x: -2, z: 16, length: 5, yaw: 0.3 };
+// Exported read-only for the tests.
+export const FALLEN_LOG = Object.freeze({ x: -2, z: 16, length: 5, yaw: 0.3 });
 
 // --- the things to find ------------------------------------------------------
 // Laid out before the trees and the undergrowth, because KEEP_CLEAR (below) is
@@ -341,10 +342,13 @@ export function woodsUndergrowth() {
 // trunk, and the moss and mushrooms by the fallen log sit beside it (the
 // ferns keep 3 m off the log, and it lies in the clearing's edge).
 const FLOOR_LEAF_PATH = PATH_W / 2 + 0.15;
-// Leaves per tree (times its scale), one triangle each, piled near the
-// trunk: three in four within 1.6 m (scaled), the rest out to 2.6 m, none
-// hidden inside the trunk. Sized to the Woods' triangle cap (58,500).
+// Leaves per tree (times its scale), piled near the trunk: three in four
+// within 1.6 m (scaled), the rest out to 2.6 m, none hidden inside the trunk.
+// FLOOR_LEAVES spots are drawn per tree and every second one is laid, two
+// triangles each (forestfloor.js leaf): sized to the Woods' triangle cap
+// (58,500), and the rest of the floor draws the same numbers it always did.
 const FLOOR_LEAVES = 30;
+const FLOOR_LEAF_EVERY = 2;
 const CAMP_DISC = (() => {
   const L = campLayout('woods');
   return { x: L.cx, z: L.cz, r: DISCS.woods.r };
@@ -392,7 +396,7 @@ export function woodsFloor() {
       const s = 0.85 + 0.3 * rng();
       const x = r2(t.x + Math.cos(a) * d);
       const z = r2(t.z + Math.sin(a) * d);
-      if (leafFits(x, z)) leaves.push({ x, z, s: r2(s), a: r3(yaw) });
+      if (i % FLOOR_LEAF_EVERY === 0 && leafFits(x, z)) leaves.push({ x, z, s: r2(s), a: r3(yaw) });
     }
   }
 

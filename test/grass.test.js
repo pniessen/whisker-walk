@@ -36,8 +36,8 @@ const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
 const { riverGroundTint } = await import('../src/world/riverdress.js');
 const { moorGroundTint } = await import('../src/world/moordress.js');
-const { build: buildPines, pinesGroundTint } = await import('../src/world/pines.js');
-const { woodsGroundTint } = await import('../src/world/woods.js');
+const { build: buildPines, pinesGroundTint, pinesTrees } = await import('../src/world/pines.js');
+const { build: buildWoods, woodsGroundTint } = await import('../src/world/woods.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -46,7 +46,7 @@ const { LADDER } = await import('../src/render/quality.js');
 
 const BUILDS = {
   park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, river: buildRiver, moor: buildMoor,
-  pines: buildPines,
+  pines: buildPines, woods: buildWoods,
 };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN grass.
@@ -711,8 +711,12 @@ describe('ground tint under tufts', () => {
     off.sort((a, b) => a - b);
     return { wired, p95: off[Math.floor(0.95 * (off.length - 1))], max: off[off.length - 1] };
   }
-  // `p95` is looser for the Pines: its needle beds fade out over 2 m round
-  // each trunk, steeper than the 1 m grid follows exactly.
+  // `p95` is looser for the Pines and the Woods: their needle beds and leaf
+  // litter fade out over 2 m round each trunk, steeper than the 1 m grid
+  // follows exactly. Measured on the raw multiplier x 0.8 (2026-11-04): the
+  // Pines' p95 0.038-0.040 over its three views (limit 0.045), the Woods'
+  // 0.055-0.068 over its four (limit 0.075; its litter drifts have wobbly
+  // edges and it stacks shade, litter and moss).
   function expectFollows(r, p95 = 0.04) {
     expect(r.wired).toBeLessThan(1e-4);
     expect(r.p95).toBeLessThan(p95);
@@ -765,12 +769,28 @@ describe('ground tint under tufts', () => {
     grass.dispose();
   }, 120_000);
 
+  it('Woods tufts follow the leaf litter and the canopy shade', () => {
+    const { scene, areaData, camera, tier } = walkScene('woods');
+    const grass = createGrass(scene, { areaId: 'woods', areaData, tier, camera });
+    expect(grass.tint).not.toBeNull();
+    let checked = 0;
+    for (const [x, z] of [[-20, -10], [20, -25], [-25, 30], [30, 20]]) {
+      aimAt(camera, x, z);
+      grass.update(1, 1);
+      checked += grass.mesh.count;
+      expectFollows(checkFollows(grass, woodsGroundTint, 0.8, GRASS_STYLES.woods, areaData.bounds), 0.075);
+    }
+    expect(checked).toBeGreaterThan(200);
+    grass.dispose();
+  }, 120_000);
+
   it('Pines tufts follow the needle beds, and go browner under the pines', () => {
     const { scene, areaData, camera, tier } = walkScene('pines');
     const grass = createGrass(scene, { areaId: 'pines', areaData, tier, camera });
     expect(grass.tint).not.toBeNull();
     let checked = 0;
-    const trunks = areaData.colliders;
+    const { near, stand } = pinesTrees();
+    const trunks = [...near, ...stand];
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const c = new THREE.Color();
@@ -780,7 +800,7 @@ describe('ground tint under tufts', () => {
       aimAt(camera, x, z);
       grass.update(1, 1);
       checked += grass.mesh.count;
-      expectFollows(checkFollows(grass, pinesGroundTint, 0.8, GRASS_STYLES.pines, areaData.bounds), 0.05);
+      expectFollows(checkFollows(grass, pinesGroundTint, 0.8, GRASS_STYLES.pines, areaData.bounds), 0.045);
       for (let i = 0; i < grass.mesh.count; i++) {
         grass.mesh.getMatrixAt(i, m);
         p.setFromMatrixPosition(m);

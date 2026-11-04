@@ -16,8 +16,8 @@ import { ZOOM_STEPS } from '../camzoom.js';
 import { addCamp } from './camp.js';
 import { withLocalUuids } from './localuuids.js';
 import { DISCS } from '../rivalclans.js';
-import { tintGround, once, smoothField, smoothstep } from './dressing.js';
-import { forestFloorMesh, pinesFloorTint, canopyShade } from './forestfloor.js';
+import { tintGround, once } from './dressing.js';
+import { forestFloorMesh, pinesFloorTint, pinesMossField, canopyShade } from './forestfloor.js';
 
 // =============================================================================
 // The Pines and Swamp.
@@ -617,8 +617,6 @@ const FLOOR_CONES = { near: 3, stand: 1, reach: 1.8 };
 const FLOOR_MOSS = { cell: 5, cap: 40, per: 3 };
 const FLOOR_BERRIES = { cell: 7, cap: 18, apart: 3 };
 const r3 = (v) => Math.round(v * 1000) / 1000;
-// the moss patches the ground tint paints (forestfloor.js pinesFloorTint)
-const mossField = (x, z) => smoothstep(0.25, 0.65, smoothField(x, z, 113, 9));
 export function pinesFloor() {
   const rng = mulberry32(seedFromCode('pines-floor'));
   const { near, stand } = pinesTrees();
@@ -666,7 +664,7 @@ export function pinesFloor() {
 
   // moss: patches of up to three cushions where the ground's moss patches are,
   // out from under the pines
-  for (const c of centres(FLOOR_MOSS.cell, (x, z) => mossField(x, z) > 0.4 && canopyShade(trees, x, z) < 0.6)) {
+  for (const c of centres(FLOOR_MOSS.cell, (x, z) => pinesMossField(x, z) > 0.4 && canopyShade(trees, x, z) < 0.6)) {
     for (let k = 0; k < FLOOR_MOSS.per; k++) {
       const a = rng() * Math.PI * 2;
       const d = k === 0 ? 0 : 0.45 + 0.7 * rng();
