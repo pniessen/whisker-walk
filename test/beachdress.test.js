@@ -114,12 +114,39 @@ describe('beach paint', () => {
     expect(paint.receiveShadow).toBe(true);
   });
 
-  it('does not change the area record it was given', () => {
-    const s2 = new THREE.Scene();
-    const a2 = build(s2);
-    const before = JSON.stringify(a2, (k, v) => (v && v.isObject3D ? undefined : v));
-    dressBeach(new THREE.Scene(), a2);
-    expect(JSON.stringify(a2, (k, v) => (v && v.isObject3D ? undefined : v))).toBe(before);
+  it('does not change the area record it was given', async () => {
+    const { createHash } = await import('node:crypto');
+    const plain = (rec) => JSON.stringify(rec, (k, v) => (v && v.isObject3D ? undefined : (k === 'waterFx' ? undefined : v)));
+    const first = new THREE.Scene();
+    const rec = build(first);
+    const copy = JSON.parse(plain(rec));
+    // Dress a fresh scene from the finished record, as build() itself does.
+    const fresh = new THREE.Scene();
+    dressBeach(fresh, rec, { ground: first.children.find((c) => c.isMesh && c.userData.ground && c.geometry?.parameters?.width === 140) });
+    expect(JSON.parse(plain(rec))).toEqual(copy);
+    // And the record is what seaside.js has always returned (pinned).
+    expect(rec.colliders).toHaveLength(15);
+    expect(createHash('sha256').update(JSON.stringify(rec.colliders)).digest('hex'))
+      .toBe('de2eb599e0d9674d809f13617caac4e30d644e80ee04e1ae752eb164f3040ef0');
+    expect(rec.bounds).toEqual({ minX: -48, maxX: 36, minZ: -34, maxZ: 48 });
+    expect(rec.spawn).toEqual({ x: 18, z: 42 });
+    expect(rec.pois).toHaveLength(8);
+    expect(createHash('sha256').update(JSON.stringify(rec.pois)).digest('hex')).toBe('1596acde94725516bc856fe3d11359ce2de600cde259f828102449d2baa903f7');
+  });
+
+  it('has no uv attribute and no map on the low texture tier', async () => {
+    const { setTextureTier, getTextureTier } = await import('../src/render/textures.js');
+    const before = getTextureTier();
+    try {
+      setTextureTier('low');
+      const s = new THREE.Scene();
+      build(s);
+      const p = s.children.find((c) => c.name === 'beachPaint');
+      expect(p.material.map).toBeNull();
+      expect(p.geometry.attributes.uv).toBeUndefined();
+    } finally {
+      setTextureTier(before);
+    }
   });
 
   it('stays flat and under the contact shadows', () => {

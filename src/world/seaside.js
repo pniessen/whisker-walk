@@ -6,7 +6,7 @@ import { litMaterial, repeatFor, surfaceProps } from '../render/materials.js';
 import { createWater, WATER_TUNING } from '../render/water.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
 import { tintGround } from './dressing.js';
-import { sandTint, dressBeach } from './beachdress.js';
+import { sandTint, dressBeach, KERB_COL } from './beachdress.js';
 
 // The same two opt-in helpers world/builder.js keeps at the top of itself, for
 // the props this file builds locally rather than borrowing. They are duplicated
@@ -404,6 +404,18 @@ export const SEA_VIEW = Object.freeze({ id: 'sea-view', kind: 'rect', minX: 25, 
 // Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
 export const SPAWN = Object.freeze({ x: 18, z: 42 });
 
+// Where build() places the beach's scenery, shared with beachdress.js so its
+// keep-outs and post clearances read the same numbers (frozen [x, z] pairs).
+const pairs = (list) => Object.freeze(list.map((p) => Object.freeze(p)));
+export const SEASIDE_ROCKS = pairs([[-8, 10], [-20, -2], [4, 24], [-28, 18]]);
+export const SEASIDE_ROCKS_EXTRA = pairs([[-32, 30], [12, -10], [-32, -10]]);
+export const SEASIDE_BUSHES = pairs([[-14, 30], [-2, -14], [-24, -20], [8, 2]]);
+export const SEASIDE_BUSHES_EXTRA = pairs([[-30, 5], [12, 20]]);
+export const BILLBOARD = Object.freeze({ x: 15, z: 34, yaw: Math.PI / 2 });
+export const BENCHES = pairs([[18, 14], [18, -18]]);
+export const LAMPS = pairs([[20, 30], [20, -30]]);
+export const SEASIDE_BOXES = pairs([[19, 24], [-14, 4], [23, -6]]);
+
 // The backing dunes' band and their edge (see the horizon band in build()).
 export const SEASIDE_HORIZON = Object.freeze({
   kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26,
@@ -576,7 +588,7 @@ export function build(scene, { water = {}, wind } = {}) {
     piece(4.3, 0.12, 0.4, 20, 0.04, 45.2);
     for (const x of [17.85, 22.15]) piece(0.18, 0.6, 0.18, x, 0.26, 45.3);
     // Weathered timber, the same as the beach kerbs (polish-beach): 0x8a6a48 read orange at sunset.
-    const mesh = new THREE.Mesh(mergeGeometries(parts, false), surfNoMap(0x7a6852, 'wood'));
+    const mesh = new THREE.Mesh(mergeGeometries(parts, false), surfNoMap(KERB_COL, 'wood'));
     for (const g of parts) g.dispose();
     mesh.name = 'boardwalkEnd';
     mesh.userData.noCast = true;
@@ -658,7 +670,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // beach props. Two of these four boulders have carried perches since v11
   // ((-8,10) and the "overlook boulder" at (-28,18)); the rest of the sand is
   // scenery, and CF-9b opens it — see clawPerches below.
-  for (const [x, z] of [[-8, 10], [-20, -2], [4, 24], [-28, 18]]) scene.add(b.rock(x, z));
+  for (const [x, z] of SEASIDE_ROCKS) scene.add(b.rock(x, z));
 
   // a dune ledge beside the overlook boulder — second step of a short climb
   // chain (boulder y 0.72 -> ledge y 1.9), 1.41 horizontally and 1.18
@@ -669,21 +681,20 @@ export function build(scene, { water = {}, wind } = {}) {
   // colour and every number here are the shipped ones.
   scene.add(b.platform(-29, 19, 1.9, 0, 1.8, 0xd8c088, { surface: 'sand' }));
   addC(-29, 19, 1.0);
-  scene.add(b.bench(18, 14, Math.PI / 2));
-  scene.add(b.bench(18, -18, Math.PI / 2));
-  for (const [x, z] of [[20, 30], [20, -30]]) scene.add(b.lampPost(x, z));
+  for (const [x, z] of BENCHES) scene.add(b.bench(x, z, Math.PI / 2));
+  for (const [x, z] of LAMPS) scene.add(b.lampPost(x, z));
 
-  scene.add(b.billboard(15, 34, Math.PI / 2));
-  addC(15, 34, 2.3);
+  scene.add(b.billboard(BILLBOARD.x, BILLBOARD.z, BILLBOARD.yaw));
+  addC(BILLBOARD.x, BILLBOARD.z, 2.3);
   // beach grass tufts — the area's only foliage, and therefore the whole of
   // what registers with the wind rig. builder.bush returns a Group hinged at
   // ground contact when `wind` is passed, so the tuft stands in exactly the
   // same place either way and no hide-spot or scent record moves.
-  for (const [x, z] of [[-14, 30], [-2, -14], [-24, -20], [8, 2]]) scene.add(b.bush(x, z, { wind }));
+  for (const [x, z] of SEASIDE_BUSHES) scene.add(b.bush(x, z, { wind }));
 
   // a few more rocks and grass tufts scattered on the sand
-  for (const [x, z] of [[-32, 30], [12, -10], [-32, -10]]) scene.add(b.rock(x, z));
-  for (const [x, z] of [[-30, 5], [12, 20]]) scene.add(b.bush(x, z, { wind }));
+  for (const [x, z] of SEASIDE_ROCKS_EXTRA) scene.add(b.rock(x, z));
+  for (const [x, z] of SEASIDE_BUSHES_EXTRA) scene.add(b.bush(x, z, { wind }));
 
   // driftwood washed up at the sand line. Thin-member rule: 0.15 by 0.25, so
   // repeatFor's one-whole-tile minimum would squash the plank tile's four
@@ -699,7 +710,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // "if I fits, I sits" award needs the cat within 0.35 of the box, i.e.
   // standing on it. It is now on the sand at (23, -6), 2.0 clear of the
   // waterline and a couple of metres east of the boardwalk.
-  const boxes = [[19, 24], [-14, 4], [23, -6]];
+  const boxes = SEASIDE_BOXES;
   for (const b2 of boxes) scene.add(b.cardboardBox(b2[0], b2[1]));
 
   const area = {
@@ -807,6 +818,6 @@ export function build(scene, { water = {}, wind } = {}) {
   };
   // The painted beach (beachdress.js): looks only, built from the record
   // it is about to return so its keep-outs are the real ones.
-  dressBeach(scene, area);
+  dressBeach(scene, area, { ground: g });
   return area;
 }

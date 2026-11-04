@@ -1,7 +1,8 @@
 // Seaside beach dressing (polish-beach).
 //
 // sandTint is a pure helper (no Three objects, no Math.random), so tests and
-// the ground tint can call it freely. dressBeach adds the painted beach: one
+// the ground tint can call it freely. dressBeach adds the painted beach: the
+// 'beachDressing' props mesh (shells, castles, boardwalk kerbs...) and one
 // flat, noCast, vertex-coloured mesh ('beachPaint') lying just above the sand
 // with a fresh seaweed tide line and a faint old wrack line on the wet band,
 // wind ripples on the open front beach, a striped towel near the spawn, the
@@ -18,6 +19,9 @@ import * as THREE from 'three';
 import { hash01 } from './builder.js';
 import { smoothField, PAINT_Y, Tris, lin, scale3, smoothstep, unit, dressMesh } from './dressing.js';
 import { withLocalUuids } from './localuuids.js';
+import {
+  SEASIDE_ROCKS, SEASIDE_ROCKS_EXTRA, SEASIDE_BUSHES, SEASIDE_BUSHES_EXTRA, BILLBOARD, BENCHES, LAMPS,
+} from './seaside.js';
 import { propsFor } from '../propsets.js';
 import { DISCS } from '../rivalclans.js';
 import { BEACH, WET_TINT, wetness } from './seaside.js';
@@ -78,11 +82,11 @@ export function beachKeepOut(area) {
   add(area.boxes, 1.2);
   add(area.tippables, 1.0);
   add(area.perches, 1.4);
-  addXZ([[-8, 10], [-20, -2], [4, 24], [-28, 18], [12, -10], [-32, -10], [-32, 30]], 1.4);
-  addXZ([[-14, 30], [-2, -14], [-24, -20], [8, 2], [-30, 5], [12, 20]], 1.6);
-  addXZ([[15, 34]], 2.6);
-  addXZ([[18, 14], [18, -18]], 1.6);
-  addXZ([[20, 30], [20, -30]], 0.8);
+  addXZ([...SEASIDE_ROCKS, ...SEASIDE_ROCKS_EXTRA], 1.4);
+  addXZ([...SEASIDE_BUSHES, ...SEASIDE_BUSHES_EXTRA], 1.6);
+  addXZ([[BILLBOARD.x, BILLBOARD.z]], 2.6);
+  addXZ(BENCHES, 1.6);
+  addXZ(LAMPS, 0.8);
   const props = propsFor('seaside');
   for (const key of ['carryables', 'knockables', 'markables', 'rests']) add(props[key], 1.2);
   add(props.flaps, 1.5);
@@ -472,7 +476,7 @@ function buildPaint(keep, groundMesh) {
   // itself: the tile's mean (~0.96) darkens both alike and the grain runs on
   // across a mark's edge instead of stopping at it.
   const map = groundMesh?.material?.map ?? null;
-  if (uv) {
+  if (uv && map) {
     const pos = geo.attributes.position;
     const uvs = new Float32Array(pos.count * 2);
     for (let i = 0; i < pos.count; i++) {
@@ -490,7 +494,7 @@ function buildPaint(keep, groundMesh) {
       vertexColors: true,
       roughness: gm?.roughness ?? 0.92,
       metalness: gm?.metalness ?? 0,
-      ...(map && uv ? { map } : {}),
+      ...(map ? { map } : {}),
       side: THREE.FrontSide,
       polygonOffset: true,
       polygonOffsetFactor: -1,
@@ -869,14 +873,14 @@ function castleCol(it) {
 
 // A stick flag streaming west (the wind is off the sea), seen from either side.
 function addFlag(P, at, top, len, colHex) {
-  const T = at(top);
+  const tip = at(top);
   const pole = (y) => at([top[0], y, top[2]]);
   const P1 = pole(top[1] - 0.06);
-  const tipA = [T[0] - len, (T[1] + P1[1]) / 2 - 0.004, T[2] + 0.02];
-  const tri = [[T, P1, tipA]];
+  const tipA = [tip[0] - len, (tip[1] + P1[1]) / 2 - 0.004, tip[2] + 0.02];
+  const flag = [[tip, P1, tipA]];
   const col = lin(colHex);
-  P.put(tri, () => [0, 0, 1], AT_WORLD, col);
-  P.put(tri, () => [0, 0, -1], AT_WORLD, vary(col, 0.85));
+  P.put(flag, () => [0, 0, 1], AT_WORLD, col);
+  P.put(flag, () => [0, 0, -1], AT_WORLD, vary(col, 0.85));
 }
 
 function addCastle(P, it) {
@@ -975,8 +979,17 @@ function addUmbrella(P, it) {
 // crowd (benches, lamps, the box, tippables, the water bowl, the spawn).
 // Weathered timber: greyer and a little darker than the deck (0xa08050 under
 // its wood tile), so the edge reads as old boards, not as fresh orange trim.
-const KERB_COL = 0x7a6852;
-const POST_SKIP = [[18, 14], [18, -18], [20, 30], [20, -30], [19, 24], [17, 15], [17, -17], [21, 29], [17.5, 8]];
+export const KERB_COL = 0x7a6852;
+const WATER_BOWL = [17.5, 8];
+// What the posts keep clear of: the benches, lamps, the box and tippables
+// along the boardwalk, and the water bowl.
+function postSkip(area) {
+  return [
+    ...BENCHES, ...LAMPS, WATER_BOWL,
+    ...(area.boxes || []).filter((q) => q.x > 10).map((q) => [q.x, q.z]),
+    ...(area.tippables || []).filter((q) => q.x > 10).map((q) => [q.x, q.z]),
+  ];
+}
 function addBoardwalkEdge(P, area, keep) {
   const kerb = lin(KERB_COL);
   const runs = [[18, -45, 45], [22, -45, -11.6], [22, -8.4, 45]];
@@ -999,12 +1012,13 @@ function addBoardwalkEdge(P, area, keep) {
     }
   });
   const post = lin(0x6c5c4a);
+  const skip = postSkip(area);
   for (const [x, east] of [[17.88, false], [22.12, true]]) {
     for (let i = 0; i < 12; i++) {
       const z = -41.25 + 7.5 * i;
-      if ([...POST_SKIP, [area.spawn.x, area.spawn.z]].some(([px, pz]) => Math.hypot(x - px, z - pz) < 1.6)) continue;
+      if ([...skip, [area.spawn.x, area.spawn.z]].some(([px, pz]) => Math.hypot(x - px, z - pz) < 1.6)) continue;
       if (east && Math.hypot(x - 22, Math.max(0, -11.5 - z, z + 8.5)) < 1.6) continue;
-      if (keep.some((q) => Math.hypot(x - q.x, z - q.z) < q.r)) continue;
+      if (keep.some((q) => Math.hypot(x - q.x, z - q.z) < q.r + 0.08)) continue;
       P.put(boxTris(0.16, 0.42, 0.16), boxFace(0.42), place({ x, z }), vary(post, 0.9 + 0.15 * hash01(i, x, 2203)));
     }
   }
@@ -1024,10 +1038,10 @@ function buildDressing(area, keep) {
 
 // Dresses the Seaside's beach from its area record (which it reads, never
 // changes). Adds its meshes to the scene and returns them.
-export function dressBeach(scene, area) {
+export function dressBeach(scene, area, opts = {}) {
   const keep = beachKeepOut(area);
   // The 140m dry-sand plane (seaside.js build), whose colours the paint matches.
-  const groundMesh = scene.children.find((c) => c.isMesh && c.userData.ground
+  const groundMesh = opts.ground ?? scene.children.find((c) => c.isMesh && c.userData.ground
     && c.geometry?.parameters?.width === 140 && c.geometry.attributes.color);
   const paint = withLocalUuids('seaside-beach-paint', () => buildPaint(keep, groundMesh));
   const dressing = withLocalUuids('seaside-beach-dressing', () => buildDressing(area, keep));
