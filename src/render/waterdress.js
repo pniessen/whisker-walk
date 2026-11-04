@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { waterGap, waterClearance, deckDistance } from '../world/builder.js';
 import { bankPieces, waterRamp, WATER_EVENING } from './water.js';
+import { fishSpots } from './fishjump.js';
 
 // ---------------------------------------------------------------------------
 // WATER DRESSING — the edge where the water meets the land (polish-water
@@ -22,10 +23,11 @@ import { bankPieces, waterRamp, WATER_EVENING } from './water.js';
 //     (polish-waterlife, BANK_FILLETS) and the streams' bites (polish-streams,
 //     see BITES below). The third mesh of every area with a stream, as none
 //     of them has a sea apron;
-//   - reeds / lily pads: none today. The Woods, Moor, River and Pines all
-//     plant their own reed beds along these banks, and the Pines bogs already
-//     float lily pads (pines.js pinesLilyPads), so a second set would only
-//     double them up. The slot is kept in the count for a style that needs it.
+//   - reeds / lily pads: only round the Park's duck pond (POND_PLANTS), and
+//     merged into the stones mesh, so they cost no draw of their own. The
+//     Woods, Moor, River and Pines all plant their own reed beds along their
+//     banks, and the Pines bogs already float lily pads (pines.js
+//     pinesLilyPads), so a second set there would only double them up.
 //
 // REAL SHORE ONLY. Where two footprints overlap (a pond over a river, a river
 // mouth over a lake) the outline running under the other water is open water,
@@ -49,7 +51,7 @@ import { bankPieces, waterRamp, WATER_EVENING } from './water.js';
 // and stones from `waterdress-<area>-<water id>`.
 // ---------------------------------------------------------------------------
 
-export const DRESSED_AREAS = Object.freeze(['woods', 'river', 'moor', 'pines', 'seaside']);
+export const DRESSED_AREAS = Object.freeze(['woods', 'river', 'moor', 'pines', 'seaside', 'park']);
 
 // How far outside the area's walkable bounds a bank is still drawn. Past it
 // the edge is the far horizon (the lake's west shore, the river's far reach).
@@ -89,6 +91,8 @@ const BANK_COLORS = Object.freeze({
   pines: { wet: 0x4a4229, damp: 0x58603a },
   // A wetter, darker sand. Task 4 gives the sea its own builder.
   seaside: { wet: 0x8c7650, damp: 0xa89470 },
+  // The Park's lawn is a brighter, greener grass than the wild areas'.
+  park: { wet: 0x5a5a30, damp: 0x5f8c42 },
 });
 // A bog is already dark and sits in dark ground, so its ring is drawn a
 // little fainter (`alpha` scales the band's strength): a full-strength ring
@@ -220,6 +224,46 @@ const RIFFLE_DECK = 2.5;
 const STREAK_LEN = [0.5, 0.4];
 const STREAK_HALF_W = [0.04, 0.02];
 const STREAK_ALPHA = 0.45;
+
+// Polish-streams — the Park's duck pond plants: a few clumps of reeds (some
+// with a brown cattail) on two arcs of the south shore, and a little raft of
+// round lily pads (a notch cut out of each, two with a pink flower) out on
+// the water on that side. The arcs are degrees of atan2(z - centre z,
+// x - centre x): the north shore (the `pond-shore` scenic and its POI) and
+// the duck parade's way out to the north-east stay open. Seeded from
+// `waterdress-<area>-<water id>-reeds` / `-lilies`; not on the LOW tier.
+const POND_PLANTS = Object.freeze({
+  park: Object.freeze({
+    pond: Object.freeze({ reedArcs: [[200, 250], [290, 340]], lilyAt: 270 }),
+  }),
+});
+// Reed clumps: one every REED_EVERY + REED_EVERY_JIT * rng() metres of rim,
+// REED_OUT + REED_OUT_JIT * rng() onto the land from the visual waterline.
+const REED_EVERY = 0.9;
+const REED_EVERY_JIT = 0.5;
+const REED_OUT = 0.05;
+const REED_OUT_JIT = 0.3;
+const REED_COLORS = [0x6f8a3c, 0x7f9a46, 0x5d7a34];
+const CATTAIL_COLOR = 0x6b4a2a;
+const CATTAIL_R = 0.05;
+const CATTAIL_H = 0.18;
+// Lily pads: LILY_COUNT tries for a pad round `lilyAt` (+-LILY_SPREAD
+// degrees), LILY_IN +- LILY_IN_JIT metres in from the shore, out of at most
+// LILY_TRIES candidates; a pad keeps 1 m off every fish spot and off its
+// neighbours.
+const LILY_COUNT = 7;
+const LILY_TRIES = 40;
+const LILY_SPREAD = 35;
+const LILY_IN = 2.0;
+const LILY_IN_JIT = 0.6;
+const LILY_R = [0.28, 0.14];
+const LILY_SEGS = 10;
+const LILY_LIFT = 0.006;
+const LILY_COLORS = [0x4f8a3a, 0x5c9a44];
+const LILY_FLOWERS = 2;
+const FLOWER_COLOR = 0xf2b6c8;
+const FLOWER_H = 0.08;
+const FLOWER_R = 0.06;
 
 // Arc segments in a fill fan (one triangle each).
 const FILLET_SEGS = 12;
@@ -610,7 +654,7 @@ function stoneSpots(runs, areaData, keepOut = []) {
 // above its `floor` are kept (the ground at 0 for a bank stone, the water's
 // surface for a riffle stone: both are opaque, so what lies wholly under them
 // is never seen). That is about half the triangles of a whole stone.
-function stonesGeometry(spots) {
+function stonesGeometry(spots, extra = null) {
   const tmpl = new THREE.DodecahedronGeometry(1, 0);
   const src = tmpl.getAttribute('position');
   const per = src.count;
@@ -642,6 +686,8 @@ function stonesGeometry(spots) {
     }
   }
   tmpl.dispose();
+  // the pond's reeds and lily pads, already flat triangles
+  if (extra) { pos.push(...extra.pos); col.push(...extra.col); }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
   geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
@@ -1088,6 +1134,142 @@ function riffles(h, { areaId, areaData, box, undecked, evening, keepOut }) {
   return { stones, streaks };
 }
 
+// The bite (metres) of a bitten ring at angle `a` round (cx, cz): the
+// nearest sample's, by angle. 0 where the ring is not bitten.
+function biteAtAngle(samples, cx, cz, a) {
+  let best = null, bd = Infinity;
+  for (const p of samples) {
+    const x = p.x0 ?? p.x, z = p.z0 ?? p.z;
+    let d = Math.abs(Math.atan2(z - cz, x - cx) - a);
+    if (d > Math.PI) d = TAU - d;
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best?.bite ?? 0;
+}
+
+// Flat triangles for the stones mesh: positions and colours pushed per vertex.
+function triSink() {
+  const pos = [], col = [];
+  const c = new THREE.Color();
+  return {
+    pos, col,
+    // (a, b, c) as [x, y, z]; `up` winds a flat-ish face to look up
+    tri(a, b, d, hex, up = false) {
+      if (up) {
+        const abx = b[0] - a[0], abz = b[2] - a[2], adx = d[0] - a[0], adz = d[2] - a[2];
+        if (abz * adx - abx * adz < 0) [b, d] = [d, b];
+      }
+      pos.push(...a, ...b, ...d);
+      c.setHex(hex);
+      for (let k = 0; k < 3; k++) col.push(c.r, c.g, c.b);
+    },
+  };
+}
+
+// The duck pond's reeds and lily pads (see POND_PLANTS), for one circle
+// water. Every rng draw for a clump or pad comes before its filters, so a
+// dropped one moves no other.
+function pondPlants(h, plan, { areaId, areaData, bankRuns, keepOut, sink }) {
+  const w = h.footprint;
+  const hy = h.y ?? 0.03;
+  const ring = bankRuns.filter((r) => r.w === w).flatMap((r) => r.samples);
+  const colliders = areaData.colliders ?? [];
+  const blocked = (x, z, gap) => colliders.some((k) => Math.hypot(x - k.x, z - k.z) <= k.r + gap)
+    || keepOut.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + gap);
+  const reeds = [];
+  const rr = mulberry32(seedFromCode(`waterdress-${areaId}-${w.id}-reeds`));
+  for (const [a0, a1] of plan.reedArcs) {
+    const t0 = (a0 * Math.PI) / 180, t1 = (a1 * Math.PI) / 180;
+    for (let s = 0.2 * rr(); ; s += REED_EVERY + REED_EVERY_JIT * rr()) {
+      const t = t0 + s / w.r;
+      if (t > t1) break;
+      const out = REED_OUT + REED_OUT_JIT * rr();
+      const blades = 4 + Math.floor(rr() * 3);
+      const cattail = rr() < 0.5;
+      const parts = [];
+      for (let i = 0; i < blades; i++) {
+        parts.push({
+          dx: (rr() - 0.5) * 0.24, dz: (rr() - 0.5) * 0.24,
+          face: rr() * TAU, wide: 0.05 + 0.02 * rr(), tall: 0.6 + 0.5 * rr(),
+          lean: 0.08 + 0.12 * rr(), leanAt: rr() * TAU,
+          color: REED_COLORS[Math.floor(rr() * REED_COLORS.length)],
+        });
+      }
+      const rad = w.r - biteAtAngle(ring, w.x, w.z, t) + out;
+      const x = w.x + Math.cos(t) * rad, z = w.z + Math.sin(t) * rad;
+      if (blocked(x, z, 0.3)) continue;
+      reeds.push({ x, z });
+      let top = null;
+      for (const b of parts) {
+        const bx = x + b.dx, bz = z + b.dz;
+        const ux = Math.cos(b.face) * b.wide * 0.5, uz = Math.sin(b.face) * b.wide * 0.5;
+        const tip = [bx + Math.cos(b.leanAt) * b.lean, b.tall, bz + Math.sin(b.leanAt) * b.lean];
+        sink.tri([bx - ux, 0, bz - uz], [bx + ux, 0, bz + uz], tip, b.color);
+        if (!top || b.tall > top.tip[1]) top = { tip, bx, bz };
+      }
+      if (cattail && top) {
+        // a little brown head just under the tallest blade's tip, its spike
+        // poking out above
+        const at = (y) => {
+          const f = y / top.tip[1];
+          return [top.bx + (top.tip[0] - top.bx) * f, top.bz + (top.tip[2] - top.bz) * f];
+        };
+        const y1 = top.tip[1] - 0.04, y0 = y1 - CATTAIL_H;
+        const [cx0, cz0] = at(y0), [cx1, cz1] = at(y1);
+        const ringAt = (cx, cy, cz) => Array.from({ length: 6 }, (_, i) => {
+          const th = (i / 6) * TAU;
+          return [cx + Math.cos(th) * CATTAIL_R, cy, cz + Math.sin(th) * CATTAIL_R];
+        });
+        const lo = ringAt(cx0, y0, cz0), hi = ringAt(cx1, y1, cz1);
+        for (let i = 0; i < 6; i++) {
+          const j = (i + 1) % 6;
+          sink.tri(lo[i], hi[i], lo[j], CATTAIL_COLOR);
+          sink.tri(lo[j], hi[i], hi[j], CATTAIL_COLOR);
+        }
+        for (let i = 1; i < 5; i++) {
+          sink.tri(hi[0], hi[i], hi[i + 1], CATTAIL_COLOR, true);
+          sink.tri(lo[0], lo[i + 1], lo[i], CATTAIL_COLOR);
+        }
+      }
+    }
+  }
+
+  const lilies = [];
+  const lr = mulberry32(seedFromCode(`waterdress-${areaId}-${w.id}-lilies`));
+  const fish = fishSpots(areaId, areaData);
+  const undecked = (areaData.waters ?? []).map(({ decks, ...q }) => q);
+  for (let i = 0; i < LILY_TRIES && lilies.length < LILY_COUNT; i++) {
+    const t = ((plan.lilyAt + (lr() * 2 - 1) * LILY_SPREAD) * Math.PI) / 180;
+    const rad = w.r - LILY_IN + (lr() * 2 - 1) * LILY_IN_JIT;
+    const r = LILY_R[0] + LILY_R[1] * lr();
+    const notch = Math.floor(lr() * LILY_SEGS);
+    const turn = lr() * TAU;
+    const color = LILY_COLORS[Math.floor(lr() * LILY_COLORS.length)];
+    const x = w.x + Math.cos(t) * rad, z = w.z + Math.sin(t) * rad;
+    if (!(waterClearance(undecked, x, z) <= -(0.9 + r))) continue;
+    if (fish.some((f) => Math.hypot(x - f.x, z - f.z) < 1)) continue;
+    if (lilies.some((l) => Math.hypot(x - l.x, z - l.z) < l.r + r + 0.15)) continue;
+    lilies.push({ x, z, r });
+    const y = hy + LILY_LIFT;
+    for (let k = 0; k < LILY_SEGS; k++) {
+      if (k === notch) continue;
+      const a = turn + (k / LILY_SEGS) * TAU, b = turn + ((k + 1) / LILY_SEGS) * TAU;
+      sink.tri([x, y, z], [x + Math.cos(a) * r, y, z + Math.sin(a) * r], [x + Math.cos(b) * r, y, z + Math.sin(b) * r], color, true);
+    }
+    if (lilies.length <= LILY_FLOWERS) {
+      // a little pink cone sitting on the pad, off its centre
+      const fx = x + Math.cos(turn + Math.PI) * r * 0.3, fz = z + Math.sin(turn + Math.PI) * r * 0.3;
+      const apex = [fx, y + FLOWER_H, fz];
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * TAU, b = ((k + 1) / 6) * TAU;
+        sink.tri([fx + Math.cos(a) * FLOWER_R, y, fz + Math.sin(a) * FLOWER_R], apex,
+          [fx + Math.cos(b) * FLOWER_R, y, fz + Math.sin(b) * FLOWER_R], FLOWER_COLOR);
+      }
+    }
+  }
+  return { reeds, lilies };
+}
+
 // One builder per water style.
 const STYLE_BUILDERS = { clear: genericRuns, bog: genericRuns, sea: seaRuns };
 
@@ -1101,8 +1283,8 @@ const STYLE_BUILDERS = { clear: genericRuns, bog: genericRuns, sea: seaRuns };
  * the sea apron like the water (see EVENING_FOAM); null is the day's look.
  *
  * Reads areaData.waterFx (water.js's handles). Areas not in DRESSED_AREAS —
- * the park, the docks, the gorge, the den, the neighbourhood — get a no-op
- * stub and add nothing to the scene.
+ * the docks, the gorge, the den, the neighbourhood — get a no-op stub and
+ * add nothing to the scene.
  */
 export function createWaterDressing(scene, { areaId, areaData, tier, reducedMotion = false, keepOut = [], evening = null } = {}) {
   if (!DRESSED_AREAS.includes(areaId) || !areaData?.waterFx?.length) return NO_DRESSING;
@@ -1221,14 +1403,27 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
 
   if (!low) {
     const spots = [...stoneSpots(bankRuns, areaData, keepOut), ...riffleStones];
-    if (spots.length) {
+    // the duck pond's reeds and lily pads ride in the stones mesh
+    const sink = triSink();
+    const reeds = [], lilies = [];
+    for (const h of areaData.waterFx) {
+      const plan = POND_PLANTS[areaId]?.[h.footprint?.id];
+      if (!plan || h.footprint.kind !== 'circle') continue;
+      const got = pondPlants(h, plan, { areaId, areaData, bankRuns, keepOut, sink });
+      reeds.push(...got.reeds);
+      lilies.push(...got.lilies);
+    }
+    if (spots.length || sink.pos.length) {
       const stones = new THREE.Mesh(
-        stonesGeometry(spots),
-        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, flatShading: true }),
+        stonesGeometry(spots, sink),
+        // two-sided: a reed blade and a lily pad are single flat triangles
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, flatShading: true, side: THREE.DoubleSide }),
       );
       stones.name = 'waterdress:stones';
       stones.userData.centres = spots.filter((s) => s.water === undefined).map(({ x, z, r }) => ({ x, z, r }));
       stones.userData.riffles = riffleStones.map(({ x, z, r, y, water }) => ({ x, z, r, y, water }));
+      if (reeds.length) stones.userData.reeds = reeds;
+      if (lilies.length) stones.userData.lilies = lilies;
       meshes.push(stones);
     }
   }

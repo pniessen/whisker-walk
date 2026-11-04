@@ -93,12 +93,12 @@ const undecked = (waters) => waters.map(({ decks, ...w }) => w);
 const triangles = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.getAttribute('position').count) / 3;
 
 describe('water dressing', () => {
-  it('dresses exactly the five water areas', () => {
-    expect(DRESSED_AREAS).toEqual(['woods', 'river', 'moor', 'pines', 'seaside']);
+  it('dresses exactly the six water areas', () => {
+    expect(DRESSED_AREAS).toEqual(['woods', 'river', 'moor', 'pines', 'seaside', 'park']);
   });
 
-  it('is a no-op stub on the park, the docks and the gorge', () => {
-    for (const id of ['park', 'docks', 'gorge']) {
+  it('is a no-op stub on the docks and the gorge', () => {
+    for (const id of ['docks', 'gorge']) {
       const { scene, fx } = dress(id);
       expect(fx.meshes).toEqual([]);
       expect(scene.children).toHaveLength(0);
@@ -927,5 +927,88 @@ describe('water dressing', () => {
         }
       }
     });
+  });
+  // --- polish-streams Task 3: the Park pond ---------------------------------
+
+  describe('the park pond', () => {
+    const C = { x: -14, z: 2 };
+    const deg = (x, z) => ((Math.atan2(z - C.z, x - C.x) * 180) / Math.PI + 360) % 360;
+    // distance from (x, z) to the segment a -> b
+    const segDist = (x, z, a, b) => {
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz)));
+      return Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t));
+    };
+
+    it('on ground: band, fill and stones, under 3,000 triangles together', () => {
+      const { fx } = dressOnGround('park');
+      expect(fx.meshes.map((m) => m.name)).toEqual(['waterdress:band', 'waterdress:fill', 'waterdress:stones']);
+      const tris = Object.fromEntries(fx.meshes.map((m) => [m.name, triangles(m)]));
+      console.log('park dressing triangles', JSON.stringify(tris));
+      expect(Object.values(tris).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(3000);
+      for (const m of fx.meshes) {
+        expect(m.castShadow).toBe(false);
+        expect(m.userData.noCast).toBe(true);
+      }
+    }, 120_000);
+
+    it('reeds stand in clumps on the south arcs, clear of the north shore and the duck parade', () => {
+      const { fx } = dressOnGround('park');
+      const reeds = byName(fx, 'waterdress:stones').userData.reeds;
+      expect(reeds.length).toBeGreaterThanOrEqual(10);
+      expect(reeds.length).toBeLessThanOrEqual(24);
+      for (const r of reeds) {
+        const at = `reed at ${r.x.toFixed(2)},${r.z.toFixed(2)}`;
+        const a = deg(r.x, r.z);
+        expect((a >= 200 && a <= 250) || (a >= 290 && a <= 340), `${at} angle ${a.toFixed(1)}`).toBe(true);
+        const d = Math.hypot(r.x - C.x, r.z - C.z);
+        expect(d, at).toBeGreaterThanOrEqual(6.2);
+        expect(d, at).toBeLessThanOrEqual(7.3);
+        expect(Math.hypot(r.x + 14, r.z - 10), at).toBeGreaterThanOrEqual(3);
+        expect(Math.hypot(r.x + 14, r.z - 11), at).toBeGreaterThanOrEqual(3);
+        expect(segDist(r.x, r.z, C, { x: -8, z: 8 }), at).toBeGreaterThanOrEqual(3);
+      }
+    }, 120_000);
+
+    it('lily pads float well inside the water, away from the fish', () => {
+      const { fx, areaData } = dressOnGround('park');
+      const lilies = byName(fx, 'waterdress:stones').userData.lilies;
+      expect(lilies.length).toBeGreaterThanOrEqual(5);
+      expect(lilies.length).toBeLessThanOrEqual(9);
+      const fish = fishSpots('park', areaData);
+      expect(fish.length).toBeGreaterThan(0);
+      for (const l of lilies) {
+        const at = `lily at ${l.x.toFixed(2)},${l.z.toFixed(2)}`;
+        expect(waterClearance(areaData.waters, l.x, l.z), at).toBeLessThanOrEqual(-(0.9 + l.r));
+        for (const f of fish) expect(Math.hypot(l.x - f.x, l.z - f.z), at).toBeGreaterThanOrEqual(1);
+      }
+    }, 120_000);
+
+    it('the pond gets rim stones', () => {
+      const { fx } = dressOnGround('park');
+      const u = byName(fx, 'waterdress:stones').userData;
+      const near = u.centres.filter((c) => Math.hypot(c.x - C.x, c.z - C.z) <= 8.5);
+      expect(near.length).toBeGreaterThanOrEqual(4);
+      console.log('park pond plants', JSON.stringify({ reeds: u.reeds.length, lilies: u.lilies.length, rimStones: near.length }));
+    }, 120_000);
+
+    it('LOW tier: band and fill only', () => {
+      const { fx } = dressOnGround('park', { tier: LOW });
+      expect(fx.meshes.map((m) => m.name)).toEqual(['waterdress:band', 'waterdress:fill']);
+    }, 120_000);
+
+    it('the stones material is two-sided, flat-shaded and vertex-coloured', () => {
+      const mat = byName(dressOnGround('park').fx, 'waterdress:stones').material;
+      expect(mat.side).toBe(THREE.DoubleSide);
+      expect(mat.flatShading).toBe(true);
+      expect(mat.vertexColors).toBe(true);
+    }, 120_000);
+
+    it('leaves the park water data untouched', () => {
+      const { areaData } = area('park');
+      const before = JSON.stringify(areaData.waters);
+      dressOnGround('park').fx.dispose();
+      expect(JSON.stringify(areaData.waters)).toBe(before);
+    }, 120_000);
   });
 });

@@ -265,6 +265,8 @@ export function build(scene, { water = {}, wind } = {}) {
     color: 0x7ab0d8,
     quality: water.quality ?? 'high',
     reducedMotion: water.reducedMotion ?? false,
+    // softer than the 0.45 default: the water dressing now draws the shore
+    foamStrength: 0.25,
   });
   scene.add(pond.mesh);
 
