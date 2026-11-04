@@ -111,6 +111,14 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
+//   gorge             61       36      58959   (polish-gorge5: was 57,637; rounded rock
+//                                               arches appended to rockFaces, no mesh,
+//                                               no caster: echo 218, snug 178, glitter
+//                                               218, the camp den 324 (its frame twice,
+//                                               the copy facing in), and the den's
+//                                               rounded lining 384 = 1,322 of the
+//                                               build's 1,500; 1,041 tris left under
+//                                               the 60,000 cap)
 //   gorge             60       36      57655   (gorge-rock2 beauty pass: was 59,307;
 //                                               scree pebbles 12,260 -> 4,904, ground
 //                                               plane under the rock trimmed 4,608 ->
