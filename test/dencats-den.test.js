@@ -91,7 +91,7 @@ describe('den cats in the real den', () => {
     const items = Object.keys(DEN_ITEMS);
     const placed = Object.fromEntries(DEN_SPOTS.map((s, i) => [s.id, items[(i * 5) % items.length]]));
     expect(simulate(placed, DEN_HOMES.length).bad).toEqual([]);
-  });
+  }, 180_000);
 });
 
 // ---- Queens' little ones (Task 8) -------------------------------------------

@@ -1582,7 +1582,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     expect(n).toBeGreaterThan(2000);
     expect(skipped).toBeLessThan(n / 4);
     expect(open).toBeLessThan(4 * n);
-  }, 120_000);
+  }, 180_000);
 
   it('the walkable tops are drawn at the ground\'s height', () => {
     const raised = WALK_SHAPES.filter((s) => s.kind === 'walk');

@@ -554,7 +554,15 @@ export function ground(size, color, { surface } = {}) {
 // should have to change for either of the others, so nobody is defaulted into
 // a surface here. `color` replaces the shared path beige where an area's
 // palette needs it (the Docks, again).
-export function path(x1, z1, x2, z2, w = 2, { surface, color = 0xcbb8a0 } = {}) {
+//
+// `footprint: true` makes the hidden DATA strip pathribbon.js's soft trail is
+// drawn over: same width/length parameters, transform, name and material as
+// the visible strip (one 1x1 plane, no macro paint, visible = false). It stays
+// in the scene because grass.js's flatFootprints, pawprints.js's groundStrips,
+// walk.js's wet/dusk lists and the water/grass/gorge tests all read 'path'
+// meshes. It makes exactly the same Three objects as a visible strip, so the
+// Math.random draw count is identical either way.
+export function path(x1, z1, x2, z2, w = 2, { surface, color = 0xcbb8a0, footprint = false } = {}) {
   const len = Math.hypot(x2 - x1, z2 - z1);
   // Segmented along both axes — see segsFor()/GROUND-PLANE MACRO VARIATION
   // above tree(). Width gets at most a handful of segments (paths run 1-5m
@@ -562,7 +570,9 @@ export function path(x1, z1, x2, z2, w = 2, { surface, color = 0xcbb8a0 } = {}) 
   // patch wavelength derived from the path's OWN length via wavelengthFor(),
   // not a constant shared with the 120m ground plane.
   const m = new THREE.Mesh(
-    new THREE.PlaneGeometry(w, len, segsFor(w, 1, 6), segsFor(len, 4, 64)),
+    footprint
+      ? new THREE.PlaneGeometry(w, len, 1, 1)
+      : new THREE.PlaneGeometry(w, len, segsFor(w, 1, 6), segsFor(len, 4, 64)),
     surface ? surfMat(color, surface, w, len) : mat(color),
   );
   m.rotation.x = -Math.PI / 2;
@@ -587,6 +597,10 @@ export function path(x1, z1, x2, z2, w = 2, { surface, color = 0xcbb8a0 } = {}) 
   // invisible while water was a walk-over surface and became a path running
   // into a lake the moment the v19 collider wave landed.
   m.name = 'path';
+  if (footprint) {
+    m.visible = false;
+    return m;
+  }
   // AFTER rotation/position are set — see applyMacroVariation()'s own
   // comment for why (it reads mesh.matrix for each vertex's world (x, z)).
   applyMacroVariation(m, surface, len);
