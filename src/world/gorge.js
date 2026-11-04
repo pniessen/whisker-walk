@@ -818,12 +818,15 @@ export function caveRoomFor(caveId, { glow = true } = {}) {
 // The corridor's and the bend's rounded, rough tunnel (caveroom.js's
 // caveTunnel), with its roots, stalactites and moss. Seeded by the cave's name.
 // Its walls by the chamber catch the crystals' glow as the chamber's do.
-export function caveTunnelFor(caveId, { glow = true } = {}) {
+// mouthTint (a hex, mouthTintsFor's): the liner's first metres start in the
+// sandstone round the mouth (polish-gorge5); unset, as before.
+export function caveTunnelFor(caveId, { glow = true, mouthTint } = {}) {
   const cave = GORGE_CAVES.find((c) => c.id === caveId);
   return caveTunnel(cave, {
     clear: (x, z, reach) => caveClear(cave, x, z, reach),
     seed: seedFromCode('gorge-cavetunnel-' + cave.id),
     crystals: glow ? { spots: caveCrystalSpots(cave), color: CAVE_COLORS[cave.id] } : null,
+    mouthTint: mouthTint === undefined ? undefined : { color: mouthTint, len: MOUTH_TINT_LEN },
   });
 }
 // Where each crystal cluster stands: its spot moved out from the wall by the
@@ -894,14 +897,14 @@ export function glitterFleckSpots() {
 // waterlooks.test.js). The clusters and the Glitter Cave's flecks sit on or in
 // front of the room's liner, which stands a little in from the wall line
 // they were placed on.
-function caveInterior(cave) {
+function caveInterior(cave, mouthTint) {
   const g = new THREE.Group();
   g.name = `caveInterior:${cave.id}`;
   g.userData.caveId = cave.id;
   const { room, mesh, crystals } = withLocalUuids(`gorge-uuids-caveroom-${cave.id}`, () => {
     const made = caveRoomFor(cave.id);
     // the corridor's tunnel rides in the same mesh: no new draw
-    const tunnel = caveTunnelFor(cave.id);
+    const tunnel = caveTunnelFor(cave.id, { mouthTint });
     const geometry = mergeGeometries([made.geometry, tunnel.geometry]);
     // the merged copy is the one drawn; room.linerDepth (used below for the
     // clusters and flecks) reads the room's own position list, not its geometry
@@ -939,6 +942,10 @@ function mouthArch(id, r, mouth, y, headroom) {
   const half = (nx ? r.maxZ - r.minZ : r.maxX - r.minX) / 2;
   return Object.freeze({ id, x: mouth.x, z: mouth.z, y, nx, nz, half, headroom });
 }
+// The camp den's arch uses caveMouth's corridor low rule (MOUTH_LOW_IN, 0.12)
+// rather than the den lining's LINER_IN (0.05) deliberately: its jambs stand
+// at most 0.08 m in (measured), negligible at a 6 m wide den mouth (the Task 2
+// review's ruling).
 export const GORGE_MOUTH_ARCHES = Object.freeze([
   ...GORGE_CAVES.map((c) => mouthArch(c.id, c.rects[0], c.mouth, c.y, CORRIDOR_HEADROOM)),
   mouthArch('campDen', CAMP_DEN, CAMP_DEN.mouth, CAMP_DEN.y0, CAMP_DEN_HEADROOM),
@@ -949,33 +956,134 @@ const ARCH_COLOR_R = 2; // a vertex takes the colour of the nearest rock vertex 
 const ARCH_SHADE = [0.94, 1.04];
 const ARCH_CAMP_CLEAR = 0.4; // a den stone keeps this far off every camp seat and nest
 const ARCH_FALLBACK = 0xb79f80;
+const ARCH_SAMPLE_FLOOR = 0.02; // surface() samples no lower than this over the floor
 
-// Every camp spot a den stone keeps clear of: the seats, the leader's rock,
-// the nests and the fresh-kill pile (camp.js's records, read only).
-function campSpots() {
+// Every camp spot a den stone (and the den's lining) keeps clear of: the
+// seats, the leader's rock, the nests and the fresh-kill pile (camp.js's
+// records, read only), each { x, z, r }.
+export function campSpots() {
   const L = campLayout('gorge');
   const D = campDressing('gorge');
   const spots = [L.seats.leader, L.seats.deputy, ...L.seats.elders, ...L.seats.kits, D.kill].map((p) => ({ x: p.x, z: p.z, r: 0 }));
   return [...spots, ...D.nests.map((p) => ({ x: p.x, z: p.z, r: p.r })), { x: L.rock.x, z: L.rock.z, r: L.rock.r }];
 }
 
-// The arches for rockFaces (the built mesh, relief and all), coloured from
-// its rock and ready to append (non-indexed): positions, colours, normals,
-// the triangles per arch and each arch's threshold stones. `surface` casts a
-// ray along -n from w = +2 against the shell triangles round the mouth and
-// takes the outermost hit within ARCH_FACE (the Snug Cave's mouth stands in a
-// notch whose side walls the ray would start inside); no hit, 0.
-export function mouthArchesFor(rockFaces) {
+// --- the camp den's rounded rock lining (polish-gorge5, Task 3) -------------------
+// caveroom.js's chamber liner, on a chamber record made from CAMP_DEN: the
+// three rock walls rounded at the back corners (square at the open west
+// side, where the lining meets the arch's frame at x = 20) and curving in as
+// a deep cove under the roof. Below DEN_LOW_H nothing stands more than
+// LINER_IN in (the den's floor is all walkable); it keeps DEN_SEAT_CLEAR off
+// every camp seat and nest. No stalactites and no moss: it is sandstone,
+// coloured from the rock round it (mouthArchesFor) and rock-shaded.
+export const DEN_LOW_H = 1.0;
+export const DEN_SEAT_CLEAR = 0.3;
+const DEN_LOOK = Object.freeze({
+  headroom: CAMP_DEN_HEADROOM, colW: 0.55, rowH: 0.55, coveRows: 3, coveFrom: 1.2, coveIn: 0.9,
+  cornerR: [0.9, 0.9, 0, 0], stalactites: 0, floorMoss: 0, wallMoss: 0, color: 0xffffff,
+  lowH: DEN_LOW_H, standoff: 0.02,
+});
+export const CAMP_DEN_ROOM = Object.freeze({
+  id: 'campDen', y: CAMP_DEN.y0, rects: Object.freeze([Object.freeze({ ...CAMP_DEN, tag: 'campDen-chamber' })]),
+});
+export function campDenLining() {
+  const r = CAMP_DEN;
+  const e = 1e-6;
+  const spots = campSpots();
+  return caveRoom(CAMP_DEN_ROOM, {
+    // the open west side's straight run is not rock; its corners are
+    rockAt: (x, z) => !(Math.abs(x - r.minX) < e && z > r.minZ + e && z < r.maxZ - e),
+    clear: (x, z, reach) => x - r.minX >= reach + DEN_SEAT_CLEAR
+      && spots.every((q) => Math.hypot(x - q.x, z - q.z) >= reach + q.r + DEN_SEAT_CLEAR),
+    seed: seedFromCode('gorge-campden-lining'),
+    look: DEN_LOOK,
+    raw: true,
+  });
+}
+
+// The colour of the rock vertex nearest (X, Y, Z) within ARCH_COLOR_R, among
+// rockFaces vertices `verts` (1 m bins); null if none.
+function nearestRock(p, verts) {
+  const bins = new Map();
+  const key = (i, j, k) => `${i},${j},${k}`;
+  for (const v of verts) {
+    const k = key(Math.floor(p[v * 3]), Math.floor(p[v * 3 + 1]), Math.floor(p[v * 3 + 2]));
+    if (!bins.has(k)) bins.set(k, []);
+    bins.get(k).push(v);
+  }
+  return (X, Y, Z) => {
+    const bi = Math.floor(X), bj = Math.floor(Y), bk = Math.floor(Z);
+    let best = -1, bestD = ARCH_COLOR_R * ARCH_COLOR_R;
+    for (let i = bi - ARCH_COLOR_R; i <= bi + ARCH_COLOR_R; i++) {
+      for (let j = bj - ARCH_COLOR_R; j <= bj + ARCH_COLOR_R; j++) {
+        for (let k = bk - ARCH_COLOR_R; k <= bk + ARCH_COLOR_R; k++) {
+          for (const r of bins.get(key(i, j, k)) ?? []) {
+            const d = (p[r * 3] - X) ** 2 + (p[r * 3 + 1] - Y) ** 2 + (p[r * 3 + 2] - Z) ** 2;
+            if (d < bestD) { bestD = d; best = r; }
+          }
+        }
+      }
+    }
+    return best;
+  };
+}
+
+// The rockFaces shell: positions, colours and how far its shell triangles run.
+function shellOf(rockFaces) {
   const geo = rockFaces.geometry;
   const p = geo.getAttribute('position').array;
   const cAttr = geo.getAttribute('color')?.array;
   const shellTris = rockFaces.parent?.userData?.shellTris?.rockFaces ?? p.length / 9;
-  const shellEnd = Math.min(p.length, shellTris * 9);
+  return { p, cAttr, shellEnd: Math.min(p.length, shellTris * 9) };
+}
+
+// The mean colour (hex) of the rock round each cave's mouth: the shell
+// vertices on or out of the cliff face within MOUTH_TINT_NEAR of the
+// opening's rectangle. caveTunnelFor's mouthTint starts the liner in it.
+const MOUTH_TINT_NEAR = 1.5;
+const MOUTH_TINT_LEN = 3.5;
+export function mouthTintsFor(rockFaces) {
+  const { p, cAttr, shellEnd } = shellOf(rockFaces);
+  const out = {};
+  for (const a of GORGE_MOUTH_ARCHES.filter((q) => GORGE_CAVES.some((c) => c.id === q.id))) {
+    let r = 0, g = 0, bl = 0, n = 0;
+    for (let i = 0; cAttr && i < shellEnd; i += 3) {
+      const dx = p[i] - a.x, dz = p[i + 2] - a.z;
+      const u = dx * -a.nz + dz * a.nx, h = p[i + 1] - a.y, w = dx * a.nx + dz * a.nz;
+      if (w < -0.3 || w > MOUTH_TINT_NEAR) continue;
+      if (Math.max(Math.abs(u) - a.half, h - a.headroom, -h) > MOUTH_TINT_NEAR) continue;
+      r += cAttr[i]; g += cAttr[i + 1]; bl += cAttr[i + 2]; n++;
+    }
+    out[a.id] = n ? new THREE.Color().setRGB(r / n, g / n, bl / n).getHex() : ARCH_FALLBACK;
+  }
+  return out;
+}
+
+// The arches for rockFaces (the built mesh, relief and all), coloured from
+// its rock and ready to append (non-indexed): positions, colours, normals,
+// the triangles per arch (byId, with the den's lining as campDenLining) and
+// each arch's threshold stones. `surface` casts a ray along -n from w = +2
+// against the shell triangles round the mouth and takes the outermost hit
+// within ARCH_FACE (the Snug Cave's mouth stands in a notch whose side walls
+// the ray would start inside), sampled no lower than ARCH_SAMPLE_FLOOR; no
+// hit, 0 — counted per arch in `buried` where the point just out of the
+// mouth plane is inside solid rock (the notch's walls), else in `misses`.
+// `ranges[id]`: the arch's triangles in pos ({ from, to }, the threshold
+// stones the last `stones` of them); `rims[id]`: its rim vertices, world [x, y, z].
+export function mouthArchesFor(rockFaces) {
+  const { p, cAttr, shellEnd } = shellOf(rockFaces);
   const g = shapeGround();
   const spots = campSpots();
   const fallback = new THREE.Color(ARCH_FALLBACK);
   const pos = [], col = [], nor = [];
-  const byId = {}, stones = {};
+  const byId = {}, stones = {}, rims = {}, ranges = {}, misses = {}, buriedById = {};
+  const append = (m, vcol) => {
+    for (const v of m.idx) {
+      pos.push(m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2]);
+      col.push(vcol[v * 3], vcol[v * 3 + 1], vcol[v * 3 + 2]);
+      nor.push(m.nor[v * 3], m.nor[v * 3 + 1], m.nor[v * 3 + 2]);
+    }
+  };
   for (const a of GORGE_MOUTH_ARCHES) {
     const lx = -a.nz, lz = a.nx;
     const toLocal = (X, Y, Z) => { const dx = X - a.x, dz = Z - a.z; return [dx * lx + dz * lz, Y - a.y, dx * a.nx + dz * a.nz]; };
@@ -991,7 +1099,10 @@ export function mouthArchesFor(rockFaces) {
       const q = toLocal(p[i], p[i + 1], p[i + 2]);
       if (Math.abs(q[0]) <= a.half + ARCH_NEAR && q[1] >= -2 && q[1] <= a.headroom + ARCH_NEAR + 1 && Math.abs(q[2]) <= ARCH_NEAR + 1) verts.push(i / 3);
     }
-    const surface = (u, h) => {
+    let miss = 0, buried = 0;
+    const surface = (u, hIn) => {
+      // a ring's foot (h -0.02) is sampled just over the floor, where the face starts
+      const h = Math.max(ARCH_SAMPLE_FLOOR, hIn);
       let best = -Infinity;
       for (const [A, B, C] of tris) {
         // the ray (u, h, 2) - t (0, 0, 1): solve for the triangle's barycentrics in (u, h)
@@ -1004,7 +1115,15 @@ export function mouthArchesFor(rockFaces) {
         const w = A[2] + s * (B[2] - A[2]) + t * (C[2] - A[2]);
         if (w >= ARCH_FACE[0] && w <= ARCH_FACE[1] && w > best) best = w;
       }
-      return best === -Infinity ? 0 : best;
+      if (best === -Infinity) {
+        // no face to seat on: either the point is inside solid rock just out
+        // of the mouth plane (the Snug Cave's notch walls stand out 2.8 m each
+        // side of its mouth, so the rim there is buried) or a true miss
+        const X = a.x + lx * u + a.nx * 0.05, Z = a.z + lz * u + a.nz * 0.05;
+        if (g.y(X, Z) > a.y + h + 0.05) buried++; else miss++;
+        return 0;
+      }
+      return best;
     };
     const cave = GORGE_CAVES.find((c) => c.id === a.id);
     // a stone (set into the face) has open ground at the mouth's level just
@@ -1018,44 +1137,51 @@ export function mouthArchesFor(rockFaces) {
     const m = caveMouth({ ...a, seed: seedFromCode(`gorge-mouth-${a.id}`), surface, clear });
     stones[a.id] = m.stones.map((s) => Object.freeze({ ...s }));
     byId[a.id] = m.idx.length / 3;
+    misses[a.id] = miss;
+    buriedById[a.id] = buried;
+    rims[a.id] = m.rim.map((i) => [m.pos[i * 3], m.pos[i * 3 + 1], m.pos[i * 3 + 2]]);
     // colour: the nearest rock vertex within ARCH_COLOR_R (1 m bins), shaded
-    const bins = new Map();
-    const key = (i, j, k) => `${i},${j},${k}`;
-    for (const v of verts) {
-      const k = key(Math.floor(p[v * 3]), Math.floor(p[v * 3 + 1]), Math.floor(p[v * 3 + 2]));
-      if (!bins.has(k)) bins.set(k, []);
-      bins.get(k).push(v);
-    }
+    const nearest = nearestRock(p, verts);
     const shade = mulberry32(seedFromCode(`gorge-mouth-shade-${a.id}`));
     const vcol = [];
     for (let v = 0; v < m.pos.length / 3; v++) {
-      const X = m.pos[v * 3], Y = m.pos[v * 3 + 1], Z = m.pos[v * 3 + 2];
-      const bi = Math.floor(X), bj = Math.floor(Y), bk = Math.floor(Z);
-      let best = -1, bestD = ARCH_COLOR_R * ARCH_COLOR_R;
-      for (let i = bi - ARCH_COLOR_R; i <= bi + ARCH_COLOR_R; i++) {
-        for (let j = bj - ARCH_COLOR_R; j <= bj + ARCH_COLOR_R; j++) {
-          for (let k = bk - ARCH_COLOR_R; k <= bk + ARCH_COLOR_R; k++) {
-            for (const r of bins.get(key(i, j, k)) ?? []) {
-              const d = (p[r * 3] - X) ** 2 + (p[r * 3 + 1] - Y) ** 2 + (p[r * 3 + 2] - Z) ** 2;
-              if (d < bestD) { bestD = d; best = r; }
-            }
-          }
-        }
-      }
+      const best = nearest(m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2]);
       const f = ARCH_SHADE[0] + (ARCH_SHADE[1] - ARCH_SHADE[0]) * shade();
       if (best >= 0 && cAttr) vcol.push(cAttr[best * 3] * f, cAttr[best * 3 + 1] * f, cAttr[best * 3 + 2] * f);
       else vcol.push(fallback.r * f, fallback.g * f, fallback.b * f);
     }
     // expanded to triangles, as rockFaces is (non-indexed)
-    for (const v of m.idx) {
-      pos.push(m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2]);
-      col.push(vcol[v * 3], vcol[v * 3 + 1], vcol[v * 3 + 2]);
-      nor.push(m.nor[v * 3], m.nor[v * 3 + 1], m.nor[v * 3 + 2]);
+    const from = pos.length / 9;
+    append(m, vcol);
+    ranges[a.id] = { from, to: pos.length / 9, stones: m.parts.stones };
+  }
+
+  // The camp den's lining: each vertex the colour of the nearest rock vertex
+  // (the den's own walls, most), times the liner's own shading (its look's
+  // colour is white, so its vertex colours are that shading alone).
+  {
+    const lining = campDenLining();
+    const r = CAMP_DEN, y0 = CAMP_DEN.y0;
+    const verts = [];
+    for (let i = 0; i < shellEnd; i += 3) {
+      if (p[i] >= r.minX - 2.5 && p[i] <= r.maxX + 2.5 && p[i + 2] >= r.minZ - 2.5 && p[i + 2] <= r.maxZ + 2.5
+        && p[i + 1] >= y0 - 1 && p[i + 1] <= y0 + CAMP_DEN_HEADROOM + 2) verts.push(i / 3);
     }
+    const nearest = nearestRock(p, verts);
+    const vcol = [];
+    for (let v = 0; v < lining.pos.length / 3; v++) {
+      const best = nearest(lining.pos[v * 3], lining.pos[v * 3 + 1], lining.pos[v * 3 + 2]);
+      const c = best >= 0 && cAttr ? [cAttr[best * 3], cAttr[best * 3 + 1], cAttr[best * 3 + 2]] : [fallback.r, fallback.g, fallback.b];
+      vcol.push(c[0] * lining.col[v * 3], c[1] * lining.col[v * 3 + 1], c[2] * lining.col[v * 3 + 2]);
+    }
+    const from = pos.length / 9;
+    append(lining, vcol);
+    byId.campDenLining = lining.idx.length / 3;
+    ranges.campDenLining = { from, to: pos.length / 9, stones: 0 };
   }
   return {
     pos: new Float32Array(pos), col: new Float32Array(col), nor: new Float32Array(nor),
-    tris: pos.length / 9, byId, stones,
+    tris: pos.length / 9, byId, stones, rims, ranges, misses, buried: buriedById,
   };
 }
 
@@ -1221,9 +1347,14 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(withLocalUuids('gorge-uuids-narrows', () => narrowsDressing(rockFaces)));
   // The cave mouths' and the camp den's rounded rock arches (polish-gorge5):
   // appended to rockFaces, so they wear its rock shader at no new draw.
+  // The camp den's rounded lining rides along (byId.campDenLining). The
+  // tunnels' first metres take the sandstone measured round each mouth
+  // (before the arches join the mesh: the shell's own colours).
+  const mouthTints = mouthTintsFor(rockFaces);
   const arches = mouthArchesFor(rockFaces);
   appendArches(rockFaces, arches);
   rock.userData.mouthArches = arches.byId;
+  rock.userData.mouthTints = mouthTints;
 
   // --- the stream -------------------------------------------------------------
   // Built from its footprint record and added to the scene root directly
@@ -1313,7 +1444,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // One group each, at the scene root, hidden until her cat is near its cave
   // and on its level (gorgelife.js shows it; C5). Only one is ever shown at a
   // time: the caves are far apart.
-  const interiors = GORGE_CAVES.map(caveInterior);
+  const interiors = GORGE_CAVES.map((c) => caveInterior(c, mouthTints[c.id]));
   for (const g of interiors) scene.add(g);
 
   // --- CliffClan's camp (part 4) ---------------------------------------------------

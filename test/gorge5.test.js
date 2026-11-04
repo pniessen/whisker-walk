@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { createHash } from 'node:crypto';
 
 // The same headless canvas stub every world test uses (see test/builder.test.js).
 vi.stubGlobal('document', {
@@ -19,13 +20,16 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { build, GORGE_FOG, GORGE_SKY, GORGE_MOUTH_ARCHES, mouthArchesFor, caveClear } = await import('../src/world/gorge.js');
+const {
+  build, GORGE_FOG, GORGE_SKY, GORGE_MOUTH_ARCHES, mouthArchesFor, caveClear, campSpots, campDenLining,
+  caveRoomFor, caveTunnelFor, DEN_LOW_H, DEN_SEAT_CLEAR, mouthTintsFor,
+} = await import('../src/world/gorge.js');
 const { ROCK_FRAGMENT, ROCK_SHADE } = await import('../src/world/rockshade.js');
 const {
   caveMouth, MOUTH_LOW_H, MOUTH_LOW_IN, MOUTH_CAM_H, MOUTH_CAM_HALF,
 } = await import('../src/world/caveroom.js');
-const { GORGE_CAVES, CORRIDOR_HEADROOM } = await import('../src/world/gorgeshape.js');
-const { campLayout, campDressing } = await import('../src/world/camp.js');
+const { GORGE_CAVES, CORRIDOR_HEADROOM, CAMP_DEN, CAMP_DEN_HEADROOM, gorgeGround } = await import('../src/world/gorgeshape.js');
+const { LINER_IN } = await import('../src/world/caveroom.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
 describe('polish-gorge5 task 1', () => {
@@ -80,10 +84,10 @@ describe('polish-gorge5 task 2: rounded rock arches', () => {
   it('adds one rock arch per cave mouth and the camp den, inside the rock mesh', () => {
     const { rock, rockFaces } = gorgeBuilt();
     const arches = rock.userData.mouthArches;
-    expect(Object.keys(arches).sort()).toEqual(['campDen', 'echo', 'glitter', 'snug']);
+    expect(Object.keys(arches).sort()).toEqual(['campDen', 'campDenLining', 'echo', 'glitter', 'snug']);
     for (const n of Object.values(arches)) expect(n).toBeGreaterThan(0);
     const total = Object.values(arches).reduce((s, n) => s + n, 0);
-    expect(total).toBeLessThanOrEqual(1100);
+    expect(total - (arches.campDenLining ?? 0)).toBeLessThanOrEqual(1100);
     const geo = rockFaces.geometry;
     expect(geo.index).toBeNull();
     const n = geo.getAttribute('position').count;
@@ -202,10 +206,8 @@ describe('polish-gorge5 task 2: rounded rock arches', () => {
   it('keeps the threshold stones off the walking lines and the camp', () => {
     const { rockFaces } = gorgeBuilt();
     const arches = mouthArchesFor(rockFaces);
-    const L = campLayout('gorge');
-    const D = campDressing('gorge');
-    const spots = [L.seats.leader, L.seats.deputy, ...L.seats.elders, ...L.seats.kits, D.kill].map((p) => ({ x: p.x, z: p.z, r: 0 }));
-    spots.push(...D.nests, { x: L.rock.x, z: L.rock.z, r: L.rock.r });
+    const spots = campSpots();
+    expect(spots.length).toBeGreaterThanOrEqual(12); // seats, kill pile, nests, the leader's rock
     let count = 0;
     for (const a of GORGE_MOUTH_ARCHES) {
       const stones = arches.stones[a.id];
@@ -222,5 +224,193 @@ describe('polish-gorge5 task 2: rounded rock arches', () => {
     }
     expect(count).toBeGreaterThan(0);
     expect(count).toBeLessThanOrEqual(13);
+  }, 120_000);
+});
+
+// --- review fixes on Task 2: the as-built arches against the real shell ---------
+// An independent cast: three's Raycaster on a mesh of the rockFaces SHELL only
+// (userData.shellTris), double-sided.
+function shellCaster(rockFaces) {
+  const n = rockFaces.parent.userData.shellTris.rockFaces;
+  const pos = rockFaces.geometry.getAttribute('position').array.slice(0, n * 9);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  mesh.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster();
+  return (origin, dir) => { ray.set(origin, dir); ray.far = 20; return ray.intersectObject(mesh, false); };
+}
+
+describe('polish-gorge5 task 2 review: the as-built arches', () => {
+  it('seats every rim on the shell, finds every face and keeps the rules', () => {
+    const { rock, rockFaces } = gorgeBuilt();
+    const arches = mouthArchesFor(rockFaces);
+    const cast = shellCaster(rockFaces);
+    const ground = gorgeGround();
+    // what was appended is what mouthArchesFor gives
+    const all = rockFaces.geometry.getAttribute('position').array;
+    expect(Array.from(all.slice(all.length - arches.pos.length))).toEqual(Array.from(arches.pos));
+    let seated = 0, buried = 0;
+    const buriedAt = new Set();
+    for (const a of GORGE_MOUTH_ARCHES) {
+      expect(arches.misses[a.id], `${a.id} surface() misses`).toBe(0);
+      const n = new THREE.Vector3(a.nx, 0, a.nz);
+      const toLocal = (x, y, z) => { const dx = x - a.x, dz = z - a.z; return { u: dx * -a.nz + dz * a.nx, h: y - a.y, w: dx * a.nx + dz * a.nz }; };
+      // the rim: 0.02-0.06 behind the outermost shell face within [-1, 0.3]
+      // of the mouth plane along -n (sampled no lower than 0.02 over the
+      // floor); where the shell offers none the rim must be buried in rock:
+      // the walk's ground record stands over it just out of the plane
+      for (const [x, y, z] of arches.rims[a.id]) {
+        const { u, h, w } = toLocal(x, y, z);
+        const hs = Math.max(0.02, h);
+        const o = new THREE.Vector3(a.x - a.nz * u + a.nx * 2, a.y + hs, a.z + a.nx * u + a.nz * 2);
+        const hits = cast(o, n.clone().negate()).map((q) => toLocal(q.point.x, q.point.y, q.point.z).w).filter((hw) => hw >= -1 && hw <= 0.3);
+        if (hits.length) {
+          const face = Math.max(...hits);
+          expect(face - w, `${a.id} rim at u ${u.toFixed(2)} h ${h.toFixed(2)}`).toBeGreaterThanOrEqual(0.02 - 1e-4);
+          expect(face - w, `${a.id} rim at u ${u.toFixed(2)} h ${h.toFixed(2)}`).toBeLessThanOrEqual(0.06 + 1e-4);
+          seated++;
+        } else {
+          const top = ground.y(a.x - a.nz * u + a.nx * 0.05, a.z + a.nx * u + a.nz * 0.05);
+          expect(top, `${a.id} rim at u ${u.toFixed(2)} h ${h.toFixed(2)}: no face, not buried`).toBeGreaterThan(a.y + hs + 0.05);
+          buried++;
+          buriedAt.add(a.id);
+        }
+      }
+      // the as-built triangles: the low walk, the camera line, and nothing
+      // behind the mouth plane but the rim's outer ring (on the face) and the
+      // threshold stones (set into it)
+      const rim = new Set(arches.rims[a.id].map((q) => q.map(Math.fround).join(',')));
+      const { from, to, stones } = arches.ranges[a.id];
+      for (let i = from * 3; i < (to - stones) * 3; i++) {
+        const x = arches.pos[i * 3], y = arches.pos[i * 3 + 1], z = arches.pos[i * 3 + 2];
+        const { u, h, w } = toLocal(x, y, z);
+        if (h < MOUTH_LOW_H && Math.abs(u) < a.half && w <= 0.6) expect(a.half - Math.abs(u)).toBeLessThanOrEqual(MOUTH_LOW_IN + 1e-6);
+        if (Math.abs(u) < MOUTH_CAM_HALF && h > MOUTH_LOW_H) expect(h).toBeGreaterThanOrEqual(MOUTH_CAM_H - 1e-6);
+        if (!rim.has([x, y, z].join(','))) expect(w, `${a.id} vertex at u ${u.toFixed(2)} h ${h.toFixed(2)}`).toBeGreaterThanOrEqual(-0.05);
+      }
+    }
+    expect(seated).toBeGreaterThan(60);
+    // only the Snug Cave's mouth, in its notch, has a rim buried in rock
+    // (surface() also counts the Snug stones' tries there, all buried too)
+    expect([...buriedAt]).toEqual(['snug']);
+    expect(buried).toBeLessThanOrEqual(arches.buried.snug);
+    for (const id of ['echo', 'glitter', 'campDen']) expect(arches.buried[id]).toBe(0);
+    expect(rock.userData.mouthArches.echo).toBe(arches.byId.echo);
+  }, 120_000);
+});
+
+// --- Task 3: the camp den's lining and the tunnels' first metres -------------------
+const sha = (a) => createHash('sha256').update(Buffer.from(new Float32Array(a).buffer)).digest('hex');
+// Recorded from the chambers and tunnels BEFORE caveRoom took its `look` and
+// caveTunnel its `mouthTint` (f8f1d5c): position, colour and index arrays.
+const CHAMBER_SHA = {
+  echo: ['3ab139999a6a2e968ce312c86ec2e91beddac1b33c984fb6e47cb81631dd16c9', '5ea22b40a58aa10a0a58d1fbd9eb7b0f3eaed9b0e73f756ede4752973c0cf5ac', 'f984a1d9c528237a9310881cbc8d30463de704101e4af30f14aabe49ad12281c'],
+  snug: ['128084fc50c1a91a11f6fccb920801d9eb70df640b84eeb0f43eb31ec9209523', 'be3e0082ba07f3f474fee722c6c33e5798594db3aa3c4202fe7dd866d71765c4', '04953ff558d7101f902ca99e4f57baed651a04abfde61dd7c0f204e99d7d648c'],
+  glitter: ['f8460f2af1fa9e7144a8a3af2fe43901833b6fe39b3cfe9591a234951a3be9f2', '8b843d111f2eaf093d455a4fc7dd766be1b0c6863afc6feca65e7aa5a8a66ecb', '2250f78693a6172d314671ee95b2d85c932f27784c4cdcd96e72d3cfb1e9fafe'],
+};
+const TUNNEL_SHA = {
+  echo: ['763a3b0515f18251335362ccb7a8c6fbf57975d5f51f0167b80351402e9f2f75', '317961c5ded733a7a2138cda564c59c33b4e2d65f39a083f9552b803a57ed1da'],
+  snug: ['dd1fcd3c42987ed491f27aa4a3b854442304607c5c40041d1ca7648741da5d05', '7ec52e49a41d44c42b074487d10d5193710be0cb0ad80a24f9b9d390a8ab4919'],
+  glitter: ['521cd0d892f610400e6856f09cdbaf1f86221ffd05dda84d072cde66e3086b60', '7dcfe951629b50433292266ef46a4cb0b3b195247aa2eed7b651674ee36a5b32'],
+};
+
+describe('polish-gorge5 task 3: the camp den lining and the tunnels\' first metres', () => {
+  it('leaves the three chambers as they were', () => {
+    for (const id of ['echo', 'snug', 'glitter']) {
+      const g = caveRoomFor(id).geometry;
+      expect([sha(g.getAttribute('position').array), sha(g.getAttribute('color').array), sha(g.index.array)], id).toEqual(CHAMBER_SHA[id]);
+      const t = caveTunnelFor(id).geometry;
+      expect([sha(t.getAttribute('position').array), sha(t.getAttribute('color').array)], id).toEqual(TUNNEL_SHA[id]);
+    }
+  }, 120_000);
+
+  it('lines the camp den with rounded rock', () => {
+    const { rock, rockFaces } = gorgeBuilt();
+    const n = rock.userData.mouthArches.campDenLining;
+    expect(n).toBeGreaterThan(0);
+    expect(n).toBeLessThanOrEqual(450);
+    const spy = vi.spyOn(Math, 'random');
+    const L = campDenLining();
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+    expect(L.geometry).toBeNull(); // raw arrays: no BufferGeometry (no uuid draw) in the build
+    expect(L.idx.length / 3).toBe(n);
+    expect(campDenLining().pos).toEqual(L.pos);
+    const r = CAMP_DEN, y0 = r.y0;
+    const spots = campSpots();
+    let westLow = 0, westHigh = 0, coved = 0;
+    for (let i = 0; i < L.pos.length / 3; i++) {
+      const x = L.pos[i * 3], y = L.pos[i * 3 + 1], z = L.pos[i * 3 + 2];
+      const h = y - y0;
+      const inward = Math.min(x - r.minX, r.maxX - x, z - r.minZ, r.maxZ - z);
+      // inside the den's box, never out past its open side
+      expect(inward).toBeGreaterThanOrEqual(-1e-6);
+      expect(h).toBeLessThanOrEqual(CAMP_DEN_HEADROOM);
+      if (h < DEN_LOW_H) {
+        expect(inward, `low lining vertex at (${x.toFixed(2)}, ${h.toFixed(2)}, ${z.toFixed(2)})`).toBeLessThanOrEqual(LINER_IN + 1e-6);
+        for (const s of spots) expect(Math.hypot(x - s.x, z - s.z)).toBeGreaterThanOrEqual(s.r + DEN_SEAT_CLEAR);
+      }
+      if (inward > 0.5) coved++;
+      // its ends at the open side: on the den's side walls at x = 20, foot to roof
+      if (x - r.minX < 0.03) { if (h < 0.1) westLow++; if (h > CAMP_DEN_HEADROOM - 0.05) westHigh++; }
+    }
+    expect(coved).toBeGreaterThan(20); // the cove curves well in under the roof
+    expect(westLow).toBeGreaterThanOrEqual(2);
+    expect(westHigh).toBeGreaterThanOrEqual(2);
+    // appended to rockFaces after the arches, coloured from the rock (sandstone, not white)
+    const col = rockFaces.geometry.getAttribute('color').array;
+    const v = col.length / 3;
+    for (let i = v - n * 3; i < v; i++) {
+      const s = col[i * 3] + col[i * 3 + 1] + col[i * 3 + 2];
+      expect(s).toBeGreaterThan(0.3);
+      expect(s).toBeLessThan(2.7);
+    }
+  }, 120_000);
+
+  it('keeps the arches and the lining inside the build budget', () => {
+    const { rock } = gorgeBuilt();
+    const total = Object.values(rock.userData.mouthArches).reduce((s, x) => s + x, 0);
+    expect(total).toBeLessThanOrEqual(1500);
+  }, 120_000);
+
+  it('warms the tunnel\'s first metres', () => {
+    const { rock, rockFaces } = gorgeBuilt();
+    const tints = rock.userData.mouthTints;
+    expect(Object.keys(tints).sort()).toEqual(['echo', 'glitter', 'snug']);
+    expect(mouthTintsFor(rockFaces)).toEqual(tints);
+    const tint = new THREE.Color(tints.echo);
+    const warm = caveTunnelFor('echo', { mouthTint: tints.echo });
+    const cold = caveTunnelFor('echo');
+    const wc = warm.geometry.getAttribute('color').array, cc = cold.geometry.getAttribute('color').array;
+    let near = 0, far = 0;
+    for (const st of warm.stations) {
+      for (const id of st.ids) {
+        if (st.s < 0.3) {
+          near++;
+          for (let k = 0; k < 3; k++) expect(Math.abs(wc[id * 3 + k] - [tint.r, tint.g, tint.b][k])).toBeLessThanOrEqual(0.02);
+        } else if (st.s > 3.5) {
+          far++;
+          for (let k = 0; k < 3; k++) expect(wc[id * 3 + k]).toBe(cc[id * 3 + k]);
+        }
+      }
+    }
+    expect(near).toBeGreaterThan(0);
+    expect(far).toBeGreaterThan(0);
+    // the mouth's end frame (the first half of the frames) starts in the tint too
+    const [f0, f1] = warm.ranges.frames;
+    for (let i = f0; i < f0 + (f1 - f0) / 2; i++) {
+      for (let k = 0; k < 3; k++) expect(Math.abs(wc[i * 3 + k] - [tint.r, tint.g, tint.b][k])).toBeLessThanOrEqual(0.02);
+    }
+    // the drawn cave interior wears it: its liner at the mouth (x = -18) is the tint
+    const drawn = rock.parent.getObjectByName('caveRoom:echo').geometry;
+    const dp = drawn.getAttribute('position').array, dc = drawn.getAttribute('color').array;
+    let atMouth = 0;
+    for (let i = 0; i < dp.length / 3; i++) {
+      if (Math.abs(dp[i * 3] + 18) > 1e-4 || dp[i * 3 + 1] < 0.5) continue;
+      atMouth++;
+      for (let k = 0; k < 3; k++) expect(Math.abs(dc[i * 3 + k] - [tint.r, tint.g, tint.b][k])).toBeLessThanOrEqual(0.02);
+    }
+    expect(atMouth).toBeGreaterThan(0);
   }, 120_000);
 });

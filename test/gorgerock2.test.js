@@ -360,12 +360,17 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
     scene.getObjectByName('tors').traverse((o) => { if (o.isMesh) sources.push(o); });
     sources.push(scene.getObjectByName('summitRock'), scene.getObjectByName('summitRockBoulder'));
     const v = [0, 1, 2].map(() => new THREE.Vector3());
+    // The camp den's lining (polish-gorge5) is appended last to rockFaces: a
+    // wall liner whose cove leans in over the den floor's edge under the roof,
+    // as the chambers' liners do (in their caveRoom meshes, not read here).
+    // gorge5.test.js holds it to the den's own rules; it is no floor.
+    const lining = rockGroup.userData.mouthArches?.campDenLining ?? 0;
     for (const mesh of sources) {
       expect(mesh, 'a rock source mesh').toBeTruthy();
       mesh.updateWorldMatrix(true, false);
       const g = mesh.geometry;
       const pos = g.attributes.position;
-      const n = g.index ? g.index.count : pos.count;
+      const n = (g.index ? g.index.count : pos.count) - (mesh.name === 'rockFaces' ? lining * 3 : 0);
       for (let t = 0; t < n; t += 3) {
         for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, g.index ? g.index.getX(t + k) : t + k).applyMatrix4(mesh.matrixWorld);
         const tri = [v[0].x, v[0].y, v[0].z, v[1].x, v[1].y, v[1].z, v[2].x, v[2].y, v[2].z];

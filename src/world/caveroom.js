@@ -38,12 +38,12 @@ export const GLOW_R = 1.5; // the walls catch a cluster's light this far
 
 const TOP = CHAMBER_HEADROOM - 0.01; // the liner's top edge, just under the roof
 const FOOT = -0.02; // its foot, just into the floor
-const ROOF = CHAMBER_HEADROOM - 0.005; // a stalactite's root, at the roof
 const COVE_IN = 0.7; // how far the cove reaches in at the roof
-const COL_W = 0.3;
-const ROW_H = 0.3;
-const COVE_ROWS = 4;
-const WALL_BUMP = 0.07; // the unevenness, inward only: 0..0.07 on the wall,
+const COVE_IN_ = COVE_IN, COVE_FROM_ = COVE_FROM; // (caveRoom's `look` defaults)
+const COL_W_ = 0.3;
+const ROW_H_ = 0.3;
+const COVE_ROWS_ = 4;
+const WALL_BUMP_ = 0.07; // the unevenness, inward only: 0..0.07 on the wall,
 const COVE_BUMP = 0.12; // up to 0.12 on the cove
 const TAPER = 0.6; // the bumps and cove fade out over this beside the opening
 const NOISE_STEP = [0.7, 0.3]; // two octaves, metres per lattice step
@@ -74,19 +74,21 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // Walked from the north wall's west end eastward, then down the east wall, and
 // so round. s is the distance along it. Each point carries its normal into
 // the room and the point on the square wall line straight behind it.
-function outlineOf(r) {
-  const R = CORNER_R;
+// `radius`: CORNER_R, or one radius per corner [(maxX, minZ), (maxX, maxZ),
+// (minX, maxZ), (minX, minZ)] (0: a square corner, its arc of no length).
+function outlineOf(r, radius = CORNER_R) {
+  const [R0, R1, R2, R3] = Array.isArray(radius) ? radius : [radius, radius, radius, radius];
   const segs = [];
   const line = (x0, z0, x1, z1, nx, nz) => segs.push({ line: true, x0, z0, x1, z1, nx, nz, len: Math.hypot(x1 - x0, z1 - z0) });
-  const arc = (cx, cz, a0) => segs.push({ line: false, cx, cz, a0, len: (R * Math.PI) / 2 });
-  line(r.minX + R, r.minZ, r.maxX - R, r.minZ, 0, 1);
-  arc(r.maxX - R, r.minZ + R, -Math.PI / 2);
-  line(r.maxX, r.minZ + R, r.maxX, r.maxZ - R, -1, 0);
-  arc(r.maxX - R, r.maxZ - R, 0);
-  line(r.maxX - R, r.maxZ, r.minX + R, r.maxZ, 0, -1);
-  arc(r.minX + R, r.maxZ - R, Math.PI / 2);
-  line(r.minX, r.maxZ - R, r.minX, r.minZ + R, 1, 0);
-  arc(r.minX + R, r.minZ + R, Math.PI);
+  const arc = (cx, cz, a0, R) => segs.push({ line: false, cx, cz, a0, R, len: (R * Math.PI) / 2 });
+  line(r.minX + R3, r.minZ, r.maxX - R0, r.minZ, 0, 1);
+  arc(r.maxX - R0, r.minZ + R0, -Math.PI / 2, R0);
+  line(r.maxX, r.minZ + R0, r.maxX, r.maxZ - R1, -1, 0);
+  arc(r.maxX - R1, r.maxZ - R1, 0, R1);
+  line(r.maxX - R1, r.maxZ, r.minX + R2, r.maxZ, 0, -1);
+  arc(r.minX + R2, r.maxZ - R2, Math.PI / 2, R2);
+  line(r.minX, r.maxZ - R2, r.minX, r.minZ + R3, 1, 0);
+  arc(r.minX + R3, r.minZ + R3, Math.PI, R3);
   let s = 0;
   for (const g of segs) { g.s0 = s; s += g.len; }
   const length = s;
@@ -100,6 +102,7 @@ function outlineOf(r) {
       const x = lerp(g.x0, g.x1, u), z = lerp(g.z0, g.z1, u);
       return { x, z, nx: g.nx, nz: g.nz, wx: x, wz: z };
     }
+    const R = g.R;
     const a = g.a0 + t / R;
     const ox = Math.cos(a), oz = Math.sin(a);
     // out along the radius to the square corner's wall line
@@ -127,17 +130,21 @@ function noiseOf(rng, length) {
   return (s, h) => (one(octaves[0], s, h) * 2 + one(octaves[1], s, h)) / 3;
 }
 
-// The cove: 0 up to COVE_FROM, then a quarter-round reaching COVE_IN at the top.
-const coveIn = (h) => {
-  if (h <= COVE_FROM) return 0;
-  const u = Math.min(1, (h - COVE_FROM) / (TOP - COVE_FROM));
-  return COVE_IN * (1 - Math.sqrt(Math.max(0, 1 - u * u)));
-};
-// The cove's height at `d` in from the outline (d < COVE_IN), with no bumps.
-const coveHeight = (d) => {
-  const w = 1 - d / COVE_IN;
-  return COVE_FROM + (TOP - COVE_FROM) * Math.sqrt(Math.max(0, 1 - w * w));
-};
+// The cove: 0 up to `from` (COVE_FROM), then a quarter-round reaching `reach`
+// (COVE_IN) at the liner's top edge `top` (TOP); and its height at `d` in
+// from the outline (d < reach), with no bumps.
+function coveOf(from = COVE_FROM, reach = COVE_IN, top = TOP) {
+  const coveIn = (h) => {
+    if (h <= from) return 0;
+    const u = Math.min(1, (h - from) / (top - from));
+    return reach * (1 - Math.sqrt(Math.max(0, 1 - u * u)));
+  };
+  const coveHeight = (d) => {
+    const w = 1 - d / reach;
+    return from + (top - from) * Math.sqrt(Math.max(0, 1 - w * w));
+  };
+  return { coveIn, coveHeight };
+}
 
 // One growing list of triangles, by part.
 export function mesher(names = ['liner', 'stalactites', 'moss', 'nest']) {
@@ -269,10 +276,33 @@ function glowTint(m, crystals, y0, from, to) {
 // `crystals` (optional): { spots: [{ x, z }], color } — the liner and the moss
 // within GLOW_R of a cluster are tinted toward its colour (a baked glow; no
 // lights), most strongly right by it.
-export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
+//
+// `look` (optional, polish-gorge5) overrides the room's constants for a room
+// that is not a deep cave's chamber (CliffClan's camp den): { headroom
+// (CHAMBER_HEADROOM), colW (COL_W), rowH (ROW_H), coveRows (COVE_ROWS),
+// coveFrom (COVE_FROM), coveIn (COVE_IN), wallBump (WALL_BUMP), cornerR
+// (CORNER_R), stalactites (the cave's count; 0 for none), floorMoss,
+// wallMoss (the cave's counts), color (LINER_COLORS[cave.id]), lowH,
+// standoff }. cornerR may be one radius per corner (outlineOf). lowH: below
+// it, nothing of the liner stands more than LINER_IN in from the wall line,
+// clear or not (unset: only `clear` decides). standoff: the least the liner
+// stands in from its outline (off the box's own walls, so they never fight). With no `look` the
+// chambers are built exactly as before (test/gorge5.test.js pins their arrays).
+// `raw: true` returns the arrays ({ pos, col, idx, nor }, normals by
+// normalsOf) instead of a BufferGeometry, which would draw Math.random for
+// its uuid in a build.
+export function caveRoom(cave, { clear, rockAt, seed, crystals, look = {}, raw = false } = {}) {
   const r = cave.rects.find((q) => q.tag.endsWith('-chamber'));
   const y0 = cave.y;
-  const out = outlineOf(r);
+  const headroom = look.headroom ?? CHAMBER_HEADROOM;
+  const TOP = headroom - 0.01, ROOF = headroom - 0.005;
+  const COL_W = look.colW ?? COL_W_, ROW_H = look.rowH ?? ROW_H_, COVE_ROWS = look.coveRows ?? COVE_ROWS_;
+  const COVE_FROM = look.coveFrom ?? COVE_FROM_, COVE_IN = look.coveIn ?? COVE_IN_;
+  const WALL_BUMP = look.wallBump ?? WALL_BUMP_;
+  const lowH = look.lowH ?? -Infinity;
+  const standoff = look.standoff ?? 0; // the least a liner vertex stands in from its outline
+  const { coveIn, coveHeight } = coveOf(COVE_FROM, COVE_IN, TOP);
+  const out = outlineOf(r, look.cornerR ?? CORNER_R);
   const rng = mulberry32(seed >>> 0);
   const noise = noiseOf(rng, out.length);
   const m = mesher();
@@ -283,6 +313,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   // each edge of the opening (found by bisection, on the rock side)
   const cuts = [];
   for (const g of out.segs) {
+    if (!g.len) continue; // a square corner
     const n = Math.max(1, Math.round(g.len / COL_W));
     for (let i = 0; i < n; i++) cuts.push(g.s0 + (g.len * i) / n);
   }
@@ -327,12 +358,23 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   const linerAt = (s, h) => {
     const p = out.at(s);
     const k = taper(s);
-    const d = k * (coveIn(h) + bumpAt(s, h));
+    const d0 = k * (coveIn(h) + bumpAt(s, h));
+    const d = standoff ? Math.max(standoff, d0) : d0;
     return { x: p.x + p.nx * d, y: y0 + h, z: p.z + p.nz * d, p, k };
   };
   // The clear rule: low and in from the wall line, it must be clear, or it goes
-  // back onto the wall line.
+  // back onto the wall line. Below look.lowH it comes back toward the wall
+  // line until it stands LINER_IN in, clear or not.
   const settle = (q, h) => {
+    if (h < lowH && inward(q.x, q.z) > LINER_IN) {
+      let lo = 0, hi = 1; // along the wall point -> q
+      const at = (t) => ({ x: lerp(q.p.wx, q.x, t), z: lerp(q.p.wz, q.z, t) });
+      for (let i = 0; i < 24; i++) {
+        const mid = (lo + hi) / 2, pt = at(mid);
+        if (inward(pt.x, pt.z) > LINER_IN) hi = mid; else lo = mid;
+      }
+      return { ...q, ...at(lo) };
+    }
     if (h < COVE_FROM && inward(q.x, q.z) > LINER_IN && !clear(q.x, q.z, 0)) {
       return { ...q, x: q.p.wx, z: q.p.wz, flat: true };
     }
@@ -344,7 +386,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   const low = Math.ceil((COVE_FROM - FOOT) / ROW_H);
   for (let j = 0; j <= low; j++) rows.push(FOOT + ((COVE_FROM - FOOT) * j) / low);
   for (let j = 1; j <= COVE_ROWS; j++) rows.push(COVE_FROM + ((TOP - COVE_FROM) * j) / COVE_ROWS);
-  const base = new THREE.Color(LINER_COLORS[cave.id] ?? LINER_COLORS.echo);
+  const base = new THREE.Color(look.color ?? LINER_COLORS[cave.id] ?? LINER_COLORS.echo);
   const c = new THREE.Color();
   const linerTris = [];
   const grid = ss.map((s, i) => (rock[i] && (rock[(i + ss.length - 1) % ss.length] || rock[(i + 1) % ss.length])
@@ -370,7 +412,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   }
 
   // --- stalactites ------------------------------------------------------------------
-  const [sMin, sSpread] = STALACTITES[cave.id] ?? STALACTITES.echo;
+  const [sMin, sSpread] = look.stalactites !== undefined ? [look.stalactites, 1] : STALACTITES[cave.id] ?? STALACTITES.echo;
   const want = sMin + Math.floor(rng() * sSpread);
   const hangs = [];
   // the opening's middle(s), on the wall line: the camera mostly looks in from there
@@ -432,7 +474,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   const mossFrom = m.pos.length / 3;
   const mossA = new THREE.Color(MOSS[0]), mossB = new THREE.Color(MOSS[1]);
   const blobs = [];
-  const floorCap = FLOOR_MOSS[cave.id] ?? 6;
+  const floorCap = look.floorMoss ?? FLOOR_MOSS[cave.id] ?? 6;
   for (let t = 0; t < 160; t++) {
     const s = rng() * L, rad = 0.15 + rng() * 0.25, tint = rng(), turn = rng() * Math.PI * 2;
     if (blobs.length >= floorCap) continue;
@@ -458,7 +500,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     mossBlobs.push({ x: bl.x, z: bl.z, rad: bl.rad, top: top.y, rim });
   }
   // A few on the lower walls.
-  const wallCap = WALL_MOSS[cave.id] ?? 1;
+  const wallCap = look.wallMoss ?? WALL_MOSS[cave.id] ?? 1;
   const patches = [];
   for (let t = 0; t < 60; t++) {
     const s = rng() * L, h = 0.3 + rng() * 0.6, rad = 0.12 + rng() * 0.1, tint = rng();
@@ -488,11 +530,14 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     glowTint(m, crystals, y0, mossFrom, m.pos.length / 3);
   }
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(m.pos, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(m.col, 3));
-  geometry.setIndex(m.idx);
-  geometry.computeVertexNormals();
+  let geometry = null;
+  if (!raw) {
+    geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(m.pos, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(m.col, 3));
+    geometry.setIndex(m.idx);
+    geometry.computeVertexNormals();
+  }
 
   // How far in from (x, y, z) on the wall line, along the wall's normal into
   // the room, the liner's face stands (0 where there is no liner): gorge.js
@@ -515,7 +560,8 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     return Math.max(0, best ?? 0);
   };
 
-  return { geometry, parts: { ...m.parts }, stalactiteTips, nest, linerDepth, mossBlobs, wallMoss };
+  const arrays = raw ? { pos: m.pos, col: m.col, idx: m.idx, nor: normalsOf(m.pos, m.idx), linerVerts } : {};
+  return { geometry, ...arrays, parts: { ...m.parts }, stalactiteTips, nest, linerDepth, mossBlobs, wallMoss };
 }
 
 // =============================================================================
@@ -596,7 +642,11 @@ function vaultHeight(au) {
   return side[side.length - 1][1];
 }
 
-export function caveTunnel(cave, { clear, seed, crystals } = {}) {
+// `mouthTint` (optional, polish-gorge5): { color, len } — the liner and the
+// mouth's end frame start in `color` (the sandstone round the mouth) at s = 0
+// and blend to the cave's own colours by s = len (smoothstep), so the warm
+// arch outside does not frame a cold box. Without it, as before.
+export function caveTunnel(cave, { clear, seed, crystals, mouthTint } = {}) {
   const y0 = cave.y;
   const [p0, pc, p2] = cave.path;
   const L1 = Math.hypot(pc[0] - p0[0], pc[1] - p0[1]);
@@ -664,6 +714,9 @@ export function caveTunnel(cave, { clear, seed, crystals } = {}) {
   const base = new THREE.Color(LINER_COLORS[cave.id] ?? LINER_COLORS.echo);
   const c = new THREE.Color();
   const shade = (h, n) => c.copy(base).multiplyScalar(0.75 + 0.25 * (0.5 * Math.min(1, Math.max(0, h) / 1.6) + 0.5 * n));
+  const tint = mouthTint ? new THREE.Color(mouthTint.color) : null;
+  const tintLen = mouthTint?.len ?? 3.5;
+  const tinted = (s, col) => (tint ? col.lerp(tint, 1 - smooth(s / tintLen)) : col);
 
   // --- the liner ---------------------------------------------------------------------
   let from = 0;
@@ -680,7 +733,7 @@ export function caveTunnel(cave, { clear, seed, crystals } = {}) {
       let q = world(fr, u + inN[k][0] * b, h + inN[k][1] * b);
       if (h < COVE_FROM && !clear(q.x, q.z, 0)) { q = world(fr, u, h); b = 0; n = 0; }
       row.push(b);
-      return m.vert(q.x, q.y, q.z, shade(h, n));
+      return m.vert(q.x, q.y, q.z, tinted(s, shade(h, n)));
     });
     bumps.push(row);
     stations.push({ s, x: fr.c[0], z: fr.c[1], lx: fr.l[0], lz: fr.l[1], ids });
@@ -709,7 +762,7 @@ export function caveTunnel(cave, { clear, seed, crystals } = {}) {
   for (const [s, out] of [[0, -1], [S, 1]]) {
     const fr = frameAt(s);
     const want = new THREE.Vector3(fr.f[0] * out, 0, fr.f[1] * out);
-    const v = (u, h) => { const q = world(fr, u, h); return m.vert(q.x, q.y, q.z, shade(h, 0.5)); };
+    const v = (u, h) => { const q = world(fr, u, h); return m.vert(q.x, q.y, q.z, tinted(s, shade(h, 0.5))); };
     // the arch from (1.5, 1.55) over to (-1.5, 1.55); the bumps are tapered away here
     const arch = P.map(([u, h], k) => (k >= 2 && k <= 8 ? v(u, h) : -1));
     const top = v(0, CORRIDOR_HEADROOM);
@@ -1032,12 +1085,14 @@ export function crystalClusters(spots, seed, { color = 0x9fc7d8, size = 1, id = 
 // The OUTLINE is the opening's arch: for a 3 m cave corridor it follows the
 // tunnel liner's profile (TUNNEL_PROFILE, through its points on a smooth
 // curve), so the liner's end frame and the arch line up; for a wider opening
-// (the camp den) straight jambs to MOUTH_LOW_H, then a half-ellipse to the
-// crown at headroom - 0.04. Resampled evenly, each point moved in (never out)
+// (the camp den) straight jambs to MOUTH_LOW_H, then a half-ellipse over the
+// top (a quarter-ellipse each side, jamb to crown) with its crown at
+// headroom - 0.04. Resampled evenly, each point moved in (never out)
 // by seeded value noise up to MOUTH_JITTER. Then, out from the outline:
 //   FRAME   on the mouth plane (w = MOUTH_FRAME_W, just outside the liner's
 //           end frame at w = 0), from the outline out to the opening's
-//           rectangle, so the box's square corners never show;
+//           rectangle, so the box's square corners never show; for the camp
+//           den (no tunnel liner behind it) twice, the copy facing in;
 //   REVEAL  the arch's soffit: the outline from w = 0 out to the BROW
 //           (0.05 at the foot, 0.35 at the crown, bumped by noise);
 //   RIM     the brow rolling over (a quarter-round) through a lumpy middle
@@ -1045,7 +1100,9 @@ export function crystalClusters(spots, seed, { color = 0x9fc7d8, size = 1, id = 
 //           the rectangle) out in the plane, seated MOUTH_SEAT behind the
 //           real face: `surface(u, h)` is the face's measured offset along n
 //           from the mouth plane (positive = proud), so the rim always meets
-//           the relief-moved rock and never floats in front of it;
+//           the relief-moved rock and never floats in front of it; over the
+//           camp den's wide opening the rim also wanders by MOUTH_MOUND and
+//           the brow swells with it, so its top edge is mounded rock;
 //   STONES  a few low lumpy threshold boulders just outside the jambs,
 //           flattened and set into the measured face (none stands more than
 //           MOUTH_STONE_OUT out of the mouth plane, where a cat walks), never
@@ -1055,7 +1112,10 @@ export function crystalClusters(spots, seed, { color = 0x9fc7d8, size = 1, id = 
 // MOUTH_LOW_H nothing stands more than `lowIn` (MOUTH_LOW_IN) inside the
 // opening's rectangle unless it is more than 0.6 m out; within MOUTH_CAM_HALF
 // of the centre line nothing above MOUTH_LOW_H comes lower than MOUTH_CAM_H
-// (the cave and chase cameras pass through there).
+// (the cave and chase cameras pass through there). The camp den's arch keeps
+// the corridors' MOUTH_LOW_IN (0.12), not the den lining's LINER_IN (0.05),
+// on purpose: its jambs stand at most 0.08 m in (measured), which at a 6 m
+// wide den mouth is negligible (ruled so in the polish-gorge5 Task 2 review).
 //
 // Pure, seeded geometry (mulberry32 only, no THREE objects): returns indexed
 // world positions with area-weighted smooth normals (normalsOf), the rim's
@@ -1073,10 +1133,18 @@ const MOUTH_SEAT = 0.04; // the rim, this far behind the measured face
 const MOUTH_RIM = 0.55; // the rim's reach out from the outline in the plane
 const MOUTH_RIM_PAST = 0.45; // ... and at least this past the opening's rectangle
 const MOUTH_MID = 0.45; // the middle ring, this far along to the rim
+const MOUTH_MID_MIN = -0.04; // ... and never further than this behind the mouth plane
 const BROW_FOOT = 0.05;
 const BROW_CROWN = 0.35;
 const BROW_BUMP = 0.06;
 const MOUTH_STEP = 0.5; // the noise's lattice step along the outline, metres
+// The camp den's arch is 6 m wide: an even rim over it reads as a slab with a
+// ruled top edge. Its rim wanders in and out in the plane by up to ±MOUTH_MOUND
+// (a quarter of that at the springline, all of it at the crown) and its brow
+// and middle ring swell and sink with it, on mounds about MOUND_STEP apart.
+// Its own seeded stream: the corridors' arches are untouched.
+export const MOUTH_MOUND = 0.4;
+const MOUND_STEP = 0.7;
 const STONE_R = [0.18, 0.35];
 const STONE_FLAT = 0.7; // a stone's height, of its width
 const STONE_SINK = 0.3; // of its height, under the floor
@@ -1146,7 +1214,7 @@ function mouthSide({ half, headroom, tunnel }) {
     out.push(P[P.length - 1].slice());
     return { side: out, spring: TUNNEL_SIDE[2][1] };
   }
-  // straight jambs to MOUTH_LOW_H, then a quarter-ellipse to the crown
+  // straight jambs to MOUTH_LOW_H, then this side's quarter of the half-ellipse up to the crown
   const a = half, crown = headroom - 0.04, b = crown - MOUTH_LOW_H;
   for (let i = 0; i <= 8; i++) out.push([a, lerp(MOUTH_FOOT, MOUTH_LOW_H, i / 8)]);
   for (let i = 1; i <= 48; i++) {
@@ -1178,7 +1246,7 @@ function mouthOutline(opts, n) {
 
 export function caveMouth({
   x, z, y, nx, nz, half, headroom, seed, surface = () => 0, clear = () => true,
-  jitter = 1, lowIn = MOUTH_LOW_IN, tunnel, stones: stoneCount,
+  jitter = 1, lowIn = MOUTH_LOW_IN, tunnel, stones: stoneCount, mound, backFrame,
 }) {
   const isTunnel = tunnel ?? (half === TUNNEL_HALF && headroom === CORRIDOR_HEADROOM);
   const n = isTunnel ? 23 : 29;
@@ -1186,6 +1254,11 @@ export function caveMouth({
   const rng = mulberry32(seed >>> 0);
   const { pts, len, spring } = mouthOutline({ half, headroom, tunnel: isTunnel }, n);
   const nIn = lineNoise(rng, len), nBrow = lineNoise(rng, len), nMid = lineNoise(rng, len), nRim = lineNoise(rng, len);
+  const moundAmp = jitter * (mound ?? (isTunnel ? 0 : MOUTH_MOUND));
+  const mrng = mulberry32((seed ^ 0x5bd1e995) >>> 0);
+  const nMound = lineNoise(mrng, len, MOUND_STEP), nSwell = lineNoise(mrng, len, MOUND_STEP);
+  // -1..1 mounds along the outline, a quarter strength at the springline and full at the crown
+  const moundAt = (p, noise) => (moundAmp ? (2 * noise(p.s) - 1) * (0.25 + 0.75 * smooth((p.h - spring) / Math.max(0.3, crownH0 - spring))) : 0);
   const lx = -nz, lz = nx;
   const pos = [], idx = [];
   const vert = (u, h, w) => { pos.push(x + lx * u + nx * w, y + h, z + lz * u + nz * w); return pos.length / 3 - 1; };
@@ -1203,6 +1276,7 @@ export function caveMouth({
     parts[part]++;
   };
 
+  const crownH0 = pts[(n - 1) >> 1].h;
   // the outline, moved in by the noise; its in-plane outward normals
   const O = pts.map((p) => ({ ...p }));
   const outN = O.map((p, k) => {
@@ -1225,7 +1299,8 @@ export function caveMouth({
   const crownH = O[(n - 1) >> 1].h;
   const browOf = (k) => {
     const t = smooth(Math.max(0, O[k].h) / crownH);
-    return Math.max(0.02, lerp(BROW_FOOT, BROW_CROWN, t) + jitter * BROW_BUMP * (2 * nBrow(O[k].s) - 1) * Math.min(1, O[k].h / 0.5 + 0.2));
+    return Math.max(0.02, lerp(BROW_FOOT, BROW_CROWN, t) + jitter * BROW_BUMP * (2 * nBrow(O[k].s) - 1) * Math.min(1, O[k].h / 0.5 + 0.2)
+      + 0.6 * moundAmp * Math.max(0, moundAt(O[k], nSwell)));
   };
   // how far out along (du, dh) from (u, h) the opening's rectangle ends
   const toRect = (u, h, du, dh) => {
@@ -1246,6 +1321,7 @@ export function caveMouth({
     return tS < tT ? { u: Math.sign(du) * Hs, h: p.h + dh * tS, side: Math.sign(du) } : { u: p.u + du * tT, h: Ht, side: 0 };
   };
   const want0 = [0, 0, 1];
+  const frameTri0 = idx.length;
   const P = O.map((p) => vert(p.u, p.h, MOUTH_FRAME_W));
   const Q = O.map((p) => { const q = proj(p); return { ...q, i: vert(q.u, q.h, MOUTH_FRAME_W) }; });
   for (let k = 0; k + 1 < n; k++) {
@@ -1262,6 +1338,19 @@ export function caveMouth({
       tri('arch', P[k], corner, q1.i, want0);
       tri('arch', P[k], q1.i, P[k + 1], want0);
     }
+  }
+  // A wide room behind the opening (the camp den) has no tunnel end frame
+  // filling the box's top corners from inside: the frame again, on its own
+  // vertices (shared ones would cancel the normals), facing into the room, so
+  // the opening reads arched from inside too.
+  if (backFrame ?? !isTunnel) {
+    const frameTri1 = idx.length;
+    const copy = new Map();
+    const twin = (i) => {
+      if (!copy.has(i)) copy.set(i, vert(...L(i)));
+      return copy.get(i);
+    };
+    for (let t = frameTri0; t < frameTri1; t += 3) tri('arch', twin(idx[t]), twin(idx[t + 1]), twin(idx[t + 2]), [0, 0, -1]);
   }
   ranges.frame = [from, pos.length / 3];
 
@@ -1282,14 +1371,18 @@ export function caveMouth({
   const M = [], R = [], rim = [];
   for (let k = 0; k < n; k++) {
     const p = O[k], [ou, oh] = outN[k];
-    const reach = Math.max(MOUTH_RIM, toRect(p.u, p.h, ou, oh) + MOUTH_RIM_PAST) * (0.92 + 0.2 * jitter * nRim(p.s));
+    const reach = Math.max(MOUTH_RIM, toRect(p.u, p.h, ou, oh) + MOUTH_RIM_PAST) * (0.92 + 0.2 * jitter * nRim(p.s))
+      + moundAmp * moundAt(p, nMound);
     const ru = p.u + ou * reach, rh = Math.max(MOUTH_FOOT, p.h + oh * reach);
     const rw = surface(ru, rh) - MOUTH_SEAT;
     const md = reach * (MOUTH_MID + 0.1 * jitter * (nMid(p.s) - 0.5));
     const mu = p.u + ou * md, mh = Math.max(MOUTH_FOOT, p.h + oh * md);
     // a quarter-round from the brow down to the rim's seat, a little lumpy
-    const mw = rw + (brow[k] - rw) * Math.cos((md / reach) * Math.PI / 2) + jitter * 0.04 * (nMid(p.s + 0.25) - 0.5);
-    M.push(vert(mu, mh, Math.max(mw, rw)));
+    const mw = rw + (brow[k] - rw) * Math.cos((md / reach) * Math.PI / 2) + jitter * 0.04 * (nMid(p.s + 0.25) - 0.5)
+      + 0.8 * moundAmp * moundAt(p, nSwell);
+    // never behind the face, nor (over a deep recess) behind MOUTH_MID_MIN:
+    // only the outer ring follows a recessed face in
+    M.push(vert(mu, mh, Math.max(mw, rw, MOUTH_MID_MIN)));
     const r = vert(ru, rh, rw);
     R.push(r);
     rim.push(r);
