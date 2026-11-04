@@ -421,10 +421,11 @@ const RING_LOOK = {
   lumpIn: -0.2,       // a lump vertex's pull towards its clump's foot ...
   lumpOut: 0.05,      // ... or push away from it (lumpy, in ringMesh)
 };
-// y 0.011: over the path strips (0.01) and wet sand (0.008). The floor writes
-// no depth, so what keeps the paw prints and the contact-shadow decals over it
-// is order: it draws first of the see-through things (order -4, under the
-// water band's -3, the paw prints' -2 and the decals' -1).
+// y 0.011: over the path strips (0.01) and wet sand (0.008), under the paw
+// prints (0.012) and the contact-shadow decals (0.015). The solid middle is
+// opaque and writes depth, as the old floor did. The see-through rim writes
+// none, so it draws first of the see-through things (order -4, under the
+// water band's -3, the paw prints' -2 and the decals' -1) and they go over it.
 // fade: the soft band at the rim, solid inside r - fade, clear at r * wobble;
 // wobble: the rim's radius factor, 1 - wobble..1 (a sum of three low sinusoids).
 const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -4 };
@@ -588,8 +589,9 @@ function doorGeometry(den, out) {
 //  - a back stone she leans on: a round, hash-jittered icosahedron behind her
 //    and turned off to one side (towards the fresh-kill pile), its top under
 //    1.15 m; its corners above 0.82 m all stay more than 0.44 m from the
-//    centre, so she never sinks into it.
-//  - two step boulders (icosahedra), tops ~0.45 and ~0.22 m, climbing round
+//    centre (corners only: a face between them can dip a few cm nearer just
+//    above the top, where only a paw or the tail could brush it).
+//  - two step boulders (icosahedra), tops ~0.5 and ~0.25 m, climbing round
 //    the side away from the pile, the low one nearer the camp, so the rock
 //    reads as a climb up to the top.
 // No vertex is further than 0.78 m (x and z) from the centre, none further
@@ -913,10 +915,13 @@ function ringMesh(ring, cx, cz, look) {
 // angle). The colour attribute is rgb 1 with alpha 1 up to the inner ring and
 // 0 at the outer, so the rim fades out instead of ending in a polygon line.
 // uv is planar over the full radius, as the old disc's was, so the surface
-// tiles the same. Transparent and not written to depth, drawn first
-// (renderOrder -4, under the water band -3, paw prints -2 and contact-shadow
-// decals -1) so the prints and decals go over it; lifted 1.1 cm and pulled towards the camera
-// (polygonOffset) so it never fights the ground or a path.
+// tiles the same. Two materials on two draw groups: the middle (the centre
+// fan) opaque and depth-written like the old floor, so a see-through path
+// strip under it stays hidden; the rim band see-through, not written to depth
+// and drawn first of the see-through things (renderOrder -4, under the water
+// band -3, paw prints -2 and contact-shadow decals -1), so prints and decals
+// go over it. Lifted 1.1 cm and pulled towards the camera (polygonOffset) so
+// it never fights the ground or a path. One mesh, two draws.
 // A CircleGeometry lying flat at the top level, built as radius r - 0.4 and
 // then given the two-ring attributes: grass.js's flatFootprints reads
 // parameters.radius, so grass is kept off inside r - 0.4 (the solid floor,
@@ -952,28 +957,41 @@ function clearingMesh(clearing, look) {
       col[ring * 4 + 3] = alpha;
     }
   }
-  const idx = [];
+  // the centre fan first, then the rim band (the two draw groups below)
+  const fan = [];
+  const band = [];
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     const [a, b, A, B] = [1 + i, 1 + j, 1 + n + i, 1 + n + j];
-    idx.push(0, a, b, a, A, B, a, B, b);
+    fan.push(0, a, b);
+    band.push(a, A, B, a, B, b);
   }
+  const idx = [...fan, ...band];
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 4));
   geo.setIndex(idx);
+  // Two draw groups: the solid middle (the centre fan, 28 triangles) is
+  // opaque and writes depth as the old floor did, so anything flat and
+  // see-through drawn later below it (a path at y 0.01) stays hidden under
+  // it; only the fading rim (56 triangles) is see-through.
+  geo.clearGroups();
+  geo.addGroup(0, n * 3, 0);
+  geo.addGroup(n * 3, n * 6, 1);
   const { color, surface } = look.floor;
-  const mesh = new THREE.Mesh(geo, litMaterial(color, {
+  const floor = (extra) => litMaterial(color, {
     surface,
     repeat: repeatFor(surface, r * 2, r * 2),
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
-    vertexColors: true,
-    transparent: true,
-    depthWrite: false,
-  }));
+    ...extra,
+  });
+  const mesh = new THREE.Mesh(geo, [
+    floor({}),
+    floor({ vertexColors: true, transparent: true, depthWrite: false }),
+  ]);
   mesh.name = 'campClearing';
   mesh.renderOrder = CLEARING.order;
   mesh.rotation.x = -Math.PI / 2;
@@ -1107,11 +1125,12 @@ function addLedgeCamp(scene, area, L) {
  *    noCast and noMerge (a merge would drop their noCast). Its box stays
  *    under the contact-shadow scan's MAX_SPAN, so den and rock keep a decal.
  *  - `campRing`, the bramble ring, one noCast mesh.
- *  - `campClearing`, the camp's floor, one flat noCast disc.
+ *  - `campClearing`, the camp's floor, one flat noCast disc with an opaque
+ *    middle and a see-through fading rim (two materials, two draws).
  * Every colour is the clan's (CAMP_LOOKS, by campLook(areaId); woods for an
  * id with no record).
  * The ring and the clearing are separate top-level children because the
- * scan boxes one top-level child at a time (they are ~11 m wide). Seven
+ * scan boxes one top-level child at a time (they are ~11 m wide). Eight
  * main-pass draws in all. Pushes { x, z, r } colliders for the den and the
  * rock into area.colliders, as before: the dressing has none. The ring dodges
  * the colliders already in area.colliders (campDressing). A no-op where

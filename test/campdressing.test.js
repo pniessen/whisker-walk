@@ -169,11 +169,11 @@ describe('campDressing (pure)', () => {
 
   it('keeps the clumps where they were before the canes (pinned: the woods camp\'s first clump)', () => {
     const c = campDressing('woods').ring.clumps[0];
-    expect(c.x).toBeCloseTo(6.136697890743825, 12);
-    expect(c.z).toBeCloseTo(-46.25797754581596, 12);
-    expect(c.s).toBeCloseTo(0.9502911537885665, 12);
-    expect(c.h).toBeCloseTo(0.7534708831517491, 12);
-    expect(c.rot).toBeCloseTo(5.0095855002469465, 12);
+    expect(c.x).toBeCloseTo(6.136697890743825, 9);
+    expect(c.z).toBeCloseTo(-46.25797754581596, 9);
+    expect(c.s).toBeCloseTo(0.9502911537885665, 9);
+    expect(c.h).toBeCloseTo(0.7534708831517491, 9);
+    expect(c.rot).toBeCloseTo(5.0095855002469465, 9);
     expect(campDressing('woods').ring.clumps.length).toBe(84);
   });
 

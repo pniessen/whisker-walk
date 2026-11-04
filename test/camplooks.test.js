@@ -72,8 +72,10 @@ describe('CAMP_LOOKS', () => {
       const scene = build(a);
       const look = CAMP_LOOKS[a];
       const clearing = scene.getObjectByName('campClearing');
-      expect(clearing.material.color.getHex(), a).toBe(look.floor.color);
-      expect(clearing.material.map?.name, a).toBe(`surface:${look.floor.surface}`);
+      for (const m of [clearing.material].flat()) {
+        expect(m.color.getHex(), a).toBe(look.floor.color);
+        expect(m.map?.name, a).toBe(`surface:${look.floor.surface}`);
+      }
       expect(scene.getObjectByName('campRock').material.color.getHex(), a).toBe(look.rock);
     }
     expect(CAMP_LOOKS.river.floor.surface).toBe('gravel');

@@ -345,7 +345,7 @@ describe('addCamp', () => {
         expect(v.y).toBeLessThan(0.015);
         expect(Math.hypot(v.x - cx, v.z - cz)).toBeLessThanOrEqual(D.clearing.r + 1e-6);
       }
-      expect(clearing.material.polygonOffset).toBe(true);
+      for (const m of [clearing.material].flat()) expect(m.polygonOffset).toBe(true);
     }
   });
 
@@ -401,9 +401,22 @@ describe('addCamp', () => {
         const cross = (pos.getX(q) - pos.getX(p)) * (pos.getY(s) - pos.getY(p)) - (pos.getY(q) - pos.getY(p)) * (pos.getX(s) - pos.getX(p));
         expect(cross, a).toBeGreaterThan(0);
       }
-      expect(clearing.material.vertexColors).toBe(true);
-      expect(clearing.material.transparent).toBe(true);
-      expect(clearing.material.depthWrite).toBe(false);
+      // the solid middle (centre fan) is opaque and depth-written, as the old
+      // floor was, so a see-through path under it stays hidden; only the rim
+      // band is see-through
+      expect(Array.isArray(clearing.material), a).toBe(true);
+      const [solid, rim] = clearing.material;
+      expect(g.groups, a).toEqual([
+        { start: 0, count: 84, materialIndex: 0 },
+        { start: 84, count: 168, materialIndex: 1 },
+      ]);
+      for (let t = 0; t < 84; t++) expect(g.index.getX(t) <= 28, a).toBe(true);
+      expect(solid.transparent).toBe(false);
+      expect(solid.depthWrite).toBe(true);
+      expect(rim.vertexColors).toBe(true);
+      expect(rim.transparent).toBe(true);
+      expect(rim.depthWrite).toBe(false);
+      for (const m of [solid, rim]) expect(m.polygonOffset).toBe(true);
       // drawn before every see-through thing over it: the water band (-3,
       // waterdress.js), the paw prints (-2, pawprints.js) and the
       // contact-shadow decals (-1, contactshadows.js). It writes no depth, so
