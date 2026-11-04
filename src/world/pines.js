@@ -843,7 +843,7 @@ export function build(scene, { water = {}, wind } = {}) {
   addTrails(scene, [
     { segs: PINES_PATHS, w: PATH_W },
     { segs: PINES_TRAIL, w: TRAIL_W },
-  ], PATH_STYLE, 'pines');
+  ], PATH_STYLE, 'pines', { decks: PINES_WATERS.flatMap((w) => w.decks ?? []), waters: PINES_WATERS });
 
   // --- the truce stones -------------------------------------------------------
   // Two mossy standing stones, one material between them (walk.js disposes

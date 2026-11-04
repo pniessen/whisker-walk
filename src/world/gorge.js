@@ -1086,7 +1086,7 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(stones);
 
   // --- the paths --------------------------------------------------------------
-  addTrails(scene, [{ segs: GORGE_PATHS, w: PATH_W }], PATH_STYLE, 'gorge');
+  addTrails(scene, [{ segs: GORGE_PATHS, w: PATH_W }], PATH_STYLE, 'gorge', { decks: GORGE_WATERS.flatMap((w) => w.decks ?? []), waters: GORGE_WATERS });
 
   // --- the Summit Rock --------------------------------------------------------
   // Named so test/gorge.test.js can find them and see past them. One material

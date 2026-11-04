@@ -74,4 +74,25 @@ describe('the bridge plank texture', () => {
     const g = geo.groups;
     for (const k of [0, 1, 2, 3]) expect(face(g[k]).vAlong, `face ${k}`).toBe('z');
   });
+
+  it('is coloured: a lighter top, darker sides, one end a little darker', () => {
+    const col = geo.getAttribute('color');
+    expect(col.count).toBe(pos.count);
+    expect(mesh.material.vertexColors).toBe(true);
+    const lum = (i) => (col.getX(i) + col.getY(i) + col.getZ(i)) / 3;
+    const verts = (g) => [...new Set(geo.index.array.slice(g.start, g.start + g.count))];
+    const top = verts(geo.groups[2]);
+    for (const k of [0, 1, 3, 4, 5]) {
+      for (const i of verts(geo.groups[k])) for (const j of top) expect(lum(i)).toBeLessThan(lum(j));
+    }
+    const ends = top.map((i) => ({ z: pos.getZ(i), l: lum(i) }));
+    const lo = Math.min(...ends.filter((e) => e.z < 0).map((e) => e.l));
+    const hi = Math.max(...ends.filter((e) => e.z > 0).map((e) => e.l));
+    expect(Math.abs(lo - hi)).toBeGreaterThan(0.02);
+  });
+
+  it('colours deterministically', () => {
+    const again = plankBridge(0, 0, 0, len, P.w, P.y, P.thick);
+    expect(Array.from(again.geometry.getAttribute('color').array)).toEqual(Array.from(geo.getAttribute('color').array));
+  });
 });

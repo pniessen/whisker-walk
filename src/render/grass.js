@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { fitCentre } from './shadowfit.js';
 import { GUST_DEPTH, GUST_FREQUENCY, MAX_INTENSITY } from './wind.js';
-import { waterClearance } from '../world/builder.js';
+import { waterClearance, deckDistance } from '../world/builder.js';
 import { FLAT_GROUND, groundOf } from '../ground.js';
 import { trailReach } from '../world/pathribbon.js';
 import { riverGroundTint } from '../world/riverdress.js';
@@ -56,6 +56,7 @@ export const MASK_CELL = 0.5;
 const PATH_MARGIN = 0.15;
 const COLLIDER_MARGIN = 0.15;
 const WATER_MARGIN = 0.35; // the pond's edge has a shoreline lip
+const DECK_MARGIN = 0.3; // tufts lean and stalks reach ~0.38 m: keep clear of log and plank decks
 const BOX_RADIUS = 0.6; // a cardboard box is ~0.5m on a side, plus air
 const BOUNDS_INSET = 0.25;
 
@@ -238,8 +239,13 @@ export function grassAllowed(area, footprints, x, z, slack = 0) {
     if (br > 0 && (x - bx.x) ** 2 + (z - bx.z) ** 2 < br * br) return false;
   }
   for (const f of footprints) if (inFootprint(f, x, z, PATH_MARGIN + slack)) return false;
-  // Signed distance to the nearest water edge (decks count as dry).
-  if (area.waters?.length && waterClearance(area.waters, x, z) < WATER_MARGIN + slack) return false;
+  // Signed distance to the nearest water edge (waterClearance reads a deck as
+  // dry land, so decks get their own keep-out below).
+  if (area.waters?.length) {
+    if (waterClearance(area.waters, x, z) < WATER_MARGIN + slack) return false;
+    // No tufts through log or plank decks: on one, or within DECK_MARGIN.
+    if (deckDistance(area.waters, x, z) < DECK_MARGIN + slack) return false;
+  }
   return true;
 }
 
