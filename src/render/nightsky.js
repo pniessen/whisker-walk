@@ -29,7 +29,10 @@ export const STAR_COUNT = 420;
 export const MOON_ELEV_DEG = 11;
 // Radians clockwise (to the right) of the walk's starting view.
 export const MOON_OFFSET = 0.45;
-export const MOON_SIZE = 44;
+// The plane's side (m). The lit disc spans 0.30 of it (MOON_DISC), ~14m: about
+// 3 degrees at MOON_RADIUS, big enough to read as a crescent, not a dot.
+export const MOON_SIZE = 47;
+export const MOON_DISC = 0.3;
 
 const DEG = Math.PI / 180;
 
@@ -57,10 +60,11 @@ export function layoutStars(areaId, count = STAR_COUNT) {
     dir[i * 3] = Math.cos(az) * c;
     dir[i * 3 + 1] = Math.sin(el * DEG);
     dir[i * 3 + 2] = Math.sin(az) * c;
-    // About one in 25 is a bright star; the rest are small.
-    size[i] = rng() < 0.04 ? 3.6 + rng() * 0.6 : 1.4 + rng() * 1.8;
+    // About one in 25 is a bright star. Nothing below 2px: smaller reads as
+    // a stuck pixel, not a star.
+    size[i] = rng() < 0.04 ? 4.5 + rng() * 1.0 : 2.0 + rng() * 1.6;
     const lift = (el - 3) / 72;
-    bright[i] = (0.55 + 0.45 * Math.min(1, lift * 2 + rng() * 0.3)) * starFade(el);
+    bright[i] = (0.7 + 0.3 * Math.min(1, lift * 2 + rng() * 0.3)) * starFade(el);
     phase[i] = rng();
   }
   return { dir, size, bright, phase };
@@ -91,14 +95,18 @@ void main() {
   gl_PointSize = aSize * uPixelRatio;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
+// The soft dot is 1 - smoothstep(0.1, 0.5, d): a smoothstep with its edges
+// reversed is undefined in GLSL ES / Metal.
 const STAR_FRAG = /* glsl */ `
 varying float vA;
 void main() {
-  float a = vA * smoothstep(0.5, 0.1, length(gl_PointCoord - 0.5));
+  float a = vA * (1.0 - smoothstep(0.1, 0.5, length(gl_PointCoord - 0.5)));
   gl_FragColor = vec4(vec3(0.92, 0.95, 1.0), a);
 }`;
 
-// A warm crescent with a soft halo, or null headless (no canvas context).
+// A warm crescent in a soft, edgeless glow, or null headless (no canvas
+// context). The crescent is the main shape; the bite shows the sky through a
+// faint earthshine, never the glow.
 function moonTexture() {
   if (typeof document === 'undefined') return null;
   const canvas = document.createElement('canvas');
@@ -107,24 +115,35 @@ function moonTexture() {
   const ctx = canvas.getContext?.('2d');
   if (!ctx) return null;
   const c = 64;
-  const r = 64 / 3; // the halo spans the outer 3x radius, to the canvas edge
-  ctx.fillStyle = '#fff6d8';
+  const r = MOON_DISC * c;
+  // Glow: peaks just outside the limb and falls off quadratically to exactly
+  // 0 at the canvas edge, so the quad never shows a rim.
+  const g = ctx.createRadialGradient(c, c, r, c, c, c);
+  for (let k = 0; k <= 8; k++) {
+    const f = k / 8;
+    g.addColorStop(f, `rgba(255, 240, 205, ${(0.22 * (1 - f) ** 2).toFixed(4)})`);
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  // Inside the limb: clear the glow, then a faint earthshine.
+  ctx.globalCompositeOperation = 'destination-out';
   ctx.beginPath();
   ctx.arc(c, c, r, 0, Math.PI * 2);
   ctx.fill();
-  // Bite the disc from the upper left, leaving a lit lower-right crescent.
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.beginPath();
-  ctx.arc(c - 0.3 * r, c - 0.3 * r, r, 0, Math.PI * 2); // offset 0.42 r
-  ctx.fill();
-  // Halo goes BEHIND the crescent, so the bite does not cut it too.
-  ctx.globalCompositeOperation = 'destination-over';
-  const g = ctx.createRadialGradient(c, c, r, c, c, 3 * r);
-  g.addColorStop(0, 'rgba(255, 246, 216, 0.35)');
-  g.addColorStop(1, 'rgba(255, 246, 216, 0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 128);
   ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = 'rgba(255, 246, 216, 0.06)';
+  ctx.fill();
+  // The lit crescent: the disc minus a bite 0.35 r toward the upper left
+  // (clip to the disc, fill everything but the bite).
+  const o = (0.35 * r) / Math.SQRT2;
+  ctx.save();
+  ctx.clip();
+  ctx.beginPath();
+  ctx.rect(0, 0, 128, 128);
+  ctx.arc(c - o, c - o, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff6d8';
+  ctx.fill('evenodd');
+  ctx.restore();
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -153,7 +172,7 @@ export function createNightSky(scene, { areaId, camera, reducedMotion = false } 
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uPixelRatio: { value: Math.min(globalThis.devicePixelRatio || 1, 2) },
+      uPixelRatio: { value: 1 }, // the renderer's live ratio, set per draw below
     },
     vertexShader: STAR_VERT,
     fragmentShader: STAR_FRAG,
@@ -165,6 +184,14 @@ export function createNightSky(scene, { areaId, camera, reducedMotion = false } 
   });
   const stars = new THREE.Points(geometry, material);
   stars.name = 'stars';
+  // Before everything transparent, so the moon and nearer glass, splashes
+  // and glows all draw over them.
+  stars.renderOrder = -1;
+  // gl_PointSize is in device pixels: follow the renderer's live ratio
+  // (main.js caps it on touch devices; adaptive quality changes it mid-walk).
+  stars.onBeforeRender = (renderer) => {
+    material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+  };
   skyFlags(stars);
   scene.add(stars);
 
@@ -176,7 +203,7 @@ export function createNightSky(scene, { areaId, camera, reducedMotion = false } 
       new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false, fog: false, toneMapped: false }),
     );
     moon.name = 'moon';
-    moon.renderOrder = 1; // over the additive stars
+    moon.renderOrder = 0; // after the stars (-1), sorted with everything else
     skyFlags(moon);
     scene.add(moon);
   }

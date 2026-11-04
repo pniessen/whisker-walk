@@ -20,10 +20,11 @@ vi.stubGlobal('document', {
 });
 
 const {
-  STAR_RADIUS, MOON_RADIUS, STAR_COUNT, layoutStars, starFade, moonDirection, createNightSky,
+  STAR_RADIUS, MOON_RADIUS, STAR_COUNT, MOON_SIZE, MOON_DISC, layoutStars, starFade, moonDirection, createNightSky,
 } = await import('../src/render/nightsky.js');
 const { SKY_RADIUS, createClouds } = await import('../src/render/clouds.js');
 
+const DEG = Math.PI / 180;
 function camAt(x = 40, y = 2, z = -15) {
   const camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.1, 300);
   camera.position.set(x, y, z);
@@ -54,6 +55,7 @@ describe('layoutStars', () => {
   it('stars sit between 3 and 75 degrees up, more of them low where the camera can see', () => {
     const { dir, size, bright } = layoutStars('park');
     let low = 0;
+    let big = 0;
     for (let i = 0; i < STAR_COUNT; i++) {
       const len = Math.hypot(dir[i * 3], dir[i * 3 + 1], dir[i * 3 + 2]);
       expect(len).toBeCloseTo(1, 5);
@@ -61,12 +63,19 @@ describe('layoutStars', () => {
       expect(el).toBeGreaterThanOrEqual(3 - 1e-4);
       expect(el).toBeLessThanOrEqual(75 + 1e-4);
       if (el < 30) low++;
-      expect(size[i]).toBeGreaterThanOrEqual(1.4);
-      expect(size[i]).toBeLessThanOrEqual(4.2);
-      expect(bright[i]).toBeGreaterThanOrEqual(0);
+      expect(size[i]).toBeGreaterThanOrEqual(2.0);
+      expect(size[i]).toBeLessThanOrEqual(5.5);
+      const ok = (size[i] <= 3.6) || (size[i] >= 4.5);
+      expect(ok).toBe(true);
+      if (size[i] >= 4.5) big++;
       expect(bright[i]).toBeLessThanOrEqual(1);
+      // The floor is 0.7, scaled only by the horizon fade.
+      expect(bright[i]).toBeGreaterThanOrEqual(0.7 * starFade(el) - 1e-6);
     }
     expect(low).toBeGreaterThan(STAR_COUNT / 2);
+    // About one in 25 is a bright star.
+    expect(big).toBeGreaterThan(STAR_COUNT / 60);
+    expect(big).toBeLessThan(STAR_COUNT / 12);
   });
 
   it('starFade: gone in the horizon glow, full above it', () => {
@@ -101,8 +110,21 @@ describe('createNightSky', () => {
     expect(STAR_RADIUS).toBeGreaterThan(SKY_RADIUS + 30);
     expect(STAR_RADIUS).toBeLessThan(300);
     expect(MOON_RADIUS).toBeLessThan(300);
+    // The lit disc spans about 3 degrees.
+    const discDeg = (2 * Math.atan((MOON_SIZE * MOON_DISC) / 2 / MOON_RADIUS)) / DEG;
+    expect(discDeg).toBeGreaterThan(2.7);
+    expect(discDeg).toBeLessThan(3.4);
     expect(stars.userData.noCast && stars.userData.noMerge && stars.userData.clouds).toBe(true);
     expect(stars.frustumCulled).toBe(false);
+    expect(stars.renderOrder).toBe(-1);
+    expect(sky.moon.renderOrder).toBe(0);
+    // Point size follows the renderer's live pixel ratio, set per draw.
+    stars.onBeforeRender({ getPixelRatio: () => 1.5 });
+    expect(stars.material.uniforms.uPixelRatio.value).toBe(1.5);
+    stars.onBeforeRender({ getPixelRatio: () => 1 });
+    expect(stars.material.uniforms.uPixelRatio.value).toBe(1);
+    // No reversed smoothstep edges (undefined in GLSL ES).
+    expect(stars.material.fragmentShader).not.toMatch(/smoothstep\(0\.5,\s*0\.1/);
     expect(stars.geometry.attributes.position.count).toBe(STAR_COUNT);
     expect(scene.children).toContain(stars);
     sky.dispose();
