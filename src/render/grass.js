@@ -4,6 +4,8 @@ import { GUST_DEPTH, GUST_FREQUENCY, MAX_INTENSITY } from './wind.js';
 import { waterClearance } from '../world/builder.js';
 import { FLAT_GROUND, groundOf } from '../ground.js';
 import { trailReach } from '../world/pathribbon.js';
+import { riverGroundTint } from '../world/riverdress.js';
+import { moorGroundTint } from '../world/moordress.js';
 
 // ---------------------------------------------------------------------------
 // GRASS — low swaying tufts on the lawn near the camera (Stream 4 round two,
@@ -305,9 +307,11 @@ function patchNoise(x, z, size = PATCH_SIZE, salt = 7) {
 //   reach      radius multiplier on the tier's grassRadius: clumps on open
 //              sand are seen from further away than turf
 //   density    (x, z) -> chance a lattice cell grows a tuft; null = PRESENCE
+//   ground     0..1, how far a tuft follows the painted ground tint under it
+//              (GROUND_TINTS): 0 = not at all, 1 = the full multiplier
 // ---------------------------------------------------------------------------
 const LAWN = Object.freeze({
-  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: null,
+  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: null, ground: 0,
 });
 
 const smooth01 = (a, b, v) => {
@@ -326,7 +330,7 @@ export function duneDensity(x, z) {
   return 0.92 * zone * smooth01(0.48, 0.76, patchNoise(x, z, 2.6, 11));
 }
 const DUNE = Object.freeze({
-  color: 0x96a466, hMin: 0.12, hMax: 0.3, width: 0.9, warm: 0.28, sway: 0.3, reach: 1.5, density: duneDensity,
+  color: 0x96a466, hMin: 0.12, hMax: 0.3, width: 0.9, warm: 0.28, sway: 0.3, reach: 1.5, density: duneDensity, ground: 0,
 });
 
 // The Woods' undergrowth: short, deep green, in patches among the trees.
@@ -334,7 +338,7 @@ export function woodsDensity(x, z) {
   return 0.85 * smooth01(0.42, 0.72, patchNoise(x, z, 3.4, 29));
 }
 const WOODLAND = Object.freeze({
-  color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity,
+  color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity, ground: 0,
 });
 
 // The River's marsh: taller, yellower-green tufts in broad patches, so the
@@ -343,7 +347,7 @@ export function marshDensity(x, z) {
   return 0.9 * smooth01(0.3, 0.6, patchNoise(x, z, 4.4, 43));
 }
 const MARSH = Object.freeze({
-  color: 0x86a457, hMin: 0.14, hMax: 0.36, width: 1.0, warm: 0.14, sway: 0.4, reach: 1.4, density: marshDensity,
+  color: 0x86a457, hMin: 0.14, hMax: 0.36, width: 1.0, warm: 0.14, sway: 0.4, reach: 1.4, density: marshDensity, ground: 0.9,
 });
 
 // The Moor: knee-high tawny-green tufts in wide patches with bare earth
@@ -352,7 +356,7 @@ export function moorDensity(x, z) {
   return 0.95 * smooth01(0.25, 0.55, patchNoise(x, z, 6.0, 53));
 }
 const MOOR = Object.freeze({
-  color: 0x8f9a5a, hMin: 0.08, hMax: 0.24, width: 1.0, warm: 0.18, sway: 0.6, reach: 1.4, density: moorDensity,
+  color: 0x8f9a5a, hMin: 0.08, hMax: 0.24, width: 1.0, warm: 0.18, sway: 0.6, reach: 1.4, density: moorDensity, ground: 0.9,
 });
 
 // The Pines: a thin, short, dark-green grass between the needles, so the forest
@@ -361,7 +365,7 @@ export function pineFloorDensity(x, z) {
   return 0.7 * smooth01(0.35, 0.65, patchNoise(x, z, 5.0, 61));
 }
 const PINE_FLOOR = Object.freeze({
-  color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity,
+  color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity, ground: 0,
 });
 
 // The Gorge: a little short, olive grass in patches, only on the base floor
@@ -387,12 +391,73 @@ export function gorgeFloorDensity(x, z) {
   return 0.45 * smooth01(0.35, 0.65, patchNoise(x, z, 5, 67));
 }
 const GORGE_FLOOR = Object.freeze({
-  color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity,
+  color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity, ground: 0,
 });
 
 export const GRASS_STYLES = Object.freeze({
   park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND, river: MARSH, moor: MOOR, pines: PINE_FLOOR, gorge: GORGE_FLOOR,
 });
+
+// ---------------------------------------------------------------------------
+// GROUND TINT (polish-tufttint). The River's and the Moor's ground meshes have
+// their vertex colours multiplied by a painted tint (dressing.js tintGround):
+// wet hollows, dry crests, bracken. Tufts of one flat colour over that read as
+// pasted on, so each tuft takes the same multiplier as the ground under it,
+// pulled `style.ground` of the way. The tint functions are a few smooth fields
+// each, too dear to call per tuft per re-lay, so a walk samples them lazily on
+// a 1 m grid (tintSampler) and reads that bilinearly: a re-lay one chunk over
+// only pays for the strip of cells it has not seen yet.
+// ---------------------------------------------------------------------------
+export const GROUND_TINTS = Object.freeze({ river: riverGroundTint, moor: moorGroundTint });
+
+// tintSampler(fn, bounds, cell) — `fn(x, z) -> [r, g, b]` cached at the corners
+// of a `cell`-metre grid over `bounds`, filled on first read. `at(x, z, out)`
+// writes the bilinear blend into `out` and returns it; a point outside the
+// bounds clamps to the edge. `samples` counts calls to `fn`.
+export function tintSampler(fn, bounds, cell = 1) {
+  const w = Math.max(2, Math.ceil((bounds.maxX - bounds.minX) / cell) + 1);
+  const h = Math.max(2, Math.ceil((bounds.maxZ - bounds.minZ) / cell) + 1);
+  const rgb = new Float32Array(w * h * 3);
+  const filled = new Uint8Array(w * h);
+  const s = {
+    samples: 0,
+    at(x, z, out) {
+      let fx = (x - bounds.minX) / cell;
+      let fz = (z - bounds.minZ) / cell;
+      // Clamp to the grid (NaN falls to the first corner too).
+      fx = fx > 0 ? (fx < w - 1 ? fx : w - 1) : 0;
+      fz = fz > 0 ? (fz < h - 1 ? fz : h - 1) : 0;
+      const i = Math.min(Math.floor(fx), w - 2);
+      const j = Math.min(Math.floor(fz), h - 2);
+      const tx = fx - i;
+      const tz = fz - j;
+      const a = corner(i, j);
+      const b = corner(i + 1, j);
+      const c = corner(i, j + 1);
+      const d = corner(i + 1, j + 1);
+      for (let k = 0; k < 3; k++) {
+        const top = rgb[a + k] + (rgb[b + k] - rgb[a + k]) * tx;
+        const bot = rgb[c + k] + (rgb[d + k] - rgb[c + k]) * tx;
+        out[k] = top + (bot - top) * tz;
+      }
+      return out;
+    },
+  };
+  // The rgb offset of corner (i, j), sampling `fn` there the first time.
+  function corner(i, j) {
+    const n = j * w + i;
+    if (!filled[n]) {
+      const v = fn(bounds.minX + i * cell, bounds.minZ + j * cell);
+      rgb[n * 3] = v[0];
+      rgb[n * 3 + 1] = v[1];
+      rgb[n * 3 + 2] = v[2];
+      filled[n] = 1;
+      s.samples++;
+    }
+    return n * 3;
+  }
+  return s;
+}
 
 // tuftAt(ix, iz, spacing, style) — the tuft that lattice cell (ix, iz) always
 // grows, or null for a bare cell. Pure function of the world cell.
@@ -513,6 +578,9 @@ export function createGrass(scene, { areaId, areaData, tier, camera, reducedMoti
   const mask = buildGrassMask(masked, flatFootprints(scene, ground));
   const maskMs = performance.now() - t0;
   const chunk = chunkCellsFor(spacing);
+  const groundK = style.ground ?? 0;
+  const tint = GROUND_TINTS[areaId] && groundK > 0 ? tintSampler(GROUND_TINTS[areaId], areaData.bounds) : null;
+  const g3 = [1, 1, 1];
   const capacity = capacityFor(radius, spacing);
 
   const material = new THREE.MeshStandardMaterial({
@@ -600,7 +668,16 @@ uniform vec2 uWindDir;`)
       s3.set(t.s, t.h, t.s);
       m4.compose(p3, q, s3);
       mesh.setMatrixAt(i, m4);
-      c.setRGB(t.tint[0], t.tint[1], t.tint[2]);
+      if (tint) {
+        tint.at(t.x, t.z, g3);
+        c.setRGB(
+          t.tint[0] * (1 + (g3[0] - 1) * groundK),
+          t.tint[1] * (1 + (g3[1] - 1) * groundK),
+          t.tint[2] * (1 + (g3[2] - 1) * groundK),
+        );
+      } else {
+        c.setRGB(t.tint[0], t.tint[1], t.tint[2]);
+      }
       mesh.setColorAt(i, c);
     }, style);
     mesh.count = n;
@@ -639,5 +716,5 @@ uniform vec2 uWindDir;`)
   }
 
   update(0, 1); // lay out the first patch before the first frame
-  return { mesh, mask, capacity, maskMs, get count() { return mesh.count; }, update, dispose };
+  return { mesh, mask, tint, capacity, maskMs, get count() { return mesh.count; }, update, dispose };
 }
