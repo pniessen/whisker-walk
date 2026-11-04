@@ -3064,6 +3064,195 @@ export function tree(x, z, scale = 1, { wind } = {}) {
   return g;
 }
 
+// beachClumpGeometry(x, z, kind) — the Seaside's plants, in place of the
+// garden-shrub blob: 'marram' (dune grass: 16 arching straw-green blades
+// fanned from a tight base, plus 3 buff seed spikes — 98 triangles) or
+// 'holly' (sea holly: a low silvery blue-grey rosette of 9 spiky leaves and 4
+// stems topped by small blue thistle heads in a star of bracts — 100
+// triangles). Built around the local origin with
+// the ground at y 0; bush() places and spins it.
+//
+// EXACTLY three BufferGeometries — part A, part B and their merge, with A and
+// B disposed — because that is what blobGeometry makes for a 2-lobe bush, and
+// Three draws 4 Math.random values for every geometry's uuid. The Seaside's
+// build draw count is pinned (test/waterlooks.test.js) and feeds the flat
+// trace, so the beach clump must cost the canopy's draws to the object. Shape
+// comes from hash01 only, never Math.random. Colours are linear
+// (new THREE.Color(hex)) per vertex. ≤ 100 triangles either kind, though
+// 160 was the brief's cap: the canopy bush it replaces is 100, and the
+// Seaside had no triangles to give (29,521 under a 30,000 ceiling), so the
+// clump spends exactly what the shrub did and no more.
+function beachClumpGeometry(x, z, kind) {
+  const part = () => {
+    const pos = [], col = [], idx = [];
+    return {
+      // v(x, y, z, colour) -> vertex index
+      v(px, py, pz, colour) {
+        pos.push(px, py, pz);
+        col.push(colour.r, colour.g, colour.b);
+        return pos.length / 3 - 1;
+      },
+      tri(a, b, d) { idx.push(a, b, d); },
+      geo() {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        return g;
+      },
+    };
+  };
+  const H = (s) => hash01(x, z, s);
+  const A = part(), B = part();
+  const mix = (a, b, t, shade = 1) => new THREE.Color(a).lerp(new THREE.Color(b), t).multiplyScalar(shade);
+
+  if (kind === 'marram') {
+    // Blades: three segments (quad, quad, tip triangle = 5 triangles), so
+    // each arches visibly instead of standing as a flat card.
+    const N = 16;
+    for (let i = 0; i < N; i++) {
+      const s = 1100 + i * 7;
+      const th = ((i + H(s) * 0.7) / N) * Math.PI * 2;
+      const r = 0.25 * H(s + 1);
+      const h = 0.6 + 0.55 * H(s + 2);
+      // outer blades lean further; inner ones stand up
+      const reach = h * (0.15 + 0.25 * (r / 0.25) + 0.2 * H(s + 3));
+      const a = reach / h;
+      const w0 = 0.05 + 0.02 * H(s + 4);
+      const shade = 0.88 + 0.18 * H(s + 5);
+      const ox = Math.cos(th), oz = Math.sin(th);
+      const sx = -oz, sz = ox;
+      const bx = ox * r, bz = oz * r;
+      const ids = [];
+      for (let k = 0; k <= 3; k++) {
+        const t = k / 3;
+        const d = reach * t * t;
+        const y = h * t * (1 - 0.35 * a * t);
+        const cx = bx + ox * d, cz = bz + oz * d;
+        const colour = mix(0x8a9a5a, 0xd8c88a, Math.pow(t, 0.8), shade);
+        if (k === 3) {
+          ids.push(A.v(cx, y, cz, colour));
+        } else {
+          const w = w0 * (1 - 0.8 * t) * 0.5;
+          ids.push(A.v(cx - sx * w, y, cz - sz * w, colour), A.v(cx + sx * w, y, cz + sz * w, colour));
+        }
+      }
+      A.tri(ids[0], ids[1], ids[3]); A.tri(ids[0], ids[3], ids[2]);
+      A.tri(ids[2], ids[3], ids[5]); A.tri(ids[2], ids[5], ids[4]);
+      A.tri(ids[4], ids[5], ids[6]);
+    }
+    // Seed spikes: a stem that thickens into a buff spike, as two crossed
+    // cards (3 triangles each) so it reads from every side.
+    for (let j = 0; j < 3; j++) {
+      const s = 1300 + j * 11;
+      const th = ((j + H(s)) / 3) * Math.PI * 2;
+      const r = 0.06 * H(s + 1);
+      const h = 1.0 + 0.22 * H(s + 2);
+      const lean = 0.08 + 0.1 * H(s + 3);
+      const ox = Math.cos(th), oz = Math.sin(th);
+      const bx = ox * r, bz = oz * r;
+      const at = (t) => [bx + ox * lean * t * t, h * t, bz + oz * lean * t * t];
+      const stem = mix(0x8a9a5a, 0xb8b07a, 0.5);
+      const head = mix(0xc8b07a, 0xd8c08a, H(s + 4));
+      for (let card = 0; card < 2; card++) {
+        const ang = th + card * Math.PI / 2;
+        const wx = Math.cos(ang), wz = Math.sin(ang);
+        const [x0, y0, z0] = at(0), [x1, y1, z1] = at(0.78), [x2, y2, z2] = at(1);
+        const b0 = B.v(x0 - wx * 0.006, y0, z0 - wz * 0.006, stem);
+        const b1 = B.v(x0 + wx * 0.006, y0, z0 + wz * 0.006, stem);
+        const m0 = B.v(x1 - wx * 0.018, y1, z1 - wz * 0.018, head);
+        const m1 = B.v(x1 + wx * 0.018, y1, z1 + wz * 0.018, head);
+        const tp = B.v(x2, y2, z2, head);
+        B.tri(b0, b1, m1); B.tri(b0, m1, m0); B.tri(m0, m1, tp);
+      }
+    }
+  } else {
+    // Rosette: 9 spiky leaves (4 triangles each, a raised midrib and two
+    // pairs of side spines), all ≤ ~0.35 m off the sand.
+    const N = 9;
+    for (let i = 0; i < N; i++) {
+      const s = 1500 + i * 7;
+      const ph = ((i + H(s) * 0.6) / N) * Math.PI * 2;
+      const L = 0.28 + 0.1 * H(s + 1);
+      const e = 0.5 + 0.3 * H(s + 2);
+      const shade = 0.78 + 0.16 * H(s + 3);
+      const dx = Math.cos(ph) * Math.cos(e), dy = Math.sin(e), dz = Math.sin(ph) * Math.cos(e);
+      const sx = -Math.sin(ph), sz = Math.cos(ph);
+      const c0 = [Math.cos(ph) * 0.03, 0.01, Math.sin(ph) * 0.03];
+      const P = (along, side, lift) => [
+        c0[0] + dx * along * L + sx * side * L,
+        c0[1] + dy * along * L + lift,
+        c0[2] + dz * along * L + sz * side * L,
+      ];
+      const base = mix(0x7d949e, 0x8fa6b0, 0.5, shade);
+      const leaf = mix(0x8fa6b0, 0x8fa6b0, 0, shade);
+      const tipC = mix(0x8fa6b0, 0xc4d2d8, 0.6, shade);
+      const v0 = A.v(...c0, base);
+      const v1 = A.v(...P(0.5, 0, 0.03), leaf);
+      const v2 = A.v(...P(1, 0, -0.01), tipC);
+      const l1 = A.v(...P(0.3, -0.3, -0.015), tipC);
+      const r1 = A.v(...P(0.3, 0.3, -0.015), tipC);
+      const l2 = A.v(...P(0.72, -0.24, -0.01), tipC);
+      const r2 = A.v(...P(0.72, 0.24, -0.01), tipC);
+      A.tri(v0, l1, v1); A.tri(v0, v1, r1);
+      A.tri(v1, l2, v2); A.tri(v1, v2, r2);
+    }
+    // Flower stems: crossed thin cards (4 triangles), a three-sided
+    // bipyramid head (6) and a 6-point star of bracts under it (6) — 16 a stem.
+    for (let j = 0; j < 4; j++) {
+      const s = 1700 + j * 11;
+      const th = ((j + H(s) * 0.8) / 4) * Math.PI * 2;
+      const r = 0.06 * H(s + 1);
+      const h = 0.34 + 0.12 * H(s + 2);
+      const lean = 0.1 + 0.08 * H(s + 3);
+      const ox = Math.cos(th), oz = Math.sin(th);
+      const bx = ox * r, bz = oz * r;
+      const tx = bx + ox * lean, tz = bz + oz * lean;
+      const stemLo = new THREE.Color(0x8fa6b0), stemHi = mix(0x8fa6b0, 0x6f86c8, 0.5);
+      for (let card = 0; card < 2; card++) {
+        const ang = th + card * Math.PI / 2;
+        const wx = Math.cos(ang), wz = Math.sin(ang);
+        const a0 = B.v(bx - wx * 0.012, 0, bz - wz * 0.012, stemLo);
+        const a1 = B.v(bx + wx * 0.012, 0, bz + wz * 0.012, stemLo);
+        const a2 = B.v(tx + wx * 0.008, h, tz + wz * 0.008, stemHi);
+        const a3 = B.v(tx - wx * 0.008, h, tz - wz * 0.008, stemHi);
+        B.tri(a0, a1, a2); B.tri(a0, a2, a3);
+      }
+      // thistle head
+      const hc = new THREE.Color(0x6f86c8).multiplyScalar(0.92 + 0.12 * H(s + 4));
+      const hy = h + 0.045, rx = 0.048, ry = 0.06;
+      const top = B.v(tx, hy + ry, tz, hc);
+      const bot = B.v(tx, hy - ry, tz, hc);
+      const eq = [];
+      for (let k = 0; k < 3; k++) {
+        const a = th + (k * Math.PI * 2) / 3;
+        eq.push(B.v(tx + Math.cos(a) * rx, hy, tz + Math.sin(a) * rx, hc));
+      }
+      for (let k = 0; k < 3; k++) {
+        B.tri(top, eq[(k + 1) % 3], eq[k]);
+        B.tri(bot, eq[k], eq[(k + 1) % 3]);
+      }
+      // star bracts, spreading just under the head
+      const bc = new THREE.Color(0xa8bccc);
+      for (let k = 0; k < 6; k++) {
+        const a = th + (k * Math.PI) / 3 + 0.3;
+        const by = h + 0.005;
+        const p = B.v(tx + Math.cos(a - 0.4) * 0.02, by, tz + Math.sin(a - 0.4) * 0.02, bc);
+        const q = B.v(tx + Math.cos(a + 0.4) * 0.02, by, tz + Math.sin(a + 0.4) * 0.02, bc);
+        const tip = B.v(tx + Math.cos(a) * 0.11, by + 0.015, tz + Math.sin(a) * 0.11, bc);
+        B.tri(p, q, tip);
+      }
+    }
+  }
+  const ga = A.geo(), gb = B.geo();
+  const merged = mergeGeometries([ga, gb], false);
+  ga.dispose();
+  gb.dispose();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
 // A bush. Returns the same bare Mesh it always has — UNLESS `opts.wind` is
 // passed, in which case it comes back as a Group with that mesh inside it.
 //
@@ -3077,22 +3266,36 @@ export function tree(x, z, scale = 1, { wind } = {}) {
 // same origin every compound prop here already has — with the mesh at local
 // y 0.5, so the bush is in exactly the same place either way and no geometry,
 // collider or hide-spot record moves a millimetre.
-export function bush(x, z, { wind } = {}) {
+export function bush(x, z, { wind, style } = {}) {
   // 'foliage', same as a tree canopy and map-less for the same reason. Same
   // organic-blob treatment as tree(), scaled down and salted differently (see
   // the ORGANIC CANOPY block above) so a bush never coincidentally matches a
   // tree's shape or a neighbouring bush's.
-  const m = new THREE.Mesh(
-    blobGeometry(x, z, 0.7, { lobes: 2, saltBase: 1000 }),
-    surfMat(organicTint(0x5aa04e, x, z, 1010, 8), 'foliage'),
-  );
+  //
+  // `style: 'beach'` swaps the canopy for a ground-rooted clump (see
+  // beachClumpGeometry above): the same 3 geometries, 1 material, 1 mesh, so
+  // the same uuid draws, but the mesh sits at y 0 — it grows from the sand,
+  // there is no belly to lift.
+  const beach = style === 'beach';
+  const kind = beach ? (hash01(x, z, 1041) < 0.5 ? 'marram' : 'holly') : null;
+  const m = beach
+    ? new THREE.Mesh(
+      beachClumpGeometry(x, z, kind),
+      litMaterial(0xffffff, { ...surfaceProps('foliage'), vertexColors: true, side: THREE.DoubleSide }),
+    )
+    : new THREE.Mesh(
+      blobGeometry(x, z, 0.7, { lobes: 2, saltBase: 1000 }),
+      surfMat(organicTint(0x5aa04e, x, z, 1010, 8), 'foliage'),
+    );
+  if (beach) m.userData.beachPlant = kind;
+  const lift = beach ? 0 : 0.5;
   m.rotation.y = hash01(x, z, 1030) * Math.PI * 2;
   if (!wind) {
-    m.position.set(x, 0.5, z);
+    m.position.set(x, lift, z);
     return m;
   }
   const g = new THREE.Group();
-  m.position.set(0, 0.5, 0);
+  m.position.set(0, lift, 0);
   g.add(m);
   g.position.set(x, 0, z);
   // Explicit on both counts, because a bush has no `scale` to infer from: the

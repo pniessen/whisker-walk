@@ -234,3 +234,93 @@ describe('the Neighbourhood street of houses', () => {
     }
   });
 });
+
+// Task 3: the Seaside's six bushes become beach plants (marram grass clumps
+// and sea holly). bush(x, z, { style: 'beach' }) must cost exactly the default
+// bush's Math.random draws (Three's uuids, 4 per object), because the
+// Seaside's build count is pinned (test/waterlooks.test.js) and feeds the
+// pinned flat trace.
+describe('bush() beach style', async () => {
+  const { bush, SWAY_BUSH } = await import('../src/world/builder.js');
+  const { build: buildSeaside, SEASIDE_BUSHES, SEASIDE_BUSHES_EXTRA } = await import('../src/world/seaside.js');
+  const SPOTS = [...SEASIDE_BUSHES, ...SEASIDE_BUSHES_EXTRA];
+  const fakeWind = () => {
+    const added = [];
+    return { added, add: (obj, opts) => added.push({ obj, opts }) };
+  };
+  const meshOf = (o) => {
+    let m = null;
+    o.traverse((c) => { if (c.isMesh) m = c; });
+    return m;
+  };
+
+  it('draws exactly as many Math.random values as a default bush, warm, with and without wind', () => {
+    for (const [x, z] of SPOTS) {
+      bush(x, z); bush(x, z, { style: 'beach' }); // warm
+      expect(countDraws(() => bush(x, z, { style: 'beach' }))).toBe(countDraws(() => bush(x, z)));
+      expect(countDraws(() => bush(x, z, { style: 'beach', wind: fakeWind() })))
+        .toBe(countDraws(() => bush(x, z, { wind: fakeWind() })));
+    }
+  });
+
+  it('is one mesh of at most 100 triangles (the shrub it replaces), standing on the ground', () => {
+    for (const [x, z] of SPOTS) {
+      const m = bush(x, z, { style: 'beach' });
+      expect(m.isMesh).toBe(true);
+      expect(m.position.toArray()).toEqual([x, 0, z]);
+      expect(trianglesOf(m)).toBeLessThanOrEqual(100);
+      m.geometry.computeBoundingBox();
+      expect(m.geometry.boundingBox.min.y).toBeGreaterThanOrEqual(-1e-6);
+      expect(m.geometry.boundingBox.min.y).toBeLessThan(0.05);
+      expect(m.material.vertexColors).toBe(true);
+      expect(m.material.side).toBe(THREE.DoubleSide);
+    }
+  });
+
+  it('with wind: a Group hinged at (x, 0, z), registered as a bush, mesh at local y 0', () => {
+    const [x, z] = SPOTS[0];
+    const wind = fakeWind();
+    const g = bush(x, z, { style: 'beach', wind });
+    expect(g.isGroup).toBe(true);
+    expect(g.position.toArray()).toEqual([x, 0, z]);
+    expect(wind.added).toHaveLength(1);
+    expect(wind.added[0].obj).toBe(g);
+    expect(wind.added[0].opts).toEqual({ sizeHint: 0.55, amplitude: SWAY_BUSH });
+    expect(g.children).toHaveLength(1);
+    expect(g.children[0].position.toArray()).toEqual([0, 0, 0]);
+  });
+
+  it('the six Seaside spots hold at least two marram and two sea holly, with the right heights', () => {
+    const kinds = { marram: 0, holly: 0 };
+    for (const [x, z] of SPOTS) {
+      const m = bush(x, z, { style: 'beach' });
+      const kind = m.userData.beachPlant;
+      kinds[kind]++;
+      m.geometry.computeBoundingBox();
+      const top = m.geometry.boundingBox.max.y;
+      if (kind === 'marram') expect(top).toBeGreaterThan(0.75);
+      if (kind === 'marram') expect(top).toBeLessThan(1.4);
+      if (kind === 'holly') expect(top).toBeLessThan(0.75);
+    }
+    expect(kinds.marram).toBeGreaterThanOrEqual(2);
+    expect(kinds.holly).toBeGreaterThanOrEqual(2);
+  });
+
+  it('the Seaside builds beach plants, not shrubs, and stays at or under 29,521 triangles', () => {
+    const scene = new THREE.Scene();
+    const wind = fakeWind();
+    buildSeaside(scene, { wind });
+    expect(wind.added).toHaveLength(6);
+    for (const { obj } of wind.added) expect(meshOf(obj).userData.beachPlant).toMatch(/^(marram|holly)$/);
+    let n = 0;
+    scene.traverse((o) => { if (o.isMesh) n += tris(o.geometry); });
+    expect(Math.round(n)).toBeLessThanOrEqual(29521);
+  }, 30000);
+
+  it('a default bush is unchanged: the canopy blob at belly height', () => {
+    const m = bush(8, 2);
+    expect(m.position.toArray()).toEqual([8, 0.5, 2]);
+    expect(m.userData.beachPlant).toBeUndefined();
+    expect(m.material.vertexColors).toBe(false);
+  });
+});

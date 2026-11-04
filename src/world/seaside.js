@@ -686,15 +686,17 @@ export function build(scene, { water = {}, wind } = {}) {
 
   scene.add(b.billboard(BILLBOARD.x, BILLBOARD.z, BILLBOARD.yaw));
   addC(BILLBOARD.x, BILLBOARD.z, 2.3);
-  // beach grass tufts — the area's only foliage, and therefore the whole of
-  // what registers with the wind rig. builder.bush returns a Group hinged at
-  // ground contact when `wind` is passed, so the tuft stands in exactly the
-  // same place either way and no hide-spot or scent record moves.
-  for (const [x, z] of SEASIDE_BUSHES) scene.add(b.bush(x, z, { wind }));
+  // beach plants — marram grass clumps and sea holly (builder.bush's 'beach'
+  // style picks the kind per spot), in place of the garden shrubs that used
+  // to sit on the sand. They are the area's only foliage, and therefore the
+  // whole of what registers with the wind rig. builder.bush returns a Group
+  // hinged at ground contact when `wind` is passed, so each plant stands in
+  // exactly the same place either way and no hide-spot or scent record moves.
+  for (const [x, z] of SEASIDE_BUSHES) scene.add(b.bush(x, z, { wind, style: 'beach' }));
 
-  // a few more rocks and grass tufts scattered on the sand
+  // a few more rocks and beach plants scattered on the sand
   for (const [x, z] of SEASIDE_ROCKS_EXTRA) scene.add(b.rock(x, z));
-  for (const [x, z] of SEASIDE_BUSHES_EXTRA) scene.add(b.bush(x, z, { wind }));
+  for (const [x, z] of SEASIDE_BUSHES_EXTRA) scene.add(b.bush(x, z, { wind, style: 'beach' }));
 
   // driftwood washed up at the sand line. Thin-member rule: 0.15 by 0.25, so
   // repeatFor's one-whole-tile minimum would squash the plank tile's four
