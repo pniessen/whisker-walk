@@ -177,6 +177,11 @@ const AREA_KNOBS = Object.freeze({
   gorge: Object.freeze({
     horizon: 0,
     step: 3,
+    // the drawn box ends at the bounds, so the last sample before the cut can
+    // be up to one step inside it: the bite is 0 for the last 3 m and eases
+    // in over the next 6 (no square step at the end of the strip)
+    boxDead: 3,
+    boxTaper: 6,
     light: true,
     biteScale: 0.5,
     stoneEvery: 34,
@@ -813,7 +818,7 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
     const sampled = sampleChain(ch, w, knobs.step);
     if (fillets) for (const f of fillets) bendOntoFillet(sampled.samples, f);
     const seed = ci ? seedFromCode(`waterdress-${areaId}-${w.id}-${ci}`) : seed0;
-    if (kind) biteChain(sampled, { seed: seed + 3, kind, fillets, waters: areaData.waters, heights: areaData.waterFx, fillY, box, scale: knobs.biteScale });
+    if (kind) biteChain(sampled, { seed: seed + 3, kind, fillets, waters: areaData.waters, heights: areaData.waterFx, fillY, box, scale: knobs.biteScale, boxDead: knobs.boxDead, boxTaper: knobs.boxTaper });
     const ctx = {
       seed,
       stoneSeed: seed + 7,
@@ -1000,7 +1005,7 @@ function bendOntoFillet(samples, f) {
 // Samples already bent onto a fillet keep bite 0. The bite also tapers like
 // an open end toward the edge of the drawn box, where clipRuns cuts the run:
 // no square step where the strip stops.
-function biteChain(sampled, { seed, kind, fillets, waters, heights = [], fillY, box = null, scale = 1 }) {
+function biteChain(sampled, { seed, kind, fillets, waters, heights = [], fillY, box = null, scale = 1, boxDead = BITE_END_DEAD, boxTaper = BITE_END }) {
   const { samples, closed, length } = sampled;
   const period = closed ? length : 0;
   for (const p of samples) {
@@ -1010,7 +1015,7 @@ function biteChain(sampled, { seed, kind, fillets, waters, heights = [], fillY, 
     if (!closed) t *= smooth01((Math.min(p.s, length - p.s) - BITE_END_DEAD) / BITE_END);
     if (box && t > 0) {
       const edge = Math.min(p.x - box.minX, box.maxX - p.x, p.z - box.minZ, box.maxZ - p.z);
-      t *= smooth01((edge - BITE_END_DEAD) / BITE_END);
+      t *= smooth01((edge - boxDead) / boxTaper);
     }
     if (t > 0) t *= smooth01((deckDistance(waters, p.x, p.z) - BITE_DECK) / BITE_DECK_RAMP);
     for (const f of fillets ?? []) {

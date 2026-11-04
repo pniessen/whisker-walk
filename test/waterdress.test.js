@@ -932,16 +932,20 @@ describe('water dressing', () => {
       expect(dbg[0].samples.length).toBeGreaterThan(0);
     }, 120_000);
 
-    it('the bite tapers to nothing at the edge of the drawn box (bounds + 10 m)', () => {
+    it('the bite tapers to nothing at the edge of the drawn box (bounds + 10 m; the Gorge: bounds, 3 m step)', () => {
       let n = 0;
-      for (const id of STREAM_AREAS) {
+      for (const id of [...STREAM_AREAS, 'gorge']) {
         const { fx, areaData } = dressOnGround(id, { debug: true });
         const b = areaData.bounds;
-        const box = { minX: b.minX - 10, maxX: b.maxX + 10, minZ: b.minZ - 10, maxZ: b.maxZ + 10 };
+        // the Gorge draws no horizon margin and samples every 3 m, so its last
+        // sample before the cut can be up to 3 m inside the edge
+        const m = id === 'gorge' ? 0 : 10;
+        const reach = id === 'gorge' ? 3 : 0.3;
+        const box = { minX: b.minX - m, maxX: b.maxX + m, minZ: b.minZ - m, maxZ: b.maxZ + m };
         for (const r of bitesOf(fx)) {
           for (const p of r.samples) {
             const d = Math.min(p.x0 - box.minX, box.maxX - p.x0, p.z0 - box.minZ, box.maxZ - p.z0);
-            if (d > 0.3) continue;
+            if (d > reach) continue;
             n++;
             expect(p.bite, `${id} ${r.water} ${p.x0.toFixed(2)},${p.z0.toFixed(2)}`).toBeLessThanOrEqual(0.05);
           }
