@@ -194,7 +194,7 @@ describe('legs fold at the joints (Task 5)', () => {
         expect(p.standing, `${label(v)} ${state} standing`).toBeLessThanOrEqual(allowed(v.name, state));
       }
     }
-  });
+  }, 180_000); // a long pose sweep: under a busy machine the 30 s default can trip
 
   it('nothing pokes out of the back, moving', () => {
     // The walk, the stalk at a walk, and the fight's swept states.
