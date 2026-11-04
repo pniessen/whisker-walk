@@ -3564,7 +3564,21 @@ export function plankBridge(x1, z1, x2, z2, w, y, thick) {
   const len = Math.hypot(x2 - x1, z2 - z1);
   const geo = new THREE.BoxGeometry(w, thick, len);
   plankEdgeUVs(geo, w, thick, len);
-  const m = new THREE.Mesh(geo, surfMat(0x8a6a44, 'wood', w, len));
+  // Colour by face: the top is lit warm wood, darker toward one end; the sides
+  // and underside are weathered and in shadow, so the box reads as a thick
+  // board. Free: setAttribute makes no uuid. The material's tint is raised a
+  // touch so the top's mean stays near the old 0x8a6a44.
+  const pos = geo.getAttribute('position');
+  const col = new Float32Array(pos.count * 3);
+  const shade = (i, f) => { col[i * 3] = f; col[i * 3 + 1] = f * 0.97; col[i * 3 + 2] = f * 0.94; };
+  geo.groups.forEach((g, k) => {
+    for (let j = g.start; j < g.start + g.count; j++) {
+      const i = geo.index.array[j];
+      shade(i, k === 2 ? 1 - 0.14 * (0.5 - pos.getZ(i) / len) : k === 3 ? 0.4 : 0.58);
+    }
+  });
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.Mesh(geo, litMaterial(0x947249, { surface: 'wood', repeat: repeatFor('wood', w, len), vertexColors: true }));
   m.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
   m.rotation.y = Math.atan2(x2 - x1, z2 - z1);
   // A plank lying on the water: flat ground dressing, out of the shadow pass
@@ -3658,16 +3672,50 @@ export function steppingStones(x1, z1, x2, z2, n = 5, { rMin = 0.38, rMax = 0.52
     const sz = z1 + (z2 - z1) * f + (hash01(i, 2, 61) - 0.5) * jitter;
     const r = rMin + (rMax - rMin) * hash01(i, 3, 61);
     const stone = new THREE.CylinderGeometry(r * 0.88, r, 0.2, sides);
+    colourStone(stone, i, 0.1, r);
     stone.rotateY(hash01(i, 4, 61) * Math.PI);
     stone.translate(sx, (i % 2 ? -0.5 : 0.5) * stagger, sz);
     geoms.push(stone);
   }
   const geo = geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
   if (geoms.length > 1) for (const p of geoms) p.dispose();
-  const m = new THREE.Mesh(geo, surfNoMap(0x8a8a84, 'cobble'));
+  const m = new THREE.Mesh(geo, litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true }));
   m.castShadow = false;
   m.userData.noCast = true;
+  // dusk.js's tintDuskLawn tints vertex colours of meshes carrying this tag
+  m.userData.duskTint = true;
   return m;
+}
+
+const STONE_WARM = new THREE.Color(0x948b7c);
+const STONE_COOL = new THREE.Color(0x7d8590);
+const STONE_MOSS = new THREE.Color(0x6f7f4a);
+const STONE_DAMP = new THREE.Color(0.58, 0.6, 0.66);
+
+// Paint one stone (a CylinderGeometry, before it is moved) with a vertex-colour
+// attribute: its own base tone between warm grey and blue-grey; a damp, cooler
+// skirt foot fading up to the base at the top rim; a dry sun-bleached cap
+// centre, mossy green on about a third of the stones. Read by position (y and
+// distance from the axis), so it does not depend on three's vertex order.
+function colourStone(stone, i, halfH, r) {
+  const base = STONE_WARM.clone().lerp(STONE_COOL, hash01(i, 5, 61));
+  base.multiplyScalar(0.82 + 0.2 * hash01(i, 6, 61));
+  const mossy = hash01(i, 7, 61) < 0.34;
+  const centre = mossy
+    ? base.clone().lerp(STONE_MOSS, 0.6 + 0.3 * hash01(i, 8, 61))
+    : base.clone().multiplyScalar(1.1);
+  const foot = base.clone().multiply(STONE_DAMP);
+  const pos = stone.getAttribute('position');
+  const arr = new Float32Array(pos.count * 3);
+  const c = new THREE.Color();
+  for (let v = 0; v < pos.count; v++) {
+    const up = (pos.getY(v) + halfH) / (2 * halfH); // 0 at the foot, 1 at the top
+    const rad = Math.hypot(pos.getX(v), pos.getZ(v));
+    if (up > 0.5 && rad < r * 0.02) c.copy(centre);
+    else c.copy(foot).lerp(base, up);
+    arr[v * 3] = c.r; arr[v * 3 + 1] = c.g; arr[v * 3 + 2] = c.b;
+  }
+  stone.setAttribute('color', new THREE.BufferAttribute(arr, 3));
 }
 
 // A fallen trunk lying along its local z, turned to `yaw`, its top at y 0.5

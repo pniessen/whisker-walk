@@ -740,6 +740,80 @@ describe('the Woods builders', () => {
     expect(m.userData.noCast).toBe(true);
   });
 
+  describe('steppingStones colour', () => {
+    const SIDES = 8;
+    const per = new THREE.CylinderGeometry(0.4, 0.4, 0.2, SIDES).attributes.position.count;
+    // one stone's vertices: [rows of {y, rad, r,g,b}] around its own centroid
+    function stones(m) {
+      const pos = m.geometry.attributes.position, col = m.geometry.attributes.color;
+      const out = [];
+      for (let s = 0; s < pos.count / per; s++) {
+        let cx = 0, cz = 0;
+        for (let k = 0; k < per; k++) { cx += pos.getX(s * per + k); cz += pos.getZ(s * per + k); }
+        cx /= per; cz /= per;
+        const vs = [];
+        for (let k = 0; k < per; k++) {
+          const i = s * per + k;
+          vs.push({ y: pos.getY(i), rad: Math.hypot(pos.getX(i) - cx, pos.getZ(i) - cz), r: col.getX(i), g: col.getY(i), b: col.getZ(i) });
+        }
+        out.push(vs);
+      }
+      return out;
+    }
+    const lum = (v) => (v.r + v.g + v.b) / 3;
+    const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+    const m = b.steppingStones(0, 0, 14, 0, 14);
+
+    it('has a colour attribute, vertexColors and the dusk tag', () => {
+      expect(m.geometry.attributes.color.count).toBe(m.geometry.attributes.position.count);
+      expect(m.material.vertexColors).toBe(true);
+      expect(m.userData.duskTint).toBe(true);
+      expect(m.castShadow).toBe(false);
+      expect(m.userData.noCast).toBe(true);
+    });
+
+    it('gives neighbouring stones different base tones, grey and a little lower than before', () => {
+      const tones = new Set(), means = [];
+      for (const vs of stones(m)) {
+        const rim = vs.filter((v) => v.y > 0.05 && v.rad > 0.3);
+        tones.add(mean(rim.map((v) => v.r)).toFixed(3) + mean(rim.map((v) => v.b)).toFixed(3));
+        means.push(mean(vs.map(lum)));
+      }
+      expect(tones.size).toBeGreaterThanOrEqual(3);
+      // still stone: no channel strays far from the others on the rim
+      for (const vs of stones(m)) for (const v of vs.filter((q) => q.y > 0.05 && q.rad > 0.3)) {
+        expect(Math.max(v.r, v.g, v.b) - Math.min(v.r, v.g, v.b)).toBeLessThan(0.12);
+      }
+      // darker overall than the flat 0x8a8a84 (~0.54 sRGB, ~0.25 linear)
+      const flat = new THREE.Color(0x8a8a84);
+      expect(mean(means)).toBeLessThan((flat.r + flat.g + flat.b) / 3);
+    });
+
+    it('darkens each stone toward its damp bottom', () => {
+      for (const vs of stones(m)) {
+        const top = mean(vs.filter((v) => v.y > 0.05 && v.rad > 0.3).map(lum));
+        const bottom = mean(vs.filter((v) => v.y < -0.05 && v.rad > 0.3).map(lum));
+        expect(bottom).toBeLessThan(top * 0.8);
+      }
+    });
+
+    it('mosses the cap centre of some stones but not all', () => {
+      const mossy = stones(m).filter((vs) => {
+        const minRad = Math.min(...vs.filter((v) => v.y > 0.05).map((v) => v.rad));
+        const c = vs.filter((v) => v.y > 0.05 && v.rad < minRad + 0.03);
+        expect(c.length).toBeGreaterThan(0);
+        return c.every((v) => v.g > v.r * 1.12 && v.g > v.b * 1.12);
+      });
+      expect(mossy.length).toBeGreaterThan(0);
+      expect(mossy.length).toBeLessThan(14);
+    });
+
+    it('is deterministic', () => {
+      const again = b.steppingStones(0, 0, 14, 0, 14);
+      expect(Array.from(again.geometry.attributes.color.array)).toEqual(Array.from(m.geometry.attributes.color.array));
+    });
+  });
+
   it('steppingStones draws rounder stones when given more sides', () => {
     const round = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 16).attributes.position.count;
     expect(b.steppingStones(0, 0, 6, 0, 5, { sides: 16 }).geometry.attributes.position.count).toBe(5 * round);
