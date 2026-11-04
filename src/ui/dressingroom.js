@@ -233,7 +233,10 @@ function placeHtml(p) {
 export function poseToggleHtml(pose) {
   if (pose !== 'sit' && pose !== 'stand') return '';
   const sitting = pose === 'sit';
-  return `<button class="dr-pose" data-dr-pose="${sitting ? 'stand' : 'sit'}" aria-pressed="${sitting}">🐾 Sit</button>`;
+  // The label names what a tap does: a standing cat offers Sit, a sitting one Stand.
+  return sitting
+    ? '<button class="dr-pose" data-dr-pose="stand">🐾 Stand</button>'
+    : '<button class="dr-pose" data-dr-pose="sit">🐾 Sit</button>';
 }
 
 // headerHtml / statsHtml / startHtml / extrasHtml are pre-rendered, already

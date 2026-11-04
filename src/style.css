@@ -1552,7 +1552,6 @@ body.den-shop-open .chat-wheel { display: none !important; }
 .dr .dr-pose { pointer-events: auto; background: var(--panel); color: var(--cream);
   border: 1.5px solid var(--pink); border-radius: 999px; padding: 6px 14px; min-height: 44px; min-width: 44px;
   font-weight: 700; text-shadow: none; }
-.dr .dr-pose[aria-pressed="true"] { background: var(--pink); color: var(--navy); }
 .dr .dr-pose:focus-visible { outline: 3px solid var(--cream); outline-offset: 2px; }
 .dr .dr-hero-edit { pointer-events: auto; margin-top: 6px; background: var(--panel); color: var(--cream);
   border: 1.5px solid var(--pink); border-radius: 999px; padding: 8px 18px; min-height: 44px; font-weight: 700; }

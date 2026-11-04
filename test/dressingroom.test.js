@@ -473,9 +473,9 @@ describe('her own cats in the dressing room', () => {
     const mk = (ui) => renderDressingRoomHtml({ model: buildDressingModel(withMine(0), CATALOG), ui });
     const stand = mk({ builderHtml: '<i></i>', heroName: 'Ember', pose: 'stand' });
     const text = stand.slice(stand.indexOf('dr-hero-text'), stand.indexOf('</section>'));
-    expect(text).toContain('<button class="dr-pose" data-dr-pose="sit" aria-pressed="false">🐾 Sit</button>');
+    expect(text).toContain('<button class="dr-pose" data-dr-pose="sit">🐾 Sit</button>');
     expect(text).toContain('<div class="dr-hero-row"><div class="dr-hero-name">Ember</div><button class="dr-pose"');
-    expect(mk({ builderHtml: '<i></i>', pose: 'sit' })).toContain('data-dr-pose="stand" aria-pressed="true">🐾 Sit</button>');
+    expect(mk({ builderHtml: '<i></i>', pose: 'sit' })).toContain('data-dr-pose="stand">🐾 Stand</button>');
     expect(mk({ builderHtml: '<i></i>' })).not.toContain('data-dr-pose');
     expect(mk({ pose: 'stand' })).not.toContain('data-dr-pose');
     expect(poseToggleHtml('nap')).toBe('');

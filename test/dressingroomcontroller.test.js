@@ -408,7 +408,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
       expect(calls.at(-1)).toEqual(['show', 'tabby', {}, DEFAULT_LOOK]);
       const html = dr.html();
       expect(html).toContain('data-dr-pose="sit"');
-      expect(html).toContain('aria-pressed="false">🐾 Sit</button>');
+      expect(html).toContain('data-dr-pose="sit">🐾 Sit</button>');
       dr.handleClick(click({ cbCancel: '' })); // clean draft: closes at once
       dr.afterRender({ id: 'dr-stage' });
       expect(calls.at(-2)).toEqual(['setPose', 'sit', { redraw: false }]);
@@ -427,7 +427,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
       dr.afterRender({ id: 'dr-stage' });
       expect(stage.setPose).toHaveBeenLastCalledWith('sit', { redraw: false });
       expect(stage.show.mock.calls.length).toBe(shows + 1);
-      expect(dr.html()).toContain('data-dr-pose="stand" aria-pressed="true">🐾 Sit</button>');
+      expect(dr.html()).toContain('data-dr-pose="stand">🐾 Stand</button>');
       dr.afterRender({ id: 'dr-stage' }); // a plain re-render rebuilds nothing
       expect(stage.show.mock.calls.length).toBe(shows + 1);
       // the size slider keeps her pose
