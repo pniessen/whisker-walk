@@ -168,7 +168,8 @@ export function createNightSky(scene, { areaId, camera, reducedMotion = false } 
   geometry.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
   geometry.setAttribute('aBright', new THREE.BufferAttribute(bright, 1));
   geometry.setAttribute('aPhase', new THREE.BufferAttribute(phase, 1));
-  // Raw colour, like the untone-mapped sky background behind them.
+  // Raw colour, like the sky background behind them. (On the composer path the
+  // output pass tone-maps the whole frame, sky and all, so they still agree.)
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },

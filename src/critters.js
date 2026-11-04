@@ -295,9 +295,11 @@ function buildCritter(type, def = {}) {
       g.add(wing);
     }
     if (type === 'firefly') {
-      // Unlit and over-bright (channels above 1) so HIGH's bloom catches it.
+      // Unlit and over-bright (red/green above 1) so HIGH's bloom catches it.
+      // Without bloom or tone mapping it clips to a yellow-green (1, 1, 0.35)
+      // rather than white, so blue stays low.
       const glowMat = new THREE.MeshBasicMaterial({ toneMapped: false, fog: true });
-      glowMat.color.setRGB(2.2, 2.4, 0.9);
+      glowMat.color.setRGB(1.6, 1.9, 0.35);
       const glow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), glowMat);
       g.add(glow);
     }

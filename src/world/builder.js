@@ -1369,7 +1369,7 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint,
 const HOUSE_WINDOW = [0.16, 0.17, 0.21];
 const HOUSE_DOOR = [0.3, 0.19, 0.12];
 const HOUSE_SINK = 0.55;
-// Lit windows at dusk: a second, slightly larger quad just in front of most
+// Lit windows at dusk: a second, slightly smaller quad (leaving a dark frame) just in front of most
 // windows (and always the first), collected apart from the band's own
 // geometry so the dusk look can reveal them as one hidden mesh.
 const HOUSE_LIGHT = 0xffd27a;
@@ -2598,7 +2598,9 @@ export function horizonBand({
 
 // The Woods' lit cottage windows: one hidden mesh, a child of the band, that
 // render/dusk.js reveals at dusk (userData.duskWindow). Basic material, no fog
-// and no tone mapping, so the panes stay a warm yellow however far off. Made
+// and toneMapped:false, so the panes stay a warm yellow however far off. (On
+// the composer path the output pass tone-maps the whole frame, sky and all, so
+// they still agree.) Made
 // wholly under its own uuid stream (the area's Math.random draw count is pinned).
 function houseLightsMesh(geos, rsalt) {
   return withLocalUuids(`band-houselights-${rsalt}`, () => {

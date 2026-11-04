@@ -22,20 +22,21 @@ describe('fireflies glow', () => {
     expect(glow.material).toBeInstanceOf(THREE.MeshBasicMaterial);
     expect(glow.material.toneMapped).toBe(false);
     expect(glow.material.fog).toBe(true);
-    expect(glow.material.color.r).toBeCloseTo(2.2, 5);
-    expect(glow.material.color.g).toBeCloseTo(2.4, 5);
-    expect(glow.material.color.b).toBeCloseTo(0.9, 5);
+    expect(glow.material.color.r).toBeCloseTo(1.6, 5);
+    expect(glow.material.color.g).toBeCloseTo(1.9, 5);
+    expect(glow.material.color.b).toBeCloseTo(0.35, 5);
+    expect(glow.material.color.g).toBeGreaterThan(1);
+    expect(glow.material.color.b).toBeLessThan(0.5);
     expect(glow.geometry.parameters.radius).toBe(0.05);
     expect(glow.geometry.parameters.widthSegments).toBe(6);
     expect(glow.geometry.parameters.heightSegments).toBe(5);
   });
   it('butterflies are unchanged', () => {
-    const c = createCritters(new THREE.Scene(), [], { rng: mulberry32(1) });
+    const c = createCritters(new THREE.Scene(), [{ type: 'butterfly', x: 0, z: 0 }], { rng: mulberry32(1) });
     const b = c.list.find((x) => x.type === 'butterfly');
-    if (b) {
-      expect(b.group.children).toHaveLength(2);
-      expect(b.group.children[0].material.color.getHex()).toBe(0xe070b0);
-    }
+    expect(b).toBeDefined();
+    expect(b.group.children).toHaveLength(2);
+    expect(b.group.children[0].material.color.getHex()).toBe(0xe070b0);
   });
   it('draws the same number of Math.random values as before', () => {
     const spy = vi.spyOn(Math, 'random');
