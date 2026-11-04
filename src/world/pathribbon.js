@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { litMaterial, tileMetres } from '../render/materials.js';
-import { path } from './builder.js';
+import { path, deckDistance, onDeck, waterGap } from './builder.js';
 import { withLocalUuids } from './localuuids.js';
 
 // SOFT, JOINED TRAILS (polish-paths, survey-4 pass 4A-1).
@@ -91,23 +91,137 @@ export function endKinds(groups, { edge = 50 } = {}) {
   return all.map(({ s }, i) => [kindOf(i, s[0], s[1]), kindOf(i, s[2], s[3])]);
 }
 
+// Trail tucks (polish-crossings, ruling R2). Path data leaves a bridge or a
+// ford as a GAP between two segments, so a free end there used to stop 1-2 m
+// short of the log or stones with a round cap on the grass. A free end within
+// DECK_REACH of a deck instead keeps its full length and gets one extra
+// segment (same width) running to a point on the deck's crossing axis placed
+// so the capsule's round tip lies TUCK inside the deck's nearer short end,
+// hidden under the log / stones / plank.
+export const TUCK = 0.5;
+export const DECK_REACH = 2.5;
+
+// A deck's crossing frame: its two short-end midpoints and the unit axis a->b.
+// A rect crosses along its long side; a strip deck along x1,z1 -> x2,z2.
+function deckFrame(d) {
+  if (Number.isFinite(d.x1)) {
+    const len = Math.hypot(d.x2 - d.x1, d.z2 - d.z1);
+    return { ax: d.x1, az: d.z1, bx: d.x2, bz: d.z2, ux: (d.x2 - d.x1) / len, uz: (d.z2 - d.z1) / len };
+  }
+  const cx = (d.minX + d.maxX) / 2;
+  const cz = (d.minZ + d.maxZ) / 2;
+  return d.maxX - d.minX >= d.maxZ - d.minZ
+    ? { ax: d.minX, az: cz, bx: d.maxX, bz: cz, ux: 1, uz: 0 }
+    : { ax: cx, az: d.minZ, bx: cx, bz: d.maxZ, ux: 0, uz: 1 };
+}
+
+// One tuck segment from (x, z) whose round tip lies `tuck` inside the deck end
+// (mx, mz) along the inward axis (ix, iz). Never shorter than MIN_LEN: an end
+// already level with the tip point starts MIN_LEN back from it instead.
+function tuckSeg(x, z, h, mx, mz, ix, iz, tuck) {
+  const x2 = mx + ix * (tuck - h);
+  const z2 = mz + iz * (tuck - h);
+  if (Math.hypot(x2 - x, z2 - z) >= MIN_LEN) return { x1: x, z1: z, x2, z2, h };
+  return { x1: x2 - ix * MIN_LEN, z1: z2 - iz * MIN_LEN, x2, z2, h };
+}
+
+// Does any point of the segment's widest capsule (trailReach) that is not on a
+// deck lie in open water? Sampled on a TUCK_STEP grid in the segment's frame.
+const TUCK_STEP = 0.05;
+const TUCK_STEPS = [0.2, 0.1, TUCK_STEP];
+// `dry` is `waters` with the decks stripped (built once per trailSegments
+// call); the cheap open-water test runs first, the deck test only on a hit.
+function tuckWet(s, waters, dry, step = TUCK_STEP) {
+  const R = trailReach(s.h);
+  const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
+  // waterGap is 1-Lipschitz, so a water whose gap at the capsule's centre
+  // exceeds the capsule's half-extent cannot be wet anywhere in it.
+  const mx = (s.x1 + s.x2) / 2;
+  const mz = (s.z1 + s.z2) / 2;
+  const near = dry.filter((w) => waterGap(w, mx, mz) <= len / 2 + R);
+  if (!near.length) return false;
+  const ux = (s.x2 - s.x1) / len;
+  const uz = (s.z2 - s.z1) / len;
+  for (let a = -R; a <= len + R; a += step) {
+    for (let c = -R; c <= R; c += step) {
+      if (Math.hypot(Math.max(-a, a - len, 0), c) > R) continue;
+      const x = s.x1 + ux * a - uz * c;
+      const z = s.z1 + uz * a + ux * c;
+      if (!near.some((w) => waterGap(w, x, z) < 0)) continue;
+      if (waters.some((w) => onDeck(w, x, z))) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
+// The tuck segment for a free end at (x, z), or null when no deck is within
+// DECK_REACH. With `waters`, a tuck whose capsule would paint open water beside
+// a narrow deck (the trail is wider than any deck) is drawn in, TUCK_STEP at a
+// time, down to a tip level with the deck end; still wet there, no tuck (the
+// end is pulled back as before).
+function tuckFor(decks, waters, dry, x, z, h) {
+  let deck = null;
+  let gap = DECK_REACH;
+  for (const d of decks) {
+    const g = deckDistance([{ decks: [d] }], x, z);
+    if (g <= gap) { gap = g; deck = d; }
+  }
+  if (!deck) return null;
+  const f = deckFrame(deck);
+  const t = (x - (f.ax + f.bx) / 2) * f.ux + (z - (f.az + f.bz) / 2) * f.uz;
+  // Only a free end facing a SHORT end of the deck tucks: its projection on
+  // the axis is past the deck's span, or it lies within the deck's width (+h).
+  const half = Math.hypot(f.bx - f.ax, f.bz - f.az) / 2;
+  const lat = Math.abs(-(x - (f.ax + f.bx) / 2) * f.uz + (z - (f.az + f.bz) / 2) * f.ux);
+  const halfW = Number.isFinite(deck.x1) ? deck.halfW
+    : (Math.abs(f.ux) > 0.5 ? deck.maxZ - deck.minZ : deck.maxX - deck.minX) / 2;
+  if (Math.abs(t) <= half && lat > halfW + h) return null;
+  // Nearer short end, and the axis pointing from it into the deck.
+  const [mx, mz, ix, iz] = t <= 0 ? [f.ax, f.az, f.ux, f.uz] : [f.bx, f.bz, -f.ux, -f.uz];
+  if (!waters) return tuckSeg(x, z, h, mx, mz, ix, iz, TUCK);
+  for (let k = 0; k <= Math.round(TUCK / TUCK_STEP); k++) {
+    const seg = tuckSeg(x, z, h, mx, mz, ix, iz, TUCK - k * TUCK_STEP);
+    // Each coarser grid is a subset of the next finer one: wet there is wet
+    // there, so most rejects cost the cheap pass; an accepted candidate has
+    // passed every grid down to TUCK_STEP.
+    if (!TUCK_STEPS.some((st) => tuckWet(seg, waters, dry, st))) return seg;
+  }
+  return null;
+}
+
 // The segments the trail is drawn from: [{ x1, z1, x2, z2, h }], flat, in
 // input order. Ends that meet another segment stay put (the capsule union
 // rounds the join); ends on the map edge run EDGE_EXTEND (8 m) further out so the trail
 // leaves the map instead of stopping at it; free ends (dead ends, and the gaps
 // left for a bridge or stepping stones) are pulled back by h so the rounded
 // cap's tip lands on the authored end, never shortening a segment below 0.1 m.
+// With `decks` (the area's water decks), a free end within DECK_REACH of one
+// is not pulled back and gets a tuck segment (see TUCK), APPENDED after all
+// the input segments so segment i is still input segment i. With `waters`
+// too, each tuck is drawn in until it paints no open water (tuckFor).
 export function trailSegments(groups, opts = {}) {
   const all = flatten(groups);
   const kinds = endKinds(groups, opts);
-  return all.map(({ s, h }, i) => {
+  const decks = opts.decks ?? [];
+  const waters = opts.waters ?? null;
+  const dry = waters ? waters.map((w) => ({ ...w, decks: [] })) : null;
+  const tucks = [];
+  const out = all.map(({ s, h }, i) => {
     const [x1, z1, x2, z2] = s;
     const len = Math.hypot(x2 - x1, z2 - z1);
     if (len < 1e-9) return { x1, z1, x2, z2, h };
+    const ends = [[x1, z1], [x2, z2]];
+    const move = kinds[i].map((k, e) => {
+      if (k === 'edge') return -EDGE_EXTEND;
+      if (k !== 'free') return 0;
+      const tuck = decks.length ? tuckFor(decks, waters, dry, ...ends[e], h) : null;
+      if (tuck) { tucks.push(tuck); return 0; }
+      return h;
+    });
     const ux = (x2 - x1) / len;
     const uz = (z2 - z1) / len;
     // Positive = pull this end in, negative = push it out.
-    const move = kinds[i].map((k) => (k === 'edge' ? -EDGE_EXTEND : k === 'free' ? h : 0));
     const pull = move.reduce((a, m) => a + (m > 0 ? m : 0), 0);
     const avail = len - move.reduce((a, m) => a + (m < 0 ? m : 0), 0) - MIN_LEN;
     if (pull > avail) {
@@ -120,6 +234,7 @@ export function trailSegments(groups, opts = {}) {
       h,
     };
   });
+  return tucks.length ? out.concat(tucks) : out;
 }
 
 // ---- the shared field ------------------------------------------------------
@@ -412,11 +527,19 @@ export function trailMaterial(color, surface, segs) {
 // `edge` (default 50) is where a map-edge end is recognised: every wild map
 // is +/-50 today (test/trails.test.js pins that, so a map with other bounds
 // fails loudly instead of growing blobs at its border).
-export function addTrails(scene, groups, style = {}, key = 'trail', { edge } = {}) {
+// `decks` (optional) are the area's water decks: free ends near one tuck
+// under it, kept off open water by `waters` (see trailSegments). The mesh's
+// userData.trail is the full list, tucks included; the hidden strips stay one
+// per INPUT segment.
+export function addTrails(scene, groups, style = {}, key = 'trail', { edge, decks, waters } = {}) {
   for (const g of groups) {
     for (const s of g.segs) scene.add(path(...s, g.w, { ...style, footprint: true }));
   }
-  const segs = trailSegments(groups, edge === undefined ? {} : { edge });
+  const opts = {};
+  if (edge !== undefined) opts.edge = edge;
+  if (decks !== undefined) opts.decks = decks;
+  if (waters !== undefined) opts.waters = waters;
+  const segs = trailSegments(groups, opts);
   if (segs.length === 0) return { mesh: null, segs };
   const mesh = withLocalUuids('trail-uuids-' + key, () => {
     const m = new THREE.Mesh(

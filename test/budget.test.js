@@ -302,6 +302,23 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // The Woods has 2,090 and the Pines 5,249 triangles left under the 60,000
 // ceiling (the Woods' own floor test holds it to 58,500, the Pines' to
 // 56,000).
+//
+// 2026-11-04, polish-crossings: the log bridges are rebuilt as one hand-made
+// trunk geometry (bark wane, hewn top, end grain, branch stub; 160 -> 167
+// triangles each), the stepping stones and the island plank take vertex
+// colour (no triangles), and each trail end beside a deck gains one tuck
+// quad under it (2 triangles each). No new meshes, no new casters, ceilings
+// unchanged. Before is main at aafb451.
+//
+//   area    meshes  casters  triangles          logBridge   trail tucks
+//   woods   184     154      57,910 -> 57,921   160 -> 167  2
+//   river   172     135      58,329 -> 58,342   160 -> 167  3
+//   moor     88      48      59,055 -> 59,068   160 -> 167  3
+//   pines   117      71      54,751 -> 54,768   160 -> 167  5
+//   gorge    61      36      57,637 -> 57,639   (none)      1
+//
+// Left under the 60,000 ceiling: Woods 2,079, River 1,658, Moor 932,
+// Pines 5,232, Gorge 2,361.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------

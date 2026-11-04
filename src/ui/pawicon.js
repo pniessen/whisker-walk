@@ -4,3 +4,7 @@
 // light paw in the surrounding text colour over it where masks are supported.
 // aria-hidden: the words beside it (or the button's aria-label) are the name.
 export const PAW = '<span class="paw" aria-hidden="true">🐾</span>';
+
+// Turns every 🐾 in already-escaped HTML into the light paw. Only for text that
+// has been through escapeHtml (or is a literal): the span it adds is markup.
+export const pawify = (escapedHtml) => String(escapedHtml).replaceAll('🐾', PAW);

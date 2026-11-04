@@ -4,6 +4,7 @@
 // No Math.random: the confetti draws from a seeded mulberry32.
 
 import { escapeHtml } from '../game/util.js';
+import { PAW } from './pawicon.js';
 import { confettiHtml } from './visitcelebration.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 
@@ -59,6 +60,8 @@ export function bestWalkConfetti(earned, { reduced = false } = {}) {
 }
 
 function tile(emoji, value, label, suffix = '') {
+  // 🐾 is drawn as the light paw; the other tiles keep their emoji.
+  if (emoji === '🐾') emoji = PAW;
   const v = Number(value) || 0;
   const suf = suffix ? ` data-suffix="${escapeHtml(suffix)}"` : '';
   return `<div class="stat"><span class="stat-emoji" aria-hidden="true">${emoji}</span>`

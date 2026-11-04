@@ -44,6 +44,18 @@ const AREAS = {
   gorge: { build: buildGorge },
 };
 
+// Each map's path lists, in addTrails' group order: one hidden 'path' strip
+// per input segment. The trail's segs are those, then (polish-crossings) one
+// tuck per free end beside a deck, appended.
+const LISTS = {
+  woods: [WOODS_PATHS],
+  river: [RIVER_PATHS],
+  moor: [MOOR_PATHS, MOOR_TRAIL, MOOR_GORGE_TRAIL],
+  pines: [PINES_PATHS, PINES_TRAIL],
+  gorge: [GORGE_PATHS],
+};
+const inputCount = (name) => LISTS[name].reduce((n, l) => n + l.length, 0);
+
 const tris = (g) => (g.index ? g.index.count : g.attributes.position.count) / 3;
 const meshTris = (scene, pred) => scene.children.filter(pred)
   .reduce((n, m) => n + tris(m.geometry), 0);
@@ -66,7 +78,8 @@ describe('wild-map trails', () => {
       expect(trails.length).toBe(1);
       const segs = trails[0].userData.trail;
       const strips = scene.children.filter((c) => c.name === 'path');
-      expect(strips.length).toBe(segs.length);
+      expect(strips.length).toBe(inputCount(name));
+      expect(segs.length).toBeGreaterThan(strips.length); // every map has at least one tuck
       expect(strips.every((s) => s.visible === false)).toBe(true);
       expect(trails[0].visible).toBe(true);
       // Draws: exactly one visible path-ish mesh.
@@ -153,13 +166,7 @@ describe('wild-map trails', () => {
   });
 
   it('triangles: new (hidden strips + trail) <= old (visible strips); report', () => {
-    const lists = {
-      woods: [WOODS_PATHS],
-      river: [RIVER_PATHS],
-      moor: [MOOR_PATHS, MOOR_TRAIL, MOOR_GORGE_TRAIL],
-      pines: [PINES_PATHS, PINES_TRAIL],
-      gorge: [GORGE_PATHS],
-    };
+    const lists = LISTS;
     for (const name of Object.keys(AREAS)) {
       const { scene } = get(name);
       const segs = scene.children.find((c) => c.name === 'pathTrail').userData.trail;
@@ -170,11 +177,11 @@ describe('wild-map trails', () => {
       for (const list of lists[name]) {
         for (const sg of list) throwaway.add(path(...sg, segs[i++].h * 2, { surface: 'sand', color: 0x9c7c58 }));
       }
-      expect(i).toBe(segs.length);
+      expect(i).toBe(inputCount(name)); // the rest of segs are tucks
       const oldTris = meshTris(throwaway, () => true);
       const hidden = meshTris(scene, (c) => c.name === 'path');
       const trail = meshTris(scene, (c) => c.name === 'pathTrail');
-      console.log(`TRIANGLES ${name}: old=${oldTris} new=${hidden + trail} (hidden strips=${hidden}, trail=${trail}); path meshes old visible=${segs.length}, new visible=1 + ${segs.length} hidden`);
+      console.log(`TRIANGLES ${name}: old=${oldTris} new=${hidden + trail} (hidden strips=${hidden}, trail=${trail}, ${segs.length - i} tucks); path meshes old visible=${i}, new visible=1 + ${i} hidden`);
       expect(hidden + trail).toBeLessThanOrEqual(oldTris);
     }
   }, 120_000);
