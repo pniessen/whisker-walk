@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mulberry32, seedFromCode } from '../rng.js';
-import { waterClearance, waterGap, onDeck } from '../world/builder.js';
+import { waterClearance, waterGap, onDeck, deckDistance } from '../world/builder.js';
 
 // ---------------------------------------------------------------------------
 // JUMPING FISH — now and then a little silver fish leaps out of a lake with a
@@ -23,8 +23,8 @@ import { waterClearance, waterGap, onDeck } from '../world/builder.js';
 //
 // WHEN. Wall-clock slots of FISH_SLOT s; slot k's leap starts FISH_JITTER·h s
 // in, h from mulberry32(seedFromCode(`fish-${areaId}-${k}`)) — so leaps come
-// 8–20 s apart and co-walkers on one map see them at the same moment (each
-// picks its own spot near its own cat). A slot leaps at most once, and only
+// 8–20 s apart and co-walkers on one map see them at about the same moment (each
+// device's own clock; each picks its own spot near its own cat). A slot leaps at most once, and only
 // within 0.5 s of its start: a tab back from the background starts at most one.
 //
 // PURELY LOCAL. Never walkRng, never the wire, never Math.random.
@@ -35,8 +35,8 @@ import { waterClearance, waterGap, onDeck } from '../world/builder.js';
 export const FISH_SLOT = 14; // s per slot: one leap at most per slot
 export const FISH_JITTER = 6; // s: a slot's leap starts within its first 6 s
 export const FISH_DUR = 0.9; // s in the air
-export const FISH_NEAR = 6; // m: no nearer the cat than this
-export const FISH_FAR = 25; // m: no farther than this
+export const FISH_NEAR = 5; // m: no nearer the cat than this
+export const FISH_FAR = 16; // m: no farther than this
 export const FISH_CAP = 3; // instances
 
 const NO_FISH_AREAS = Object.freeze(['docks', 'gorge', 'seaside', 'neighborhood', 'den']);
@@ -82,6 +82,7 @@ export function fishSpots(areaId, areaData) {
   for (let x = b.minX - PAD; x <= b.maxX + PAD; x += GRID) {
     for (let z = b.minZ - PAD; z <= b.maxZ + PAD; z += GRID) {
       if (!(waterClearance(waters, x, z) < DEEP)) continue;
+      if (!(deckDistance(waters, x, z) > 1.5)) continue; // never under a bridge
       const h = lakeAt(waterFx, x, z);
       if (h) all.push({ x, z, y: h.y });
     }
@@ -101,16 +102,18 @@ export function jumpAt(areaId, slot) {
   return { at, pick: r(), len: r(), height: r(), yaw: r() };
 }
 
-// The fish, nose along +x: an 8-sided double cone (16 triangles, 0.32 long,
-// 0.09 high, 0.05 wide) and a forked tail (2 triangles, drawn from both sides:
-// 4). 20 triangles, non-indexed, merged here once.
+// The fish, nose along +x: an 8-sided double cone (16 triangles, ~0.43 long,
+// 0.12 high, 0.07 wide: 0.32/0.09/0.05 x FISH_SCALE) and a forked tail (2
+// triangles, drawn from both sides: 4). 20 triangles, non-indexed, merged here once.
+const FISH_SCALE = 1.35;
 function fishGeometry() {
-  const L = 0.32;
-  const H = 0.09;
-  const W = 0.05;
+  const S = FISH_SCALE;
+  const L = 0.32 * S;
+  const H = 0.09 * S;
+  const W = 0.05 * S;
   const nose = [L / 2, 0, 0];
   const tail = [-L / 2, 0, 0];
-  const ringX = 0.03; // the fattest point, a little forward of the middle
+  const ringX = 0.03 * S; // the fattest point, a little forward of the middle
   const ring = [];
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
@@ -125,10 +128,10 @@ function fishGeometry() {
     tri(tail, a, c);
   }
   // The tail fin: two lobes from the tail point, a notch between them.
-  const t0 = [-L / 2 + 0.02, 0, 0];
-  const up = [-L / 2 - 0.08, 0.055, 0];
-  const dn = [-L / 2 - 0.08, -0.055, 0];
-  const notch = [-L / 2 - 0.045, 0, 0];
+  const t0 = [-L / 2 + 0.02 * S, 0, 0];
+  const up = [-L / 2 - 0.08 * S, 0.055 * S, 0];
+  const dn = [-L / 2 - 0.08 * S, -0.055 * S, 0];
+  const notch = [-L / 2 - 0.045 * S, 0, 0];
   tri(t0, up, notch);
   tri(t0, notch, dn);
   tri(t0, notch, up);
@@ -222,7 +225,7 @@ export function createFishJumps(scene, {
     fp[o + 3] = Math.cos(yaw);
     fp[o + 4] = -Math.sin(yaw);
     fp[o + 5] = 0.7 + 0.5 * j.len;
-    fp[o + 6] = 0.45 + 0.3 * j.height;
+    fp[o + 6] = 0.55 + 0.35 * j.height;
     fp[o + 7] = 0;
     fp[o + 8] = yaw;
     splash?.emitAt?.(spot.x, spot.z, LEAVE);

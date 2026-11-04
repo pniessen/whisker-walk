@@ -182,10 +182,10 @@ describe('createSplash', () => {
     run(splash, st, 0.5, { speed: 1 });
     expect(splash.meshes[0].visible).toBe(true);
     expect(splash.meshes[0].count).toBeGreaterThan(0);
-    run(splash, st, 1, { speed: 0 });
+    run(splash, st, 1.5, { speed: 0 }); // the wading ring lives 1.1 s
     expect(splash.drawCount).toBe(0);
     const idle = createSplash(new THREE.Scene(), { areaData: AREA, tier: LADDER[0], reducedMotion: false });
-    run(idle, { ...createWaterState(), mode: 'wade' }, 1, { speed: 0 });
+    run(idle, { ...createWaterState(), mode: 'wade' }, 1.5, { speed: 0 });
     expect(idle.drawCount).toBe(0);
   });
 
@@ -200,6 +200,19 @@ describe('createSplash', () => {
     rm.update(0.016);
     expect(rm.meshes[1].count).toBe(0);
     expect(rm.meshes[0].count).toBe(0);
+  });
+
+  it('setEvening tints rings and drops: dusk slate, sunset peach, null back to day', () => {
+    const splash = createSplash(new THREE.Scene(), { areaData: AREA, tier: LADDER[0], reducedMotion: false });
+    const [drops, rings] = splash.meshes;
+    expect([rings.material.color.getHex(), drops.material.color.getHex()]).toEqual([0xffffff, 0xdff3ff]);
+    splash.setEvening('dusk');
+    expect([rings.material.color.getHex(), drops.material.color.getHex()]).toEqual([0x9aa6b2, 0x8e9aa6]);
+    splash.setEvening('sunset');
+    expect([rings.material.color.getHex(), drops.material.color.getHex()]).toEqual([0xffe6d0, 0xffe2c8]);
+    splash.setEvening(null);
+    expect([rings.material.color.getHex(), drops.material.color.getHex()]).toEqual([0xffffff, 0xdff3ff]);
+    expect(() => NO_SPLASH.setEvening('dusk')).not.toThrow();
   });
 
   it('NO_SPLASH.emitAt is a no-op', () => {

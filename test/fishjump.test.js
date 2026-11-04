@@ -32,7 +32,7 @@ const {
 } = await import('../src/render/fishjump.js');
 const { resolveQuality } = await import('../src/render/quality.js');
 const HIGH = resolveQuality({ override: 'high' });
-const { waterClearance, waterGap } = await import('../src/world/builder.js');
+const { waterClearance, waterGap, deckDistance } = await import('../src/world/builder.js');
 const WORLDS = {
   park: await import('../src/world/park.js'),
   docks: await import('../src/world/docks.js'),
@@ -87,7 +87,7 @@ function fishOn(id, extra = {}) {
 
 describe('fishjump constants', () => {
   it('are the spec values', () => {
-    expect([FISH_SLOT, FISH_JITTER, FISH_DUR, FISH_NEAR, FISH_FAR, FISH_CAP]).toEqual([14, 6, 0.9, 6, 25, 3]);
+    expect([FISH_SLOT, FISH_JITTER, FISH_DUR, FISH_NEAR, FISH_FAR, FISH_CAP]).toEqual([14, 6, 0.9, 5, 16, 3]);
   });
 });
 
@@ -110,6 +110,27 @@ describe('fishSpots', () => {
     for (const s of fishSpots('woods', areaData)) {
       expect(lakes.some((h) => waterGap(h.footprint, s.x, s.z) < 0)).toBe(true);
     }
+  }, 120_000);
+
+  it('no spot in any area is within 1.5 m of a deck', () => {
+    for (const id of ['woods', 'pines', 'moor', 'river', 'park']) {
+      const { areaData } = area(id);
+      for (const s of fishSpots(id, areaData)) {
+        expect(deckDistance(areaData.waters, s.x, s.z), id).toBeGreaterThan(1.5);
+      }
+    }
+  }, 120_000);
+
+  it('the fish is ~0.43 m long (geometry scaled 1.35x)', () => {
+    const { areaData } = area('woods');
+    const fish = createFishJumps(new THREE.Scene(), {
+      areaId: 'woods', areaData, tier: HIGH, reducedMotion: false, splash: stubSplash(), cat: new THREE.Group(), camera: new THREE.PerspectiveCamera(),
+    });
+    const bb = new THREE.Box3().setFromBufferAttribute(fish.meshes[0].geometry.getAttribute('position'));
+    // body 0.32 x 1.35 = 0.432 plus the tail fin behind it
+    expect(bb.max.x).toBeCloseTo(0.216, 3);
+    expect(bb.max.x - bb.min.x).toBeGreaterThan(0.43);
+    fish.dispose();
   }, 120_000);
 
   it('neighbourhood, docks, seaside and gorge get NO_FISH', () => {
@@ -208,17 +229,17 @@ describe('createFishJumps', () => {
     expect(d).toBeCloseTo(0.7 + 0.5 * j.len, 1);
     expect(visibleFrames).toBeGreaterThanOrEqual(Math.floor(FISH_DUR * 60) - 2);
     expect(visibleFrames).toBeLessThanOrEqual(Math.ceil(FISH_DUR * 60) + 1);
-    expect(peak).toBeGreaterThanOrEqual(0.44);
-    expect(peak).toBeLessThanOrEqual(0.75);
-    expect(peak).toBeCloseTo(0.45 + 0.3 * j.height, 1);
+    expect(peak).toBeGreaterThanOrEqual(0.54);
+    expect(peak).toBeLessThanOrEqual(0.95);
+    expect(peak).toBeCloseTo(0.55 + 0.35 * j.height, 1);
     expect(fish.drawCount).toBe(0);
     expect(m.visible).toBe(false);
-    // The leap leaves from a spot 6–25 m from the cat.
+    // The leap leaves from a spot 5–16 m from the cat.
     const leave = splash.calls[0];
     expect(fish.spots.some((s) => s.x === leave.x && s.z === leave.z)).toBe(true);
   }, 120_000);
 
-  it('skips a slot when no spot is 6–25 m from the cat and in front of the camera', () => {
+  it('skips a slot when no spot is 5–16 m from the cat and in front of the camera', () => {
     const { areaData, spots } = fishOn('woods');
     const s0 = spots[0];
     const splash = stubSplash();

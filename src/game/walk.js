@@ -1222,6 +1222,7 @@ export function createWalkLifecycle({
     // the foam goes quiet at dusk (water.js eveningWater; waterdress `evening`).
     const evening = duskLookNow ? 'dusk' : weather.condition === 'sunset' ? 'sunset' : null;
     eveningWater(areaData.waterFx ?? [], evening);
+    splash.setEvening(evening);
     const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut, evening });
     // Polish-waterlife — now and then a little silver fish leaps from a lake
     // (render/fishjump.js): 1 draw only while one is in the air, 0 shadow.

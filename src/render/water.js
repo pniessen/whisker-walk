@@ -1108,7 +1108,7 @@ export function createWater(footprint, options = {}) {
 // call and areas are rebuilt every walk, so setting them never leaks into the
 // next walk.
 export const WATER_EVENING = Object.freeze({
-  sunset: Object.freeze({ mul: Object.freeze([1.06, 0.86, 0.74]), glow: 0x2a1608 }),
+  sunset: Object.freeze({ mul: Object.freeze([1.1, 0.88, 0.72]), glow: 0x5a2a0c }),
   dusk: Object.freeze({ mul: Object.freeze([0.6, 0.62, 0.78]), glow: 0x000000 }),
 });
 

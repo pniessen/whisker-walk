@@ -120,7 +120,7 @@ const SEA_FOAM = 0xf3f7f5;
 // bank colours are unchanged: the lawn light already darkens those.
 const EVENING_FOAM = Object.freeze({
   sunset: Object.freeze({ clear: 0xf4dcc6, sea: 0xf6dcc4, clearA: 1, seaA: 1 }),
-  dusk: Object.freeze({ clear: 0x7d8a94, sea: 0x8e9aa6, clearA: 0.55, seaA: 0.6 }),
+  dusk: Object.freeze({ clear: 0x7d8a94, sea: 0xa4b0bc, clearA: 0.55, seaA: 0.75 }),
 });
 // Never more than this far out over the water (the band-follows-real-shore
 // rule is 1 m).
@@ -652,7 +652,7 @@ function apronQuads(h) {
   ].filter(([x0, x1, z0, z1]) => x1 - x0 > 1e-6 && z1 - z0 > 1e-6).map((q) => [...q, y]);
 }
 
-function apronMesh(quads, color, mul = null) {
+function apronMesh(quads, color, ev = null) {
   const pos = new Float32Array(quads.length * 12);
   const index = [];
   let v = 0;
@@ -670,9 +670,14 @@ function apronMesh(quads, color, mul = null) {
   geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(v * 3).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
   geo.setIndex(index);
   geo.computeBoundingSphere();
-  const [r, g, b] = mul ? color.map((c, i) => Math.min(255, c * mul[i])) : color;
+  // The colour is sRGB 0-255; the water applies material.color in linear, so
+  // the evening multiply is done in linear too, and the glow matches the
+  // water's emissive: no seam at the shore at sunset or dusk.
+  const [r, g, b] = color;
+  const col = new THREE.Color().setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);
+  if (ev) col.multiply(new THREE.Color().setRGB(ev.mul[0], ev.mul[1], ev.mul[2]));
   const mat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color().setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace),
+    color: col,
     roughness: APRON_ROUGHNESS,
     metalness: 0,
     // a hair behind the sea where the two overlap under the slab's edge
@@ -680,6 +685,7 @@ function apronMesh(quads, color, mul = null) {
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 2,
   });
+  if (ev) mat.emissive.setHex(ev.glow);
   const m = new THREE.Mesh(geo, mat);
   m.name = 'waterdress:apron';
   return m;
@@ -888,7 +894,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   // The far-sea apron, on every tier: without it the sea ends in a corner.
   const seas = areaData.waterFx.filter((h) => h.style === 'sea');
   const quads = seas.flatMap(apronQuads);
-  if (quads.length) meshes.push(apronMesh(quads, waterRamp(seas[0].color ?? 0x4a90c0).deep, WATER_EVENING[evening]?.mul ?? null));
+  if (quads.length) meshes.push(apronMesh(quads, waterRamp(seas[0].color ?? 0x4a90c0).deep, WATER_EVENING[evening] ?? null));
 
   if (!low) {
     const spots = stoneSpots(runs, areaData, keepOut);

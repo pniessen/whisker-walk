@@ -52,7 +52,7 @@ const RM_PUFF_TTL = 0.3;
 // A ring grows r0 -> r1 metres over ttl seconds and fades out.
 const RING = { r0: 0.15, r1: 0.6, ttl: 1.2 };
 const STILL_RING = { r0: 0.2, r1: 0.9, ttl: 1.6 };
-const WADE_RING = { r0: 0.1, r1: 0.45, ttl: 0.9 }; // a wader's paws
+const WADE_RING = { r0: 0.12, r1: 0.65, ttl: 1.1 }; // a wader's paws
 const FISH_RING = { r0: 0.1, r1: 0.7, ttl: 1.1 }; // emitAt: a jumping fish
 const WAKE_SIDE = 0.18; // × cat scale, to each side
 const WAKE_BACK = 0.35; // × cat scale, behind
@@ -146,8 +146,16 @@ export const NO_SPLASH = Object.freeze({
   track() {},
   emitAt() {},
   update() {},
+  setEvening() {},
   dispose() {},
   get drawCount() { return 0; },
+});
+
+// The rings and drops in the evening (setEvening): white glows against a dusk
+// island, so they take the sky's colour. null is the day's look.
+const EVENING_SPLASH = Object.freeze({
+  dusk: Object.freeze({ ring: 0x9aa6b2, drop: 0x8e9aa6 }),
+  sunset: Object.freeze({ ring: 0xffe6d0, drop: 0xffe2c8 }),
 });
 
 // createSplash(scene, { areaData, tier, reducedMotion })
@@ -368,6 +376,13 @@ diffuseColor.a *= vRingAlpha;`);
     track,
     emitAt,
     update,
+    // setEvening(null | 'sunset' | 'dusk') — tint the rings and drops; called
+    // once per walk, so no per-frame cost.
+    setEvening(mode) {
+      const e = EVENING_SPLASH[mode];
+      ringMat.color.setHex(e ? e.ring : 0xffffff);
+      dropMat.color.setHex(e ? e.drop : 0xdff3ff);
+    },
     dispose,
     get drawCount() { return (drops.visible ? 1 : 0) + (rings.visible ? 1 : 0); },
   };

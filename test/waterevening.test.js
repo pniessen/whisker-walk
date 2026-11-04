@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 
-// Polish-water Task 3: the water dressing (src/render/waterdress.js) — a soft
-// wet-earth band and foam line along the REAL shore, a few half-sunk stones.
-// Each case builds the real area into a fresh scene, exactly as walk.js does,
-// then dresses it.
+// Polish-waterlife: the water in the evening — eveningWater's sunset and dusk
+// tints (src/render/water.js), and the evening foam rows and sea apron in
+// createWaterDressing's `evening` option (src/render/waterdress.js). Each case
+// builds the real area into a fresh scene, exactly as walk.js does, then
+// tints and dresses it.
 
 vi.stubGlobal('document', {
   createElement: () => ({
@@ -113,7 +114,7 @@ describe('the foam in the evening', () => {
     const d = foamVerts(dress('seaside').fx);
     const k = foamVerts(dress('seaside', { evening: 'dusk' }).fx);
     expect(maxOf(k, lum)).toBeLessThan(0.7 * maxOf(d, lum));
-    expect(maxOf(k, (v) => v.a)).toBeLessThanOrEqual(0.6 * maxOf(d, (v) => v.a) + 1e-6);
+    expect(maxOf(k, (v) => v.a)).toBeLessThanOrEqual(0.75 * maxOf(d, (v) => v.a) + 1e-6);
   });
   it('at sunset the foam is warm', () => {
     for (const id of ['woods', 'seaside']) {
@@ -136,5 +137,21 @@ describe('the foam in the evening', () => {
     const d = byName(dress('seaside').fx, 'waterdress:apron').material.color;
     const k = byName(dress('seaside', { evening: 'dusk' }).fx, 'waterdress:apron').material.color;
     expect(k.r).toBeLessThan(d.r);
+  });
+  it('the sea apron matches the water: linear multiply of the sRGB day colour, plus the glow', () => {
+    const day = byName(dress('seaside').fx, 'waterdress:apron').material;
+    expect(day.emissive.getHex()).toBe(0);
+    for (const mode of ['sunset', 'dusk']) {
+      const m = byName(dress('seaside', { evening: mode }).fx, 'waterdress:apron').material;
+      const e = WATER_EVENING[mode];
+      expect(m.color.r).toBeCloseTo(day.color.r * e.mul[0], 5);
+      expect(m.color.g).toBeCloseTo(day.color.g * e.mul[1], 5);
+      expect(m.color.b).toBeCloseTo(day.color.b * e.mul[2], 5);
+      expect(m.emissive.getHex()).toBe(e.glow);
+    }
+  });
+  it('the sunset water is the brighter, warmer tint', () => {
+    expect(WATER_EVENING.sunset.mul).toEqual([1.1, 0.88, 0.72]);
+    expect(WATER_EVENING.sunset.glow).toBe(0x5a2a0c);
   });
 });
