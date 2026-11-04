@@ -17,6 +17,9 @@ import { bankPieces, waterRamp, WATER_EVENING } from './water.js';
 //   - the band: wet earth + foam line, ONE transparent mesh (vertex colour
 //     with alpha, depthWrite off, polygon offset);
 //   - the stones: one opaque merged mesh (none on the LOW tier);
+//   - the fillet fill (polish-waterlife): one tiny opaque fan per area with a
+//     rounded bank corner (BANK_FILLETS; the Woods only), sharing the
+//     ground's material — the Woods' third mesh, as it has no sea apron;
 //   - reeds / lily pads: none today. The Woods, Moor, River and Pines all
 //     plant their own reed beds along these banks, and the Pines bogs already
 //     float lily pads (pines.js pinesLilyPads), so a second set would only
@@ -135,6 +138,33 @@ const APRON_ROUGHNESS = 0.3;
 const STONE_EVERY = 4;
 const STONE_KEEP_GAP = 0.5;
 const STONE_COLORS = [0x8a8378, 0x7a7266, 0x958c7e, 0x6f6a60];
+
+// Polish-waterlife — rounded bank corners (fillets). Where two rect streams
+// meet in an L, the outer corner of the bend is a hard square "swimming-pool"
+// corner. A fillet rounds it, for the eye only: the footprints stay square
+// (they are the colliders and the wade zones). `x, z` is the square corner,
+// `r` the arc's radius, `wx, wz` point from the corner into the water, so the
+// arc's centre is (x + wx*r, z + wz*r). Two things change there:
+//   - the band: every bank sample on the corner's two edges within `r` of it
+//     moves onto the arc (its parameter along the edge, 0 at the arc's tangent
+//     point and 1 at the corner, maps to 0..45 degrees from that edge's
+//     tangent point, so both edges' samples meet on the diagonal); its normal
+//     becomes the radial direction; its arc length `s` is kept;
+//   - the fill: the sliver of water between the arc and the square corner is
+//     covered by a small fan drawn with the area ground's own material and
+//     the ground's own uv / normal / colour, sampled from its grid.
+// With no ground plane to borrow (or one that is not a PlaneGeometry) there is
+// no fill and no bending, so the band never rounds a corner it can't cover.
+// The Woods: river-west (x <= 23, z -14..-9) turns north into river-north
+// (x 18..23, z <= -9); the bend's outer corner is (23, -9).
+export const BANK_FILLETS = Object.freeze({
+  woods: Object.freeze([Object.freeze({ x: 23, z: -9, r: 1.6, wx: -1, wz: -1 })]),
+});
+// Arc segments in a fill fan (one triangle each).
+const FILLET_SEGS = 12;
+// Opaque, so it is drawn in the opaque pass: after the water (renderOrder 0),
+// and so always before the band (transparent, drawn after every opaque mesh).
+const FILLET_ORDER = 1;
 
 // ---------------------------------------------------------------------------
 
@@ -282,15 +312,21 @@ function bankProfile(p, ctx) {
   const onLand = Math.max(wob, 0) + 0.05;
   // land-side offsets, pulled back where they would reach into another
   // water (a pond's bank ending at the river it runs into)
+  // (a fillet's fill is land to the eye, though the footprint says water)
+  const fillets = ctx.fillets;
+  const wet = (x, z) => waterClearance(undecked, x, z) < 0.05 && !(fillets && inFilletFill(fillets, x, z));
   const clear = (o) => {
     let k = o;
-    while (k > onLand && waterClearance(undecked, p.x + p.nx * k, p.z + p.nz * k) < 0.05) k -= 0.1;
+    while (k > onLand && wet(p.x + p.nx * k, p.z + p.nz * k)) k -= 0.1;
     return Math.max(k, onLand);
   };
   const shoulder = clear(onLand + 0.45);
   const outer = Math.max(clear(width), shoulder + 0.05);
   const { wetC, dampC, foamC } = ctx;
   const fa = FOAM_ALPHA * (ctx.foamA ?? 1);
+  // A sample bent onto a fillet's arc: its land side lies over the fill,
+  // which rides over the water, so those rows ride over the fill.
+  const landY = (y) => (p.fillTop === undefined ? y : Math.max(y, p.fillTop));
   // water side first: the foam line just off the lip, then the lip
   // itself, then up onto the land and out to nothing.
   // [offset, y, colour, alpha, foam flag, swash metres]
@@ -298,9 +334,9 @@ function bankProfile(p, ctx) {
     [wob - 0.34, waterY + LIP_LIFT, foamC, 0, 1, 0],
     [wob - 0.12, waterY + LIP_LIFT, foamC, fa, 1, 0],
     [wob, waterY + LIP_LIFT, wetC, BAND_ALPHA.lip * strength, 0, 0],
-    [onLand, waterY + LIP_LIFT, wetC, BAND_ALPHA.lip * strength, 0, 0],
-    [shoulder, LAND_Y, wetC, BAND_ALPHA.shoulder * strength, 0, 0],
-    [outer, LAND_Y, dampC, 0, 0, 0],
+    [onLand, landY(waterY + LIP_LIFT), wetC, BAND_ALPHA.lip * strength, 0, 0],
+    [shoulder, landY(LAND_Y), wetC, BAND_ALPHA.shoulder * strength, 0, 0],
+    [outer, landY(LAND_Y), dampC, 0, 0, 0],
   ];
 }
 
@@ -502,7 +538,7 @@ function stonesGeometry(spots) {
 
 // The generic bank for a water: its shore runs, each carrying what the band
 // and the stones need to draw it.
-function genericRuns(h, { areaId, areaData, box, undecked, evening = null }) {
+function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fillets = null }) {
   const w = h.footprint;
   const pieces = bankPieces(w, h.waters ?? areaData.waters);
   if (pieces.length === 0) return [];
@@ -514,6 +550,7 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null }) {
   // The first chain keeps the water's own seed.
   for (const [ci, ch] of chains(pieces).entries()) {
     const sampled = sampleChain(ch, w);
+    if (fillets) for (const f of fillets) bendOntoFillet(sampled.samples, f);
     const seed = ci ? seedFromCode(`waterdress-${areaId}-${w.id}-${ci}`) : seed0;
     const ctx = {
       seed,
@@ -524,6 +561,7 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null }) {
       undecked,
       rows: PER,
       profile: bankProfile,
+      fillets,
     };
     ctx.wetC = new THREE.Color(ctx.colors.wet);
     ctx.dampC = new THREE.Color(ctx.colors.damp);
@@ -646,6 +684,126 @@ function apronMesh(quads, color, mul = null) {
   m.name = 'waterdress:apron';
   return m;
 }
+// --- fillets (rounded bank corners) ------------------------------------------
+
+// Move the samples on a fillet's two edges, within r of its corner, onto its
+// arc (see BANK_FILLETS). Each edge leaves the corner going into the water's
+// side along one axis; `u` is the radial direction of that edge's tangent
+// point, `v` the perpendicular one turning toward the corner.
+function bendOntoFillet(samples, f) {
+  const { x, z, r, wx, wz } = f;
+  const cx = x + wx * r, cz = z + wz * r;
+  const e = 1e-6;
+  for (const p of samples) {
+    // only a bank facing out of this corner's water
+    if (p.nx * -wx + p.nz * -wz <= 0) continue;
+    let d, ux, uz, vx, vz;
+    if (Math.abs(p.x - x) < e) {
+      // the edge running along z (x = corner x)
+      d = (p.z - z) * wz;
+      ux = -wx; uz = 0; vx = 0; vz = -wz;
+    } else if (Math.abs(p.z - z) < e) {
+      // the edge running along x (z = corner z)
+      d = (p.x - x) * wx;
+      ux = 0; uz = -wz; vx = -wx; vz = 0;
+    } else continue;
+    if (d < -e || d > r + e) continue;
+    const th = (1 - Math.max(0, Math.min(r, d)) / r) * (Math.PI / 4);
+    const dx = ux * Math.cos(th) + vx * Math.sin(th), dz = uz * Math.cos(th) + vz * Math.sin(th);
+    p.x = cx + dx * r; p.z = cz + dz * r;
+    p.nx = dx; p.nz = dz;
+    p.fillTop = f.fillTop;
+    p.fillet = f;
+  }
+}
+
+// Is (x, z) in a fillet's fill: inside the square r x r cell at the corner
+// and outside the arc?
+function inFilletFill(fillets, x, z) {
+  for (const f of fillets) {
+    const ax = (x - f.x) * f.wx, az = (z - f.z) * f.wz;
+    if (ax < 0 || az < 0 || ax > f.r || az > f.r) continue;
+    if (Math.hypot(ax - f.r, az - f.r) > f.r) return true;
+  }
+  return false;
+}
+
+// The area's ground plane, if it is one fillets can borrow: a top-level mesh
+// tagged userData.ground (builder.js ground()) with a PlaneGeometry.
+function fillGround(scene) {
+  const g = scene?.children?.find((c) => c.isMesh && c.userData?.ground);
+  if (!g || g.geometry?.type !== 'PlaneGeometry' || !g.geometry.parameters) return null;
+  return g;
+}
+
+// The fill fan for one fillet: the corner, then FILLET_SEGS + 1 points round
+// the arc, all at `y`; uv / normal / colour sampled bilinearly from the
+// ground's grid where each vertex lies (normals turned into world space, as
+// the fan's own matrix is the identity). Faces look up.
+function filletGeometry(fillets, ground) {
+  ground.updateWorldMatrix(true, false);
+  const inv = new THREE.Matrix4().copy(ground.matrixWorld).invert();
+  const nmat = new THREE.Matrix3().getNormalMatrix(ground.matrixWorld);
+  const gg = ground.geometry;
+  const { width, height, widthSegments: ws = 1, heightSegments: hs = 1 } = gg.parameters;
+  const attrs = ['uv', 'normal', 'color'].map((n) => [n, gg.getAttribute(n)]).filter(([, a]) => a);
+  const per = FILLET_SEGS + 2;
+  const n = fillets.length * per;
+  const pos = new Float32Array(n * 3);
+  const out = Object.fromEntries(attrs.map(([name, a]) => [name, new Float32Array(n * a.itemSize)]));
+  const index = [];
+  const local = new THREE.Vector3();
+  const nrm = new THREE.Vector3();
+  let v = 0;
+  for (const f of fillets) {
+    const cx = f.x + f.wx * f.r, cz = f.z + f.wz * f.r;
+    const pts = [[f.x, f.z]];
+    // from the z-edge's tangent point, round to the x-edge's
+    for (let i = 0; i <= FILLET_SEGS; i++) {
+      const th = (i / FILLET_SEGS) * (Math.PI / 2);
+      pts.push([cx - f.wx * f.r * Math.cos(th), cz - f.wz * f.r * Math.sin(th)]);
+    }
+    const base = v;
+    for (const [x, z] of pts) {
+      pos[v * 3] = x; pos[v * 3 + 1] = f.fillY; pos[v * 3 + 2] = z;
+      local.set(x, f.fillY, z).applyMatrix4(inv);
+      // grid coordinates: PlaneGeometry's vertex (ix, iy) sits at
+      // x = -w/2 + ix*w/ws, y = h/2 - iy*h/hs, index iy*(ws+1)+ix
+      const gx = Math.min(ws, Math.max(0, ((local.x + width / 2) / width) * ws));
+      const gy = Math.min(hs, Math.max(0, ((height / 2 - local.y) / height) * hs));
+      const ix = Math.min(ws - 1, Math.floor(gx)), iy = Math.min(hs - 1, Math.floor(gy));
+      const tx = gx - ix, ty = gy - iy;
+      const k00 = iy * (ws + 1) + ix, k10 = k00 + 1, k01 = k00 + ws + 1, k11 = k01 + 1;
+      for (const [name, a] of attrs) {
+        const sz = a.itemSize, o = out[name];
+        for (let c = 0; c < sz; c++) {
+          const top = a.getComponent(k00, c) * (1 - tx) + a.getComponent(k10, c) * tx;
+          const bot = a.getComponent(k01, c) * (1 - tx) + a.getComponent(k11, c) * tx;
+          o[v * sz + c] = top * (1 - ty) + bot * ty;
+        }
+        if (name === 'normal') {
+          nrm.fromArray(o, v * 3).applyMatrix3(nmat).normalize().toArray(o, v * 3);
+        }
+      }
+      v++;
+    }
+    for (let i = 1; i <= FILLET_SEGS; i++) {
+      const a = base, b = base + i, c = base + i + 1;
+      // wind each face to look up (+y)
+      const abx = pos[b * 3] - pos[a * 3], abz = pos[b * 3 + 2] - pos[a * 3 + 2];
+      const acx = pos[c * 3] - pos[a * 3], acz = pos[c * 3 + 2] - pos[a * 3 + 2];
+      const up = abz * acx - abx * acz;
+      if (up > 0) index.push(a, b, c); else index.push(a, c, b);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  for (const [name, a] of attrs) geo.setAttribute(name, new THREE.BufferAttribute(out[name], a.itemSize));
+  geo.setIndex(index);
+  geo.computeBoundingSphere();
+  return geo;
+}
+
 // One builder per water style.
 const STYLE_BUILDERS = { clear: genericRuns, bog: genericRuns, sea: seaRuns };
 
@@ -674,10 +832,21 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   // not land for a stone.
   const undecked = (areaData.waters ?? []).map(({ decks, ...w }) => w);
 
+  // Rounded bank corners need the ground plane to paint their fill with.
+  const ground = BANK_FILLETS[areaId] ? fillGround(scene) : null;
+  const fillets = ground ? BANK_FILLETS[areaId].map((f) => {
+    // the fill rides just over the highest water at the corner
+    const ys = areaData.waterFx
+      .filter((h) => waterGap(h.footprint, f.x + f.wx * 0.01, f.z + f.wz * 0.01) < 0)
+      .map((h) => h.y ?? 0.03);
+    const fillY = (ys.length ? Math.max(...ys) : 0.03) + LIP_LIFT * 0.5;
+    return { ...f, fillY, fillTop: fillY + LIP_LIFT * 0.5, samples: [] };
+  }) : null;
+
   const runs = [];
   for (const h of areaData.waterFx) {
     const build = STYLE_BUILDERS[h.style ?? 'clear'] ?? genericRuns;
-    runs.push(...build(h, { areaId, areaData, box, undecked, evening }));
+    runs.push(...build(h, { areaId, areaData, box, undecked, evening, fillets }));
   }
   if (runs.length === 0) return NO_DRESSING;
 
@@ -696,6 +865,25 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   if (seaLine.length) band.userData.waterline = seaLine;
   band.userData.runSeeds = runs.map((r) => ({ water: r.w.id, seed: r.ctx.seed }));
   meshes.push(band);
+
+  // The rounded bends' fill, on every tier, sharing the ground's CURRENT
+  // material (at dusk or in the rain, the tinted one): one small opaque fan.
+  if (fillets) {
+    // for tests: the band's samples round each corner, after bending
+    for (const r of runs) {
+      for (const p of r.samples) {
+        for (const f of fillets) {
+          if (Math.hypot(p.x - f.x, p.z - f.z) < 2 * f.r) f.samples.push({ x: p.x, z: p.z, nx: p.nx, nz: p.nz });
+        }
+      }
+    }
+    band.userData.fillets = fillets.map(({ x, z, r, samples }) => ({ x, z, r, samples }));
+    const fill = new THREE.Mesh(filletGeometry(fillets, ground), ground.material);
+    fill.name = 'waterdress:fillet';
+    fill.renderOrder = FILLET_ORDER;
+    fill.userData.sharedMaterial = true;
+    meshes.push(fill);
+  }
 
   // The far-sea apron, on every tier: without it the sea ends in a corner.
   const seas = areaData.waterFx.filter((h) => h.style === 'sea');
@@ -744,7 +932,8 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
       for (const m of meshes) {
         scene.remove(m);
         m.geometry.dispose();
-        m.material.dispose();
+        // the fillet's fill borrows the ground's material: never free it
+        if (!m.userData.sharedMaterial) m.material.dispose();
       }
     },
   };
