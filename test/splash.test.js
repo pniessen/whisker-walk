@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { splashEmits, createSplash, NO_SPLASH, RING_Y } from '../src/render/splash.js';
+import { splashEmits, createSplash, NO_SPLASH, RING_Y, WADE_RING_EVERY } from '../src/render/splash.js';
 import { createWaterState } from '../src/waterstate.js';
 import { LADDER } from '../src/render/quality.js';
 
@@ -28,7 +28,34 @@ describe('splashEmits', () => {
     expect(t.dropBursts).toBeGreaterThanOrEqual(8);
     expect(t.dropBursts).toBeLessThanOrEqual(10);
     expect(t.drops).toBe(t.dropBursts * 3);
-    expect(t.wake + t.ring + t.puff).toBe(0);
+    expect(t.wake + t.puff).toBe(0);
+  });
+
+  it('wading while moving leaves a ring every 0.35 s', () => {
+    expect(WADE_RING_EVERY).toBe(0.35);
+    const t = emitsOver('wade', 1, 2);
+    expect(t.ring).toBe(5);
+    expect(t.dropBursts).toBe(9);
+  });
+
+  it('a wading cat that stops leaves one ring that frame', () => {
+    const st = { ...createWaterState(), mode: 'wade' };
+    const out = { drops: 0, wake: 0, ring: 0, puff: 0 };
+    for (let i = 0; i < 30; i++) splashEmits(st, 1, DT, false, out);
+    splashEmits(st, 0, DT, false, out);
+    expect(out.ring).toBe(1);
+    let more = 0;
+    for (let i = 0; i < 60; i++) { splashEmits(st, 0, DT, false, out); more += out.ring; }
+    expect(more).toBe(0);
+  });
+
+  it('a fresh remote wade state ({ mode: "wade" }) emits rings without throwing', () => {
+    const st = { mode: 'wade' };
+    const out = { drops: 0, wake: 0, ring: 0, puff: 0 };
+    let rings = 0;
+    for (let i = 0; i < 60; i++) { splashEmits(st, 1, DT, false, out); rings += out.ring; }
+    expect(rings).toBeGreaterThan(0);
+    expect(Number.isFinite(st.wadeRingClock)).toBe(true);
   });
 
   it('swimming while moving leaves 12 wake pairs and 3 rings in 2 s', () => {
@@ -71,6 +98,11 @@ describe('splashEmits', () => {
       const t = emitsOver(mode, speed, 2, true);
       expect(t.drops + t.wake + t.ring + t.puff).toBe(0);
     }
+    const stopped = { ...createWaterState(), mode: 'wade' };
+    const so = { drops: 0, wake: 0, ring: 0, puff: 0 };
+    for (let i = 0; i < 30; i++) splashEmits(stopped, 1, DT, true, so);
+    splashEmits(stopped, 0, DT, true, so);
+    expect(so.ring).toBe(0);
     const entered = splashEmits({ ...createWaterState(), mode: 'wade', entered: true }, 2, DT, true, {});
     expect(entered.drops + entered.wake + entered.ring + entered.puff).toBe(0);
     const shook = splashEmits({ ...createWaterState(), mode: 'dry', shook: true }, 1, DT, true, {});
@@ -150,8 +182,41 @@ describe('createSplash', () => {
     run(splash, st, 0.5, { speed: 1 });
     expect(splash.meshes[0].visible).toBe(true);
     expect(splash.meshes[0].count).toBeGreaterThan(0);
-    run(splash, st, 1, { speed: 0 });
+    run(splash, st, 1.5, { speed: 0 }); // the wading ring lives 1.1 s
     expect(splash.drawCount).toBe(0);
+    const idle = createSplash(new THREE.Scene(), { areaData: AREA, tier: LADDER[0], reducedMotion: false });
+    run(idle, { ...createWaterState(), mode: 'wade' }, 1.5, { speed: 0 });
+    expect(idle.drawCount).toBe(0);
+  });
+
+  it('emitAt spawns a ring and drops and a no-op under reduced motion', () => {
+    const splash = createSplash(new THREE.Scene(), { areaData: AREA, tier: LADDER[0], reducedMotion: false });
+    splash.emitAt(1, 2, { drops: 5 });
+    splash.update(0.016);
+    expect(splash.meshes[1].count).toBe(1);
+    expect(splash.meshes[0].count).toBe(5);
+    const rm = createSplash(new THREE.Scene(), { areaData: AREA, tier: LADDER[0], reducedMotion: true });
+    rm.emitAt(1, 2, { drops: 5 });
+    rm.update(0.016);
+    expect(rm.meshes[1].count).toBe(0);
+    expect(rm.meshes[0].count).toBe(0);
+  });
+
+  it('setEvening tints rings and drops: dusk slate, sunset peach, null back to day', () => {
+    const splash = createSplash(new THREE.Scene(), { areaData: AREA, tier: LADDER[0], reducedMotion: false });
+    const [drops, rings] = splash.meshes;
+    expect([rings.material.color.getHex(), drops.material.color.getHex()]).toEqual([0xffffff, 0xdff3ff]);
+    splash.setEvening('dusk');
+    expect([rings.material.color.getHex(), drops.material.color.getHex()]).toEqual([0x9aa6b2, 0x8e9aa6]);
+    splash.setEvening('sunset');
+    expect([rings.material.color.getHex(), drops.material.color.getHex()]).toEqual([0xffe6d0, 0xffe2c8]);
+    splash.setEvening(null);
+    expect([rings.material.color.getHex(), drops.material.color.getHex()]).toEqual([0xffffff, 0xdff3ff]);
+    expect(() => NO_SPLASH.setEvening('dusk')).not.toThrow();
+  });
+
+  it('NO_SPLASH.emitAt is a no-op', () => {
+    expect(() => NO_SPLASH.emitAt(0, 0, { drops: 3 })).not.toThrow();
   });
 
   it('every ring sits at RING_Y = 0.06, above the highest water', () => {

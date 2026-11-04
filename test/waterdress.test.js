@@ -27,7 +27,8 @@ vi.stubGlobal('document', {
   exitPointerLock() {},
 });
 
-const { createWaterDressing, bankWobble, DRESSED_AREAS } = await import('../src/render/waterdress.js');
+const { createWaterDressing, bankWobble, DRESSED_AREAS, BANK_FILLETS } = await import('../src/render/waterdress.js');
+const { tintDuskLawn, duskLook } = await import('../src/render/dusk.js');
 const { resolveQuality } = await import('../src/render/quality.js');
 const HIGH = resolveQuality({ override: 'high' });
 const LOW = resolveQuality({ override: 'low' });
@@ -412,5 +413,196 @@ describe('water dressing', () => {
     fx.dispose();
     expect(scene.children).toHaveLength(0);
     for (const [g, m] of spies) { expect(g).toHaveBeenCalled(); expect(m).toHaveBeenCalled(); }
+  }, 120_000);
+
+  // --- polish-waterlife Task 4: the Woods stream bend's rounded bank ---------
+  //
+  // The fillet needs the area's ground plane (it borrows its material), which
+  // lives in the scene the area was built into: walk.js dresses that same
+  // scene. These cases hand a fresh scene a clone of the built ground (same
+  // geometry, same material) so the scene holds nothing else.
+
+  const groundOf = (id) => area(id).scene.children.find((c) => c.isMesh && c.userData.ground);
+  function dressOnGround(id, opts = {}, ground = groundOf(id).clone()) {
+    const { areaData } = area(id);
+    const scene = new THREE.Scene();
+    scene.add(ground);
+    const fx = createWaterDressing(scene, { areaId: id, areaData, tier: HIGH, reducedMotion: false, ...opts });
+    return { scene, fx, areaData, ground };
+  }
+  const CORNER = { x: 23, z: -9 };
+  const CENTRE = { x: 21.4, z: -10.6 };
+  const inCell = (p, e = 1e-6) => p.x >= 21.4 - e && p.x <= 23 + e && p.z >= -10.6 - e && p.z <= -9 + e;
+
+  it('BANK_FILLETS names the Woods bend, frozen', () => {
+    expect(BANK_FILLETS).toEqual({ woods: [{ x: 23, z: -9, r: 1.6, wx: -1, wz: -1 }] });
+    expect(Object.isFrozen(BANK_FILLETS)).toBe(true);
+    expect(Object.isFrozen(BANK_FILLETS.woods)).toBe(true);
+    expect(Object.isFrozen(BANK_FILLETS.woods[0])).toBe(true);
+  });
+
+  it('the Woods stream bend has a rounded bank: no band sample of the bend lies within 0.3 m of the square corner (23, -9)', () => {
+    const band = byName(dressOnGround('woods').fx, 'waterdress:band');
+    const f = band.userData.fillets;
+    expect(f).toHaveLength(1);
+    const samples = f[0].samples;
+    // both footprints' chains run round this corner, so both bend
+    expect(samples.length).toBeGreaterThanOrEqual(6);
+    for (const p of samples) {
+      expect(Math.hypot(p.x - CORNER.x, p.z - CORNER.z), `${p.x},${p.z}`).toBeGreaterThan(0.3);
+    }
+    const near = samples.filter((p) => inCell(p));
+    expect(near.length).toBeGreaterThanOrEqual(6);
+    for (const p of near) {
+      expect(Math.abs(Math.hypot(p.x - CENTRE.x, p.z - CENTRE.z) - 1.6), `${p.x},${p.z}`).toBeLessThan(0.02);
+      // the normal is the radial direction, onto the land
+      const rx = (p.x - CENTRE.x) / 1.6, rz = (p.z - CENTRE.z) / 1.6;
+      expect(p.nx * rx + p.nz * rz).toBeGreaterThan(0.999);
+    }
+    // the two edges' samples meet at the 45-degree diagonal
+    const diag = { x: CENTRE.x + 1.6 * Math.SQRT1_2, z: CENTRE.z + 1.6 * Math.SQRT1_2 };
+    expect(near.some((p) => Math.hypot(p.x - diag.x, p.z - diag.z) < 1e-6)).toBe(true);
+    // still the real-shore rule: nothing deep in the water far from a bank
+    const { areaData } = area('woods');
+    const real = shorePieces(areaData.waters);
+    for (const v of worldPoints(band)) {
+      if (-waterClearance(undecked(areaData.waters), v.x, v.z) > 0.35) expect(distToPieces(real, v.x, v.z)).toBeLessThan(1.0);
+    }
+    // and the band's land side over the fill rides above it, not under it
+    const fill = byName(dressOnGround('woods').fx, 'waterdress:fillet');
+    const fy = fill.geometry.getAttribute('position').getY(0);
+    for (const v of worldPoints(band)) {
+      if (inCell(v) && Math.hypot(v.x - CENTRE.x, v.z - CENTRE.z) > 1.6 + 1e-3) expect(v.y, `${v.x},${v.z}`).toBeGreaterThan(fy);
+    }
+  }, 120_000);
+
+  it('no ground plane, no fillet: the band keeps its square corner', () => {
+    const { fx } = dress('woods');
+    expect(byName(fx, 'waterdress:fillet')).toBeUndefined();
+    expect(byName(fx, 'waterdress:band').userData.fillets).toBeUndefined();
+  }, 120_000);
+
+  it('the fillet fan covers the corner and stays inside the square r×r cell', () => {
+    const { fx, areaData } = dressOnGround('woods');
+    const fill = byName(fx, 'waterdress:fillet');
+    expect(fill).toBeTruthy();
+    expect(fx.meshes).toContain(fill);
+    const pts = worldPoints(fill);
+    const waterY = areaData.waterFx.find((h) => h.footprint.id === 'river-west').y;
+    for (const p of pts) {
+      expect(inCell(p), `${p.x},${p.z}`).toBe(true);
+      expect(p.y).toBeCloseTo(waterY + 0.002, 6);
+    }
+    expect(triangles(fill)).toBeGreaterThanOrEqual(10);
+    expect(triangles(fill)).toBeLessThanOrEqual(16);
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    // the true corner is covered (from above: the faces look up)
+    ray.set(new THREE.Vector3(22.9, 5, -9.1), down);
+    expect(ray.intersectObject(fill).length).toBeGreaterThan(0);
+    // inside the arc is open water
+    ray.set(new THREE.Vector3(21.6, 5, -10.4), down);
+    expect(ray.intersectObject(fill).length).toBe(0);
+    expect(fill.castShadow).toBe(false);
+    expect(fill.receiveShadow).toBe(true);
+    expect(fill.userData.noCast).toBe(true);
+    expect(fill.matrixAutoUpdate).toBe(false);
+    // opaque, after the water in the opaque pass; the band (transparent) is later still
+    expect(fill.material.transparent).toBe(false);
+    expect(fill.renderOrder).toBeGreaterThan(0);
+  }, 120_000);
+
+  it('the fillet shares the ground material and dispose leaves it alive', () => {
+    const { scene, fx, ground } = dressOnGround('woods');
+    const fill = byName(fx, 'waterdress:fillet');
+    expect(fill.material).toBe(ground.material);
+    // the ground's own attributes, sampled where each vertex lies
+    const geo = fill.geometry;
+    for (const name of ['uv', 'normal', 'color']) {
+      expect(geo.getAttribute(name), name).toBeTruthy();
+      expect(geo.getAttribute(name).itemSize).toBe(ground.geometry.getAttribute(name).itemSize);
+    }
+    const pos = geo.getAttribute('position'), uv = geo.getAttribute('uv'), nrm = geo.getAttribute('normal');
+    const { width, height } = ground.geometry.parameters;
+    for (let i = 0; i < pos.count; i++) {
+      // PlaneGeometry laid flat (rotation.x = -PI/2): u runs with x, v against z
+      expect(uv.getX(i)).toBeCloseTo((pos.getX(i) + width / 2) / width, 6);
+      expect(uv.getY(i)).toBeCloseTo((height / 2 - pos.getZ(i)) / height, 6);
+      expect(nrm.getY(i)).toBeCloseTo(1, 6);
+    }
+    const matSpy = vi.spyOn(ground.material, 'dispose');
+    const geoSpy = vi.spyOn(geo, 'dispose');
+    fx.dispose();
+    expect(geoSpy).toHaveBeenCalled();
+    expect(matSpy).not.toHaveBeenCalled();
+    expect(scene.children).toEqual([ground]);
+    matSpy.mockRestore();
+  }, 120_000);
+
+  it('at dusk the fillet takes the tinted lawn: its material and its vertex colours', () => {
+    const { areaData } = area('woods');
+    const g = groundOf('woods').clone();
+    g.geometry = g.geometry.clone();
+    const tint = tintDuskLawn({ ground: [g], grass: null, look: duskLook(areaData) });
+    const { fx } = dressOnGround('woods', { evening: 'dusk' }, g);
+    const fill = byName(fx, 'waterdress:fillet');
+    expect(fill.material).toBe(g.material);
+    const col = fill.geometry.getAttribute('color');
+    const gc = g.geometry.getAttribute('color');
+    const { width, widthSegments: ws, heightSegments: hs } = g.geometry.parameters;
+    const pos = fill.geometry.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      const fx0 = ((pos.getX(i) + width / 2) / width) * ws, fy0 = ((pos.getZ(i) + width / 2) / width) * hs;
+      const ix = Math.min(ws - 1, Math.floor(fx0)), iy = Math.min(hs - 1, Math.floor(fy0));
+      for (const [k, get] of [[0, 'getX'], [1, 'getY'], [2, 'getZ']]) {
+        const vals = [[ix, iy], [ix + 1, iy], [ix, iy + 1], [ix + 1, iy + 1]].map(([a, b]) => gc[get](b * (ws + 1) + a));
+        expect(col[get](i), `v${i} c${k}`).toBeGreaterThanOrEqual(Math.min(...vals) - 1e-6);
+        expect(col[get](i), `v${i} c${k}`).toBeLessThanOrEqual(Math.max(...vals) + 1e-6);
+      }
+    }
+    fx.dispose();
+    tint.dispose();
+  }, 120_000);
+
+  it('the fillet is on every tier', () => {
+    const { fx } = dressOnGround('woods', { tier: LOW });
+    expect(fx.meshes.map((m) => m.name)).toEqual(['waterdress:band', 'waterdress:fillet']);
+    const hi = dressOnGround('woods').fx;
+    expect(hi.meshes.length).toBeLessThanOrEqual(3);
+  }, 120_000);
+
+  // Pinned on HEAD e96290b, before the fillet existed: each band's position
+  // and colour arrays as [length, sum |v|, sum v * (i % 97 + 1)]. Sums are
+  // compared to 1e-7 relative so a last-digit float difference on CI passes
+  // and any moved vertex does not.
+  const BAND_SIGS = {
+    woods: [[9414, 150933.24626954645, -5075727.709597291], [12552, 4524.366993766278, 221473.26101669297]],
+    river: [[13968, 255698.0767835551, -2912872.8324981984], [18624, 6713.018713504076, 328937.9169616997]],
+    moor: [[9468, 119705.49577815388, 1728377.440748978], [12624, 4541.783086530864, 222640.87666728348]],
+    pines: [[15012, 282253.1640906413, -3259469.4474358615], [20016, 5598.474907413125, 274193.9013411477]],
+    seaside: [[5130, 104119.7314075008, 2642484.1935188174], [6840, 5319.668896520045, 259625.7970965649]],
+  };
+  const sig = (arr) => {
+    let a = 0, b = 0;
+    for (let i = 0; i < arr.length; i++) { a += Math.abs(arr[i]); b += arr[i] * ((i % 97) + 1); }
+    return [arr.length, a, b];
+  };
+  const sameSig = (got, want, at) => {
+    expect(got[0], at).toBe(want[0]);
+    for (const k of [1, 2]) expect(Math.abs(got[k] - want[k]), at).toBeLessThanOrEqual(1e-7 * Math.abs(want[k]));
+  };
+
+  it("other areas' bands are unchanged", () => {
+    for (const id of ['river', 'moor', 'pines', 'seaside']) {
+      const { fx } = dressOnGround(id);
+      expect(byName(fx, 'waterdress:fillet'), id).toBeUndefined();
+      const band = byName(fx, 'waterdress:band');
+      sameSig(sig(band.geometry.getAttribute('position').array), BAND_SIGS[id][0], `${id} position`);
+      sameSig(sig(band.geometry.getAttribute('color').array), BAND_SIGS[id][1], `${id} color`);
+    }
+    // and the Woods with no ground to borrow is the old band exactly
+    const band = byName(dress('woods').fx, 'waterdress:band');
+    sameSig(sig(band.geometry.getAttribute('position').array), BAND_SIGS.woods[0], 'woods position');
+    sameSig(sig(band.geometry.getAttribute('color').array), BAND_SIGS.woods[1], 'woods color');
   }, 120_000);
 });
