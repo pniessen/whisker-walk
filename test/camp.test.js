@@ -360,8 +360,8 @@ describe('addCamp', () => {
       const r = D.clearing.r;
       const clearing = scene.getObjectByName('campClearing');
       const g = clearing.geometry;
-      // still a CircleGeometry whose radius is the solid inner one, so grass
-      // tufts may grow into the faded band
+      // still a CircleGeometry whose radius is the inner ring's (before the
+      // wobble), so grass.js keeps tufts off the solid floor only
       expect(g.type, a).toBe('CircleGeometry');
       expect(g.parameters.radius, a).toBeCloseTo(r - 0.4, 6);
       expect(g.index.count / 3, a).toBe(84);
@@ -383,6 +383,10 @@ describe('addCamp', () => {
         expect(ro, a).toBeGreaterThanOrEqual(0.9 * r - 1e-6);
         expect(ri / (r - 0.4), a).toBeCloseTo(ro / r, 6);
       }
+      // ...and it really wobbles
+      const radii = [];
+      for (let i = 29; i <= 56; i++) radii.push(Math.hypot(pos.getX(i), pos.getY(i)));
+      expect(Math.max(...radii) - Math.min(...radii), a).toBeGreaterThan(0.05);
       // the surface texture tiles as the old disc's did: uv spans 0..1 over the full radius
       const uv = g.attributes.uv;
       expect(uv.getX(0)).toBeCloseTo(0.5, 6);
@@ -400,8 +404,11 @@ describe('addCamp', () => {
       expect(clearing.material.vertexColors).toBe(true);
       expect(clearing.material.transparent).toBe(true);
       expect(clearing.material.depthWrite).toBe(false);
-      // under the transparent decals and prints, which draw at renderOrder 0
-      expect(clearing.renderOrder).toBeLessThan(0);
+      // drawn before every see-through thing over it: the water band (-3,
+      // waterdress.js), the paw prints (-2, pawprints.js) and the
+      // contact-shadow decals (-1, contactshadows.js). It writes no depth, so
+      // only this order keeps the prints and the shadows on top of it.
+      expect(clearing.renderOrder).toBeLessThan(-3);
       // grass.js still reads it as a no-grass disc at the camp centre
       const disc = flatFootprints(scene).find((f) => f.kind === 'disc');
       expect(disc, a).toBeTruthy();

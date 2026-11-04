@@ -193,9 +193,9 @@ describe('campDressing (pure)', () => {
         for (const s of seatsOf(L)) expect(dist(p, s), `${at} seat`).toBeGreaterThanOrEqual(0.4);
         for (const k of [L.den, L.rock, ...cols]) expect(dist(p, k) - k.r, `${at} edge`).toBeGreaterThanOrEqual(0.25);
         expect(angleOff(Math.atan2(p.z - cz, p.x - cx), D.ring.gap.a), `${at} gap`).toBeGreaterThan(D.ring.gap.half);
-        // the tube tapers 0.028 -> 0.012 and stays between the ground and 1 m
-        expect(p.w, at).toBeGreaterThanOrEqual(0.012 - 1e-9);
-        expect(p.w, at).toBeLessThanOrEqual(0.028 + 1e-9);
+        // the tube tapers 0.036 -> 0.016 and stays between the ground and 1 m
+        expect(p.w, at).toBeGreaterThanOrEqual(0.016 - 1e-9);
+        expect(p.w, at).toBeLessThanOrEqual(0.036 + 1e-9);
         expect(p.y - p.w, at).toBeGreaterThanOrEqual(0);
         expect(p.y + p.w, at).toBeLessThanOrEqual(1.0);
         // points every ~0.4 m along the ground; a cane's foot may climb

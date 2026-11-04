@@ -191,7 +191,7 @@ const CLUMP_SEAT_GAP = 0.5;   // from any seat, and from the den's and rock's ed
 // splits where points drop, and a run under 3 points vanishes.
 const CANE = {
   len: [2.6, 3.8], stagger: 1.6, step: 0.4, weave: 0.18, waves: [0.8, 1.4],
-  foot: 0.08, peak: [0.7, 0.9], skew: 0.2, bob: 0.1, bobs: [2, 3.5], w0: 0.028, w1: 0.012,
+  foot: 0.08, peak: [0.7, 0.9], skew: 0.2, bob: 0.1, bobs: [2, 3.5], w0: 0.036, w1: 0.016,
   near: 0.45, seat: 0.4, edge: 0.25,
 };
 const CLEARING_IN = 0.7;      // the clearing's radius: ring.r - 0.7
@@ -421,12 +421,13 @@ const RING_LOOK = {
   lumpIn: -0.2,       // a lump vertex's pull towards its clump's foot ...
   lumpOut: 0.05,      // ... or push away from it (lumpy, in ringMesh)
 };
-// y 0.011: over the path strips (0.01) and wet sand (0.008), under the paw
-// prints (pawprints PRINT_Y 0.012) and the contact-shadow decals (DECAL_Y
-// 0.015), so the floor neither hides the prints nor ties the shadows.
+// y 0.011: over the path strips (0.01) and wet sand (0.008). The floor writes
+// no depth, so what keeps the paw prints and the contact-shadow decals over it
+// is order: it draws first of the see-through things (order -4, under the
+// water band's -3, the paw prints' -2 and the decals' -1).
 // fade: the soft band at the rim, solid inside r - fade, clear at r * wobble;
 // wobble: the rim's radius factor, 1 - wobble..1 (a sum of three low sinusoids).
-const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -1 };
+const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -4 };
 const NEST = { r: 0.35, tube: 0.09, squash: 0.55 };
 const KILL_LOOK = { mouse: 0x7a5a3e, vole: 0x5e4a36, bird: 0x8a8478, wing: 0xa59d8c };
 
@@ -913,13 +914,14 @@ function ringMesh(ring, cx, cz, look) {
 // 0 at the outer, so the rim fades out instead of ending in a polygon line.
 // uv is planar over the full radius, as the old disc's was, so the surface
 // tiles the same. Transparent and not written to depth, drawn first
-// (renderOrder -1) so the transparent paw prints and contact-shadow decals
-// (renderOrder 0) go over it; lifted 1.1 cm and pulled towards the camera
+// (renderOrder -4, under the water band -3, paw prints -2 and contact-shadow
+// decals -1) so the prints and decals go over it; lifted 1.1 cm and pulled towards the camera
 // (polygonOffset) so it never fights the ground or a path.
 // A CircleGeometry lying flat at the top level, built as radius r - 0.4 and
 // then given the two-ring attributes: grass.js's flatFootprints reads
-// parameters.radius, so the no-grass disc is the solid inner one and tufts may
-// grow into the faded band.
+// parameters.radius, so grass is kept off inside r - 0.4 (the solid floor,
+// give or take the wobble's 10 %) and tufts grow into the rest of the faded
+// band.
 function clearingMesh(clearing, look) {
   const { x, z, r } = clearing;
   const n = CLEARING.segments;
