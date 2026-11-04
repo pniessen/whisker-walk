@@ -39,6 +39,44 @@ const CAM_DIR = new THREE.Vector3(1.85, 1.3, -2.45);
 const CAM_TARGET = new THREE.Vector3(0, 0.47, 0);
 
 const CAM_FOV = 30;
+
+// The floor: a soft cool pool of light and a dark contact shadow, both radial
+// fans with a per-vertex alpha (no textures, two draws), flat at the cat's feet
+// and the same for standing and sitting. It does not spin with the cat.
+export const FLOOR_RINGS = 12;
+export const FLOOR_SEGS = 40;
+export function fadeDisc(rgb, centreAlpha, power = 2) {
+  const n = 1 + FLOOR_RINGS * FLOOR_SEGS;
+  const pos = new Float32Array(n * 3);
+  const col = new Float32Array(n * 4);
+  const idx = [];
+  const put = (i, x, z, a) => { pos.set([x, 0, z], i * 3); col.set([rgb[0], rgb[1], rgb[2], a], i * 4); };
+  put(0, 0, 0, centreAlpha);
+  for (let r = 1; r <= FLOOR_RINGS; r++) {
+    const u = r / FLOOR_RINGS;
+    const a = centreAlpha * Math.pow(1 - u, power);
+    for (let k = 0; k < FLOOR_SEGS; k++) {
+      const th = (k / FLOOR_SEGS) * Math.PI * 2;
+      put(1 + (r - 1) * FLOOR_SEGS + k, Math.cos(th) * u, Math.sin(th) * u, a);
+    }
+  }
+  const at = (r, k) => 1 + (r - 1) * FLOOR_SEGS + (k % FLOOR_SEGS);
+  for (let k = 0; k < FLOOR_SEGS; k++) idx.push(0, at(1, k + 1), at(1, k));
+  for (let r = 1; r < FLOOR_RINGS; r++) {
+    for (let k = 0; k < FLOOR_SEGS; k++) idx.push(at(r, k), at(r, k + 1), at(r + 1, k), at(r, k + 1), at(r + 1, k + 1), at(r + 1, k));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 4));
+  g.setIndex(idx);
+  return g;
+}
+function floorMesh(name, rgb, alpha, power, order) {
+  const m = new THREE.Mesh(fadeDisc(rgb, alpha, power), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, fog: false }));
+  m.name = name;
+  m.renderOrder = order;
+  return m;
+}
 const CAM_ELEVATION = Math.atan2(CAM_DIR.y - CAM_TARGET.y, Math.hypot(CAM_DIR.x - CAM_TARGET.x, CAM_DIR.z - CAM_TARGET.z));
 
 // Pure framing math: how far back the camera sits, and where it looks, so a
@@ -129,6 +167,8 @@ export function createCatStage({
   let canvas = null;
   let scene = null;
   let camera = null;
+  let glow = null;    // the soft pool of light on the floor
+  let contact = null; // the dark contact shadow under the cat
   let cat = null;
   let breed = null;
   let el = null;
@@ -165,6 +205,12 @@ export function createCatStage({
     cat = null;
   }
 
+  function disposeFloor() {
+    for (const m of [glow, contact]) { if (m) { m.geometry.dispose(); m.material.dispose(); } }
+    glow = null;
+    contact = null;
+  }
+
   function fail(err) {
     if (stage.failed || disposed) return;
     stage.failed = true;
@@ -173,6 +219,7 @@ export function createCatStage({
     cancel();
     if (ro) { ro.disconnect(); ro = null; }
     disposeCat();
+    disposeFloor();
     if (canvas) canvas.remove();
     if (renderer) { try { renderer.dispose(); } catch { /* already gone */ } }
     renderer = null;
@@ -206,6 +253,9 @@ export function createCatStage({
       const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
       sun.position.set(2, 4, -3);
       scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 1.1));
+      glow = floorMesh('stageGlow', [0.45, 0.58, 0.85], 0.45, 2, -2);
+      contact = floorMesh('stageContact', [0.01, 0.02, 0.06], 0.75, 1.2, -1);
+      scene.add(glow, contact);
       camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
     } catch (err) {
       if (renderer) { try { renderer.dispose(); } catch { /* ignore */ } }
@@ -277,6 +327,19 @@ export function createCatStage({
     obj.updateMatrixWorld(true);
     if (!b) return null;
     return { minY: b.minY * SIZE.MAX, maxY: b.maxY * SIZE.MAX, radius: b.radius * SIZE.MAX };
+  }
+
+  // Floor under the feet, sized from the cat's reach (the same for either pose).
+  function placeFloor() {
+    if (!glow || !bounds) return;
+    const r = Math.max(bounds.radius, 0.2);
+    // bounds.minY is the lowest reach (a custom look's size scale included); a sitting cat's
+    // lowest point is its haunch or tail, a touch under the paws.
+    const y = bounds.minY + (pose === 'sit' ? 0.06 : 0.0) + 0.004;
+    glow.position.y = y;
+    glow.scale.set(r * 2.1, 1, r * 2.1);
+    contact.position.y = y + 0.002;
+    contact.scale.set(r * 1.45, 1, r * 1.45);
   }
 
   function draw() {
@@ -400,6 +463,7 @@ export function createCatStage({
     lastAcc = { ...acc };
     cat.rotation.y = spin.angle + turn;
     scene.add(cat);
+    placeFloor();
     frameCat();
     if (el && visible) draw();
   };
@@ -438,6 +502,7 @@ export function createCatStage({
       canvas.remove();
     }
     disposeCat();
+    disposeFloor();
     if (img) { img.remove(); img = null; }
     if (renderer) { renderer.dispose(); renderer.forceContextLoss(); }
     renderer = null;
