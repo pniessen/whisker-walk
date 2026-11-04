@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
+import { addTrails } from './pathribbon.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
@@ -552,11 +553,14 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(stones);
 
   // --- the paths --------------------------------------------------------------
-  for (const s of MOOR_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
-  // the trail over the Pines border, in the same sand, 2 m wide (MOOR_TRAIL)
-  for (const s of MOOR_TRAIL) scene.add(b.path(...s, TRAIL_W, PATH_STYLE));
-  // and the trail to the Gorge, the same (MOOR_GORGE_TRAIL)
-  for (const s of MOOR_GORGE_TRAIL) scene.add(b.path(...s, TRAIL_W, PATH_STYLE));
+  // one call, three groups in the old order: MOOR_PATHS, then
+  //   - the trail over the Pines border, in the same sand, 2 m wide (MOOR_TRAIL)
+  //   - and the trail to the Gorge, the same (MOOR_GORGE_TRAIL)
+  addTrails(scene, [
+    { segs: MOOR_PATHS, w: PATH_W },
+    { segs: MOOR_TRAIL, w: TRAIL_W },
+    { segs: MOOR_GORGE_TRAIL, w: TRAIL_W },
+  ], PATH_STYLE, 'moor');
 
   // --- the climb chains -------------------------------------------------------
   // The Old Hawthorn, with its grey boulder at the foot, and the High Tor on

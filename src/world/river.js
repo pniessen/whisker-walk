@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
+import { addTrails } from './pathribbon.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
@@ -542,7 +543,7 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(stones);
 
   // --- the paths --------------------------------------------------------------
-  for (const s of RIVER_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
+  addTrails(scene, [{ segs: RIVER_PATHS, w: PATH_W }], PATH_STYLE, 'river');
 
   // --- the reeds and the lily pads -------------------------------------------------
   const reeds = b.reedBed(riverReeds(), seedFromCode('river-reeds'));

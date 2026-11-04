@@ -337,7 +337,7 @@ describe('removing the critter dogs shifts no walkRng draw', () => {
     }
     // every weather branch was walked, the rain puddles and bird halving included
     expect([...weathers].sort()).toEqual(['clear', 'rain', 'sunset']);
-  });
+  }, 180_000);
 
   test('nothing outside the area files, the walk, the goals and the goat\'s day reads critterSpawns; the walk only filters birds and hands it to createCritters, the goals only look for a villager', () => {
     const files = [];

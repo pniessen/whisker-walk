@@ -1759,3 +1759,18 @@ body.touch-mode .fight-key { display: none; }
   /* toasts centred just above the sheet's top edge, never over a move */
   #hud.fighting .hud-toasts { bottom: calc(40vh + 8px); bottom: calc(var(--fight-sheet-h, 40vh) + 8px); left: 50%; max-width: calc(100vw - 32px); }
 }
+
+/* The paw icon (ui/pawicon.js). Apple's 🐾 is near-black and vanishes on dark
+   pills and buttons, so where masks work the emoji text is pushed out of the
+   box and a paw is drawn in the surrounding text colour; elsewhere the emoji
+   stays, lifted by a light halo. */
+.paw { display: inline-block; white-space: nowrap; filter: drop-shadow(0 0 1px rgba(255,248,235,0.7)) brightness(1.6); }
+@supports ((-webkit-mask-image: url(x)) or (mask-image: url(x))) {
+  .paw {
+    width: 1em; height: 1em; vertical-align: -0.14em; overflow: hidden; text-indent: -9em;
+    filter: none; background: currentColor;
+    -webkit-mask: var(--paw-mask) center / contain no-repeat; mask: var(--paw-mask) center / contain no-repeat;
+  }
+}
+:root { --paw-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cellipse cx='12' cy='16.2' rx='5.6' ry='4.6'/%3E%3Cellipse cx='4.6' cy='11' rx='2.3' ry='3'/%3E%3Cellipse cx='9' cy='5.8' rx='2.4' ry='3.2'/%3E%3Cellipse cx='15' cy='5.8' rx='2.4' ry='3.2'/%3E%3Cellipse cx='19.4' cy='11' rx='2.3' ry='3'/%3E%3C/svg%3E"); }
+.tui-btn .paw { color: #fff4dc; font-size: 1.5rem; }

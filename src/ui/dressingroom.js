@@ -12,6 +12,7 @@ import { SKILLS, hasSkill } from '../skills.js';
 import { prizeVisit } from '../visits.js';
 import { CAT_BLURBS } from './catblurbs.js';
 import { sanitizeCustomCats, presetFor, lookKey, COATS, CUSTOM_MAX } from '../customcats.js';
+import { PAW } from './pawicon.js';
 
 export const HOME_SHEETS = ['together', 'skills', 'colony', 'social', 'journal', 'album', 'sync', 'settings', 'code'];
 export const SHEET_LABEL = {
@@ -235,8 +236,8 @@ export function poseToggleHtml(pose) {
   const sitting = pose === 'sit';
   // The label names what a tap does: a standing cat offers Sit, a sitting one Stand.
   return sitting
-    ? '<button class="dr-pose" data-dr-pose="stand">🐾 Stand</button>'
-    : '<button class="dr-pose" data-dr-pose="sit">🐾 Sit</button>';
+    ? `<button class="dr-pose" data-dr-pose="stand">${PAW} Stand</button>`
+    : `<button class="dr-pose" data-dr-pose="sit">${PAW} Sit</button>`;
 }
 
 // headerHtml / statsHtml / startHtml / extrasHtml are pre-rendered, already
@@ -290,7 +291,7 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
     <p class="dr-label">Wearing · ${m.wearingCount} of ${m.slotCount} slots · ${m.ownedAccessories} of ${m.accessoryTotal} owned</p>
     <div class="dr-slots">${m.slots.map((s) => slotHtml(s, openSlot, ui.pickerHtml, thumbs)).join('')}</div>
   </section>
-  <section class="dr-abilities"><div class="dr-chip">🐾 ${num(m.abilities?.earned)} of ${num(m.abilities?.total)} earned</div></section>
+  <section class="dr-abilities"><div class="dr-chip">${PAW} ${num(m.abilities?.earned)} of ${num(m.abilities?.total)} earned</div></section>
   <section class="dr-where" data-panel="where">
     <p class="dr-label">Where to?</p>
     ${m.clanPicker ? renderClanPickerHtml(m.clanPicker, m.clanPartnerName) : ''}

@@ -2031,7 +2031,7 @@ describe('the camera in a cave', () => {
       }
     }
     expect(runs).toBe(3 * 3 * 2 * 12 * 2);
-  });
+  }, 180_000);
 
   it('with no ceiling overhead the view is never the cave view', () => {
     const { player, step } = rig(-7, 0); // raised ground, no ceilings

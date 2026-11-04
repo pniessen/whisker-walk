@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
+import { addTrails } from './pathribbon.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import {
@@ -1085,7 +1086,7 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(stones);
 
   // --- the paths --------------------------------------------------------------
-  for (const s of GORGE_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
+  addTrails(scene, [{ segs: GORGE_PATHS, w: PATH_W }], PATH_STYLE, 'gorge');
 
   // --- the Summit Rock --------------------------------------------------------
   // Named so test/gorge.test.js can find them and see past them. One material
