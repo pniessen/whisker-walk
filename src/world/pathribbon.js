@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { litMaterial, tileMetres } from '../render/materials.js';
-import { path, deckDistance, onDeck, waterClearance } from './builder.js';
+import { path, deckDistance, onDeck, waterGap } from './builder.js';
 import { withLocalUuids } from './localuuids.js';
 
 // SOFT, JOINED TRAILS (polish-paths, survey-4 pass 4A-1).
@@ -128,19 +128,28 @@ function tuckSeg(x, z, h, mx, mz, ix, iz, tuck) {
 // Does any point of the segment's widest capsule (trailReach) that is not on a
 // deck lie in open water? Sampled on a TUCK_STEP grid in the segment's frame.
 const TUCK_STEP = 0.05;
-function tuckWet(s, waters) {
-  const dry = waters.map((w) => ({ ...w, decks: [] }));
+const TUCK_STEPS = [0.2, 0.1, TUCK_STEP];
+// `dry` is `waters` with the decks stripped (built once per trailSegments
+// call); the cheap open-water test runs first, the deck test only on a hit.
+function tuckWet(s, waters, dry, step = TUCK_STEP) {
   const R = trailReach(s.h);
   const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
+  // waterGap is 1-Lipschitz, so a water whose gap at the capsule's centre
+  // exceeds the capsule's half-extent cannot be wet anywhere in it.
+  const mx = (s.x1 + s.x2) / 2;
+  const mz = (s.z1 + s.z2) / 2;
+  const near = dry.filter((w) => waterGap(w, mx, mz) <= len / 2 + R);
+  if (!near.length) return false;
   const ux = (s.x2 - s.x1) / len;
   const uz = (s.z2 - s.z1) / len;
-  for (let a = -R; a <= len + R; a += TUCK_STEP) {
-    for (let c = -R; c <= R; c += TUCK_STEP) {
+  for (let a = -R; a <= len + R; a += step) {
+    for (let c = -R; c <= R; c += step) {
       if (Math.hypot(Math.max(-a, a - len, 0), c) > R) continue;
       const x = s.x1 + ux * a - uz * c;
       const z = s.z1 + uz * a + ux * c;
+      if (!near.some((w) => waterGap(w, x, z) < 0)) continue;
       if (waters.some((w) => onDeck(w, x, z))) continue;
-      if (waterClearance(dry, x, z) < 0) return true;
+      return true;
     }
   }
   return false;
@@ -151,7 +160,7 @@ function tuckWet(s, waters) {
 // a narrow deck (the trail is wider than any deck) is drawn in, TUCK_STEP at a
 // time, down to a tip level with the deck end; still wet there, no tuck (the
 // end is pulled back as before).
-function tuckFor(decks, waters, x, z, h) {
+function tuckFor(decks, waters, dry, x, z, h) {
   let deck = null;
   let gap = DECK_REACH;
   for (const d of decks) {
@@ -161,12 +170,22 @@ function tuckFor(decks, waters, x, z, h) {
   if (!deck) return null;
   const f = deckFrame(deck);
   const t = (x - (f.ax + f.bx) / 2) * f.ux + (z - (f.az + f.bz) / 2) * f.uz;
+  // Only a free end facing a SHORT end of the deck tucks: its projection on
+  // the axis is past the deck's span, or it lies within the deck's width (+h).
+  const half = Math.hypot(f.bx - f.ax, f.bz - f.az) / 2;
+  const lat = Math.abs(-(x - (f.ax + f.bx) / 2) * f.uz + (z - (f.az + f.bz) / 2) * f.ux);
+  const halfW = Number.isFinite(deck.x1) ? deck.halfW
+    : (Math.abs(f.ux) > 0.5 ? deck.maxZ - deck.minZ : deck.maxX - deck.minX) / 2;
+  if (Math.abs(t) <= half && lat > halfW + h) return null;
   // Nearer short end, and the axis pointing from it into the deck.
   const [mx, mz, ix, iz] = t <= 0 ? [f.ax, f.az, f.ux, f.uz] : [f.bx, f.bz, -f.ux, -f.uz];
   if (!waters) return tuckSeg(x, z, h, mx, mz, ix, iz, TUCK);
   for (let k = 0; k <= Math.round(TUCK / TUCK_STEP); k++) {
     const seg = tuckSeg(x, z, h, mx, mz, ix, iz, TUCK - k * TUCK_STEP);
-    if (!tuckWet(seg, waters)) return seg;
+    // Each coarser grid is a subset of the next finer one: wet there is wet
+    // there, so most rejects cost the cheap pass; an accepted candidate has
+    // passed every grid down to TUCK_STEP.
+    if (!TUCK_STEPS.some((st) => tuckWet(seg, waters, dry, st))) return seg;
   }
   return null;
 }
@@ -186,19 +205,20 @@ export function trailSegments(groups, opts = {}) {
   const kinds = endKinds(groups, opts);
   const decks = opts.decks ?? [];
   const waters = opts.waters ?? null;
+  const dry = waters ? waters.map((w) => ({ ...w, decks: [] })) : null;
   const tucks = [];
   const out = all.map(({ s, h }, i) => {
     const [x1, z1, x2, z2] = s;
+    const len = Math.hypot(x2 - x1, z2 - z1);
+    if (len < 1e-9) return { x1, z1, x2, z2, h };
     const ends = [[x1, z1], [x2, z2]];
     const move = kinds[i].map((k, e) => {
       if (k === 'edge') return -EDGE_EXTEND;
       if (k !== 'free') return 0;
-      const tuck = decks.length ? tuckFor(decks, waters, ...ends[e], h) : null;
+      const tuck = decks.length ? tuckFor(decks, waters, dry, ...ends[e], h) : null;
       if (tuck) { tucks.push(tuck); return 0; }
       return h;
     });
-    const len = Math.hypot(x2 - x1, z2 - z1);
-    if (len < 1e-9) return { x1, z1, x2, z2, h };
     const ux = (x2 - x1) / len;
     const uz = (z2 - z1) / len;
     // Positive = pull this end in, negative = push it out.

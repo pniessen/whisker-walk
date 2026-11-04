@@ -535,9 +535,41 @@ describe('trail tucks under decks (polish-crossings R2)', async () => {
       : { a: [cx, d.minZ], b: [cx, d.maxZ], u: [0, 1] };
   }
 
-  it('constants: TUCK 0.5, reach 2.5', () => {
-    expect(TUCK).toBe(0.5);
-    expect(DECK_REACH).toBe(2.5);
+  // Tuck segments on the real maps (x1, z1, x2, z2, h), pinned so the
+  // performance work on tuckWet can never move a tuck.
+  const PINNED = {
+    woods: [[-4.5, -6, -4.5, -6.5, 1.5], [-4.5, -17, -4.5, -16.5, 1.5]],
+    river: [[-22, -26, -22, -26.5, 1.5], [-22, -37, -22, -36.5, 1.5], [28, -6, 28, -6.5, 1.5]],
+    moor: [[4, 4, 4, 3.5, 1.5], [26.5, 30, 25.5, 30, 1.5], [14.5, 30, 15.5, 30, 1.5]],
+    pines: [[10.6, 2.5, 9.34, 3.12, 1.5], [-24, -30, -24.5, -30, 1.5], [-42, -3, -42, -3.5, 1.5], [-42, -14, -42, -13.5, 1.5], [-35, -30, -34.5, -30, 1.5]],
+    gorge: [[-11.6, -11, -11.5, -11, 1.5]],
+  };
+  for (const [name, { groups, waters }] of Object.entries(MAPS)) {
+    it(`${name}: the tuck segments are exactly the pinned ones`, () => {
+      const n = trailSegments(groups).length;
+      const tucks = trailSegments(groups, { decks: decksOf(waters), waters }).slice(n);
+      expect(tucks.map((t) => [t.x1, t.z1, t.x2, t.z2, t.h].map((v) => +v.toFixed(3)))).toEqual(PINNED[name]);
+    }, 120_000);
+  }
+
+  it('a free end beside the long side of a deck (past the width, inside the span) is not tucked', () => {
+    const deck = { minX: -0.9, maxX: 0.9, minZ: 0, maxZ: 8 };
+    // 3 m off the axis at z = 4 (mid-span); lateral 3 > halfW 0.9 + h 1.
+    const beside = trailSegments([{ segs: [[3, 20, 3, 4]], w: 2 }], { decks: [deck] });
+    expect(beside.length).toBe(1);
+    expect(beside[0].z2).toBeCloseTo(5, 9); // pulled back by h = 1 as before
+    // The same end level with the deck's end does tuck.
+    expect(trailSegments([{ segs: [[0, -20, 0, -1.5]], w: 2 }], { decks: [deck] }).length).toBe(2);
+    // Strip deck: beside its middle, no tuck.
+    const strip = { x1: 0, z1: 0, x2: 0, z2: 8, halfW: 0.9 };
+    expect(trailSegments([{ segs: [[3, 20, 3, 4]], w: 2 }], { decks: [strip] }).length).toBe(1);
+  });
+
+  it('a zero-length input segment gets no tuck of its own', () => {
+    const deck = { minX: -0.9, maxX: 0.9, minZ: 0, maxZ: 8 };
+    const segs = trailSegments([{ segs: [[0, -1.5, 0, -1.5]], w: 3 }], { decks: [deck] });
+    expect(segs.length).toBe(1);
+    expect(segs[0]).toMatchObject({ x1: 0, z1: -1.5, x2: 0, z2: -1.5 });
   });
 
   it('a free end 1.5 m short of a rect deck gets one tuck segment; tip 0.5 m inside the near edge', () => {
@@ -610,7 +642,6 @@ describe('trail tucks under decks (polish-crossings R2)', async () => {
       const kinds = endKinds(groups);
       const raw = groups.flatMap((g) => g.segs);
       let near = 0;
-      const insides = [];
       raw.forEach((s, i) => {
         for (const e of [0, 1]) {
           if (kinds[i][e] !== 'free') continue;
@@ -636,7 +667,6 @@ describe('trail tucks under decks (polish-crossings R2)', async () => {
           const into = da < db ? u : [-u[0], -u[1]];
           const tip = [t.x2 + into[0] * t.h, t.z2 + into[1] * t.h];
           const inside = -deckDistance([{ decks: [d] }], tip[0], tip[1]);
-          insides.push(+inside.toFixed(2));
           expect(inside).toBeGreaterThanOrEqual(0.4 - 1e-9);
         }
       });
@@ -644,7 +674,6 @@ describe('trail tucks under decks (polish-crossings R2)', async () => {
       for (let i = 0; i < n; i++) {
         if (raw[i]) expect(segs[i].h).toBe(plain[i].h);
       }
-      console.log(`TUCKS ${name}: ${near} — ${segs.slice(n).map((t) => `(${t.x1},${t.z1})->(${t.x2.toFixed(2)},${t.z2.toFixed(2)})`).join(' ')}; tips inside by ${insides.join(', ')}`);
       if (name !== 'woods' || near) expect(near).toBeGreaterThan(0);
     });
 
@@ -659,8 +688,9 @@ describe('trail tucks under decks (polish-crossings R2)', async () => {
         const len = segLen(s);
         const ux = len > 1e-9 ? (s.x2 - s.x1) / len : 1;
         const uz = len > 1e-9 ? (s.z2 - s.z1) / len : 0;
-        for (let a = -R; a <= len + R; a += 0.05) {
-          for (let c = -R; c <= R; c += 0.05) {
+        // A grid offset from tuckWet's own (origin -R, step 0.05).
+        for (let a = -R + 0.025; a <= len + R; a += 0.04) {
+          for (let c = -R + 0.025; c <= R; c += 0.04) {
             const x = s.x1 + ux * a - uz * c;
             const z = s.z1 + uz * a + ux * c;
             const along = Math.max(-a, a - len, 0);
