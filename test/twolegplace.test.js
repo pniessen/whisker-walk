@@ -129,6 +129,7 @@ describe('house() look', () => {
       scene.add(dressed(roof));
       const glass = scene.getObjectByName('houseGlass');
       expect(glass.userData.window).toBe(true);
+      expect(glass.userData.noCast).toBe(true);
       expect(glass.material.map).toBeNull();
       expect(glass.material.color.getHex()).toBe(new THREE.Color(0xa8d8e8).getHex());
       const occ = findFadeOccluders(scene);
@@ -203,8 +204,9 @@ describe('the Neighbourhood street of houses', () => {
       return maxX - minX > maxZ - minZ ? 'side' : 'front';
     };
     const gables = houses.filter((h) => h.children[1].geometry.type !== 'ConeGeometry');
-    expect(gables.filter((h) => ridge(h) === 'front').length).toBeGreaterThanOrEqual(2);
-    expect(gables.filter((h) => ridge(h) === 'side').length).toBeGreaterThanOrEqual(2);
+    expect(cones).toBe(3);
+    expect(gables.filter((h) => ridge(h) === 'front').length).toBe(3);
+    expect(gables.filter((h) => ridge(h) === 'side').length).toBe(2);
   });
 
   it('every house trim stays inside local x,z +-2.8 and y <= 5', () => {
@@ -290,10 +292,12 @@ describe('bush() beach style', async () => {
     expect(g.children[0].position.toArray()).toEqual([0, 0, 0]);
   });
 
-  it('the six Seaside spots hold at least two marram and two sea holly, with the right heights', () => {
+  it('the six Seaside spots hold at least two marram and two sea holly, with the right heights', async () => {
     const kinds = { marram: 0, holly: 0 };
+    const { propsFor } = await import('../src/propsets.js');
     for (const [x, z] of SPOTS) {
-      const m = bush(x, z, { style: 'beach' });
+      const isHide = propsFor('seaside').hides.some((h) => h.x === x && h.z === z);
+      const m = bush(x, z, { style: 'beach', kind: isHide ? 'marram' : (x === -24 && z === -20 ? 'holly' : undefined) });
       const kind = m.userData.beachPlant;
       kinds[kind]++;
       m.geometry.computeBoundingBox();
@@ -305,6 +309,22 @@ describe('bush() beach style', async () => {
     expect(kinds.marram).toBeGreaterThanOrEqual(2);
     expect(kinds.holly).toBeGreaterThanOrEqual(2);
   });
+
+  it('every Seaside mouse hide has marram on it (holly is too low to hide in)', async () => {
+    const { propsFor } = await import('../src/propsets.js');
+    const hides = propsFor('seaside').hides;
+    expect(hides.length).toBe(3);
+    const scene = new THREE.Scene();
+    buildSeaside(scene, { wind: fakeWind() });
+    for (const h of hides) {
+      const plants = [];
+      scene.traverse((o) => {
+        if (o.userData.beachPlant && Math.hypot((o.parent.isGroup ? o.parent : o).position.x - h.x, (o.parent.isGroup ? o.parent : o).position.z - h.z) < 0.01) plants.push(o);
+      });
+      expect(plants.length, `plant at ${h.x},${h.z}`).toBe(1);
+      expect(plants[0].userData.beachPlant).toBe('marram');
+    }
+  }, 30000);
 
   it('the Seaside builds beach plants, not shrubs, and stays at or under 29,521 triangles', () => {
     const scene = new THREE.Scene();

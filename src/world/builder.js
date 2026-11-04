@@ -752,7 +752,11 @@ function pieceKit(colored) {
       geo.computeVertexNormals();
       add(geo, hex, turn);
     },
-    merged: () => mergeGeometries(parts),
+    merged: () => {
+      const out = mergeGeometries(parts);
+      for (const g of parts) g.dispose();
+      return out;
+    },
   };
 }
 
@@ -982,6 +986,8 @@ export function house(x, z, bodyColor = 0xe8d8b0, roofColor = 0xb05a4a, bodySurf
       const glass = new THREE.Mesh(houseGlassGeometry(), surfNoMap(HOUSE_GLASS, 'glass'));
       glass.name = 'houseGlass';
       glass.userData.window = true;
+      // flush panes and a tiny lantern: nothing worth a shadow draw
+      glass.userData.noCast = true;
       g.add(glass);
     });
   }
@@ -3186,7 +3192,7 @@ function beachClumpGeometry(x, z, kind) {
         c0[2] + dz * along * L + sz * side * L,
       ];
       const base = mix(0x7d949e, 0x8fa6b0, 0.5, shade);
-      const leaf = mix(0x8fa6b0, 0x8fa6b0, 0, shade);
+      const leaf = new THREE.Color(0x8fa6b0).multiplyScalar(shade);
       const tipC = mix(0x8fa6b0, 0xc4d2d8, 0.6, shade);
       const v0 = A.v(...c0, base);
       const v1 = A.v(...P(0.5, 0, 0.03), leaf);
@@ -3266,7 +3272,7 @@ function beachClumpGeometry(x, z, kind) {
 // same origin every compound prop here already has — with the mesh at local
 // y 0.5, so the bush is in exactly the same place either way and no geometry,
 // collider or hide-spot record moves a millimetre.
-export function bush(x, z, { wind, style } = {}) {
+export function bush(x, z, { wind, style, kind: forceKind } = {}) {
   // 'foliage', same as a tree canopy and map-less for the same reason. Same
   // organic-blob treatment as tree(), scaled down and salted differently (see
   // the ORGANIC CANOPY block above) so a bush never coincidentally matches a
@@ -3277,7 +3283,9 @@ export function bush(x, z, { wind, style } = {}) {
   // the same uuid draws, but the mesh sits at y 0 — it grows from the sand,
   // there is no belly to lift.
   const beach = style === 'beach';
-  const kind = beach ? (hash01(x, z, 1041) < 0.5 ? 'marram' : 'holly') : null;
+  // `kind` ('marram' | 'holly') overrides the hash pick: a spot that must be
+  // tall (a mouse hide) or low can say so.
+  const kind = beach ? (forceKind || (hash01(x, z, 1041) < 0.5 ? 'marram' : 'holly')) : null;
   const m = beach
     ? new THREE.Mesh(
       beachClumpGeometry(x, z, kind),
