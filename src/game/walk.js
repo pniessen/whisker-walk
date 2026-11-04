@@ -98,7 +98,7 @@ import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from '../ch
 import { replyFor, countsAsGreet } from '../catreplies.js';
 import { litMaterial } from '../render/materials.js';
 import { setTextureTier } from '../render/textures.js';
-import { waterRig } from '../render/water.js';
+import { waterRig, eveningWater } from '../render/water.js';
 import { createWind } from '../render/wind.js';
 import { createSun, createFill, SUN_BIAS, assignShadowCasters, assignShadowCastersFor } from '../render/rig.js';
 import { createIntruders, isHostile, NO_INTRUDERS, INTRUDER_DECAL_RADIUS } from '../intruders.js';
@@ -118,6 +118,7 @@ import { createSplash } from '../render/splash.js';
 import { createClouds } from '../render/clouds.js';
 import { createAmbient } from '../render/ambient.js';
 import { createWaterDressing } from '../render/waterdress.js';
+import { createFishJumps } from '../render/fishjump.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
 // is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
 // 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
@@ -1217,7 +1218,15 @@ export function createWalkLifecycle({
     // and the prop merge, so it is neither decaled nor merged and casts
     // nothing (at most 3 main-pass draws, 0 shadow). Areas without dressed
     // water (the den, the park, the docks, the gorge) get the no-op stub.
-    const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut });
+    // Polish-waterlife — the water warms at sunset and darkens at dusk, and
+    // the foam goes quiet at dusk (water.js eveningWater; waterdress `evening`).
+    const evening = duskLookNow ? 'dusk' : weather.condition === 'sunset' ? 'sunset' : null;
+    eveningWater(areaData.waterFx ?? [], evening);
+    splash.setEvening(evening);
+    const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut, evening });
+    // Polish-waterlife — now and then a little silver fish leaps from a lake
+    // (render/fishjump.js): 1 draw only while one is in the air, 0 shadow.
+    const fish = createFishJumps(scene, { areaId, areaData, tier, reducedMotion, splash, cat, camera });
     // Polish-light — warm pools of lamp light on the ground at dusk
     // (render/dusk.js). Here for the grass's reason: after the contact-shadow
     // scan, the caster sweep and the prop merge (+1 main-pass draw, 0 shadow).
@@ -1316,6 +1325,7 @@ export function createWalkLifecycle({
       duskLawn,
       paws,
       splash,
+      fish,
       // Stream 4 round four — drifting sky clouds (render/clouds.js), same
       // shape again: one InstancedMesh, built here after the caster sweep and
       // the prop merge so neither sees it. Laid out from a per-area seed, never
@@ -2021,6 +2031,7 @@ export function createWalkLifecycle({
     session.grass.dispose();
     session.paws.dispose();
     session.splash.dispose();
+    session.fish.dispose();
     session.clouds.dispose();
     session.ambient.dispose();
     // A no-op today (the rig holds no GPU resource of its own — the shadow map

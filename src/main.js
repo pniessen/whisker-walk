@@ -975,6 +975,7 @@ function init() {
       for (const r of session.remotes.list) {
         if (r.water.placed) session.splash.track(r.water, r.group.position.x, r.group.position.z, r.group.rotation.y, r.speed, r.group.scale.y, dt);
       }
+      session.fish.update(dt);
       session.splash.update(dt);
       // v21 3b Task 14: every cat on my screen pushes the flaps and gaps — mine
       // first, then my co-walkers' as remotecats.js has just placed them — so
