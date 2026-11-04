@@ -14,7 +14,7 @@ import { withLocalUuids } from './localuuids.js';
 //
 // Each segment draws one quad that covers its own capsule plus the wobble and
 // the feather. Quads overlap at joins, so every fragment works out which
-// segment OWNS it (the nearest capsule surface) and is discarded unless that
+// segment OWNS it (the nearest wobbled capsule surface) and is discarded unless that
 // is its own quad, so every pixel is blended once (with a soft hand-over in a
 // 5 mm strip on the tie line — see the ownership comment in the fragment).
 //
@@ -50,6 +50,8 @@ export const TRAIL_LOOK = {
 };
 
 const JOIN_SLACK = 0.05;
+// See addTrails: strictly below every ground decal in the transparent pass.
+export const TRAIL_RENDER_ORDER = -4;
 // Width of the soft ownership hand-over (see the fragment body). The quads'
 // QUAD_PAD must stay well above it.
 export const OWNER_BAND = 0.005;
@@ -123,10 +125,25 @@ export function trailSegments(groups, opts = {}) {
 // ---- the shared field ------------------------------------------------------
 // Integer-lattice value noise over the same sin-hash builder.js's hash01 uses.
 // The GLSL below is the same formula, line for line.
+//
+// The lattice coordinate is wrapped into [-144, 144] (period HASH_PERIOD)
+// before it is hashed, so the sin argument stays bounded (|arg| < ~13.5k)
+// wherever the trail runs, instead of growing with world position and the
+// finest wobble's 1/0.32 m lattice — a mobile GPU's sin loses the hash bits
+// first on large arguments. Inside the wrap range it is the identity, so the
+// look is unchanged; outside it the pattern repeats every 289 cells (92 m at
+// the finest wobble, more for everything else).
+export const HASH_PERIOD = 289;
+const HASH_HALF = 144;
 
 function fract(v) { return v - Math.floor(v); }
+export function wrapLattice(i) {
+  return i - HASH_PERIOD * Math.floor((i + HASH_HALF) / HASH_PERIOD);
+}
 function hash(ix, iz, salt) {
-  return fract(Math.sin(ix * 12.9898 + iz * 78.233 + salt * 37.719) * 43758.5453);
+  const wx = wrapLattice(ix);
+  const wz = wrapLattice(iz);
+  return fract(Math.sin(wx * 12.9898 + wz * 78.233 + salt * 37.719) * 43758.5453);
 }
 function vnoise(x, z, salt) {
   const ix = Math.floor(x);
@@ -147,27 +164,41 @@ function smoothstep(e0, e1, x) {
 }
 
 const L = TRAIL_LOOK;
-function wobble(x, z, h) {
-  return h * (L.wobbleA1 * (2 * vnoise(x / L.wobbleL1, z / L.wobbleL1, 1) - 1)
+const WOBBLE_SUM = L.wobbleA1 + L.wobbleA2 + L.wobbleA3;
+// The width wobble at (x, z), unitless (a fraction of the half-width), in
+// [-WOBBLE_SUM, WOBBLE_SUM]. ONE value per point, shared by every segment:
+// segment i's wobbled edge distance is e_i = d_i - h_i * (1 + W).
+export function trailWobble(x, z) {
+  return L.wobbleA1 * (2 * vnoise(x / L.wobbleL1, z / L.wobbleL1, 1) - 1)
     + L.wobbleA2 * (2 * vnoise(x / L.wobbleL2, z / L.wobbleL2, 2) - 1)
-    + L.wobbleA3 * (2 * vnoise(x / L.wobbleL3, z / L.wobbleL3, 8) - 1));
+    + L.wobbleA3 * (2 * vnoise(x / L.wobbleL3, z / L.wobbleL3, 8) - 1);
 }
-const maxWobble = (h) => h * (L.wobbleA1 + L.wobbleA2 + L.wobbleA3);
+const maxWobble = (h) => h * WOBBLE_SUM;
+// The furthest a segment's wobbled edge can reach from its centreline (the
+// alpha = 0.5 line, before the outer feather). grass.js masks this capsule.
+export const trailReach = (h) => h * (1 + WOBBLE_SUM);
 
 // CPU twin of the fragment shader's coverage: which segment owns (x, z), the
 // wobbled signed distance from the trail edge (negative inside), and the
 // feathered alpha. `d` is the distance to the owner's centreline.
+//
+// Ownership and sd both use the WOBBLED distance e_i = d_i - h_i (1 + W):
+// sd = min_i e_i is then one continuous field. (Owning by the unwobbled
+// d_i - h_i but wobbling by the owner's h stepped the edge where a 3 m path
+// meets a 2 m trail: the owner flips on a line where the two wobbles differ.)
 export function trailField(segs, x, z) {
   let owner = -1;
   let best = Infinity;
   let d = Infinity;
+  const k = 1 + trailWobble(x, z);
   for (let i = 0; i < segs.length; i++) {
     const s = segs[i];
     const di = segDist(x, z, s.x1, s.z1, s.x2, s.z2);
-    if (di - s.h < best) { best = di - s.h; owner = i; d = di; }
+    const e = di - s.h * k;
+    if (e < best) { best = e; owner = i; d = di; }
   }
   if (owner < 0) return { owner, sd: Infinity, alpha: 0, d };
-  const sd = best - wobble(x, z, segs[owner].h);
+  const sd = best;
   const alpha = 1 - smoothstep(L.featherIn, L.featherOut, sd);
   return { owner, sd, alpha, d };
 }
@@ -252,6 +283,8 @@ uniform float trailHalf[TRAIL_N];
 varying vec2 vTrailXZ;
 varying float vTrailSegId;
 float trailHash(vec2 i, float salt) {
+  // Wrapped into [-${HASH_HALF}, ${HASH_HALF}] first: see wrapLattice().
+  i = i - ${f(HASH_PERIOD)} * floor((i + ${f(HASH_HALF)}) / ${f(HASH_PERIOD)});
   return fract(sin(i.x * 12.9898 + i.y * 78.233 + salt * 37.719) * 43758.5453);
 }
 float trailNoise(vec2 p, float salt) {
@@ -286,22 +319,24 @@ function fragBody() {
   // OWNER_BAND-wide strip around the tie with its nearest rival, the two
   // weights sum to 1, and each quad blends alpha 1 - (1 - a)^w, which
   // composes to exactly a. Off the strip it is the plain nearest-capsule test.
+  // Distances are the WOBBLED ones, e_i = d_i - h_i (1 + W), with one W per
+  // pixel, so tSd = min e_i is continuous where two widths meet (trailField).
+  float tWk = 1.0 + ${f(L.wobbleA1)} * (2.0 * trailNoise(tp / ${f(L.wobbleL1)}, 1.0) - 1.0)
+    + ${f(L.wobbleA2)} * (2.0 * trailNoise(tp / ${f(L.wobbleL2)}, 2.0) - 1.0)
+    + ${f(L.wobbleA3)} * (2.0 * trailNoise(tp / ${f(L.wobbleL3)}, 8.0) - 1.0);
   float tOther = 1e9;
   float tBest = 1e9;
   float tD = 0.0;
   float tH = 1.0;
   for (int i = 0; i < TRAIL_N; i++) {
     float di = trailSegDist(tp, trailSegs[i]);
-    float e = di - trailHalf[i];
+    float e = di - trailHalf[i] * tWk;
     if (abs(float(i) - vTrailSegId) < 0.5) { tBest = e; tD = di; tH = trailHalf[i]; }
     else tOther = min(tOther, e);
   }
   float tW = clamp(0.5 + (tOther - tBest) / ${f(2 * OWNER_BAND)}, 0.0, 1.0);
   if (tW <= 0.0) discard;
-  float tWob = tH * (${f(L.wobbleA1)} * (2.0 * trailNoise(tp / ${f(L.wobbleL1)}, 1.0) - 1.0)
-    + ${f(L.wobbleA2)} * (2.0 * trailNoise(tp / ${f(L.wobbleL2)}, 2.0) - 1.0)
-    + ${f(L.wobbleA3)} * (2.0 * trailNoise(tp / ${f(L.wobbleL3)}, 8.0) - 1.0));
-  float tSd = tBest - tWob;
+  float tSd = tBest;
   float tAlpha = 1.0 - smoothstep(${f(L.featherIn)}, ${f(L.featherOut)}, tSd);
   if (tAlpha < 0.002) discard;
   vec3 look = vec3(1.0);
@@ -374,11 +409,14 @@ export function trailMaterial(color, surface, segs) {
 // under withLocalUuids so it draws nothing from the real Math.random.
 // `groups` = [{ segs, w }], `style` = path()'s { surface, color }, `key`
 // names the uuid stream (the area id).
-export function addTrails(scene, groups, style = {}, key = 'trail') {
+// `edge` (default 50) is where a map-edge end is recognised: every wild map
+// is +/-50 today (test/trails.test.js pins that, so a map with other bounds
+// fails loudly instead of growing blobs at its border).
+export function addTrails(scene, groups, style = {}, key = 'trail', { edge } = {}) {
   for (const g of groups) {
     for (const s of g.segs) scene.add(path(...s, g.w, { ...style, footprint: true }));
   }
-  const segs = trailSegments(groups);
+  const segs = trailSegments(groups, edge === undefined ? {} : { edge });
   if (segs.length === 0) return { mesh: null, segs };
   const mesh = withLocalUuids('trail-uuids-' + key, () => {
     const m = new THREE.Mesh(
@@ -390,8 +428,10 @@ export function addTrails(scene, groups, style = {}, key = 'trail') {
     // by userData.ground || name === 'path').
     m.userData.ground = true;
     m.userData.trail = segs;
-    // First in the transparent pass, so prints, puddles and decals draw over.
-    m.renderOrder = -1;
+    // First in the transparent pass: below waterdress.js's shore band (-3),
+    // pawprints.js's prints (-2) and contactshadows.js's blobs (-1), so all
+    // of them draw over it, as they did over the old opaque path strips.
+    m.renderOrder = TRAIL_RENDER_ORDER;
     m.castShadow = false;
     m.receiveShadow = true;
     return m;

@@ -24,7 +24,12 @@ vi.stubGlobal('document', {
 });
 
 const { inWater, onDeck, path } = await import('../src/world/builder.js');
-const { trailField, quadRadius } = await import('../src/world/pathribbon.js');
+const { trailField, quadRadius, TRAIL_RENDER_ORDER } = await import('../src/world/pathribbon.js');
+const { flatFootprints, buildGrassMask } = await import('../src/render/grass.js');
+const { createPawPrints } = await import('../src/render/pawprints.js');
+const { createWaterDressing } = await import('../src/render/waterdress.js');
+const { createContactShadows } = await import('../src/render/contactshadows.js');
+const { groundOf } = await import('../src/ground.js');
 const { build: buildWoods, WOODS_PATHS } = await import('../src/world/woods.js');
 const { build: buildRiver, RIVER_PATHS } = await import('../src/world/river.js');
 const { build: buildMoor, MOOR_PATHS, MOOR_TRAIL, MOOR_GORGE_TRAIL } = await import('../src/world/moor.js');
@@ -89,6 +94,63 @@ describe('wild-map trails', () => {
       expect(bad.slice(0, 10)).toEqual([]);
     }, 120_000);
   }
+
+  for (const name of Object.keys(AREAS)) {
+    it(`${name}: bounds are +/-50 (addTrails' default map edge assumes it)`, () => {
+      const { area } = get(name);
+      expect(area.bounds).toEqual(expect.objectContaining({ minX: -50, maxX: 50, minZ: -50, maxZ: 50 }));
+    });
+  }
+
+  for (const name of Object.keys(AREAS)) {
+    it(`${name}: no grass where the trail is (near-)opaque, bends and wobble included`, () => {
+      const { scene, area } = get(name);
+      const segs = scene.children.find((c) => c.name === 'pathTrail').userData.trail;
+      const fps = flatFootprints(scene, groundOf(area));
+      expect(fps.filter((f) => f.kind === 'capsule').length).toBe(segs.length);
+      const mask = buildGrassMask(area, fps);
+      const bad = [];
+      let opaque = 0;
+      for (const s of segs) {
+        const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
+        const ux = len > 1e-9 ? (s.x2 - s.x1) / len : 1;
+        const uz = len > 1e-9 ? (s.z2 - s.z1) / len : 0;
+        const R = quadRadius(s.h);
+        for (let a = -R; a <= len + R; a += 0.25) {
+          for (let c = -R; c <= R; c += 0.25) {
+            const x = s.x1 + ux * a - uz * c;
+            const z = s.z1 + uz * a + ux * c;
+            if (trailField(segs, x, z).alpha < 0.95) continue;
+            opaque++;
+            if (mask.at(x, z)) bad.push([+x.toFixed(2), +z.toFixed(2)]);
+          }
+        }
+      }
+      expect(opaque).toBeGreaterThan(1000);
+      expect(bad.slice(0, 10)).toEqual([]);
+    }, 180_000);
+  }
+
+  it('the trail draws below every ground decal in the transparent pass', () => {
+    // A fresh Woods (it has prints, a shore band and contact shadows), and
+    // each decal module's own mesh read off the scene.
+    const scene = new THREE.Scene();
+    const area = buildWoods(scene);
+    const trail = scene.children.find((c) => c.name === 'pathTrail');
+    expect(trail.renderOrder).toBe(TRAIL_RENDER_ORDER);
+    const prints = createPawPrints(scene, { areaId: 'woods', areaData: area, tier: { pawPrints: 16, pawFade: 5 } });
+    expect(prints.mesh).toBeTruthy();
+    const dress = createWaterDressing(scene, { areaId: 'woods', areaData: area, tier: 'high' });
+    const band = dress.meshes.find((m) => m.name === 'waterdress:band');
+    expect(band).toBeTruthy();
+    const before = new Set(scene.children);
+    createContactShadows(scene, { ground: groundOf(area) });
+    const shadows = scene.children.filter((c) => !before.has(c));
+    expect(shadows.length).toBeGreaterThan(0);
+    for (const m of [prints.mesh, band, ...shadows]) {
+      expect(trail.renderOrder).toBeLessThan(m.renderOrder);
+    }
+  });
 
   it('triangles: new (hidden strips + trail) <= old (visible strips); report', () => {
     const lists = {

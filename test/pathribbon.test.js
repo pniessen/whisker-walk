@@ -28,9 +28,47 @@ const {
   trailSegments, endKinds, trailField, trailGeometry, trailMaterial, addTrails, quadRadius, TRAIL_LOOK,
   OWNER_BAND,
   EDGE_EXTEND,
+  TRAIL_RENDER_ORDER,
+  trailWobble,
+  wrapLattice,
+  HASH_PERIOD,
 } = await import('../src/world/pathribbon.js');
 const { path } = await import('../src/world/builder.js');
 const { WOODS_PATHS } = await import('../src/world/woods.js');
+const { PINES_PATHS, PINES_TRAIL, TRAIL_W: PINES_TRAIL_W } = await import('../src/world/pines.js');
+
+// The two coverage maps: Woods (one width) and Pines (3 m paths meeting the
+// 2 m trail).
+const COVERAGE = {
+  woods: () => trailSegments([{ segs: WOODS_PATHS, w: 3 }]),
+  pines: () => trailSegments([{ segs: PINES_PATHS, w: 3 }, { segs: PINES_TRAIL, w: PINES_TRAIL_W }]),
+};
+// Segment i's wobbled edge distance, as the shader's ownership uses it.
+function edgeDist(s, x, z) {
+  const dx = s.x2 - s.x1;
+  const dz = s.z2 - s.z1;
+  const l2 = dx * dx + dz * dz;
+  const t = l2 > 1e-12 ? Math.max(0, Math.min(1, ((x - s.x1) * dx + (z - s.z1) * dz) / l2)) : 0;
+  return Math.hypot(x - s.x1 - dx * t, z - s.z1 - dz * t) - s.h * (1 + trailWobble(x, z));
+}
+const SLOPE = 2 * 1.5 / (TRAIL_LOOK.featherOut - TRAIL_LOOK.featherIn);
+// Worst alpha change between grid neighbours `step` apart in a square of
+// side `size` centred on (cx, cz).
+function worstJumpAt(segs, cx, cz, step, size) {
+  const n = Math.round(size / step);
+  let prev = null;
+  let worst = 0;
+  for (let i = 0; i <= n; i++) {
+    const row = new Float64Array(n + 1);
+    for (let j = 0; j <= n; j++) {
+      row[j] = trailField(segs, cx - size / 2 + i * step, cz - size / 2 + j * step).alpha;
+      if (j > 0) worst = Math.max(worst, Math.abs(row[j] - row[j - 1]));
+      if (prev) worst = Math.max(worst, Math.abs(row[j] - prev[j]));
+    }
+    prev = row;
+  }
+  return worst;
+}
 const { tileMetres } = await import('../src/render/materials.js');
 const { mulberry32 } = await import('../src/rng.js');
 
@@ -182,8 +220,8 @@ describe('trail field', () => {
     for (let z = 0; z <= 10; z += 0.25) expect(trailField(segs, 10 + 1.5 + 0.6, z).alpha).toBe(0);
   });
 
-  it('every sample with alpha > 0.002 lies inside its owner\'s quad (Woods)', () => {
-    const ws = trailSegments([{ segs: WOODS_PATHS, w: 3 }]);
+  for (const [map, segsOf] of Object.entries(COVERAGE)) it(`every sample with alpha > 0.002 lies inside its owner's quad (${map})`, () => {
+    const ws = segsOf();
     const rnd = mulberry32(4242);
     let hits = 0;
     for (let k = 0; k < 40000; k++) {
@@ -208,27 +246,37 @@ describe('trail field', () => {
       const f = trailField(ws, x, z);
       if (f.alpha > 0.002) expect(inQuad(ws[f.owner], x, z)).toBe(true);
     }
-  });
+  }, 120_000);
 
-  it('every quad that shares a pixel in the soft hand-over strip covers it', () => {
-    // The shader lets quad i draw wherever its capsule is within OWNER_BAND
-    // of its nearest rival, not only where it is the argmin.
-    const ws = trailSegments([{ segs: WOODS_PATHS, w: 3 }]);
-    const e = (s, x, z) => {
-      const dx = s.x2 - s.x1;
-      const dz = s.z2 - s.z1;
-      const t = Math.max(0, Math.min(1, ((x - s.x1) * dx + (z - s.z1) * dz) / (dx * dx + dz * dz)));
-      return Math.hypot(x - s.x1 - dx * t, z - s.z1 - dz * t) - s.h;
-    };
+  for (const [map, segsOf] of Object.entries(COVERAGE)) it(`every quad that shares a pixel in the soft hand-over strip covers it (${map})`, () => {
+    // The shader lets quad i draw wherever its (wobbled) capsule edge is
+    // within OWNER_BAND of its nearest rival, not only where it is the argmin.
+    // The strip is ~1 cm wide and only exists where two capsules meet, so
+    // sample around every joined end (and a few random points map-wide).
+    const ws = segsOf();
+    const kinds = endKinds(map === 'woods'
+      ? [{ segs: WOODS_PATHS, w: 3 }]
+      : [{ segs: PINES_PATHS, w: 3 }, { segs: PINES_TRAIL, w: PINES_TRAIL_W }]);
+    const joins = [];
+    ws.forEach((s, i) => {
+      if (kinds[i][0] === 'joined') joins.push([s.x1, s.z1, s.h]);
+      if (kinds[i][1] === 'joined') joins.push([s.x2, s.z2, s.h]);
+    });
+    expect(joins.length).toBeGreaterThan(4);
     const rnd = mulberry32(99);
+    const pts = [];
+    for (const [jx, jz, h] of joins) {
+      const r = h + 1;
+      for (let k = 0; k < 3000; k++) pts.push([jx + (rnd() * 2 - 1) * r, jz + (rnd() * 2 - 1) * r]);
+    }
+    for (let k = 0; k < 10000; k++) pts.push([-55 + rnd() * 110, -55 + rnd() * 110]);
     let shared = 0;
-    for (let k = 0; k < 60000; k++) {
-      const x = -55 + rnd() * 110;
-      const z = -55 + rnd() * 110;
+    for (const [x, z] of pts) {
       const f = trailField(ws, x, z);
       if (f.alpha <= 0.002) continue;
-      const es = ws.map((s) => e(s, x, z));
+      const es = ws.map((s) => edgeDist(s, x, z));
       const min = Math.min(...es);
+      expect(min).toBeCloseTo(f.sd, 9);
       es.forEach((ei, i) => {
         if (ei < min + 2 * OWNER_BAND) {
           if (i !== f.owner) shared++;
@@ -236,7 +284,65 @@ describe('trail field', () => {
         }
       });
     }
-    expect(shared).toBeGreaterThanOrEqual(0);
+    expect(shared).toBeGreaterThan(20);
+  }, 120_000);
+});
+
+describe('trail field where two widths meet', () => {
+  // Ownership and sd both use e_i = d_i - h_i (1 + W). Owning by the
+  // unwobbled d_i - h_i while wobbling by the owner's h made alpha jump by up
+  // to ~0.5 between 2 cm neighbours where a 3 m path meets a 2 m trail.
+  it('a 3 m path meeting a 2 m trail end-on and as a T: no step at 2 cm', () => {
+    const cases = [
+      // end-on, straight through
+      [[{ segs: [[-20, 0, 0, 0]], w: 3 }, { segs: [[0, 0, 20, 0]], w: 2 }], [0, 0]],
+      // an L
+      [[{ segs: [[-20, 5, 0, 5]], w: 3 }, { segs: [[0, 5, 0, 25]], w: 2 }], [0, 5]],
+      // a T: the 2 m trail's end on the 3 m path's centreline
+      [[{ segs: [[-20, -10, 20, -10]], w: 3 }, { segs: [[0, 10, 0, -10]], w: 2 }], [0, -10]],
+    ];
+    for (const [groups, [cx, cz]] of cases) {
+      const segs = trailSegments(groups);
+      const w = worstJumpAt(segs, cx, cz, 0.02, 6);
+      expect(w).toBeLessThan(0.02 * SLOPE);
+    }
+  });
+
+  it('on the real PINES_PATHS + PINES_TRAIL joins: no step at 2 cm', () => {
+    const groups = [{ segs: PINES_PATHS, w: 3 }, { segs: PINES_TRAIL, w: PINES_TRAIL_W }];
+    const segs = trailSegments(groups);
+    const kinds = endKinds(groups);
+    // Every end of a 2 m segment that joins a 3 m one (or vice versa).
+    const seams = [];
+    segs.forEach((s, i) => {
+      for (const [e, x, z] of [[0, s.x1, s.z1], [1, s.x2, s.z2]]) {
+        if (kinds[i][e] !== 'joined') continue;
+        const other = segs.some((t, j) => j !== i && t.h !== s.h
+          && edgeDist({ ...t, h: 0 }, x, z) <= t.h + 0.05);
+        if (other) seams.push([x, z]);
+      }
+    });
+    expect(seams.length).toBeGreaterThan(0);
+    for (const [x, z] of seams) {
+      expect(worstJumpAt(segs, x, z, 0.02, 5)).toBeLessThan(0.02 * SLOPE);
+    }
+  }, 180_000);
+});
+
+describe('trail hash wrap', () => {
+  it('is the identity in [-144, 144] and periodic outside it', () => {
+    for (let i = -144; i <= 144; i++) expect(wrapLattice(i)).toBe(i);
+    for (const i of [145, 300, -145, -400, 1e5, -1e5]) {
+      const w = wrapLattice(i);
+      expect(Math.abs(w)).toBeLessThanOrEqual(144);
+      expect(Math.abs((i - w) % HASH_PERIOD)).toBe(0);
+    }
+  });
+
+  it('the shader wraps the same way before its sin', () => {
+    const s = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+    trailMaterial(0x9c7c58, 'sand', trailSegments([{ segs: WOODS_PATHS, w: 3 }])).onBeforeCompile(s);
+    expect(s.fragmentShader).toContain('i = i - 289.0 * floor((i + 144.0) / 289.0);');
   });
 });
 
@@ -352,11 +458,15 @@ describe('footprint path strips', () => {
   it('draw the same Math.random count as the visible strip; the trail mesh draws none', () => {
     // Cold caches first: a strip's surface texture is cached per repeat, so
     // the first strip of a size draws its texture's uuid too. Footprint and
-    // visible strips make the same objects either way.
-    const coldArgs = [3, -7, 11, 13, 2.5, { surface: 'sand', color: 0x9c7c58 }];
-    const coldFp = drawsOf(() => path(...coldArgs.slice(0, 5), { ...coldArgs[5], footprint: true }));
-    const coldVis = drawsOf(() => path(...coldArgs));
-    expect(coldFp).toBeGreaterThan(coldVis);
+    // visible strips make the same objects either way: a cold footprint strip
+    // draws what a cold visible strip of another fresh size draws, and each
+    // draws more than its own warm repeat.
+    const style = { surface: 'sand', color: 0x9c7c58 };
+    const coldFp = drawsOf(() => path(3, -7, 11, 13, 2.5, { ...style, footprint: true }));
+    const coldVis = drawsOf(() => path(3, -7, 11, 17, 2.7, style));
+    expect(coldFp).toBe(coldVis);
+    expect(drawsOf(() => path(3, -7, 11, 13, 2.5, { ...style, footprint: true }))).toBeLessThan(coldFp);
+    expect(drawsOf(() => path(3, -7, 11, 17, 2.7, style))).toBeLessThan(coldVis);
     path(...args);
     const one = drawsOf(() => path(...args));
     const fp = drawsOf(() => path(...args.slice(0, 5), { ...args[5], footprint: true }));
@@ -379,7 +489,8 @@ describe('footprint path strips', () => {
     const [t] = trail;
     expect(t.userData.ground).toBe(true);
     expect(t.userData.noCast).toBeUndefined();
-    expect(t.renderOrder).toBe(-1);
+    expect(t.renderOrder).toBe(-4);
+    expect(TRAIL_RENDER_ORDER).toBe(-4);
     expect(t.castShadow).toBe(false);
     expect(t.receiveShadow).toBe(true);
     expect(t.userData.trail.length).toBe(WOODS_PATHS.length);
