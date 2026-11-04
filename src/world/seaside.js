@@ -6,7 +6,7 @@ import { litMaterial, repeatFor, surfaceProps } from '../render/materials.js';
 import { createWater, WATER_TUNING } from '../render/water.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
 import { tintGround } from './dressing.js';
-import { sandTint } from './beachdress.js';
+import { sandTint, dressBeach } from './beachdress.js';
 
 // The same two opt-in helpers world/builder.js keeps at the top of itself, for
 // the props this file builds locally rather than borrowing. They are duplicated
@@ -61,7 +61,7 @@ const WET_TO = 25.4;
 // Polish-water Task 4 takes it a step darker again (0.37/0.34/0.31 before):
 // with the white foam strip lying along the waterline the soaked sand behind
 // it needs the contrast, or foam and sand blur into one pale stripe.
-const WET_TINT = [0.31, 0.28, 0.25];
+export const WET_TINT = [0.31, 0.28, 0.25];
 
 // A deterministic 0..1 value for an integer, for the strata tones.
 function hash1(n) {
@@ -701,7 +701,7 @@ export function build(scene, { water = {}, wind } = {}) {
   const boxes = [[19, 24], [-14, 4], [23, -6]];
   for (const b2 of boxes) scene.add(b.cardboardBox(b2[0], b2[1]));
 
-  return {
+  const area = {
     name: 'Seaside',
     colliders,
     bounds: { minX: -48, maxX: 36, minZ: -34, maxZ: 48 },
@@ -804,4 +804,8 @@ export function build(scene, { water = {}, wind } = {}) {
       )),
     ],
   };
+  // The painted beach (beachdress.js): looks only, built from the record
+  // it is about to return so its keep-outs are the real ones.
+  dressBeach(scene, area);
+  return area;
 }
