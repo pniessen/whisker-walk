@@ -945,6 +945,27 @@ describe('the Woods builders', () => {
       });
       expect(mossy.length).toBeGreaterThan(0);
       expect(mossy.length).toBeLessThan(14);
+      expect(mossy.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('makes every pair of neighbours visibly different in lightness', () => {
+      const all = stones(m).map((vs) => mean(vs.map(lum)));
+      for (let i = 1; i < all.length; i++) expect(Math.abs(all[i] - all[i - 1]), `stone ${i}`).toBeGreaterThan(0.015);
+    });
+
+    it('outlines each cap: the rim is darker than the centre', () => {
+      for (const vs of stones(m)) {
+        const top = vs.filter((v) => v.y > 0.05);
+        const minRad = Math.min(...top.map((v) => v.rad));
+        const cs = top.filter((v) => v.rad < minRad + 0.03), rs = top.filter((v) => v.rad > 0.3);
+        const greenness = (v) => v.g / (v.r + v.b);
+        if (greenness(cs[0]) > 0.55) {
+          // mossy: the centre is the greenest part, the rim only part-way
+          expect(Math.max(...rs.map(greenness))).toBeLessThan(greenness(cs[0]));
+        } else {
+          expect(Math.min(...rs.map(lum))).toBeLessThan(mean(cs.map(lum)));
+        }
+      }
     });
 
     it('is deterministic', () => {

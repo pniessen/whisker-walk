@@ -3906,29 +3906,33 @@ export function steppingStones(x1, z1, x2, z2, n = 5, { rMin = 0.38, rMax = 0.52
 
 const STONE_WARM = new THREE.Color(0x948b7c);
 const STONE_COOL = new THREE.Color(0x7d8590);
-const STONE_MOSS = new THREE.Color(0x6f7f4a);
+const STONE_MOSS = new THREE.Color(0x628a34);
 const STONE_DAMP = new THREE.Color(0.58, 0.6, 0.66);
 
 // Paint one stone (a CylinderGeometry, before it is moved) with a vertex-colour
 // attribute: its own base tone between warm grey and blue-grey; a damp, cooler
-// skirt foot fading up to the base at the top rim; a dry sun-bleached cap
-// centre, mossy green on about a third of the stones. Read by position (y and
-// distance from the axis), so it does not depend on three's vertex order.
+// skirt foot fading up to the base at the top rim; on the cap, a dry lighter
+// centre inside a darker rim so each stone's outline reads, and on about 40%
+// of the stones a mossy cap (centre strongly green, rim part-way). Neighbours
+// alternate between a darker and a lighter lightness band, so two overlapping
+// stones never share a tone. Read by position (y, distance from the axis) and
+// the cap's up-facing normal, not by three's vertex order.
 function colourStone(stone, i, halfH, r) {
   const base = STONE_WARM.clone().lerp(STONE_COOL, hash01(i, 5, 61));
-  base.multiplyScalar(0.82 + 0.2 * hash01(i, 6, 61));
-  const mossy = hash01(i, 7, 61) < 0.34;
-  const centre = mossy
-    ? base.clone().lerp(STONE_MOSS, 0.6 + 0.3 * hash01(i, 8, 61))
-    : base.clone().multiplyScalar(1.1);
+  base.multiplyScalar((i % 2 ? 0.78 : 0.55) + 0.2 * hash01(i, 6, 61));
+  const mossy = hash01(i, 7, 61) < 0.4;
+  const moss = 0.7 + 0.25 * hash01(i, 8, 61);
+  const centre = mossy ? base.clone().lerp(STONE_MOSS, moss) : base.clone().multiplyScalar(1.12);
+  const capRim = mossy ? base.clone().multiplyScalar(0.86).lerp(STONE_MOSS, moss * 0.4) : base.clone().multiplyScalar(0.86);
   const foot = base.clone().multiply(STONE_DAMP);
   const pos = stone.getAttribute('position');
+  const nor = stone.getAttribute('normal');
   const arr = new Float32Array(pos.count * 3);
   const c = new THREE.Color();
   for (let v = 0; v < pos.count; v++) {
     const up = (pos.getY(v) + halfH) / (2 * halfH); // 0 at the foot, 1 at the top
     const rad = Math.hypot(pos.getX(v), pos.getZ(v));
-    if (up > 0.5 && rad < r * 0.02) c.copy(centre);
+    if (nor.getY(v) > 0.5) c.copy(rad < r * 0.02 ? centre : capRim);
     else c.copy(foot).lerp(base, up);
     arr[v * 3] = c.r; arr[v * 3 + 1] = c.g; arr[v * 3 + 2] = c.b;
   }
