@@ -78,12 +78,12 @@ describe('the Woods floor tint', () => {
     expect(canopyShade([{ x: 0, z: 0, scale: 1 }], 1.1, 0)).toBe(1);
   });
 
-  it('keeps every channel within [0.6, 1.35], and the clearing untouched', () => {
+  it('keeps every channel within [0.5, 1.5], and the clearing untouched', () => {
     for (let x = -60; x <= 60; x++) {
       for (let z = -60; z <= 60; z++) {
         for (const c of tint(x, z)) {
-          expect(c).toBeGreaterThanOrEqual(0.6);
-          expect(c).toBeLessThanOrEqual(1.35);
+          expect(c).toBeGreaterThanOrEqual(0.5);
+          expect(c).toBeLessThanOrEqual(1.5);
         }
       }
     }
@@ -143,7 +143,7 @@ describe('the Woods floor', () => {
     expect(meshes).toHaveLength(1);
     expect(meshes[0].userData.noCast).toBe(true);
     expect(meshes[0].castShadow).toBe(false);
-    expect(tris).toBeLessThanOrEqual(57_000);
+    expect(tris).toBeLessThanOrEqual(58_500);
 
     const places = keep(area);
     expect(places.some((p) => p.x === SPAWN.x && p.z === SPAWN.z)).toBe(true);

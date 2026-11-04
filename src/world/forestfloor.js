@@ -37,23 +37,67 @@ export function canopyShade(trees, x, z) {
   return best;
 }
 
-const SHADE = [0.76, 0.7, 0.6];
-const LITTER = [1.18, 0.92, 0.62];
-const MOSS_TINT = [0.8, 1.02, 0.7];
-const WOOD_DIM = 0.9;
-const clampTint = (v) => (v < 0.6 ? 0.6 : v > 1.35 ? 1.35 : v);
+// How deep the leaf litter lies at (x, z) under the canopies: 1 near a
+// trunk, fading out by about 3.3 m (scaled with the tree) with a wobbly edge,
+// so the patches are drifts rather than discs. The deepest tree wins.
+export function litterDepth(trees, x, z) {
+  const wob = 1 + 0.28 * smoothField(x, z, 113, 2.6);
+  let best = 0;
+  for (const t of trees) {
+    const s = t.scale ?? 1;
+    const reach = 4.4 * s;
+    const dx = x - t.x;
+    const dz = z - t.z;
+    if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
+    const v = 1 - smoothstep(1.2 * s, 3.3 * s * wob, Math.hypot(dx, dz));
+    if (v > best) best = v;
+    if (best === 1) break;
+  }
+  return best;
+}
+
+// How much (x, z) is among the trees: 1 within 3 m of a trunk (scaled), 0
+// past 8 m, so the litter drifts lie in the wood and not as stripes over
+// open ground.
+function amongTrees(trees, x, z) {
+  let best = 0;
+  for (const t of trees) {
+    const s = t.scale ?? 1;
+    const reach = 8 * s;
+    const dx = x - t.x;
+    const dz = z - t.z;
+    if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
+    const v = 1 - smoothstep(3 * s, reach, Math.hypot(dx, dz));
+    if (v > best) best = v;
+    if (best === 1) break;
+  }
+  return best;
+}
+
+// Linear multipliers (the ground's vertex colours multiply its linear colour,
+// so these are stronger than they look in sRGB). On the Woods' 0x547f3e
+// LITTER at full strength comes out a warm olive-brown (clamped to 1.5/0.5).
+const SHADE = [0.88, 0.85, 0.82];
+const LITTER = [1.6, 0.66, 0.48];
+const MOSS_TINT = [0.82, 1.04, 0.7];
+const WOOD_DIM = 0.92;
+const clampTint = (v) => (v < 0.5 ? 0.5 : v > 1.5 ? 1.5 : v);
 const mul3 = (a, b) => [a[0] * b[0], a[1] * b[1], a[2] * b[2]];
 const ONE = [1, 1, 1];
 
-// The Woods' ground multiplier at (x, z). Inside the clearing's inner part
-// (its last 3 m fade) it is exactly [1, 1, 1]: the clearing stays sunny.
+// The Woods' ground multiplier at (x, z): leaf litter under every canopy and
+// in a few broad drifts between the trees, moss patches in the green gaps, a
+// little shade under the trees, the whole wood a touch dimmer than its
+// clearing. Inside the clearing's inner part (its last 3 m fade) it is
+// exactly [1, 1, 1]: the clearing stays sunny.
 export function woodsFloorTint(trees, clearing) {
   return (x, z) => {
     const shade = canopyShade(trees, x, z);
+    const drift = 0.85 * smoothstep(0.2, 0.6, smoothField(x, z, 91, 11)) * amongTrees(trees, x, z);
+    const litter = Math.max(litterDepth(trees, x, z), drift);
     let m = lerp3(ONE, SHADE, shade);
-    const litter = smoothstep(0.15, 0.55, smoothField(x, z, 91, 11)) * (0.4 + 0.6 * shade);
     m = mul3(m, lerp3(ONE, LITTER, litter));
-    const moss = smoothstep(0.3, 0.7, smoothField(x, z, 97, 8));
+    const moss = smoothstep(0.3, 0.7, smoothField(x, z, 97, 8)) * (1 - litter);
     m = mul3(m, lerp3(ONE, MOSS_TINT, moss));
     m = scale3(m, WOOD_DIM);
     // the wood's look fades out over the clearing's last 3 m
@@ -67,7 +111,7 @@ export function woodsFloorTint(trees, clearing) {
 
 // --- the bits on the floor -------------------------------------------------------
 
-const LEAF_COLORS = [0x8a4a22, 0xb07a2a, 0x6b4a2c, 0x6f6a30].map(lin);
+const LEAF_COLORS = [0x8a4a22, 0xb07a2a, 0x6b4a2c, 0x6f6a30, 0xc89a3a, 0x7a3a1e].map(lin);
 const MOSS_COLORS = [0x5f8a2e, 0x76a03a].map(lin);
 const STEM_CREAM = lin(0xd8c8a4);
 const CAP_COLORS = [0xc8a878, 0x8a5a34].map(lin);
@@ -107,10 +151,10 @@ function sliver(t, A, B, C, color) {
   for (const P of [A, B, C]) t.v(P[0], P[1], P[2], up, color);
 }
 
-// A fallen leaf: one triangle 0.13-0.2 m long lying almost flat (the plan's
+// A fallen leaf: one triangle 0.16-0.24 m long lying almost flat (the plan's
 // 0.09-0.14 m vanished at the walking camera's distance).
 function leaf(t, p) {
-  const L = (0.13 + 0.07 * hash01(p.x, p.z, 11)) * Math.min(1.1, sizeOf(p));
+  const L = (0.16 + 0.08 * hash01(p.x, p.z, 11)) * Math.min(1.1, sizeOf(p));
   const y = 0.018 + 0.012 * hash01(p.x, p.z, 12);
   const yaw = yawOf(p, 13);
   const c = Math.cos(yaw);

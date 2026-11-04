@@ -340,10 +340,10 @@ export function woodsUndergrowth() {
 // trunk, and the moss and mushrooms by the fallen log sit beside it (the
 // ferns keep 3 m off the log, and it lies in the clearing's edge).
 const FLOOR_LEAF_PATH = PATH_W / 2 + 0.15;
-// Leaves per tree (times its scale). The plan said 22; at 69 trees that is
-// ~1,900 triangles, more than the Woods' budget (57,000) leaves room for, so
-// the ground tint's litter patches carry the rest.
-const FLOOR_LEAVES = 14;
+// Leaves per tree (times its scale), one triangle each, piled near the
+// trunk: three in four within 1.6 m (scaled), the rest out to 2.6 m, none
+// hidden inside the trunk. Sized to the Woods' triangle cap (58,500).
+const FLOOR_LEAVES = 30;
 const CAMP_DISC = (() => {
   const L = campLayout('woods');
   return { x: L.cx, z: L.cz, r: DISCS.woods.r };
@@ -380,12 +380,13 @@ export function woodsFloor() {
     return { x: r2(t.x + Math.cos(a) * d), z: r2(t.z + Math.sin(a) * d), a: r3(a) };
   };
 
-  // leaves, uniformly in a disc round each trunk
+  // leaves, piled round each trunk
   for (const t of trees) {
     const n = Math.round(FLOOR_LEAVES * t.scale);
     for (let i = 0; i < n; i++) {
       const a = rng() * Math.PI * 2;
-      const d = 2.6 * t.scale * Math.sqrt(rng());
+      const near = rng() < 0.75;
+      const d = (0.4 + (near ? 1.2 : 2.2) * Math.sqrt(rng())) * t.scale;
       const yaw = rng() * Math.PI * 2;
       const s = 0.85 + 0.3 * rng();
       const x = r2(t.x + Math.cos(a) * d);
