@@ -78,13 +78,13 @@ describe('eveningWater', () => {
       expect(h.material.emissive.getHex()).toBe(0);
     }
   });
-  it('sunset warms the water: red multiplier >= 1, blue <= 0.8, emissive non-black', () => {
+  it('sunset warms the water: red multiplier >= 1, blue <= 0.9, emissive non-black', () => {
     const scene = new THREE.Scene();
     const ad = WORLDS.woods.build(scene);
     eveningWater(ad.waterFx, 'sunset');
     for (const h of ad.waterFx) {
       expect(h.material.color.r).toBeGreaterThanOrEqual(1);
-      expect(h.material.color.b).toBeLessThanOrEqual(0.8);
+      expect(h.material.color.b).toBeLessThanOrEqual(0.9);
       expect(h.material.emissive.getHex()).not.toBe(0);
     }
   });
@@ -150,8 +150,12 @@ describe('the foam in the evening', () => {
       expect(m.emissive.getHex()).toBe(e.glow);
     }
   });
-  it('the sunset water is the brighter, warmer tint', () => {
-    expect(WATER_EVENING.sunset.mul).toEqual([1.1, 0.88, 0.72]);
-    expect(WATER_EVENING.sunset.glow).toBe(0x5a2a0c);
+  it('the sunset water stays blue with a faint warm cast, not brown', () => {
+    const [r, g, b] = WATER_EVENING.sunset.mul;
+    expect(WATER_EVENING.sunset.mul).toEqual([1.0, 0.94, 0.9]);
+    expect(WATER_EVENING.sunset.glow).toBe(0x24120a);
+    expect(r).toBeGreaterThanOrEqual(1);
+    expect(r).toBeGreaterThan(b);
+    expect(WATER_EVENING.sunset.glow).not.toBe(0);
   });
 });

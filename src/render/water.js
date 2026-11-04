@@ -1103,12 +1103,14 @@ export function createWater(footprint, options = {}) {
 }
 
 // Polish-waterlife — the water in the evening. `mul` multiplies the ramp map
-// through material.color (warm at sunset, dark and blue at dusk); `glow` is a
-// faint emissive amber at sunset. Materials are built fresh per createWater
+// through material.color (dark and blue at dusk); `glow` is a faint emissive
+// tint. Sunset stays blue with a faint warm cast: a stronger warm tint (the
+// old 1.1 / 0.88 / 0.72 and 0x5a2a0c glow) read as a muddy brown pond in live
+// shots. Materials are built fresh per createWater
 // call and areas are rebuilt every walk, so setting them never leaks into the
 // next walk.
 export const WATER_EVENING = Object.freeze({
-  sunset: Object.freeze({ mul: Object.freeze([1.1, 0.88, 0.72]), glow: 0x5a2a0c }),
+  sunset: Object.freeze({ mul: Object.freeze([1.0, 0.94, 0.9]), glow: 0x24120a }),
   dusk: Object.freeze({ mul: Object.freeze([0.6, 0.62, 0.78]), glow: 0x000000 }),
 });
 
