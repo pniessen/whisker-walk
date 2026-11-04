@@ -199,6 +199,28 @@ const BITE_COLOR_AT = 0.6;
 const MUD_FOAM = 0x4a4330;
 const MUD_FOAM_A = 0.6;
 
+// Polish-streams — riffles. A few small stones mid-stream, just breaking the
+// surface, each trailing one or two short pale streaks of foam on the water
+// (band runs with riffleProfile), so a stream reads as moving water. Only on
+// a bitten stream (so only with a ground plane, like the bites: with none the
+// band stays the old band) and not on the LOW tier. Seeded per stream from
+// `waterdress-<area>-<water id>-riffle`. Along the centreline one stop every
+// RIFFLE_EVERY + RIFFLE_EVERY_JIT * rng() metres, 1-3 stones per stop. A stone
+// is kept only RIFFLE_CLEAR beyond the deepest bite into the water, and
+// RIFFLE_DECK from a deck (stepping stones read as their own row).
+const RIFFLE_START = 3;
+const RIFFLE_EVERY = 6;
+const RIFFLE_EVERY_JIT = 4;
+const RIFFLE_LATERAL = 1.6;
+const RIFFLE_ALONG = 0.8;
+const RIFFLE_R = [0.12, 0.14];
+const RIFFLE_SINK = 0.25;
+const RIFFLE_CLEAR = 0.3;
+const RIFFLE_DECK = 2.5;
+const STREAK_LEN = [0.5, 0.4];
+const STREAK_HALF_W = [0.04, 0.02];
+const STREAK_ALPHA = 0.45;
+
 // Arc segments in a fill fan (one triangle each).
 const FILLET_SEGS = 12;
 // Opaque, so it is drawn in the opaque pass: after the water (renderOrder 0),
@@ -440,6 +462,20 @@ function seaProfile(p, ctx) {
   ];
 }
 
+// A riffle's foam streak: three rows across, the middle one pale and the
+// sides gone; `p.k` fades it in and out along its length.
+const RIFFLE_ROWS = 3;
+function riffleProfile(p, ctx) {
+  const y = ctx.waterY + LIP_LIFT;
+  const c = ctx.foamC;
+  const a = STREAK_ALPHA * p.k * (ctx.foamA ?? 1);
+  return [
+    [-ctx.halfW, y, c, 0, 1, 0],
+    [0, y, c, a, 1, 0],
+    [ctx.halfW, y, c, 0, 1, 0],
+  ];
+}
+
 function smooth01(t) {
   const k = t < 0 ? 0 : t > 1 ? 1 : t;
   return k * k * (3 - 2 * k);
@@ -570,32 +606,45 @@ function stoneSpots(runs, areaData, keepOut = []) {
   return spots;
 }
 
+// Each stone is a squashed, turned dodecahedron; only its faces that reach
+// above its `floor` are kept (the ground at 0 for a bank stone, the water's
+// surface for a riffle stone: both are opaque, so what lies wholly under them
+// is never seen). That is about half the triangles of a whole stone.
 function stonesGeometry(spots) {
   const tmpl = new THREE.DodecahedronGeometry(1, 0);
   const src = tmpl.getAttribute('position');
   const per = src.count;
-  const pos = new Float32Array(spots.length * per * 3);
-  const col = new Float32Array(spots.length * per * 3);
+  const pos = [];
+  const col = [];
   const c = new THREE.Color();
-  let v = 0;
+  const tri = new Float32Array(9);
   for (const s of spots) {
     const cos = Math.cos(s.spin), sin = Math.sin(s.spin);
+    const y0 = s.y ?? 0;
+    const floor = (s.floor ?? 0) + 1e-6;
     c.setHex(STONE_COLORS[s.tone]);
-    for (let i = 0; i < per; i++) {
-      // squashed and a little longer one way, then turned
-      const lx = src.getX(i) * s.r * 1.15, ly = src.getY(i) * s.r * 0.6, lz = src.getZ(i) * s.r * 0.85;
-      pos[v * 3] = s.x + lx * cos - lz * sin;
-      // half sunk: the centre sits at the ground, the lower half below it
-      pos[v * 3 + 1] = ly;
-      pos[v * 3 + 2] = s.z + lx * sin + lz * cos;
-      col[v * 3] = c.r; col[v * 3 + 1] = c.g; col[v * 3 + 2] = c.b;
-      v++;
+    for (let t = 0; t < per; t += 3) {
+      let up = false;
+      for (let k = 0; k < 3; k++) {
+        const i = t + k;
+        // squashed and a little longer one way, then turned
+        const lx = src.getX(i) * s.r * 1.15, ly = src.getY(i) * s.r * 0.6, lz = src.getZ(i) * s.r * 0.85;
+        tri[k * 3] = s.x + lx * cos - lz * sin;
+        // half sunk: the centre sits at the ground (or at its own `y`), the
+        // lower half below it
+        tri[k * 3 + 1] = y0 + ly;
+        tri[k * 3 + 2] = s.z + lx * sin + lz * cos;
+        if (tri[k * 3 + 1] > floor) up = true;
+      }
+      if (!up) continue;
+      for (let k = 0; k < 9; k++) pos.push(tri[k]);
+      for (let k = 0; k < 3; k++) col.push(c.r, c.g, c.b);
     }
   }
   tmpl.dispose();
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
   return geo;
@@ -976,6 +1025,69 @@ function fillGeometry(fillets, biteRuns, ground) {
   return { geo, filletVerts: [0, nFan] };
 }
 
+// The riffles of one stream (see RIFFLES): its stones, and its streaks as
+// band runs. Every draw comes off one rng in a fixed order per stone, before
+// any filter, so a stone dropped by a filter moves no other.
+function riffles(h, { areaId, areaData, box, undecked, evening, keepOut }) {
+  const w = h.footprint;
+  const rng = mulberry32(seedFromCode(`waterdress-${areaId}-${w.id}-riffle`));
+  const alongX = w.maxX - w.minX >= w.maxZ - w.minZ;
+  const lo = Math.max(alongX ? w.minX : w.minZ, alongX ? box.minX : box.minZ);
+  const hi = Math.min(alongX ? w.maxX : w.maxZ, alongX ? box.maxX : box.maxZ);
+  const mid = alongX ? (w.minZ + w.maxZ) / 2 : (w.minX + w.maxX) / 2;
+  const hy = h.y ?? 0.03;
+  const ev = EVENING_FOAM[evening];
+  const foamC = new THREE.Color(ev ? ev.clear : FOAM_COLORS.clear);
+  const colliders = areaData.colliders ?? [];
+  const stones = [];
+  const streaks = [];
+  for (let t = lo + RIFFLE_START * rng(); t <= hi; t += RIFFLE_EVERY + RIFFLE_EVERY_JIT * rng()) {
+    const n = 1 + Math.floor(rng() * 3);
+    for (let i = 0; i < n; i++) {
+      const lat = (rng() - 0.5) * RIFFLE_LATERAL;
+      const a = t + (rng() - 0.5) * RIFFLE_ALONG;
+      const r = RIFFLE_R[0] + RIFFLE_R[1] * rng();
+      const spin = rng() * TAU;
+      const tone = Math.floor(rng() * STONE_COLORS.length);
+      const plan = [];
+      const m = 1 + (rng() < 0.5 ? 1 : 0);
+      for (let j = 0; j < m; j++) {
+        plan.push({
+          dir: rng() < 0.5 ? -1 : 1,
+          len: STREAK_LEN[0] + STREAK_LEN[1] * rng(),
+          halfW: STREAK_HALF_W[0] + STREAK_HALF_W[1] * rng(),
+          side: (rng() - 0.5) * r,
+        });
+      }
+      const x = alongX ? a : mid + lat, z = alongX ? mid + lat : a;
+      if (x < box.minX || x > box.maxX || z < box.minZ || z > box.maxZ) continue;
+      if (!(waterClearance(undecked, x, z) < -(BITE_MAX + RIFFLE_CLEAR))) continue;
+      if (deckDistance(areaData.waters, x, z) < RIFFLE_DECK) continue;
+      if (colliders.some((k) => Math.hypot(x - k.x, z - k.z) <= k.r + 0.1)) continue;
+      if (keepOut.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + STONE_KEEP_GAP)) continue;
+      const stone = stones.length;
+      stones.push({ x, z, r, y: hy - RIFFLE_SINK * r, floor: hy, spin, tone, water: w.id });
+      // along the stream (tx, tz), across it (nx, nz)
+      const tx = alongX ? 1 : 0, tz = alongX ? 0 : 1;
+      for (const k of plan) {
+        const sx = x + tx * k.dir * r * 0.6 + tz * k.side, sz = z + tz * k.dir * r * 0.6 + tx * k.side;
+        const samples = [0, 0.5, 1].map((f) => ({
+          x: sx + tx * k.dir * k.len * f, z: sz + tz * k.dir * k.len * f,
+          s: k.len * f, nx: tz, nz: tx, k: f === 0.5 ? 1 : 0,
+        }));
+        streaks.push({
+          samples, closed: false, w, stone,
+          ctx: {
+            seed: 0, waterY: hy, rows: RIFFLE_ROWS, profile: riffleProfile, noStones: true,
+            foamC, halfW: k.halfW, ...(ev ? { foamA: ev.clearA } : {}),
+          },
+        });
+      }
+    }
+  }
+  return { stones, streaks };
+}
+
 // One builder per water style.
 const STYLE_BUILDERS = { clear: genericRuns, bog: genericRuns, sea: seaRuns };
 
@@ -1024,6 +1136,21 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   }
   if (runs.length === 0) return NO_DRESSING;
 
+  // Mid-stream riffles: bitten streams only (so only on ground), never LOW.
+  const riffleStones = [];
+  const streakRuns = [];
+  if (!low && ground) {
+    for (const h of areaData.waterFx) {
+      if (biteKind(areaId, h) !== 'stream') continue;
+      const { stones, streaks } = riffles(h, { areaId, areaData, box, undecked, evening, keepOut });
+      for (const k of streaks) k.stone += riffleStones.length;
+      riffleStones.push(...stones);
+      streakRuns.push(...streaks);
+    }
+  }
+  const bankRuns = runs.slice();
+  runs.push(...streakRuns);
+
   const meshes = [];
   const breathe = { value: BREATHE_STILL };
   const swash = { value: 0 };
@@ -1037,7 +1164,14 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
     return { x: p.x + p.nx * lip, z: p.z + p.nz * lip };
   }));
   if (seaLine.length) band.userData.waterline = seaLine;
-  band.userData.runSeeds = runs.map((r) => ({ water: r.w.id, seed: r.ctx.seed }));
+  band.userData.runSeeds = bankRuns.map((r) => ({ water: r.w.id, seed: r.ctx.seed }));
+  if (streakRuns.length) {
+    // for tests: each streak's vertex range in the band, and its stone
+    let v = 0;
+    const at = new Map();
+    for (const r of runs) { at.set(r, v); v += r.samples.length * r.ctx.rows; }
+    band.userData.streaks = streakRuns.map((r) => ({ stone: r.stone, verts: [at.get(r), r.samples.length * r.ctx.rows] }));
+  }
   meshes.push(band);
 
   // The bitten runs (a run whose deepest bite is too small draws no strip).
@@ -1061,7 +1195,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   // opaque mesh.
   if (fillets) {
     // for tests: the band's samples round each corner, after bending
-    for (const r of runs) {
+    for (const r of bankRuns) {
       for (const p of r.samples) {
         for (const f of fillets) {
           if (Math.hypot(p.x - f.x, p.z - f.z) < 2 * f.r) f.samples.push({ x: p.x, z: p.z, nx: p.nx, nz: p.nz });
@@ -1086,14 +1220,15 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   if (quads.length) meshes.push(apronMesh(quads, waterRamp(seas[0].color ?? 0x4a90c0).deep, WATER_EVENING[evening] ?? null));
 
   if (!low) {
-    const spots = stoneSpots(runs, areaData, keepOut);
+    const spots = [...stoneSpots(bankRuns, areaData, keepOut), ...riffleStones];
     if (spots.length) {
       const stones = new THREE.Mesh(
         stonesGeometry(spots),
         new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, flatShading: true }),
       );
       stones.name = 'waterdress:stones';
-      stones.userData.centres = spots.map(({ x, z, r }) => ({ x, z, r }));
+      stones.userData.centres = spots.filter((s) => s.water === undefined).map(({ x, z, r }) => ({ x, z, r }));
+      stones.userData.riffles = riffleStones.map(({ x, z, r, y, water }) => ({ x, z, r, y, water }));
       meshes.push(stones);
     }
   }

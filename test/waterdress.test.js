@@ -464,10 +464,13 @@ describe('water dressing', () => {
     const diag = { x: CENTRE.x + 1.6 * Math.SQRT1_2, z: CENTRE.z + 1.6 * Math.SQRT1_2 };
     expect(near.some((p) => Math.hypot(p.x - diag.x, p.z - diag.z) < 1e-6)).toBe(true);
     // still the real-shore rule: nothing deep in the water far from a bank
-    // (on ground the streams' bites move the visual shore up to BITE_MAX in)
+    // (on ground the streams' bites move the visual shore up to BITE_MAX in;
+    // the riffles' foam streaks lie mid-stream on purpose, so they are left out)
     const { areaData } = area('woods');
     const real = shorePieces(areaData.waters);
-    for (const v of worldPoints(band)) {
+    const streak = new Set((band.userData.streaks ?? []).flatMap(({ verts: [v0, n] }) => Array.from({ length: n }, (_, i) => v0 + i)));
+    for (const [i, v] of worldPoints(band).entries()) {
+      if (streak.has(i)) continue;
       if (-waterClearance(undecked(areaData.waters), v.x, v.z) > 0.35) expect(distToPieces(real, v.x, v.z)).toBeLessThan(1.0 + BITE_MAX);
     }
     // and the band's land side over the fill rides above it, not under it
@@ -817,5 +820,112 @@ describe('water dressing', () => {
         expect(JSON.stringify(areaData.waterFx.map((h) => h.footprint))).toBe(fxBefore);
       }
     }, 120_000);
+  });
+
+  // --- polish-streams Task 2: mid-stream stones, riffles, a quieter rim -----
+
+  describe('riffles', () => {
+    const STREAM_AREAS = ['woods', 'river', 'moor', 'pines'];
+    const STREAMS = {
+      woods: ['river-west', 'river-north'],
+      river: ['river-west', 'river-bend', 'river-east'],
+      moor: ['river-south', 'river-west', 'river-mouth'],
+      pines: ['mire-north', 'mire-west'],
+    };
+    const LIP = 0.004;
+
+    it('every stream area gets riffle stones well inside the water, clear of decks, just breaking the surface', () => {
+      const counts = {};
+      for (const id of STREAM_AREAS) {
+        const { fx, areaData } = dressOnGround(id);
+        const stones = byName(fx, 'waterdress:stones');
+        expect(stones, id).toBeTruthy();
+        const riffles = stones.userData.riffles;
+        expect(riffles.length, id).toBeGreaterThanOrEqual(3);
+        const waters = undecked(areaData.waters);
+        const b = areaData.bounds;
+        for (const s of riffles) {
+          const at = `${id} riffle at ${s.x.toFixed(2)},${s.z.toFixed(2)}`;
+          expect(STREAMS[id], at).toContain(s.water);
+          expect(waterClearance(waters, s.x, s.z), at).toBeLessThan(-(BITE_MAX + 0.3));
+          expect(deckDistance(areaData.waters, s.x, s.z), at).toBeGreaterThanOrEqual(2.5);
+          expect(s.x, at).toBeGreaterThanOrEqual(b.minX - 10);
+          expect(s.x, at).toBeLessThanOrEqual(b.maxX + 10);
+          expect(s.z, at).toBeGreaterThanOrEqual(b.minZ - 10);
+          expect(s.z, at).toBeLessThanOrEqual(b.maxZ + 10);
+          expect(s.r, at).toBeGreaterThanOrEqual(0.12);
+          expect(s.r, at).toBeLessThanOrEqual(0.26);
+          const hy = areaData.waterFx.find((h) => h.footprint.id === s.water).y;
+          const top = s.y + 0.6 * s.r - hy;
+          expect(top, at).toBeGreaterThanOrEqual(0.02);
+          expect(top, at).toBeLessThanOrEqual(0.12);
+        }
+        // the riffle stones are drawn: a stones vertex near each one's top
+        // (a squashed dodecahedron's top vertex sits at 0.93 of its 0.6 r)
+        const pts = worldPoints(stones);
+        for (const s of riffles) {
+          const top = pts.some((p) => Math.hypot(p.x - s.x, p.z - s.z) <= s.r * 1.2
+            && p.y >= s.y + 0.5 * s.r && p.y <= s.y + 0.6 * s.r + 1e-6);
+          expect(top, `${id} riffle at ${s.x.toFixed(2)},${s.z.toFixed(2)}`).toBe(true);
+        }
+        counts[id] = { riffles: riffles.length, stonesTris: triangles(stones) };
+      }
+      console.log('riffles / stones triangles', JSON.stringify(counts));
+    }, 120_000);
+
+    it('each riffle stone trails one or two foam streaks on the water', () => {
+      for (const id of STREAM_AREAS) {
+        const { fx, areaData } = dressOnGround(id);
+        const riffles = byName(fx, 'waterdress:stones').userData.riffles;
+        const band = byName(fx, 'waterdress:band');
+        const g = band.geometry;
+        const pos = g.getAttribute('position'), foam = g.getAttribute('aFoam'), col = g.getAttribute('color');
+        const streaks = band.userData.streaks;
+        expect(streaks.length, id).toBeGreaterThanOrEqual(riffles.length);
+        riffles.forEach((s, i) => {
+          const mine = streaks.filter((k) => k.stone === i);
+          expect(mine.length, `${id} stone ${i}`).toBeGreaterThanOrEqual(1);
+          expect(mine.length, `${id} stone ${i}`).toBeLessThanOrEqual(2);
+          const hy = areaData.waterFx.find((h) => h.footprint.id === s.water).y;
+          for (const { verts: [v0, n] } of mine) {
+            expect(n).toBe(9);
+            let alpha = 0;
+            for (let v = v0; v < v0 + n; v++) {
+              const at = `${id} stone ${i} vert ${v}`;
+              expect(foam.getX(v), at).toBe(1);
+              expect(pos.getY(v), at).toBeCloseTo(hy + LIP, 6);
+              expect(Math.hypot(pos.getX(v) - s.x, pos.getZ(v) - s.z), at).toBeLessThanOrEqual(1.2);
+              alpha = Math.max(alpha, col.getW(v));
+            }
+            expect(alpha).toBeGreaterThan(0.1);
+          }
+        });
+      }
+    }, 120_000);
+
+    it('LOW tier: no riffle stones and no streaks', () => {
+      for (const id of STREAM_AREAS) {
+        const hi = byName(dressOnGround(id).fx, 'waterdress:band');
+        const { fx } = dressOnGround(id, { tier: LOW });
+        expect(byName(fx, 'waterdress:stones')).toBeUndefined();
+        const lo = byName(fx, 'waterdress:band');
+        expect(lo.userData.streaks ?? []).toEqual([]);
+        const streakVerts = hi.userData.streaks.reduce((k, s) => k + s.verts[1], 0);
+        expect(lo.geometry.getAttribute('position').count).toBe(hi.geometry.getAttribute('position').count - streakVerts);
+      }
+    }, 120_000);
+
+    it('streams wear a quiet foam rim in their water ramp (foamStrength <= 0.1)', async () => {
+      const { readFileSync } = await import('node:fs');
+      for (const id of STREAM_AREAS) {
+        const src = readFileSync(new URL(`../src/world/${id}.js`, import.meta.url), 'utf8');
+        const look = src.slice(src.indexOf('const WATER_LOOK'));
+        for (const wid of STREAMS[id]) {
+          const m = look.match(new RegExp(`'${wid}': \\{[^}]*foamStrength: ([0-9.]+)`));
+          expect(m, `${id} ${wid}`).toBeTruthy();
+          expect(Number(m[1]), `${id} ${wid}`).toBeLessThanOrEqual(0.1);
+        }
+      }
+    });
   });
 });
