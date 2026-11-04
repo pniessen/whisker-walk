@@ -51,7 +51,7 @@ import { fishSpots } from './fishjump.js';
 // and stones from `waterdress-<area>-<water id>`.
 // ---------------------------------------------------------------------------
 
-export const DRESSED_AREAS = Object.freeze(['woods', 'river', 'moor', 'pines', 'seaside', 'park']);
+export const DRESSED_AREAS = Object.freeze(['woods', 'river', 'moor', 'pines', 'seaside', 'park', 'gorge']);
 
 // How far outside the area's walkable bounds a bank is still drawn. Past it
 // the edge is the far horizon (the lake's west shore, the river's far reach).
@@ -98,6 +98,9 @@ const BANK_COLORS = Object.freeze({
   pines: { wet: 0x4a4229, damp: 0x58603a },
   // A wetter, darker sand. Task 4 gives the sea its own builder.
   seaside: { wet: 0x8c7650, damp: 0xa89470 },
+  // The Gorge's wet sandy mud: a darker take on its sand floor
+  // (GORGE_FLOOR_COLOR 0x9a8a6a), not the wild areas' olive.
+  gorge: { wet: 0x625440, damp: 0x8a7c5e },
   // The Park's lawn is a brighter, greener grass than the wild areas'.
   park: { wet: 0x5a5a30, damp: 0x5f8c42 },
 });
@@ -146,6 +149,45 @@ const APRON_M = 240;
 const APRON_TUCK = 0.5;
 const APRON_DROP = 0.015;
 const APRON_ROUGHNESS = 0.3;
+
+// Polish-pondrims — the Gorge's stream (Task 4). One ruler-straight 1.5 m
+// rect running the whole 100 m of the walkable canyon (and on past both ends
+// between the hills), so two 100 m banks on a budget of 600 triangles for the
+// whole dressing. At the normal look (6-row band every 0.7 m, a bite strip,
+// a stone every 4 m, 1-3 riffle stones every 6-10 m) that is several thousand. The
+// knobs, in the brief's order:
+//   - horizon 0: the box is the walkable bounds (z -50..50); past them the
+//     stream runs between the horizon hills, where no cat walks;
+//   - step: one sample every 3 m. The bite's waves are 17 / 9.5 / 5.3 m
+//     (weights 0.55 / 0.3 / 0.15), and scaled to half they move the edge by
+//     at most +-0.18 m, so the 5.3 m part's aliasing is a couple of
+//     centimetres; the lip wobble (1.3 m waves) is not used at all here;
+//   - a lighter band (lightBankProfile): 3 rows — a mud feather out over the
+//     water, the wet edge on the bitten line, gone by the band's width —
+//     4 triangles a span where the generic band draws 10;
+//   - the bite scaled by `biteScale` (the stream is only 1.5 m wide: at the
+//     full 0.85 the two banks could meet; at half, 0.65 m always stays open),
+//     and the riffles' clearances and lateral spread with it;
+//   - a bank stone every ~`stoneEvery` m, a riffle stop every ~`riffleEvery`
+//     m with one stone (not 1-3).
+// Measured (HIGH, on the Gorge's ground, and the same live with the walk's
+// keep-outs): band 304 (256 bank + 6 riffle streaks), fill 128, stones 152
+// (4 bank + 4 riffle stones) = 584. Step 2.5 with similar stone counts measured 655-705.
+const AREA_KNOBS = Object.freeze({
+  gorge: Object.freeze({
+    horizon: 0,
+    step: 3,
+    light: true,
+    biteScale: 0.5,
+    stoneEvery: 34,
+    riffleEvery: 26,
+    riffleJit: 8,
+    rifflePerStop: 1,
+    riffleLateral: 0.3,
+    riffleClear: 0.15,
+  }),
+});
+const NO_KNOBS = Object.freeze({});
 
 // Stones: low-poly, grey-brown, about one every STONE_EVERY metres of bank.
 const STONE_EVERY = 4;
@@ -406,7 +448,7 @@ function chains(pieces) {
 // Samples along a chain: every vertex, plus extra ones so no gap exceeds
 // STEP. Each carries its arc length `s` and the unit normal pointing onto the
 // land (`nx`, `nz`).
-function sampleChain(chain, w) {
+function sampleChain(chain, w, step = STEP) {
   const { pts, closed } = chain;
   const n = pts.length;
   const segs = closed ? n : n - 1;
@@ -415,7 +457,7 @@ function sampleChain(chain, w) {
   for (let i = 0; i < segs; i++) {
     const a = pts[i], b = pts[(i + 1) % n];
     const len = Math.hypot(b.x - a.x, b.z - a.z);
-    const k = Math.max(1, Math.ceil(len / STEP));
+    const k = Math.max(1, Math.ceil(len / step));
     for (let j = 0; j < k; j++) {
       const t = j / k;
       raw.push({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, s: s + len * t });
@@ -497,6 +539,24 @@ function bankProfile(p, ctx) {
     [onLand, landY(waterY + LIP_LIFT), wetC, BAND_ALPHA.lip * strength, 0, 0],
     [shoulder, landY(LAND_Y), wetC, BAND_ALPHA.shoulder * strength, 0, 0],
     [outer, landY(LAND_Y), dampC, 0, 0, 0],
+  ];
+}
+
+// The Gorge's lighter band (AREA_KNOBS.light): three rows per sample. A mud
+// feather 0.3 m out over the water (alpha 0), the wet edge just on the bitten
+// line, and gone by the band's width onto the land. No lip wobble: the bite
+// already makes the edge wander, and at a 3 m step the wobble's 1.3 m waves
+// would only zig-zag.
+const LIGHT_ROWS = 3;
+function lightBankProfile(p, ctx) {
+  const { waterY, colors, wetC, dampC, foamC } = ctx;
+  const strength = colors.alpha ?? 1;
+  const width = bankWidth(ctx.seed, p.s, ctx.period);
+  const landY = (y) => (p.fillTop === undefined ? y : Math.max(y, p.fillTop));
+  return [
+    [-0.3, waterY + LIP_LIFT, foamC, 0, 1, 0],
+    [0.02, landY(waterY + LIP_LIFT), wetC, BAND_ALPHA.lip * strength, 0, 0],
+    [width, landY(LAND_Y), dampC, 0, 0, 0],
   ];
 }
 
@@ -656,10 +716,11 @@ function stoneSpots(runs, areaData, keepOut = []) {
     const { samples, ctx } = run;
     if (ctx.noStones) continue;
     const rng = mulberry32(ctx.stoneSeed);
-    let next = samples[0].s + rng() * STONE_EVERY;
+    const every = ctx.stoneEvery ?? STONE_EVERY;
+    let next = samples[0].s + rng() * every;
     for (const p of samples) {
       if (p.s < next) continue;
-      next = p.s + STONE_EVERY * (0.6 + 0.8 * rng());
+      next = p.s + every * (0.6 + 0.8 * rng());
       const out = 0.2 + 0.8 * rng();
       const r = 0.12 + 0.16 * rng();
       const spin = rng() * TAU;
@@ -728,7 +789,7 @@ function stonesGeometry(spots, extra = null) {
 
 // The generic bank for a water: its shore runs, each carrying what the band
 // and the stones need to draw it.
-function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fillets = null, ground = null }) {
+function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fillets = null, ground = null, knobs = NO_KNOBS }) {
   const w = h.footprint;
   const pieces = bankPieces(w, h.waters ?? areaData.waters);
   if (pieces.length === 0) return [];
@@ -742,10 +803,10 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
   // wobble and stone seed, so two banks of one water don't share a profile.
   // The first chain keeps the water's own seed.
   for (const [ci, ch] of chains(pieces).entries()) {
-    const sampled = sampleChain(ch, w);
+    const sampled = sampleChain(ch, w, knobs.step);
     if (fillets) for (const f of fillets) bendOntoFillet(sampled.samples, f);
     const seed = ci ? seedFromCode(`waterdress-${areaId}-${w.id}-${ci}`) : seed0;
-    if (kind) biteChain(sampled, { seed: seed + 3, kind, fillets, waters: areaData.waters, heights: areaData.waterFx, fillY, box });
+    if (kind) biteChain(sampled, { seed: seed + 3, kind, fillets, waters: areaData.waters, heights: areaData.waterFx, fillY, box, scale: knobs.biteScale });
     const ctx = {
       seed,
       stoneSeed: seed + 7,
@@ -753,8 +814,9 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
       waterY: h.y ?? 0.03,
       colors: bog ? BOG_COLORS : (BANK_COLORS[areaId] ?? BANK_COLORS.woods),
       undecked,
-      rows: PER,
-      profile: bankProfile,
+      rows: knobs.light ? LIGHT_ROWS : PER,
+      profile: knobs.light ? lightBankProfile : bankProfile,
+      stoneEvery: knobs.stoneEvery,
       fillets,
       biteKind: kind,
       fillY,
@@ -931,7 +993,7 @@ function bendOntoFillet(samples, f) {
 // Samples already bent onto a fillet keep bite 0. The bite also tapers like
 // an open end toward the edge of the drawn box, where clipRuns cuts the run:
 // no square step where the strip stops.
-function biteChain(sampled, { seed, kind, fillets, waters, heights = [], fillY, box = null }) {
+function biteChain(sampled, { seed, kind, fillets, waters, heights = [], fillY, box = null, scale = 1 }) {
   const { samples, closed, length } = sampled;
   const period = closed ? length : 0;
   for (const p of samples) {
@@ -947,7 +1009,7 @@ function biteChain(sampled, { seed, kind, fillets, waters, heights = [], fillY, 
     for (const f of fillets ?? []) {
       if (t > 0) t *= smooth01((Math.hypot(p.x - f.x, p.z - f.z) - 2 * f.r) / BITE_FILLET_RAMP);
     }
-    if (t > 0) p.bite = bankBite(seed, p.s, period, kind) * t;
+    if (t > 0) p.bite = bankBite(seed, p.s, period, kind) * t * scale;
   }
   for (const p of samples) {
     if (p.bite > 0) { p.x = p.x0 - p.nx0 * p.bite; p.z = p.z0 - p.nz0 * p.bite; }
@@ -1120,7 +1182,7 @@ function fillGeometry(fillets, biteRuns, ground) {
 // The riffles of one stream (see RIFFLES): its stones, and its streaks as
 // band runs. Every draw comes off one rng in a fixed order per stone, before
 // any filter, so a stone dropped by a filter moves no other.
-function riffles(h, { areaId, areaData, box, undecked, evening, keepOut }) {
+function riffles(h, { areaId, areaData, box, undecked, evening, keepOut, knobs = NO_KNOBS }) {
   const w = h.footprint;
   const rng = mulberry32(seedFromCode(`waterdress-${areaId}-${w.id}-riffle`));
   const alongX = w.maxX - w.minX >= w.maxZ - w.minZ;
@@ -1131,12 +1193,17 @@ function riffles(h, { areaId, areaData, box, undecked, evening, keepOut }) {
   const ev = EVENING_FOAM[evening];
   const foamC = new THREE.Color(ev ? ev.clear : FOAM_COLORS.clear);
   const colliders = areaData.colliders ?? [];
+  // the deepest bite here, and how far beyond it a stone must sit
+  const biteMax = BITE_MAX * (knobs.biteScale ?? 1);
+  const clear = knobs.riffleClear ?? RIFFLE_CLEAR;
+  const every = knobs.riffleEvery ?? RIFFLE_EVERY, jit = knobs.riffleJit ?? RIFFLE_EVERY_JIT;
+  const lateral = knobs.riffleLateral ?? RIFFLE_LATERAL;
   const stones = [];
   const streaks = [];
-  for (let t = lo + RIFFLE_START * rng(); t <= hi; t += RIFFLE_EVERY + RIFFLE_EVERY_JIT * rng()) {
-    const n = 1 + Math.floor(rng() * 3);
+  for (let t = lo + RIFFLE_START * rng(); t <= hi; t += every + jit * rng()) {
+    const n = Math.min(1 + Math.floor(rng() * 3), knobs.rifflePerStop ?? 3);
     for (let i = 0; i < n; i++) {
-      const lat = (rng() - 0.5) * RIFFLE_LATERAL;
+      const lat = (rng() - 0.5) * lateral;
       const a = t + (rng() - 0.5) * RIFFLE_ALONG;
       const r = RIFFLE_R[0] + RIFFLE_R[1] * rng();
       const spin = rng() * TAU;
@@ -1155,7 +1222,7 @@ function riffles(h, { areaId, areaData, box, undecked, evening, keepOut }) {
       // along the stream (tx, tz), across it (nx, nz)
       const tx = alongX ? 1 : 0, tz = alongX ? 0 : 1;
       if (x < box.minX || x > box.maxX || z < box.minZ || z > box.maxZ) continue;
-      if (!(waterClearance(undecked, x, z) < -(BITE_MAX + RIFFLE_CLEAR))) continue;
+      if (!(waterClearance(undecked, x, z) < -(biteMax + clear))) continue;
       if (deckDistance(areaData.waters, x, z) < RIFFLE_DECK) continue;
       if (colliders.some((k) => Math.hypot(x - k.x, z - k.z) <= k.r + 0.1)) continue;
       if (keepOut.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + STONE_KEEP_GAP)) continue;
@@ -1168,7 +1235,7 @@ function riffles(h, { areaId, areaData, box, undecked, evening, keepOut }) {
       for (const k of plan) {
         const sx = x + tx * k.dir * r * 0.6 + tz * k.side, sz = z + tz * k.dir * r * 0.6 + tx * k.side;
         const onWater = (len) => [0, 0.5, 1].every((f) => waterClearance(undecked,
-          sx + tx * k.dir * len * f, sz + tz * k.dir * len * f) < -(BITE_MAX + k.halfW));
+          sx + tx * k.dir * len * f, sz + tz * k.dir * len * f) < -(biteMax + k.halfW));
         const len = STREAK_CUTS.map((c) => k.len * c).find(onWater);
         if (len !== undefined) kept.push({ ...k, sx, sz, len });
       }
@@ -1347,16 +1414,18 @@ const STYLE_BUILDERS = { clear: genericRuns, bog: genericRuns, sea: seaRuns };
  * { water, maxBite }.
  *
  * Reads areaData.waterFx (water.js's handles). Areas not in DRESSED_AREAS —
- * the docks, the gorge, the den, the neighbourhood — get a no-op stub and
+ * the docks, the den, the neighbourhood — get a no-op stub and
  * add nothing to the scene.
  */
 export function createWaterDressing(scene, { areaId, areaData, tier, reducedMotion = false, keepOut = [], evening = null, debug = false } = {}) {
   if (!DRESSED_AREAS.includes(areaId) || !areaData?.waterFx?.length) return NO_DRESSING;
   const low = (typeof tier === 'string' ? tier : tier?.name) === 'low';
   const bounds = areaData.bounds ?? { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
+  const knobs = AREA_KNOBS[areaId] ?? NO_KNOBS;
+  const horizon = knobs.horizon ?? HORIZON_M;
   const box = {
-    minX: bounds.minX - HORIZON_M, maxX: bounds.maxX + HORIZON_M,
-    minZ: bounds.minZ - HORIZON_M, maxZ: bounds.maxZ + HORIZON_M,
+    minX: bounds.minX - horizon, maxX: bounds.maxX + horizon,
+    minZ: bounds.minZ - horizon, maxZ: bounds.maxZ + horizon,
   };
   // Decks are lifted out: the band may pass under a bridge, and a deck is
   // not land for a stone.
@@ -1382,7 +1451,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   const runs = [];
   for (const h of areaData.waterFx) {
     const build = STYLE_BUILDERS[h.style ?? 'clear'] ?? genericRuns;
-    runs.push(...build(h, { areaId, areaData, box, undecked, evening, fillets, ground }));
+    runs.push(...build(h, { areaId, areaData, box, undecked, evening, fillets, ground, knobs }));
   }
   if (runs.length === 0) return NO_DRESSING;
 
@@ -1392,7 +1461,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   if (!low && ground) {
     for (const h of areaData.waterFx) {
       if (biteKind(areaId, h) !== 'stream') continue;
-      const { stones, streaks } = riffles(h, { areaId, areaData, box, undecked, evening, keepOut });
+      const { stones, streaks } = riffles(h, { areaId, areaData, box, undecked, evening, keepOut, knobs });
       for (const k of streaks) k.stone += riffleStones.length;
       riffleStones.push(...stones);
       streakRuns.push(...streaks);

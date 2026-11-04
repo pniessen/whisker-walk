@@ -103,7 +103,7 @@ const STREAM = Object.freeze({
 export const GORGE_WATERS = Object.freeze([STREAM]);
 
 // How the stream is drawn: a grey-blue mountain water, banked on both sides.
-const WATER_LOOK = { stream: { y: 0.03, color: 0x6a9aa8, shores: ['minX', 'maxX'] } };
+const WATER_LOOK = { stream: { y: 0.03, color: 0x6a9aa8, shores: ['minX', 'maxX'], evening: { dusk: { mul: [0.62, 0.58, 0.48], glow: 0 } } } }; // polish-pondrims: a grey dusk, not royal blue (water.js eveningWater)
 
 // The paths, as [x1, z1, x2, z2] centreline segments, all 3 m wide, all on
 // the floor. The Narrows path comes in from the Moor's border and stops short
@@ -643,7 +643,7 @@ export function topColor(out, x, z) {
 }
 function bankColor(out, x, z) {
   const t = Math.min(1, rectDist(STREAM, x, z) / 2.4);
-  return out.set(BANK_GREEN).lerp(_cb.set(GORGE_FLOOR_COLOR), t * t);
+  return out.set(BANK_GREEN).lerp(_cb.set(GORGE_FLOOR_COLOR), Math.min(1, 0.4 + 1.5 * t)); // polish-pondrims: colour only, a faint damp fringe gone by ~1 m (was t * t: hard-edged green strips)
 }
 
 function meadowMesh() {

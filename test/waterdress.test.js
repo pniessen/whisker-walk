@@ -93,12 +93,12 @@ const undecked = (waters) => waters.map(({ decks, ...w }) => w);
 const triangles = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.getAttribute('position').count) / 3;
 
 describe('water dressing', () => {
-  it('dresses exactly the six water areas', () => {
-    expect(DRESSED_AREAS).toEqual(['woods', 'river', 'moor', 'pines', 'seaside', 'park']);
+  it('dresses exactly the seven water areas', () => {
+    expect(DRESSED_AREAS).toEqual(['woods', 'river', 'moor', 'pines', 'seaside', 'park', 'gorge']);
   });
 
-  it('is a no-op stub on the docks and the gorge', () => {
-    for (const id of ['docks', 'gorge']) {
+  it('is a no-op stub on the docks', () => {
+    for (const id of ['docks']) {
       const { scene, fx } = dress(id);
       expect(fx.meshes).toEqual([]);
       expect(scene.children).toHaveLength(0);
@@ -1227,6 +1227,65 @@ describe('water dressing', () => {
     });
   });
   // --- polish-streams Task 3: the Park pond ---------------------------------
+
+  // --- polish-pondrims Task 4: the Gorge stream ------------------------------
+
+  describe('the gorge stream', () => {
+    const DECK = { minX: -10.5, maxX: -7, minZ: -11.75, maxZ: -10.25 };
+    const rectDist = (d, x, z) => Math.hypot(Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
+
+    it('the Gorge stream is bitten on both banks, with stones and riffles, off the stepping stones', async () => {
+      const { GORGE_KEEP_CLEAR } = await import('../src/world/gorge.js');
+      const keepOut = GORGE_KEEP_CLEAR.map(([x, z]) => ({ x, z, r: 0.6 }));
+      const { fx, areaData } = dressOnGround('gorge', { keepOut });
+      const bites = (byName(fx, 'waterdress:band').userData.bites ?? []).filter((b) => b.water === 'stream');
+      expect(bites).toHaveLength(2);
+      // the stream is only 1.5 m wide: the two bites never close it
+      for (const b of bites) {
+        expect(b.maxBite).toBeGreaterThanOrEqual(0.02);
+        expect(b.maxBite).toBeLessThanOrEqual(0.5);
+      }
+      const stones = byName(fx, 'waterdress:stones');
+      expect(stones).toBeTruthy();
+      const { centres, riffles } = stones.userData;
+      expect(riffles.length).toBeGreaterThanOrEqual(2);
+      expect(centres.length).toBeGreaterThan(0);
+      const waters = undecked(areaData.waters);
+      for (const s of [...centres, ...riffles]) {
+        const at = `gorge stone at ${s.x.toFixed(2)},${s.z.toFixed(2)}`;
+        expect(rectDist(DECK, s.x, s.z), at).toBeGreaterThanOrEqual(1.5);
+        expect(waterClearance(waters, s.x, s.z), at).toBeGreaterThanOrEqual(-BITE_MAX);
+        expect(s.x, at).toBeGreaterThanOrEqual(-13);
+        expect(s.x, at).toBeLessThanOrEqual(-4);
+        for (const k of keepOut) expect(Math.hypot(s.x - k.x, s.z - k.z), at).toBeGreaterThanOrEqual(k.r + 0.5);
+      }
+      // riffle stones sit in the open water between the two bitten banks
+      for (const s of riffles) expect(s.water).toBe('stream');
+    }, 120_000);
+
+    it('the Gorge dressing adds at most 600 triangles', () => {
+      const { fx } = dressOnGround('gorge');
+      expect(fx.meshes.map((m) => m.name).sort()).toEqual(['waterdress:band', 'waterdress:fill', 'waterdress:stones']);
+      const per = Object.fromEntries(fx.meshes.map((m) => [m.name, triangles(m)]));
+      const sum = Object.values(per).reduce((a, b) => a + b, 0);
+      console.log('gorge waterdress triangles', JSON.stringify(per), sum);
+      expect(sum).toBeLessThanOrEqual(600);
+    }, 120_000);
+
+    it('finds the Gorge groundPlane in the built scene itself (the trimmed grid still fills)', () => {
+      const { scene, areaData } = area('gorge');
+      const before = scene.children.length;
+      const fx = createWaterDressing(scene, { areaId: 'gorge', areaData, tier: HIGH });
+      try {
+        const fill = byName(fx, 'waterdress:fill');
+        expect(fill).toBeTruthy();
+        expect(fill.material).toBe(scene.getObjectByName('groundPlane').material);
+      } finally {
+        fx.dispose();
+      }
+      expect(scene.children).toHaveLength(before);
+    }, 120_000);
+  });
 
   describe('the park pond', () => {
     const C = { x: -14, z: 2 };
