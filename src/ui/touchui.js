@@ -1,5 +1,6 @@
 import { joystickVector, classifyTouch } from '../touchinput.js';
 import { createPinchTracker } from '../camzoom.js';
+import { PAW } from './pawicon.js';
 
 // A second finger that lands within PINCH_PAIR_MS of a first finger that has
 // not moved more than STILL_PX is that finger's pinch partner, wherever on the
@@ -60,7 +61,7 @@ export function createTouchUI(root, callbacks, opts = {}) {
       <div class="tui-joystick-nub"></div>
     </div>
     <div class="tui-actions" id="tui-actions">
-      <button class="tui-btn" type="button" data-action="pounce" aria-label="Pounce or climb">🐾</button>
+      <button class="tui-btn" type="button" data-action="pounce" aria-label="Pounce or climb">${PAW}</button>
       <button class="tui-btn" type="button" data-action="meow" aria-label="Meow">😺</button>
       <button class="tui-btn" type="button" data-action="yarn" aria-label="Yarn ball">🧶</button>
       <button class="tui-btn" type="button" data-action="camera" aria-label="Toggle camera">📷</button>

@@ -1,5 +1,6 @@
 import { bus } from '../events.js';
 import { objectiveDistance } from '../questscent.js';
+import { PAW } from './pawicon.js';
 
 // Toasts (polish-hud2, R2/R3). At most two on screen: a burst of discoveries
 // used to stack four or five pills in a column that climbed over the cat.
@@ -44,7 +45,7 @@ export function createHud() {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <div class="hud-top">
-      <div class="hud-points">🐾 <span id="hud-points-value">0</span></div>
+      <div class="hud-points">${PAW} <span id="hud-points-value">0</span></div>
       <div class="hud-rank" id="hud-rank"></div>
     </div>
     <div class="hud-map" id="hud-map"><div class="hud-area" id="hud-area"></div></div>
