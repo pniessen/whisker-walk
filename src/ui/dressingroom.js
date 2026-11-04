@@ -226,6 +226,16 @@ function placeHtml(p) {
     + `<span class="cap">${escapeHtml(p.name)}<small>${escapeHtml(sub)}</small></span></button>`;
 }
 
+// The builder's 🐾 Sit toggle (beside the name, in the hero text strip the
+// stage keeps clear of the cat). One fixed label with aria-pressed, styled
+// like the builder's own pills: pink while her cat sits, plain while it
+// stands. A tap asks for the other pose. No pose given: no toggle.
+export function poseToggleHtml(pose) {
+  if (pose !== 'sit' && pose !== 'stand') return '';
+  const sitting = pose === 'sit';
+  return `<button class="dr-pose" data-dr-pose="${sitting ? 'stand' : 'sit'}" aria-pressed="${sitting}">🐾 Sit</button>`;
+}
+
 // headerHtml / statsHtml / startHtml / extrasHtml are pre-rendered, already
 // escaped HTML from the owner (homebase), inserted verbatim, once each.
 export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '', startHtml = '', extrasHtml = '', sheets = HOME_SHEETS, ui = {}, thumbs } = {}) {
@@ -244,10 +254,16 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
   const pillLabel = (id, label) => (id === 'wearing' ? `${label} ${m.wearingCount}` : label);
   const heroName = building ? (ui.heroName || 'Your cat') : h.name;
   const heroBlurb = building ? (ui.heroBlurb ?? '') : h.blurb;
+  // the builder's 🐾 Sit sits beside the name (one row, not a row of its own,
+  // so the strip the stage keeps clear for the text barely grows)
+  const toggle = building ? poseToggleHtml(ui.pose) : '';
+  const nameHtml = toggle
+    ? `<div class="dr-hero-row"><div class="dr-hero-name">${escapeHtml(heroName)}</div>${toggle}</div>`
+    : `<div class="dr-hero-name">${escapeHtml(heroName)}</div>`;
   const heroHtml = `<section class="dr-hero">
     <div class="dr-stage" id="dr-stage">
       <div class="dr-spin-hint">↔ drag to spin</div>
-      <div class="dr-hero-text"><div class="dr-hero-name">${escapeHtml(heroName)}</div><div class="dr-hero-blurb">${escapeHtml(heroBlurb)}</div>${buy}</div>
+      <div class="dr-hero-text">${nameHtml}<div class="dr-hero-blurb">${escapeHtml(heroBlurb)}</div>${buy}</div>
     </div>`;
 
   // The builder (Task 8) keeps the header and the one stage; its rows replace

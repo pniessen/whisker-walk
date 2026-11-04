@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { createCatStage, fitFraming, defaultPoseCat, STAGE_POSE, BACK_TURN } from '../src/ui/catstage.js';
+import { createCatStage, fitFraming, defaultPoseCat, STAGE_POSE, BACK_TURN, normalizePose } from '../src/ui/catstage.js';
 import { buildCat } from '../src/cat/model.js';
 import { SIT } from '../src/cat/torso.js';
 
@@ -333,6 +333,90 @@ describe('the stage cat sits (Ruling P4/P5)', () => {
     expect(built.at(-1).userData.parts.body.rotation.x).toBe(SIT.pitch);
     stage.show('hagrid', {});
     expect(built.at(-1).userData.parts).toBeTruthy();
+  });
+});
+
+describe('sit or stand (setPose)', () => {
+  const box = () => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1))); return g; };
+  const sitPose = (c) => { c.children[0].position.y = 5; };
+
+  it('sits by default; stand shows the cat as built; a change rebuilds and re-frames', () => {
+    const build = vi.fn(box);
+    const poseCat = vi.fn(sitPose);
+    const { stage, renderer } = setup({ buildCat: build, poseCat });
+    expect(stage.pose).toBe('sit');
+    stage.mount(fakeEl());
+    stage.show('tabby', { collar: 'bell' });
+    expect(poseCat).toHaveBeenCalledTimes(1);
+    const sitCam = renderer.render.mock.calls.at(-1)[1].position.clone();
+
+    expect(stage.setPose('stand')).toBe(true);
+    expect(stage.pose).toBe('stand');
+    expect(build).toHaveBeenCalledTimes(2);
+    expect(build).toHaveBeenLastCalledWith('tabby', { collar: 'bell' });
+    expect(poseCat).toHaveBeenCalledTimes(1); // the standing cat is not posed
+    const [scene, cam] = renderer.render.mock.calls.at(-1);
+    const shown = scene.children.find((c) => c.isGroup);
+    expect(new THREE.Box3().setFromObject(shown).max.y).toBeCloseTo(0.5);
+    expect(cam.position.distanceTo(sitCam)).toBeGreaterThan(0.5); // framed for the new bounds
+
+    expect(stage.setPose('stand')).toBe(false); // no change, no rebuild
+    expect(build).toHaveBeenCalledTimes(2);
+    stage.setPose('sit');
+    expect(poseCat).toHaveBeenCalledTimes(2);
+    expect(renderer.render.mock.calls.at(-1)[1].position.distanceTo(sitCam)).toBeLessThan(1e-9);
+  });
+
+  it('keeps the spin angle and the back-item turn across a pose change', () => {
+    let last = null;
+    const { stage } = setup({ buildCat: () => { last = box(); return last; }, poseCat: sitPose });
+    stage.mount(fakeEl());
+    stage.show('tabby', {});
+    stage.show('tabby', { back: 'wings' });
+    const before = last.rotation.y;
+    expect(before).toBeCloseTo(REST + BACK_TURN);
+    stage.setPose('stand');
+    expect(last.rotation.y).toBeCloseTo(before);
+  });
+
+  it('redraw: false only records the pose; the next show uses it; junk means sit', () => {
+    const build = vi.fn(box);
+    const poseCat = vi.fn(sitPose);
+    const { stage } = setup({ buildCat: build, poseCat });
+    stage.mount(fakeEl());
+    stage.show('tabby', {});
+    stage.setPose('stand', { redraw: false });
+    expect(build).toHaveBeenCalledTimes(1);
+    stage.show('tabby', {}, { coat: 'ginger' });
+    expect(poseCat).toHaveBeenCalledTimes(1);
+    stage.setPose('lying down');
+    expect(stage.pose).toBe('sit');
+    expect(normalizePose(undefined)).toBe('sit');
+    expect(normalizePose('stand')).toBe('stand');
+  });
+
+  it('before any show, or on a failed stage, setPose only records', () => {
+    const build = vi.fn(box);
+    const { stage } = setup({ buildCat: build });
+    expect(stage.setPose('stand')).toBe(true);
+    expect(build).not.toHaveBeenCalled();
+    const f = setup({ buildCat: build, createRenderer: () => { throw new Error('no webgl'); } });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    f.stage.mount(fakeEl());
+    f.stage.show('calico', {});
+    expect(() => f.stage.setPose('stand')).not.toThrow();
+    expect(build).not.toHaveBeenCalled();
+  });
+
+  it('a real cat stands unposed and sits with the stage pose', () => {
+    const built = [];
+    const { stage } = setup({ buildCat: (...a) => { const c = buildCat(...a); built.push(c); return c; } });
+    stage.mount(fakeEl());
+    stage.setPose('stand', { redraw: false });
+    stage.show('tabby', {}, { coat: 'ginger', pattern: 'stripes' });
+    expect(built.at(-1).userData.parts.body.rotation.x).not.toBe(SIT.pitch);
+    stage.setPose('sit');
+    expect(built.at(-1).userData.parts.body.rotation.x).toBe(SIT.pitch);
   });
 });
 

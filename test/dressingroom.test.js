@@ -5,7 +5,7 @@ import { CLAN_SUFFIX } from '../src/clanwords.js';
 import { CAT_BLURBS, ACC_BLURBS } from '../src/ui/catblurbs.js';
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
-  buildDressingModel, renderSlotPickerHtml, renderDressingRoomHtml,
+  buildDressingModel, renderSlotPickerHtml, renderDressingRoomHtml, poseToggleHtml,
 } from '../src/ui/dressingroom.js';
 
 function defaultishState() {
@@ -468,6 +468,17 @@ describe('her own cats in the dressing room', () => {
     expect(h).toContain('Ember');
     expect(h).not.toContain('data-dr-edit');
     expect(h).not.toContain('data-dr-buy-cat');
+  });
+  it('builder mode puts the 🐾 Sit toggle in the hero text, beside the name; the room has none', () => {
+    const mk = (ui) => renderDressingRoomHtml({ model: buildDressingModel(withMine(0), CATALOG), ui });
+    const stand = mk({ builderHtml: '<i></i>', heroName: 'Ember', pose: 'stand' });
+    const text = stand.slice(stand.indexOf('dr-hero-text'), stand.indexOf('</section>'));
+    expect(text).toContain('<button class="dr-pose" data-dr-pose="sit" aria-pressed="false">🐾 Sit</button>');
+    expect(text).toContain('<div class="dr-hero-row"><div class="dr-hero-name">Ember</div><button class="dr-pose"');
+    expect(mk({ builderHtml: '<i></i>', pose: 'sit' })).toContain('data-dr-pose="stand" aria-pressed="true">🐾 Sit</button>');
+    expect(mk({ builderHtml: '<i></i>' })).not.toContain('data-dr-pose');
+    expect(mk({ pose: 'stand' })).not.toContain('data-dr-pose');
+    expect(poseToggleHtml('nap')).toBe('');
   });
   it('the hero name and builder hero name are escaped', () => {
     const h = renderDressingRoomHtml({ model: buildDressingModel(withMine(0), CATALOG), ui: { builderHtml: '<i></i>', heroName: '<img src=x>' } });

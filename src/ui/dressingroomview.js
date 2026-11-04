@@ -68,15 +68,29 @@ export function reduceDressingUi(ui, action) {
 }
 
 const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-pill],'
-  + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay]';
+  + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay]';
 const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is empty
 const BLUR_RENDER_MS = 250; // a skipped render runs this long after the name box loses focus
+// The builder's cat stands by default (legs, pattern and tail in view); her
+// 🐾 Sit pick is kept for the session's browser. The rest of the
+// dressing room always sits.
+export const BUILDER_POSE_KEY = 'whisker-walk-builder-pose';
+const ROOM_POSE = 'sit';
+// (window's, never Node's: tests pass their own or run without one)
+const defaultStorage = () => { try { return typeof window !== 'undefined' ? window.localStorage ?? null : null; } catch { return null; } };
+function readPose(storage) {
+  try { return storage?.getItem?.(BUILDER_POSE_KEY) === 'sit' ? 'sit' : 'stand'; } catch { return 'stand'; }
+}
+function writePose(storage, pose) {
+  try { storage?.setItem?.(BUILDER_POSE_KEY, pose); } catch { /* private window: this visit only */ }
+}
 
 export function createDressingRoom({
   progression, catalog = CATALOG, stage = null, sync = null, thumbs = null,
   onChange = () => {}, onOpenSheet = null, onProfileChange = () => {}, snapCustom = customThumbnails, now = () => Date.now(),
-  onCatSaved = () => {}, later = (fn, ms) => setTimeout(fn, ms),
+  onCatSaved = () => {}, later = (fn, ms) => setTimeout(fn, ms), storage = defaultStorage(),
 }) {
+  let builderPose = readPose(storage); // 'stand' | 'sit'
   let doneAt = null; // when Done last closed the builder (Start then sits under her finger)
   let ui = INITIAL_DRESSING_UI;
   let lastShown = null; // what the stage was last asked to show, to skip rebuilding the cat
@@ -154,6 +168,8 @@ export function createDressingRoom({
         ui: {
           pill: ui.pill, builderHtml: `<section class="cb" id="cb">${renderBuilderHtml(bm)}</section>`,
           heroName: bm.name || YOUR_CAT, heroBlurb: bm.blurb,
+          // no live cat (no WebGL, or no stage): a still picture cannot sit, so no toggle
+          pose: stage && !stage.failed ? builderPose : null,
         },
       });
     }
@@ -166,7 +182,7 @@ export function createDressingRoom({
     });
   }
 
-  const builderKey = (bm) => JSON.stringify(['builder', bm.breed, lookKey(bm.look)]);
+  const builderKey = (bm) => JSON.stringify(['builder', bm.breed, lookKey(bm.look), builderPose]);
 
   // The portrait strip: put back where she had scrolled it, then make sure the
   // cat she is walking (or previewing) is in view: after Done or ✏️ Change
@@ -204,6 +220,7 @@ export function createDressingRoom({
       const key = builderKey(bm);
       if (key !== lastShown || stage.failed) {
         lastShown = key;
+        stage.setPose?.(builderPose, { redraw: false });
         stage.show(bm.breed, {}, bm.look);
       }
       return;
@@ -214,12 +231,21 @@ export function createDressingRoom({
     // Fight moves and scars: a cat she owns shows its own scars (by its preset
     // or custom id); a preview of one she doesn't, none.
     const scars = m.hero.owned ? (progression.catScars?.(m.hero.id) ?? []) : [];
-    const key = JSON.stringify([m.hero.breed, accessories, m.hero.look ? lookKey(m.hero.look) : null, scars]);
+    const key = JSON.stringify([m.hero.breed, accessories, m.hero.look ? lookKey(m.hero.look) : null, scars, ROOM_POSE]);
     if (key !== lastShown || stage.failed) {
       lastShown = key;
+      stage.setPose?.(ROOM_POSE, { redraw: false });
       if (scars.length > 0) stage.show(m.hero.breed, accessories, m.hero.look, scars);
       else stage.show(m.hero.breed, accessories, m.hero.look);
     }
+  }
+
+  // 🐾 Sit in the builder: the render that follows rebuilds the
+  // draft in the new pose (the pose is part of builderKey).
+  function onPose(p) {
+    if (!ui.builder || (p !== 'sit' && p !== 'stand')) return;
+    builderPose = p;
+    writePose(storage, p);
   }
 
   function onCat(id) {
@@ -338,6 +364,7 @@ export function createDressingRoom({
     else if (d.drMine !== undefined) onMine(d.drMine);
     else if (d.drMake !== undefined) onMake();
     else if (d.drEdit !== undefined) onEdit(d.drEdit);
+    else if (d.drPose !== undefined) onPose(d.drPose);
     else if (d.cbPick !== undefined) builderOp({ type: 'pick', field: d.cbPick, value: d.cbValue });
     else if (d.cbPersonality !== undefined) builderOp({ type: 'personality', value: d.cbPersonality });
     else if (d.cbCancel !== undefined) onCancel();
@@ -371,6 +398,7 @@ export function createDressingRoom({
       const bm = buildBuilderModel(ui.builder);
       if (stage) {
         lastShown = builderKey(bm);
+        stage.setPose?.(builderPose, { redraw: false });
         stage.show(bm.breed, {}, bm.look);
       }
       return true;
@@ -386,12 +414,17 @@ export function createDressingRoom({
     const strip = root?.querySelector?.('.dr-strip');
     stripScroll = strip && typeof strip.scrollLeft === 'number' ? strip.scrollLeft : null;
     const a = root?.ownerDocument?.activeElement;
+    if (a?.dataset?.drPose !== undefined) return { pose: true }; // a keyboard toggle keeps its focus
     if (!a || !a.dataset || a.dataset.cbName === undefined) return null;
     return { start: a.selectionStart ?? null, end: a.selectionEnd ?? null };
   }
 
   function restoreFocus(root, saved) {
     if (!saved) return;
+    if (saved.pose) {
+      try { root?.querySelector?.('[data-dr-pose]')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+      return;
+    }
     const el = root?.querySelector?.('[data-cb-name]');
     if (!el) return;
     try { el.focus({ preventScroll: true }); } catch { /* a nicety */ }

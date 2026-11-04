@@ -3,8 +3,9 @@ import { createSpin } from './spin.js';
 import { SIZE } from '../customcats.js';
 import { animateCat } from '../cat/animator.js';
 
-// Every cat on the stage sits (Ruling P4): the hero, the try-ons and the cat
-// builder's draft. One static pose, posed once per show() BEFORE the bounds
+// The stage cat sits (Ruling P4): the hero and the try-ons always, the cat
+// builder's draft when she taps 🐾 Sit (it stands by default; see setPose).
+// One static pose, posed once per show() BEFORE the bounds
 // are measured, so the framing fits the sitting cat (its tail, cape and
 // balloons included) and no animation loop is needed. Hagrid gets whatever
 // sit animateCat gives him (P5).
@@ -13,6 +14,13 @@ export const STAGE_POSE = Object.freeze({ state: 'requestPet', t: 1.3 });
 // Trying on a back item (wings, jetpack, backpack) turns the hero so the
 // new thing is in view: the yaw added to the spin angle, in radians.
 export const BACK_TURN = 2.85;
+
+// The stage's two poses: 'sit' (STAGE_POSE, the dressing room's default) and
+// 'stand' (the cat exactly as built, unposed, the way the stage showed it
+// before every stage cat sat). The cat builder stands by default so the legs,
+// pattern and tail are in view; a 🐾 toggle switches (setPose).
+export const STAGE_POSES = Object.freeze(['sit', 'stand']);
+export const normalizePose = (p) => (p === 'stand' ? 'stand' : 'sit');
 
 // Skips objects without a rig (the tests' bare groups, anything unbuilt).
 export function defaultPoseCat(cat) {
@@ -137,6 +145,8 @@ export function createCatStage({
   let lastAcc = null; // the accessories last shown (null before the first show)
   let turn = 0; // yaw offset on top of the spin angle
   let activeId = null; // the one pointer currently dragging
+  let pose = 'sit'; // STAGE_POSES: what the next show() poses the cat as
+  let lastShow = null; // show()'s last arguments, so setPose can rebuild the cat
   const spin = createSpin();
   const stage = { failed: false };
 
@@ -365,6 +375,7 @@ export function createCatStage({
   stage.show = function show(nextBreed, accessories = {}, look = null, scars = []) {
     if (disposed) return;
     breed = nextBreed;
+    lastShow = [nextBreed, accessories, look, scars];
     if (stage.failed) { if (el) placeFallback(); return; }
     ensureRenderer();
     if (stage.failed) return;
@@ -372,7 +383,7 @@ export function createCatStage({
     const scarred = Array.isArray(scars) && scars.length > 0;
     if (look) cat = buildCat(breed, accessories, scarred ? { look, scars } : { look });
     else cat = scarred ? buildCat(breed, accessories, { scars }) : buildCat(breed, accessories);
-    poseCat(cat);
+    if (pose === 'sit') poseCat(cat); // 'stand': the cat as built
     bounds = look ? lookBounds(cat) : measure(cat);
     const acc = accessories || {};
     const sig = JSON.stringify([look || null, scarred ? scars : null]);
@@ -392,6 +403,19 @@ export function createCatStage({
     frameCat();
     if (el && visible) draw();
   };
+
+  // Sit or stand. A change rebuilds the shown cat in the new pose and frames
+  // it again (a standing cat is longer and lower than a sitting one); the spin
+  // angle and any turn are kept. { redraw: false } only records the pose, for
+  // a caller about to show() a new cat anyway. true = the pose changed.
+  stage.setPose = function setPose(next, { redraw = true } = {}) {
+    const p = normalizePose(next);
+    if (p === pose) return false;
+    pose = p;
+    if (redraw && lastShow && !disposed && !stage.failed) stage.show(...lastShow);
+    return true;
+  };
+  Object.defineProperty(stage, 'pose', { get: () => pose, enumerable: true });
 
   stage.setVisible = function setVisible(v) {
     visible = !!v;
