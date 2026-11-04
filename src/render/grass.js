@@ -309,9 +309,11 @@ function patchNoise(x, z, size = PATCH_SIZE, salt = 7) {
 //   density    (x, z) -> chance a lattice cell grows a tuft; null = PRESENCE
 //   ground     0..1, how far a tuft follows the painted ground tint under it
 //              (GROUND_TINTS): 0 = not at all, 1 = the full multiplier
+//   hue        0..1, strength of the patch-scale hue drift (warm/cool lean
+//              over ~5m patches) every tuft's colour gets
 // ---------------------------------------------------------------------------
 const LAWN = Object.freeze({
-  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: null, ground: 0,
+  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: null, ground: 0, hue: 0.12,
 });
 
 const smooth01 = (a, b, v) => {
@@ -330,7 +332,7 @@ export function duneDensity(x, z) {
   return 0.92 * zone * smooth01(0.48, 0.76, patchNoise(x, z, 2.6, 11));
 }
 const DUNE = Object.freeze({
-  color: 0x96a466, hMin: 0.12, hMax: 0.3, width: 0.9, warm: 0.28, sway: 0.3, reach: 1.5, density: duneDensity, ground: 0,
+  color: 0x96a466, hMin: 0.12, hMax: 0.3, width: 0.9, warm: 0.28, sway: 0.3, reach: 1.5, density: duneDensity, ground: 0, hue: 0.1,
 });
 
 // The Woods' undergrowth: short, deep green, in patches among the trees.
@@ -338,7 +340,7 @@ export function woodsDensity(x, z) {
   return 0.85 * smooth01(0.42, 0.72, patchNoise(x, z, 3.4, 29));
 }
 const WOODLAND = Object.freeze({
-  color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity, ground: 0,
+  color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity, ground: 0, hue: 0.1,
 });
 
 // The River's marsh: taller, yellower-green tufts in broad patches, so the
@@ -347,7 +349,7 @@ export function marshDensity(x, z) {
   return 0.9 * smooth01(0.3, 0.6, patchNoise(x, z, 4.4, 43));
 }
 const MARSH = Object.freeze({
-  color: 0x86a457, hMin: 0.14, hMax: 0.36, width: 1.0, warm: 0.14, sway: 0.4, reach: 1.4, density: marshDensity, ground: 0.9,
+  color: 0x86a457, hMin: 0.14, hMax: 0.36, width: 1.0, warm: 0.14, sway: 0.4, reach: 1.4, density: marshDensity, ground: 0.9, hue: 0.12,
 });
 
 // The Moor: knee-high tawny-green tufts in wide patches with bare earth
@@ -356,7 +358,7 @@ export function moorDensity(x, z) {
   return 0.95 * smooth01(0.25, 0.55, patchNoise(x, z, 6.0, 53));
 }
 const MOOR = Object.freeze({
-  color: 0x8f9a5a, hMin: 0.08, hMax: 0.24, width: 1.0, warm: 0.18, sway: 0.6, reach: 1.4, density: moorDensity, ground: 0.9,
+  color: 0x8f9a5a, hMin: 0.08, hMax: 0.24, width: 1.0, warm: 0.18, sway: 0.6, reach: 1.4, density: moorDensity, ground: 0.9, hue: 0.14,
 });
 
 // The Pines: a thin, short, dark-green grass between the needles, so the forest
@@ -365,7 +367,7 @@ export function pineFloorDensity(x, z) {
   return 0.7 * smooth01(0.35, 0.65, patchNoise(x, z, 5.0, 61));
 }
 const PINE_FLOOR = Object.freeze({
-  color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity, ground: 0,
+  color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity, ground: 0, hue: 0.08,
 });
 
 // The Gorge: a little short, olive grass in patches, only on the base floor
@@ -391,7 +393,7 @@ export function gorgeFloorDensity(x, z) {
   return 0.45 * smooth01(0.35, 0.65, patchNoise(x, z, 5, 67));
 }
 const GORGE_FLOOR = Object.freeze({
-  color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity, ground: 0,
+  color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity, ground: 0, hue: 0.06,
 });
 
 export const GRASS_STYLES = Object.freeze({
@@ -470,15 +472,23 @@ export function tuftAt(ix, iz, spacing, style = LAWN) {
   // tallest in its middle.
   const field = style.density ? Math.min(1, presence / 0.92) : patchNoise(x, z);
   const tall = 0.35 * hashCell(ix, iz, 4) + 0.65 * field;
-  const h = style.hMin + (style.hMax - style.hMin) * tall;
+  let h = style.hMin + (style.hMax - style.hMin) * tall;
   // Width scale: taller tufts spread a bit wider.
-  const s = (0.8 + 0.25 * tall + 0.15 * hashCell(ix, iz, 5)) * style.width;
+  let s = (0.8 + 0.25 * tall + 0.15 * hashCell(ix, iz, 5)) * style.width;
+  // One tuft in twenty is a lone taller stalk, never above 0.4m (the cat).
+  if (hashCell(ix, iz, 12) < 0.05) { h = Math.min(h * 1.3, 0.4); s *= 0.9; }
   const rot = hashCell(ix, iz, 6) * Math.PI * 2;
   // Tint: brightness 0.86-1.08, and a warm (yellow) lean on some, so the
   // lawn has a few drier tufts among the lush ones.
   const v = 0.86 + 0.22 * hashCell(ix, iz, 8);
   const warm = hashCell(ix, iz, 9) * style.warm;
-  return { x, z, h, s, rot, tint: [v * (1 + warm), v, v * (1 - warm)] };
+  // Hue drift: slow ~5.5m patches lean warm-yellow (drift > 0) or cool
+  // blue-green (drift < 0), so the grass is never one flat green.
+  const drift = (patchNoise(x, z, 5.5, 71) - 0.5) * 2 * style.hue;
+  const r = v * (1 + warm) * (1 + drift);
+  const g = drift < 0 ? v * (1 - drift * 0.3) : v;
+  const b = drift > 0 ? v * (1 - warm) * (1 - drift) : v * (1 - warm);
+  return { x, z, h, s, rot, tint: [r, g, b] };
 }
 
 // groundFinds(areaData, goldMice) — the things a kid hunts for at ground

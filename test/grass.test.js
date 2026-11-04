@@ -25,6 +25,7 @@ const {
   TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, marshDensity, moorDensity, pineFloorDensity, gorgeFloorDensity, groundFinds,
   GROUND_TINTS, tintSampler,
 } = await import('../src/render/grass.js');
+const LAWN_STYLE = GRASS_STYLES.park;
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
 const { inWater } = await import('../src/world/builder.js');
 const { build: buildPark } = await import('../src/world/park.js');
@@ -97,7 +98,7 @@ describe('grass pure helpers', () => {
       if (!t) continue;
       present++;
       expect(t.h).toBeGreaterThanOrEqual(TUFT_MIN_H);
-      expect(t.h).toBeLessThanOrEqual(TUFT_MAX_H);
+      expect(t.h).toBeLessThanOrEqual(TUFT_MAX_H * 1.3 + 1e-9);
       // The jitter keeps the tuft inside its own lattice cell.
       expect(Math.floor(t.x / 0.3)).toBe(i);
       expect(Math.floor(t.z / 0.3) === -i * 3).toBe(true);
@@ -340,25 +341,34 @@ describe('dune grass (Seaside, Stream 4 round three)', () => {
         if (!t) continue;
         n++;
         expect(t.h).toBeGreaterThanOrEqual(dune.hMin);
-        expect(t.h).toBeLessThanOrEqual(0.3);
+        expect(t.h).toBeLessThanOrEqual(0.3 * 1.3 + 1e-9);
       }
     }
     expect(n).toBeGreaterThan(1000);
     expect(dune.hMax).toBeGreaterThan(TUFT_MAX_H);
   });
 
-  it('lawn tufts are unchanged by the style refactor', () => {
+  it('lawn tuft positions are unchanged', () => {
     // Golden values captured from the pre-style grass.js on main (Stream 4
     // round two): the default style must reproduce them exactly.
     const GOLD = [[0,0,{"x":0.1736434184387326,"z":0.09074121499434114,"h":0.09237821347174668,"s":0.9440568940791991,"rot":4.4145308368031495,"tint":[1.1703621288834765,1.0717154515720904,0.9730687742607042]}],[7,-3,{"x":2.1901849627867342,"z":-0.6909551570937037,"h":0.0795965326308756,"s":0.8975483133953063,"rot":2.5891740061071977,"tint":[1.1305235349230236,1.0363120191916824,0.942100503460341]}],[-12,40,{"x":-3.518841334618628,"z":12.147163804918527,"h":0.0906101243904757,"s":0.9219364539122423,"rot":5.236757313310521,"tint":[1.027287373971078,1.0124685842590406,0.9976497945470033]}],[101,5,{"x":30.437912731524555,"z":1.5758719412237405,"h":0.11519275292594076,"s":0.9982766116601441,"rot":4.624480565274916,"tint":[1.1332379906216372,1.072020187494345,1.0108023843670526]}],[-55,-66,{"x":-16.331090749371796,"z":-19.571300490908325,"h":0.08054081870782487,"s":0.8753474137235983,"rot":5.859810309442972,"tint":[1.112365198516662,1.0291068128636107,0.9458484272105594]}],[3,9,{"x":1.0070090587064624,"z":2.9580968719907106,"h":0.12510545919179844,"s":1.0732476695763031,"rot":4.028933675247906,"tint":[0.9771537669158975,0.9320598967233673,0.8869660265308371]}]];
-    for (const [i, j, t] of GOLD) expect(tuftAt(i, j, 0.3)).toEqual(t);
+    for (const [i, j, t] of GOLD) {
+      const got = tuftAt(i, j, 0.3);
+      expect(got.x).toBe(t.x);
+      expect(got.z).toBe(t.z);
+      expect(got.rot).toBe(t.rot);
+      if (hashCell(i, j, 12) >= 0.05) { // not a tall stalk
+        expect(got.h).toBe(t.h);
+        expect(got.s).toBe(t.s);
+      }
+    }
     for (let i = 0; i < 50; i++) {
       const a = tuftAt(i, 3 * i, 0.3);
       const b = tuftAt(i, 3 * i, 0.3, GRASS_STYLES.park);
       expect(a).toEqual(b);
       if (a) {
         expect(a.h).toBeGreaterThanOrEqual(TUFT_MIN_H);
-        expect(a.h).toBeLessThanOrEqual(TUFT_MAX_H);
+        expect(a.h).toBeLessThanOrEqual(TUFT_MAX_H * 1.3 + 1e-9);
       }
     }
   });
@@ -493,10 +503,73 @@ describe('pine-floor grass (the Pines)', () => {
   });
 });
 
+describe('natural variation (hue drift, tall stalks)', () => {
+  const lattice = (style, n, spacing = 0.3) => {
+    const out = [];
+    for (let i = -n; i < n; i++) for (let j = -n; j < n; j++) out.push([i, j, tuftAt(i, j, spacing, style)]);
+    return out;
+  };
+
+  it('tufts drift in hue in patches, not white noise', () => {
+    // 40 x 40 m of lawn at 0.3 m spacing, every cell grown for a clean read.
+    const gr = (i, j) => { const t = tuftAt(i, j, 0.3); return t && t.tint[1] / t.tint[0]; };
+    let lo = Infinity; let hi = -Infinity;
+    let near = 0; let nearN = 0; let far = 0; let farN = 0;
+    for (let i = -66; i < 66; i += 2) {
+      for (let j = -66; j < 66; j += 2) {
+        const a = gr(i, j);
+        if (a === null) continue;
+        lo = Math.min(lo, a); hi = Math.max(hi, a);
+        const b = gr(i + 2, j); const c = gr(i + 32, j);
+        if (b !== null) { near += Math.abs(a - b); nearN++; }
+        if (c !== null) { far += Math.abs(a - c); farN++; }
+      }
+    }
+    expect(hi - lo).toBeGreaterThanOrEqual(0.18);
+    expect(near / nearN).toBeLessThan(0.75 * (far / farN));
+  });
+
+  it('lawn brightness stays in a sane band', () => {
+    for (const [, , t] of lattice(LAWN_STYLE, 80)) {
+      if (!t) continue;
+      for (const c of t.tint) { expect(c).toBeGreaterThan(0.65); expect(c).toBeLessThan(1.4); }
+    }
+  });
+
+  it('a few tufts stand taller, none above 0.4 m', () => {
+    const rates = {};
+    for (const [name, style] of Object.entries(GRASS_STYLES)) {
+      let grown = 0; let tallN = 0; let tallSum = 0; let restSum = 0; let max = 0;
+      for (let i = -140; i < 140; i++) {
+        for (let j = -140; j < 140; j++) {
+          const t = tuftAt(i, j, 0.3, style);
+          if (!t) continue;
+          grown++;
+          max = Math.max(max, t.h);
+          if (hashCell(i, j, 12) < 0.05) { tallN++; tallSum += t.h; } else restSum += t.h;
+        }
+      }
+      expect(grown).toBeGreaterThan(300);
+      const rate = tallN / grown;
+      rates[name] = rate;
+      expect(rate).toBeGreaterThan(0.03);
+      expect(rate).toBeLessThan(0.08);
+      expect(max).toBeLessThanOrEqual(0.4 + 1e-9);
+      expect(max).toBeLessThanOrEqual(style.hMax * 1.3 + 1e-9);
+      // The stalks really are taller than the rest on average (x ~1.3, or
+      // capped at 0.4 m for the Marsh).
+      expect(tallSum / tallN).toBeGreaterThan(1.15 * (restSum / (grown - tallN)) * 0.95);
+    }
+    let lawnMax = 0;
+    for (const [, , t] of lattice(GRASS_STYLES.park, 140)) if (t) lawnMax = Math.max(lawnMax, t.h);
+    expect(lawnMax).toBeLessThanOrEqual(TUFT_MAX_H * 1.35);
+  });
+});
+
 describe('floor grass (the Gorge)', () => {
   it('the Gorge grows a little floor grass', () => {
     expect(GRASS_STYLES.gorge).toEqual({
-      color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity, ground: 0,
+      color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity, ground: 0, hue: 0.06,
     });
     let hi = -Infinity; let bare = 0; let some = 0;
     for (let x = -50; x <= 50; x++) {
