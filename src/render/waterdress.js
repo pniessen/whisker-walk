@@ -734,7 +734,7 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
     const sampled = sampleChain(ch, w);
     if (fillets) for (const f of fillets) bendOntoFillet(sampled.samples, f);
     const seed = ci ? seedFromCode(`waterdress-${areaId}-${w.id}-${ci}`) : seed0;
-    if (kind) biteChain(sampled, { seed: seed + 3, kind, fillets, waters: areaData.waters, fillY, box });
+    if (kind) biteChain(sampled, { seed: seed + 3, kind, fillets, waters: areaData.waters, heights: areaData.waterFx, fillY, box });
     const ctx = {
       seed,
       stoneSeed: seed + 7,
@@ -920,7 +920,7 @@ function bendOntoFillet(samples, f) {
 // Samples already bent onto a fillet keep bite 0. The bite also tapers like
 // an open end toward the edge of the drawn box, where clipRuns cuts the run:
 // no square step where the strip stops.
-function biteChain(sampled, { seed, kind, fillets, waters, fillY, box = null }) {
+function biteChain(sampled, { seed, kind, fillets, waters, heights = [], fillY, box = null }) {
   const { samples, closed, length } = sampled;
   const period = closed ? length : 0;
   for (const p of samples) {
@@ -958,9 +958,21 @@ function biteChain(sampled, { seed, kind, fillets, waters, fillY, box = null }) 
   }
   for (let i = 0; i < m; i++) {
     const p = samples[i];
-    if (!(p.bite > 0)) continue;
-    if (n[i]) { p.nx = n[i][0]; p.nz = n[i][1]; }
-    p.fillTop = fillY + LIP_LIFT * 0.5;
+    const bitten = p.bite > 0;
+    if (bitten && n[i]) { p.nx = n[i][0]; p.nz = n[i][1]; }
+    // A strip end that lies inside another water's footprint (a stream
+    // running into a lake, two streams crossing) must clear that water too:
+    // the fill rides FILL_LIFT over the highest water it overlaps. Samples
+    // with no bite still carry the zero-width end of the strip, so they get
+    // the same lift (but no fillTop: no band rows ride over them).
+    const tuck = BITE_TUCK * smooth01(p.bite / BITE_TUCK_FULL);
+    const ends = [[p.x, p.z], [p.x0 + p.nx0 * tuck, p.z0 + p.nz0 * tuck]];
+    let fy = fillY;
+    for (const h of heights) {
+      if (ends.some(([x, z]) => waterGap(h.footprint, x, z) < 0)) fy = Math.max(fy, (h.y ?? 0.03) + FILL_LIFT);
+    }
+    p.fillY = fy;
+    if (bitten) p.fillTop = fy + LIP_LIFT * 0.5;
   }
 }
 
@@ -1064,9 +1076,9 @@ function fillGeometry(fillets, biteRuns, ground) {
   }
   for (const run of biteRuns) {
     const { samples, closed } = run;
-    const y = run.ctx.fillY;
     const base = v;
     for (const p of samples) {
+      const y = p.fillY ?? run.ctx.fillY;
       const tuck = BITE_TUCK * smooth01(p.bite / BITE_TUCK_FULL);
       const lx = p.x0 + p.nx0 * BITE_COLOR_AT, lz = p.z0 + p.nz0 * BITE_COLOR_AT;
       for (const [x, z] of [[p.x0 + p.nx0 * tuck, p.z0 + p.nz0 * tuck], [p.x0 - p.nx0 * p.bite, p.z0 - p.nz0 * p.bite]]) {
@@ -1344,9 +1356,13 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   const wantsFill = BANK_FILLETS[areaId] || areaData.waterFx.some((h) => biteKind(areaId, h));
   const ground = wantsFill ? fillGround(scene) : null;
   const fillets = ground && BANK_FILLETS[areaId] ? BANK_FILLETS[areaId].map((f) => {
-    // the fill rides just over the highest water at the corner
+    // the fill rides FILL_LIFT over the highest water anywhere in its cell
+    // (not just at the corner: a second water can overlap the cell's far side)
+    const cells = [];
+    for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) cells.push([f.x + f.wx * f.r * (i / 4), f.z + f.wz * f.r * (j / 4)]);
+    cells.push([f.x + f.wx * 0.01, f.z + f.wz * 0.01]);
     const ys = areaData.waterFx
-      .filter((h) => waterGap(h.footprint, f.x + f.wx * 0.01, f.z + f.wz * 0.01) < 0)
+      .filter((h) => cells.some(([x, z]) => waterGap(h.footprint, x, z) < 0))
       .map((h) => h.y ?? 0.03);
     const fillY = (ys.length ? Math.max(...ys) : 0.03) + FILL_LIFT;
     return { ...f, fillY, fillTop: fillY + LIP_LIFT * 0.5, samples: [] };
@@ -1408,10 +1424,11 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
       return {
         ...out,
         seed: r.ctx.seed,
+        fillY: r.ctx.fillY,
         period: r.ctx.period,
         closed: r.ctx.chainClosed,
         length: r.ctx.chainLength,
-        samples: r.samples.map(({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite, fillTop }) => ({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite, fillTop })),
+        samples: r.samples.map(({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite, fillTop, fillY }) => ({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite, fillTop, fillY })),
       };
     });
   }

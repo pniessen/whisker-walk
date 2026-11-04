@@ -33,7 +33,7 @@ const { tintDuskLawn, duskLook } = await import('../src/render/dusk.js');
 const { resolveQuality } = await import('../src/render/quality.js');
 const HIGH = resolveQuality({ override: 'high' });
 const LOW = resolveQuality({ override: 'low' });
-const { shorePieces, waterClearance, deckDistance } = await import('../src/world/builder.js');
+const { shorePieces, waterClearance, deckDistance, waterGap } = await import('../src/world/builder.js');
 const { pinesLilyPads } = await import('../src/world/pines.js');
 const WORLDS = {
   park: await import('../src/world/park.js'),
@@ -851,15 +851,49 @@ describe('water dressing', () => {
     it('every fill vertex rides FILL_LIFT over its own water, for every dressed area with a fill', () => {
       expect(FILL_LIFT).toBeGreaterThanOrEqual(0.01);
       for (const id of ['woods', 'river', 'moor', 'pines', 'park']) {
-        const { fx, areaData } = dressOnGround(id);
+        const { fx, areaData } = dressOnGround(id, { debug: true });
         const fill = byName(fx, 'waterdress:fill');
         expect(fill, id).toBeTruthy();
-        const ys = [...new Set(areaData.waterFx.map((h) => h.y ?? 0.03))];
         const pts = worldPoints(fill);
         expect(pts.length, id).toBeGreaterThan(0);
+        const key = (x, z) => `${Math.round(x * 1000)},${Math.round(z * 1000)}`;
+        const at = new Map();
         for (const q of pts) {
-          const at = `${id} ${q.x.toFixed(2)},${q.z.toFixed(2)} y ${q.y}`;
-          expect(ys.some((y) => Math.abs(q.y - (y + FILL_LIFT)) < 1e-6), at).toBe(true);
+          const k = key(q.x, q.z);
+          if (!at.has(k)) at.set(k, []);
+          at.get(k).push(q.y);
+        }
+        // each bite strip: its water's own height, at the bitten point of every bitten sample
+        let strips = 0;
+        for (const b of bitesOf(fx)) {
+          const h = areaData.waterFx.find((w) => w.footprint.id === b.water);
+          const own = (h.y ?? 0.03) + FILL_LIFT;
+          expect(b.fillY, `${id} ${b.water}`).toBeCloseTo(own, 6);
+          for (const p of b.samples) {
+            if (!(p.bite > 0)) continue;
+            strips++;
+            const bx = p.x0 - p.nx0 * p.bite, bz = p.z0 - p.nz0 * p.bite;
+            const ys = at.get(key(bx, bz)) ?? [];
+            // alone in its footprint: exactly its own water's height; where another
+            // water is within reach of the strip (a junction), at least that, and
+            // at least over every water holding the bitten point
+            const near = areaData.waterFx.filter((w) => w !== h && [[bx, bz], [p.x0, p.z0]].some(([x, z]) => waterGap(w.footprint, x, z) < 0.2));
+            const want = Math.max(own, ...areaData.waterFx.filter((w) => waterGap(w.footprint, bx, bz) < 0).map((w) => (w.y ?? 0.03) + FILL_LIFT));
+            const label = `${id} ${b.water} ${p.x.toFixed(2)},${p.z.toFixed(2)}`;
+            if (near.length === 0) expect(ys.some((y) => Math.abs(y - own) < 1e-6), label).toBe(true);
+            else expect(ys.some((y) => y >= want - 1e-6), label).toBe(true);
+          }
+        }
+        expect(strips, id).toBeGreaterThan(0);
+        // no overlapped water pokes through: the fill is at least FILL_LIFT over every
+        // water whose footprint holds the vertex (a strip vertex that a bank pushes into
+        // a LOWER neighbouring water may sit higher than that water + the lift: it is
+        // land there, and covers it)
+        for (const q of pts) {
+          for (const h of areaData.waterFx) {
+            if (waterGap(h.footprint, q.x, q.z) >= 0) continue;
+            expect(q.y, `${id} ${h.footprint.id} under fill at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBeGreaterThanOrEqual((h.y ?? 0.03) + FILL_LIFT - 1e-6);
+          }
         }
       }
     }, 120_000);
@@ -887,10 +921,10 @@ describe('water dressing', () => {
           for (const p of b.samples) {
             if (!(p.bite > 0.05) || p.fillTop === undefined) continue;
             const wob = bankWobble(b.seed, p.s, b.period);
-            const fillY = p.fillTop - 0.002;
+            const fillY = b.fillY;
             for (const o of [wob - 0.34, wob - 0.12, wob]) {
               // strictly inside the bite, well clear of the strip's ends
-              if (!(o > 0.02 && o < 0.5 * p.bite) || p.nx * p.nx0 + p.nz * p.nz0 < 0.9) continue;
+              if (!(o > 0.02 && o < p.bite) || p.nx * p.nx0 + p.nz * p.nz0 < 0.9) continue;
               for (const q of found(p.x + p.nx * o, p.z + p.nz * o)) {
                 checked++;
                 expect(q.y, `${id} ${b.water} at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBeGreaterThanOrEqual(fillY - 1e-6);
@@ -907,6 +941,15 @@ describe('water dressing', () => {
       expect(triangles(byName(fx, 'waterdress:fill'))).toBe(724);
       expect(triangles(byName(fx, 'waterdress:band'))).toBe(5422);
       expect(triangles(byName(fx, 'waterdress:stones'))).toBe(1764);
+    }, 120_000);
+
+    it('Park pond: triangle counts are unchanged by the lift and the fill rides pond y + FILL_LIFT', () => {
+      const { fx, areaData } = dressOnGround('park');
+      expect(triangles(byName(fx, 'waterdress:fill'))).toBe(128);
+      expect(triangles(byName(fx, 'waterdress:band'))).toBe(640);
+      expect(triangles(byName(fx, 'waterdress:stones'))).toBe(507);
+      const pond = areaData.waterFx.find((h) => h.footprint.id === 'pond');
+      for (const q of worldPoints(byName(fx, 'waterdress:fill'))) expect(q.y).toBeCloseTo((pond.y ?? 0.03) + FILL_LIFT, 6);
     }, 120_000);
 
     it('the fill covers the bitten strip', () => {
