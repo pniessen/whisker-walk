@@ -678,9 +678,72 @@ describe('water dressing', () => {
           if (/^(lake|pond|pool|bog|sea)/.test(wid)) expect(isStream(h), `${id} ${wid}`).toBe(false);
         }
       }
-      expect(BITE_CIRCLES).toEqual({ park: ['pond'] });
+      expect(BITE_CIRCLES).toEqual({ park: ['pond'], woods: ['pond'], river: ['pond', 'pool-1', 'pool-2', 'pool-3'] });
       expect(Object.isFrozen(BITE_CIRCLES)).toBe(true);
       expect(Object.isFrozen(BITE_CIRCLES.park)).toBe(true);
+      expect(Object.isFrozen(BITE_CIRCLES.woods)).toBe(true);
+      expect(Object.isFrozen(BITE_CIRCLES.river)).toBe(true);
+    }, 120_000);
+
+    const RINGS = { woods: ['pond'], river: ['pond', 'pool-1', 'pool-2', 'pool-3'] };
+    const RING_AT = { woods: { pond: [-44, -6, 6] }, river: { pond: [44, -6, 6], 'pool-1': [-30, 12, 3.5], 'pool-2': [-12, 34, 2.5], 'pool-3': [-40, 33, 3] } };
+
+    it('the Woods pond and the River pond and pools are bitten like the Park pond', () => {
+      for (const [id, wids] of Object.entries(RINGS)) {
+        const { fx } = dressOnGround(id, { debug: true });
+        const bites = bitesOf(fx);
+        for (const w of wids) {
+          const b = bites.find((q) => q.water === w);
+          expect(b, `${id} ${w}`).toBeTruthy();
+          expect(b.maxBite, `${id} ${w}`).toBeLessThanOrEqual(0.6 + 1e-9);
+          expect(b.maxBite, `${id} ${w}`).toBeGreaterThanOrEqual(0.02);
+        }
+        // no clear white foam round those rings, at any time of day
+        for (const evening of [null, 'sunset', 'dusk']) {
+          const g = byName(dressOnGround(id, { evening }).fx, 'waterdress:band').geometry;
+          const pos = g.getAttribute('position'), col = g.getAttribute('color'), foam = g.getAttribute('aFoam');
+          const soft = new THREE.Color(0xcfe0e4);
+          for (const w of wids) {
+            const [cx, cz, r] = RING_AT[id][w];
+            const others = undecked(area(id).areaData.waters).filter((q) => q.id !== w);
+            let n = 0;
+            for (let i = 0; i < foam.count; i++) {
+              if (foam.getX(i) !== 1) continue;
+              if (Math.abs(Math.hypot(pos.getX(i) - cx, pos.getZ(i) - cz) - r) > 1) continue;
+              // where another water (a stream the pond runs into) owns the rim, its foam stands
+              if (waterClearance(others, pos.getX(i), pos.getZ(i)) < 1.5) continue;
+              n++;
+              expect(col.getW(i), `${id} ${w} ${evening}`).toBeLessThanOrEqual(0.5 * 0.45 + 1e-6);
+              if (evening === null) {
+                const at = `${id} ${w} ${pos.getX(i).toFixed(2)},${pos.getZ(i).toFixed(2)} c=${col.getX(i).toFixed(3)}`;
+                expect(col.getX(i), at).toBeCloseTo(soft.r, 6);
+                expect(col.getY(i)).toBeCloseTo(soft.g, 6);
+                expect(col.getZ(i)).toBeCloseTo(soft.b, 6);
+              }
+            }
+            expect(n, `${id} ${w} ${evening}`).toBeGreaterThan(10);
+          }
+        }
+      }
+    }, 120_000);
+
+    it('pond bites keep every fish spot clear', () => {
+      for (const id of Object.keys(RINGS)) {
+        const { areaData } = area(id);
+        const before = JSON.stringify(fishSpots(id, areaData));
+        const { fx } = dressOnGround(id);
+        expect(JSON.stringify(fishSpots(id, areaData)), id).toBe(before);
+        const fill = worldPoints(byName(fx, 'waterdress:fill'));
+        for (const f of fishSpots(id, areaData)) {
+          for (const q of fill) expect(Math.hypot(q.x - f.x, q.z - f.z), `${id} ${f.x},${f.z}`).toBeGreaterThanOrEqual(0.5);
+        }
+      }
+    }, 120_000);
+
+    it('pond dressing adds at most 1,200 triangles in the River and 600 in the Woods', () => {
+      const sum = (id) => dressOnGround(id).fx.meshes.reduce((n, m) => n + triangles(m), 0);
+      expect(sum('river')).toBeLessThanOrEqual(10_793 + 1_200);
+      expect(sum('woods')).toBeLessThanOrEqual(7_917 + 600);
     }, 120_000);
 
     it('bankBite stays in range and is smooth', () => {

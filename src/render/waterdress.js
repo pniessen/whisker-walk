@@ -184,7 +184,13 @@ export const BANK_FILLETS = Object.freeze({
 // still meets the stepping stones or the log) and round a fillet's corner
 // (the fan rounds that one). With no ground plane to borrow there is no bite,
 // and the band is the old band exactly.
-export const BITE_CIRCLES = Object.freeze({ park: Object.freeze(['pond']) });
+// The Woods pond already has reeds on its east half (woods.js reedSpots), so
+// it gets no POND_PLANTS entry.
+export const BITE_CIRCLES = Object.freeze({
+  park: Object.freeze(['pond']),
+  woods: Object.freeze(['pond']),
+  river: Object.freeze(['pond', 'pool-1', 'pool-2', 'pool-3']),
+});
 export const BITE_MAX = 0.85;
 const STREAM_MAX_W = 6;
 // The bite's own long waves (the wobble's are 4.7 / 2.3 / 1.3 m).
