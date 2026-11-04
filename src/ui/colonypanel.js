@@ -19,6 +19,7 @@ import { roleFor } from '../clanroles.js';
 import { isTradeableAccessory } from '../progression.js';
 import { emptyStateHtml } from './emptystates.js';
 import { placeName, accessoryName } from '../edition.js';
+import { PAW, pawify } from './pawicon.js';
 
 // Duplicated from hometabs.js rather than imported (a copy beats a shared
 // helper module for six lines).
@@ -150,7 +151,7 @@ function catCard(cat, p, ctx) {
     <div class="colony-count">${p.have} of ${p.need} feeds${p.tamed ? ' · tamed ✅' : ''}</div>
     ${knew}
     <div class="colony-fedby">${escapeHtml(fed)}</div>
-    <div class="colony-where">${escapeHtml(where)}</div>
+    <div class="colony-where">${pawify(escapeHtml(where))}</div>
     <div class="colony-found">${escapeHtml(found)}</div>
     ${dress}
   </div>`;
@@ -298,7 +299,7 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
     (b.p.tamed - a.p.tamed) || (b.p.have - a.p.have) || (a.cat.name < b.cat.name ? -1 : a.cat.name > b.cat.name ? 1 : 0));
 
   const mode = status && status.mode;
-  const header = `<p class="colony-mode" data-mode="${escapeHtml(mode)}">${escapeHtml(modeLine(mode, partnerName))}</p>`;
+  const header = `<p class="colony-mode" data-mode="${escapeHtml(mode)}">${pawify(escapeHtml(modeLine(mode, partnerName)))}</p>`;
   const list = rows.length
     ? `<div class="cards colony-cards">${rows.map((r) => catCard(r.cat, r.p, ctx)).join('')}</div>`
     : emptyStateHtml('colony');
@@ -330,7 +331,7 @@ export function renderNewsHtml(news, partnerName) {
   if (lines.length === 0) return '';
   const sub = partnerName ? `What's new with you and ${escapeHtml(partnerName)}` : "What's new in your colony";
   return `<div class="colony-news-card" role="dialog" aria-modal="true" aria-labelledby="colony-news-title">
-    <h2 id="colony-news-title">While you were out 🐾</h2>
+    <h2 id="colony-news-title">While you were out ${PAW}</h2>
     <p class="colony-news-sub">${sub}</p>
     <ul class="colony-news-list">${lines.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>
     <button type="button" id="colony-news-ok" class="colony-news-btn">Let's go!</button>
@@ -485,9 +486,9 @@ const partnerNameOf = (partner) => (partner && partner.petName ? String(partner.
 // nobody is told to wait. While that ask is out it reads "Starting…" and is
 // disabled, so a second press can't send a second ask.
 export function renderStartButtonHtml(room) {
-  if (!room) return '<button id="btn-start" class="primary">Start the walk 🐾</button>';
+  if (!room) return `<button id="btn-start" class="primary">Start the walk ${PAW}</button>`;
   if (room.starting) return '<button id="btn-start" class="primary" disabled>Starting…</button>';
-  return '<button id="btn-start" class="primary">Start the walk together 🐾</button>';
+  return `<button id="btn-start" class="primary">Start the walk together ${PAW}</button>`;
 }
 
 // One button, no code to type: only while paired (status.mode is 'local'
@@ -495,7 +496,7 @@ export function renderStartButtonHtml(room) {
 export function renderPartnerWalkHtml({ status, colony, room } = {}) {
   const partner = partnerOf(colony);
   if (!status || status.mode !== 'paired' || !partner || room) return '';
-  return `<button id="wt-pair-walk" class="primary">🐾 Walk with ${escapeHtml(partnerNameOf(partner))}</button>`;
+  return `<button id="wt-pair-walk" class="primary">${PAW} Walk with ${escapeHtml(partnerNameOf(partner))}</button>`;
 }
 
 // The room panel's heading. A pair room's code is the colony id, which is

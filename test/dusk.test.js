@@ -363,4 +363,23 @@ describe('dusk lamps', () => {
     const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(src).toContain('if (duskLookNow && !isDen) createLampPools(scene);');
   });
+
+  it('a multi-material duskTint mesh (the camp clearing floor) wears tinted clones of each material, restored on dispose', () => {
+    const solid = new THREE.MeshStandardMaterial({ color: 0xd8c890 });
+    const rim = new THREE.MeshStandardMaterial({ color: 0xd8c890, vertexColors: true, transparent: true });
+    const mesh = new THREE.Mesh(new THREE.CircleGeometry(1, 8), [solid, rim]);
+    mesh.userData.duskTint = true;
+    const look = duskLook({});
+    const h = tintDuskLawn({ ground: [mesh], grass: null, look });
+    expect(Array.isArray(mesh.material)).toBe(true);
+    expect(mesh.material[0]).not.toBe(solid);
+    expect(mesh.material[1]).not.toBe(rim);
+    const want = duskLawnColor(new THREE.Color(0xd8c890), look);
+    for (const m of mesh.material) expect(Math.abs(m.color.g - want.g)).toBeLessThan(1e-6);
+    expect(mesh.material[1].transparent).toBe(true);
+    expect(mesh.material[1].vertexColors).toBe(true);
+    h.dispose();
+    expect(mesh.material[0]).toBe(solid);
+    expect(mesh.material[1]).toBe(rim);
+  });
 });

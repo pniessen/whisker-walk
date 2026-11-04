@@ -34,6 +34,7 @@ import { disposeHenRig } from '../cat/henfight.js';
 import { activeCat, scarKey } from '../customcats.js';
 import { herCatPortrait } from '../thumbnails.js';
 import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion } from '../ui/screencards.js';
+import { PAW } from '../ui/pawicon.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
@@ -661,8 +662,10 @@ export function createWalkLifecycle({
 
     // Dusk lawns: the same ground list rain darkens, taken before anything else is added.
     // The far band (lawn, hills, skylines; builder.js horizonBand) joins the ground here, or
-    // the tinted near lawn ends in a bright neon strip at the fog line.
-    const duskGround = duskLookNow ? scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path' || c.name === 'horizonBand')) : [];
+    // the tinted near lawn ends in a bright neon strip at the fog line. A top-level mesh tagged
+    // userData.duskTint (the camps' soft clearing floor) and the ford's stepping stones join it too,
+    // or they glow pale in a dark scene.
+    const duskGround = duskLookNow ? scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint || c.name === 'path' || c.name === 'horizonBand' || c.name === 'steppingStones')) : [];
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, tintWet() {}, dispose() {} };
     if (!duskActive && !isDen) {
       // The ground and paths in the scene right now (the area's own, before
@@ -1970,10 +1973,10 @@ export function createWalkLifecycle({
       <div class="summary-cheer">${escapeHtml(summaryCheer(earned, discoveries))}</div>
       ${isRecord
         ? '<div class="record-banner">NEW BEST WALK! 🏆</div>'
-        : `<div class="best-line">best walk: ${progression.state.bestWalk} 🐾</div>`}
+        : `<div class="best-line">best walk: ${progression.state.bestWalk} ${PAW}</div>`}
       ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals })}
       ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
-      ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus 🐾</div>` : ''}
+      ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus ${PAW}</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now.&nbsp;🏠</div>` : ''}
       ${crossHtml}

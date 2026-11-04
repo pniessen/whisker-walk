@@ -12,7 +12,9 @@
 // is exactly the thing that deserves a test. cardHtml is therefore exported
 // separately from the DOM plumbing.
 
+
 import { escapeHtml } from './util.js';
+import { PAW } from '../ui/pawicon.js';
 
 // How long a card stays up, and how long its fade-out transition runs. The
 // fade is CSS (.skill-unlock.fade); these two numbers only have to be at
@@ -35,7 +37,7 @@ export function cardHtml(skill) {
   const feat = escapeHtml(skill?.feat ?? '');
   return `<div class="skill-unlock-inner">
       <div class="skill-unlock-kicker">NEW ABILITY UNLOCKED</div>
-      <div class="skill-unlock-name">🐾 ${name}</div>
+      <div class="skill-unlock-name">${PAW} ${name}</div>
       <div class="skill-unlock-effect">${effect}</div>
       ${feat ? `<div class="skill-unlock-feat">${feat} ✓</div>` : ''}
     </div>`;

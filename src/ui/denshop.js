@@ -7,6 +7,7 @@
 // where a name came from), and every number from the save goes through
 // asFiniteNonNeg. Counts come from the DEN_ITEMS / DEN_SPOTS passed in.
 import { asFiniteNonNeg } from '../progression.js';
+import { PAW } from './pawicon.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
 
 // A short, friendly name for each anchor spot, keyed by its DEN_SPOTS id (the
@@ -66,11 +67,11 @@ function itemCard(id, item, owned, points) {
   }
   if (points >= price) {
     return `<div class="ds-card" data-den-item="${escapeHtml(id)}">
-      <div class="ds-name">${name}</div><div class="ds-act"><button type="button" class="ds-buy" data-den-buy="${escapeHtml(id)}">Buy — ${price} 🐾</button></div>
+      <div class="ds-name">${name}</div><div class="ds-act"><button type="button" class="ds-buy" data-den-buy="${escapeHtml(id)}" aria-label="Buy — ${price} whisker points">Buy — ${price} ${PAW}</button></div>
     </div>`;
   }
   return `<div class="ds-card locked" data-den-item="${escapeHtml(id)}">
-      <div class="ds-name">${name}</div><div class="ds-act"><span class="ds-tag">${price} 🐾</span></div>
+      <div class="ds-name">${name}</div><div class="ds-act"><span class="ds-tag" aria-label="${price} whisker points">${price} ${PAW}</span></div>
     </div>`;
 }
 
@@ -116,7 +117,7 @@ export function renderDenShopHtml(state, items = DEN_ITEMS, spots = DEN_SPOTS, u
     : `<p class="ds-hint">Buy something you like, then pick a spot for it!</p>\n      ${shop}\n      ${arrange}`;
   return `<div class="ds-head">
       <h2>🛋️ Den shop</h2>
-      <span class="ds-points">🐾 ${points}</span>
+      <span class="ds-points" aria-label="${points} whisker points">${PAW} ${points}</span>
       <button type="button" class="ds-done" data-den-done>Done</button>
     </div>
     ${note}
