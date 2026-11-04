@@ -226,6 +226,15 @@ function placeHtml(p) {
     + `<span class="cap">${escapeHtml(p.name)}<small>${escapeHtml(sub)}</small></span></button>`;
 }
 
+// The builder's sit/stand toggle (it sits in the hero text strip, which the
+// stage keeps clear of the cat). The words say what a tap does; aria-pressed
+// says the cat is sitting. No pose given: no toggle.
+export function poseToggleHtml(pose) {
+  if (pose !== 'sit' && pose !== 'stand') return '';
+  const sitting = pose === 'sit';
+  return `<button class="dr-pose" data-dr-pose="${sitting ? 'stand' : 'sit'}" aria-pressed="${sitting}">🐾 ${sitting ? 'Stand' : 'Sit'}</button>`;
+}
+
 // headerHtml / statsHtml / startHtml / extrasHtml are pre-rendered, already
 // escaped HTML from the owner (homebase), inserted verbatim, once each.
 export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '', startHtml = '', extrasHtml = '', sheets = HOME_SHEETS, ui = {}, thumbs } = {}) {
@@ -234,7 +243,7 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
   const openSlot = m.slots.some((s) => s.slot === ui.openSlot) ? ui.openSlot : null;
   const h = m.hero;
   const building = typeof ui.builderHtml === 'string' && ui.builderHtml !== '';
-  const buy = building ? ''
+  const buy = building ? poseToggleHtml(ui.pose)
     : h.custom ? `<button class="dr-hero-edit" data-dr-edit="${escapeHtml(h.id)}">✏️ Change my cat</button>`
     : h.owned ? ''
     : h.canBuy ? `<button class="dr-hero-buy" data-dr-buy-cat="${escapeHtml(h.id)}">Unlock — ${h.price} 🐾</button>`

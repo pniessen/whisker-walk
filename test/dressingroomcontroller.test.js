@@ -379,6 +379,92 @@ describe('createDressingRoom: her own cats and the builder', () => {
     dr.afterRender({ id: 'dr-stage' });
     expect(stage.show).toHaveBeenLastCalledWith('tabby', {}, DEFAULT_LOOK);
   });
+  describe('🐾 Sit / Stand in the builder', () => {
+    const memStore = (init = {}) => {
+      const m = new Map(Object.entries(init));
+      return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: vi.fn((k, v) => m.set(k, String(v))), m };
+    };
+    function posed({ storage = memStore() } = {}) {
+      const map = new Map();
+      const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+      const calls = [];
+      const stage = {
+        mount() {}, failed: false,
+        show: vi.fn((...a) => calls.push(['show', ...a])),
+        setPose: vi.fn((p, o) => calls.push(['setPose', p, o])),
+      };
+      const onChange = vi.fn();
+      const dr = createDressingRoom({ progression, stage, onChange, storage, snapCustom: () => ({}), thumbs: { cats: {}, accessories: {}, mine: {} } });
+      return { dr, stage, calls, storage, onChange, progression };
+    }
+
+    it('the builder cat stands by default; the room stays sitting', () => {
+      const { dr, calls } = posed();
+      dr.afterRender({ id: 'dr-stage' });
+      expect(calls.at(-2)).toEqual(['setPose', 'sit', { redraw: false }]);
+      dr.handleClick(click({ drMake: '' }));
+      dr.afterRender({ id: 'dr-stage' });
+      expect(calls.at(-2)).toEqual(['setPose', 'stand', { redraw: false }]);
+      expect(calls.at(-1)).toEqual(['show', 'tabby', {}, DEFAULT_LOOK]);
+      const html = dr.html();
+      expect(html).toContain('data-dr-pose="sit"');
+      expect(html).toContain('aria-pressed="false">🐾 Sit</button>');
+      dr.handleClick(click({ cbCancel: '' })); // clean draft: closes at once
+      dr.afterRender({ id: 'dr-stage' });
+      expect(calls.at(-2)).toEqual(['setPose', 'sit', { redraw: false }]);
+      expect(dr.html()).not.toContain('data-dr-pose');
+    });
+
+    it('the toggle sits and stands the draft, re-renders, and is remembered', () => {
+      const { dr, stage, storage, onChange } = posed();
+      dr.handleClick(click({ drMake: '' }));
+      dr.afterRender({ id: 'dr-stage' });
+      const shows = stage.show.mock.calls.length;
+      onChange.mockClear();
+      expect(dr.handleClick(click({ drPose: 'sit' }))).toBe(true);
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(storage.setItem).toHaveBeenLastCalledWith('whisker-walk-builder-pose', 'sit');
+      dr.afterRender({ id: 'dr-stage' });
+      expect(stage.setPose).toHaveBeenLastCalledWith('sit', { redraw: false });
+      expect(stage.show.mock.calls.length).toBe(shows + 1);
+      expect(dr.html()).toContain('data-dr-pose="stand" aria-pressed="true">🐾 Stand</button>');
+      dr.afterRender({ id: 'dr-stage' }); // a plain re-render rebuilds nothing
+      expect(stage.show.mock.calls.length).toBe(shows + 1);
+      // the size slider keeps her pose
+      dr.handleInput({ target: { dataset: { cbSize: '' }, value: '0.9', closest: () => null } });
+      expect(stage.setPose).toHaveBeenLastCalledWith('sit', { redraw: false });
+      // a new room on the same storage starts the builder sitting
+      const again = posed({ storage });
+      again.dr.handleClick(click({ drMake: '' }));
+      again.dr.afterRender({ id: 'dr-stage' });
+      expect(again.stage.setPose).toHaveBeenLastCalledWith('sit', { redraw: false });
+    });
+
+    it('outside the builder, or with junk, the toggle does nothing; a broken storage is fine', () => {
+      const { dr, storage } = posed();
+      dr.handleClick(click({ drPose: 'sit' }));
+      expect(storage.setItem).not.toHaveBeenCalled();
+      dr.handleClick(click({ drMake: '' }));
+      dr.handleClick(click({ drPose: 'nap' }));
+      expect(storage.setItem).not.toHaveBeenCalled();
+      const broken = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
+      const b = posed({ storage: broken });
+      b.dr.handleClick(click({ drMake: '' }));
+      expect(() => b.dr.handleClick(click({ drPose: 'sit' }))).not.toThrow();
+      b.dr.afterRender({ id: 'dr-stage' });
+      expect(b.stage.setPose).toHaveBeenLastCalledWith('sit', { redraw: false }); // this visit only
+      expect(posed({ storage: null }).dr.html()).toBeTypeOf('string');
+    });
+
+    it('a keyboard toggle keeps its focus across the render', () => {
+      const { dr } = posed();
+      const fresh = { focus: vi.fn() };
+      const root = { ownerDocument: { activeElement: { dataset: { drPose: 'sit' } } }, querySelector: (s) => (s === '[data-dr-pose]' ? fresh : null) };
+      dr.restoreFocus(root, dr.captureFocus(root));
+      expect(fresh.focus).toHaveBeenCalledWith({ preventScroll: true });
+    });
+  });
+
   it('the size slider sets the size and redraws the stage without a render', () => {
     const { dr, stage, onChange } = real();
     dr.handleClick(click({ drMake: '' }));
