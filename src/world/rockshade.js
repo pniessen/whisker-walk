@@ -127,7 +127,7 @@ const COLOUR = /* glsl */`
 		highp vec3 rgp = rw * vec3( ${f(S.grainFreq)}, ${f(S.grainFreq * 2.4)}, ${f(S.grainFreq)} );
 		float rnear = smoothstep( ${f(S.nearLo)}, ${f(S.nearHi)}, distance( rw, cameraPosition ) );
 		float rgOn = 1.0 - smoothstep( ${f(S.grainFadeLo)}, ${f(S.grainFadeHi)}, length( fwidth( rgp ) ) );
-		rshade *= ${f(S.grainBase)} + ${f(S.grainAmp)} * mix( 1.35, 1.0, rnear ) * mix( 0.5, vnoise( rgp ), rgOn );
+		rshade *= ${f(S.grainBase)} + ${f(S.grainAmp)} * ( 0.5 + mix( 1.35, 1.0, rnear ) * ( mix( 0.5, vnoise( rgp ), rgOn ) - 0.5 ) );
 		rshade *= 1.0 - ${f(S.overhang)} * clamp( - rn.y, 0.0, 1.0 );
 		diffuseColor.rgb *= rshade;
 	}
@@ -191,6 +191,6 @@ export function patchRockMaterial(material, { flutes = true } = {}) {
   // is the onBeforeCompile source).
   const prevKey = Object.prototype.hasOwnProperty.call(material, 'customProgramCacheKey')
     ? material.customProgramCacheKey.bind(material) : null;
-  material.customProgramCacheKey = () => (prevKey?.() ?? '') + 'gorge-rock-v2' + (flutes ? '' : '-nf');
+  material.customProgramCacheKey = () => (prevKey?.() ?? '') + 'gorge-rock-v3' + (flutes ? '' : '-nf');
   return material;
 }

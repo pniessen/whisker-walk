@@ -1042,7 +1042,14 @@ function shellOf(rockFaces) {
 // opening's rectangle. caveTunnelFor's mouthTint starts the liner in it.
 const MOUTH_TINT_NEAR = 1.5;
 const MOUTH_TINT_LEN = 3.5;
+// Cached like narrowsDressing's tufts: the Gorge's one fixed rock gives the
+// same answer every build, so `rockFaces` is not part of the key.
+let tintsCache = null;
 export function mouthTintsFor(rockFaces) {
+  if (!tintsCache) tintsCache = computeMouthTints(rockFaces);
+  return { ...tintsCache };
+}
+function computeMouthTints(rockFaces) {
   const { p, cAttr, shellEnd } = shellOf(rockFaces);
   const out = {};
   for (const a of GORGE_MOUTH_ARCHES.filter((q) => GORGE_CAVES.some((c) => c.id === q.id))) {
@@ -1070,13 +1077,26 @@ export function mouthTintsFor(rockFaces) {
 // mouth plane is inside solid rock (the notch's walls), else in `misses`.
 // `ranges[id]`: the arch's triangles in pos ({ from, to }, the threshold
 // stones the last `stones` of them); `rims[id]`: its rim vertices, world [x, y, z].
+let archesCache = null;
 export function mouthArchesFor(rockFaces) {
+  if (!archesCache) archesCache = computeMouthArches(rockFaces);
+  const c = archesCache;
+  // fresh typed arrays and records per caller: nothing cached is shared
+  const copy = (o) => JSON.parse(JSON.stringify(o));
+  return {
+    ...c,
+    pos: c.pos.slice(), col: c.col.slice(), nor: c.nor.slice(),
+    byId: copy(c.byId), stones: Object.fromEntries(Object.entries(c.stones).map(([k, v]) => [k, v.slice()])), rims: copy(c.rims),
+    ranges: copy(c.ranges), misses: copy(c.misses), buried: copy(c.buried), rimBuried: copy(c.rimBuried),
+  };
+}
+function computeMouthArches(rockFaces) {
   const { p, cAttr, shellEnd } = shellOf(rockFaces);
   const g = shapeGround();
   const spots = campSpots();
   const fallback = new THREE.Color(ARCH_FALLBACK);
   const pos = [], col = [], nor = [];
-  const byId = {}, stones = {}, rims = {}, ranges = {}, misses = {}, buriedById = {};
+  const byId = {}, stones = {}, rims = {}, ranges = {}, misses = {}, buriedById = {}, rimBuriedById = {};
   const append = (m, vcol) => {
     for (const v of m.idx) {
       pos.push(m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2]);
@@ -1099,8 +1119,8 @@ export function mouthArchesFor(rockFaces) {
       const q = toLocal(p[i], p[i + 1], p[i + 2]);
       if (Math.abs(q[0]) <= a.half + ARCH_NEAR && q[1] >= -2 && q[1] <= a.headroom + ARCH_NEAR + 1 && Math.abs(q[2]) <= ARCH_NEAR + 1) verts.push(i / 3);
     }
-    let miss = 0, buried = 0;
-    const surface = (u, hIn) => {
+    let miss = 0, buried = 0, rimBuried = 0;
+    const surface = (u, hIn, stoneTry = false) => {
       // a ring's foot (h -0.02) is sampled just over the floor, where the face starts
       const h = Math.max(ARCH_SAMPLE_FLOOR, hIn);
       let best = -Infinity;
@@ -1120,7 +1140,7 @@ export function mouthArchesFor(rockFaces) {
         // of the mouth plane (the Snug Cave's notch walls stand out 2.8 m each
         // side of its mouth, so the rim there is buried) or a true miss
         const X = a.x + lx * u + a.nx * 0.05, Z = a.z + lz * u + a.nz * 0.05;
-        if (g.y(X, Z) > a.y + h + 0.05) buried++; else miss++;
+        if (g.y(X, Z) > a.y + h + 0.05) { buried++; if (!stoneTry) rimBuried++; } else miss++;
         return 0;
       }
       return best;
@@ -1139,6 +1159,7 @@ export function mouthArchesFor(rockFaces) {
     byId[a.id] = m.idx.length / 3;
     misses[a.id] = miss;
     buriedById[a.id] = buried;
+    rimBuriedById[a.id] = rimBuried;
     rims[a.id] = m.rim.map((i) => [m.pos[i * 3], m.pos[i * 3 + 1], m.pos[i * 3 + 2]]);
     // colour: the nearest rock vertex within ARCH_COLOR_R (1 m bins), shaded
     const nearest = nearestRock(p, verts);
@@ -1181,7 +1202,7 @@ export function mouthArchesFor(rockFaces) {
   }
   return {
     pos: new Float32Array(pos), col: new Float32Array(col), nor: new Float32Array(nor),
-    tris: pos.length / 9, byId, stones, rims, ranges, misses, buried: buriedById,
+    tris: pos.length / 9, byId, stones, rims, ranges, misses, buried: buriedById, rimBuried: rimBuriedById,
   };
 }
 
@@ -1352,6 +1373,10 @@ export function build(scene, { water = {}, wind } = {}) {
   // (before the arches join the mesh: the shell's own colours).
   const mouthTints = mouthTintsFor(rockFaces);
   const arches = mouthArchesFor(rockFaces);
+  // each part's triangles in rockFaces itself (the shell's, then the arches')
+  const shellTris = rockFaces.geometry.getAttribute('position').array.length / 9;
+  rock.userData.mouthArchRanges = Object.fromEntries(Object.entries(arches.ranges)
+    .map(([id, r]) => [id, { from: shellTris + r.from, to: shellTris + r.to }]));
   appendArches(rockFaces, arches);
   rock.userData.mouthArches = arches.byId;
   rock.userData.mouthTints = mouthTints;

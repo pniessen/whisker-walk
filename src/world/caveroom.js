@@ -1410,7 +1410,7 @@ export function caveMouth({
     // face; where the face leaves too little of it showing, none
     const reachW = reachR * STONE_DEPTH;
     const au = half + reachR + 0.02 + rng() * 0.6;
-    const face = surface(side * au, r * 0.3);
+    const face = surface(side * au, r * 0.3, true);
     const wOut = Math.min(MOUTH_STONE_OUT, face + 1.4 * reachW);
     const w = wOut - reachW;
     if (wOut - face < STONE_SHOW) continue;

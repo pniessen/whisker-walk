@@ -56,7 +56,7 @@ describe('rock shader patch', () => {
   it('combines an earlier cache key set on the material', () => {
     const mat = new THREE.MeshStandardMaterial();
     mat.customProgramCacheKey = () => 'earlier-';
-    expect(patchRockMaterial(mat).customProgramCacheKey()).toBe('earlier-gorge-rock-v2');
+    expect(patchRockMaterial(mat).customProgramCacheKey()).toBe('earlier-gorge-rock-v3');
   });
 
   it('every derivative is taken outside any branch', () => {
@@ -67,9 +67,9 @@ describe('rock shader patch', () => {
   it('the patch is shared and cheap', () => {
     const a = patchRockMaterial(new THREE.MeshStandardMaterial());
     const b = patchRockMaterial(new THREE.MeshStandardMaterial({ color: 0x123456 }));
-    expect(a.customProgramCacheKey()).toBe('gorge-rock-v2');
+    expect(a.customProgramCacheKey()).toBe('gorge-rock-v3');
     expect(b.customProgramCacheKey()).toBe(a.customProgramCacheKey());
-    expect(patchRockMaterial(new THREE.MeshStandardMaterial(), { flutes: false }).customProgramCacheKey()).toBe('gorge-rock-v2-nf');
+    expect(patchRockMaterial(new THREE.MeshStandardMaterial(), { flutes: false }).customProgramCacheKey()).toBe('gorge-rock-v3-nf');
     // The injected fragment code: at most 3 noise calls (the definition aside), no loops, no sin hash.
     const calls = (ROCK_FRAGMENT.match(/\bvnoise\s*\(/g) ?? []).length - (ROCK_FRAGMENT.match(/float\s+vnoise\s*\(/g) ?? []).length;
     expect(calls).toBeGreaterThan(0);

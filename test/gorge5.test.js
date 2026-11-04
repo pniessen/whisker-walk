@@ -241,6 +241,7 @@ function shellCaster(rockFaces) {
   return (origin, dir) => { ray.set(origin, dir); ray.far = 20; return ray.intersectObject(mesh, false); };
 }
 
+const SNUG_RIM_BURIED = 16; // rim samples of the Snug Cave mouth buried in its notch walls
 describe('polish-gorge5 task 2 review: the as-built arches', () => {
   it('seats every rim on the shell, finds every face and keeps the rules', () => {
     const { rock, rockFaces } = gorgeBuilt();
@@ -250,7 +251,7 @@ describe('polish-gorge5 task 2 review: the as-built arches', () => {
     // what was appended is what mouthArchesFor gives
     const all = rockFaces.geometry.getAttribute('position').array;
     expect(Array.from(all.slice(all.length - arches.pos.length))).toEqual(Array.from(arches.pos));
-    let seated = 0, buried = 0;
+    let seated = 0, buried = 0, worstDenLow = 0;
     const buriedAt = new Set();
     for (const a of GORGE_MOUTH_ARCHES) {
       expect(arches.misses[a.id], `${a.id} surface() misses`).toBe(0);
@@ -285,18 +286,55 @@ describe('polish-gorge5 task 2 review: the as-built arches', () => {
       for (let i = from * 3; i < (to - stones) * 3; i++) {
         const x = arches.pos[i * 3], y = arches.pos[i * 3 + 1], z = arches.pos[i * 3 + 2];
         const { u, h, w } = toLocal(x, y, z);
-        if (h < MOUTH_LOW_H && Math.abs(u) < a.half && w <= 0.6) expect(a.half - Math.abs(u)).toBeLessThanOrEqual(MOUTH_LOW_IN + 1e-6);
+        if (h < MOUTH_LOW_H && Math.abs(u) < a.half && w <= 0.6) {
+          expect(a.half - Math.abs(u)).toBeLessThanOrEqual(MOUTH_LOW_IN + 1e-6);
+          if (a.id === 'campDen') worstDenLow = Math.max(worstDenLow, a.half - Math.abs(u));
+        }
         if (Math.abs(u) < MOUTH_CAM_HALF && h > MOUTH_LOW_H) expect(h).toBeGreaterThanOrEqual(MOUTH_CAM_H - 1e-6);
         if (!rim.has([x, y, z].join(','))) expect(w, `${a.id} vertex at u ${u.toFixed(2)} h ${h.toFixed(2)}`).toBeGreaterThanOrEqual(-0.05);
       }
     }
+    expect(worstDenLow, 'camp den arch worst low intrusion').toBeLessThanOrEqual(0.08);
     expect(seated).toBeGreaterThan(60);
     // only the Snug Cave's mouth, in its notch, has a rim buried in rock
     // (surface() also counts the Snug stones' tries there, all buried too)
     expect([...buriedAt]).toEqual(['snug']);
-    expect(buried).toBeLessThanOrEqual(arches.buried.snug);
-    for (const id of ['echo', 'glitter', 'campDen']) expect(arches.buried[id]).toBe(0);
+    for (const id of ['echo', 'glitter', 'campDen']) {
+      expect(arches.rimBuried[id], `${id} rim buried`).toBe(0);
+      expect(arches.buried[id], `${id} buried`).toBe(0);
+    }
+    expect(arches.rimBuried.snug).toBe(SNUG_RIM_BURIED);
+    expect(buried).toBe(arches.rimBuried.snug);
+    expect(arches.buried.snug).toBeGreaterThanOrEqual(arches.rimBuried.snug);
     expect(rock.userData.mouthArches.echo).toBe(arches.byId.echo);
+  }, 120_000);
+});
+
+describe('polish-gorge5 review: cached arches', () => {
+  it('gives equal arrays per build and shares nothing mutable', () => {
+    const { rockFaces } = gorgeBuilt();
+    const one = mouthArchesFor(rockFaces);
+    const two = mouthArchesFor(rockFaces);
+    expect(two.pos).toEqual(one.pos);
+    expect(two.col).toEqual(one.col);
+    expect(two.byId).toEqual(one.byId);
+    expect(mouthTintsFor(rockFaces)).toEqual(mouthTintsFor(rockFaces));
+    one.pos[0] += 1; one.col[0] += 1; one.byId.echo += 1;
+    expect(mouthArchesFor(rockFaces).pos[0]).toBe(two.pos[0]);
+    expect(mouthArchesFor(rockFaces).byId.echo).toBe(two.byId.echo);
+    // a second build: equal appended data, and mutating the first build's attribute leaves it be
+    const scene2 = new THREE.Scene();
+    build(scene2);
+    const rf2 = scene2.getObjectByName('rockFaces');
+    const p1 = rockFaces.geometry.getAttribute('position'), p2 = rf2.geometry.getAttribute('position');
+    expect(p2.array.length).toBe(p1.array.length);
+    expect(p2.array).not.toBe(p1.array);
+    const tail = (a) => Array.from(a.slice(a.length - two.pos.length));
+    const before = tail(p2.array);
+    expect(before).toEqual(Array.from(two.pos));
+    p1.array[p1.array.length - 1] += 5;
+    expect(tail(rf2.geometry.getAttribute('position').array)).toEqual(before);
+    p1.array[p1.array.length - 1] -= 5;
   }, 120_000);
 });
 
