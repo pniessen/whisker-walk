@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
+import { addTrails } from './pathribbon.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { ISLAND_BRIDGE_WOODS, fromWoods, fromWoodsDisc, islandBridgePlank } from './lake.js';
@@ -722,9 +723,12 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(stones);
 
   // --- the paths --------------------------------------------------------------
-  for (const s of PINES_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
-  // the trail over the Moor border, in the same sand, 2 m wide (PINES_TRAIL)
-  for (const s of PINES_TRAIL) scene.add(b.path(...s, TRAIL_W, PATH_STYLE));
+  // PINES_PATHS, then the trail over the Moor border, in the same sand, 2 m
+  // wide (PINES_TRAIL)
+  addTrails(scene, [
+    { segs: PINES_PATHS, w: PATH_W },
+    { segs: PINES_TRAIL, w: TRAIL_W },
+  ], PATH_STYLE, 'pines');
 
   // --- the truce stones -------------------------------------------------------
   // Two mossy standing stones, one material between them (walk.js disposes

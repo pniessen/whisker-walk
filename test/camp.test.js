@@ -26,6 +26,7 @@ const { CAMP_DEN, WIDE_LEDGE_RECT, gorgeGround } = await import('../src/world/go
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { DISCS } = await import('../src/rivalclans.js');
 const { PRINT_Y } = await import('../src/render/pawprints.js');
+const { TRAIL_RENDER_ORDER } = await import('../src/world/pathribbon.js');
 
 const CAMPS = ['woods', 'river', 'moor', 'pines'];
 const groundSeats = (L) => [L.seats.deputy, ...L.seats.elders, ...L.seats.kits];
@@ -142,7 +143,7 @@ describe('addCamp', () => {
     }
   });
 
-  it('keeps the den inside its footprint and gives the Highrock a tall back stone', () => {
+  it('keeps the den inside its footprint', () => {
     for (const a of CAMPS) {
       const scene = new THREE.Scene();
       addCamp(scene, { colliders: [] }, a);
@@ -155,25 +156,71 @@ describe('addCamp', () => {
           expect(v.y, `${a} ${name}`).toBeLessThan(1.0);
         }
       }
+    }
+  });
+
+  // The Highrock in all five camps (the Gorge's seated on its ledge): every
+  // vertex relative to the rock's spot and the ground under it.
+  const ROCK_CAMPS = [...CAMPS, 'gorge'];
+  const buildRock = (a) => {
+    const scene = new THREE.Scene();
+    const ground = a === 'gorge' ? gorgeGround() : null;
+    addCamp(scene, ground ? { colliders: [], ground } : { colliders: [] }, a);
+    scene.updateMatrixWorld(true);
+    const L = campLayout(a);
+    const base = ground ? ground.y(L.rock.x, L.rock.z) : 0;
+    const rock = scene.getObjectByName('campRock');
+    const verts = worldVerts(rock).map((v) => ({ x: v.x - L.rock.x, y: v.y - base, z: v.z - L.rock.z }));
+    return { scene, L, rock, verts, base };
+  };
+
+  it('the Highrock is a boulder outcrop: within 0.8 m of its spot, 1.0 to 1.2 m tall, no more triangles than before', () => {
+    for (const a of ROCK_CAMPS) {
+      const { rock, verts } = buildRock(a);
       let top = -Infinity;
-      for (const v of worldVerts(group.getObjectByName('campRock'))) {
-        expect(Math.hypot(v.x - L.rock.x, v.z - L.rock.z), `${a} rock`).toBeLessThanOrEqual(0.8);
+      for (const v of verts) {
+        expect(Math.hypot(v.x, v.z), `${a} rock`).toBeLessThanOrEqual(0.8);
+        expect(v.y, `${a} rock`).toBeGreaterThanOrEqual(-0.01);
         top = Math.max(top, v.y);
       }
-      expect(top, a).toBeGreaterThanOrEqual(1.5);
+      // a low, round back stone she leans on, not a tall slab behind her
+      expect(top, a).toBeGreaterThanOrEqual(1.0);
+      expect(top, a).toBeLessThanOrEqual(1.2);
+      const g = rock.geometry;
+      expect(g.index, a).toBeNull();
+      expect(g.attributes.position.count / 3, a).toBeLessThanOrEqual(128);
+    }
+  });
+
+  it('the Highrock is shaded per face, dark at its foot, in the clan\'s rock colour', async () => {
+    const { campLook } = await import('../src/world/camp.js');
+    for (const a of ROCK_CAMPS) {
+      const { rock, verts } = buildRock(a);
+      const col = rock.geometry.attributes.color;
+      expect(col, a).toBeDefined();
+      expect(rock.material.vertexColors, a).toBe(true);
+      expect(rock.material.color.getHex(), a).toBe(campLook(a).rock);
+      let low = 0, lowN = 0, high = 0, highN = 0;
+      for (let t = 0; t < col.count; t += 3) {
+        // one colour a face: all three corners the same
+        for (const k of [1, 2]) expect(col.getX(t + k), `${a} face ${t / 3}`).toBeCloseTo(col.getX(t), 6);
+        const y = (verts[t].y + verts[t + 1].y + verts[t + 2].y) / 3;
+        if (y < 0.25) { low += col.getX(t); lowN++; }
+        if (y > 0.7) { high += col.getX(t); highN++; }
+        expect(col.getX(t)).toBeGreaterThan(0.5);
+        expect(col.getX(t)).toBeLessThanOrEqual(1.1);
+      }
+      expect(low / lowN, a).toBeLessThan(high / highN);
     }
   });
 
   it('gives the Highrock a flat top at rock.h the leader stands on, nothing to clip into', () => {
-    for (const a of CAMPS) {
-      const scene = new THREE.Scene();
-      addCamp(scene, { colliders: [] }, a);
-      scene.updateMatrixWorld(true);
-      const L = campLayout(a);
+    for (const a of ROCK_CAMPS) {
+      const { L, verts } = buildRock(a);
       expect(L.seats.leader.y).toBe(0.8);
       let flat = 0;
-      for (const v of worldVerts(scene.getObjectByName('campRock'))) {
-        if (Math.hypot(v.x - L.rock.x, v.z - L.rock.z) > 0.42) continue;
+      for (const v of verts) {
+        if (Math.hypot(v.x, v.z) > 0.42) continue;
         const at = `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
         expect(v.y, at).toBeLessThanOrEqual(0.82);
         if (v.y >= 0.78 && v.y <= 0.82) flat++;
@@ -182,7 +229,25 @@ describe('addCamp', () => {
     }
   });
 
-  it('the ring is taller and arched, out of the shadow pass, under 3,500 triangles', () => {
+  it("the Highrock's stones keep clear of the fresh-kill pile and the deputy's seat", () => {
+    for (const a of ROCK_CAMPS) {
+      const { scene, L, verts } = buildRock(a);
+      const kill = worldVerts(scene.getObjectByName('campKill')).map((v) => ({ x: v.x - L.rock.x, z: v.z - L.rock.z }));
+      expect(kill.length, a).toBeGreaterThan(0);
+      const dep = { x: L.seats.deputy.x - L.rock.x, z: L.seats.deputy.z - L.rock.z };
+      // the main boulder's 56 triangles come first, then the back stone and
+      // the two steps (20 each): the stones keep 0.25 m off the pile (the
+      // boulder is the collider's size, and the pile 0.3 m off its edge)
+      expect(verts.length, a).toBe(3 * (56 + 60));
+      for (const [i, v] of verts.entries()) {
+        const at = `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
+        if (i >= 3 * 56) for (const k of kill) expect(Math.hypot(v.x - k.x, v.z - k.z), at).toBeGreaterThanOrEqual(0.25);
+        expect(Math.hypot(v.x - dep.x, v.z - dep.z), at).toBeGreaterThanOrEqual(0.45);
+      }
+    }
+  });
+
+  it('the ring is taller and arched, out of the shadow pass, no more than 3,360 triangles', () => {
     for (const a of CAMPS) {
       const scene = new THREE.Scene();
       addCamp(scene, { colliders: [] }, a);
@@ -196,7 +261,7 @@ describe('addCamp', () => {
       expect(ring.castShadow, a).toBe(false);
       const g = ring.geometry;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
-      expect(tris, a).toBeLessThanOrEqual(3500);
+      expect(tris, a).toBeLessThanOrEqual(3360);
       expect(g.attributes.color, a).toBeDefined();
     }
   });
@@ -236,36 +301,38 @@ describe('addCamp', () => {
       scene.updateMatrixWorld(true);
       const D = campDressing(a);
       const { cx, cz } = DISCS[a];
-      // every ring vertex is a clump's, inside its footprint and under its
-      // h, or a bramble strand's, over the line between two neighbouring
-      // clumps (0.6 m or less apart), under 1 m
+      // polish-camps4: the clumps come first in the merged ring, 28
+      // triangles apiece (icosahedron 20 + octahedron 8), every one of their
+      // vertices inside its clump's footprint and under its h; then the
+      // canes, a 3-sided tube along each, 6 triangles a segment. Every ring
+      // vertex is within 0.6 m (xz) of a kept clump, between the ground and
+      // 1 m (ruling R3).
       const verts = worldVerts(scene.getObjectByName('campRing'));
       const cs = D.ring.clumps;
-      const nearSeg = (v, p, q) => {
-        const dx = q.x - p.x;
-        const dz = q.z - p.z;
-        const t = Math.max(0, Math.min(1, ((v.x - p.x) * dx + (v.z - p.z) * dz) / (dx * dx + dz * dz)));
-        return Math.hypot(v.x - (p.x + dx * t), v.z - (p.z + dz * t));
-      };
-      let strandOnly = 0;
-      for (const v of verts) {
+      const clumpVerts = 3 * 28 * cs.length;
+      let caneOnly = 0;
+      for (let i = 0; i < verts.length; i++) {
+        const v = verts[i];
+        const at = `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
+        expect(v.y, at).toBeGreaterThanOrEqual(0);
+        expect(v.y, at).toBeLessThanOrEqual(1.0);
+        expect(cs.some((c) => Math.hypot(v.x - c.x, v.z - c.z) <= 0.6), at).toBe(true);
         const inClump = cs.some((c) => Math.hypot(v.x - c.x, v.z - c.z) <= CLUMP_R * c.s + 1e-6 && v.y <= c.h + 1e-6);
-        const onStrand = cs.some((c, i) => i > 0 && Math.hypot(c.x - cs[i - 1].x, c.z - cs[i - 1].z) <= 0.6 && nearSeg(v, cs[i - 1], c) <= 0.03);
-        expect(inClump || onStrand, `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`).toBe(true);
-        expect(v.y).toBeLessThanOrEqual(1.0);
-        if (!inClump && onStrand) strandOnly++;
+        if (i < clumpVerts) expect(inClump, `${at} lump`).toBe(true);
+        else if (!inClump) caneOnly++;
       }
-      // the strands are there: some of their vertices lie outside every
-      // clump, and the triangle count is 28 a clump (icosahedron 20 +
-      // octahedron 8) plus 24 a strand, one strand over each pair of
-      // consecutive kept clumps (0-1, 2-3, ...) 0.6 m or less apart
-      expect(strandOnly, a).toBeGreaterThan(0);
-      let strands = 0;
-      for (let i = 1; i < cs.length; i += 2) if (Math.hypot(cs[i].x - cs[i - 1].x, cs[i].z - cs[i - 1].z) <= 0.6) strands++;
-      expect(strands, a).toBeGreaterThan(0);
+      // the canes are there, and show between and over the lumps
+      expect(caneOnly, a).toBeGreaterThan(0);
+      const segs = D.ring.canes.reduce((n, cane) => n + cane.length - 1, 0);
+      expect(segs, a).toBeGreaterThan(0);
       const g = scene.getObjectByName('campRing').geometry;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
-      expect(tris, a).toBe(28 * cs.length + 24 * strands);
+      expect(tris, a).toBe(28 * cs.length + 6 * segs);
+      expect(tris, a).toBeLessThanOrEqual(3360);
+      // the whole camp is no dearer than before (River and Moor are at their caps)
+      let camp = 0;
+      for (const o of scene.children) o.traverse((m) => { if (m.isMesh) camp += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });
+      expect(camp, a).toBeLessThanOrEqual(5427);
       // ...and every clump is drawn
       for (const c of cs) expect(verts.some((v) => Math.hypot(v.x - c.x, v.z - c.z) <= CLUMP_R * c.s)).toBe(true);
       // the clearing lies flat just over the ground, within its radius
@@ -279,7 +346,91 @@ describe('addCamp', () => {
         expect(v.y).toBeLessThan(0.015);
         expect(Math.hypot(v.x - cx, v.z - cz)).toBeLessThanOrEqual(D.clearing.r + 1e-6);
       }
-      expect(clearing.material.polygonOffset).toBe(true);
+      for (const m of [clearing.material].flat()) expect(m.polygonOffset).toBe(true);
+    }
+  });
+
+  it('fades the clearing into the ground: a two-ring disc with a transparent outer edge', async () => {
+    const { flatFootprints } = await import('../src/render/grass.js');
+    for (const a of CAMPS) {
+      const scene = new THREE.Scene();
+      addCamp(scene, { colliders: [] }, a);
+      scene.updateMatrixWorld(true);
+      const D = campDressing(a);
+      const { cx, cz } = DISCS[a];
+      const r = D.clearing.r;
+      const clearing = scene.getObjectByName('campClearing');
+      const g = clearing.geometry;
+      // still a CircleGeometry whose radius is the inner ring's (before the
+      // wobble), so grass.js keeps tufts off the solid floor only
+      expect(g.type, a).toBe('CircleGeometry');
+      expect(g.parameters.radius, a).toBeCloseTo(r - 0.4, 6);
+      expect(g.index.count / 3, a).toBe(84);
+      const col = g.attributes.color;
+      expect(col.itemSize, a).toBe(4);
+      expect(col.count, a).toBe(g.attributes.position.count);
+      expect(g.attributes.uv.count, a).toBe(col.count);
+      // centre + 28 inner + 28 outer: alpha 1, 1, 0
+      expect(col.count, a).toBe(57);
+      expect(col.getW(0), a).toBe(1);
+      for (let i = 1; i <= 28; i++) expect(col.getW(i), a).toBe(1);
+      for (let i = 29; i <= 56; i++) expect(col.getW(i), a).toBe(0);
+      // the wobble is low-frequency, factor in [0.9, 1], the same for both rings
+      const pos = g.attributes.position;
+      for (let i = 1; i <= 28; i++) {
+        const ri = Math.hypot(pos.getX(i), pos.getY(i));
+        const ro = Math.hypot(pos.getX(i + 28), pos.getY(i + 28));
+        expect(ro, a).toBeLessThanOrEqual(r + 1e-6);
+        expect(ro, a).toBeGreaterThanOrEqual(0.9 * r - 1e-6);
+        expect(ri / (r - 0.4), a).toBeCloseTo(ro / r, 6);
+      }
+      // ...and it really wobbles
+      const radii = [];
+      for (let i = 29; i <= 56; i++) radii.push(Math.hypot(pos.getX(i), pos.getY(i)));
+      expect(Math.max(...radii) - Math.min(...radii), a).toBeGreaterThan(0.05);
+      // the surface texture tiles as the old disc's did: uv spans 0..1 over the full radius
+      const uv = g.attributes.uv;
+      expect(uv.getX(0)).toBeCloseTo(0.5, 6);
+      expect(uv.getY(0)).toBeCloseTo(0.5, 6);
+      for (let i = 1; i < col.count; i++) {
+        expect(uv.getX(i)).toBeCloseTo((pos.getX(i) / r + 1) / 2, 6);
+        expect(uv.getY(i)).toBeCloseTo((pos.getY(i) / r + 1) / 2, 6);
+      }
+      // faces point up
+      for (let t = 0; t < g.index.count; t += 3) {
+        const [p, q, s] = [0, 1, 2].map((k) => g.index.getX(t + k));
+        const cross = (pos.getX(q) - pos.getX(p)) * (pos.getY(s) - pos.getY(p)) - (pos.getY(q) - pos.getY(p)) * (pos.getX(s) - pos.getX(p));
+        expect(cross, a).toBeGreaterThan(0);
+      }
+      // the solid middle (centre fan) is opaque and depth-written, as the old
+      // floor was, so a see-through path under it stays hidden; only the rim
+      // band is see-through
+      expect(Array.isArray(clearing.material), a).toBe(true);
+      const [solid, rim] = clearing.material;
+      expect(g.groups, a).toEqual([
+        { start: 0, count: 84, materialIndex: 0 },
+        { start: 84, count: 168, materialIndex: 1 },
+      ]);
+      for (let t = 0; t < 84; t++) expect(g.index.getX(t) <= 28, a).toBe(true);
+      expect(solid.transparent).toBe(false);
+      expect(solid.depthWrite).toBe(true);
+      expect(rim.vertexColors).toBe(true);
+      expect(rim.transparent).toBe(true);
+      expect(rim.depthWrite).toBe(false);
+      for (const m of [solid, rim]) expect(m.polygonOffset).toBe(true);
+      // the rim writes no depth, so its order alone places it: after the path
+      // trails (pathribbon.js TRAIL_RENDER_ORDER, -4), so a trail runs in
+      // under the fading edge, and before the water band (-3, waterdress.js),
+      // the paw prints (-2, pawprints.js) and the contact-shadow decals (-1,
+      // contactshadows.js), which stay on top of it
+      expect(clearing.renderOrder).toBeGreaterThan(TRAIL_RENDER_ORDER);
+      expect(clearing.renderOrder).toBeLessThan(-3);
+      // grass.js still reads it as a no-grass disc at the camp centre
+      const disc = flatFootprints(scene).find((f) => f.kind === 'disc');
+      expect(disc, a).toBeTruthy();
+      expect(disc.x).toBeCloseTo(cx, 6);
+      expect(disc.z).toBeCloseTo(cz, 6);
+      expect(disc.r).toBeCloseTo(r - 0.4, 6);
     }
   });
 
@@ -422,8 +573,11 @@ describe('the ledge camp in the Gorge', () => {
     scene.updateMatrixWorld(true);
     const rb = lowest(rock);
     expect(Math.abs(rb.min.y - 8)).toBeLessThanOrEqual(0.01);
-    expect(Math.abs(rb.max.y - 8.8)).toBeLessThanOrEqual(0.01);
-    expect((rb.min.x + rb.max.x) / 2).toBeCloseTo(8.3, 1);
+    // the Highrock: its top at rock.h, its back stone to 1.0-1.2 m
+    expect(rb.max.y - 8).toBeGreaterThanOrEqual(1.0);
+    expect(rb.max.y - 8).toBeLessThanOrEqual(1.2);
+    expect(Math.abs((rb.min.x + rb.max.x) / 2 - 8.3)).toBeLessThanOrEqual(0.2);
+    expect(Math.abs((rb.min.z + rb.max.z) / 2 - 41.5)).toBeLessThanOrEqual(0.2);
     const bb = lowest(bedding);
     expect(bb.min.y - 8).toBeGreaterThanOrEqual(-0.05); // the nests rest within 5 cm of the ground
     expect(bb.min.y - 8).toBeLessThanOrEqual(0.05);

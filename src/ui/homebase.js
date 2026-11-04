@@ -24,6 +24,7 @@ import { isMilestone, welcomeLine } from '../visits.js';
 import { createVisitCelebration } from './visitcelebration.js';
 import { settingsSwitchHtml } from './screencards.js';
 import { emptyStateHtml } from './emptystates.js';
+import { PAW } from './pawicon.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -35,7 +36,7 @@ export function visitBadgeHtml(visits) {
   if (n < 1) return '';
   return isMilestone(n)
     ? `<div class="dr-chip visit milestone">🎉 Visit ${n}</div>`
-    : `<div class="dr-chip visit">🐾 Visit ${n}</div>`;
+    : `<div class="dr-chip visit">${PAW} Visit ${n}</div>`;
 }
 
 // How long the welcome line stays before it is removed (its CSS fade ends
@@ -938,9 +939,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const raceBestMs = s.race?.date === today ? asFiniteNonNeg(s.race?.bestMs, null) : null;
     // The header's pieces stay inline, not in one wrapper: on a phone
     // .dr-header is display: contents, so the stats can move into More.
-    const headerHtml = `<h1 class="dr-title">🐾 Whisker Walk 2: <button class="dr-edition" aria-label="Switch game edition" title="Switch game edition" data-edition-toggle>${editionTitle(s.edition)}</button></h1>`
+    const headerHtml = `<h1 class="dr-title">${PAW} Whisker Walk 2: <button class="dr-edition" aria-label="Switch game edition" title="Switch game edition" data-edition-toggle>${editionTitle(s.edition)}</button></h1>`
       + visitBadgeHtml(s.visits)
-      + `<div class="dr-chip gold">🐾 ${asFiniteNonNeg(s.points, 0)} whisker points</div>`
+      + `<div class="dr-chip gold">${PAW} ${asFiniteNonNeg(s.points, 0)} whisker points</div>`
       + `<div class="dr-chip">🏆 ${escapeHtml(rank.title)} — ${escapeHtml(nextLine)}</div>`;
     // The old header's substats lines, one block (other branches add a line
     // here). style.css chips each <span>.
@@ -948,7 +949,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const gold = goldForEdition(s.edition, CATALOG);
     const statsHtml = `
                   ${streakCount >= 2 ? `<span>🔥 ${streakCount}-day streak</span>` : ''}
-                  <span>best walk: ${s.bestWalk} 🐾</span>
+                  <span>best walk: ${s.bestWalk} ${PAW}</span>
                   ${renderGoldenTallyHtml(goldenFound(s.golden, gold), gold.size)}
                   ${raceBestMs != null ? `<span>Today’s race best: ${(raceBestMs / 1000).toFixed(1)}s 🏁</span>` : ''}
                   ${s.kitten.stage === 3 ? '<span>🐱 Mochi lives with you now</span>' : ''}

@@ -1088,6 +1088,23 @@ describe('the fight plays the actions', () => {
     expect(rolled.h.onWon.mock.calls[0][0].site).toBe(siteFor('roll', CAST_ID));
   });
 
+  test('Hagrid (scars:false) loses a beat: one russet and one cream feather puff, once a beat; won beats and scarred cats get none', () => {
+    const feathers = (h) => h.fx.burst.mock.calls.filter((c) => c[3] && c[3].gravity === 1.0);
+    const lost = harness({ actions: true, scars: false, answers: 'wrong' });
+    lost.challenge(); lost.fight(); lost.runToEnd();
+    const f = feathers(lost);
+    expect(f.length).toBeGreaterThan(0);
+    expect(f.length % 2).toBe(0);
+    expect(new Set(f.map((c) => c[1]))).toEqual(new Set([0xb06a30, 0xf3e6c8]));
+    for (const c of f) { expect(c[2]).toBe(5); expect(Number.isFinite(c[0].y)).toBe(true); }
+    const won = harness({ actions: true, scars: false, answers: 'right' });
+    won.challenge(); won.fight(); won.runToEnd();
+    expect(feathers(won)).toHaveLength(0);
+    const scarred = harness({ actions: true, answers: 'wrong' });
+    scarred.challenge(); scarred.fight(); scarred.runToEnd();
+    expect(feathers(scarred)).toHaveLength(0);
+  });
+
   test('actions with scars:false (Hagrid in the hen fight) fights in actions and never scars', () => {
     const won = harness({ actions: true, scars: false, answers: 'right' });
     won.challenge(); won.fight();
