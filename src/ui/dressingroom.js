@@ -226,13 +226,14 @@ function placeHtml(p) {
     + `<span class="cap">${escapeHtml(p.name)}<small>${escapeHtml(sub)}</small></span></button>`;
 }
 
-// The builder's sit/stand toggle (it sits in the hero text strip, which the
-// stage keeps clear of the cat). The words say what a tap does; aria-pressed
-// says the cat is sitting. No pose given: no toggle.
+// The builder's 🐾 Sit toggle (beside the name, in the hero text strip the
+// stage keeps clear of the cat). One fixed label with aria-pressed, styled
+// like the builder's own pills: pink while her cat sits, plain while it
+// stands. A tap asks for the other pose. No pose given: no toggle.
 export function poseToggleHtml(pose) {
   if (pose !== 'sit' && pose !== 'stand') return '';
   const sitting = pose === 'sit';
-  return `<button class="dr-pose" data-dr-pose="${sitting ? 'stand' : 'sit'}" aria-pressed="${sitting}">🐾 ${sitting ? 'Stand' : 'Sit'}</button>`;
+  return `<button class="dr-pose" data-dr-pose="${sitting ? 'stand' : 'sit'}" aria-pressed="${sitting}">🐾 Sit</button>`;
 }
 
 // headerHtml / statsHtml / startHtml / extrasHtml are pre-rendered, already
@@ -243,7 +244,7 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
   const openSlot = m.slots.some((s) => s.slot === ui.openSlot) ? ui.openSlot : null;
   const h = m.hero;
   const building = typeof ui.builderHtml === 'string' && ui.builderHtml !== '';
-  const buy = building ? poseToggleHtml(ui.pose)
+  const buy = building ? ''
     : h.custom ? `<button class="dr-hero-edit" data-dr-edit="${escapeHtml(h.id)}">✏️ Change my cat</button>`
     : h.owned ? ''
     : h.canBuy ? `<button class="dr-hero-buy" data-dr-buy-cat="${escapeHtml(h.id)}">Unlock — ${h.price} 🐾</button>`
@@ -253,10 +254,16 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
   const pillLabel = (id, label) => (id === 'wearing' ? `${label} ${m.wearingCount}` : label);
   const heroName = building ? (ui.heroName || 'Your cat') : h.name;
   const heroBlurb = building ? (ui.heroBlurb ?? '') : h.blurb;
+  // the builder's 🐾 Sit sits beside the name (one row, not a row of its own,
+  // so the strip the stage keeps clear for the text barely grows)
+  const toggle = building ? poseToggleHtml(ui.pose) : '';
+  const nameHtml = toggle
+    ? `<div class="dr-hero-row"><div class="dr-hero-name">${escapeHtml(heroName)}</div>${toggle}</div>`
+    : `<div class="dr-hero-name">${escapeHtml(heroName)}</div>`;
   const heroHtml = `<section class="dr-hero">
     <div class="dr-stage" id="dr-stage">
       <div class="dr-spin-hint">↔ drag to spin</div>
-      <div class="dr-hero-text"><div class="dr-hero-name">${escapeHtml(heroName)}</div><div class="dr-hero-blurb">${escapeHtml(heroBlurb)}</div>${buy}</div>
+      <div class="dr-hero-text">${nameHtml}<div class="dr-hero-blurb">${escapeHtml(heroBlurb)}</div>${buy}</div>
     </div>`;
 
   // The builder (Task 8) keeps the header and the one stage; its rows replace

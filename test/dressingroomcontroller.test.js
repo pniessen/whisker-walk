@@ -379,7 +379,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
     dr.afterRender({ id: 'dr-stage' });
     expect(stage.show).toHaveBeenLastCalledWith('tabby', {}, DEFAULT_LOOK);
   });
-  describe('🐾 Sit / Stand in the builder', () => {
+  describe('🐾 Sit in the builder', () => {
     const memStore = (init = {}) => {
       const m = new Map(Object.entries(init));
       return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: vi.fn((k, v) => m.set(k, String(v))), m };
@@ -427,7 +427,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
       dr.afterRender({ id: 'dr-stage' });
       expect(stage.setPose).toHaveBeenLastCalledWith('sit', { redraw: false });
       expect(stage.show.mock.calls.length).toBe(shows + 1);
-      expect(dr.html()).toContain('data-dr-pose="stand" aria-pressed="true">🐾 Stand</button>');
+      expect(dr.html()).toContain('data-dr-pose="stand" aria-pressed="true">🐾 Sit</button>');
       dr.afterRender({ id: 'dr-stage' }); // a plain re-render rebuilds nothing
       expect(stage.show.mock.calls.length).toBe(shows + 1);
       // the size slider keeps her pose
@@ -454,6 +454,17 @@ describe('createDressingRoom: her own cats and the builder', () => {
       b.dr.afterRender({ id: 'dr-stage' });
       expect(b.stage.setPose).toHaveBeenLastCalledWith('sit', { redraw: false }); // this visit only
       expect(posed({ storage: null }).dr.html()).toBeTypeOf('string');
+    });
+
+    it('no live cat (WebGL failed, or no stage): no toggle', () => {
+      const { dr, stage } = posed();
+      dr.handleClick(click({ drMake: '' }));
+      expect(dr.html()).toContain('data-dr-pose');
+      stage.failed = true;
+      expect(dr.html()).not.toContain('data-dr-pose');
+      const bare = createDressingRoom({ progression: posed().progression, storage: null, snapCustom: () => ({}), thumbs: { cats: {}, accessories: {}, mine: {} } });
+      bare.handleClick(click({ drMake: '' }));
+      expect(bare.html()).not.toContain('data-dr-pose');
     });
 
     it('a keyboard toggle keeps its focus across the render', () => {

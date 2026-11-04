@@ -469,13 +469,13 @@ describe('her own cats in the dressing room', () => {
     expect(h).not.toContain('data-dr-edit');
     expect(h).not.toContain('data-dr-buy-cat');
   });
-  it('builder mode puts the 🐾 Sit / Stand toggle in the hero text, under the name; the room has none', () => {
+  it('builder mode puts the 🐾 Sit toggle in the hero text, beside the name; the room has none', () => {
     const mk = (ui) => renderDressingRoomHtml({ model: buildDressingModel(withMine(0), CATALOG), ui });
     const stand = mk({ builderHtml: '<i></i>', heroName: 'Ember', pose: 'stand' });
     const text = stand.slice(stand.indexOf('dr-hero-text'), stand.indexOf('</section>'));
     expect(text).toContain('<button class="dr-pose" data-dr-pose="sit" aria-pressed="false">🐾 Sit</button>');
-    expect(text.indexOf('Ember')).toBeLessThan(text.indexOf('dr-pose'));
-    expect(mk({ builderHtml: '<i></i>', pose: 'sit' })).toContain('data-dr-pose="stand" aria-pressed="true">🐾 Stand</button>');
+    expect(text).toContain('<div class="dr-hero-row"><div class="dr-hero-name">Ember</div><button class="dr-pose"');
+    expect(mk({ builderHtml: '<i></i>', pose: 'sit' })).toContain('data-dr-pose="stand" aria-pressed="true">🐾 Sit</button>');
     expect(mk({ builderHtml: '<i></i>' })).not.toContain('data-dr-pose');
     expect(mk({ pose: 'stand' })).not.toContain('data-dr-pose');
     expect(poseToggleHtml('nap')).toBe('');

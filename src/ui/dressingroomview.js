@@ -70,9 +70,9 @@ export function reduceDressingUi(ui, action) {
 const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-pill],'
   + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay]';
 const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is empty
-const BLUR_RENDER_MS = 250;
+const BLUR_RENDER_MS = 250; // a skipped render runs this long after the name box loses focus
 // The builder's cat stands by default (legs, pattern and tail in view); her
-// 🐾 Sit / Stand pick is kept for the session's browser. The rest of the
+// 🐾 Sit pick is kept for the session's browser. The rest of the
 // dressing room always sits.
 export const BUILDER_POSE_KEY = 'whisker-walk-builder-pose';
 const ROOM_POSE = 'sit';
@@ -83,7 +83,7 @@ function readPose(storage) {
 }
 function writePose(storage, pose) {
   try { storage?.setItem?.(BUILDER_POSE_KEY, pose); } catch { /* private window: this visit only */ }
-} // a skipped render runs this long after the name box loses focus
+}
 
 export function createDressingRoom({
   progression, catalog = CATALOG, stage = null, sync = null, thumbs = null,
@@ -167,7 +167,9 @@ export function createDressingRoom({
         model: m, headerHtml, statsHtml, startHtml, extrasHtml, sheets, thumbs: t,
         ui: {
           pill: ui.pill, builderHtml: `<section class="cb" id="cb">${renderBuilderHtml(bm)}</section>`,
-          heroName: bm.name || YOUR_CAT, heroBlurb: bm.blurb, pose: builderPose,
+          heroName: bm.name || YOUR_CAT, heroBlurb: bm.blurb,
+          // no live cat (no WebGL, or no stage): a still picture cannot sit, so no toggle
+          pose: stage && !stage.failed ? builderPose : null,
         },
       });
     }
@@ -238,7 +240,7 @@ export function createDressingRoom({
     }
   }
 
-  // 🐾 Sit / Stand in the builder: the render that follows rebuilds the
+  // 🐾 Sit in the builder: the render that follows rebuilds the
   // draft in the new pose (the pose is part of builderKey).
   function onPose(p) {
     if (!ui.builder || (p !== 'sit' && p !== 'stand')) return;
