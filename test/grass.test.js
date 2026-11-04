@@ -23,8 +23,9 @@ const {
   hashCell, snapCentre, chunkCellsFor, layoutRadius, capacityFor, flatFootprints,
   buildGrassMask, grassAllowed, tuftAt, layoutTufts, createGrass, GRASS_AREAS,
   TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, marshDensity, moorDensity, pineFloorDensity, gorgeFloorDensity, groundFinds,
-  GROUND_TINTS, tintSampler, FLOWER_COLORS,
+  GROUND_TINTS, tintSampler, FLOWER_COLORS, TALL_STALK_MAX_H,
 } = await import('../src/render/grass.js');
+const { duskLawnColor, DUSK } = await import('../src/render/dusk.js');
 const LAWN_STYLE = GRASS_STYLES.park;
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
 const { inWater } = await import('../src/world/builder.js');
@@ -536,7 +537,8 @@ describe('natural variation (hue drift, tall stalks)', () => {
     }
   });
 
-  it('a few tufts stand taller, none above 0.4 m', () => {
+  it('a few tufts stand taller, none above 0.38 m', () => {
+    expect(TALL_STALK_MAX_H).toBe(0.38);
     const rates = {};
     for (const [name, style] of Object.entries(GRASS_STYLES)) {
       let grown = 0; let tallN = 0; let tallSum = 0; let restSum = 0; let max = 0;
@@ -554,11 +556,11 @@ describe('natural variation (hue drift, tall stalks)', () => {
       rates[name] = rate;
       expect(rate).toBeGreaterThan(0.03);
       expect(rate).toBeLessThan(0.08);
-      expect(max).toBeLessThanOrEqual(0.4 + 1e-9);
+      expect(max).toBeLessThanOrEqual(0.38 + 1e-9);
       expect(max).toBeLessThanOrEqual(style.hMax * 1.3 + 1e-9);
-      // The stalks really are taller than the rest on average (x ~1.3, or
-      // capped at 0.4 m for the Marsh).
-      expect(tallSum / tallN).toBeGreaterThan(1.15 * (restSum / (grown - tallN)) * 0.95);
+      // Stalks average at least 5% taller than the rest (the boost is x1.3;
+      // the 0.38 m cap blunts it on marsh and dune).
+      expect(tallSum / tallN).toBeGreaterThan(1.05 * (restSum / (grown - tallN)));
     }
     let lawnMax = 0;
     for (const [, , t] of lattice(GRASS_STYLES.park, 140)) if (t) lawnMax = Math.max(lawnMax, t.h);
@@ -803,7 +805,6 @@ describe('lawn flowers (white and yellow tips)', () => {
       white: new THREE.Color(FLOWER_COLORS.white),
       yellow: new THREE.Color(FLOWER_COLORS.yellow),
     };
-    const mc = mesh.material.color;
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const spacing = tier.grassSpacing;
@@ -818,9 +819,10 @@ describe('lawn flowers (white and yellow tips)', () => {
       if (t.flower) {
         flowered++;
         expect(a.getW(i)).toBe(1);
-        expect(a.getX(i) * mc.r).toBeCloseTo(lin[t.flower].r, 4);
-        expect(a.getY(i) * mc.g).toBeCloseTo(lin[t.flower].g, 4);
-        expect(a.getZ(i) * mc.b).toBeCloseTo(lin[t.flower].b, 4);
+        // The plain linear flower colour; the shader divides out the lawn.
+        expect(a.getX(i)).toBeCloseTo(lin[t.flower].r, 4);
+        expect(a.getY(i)).toBeCloseTo(lin[t.flower].g, 4);
+        expect(a.getZ(i)).toBeCloseTo(lin[t.flower].b, 4);
       } else {
         expect(a.getW(i)).toBe(0);
       }
@@ -859,4 +861,56 @@ describe('lawn flowers (white and yellow tips)', () => {
     expect(vs.indexOf('attribute vec4 aFlower;')).toBeLessThan(at);
     grass.dispose();
   }, 120_000);
+
+  it('the tip divides out the live material colour, declared once in the vertex stage', () => {
+    // The stock standard vertex shader must not already declare diffuse,
+    // or the patch would be a redeclaration error.
+    expect(THREE.ShaderLib.standard.vertexShader).not.toMatch(/uniform\s+vec3\s+diffuse\s*;/);
+    const { scene, areaData, camera, tier } = walkScene('park');
+    const grass = createGrass(scene, { areaId: 'park', areaData, tier, camera });
+    const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: '' };
+    grass.mesh.material.onBeforeCompile(shader);
+    const vs = shader.vertexShader;
+    expect(vs.match(/uniform vec3 diffuse;/g)).toHaveLength(1);
+    expect(vs.match(/uniform float uBaseLum;/g)).toHaveLength(1);
+    expect(vs).toContain('/ max(diffuse, vec3(1e-4))');
+    expect(vs).toContain('/ uBaseLum');
+    const mc = grass.mesh.material.color;
+    const lum = 0.2126 * mc.r + 0.7152 * mc.g + 0.0722 * mc.b;
+    expect(shader.uniforms.uBaseLum.value).toBeCloseTo(lum, 6);
+    grass.dispose();
+  }, 120_000);
+
+  it('a white daisy stays white when the lawn is tinted (dusk, sunset)', () => {
+    // CPU mirror of the color_vertex patch plus the fragment's diffuse * vColor.
+    const LUM = [0.2126, 0.7152, 0.0722];
+    const lumOf = (c) => LUM[0] * c.r + LUM[1] * c.g + LUM[2] * c.b;
+    const finalTip = (flower, diffuse, baseLum) => {
+      const k = lumOf(diffuse) / baseLum;
+      const d = [diffuse.r, diffuse.g, diffuse.b];
+      return [flower.r, flower.g, flower.b].map((f, i) => d[i] * (f * k / Math.max(d[i], 1e-4)));
+    };
+    const green = new THREE.Color(GRASS_STYLES.park.color ?? 0x6cb058);
+    const white = new THREE.Color(FLOWER_COLORS.white);
+    const tints = [
+      duskLawnColor(green, DUSK),
+      // A strong non-uniform per-channel scale (sunset-like).
+      new THREE.Color(green.r * 0.92, green.g * 0.69, green.b * 1.28),
+    ];
+    for (const diffuse of tints) {
+      const out = finalTip(white, diffuse, lumOf(green));
+      // Hue kept: each channel is the daisy's own channel times one factor.
+      const ratios = out.map((v, i) => v / [white.r, white.g, white.b][i]);
+      for (const r of ratios) expect(Math.abs(r / ratios[0] - 1)).toBeLessThan(0.02);
+      // And it dims with the lawn.
+      expect(ratios[0]).toBeCloseTo(lumOf(diffuse) / lumOf(green), 6);
+      // The daisy (a warm off-white) keeps its own channel balance: its
+      // g/r and b/r land within 2% of the untinted daisy's.
+      expect(Math.abs((out[1] / out[0]) / (white.g / white.r) - 1)).toBeLessThan(0.02);
+      expect(Math.abs((out[2] / out[0]) / (white.b / white.r) - 1)).toBeLessThan(0.02);
+      // The old CPU pre-divide (by the created colour) would have tinted it.
+      const old = [white.r / green.r, white.g / green.g, white.b / green.b].map((f, i) => f * [diffuse.r, diffuse.g, diffuse.b][i]);
+      expect((Math.max(...old) - Math.min(...old)) / Math.max(...old)).toBeGreaterThan(0.05);
+    }
+  });
 });

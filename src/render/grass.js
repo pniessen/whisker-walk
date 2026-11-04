@@ -466,6 +466,10 @@ export function tintSampler(fn, bounds, cell = 1) {
 // Flower tip colours (sRGB hex). The shader swaps a flowered tuft's tip
 // colour for these, so a lawn has the odd daisy and buttercup.
 export const FLOWER_COLORS = Object.freeze({ white: 0xf6f2e8, yellow: 0xf2cf3a });
+// Tallest a lone stalk may stand, metres: just under the cat's ~0.4m.
+export const TALL_STALK_MAX_H = 0.38;
+// Rec.709 luminance weights on linear rgb (the same weights dusk.js uses).
+const LUM = [0.2126, 0.7152, 0.0722];
 
 // tuftAt(ix, iz, spacing, style) — the tuft that lattice cell (ix, iz) always
 // grows, or null for a bare cell. Pure function of the world cell.
@@ -481,8 +485,9 @@ export function tuftAt(ix, iz, spacing, style = LAWN) {
   let h = style.hMin + (style.hMax - style.hMin) * tall;
   // Width scale: taller tufts spread a bit wider.
   let s = (0.8 + 0.25 * tall + 0.15 * hashCell(ix, iz, 5)) * style.width;
-  // One tuft in twenty is a lone taller stalk, never above 0.4m (the cat).
-  if (hashCell(ix, iz, 12) < 0.05) { h = Math.min(h * 1.3, 0.4); s *= 0.9; }
+  // One tuft in twenty is a lone taller stalk, capped at 0.38m so it never
+  // stands as tall as the cat (~0.4m).
+  if (hashCell(ix, iz, 12) < 0.05) { h = Math.min(h * 1.3, TALL_STALK_MAX_H); s *= 0.9; }
   const rot = hashCell(ix, iz, 6) * Math.PI * 2;
   // Tint: brightness 0.86-1.08, and a warm (yellow) lean on some, so the
   // lawn has a few drier tufts among the lush ones.
@@ -611,7 +616,13 @@ export function createGrass(scene, { areaId, areaData, tier, camera, reducedMoti
     metalness: 0,
     vertexColors: true,
   });
+  // Rec.709 luminance of the material colour as created (linear). walk.js
+  // tints this colour in place later (rain, sunset, dusk); the flower tips
+  // scale by current/created luminance so they dim with the lawn.
+  const mc0 = material.color;
+  const baseLum = Math.max(1e-4, LUM[0] * mc0.r + LUM[1] * mc0.g + LUM[2] * mc0.b);
   const uniforms = {
+    uBaseLum: { value: baseLum },
     uTime: { value: 0 },
     uAmp: { value: 0 },
     uFocus: { value: new THREE.Vector2() },
@@ -627,11 +638,22 @@ uniform float uAmp;
 uniform vec2 uFocus;
 uniform vec2 uFade;
 uniform vec2 uWindDir;
+uniform float uBaseLum;
+// The material colour (normally fragment-only; the same uniform, shared).
+uniform vec3 diffuse;
 attribute vec4 aFlower;`)
       .replace('#include <color_vertex>', `#include <color_vertex>
   // Flower tips (lawn): tip vertices sit at local y 1.0 / 0.8, roots at 0,
   // so step() picks the tips and the blade shades from green into the flower.
-  vColor.rgb = mix(vColor.rgb, aFlower.rgb, aFlower.a * step(0.75, position.y));`)
+  // aFlower.rgb is the plain linear flower colour. The fragment multiplies
+  // vColor by diffuse (the material colour, which weather and dusk tint in
+  // place), so divide it back out here and keep only the lawn's change in
+  // brightness: a daisy dims at dusk but stays white, never lilac or pink.
+  {
+    float lumK = dot(diffuse, vec3(${LUM.join(', ')})) / uBaseLum;
+    vec3 tipCol = aFlower.rgb * lumK / max(diffuse, vec3(1e-4));
+    vColor.rgb = mix(vColor.rgb, tipCol, aFlower.a * step(0.75, position.y));
+  }`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 {
   // Instance root in world space (the mesh itself sits at the origin).
@@ -673,18 +695,16 @@ attribute vec4 aFlower;`)
   // Allocate instanceColor up front at full capacity.
   mesh.setColorAt(0, new THREE.Color(1, 1, 1));
   mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
-  // Flower tips: rgb is the flower colour DIVIDED by the material colour
-  // (both linear), because the shader's vColor is multiplied by
-  // material.color — so the tip lands on the flower colour itself. a is 1
-  // for a flowered tuft, 0 otherwise. One attribute on the one mesh.
+  // Flower tips: rgb is the plain linear flower colour (the shader divides
+  // out the material colour live, see the color_vertex patch). a is 1 for a
+  // flowered tuft, 0 otherwise. One attribute on the one mesh.
   const flowerAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
   flowerAttr.setUsage(THREE.DynamicDrawUsage);
   mesh.geometry.setAttribute('aFlower', flowerAttr);
   const flowerRGB = {};
   for (const [name, hex] of Object.entries(FLOWER_COLORS)) {
     const fc = new THREE.Color(hex); // sRGB hex -> linear working space
-    const mc = material.color;
-    flowerRGB[name] = [fc.r / Math.max(mc.r, 1e-4), fc.g / Math.max(mc.g, 1e-4), fc.b / Math.max(mc.b, 1e-4)];
+    flowerRGB[name] = [fc.r, fc.g, fc.b];
   }
   scene.add(mesh);
 
