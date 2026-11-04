@@ -22,7 +22,7 @@ vi.stubGlobal('document', {
 const {
   CLOUD_AREAS, WIND_DIR, SKY_RADIUS, FADE_LEN, BASE_MIN, BAND_CLEARANCE_DEG,
   areaSeed, layoutClouds, cloudPlace, cloudReach, cloudPalette, bandElevation,
-  puffGeometry, createClouds,
+  puffGeometry, createClouds, lapOf, puffAt,
 } = await import('../src/render/clouds.js');
 const { LADDER } = await import('../src/render/quality.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -411,5 +411,72 @@ describe('where clouds are not', () => {
     const r = cloudReach(cl);
     expect(r.horizontal).toBeGreaterThan(0);
     expect(r.top).toBeGreaterThan(0);
+  });
+});
+
+describe('clouds that change', () => {
+  const lapSeconds = (c) => 2 * Math.sqrt(SKY_RADIUS * SKY_RADIUS - c.v * c.v) / c.speed;
+
+  it('puffAt at t=0 is the laid-out puff', () => {
+    const clouds = layoutClouds('woods', 10);
+    clouds.forEach((c, ci) => c.puffs.forEach((p, j) => {
+      expect(lapOf(c, 0)).toBe(0);
+      const o = puffAt(c, ci, j, 0);
+      expect(o).toEqual({ x: p.x, z: p.z, r: p.r, yaw: p.yaw });
+    }));
+  });
+
+  it('a cloud comes back from its lap as a new shape', () => {
+    const clouds = layoutClouds('woods', 10);
+    const c = clouds[0];
+    const lap = lapSeconds(c);
+    const t = lap * 1.2 - (c.u0 + Math.sqrt(SKY_RADIUS * SKY_RADIUS - c.v * c.v)) / c.speed + lap * 0.5;
+    expect(lapOf(c, t)).not.toBe(lapOf(c, t + lap));
+    expect(lapOf(c, t + lap)).toBe(lapOf(c, t) + 1);
+    let differs = false;
+    c.puffs.forEach((_, j) => {
+      const a = puffAt(c, 0, j, t);
+      const b = puffAt(c, 0, j, t + lap);
+      const again = puffAt(c, 0, j, t);
+      expect(again).toEqual(a);
+      if (Math.abs(a.r - b.r) > 1e-6) differs = true;
+    });
+    expect(differs).toBe(true);
+  });
+
+  it('billows slowly', () => {
+    const c = layoutClouds('park', 6)[0];
+    let moved = false;
+    c.puffs.forEach((p, j) => {
+      const r = puffAt(c, 0, j, 20).r;
+      expect(Math.abs(r - p.r) / p.r).toBeLessThan(0.15);
+      if (r !== p.r) moved = true;
+    });
+    expect(moved).toBe(true);
+  });
+
+  it('never outgrows its reach', () => {
+    for (const area of CLOUD_AREAS) {
+      const clouds = layoutClouds(area, 10);
+      clouds.forEach((c, ci) => {
+        const reach = cloudReach(c).horizontal;
+        const lap = lapSeconds(c);
+        for (let t = 0; t <= 3 * lap + 1e-9; t += lap / 23) {
+          c.puffs.forEach((p, j) => {
+            const o = puffAt(c, ci, j, t);
+            expect((Math.hypot(o.x, o.z) + o.r) * c.scale).toBeLessThanOrEqual(reach + 1e-9);
+            expect(o.r).toBeLessThanOrEqual(p.r + 1e-12);
+          });
+        }
+      });
+    }
+  }, 120_000);
+
+  it('does not call Math.random', () => {
+    const spy = vi.spyOn(Math, 'random');
+    const c = layoutClouds('park', 4)[1];
+    for (let j = 0; j < c.puffs.length; j++) puffAt(c, 1, j, 5000);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
