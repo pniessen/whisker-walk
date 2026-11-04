@@ -225,8 +225,9 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
     effects.push({ obj: points, life: 0, ttl, kind: 'burst', velocities, gravity });
   }
 
-  function burst(position, color, count = 10) {
-    spawnParticles(position, color, count);
+  // `opts` (ttl, gravity, speed, size) retunes a burst, for a slower fall.
+  function burst(position, color, count = 10, opts) {
+    spawnParticles(position, color, count, opts);
   }
 
   // v18 Whisker Sense ('whisker-sense') — a slow, near-weightless sparkle

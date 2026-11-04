@@ -3,6 +3,7 @@ import { CATALOG } from '../src/progression.js';
 import { SKILLS } from '../src/skills.js';
 import { CLAN_SUFFIX } from '../src/clanwords.js';
 import { CAT_BLURBS, ACC_BLURBS } from '../src/ui/catblurbs.js';
+import { PAW } from '../src/ui/pawicon.js';
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
   buildDressingModel, renderSlotPickerHtml, renderDressingRoomHtml, poseToggleHtml,
@@ -473,9 +474,9 @@ describe('her own cats in the dressing room', () => {
     const mk = (ui) => renderDressingRoomHtml({ model: buildDressingModel(withMine(0), CATALOG), ui });
     const stand = mk({ builderHtml: '<i></i>', heroName: 'Ember', pose: 'stand' });
     const text = stand.slice(stand.indexOf('dr-hero-text'), stand.indexOf('</section>'));
-    expect(text).toContain('<button class="dr-pose" data-dr-pose="sit">🐾 Sit</button>');
+    expect(text).toContain(`<button class="dr-pose" data-dr-pose="sit">${PAW} Sit</button>`);
     expect(text).toContain('<div class="dr-hero-row"><div class="dr-hero-name">Ember</div><button class="dr-pose"');
-    expect(mk({ builderHtml: '<i></i>', pose: 'sit' })).toContain('data-dr-pose="stand">🐾 Stand</button>');
+    expect(mk({ builderHtml: '<i></i>', pose: 'sit' })).toContain(`data-dr-pose="stand">${PAW} Stand</button>`);
     expect(mk({ builderHtml: '<i></i>' })).not.toContain('data-dr-pose');
     expect(mk({ pose: 'stand' })).not.toContain('data-dr-pose');
     expect(poseToggleHtml('nap')).toBe('');

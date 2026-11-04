@@ -7,6 +7,7 @@ import { createDressingRoom } from '../src/ui/dressingroomview.js';
 import { territoryMapModel } from '../src/territories.js';
 import { renderTerritoryMapHtml } from '../src/ui/territorymap.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
+import { PAW } from '../src/ui/pawicon.js';
 
 const lockedCat = Object.keys(CATALOG.cats).find((id) => CATALOG.cats[id].price > 0);
 const accId = Object.keys(CATALOG.accessories)[0];
@@ -408,7 +409,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
       expect(calls.at(-1)).toEqual(['show', 'tabby', {}, DEFAULT_LOOK]);
       const html = dr.html();
       expect(html).toContain('data-dr-pose="sit"');
-      expect(html).toContain('data-dr-pose="sit">🐾 Sit</button>');
+      expect(html).toContain(`data-dr-pose="sit">${PAW} Sit</button>`);
       dr.handleClick(click({ cbCancel: '' })); // clean draft: closes at once
       dr.afterRender({ id: 'dr-stage' });
       expect(calls.at(-2)).toEqual(['setPose', 'sit', { redraw: false }]);
@@ -427,7 +428,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
       dr.afterRender({ id: 'dr-stage' });
       expect(stage.setPose).toHaveBeenLastCalledWith('sit', { redraw: false });
       expect(stage.show.mock.calls.length).toBe(shows + 1);
-      expect(dr.html()).toContain('data-dr-pose="stand">🐾 Stand</button>');
+      expect(dr.html()).toContain(`data-dr-pose="stand">${PAW} Stand</button>`);
       dr.afterRender({ id: 'dr-stage' }); // a plain re-render rebuilds nothing
       expect(stage.show.mock.calls.length).toBe(shows + 1);
       // the size slider keeps her pose

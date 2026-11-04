@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { PAW } from '../src/ui/pawicon.js';
 
 // The home base's WebGL pieces can't run in node: stub the thumbnails, the hero
 // stage and the dressing-room controller so createHomeBase can be driven.
@@ -89,7 +90,7 @@ const tap = (el, vc) => el.listeners.click({ target: { closest: () => ({ dataset
 
 describe('visitBadgeHtml', () => {
   it('shows the visit number with a paw, or confetti on a milestone', () => {
-    expect(visitBadgeHtml(23)).toContain('🐾 Visit 23');
+    expect(visitBadgeHtml(23)).toContain(`${PAW} Visit 23`);
     expect(visitBadgeHtml(23)).toContain('class="dr-chip visit"');
     expect(visitBadgeHtml(30)).toContain('🎉 Visit 30');
     expect(visitBadgeHtml(1)).toContain('🎉 Visit 1');
