@@ -5,6 +5,8 @@ import { withLocalUuids } from './localuuids.js';
 import { litMaterial, repeatFor, surfaceProps } from '../render/materials.js';
 import { createWater, WATER_TUNING } from '../render/water.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
+import { tintGround } from './dressing.js';
+import { sandTint, dressBeach, KERB_COL } from './beachdress.js';
 
 // The same two opt-in helpers world/builder.js keeps at the top of itself, for
 // the props this file builds locally rather than borrowing. They are duplicated
@@ -59,7 +61,7 @@ const WET_TO = 25.4;
 // Polish-water Task 4 takes it a step darker again (0.37/0.34/0.31 before):
 // with the white foam strip lying along the waterline the soaked sand behind
 // it needs the contrast, or foam and sand blur into one pale stripe.
-const WET_TINT = [0.31, 0.28, 0.25];
+export const WET_TINT = [0.31, 0.28, 0.25];
 
 // A deterministic 0..1 value for an integer, for the strata tones.
 function hash1(n) {
@@ -80,6 +82,10 @@ export function wetness(x, z) {
   return t * t * (3 - 2 * t);
 }
 
+// Sky top for the bay: a deeper blue than the first pass so the pale horizon
+// (0xe8e0d0, the fog colour) reads as haze rather than as the sky itself.
+export const SKY_TOP = 0x88bce6;
+
 function wetSandBand() {
   const w = WET_TO - WET_FROM;
   const len = 140;
@@ -90,7 +96,10 @@ function wetSandBand() {
   const col = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) {
     const k = wetness(pos.getX(i) + cx, pos.getZ(i));
-    for (let c = 0; c < 3; c++) col[i * 3 + c] = 1 + (WET_TINT[c] - 1) * k;
+    // The dry sand beside it carries sandTint, so the band wears the same
+    // authored variation or its edge would show as a seam.
+    const t = sandTint(pos.getX(i) + cx, pos.getZ(i));
+    for (let c = 0; c < 3; c++) col[i * 3 + c] = (1 + (WET_TINT[c] - 1) * k) * t[c];
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   // Roughness 0.8, not wet stone's 0.55: damp sand is darker, not shiny, and
@@ -99,6 +108,9 @@ function wetSandBand() {
     surface: 'sand', repeat: repeatFor('sand', w, len), vertexColors: true, roughness: 0.8,
   }));
   m.name = 'wet-sand';
+  // Tagged like the dry ground so rain and dusk darken it with the sand next
+  // to it (walk.js collects scene children with userData.ground).
+  m.userData.ground = true;
   // Under the contact-shadow decals (0.015) with room to spare, above the
   // ground (0) and below the boardwalk (0.03) and the sea (0.05).
   m.position.set(cx, 0.008, 0);
@@ -392,6 +404,18 @@ export const SEA_VIEW = Object.freeze({ id: 'sea-view', kind: 'rect', minX: 25, 
 // Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
 export const SPAWN = Object.freeze({ x: 18, z: 42 });
 
+// Where build() places the beach's scenery, shared with beachdress.js so its
+// keep-outs and post clearances read the same numbers (frozen [x, z] pairs).
+const pairs = (list) => Object.freeze(list.map((p) => Object.freeze(p)));
+export const SEASIDE_ROCKS = pairs([[-8, 10], [-20, -2], [4, 24], [-28, 18]]);
+export const SEASIDE_ROCKS_EXTRA = pairs([[-32, 30], [12, -10], [-32, -10]]);
+export const SEASIDE_BUSHES = pairs([[-14, 30], [-2, -14], [-24, -20], [8, 2]]);
+export const SEASIDE_BUSHES_EXTRA = pairs([[-30, 5], [12, 20]]);
+export const BILLBOARD = Object.freeze({ x: 15, z: 34, yaw: Math.PI / 2 });
+export const BENCHES = pairs([[18, 14], [18, -18]]);
+export const LAMPS = pairs([[20, 30], [20, -30]]);
+export const SEASIDE_BOXES = pairs([[19, 24], [-14, 4], [23, -6]]);
+
 // The backing dunes' band and their edge (see the horizon band in build()).
 export const SEASIDE_HORIZON = Object.freeze({
   kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26,
@@ -411,12 +435,17 @@ export const SEASIDE_HORIZON = Object.freeze({
 });
 
 export function build(scene, { water = {}, wind } = {}) {
-  b.applySky(scene, 0x9fc8e8, 0xe8e0d0);
+  b.applySky(scene, SKY_TOP, 0xe8e0d0);
   // Dry beach sand at roughness 0.92 — a step drier than the game's default,
   // and the tile is a fine speckle whose repeat comes from the plane's own
   // 140m (175 tiles of 0.8m). See the note above on why the colour is not
   // lifted the way a lawn's is.
-  scene.add(b.ground(140, BEACH, { surface: 'sand' }));
+  // sandTint is an authored colour variation (warmer, patchier, a paler back
+  // beach), not a correction for the sand texture.
+  const g = b.ground(140, BEACH, { surface: 'sand' });
+  g.updateMatrix();
+  tintGround(g, sandTint);
+  scene.add(g);
   scene.add(wetSandBand());
 
   // The horizon band (VISUAL-PASS.md Wave 4.3) — dunes and a headland. See
@@ -558,7 +587,8 @@ export function build(scene, { water = {}, wind } = {}) {
     };
     piece(4.3, 0.12, 0.4, 20, 0.04, 45.2);
     for (const x of [17.85, 22.15]) piece(0.18, 0.6, 0.18, x, 0.26, 45.3);
-    const mesh = new THREE.Mesh(mergeGeometries(parts, false), surfNoMap(0x8a6a48, 'wood'));
+    // Weathered timber, the same as the beach kerbs (polish-beach): 0x8a6a48 read orange at sunset.
+    const mesh = new THREE.Mesh(mergeGeometries(parts, false), surfNoMap(KERB_COL, 'wood'));
     for (const g of parts) g.dispose();
     mesh.name = 'boardwalkEnd';
     mesh.userData.noCast = true;
@@ -640,7 +670,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // beach props. Two of these four boulders have carried perches since v11
   // ((-8,10) and the "overlook boulder" at (-28,18)); the rest of the sand is
   // scenery, and CF-9b opens it — see clawPerches below.
-  for (const [x, z] of [[-8, 10], [-20, -2], [4, 24], [-28, 18]]) scene.add(b.rock(x, z));
+  for (const [x, z] of SEASIDE_ROCKS) scene.add(b.rock(x, z));
 
   // a dune ledge beside the overlook boulder — second step of a short climb
   // chain (boulder y 0.72 -> ledge y 1.9), 1.41 horizontally and 1.18
@@ -651,21 +681,20 @@ export function build(scene, { water = {}, wind } = {}) {
   // colour and every number here are the shipped ones.
   scene.add(b.platform(-29, 19, 1.9, 0, 1.8, 0xd8c088, { surface: 'sand' }));
   addC(-29, 19, 1.0);
-  scene.add(b.bench(18, 14, Math.PI / 2));
-  scene.add(b.bench(18, -18, Math.PI / 2));
-  for (const [x, z] of [[20, 30], [20, -30]]) scene.add(b.lampPost(x, z));
+  for (const [x, z] of BENCHES) scene.add(b.bench(x, z, Math.PI / 2));
+  for (const [x, z] of LAMPS) scene.add(b.lampPost(x, z));
 
-  scene.add(b.billboard(15, 34, Math.PI / 2));
-  addC(15, 34, 2.3);
+  scene.add(b.billboard(BILLBOARD.x, BILLBOARD.z, BILLBOARD.yaw));
+  addC(BILLBOARD.x, BILLBOARD.z, 2.3);
   // beach grass tufts — the area's only foliage, and therefore the whole of
   // what registers with the wind rig. builder.bush returns a Group hinged at
   // ground contact when `wind` is passed, so the tuft stands in exactly the
   // same place either way and no hide-spot or scent record moves.
-  for (const [x, z] of [[-14, 30], [-2, -14], [-24, -20], [8, 2]]) scene.add(b.bush(x, z, { wind }));
+  for (const [x, z] of SEASIDE_BUSHES) scene.add(b.bush(x, z, { wind }));
 
   // a few more rocks and grass tufts scattered on the sand
-  for (const [x, z] of [[-32, 30], [12, -10], [-32, -10]]) scene.add(b.rock(x, z));
-  for (const [x, z] of [[-30, 5], [12, 20]]) scene.add(b.bush(x, z, { wind }));
+  for (const [x, z] of SEASIDE_ROCKS_EXTRA) scene.add(b.rock(x, z));
+  for (const [x, z] of SEASIDE_BUSHES_EXTRA) scene.add(b.bush(x, z, { wind }));
 
   // driftwood washed up at the sand line. Thin-member rule: 0.15 by 0.25, so
   // repeatFor's one-whole-tile minimum would squash the plank tile's four
@@ -681,10 +710,10 @@ export function build(scene, { water = {}, wind } = {}) {
   // "if I fits, I sits" award needs the cat within 0.35 of the box, i.e.
   // standing on it. It is now on the sand at (23, -6), 2.0 clear of the
   // waterline and a couple of metres east of the boardwalk.
-  const boxes = [[19, 24], [-14, 4], [23, -6]];
+  const boxes = SEASIDE_BOXES;
   for (const b2 of boxes) scene.add(b.cardboardBox(b2[0], b2[1]));
 
-  return {
+  const area = {
     name: 'Seaside',
     colliders,
     bounds: { minX: -48, maxX: 36, minZ: -34, maxZ: 48 },
@@ -787,4 +816,8 @@ export function build(scene, { water = {}, wind } = {}) {
       )),
     ],
   };
+  // The painted beach (beachdress.js): looks only, built from the record
+  // it is about to return so its keep-outs are the real ones.
+  dressBeach(scene, area, { ground: g });
+  return area;
 }
