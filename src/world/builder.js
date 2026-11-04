@@ -3641,8 +3641,8 @@ function plankEdgeUVs(geo, w, thick, len) {
 // the band of each end that shows above the bank; moss on one side's wane
 // and upper flank toward one end; a short broken branch stub. Only 0.13 m of
 // trunk stands above the water, so the top is most of what anyone sees: it
-// has to read as the top of a log, not a pale board. Same objects as the old ExtrudeGeometry (Group,
-// Shape, one BufferGeometry, Mesh, one material), because every uuid is a
+// has to read as the top of a log, not a pale board. Same objects as the old
+// ExtrudeGeometry (Group, Shape, one BufferGeometry, Mesh, one material), because every uuid is a
 // pinned Math.random draw (test/waterlooks.test.js); the Shape stays as the
 // record of the section the sweep follows. Variation comes from hash01 on
 // the endpoints, so both cats' screens agree.
@@ -3723,7 +3723,9 @@ function logTrunkGeometry(len, r, hw, c, phi, seed) {
   // The outline. Each upper flank runs from the hewn edge down to 0.6 m
   // below the top in three steps packed toward the edge, where it shows
   // above the water; underneath, four coarse steps round the bottom.
-  const sLow = Math.asin(Math.max(-1, Math.min(1, (c - 0.6 * k) / r)));
+  // Kept above the axis: with a top nearly as wide as the trunk the flank would
+  // otherwise dip under the axis and fold back over the belly's first point.
+  const sLow = Math.max(0.05, Math.asin(Math.max(-1, Math.min(1, (c - 0.6 * k) / r))));
   const upper = [0, 0.3, 0.6, 1].map((f) => phi - (phi - sLow) * f);
   const U = upper.length - 1;
   // right to left, under the trunk: level with the axis on each side (the

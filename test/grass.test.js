@@ -196,6 +196,8 @@ describe('grass mask', () => {
 
   const WILD = { river: buildRiver, moor: buildMoor, woods: buildWoods, pines: buildPines };
   for (const [id, build] of Object.entries(WILD)) {
+    // 0.25 m, inside grass.js's 0.3 m DECK_MARGIN, so a tuft's own jitter
+    // never makes this flaky.
     it(`${id}: no tuft within 0.25 m of any deck`, () => {
       const scene = new THREE.Scene();
       const area = build(scene);

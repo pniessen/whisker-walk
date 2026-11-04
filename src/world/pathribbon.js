@@ -528,8 +528,9 @@ export function trailMaterial(color, surface, segs) {
 // is +/-50 today (test/trails.test.js pins that, so a map with other bounds
 // fails loudly instead of growing blobs at its border).
 // `decks` (optional) are the area's water decks: free ends near one tuck
-// under it, kept off open water by `waters` (see trailSegments). The mesh's userData.trail is the full list,
-// tucks included; the hidden strips stay one per INPUT segment.
+// under it, kept off open water by `waters` (see trailSegments). The mesh's
+// userData.trail is the full list, tucks included; the hidden strips stay one
+// per INPUT segment.
 export function addTrails(scene, groups, style = {}, key = 'trail', { edge, decks, waters } = {}) {
   for (const g of groups) {
     for (const s of g.segs) scene.add(path(...s, g.w, { ...style, footprint: true }));
