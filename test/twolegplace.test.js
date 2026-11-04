@@ -175,3 +175,62 @@ describe('house() look', () => {
     expect(h.getObjectByName('houseGlass')).toBeDefined();
   });
 });
+
+const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
+
+describe('the Neighbourhood street of houses', () => {
+  const scene = new THREE.Scene();
+  buildNeighborhood(scene);
+  scene.updateMatrixWorld(true);
+  const houses = scene.children.filter((c) => c.getObjectByName && c.getObjectByName('houseTrim') && c.children.length >= 5 && c.children[1].isMesh);
+
+  it('all eight lot houses are dressed', () => {
+    expect(houses.length).toBe(8);
+  });
+
+  it('uses each roof style at least twice (pyramid is the cone)', () => {
+    const cones = houses.filter((h) => h.children[1].geometry.type === 'ConeGeometry').length;
+    expect(cones).toBeGreaterThanOrEqual(2);
+    expect(houses.length - cones).toBeGreaterThanOrEqual(4);
+    // gable roofs are 4-triangle meshes; front vs side differ in ridge direction
+    const ridge = (h) => {
+      const p = h.children[1].geometry.attributes.position;
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (let i = 0; i < p.count; i++) if (p.getY(i) > 4.9) {
+        minX = Math.min(minX, p.getX(i)); maxX = Math.max(maxX, p.getX(i));
+        minZ = Math.min(minZ, p.getZ(i)); maxZ = Math.max(maxZ, p.getZ(i));
+      }
+      return maxX - minX > maxZ - minZ ? 'side' : 'front';
+    };
+    const gables = houses.filter((h) => h.children[1].geometry.type !== 'ConeGeometry');
+    expect(gables.filter((h) => ridge(h) === 'front').length).toBeGreaterThanOrEqual(2);
+    expect(gables.filter((h) => ridge(h) === 'side').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('every house trim stays inside local x,z +-2.8 and y <= 5', () => {
+    for (const h of houses) {
+      for (const name of ['houseTrim', 'houseGlass']) {
+        const b = new THREE.Box3().setFromObject(h.getObjectByName(name), true);
+        expect(b.min.x - h.position.x).toBeGreaterThanOrEqual(-2.8 - 1e-6);
+        expect(b.max.x - h.position.x).toBeLessThanOrEqual(2.8 + 1e-6);
+        expect(b.min.z - h.position.z).toBeGreaterThanOrEqual(-2.8 - 1e-6);
+        expect(b.max.z - h.position.z).toBeLessThanOrEqual(2.8 + 1e-6);
+        expect(b.max.y).toBeLessThanOrEqual(5 + 1e-6);
+      }
+    }
+  });
+
+  it('the (-12,15) house keeps its cone roof and nothing rises over the climb chain', () => {
+    const h = houses.find((c) => c.position.x === -12 && c.position.z === 15);
+    expect(h.children[1].geometry.type).toBe('ConeGeometry');
+    for (const name of ['houseTrim', 'houseGlass']) {
+      const g = h.getObjectByName(name).geometry;
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const inside = x >= 0 && x <= 3 && z >= -0.5 && z <= 1.5 && y > 3;
+        expect(inside, `${name} vertex ${i}`).toBe(false);
+      }
+    }
+  });
+});
