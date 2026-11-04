@@ -329,6 +329,24 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // Pines 5,232, Gorge 2,361.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// polish-twolegplace (survey 5, build 5-5): the Neighbourhood's eight lot
+// houses take builder.house()'s `look` (gable or pyramid roofs, trim, frames,
+// shutters, flower boxes, chimneys, porches, side windows), adding one
+// vertex-coloured 'houseTrim' and one 'houseGlass' window mesh per house,
+// both under withLocalUuids. The Seaside's six shrubs become marram and
+// sea-holly clumps (bush style 'beach'), at most 100 triangles each; they
+// are too low to cast, so the Seaside loses two casters (the Seaside's
+// mouse-hide spots are pinned to marram, (-24,-20) to holly). houseGlass is
+// userData.noCast (flush panes, nothing worth a shadow draw), so the eight
+// houses add only the trim as casters. River, Moor, Gorge: unaffected.
+// Ceilings unchanged. Before is main at aafb451.
+//
+//   area          meshes      casters    merged (meshes/casters)   triangles
+//   neighborhood  382 -> 398  314 -> 322  219/169 -> 235/177       29,759 -> 36,786
+//   seaside        70 -> 70    33 -> 31    53/28 -> 53/26          29,521 -> 29,513
+// ---------------------------------------------------------------------------
+
 // Counts what render/rig.js's assignShadowCasters would set, minus the
 // userData.contactDecal exclusion (a bare area build never contains the
 // contact-shadow InstancedMeshes — those are added later, by
