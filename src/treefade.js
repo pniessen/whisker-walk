@@ -32,6 +32,14 @@
 // no wind lean, and fades by the same line test as a tree, and also when the
 // camera is within NEAR_POLE of it (a pole beside the lens, off the line).
 //
+// Windows (polish-roughedges). A faded building's glass panes still read as
+// bright pale slabs at opacity 0.05 (the glass preset's sheen survives the
+// alpha), floating in the foreground when the camera stands inside the box. So
+// while a building is below WINDOW_HIDE its window meshes (userData.window)
+// are hidden outright, and shown again as it comes back above it. A window's
+// own `visible` is written here and nowhere else (the fight camera hides the
+// whole group, never a pane), and swapOut / dispose always show them again.
+//
 // Merged pine stands (builder.pineStand: occluder.obj === null, with
 // occluder.stand and occluder.index) fade one pine at a time. Every pine in a
 // stand has the same parts, merged in tree order, so pine i owns the index
@@ -52,6 +60,7 @@ const FADE_DOWN_S = 0.2; // full → FADE_OPACITY
 const FADE_UP_S = 0.4; // FADE_OPACITY → full
 const LINE_PAD = 0.15;
 export const NEAR_POLE = 1.5; // m: a tagged pole this close to the camera (horizontally) fades even off the line
+export const WINDOW_HIDE = 0.3; // opacity below which a faded building's window panes are hidden
 export const BUILDING_PAD = 0.4; // m: a camera this close to a building's box counts as inside it
 
 const DOWN_RATE = (1 - FADE_OPACITY) / FADE_DOWN_S;
@@ -138,7 +147,7 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   const stands = new Map(); // stand Group → its state (see prepareStand)
   const standTrees = [];
   for (const occ of occluders) {
-    if (occ.obj) trees.push({ occ, obj: occ.obj, op: 1, swapped: false, meshes: null, originals: null, clones: null, base: null, cache: null });
+    if (occ.obj) trees.push({ occ, obj: occ.obj, op: 1, swapped: false, meshes: null, originals: null, clones: null, base: null, cache: null, windows: null, winHidden: false });
     else if (occ.stand && Number.isInteger(occ.index)) {
       let st = stands.get(occ.stand);
       if (!st) {
@@ -160,7 +169,8 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   function prepare(t) {
     t.meshes = [];
     t.originals = [];
-    t.obj.traverse((o) => { if (o.isMesh) { t.meshes.push(o); t.originals.push(o.material); } });
+    t.windows = [];
+    t.obj.traverse((o) => { if (o.isMesh) { t.meshes.push(o); t.originals.push(o.material); if (o.userData?.window) t.windows.push(o); } });
     t.cache = new Map(); // original → clone, so two meshes sharing one share its clone
     const one = (m) => {
       let c = t.cache.get(m);
@@ -183,7 +193,15 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
     faded.add(t.obj);
   }
 
+  // Hide a faded building's panes below WINDOW_HIDE, show them otherwise.
+  function setWindows(t, hide) {
+    if (!t.windows || t.winHidden === hide) return;
+    t.winHidden = hide;
+    for (const w of t.windows) w.visible = !hide;
+  }
+
   function swapOut(t) {
+    setWindows(t, false);
     for (let i = 0; i < t.meshes.length; i++) t.meshes[i].material = t.originals[i];
     t.swapped = false;
     faded.delete(t.obj);
@@ -321,6 +339,7 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         }
         if (!t.swapped) swapIn(t);
         setOpacity(t);
+        setWindows(t, t.op < WINDOW_HIDE);
       }
     },
     // Walk start: the first fade would compile each tree material's transparent
@@ -360,8 +379,9 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
       for (const t of trees) {
         if (t.swapped) swapOut(t);
         t.op = 1;
+        setWindows(t, false);
         if (t.cache) for (const c of t.cache.values()) c.dispose();
-        t.meshes = t.originals = t.clones = t.base = t.cache = null;
+        t.meshes = t.originals = t.clones = t.base = t.cache = t.windows = null;
       }
       for (const st of stands.values()) {
         restoreStand(st);
