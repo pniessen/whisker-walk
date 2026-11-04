@@ -45,7 +45,7 @@ export function createHud() {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <div class="hud-top">
-      <div class="hud-points">${PAW} <span id="hud-points-value">0</span></div>
+      <div class="hud-points" role="group" aria-label="Whisker points">${PAW} <span id="hud-points-value">0</span></div>
       <div class="hud-rank" id="hud-rank"></div>
     </div>
     <div class="hud-map" id="hud-map"><div class="hud-area" id="hud-area"></div></div>
