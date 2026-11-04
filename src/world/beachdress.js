@@ -16,7 +16,7 @@
 // only used inside functions, which run after both modules have loaded.
 import * as THREE from 'three';
 import { hash01 } from './builder.js';
-import { smoothField, PAINT_Y, Tris, lin, scale3, smoothstep } from './dressing.js';
+import { smoothField, PAINT_Y, Tris, lin, scale3, smoothstep, unit, dressMesh } from './dressing.js';
 import { withLocalUuids } from './localuuids.js';
 import { propsFor } from '../propsets.js';
 import { DISCS } from '../rivalclans.js';
@@ -186,13 +186,15 @@ export function shadeK(x, z) {
   return 1 - 0.3 * (1 - smoothstep(0.7, 1.3, shadeE(x, z)));
 }
 
+// The fresh line of seaweed the last high tide left: it follows the wet
+// edge's own wander (seaside.js wetness) a little way down the wet ramp. The
+// painted wrack (below) and the shells and kelp (Task 3) both lie along it.
+export function tideX(z) {
+  const reach = 0.32 * Math.sin(z * 0.33 + 1.3) + 0.16 * Math.sin(z * 0.91);
+  return 22.85 - 0.8 * reach + 0.08 * Math.sin(z * 1.7 + 0.4);
+}
+
 function paintTideLines(T, sand) {
-  // The fresh line of seaweed the last high tide left: it follows the wet
-  // edge's own wander (seaside.js wetness) a little way down the wet ramp.
-  const tideX = (z) => {
-    const reach = 0.32 * Math.sin(z * 0.33 + 1.3) + 0.16 * Math.sin(z * 0.91);
-    return 22.85 - 0.8 * reach + 0.08 * Math.sin(z * 1.7 + 0.4);
-  };
   const weedA = lin(0x4f4a2a);
   const weedB = lin(0x6b5a32);
   let z = -44;
@@ -423,11 +425,526 @@ function buildPaint(keep) {
   return mesh;
 }
 
+// ---------------------------------------------------------------------------
+// The beach dressing (polish-beach Task 3): the small raised things on the
+// sand, all in one noCast, vertex-coloured, FrontSide mesh ('beachDressing'):
+// shells, kelp and pebbles along the painted tide line, three starfish, three
+// bleached logs, two sandcastles in their painted moats with a bucket and
+// spade by the big one, the beach umbrella over its painted shade and towel,
+// and the boardwalk's finished edge (kerb boards and short posts).
+//
+// Looks only, like the paint: no collider, perch or pickup, and every prop
+// keeps clear of beachKeepOut so it is never mistaken for a find. Every
+// shape is closed against the sand or faces up (bottoms omitted: the sand
+// hides them), except the umbrella's canopy and the flags, which are thin
+// and so are built twice, once facing each way.
+
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const signed = (h) => h * 2 - 1;
+const vary = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+const pick = (list, h) => list[Math.min(list.length - 1, Math.floor(h * list.length))];
+// The wet band's top (seaside.js, y 0.008) or the dry sand (0).
+const sandY = (x) => (x > 21.8 ? 0.008 : 0);
+
+// Places a prop's own-space points in the world: scale, tilt about x, then
+// about z, then yaw about y (three.js's sense), then move.
+function place({ x = 0, y = 0, z = 0, yaw = 0, tx = 0, tz = 0, s = 1 } = {}) {
+  const [kx, ky, kz] = Array.isArray(s) ? s : [s, s, s];
+  const cX = Math.cos(tx); const sX = Math.sin(tx);
+  const cZ = Math.cos(tz); const sZ = Math.sin(tz);
+  const cY = Math.cos(yaw); const sY = Math.sin(yaw);
+  return (p) => {
+    let px = p[0] * kx; let py = p[1] * ky; let pz = p[2] * kz;
+    [py, pz] = [py * cX - pz * sX, py * sX + pz * cX];
+    [px, py] = [px * cZ - py * sZ, px * sZ + py * cZ];
+    [px, pz] = [px * cY + pz * sY, -px * sY + pz * cY];
+    return [px + x, py + y, pz + z];
+  };
+}
+const AT_WORLD = (p) => p;
+
+// Collects props as raw triangles. Each triangle comes in the prop's own space
+// and is turned so its face points along face(centroid) before it is placed
+// (positive scales keep the turn), then lit flat by its placed normal.
+class Props {
+  constructor() { this.T = new Tris(); }
+  put(tris, face, at, col) {
+    for (const t of tris) {
+      let [a, b, c] = t;
+      const cen = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
+      if (dot(cross(sub(b, a), sub(c, a)), face(cen)) < 0) [b, c] = [c, b];
+      const A = at(a); const B = at(b); const C = at(c);
+      const n = unit(...cross(sub(B, A), sub(C, A)));
+      for (const W of [A, B, C]) this.T.v(W[0], W[1], W[2], n, typeof col === 'function' ? col(W) : col);
+    }
+  }
+}
+// Face choosers: away from a point inside a convex shape, towards a point, up.
+const outFrom = (o) => (c) => sub(c, o);
+const towards = (o) => (c) => sub(o, c);
+const faceUp = () => UP;
+
+// --- shapes, in a prop's own space (y up, sitting on y 0) ----------------
+function ringPts(n, r, y, { phase = 0, wob = 0, salt = 0, sz = 1 } = {}) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = phase + (i / n) * Math.PI * 2;
+    const rr = r * (1 + wob * signed(hash01(i, salt, 991)));
+    pts.push([Math.cos(a) * rr, y, Math.sin(a) * rr * sz]);
+  }
+  return pts;
+}
+// The side wall between two rings of the same length.
+function bandTris(lo, hi) {
+  const out = [];
+  for (let i = 0; i < lo.length; i++) {
+    const j = (i + 1) % lo.length;
+    out.push([lo[i], lo[j], hi[i]], [lo[j], hi[j], hi[i]]);
+  }
+  return out;
+}
+const fanTris = (ring, apex) => ring.map((p, i) => [apex, p, ring[(i + 1) % ring.length]]);
+// An n-sided post or tower from y0 to y1 (radius r0 to r1), top cap optional.
+function prismTris(n, r0, r1, y0, y1, { top = true, phase = 0, wob = 0, salt = 0 } = {}) {
+  const lo = ringPts(n, r0, y0, { phase, wob, salt });
+  const hi = ringPts(n, r1, y1, { phase, wob, salt });
+  const out = bandTris(lo, hi);
+  if (top) out.push(...fanTris(hi, [0, y1, 0]));
+  return out;
+}
+// A box over y0..y0+h centred on x and z, no bottom; ends: false drops its
+// two z faces (a board butted against the next).
+function boxTris(w, h, d, { y0 = 0, ends = true, ox = 0, oz = 0 } = {}) {
+  const x0 = ox - w / 2; const x1 = ox + w / 2; const z0 = oz - d / 2; const z1 = oz + d / 2; const y1 = y0 + h;
+  const quad = (a, b, c, e) => [[a, b, c], [a, c, e]];
+  const out = [
+    ...quad([x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]),
+    ...quad([x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, y0, z1]),
+    ...quad([x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]),
+  ];
+  if (ends) {
+    out.push(...quad([x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]));
+    out.push(...quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]));
+  }
+  return out;
+}
+const boxFace = (h, y0 = 0, ox = 0, oz = 0) => outFrom([ox, y0 + h / 2, oz]);
+
+// --- where everything goes (pure: no Three objects) ---------------------
+const SHELL_COLS = [0xf3e6d6, 0xeec2b4, 0xf0c89a, 0xf6ede2, 0xe8b9a6];
+const STAR_COLS = [0xe9774f, 0xf09a4a];
+const PEBBLE_COLS = [0x8d8a84, 0x6f7377, 0x9a8a72, 0xa59d90, 0x7c6f60];
+const KELP_COLS = [0x4a4a24, 0x5a5529, 0x655530];
+const UMBRELLA_TILT = 0.12;
+
+function planBeach(area) {
+  const keep = beachKeepOut(area);
+  const b = area.bounds;
+  const items = [];
+  const big = BEACH_SPOTS.castles[0];
+  const towel = BEACH_SPOTS.towel;
+  const umb = BEACH_SPOTS.umbrella;
+  // Clear of every keep-out and every prop placed so far, out of the sea,
+  // off the deck (with the prop's own reach) and inside the bounds.
+  const clear = (x, z, r, room = 0) => x + r < 24.6
+    && !(x + r > 18 && x - r < 22 && Math.abs(z) - r <= 45)
+    && x - r >= b.minX && x + r <= b.maxX && z - r >= b.minZ && z + r <= b.maxZ
+    && !(z + r > -12.5 && z - r < -7.5 && x > 21)
+    && keep.every((k) => Math.hypot(x - k.x, z - k.z) >= k.r + r)
+    && items.every((q) => Math.hypot(x - q.x, z - q.z) >= q.r + r + room);
+  // The towel, the umbrella and the moats are painted; loose shells and
+  // stones keep off them.
+  const offPaint = (x, z, r) => Math.hypot(x - towel.x, z - towel.z) >= 1.1 + r
+    && Math.hypot(x - umb.x, z - umb.z) >= 1.5 + r
+    && BEACH_SPOTS.castles.every((c) => Math.hypot(x - c.x, z - c.z) >= 1.05 + r);
+  const add = (it) => { items.push(it); return it; };
+
+  add({ kind: 'umbrella', x: umb.x, z: umb.z, r: 1.0 });
+  add({ kind: 'castle', x: big.x, z: big.z, r: 0.62, big: true, yaw: 0.3 });
+  const small = BEACH_SPOTS.castles[1];
+  add({ kind: 'castle', x: small.x, z: small.z, r: 0.46, big: false, yaw: -0.45 });
+
+  // The bucket and spade, just outside the big moat on the side the spawn
+  // looks from.
+  const toSpawn = Math.atan2(area.spawn.z - big.z, area.spawn.x - big.x);
+  for (let k = 0; k < 12; k++) {
+    const a = toSpawn + 0.5 + (k % 2 ? -1 : 1) * Math.ceil(k / 2) * 0.45;
+    const bx = big.x + Math.cos(a) * 1.25; const bz = big.z + Math.sin(a) * 1.25;
+    const sx = big.x + Math.cos(a + 0.32) * 1.45; const sz = big.z + Math.sin(a + 0.32) * 1.45;
+    if (clear(bx, bz, 0.1) && clear(sx, sz, 0.18)) {
+      add({ kind: 'bucket', x: bx, z: bz, r: 0.1, tilt: 0.05 });
+      add({ kind: 'spade', x: sx, z: sz, r: 0.18, yaw: a + 1.9 });
+      break;
+    }
+  }
+
+  // Three bleached logs; nudged along the beach if a spot is taken.
+  const logs = [
+    { x: 23.1, z: 14.5, L: 2.0, rad: 0.095, yaw: Math.PI / 2 + 0.22, branch: true },
+    { x: 22.9, z: -25.5, L: 1.4, rad: 0.075, yaw: Math.PI / 2 - 0.3 },
+    { x: 10.5, z: -24, L: 1.7, rad: 0.085, yaw: 0.9 },
+  ];
+  for (const g of logs) {
+    for (const dz of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4]) {
+      if (clear(g.x, g.z + dz, g.L / 2)) { add({ kind: 'driftwood', ...g, z: g.z + dz, r: g.L / 2 }); break; }
+    }
+  }
+
+  // Along the tide line: seaweed clumps, shells, two starfish, stones.
+  const tideSpot = (z, off) => [tideX(z) + off, z];
+  const zFrom = Math.max(-44, b.minZ + 0.6);
+  const zTo = Math.min(44, b.maxZ - 0.6);
+  for (const zs of [33.5, -28.5]) {
+    for (let k = 0; k < 10; k++) {
+      const z = zs + (k % 2 ? -1 : 1) * Math.ceil(k / 2) * 0.7;
+      const [x] = tideSpot(z, 0.25);
+      if (clear(x, z, 0.15, 0.1)) {
+        add({ kind: 'starfish', x, z, r: 0.15, tide: true, salt: items.length });
+        break;
+      }
+    }
+  }
+  const nKelp = 15;
+  for (let i = 0; i < nKelp; i++) {
+    for (let k = 0; k < 6; k++) {
+      const z = zFrom + ((i + 0.5 + 0.35 * signed(hash01(i, k, 1101))) / nKelp) * (zTo - zFrom);
+      const [x] = tideSpot(z, 0.1 * signed(hash01(i, k, 1102)));
+      if (clear(x, z, 0.17, 0.1)) {
+        add({ kind: 'kelp', x, z, r: 0.17, tide: true, salt: i * 7 + k });
+        break;
+      }
+    }
+  }
+  let shells = 0;
+  for (let i = 0; i < 120 && shells < 26; i++) {
+    const z = zFrom + hash01(i, 1, 1201) * (zTo - zFrom);
+    const [x] = tideSpot(z, -0.3 + 0.85 * hash01(i, 2, 1201));
+    const r = 0.05 + 0.03 * hash01(i, 3, 1201);
+    if (clear(x, z, r, 0.06)) { add({ kind: 'shell', x, z, r, tide: true, salt: i }); shells++; }
+  }
+  const cluster = (cx, cz, n, salt, tide) => {
+    for (let j = 0, got = 0; j < n * 4 && got < n; j++) {
+      const a = hash01(j, salt, 1301) * Math.PI * 2;
+      const d = 0.08 + 0.3 * hash01(j, salt, 1302);
+      const x = cx + Math.cos(a) * d * (tide ? 0.7 : 1);
+      const z = cz + Math.sin(a) * d * (tide ? 1.4 : 1);
+      const r = 0.04 + 0.07 * hash01(j, salt, 1303) ** 1.5;
+      if (clear(x, z, r) && offPaint(x, z, r)) {
+        add({ kind: 'pebble', x, z, r, tide, salt: salt * 31 + j });
+        got++;
+      }
+    }
+  };
+  for (let i = 0; i < 7; i++) {
+    const z = zFrom + ((i + 0.3 + 0.4 * hash01(i, 1, 1401)) / 7) * (zTo - zFrom);
+    cluster(tideX(z) + 0.15, z, 3 + Math.floor(hash01(i, 2, 1401) * 4), 40 + i, true);
+  }
+  for (let i = 0; i < 6; i++) {
+    const cx = -30 + (i + 0.2 + 0.6 * hash01(i, 3, 1401)) * (40 / 6);
+    const cz = -30.5 - 2.5 * hash01(i, 4, 1401);
+    cluster(cx, cz, 4 + Math.floor(hash01(i, 5, 1401) * 3), 60 + i, false);
+  }
+
+  // The front beach: a few more shells and the third starfish.
+  for (let k = 0; k < 40; k++) {
+    const x = 6 + 11 * hash01(k, 1, 1501); const z = -26 + 66 * hash01(k, 2, 1501);
+    if (clear(x, z, 0.15, 0.3) && offPaint(x, z, 0.15)) { add({ kind: 'starfish', x, z, r: 0.15, salt: 99 }); break; }
+  }
+  let front = 0;
+  for (let i = 0; i < 80 && front < 11; i++) {
+    const x = 6 + 11 * hash01(i, 3, 1501); const z = -26 + 70 * hash01(i, 4, 1501);
+    const r = 0.05 + 0.03 * hash01(i, 5, 1501);
+    if (clear(x, z, r, 0.4) && offPaint(x, z, r)) { add({ kind: 'shell', x, z, r, salt: 500 + i }); front++; }
+  }
+  return items;
+}
+
+// Every raised prop the dressing places: { kind, x, z, r } (r its reach on
+// the sand), plus tide: true for the ones laid along the tide line.
+export function beachAnchors(area) {
+  return planBeach(area).map(({ kind, x, z, r, tide }) => (tide ? { kind, x, z, r, tide } : { kind, x, z, r }));
+}
+
+// --- the props -------------------------------------------------------------
+function addShell(P, it) {
+  const h = 0.024 + 0.14 * (it.r - 0.05);
+  const y0 = sandY(it.x);
+  const base = vary(lin(pick(SHELL_COLS, hash01(it.salt, 1, 1601))), 0.94 + 0.1 * hash01(it.salt, 2, 1601));
+  const rim = ringPts(5, it.r, 0, { phase: hash01(it.salt, 3, 1601), wob: 0.12, salt: it.salt, sz: 0.85 });
+  const apex = [-0.3 * it.r, h, 0];
+  const at = place({ x: it.x, y: y0, z: it.z, yaw: hash01(it.salt, 4, 1601) * 6.28,
+    tx: 0.1 * signed(hash01(it.salt, 5, 1601)), tz: 0.1 * signed(hash01(it.salt, 6, 1601)) });
+  P.put(fanTris(rim, apex), outFrom([-0.1 * it.r, -0.05, 0]), at, (W) => vary(base, 0.88 + 0.16 * Math.min(1, Math.max(0, (W[1] - y0) / h))));
+}
+
+function addStarfish(P, it) {
+  const y0 = sandY(it.x);
+  const R = 0.12 + 0.03 * hash01(it.salt, 1, 1701);
+  const col = lin(pick(STAR_COLS, hash01(it.salt, 2, 1701)));
+  const rot = hash01(it.salt, 3, 1701) * 6.28;
+  const C = [it.x, y0 + 0.025, it.z];
+  const tips = []; const notches = [];
+  for (let i = 0; i < 5; i++) {
+    const a = rot + (i / 5) * Math.PI * 2 + 0.15 * signed(hash01(it.salt, 10 + i, 1701));
+    const L = R * (0.88 + 0.24 * hash01(it.salt, 20 + i, 1701));
+    tips.push([it.x + Math.cos(a) * L, y0 + 0.004, it.z + Math.sin(a) * L]);
+    const b = rot + ((i + 0.5) / 5) * Math.PI * 2;
+    notches.push([it.x + Math.cos(b) * R * 0.38, y0 + 0.012, it.z + Math.sin(b) * R * 0.38]);
+  }
+  const tris = [];
+  for (let i = 0; i < 5; i++) tris.push([C, notches[(i + 4) % 5], tips[i]], [C, tips[i], notches[i]]);
+  P.put(tris, faceUp, AT_WORLD, (W) => vary(col, W[1] > y0 + 0.02 ? 1.08 : W[1] > y0 + 0.008 ? 1 : 0.86));
+}
+
+function addPebble(P, it) {
+  const y0 = sandY(it.x);
+  const base = vary(lin(pick(PEBBLE_COLS, hash01(it.salt, 1, 1801))), 0.9 + 0.2 * hash01(it.salt, 2, 1801));
+  const rim = ringPts(6, it.r, -0.004, { phase: hash01(it.salt, 3, 1801), wob: 0.18, salt: it.salt, sz: 0.7 + 0.3 * hash01(it.salt, 4, 1801) });
+  const apex = [0.25 * it.r * signed(hash01(it.salt, 5, 1801)), it.r * (0.45 + 0.15 * hash01(it.salt, 6, 1801)), 0.2 * it.r * signed(hash01(it.salt, 7, 1801))];
+  const at = place({ x: it.x, y: y0, z: it.z, yaw: hash01(it.salt, 8, 1801) * 6.28 });
+  P.put(fanTris(rim, apex), outFrom([0, -it.r, 0]), at, (W) => vary(base, 0.85 + 0.25 * Math.min(1, (W[1] - y0) / (it.r * 0.5))));
+}
+
+function addKelp(P, it) {
+  const y0 = sandY(it.x);
+  const rot = hash01(it.salt, 1, 1901) * Math.PI;
+  for (let k = 0; k < 3; k++) {
+    const a = rot + (k / 3) * Math.PI + 0.25 * signed(hash01(it.salt, 2 + k, 1901));
+    const len = 0.22 + 0.08 * hash01(it.salt, 5 + k, 1901);
+    const w = 0.022 + 0.012 * hash01(it.salt, 8 + k, 1901);
+    const ph = hash01(it.salt, 11 + k, 1901) * 6.28;
+    const col = vary(lin(pick(KELP_COLS, hash01(it.salt, 14 + k, 1901))), 0.9 + 0.2 * hash01(it.salt, 17 + k, 1901));
+    const ca = Math.cos(a); const sa = Math.sin(a);
+    const pt = (t, side) => {
+      const along = (t - 0.5) * len;
+      const across = 0.03 * Math.sin(t * 4.5 + ph) + side * w * (1 - 0.6 * Math.abs(t - 0.4));
+      return [it.x + ca * along - sa * across, y0 + 0.01 + 0.004 * k + 0.02 * Math.sin(Math.PI * t), it.z + sa * along + ca * across];
+    };
+    const tris = [];
+    const ts = [0, 0.35, 0.7];
+    for (let s = 0; s < ts.length - 1; s++) {
+      tris.push([pt(ts[s], -1), pt(ts[s], 1), pt(ts[s + 1], -1)], [pt(ts[s], 1), pt(ts[s + 1], 1), pt(ts[s + 1], -1)]);
+    }
+    tris.push([pt(0.7, -1), pt(0.7, 1), pt(1, 0)]);
+    P.put(tris, faceUp, AT_WORLD, (W) => vary(col, 0.85 + 4 * (W[1] - y0 - 0.01)));
+  }
+}
+
+function addDriftwood(P, it) {
+  const { L, rad } = it;
+  const s = hash01(it.x, it.z, 2001);
+  const base = vary(lin(s > 0.5 ? 0xc4b8a4 : 0xb3a690), 0.95 + 0.08 * hash01(it.x, it.z, 2002));
+  const grain = lin(0x9a8b74);
+  const xs = [-L / 2, -L / 6, L / 6, L / 2];
+  const rs = [0.72, 1, 0.92, 0.8].map((k) => k * rad);
+  const zOff = [0, 0.04, -0.03, 0.02].map((k, i) => k * signed(hash01(i, it.x, 2003)) * L);
+  const axis = (i) => [xs[i], rs[i] * 0.86, zOff[i]];
+  const rings = xs.map((x, i) => {
+    const pts = [];
+    for (let j = 0; j < 6; j++) {
+      const a = Math.PI / 6 + (j / 6) * Math.PI * 2;
+      const rr = rs[i] * (1 + 0.1 * signed(hash01(i, j, 2004 + it.z)));
+      const c = axis(i);
+      pts.push([x, c[1] + Math.cos(a) * rr, c[2] + Math.sin(a) * rr]);
+    }
+    return pts;
+  });
+  const at = place({ x: it.x, y: sandY(it.x), z: it.z, yaw: it.yaw });
+  const col = (W) => vary(base, 0.88 + 0.18 * hash01(Math.round(W[0] * 9), Math.round(W[2] * 9), 2005) + 0.6 * (W[1] - rad));
+  for (let i = 0; i < 3; i++) {
+    const mid = [(xs[i] + xs[i + 1]) / 2, (axis(i)[1] + axis(i + 1)[1]) / 2, (zOff[i] + zOff[i + 1]) / 2];
+    // Faces 4 and 5 are the flat underside (ring vertices 2 and 3 straddle
+    // the bottom): it lies on the sand, so it is left out.
+    P.put(bandTris(rings[i], rings[i + 1]).filter((_, k) => k !== 4 && k !== 5), outFrom(mid), at, col);
+  }
+  const capTris = (ring) => [[ring[0], ring[1], ring[2]], [ring[0], ring[2], ring[3]], [ring[0], ring[3], ring[4]], [ring[0], ring[4], ring[5]]];
+  P.put(capTris(rings[0]), () => [-1, 0, 0], at, grain);
+  P.put(capTris(rings[3]), () => [1, 0, 0], at, grain);
+  if (it.branch) {
+    // A short broken branch off the side of the long log, leaning up a little.
+    const b0 = [L * 0.18, rad * 0.95, rad * 0.5];
+    const d = unit(0.55, 0.4, 0.75);
+    const u = unit(...cross(d, [0, 1, 0]));
+    const v = cross(u, d);
+    const ring = [];
+    for (let j = 0; j < 5; j++) {
+      const a = (j / 5) * Math.PI * 2;
+      ring.push([0, 1, 2].map((c) => b0[c] + 0.04 * (Math.cos(a) * u[c] + Math.sin(a) * v[c])));
+    }
+    const tip = [0, 1, 2].map((c) => b0[c] + 0.42 * d[c]);
+    const inner = [0, 1, 2].map((c) => b0[c] + 0.1 * d[c]);
+    P.put(fanTris(ring, tip), outFrom(inner), at, col);
+  }
+}
+
+function castleCol(it) {
+  const t = sandTint(it.x, it.z);
+  const damp = lin(BEACH).map((v, c) => v * t[c] * 0.86 * [1.02, 1, 0.96][c]);
+  return (W) => vary(damp, 0.86 + 0.16 * Math.min(1, W[1] / 0.5) + 0.04 * signed(hash01(Math.round(W[0] * 20), Math.round(W[2] * 20), 2101)));
+}
+
+// A stick flag streaming west (the wind is off the sea), seen from either side.
+function addFlag(P, at, top, len, colHex) {
+  const T = at(top);
+  const pole = (y) => at([top[0], y, top[2]]);
+  const P1 = pole(top[1] - 0.06);
+  const tipA = [T[0] - len, (T[1] + P1[1]) / 2 - 0.004, T[2] + 0.02];
+  const tri = [[T, P1, tipA]];
+  const col = lin(colHex);
+  P.put(tri, () => [0, 0, 1], AT_WORLD, col);
+  P.put(tri, () => [0, 0, -1], AT_WORLD, vary(col, 0.85));
+}
+
+function addCastle(P, it) {
+  const at = place({ x: it.x, y: 0, z: it.z, yaw: it.yaw });
+  const col = castleCol(it);
+  const tower = (x, z, r, y0, y1, capR, capH, salt) => {
+    const tr = prismTris(6, r, r * 0.9, y0, y1, { top: false, phase: salt, wob: 0.06, salt });
+    P.put(tr.map((t) => t.map((p) => [p[0] + x, p[1], p[2] + z])), outFrom([x, (y0 + y1) / 2, z]), at, col);
+    const cap = fanTris(ringPts(6, capR, y1, { phase: salt }), [0, y1 + capH, 0]);
+    P.put(cap.map((t) => t.map((p) => [p[0] + x, p[1], p[2] + z])), outFrom([x, y1 + capH / 4, z]), at, col);
+  };
+  const mound = (r0, r1, h) => {
+    P.put(prismTris(8, r0, r1, 0, h, { wob: 0.07, salt: it.big ? 3 : 4 }), outFrom([0, h / 2, 0]), at, col);
+  };
+  const box = (w, h, d, y0, ox = 0, oz = 0) => P.put(boxTris(w, h, d, { y0, ox, oz }), boxFace(h, y0, ox, oz), at, col);
+  const pole = (x, z, y0, y1) => {
+    P.put(prismTris(4, 0.009, 0.008, y0, y1, { top: false }).map((t) => t.map((p) => [p[0] + x, p[1], p[2] + z])),
+      outFrom([x, (y0 + y1) / 2, z]), at, lin(0x8a6a48));
+  };
+  if (it.big) {
+    mound(0.6, 0.46, 0.07);
+    box(0.42, 0.26, 0.42, 0.07);
+    for (const [ox, oz, w, d] of [[0, 0.185, 0.1, 0.05], [0, -0.185, 0.1, 0.05], [0.185, 0, 0.05, 0.1], [-0.185, 0, 0.05, 0.1]]) {
+      box(w, 0.06, d, 0.33, ox, oz);
+    }
+    [[0.21, 0.21], [-0.21, 0.21], [0.21, -0.21], [-0.21, -0.21]].forEach(([x, z], i) => {
+      tower(x, z, 0.1, 0.07, 0.43 + 0.03 * hash01(i, 1, 2102), 0.115, 0.11, i + 1);
+    });
+    tower(0, 0, 0.085, 0.33, 0.46, 0.1, 0.09, 7);
+    pole(0, 0, 0.5, 0.645);
+    addFlag(P, at, [0, 0.645, 0], 0.12, 0xe0473c);
+  } else {
+    mound(0.44, 0.34, 0.06);
+    box(0.3, 0.18, 0.22, 0.06);
+    box(0.06, 0.05, 0.05, 0.24, 0, 0.085);
+    box(0.06, 0.05, 0.05, 0.24, 0, -0.085);
+    tower(0.17, 0, 0.085, 0.06, 0.4, 0.1, 0.1, 11);
+    tower(-0.17, 0, 0.085, 0.06, 0.34, 0.1, 0.1, 12);
+    pole(0.17, 0, 0.45, 0.6);
+    addFlag(P, at, [0.17, 0.6, 0], 0.11, 0xf2c23a);
+  }
+}
+
+function addBucket(P, it) {
+  const at = place({ x: it.x, y: 0, z: it.z, tx: it.tilt, yaw: 0.4 });
+  const red = lin(0xd9483b);
+  const outer = prismTris(6, 0.07, 0.095, 0, 0.14, { top: false });
+  P.put(outer, outFrom([0, 0.07, 0]), at, (W) => vary(red, 0.9 + 0.8 * W[1]));
+  const inner = prismTris(6, 0.064, 0.089, 0.02, 0.14, { top: false });
+  P.put(inner, (c) => [-c[0], 0, -c[2]], at, vary(red, 0.72));
+  P.put(fanTris(ringPts(6, 0.064, 0.02), [0, 0.02, 0]), faceUp, at, vary(red, 0.6));
+}
+
+function addSpade(P, it) {
+  const at = place({ x: it.x, y: 0, z: it.z, yaw: it.yaw });
+  const blue = lin(0x3d7cc9);
+  const lay = (w, h, d, ox, k) => {
+    const tr = boxTris(d, h, w, { y0: 0, ox, oz: 0 });
+    P.put(tr, boxFace(h, 0, ox, 0), at, vary(blue, k));
+  };
+  lay(0.022, 0.022, 0.2, -0.02, 0.95);
+  lay(0.08, 0.02, 0.025, -0.13, 0.85);
+  lay(0.1, 0.012, 0.12, 0.14, 1.08);
+}
+
+function addUmbrella(P, it) {
+  const yaw = Math.atan2(-SUN_AWAY[1], SUN_AWAY[0]);
+  // Leans towards its painted shade (away from the low sun).
+  const at = place({ x: it.x, y: 0, z: it.z, tz: -UMBRELLA_TILT, yaw });
+  const white = lin(0xf4efe4);
+  P.put(prismTris(6, 0.025, 0.022, 0, 1.92, { top: false }), outFrom([0, 1, 0]), at, (W) => vary(white, 0.9 + 0.05 * W[1]));
+  const apexY = 1.93;
+  const n = 8;
+  const gores = [0xe05a4f, 0xf4efe4].map(lin);
+  const pt = (r, a, y) => [Math.cos(a) * r, y, Math.sin(a) * r];
+  const top = []; const under = [];
+  const apex = [0, apexY, 0];
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * Math.PI * 2; const a1 = ((i + 1) / n) * Math.PI * 2; const am = (a0 + a1) / 2;
+    const m0 = pt(0.5, a0, apexY - 0.12); const m1 = pt(0.5, a1, apexY - 0.12);
+    const r0 = pt(1.0, a0, apexY - 0.3); const r1 = pt(1.0, a1, apexY - 0.3); const rm = pt(0.93, am, apexY - 0.26);
+    const tris = [[apex, m0, m1], [m0, r0, rm], [m0, rm, m1], [m1, rm, r1]];
+    const col = gores[i % 2];
+    top.push({ tris, col });
+    under.push({ tris: tris.map((t) => t.map((p) => [p[0], p[1] - 0.008, p[2]])), col });
+  }
+  const mid = [0, 0.6, 0];
+  for (const g of top) P.put(g.tris, outFrom(mid), at, g.col);
+  for (const g of under) P.put(g.tris, towards(mid), at, vary(g.col, 0.92));
+  P.put(fanTris(ringPts(5, 0.028, apexY - 0.01), [0, apexY + 0.06, 0]), outFrom([0, apexY + 0.01, 0]), at, white);
+}
+
+// The boardwalk's edges: a low kerb board along each side, butted plank to
+// plank, and a short post every 7.5m standing against its outside face. The
+// east kerb breaks for the pier's mouth; posts skip anything they would
+// crowd (benches, lamps, the box, tippables, the water bowl, the spawn).
+const KERB_COL = 0x8a6a48;
+const POST_SKIP = [[18, 14], [18, -18], [20, 30], [20, -30], [19, 24], [17, 15], [17, -17], [21, 29], [17.5, 8]];
+function addBoardwalkEdge(P, area, keep) {
+  const kerb = lin(KERB_COL);
+  const runs = [[18, -45, 45], [22, -45, -11.6], [22, -8.4, 45]];
+  runs.forEach(([x, z0, z1], ri) => {
+    let z = z0;
+    let k = 0;
+    while (z < z1 - 1e-6) {
+      const len = Math.min(z1 - z, 4.5 + 3 * hash01(ri, k, 2201));
+      const tooShort = z1 - (z + len) < 1.5;
+      const L = tooShort ? z1 - z : len;
+      const first = z === z0; const last = tooShort;
+      const tris = boxTris(0.08, 0.095, L, { y0: -0.015, ends: false });
+      // Only the run's own two ends show an end face.
+      const ends = boxTris(0.08, 0.095, L, { y0: -0.015 }).slice(6);
+      if (first) tris.push(...ends.slice(0, 2));
+      if (last) tris.push(...ends.slice(2, 4));
+      P.put(tris, boxFace(0.095, -0.015), place({ x, z: z + L / 2 }), vary(kerb, 0.9 + 0.14 * hash01(ri, k, 2202)));
+      z += L;
+      k++;
+    }
+  });
+  const post = lin(0x7d5f40);
+  for (const [x, east] of [[17.88, false], [22.12, true]]) {
+    for (let i = 0; i < 12; i++) {
+      const z = -41.25 + 7.5 * i;
+      if ([...POST_SKIP, [area.spawn.x, area.spawn.z]].some(([px, pz]) => Math.hypot(x - px, z - pz) < 1.6)) continue;
+      if (east && Math.hypot(x - 22, Math.max(0, -11.5 - z, z + 8.5)) < 1.6) continue;
+      if (keep.some((q) => Math.hypot(x - q.x, z - q.z) < q.r)) continue;
+      P.put(boxTris(0.16, 0.42, 0.16), boxFace(0.42), place({ x, z }), vary(post, 0.9 + 0.15 * hash01(i, x, 2203)));
+    }
+  }
+}
+
+const BUILDERS = {
+  shell: addShell, starfish: addStarfish, pebble: addPebble, kelp: addKelp, driftwood: addDriftwood,
+  castle: addCastle, bucket: addBucket, spade: addSpade, umbrella: addUmbrella,
+};
+
+function buildDressing(area, keep) {
+  const P = new Props();
+  for (const it of planBeach(area)) BUILDERS[it.kind](P, it);
+  addBoardwalkEdge(P, area, keep);
+  return dressMesh([P.T.geometry()], { name: 'beachDressing', side: THREE.FrontSide });
+}
+
 // Dresses the Seaside's beach from its area record (which it reads, never
 // changes). Adds its meshes to the scene and returns them.
 export function dressBeach(scene, area) {
   const keep = beachKeepOut(area);
   const paint = withLocalUuids('seaside-beach-paint', () => buildPaint(keep));
+  const dressing = withLocalUuids('seaside-beach-dressing', () => buildDressing(area, keep));
   scene.add(paint);
-  return { paint, dressing: null };
+  scene.add(dressing);
+  return { paint, dressing };
 }

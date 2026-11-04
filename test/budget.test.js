@@ -272,6 +272,17 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //
 // River has 1,499 and the Moor 697 triangles left under the 60,000 ceiling: the
 // next build adding to either must trim first.
+//
+// 2026-11-04, polish-beach: the Seaside's beach is dressed, all visual. It
+// gains 'beachPaint' (flat tide lines, wind ripples, a striped towel, the
+// umbrella's shade and the castle moats; tagged ground) and 'beachDressing'
+// (shells, starfish, pebbles, kelp, driftwood, two sandcastles, a bucket and
+// spade, the beach umbrella and the boardwalk's kerb boards and posts), both
+// noCast and built under withLocalUuids (src/world/beachdress.js), so the
+// build draw count and the flat trace do not move. Seaside 26,904 -> 29,449
+// triangles (beachPaint 880, beachDressing 1,665), meshes 68 -> 70, casters
+// 33 (unchanged). 551 triangles left under the 30,000 ceiling: the next
+// Seaside build trims first.
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the

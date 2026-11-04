@@ -231,3 +231,129 @@ describe('beach paint', () => {
     expect(p2.uuid).toBe(paint.uuid);
   });
 });
+
+// polish-beach Task 3: the beach dressing (shells, starfish, pebbles, seaweed,
+// driftwood, sandcastles, bucket and spade, umbrella, the boardwalk's edge).
+const { beachAnchors, tideX } = await import('../src/world/beachdress.js');
+
+describe('beach dressing', () => {
+  const scene = new THREE.Scene();
+  const area = build(scene);
+  const dressing = scene.children.find((c) => c.name === 'beachDressing');
+  const pos = dressing.geometry.attributes.position;
+  const anchors = beachAnchors(area);
+
+  it('dressing is one noCast mesh', () => {
+    expect(scene.children.filter((c) => c.name === 'beachDressing')).toHaveLength(1);
+    expect(dressing.userData.noCast).toBe(true);
+    expect(dressing.castShadow).toBe(false);
+    expect(dressing.receiveShadow).toBe(true);
+    expect(dressing.userData.ground).toBeFalsy();
+    expect(dressing.material.vertexColors).toBe(true);
+    expect(dressing.material.side).toBe(THREE.FrontSide);
+  });
+
+  it('seaside stays under its triangle ceiling with room', () => {
+    let meshes = 0;
+    let tris = 0;
+    scene.traverse((o) => {
+      if (!o.isMesh) return;
+      meshes++;
+      const g = o.geometry;
+      tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+    });
+    expect(Math.round(tris)).toBeLessThanOrEqual(29600);
+    expect(meshes).toBe(70);
+    expect(pos.count / 3).toBeLessThanOrEqual(1800);
+  });
+
+  it('has the props it promises', () => {
+    const n = (k) => anchors.filter((a) => a.kind === k).length;
+    expect(n('shell')).toBeGreaterThanOrEqual(30);
+    expect(n('starfish')).toBe(3);
+    expect(n('pebble')).toBeGreaterThanOrEqual(40);
+    expect(n('kelp')).toBeGreaterThanOrEqual(12);
+    expect(n('driftwood')).toBe(3);
+    expect(n('castle')).toBe(2);
+    expect(n('bucket')).toBe(1);
+    expect(n('umbrella')).toBe(1);
+  });
+
+  it('anchors keep clear', () => {
+    const keep = beachKeepOut(area);
+    const b = area.bounds;
+    for (const a of anchors) {
+      for (const k of keep) {
+        expect(Math.hypot(a.x - k.x, a.z - k.z), `${a.kind} at ${a.x},${a.z}`).toBeGreaterThanOrEqual(a.r + k.r);
+      }
+      expect(a.x).toBeLessThan(24.6);
+      expect(a.x >= 18 && a.x <= 22 && Math.abs(a.z) <= 45).toBe(false);
+      expect(a.x).toBeGreaterThanOrEqual(b.minX); expect(a.x).toBeLessThanOrEqual(b.maxX);
+      expect(a.z).toBeGreaterThanOrEqual(b.minZ); expect(a.z).toBeLessThanOrEqual(b.maxZ);
+    }
+  });
+
+  it('sits on the paint: the tide line, the moats and the shade', () => {
+    for (const a of anchors.filter((q) => q.tide)) expect(Math.abs(a.x - tideX(a.z))).toBeLessThanOrEqual(0.7);
+    expect(anchors.filter((a) => a.tide && a.kind === 'shell').length).toBeGreaterThanOrEqual(20);
+    expect(anchors.filter((a) => a.tide && a.kind === 'kelp').length).toBeGreaterThanOrEqual(12);
+    const castles = anchors.filter((a) => a.kind === 'castle');
+    BEACH_SPOTS.castles.forEach((c, i) => expect(castles[i]).toMatchObject({ x: c.x, z: c.z }));
+    expect(anchors.find((a) => a.kind === 'umbrella')).toMatchObject(BEACH_SPOTS.umbrella);
+    const bucket = anchors.find((a) => a.kind === 'bucket');
+    const big = BEACH_SPOTS.castles[0];
+    const d = Math.hypot(bucket.x - big.x, bucket.z - big.z);
+    expect(d).toBeGreaterThan(0.95); expect(d).toBeLessThan(1.8);
+  });
+
+  it('puts nothing raised in the sea or on the deck', () => {
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i); const z = pos.getZ(i);
+      expect(x).toBeLessThan(24.6);
+      expect(x > 18.1 && x < 21.9 && Math.abs(z) < 45).toBe(false);
+    }
+  });
+
+  it('heights', () => {
+    dressing.geometry.computeBoundingBox();
+    expect(dressing.geometry.boundingBox.max.y).toBeLessThanOrEqual(2.2);
+    const u = BEACH_SPOTS.umbrella;
+    for (let i = 0; i < pos.count; i++) {
+      if (Math.hypot(pos.getX(i) - u.x, pos.getZ(i) - u.z) > 1.5) expect(pos.getY(i)).toBeLessThanOrEqual(0.65);
+    }
+  });
+
+  it('nothing floats or sinks', () => {
+    dressing.geometry.computeBoundingBox();
+    expect(dressing.geometry.boundingBox.min.y).toBeGreaterThanOrEqual(-0.02);
+  });
+
+  it('boardwalk edge', () => {
+    // Triangles lying wholly on each kerb line, as z-intervals.
+    const runs = { west: [], east: [] };
+    for (let t = 0; t < pos.count; t += 3) {
+      const xs = [0, 1, 2].map((k) => pos.getX(t + k));
+      const zs = [0, 1, 2].map((k) => pos.getZ(t + k));
+      if (xs.every((x) => x >= 17.9 && x <= 18.05)) runs.west.push([Math.min(...zs), Math.max(...zs)]);
+      if (xs.every((x) => x >= 21.95 && x <= 22.1)) runs.east.push([Math.min(...zs), Math.max(...zs)]);
+    }
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i); const z = pos.getZ(i);
+      if (x >= 21.95 && x <= 22.1) expect(z > -11.5 && z < -8.5, `east edge vertex at z ${z}`).toBe(false);
+    }
+    for (const [side, iv] of Object.entries(runs)) {
+      for (let z = -44; z <= 44; z += 0.25) {
+        if (side === 'east' && z > -11.7 && z < -8.3) continue;
+        expect(iv.some(([a, b]) => a <= z && z <= b), `${side} edge at z ${z}`).toBe(true);
+      }
+    }
+  });
+
+  it('is the same on every build', () => {
+    const s2 = new THREE.Scene();
+    build(s2);
+    const d2 = s2.children.find((c) => c.name === 'beachDressing');
+    expect(Array.from(d2.geometry.attributes.position.array)).toEqual(Array.from(pos.array));
+    expect(d2.uuid).toBe(dressing.uuid);
+  });
+});
