@@ -211,8 +211,8 @@ const BOG_COLOR = 0x4a4a28;
 const WATER_LOOK = {
   lake: { y: 0.03, shores: ['minZ'], foamStrength: 0.22 },
   'lake-bay': { y: 0.025, shores: ['minX', 'minZ', 'maxZ'], foamStrength: 0.22 },
-  'mire-north': { y: 0.035, color: MIRE_COLOR, shores: ['minX', 'maxX'], foamStrength: 0.25 },
-  'mire-west': { y: 0.02, color: MIRE_COLOR, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.25 },
+  'mire-north': { y: 0.035, color: MIRE_COLOR, shores: ['minX', 'maxX'], foamStrength: 0.1 },
+  'mire-west': { y: 0.02, color: MIRE_COLOR, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.1 },
   'bog-1': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
   'bog-2': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
   'bog-3': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },

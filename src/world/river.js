@@ -143,9 +143,9 @@ const POOL_COLOR = 0x6f8f80;
 export const WATER_LOOK = {
   lake: { y: 0.03, shores: ['minX', 'maxZ', 'minZ'], foamStrength: 0.22 },
   'lake-far': { y: 0.025, shores: ['minX', 'maxZ', 'minZ'], foamStrength: 0.22 },
-  'river-west': { y: 0.035, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.22 },
-  'river-bend': { y: 0.02, shores: ['minX', 'maxX'], foamStrength: 0.22 },
-  'river-east': { y: 0.035, shores: ['minZ', 'maxZ', 'minX'], foamStrength: 0.22 },
+  'river-west': { y: 0.035, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.08 },
+  'river-bend': { y: 0.02, shores: ['minX', 'maxX'], foamStrength: 0.08 },
+  'river-east': { y: 0.035, shores: ['minZ', 'maxZ', 'minX'], foamStrength: 0.08 },
   pond: { y: 0.045, foamStrength: 0.22 },
   'pool-1': { y: 0.03, color: POOL_COLOR, foamStrength: 0.22 },
   'pool-2': { y: 0.03, color: POOL_COLOR, foamStrength: 0.22 },
