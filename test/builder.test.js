@@ -761,13 +761,39 @@ describe('the Woods builders', () => {
         for (const side of [-1, 1]) {
           const flank = cast(new THREE.Vector3(cx + side * 1.15, 5, z), new THREE.Vector3(0, -1, 0));
           expect(flank.point.y).toBeLessThan(0.15);
-          expect(lum(hitColour(top))).toBeGreaterThan(lum(hitColour(flank)) * 1.6);
+          expect(lum(hitColour(top))).toBeGreaterThan(lum(hitColour(flank)) * 1.3);
         }
       }
-      // the centre of the top (paw-worn) is a touch lighter than its edges
-      const centre = cast(new THREE.Vector3(cx, 5, -11.5), new THREE.Vector3(0, -1, 0));
-      const edge = cast(new THREE.Vector3(cx + 0.85, 5, -11.5), new THREE.Vector3(0, -1, 0));
-      expect(lum(hitColour(centre))).toBeGreaterThan(lum(hitColour(edge)));
+      // the centre of the top (paw-worn) is a touch lighter than the rest of the hewn wood
+      const at = (x, z = -11.5) => hitColour(cast(new THREE.Vector3(cx + x, 5, z), new THREE.Vector3(0, -1, 0)));
+      expect(lum(at(0))).toBeGreaterThan(lum(at(0.5)));
+    });
+
+    it('keeps a strip of bark (the wane) along both edges of the top, and the hewn wood is not a pale board', () => {
+      const cx = -4.5;
+      const at = (x, z) => hitColour(cast(new THREE.Vector3(cx + x, 5, z), new THREE.Vector3(0, -1, 0)));
+      const srgb = (c) => new THREE.Color(c.r, c.g, c.b).getHexString();
+      for (const z of [-14.5, -11.5, -8.5]) {
+        for (const side of [-1, 1]) {
+          // the wane, 0.8 m out, is clearly darker than the hewn wood 0.5 m out
+          expect(lum(at(side * 0.8, z))).toBeLessThan(lum(at(side * 0.5, z)) * 0.75);
+        }
+        // weathered grey-brown, nowhere near the pale tan of a sawn board
+        const mid = new THREE.Color(...Object.values(at(0, z)));
+        const hsl = mid.getHSL({}, THREE.SRGBColorSpace);
+        expect(hsl.l, srgb(at(0, z))).toBeLessThan(0.45);
+      }
+      // the hewn band's edge is crisp: the wood right inside the line is
+      // nothing like the bark right outside it (own vertices at the line)
+      const pos = geo.attributes.position, nor = geo.attributes.normal;
+      const xs = new Set();
+      for (let i = 0; i < pos.count; i++) if (nor.getY(i) > 0.999) xs.add(Math.abs(pos.getX(i)).toFixed(4));
+      expect(xs.has((0.95 - 0.32).toFixed(4))).toBe(true);
+      let atLine = 0;
+      for (let i = 0; i < pos.count; i++) {
+        if (nor.getY(i) > 0.999 && Math.abs(Math.abs(pos.getX(i)) - 0.63) < 1e-4) atLine++;
+      }
+      expect(atLine).toBe(2 * 2 * 4); // two sides, wood and bark, four cross-sections
     });
 
     it('shows end grain at both ends, facing out, in at least three tones with a dark bark rim', () => {

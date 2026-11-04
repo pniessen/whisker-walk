@@ -3635,10 +3635,13 @@ function plankEdgeUVs(geo, w, thick, len) {
 // The section is swept by hand into one indexed geometry with vertex colours
 // (logTrunkGeometry below), so it reads as a log and not a brown plank:
 // round, smooth-shaded bark flanks (dense where they show above the water,
-// coarse underneath), a pale hewn top in three strips (the paw-worn middle a
-// touch lighter), end grain with a bark rim, sapwood and growth rings over the
-// band of each end that shows above the bank, moss on one upper flank and a
-// short broken branch stub. Same objects as the old ExtrudeGeometry (Group,
+// coarse underneath), a hewn top that keeps a strip of bark (the wane) along
+// each edge with weathered grey-brown wood between, a touch lighter down the
+// paw-worn middle; calm end grain (bark rim, pale wood, one darker ring) over
+// the band of each end that shows above the bank; moss on one side's wane
+// and upper flank toward one end; a short broken branch stub. Only 0.13 m of
+// trunk stands above the water, so the top is most of what anyone sees: it
+// has to read as the top of a log, not a pale board. Same objects as the old ExtrudeGeometry (Group,
 // Shape, one BufferGeometry, Mesh, one material), because every uuid is a
 // pinned Math.random draw (test/waterlooks.test.js); the Shape stays as the
 // record of the section the sweep follows. Variation comes from hash01 on
@@ -3669,22 +3672,25 @@ const LOG_BARK = new THREE.Color(0x5a4230);
 const LOG_BARK_LOW = new THREE.Color(0x4e3826);
 const LOG_BARK_BAND = new THREE.Color(0x45321f); // just under the hewn edge
 const LOG_MOSS = new THREE.Color(0x5f7038);
-const LOG_HEWN_EDGE = new THREE.Color(0x8e6b46);
-const LOG_HEWN = new THREE.Color(0x9e7a52);
-const LOG_HEWN_WORN = new THREE.Color(0xac885c);
+const LOG_WANE_OUT = new THREE.Color(0x4a3828); // the bark left on the top's edges
+const LOG_WANE_IN = new THREE.Color(0x56432f);
+const LOG_HEWN_EDGE = new THREE.Color(0x6e5640); // weathered, grey-brown
+const LOG_HEWN = new THREE.Color(0x7d6248);
+const LOG_HEWN_WORN = new THREE.Color(0x88694a);
+const LOG_WANE = 0.32; // metres of bark kept on each edge of the bridges' top
 const LOG_RIM = new THREE.Color(0x3f2d1e);
-const LOG_SAPWOOD = new THREE.Color(0xc9a978);
+const LOG_END = new THREE.Color(0xb89868);
 const LOG_RING = new THREE.Color(0x9a7a50);
-const LOG_PALE = new THREE.Color(0xc2a270);
-const LOG_HEART = new THREE.Color(0xa58456);
+const LOG_HEART = new THREE.Color(0xa88a5e);
 const LOG_STUB_TIP = new THREE.Color(0x9c7c56);
 // End-grain loops, as fractions of the radius, and the colour of the band
-// inside each: bark rim, sapwood, a growth ring, pale wood, a second ring;
-// the core inside the last is pale, darkening to the heart at the axis. The
-// bridges' hewn top cuts the trunk at about 0.77 r, so the outer bands show
-// at the end's two top corners and the inner ring runs under the middle.
-const LOG_LOOPS = [1, 0.955, 0.87, 0.83, 0.72, 0.69];
-const LOG_BANDS = [LOG_RIM, LOG_SAPWOOD, LOG_RING, LOG_PALE, LOG_RING];
+// inside each: a thin bark rim, pale end grain, one darker ring; the core
+// inside is pale, darkening a little to the heart at the axis. The bridges'
+// hewn top cuts the trunk at about 0.77 r, so the rim shows only at the
+// end's two top corners, and the ring arcs 0.04-0.08 m under the top, inside
+// the strip of end that shows above the bank.
+const LOG_LOOPS = [1, 0.97, 0.75, 0.72];
+const LOG_BANDS = [LOG_RIM, LOG_END, LOG_RING];
 const LOG_RINGS = 4; // cross-sections along the length: the ends and the thirds
 const LOG_STUB_SIDES = 5;
 
@@ -3723,7 +3729,7 @@ function logTrunkGeometry(len, r, hw, c, phi, seed) {
   // right to left, under the trunk: level with the axis on each side (the
   // trunk's full width) and the bottom
   const bottom = [0, -Math.PI / 2, -Math.PI];
-  const sx = hw / 3; // the strip lines across the hewn top
+  const sx = hw / 3; // where the end grain is sampled across the top
   // Outline points right to left over the top: {th, x, s}, exact, shared by
   // the flanks, the top and the ends' outer loop so nothing cracks.
   const onRim = (th) => ({ th, x: r * Math.cos(th), s: r * Math.sin(th) });
@@ -3746,7 +3752,7 @@ function logTrunkGeometry(len, r, hw, c, phi, seed) {
   // toward one end and gone by the other.
   const mossSide = seed(1) < 0.5 ? 1 : -1;
   const mossFromStart = seed(2) < 0.5;
-  const MOSS_BY_STEP = [0.15, 0.5, 0.7, 0.35];
+  const MOSS_BY_STEP = [0.45, 0.55, 0.6, 0.35];
   const BARK_BY_STEP = [LOG_BARK_BAND, LOG_BARK_BAND.clone().lerp(LOG_BARK, 0.5), LOG_BARK, LOG_BARK_LOW];
   const flank = new Map(); // side -> [ring][step]
   for (const side of [1, -1]) {
@@ -3774,19 +3780,40 @@ function logTrunkGeometry(len, r, hw, c, phi, seed) {
   ]);
   for (let m = 0; m < belly[0].length - 1; m++) quad(belly[0][m], belly[0][m + 1], belly[1][m + 1], belly[1][m]);
 
-  // The hewn top: its own vertices, facing up, in three strips. The middle
-  // strip is worn paler by paws; the edge strips darken toward the bark.
+  // The hewn top, its own vertices facing up. Along each edge a strip of
+  // bark (the wane, mossy on the moss side toward the moss end) with a crisp
+  // edge to the hewn wood (its own vertices at the line); between them the
+  // wood shades smoothly from the darker edges to the paw-worn middle. Each
+  // cross-section is a little lighter or darker than the next (±6%).
   const UP = [0, 1, 0];
-  const strips = [[hw, sx, LOG_HEWN_EDGE, LOG_HEWN], [sx, -sx, LOG_HEWN_WORN, LOG_HEWN_WORN], [-sx, -hw, LOG_HEWN, LOG_HEWN_EDGE]];
-  strips.forEach(([xa, xb, ca, cb], si) => {
-    const a = [], b = [];
-    for (let i = 0; i < LOG_RINGS; i++) {
-      const v = 0.94 + 0.1 * seed(60 + i * 3 + si);
-      a.push(vert(xa, c, zs[i], UP, shade(ca, v)));
-      b.push(vert(xb, c, zs[i], UP, shade(cb, v)));
-    }
-    for (let i = 0; i < LOG_RINGS - 1; i++) quad(a[i], b[i], b[i + 1], a[i + 1]);
+  const wane = Math.min(LOG_WANE * k, hw * 0.4);
+  const xw = hw - wane, xm = xw / 2;
+  const ringShade = [];
+  for (let i = 0; i < LOG_RINGS; i++) ringShade.push(0.94 + 0.12 * seed(60 + i));
+  const topRow = (xs, colours, i, moss) => xs.map((x, q) => {
+    const cc = shade(colours[q], ringShade[i]);
+    if (moss[q] > 0) cc.lerp(LOG_MOSS, moss[q]);
+    return vert(x, c, zs[i], UP, cc);
   });
+  const sweep = (rows) => {
+    for (let i = 0; i < LOG_RINGS - 1; i++) {
+      for (let q = 0; q < rows[i].length - 1; q++) quad(rows[i][q], rows[i][q + 1], rows[i + 1][q + 1], rows[i + 1][q]);
+    }
+  };
+  const hewn = [];
+  for (let i = 0; i < LOG_RINGS; i++) {
+    hewn.push(topRow([xw, xm, 0, -xm, -xw], [LOG_HEWN_EDGE, LOG_HEWN, LOG_HEWN_WORN, LOG_HEWN, LOG_HEWN_EDGE], i, [0, 0, 0, 0, 0]));
+  }
+  sweep(hewn);
+  for (const side of [1, -1]) {
+    const rows = [];
+    for (let i = 0; i < LOG_RINGS; i++) {
+      const t = i / (LOG_RINGS - 1);
+      const mossAlong = side === mossSide ? Math.max(0, 1 - (mossFromStart ? t : 1 - t) * 1.25) : 0;
+      rows.push(topRow([side * hw, side * xw], [LOG_WANE_OUT, LOG_WANE_IN], i, [0.65 * mossAlong, 0.45 * mossAlong]));
+    }
+    sweep(rows);
+  }
 
   // The ends. Over the band that shows above the bank (the outline from the
   // first flank step on each side, over the top) concentric loops round the
@@ -3808,7 +3835,7 @@ function logTrunkGeometry(len, r, hw, c, phi, seed) {
     const axis = vert(0, 0, z, n, LOG_HEART);
     const fan = [...over.slice(to), ...under.slice().reverse(), ...over.slice(0, from + 1)];
     for (let m = 0; m < fan.length - 1; m++) {
-      tri(axis, vert(fan[m].x, fan[m].s, z, n, LOG_RIM), vert(fan[m + 1].x, fan[m + 1].s, z, n, LOG_RIM));
+      tri(axis, vert(fan[m].x, fan[m].s, z, n, LOG_END), vert(fan[m + 1].x, fan[m + 1].s, z, n, LOG_END));
     }
     LOG_BANDS.forEach((band, q) => {
       const cc = shade(band, 0.95 + 0.08 * seed(80 + q + (nz + 1) * 5));
@@ -3823,7 +3850,7 @@ function logTrunkGeometry(len, r, hw, c, phi, seed) {
     let prev = -1;
     for (let a = from; a <= to; a++) {
       const [x, s] = loop(LOG_LOOPS.length - 1, over[a]);
-      const v = vert(x, s, z, n, LOG_PALE);
+      const v = vert(x, s, z, n, LOG_END);
       if (a > from) tri(axis, prev, v);
       prev = v;
     }
