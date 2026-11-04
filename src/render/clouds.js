@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { createNightSky } from './nightsky.js';
 
 // ---------------------------------------------------------------------------
 // CLOUDS — a few soft low-poly clouds drifting across the outdoor skies
@@ -42,6 +43,20 @@ import { mulberry32, seedFromCode } from '../rng.js';
 // colour is the sky's own horizon stop (world/builder.js applySky), the dusk
 // horizon (walk.js), or the rain/sunset horizon (weather.js), so the clouds
 // re-tint by themselves when a shower clears and the sky comes back.
+//
+// NIGHT SKY. On a dusk walk the rig also owns the stars and moon
+// (render/nightsky.js), even on a tier with clouds off: they cost two cheap
+// draws and dusk is where the magic is. `night` on the rig is null by day.
+//
+// THE DAY'S CHANGES. A cloud never repeats itself. Each time it wraps from its
+// downwind end back to its upwind end (a "lap", lapOf) it comes back as a new
+// shape: puffs re-rolled from a small integer hash of (cloud, puff, lap), no
+// RNG stream, so every client and every replay sees the same sky at the same
+// time. Between laps each puff also billows, its radius breathing by up to
+// BILLOW over 60-110 s. Every factor is <= 1, so the laid-out shape is the
+// biggest the cloud ever is and cloudReach still bounds it. Lap 0 at t = 0
+// is exactly the layout (sin(0) = 0), so the walk-start sky and the reduced-
+// motion sky (always t = 0) are unchanged.
 //
 // FOG. The material has fog off: scene fog runs out at 110-130m and every
 // cloud is further than that, so fogged clouds would vanish into the haze. A
@@ -182,6 +197,54 @@ export function cloudPlace(cloud, t, out = null) {
   return o;
 }
 
+// ---- The day's changes ----------------------------------------------------
+export const BILLOW = 0.12;
+const TWO_PI = Math.PI * 2;
+
+// lowbias32-style 32-bit mix of four integers -> [0, 1). Pure, no state.
+function hash01(a, b, c, salt) {
+  let h = Math.imul(a + 1, 0x9e3779b1) ^ Math.imul(b + 1, 0x85ebca6b) ^ Math.imul(c + 1, 0xc2b2ae35) ^ Math.imul(salt + 1, 0x27d4eb2f);
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x7feb352d);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x846ca68b);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+// Which lap of its chord a cloud is on at absolute time t (0 at t = 0).
+export function lapOf(cloud, t) {
+  const half = Math.sqrt(SKY_RADIUS * SKY_RADIUS - cloud.v * cloud.v);
+  const w = 2 * half;
+  return Math.floor((cloud.u0 + cloud.speed * t + half) / w) - Math.floor((cloud.u0 + half) / w);
+}
+
+// puffAt(cloud, ci, j, t, out) — puff j of cloud ci at time t: { x, z, r, yaw }.
+// Writes into `out` when given, else returns a fresh object.
+export function puffAt(cloud, ci, j, t, out = null) {
+  const p = cloud.puffs[j];
+  const o = out ?? {};
+  const lap = lapOf(cloud, t);
+  let x = p.x;
+  let z = p.z;
+  let r = p.r;
+  let yaw = p.yaw;
+  if (lap >= 1) {
+    x *= 0.8 + 0.2 * hash01(ci, j, lap, 1);
+    z *= 0.7 + 0.3 * hash01(ci, j, lap, 2);
+    r *= 0.72 + 0.28 * hash01(ci, j, lap, 3);
+    yaw = TWO_PI * hash01(ci, j, lap, 4);
+  }
+  // Billow rate is fixed per puff (not per lap) so it never jumps at a wrap.
+  const omega = TWO_PI / (110 - 50 * hash01(ci, j, 0, 5));
+  const s = Math.sin(omega * t);
+  o.x = x;
+  o.z = z;
+  o.r = r * (1 - BILLOW * s * s);
+  o.yaw = yaw;
+  return o;
+}
+
 // The furthest any cloud vertex can reach horizontally from its cloud's
 // centre, and the highest any reaches above its base (metres). For the far
 // plane check: a centre is within SKY_RADIUS, so a vertex is within
@@ -296,13 +359,14 @@ export function puffGeometry(detail = 1) {
   return g;
 }
 
-const NO_CLOUDS = Object.freeze({ mesh: null, clouds: [], update() {}, dispose() {} });
+const NO_CLOUDS = Object.freeze({ mesh: null, clouds: [], night: null, update() {}, dispose() {} });
 
 // createClouds(scene, { areaId, tier, camera, reducedMotion, dusk, sunset, centre })
 // — the per-walk rig, in the session's { update, dispose } shape. Call it
 // AFTER rig.js's assignShadowCasters and mergeStaticProps have scanned the
 // scene (both also skip `userData.clouds`, belt and braces). A no-op stub for
-// the den, an unknown area, or a tier with clouds off. `centre` is the area's
+// the den, an unknown area, or a tier with clouds off (unless it is dusk:
+// then the night sky alone). `centre` is the area's
 // middle, used once to measure the horizon band; it defaults to the origin
 // every world is built around. `sunset` is a sunset-weather walk (walk.js
 // passes weather.condition === 'sunset'); weather never rolls on a dusk walk,
@@ -312,7 +376,13 @@ export function createClouds(scene, {
   areaId, tier, camera, reducedMotion = false, dusk = false, sunset = false, centre,
 } = {}) {
   const count = tier?.cloudCount ?? 0;
-  if (!CLOUD_AREAS.includes(areaId) || !(count > 0) || !camera) return NO_CLOUDS;
+  if (!CLOUD_AREAS.includes(areaId) || !camera) return NO_CLOUDS;
+  const night = dusk ? createNightSky(scene, { areaId, camera, reducedMotion }) : null;
+  if (!(count > 0)) {
+    if (!night) return NO_CLOUDS;
+    // Clouds off, stars on.
+    return { mesh: null, clouds: [], night, update: (t = 0) => night.update(t), dispose: () => night.dispose() };
+  }
 
   // Lay out once at the floor to learn the reach, then raise the base if the
   // band needs it, and lay out again at that base (same seed, same shapes).
@@ -375,6 +445,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
   const p3 = new THREE.Vector3();
   const s3 = new THREE.Vector3();
   const at = { x: 0, z: 0, u: 0, half: 0, fade: 0 }; // cloudPlace's scratch
+  const pf = { x: 0, z: 0, r: 0, yaw: 0 }; // puffAt's scratch
 
   // update(t) — once per rendered frame, after the camera moved. `t` is
   // absolute elapsed seconds (the same t wind/grass take).
@@ -383,7 +454,8 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
     const cx = camera.position.x;
     const cz = camera.position.z;
     let i = 0;
-    for (const cloud of clouds) {
+    for (let ci = 0; ci < clouds.length; ci++) {
+      const cloud = clouds[ci];
       cloudPlace(cloud, time, at);
       const s = cloud.scale * at.fade;
       // Long axis across the line of sight (tangent to the circle round the
@@ -394,7 +466,8 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
       const yaw = Math.atan2(at.z, at.x) + Math.PI / 2 + cloud.yaw;
       const cos = Math.cos(yaw);
       const sin = Math.sin(yaw);
-      for (const p of cloud.puffs) {
+      for (let j = 0; j < cloud.puffs.length; j++) {
+        const p = puffAt(cloud, ci, j, time, pf);
         // A cloud dissolves toward its centre, keeping its flat base level.
         const ox = (p.x * cos - p.z * sin) * s;
         const oz = (p.x * sin + p.z * cos) * s;
@@ -408,6 +481,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
     mesh.instanceMatrix.needsUpdate = true;
     // Follow the sky: a shower that clears hands the fog its old colour back.
     if (scene.fog) cloudPalette(scene.fog.color, mood, palette);
+    night?.update(t);
   }
 
   function dispose() {
@@ -415,8 +489,9 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
     mesh.geometry.dispose();
     material.dispose();
     mesh.dispose();
+    night?.dispose();
   }
 
   update(0); // placed before the first frame
-  return { mesh, clouds, palette, update, dispose };
+  return { mesh, clouds, palette, night, update, dispose };
 }

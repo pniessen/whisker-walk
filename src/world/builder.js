@@ -1383,7 +1383,11 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint,
 const HOUSE_WINDOW = [0.16, 0.17, 0.21];
 const HOUSE_DOOR = [0.3, 0.19, 0.12];
 const HOUSE_SINK = 0.55;
-function addHouse(parts, tones, bases, { k, x, z, yaw, surface, height, salt, tint }) {
+// Lit windows at dusk: a second, slightly smaller quad (leaving a dark frame) just in front of most
+// windows (and always the first), collected apart from the band's own
+// geometry so the dusk look can reveal them as one hidden mesh.
+const HOUSE_LIGHT = 0xffd27a;
+function addHouse(parts, tones, bases, { k, x, z, yaw, surface, height, salt, tint }, lit = null) {
   const bw = 5 + 3.5 * hash01(k, 2, salt + 3);
   const bd = 4 + 2.5 * hash01(k, 3, salt + 4);
   const wh = height * (0.75 + 0.35 * hash01(k, 4, salt + 5));
@@ -1419,6 +1423,14 @@ function addHouse(parts, tones, bases, { k, x, z, yaw, surface, height, salt, ti
     w.rotateY(Math.PI);
     w.translate(from + (to - from) * (i + 0.5) / nWin, wh / 2 - 0.7, front);
     place(w, HOUSE_WINDOW, WHITE_TINT, base + wh / 2);
+    if (lit && (i === 0 || hash01(k, 20 + i, salt + 21) >= 0.2)) {
+      const l = new THREE.PlaneGeometry(0.62, 0.72);
+      l.rotateY(Math.PI);
+      l.translate(from + (to - from) * (i + 0.5) / nWin, wh / 2 - 0.7, front - 0.04);
+      l.rotateY(yaw);
+      l.translate(x, base + wh / 2, z);
+      lit.push(l);
+    }
   }
   // The roof, with a little eave over the front and back walls.
   const rt = ROOF_TERRACOTTA[Math.floor(hash01(k, 10, salt + 11) * ROOF_TERRACOTTA.length)];
@@ -2487,11 +2499,13 @@ export function horizonBand({
     }
   }
 
+  let houseLightGeos = null;
   if (rooftops) {
     // Salted apart from the skyline kind's own blocks, so a band that has both
     // does not stack two blocks on the same spot.
     const rsalt = salt + ROOFTOP_SALT;
     const houses = rooftops.style === 'houses';
+    const lit = [];
     rooftopSpots(rooftops, inner, outer, rsalt).forEach(({ x, z, yaw }, k) => {
       if (wet(x, z)) return;
       // No height given: the band's own, the same default the skyline kind's
@@ -2518,8 +2532,9 @@ export function horizonBand({
       for (const g of junk) g.dispose();
       withLocalUuids(`band-houses-${rsalt}-${k}`, () => addHouse(parts, tones, bases, {
         k, x, z, yaw, surface, height: rooftops.height ?? height, salt: rsalt, tint,
-      }));
+      }, lit));
     });
+    if (lit.length) houseLightGeos = lit;
   }
 
   // Vertex colours: the skyline's per-block tones, and/or the side tints. A
@@ -2590,8 +2605,32 @@ export function horizonBand({
   // the test can only ever come back true. Saying so costs nothing and stops
   // a future reader wondering whether it should have been split up.
   m.frustumCulled = false;
+  if (houseLightGeos) m.add(houseLightsMesh(houseLightGeos, salt + ROOFTOP_SALT));
   if (edge) m.add(edgeMesh(edge, salt, edge.avoid ?? avoid, (x, z) => heightAt(x, z, Math.max(Math.abs(x), Math.abs(z)) - inner)));
   return m;
+}
+
+// The Woods' lit cottage windows: one hidden mesh, a child of the band, that
+// render/dusk.js reveals at dusk (userData.duskWindow). Basic material, no fog
+// and toneMapped:false, so the panes stay a warm yellow however far off. (On
+// the composer path the output pass tone-maps the whole frame, sky and all, so
+// they still agree.) Made
+// wholly under its own uuid stream (the area's Math.random draw count is pinned).
+function houseLightsMesh(geos, rsalt) {
+  return withLocalUuids(`band-houselights-${rsalt}`, () => {
+    const geo = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+    if (geos.length > 1) for (const g of geos) g.dispose();
+    geo.deleteAttribute('normal');
+    geo.deleteAttribute('uv');
+    geo.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: HOUSE_LIGHT, fog: false, toneMapped: false }));
+    mesh.name = 'houseLights';
+    mesh.userData = { duskWindow: true, noCast: true, noMerge: true };
+    mesh.visible = false;
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    return mesh;
+  });
 }
 
 // The ground's edge as its own mesh (see THE GROUND'S EDGE above), a child of
