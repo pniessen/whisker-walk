@@ -35,6 +35,7 @@ const HIGH = resolveQuality({ override: 'high' });
 const WORLDS = {
   woods: await import('../src/world/woods.js'),
   seaside: await import('../src/world/seaside.js'),
+  gorge: await import('../src/world/gorge.js'),
 };
 
 const built = new Map();
@@ -99,6 +100,25 @@ describe('eveningWater', () => {
     }
     expect(WATER_EVENING.dusk.mul[2]).toBe(0.78);
   });
+  it('the Gorge stream takes its own dusk tint, greyer than the default', () => {
+    const ad = WORLDS.gorge.build(new THREE.Scene());
+    eveningWater(ad.waterFx, 'dusk');
+    const c = ad.waterFx.find((h) => h.footprint.id === 'stream').material.color;
+    const def = new THREE.Color().setRGB(...WATER_EVENING.dusk.mul);
+    expect(c.getHSL({}).s).toBeLessThan(def.getHSL({}).s);
+    expect(lum(c)).toBeLessThanOrEqual(lum(def));
+    // every other area's handles get exactly the default dusk
+    const w = WORLDS.woods.build(new THREE.Scene());
+    eveningWater(w.waterFx, 'dusk');
+    for (const h of w.waterFx) {
+      expect(h.material.color.toArray()).toEqual([...WATER_EVENING.dusk.mul]);
+      expect(h.material.emissive.getHex()).toBe(WATER_EVENING.dusk.glow);
+    }
+    // and the Gorge's sunset is the default one
+    const g2 = WORLDS.gorge.build(new THREE.Scene());
+    eveningWater(g2.waterFx, 'sunset');
+    expect(g2.waterFx[0].material.color.toArray()).toEqual([...WATER_EVENING.sunset.mul]);
+  }, 120_000);
 });
 
 describe('the foam in the evening', () => {

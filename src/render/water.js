@@ -920,6 +920,12 @@ function islandGeometry(w, box, segments) {
  *                          seaside passes GLARE_SEA.
  *   specCap      {number}  ceiling on direct + indirect specular, linear per
  *                          channel (default SPEC_CAP).
+ *   evening      {object}  { dusk?: { mul, glow }, sunset?: { mul, glow } }:
+ *                          this water's own evening tints, preferred by
+ *                          eveningWater over WATER_EVENING for the modes it
+ *                          names (polish-pondrims: the Gorge's grey stream,
+ *                          which the default dusk turned royal blue in a grey
+ *                          canyon). Default null: the shared tints.
  *   seed         {number}  ripple phase seed. Defaults to the footprint's own
  *                          id, so the three bodies ripple differently and each
  *                          one ripples identically on every walk and on every
@@ -944,6 +950,7 @@ export function createWater(footprint, options = {}) {
     glare = GLARE,
     specCap = SPEC_CAP,
     style = 'clear',
+    evening = null,
   } = options;
 
   const tier = (typeof quality === 'string' ? quality : quality?.name) === 'low' ? 'low' : 'high';
@@ -1066,6 +1073,8 @@ export function createWater(footprint, options = {}) {
     color,
     style,
     waters,
+    /** this water's own evening tints ({ dusk?, sunset? }), or null: see eveningWater. */
+    evening,
     /** the tier actually used — 'high' or 'low'. */
     tier,
     /** false on the low tier and under reduced motion; update() is then a no-op. */
@@ -1116,12 +1125,14 @@ export const WATER_EVENING = Object.freeze({
 
 /**
  * eveningWater(handles, mode) — tint each water handle's material for
- * mode null | 'sunset' | 'dusk'. null leaves the day's look untouched.
+ * mode null | 'sunset' | 'dusk'. null leaves the day's look untouched. A
+ * handle made with its own `evening` tint for that mode takes it instead of
+ * WATER_EVENING's; every other handle gets exactly WATER_EVENING[mode].
  */
 export function eveningWater(handles, mode) {
-  const e = WATER_EVENING[mode];
-  if (!e) return;
+  if (!WATER_EVENING[mode]) return;
   for (const h of handles ?? []) {
+    const e = h.evening?.[mode] ?? WATER_EVENING[mode];
     h.material.color.setRGB(e.mul[0], e.mul[1], e.mul[2]);
     h.material.emissive.setHex(e.glow);
   }
