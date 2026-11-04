@@ -160,7 +160,9 @@ describe('builder — roundedBox (Wave 4.1)', () => {
     // sits out on (it used to sit inside the trunk).
     // Seaside 65 -> 66: polish-places Task 4's boardwalk end (one merged
     // noCast mesh: the step board and its two posts).
-    const expected = { neighborhood: 380, park: 172, docks: 519, seaside: 66, den: 284 };
+    // Seaside 66 -> 67: polish-beach Task 2's beach paint (one flat noCast mesh).
+    // Seaside 67 -> 68: polish-beach Task 3's beach dressing (one merged noCast mesh).
+    const expected = { neighborhood: 380, park: 172, docks: 519, seaside: 68, den: 284 };
     const builds = {
       neighborhood: buildNeighborhood, park: buildPark, docks: buildDocks,
       seaside: buildSeaside, den: buildDen,

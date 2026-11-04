@@ -21,7 +21,7 @@ const b = await import('../src/world/builder.js');
 const {
   findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints, framePoints, CAT_BODY,
   projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear, RINGS, liftedPoints,
-  ourCatHidden, intruderHidden, itNearer, sheetTopFrom, frameBottomFor, frameClutter, SIDE_COST, CLUTTER_COST, CLUTTER_HIDE,
+  orbitBlend, ourCatHidden, intruderHidden, itNearer, sheetTopFrom, frameBottomFor, frameClutter, SIDE_COST, CLUTTER_COST, CLUTTER_HIDE,
 } = await import('../src/fightcam.js');
 const { fightReach, FIGHT_GAP } = await import('../src/game/clanfight.js');
 const { SIDE_AMPLITUDE_FRACTION } = await import('../src/render/wind.js');
@@ -1285,5 +1285,74 @@ describe('the Woods spot from the live check', async () => {
     expect(v.blockers.length).toBeGreaterThan(1);
     expect(itNearer(v.pos, subj2)).toBe(false);
     expect(ourCatHidden(v.pos, subj2)).toBe(0);
+  });
+});
+
+// polish-stagehandoff: the hand-back after a fight swings round the look point
+// instead of cutting through the cats, so both stay in frame the whole way.
+describe('the hand-back keeps both cats in frame', () => {
+  for (const [name, vp, me, it] of [
+    ['phone, intruder to the right', PORTRAIT, { x: 0, z: 0 }, { x: 1.2, z: -0.9 }],
+    ['phone, intruder to the left', PORTRAIT, { x: 0, z: 0 }, { x: -1.2, z: -0.9 }],
+    ['phone, intruder behind my cat', PORTRAIT, { x: 0, z: 0 }, { x: 0.2, z: 1.3 }],
+    ['desktop', DESK, { x: 0, z: 0 }, { x: 1.2, z: -0.9 }],
+  ]) {
+    test(name, () => {
+      const subj = subject(me, it);
+      const fc = createFightCam({ occluders: [], colliders: [], bounds: BOUNDS });
+      const cam = fakeCamera(vp.aspect);
+      const follow = () => cam.position.set(me.x, 2.2, me.z + 4.5);
+      const step = (s) => { follow(); fc.update(1 / 60, { camera: cam, cat: me, subject: s, cameraMode: false }); };
+      for (let i = 0; i < 60; i++) step(subj);
+      expect(fc.weight).toBe(1);
+      let easing = 0;
+      for (let i = 0; i < 120 && fc.weight > 0; i++) {
+        step(null);
+        easing++;
+        const view = { pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z }, look: cam.looked };
+        for (const p of [{ ...me, y: 0.3 }, { ...it, y: 0.3 }]) {
+          const q = projectPoint(view, p, vp.aspect, vp.fovY);
+          expect(q.z, `${name} step ${i}`).toBeGreaterThan(0.5);
+          expect(Math.abs(q.x), `${name} step ${i} x`).toBeLessThan(1);
+          expect(Math.abs(q.y), `${name} step ${i} y`).toBeLessThan(1);
+        }
+      }
+      expect(easing).toBeGreaterThan(10);
+      expect(fc.weight).toBe(0);
+    });
+  }
+});
+
+describe('orbitBlend', () => {
+  const a = { pos: { x: 4.8, y: 2.8, z: -4.2 }, look: { x: 0.6, y: 0.4, z: 0.3 } };
+  const b2 = { pos: { x: -0.2, y: 2.9, z: 4.7 }, look: { x: 0, y: 0.6, z: 0 } };
+  test('ends are the ends', () => {
+    const s0 = orbitBlend(a, b2, 0), s1 = orbitBlend(a, b2, 1);
+    for (const k of ['x', 'y', 'z']) { expect(s0.pos[k]).toBeCloseTo(a.pos[k], 9); expect(s1.pos[k]).toBeCloseTo(b2.pos[k], 9); }
+  });
+  test('the camera never passes through the look point, however far round it swings', () => {
+    const ra = Math.hypot(a.pos.x - a.look.x, a.pos.z - a.look.z), rb = Math.hypot(b2.pos.x - b2.look.x, b2.pos.z - b2.look.z);
+    for (let i = 0; i <= 20; i++) {
+      const v = orbitBlend(a, b2, i / 20);
+      expect(Math.hypot(v.pos.x - v.look.x, v.pos.z - v.look.z)).toBeGreaterThanOrEqual(Math.min(ra, rb) - 1e-9);
+    }
+  });
+});
+
+describe('a fight that starts again mid hand-back', () => {
+  test('the camera does not jump between the last ease-out frame and the first new fight frame', () => {
+    const me = { x: 0, z: 0 }, it = { x: 1.2, z: -0.9 };
+    const subj = subject(me, it);
+    const fc = createFightCam({ occluders: [], colliders: [], bounds: BOUNDS, reducedMotion: false });
+    const cam = fakeCamera();
+    const step = (s) => { cam.position.set(0, 2.2, 4.5); fc.update(1 / 60, { camera: cam, cat: me, subject: s, cameraMode: false }); return { ...cam.position }; };
+    for (let i = 0; i < 60; i++) step(subj);
+    let last;
+    for (let i = 0; i < 18; i++) last = step(null);
+    expect(fc.weight).toBeGreaterThan(0.2);
+    const cuts = fc.cuts;
+    const next = step(subj);
+    // an ease continues from where the camera is; only a cut (blendClear failing) may jump
+    if (fc.cuts === cuts) expect(Math.hypot(next.x - last.x, next.y - last.y, next.z - last.z)).toBeLessThan(0.6);
   });
 });
