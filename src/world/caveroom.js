@@ -1020,3 +1020,330 @@ export function crystalClusters(spots, seed, { color = 0x9fc7d8, size = 1, id = 
   mesh.userData.noCast = true;
   return mesh;
 }
+
+// =============================================================================
+// A cave mouth's rounded rock arch (polish-gorge5, Task 2).
+//
+// builder.rockTerrain cuts each cave corridor and the camp den as a plain
+// rectangle in the organic sandstone. This builds the rock round one such
+// opening, in the mouth plane's frame: u lateral (along (-nz, nx)), h up from
+// the floor, w out of the rock along (nx, nz).
+//
+// The OUTLINE is the opening's arch: for a 3 m cave corridor it follows the
+// tunnel liner's profile (TUNNEL_PROFILE, through its points on a smooth
+// curve), so the liner's end frame and the arch line up; for a wider opening
+// (the camp den) straight jambs to MOUTH_LOW_H, then a half-ellipse to the
+// crown at headroom - 0.04. Resampled evenly, each point moved in (never out)
+// by seeded value noise up to MOUTH_JITTER. Then, out from the outline:
+//   FRAME   on the mouth plane (w = MOUTH_FRAME_W, just outside the liner's
+//           end frame at w = 0), from the outline out to the opening's
+//           rectangle, so the box's square corners never show;
+//   REVEAL  the arch's soffit: the outline from w = 0 out to the BROW
+//           (0.05 at the foot, 0.35 at the crown, bumped by noise);
+//   RIM     the brow rolling over (a quarter-round) through a lumpy middle
+//           ring to an outer ring MOUTH_RIM (and always MOUTH_RIM_PAST past
+//           the rectangle) out in the plane, seated MOUTH_SEAT behind the
+//           real face: `surface(u, h)` is the face's measured offset along n
+//           from the mouth plane (positive = proud), so the rim always meets
+//           the relief-moved rock and never floats in front of it;
+//   STONES  a few low lumpy threshold boulders just outside the jambs,
+//           flattened and set into the measured face (none stands more than
+//           MOUTH_STONE_OUT out of the mouth plane, where a cat walks), never
+//           in front of the opening; `clear(x, z, reach)` vets each.
+// Nothing stands at w < 0 but the rim, just behind a recessed face, and the
+// stones beside the opening, sunk into it. Below
+// MOUTH_LOW_H nothing stands more than `lowIn` (MOUTH_LOW_IN) inside the
+// opening's rectangle unless it is more than 0.6 m out; within MOUTH_CAM_HALF
+// of the centre line nothing above MOUTH_LOW_H comes lower than MOUTH_CAM_H
+// (the cave and chase cameras pass through there).
+//
+// Pure, seeded geometry (mulberry32 only, no THREE objects): returns indexed
+// world positions with area-weighted smooth normals (normalsOf), the rim's
+// vertex indices, the outline (u, h), the stones and vertex ranges per part.
+// gorge.js colours it from the rock round it and appends it to rockFaces.
+// =============================================================================
+export const MOUTH_LOW_H = 1.0; // below this over the floor, the low walk rule
+export const MOUTH_LOW_IN = 0.12; // ... the most anything stands inside the rectangle there
+export const MOUTH_CAM_H = 1.9; // nothing over the camera line comes lower than this
+export const MOUTH_CAM_HALF = 0.9; // ... within this of the centre line
+const MOUTH_FOOT = -0.02; // the rings' feet, just into the floor
+const MOUTH_JITTER = 0.08; // the outline's inward noise
+const MOUTH_FRAME_W = 0.02; // the frame stands this far out (the liner's end frame is at 0)
+const MOUTH_SEAT = 0.04; // the rim, this far behind the measured face
+const MOUTH_RIM = 0.55; // the rim's reach out from the outline in the plane
+const MOUTH_RIM_PAST = 0.45; // ... and at least this past the opening's rectangle
+const MOUTH_MID = 0.45; // the middle ring, this far along to the rim
+const BROW_FOOT = 0.05;
+const BROW_CROWN = 0.35;
+const BROW_BUMP = 0.06;
+const MOUTH_STEP = 0.5; // the noise's lattice step along the outline, metres
+const STONE_R = [0.18, 0.35];
+const STONE_FLAT = 0.7; // a stone's height, of its width
+const STONE_SINK = 0.3; // of its height, under the floor
+const STONE_LUMP = 0.15; // ± a stone vertex's radius
+const STONE_DEPTH = 0.55; // a stone's depth out from the wall, of its width
+const MOUTH_STONE_OUT = 0.12; // no stone reaches further out of the mouth plane
+const STONE_SHOW = 0.1; // ... and at least this of it stands proud of the face
+// the icosahedron (three's IcosahedronGeometry, detail 0)
+const ICO_T = (1 + Math.sqrt(5)) / 2;
+const ICO_V = [
+  [-1, ICO_T, 0], [1, ICO_T, 0], [-1, -ICO_T, 0], [1, -ICO_T, 0],
+  [0, -1, ICO_T], [0, 1, ICO_T], [0, -1, -ICO_T], [0, 1, -ICO_T],
+  [ICO_T, 0, -1], [ICO_T, 0, 1], [-ICO_T, 0, -1], [-ICO_T, 0, 1],
+].map(([a, b, c]) => { const l = Math.hypot(a, b, c); return [a / l, b / l, c / l]; });
+const ICO_F = [
+  [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+  [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+];
+
+// Area-weighted smooth vertex normals of an indexed triangle list, by hand
+// (no scratch BufferGeometry: each would draw Math.random for its uuid).
+export function normalsOf(pos, idx) {
+  const nor = new Array(pos.length).fill(0);
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = idx[t] * 3, b = idx[t + 1] * 3, c = idx[t + 2] * 3;
+    const e1x = pos[b] - pos[a], e1y = pos[b + 1] - pos[a + 1], e1z = pos[b + 2] - pos[a + 2];
+    const e2x = pos[c] - pos[a], e2y = pos[c + 1] - pos[a + 1], e2z = pos[c + 2] - pos[a + 2];
+    const nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+    for (const v of [a, b, c]) { nor[v] += nx; nor[v + 1] += ny; nor[v + 2] += nz; }
+  }
+  for (let v = 0; v < nor.length; v += 3) {
+    const l = Math.hypot(nor[v], nor[v + 1], nor[v + 2]);
+    if (l > 1e-12) { nor[v] /= l; nor[v + 1] /= l; nor[v + 2] /= l; } else nor[v + 1] = 1;
+  }
+  return nor;
+}
+
+// Seeded 1-D value noise along [0, len], 0..1.
+function lineNoise(rng, len, step = MOUTH_STEP) {
+  const n = Math.ceil(len / step) + 2;
+  const table = Array.from({ length: n }, () => rng());
+  return (s) => {
+    const f = Math.min(n - 1.000001, Math.max(0, s / step));
+    const i = Math.floor(f);
+    return lerp(table[i], table[i + 1], smooth(f - i));
+  };
+}
+
+// One side of the outline, foot to crown, |u| decreasing: dense (u, h) samples.
+function mouthSide({ half, headroom, tunnel }) {
+  const out = [];
+  if (tunnel) {
+    // a Catmull-Rom through the liner's profile points, held inside |u| <= half
+    const P = [...TUNNEL_SIDE, [0, CORRIDOR_HEADROOM - 0.02]];
+    const at = (k) => P[Math.min(P.length - 1, Math.max(0, k))];
+    // past the crown the curve mirrors, so its tangent there is level
+    const ghost = (k) => (k >= P.length ? [-at(2 * (P.length - 1) - k)[0], at(2 * (P.length - 1) - k)[1]] : at(k));
+    for (let k = 0; k + 1 < P.length; k++) {
+      const p0 = ghost(k - 1), p1 = ghost(k), p2 = ghost(k + 1), p3 = ghost(k + 2);
+      for (let i = 0; i < 16; i++) {
+        const t = i / 16, t2 = t * t, t3 = t2 * t;
+        const c = (j) => 0.5 * (2 * p1[j] + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2
+          + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3);
+        out.push([Math.min(half, Math.max(0, c(0))), c(1)]);
+      }
+    }
+    out.push(P[P.length - 1].slice());
+    return { side: out, spring: TUNNEL_SIDE[2][1] };
+  }
+  // straight jambs to MOUTH_LOW_H, then a quarter-ellipse to the crown
+  const a = half, crown = headroom - 0.04, b = crown - MOUTH_LOW_H;
+  for (let i = 0; i <= 8; i++) out.push([a, lerp(MOUTH_FOOT, MOUTH_LOW_H, i / 8)]);
+  for (let i = 1; i <= 48; i++) {
+    const th = (i / 48) * (Math.PI / 2);
+    out.push([a * Math.cos(th), MOUTH_LOW_H + b * Math.sin(th)]);
+  }
+  return { side: out, spring: MOUTH_LOW_H };
+}
+
+// The whole outline, +u foot over the crown to the -u foot, resampled to n
+// points evenly along its length (n odd: the middle one is the crown).
+function mouthOutline(opts, n) {
+  const { side, spring } = mouthSide(opts);
+  const full = [...side, ...side.slice(0, -1).reverse().map(([u, h]) => [-u, h])];
+  const acc = [0];
+  for (let k = 1; k < full.length; k++) acc.push(acc[k - 1] + Math.hypot(full[k][0] - full[k - 1][0], full[k][1] - full[k - 1][1]));
+  const len = acc[acc.length - 1];
+  const pts = [];
+  let k = 0;
+  for (let i = 0; i < n; i++) {
+    const s = (len * i) / (n - 1);
+    while (k + 2 < full.length && acc[k + 1] < s) k++;
+    const t = Math.min(1, Math.max(0, (s - acc[k]) / (acc[k + 1] - acc[k] || 1)));
+    pts.push({ u: lerp(full[k][0], full[k + 1][0], t), h: lerp(full[k][1], full[k + 1][1], t), s });
+  }
+  pts[0].h = pts[n - 1].h = MOUTH_FOOT;
+  return { pts, len, spring };
+}
+
+export function caveMouth({
+  x, z, y, nx, nz, half, headroom, seed, surface = () => 0, clear = () => true,
+  jitter = 1, lowIn = MOUTH_LOW_IN, tunnel, stones: stoneCount,
+}) {
+  const isTunnel = tunnel ?? (half === TUNNEL_HALF && headroom === CORRIDOR_HEADROOM);
+  const n = isTunnel ? 23 : 29;
+  const nStones = stoneCount ?? (isTunnel ? 3 : 4);
+  const rng = mulberry32(seed >>> 0);
+  const { pts, len, spring } = mouthOutline({ half, headroom, tunnel: isTunnel }, n);
+  const nIn = lineNoise(rng, len), nBrow = lineNoise(rng, len), nMid = lineNoise(rng, len), nRim = lineNoise(rng, len);
+  const lx = -nz, lz = nx;
+  const pos = [], idx = [];
+  const vert = (u, h, w) => { pos.push(x + lx * u + nx * w, y + h, z + lz * u + nz * w); return pos.length / 3 - 1; };
+  const ranges = {};
+  const parts = { arch: 0, reveal: 0, rim: 0, stones: 0 };
+  // a triangle wound so its normal has a positive dot with (wu, wh, ww) in the frame
+  const L = (i) => { const dx = pos[i * 3] - x, dz = pos[i * 3 + 2] - z; return [dx * lx + dz * lz, pos[i * 3 + 1] - y, dx * nx + dz * nz]; };
+  const tri = (part, a, b, c, want) => {
+    const A = L(a), B = L(b), C = L(c);
+    const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
+    // (u, h, w) is a left-handed frame when (l, up, n) is: l × up = (-nz, 0, nx) × (0, 1, 0) = (-nx, 0, -nz) = -n
+    const cr = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    const d = -(cr[0] * want[0] + cr[1] * want[1] + cr[2] * want[2]);
+    if (d >= 0) idx.push(a, b, c); else idx.push(a, c, b);
+    parts[part]++;
+  };
+
+  // the outline, moved in by the noise; its in-plane outward normals
+  const O = pts.map((p) => ({ ...p }));
+  const outN = O.map((p, k) => {
+    const a = pts[Math.max(0, k - 1)], b = pts[Math.min(n - 1, k + 1)];
+    const tu = b.u - a.u, th = b.h - a.h, tl = Math.hypot(tu, th) || 1;
+    // the outline runs +u foot -> crown -> -u foot: its right-hand normal points out
+    return [th / tl, -tu / tl];
+  });
+  for (let k = 0; k < n; k++) {
+    const p = O[k];
+    const d = jitter * MOUTH_JITTER * nIn(p.s);
+    p.u -= outN[k][0] * d;
+    p.h = Math.max(MOUTH_FOOT, p.h - outN[k][1] * d);
+    if (p.h < MOUTH_LOW_H) {
+      const minU = half - lowIn;
+      if (Math.abs(p.u) < minU && Math.abs(pts[k].u) >= minU - 1e-9) p.u = Math.sign(pts[k].u) * minU;
+    }
+    if (Math.abs(p.u) < MOUTH_CAM_HALF && p.h > MOUTH_LOW_H) p.h = Math.max(p.h, MOUTH_CAM_H);
+  }
+  const crownH = O[(n - 1) >> 1].h;
+  const browOf = (k) => {
+    const t = smooth(Math.max(0, O[k].h) / crownH);
+    return Math.max(0.02, lerp(BROW_FOOT, BROW_CROWN, t) + jitter * BROW_BUMP * (2 * nBrow(O[k].s) - 1) * Math.min(1, O[k].h / 0.5 + 0.2));
+  };
+  // how far out along (du, dh) from (u, h) the opening's rectangle ends
+  const toRect = (u, h, du, dh) => {
+    let t = Infinity;
+    if (Math.abs(du) > 1e-9) t = Math.min(t, (half - Math.sign(du) * u) / Math.abs(du));
+    if (dh > 1e-9) t = Math.min(t, (headroom - h) / dh);
+    return Math.max(0, t);
+  };
+
+  // --- the frame: outline out to the rectangle, on the mouth plane ---------------
+  let from = pos.length / 3;
+  const Hs = half + 0.03, Ht = headroom + 0.03; // a hair past the box's edges
+  const proj = (p) => {
+    if (p.h <= spring) return { u: Math.sign(p.u || 1) * Hs, h: p.h, side: Math.sign(p.u || 1) };
+    const du = p.u, dh = p.h - spring;
+    const tS = Math.abs(du) > 1e-9 ? (Hs - Math.abs(p.u)) / Math.abs(du) : Infinity;
+    const tT = (Ht - p.h) / dh;
+    return tS < tT ? { u: Math.sign(du) * Hs, h: p.h + dh * tS, side: Math.sign(du) } : { u: p.u + du * tT, h: Ht, side: 0 };
+  };
+  const want0 = [0, 0, 1];
+  const P = O.map((p) => vert(p.u, p.h, MOUTH_FRAME_W));
+  const Q = O.map((p) => { const q = proj(p); return { ...q, i: vert(q.u, q.h, MOUTH_FRAME_W) }; });
+  for (let k = 0; k + 1 < n; k++) {
+    const q0 = Q[k], q1 = Q[k + 1];
+    const w0 = Math.hypot(q0.u - O[k].u, q0.h - O[k].h), w1 = Math.hypot(q1.u - O[k + 1].u, q1.h - O[k + 1].h);
+    if (Math.max(w0, w1) < 0.02) continue; // a jamb the outline already fills
+    if (q0.side === q1.side) {
+      tri('arch', P[k], P[k + 1], q1.i, want0);
+      tri('arch', P[k], q1.i, q0.i, want0);
+    } else {
+      const s = q0.side || q1.side;
+      const corner = vert(s * Hs, Ht, MOUTH_FRAME_W);
+      tri('arch', P[k], q0.i, corner, want0);
+      tri('arch', P[k], corner, q1.i, want0);
+      tri('arch', P[k], q1.i, P[k + 1], want0);
+    }
+  }
+  ranges.frame = [from, pos.length / 3];
+
+  // --- the reveal: the soffit from the mouth plane out to the brow ----------------
+  from = pos.length / 3;
+  const A = O.map((p) => vert(p.u, p.h, 0));
+  const brow = O.map((p, k) => browOf(k));
+  const B = O.map((p, k) => vert(p.u, p.h, brow[k]));
+  for (let k = 0; k + 1 < n; k++) {
+    const want = [-(outN[k][0] + outN[k + 1][0]), -(outN[k][1] + outN[k + 1][1]), 0];
+    tri('reveal', A[k], A[k + 1], B[k + 1], want);
+    tri('reveal', A[k], B[k + 1], B[k], want);
+  }
+  ranges.reveal = [from, pos.length / 3];
+
+  // --- the rim: the brow rolling over to the outer ring on the real face ----------
+  from = pos.length / 3;
+  const M = [], R = [], rim = [];
+  for (let k = 0; k < n; k++) {
+    const p = O[k], [ou, oh] = outN[k];
+    const reach = Math.max(MOUTH_RIM, toRect(p.u, p.h, ou, oh) + MOUTH_RIM_PAST) * (0.92 + 0.2 * jitter * nRim(p.s));
+    const ru = p.u + ou * reach, rh = Math.max(MOUTH_FOOT, p.h + oh * reach);
+    const rw = surface(ru, rh) - MOUTH_SEAT;
+    const md = reach * (MOUTH_MID + 0.1 * jitter * (nMid(p.s) - 0.5));
+    const mu = p.u + ou * md, mh = Math.max(MOUTH_FOOT, p.h + oh * md);
+    // a quarter-round from the brow down to the rim's seat, a little lumpy
+    const mw = rw + (brow[k] - rw) * Math.cos((md / reach) * Math.PI / 2) + jitter * 0.04 * (nMid(p.s + 0.25) - 0.5);
+    M.push(vert(mu, mh, Math.max(mw, rw)));
+    const r = vert(ru, rh, rw);
+    R.push(r);
+    rim.push(r);
+  }
+  for (const [X, Y] of [[B, M], [M, R]]) {
+    for (let k = 0; k + 1 < n; k++) {
+      const want = [0.3 * (outN[k][0] + outN[k + 1][0]), 0.3 * (outN[k][1] + outN[k + 1][1]), 1];
+      tri('rim', X[k], X[k + 1], Y[k + 1], want);
+      tri('rim', X[k], Y[k + 1], Y[k], want);
+    }
+  }
+  ranges.rim = [from, pos.length / 3];
+
+  // --- the threshold stones, just outside the jambs ------------------------------
+  from = pos.length / 3;
+  const stones = [];
+  for (let t = 0; t < 40 && stones.length < nStones; t++) {
+    const side = (stones.length + t) % 2 ? -1 : 1;
+    const r = lerp(STONE_R[0], STONE_R[1], rng());
+    const reachR = r * (1 + STONE_LUMP);
+    // beside the jambs (wholly at |u| >= half: never behind the opening),
+    // set into the measured face: no further out of the mouth plane than
+    // MOUTH_STONE_OUT (the foot boulders' rule: no low rock stands out on the
+    // floor where a cat can walk), and at most 70% of its depth proud of the
+    // face; where the face leaves too little of it showing, none
+    const reachW = reachR * STONE_DEPTH;
+    const au = half + reachR + 0.02 + rng() * 0.6;
+    const face = surface(side * au, r * 0.3);
+    const wOut = Math.min(MOUTH_STONE_OUT, face + 1.4 * reachW);
+    const w = wOut - reachW;
+    if (wOut - face < STONE_SHOW) continue;
+    const yaw = rng() * Math.PI * 2, salt = rng() * 100;
+    const u = side * au;
+    const cx = x + lx * u + nx * w, cz = z + lz * u + nz * w;
+    if (!clear(cx, cz, reachR)) continue;
+    if (!stones.every((o) => Math.hypot(o.x - cx, o.z - cz) >= o.r + reachR + 0.1)) continue;
+    stones.push({ x: cx, z: cz, r: reachR });
+    const ch = r * STONE_FLAT * (1 - 2 * STONE_SINK);
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const ids = ICO_V.map(([vx, vy, vz], i) => {
+      const k = r * (1 + STONE_LUMP * (2 * hashOf(salt + i * 1.37, salt * 0.7 - i) - 1));
+      const a = vx * cy - vz * sy, c = vx * sy + vz * cy;
+      return vert(u + a * k, ch + vy * k * STONE_FLAT, w + c * k * STONE_DEPTH);
+    });
+    const ctr = [u, ch, w];
+    for (const [a, b, c] of ICO_F) {
+      const ga = L(ids[a]), gb = L(ids[b]), gc = L(ids[c]);
+      tri('stones', ids[a], ids[b], ids[c], [0, 1, 2].map((j) => (ga[j] + gb[j] + gc[j]) / 3 - ctr[j]));
+    }
+  }
+  ranges.stones = [from, pos.length / 3];
+
+  return {
+    pos, idx, nor: normalsOf(pos, idx), parts, ranges, rim, stones,
+    outline: O.map((p) => [p.u, p.h]),
+  };
+}

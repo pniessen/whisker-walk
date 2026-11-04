@@ -5,19 +5,19 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import {
   WALK_SHAPES, MASSES, CEILINGS, GORGE_CAVES, GORGE_DENS, STAND_ON, CLAN_STAND_ON, WIDE_LEDGE_RECT, CAMP_DEN,
-  FLOOR, CLIFFTOP, WEST_TOP, LOOKOUT_LEDGE, TURN, gorgeGround, mapShapes,
+  FLOOR, CLIFFTOP, WEST_TOP, LOOKOUT_LEDGE, TURN, gorgeGround, mapShapes, CORRIDOR_HEADROOM, CAMP_DEN_HEADROOM,
 } from './gorgeshape.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { postsFor } from '../borderposts.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
-import { addCamp } from './camp.js';
+import { addCamp, campLayout, campDressing } from './camp.js';
 import { withLocalUuids } from './localuuids.js';
 import {
   narrowsTint, NARROWS_TINT_KEY, narrowsDressing, NARROWS_VIEW,
 } from './narrows.js';
-import { caveRoom, caveTunnel, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
+import { caveRoom, caveTunnel, crystalClusters, CLUSTER_SPREAD, CORNER_R, caveMouth } from './caveroom.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { smoothNormals } from './rocknormals.js';
@@ -928,6 +928,152 @@ function caveInterior(cave) {
   return g;
 }
 
+// --- the cave mouths' rock arches (polish-gorge5, Task 2) ------------------------
+// Each cave corridor's mouth and the camp den's open side, from their records:
+// the mouth on the opening's edge, the unit normal out of the rock (toward
+// open ground), the opening's half-width and its headroom.
+function mouthArch(id, r, mouth, y, headroom) {
+  const e = 1e-6;
+  const [nx, nz] = Math.abs(mouth.x - r.minX) < e ? [-1, 0] : Math.abs(mouth.x - r.maxX) < e ? [1, 0]
+    : Math.abs(mouth.z - r.minZ) < e ? [0, -1] : [0, 1];
+  const half = (nx ? r.maxZ - r.minZ : r.maxX - r.minX) / 2;
+  return Object.freeze({ id, x: mouth.x, z: mouth.z, y, nx, nz, half, headroom });
+}
+export const GORGE_MOUTH_ARCHES = Object.freeze([
+  ...GORGE_CAVES.map((c) => mouthArch(c.id, c.rects[0], c.mouth, c.y, CORRIDOR_HEADROOM)),
+  mouthArch('campDen', CAMP_DEN, CAMP_DEN.mouth, CAMP_DEN.y0, CAMP_DEN_HEADROOM),
+]);
+const ARCH_NEAR = 4; // rockFaces triangles and vertices this far round a mouth are looked at
+const ARCH_FACE = [-1.0, 0.3]; // a face hit counts only this far behind / proud of the mouth plane
+const ARCH_COLOR_R = 2; // a vertex takes the colour of the nearest rock vertex within this
+const ARCH_SHADE = [0.94, 1.04];
+const ARCH_CAMP_CLEAR = 0.4; // a den stone keeps this far off every camp seat and nest
+const ARCH_FALLBACK = 0xb79f80;
+
+// Every camp spot a den stone keeps clear of: the seats, the leader's rock,
+// the nests and the fresh-kill pile (camp.js's records, read only).
+function campSpots() {
+  const L = campLayout('gorge');
+  const D = campDressing('gorge');
+  const spots = [L.seats.leader, L.seats.deputy, ...L.seats.elders, ...L.seats.kits, D.kill].map((p) => ({ x: p.x, z: p.z, r: 0 }));
+  return [...spots, ...D.nests.map((p) => ({ x: p.x, z: p.z, r: p.r })), { x: L.rock.x, z: L.rock.z, r: L.rock.r }];
+}
+
+// The arches for rockFaces (the built mesh, relief and all), coloured from
+// its rock and ready to append (non-indexed): positions, colours, normals,
+// the triangles per arch and each arch's threshold stones. `surface` casts a
+// ray along -n from w = +2 against the shell triangles round the mouth and
+// takes the outermost hit within ARCH_FACE (the Snug Cave's mouth stands in a
+// notch whose side walls the ray would start inside); no hit, 0.
+export function mouthArchesFor(rockFaces) {
+  const geo = rockFaces.geometry;
+  const p = geo.getAttribute('position').array;
+  const cAttr = geo.getAttribute('color')?.array;
+  const shellTris = rockFaces.parent?.userData?.shellTris?.rockFaces ?? p.length / 9;
+  const shellEnd = Math.min(p.length, shellTris * 9);
+  const g = shapeGround();
+  const spots = campSpots();
+  const fallback = new THREE.Color(ARCH_FALLBACK);
+  const pos = [], col = [], nor = [];
+  const byId = {}, stones = {};
+  for (const a of GORGE_MOUTH_ARCHES) {
+    const lx = -a.nz, lz = a.nx;
+    const toLocal = (X, Y, Z) => { const dx = X - a.x, dz = Z - a.z; return [dx * lx + dz * lz, Y - a.y, dx * a.nx + dz * a.nz]; };
+    const near = (q) => Math.abs(q[0]) <= a.half + ARCH_NEAR && q[1] >= -1 && q[1] <= a.headroom + ARCH_NEAR && Math.abs(q[2]) <= ARCH_NEAR;
+    // the shell triangles round the mouth, in the mouth's frame
+    const tris = [];
+    const verts = [];
+    for (let i = 0; i < shellEnd; i += 9) {
+      const q = [0, 3, 6].map((o) => toLocal(p[i + o], p[i + o + 1], p[i + o + 2]));
+      if (q.some(near)) tris.push(q);
+    }
+    for (let i = 0; i < shellEnd; i += 3) {
+      const q = toLocal(p[i], p[i + 1], p[i + 2]);
+      if (Math.abs(q[0]) <= a.half + ARCH_NEAR && q[1] >= -2 && q[1] <= a.headroom + ARCH_NEAR + 1 && Math.abs(q[2]) <= ARCH_NEAR + 1) verts.push(i / 3);
+    }
+    const surface = (u, h) => {
+      let best = -Infinity;
+      for (const [A, B, C] of tris) {
+        // the ray (u, h, 2) - t (0, 0, 1): solve for the triangle's barycentrics in (u, h)
+        const d1u = B[0] - A[0], d1h = B[1] - A[1], d2u = C[0] - A[0], d2h = C[1] - A[1];
+        const det = d1u * d2h - d2u * d1h;
+        if (Math.abs(det) < 1e-12) continue;
+        const pu = u - A[0], ph = h - A[1];
+        const s = (pu * d2h - d2u * ph) / det, t = (d1u * ph - pu * d1h) / det;
+        if (s < -1e-9 || t < -1e-9 || s + t > 1 + 1e-9) continue;
+        const w = A[2] + s * (B[2] - A[2]) + t * (C[2] - A[2]);
+        if (w >= ARCH_FACE[0] && w <= ARCH_FACE[1] && w > best) best = w;
+      }
+      return best === -Infinity ? 0 : best;
+    };
+    const cave = GORGE_CAVES.find((c) => c.id === a.id);
+    // a stone (set into the face) has open ground at the mouth's level just
+    // in front of it, and keeps off the cave's walking line (caveClear) or
+    // the camp's seats and nests
+    const clear = (x, z, reach) => {
+      if (Math.abs(g.y(x + a.nx * reach, z + a.nz * reach) - a.y) > 0.02) return false;
+      if (cave) return caveClear(cave, x, z, reach);
+      return spots.every((s) => Math.hypot(x - s.x, z - s.z) >= reach + s.r + ARCH_CAMP_CLEAR);
+    };
+    const m = caveMouth({ ...a, seed: seedFromCode(`gorge-mouth-${a.id}`), surface, clear });
+    stones[a.id] = m.stones.map((s) => Object.freeze({ ...s }));
+    byId[a.id] = m.idx.length / 3;
+    // colour: the nearest rock vertex within ARCH_COLOR_R (1 m bins), shaded
+    const bins = new Map();
+    const key = (i, j, k) => `${i},${j},${k}`;
+    for (const v of verts) {
+      const k = key(Math.floor(p[v * 3]), Math.floor(p[v * 3 + 1]), Math.floor(p[v * 3 + 2]));
+      if (!bins.has(k)) bins.set(k, []);
+      bins.get(k).push(v);
+    }
+    const shade = mulberry32(seedFromCode(`gorge-mouth-shade-${a.id}`));
+    const vcol = [];
+    for (let v = 0; v < m.pos.length / 3; v++) {
+      const X = m.pos[v * 3], Y = m.pos[v * 3 + 1], Z = m.pos[v * 3 + 2];
+      const bi = Math.floor(X), bj = Math.floor(Y), bk = Math.floor(Z);
+      let best = -1, bestD = ARCH_COLOR_R * ARCH_COLOR_R;
+      for (let i = bi - ARCH_COLOR_R; i <= bi + ARCH_COLOR_R; i++) {
+        for (let j = bj - ARCH_COLOR_R; j <= bj + ARCH_COLOR_R; j++) {
+          for (let k = bk - ARCH_COLOR_R; k <= bk + ARCH_COLOR_R; k++) {
+            for (const r of bins.get(key(i, j, k)) ?? []) {
+              const d = (p[r * 3] - X) ** 2 + (p[r * 3 + 1] - Y) ** 2 + (p[r * 3 + 2] - Z) ** 2;
+              if (d < bestD) { bestD = d; best = r; }
+            }
+          }
+        }
+      }
+      const f = ARCH_SHADE[0] + (ARCH_SHADE[1] - ARCH_SHADE[0]) * shade();
+      if (best >= 0 && cAttr) vcol.push(cAttr[best * 3] * f, cAttr[best * 3 + 1] * f, cAttr[best * 3 + 2] * f);
+      else vcol.push(fallback.r * f, fallback.g * f, fallback.b * f);
+    }
+    // expanded to triangles, as rockFaces is (non-indexed)
+    for (const v of m.idx) {
+      pos.push(m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2]);
+      col.push(vcol[v * 3], vcol[v * 3 + 1], vcol[v * 3 + 2]);
+      nor.push(m.nor[v * 3], m.nor[v * 3 + 1], m.nor[v * 3 + 2]);
+    }
+  }
+  return {
+    pos: new Float32Array(pos), col: new Float32Array(col), nor: new Float32Array(nor),
+    tris: pos.length / 9, byId, stones,
+  };
+}
+
+// Appends the arches to rockFaces: new attributes on the same geometry (a
+// BufferAttribute has no uuid, so the build's Math.random draws stay put).
+function appendArches(rockFaces, arches) {
+  const geo = rockFaces.geometry;
+  for (const [name, add] of [['position', arches.pos], ['color', arches.col], ['normal', arches.nor]]) {
+    const old = geo.getAttribute(name).array;
+    const next = new Float32Array(old.length + add.length);
+    next.set(old);
+    next.set(add, old.length);
+    geo.setAttribute(name, new THREE.BufferAttribute(next, 3));
+  }
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+}
+
 // The Gorge's critters: birds in the first four near trees, a mouse at each
 // end of the floor, and the goat on the shoulder, which only ever bolts (G9).
 // No ducks, frogs or butterflies, and no villagers: no Twolegs walk here.
@@ -1071,7 +1217,13 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(rock);
   // The Narrows' tufts, crest shrubs and the view out to the Moor: one
   // noCast mesh at the scene root, under local uuids (BUILD_DRAWS stays put).
-  scene.add(withLocalUuids('gorge-uuids-narrows', () => narrowsDressing(rock.getObjectByName('rockFaces'))));
+  const rockFaces = rock.getObjectByName('rockFaces');
+  scene.add(withLocalUuids('gorge-uuids-narrows', () => narrowsDressing(rockFaces)));
+  // The cave mouths' and the camp den's rounded rock arches (polish-gorge5):
+  // appended to rockFaces, so they wear its rock shader at no new draw.
+  const arches = mouthArchesFor(rockFaces);
+  appendArches(rockFaces, arches);
+  rock.userData.mouthArches = arches.byId;
 
   // --- the stream -------------------------------------------------------------
   // Built from its footprint record and added to the scene root directly
