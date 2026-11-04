@@ -9,8 +9,11 @@ import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { addIslandView, islandKeepLow } from './lake.js';
-import { addCamp } from './camp.js';
+import { addCamp, campLayout } from './camp.js';
 import { withLocalUuids } from './localuuids.js';
+import { DISCS } from '../rivalclans.js';
+import { tintGround } from './dressing.js';
+import { forestFloorMesh, woodsFloorTint } from './forestfloor.js';
 
 // =============================================================================
 // The Woods.
@@ -327,6 +330,155 @@ export function woodsUndergrowth() {
   return { ferns, brambles };
 }
 
+// The forest floor (forestfloor.js): fallen leaves round every trunk, moss at
+// the trees' feet and along the fallen log, mushrooms, bluebell patches and
+// foxgloves at the edges of the trees. Seeded by name like the undergrowth,
+// and every random number is drawn whether or not its bit is kept, so one
+// rule moving never reshuffles the rest. The leaves lie flat, so they only
+// keep off the paths, the water's edge and the camp; every standing bit keeps
+// the ferns' rules (FERN), bar two: the moss at a tree's foot touches its
+// trunk, and the moss and mushrooms by the fallen log sit beside it (the
+// ferns keep 3 m off the log, and it lies in the clearing's edge).
+const FLOOR_LEAF_PATH = PATH_W / 2 + 0.15;
+// Leaves per tree (times its scale). The plan said 22; at 69 trees that is
+// ~1,900 triangles, more than the Woods' budget (57,000) leaves room for, so
+// the ground tint's litter patches carry the rest.
+const FLOOR_LEAVES = 14;
+const CAMP_DISC = (() => {
+  const L = campLayout('woods');
+  return { x: L.cx, z: L.cz, r: DISCS.woods.r };
+})();
+const inCamp = (x, z) => Math.hypot(x - CAMP_DISC.x, z - CAMP_DISC.z) < CAMP_DISC.r;
+const inBounds = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
+function leafFits(x, z) {
+  if (!inBounds(x, z) || inCamp(x, z)) return false;
+  if (waterDist(x, z) < 0.6) return false;
+  return !WOODS_PATHS.some((s) => segDist(x, z, ...s) < FLOOR_LEAF_PATH);
+}
+// FERN's rules without the trunk, the log and the clearing.
+function besideFits(x, z) {
+  if (!inBounds(x, z) || inCamp(x, z)) return false;
+  if (waterDist(x, z) < FERN.water) return false;
+  if (DECKS.some((d) => rectDist(d, x, z) < FERN.deck)) return false;
+  if (WOODS_PATHS.some((s) => segDist(x, z, ...s) < FERN.path)) return false;
+  if (KEEP_CLEAR.some(([px, pz]) => Math.hypot(x - px, z - pz) < FERN.clear)) return false;
+  return Math.hypot(x - SPAWN.x, z - SPAWN.z) >= FERN.spawn;
+}
+const floorFits = (x, z, trees) => !inCamp(x, z) && undergrowthFits(x, z, FERN, trees);
+const r3 = (v) => Math.round(v * 1000) / 1000;
+export function woodsFloor() {
+  const rng = mulberry32(seedFromCode('woods-floor'));
+  const trees = woodsTreeSpots();
+  const leaves = [];
+  const moss = [];
+  const mushrooms = [];
+  const bluebells = [];
+  const foxgloves = [];
+  const around = (t, dMin, dMax) => {
+    const a = rng() * Math.PI * 2;
+    const d = (dMin + (dMax - dMin) * rng()) * t.scale;
+    return { x: r2(t.x + Math.cos(a) * d), z: r2(t.z + Math.sin(a) * d), a: r3(a) };
+  };
+
+  // leaves, uniformly in a disc round each trunk
+  for (const t of trees) {
+    const n = Math.round(FLOOR_LEAVES * t.scale);
+    for (let i = 0; i < n; i++) {
+      const a = rng() * Math.PI * 2;
+      const d = 2.6 * t.scale * Math.sqrt(rng());
+      const yaw = rng() * Math.PI * 2;
+      const s = 0.85 + 0.3 * rng();
+      const x = r2(t.x + Math.cos(a) * d);
+      const z = r2(t.z + Math.sin(a) * d);
+      if (leafFits(x, z)) leaves.push({ x, z, s: r2(s), a: r3(yaw) });
+    }
+  }
+
+  // moss at the foot of about half the trees, and a mushroom cluster at
+  // every sixth
+  trees.forEach((t, i) => {
+    const has = rng() < 0.5;
+    const two = rng() < 0.5;
+    for (let k = 0; k < 2; k++) {
+      const p = around(t, 0.6, 0.9);
+      const s = r2(0.8 + 0.4 * rng());
+      if (has && (k === 0 || two) && besideFits(p.x, p.z)) moss.push({ ...p, s });
+    }
+    if (i % 6 === 0) {
+      let placed = false;
+      for (let k = 0; k < 3; k++) {
+        const p = around(t, 1.05, 1.35);
+        if (!placed && floorFits(p.x, p.z, trees)) {
+          mushrooms.push({ ...p, s: 1 });
+          placed = true;
+        }
+      }
+    }
+  });
+
+  // moss and mushrooms beside the fallen log: along its length, either side
+  const [x1, z1, x2, z2] = fallenLogEnds();
+  const ux = (x2 - x1) / FALLEN_LOG.length;
+  const uz = (z2 - z1) / FALLEN_LOG.length;
+  const beside = (along, side, out) => {
+    const x = r2(FALLEN_LOG.x + ux * along * FALLEN_LOG.length + uz * side * out);
+    const z = r2(FALLEN_LOG.z + uz * along * FALLEN_LOG.length - ux * side * out);
+    return { x, z };
+  };
+  [[-0.32, 1], [0.08, -1], [0.38, 1]].forEach(([along, side]) => {
+    const p = beside(along, side, 0.5 + 0.1 * rng());
+    const s = r2(0.85 + 0.3 * rng());
+    if (besideFits(p.x, p.z)) moss.push({ ...p, s, a: r3(rng() * Math.PI * 2) });
+  });
+  [[-0.42, -1], [-0.1, 1], [0.22, -1], [0.46, 1]].forEach(([along, side]) => {
+    const p = beside(along, side, 0.62 + 0.12 * rng());
+    const a = r3(rng() * Math.PI * 2);
+    if (besideFits(p.x, p.z)) mushrooms.push({ ...p, s: 1, a });
+  });
+
+  // bluebells: six patches of five, the patch centres scattered as the ferns
+  // are but kept to the edges of the trees (2-4.5 m out from a trunk)
+  const centres = [];
+  for (let gz = BOUNDS.minZ + 6; gz < BOUNDS.maxZ; gz += 12) {
+    for (let gx = BOUNDS.minX + 6; gx < BOUNDS.maxX; gx += 12) {
+      const x = r2(gx + (rng() * 2 - 1) * 4);
+      const z = r2(gz + (rng() * 2 - 1) * 4);
+      const rank = rng();
+      const edge = trees.some((t) => {
+        const d = Math.hypot(x - t.x, z - t.z);
+        return d >= 2 * t.scale && d <= 4.5 * t.scale;
+      });
+      if (edge && floorFits(x, z, trees)) centres.push({ x, z, rank });
+    }
+  }
+  centres.sort((p, q) => p.rank - q.rank);
+  for (const c of centres.slice(0, 6)) {
+    let got = 0;
+    for (let k = 0; k < 10; k++) {
+      const a = rng() * Math.PI * 2;
+      const d = k === 0 ? 0 : 0.35 + 1.1 * rng();
+      const x = r2(c.x + Math.cos(a) * d);
+      const z = r2(c.z + Math.sin(a) * d);
+      const s = r2(0.85 + 0.3 * rng());
+      if (got < 5 && floorFits(x, z, trees) && !bluebells.some((b2) => Math.hypot(b2.x - x, b2.z - z) < 0.3)) {
+        bluebells.push({ x, z, s, a: r3(a) });
+        got++;
+      }
+    }
+  }
+
+  // foxgloves: eight, singly at the edges of the trees, well apart
+  const order = trees.map((t) => ({ t, rank: rng() })).sort((p, q) => p.rank - q.rank);
+  for (const { t } of order) {
+    const p = around(t, 1.6, 2.4);
+    const s = r2(0.85 + 0.2 * rng());
+    if (foxgloves.length < 8 && floorFits(p.x, p.z, trees)
+      && !foxgloves.some((f) => Math.hypot(f.x - p.x, f.z - p.z) < 8)) foxgloves.push({ ...p, s });
+  }
+
+  return { leaves, moss, mushrooms, bluebells, foxgloves };
+}
+
 // Reeds, a clump every 2.5 m: round the pond's east half, along the
 // lakeshore, and along both banks of the river. Each clump stands just on the
 // bank, and none within 1.5 m of a deck, so the crossings stay clear to see
@@ -449,7 +601,13 @@ function lookoutRockGeometry() {
 
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0xa8d8c0, 0xd0ead8);
-  scene.add(b.ground(120, 0x5f9a4a, { surface: 'grass' }));
+  // The ground, shaded under the trees, with leaf litter and moss patches
+  // (forestfloor.js); the clearing stays sunny. A shade deeper and less blue
+  // than the park's lawn green it used to share (0x5f9a4a, still the
+  // groundBounce below).
+  const groundMesh = b.ground(120, 0x547f3e, { surface: 'grass' });
+  tintGround(groundMesh, woodsFloorTint(woodsTreeSpots(), CLEARING));
+  scene.add(groundMesh);
 
   // The horizon. Hills all round, as the other green areas have, but each
   // side tinted for the neighbour over it: heather to the north (the Moor),
@@ -501,6 +659,9 @@ export function build(scene, { water = {}, wind } = {}) {
   const brambleMesh = b.brambleBed(brambles, seedFromCode('woods-brambles'));
   brambleMesh.name = 'brambles';
   scene.add(brambleMesh);
+  // The forest floor: leaves, moss, mushrooms, bluebells, foxgloves, one
+  // non-casting mesh made on its own uuid stream (the pinned draw count).
+  scene.add(withLocalUuids('woods-floor-uuids', () => forestFloorMesh(woodsFloor())));
 
   // --- the trees ----------------------------------------------------------------
   // A collider a little wider than the trunk, growing with it, and a Sure
