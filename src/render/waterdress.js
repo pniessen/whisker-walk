@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { waterGap, waterClearance, deckDistance } from '../world/builder.js';
 import { bankPieces, waterRamp, WATER_EVENING } from './water.js';
+import { fishSpots } from './fishjump.js';
 
 // ---------------------------------------------------------------------------
 // WATER DRESSING — the edge where the water meets the land (polish-water
@@ -17,13 +18,16 @@ import { bankPieces, waterRamp, WATER_EVENING } from './water.js';
 //   - the band: wet earth + foam line, ONE transparent mesh (vertex colour
 //     with alpha, depthWrite off, polygon offset);
 //   - the stones: one opaque merged mesh (none on the LOW tier);
-//   - the fillet fill (polish-waterlife): one tiny opaque fan per area with a
-//     rounded bank corner (BANK_FILLETS; the Woods only), sharing the
-//     ground's material — the Woods' third mesh, as it has no sea apron;
-//   - reeds / lily pads: none today. The Woods, Moor, River and Pines all
-//     plant their own reed beds along these banks, and the Pines bogs already
-//     float lily pads (pines.js pinesLilyPads), so a second set would only
-//     double them up. The slot is kept in the count for a style that needs it.
+//   - the fill (`waterdress:fill`): one opaque mesh drawn with the area
+//     ground's own material — the fillet fans that round a stream bend
+//     (polish-waterlife, BANK_FILLETS) and the streams' bites (polish-streams,
+//     see BITES below). The third mesh of every area with a stream, as none
+//     of them has a sea apron;
+//   - reeds / lily pads: only round the Park's duck pond (POND_PLANTS), and
+//     merged into the stones mesh, so they cost no draw of their own. The
+//     Woods, Moor, River and Pines all plant their own reed beds along their
+//     banks, and the Pines bogs already float lily pads (pines.js
+//     pinesLilyPads), so a second set there would only double them up.
 //
 // REAL SHORE ONLY. Where two footprints overlap (a pond over a river, a river
 // mouth over a lake) the outline running under the other water is open water,
@@ -47,7 +51,7 @@ import { bankPieces, waterRamp, WATER_EVENING } from './water.js';
 // and stones from `waterdress-<area>-<water id>`.
 // ---------------------------------------------------------------------------
 
-export const DRESSED_AREAS = Object.freeze(['woods', 'river', 'moor', 'pines', 'seaside']);
+export const DRESSED_AREAS = Object.freeze(['woods', 'river', 'moor', 'pines', 'seaside', 'park']);
 
 // How far outside the area's walkable bounds a bank is still drawn. Past it
 // the edge is the far horizon (the lake's west shore, the river's far reach).
@@ -87,6 +91,8 @@ const BANK_COLORS = Object.freeze({
   pines: { wet: 0x4a4229, damp: 0x58603a },
   // A wetter, darker sand. Task 4 gives the sea its own builder.
   seaside: { wet: 0x8c7650, damp: 0xa89470 },
+  // The Park's lawn is a brighter, greener grass than the wild areas'.
+  park: { wet: 0x5a5a30, damp: 0x5f8c42 },
 });
 // A bog is already dark and sits in dark ground, so its ring is drawn a
 // little fainter (`alpha` scales the band's strength): a full-strength ring
@@ -160,6 +166,113 @@ const STONE_COLORS = [0x8a8378, 0x7a7266, 0x958c7e, 0x6f6a60];
 export const BANK_FILLETS = Object.freeze({
   woods: Object.freeze([Object.freeze({ x: 23, z: -9, r: 1.6, wx: -1, wz: -1 })]),
 });
+// Polish-streams — the wandering bank (BITES). A stream is a rect footprint
+// with ruler-straight edges, and the footprint is gameplay (the collider, the
+// wade zone), so it stays. For the eye only, an opaque strip drawn with the
+// ground's own material is laid over the outer bankBite() metres of the water
+// (0.15..0.85 on a stream, 0.10..0.60 round a pond in BITE_CIRCLES), so the
+// visible shore wanders; the band then follows the bitten line. The bite
+// tapers to nothing at a chain's open ends (where the stream runs into
+// another water: no step at the junction), within 1 m of a deck (the path
+// still meets the stepping stones or the log) and round a fillet's corner
+// (the fan rounds that one). With no ground plane to borrow there is no bite,
+// and the band is the old band exactly.
+export const BITE_CIRCLES = Object.freeze({ park: Object.freeze(['pond']) });
+export const BITE_MAX = 0.85;
+const STREAM_MAX_W = 6;
+// The bite's own long waves (the wobble's are 4.7 / 2.3 / 1.3 m).
+const BITE_WAVES = [17, 9.5, 5.3];
+// Tapers: at an open end over BITE_END m (after BITE_END_DEAD m of nothing);
+// 0 within BITE_DECK of a deck, full BITE_DECK_RAMP further on; 0 within 2r
+// of a fillet corner, full BITE_FILLET_RAMP further on.
+const BITE_END_DEAD = 0.2;
+const BITE_END = 2;
+const BITE_DECK = 1;
+const BITE_DECK_RAMP = 1.5;
+const BITE_FILLET_RAMP = 1.5;
+// The strip tucks this far under the land's edge (scaled down where the bite
+// tapers away, so nothing covers a path's end by a deck); a run whose
+// deepest bite is under BITE_MIN draws no strip.
+const BITE_TUCK = 0.08;
+const BITE_TUCK_FULL = 0.15;
+const BITE_MIN = 0.02;
+// The ground's colour for a bite is sampled this far onto the land (the
+// ground under the water may be painted as stream bed).
+const BITE_COLOR_AT = 0.6;
+// A bitten stream's foam line is a line of wet mud, at every time of day.
+const MUD_FOAM = 0x4a4330;
+const MUD_FOAM_A = 0.6;
+// A bitten pond's foam line is a soft grey-blue, not a bright rim: at full
+// strength the clear foam reads as a pale white ring round the duck pond.
+// Evening foam colours still apply; the scale holds at POND_FOAM_A.
+const POND_FOAM = 0xcfe0e4;
+const POND_FOAM_A = 0.45;
+
+// Polish-streams — riffles. A few small stones mid-stream, just breaking the
+// surface, each trailing one or two short pale streaks of foam on the water
+// (band runs with riffleProfile), so a stream reads as moving water. Only on
+// a bitten stream (so only with a ground plane, like the bites: with none the
+// band stays the old band) and not on the LOW tier. Seeded per stream from
+// `waterdress-<area>-<water id>-riffle`. Along the centreline one stop every
+// RIFFLE_EVERY + RIFFLE_EVERY_JIT * rng() metres, 1-3 stones per stop. A stone
+// is kept only RIFFLE_CLEAR beyond the deepest bite into the water, and
+// RIFFLE_DECK from a deck (stepping stones read as their own row).
+const RIFFLE_START = 3;
+const RIFFLE_EVERY = 6;
+const RIFFLE_EVERY_JIT = 4;
+const RIFFLE_LATERAL = 1.6;
+const RIFFLE_ALONG = 0.8;
+const RIFFLE_R = [0.12, 0.14];
+const RIFFLE_SINK = 0.25;
+const RIFFLE_CLEAR = 0.3;
+const RIFFLE_DECK = 2.5;
+const STREAK_LEN = [0.5, 0.4];
+const STREAK_HALF_W = [0.04, 0.02];
+const STREAK_ALPHA = 0.45;
+// A streak that would leave open water is cut to these fractions of its
+// length in turn (the first that stays on the water wins), else dropped.
+const STREAK_CUTS = [1, 0.7, 0.45];
+
+// Polish-streams — the Park's duck pond plants: a few clumps of reeds (some
+// with a brown cattail) on two arcs of the south shore, and a little raft of
+// round lily pads (a notch cut out of each, two with a pink flower) out on
+// the water on that side. The arcs are degrees of atan2(z - centre z,
+// x - centre x): the north shore (the `pond-shore` scenic and its POI) and
+// the duck parade's way out to the north-east stay open. Seeded from
+// `waterdress-<area>-<water id>-reeds` / `-lilies`; not on the LOW tier.
+const POND_PLANTS = Object.freeze({
+  park: Object.freeze({
+    pond: Object.freeze({ reedArcs: [[200, 250], [290, 340]], lilyAt: 270 }),
+  }),
+});
+// Reed clumps: one every REED_EVERY + REED_EVERY_JIT * rng() metres of rim,
+// REED_OUT + REED_OUT_JIT * rng() onto the land from the visual waterline.
+const REED_EVERY = 0.9;
+const REED_EVERY_JIT = 0.5;
+const REED_OUT = 0.05;
+const REED_OUT_JIT = 0.3;
+const REED_COLORS = [0x6f8a3c, 0x7f9a46, 0x5d7a34];
+const CATTAIL_COLOR = 0x6b4a2a;
+const CATTAIL_R = 0.05;
+const CATTAIL_H = 0.18;
+// Lily pads: LILY_COUNT tries for a pad round `lilyAt` (+-LILY_SPREAD
+// degrees), LILY_IN +- LILY_IN_JIT metres in from the shore, out of at most
+// LILY_TRIES candidates; a pad keeps 1 m off every fish spot and off its
+// neighbours.
+const LILY_COUNT = 7;
+const LILY_TRIES = 40;
+const LILY_SPREAD = 35;
+const LILY_IN = 2.0;
+const LILY_IN_JIT = 0.6;
+const LILY_R = [0.28, 0.14];
+const LILY_SEGS = 10;
+const LILY_LIFT = 0.006;
+const LILY_COLORS = [0x4f8a3a, 0x5c9a44];
+const LILY_FLOWERS = 2;
+const FLOWER_COLOR = 0xf2b6c8;
+const FLOWER_H = 0.08;
+const FLOWER_R = 0.06;
+
 // Arc segments in a fill fan (one triangle each).
 const FILLET_SEGS = 12;
 // Opaque, so it is drawn in the opaque pass: after the water (renderOrder 0),
@@ -185,12 +298,12 @@ function phases(seed) {
 // closed ring (a bog) meets itself without a step.
 const WAVES = [4.7, 2.3, 1.3];
 const WEIGHTS = [0.55, 0.3, 0.15];
-function smoothNoise(seed, s, period) {
+function smoothNoise(seed, s, period, waves = WAVES) {
   const p = phases(seed);
   let v = 0;
   for (let i = 0; i < 3; i++) {
-    let k = TAU / WAVES[i];
-    if (period > 0) k = (TAU * Math.max(1, Math.round(period / WAVES[i]))) / period;
+    let k = TAU / waves[i];
+    if (period > 0) k = (TAU * Math.max(1, Math.round(period / waves[i]))) / period;
     v += WEIGHTS[i] * Math.sin(k * s + p[i]);
   }
   return v;
@@ -204,6 +317,31 @@ function smoothNoise(seed, s, period) {
  */
 export function bankWobble(seed, s, period = 0) {
   return -0.1 + 0.2 * smoothNoise(seed, s, period);
+}
+
+/**
+ * bankBite(seed, s[, period[, kind]]) — how far the visual shore moves into
+ * the water at `s` metres along a bank, before tapering: 'stream' 0.15..0.85,
+ * 'pond' 0.10..0.60, smooth along `s` (snapped to `period` on a ring).
+ */
+export function bankBite(seed, s, period = 0, kind = 'stream') {
+  const n = smoothNoise(seed, s, period, BITE_WAVES);
+  return kind === 'pond' ? 0.35 + 0.25 * n : 0.5 + 0.35 * n;
+}
+
+/** isStream(h) — a narrow rect water (min side <= 6 m), not the sea or a bog. */
+export function isStream(h) {
+  if (!h || h.style === 'sea' || h.style === 'bog') return false;
+  const w = h.footprint;
+  return w?.kind === 'rect' && Math.min(w.maxX - w.minX, w.maxZ - w.minZ) <= STREAM_MAX_W;
+}
+
+// The bite a water gets in this area: 'stream', 'pond' or null.
+function biteKind(areaId, h) {
+  if (isStream(h)) return 'stream';
+  const w = h.footprint;
+  if (h.style !== 'sea' && h.style !== 'bog' && w?.kind === 'circle' && BITE_CIRCLES[areaId]?.includes(w.id)) return 'pond';
+  return null;
 }
 
 // The band's reach onto the land, 0.9..1.4 m, on its own slow wobble.
@@ -313,11 +451,13 @@ function bankProfile(p, ctx) {
   // land-side offsets, pulled back where they would reach into another
   // water (a pond's bank ending at the river it runs into)
   // (a fillet's fill is land to the eye, though the footprint says water)
+  // (and a bite's strip is land to the eye: never wet over it)
   const fillets = ctx.fillets;
-  const wet = (x, z) => waterClearance(undecked, x, z) < 0.05 && !(fillets && inFilletFill(fillets, x, z));
+  const bite = p.bite ?? 0;
+  const wet = (k, x, z) => k >= bite && waterClearance(undecked, x, z) < 0.05 && !(fillets && inFilletFill(fillets, x, z));
   const clear = (o) => {
     let k = o;
-    while (k > onLand && wet(p.x + p.nx * k, p.z + p.nz * k)) k -= 0.1;
+    while (k > onLand && wet(k, p.x + p.nx * k, p.z + p.nz * k)) k -= 0.1;
     return Math.max(k, onLand);
   };
   const shoulder = clear(onLand + 0.45);
@@ -371,6 +511,20 @@ function seaProfile(p, ctx) {
     [lip - 0.12, y, f, 0.85 * fade * k, 1, SEA_SWASH],
     [lip, y, f, 0.9 * fade * k, 1, SEA_SWASH],
     [lip + 0.14, y, f, 0, 1, SEA_SWASH],
+  ];
+}
+
+// A riffle's foam streak: three rows across, the middle one pale and the
+// sides gone; `p.k` fades it in and out along its length.
+const RIFFLE_ROWS = 3;
+function riffleProfile(p, ctx) {
+  const y = ctx.waterY + LIP_LIFT;
+  const c = ctx.foamC;
+  const a = STREAK_ALPHA * p.k * (ctx.foamA ?? 1);
+  return [
+    [-ctx.halfW, y, c, 0, 1, 0],
+    [0, y, c, a, 1, 0],
+    [ctx.halfW, y, c, 0, 1, 0],
   ];
 }
 
@@ -492,7 +646,8 @@ function stoneSpots(runs, areaData, keepOut = []) {
       const tone = Math.floor(rng() * STONE_COLORS.length);
       const x = p.x + p.nx * out, z = p.z + p.nz * out;
       if (b && (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ)) continue;
-      if (waterClearance(ctx.undecked, x, z) < 0.1) continue;
+      // a stone on a bite's strip is on land to the eye
+      if (!(out < (p.bite ?? 0) - 0.05) && waterClearance(ctx.undecked, x, z) < 0.1) continue;
       if (deckDistance(areaData.waters, x, z) < 1.5) continue;
       if (colliders.some((k) => Math.hypot(x - k.x, z - k.z) <= k.r + 0.1)) continue;
       // rest spots, finds and the like have no collider: stay clear of them too
@@ -503,32 +658,47 @@ function stoneSpots(runs, areaData, keepOut = []) {
   return spots;
 }
 
-function stonesGeometry(spots) {
+// Each stone is a squashed, turned dodecahedron; only its faces that reach
+// above its `floor` are kept (the ground at 0 for a bank stone, the water's
+// surface for a riffle stone: both are opaque, so what lies wholly under them
+// is never seen). That is about half the triangles of a whole stone.
+function stonesGeometry(spots, extra = null) {
   const tmpl = new THREE.DodecahedronGeometry(1, 0);
   const src = tmpl.getAttribute('position');
   const per = src.count;
-  const pos = new Float32Array(spots.length * per * 3);
-  const col = new Float32Array(spots.length * per * 3);
+  const pos = [];
+  const col = [];
   const c = new THREE.Color();
-  let v = 0;
+  const tri = new Float32Array(9);
   for (const s of spots) {
     const cos = Math.cos(s.spin), sin = Math.sin(s.spin);
+    const y0 = s.y ?? 0;
+    const floor = (s.floor ?? 0) + 1e-6;
     c.setHex(STONE_COLORS[s.tone]);
-    for (let i = 0; i < per; i++) {
-      // squashed and a little longer one way, then turned
-      const lx = src.getX(i) * s.r * 1.15, ly = src.getY(i) * s.r * 0.6, lz = src.getZ(i) * s.r * 0.85;
-      pos[v * 3] = s.x + lx * cos - lz * sin;
-      // half sunk: the centre sits at the ground, the lower half below it
-      pos[v * 3 + 1] = ly;
-      pos[v * 3 + 2] = s.z + lx * sin + lz * cos;
-      col[v * 3] = c.r; col[v * 3 + 1] = c.g; col[v * 3 + 2] = c.b;
-      v++;
+    for (let t = 0; t < per; t += 3) {
+      let up = false;
+      for (let k = 0; k < 3; k++) {
+        const i = t + k;
+        // squashed and a little longer one way, then turned
+        const lx = src.getX(i) * s.r * 1.15, ly = src.getY(i) * s.r * 0.6, lz = src.getZ(i) * s.r * 0.85;
+        tri[k * 3] = s.x + lx * cos - lz * sin;
+        // half sunk: the centre sits at the ground (or at its own `y`), the
+        // lower half below it
+        tri[k * 3 + 1] = y0 + ly;
+        tri[k * 3 + 2] = s.z + lx * sin + lz * cos;
+        if (tri[k * 3 + 1] > floor) up = true;
+      }
+      if (!up) continue;
+      for (let k = 0; k < 9; k++) pos.push(tri[k]);
+      for (let k = 0; k < 3; k++) col.push(c.r, c.g, c.b);
     }
   }
   tmpl.dispose();
+  // the pond's reeds and lily pads, already flat triangles
+  if (extra) { pos.push(...extra.pos); col.push(...extra.col); }
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
   return geo;
@@ -538,11 +708,14 @@ function stonesGeometry(spots) {
 
 // The generic bank for a water: its shore runs, each carrying what the band
 // and the stones need to draw it.
-function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fillets = null }) {
+function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fillets = null, ground = null }) {
   const w = h.footprint;
   const pieces = bankPieces(w, h.waters ?? areaData.waters);
   if (pieces.length === 0) return [];
   const bog = h.style === 'bog';
+  // bites, like fillets, need the ground to paint their strip with
+  const kind = ground ? biteKind(areaId, h) : null;
+  const fillY = (h.y ?? 0.03) + LIP_LIFT * 0.5;
   const seed0 = seedFromCode(`waterdress-${areaId}-${w.id}`);
   const out = [];
   // Each chain (each bank of a stream, each ring of a water) has its own
@@ -552,6 +725,7 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
     const sampled = sampleChain(ch, w);
     if (fillets) for (const f of fillets) bendOntoFillet(sampled.samples, f);
     const seed = ci ? seedFromCode(`waterdress-${areaId}-${w.id}-${ci}`) : seed0;
+    if (kind) biteChain(sampled, { seed: seed + 3, kind, fillets, waters: areaData.waters, fillY, box });
     const ctx = {
       seed,
       stoneSeed: seed + 7,
@@ -562,12 +736,19 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
       rows: PER,
       profile: bankProfile,
       fillets,
+      biteKind: kind,
+      fillY,
+      chainClosed: sampled.closed,
+      chainLength: sampled.length,
     };
     ctx.wetC = new THREE.Color(ctx.colors.wet);
     ctx.dampC = new THREE.Color(ctx.colors.damp);
     const ev = bog ? null : EVENING_FOAM[evening];
     ctx.foamC = new THREE.Color(bog ? FOAM_COLORS.bog : (ev ? ev.clear : FOAM_COLORS.clear));
     if (ev) ctx.foamA = ev.clearA;
+    // a bitten stream's rim is wet mud, not white foam
+    if (kind === 'stream') { ctx.foamC = new THREE.Color(MUD_FOAM); ctx.foamA = MUD_FOAM_A; }
+    if (kind === 'pond') { ctx.foamC = new THREE.Color(ev ? ev.clear : POND_FOAM); ctx.foamA = POND_FOAM_A; }
     for (const run of clipRuns(sampled, box)) out.push({ ...run, w, ctx });
   }
   return out;
@@ -723,6 +904,57 @@ function bendOntoFillet(samples, f) {
   }
 }
 
+// Bite one sampled chain (see BITES): every sample keeps its true shore point
+// and land normal (x0, z0, nx0, nz0) and gets `bite`, metres moved into the
+// water after the tapers; a bitten sample moves there, takes its normal from
+// its neighbours, and its band rows over the strip ride over it (fillTop).
+// Samples already bent onto a fillet keep bite 0. The bite also tapers like
+// an open end toward the edge of the drawn box, where clipRuns cuts the run:
+// no square step where the strip stops.
+function biteChain(sampled, { seed, kind, fillets, waters, fillY, box = null }) {
+  const { samples, closed, length } = sampled;
+  const period = closed ? length : 0;
+  for (const p of samples) {
+    p.x0 = p.x; p.z0 = p.z; p.nx0 = p.nx; p.nz0 = p.nz; p.bite = 0;
+    if (p.fillet) continue;
+    let t = 1;
+    if (!closed) t *= smooth01((Math.min(p.s, length - p.s) - BITE_END_DEAD) / BITE_END);
+    if (box && t > 0) {
+      const edge = Math.min(p.x - box.minX, box.maxX - p.x, p.z - box.minZ, box.maxZ - p.z);
+      t *= smooth01((edge - BITE_END_DEAD) / BITE_END);
+    }
+    if (t > 0) t *= smooth01((deckDistance(waters, p.x, p.z) - BITE_DECK) / BITE_DECK_RAMP);
+    for (const f of fillets ?? []) {
+      if (t > 0) t *= smooth01((Math.hypot(p.x - f.x, p.z - f.z) - 2 * f.r) / BITE_FILLET_RAMP);
+    }
+    if (t > 0) p.bite = bankBite(seed, p.s, period, kind) * t;
+  }
+  for (const p of samples) {
+    if (p.bite > 0) { p.x = p.x0 - p.nx0 * p.bite; p.z = p.z0 - p.nz0 * p.bite; }
+  }
+  const m = samples.length;
+  const n = [];
+  for (let i = 0; i < m; i++) {
+    const p = samples[i];
+    if (!(p.bite > 0)) { n.push(null); continue; }
+    const prev = samples[closed ? (i - 1 + m) % m : Math.max(0, i - 1)];
+    const next = samples[closed ? (i + 1) % m : Math.min(m - 1, i + 1)];
+    let tx = next.x - prev.x, tz = next.z - prev.z;
+    const tl = Math.hypot(tx, tz);
+    if (!(tl > 1e-9)) { n.push(null); continue; }
+    tx /= tl; tz /= tl;
+    let nx = -tz, nz = tx;
+    if (nx * p.nx0 + nz * p.nz0 < 0) { nx = -nx; nz = -nz; }
+    n.push([nx, nz]);
+  }
+  for (let i = 0; i < m; i++) {
+    const p = samples[i];
+    if (!(p.bite > 0)) continue;
+    if (n[i]) { p.nx = n[i][0]; p.nz = n[i][1]; }
+    p.fillTop = fillY + LIP_LIFT * 0.5;
+  }
+}
+
 // Is (x, z) in a fillet's fill: inside the square r x r cell at the corner
 // and outside the arc?
 function inFilletFill(fillets, x, z) {
@@ -737,29 +969,73 @@ function inFilletFill(fillets, x, z) {
 // The area's ground plane, if it is one fillets can borrow: a top-level mesh
 // tagged userData.ground (builder.js ground()) with a PlaneGeometry.
 function fillGround(scene) {
-  const g = scene?.children?.find((c) => c.isMesh && c.userData?.ground);
-  if (!g || g.geometry?.type !== 'PlaneGeometry' || !g.geometry.parameters) return null;
-  return g;
+  return scene?.children?.find((c) => c.isMesh && c.userData?.ground && c.name !== 'path' && c.visible !== false
+    && c.geometry?.type === 'PlaneGeometry' && c.geometry.parameters) ?? null;
 }
 
-// The fill fan for one fillet: the corner, then FILLET_SEGS + 1 points round
-// the arc, all at `y`; uv / normal / colour sampled bilinearly from the
-// ground's grid where each vertex lies (normals turned into world space, as
-// the fan's own matrix is the identity). Faces look up.
-function filletGeometry(fillets, ground) {
+// The ground's grid, ready to sample: its inverse world matrix, normal
+// matrix, plane parameters and the attributes to borrow.
+function groundSampler(ground) {
   ground.updateWorldMatrix(true, false);
-  const inv = new THREE.Matrix4().copy(ground.matrixWorld).invert();
-  const nmat = new THREE.Matrix3().getNormalMatrix(ground.matrixWorld);
   const gg = ground.geometry;
   const { width, height, widthSegments: ws = 1, heightSegments: hs = 1 } = gg.parameters;
-  const attrs = ['uv', 'normal', 'color'].map((n) => [n, gg.getAttribute(n)]).filter(([, a]) => a);
+  return {
+    inv: new THREE.Matrix4().copy(ground.matrixWorld).invert(),
+    nmat: new THREE.Matrix3().getNormalMatrix(ground.matrixWorld),
+    width, height, ws, hs,
+    attrs: ['uv', 'normal', 'color'].map((n) => [n, gg.getAttribute(n)]).filter(([, a]) => a),
+    local: new THREE.Vector3(),
+    nrm: new THREE.Vector3(),
+  };
+}
+
+// Bilinear sample of the ground's attributes (those named in `names`) at
+// world (x, y, z), written into out[name] at vertex v; normals turned into
+// world space, as the fill's own matrix is the identity.
+// PlaneGeometry's vertex (ix, iy) sits at x = -w/2 + ix*w/ws,
+// y = h/2 - iy*h/hs, index iy*(ws+1)+ix.
+function sampleGround(g, x, y, z, out, v, names = null) {
+  const { width, height, ws, hs } = g;
+  g.local.set(x, y, z).applyMatrix4(g.inv);
+  const gx = Math.min(ws, Math.max(0, ((g.local.x + width / 2) / width) * ws));
+  const gy = Math.min(hs, Math.max(0, ((height / 2 - g.local.y) / height) * hs));
+  const ix = Math.min(ws - 1, Math.floor(gx)), iy = Math.min(hs - 1, Math.floor(gy));
+  const tx = gx - ix, ty = gy - iy;
+  const k00 = iy * (ws + 1) + ix, k10 = k00 + 1, k01 = k00 + ws + 1, k11 = k01 + 1;
+  for (const [name, a] of g.attrs) {
+    if (names && !names.includes(name)) continue;
+    const sz = a.itemSize, o = out[name];
+    for (let c = 0; c < sz; c++) {
+      const top = a.getComponent(k00, c) * (1 - tx) + a.getComponent(k10, c) * tx;
+      const bot = a.getComponent(k01, c) * (1 - tx) + a.getComponent(k11, c) * tx;
+      o[v * sz + c] = top * (1 - ty) + bot * ty;
+    }
+    if (name === 'normal') g.nrm.fromArray(o, v * 3).applyMatrix3(g.nmat).normalize().toArray(o, v * 3);
+  }
+}
+
+// Push triangle (a, b, c) wound to look up (+y).
+function pushUp(index, pos, a, b, c) {
+  const abx = pos[b * 3] - pos[a * 3], abz = pos[b * 3 + 2] - pos[a * 3 + 2];
+  const acx = pos[c * 3] - pos[a * 3], acz = pos[c * 3 + 2] - pos[a * 3 + 2];
+  if (abz * acx - abx * acz >= 0) index.push(a, b, c); else index.push(a, c, b);
+}
+
+// The fill: first the fillet fans — for each, the corner then FILLET_SEGS + 1
+// points round the arc, all at its fillY, uv / normal / colour sampled where
+// each vertex lies — then, per bitten run, a strip of quads from just under
+// the land's edge (x0 + nx0 * tuck) to the bitten point, at that run's fillY;
+// uv and normal sampled where each vertex lies, colour on the land beside it.
+// Quads whose two ends both have no bite are left out. Faces look up.
+function fillGeometry(fillets, biteRuns, ground) {
+  const g = groundSampler(ground);
   const per = FILLET_SEGS + 2;
-  const n = fillets.length * per;
+  const nFan = fillets.length * per;
+  const n = nFan + biteRuns.reduce((k, r) => k + r.samples.length * 2, 0);
   const pos = new Float32Array(n * 3);
-  const out = Object.fromEntries(attrs.map(([name, a]) => [name, new Float32Array(n * a.itemSize)]));
+  const out = Object.fromEntries(g.attrs.map(([name, a]) => [name, new Float32Array(n * a.itemSize)]));
   const index = [];
-  const local = new THREE.Vector3();
-  const nrm = new THREE.Vector3();
+  const vertNames = ['uv', 'normal'];
   let v = 0;
   for (const f of fillets) {
     const cx = f.x + f.wx * f.r, cz = f.z + f.wz * f.r;
@@ -772,42 +1048,254 @@ function filletGeometry(fillets, ground) {
     const base = v;
     for (const [x, z] of pts) {
       pos[v * 3] = x; pos[v * 3 + 1] = f.fillY; pos[v * 3 + 2] = z;
-      local.set(x, f.fillY, z).applyMatrix4(inv);
-      // grid coordinates: PlaneGeometry's vertex (ix, iy) sits at
-      // x = -w/2 + ix*w/ws, y = h/2 - iy*h/hs, index iy*(ws+1)+ix
-      const gx = Math.min(ws, Math.max(0, ((local.x + width / 2) / width) * ws));
-      const gy = Math.min(hs, Math.max(0, ((height / 2 - local.y) / height) * hs));
-      const ix = Math.min(ws - 1, Math.floor(gx)), iy = Math.min(hs - 1, Math.floor(gy));
-      const tx = gx - ix, ty = gy - iy;
-      const k00 = iy * (ws + 1) + ix, k10 = k00 + 1, k01 = k00 + ws + 1, k11 = k01 + 1;
-      for (const [name, a] of attrs) {
-        const sz = a.itemSize, o = out[name];
-        for (let c = 0; c < sz; c++) {
-          const top = a.getComponent(k00, c) * (1 - tx) + a.getComponent(k10, c) * tx;
-          const bot = a.getComponent(k01, c) * (1 - tx) + a.getComponent(k11, c) * tx;
-          o[v * sz + c] = top * (1 - ty) + bot * ty;
-        }
-        if (name === 'normal') {
-          nrm.fromArray(o, v * 3).applyMatrix3(nmat).normalize().toArray(o, v * 3);
-        }
-      }
+      sampleGround(g, x, f.fillY, z, out, v);
       v++;
     }
-    for (let i = 1; i <= FILLET_SEGS; i++) {
-      const a = base, b = base + i, c = base + i + 1;
-      // wind each face to look up (+y)
-      const abx = pos[b * 3] - pos[a * 3], abz = pos[b * 3 + 2] - pos[a * 3 + 2];
-      const acx = pos[c * 3] - pos[a * 3], acz = pos[c * 3 + 2] - pos[a * 3 + 2];
-      const up = abz * acx - abx * acz;
-      if (up > 0) index.push(a, b, c); else index.push(a, c, b);
+    for (let i = 1; i <= FILLET_SEGS; i++) pushUp(index, pos, base, base + i, base + i + 1);
+  }
+  for (const run of biteRuns) {
+    const { samples, closed } = run;
+    const y = run.ctx.fillY;
+    const base = v;
+    for (const p of samples) {
+      const tuck = BITE_TUCK * smooth01(p.bite / BITE_TUCK_FULL);
+      const lx = p.x0 + p.nx0 * BITE_COLOR_AT, lz = p.z0 + p.nz0 * BITE_COLOR_AT;
+      for (const [x, z] of [[p.x0 + p.nx0 * tuck, p.z0 + p.nz0 * tuck], [p.x0 - p.nx0 * p.bite, p.z0 - p.nz0 * p.bite]]) {
+        pos[v * 3] = x; pos[v * 3 + 1] = y; pos[v * 3 + 2] = z;
+        sampleGround(g, x, y, z, out, v, vertNames);
+        sampleGround(g, lx, y, lz, out, v, ['color']);
+        v++;
+      }
+    }
+    const m = samples.length;
+    const spans = closed ? m : m - 1;
+    for (let i = 0; i < spans; i++) {
+      const j = (i + 1) % m;
+      if (!(samples[i].bite > 0) && !(samples[j].bite > 0)) continue;
+      const li = base + i * 2, wi = li + 1, lj = base + j * 2, wj = lj + 1;
+      pushUp(index, pos, li, wi, lj);
+      pushUp(index, pos, lj, wi, wj);
     }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  for (const [name, a] of attrs) geo.setAttribute(name, new THREE.BufferAttribute(out[name], a.itemSize));
+  for (const [name, a] of g.attrs) geo.setAttribute(name, new THREE.BufferAttribute(out[name], a.itemSize));
   geo.setIndex(index);
   geo.computeBoundingSphere();
-  return geo;
+  return { geo, filletVerts: [0, nFan] };
+}
+
+// The riffles of one stream (see RIFFLES): its stones, and its streaks as
+// band runs. Every draw comes off one rng in a fixed order per stone, before
+// any filter, so a stone dropped by a filter moves no other.
+function riffles(h, { areaId, areaData, box, undecked, evening, keepOut }) {
+  const w = h.footprint;
+  const rng = mulberry32(seedFromCode(`waterdress-${areaId}-${w.id}-riffle`));
+  const alongX = w.maxX - w.minX >= w.maxZ - w.minZ;
+  const lo = Math.max(alongX ? w.minX : w.minZ, alongX ? box.minX : box.minZ);
+  const hi = Math.min(alongX ? w.maxX : w.maxZ, alongX ? box.maxX : box.maxZ);
+  const mid = alongX ? (w.minZ + w.maxZ) / 2 : (w.minX + w.maxX) / 2;
+  const hy = h.y ?? 0.03;
+  const ev = EVENING_FOAM[evening];
+  const foamC = new THREE.Color(ev ? ev.clear : FOAM_COLORS.clear);
+  const colliders = areaData.colliders ?? [];
+  const stones = [];
+  const streaks = [];
+  for (let t = lo + RIFFLE_START * rng(); t <= hi; t += RIFFLE_EVERY + RIFFLE_EVERY_JIT * rng()) {
+    const n = 1 + Math.floor(rng() * 3);
+    for (let i = 0; i < n; i++) {
+      const lat = (rng() - 0.5) * RIFFLE_LATERAL;
+      const a = t + (rng() - 0.5) * RIFFLE_ALONG;
+      const r = RIFFLE_R[0] + RIFFLE_R[1] * rng();
+      const spin = rng() * TAU;
+      const tone = Math.floor(rng() * STONE_COLORS.length);
+      const plan = [];
+      const m = 1 + (rng() < 0.5 ? 1 : 0);
+      for (let j = 0; j < m; j++) {
+        plan.push({
+          dir: rng() < 0.5 ? -1 : 1,
+          len: STREAK_LEN[0] + STREAK_LEN[1] * rng(),
+          halfW: STREAK_HALF_W[0] + STREAK_HALF_W[1] * rng(),
+          side: (rng() - 0.5) * r,
+        });
+      }
+      const x = alongX ? a : mid + lat, z = alongX ? mid + lat : a;
+      // along the stream (tx, tz), across it (nx, nz)
+      const tx = alongX ? 1 : 0, tz = alongX ? 0 : 1;
+      if (x < box.minX || x > box.maxX || z < box.minZ || z > box.maxZ) continue;
+      if (!(waterClearance(undecked, x, z) < -(BITE_MAX + RIFFLE_CLEAR))) continue;
+      if (deckDistance(areaData.waters, x, z) < RIFFLE_DECK) continue;
+      if (colliders.some((k) => Math.hypot(x - k.x, z - k.z) <= k.r + 0.1)) continue;
+      if (keepOut.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + STONE_KEEP_GAP)) continue;
+      // (every draw is made above, before any filter) A streak must stay on
+      // open water, clear of the deepest bite by its own half width, all
+      // along its length; one that would run onto a bitten bank (a stone
+      // near a junction) is cut short, or dropped. A stone with no streak
+      // left is dropped too: a riffle stone always trails foam.
+      const kept = [];
+      for (const k of plan) {
+        const sx = x + tx * k.dir * r * 0.6 + tz * k.side, sz = z + tz * k.dir * r * 0.6 + tx * k.side;
+        const onWater = (len) => [0, 0.5, 1].every((f) => waterClearance(undecked,
+          sx + tx * k.dir * len * f, sz + tz * k.dir * len * f) < -(BITE_MAX + k.halfW));
+        const len = STREAK_CUTS.map((c) => k.len * c).find(onWater);
+        if (len !== undefined) kept.push({ ...k, sx, sz, len });
+      }
+      if (kept.length === 0) continue;
+      const stone = stones.length;
+      stones.push({ x, z, r, y: hy - RIFFLE_SINK * r, floor: hy, spin, tone, water: w.id });
+      for (const k of kept) {
+        const { sx, sz } = k;
+        const samples = [0, 0.5, 1].map((f) => ({
+          x: sx + tx * k.dir * k.len * f, z: sz + tz * k.dir * k.len * f,
+          s: k.len * f, nx: tz, nz: tx, k: f === 0.5 ? 1 : 0,
+        }));
+        streaks.push({
+          samples, closed: false, w, stone,
+          ctx: {
+            seed: 0, waterY: hy, rows: RIFFLE_ROWS, profile: riffleProfile, noStones: true,
+            foamC, halfW: k.halfW, ...(ev ? { foamA: ev.clearA } : {}),
+          },
+        });
+      }
+    }
+  }
+  return { stones, streaks };
+}
+
+// The bite (metres) of a bitten ring at angle `a` round (cx, cz): the
+// nearest sample's, by angle. 0 where the ring is not bitten.
+function biteAtAngle(samples, cx, cz, a) {
+  let best = null, bd = Infinity;
+  for (const p of samples) {
+    const x = p.x0 ?? p.x, z = p.z0 ?? p.z;
+    let d = Math.abs(Math.atan2(z - cz, x - cx) - a);
+    if (d > Math.PI) d = TAU - d;
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best?.bite ?? 0;
+}
+
+// Flat triangles for the stones mesh: positions and colours pushed per vertex.
+function triSink() {
+  const pos = [], col = [];
+  const c = new THREE.Color();
+  return {
+    pos, col,
+    // (a, b, c) as [x, y, z]; `up` winds a flat-ish face to look up
+    tri(a, b, d, hex, up = false) {
+      if (up) {
+        const abx = b[0] - a[0], abz = b[2] - a[2], adx = d[0] - a[0], adz = d[2] - a[2];
+        if (abz * adx - abx * adz < 0) [b, d] = [d, b];
+      }
+      pos.push(...a, ...b, ...d);
+      c.setHex(hex);
+      for (let k = 0; k < 3; k++) col.push(c.r, c.g, c.b);
+    },
+  };
+}
+
+// The duck pond's reeds and lily pads (see POND_PLANTS), for one circle
+// water. Every rng draw for a clump or pad comes before its filters, so a
+// dropped one moves no other.
+function pondPlants(h, plan, { areaId, areaData, bankRuns, keepOut, sink }) {
+  const w = h.footprint;
+  const hy = h.y ?? 0.03;
+  const ring = bankRuns.filter((r) => r.w === w).flatMap((r) => r.samples);
+  const colliders = areaData.colliders ?? [];
+  const blocked = (x, z, gap) => colliders.some((k) => Math.hypot(x - k.x, z - k.z) <= k.r + gap)
+    || keepOut.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + gap);
+  const reeds = [];
+  const rr = mulberry32(seedFromCode(`waterdress-${areaId}-${w.id}-reeds`));
+  for (const [a0, a1] of plan.reedArcs) {
+    const t0 = (a0 * Math.PI) / 180, t1 = (a1 * Math.PI) / 180;
+    for (let s = 0.2 * rr(); ; s += REED_EVERY + REED_EVERY_JIT * rr()) {
+      const t = t0 + s / w.r;
+      if (t > t1) break;
+      const out = REED_OUT + REED_OUT_JIT * rr();
+      const blades = 4 + Math.floor(rr() * 3);
+      const cattail = rr() < 0.5;
+      const parts = [];
+      for (let i = 0; i < blades; i++) {
+        parts.push({
+          dx: (rr() - 0.5) * 0.24, dz: (rr() - 0.5) * 0.24,
+          face: rr() * TAU, wide: 0.05 + 0.02 * rr(), tall: 0.6 + 0.5 * rr(),
+          lean: 0.08 + 0.12 * rr(), leanAt: rr() * TAU,
+          color: REED_COLORS[Math.floor(rr() * REED_COLORS.length)],
+        });
+      }
+      const rad = w.r - biteAtAngle(ring, w.x, w.z, t) + out;
+      const x = w.x + Math.cos(t) * rad, z = w.z + Math.sin(t) * rad;
+      if (blocked(x, z, 0.3)) continue;
+      reeds.push({ x, z });
+      let top = null;
+      for (const b of parts) {
+        const bx = x + b.dx, bz = z + b.dz;
+        const ux = Math.cos(b.face) * b.wide * 0.5, uz = Math.sin(b.face) * b.wide * 0.5;
+        const tip = [bx + Math.cos(b.leanAt) * b.lean, b.tall, bz + Math.sin(b.leanAt) * b.lean];
+        sink.tri([bx - ux, 0, bz - uz], [bx + ux, 0, bz + uz], tip, b.color);
+        if (!top || b.tall > top.tip[1]) top = { tip, bx, bz };
+      }
+      if (cattail && top) {
+        // a little brown head just under the tallest blade's tip, its spike
+        // poking out above
+        const at = (y) => {
+          const f = y / top.tip[1];
+          return [top.bx + (top.tip[0] - top.bx) * f, top.bz + (top.tip[2] - top.bz) * f];
+        };
+        const y1 = top.tip[1] - 0.04, y0 = y1 - CATTAIL_H;
+        const [cx0, cz0] = at(y0), [cx1, cz1] = at(y1);
+        const ringAt = (cx, cy, cz) => Array.from({ length: 6 }, (_, i) => {
+          const th = (i / 6) * TAU;
+          return [cx + Math.cos(th) * CATTAIL_R, cy, cz + Math.sin(th) * CATTAIL_R];
+        });
+        const lo = ringAt(cx0, y0, cz0), hi = ringAt(cx1, y1, cz1);
+        for (let i = 0; i < 6; i++) {
+          const j = (i + 1) % 6;
+          sink.tri(lo[i], hi[i], lo[j], CATTAIL_COLOR);
+          sink.tri(lo[j], hi[i], hi[j], CATTAIL_COLOR);
+        }
+        for (let i = 1; i < 5; i++) {
+          sink.tri(hi[0], hi[i], hi[i + 1], CATTAIL_COLOR, true);
+          sink.tri(lo[0], lo[i + 1], lo[i], CATTAIL_COLOR);
+        }
+      }
+    }
+  }
+
+  const lilies = [];
+  const lr = mulberry32(seedFromCode(`waterdress-${areaId}-${w.id}-lilies`));
+  const fish = fishSpots(areaId, areaData);
+  const undecked = (areaData.waters ?? []).map(({ decks, ...q }) => q);
+  for (let i = 0; i < LILY_TRIES && lilies.length < LILY_COUNT; i++) {
+    const t = ((plan.lilyAt + (lr() * 2 - 1) * LILY_SPREAD) * Math.PI) / 180;
+    const rad = w.r - LILY_IN + (lr() * 2 - 1) * LILY_IN_JIT;
+    const r = LILY_R[0] + LILY_R[1] * lr();
+    const notch = Math.floor(lr() * LILY_SEGS);
+    const turn = lr() * TAU;
+    const color = LILY_COLORS[Math.floor(lr() * LILY_COLORS.length)];
+    const x = w.x + Math.cos(t) * rad, z = w.z + Math.sin(t) * rad;
+    if (!(waterClearance(undecked, x, z) <= -(0.9 + r))) continue;
+    if (fish.some((f) => Math.hypot(x - f.x, z - f.z) < 1)) continue;
+    if (lilies.some((l) => Math.hypot(x - l.x, z - l.z) < l.r + r + 0.15)) continue;
+    lilies.push({ x, z, r });
+    const y = hy + LILY_LIFT;
+    for (let k = 0; k < LILY_SEGS; k++) {
+      if (k === notch) continue;
+      const a = turn + (k / LILY_SEGS) * TAU, b = turn + ((k + 1) / LILY_SEGS) * TAU;
+      sink.tri([x, y, z], [x + Math.cos(a) * r, y, z + Math.sin(a) * r], [x + Math.cos(b) * r, y, z + Math.sin(b) * r], color, true);
+    }
+    if (lilies.length <= LILY_FLOWERS) {
+      // a little pink cone sitting on the pad, off its centre
+      const fx = x + Math.cos(turn + Math.PI) * r * 0.3, fz = z + Math.sin(turn + Math.PI) * r * 0.3;
+      const apex = [fx, y + FLOWER_H, fz];
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * TAU, b = ((k + 1) / 6) * TAU;
+        sink.tri([fx + Math.cos(a) * FLOWER_R, y, fz + Math.sin(a) * FLOWER_R], apex,
+          [fx + Math.cos(b) * FLOWER_R, y, fz + Math.sin(b) * FLOWER_R], FLOWER_COLOR);
+      }
+    }
+  }
+  return { reeds, lilies };
 }
 
 // One builder per water style.
@@ -822,11 +1310,15 @@ const STYLE_BUILDERS = { clear: genericRuns, bog: genericRuns, sea: seaRuns };
  * `evening` (null | 'sunset' | 'dusk') warms or quietens the foam and tints
  * the sea apron like the water (see EVENING_FOAM); null is the day's look.
  *
+ * `debug` keeps each bitten run's full per-sample record in
+ * band.userData.bites (for tests); without it each run keeps only
+ * { water, maxBite }.
+ *
  * Reads areaData.waterFx (water.js's handles). Areas not in DRESSED_AREAS —
- * the park, the docks, the gorge, the den, the neighbourhood — get a no-op
- * stub and add nothing to the scene.
+ * the docks, the gorge, the den, the neighbourhood — get a no-op stub and
+ * add nothing to the scene.
  */
-export function createWaterDressing(scene, { areaId, areaData, tier, reducedMotion = false, keepOut = [], evening = null } = {}) {
+export function createWaterDressing(scene, { areaId, areaData, tier, reducedMotion = false, keepOut = [], evening = null, debug = false } = {}) {
   if (!DRESSED_AREAS.includes(areaId) || !areaData?.waterFx?.length) return NO_DRESSING;
   const low = (typeof tier === 'string' ? tier : tier?.name) === 'low';
   const bounds = areaData.bounds ?? { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
@@ -838,9 +1330,11 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   // not land for a stone.
   const undecked = (areaData.waters ?? []).map(({ decks, ...w }) => w);
 
-  // Rounded bank corners need the ground plane to paint their fill with.
-  const ground = BANK_FILLETS[areaId] ? fillGround(scene) : null;
-  const fillets = ground ? BANK_FILLETS[areaId].map((f) => {
+  // Rounded bank corners and bites need the ground plane to paint their
+  // fill with.
+  const wantsFill = BANK_FILLETS[areaId] || areaData.waterFx.some((h) => biteKind(areaId, h));
+  const ground = wantsFill ? fillGround(scene) : null;
+  const fillets = ground && BANK_FILLETS[areaId] ? BANK_FILLETS[areaId].map((f) => {
     // the fill rides just over the highest water at the corner
     const ys = areaData.waterFx
       .filter((h) => waterGap(h.footprint, f.x + f.wx * 0.01, f.z + f.wz * 0.01) < 0)
@@ -852,9 +1346,24 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   const runs = [];
   for (const h of areaData.waterFx) {
     const build = STYLE_BUILDERS[h.style ?? 'clear'] ?? genericRuns;
-    runs.push(...build(h, { areaId, areaData, box, undecked, evening, fillets }));
+    runs.push(...build(h, { areaId, areaData, box, undecked, evening, fillets, ground }));
   }
   if (runs.length === 0) return NO_DRESSING;
+
+  // Mid-stream riffles: bitten streams only (so only on ground), never LOW.
+  const riffleStones = [];
+  const streakRuns = [];
+  if (!low && ground) {
+    for (const h of areaData.waterFx) {
+      if (biteKind(areaId, h) !== 'stream') continue;
+      const { stones, streaks } = riffles(h, { areaId, areaData, box, undecked, evening, keepOut });
+      for (const k of streaks) k.stone += riffleStones.length;
+      riffleStones.push(...stones);
+      streakRuns.push(...streaks);
+    }
+  }
+  const bankRuns = runs.slice();
+  runs.push(...streakRuns);
 
   const meshes = [];
   const breathe = { value: BREATHE_STILL };
@@ -869,14 +1378,41 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
     return { x: p.x + p.nx * lip, z: p.z + p.nz * lip };
   }));
   if (seaLine.length) band.userData.waterline = seaLine;
-  band.userData.runSeeds = runs.map((r) => ({ water: r.w.id, seed: r.ctx.seed }));
+  band.userData.runSeeds = bankRuns.map((r) => ({ water: r.w.id, seed: r.ctx.seed }));
+  if (streakRuns.length) {
+    // for tests: each streak's vertex range in the band, and its stone
+    let v = 0;
+    const at = new Map();
+    for (const r of runs) { at.set(r, v); v += r.samples.length * r.ctx.rows; }
+    band.userData.streaks = streakRuns.map((r) => ({ stone: r.stone, verts: [at.get(r), r.samples.length * r.ctx.rows] }));
+  }
   meshes.push(band);
 
-  // The rounded bends' fill, on every tier, sharing the ground's CURRENT
-  // material (at dusk or in the rain, the tinted one): one small opaque fan.
+  // The bitten runs (a run whose deepest bite is too small draws no strip).
+  const biteRuns = runs.filter((r) => r.ctx.biteKind
+    && r.samples.reduce((k, p) => Math.max(k, p.bite ?? 0), 0) >= BITE_MIN);
+  if (biteRuns.length) {
+    // for tests and anything that wants to know where the visual shore is
+    band.userData.bites = biteRuns.map((r) => {
+      const out = { water: r.w.id, maxBite: r.samples.reduce((k, p) => Math.max(k, p.bite), 0) };
+      if (!debug) return out;
+      return {
+        ...out,
+        seed: r.ctx.seed,
+        period: r.ctx.period,
+        closed: r.ctx.chainClosed,
+        length: r.ctx.chainLength,
+        samples: r.samples.map(({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite }) => ({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite })),
+      };
+    });
+  }
+
+  // The fill (fillet fans and bite strips), on every tier, sharing the
+  // ground's CURRENT material (at dusk or in the rain, the tinted one): one
+  // opaque mesh.
   if (fillets) {
     // for tests: the band's samples round each corner, after bending
-    for (const r of runs) {
+    for (const r of bankRuns) {
       for (const p of r.samples) {
         for (const f of fillets) {
           if (Math.hypot(p.x - f.x, p.z - f.z) < 2 * f.r) f.samples.push({ x: p.x, z: p.z, nx: p.nx, nz: p.nz });
@@ -884,10 +1420,15 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
       }
     }
     band.userData.fillets = fillets.map(({ x, z, r, samples }) => ({ x, z, r, samples }));
-    const fill = new THREE.Mesh(filletGeometry(fillets, ground), ground.material);
-    fill.name = 'waterdress:fillet';
+  }
+  let fill = null;
+  if (fillets || biteRuns.length) {
+    const { geo, filletVerts } = fillGeometry(fillets ?? [], biteRuns, ground);
+    fill = new THREE.Mesh(geo, ground.material);
+    fill.name = 'waterdress:fill';
     fill.renderOrder = FILLET_ORDER;
     fill.userData.sharedMaterial = true;
+    fill.userData.filletVerts = filletVerts;
     meshes.push(fill);
   }
 
@@ -897,14 +1438,28 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   if (quads.length) meshes.push(apronMesh(quads, waterRamp(seas[0].color ?? 0x4a90c0).deep, WATER_EVENING[evening] ?? null));
 
   if (!low) {
-    const spots = stoneSpots(runs, areaData, keepOut);
-    if (spots.length) {
+    const spots = [...stoneSpots(bankRuns, areaData, keepOut), ...riffleStones];
+    // the duck pond's reeds and lily pads ride in the stones mesh
+    const sink = triSink();
+    const reeds = [], lilies = [];
+    for (const h of areaData.waterFx) {
+      const plan = POND_PLANTS[areaId]?.[h.footprint?.id];
+      if (!plan || h.footprint.kind !== 'circle') continue;
+      const got = pondPlants(h, plan, { areaId, areaData, bankRuns, keepOut, sink });
+      reeds.push(...got.reeds);
+      lilies.push(...got.lilies);
+    }
+    if (spots.length || sink.pos.length) {
       const stones = new THREE.Mesh(
-        stonesGeometry(spots),
-        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, flatShading: true }),
+        stonesGeometry(spots, sink),
+        // two-sided: a reed blade and a lily pad are single flat triangles
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, flatShading: true, side: THREE.DoubleSide }),
       );
       stones.name = 'waterdress:stones';
-      stones.userData.centres = spots.map(({ x, z, r }) => ({ x, z, r }));
+      stones.userData.centres = spots.filter((s) => s.water === undefined).map(({ x, z, r }) => ({ x, z, r }));
+      stones.userData.riffles = riffleStones.map(({ x, z, r, y, water }) => ({ x, z, r, y, water }));
+      if (reeds.length) stones.userData.reeds = reeds;
+      if (lilies.length) stones.userData.lilies = lilies;
       meshes.push(stones);
     }
   }
@@ -927,7 +1482,11 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   return {
     meshes,
     update(dt = 0) {
-      if (!animated || disposed) return;
+      if (disposed) return;
+      // The rain swaps the ground's material for a wet clone and later puts
+      // the dry one back (and frees the clone): the fill follows, still or not.
+      if (fill && fill.material !== ground.material) fill.material = ground.material;
+      if (!animated) return;
       elapsed += dt;
       swash.value = ((elapsed / SEA_SWASH_S) % 1) * TAU;
       breathe.value = BREATHE_LO + (1 - BREATHE_LO) * (0.5 + 0.5 * Math.sin((elapsed / BREATHE_S) * TAU));
@@ -938,7 +1497,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
       for (const m of meshes) {
         scene.remove(m);
         m.geometry.dispose();
-        // the fillet's fill borrows the ground's material: never free it
+        // the fill borrows the ground's material: never free it
         if (!m.userData.sharedMaterial) m.material.dispose();
       }
     },

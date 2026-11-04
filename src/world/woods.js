@@ -135,8 +135,8 @@ const WATER_COLOR = 0x5f98a8;
 const WATER_LOOK = {
   lake: { y: 0.03, shores: ['maxX', 'maxZ'], foamStrength: 0.22 },
   pond: { y: 0.04, foamStrength: 0.22 },
-  'river-west': { y: 0.03, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.22 },
-  'river-north': { y: 0.02, shores: ['minX', 'maxX', 'maxZ'], foamStrength: 0.22 },
+  'river-west': { y: 0.03, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.08 },
+  'river-north': { y: 0.02, shores: ['minX', 'maxX', 'maxZ'], foamStrength: 0.08 },
 };
 
 // The paths, as [x1, z1, x2, z2] centreline segments, all 3 m wide. The
