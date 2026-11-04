@@ -757,6 +757,25 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
 const smooth = (u) => u * u * (3 - 2 * u);
 const lerp = (a, b, t) => a + (b - a) * t;
 const lerp3 = (a, b, t) => ({ x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), z: lerp(a.z, b.z, t) });
+// The hand-back (the fight camera easing out to the follow view) swings round
+// the point it looks at instead of cutting the straight line between the two
+// places: that line runs right through the cats (a phone frame of grass and a
+// trunk, then the intruder filling the lens). The look point still moves in a
+// straight line, between the cats' middle and my cat, so both stay in frame.
+// Horizontal angle by the short way, distance and height by lerp.
+export function orbitBlend(a, b, t) {
+  const look = lerp3(a.look, b.look, t);
+  const ax = a.pos.x - a.look.x, az = a.pos.z - a.look.z;
+  const bx = b.pos.x - b.look.x, bz = b.pos.z - b.look.z;
+  const ra = Math.hypot(ax, az), rb = Math.hypot(bx, bz);
+  if (ra < 1e-6 || rb < 1e-6) return { pos: lerp3(a.pos, b.pos, t), look };
+  const a0 = Math.atan2(ax, az);
+  let d = Math.atan2(bx, bz) - a0;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  const ang = a0 + d * t, r = lerp(ra, rb, t);
+  const y = lerp(a.pos.y - a.look.y, b.pos.y - b.look.y, t);
+  return { pos: { x: look.x + Math.sin(ang) * r, y: look.y + y, z: look.z + Math.cos(ang) * r }, look };
+}
 // Where along a camera move it is checked: the start, and every eighth of the
 // way (the end is the chosen view, already checked).
 export const BLEND_SAMPLES = Object.freeze([0, 1 / 8, 2 / 8, 3 / 8, 4 / 8, 5 / 8, 6 / 8, 7 / 8]);
@@ -894,8 +913,10 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
       }
       const s = smooth(w);
       const base = from ?? follow;
-      const pos = lerp3(base.pos, cur.pos, s);
-      const look = lerp3(base.look, cur.look, s);
+      // easing out (not active): from the follow view (t 0) to the fight view (t 1)
+      const mv = active ? null : orbitBlend(follow, cur, s);
+      const pos = mv ? mv.pos : lerp3(base.pos, cur.pos, s);
+      const look = mv ? mv.look : lerp3(base.look, cur.look, s);
       camera.position.set(pos.x, pos.y, pos.z);
       camera.lookAt(look.x, look.y, look.z);
       return true;

@@ -233,6 +233,9 @@ export function buildIsland(scene, { wind } = {}) {
   for (const [rec, name] of [[ASH_BOULDER, 'ashBoulder'], [WATCH_STEP, 'watchRockStep']]) {
     const rock = mossyBoulder(rec.x, rec.z, mossy);
     rock.name = name;
+    // The walk tree fade's tag (polish-stagehandoff): a 0.7 m boulder beside
+    // the lens fills a phone screen, so it fades like a trunk.
+    rock.userData.fadeOccluder = [{ t: 'ell', y: 0, r: 0.5, ry: 0.5 }];
     scene.add(rock);
     colliders.push({ x: rec.x, z: rec.z, r: rec.r });
   }
@@ -245,6 +248,7 @@ export function buildIsland(scene, { wind } = {}) {
   );
   watch.name = 'watchRock';
   watch.position.set(WATCH_ROCK.x, WATCH_ROCK.y / 2, WATCH_ROCK.z);
+  watch.userData.fadeOccluder = [{ t: 'cyl', r: WATCH_ROCK.rBottom, y0: -WATCH_ROCK.y / 2, y1: WATCH_ROCK.y / 2 }];
   scene.add(watch);
   colliders.push({ x: WATCH_ROCK.x, z: WATCH_ROCK.z, r: WATCH_ROCK.r });
 
