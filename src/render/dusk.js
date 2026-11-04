@@ -91,6 +91,9 @@ export function applyDusk({ scene, sun, fill, areaData }) {
         emissive: LAMP_LOOK.emissive, emissiveIntensity: LAMP_LOOK.emissiveIntensity,
       });
       old.dispose();
+    } else if (o.userData?.duskWindow) {
+      // ...and the Woods' cottages show their lit windows
+      o.visible = true;
     }
   });
   return look;
