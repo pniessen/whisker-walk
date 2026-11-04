@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { PAW } from '../src/ui/pawicon.js';
 import {
   renderColonyHtml, renderPairingHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine,
   renderTradesHtml, tradeErrorLine, confirmClickAllowed, CONFIRM_DELAY_MS,
@@ -177,7 +178,7 @@ describe('renderColonyHtml', () => {
     const NOW = Date.UTC(2026, 9, 25);
     const playing = { cat: 'Mochi', by: PARTNER, walk: `walk-${NOW - 24 * 60 * 60 * 1000}`, head: 0 };
     const waits = (n, feeds, now = NOW) => render(colonyOf({ partner: PAIR, cats: [cat(n), cat('Mochi')], feeds: [...feeds, playing] }), { now });
-    const shy = CAT_NAMES.find((n) => waits(n, feed(n, ME, TAME_FEEDS)).includes('shy — waiting for Robin 🐾'));
+    const shy = CAT_NAMES.find((n) => waits(n, feed(n, ME, TAME_FEEDS)).includes(`shy — waiting for Robin ${PAW}`));
     expect(shy).toBeTruthy();
     // ...and once the partner has fed it too, it is no longer waiting
     const done = render(colonyOf({
@@ -188,7 +189,7 @@ describe('renderColonyHtml', () => {
     expect(done).toContain('lives in your den 🏠');
     // if only the partner has fed it, it is waiting for me (while I still play too)
     const mine = { ...playing, by: ME };
-    expect(waits(shy, [...feed(shy, PARTNER, TAME_FEEDS), mine])).toContain('shy — waiting for you 🐾');
+    expect(waits(shy, [...feed(shy, PARTNER, TAME_FEEDS), mine])).toContain(`shy — waiting for you ${PAW}`);
     // a partner who hasn't fed anything for over two weeks no longer holds it
     expect(waits(shy, feed(shy, ME, TAME_FEEDS), NOW + 15 * 24 * 60 * 60 * 1000)).not.toContain('shy — waiting');
   });
@@ -277,7 +278,7 @@ describe('renderColonyHtml', () => {
     expect(render(colony, { status: { mode: 'offline' } }))
       .toContain('Can&#39;t reach the colony right now — your cats are safe on this device');
     const paired = colonyOf({ partner: PAIR });
-    expect(render(paired, { status: { mode: 'paired' } })).toContain('Shared with Robin 🐾');
+    expect(render(paired, { status: { mode: 'paired' } })).toContain(`Shared with Robin ${PAW}`);
   });
 
   it('survives garbage input without throwing', () => {
@@ -442,7 +443,7 @@ import { renderNewsHtml, theySaidNo, PAIR_DECLINED_LINE } from '../src/ui/colony
 describe('renderNewsHtml', () => {
   it('is a titled card with the lines and a Let\'s go! button', () => {
     const html = renderNewsHtml({ lines: ['Robin fed Pickles 🐟', 'Pickles came home to the den! 🏠'], any: true }, 'Robin');
-    expect(html).toContain('While you were out 🐾');
+    expect(html).toContain(`While you were out ${PAW}`);
     expect(html).toContain("Let's go!");
     expect(html).toContain('id="colony-news-ok"');
     expect(count(html, /<li/g)).toBe(2);
@@ -742,11 +743,11 @@ describe('walk together with your partner (Task 12)', () => {
   it('every room member gets the same Start; nobody waits for the host', () => {
     for (const isHost of [true, false]) {
       const html = renderStartButtonHtml(room({ isHost }));
-      expect(html).toContain('Start the walk together 🐾');
+      expect(html).toContain(`Start the walk together ${PAW}`);
       expect(html).not.toContain('disabled');
       expect(html).not.toMatch(/Waiting for host/);
     }
-    expect(renderStartButtonHtml(null)).toContain('Start the walk 🐾');
+    expect(renderStartButtonHtml(null)).toContain(`Start the walk ${PAW}`);
     expect(renderStartButtonHtml(null)).not.toContain('together');
     expect(renderStartButtonHtml(null)).toMatch(/id="btn-start"/);
   });
@@ -760,7 +761,7 @@ describe('walk together with your partner (Task 12)', () => {
 
   it('paired: one button, the partner named, nothing to type', () => {
     const html = renderPartnerWalkHtml({ status: paired, colony: colonyOf({ partner: PAIR }), room: null });
-    expect(html).toContain('🐾 Walk with Robin');
+    expect(html).toContain(`${PAW} Walk with Robin`);
     expect(html).toMatch(/<button[^>]*id="wt-pair-walk"/);
     expect(html).not.toMatch(/<input/);
   });

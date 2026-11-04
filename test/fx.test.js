@@ -309,3 +309,19 @@ describe('createFx.popup — on-screen size (viewclear2)', () => {
     expect(closeDiffs(sizeOf(fresh), [h * 4, h, 1])).toEqual([]);
   });
 });
+
+describe('drawFloaterText', () => {
+  it('draws a paw shape for each 🐾 and never passes the emoji to the canvas text', async () => {
+    const { drawFloaterText } = await import('../src/fx.js');
+    const texts = []; let ellipses = 0;
+    const ctx = {
+      measureText: (t) => ({ width: t.length * 20 }),
+      strokeText: (t) => texts.push(t), fillText: (t) => texts.push(t),
+      beginPath() {}, moveTo() {}, ellipse() { ellipses++; }, stroke() {}, fill() {},
+    };
+    drawFloaterText(ctx, '+20 🐾', 256, 64);
+    expect(texts.every((t) => !t.includes('🐾'))).toBe(true);
+    expect(texts).toContain('+20 ');
+    expect(ellipses).toBe(10); // five pads, outlined then filled
+  });
+});

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { PAW } from '../src/ui/pawicon.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
 import { renderDenShopHtml, SPOT_LABEL, changedSpots } from '../src/ui/denshop.js';
 
@@ -56,10 +57,10 @@ describe('renderDenShopHtml', () => {
     expect(card(ownedId)).toContain('Yours');
     expect(card(ownedId)).not.toContain('data-den-buy');
     expect(card(cheapId)).toContain(`data-den-buy="${cheapId}"`);
-    expect(card(cheapId)).toContain(`${DEN_ITEMS[cheapId].price} 🐾`);
+    expect(card(cheapId)).toContain(`${DEN_ITEMS[cheapId].price} ${PAW}`);
     expect(card(dear)).toContain('ds-card locked');
     expect(card(dear)).not.toContain('data-den-buy');
-    expect(card(dear)).toContain(`${DEN_ITEMS[dear].price} 🐾`);
+    expect(card(dear)).toContain(`${DEN_ITEMS[dear].price} ${PAW}`);
   });
 
   it('a buy button appears exactly for each unowned item the points cover', () => {

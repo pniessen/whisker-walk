@@ -1,18 +1,61 @@
 import * as THREE from 'three';
 
+// Apple's 🐾 is near-black, so in a floater it vanished against the ground.
+// The canvas can't use the CSS paw mask, so the same five pads (the shapes in
+// style.css's --paw-mask, on a 24-unit grid) are drawn as ellipses: a dark
+// edge, then white fill, just like the letters beside them.
+const PAW_PADS = [[12, 16.2, 5.6, 4.6], [4.6, 11, 2.3, 3], [9, 5.8, 2.4, 3.2], [15, 5.8, 2.4, 3.2], [19.4, 11, 2.3, 3]];
+const PAW_SIZE = 38; // px on the 256x64 canvas, close to the 40px text
+
+function drawPaw(ctx, x, cy) {
+  const k = PAW_SIZE / 24;
+  const y0 = cy - PAW_SIZE / 2;
+  const pads = () => {
+    ctx.beginPath();
+    for (const [cx, py, rx, ry] of PAW_PADS) {
+      ctx.moveTo(x + (cx + rx) * k, y0 + py * k);
+      ctx.ellipse(x + cx * k, y0 + py * k, rx * k, ry * k, 0, 0, Math.PI * 2);
+    }
+  };
+  pads(); ctx.stroke();
+  pads(); ctx.fill();
+}
+
+/** Draws floater text centred on the canvas; each 🐾 becomes a light paw shape. */
+export function drawFloaterText(ctx, text, width, height) {
+  ctx.font = 'bold 40px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 6;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#00000088';
+  ctx.fillStyle = '#fff';
+  const parts = String(text).split('🐾');
+  const gap = 4;
+  const widths = parts.map((t) => (t ? ctx.measureText(t).width : 0));
+  const total = widths.reduce((a, b) => a + b, 0) + (parts.length - 1) * (PAW_SIZE + gap * 2);
+  let x = (width - total) / 2;
+  const cy = height / 2;
+  parts.forEach((t, i) => {
+    if (t) {
+      ctx.strokeText(t, x, cy);
+      ctx.fillText(t, x, cy);
+      x += widths[i];
+    }
+    if (i < parts.length - 1) {
+      // trailing/leading spaces already give the paw its breathing room
+      drawPaw(ctx, x + (t.endsWith(' ') ? 0 : gap), cy);
+      x += PAW_SIZE + gap * 2;
+    }
+  });
+}
+
 function defaultMakeText(text) {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 64;
   const ctx = canvas.getContext('2d');
-  ctx.font = 'bold 40px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = '#00000088';
-  ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
-  ctx.fillStyle = '#fff';
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  drawFloaterText(ctx, text, canvas.width, canvas.height);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
