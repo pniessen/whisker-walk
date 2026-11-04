@@ -19,10 +19,14 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { forestFloorMesh, canopyShade, woodsFloorTint } = await import('../src/world/forestfloor.js');
+const { forestFloorMesh, canopyShade, woodsFloorTint, pinesFloorTint } = await import('../src/world/forestfloor.js');
 const woods = await import('../src/world/woods.js');
-const { waterGap } = await import('../src/world/builder.js');
-const { build, SPAWN, WOODS_WATERS, WOODS_PATHS, woodsTreeSpots, woodsFloor } = woods;
+const b = await import('../src/world/builder.js');
+const { waterGap } = b;
+const { build, SPAWN, WOODS_WATERS, WOODS_PATHS, woodsTreeSpots, woodsFloor, woodsGroundTint } = woods;
+const pines = await import('../src/world/pines.js');
+const { ISLAND_LAND, BRIDGE_DECK } = await import('../src/world/island.js');
+const { DISCS } = await import('../src/rivalclans.js');
 
 const CLEARING = { x: 4, z: 12, r: 9 };
 const PATH_W = 3;
@@ -53,7 +57,9 @@ describe('forestFloorMesh', () => {
     expect(forestFloorMesh({}, { name: 'x' }).name).toBe('x');
   });
 
-  const CAPS = { leaves: 0.035, moss: 0.12, mushrooms: 0.2, bluebells: 0.3, foxgloves: 0.6 };
+  const CAPS = {
+    leaves: 0.035, moss: 0.12, mushrooms: 0.2, bluebells: 0.3, foxgloves: 0.6, needles: 0.035, cones: 0.08, blueberries: 0.25,
+  };
   const spots = [];
   for (let i = 0; i < 40; i++) spots.push({ x: i * 1.37 - 20, z: (i * 7.31) % 23 - 11, s: 0.8 + (i % 5) * 0.1, a: i * 0.7 });
   for (const [kind, cap] of Object.entries(CAPS)) {
@@ -175,6 +181,139 @@ describe('the Woods floor', () => {
         const at = `${kind} (${p.x}, ${p.z})`;
         for (const q of places) expect(Math.hypot(p.x - q.x, p.z - q.z), at).toBeGreaterThanOrEqual(3);
         for (const seg of WOODS_PATHS) expect(segDist(p.x, p.z, seg), at).toBeGreaterThanOrEqual(2.3);
+      }
+    }
+  }, 120_000);
+});
+
+describe('the Woods ground tint for the grass', () => {
+  it('is the multiplier the ground is tinted with', () => {
+    const tint = woodsFloorTint(woodsTreeSpots(), CLEARING, { edge: 60 });
+    for (const [x, z] of [[0, 0], [-30, 20], [25, -35], [59, 59], [-12.3, 7.7]]) expect(woodsGroundTint(x, z)).toEqual(tint(x, z));
+  });
+});
+
+// --- the Pines ----------------------------------------------------------------
+
+const P = pines;
+const ptrees = () => { const { near, stand } = P.pinesTrees(); return [...near, ...stand]; };
+const pWaterDist = (x, z) => Math.min(...P.PINES_WATERS.map((w) => waterGap({ ...w, decks: [] }, x, z)));
+const CAMP = DISCS.pines;
+
+describe('the Pines floor tint', () => {
+  const trees = ptrees();
+  // the multiplier the ground is tinted with and the grass reads
+  const tint = P.pinesGroundTint;
+
+  it('keeps every channel within [0.5, 1.5], and is plain base colour at the ground edge', () => {
+    for (let x = -60; x <= 60; x++) {
+      for (let z = -60; z <= 60; z++) {
+        for (const c of tint(x, z)) {
+          expect(c).toBeGreaterThanOrEqual(0.5);
+          expect(c).toBeLessThanOrEqual(1.5);
+        }
+      }
+    }
+    for (let k = -60; k <= 60; k += 2) {
+      for (const [x, z] of [[k, 60], [k, -60], [60, k], [-60, k], [k, 59], [59, k]]) expect(tint(x, z)).toEqual([1, 1, 1]);
+    }
+  });
+
+  it('is plain on the island', () => {
+    expect(tint(ISLAND_LAND.x, ISLAND_LAND.z)).toEqual([1, 1, 1]);
+  });
+
+  it('reads redder (r/g higher) under the pines than in the open', () => {
+    const rg = ([r, g]) => r / g;
+    const under = [];
+    const open = [];
+    for (let x = -50; x <= 50; x += 0.5) {
+      for (let z = -50; z <= 50; z += 0.5) {
+        const near = Math.min(...trees.map((t) => Math.hypot(x - t.x, z - t.z)));
+        if (near < 1.2) under.push(rg(tint(x, z)));
+        else if (near > 7) open.push(rg(tint(x, z)));
+      }
+    }
+    const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+    expect(under.length).toBeGreaterThan(20);
+    expect(open.length).toBeGreaterThan(20);
+    expect(mean(under)).toBeGreaterThan(mean(open) + 0.25);
+  });
+
+  it('is the plain floor tint, edged and with the island kept plain', () => {
+    const bare = pinesFloorTint(trees);
+    for (const [x, z] of [[0, -20], [-30, 20], [25, -35], [-12.3, 7.7]]) expect(tint(x, z)).toEqual(bare(x, z));
+    for (const c of bare(ISLAND_LAND.x + 0.5, ISLAND_LAND.z)) expect(c).toBeGreaterThan(0);
+  });
+});
+
+describe('the Pines floor', () => {
+  const floor = P.pinesFloor();
+  const KINDS = ['needles', 'cones', 'moss', 'blueberries'];
+  const all = KINDS.flatMap((k) => floor[k].map((p) => ({ ...p, kind: k })));
+
+  it('is seeded: the same floor every time, with every kind on it', () => {
+    expect(P.pinesFloor()).toEqual(floor);
+    expect(floor.needles.length).toBeGreaterThan(800);
+    expect(floor.cones.length).toBeGreaterThan(60);
+    expect(floor.moss.length).toBeGreaterThanOrEqual(25);
+    expect(floor.moss.length).toBeLessThanOrEqual(40);
+    expect(floor.blueberries.length).toBeGreaterThanOrEqual(12);
+    expect(floor.blueberries.length).toBeLessThanOrEqual(18);
+  });
+
+  it('keeps everything off the paths, the trail, the water, the island, the bridge and the camp, in bounds', () => {
+    for (const p of all) {
+      const at = `${p.kind} (${p.x}, ${p.z})`;
+      for (const seg of P.PINES_PATHS) expect(segDist(p.x, p.z, seg), at).toBeGreaterThanOrEqual(PATH_W / 2 + 0.15);
+      for (const seg of P.PINES_TRAIL) expect(segDist(p.x, p.z, seg), at).toBeGreaterThanOrEqual(P.TRAIL_W / 2 + 0.15);
+      expect(pWaterDist(p.x, p.z), at).toBeGreaterThanOrEqual(0.6);
+      expect(Math.hypot(p.x - ISLAND_LAND.x, p.z - ISLAND_LAND.z), at).toBeGreaterThanOrEqual(ISLAND_LAND.r + 1);
+      expect(segDist(p.x, p.z, [BRIDGE_DECK.x1, BRIDGE_DECK.z1, BRIDGE_DECK.x2, BRIDGE_DECK.z2]), at).toBeGreaterThanOrEqual(BRIDGE_DECK.halfW + 0.5);
+      expect(Math.hypot(p.x - CAMP.cx, p.z - CAMP.cz), at).toBeGreaterThanOrEqual(CAMP.r);
+      expect(Math.abs(p.x), at).toBeLessThanOrEqual(50);
+      expect(Math.abs(p.z), at).toBeLessThanOrEqual(50);
+    }
+  });
+
+  it('builds one forestFloor mesh out of the shadow pass, inside the 56,000 triangle budget', () => {
+    const scene = new THREE.Scene();
+    const area = P.build(scene);
+    const meshes = [];
+    let tris = 0;
+    scene.traverse((o) => {
+      if (!o.isMesh) return;
+      if (o.name === 'forestFloor') meshes.push(o);
+      tris += trianglesOf(o.geometry);
+    });
+    expect(meshes).toHaveLength(1);
+    expect(meshes[0].userData.noCast).toBe(true);
+    expect(meshes[0].castShadow).toBe(false);
+    expect(trianglesOf(meshes[0].geometry)).toBeGreaterThan(2000);
+    expect(tris).toBeLessThanOrEqual(56_000);
+
+    // the ground carries pinesGroundTint: its colours over an untinted twin's
+    const ground = scene.children.find((o) => o.userData?.ground && o.isMesh);
+    const twin = b.ground(120, 0x56603e, { surface: 'grass' });
+    const gc = ground.geometry.attributes.color;
+    const tc = twin.geometry.attributes.color;
+    const pos = ground.geometry.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i += 97) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(ground.matrix);
+      const m = P.pinesGroundTint(v.x, v.z);
+      expect(gc.getX(i)).toBeCloseTo(tc.getX(i) * m[0], 5);
+      expect(gc.getY(i)).toBeCloseTo(tc.getY(i) * m[1], 5);
+      expect(gc.getZ(i)).toBeCloseTo(tc.getZ(i) * m[2], 5);
+    }
+
+    // the 3D bits keep 3 m off every find, POI and the spawn
+    const places = [...area.pois, ...area.collectibles, ...area.scenics, area.spawn];
+    for (const kind of ['cones', 'moss', 'blueberries']) {
+      for (const p of floor[kind]) {
+        const at = `${kind} (${p.x}, ${p.z})`;
+        for (const q of places) expect(Math.hypot(p.x - q.x, p.z - q.z), at).toBeGreaterThanOrEqual(3);
+        for (const seg of P.PINES_PATHS) expect(segDist(p.x, p.z, seg), at).toBeGreaterThanOrEqual(2.3);
       }
     }
   }, 120_000);

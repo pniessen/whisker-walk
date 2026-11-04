@@ -12,7 +12,7 @@ import { addIslandView, islandKeepLow } from './lake.js';
 import { addCamp, campLayout } from './camp.js';
 import { withLocalUuids } from './localuuids.js';
 import { DISCS } from '../rivalclans.js';
-import { tintGround } from './dressing.js';
+import { tintGround, once } from './dressing.js';
 import { forestFloorMesh, woodsFloorTint } from './forestfloor.js';
 
 // =============================================================================
@@ -601,6 +601,12 @@ function lookoutRockGeometry() {
   });
 }
 
+// The Woods' ground multiplier (forestfloor.js woodsFloorTint), plain at the
+// ground's edge. Built once; the ground is tinted with it and grass.js's
+// tufts read it (GROUND_TINTS).
+const woodsTint = once(() => woodsFloorTint(woodsTreeSpots(), CLEARING, { edge: 60 }));
+export const woodsGroundTint = (x, z) => woodsTint()(x, z);
+
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0xa8d8c0, 0xd0ead8);
   // The ground, shaded under the trees, with leaf litter and moss patches
@@ -608,7 +614,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // than the park's lawn green it used to share (0x5f9a4a, still the
   // groundBounce below).
   const groundMesh = b.ground(120, 0x547f3e, { surface: 'grass' });
-  tintGround(groundMesh, woodsFloorTint(woodsTreeSpots(), CLEARING, { edge: 60 }));
+  tintGround(groundMesh, woodsGroundTint);
   scene.add(groundMesh);
 
   // The horizon. Hills all round, as the other green areas have, but each

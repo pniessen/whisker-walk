@@ -14,6 +14,10 @@ import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { ZOOM_STEPS } from '../camzoom.js';
 import { addCamp } from './camp.js';
+import { withLocalUuids } from './localuuids.js';
+import { DISCS } from '../rivalclans.js';
+import { tintGround, once, smoothField, smoothstep } from './dressing.js';
+import { forestFloorMesh, pinesFloorTint, canopyShade } from './forestfloor.js';
 
 // =============================================================================
 // The Pines and Swamp.
@@ -588,6 +592,115 @@ export function pinesUndergrowth() {
   return { ferns, toadstools };
 }
 
+// The forest floor (forestfloor.js): DuskClan's needle-and-moss floor. Rust
+// needles drifted round every pine, a few fallen cones, moss cushions in
+// patches between the pines and blueberry clumps at the edges of the trees.
+// Seeded by name, every random number drawn whether or not its bit is kept.
+// The needles lie flat, so they only keep off the paths and the trail, the
+// water's edge, the island and its bridge and the camp; the standing bits
+// (cones, moss, blueberries) also keep the ferns' rule (floorFits), the cones
+// bar its trunk rule (a cone lies at its pine's foot).
+const FLOOR_FLAT_PATH = PATH_W / 2 + 0.15;
+const FLOOR_FLAT_TRAIL = TRAIL_W / 2 + 0.15;
+const PINES_CAMP = DISCS.pines;
+const inCamp = (x, z) => Math.hypot(x - PINES_CAMP.cx, z - PINES_CAMP.cz) < PINES_CAMP.r;
+function flatFits(x, z) {
+  if (!inBounds(x, z) || inCamp(x, z) || onIsland(x, z)) return false;
+  if (waterDist(x, z) < 0.6) return false;
+  if (bridgeDist(x, z) < BRIDGE_DECK.halfW + 0.5) return false;
+  if (PINES_PATHS.some((seg) => segDist(x, z, ...seg) < FLOOR_FLAT_PATH)) return false;
+  return PINES_TRAIL.every((seg) => segDist(x, z, ...seg) >= FLOOR_FLAT_TRAIL);
+}
+const standFits = (x, z, trunks) => flatFits(x, z) && floorFits(x, z, trunks) && trailClear(x, z, BED_TRAIL_CLEAR);
+const FLOOR_NEEDLES = { near: 26, stand: 10, reach: 2.4 };
+const FLOOR_CONES = { near: 3, stand: 1, reach: 1.8 };
+const FLOOR_MOSS = { cell: 5, cap: 40, per: 3 };
+const FLOOR_BERRIES = { cell: 7, cap: 18, apart: 3 };
+const r3 = (v) => Math.round(v * 1000) / 1000;
+// the moss patches the ground tint paints (forestfloor.js pinesFloorTint)
+const mossField = (x, z) => smoothstep(0.25, 0.65, smoothField(x, z, 113, 9));
+export function pinesFloor() {
+  const rng = mulberry32(seedFromCode('pines-floor'));
+  const { near, stand } = pinesTrees();
+  const trees = [...near, ...stand];
+  const needles = [];
+  const cones = [];
+  const moss = [];
+  const blueberries = [];
+
+  // needles, drifted round each pine (none inside its trunk), and its cones
+  const drop = (t, n, reach, minD, fits, out, s0) => {
+    for (let i = 0; i < n; i++) {
+      const a = rng() * Math.PI * 2;
+      const d = (minD + (reach - minD) * Math.sqrt(rng())) * t.scale;
+      const yaw = rng() * Math.PI * 2;
+      const s = s0 + 0.3 * rng();
+      const x = r2(t.x + Math.cos(a) * d);
+      const z = r2(t.z + Math.sin(a) * d);
+      if (fits(x, z)) out.push({ x, z, s: r2(s), a: r3(yaw) });
+    }
+  };
+  const nearSet = new Set(near);
+  for (const t of trees) {
+    const isNear = nearSet.has(t);
+    drop(t, isNear ? FLOOR_NEEDLES.near : FLOOR_NEEDLES.stand, FLOOR_NEEDLES.reach, 0.35, flatFits, needles, 0.85);
+    const notTrunk = (x, z) => trees.every((u) => u === t || Math.hypot(x - u.x, z - u.z) >= 0.9 * u.scale);
+    drop(t, isNear ? FLOOR_CONES.near : FLOOR_CONES.stand, FLOOR_CONES.reach, 0.5, (x, z) => flatFits(x, z)
+      && floorFits(x, z, []) && notTrunk(x, z) && trailClear(x, z, BED_TRAIL_CLEAR), cones, 0.9);
+  }
+
+  // candidate centres on a jittered grid, ranked by a roll, so a cap thins
+  // them evenly rather than from the north
+  const centres = (cell, want) => {
+    const out = [];
+    for (let gz = BOUNDS.minZ + cell / 2; gz < BOUNDS.maxZ; gz += cell) {
+      for (let gx = BOUNDS.minX + cell / 2; gx < BOUNDS.maxX; gx += cell) {
+        const x = r2(gx + (rng() * 2 - 1) * cell * 0.4);
+        const z = r2(gz + (rng() * 2 - 1) * cell * 0.4);
+        const rank = rng();
+        if (want(x, z) && standFits(x, z, trees)) out.push({ x, z, rank });
+      }
+    }
+    return out.sort((p, q) => p.rank - q.rank);
+  };
+
+  // moss: patches of up to three cushions where the ground's moss patches are,
+  // out from under the pines
+  for (const c of centres(FLOOR_MOSS.cell, (x, z) => mossField(x, z) > 0.4 && canopyShade(trees, x, z) < 0.6)) {
+    for (let k = 0; k < FLOOR_MOSS.per; k++) {
+      const a = rng() * Math.PI * 2;
+      const d = k === 0 ? 0 : 0.45 + 0.7 * rng();
+      const s = r2(0.8 + 0.45 * rng());
+      const x = r2(c.x + Math.cos(a) * d);
+      const z = r2(c.z + Math.sin(a) * d);
+      if (moss.length < FLOOR_MOSS.cap && standFits(x, z, trees)) moss.push({ x, z, s, a: r3(a) });
+    }
+  }
+
+  // blueberries: at the edges of the trees (part shade), well apart
+  for (const c of centres(FLOOR_BERRIES.cell, (x, z) => {
+    const sh = canopyShade(trees, x, z);
+    return sh > 0.05 && sh < 0.7;
+  })) {
+    const a = r3(rng() * Math.PI * 2);
+    if (blueberries.length < FLOOR_BERRIES.cap
+      && !blueberries.some((q) => Math.hypot(q.x - c.x, q.z - c.z) < FLOOR_BERRIES.apart)) blueberries.push({ x: c.x, z: c.z, a });
+  }
+
+  return { needles, cones, moss, blueberries };
+}
+
+// The Pines' ground multiplier (forestfloor.js pinesFloorTint): needle beds
+// under the pines, moss between, plain on the island and over the ground's
+// last 8 m. Built once; the ground is tinted with it and grass.js's tufts
+// read it (GROUND_TINTS).
+const ISLAND_PLAIN = Object.freeze({ x: ISLAND_LAND.x, z: ISLAND_LAND.z, r: ISLAND_LAND.r + 1 });
+const pinesTint = once(() => {
+  const { near, stand } = pinesTrees();
+  return pinesFloorTint([...near, ...stand], { edge: 60, plain: [ISLAND_PLAIN] });
+});
+export const pinesGroundTint = (x, z) => pinesTint()(x, z);
+
 // Reeds, a clump every 2 m, half a metre out round each bog, along both banks
 // of the mire, and along the bay's and the lake's shores on this side. None
 // within 1.5 m of a deck (the Woods' rule), so the crossings stay clear to see
@@ -692,7 +805,11 @@ function mossyBoulder(x, z, material) {
 
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0x9fb4c0, 0xc8d0c4);
-  scene.add(b.ground(120, 0x56603e, { surface: 'grass' }));
+  // The ground, a rust-brown needle bed under the pines and mossy between
+  // them (forestfloor.js pinesFloorTint), plain at its edge
+  const groundMesh = b.ground(120, 0x56603e, { surface: 'grass' });
+  tintGround(groundMesh, pinesGroundTint);
+  scene.add(groundMesh);
   scene.add(b.horizonBand(PINES_HORIZON));
 
   const colliders = [];
@@ -798,6 +915,9 @@ export function build(scene, { water = {}, wind } = {}) {
     bed.name = name;
     scene.add(bed);
   }
+  // the needle-and-moss floor (forestfloor.js), its Three objects' uuids
+  // local so the shared draws stay as they were
+  scene.add(withLocalUuids('pines-floor-uuids', () => forestFloorMesh(pinesFloor())));
 
   // --- the hidden mouse's bushes, and the puddles -----------------------------
   for (const [x, z] of GOLD_BUSHES) scene.add(b.bush(x, z, { wind }));
