@@ -135,23 +135,6 @@ function stroke(T, pts, halfW, col, { salt = 0, wobble = 0.35, taper = 0.35 } = 
   }
 }
 
-// A flat irregular fan of n triangles; centre and rim colours from col.
-function clump(T, x, z, r, col, { n = 7, salt = 0, wobble = 0.35, sx = 1 } = {}) {
-  const rim = [];
-  const rot = hash01(x, z, salt + 5) * Math.PI * 2;
-  for (let i = 0; i < n; i++) {
-    const a = rot + (i / n) * Math.PI * 2;
-    const rr = r * (1 + wobble * (hash01(x + i, z, salt) * 2 - 1));
-    rim.push([x + Math.cos(a) * rr * sx, z + Math.sin(a) * rr]);
-  }
-  const c0 = col(x, z, 0);
-  for (let i = 0; i < n; i++) {
-    const p = rim[i];
-    const q = rim[(i + 1) % n];
-    tri(T, [x, z], p, q, c0, col(p[0], p[1], 1), col(q[0], q[1], 1));
-  }
-}
-
 // Samples z0..z1 at about `step`, mapping each z to [x(z), z].
 function alongZ(z0, z1, step, xOf) {
   const k = Math.max(2, Math.round(Math.abs(z1 - z0) / step));
@@ -189,49 +172,96 @@ export function shadeK(x, z) {
 // The fresh line of seaweed the last high tide left: it follows the wet
 // edge's own wander (seaside.js wetness) a little way down the wet ramp. The
 // painted wrack (below) and the shells and kelp (Task 3) both lie along it.
+//
+// Only the edge's long wander: its shorter 0.91 wave is damped and the line's
+// own wiggle kept tiny, because from a cat's eye a line that swings 0.3m
+// across in a metre or two reads as a row of slashes across the shore.
 export function tideX(z) {
-  const reach = 0.32 * Math.sin(z * 0.33 + 1.3) + 0.16 * Math.sin(z * 0.91);
-  return 22.85 - 0.8 * reach + 0.08 * Math.sin(z * 1.7 + 0.4);
+  const reach = 0.32 * Math.sin(z * 0.33 + 1.3) + 0.06 * Math.sin(z * 0.91);
+  return 22.85 - 0.8 * reach + 0.02 * Math.sin(z * 1.7 + 0.4);
 }
 
+// A thin flat sliver from (x0, z0) to (x1, z1): pointed at both ends, half
+// width w at its widest, its sides wobbling a little and its middle bowed
+// sideways by `bow`. Two triangles (one waist) or four (two waists).
+function sliver(T, x0, z0, x1, z1, w, col, { salt = 0, waists = 2, bow = 0 } = {}) {
+  const dx = x1 - x0;
+  const dz = z1 - z0;
+  const len = Math.hypot(dx, dz) || 1;
+  const ux = dx / len; const uz = dz / len;
+  const nx = uz; const nz = -ux;
+  const ts = waists === 1 ? [0.5] : [0.33, 0.67];
+  const L = []; const R = [];
+  ts.forEach((t, k) => {
+    const cx = x0 + dx * t + nx * bow * Math.sin(Math.PI * t);
+    const cz = z0 + dz * t + nz * bow * Math.sin(Math.PI * t);
+    const ww = w * (waists === 1 ? 1 : 0.85 + 0.15 * hash01(k, salt, 451));
+    const wl = ww * (0.7 + 0.6 * hash01(k, salt, 452));
+    const wr = ww * (0.7 + 0.6 * hash01(k, salt, 453));
+    L.push([cx + nx * wl, cz + nz * wl]);
+    R.push([cx - nx * wr, cz - nz * wr]);
+  });
+  const a = [x0, z0]; const b = [x1, z1];
+  const C = (p) => col(p[0], p[1]);
+  tri(T, a, L[0], R[0], C(a), C(L[0]), C(R[0]));
+  for (let k = 0; k < ts.length - 1; k++) {
+    tri(T, L[k], L[k + 1], R[k], C(L[k]), C(L[k + 1]), C(R[k]));
+    tri(T, R[k], L[k + 1], R[k + 1], C(R[k]), C(L[k + 1]), C(R[k + 1]));
+  }
+  const n = ts.length - 1;
+  tri(T, L[n], b, R[n], C(L[n]), C(b), C(R[n]));
+}
+
+// The wet band's own colour at (x, z) (seaside.js wetSandBand).
+function wetSandAt(sand, x, z) {
+  const k = wetness(x, z);
+  const t = sandTint(x, z);
+  return [0, 1, 2].map((c) => sand[c] * t[c] * (1 + (WET_TINT[c] - 1) * k));
+}
+
+const TIDE_GAP = (z0, z1) => PIER_MOUTH(z0) || PIER_MOUTH(z1) || (z0 < -12.5 && z1 > -7.5);
+
 function paintTideLines(T, sand) {
-  const weedA = lin(0x4f4a2a);
-  const weedB = lin(0x6b5a32);
+  // The fresh wrack: short thin bits of brown, olive and near-black weed
+  // lying along the line (wave-laid, so nearly all of them point along the
+  // shore), a little scattered either side of it, with tiny scraps between.
+  // Each bit is mixed a quarter of the way towards the wet sand under it so the
+  // line reads as weed lying on sand, not as dark marks painted on it.
+  const WEEDS = [0x6e5f3e, 0x7b6844, 0x655a3a, 0x806c48, 0x5c5236].map(lin);
+  const weedCol = (base, h) => (x, zz) => mix(base, wetSandAt(sand, x, zz), 0.25)
+    .map((v) => v * (0.94 + 0.1 * h) * (0.97 + 0.06 * hash01(x * 9, zz * 9, 402)));
+  const along = (z, off) => {
+    const ang = Math.atan2(tideX(z + 0.25) - tideX(z - 0.25), 0.5);
+    return [tideX(z) + off, ang];
+  };
   let z = -44;
   let i = 0;
   while (z < 44) {
-    const h = hash01(i, 11, 401);
-    const len = 0.8 + 1.6 * h;
-    const gap = 0.3 + 0.9 * hash01(i, 13, 401);
+    const len = 0.22 + 0.55 * hash01(i, 11, 401) ** 1.3;
+    const gap = 0.12 + 0.5 * hash01(i, 13, 401);
     const z1 = Math.min(44, z + len);
-    if (!PIER_MOUTH(z) && !PIER_MOUTH(z1) && !(z < -12.5 && z1 > -7.5)) {
-      const base = mix(weedA, weedB, hash01(i, 17, 401));
-      const shift = 0.05 * (hash01(i, 19, 401) * 2 - 1);
-      const xOf = (zz) => tideX(zz) + shift;
-      stroke(T, alongZ(z, z1, 0.55, xOf), 0.09 + 0.07 * hash01(i, 23, 401),
-        (x, zz) => mix(base, weedA, 0.5 + 0.5 * Math.sin(zz * 5.1 + x * 3.3)).map((v) => v * (0.92 + 0.12 * hash01(x * 7, zz * 7, 402))),
-        { salt: 410 + i, wobble: 0.45 });
-      // Some dashes have a thin second strand of darker weed just seaward,
-      // shorter and off-centre, so the line reads as tangled wrack rather
-      // than a row of dashes. Kept clear of the main strand's widest edge.
-      if (hash01(i, 53, 401) > 0.55) {
-        const off = 0.34 + 0.08 * hash01(i, 59, 401);
-        const f0 = 0.1 + 0.3 * hash01(i, 61, 401);
-        const f1 = f0 + 0.45 + 0.25 * hash01(i, 67, 401);
-        const s0 = z + len * f0;
-        const s1 = Math.min(z1, z + len * Math.min(1, f1));
-        if (s1 - s0 > 0.4) {
-          stroke(T, alongZ(s0, s1, 0.55, (zz) => xOf(zz) + off), 0.04 + 0.02 * hash01(i, 71, 401),
-            () => scale3(weedA, 0.8), { salt: 440 + i, wobble: 0.4 });
-        }
-      }
-      // Now and then a heap of weed in the gap after the dash.
-      const zc = z1 + gap / 2;
-      if (hash01(i, 29, 401) > 0.6 && gap > 0.6 && !PIER_MOUTH(zc) && zc < 44) {
-        const r = 0.14 + 0.12 * hash01(i, 31, 401);
-        clump(T, tideX(zc) + 0.1 * (hash01(i, 37, 401) * 2 - 1), zc, Math.min(r, gap / 2 - 0.05),
-          (x, zz, rim) => (rim ? base : weedA), { n: 6, salt: 420 + i, wobble: 0.4, sx: 1.3 });
-      }
+    if (!TIDE_GAP(z, z1)) {
+      const zm = (z + z1) / 2;
+      const off = 0.12 * signed(hash01(i, 19, 401));
+      const [xm, ang0] = along(zm, off);
+      const ang = ang0 + 0.1 * signed(hash01(i, 23, 401));
+      const hl = (z1 - z) / 2;
+      const sx = Math.sin(ang) * hl; const sz = Math.cos(ang) * hl;
+      const base = pick(WEEDS, hash01(i, 17, 401));
+      sliver(T, xm - sx, zm - sz, xm + sx, zm + sz, 0.03 + 0.025 * hash01(i, 29, 401),
+        weedCol(base, hash01(i, 31, 401)), { salt: 410 + i, waists: len > 0.55 ? 2 : 1, bow: 0.04 * signed(hash01(i, 37, 401)) });
+    }
+    // Scraps: one or two tiny bits in most gaps, at any angle near the line.
+    const scraps = hash01(i, 41, 401) < 0.4 ? 0 : hash01(i, 43, 401) < 0.75 ? 1 : 2;
+    for (let s = 0; s < scraps; s++) {
+      const zc = z1 + gap * (0.25 + 0.5 * hash01(i, 47 + s, 401));
+      if (zc >= 44 || TIDE_GAP(zc - 0.1, zc + 0.1)) continue;
+      const [xc, a0] = along(zc, 0.22 * signed(hash01(i, 53 + s, 401)));
+      const ang = a0 + 0.7 * signed(hash01(i, 59 + s, 401));
+      const hl = 0.03 + 0.06 * hash01(i, 61 + s, 401);
+      const sx = Math.sin(ang) * hl; const sz = Math.cos(ang) * hl;
+      sliver(T, xc - sx, zc - sz, xc + sx, zc + sz, 0.015 + 0.015 * hash01(i, 67 + s, 401),
+        weedCol(pick(WEEDS, hash01(i, 71 + s, 401)), 0.5), { salt: 470 + i * 2 + s, waists: 1 });
     }
     z = z1 + gap;
     i++;
@@ -242,20 +272,16 @@ function paintTideLines(T, sand) {
   const dryFrom = 22.04;
   const wrackX = (zz) => Math.max(dryFrom, tideX(zz) - 0.62 + 0.05 * Math.sin(zz * 2.3));
   const grey = [0.84, 0.81, 0.76];
-  const wrackCol = (x, zz) => {
-    const k = wetness(x, zz);
-    const wet = [0, 1, 2].map((c) => 1 + (WET_TINT[c] - 1) * k);
-    return mul(mul(sand, sandTint(x, zz)), wet).map((v, c) => v * grey[c]);
-  };
+  const wrackCol = (x, zz) => wetSandAt(sand, x, zz).map((v, c) => v * grey[c]);
   z = -43.5;
   i = 0;
   while (z < 44) {
     const len = 0.5 + 1.1 * hash01(i, 41, 403);
     const gap = 0.8 + 1.8 * hash01(i, 43, 403);
     const z1 = Math.min(44, z + len);
-    if (!PIER_MOUTH(z) && !PIER_MOUTH(z1) && !(z < -12.5 && z1 > -7.5)) {
-      stroke(T, alongZ(z, z1, 0.6, wrackX), 0.04 + 0.02 * hash01(i, 47, 403), wrackCol,
-        { salt: 430 + i, wobble: 0.3 });
+    if (!TIDE_GAP(z, z1)) {
+      sliver(T, wrackX(z), z, wrackX(z1), z1, 0.035 + 0.02 * hash01(i, 47, 403), wrackCol,
+        { salt: 430 + i, waists: len > 0.9 ? 2 : 1 });
     }
     z = z1 + gap;
     i++;
@@ -271,13 +297,13 @@ function rippleClear(keep, x, z) {
   return keep.every((k) => Math.hypot(x - k.x, z - k.z) >= k.r + 0.3);
 }
 
-function paintRipples(T, sand, keep) {
+function paintRipples(T, ground, keep) {
   // Wind off the sea (east) heaps the dry sand into low ridges across it, so
   // they run roughly north-south. They come in little fields of 3-5 nearly
   // parallel strokes, each a darker trough with, on most, a paler crest on
   // its west side where the low sun catches it.
-  const trough = (x, z) => mul(sand, sandTint(x, z), 0.88 + 0.03 * Math.sin(x * 4.7 + z * 2.1));
-  const crest = (x, z) => mul(sand, sandTint(x, z), 1.05);
+  const trough = (x, z) => scale3(ground(x, z), 0.88 + 0.03 * Math.sin(x * 4.7 + z * 2.1));
+  const crest = (x, z) => scale3(ground(x, z), 1.05);
   let strokes = 0;
   for (let f = 0; f < 60 && strokes < 26; f++) {
     const cx = 6 + 10.5 * hash01(f, 1, 501);
@@ -312,7 +338,7 @@ function paintRipples(T, sand, keep) {
   return strokes;
 }
 
-function paintShade(T, sand) {
+function paintShade(T, ground) {
   // A polar grid in the shade's own ellipse, each vertex coloured by shadeK,
   // so the core is soft-edged and the outer ring meets the sand exactly.
   const [cx, cz] = shadeCentre();
@@ -325,7 +351,7 @@ function paintShade(T, sand) {
     const v = Math.sin(a) * r;
     return [cx + u * SUN_AWAY[0] - v * SUN_AWAY[1], cz + u * SUN_AWAY[1] + v * SUN_AWAY[0]];
   };
-  const col = (p) => mul(sand, sandTint(p[0], p[1]), shadeK(p[0], p[1]));
+  const col = (p) => scale3(ground(p[0], p[1]), shadeK(p[0], p[1]));
   const c = [cx, cz];
   for (let i = 0; i < n; i++) {
     const p = at(0, i);
@@ -373,7 +399,7 @@ function paintTowel(T) {
   }
 }
 
-function paintMoats(T, sand) {
+function paintMoats(T, ground) {
   // The dug ring round each sandcastle: damp sand turned up, darker, with
   // uneven rims.
   const n = 12;
@@ -383,8 +409,8 @@ function paintMoats(T, sand) {
       const rr = r * (1 + 0.08 * (hash01(ci, i % n, salt) * 2 - 1));
       return [c.x + Math.cos(a) * rr, c.z + Math.sin(a) * rr];
     };
-    const inner = (p) => mul(sand, sandTint(p[0], p[1]), 0.76);
-    const outer = (p) => mul(sand, sandTint(p[0], p[1]), 0.84);
+    const inner = (p) => scale3(ground(p[0], p[1]), 0.76);
+    const outer = (p) => scale3(ground(p[0], p[1]), 0.84);
     for (let i = 0; i < n; i++) {
       const a = rim(0.75, i, 901); const b = rim(0.75, i + 1, 901);
       const d = rim(0.95, i, 902); const e = rim(0.95, i + 1, 902);
@@ -394,21 +420,77 @@ function paintMoats(T, sand) {
   });
 }
 
-function buildPaint(keep) {
+// The dry sand's own linear colour at (x, z), read off the ground plane's
+// vertex colours (builder.js's macro variation times sandTint) exactly as
+// the GPU interpolates them across its triangles, so a paint vertex at k = 1
+// is the sand under it. Without the plane (a bare scene), sandTint alone.
+function groundSampler(groundMesh) {
+  const sand = lin(BEACH);
+  const col = groundMesh?.geometry.attributes.color;
+  if (!col) return { colour: (x, z) => mul(sand, sandTint(x, z)), uv: null };
+  const { width, height, widthSegments: sx, heightSegments: sy } = groundMesh.geometry.parameters;
+  groundMesh.updateMatrix();
+  const inv = groundMesh.matrix.clone().invert();
+  const v = new THREE.Vector3();
+  // The plane's cell coordinates (fx, fy) at world (x, z).
+  const cell = (x, z) => {
+    v.set(x, 0, z).applyMatrix4(inv);
+    return [(v.x + width / 2) / (width / sx), (height / 2 - v.y) / (height / sy)];
+  };
+  const at = (i, j) => { const k = j * (sx + 1) + i; return [col.getX(k), col.getY(k), col.getZ(k)]; };
+  const colour = (x, z) => {
+    const [fx, fy] = cell(x, z);
+    const ix = Math.min(sx - 1, Math.max(0, Math.floor(fx)));
+    const iy = Math.min(sy - 1, Math.max(0, Math.floor(fy)));
+    const u = Math.min(1, Math.max(0, fx - ix));
+    const w = Math.min(1, Math.max(0, fy - iy));
+    // PlaneGeometry's two triangles per cell: (a, b, d) and (b, c, d).
+    const A = at(ix, iy); const B = at(ix, iy + 1); const C = at(ix + 1, iy + 1); const D = at(ix + 1, iy);
+    const m = u + w <= 1
+      ? [0, 1, 2].map((c) => A[c] + u * (D[c] - A[c]) + w * (B[c] - A[c]))
+      : [0, 1, 2].map((c) => C[c] + (1 - u) * (B[c] - C[c]) + (1 - w) * (D[c] - C[c]));
+    return mul(sand, m);
+  };
+  // The plane's own uv at (x, z), so the paint can wear the sand's speckle
+  // tile in register with the ground under it.
+  const uv = (x, z) => { const [fx, fy] = cell(x, z); return [fx / sx, 1 - fy / sy]; };
+  return { colour, uv };
+}
+
+function buildPaint(keep, groundMesh) {
   const T = new Tris();
   const sand = lin(BEACH);
+  const { colour, uv } = groundSampler(groundMesh);
   paintTideLines(T, sand);
-  paintRipples(T, sand, keep);
-  paintShade(T, sand);
-  paintMoats(T, sand);
+  paintRipples(T, colour, keep);
+  paintShade(T, colour);
+  paintMoats(T, colour);
   paintTowel(T);
+  const geo = T.geometry();
+  // The ground's speckle map (when it has one) on the same uvs, and the same
+  // light response (roughness 0.92, no metal), so a k = 1 paint is the sand
+  // itself: the tile's mean (~0.96) darkens both alike and the grain runs on
+  // across a mark's edge instead of stopping at it.
+  const map = groundMesh?.material?.map ?? null;
+  if (uv) {
+    const pos = geo.attributes.position;
+    const uvs = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) {
+      const [u, w] = uv(pos.getX(i), pos.getZ(i));
+      uvs[i * 2] = u;
+      uvs[i * 2 + 1] = w;
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  }
+  const gm = groundMesh?.material;
   const mesh = new THREE.Mesh(
-    T.geometry(),
+    geo,
     new THREE.MeshStandardMaterial({
       color: 0xffffff,
       vertexColors: true,
-      roughness: 0.92,
-      metalness: 0,
+      roughness: gm?.roughness ?? 0.92,
+      metalness: gm?.metalness ?? 0,
+      ...(map && uv ? { map } : {}),
       side: THREE.FrontSide,
       polygonOffset: true,
       polygonOffsetFactor: -1,
@@ -891,7 +973,9 @@ function addUmbrella(P, it) {
 // plank, and a short post every 7.5m standing against its outside face. The
 // east kerb breaks for the pier's mouth; posts skip anything they would
 // crowd (benches, lamps, the box, tippables, the water bowl, the spawn).
-const KERB_COL = 0x8a6a48;
+// Weathered timber: greyer and a little darker than the deck (0xa08050 under
+// its wood tile), so the edge reads as old boards, not as fresh orange trim.
+const KERB_COL = 0x7a6852;
 const POST_SKIP = [[18, 14], [18, -18], [20, 30], [20, -30], [19, 24], [17, 15], [17, -17], [21, 29], [17.5, 8]];
 function addBoardwalkEdge(P, area, keep) {
   const kerb = lin(KERB_COL);
@@ -914,7 +998,7 @@ function addBoardwalkEdge(P, area, keep) {
       k++;
     }
   });
-  const post = lin(0x7d5f40);
+  const post = lin(0x6c5c4a);
   for (const [x, east] of [[17.88, false], [22.12, true]]) {
     for (let i = 0; i < 12; i++) {
       const z = -41.25 + 7.5 * i;
@@ -942,7 +1026,10 @@ function buildDressing(area, keep) {
 // changes). Adds its meshes to the scene and returns them.
 export function dressBeach(scene, area) {
   const keep = beachKeepOut(area);
-  const paint = withLocalUuids('seaside-beach-paint', () => buildPaint(keep));
+  // The 140m dry-sand plane (seaside.js build), whose colours the paint matches.
+  const groundMesh = scene.children.find((c) => c.isMesh && c.userData.ground
+    && c.geometry?.parameters?.width === 140 && c.geometry.attributes.color);
+  const paint = withLocalUuids('seaside-beach-paint', () => buildPaint(keep, groundMesh));
   const dressing = withLocalUuids('seaside-beach-dressing', () => buildDressing(area, keep));
   scene.add(paint);
   scene.add(dressing);

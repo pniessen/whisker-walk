@@ -88,7 +88,7 @@ describe('seaside sand', () => {
 });
 
 // polish-beach Task 2: the painted beach (tide lines, ripples, towel, shade).
-const { dressBeach, beachKeepOut, BEACH_SPOTS, TIDE_Y, TOWEL_Y } = await import('../src/world/beachdress.js');
+const { dressBeach, beachKeepOut, BEACH_SPOTS, TIDE_Y, TOWEL_Y, shadeK } = await import('../src/world/beachdress.js');
 const { PAINT_Y } = await import('../src/world/dressing.js');
 
 describe('beach paint', () => {
@@ -216,6 +216,37 @@ describe('beach paint', () => {
       n++;
     }
     expect(n).toBeGreaterThan(100);
+  });
+
+  it('is the sand where it leaves the sand unchanged', () => {
+    // Same light response and speckle tile as the 140m ground, on its uvs,
+    // and the shade's outer ring (shadeK 1) is the ground's own vertex
+    // colour (macro variation x sandTint) times BEACH, so it has no rim.
+    const g = scene.children.find((c) => c.isMesh && c.userData.ground && c.geometry.parameters?.width === 140);
+    expect(paint.material.roughness).toBe(g.material.roughness);
+    expect(paint.material.metalness).toBe(g.material.metalness);
+    expect(paint.material.map ?? null).toBe(g.material.map ?? null);
+    expect(paint.geometry.attributes.uv.count).toBe(pos.count);
+    const col = paint.geometry.attributes.color;
+    const gc = g.geometry.attributes.color;
+    const gp = g.geometry.attributes.position;
+    const sand = new THREE.Color(0xdcc28e);
+    const u = BEACH_SPOTS.umbrella;
+    let n = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i); const z = pos.getZ(i);
+      if (inTowel(x, z, 0.1) || shadeK(x, z) < 0.9999 || Math.hypot(x - u.x, z - u.z) > 2.2) continue;
+      // Nearest ground vertex (the plane is rotated flat: local y = -z).
+      let best = 0; let bd = Infinity;
+      for (let j = 0; j < gp.count; j++) {
+        const d = Math.hypot(gp.getX(j) - x, -gp.getY(j) - z);
+        if (d < bd) { bd = d; best = j; }
+      }
+      expect(Math.abs(col.getX(i) / (sand.r * gc.getX(best)) - 1)).toBeLessThan(0.01);
+      expect(Math.abs(col.getY(i) / (sand.g * gc.getY(best)) - 1)).toBeLessThan(0.01);
+      n++;
+    }
+    expect(n).toBeGreaterThan(6);
   });
 
   it('stays within its triangle budget', () => {
