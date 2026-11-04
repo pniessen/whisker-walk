@@ -167,6 +167,83 @@ describe('campDressing (pure)', () => {
     }
   });
 
+  it('keeps the clumps where they were before the canes (pinned: the woods camp\'s first clump)', () => {
+    const c = campDressing('woods').ring.clumps[0];
+    expect(c.x).toBeCloseTo(6.136697890743825, 12);
+    expect(c.z).toBeCloseTo(-46.25797754581596, 12);
+    expect(c.s).toBeCloseTo(0.9502911537885665, 12);
+    expect(c.h).toBeCloseTo(0.7534708831517491, 12);
+    expect(c.rot).toBeCloseTo(5.0095855002469465, 12);
+    expect(campDressing('woods').ring.clumps.length).toBe(84);
+  });
+
+  // A cane point's keep rules (polish-camps4 Task 3): near a kept clump, off
+  // every seat, off the den's, the rock's and every collider's edge, and
+  // outside the gap.
+  const checkCanes = (a, D, cols = []) => {
+    const { cx, cz } = DISCS[a];
+    const L = campLayout(a);
+    for (const cane of D.ring.canes) {
+      expect(cane.length, a).toBeGreaterThanOrEqual(3);
+      for (let i = 0; i < cane.length; i++) {
+        const p = cane[i];
+        const at = `${a} ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`;
+        for (const k of ['x', 'y', 'z', 'w']) expect(Number.isFinite(p[k]), at).toBe(true);
+        expect(D.ring.clumps.some((c) => dist(p, c) <= 0.45), `${at} near a clump`).toBe(true);
+        for (const s of seatsOf(L)) expect(dist(p, s), `${at} seat`).toBeGreaterThanOrEqual(0.4);
+        for (const k of [L.den, L.rock, ...cols]) expect(dist(p, k) - k.r, `${at} edge`).toBeGreaterThanOrEqual(0.25);
+        expect(angleOff(Math.atan2(p.z - cz, p.x - cx), D.ring.gap.a), `${at} gap`).toBeGreaterThan(D.ring.gap.half);
+        // the tube tapers 0.028 -> 0.012 and stays between the ground and 1 m
+        expect(p.w, at).toBeGreaterThanOrEqual(0.012 - 1e-9);
+        expect(p.w, at).toBeLessThanOrEqual(0.028 + 1e-9);
+        expect(p.y - p.w, at).toBeGreaterThanOrEqual(0);
+        expect(p.y + p.w, at).toBeLessThanOrEqual(1.0);
+        // points every ~0.4 m along the ground; a cane's foot may climb
+        // steeply out of the root
+        if (i > 0) {
+          const q = cane[i - 1];
+          expect(Math.hypot(p.x - q.x, p.z - q.z), at).toBeLessThanOrEqual(0.5);
+          expect(Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z), at).toBeLessThanOrEqual(0.8);
+        }
+      }
+    }
+  };
+
+  it('weaves bramble canes along the ring: arching over the lumps, across both rows', () => {
+    for (const a of CAMPS) {
+      const { cx, cz } = DISCS[a];
+      const D = campDressing(a);
+      expect(Array.isArray(D.ring.canes), a).toBe(true);
+      expect(D.ring.canes.length, a).toBeGreaterThanOrEqual(4);
+      checkCanes(a, D);
+      const pts = D.ring.canes.flat();
+      // they arch up over the lumps and come down into them
+      expect(Math.max(...pts.map((p) => p.y)), a).toBeGreaterThanOrEqual(0.7);
+      expect(Math.min(...pts.map((p) => p.y)), a).toBeLessThanOrEqual(0.2);
+      // they weave in and out across the two rows
+      const rad = pts.map((p) => Math.hypot(p.x - cx, p.z - cz) - D.ring.r);
+      expect(Math.min(...rad), a).toBeLessThan(-0.1);
+      expect(Math.max(...rad), a).toBeGreaterThan(0.1);
+      // they reach most of the way round
+      const arc = (2 * Math.PI - 2 * D.ring.gap.half) * D.ring.r;
+      expect(pts.length * 0.4, a).toBeGreaterThan(1.5 * arc);
+    }
+  });
+
+  it('a collider on the ring breaks the canes there too, and moves nothing else', () => {
+    for (const a of CAMPS) {
+      const free = campDressing(a);
+      const pick = free.ring.clumps[Math.floor(free.ring.clumps.length / 2)];
+      const post = { x: pick.x, z: pick.z, r: 0.4 };
+      const D = campDressing(a, [post]);
+      checkCanes(a, D, [post]);
+      // every point that stays is one the free camp had
+      const key = (p) => `${p.x},${p.y},${p.z},${p.w}`;
+      const had = new Set(free.ring.canes.flat().map(key));
+      for (const p of D.ring.canes.flat()) expect(had.has(key(p)), a).toBe(true);
+    }
+  });
+
   it('clears a sandy floor inside the ring, and lays a nest under every elder and kit', () => {
     for (const a of CAMPS) {
       const { cx, cz } = DISCS[a];
@@ -212,6 +289,12 @@ describe('campDressing on the real maps', () => {
       for (const c of D.ring.clumps) {
         for (const k of built[a].colliders) {
           expect(dist(c, k), `${a} clump ${c.x.toFixed(2)},${c.z.toFixed(2)} vs ${k.x},${k.z} r${k.r}`).toBeGreaterThanOrEqual(k.r + 0.25);
+        }
+      }
+      // nor does a bramble cane
+      for (const p of D.ring.canes.flat()) {
+        for (const k of built[a].colliders) {
+          expect(dist(p, k) - k.r, `${a} cane ${p.x.toFixed(2)},${p.z.toFixed(2)} vs ${k.x},${k.z} r${k.r}`).toBeGreaterThanOrEqual(0.25);
         }
       }
       // the pile is not in a collider either
