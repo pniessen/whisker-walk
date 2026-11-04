@@ -20,6 +20,10 @@ import * as THREE from 'three';
 // PURELY LOCAL. Nothing here touches the walk's seeded RNG or the wire; the
 // droplets' scatter comes from a tiny private generator.
 //
+// A wading cat leaves a small ring at its front paws every WADE_RING_EVERY s
+// while it moves, and one more when it stops. splash.emitAt(x, z, opts) lets
+// other things (a jumping fish) drop a ring and/or droplets on the water.
+//
 // REDUCED MOTION: no splashes, ripples or wake. The shake is a short puff of
 // 6 droplets only (splashEmits says so; the pools just obey).
 // ---------------------------------------------------------------------------
@@ -32,6 +36,7 @@ const GRAVITY = 9.8;
 const MOVING = 0.3; // speed (m/s) above which a cat is "moving" for effects
 const ENTER_SPEED = 1; // a faster entry throws a splash
 const WADE_EVERY = 0.22; // s between wading drop bursts
+export const WADE_RING_EVERY = 0.35; // s between wading rings at the paws
 const WAKE_EVERY = 0.16; // s between wake pairs
 const RING_EVERY = 0.6; // s between head rings while swimming
 const STILL_RING_EVERY = 1.1; // s between rings while floating still
@@ -47,6 +52,8 @@ const RM_PUFF_TTL = 0.3;
 // A ring grows r0 -> r1 metres over ttl seconds and fades out.
 const RING = { r0: 0.15, r1: 0.6, ttl: 1.2 };
 const STILL_RING = { r0: 0.2, r1: 0.9, ttl: 1.6 };
+const WADE_RING = { r0: 0.1, r1: 0.45, ttl: 0.9 }; // a wader's paws
+const FISH_RING = { r0: 0.1, r1: 0.7, ttl: 1.1 }; // emitAt: a jumping fish
 const WAKE_SIDE = 0.18; // × cat scale, to each side
 const WAKE_BACK = 0.35; // × cat scale, behind
 const WAKE_DRIFT = 0.5; // m/s, out and back: the V
@@ -55,7 +62,11 @@ const RING_ALPHA = 0.55;
 // splashEmits(st, speed, dt, reducedMotion, out, lift = 0) -> out
 // Pure: advances st.fxClock / st.ringClock and fills `out` with this frame's
 // counts — drops (droplets), wake (left-and-right ring pairs), ring (head or
-// still rings) and puff (shake droplets).
+// still rings; or, wading, a ring at the paws every WADE_RING_EVERY s while
+// moving plus one on the first still frame after moving) and puff (shake
+// droplets). A wader's clock and moving flag live on st.wadeRingClock /
+// st.wadeMoving (undefined reads as 0 / false, so a remote cat's plain state
+// works).
 //
 // `lift` is how high the cat is drawn above its paws' ground (a pounce's hop,
 // player.hopY). A running entry made mid-hop waits on st.entryPending and
@@ -70,6 +81,8 @@ export function splashEmits(st, speed, dt, reducedMotion, out, lift = 0) {
   if (reducedMotion || st.mode === 'dry') {
     st.fxClock = 0;
     st.ringClock = 0;
+    st.wadeRingClock = 0;
+    st.wadeMoving = false;
     st.entryPending = false;
     return out;
   }
@@ -82,7 +95,18 @@ export function splashEmits(st, speed, dt, reducedMotion, out, lift = 0) {
     st.ringClock = 0;
     if (!moving) {
       st.fxClock = 0;
+      st.wadeRingClock = 0;
+      if (st.wadeMoving) {
+        st.wadeMoving = false;
+        out.ring = 1; // one last ring as the paws stop
+      }
       return out;
+    }
+    st.wadeMoving = true;
+    st.wadeRingClock = (st.wadeRingClock || 0) + dt;
+    if (st.wadeRingClock >= WADE_RING_EVERY) {
+      st.wadeRingClock = Math.min(st.wadeRingClock - WADE_RING_EVERY, WADE_RING_EVERY);
+      out.ring = 1;
     }
     st.fxClock += dt;
     if (st.fxClock >= WADE_EVERY) {
@@ -92,6 +116,8 @@ export function splashEmits(st, speed, dt, reducedMotion, out, lift = 0) {
     return out;
   }
   // Swimming.
+  st.wadeRingClock = 0;
+  st.wadeMoving = false;
   st.ringClock += dt;
   if (moving) {
     st.fxClock += dt;
@@ -118,6 +144,7 @@ export const NO_SPLASH = Object.freeze({
   meshes: Object.freeze([]),
   capacity: Object.freeze({ drops: 0, rings: 0 }),
   track() {},
+  emitAt() {},
   update() {},
   dispose() {},
   get drawCount() { return 0; },
@@ -255,7 +282,19 @@ diffuseColor.a *= vRingAlpha;`);
         );
       }
     }
-    if (out.ring > 0) spawnRing(x, z, 0, 0, speed > MOVING ? RING : STILL_RING, k);
+    if (out.ring > 0) {
+      if (st.mode === 'wade') spawnRing(x + fx * 0.1 * k, z + fz * 0.1 * k, 0, 0, WADE_RING, k);
+      else spawnRing(x, z, 0, 0, speed > MOVING ? RING : STILL_RING, k);
+    }
+  }
+
+  // emitAt(x, z, { ring = true, drops = 0, k = 1 }) — a splash from something
+  // other than a cat (a jumping fish): one FISH_RING and/or `drops` droplets
+  // thrown up with the entry-splash spread. Nothing under reduced motion.
+  function emitAt(x, z, { ring = true, drops: n = 0, k = 1 } = {}) {
+    if (reducedMotion) return;
+    if (ring) spawnRing(x, z, 0, 0, FISH_RING, k);
+    if (n > 0) burst(n, x, RING_Y, z, 0, 0.4, 0.9, 1.4, 2.0, DROP_TTL);
   }
 
   // update(dt) — once per frame, after every track(): ages, moves and draws.
@@ -327,6 +366,7 @@ diffuseColor.a *= vRingAlpha;`);
     meshes: [drops, rings],
     capacity: { drops: dropCap, rings: ringCap },
     track,
+    emitAt,
     update,
     dispose,
     get drawCount() { return (drops.visible ? 1 : 0) + (rings.visible ? 1 : 0); },
