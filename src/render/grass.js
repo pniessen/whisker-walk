@@ -3,6 +3,7 @@ import { fitCentre } from './shadowfit.js';
 import { GUST_DEPTH, GUST_FREQUENCY, MAX_INTENSITY } from './wind.js';
 import { waterClearance } from '../world/builder.js';
 import { FLAT_GROUND, groundOf } from '../ground.js';
+import { trailReach } from '../world/pathribbon.js';
 
 // ---------------------------------------------------------------------------
 // GRASS — low swaying tufts on the lawn near the camera (Stream 4 round two,
@@ -145,7 +146,10 @@ export function capacityFor(radius, spacing) {
 // masks its own strip, not its bounding box.
 //
 // Returns { kind: 'strip', x, z, ux, uz, halfW, halfL } (u = unit length axis)
-// or { kind: 'disc', x, z, r }.
+// or { kind: 'disc', x, z, r }, or (polish-paths, flagged small edit) one
+// { kind: 'capsule', x1, z1, x2, z2, r } per segment of a soft trail mesh
+// (pathribbon.js, userData.trail): its round outer bends and outward wobble
+// reach past the hidden path rectangles, which are still masked as strips.
 const _o = new THREE.Vector3();
 const _ax = new THREE.Vector3();
 const _ay = new THREE.Vector3();
@@ -154,6 +158,17 @@ export function flatFootprints(scene, ground = FLAT_GROUND) {
   const out = [];
   for (const child of scene.children) {
     if (!child.isMesh || !child.geometry) continue;
+    if (Array.isArray(child.userData.trail)) {
+      child.updateMatrixWorld(true);
+      _o.setFromMatrixPosition(child.matrixWorld);
+      for (const s of child.userData.trail) {
+        const mx = (s.x1 + s.x2) / 2;
+        const mz = (s.z1 + s.z2) / 2;
+        if (_o.y - ground.y(mx, mz) > 0.1) continue; // same raised-plane rule
+        out.push({ kind: 'capsule', x1: s.x1, z1: s.z1, x2: s.x2, z2: s.z2, r: trailReach(s.h) });
+      }
+      continue;
+    }
     const p = child.geometry.parameters;
     const type = child.geometry.type;
     if (type !== 'PlaneGeometry' && type !== 'CircleGeometry') continue;
@@ -184,6 +199,18 @@ function inFootprint(f, x, z, margin) {
   const dx = x - f.x;
   const dz = z - f.z;
   if (f.kind === 'disc') return dx * dx + dz * dz < (f.r + margin) ** 2;
+  if (f.kind === 'capsule') {
+    const r = f.r + margin;
+    if (r <= 0) return false;
+    const sx = f.x2 - f.x1;
+    const sz = f.z2 - f.z1;
+    const l2 = sx * sx + sz * sz;
+    let t = l2 > 1e-12 ? ((x - f.x1) * sx + (z - f.z1) * sz) / l2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const ex = x - f.x1 - sx * t;
+    const ez = z - f.z1 - sz * t;
+    return ex * ex + ez * ez < r * r;
+  }
   const along = dx * f.ux + dz * f.uz;
   const across = -dx * f.uz + dz * f.ux;
   return Math.abs(along) < f.halfL + margin && Math.abs(across) < f.halfW + margin;
