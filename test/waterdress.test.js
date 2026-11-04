@@ -27,7 +27,7 @@ vi.stubGlobal('document', {
   exitPointerLock() {},
 });
 
-const { createWaterDressing, bankWobble, DRESSED_AREAS, BANK_FILLETS, isStream, bankBite, BITE_CIRCLES, BITE_MAX } = await import('../src/render/waterdress.js');
+const { createWaterDressing, FILL_LIFT, bankWobble, DRESSED_AREAS, BANK_FILLETS, isStream, bankBite, BITE_CIRCLES, BITE_MAX } = await import('../src/render/waterdress.js');
 const { fishSpots } = await import('../src/render/fishjump.js');
 const { tintDuskLawn, duskLook } = await import('../src/render/dusk.js');
 const { resolveQuality } = await import('../src/render/quality.js');
@@ -499,7 +499,7 @@ describe('water dressing', () => {
     const waterY = areaData.waterFx.find((h) => h.footprint.id === 'river-west').y;
     for (const p of pts) {
       expect(inCell(p), `${p.x},${p.z}`).toBe(true);
-      expect(p.y).toBeCloseTo(waterY + 0.002, 6);
+      expect(p.y).toBeCloseTo(waterY + FILL_LIFT, 6);
     }
     // one triangle per arc segment: 10..16 of them
     expect(fn - 2).toBeGreaterThanOrEqual(10);
@@ -846,6 +846,67 @@ describe('water dressing', () => {
         expect(low.meshes.map((m) => m.name), id).toEqual(['waterdress:band', 'waterdress:fill']);
       }
       console.log('waterdress:fill triangles', JSON.stringify(tris));
+    }, 120_000);
+
+    it('every fill vertex rides FILL_LIFT over its own water, for every dressed area with a fill', () => {
+      expect(FILL_LIFT).toBeGreaterThanOrEqual(0.01);
+      for (const id of ['woods', 'river', 'moor', 'pines', 'park']) {
+        const { fx, areaData } = dressOnGround(id);
+        const fill = byName(fx, 'waterdress:fill');
+        expect(fill, id).toBeTruthy();
+        const ys = [...new Set(areaData.waterFx.map((h) => h.y ?? 0.03))];
+        const pts = worldPoints(fill);
+        expect(pts.length, id).toBeGreaterThan(0);
+        for (const q of pts) {
+          const at = `${id} ${q.x.toFixed(2)},${q.z.toFixed(2)} y ${q.y}`;
+          expect(ys.some((y) => Math.abs(q.y - (y + FILL_LIFT)) < 1e-6), at).toBe(true);
+        }
+      }
+    }, 120_000);
+
+    it('band vertices over a fill strip are never under the fill', () => {
+      let checked = 0;
+      for (const id of ['woods', 'river', 'moor', 'pines', 'park']) {
+        const { fx } = dressOnGround(id, { debug: true });
+        const band = byName(fx, 'waterdress:band');
+        const grid = new Map();
+        const key = (x, z) => `${Math.round(x * 50)},${Math.round(z * 50)}`;
+        for (const q of worldPoints(band)) {
+          const k = key(q.x, q.z);
+          if (!grid.has(k)) grid.set(k, []);
+          grid.get(k).push(q);
+        }
+        const found = (x, z) => {
+          const gx = Math.round(x * 50), gz = Math.round(z * 50), out = [];
+          for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+            for (const q of grid.get(`${gx + i},${gz + j}`) ?? []) if (Math.hypot(q.x - x, q.z - z) < 1e-4) out.push(q);
+          }
+          return out;
+        };
+        for (const b of bitesOf(fx)) {
+          for (const p of b.samples) {
+            if (!(p.bite > 0.05) || p.fillTop === undefined) continue;
+            const wob = bankWobble(b.seed, p.s, b.period);
+            const fillY = p.fillTop - 0.002;
+            for (const o of [wob - 0.34, wob - 0.12, wob]) {
+              // strictly inside the bite, well clear of the strip's ends
+              if (!(o > 0.02 && o < 0.5 * p.bite) || p.nx * p.nx0 + p.nz * p.nz0 < 0.9) continue;
+              for (const q of found(p.x + p.nx * o, p.z + p.nz * o)) {
+                checked++;
+                expect(q.y, `${id} ${b.water} at ${q.x.toFixed(2)},${q.z.toFixed(2)}`).toBeGreaterThanOrEqual(fillY - 1e-6);
+              }
+            }
+          }
+        }
+      }
+      expect(checked).toBeGreaterThan(0);
+    }, 120_000);
+
+    it('Moor: the fill and band triangle counts are unchanged by the lift', () => {
+      const { fx } = dressOnGround('moor');
+      expect(triangles(byName(fx, 'waterdress:fill'))).toBe(724);
+      expect(triangles(byName(fx, 'waterdress:band'))).toBe(5422);
+      expect(triangles(byName(fx, 'waterdress:stones'))).toBe(1764);
     }, 120_000);
 
     it('the fill covers the bitten strip', () => {

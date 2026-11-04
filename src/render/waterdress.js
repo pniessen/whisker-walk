@@ -62,7 +62,14 @@ const STEP = 0.7;
 // Heights: the lip rides just over the water, the land side just over the
 // ground — under the paw prints (0.012 is theirs too, but they draw after:
 // see RENDER_ORDER), the contact shadows (0.015) and the puddles (0.02).
+//
+// The bank fill (bites and fillets) rides FILL_LIFT over its own water, 3x the
+// lip's lift: the Moor's river-south is one 5 x 124 m quad, clipped near the
+// walk camera, and its interpolated depth cannot hold a 2 mm separation, so
+// the water poked through the fill in stair-stepped patches. The band rows
+// that lie over the fill ride over it again (fillTop).
 const LIP_LIFT = 0.004;
+export const FILL_LIFT = 0.012;
 const LAND_Y = 0.012;
 // Drawn before the paw prints (-2) and the contact shadows (-1): the band is
 // the ground's own colour, the bottom-most transparent layer.
@@ -467,13 +474,15 @@ function bankProfile(p, ctx) {
   // A sample bent onto a fillet's arc: its land side lies over the fill,
   // which rides over the water, so those rows ride over the fill.
   const landY = (y) => (p.fillTop === undefined ? y : Math.max(y, p.fillTop));
+  // a water-side row whose offset reaches past the bitten point lies over the fill
+  const lipY = (o) => (o > 0 ? landY(waterY + LIP_LIFT) : waterY + LIP_LIFT);
   // water side first: the foam line just off the lip, then the lip
   // itself, then up onto the land and out to nothing.
   // [offset, y, colour, alpha, foam flag, swash metres]
   return [
-    [wob - 0.34, waterY + LIP_LIFT, foamC, 0, 1, 0],
-    [wob - 0.12, waterY + LIP_LIFT, foamC, fa, 1, 0],
-    [wob, waterY + LIP_LIFT, wetC, BAND_ALPHA.lip * strength, 0, 0],
+    [wob - 0.34, lipY(wob - 0.34), foamC, 0, 1, 0],
+    [wob - 0.12, lipY(wob - 0.12), foamC, fa, 1, 0],
+    [wob, lipY(wob), wetC, BAND_ALPHA.lip * strength, 0, 0],
     [onLand, landY(waterY + LIP_LIFT), wetC, BAND_ALPHA.lip * strength, 0, 0],
     [shoulder, landY(LAND_Y), wetC, BAND_ALPHA.shoulder * strength, 0, 0],
     [outer, landY(LAND_Y), dampC, 0, 0, 0],
@@ -715,7 +724,7 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
   const bog = h.style === 'bog';
   // bites, like fillets, need the ground to paint their strip with
   const kind = ground ? biteKind(areaId, h) : null;
-  const fillY = (h.y ?? 0.03) + LIP_LIFT * 0.5;
+  const fillY = (h.y ?? 0.03) + FILL_LIFT;
   const seed0 = seedFromCode(`waterdress-${areaId}-${w.id}`);
   const out = [];
   // Each chain (each bank of a stream, each ring of a water) has its own
@@ -1339,7 +1348,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
     const ys = areaData.waterFx
       .filter((h) => waterGap(h.footprint, f.x + f.wx * 0.01, f.z + f.wz * 0.01) < 0)
       .map((h) => h.y ?? 0.03);
-    const fillY = (ys.length ? Math.max(...ys) : 0.03) + LIP_LIFT * 0.5;
+    const fillY = (ys.length ? Math.max(...ys) : 0.03) + FILL_LIFT;
     return { ...f, fillY, fillTop: fillY + LIP_LIFT * 0.5, samples: [] };
   }) : null;
 
@@ -1402,7 +1411,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
         period: r.ctx.period,
         closed: r.ctx.chainClosed,
         length: r.ctx.chainLength,
-        samples: r.samples.map(({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite }) => ({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite })),
+        samples: r.samples.map(({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite, fillTop }) => ({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite, fillTop })),
       };
     });
   }
