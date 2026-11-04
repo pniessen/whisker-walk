@@ -8,6 +8,9 @@ import { makeRustleMaterial } from '../render/rustle.js';
 import { createRockRelief, strataBand, noise3, CREST_BAND, RELIEF_DEPTH, ROCK_ROW, ROW_MIN } from './rockrelief.js';
 import { smoothNormals } from './rocknormals.js';
 import { patchRockMaterial, ROCK_SHADE, TALUS_TINT } from './rockshade.js';
+// dressing.js imports hash01 back from here; the cycle is safe because neither
+// module calls the other at load time (bothSidesLit is only used in fernBed).
+import { bothSidesLit } from './dressing.js';
 
 const mat = (color) => litMaterial(color);
 
@@ -3727,28 +3730,170 @@ export function reedBed(spots, seed) {
   return m;
 }
 
-// Ferns, a clump at each spot, one merged mesh: FERN_FRONDS thin fronds
-// arching out from the middle, under 0.6 m tall, so they dress the floor of a
-// wood without hiding a cat or a path. Low and wide like the reeds, so they
-// opt out of the caster sweep the same way.
+// Ferns, a clump at each spot, one mesh: FERN_FRONDS fronds arching out from
+// the middle, under 0.6 m tall, so they dress the floor of a wood without
+// hiding a cat or a path. Low and wide like the reeds, so they opt out of the
+// caster sweep the same way.
+//
+// Each frond is a rachis of FERN_SEGS segments that leaves the ground steeply
+// (50-70 degrees) and droops more with each segment, so it rises, arcs over and
+// ends with its tip about 0.4 of its length off the ground. Every segment
+// carries a long, narrow leaflet on each side — one triangle from the rachis
+// out to a tip set sideways and swept forward past the segment's end, barely
+// drooping — and one small triangle closes the tip: 13 triangles a frond, a
+// comb rather than a paddle. The colour runs dark root -> rich mid -> slightly
+// lighter tip, toned per clump. Thin and open, so it
+// is double-sided and lit by its built (upward-leaning) normals on both faces.
 const FERN_FRONDS = 7;
+const FERN_SEGS = 6;
+// dark, rich greens (darker than the ~0x5a8f45 grass): root -> mid -> tip,
+// the tip only a little lighter than the middle
+const FERN_ROOT = 0x1e3a17;
+const FERN_MID = 0x2f5a24;
+const FERN_TIP = 0x4f7f2f;
+// leaflet half-width per segment, in units of clump size: widest at the
+// second and third segments, narrowing to 0.03 at the tip
+const FERN_LEAF = [0.12, 0.16, 0.16, 0.115, 0.07, 0.03];
+
+// Progressive droop: segment s loses D * (s / (FERN_SEGS - 1))^2 * (FERN_SEGS - 1)
+// of pitch, small at the base and larger toward the tip, so a frond rises,
+// arcs over and comes down. D is solved (bisection, no randomness) so the
+// tip sits FERN_TIP_RISE * len above the root.
+const FERN_TIP_RISE = 0.4;
+const fernBend = (s) => ((s / (FERN_SEGS - 1)) ** 2) * (FERN_SEGS - 1);
+function fernDroop(lift) {
+  const tipRise = (d) => {
+    let s = 0;
+    for (let i = 0; i < FERN_SEGS; i++) s += Math.sin(lift - d * fernBend(i));
+    return s / FERN_SEGS;
+  };
+  let lo = 0;
+  let hi = 1.5;
+  for (let it = 0; it < 30; it++) {
+    const mid = (lo + hi) / 2;
+    if (tipRise(mid) > FERN_TIP_RISE) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+// uuid parity: the box fronds made one BufferGeometry per frond plus the merged
+// one (just the empty one for no spots), and every Three geometry draws 4
+// Math.random numbers for its uuid. The flat trace and the per-area draw-count
+// pins (test/waterlooks.test.js) hang on that count, so the single geometry
+// built here is topped up with throwaways to the old number.
+function fernUuidParity(n) {
+  const oldGeomCount = n === 0 ? 1 : n === 1 ? 1 : n + 1;
+  for (let k = 0; k < oldGeomCount - 1; k++) new THREE.BufferGeometry().dispose();
+}
+
 export function fernBed(spots, seed) {
-  const geoms = [];
+  const n = spots.length * FERN_FRONDS;
+  const tris = FERN_SEGS * 2 + 1;
+  const pos = new Float32Array(n * tris * 9);
+  const nor = new Float32Array(n * tris * 9);
+  const col = new Float32Array(n * tris * 9);
+  const root = new THREE.Color().setHex(FERN_ROOT);
+  const midC = new THREE.Color().setHex(FERN_MID);
+  const tip = new THREE.Color().setHex(FERN_TIP);
+  const c = new THREE.Color();
+  const a = new THREE.Vector3();
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
+  let v = 0;
+  // one triangle; `ts` are the three vertices' distances along the frond (0-1)
+  const tri = (p0, p1, p2, t0, t1, t2, tone) => {
+    e1.subVectors(p1, p0);
+    e2.subVectors(p2, p0);
+    a.crossVectors(e1, e2).normalize();
+    if (a.y < 0) a.negate();
+    // 30% of the way toward +Y: leaning up enough to read lit, not so much
+    // that every leaflet faces the sun and washes out
+    a.multiplyScalar(0.7);
+    a.y += 0.3;
+    a.normalize();
+    for (const [p, t] of [[p0, t0], [p1, t1], [p2, t2]]) {
+      const o = v * 3;
+      pos[o] = p.x; pos[o + 1] = p.y; pos[o + 2] = p.z;
+      nor[o] = a.x; nor[o + 1] = a.y; nor[o + 2] = a.z;
+      if (t < 0.5) c.copy(root).lerp(midC, t * 2); else c.copy(midC).lerp(tip, t * 2 - 1);
+      c.multiplyScalar(tone);
+      col[o] = c.r; col[o + 1] = c.g; col[o + 2] = c.b;
+      v++;
+    }
+  };
+  const rach = Array.from({ length: FERN_SEGS + 1 }, () => new THREE.Vector3());
+  const fwd = new THREE.Vector3();
+  const side = new THREE.Vector3();
+  const mid = new THREE.Vector3();
+  const lt = new THREE.Vector3();
+  const rt = new THREE.Vector3();
+  const tl = new THREE.Vector3();
+  const tr = new THREE.Vector3();
+  const apex = new THREE.Vector3();
   spots.forEach((sp, i) => {
     const turn = hash01(sp.x, sp.z, seed + 1) * Math.PI * 2;
     const size = 0.8 + 0.4 * hash01(sp.z, sp.x, seed + 2);
+    const tone = 0.88 + 0.2 * hash01(sp.x, sp.z, seed + 6);
     for (let k = 0; k < FERN_FRONDS; k++) {
-      const len = (0.5 + 0.2 * hash01(i, k, seed + 3)) * size;
-      const frond = new THREE.BoxGeometry(0.17 * size, 0.015, len);
-      frond.translate(0, 0, len / 2);
-      // lifted 30-50 degrees off the ground, then turned to its place in the ring
-      frond.rotateX(-(0.52 + 0.35 * hash01(k, i, seed + 4)));
-      frond.rotateY(turn + (k / FERN_FRONDS) * Math.PI * 2 + (hash01(k, i, seed + 5) - 0.5) * 0.5);
-      frond.translate(sp.x, 0, sp.z);
-      geoms.push(frond);
+      const len = 1.2 * (0.5 + 0.2 * hash01(i, k, seed + 3)) * size;
+      // lifted 50-70 degrees off the ground (the box fronds' lift hash plus
+      // 0.35 rad, so the arch still stands knee-high to a cat), then turned to
+      // its place in the ring
+      const lift = 0.52 + 0.35 * hash01(k, i, seed + 4) + 0.35;
+      const yaw = turn + (k / FERN_FRONDS) * Math.PI * 2 + (hash01(k, i, seed + 5) - 0.5) * 0.5;
+      const droop = fernDroop(lift);
+      const seg = len / FERN_SEGS;
+      const sy = Math.sin(yaw);
+      const cy = Math.cos(yaw);
+      side.set(cy, 0, -sy);
+      const tipLen = 0.06 * size;
+      const total = len + tipLen;
+      rach[0].set(sp.x, 0, sp.z);
+      for (let s = 0; s < FERN_SEGS; s++) {
+        const pitch = lift - droop * fernBend(s);
+        fwd.set(sy * Math.cos(pitch), Math.sin(pitch), cy * Math.cos(pitch));
+        rach[s + 1].copy(rach[s]).addScaledVector(fwd, seg);
+        const f = s / (FERN_SEGS - 1);
+        // long, narrow, swept forward: the leaflet tip sits out sideways past
+        // the END of its segment, drooping only a little
+        const half = FERN_LEAF[s] * size;
+        const below = 0.01 + 0.01 * f;
+        mid.copy(rach[s + 1]).addScaledVector(fwd, 0.35 * seg);
+        mid.y -= below;
+        lt.copy(mid).addScaledVector(side, -half);
+        rt.copy(mid).addScaledVector(side, half);
+        lt.y = Math.max(lt.y, 0.01);
+        rt.y = Math.max(rt.y, 0.01);
+        const t0 = (s * seg) / total;
+        const t1 = ((s + 1) * seg) / total;
+        const tm = Math.min((s + 1.35) * seg, total) / total;
+        tri(rach[s], lt, rach[s + 1], t0, tm, t1, tone);
+        tri(rach[s], rach[s + 1], rt, t0, t1, tm, tone);
+      }
+      // the closing tip: a small spear on along the last segment's heading
+      const end = rach[FERN_SEGS];
+      tl.copy(end).addScaledVector(side, -0.015);
+      tr.copy(end).addScaledVector(side, 0.015);
+      apex.copy(end).addScaledVector(fwd, tipLen);
+      apex.y = Math.max(apex.y, 0.01);
+      tri(tl, apex, tr, len / total, 1, len / total, tone);
     }
   });
-  return mergedNoCast(geoms, 0x467f36, 'foliage');
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  fernUuidParity(n);
+  // Lambert, not the 'foliage' standard material: thin leaflets are seen
+  // edge-on from every angle, and the standard material's grazing-angle
+  // specular (mostly the grey RoomEnvironment reflection) washed whole fronds
+  // out to pale khaki on the phone. A fern has no gloss worth keeping.
+  const material = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, side: THREE.DoubleSide });
+  bothSidesLit(material);
+  const m = new THREE.Mesh(geo, material);
+  m.castShadow = false;
+  m.userData.noCast = true;
+  return m;
 }
 
 // Bramble thickets, one merged mesh: each spot is three or four squashed

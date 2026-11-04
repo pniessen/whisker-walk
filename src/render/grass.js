@@ -6,6 +6,8 @@ import { FLAT_GROUND, groundOf } from '../ground.js';
 import { trailReach } from '../world/pathribbon.js';
 import { riverGroundTint } from '../world/riverdress.js';
 import { moorGroundTint } from '../world/moordress.js';
+import { woodsGroundTint } from '../world/woods.js';
+import { pinesGroundTint } from '../world/pines.js';
 
 // ---------------------------------------------------------------------------
 // GRASS — low swaying tufts on the lawn near the camera (Stream 4 round two,
@@ -342,7 +344,7 @@ export function woodsDensity(x, z) {
   return 0.85 * smooth01(0.42, 0.72, patchNoise(x, z, 3.4, 29));
 }
 const WOODLAND = Object.freeze({
-  color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity, ground: 0, hue: 0.1, flowers: 0,
+  color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity, ground: 0.8, hue: 0.1, flowers: 0,
 });
 
 // The River's marsh: taller, yellower-green tufts in broad patches, so the
@@ -369,7 +371,7 @@ export function pineFloorDensity(x, z) {
   return 0.7 * smooth01(0.35, 0.65, patchNoise(x, z, 5.0, 61));
 }
 const PINE_FLOOR = Object.freeze({
-  color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity, ground: 0, hue: 0.08, flowers: 0,
+  color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity, ground: 0.8, hue: 0.08, flowers: 0,
 });
 
 // The Gorge: a little short, olive grass in patches, only on the base floor
@@ -412,7 +414,9 @@ export const GRASS_STYLES = Object.freeze({
 // a 1 m grid (tintSampler) and reads that bilinearly: a re-lay one chunk over
 // only pays for the strip of cells it has not seen yet.
 // ---------------------------------------------------------------------------
-export const GROUND_TINTS = Object.freeze({ river: riverGroundTint, moor: moorGroundTint });
+export const GROUND_TINTS = Object.freeze({
+  river: riverGroundTint, moor: moorGroundTint, woods: woodsGroundTint, pines: pinesGroundTint,
+});
 
 // tintSampler(fn, bounds, cell) — `fn(x, z) -> [r, g, b]` cached at the corners
 // of a `cell`-metre grid over `bounds`, filled on first read. `at(x, z, out)`

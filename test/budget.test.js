@@ -283,6 +283,25 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // triangles (beachPaint 880, beachDressing 1,665), meshes 68 -> 70, casters
 // 33 (unchanged). 551 triangles left under the 30,000 ceiling: the next
 // Seaside build trims first.
+//
+// 2026-11-04, polish-forestfloor: the Woods and the Pines get a forest floor,
+// all visual. The fern beds' fronds are redrawn (builder.js fernBed, Lambert
+// so their thin edges keep their colour); both grounds are re-tinted in place
+// (leaf litter, canopy shade and moss in the Woods; needle beds and moss in
+// the Pines; no triangles), and their grass tufts read the same tint. Each
+// gains one noCast 'forestFloor' mesh (src/world/forestfloor.js: in the Woods
+// two-triangle fallen leaves, moss cushions, mushrooms, bluebells and
+// foxgloves; in the Pines needles, cones, moss and blueberries), built under
+// withLocalUuids, so the build draw counts and the flat trace do not move.
+// Ceilings unchanged. Before is main at b2b06b1.
+//
+//   area    meshes      casters    merged (meshes/casters)   triangles          ferns              forestFloor
+//   woods   183 -> 184  154 -> 154  181/152 -> 182/152     51,977 -> 57,910   17,220 -> 18,655   4,498
+//   pines   116 -> 117   71 -> 71   113/68 -> 114/68       49,522 -> 54,751   11,256 -> 12,194   4,291
+//
+// The Woods has 2,090 and the Pines 5,249 triangles left under the 60,000
+// ceiling (the Woods' own floor test holds it to 58,500, the Pines' to
+// 56,000).
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the
