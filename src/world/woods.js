@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as b from './builder.js';
+import { addTrails } from './pathribbon.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
@@ -487,7 +488,7 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(stones);
 
   // --- the paths --------------------------------------------------------------
-  for (const s of WOODS_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
+  addTrails(scene, [{ segs: WOODS_PATHS, w: PATH_W }], PATH_STYLE, 'woods');
 
   // --- reeds --------------------------------------------------------------------
   scene.add(b.reedBed(reedSpots(), seedFromCode('woods-reeds')));
