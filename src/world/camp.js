@@ -179,6 +179,21 @@ const GATE_CAP = 0.95;
 // collider.
 export const CLUMP_R = 0.26;
 const CLUMP_SEAT_GAP = 0.5;   // from any seat, and from the den's and rock's edges
+// The bramble canes woven along the ring (polish-camps4): two layers of
+// arching canes laid end to end round the ring, the second staggered by
+// `stagger` metres so its joins fall mid-cane on the first. Along a cane its
+// radius weaves ringR ± weave (across both rows, the layers out of phase, so
+// they cross), its height arches from `foot` at the ends to a peak in `peak`
+// with a small over/under bob, a point every ~`step` m, the tube's radius
+// tapering w0 -> w1 from foot to tip. A point is kept only within `near` of a
+// kept clump, `seat` off every seat, `edge` off the den's, the rock's and
+// every collider's edge, and inside the ring's arc (never in the gap); a cane
+// splits where points drop, and a run under 3 points vanishes.
+const CANE = {
+  len: [2.6, 3.8], stagger: 1.6, step: 0.4, weave: 0.18, waves: [0.8, 1.4],
+  foot: 0.08, peak: [0.7, 0.9], skew: 0.2, bob: 0.1, bobs: [2, 3.5], w0: 0.036, w1: 0.016,
+  near: 0.45, seat: 0.4, edge: 0.25,
+};
 const CLEARING_IN = 0.7;      // the clearing's radius: ring.r - 0.7
 const NEST_R = 0.4;
 // The fresh-kill pile: tried at these distances from the rock's centre and
@@ -192,9 +207,56 @@ const KILL_EDGE_GAP = 0.3;
 // deputy and 1.03 m off the rock's edge, to the deputy's south.
 const LEDGE_KILL = frozen({ gorge: frozen({ x: 9.4, z: 42.7 }) });
 
+// The ring's canes (CANE): pure, from hash01 of the camp's centre alone.
+// `clear(p)` is campDressing's seat and collider rule for a point.
+function ringCanes(cx, cz, ringR, gapA, span, clumps, clear) {
+  const arc = span * ringR;
+  const lerp = ([lo, hi], t) => lo + (hi - lo) * t;
+  const runs = [];
+  for (let layer = 0; layer < 2; layer++) {
+    let s0 = -layer * CANE.stagger;
+    for (let idx = 0; s0 < arc; idx++) {
+      const h = (k) => hash01(cx, layer * 1000 + idx * 10 + k, cz, 40);
+      const len = lerp(CANE.len, h(0));
+      const m = Math.max(2, Math.round(len / CANE.step));
+      const waves = lerp(CANE.waves, h(1));
+      const phase = h(2) + layer * 0.5;
+      const peak = lerp(CANE.peak, h(3));
+      const bobPhase = h(4);
+      const bobs = lerp(CANE.bobs, h(5));
+      // the peak off the middle (u 0.3..0.7): a cane leans one way
+      const tip = 0.5 + CANE.skew * (h(6) * 2 - 1);
+      let run = [];
+      for (let j = 0; j <= m; j++) {
+        const u = j / m;
+        const s = s0 + u * len;
+        const a = gapA + RING_GAP_HALF + s / ringR;
+        const d = ringR + CANE.weave * Math.sin(2 * Math.PI * (u * waves + phase));
+        const v = u < tip ? (u / tip) * 0.5 : 0.5 + ((u - tip) / (1 - tip)) * 0.5;
+        const arch = Math.sin(Math.PI * v);
+        const y = Math.min(peak, CANE.foot + (peak - CANE.foot) * arch
+          + CANE.bob * arch * Math.sin(2 * Math.PI * (u * bobs + bobPhase)));
+        const p = { x: cx + Math.cos(a) * d, y, z: cz + Math.sin(a) * d, w: CANE.w0 + (CANE.w1 - CANE.w0) * u };
+        const keep = s > 0.05 && s < arc - 0.05
+          && clumps.some((c) => Math.hypot(p.x - c.x, p.z - c.z) <= CANE.near)
+          && clear(p);
+        if (keep) run.push(p);
+        else {
+          if (run.length >= 3) runs.push(run);
+          run = [];
+        }
+      }
+      if (run.length >= 3) runs.push(run);
+      s0 += len;
+    }
+  }
+  return runs;
+}
+
 /**
  * campDressing(areaId, colliders = []) -> null | {
- *   ring: null | { r, gap: { a, half }, clumps: [{ x, z, s, h, rot, row, gate }] },
+ *   ring: null | { r, gap: { a, half }, clumps: [{ x, z, s, h, rot, row, gate }],
+ *                  canes: [[{ x, y, z, w }]] },
  *   clearing: null | { x, z, r }, nests: [{ x, z, r }], kill: { x, z } }
  *
  * The camp's dressing, positions only. `colliders` is the area's collider
@@ -203,7 +265,11 @@ const LEDGE_KILL = frozen({ gorge: frozen({ x: 9.4, z: 42.7 }) });
  * clump keeps 0.5 m off every seat and off the den's and the rock's edges. The
  * ring's gap is centred on CAMP_TURN + π, the side away from the den. A
  * clump's `row` is 0 (inner) or 1 (outer), alternating slot by slot; `gate`
- * is true for the first and last slot, the clumps either side of the gap. A ledge
+ * is true for the first and last slot, the clumps either side of the gap.
+ * `canes` are the bramble canes woven along the ring (CANE above), polylines of
+ * points with the tube's radius w at each; they are drawn from hash01 alone,
+ * never the camp's rng, so the clumps are where they were before the canes,
+ * and a collider only drops the cane points near it. A ledge
  * camp has no ring and no clearing. Null where campLayout is null. A fresh
  * object every call.
  */
@@ -259,8 +325,12 @@ export function campDressing(areaId, colliders = []) {
   // the first spot, so a future layout change still draws a pile.
   if (!kill) kill = { x: L.rock.x + Math.cos(toCentre + KILL_TURNS[0]) * KILL_D[0], z: L.rock.z + Math.sin(toCentre + KILL_TURNS[0]) * KILL_D[0] };
 
+  const canes = ringCanes(cx, cz, ringR, gapA, span, clumps, (p) => (
+    seats.every((q) => near(p, q) >= CANE.seat)
+    && [L.den, L.rock, ...cols].every((k) => near(p, k) - k.r >= CANE.edge)));
+
   return {
-    ring: { r: ringR, gap: { a: gapA, half: RING_GAP_HALF }, clumps },
+    ring: { r: ringR, gap: { a: gapA, half: RING_GAP_HALF }, clumps, canes },
     clearing: { x: cx, z: cz, r: ringR - CLEARING_IN },
     nests,
     kill,
@@ -271,7 +341,7 @@ const DOORWAY = 0x140f0a;
 const DEN_SQUASH = 0.8;
 
 // Each clan's camp in its own colours (polish-camps3). One record per camp:
-//   ring:  greens (a clump's green, by hash), strand (the arched strands),
+//   ring:  greens (a clump's green, by hash), strand (the bramble canes),
 //          specks ([hex, share]: berries, flowers, seed heads; a share of the
 //          clumps' triangles recoloured whole, by a hash of each centroid)
 //   den:   base (the mound, dark at its foot), streak (new growth), strand
@@ -348,14 +418,19 @@ const FRAME_AT = 1.02;
 const RING_LOOK = {
   foot: 0.62,         // a clump's green, times, at its foot ...
   crown: 1.12,        // ... and at its crown (specks are not shaded)
-  strandTube: 0.025,
-  strandMax: 0.6,     // clumps further apart than this get no strand
-  top: 1.0,           // ruling R3: no ring vertex above 1 m
+  lumpIn: -0.2,       // a lump vertex's pull towards its clump's foot ...
+  lumpOut: 0.05,      // ... or push away from it (lumpy, in ringMesh)
 };
 // y 0.011: over the path strips (0.01) and wet sand (0.008), under the paw
-// prints (pawprints PRINT_Y 0.012) and the contact-shadow decals (DECAL_Y
-// 0.015), so the opaque floor neither hides the prints nor ties the shadows.
-const CLEARING = { y: 0.011, segments: 28, edge: 0.1 };
+// prints (0.012) and the contact-shadow decals (0.015). The solid middle is
+// opaque and writes depth, as the old floor did. The see-through rim writes
+// none, so its order puts it between the see-through things: over the worn
+// path trails (pathribbon.js, -4), so a trail runs in under the fading edge,
+// and under the water band (-3), the paw prints (-2) and the decals (-1),
+// which go over it (order -3.5).
+// fade: the soft band at the rim, solid inside r - fade, clear at r * wobble;
+// wobble: the rim's radius factor, 1 - wobble..1 (a sum of three low sinusoids).
+const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -3.5 };
 const NEST = { r: 0.35, tube: 0.09, squash: 0.55 };
 const KILL_LOOK = { mouse: 0x7a5a3e, vole: 0x5e4a36, bird: 0x8a8478, wing: 0xa59d8c };
 
@@ -502,50 +577,165 @@ function doorGeometry(den, out) {
   return geo;
 }
 
-// The Highrock (polish-viewclear): two stacked flat-topped slabs, 7-sided,
-// each side corner pushed in or out by up to 6 % (hash01, x and z only, so
-// the top stays level): the lower one radius 0.6 at the foot to 0.52 at 0.45 m,
-// the upper 0.5 to 0.44, its top face exactly at rock.h (0.8), where the
-// leader stands. Behind her, on the side away from the camp's centre, a tall
-// back stone 0.56 m out and 0.14 deep, its front face 0.43 m from the centre
-// (the leader's 0.42 m stays clear, so she no longer clips into it), rising
-// to ~1.64 m. (The brief's 0.6 m and 0.16 put the Woods camp group 6.55 m
-// deep, over the contact-shadow scan's MAX_SPAN 6.5; at 0.56/0.14 it is
-// 6.49.) And a smaller step stone to one side, its top under 0.45 m. Every
-// vertex within 0.8 m of the rock's centre (camp.test.js); the collider is
-// still the rock's r 0.6. Merged and non-indexed (flat-shaded), baked in
-// world space.
-const SLABS = [
-  { rTop: 0.52, rBottom: 0.6, h: 0.45 },
-  { rTop: 0.44, rBottom: 0.5, h: 0.35 },
-];
-function highrockGeometry(rockSpot, cx, cz) {
-  const parts = [];
-  let y = rockSpot.h - SLABS.reduce((sum, b) => sum + b.h, 0); // 0 for rock.h 0.8
-  for (const [k, b] of SLABS.entries()) {
-    const slab = new THREE.CylinderGeometry(b.rTop, b.rBottom, b.h, 7, 1);
-    const pos = slab.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const px = pos.getX(i);
-      const pz = pos.getZ(i);
-      if (Math.hypot(px, pz) < 1e-6) continue; // the caps' centres
-      const push = 1 + (hash01(px, k, pz, 17) * 2 - 1) * 0.06;
-      pos.setXYZ(i, px * push, pos.getY(i), pz * push);
+// The Highrock (polish-camps4): a stepped boulder the leader stands on, not
+// the armchair of slabs it was. Built around the origin (x, z 0, its foot at
+// y 0) in a frame turned to `away`, the direction from the rock to its back
+// (a flat camp's is away from the camp's centre; the Gorge's is +x, inland,
+// as its leader looks west over the gorge), and moved to the rock's spot by
+// the caller. Four stones, all in one non-indexed, flat-shaded geometry:
+//  - the main boulder: eight sides, rings at y 0, 0.4, 0.68 and rock.h with
+//    radii 0.62, 0.66, 0.58 and 0.44, a little wider along the ring round
+//    the camp than out from its centre, every corner pushed in or out by up
+//    to 8 % (hash01; the top ring inward only) and a flat top cap at exactly
+//    rock.h (0.8), where the leader stands. 56 triangles, no bottom cap.
+//  - a back stone she leans on: a round, hash-jittered icosahedron behind her
+//    and turned off to one side (towards the fresh-kill pile), its top under
+//    1.15 m; its corners above 0.82 m all stay more than 0.44 m from the
+//    centre (corners only: a face between them can dip a few cm nearer just
+//    above the top, where only a paw or the tail could brush it).
+//  - two step boulders (icosahedra), tops ~0.5 and ~0.25 m, climbing round
+//    the side away from the pile, the low one nearer the camp, so the rock
+//    reads as a climb up to the top.
+// No vertex is further than 0.78 m (x and z) from the centre, none further
+// back than 0.68 m along `away` (the Woods camp group stays under the
+// contact-shadow scan's MAX_SPAN 6.5) and none below y 0; the collider is
+// still the rock's r 0.6. Each face is coloured flat, a grey multiplier on
+// the material's look.rock: dark at the foot (0.72) to light at the top
+// (1.0), up-facing faces a touch lighter, ±6 % by a hash of the face. Every
+// hash takes the rock's spot as well, so no two camps' rocks are alike.
+// 116 triangles (it was 128).
+const HIGHROCK = {
+  rings: [[0, 0.62], [0.4, 0.66], [0.68, 0.58], [null, 0.44]], // [y, r]; null: rock.h
+  sides: 8,
+  along: 1.05,   // the ring-wise stretch ...
+  out: 0.93,     // ... and the outward squash
+  push: 0.08,
+  stepSide: 0.16, // the boulder drawn in this share where the steps climb
+  reach: 0.78,   // no vertex further from the centre (x and z)
+  back: 0.68,    // nor further back along `away`
+  clear: 0.44,   // a corner above clearY stays this far from the centre
+  clearY: 0.82,
+  // stones: [turn off `away` (times side), out, y, rOut, rAlong, rY, tint, salt]
+  stones: [
+    [-0.9, 0.5, 0.74, 0.27, 0.34, 0.38, 0.95, 31], // the back stone, to the pile's side
+    [1.25, 0.5, 0.25, 0.27, 0.3, 0.29, 0.9, 32],    // the high step, top ~0.5
+    [2.05, 0.58, 0.12, 0.22, 0.27, 0.15, 0.88, 33], // the low step, top ~0.25
+  ],
+};
+function highrockGeometry(rockSpot, away, opts = {}) {
+  const ox = rockSpot.x;
+  const oz = rockSpot.z;
+  const top = rockSpot.h;
+  const bx = Math.cos(away);
+  const bz = Math.sin(away);
+  // the step side: away from the pile (side +1 is +90 degrees from `away`)
+  const k = opts.kill;
+  const side = k && (-bz * k.x + bx * k.z) > 0 ? -1 : 1;
+  // local (u out along away, v round the ring) to x, z
+  const toXZ = (u, v) => [u * bx - v * bz, u * bz + v * bx];
+  const pos = [];
+  const tints = [];
+  let tint = 1;
+  const tri = (p, q, r) => { pos.push(...p, ...q, ...r); tints.push(tint); };
+
+  // the main boulder
+  const { sides } = HIGHROCK;
+  const phase = hash01(ox, 0, oz, 30) * (Math.PI * 2 / sides);
+  const rings = HIGHROCK.rings.map(([y0, r], ri) => {
+    const y = y0 ?? top;
+    const last = ri === HIGHROCK.rings.length - 1;
+    const pts = [];
+    for (let j = 0; j < sides; j++) {
+      // each ring turned half a side on from the one under it, so the
+      // faces are triangles, not upright panels
+      const a = phase + ((j + ri / 2) / sides) * Math.PI * 2;
+      const h = hash01(ox + j, ri, oz, 34);
+      const push = last ? 1 - h * HIGHROCK.push : 1 + (h * 2 - 1) * HIGHROCK.push;
+      const dy = ri === 1 || ri === 2 ? (hash01(ox, ri, oz + j, 35) - 0.5) * 0.08 : 0;
+      // drawn in round the steps' side, so they stand out of it
+      const lean = Math.max(0, Math.cos(a - side * 1.6)) ** 2 * HIGHROCK.stepSide;
+      const rr = r * push * (1 - (last ? 0 : lean));
+      const [x, z] = toXZ(Math.cos(a) * rr * HIGHROCK.out, Math.sin(a) * rr * HIGHROCK.along);
+      pts.push([x, y + dy, z]);
     }
-    parts.push(bake(slab, place(rockSpot.x, y + b.h / 2, rockSpot.z, 1, 1, 1)));
-    y += b.h;
+    return pts;
+  });
+  for (let ri = 0; ri + 1 < rings.length; ri++) {
+    const lo = rings[ri];
+    const hi = rings[ri + 1];
+    for (let j = 0; j < sides; j++) {
+      const n = (j + 1) % sides;
+      tri(lo[j], hi[j], lo[n]);
+      tri(lo[n], hi[j], hi[n]);
+    }
+  }
+  const crown = rings[rings.length - 1];
+  for (let j = 0; j < sides; j++) tri([0, top, 0], crown[(j + 1) % sides], crown[j]);
+
+  // the back stone and the steps
+  for (const [turn, d, y, rOut, rAlong, rY, stoneTint, salt] of HIGHROCK.stones) {
+    tint = stoneTint;
+    const a = away + turn * side;
+    const cxs = Math.cos(a) * d;
+    const czs = Math.sin(a) * d;
+    const ico = new THREE.IcosahedronGeometry(1, 0);
+    const p = ico.attributes.position;
+    const ca = Math.cos(a);
+    const sa = Math.sin(a);
+    const yaw = hash01(ox, salt, oz, 36) * Math.PI;
+    for (let i = 0; i < p.count; i += 3) {
+      const face = [];
+      for (let m = 0; m < 3; m++) {
+        let ux = p.getX(i + m);
+        const uy = p.getY(i + m);
+        let uz = p.getZ(i + m);
+        const j = 1 + (hash01(ux + ox, uy + salt, uz + oz, 37) * 2 - 1) * 0.12;
+        // a turn about y, so no two stones show the same face
+        [ux, uz] = [ux * Math.cos(yaw) - uz * Math.sin(yaw), ux * Math.sin(yaw) + uz * Math.cos(yaw)];
+        const lo = ux * rOut * j;
+        const la = uz * rAlong * j;
+        face.push([cxs + lo * ca - la * sa, Math.max(0, y + uy * rY * j), czs + lo * sa + la * ca]);
+      }
+      tri(face[0], face[1], face[2]);
+    }
+    ico.dispose();
   }
 
-  const away = Math.atan2(rockSpot.z - cz, rockSpot.x - cx);
-  const at = (d, a) => [rockSpot.x + Math.cos(a) * d, rockSpot.z + Math.sin(a) * d];
-  // local x along the ring round the rock, local z out from the centre
-  const [bx, bz] = at(0.56, away);
-  parts.push(bake(new THREE.DodecahedronGeometry(1, 0), place(bx, 0.85, bz, 0.22, 0.85, 0.14, Math.PI / 2 - away)));
-  const side = hash01(rockSpot.x, 0, rockSpot.z, 9) < 0.5 ? 1 : -1;
-  const [stx, stz] = at(0.48, away + side * 1.25);
-  // y scale 0.26: the dodecahedron's top vertex (0.934) lands at 0.443 m
-  parts.push(bake(new THREE.DodecahedronGeometry(1, 0), place(stx, 0.2, stz, 0.2, 0.26, 0.2, away)));
-  return merged(parts);
+  // the limits: reach, back, the leader's clearance
+  for (let i = 0; i < pos.length; i += 3) {
+    let x = pos[i];
+    let z = pos[i + 2];
+    const back = x * bx + z * bz;
+    if (back > HIGHROCK.back) {
+      x -= bx * (back - HIGHROCK.back);
+      z -= bz * (back - HIGHROCK.back);
+    }
+    const d = Math.hypot(x, z);
+    const want = pos[i + 1] > HIGHROCK.clearY ? Math.max(d, HIGHROCK.clear) : d;
+    const s = d > 1e-9 ? Math.min(want, HIGHROCK.reach) / d : 1;
+    pos[i] = x * s;
+    pos[i + 2] = z * s;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  const nrm = geo.attributes.normal;
+  const col = new Float32Array(pos.length);
+  for (let t = 0; t < pos.length; t += 9) {
+    const cy = (pos[t + 1] + pos[t + 4] + pos[t + 7]) / 3;
+    const cx = (pos[t] + pos[t + 3] + pos[t + 6]) / 3;
+    const cz = (pos[t + 2] + pos[t + 5] + pos[t + 8]) / 3;
+    let g = 0.72 + 0.28 * Math.min(1, cy / top);
+    g *= tints[t / 9] * (1 + (hash01(cx + ox, cy, cz + oz, 38) * 2 - 1) * 0.06);
+    if (nrm.getY(t / 3) > 0.6) g += 0.04;
+    g = Math.min(1.06, g);
+    for (let m = 0; m < 9; m++) col[t + m] = g;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return geo;
 }
 
 // THREE's generateUUID takes four Math.random() draws for every Object3D,
@@ -608,23 +798,85 @@ function speckle(geo, specks, salt) {
 // 0.41 to 0.57 m apart and 0.36 m along the ring, about the main lumps' own
 // width (0.39 to 0.59 m across), so big neighbours meet or overlap and small
 // ones leave a gap the other row's lumps and the back lumps mostly fill.
-// Over every other gap between consecutive KEPT clumps (the kept list's
-// 0-1, 2-3, ... pairs, not campDressing's slots, so a dropped clump shifts
-// the pairing; pairs 0.6 m or less apart) one arched bramble strand: a thin
-// half torus (24 triangles) standing upright between their crowns, its arch
-// squashed where it would rise over 1 m (ruling R3). The clan's greens by
-// hash, dark at the foot, with the clan's specks on the lumps (speckle); the
-// strands in the clan's strand colour. One vertex-coloured mesh, out of the
-// shadow pass: ~3,360 triangles a camp, so the River and the Moor stay under
-// the area's 60,000 (test/budget.test.js; ruling R7).
+// polish-camps4: the lumps are lumpier, each vertex pulled in or pushed out
+// about its clump's foot (lumpy below: x 0.8 to 1.05, by a hash of the world
+// vertex, so the two copies of a seam vertex move together and the faces stay
+// closed; never above h, never out of the footprint), the main lump's crown
+// raised from 0.85 h to 0.92 h to make up the pull, and the old arched
+// strands (a little half torus over every other pair of clumps, which read as
+// apples with stalks) are gone. In their place the canes (campDressing
+// ring.canes): long arching bramble canes woven along the ring in two
+// staggered layers, in and out across both rows and over and under the
+// crowns, each a tapered 3-sided tube (6 triangles a segment) in the clan's
+// strand colour, so the wall reads as a tangle, not a row of balls. The
+// clan's greens by hash, dark at the foot, with the clan's specks on the
+// lumps (speckle; the canes carry none). One vertex-coloured mesh, out of the
+// shadow pass: 28 triangles a clump and 6 a cane segment, 3,240 to 3,258 a camp,
+// under the 3,360 the strands cost, so the River and the Moor stay under the
+// area's 60,000 (test/budget.test.js; ruling R7). No ring vertex is above 1 m
+// (ruling R3).
 //
 // Ruling R4: the wall has no collider. A collider would change the walkable
 // ground, the clan cats' routes and the flat trace for the Woods, River, Moor
 // and Pines (test/flattrace.test.js); cats walk through brambles.
+const lumpy = (geo, c) => {
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const k = 1 + RING_LOOK.lumpIn + (RING_LOOK.lumpOut - RING_LOOK.lumpIn) * hash01(x, y, z, 20);
+    pos.setXYZ(i, c.x + (x - c.x) * k, Math.min(c.h, y * k), c.z + (z - c.z) * k);
+  }
+  geo.computeVertexNormals();
+  return geo;
+};
+
+// A tapered 3-sided tube along a cane's points, flat-shaded, coloured by
+// colorAt in world space. 6 triangles a segment.
+function caneGeometry(cane, colorAt) {
+  const n = cane.length;
+  const pos = new Float32Array(n * 3 * 3);
+  const t = new THREE.Vector3();
+  const side = new THREE.Vector3();
+  const nrm = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < n; i++) {
+    const p = cane[Math.max(0, i - 1)];
+    const q = cane[Math.min(n - 1, i + 1)];
+    t.set(q.x - p.x, q.y - p.y, q.z - p.z).normalize();
+    side.crossVectors(up, t).normalize();
+    nrm.crossVectors(t, side);
+    const c = cane[i];
+    // a little twist along the cane, so its flat faces catch the light unevenly
+    const tw = i * 0.7;
+    for (let k = 0; k < 3; k++) {
+      const th = tw + (k * Math.PI * 2) / 3;
+      const o = (i * 3 + k) * 3;
+      pos[o] = c.x + c.w * (Math.cos(th) * side.x + Math.sin(th) * nrm.x);
+      pos[o + 1] = c.y + c.w * (Math.cos(th) * side.y + Math.sin(th) * nrm.y);
+      pos[o + 2] = c.z + c.w * (Math.cos(th) * side.z + Math.sin(th) * nrm.z);
+    }
+  }
+  const index = [];
+  for (let i = 0; i + 1 < n; i++) {
+    for (let k = 0; k < 3; k++) {
+      const a = i * 3 + k;
+      const b = i * 3 + ((k + 1) % 3);
+      const c = (i + 1) * 3 + ((k + 1) % 3);
+      const d = (i + 1) * 3 + k;
+      index.push(a, b, c, a, c, d);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(index);
+  return bake(g, new THREE.Matrix4(), colorAt);
+}
+
 function ringMesh(ring, cx, cz, look) {
   const parts = [];
-  const cs = ring.clumps;
-  for (const c of cs) {
+  for (const c of ring.clumps) {
     const R = CLUMP_R * c.s;
     const out = Math.atan2(c.z - cz, c.x - cx);
     const along = out + Math.PI / 2;
@@ -638,34 +890,17 @@ function ringMesh(ring, cx, cz, look) {
     };
     const yaw = -along + Math.sin(c.rot) * 0.15;
     // the main lump, a widest corner turned onto the ring, so neighbours touch
-    const mainTop = c.h * 0.85;
+    const mainTop = c.h * 0.92;
     const msy = mainTop / (2 * ICO_Y);
     const main = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
-    parts.push(speckle(bake(main, place(c.x, mainTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.8 * R, yaw), at), look.ring.specks, 19));
+    parts.push(speckle(lumpy(bake(main, place(c.x, mainTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.8 * R, yaw), at), c), look.ring.specks, 19));
     // the back lump, 0.4 R out: its reach, 0.4 + 0.55, stays under R
     const bsy = c.h / 2;
     const back = new THREE.OctahedronGeometry(1, 0);
-    parts.push(speckle(bake(back, place(c.x + ox * 0.4 * R, bsy, c.z + oz * 0.4 * R, 0.55 * R, bsy, 0.55 * R, yaw + Math.PI / 4), at), look.ring.specks, 19));
+    parts.push(speckle(lumpy(bake(back, place(c.x + ox * 0.4 * R, bsy, c.z + oz * 0.4 * R, 0.55 * R, bsy, 0.55 * R, yaw + Math.PI / 4), at), c), look.ring.specks, 19));
   }
-  // The strands: from crown to crown, the arch's feet a little down in the
-  // lumps, its rise the half-span or what is left under 1 m.
-  const tube = RING_LOOK.strandTube;
-  const strandAt = (vx, vy, vz, col) => col.setHex(look.ring.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 18));
-  for (let i = 1; i < cs.length; i += 2) {
-    const p = cs[i - 1];
-    const q = cs[i];
-    const span = Math.hypot(q.x - p.x, q.z - p.z);
-    if (span > RING_LOOK.strandMax) continue;
-    const half = span / 2;
-    const foot = 0.85 * Math.min(p.h, q.h);
-    const rise = Math.max(0, Math.min(half, RING_LOOK.top - tube - foot));
-    const arch = new THREE.TorusGeometry(half, tube, 3, 4, Math.PI);
-    // the torus lies in its xy plane, feet at (±half, 0): squash its rise,
-    // then stand it on the line from p to q
-    arch.scale(1, rise / half, 1);
-    const yaw = -Math.atan2(q.z - p.z, q.x - p.x);
-    parts.push(bake(arch, place((p.x + q.x) / 2, foot, (p.z + q.z) / 2, 1, 1, 1, yaw), strandAt));
-  }
+  const caneAt = (vx, vy, vz, col) => col.setHex(look.ring.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 18));
+  for (const cane of ring.canes) parts.push(caneGeometry(cane, caneAt));
   const mesh = new THREE.Mesh(merged(parts), vcMaterial());
   mesh.name = 'campRing';
   mesh.userData.noCast = true;
@@ -675,28 +910,92 @@ function ringMesh(ring, cx, cz, look) {
 }
 
 // The clearing: the camp's trampled floor in the clan's colour and surface
-// (trampled earth, pale pebbles, cropped turf, needle litter), a disc with a
-// hash-jittered edge, lifted 1.5 cm and pulled towards the camera
-// (polygonOffset) so it never fights the ground or a path. A CircleGeometry
-// lying flat at the top level: grass.js's flatFootprints reads it as a disc
-// and grows no tufts through it.
+// (trampled earth, pale pebbles, cropped turf, needle litter), melted into the
+// ground: a two-ring disc, the centre, an inner ring at (r - 0.4) and an outer
+// ring at r, each scaled by one low-frequency wobble (three sinusoids with
+// phases from the camp centre, factor 0.9..1, the same for both rings at an
+// angle). The colour attribute is rgb 1 with alpha 1 up to the inner ring and
+// 0 at the outer, so the rim fades out instead of ending in a polygon line.
+// uv is planar over the full radius, as the old disc's was, so the surface
+// tiles the same. Two materials on two draw groups: the middle (the centre
+// fan) opaque and depth-written like the old floor, so a see-through path
+// strip or trail under it stays hidden; the rim band see-through, not written
+// to depth, at renderOrder -3.5: over the path trails (-4), so a trail slips
+// in under the fading edge, and under the water band (-3), paw prints (-2)
+// and contact-shadow decals (-1), so prints and decals go over it. Lifted 1.1 cm and pulled towards the camera (polygonOffset) so
+// it never fights the ground or a path. One mesh, two draws.
+// A CircleGeometry lying flat at the top level, built as radius r - 0.4 and
+// then given the two-ring attributes: grass.js's flatFootprints reads
+// parameters.radius, so grass is kept off inside r - 0.4 (the solid floor,
+// give or take the wobble's 10 %) and tufts grow into the rest of the faded
+// band.
 function clearingMesh(clearing, look) {
   const { x, z, r } = clearing;
-  const geo = new THREE.CircleGeometry(r, CLEARING.segments);
-  const pos = geo.attributes.position;
-  for (let i = 1; i < pos.count; i++) {
-    const k = (1 - CLEARING.edge) + CLEARING.edge * hash01(x, (i - 1) % CLEARING.segments, z, 12);
-    pos.setXY(i, pos.getX(i) * k, pos.getY(i) * k);
+  const n = CLEARING.segments;
+  const rIn = r - CLEARING.fade;
+  const geo = new THREE.CircleGeometry(rIn, n);
+  const ph = [0, 1, 2].map((k) => hash01(x, k, z, 12) * Math.PI * 2);
+  const wobble = (t) => {
+    const w = (Math.sin(2 * t + ph[0]) + 0.6 * Math.sin(3 * t + ph[1]) + 0.4 * Math.sin(5 * t + ph[2])) / 2; // -1..1
+    return 1 - CLEARING.wobble * (0.5 - 0.5 * w);
+  };
+  const pos = new Float32Array((1 + 2 * n) * 3);
+  const uv = new Float32Array((1 + 2 * n) * 2);
+  const nor = new Float32Array((1 + 2 * n) * 3);
+  const col = new Float32Array((1 + 2 * n) * 4);
+  uv[0] = uv[1] = 0.5;
+  for (let i = 0; i < 2 * n + 1; i++) { nor[i * 3 + 2] = 1; col.fill(1, i * 4, i * 4 + 3); }
+  col[3] = 1;
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    const k = wobble(t);
+    for (const [ring, rad, alpha] of [[1 + i, rIn * k, 1], [1 + n + i, r * k, 0]]) {
+      const px = Math.cos(t) * rad;
+      const py = Math.sin(t) * rad;
+      pos[ring * 3] = px;
+      pos[ring * 3 + 1] = py;
+      uv[ring * 2] = (px / r + 1) / 2;
+      uv[ring * 2 + 1] = (py / r + 1) / 2;
+      col[ring * 4 + 3] = alpha;
+    }
   }
+  // the centre fan first, then the rim band (the two draw groups below)
+  const fan = [];
+  const band = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const [a, b, A, B] = [1 + i, 1 + j, 1 + n + i, 1 + n + j];
+    fan.push(0, a, b);
+    band.push(a, A, B, a, B, b);
+  }
+  const idx = [...fan, ...band];
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 4));
+  geo.setIndex(idx);
+  // Two draw groups: the solid middle (the centre fan, 28 triangles) is
+  // opaque and writes depth as the old floor did, so anything flat and
+  // see-through drawn later below it (a path at y 0.01) stays hidden under
+  // it; only the fading rim (56 triangles) is see-through.
+  geo.clearGroups();
+  geo.addGroup(0, n * 3, 0);
+  geo.addGroup(n * 3, n * 6, 1);
   const { color, surface } = look.floor;
-  const mesh = new THREE.Mesh(geo, litMaterial(color, {
+  const floor = (extra) => litMaterial(color, {
     surface,
     repeat: repeatFor(surface, r * 2, r * 2),
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
-  }));
+    ...extra,
+  });
+  const mesh = new THREE.Mesh(geo, [
+    floor({}),
+    floor({ vertexColors: true, transparent: true, depthWrite: false }),
+  ]);
   mesh.name = 'campClearing';
+  mesh.renderOrder = CLEARING.order;
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.set(x, CLEARING.y, z);
   mesh.userData.noCast = true;
@@ -765,21 +1064,12 @@ function killMesh(kill, groundY = () => 0) {
   return mesh;
 }
 
-// The leader's rock: a dodecahedron squashed to rock.h, its base at y 0, in
-// the clan's rock colour.
-function campRockMesh(rockSpot, hex) {
-  const rockGeo = new THREE.DodecahedronGeometry(rockSpot.r, 0);
-  rockGeo.computeBoundingBox();
-  const { min, max } = rockGeo.boundingBox;
-  const sy = rockSpot.h / (max.y - min.y);
-  const rock = new THREE.Mesh(rockGeo, litMaterial(hex, surfaceProps('cobble')));
-  rock.name = 'campRock';
-  rock.scale.set(1, sy, 1);
-  rock.position.set(rockSpot.x, -min.y * sy, rockSpot.z);
-  return rock;
-}
+// The Highrock's material: the clan's rock colour, shaded per face by the
+// geometry's grey multipliers.
+const rockMaterial = (look) => litMaterial(look.rock, { ...surfaceProps('cobble'), vertexColors: true });
 
-// A ledge camp: three top-level meshes, the rock, the bedding (moss nests) and the fresh-kill pile, and one
+// A ledge camp: three top-level meshes, the Highrock (highrockGeometry), the
+// bedding (moss nests) and the fresh-kill pile, and one
 // collider, the rock (a cave den is the rock round it). They are separate
 // children of the scene, not a Group, because the contact-shadow scan boxes
 // one top-level child at a time and the bedding sits ~17 m from the rock: in
@@ -793,19 +1083,26 @@ function addLedgeCamp(scene, area, L) {
   const groundY = (x, z) => (ground && !ground.flat ? ground.y(x, z) : 0);
 
   const look = campLook('gorge');
-  const rock = campRockMesh(L.rock, look.rock);
-  if (ground) seatOnGround(rock, ground);
-  scene.add(rock);
-
-  // The nests and the pile are drawn under withLocalUuids, so the Gorge's
-  // build takes the Math.random draws it always took (camp.test.js): the
-  // bedding is handed over to a fresh mesh, geometry and material, as the old
-  // discs were, and the pile adds nothing on Math.random.
+  // The rock, the nests and the pile are drawn under withLocalUuids, so the
+  // Gorge's build takes the Math.random draws it always took (camp.test.js):
+  // the rock and the bedding are each handed over to a fresh mesh, geometry
+  // and material, as the old dodecahedron and discs were, and the pile adds
+  // nothing on Math.random.
   const D = campDressing('gorge', area.colliders);
   const made = withLocalUuids('gorge', () => ({
+    // the leader looks west, so the rock's back is +x (away 0), inland
+    rock: highrockGeometry(L.rock, 0, { kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z } }),
     nests: nestsMesh(D.nests, look, groundY, 0.5),
     kill: killMesh(D.kill, groundY),
   }));
+  // The rock: a fresh geometry, material and mesh on Math.random, as the old
+  // dodecahedron's were, built round the origin and seated on the ground
+  // under its spot.
+  const rock = new THREE.Mesh(adopt(made.rock), rockMaterial(look));
+  rock.name = 'campRock';
+  rock.position.set(L.rock.x, 0, L.rock.z);
+  if (ground) seatOnGround(rock, ground);
+  scene.add(rock);
   const bedding = new THREE.Mesh(adopt(made.nests.geometry), vcMaterial({ roughness: 0.9 }));
   bedding.name = 'campBedding';
   bedding.userData.noCast = true;
@@ -830,11 +1127,12 @@ function addLedgeCamp(scene, area, L) {
  *    noCast and noMerge (a merge would drop their noCast). Its box stays
  *    under the contact-shadow scan's MAX_SPAN, so den and rock keep a decal.
  *  - `campRing`, the bramble ring, one noCast mesh.
- *  - `campClearing`, the camp's floor, one flat noCast disc.
+ *  - `campClearing`, the camp's floor, one flat noCast disc with an opaque
+ *    middle and a see-through fading rim (two materials, two draws).
  * Every colour is the clan's (CAMP_LOOKS, by campLook(areaId); woods for an
  * id with no record).
  * The ring and the clearing are separate top-level children because the
- * scan boxes one top-level child at a time (they are ~11 m wide). Seven
+ * scan boxes one top-level child at a time (they are ~11 m wide). Eight
  * main-pass draws in all. Pushes { x, z, r } colliders for the den and the
  * rock into area.colliders, as before: the dressing has none. The ring dodges
  * the colliders already in area.colliders (campDressing). A no-op where
@@ -855,7 +1153,9 @@ export function addCamp(scene, area, areaId) {
   const made = withLocalUuids(areaId, () => ({
     den: denGeometry(L.den, out, look),
     door: doorGeometry(L.den, out),
-    rock: highrockGeometry(L.rock, L.cx, L.cz),
+    rock: highrockGeometry(L.rock, Math.atan2(L.rock.z - L.cz, L.rock.x - L.cx), {
+      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z },
+    }).translate(L.rock.x, 0, L.rock.z),
     nests: nestsMesh(D.nests, look),
     kill: killMesh(D.kill),
     ring: ringMesh(D.ring, L.cx, L.cz, look),
@@ -871,7 +1171,7 @@ export function addCamp(scene, area, areaId) {
   door.name = 'campDoor';
   door.userData.noCast = true;
   door.userData.noMerge = true;
-  const rock = new THREE.Mesh(adopt(made.rock), litMaterial(look.rock, surfaceProps('cobble')));
+  const rock = new THREE.Mesh(adopt(made.rock), rockMaterial(look));
   rock.name = 'campRock';
   group.add(den, door, rock, made.nests, made.kill);
 

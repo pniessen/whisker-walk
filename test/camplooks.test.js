@@ -29,13 +29,13 @@ const ALL = [...CAMPS, 'gorge'];
 
 // position.count of each camp geometry, recorded on the code before
 // polish-camps3 (addCamp into a fresh Scene, { colliders: [] }; the Gorge with
-// its ground).
+// its ground). The clearing is 57 since polish-camps4 (two-ring fading disc; was 30).
 const BASE_VERTS = {
-  woods: { campRing: 10080, campDen: 3474, campRock: 384, campNests: 1620, campClearing: 30 },
-  river: { campRing: 10080, campDen: 3474, campRock: 384, campNests: 1620, campClearing: 30 },
-  moor: { campRing: 10080, campDen: 3474, campRock: 384, campNests: 1620, campClearing: 30 },
-  pines: { campRing: 10080, campDen: 3474, campRock: 384, campNests: 1620, campClearing: 30 },
-  gorge: { campBedding: 1620, campRock: 108 },
+  woods: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
+  river: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
+  moor: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
+  pines: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
+  gorge: { campBedding: 1620, campRock: 348 },
 };
 
 const build = (a) => {
@@ -72,8 +72,10 @@ describe('CAMP_LOOKS', () => {
       const scene = build(a);
       const look = CAMP_LOOKS[a];
       const clearing = scene.getObjectByName('campClearing');
-      expect(clearing.material.color.getHex(), a).toBe(look.floor.color);
-      expect(clearing.material.map?.name, a).toBe(`surface:${look.floor.surface}`);
+      for (const m of [clearing.material].flat()) {
+        expect(m.color.getHex(), a).toBe(look.floor.color);
+        expect(m.map?.name, a).toBe(`surface:${look.floor.surface}`);
+      }
       expect(scene.getObjectByName('campRock').material.color.getHex(), a).toBe(look.rock);
     }
     expect(CAMP_LOOKS.river.floor.surface).toBe('gravel');
@@ -86,7 +88,7 @@ describe('CAMP_LOOKS', () => {
       const col = build(a).getObjectByName('campRing').geometry.attributes.color;
       const tris = col.count / 3;
       // clump triangles (28 a clump: 20 + 8) come first in the merged ring,
-      // the strands' after them
+      // the canes' after them
       const clumpTris = 28 * campDressing(a, []).ring.clumps.length;
       expect(tris, a).toBeGreaterThan(clumpTris);
       const specks = look.ring.specks.map(([hex, share]) => ({ c: lin(hex), share, n: 0 }));
@@ -95,7 +97,7 @@ describe('CAMP_LOOKS', () => {
           const hits = [0, 1, 2].filter((k) => sameColor(col, t * 3 + k, s.c)).length;
           expect(hits === 0 || hits === 3, `${a} tri ${t}: ${hits} speck corners`).toBe(true);
           if (hits === 3) {
-            expect(t, `${a} speck on a strand triangle`).toBeLessThan(clumpTris);
+            expect(t, `${a} speck on a cane triangle`).toBeLessThan(clumpTris);
             s.n++;
           }
         }
@@ -129,7 +131,7 @@ describe('CAMP_LOOKS', () => {
     }
   }, 120_000);
 
-  it('the ring strands and the den frame take the clan\'s colours', () => {
+  it('the ring canes and the den frame take the clan\'s colours', () => {
     // some vertex whose colour is `base` times one factor in [lo, hi]
     const scaled = (col, base, lo, hi) => {
       for (let i = 0; i < col.count; i++) {
@@ -144,7 +146,7 @@ describe('CAMP_LOOKS', () => {
       const look = CAMP_LOOKS[a];
       const ring = scene.getObjectByName('campRing').geometry.attributes.color;
       rings[a] = Array.from(ring.array);
-      expect(scaled(ring, lin(look.ring.strand), 0.85, 1.15), `${a} strand`).toBe(true);
+      expect(scaled(ring, lin(look.ring.strand), 0.85, 1.15), `${a} cane`).toBe(true);
       const den = scene.getObjectByName('campDen').geometry.attributes.color;
       expect(scaled(den, lin(look.den.frame), 0.8, 1.2), `${a} den frame`).toBe(true);
     }
@@ -154,6 +156,15 @@ describe('CAMP_LOOKS', () => {
   it('no new vertices', () => {
     for (const a of ALL) {
       const scene = build(a);
+      // the ring: 28 triangles a clump and 6 a cane segment (polish-camps4),
+      // no more than the 10,080 vertices it had with the arched strands
+      if (a !== 'gorge') {
+        const { clumps, canes } = campDressing(a, []).ring;
+        const segs = canes.reduce((n, c) => n + c.length - 1, 0);
+        const ring = scene.getObjectByName('campRing').geometry.attributes.position.count;
+        expect(ring, `${a} campRing`).toBe(3 * (28 * clumps.length + 6 * segs));
+        expect(ring, `${a} campRing`).toBeLessThanOrEqual(10080);
+      }
       for (const [name, n] of Object.entries(BASE_VERTS[a])) {
         expect(scene.getObjectByName(name).geometry.attributes.position.count, `${a} ${name}`).toBe(n);
       }
