@@ -17,9 +17,11 @@ import { bankPieces, waterRamp, WATER_EVENING } from './water.js';
 //   - the band: wet earth + foam line, ONE transparent mesh (vertex colour
 //     with alpha, depthWrite off, polygon offset);
 //   - the stones: one opaque merged mesh (none on the LOW tier);
-//   - the fillet fill (polish-waterlife): one tiny opaque fan per area with a
-//     rounded bank corner (BANK_FILLETS; the Woods only), sharing the
-//     ground's material — the Woods' third mesh, as it has no sea apron;
+//   - the fill (`waterdress:fill`): one opaque mesh drawn with the area
+//     ground's own material — the fillet fans that round a stream bend
+//     (polish-waterlife, BANK_FILLETS) and the streams' bites (polish-streams,
+//     see BITES below). The third mesh of every area with a stream, as none
+//     of them has a sea apron;
 //   - reeds / lily pads: none today. The Woods, Moor, River and Pines all
 //     plant their own reed beds along these banks, and the Pines bogs already
 //     float lily pads (pines.js pinesLilyPads), so a second set would only
@@ -160,6 +162,43 @@ const STONE_COLORS = [0x8a8378, 0x7a7266, 0x958c7e, 0x6f6a60];
 export const BANK_FILLETS = Object.freeze({
   woods: Object.freeze([Object.freeze({ x: 23, z: -9, r: 1.6, wx: -1, wz: -1 })]),
 });
+// Polish-streams — the wandering bank (BITES). A stream is a rect footprint
+// with ruler-straight edges, and the footprint is gameplay (the collider, the
+// wade zone), so it stays. For the eye only, an opaque strip drawn with the
+// ground's own material is laid over the outer bankBite() metres of the water
+// (0.15..0.85 on a stream, 0.10..0.60 round a pond in BITE_CIRCLES), so the
+// visible shore wanders; the band then follows the bitten line. The bite
+// tapers to nothing at a chain's open ends (where the stream runs into
+// another water: no step at the junction), within 1 m of a deck (the path
+// still meets the stepping stones or the log) and round a fillet's corner
+// (the fan rounds that one). With no ground plane to borrow there is no bite,
+// and the band is the old band exactly.
+export const BITE_CIRCLES = Object.freeze({ park: Object.freeze(['pond']) });
+export const BITE_MAX = 0.85;
+const STREAM_MAX_W = 6;
+// The bite's own long waves (the wobble's are 4.7 / 2.3 / 1.3 m).
+const BITE_WAVES = [17, 9.5, 5.3];
+// Tapers: at an open end over BITE_END m (after BITE_END_DEAD m of nothing);
+// 0 within BITE_DECK of a deck, full BITE_DECK_RAMP further on; 0 within 2r
+// of a fillet corner, full BITE_FILLET_RAMP further on.
+const BITE_END_DEAD = 0.2;
+const BITE_END = 2;
+const BITE_DECK = 1;
+const BITE_DECK_RAMP = 1.5;
+const BITE_FILLET_RAMP = 1.5;
+// The strip tucks this far under the land's edge (scaled down where the bite
+// tapers away, so nothing covers a path's end by a deck); a run whose
+// deepest bite is under BITE_MIN draws no strip.
+const BITE_TUCK = 0.08;
+const BITE_TUCK_FULL = 0.15;
+const BITE_MIN = 0.02;
+// The ground's colour for a bite is sampled this far onto the land (the
+// ground under the water may be painted as stream bed).
+const BITE_COLOR_AT = 0.6;
+// A bitten stream's foam line is a line of wet mud, at every time of day.
+const MUD_FOAM = 0x4a4330;
+const MUD_FOAM_A = 0.6;
+
 // Arc segments in a fill fan (one triangle each).
 const FILLET_SEGS = 12;
 // Opaque, so it is drawn in the opaque pass: after the water (renderOrder 0),
@@ -185,12 +224,12 @@ function phases(seed) {
 // closed ring (a bog) meets itself without a step.
 const WAVES = [4.7, 2.3, 1.3];
 const WEIGHTS = [0.55, 0.3, 0.15];
-function smoothNoise(seed, s, period) {
+function smoothNoise(seed, s, period, waves = WAVES) {
   const p = phases(seed);
   let v = 0;
   for (let i = 0; i < 3; i++) {
-    let k = TAU / WAVES[i];
-    if (period > 0) k = (TAU * Math.max(1, Math.round(period / WAVES[i]))) / period;
+    let k = TAU / waves[i];
+    if (period > 0) k = (TAU * Math.max(1, Math.round(period / waves[i]))) / period;
     v += WEIGHTS[i] * Math.sin(k * s + p[i]);
   }
   return v;
@@ -204,6 +243,31 @@ function smoothNoise(seed, s, period) {
  */
 export function bankWobble(seed, s, period = 0) {
   return -0.1 + 0.2 * smoothNoise(seed, s, period);
+}
+
+/**
+ * bankBite(seed, s[, period[, kind]]) — how far the visual shore moves into
+ * the water at `s` metres along a bank, before tapering: 'stream' 0.15..0.85,
+ * 'pond' 0.10..0.60, smooth along `s` (snapped to `period` on a ring).
+ */
+export function bankBite(seed, s, period = 0, kind = 'stream') {
+  const n = smoothNoise(seed, s, period, BITE_WAVES);
+  return kind === 'pond' ? 0.35 + 0.25 * n : 0.5 + 0.35 * n;
+}
+
+/** isStream(h) — a narrow rect water (min side <= 6 m), not the sea or a bog. */
+export function isStream(h) {
+  if (!h || h.style === 'sea' || h.style === 'bog') return false;
+  const w = h.footprint;
+  return w?.kind === 'rect' && Math.min(w.maxX - w.minX, w.maxZ - w.minZ) <= STREAM_MAX_W;
+}
+
+// The bite a water gets in this area: 'stream', 'pond' or null.
+function biteKind(areaId, h) {
+  if (isStream(h)) return 'stream';
+  const w = h.footprint;
+  if (h.style !== 'sea' && h.style !== 'bog' && w?.kind === 'circle' && BITE_CIRCLES[areaId]?.includes(w.id)) return 'pond';
+  return null;
 }
 
 // The band's reach onto the land, 0.9..1.4 m, on its own slow wobble.
@@ -313,11 +377,13 @@ function bankProfile(p, ctx) {
   // land-side offsets, pulled back where they would reach into another
   // water (a pond's bank ending at the river it runs into)
   // (a fillet's fill is land to the eye, though the footprint says water)
+  // (and a bite's strip is land to the eye: never wet over it)
   const fillets = ctx.fillets;
-  const wet = (x, z) => waterClearance(undecked, x, z) < 0.05 && !(fillets && inFilletFill(fillets, x, z));
+  const bite = p.bite ?? 0;
+  const wet = (k, x, z) => k >= bite && waterClearance(undecked, x, z) < 0.05 && !(fillets && inFilletFill(fillets, x, z));
   const clear = (o) => {
     let k = o;
-    while (k > onLand && wet(p.x + p.nx * k, p.z + p.nz * k)) k -= 0.1;
+    while (k > onLand && wet(k, p.x + p.nx * k, p.z + p.nz * k)) k -= 0.1;
     return Math.max(k, onLand);
   };
   const shoulder = clear(onLand + 0.45);
@@ -492,7 +558,8 @@ function stoneSpots(runs, areaData, keepOut = []) {
       const tone = Math.floor(rng() * STONE_COLORS.length);
       const x = p.x + p.nx * out, z = p.z + p.nz * out;
       if (b && (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ)) continue;
-      if (waterClearance(ctx.undecked, x, z) < 0.1) continue;
+      // a stone on a bite's strip is on land to the eye
+      if (!(out < (p.bite ?? 0) - 0.05) && waterClearance(ctx.undecked, x, z) < 0.1) continue;
       if (deckDistance(areaData.waters, x, z) < 1.5) continue;
       if (colliders.some((k) => Math.hypot(x - k.x, z - k.z) <= k.r + 0.1)) continue;
       // rest spots, finds and the like have no collider: stay clear of them too
@@ -538,11 +605,14 @@ function stonesGeometry(spots) {
 
 // The generic bank for a water: its shore runs, each carrying what the band
 // and the stones need to draw it.
-function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fillets = null }) {
+function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fillets = null, ground = null }) {
   const w = h.footprint;
   const pieces = bankPieces(w, h.waters ?? areaData.waters);
   if (pieces.length === 0) return [];
   const bog = h.style === 'bog';
+  // bites, like fillets, need the ground to paint their strip with
+  const kind = ground ? biteKind(areaId, h) : null;
+  const fillY = (h.y ?? 0.03) + LIP_LIFT * 0.5;
   const seed0 = seedFromCode(`waterdress-${areaId}-${w.id}`);
   const out = [];
   // Each chain (each bank of a stream, each ring of a water) has its own
@@ -552,6 +622,7 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
     const sampled = sampleChain(ch, w);
     if (fillets) for (const f of fillets) bendOntoFillet(sampled.samples, f);
     const seed = ci ? seedFromCode(`waterdress-${areaId}-${w.id}-${ci}`) : seed0;
+    if (kind) biteChain(sampled, { seed: seed + 3, kind, fillets, waters: areaData.waters, fillY });
     const ctx = {
       seed,
       stoneSeed: seed + 7,
@@ -562,12 +633,18 @@ function genericRuns(h, { areaId, areaData, box, undecked, evening = null, fille
       rows: PER,
       profile: bankProfile,
       fillets,
+      biteKind: kind,
+      fillY,
+      chainClosed: sampled.closed,
+      chainLength: sampled.length,
     };
     ctx.wetC = new THREE.Color(ctx.colors.wet);
     ctx.dampC = new THREE.Color(ctx.colors.damp);
     const ev = bog ? null : EVENING_FOAM[evening];
     ctx.foamC = new THREE.Color(bog ? FOAM_COLORS.bog : (ev ? ev.clear : FOAM_COLORS.clear));
     if (ev) ctx.foamA = ev.clearA;
+    // a bitten stream's rim is wet mud, not white foam
+    if (kind === 'stream') { ctx.foamC = new THREE.Color(MUD_FOAM); ctx.foamA = MUD_FOAM_A; }
     for (const run of clipRuns(sampled, box)) out.push({ ...run, w, ctx });
   }
   return out;
@@ -723,6 +800,51 @@ function bendOntoFillet(samples, f) {
   }
 }
 
+// Bite one sampled chain (see BITES): every sample keeps its true shore point
+// and land normal (x0, z0, nx0, nz0) and gets `bite`, metres moved into the
+// water after the tapers; a bitten sample moves there, takes its normal from
+// its neighbours, and its band rows over the strip ride over it (fillTop).
+// Samples already bent onto a fillet keep bite 0.
+function biteChain(sampled, { seed, kind, fillets, waters, fillY }) {
+  const { samples, closed, length } = sampled;
+  const period = closed ? length : 0;
+  for (const p of samples) {
+    p.x0 = p.x; p.z0 = p.z; p.nx0 = p.nx; p.nz0 = p.nz; p.bite = 0;
+    if (p.fillet) continue;
+    let t = 1;
+    if (!closed) t *= smooth01((Math.min(p.s, length - p.s) - BITE_END_DEAD) / BITE_END);
+    if (t > 0) t *= smooth01((deckDistance(waters, p.x, p.z) - BITE_DECK) / BITE_DECK_RAMP);
+    for (const f of fillets ?? []) {
+      if (t > 0) t *= smooth01((Math.hypot(p.x - f.x, p.z - f.z) - 2 * f.r) / BITE_FILLET_RAMP);
+    }
+    if (t > 0) p.bite = bankBite(seed, p.s, period, kind) * t;
+  }
+  for (const p of samples) {
+    if (p.bite > 0) { p.x = p.x0 - p.nx0 * p.bite; p.z = p.z0 - p.nz0 * p.bite; }
+  }
+  const m = samples.length;
+  const n = [];
+  for (let i = 0; i < m; i++) {
+    const p = samples[i];
+    if (!(p.bite > 0)) { n.push(null); continue; }
+    const prev = samples[closed ? (i - 1 + m) % m : Math.max(0, i - 1)];
+    const next = samples[closed ? (i + 1) % m : Math.min(m - 1, i + 1)];
+    let tx = next.x - prev.x, tz = next.z - prev.z;
+    const tl = Math.hypot(tx, tz);
+    if (!(tl > 1e-9)) { n.push(null); continue; }
+    tx /= tl; tz /= tl;
+    let nx = -tz, nz = tx;
+    if (nx * p.nx0 + nz * p.nz0 < 0) { nx = -nx; nz = -nz; }
+    n.push([nx, nz]);
+  }
+  for (let i = 0; i < m; i++) {
+    const p = samples[i];
+    if (!(p.bite > 0)) continue;
+    if (n[i]) { p.nx = n[i][0]; p.nz = n[i][1]; }
+    p.fillTop = fillY + LIP_LIFT * 0.5;
+  }
+}
+
 // Is (x, z) in a fillet's fill: inside the square r x r cell at the corner
 // and outside the arc?
 function inFilletFill(fillets, x, z) {
@@ -737,29 +859,74 @@ function inFilletFill(fillets, x, z) {
 // The area's ground plane, if it is one fillets can borrow: a top-level mesh
 // tagged userData.ground (builder.js ground()) with a PlaneGeometry.
 function fillGround(scene) {
-  const g = scene?.children?.find((c) => c.isMesh && c.userData?.ground);
+  const g = scene?.children?.find((c) => c.isMesh && c.userData?.ground && c.name !== 'path' && c.visible !== false);
   if (!g || g.geometry?.type !== 'PlaneGeometry' || !g.geometry.parameters) return null;
   return g;
 }
 
-// The fill fan for one fillet: the corner, then FILLET_SEGS + 1 points round
-// the arc, all at `y`; uv / normal / colour sampled bilinearly from the
-// ground's grid where each vertex lies (normals turned into world space, as
-// the fan's own matrix is the identity). Faces look up.
-function filletGeometry(fillets, ground) {
+// The ground's grid, ready to sample: its inverse world matrix, normal
+// matrix, plane parameters and the attributes to borrow.
+function groundSampler(ground) {
   ground.updateWorldMatrix(true, false);
-  const inv = new THREE.Matrix4().copy(ground.matrixWorld).invert();
-  const nmat = new THREE.Matrix3().getNormalMatrix(ground.matrixWorld);
   const gg = ground.geometry;
   const { width, height, widthSegments: ws = 1, heightSegments: hs = 1 } = gg.parameters;
-  const attrs = ['uv', 'normal', 'color'].map((n) => [n, gg.getAttribute(n)]).filter(([, a]) => a);
+  return {
+    inv: new THREE.Matrix4().copy(ground.matrixWorld).invert(),
+    nmat: new THREE.Matrix3().getNormalMatrix(ground.matrixWorld),
+    width, height, ws, hs,
+    attrs: ['uv', 'normal', 'color'].map((n) => [n, gg.getAttribute(n)]).filter(([, a]) => a),
+    local: new THREE.Vector3(),
+    nrm: new THREE.Vector3(),
+  };
+}
+
+// Bilinear sample of the ground's attributes (those named in `names`) at
+// world (x, y, z), written into out[name] at vertex v; normals turned into
+// world space, as the fill's own matrix is the identity.
+// PlaneGeometry's vertex (ix, iy) sits at x = -w/2 + ix*w/ws,
+// y = h/2 - iy*h/hs, index iy*(ws+1)+ix.
+function sampleGround(g, x, y, z, out, v, names = null) {
+  const { width, height, ws, hs } = g;
+  g.local.set(x, y, z).applyMatrix4(g.inv);
+  const gx = Math.min(ws, Math.max(0, ((g.local.x + width / 2) / width) * ws));
+  const gy = Math.min(hs, Math.max(0, ((height / 2 - g.local.y) / height) * hs));
+  const ix = Math.min(ws - 1, Math.floor(gx)), iy = Math.min(hs - 1, Math.floor(gy));
+  const tx = gx - ix, ty = gy - iy;
+  const k00 = iy * (ws + 1) + ix, k10 = k00 + 1, k01 = k00 + ws + 1, k11 = k01 + 1;
+  for (const [name, a] of g.attrs) {
+    if (names && !names.includes(name)) continue;
+    const sz = a.itemSize, o = out[name];
+    for (let c = 0; c < sz; c++) {
+      const top = a.getComponent(k00, c) * (1 - tx) + a.getComponent(k10, c) * tx;
+      const bot = a.getComponent(k01, c) * (1 - tx) + a.getComponent(k11, c) * tx;
+      o[v * sz + c] = top * (1 - ty) + bot * ty;
+    }
+    if (name === 'normal') g.nrm.fromArray(o, v * 3).applyMatrix3(g.nmat).normalize().toArray(o, v * 3);
+  }
+}
+
+// Push triangle (a, b, c) wound to look up (+y).
+function pushUp(index, pos, a, b, c) {
+  const abx = pos[b * 3] - pos[a * 3], abz = pos[b * 3 + 2] - pos[a * 3 + 2];
+  const acx = pos[c * 3] - pos[a * 3], acz = pos[c * 3 + 2] - pos[a * 3 + 2];
+  if (abz * acx - abx * acz >= 0) index.push(a, b, c); else index.push(a, c, b);
+}
+
+// The fill: first the fillet fans — for each, the corner then FILLET_SEGS + 1
+// points round the arc, all at its fillY, uv / normal / colour sampled where
+// each vertex lies — then, per bitten run, a strip of quads from just under
+// the land's edge (x0 + nx0 * tuck) to the bitten point, at that run's fillY;
+// uv and normal sampled where each vertex lies, colour on the land beside it.
+// Quads whose two ends both have no bite are left out. Faces look up.
+function fillGeometry(fillets, biteRuns, ground) {
+  const g = groundSampler(ground);
   const per = FILLET_SEGS + 2;
-  const n = fillets.length * per;
+  const nFan = fillets.length * per;
+  const n = nFan + biteRuns.reduce((k, r) => k + r.samples.length * 2, 0);
   const pos = new Float32Array(n * 3);
-  const out = Object.fromEntries(attrs.map(([name, a]) => [name, new Float32Array(n * a.itemSize)]));
+  const out = Object.fromEntries(g.attrs.map(([name, a]) => [name, new Float32Array(n * a.itemSize)]));
   const index = [];
-  const local = new THREE.Vector3();
-  const nrm = new THREE.Vector3();
+  const vertNames = ['uv', 'normal'];
   let v = 0;
   for (const f of fillets) {
     const cx = f.x + f.wx * f.r, cz = f.z + f.wz * f.r;
@@ -772,42 +939,41 @@ function filletGeometry(fillets, ground) {
     const base = v;
     for (const [x, z] of pts) {
       pos[v * 3] = x; pos[v * 3 + 1] = f.fillY; pos[v * 3 + 2] = z;
-      local.set(x, f.fillY, z).applyMatrix4(inv);
-      // grid coordinates: PlaneGeometry's vertex (ix, iy) sits at
-      // x = -w/2 + ix*w/ws, y = h/2 - iy*h/hs, index iy*(ws+1)+ix
-      const gx = Math.min(ws, Math.max(0, ((local.x + width / 2) / width) * ws));
-      const gy = Math.min(hs, Math.max(0, ((height / 2 - local.y) / height) * hs));
-      const ix = Math.min(ws - 1, Math.floor(gx)), iy = Math.min(hs - 1, Math.floor(gy));
-      const tx = gx - ix, ty = gy - iy;
-      const k00 = iy * (ws + 1) + ix, k10 = k00 + 1, k01 = k00 + ws + 1, k11 = k01 + 1;
-      for (const [name, a] of attrs) {
-        const sz = a.itemSize, o = out[name];
-        for (let c = 0; c < sz; c++) {
-          const top = a.getComponent(k00, c) * (1 - tx) + a.getComponent(k10, c) * tx;
-          const bot = a.getComponent(k01, c) * (1 - tx) + a.getComponent(k11, c) * tx;
-          o[v * sz + c] = top * (1 - ty) + bot * ty;
-        }
-        if (name === 'normal') {
-          nrm.fromArray(o, v * 3).applyMatrix3(nmat).normalize().toArray(o, v * 3);
-        }
-      }
+      sampleGround(g, x, f.fillY, z, out, v);
       v++;
     }
-    for (let i = 1; i <= FILLET_SEGS; i++) {
-      const a = base, b = base + i, c = base + i + 1;
-      // wind each face to look up (+y)
-      const abx = pos[b * 3] - pos[a * 3], abz = pos[b * 3 + 2] - pos[a * 3 + 2];
-      const acx = pos[c * 3] - pos[a * 3], acz = pos[c * 3 + 2] - pos[a * 3 + 2];
-      const up = abz * acx - abx * acz;
-      if (up > 0) index.push(a, b, c); else index.push(a, c, b);
+    for (let i = 1; i <= FILLET_SEGS; i++) pushUp(index, pos, base, base + i, base + i + 1);
+  }
+  for (const run of biteRuns) {
+    const { samples, closed } = run;
+    const y = run.ctx.fillY;
+    const base = v;
+    for (const p of samples) {
+      const tuck = BITE_TUCK * smooth01(p.bite / BITE_TUCK_FULL);
+      const lx = p.x0 + p.nx0 * BITE_COLOR_AT, lz = p.z0 + p.nz0 * BITE_COLOR_AT;
+      for (const [x, z] of [[p.x0 + p.nx0 * tuck, p.z0 + p.nz0 * tuck], [p.x0 - p.nx0 * p.bite, p.z0 - p.nz0 * p.bite]]) {
+        pos[v * 3] = x; pos[v * 3 + 1] = y; pos[v * 3 + 2] = z;
+        sampleGround(g, x, y, z, out, v, vertNames);
+        sampleGround(g, lx, y, lz, out, v, ['color']);
+        v++;
+      }
+    }
+    const m = samples.length;
+    const spans = closed ? m : m - 1;
+    for (let i = 0; i < spans; i++) {
+      const j = (i + 1) % m;
+      if (!(samples[i].bite > 0) && !(samples[j].bite > 0)) continue;
+      const li = base + i * 2, wi = li + 1, lj = base + j * 2, wj = lj + 1;
+      pushUp(index, pos, li, wi, lj);
+      pushUp(index, pos, lj, wi, wj);
     }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  for (const [name, a] of attrs) geo.setAttribute(name, new THREE.BufferAttribute(out[name], a.itemSize));
+  for (const [name, a] of g.attrs) geo.setAttribute(name, new THREE.BufferAttribute(out[name], a.itemSize));
   geo.setIndex(index);
   geo.computeBoundingSphere();
-  return geo;
+  return { geo, filletVerts: [0, nFan] };
 }
 
 // One builder per water style.
@@ -838,9 +1004,11 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   // not land for a stone.
   const undecked = (areaData.waters ?? []).map(({ decks, ...w }) => w);
 
-  // Rounded bank corners need the ground plane to paint their fill with.
-  const ground = BANK_FILLETS[areaId] ? fillGround(scene) : null;
-  const fillets = ground ? BANK_FILLETS[areaId].map((f) => {
+  // Rounded bank corners and bites need the ground plane to paint their
+  // fill with.
+  const wantsFill = BANK_FILLETS[areaId] || areaData.waterFx.some((h) => biteKind(areaId, h));
+  const ground = wantsFill ? fillGround(scene) : null;
+  const fillets = ground && BANK_FILLETS[areaId] ? BANK_FILLETS[areaId].map((f) => {
     // the fill rides just over the highest water at the corner
     const ys = areaData.waterFx
       .filter((h) => waterGap(h.footprint, f.x + f.wx * 0.01, f.z + f.wz * 0.01) < 0)
@@ -852,7 +1020,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   const runs = [];
   for (const h of areaData.waterFx) {
     const build = STYLE_BUILDERS[h.style ?? 'clear'] ?? genericRuns;
-    runs.push(...build(h, { areaId, areaData, box, undecked, evening, fillets }));
+    runs.push(...build(h, { areaId, areaData, box, undecked, evening, fillets, ground }));
   }
   if (runs.length === 0) return NO_DRESSING;
 
@@ -872,8 +1040,25 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   band.userData.runSeeds = runs.map((r) => ({ water: r.w.id, seed: r.ctx.seed }));
   meshes.push(band);
 
-  // The rounded bends' fill, on every tier, sharing the ground's CURRENT
-  // material (at dusk or in the rain, the tinted one): one small opaque fan.
+  // The bitten runs (a run whose deepest bite is too small draws no strip).
+  const biteRuns = runs.filter((r) => r.ctx.biteKind
+    && r.samples.reduce((k, p) => Math.max(k, p.bite ?? 0), 0) >= BITE_MIN);
+  if (biteRuns.length) {
+    // for tests and anything that wants to know where the visual shore is
+    band.userData.bites = biteRuns.map((r) => ({
+      water: r.w.id,
+      maxBite: r.samples.reduce((k, p) => Math.max(k, p.bite), 0),
+      seed: r.ctx.seed,
+      period: r.ctx.period,
+      closed: r.ctx.chainClosed,
+      length: r.ctx.chainLength,
+      samples: r.samples.map(({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite }) => ({ x, z, nx, nz, s, x0, z0, nx0, nz0, bite })),
+    }));
+  }
+
+  // The fill (fillet fans and bite strips), on every tier, sharing the
+  // ground's CURRENT material (at dusk or in the rain, the tinted one): one
+  // opaque mesh.
   if (fillets) {
     // for tests: the band's samples round each corner, after bending
     for (const r of runs) {
@@ -884,10 +1069,14 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
       }
     }
     band.userData.fillets = fillets.map(({ x, z, r, samples }) => ({ x, z, r, samples }));
-    const fill = new THREE.Mesh(filletGeometry(fillets, ground), ground.material);
-    fill.name = 'waterdress:fillet';
+  }
+  if (fillets || biteRuns.length) {
+    const { geo, filletVerts } = fillGeometry(fillets ?? [], biteRuns, ground);
+    const fill = new THREE.Mesh(geo, ground.material);
+    fill.name = 'waterdress:fill';
     fill.renderOrder = FILLET_ORDER;
     fill.userData.sharedMaterial = true;
+    fill.userData.filletVerts = filletVerts;
     meshes.push(fill);
   }
 
@@ -938,7 +1127,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
       for (const m of meshes) {
         scene.remove(m);
         m.geometry.dispose();
-        // the fillet's fill borrows the ground's material: never free it
+        // the fill borrows the ground's material: never free it
         if (!m.userData.sharedMaterial) m.material.dispose();
       }
     },

@@ -27,7 +27,8 @@ vi.stubGlobal('document', {
   exitPointerLock() {},
 });
 
-const { createWaterDressing, bankWobble, DRESSED_AREAS, BANK_FILLETS } = await import('../src/render/waterdress.js');
+const { createWaterDressing, bankWobble, DRESSED_AREAS, BANK_FILLETS, isStream, bankBite, BITE_CIRCLES, BITE_MAX } = await import('../src/render/waterdress.js');
+const { fishSpots } = await import('../src/render/fishjump.js');
 const { tintDuskLawn, duskLook } = await import('../src/render/dusk.js');
 const { resolveQuality } = await import('../src/render/quality.js');
 const HIGH = resolveQuality({ override: 'high' });
@@ -463,13 +464,14 @@ describe('water dressing', () => {
     const diag = { x: CENTRE.x + 1.6 * Math.SQRT1_2, z: CENTRE.z + 1.6 * Math.SQRT1_2 };
     expect(near.some((p) => Math.hypot(p.x - diag.x, p.z - diag.z) < 1e-6)).toBe(true);
     // still the real-shore rule: nothing deep in the water far from a bank
+    // (on ground the streams' bites move the visual shore up to BITE_MAX in)
     const { areaData } = area('woods');
     const real = shorePieces(areaData.waters);
     for (const v of worldPoints(band)) {
-      if (-waterClearance(undecked(areaData.waters), v.x, v.z) > 0.35) expect(distToPieces(real, v.x, v.z)).toBeLessThan(1.0);
+      if (-waterClearance(undecked(areaData.waters), v.x, v.z) > 0.35) expect(distToPieces(real, v.x, v.z)).toBeLessThan(1.0 + BITE_MAX);
     }
     // and the band's land side over the fill rides above it, not under it
-    const fill = byName(dressOnGround('woods').fx, 'waterdress:fillet');
+    const fill = byName(dressOnGround('woods').fx, 'waterdress:fill');
     const fy = fill.geometry.getAttribute('position').getY(0);
     for (const v of worldPoints(band)) {
       if (inCell(v) && Math.hypot(v.x - CENTRE.x, v.z - CENTRE.z) > 1.6 + 1e-3) expect(v.y, `${v.x},${v.z}`).toBeGreaterThan(fy);
@@ -478,23 +480,27 @@ describe('water dressing', () => {
 
   it('no ground plane, no fillet: the band keeps its square corner', () => {
     const { fx } = dress('woods');
-    expect(byName(fx, 'waterdress:fillet')).toBeUndefined();
+    expect(byName(fx, 'waterdress:fill')).toBeUndefined();
     expect(byName(fx, 'waterdress:band').userData.fillets).toBeUndefined();
+    expect(byName(fx, 'waterdress:band').userData.bites).toBeUndefined();
   }, 120_000);
 
   it('the fillet fan covers the corner and stays inside the square r×r cell', () => {
     const { fx, areaData } = dressOnGround('woods');
-    const fill = byName(fx, 'waterdress:fillet');
+    const fill = byName(fx, 'waterdress:fill');
     expect(fill).toBeTruthy();
     expect(fx.meshes).toContain(fill);
-    const pts = worldPoints(fill);
+    // the fan's own vertices (the rest of the mesh is the streams' bites)
+    const [f0, fn] = fill.userData.filletVerts;
+    const pts = worldPoints(fill).slice(f0, f0 + fn);
     const waterY = areaData.waterFx.find((h) => h.footprint.id === 'river-west').y;
     for (const p of pts) {
       expect(inCell(p), `${p.x},${p.z}`).toBe(true);
       expect(p.y).toBeCloseTo(waterY + 0.002, 6);
     }
-    expect(triangles(fill)).toBeGreaterThanOrEqual(10);
-    expect(triangles(fill)).toBeLessThanOrEqual(16);
+    // one triangle per arc segment: 10..16 of them
+    expect(fn - 2).toBeGreaterThanOrEqual(10);
+    expect(fn - 2).toBeLessThanOrEqual(16);
     const ray = new THREE.Raycaster();
     const down = new THREE.Vector3(0, -1, 0);
     // the true corner is covered (from above: the faces look up)
@@ -514,7 +520,7 @@ describe('water dressing', () => {
 
   it('the fillet shares the ground material and dispose leaves it alive', () => {
     const { scene, fx, ground } = dressOnGround('woods');
-    const fill = byName(fx, 'waterdress:fillet');
+    const fill = byName(fx, 'waterdress:fill');
     expect(fill.material).toBe(ground.material);
     // the ground's own attributes, sampled where each vertex lies
     const geo = fill.geometry;
@@ -545,13 +551,14 @@ describe('water dressing', () => {
     g.geometry = g.geometry.clone();
     const tint = tintDuskLawn({ ground: [g], grass: null, look: duskLook(areaData) });
     const { fx } = dressOnGround('woods', { evening: 'dusk' }, g);
-    const fill = byName(fx, 'waterdress:fillet');
+    const fill = byName(fx, 'waterdress:fill');
     expect(fill.material).toBe(g.material);
     const col = fill.geometry.getAttribute('color');
     const gc = g.geometry.getAttribute('color');
     const { width, widthSegments: ws, heightSegments: hs } = g.geometry.parameters;
     const pos = fill.geometry.getAttribute('position');
-    for (let i = 0; i < pos.count; i++) {
+    const [f0, fn] = fill.userData.filletVerts;
+    for (let i = f0; i < f0 + fn; i++) {
       const fx0 = ((pos.getX(i) + width / 2) / width) * ws, fy0 = ((pos.getZ(i) + width / 2) / width) * hs;
       const ix = Math.min(ws - 1, Math.floor(fx0)), iy = Math.min(hs - 1, Math.floor(fy0));
       for (const [k, get] of [[0, 'getX'], [1, 'getY'], [2, 'getZ']]) {
@@ -566,7 +573,7 @@ describe('water dressing', () => {
 
   it('the fillet is on every tier', () => {
     const { fx } = dressOnGround('woods', { tier: LOW });
-    expect(fx.meshes.map((m) => m.name)).toEqual(['waterdress:band', 'waterdress:fillet']);
+    expect(fx.meshes.map((m) => m.name)).toEqual(['waterdress:band', 'waterdress:fill']);
     const hi = dressOnGround('woods').fx;
     expect(hi.meshes.length).toBeLessThanOrEqual(3);
   }, 120_000);
@@ -592,17 +599,223 @@ describe('water dressing', () => {
     for (const k of [1, 2]) expect(Math.abs(got[k] - want[k]), at).toBeLessThanOrEqual(1e-7 * Math.abs(want[k]));
   };
 
-  it("other areas' bands are unchanged", () => {
-    for (const id of ['river', 'moor', 'pines', 'seaside']) {
-      const { fx } = dressOnGround(id);
-      expect(byName(fx, 'waterdress:fillet'), id).toBeUndefined();
+  it("with no ground to borrow, every band is the old band exactly", () => {
+    for (const id of ['woods', 'river', 'moor', 'pines', 'seaside']) {
+      const { fx } = dress(id);
+      expect(byName(fx, 'waterdress:fill'), id).toBeUndefined();
       const band = byName(fx, 'waterdress:band');
       sameSig(sig(band.geometry.getAttribute('position').array), BAND_SIGS[id][0], `${id} position`);
       sameSig(sig(band.geometry.getAttribute('color').array), BAND_SIGS[id][1], `${id} color`);
     }
-    // and the Woods with no ground to borrow is the old band exactly
-    const band = byName(dress('woods').fx, 'waterdress:band');
-    sameSig(sig(band.geometry.getAttribute('position').array), BAND_SIGS.woods[0], 'woods position');
-    sameSig(sig(band.geometry.getAttribute('color').array), BAND_SIGS.woods[1], 'woods color');
+    // and the Seaside (no streams, no fillet) is unchanged on its ground too
+    const { fx } = dressOnGround('seaside');
+    expect(byName(fx, 'waterdress:fill')).toBeUndefined();
+    const band = byName(fx, 'waterdress:band');
+    sameSig(sig(band.geometry.getAttribute('position').array), BAND_SIGS.seaside[0], 'seaside position');
+    sameSig(sig(band.geometry.getAttribute('color').array), BAND_SIGS.seaside[1], 'seaside color');
   }, 120_000);
+
+  // --- polish-streams Task 1: the streams' wandering bank (bites) -----------
+
+  describe('stream bites', () => {
+    const STREAM_AREAS = ['woods', 'river', 'moor', 'pines'];
+    const STREAMS = {
+      woods: ['river-west', 'river-north'],
+      river: ['river-west', 'river-bend', 'river-east'],
+      moor: ['river-south', 'river-west', 'river-mouth'],
+      pines: ['mire-north', 'mire-west'],
+    };
+    const bitesOf = (fx) => byName(fx, 'waterdress:band').userData.bites ?? [];
+
+    it('isStream picks the narrow rect streams, never a lake, pond, pool, bog or the sea', () => {
+      for (const id of [...STREAM_AREAS, 'seaside', 'park']) {
+        const { areaData } = area(id);
+        for (const h of areaData.waterFx) {
+          const wid = h.footprint.id;
+          if ((STREAMS[id] ?? []).includes(wid)) expect(isStream(h), `${id} ${wid}`).toBe(true);
+          if (/^(lake|pond|pool|bog|sea)/.test(wid)) expect(isStream(h), `${id} ${wid}`).toBe(false);
+        }
+      }
+      expect(BITE_CIRCLES).toEqual({ park: ['pond'] });
+      expect(Object.isFrozen(BITE_CIRCLES)).toBe(true);
+      expect(Object.isFrozen(BITE_CIRCLES.park)).toBe(true);
+    }, 120_000);
+
+    it('bankBite stays in range and is smooth', () => {
+      for (const [kind, lo, hi] of [['stream', 0.15, 0.85], ['pond', 0.10, 0.60]]) {
+        for (const period of [0, 44]) {
+          let prev = bankBite(11, 0, period, kind);
+          let mn = Infinity, mx = -Infinity;
+          for (let i = 1; i <= 5000; i++) {
+            const v = bankBite(11, i * 0.1, period, kind);
+            mn = Math.min(mn, v); mx = Math.max(mx, v);
+            expect(Math.abs(v - prev)).toBeLessThanOrEqual(0.05);
+            prev = v;
+          }
+          expect(mn).toBeGreaterThanOrEqual(lo - 1e-9);
+          expect(mx).toBeLessThanOrEqual(hi + 1e-9);
+          expect(mx - mn).toBeGreaterThan(0.5 * (hi - lo));
+        }
+      }
+      expect(BITE_MAX).toBe(0.85);
+      // a ring meets itself
+      expect(bankBite(5, 0, 30, 'pond')).toBeCloseTo(bankBite(5, 30, 30, 'pond'), 9);
+    });
+
+    it('on ground every stream bank is bitten, the lip over the water, the bite wandering', () => {
+      for (const id of STREAM_AREAS) {
+        const { fx, areaData } = dressOnGround(id);
+        const bites = bitesOf(fx);
+        const band = byName(fx, 'waterdress:band');
+        const waters = undecked(areaData.waters);
+        // the band's actual vertices, so the lips checked are the ones drawn
+        const grid = new Map();
+        const key = (x, z) => `${Math.round(x * 50)},${Math.round(z * 50)}`;
+        for (const p of worldPoints(band)) {
+          const k = key(p.x, p.z);
+          if (!grid.has(k)) grid.set(k, []);
+          grid.get(k).push(p);
+        }
+        const drawn = (x, z) => {
+          const gx = Math.round(x * 50), gz = Math.round(z * 50);
+          for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+            for (const q of grid.get(`${gx + i},${gz + j}`) ?? []) if (Math.hypot(q.x - x, q.z - z) < 1e-4) return true;
+          }
+          return false;
+        };
+        const bitten = new Set(bites.map((b) => b.water));
+        for (const w of STREAMS[id]) expect(bitten.has(w), `${id} ${w}`).toBe(true);
+        for (const b of bites) {
+          expect(b.maxBite).toBeLessThanOrEqual(BITE_MAX + 1e-9);
+          for (const p of b.samples) {
+            if (p.bite <= 0.15) continue;
+            const wob = bankWobble(b.seed, p.s, b.period);
+            const lx = p.x + p.nx * wob, lz = p.z + p.nz * wob;
+            const at = `${id} ${b.water} lip at ${lx.toFixed(2)},${lz.toFixed(2)}`;
+            expect(drawn(lx, lz), at).toBe(true);
+            expect(waterClearance(waters, lx, lz), at).toBeLessThan(0);
+            // the bitten point is the true shore moved bite metres into the water
+            expect(Math.hypot(p.x - (p.x0 - p.nx0 * p.bite), p.z - (p.z0 - p.nz0 * p.bite))).toBeLessThan(1e-9);
+            expect(p.nx * p.nx0 + p.nz * p.nz0).toBeGreaterThan(0.5);
+          }
+          const span = b.samples[b.samples.length - 1].s - b.samples[0].s;
+          if (span >= 20) {
+            const vals = b.samples.map((p) => p.bite);
+            expect(Math.max(...vals) - Math.min(...vals), `${id} ${b.water} span ${span.toFixed(1)}`).toBeGreaterThanOrEqual(0.4);
+          }
+        }
+      }
+    }, 120_000);
+
+    it('the bite tapers to nothing at open ends, by decks and by the fillet', () => {
+      let ends = 0, decks = 0, corner = 0;
+      for (const id of STREAM_AREAS) {
+        const { fx, areaData } = dressOnGround(id);
+        const fillets = BANK_FILLETS[id] ?? [];
+        for (const b of bitesOf(fx)) {
+          for (const p of b.samples) {
+            const at = `${id} ${b.water} ${p.x0.toFixed(2)},${p.z0.toFixed(2)}`;
+            if (!b.closed && Math.min(p.s, b.length - p.s) <= 0.3) { ends++; expect(p.bite, at).toBeLessThanOrEqual(0.05); }
+            if (deckDistance(areaData.waters, p.x0, p.z0) < 1) { decks++; expect(p.bite, at).toBe(0); }
+            for (const f of fillets) {
+              if (Math.hypot(p.x0 - f.x, p.z0 - f.z) < 2 * f.r) { corner++; expect(p.bite, at).toBe(0); }
+            }
+          }
+        }
+      }
+      expect(ends).toBeGreaterThan(0);
+      expect(decks).toBeGreaterThan(0);
+      expect(corner).toBeGreaterThan(0);
+    }, 120_000);
+
+    it('fish leap only well past the deepest bite', () => {
+      for (const id of [...STREAM_AREAS, 'park']) {
+        const { areaData } = area(id);
+        for (const f of fishSpots(id, areaData)) {
+          expect(waterClearance(areaData.waters, f.x, f.z), `${id} ${f.x},${f.z}`).toBeLessThan(-(BITE_MAX + 1));
+        }
+      }
+    }, 120_000);
+
+    it('waterdress:fill shares the ground material, on every tier, and dispose leaves it', () => {
+      const tris = {};
+      for (const id of STREAM_AREAS) {
+        const { fx, ground, scene } = dressOnGround(id);
+        const fill = byName(fx, 'waterdress:fill');
+        expect(fill, id).toBeTruthy();
+        expect(fill.material).toBe(ground.material);
+        expect(fill.userData.sharedMaterial).toBe(true);
+        expect(fill.castShadow).toBe(false);
+        expect(fill.userData.noCast).toBe(true);
+        expect(fx.meshes.length).toBeLessThanOrEqual(3);
+        expect(fx.meshes.reduce((n, m) => n + triangles(m), 0)).toBeLessThanOrEqual(12_000);
+        tris[id] = triangles(fill);
+        // every face looks up
+        const pos = fill.geometry.getAttribute('position');
+        const idx = fill.geometry.index;
+        for (let t = 0; t < idx.count; t += 3) {
+          const [a, b, c] = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)];
+          const abx = pos.getX(b) - pos.getX(a), abz = pos.getZ(b) - pos.getZ(a);
+          const acx = pos.getX(c) - pos.getX(a), acz = pos.getZ(c) - pos.getZ(a);
+          expect(abz * acx - abx * acz, `${id} tri ${t / 3}`).toBeGreaterThanOrEqual(0);
+        }
+        const spy = vi.spyOn(ground.material, 'dispose');
+        fx.dispose();
+        expect(spy).not.toHaveBeenCalled();
+        expect(scene.children).toEqual([ground]);
+        spy.mockRestore();
+        const low = dressOnGround(id, { tier: LOW }).fx;
+        expect(low.meshes.map((m) => m.name), id).toEqual(['waterdress:band', 'waterdress:fill']);
+      }
+      console.log('waterdress:fill triangles', JSON.stringify(tris));
+    }, 120_000);
+
+    it('the fill covers the bitten strip', () => {
+      const ray = new THREE.Raycaster();
+      const down = new THREE.Vector3(0, -1, 0);
+      for (const id of STREAM_AREAS) {
+        const { fx } = dressOnGround(id);
+        const fill = byName(fx, 'waterdress:fill');
+        let hit = 0;
+        for (const b of bitesOf(fx)) {
+          for (const p of b.samples.filter((q, i) => i % 5 === 2 && q.bite > 0.2)) {
+            // halfway between the true shore and the bitten line
+            ray.set(new THREE.Vector3(p.x0 - p.nx0 * p.bite * 0.5, 5, p.z0 - p.nz0 * p.bite * 0.5), down);
+            expect(ray.intersectObject(fill).length, `${id} ${b.water}`).toBeGreaterThan(0);
+            hit++;
+          }
+        }
+        expect(hit, id).toBeGreaterThan(10);
+      }
+    }, 120_000);
+
+    it('on ground, a stream band foam is wet mud, at every time of day', () => {
+      for (const evening of [null, 'sunset', 'dusk']) {
+        const { fx } = dressOnGround('woods', { evening });
+        const g = byName(fx, 'waterdress:band').geometry;
+        const col = g.getAttribute('color'), foam = g.getAttribute('aFoam');
+        const mud = new THREE.Color(0x4a4330);
+        let n = 0;
+        for (let i = 0; i < foam.count; i++) {
+          if (foam.getX(i) !== 1 || col.getW(i) === 0) continue;
+          if (Math.abs(col.getX(i) - mud.r) < 1e-6 && Math.abs(col.getY(i) - mud.g) < 1e-6 && Math.abs(col.getZ(i) - mud.b) < 1e-6) {
+            n++;
+            expect(col.getW(i)).toBeCloseTo(0.5 * 0.6, 6);
+          }
+        }
+        expect(n, String(evening)).toBeGreaterThan(50);
+      }
+    }, 120_000);
+
+    it('leaves the gameplay water data untouched', () => {
+      for (const id of STREAM_AREAS) {
+        const { areaData } = area(id);
+        const before = JSON.stringify(areaData.waters);
+        const fxBefore = JSON.stringify(areaData.waterFx.map((h) => h.footprint));
+        dressOnGround(id).fx.dispose();
+        expect(JSON.stringify(areaData.waters)).toBe(before);
+        expect(JSON.stringify(areaData.waterFx.map((h) => h.footprint))).toBe(fxBefore);
+      }
+    }, 120_000);
+  });
 });
