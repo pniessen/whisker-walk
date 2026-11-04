@@ -9,7 +9,10 @@
 //   flutes    the wall normal swung to and fro along the wall's horizontal
 //             tangent, so vertical flutes catch the light (normal only), their
 //             period and depth wandering so some reaches are smooth;
-//   grain     a fine noise on the colour;
+//   grain     a fine noise on the colour, sampled finer up the wall than along
+//             it, and stronger near the camera;
+// Up close (nearLo..nearHi from cameraPosition) the flutes calm to 35% and
+// the grain gains amplitude, so near walls read layered rather than smeared.
 // Each fades out with distance (fwidth) so nothing shimmers or moires.
 //   overhang  faces looking down are darker.
 // Walls only for the bedding and the flutes (`wall` fades them out on tops).
@@ -63,6 +66,10 @@ export const ROCK_SHADE = Object.freeze({
   grainFreq: 2.6,
   grainFadeLo: 0.5, // grain cells a pixel: grain starts settling to its mean
   grainFadeHi: 1.2, // and is flat
+  // Up close (distance from the camera, metres) the flutes calm to 35% and the
+  // grain turns anisotropic and stronger (layered sandstone, not a smear).
+  nearLo: 1.5, // closer than this: fully calm
+  nearHi: 4, // farther than this: full flutes, grain amplitude as before
   overhang: 0.22, // a face looking straight down is this much darker
   talusLo: 0.15, // metres over the walk: full talus below this
   talusHi: 1.3, // none above this
@@ -117,9 +124,10 @@ const COLOUR = /* glsl */`
 		float rshade = 1.0 - ${f(S.bedDark)} * rbedOn * rline * step( 0.0, rd )
 			+ ${f(S.bedLip)} * rbedOn * rline * ( 1.0 - step( 0.0, rd ) );
 		// grain, settling to its mean far off
-		highp vec3 rgp = rw * ${f(S.grainFreq)};
+		highp vec3 rgp = rw * vec3( ${f(S.grainFreq)}, ${f(S.grainFreq * 2.4)}, ${f(S.grainFreq)} );
+		float rnear = smoothstep( ${f(S.nearLo)}, ${f(S.nearHi)}, distance( rw, cameraPosition ) );
 		float rgOn = 1.0 - smoothstep( ${f(S.grainFadeLo)}, ${f(S.grainFadeHi)}, length( fwidth( rgp ) ) );
-		rshade *= ${f(S.grainBase)} + ${f(S.grainAmp)} * mix( 0.5, vnoise( rgp ), rgOn );
+		rshade *= ${f(S.grainBase)} + ${f(S.grainAmp)} * mix( 1.35, 1.0, rnear ) * mix( 0.5, vnoise( rgp ), rgOn );
 		rshade *= 1.0 - ${f(S.overhang)} * clamp( - rn.y, 0.0, 1.0 );
 		diffuseColor.rgb *= rshade;
 	}
@@ -141,7 +149,8 @@ const FLUTES = /* glsl */`
 		float rfn = vnoise( rw * ${v3(S.fluteFreq)} );
 		float rphase = ralong * ${f(6.2832 / S.fluteStep)} + ${f(S.fluteWarp)} * rfn;
 		// deep in some reaches, smooth in others; faded where a flute is only a few pixels wide
-		float rtilt = ${f(S.fluteTilt)} * rwall * step( 1e-4, rl )
+		float rnear = smoothstep( ${f(S.nearLo)}, ${f(S.nearHi)}, distance( rw, cameraPosition ) );
+		float rtilt = ${f(S.fluteTilt)} * rwall * step( 1e-4, rl ) * mix( 0.35, 1.0, rnear )
 			* smoothstep( ${f(S.fluteDeepLo)}, ${f(S.fluteDeepHi)}, rfn )
 			* ( 1.0 - smoothstep( ${f(S.fluteFadeLo)}, ${f(S.fluteFadeHi)}, fwidth( rphase ) ) );
 		normal = normalize( normal + ( viewMatrix * vec4( rt * ( rtilt * cos( rphase ) ), 0.0 ) ).xyz );
@@ -182,6 +191,6 @@ export function patchRockMaterial(material, { flutes = true } = {}) {
   // is the onBeforeCompile source).
   const prevKey = Object.prototype.hasOwnProperty.call(material, 'customProgramCacheKey')
     ? material.customProgramCacheKey.bind(material) : null;
-  material.customProgramCacheKey = () => (prevKey?.() ?? '') + 'gorge-rock-v1' + (flutes ? '' : '-nf');
+  material.customProgramCacheKey = () => (prevKey?.() ?? '') + 'gorge-rock-v2' + (flutes ? '' : '-nf');
   return material;
 }

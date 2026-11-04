@@ -125,6 +125,9 @@ export const GORGE_PATHS = Object.freeze([
 ].map((s) => Object.freeze(s)));
 // A clear canyon day: blue sky over a warm haze (which is also the fog).
 export const GORGE_SKY = Object.freeze({ top: 0x86bde6, horizon: 0xeed8b8 });
+// The day haze, pushed out from applySky's 40..130 so the far walls keep
+// their colour (the fog colour stays GORGE_SKY.horizon).
+export const GORGE_FOG = Object.freeze({ near: 60, far: 175 });
 const PATH_W = 3;
 export const PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xb8a27e });
 
@@ -1051,6 +1054,8 @@ export function build(scene, { water = {}, wind } = {}) {
   const colliders = [];
   const perches = [];
   b.applySky(scene, GORGE_SKY.top, GORGE_SKY.horizon);
+  scene.fog.near = GORGE_FOG.near;
+  scene.fog.far = GORGE_FOG.far;
   const plane = b.ground(120, GROUND_COLOR, { surface: 'grass' });
   plane.name = 'groundPlane';
   trimHiddenGround(plane, MASSES);

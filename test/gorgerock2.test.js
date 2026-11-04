@@ -280,7 +280,7 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
     for (const name of ['rockFaces', 'lips', 'ledgeTops']) {
       const mat = scene.getObjectByName(name).material;
       // ledgeTops wears the fluted patch too
-      expect(mat.customProgramCacheKey(), name).toBe('gorge-rock-v1');
+      expect(mat.customProgramCacheKey(), name).toBe('gorge-rock-v2');
     }
   });
 
