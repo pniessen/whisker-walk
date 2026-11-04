@@ -3738,15 +3738,22 @@ export function reedBed(spots, seed) {
 // Each frond is a rachis of FERN_SEGS segments that leaves the ground steeply
 // (50-70 degrees) and droops more with each segment, so it rises, arcs over and
 // ends with its tip about 0.4 of its length off the ground. Every segment
-// carries a leaflet on each side — one triangle from the rachis out to a tip
-// set sideways at mid-segment, a little forward and a little below — and one
-// small triangle closes the tip: 13 triangles a frond. The colour runs from a
-// dark root to a light new-growth tip, toned per clump. Thin and open, so it
+// carries a long, narrow leaflet on each side — one triangle from the rachis
+// out to a tip set sideways and swept forward past the segment's end, barely
+// drooping — and one small triangle closes the tip: 13 triangles a frond, a
+// comb rather than a paddle. The colour runs dark root -> rich mid -> slightly
+// lighter tip, toned per clump. Thin and open, so it
 // is double-sided and lit by its built (upward-leaning) normals on both faces.
 const FERN_FRONDS = 7;
 const FERN_SEGS = 6;
-const FERN_ROOT = 0x2c4f22;
-const FERN_TIP = 0x7d9e4e;
+// dark, rich greens (darker than the ~0x5a8f45 grass): root -> mid -> tip,
+// the tip only a little lighter than the middle
+const FERN_ROOT = 0x1e3a17;
+const FERN_MID = 0x2f5a24;
+const FERN_TIP = 0x4f7f2f;
+// leaflet half-width per segment, in units of clump size: widest at the
+// second and third segments, narrowing to 0.03 at the tip
+const FERN_LEAF = [0.12, 0.16, 0.16, 0.115, 0.07, 0.03];
 
 // Progressive droop: segment s loses D * (s / (FERN_SEGS - 1))^2 * (FERN_SEGS - 1)
 // of pitch, small at the base and larger toward the tip, so a frond rises,
@@ -3786,6 +3793,7 @@ export function fernBed(spots, seed) {
   const nor = new Float32Array(n * tris * 9);
   const col = new Float32Array(n * tris * 9);
   const root = new THREE.Color().setHex(FERN_ROOT);
+  const midC = new THREE.Color().setHex(FERN_MID);
   const tip = new THREE.Color().setHex(FERN_TIP);
   const c = new THREE.Color();
   const a = new THREE.Vector3();
@@ -3798,13 +3806,17 @@ export function fernBed(spots, seed) {
     e2.subVectors(p2, p0);
     a.crossVectors(e1, e2).normalize();
     if (a.y < 0) a.negate();
-    a.y += 1;
+    // 30% of the way toward +Y: leaning up enough to read lit, not so much
+    // that every leaflet faces the sun and washes out
+    a.multiplyScalar(0.7);
+    a.y += 0.3;
     a.normalize();
     for (const [p, t] of [[p0, t0], [p1, t1], [p2, t2]]) {
       const o = v * 3;
       pos[o] = p.x; pos[o + 1] = p.y; pos[o + 2] = p.z;
       nor[o] = a.x; nor[o + 1] = a.y; nor[o + 2] = a.z;
-      c.copy(root).lerp(tip, t).multiplyScalar(tone);
+      if (t < 0.5) c.copy(root).lerp(midC, t * 2); else c.copy(midC).lerp(tip, t * 2 - 1);
+      c.multiplyScalar(tone);
       col[o] = c.r; col[o + 1] = c.g; col[o + 2] = c.b;
       v++;
     }
@@ -3823,7 +3835,7 @@ export function fernBed(spots, seed) {
     const size = 0.8 + 0.4 * hash01(sp.z, sp.x, seed + 2);
     const tone = 0.88 + 0.2 * hash01(sp.x, sp.z, seed + 6);
     for (let k = 0; k < FERN_FRONDS; k++) {
-      const len = (0.5 + 0.2 * hash01(i, k, seed + 3)) * size;
+      const len = 1.2 * (0.5 + 0.2 * hash01(i, k, seed + 3)) * size;
       // lifted 50-70 degrees off the ground (the box fronds' lift hash plus
       // 0.35 rad, so the arch still stands knee-high to a cat), then turned to
       // its place in the ring
@@ -3842,9 +3854,11 @@ export function fernBed(spots, seed) {
         fwd.set(sy * Math.cos(pitch), Math.sin(pitch), cy * Math.cos(pitch));
         rach[s + 1].copy(rach[s]).addScaledVector(fwd, seg);
         const f = s / (FERN_SEGS - 1);
-        const half = 0.11 * size + (0.02 - 0.11 * size) * f;
-        const below = 0.02 + 0.02 * f;
-        mid.addVectors(rach[s], rach[s + 1]).multiplyScalar(0.5).addScaledVector(fwd, 0.25 * seg);
+        // long, narrow, swept forward: the leaflet tip sits out sideways past
+        // the END of its segment, drooping only a little
+        const half = FERN_LEAF[s] * size;
+        const below = 0.01 + 0.01 * f;
+        mid.copy(rach[s + 1]).addScaledVector(fwd, 0.35 * seg);
         mid.y -= below;
         lt.copy(mid).addScaledVector(side, -half);
         rt.copy(mid).addScaledVector(side, half);
@@ -3852,7 +3866,7 @@ export function fernBed(spots, seed) {
         rt.y = Math.max(rt.y, 0.01);
         const t0 = (s * seg) / total;
         const t1 = ((s + 1) * seg) / total;
-        const tm = ((s + 0.75) * seg) / total;
+        const tm = Math.min((s + 1.35) * seg, total) / total;
         tri(rach[s], lt, rach[s + 1], t0, tm, t1, tone);
         tri(rach[s], rach[s + 1], rt, t0, t1, tm, tone);
       }
@@ -3870,9 +3884,11 @@ export function fernBed(spots, seed) {
   geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   fernUuidParity(n);
-  const material = surfNoMap(0xffffff, 'foliage');
-  material.vertexColors = true;
-  material.side = THREE.DoubleSide;
+  // Lambert, not the 'foliage' standard material: thin leaflets are seen
+  // edge-on from every angle, and the standard material's grazing-angle
+  // specular (mostly the grey RoomEnvironment reflection) washed whole fronds
+  // out to pale khaki on the phone. A fern has no gloss worth keeping.
+  const material = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, side: THREE.DoubleSide });
   bothSidesLit(material);
   const m = new THREE.Mesh(geo, material);
   m.castShadow = false;
