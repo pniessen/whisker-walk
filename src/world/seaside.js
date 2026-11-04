@@ -5,6 +5,8 @@ import { withLocalUuids } from './localuuids.js';
 import { litMaterial, repeatFor, surfaceProps } from '../render/materials.js';
 import { createWater, WATER_TUNING } from '../render/water.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
+import { tintGround } from './dressing.js';
+import { sandTint } from './beachdress.js';
 
 // The same two opt-in helpers world/builder.js keeps at the top of itself, for
 // the props this file builds locally rather than borrowing. They are duplicated
@@ -80,6 +82,10 @@ export function wetness(x, z) {
   return t * t * (3 - 2 * t);
 }
 
+// Sky top for the bay: a deeper blue than the first pass so the pale horizon
+// (0xe8e0d0, the fog colour) reads as haze rather than as the sky itself.
+export const SKY_TOP = 0x88bce6;
+
 function wetSandBand() {
   const w = WET_TO - WET_FROM;
   const len = 140;
@@ -90,7 +96,10 @@ function wetSandBand() {
   const col = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) {
     const k = wetness(pos.getX(i) + cx, pos.getZ(i));
-    for (let c = 0; c < 3; c++) col[i * 3 + c] = 1 + (WET_TINT[c] - 1) * k;
+    // The dry sand beside it carries sandTint, so the band wears the same
+    // authored variation or its edge would show as a seam.
+    const t = sandTint(pos.getX(i) + cx, pos.getZ(i));
+    for (let c = 0; c < 3; c++) col[i * 3 + c] = (1 + (WET_TINT[c] - 1) * k) * t[c];
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   // Roughness 0.8, not wet stone's 0.55: damp sand is darker, not shiny, and
@@ -99,6 +108,9 @@ function wetSandBand() {
     surface: 'sand', repeat: repeatFor('sand', w, len), vertexColors: true, roughness: 0.8,
   }));
   m.name = 'wet-sand';
+  // Tagged like the dry ground so rain and dusk darken it with the sand next
+  // to it (walk.js collects scene children with userData.ground).
+  m.userData.ground = true;
   // Under the contact-shadow decals (0.015) with room to spare, above the
   // ground (0) and below the boardwalk (0.03) and the sea (0.05).
   m.position.set(cx, 0.008, 0);
@@ -411,12 +423,17 @@ export const SEASIDE_HORIZON = Object.freeze({
 });
 
 export function build(scene, { water = {}, wind } = {}) {
-  b.applySky(scene, 0x9fc8e8, 0xe8e0d0);
+  b.applySky(scene, SKY_TOP, 0xe8e0d0);
   // Dry beach sand at roughness 0.92 — a step drier than the game's default,
   // and the tile is a fine speckle whose repeat comes from the plane's own
   // 140m (175 tiles of 0.8m). See the note above on why the colour is not
   // lifted the way a lawn's is.
-  scene.add(b.ground(140, BEACH, { surface: 'sand' }));
+  // sandTint is an authored colour variation (warmer, patchier, a paler back
+  // beach), not a correction for the sand texture.
+  const g = b.ground(140, BEACH, { surface: 'sand' });
+  g.updateMatrix();
+  tintGround(g, sandTint);
+  scene.add(g);
   scene.add(wetSandBand());
 
   // The horizon band (VISUAL-PASS.md Wave 4.3) — dunes and a headland. See
