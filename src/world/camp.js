@@ -424,11 +424,13 @@ const RING_LOOK = {
 // y 0.011: over the path strips (0.01) and wet sand (0.008), under the paw
 // prints (0.012) and the contact-shadow decals (0.015). The solid middle is
 // opaque and writes depth, as the old floor did. The see-through rim writes
-// none, so it draws first of the see-through things (order -4, under the
-// water band's -3, the paw prints' -2 and the decals' -1) and they go over it.
+// none, so its order puts it between the see-through things: over the worn
+// path trails (pathribbon.js, -4), so a trail runs in under the fading edge,
+// and under the water band (-3), the paw prints (-2) and the decals (-1),
+// which go over it (order -3.5).
 // fade: the soft band at the rim, solid inside r - fade, clear at r * wobble;
 // wobble: the rim's radius factor, 1 - wobble..1 (a sum of three low sinusoids).
-const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -4 };
+const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -3.5 };
 const NEST = { r: 0.35, tube: 0.09, squash: 0.55 };
 const KILL_LOOK = { mouse: 0x7a5a3e, vole: 0x5e4a36, bird: 0x8a8478, wing: 0xa59d8c };
 
@@ -917,10 +919,10 @@ function ringMesh(ring, cx, cz, look) {
 // uv is planar over the full radius, as the old disc's was, so the surface
 // tiles the same. Two materials on two draw groups: the middle (the centre
 // fan) opaque and depth-written like the old floor, so a see-through path
-// strip under it stays hidden; the rim band see-through, not written to depth
-// and drawn first of the see-through things (renderOrder -4, under the water
-// band -3, paw prints -2 and contact-shadow decals -1), so prints and decals
-// go over it. Lifted 1.1 cm and pulled towards the camera (polygonOffset) so
+// strip or trail under it stays hidden; the rim band see-through, not written
+// to depth, at renderOrder -3.5: over the path trails (-4), so a trail slips
+// in under the fading edge, and under the water band (-3), paw prints (-2)
+// and contact-shadow decals (-1), so prints and decals go over it. Lifted 1.1 cm and pulled towards the camera (polygonOffset) so
 // it never fights the ground or a path. One mesh, two draws.
 // A CircleGeometry lying flat at the top level, built as radius r - 0.4 and
 // then given the two-ring attributes: grass.js's flatFootprints reads

@@ -26,6 +26,7 @@ const { CAMP_DEN, WIDE_LEDGE_RECT, gorgeGround } = await import('../src/world/go
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { DISCS } = await import('../src/rivalclans.js');
 const { PRINT_Y } = await import('../src/render/pawprints.js');
+const { TRAIL_RENDER_ORDER } = await import('../src/world/pathribbon.js');
 
 const CAMPS = ['woods', 'river', 'moor', 'pines'];
 const groundSeats = (L) => [L.seats.deputy, ...L.seats.elders, ...L.seats.kits];
@@ -417,10 +418,12 @@ describe('addCamp', () => {
       expect(rim.transparent).toBe(true);
       expect(rim.depthWrite).toBe(false);
       for (const m of [solid, rim]) expect(m.polygonOffset).toBe(true);
-      // drawn before every see-through thing over it: the water band (-3,
-      // waterdress.js), the paw prints (-2, pawprints.js) and the
-      // contact-shadow decals (-1, contactshadows.js). It writes no depth, so
-      // only this order keeps the prints and the shadows on top of it.
+      // the rim writes no depth, so its order alone places it: after the path
+      // trails (pathribbon.js TRAIL_RENDER_ORDER, -4), so a trail runs in
+      // under the fading edge, and before the water band (-3, waterdress.js),
+      // the paw prints (-2, pawprints.js) and the contact-shadow decals (-1,
+      // contactshadows.js), which stay on top of it
+      expect(clearing.renderOrder).toBeGreaterThan(TRAIL_RENDER_ORDER);
       expect(clearing.renderOrder).toBeLessThan(-3);
       // grass.js still reads it as a no-grass disc at the camp centre
       const disc = flatFootprints(scene).find((f) => f.kind === 'disc');
