@@ -828,6 +828,7 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
   let frameBottom = null;
   let hidden = [];
   let cuts = 0;
+  let easingOut = false; // the camera is on the hand-back swing (orbitBlend), not the ease-in line
 
   function show() {
     for (const o of hidden) o.obj.visible = true;
@@ -877,6 +878,7 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
         lastSheetTop = null;
         maxSheetTop = null;
         from = null;
+        easingOut = true;
         if (cameraMode || reducedMotion) w = 0;
         else w = Math.max(0, w - dt / EASE_OUT);
         // The hidden trees come back only once the camera is home: while it
@@ -888,7 +890,7 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
         // what is on screen right now, before this frame's move
         const base = from ?? follow;
         const s0 = smooth(w);
-        const shown = w === 0 ? copy(follow) : { pos: lerp3(base.pos, cur.pos, s0), look: lerp3(base.look, cur.look, s0) };
+        const shown = w === 0 ? copy(follow) : easingOut ? orbitBlend(follow, cur, s0) : { pos: lerp3(base.pos, cur.pos, s0), look: lerp3(base.look, cur.look, s0) };
         lastSheetTop = maxSheetTop;
         frameBottom = frameBottomFor(maxSheetTop);
         view = choose(subject, camera);
@@ -904,6 +906,7 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
         }
       }
       if (active) {
+        easingOut = false;
         w = reducedMotion ? 1 : Math.min(1, w + dt / EASE_IN);
         if (w === 1) from = null;
         const k = reducedMotion ? 1 : 1 - Math.exp(-FOLLOW_RATE * Math.max(dt, 0));
@@ -922,7 +925,7 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
       return true;
     },
     // The walk ended: every hidden tree back, nothing held.
-    dispose() { show(); view = null; cur = null; from = null; w = 0; lastSubject = null; },
+    dispose() { show(); view = null; cur = null; from = null; w = 0; easingOut = false; lastSubject = null; },
   };
   return api;
 }

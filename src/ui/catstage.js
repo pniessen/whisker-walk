@@ -205,6 +205,12 @@ export function createCatStage({
     cat = null;
   }
 
+  function disposeFloor() {
+    for (const m of [glow, contact]) { if (m) { m.geometry.dispose(); m.material.dispose(); } }
+    glow = null;
+    contact = null;
+  }
+
   function fail(err) {
     if (stage.failed || disposed) return;
     stage.failed = true;
@@ -213,6 +219,7 @@ export function createCatStage({
     cancel();
     if (ro) { ro.disconnect(); ro = null; }
     disposeCat();
+    disposeFloor();
     if (canvas) canvas.remove();
     if (renderer) { try { renderer.dispose(); } catch { /* already gone */ } }
     renderer = null;
@@ -495,6 +502,7 @@ export function createCatStage({
       canvas.remove();
     }
     disposeCat();
+    disposeFloor();
     if (img) { img.remove(); img = null; }
     if (renderer) { renderer.dispose(); renderer.forceContextLoss(); }
     renderer = null;

@@ -1338,3 +1338,19 @@ describe('orbitBlend', () => {
     }
   });
 });
+
+describe('a fight that starts again mid hand-back', () => {
+  test('the camera does not jump between the last ease-out frame and the first new fight frame', () => {
+    const me = { x: 0, z: 0 }, it = { x: 1.2, z: -0.9 };
+    const subj = subject(me, it);
+    const fc = createFightCam({ occluders: [], colliders: [], bounds: BOUNDS, reducedMotion: false });
+    const cam = fakeCamera();
+    const step = (s) => { cam.position.set(0, 2.2, 4.5); fc.update(1 / 60, { camera: cam, cat: me, subject: s, cameraMode: false }); return { ...cam.position }; };
+    for (let i = 0; i < 60; i++) step(subj);
+    let last;
+    for (let i = 0; i < 18; i++) last = step(null);
+    expect(fc.weight).toBeGreaterThan(0.2);
+    const next = step(subj);
+    expect(Math.hypot(next.x - last.x, next.y - last.y, next.z - last.z)).toBeLessThan(0.6);
+  });
+});
