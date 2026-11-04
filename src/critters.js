@@ -288,15 +288,17 @@ function buildCritter(type, def = {}) {
       g.add(leg);
     }
   } else if (type === 'butterfly' || type === 'firefly') {
-    const color = type === 'firefly' ? 0xf2e04e : 0xe070b0;
+    const color = type === 'firefly' ? 0x4a3a26 : 0xe070b0; // fireflies: dark beetle wings, the glow does the shining
     for (const side of [-1, 1]) {
       const wing = box(0.08, 0.01, 0.06, color);
       wing.position.x = side * 0.05;
       g.add(wing);
     }
     if (type === 'firefly') {
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.04, 5, 5),
-        litMaterial(0xf2e04e, { emissive: 0xb8a820 }));
+      // Unlit and over-bright (channels above 1) so HIGH's bloom catches it.
+      const glowMat = new THREE.MeshBasicMaterial({ toneMapped: false, fog: true });
+      glowMat.color.setRGB(2.2, 2.4, 0.9);
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), glowMat);
       g.add(glow);
     }
   } else if (type === 'duck') {
