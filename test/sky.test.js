@@ -102,7 +102,7 @@ describe('the visible band stays at least as rich as the flat colour it replaces
   const PAIRS = {
     'den/neighborhood': [0x9fd4e8, 0xcfe8f0],
     park: [0xaee0d0, 0xd8f0e0],
-    seaside: [0x9fc8e8, 0xe8e0d0],
+    seaside: [0x88bce6, 0xe8e0d0],
     docks: [0x5e7290, 0x8e9aae],
     'sunset (weather.js)': [0xf0a060, 0xf8c890],
     'rain (weather.js)': [0x7a8a98, 0x8a9aa8],
@@ -151,7 +151,7 @@ describe('adaptive haze', () => {
   it.each([
     ['den/neighborhood', 0x9fd4e8, 0xcfe8f0],
     ['park', 0xaee0d0, 0xd8f0e0],
-    ['seaside', 0x9fc8e8, 0xe8e0d0],
+    ['seaside', 0x88bce6, 0xe8e0d0],
   ])('%s: a pale horizon gets zero lift', (_name, top, horizon) => {
     const stops = paint(top, horizon);
     const haze = stops[1][1];
