@@ -1,4 +1,5 @@
 import { describe, test, it, expect, vi } from 'vitest';
+import { PAW } from '../src/ui/pawicon.js';
 import { readFileSync } from 'node:fs';
 import { FIGHT_MOVES, teachFor } from '../src/fightmoves.js';
 import { renderChallengeHtml, renderFightHtml, createFightUi, FIGHT_TEACH } from '../src/ui/fightui.js';
@@ -63,7 +64,7 @@ describe('the challenge pill', () => {
   test('names the cat and its clan, with the two buttons', () => {
     const html = renderChallengeHtml({ name: 'Mossjaw', clan: 'moor' });
     expect(html).toContain(`Mossjaw of ${clanName('moor')} is on your land!`);
-    expect(html).toMatch(/data-fight="go"[^>]*>Fight! 🐾</);
+    expect(html).toMatch(/data-fight="go"[^>]*>Fight! <span class="paw"[^>]*>🐾<\/span></);
     expect(html).toMatch(/data-fight="off"[^>]*>Back off</);
   });
 
@@ -150,7 +151,7 @@ describe('the fight sheet', () => {
   test('round lines and paw pips', () => {
     expect(renderFightHtml(PHASES[2])).toContain('Steady… look again 👀');
     expect(renderFightHtml(PHASES[3])).toContain('It got that one!');
-    expect(renderFightHtml(PHASES[4])).toContain('Nice one! 🐾');
+    expect(renderFightHtml(PHASES[4])).toContain(`Nice one! ${PAW}`);
     const html = renderFightHtml({ phase: 'beat', clue: null, round: 2, wins: 1, losses: 1, line: null });
     expect((html.match(/class="pip on"/g) ?? []).length).toBe(2);
     expect((html.match(/class="pip"/g) ?? []).length).toBe(2);

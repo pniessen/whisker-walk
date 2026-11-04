@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { tree, pine, pineStand, house, warehouse } from '../src/world/builder.js';
 import { findOccluders } from '../src/fightcam.js';
-import { createTreeFade, findFadeOccluders, segmentHitsBox, BUILDING_PAD, FADE_OPACITY, PAST_LOOK } from '../src/treefade.js';
+import { createTreeFade, findFadeOccluders, segmentHitsBox, BUILDING_PAD, FADE_OPACITY, PAST_LOOK, WINDOW_HIDE } from '../src/treefade.js';
 import { closeDiffs } from './helpers/closeto.js';
 
 const meshesOf = (g) => {
@@ -629,5 +629,33 @@ describe('treefade near poles (viewclear2)', () => {
     // off the line and not inside its canopy: only the old rules apply
     const inside = o.R > 1;
     expect(run(t)).toBe(inside);
+  });
+});
+
+describe('treefade window panes', () => {
+  const panes = (g) => meshesOf(g).filter((m) => m.userData.window);
+  it('hides a faded building\'s windows below WINDOW_HIDE and shows them again when it clears', () => {
+    const { h, camera, entries } = bworld();
+    expect(panes(h).length).toBeGreaterThan(0);
+    const fade = createTreeFade(entries);
+    const look = { x: 0, y: 0.35, z: 6 };
+    camera.position.set(0, 1, 0); // inside the house's box
+    fade.update(0.05, camera, look); // one short step: still above WINDOW_HIDE
+    expect(panes(h).every((w) => w.visible)).toBe(true);
+    for (let i = 0; i < 10; i++) fade.update(0.1, camera, look);
+    expect(panes(h).every((w) => w.visible === false)).toBe(true);
+    camera.position.set(30, 1, 30);
+    for (let i = 0; i < 20; i++) fade.update(0.1, camera, look);
+    expect(panes(h).every((w) => w.visible)).toBe(true);
+    expect(WINDOW_HIDE).toBeGreaterThan(FADE_OPACITY);
+  });
+  it('dispose shows the panes again', () => {
+    const { h, camera, entries } = bworld();
+    const fade = createTreeFade(entries);
+    camera.position.set(0, 1, 0);
+    for (let i = 0; i < 10; i++) fade.update(0.1, camera, { x: 0, y: 0.35, z: 6 });
+    expect(panes(h).some((w) => !w.visible)).toBe(true);
+    fade.dispose();
+    expect(panes(h).every((w) => w.visible)).toBe(true);
   });
 });
