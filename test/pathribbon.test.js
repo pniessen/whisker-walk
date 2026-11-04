@@ -27,6 +27,7 @@ vi.stubGlobal('document', {
 const {
   trailSegments, endKinds, trailField, trailGeometry, trailMaterial, addTrails, quadRadius, TRAIL_LOOK,
   OWNER_BAND,
+  EDGE_EXTEND,
 } = await import('../src/world/pathribbon.js');
 const { path } = await import('../src/world/builder.js');
 const { WOODS_PATHS } = await import('../src/world/woods.js');
@@ -76,11 +77,11 @@ describe('trail end classing', () => {
     expect(trailSegments(groups)[1]).toMatchObject({ x2: 0, z2: 1 });
   });
 
-  it('a dead end is pulled back by h; a map-edge end runs 2 m further out', () => {
+  it('a dead end is pulled back by h; a map-edge end runs EDGE_EXTEND further out', () => {
     const groups = [{ segs: [[50, 0, 20, 0]], w: 3 }];
     expect(endKinds(groups)[0]).toEqual(['edge', 'free']);
     const [s] = trailSegments(groups);
-    expect(s.x1).toBeCloseTo(52, 9);
+    expect(s.x1).toBeCloseTo(50 + EDGE_EXTEND, 9);
     expect(s.x2).toBeCloseTo(21.5, 9);
     expect(s.z1).toBe(0);
     expect(s.z2).toBe(0);
@@ -113,10 +114,10 @@ describe('trail end classing', () => {
     expect(kindAt(-50, 40)).toBe('edge');
     const segs = trailSegments(groups);
     expect(segs.length).toBe(WOODS_PATHS.length);
-    // (50,12)->(26,6): the edge end ran 2 m out along the segment.
+    // (50,12)->(26,6): the edge end ran EDGE_EXTEND out along the segment.
     const u = [-24 / Math.hypot(24, 6), -6 / Math.hypot(24, 6)];
-    expect(segs[0].x1).toBeCloseTo(50 - 2 * u[0], 9);
-    expect(segs[0].z1).toBeCloseTo(12 - 2 * u[1], 9);
+    expect(segs[0].x1).toBeCloseTo(50 - EDGE_EXTEND * u[0], 9);
+    expect(segs[0].z1).toBeCloseTo(12 - EDGE_EXTEND * u[1], 9);
     // (-4.5,-17)->(-18,-24) is free at both ends: shorter by 2h = 3.
     expect(segLen(segs[6])).toBeCloseTo(Math.hypot(13.5, 7) - 3, 9);
   });
@@ -150,13 +151,14 @@ describe('trail field', () => {
   }
 
   it('is a continuous union over an L joint, one owner per sample', () => {
-    // The feather is 0.4 m wide and the ragged wobble steepens it, so alpha
-    // can honestly move ~0.22 in 5 cm; a seam would be a jump that does NOT
-    // shrink with the step. So: bounded at 5 cm, and ~5x smaller at 1 cm.
+    // A smoothstep over the feather peaks at slope 1.5/width, and the ragged
+    // wobble can steepen that up to ~2x; a seam would be a jump that does NOT
+    // shrink with the step. So: bounded by that slope, and ~5x smaller at 1 cm.
+    const slope = 2 * 1.5 / (TRAIL_LOOK.featherOut - TRAIL_LOOK.featherIn);
     const w5 = worstJump(0.05, 7);
     const w1 = worstJump(0.01, 4);
-    expect(w5).toBeLessThan(0.3);
-    expect(w1).toBeLessThan(0.07);
+    expect(w5).toBeLessThan(0.05 * slope);
+    expect(w1).toBeLessThan(0.01 * slope);
     expect(w1).toBeLessThan(w5 / 3);
   });
 

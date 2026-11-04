@@ -31,10 +31,12 @@ import { withLocalUuids } from './localuuids.js';
 export const TRAIL_LOOK = {
   // Width wobble: a gentle long swell plus a short ragged edge.
   wobbleA1: 0.14, wobbleL1: 6.0,
-  wobbleA2: 0.05, wobbleL2: 0.9,
+  wobbleA2: 0.06, wobbleL2: 0.9,
+  // A finer bite on top, so the edge reads ragged and worn rather than blurred.
+  wobbleA3: 0.035, wobbleL3: 0.32,
   // Feather, in signed distance from the wobbled edge: fully opaque at
   // featherIn (inside), alpha 0 at featherOut (outside).
-  featherIn: -0.22, featherOut: 0.18,
+  featherIn: -0.13, featherOut: 0.11,
   // The darker, slightly damp/greener band just inside the edge.
   edgeBand: 0.45, edgeTint: [0.80, 0.85, 0.74],
   // The worn centre line, a touch lighter (fraction, peaks on the centreline).
@@ -51,7 +53,9 @@ const JOIN_SLACK = 0.05;
 // Width of the soft ownership hand-over (see the fragment body). The quads'
 // QUAD_PAD must stay well above it.
 export const OWNER_BAND = 0.005;
-const EDGE_EXTEND = 2;
+// Far enough that the rounded tip lies out past the bounds under the haze, not
+// in view as a blob where the trail leaves the map (2 m read as a dead end).
+export const EDGE_EXTEND = 8;
 const MIN_LEN = 0.1;
 const QUAD_PAD = 0.05;
 
@@ -87,7 +91,7 @@ export function endKinds(groups, { edge = 50 } = {}) {
 
 // The segments the trail is drawn from: [{ x1, z1, x2, z2, h }], flat, in
 // input order. Ends that meet another segment stay put (the capsule union
-// rounds the join); ends on the map edge run 2 m further out so the trail
+// rounds the join); ends on the map edge run EDGE_EXTEND (8 m) further out so the trail
 // leaves the map instead of stopping at it; free ends (dead ends, and the gaps
 // left for a bridge or stepping stones) are pulled back by h so the rounded
 // cap's tip lands on the authored end, never shortening a segment below 0.1 m.
@@ -145,9 +149,10 @@ function smoothstep(e0, e1, x) {
 const L = TRAIL_LOOK;
 function wobble(x, z, h) {
   return h * (L.wobbleA1 * (2 * vnoise(x / L.wobbleL1, z / L.wobbleL1, 1) - 1)
-    + L.wobbleA2 * (2 * vnoise(x / L.wobbleL2, z / L.wobbleL2, 2) - 1));
+    + L.wobbleA2 * (2 * vnoise(x / L.wobbleL2, z / L.wobbleL2, 2) - 1)
+    + L.wobbleA3 * (2 * vnoise(x / L.wobbleL3, z / L.wobbleL3, 8) - 1));
 }
-const maxWobble = (h) => h * (L.wobbleA1 + L.wobbleA2);
+const maxWobble = (h) => h * (L.wobbleA1 + L.wobbleA2 + L.wobbleA3);
 
 // CPU twin of the fragment shader's coverage: which segment owns (x, z), the
 // wobbled signed distance from the trail edge (negative inside), and the
@@ -294,7 +299,8 @@ function fragBody() {
   float tW = clamp(0.5 + (tOther - tBest) / ${f(2 * OWNER_BAND)}, 0.0, 1.0);
   if (tW <= 0.0) discard;
   float tWob = tH * (${f(L.wobbleA1)} * (2.0 * trailNoise(tp / ${f(L.wobbleL1)}, 1.0) - 1.0)
-    + ${f(L.wobbleA2)} * (2.0 * trailNoise(tp / ${f(L.wobbleL2)}, 2.0) - 1.0));
+    + ${f(L.wobbleA2)} * (2.0 * trailNoise(tp / ${f(L.wobbleL2)}, 2.0) - 1.0)
+    + ${f(L.wobbleA3)} * (2.0 * trailNoise(tp / ${f(L.wobbleL3)}, 8.0) - 1.0));
   float tSd = tBest - tWob;
   float tAlpha = 1.0 - smoothstep(${f(L.featherIn)}, ${f(L.featherOut)}, tSd);
   if (tAlpha < 0.002) discard;
