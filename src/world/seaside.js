@@ -6,6 +6,7 @@ import { litMaterial, repeatFor, surfaceProps } from '../render/materials.js';
 import { createWater, WATER_TUNING } from '../render/water.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
 import { tintGround } from './dressing.js';
+import { propsFor } from '../propsets.js';
 import { sandTint, dressBeach, KERB_COL } from './beachdress.js';
 
 // The same two opt-in helpers world/builder.js keeps at the top of itself, for
@@ -686,15 +687,22 @@ export function build(scene, { water = {}, wind } = {}) {
 
   scene.add(b.billboard(BILLBOARD.x, BILLBOARD.z, BILLBOARD.yaw));
   addC(BILLBOARD.x, BILLBOARD.z, 2.3);
-  // beach grass tufts — the area's only foliage, and therefore the whole of
-  // what registers with the wind rig. builder.bush returns a Group hinged at
-  // ground contact when `wind` is passed, so the tuft stands in exactly the
-  // same place either way and no hide-spot or scent record moves.
-  for (const [x, z] of SEASIDE_BUSHES) scene.add(b.bush(x, z, { wind }));
+  // beach plants — marram grass clumps and sea holly (builder.bush's 'beach'
+  // style picks the kind per spot), in place of the garden shrubs that used
+  // to sit on the sand. They are the area's only foliage, and therefore the
+  // whole of what registers with the wind rig. builder.bush returns a Group
+  // hinged at ground contact when `wind` is passed, so each plant stands in
+  // exactly the same place either way and no hide-spot or scent record moves.
+  // The mouse hides (propsets.js) are bush spots: critters flee there and
+  // vanish, so those must be the tall marram. (-24,-20) is sea holly so the
+  // six spots hold at least two of each.
+  const hideAt = new Set(propsFor('seaside').hides.map((h) => `${h.x},${h.z}`));
+  const beachKind = (x, z) => (hideAt.has(`${x},${z}`) ? 'marram' : (x === -24 && z === -20 ? 'holly' : undefined));
+  for (const [x, z] of SEASIDE_BUSHES) scene.add(b.bush(x, z, { wind, style: 'beach', kind: beachKind(x, z) }));
 
-  // a few more rocks and grass tufts scattered on the sand
+  // a few more rocks and beach plants scattered on the sand
   for (const [x, z] of SEASIDE_ROCKS_EXTRA) scene.add(b.rock(x, z));
-  for (const [x, z] of SEASIDE_BUSHES_EXTRA) scene.add(b.bush(x, z, { wind }));
+  for (const [x, z] of SEASIDE_BUSHES_EXTRA) scene.add(b.bush(x, z, { wind, style: 'beach', kind: beachKind(x, z) }));
 
   // driftwood washed up at the sand line. Thin-member rule: 0.15 by 0.25, so
   // repeatFor's one-whole-tile minimum would squash the plank tile's four

@@ -28,7 +28,7 @@ const {
 const { duskLawnColor, DUSK } = await import('../src/render/dusk.js');
 const LAWN_STYLE = GRASS_STYLES.park;
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
-const { inWater } = await import('../src/world/builder.js');
+const { inWater, deckDistance } = await import('../src/world/builder.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildSeaside, SPAWN: SEASIDE_SPAWN } = await import('../src/world/seaside.js');
@@ -166,6 +166,57 @@ describe('grass mask', () => {
       const open = mask.data.reduce((s, v) => s + v, 0) / mask.data.length;
       expect(open).toBeGreaterThan(0.6);
     });
+  }
+
+  it('no tufts on a rect deck, over water or land, nor within 0.25 m of it', () => {
+    const area = {
+      bounds: { minX: -20, maxX: 20, minZ: -20, maxZ: 20 },
+      waters: [{ kind: 'rect', minX: -10, maxX: 10, minZ: -2, maxZ: 2,
+        decks: [{ minX: -1, maxX: 1, minZ: -4, maxZ: 4 }] }],
+    };
+    expect(grassAllowed(area, [], 0, 0)).toBe(false); // over water
+    expect(grassAllowed(area, [], 0, 3.5)).toBe(false); // land part of the deck
+    expect(grassAllowed(area, [], 1.25, 3.5)).toBe(false); // 0.25 m beside
+    expect(grassAllowed(area, [], 0, 4.25)).toBe(false); // 0.25 m past the end
+    expect(grassAllowed(area, [], 1.5, 3.5)).toBe(true); // 0.5 m beside
+  });
+
+  it('no tufts on a strip deck, nor within 0.25 m of it', () => {
+    const area = {
+      bounds: { minX: -20, maxX: 20, minZ: -20, maxZ: 20 },
+      waters: [{ kind: 'rect', minX: -10, maxX: 10, minZ: -2, maxZ: 2,
+        decks: [{ x1: 0, z1: -4, x2: 0, z2: 4, halfW: 1 }] }],
+    };
+    expect(grassAllowed(area, [], 0, 0)).toBe(false);
+    expect(grassAllowed(area, [], 0.5, 3.5)).toBe(false);
+    expect(grassAllowed(area, [], 1.25, 3.5)).toBe(false);
+    expect(grassAllowed(area, [], 0, 4.25)).toBe(false);
+    expect(grassAllowed(area, [], 1.5, 3.5)).toBe(true);
+  });
+
+  const WILD = { river: buildRiver, moor: buildMoor, woods: buildWoods, pines: buildPines };
+  for (const [id, build] of Object.entries(WILD)) {
+    // 0.25 m, inside grass.js's 0.3 m DECK_MARGIN, so a tuft's own jitter
+    // never makes this flaky.
+    it(`${id}: no tuft within 0.25 m of any deck`, () => {
+      const scene = new THREE.Scene();
+      const area = build(scene);
+      const fps = flatFootprints(scene);
+      const decks = (area.waters ?? []).flatMap((w) => w.decks ?? []);
+      expect(decks.length).toBeGreaterThan(0);
+      const mask = buildGrassMask(area, fps);
+      const b = area.bounds;
+      let near = 0;
+      for (let x = b.minX; x <= b.maxX; x += 0.25) {
+        for (let z = b.minZ; z <= b.maxZ; z += 0.25) {
+          if (deckDistance(area.waters, x, z) > 0.25) continue;
+          near++;
+          expect(grassAllowed(area, fps, x, z)).toBe(false);
+          expect(mask.at(x, z)).toBe(0);
+        }
+      }
+      expect(near).toBeGreaterThan(0);
+    }, 120_000);
   }
 
   it('an oriented strip masks its own diagonal, not its bounding box', () => {

@@ -161,30 +161,43 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
 
   // houses along the streets
   //
-  // The fourth column is house()'s `bodySurface`, and it is a COLOUR reading
+  // The fifth column is house()'s `bodySurface`, and it is a COLOUR reading
   // rather than a spread: brick is fired clay, and fired clay comes out of the
-  // kiln in a narrow band of warm earths. Three of these eight are buff/straw
-  // (0xe8d8b0, 0xf2e0c0, 0xe8e0b8) — yellow stock brick, which is an entirely
-  // ordinary way for a street to be built — so they get the bond. The other
-  // five are lilac, mint, lavender, pale green and peach: nobody has ever
-  // fired a mint brick, those are paint colours, and painted lap boards is
-  // what house() defaults to. Leaving them on the default is the decision, not
-  // the absence of one.
+  // kiln in a narrow band of warm earths. Three of these eight are brick: two
+  // buff/straw (0xe8d8b0, 0xf2e0c0) — yellow stock brick, an entirely ordinary
+  // way for a street to be built — and one warm red (0xb86f58). The other five
+  // are lilac, mint, peach, pale green and lavender: nobody has ever fired a
+  // mint brick, those are paint colours, and painted lap boards is what
+  // house() defaults to. Leaving them on the default is the decision, not the
+  // absence of one.
   //
-  // The hexes are untouched. house() applies brick's luminance compensation
-  // (mean 0.948) itself, exactly as warehouse() does, so a brick body still
-  // lands on the colour typed here rather than 5% under it.
+  // The hexes are untouched by the bond: house() applies brick's luminance
+  // compensation (mean 0.948) itself, exactly as warehouse() does, so a brick
+  // body still lands on the colour typed here rather than 5% under it.
   //
-  // The three bricks are also spread one per stretch of street rather than
+  // The bricks are spread one or two per stretch of street rather than
   // adjacent, so the run reads as a mixed street and not as two terraces.
+  //
+  // The last column is house()'s `look`: roof shape, door, shutters, flower
+  // box, entry and chimney, so each lot has its own character. Three pyramid
+  // roofs, three front gables, two side gables. (-12, 15) keeps the pyramid
+  // because the rooftop climb chain perches on it, and its chimney sits at
+  // local (-1.4, -1.0), away from those perches. Every chimney stays inside
+  // local |x| <= 1.6, |z| <= 1.4 so the footprint is inside the 2.8 box.
+  const NAVY = 0x2f4a6e, RED = 0xb8433a, GREEN = 0x3f6b4a, YELLOW = 0xe0b040, WOOD = 0x7a5230;
+  const TERRA = 0xb05a4a, SLATE = 0x5d6b7c, MOSS = 0x627a52, COCOA = 0x7a5242, BLUE = 0x5b7290;
   const lots = [
-    [-12, -30, 0xe8d8b0, 'brick'], [-12, -15, 0xd8c8e8], [-12, 15, 0xf2e0c0, 'brick'], [-12, 30, 0xc8e0d0],
-    [12, -30, 0xf0d8c8], [12, -15, 0xe0e8c8], [12, 15, 0xd8d0f0], [12, 30, 0xe8e0b8, 'brick'],
+    [-12, -30, 0xe8d8b0, SLATE, 'brick', { roof: 'frontGable', door: GREEN, shutters: RED, flowerBox: true, entry: 'porch', chimney: [1.2, -0.8] }],
+    [-12, -15, 0xd6c2ea, TERRA, undefined, { roof: 'sideGable', door: WOOD, flowerBox: true, entry: 'flat', chimney: [1.6, -1.1] }],
+    [-12, 15, 0xf2e0c0, MOSS, 'brick', { roof: 'pyramid', door: NAVY, flowerBox: true, entry: 'hood', chimney: [-1.4, -1.0] }],
+    [-12, 30, 0xbfe0cc, BLUE, undefined, { roof: 'frontGable', door: RED, shutters: NAVY, entry: 'hood' }],
+    [12, -30, 0xf4cfb8, COCOA, undefined, { roof: 'pyramid', door: NAVY, shutters: GREEN, flowerBox: true, entry: 'flat', chimney: [1.2, -0.8] }],
+    [12, -15, 0xd9e8bc, TERRA, undefined, { roof: 'sideGable', door: GREEN, entry: 'hood' }],
+    [12, 15, 0xcfc8f0, SLATE, undefined, { roof: 'pyramid', door: YELLOW, shutters: NAVY, flowerBox: true, entry: 'flat', chimney: [1.2, -0.8] }],
+    [12, 30, 0xb86f58, MOSS, 'brick', { roof: 'frontGable', door: NAVY, entry: 'porch', chimney: [1.2, -0.8] }],
   ];
-  for (const [x, z, color, bodySurface] of lots) {
-    // `undefined` for the roof colour keeps house()'s default while still
-    // reaching the body-surface argument behind it.
-    scene.add(b.house(x, z, color, undefined, bodySurface));
+  for (const [x, z, color, roofColor, bodySurface, look] of lots) {
+    scene.add(b.house(x, z, color, roofColor, bodySurface, look));
     addC(x, z, 3.4);
     scene.add(b.mailbox(x + (x < 0 ? 4 : -4), z + 2));
     scene.add(b.flowerPatch(x + (x < 0 ? 5 : -5), z - 2, { wind }));

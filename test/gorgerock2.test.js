@@ -280,7 +280,7 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
     for (const name of ['rockFaces', 'lips', 'ledgeTops']) {
       const mat = scene.getObjectByName(name).material;
       // ledgeTops wears the fluted patch too
-      expect(mat.customProgramCacheKey(), name).toBe('gorge-rock-v1');
+      expect(mat.customProgramCacheKey(), name).toBe('gorge-rock-v3');
     }
   });
 
@@ -360,6 +360,14 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
     scene.getObjectByName('tors').traverse((o) => { if (o.isMesh) sources.push(o); });
     sources.push(scene.getObjectByName('summitRock'), scene.getObjectByName('summitRockBoulder'));
     const v = [0, 1, 2].map(() => new THREE.Vector3());
+    // The camp den's lining (polish-gorge5) is appended to rockFaces: a wall
+    // liner whose cove leans in over the den floor's edge under the roof, as
+    // the chambers' liners do (in their caveRoom meshes, not read here).
+    // gorge5.test.js holds it to the den's own rules; it is no floor. Only
+    // its triangles wholly above the den's low band are exempt: the low
+    // lining must pass the ground-agreement check like everything else.
+    const lr = rockGroup.userData.mouthArchRanges.campDenLining;
+    const lowY = CAMP_DEN.y0 + 1.0;
     for (const mesh of sources) {
       expect(mesh, 'a rock source mesh').toBeTruthy();
       mesh.updateWorldMatrix(true, false);
@@ -368,6 +376,7 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
       const n = g.index ? g.index.count : pos.count;
       for (let t = 0; t < n; t += 3) {
         for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, g.index ? g.index.getX(t + k) : t + k).applyMatrix4(mesh.matrixWorld);
+        if (mesh.name === 'rockFaces' && !g.index && t / 3 >= lr.from && t / 3 < lr.to && v.every((q) => q.y > lowY)) continue;
         const tri = [v[0].x, v[0].y, v[0].z, v[1].x, v[1].y, v[1].z, v[2].x, v[2].y, v[2].z];
         const id = tris.length;
         tris.push(tri);

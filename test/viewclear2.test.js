@@ -45,12 +45,15 @@ describe('viewclear2 fade entries per area', () => {
     for (const e of lamps) expect(count(e.obj, (o) => o.isMesh)).toBe(2);
   }, 120_000);
 
-  it('neighborhood: house boxes follow the walls, and a cat on the street does not fade one', () => {
+  it('neighborhood: house boxes follow the walls plus their trim, and a cat on the street does not fade one', () => {
     const { boxes } = found(buildNeighborhood);
     for (const e of boxes) {
       const b = e.box;
-      expect(Math.abs((b.maxX - b.minX) / 2 - 2.5)).toBeLessThan(0.15);
-      expect(Math.abs((b.maxZ - b.minZ) / 2 - 2.0)).toBeLessThan(0.15);
+      // eaves/porch trim is one merged mesh with the walls' dressing, so it widens the box
+      expect((b.maxX - b.minX) / 2).toBeGreaterThanOrEqual(2.45);
+      expect((b.maxX - b.minX) / 2).toBeLessThanOrEqual(2.85);
+      expect((b.maxZ - b.minZ) / 2).toBeGreaterThanOrEqual(1.95);
+      expect((b.maxZ - b.minZ) / 2).toBeLessThanOrEqual(2.6);
       expect(b.maxY).toBeCloseTo(5, 1);
     }
     // the door faces +z: a cat 3.5 m out on the front, camera further out on the street side

@@ -560,7 +560,7 @@ export function build(scene, { water = {}, wind } = {}) {
     { segs: MOOR_PATHS, w: PATH_W },
     { segs: MOOR_TRAIL, w: TRAIL_W },
     { segs: MOOR_GORGE_TRAIL, w: TRAIL_W },
-  ], PATH_STYLE, 'moor');
+  ], PATH_STYLE, 'moor', { decks: MOOR_WATERS.flatMap((w) => w.decks ?? []), waters: MOOR_WATERS });
 
   // --- the climb chains -------------------------------------------------------
   // The Old Hawthorn, with its grey boulder at the foot, and the High Tor on

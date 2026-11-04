@@ -16,6 +16,7 @@
 import { BUTTONS, CLUES } from '../fight.js';
 import { clanName } from '../clanhomes.js';
 import { escapeHtml } from '../game/util.js';
+import { PAW, pawify } from './pawicon.js';
 import { FIGHT_MOVES, teachFor } from '../fightmoves.js';
 
 export const FIGHT_TEACH = 'Crouch → Dodge · Paw up → Pounce · Backs up → Swipe';
@@ -30,7 +31,7 @@ const MOVE_LABELS = { pounce: 'Pounce', swipe: 'Swipe', dodge: 'Dodge' };
 export function renderChallengeHtml({ name, clan } = {}) {
   return `<span class="fight-ask-text">${escapeHtml(name)} of ${escapeHtml(clanName(clan))} is on your land!</span>`
     + '<span class="fight-ask-buttons">'
-    + '<button type="button" class="hud-prompt-btn fight-ask-go" data-fight="go">Fight! 🐾<span class="fight-key">E</span></button>'
+    + `<button type="button" class="hud-prompt-btn fight-ask-go" data-fight="go">Fight! ${PAW}<span class="fight-key">E</span></button>`
     + '<button type="button" class="hud-prompt-btn fight-ask-off" data-fight="off">Back off<span class="fight-key">Q</span></button>'
     + '</span>';
 }
@@ -84,7 +85,7 @@ export function renderFightHtml({ phase, clue, wins, losses, line, specials = []
   const idle = phase === 'clue' ? '' : ' idle';
   return '<div class="fight-top">'
     + `<div class="fight-pips">${side('You', wins)}${side('It', losses)}</div>`
-    + (head ? `<div class="fight-line">${escapeHtml(head)}</div>` : '')
+    + (head ? `<div class="fight-line">${pawify(escapeHtml(head))}</div>` : '')
     + (showClue
       ? `<div class="fight-clue"><span class="fight-clue-icon">${escapeHtml(clue.icon)}</span><span class="fight-clue-text">${escapeHtml(clue.text)}</span></div>`
       : '')

@@ -610,12 +610,324 @@ export function path(x1, z1, x2, z2, w = 2, { surface, color = 0xcbb8a0, footpri
   return m;
 }
 
+// =============================================================================
+// DRESSED HOUSES (polish-twolegplace).
+// =============================================================================
+// house()'s optional `look` turns the shipped box-and-pyramid into a storybook
+// cottage: corner boards, a plinth, a fascia, framed windows with sills, side
+// windows, shutters, a flower box, a door step and mat, a hood / canopy /
+// porch, pots, a chimney, and optionally a gable roof. All of it costs TWO
+// meshes per house (houseTrim, vertex-coloured; houseGlass, the dusk-glowing
+// side panes and door lantern), and nothing in the shipped five moves.
+//
+// THREE RULES THE CODE BELOW KEEPS, all for systems that read houses:
+//   * Math.random. Three takes 4 draws per Object3D / geometry / material, and
+//     every area build's draw count is pinned (test/waterlooks.test.js). The
+//     trim and glass are built inside withLocalUuids, intermediate geometries
+//     included. The gable roof is NOT: it replaces the cone's geometry one for
+//     one (one geometry, the same surfMat call, one mesh), so it draws exactly
+//     what the cone drew. Variety comes from look data and hash01, never
+//     Math.random. Nothing here goes through roundedBox(): its cache would let a
+//     geometry made under local uuids satisfy a later real-stream call.
+//   * The non-precise Box3. contactshadows.js and rig.js classify each
+//     top-level child by Box3.setFromObject; the dressing stays inside the
+//     cone's box and the gable roof carries the cone's box explicitly.
+//   * Windows. houseGlass is userData.window so dusk.js lights it and
+//     mergeprops.js leaves it alone; treefade.js builds the house's fade box
+//     from every mesh that starts below half height, which is why the dressing
+//     stays within x, z +-2.8.
+const HOUSE_LOOK = {
+  roof: 'pyramid', door: 0x7a5230, trim: 0xf4efe4, shutters: null, flowerBox: false,
+  entry: 'hood', chimney: null,
+};
+const EAVE_Y = 2.8;
+const RIDGE_Y = 5;
+// The shipped cone (r 3.9, turned 45 degrees) has a non-precise box of
+// +-3.9 * (cos 45 + sin 45) in x and z.
+const CONE_REACH = 3.9 * Math.SQRT2;
+// Gable roofs in a canonical frame: ridge along z, eaves at x = +-across, rakes
+// at z = +-along; wallAcross / wallAlong are the body's half-sizes in that
+// frame. 'sideGable' is the same build turned a quarter about y.
+const GABLES = {
+  frontGable: { across: 2.8, along: 2.3, wallAcross: 2.5, wallAlong: 2, turn: 0 },
+  sideGable: { across: 2.3, along: 2.75, wallAcross: 2, wallAlong: 2.5, turn: Math.PI / 2 },
+};
+const HOUSE_GLASS = 0xa8d8e8;
+const BRASS = 0xd8b04a;
+const IRON = 0x3b3a40;
+const STEP_STONE = 0xb5aca0;
+const DOORMAT = 0x9a5e3c;
+const TERRACOTTA = 0xc4673f;
+const POT_GREEN = 0x6aa84f;
+const LEAF = 0x5f9e4a;
+const FLOWERS = [0xf28cb4, 0xf5d04a, 0xd9414b];
+const CHIMNEY_BRICK = 0xa0523d;
+const CHIMNEY_CAP = 0x7a746e;
+
+const _ab = new THREE.Vector3();
+const _ac = new THREE.Vector3();
+// [a, b, c] wound so the face normal points along `out`.
+function orientTri(a, b, c, out) {
+  _ab.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  _ac.set(c[0] - a[0], c[1] - a[1], c[2] - a[2]);
+  _ab.cross(_ac);
+  return _ab.x * out[0] + _ab.y * out[1] + _ab.z * out[2] >= 0 ? [a, b, c] : [a, c, b];
+}
+
+// The two slope quads of a gable roof, in house space (the mesh sits at y 0).
+// UVs give the cone's tile size in metres under the same repeatFor('shingle',
+// 11, 4.4): u = metres along the eave / 11, v = metres up the slope / 4.4.
+function gableRoofGeometry(roof) {
+  const { across: A, along: L, turn } = GABLES[roof];
+  const rise = RIDGE_Y - EAVE_Y;
+  const slope = Math.hypot(A, rise);
+  const pos = [];
+  const uv = [];
+  for (const s of [1, -1]) {
+    const e1 = [s * A, EAVE_Y, -L], e2 = [s * A, EAVE_Y, L];
+    const r1 = [0, RIDGE_Y, -L], r2 = [0, RIDGE_Y, L];
+    const out = [s * rise, A, 0];
+    for (const tri of [orientTri(e1, e2, r2, out), orientTri(e1, r2, r1, out)]) {
+      for (const p of tri) {
+        pos.push(...p);
+        uv.push((p[2] + L) / 11, (p[1] === RIDGE_Y ? slope : 0) / 4.4);
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.computeVertexNormals();
+  if (turn) geo.rotateY(turn);
+  // Explicit, and wider than the vertices on purpose: the decal scan
+  // (contactshadows.js) and the caster rule (rig.js) read the house's
+  // NON-precise Box3, which is the union of its meshes' geometry boxes. The
+  // cone's was x, z +-CONE_REACH; keeping that here keeps the house's box (and
+  // so its decal and caster class) exactly as shipped. y is the vertices' own
+  // 2.8..5 — the body already holds the house box's y 0.
+  geo.boundingBox = new THREE.Box3(
+    new THREE.Vector3(-CONE_REACH, EAVE_Y, -CONE_REACH),
+    new THREE.Vector3(CONE_REACH, RIDGE_Y, CONE_REACH),
+  );
+  return geo;
+}
+
+// Collects non-indexed pieces (position + normal, and colour when `colored`)
+// for one mergeGeometries call. `turn` spins a piece about the house's y axis
+// after it is placed, so a front-wall layout can be reused on a side wall.
+// Call only inside withLocalUuids: every piece is a fresh geometry.
+function pieceKit(colored) {
+  const parts = [];
+  const add = (geo, hex, turn) => {
+    if (geo.index) geo = geo.toNonIndexed();
+    if (geo.attributes.uv) geo.deleteAttribute('uv');
+    if (turn) geo.rotateY(turn);
+    if (colored) {
+      const c = new THREE.Color(hex); // linear r/g/b under Three's colour management
+      const col = new Float32Array(geo.attributes.position.count * 3);
+      for (let i = 0; i < col.length; i += 3) { col[i] = c.r; col[i + 1] = c.g; col[i + 2] = c.b; }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
+    parts.push(geo);
+  };
+  return {
+    box(w, h, d, x, y, z, hex, { rz = 0, turn = 0 } = {}) {
+      const geo = new THREE.BoxGeometry(w, h, d);
+      if (rz) geo.rotateZ(rz);
+      geo.translate(x, y, z);
+      add(geo, hex, turn);
+    },
+    solid(geo, x, y, z, hex) {
+      geo.translate(x, y, z);
+      add(geo, hex, 0);
+    },
+    // A convex polygon, fan-triangulated, facing `out`.
+    poly(points, out, hex, turn = 0) {
+      const pos = [];
+      for (let i = 1; i < points.length - 1; i++) {
+        for (const p of orientTri(points[0], points[i], points[i + 1], out)) pos.push(...p);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.computeVertexNormals();
+      add(geo, hex, turn);
+    },
+    merged: () => {
+      const out = mergeGeometries(parts);
+      for (const g of parts) g.dispose();
+      return out;
+    },
+  };
+}
+
+// A framed window on a wall `wall` metres out along +z (turned onto a side
+// wall by `turn`): a frame 0.2 wider than the pane with 0.09 bars, a mullion
+// cross and a sill. With shutters the frame's side bars sit behind them and
+// are left out.
+function windowTrim(k, cx, cy, wall, pane, hex, turn, shutters) {
+  const outer = pane + 0.2;
+  const bar = 0.09;
+  const inner = outer - 2 * bar;
+  const fz = wall + 0.05;
+  k.box(outer, bar, 0.1, cx, cy + (outer - bar) / 2, fz, hex, { turn });
+  k.box(outer, bar, 0.1, cx, cy - (outer - bar) / 2, fz, hex, { turn });
+  if (shutters == null) {
+    k.box(bar, inner, 0.1, cx - (outer - bar) / 2, cy, fz, hex, { turn });
+    k.box(bar, inner, 0.1, cx + (outer - bar) / 2, cy, fz, hex, { turn });
+  }
+  k.box(0.06, inner, 0.04, cx, cy, wall + 0.085, hex, { turn });
+  k.box(inner, 0.06, 0.04, cx, cy, wall + 0.085, hex, { turn });
+  k.box(outer + 0.15, 0.07, 0.18, cx, cy - outer / 2 - 0.035, wall + 0.09, hex, { turn });
+  if (shutters != null) {
+    const rail = new THREE.Color(shutters).multiplyScalar(0.75);
+    for (const s of [-1, 1]) {
+      const sx = cx + s * (pane / 2 + 0.21);
+      k.box(0.42, 0.95, 0.05, sx, cy, wall + 0.125, shutters, { turn });
+      for (const dy of [-0.2, 0.2]) k.box(0.34, 0.06, 0.03, sx, cy + dy, wall + 0.165, rail, { turn });
+    }
+  }
+}
+
+// Height of the roof's top surface over local (px, pz).
+function roofHeightAt(roof, px, pz) {
+  if (roof === 'pyramid') return RIDGE_Y - 2 * Math.max(Math.abs(px), Math.abs(pz)) / (3.9 * Math.SQRT1_2);
+  const { across } = GABLES[roof];
+  return RIDGE_Y - (RIDGE_Y - EAVE_Y) * Math.abs(roof === 'frontGable' ? px : pz) / across;
+}
+
+// Gable ends (in the `gable` colour), bargeboards along every rake and one
+// soffit quad closing the eaves' underside at y 2.8. Built in the canonical
+// frame and turned with the roof.
+function gableTrim(k, roof, gableHex, trimHex) {
+  const { across: A, along: L, wallAcross: W, wallAlong: D, turn } = GABLES[roof];
+  const rise = RIDGE_Y - EAVE_Y;
+  const yAt = (a) => RIDGE_Y - rise * a / A;
+  for (const e of [-1, 1]) {
+    const z = e * D;
+    k.poly([[-W, 3, z], [W, 3, z], [W, yAt(W), z], [0, RIDGE_Y, z], [-W, yAt(W), z]], [0, 0, e], gableHex, turn);
+  }
+  const len = Math.hypot(A, rise);
+  for (const s of [-1, 1]) {
+    const nx = s * rise / len, ny = A / len; // the slope's outward normal
+    const drop = 0.1; // half the board's 0.18 plus 0.01 clear of the shingles
+    for (const e of [-1, 1]) {
+      k.box(len, 0.18, 0.06, s * A / 2 - nx * drop, (EAVE_Y + RIDGE_Y) / 2 - ny * drop, e * (L - 0.03), trimHex,
+        { rz: -s * Math.atan2(rise, A), turn });
+    }
+  }
+  k.poly([[-A, EAVE_Y, -L], [A, EAVE_Y, -L], [A, EAVE_Y, L], [-A, EAVE_Y, L]], [0, -1, 0], trimHex, turn);
+}
+
+// Everything on a dressed house that is not glass, as one vertex-coloured
+// geometry. Front door face is +z (door at z 2.01-2.06); body is 5 x 3 x 4.
+function houseTrimGeometry(bodyColor, look, x, z) {
+  const k = pieceKit(true);
+  const T = look.trim;
+  const porch = look.entry === 'porch';
+
+  // Plinth, a darker band of the body colour, 0.04 proud.
+  const plinth = new THREE.Color(bodyColor).multiplyScalar(0.72);
+  for (const e of [-1, 1]) {
+    k.box(5.08, 0.25, 0.04, 0, 0.125, e * 2.02, plinth);
+    k.box(0.04, 0.25, 4, e * 2.52, 0.125, 0, plinth);
+  }
+  // Corner boards, from the plinth to the eaves.
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) k.box(0.14, 2.57, 0.14, sx * 2.46, 1.535, sz * 1.96, T);
+  // Fascia under the pyramid's eaves. A gable's soffit encloses this band, so
+  // gable houses skip it.
+  if (look.roof === 'pyramid') {
+    for (const e of [-1, 1]) {
+      k.box(5.1, 0.18, 0.05, 0, 2.91, e * 2.025, T);
+      k.box(0.05, 0.18, 4, e * 2.525, 2.91, 0, T);
+    }
+  } else {
+    gableTrim(k, look.roof, look.gable, T);
+  }
+
+  // Windows: the shipped front pair (0.9 panes) and one 0.8 pane per side wall.
+  for (const wx of [-1.6, 1.6]) windowTrim(k, wx, 1.8, 2, 0.9, T, 0, look.shutters);
+  for (const turn of [Math.PI / 2, -Math.PI / 2]) windowTrim(k, 0, 1.8, 2.5, 0.8, T, turn, null);
+
+  // Door: frame, brass knob, stone step, mat.
+  for (const s of [-1, 1]) k.box(0.1, 1.9, 0.1, s * 0.5, 0.95, 2.05, T);
+  k.box(1.1, 0.1, 0.1, 0, 1.85, 2.05, T);
+  k.box(0.07, 0.07, 0.07, 0.3, 0.9, 2.095, BRASS);
+  k.box(porch ? 1.9 : 1.4, 0.14, 0.6, 0, 0.07, 2.3, STEP_STONE);
+  k.box(0.8, 0.03, 0.4, 0, 0.155, 2.28, DOORMAT);
+  // Lantern's iron: base, cap and the arm to the wall (its pane is glass).
+  k.box(0.16, 0.05, 0.16, 0.64, 1.425, 2.12, IRON);
+  k.box(0.16, 0.05, 0.16, 0.64, 1.675, 2.12, IRON);
+  k.box(0.06, 0.06, 0.06, 0.64, 1.6, 2.03, IRON);
+
+  // Entry over the door.
+  if (look.entry === 'flat') {
+    k.box(1.4, 0.08, 0.55, 0, 2, 2.275, T);
+    for (const s of [-1, 1]) k.box(0.08, 0.2, 0.35, s * 0.62, 1.86, 2.175, T);
+  } else if (porch) {
+    for (const s of [-1, 1]) k.box(0.12, 2.3, 0.12, s * 0.85, 1.15, 2.65, T);
+    k.box(2, 0.1, 0.78, 0, 2.35, 2.39, T);
+  } else {
+    // 'hood': two pitched boards from eaves (+-0.7, 2.0) to a ridge at 2.3,
+    // with a little gable infill under them.
+    const len = Math.hypot(0.7, 0.3) + 0.06;
+    for (const s of [-1, 1]) {
+      const nx = s * 0.3 / Math.hypot(0.7, 0.3), ny = 0.7 / Math.hypot(0.7, 0.3);
+      k.box(len, 0.06, 0.55, s * 0.35 + nx * 0.03, 2.15 + ny * 0.03, 2.275, T, { rz: -s * Math.atan2(0.3, 0.7) });
+    }
+    k.poly([[-0.68, 2.01, 2.53], [0.68, 2.01, 2.53], [0, 2.29, 2.53]], [0, 0, 1], T);
+  }
+
+  // Flower box under the left front window: box, leaves, 7 blooms.
+  if (look.flowerBox) {
+    k.box(0.95, 0.2, 0.2, -1.6, 1.08, 2.16, look.shutters ?? look.door);
+    k.box(0.85, 0.08, 0.14, -1.6, 1.22, 2.2, LEAF);
+    for (let i = 0; i < 7; i++) {
+      k.solid(new THREE.OctahedronGeometry(0.07, 0), -1.6 + (i - 3) * 0.13, 1.3 + hash01(x + i, z, 31) * 0.05,
+        2.2 + (i % 2 ? 0.03 : -0.02), FLOWERS[i % 3]);
+    }
+  }
+  // Two terracotta pots either side of the step.
+  const potX = porch ? 1.25 : 1;
+  for (const s of [-1, 1]) {
+    k.solid(new THREE.CylinderGeometry(0.16, 0.12, 0.3, 8), s * potX, 0.15, 2.45, TERRACOTTA);
+    k.solid(new THREE.IcosahedronGeometry(0.17, 0), s * potX, 0.36, 2.45, POT_GREEN);
+  }
+  // Chimney: from just under the roof at its lowest footprint corner up to a
+  // cap whose top is at y 4.95.
+  if (look.chimney) {
+    const [cx, cz] = look.chimney;
+    let bottom = Infinity;
+    for (const dx of [-0.3, 0.3]) for (const dz of [-0.3, 0.3]) bottom = Math.min(bottom, roofHeightAt(look.roof, cx + dx, cz + dz));
+    bottom -= 0.05;
+    const top = 4.85;
+    k.box(0.6, Math.max(0.1, top - bottom), 0.6, cx, (Math.min(bottom, top - 0.1) + top) / 2, cz, CHIMNEY_BRICK);
+    k.box(0.75, 0.1, 0.75, cx, 4.9, cz, CHIMNEY_CAP);
+  }
+  return k.merged();
+}
+
+// The dressed house's extra glass, one geometry: a 0.8 pane on each side wall
+// and the door lantern. Tagged window by the caller, so it glows at dusk.
+function houseGlassGeometry() {
+  const k = pieceKit(false);
+  for (const s of [-1, 1]) k.box(0.04, 0.8, 0.8, s * 2.53, 1.8, 0, 0);
+  k.box(0.14, 0.2, 0.14, 0.64, 1.55, 2.12, 0);
+  return k.merged();
+}
+
 // `bodySurface` is 'siding' or 'brick', exactly as warehouse() takes it, and
 // for the same reason: which one a house wants is a colour decision the caller
 // has already made. The default is 'siding', because every house shipped today
 // is a pale painted body (0xe8d8b0, 0xd8c8a8) and painted lap boards are what
 // that colour has always been drawing.
-export function house(x, z, bodyColor = 0xe8d8b0, roofColor = 0xb05a4a, bodySurface = 'siding') {
+// `look` (optional) dresses the house — see DRESSED HOUSES above. Every field
+// is optional: { roof: 'pyramid' | 'frontGable' | 'sideGable', door, trim,
+// shutters (hex or null), flowerBox, entry: 'hood' | 'flat' | 'porch',
+// chimney: [lx, lz] or null, gable (defaults to bodyColor) }. With no look the
+// house is exactly the shipped five meshes.
+export function house(x, z, bodyColor = 0xe8d8b0, roofColor = 0xb05a4a, bodySurface = 'siding', look = null) {
+  const L = look && { ...HOUSE_LOOK, gable: bodyColor, ...look };
+  const gabled = L && L.roof !== 'pyramid';
   const g = new THREE.Group();
   // Same compensation warehouse() applies, for the same reason: the brick
   // tile's mean is 0.948, so a textured wall lands ~5% under the hex the
@@ -641,14 +953,19 @@ export function house(x, z, bodyColor = 0xe8d8b0, roofColor = 0xb05a4a, bodySurf
   // and fine enough near the peak that mipmapping resolves it to flat colour,
   // which is the correct answer up there anyway. If a reviewer decides the
   // taper is not worth it, this is one line: drop back to mat(roofColor).
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(3.9, 2, 4),
+  //
+  // A gable look swaps ONLY the geometry (see gableRoofGeometry): same
+  // material call and repeat, one mesh, so the same Math.random draws.
+  const roof = new THREE.Mesh(gabled ? gableRoofGeometry(L.roof) : new THREE.ConeGeometry(3.9, 2, 4),
     surfMat(roofColor, 'shingle', 11, 4.4));
-  roof.position.y = 4;
-  roof.rotation.y = Math.PI / 4;
+  if (!gabled) {
+    roof.position.y = 4;
+    roof.rotation.y = Math.PI / 4;
+  }
   g.add(roof);
   // A plank door, at last literally: the plank tile is four boards across its
   // 1.0m, so a 0.9m leaf reads as four ~22cm boards running the right way up.
-  const door = surfBox(0.9, 1.8, 0.1, 0x7a5230, 'wood');
+  const door = surfBox(0.9, 1.8, 0.1, L ? L.door : 0x7a5230, 'wood');
   door.position.set(0, 0.9, 2.01);
   g.add(door);
   for (const wx of [-1.6, 1.6]) {
@@ -659,6 +976,20 @@ export function house(x, z, bodyColor = 0xe8d8b0, roofColor = 0xb05a4a, bodySurf
     win.userData.window = true;
     win.position.set(wx, 1.8, 2.01);
     g.add(win);
+  }
+  if (L) {
+    withLocalUuids(`house:${x},${z}`, () => {
+      const trim = new THREE.Mesh(houseTrimGeometry(bodyColor, L, x, z),
+        litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('wood') }));
+      trim.name = 'houseTrim';
+      g.add(trim);
+      const glass = new THREE.Mesh(houseGlassGeometry(), surfNoMap(HOUSE_GLASS, 'glass'));
+      glass.name = 'houseGlass';
+      glass.userData.window = true;
+      // flush panes and a tiny lantern: nothing worth a shadow draw
+      glass.userData.noCast = true;
+      g.add(glass);
+    });
   }
   g.position.set(x, 0, z);
   return g;
@@ -2739,6 +3070,195 @@ export function tree(x, z, scale = 1, { wind } = {}) {
   return g;
 }
 
+// beachClumpGeometry(x, z, kind) — the Seaside's plants, in place of the
+// garden-shrub blob: 'marram' (dune grass: 16 arching straw-green blades
+// fanned from a tight base, plus 3 buff seed spikes — 98 triangles) or
+// 'holly' (sea holly: a low silvery blue-grey rosette of 9 spiky leaves and 4
+// stems topped by small blue thistle heads in a star of bracts — 100
+// triangles). Built around the local origin with
+// the ground at y 0; bush() places and spins it.
+//
+// EXACTLY three BufferGeometries — part A, part B and their merge, with A and
+// B disposed — because that is what blobGeometry makes for a 2-lobe bush, and
+// Three draws 4 Math.random values for every geometry's uuid. The Seaside's
+// build draw count is pinned (test/waterlooks.test.js) and feeds the flat
+// trace, so the beach clump must cost the canopy's draws to the object. Shape
+// comes from hash01 only, never Math.random. Colours are linear
+// (new THREE.Color(hex)) per vertex. ≤ 100 triangles either kind, though
+// 160 was the brief's cap: the canopy bush it replaces is 100, and the
+// Seaside had no triangles to give (29,521 under a 30,000 ceiling), so the
+// clump spends exactly what the shrub did and no more.
+function beachClumpGeometry(x, z, kind) {
+  const part = () => {
+    const pos = [], col = [], idx = [];
+    return {
+      // v(x, y, z, colour) -> vertex index
+      v(px, py, pz, colour) {
+        pos.push(px, py, pz);
+        col.push(colour.r, colour.g, colour.b);
+        return pos.length / 3 - 1;
+      },
+      tri(a, b, d) { idx.push(a, b, d); },
+      geo() {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        return g;
+      },
+    };
+  };
+  const H = (s) => hash01(x, z, s);
+  const A = part(), B = part();
+  const mix = (a, b, t, shade = 1) => new THREE.Color(a).lerp(new THREE.Color(b), t).multiplyScalar(shade);
+
+  if (kind === 'marram') {
+    // Blades: three segments (quad, quad, tip triangle = 5 triangles), so
+    // each arches visibly instead of standing as a flat card.
+    const N = 16;
+    for (let i = 0; i < N; i++) {
+      const s = 1100 + i * 7;
+      const th = ((i + H(s) * 0.7) / N) * Math.PI * 2;
+      const r = 0.25 * H(s + 1);
+      const h = 0.6 + 0.55 * H(s + 2);
+      // outer blades lean further; inner ones stand up
+      const reach = h * (0.15 + 0.25 * (r / 0.25) + 0.2 * H(s + 3));
+      const a = reach / h;
+      const w0 = 0.05 + 0.02 * H(s + 4);
+      const shade = 0.88 + 0.18 * H(s + 5);
+      const ox = Math.cos(th), oz = Math.sin(th);
+      const sx = -oz, sz = ox;
+      const bx = ox * r, bz = oz * r;
+      const ids = [];
+      for (let k = 0; k <= 3; k++) {
+        const t = k / 3;
+        const d = reach * t * t;
+        const y = h * t * (1 - 0.35 * a * t);
+        const cx = bx + ox * d, cz = bz + oz * d;
+        const colour = mix(0x8a9a5a, 0xd8c88a, Math.pow(t, 0.8), shade);
+        if (k === 3) {
+          ids.push(A.v(cx, y, cz, colour));
+        } else {
+          const w = w0 * (1 - 0.8 * t) * 0.5;
+          ids.push(A.v(cx - sx * w, y, cz - sz * w, colour), A.v(cx + sx * w, y, cz + sz * w, colour));
+        }
+      }
+      A.tri(ids[0], ids[1], ids[3]); A.tri(ids[0], ids[3], ids[2]);
+      A.tri(ids[2], ids[3], ids[5]); A.tri(ids[2], ids[5], ids[4]);
+      A.tri(ids[4], ids[5], ids[6]);
+    }
+    // Seed spikes: a stem that thickens into a buff spike, as two crossed
+    // cards (3 triangles each) so it reads from every side.
+    for (let j = 0; j < 3; j++) {
+      const s = 1300 + j * 11;
+      const th = ((j + H(s)) / 3) * Math.PI * 2;
+      const r = 0.06 * H(s + 1);
+      const h = 1.0 + 0.22 * H(s + 2);
+      const lean = 0.08 + 0.1 * H(s + 3);
+      const ox = Math.cos(th), oz = Math.sin(th);
+      const bx = ox * r, bz = oz * r;
+      const at = (t) => [bx + ox * lean * t * t, h * t, bz + oz * lean * t * t];
+      const stem = mix(0x8a9a5a, 0xb8b07a, 0.5);
+      const head = mix(0xc8b07a, 0xd8c08a, H(s + 4));
+      for (let card = 0; card < 2; card++) {
+        const ang = th + card * Math.PI / 2;
+        const wx = Math.cos(ang), wz = Math.sin(ang);
+        const [x0, y0, z0] = at(0), [x1, y1, z1] = at(0.78), [x2, y2, z2] = at(1);
+        const b0 = B.v(x0 - wx * 0.006, y0, z0 - wz * 0.006, stem);
+        const b1 = B.v(x0 + wx * 0.006, y0, z0 + wz * 0.006, stem);
+        const m0 = B.v(x1 - wx * 0.018, y1, z1 - wz * 0.018, head);
+        const m1 = B.v(x1 + wx * 0.018, y1, z1 + wz * 0.018, head);
+        const tp = B.v(x2, y2, z2, head);
+        B.tri(b0, b1, m1); B.tri(b0, m1, m0); B.tri(m0, m1, tp);
+      }
+    }
+  } else {
+    // Rosette: 9 spiky leaves (4 triangles each, a raised midrib and two
+    // pairs of side spines), all ≤ ~0.35 m off the sand.
+    const N = 9;
+    for (let i = 0; i < N; i++) {
+      const s = 1500 + i * 7;
+      const ph = ((i + H(s) * 0.6) / N) * Math.PI * 2;
+      const L = 0.28 + 0.1 * H(s + 1);
+      const e = 0.5 + 0.3 * H(s + 2);
+      const shade = 0.78 + 0.16 * H(s + 3);
+      const dx = Math.cos(ph) * Math.cos(e), dy = Math.sin(e), dz = Math.sin(ph) * Math.cos(e);
+      const sx = -Math.sin(ph), sz = Math.cos(ph);
+      const c0 = [Math.cos(ph) * 0.03, 0.01, Math.sin(ph) * 0.03];
+      const P = (along, side, lift) => [
+        c0[0] + dx * along * L + sx * side * L,
+        c0[1] + dy * along * L + lift,
+        c0[2] + dz * along * L + sz * side * L,
+      ];
+      const base = mix(0x7d949e, 0x8fa6b0, 0.5, shade);
+      const leaf = new THREE.Color(0x8fa6b0).multiplyScalar(shade);
+      const tipC = mix(0x8fa6b0, 0xc4d2d8, 0.6, shade);
+      const v0 = A.v(...c0, base);
+      const v1 = A.v(...P(0.5, 0, 0.03), leaf);
+      const v2 = A.v(...P(1, 0, -0.01), tipC);
+      const l1 = A.v(...P(0.3, -0.3, -0.015), tipC);
+      const r1 = A.v(...P(0.3, 0.3, -0.015), tipC);
+      const l2 = A.v(...P(0.72, -0.24, -0.01), tipC);
+      const r2 = A.v(...P(0.72, 0.24, -0.01), tipC);
+      A.tri(v0, l1, v1); A.tri(v0, v1, r1);
+      A.tri(v1, l2, v2); A.tri(v1, v2, r2);
+    }
+    // Flower stems: crossed thin cards (4 triangles), a three-sided
+    // bipyramid head (6) and a 6-point star of bracts under it (6) — 16 a stem.
+    for (let j = 0; j < 4; j++) {
+      const s = 1700 + j * 11;
+      const th = ((j + H(s) * 0.8) / 4) * Math.PI * 2;
+      const r = 0.06 * H(s + 1);
+      const h = 0.34 + 0.12 * H(s + 2);
+      const lean = 0.1 + 0.08 * H(s + 3);
+      const ox = Math.cos(th), oz = Math.sin(th);
+      const bx = ox * r, bz = oz * r;
+      const tx = bx + ox * lean, tz = bz + oz * lean;
+      const stemLo = new THREE.Color(0x8fa6b0), stemHi = mix(0x8fa6b0, 0x6f86c8, 0.5);
+      for (let card = 0; card < 2; card++) {
+        const ang = th + card * Math.PI / 2;
+        const wx = Math.cos(ang), wz = Math.sin(ang);
+        const a0 = B.v(bx - wx * 0.012, 0, bz - wz * 0.012, stemLo);
+        const a1 = B.v(bx + wx * 0.012, 0, bz + wz * 0.012, stemLo);
+        const a2 = B.v(tx + wx * 0.008, h, tz + wz * 0.008, stemHi);
+        const a3 = B.v(tx - wx * 0.008, h, tz - wz * 0.008, stemHi);
+        B.tri(a0, a1, a2); B.tri(a0, a2, a3);
+      }
+      // thistle head
+      const hc = new THREE.Color(0x6f86c8).multiplyScalar(0.92 + 0.12 * H(s + 4));
+      const hy = h + 0.045, rx = 0.048, ry = 0.06;
+      const top = B.v(tx, hy + ry, tz, hc);
+      const bot = B.v(tx, hy - ry, tz, hc);
+      const eq = [];
+      for (let k = 0; k < 3; k++) {
+        const a = th + (k * Math.PI * 2) / 3;
+        eq.push(B.v(tx + Math.cos(a) * rx, hy, tz + Math.sin(a) * rx, hc));
+      }
+      for (let k = 0; k < 3; k++) {
+        B.tri(top, eq[(k + 1) % 3], eq[k]);
+        B.tri(bot, eq[k], eq[(k + 1) % 3]);
+      }
+      // star bracts, spreading just under the head
+      const bc = new THREE.Color(0xa8bccc);
+      for (let k = 0; k < 6; k++) {
+        const a = th + (k * Math.PI) / 3 + 0.3;
+        const by = h + 0.005;
+        const p = B.v(tx + Math.cos(a - 0.4) * 0.02, by, tz + Math.sin(a - 0.4) * 0.02, bc);
+        const q = B.v(tx + Math.cos(a + 0.4) * 0.02, by, tz + Math.sin(a + 0.4) * 0.02, bc);
+        const tip = B.v(tx + Math.cos(a) * 0.11, by + 0.015, tz + Math.sin(a) * 0.11, bc);
+        B.tri(p, q, tip);
+      }
+    }
+  }
+  const ga = A.geo(), gb = B.geo();
+  const merged = mergeGeometries([ga, gb], false);
+  ga.dispose();
+  gb.dispose();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
 // A bush. Returns the same bare Mesh it always has — UNLESS `opts.wind` is
 // passed, in which case it comes back as a Group with that mesh inside it.
 //
@@ -2752,22 +3272,38 @@ export function tree(x, z, scale = 1, { wind } = {}) {
 // same origin every compound prop here already has — with the mesh at local
 // y 0.5, so the bush is in exactly the same place either way and no geometry,
 // collider or hide-spot record moves a millimetre.
-export function bush(x, z, { wind } = {}) {
+export function bush(x, z, { wind, style, kind: forceKind } = {}) {
   // 'foliage', same as a tree canopy and map-less for the same reason. Same
   // organic-blob treatment as tree(), scaled down and salted differently (see
   // the ORGANIC CANOPY block above) so a bush never coincidentally matches a
   // tree's shape or a neighbouring bush's.
-  const m = new THREE.Mesh(
-    blobGeometry(x, z, 0.7, { lobes: 2, saltBase: 1000 }),
-    surfMat(organicTint(0x5aa04e, x, z, 1010, 8), 'foliage'),
-  );
+  //
+  // `style: 'beach'` swaps the canopy for a ground-rooted clump (see
+  // beachClumpGeometry above): the same 3 geometries, 1 material, 1 mesh, so
+  // the same uuid draws, but the mesh sits at y 0 — it grows from the sand,
+  // there is no belly to lift.
+  const beach = style === 'beach';
+  // `kind` ('marram' | 'holly') overrides the hash pick: a spot that must be
+  // tall (a mouse hide) or low can say so.
+  const kind = beach ? (forceKind || (hash01(x, z, 1041) < 0.5 ? 'marram' : 'holly')) : null;
+  const m = beach
+    ? new THREE.Mesh(
+      beachClumpGeometry(x, z, kind),
+      litMaterial(0xffffff, { ...surfaceProps('foliage'), vertexColors: true, side: THREE.DoubleSide }),
+    )
+    : new THREE.Mesh(
+      blobGeometry(x, z, 0.7, { lobes: 2, saltBase: 1000 }),
+      surfMat(organicTint(0x5aa04e, x, z, 1010, 8), 'foliage'),
+    );
+  if (beach) m.userData.beachPlant = kind;
+  const lift = beach ? 0 : 0.5;
   m.rotation.y = hash01(x, z, 1030) * Math.PI * 2;
   if (!wind) {
-    m.position.set(x, 0.5, z);
+    m.position.set(x, lift, z);
     return m;
   }
   const g = new THREE.Group();
-  m.position.set(0, 0.5, 0);
+  m.position.set(0, lift, 0);
   g.add(m);
   g.position.set(x, 0, z);
   // Explicit on both counts, because a bush has no `scale` to infer from: the
@@ -3564,7 +4100,21 @@ export function plankBridge(x1, z1, x2, z2, w, y, thick) {
   const len = Math.hypot(x2 - x1, z2 - z1);
   const geo = new THREE.BoxGeometry(w, thick, len);
   plankEdgeUVs(geo, w, thick, len);
-  const m = new THREE.Mesh(geo, surfMat(0x8a6a44, 'wood', w, len));
+  // Colour by face: the top is lit warm wood, darker toward one end; the sides
+  // and underside are weathered and in shadow, so the box reads as a thick
+  // board. Free: setAttribute makes no uuid. The material's tint is raised a
+  // touch so the top's mean stays near the old 0x8a6a44.
+  const pos = geo.getAttribute('position');
+  const col = new Float32Array(pos.count * 3);
+  const shade = (i, f) => { col[i * 3] = f; col[i * 3 + 1] = f * 0.97; col[i * 3 + 2] = f * 0.94; };
+  geo.groups.forEach((g, k) => {
+    for (let j = g.start; j < g.start + g.count; j++) {
+      const i = geo.index.array[j];
+      shade(i, k === 2 ? 1 - 0.14 * (0.5 - pos.getZ(i) / len) : k === 3 ? 0.4 : 0.58);
+    }
+  });
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.Mesh(geo, litMaterial(0x947249, { surface: 'wood', repeat: repeatFor('wood', w, len), vertexColors: true }));
   m.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
   m.rotation.y = Math.atan2(x2 - x1, z2 - z1);
   // A plank lying on the water: flat ground dressing, out of the shadow pass
@@ -3613,10 +4163,25 @@ function plankEdgeUVs(geo, w, thick, len) {
 // and into the water. A deck record should be no wider than `flat`, so a cat
 // on the deck is on the log.
 //
-// Extruded from the trunk's cross-section (a circle with its top sliced off)
-// rather than built as a sunk cylinder: a sunk 12-sided cylinder shows only
-// the ridge between its two top facets, about 7.5 x its height above the
-// water, so a walkable width meant a trunk several metres across.
+// Built from the trunk's cross-section (a circle with its top sliced off)
+// rather than as a sunk cylinder: a sunk 12-sided cylinder shows only the
+// ridge between its two top facets, about 7.5 x its height above the water,
+// so a walkable width meant a trunk several metres across.
+//
+// The section is swept by hand into one indexed geometry with vertex colours
+// (logTrunkGeometry below), so it reads as a log and not a brown plank:
+// round, smooth-shaded bark flanks (dense where they show above the water,
+// coarse underneath), a hewn top that keeps a strip of bark (the wane) along
+// each edge with weathered grey-brown wood between, a touch lighter down the
+// paw-worn middle; calm end grain (bark rim, pale wood, one darker ring) over
+// the band of each end that shows above the bank; moss on one side's wane
+// and upper flank toward one end; a short broken branch stub. Only 0.13 m of
+// trunk stands above the water, so the top is most of what anyone sees: it
+// has to read as the top of a log, not a pale board. Same objects as the old
+// ExtrudeGeometry (Group, Shape, one BufferGeometry, Mesh, one material), because every uuid is a
+// pinned Math.random draw (test/waterlooks.test.js); the Shape stays as the
+// record of the section the sweep follows. Variation comes from hash01 on
+// the endpoints, so both cats' screens agree.
 export function logBridge(x1, z1, x2, z2, w = 1.6, y = 0.14, flat = w * 0.6) {
   const g = new THREE.Group();
   const len = Math.hypot(x2 - x1, z2 - z1);
@@ -3629,14 +4194,245 @@ export function logBridge(x1, z1, x2, z2, w = 1.6, y = 0.14, flat = w * 0.6) {
   shape.lineTo(hw, c);
   // clockwise from the flat's right end, round under the bottom, to its left end
   shape.absarc(0, 0, r, phi, Math.PI - phi, true);
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: len, bevelEnabled: false, curveSegments: 20 });
-  geo.translate(0, -c, -len / 2);
-  const trunk = new THREE.Mesh(geo, surfNoMap(0x6e4a2c, 'bark'));
+  const seed = (k) => hash01(x1 * 0.37 + x2 * 0.61 + k, z1 * 0.43 + z2 * 0.29 + k * 1.7, 83 + k);
+  const geo = logTrunkGeometry(len, r, hw, c, phi, seed);
+  const trunk = new THREE.Mesh(geo, litMaterial(0xffffff, { ...surfaceProps('bark'), vertexColors: true }));
   trunk.position.y = y;
   g.add(trunk);
   g.position.set((x1 + x2) / 2, 0, (z1 + z2) / 2);
   g.rotation.y = Math.atan2(x2 - x1, z2 - z1);
   return g;
+}
+
+const LOG_BARK = new THREE.Color(0x5a4230);
+const LOG_BARK_LOW = new THREE.Color(0x4e3826);
+const LOG_BARK_BAND = new THREE.Color(0x45321f); // just under the hewn edge
+const LOG_MOSS = new THREE.Color(0x5f7038);
+const LOG_WANE_OUT = new THREE.Color(0x4a3828); // the bark left on the top's edges
+const LOG_WANE_IN = new THREE.Color(0x56432f);
+const LOG_HEWN_EDGE = new THREE.Color(0x6e5640); // weathered, grey-brown
+const LOG_HEWN = new THREE.Color(0x7d6248);
+const LOG_HEWN_WORN = new THREE.Color(0x88694a);
+const LOG_WANE = 0.32; // metres of bark kept on each edge of the bridges' top
+const LOG_RIM = new THREE.Color(0x3f2d1e);
+const LOG_END = new THREE.Color(0xb89868);
+const LOG_RING = new THREE.Color(0x9a7a50);
+const LOG_HEART = new THREE.Color(0xa88a5e);
+const LOG_STUB_TIP = new THREE.Color(0x9c7c56);
+// End-grain loops, as fractions of the radius, and the colour of the band
+// inside each: a thin bark rim, pale end grain, one darker ring; the core
+// inside is pale, darkening a little to the heart at the axis. The bridges'
+// hewn top cuts the trunk at about 0.77 r, so the rim shows only at the
+// end's two top corners, and the ring arcs 0.04-0.08 m under the top, inside
+// the strip of end that shows above the bank.
+const LOG_LOOPS = [1, 0.97, 0.75, 0.72];
+const LOG_BANDS = [LOG_RIM, LOG_END, LOG_RING];
+const LOG_RINGS = 4; // cross-sections along the length: the ends and the thirds
+const LOG_STUB_SIDES = 5;
+
+// The trunk in its own frame: along z (-len/2..len/2), the hewn top level at
+// y 0, the axis at y -c. Section coordinates (x, s) put the axis at the origin
+// and the top at s = c. `seed(k)` is the bridge's own hash.
+function logTrunkGeometry(len, r, hw, c, phi, seed) {
+  const k = r / 1.5; // sizes below are set for the bridges' 3 m trunk
+  const pos = [], nor = [], col = [], idx = [];
+  const vert = (x, s, z, n, colour) => {
+    pos.push(x, s - c, z); nor.push(n[0], n[1], n[2]); col.push(colour.r, colour.g, colour.b);
+    return pos.length / 3 - 1;
+  };
+  // A triangle, wound to face the way its vertices' normals point; slivers
+  // with no area (two loops both clipped flat along the top) are left out.
+  const tri = (a, b, d) => {
+    const ax = pos[a * 3], ay = pos[a * 3 + 1], az = pos[a * 3 + 2];
+    const ux = pos[b * 3] - ax, uy = pos[b * 3 + 1] - ay, uz = pos[b * 3 + 2] - az;
+    const vx = pos[d * 3] - ax, vy = pos[d * 3 + 1] - ay, vz = pos[d * 3 + 2] - az;
+    const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+    if (Math.hypot(cx, cy, cz) < 1e-7) return;
+    let dot = 0;
+    for (const i of [a, b, d]) dot += cx * nor[i * 3] + cy * nor[i * 3 + 1] + cz * nor[i * 3 + 2];
+    if (dot >= 0) idx.push(a, b, d);
+    else idx.push(a, d, b);
+  };
+  const quad = (a, b, d, e) => { tri(a, b, d); tri(a, d, e); };
+  const shade = (base, v) => base.clone().multiplyScalar(v);
+
+  // The outline. Each upper flank runs from the hewn edge down to 0.6 m
+  // below the top in three steps packed toward the edge, where it shows
+  // above the water; underneath, four coarse steps round the bottom.
+  // Kept above the axis: with a top nearly as wide as the trunk the flank would
+  // otherwise dip under the axis and fold back over the belly's first point.
+  const sLow = Math.max(0.05, Math.asin(Math.max(-1, Math.min(1, (c - 0.6 * k) / r))));
+  const upper = [0, 0.3, 0.6, 1].map((f) => phi - (phi - sLow) * f);
+  const U = upper.length - 1;
+  // right to left, under the trunk: level with the axis on each side (the
+  // trunk's full width) and the bottom
+  const bottom = [0, -Math.PI / 2, -Math.PI];
+  const sx = hw / 3; // where the end grain is sampled across the top
+  // Outline points right to left over the top: {th, x, s}, exact, shared by
+  // the flanks, the top and the ends' outer loop so nothing cracks.
+  const onRim = (th) => ({ th, x: r * Math.cos(th), s: r * Math.sin(th) });
+  const right = upper.map((th, j) => (j === 0 ? { th, x: hw, s: c } : onRim(th)));
+  const left = upper.map((th, j) => (j === 0 ? { th: Math.PI - th, x: -hw, s: c } : onRim(Math.PI - th)));
+  const over = [
+    ...[...right].reverse(),
+    { th: Math.acos(sx / r), x: sx, s: c },
+    { th: Math.acos(-sx / r), x: -sx, s: c },
+    ...left,
+  ];
+  const under = bottom.map(onRim); // right to left
+  const radial = (th) => [Math.cos(th), Math.sin(th), 0];
+
+  const zs = [];
+  for (let i = 0; i < LOG_RINGS; i++) zs.push(-len / 2 + (len * i) / (LOG_RINGS - 1));
+
+  // The bark flanks: shared vertices with radial normals so they shade round.
+  // Darker just under the hewn edge; moss on one side's upper flank, thick
+  // toward one end and gone by the other.
+  const mossSide = seed(1) < 0.5 ? 1 : -1;
+  const mossFromStart = seed(2) < 0.5;
+  const MOSS_BY_STEP = [0.45, 0.55, 0.6, 0.35];
+  const BARK_BY_STEP = [LOG_BARK_BAND, LOG_BARK_BAND.clone().lerp(LOG_BARK, 0.5), LOG_BARK, LOG_BARK_LOW];
+  const flank = new Map(); // side -> [ring][step]
+  for (const side of [1, -1]) {
+    const pts = side === 1 ? right : left;
+    const rows = [];
+    for (let i = 0; i < LOG_RINGS; i++) {
+      const t = i / (LOG_RINGS - 1);
+      const mossAlong = Math.max(0, 1 - (mossFromStart ? t : 1 - t) * 1.25);
+      rows.push(pts.map((p, j) => {
+        const cc = shade(BARK_BY_STEP[j], 0.9 + 0.16 * seed(10 + i * 9 + j + (side + 1) * 40));
+        if (side === mossSide) cc.lerp(LOG_MOSS, MOSS_BY_STEP[j] * mossAlong * (0.8 + 0.3 * seed(5 + i)));
+        return vert(p.x, p.s, zs[i], radial(p.th), cc);
+      }));
+    }
+    for (let i = 0; i < LOG_RINGS - 1; i++) {
+      for (let j = 0; j < U; j++) quad(rows[i][j], rows[i][j + 1], rows[i + 1][j + 1], rows[i + 1][j]);
+    }
+    flank.set(side, rows);
+  }
+  // Underneath, vertices only at the two ends: never seen, one span the length.
+  const belly = [0, LOG_RINGS - 1].map((i) => [
+    flank.get(1)[i][U],
+    ...under.map((p) => vert(p.x, p.s, zs[i], radial(p.th), shade(LOG_BARK_LOW, 0.8))),
+    flank.get(-1)[i][U],
+  ]);
+  for (let m = 0; m < belly[0].length - 1; m++) quad(belly[0][m], belly[0][m + 1], belly[1][m + 1], belly[1][m]);
+
+  // The hewn top, its own vertices facing up. Along each edge a strip of
+  // bark (the wane, mossy on the moss side toward the moss end) with a crisp
+  // edge to the hewn wood (its own vertices at the line); between them the
+  // wood shades smoothly from the darker edges to the paw-worn middle. Each
+  // cross-section is a little lighter or darker than the next (±6%).
+  const UP = [0, 1, 0];
+  const wane = Math.min(LOG_WANE * k, hw * 0.4);
+  const xw = hw - wane, xm = xw / 2;
+  const ringShade = [];
+  for (let i = 0; i < LOG_RINGS; i++) ringShade.push(0.94 + 0.12 * seed(60 + i));
+  const topRow = (xs, colours, i, moss) => xs.map((x, q) => {
+    const cc = shade(colours[q], ringShade[i]);
+    if (moss[q] > 0) cc.lerp(LOG_MOSS, moss[q]);
+    return vert(x, c, zs[i], UP, cc);
+  });
+  const sweep = (rows) => {
+    for (let i = 0; i < LOG_RINGS - 1; i++) {
+      for (let q = 0; q < rows[i].length - 1; q++) quad(rows[i][q], rows[i][q + 1], rows[i + 1][q + 1], rows[i + 1][q]);
+    }
+  };
+  const hewn = [];
+  for (let i = 0; i < LOG_RINGS; i++) {
+    hewn.push(topRow([xw, xm, 0, -xm, -xw], [LOG_HEWN_EDGE, LOG_HEWN, LOG_HEWN_WORN, LOG_HEWN, LOG_HEWN_EDGE], i, [0, 0, 0, 0, 0]));
+  }
+  sweep(hewn);
+  for (const side of [1, -1]) {
+    const rows = [];
+    for (let i = 0; i < LOG_RINGS; i++) {
+      const t = i / (LOG_RINGS - 1);
+      const mossAlong = side === mossSide ? Math.max(0, 1 - (mossFromStart ? t : 1 - t) * 1.25) : 0;
+      rows.push(topRow([side * hw, side * xw], [LOG_WANE_OUT, LOG_WANE_IN], i, [0.65 * mossAlong, 0.45 * mossAlong]));
+    }
+    sweep(rows);
+  }
+
+  // The ends. Over the band that shows above the bank (the outline from the
+  // first flank step on each side, over the top) concentric loops round the
+  // axis, clipped by the hewn top, each band flat-coloured on its own
+  // vertices so the rings stay crisp; the outer loop is the outline itself.
+  // The rest of the end is one coarse fan from the axis, under the ground.
+  // At the hewn edges a loop that reaches the top meets it where its circle
+  // does, so each band runs into the top edge as it should (sampled at the
+  // edge's angle instead, the outer bands would smear along the whole top).
+  const from = U - 1, to = over.length - U; // ringed: over[from..to]
+  const loop = (q, p) => {
+    if (q === 0) return [p.x, p.s];
+    const rho = LOG_LOOPS[q] * r;
+    if (p.s === c && Math.abs(p.x) === hw && rho > c) return [Math.sign(p.x) * Math.sqrt(rho * rho - c * c), c];
+    return [rho * Math.cos(p.th), Math.min(rho * Math.sin(p.th), c)];
+  };
+  for (const nz of [-1, 1]) {
+    const z = (nz * len) / 2, n = [0, 0, nz];
+    const axis = vert(0, 0, z, n, LOG_HEART);
+    const fan = [...over.slice(to), ...under.slice().reverse(), ...over.slice(0, from + 1)];
+    for (let m = 0; m < fan.length - 1; m++) {
+      tri(axis, vert(fan[m].x, fan[m].s, z, n, LOG_END), vert(fan[m + 1].x, fan[m + 1].s, z, n, LOG_END));
+    }
+    LOG_BANDS.forEach((band, q) => {
+      const cc = shade(band, 0.95 + 0.08 * seed(80 + q + (nz + 1) * 5));
+      let po = -1, pi = -1;
+      for (let a = from; a <= to; a++) {
+        const [ox, os] = loop(q, over[a]), [ix, is] = loop(q + 1, over[a]);
+        const o = vert(ox, os, z, n, cc), i = vert(ix, is, z, n, cc);
+        if (a > from) quad(po, o, i, pi);
+        po = o; pi = i;
+      }
+    });
+    let prev = -1;
+    for (let a = from; a <= to; a++) {
+      const [x, s] = loop(LOG_LOOPS.length - 1, over[a]);
+      const v = vert(x, s, z, n, LOG_END);
+      if (a > from) tri(axis, prev, v);
+      prev = v;
+    }
+  }
+
+  // A broken branch stub out of one flank a third of the way along, just
+  // under the hewn edge so it shows above the water, leaning out and a little
+  // up and along. Kept inside the trunk's width and below its top.
+  const side = seed(3) < 0.5 ? 1 : -1;
+  const th = phi - 0.1;
+  const zAt = (seed(4) < 0.5 ? -1 : 1) * (len / 6);
+  const surf = new THREE.Vector3(side * r * Math.cos(th), r * Math.sin(th), zAt);
+  const dir = new THREE.Vector3(side, 0.1, (seed(6) < 0.5 ? -1 : 1) * 0.45).normalize();
+  const upv = new THREE.Vector3(0, 1, 0).addScaledVector(dir, -dir.y).normalize();
+  const sidev = new THREE.Vector3().crossVectors(dir, upv);
+  const base = surf.clone().addScaledVector(dir, -0.12 * k);
+  const tip = surf.clone().addScaledVector(dir, 0.4 * k);
+  const ringAt = (centre, rad, colour, normalFn) => {
+    const ids = [];
+    for (let m = 0; m < LOG_STUB_SIDES; m++) {
+      const a = (m / LOG_STUB_SIDES) * Math.PI * 2;
+      const off = upv.clone().multiplyScalar(Math.cos(a)).addScaledVector(sidev, Math.sin(a));
+      const p = centre.clone().addScaledVector(off, rad);
+      ids.push(vert(p.x, p.y, p.z, normalFn(off), colour));
+    }
+    return ids;
+  };
+  const toArr = (v) => [v.x, v.y, v.z];
+  const stubBark = shade(LOG_BARK, 0.95);
+  const ringB = ringAt(base, 0.09 * k, stubBark, toArr);
+  const ringT = ringAt(tip, 0.05 * k, stubBark, toArr);
+  for (let m = 0; m < LOG_STUB_SIDES; m++) {
+    const m2 = (m + 1) % LOG_STUB_SIDES;
+    quad(ringB[m], ringB[m2], ringT[m2], ringT[m]);
+  }
+  const cap = ringAt(tip, 0.05 * k, LOG_STUB_TIP, () => toArr(dir));
+  for (let m = 1; m < LOG_STUB_SIDES - 1; m++) tri(cap[0], cap[m], cap[m + 1]);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  return geo;
 }
 
 // Flat stones across a shallow ford, one merged geometry. They are wide and
@@ -3658,16 +4454,54 @@ export function steppingStones(x1, z1, x2, z2, n = 5, { rMin = 0.38, rMax = 0.52
     const sz = z1 + (z2 - z1) * f + (hash01(i, 2, 61) - 0.5) * jitter;
     const r = rMin + (rMax - rMin) * hash01(i, 3, 61);
     const stone = new THREE.CylinderGeometry(r * 0.88, r, 0.2, sides);
+    colourStone(stone, i, 0.1, r);
     stone.rotateY(hash01(i, 4, 61) * Math.PI);
     stone.translate(sx, (i % 2 ? -0.5 : 0.5) * stagger, sz);
     geoms.push(stone);
   }
   const geo = geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
   if (geoms.length > 1) for (const p of geoms) p.dispose();
-  const m = new THREE.Mesh(geo, surfNoMap(0x8a8a84, 'cobble'));
+  const m = new THREE.Mesh(geo, litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true }));
   m.castShadow = false;
   m.userData.noCast = true;
+  // dusk.js's tintDuskLawn tints vertex colours of meshes carrying this tag
+  m.userData.duskTint = true;
   return m;
+}
+
+const STONE_WARM = new THREE.Color(0x948b7c);
+const STONE_COOL = new THREE.Color(0x7d8590);
+const STONE_MOSS = new THREE.Color(0x628a34);
+const STONE_DAMP = new THREE.Color(0.58, 0.6, 0.66);
+
+// Paint one stone (a CylinderGeometry, before it is moved) with a vertex-colour
+// attribute: its own base tone between warm grey and blue-grey; a damp, cooler
+// skirt foot fading up to the base at the top rim; on the cap, a dry lighter
+// centre inside a darker rim so each stone's outline reads, and on about 40%
+// of the stones a mossy cap (centre strongly green, rim part-way). Neighbours
+// alternate between a darker and a lighter lightness band, so two overlapping
+// stones never share a tone. Read by position (y, distance from the axis) and
+// the cap's up-facing normal, not by three's vertex order.
+function colourStone(stone, i, halfH, r) {
+  const base = STONE_WARM.clone().lerp(STONE_COOL, hash01(i, 5, 61));
+  base.multiplyScalar((i % 2 ? 0.78 : 0.55) + 0.2 * hash01(i, 6, 61));
+  const mossy = hash01(i, 7, 61) < 0.4;
+  const moss = 0.7 + 0.25 * hash01(i, 8, 61);
+  const centre = mossy ? base.clone().lerp(STONE_MOSS, moss) : base.clone().multiplyScalar(1.12);
+  const capRim = mossy ? base.clone().multiplyScalar(0.86).lerp(STONE_MOSS, moss * 0.4) : base.clone().multiplyScalar(0.86);
+  const foot = base.clone().multiply(STONE_DAMP);
+  const pos = stone.getAttribute('position');
+  const nor = stone.getAttribute('normal');
+  const arr = new Float32Array(pos.count * 3);
+  const c = new THREE.Color();
+  for (let v = 0; v < pos.count; v++) {
+    const up = (pos.getY(v) + halfH) / (2 * halfH); // 0 at the foot, 1 at the top
+    const rad = Math.hypot(pos.getX(v), pos.getZ(v));
+    if (nor.getY(v) > 0.5) c.copy(rad < r * 0.02 ? centre : capRim);
+    else c.copy(foot).lerp(base, up);
+    arr[v * 3] = c.r; arr[v * 3 + 1] = c.g; arr[v * 3 + 2] = c.b;
+  }
+  stone.setAttribute('color', new THREE.BufferAttribute(arr, 3));
 }
 
 // A fallen trunk lying along its local z, turned to `yaw`, its top at y 0.5

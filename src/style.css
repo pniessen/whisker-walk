@@ -1764,7 +1764,7 @@ body.touch-mode .fight-key { display: none; }
    pills and buttons, so where masks work the emoji text is pushed out of the
    box and a paw is drawn in the surrounding text colour; elsewhere the emoji
    stays, lifted by a light halo. */
-.paw { display: inline-block; white-space: nowrap; filter: drop-shadow(0 0 1px rgba(255,248,235,0.7)) brightness(1.6); }
+.paw { display: inline-block; pointer-events: none; white-space: nowrap; filter: drop-shadow(0 0 1px rgba(255,248,235,0.7)) brightness(1.6); }
 @supports ((-webkit-mask-image: url(x)) or (mask-image: url(x))) {
   .paw {
     width: 1em; height: 1em; vertical-align: -0.14em; overflow: hidden; text-indent: -9em;

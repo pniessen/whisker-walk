@@ -236,7 +236,17 @@ export function tintDuskLawn({ ground, grass, look }) {
   }
   for (const mesh of meshes) {
     const orig = mesh.material;
-    if (Array.isArray(orig) || !orig?.color) continue;
+    if (Array.isArray(orig)) {
+      // A multi-material mesh flagged userData.duskTint (the camps' clearing
+      // floor: opaque centre, fading rim; any other array is left alone): each material wears a tinted clone, colour only. Its vertex
+      // colours are white, so tinting the material is exact here.
+      if (!mesh.userData?.duskTint || !orig.length || !orig.every((m) => m?.color)) continue;
+      const tintedAll = orig.map((m) => { const t = m.clone(); t.onBeforeCompile = m.onBeforeCompile; t.customProgramCacheKey = m.customProgramCacheKey; t.color.copy(duskLawnColor(m.color, look)); return t; });
+      mesh.material = tintedAll;
+      swaps.push({ mesh, orig, tinted: tintedAll });
+      continue;
+    }
+    if (!orig?.color) continue;
     const tinted = orig.clone();
     const geo = mesh.geometry;
     const col = orig.vertexColors ? geo?.getAttribute?.('color') : null;
@@ -266,7 +276,7 @@ export function tintDuskLawn({ ground, grass, look }) {
       done = true;
       for (const w of swaps) {
         if (w.mesh.material === w.tinted) w.mesh.material = w.orig;
-        w.tinted.dispose();
+        for (const m of [].concat(w.tinted)) m.dispose();
       }
       swaps.length = 0;
       for (const [geo, a] of attrSwaps) {

@@ -111,6 +111,14 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
+//   gorge             61       36      58959   (polish-gorge5: was 57,637; rounded rock
+//                                               arches appended to rockFaces, no mesh,
+//                                               no caster: echo 218, snug 178, glitter
+//                                               218, the camp den 324 (its frame twice,
+//                                               the copy facing in), and the den's
+//                                               rounded lining 384 = 1,322 of the
+//                                               build's 1,500; 1,041 tris left under
+//                                               the 60,000 cap)
 //   gorge             60       36      57655   (gorge-rock2 beauty pass: was 59,307;
 //                                               scree pebbles 12,260 -> 4,904, ground
 //                                               plane under the rock trimmed 4,608 ->
@@ -302,6 +310,41 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // The Woods has 2,090 and the Pines 5,249 triangles left under the 60,000
 // ceiling (the Woods' own floor test holds it to 58,500, the Pines' to
 // 56,000).
+//
+// 2026-11-04, polish-crossings: the log bridges are rebuilt as one hand-made
+// trunk geometry (bark wane, hewn top, end grain, branch stub; 160 -> 167
+// triangles each), the stepping stones and the island plank take vertex
+// colour (no triangles), and each trail end beside a deck gains one tuck
+// quad under it (2 triangles each). No new meshes, no new casters, ceilings
+// unchanged. Before is main at aafb451.
+//
+//   area    meshes  casters  triangles          logBridge   trail tucks
+//   woods   184     154      57,910 -> 57,921   160 -> 167  2
+//   river   172     135      58,329 -> 58,342   160 -> 167  3
+//   moor     88      48      59,055 -> 59,068   160 -> 167  3
+//   pines   117      71      54,751 -> 54,768   160 -> 167  5
+//   gorge    61      36      57,637 -> 57,639   (none)      1
+//
+// Left under the 60,000 ceiling: Woods 2,079, River 1,658, Moor 932,
+// Pines 5,232, Gorge 2,361.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// polish-twolegplace (survey 5, build 5-5): the Neighbourhood's eight lot
+// houses take builder.house()'s `look` (gable or pyramid roofs, trim, frames,
+// shutters, flower boxes, chimneys, porches, side windows), adding one
+// vertex-coloured 'houseTrim' and one 'houseGlass' window mesh per house,
+// both under withLocalUuids. The Seaside's six shrubs become marram and
+// sea-holly clumps (bush style 'beach'), at most 100 triangles each; they
+// are too low to cast, so the Seaside loses two casters (the Seaside's
+// mouse-hide spots are pinned to marram, (-24,-20) to holly). houseGlass is
+// userData.noCast (flush panes, nothing worth a shadow draw), so the eight
+// houses add only the trim as casters. River, Moor, Gorge: unaffected.
+// Ceilings unchanged. Before is main at aafb451.
+//
+//   area          meshes      casters    merged (meshes/casters)   triangles
+//   neighborhood  382 -> 398  314 -> 322  219/169 -> 235/177       29,759 -> 36,786
+//   seaside        70 -> 70    33 -> 31    53/28 -> 53/26          29,521 -> 29,513
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the

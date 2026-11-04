@@ -923,7 +923,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     }
     const rank = rankFor(s.lifetimePoints);
     const nextLine = rank.next
-      ? `next: ${Math.max(0, rank.next.at - s.lifetimePoints)} 🐾 to ${rank.next.title}`
+      ? `next: ${Math.max(0, rank.next.at - s.lifetimePoints)} ${PAW} to ${escapeHtml(rank.next.title)}`
       : 'top rank!';
     // s.streak comes through progression.js's sanitizeStreak on every
     // load/replaceFromPayload, but this is a display path (interpolated
@@ -942,7 +942,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const headerHtml = `<h1 class="dr-title">${PAW} Whisker Walk 2: <button class="dr-edition" aria-label="Switch game edition" title="Switch game edition" data-edition-toggle>${editionTitle(s.edition)}</button></h1>`
       + visitBadgeHtml(s.visits)
       + `<div class="dr-chip gold">${PAW} ${asFiniteNonNeg(s.points, 0)} whisker points</div>`
-      + `<div class="dr-chip">🏆 ${escapeHtml(rank.title)} — ${escapeHtml(nextLine)}</div>`;
+      + `<div class="dr-chip">🏆 ${escapeHtml(rank.title)} — ${nextLine}</div>`;
     // The old header's substats lines, one block (other branches add a line
     // here). style.css chips each <span>.
     // Only the mice this edition can reach (Legacy hides four territories).

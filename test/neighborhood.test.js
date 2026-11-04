@@ -157,12 +157,12 @@ describe('the Cozy Neighborhood — surfaces', () => {
     const painted = bodies.filter((c) => c.material.map?.name === 'surface:siding');
     expect(bricks).toHaveLength(3);
     expect(painted).toHaveLength(5);
-    // The three buff bodies, lifted by 1/0.948 — brick's mean. The five paint
+    // The three brick bodies (two buff, one warm red), lifted by 1/0.948 — brick's mean. The five paint
     // colours are left exactly as authored, because siding's 0.988 is noise.
     expect(bricks.map((c) => c.material.color.getHex()).sort())
-      .toEqual([0xf5e4ba, 0xf5ecc2, 0xffeccb].sort());
+      .toEqual([0xf5e4ba, 0xffeccb, 0xc2755d].sort());
     expect(painted.map((c) => c.material.color.getHex()).sort())
-      .toEqual([0xd8c8e8, 0xc8e0d0, 0xf0d8c8, 0xe0e8c8, 0xd8d0f0].sort());
+      .toEqual([0xd6c2ea, 0xbfe0cc, 0xf4cfb8, 0xd9e8bc, 0xcfc8f0].sort());
   });
 });
 
