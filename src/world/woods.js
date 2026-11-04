@@ -115,7 +115,8 @@ export const WOODS_HORIZON = Object.freeze({
   // still uses for its throwaway block pass so the Woods' pinned Math.random
   // draw count does not move (builder.js horizonBand, rooftops).
   rooftops: Object.freeze({ from: 0.1, to: 0.25, count: 14, height: 3.6, style: 'houses', legacyHeight: 6 }),
-  nearColor: 0x5f9a4a,
+  // the ground's own base: its tint fades back to 1 at its edge (build)
+  nearColor: 0x547f3e,
   edge: Object.freeze({ half: 60, style: 'scrub', avoid: WOODS_WATERS }),
 });
 
@@ -607,7 +608,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // than the park's lawn green it used to share (0x5f9a4a, still the
   // groundBounce below).
   const groundMesh = b.ground(120, 0x547f3e, { surface: 'grass' });
-  tintGround(groundMesh, woodsFloorTint(woodsTreeSpots(), CLEARING));
+  tintGround(groundMesh, woodsFloorTint(woodsTreeSpots(), CLEARING, { edge: 60 }));
   scene.add(groundMesh);
 
   // The horizon. Hills all round, as the other green areas have, but each

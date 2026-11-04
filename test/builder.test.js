@@ -489,16 +489,17 @@ describe('horizonBand side tints and rooftops', () => {
   });
 
   // polish-places Task 5 added `shoreLip`. The Pines' and Gorge's hashes were
-  // taken from the code before it existed; the Woods' (ad43278f378768ec) was
-  // taken after Task 2 (houses) and before Task 5, so it pins only what
-  // Task 5 must leave alone. The Woods', Pines' and Gorge's bands (water, keepLow, side
+  // taken from the code before it existed; the Woods' was taken after Task 2
+  // (houses) and before Task 5, so it pins only what Task 5 must leave alone.
+  // polish-forestfloor re-took it (ad43278f378768ec -> 2ed68de2b3bc1326) when
+  // the Woods' nearColor followed its darker ground (0x5f9a4a -> 0x547f3e). The Woods', Pines' and Gorge's bands (water, keepLow, side
   // tints, near colour, an edge, the Gorge's rooftops) do not use it and must
   // be byte-identical.
   it('bands without shoreLip are unchanged', async () => {
     const { WOODS_HORIZON } = await import('../src/world/woods.js');
     const { PINES_HORIZON } = await import('../src/world/pines.js');
     for (const o of [WOODS_HORIZON, PINES_HORIZON, GORGE_HORIZON]) expect(o.shoreLip).toBeUndefined();
-    expect(fingerprint(b.horizonBand(WOODS_HORIZON))).toBe('ad43278f378768ec');
+    expect(fingerprint(b.horizonBand(WOODS_HORIZON))).toBe('2ed68de2b3bc1326');
     expect(fingerprint(b.horizonBand(PINES_HORIZON))).toBe('eb0eea2daee4dc8d');
     expect(fingerprint(b.horizonBand(GORGE_HORIZON))).toBe('c9031015d29d5c21');
   });

@@ -89,8 +89,11 @@ const ONE = [1, 1, 1];
 // in a few broad drifts between the trees, moss patches in the green gaps, a
 // little shade under the trees, the whole wood a touch dimmer than its
 // clearing. Inside the clearing's inner part (its last 3 m fade) it is
-// exactly [1, 1, 1]: the clearing stays sunny.
-export function woodsFloorTint(trees, clearing) {
+// exactly [1, 1, 1]: the clearing stays sunny. With `edge` (the ground's
+// half-size) it also fades back to [1, 1, 1] over the last 8 m before the
+// ground's edge, so the ground there is its plain base colour, the colour the
+// horizon band's near strip carries on with (no pale ring).
+export function woodsFloorTint(trees, clearing, { edge = null } = {}) {
   return (x, z) => {
     const shade = canopyShade(trees, x, z);
     const drift = 0.85 * smoothstep(0.2, 0.6, smoothField(x, z, 91, 11)) * amongTrees(trees, x, z);
@@ -101,7 +104,8 @@ export function woodsFloorTint(trees, clearing) {
     m = mul3(m, lerp3(ONE, MOSS_TINT, moss));
     m = scale3(m, WOOD_DIM);
     // the wood's look fades out over the clearing's last 3 m
-    const wood = smoothstep(clearing.r - 3, clearing.r, Math.hypot(x - clearing.x, z - clearing.z));
+    let wood = smoothstep(clearing.r - 3, clearing.r, Math.hypot(x - clearing.x, z - clearing.z));
+    if (edge != null) wood *= 1 - smoothstep(edge - 8, edge - 1, Math.max(Math.abs(x), Math.abs(z)));
     m = lerp3(ONE, m, wood);
     return [clampTint(m[0]), clampTint(m[1]), clampTint(m[2])];
   };

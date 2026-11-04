@@ -90,6 +90,14 @@ describe('the Woods floor tint', () => {
     expect(tint(CLEARING.x, CLEARING.z)).toEqual([1, 1, 1]);
   });
 
+  it('with the ground edge given, is plain base colour at the edge', () => {
+    const edged = woodsFloorTint(trees, CLEARING, { edge: 60 });
+    for (let k = -60; k <= 60; k += 2) {
+      for (const [x, z] of [[k, 60], [k, -60], [60, k], [-60, k], [k, 59], [59, k]]) expect(edged(x, z)).toEqual([1, 1, 1]);
+    }
+    expect(edged(20, 20)).toEqual(tint(20, 20));
+  });
+
   it('is darker in the shade of the trees than in the open', () => {
     const lum = ([r, g, bl]) => r + g + bl;
     const shade = [];
@@ -111,6 +119,7 @@ describe('the Woods floor tint', () => {
 
 describe('the Woods floor', () => {
   const floor = woodsFloor();
+  const trees = woodsTreeSpots();
   const keep = (a) => [...a.pois, ...a.collectibles, ...a.scenics, a.spawn];
 
   it('is seeded: the same floor every time, with every kind on it', () => {
@@ -120,6 +129,20 @@ describe('the Woods floor', () => {
     expect(floor.mushrooms.length).toBeGreaterThanOrEqual(8);
     expect(floor.bluebells.length).toBeGreaterThanOrEqual(20);
     expect(floor.foxgloves.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('keeps every trunk-foot moss cushion at least 0.45 x scale out from its trunk', () => {
+    // the log's moss lies within 0.6 m of its centreline (woods.js FALLEN_LOG)
+    const L = { x: -2, z: 16, length: 5, yaw: 0.3 };
+    const h = L.length / 2;
+    const log = [L.x - Math.sin(L.yaw) * h, L.z - Math.cos(L.yaw) * h, L.x + Math.sin(L.yaw) * h, L.z + Math.cos(L.yaw) * h];
+    const feet = floor.moss.filter((p) => segDist(p.x, p.z, log) > 0.7);
+    expect(feet.length).toBeGreaterThanOrEqual(15);
+    for (const p of feet) {
+      const at = `moss (${p.x}, ${p.z})`;
+      for (const t of trees) expect(Math.hypot(p.x - t.x, p.z - t.z), at).toBeGreaterThanOrEqual(0.45 * t.scale);
+      expect(trees.some((t) => Math.hypot(p.x - t.x, p.z - t.z) <= 0.9 * t.scale + 0.01), at).toBe(true);
+    }
   });
 
   it('keeps every leaf off the paths and out of the water', () => {
