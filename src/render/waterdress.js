@@ -335,6 +335,8 @@ const FLOWER_R = 0.06;
 
 // Arc segments in a fill fan (one triangle each).
 const FILLET_SEGS = 12;
+// How far a fan's straight edges tuck onto the land (as a bite's strip does).
+const FILLET_TUCK = 0.08;
 // Opaque, so it is drawn in the opaque pass: after the water (renderOrder 0),
 // and so always before the band (transparent, drawn after every opaque mesh).
 const FILLET_ORDER = 1;
@@ -1153,11 +1155,16 @@ function fillGeometry(fillets, biteRuns, ground) {
   let v = 0;
   for (const f of fillets) {
     const cx = f.x + f.wx * f.r, cz = f.z + f.wz * f.r;
-    const pts = [[f.x, f.z]];
+    // The fan's two straight edges lie on the water's own edges: tucked
+    // FILLET_TUCK onto the land (the corner diagonally, each tangent point
+    // straight out), so no fill edge sits exactly on the water's edge.
+    const tx = -f.wx * FILLET_TUCK, tz = -f.wz * FILLET_TUCK;
+    const pts = [[f.x + tx, f.z + tz]];
     // from the z-edge's tangent point, round to the x-edge's
     for (let i = 0; i <= FILLET_SEGS; i++) {
       const th = (i / FILLET_SEGS) * (Math.PI / 2);
-      pts.push([cx - f.wx * f.r * Math.cos(th), cz - f.wz * f.r * Math.sin(th)]);
+      const x = cx - f.wx * f.r * Math.cos(th), z = cz - f.wz * f.r * Math.sin(th);
+      pts.push(i === 0 ? [x + tx, z] : i === FILLET_SEGS ? [x, z + tz] : [x, z]);
     }
     const base = v;
     for (const [x, z] of pts) {

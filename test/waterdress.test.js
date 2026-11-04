@@ -470,6 +470,9 @@ describe('water dressing', () => {
   const CORNER = { x: 23, z: -9 };
   const CENTRE = { x: 21.4, z: -10.6 };
   const inCell = (p, e = 1e-6) => p.x >= 21.4 - e && p.x <= 23 + e && p.z >= -10.6 - e && p.z <= -9 + e;
+  // a fan's straight edges tuck this far onto the land (+x, +z at both corners)
+  const FAN_TUCK = 0.08;
+  const inTuckedCell = (p, e = 1e-6) => p.x >= 21.4 - e && p.x <= 23 + FAN_TUCK + 1e-5 && p.z >= -10.6 - e && p.z <= -9 + FAN_TUCK + 1e-5;
 
   it('BANK_FILLETS names the Woods bend and the lake corner, frozen', () => {
     expect(BANK_FILLETS).toEqual({ woods: [{ x: 23, z: -9, r: 1.6, wx: -1, wz: -1 }, { x: -14, z: -34, r: LAKE_R, wx: -1, wz: -1 }] });
@@ -502,9 +505,9 @@ describe('water dressing', () => {
     expect(lakePts.length).toBeGreaterThanOrEqual(12);
     for (const p of lakePts) {
       expect(p.x).toBeGreaterThanOrEqual(LAKE.x - LAKE_R - 1e-6);
-      expect(p.x).toBeLessThanOrEqual(LAKE.x + 1e-6);
+      expect(p.x).toBeLessThanOrEqual(LAKE.x + FAN_TUCK + 1e-5);
       expect(p.z).toBeGreaterThanOrEqual(LAKE.z - LAKE_R - 1e-6);
-      expect(p.z).toBeLessThanOrEqual(LAKE.z + 1e-6);
+      expect(p.z).toBeLessThanOrEqual(LAKE.z + FAN_TUCK + 1e-5);
     }
     for (const s of fishSpots('woods', areaData)) {
       const dx = Math.max(LAKE.x - LAKE_R - s.x, 0, s.x - LAKE.x), dz = Math.max(LAKE.z - LAKE_R - s.z, 0, s.z - LAKE.z);
@@ -552,6 +555,32 @@ describe('water dressing', () => {
     }
   }, 120_000);
 
+  it('each fillet fan tucks its two straight edges under the land: no fill edge on the water\'s edge', () => {
+    const { fx } = dressOnGround('woods');
+    const fillY = topY(byName(fx, 'waterdress:fill'));
+    let n = 0;
+    const miss = [];
+    for (const f of BANK_FILLETS.woods) {
+      // each straight edge runs from the corner r along one side of the water;
+      // the land lies at -wx (the x = corner edge) or -wz (the z = corner edge)
+      for (const t of [0.02, 0.1, 0.25, 0.4, 0.55, 0.7, 0.8]) {
+        const d = t * f.r;
+        for (const o of [-0.01, 0.01, 0.04]) {
+          const pts = [
+            [f.x - f.wx * o, f.z + f.wz * d], // along the x = corner edge
+            [f.x + f.wx * d, f.z - f.wz * o], // along the z = corner edge
+          ];
+          for (const [x, z] of pts) {
+            n++;
+            if (fillY(x, z) === null) miss.push(`r=${f.r} ${x.toFixed(3)},${z.toFixed(3)} (${o > 0 ? 'land' : 'water'})`);
+          }
+        }
+      }
+    }
+    expect(n).toBeGreaterThan(50);
+    expect(miss).toEqual([]);
+  }, 120_000);
+
   it('no ground plane, no fillet: the band keeps its square corner', () => {
     const { fx } = dress('woods');
     expect(byName(fx, 'waterdress:fill')).toBeUndefined();
@@ -559,7 +588,7 @@ describe('water dressing', () => {
     expect(byName(fx, 'waterdress:band').userData.bites).toBeUndefined();
   }, 120_000);
 
-  it('the fillet fan covers the corner and stays inside the square r×r cell', () => {
+  it('the fillet fan covers the corner and stays inside the square r×r cell (tucked onto the land)', () => {
     const { fx, areaData } = dressOnGround('woods');
     const fill = byName(fx, 'waterdress:fill');
     expect(fill).toBeTruthy();
@@ -569,7 +598,7 @@ describe('water dressing', () => {
     const pts = worldPoints(fill).slice(f0, f0 + fn).filter((p) => p.x > 0);
     const waterY = areaData.waterFx.find((h) => h.footprint.id === 'river-west').y;
     for (const p of pts) {
-      expect(inCell(p), `${p.x},${p.z}`).toBe(true);
+      expect(inTuckedCell(p), `${p.x},${p.z}`).toBe(true);
       expect(p.y).toBeCloseTo(waterY + FILL_LIFT, 6);
     }
     // one triangle per arc segment: 10..16 of them
