@@ -575,7 +575,8 @@ export function build(scene, { water = {}, wind } = {}) {
     };
     piece(4.3, 0.12, 0.4, 20, 0.04, 45.2);
     for (const x of [17.85, 22.15]) piece(0.18, 0.6, 0.18, x, 0.26, 45.3);
-    const mesh = new THREE.Mesh(mergeGeometries(parts, false), surfNoMap(0x8a6a48, 'wood'));
+    // Weathered timber, the same as the beach kerbs (polish-beach): 0x8a6a48 read orange at sunset.
+    const mesh = new THREE.Mesh(mergeGeometries(parts, false), surfNoMap(0x7a6852, 'wood'));
     for (const g of parts) g.dispose();
     mesh.name = 'boardwalkEnd';
     mesh.userData.noCast = true;
