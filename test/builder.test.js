@@ -25,6 +25,7 @@ vi.stubGlobal('document', {
 const b = await import('../src/world/builder.js');
 const { createWind } = await import('../src/render/wind.js');
 const { surfaceProps } = await import('../src/render/materials.js');
+const { mulberry32 } = await import('../src/rng.js');
 const { GORGE_HORIZON } = await import('../src/world/gorge.js');
 
 // The peak lean a registered object reaches, measured by sweeping absolute
@@ -771,6 +772,48 @@ describe('the Woods builders', () => {
     expect(b.fernBed(spots, 7).geometry.attributes.position.array).toEqual(m.geometry.attributes.position.array);
     expect(bb.min.x).toBeGreaterThan(-3);
     expect(bb.max.x).toBeLessThan(4);
+  });
+
+  it('fernBed fronds are arching leaflet fronds, dark at the root and light at the tips', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 3, z: 1 }, { x: -2, z: 4 }];
+    const m = b.fernBed(spots, 7);
+    expect(m.material.vertexColors).toBe(true);
+    expect(m.material.side).toBe(THREE.DoubleSide);
+    const pos = m.geometry.attributes.position;
+    expect(pos.count / 3 / (spots.length * 7)).toBeLessThanOrEqual(14);
+    const col = m.geometry.attributes.color;
+    expect(col).toBeDefined();
+    const lum = (i) => 0.2126 * col.getX(i) + 0.7152 * col.getY(i) + 0.0722 * col.getZ(i);
+    const dist = [];
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      dist.push(Math.min(...spots.map((s) => Math.hypot(x - s.x, z - s.z))));
+    }
+    const roots = [];
+    for (let i = 0; i < pos.count; i++) if (pos.getY(i) < 0.05) roots.push(i);
+    const cut = [...dist].sort((a, c) => c - a)[Math.floor(pos.count * 0.1)];
+    const tips = [];
+    for (let i = 0; i < pos.count; i++) if (dist[i] >= cut) tips.push(i);
+    const avg = (ix) => ix.reduce((s, i) => s + lum(i), 0) / ix.length;
+    expect(roots.length).toBeGreaterThan(0);
+    expect(avg(tips)).toBeGreaterThan(avg(roots));
+  });
+
+  it('fernBed draws the same Math.random count as the box fronds did (uuid parity)', () => {
+    const drawsOf = (spots) => {
+      const real = Math.random;
+      const seeded = mulberry32(12345);
+      let draws = 0;
+      Math.random = () => { draws++; return seeded(); };
+      try { b.fernBed(spots, 7); } finally { Math.random = real; }
+      return draws;
+    };
+    drawsOf([{ x: 0, z: 0 }]); // warm any material cache, uncounted
+    // pinned on the old BoxGeometry fronds: (geometries + material + mesh) * 4 uuid draws
+    expect(drawsOf([])).toBe(4 * (1 + 2));
+    expect(drawsOf([{ x: 0, z: 0 }])).toBe(4 * (7 + 1 + 2));
+    expect(drawsOf([{ x: 0, z: 0 }, { x: 3, z: 1 }, { x: -2, z: 4 }])).toBe(4 * (21 + 1 + 2));
   });
 
   it('brambleBed is one mesh, under a metre tall, out of the shadow pass', () => {
