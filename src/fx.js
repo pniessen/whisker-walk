@@ -33,7 +33,9 @@ export function drawFloaterText(ctx, text, width, height) {
   const parts = String(text).split('🐾');
   const gap = 4;
   const widths = parts.map((t) => (t ? ctx.measureText(t).width : 0));
-  const total = widths.reduce((a, b) => a + b, 0) + (parts.length - 1) * (PAW_SIZE + gap * 2);
+  const lead = (t) => (t.endsWith(' ') ? 0 : gap); // space before the paw
+  const total = widths.reduce((a, b) => a + b, 0)
+    + parts.slice(0, -1).reduce((a, t) => a + lead(t) + PAW_SIZE + gap, 0);
   let x = (width - total) / 2;
   const cy = height / 2;
   parts.forEach((t, i) => {
@@ -44,8 +46,8 @@ export function drawFloaterText(ctx, text, width, height) {
     }
     if (i < parts.length - 1) {
       // trailing/leading spaces already give the paw its breathing room
-      drawPaw(ctx, x + (t.endsWith(' ') ? 0 : gap), cy);
-      x += PAW_SIZE + gap * 2;
+      drawPaw(ctx, x + lead(t), cy);
+      x += lead(t) + PAW_SIZE + gap;
     }
   });
 }
