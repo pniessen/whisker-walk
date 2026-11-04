@@ -30,6 +30,10 @@ import { shorePieces } from '../world/builder.js';
 //   4. A SHORELINE HINT — a soft light band in the same ramp, right at the
 //      water's edge.
 //
+// And, since polish-waterlife, one evening tint (eveningWater / WATER_EVENING):
+// warm and a touch amber at sunset, dark and blue at dusk, via material.color
+// and emissive, so the day's look is untouched when no mode is passed.
+//
 // WHY NORMAL-MAP SCROLL AND NOT VERTEX DISPLACEMENT. Displacement moves the
 // SILHOUETTE, and at this camera — a third-person cat, eye height ~2m, looking
 // across a surface that is by definition horizontal — the silhouette of a
@@ -1096,6 +1100,31 @@ export function createWater(footprint, options = {}) {
       material.dispose();
     },
   };
+}
+
+// Polish-waterlife — the water in the evening. `mul` multiplies the ramp map
+// through material.color (dark and blue at dusk); `glow` is a faint emissive
+// tint. Sunset stays blue with a faint warm cast: a stronger warm tint (the
+// old 1.1 / 0.88 / 0.72 and 0x5a2a0c glow) read as a muddy brown pond in live
+// shots. Materials are built fresh per createWater
+// call and areas are rebuilt every walk, so setting them never leaks into the
+// next walk.
+export const WATER_EVENING = Object.freeze({
+  sunset: Object.freeze({ mul: Object.freeze([1.0, 0.94, 0.9]), glow: 0x24120a }),
+  dusk: Object.freeze({ mul: Object.freeze([0.6, 0.62, 0.78]), glow: 0x000000 }),
+});
+
+/**
+ * eveningWater(handles, mode) — tint each water handle's material for
+ * mode null | 'sunset' | 'dusk'. null leaves the day's look untouched.
+ */
+export function eveningWater(handles, mode) {
+  const e = WATER_EVENING[mode];
+  if (!e) return;
+  for (const h of handles ?? []) {
+    h.material.color.setRGB(e.mul[0], e.mul[1], e.mul[2]);
+    h.material.emissive.setHex(e.glow);
+  }
 }
 
 /**

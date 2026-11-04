@@ -1266,6 +1266,13 @@ describe('the Pines: things to find, climb and race', () => {
       expect([boulder.position.x, boulder.position.z]).toEqual([28, 31.2]);
     });
 
+    it('the island rocks are tree-fade occluders (a boulder beside the phone lens fades like a trunk)', () => {
+      for (const name of ['ashBoulder', 'watchRockStep', 'watchRock']) {
+        const o = scene.getObjectByName(name);
+        expect(o.userData.fadeOccluder?.length, name).toBeGreaterThan(0);
+      }
+    });
+
     it("the Watch Rock chain is two hops and its top can't be reached from the grass", () => {
       chainTest('watch rock',
         { x: 37, z: 29, y: 0.72, kind: 'stone' },
