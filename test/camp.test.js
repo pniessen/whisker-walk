@@ -347,6 +347,68 @@ describe('addCamp', () => {
     }
   });
 
+  it('fades the clearing into the ground: a two-ring disc with a transparent outer edge', async () => {
+    const { flatFootprints } = await import('../src/render/grass.js');
+    for (const a of CAMPS) {
+      const scene = new THREE.Scene();
+      addCamp(scene, { colliders: [] }, a);
+      scene.updateMatrixWorld(true);
+      const D = campDressing(a);
+      const { cx, cz } = DISCS[a];
+      const r = D.clearing.r;
+      const clearing = scene.getObjectByName('campClearing');
+      const g = clearing.geometry;
+      // still a CircleGeometry whose radius is the solid inner one, so grass
+      // tufts may grow into the faded band
+      expect(g.type, a).toBe('CircleGeometry');
+      expect(g.parameters.radius, a).toBeCloseTo(r - 0.4, 6);
+      expect(g.index.count / 3, a).toBe(84);
+      const col = g.attributes.color;
+      expect(col.itemSize, a).toBe(4);
+      expect(col.count, a).toBe(g.attributes.position.count);
+      expect(g.attributes.uv.count, a).toBe(col.count);
+      // centre + 28 inner + 28 outer: alpha 1, 1, 0
+      expect(col.count, a).toBe(57);
+      expect(col.getW(0), a).toBe(1);
+      for (let i = 1; i <= 28; i++) expect(col.getW(i), a).toBe(1);
+      for (let i = 29; i <= 56; i++) expect(col.getW(i), a).toBe(0);
+      // the wobble is low-frequency, factor in [0.9, 1], the same for both rings
+      const pos = g.attributes.position;
+      for (let i = 1; i <= 28; i++) {
+        const ri = Math.hypot(pos.getX(i), pos.getY(i));
+        const ro = Math.hypot(pos.getX(i + 28), pos.getY(i + 28));
+        expect(ro, a).toBeLessThanOrEqual(r + 1e-6);
+        expect(ro, a).toBeGreaterThanOrEqual(0.9 * r - 1e-6);
+        expect(ri / (r - 0.4), a).toBeCloseTo(ro / r, 6);
+      }
+      // the surface texture tiles as the old disc's did: uv spans 0..1 over the full radius
+      const uv = g.attributes.uv;
+      expect(uv.getX(0)).toBeCloseTo(0.5, 6);
+      expect(uv.getY(0)).toBeCloseTo(0.5, 6);
+      for (let i = 1; i < col.count; i++) {
+        expect(uv.getX(i)).toBeCloseTo((pos.getX(i) / r + 1) / 2, 6);
+        expect(uv.getY(i)).toBeCloseTo((pos.getY(i) / r + 1) / 2, 6);
+      }
+      // faces point up
+      for (let t = 0; t < g.index.count; t += 3) {
+        const [p, q, s] = [0, 1, 2].map((k) => g.index.getX(t + k));
+        const cross = (pos.getX(q) - pos.getX(p)) * (pos.getY(s) - pos.getY(p)) - (pos.getY(q) - pos.getY(p)) * (pos.getX(s) - pos.getX(p));
+        expect(cross, a).toBeGreaterThan(0);
+      }
+      expect(clearing.material.vertexColors).toBe(true);
+      expect(clearing.material.transparent).toBe(true);
+      expect(clearing.material.depthWrite).toBe(false);
+      // under the transparent decals and prints, which draw at renderOrder 0
+      expect(clearing.renderOrder).toBeLessThan(0);
+      // grass.js still reads it as a no-grass disc at the camp centre
+      const disc = flatFootprints(scene).find((f) => f.kind === 'disc');
+      expect(disc, a).toBeTruthy();
+      expect(disc.x).toBeCloseTo(cx, 6);
+      expect(disc.z).toBeCloseTo(cz, 6);
+      expect(disc.r).toBeCloseTo(r - 0.4, 6);
+    }
+  });
+
   it('takes exactly the 44 Math.random draws (THREE uuids) a flat camp took before polish-camps', () => {
     // flattrace.test.js seeds Math.random per build, and the critters, gold
     // mice and ghosts draw after it: one more object here moves them all

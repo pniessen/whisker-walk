@@ -29,12 +29,12 @@ const ALL = [...CAMPS, 'gorge'];
 
 // position.count of each camp geometry, recorded on the code before
 // polish-camps3 (addCamp into a fresh Scene, { colliders: [] }; the Gorge with
-// its ground).
+// its ground). The clearing is 57 since polish-camps4 (two-ring fading disc; was 30).
 const BASE_VERTS = {
-  woods: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 30 },
-  river: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 30 },
-  moor: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 30 },
-  pines: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 30 },
+  woods: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
+  river: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
+  moor: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
+  pines: { campRing: 10080, campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
   gorge: { campBedding: 1620, campRock: 348 },
 };
 

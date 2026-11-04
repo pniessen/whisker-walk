@@ -354,8 +354,10 @@ const RING_LOOK = {
 };
 // y 0.011: over the path strips (0.01) and wet sand (0.008), under the paw
 // prints (pawprints PRINT_Y 0.012) and the contact-shadow decals (DECAL_Y
-// 0.015), so the opaque floor neither hides the prints nor ties the shadows.
-const CLEARING = { y: 0.011, segments: 28, edge: 0.1 };
+// 0.015), so the floor neither hides the prints nor ties the shadows.
+// fade: the soft band at the rim, solid inside r - fade, clear at r * wobble;
+// wobble: the rim's radius factor, 1 - wobble..1 (a sum of three low sinusoids).
+const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -1 };
 const NEST = { r: 0.35, tube: 0.09, squash: 0.55 };
 const KILL_LOOK = { mouse: 0x7a5a3e, vole: 0x5e4a36, bird: 0x8a8478, wing: 0xa59d8c };
 
@@ -789,19 +791,62 @@ function ringMesh(ring, cx, cz, look) {
 }
 
 // The clearing: the camp's trampled floor in the clan's colour and surface
-// (trampled earth, pale pebbles, cropped turf, needle litter), a disc with a
-// hash-jittered edge, lifted 1.5 cm and pulled towards the camera
-// (polygonOffset) so it never fights the ground or a path. A CircleGeometry
-// lying flat at the top level: grass.js's flatFootprints reads it as a disc
-// and grows no tufts through it.
+// (trampled earth, pale pebbles, cropped turf, needle litter), melted into the
+// ground: a two-ring disc, the centre, an inner ring at (r - 0.4) and an outer
+// ring at r, each scaled by one low-frequency wobble (three sinusoids with
+// phases from the camp centre, factor 0.9..1, the same for both rings at an
+// angle). The colour attribute is rgb 1 with alpha 1 up to the inner ring and
+// 0 at the outer, so the rim fades out instead of ending in a polygon line.
+// uv is planar over the full radius, as the old disc's was, so the surface
+// tiles the same. Transparent and not written to depth, drawn first
+// (renderOrder -1) so the transparent paw prints and contact-shadow decals
+// (renderOrder 0) go over it; lifted 1.1 cm and pulled towards the camera
+// (polygonOffset) so it never fights the ground or a path.
+// A CircleGeometry lying flat at the top level, built as radius r - 0.4 and
+// then given the two-ring attributes: grass.js's flatFootprints reads
+// parameters.radius, so the no-grass disc is the solid inner one and tufts may
+// grow into the faded band.
 function clearingMesh(clearing, look) {
   const { x, z, r } = clearing;
-  const geo = new THREE.CircleGeometry(r, CLEARING.segments);
-  const pos = geo.attributes.position;
-  for (let i = 1; i < pos.count; i++) {
-    const k = (1 - CLEARING.edge) + CLEARING.edge * hash01(x, (i - 1) % CLEARING.segments, z, 12);
-    pos.setXY(i, pos.getX(i) * k, pos.getY(i) * k);
+  const n = CLEARING.segments;
+  const rIn = r - CLEARING.fade;
+  const geo = new THREE.CircleGeometry(rIn, n);
+  const ph = [0, 1, 2].map((k) => hash01(x, k, z, 12) * Math.PI * 2);
+  const wobble = (t) => {
+    const w = (Math.sin(2 * t + ph[0]) + 0.6 * Math.sin(3 * t + ph[1]) + 0.4 * Math.sin(5 * t + ph[2])) / 2; // -1..1
+    return 1 - CLEARING.wobble * (0.5 - 0.5 * w);
+  };
+  const pos = new Float32Array((1 + 2 * n) * 3);
+  const uv = new Float32Array((1 + 2 * n) * 2);
+  const nor = new Float32Array((1 + 2 * n) * 3);
+  const col = new Float32Array((1 + 2 * n) * 4);
+  uv[0] = uv[1] = 0.5;
+  for (let i = 0; i < 2 * n + 1; i++) { nor[i * 3 + 2] = 1; col.fill(1, i * 4, i * 4 + 3); }
+  col[3] = 1;
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    const k = wobble(t);
+    for (const [ring, rad, alpha] of [[1 + i, rIn * k, 1], [1 + n + i, r * k, 0]]) {
+      const px = Math.cos(t) * rad;
+      const py = Math.sin(t) * rad;
+      pos[ring * 3] = px;
+      pos[ring * 3 + 1] = py;
+      uv[ring * 2] = (px / r + 1) / 2;
+      uv[ring * 2 + 1] = (py / r + 1) / 2;
+      col[ring * 4 + 3] = alpha;
+    }
   }
+  const idx = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const [a, b, A, B] = [1 + i, 1 + j, 1 + n + i, 1 + n + j];
+    idx.push(0, a, b, a, A, B, a, B, b);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 4));
+  geo.setIndex(idx);
   const { color, surface } = look.floor;
   const mesh = new THREE.Mesh(geo, litMaterial(color, {
     surface,
@@ -809,8 +854,12 @@ function clearingMesh(clearing, look) {
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
   }));
   mesh.name = 'campClearing';
+  mesh.renderOrder = CLEARING.order;
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.set(x, CLEARING.y, z);
   mesh.userData.noCast = true;
