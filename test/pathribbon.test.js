@@ -502,3 +502,175 @@ describe('footprint path strips', () => {
     expect(a.mesh.uuid).toBe(b.mesh.uuid);
   });
 });
+
+// ---- polish-crossings Task 2: trails reach the decks -----------------------
+describe('trail tucks under decks (polish-crossings R2)', async () => {
+  const { TUCK, DECK_REACH, trailReach } = await import('../src/world/pathribbon.js');
+  const { deckDistance, waterClearance, onDeck } = await import('../src/world/builder.js');
+  const woods = await import('../src/world/woods.js');
+  const river = await import('../src/world/river.js');
+  const moor = await import('../src/world/moor.js');
+  const pines = await import('../src/world/pines.js');
+  const gorge = await import('../src/world/gorge.js');
+  const MAPS = {
+    woods: { groups: [{ segs: woods.WOODS_PATHS, w: 3 }], waters: woods.WOODS_WATERS },
+    river: { groups: [{ segs: river.RIVER_PATHS, w: 3 }], waters: river.RIVER_WATERS },
+    moor: {
+      groups: [{ segs: moor.MOOR_PATHS, w: 3 }, { segs: moor.MOOR_TRAIL, w: moor.TRAIL_W }, { segs: moor.MOOR_GORGE_TRAIL, w: moor.TRAIL_W }],
+      waters: moor.MOOR_WATERS,
+    },
+    pines: { groups: [{ segs: pines.PINES_PATHS, w: 3 }, { segs: pines.PINES_TRAIL, w: pines.TRAIL_W }], waters: pines.PINES_WATERS },
+    gorge: { groups: [{ segs: gorge.GORGE_PATHS, w: 3 }], waters: gorge.GORGE_WATERS },
+  };
+  const decksOf = (waters) => waters.flatMap((w) => w.decks ?? []);
+  // A deck's frame: its two short-edge midpoints and the unit crossing axis.
+  function frame(d) {
+    if (Number.isFinite(d.x1)) {
+      const len = Math.hypot(d.x2 - d.x1, d.z2 - d.z1);
+      return { a: [d.x1, d.z1], b: [d.x2, d.z2], u: [(d.x2 - d.x1) / len, (d.z2 - d.z1) / len] };
+    }
+    const cx = (d.minX + d.maxX) / 2, cz = (d.minZ + d.maxZ) / 2;
+    return d.maxX - d.minX >= d.maxZ - d.minZ
+      ? { a: [d.minX, cz], b: [d.maxX, cz], u: [1, 0] }
+      : { a: [cx, d.minZ], b: [cx, d.maxZ], u: [0, 1] };
+  }
+
+  it('constants: TUCK 0.5, reach 2.5', () => {
+    expect(TUCK).toBe(0.5);
+    expect(DECK_REACH).toBe(2.5);
+  });
+
+  it('a free end 1.5 m short of a rect deck gets one tuck segment; tip 0.5 m inside the near edge', () => {
+    const deck = { minX: -0.9, maxX: 0.9, minZ: 0, maxZ: 8 };
+    const groups = [{ segs: [[0, -20, 0, -1.5]], w: 3 }];
+    const plain = trailSegments(groups);
+    const segs = trailSegments(groups, { decks: [deck] });
+    expect(segs.length).toBe(2);
+    // The original end is not pulled back.
+    expect(segs[0]).toMatchObject({ x1: plain[0].x1, z1: plain[0].z1, x2: 0, z2: -1.5, h: 1.5 });
+    const t = segs[1];
+    expect(t).toMatchObject({ x1: 0, z1: -1.5, h: 1.5 });
+    expect(t.x2).toBeCloseTo(0, 9);
+    expect(t.z2 + t.h).toBeCloseTo(TUCK, 9); // round tip 0.5 m past minZ
+  });
+
+  it('a strip deck: the tip lies on its a->b axis, 0.5 m inside the nearer end', () => {
+    const deck = { x1: 0, z1: 0, x2: 6, z2: 8, halfW: 0.9 };
+    const groups = [{ segs: [[-10, -10, -1, -1]], w: 2 }];
+    const [, t] = trailSegments(groups, { decks: [deck] });
+    const u = [0.6, 0.8];
+    expect(t.x1).toBe(-1);
+    expect(t.x2 + u[0] * t.h).toBeCloseTo(u[0] * TUCK, 9);
+    expect(t.z2 + u[1] * t.h).toBeCloseTo(u[1] * TUCK, 9);
+  });
+
+  it('ends further than 2.5 m, joined ends and edge ends get no tuck', () => {
+    const deck = { minX: -0.9, maxX: 0.9, minZ: 0, maxZ: 8 };
+    expect(trailSegments([{ segs: [[0, -20, 0, -2.6]], w: 3 }], { decks: [deck] }).length).toBe(1);
+    // joined: the L's shared corner sits 1 m from the deck
+    const L = [{ segs: [[-10, -1, 0, -1], [0, -1, 0, -10]], w: 3 }];
+    const segs = trailSegments(L, { decks: [{ minX: -0.9, maxX: 0.9, minZ: 0, maxZ: 8 }] });
+    // only the free far ends are tested against decks; both are far away
+    expect(segs.length).toBe(2);
+    expect(trailSegments(L, { decks: [] })).toEqual(trailSegments(L));
+  });
+
+  it('an end already level with the tip still gets a (minimum-length) tuck, no zero-length segment', () => {
+    const deck = { minX: -0.9, maxX: 0.9, minZ: 0, maxZ: 8 };
+    const segs = trailSegments([{ segs: [[0, -20, 0, -1]], w: 3 }], { decks: [deck] });
+    expect(segs.length).toBe(2);
+    expect(segLen(segs[1])).toBeGreaterThan(0.05);
+    expect(Math.max(segs[1].z1, segs[1].z2) + 1.5).toBeCloseTo(TUCK, 9);
+  });
+
+  it('with waters, a tuck that would paint open water beside a narrow deck is drawn in', () => {
+    // A 1.8 m deck whose land end is only 0.3 m from the shore: a full tuck's
+    // 1.85 m-wide round end would spill over the bank either side.
+    const deck = { minX: -0.9, maxX: 0.9, minZ: 0, maxZ: 8 };
+    const waters = [{ kind: 'rect', minX: -20, maxX: 20, minZ: 0.3, maxZ: 7.4, decks: [deck] }];
+    const groups = [{ segs: [[0, -20, 0, -1.5]], w: 3 }];
+    const full = trailSegments(groups, { decks: [deck] })[1];
+    const safe = trailSegments(groups, { decks: [deck], waters });
+    expect(safe.length).toBe(2);
+    expect(safe[1].z2).toBeLessThan(full.z2);
+    // No water at all: the full tuck.
+    expect(trailSegments(groups, { decks: [deck], waters: [] })[1]).toEqual(full);
+    // Shore right at the deck end: no tip level with the edge is dry either,
+    // so no tuck, and the end is pulled back as before.
+    const wet = [{ kind: 'rect', minX: -20, maxX: 20, minZ: -0.5, maxZ: 7.4, decks: [deck] }];
+    expect(trailSegments(groups, { decks: [deck], waters: wet })).toEqual(trailSegments(groups));
+  });
+
+  for (const [name, { groups, waters }] of Object.entries(MAPS)) {
+    it(`${name}: input segments keep their order; every free end <= 2.5 m from a deck now reaches >= 0.4 m inside it`, () => {
+      const decks = decksOf(waters);
+      const plain = trailSegments(groups);
+      const segs = trailSegments(groups, { decks, waters });
+      const n = plain.length;
+      const kinds = endKinds(groups);
+      const raw = groups.flatMap((g) => g.segs);
+      let near = 0;
+      const insides = [];
+      raw.forEach((s, i) => {
+        for (const e of [0, 1]) {
+          if (kinds[i][e] !== 'free') continue;
+          const x = s[e * 2], z = s[e * 2 + 1];
+          const gap = deckDistance([{ decks }], x, z);
+          const endOf = (q) => (e === 0 ? [q.x1, q.z1] : [q.x2, q.z2]);
+          if (gap > DECK_REACH) {
+            expect(endOf(segs[i])).toEqual(endOf(plain[i]));
+            continue;
+          }
+          near++;
+          // the end itself is not pulled back
+          expect(e === 0 ? [segs[i].x1, segs[i].z1] : [segs[i].x2, segs[i].z2]).toEqual([x, z]);
+          // some appended segment starts here and its far round tip is >= 0.4 m inside a deck
+          const tucks = segs.slice(n).filter((t) => Math.hypot(t.x1 - x, t.z1 - z) < 0.11);
+          expect(tucks.length).toBe(1);
+          const t = tucks[0];
+          const d = decks.reduce((best, dk) => (deckDistance([{ decks: [dk] }], t.x2, t.z2)
+            < deckDistance([{ decks: [best] }], t.x2, t.z2) ? dk : best));
+          const { a, b, u } = frame(d);
+          const da = Math.hypot(t.x2 - a[0], t.z2 - a[1]);
+          const db = Math.hypot(t.x2 - b[0], t.z2 - b[1]);
+          const into = da < db ? u : [-u[0], -u[1]];
+          const tip = [t.x2 + into[0] * t.h, t.z2 + into[1] * t.h];
+          const inside = -deckDistance([{ decks: [d] }], tip[0], tip[1]);
+          insides.push(+inside.toFixed(2));
+          expect(inside).toBeGreaterThanOrEqual(0.4 - 1e-9);
+        }
+      });
+      expect(segs.length).toBe(n + near);
+      for (let i = 0; i < n; i++) {
+        if (raw[i]) expect(segs[i].h).toBe(plain[i].h);
+      }
+      console.log(`TUCKS ${name}: ${near} — ${segs.slice(n).map((t) => `(${t.x1},${t.z1})->(${t.x2.toFixed(2)},${t.z2.toFixed(2)})`).join(' ')}; tips inside by ${insides.join(', ')}`);
+      if (name !== 'woods' || near) expect(near).toBeGreaterThan(0);
+    });
+
+    it(`${name}: no tuck capsule point outside the decks lies in open water`, () => {
+      const decks = decksOf(waters);
+      const dry = waters.map((w) => ({ ...w, decks: [] }));
+      const segs = trailSegments(groups, { decks, waters });
+      const n = trailSegments(groups).length;
+      const bad = [];
+      for (const s of segs.slice(n)) {
+        const R = trailReach(s.h);
+        const len = segLen(s);
+        const ux = len > 1e-9 ? (s.x2 - s.x1) / len : 1;
+        const uz = len > 1e-9 ? (s.z2 - s.z1) / len : 0;
+        for (let a = -R; a <= len + R; a += 0.05) {
+          for (let c = -R; c <= R; c += 0.05) {
+            const x = s.x1 + ux * a - uz * c;
+            const z = s.z1 + uz * a + ux * c;
+            const along = Math.max(-a, a - len, 0);
+            if (Math.hypot(along, c) > R) continue;
+            if (waters.some((w) => onDeck(w, x, z))) continue;
+            if (waterClearance(dry, x, z) < 0) bad.push([+x.toFixed(2), +z.toFixed(2)]);
+          }
+        }
+      }
+      expect(bad.length === 0 ? [] : [bad.length, ...bad.filter((_, k) => k % Math.ceil(bad.length / 12) === 0)]).toEqual([]);
+    }, 120_000);
+  }
+});

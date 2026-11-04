@@ -543,7 +543,7 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(stones);
 
   // --- the paths --------------------------------------------------------------
-  addTrails(scene, [{ segs: RIVER_PATHS, w: PATH_W }], PATH_STYLE, 'river');
+  addTrails(scene, [{ segs: RIVER_PATHS, w: PATH_W }], PATH_STYLE, 'river', { decks: RIVER_WATERS.flatMap((w) => w.decks ?? []), waters: RIVER_WATERS });
 
   // --- the reeds and the lily pads -------------------------------------------------
   const reeds = b.reedBed(riverReeds(), seedFromCode('river-reeds'));
