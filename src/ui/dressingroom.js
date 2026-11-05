@@ -225,7 +225,7 @@ function mineHtml(c, thumbs) {
   return `<button class="dr-portrait dr-mine ${c.selected ? 'sel' : ''}" data-dr-mine="${escapeHtml(c.id)}" aria-pressed="${c.selected}" title="${escapeHtml(c.name)}">${face}</button>`;
 }
 function makeHtml(canMake) {
-  return canMake ? '<button class="dr-portrait dr-make" data-dr-make>＋ Make a cat</button>'
+  return canMake ? '<button class="dr-portrait dr-make" data-dr-make aria-label="Make a cat">＋ Make<span class="dr-make-more" aria-hidden="true"> a cat</span></button>'
     : '<div class="dr-portrait dr-make full" aria-disabled="true">3 of 3 — change one of yours for a new look</div>';
 }
 
@@ -293,7 +293,7 @@ function wearingHtml(m, ui, thumbs) {
   return `<section class="dr-wearing" aria-label="Wearing">
     <p class="dr-label">Wearing</p>
     <div class="dr-worn">${worn}</div>
-    <button class="dr-dressup" data-dr-wardrobe aria-expanded="false"><span class="dr-dressup-icon" aria-hidden="true">👗</span><span class="dr-dressup-words">Dress up<small>${n ? `${n} ${n === 1 ? 'thing' : 'things'} on` : 'try something on'}</small></span></button>
+    <button class="dr-dressup" data-dr-wardrobe><span class="dr-dressup-icon" aria-hidden="true">👗</span><span class="dr-dressup-words">Dress up<small>${n ? `${n} ${n === 1 ? 'thing' : 'things'} on` : 'try something on'}</small></span></button>
   </section>`;
 }
 

@@ -212,7 +212,8 @@ describe('dressing-room renderer', () => {
   it('the cats-more and Dress up controls are toggle buttons, not a tablist', () => {
     const home = render({ ui: { wardrobe: false, moreCats: false } });
     expect(home).not.toContain('role="tablist"');
-    expect(home).toMatch(/<button[^>]*data-dr-wardrobe aria-expanded="false"/);
+    // Dress up swaps the panel for the wardrobe (it is replaced, not expanded): no aria-expanded
+    expect(home).toMatch(/<button class="dr-dressup" data-dr-wardrobe>/);
     expect(home).toMatch(/<button[^>]*data-dr-more-cats aria-expanded="false"/);
     expect(render({ ui: { moreCats: true } })).toMatch(/<button[^>]*data-dr-more-cats aria-expanded="true"/);
   });
@@ -478,7 +479,7 @@ describe('her own cats in the dressing room', () => {
     const h = renderDressingRoomHtml({ model: buildDressingModel(withMine(1), CATALOG) });
     expect(h.indexOf('data-dr-cat="hagrid"')).toBeLessThan(h.indexOf('data-dr-mine="mine1"'));
     expect(h.indexOf('data-dr-mine="mine1"')).toBeLessThan(h.indexOf('data-dr-make'));
-    expect(h).toContain('＋ Make a cat');
+    expect(h).toContain('aria-label="Make a cat">＋ Make');
   });
   it('at three cats the tile is greyed with the agreed words and nothing deletes', () => {
     const h = renderDressingRoomHtml({ model: buildDressingModel(withMine(3), CATALOG) });

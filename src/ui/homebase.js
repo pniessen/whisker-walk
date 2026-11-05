@@ -121,7 +121,9 @@ export function showEditionTitle(doc, edition) {
   doc.getElementById?.('splash')?.setAttribute('aria-label', gameTitle(edition));
 }
 
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate) {
+// onCardsClosed() is optional: called when she dismisses the clan moment, so
+// main.js can show the news card that waited for it.
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
@@ -642,22 +644,30 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let momentEl = null;
   let greeted = false; // the boot greeting has run: show() may now bring the moment up
   const momentStore = () => { try { return globalThis.localStorage ?? null; } catch { return null; } };
+  let momentDismissed = false; // this session's memory, for a device with no storage
   function momentSeen() {
+    if (momentDismissed) return true;
     try { return momentStore()?.getItem?.(MOMENT_SEEN_KEY) === '1'; } catch { return false; }
   }
   function markMomentSeen() {
-    try { momentStore()?.setItem?.(MOMENT_SEEN_KEY, '1'); } catch { /* private window: it may come back once */ }
+    momentDismissed = true;
+    try { momentStore()?.setItem?.(MOMENT_SEEN_KEY, '1'); } catch { /* private window: this session only */ }
   }
   function closeClanMoment(seen) {
     if (!momentEl) return;
     momentEl.remove();
     momentEl = null;
-    if (seen) markMomentSeen();
+    if (!seen) return; // a walk is starting: nothing more goes up now
+    markMomentSeen();
     try { root.querySelector('#btn-start')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+    // the news card gave way to the moment: it may show now
+    try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); }
   }
   // force: Change place's "Choose your clan" (shown even after "Not yet").
   function showClanMoment({ force = false } = {}) {
     if (!shown || momentEl || newsEl || noticeEl || visitOpen() || !homeVisible() || dressing?.ui?.builder) return false;
+    // home, or Change place (a border crossing lands there); never over another sheet
+    if (!force && openSheet && openSheet !== 'places') return false;
     const s = progression.state;
     if (!clanMomentDue(s, CATALOG) || (!force && momentSeen())) return false;
     closeWelcome();
@@ -669,17 +679,27 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     momentEl.addEventListener('click', (e) => {
       const card = e.target.closest?.(`[${PICK_ATTR}]`);
       if (card) {
-        closeClanMoment(true);
-        pickClan(card.getAttribute(PICK_ATTR));
+        pickClan(card.getAttribute(PICK_ATTR)); // renders home under the card first,
+        closeClanMoment(true); // so focus lands on the new Start
         return;
       }
       if (e.target.closest?.('.join-moment-later')) closeClanMoment(true);
     });
     momentEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeClanMoment(true);
+      if (e.key === 'Escape') { closeClanMoment(true); return; }
+      // aria-modal: Tab stays inside the card
+      if (e.key !== 'Tab') return;
+      const btns = [...(momentEl.querySelectorAll?.('button:not([aria-disabled="true"])') ?? [])];
+      if (!btns.length) return;
+      const i = btns.indexOf(document.activeElement);
+      const next = e.shiftKey ? (i <= 0 ? btns.length - 1 : i - 1) : (i === -1 || i === btns.length - 1 ? 0 : i + 1);
+      e.preventDefault();
+      btns[next].focus?.();
     });
     root.after(momentEl);
-    momentEl.querySelector(`[${PICK_ATTR}]`)?.focus?.();
+    // The card itself takes focus, not a clan: an Enter still held from the
+    // button that brought her here must never pick one.
+    momentEl.querySelector('.join-moment-card')?.focus?.({ preventScroll: true });
     return true;
   }
 
@@ -867,14 +887,17 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   function setSheet(id) {
     const want = resolveSheet(id);
     const next = want && availableSheets().includes(want) ? want : null;
+    const prev = openSheet;
     backTo = openSheet === 'menu' && next && next !== 'menu' && next !== 'places' ? 'menu' : null;
     openSheet = next;
     render();
     root.scrollTop = 0; // a sheet (or the room) opens at its top
-    // Keyboard and screen-reader users land on the new screen's first control.
-    if (next) {
-      try { root.querySelector('#hb-back')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
-    }
+    // Keyboard and screen-reader users land on the new screen's first control,
+    // or, going back, on the door they came through (the Menu, a tile, the card).
+    try {
+      const back = (next === null || next === 'menu') && prev ? root.querySelector(`[data-dr-sheet="${prev}"]`) : null;
+      (back ?? (next ? root.querySelector('#hb-back') : null))?.focus?.({ preventScroll: true });
+    } catch { /* a nicety */ }
   }
 
   // ---- The Menu sheet (Launch A) -------------------------------------------
@@ -1078,7 +1101,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // The top bar copies the walk HUD: the title as plain words (Launch A: the
     // edition switch lives in Settings only), the points and rank pills, the
     // quiet visit pill and the Menu door.
-    const headerHtml = `<h1 class="dr-title">${PAW} Whisker Walk 2 <span class="dr-edition">${escapeHtml(editionTitle(s.edition))}</span></h1>`
+    const headerHtml = `<h1 class="dr-title">${PAW} Whisker Walk 2 · <span class="dr-edition">${escapeHtml(editionTitle(s.edition))}</span></h1>`
       + `<div class="hb-pill hb-points" role="img" aria-label="${points} whisker points">${PAW} ${points}</div>`
       + `<div class="hb-pill hb-rank">🏆 ${escapeHtml(rank.title)}</div>`
       + visitBadgeHtml(s.visits)
@@ -1576,7 +1599,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // focus (a focused button's own Enter is its own, a field's is typing).
   function enterStarts(e) {
     if (e.key !== 'Enter' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
-    if (!shown || !homeVisible() || openSheet || dressing?.ui?.builder) return;
+    if (!shown || !greeted || !homeVisible() || openSheet || dressing?.ui?.builder) return;
     if (momentEl || newsEl || noticeEl || visitOpen()) return;
     const a = document.activeElement;
     if (a && a !== document.body && a !== document.documentElement && a !== root) return;

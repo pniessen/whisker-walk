@@ -1305,6 +1305,9 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .dr:not(.dr-building) { min-height: 0; }
   .dr.dr-view-wardrobe { grid-template-areas: "header header" "hero hero" "wearing wearing" "dock dock"; }
   .dr-view-wardrobe .dr-wearing { max-height: 52dvh; }
+  /* the wardrobe takes room from the cat, never the other way round */
+  .dr-view-wardrobe .dr-hero { overflow: hidden; }
+  .dr-view-wardrobe .dr-stage { min-height: 120px; }
   /* the title is the splash's job on a phone: kept for screen readers only */
   .dr-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
     clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
@@ -1316,6 +1319,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .dr-hero-blurb { display: none; }
   .dr-hero-rank { display: block; }
   .dr .dr-portrait { width: 46px; height: 46px; }
+  .dr-make-more { display: none; } /* "＋ Make": the strip keeps "🔒 N more" in view */
   .dr-strip { margin-top: 8px; }
   /* the two doors, side by side as tiles */
   .dr-view-home .dr-wearing { background: none; padding: 0; }
@@ -1410,14 +1414,16 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .hb-places { color: #f1e0c2; }
 .hb-pick-line { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; }
 .hb-pick-line .dr-home-emblem { margin: 0; }
-.hb-pick-choose { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; width: 100%;
+.dr-where .hb-pick-choose { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; width: 100%;
   margin: 0 0 14px; padding: 12px 16px; min-height: 48px; border: 2px solid #f2c14e; border-radius: 16px;
   background: #2c3d58; color: #f1e0c2; font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
-.hb-pick-choose b { color: #f2c14e; }
+.dr-where .hb-pick-choose b { color: #f2c14e; }
+.dr-building .hb-menu-btn { display: none; } /* no door out of the builder */
+.join-moment-card:focus { outline: none; }
 .hb-places .dr-label { color: #f1e0c2; }
 @media (min-width: 900px) {
   /* desktop: the map beside the other places, so the sheet fits one screen */
-  .hb-places .dr-where { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr;
+  .hb-places .dr-where:has(.territory-map) { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr;
     column-gap: 20px; align-items: start; }
   .hb-places .dr-where > .dr-label { align-self: end; }
   .hb-places .dr-where > .hb-pick-line, .hb-places .dr-where > .hb-pick-choose { grid-column: 1 / -1; }

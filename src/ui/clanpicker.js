@@ -121,7 +121,7 @@ const MOMENT_TITLE = `The ${clanWord}s have noticed you!`;
 const MOMENT_ASK = `Which ${clanWord} will you join?`;
 
 export function renderClanMomentHtml(model, partnerName) {
-  return `<div class="join-moment-card" role="dialog" aria-modal="true" aria-labelledby="join-moment-title">`
+  return `<div class="join-moment-card" role="dialog" aria-modal="true" aria-labelledby="join-moment-title" tabindex="-1">`
     + `<p class="join-moment-paws" aria-hidden="true">🐾 🐾 🐾</p>`
     + `<h2 id="join-moment-title">${escapeHtml(MOMENT_TITLE)}</h2>`
     + `<p class="join-moment-ask">${escapeHtml(MOMENT_ASK)}</p>`

@@ -384,6 +384,8 @@ export function createDressingRoom({
     if (!t) return false;
     const d = t.dataset || {};
     if (d.drSheet !== undefined) {
+      // No door out of the builder: leaving goes through its own Not now.
+      if (ui.builder) return true;
       const id = resolveSheet(d.drSheet);
       if (id) onOpenSheet?.(id);
       return true;

@@ -320,7 +320,7 @@ describe('the clan moment', () => {
   });
   it('a walk starting over a celebration does not bring it up', () => {
     const { progression, hb } = setup({ state: woodsOpened });
-    hb.showVisit(progression.recordVisit(), { onClosed: () => {} });
+    hb.showVisit({ visits: 2, milestone: null }, { onClosed: () => {} }); // a plain visit's greeting
     hb.hide();
     expect(moment()).toBeUndefined();
   });
@@ -420,6 +420,52 @@ describe('the clan moment', () => {
     hb.show();
     expect(doc.body.children.filter((c) => c.id === 'clan-moment')).toHaveLength(1);
   });
+  it('review fix: Not yet tells main the cards are closed (the news may show now); a walk does not', () => {
+    const progression = createProgression(memStorage());
+    woodsOpened(progression.state);
+    const onCardsClosed = vi.fn();
+    const hb = createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {}, undefined, onCardsClosed);
+    hb.show();
+    hb.showVisit(PLAIN, { onClosed: () => {} });
+    moment().listeners.click({ target: { closest: (sel) => (sel === '.join-moment-later' ? {} : null) } });
+    expect(onCardsClosed).toHaveBeenCalledTimes(1);
+    // a walk starting under a fresh moment closes it without the hook
+    store.clear();
+    const p2 = createProgression(memStorage());
+    woodsOpened(p2.state);
+    const hook2 = vi.fn();
+    const hb2 = createHomeBase(p2, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {}, undefined, hook2);
+    hb2.show();
+    hb2.showVisit(PLAIN, { onClosed: () => {} });
+    expect(moment()).toBeTruthy();
+    hb2.hide();
+    expect(hook2).not.toHaveBeenCalled();
+    expect(hb).toBeTruthy();
+  });
+  it('review fix: focus goes to the card, never to a clan (a held Enter must not pick one)', () => {
+    setup({ state: woodsOpened }).hb.showVisit(PLAIN, { onClosed: () => {} });
+    expect(moment().innerHTML).toContain('class="join-moment-card" role="dialog" aria-modal="true" aria-labelledby="join-moment-title" tabindex="-1"');
+  });
+  it('review fix: Not yet is remembered for the session when storage throws', () => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true, writable: true,
+      value: { getItem: () => null, setItem: () => { throw new Error('quota'); } },
+    });
+    const { hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN, { onClosed: () => {} });
+    moment().listeners.click({ target: { closest: (sel) => (sel === '.join-moment-later' ? {} : null) } });
+    hb.show();
+    expect(moment()).toBeFalsy();
+  });
+  it('review fix: never over a content sheet (Change place is fine)', () => {
+    const { hb } = setup({ state: woodsOpened });
+    openSheet('settings');
+    hb.showVisit(PLAIN, { onClosed: () => {} });
+    expect(moment()).toBeFalsy();
+    openSheet('places');
+    hb.show({ sheet: 'places' });
+    expect(moment()).toBeTruthy();
+  });
   it('works without localStorage (a private window): it shows, and Not yet does not throw', () => {
     delete globalThis.localStorage;
     const { hb } = setup({ state: woodsOpened });
@@ -440,9 +486,12 @@ describe('Enter starts the walk from home', () => {
     doc.root.querySelector = (sel) => (sel === '#btn-start' ? start : null);
     return start;
   }
-  it('presses Start when nothing is focused and nothing is up', () => {
-    setup();
+  it('presses Start when nothing is focused and nothing is up, once the greeting has run', () => {
+    const { hb, progression } = setup();
     const start = withStart();
+    press(); // under the boot splash: no walk yet
+    expect(start.click).not.toHaveBeenCalled();
+    hb.showVisit({ visits: 2, milestone: null }, { onClosed: () => {} }); // a plain visit's greeting
     const e = press();
     expect(start.click).toHaveBeenCalledTimes(1);
     expect(e.preventDefault).toHaveBeenCalled();

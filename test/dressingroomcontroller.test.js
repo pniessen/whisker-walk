@@ -842,6 +842,17 @@ describe('createDressingRoom: Launch A (wardrobe, more cats, places)', () => {
     return { dr, progression, sync };
   }
 
+  it('review fix: no sheet door opens from inside the builder', () => {
+    const onOpenSheet = vi.fn();
+    const { dr } = realRoom({ onOpenSheet });
+    dr.handleClick(click({ drMake: '' }));
+    expect(dr.ui.builder).toBeTruthy();
+    expect(dr.handleClick(click({ drSheet: 'menu' }))).toBe(true);
+    expect(onOpenSheet).not.toHaveBeenCalled();
+    dr.handleClick(click({ cbCancel: '' }));
+    dr.handleClick(click({ drSheet: 'menu' }));
+    expect(onOpenSheet).toHaveBeenCalledWith('menu');
+  });
   it('Dress up opens the wardrobe, Done closes it (and the open slot and try-on with it)', () => {
     const { dr } = realRoom();
     expect(dr.html()).not.toContain('data-dr-slot=');

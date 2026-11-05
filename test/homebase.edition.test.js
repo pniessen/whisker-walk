@@ -145,7 +145,7 @@ describe('the title names the edition', () => {
 
   it('the title is a heading with no switch label for a screen reader to announce', () => {
     setup();
-    expect(doc.root.innerHTML).toMatch(/<h1 class="dr-title">.*Whisker Walk 2 <span class="dr-edition">/);
+    expect(doc.root.innerHTML).toMatch(/<h1 class="dr-title">.*Whisker Walk 2 · <span class="dr-edition">/);
     expect(doc.root.innerHTML).not.toContain('Switch game edition');
   });
 
