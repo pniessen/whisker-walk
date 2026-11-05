@@ -7,11 +7,11 @@ import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { henFightState, HEN_POSE_TOP } from './henfight.js';
 import { setCatScars } from './scarmesh.js';
-import { ruffGeometry } from './ruff.js';
+import { ruffGeometry, RUFF } from './ruff.js';
 import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
 import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
 import { buildBackItem, buildHood } from './backitems.js';
-import { CAPE, CAPE_SIT, capePoint, capeGeometry } from './cape.js';
+import { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry, capeTieGeometry, layCapeTie } from './cape.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
 import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt } from './torso.js';
 
@@ -88,20 +88,11 @@ const SCARF_COLOR = 0xd6602f;      // cozy rust knit, matches beanie
 const HOODIE_COLOR = 0x6a4c93;     // purple hoodie
 const CAPE_COLOR = 0xd8303c;       // superhero red
 const CAPE_ACCENT = 0xf2c14e;      // gold clasp
-// The clasp: a gold brooch (radius r, flattened to `flat` through the cloth)
-// on the front of each shoulder, just behind the neck edge (s, a ±a), `lift`
-// off the cloth. Not at the spine: the head hides the neck edge there from
-// every side, and not at the throat, where the collar, its bell or tag and
-// the neck items already are. At a ±0.62 each is outside the head's outline
-// from the front. Accessories polish Task 4: at the neck edge itself (s 0) the
-// brooch on the side the torso turns toward sank 5.6-6.7 cm into the chest in
-// the cross (and 4-8 cm in the arch), where the underside counter-yaws to stay
-// under the head (animator.js keepChestUnderHead) and bulges over the
-// shoulder. A fifth of the way back (s 0.2) it clears the chest in every pose
-// (3.5 cm out at the least; s 0.14 cleared the cross but not the arch): on the
-// standing tabby that is 13 cm further back and 7 cm further out along the
-// shoulder, still on its front, still within 3 cm of the fur.
-const CAPE_CLASP = Object.freeze({ a: 0.62, s: 0.2, r: 0.032, flat: 0.7, lift: 0.012 });
+// The clasp is at the throat (owner, 2026-11-04; cape.js CAPE_TIE): where a
+// collar's charm hangs, carried on the neck. A collar charm (CHARMED) or a
+// neck-slot item already sits there: then the gold clasp is left off and the
+// cape's front edges meet under that piece.
+const CHARMED = new Set(['bell', 'heart', 'tag', 'sparklecollar']);
 const CAPE_DOTS = [[-0.5, 0.25], [0.3, 0.2], [0.75, 0.45], [-0.15, 0.45], [-0.8, 0.6], [0.45, 0.65], [0.1, 0.8], [-0.45, 0.85]];
 const SNEAKER_WHITE = 0xf2f2f2;
 const SNEAKER_ACCENT = 0xd8303c;
@@ -152,7 +143,7 @@ const SOCK_COLORS = [0xf27ab0, 0x7ec9b8, 0xf2c14e, 0xf5f5f5]; // mismatched on p
 
 // The cape's cloth lives in cape.js (a leaf module, so backitems.js can read
 // it without importing this file); re-exported for existing imports.
-export { CAPE, CAPE_SIT, capePoint, capeGeometry };
+export { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry };
 
 const mat = (color) => litMaterial(color);
 
@@ -911,6 +902,20 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   for (const p of Object.values(parts)) p.dispose();
   geo.userData.ranges = ranges;
   geo.userData.chestCentre = [0, CHEST.DY / BS[1], CHEST.Z * fz / BS[2]];
+  // the chest and belly balls as ellipsoids in the cat's resting frame (cape.js
+  // layCapeTie keeps the cape's front bands and clasp out of them)
+  geo.userData.balls = [
+    { at: chestAt, r: [CHEST.R * CHEST.SCALE[0] * fx, CHEST.R * CHEST.SCALE[1], CHEST.R * CHEST.SCALE[2]] },
+    { at: bellyAt, r: [0.26 * 0.74 * fx, 0.26 * 0.58 * fy, 0.26 * 0.95 * fz] },
+  ];
+  if (s.fluffy) {
+    // the ruff's bib and jaw fluff (ruff.js RUFF), the jaw's roll covered by a
+    // round-ish ball; the fringe hangs inside the bib's and chest's reach
+    const { AT, BIB, JAW } = RUFF;
+    geo.userData.balls.push(
+      { at: [AT[0] + BIB.OFF[0], AT[1] + BIB.OFF[1], AT[2] + BIB.OFF[2]], r: BIB.SCALE.map((k) => BIB.R * k) },
+      ...[-1, 1].map((side) => ({ at: [side * JAW.X, AT[1] + JAW.Y, AT[2] + JAW.Z], r: [JAW.R * 0.85, JAW.R, JAW.R * 0.85] })));
+  }
   return geo;
 }
 
@@ -1418,8 +1423,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // back (tuck), under the pack rather than into it.
   const tuck = accessories.back === 'backpack' || accessories.back === 'jetpack' || accessories.back === 'wings';
   const hoodOn = (color, drawstrings) => body.add(buildHood(color, { bodyScale: BODY_SCALE, simple: !!opts.simple, drawstrings, tuck }));
-  // A cape is a cloak on the body (CAPE): the cloth shell, fastened by a gold
-  // brooch on the front of each shoulder (CAPE_CLASP), both in ONE mesh. Small
+  // A cape is a cloak on the body (CAPE): the cloth shell, its two front
+  // edges running from the shoulders to ONE gold clasp at the throat (cape.js
+  // CAPE_TIE: the clasp and both bands are one vertex-coloured mesh on the
+  // body, re-laid every frame by animator.js tieCape). Small
   // round parts lie ON the cloth (onCape): each is built round in the scaled
   // torso frame, turned to face out of the cloth there, lifted off it, and
   // brought back into the body's frame by 1 / BODY_SCALE, so the torso's
@@ -1460,11 +1467,16 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     cape.userData.cape = true;
     cape.userData.capeGeo = geo;
     body.add(cape);
-    const pins = [-1, 1].map((side) => onCape(new THREE.SphereGeometry(CAPE_CLASP.r, 6, 5).scale(1, 1, CAPE_CLASP.flat), side * CAPE_CLASP.a, CAPE_CLASP.s, CAPE_CLASP.lift));
-    const clasp = new THREE.Mesh(mergeGeometries(pins), mat(accent));
-    clasp.geometry.computeVertexNormals();
+    // the throat: the collar's seat + its charm's hang, head frame
+    const throat = [COLLAR_CHARM[0], -0.14 + neckY + COLLAR_CHARM[1], 0.1 + neckZ + COLLAR_CHARM[2]];
+    const taken = CHARMED.has(collarStyle) || !!accessories.neck;
+    const tieMaterial = litMaterial(0xffffff, { vertexColors: true });
+    tieMaterial.side = THREE.DoubleSide;
+    const shape = { bs: BODY_SCALE, cy: TORSO.CENTRE_Y, chestCentre: underside.userData.chestCentre, balls: underside.geometry.userData.balls };
+    const clasp = new THREE.Mesh(capeTieGeometry({ simple: !!opts.simple, clasp: !taken, throat, band: color, gold: accent, shape }), tieMaterial);
     clasp.userData.capeClasp = true;
-    clasp.userData.at = pins.map((g) => g.userData.at);   // each brooch's centre, body-local
+    clasp.userData.tie = clasp.geometry.userData.tie;
+    clasp.name = 'capeClasp';
     body.add(clasp);
   };
   // The confetti cape's dots: CAPE_DOTS spots (a, s) on the back and flanks,
@@ -1645,6 +1657,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   legs.forEach((leg, i) => attachFolds(leg, { hind: i >= 2, simple: !!opts.simple, hipY, len: LEGS.LEN * LEG_LEN }));
   const bodyY = TORSO.CENTRE_Y + dy;
   const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, HEAD.POS[2]];
+
+  // The cape's clasp and front bands, laid once for the resting cat (the
+  // animator re-lays them every frame): at rest the neck's carry is the identity.
+  const tie = body.children.find((c) => c.userData.capeClasp);
+  if (tie) {
+    body.updateMatrix(); head.updateMatrix(); underside.updateMatrix();
+    layCapeTie(tie, head.matrix, body.matrix, head.matrix, underside.matrix);
+  }
 
   g.scale.setScalar(s.scale);
   // Never merged. render/mergeprops.js welds a top-level child's leaves into

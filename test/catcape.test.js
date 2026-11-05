@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { buildCat } from '../src/cat/model.js';
+import { buildCat, CAPE_TIE } from '../src/cat/model.js';
+import { SKULL, HEAD } from '../src/cat/torso.js';
 import { animateCat } from '../src/cat/animator.js';
 import { PRESETS, STATES, meshCount } from './helpers/catfingerprint.js';
 
@@ -48,6 +49,18 @@ const outside = (cat, P) => {
   return hit ? (hit.distance - F.distanceTo(Pw)) / s : Infinity;
 };
 
+// The same against the whole fur: the torso and the underside (the chest,
+// which counter-yaws under the turned torso in the cross and drops in the sit).
+const outsideFur = (cat, P) => {
+  const { body, underside } = cat.userData.parts, s = cat.scale.x;
+  const C = body.getWorldPosition(new THREE.Vector3());
+  const Pw = P.clone().multiplyScalar(s);
+  const dir = Pw.clone().sub(C).normalize(), F = Pw.clone().addScaledVector(dir, 1);
+  ray.set(F, dir.clone().negate());
+  const hit = ray.intersectObjects([body, underside], false)[0];
+  return hit ? (hit.distance - F.distanceTo(Pw)) / s : Infinity;
+};
+
 // The sweep: every state at three times, and the walking states at speed 1.5 too.
 const WALKING = ['follow', 'stalk'];
 const SWEEP = STATES.flatMap((st) => [0.4, 1.3, 2.2].flatMap((t) => [[st, t, 0], ...(WALKING.includes(st) ? [[st, t, 1.5]] : [])]));
@@ -89,46 +102,130 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
     expect(Math.max(...mid.map((p) => p.y)), 'over the back').toBeGreaterThan(bc.y);
   });
 
-  // The clasp is a gold brooch on the front of each shoulder, where the cloak
-  // is fastened (one mesh; userData.at holds each brooch's body-local centre).
-  // The owner's "attach to the neck/shoulders": the spine end of the neck
-  // edge lies under the head, so a clasp there would never be seen.
-  it.each(CASES)('%s %s (simple %s): the clasp fastens it at the shoulders, at the neck edge', (b, id, simple) => {
+  // Owner, 2026-11-04: a cape fastens at the THROAT. Its two front edges run
+  // from the shoulders to the front of the neck, under the chin, where ONE
+  // gold clasp pins them (it was a brooch on the front of each shoulder). The
+  // clasp and both front bands are one vertex-coloured mesh on the body
+  // (userData.capeClasp), re-laid every frame (cape.js layCapeTie) so the
+  // clasp rides the neck as the collar's charm does. userData.tie holds the
+  // vertex ranges ({ clasp: [start, count] | null, bands: [[start, count] ×2],
+  // rows }) and userData.at the clasp's centre, body-local.
+  const tieOf = claspOf;
+  const atOf = (cat) => cat.userData.parts.body.localToWorld(new THREE.Vector3(...tieOf(cat).userData.at)).divideScalar(cat.scale.x);
+  const rangeVerts = (cat, [start, count]) => verts(tieOf(cat), cat.scale.x).slice(start, start + count);
+  // How far a cat-frame point lies outside the skull (an ellipsoid, torso.js
+  // SKULL, on the head), in units of the skull's size: > 1 outside.
+  const skullOut = (cat, P) => {
+    const { head } = cat.userData.parts;
+    const L = head.worldToLocal(P.clone().multiplyScalar(cat.scale.x));
+    return Math.hypot(L.x / (SKULL.R * SKULL.SCALE[0]), L.y / (SKULL.R * SKULL.SCALE[1]), L.z / (SKULL.R * SKULL.SCALE[2]));
+  };
+  it.each(CASES)('%s %s (simple %s): one gold clasp at the throat, the front edges running to it from the shoulders', (b, id, simple) => {
     const cat = kitCat(b, id, simple);
     animateCat(cat, 'follow', 1.3, 0, false);
     cat.updateMatrixWorld(true);
-    const s = cat.scale.x, { body, head } = cat.userData.parts;
-    const clasp = claspOf(cat), bc = world(body, s), hc = world(head, s);
-    expect(clasp.userData.at).toHaveLength(2);
-    const pins = clasp.userData.at.map((p) => body.localToWorld(new THREE.Vector3(...p)).divideScalar(s));
-    expect(pins[0].x * pins[1].x, 'one each side').toBeLessThan(0);
-    for (const c of pins) {
-      expect(c.z, 'in front of the torso centre').toBeLessThan(bc.z - 0.15);
-      expect(c.y, 'above the torso centre').toBeGreaterThan(bc.y);
-      expect(c.y, 'below the head centre').toBeLessThan(hc.y);
-      // a brooch (r 0.032) sits on the cloth: its centre out of the fur, its
-      // inner side within 3 cm of it
-      const out = outside(cat, c);
-      expect(out, 'on the fur').toBeGreaterThanOrEqual(0);
-      expect(out - 0.032, 'within 3 cm of it').toBeLessThanOrEqual(0.03);
-      // and seen from the front: outside the head's outline there
-      expect(Math.hypot(c.x - hc.x, c.y - hc.y), 'clear of the head, from the front').toBeGreaterThan(0.21 * 1.06 * 0.95);
+    const s = cat.scale.x, { body, head, underside } = cat.userData.parts;
+    const tie = tieOf(cat), bc = world(body, s), hc = world(head, s);
+    const chest = underside.localToWorld(new THREE.Vector3(...underside.userData.chestCentre)).divideScalar(s);
+    // Digit wears her own tag collar: her cape is pinned under its tag (below)
+    expect(!!tie.userData.tie.clasp, 'a clasp').toBe(b !== 'digit');
+    const c = atOf(cat);
+    expect(Math.abs(c.x), 'on the midline').toBeLessThanOrEqual(0.01);
+    expect(c.z, 'in front of the chest').toBeLessThan(chest.z - 0.1);
+    expect(c.y, 'under the chin').toBeLessThan(hc.y - 0.15);
+    expect(c.y, 'up at the neck, not down the chest').toBeGreaterThan(bc.y);
+    expect(c.distanceTo(hc), 'at the throat, near the head').toBeLessThanOrEqual(0.3);
+    // a gold disc, round (not squashed by the torso's scale): every gold
+    // vertex within r of its centre, its rim at r, none nearer than its
+    // flattened face; the ruby in its face
+    if (tie.userData.tie.clasp) {
+      const col = tie.geometry.attributes.color, ruby = new THREE.Color(CAPE_TIE.ruby);
+      const [start, count] = tie.userData.tie.clasp;
+      const all = rangeVerts(cat, tie.userData.tie.clasp);
+      const isRuby = (i) => Math.abs(col.getX(start + i) - ruby.r) + Math.abs(col.getY(start + i) - ruby.g) + Math.abs(col.getZ(start + i) - ruby.b) < 1e-4;
+      const reach = all.filter((P, i) => !isRuby(i)).map((P) => P.distanceTo(c));
+      expect(reach.length, 'gold').toBeGreaterThan(0);
+      expect(reach.length, 'a ruby').toBeLessThan(count);
+      // (r is in the head's frame, as every neck piece is: × HEAD.SCALE on the cat)
+      const r = CAPE_TIE.r * HEAD.SCALE;
+      expect(Math.max(...reach)).toBeCloseTo(r, 3);
+      expect(Math.min(...reach)).toBeGreaterThanOrEqual(r * CAPE_TIE.flat - 1e-3);
     }
-    // round, not squashed by the torso's scale: as built, every vertex of a
-    // brooch is r from its centre round its rim and no nearer than its face
-    const built = kitCat(b, id, simple);
-    built.updateMatrixWorld(true);
-    const bb = built.userData.parts.body, bp = claspOf(built), sb = built.scale.x;
-    const centres = bp.userData.at.map((p) => bb.localToWorld(new THREE.Vector3(...p)));
-    const reach = [0, 1].map(() => [Infinity, 0]);
-    for (const P of verts(bp, 1)) {
-      const k = P.distanceTo(centres[0]) < P.distanceTo(centres[1]) ? 0 : 1, d = P.distanceTo(centres[k]) / sb;
-      reach[k][0] = Math.min(reach[k][0], d); reach[k][1] = Math.max(reach[k][1], d);
+    // the bands: one each side, from the cloth at the shoulder to the clasp
+    const cloth = verts(capeOf(cat), s);
+    const { bands, rows } = tie.userData.tie;
+    expect(bands).toHaveLength(2);
+    const sides = bands.map((r) => {
+      const V = rangeVerts(cat, r);
+      const start = V[0].clone().add(V[1]).multiplyScalar(0.5), end = V[2 * rows - 2].clone().add(V[2 * rows - 1]).multiplyScalar(0.5);
+      expect(Math.min(...cloth.map((P) => P.distanceTo(start))), 'starts on the cloth').toBeLessThanOrEqual(0.03);
+      expect(end.distanceTo(c), 'ends at the clasp').toBeLessThanOrEqual(CAPE_TIE.r * HEAD.SCALE + 0.005);
+      expect(start.y, 'from the shoulder').toBeGreaterThan(bc.y - 0.02);
+      return Math.sign(start.x);
+    });
+    expect(sides[0] * sides[1], 'one each side').toBe(-1);
+  });
+
+  // In every pose (all the cat's states, walking too), every vertex of the
+  // clasp and the bands is out of the fur (body and underside, along the ray
+  // from the body centre), out of the skull, and off the ground.
+  const ALL_STATES = [...STATES, 'arch', 'swipe', 'roll', 'pinning', 'pinned', 'flinch', 'rearUp', 'backUp', 'swim', 'wade', 'shake'];
+  const TIE_SWEEP = ALL_STATES.flatMap((st) => [0.4, 1.3, 2.2].flatMap((t) => [[st, t, 0], ...(WALKING.includes(st) ? [[st, t, 1.5]] : [])]));
+  it.each(CASES)('%s %s (simple %s): in every pose the clasp and the front edges stay out of the chest and the head', (b, id, simple) => {
+    const cat = kitCat(b, id, simple);
+    for (const [state, t, speed] of TIE_SWEEP) {
+      animateCat(cat, state, t, speed, false);
+      cat.updateMatrixWorld(true);
+      const s = cat.scale.x, label = `${state} t ${t} speed ${speed}`;
+      let fur = Infinity, skull = Infinity, low = Infinity;
+      for (const P of verts(tieOf(cat), s)) {
+        fur = Math.min(fur, outsideFur(cat, P));
+        skull = Math.min(skull, skullOut(cat, P));
+        low = Math.min(low, P.y);
+      }
+      expect(fur, `${label}: out of the fur`).toBeGreaterThanOrEqual(0.002);
+      expect(skull, `${label}: out of the head`).toBeGreaterThanOrEqual(1);
+      expect(low, `${label}: off the ground`).toBeGreaterThanOrEqual(0);
+      // and the clasp still at the throat: under the head's centre, near it
+      const c = atOf(cat), hc = world(cat.userData.parts.head, s);
+      expect(c.distanceTo(hc), `${label}: clasp near the head`).toBeLessThanOrEqual(0.32);
     }
-    for (const [lo, hi] of reach) {
-      expect(hi).toBeCloseTo(0.032, 4);
-      expect(lo).toBeGreaterThanOrEqual(0.032 * 0.7 - 1e-4);
+  }, 180_000);
+
+  // The clasp rides the neck as the collar does: with a plain ring on (the
+  // studded collar keeps the clasp), in every pose the clasp's centre is
+  // within 5 cm of where the collar would hang a charm (the throat spot,
+  // carried on the collar); it differs only where the clasp is pushed out
+  // of the chest (the sniff, the swim: 4-5 cm).
+  it.each(['tabby', 'mainecoon', 'digit'])('%s: the clasp stays with the collar at the throat in every pose', (b) => {
+    const cat = buildCat(b, { ...BARE, body: 'cape', collar: 'studded' });
+    const collar = cat.userData.parts.head.userData.collar, tie = tieOf(cat);
+    expect(tie.userData.tie.clasp).toBeTruthy();
+    const local = new THREE.Vector3(...tie.userData.tie.throat).sub(collar.position);   // the collar sits unturned on the head as built
+    for (const [state, t, speed] of TIE_SWEEP) {
+      animateCat(cat, state, t, speed, false);
+      cat.updateMatrixWorld(true);
+      const want = collar.localToWorld(local.clone()).divideScalar(cat.scale.x);
+      expect(atOf(cat).distanceTo(want), `${state} t ${t} speed ${speed}`).toBeLessThanOrEqual(0.05);
     }
+  }, 120_000);
+
+  // With the throat already taken (a collar's charm: bell, heart, tag,
+  // sparkle star; or any neck-slot item) the gold clasp is left off and the
+  // front edges meet under that piece; a plain ring (studded, glow) keeps it.
+  const THROAT = [['collar', 'bell', false], ['collar', 'heart', false], ['collar', 'tag', false], ['collar', 'sparklecollar', false],
+    ['collar', 'studded', true], ['collar', 'glow', true],
+    ...['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf'].map((n) => ['neck', n, false])];
+  it.each(THROAT)('%s %s: the clasp shows %s', (slot, item, shows) => {
+    for (const b of ['tabby', 'mainecoon']) {
+      const cat = buildCat(b, { ...BARE, body: 'cape', [slot]: item });
+      const tie = tieOf(cat);
+      expect(!!tie.userData.tie.clasp, b).toBe(shows);
+      expect(tie.userData.tie.bands).toHaveLength(2);
+    }
+  });
+  it('Digit wears her own tag: her cape is pinned under it', () => {
+    expect(tieOf(kitCat('digit', 'cape', false)).userData.tie.clasp).toBeNull();
   });
 
   it.each(CASES)('%s %s (simple %s): in every state it stays out of the fur and the ground', (b, id, simple) => {
@@ -255,7 +352,8 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
   });
 
   // Leaving a pose puts it back: the cape and clasp never move on the body,
-  // so after a sit or a nap a follow gives a fresh follow's cloak exactly.
+  // so after a sit or a nap a follow gives a fresh follow's cloak exactly
+  // (the clasp and front bands are re-laid every frame: their vertices too).
   it.each(BREEDS.flatMap((b) => [false, true].map((simple) => [b, simple])))('%s (simple %s): sit → follow and nap → follow give a fresh follow\'s cape', (b, simple) => {
     const fresh = kitCat(b, 'confetticape', simple);
     animateCat(fresh, 'follow', 2.1, 0, false);
@@ -269,6 +367,7 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
       animateCat(cat, 'follow', 2.1, 0, false);
       cat.updateMatrixWorld(true);
       expect(pieces(cat).map((m) => m.matrixWorld.toArray()), state).toEqual(want);
+      expect(Array.from(claspOf(cat).geometry.attributes.position.array), `${state}: the clasp and bands`).toEqual(Array.from(claspOf(fresh).geometry.attributes.position.array));
       for (const m of pieces(cat)) if (m.userData.capeGeo) expect(m.geometry === m.userData.capeGeo.stand, `${state}: the standing cloth back on`).toBe(true);
     }
   });
@@ -311,35 +410,6 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
     }
   });
 
-  // Accessories polish Task 4: polish-pose found a brooch centre 5.6 cm inside
-  // the Maine Coon's chest in the cross, where the underside counter-yaws
-  // under the turned torso (animator.js keepChestUnderHead) and bulges over
-  // the shoulder (the arch, the other fight pose, did the same). Every breed,
-  // both capes, the cross and the arch at the sweep's times:
-  // each brooch centre (clasp userData.at), carried to the world on the posed
-  // body, is outside the posed fur (body and underside), along the ray from
-  // the body centre through it.
-  const outsideFur = (cat, P) => {
-    const { body, underside } = cat.userData.parts, s = cat.scale.x;
-    const C = body.getWorldPosition(new THREE.Vector3());
-    const Pw = P.clone().multiplyScalar(s);
-    const dir = Pw.clone().sub(C).normalize(), F = Pw.clone().addScaledVector(dir, 1);
-    ray.set(F, dir.clone().negate());
-    const hit = ray.intersectObjects([body, underside], false)[0];
-    return hit ? (hit.distance - F.distanceTo(Pw)) / s : Infinity;
-  };
-  it.each(BREEDS.flatMap((b) => CAPES.map((id) => [b, id])))('%s %s: in the cross and the arch both brooches sit outside the fur', (b, id) => {
-    for (const [state, t] of ['cross', 'arch'].flatMap((st) => [0.4, 1.3, 2.2].map((tt) => [st, tt]))) {
-      const cat = kitCat(b, id, false);
-      animateCat(cat, state, t, 0, false);
-      cat.updateMatrixWorld(true);
-      const s = cat.scale.x, { body } = cat.userData.parts;
-      claspOf(cat).userData.at.forEach((p, i) => {
-        const c = body.localToWorld(new THREE.Vector3(...p)).divideScalar(s);
-        expect(outsideFur(cat, c), `${state} t ${t} brooch ${i}`).toBeGreaterThanOrEqual(0);
-      });
-    }
-  });
 
   it('Hagrid wears no cape (his rig shows none)', () => {
     for (const id of CAPES) {
