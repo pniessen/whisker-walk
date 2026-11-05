@@ -4209,7 +4209,7 @@ const LOG_HEWN_WORN = new THREE.Color(0x88694a);
 const LOG_RIM = new THREE.Color(0x3f2d1e);
 const LOG_END = new THREE.Color(0xb89868);
 const LOG_RING = new THREE.Color(0x9a7a50);
-const LOG_ROOT = new THREE.Color(0x4a3626); // the root end: earth and root, no sawn face
+const LOG_ROOT = new THREE.Color(0x56402c); // the root end: earth and root, no sawn face
 const LOG_STUB_TIP = new THREE.Color(0x9c7c56);
 // Cross-sections along the log, as fractions from the root end: close where
 // the root flare swells, a metre and more apart over the water.
@@ -4352,7 +4352,8 @@ function logTrunkGeometry(len, sec, seed) {
         const extra = (WANE_TURN[j] ?? 0) * (1 - sec.flare(z));
         [nx, ny] = [nx * Math.cos(extra) + ny * Math.sin(extra), ny * Math.cos(extra) - nx * Math.sin(extra)];
         const nl = Math.hypot(nx, ny);
-        const cc = shade(BARK_BY_STEP[j], 0.86 + 0.24 * seed(100 + i * 13 + j + (side + 1) * 60));
+        // the root's buttresses are dry bark in the light, not the wet band
+        const cc = shade(BARK_BY_STEP[j].clone().lerp(LOG_WANE_IN, sec.flare(z) * (j >= 2 ? 1 : 0)), 0.86 + 0.24 * seed(100 + i * 13 + j + (side + 1) * 60));
         if (mossAlong > 0) cc.lerp(LOG_MOSS, MOSS_BY_STEP[j] * mossAlong * (0.8 + 0.3 * seed(5 + i)));
         return vert(side * p.x, p.y, z, [side * nx / nl, ny / nl, 0], cc);
       }));
