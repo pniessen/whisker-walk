@@ -442,22 +442,31 @@ function jetpack({ bodyScale, cover, simple, fx }) {
 // the tail (the walk camera sees their faces). A spoke at angle psi goes out
 // sideways and up (psi 0 straight out, pi/2 straight up); its length is the
 // outline R(t) through `shape` [t, R/len] (t 0 the lowest spoke .. 1 the
-// highest). The forewing is raised (psi from..to round ~45°, the wing ~40°
-// off the back), the hindwing below it, nearly level, `layer` behind it
+// highest). The forewing is raised (psi from..to, below), the hindwing
+// below it, `layer` behind it
 // (toward the tail), and both are cupped (z += cup·r², tips toward the tail).
-// The plane is then leaned back `lean` (its top toward the tail) and turned
+// The plane is then leaned `lean` about x (positive: its top toward the tail) and turned
 // `sweep` (its outer edge toward the tail), and the root seated on the back
 // at the withers. The flutter turns each wing about its in-plane upright
 // (the hinge), so the wings swing open and shut without dipping into the back.
 // Fix round 1: 1.5× the brief's sizes (forewing 0.34), so from behind they
-// spread wider than the body and show beside the head. Each wing hangs under
+// spread wider than the body and show beside the head. Owner, 2026-11-04:
+// the wings stand UP, like a resting butterfly's raised wings (they leaned back
+// toward the tail, lean 0.44, forewing psi 0.22..1.38, hindwing -0.28..0.42).
+// The forewing now spans psi 0.6..1.5 (31°..86°, nearly upright at its top
+// edge) and the hindwing 0.05..0.7; `lean` -0.3 tips the plane's top toward
+// the head just enough to cancel the withers' backward slope at the seat (at
+// 0 the top stood 10 cm behind the root; now 2 cm), so the hinge stands within
+// ~16° of vertical, mostly outward (the seat's own tilt); `sweep` 0.4 (was
+// 0.3) turns each outer edge toward the tail, so from the side the raised
+// wings still show a face and from behind they open in a V. Each wing hangs under
 // a pivot (body child, scale 1 / bodyScale), so it lives in the body-SCALED
 // frame and its flutter and sit stand are true rotations, not sheared by the
 // torso's non-uniform scale.
 export const WINGS = Object.freeze({
-  dir: [0.12, 0.97, -0.1], lean: 0.44, sweep: 0.3, cup: 0.1, layer: 0.006, band: 0.82,
-  fore: { len: 0.34, from: 0.22, to: 1.38, shape: [[0, 0.6], [0.35, 0.95], [0.6, 1], [0.85, 0.82], [1, 0.58]] },
-  hind: { len: 0.24, from: -0.28, to: 0.42, shape: [[0, 0.68], [0.4, 1], [0.75, 0.92], [1, 0.62]] },
+  dir: [0.12, 0.97, -0.1], lean: -0.3, sweep: 0.4, cup: 0.1, layer: 0.006, band: 0.82,
+  fore: { len: 0.34, from: 0.6, to: 1.5, shape: [[0, 0.6], [0.35, 0.95], [0.6, 1], [0.85, 0.82], [1, 0.58]] },
+  hind: { len: 0.24, from: 0.05, to: 0.7, shape: [[0, 0.68], [0.4, 1], [0.75, 0.92], [1, 0.62]] },
 });
 function outline(shape, t) {
   for (let k = 1; k < shape.length; k++) {
