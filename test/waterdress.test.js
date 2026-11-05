@@ -932,15 +932,16 @@ describe('water dressing', () => {
       expect(dbg[0].samples.length).toBeGreaterThan(0);
     }, 120_000);
 
-    it('the bite tapers to nothing at the edge of the drawn box (bounds + 10 m; the Gorge: bounds, 3 m step)', () => {
+    it('the bite tapers to nothing at the edge of the drawn box (bounds + 10 m; the Gorge: bounds + 4 m)', () => {
       let n = 0;
       for (const id of [...STREAM_AREAS, 'gorge']) {
         const { fx, areaData } = dressOnGround(id, { debug: true });
         const b = areaData.bounds;
-        // the Gorge draws no horizon margin and samples every 3 m, so its last
-        // sample before the cut can be up to 3 m inside the edge
-        const m = id === 'gorge' ? 0 : 10;
-        const reach = id === 'gorge' ? 3 : 0.3;
+        // the Gorge draws 4 m past its bounds (polish-gorge6; it was 0 with a
+        // 3 m step) and samples every 1 m: its bite is 0 for the last 0.5 m
+        // and eases in over the next 2
+        const m = id === 'gorge' ? 4 : 10;
+        const reach = id === 'gorge' ? 0.8 : 0.3;
         const box = { minX: b.minX - m, maxX: b.maxX + m, minZ: b.minZ - m, maxZ: b.maxZ + m };
         for (const r of bitesOf(fx)) {
           for (const p of r.samples) {
@@ -1321,7 +1322,7 @@ describe('water dressing', () => {
       // the stream is only 1.5 m wide: the two bites never close it
       for (const b of bites) {
         expect(b.maxBite).toBeGreaterThanOrEqual(BITE_MIN);
-        expect(b.maxBite).toBeLessThanOrEqual(BITE_MAX * 0.5 + 1e-9);
+        expect(b.maxBite).toBeLessThanOrEqual(BITE_MAX * 0.6 + 1e-9);
       }
       const stones = byName(fx, 'waterdress:stones');
       expect(stones).toBeTruthy();
@@ -1341,13 +1342,17 @@ describe('water dressing', () => {
       for (const s of riffles) expect(s.water).toBe('stream');
     }, 120_000);
 
-    it('the Gorge dressing adds at most 600 triangles', () => {
+    // polish-gorge6: fuller banks (1 m step, the full band, 0.6 bites, a
+    // stone every ~7 m, 1-2 riffle stones a stop, 4 m past the bounds):
+    // 584 -> 3,397 measured; the cap leaves ~200 of slack.
+    it('the Gorge dressing adds at most 3,600 triangles', () => {
       const { fx } = dressOnGround('gorge');
       expect(fx.meshes.map((m) => m.name).sort()).toEqual(['waterdress:band', 'waterdress:fill', 'waterdress:stones']);
       const per = Object.fromEntries(fx.meshes.map((m) => [m.name, triangles(m)]));
       const sum = Object.values(per).reduce((a, b) => a + b, 0);
       console.log('gorge waterdress triangles', JSON.stringify(per), sum);
-      expect(sum).toBeLessThanOrEqual(600);
+      expect(sum).toBeLessThanOrEqual(3600);
+      expect(sum).toBeGreaterThan(2000);
     }, 120_000);
 
     it('finds the Gorge groundPlane in the built scene itself (the trimmed grid still fills)', () => {
