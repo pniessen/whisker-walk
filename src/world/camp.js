@@ -34,7 +34,8 @@ const withLocalUuids = (areaId, fn) => localUuids(`camp-uuids-${areaId}`, fn);
 // whose layout passes every check in test/camp.test.js and
 // test/rivalworld.test.js (den and rock clear every other collider by 0.4 m;
 // every ground seat on clan ground; eight roaming homes with their circles).
-// Every camp passed at the first step, the away side itself. Clearances are
+// Woods, river and moor passed at the first step, the away side itself; the
+// Pines was turned south by the owner's choice (below). Clearances are
 // edge to edge, collider to collider, measured on the shipped maps; the camp
 // tree is the nearest collider to the camp in every territory:
 //   woods: camp tree (builder.tree, scale 1.09) at (3.44,-45.4), r 0.55. Den
@@ -43,15 +44,28 @@ const withLocalUuids = (areaId, fn) => localUuids(`camp-uuids-${areaId}`, fn);
 //     3.62 m, rock 1.26 m.
 //   moor: the lone thorn (builder.tree, scale 0.89) at (-1.58,-46.25), r 0.45.
 //     Den 3.75 m, rock 1.41 m.
-//   pines: the two camp pines (builder.pine), (-35.92,43.2) scale 1.66, r 0.66,
-//     and (-39.31,37.51) scale 1.69, r 0.68, turned away from both. Den 2.18 m
-//     and 2.79 m clear of them, rock 3.43 m and 0.86 m. The disc keeps 6 m off
-//     the truce path's centreline, so no seat is on truce ground.
+//   pines: owner's decisions 2026-11-04: "Pines camp: South", then "move the
+//     pine". The turn is 1.571 rad, due south (+z is south; the minimap draws
+//     north, -z, at the top): the den at (-38,43), the bramble ring's gap
+//     facing north, the Highrock at (-39.64,39.53) behind the den. It was
+//     2.583 (den and rock on the west and north sides, away from the pines).
+//     The east camp pine (builder.pine scale 1.66, r 0.66) stood in the
+//     clearing at (-35.92,43.2), 2.35 m from the new den and over it from the
+//     south and from the camp's high view; pines.js moves it (CAMP_PINE_TO) to
+//     (-33.2,47.6), 8.9 m from the centre and beyond the ring, still one of
+//     the swaying near pines, off the truce path (x -26) by 7 m and the spawn
+//     (-26,44) by 8 m. The one camp pine left is (-39.31,37.51) scale 1.69,
+//     r 0.68, behind the Highrock from the south. Collider to collider: den
+//     3.86 m from it (was 2.79) and 4.9 m from the moved pine (was 2.18 from
+//     the old spot); rock 0.77 m from it (was 0.86) and over 6 m from the moved
+//     one (was 3.43). The disc keeps 6 m off the truce path's centreline, so
+//     no seat is on truce ground, and the patrol ring (r 6) keeps 2.2 m off
+//     the moved trunk, so it stays clan ground with the usual room.
 export const CAMP_TURN = Object.freeze({
   woods: 2.111,
   river: -2.461,
   moor: 1.394,
-  pines: 2.583,
+  pines: 1.571,
 });
 
 // Ledge camps, authored whole: { den, rock, seats } in world coordinates, the

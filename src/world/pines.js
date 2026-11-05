@@ -530,8 +530,18 @@ function placePines() {
       kept.push(t);
     }
   }
-  return { near, stand };
+  return { near: near.map(moveCampPine), stand: stand.map(moveCampPine) };
 }
+// The camp pine that stood in the clearing, 3 m south-east of the camp's
+// centre (-38,41), covered the den and the Highrock from the camp's high view
+// and on the phone. The owner's decision (2026-11-04): move it. It stands now
+// beyond the bramble ring to the south-east, off the line from the spawn to the den and clear of the truce path, with the same scale, so
+// every other pine, the spacing and the draw counts are as they were.
+const CAMP_PINE_FROM = Object.freeze({ x: -35.92, z: 43.2 });
+const CAMP_PINE_TO = Object.freeze({ x: -33.2, z: 47.6 });
+const moveCampPine = (t) => (
+  t.x === CAMP_PINE_FROM.x && t.z === CAMP_PINE_FROM.z ? { ...t, x: CAMP_PINE_TO.x, z: CAMP_PINE_TO.z } : t
+);
 // The trail clearing: a pine whose canopy breaks the paths' rule for the 2 m
 // trail comes out (clear of it by half its width, its cone's reach and half a
 // metre, measured from the trail stretched like CAM_PATHS). Applied to the

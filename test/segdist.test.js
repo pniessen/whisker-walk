@@ -54,8 +54,11 @@ describe('segDist (shared)', () => {
 describe('world scatter is unchanged by the refactor (Polish 3)', () => {
   it('the Pines and its island', () => {
     expect(digest([pines.pinesTrees(), pines.pinesUndergrowth(), pines.pinesReeds(), pines.pinesLilyPads(), island.islandReeds()]))
-      .toBe('57cb6f6fa275e46c');
-    expect(digest(built(pines))).toBe('1f4b3c73d9457b68');
+      // the moved camp pine (pines.js CAMP_PINE_TO, owner's decision 2026-11-04) changes the tree list; was '57cb6f6fa275e46c'
+      .toBe('e71b0eb17b86e5ee');
+    // built(pines) includes the camp's den and rock colliders, which moved when the owner
+    // turned the Pines camp south and moved its east pine (CAMP_TURN.pines, decision 2026-11-04); was '1f4b3c73d9457b68'.
+    expect(digest(built(pines))).toBe('869bad9ba6d02233');
   });
   it('the Woods', () => {
     expect(digest([woods.woodsTreeSpots(), woods.woodsUndergrowth()])).toBe('c359ee70220b9532');
