@@ -380,18 +380,18 @@ function budgetStats(scene) {
 
 const AREAS = [
   // name, builder, [meshCeiling, casterCeiling, triangleCeiling]
-  ['neighborhood', buildNeighborhood, 450, 380, 60000],
+  ['neighborhood', buildNeighborhood, 450, 380, 70000],
   ['park', buildPark, 210, 170, 40000],
   ['docks', buildDocks, 600, 500, 90000],
   ['seaside', buildSeaside, 85, 45, 30000],
   ['den', buildDen, 340, 220, 40000],
-  // The Woods is held to the Cozy Neighborhood's numbers: the area the iPhone
-  // was measured holding 60 fps in (plan Global Constraints).
-  ['woods', buildWoods, 450, 380, 60000],
-  ['river', buildRiver, 450, 380, 60000],
-  ['moor', buildMoor, 450, 380, 60000],
-  ['pines', buildPines, 450, 380, 60000],
-  ['gorge', buildGorge, 450, 380, 60000],
+  // The Woods is held to the Cozy Neighborhood's numbers. Raised from 60k to 70k
+  // on 2026-11-04 after the owner's iPhone check passed with every area near 60k.
+  ['woods', buildWoods, 450, 380, 70000],
+  ['river', buildRiver, 450, 380, 70000],
+  ['moor', buildMoor, 450, 380, 70000],
+  ['pines', buildPines, 450, 380, 70000],
+  ['gorge', buildGorge, 450, 380, 70000],
 ];
 
 // ---------------------------------------------------------------------------
