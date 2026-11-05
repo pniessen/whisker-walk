@@ -29,6 +29,7 @@
 | B8 | Scars: a win scars the patrol warrior by its cast id (so it wears it back in camp on later walks); a loss scars my cat, fading, as at home. Hagrid never scarred. | — (same as home). |
 | B9 | Co-walk: `patrol-fight` holds it facing the fighter on the other screen (and hides that screen's pill with a toast); `patrol-done` releases that holder. Holds are counted; remote holds expire after HOLD_MAX (40 s) and on room leave. No "together" pay. | Two kids fighting it at once each get their own fight and outcome; fine. |
 | B10 | The warrior mesh is built like an intruder (simple model, its coat, its scars, warrior scale 0.85, a cross name tag) and, like today's patrol, gets no shadow-pass caster or contact decal. | Draw count unchanged vs today's patrol except the tag sprite (+1). |
+| B12 | (review) Run and the timeout lock the pill only for the chase itself (`backOffFor: 0`; the patrol's 8 s chase cooldown is the wait), not "until you have been 10 m away" as at home. A loss while a co-walker still holds the patrol chases once she lets go. | A kid can square up again 8 s after running; that is the point of Run. |
 | B11 | Old areas keep today's generic patrol (no foe: rival.clan is null there). Legacy has no patrol. The den and island have none. | — |
 
 ## Tasks
