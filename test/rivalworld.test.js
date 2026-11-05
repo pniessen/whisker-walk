@@ -72,6 +72,20 @@ describe('the patrol ring in the real areas', () => {
     }
   });
 
+  // The border patrol fight (2026-11-04): a fight with the patrol warrior
+  // starts where it stands, so on the five territories its whole loop is
+  // clan ground (never water, a wade band, the truce path, off the camp's level).
+  it('a territory patrol walks only on clan ground', () => {
+    for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) {
+      const area = built[a];
+      const ok = clanWalkableFor({ ...area, colliders: Object.freeze(area.colliders.map((c) => ({ ...c }))) }, a);
+      for (let t = 0; t < 120; t += 0.37) {
+        const p = patrolAt(a, t);
+        expect(ok(p.x, p.z), `${a} t=${t}`).toBe(true);
+      }
+    }
+  }, 120_000);
+
   it('the patrol cat itself never stands inside a collider or the water', () => {
     for (const a of AREAS) {
       for (let t = 0; t < 120; t += 0.37) {

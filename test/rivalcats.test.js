@@ -203,7 +203,9 @@ describe('createRivalPatrol', () => {
     expect(createRivalPatrol(new THREE.Scene(), 'den').pos).toBeNull();
     const src = readFileSync(new URL('../src/rivalcats.js', import.meta.url), 'utf8');
     const specs = [...src.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]).sort();
-    expect(specs).toEqual(['./cat/animator.js', './cat/model.js', './rivalclans.js', './straynames.js']);
+    // The border patrol fight (2026-11-04) adds three leaves: the scar mesh,
+    // the name tag and the cast (none stores anything).
+    expect(specs).toEqual(['./cat/animator.js', './cat/model.js', './cat/scarmesh.js', './clancast.js', './nametag.js', './rivalclans.js', './straynames.js']);
   });
 
   test('adds one mesh and dispose removes it', () => {
@@ -362,7 +364,9 @@ test('a chase has no channel to progress at all', () => {
   // progress. An exact allowlist of imports, as enemies.js does for its own.
   const src = readFileSync(new URL('../src/rivalcats.js', import.meta.url), 'utf8');
   const specs = [...src.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]).sort();
-  expect(specs).toEqual(['./cat/animator.js', './cat/model.js', './rivalclans.js', './straynames.js']);
+  // The border patrol fight (2026-11-04) adds three leaves: the scar mesh,
+  // the name tag and the cast (none stores anything).
+  expect(specs).toEqual(['./cat/animator.js', './cat/model.js', './cat/scarmesh.js', './clancast.js', './nametag.js', './rivalclans.js', './straynames.js']);
 });
 
 test('the walk.js chase branch touches no progress, colony, log or points', () => {

@@ -151,6 +151,17 @@ export function lonersFor(areaId, tierStrays, fedHere = 0) {
   return Math.max(0, tierStrays - clanCountFor(tierStrays, fedHere) - INTRUDER_SLOTS);
 }
 
+// Border patrol fight (2026-11-04, ruling B1): the warrior of `clanId` out on
+// border patrol this walk, one of its RAIDER_SLOTS, by `key` (walk.js passes
+// the room seed on a co-walk, so both screens name the same cat, else a hash
+// of the walk stamp). Null for anything without a cast.
+export function borderWarriorFor(clanId, key) {
+  const cast = clanCast(clanId);
+  if (cast.length === 0) return null;
+  const k = Number.isFinite(key) ? key >>> 0 : 0;
+  return cast[RAIDER_SLOTS[seedFromCode(`${clanId}|border|${k}`) % RAIDER_SLOTS.length]] ?? null;
+}
+
 // At home: Clan Edition, and the territory's clan is your pick or your sibling's.
 export function clanHomeFor(areaId, edition, picks) {
   return edition !== 'legacy' && castFor(areaId).length > 0 && Array.isArray(picks) && picks.includes(areaId);

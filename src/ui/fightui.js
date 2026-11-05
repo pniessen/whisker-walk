@@ -28,11 +28,13 @@ export const FIGHT_LINES = Object.freeze({
 });
 const MOVE_LABELS = { pounce: 'Pounce', swipe: 'Swipe', dodge: 'Dodge' };
 
-export function renderChallengeHtml({ name, clan } = {}) {
-  return `<span class="fight-ask-text">${escapeHtml(name)} of ${escapeHtml(clanName(clan))} is on your land!</span>`
+// `ask` and `off` (the border patrol, 2026-11-04) replace the pill's words;
+// without them it is today's pill exactly.
+export function renderChallengeHtml({ name, clan, ask = 'is on your land!', off = 'Back off' } = {}) {
+  return `<span class="fight-ask-text">${escapeHtml(name)} of ${escapeHtml(clanName(clan))} ${escapeHtml(ask)}</span>`
     + '<span class="fight-ask-buttons">'
     + `<button type="button" class="hud-prompt-btn fight-ask-go" data-fight="go">Fight! ${PAW}<span class="fight-key">E</span></button>`
-    + '<button type="button" class="hud-prompt-btn fight-ask-off" data-fight="off">Back off<span class="fight-key">Q</span></button>'
+    + `<button type="button" class="hud-prompt-btn fight-ask-off" data-fight="off">${escapeHtml(off)}<span class="fight-key">Q</span></button>`
     + '</span>';
 }
 

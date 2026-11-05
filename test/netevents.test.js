@@ -872,3 +872,66 @@ describe('applyRemoteEvent: intruder-fight and intruder-done', () => {
     expect(h.awards).toEqual([]);
   });
 });
+
+// The border patrol fight (2026-11-04, B9): a co-walker's fight with the border patrol warrior.
+describe('applyRemoteEvent: patrol-fight and patrol-done', () => {
+  function patrolHarness({ foe = true } = {}) {
+    const toasts = [];
+    const awards = [];
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null,
+      log: { awardOnce: (...a) => { awards.push(a); return 1; } },
+      hud: { toast: (t) => toasts.push(t) },
+      audio: {}, samples: { has: () => false }, catVoice() {}, applyGoalResult() {},
+      getPartner: () => null,
+    });
+    const calls = [];
+    const f = {
+      current: () => ({ visit: 'patrol', member: { name: 'Torshade' }, clan: 'moor', state: 'walking' }),
+      hold: (v, id, face, o) => calls.push(['hold', v, id, face, o]),
+      release: (v, id) => calls.push(['release', v, id]),
+      flee: (v) => calls.push(['flee', v]),
+    };
+    const cf = { pill: true, hideChallengeFor: (v) => { calls.push(['hide', v]); const was = cf.pill; cf.pill = false; return was; }, chasedOffTogether: () => { calls.push(['together']); return true; } };
+    const remoteGroup = new THREE.Group();
+    remoteGroup.position.set(1, 0, -40);
+    const s = {
+      playerId: ME, areaId: 'moor',
+      remotes: { list: [{ playerId: PARTNER, group: remoteGroup, petName: 'Robin' }] },
+      rival: foe ? { foe: f } : { foe: null },
+      clanFight: cf,
+      cat: { position: new THREE.Vector3() },
+    };
+    const ev = (type, o = {}) => ({ v: 1, id: PARTNER, type, area: 'moor', visit: 'patrol', ...o });
+    return { s, calls, toasts, awards, cf, ev, apply: (e) => applyRemoteEvent(s, e) };
+  }
+
+  it("her fight holds the patrol on my screen facing her cat, and my pill goes with a toast", () => {
+    const h = patrolHarness();
+    h.apply(h.ev('patrol-fight'));
+    expect(h.calls).toEqual([['hold', 'patrol', PARTNER, { x: 1, z: -40 }, undefined], ['hide', 'patrol']]);
+    expect(h.toasts).toEqual(['Robin is already facing Torshade!']);
+  });
+
+  it('her done (won or lost) only releases her hold: no flee, no award, no together', () => {
+    for (const fled of [true, false]) {
+      const h = patrolHarness();
+      h.apply(h.ev('patrol-done', { fled }));
+      expect(h.calls).toEqual([['release', 'patrol', PARTNER]]);
+      expect(h.awards).toEqual([]);
+      expect(h.toasts).toEqual([]);
+    }
+  });
+
+  it('hostile and stale events are ignored', () => {
+    const h = patrolHarness();
+    for (const e of [
+      h.ev('patrol-fight', { id: 'stranger' }), h.ev('patrol-fight', { area: 'woods' }),
+      h.ev('patrol-fight', { visit: 3 }), h.ev('patrol-done', { fled: 'yes' }), h.ev('patrol-done'),
+    ]) h.apply(e);
+    expect(h.calls).toEqual([]);
+    const none = patrolHarness({ foe: false });
+    expect(() => none.apply(none.ev('patrol-fight'))).not.toThrow();
+    expect(none.calls).toEqual([]);
+  });
+});

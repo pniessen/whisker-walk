@@ -1,7 +1,10 @@
 import { rivalFor, patrolPath, borderMarks, isTrespassing } from './rivalclans.js';
-import { buildCat } from './cat/model.js';
+import { buildCat, catDims } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
+import { setCatScars } from './cat/scarmesh.js';
 import { strayBreed } from './straynames.js';
+import { makeNameTag, NAME_TAG_RANGE, uprightTag } from './nametag.js';
+import { RANK_SCALE, tagSubFor } from './clancast.js';
 
 // A rival cat that patrols its territory's border, and chases a trespasser
 // back over it.
@@ -45,6 +48,12 @@ export const CHASE_COOLDOWN = 8;
 const DASH_SPEED = 7;
 const DASH_STOP = 1.1;
 const RETURN_TIME = 1.5;
+// The border patrol fight (2026-11-04): the fight's one visit id, how fast it
+// catches up with its clock after standing (intruders.js CATCH_UP_SPEED), and
+// how long a co-walker's hold lasts with no word back (intruders.js HOLD_MAX).
+export const BORDER_VISIT = 'patrol';
+export const CATCH_UP_SPEED = 2.5;
+export const HOLD_MAX = 40;
 
 // --- pure half ----------------------------------------------------------------
 
@@ -187,7 +196,7 @@ const smooth = (u) => u * u * (3 - 2 * u);
 // rotation.y that makes a cat face direction (dx, dz): the same formula
 // player.js uses for the player's cat.
 const facing = (dx, dz) => Math.atan2(dx, dz) + Math.PI;
-const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; }, get pos() { return null; } };
+const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; }, get pos() { return null; }, foe: null, chaseNow() {}, lag: 0 };
 
 // chaseAllowed(player, session) -> bool: the walk's canChase. No chase while
 // the cat is perched (perchY above the ground) or while photo mode is open, so
@@ -222,6 +231,25 @@ export const chaseAllowed = (player, session) => player.perchY === 0 && !session
 // network. The per-frame path allocates nothing: positions are written into
 // scratch objects, and chaseOutcome (which allocates its result) is only
 // called on the frame a chase actually starts.
+//
+// THE BORDER PATROL FIGHT (2026-11-04). With a `foe` ({ member, scars,
+// showNames }: a warrior of the territory's clan, clancast.borderWarriorFor)
+// the patrol is that warrior, built as an intruder is (its coat, its scars,
+// warrior scale, a cross name tag), and it can be fought. The chase trigger is
+// today's; before it chases, it asks `intercept()` (walk.js: would the fight
+// show its pill, or is it showing?). If so it squares up instead: it stops
+// where it is and stares, in 'cross', while the pill is up. `chaseNow()` (Run,
+// a lost fight, or no answer) runs today's chase on the next update, from
+// where it stands. `foe` on the returned object is the fight's `intruders`
+// interface (game/clanfight.js): current, hold, release, stage, measure,
+// setScars, flee (it stands down: no pill, no chase for the rest of this
+// walk), isFled, holders, dropHolder. While it squares up or is held it falls
+// behind its clock (`lag`); then it glides back onto its ring and catches up
+// at CATCH_UP_SPEED, so a co-walker's screen agrees again. Without a foe lag
+// is always 0 and this is exactly today's patrol.
+//
+// Still nothing here stores anything: the scars come in as a list, the name
+// tag and the cast are leaves.
 export function createRivalPatrol(scene, areaId, {
   reducedMotion = false,
   now = () => Date.now() / 1000,
@@ -231,13 +259,35 @@ export function createRivalPatrol(scene, areaId, {
   onSettled = () => {},
   picks = [],
   ground = null,
+  foe: foeIn = null,
+  intercept = () => false,
 } = {}) {
   const rival = rivalFor(areaId, picks);
   if (!rival) return NO_PATROL;
   const { cx, cz } = rival;
+  // A foe only on a territory's camp (never the old areas' clanless rival).
+  const member = rival.clan && foeIn?.member?.clan === rival.clan ? foeIn.member : null;
 
-  // The stray model, as straycats.js builds it ({ simple: true }), at normal size.
-  const mesh = buildCat(strayBreed(rival.name), undefined, { simple: true });
+  // The stray model, as straycats.js builds it ({ simple: true }), at normal
+  // size; a foe as an intruder is built (intruders.js), at its rank's scale.
+  const mesh = member
+    ? buildCat(member.breed, undefined, { simple: true, style: member.style, scars: Array.isArray(foeIn.scars) ? foeIn.scars : [] })
+    : buildCat(strayBreed(rival.name), undefined, { simple: true });
+  let tag = null;
+  if (member) {
+    const k = RANK_SCALE[member.rank] ?? 0.85;
+    mesh.scale.multiplyScalar(k);
+    mesh.userData.borderFoe = true;
+    if (foeIn.showNames) {
+      tag = makeNameTag(member.name, { cross: true, sub: tagSubFor(member) });
+      if (tag) {
+        tag.scale.x /= k;
+        tag.scale.y /= k;
+        mesh.add(tag);
+      }
+    }
+  }
+  const who = member ? member.name : rival.name;
   const pp = { x: cx, z: cz }; // patrol position now (scratch)
   const ahead = { x: cx, z: cz }; // half a second on (scratch)
   patrolInto(areaId, now(), pp);
@@ -247,7 +297,7 @@ export function createRivalPatrol(scene, areaId, {
   mesh.position.set(pp.x, G ? G.y(pp.x, pp.z) : 0, pp.z);
   scene.add(mesh);
 
-  let state = 'patrol'; // 'patrol' | 'scamper' | 'return'
+  let state = 'patrol'; // 'patrol' | 'scamper' | 'return' | (a foe) 'standoff' | 'held'
   let cooldown = 0;
   let elapsed = 0;
   let duration = SCAMPER_TIME;
@@ -259,15 +309,129 @@ export function createRivalPatrol(scene, areaId, {
   let disposed = false;
   let dashX = 0;
   let dashZ = 0;
+  // The border patrol fight (a foe only; all stay at rest without one).
+  let lag = 0;             // s behind its clock (squaring up, held)
+  let passed = false;      // it let me pass: no pill, no chase, this walk
+  let pendingChase = false; // chaseNow(): today's chase on the next update
+  const holders = new Map(); // holderId -> { since, local }
+  let face = null;         // who a held patrol faces
+  let stage = null;        // my fight's staging of it
+  let lastCat = null;      // the cat update saw last (its tag's reach)
+
+  // Today's chase from `from` (the patrol's spot), if the cat is inside and
+  // a walkable landing exists: the scamper starts and onChase fires once.
+  function tryChase(catPos, from) {
+    const out = chaseOutcome(areaId, catPos, from);
+    const land = out.chased ? findLanding(areaId, out.to, isWalkable, { ground, from: catPos }) : null;
+    if (!land) return false;
+    state = 'scamper';
+    elapsed = 0;
+    duration = reducedMotion ? SCAMPER_TIME_REDUCED : SCAMPER_TIME;
+    fromX = catPos.x;
+    fromZ = catPos.z;
+    toX = land.x;
+    toZ = land.z;
+    onChase(who);
+    return true;
+  }
+
+  // From standing (squared up or held) back to its ring, level again.
+  function startReturn() {
+    dashX = mesh.position.x;
+    dashZ = mesh.position.z;
+    mesh.rotation.x = 0;
+    mesh.rotation.z = 0;
+    stage = null;
+    state = 'return';
+    returnT = 0;
+  }
+
+  let localHolds = 0;      // how many of `holders` are this device's
+  const heldByMe = () => localHolds > 0;
+  const setHolder = (id, h) => {
+    if (holders.get(id)?.local) localHolds--;
+    holders.set(id, h);
+    if (h.local) localHolds++;
+  };
+  const dropOne = (id) => {
+    const h = holders.get(id);
+    if (!h) return false;
+    holders.delete(id);
+    if (h.local) localHolds--;
+    return true;
+  };
+
+  function showTag(catPos) {
+    if (!tag) return;
+    uprightTag(tag, mesh.rotation.x, mesh.rotation.z, mesh.userData.parts?.body?.position.y ?? 0);
+    const range = tag.userData?.revealRange ?? NAME_TAG_RANGE;
+    tag.visible = !!catPos && Math.hypot(catPos.x - mesh.position.x, catPos.z - mesh.position.z) < range
+      && (!G || G.sameLevel(catPos.x, catPos.z, mesh.position.x, mesh.position.z))
+      && !(state === 'held' && heldByMe());
+  }
 
   function update(dt, catPos, avatar) {
     if (disposed || !(dt >= 0) || !catPos) return;
     const t = now();
-    if (!patrolInto(areaId, t, pp)) return;
+    lastCat = catPos;
+    if (member) {
+      // A remote holder that has said nothing for HOLD_MAX lets go; mine never.
+      for (const [id, h] of holders) if (!h.local && t - h.since >= HOLD_MAX) dropOne(id);
+      if (state === 'held' && holders.size === 0) startReturn();
+      if (state === 'standoff' || state === 'held') lag += dt;
+      else if (state === 'patrol' && lag > 0) lag = Math.max(0, lag - dt * (CATCH_UP_SPEED / PATROL_SPEED - 1));
+    }
+    if (!patrolInto(areaId, t - lag, pp)) return;
     cooldown = Math.max(0, cooldown - dt);
 
+    // A loss while a co-walker still holds it waits until she lets go.
+    if (pendingChase && state !== 'held' && state !== 'scamper') {
+      pendingChase = false;
+      if ((state === 'patrol' || state === 'return' || state === 'standoff') && canChase() !== false
+        && tryChase(catPos, mesh.position)) {
+        mesh.rotation.x = 0;
+        mesh.rotation.z = 0;
+        stage = null;
+      }
+    }
+
+    if (state === 'standoff') {
+      if (intercept() !== true) startReturn();
+      else {
+        // Squared up: stands where it stopped, facing the trespasser.
+        const dx = catPos.x - mesh.position.x;
+        const dz = catPos.z - mesh.position.z;
+        if (Math.hypot(dx, dz) > 1e-3) mesh.rotation.y = facing(dx, dz);
+        animateCat(mesh, 'cross', t, 0, reducedMotion);
+        showTag(catPos);
+        return;
+      }
+    }
+
+    if (state === 'held') {
+      const st = heldByMe() ? stage : null;
+      mesh.rotation.order = 'YXZ';
+      if (st) {
+        mesh.position.set(st.x, G ? G.y(st.x, st.z) + st.y : st.y, st.z);
+        mesh.rotation.x = st.pitch;
+        mesh.rotation.z = st.roll;
+      } else {
+        if (G) mesh.position.y = G.y(mesh.position.x, mesh.position.z);
+        mesh.rotation.x = 0;
+        mesh.rotation.z = 0;
+      }
+      if (face) {
+        const dx = face.x - mesh.position.x;
+        const dz = face.z - mesh.position.z;
+        if (Math.hypot(dx, dz) > 1e-3) mesh.rotation.y = facing(dx, dz);
+      }
+      animateCat(mesh, st ? st.pose : 'cross', t, 0, reducedMotion);
+      showTag(catPos);
+      return;
+    }
+
     if (state === 'patrol' || state === 'return') {
-      patrolInto(areaId, t + 0.5, ahead);
+      patrolInto(areaId, t - lag + 0.5, ahead);
       if (state === 'patrol') {
         mesh.position.x = pp.x;
         mesh.position.z = pp.z;
@@ -280,25 +444,22 @@ export function createRivalPatrol(scene, areaId, {
       }
       if (G) mesh.position.y = G.y(mesh.position.x, mesh.position.z);
       mesh.rotation.y = facing(ahead.x - pp.x, ahead.z - pp.z);
-      animateCat(mesh, 'follow', t, PATROL_SPEED, reducedMotion);
+      animateCat(mesh, 'follow', t, lag > 0 && state === 'patrol' ? CATCH_UP_SPEED : PATROL_SPEED, reducedMotion);
 
       if (state === 'patrol' && cooldown <= 0 && canChase() !== false
         && isTrespassing(areaId, catPos.x, catPos.z)
         && Math.hypot(catPos.x - pp.x, catPos.z - pp.z) <= NOTICE_DIST
         && (!G || G.sameLevel(catPos.x, catPos.z, pp.x, pp.z))) { // R10: not across a rim
-        const out = chaseOutcome(areaId, catPos, pp);
-        const land = out.chased ? findLanding(areaId, out.to, isWalkable, { ground, from: catPos }) : null;
-        if (land) {
-          state = 'scamper';
-          elapsed = 0;
-          duration = reducedMotion ? SCAMPER_TIME_REDUCED : SCAMPER_TIME;
-          fromX = catPos.x;
-          fromZ = catPos.z;
-          toX = land.x;
-          toZ = land.z;
-          onChase(rival.name);
+        if (passed) {
+          // It let me pass this walk: it walks on.
+        } else if (member && intercept() === true) {
+          state = 'standoff'; // the fight's pill is up (or opens this frame)
+          if (G) mesh.position.y = G.y(mesh.position.x, mesh.position.z);
+        } else {
+          tryChase(catPos, pp);
         }
       }
+      showTag(catPos);
       return;
     }
 
@@ -337,12 +498,16 @@ export function createRivalPatrol(scene, areaId, {
       returnT = 0;
       cooldown = CHASE_COOLDOWN;
       onSettled();
+      // A co-walker took hold of it mid-scamper: it stands for her now.
+      if (holders.size > 0) state = 'held';
     }
+    showTag(catPos);
   }
 
   function dispose() {
     if (disposed) return;
     disposed = true;
+    tag?.material?.map?.dispose?.();
     scene.remove(mesh);
     const seen = new Set();
     mesh.traverse((o) => {
@@ -356,10 +521,91 @@ export function createRivalPatrol(scene, areaId, {
   // pos: where the patrol cat is now (its mesh, so a dash counts too), as a
   // fresh {x, z} — read-only. The walk reads it a few times a second to scent
   // over the player's marks near the border (Task 12); this module does not.
+  // The fight's `intruders` interface (game/clanfight.js), for a foe only.
+  // Its one visit is BORDER_VISIT. The shared snapshot's pos is where the
+  // mesh stands.
+  // current() is read every frame (the fight and the patrol's intercept), so
+  // it is one snapshot object, rewritten: read it, never keep it.
+  const isMine = (v) => v === BORDER_VISIT;
+  const snap = member ? { visit: BORDER_VISIT, clan: member.clan, member, pos: { x: 0, z: 0 }, state: 'resting' } : null;
+  const foe = member ? {
+    current() {
+      let st = 'resting';
+      if (state === 'held') st = 'held';
+      else if (passed) st = 'passed';
+      else if ((state === 'patrol' || state === 'standoff') && cooldown <= 0) st = 'walking';
+      snap.pos.x = mesh.position.x;
+      snap.pos.z = mesh.position.z;
+      snap.state = st;
+      return snap;
+    },
+    hold(v, holderId, facePos, { local = false } = {}) {
+      if (!isMine(v)) return;
+      const mine = heldByMe();
+      setHolder(String(holderId), { since: now(), local: local === true });
+      if ((local === true || !mine) && facePos && Number.isFinite(facePos.x) && Number.isFinite(facePos.z)) {
+        face = { x: facePos.x, z: facePos.z };
+      }
+      if (state !== 'scamper') state = 'held';
+    },
+    release(v, holderId) {
+      if (!isMine(v)) return;
+      dropOne(String(holderId));
+      if (!heldByMe()) stage = null;
+      if (state === 'held' && holders.size === 0) startReturn();
+    },
+    dropHolder(holderId) {
+      if (!dropOne(String(holderId))) return;
+      if (state === 'held' && holders.size === 0) startReturn();
+    },
+    holders(v) { return isMine(v) ? [...holders.keys()] : []; },
+    stage(v, st) {
+      if (!isMine(v) || state !== 'held' || !heldByMe()) return;
+      if (st === null) { stage = null; return; }
+      if (!st || typeof st.pose !== 'string' || !Number.isFinite(st.x) || !Number.isFinite(st.z)) return;
+      const fin = (n) => (Number.isFinite(n) ? n : 0);
+      const to = stage ??= { pose: 'cross', x: 0, z: 0, y: 0, pitch: 0, roll: 0 };
+      to.pose = st.pose; to.x = st.x; to.z = st.z; to.y = fin(st.y); to.pitch = fin(st.pitch); to.roll = fin(st.roll);
+      if (st.face && Number.isFinite(st.face.x) && Number.isFinite(st.face.z)) {
+        if (face) { face.x = st.face.x; face.z = st.face.z; } else face = { x: st.face.x, z: st.face.z };
+      }
+    },
+    measure(v) {
+      if (!isMine(v)) return null;
+      const pos = mesh.position.clone();
+      const rot = mesh.rotation.clone();
+      mesh.position.set(0, 0, 0);
+      mesh.rotation.set(0, 0, 0);
+      const d = catDims(mesh);
+      mesh.position.copy(pos);
+      mesh.rotation.copy(rot);
+      return d;
+    },
+    setScars(v, scars) {
+      if (isMine(v)) setCatScars(mesh, Array.isArray(scars) ? scars : []);
+    },
+    // A win: it stands down. Only my own hold goes; a co-walker still facing it keeps hers.
+    flee(v) {
+      if (!isMine(v)) return;
+      passed = true;
+      pendingChase = false;
+      for (const [id, h] of holders) if (h.local) dropOne(id);
+      stage = null;
+      if (state === 'held' && holders.size === 0) startReturn();
+      showTag(lastCat);
+    },
+    isFled(v) { return isMine(v) && passed; },
+  } : null;
+
   return {
     update,
     dispose,
     get state() { return state; },
     get pos() { return { x: mesh.position.x, z: mesh.position.z }; },
+    // The border patrol fight: the fight's interface (null without a foe) and
+    // today's chase on the next update (Run, a lost fight, no answer).
+    foe,
+    chaseNow() { if (member && !passed) pendingChase = true; },
+    get lag() { return lag; },
   };
 }
