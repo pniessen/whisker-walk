@@ -6,6 +6,7 @@ import { createWater } from '../render/water.js';
 import {
   WALK_SHAPES, MASSES, CEILINGS, GORGE_CAVES, GORGE_DENS, STAND_ON, CLAN_STAND_ON, WIDE_LEDGE_RECT, CAMP_DEN,
   FLOOR, CLIFFTOP, WEST_TOP, LOOKOUT_LEDGE, TURN, gorgeGround, mapShapes, CORRIDOR_HEADROOM, CAMP_DEN_HEADROOM,
+  DEN_HEADROOM,
 } from './gorgeshape.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { postsFor } from '../borderposts.js';
@@ -22,7 +23,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { smoothNormals } from './rocknormals.js';
 import { noise3 } from './rockrelief.js';
-import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
+import { ZOOM_STEPS, DEFAULT_ZOOM_STEP, CAM_CEIL_CLEAR } from '../camzoom.js';
 
 // =============================================================================
 // The Gorge.
@@ -950,6 +951,16 @@ export const GORGE_MOUTH_ARCHES = Object.freeze([
   ...GORGE_CAVES.map((c) => mouthArch(c.id, c.rects[0], c.mouth, c.y, CORRIDOR_HEADROOM)),
   mouthArch('campDen', CAMP_DEN, CAMP_DEN.mouth, CAMP_DEN.y0, CAMP_DEN_HEADROOM),
 ]);
+// The five small dens (polish-gorge6): the same rounded arch, smaller. A den
+// is 2.6 m wide and DEN_HEADROOM (1.8) tall: jambs to MOUTH_LOW_H, a
+// half-ellipse to the crown. The camera crosses a den's mouth no higher than
+// CAM_CEIL_CLEAR under its ceiling (camzoom), so the camera rule there is
+// camH = 1.5, not the corridors' 1.9. Fewer outline points, two threshold
+// stones and a gentler mound than the camp den's: ~200 triangles each.
+const DEN_ARCH = Object.freeze({ camH: DEN_HEADROOM - CAM_CEIL_CLEAR, points: 21, stones: 2, mound: 0.12 });
+export const GORGE_DEN_ARCHES = Object.freeze(GORGE_DENS.map((d) => Object.freeze({
+  ...mouthArch(d.id, d, d.mouth, d.y0, DEN_HEADROOM), ...DEN_ARCH,
+})));
 const ARCH_NEAR = 4; // rockFaces triangles and vertices this far round a mouth are looked at
 const ARCH_FACE = [-1.0, 0.3]; // a face hit counts only this far behind / proud of the mouth plane
 const ARCH_COLOR_R = 2; // a vertex takes the colour of the nearest rock vertex within this
@@ -1104,7 +1115,7 @@ function computeMouthArches(rockFaces) {
       nor.push(m.nor[v * 3], m.nor[v * 3 + 1], m.nor[v * 3 + 2]);
     }
   };
-  for (const a of GORGE_MOUTH_ARCHES) {
+  for (const a of [...GORGE_MOUTH_ARCHES, ...GORGE_DEN_ARCHES]) {
     const lx = -a.nz, lz = a.nx;
     const toLocal = (X, Y, Z) => { const dx = X - a.x, dz = Z - a.z; return [dx * lx + dz * lz, Y - a.y, dx * a.nx + dz * a.nz]; };
     const near = (q) => Math.abs(q[0]) <= a.half + ARCH_NEAR && q[1] >= -1 && q[1] <= a.headroom + ARCH_NEAR && Math.abs(q[2]) <= ARCH_NEAR;
