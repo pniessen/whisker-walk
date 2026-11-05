@@ -335,6 +335,36 @@ Plans: `docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`
   the answer window first, then the teach line's size; losing never costs
   anything).
 
+## Amendment (2026-11-04): away fights, at the border patrol only
+
+Playtester request: "be able to start a fight in another territory, if you
+are outside your home territory" (a CliffClan kid in the Moor wants to fight
+a MoorClan warrior). The owner chose the **border patrol fight**. This
+amends §1's last paragraph, §5's table and the non-goal "no fights in
+another clan's territory" as follows; everything else stands.
+
+- In another clan's territory the camp's border patrol is now **a real
+  warrior of that clan** (one of its warrior slots 4–6, picked from the room
+  seed on a co-walk, else from the walk), with a name tag. While it is on
+  patrol it is not also roaming the territory.
+- When it catches you inside its border (where it used to chase you out at
+  once) it **squares up** instead: "<Name> of <Clan> blocks your path!" with
+  **Fight!** and **Run**. The fight is the same read-the-move fight as at
+  home, under all of its rules.
+- **Win:** "<Name> lets you pass." It goes back to its patrol and leaves you
+  be for the rest of the walk (no pill, no chase), and you get the new
+  `border` award (12 points) once a walk. It wears your scar back to camp.
+- **Lose, Run, or no answer in 8 s:** you are chased back over the border
+  exactly as before. Nothing is taken.
+- Still never: fights in the water, at the island, in the old areas, in the
+  den, in Legacy, or against either kid's clan (the patrol's clan never is
+  one). At home nothing changes: intruders, no patrol.
+- Co-walk: "she is facing it" and "her fight is over" go on the wire, so the
+  patrol stands still on both screens while either kid fights it; each kid's
+  outcome is her own.
+
+Plan: `docs/superpowers/plans/2026-11-04-border-patrol-fight.md`.
+
 ## Goals
 
 - A territory reads as a clan's home at a glance: names, ranks, a marked
@@ -348,7 +378,8 @@ Plans: `docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`
 - No injuries, health bars, medicine cats or death.
 - No fights with the other kid's cat, or in Legacy Edition.
 - No fights in the old areas, at the island, or in another clan's territory
-  (there you're the visitor; the patrol chases you).
+  (there you're the visitor; the patrol chases you). *Amended 2026-11-04:
+  except with that territory's border patrol warrior (see the amendment).*
 - No new server or SQL work.
 
 ## Anti-goals (a failure even if it ships)
