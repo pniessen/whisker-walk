@@ -34,7 +34,8 @@ const withLocalUuids = (areaId, fn) => localUuids(`camp-uuids-${areaId}`, fn);
 // whose layout passes every check in test/camp.test.js and
 // test/rivalworld.test.js (den and rock clear every other collider by 0.4 m;
 // every ground seat on clan ground; eight roaming homes with their circles).
-// Every camp passed at the first step, the away side itself. Clearances are
+// Woods, river and moor passed at the first step, the away side itself; the
+// Pines was turned south by the owner's choice (below). Clearances are
 // edge to edge, collider to collider, measured on the shipped maps; the camp
 // tree is the nearest collider to the camp in every territory:
 //   woods: camp tree (builder.tree, scale 1.09) at (3.44,-45.4), r 0.55. Den
@@ -44,14 +45,28 @@ const withLocalUuids = (areaId, fn) => localUuids(`camp-uuids-${areaId}`, fn);
 //   moor: the lone thorn (builder.tree, scale 0.89) at (-1.58,-46.25), r 0.45.
 //     Den 3.75 m, rock 1.41 m.
 //   pines: the two camp pines (builder.pine), (-35.92,43.2) scale 1.66, r 0.66,
-//     and (-39.31,37.51) scale 1.69, r 0.68, turned away from both. Den 2.18 m
-//     and 2.79 m clear of them, rock 3.43 m and 0.86 m. The disc keeps 6 m off
-//     the truce path's centreline, so no seat is on truce ground.
+//     and (-39.31,37.51) scale 1.69, r 0.68. Owner's decision 2026-11-04
+//     ("Pines camp: South"): the Pines turn is 1.70 rad, so the den sits
+//     south of the centre (+z is south; the minimap draws north, -z, at the
+//     top) at (-38.26,42.98), a little west of due south (1.571), and the
+//     bramble ring's gap faces north. It was 2.583, the side away from both
+//     pines, which put the den and the rock at the centre's west. From the
+//     south, where the walk camera arrives, and from the camp's high view the
+//     den now stands in the open with the rock behind it, and no pine stands
+//     between them. The price is clearance: the two pines flank the south
+//     and the north of the disc, so due south would put the den 0.33 m from
+//     the east pine (under the 0.4 m the tests keep). 1.70 is the nearest
+//     turn to south that balances the den against the east pine and the rock
+//     (at (-39.44,39.34)) against the north-west pine: den 0.59 m and 3.79 m
+//     clear of them (was 2.18 and 2.79), rock 3.97 m and 0.55 m (was 3.43 and
+//     0.86). Turning less towards west squeezes the den, more squeezes the
+//     rock. The disc keeps 6 m off the truce path's centreline, so no seat is
+//     on truce ground.
 export const CAMP_TURN = Object.freeze({
   woods: 2.111,
   river: -2.461,
   moor: 1.394,
-  pines: 2.583,
+  pines: 1.70,
 });
 
 // Ledge camps, authored whole: { den, rock, seats } in world coordinates, the

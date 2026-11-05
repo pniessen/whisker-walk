@@ -55,7 +55,9 @@ describe('world scatter is unchanged by the refactor (Polish 3)', () => {
   it('the Pines and its island', () => {
     expect(digest([pines.pinesTrees(), pines.pinesUndergrowth(), pines.pinesReeds(), pines.pinesLilyPads(), island.islandReeds()]))
       .toBe('57cb6f6fa275e46c');
-    expect(digest(built(pines))).toBe('1f4b3c73d9457b68');
+    // built(pines) includes the camp's den and rock colliders, which moved when the owner
+    // turned the Pines camp south (CAMP_TURN.pines, decision 2026-11-04); was '1f4b3c73d9457b68'.
+    expect(digest(built(pines))).toBe('e8ecdf223e38e457');
   });
   it('the Woods', () => {
     expect(digest([woods.woodsTreeSpots(), woods.woodsUndergrowth()])).toBe('c359ee70220b9532');
