@@ -174,7 +174,11 @@ describe('the trail clearing', () => {
     expect(before.heather).toHaveLength(398);
     expect(before.pinesReeds).toHaveLength(160);
     const pt = pinesTrees(), mt = moorTrees(), pu = pinesUndergrowth();
-    expect(pt.near).toEqual(without(before.pinesNear, DROPPED.near));
+    // The recorded list predates the owner's decision (2026-11-04) to move the
+    // camp pine out of the Pines clearing: that one pine, same scale, is listed
+    // at its new spot (pines.js CAMP_PINE_TO).
+    const moved = (t) => (t.x === -35.92 && t.z === 43.2 ? { ...t, x: -33.2, z: 47.6 } : t);
+    expect(pt.near).toEqual(without(before.pinesNear, DROPPED.near).map(moved));
     expect(pt.stand).toEqual(without(before.pinesStand, DROPPED.stand));
     expect(mt.pines).toEqual(without(before.moorPines, DROPPED.moorPines));
     expect(mt.thorns).toEqual(before.thorns);
