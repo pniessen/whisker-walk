@@ -679,43 +679,141 @@ describe('horizonBand side tints and rooftops', () => {
 describe('the Woods builders', () => {
   const bbox = (o) => new THREE.Box3().setFromObject(o);
 
-  it("logBridge's top is at y", () => {
-    // precise: the trunk is tilted (see logBridge), and the loose box of a
-    // rotated mesh is the box of its rotated bounding box, which overshoots
-    const top = (o) => new THREE.Box3().setFromObject(o, true).max.y;
-    expect(top(b.logBridge(0, -4, 0, 4))).toBeCloseTo(0.14, 2);
-    expect(top(b.logBridge(0, -4, 0, 4, 1.2, 0.2))).toBeCloseTo(0.2, 2);
-  });
-
-  it("logBridge's top is level from end to end", () => {
-    const log = b.logBridge(0, -4, 0, 4, 2.8, 0.18);
-    log.updateMatrixWorld(true);
+  // The log bridges: a crowned walked top at y, round bark shoulders and
+  // flanks, a root flare at one end, a sawn end at the other, two branch
+  // stubs. Rays from above give the drawn surface; logs run along z here, so
+  // the group isn't turned and local x is world x minus the log's centre.
+  const logTopAt = (log, x, z) => {
     const ray = new THREE.Raycaster();
-    for (const z of [-3.9, 0, 3.9]) {
-      ray.set(new THREE.Vector3(0, 5, z), new THREE.Vector3(0, -1, 0));
-      expect(ray.intersectObject(log, true)[0].point.y, `z ${z}`).toBeCloseTo(0.18, 2);
+    ray.set(new THREE.Vector3(x, 5, z), new THREE.Vector3(0, -1, 0));
+    return ray.intersectObject(log, true)[0];
+  };
+  const logCalls = [
+    [[0, -4, 0, 4], 1.6, 0.14],
+    [[0, -4, 0, 4, 1.2, 0.2], 1.2, 0.2],
+    [[0, -4, 0, 4, 2.8, 0.18], 2.8, 0.18],
+    [[0, -4, 0, 4, 3, 0.16, 1.9], 3, 0.16],
+    [[0, -4, 0, 4, 2, 0.16, 1.96], 2, 0.16],
+    [[0, -4, 0, 4, 1.4, 0.16, 1.4], 1.4, 0.16],
+    [[0, -4, 0, 4, 3, 0.16, 0.8], 3, 0.16],
+    [[2, -3, 2, 3, 3, 0.16, 1.9], 3, 0.16],
+  ];
+
+  it("logBridge's walked top is at y along its centre line, from end to end", () => {
+    for (const [args, , y] of logCalls) {
+      const log = b.logBridge(...args);
+      log.updateMatrixWorld(true);
+      const cx = args[0];
+      for (const z of [args[1] + 0.05, args[1] / 2, 0, args[3] / 2, args[3] - 0.05]) {
+        expect(logTopAt(log, cx, z).point.y, `${args} z ${z}`).toBeCloseTo(y, 4);
+      }
     }
   });
 
-  it("logBridge's top is hewn flat, `flat` wide, and rounds off beyond it", () => {
+  it("logBridge's top is never above y across the walked width, at most 4.5 cm below it, and falls away beyond", () => {
     const log = b.logBridge(0, -4, 0, 4, 3, 0.16, 1.9);
     log.updateMatrixWorld(true);
-    const ray = new THREE.Raycaster();
-    const hitY = (x) => {
-      ray.set(new THREE.Vector3(x, 5, 0), new THREE.Vector3(0, -1, 0));
-      return ray.intersectObject(log, true)[0]?.point.y;
-    };
-    for (const x of [-0.94, -0.5, 0, 0.5, 0.94]) expect(hitY(x), `x ${x}`).toBeCloseTo(0.16, 3);
-    // past the flat, the trunk's round flank falls away
-    expect(hitY(1.1)).toBeLessThan(0.15);
-    expect(hitY(-1.1)).toBeLessThan(0.15);
-    // and the whole trunk is there below: 3 m across
-    const bb = new THREE.Box3().setFromObject(log, true);
-    expect(bb.max.x - bb.min.x).toBeCloseTo(3, 1);
+    for (let z = -3.95; z <= 3.95; z += 0.25) {
+      for (let x = -0.9; x <= 0.9001; x += 0.05) {
+        const y = logTopAt(log, x, z).point.y;
+        expect(y, `(${x.toFixed(2)}, ${z.toFixed(2)})`).toBeLessThanOrEqual(0.16 + 1e-4);
+        expect(y, `(${x.toFixed(2)}, ${z.toFixed(2)})`).toBeGreaterThan(0.16 - 0.045);
+      }
+    }
+    // past the flat the bark shoulder rolls down toward the water (0.03)
+    for (const z of [-0.5, 0, 0.5]) {
+      for (const side of [-1, 1]) {
+        const hit = logTopAt(log, side * 1.1, z);
+        expect(hit, `z ${z}`).toBeTruthy();
+        expect(hit.point.y, `z ${z}`).toBeLessThan(0.06);
+      }
+    }
   });
 
-  describe('logBridge reads as a log', () => {
-    // the bridges' own call: 3 m trunk, 1.9 m hewn top at 0.16, 8 m long, along z
+  it("logBridge stays inside its footprint for any w and flat, and the root flare reaches it", () => {
+    for (const [args, w] of logCalls) {
+      const log = b.logBridge(...args);
+      const bb = new THREE.Box3().setFromObject(log, true);
+      expect(bb.max.x - bb.min.x, `${args}`).toBeLessThanOrEqual(w + 1e-3);
+      expect(bb.max.x - bb.min.x, `${args}`).toBeGreaterThan(w * 0.97);
+      expect(bb.max.z - bb.min.z, `${args}`).toBeLessThanOrEqual(Math.hypot(args[2] - args[0], args[3] - args[1]) + 1e-3);
+    }
+  });
+
+  it('logBridge is one closed, consistently wound surface for any w and flat (bar the stubs\' sunk bases)', () => {
+    for (const [args] of logCalls) {
+      const geo = b.logBridge(...args).children[0].geometry;
+      const pos = geo.attributes.position, idx = geo.index.array;
+      // weld by position
+      const key = new Map(), id = [];
+      for (let i = 0; i < pos.count; i++) {
+        const k = [pos.getX(i), pos.getY(i), pos.getZ(i)].map((v) => v.toFixed(5)).join();
+        if (!key.has(k)) key.set(k, key.size);
+        id.push(key.get(k));
+      }
+      const directed = new Map();
+      let vol = 0;
+      const v = (i) => new THREE.Vector3().fromBufferAttribute(pos, i);
+      for (let t = 0; t < idx.length; t += 3) {
+        const [a, c, d] = [idx[t], idx[t + 1], idx[t + 2]];
+        vol += v(a).dot(v(c).cross(v(d))) / 6;
+        for (const [p, q] of [[a, c], [c, d], [d, a]]) {
+          const e = `${id[p]},${id[q]}`;
+          directed.set(e, (directed.get(e) ?? 0) + 1);
+        }
+      }
+      let open = 0, twice = 0;
+      for (const [e, n] of directed) {
+        if (n > 1) twice++;
+        const [p, q] = e.split(',');
+        if (!directed.has(`${q},${p}`)) open++;
+      }
+      expect(twice, `${args}: edges wound the same way twice`).toBe(0);
+      expect(open, `${args}: open edges`).toBe(12); // the two stubs' six-sided bases
+      expect(vol, `${args}`).toBeGreaterThan(0);
+    }
+  });
+
+  // the Woods', River's and Moor's own bridges (the Pines' runs along x)
+  it.each([[-4.5, -15.5, -7.5], [-22, -35.5, -27.5], [4, -5.5, 2.5]])("logBridge's stub bases are sunk inside the bark (x %d)", (cx, za, zb) => {
+    const log = b.logBridge(cx, za, cx, zb, 3, 0.16, 1.9);
+    log.updateMatrixWorld(true);
+    const cz = (za + zb) / 2;
+    const geo = log.children[0].geometry, pos = geo.attributes.position, idx = geo.index.array;
+    // the open edges' vertices are the base rings; each one that could be
+    // seen (above the water, 0.03) must be inside the bark
+    const ids = new Set();
+    const count = new Map();
+    const k = (i) => [pos.getX(i), pos.getY(i), pos.getZ(i)].map((v) => v.toFixed(5)).join();
+    for (let t = 0; t < idx.length; t += 3) {
+      for (const [p, q] of [[0, 1], [1, 2], [2, 0]]) count.set(`${k(idx[t + p])}|${k(idx[t + q])}`, idx[t + p]);
+    }
+    for (const [e, i] of count) {
+      const [p, q] = e.split('|');
+      if (!count.has(`${q}|${p}`)) ids.add(i);
+    }
+    expect(ids.size).toBe(12);
+    const ray = new THREE.Raycaster();
+    let seen = 0;
+    for (const i of ids) {
+      const p = new THREE.Vector3(pos.getX(i) + cx, pos.getY(i) + 0.16, pos.getZ(i) + cz);
+      if (p.y < 0.01) continue;
+      seen++;
+      // from outside, straight in toward it: the trunk's bark (front faces
+      // only; the stubs' normals lean along the log) is crossed first
+      const sx = Math.sign(pos.getX(i));
+      const from = new THREE.Vector3(cx + sx * 2, p.y, p.z);
+      ray.set(from, new THREE.Vector3(-sx, 0, 0));
+      const nz = (h) => Math.abs(geo.attributes.normal.getZ(h.face.a));
+      const reach = from.distanceTo(p) - 1e-4;
+      const bark = ray.intersectObject(log, true).filter((h) => h.distance < reach && nz(h) < 1e-6);
+      expect(bark.length, `base vertex ${i}`).toBeGreaterThanOrEqual(1);
+    }
+    expect(seen).toBeGreaterThanOrEqual(1);
+  });
+
+  describe('logBridge reads as a round log', () => {
+    // the bridges' own call: 3 m footprint, 1.9 m walked top at 0.16, 8 m long, along z
     const make = () => b.logBridge(-4.5, -15.5, -4.5, -7.5, 3, 0.16, 1.9);
     const log = make();
     log.updateMatrixWorld(true);
@@ -724,7 +822,6 @@ describe('the Woods builders', () => {
     const trunk = meshes[0];
     const geo = trunk.geometry;
     const lum = (c) => (c.r + c.g + c.b) / 3;
-    const ray = new THREE.Raycaster();
     // the colour of the face a ray hits (mean of its three vertex colours)
     const hitColour = (hit) => {
       const col = geo.attributes.color;
@@ -734,13 +831,15 @@ describe('the Woods builders', () => {
       }
       return c;
     };
-    const cast = (o, d) => {
-      ray.set(o, d.normalize());
-      return ray.intersectObject(log, true)[0];
-    };
-    const triangles = () => (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
+    const cx = -4.5, cz = -11.5;
+    const at = (x, z) => logTopAt(log, cx + x, z);
+    const triangles = () => geo.index.count / 3;
+    // which end is the root: the one whose bark rises beside the walked strip
+    const rise = (z) => Math.max(...[-1.2, 1.2].map((x) => at(x, z)?.point.y ?? -1));
+    const rootZ = rise(-15.3) > rise(-7.7) ? -15.5 : -7.5;
+    const sawnZ = rootZ === -15.5 ? -7.5 : -15.5;
 
-    it('is one mesh with vertex colours', () => {
+    it('is one mesh with vertex colours, in the shadow pass', () => {
       expect(meshes.length).toBe(1);
       expect(geo.attributes.color).toBeDefined();
       expect(geo.attributes.color.count).toBe(geo.attributes.position.count);
@@ -748,126 +847,157 @@ describe('the Woods builders', () => {
       expect(trunk.userData.noCast).toBeUndefined();
     });
 
-    it('stays inside the triangle budget (at most 220 a bridge)', () => {
-      expect(triangles()).toBeLessThanOrEqual(220);
-      expect(triangles()).toBeGreaterThan(160);
+    it('stays inside the triangle budget (at most 600 a bridge)', () => {
+      expect(triangles()).toBeLessThanOrEqual(600);
+      expect(triangles()).toBeGreaterThan(300);
     });
 
-    it('has a hewn top clearly lighter than its bark flanks', () => {
-      const cx = -4.5;
-      for (const z of [-14.5, -11.5, -8.5]) {
-        const top = cast(new THREE.Vector3(cx, 5, z), new THREE.Vector3(0, -1, 0));
-        expect(top.point.y).toBeCloseTo(0.16, 3);
+    it('has a hewn top clearly lighter than its bark flanks, worn lightest down the middle', () => {
+      for (const z of [cz - 0.5, cz, cz + 0.5]) {
+        const top = at(0.02, z);
         for (const side of [-1, 1]) {
-          const flank = cast(new THREE.Vector3(cx + side * 1.15, 5, z), new THREE.Vector3(0, -1, 0));
-          expect(flank.point.y).toBeLessThan(0.15);
+          const flank = at(side * 1.05, z);
+          expect(flank.point.y).toBeLessThan(0.12);
           expect(lum(hitColour(top))).toBeGreaterThan(lum(hitColour(flank)) * 1.3);
         }
+        expect(lum(hitColour(at(0.05, z)))).toBeGreaterThan(lum(hitColour(at(0.5, z))));
       }
-      // the centre of the top (paw-worn) is a touch lighter than the rest of the hewn wood
-      const at = (x, z = -11.5) => hitColour(cast(new THREE.Vector3(cx + x, 5, z), new THREE.Vector3(0, -1, 0)));
-      expect(lum(at(0))).toBeGreaterThan(lum(at(0.5)));
     });
 
-    it('keeps a strip of bark (the wane) along both edges of the top, and the hewn wood is not a pale board', () => {
-      const cx = -4.5;
-      const at = (x, z) => hitColour(cast(new THREE.Vector3(cx + x, 5, z), new THREE.Vector3(0, -1, 0)));
-      const srgb = (c) => new THREE.Color(c.r, c.g, c.b).getHexString();
-      for (const z of [-14.5, -11.5, -8.5]) {
+    it('keeps bark (the wane) beyond a wavy hewn edge, and the hewn wood is weathered, not a pale board', () => {
+      for (const z of [cz - 0.5, cz, cz + 0.5]) {
         for (const side of [-1, 1]) {
-          // the wane, 0.8 m out, is clearly darker than the hewn wood 0.5 m out
-          expect(lum(at(side * 0.8, z))).toBeLessThan(lum(at(side * 0.5, z)) * 0.75);
+          expect(lum(hitColour(at(side * 0.86, z)))).toBeLessThan(lum(hitColour(at(side * 0.4, z))) * 0.75);
         }
-        // weathered grey-brown, nowhere near the pale tan of a sawn board
-        const mid = new THREE.Color(...Object.values(at(0, z)));
-        const hsl = mid.getHSL({}, THREE.SRGBColorSpace);
-        expect(hsl.l, srgb(at(0, z))).toBeLessThan(0.45);
+        const mid = new THREE.Color(...Object.values(hitColour(at(0, z))));
+        expect(mid.getHSL({}, THREE.SRGBColorSpace).l).toBeLessThan(0.45);
       }
-      // the hewn band's edge is crisp: the wood right inside the line is
-      // nothing like the bark right outside it (own vertices at the line)
+      // the hewn edge (up-facing vertices, out past the middle) wanders along the log
       const pos = geo.attributes.position, nor = geo.attributes.normal;
-      const xs = new Set();
-      for (let i = 0; i < pos.count; i++) if (nor.getY(i) > 0.999) xs.add(Math.abs(pos.getX(i)).toFixed(4));
-      expect(xs.has((0.95 - 0.32).toFixed(4))).toBe(true);
-      let atLine = 0;
-      for (let i = 0; i < pos.count; i++) {
-        if (nor.getY(i) > 0.999 && Math.abs(Math.abs(pos.getX(i)) - 0.63) < 1e-4) atLine++;
-      }
-      expect(atLine).toBe(2 * 2 * 4); // two sides, wood and bark, four cross-sections
-    });
-
-    it('shows end grain at both ends, facing out, in at least three tones with a dark bark rim', () => {
-      for (const [zEnd, dir] of [[-15.5, 1], [-7.5, -1]]) {
-        for (const dx of [-0.8, -0.3, 0, 0.3, 0.8]) {
-          const hit = cast(new THREE.Vector3(-4.5 + dx, 0.16 - 0.08, zEnd - dir * 0.3), new THREE.Vector3(0, 0, dir));
-          expect(hit, `end ${zEnd} dx ${dx}`).toBeTruthy();
-          expect(hit.point.z).toBeCloseTo(zEnd, 3);
-          const n = hit.face.normal.clone().transformDirection(trunk.matrixWorld);
-          expect(n.z * -dir).toBeGreaterThan(0.99);
-        }
-      }
-      // the end-face vertices (normal along the log's local z) at each end
-      const pos = geo.attributes.position, nor = geo.attributes.normal, col = geo.attributes.color;
-      for (const sign of [-1, 1]) {
-        const tones = new Map();
-        let rimLum = Infinity;
+      for (const side of [-1, 1]) {
+        const xs = [];
         for (let i = 0; i < pos.count; i++) {
-          if (nor.getZ(i) * sign < 0.99) continue;
-          const c = { r: col.getX(i), g: col.getY(i), b: col.getZ(i) };
-          tones.set(`${c.r.toFixed(2)},${c.g.toFixed(2)},${c.b.toFixed(2)}`, c);
-          // the outer loop: on the trunk's circle, below the hewn top
-          const rad = Math.hypot(pos.getX(i), pos.getY(i) - trunkAxisY());
-          if (Math.abs(rad - 1.5) < 1e-4 && pos.getY(i) < -0.05) rimLum = Math.min(rimLum, lum(c));
+          if (nor.getY(i) > 0.99 && Math.abs(nor.getZ(i)) < 0.01 && pos.getX(i) * side > 0.35 && pos.getX(i) * side < 0.85) xs.push(pos.getX(i) * side);
         }
-        expect(tones.size).toBeGreaterThanOrEqual(3);
-        const lightest = Math.max(...[...tones.values()].map(lum));
-        expect(rimLum).toBeLessThan(lightest * 0.4);
+        expect(xs.length).toBeGreaterThanOrEqual(10);
+        expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(0.08);
       }
     });
 
-    // the trunk's axis in the geometry's own frame (its top is at 0)
-    function trunkAxisY() {
-      const r = 1.5, hw = 0.95;
-      return -Math.sqrt(r * r - hw * hw);
-    }
-
-    it('shades its round flanks smoothly: flank normals are radial', () => {
+    it('rolls over round shoulders into its flanks: smooth normals from the top to the side above the water', () => {
+      // the surface drops ever faster past the walked strip
+      const ys = [0.9, 0.96, 1.02, 1.08].map((x) => at(x, cz).point.y);
+      for (let i = 1; i < ys.length; i++) expect(ys[i]).toBeLessThan(ys[i - 1]);
+      expect(ys[2] - ys[3]).toBeGreaterThan(ys[0] - ys[1]);
+      // the flank's own normals (not the top, not the ends) turn from near
+      // up to about 50 degrees above the water line (0.03), and reach
+      // the vertical at the bulge just under it
       const pos = geo.attributes.position, nor = geo.attributes.normal;
-      const ay = trunkAxisY();
-      let flank = 0;
+      const tilts = [], under = [];
       for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i), y = pos.getY(i) - ay;
-        const rad = Math.hypot(x, y);
-        if (Math.abs(rad - 1.5) > 1e-4) continue;
-        if (nor.getY(i) > 0.999 || Math.abs(nor.getZ(i)) > 0.5) continue; // the top and the ends
-        flank++;
-        expect(nor.getX(i)).toBeCloseTo(x / rad, 3);
-        expect(nor.getY(i)).toBeCloseTo(y / rad, 3);
-        expect(nor.getZ(i)).toBeCloseTo(0, 5);
+        if (Math.abs(nor.getZ(i)) > 0.01 || Math.abs(pos.getX(i)) < 0.85 || Math.abs(pos.getX(i)) > 1.25) continue;
+        const tilt = (Math.acos(Math.min(1, nor.getY(i))) * 180) / Math.PI;
+        if (pos.getY(i) + 0.16 > 0.03) tilts.push(tilt);
+        else if (pos.getY(i) + 0.16 > -0.12) under.push(tilt);
       }
-      expect(flank).toBeGreaterThanOrEqual(16);
-      // and a ring's flank vertices are shared by the faces either side
-      // (indexed: fewer vertices than three per triangle)
-      expect(geo.index).toBeTruthy();
+      expect(Math.min(...tilts)).toBeLessThan(20);
+      expect(Math.max(...tilts)).toBeGreaterThan(45);
+      expect(Math.max(...under)).toBeGreaterThan(80);
+      // shared between the faces either side (indexed, far fewer vertices than corners)
       expect(pos.count).toBeLessThan(triangles() * 3 * 0.75);
     });
 
-    it('has a mossy upper flank on one side and a branch stub, both inside the trunk footprint', () => {
+    it('flares into root buttresses at one end, either side of the walked strip', () => {
+      const dz = rootZ === -15.5 ? 0.2 : -0.2;
+      for (const side of [-1, 1]) {
+        expect(at(side * 1.2, rootZ + dz).point.y).toBeGreaterThan(0.16 + 0.05);
+      }
+      // the sawn end has none
+      expect(rise(sawnZ - dz)).toBeLessThan(0.16);
+    });
+
+    it('shows end grain at the sawn end in at least three tones with a dark bark rim, and a dark root end', () => {
+      const dir = sawnZ === -15.5 ? 1 : -1;
+      for (const dx of [-0.8, -0.3, 0, 0.3, 0.8]) {
+        const ray = new THREE.Raycaster();
+        ray.set(new THREE.Vector3(cx + dx, 0.16 - 0.08, sawnZ - dir * 0.3), new THREE.Vector3(0, 0, dir));
+        const hit = ray.intersectObject(log, true)[0];
+        expect(hit, `dx ${dx}`).toBeTruthy();
+        expect(hit.point.z).toBeCloseTo(sawnZ, 3);
+        const n = hit.face.normal.clone().transformDirection(trunk.matrixWorld);
+        expect(n.z * -dir).toBeGreaterThan(0.99);
+      }
+      const pos = geo.attributes.position, nor = geo.attributes.normal, col = geo.attributes.color;
+      const endVerts = (zEnd) => {
+        const zl = zEnd - cz, out = [];
+        for (let i = 0; i < pos.count; i++) {
+          if (Math.abs(nor.getZ(i)) > 0.99 && Math.abs(pos.getZ(i) - zl) < 1e-4) out.push(i);
+        }
+        return out;
+      };
+      const colourOf = (i) => ({ r: col.getX(i), g: col.getY(i), b: col.getZ(i) });
+      const sawn = endVerts(sawnZ);
+      const tones = new Set(sawn.map((i) => Object.values(colourOf(i)).map((v) => v.toFixed(2)).join()));
+      expect(tones.size).toBeGreaterThanOrEqual(3);
+      const lums = sawn.map((i) => lum(colourOf(i)));
+      expect(Math.min(...lums)).toBeLessThan(Math.max(...lums) * 0.4);
+      const root = endVerts(rootZ);
+      expect(root.length).toBeGreaterThan(10);
+      for (const i of root) expect(lum(colourOf(i))).toBeLessThan(Math.max(...lums) * 0.5);
+    });
+
+    it("has no T-junctions: no vertex lies inside another face's edge", () => {
+      // every edge of every triangle, against every vertex position on the
+      // same plane-ish surface: a vertex strictly inside an edge (not at an
+      // end) means a crack can open there
+      const pos = geo.attributes.position, idx = geo.index.array;
+      const P = (i) => new THREE.Vector3().fromBufferAttribute(pos, i);
+      const keys = new Map();
+      for (let i = 0; i < pos.count; i++) keys.set(P(i).toArray().map((v) => v.toFixed(5)).join(), P(i));
+      const pts = [...keys.values()];
+      const edges = new Set();
+      for (let t = 0; t < idx.length; t += 3) {
+        for (const [a, c] of [[0, 1], [1, 2], [2, 0]]) {
+          const i = idx[t + a], j = idx[t + c];
+          edges.add(i < j ? `${i},${j}` : `${j},${i}`);
+        }
+      }
+      let bad = 0;
+      const seg = new THREE.Line3(), q = new THREE.Vector3();
+      for (const e of edges) {
+        const [i, j] = e.split(',').map(Number);
+        seg.set(P(i), P(j));
+        const l = seg.distance();
+        if (l < 1e-4) continue;
+        for (const p of pts) {
+          const t = seg.closestPointToPointParameter(p, true);
+          if (t < 1e-3 || t > 1 - 1e-3) continue;
+          seg.at(t, q);
+          if (q.distanceTo(p) < 1e-5) bad++;
+        }
+      }
+      expect(bad).toBe(0);
+    }, 60_000);
+
+    it('has two broken branch stubs standing up out of the flanks over the water, off the walked strip, plus moss', () => {
       const pos = geo.attributes.position, col = geo.attributes.color;
       let mossy = 0;
       for (let i = 0; i < pos.count; i++) if (col.getY(i) > col.getX(i) * 1.1) mossy++;
       expect(mossy).toBeGreaterThan(0);
-      const bb = new THREE.Box3().setFromObject(log, true);
-      expect(bb.max.y).toBeCloseTo(0.16, 3);
-      expect(bb.max.x - bb.min.x).toBeLessThanOrEqual(3 + 1e-3);
-      // the stub: vertices beyond the trunk's circle, above the water line
-      const ay = trunkAxisY();
-      const out = [];
+      // stub vertices: above the walked top, away from the root flare
+      const rootL = rootZ - cz;
+      const high = [];
       for (let i = 0; i < pos.count; i++) {
-        if (Math.hypot(pos.getX(i), pos.getY(i) - ay) > 1.52) out.push(i);
+        if (pos.getY(i) > 0.12 && Math.abs(pos.getZ(i) - rootL) > 1.9) high.push(i);
       }
-      expect(out.length).toBeGreaterThanOrEqual(5);
-      for (const i of out) expect(pos.getY(i) + 0.16).toBeGreaterThan(0.03);
+      const sides = new Set(high.map((i) => Math.sign(pos.getX(i))));
+      expect(sides.size).toBe(2);
+      for (const i of high) {
+        expect(Math.abs(pos.getX(i))).toBeGreaterThan(0.95);
+        expect(Math.abs(pos.getX(i))).toBeLessThanOrEqual(1.5);
+      }
+      // the bigger one stands well clear of the top
+      expect(Math.max(...high.map((i) => pos.getY(i)))).toBeGreaterThan(0.3);
     });
 
     it('is deterministic', () => {
@@ -878,7 +1008,6 @@ describe('the Woods builders', () => {
       expect(Array.from(again.index.array)).toEqual(Array.from(geo.index.array));
     });
   });
-
   it('steppingStones takes bigger, steadier, staggered stones when asked', () => {
     const plain = b.steppingStones(0, 0, 6, 0, 5);
     const big = b.steppingStones(0, 0, 6, 0, 5, { rMin: 0.7, rMax: 0.7, jitter: 0, stagger: 0.04 });

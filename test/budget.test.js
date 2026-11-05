@@ -357,6 +357,23 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //   seaside        70 -> 70    33 -> 31    53/28 -> 53/26          29,521 -> 29,513
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// polish-logs: the log bridges are rounded (crowned walked top, wavy hewn
+// edge, bark shoulders rolling into the flanks, a root flare at one end, a
+// sawn end at the other, two bigger branch stubs). Same one mesh per log, no
+// new casters; 167 -> 394 triangles a log. The Gorge has no log bridge.
+// Below the bulge the trunk closes straight to its bottom (it is under the
+// water or the bank everywhere), which keeps the River and Moor inside
+// riverdress/moordress's own 59,400 guards. Ceilings unchanged (70k).
+// Before is main at 56ecc83.
+//
+//   area    meshes  triangles          logBridge
+//   woods   184     57,921 -> 58,148   167 -> 394
+//   river   172     58,342 -> 58,569   167 -> 394
+//   moor     88     59,068 -> 59,295   167 -> 394
+//   pines   117     54,768 -> 54,995   167 -> 394
+// ---------------------------------------------------------------------------
+
 // Counts what render/rig.js's assignShadowCasters would set, minus the
 // userData.contactDecal exclusion (a bare area build never contains the
 // contact-shadow InstancedMeshes — those are added later, by
