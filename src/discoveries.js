@@ -14,6 +14,10 @@ export const AWARDS = {
   // Clan Life Part 2, Task 4: an intruder chased off your land (once per
   // visit, wins only). Its feat tally is the journal's "chased off" count.
   intruder: 12,
+  // Border patrol fight (2026-11-04, B7): another clan's border patrol warrior
+  // faced down on its own land (once a walk, wins only). Its own feat tally,
+  // so the journal's "chased off" count stays intruders only.
+  border: 12,
 };
 
 export function createDiscoveryLog(progression) {
