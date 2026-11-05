@@ -4176,7 +4176,7 @@ function plankEdgeUVs(geo, w, thick, len) {
 // `w` footprint and nothing stands over the walked strip.
 //
 // Swept by hand into one indexed geometry with vertex colours
-// (logTrunkGeometry below): ten cross-sections, closer at the root end.
+// (logTrunkGeometry below): nine cross-sections, closer at the root end.
 // Same objects as before (Group, Shape, one BufferGeometry, Mesh, one
 // material), because every uuid is a pinned Math.random draw
 // (test/waterlooks.test.js); the Shape stays as the record of the section at
@@ -4212,8 +4212,8 @@ const LOG_RING = new THREE.Color(0x9a7a50);
 const LOG_ROOT = new THREE.Color(0x4a3626); // the root end: earth and root, no sawn face
 const LOG_STUB_TIP = new THREE.Color(0x9c7c56);
 // Cross-sections along the log, as fractions from the root end: close where
-// the root flare swells, about a metre apart over the water.
-const LOG_FRACS = [0, 0.05, 0.11, 0.18, 0.3, 0.44, 0.58, 0.72, 0.86, 1];
+// the root flare swells, a metre and more apart over the water.
+const LOG_FRACS = [0, 0.05, 0.11, 0.18, 0.3, 0.46, 0.63, 0.81, 1];
 // End-grain loops at the sawn end, as fractions of the way from the pith to
 // the outline: a thin bark rim, pale end grain, one darker ring; the core
 // inside stays pale.
@@ -4249,7 +4249,7 @@ function logSections(len, w, flat, seed) {
   const bark = (z, side) => {
     const k = side > 0 ? 20 : 30;
     const xh = hw * (0.45 + 0.21 * wave(z, k));
-    const rb = Math.max(hw + 0.04 * s, Math.min(rbBase * (0.975 + 0.05 * wave(z, k + 4)), R));
+    const rb = Math.min(R, Math.max(hw + 0.04 * s, rbBase * (0.975 + 0.05 * wave(z, k + 4))));
     const f = flare(z);
     const lerp = (a, b, t) => a + (b - a) * t;
     // The shoulder is a quarter ellipse from the walked strip's edge (on the
@@ -4265,12 +4265,15 @@ function logSections(len, w, flat, seed) {
     const pts = [
       { x: xh, y: yTop(xh) },
       { x: x1, y: y1 },
-      { x: clampX(e2.x + 0.04 * s * f), y: e2.y + 0.1 * s * f },
-      { x: clampX(lerp(e3.x, Math.max(hw + 0.25 * s, R * 0.8), f)), y: lerp(e3.y, 0.3 * s, f) },
+      // kept in order across (each a little short of the footprint's edge,
+      // never back inside the walked strip), so a top nearly as wide as the
+      // trunk can't fold the hump into a spike
+      { x: Math.max(x1 + 0.004 * s, Math.min(e2.x + 0.04 * s * f, R - 0.06 * s)), y: e2.y + 0.1 * s * f },
+      { x: Math.max(x1 + 0.008 * s, Math.min(lerp(e3.x, Math.max(hw + 0.25 * s, R * 0.8), f), R - 0.03 * s)), y: lerp(e3.y, 0.3 * s, f) },
       { x: clampX(lerp(rb, R, f)), y: lerp(yb, -0.12 * s, f) },
-      { x: clampX(lerp(rb * 0.95, R * 0.94, f)), y: -0.45 * s },
-      { x: clampX(lerp(rb * 0.62, R * 0.7, f)), y: -0.66 * s },
     ];
+    // (Below the bulge the trunk is under the water or the bank everywhere,
+    // so it closes straight to the bottom.)
     return { xh, pts };
   };
   const bottomY = -0.78 * s;
@@ -4325,8 +4328,8 @@ function logTrunkGeometry(len, sec, seed) {
   // mottled; moss on one side's wane and shoulder toward one end.
   const mossSide = seed(1) < 0.5 ? 1 : -1;
   const mossFromStart = seed(2) < 0.5;
-  const BARK_BY_STEP = [LOG_WANE_IN, LOG_BARK, LOG_BARK, LOG_BARK_LOW, LOG_BARK_WET, LOG_BARK_LOW, LOG_BARK_LOW];
-  const MOSS_BY_STEP = [0.75, 0.8, 0.7, 0.4, 0, 0, 0];
+  const BARK_BY_STEP = [LOG_WANE_IN, LOG_BARK, LOG_BARK, LOG_BARK_LOW, LOG_BARK_WET];
+  const MOSS_BY_STEP = [0.75, 0.8, 0.7, 0.4, 0];
   const WANE_TURN = [0.17, 0.2, 0.1];
   const bottoms = zs.map((z) => vert(0, bottomY, z, [0, -1, 0], shade(LOG_BARK_LOW, 0.7)));
   const hewnEdge = new Map(); // side -> [ring] the hewn edge's x
@@ -4354,10 +4357,22 @@ function logTrunkGeometry(len, sec, seed) {
         return vert(side * p.x, p.y, z, [side * nx / nl, ny / nl, 0], cc);
       }));
     });
+    // The profile runs round the section the same way at every step, so one
+    // winding serves the whole side: read it off the bulge (its normal is
+    // plain sideways) rather than per face, where a thin root hump's wall can
+    // have shading normals on both sides of it.
+    const P = (v) => new THREE.Vector3(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]);
+    const r0 = rows[0], r1 = rows[1];
+    const face = P(bottoms[0]).sub(P(r0[4])).cross(P(r1[4]).sub(P(r0[4])));
+    const keep = face.x * side >= 0;
+    const put = (a, b, d) => (keep ? idx.push(a, b, d) : idx.push(a, d, b));
     for (let i = 0; i < N - 1; i++) {
       const row = rows[i], next = rows[i + 1];
-      for (let j = 0; j < row.length - 1; j++) quad(row[j], row[j + 1], next[j + 1], next[j]);
-      quad(row[row.length - 1], bottoms[i], bottoms[i + 1], next[row.length - 1]);
+      const ring = [...row, bottoms[i]], ringN = [...next, bottoms[i + 1]];
+      for (let j = 0; j < ring.length - 1; j++) {
+        put(ring[j], ring[j + 1], ringN[j + 1]);
+        put(ring[j], ringN[j + 1], ringN[j]);
+      }
     }
     hewnEdge.set(side, edges);
   }
@@ -4432,7 +4447,8 @@ function logTrunkGeometry(len, sec, seed) {
     const el = (38 + 14 * seed(42 + k)) * (Math.PI / 180);
     const dir = new THREE.Vector3(side * Math.cos(el), Math.sin(el), sgn * stubDir * (0.25 + 0.2 * seed(44 + k))).normalize();
     const rad = rad0 * s, L1 = L0 * s * (0.9 + 0.2 * seed(46 + k));
-    base.addScaledVector(dir, -0.05 * s).x -= side * 0.03 * s;
+    // sunk well into the bark so no part of the open base ring shows
+    base.addScaledVector(dir, -0.12 * s).x -= side * 0.05 * s;
     // keep the tip and its bark inside the footprint
     const out = Math.max(1e-3, dir.x * side);
     const L = Math.max(0.1 * s, Math.min(L1, (R - 0.01 - rad * 0.6 - Math.abs(base.x)) / out));

@@ -722,7 +722,11 @@ describe('the Woods builders', () => {
     }
     // past the flat the bark shoulder rolls down toward the water (0.03)
     for (const z of [-0.5, 0, 0.5]) {
-      for (const side of [-1, 1]) expect(logTopAt(log, side * 1.1, z)?.point.y ?? -1, `z ${z}`).toBeLessThan(0.06);
+      for (const side of [-1, 1]) {
+        const hit = logTopAt(log, side * 1.1, z);
+        expect(hit, `z ${z}`).toBeTruthy();
+        expect(hit.point.y, `z ${z}`).toBeLessThan(0.06);
+      }
     }
   });
 
@@ -734,6 +738,78 @@ describe('the Woods builders', () => {
       expect(bb.max.x - bb.min.x, `${args}`).toBeGreaterThan(w * 0.97);
       expect(bb.max.z - bb.min.z, `${args}`).toBeLessThanOrEqual(Math.hypot(args[2] - args[0], args[3] - args[1]) + 1e-3);
     }
+  });
+
+  it('logBridge is one closed, consistently wound surface for any w and flat (bar the stubs\' sunk bases)', () => {
+    for (const [args] of logCalls) {
+      const geo = b.logBridge(...args).children[0].geometry;
+      const pos = geo.attributes.position, idx = geo.index.array;
+      // weld by position
+      const key = new Map(), id = [];
+      for (let i = 0; i < pos.count; i++) {
+        const k = [pos.getX(i), pos.getY(i), pos.getZ(i)].map((v) => v.toFixed(5)).join();
+        if (!key.has(k)) key.set(k, key.size);
+        id.push(key.get(k));
+      }
+      const directed = new Map();
+      let vol = 0;
+      const v = (i) => new THREE.Vector3().fromBufferAttribute(pos, i);
+      for (let t = 0; t < idx.length; t += 3) {
+        const [a, c, d] = [idx[t], idx[t + 1], idx[t + 2]];
+        vol += v(a).dot(v(c).cross(v(d))) / 6;
+        for (const [p, q] of [[a, c], [c, d], [d, a]]) {
+          const e = `${id[p]},${id[q]}`;
+          directed.set(e, (directed.get(e) ?? 0) + 1);
+        }
+      }
+      let open = 0, twice = 0;
+      for (const [e, n] of directed) {
+        if (n > 1) twice++;
+        const [p, q] = e.split(',');
+        if (!directed.has(`${q},${p}`)) open++;
+      }
+      expect(twice, `${args}: edges wound the same way twice`).toBe(0);
+      expect(open, `${args}: open edges`).toBe(12); // the two stubs' six-sided bases
+      expect(vol, `${args}`).toBeGreaterThan(0);
+    }
+  });
+
+  // the Woods', River's and Moor's own bridges (the Pines' runs along x)
+  it.each([[-4.5, -15.5, -7.5], [-22, -35.5, -27.5], [4, -5.5, 2.5]])("logBridge's stub bases are sunk inside the bark (x %d)", (cx, za, zb) => {
+    const log = b.logBridge(cx, za, cx, zb, 3, 0.16, 1.9);
+    log.updateMatrixWorld(true);
+    const cz = (za + zb) / 2;
+    const geo = log.children[0].geometry, pos = geo.attributes.position, idx = geo.index.array;
+    // the open edges' vertices are the base rings; each one that could be
+    // seen (above the water, 0.03) must be inside the bark
+    const ids = new Set();
+    const count = new Map();
+    const k = (i) => [pos.getX(i), pos.getY(i), pos.getZ(i)].map((v) => v.toFixed(5)).join();
+    for (let t = 0; t < idx.length; t += 3) {
+      for (const [p, q] of [[0, 1], [1, 2], [2, 0]]) count.set(`${k(idx[t + p])}|${k(idx[t + q])}`, idx[t + p]);
+    }
+    for (const [e, i] of count) {
+      const [p, q] = e.split('|');
+      if (!count.has(`${q}|${p}`)) ids.add(i);
+    }
+    expect(ids.size).toBe(12);
+    const ray = new THREE.Raycaster();
+    let seen = 0;
+    for (const i of ids) {
+      const p = new THREE.Vector3(pos.getX(i) + cx, pos.getY(i) + 0.16, pos.getZ(i) + cz);
+      if (p.y < 0.01) continue;
+      seen++;
+      // from outside, straight in toward it: the trunk's bark (front faces
+      // only; the stubs' normals lean along the log) is crossed first
+      const sx = Math.sign(pos.getX(i));
+      const from = new THREE.Vector3(cx + sx * 2, p.y, p.z);
+      ray.set(from, new THREE.Vector3(-sx, 0, 0));
+      const nz = (h) => Math.abs(geo.attributes.normal.getZ(h.face.a));
+      const reach = from.distanceTo(p) - 1e-4;
+      const bark = ray.intersectObject(log, true).filter((h) => h.distance < reach && nz(h) < 1e-6);
+      expect(bark.length, `base vertex ${i}`).toBeGreaterThanOrEqual(1);
+    }
+    expect(seen).toBeGreaterThanOrEqual(1);
   });
 
   describe('logBridge reads as a round log', () => {

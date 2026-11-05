@@ -11,12 +11,12 @@
 - No new meshes or casters; no Math.random; deterministic from the endpoints via hash01.
 - The deck's ±0.9 m strip: the visual top is exactly `y` on the log's centre line and never above `y`, and at most ~4.5 cm below it at the deck's edge.
 - Everything stays inside the trunk footprint `w` (fixes the stub that could poke out for unusual w/flat).
-- Triangles: ≤ 600 per log (was 167). Logs live in Woods, River, Moor, Pines (the Gorge has none).
+- Triangles: ≤ 600 per log (was 167; lands at 394). Logs live in Woods, River, Moor, Pines (the Gorge has none).
 - Only builder.js `logBridge`/`logTrunkGeometry`, test/builder.test.js's logBridge tests, the budget comment in test/budget.test.js.
 
 ## Shape
-- Cross-section built from a profile function of z: a hewn top with a slight crown (centre at y, about 3 cm down at the deck edge); a bark wane from a wavy hewn edge (`xh(z)` wanders 0.6–0.78 m) out to the flat's edge; a rounded shoulder that rolls over into a near-vertical bark flank bulging to ~1.14 m half-width just under the water line; a coarse belly under the water. Normals from the profile itself (smooth, shared vertices on the bark, crisp crease at the hewn edge).
-- Ten cross-sections along the log, closer together at the root end.
+- Cross-section built from a profile function of z: a hewn top with a slight crown (centre at y, about 3 cm down at the deck edge); a bark wane from a wavy hewn edge (`xh(z)` wanders 0.43–0.63 m; narrowed after the first live look, so more round bark shows on top) out to the flat's edge; a rounded shoulder that rolls over into a near-vertical bark flank bulging to ~1.14 m half-width just under the water line; straight to the bottom under the bulge (it is under the water or the bank everywhere). Normals from the profile itself (smooth, shared vertices on the bark, crisp crease at the hewn edge).
+- Nine cross-sections along the log, closer together at the root end.
 - Root flare at one end (seeded): over the last ~1.4 m the bark shoulders rise into two buttress humps up to ~0.28 m above the top, outside the walked strip, and the flank widens to the footprint's edge. The root end face is dark root/earth (earcut-triangulated, since the notch between the humps isn't star-shaped).
 - Sawn end at the other end: concentric end-grain loops sampled at the outline's own points, so there are no T-junctions; inner loop fanned.
 - Two broken branch stubs (6 sides, bent, pale jagged tip) on opposite flanks over the water, rising up and out above the top, clamped inside the footprint.
@@ -32,7 +32,7 @@
 
 ## Rulings
 - R1 The walked top gets a crown that only falls: y on the centre line, ~3 cm down at the deck's edge (±0.9), ~4.5 cm at the flat's edge. Cost if wrong: a cat walking the very edge of the deck floats ≤ 4 cm.
-- R2 `flat` now means the walked width (the top stays within a few cm of y across it); the hewn/bark colour line inside it wanders 0.6–0.78 m out. Cost if wrong: none for gameplay; a reviewer reading `flat` as "hewn wood width" would see bark at the deck's outer 10–30 cm.
+- R2 `flat` now means the walked width (the top stays within a few cm of y across it); the hewn/bark colour line inside it wanders 0.43–0.63 m out. Cost if wrong: none for gameplay; a reviewer reading `flat` as "hewn wood width" would see bark over the deck's outer 27–47 cm.
 - R3 The visual trunk is narrower than `w` (bulge ~2.3 m) except at the root flare, which reaches `w`. Cost if wrong: the log looks less massive than the "great oak" comment says.
 - R4 Stubs and root humps stand above y outside the deck strip (no colliders; cats can't step there). Cost if wrong: a cat walking off the deck edge at the root end could clip a hump visually.
 - R5 One end is a root flare, the other a sawn end; no splintered broken end. Cost if wrong: one fewer "fallen tree" cue.

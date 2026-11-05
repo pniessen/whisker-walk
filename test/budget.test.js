@@ -320,9 +320,9 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //
 //   area    meshes  casters  triangles          logBridge   trail tucks
 //   woods   184     154      57,910 -> 57,921   160 -> 167  2
-//   river   172     58,329 -> 58,342   160 -> 167  3
-//   moor     88     59,055 -> 59,068   160 -> 167  3
-//   pines   117     54,751 -> 54,768   160 -> 167  5
+//   river   172     135      58,329 -> 58,342   160 -> 167  3
+//   moor     88      48      59,055 -> 59,068   160 -> 167  3
+//   pines   117      71      54,751 -> 54,768   160 -> 167  5
 //   gorge    61      36      57,637 -> 57,639   (none)      1
 //
 // Left under the 60,000 ceiling: Woods 2,079, River 1,658, Moor 932,
@@ -351,14 +351,17 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // polish-logs: the log bridges are rounded (crowned walked top, wavy hewn
 // edge, bark shoulders rolling into the flanks, a root flare at one end, a
 // sawn end at the other, two bigger branch stubs). Same one mesh per log, no
-// new casters; 167 -> 526 triangles a log. The Gorge has no log bridge.
-// Ceilings unchanged (70k). Before is main at 56ecc83.
+// new casters; 167 -> 394 triangles a log. The Gorge has no log bridge.
+// Below the bulge the trunk closes straight to its bottom (it is under the
+// water or the bank everywhere), which keeps the River and Moor inside
+// riverdress/moordress's own 59,400 guards. Ceilings unchanged (70k).
+// Before is main at 56ecc83.
 //
 //   area    meshes  triangles          logBridge
-//   woods   184     57,921 -> 58,280   167 -> 526
-//   river   172     58,342 -> 58,701   167 -> 526
-//   moor     88     59,068 -> 59,427   167 -> 526
-//   pines   117     54,768 -> 55,127   167 -> 526
+//   woods   184     57,921 -> 58,148   167 -> 394
+//   river   172     58,342 -> 58,569   167 -> 394
+//   moor     88     59,068 -> 59,295   167 -> 394
+//   pines   117     54,768 -> 54,995   167 -> 394
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the
