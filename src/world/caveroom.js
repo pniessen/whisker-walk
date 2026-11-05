@@ -1116,6 +1116,10 @@ export function crystalClusters(spots, seed, { color = 0x9fc7d8, size = 1, id = 
 // the corridors' MOUTH_LOW_IN (0.12), not the den lining's LINER_IN (0.05),
 // on purpose: its jambs stand at most 0.08 m in (measured), which at a 6 m
 // wide den mouth is negligible (ruled so in the polish-gorge5 Task 2 review).
+// A small den (polish-gorge6) is only DEN_HEADROOM (1.8 m) tall, under the
+// corridors' camera line: camzoom holds the camera CAM_CEIL_CLEAR under a
+// ceiling, so it crosses a den's mouth at most 1.5 m up, and the den's arch
+// passes `camH` 1.5 in place of MOUTH_CAM_H (and fewer outline `points`).
 //
 // Pure, seeded geometry (mulberry32 only, no THREE objects): returns indexed
 // world positions with area-weighted smooth normals (normalsOf), the rim's
@@ -1247,9 +1251,11 @@ function mouthOutline(opts, n) {
 export function caveMouth({
   x, z, y, nx, nz, half, headroom, seed, surface = () => 0, clear = () => true,
   jitter = 1, lowIn = MOUTH_LOW_IN, tunnel, stones: stoneCount, mound, backFrame,
+  camH = MOUTH_CAM_H, points,
 }) {
   const isTunnel = tunnel ?? (half === TUNNEL_HALF && headroom === CORRIDOR_HEADROOM);
-  const n = isTunnel ? 23 : 29;
+  // (points: the outline's samples, odd; polish-gorge6 gives the small dens fewer)
+  const n = points ?? (isTunnel ? 23 : 29);
   const nStones = stoneCount ?? (isTunnel ? 3 : 4);
   const rng = mulberry32(seed >>> 0);
   const { pts, len, spring } = mouthOutline({ half, headroom, tunnel: isTunnel }, n);
@@ -1294,7 +1300,7 @@ export function caveMouth({
       const minU = half - lowIn;
       if (Math.abs(p.u) < minU && Math.abs(pts[k].u) >= minU - 1e-9) p.u = Math.sign(pts[k].u) * minU;
     }
-    if (Math.abs(p.u) < MOUTH_CAM_HALF && p.h > MOUTH_LOW_H) p.h = Math.max(p.h, MOUTH_CAM_H);
+    if (Math.abs(p.u) < MOUTH_CAM_HALF && p.h > MOUTH_LOW_H) p.h = Math.max(p.h, camH);
   }
   const crownH = O[(n - 1) >> 1].h;
   const browOf = (k) => {

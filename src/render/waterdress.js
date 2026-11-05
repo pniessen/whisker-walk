@@ -150,46 +150,39 @@ const APRON_TUCK = 0.5;
 const APRON_DROP = 0.015;
 const APRON_ROUGHNESS = 0.3;
 
-// Polish-pondrims — the Gorge's stream (Task 4). One ruler-straight 1.5 m
-// rect running the whole 100 m of the walkable canyon (and on past both ends
-// between the hills), so two 100 m banks on a budget of 600 triangles for the
-// whole dressing. At the normal look (6-row band every 0.7 m, a bite strip,
-// a stone every 4 m, 1-3 riffle stones every 6-10 m) that is several thousand. The
-// knobs, in the brief's order:
-//   - horizon 0: the box is the walkable bounds (z -50..50); past them the
-//     stream runs between the horizon hills, where no cat walks;
-//   - step: one sample every 3 m. The bite's waves are 17 / 9.5 / 5.3 m
-//     (weights 0.55 / 0.3 / 0.15), and scaled to half they move the edge by
-//     at most +-0.18 m, so the 5.3 m part's aliasing is a couple of
-//     centimetres; the lip wobble (1.3 m waves) is not used at all here;
-//   - a lighter band (lightBankProfile): 3 rows — a mud feather out over the
-//     water, the wet edge on the bitten line, gone by the band's width —
-//     4 triangles a span where the generic band draws 10;
-//   - the bite scaled by `biteScale` (the stream is only 1.5 m wide: at the
-//     full 0.85 the two banks could meet; at half, 0.65 m always stays open),
-//     and the riffles' clearances and lateral spread with it;
-//   - a bank stone every ~`stoneEvery` m, a riffle stop every ~`riffleEvery`
-//     m with one stone (not 1-3).
-// Measured (HIGH, on the Gorge's ground, and the same live with the walk's
-// keep-outs): band 304 (256 bank + 6 riffle streaks), fill 128, stones 152
-// (4 bank + 4 riffle stones) = 584. Step 2.5 with similar stone counts measured 655-705.
+// Polish-pondrims — the Gorge's stream (Task 4), filled out by polish-gorge6.
+// One ruler-straight 1.5 m rect running the whole 100 m of the walkable
+// canyon (and on past both ends between the hills). Pondrims squeezed it into
+// 600 triangles (no horizon margin, a 3 m step, a 3-row band, half bites, 4
+// bank stones); after the 70k area ceiling (2026-11-04) the owner asked for
+// fuller banks, so it now takes nearly the other areas' look:
+//   - horizon 4: the drawn box runs 4 m past the bounds, and the bite's box
+//     taper (0 for the last 0.5 m, easing in over 2) lies out there, so the
+//     bank wanders right up to z +-50 (it was straight for the last ~9 m);
+//   - step 1 m (the others: 0.7) with the generic 6-row band and its lip
+//     wobble (lightBankProfile is still there behind `light: true`);
+//   - the bite scaled by `biteScale` 0.6 (the stream is only 1.5 m wide: two
+//     full 0.85 bites could meet; at 0.6 at least 0.48 m stays open), and the
+//     riffles' clearance and lateral spread with it;
+//   - a bank stone every ~`stoneEvery` 7 m (the others: 4), a riffle stop
+//     every ~10-16 m with 1-2 stones.
+// Measured (HIGH, on the Gorge's ground): band 2,344, fill 424, stones 629 =
+// 3,397 (was 584). At a 1 m step the wobble's shortest wave (1.3 m) is
+// coarse, but it moves the lip only +-0.1 m; the bite carries the shape.
 const AREA_KNOBS = Object.freeze({
   gorge: Object.freeze({
-    horizon: 0,
-    step: 3,
-    // the drawn box ends at the bounds, so the last sample before the cut can
-    // be up to one step inside it: the bite is 0 for the last 3 m and eases
-    // in over the next 6 (no square step at the end of the strip)
-    boxDead: 3,
-    boxTaper: 6,
-    light: true,
-    biteScale: 0.5,
-    stoneEvery: 34,
-    riffleEvery: 26,
-    riffleJit: 8,
-    rifflePerStop: 1,
-    riffleLateral: 0.3,
-    riffleClear: 0.15,
+    horizon: 4,
+    step: 1,
+    boxDead: 0.5,
+    boxTaper: 2,
+    light: false,
+    biteScale: 0.6,
+    stoneEvery: 7,
+    riffleEvery: 10,
+    riffleJit: 6,
+    rifflePerStop: 2,
+    riffleLateral: 0.25,
+    riffleClear: 0.1,
   }),
 });
 const NO_KNOBS = Object.freeze({});

@@ -111,6 +111,16 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
+//   gorge             61       36      60179   (polish-gorge6, after the 70k raise: was
+//                                               58,959; rounded rock arches at the five
+//                                               small dens (denW1, denW2, denE,
+//                                               denLookout, denTop), 244 each = 1,220,
+//                                               appended to rockFaces: no mesh, no
+//                                               caster. The stream's water dressing
+//                                               (walk.js, after the build, not counted
+//                                               here) went 584 -> 3,397 for fuller
+//                                               banks: 63,576 drawn in all, 6,424
+//                                               under the 70,000 ceiling)
 //   gorge             61       36      58959   (polish-gorge5: was 57,637; rounded rock
 //                                               arches appended to rockFaces, no mesh,
 //                                               no caster: echo 218, snug 178, glitter

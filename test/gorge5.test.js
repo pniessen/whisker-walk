@@ -84,10 +84,11 @@ describe('polish-gorge5 task 2: rounded rock arches', () => {
   it('adds one rock arch per cave mouth and the camp den, inside the rock mesh', () => {
     const { rock, rockFaces } = gorgeBuilt();
     const arches = rock.userData.mouthArches;
-    expect(Object.keys(arches).sort()).toEqual(['campDen', 'campDenLining', 'echo', 'glitter', 'snug']);
+    // (polish-gorge6 added the five small dens: denW1 .. denTop)
+    expect(Object.keys(arches).sort()).toEqual(['campDen', 'campDenLining', 'denE', 'denLookout', 'denTop', 'denW1', 'denW2', 'echo', 'glitter', 'snug']);
     for (const n of Object.values(arches)) expect(n).toBeGreaterThan(0);
     const total = Object.values(arches).reduce((s, n) => s + n, 0);
-    expect(total - (arches.campDenLining ?? 0)).toBeLessThanOrEqual(1100);
+    expect(['echo', 'snug', 'glitter', 'campDen'].reduce((s, k) => s + arches[k], 0)).toBeLessThanOrEqual(1100);
     const geo = rockFaces.geometry;
     expect(geo.index).toBeNull();
     const n = geo.getAttribute('position').count;
@@ -408,7 +409,9 @@ describe('polish-gorge5 task 3: the camp den lining and the tunnels\' first metr
 
   it('keeps the arches and the lining inside the build budget', () => {
     const { rock } = gorgeBuilt();
-    const total = Object.values(rock.userData.mouthArches).reduce((s, x) => s + x, 0);
+    // gorge5's own arches and lining (polish-gorge6's small dens are held to their own budget in gorge6.test.js)
+    const own = ['echo', 'snug', 'glitter', 'campDen', 'campDenLining'];
+    const total = own.reduce((s, k) => s + rock.userData.mouthArches[k], 0);
     expect(total).toBeLessThanOrEqual(1500);
   }, 120_000);
 
