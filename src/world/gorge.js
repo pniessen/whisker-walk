@@ -642,9 +642,22 @@ export function topColor(out, x, z) {
   else out.set(MEADOW_DRY).lerp(_cb.set(MEADOW_GREEN), (v - 0.5) * 2);
   return out;
 }
-function bankColor(out, x, z) {
-  const t = Math.min(1, rectDist(STREAM, x, z) / 2.4);
-  return out.set(BANK_GREEN).lerp(_cb.set(GORGE_FLOOR_COLOR), Math.min(1, 0.4 + 1.5 * t)); // polish-pondrims: colour only, a faint damp fringe gone by ~1 m (was t * t: hard-edged green strips)
+// The stream's green verge (polish-gorge6, colour only: the cells, BANK_BANDS
+// and the meadow's rng are untouched). Sand at the water's edge, so the bank
+// bites' fill (drawn in the floor's own colour) meets sand, not a band of
+// olive: the old fringe was greenest right at the water, two-toned against
+// the fill. It rises to BANK_GREEN_MAX about half a metre to a metre back and
+// is gone by ~2.3 m. A corner where a cell is missing round it (a path, the
+// stepping stones, a cell off the floor) is plain floor, so the verge fades
+// out over a cell rather than stopping on a hard square edge.
+export const BANK_GREEN_MAX = 0.45;
+export function bankGreen(x, z, whole = true) {
+  if (!whole) return 0;
+  const d = rectDist(STREAM, x, z);
+  return BANK_GREEN_MAX * smoothstep(0.05, 0.5, d) * (1 - smoothstep(0.9, 2.3, d));
+}
+function bankColor(out, x, z, whole) {
+  return out.set(GORGE_FLOOR_COLOR).lerp(_cb.set(BANK_GREEN), bankGreen(x, z, whole));
 }
 
 function meadowMesh() {
@@ -667,10 +680,17 @@ function meadowMesh() {
       for (const [x, z, col2] of (up ? [a, b, c] : [a, c, b])) vert(x, y, z, col2);
     }
   }
+  // how many bank cells touch each corner: an inside corner has four
+  const ck = (x, z) => `${r2(x)},${r2(z)}`;
+  const touching = new Map();
+  for (const p of patches) {
+    if (p.kind !== 'bank') continue;
+    for (const [x, z] of [[p.x0, p.z0], [p.x1, p.z0], [p.x1, p.z1], [p.x0, p.z1]]) touching.set(ck(x, z), (touching.get(ck(x, z)) ?? 0) + 1);
+  }
   for (const p of patches) {
     // Colour is a pure function of world position, so cells that share a
     // corner share its colour and the patches read as soft blobs, not tiles.
-    const corner = (x, z) => (p.kind === 'bank' ? bankColor(_ca, x, z) : topColor(_ca, x, z));
+    const corner = (x, z) => (p.kind === 'bank' ? bankColor(_ca, x, z, touching.get(ck(x, z)) === 4) : topColor(_ca, x, z));
     const q = [[p.x0, p.z0], [p.x1, p.z0], [p.x1, p.z1], [p.x0, p.z1]].map(([x, z]) => [x, z, corner(x, z).clone()]);
     for (const k of [0, 2, 1, 0, 3, 2]) vert(q[k][0], p.y, q[k][1], q[k][2]);
   }

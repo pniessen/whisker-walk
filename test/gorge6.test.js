@@ -110,3 +110,17 @@ describe('polish-gorge6: arches at the small dens', () => {
     }
   }, 120_000);
 });
+
+describe('polish-gorge6: the stream verge', () => {
+  it('is floor-coloured at the water, green a little way back, and fades where a cell is missing', async () => {
+    const { bankGreen, BANK_GREEN_MAX } = await import('../src/world/gorge.js');
+    // the stream runs x -9.5 .. -8
+    expect(bankGreen(-9.55, 0)).toBeLessThan(0.01);
+    expect(bankGreen(-7.95, 0)).toBeLessThan(0.01);
+    expect(bankGreen(-10, 0)).toBeGreaterThan(0.3);
+    expect(bankGreen(-6.9, 0)).toBeGreaterThan(0.3);
+    expect(bankGreen(-12, 0)).toBeLessThan(0.01);
+    for (let x = -12; x <= -5.5; x += 0.1) expect(bankGreen(x, 3)).toBeLessThanOrEqual(BANK_GREEN_MAX + 1e-9);
+    expect(bankGreen(-10, 0, false)).toBe(0);
+  });
+});
