@@ -1,64 +1,185 @@
 # 🐈 Whisker Walk
 
-A cozy first-person cat-walking game for your browser. Pick a cat, clip on the
-leash, and wander — every bird spotted, yarn ball found, and purr earned pays
-whisker points you can spend on new cats, accessories, and places to walk.
+A cozy cat-walking game for your browser. You are the cat: prowl, pounce,
+climb and swim through a little world of neighbourhoods and wild territories.
+Every bird spotted, yarn ball found and purr earned pays whisker points you can
+spend on new cats, outfits and places to walk.
 
-## Play
+Play it at **https://pniessen.github.io/whisker-walk/**, or run it locally:
 
     npm install
     npm run dev
 
-Open the printed localhost URL.
+Then open the printed localhost URL.
 
-You ARE the cat: third-person camera, the world moves at your pace.
+## Two editions
 
-Every walk deals 3 goals — clear them all for a jackpot. Befriend the
-neighborhood cats by name (greet them across multiple walks), earn rank
-titles, and beat your best-walk score.
+The game has two editions, which share one save. You can switch between them
+on the home screen.
 
-**Controls:** click to grab the mouse · arrow keys to prowl · Shift to stalk ·
-mouse orbits the camera · Space to pounce or climb · E to interact / sniff ·
-V to meow · T yarn ball · C camera · M mute · Esc to pause or end the walk.
+- **Clan Edition** (the default) is a Warrior-Cats-flavoured game. You pick a
+  clan and walk its territory, camp and borders.
+- **Legacy Edition** is the original plain game, with no clans.
 
-**On phones & tablets:** left-thumb joystick to move (tilt gently to stalk) · drag the right side to look around · tap the buttons for pounce, meow, yarn, and camera · tap prompts to interact · ⏸ to pause.
+## Where you can walk
 
-**Settings ⚙️** (home base, below Sync): volume, mute, invert look (Y axis), left-handed touch controls (mirrors the joystick/action-button layout), reduced motion (drops rain particles and the walk body-bob), and hide chat bubbles (silences incoming in-game chat during a co-walk). Everything applies immediately, no reload — and it's all local, so it works fully offline/solo too.
+- **Town places:** the Neighbourhood (Twolegplace), the Park, the Seaside and
+  the Docks, plus your den at home base.
+- **The five clan territories**, each home to its own clan:
+
+  | Territory | Clan |
+  |---|---|
+  | The Woods | StormClan |
+  | The Moor | GaleClan |
+  | The River and Marshes | BrookClan |
+  | The Pines and Swamp | DuskClan |
+  | The Gorge | CliffClan |
+
+  The Pines also has a truce island.
+
+The world map on the home screen shows them all. Border posts let you cross
+from one territory into the next without going home first.
+
+## What you do on a walk
+
+- **Goals.** Every walk deals 3 goals; clear them all for a jackpot. You also
+  earn rank titles and can try to beat your best-walk score.
+- **Making friends.** Befriend the cats you meet by name, over several walks.
+- **Exploring.** Find hidden spots, buried treasure, caves and dens. You can
+  climb perches, rooftops and the Gorge's cliff ledges, and you can swim.
+- **Collecting.** Spot critters, take photos for your album, and race through
+  hoops.
+- **Weather and time of day.** Walks can be sunny, rainy or at dusk, with stars,
+  a moon and glowing windows.
+
+## Clan life (Clan Edition)
+
+- **Your clan's camp.** It has a leader, deputy, warriors, elders and kits,
+  each with a name. You can patrol, mark your borders, and feed the colony.
+- **Intruders.** Now and then a warrior from a neighbouring clan wanders
+  across your land. Get close and you can choose **Fight!** or **Back off**.
+- **Border patrols.** In another clan's territory you are the visitor. If its
+  border patrol catches you inside its border, you can choose **Fight!** or
+  **Run**:
+  - **Win:** the patrol warrior lets you pass for the rest of that walk.
+  - **Lose or run:** you're chased back over the border.
+- **How fights work.** A fight is best of three, and it's about reading the
+  other cat, not speed. Each round it shows an honest clue: it crouches low,
+  raises a paw, or backs up. You answer with the counter:
+  - **Dodge** a pounce.
+  - **Pounce** on a swipe.
+  - **Swipe** at a charge.
+- **After a fight.** Wins can unlock new moves, and a beaten warrior wears your
+  scar back to its camp. **Losing never takes anything away.** The worst that
+  happens is a scratch on your cat that fades after a few walks.
+
+## Your cats
+
+- **The cat builder** lets you design a cat's coat, markings, eyes and shape.
+- **The dressing room** has hats, capes, collars, wings, backpacks and more.
+  You can try things on with your cat standing or sitting.
+- **More cats** can be bought with whisker points, including a few family cats
+  and Hagrid the hen.
+
+## Controls
+
+**Keyboard and mouse:**
+
+| Key | Action |
+|---|---|
+| Click | grab the mouse |
+| Arrow keys | move |
+| Shift | stalk |
+| Space | pounce or climb |
+| E | interact or sniff |
+| V | meow |
+| T | yarn ball |
+| C | camera |
+| + / − | zoom |
+| M | mute |
+| Esc | menu |
+
+The mouse orbits the camera. In a fight, the buttons on screen (or E and Q at
+the challenge) do the work.
+
+**Phones and tablets:**
+
+- Move with the left-thumb joystick; tilt it gently to stalk.
+- Drag the right side of the screen to look around.
+- Tap the buttons to pounce, meow, throw yarn, use the camera and zoom.
+- Tap a prompt to interact.
+- ⏸ pauses.
+
+**Settings ⚙️** (on the home screen) apply straight away and are stored only on
+the device:
+
+- volume and mute;
+- invert look;
+- left-handed touch controls;
+- reduced motion;
+- hide chat bubbles;
+- graphics quality: Auto picks a level that keeps the frame rate smooth.
 
 ## Walk together 🐾🐾
 
-Up to 4 players can share a live walk — one shared seeded world, everyone's
-pet rendered in real time, plus touch-noses, duet meows, yarn rallies, and
-nap piles. From the home base screen: name your pet, then either **Host a
-walk** (get a 4-character room code to share) or **Join** with a code a
-friend sent you. Anyone in the room can press **Start the walk together**:
-the walk starts for everyone, in the area of whoever pressed it. Siblings who
-share a colony get a **Walk with …** button instead — no code to type.
+Up to 4 players can share a live walk. Everyone sees the same seeded world,
+with each player's cat rendered in real time. You can touch noses, meow in a
+duet, rally a yarn ball, nap in a pile and patrol together.
 
-During a co-walk, tap the 💬 button to open a tray of curated phrases and
-emotes — no free text, so chat is always safe to broadcast. Picked phrases
-show as a speech bubble over your cat (and the sender's, for everyone else)
-and appear in the tray as a per-player mute toggle. Chat is co-walk-only:
-solo walks and ghost visits never show the 💬 button or send/receive
-anything. See the "Hide chat bubbles" setting above to silence incoming
-chat entirely.
+**Starting a walk together:**
 
-Multiplayer runs on [Supabase](https://supabase.com) Realtime — no server of
-ours involved. To enable it locally, create a free Supabase project and put
-its Project URL and anon public key in a `.env.local` file (gitignored):
+1. Name your pet on the home screen.
+2. Choose **Host a walk** to get a 4-character room code, or **Join** with a
+   code a friend sent you.
+3. Anyone in the room can press **Start the walk together**. The walk starts
+   for everyone, in the area of whoever pressed it.
+
+Siblings who share a colony get a **Walk with …** button instead, so there's no
+code to type. Fights are only ever against computer-run cats, never another
+player.
+
+**Chat.** During a co-walk, the 💬 button opens a tray of preset phrases and
+emotes. There is no free text, so chat is always safe to share. Each phrase
+shows as a speech bubble over the sender's cat. Solo walks have no chat.
+
+**Setting up multiplayer.** It runs on [Supabase](https://supabase.com)
+Realtime, so there's no server of our own. To enable it locally, create a free
+Supabase project and put its Project URL and anon public key in a `.env.local`
+file (gitignored):
 
     VITE_SUPABASE_URL=https://your-project.supabase.co
     VITE_SUPABASE_ANON_KEY=your-anon-public-key
 
-Without these two variables set, "Walk together" simply shows a
-"multiplayer not configured" message and the rest of the game is unaffected
-— solo play never depends on them. The deploy workflow reads the same two
-variables from the repo's GitHub Actions secrets at build time.
+Without them, "Walk together" shows a "multiplayer not configured" message, and
+solo play is unaffected. The deploy workflow reads the same two variables from
+the repo's GitHub Actions secrets.
 
 ## Develop
 
-    npm test          # unit tests (Vitest)
+    npm test          # unit tests (Vitest), about 8,800 of them
     npm run build     # production build in dist/
+    npm run preview   # serve the production build
 
-Design spec: docs/superpowers/specs/2026-07-31-whisker-walk-design.md
-Multiplayer design spec: docs/superpowers/specs/2026-08-01-whisker-walk-v5-multiplayer.md
+**Built with:** Three.js 0.185, Vite 8 and Vitest 4. There is no backend apart
+from the optional Supabase realtime channel.
+
+**Deploying.** Every push to `main` runs the tests and deploys to GitHub Pages
+(`.github/workflows`).
+
+**Performance readout.** Add `?perf` to the URL to show frame time, draw calls
+and triangles on screen.
+
+**Determinism.** A walk is driven by seeded randomness, so the same seed always
+builds the same world. `test/fixtures/flat-trace.json` pins a recorded walk.
+If a change moves it, find out why before you re-record it.
+
+**Design docs** live in `docs/superpowers/specs/` and build plans in
+`docs/superpowers/plans/`. Good starting points:
+
+- `2026-07-31-whisker-walk-design.md`: the original game.
+- `2026-08-01-whisker-walk-v5-multiplayer.md`: walking together.
+- `2026-10-31-editions-and-territories-design.md`: editions and the five
+  territories.
+- `2026-10-31-clan-life-design.md`: camps, intruders and fights, including
+  the 2026-11-04 border patrol amendment.
+- `2026-10-31-cat-builder-design.md`: the cat builder.
