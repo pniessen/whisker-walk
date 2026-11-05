@@ -81,6 +81,7 @@ export const NO_CLAN_FIGHT = Object.freeze({
   startFight() {},
   backOff() {},
   hideChallengeFor: () => false,
+  wouldChallenge: () => false,
   engagedVisit: null,
   chasedOffTogether: () => false,
   answer() {},
@@ -330,6 +331,21 @@ export function createClanFight({
   onWon = () => {},
   onLost = () => {},
   measureCat = () => null,
+  // The border patrol fight (2026-11-04, src/game/borderfight.js) hands the
+  // patrol in as `intruders` and sets these; every default is today's home
+  // fight exactly. `hostileTo(cur, catPos)` replaces the at-home hostility
+  // test; `challengeRange` the pill's reach; after `challengeWait` seconds
+  // unanswered the pill backs off by itself; `onBackOff()` follows every back
+  // off; `challengeWords` ({ ask, off }) go to the pill; `words` replace the
+  // award ({ type, key, text } from award(name)) and the won / lost toasts;
+  // `eventTypes` ({ fight, done }) name the two wire events.
+  hostileTo = null,
+  challengeRange = CHALLENGE_RANGE,
+  challengeWait = Infinity,
+  onBackOff = () => {},
+  challengeWords = null,
+  words = null,
+  eventTypes = null,
 }) {
   let mode = 'idle'; // 'idle' | 'challenge' | 'walkover' | 'fight'
   let sess = null;
@@ -352,6 +368,9 @@ export function createClanFight({
   let lastWonRound = null; // the latest round I won (R11)
   let myYaw = 0;           // with actions: both cats face along the anchor line
   let faceFar = null;      // ...the intruder toward this point (FACE_FAR)
+  let askT = 0;            // s the pill has been up (challengeWait)
+  const FIGHT_EVENT = eventTypes?.fight ?? 'intruder-fight';
+  const DONE_EVENT = eventTypes?.done ?? 'intruder-done';
   const attempts = new Map(); // visit -> fights this device started on it
   const locks = new Map();    // visit -> { away, until }
 
@@ -369,6 +388,12 @@ export function createClanFight({
   const canStep = (ax, az, bx, bz) => !T || T.canStep(ax, az, bx, bz);
   const answerTime = reducedMotion ? ANSWER_TIME_REDUCED : ANSWER_TIME;
   const tumbleTime = reducedMotion ? TIMING.tumbleReduced : TIMING.tumble;
+
+  // A walking intruder this cat may challenge (before range, lock and footing).
+  function isFoe(cur, s) {
+    if (!cur || cur.state !== 'walking') return false;
+    return hostileTo ? hostileTo(cur, s.cat.position) === true : isHostile(cur, { clanHome, picks });
+  }
 
   function lockedNow(v, d) {
     const L = locks.get(v);
@@ -388,7 +413,7 @@ export function createClanFight({
     if (sentVisit === null) return;
     const v = sentVisit;
     sentVisit = null;
-    sendEvent({ v: 1, id: playerId, type: 'intruder-done', area: areaId, visit: v, fled });
+    sendEvent({ v: 1, id: playerId, type: DONE_EVENT, area: areaId, visit: v, fled });
   }
 
   function hideChallenge() {
@@ -456,7 +481,7 @@ export function createClanFight({
     intruders.hold(visit, playerId, { x: cat.x, z: cat.z }, { local: true });
     audio.hiss();
     sentVisit = visit;
-    sendEvent({ v: 1, id: playerId, type: 'intruder-fight', area: areaId, visit });
+    sendEvent({ v: 1, id: playerId, type: FIGHT_EVENT, area: areaId, visit });
     owned = ownedSpecials(ownedMoves());
     // Specials whatever `actions` is (R6); the actions' lengths and the
     // longer beats only with them.
@@ -491,6 +516,7 @@ export function createClanFight({
     if (mode !== 'challenge') return;
     locks.set(visit, { away: true, until: 0 });
     hideChallenge();
+    onBackOff();
   }
 
   // The spot FIGHT_GAP from the intruder on the line toward my cat.
@@ -618,14 +644,19 @@ export function createClanFight({
     const v = visit;
     const { name, clan } = foe;
     const site = siteOf(won);
+    // The border patrol's words (borderfight.js), worked out before either
+    // branch so each branch calls only what it always has; null at home.
+    const award = won && words?.award ? words.award(name) : null;
+    const wonLine = won && words?.won ? words.won(name, clan) : null;
     if (won) {
       // WON: it runs home, I am paid once, the win is reported, two toasts.
       intruders.flee(v);
       // The HUD shows an 'intruder' label as it is, with no "You spotted"
       // lead (ui/hud.js); the second toast says where it ran.
-      log.awardOnce('intruder', `intruder-${v}`, `You chased off ${name}! 🛡️`);
+      if (award) log.awardOnce(award.type, award.key, award.text);
+      else log.awardOnce('intruder', `intruder-${v}`, `You chased off ${name}! 🛡️`);
       onWon({ visit: v, castId, site, together: false });
-      hud.toast(`${name} ran back to ${clanName(clan)}'s land! 🏃`);
+      hud.toast(wonLine ?? `${name} ran back to ${clanName(clan)}'s land! 🏃`);
       sendDone(true);
       endFight();
       // END WON
@@ -636,9 +667,10 @@ export function createClanFight({
     intruders.release(v, playerId);
     locks.set(v, { away: false, until: now() + RECHALLENGE_DELAY });
     onLost({ site });
-    hud.toast(actions && scars
-      ? `${name} shook it off and walked on. That scratch will heal in a few walks!`
-      : `${name} shook it off and walked on. Try again soon!`);
+    hud.toast(words?.lost ? words.lost(name, actions && scars)
+      : actions && scars
+        ? `${name} shook it off and walked on. That scratch will heal in a few walks!`
+        : `${name} shook it off and walked on. Try again soon!`);
     sendDone(false);
     endFight();
     // END LOST
@@ -916,21 +948,34 @@ export function createClanFight({
         return;
       }
       const cur = intruders.current();
-      const hostile = !!cur && cur.state === 'walking' && isHostile(cur, { clanHome, picks });
+      const hostile = isFoe(cur, s);
       if (!hostile) { hideChallenge(); return; }
       const cat = s.cat.position;
       const d = Math.hypot(cat.x - cur.pos.x, cat.z - cur.pos.z);
       const locked = lockedNow(cur.visit, d);
       const standing = canStand(s) && sameLevel(cat, cur.pos);
       if (mode === 'challenge') {
-        if (cur.visit !== visit || d > CHALLENGE_KEEP || locked || !standing) hideChallenge();
+        if (cur.visit !== visit || d > CHALLENGE_KEEP || locked || !standing) { hideChallenge(); return; }
+        askT += dt;
+        if (askT >= challengeWait) backOff();
         return;
       }
-      if (d <= CHALLENGE_RANGE && !locked && standing) {
+      if (d <= challengeRange && !locked && standing) {
         mode = 'challenge';
         visit = cur.visit;
-        ui.showChallenge({ name: cur.member.name, clan: cur.clan });
+        askT = 0;
+        ui.showChallenge(challengeWords ? { name: cur.member.name, clan: cur.clan, ...challengeWords } : { name: cur.member.name, clan: cur.clan });
       }
+    },
+    // Would update open the pill for `s` right now? (The border patrol asks
+    // before it chases, src/rivalcats.js intercept.) Never while anything is up.
+    wouldChallenge(s) {
+      if (mode !== 'idle' || !s?.cat) return false;
+      const cur = intruders.current();
+      if (!isFoe(cur, s)) return false;
+      const cat = s.cat.position;
+      const d = Math.hypot(cat.x - cur.pos.x, cat.z - cur.pos.z);
+      return d <= challengeRange && !lockedNow(cur.visit, d) && canStand(s) && sameLevel(cat, cur.pos);
     },
     // A co-walker's fight on this visit (netevents): my pill goes away.
     // True when it was up for that visit.

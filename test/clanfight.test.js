@@ -46,7 +46,7 @@ function harness({
   special = null, ground = () => true, walkStamp = 'walk-1', log = null, startAt = 2.5, solo = false,
   terrain = undefined,
   actions, scars, ownedMoves = () => [], cat = null, player: playerIn = null, sExtra = {}, dt = DT, answerAt = 15,
-  measureCat = () => ({ ...ME_DIMS }), onFrame = null,
+  measureCat = () => ({ ...ME_DIMS }), onFrame = null, extra = {},
 } = {}) {
   const calls = [];
   const sent = [];
@@ -98,6 +98,7 @@ function harness({
     runSpeed: RUN, clanHome, picks, ...(solo ? {} : { sendEvent: (ev) => { sent.push(ev); } }),
     ...(terrain === undefined ? {} : { terrain }),
     ...(actions === undefined ? {} : { actions }), ...(scars === undefined ? {} : { scars }), ownedMoves, onWon, onLost, measureCat,
+    ...extra,
   });
   const frame = (step = dt) => { clock.T += step; cf.update(step, s); };
   const moves = [];
@@ -1688,5 +1689,86 @@ describe('fights stand on one level', () => {
     const base = runOne(undefined);
     expect(runOne(FLAT_GROUND)).toEqual(base);
     expect(runOne(null)).toEqual(base);
+  });
+});
+
+// Border patrol fight (2026-11-04): the options the patrol's fight sets. Each
+// default is today's home fight (every test above runs with none of them).
+describe('border patrol options', () => {
+  const near = { startAt: 2.5 };
+  test('hostileTo replaces the at-home test, and sees my cat', () => {
+    const seen = [];
+    const h = harness({ ...near, clanHome: false, extra: { hostileTo: (cur, cat) => { seen.push([cur.visit, cat.x]); return true; } } });
+    h.frame();
+    expect(h.cf.uiShowing).toBe('challenge');
+    expect(seen[0]).toEqual([7, 2.5]);
+    const no = harness({ ...near, extra: { hostileTo: () => false } });
+    no.frame();
+    expect(no.cf.uiShowing).toBeNull();
+  });
+  test('challengeRange sets the pill\'s reach', () => {
+    const h = harness({ startAt: 4.2, extra: { challengeRange: 4.5 } });
+    h.frame();
+    expect(h.cf.uiShowing).toBe('challenge');
+    const today = harness({ startAt: 4.2 });
+    today.frame();
+    expect(today.cf.uiShowing).toBeNull();
+  });
+  test('challengeWords reach the pill; without them the model is today\'s', () => {
+    const h = harness({ ...near, extra: { challengeWords: { ask: 'blocks your path!', off: 'Run' } } });
+    h.frame();
+    expect(h.ui.showChallenge).toHaveBeenCalledWith({ name: 'Mossjaw', clan: 'moor', ask: 'blocks your path!', off: 'Run' });
+    const today = harness(near);
+    today.frame();
+    expect(today.ui.showChallenge).toHaveBeenCalledWith({ name: 'Mossjaw', clan: 'moor' });
+  });
+  test('an unanswered pill backs off by itself after challengeWait, and onBackOff follows every back off', () => {
+    const offs = [];
+    const h = harness({ ...near, extra: { challengeWait: 1, onBackOff: () => offs.push(h.cf.uiShowing) } });
+    h.frame();
+    for (let i = 0; i < 25; i++) h.frame();
+    expect(h.cf.uiShowing).toBe('challenge');
+    for (let i = 0; i < 10; i++) h.frame();
+    expect(h.cf.uiShowing).toBeNull();
+    expect(offs).toEqual([null]);
+    const k = harness({ ...near, extra: { onBackOff: () => offs.push('key') } });
+    k.frame();
+    k.cf.backOff();
+    expect(offs).toEqual([null, 'key']);
+    // today: no wait at all
+    const today = harness(near);
+    today.frame();
+    for (let i = 0; i < 600; i++) today.frame();
+    expect(today.cf.uiShowing).toBe('challenge');
+  });
+  test('wouldChallenge tells, without opening anything, whether the pill would open now', () => {
+    const h = harness(near);
+    expect(h.cf.wouldChallenge(h.s)).toBe(true);
+    expect(h.ui.showChallenge).not.toHaveBeenCalled();
+    h.frame();
+    expect(h.cf.wouldChallenge(h.s)).toBe(false); // already up
+    const far = harness({ startAt: CHALLENGE_RANGE + 0.5 });
+    expect(far.cf.wouldChallenge(far.s)).toBe(false);
+    const wet = harness({ ...near, player: { inWater: true, halt() {} } });
+    expect(wet.cf.wouldChallenge(wet.s)).toBe(false);
+    expect(NO_CLAN_FIGHT.wouldChallenge()).toBe(false);
+  });
+  test('words replace the award and both toasts; eventTypes name the wire events', () => {
+    const awards = [];
+    const words = {
+      award: (name) => ({ type: 'border', key: 'border-moor', text: `You faced down ${name}! 🛡️` }),
+      won: (name) => `${name} lets you pass. 🐾`,
+      lost: (name, scarred) => `${name} won this time.${scarred ? ' scar' : ''}`,
+    };
+    const log = { awardOnce: (...a) => { awards.push(a); return 12; } };
+    const w = harness({ ...near, log, extra: { words, eventTypes: { fight: 'patrol-fight', done: 'patrol-done' } } });
+    w.challenge(); w.fight(); w.runToEnd();
+    expect(awards).toEqual([['border', 'border-moor', 'You faced down Mossjaw! 🛡️']]);
+    expect(w.hud.toast).toHaveBeenCalledWith('Mossjaw lets you pass. 🐾');
+    expect(w.sent.map((e) => e.type)).toEqual(['patrol-fight', 'patrol-done']);
+    const l = harness({ ...near, answers: 'wrong', extra: { words } });
+    l.challenge(); l.fight(); l.runToEnd();
+    expect(l.hud.toast).toHaveBeenCalledWith('Mossjaw won this time.');
+    expect(l.sent.map((e) => e.type)).toEqual(['intruder-fight', 'intruder-done']);
   });
 });
