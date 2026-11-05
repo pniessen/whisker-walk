@@ -169,7 +169,7 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
   // In every pose (all the cat's states, walking too), every vertex of the
   // clasp and the bands is out of the fur (body and underside, along the ray
   // from the body centre), out of the skull, and off the ground.
-  const ALL_STATES = [...STATES, 'arch', 'swipe', 'roll', 'pinning', 'pinned', 'flinch', 'swim', 'wade', 'shake'];
+  const ALL_STATES = [...STATES, 'arch', 'swipe', 'roll', 'pinning', 'pinned', 'flinch', 'rearUp', 'backUp', 'swim', 'wade', 'shake'];
   const TIE_SWEEP = ALL_STATES.flatMap((st) => [0.4, 1.3, 2.2].flatMap((t) => [[st, t, 0], ...(WALKING.includes(st) ? [[st, t, 1.5]] : [])]));
   it.each(CASES)('%s %s (simple %s): in every pose the clasp and the front edges stay out of the chest and the head', (b, id, simple) => {
     const cat = kitCat(b, id, simple);
@@ -191,6 +191,24 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
       expect(c.distanceTo(hc), `${label}: clasp near the head`).toBeLessThanOrEqual(0.32);
     }
   }, 180_000);
+
+  // The clasp rides the neck as the collar does: with a plain ring on (the
+  // studded collar keeps the clasp), in every pose the clasp's centre is
+  // within 5 cm of where the collar would hang a charm (the throat spot,
+  // carried on the collar); it differs only where the clasp is pushed out
+  // of the chest (the sniff, the swim: 4-5 cm).
+  it.each(['tabby', 'mainecoon', 'digit'])('%s: the clasp stays with the collar at the throat in every pose', (b) => {
+    const cat = buildCat(b, { ...BARE, body: 'cape', collar: 'studded' });
+    const collar = cat.userData.parts.head.userData.collar, tie = tieOf(cat);
+    expect(tie.userData.tie.clasp).toBeTruthy();
+    const local = new THREE.Vector3(...tie.userData.tie.throat).sub(collar.position);   // the collar sits unturned on the head as built
+    for (const [state, t, speed] of TIE_SWEEP) {
+      animateCat(cat, state, t, speed, false);
+      cat.updateMatrixWorld(true);
+      const want = collar.localToWorld(local.clone()).divideScalar(cat.scale.x);
+      expect(atOf(cat).distanceTo(want), `${state} t ${t} speed ${speed}`).toBeLessThanOrEqual(0.05);
+    }
+  }, 120_000);
 
   // With the throat already taken (a collar's charm: bell, heart, tag,
   // sparkle star; or any neck-slot item) the gold clasp is left off and the

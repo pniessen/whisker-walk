@@ -559,11 +559,14 @@ function tieCape(cat, state) {
   layCapeTie(tie, _tieM, body.matrix, head.matrix, underside.matrix);
 }
 
-// Exported for the tests (a torso yawed under a pose): the chest, then the neck.
+// For a caller that moves the head or torso after animateCat (the tests' yawed
+// torso; the den's loaf nap, dencats.js sleepyLoaf): the chest, then the neck
+// and its pieces, then the cape's clasp and front bands, refit to where they are now.
 export function refitNeck(cat, state) {
   const { body, underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(body, underside);
   fitNeck(cat, state);
+  tieCape(cat, state);
 }
 
 function restore(item) {

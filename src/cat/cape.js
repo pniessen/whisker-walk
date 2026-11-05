@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { TORSO, SKULL, deformTorso, shellInflate, torsoUnitAt } from './torso.js';
+import { TORSO, SKULL, deformTorso, shellInflate } from './torso.js';
 
 // The capes' cloth (moved out of model.js so backitems.js reads CAPE and
 // CAPE_SIT without an import cycle; model.js re-exports all four names).
@@ -185,9 +185,40 @@ const _head = new THREE.Vector3();
 const _push = new THREE.Vector3();
 const _best = new THREE.Vector3();
 const _L = new THREE.Vector3();
-const _u = [0, 0, 0];
-const _d = [0, 0, 0];
 const _M = { body: null, head: null, under: null };   // this frame's matrices (set by layCapeTie)
+const _B = new THREE.Vector3();
+// The torso's surface along a body-local direction: _sk = |deformTorso(u)|,
+// u the undeformed direction whose surface point lies along it (torso.js
+// torsoUnitAt's fixed point, in TORSO_STEPS steps rather than 8: from the
+// direction itself 4 steps land within ~1e-3 rad, well under a millimetre
+// of surface; started from the direction every time, so a pose always lays
+// the same, whatever came before). The widest |deformTorso| over the sphere
+// (reach, found once) lets a point far outside skip it.
+const TORSO_STEPS = 4;
+let _sk = 1, _reach = 0;
+function surfaceDir(L, len) {
+  const d0 = L.x / len, d1 = L.y / len, d2 = L.z / len;
+  let u0 = d0, u1 = d1, u2 = d2;
+  for (let k = 0; k < TORSO_STEPS; k++) {
+    const [x, y, z] = deformTorso(u0, u1, u2);
+    const P = Math.hypot(x, y, z);
+    u0 -= x / P - d0; u1 -= y / P - d1; u2 -= z / P - d2;
+    const M = Math.hypot(u0, u1, u2);
+    u0 /= M; u1 /= M; u2 /= M;
+  }
+  const [x, y, z] = deformTorso(u0, u1, u2);
+  _sk = Math.hypot(x, y, z);
+}
+function reach() {
+  if (_reach) return _reach;
+  let k = 0;
+  for (let i = 0; i <= 48; i++) for (let j = 0; j < 96; j++) {
+    const th = (Math.PI * i) / 48, ph = (2 * Math.PI * j) / 96;
+    const [x, y, z] = deformTorso(Math.sin(th) * Math.cos(ph), Math.sin(th) * Math.sin(ph), Math.cos(th));
+    k = Math.max(k, Math.hypot(x, y, z));
+  }
+  return (_reach = k * 1.02);
+}
 // Push P (cat frame) out of the skull, the torso and the underside balls, in place.
 function clear(P, shape) {
   const C = CAPE_TIE_CLEAR;
@@ -201,14 +232,16 @@ function clear(P, shape) {
     // the torso (body-local, before the body's scale)
     _L.copy(P).applyMatrix4(_inv);
     const len = _L.length();
-    _L.toArray(_d);
-    torsoUnitAt(_d, _u);
-    const [sx, sy, sz] = deformTorso(_u[0], _u[1], _u[2]);
-    const surf = TORSO.R * Math.hypot(sx, sy, sz);
-    if (len < C.torso * surf) { P.copy(_L.multiplyScalar(C.torso * surf / Math.max(len, 1e-6)).applyMatrix4(_M.body)); moved = true; }
+    // (far outside the torso's widest reach: no need to find its surface)
+    if (len < C.torso * TORSO.R * reach()) {
+      surfaceDir(_L, len);
+      const surf = TORSO.R * _sk;
+      if (len < C.torso * surf) { P.copy(_L.multiplyScalar(C.torso * surf / Math.max(len, 1e-6)).applyMatrix4(_M.body)); moved = true; }
+    }
     // the chest and belly balls (underside-local → the cat's resting frame)
+    _B.copy(P).applyMatrix4(_inv).applyMatrix4(_invUnder);
     for (const ball of shape.balls) {
-      _L.copy(P).applyMatrix4(_inv).applyMatrix4(_invUnder);
+      _L.copy(_B);
       const [bx, by, bz] = shape.bs;
       const ex = _L.x * bx - ball.at[0], ey = _L.y * by + shape.cy - ball.at[1], ez = _L.z * bz - ball.at[2];
       k = Math.hypot(ex / ball.r[0], ey / ball.r[1], ez / ball.r[2]);
@@ -217,6 +250,7 @@ function clear(P, shape) {
         _L.set((ball.at[0] + ex * g) / bx, (ball.at[1] + ey * g - shape.cy) / by, (ball.at[2] + ez * g) / bz)
           .applyMatrix4(_M.under).applyMatrix4(_M.body);
         P.copy(_L);
+        _B.copy(P).applyMatrix4(_inv).applyMatrix4(_invUnder);
         moved = true;
       }
     }
@@ -230,8 +264,9 @@ function clear(P, shape) {
 // `underM`: body.matrix, head.matrix, underside.matrix (the underside's is in
 // the body's frame). Writes body-local positions, normals and the bounding
 // sphere; returns the clasp centre, body-local (also kept in
-// mesh.userData.at). Allocates nothing of its own after the first call
-// (deformTorso returns a small array per cleared point).
+// mesh.userData.at). Allocates no objects of its own after the first call
+// (deformTorso returns a small array per torso step; three's
+// computeVertexNormals a few vectors). About 0.055 ms per caped cat on a Mac.
 export function layCapeTie(mesh, claspM, bodyM, headM, underM) {
   const geo = mesh.geometry, tie = geo.userData.tie, T = CAPE_TIE;
   const pos = geo.attributes.position;
@@ -242,7 +277,9 @@ export function layCapeTie(mesh, claspM, bodyM, headM, underM) {
   _chest.fromArray(tie.shape.chestCentre).applyMatrix4(underM).applyMatrix4(bodyM);
   _head.setFromMatrixPosition(headM);
   _cl.fromArray(tie.throat).applyMatrix4(claspM);                       // the clasp's centre, cat frame
-  _x.setFromMatrixColumn(claspM, 0).normalize();                        // the head's x, cat frame
+  _x.setFromMatrixColumn(claspM, 0);
+  const r = T.r * _x.length();                                          // the clasp's radius on the cat (× the head's scale)
+  _x.normalize();                                                       // the head's x, cat frame
   _f.fromArray(T.face).transformDirection(claspM);                      // the clasp's face, cat frame
   // the clasp, moved whole: by the largest push any of its rim and face
   // points needs, until none needs one
@@ -251,9 +288,9 @@ export function layCapeTie(mesh, claspM, bodyM, headM, underM) {
     // (the rim's points taken 15% wide, so the facets between them clear too)
     for (let k = 0; k < 7; k++) {
       _v.copy(_cl);
-      if (k === 1 || k === 2) _v.addScaledVector(_x, (k === 1 ? 1 : -1) * T.r * 1.15);
-      if (k === 3 || k === 4) _v.addScaledVector(_t.crossVectors(_f, _x).normalize(), (k === 3 ? 1 : -1) * T.r * 1.15);
-      if (k === 5 || k === 6) _v.addScaledVector(_f, (k === 5 ? 1 : -1) * T.r * T.flat * 1.15);
+      if (k === 1 || k === 2) _v.addScaledVector(_x, (k === 1 ? 1 : -1) * r * 1.15);
+      if (k === 3 || k === 4) _v.addScaledVector(_t.crossVectors(_f, _x).normalize(), (k === 3 ? 1 : -1) * r * 1.15);
+      if (k === 5 || k === 6) _v.addScaledVector(_f, (k === 5 ? 1 : -1) * r * T.flat * 1.15);
       _push.copy(_v);
       clear(_push, tie.shape).sub(_v);
       if (_push.lengthSq() > _best.lengthSq()) _best.copy(_push);
@@ -274,7 +311,7 @@ export function layCapeTie(mesh, claspM, bodyM, headM, underM) {
   for (let k = 0; k < 2; k++) {
     const side = k ? 1 : -1;
     _p0.fromArray(tie.shoulders[k]).applyMatrix4(bodyM);
-    _p1.copy(_cl).addScaledVector(_x, side * T.tuck * T.r).addScaledVector(_f, -0.3 * T.r);
+    _p1.copy(_cl).addScaledVector(_x, side * T.tuck * r).addScaledVector(_f, -0.3 * r);
     _mid.addVectors(_p0, _p1).multiplyScalar(0.5);
     _q.subVectors(_mid, _chest).normalize();
     _o.subVectors(_mid, _head).normalize();
@@ -299,6 +336,7 @@ export function layCapeTie(mesh, claspM, bodyM, headM, underM) {
   pos.needsUpdate = true;
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
+  _M.body = _M.head = _M.under = null;
   _cl.applyMatrix4(_inv);
   const at = (mesh.userData.at ??= [0, 0, 0]);
   _cl.toArray(at);
