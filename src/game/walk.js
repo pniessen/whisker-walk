@@ -41,7 +41,7 @@ import { cameraOffset } from '../catcam.js';
 import { createCritters, goatForDay } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
-import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes } from '../clancast.js';
+import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes, borderWarriorFor } from '../clancast.js';
 import { campLayout, campDiscs } from '../world/camp.js';
 import { clanWalkableFor } from '../world/clanground.js';
 import { DISCS } from '../rivalclans.js';
@@ -104,6 +104,7 @@ import { createWind } from '../render/wind.js';
 import { createSun, createFill, SUN_BIAS, assignShadowCasters, assignShadowCastersFor } from '../render/rig.js';
 import { createIntruders, isHostile, NO_INTRUDERS, INTRUDER_DECAL_RADIUS } from '../intruders.js';
 import { createClanFight, NO_CLAN_FIGHT } from './clanfight.js';
+import { createBorderFight } from './borderfight.js';
 import { createFightRecord } from './fightrecord.js';
 import { unlockToast } from '../fightmoves.js';
 import { createFightCam, findOccluders } from '../fightcam.js';
@@ -963,7 +964,18 @@ export function createWalkLifecycle({
     // every device, sixteen on HIGH less any slots fed colony cats took back.
     // Derived, never stored, the same on every device; Legacy spawns the same
     // cats in the same places, only without names.
-    const clanCast = isDen ? [] : castFor(areaId).slice(0, clanCountFor(tier.strays, fedHere));
+    // The border patrol fight (2026-11-04, rulings B1, B2): in another clan's
+    // territory its border patrol is one of its warriors, picked from the room
+    // seed on a co-walk (both screens agree) or else this walk. That warrior is
+    // out on patrol, so it is left out of the roaming cats below. Only where
+    // this device has a patrol: Clan Edition, a territory's camp, not at home.
+    const borderPicks = picksOf(progression.state);
+    const borderClan = !isDen && !clanHomeFor(areaId, progression.state.edition, borderPicks)
+      ? rivalForWalk(areaId, progression.state.edition, borderPicks)?.clan ?? null : null;
+    const borderFoe = borderClan ? borderWarriorFor(borderClan, roomSeed ?? seedFromCode(walkStamp)) : null;
+    const borderScars = borderFoe ? progression.intruderScars(borderFoe.id) : [];
+    const clanCast = (isDen ? [] : castFor(areaId).slice(0, clanCountFor(tier.strays, fedHere)))
+      .filter((m) => m !== borderFoe);
     // Task 6 (patrol together): set to interactions.js's endClanPatrol once
     // `session` exists below. The clan cats only call it from update, which
     // first runs after the session is built.
@@ -1480,9 +1492,6 @@ export function createWalkLifecycle({
     // The trees' shapes (src/fightcam.js), read once per walk from their tags
     // and shared by the fight camera and the tree fade. The den has none.
     const occluders = isDen ? [] : findOccluders(scene);
-    // The fight camera (src/fightcam.js): no tree hides either cat in a fight.
-    // Null where no fight can happen.
-    session.fightCam = session.clanFight !== NO_CLAN_FIGHT ? createFightCam({ occluders, colliders: areaData.colliders, bounds: areaData.bounds, reducedMotion, lookY: CAT_LOOK_Y, ground }) : null;
     // The tree fade (src/treefade.js): a tree, lamp post or building between
     // the walk camera and the cat, or round the camera, turns see-through. The
     // fight camera keeps `occluders` alone. Materials only, never `visible`.
@@ -1511,6 +1520,9 @@ export function createWalkLifecycle({
     // At home, your clan's camp has no hostile patrol: intruders take its
     // place (owner's decision 2026-10-31, superseding pick-your-clan's D7 for
     // the clan-life era). Everywhere else today's patrol rules stand.
+    // The border patrol fight: the patrol asks this before it chases (set to
+    // the border fight's pill below, once that exists).
+    let borderIntercept = () => false;
     if (isDen || clanHome || !rivalForWalk(areaId, progression.state.edition, picks)) {
       session.rival = NO_RIVAL;
     } else {
@@ -1538,6 +1550,9 @@ export function createWalkLifecycle({
           hud.toast(`${who} chased you back over their border! 🐾`);
         },
         onSettled: () => { player.halt(); session.chasing = false; },
+        // The border patrol fight (B1): the warrior on patrol, chosen above.
+        foe: borderFoe ? { member: borderFoe, scars: borderScars, showNames: isClanEdition(state) } : null,
+        intercept: () => borderIntercept(),
       });
       session.rival = {
         // `t` (the render clock) is for the marks' pulse only; the patrol
@@ -1551,6 +1566,10 @@ export function createWalkLifecycle({
         // the decals (interactions.js's 'border-mark' prompt reads them).
         patrolPos: () => patrol.pos,
         borderMarks: marks,
+        // The border patrol fight: the fight's interface (null without a
+        // warrior) and today's chase on demand.
+        foe: patrol.foe,
+        chaseNow: () => patrol.chaseNow(),
       };
     }
 
@@ -1577,6 +1596,39 @@ export function createWalkLifecycle({
         contest.tick(dt);
       };
     }
+    // The border patrol fight (2026-11-04): away from home, the camp's border
+    // patrol warrior can be fought (game/borderfight.js). Home and away never
+    // both have a fight, so there is only ever one pill. Built here, after the
+    // rival slice above (which holds no progression): its record is its own,
+    // and a win scars the patrol warrior, a loss my cat, as at home.
+    if (session.rival.foe && session.clanFight === NO_CLAN_FIGHT) {
+      const borderRecord = createFightRecord({
+        progression, hud, scarKey: myScarKey,
+        setMyScars: (scars) => setCatScars(cat, scars),
+        setIntruderScars: (visit, scars) => session.rival.foe.setScars(visit, scars),
+        onScarsChanged,
+      });
+      session.clanFight = createBorderFight({
+        patrol: session.rival,
+        ui: createFightUi(document.getElementById('hud'), {
+          onFight: () => session.clanFight.startFight(),
+          onBackOff: () => session.clanFight.backOff(),
+          onMove: (m) => session.clanFight.answer(m),
+        }),
+        audio, fx: session.fx, hud, log, areaId, walkStamp, playerId: pid,
+        playerSpecial: PERSONALITIES[cat.userData.breed]?.special,
+        reducedMotion, isGround: clanWalkable, player, runSpeed: pace, picks,
+        sendEvent: (ev) => session.net?.sendEvent(ev),
+        terrain: ground,
+        actions: true, scars: active.breed !== 'hagrid', ownedMoves: ownedMovesNow, ...borderRecord,
+        measureCat: catDims,
+      });
+      borderIntercept = () => session.clanFight.uiShowing !== null || session.clanFight.wouldChallenge(session);
+    }
+    // The fight camera (src/fightcam.js): no tree hides either cat in a fight.
+    // Null where no fight can happen (built after the border fight, so it is
+    // there too).
+    session.fightCam = session.clanFight !== NO_CLAN_FIGHT ? createFightCam({ occluders, colliders: areaData.colliders, bounds: areaData.bounds, reducedMotion, lookY: CAT_LOOK_Y, ground }) : null;
     const welcome = isDen ? null : homeWelcome(areaId, progression.state);
 
     // v21 3b Task 16 — The dog in its yard. One per outdoor area (propsets.js's
@@ -1780,6 +1832,7 @@ export function createWalkLifecycle({
         const liveIds = new Set(roster.map((p) => p.playerId));
         for (const r of remotes.list) {
           if (!liveIds.has(r.playerId)) { remotes.remove(r.playerId); session.intruders.dropHolder(r.playerId); }
+          if (!liveIds.has(r.playerId)) session.rival.foe?.dropHolder(r.playerId);
         }
         for (const p of roster) {
           if (p.playerId === session.playerId) continue; // don't render yourself as a remote pet

@@ -253,6 +253,8 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       applyRemoteBuddy(s, ev);
     } else if (ev.type === 'intruder-fight' || ev.type === 'intruder-done') {
       applyRemoteIntruder(s, ev);
+    } else if (ev.type === 'patrol-fight' || ev.type === 'patrol-done') {
+      applyRemotePatrol(s, ev);
     } else if (ev.type === 'border-cross') onBorderCross(s, ev);
   }
 
@@ -290,6 +292,35 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
     if (!ev.fled) { intruders.release(ev.visit, ev.id); return; }
     intruders.flee(ev.visit);
     s.clanFight?.chasedOffTogether?.(ev.visit, petNameFor(s, ev.id));
+  }
+
+  // The border patrol fight (2026-11-04, ruling B9) — a co-walker's fight
+  // with another clan's border patrol warrior (game/borderfight.js sends
+  // these). The patrol's walk is the shared clock, so as with intruders only
+  // "she is facing it" and "her fight is over" need the wire. WORLD STATE
+  // ONLY: no award, no save, and no "together" pay (each kid's outcome is her
+  // own; her win doesn't let me pass). The sender must be a remote in this
+  // walk, the area this one, the visit the patrol's one id ('patrol'), and
+  // `fled` exactly a boolean. fight: a counted, non-local hold, facing her
+  // cat; my pill for it goes, with a toast. done: her hold is released (my
+  // own fight, if any, still holds it).
+  function applyRemotePatrol(s, ev) {
+    const foe = s.rival?.foe;
+    if (!foe || typeof foe.current !== 'function') return;
+    const remote = s.remotes?.list.find((r) => r.playerId === ev.id);
+    if (!remote || ev.area !== s.areaId || ev.visit !== 'patrol') return;
+    const cur = foe.current();
+    if (!cur || cur.visit !== ev.visit) return;
+    if (ev.type === 'patrol-fight') {
+      const p = remote.group.position;
+      foe.hold(ev.visit, ev.id, { x: p.x, z: p.z });
+      if (s.clanFight?.hideChallengeFor?.(ev.visit)) {
+        hud.toast(`${petNameFor(s, ev.id)} is already facing ${cur.member.name}!`);
+      }
+      return;
+    }
+    if (typeof ev.fled !== 'boolean') return;
+    foe.release(ev.visit, ev.id);
   }
 
   // Clan Life Part 1, Task 6 — a co-walker started or ended a patrol with a
