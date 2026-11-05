@@ -645,10 +645,12 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   });
   // A cape (polish-pose Task 2) rests on the back: hung on the torso, its
   // cloth lies over the spine from the shoulders to the hips, out of the fur
-  // and within 3 cm of it, and its clasp is on the body too.
+  // and within 3 cm of it, and its clasp is on the body too (since the owner's
+  // 2026-11-04 throat clasp: one vertex-coloured mesh with the front bands,
+  // found by userData.capeClasp; catcape.test.js measures it).
   it.each(['cape', 'confetticape'])('%s rests on the back: on the torso, over the spine, touching, not sinking', (id) => {
     const cat = posed({ body: id }), { body } = cat.userData.parts;
-    const [cape] = itemMeshes(cat, COLOURS[id].slice(0, 1)), [clasp] = itemMeshes(cat, COLOURS[id].slice(1));
+    const [cape] = itemMeshes(cat, COLOURS[id].slice(0, 1)), clasp = body.children.find((c) => c.userData.capeClasp);
     expect(cape.parent).toBe(body);
     expect(clasp.parent).toBe(body);
     const c = body.getWorldPosition(new THREE.Vector3());

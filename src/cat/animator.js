@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { HOOD, slideHoodTo } from './backitems.js';
+import { layCapeTie } from './cape.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 import { isHenFightState, poseHen, syncHenRig } from './henfight.js';
 
@@ -246,6 +247,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   // Every state, once the body is where the pose fit left it.
   floatBalloons(cat);
   fitNeck(cat, state);
+  tieCape(cat, state);
   slideHood(cat);
   // Last: a scar rides the head and torso where everything above left them.
   if (cat.userData.parts.scars) fitScars(cat);
@@ -532,11 +534,39 @@ function fitNeck(cat, state) {
   if (neckwear) for (const item of neckwear) carry(item);
 }
 
-// Exported for the tests (a torso yawed under a pose): the chest, then the neck.
+// The cape's clasp and front bands (cape.js CAPE_TIE, owner 2026-11-04): the
+// clasp rides the neck exactly as the collar does (the same neckMove carry; on
+// the head as built in the stretch and the swim), and each band runs from the
+// cloth at the shoulder to it, bowed out from the posed chest and head, and
+// kept clear of the skull, the torso and the chest (cape.js). Re-laid
+// every frame, once the head, the body and the chest are where this frame
+// leaves them. A cat without a cape skips it at the first child scan.
+const _tieM = new THREE.Matrix4();
+function tieCape(cat, state) {
+  const { body, head, underside } = cat.userData.parts;
+  if (!underside) return;
+  const kids = body.children;
+  let tie = null;
+  for (let i = 0; i < kids.length; i++) if (kids[i].userData.capeClasp) { tie = kids[i]; break; }
+  if (!tie) return;
+  body.updateMatrix(); head.updateMatrix(); underside.updateMatrix();
+  if (HEAD_NECKWEAR.has(state)) _tieM.copy(head.matrix);
+  else {
+    const { turn, anchor } = NECK_FIT[state] ?? NECK_FIT_DEFAULT;
+    neckMove(cat, turn, anchor);
+    _tieM.multiplyMatrices(head.matrix, _X);
+  }
+  layCapeTie(tie, _tieM, body.matrix, head.matrix, underside.matrix);
+}
+
+// For a caller that moves the head or torso after animateCat (the tests' yawed
+// torso; the den's loaf nap, dencats.js sleepyLoaf): the chest, then the neck
+// and its pieces, then the cape's clasp and front bands, refit to where they are now.
 export function refitNeck(cat, state) {
   const { body, underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(body, underside);
   fitNeck(cat, state);
+  tieCape(cat, state);
 }
 
 function restore(item) {

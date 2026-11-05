@@ -158,6 +158,42 @@ describe('back items are shaped things on the back (accessories polish Task 2)',
     }
   });
 
+  // Owner, 2026-11-04: the wings stand UP off the back, spread like a resting
+  // butterfly's raised wings (they leaned back toward the tail). Standing and
+  // sitting, at rest (flutter at sin 0): each wing's hinge (its in-plane
+  // upright) is within 20° of vertical in the cat's frame; its top is not
+  // behind its root by more than 4 cm (no lean to the tail); it rises at
+  // least 22 cm over its own root (and, standing, 18 cm over the back: the
+  // sitting torso pitches its shoulders up to the wings' roots); and from
+  // behind it spreads past the torso's side.
+  it.each(BREEDS)('%s: the wings stand up off the back, spread (owner 2026-11-04)', (breed) => {
+    for (const body of COVERS) {
+      for (const state of ['follow', 'requestPet', 'perch']) {
+        const cat = kitCat(breed, 'wings', body);
+        animateCat(cat, state, 0, 0, false);
+        cat.updateMatrixWorld(true);
+        const torso = cat.userData.parts.body, s = cat.scale.x;
+        const tb = new THREE.Box3().setFromBufferAttribute(torso.geometry.attributes.position).applyMatrix4(torso.matrixWorld);
+        for (const w of itemsOf(cat)) {
+          const label = `${body} ${state} wing ${w.userData.wing}`;
+          const up = new THREE.Vector3(...w.userData.hinge.dir).transformDirection(w.matrixWorld);
+          if (up.y < 0) up.negate();
+          expect(up.y, `${label}: hinge upright`).toBeGreaterThanOrEqual(Math.cos(20 * Math.PI / 180));
+          const root = new THREE.Vector3(...w.userData.hinge.point).applyMatrix4(w.parent.matrixWorld);
+          const p = w.geometry.attributes.position, top = new THREE.Vector3(), q = new THREE.Vector3();
+          top.y = -Infinity;
+          for (let i = 0; i < p.count; i++) { q.fromBufferAttribute(p, i).applyMatrix4(w.matrixWorld); if (q.y > top.y) top.copy(q); }
+          expect((top.z - root.z) / s, `${label}: top not leaning to the tail`).toBeLessThanOrEqual(0.04);
+          expect((top.y - root.y) / s, `${label}: tall over its root`).toBeGreaterThanOrEqual(0.22);
+          if (state === 'follow') expect((top.y - tb.max.y) / s, `${label}: tall over the back`).toBeGreaterThanOrEqual(0.18);
+          const b = new THREE.Box3().setFromObject(w);
+          const out = w.userData.wing > 0 ? b.max.x - tb.max.x : tb.min.x - b.min.x;
+          expect(out / s, `${label}: spreads past the side`).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
   it('flutter: rest exactly at sin 0, moves otherwise, still under reducedMotion', () => {
     const built = kitCat('tabby', 'wings');
     const rest = itemsOf(built).map((w) => [w.position.toArray(), w.quaternion.toArray()]);

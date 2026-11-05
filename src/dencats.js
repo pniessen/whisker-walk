@@ -16,7 +16,7 @@
 // everything it holds; most dens have far fewer.
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
-import { animateCat } from './cat/animator.js';
+import { animateCat, refitNeck } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
 import { DEN_SPOTS, clearsCamera } from './den.js';
 import { strayBreed } from './straynames.js';
@@ -196,6 +196,8 @@ function sleepyLoaf(group) {
   head.position.z -= 0.14;     // forward, out of the body's shadow
   head.rotation.set(0.28, 0, 0.1);
   for (const p of tailPivots) p.rotation.y = 0.12; // tail alongside, not over the face
+  // the collar, neck pieces and a cape's throat clasp follow the moved head
+  refitNeck(group, 'nap');
 }
 
 // `seen` is shared across every root a dispose() walks, so a geometry or
