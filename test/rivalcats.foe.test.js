@@ -142,6 +142,22 @@ describe('the border patrol foe', () => {
     expect(h.api.state).not.toBe('held');
   });
 
+  test('a chase asked for while a co-walker still holds it waits until she lets go', () => {
+    const h = mk();
+    const c = h.cat();
+    h.step(c);
+    const f = h.api.foe;
+    f.hold(BORDER_VISIT, 'sis', { x: 0, z: 0 });
+    f.hold(BORDER_VISIT, 'me', c, { local: true });
+    f.release(BORDER_VISIT, 'me');
+    h.api.chaseNow();
+    h.step(c, 10);
+    expect(h.events).toEqual([]);
+    f.release(BORDER_VISIT, 'sis');
+    h.step(c);
+    expect(h.events).toEqual([['chase', member.name]]);
+  });
+
   test('dropHolder lets go of a co-walker who left', () => {
     const h = mk();
     const f = h.api.foe;

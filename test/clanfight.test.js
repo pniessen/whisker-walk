@@ -1741,6 +1741,19 @@ describe('border patrol options', () => {
     for (let i = 0; i < 600; i++) today.frame();
     expect(today.cf.uiShowing).toBe('challenge');
   });
+  test('backOffFor locks the pill for that long, not until my cat has walked away', () => {
+    const h = harness({ startAt: 2.5, extra: { backOffFor: 0 } });
+    h.frame();
+    h.cf.backOff();
+    h.frame();
+    expect(h.cf.uiShowing).toBe('challenge');
+    const today = harness({ startAt: 2.5 });
+    today.frame();
+    today.cf.backOff();
+    for (let i = 0; i < 60; i++) today.frame();
+    expect(today.cf.uiShowing).toBeNull();
+  });
+
   test('wouldChallenge tells, without opening anything, whether the pill would open now', () => {
     const h = harness(near);
     expect(h.cf.wouldChallenge(h.s)).toBe(true);

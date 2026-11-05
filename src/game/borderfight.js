@@ -43,6 +43,9 @@ export function createBorderFight({ patrol, areaId, onLost = () => {}, ...rest }
     challengeRange: NOTICE_DIST,
     challengeWait: BORDER_CHALLENGE_WAIT,
     onBackOff: () => patrol.chaseNow(),
+    // Run is today's chase; its cooldown (CHASE_COOLDOWN) is the only wait
+    // before the patrol squares up again, as it was before it chased again.
+    backOffFor: 0,
     challengeWords: BORDER_ASK,
     words: borderWords(areaId),
     eventTypes: BORDER_EVENTS,

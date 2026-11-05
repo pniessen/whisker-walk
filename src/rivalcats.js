@@ -346,7 +346,20 @@ export function createRivalPatrol(scene, areaId, {
     returnT = 0;
   }
 
-  const heldByMe = () => [...holders.values()].some((h) => h.local);
+  let localHolds = 0;      // how many of `holders` are this device's
+  const heldByMe = () => localHolds > 0;
+  const setHolder = (id, h) => {
+    if (holders.get(id)?.local) localHolds--;
+    holders.set(id, h);
+    if (h.local) localHolds++;
+  };
+  const dropOne = (id) => {
+    const h = holders.get(id);
+    if (!h) return false;
+    holders.delete(id);
+    if (h.local) localHolds--;
+    return true;
+  };
 
   function showTag(catPos) {
     if (!tag) return;
@@ -363,7 +376,7 @@ export function createRivalPatrol(scene, areaId, {
     lastCat = catPos;
     if (member) {
       // A remote holder that has said nothing for HOLD_MAX lets go; mine never.
-      for (const [id, h] of holders) if (!h.local && t - h.since >= HOLD_MAX) holders.delete(id);
+      for (const [id, h] of holders) if (!h.local && t - h.since >= HOLD_MAX) dropOne(id);
       if (state === 'held' && holders.size === 0) startReturn();
       if (state === 'standoff' || state === 'held') lag += dt;
       else if (state === 'patrol' && lag > 0) lag = Math.max(0, lag - dt * (CATCH_UP_SPEED / PATROL_SPEED - 1));
@@ -371,7 +384,8 @@ export function createRivalPatrol(scene, areaId, {
     if (!patrolInto(areaId, t - lag, pp)) return;
     cooldown = Math.max(0, cooldown - dt);
 
-    if (pendingChase) {
+    // A loss while a co-walker still holds it waits until she lets go.
+    if (pendingChase && state !== 'held' && state !== 'scamper') {
       pendingChase = false;
       if ((state === 'patrol' || state === 'return' || state === 'standoff') && canChase() !== false
         && tryChase(catPos, mesh.position)) {
@@ -510,19 +524,25 @@ export function createRivalPatrol(scene, areaId, {
   // The fight's `intruders` interface (game/clanfight.js), for a foe only.
   // Its one visit is BORDER_VISIT. The shared snapshot's pos is where the
   // mesh stands.
+  // current() is read every frame (the fight and the patrol's intercept), so
+  // it is one snapshot object, rewritten: read it, never keep it.
   const isMine = (v) => v === BORDER_VISIT;
+  const snap = member ? { visit: BORDER_VISIT, clan: member.clan, member, pos: { x: 0, z: 0 }, state: 'resting' } : null;
   const foe = member ? {
     current() {
       let st = 'resting';
       if (state === 'held') st = 'held';
       else if (passed) st = 'passed';
       else if ((state === 'patrol' || state === 'standoff') && cooldown <= 0) st = 'walking';
-      return { visit: BORDER_VISIT, clan: member.clan, member, pos: { x: mesh.position.x, z: mesh.position.z }, state: st };
+      snap.pos.x = mesh.position.x;
+      snap.pos.z = mesh.position.z;
+      snap.state = st;
+      return snap;
     },
     hold(v, holderId, facePos, { local = false } = {}) {
       if (!isMine(v)) return;
       const mine = heldByMe();
-      holders.set(String(holderId), { since: now(), local: local === true });
+      setHolder(String(holderId), { since: now(), local: local === true });
       if ((local === true || !mine) && facePos && Number.isFinite(facePos.x) && Number.isFinite(facePos.z)) {
         face = { x: facePos.x, z: facePos.z };
       }
@@ -530,12 +550,12 @@ export function createRivalPatrol(scene, areaId, {
     },
     release(v, holderId) {
       if (!isMine(v)) return;
-      holders.delete(String(holderId));
+      dropOne(String(holderId));
       if (!heldByMe()) stage = null;
       if (state === 'held' && holders.size === 0) startReturn();
     },
     dropHolder(holderId) {
-      if (!holders.delete(String(holderId))) return;
+      if (!dropOne(String(holderId))) return;
       if (state === 'held' && holders.size === 0) startReturn();
     },
     holders(v) { return isMine(v) ? [...holders.keys()] : []; },
@@ -568,7 +588,8 @@ export function createRivalPatrol(scene, areaId, {
     flee(v) {
       if (!isMine(v)) return;
       passed = true;
-      for (const [id, h] of holders) if (h.local) holders.delete(id);
+      pendingChase = false;
+      for (const [id, h] of holders) if (h.local) dropOne(id);
       stage = null;
       if (state === 'held' && holders.size === 0) startReturn();
       showTag(lastCat);

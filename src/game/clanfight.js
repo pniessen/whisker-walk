@@ -346,6 +346,10 @@ export function createClanFight({
   challengeWords = null,
   words = null,
   eventTypes = null,
+  // With a number, a back off locks the pill for that many seconds instead
+  // of until my cat has been beyond CHALLENGE_KEEP (the border patrol: its
+  // chase and cooldown are the wait, so 0).
+  backOffFor = null,
 }) {
   let mode = 'idle'; // 'idle' | 'challenge' | 'walkover' | 'fight'
   let sess = null;
@@ -514,7 +518,7 @@ export function createClanFight({
 
   function backOff() {
     if (mode !== 'challenge') return;
-    locks.set(visit, { away: true, until: 0 });
+    locks.set(visit, Number.isFinite(backOffFor) ? { away: false, until: now() + backOffFor } : { away: true, until: 0 });
     hideChallenge();
     onBackOff();
   }
