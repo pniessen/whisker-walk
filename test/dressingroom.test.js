@@ -4,9 +4,11 @@ import { SKILLS } from '../src/skills.js';
 import { CLAN_SUFFIX } from '../src/clanwords.js';
 import { CAT_BLURBS, ACC_BLURBS } from '../src/ui/catblurbs.js';
 import { PAW } from '../src/ui/pawicon.js';
+import { clanName } from '../src/clanhomes.js';
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
-  buildDressingModel, renderSlotPickerHtml, renderDressingRoomHtml, poseToggleHtml,
+  MENU_TILES, GROWNUP_SHEETS,
+  buildDressingModel, renderSlotPickerHtml, renderDressingRoomHtml, renderPlacesSheetHtml, poseToggleHtml,
 } from '../src/ui/dressingroom.js';
 
 function defaultishState() {
@@ -135,7 +137,7 @@ describe('slot picker', () => {
     expect(html).toContain('On ✓');
     expect(html).toContain('Take off');
     expect(html).toContain('data-dr-acc="heart" data-dr-act="buy"');
-    expect(html).toContain('Unlock — 25 🐾');
+    expect(html).toContain(`Unlock — 25 ${PAW}`);
     expect(html).toContain("30 🐾 (can't afford)");
     const owned = renderSlotPickerHtml(defaultishState(), CATALOG, 'neck', null);
     expect(owned).toContain('data-dr-acc="bandana" data-dr-act="wear"');
@@ -144,49 +146,75 @@ describe('slot picker', () => {
 
 describe('dressing-room renderer', () => {
   const render = (over = {}, state = defaultishState(), mopts) => renderDressingRoomHtml({
-    model: buildDressingModel(state, CATALOG, mopts), headerHtml: '<h1>HDR</h1>', statsHtml: '<i>STATS</i>',
-    startHtml: '<button id="start">GO</button>', extrasHtml: '<b>EXTRAS</b>', sheets: HOME_SHEETS,
-    ui: { pill: 'wearing', openSlot: null, pickerHtml: '' }, ...over,
+    model: buildDressingModel(state, CATALOG, mopts), headerHtml: '<h1>HDR</h1>',
+    startHtml: '<button id="start">GO</button>', extrasHtml: '<b>EXTRAS</b>',
+    ui: { wardrobe: false, moreCats: false, openSlot: null, pickerHtml: '' }, ...over,
   });
 
   it('renders the regions once, in order, with caller HTML verbatim', () => {
     const html = render();
-    const order = ['<header class="dr-header"', 'class="dr-hero"', 'class="dr-pills"', 'class="dr-wearing"', 'class="dr-abilities"',
-      'class="dr-where"', 'class="dr-more"', 'class="dr-extras"', '<footer class="dr-dock"'].map((c) => html.indexOf(c));
+    const order = ['<header class="dr-top"', 'class="dr-hero"', 'class="dr-strip"', 'class="dr-wearing"', 'class="dr-today"',
+      '<footer class="dr-dock"'].map((c) => html.indexOf(c));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    for (const t of ['<h1>HDR</h1>', '<i>STATS</i>', '<b>EXTRAS</b>', '<button id="start">GO</button>']) expect(count(html, new RegExp(t.replace(/[/.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toBe(1);
+    for (const t of ['<h1>HDR</h1>', '<b>EXTRAS</b>', '<button id="start">GO</button>']) expect(count(html, new RegExp(t.replace(/[/.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toBe(1);
     expect(html).toContain('id="dr-stage"');
-    expect(html).toContain('data-pill="wearing"');
-    expect(html).toContain('dr-pill-wearing');
+    expect(html).toContain('data-view="home"');
+    expect(html).toContain('dr dr-view-home');
     expect(html).toContain('drag to spin');
+    // the extras and Start sit together in the dock, Start last
+    const dock = html.slice(html.indexOf('<footer class="dr-dock"'));
+    expect(dock.indexOf('EXTRAS')).toBeLessThan(dock.indexOf('id="start"'));
   });
-  it('one portrait per cat, one slot per slot, one place per area, three pills', () => {
+  it('home shows the owned cats only (the rest wait behind "N more"); the wardrobe has one slot per slot; no phone pills', () => {
+    const owned = defaultishState().unlocked.cats.length;
+    const home = render();
+    expect(count(home, /data-dr-cat=/g)).toBe(owned);
+    expect(count(home, /data-dr-slot=/g)).toBe(0);
+    const open = render({ ui: { wardrobe: true, moreCats: true } });
+    expect(count(open, /data-dr-cat=/g)).toBe(Object.keys(CATALOG.cats).length);
+    expect(count(open, /data-dr-slot=/g)).toBe(new Set(Object.values(CATALOG.accessories).map((a) => a.slot)).size);
+    expect(home).not.toContain('data-dr-pill');
+    expect(open).not.toContain('data-dr-pill');
+    expect(home).toContain('aria-pressed="true"');
+  });
+  it('the home screen carries no place cards (the places sheet does) and no count labels', () => {
     const html = render();
-    expect(count(html, /data-dr-cat=/g)).toBe(Object.keys(CATALOG.cats).length);
-    expect(count(html, /data-dr-slot=/g)).toBe(new Set(Object.values(CATALOG.accessories).map((a) => a.slot)).size);
-    // the map's island star is a second tap target for the Pines, so one more than the areas
-    expect(count(html, /data-dr-place=/g)).toBe(Object.keys(CATALOG.areas).length + 1);
-    expect(count(html, /data-dr-pill=/g)).toBe(3);
-    expect(html).toContain(`aria-pressed="true"`);
+    expect(html).not.toContain('data-dr-place=');
+    expect(html).not.toMatch(/OF \d+ SLOTS/i);
+    expect(html).not.toMatch(/\d+ of \d+ slots/i);
+    expect(html).not.toContain('nothing yet');
+    expect(html).not.toContain('Wearing 0');
   });
-  it('a place card says whether it can be unlocked now, and looks not-yet when it cannot', () => {
+  it('exactly one start in the markup: the startHtml, once, in the dock', () => {
+    for (const ui of [{ wardrobe: false }, { wardrobe: true }]) {
+      const html = render({ ui });
+      expect(count(html, /id="start"/g)).toBe(1);
+      expect(count(html, /<button id="start">GO<\/button>/g)).toBe(1);
+    }
+  });
+  it('a place card in the places sheet says whether it can be unlocked now, and looks not-yet when it cannot', () => {
     const price = CATALOG.areas.park.price;
-    const s = defaultishState(); s.walks.neighborhood = 2;
+    const s = { ...defaultishState(), edition: 'legacy' }; s.walks.neighborhood = 2;
+    const sheet = (st) => renderPlacesSheetHtml(buildDressingModel(st, CATALOG));
     const card = (html) => html.match(/<button class="dr-place[^"]*" data-dr-place="park">[\s\S]*?<\/button>/)[0];
-    const poor = card(render({}, s));
+    const poor = card(sheet(s));
     expect(poor).toContain(`${price} 🐾 — keep walking!`);
     expect(poor).toMatch(/class="dr-place [^"]*\bcant\b/);
     s.points = price;
-    const rich = card(render({}, s));
+    const rich = card(sheet(s));
     expect(rich).toContain(`Tap to unlock — ${price} 🐾`);
     expect(rich).not.toMatch(/\bcant\b/);
-    const gated = card(render({}, defaultishState()));
+    const gated = card(sheet({ ...defaultishState(), edition: 'legacy' }));
     expect(gated).toContain('opens after 2 walks');
     expect(gated).not.toMatch(/\bcant\b/);
   });
-  it('the pills are toggle buttons, not a tablist', () => {
-    expect(render()).not.toContain('role="tablist"');
+  it('the cats-more and Dress up controls are toggle buttons, not a tablist', () => {
+    const home = render({ ui: { wardrobe: false, moreCats: false } });
+    expect(home).not.toContain('role="tablist"');
+    expect(home).toMatch(/<button[^>]*data-dr-wardrobe aria-expanded="false"/);
+    expect(home).toMatch(/<button[^>]*data-dr-more-cats aria-expanded="false"/);
+    expect(render({ ui: { moreCats: true } })).toMatch(/<button[^>]*data-dr-more-cats aria-expanded="true"/);
   });
   it('shows the hero unlock button only for a buyable locked cat', () => {
     const s = defaultishState(); s.points = 60;
@@ -194,14 +222,20 @@ describe('dressing-room renderer', () => {
     expect(render()).not.toContain('data-dr-buy-cat');
   });
   it('puts the picker under the open slot only', () => {
-    const html = render({ ui: { pill: 'where', openSlot: 'head', pickerHtml: '<p>PICK</p>' } });
+    const html = render({ ui: { wardrobe: true, openSlot: 'head', pickerHtml: '<p>PICK</p>' } });
     expect(count(html, /<p>PICK<\/p>/g)).toBe(1);
-    expect(html).toContain('data-pill="where"');
+    expect(html).toContain('data-view="wardrobe"');
+    // no slot open, or a slot that is not there: no picker
+    expect(render({ ui: { wardrobe: true, openSlot: null, pickerHtml: '<p>PICK</p>' } })).not.toContain('PICK');
+    expect(render({ ui: { wardrobe: true, openSlot: 'nope', pickerHtml: '<p>PICK</p>' } })).not.toContain('PICK');
+    // and not on the home screen at all
+    expect(render({ ui: { wardrobe: false, openSlot: 'head', pickerHtml: '<p>PICK</p>' } })).not.toContain('PICK');
   });
-  it('every sheet gets a button, including code', () => {
+  it('home holds only the places door; every other sheet is opened from the Menu', () => {
     const html = render();
-    for (const id of HOME_SHEETS) expect(html).toContain(`data-dr-sheet="${id}"`);
-    expect(html).toContain('🎁 Secret code');
+    expect(html).toContain('data-dr-sheet="places"');
+    for (const id of HOME_SHEETS.filter((x) => x !== 'places')) expect(html).not.toContain(`data-dr-sheet="${id}"`);
+    expect(count(html, /data-dr-sheet=/g)).toBe(1);
   });
   it('place pictures fall back to a gradient when the image fails', () => {
     expect(render()).toContain(`onerror="this.style.display='none'"`);
@@ -215,7 +249,7 @@ describe('dressing-room renderer', () => {
     const cat = { cats: { evil: { name: '<img src=x onerror=alert(1)>', price: 5 } }, accessories: { a: { name: '"><script>', slot: 'head', price: 1 } }, areas: { z: { name: '<b>z</b>', price: 0 } } };
     const state = { points: 9, unlocked: { cats: [], accessories: [], areas: [] }, equipped: { cat: 'evil' }, area: 'z', walks: {} };
     const html = renderDressingRoomHtml({
-      model: buildDressingModel(state, cat), ui: { pill: 'wearing', openSlot: 'head', pickerHtml: renderSlotPickerHtml(state, cat, 'head', null) },
+      model: buildDressingModel(state, cat), ui: { wardrobe: true, openSlot: 'head', pickerHtml: renderSlotPickerHtml(state, cat, 'head', null) },
     });
     expect(html).not.toContain('<img src=x');
     expect(html).not.toContain('<script>');
@@ -226,7 +260,7 @@ describe('dressing-room renderer', () => {
     const bad = { points: NaN, walks: 'x', unlocked: 'no', equipped: 7, area: {}, skills: 5 };
     let html;
     expect(() => { html = render({}, bad); }).not.toThrow();
-    expect(html).toContain('Wearing 0');
+    expect(html).toContain('Nothing on yet');
     expect(html).not.toContain('NaN');
     expect(html).not.toContain('undefined');
     expect(() => renderSlotPickerHtml(bad, CATALOG, 'head', { slot: 1, id: {} })).not.toThrow();
@@ -248,8 +282,8 @@ describe('sheets and pictures', () => {
     expect(HOME_SHEETS).not.toContain('den-shop');
     expect(SHEET_LABEL['den-shop']).toBeUndefined();
   });
-  it('labels match the signed-off mockup, with Play together added first', () => {
-    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['👫 Play together', '🐾 Skills', '🐈 Colony', '👥 Social', '📖 Journal', '📸 Album', '☁️ Sync', '⚙️ Settings', '🎁 Secret code']);
+  it('labels name the two doors, the six Menu tiles and the grown-ups sheets, in that order', () => {
+    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Where to?', '👫 Play together', '🐈 Colony', '📖 Journal', '📸 Album', '⭐ Skills', '👥 Friends', '⚙️ Settings', '☁️ Save', '🎁 Secret code']);
   });
   it('Play together is a sheet of its own', () => {
     expect(resolveSheet('together')).toBe('together');
@@ -297,42 +331,41 @@ describe('dressing-room places by edition', () => {
 });
 
 describe('the territory map in the dressing room', () => {
-  it('dressingroom: Clan shows the map and the Park, Seaside and Docks under Other places', () => {
+  it('dressingroom: Clan shows the map and the Park, Seaside and Docks under More places', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     const m = buildDressingModel(s, CATALOG);
     expect(m.territoryMap.regions.map((r) => r.id)).toEqual(['town', 'woods', 'moor', 'river', 'pines', 'gorge']);
     expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'seaside', 'docks']);
     expect(m.otherPlaces.find((p) => p.id === 'park').lockLine).toBe('opens after 2 walks in Twolegplace · 0/2 so far');
-    const html = renderDressingRoomHtml({ model: m });
-    const where = html.slice(html.indexOf('<section class="dr-where"'), html.indexOf('<section class="dr-more"'));
+    const where = renderPlacesSheetHtml(m);
     expect(where).toContain('class="territory-map"');
-    expect(where.indexOf('class="territory-map"')).toBeLessThan(where.indexOf('Other places'));
-    expect(where).toContain('<p class="dr-label">Other places</p>');
+    expect(where.indexOf('class="territory-map"')).toBeLessThan(where.indexOf('More places'));
+    expect(where).toContain('<p class="dr-label">More places</p>');
+    expect(where).not.toContain('Other places');
     for (const id of ['park', 'seaside', 'docks']) expect(where).toMatch(new RegExp(`<button class="dr-place[^"]*" data-dr-place="${id}"`));
     expect(where).not.toMatch(/<button class="dr-place[^"]*" data-dr-place="(neighborhood|woods)"/);
     expect(where).not.toContain('Cozy Neighborhood');
     expect(where).toContain('Twolegplace');
-    expect(html).toContain('Walking in <b>Twolegplace</b>');
+    expect(renderDressingRoomHtml({ model: m })).toContain('Walking in <b>Twolegplace</b>');
   });
   it('Legacy keeps the picture cards and no map', () => {
     const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
     expect(m.territoryMap).toBeUndefined();
     expect(m.otherPlaces).toBeUndefined();
-    const html = renderDressingRoomHtml({ model: m });
+    const html = renderPlacesSheetHtml(m);
     expect(html).not.toContain('territory-map');
-    expect(html).not.toContain('Other places');
+    expect(html).not.toContain('More places');
     expect(html).toMatch(/data-dr-place="neighborhood">[\s\S]*?Cozy Neighborhood/);
+    expect(count(html, /data-dr-place=/g)).toBe(4);
   });
 });
 
-describe('the clan picker in the Where-to pill', () => {
-  const whereOf = (html) => html.slice(html.indexOf('<section class="dr-where"'), html.indexOf('<section class="dr-more"'));
-  it('Clan Edition puts the picker above the map', () => {
+describe('the clan picker data in the dressing-room model', () => {
+  it('Clan Edition has picker cards in the model (the clan line and the moment draw them, not the home screen)', () => {
     const m = buildDressingModel({ ...defaultishState(), edition: 'canon' }, CATALOG);
     expect(m.clanPicker.cards.length).toBeGreaterThan(0);
-    const where = whereOf(renderDressingRoomHtml({ model: m }));
-    expect(where).toContain('data-clan-pick="woods"');
-    expect(where.indexOf('data-clan-pick')).toBeLessThan(where.indexOf('class="territory-map"'));
+    expect(renderDressingRoomHtml({ model: m })).not.toContain('data-clan-pick');
+    expect(renderPlacesSheetHtml(m)).not.toContain('data-clan-pick');
   });
   it('Legacy has no picker', () => {
     const s = { ...defaultishState(), edition: 'legacy', clanPick: { mine: 'woods', partner: null, partnerId: null } };
@@ -368,11 +401,14 @@ describe('the dressing room in each edition', () => {
     const s = defaultishState();
     s.unlocked.areas.push('woods');
     s.area = 'woods';
-    expect(buildDressingModel(s, CATALOG).currentPlace).toEqual({ id: 'woods', name: 'The Woods' });
+    expect(buildDressingModel(s, CATALOG).currentPlace).toMatchObject({ id: 'woods', name: 'The Woods' });
     s.edition = 'legacy';
     const m = buildDressingModel(s, CATALOG);
-    expect(m.currentPlace).toEqual({ id: 'neighborhood', name: 'Cozy Neighborhood' });
-    expect(renderDressingRoomHtml({ model: m })).toContain('Walking in <b>Cozy Neighborhood</b>');
+    expect(m.currentPlace).toMatchObject({ id: 'neighborhood', name: 'Cozy Neighborhood', clan: null, line: '' });
+    const html = renderDressingRoomHtml({ model: m });
+    expect(html).toContain('Walking in <b>Cozy Neighborhood</b>');
+    expect(html).toContain('Today’s walk: Cozy Neighborhood. Change place');
+    expect(html).not.toContain('The Woods');
     expect(s.area).toBe('woods');
   });
 
@@ -383,7 +419,7 @@ describe('the dressing room in each edition', () => {
     s.edition = 'legacy';
     const m = buildDressingModel(s, CATALOG);
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
-    expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
+    expect(renderPlacesSheetHtml(m)).toContain('today’s walk');
     expect(s.area).toBe('woods');
   });
 
@@ -394,7 +430,7 @@ describe('the dressing room in each edition', () => {
     s.edition = 'legacy';
     const m = buildDressingModel(s, CATALOG);
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
-    expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
+    expect(renderPlacesSheetHtml(m)).toContain('today’s walk');
     expect(s.area).toBe('moor');
   });
 
@@ -405,7 +441,7 @@ describe('the dressing room in each edition', () => {
     s.edition = 'legacy';
     const m = buildDressingModel(s, CATALOG);
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
-    expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
+    expect(renderPlacesSheetHtml(m)).toContain('today’s walk');
     expect(s.area).toBe('pines');
   });
 
@@ -416,19 +452,19 @@ describe('the dressing room in each edition', () => {
     s.edition = 'legacy';
     const m = buildDressingModel(s, CATALOG);
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
-    expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
+    expect(renderPlacesSheetHtml(m)).toContain('today’s walk');
     expect(s.area).toBe('river');
   });
 });
 
-describe('camps in the Where-to pill', () => {
-  const whereOf = (html) => html.slice(html.indexOf('<section class="dr-where"'), html.indexOf('<section class="dr-more"'));
+describe('camps in the places sheet', () => {
   it('Clan Edition with a woods pick shows tm-camp mine', () => {
     const s = { ...defaultishState(), edition: 'canon', clanPick: { mine: 'woods', partner: null, partnerId: null } };
-    expect(whereOf(renderDressingRoomHtml({ model: buildDressingModel(s, CATALOG) }))).toContain('tm-camp mine');
+    expect(renderPlacesSheetHtml(buildDressingModel(s, CATALOG))).toContain('tm-camp mine');
   });
   it('Legacy shows no camps', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
+    expect(renderPlacesSheetHtml(buildDressingModel(s, CATALOG))).not.toContain('tm-camp');
     expect(renderDressingRoomHtml({ model: buildDressingModel(s, CATALOG) })).not.toContain('tm-camp');
   });
 });
@@ -486,9 +522,205 @@ describe('her own cats in the dressing room', () => {
     expect(h).not.toContain('<img src=x>');
   });
   it('the same in both editions apart from the places', () => {
-    const strip = (h) => h.slice(h.indexOf('dr-strip'), h.indexOf('dr-pills'));
+    const strip = (h) => h.slice(h.indexOf('dr-strip'), h.indexOf('class="dr-wearing"'));
     const a = renderDressingRoomHtml({ model: buildDressingModel({ ...withMine(1), edition: 'legacy' }, CATALOG) });
     const b = renderDressingRoomHtml({ model: buildDressingModel({ ...withMine(1), edition: 'canon' }, CATALOG) });
     expect(strip(a)).toBe(strip(b));
+  });
+});
+
+describe('Launch A: the home screen (cat, place, go)', () => {
+  const home = (state = defaultishState(), ui = {}, over = {}) => renderDressingRoomHtml({
+    model: buildDressingModel(state, CATALOG), startHtml: '<button id="start">GO</button>', ui, ...over,
+  });
+  const section = (html, cls) => html.slice(html.indexOf(`class="${cls}"`), html.indexOf('</section>', html.indexOf(`class="${cls}"`)));
+  const lockedN = Object.keys(CATALOG.cats).length - defaultishState().unlocked.cats.length;
+
+  describe('the strip', () => {
+    it('shows the owned cats, then ＋ Make, then a "🔒 N more" tile; the locked cats stay out of sight', () => {
+      const h = home();
+      const strip = section(h, 'dr-strip');
+      for (const id of defaultishState().unlocked.cats) expect(strip).toContain(`data-dr-cat="${id}"`);
+      expect(strip).not.toContain('data-dr-cat="hagrid"');
+      expect(strip).toContain('data-dr-make');
+      expect(strip).toContain(`🔒</span> ${lockedN} more`);
+      expect(strip.indexOf('data-dr-cat="persian"')).toBeLessThan(strip.indexOf('data-dr-make'));
+      expect(strip.indexOf('data-dr-make')).toBeLessThan(strip.indexOf('data-dr-more-cats'));
+    });
+    it('moreCats opens the locked cats (after Make) and the tile says Fewer', () => {
+      const strip = section(home(defaultishState(), { moreCats: true }), 'dr-strip');
+      expect(count(strip, /data-dr-cat=/g)).toBe(Object.keys(CATALOG.cats).length);
+      expect(strip.indexOf('data-dr-make')).toBeLessThan(strip.indexOf('data-dr-cat="hagrid"'));
+      expect(strip).toMatch(/data-dr-more-cats aria-expanded="true">Fewer</);
+      expect(strip).not.toContain('more<');
+    });
+    it('a locked cat she is previewing stays in view with the tile closed', () => {
+      const state = defaultishState();
+      const h = renderDressingRoomHtml({ model: buildDressingModel(state, CATALOG, { previewCat: 'hagrid' }), ui: {} });
+      const strip = section(h, 'dr-strip');
+      expect(strip).toContain('data-dr-cat="hagrid"');
+      expect(count(strip, /data-dr-cat=/g)).toBe(defaultishState().unlocked.cats.length + 1);
+      expect(strip).toContain(`${lockedN} more`);
+    });
+    it('no locked cats, no "more" tile', () => {
+      const s = defaultishState(); s.unlocked.cats = Object.keys(CATALOG.cats);
+      const m = buildDressingModel(s, CATALOG);
+      expect(m.lockedCount).toBe(0);
+      expect(renderDressingRoomHtml({ model: m, ui: {} })).not.toContain('data-dr-more-cats');
+    });
+    it('the model counts the locked cats', () => {
+      expect(buildDressingModel(defaultishState(), CATALOG).lockedCount).toBe(lockedN);
+    });
+  });
+
+  describe('Wearing', () => {
+    it('lists what she has on, in slot order, with one Dress up door', () => {
+      const s = defaultishState(); s.equipped.collar = 'bell'; s.equipped.neck = 'bandana';
+      const m = buildDressingModel(s, CATALOG);
+      expect(m.worn.map((w) => w.id)).toEqual(['bell', 'bandana']);
+      const w = section(home(s), 'dr-wearing');
+      expect(w).toContain('Bell Collar');
+      expect(w).toContain('Bandana');
+      expect(w.indexOf('Bell Collar')).toBeLessThan(w.indexOf('Bandana'));
+      expect(count(w, /data-dr-wardrobe(?![-\w])/g)).toBe(1);
+      expect(w).toContain('Dress up');
+      expect(w).toContain('2 things on');
+      expect(w).not.toContain('data-dr-slot=');
+    });
+    it('says Nothing on yet and "try something on" when bare, and "1 thing on" for one item', () => {
+      const w = section(home(), 'dr-wearing');
+      expect(w).toContain('Nothing on yet');
+      expect(w).toContain('try something on');
+      const s = defaultishState(); s.equipped.collar = 'bell';
+      expect(section(home(s), 'dr-wearing')).toContain('1 thing on');
+    });
+    it('a worn prize shows too', () => {
+      const s = defaultishState(); const slot = CATALOG.accessories.leafcrown.slot;
+      s.unlocked.accessories.push('leafcrown'); s.equipped[slot] = 'leafcrown';
+      expect(buildDressingModel(s, CATALOG).worn.map((x) => x.id)).toContain('leafcrown');
+    });
+  });
+
+  describe('the wardrobe', () => {
+    it('shows the slots and Done, and hides Today\'s walk and the Dress up door', () => {
+      const h = home(defaultishState(), { wardrobe: true });
+      expect(h).toContain('data-view="wardrobe"');
+      expect(h).toContain('dr-view-wardrobe');
+      expect(count(h, /data-dr-slot=/g)).toBe(new Set(Object.values(CATALOG.accessories).map((a) => a.slot)).size);
+      expect(count(h, /data-dr-wardrobe-done/g)).toBe(1);
+      expect(h).toContain('Done ✓');
+      expect(h).not.toContain('class="dr-today"');
+      expect(h).not.toContain('Today’s walk');
+      expect(h).not.toMatch(/data-dr-wardrobe(?![-\w])/);
+      // the dock (the place line and Start) is still there
+      expect(h).toContain('Walking in <b>');
+      expect(h).toContain('id="start"');
+    });
+    it('an empty slot says "＋ add", never "nothing yet", and no count label appears', () => {
+      const h = home(defaultishState(), { wardrobe: true });
+      expect(h).toContain('＋ add');
+      expect(h).not.toContain('nothing yet');
+      expect(h).not.toMatch(/of \d+ slots/i);
+      expect(h).not.toMatch(/\b\d+ of \d+\b(?! —)/);
+    });
+    it('slot buttons say whether their picker is open', () => {
+      const h = home(defaultishState(), { wardrobe: true, openSlot: 'collar', pickerHtml: '<p>PICK</p>' });
+      expect(h).toMatch(/data-dr-slot="collar" aria-expanded="true"/);
+      expect(h).toMatch(/data-dr-slot="head" aria-expanded="false"/);
+    });
+  });
+
+  describe("Today's walk", () => {
+    it('is one picture card that opens the places sheet and names the effective place', () => {
+      const h = home({ ...defaultishState(), edition: 'legacy' });
+      const t = section(h, 'dr-today');
+      expect(t).toContain('data-dr-sheet="places"');
+      expect(t).toContain('Today’s walk');
+      expect(t).toContain('Cozy Neighborhood');
+      expect(t).toContain(PLACE_PICTURE('neighborhood'));
+      expect(t).toContain('Change place');
+    });
+    it('Clan Edition in the Woods names the place and the clan land', () => {
+      const s = { ...defaultishState(), edition: 'canon', area: 'woods' };
+      s.unlocked.areas.push('woods');
+      const m = buildDressingModel(s, CATALOG);
+      expect(m.currentPlace).toMatchObject({ id: 'woods', clan: 'woods', line: `${clanName('woods')} land` });
+      const t = section(renderDressingRoomHtml({ model: m, ui: {} }), 'dr-today');
+      expect(t).toContain('The Woods');
+      expect(t).toContain(`${clanName('woods')} land`);
+    });
+    it('Legacy has no clan line, even with a Clan-only place chosen', () => {
+      const s = { ...defaultishState(), edition: 'legacy', area: 'woods' };
+      s.unlocked.areas.push('woods');
+      const m = buildDressingModel(s, CATALOG);
+      expect(m.currentPlace.line).toBe('');
+      expect(m.currentPlace.clan).toBeNull();
+      const t = section(renderDressingRoomHtml({ model: m, ui: {} }), 'dr-today');
+      expect(t).toContain('Cozy Neighborhood');
+      expect(t).not.toMatch(/ land</);
+      expect(t).not.toContain(clanName('woods'));
+    });
+    it('Clan Edition on a non-clan place (Twolegplace) has no clan line', () => {
+      const m = buildDressingModel({ ...defaultishState(), edition: 'canon' }, CATALOG);
+      expect(m.currentPlace.line).toBe('');
+    });
+  });
+
+  describe('no leftovers of the old home', () => {
+    it('no pills, no abilities or extras panel, no count labels, no stats region, no map', () => {
+      for (const ui of [{}, { wardrobe: true }, { moreCats: true }]) {
+        const h = home(defaultishState(), ui);
+        expect(h).not.toContain('data-dr-pill');
+        expect(h).not.toContain('dr-pills');
+        expect(h).not.toContain('dr-abilities');
+        expect(h).not.toContain('dr-more"');
+        expect(h).not.toContain('territory-map');
+        expect(h).not.toContain('data-clan-pick');
+        expect(h).not.toMatch(/OF \d+ SLOTS/i);
+        expect(h).not.toMatch(/\d+ of \d+ (slots|earned)/i);
+      }
+    });
+    it('the unlock button uses the paw span, not a bare emoji', () => {
+      const s = defaultishState(); s.points = 60;
+      const h = renderDressingRoomHtml({ model: buildDressingModel(s, CATALOG, { previewCat: 'hagrid' }), ui: {} });
+      expect(h).toContain(`Unlock — 60 ${PAW}`);
+      expect(h).not.toMatch(/Unlock — \d+ 🐾/);
+    });
+  });
+
+  describe('the places sheet body', () => {
+    it('includes denHtml and clanLineHtml verbatim, once each, clan line first', () => {
+      for (const edition of ['canon', 'legacy']) {
+        const m = buildDressingModel({ ...defaultishState(), edition }, CATALOG);
+        const html = renderPlacesSheetHtml(m, { clanLineHtml: '<p id="CLANLINE">x</p>', denHtml: '<button id="DEN">den</button>' });
+        expect(count(html, /<p id="CLANLINE">x<\/p>/g)).toBe(1);
+        expect(count(html, /<button id="DEN">den<\/button>/g)).toBe(1);
+        expect(html.startsWith('<div class="dr-where">')).toBe(true);
+        expect(html.indexOf('CLANLINE')).toBeLessThan(html.indexOf('DEN'));
+      }
+    });
+    it('defaults to no clan line and no den', () => {
+      const html = renderPlacesSheetHtml(buildDressingModel(defaultishState(), CATALOG));
+      expect(html).not.toContain('undefined');
+      expect(html).toContain('class="dr-places"');
+    });
+    it('Clan puts the den inside More places, after the other place cards', () => {
+      const m = buildDressingModel({ ...defaultishState(), edition: 'canon' }, CATALOG);
+      const html = renderPlacesSheetHtml(m, { denHtml: '<button id="DEN"></button>' });
+      expect(html.indexOf('More places')).toBeLessThan(html.indexOf('data-dr-place="park"'));
+      expect(html.indexOf('data-dr-place="docks"')).toBeLessThan(html.indexOf('id="DEN"'));
+    });
+  });
+
+  describe('the sheets', () => {
+    it('the Menu holds six kid tiles then three grown-up sheets; the doors are menu and places', () => {
+      expect(MENU_TILES).toEqual(['together', 'colony', 'journal', 'album', 'skills', 'social']);
+      expect(GROWNUP_SHEETS).toEqual(['settings', 'sync', 'code']);
+      expect(HOME_SHEETS).toEqual(['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS]);
+    });
+    it('Friends and Save are the kid-facing names for social and sync', () => {
+      expect(SHEET_LABEL.social).toBe('👥 Friends');
+      expect(SHEET_LABEL.sync).toBe('☁️ Save');
+    });
   });
 });

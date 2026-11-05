@@ -1,0 +1,505 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Launch A ("Cat, place, go"): the top bar, the Menu and Change place doors,
+// the clan moment, Enter-to-start and the Settings Advanced group, driven
+// through createHomeBase over a no-DOM stand-in. The WebGL pieces and the
+// dressing-room controller are stubbed (its own tests live elsewhere).
+vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
+const dressingMock = vi.hoisted(() => ({ opts: null, ui: { builder: null }, placesArgs: [], closeWardrobe: null }));
+vi.mock('../src/ui/dressingroomview.js', () => ({
+  createDressingRoom: (opts) => {
+    dressingMock.opts = opts;
+    dressingMock.ui = { builder: null };
+    dressingMock.placesArgs = [];
+    dressingMock.closeWardrobe = vi.fn();
+    return {
+      html: ({ headerHtml, startHtml }) => `<header>${headerHtml}</header>${startHtml}`,
+      placesHtml: (o) => { dressingMock.placesArgs.push(o); return `<div class="dr-where">${o?.clanLineHtml ?? ''}${o?.denHtml ?? ''}</div>`; },
+      closeWardrobe: () => dressingMock.closeWardrobe(),
+      afterRender() {}, handleClick() { return false; }, clearPreview() {},
+      handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
+      get ui() { return dressingMock.ui; },
+    };
+  },
+}));
+
+const { createHomeBase } = await import('../src/ui/homebase.js');
+const { createProgression } = await import('../src/progression.js');
+const { MOMENT_SEEN_KEY, MOMENT_ATTR } = await import('../src/ui/clanpicker.js');
+const { PICK_ATTR } = await import('../src/ui/clanpicker.js');
+const { MENU_TILES, SHEET_NAME } = await import('../src/ui/dressingroom.js');
+const { SKILLS } = await import('../src/skills.js');
+
+function memStorage() {
+  const map = new Map();
+  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
+}
+
+function fakeEl(doc) {
+  const el = {
+    ownerDocument: doc, className: '', innerHTML: '', textContent: '', id: '', type: '',
+    children: [], listeners: {}, attrs: {}, style: {}, removed: false, classes: new Set(),
+    setAttribute(k, v) { el.attrs[k] = v; },
+    appendChild(c) { el.children.push(c); c.parent = el; },
+    append(...cs) { for (const c of cs) el.appendChild(c); },
+    addEventListener(t, f) { el.listeners[t] = f; },
+    remove() { el.removed = true; if (el.parent) el.parent.children = el.parent.children.filter((c) => c !== el); },
+    querySelector() { return null; },
+    focus() {},
+    after(c) { doc.body.appendChild(c); },
+    getBoundingClientRect() { return { left: 0, top: 0, width: 300, height: 200, bottom: 200 }; },
+  };
+  el.classList = {
+    add: (c) => el.classes.add(c), remove: (c) => el.classes.delete(c), contains: (c) => el.classes.has(c),
+  };
+  return el;
+}
+function fakeDocument() {
+  const doc = { defaultView: { innerWidth: 375, innerHeight: 812 } };
+  doc.createElement = () => fakeEl(doc);
+  doc.docListeners = [];
+  doc.addEventListener = (t, f, o) => { doc.docListeners.push({ t, f, o }); };
+  doc.removeEventListener = (t, f) => { doc.docListeners = doc.docListeners.filter((l) => !(l.t === t && l.f === f)); };
+  doc.body = fakeEl(doc);
+  doc.root = fakeEl(doc);
+  doc.root.classList.add('hidden');
+  doc.getElementById = (id) => (id === 'homebase' ? doc.root : null);
+  return doc;
+}
+
+let doc;
+let store;
+beforeEach(() => {
+  vi.useFakeTimers();
+  doc = fakeDocument();
+  globalThis.document = doc;
+  // this device's memory of the clan moment (node may ship its own localStorage)
+  store = new Map();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true, writable: true,
+    value: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) },
+  });
+});
+afterEach(() => {
+  vi.useRealTimers();
+  delete globalThis.document;
+  delete globalThis.localStorage;
+});
+
+const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
+const OPEN_ROOMS = { available: true, getState: () => null, onChange() {} };
+const IN_ROOM = { available: true, getState: () => ({ roster: [{ id: 'a' }, { id: 'b' }] }), onChange() {} };
+
+function setup({ rooms = null, sync = null, colonySync = null, onVisitDen = () => {}, state } = {}) {
+  const progression = createProgression(memStorage());
+  if (state) state(progression.state);
+  const hb = createHomeBase(progression, { photos: [] }, () => {}, rooms, sync, null, settings, () => {}, onVisitDen, colonySync, 'me', () => {});
+  hb.show();
+  return { progression, hb };
+}
+const openSheet = (id) => dressingMock.opts.onOpenSheet(id);
+const html = () => doc.root.innerHTML;
+const moment = () => doc.body.children.find((c) => c.id === 'clan-moment');
+const celebration = () => doc.body.children.find((c) => String(c.className).startsWith('visit-cel'));
+const tapCel = (el, vc) => el.listeners.click({ target: { closest: () => ({ dataset: { vc } }) } });
+const clickRoot = (sels) => doc.root.listeners.click({ target: { id: '', dataset: {}, closest: (sel) => (sels[sel] ?? null) } });
+const PLAIN = { milestone: null, visits: 2 };
+// a Clan save whose Woods just opened, with no pick of her own
+const woodsOpened = (st) => { st.walks.neighborhood = 2; };
+
+describe('the top bar', () => {
+  it('has the points pill, the rank pill, the visit pill and a Menu door, and no edition switch', () => {
+    const { progression } = setup({ state: (st) => { st.points = 42; st.visits = 23; } });
+    const h = html();
+    expect(h).toMatch(/<div class="hb-pill hb-points" role="img" aria-label="42 whisker points">/);
+    expect(h).toContain('class="hb-pill hb-rank"');
+    expect(h).toContain('class="hb-pill dr-visit"');
+    expect(h).toContain('Visit 23');
+    expect(h).toMatch(/<button class="hb-menu-btn" data-dr-sheet="menu" aria-label="Menu">/);
+    expect(h).not.toContain('data-edition-toggle');
+    expect(progression.state.points).toBe(42);
+  });
+  it('the pills come in order: points, rank, visit, then the Menu door', () => {
+    setup({ state: (st) => { st.visits = 23; } });
+    const h = html();
+    const order = ['hb-points', 'hb-rank', 'dr-visit', 'hb-menu-btn'].map((c) => h.indexOf(c));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+  it('no visit pill before the first visit', () => {
+    setup();
+    expect(html()).not.toContain('dr-visit');
+  });
+  it('the home screen is the cat: no sheet is open and Start is handed to the dressing room', () => {
+    setup();
+    expect(html()).not.toContain('data-sheet=');
+    expect(html().match(/id="btn-start"/g)).toHaveLength(1);
+  });
+});
+
+describe('the Menu', () => {
+  it('shows the six tiles, the stats line and the grown-ups row, with only Menu\'s doors available', () => {
+    setup({ rooms: OPEN_ROOMS, sync: { available: true } });
+    openSheet('menu');
+    const h = html();
+    expect(h).toContain('data-sheet="menu"');
+    for (const id of MENU_TILES) expect(h).toContain(`<button class="hb-tile" data-dr-sheet="${id}">`);
+    expect(h.match(/class="hb-tile"/g)).toHaveLength(6);
+    expect(h).toContain('class="hb-menu-stats"');
+    expect(h).toContain('For grown-ups');
+    for (const id of ['settings', 'sync', 'code']) expect(h).toContain(`<button class="hb-grownup" data-dr-sheet="${id}">`);
+    expect(h).toContain(SHEET_NAME.social); // Friends
+    expect(h).toContain('Friends');
+  });
+  it('leaves out the tiles that are not available (no multiplayer: no Play together; no cloud: no Save)', () => {
+    setup();
+    openSheet('menu');
+    const h = html();
+    expect(h).not.toContain('data-dr-sheet="together"');
+    expect(h).not.toContain('data-dr-sheet="sync"');
+    expect(h.match(/class="hb-tile"/g)).toHaveLength(5);
+    for (const id of ['colony', 'journal', 'album', 'skills', 'social']) expect(h).toContain(`data-dr-sheet="${id}"`);
+    expect(h).toContain('data-dr-sheet="settings"');
+    expect(h).toContain('data-dr-sheet="code"');
+  });
+  it('the Skills tile says how many are earned', () => {
+    setup();
+    openSheet('menu');
+    expect(html()).toContain(`0 of ${SKILLS.length} earned`);
+  });
+  it('is a door: Back to my cat, no Start dock', () => {
+    setup();
+    openSheet('menu');
+    const h = html();
+    expect(h).toContain('hb-sheet hb-door');
+    expect(h).toContain('← Back to my cat');
+    expect(h).not.toContain('id="btn-start"');
+    expect(h).not.toContain('hb-sheet-dock');
+  });
+  it('sheets opened from the Menu say Back to the menu and go back to it; content sheets keep Start', () => {
+    setup();
+    openSheet('menu');
+    openSheet('skills');
+    let h = html();
+    expect(h).toContain('data-sheet="skills"');
+    expect(h).toContain('← Back to the menu');
+    expect(h).not.toContain('← Back to my cat');
+    expect(h).toContain('id="btn-start"');
+    expect(h).toContain('hb-sheet-dock');
+    clickRoot({ '#hb-back': {} });
+    expect(html()).toContain('data-sheet="menu"');
+    // and from the menu again, to the grown-ups sheets as well
+    openSheet('settings');
+    expect(html()).toContain('← Back to the menu');
+  });
+  it('a sheet opened directly (not from the Menu) goes back to the cat', () => {
+    setup();
+    openSheet('settings');
+    expect(html()).toContain('← Back to my cat');
+    clickRoot({ '#hb-back': {} });
+    expect(html()).not.toContain('data-sheet=');
+  });
+  it('Back from the Menu goes to the cat', () => {
+    setup();
+    openSheet('menu');
+    clickRoot({ '#hb-back': {} });
+    expect(html()).not.toContain('data-sheet=');
+  });
+  it('coming home from a walk lands on the cat, not the Menu', () => {
+    const { hb } = setup();
+    openSheet('menu');
+    hb.hide();
+    hb.show();
+    expect(html()).not.toContain('data-sheet=');
+  });
+});
+
+describe('Change place (the places sheet)', () => {
+  it('has the den card and hands the dressing room the clan line and the den', () => {
+    setup();
+    openSheet('places');
+    const h = html();
+    expect(h).toContain('data-sheet="places"');
+    expect(h).toContain('Where to?');
+    expect(h).toContain('id="btn-visit-den"');
+    expect(h).toContain('My den');
+    expect(dressingMock.placesArgs.at(-1).denHtml).toContain('id="btn-visit-den"');
+    expect(h).toContain('hb-door');
+    expect(h).toContain('← Back to my cat');
+    expect(h).not.toContain('id="btn-start"');
+  });
+  it('has no den card in a room (the den never joins a room walk)', () => {
+    setup({ rooms: IN_ROOM });
+    openSheet('places');
+    expect(html()).not.toContain('btn-visit-den');
+    expect(dressingMock.placesArgs.at(-1).denHtml).toBe('');
+  });
+  it('the den card calls onVisitDen', () => {
+    const onVisitDen = vi.fn();
+    setup({ onVisitDen });
+    openSheet('places');
+    clickRoot({ '#btn-visit-den': {} });
+    expect(onVisitDen).toHaveBeenCalledTimes(1);
+  });
+  it('Legacy has no clan line', () => {
+    setup({ state: (st) => { st.edition = 'legacy'; woodsOpened(st); } });
+    openSheet('places');
+    expect(dressingMock.placesArgs.at(-1).clanLineHtml).toBe('');
+    expect(html()).not.toContain(MOMENT_ATTR);
+  });
+  it('Clan Edition before a pick, Woods closed: no clan line; Woods open: a Choose button', () => {
+    setup();
+    openSheet('places');
+    expect(dressingMock.placesArgs.at(-1).clanLineHtml).toBe('');
+    setup({ state: woodsOpened });
+    openSheet('places');
+    expect(dressingMock.placesArgs.at(-1).clanLineHtml).toContain(MOMENT_ATTR);
+  });
+  it('after a pick the clan line says who she is', () => {
+    setup({ state: (st) => { st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
+    openSheet('places');
+    expect(dressingMock.placesArgs.at(-1).clanLineHtml).toContain('hb-pick-line');
+    expect(dressingMock.placesArgs.at(-1).clanLineHtml).not.toContain(MOMENT_ATTR);
+  });
+  it('a place she can walk (onPlaced with an outcome) takes her home; a refused one leaves the sheet', () => {
+    setup();
+    openSheet('places');
+    dressingMock.opts.onPlaced('woods', false);
+    expect(dressingMock.opts.onPlaced).toBeTypeOf('function');
+    expect(html()).toContain('data-sheet="places"');
+    dressingMock.opts.onPlaced('neighborhood', 'set');
+    // the next render (any) shows the cat
+    dressingMock.opts.onChange();
+    expect(html()).not.toContain('data-sheet=');
+  });
+});
+
+describe('the clan moment', () => {
+  it('the boot show() alone brings nothing up: it waits for the greeting', () => {
+    const { progression } = setup({ state: woodsOpened });
+    expect(moment()).toBeUndefined();
+    expect(progression.state.clanPick.mine).toBeNull();
+  });
+  it('shows after showVisit with a dialog of the five cards and Not yet', () => {
+    const { hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN);
+    const el = moment();
+    expect(el).toBeTruthy();
+    expect(el.className).toContain('join-moment');
+    expect(el.innerHTML).toContain('role="dialog"');
+    expect(el.innerHTML.match(new RegExp(PICK_ATTR, 'g'))).toHaveLength(5);
+    expect(el.innerHTML).toContain('Not yet');
+  });
+  it('does not show for a save that has picked, a Legacy save, or one walk', () => {
+    for (const state of [
+      (st) => { woodsOpened(st); st.clanPick = { mine: 'moor', partner: null, partnerId: null }; },
+      (st) => { woodsOpened(st); st.edition = 'legacy'; },
+      (st) => { st.walks.neighborhood = 1; },
+    ]) {
+      doc = fakeDocument(); globalThis.document = doc;
+      const { hb } = setup({ state });
+      hb.showVisit(PLAIN);
+      expect(moment()).toBeUndefined();
+    }
+  });
+  it('shows for a save that already owns the Woods, whatever its walks', () => {
+    const { hb } = setup({ state: (st) => { st.unlocked.areas.push('woods'); } });
+    hb.showVisit(PLAIN);
+    expect(moment()).toBeTruthy();
+  });
+  it('waits for a celebration, and shows once it closes', () => {
+    const { progression, hb } = setup({ state: woodsOpened });
+    const visit = progression.recordVisit(); // visit 1: a milestone
+    expect(hb.showVisit(visit, { onClosed: () => {} })).toBe(true);
+    expect(moment()).toBeUndefined();
+    tapCel(celebration(), 'open');
+    vi.advanceTimersByTime(10000);
+    expect(hb.visitOpen()).toBe(false);
+    expect(moment()).toBeTruthy();
+  });
+  it('a walk starting over a celebration does not bring it up', () => {
+    const { progression, hb } = setup({ state: woodsOpened });
+    hb.showVisit(progression.recordVisit(), { onClosed: () => {} });
+    hb.hide();
+    expect(moment()).toBeUndefined();
+  });
+  it('waits for the farewell notice and shows when it is closed', () => {
+    const { hb } = setup({ state: woodsOpened });
+    expect(hb.showNotice('Bye Rosa')).toBe(true);
+    hb.showVisit(PLAIN);
+    expect(moment()).toBeUndefined();
+    const notice = doc.body.children.find((c) => c.id === 'home-notice');
+    notice.children[0].children[1].listeners.click(); // its OK
+    expect(moment()).toBeTruthy();
+  });
+  it('is not stacked over the cat builder', () => {
+    const { hb } = setup({ state: woodsOpened });
+    dressingMock.ui = { builder: { breed: 'tabby' } };
+    hb.showVisit(PLAIN);
+    expect(moment()).toBeUndefined();
+  });
+  it('showNews and showNotice refuse while it is up', () => {
+    const { hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN);
+    expect(moment()).toBeTruthy();
+    expect(hb.showNews('<div>news</div>', null)).toBe(false);
+    expect(hb.showNotice('Bye Rosa')).toBe(false);
+    expect(doc.body.children.find((c) => c.id === 'colony-news')).toBeUndefined();
+  });
+  it('the news card waits its turn and the moment follows its dismissal', () => {
+    const { hb } = setup({ state: woodsOpened });
+    expect(hb.showNews('<button id="colony-news-ok">ok</button>', null)).toBe(true);
+    hb.showVisit(PLAIN);
+    expect(moment()).toBeUndefined();
+    doc.body.children.find((c) => c.id === 'colony-news').listeners.click({ target: { id: 'colony-news-ok' } });
+    expect(moment()).toBeTruthy();
+  });
+  it('a card tap picks that clan, tells the sibling\'s sync, closes the moment and remembers it', () => {
+    const noteOwnPick = vi.fn(() => Promise.resolve(true));
+    const colonySync = { status: () => ({ mode: 'local' }), pull() {}, noteOwnPick };
+    const { progression, hb } = setup({ state: woodsOpened, colonySync });
+    hb.showVisit(PLAIN);
+    const el = moment();
+    const card = { getAttribute: (a) => (a === PICK_ATTR ? 'pines' : null) };
+    el.listeners.click({ target: { closest: (sel) => (sel === `[${PICK_ATTR}]` ? card : null) } });
+    expect(progression.state.clanPick.mine).toBe('pines');
+    expect(noteOwnPick).toHaveBeenCalledTimes(1);
+    expect(moment()).toBeUndefined();
+    expect(store.get(MOMENT_SEEN_KEY)).toBe('1');
+  });
+  it('Not yet closes it, marks it seen on this device and picks nothing', () => {
+    const noteOwnPick = vi.fn();
+    const colonySync = { status: () => ({ mode: 'local' }), pull() {}, noteOwnPick };
+    const { progression, hb } = setup({ state: woodsOpened, colonySync });
+    hb.showVisit(PLAIN);
+    moment().listeners.click({ target: { closest: (sel) => (sel === '.join-moment-later' ? {} : null) } });
+    expect(moment()).toBeUndefined();
+    expect(store.get(MOMENT_SEEN_KEY)).toBe('1');
+    expect(progression.state.clanPick.mine).toBeNull();
+    expect(noteOwnPick).not.toHaveBeenCalled();
+  });
+  it('does not come back after Not yet: not on the next visit, not on the next show', () => {
+    const { hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN);
+    moment().listeners.click({ target: { closest: (sel) => (sel === '.join-moment-later' ? {} : null) } });
+    hb.showVisit(PLAIN);
+    expect(moment()).toBeUndefined();
+    hb.hide();
+    hb.show();
+    expect(moment()).toBeUndefined();
+  });
+  it('Escape counts as Not yet', () => {
+    const { hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN);
+    moment().listeners.keydown({ key: 'Escape' });
+    expect(moment()).toBeUndefined();
+    expect(store.get(MOMENT_SEEN_KEY)).toBe('1');
+  });
+  it('a walk starting closes it without marking it seen, so it comes back next time', () => {
+    const { hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN);
+    hb.hide();
+    expect(moment()).toBeUndefined();
+    expect(store.has(MOMENT_SEEN_KEY)).toBe(false);
+    hb.show(); // back from the walk: the greeting already ran
+    expect(moment()).toBeTruthy();
+  });
+  it('Change place\'s Choose button brings it back after Not yet', () => {
+    const { hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN);
+    moment().listeners.click({ target: { closest: (sel) => (sel === '.join-moment-later' ? {} : null) } });
+    openSheet('places');
+    clickRoot({ [`[${MOMENT_ATTR}]`]: {} });
+    expect(moment()).toBeTruthy();
+  });
+  it('only one is ever up', () => {
+    const { hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN);
+    hb.showVisit(PLAIN);
+    hb.show();
+    expect(doc.body.children.filter((c) => c.id === 'clan-moment')).toHaveLength(1);
+  });
+  it('works without localStorage (a private window): it shows, and Not yet does not throw', () => {
+    delete globalThis.localStorage;
+    const { hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN);
+    expect(moment()).toBeTruthy();
+    expect(() => moment().listeners.click({ target: { closest: (sel) => (sel === '.join-moment-later' ? {} : null) } })).not.toThrow();
+  });
+});
+
+describe('Enter starts the walk from home', () => {
+  const press = (over = {}) => {
+    const e = { key: 'Enter', repeat: false, preventDefault: vi.fn(), ...over };
+    for (const l of doc.docListeners.filter((x) => x.t === 'keydown')) l.f(e);
+    return e;
+  };
+  function withStart() {
+    const start = { disabled: false, click: vi.fn() };
+    doc.root.querySelector = (sel) => (sel === '#btn-start' ? start : null);
+    return start;
+  }
+  it('presses Start when nothing is focused and nothing is up', () => {
+    setup();
+    const start = withStart();
+    const e = press();
+    expect(start.click).toHaveBeenCalledTimes(1);
+    expect(e.preventDefault).toHaveBeenCalled();
+  });
+  it('does nothing in a sheet, over the moment or the builder, on a focused control, or for other keys', () => {
+    const { hb } = setup({ state: woodsOpened });
+    const start = withStart();
+    press({ key: 'a' });
+    press({ repeat: true });
+    press({ shiftKey: true });
+    doc.activeElement = { id: 'some-button' };
+    press();
+    doc.activeElement = undefined;
+    dressingMock.ui = { builder: { breed: 'tabby' } };
+    press();
+    dressingMock.ui = { builder: null };
+    openSheet('menu');
+    press();
+    openSheet(null);
+    hb.showVisit(PLAIN); // the moment is up
+    press();
+    expect(start.click).not.toHaveBeenCalled();
+  });
+  it('does not press a disabled Start', () => {
+    setup();
+    const start = withStart();
+    start.disabled = true;
+    press();
+    expect(start.click).not.toHaveBeenCalled();
+  });
+});
+
+describe('Settings: Advanced', () => {
+  it('has an Advanced heading before the performance readout and the quality select', () => {
+    setup();
+    openSheet('settings');
+    const h = html();
+    const adv = h.indexOf('<h3 class="settings-group">Advanced</h3>');
+    expect(adv).toBeGreaterThan(0);
+    expect(h.indexOf('id="set-perf-readout"')).toBeGreaterThan(adv);
+    expect(h.indexOf('id="set-quality"')).toBeGreaterThan(adv);
+    // everyday settings stay above it
+    expect(h.indexOf('id="set-volume"')).toBeLessThan(adv);
+    expect(h.indexOf('id="set-muted"')).toBeLessThan(adv);
+    expect(h.indexOf('id="set-edition"')).toBeLessThan(adv);
+  });
+  it('Settings is a grown-ups sheet with the Start dock', () => {
+    setup();
+    openSheet('settings');
+    expect(html()).toContain('id="btn-start"');
+  });
+});
+
+describe('coming home', () => {
+  it('hide() puts the wardrobe away', () => {
+    const { hb } = setup();
+    hb.hide();
+    expect(dressingMock.closeWardrobe).toHaveBeenCalled();
+  });
+});

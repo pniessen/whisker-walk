@@ -603,7 +603,7 @@ function init() {
     if (e.target.id === 'btn-summary-continue') {
       overlay.classList.add('hidden');
       const c = takeCrossing();
-      homebase.show(c && c.clan ? { pill: 'where' } : undefined);
+      homebase.show(c && c.clan ? { sheet: 'places' } : undefined);
       sync.autoSync(); // fire-and-forget; no-op when unlinked/offline
       pullThenNews(); // fire-and-forget; catches up feeds made on this walk, then the news card
     }

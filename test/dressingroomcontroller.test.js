@@ -321,7 +321,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
     dr.handleClick(click({ cbDone: '' }));
     expect(progression.state.customCats[0]).toMatchObject({ id: 'mine1', name: 'Ember' });
     expect(progression.state.equipped).toMatchObject({ custom: 'mine1', collar: 'bell' });
-    expect(dr.ui).toMatchObject({ builder: null, pill: 'wearing' });
+    expect(dr.ui).toMatchObject({ builder: null, wardrobe: true });
     expect(onProfileChange).toHaveBeenCalled();
     expect(sync.autoSync).toHaveBeenCalled();
   });
@@ -572,6 +572,10 @@ describe('createDressingRoom: her own cats and the builder', () => {
     progression.buy('accessories', 'bell');
     progression.equipAccessory('bell');
     progression.equipCustom(progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK }));
+    const homeHtml = dr.html();
+    // on the home screen the Wearing panel pictures it too
+    expect(homeHtml.slice(homeHtml.indexOf('class="dr-worn"'))).toContain('src="data:image/png;base64,WORN"');
+    dr.handleClick(click({ drWardrobe: '' }));
     const html = dr.html();
     const worn = snap.mock.calls.flatMap((c) => c[0]).filter((e) => e.wear);
     expect(worn).toHaveLength(1);
@@ -588,6 +592,8 @@ describe('createDressingRoom: her own cats and the builder', () => {
     progression.equipCustom(progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK }));
     dr.html();
     const before = snap.mock.calls.length;
+    dr.handleClick(click({ drWardrobe: '' }));
+    dr.handleClick(click({ drSlot: CATALOG.accessories.wizard.slot }));
     dr.handleClick(click({ drAcc: 'wizard', drAct: 'try' }));
     expect(dr.html()).toContain('(trying)');
     expect(snap.mock.calls.slice(before).flatMap((c) => c[0]).filter((e) => e.wear)).toEqual([]);
@@ -652,7 +658,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
       dr.deferRender(rootWith(nameBox));
       const rerender = vi.fn();
       dr.onFocusOut({ target: nameBox }, rerender);
-      expect(dr.deferRender(rootWith(null))).toBe(false); // e.g. her tap on a pill
+      expect(dr.deferRender(rootWith(null))).toBe(false); // e.g. her tap on Dress up
       timers[0].fn();
       expect(rerender).not.toHaveBeenCalled();
     });
@@ -824,5 +830,85 @@ describe('createDressingRoom: her cat\'s scars on the stage', () => {
     dr.handleClick(click({ drMake: '' }));
     dr.afterRender({ id: 'dr-stage' });
     expect(stage.show.mock.calls.at(-1)).toHaveLength(3);
+  });
+});
+
+describe('createDressingRoom: Launch A (wardrobe, more cats, places)', () => {
+  function realRoom(extra = {}) {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    const sync = { autoSync: vi.fn() };
+    const dr = createDressingRoom({ progression, sync, thumbs: {}, onChange: () => {}, ...extra });
+    return { dr, progression, sync };
+  }
+
+  it('Dress up opens the wardrobe, Done closes it (and the open slot and try-on with it)', () => {
+    const { dr } = realRoom();
+    expect(dr.html()).not.toContain('data-dr-slot=');
+    expect(dr.handleClick(click({ drWardrobe: '' }))).toBe(true);
+    expect(dr.ui.wardrobe).toBe(true);
+    const open = dr.html();
+    expect(open).toContain('data-dr-slot=');
+    expect(open).toContain('data-dr-wardrobe-done');
+    dr.handleClick(click({ drSlot: accSlot }));
+    dr.handleClick(click({ drAcc: accId, drAct: 'try' }));
+    expect(dr.html()).toContain('class="dr-picker"');
+    expect(dr.handleClick(click({ drWardrobeDone: '' }))).toBe(true);
+    expect(dr.ui).toMatchObject({ wardrobe: false, openSlot: null, tryOn: null });
+    expect(dr.html()).not.toContain('class="dr-picker"');
+  });
+
+  it('the slot picker is only rendered while the wardrobe is open', () => {
+    const { dr } = realRoom();
+    dr.handleClick(click({ drWardrobe: '' }));
+    dr.handleClick(click({ drSlot: accSlot }));
+    expect(dr.html()).toContain('data-dr-acc=');
+    dr.closeWardrobe();
+    expect(dr.html()).not.toContain('data-dr-acc=');
+  });
+
+  it('"N more" shows and hides the locked cats; closeWardrobe puts it away too', () => {
+    const { dr, progression } = realRoom();
+    const lockedCat = Object.keys(CATALOG.cats).find((id) => !progression.state.unlocked.cats.includes(id));
+    expect(dr.html()).not.toContain(`data-dr-cat="${lockedCat}"`);
+    expect(dr.html()).toContain('data-dr-more-cats');
+    expect(dr.handleClick(click({ drMoreCats: '' }))).toBe(true);
+    expect(dr.html()).toContain(`data-dr-cat="${lockedCat}"`);
+    dr.handleClick(click({ drWardrobe: '' }));
+    dr.closeWardrobe();
+    expect(dr.ui).toMatchObject({ wardrobe: false, moreCats: false });
+    expect(dr.html()).not.toContain(`data-dr-cat="${lockedCat}"`);
+  });
+
+  it('placesHtml draws the places sheet body with the owner\'s lines verbatim', () => {
+    const { dr } = realRoom();
+    const html = dr.placesHtml({ clanLineHtml: '<p id="CL"></p>', denHtml: '<i id="DEN"></i>' });
+    expect(html).toContain('<p id="CL"></p>');
+    expect(html).toContain('<i id="DEN"></i>');
+    expect(html).toContain('class="territory-map"');
+    expect(dr.placesHtml()).toContain('class="dr-where"');
+  });
+
+  it('onPlaced hears the place and what the tap did: set, bought, or nothing', () => {
+    const onPlaced = vi.fn();
+    const { dr, progression } = realRoom({ onPlaced });
+    progression.state.walks.neighborhood = 2;
+    dr.handleClick(click({ drPlace: 'woods' }));
+    expect(onPlaced).toHaveBeenLastCalledWith('woods', 'bought');
+    dr.handleClick(click({ drPlace: 'neighborhood' }));
+    expect(onPlaced).toHaveBeenLastCalledWith('neighborhood', 'set');
+    onPlaced.mockClear();
+    progression.state.walks.woods = 0;
+    dr.handleClick(click({ drPlace: 'river' }));
+    expect(onPlaced).toHaveBeenCalledTimes(1);
+    expect(onPlaced.mock.calls[0][0]).toBe('river');
+    expect(onPlaced.mock.calls[0][1]).toBeFalsy();
+  });
+
+  it('a throwing onPlaced never breaks the tap: the place is still saved', () => {
+    const { dr, progression } = realRoom({ onPlaced: () => { throw new Error('boom'); } });
+    progression.state.walks.neighborhood = 2;
+    expect(() => dr.handleClick(click({ drPlace: 'woods' }))).not.toThrow();
+    expect(progression.state.area).toBe('woods');
   });
 });

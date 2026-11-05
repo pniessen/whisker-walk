@@ -1,5 +1,6 @@
 // The dressing room's DOM controller (v21 Stream 5). It owns only UI state
-// (which pill, which slot is open, a previewed locked cat, a tried-on
+// (whether the wardrobe is open, which slot is open, whether the locked cats
+// show in the strip, a previewed locked cat, a tried-on
 // accessory); everything else is read from progression on each html() call.
 // Preview and try-on are NEVER written to the save: they change what the
 // stage shows, nothing more, and clearPreview() (called by the owner on hide
@@ -9,16 +10,19 @@ import { areaInEdition } from '../edition.js';
 import { menuThumbnails, customThumbnails, accessoryFraming } from '../thumbnails.js';
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { CUSTOM_MAX, lookKey } from '../customcats.js';
-import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, resolveSheet } from './dressingroom.js';
+import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, renderPlacesSheetHtml, resolveSheet } from './dressingroom.js';
 import { newBuilder, editBuilder, reduceBuilder, isDirty, buildBuilderModel, renderBuilderHtml, doneLabel } from './catbuilder.js';
 
-const PILLS = ['wearing', 'where', 'more'];
-export const INITIAL_DRESSING_UI = Object.freeze({ pill: 'wearing', openSlot: null, previewCat: null, tryOn: null, builder: null });
+// Launch A: home is the cat, Wearing and Today's walk; Dress up opens the
+// wardrobe (the slot grid) in place, and "🔒 N more" shows the locked cats.
+export const INITIAL_DRESSING_UI = Object.freeze({ wardrobe: false, moreCats: false, openSlot: null, previewCat: null, tryOn: null, builder: null });
 
 const has = (obj, k) => !!obj && typeof k === 'string' && Object.prototype.hasOwnProperty.call(obj, k);
 
 // Pure: (ui, action) -> ui. Unknown actions return the same object.
-//   {type:'pill', pill}            switch the phone panel
+//   {type:'wardrobe', open}        open the wardrobe, or close it (closing
+//                                   also closes the slot and drops a try-on)
+//   {type:'more-cats'}             show / hide the locked cats in the strip
 //   {type:'preview-cat', id, owned} show a locked cat in the hero; an owned
 //                                   pick (owned:true, or id null) clears it
 //   {type:'slot', slot}            toggle a slot's picker; leaving the
@@ -29,12 +33,17 @@ const has = (obj, k) => !!obj && typeof k === 'string' && Object.prototype.hasOw
 //                                   the builder unsaved
 //   {type:'builder', builder}      open, update or (null) close the builder;
 //                                   opening it drops the preview and try-on
-//   {type:'builder-done'}          the builder saved: close it, back to Wearing
+//   {type:'builder-done'}          the builder saved: close it, into the wardrobe
 export function reduceDressingUi(ui, action) {
   const cur = ui && typeof ui === 'object' ? ui : INITIAL_DRESSING_UI;
   switch (action && action.type) {
-    case 'pill':
-      return PILLS.includes(action.pill) && action.pill !== cur.pill ? { ...cur, pill: action.pill } : cur;
+    case 'wardrobe': {
+      const open = !!action.open;
+      if (open === !!cur.wardrobe) return cur;
+      return open ? { ...cur, wardrobe: true } : { ...cur, wardrobe: false, openSlot: null, tryOn: null };
+    }
+    case 'more-cats':
+      return { ...cur, moreCats: !cur.moreCats };
     case 'preview-cat': {
       const next = action.owned || typeof action.id !== 'string' ? null : action.id;
       return next === cur.previewCat ? cur : { ...cur, previewCat: next };
@@ -61,13 +70,14 @@ export function reduceDressingUi(ui, action) {
       return cur.builder || !builder ? { ...cur, builder } : { ...cur, builder, previewCat: null, tryOn: null, openSlot: null };
     }
     case 'builder-done':
-      return { ...cur, builder: null, pill: 'wearing', openSlot: null, previewCat: null, tryOn: null };
+      return { ...cur, builder: null, wardrobe: true, openSlot: null, previewCat: null, tryOn: null };
     default:
       return cur;
   }
 }
 
-const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-pill],'
+const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-wardrobe],'
+  + '[data-dr-wardrobe-done],[data-dr-more-cats],'
   + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay]';
 const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is empty
 const BLUR_RENDER_MS = 250; // a skipped render runs this long after the name box loses focus
@@ -89,6 +99,7 @@ export function createDressingRoom({
   progression, catalog = CATALOG, stage = null, sync = null, thumbs = null,
   onChange = () => {}, onOpenSheet = null, onProfileChange = () => {}, snapCustom = customThumbnails, now = () => Date.now(),
   onCatSaved = () => {}, later = (fn, ms) => setTimeout(fn, ms), storage = defaultStorage(),
+  onPlaced = () => {},
 }) {
   let builderPose = readPose(storage); // 'stand' | 'sit'
   let doneAt = null; // when Done last closed the builder (Start then sits under her finger)
@@ -99,6 +110,7 @@ export function createDressingRoom({
   let inClick = false; // a tap's own render is never deferred
   let stripScroll = null; // the portrait strip's scroll, carried across a render
   let revealedFor = null; // the pick last scrolled into view; a render for the same pick keeps her scroll
+  let focusAfter = null; // a keyboard tap's control, found again after the render it caused
   const getThumbs = () => {
     if (!thumbs) thumbs = menuThumbnails();
     if (!thumbs.mine) thumbs.mine = {};
@@ -157,16 +169,16 @@ export function createDressingRoom({
     return out;
   }
 
-  function html({ headerHtml = '', statsHtml = '', startHtml = '', extrasHtml = '', sheets } = {}) {
+  function html({ headerHtml = '', startHtml = '', extrasHtml = '', rankTitle = '' } = {}) {
     const state = progression.state;
     const t = getThumbs();
     const m = model();
     if (ui.builder) {
       const bm = buildBuilderModel(ui.builder);
       return renderDressingRoomHtml({
-        model: m, headerHtml, statsHtml, startHtml, extrasHtml, sheets, thumbs: t,
+        model: m, headerHtml, startHtml, extrasHtml, thumbs: t,
         ui: {
-          pill: ui.pill, builderHtml: `<section class="cb" id="cb">${renderBuilderHtml(bm)}</section>`,
+          builderHtml: `<section class="cb" id="cb">${renderBuilderHtml(bm)}</section>`,
           heroName: bm.name || YOUR_CAT, heroBlurb: bm.blurb,
           // no live cat (no WebGL, or no stage): a still picture cannot sit, so no toggle
           pose: stage && !stage.failed ? builderPose : null,
@@ -175,11 +187,16 @@ export function createDressingRoom({
     }
     snapMine(m, t);
     const wearing = snapWorn(m, t);
-    const pickerHtml = ui.openSlot ? renderSlotPickerHtml(state, catalog, ui.openSlot, ui.tryOn, t) : '';
+    const pickerHtml = ui.wardrobe && ui.openSlot ? renderSlotPickerHtml(state, catalog, ui.openSlot, ui.tryOn, t) : '';
     return renderDressingRoomHtml({
-      model: m, headerHtml, statsHtml, startHtml, extrasHtml, sheets, thumbs: { ...t, wearing },
-      ui: { pill: ui.pill, openSlot: ui.openSlot, pickerHtml },
+      model: m, headerHtml, startHtml, extrasHtml, rankTitle, thumbs: { ...t, wearing },
+      ui: { wardrobe: ui.wardrobe, moreCats: ui.moreCats, openSlot: ui.openSlot, pickerHtml },
     });
+  }
+
+  // The Change place sheet's body (the owner adds the clan line and the den).
+  function placesHtml(opts = {}) {
+    return renderPlacesSheetHtml(model(), opts);
   }
 
   const builderKey = (bm) => JSON.stringify(['builder', bm.breed, lookKey(bm.look), builderPose]);
@@ -342,7 +359,23 @@ export function createDressingRoom({
     if (!has(catalog.areas, id)) return;
     // Legacy hides Clan-only places; a stray click on one buys and sets nothing.
     if (!areaInEdition(catalog.areas[id], progression.state?.edition)) return;
-    if (progression.pickPlace(id) === 'bought') autoSync();
+    const outcome = progression.pickPlace(id);
+    if (outcome === 'bought') autoSync();
+    // 'set' | 'bought' | false: the owner goes home on a place she can walk.
+    try { onPlaced?.(id, outcome); } catch { /* the pick itself is saved */ }
+  }
+
+  // The selector for the control a keyboard tap should land on after its render.
+  function focusTwin(d) {
+    const q = (v) => String(v).replace(/["\\]/g, '');
+    if (d.drWardrobe !== undefined) return '[data-dr-wardrobe-done]';
+    if (d.drWardrobeDone !== undefined) return '[data-dr-wardrobe]';
+    if (d.drMoreCats !== undefined) return '[data-dr-more-cats]';
+    if (d.drSlot !== undefined) return `[data-dr-slot="${q(d.drSlot)}"]`;
+    if (d.drCat !== undefined) return `[data-dr-cat="${q(d.drCat)}"]`;
+    if (d.drMine !== undefined) return `[data-dr-mine="${q(d.drMine)}"]`;
+    if (d.drAcc !== undefined) return `[data-dr-acc="${q(d.drAcc)}"]`;
+    return null;
   }
 
   // true when this was a dressing-room control (even if it changed nothing)
@@ -355,12 +388,18 @@ export function createDressingRoom({
       if (id) onOpenSheet?.(id);
       return true;
     }
+    // A keyboard user's control: put focus back on its twin (or its partner:
+    // Dress up <-> Done) after the render this tap causes.
+    const active = t.ownerDocument?.activeElement;
+    focusAfter = active === t ? focusTwin(d) : null;
     if (d.drBuyCat !== undefined) onBuyCat(d.drBuyCat);
     else if (d.drCat !== undefined) onCat(d.drCat);
     else if (d.drAcc !== undefined) onAcc(d.drAcc, d.drAct);
     else if (d.drSlot !== undefined) dispatch({ type: 'slot', slot: d.drSlot });
     else if (d.drPlace !== undefined) onPlace(d.drPlace);
-    else if (d.drPill !== undefined) dispatch({ type: 'pill', pill: d.drPill });
+    else if (d.drWardrobe !== undefined) dispatch({ type: 'wardrobe', open: true });
+    else if (d.drWardrobeDone !== undefined) dispatch({ type: 'wardrobe', open: false });
+    else if (d.drMoreCats !== undefined) dispatch({ type: 'more-cats' });
     else if (d.drMine !== undefined) onMine(d.drMine);
     else if (d.drMake !== undefined) onMake();
     else if (d.drEdit !== undefined) onEdit(d.drEdit);
@@ -420,6 +459,11 @@ export function createDressingRoom({
   }
 
   function restoreFocus(root, saved) {
+    const twin = focusAfter;
+    focusAfter = null;
+    if (twin) {
+      try { root?.querySelector?.(twin)?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+    }
     if (!saved) return;
     if (saved.pose) {
       try { root?.querySelector?.('[data-dr-pose]')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
@@ -474,14 +518,15 @@ export function createDressingRoom({
     revealedFor = null;
   }
 
-  // A walk that ended at a border post opens the home screen on Where to.
-  function setPill(pill) {
-    dispatch({ type: 'pill', pill });
+  // Coming home from a walk: the cat, not the wardrobe or the locked cats.
+  function closeWardrobe() {
+    dispatch({ type: 'wardrobe', open: false });
+    if (ui.moreCats) dispatch({ type: 'more-cats' });
   }
 
   return {
     html, afterRender, handleClick, handleInput, captureFocus, restoreFocus, startAllowed, clearPreview,
-    deferRender, onFocusOut, setPill,
+    deferRender, onFocusOut, closeWardrobe, placesHtml,
     get ui() { return ui; },
   };
 }

@@ -7,22 +7,32 @@ import { asFiniteNonNeg } from '../progression.js';
 import { areaInEdition, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
 import { TERRITORIES, territoryMapModel, opensAfterLine } from '../territories.js';
 import { renderTerritoryMapHtml } from './territorymap.js';
-import { clanPickerModel, renderClanPickerHtml } from './clanpicker.js';
+import { clanPickerModel, CLAN_EMBLEMS } from './clanpicker.js';
+import { clanName, isClanId } from '../clanhomes.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { prizeVisit } from '../visits.js';
 import { CAT_BLURBS } from './catblurbs.js';
 import { sanitizeCustomCats, presetFor, lookKey, COATS, CUSTOM_MAX } from '../customcats.js';
 import { PAW } from './pawicon.js';
 
-export const HOME_SHEETS = ['together', 'skills', 'colony', 'social', 'journal', 'album', 'sync', 'settings', 'code'];
-export const SHEET_LABEL = {
-  together: '👫 Play together',
-  skills: '🐾 Skills', colony: '🐈 Colony', social: '👥 Social', journal: '📖 Journal',
-  album: '📸 Album', sync: '☁️ Sync', settings: '⚙️ Settings', code: '🎁 Secret code',
+// Launch A (2026-11-05): home holds the cat, the place and Start; every other
+// screen is a sheet behind one of three doors. `menu` and `places` are the
+// doors; the rest open from the Menu (six kid tiles, then the grown-ups row).
+export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'social'];
+export const GROWNUP_SHEETS = ['settings', 'sync', 'code'];
+export const HOME_SHEETS = ['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS];
+export const SHEET_ICON = {
+  menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', social: '👥', journal: '📖',
+  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁',
 };
+export const SHEET_NAME = {
+  menu: 'Menu', places: 'Where to?', together: 'Play together', skills: 'Skills', colony: 'Colony', social: 'Friends',
+  journal: 'Journal', album: 'Album', sync: 'Save', settings: 'Settings', code: 'Secret code',
+};
+export const SHEET_LABEL = Object.fromEntries(HOME_SHEETS.map((id) => [id, `${SHEET_ICON[id]} ${SHEET_NAME[id]}`]));
 // The den shop is not a home sheet: it lives inside the den (ui/denshopview.js).
 export function resolveSheet(id) {
-  return HOME_SHEETS.includes(id) ? id : null;
+  return typeof id === 'string' && HOME_SHEETS.includes(id) ? id : null;
 }
 
 export const PLACE_PICTURE = (id) => `${import.meta.env.BASE_URL}places/${id}.jpg`;
@@ -30,7 +40,6 @@ export const PLACE_PICTURE = (id) => `${import.meta.env.BASE_URL}places/${id}.jp
 // Display order of the slots (independent of catalog insertion order).
 const SLOT_ORDER = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
 const SLOT_LABEL = { collar: 'Collar', head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };
-const PILLS = [['wearing', 'Wearing'], ['where', 'Where to'], ['more', 'More']];
 
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({
@@ -146,7 +155,16 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
 
   return {
     hero, cats, mine, canMake: mine.length < CUSTOM_MAX, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,
-    currentPlace: { id: walkArea, name: placeName(walkArea, state?.edition, catalog) },
+    currentPlace: {
+      id: walkArea, name: placeName(walkArea, state?.edition, catalog),
+      // Clan Edition: whose land today's walk is on ("StormClan land").
+      clan: isClanEdition(state) && isClanId(walkArea) ? walkArea : null,
+      line: isClanEdition(state) && isClanId(walkArea) ? `${clanName(walkArea)} land` : '',
+    },
+    // What she has on, for the Wearing summary (display order, prizes included).
+    worn: slotIds.map((slot) => ({ slot, id: equippedId(state, catalog, slot) })).filter((w) => w.id)
+      .map((w) => ({ ...w, name: accessoryName(catalog.accessories[w.id], state?.edition) })),
+    lockedCount: cats.filter((c) => !c.owned).length,
     // Prizes are won, not collected from the shop, so they stay out of both totals.
     ownedAccessories: shopIds.filter((id) => ownedAcc.includes(id)).length,
     accessoryTotal: shopIds.length,
@@ -187,7 +205,7 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     }
     return `<div class="dr-pick locked ${trying ? 'trying' : ''}"><button class="dr-pick-try" ${attrs('try')}>${pic}${name}<span class="act">${trying ? 'Trying ✓' : 'Try on'}</span></button>`
       + (points >= price
-        ? `<button class="dr-pick-buy" ${attrs('buy')}>Unlock — ${price} 🐾</button>`
+        ? `<button class="dr-pick-buy" ${attrs('buy')}>Unlock — ${price} ${PAW}</button>`
         : `<span class="act">${price} 🐾 (can't afford)</span>`)
       + '</div>';
   }).join('');
@@ -215,7 +233,7 @@ function slotHtml(s, openSlot, picker, thumbs) {
   const open = openSlot === s.slot;
   return `<button class="dr-slot ${s.itemId ? '' : 'empty'} ${open ? 'open' : ''} ${s.trying ? 'trying' : ''}" data-dr-slot="${escapeHtml(s.slot)}" aria-expanded="${open}">`
     + `${s.itemId ? img(thumbs?.wearing?.[s.slot] ?? thumbs?.accessories?.[s.itemId], '') : ''}`
-    + `<span><small>${escapeHtml(s.label)}</small>${s.itemId ? escapeHtml(s.itemName) : 'nothing yet'}${s.trying ? ' (trying)' : ''}</span></button>`
+    + `<span><small>${escapeHtml(s.label)}</small>${s.itemId ? escapeHtml(s.itemName) : '＋ add'}${s.trying ? ' (trying)' : ''}</span></button>`
     + (open ? `<div class="dr-picker">${picker ?? ''}</div>` : '');
 }
 
@@ -240,22 +258,74 @@ export function poseToggleHtml(pose) {
     : `<button class="dr-pose" data-dr-pose="sit">${PAW} Sit</button>`;
 }
 
-// headerHtml / statsHtml / startHtml / extrasHtml are pre-rendered, already
-// escaped HTML from the owner (homebase), inserted verbatim, once each.
-export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '', startHtml = '', extrasHtml = '', sheets = HOME_SHEETS, ui = {}, thumbs } = {}) {
+// The strip: her cats first (ready-made ones she owns, then her own, then
+// ＋ Make), then one "🔒 N more" tile that shows the locked cats (Launch A).
+// A locked cat she is previewing stays in view with the tile closed.
+function stripHtml(m, ui, thumbs) {
+  const open = !!ui.moreCats;
+  const owned = m.cats.filter((c) => c.owned);
+  const locked = m.cats.filter((c) => !c.owned);
+  const shownLocked = open ? locked : locked.filter((c) => c.previewing);
+  const more = locked.length
+    ? `<button class="dr-portrait dr-more-cats" data-dr-more-cats aria-expanded="${open}">${open ? 'Fewer' : `<span aria-hidden="true">🔒</span> ${locked.length} more`}</button>`
+    : '';
+  return owned.map((c) => portraitHtml(c, thumbs)).join('')
+    + (m.mine ?? []).map((c) => mineHtml(c, thumbs)).join('')
+    + (m.canMake === undefined ? '' : makeHtml(m.canMake))
+    + shownLocked.map((c) => portraitHtml(c, thumbs)).join('')
+    + more;
+}
+
+// Home's Wearing panel: what she has on and one Dress up door; in the
+// wardrobe, the slot grid (the picker opens under a slot) and Done.
+function wearingHtml(m, ui, thumbs) {
+  if (ui.wardrobe) {
+    const openSlot = m.slots.some((s) => s.slot === ui.openSlot) ? ui.openSlot : null;
+    return `<section class="dr-wearing dr-wardrobe-open" aria-label="Dress up">
+    <div class="dr-wardrobe-head"><p class="dr-label">Dress up</p><button class="dr-done" data-dr-wardrobe-done>Done ✓</button></div>
+    <div class="dr-slots">${m.slots.map((s) => slotHtml(s, openSlot, ui.pickerHtml, thumbs)).join('')}</div>
+  </section>`;
+  }
+  const n = m.worn.length;
+  const worn = n
+    ? m.worn.map((w) => `<span class="dr-worn-item">${img(thumbs?.wearing?.[w.slot] ?? thumbs?.accessories?.[w.id], '')}${escapeHtml(w.name)}</span>`).join('')
+    : '<span class="dr-worn-none">Nothing on yet</span>';
+  return `<section class="dr-wearing" aria-label="Wearing">
+    <p class="dr-label">Wearing</p>
+    <div class="dr-worn">${worn}</div>
+    <button class="dr-dressup" data-dr-wardrobe aria-expanded="false"><span class="dr-dressup-icon" aria-hidden="true">👗</span><span class="dr-dressup-words">Dress up<small>${n ? `${n} ${n === 1 ? 'thing' : 'things'} on` : 'try something on'}</small></span></button>
+  </section>`;
+}
+
+// Today's walk: one picture card for the place Start goes to; the whole card
+// opens the Change place sheet.
+function todayHtml(m) {
+  const p = m.currentPlace;
+  const emblem = p.clan && CLAN_EMBLEMS[p.clan] ? `<span class="dr-today-emblem">${CLAN_EMBLEMS[p.clan]}</span>` : '';
+  const label = `Today’s walk: ${p.name}. Change place`;
+  return `<section class="dr-today">
+    <p class="dr-label">Today’s walk</p>
+    <button class="dr-today-card" data-dr-sheet="places" aria-label="${escapeHtml(label)}">
+      <img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">
+      <span class="dr-change" aria-hidden="true">Change place ›</span>
+      <span class="cap"><span class="dr-today-name">${emblem}${escapeHtml(p.name)}</span>${p.line ? `<small>${escapeHtml(p.line)}</small>` : ''}<small class="dr-today-change" aria-hidden="true">change ›</small></span>
+    </button>
+  </section>`;
+}
+
+// headerHtml / startHtml / extrasHtml are pre-rendered, already escaped HTML
+// from the owner (homebase), inserted verbatim, once each. rankTitle is plain
+// text (a phone shows it under the cat's name).
+export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '', extrasHtml = '', rankTitle = '', ui = {}, thumbs } = {}) {
   const m = model;
-  const pill = PILLS.some(([id]) => id === ui.pill) ? ui.pill : 'wearing';
-  const openSlot = m.slots.some((s) => s.slot === ui.openSlot) ? ui.openSlot : null;
   const h = m.hero;
   const building = typeof ui.builderHtml === 'string' && ui.builderHtml !== '';
+  // Unlock is outlined, never pink: pink is Start's alone (Launch A).
   const buy = building ? ''
     : h.custom ? `<button class="dr-hero-edit" data-dr-edit="${escapeHtml(h.id)}">✏️ Change my cat</button>`
     : h.owned ? ''
-    : h.canBuy ? `<button class="dr-hero-buy" data-dr-buy-cat="${escapeHtml(h.id)}">Unlock — ${h.price} 🐾</button>`
+    : h.canBuy ? `<button class="dr-hero-buy" data-dr-buy-cat="${escapeHtml(h.id)}">Unlock — ${h.price} ${PAW}</button>`
       : `<span class="dr-hero-price">${h.price} 🐾</span>`;
-  const sheetButtons = (Array.isArray(sheets) ? sheets : []).map(resolveSheet).filter(Boolean)
-    .map((id) => `<button class="dr-ghost" data-dr-sheet="${id}">${escapeHtml(SHEET_LABEL[id])}</button>`).join('');
-  const pillLabel = (id, label) => (id === 'wearing' ? `${label} ${m.wearingCount}` : label);
   const heroName = building ? (ui.heroName || 'Your cat') : h.name;
   const heroBlurb = building ? (ui.heroBlurb ?? '') : h.blurb;
   // the builder's 🐾 Sit sits beside the name (one row, not a row of its own,
@@ -264,48 +334,50 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
   const nameHtml = toggle
     ? `<div class="dr-hero-row"><div class="dr-hero-name">${escapeHtml(heroName)}</div>${toggle}</div>`
     : `<div class="dr-hero-name">${escapeHtml(heroName)}</div>`;
+  const rank = !building && rankTitle ? `<div class="dr-hero-rank">${escapeHtml(rankTitle)}</div>` : '';
   const heroHtml = `<section class="dr-hero">
     <div class="dr-stage" id="dr-stage">
       <div class="dr-spin-hint">↔ drag to spin</div>
-      <div class="dr-hero-text">${nameHtml}<div class="dr-hero-blurb">${escapeHtml(heroBlurb)}</div>${buy}</div>
+      <div class="dr-hero-text">${nameHtml}<div class="dr-hero-blurb">${escapeHtml(heroBlurb)}</div>${rank}${buy}</div>
     </div>`;
 
-  // The builder (Task 8) keeps the header and the one stage; its rows replace
-  // the strip, the pills, every panel, the extras and the Start dock.
+  // The builder (Task 8) keeps the top bar and the one stage; its rows replace
+  // the strip, Wearing, Today's walk and the Start dock.
   if (building) {
-    return `<div class="dr dr-building" id="dr" data-pill="${pill}">
-  <header class="dr-header">${headerHtml}<div class="dr-stats">${statsHtml}</div></header>
+    return `<div class="dr dr-building" id="dr">
+  <header class="dr-top">${headerHtml}</header>
   ${heroHtml}
   </section>
   ${ui.builderHtml}
 </div>`;
   }
 
-  return `<div class="dr dr-pill-${pill}" id="dr" data-pill="${pill}">
-  <header class="dr-header">${headerHtml}<div class="dr-stats">${statsHtml}</div></header>
+  // (not "dr-home": that is a clan card's class)
+  const view = ui.wardrobe ? 'wardrobe' : 'home';
+  return `<div class="dr dr-view-${view}" id="dr" data-view="${view}">
+  <header class="dr-top">${headerHtml}</header>
   ${heroHtml}
-    <div class="dr-strip">${m.cats.map((c) => portraitHtml(c, thumbs)).join('')}${(m.mine ?? []).map((c) => mineHtml(c, thumbs)).join('')}${m.canMake === undefined ? '' : makeHtml(m.canMake)}</div>
+    <div class="dr-strip">${stripHtml(m, ui, thumbs)}</div>
   </section>
-  <div class="dr-pills">${PILLS.map(([id, label]) => `<button data-dr-pill="${id}" aria-pressed="${id === pill}">${pillLabel(id, label)}</button>`).join('')}</div>
-  <section class="dr-wearing" data-panel="wearing">
-    <p class="dr-label">Wearing · ${m.wearingCount} of ${m.slotCount} slots · ${m.ownedAccessories} of ${m.accessoryTotal} owned</p>
-    <div class="dr-slots">${m.slots.map((s) => slotHtml(s, openSlot, ui.pickerHtml, thumbs)).join('')}</div>
-  </section>
-  <section class="dr-abilities"><div class="dr-chip">${PAW} ${num(m.abilities?.earned)} of ${num(m.abilities?.total)} earned</div></section>
-  <section class="dr-where" data-panel="where">
-    <p class="dr-label">Where to?</p>
-    ${m.clanPicker ? renderClanPickerHtml(m.clanPicker, m.clanPartnerName) : ''}
-    ${m.territoryMap
-    ? `${renderTerritoryMapHtml(m.territoryMap)}
-    <p class="dr-label">Other places</p>
-    <div class="dr-places">${m.otherPlaces.map(placeHtml).join('')}</div>`
-    : `<div class="dr-places">${m.places.map(placeHtml).join('')}</div>`}
-  </section>
-  <section class="dr-more" data-panel="more">${sheetButtons}</section>
-  <section class="dr-extras">${extrasHtml}</section>
+  ${wearingHtml(m, ui, thumbs)}
+  ${ui.wardrobe ? '' : todayHtml(m)}
   <footer class="dr-dock">
     <div class="where"><img src="${escapeHtml(PLACE_PICTURE(m.currentPlace.id))}" alt="" onerror="this.style.display='none'">Walking in <b>${escapeHtml(m.currentPlace.name)}</b></div>
+    ${extrasHtml}
     ${startHtml}
   </footer>
 </div>`;
+}
+
+// The Change place sheet's body: Clan Edition draws her territory map, then the
+// other places and the den under "More places"; Legacy keeps the picture cards.
+// clanLineHtml (the clan in one line) and denHtml are the owner's, verbatim.
+export function renderPlacesSheetHtml(model, { clanLineHtml = '', denHtml = '' } = {}) {
+  const m = model;
+  const body = m.territoryMap
+    ? `${renderTerritoryMapHtml(m.territoryMap)}
+    <p class="dr-label">More places</p>
+    <div class="dr-places">${m.otherPlaces.map(placeHtml).join('')}${denHtml}</div>`
+    : `<div class="dr-places">${m.places.map(placeHtml).join('')}${denHtml}</div>`;
+  return `<div class="dr-where">${clanLineHtml}${body}</div>`;
 }

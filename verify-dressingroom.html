@@ -7,7 +7,7 @@
 <!-- v21 Stream 5, Task 4: the real controller, styles, stage and a real
      progression on an in-memory save (the mockup's sample save). Nothing is
      written to localStorage. URL params: ?long=1 (room joined, dusk on,
-     every chip), ?pill=where|more, ?nogl=1 (pretend WebGL is missing). -->
+     every pill), ?wardrobe=1, ?more=1, ?nogl=1 (pretend WebGL is missing). -->
 <style>
   .harness { max-width: 1000px; margin: 30px auto 60px; padding: 12px 20px; color: #a8c0e0; font: 13px/1.5 sans-serif;
              border-top: 1px dashed #33425e; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -29,7 +29,6 @@
   import '/src/style.css';
   import { CATALOG, createProgression, rankFor } from '/src/progression.js';
   import { SKILLS } from '/src/skills.js';
-  import { GOLD_TOTAL } from '/src/goldmice.js';
   import { buildCat } from '/src/cat/model.js';
   import { menuThumbnails } from '/src/thumbnails.js';
   import { createCatStage } from '/src/ui/catstage.js';
@@ -67,7 +66,6 @@
 
   let long = params.get('long') === '1';
   let progression = seeded(long);
-  const golden = 3; // display only, as in the mockup
   const thumbs = menuThumbnails();
   const stage = params.get('nogl') === '1'
     ? createCatStage({ buildCat, thumbs, createRenderer: () => { throw new Error('no WebGL (harness)'); } })
@@ -77,30 +75,24 @@
   // ---- the owner's pieces (homebase renders these in Task 5) ----
   function headerHtml(s) {
     const rank = rankFor(s.lifetimePoints);
-    const next = rank.next ? `${rank.next.at - s.lifetimePoints} to ${esc(rank.next.title)}` : 'top rank!';
-    return `<div class="dr-title">🐾 Whisker Walk</div><div class="dr-chip gold">🐾 ${s.points}</div>`
-      + `<div class="dr-chip">🏆 ${esc(rank.title)} → ${next}</div>`
-      + (long ? '<div class="dr-chip">👥 Walking together with Pip</div>' : '');
-  }
-  function statsHtml(s) {
-    return (s.streak.count >= 2 ? `<div class="dr-chip">🔥 ${s.streak.count}-day streak</div>` : '')
-      + `<div class="dr-chip">best walk ${s.bestWalk} 🐾</div>`
-      + (s.race?.bestMs ? `<div class="dr-chip">Today’s race best: ${(s.race.bestMs / 1000).toFixed(1)}s 🏁</div>` : '')
-      + (s.kitten?.stage === 3 ? '<div class="dr-chip">🐱 Mochi lives with you now</div>' : '')
-      + `<div class="dr-chip">🥇 ${golden} of ${GOLD_TOTAL} golden mice</div>`;
+    return `<h1 class="dr-title">🐾 Whisker Walk 2 <span class="dr-edition">Clan Edition</span></h1>`
+      + `<div class="hb-pill hb-points">🐾 ${s.points}</div><div class="hb-pill hb-rank">🏆 ${esc(rank.title)}</div>`
+      + `<div class="hb-pill dr-visit">🐾 Visit 12</div>`
+      + '<button class="hb-menu-btn" data-dr-sheet="menu" aria-label="Menu">☰<span class="hb-menu-word"> Menu</span></button>';
   }
   const room = () => (long ? { code: 'ABCD', starting: false } : null);
-  function startHtml() { return renderStartButtonHtml(room()); }
+  function startHtml() {
+    return `<div class="dr-start-row"><button id="btn-play-together" class="dr-together" aria-label="Play together"><span aria-hidden="true">👫</span><span class="dr-together-words" aria-hidden="true">Play together</span></button>${renderStartButtonHtml(room())}</div>`;
+  }
   function extrasHtml(s) {
     const glowReady = s.equipped.collar === 'glow';
-    return (glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" ${long ? 'checked' : ''} /> Dusk walk ✨</label>` : '')
-      + (room() ? '' : '<button id="btn-visit-den">Visit your den 🏠</button>');
+    return glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" ${long ? 'checked' : ''} /> Dusk walk ✨</label>` : '';
   }
 
   function render() {
     const s = progression.state;
     const root = $('root');
-    root.innerHTML = dressing.html({ headerHtml: headerHtml(s), statsHtml: statsHtml(s), startHtml: startHtml(), extrasHtml: extrasHtml(s) });
+    root.innerHTML = dressing.html({ headerHtml: headerHtml(s), startHtml: startHtml(), extrasHtml: extrasHtml(s), rankTitle: rankFor(s.lifetimePoints).title });
     dressing.afterRender(root);
   }
   function build() {
@@ -121,12 +113,13 @@
       const acc = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'].map((k) => s.equipped[k]).filter(Boolean).join(', ');
       out(`walk would use ${s.equipped.cat} wearing ${acc || 'nothing'} in ${s.area}`);
       render();
-    } else if (e.target.closest('#btn-visit-den')) out('would visit the den');
+    } else if (e.target.closest('#btn-play-together')) out('would open Play together');
   });
-  const startPill = params.get('pill');
-  if (startPill) $('root').querySelector(`[data-dr-pill="${CSS.escape(startPill)}"]`)?.click();
-  // ?cat=<id> taps that portrait; ?try=<accessory id> opens its slot and tries it on
+  // ?cat=<id> taps that portrait; ?try=<accessory id> opens the wardrobe and its slot and tries it on;
+  // ?wardrobe=1 opens the wardrobe; ?more=1 shows the locked cats
   const pick = (sel) => $('root').querySelector(sel)?.click();
+  if (params.get('more') === '1') pick('[data-dr-more-cats]');
+  if (params.get('wardrobe') === '1' || params.get('try')) pick('[data-dr-wardrobe]');
   if (params.get('cat')) pick(`[data-dr-cat="${CSS.escape(params.get('cat'))}"]`);
   const tryId = params.get('try');
   if (tryId && CATALOG.accessories[tryId]) {

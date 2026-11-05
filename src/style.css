@@ -389,17 +389,32 @@ body.touch-mode:not(.left-handed) .hud-top {
 .card.locked { opacity: 0.75; }
 .card-name { font-weight: 700; }
 .card-sub { font-size: 0.8rem; color: #a8c0e0; min-height: 2em; }
-.card button, .cross-card button, .walk-together button, .friend-code-block button, .settings-section button {
+.card button, .cross-card button, .settings-section button {
   border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer;
   background: #4a6ea5; color: #fff; font-weight: 700;
 }
-.card button:hover, .walk-together button:hover, .friend-code-block button:hover { background: #5a7eb5; }
-.walk-together button:disabled, .friend-code-block button:disabled { background: #3a4560; color: #8896b0; cursor: default; }
+.card button:hover { background: #5a7eb5; }
 @media (pointer: coarse) {
-  .card button, .cross-card button, .walk-together button, .friend-code-block button, .settings-section button {
-    min-height: 44px;
-  }
+  .card button, .cross-card button, .settings-section button { min-height: 44px; }
 }
+/* Play together, Friends and Save (Launch A, review fix 5): the game's pill
+   buttons in place of the old square blue ones. A main action (.primary:
+   Walk with…, Confirm) is gold; the rest are cream outlines. */
+.walk-together button, .friend-code-block button {
+  min-height: 44px; padding: 8px 18px; border: 1.5px solid #8c9bb4; border-radius: 999px; cursor: pointer;
+  background: #2c3d58; color: #f1e0c2; font: inherit; font-size: 15px; font-weight: 700;
+}
+.walk-together button:hover, .friend-code-block button:hover { background: #34486a; }
+.walk-together button.primary, .friend-code-block button.primary, .walk-together #wt-host {
+  background: #f2c14e; color: #3a2a10; border-color: #f2c14e;
+}
+.walk-together button.primary:hover, .friend-code-block button.primary:hover, .walk-together #wt-host:hover { filter: brightness(1.06); background: #f2c14e; }
+.walk-together button.danger { background: transparent; color: #e98a8a; border-color: #e98a8a; }
+.walk-together button:disabled, .friend-code-block button:disabled {
+  background: #2a3346; color: #8896b0; border-color: #3a4560; cursor: default; filter: none;
+}
+.walk-together button:focus-visible, .friend-code-block button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+#homebase .walk-together h2, #homebase .friends-section h2 { color: #f1e0c2; }
 .tag { font-size: 0.85rem; color: #c0ccdd; }
 .tag.on { color: #f2c14e; font-weight: 700; }
 
@@ -415,10 +430,10 @@ body.touch-mode:not(.left-handed) .hud-top {
 .fmove-when, .fmove-need { font-size: 0.85rem; color: #a8c0e0; }
 .fmove-owned { color: #f2c14e; font-weight: 700; }
 .fmove-buy {
-  min-height: 44px; padding: 0 14px; border: 0; border-radius: 8px; cursor: pointer;
-  background: #4a6ea5; color: #fff; font: inherit; font-weight: 700;
+  min-height: 44px; padding: 0 16px; border: 1.5px solid #8c9bb4; border-radius: 999px; cursor: pointer;
+  background: #2c3d58; color: #f1e0c2; font: inherit; font-weight: 700;
 }
-.fmove-buy:hover { background: #5a7eb5; }
+.fmove-buy:hover { background: #34486a; }
 .fmove-buy:disabled { opacity: 0.5; cursor: default; }
 .skill-family { margin-bottom: 14px; }
 .skill-family:last-of-type { margin-bottom: 0; }
@@ -530,6 +545,9 @@ body.touch-mode:not(.left-handed) .hud-top {
 }
 .settings-section select:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .settings-section select option { background: #223047; color: #f1e0c2; }
+/* "Advanced" (Launch A): the grown-up-only rows, under a quiet heading */
+.settings-group { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: #a8c0e0; margin: 4px 0 2px; }
+.settings-advanced .settings-row { font-size: 0.88rem; }
 /* Start over: a small soft-red outline pill. */
 .settings-section .danger {
   background: transparent; color: #e98a8a; border: 1px solid #e98a8a; border-radius: 999px;
@@ -543,8 +561,8 @@ body.touch-mode:not(.left-handed) .hud-top {
 .star-name-pick.chosen { box-shadow: 0 0 0 2px #f2c14e; }
 .wt-pair { margin-bottom: 12px; }
 .wt-petname input, .wt-join-row input {
-  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
-  padding: 8px 10px; color: #fff; font-size: 16px; /* >=16px prevents iOS Safari auto-zoom on focus */
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); border-radius: 999px;
+  min-height: 44px; padding: 8px 14px; color: #fff; font-family: inherit; font-size: 16px; /* >=16px prevents iOS Safari auto-zoom on focus */
 }
 .wt-code-input { text-transform: uppercase; width: 5em; letter-spacing: 0.1em; }
 .wt-join-row { display: flex; gap: 8px; align-items: center; }
@@ -1006,197 +1024,236 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   #perf-readout { font-size: 10px; top: calc(env(safe-area-inset-top) + 8px); transform: none; }
 }
 
-/* ---- dressing room (v21 Stream 5) ----
-   Ported from the signed-off verify-dressingroom-mockup.html, re-laid for
-   Controller Ruling 1: every region is a direct child of .dr and renders
-   once; CSS places it. Desktop: a grid (hero left; wearing / abilities /
-   start / extras right; then places; then the quiet row). Phone (<=600px):
-   one column in DOM order, pills pick the panel, the dock (current place +
-   Start) is pinned to the bottom, and the More pill also shows the stats
-   and the extras (dusk, den). The canvas catstage.js inserts into #dr-stage
-   sits absolutely behind the hero text; #dr-stage has a fixed height so the
-   canvas's 100% height can never feed back into its ResizeObserver. */
-.dr {
+/* ---- the home screen (Launch A, 2026-11-05: "Cat, place, go") ----
+   One screen, no scrolling at 1280x800 or 390x844: the cat, Wearing (Dress
+   up), Today's walk (Change place) and Start. Everything else is a sheet
+   behind the Menu. Every region is a direct child of .dr and renders once;
+   CSS places it. Desktop: a grid, the cat on the left, the rest on the right.
+   Phone (<=600px): one column, the two doors side by side as tiles, Start
+   pinned at the bottom. The canvas catstage.js inserts into #dr-stage is
+   absolutely positioned, so the stage's flexible height can never feed back
+   into its ResizeObserver. Pink is Start's alone. */
+#homebase {
   --navy: #1c2431; --frame: #223047; --panel: #2c3d58; --line: #33425e; --cream: #f1e0c2;
-  --pink: #e7a9a0; --muted: #8c9bb4; --lock: #3a4a66; --gold: #f2c14e;
-  max-width: 1000px; margin: 0 auto; padding: 18px 20px 24px; color: var(--cream);
+  --pink: #e7a9a0; --muted: #8c9bb4; --lock: #3a4a66; --gold: #f2c14e; --hud: rgba(20, 26, 38, .55);
+}
+.dr {
+  max-width: 1080px; margin: 0 auto; padding: 14px 24px 18px; color: var(--cream);
   font-family: Avenir, Nunito, 'Trebuchet MS', sans-serif;
-  display: grid; column-gap: 16px; row-gap: 12px;
-  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
-  grid-template-rows: auto auto auto auto 1fr auto auto;
+  display: grid; column-gap: 22px; row-gap: 12px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   grid-template-areas:
     "header header"
     "hero wearing"
-    "hero abilities"
-    "hero dock"
-    "hero extras"
-    "where where"
-    "more more";
+    "hero today"
+    "hero ."
+    "hero dock";
 }
+.dr:not(.dr-building) { height: 100%; min-height: 540px; }
+/* the wardrobe takes Today's walk's place, and scrolls inside itself if a big picker meets a short window */
+.dr.dr-view-wardrobe { grid-template-areas: "header header" "hero wearing" "hero wearing" "hero wearing" "hero dock"; }
+.dr-view-wardrobe .dr-wearing { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 /* #homebase gives every section a bottom margin; the grid gap spaces these */
 .dr > section, #homebase .dr > section { margin: 0; min-width: 0; }
 .dr button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
 .dr button:disabled { cursor: default; }
+.dr button:focus-visible, .hb-sheet button:focus-visible, .join-moment button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .dr img { display: block; }
 
-/* header: the owner's header, then the stats chips inline */
-.dr-header { grid-area: header; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
-.dr-title { font-weight: 700; font-size: 20px; margin-right: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
-.dr-edition { color: #f2c14e; white-space: nowrap; }
-/* The edition in the title is a switch, but reads as part of the title. */
-button.dr-edition { font: inherit; color: #f2c14e; border: 0; background: none; padding: 0; cursor: pointer; }
-button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: underline; }
-.dr-chip, .dr-stats > span { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
-.dr-chip.gold { color: var(--gold); font-weight: 700; }
-.dr-chip.visit {
-  background: #ff8fb1; color: #3b0f22; font-weight: 800; font-size: 15px; padding: 7px 13px;
-  box-shadow: 0 2px 8px rgba(255, 143, 177, 0.35);
-}
-/* A milestone visit's badge pops once (a little grow and a glow) when the
-   celebration starts; homebase adds .pop to the live element, so a later
+/* the top bar: the walk HUD's pills (translucent dark, round ends, the light paw) */
+.dr-top { grid-area: header; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dr-title { font-weight: 700; font-size: 16px; opacity: .8; margin-right: 6px; white-space: nowrap; }
+.dr-edition { color: var(--gold); font-weight: 700; }
+.hb-pill { background: var(--hud); border-radius: 999px; padding: 6px 14px; font-size: 15px; white-space: nowrap;
+  color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
+.hb-points { color: var(--gold); font-weight: 800; font-size: 17px; }
+.hb-rank { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* the visit pill: quiet and small (owner 2026-11-05: kept, never pink) */
+.hb-pill.dr-visit { font-size: 13px; padding: 5px 11px; color: var(--cream); opacity: .85; }
+.hb-pill.dr-visit.milestone { opacity: 1; color: var(--gold); box-shadow: inset 0 0 0 1.5px rgba(242, 193, 78, .55); }
+/* A milestone visit's pill pops once (a little grow and a soft gold glow) when
+   the celebration starts; homebase adds .pop to the live element, so a later
    render() never replays it. */
-.dr-chip.visit.milestone.pop { animation: visit-badge-pop 0.9s ease-out 0.2s 1 both; }
+.hb-pill.dr-visit.milestone.pop { animation: visit-badge-pop 0.9s ease-out 0.2s 1 both; }
 @keyframes visit-badge-pop {
-  0% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 143, 177, 0.35); }
-  40% { transform: scale(1.14); box-shadow: 0 0 18px 4px rgba(255, 210, 225, 0.9); }
-  100% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 143, 177, 0.35); }
+  0% { transform: scale(1); box-shadow: inset 0 0 0 1.5px rgba(242, 193, 78, .55); }
+  40% { transform: scale(1.14); box-shadow: 0 0 16px 3px rgba(242, 193, 78, .7); }
+  100% { transform: scale(1); box-shadow: inset 0 0 0 1.5px rgba(242, 193, 78, .55); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .dr-chip.visit.milestone.pop { animation: none; }
+  .hb-pill.dr-visit.milestone.pop { animation: none; }
 }
-.dr-stats { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.dr-stats:empty { display: none; }
+.dr .hb-menu-btn { margin-left: auto; min-height: 44px; min-width: 44px; padding: 6px 18px; border-radius: 999px;
+  background: var(--hud); border: 1.5px solid rgba(241, 224, 194, .35); color: #fff; font-weight: 700; font-size: 16px;
+  white-space: nowrap; }
+.dr .hb-menu-btn:hover { background: rgba(20, 26, 38, .8); }
 
-/* hero: the live cat (or its still picture) and the portrait strip */
-.dr-hero { grid-area: hero; align-self: start; min-width: 0; }
-.dr-stage { position: relative; border-radius: 14px; height: 340px; overflow: hidden;
+/* hero: the live cat (or its still picture), then the portrait strip */
+.dr-hero { grid-area: hero; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.dr-stage { position: relative; border-radius: 16px; flex: 1 1 auto; min-height: 260px; overflow: hidden;
   background: radial-gradient(ellipse at 50% 85%, #3d5680 0, #30456a 35%, #223047 75%); }
 .dr-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: grab; }
 .dr-stage canvas:active { cursor: grabbing; }
 .dr-stage .dr-hero-img { position: absolute; left: 12px; right: 12px; top: 12px; bottom: 64px;
   width: calc(100% - 24px); height: calc(100% - 76px); object-fit: contain; }
-.dr-hero-text { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; pointer-events: none;
+.dr-hero-text { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; pointer-events: none;
   display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 10px;
   text-shadow: 0 1px 3px rgba(20, 28, 42, .7); }
-.dr-hero-name { font-weight: 700; font-size: 22px; }
-.dr-hero-blurb { font-size: 13px; opacity: .8; }
-.dr .dr-hero-buy { pointer-events: auto; margin-top: 6px; background: var(--pink); color: var(--navy);
-  border-radius: 999px; padding: 8px 18px; min-height: 44px; font-weight: 700; }
+.dr-hero-name { font-weight: 700; font-size: 24px; }
+.dr-hero-blurb { font-size: 14px; opacity: .8; }
+.dr-hero-rank { display: none; font-size: 13px; opacity: .8; }
+/* Unlock a cat: outlined, never pink (pink is Start's) */
+.dr .dr-hero-buy { pointer-events: auto; margin-top: 6px; background: rgba(20, 28, 42, .6); color: var(--cream);
+  border: 1.5px solid var(--cream); border-radius: 999px; padding: 8px 18px; min-height: 44px; font-weight: 700; }
 .dr-hero-price { margin-top: 6px; background: rgba(20, 28, 42, .6); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
 .dr-spin-hint { position: absolute; top: 10px; right: 12px; font-size: 11px; opacity: .45; pointer-events: none; }
-/* desktop: every cat on show, wrapping only if the catalog outgrows a row */
-.dr-strip { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; padding: 3px; }
-.dr .dr-portrait { flex: none; width: 48px; height: 48px; border-radius: 12px; background: var(--cream);
+/* the strip: her cats, ＋ Make, then "🔒 N more" (one row; it scrolls sideways if it must) */
+.dr-strip { display: flex; flex-wrap: nowrap; gap: 8px; margin-top: 10px; padding: 4px 3px 6px; overflow-x: auto;
+  overscroll-behavior-x: contain; scrollbar-width: thin; flex: none; }
+.dr .dr-portrait { flex: none; width: 52px; height: 52px; border-radius: 12px; background: var(--cream);
   position: relative; padding: 0; overflow: hidden; }
 .dr-portrait img { width: 100%; height: 100%; object-fit: cover; }
-.dr-portrait.sel { outline: 3px solid var(--pink); outline-offset: 1px; }
+.dr-portrait.sel { outline: 3px solid var(--gold); outline-offset: 1px; }
 .dr .dr-portrait.locked { background: var(--lock); }
 .dr-portrait.locked img { opacity: .45; filter: grayscale(.6); }
 .dr-portrait.locked::after { content: '🔒'; position: absolute; right: 2px; bottom: 0; font-size: 13px; }
+.dr .dr-portrait.dr-more-cats { width: auto; padding: 0 12px; background: var(--lock); font-size: 13px; font-weight: 700;
+  white-space: nowrap; }
 
-/* wearing: slot tiles and the picker that opens under them */
-.dr-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; opacity: .6; margin: 0 0 6px; }
-.dr-wearing { grid-area: wearing; }
+/* small caps label over a panel */
+.dr-label, .hb-grownups-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; opacity: .65; margin: 0 0 6px; }
+
+/* Wearing: what she has on, and Dress up */
+.dr-wearing { grid-area: wearing; background: var(--frame); border-radius: 16px; padding: 12px 14px; }
+.dr-worn { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.dr-worn-item { display: inline-flex; align-items: center; gap: 8px; background: var(--panel); border-radius: 12px;
+  padding: 4px 12px 4px 4px; font-size: 14px; }
+.dr-worn-item img { width: 32px; height: 32px; border-radius: 8px; background: var(--cream); }
+.dr-worn-none { font-size: 14px; opacity: .7; padding: 6px 0; }
+.dr .dr-dressup { width: 100%; min-height: 48px; border-radius: 999px; border: 1.5px solid #5b6c88;
+  display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 16px; }
+.dr .dr-dressup:hover { background: rgba(255, 255, 255, .06); }
+.dr-dressup-words small { display: none; }
+.dr-dressup-icon { font-size: 18px; }
+/* the wardrobe */
+.dr-wardrobe-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.dr-wardrobe-head .dr-label { margin: 0; }
+.dr .dr-done { min-height: 44px; padding: 6px 18px; border-radius: 999px; background: var(--cream); color: var(--navy); font-weight: 700; }
 .dr-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .dr .dr-slot { background: var(--panel); border-radius: 10px; min-height: 44px; display: flex; align-items: center; gap: 8px;
   padding: 4px 10px; font-size: 13px; text-align: left; min-width: 0; }
 .dr-slot img { width: 34px; height: 34px; border-radius: 8px; background: var(--cream); flex: none; }
 .dr-slot span { min-width: 0; overflow-wrap: anywhere; }
 .dr-slot small { display: block; font-size: 10px; opacity: .6; text-transform: uppercase; letter-spacing: .06em; }
-.dr .dr-slot.empty { background: transparent; border: 1px dashed #5b6c88; opacity: .65; }
-.dr-slot.open { outline: 2px solid var(--pink); }
+.dr .dr-slot.empty { background: transparent; border: 1px dashed #5b6c88; opacity: .8; }
+.dr-slot.open { outline: 2px solid var(--cream); }
 .dr .dr-slot.open { opacity: 1; }
-.dr .dr-slot.trying { border: 1px dashed var(--pink); }
-.dr-picker { grid-column: 1 / -1; background: #1f2b40; border-radius: 10px; padding: 8px; display: grid;
+.dr .dr-slot.trying { border: 1px dashed var(--cream); }
+.dr-picker { grid-column: 1 / -1; background: #1a2436; border-radius: 10px; padding: 8px; display: grid;
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
 .dr .dr-pick { background: var(--panel); border-radius: 9px; padding: 6px; font-size: 11px; text-align: center;
   display: flex; flex-direction: column; align-items: center; min-height: 44px; }
 .dr-pick img { width: 54px; height: 54px; border-radius: 8px; background: var(--cream); margin: 0 auto 4px; }
-.dr-pick .act { display: block; margin-top: 3px; font-weight: 700; color: var(--pink); }
+.dr-pick .act { display: block; margin-top: 3px; font-weight: 700; color: var(--gold); white-space: nowrap; }
 .dr-pick small { display: block; font-size: 10px; opacity: .6; }
-.dr-pick.on { outline: 2px solid var(--pink); }
+.dr-pick.on { outline: 2px solid var(--gold); }
 .dr-pick.locked { gap: 4px; }
 .dr-pick.locked .act { color: var(--muted); font-weight: 400; }
 .dr-pick.prize-surprise { justify-content: center; font-size: 11px; color: var(--cream);
-  background: linear-gradient(135deg, var(--panel), #3a2a4a); border: 1px dashed var(--pink); cursor: default; }
+  background: linear-gradient(135deg, var(--panel), #3a2a4a); border: 1px dashed var(--cream); cursor: default; }
 .dr-pick.prize-surprise .gift { font-size: 30px; line-height: 1.1; }
-.dr-pick.trying { outline: 2px dashed var(--pink); }
-.dr-pick.locked.trying .dr-pick-try .act { color: var(--pink); font-weight: 700; }
+.dr-pick.trying { outline: 2px dashed var(--cream); }
+.dr-pick.locked.trying .dr-pick-try .act { color: var(--cream); font-weight: 700; }
 .dr .dr-pick-try { display: flex; flex-direction: column; align-items: center; width: 100%; min-height: 44px; }
-.dr .dr-pick-buy { background: var(--pink); color: var(--navy); border-radius: 999px; padding: 4px 8px;
-  min-height: 44px; width: 100%; font-weight: 700; font-size: 11px; white-space: nowrap; }
-.dr-pick .act { white-space: nowrap; }
+/* Unlock in the picker: outlined, never pink (review fix 4) */
+.dr .dr-pick-buy { background: transparent; color: var(--cream); border: 1.5px solid var(--cream); border-radius: 999px;
+  padding: 4px 8px; min-height: 44px; width: 100%; font-weight: 700; font-size: 11px; white-space: nowrap; }
 
-.dr-abilities { grid-area: abilities; display: flex; gap: 6px; flex-wrap: wrap; }
+/* Today's walk: one picture card; the whole card is the Change place door */
+.dr-today { grid-area: today; }
+.dr .dr-today-card { position: relative; display: block; width: 100%; aspect-ratio: 16 / 8.5; min-height: 140px; max-height: 220px;
+  border-radius: 16px; overflow: hidden; padding: 0; text-align: left;
+  background: linear-gradient(165deg, #c3d9a8, #7fa87c); }
+.dr-today-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.dr-today-card .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 14px 10px;
+  background: linear-gradient(transparent, rgba(20, 28, 42, .88)); color: #fff; }
+.dr-today-name { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 22px; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
+.dr-today-card .cap small { display: block; font-size: 13px; opacity: .9; }
+.dr-today-card .cap .dr-today-change { display: none; }
+.dr-today-emblem { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: none;
+  border-radius: 50%; background: var(--cream); }
+.dr-change { position: absolute; top: 10px; right: 10px; background: rgba(20, 26, 38, .72); color: #fff;
+  border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 14px; }
+.dr .dr-today-card:hover .dr-change { background: rgba(20, 26, 38, .9); }
 
-/* the dock: Start (and, on a phone, where you're walking) */
-.dr-dock { grid-area: dock; }
+/* the dock: Start (big, pink, the only pink thing), Play together under it */
+.dr-dock { grid-area: dock; display: flex; flex-direction: column; gap: 10px; }
 .dr-dock .where { display: none; }
+.dr-view-wardrobe .dr-dock .where { display: flex; gap: 8px; align-items: center; font-size: 14px; opacity: .85; }
+.dr-dock .where img { width: 40px; height: 26px; border-radius: 5px; object-fit: cover; }
 .dr .dr-dock #btn-start, .dr .dr-dock .primary { background: var(--pink); color: var(--navy); border-radius: 999px;
-  padding: 13px 22px; font-weight: 700; font-size: 17px; width: 100%; min-height: 48px; }
-.dr .dr-dock #btn-start:disabled, .dr .dr-dock .primary:disabled { background: var(--btn-off-bg); color: var(--btn-off-fg); }
-/* Play together beside Start (v21): Start keeps most of the row. */
-.dr-start-row { display: flex; gap: 8px; align-items: stretch; }
-.dr-start-row #btn-start { flex: 1 1 auto; min-width: 0; }
-.dr .dr-together, .hb-sheet-dock .dr-together { flex: 0 0 auto; min-height: 48px; padding: 8px 14px; border: 1.5px solid #5b6c88; border-radius: 999px;
-  background: transparent; color: #f1e0c2; font: inherit; font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+  padding: 14px 22px; font-weight: 800; font-size: 21px; width: 100%; min-height: 64px;
+  box-shadow: 0 6px 22px rgba(231, 169, 160, .35); }
+.dr .dr-dock #btn-start:hover { filter: brightness(1.05); }
+.dr .dr-dock #btn-start:disabled, .dr .dr-dock .primary:disabled { background: var(--btn-off-bg); color: var(--btn-off-fg); box-shadow: none; }
+.dr-start-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.dr-start-row #btn-start { order: -1; flex: 1 1 100%; min-width: 0; }
+.dr .dr-together, .hb-sheet-dock .dr-together { flex: 1 1 auto; min-height: 48px; padding: 8px 16px; border: 1.5px solid #5b6c88;
+  border-radius: 999px; background: transparent; color: var(--cream, #f1e0c2); font: inherit; font-size: 15px; font-weight: 700;
+  white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.dr-dock .dusk { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px;
+  padding: 6px 14px; border: 1.5px solid #5b6c88; border-radius: 999px; font-size: 14px; cursor: pointer; color: #c8b8f0; }
 .wt-first { margin: 0 0 6px; font-weight: 700; }
 
-/* extras: the dusk toggle and the den, quiet ghost buttons under Start */
-.dr-extras { grid-area: extras; display: flex; gap: 8px; justify-content: center; align-content: flex-start; flex-wrap: wrap; }
-.dr-extras:empty { display: none; }
-.dr .dr-ghost, .dr .dr-extras > button, .dr .dr-extras > label {
-  border: 1.5px solid #5b6c88; border-radius: 999px; padding: 8px 14px; font-size: 13px; min-height: 44px;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
-.dr .dr-extras > label { color: #c8b8f0; }
-
-/* places: one row of picture cards with a gradient caption */
-.dr-where { grid-area: where; }
-.dr-places { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
-.dr .dr-place { position: relative; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 10; text-align: left; padding: 0;
+/* places: picture cards with a gradient caption (the Change place sheet) */
+.dr-places { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.dr-where button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+.dr-place { position: relative; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 10; text-align: left; padding: 0;
   background: linear-gradient(165deg, #c3d9a8, #7fa87c); min-height: 44px; }
-.dr-place img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.dr-place .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 9px 7px; font-weight: 700; font-size: 13px;
+.dr-place img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.dr-place .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 9px 7px; font-weight: 700; font-size: 14px;
   background: linear-gradient(transparent, rgba(20, 28, 42, .85)); color: #fff; }
-.dr-place .cap small { display: block; font-weight: 400; font-size: 11px; opacity: .9; }
-.dr-place.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
+.dr-place .cap small { display: block; font-weight: 400; font-size: 12px; opacity: .9; }
+.dr-place.sel { outline: 3px solid var(--gold); outline-offset: 2px; }
 .dr-place.locked img { filter: grayscale(.85) brightness(.6); }
 .dr-place.locked .cap::before { content: '🔒 '; }
 /* not enough paws yet: the picture stays visible, just dimmed and quiet */
 .dr-place.cant img { filter: saturate(.55) brightness(.8); }
 .dr-place.cant { opacity: .85; cursor: default; }
+/* My den: a warm card with a roof, no photo */
+.dr-place.dr-den { background: linear-gradient(165deg, #8a5a3c, #5a3a28); }
+.dr-den-roof { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); font-size: 38px; }
 
-/* Clan Edition: the pick-your-clan cards (own dr-home classes; two to a row on a phone). */
+/* the clan cards: the clan moment's (and the clan line's emblem badge) */
 .dr-homerow { margin: 0 0 12px; }
 .dr-homes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.dr .dr-home { position: relative; display: block; width: auto; border: 0; border-radius: 12px; text-align: left; padding: 9px; min-height: 44px; color: #fff; font-weight: 700; font-size: 13px;
-  background: linear-gradient(165deg, #6f9a74, #3f6648); }
-.dr .dr-home-woods { background: linear-gradient(165deg, #47804a, #2f5a33); }
-.dr .dr-home-river { background: linear-gradient(165deg, #3a789a, #24516b); }
-.dr .dr-home-moor { background: linear-gradient(165deg, #865f92, #5c3f68); }
-.dr .dr-home-pines { background: linear-gradient(165deg, #56609c, #353d68); }
-.dr .dr-home-gorge { background: linear-gradient(165deg, #965f3c, #6b4128); }
+.dr-home { position: relative; display: block; width: auto; border: 0; border-radius: 12px; text-align: left; padding: 10px; min-height: 44px;
+  color: #fff; font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; background: linear-gradient(165deg, #6f9a74, #3f6648); }
+.dr-home-woods { background: linear-gradient(165deg, #47804a, #2f5a33); }
+.dr-home-river { background: linear-gradient(165deg, #3a789a, #24516b); }
+.dr-home-moor { background: linear-gradient(165deg, #865f92, #5c3f68); }
+.dr-home-pines { background: linear-gradient(165deg, #56609c, #353d68); }
+.dr-home-gorge { background: linear-gradient(165deg, #965f3c, #6b4128); }
 .dr-home-name { display: flex; align-items: center; }
 .dr-home-emblem { display: inline-flex; align-items: center; justify-content: center; flex: none; vertical-align: middle;
   width: 30px; height: 30px; margin-right: 6px; border-radius: 50%; background: #f1e0c2; }
-.dr-home small { display: block; font-weight: 400; font-size: 11px; opacity: .92; }
+.dr-home small { display: block; font-weight: 400; font-size: 12px; opacity: .92; }
 .dr-home .dr-home-soon { font-style: italic; opacity: .8; }
 .dr-home .dr-home-tag { font-weight: 700; opacity: 1; }
 /* on the coloured (pickable) cards the small text is full strength: at .92 / .8
    the lighter stops (woods #47804a, river #3a789a) fell under 4.5:1 at 11px */
-.dr .dr-home:not(.dr-home-off) small, .dr .dr-home:not(.dr-home-off) .dr-home-soon { opacity: 1; }
-.dr-home.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
+.dr-home:not(.dr-home-off) small, .dr-home:not(.dr-home-off) .dr-home-soon { opacity: 1; }
+.dr-home.sel { outline: 3px solid var(--gold); outline-offset: 2px; }
 /* a clan whose camp isn't built yet: greyed, and nothing happens on a tap */
-/* no opacity on the card: its white text (and the .8 "coming soon") keeps
-   4.5:1 over the lighter stop (6.1:1 bold, 5.5:1 small, 4.6:1 coming soon) */
-.dr .dr-home.dr-home-off { background: linear-gradient(165deg, #62625c, #4a4a46); cursor: default; }
+.dr-home.dr-home-off { background: linear-gradient(165deg, #62625c, #4a4a46); cursor: default; }
 .dr-home-both { margin: 8px 0 0; font-weight: 700; }
 @media (max-width: 480px) { .dr-homes { grid-template-columns: 1fr 1fr; gap: 8px; } }
 .home-welcome { margin: 0; font-weight: 700; }
 
-/* Clan Edition: her territory map in place of the cards (ui/territorymap.js).
+/* Clan Edition: her territory map, in the Change place sheet (ui/territorymap.js).
    Board units are 1000 x 700, so on a phone 30 units is about 10 px. */
-.territory-map { display: block; width: 100%; max-width: 520px; height: auto; margin: 0 0 12px;
+.territory-map { display: block; width: 100%; max-width: 640px; height: auto; margin: 0 0 12px;
   font-family: 'Chalkboard SE', 'Comic Sans MS', Nunito, Avenir, sans-serif; -webkit-tap-highlight-color: transparent; }
 /* iOS Safari only delivers a tap on a non-link SVG element to the delegated
    click handler when the element (or an ancestor below the handler) has a pointer cursor. */
@@ -1218,9 +1275,9 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .territory-map .tm-land.built.locked { fill: #cbbfa6; stroke-dasharray: 14 9; }
 .territory-map .tm-land.soon { fill-opacity: .42; stroke-opacity: .7; stroke-dasharray: 14 9; }
 .territory-map .tm-land.later { fill-opacity: .22; stroke-opacity: .55; stroke-dasharray: 2 9; stroke-linecap: round; }
-/* the tap target: invisible, except as the pink ring round today's walk */
+/* the tap target: invisible, except as the gold ring round today's walk */
 .territory-map .tm-hit { fill: transparent; stroke: none; }
-.territory-map .sel .tm-hit { stroke: var(--pink, #e7a9a0); stroke-width: 9; }
+.territory-map .sel .tm-hit { stroke: var(--gold, #f2c14e); stroke-width: 9; }
 .territory-map .tm-river-bank { fill: none; stroke: #5d93a8; stroke-width: 22; stroke-linecap: round; stroke-linejoin: round; }
 .territory-map .tm-river { fill: none; stroke: #9fd0e0; stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; }
 .territory-map .tm-lake, .territory-map .tm-pond { fill: #9fd0e0; stroke: #5d93a8; stroke-width: 4; }
@@ -1238,90 +1295,154 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .territory-map .later .tm-label { fill: #8a7a66; font-style: italic; }
 .territory-map .sel .tm-line { fill: #b5524a; font-weight: 700; }
 
-/* the quiet row of sheets */
-.dr-more { grid-area: more; display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; }
-.dr-more .dr-ghost { opacity: .85; }
 
-.dr-pills { display: none; }
-
-/* ===== phone ===== */
+/* ===== phone: one column, no scrolling ===== */
 @media (max-width: 600px) {
-  /* A wrapping row: the header's own pieces flow inline at the top (the
-     header box itself is display: contents), every region below takes a
-     full line, and `order` moves the stats down into the More panel. */
-  .dr { display: flex; flex-flow: row wrap; align-items: center; align-content: flex-start; gap: 8px 6px;
-    padding: 10px 14px 0; min-height: 100%; }
-  .dr > * { flex: 0 0 100%; min-width: 0; }
-  .dr-header { display: contents; }
-  .dr-header > :not(.dr-stats) { flex: 0 1 auto; min-width: 0; }
-  .dr-title { font-size: 16px; margin-right: 0; }
-  .dr-chip { font-size: 12px; padding: 5px 8px; }
-  .dr-chip.visit { font-size: 14px; padding: 6px 11px; }
-  .dr-hero { order: 1; }
-  .dr-stage { height: min(38vh, 300px); }
-  .dr-hero-name { font-size: 18px; }
+  .dr { column-gap: 10px; row-gap: 10px; padding: max(10px, env(safe-area-inset-top)) 14px 0;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "header header" "hero hero" "wearing today" "dock dock"; }
+  .dr:not(.dr-building) { min-height: 0; }
+  .dr.dr-view-wardrobe { grid-template-areas: "header header" "hero hero" "wearing wearing" "dock dock"; }
+  .dr-view-wardrobe .dr-wearing { max-height: 52dvh; }
+  /* the title is the splash's job on a phone: kept for screen readers only */
+  .dr-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
+  .hb-rank { display: none; }
+  .dr .hb-menu-btn { padding: 6px 12px; }
+  .hb-menu-word { display: none; }
+  .dr-stage { min-height: 200px; }
+  .dr-hero-name { font-size: 20px; }
+  .dr-hero-blurb { display: none; }
+  .dr-hero-rank { display: block; }
   .dr .dr-portrait { width: 46px; height: 46px; }
-  /* phone: the strip is one row that scrolls sideways inside itself */
-  .dr-strip { flex-wrap: nowrap; gap: 8px; overflow-x: auto; padding: 3px 3px 6px; scrollbar-width: thin;
-    overscroll-behavior-x: contain; }
-  .dr-header .dr-chip { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  /* Ruling 6: while a slot is open, only that slot shows, with its picker as
-     one sideways row under it, and the stage shrinks a little, so the cat,
-     the open slot, the picker and Start all fit without scrolling */
-  .dr:has(.dr-slot.open) .dr-stage { height: min(30vh, 240px); }
-  .dr-wearing:has(.dr-slot.open) .dr-label { display: none; }
+  .dr-strip { margin-top: 8px; }
+  /* the two doors, side by side as tiles */
+  .dr-view-home .dr-wearing { background: none; padding: 0; }
+  .dr-view-home .dr-wearing .dr-label, .dr-view-home .dr-worn { display: none; }
+  .dr-view-home .dr-dressup { height: 100%; min-height: 64px; border-radius: 16px; border: 0; background: var(--frame);
+    justify-content: flex-start; padding: 8px 12px; text-align: left; }
+  .dr-dressup-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none;
+    border-radius: 10px; background: var(--cream); font-size: 22px; }
+  .dr-dressup-words { display: flex; flex-direction: column; min-width: 0; }
+  .dr-dressup-words small { display: block; font-weight: 400; font-size: 12px; opacity: .75; }
+  .dr-today .dr-label { display: none; }
+  .dr .dr-today-card { aspect-ratio: auto; height: 100%; min-height: 64px; max-height: none; border-radius: 16px;
+    background: var(--frame); display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+  .dr-today-card img { position: static; width: 40px; height: 40px; flex: none; border-radius: 10px; }
+  .dr-today-card .cap { position: static; padding: 0; background: none; min-width: 0; }
+  .dr-today-name { font-size: 16px; gap: 6px; text-shadow: none; }
+  .dr-today-emblem { display: none; }
+  .dr-today-card .cap small { font-size: 12px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dr-today-card .cap small:not(.dr-today-change) { display: none; }
+  .dr-today-card .cap .dr-today-change { display: block; }
+  .dr-change { display: none; }
+  /* the wardrobe: while a slot is open only that slot shows, its picker one sideways row under it */
   .dr .dr-slots:has(.dr-slot.open) .dr-slot:not(.open) { display: none; }
   .dr .dr-slot.open { grid-column: 1 / -1; }
   .dr-picker { display: flex; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; padding: 6px; }
   .dr .dr-pick { flex: none; width: 108px; padding: 5px; }
   .dr-pick img { width: 44px; height: 44px; margin-bottom: 2px; }
-  .dr-pills { order: 2; display: flex; gap: 6px; }
-  .dr .dr-pills button { flex: 1; background: var(--panel); border-radius: 999px; min-height: 44px; font-size: 14px; }
-  .dr .dr-pills button[aria-pressed="true"] { background: var(--pink); color: var(--navy); font-weight: 700; }
-  .dr-wearing, .dr-where { order: 3; }
-  .dr-stats { order: 4; flex: 0 0 100%; gap: 2px 14px; }
-  .dr .dr-stats .dr-chip, .dr .dr-stats > span { background: none; padding: 2px 0; font-size: 13px; opacity: .8; }
-  .dr-more { order: 5; }
-  .dr-extras { order: 6; }
-  .dr-dock { order: 9; }
-  .dr [data-panel], .dr .dr-abilities, .dr .dr-stats, .dr .dr-extras { display: none; }
-  .dr[data-pill="wearing"] .dr-wearing, .dr[data-pill="where"] .dr-where { display: block; }
-  .dr[data-pill="more"] .dr-stats:not(:empty) { display: flex; }
-  .dr[data-pill="more"] .dr-extras:not(:empty) { display: flex; }
-  .dr[data-pill="more"] .dr-more { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .dr-places { grid-auto-flow: row; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .dr-more { border: 0; padding: 0; }
-  .dr .dr-more .dr-ghost, .dr .dr-extras > button, .dr .dr-extras > label { min-height: 48px; font-size: 14px; }
-  .dr .dr-extras > button, .dr .dr-extras > label { flex: 1 1 140px; }
-  .dr-dock { position: sticky; bottom: 0; z-index: 2; flex-basis: calc(100% + 28px); margin: 4px -14px 0;
-    padding: 10px 14px max(10px, env(safe-area-inset-bottom));
-    background: rgba(28, 36, 49, .96); border-top: 1px solid var(--line); backdrop-filter: blur(6px); }
-  .dr .dr-dock .where { font-size: 12px; opacity: .75; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
-  .dr-dock .where img { width: 34px; height: 22px; border-radius: 4px; object-fit: cover; }
+  /* the dock: pinned to the bottom edge, a round Play together beside Start */
+  .dr-dock { margin: 0 -14px; padding: 10px 14px max(10px, env(safe-area-inset-bottom));
+    background: rgba(28, 36, 49, .96); border-top: 1px solid var(--line); gap: 8px; }
+  .dr-start-row { flex-wrap: nowrap; }
+  .dr-start-row #btn-start { order: 0; flex: 1 1 auto; }
+  .dr .dr-dock #btn-start { min-height: 58px; font-size: 20px; }
+  .dr .dr-dock .dr-together { flex: 0 0 58px; width: 58px; padding: 0; border-radius: 50%; font-size: 22px; }
+  .dr-dock .dr-together-words { display: none; }
+  .dr-dock .dusk { align-self: flex-start; }
+}
+/* very short phones (an SE in a browser): a smaller cat, the same doors */
+@media (max-width: 600px) and (max-height: 640px) {
+  .dr-stage { min-height: 150px; }
 }
 
-/* A home sheet (Skills, Colony, …): one panel and a way back to the cat */
+/* ---- sheets: a Back button, one panel; content sheets keep Start pinned ---- */
 .hb-sheet .hb-back { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: 14px;
   padding: 8px 16px; border: 1.5px solid #5b6c88; border-radius: 999px; background: transparent;
   color: #f1e0c2; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
 .hb-back { align-self: flex-start; }
-/* Ruling 10: every sheet keeps Start pinned at the bottom, like the room's
-   phone dock. The sheet is a column at least a screen tall, so on a short
-   sheet the dock still sits at the bottom edge. */
 .homebase-scroll.hb-sheet { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 0; }
+.homebase-scroll.hb-door { padding-bottom: 24px; }
 .hb-sheet-dock { position: sticky; bottom: 0; z-index: 2; margin: auto -20px 0; display: flex; flex-wrap: wrap;
   align-items: center; gap: 8px 12px; padding: 10px 20px max(10px, env(safe-area-inset-bottom));
   background: rgba(28, 36, 49, .96); border-top: 1px solid #33425e; backdrop-filter: blur(6px); color: #f1e0c2; }
-.hb-sheet-dock .where { flex: 1 1 100%; display: flex; gap: 6px; align-items: center; font-size: 12px; opacity: .75; }
+.hb-sheet-dock .where { flex: 1 1 100%; display: flex; gap: 6px; align-items: center; font-size: 13px; opacity: .8; }
 .hb-sheet-dock .where img { width: 34px; height: 22px; border-radius: 4px; object-fit: cover; }
 .hb-sheet-dock .dusk { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px;
   padding: 8px 14px; border: 1.5px solid #5b6c88; border-radius: 999px; font-size: 14px; cursor: pointer; }
-.hb-sheet-dock .dr-start-row { flex: 1 1 260px; }
-.hb-sheet-dock #btn-start { flex: 1 1 200px; min-height: 48px; padding: 13px 22px; border: 0; border-radius: 999px;
-  background: #e7a9a0; color: #1c2431; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
+.hb-sheet-dock .dr-start-row { flex: 1 1 260px; flex-wrap: nowrap; }
+.hb-sheet-dock .dr-start-row #btn-start { order: 0; flex: 1 1 200px; }
+.hb-sheet-dock #btn-start { min-height: 52px; padding: 13px 22px; border: 0; border-radius: 999px;
+  background: #e7a9a0; color: #1c2431; font: inherit; font-size: 18px; font-weight: 800; cursor: pointer; }
 .hb-sheet-dock #btn-start:disabled { background: var(--btn-off-bg); color: var(--btn-off-fg); cursor: default; }
+.hb-sheet-dock .dr-together { flex: 0 0 auto; }
 @media (max-width: 480px) {
   .hb-sheet-dock { margin-left: -14px; margin-right: -14px; padding-left: 14px; padding-right: 14px; }
+  .hb-sheet-dock .dr-together { width: 52px; padding: 0; border-radius: 50%; font-size: 20px; }
+  .hb-sheet-dock .dr-together-words { display: none; }
+}
+
+/* the Menu: the stats line, six big kid tiles, a quiet grown-ups row */
+#homebase .hb-menu h2, #homebase .hb-places h2 { font-size: 1.5rem; color: #f1e0c2; margin-bottom: 8px; }
+.hb-menu-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 16px; font-size: 14px; color: #f1e0c2; opacity: .9; }
+.hb-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.hb-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 120px;
+  padding: 14px 10px; border: 0; border-radius: 18px; background: #2c3d58; color: #f1e0c2; font: inherit; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18); }
+.hb-tile:hover { background: #34486a; }
+.hb-tile-icon { font-size: 34px; line-height: 1.1; }
+.hb-tile-name { font-size: 18px; font-weight: 800; }
+.hb-tile small { font-size: 12px; opacity: .75; text-align: center; }
+.hb-grownups { margin-top: 26px; padding-top: 12px; border-top: 1px solid #33425e; }
+.hb-grownups-label { color: #f1e0c2; }
+.hb-grownups-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.hb-grownup { min-height: 44px; padding: 6px 16px; border: 1.5px solid #5b6c88; border-radius: 999px; background: transparent;
+  color: #f1e0c2; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.hb-grownup:hover { background: rgba(255, 255, 255, .06); }
+@media (max-width: 600px) {
+  .hb-tiles { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hb-tile { min-height: 96px; }
+}
+
+/* Change place: the clan in one line, the map, more places and the den */
+.hb-places { color: #f1e0c2; }
+.hb-pick-line { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; }
+.hb-pick-line .dr-home-emblem { margin: 0; }
+.hb-pick-choose { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; width: 100%;
+  margin: 0 0 14px; padding: 12px 16px; min-height: 48px; border: 2px solid #f2c14e; border-radius: 16px;
+  background: #2c3d58; color: #f1e0c2; font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.hb-pick-choose b { color: #f2c14e; }
+.hb-places .dr-label { color: #f1e0c2; }
+@media (min-width: 900px) {
+  /* desktop: the map beside the other places, so the sheet fits one screen */
+  .hb-places .dr-where { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr;
+    column-gap: 20px; align-items: start; }
+  .hb-places .dr-where > .dr-label { align-self: end; }
+  .hb-places .dr-where > .hb-pick-line, .hb-places .dr-where > .hb-pick-choose { grid-column: 1 / -1; }
+  .hb-places .dr-where > .territory-map { grid-row: span 2; }
+  .hb-places .dr-where > .dr-places { grid-template-columns: 1fr 1fr; }
+}
+
+/* the clan moment: a one-time story card over home (outside #homebase) */
+.join-moment .join-moment-card { width: 100%; max-width: 680px; max-height: 100%; overflow-y: auto;
+  background: #2a3550; border: 2px solid #f2c14e; border-radius: 20px; padding: 20px 20px 16px; color: #f1e0c2;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .45); font-family: Avenir, Nunito, 'Trebuchet MS', sans-serif; }
+.join-moment button { font: inherit; }
+.join-moment-paws { margin: 0; text-align: center; opacity: .7; letter-spacing: .3em; }
+.join-moment h2 { margin: 4px 0 2px; text-align: center; font-size: 1.6rem; color: #f2c14e; }
+.join-moment-ask { margin: 0 0 14px; text-align: center; font-size: 1.1rem; }
+.join-moment .dr-homerow > .dr-label { display: none; }
+.join-moment .dr-home { min-height: 92px; }
+.join-moment-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; }
+.join-moment-later { min-height: 44px; padding: 8px 18px; border: 1.5px solid #5b6c88; border-radius: 999px;
+  background: transparent; color: #f1e0c2; font-weight: 700; cursor: pointer; }
+.join-moment-note { margin: 0; font-size: 13px; opacity: .75; }
+@media (max-width: 480px) {
+  .join-moment .join-moment-card { padding: 14px 12px 12px; border-radius: 16px; }
+  .join-moment h2 { font-size: 1.3rem; }
+  .join-moment .dr-home { min-height: 80px; padding: 8px; font-size: 13px; }
 }
 
 /* --- The den shop, inside the den (v21 Stream 5, Task 6) ------------------
@@ -1541,7 +1662,7 @@ body.den-shop-open .chat-wheel { display: none !important; }
 .dr-mine-dot { position: absolute; inset: 5px; border-radius: 50%; background: var(--sw, var(--cream));
   display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px;
   color: var(--navy); text-shadow: 0 0 3px #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .35); }
-.dr .dr-portrait.dr-make { width: auto; padding: 0 12px; background: var(--panel); border: 1.5px dashed var(--pink);
+.dr .dr-portrait.dr-make { width: auto; padding: 0 12px; background: var(--panel); border: 1.5px dashed var(--cream);
   font-size: 13px; font-weight: 700; white-space: nowrap; }
 .dr .dr-portrait.dr-make.full { width: 170px; padding: 0 8px; border-color: var(--muted); opacity: .6; cursor: default;
   display: flex; align-items: center; justify-content: center; text-align: center;
@@ -1554,7 +1675,7 @@ body.den-shop-open .chat-wheel { display: none !important; }
   font-weight: 700; text-shadow: none; }
 .dr .dr-pose:focus-visible { outline: 3px solid var(--cream); outline-offset: 2px; }
 .dr .dr-hero-edit { pointer-events: auto; margin-top: 6px; background: var(--panel); color: var(--cream);
-  border: 1.5px solid var(--pink); border-radius: 999px; padding: 8px 18px; min-height: 44px; font-weight: 700; }
+  border: 1.5px solid var(--cream); border-radius: 999px; padding: 8px 18px; min-height: 44px; font-weight: 700; }
 
 /* the builder: one column (phone and tablet); the stage sticks on top */
 .dr.dr-building { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto;
