@@ -81,11 +81,14 @@ function setup() {
   return { progression };
 }
 
-// A click on the title's edition button: closest() finds the button itself.
+// A click on the title's edition words: closest() finds the old toggle
+// selector too, so a handler that still listened for it would flip the save.
 function clickEditionToggle() {
-  const target = { id: '', dataset: { editionToggle: '' }, closest: (sel) => (sel === '[data-edition-toggle]' ? target : null) };
+  const target = { id: '', dataset: { editionToggle: '' }, closest: (sel) => (sel === '[data-edition-toggle]' || sel === '.dr-edition' || sel === '.dr-title' ? target : null) };
   return doc.root.listeners.click({ target });
 }
+// The Settings select is the one switch.
+const chooseEdition = (value) => doc.root.listeners.change({ target: { id: 'set-edition', value, dataset: {} } });
 
 describe('Settings: the edition row', () => {
   it('offers Clan Edition and Legacy Edition, with the saved one selected', () => {
@@ -117,26 +120,39 @@ describe('Settings: the edition row', () => {
 });
 
 describe('the title names the edition', () => {
-  it("tapping the title's edition flips it and the title follows", async () => {
+  it('the title is plain text, not a button, and a click on it changes nothing', async () => {
     const { progression } = setup();
-    expect(doc.root.innerHTML).toContain(`data-edition-toggle>${CLAN_SUFFIX} Edition</button>`);
+    expect(doc.root.innerHTML).toContain(`<span class="dr-edition">${CLAN_SUFFIX} Edition</span>`);
+    expect(doc.root.innerHTML).not.toContain('data-edition-toggle');
+    expect(doc.root.innerHTML).not.toMatch(/<button[^>]*dr-edition/);
+    const before = JSON.stringify(progression.state);
     await clickEditionToggle();
-    expect(progression.state.edition).toBe('legacy');
-    expect(doc.root.innerHTML).toContain('data-edition-toggle>Legacy Edition</button>');
     await clickEditionToggle();
     expect(progression.state.edition).toBe('canon');
-    expect(doc.root.innerHTML).toContain(`data-edition-toggle>${CLAN_SUFFIX} Edition</button>`);
+    expect(JSON.stringify(progression.state)).toBe(before);
+    expect(doc.root.innerHTML).toContain(`<span class="dr-edition">${CLAN_SUFFIX} Edition</span>`);
   });
 
-  it('the edition switch says what it does to a screen reader', () => {
+  it('Settings is the only edition switch, and the title follows it', () => {
+    const { progression } = setup();
+    chooseEdition('legacy');
+    expect(progression.state.edition).toBe('legacy');
+    expect(doc.root.innerHTML).toContain('<span class="dr-edition">Legacy Edition</span>');
+    chooseEdition('canon');
+    expect(progression.state.edition).toBe('canon');
+    expect(doc.root.innerHTML).toContain(`<span class="dr-edition">${CLAN_SUFFIX} Edition</span>`);
+  });
+
+  it('the title is a heading with no switch label for a screen reader to announce', () => {
     setup();
-    expect(doc.root.innerHTML).toMatch(/<button class="dr-edition" aria-label="Switch game edition" title="Switch game edition" data-edition-toggle>/);
+    expect(doc.root.innerHTML).toMatch(/<h1 class="dr-title">.*Whisker Walk 2 · <span class="dr-edition">/);
+    expect(doc.root.innerHTML).not.toContain('Switch game edition');
   });
 
-  it('the page title follows the save: Clan Edition on load, Legacy after a flip', async () => {
+  it('the page title follows the save: Clan Edition on load, Legacy after Settings changes it', () => {
     setup();
     expect(doc.title).toBe(`Whisker Walk 2: ${CLAN_SUFFIX} Edition`);
-    await clickEditionToggle();
+    chooseEdition('legacy');
     expect(doc.title).toBe('Whisker Walk 2: Legacy Edition');
   });
 
@@ -170,11 +186,11 @@ describe('the title names the edition', () => {
     expect(html).not.toContain(`${CLAN_SUFFIX} Edition`);
   });
 
-  it('flipping there and back leaves the save as it was', async () => {
+  it('switching in Settings and back leaves the save as it was', () => {
     const { progression } = setup();
     const before = JSON.parse(JSON.stringify(progression.state));
-    await clickEditionToggle();
-    await clickEditionToggle();
+    chooseEdition('legacy');
+    chooseEdition('canon');
     expect(JSON.parse(JSON.stringify(progression.state))).toEqual(before);
   });
 });

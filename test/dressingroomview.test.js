@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { reduceDressingUi, createDressingRoom } from '../src/ui/dressingroomview.js';
+import { reduceDressingUi, createDressingRoom, INITIAL_DRESSING_UI } from '../src/ui/dressingroomview.js';
 
-const base = () => ({ pill: 'wearing', openSlot: null, previewCat: null, tryOn: null });
+const base = () => ({ wardrobe: false, moreCats: false, openSlot: null, previewCat: null, tryOn: null });
 
 describe('reduceDressingUi', () => {
   it('previewing a locked cat sets previewCat; picking an owned cat clears it', () => {
@@ -44,19 +44,55 @@ describe('reduceDressingUi', () => {
     expect(ui.tryOn).toBe(null);
   });
 
-  it('pill switches the panel and ignores unknown pills', () => {
-    let ui = reduceDressingUi(base(), { type: 'pill', pill: 'where' });
-    expect(ui.pill).toBe('where');
-    const same = reduceDressingUi(ui, { type: 'pill', pill: 'nope' });
-    expect(same).toBe(ui);
+  it('the wardrobe opens and closes; asking for the state it is already in returns the same object', () => {
+    let ui = reduceDressingUi(base(), { type: 'wardrobe', open: true });
+    expect(ui.wardrobe).toBe(true);
+    expect(reduceDressingUi(ui, { type: 'wardrobe', open: true })).toBe(ui);
+    ui = reduceDressingUi(ui, { type: 'wardrobe', open: false });
+    expect(ui.wardrobe).toBe(false);
+    const shut = base();
+    expect(reduceDressingUi(shut, { type: 'wardrobe', open: false })).toBe(shut);
   });
 
-  it('clear-preview resets both preview and try-on, keeping pill and open slot', () => {
+  it('closing the wardrobe also closes the open slot and drops a try-on, keeping the preview cat', () => {
+    const open = { ...base(), wardrobe: true, openSlot: 'head', previewCat: 'hagrid', tryOn: { slot: 'head', id: 'tophat' } };
+    const ui = reduceDressingUi(open, { type: 'wardrobe', open: false });
+    expect(ui).toMatchObject({ wardrobe: false, openSlot: null, tryOn: null, previewCat: 'hagrid' });
+  });
+
+  it('opening the wardrobe keeps whatever else is set', () => {
+    const ui = reduceDressingUi({ ...base(), moreCats: true, previewCat: 'hagrid' }, { type: 'wardrobe', open: true });
+    expect(ui).toMatchObject({ wardrobe: true, moreCats: true, previewCat: 'hagrid' });
+  });
+
+  it('more-cats toggles the locked cats open and shut', () => {
+    let ui = reduceDressingUi(base(), { type: 'more-cats' });
+    expect(ui.moreCats).toBe(true);
+    ui = reduceDressingUi(ui, { type: 'more-cats' });
+    expect(ui.moreCats).toBe(false);
+  });
+
+  it('builder-done lands in the wardrobe, with the builder, slot, preview and try-on cleared', () => {
     const ui = reduceDressingUi(
-      { pill: 'more', openSlot: 'head', previewCat: 'hagrid', tryOn: { slot: 'head', id: 'tophat' } },
+      { ...base(), builder: { any: 1 }, openSlot: 'head', previewCat: 'hagrid', tryOn: { slot: 'head', id: 'tophat' } },
+      { type: 'builder-done' },
+    );
+    expect(ui).toMatchObject({ builder: null, wardrobe: true, openSlot: null, previewCat: null, tryOn: null });
+  });
+
+  it('there are no pills any more: a pill action changes nothing', () => {
+    const ui = base();
+    expect(reduceDressingUi(ui, { type: 'pill', pill: 'where' })).toBe(ui);
+    expect(INITIAL_DRESSING_UI).not.toHaveProperty('pill');
+    expect(INITIAL_DRESSING_UI).toMatchObject({ wardrobe: false, moreCats: false });
+  });
+
+  it('clear-preview resets both preview and try-on, keeping the wardrobe, locked cats and open slot', () => {
+    const ui = reduceDressingUi(
+      { wardrobe: true, moreCats: true, openSlot: 'head', previewCat: 'hagrid', tryOn: { slot: 'head', id: 'tophat' } },
       { type: 'clear-preview' },
     );
-    expect(ui).toEqual({ pill: 'more', openSlot: 'head', previewCat: null, tryOn: null, builder: null });
+    expect(ui).toEqual({ wardrobe: true, moreCats: true, openSlot: 'head', previewCat: null, tryOn: null, builder: null });
   });
 
   it('an unknown action returns ui unchanged (same object)', () => {
@@ -73,15 +109,19 @@ describe('reduceDressingUi', () => {
   });
 });
 
-describe('createDressingRoom setPill', () => {
-  it("setPill('where') switches the panel and ignores junk", () => {
+describe('createDressingRoom closeWardrobe', () => {
+  it('closeWardrobe shuts the wardrobe, the open slot, the try-on and the locked cats', () => {
     const progression = { state: { equipped: {}, unlocked: {} } };
     const room = createDressingRoom({ progression });
-    expect(room.ui.pill).toBe('wearing');
-    room.setPill('where');
-    expect(room.ui.pill).toBe('where');
-    room.setPill('nope');
-    room.setPill(undefined);
-    expect(room.ui.pill).toBe('where');
+    expect(room.ui).toMatchObject({ wardrobe: false, moreCats: false });
+    room.handleClick({ target: { closest: () => ({ dataset: { drWardrobe: '' }, ownerDocument: {} }) } });
+    expect(room.ui.wardrobe).toBe(true);
+    room.closeWardrobe();
+    expect(room.ui).toMatchObject({ wardrobe: false, openSlot: null, tryOn: null, moreCats: false });
+  });
+  it('has no setPill any more, and offers placesHtml', () => {
+    const room = createDressingRoom({ progression: { state: { equipped: {}, unlocked: {} } } });
+    expect(room.setPill).toBeUndefined();
+    expect(typeof room.placesHtml).toBe('function');
   });
 });

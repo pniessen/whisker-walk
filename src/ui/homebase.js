@@ -3,14 +3,17 @@ import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
 import { activeCat } from '../customcats.js';
 import { renderFightMovesHtml, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
-import { HOME_SHEETS, resolveSheet, PLACE_PICTURE } from './dressingroom.js';
+import { HOME_SHEETS, MENU_TILES, GROWNUP_SHEETS, SHEET_ICON, SHEET_NAME, resolveSheet, PLACE_PICTURE } from './dressingroom.js';
 import { createDressingRoom } from './dressingroomview.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
 import { pickableClans, clanName, ownClanTitle, alliesName } from '../clanhomes.js';
 import { CLAN_SUFFIX } from '../clanwords.js';
-import { PICK_ATTR, PICK_SELECT_ID } from './clanpicker.js';
+import {
+  PICK_ATTR, PICK_SELECT_ID, MOMENT_ATTR, MOMENT_SEEN_KEY, clanPickerModel, clanMomentDue, renderClanMomentHtml, clanLineHtml, woodsOpen,
+} from './clanpicker.js';
+import { SKILLS, hasSkill } from '../skills.js';
 import { editionTitle, gameTitle, isClanEdition, placeName, effectiveArea } from '../edition.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
@@ -28,15 +31,16 @@ import { PAW } from './pawicon.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
-// The header's visit chip: "🐾 Visit 23", or "🎉 Visit 30" on a milestone
-// visit; nothing before the first visit. visits comes from the save, so it is
-// coerced to a whole number before it reaches innerHTML.
+// The top bar's visit pill: "🐾 Visit 23", or "🎉 Visit 30" on a milestone
+// visit; nothing before the first visit. A quiet HUD pill (Launch A: pink is
+// Start's alone). visits comes from the save, so it is coerced to a whole
+// number before it reaches innerHTML.
 export function visitBadgeHtml(visits) {
   const n = Math.floor(asFiniteNonNeg(visits, 0));
   if (n < 1) return '';
   return isMilestone(n)
-    ? `<div class="dr-chip visit milestone">🎉 Visit ${n}</div>`
-    : `<div class="dr-chip visit">${PAW} Visit ${n}</div>`;
+    ? `<div class="hb-pill dr-visit milestone">🎉 Visit ${n}</div>`
+    : `<div class="hb-pill dr-visit">${PAW} Visit ${n}</div>`;
 }
 
 // How long the welcome line stays before it is removed (its CSS fade ends
@@ -117,7 +121,9 @@ export function showEditionTitle(doc, edition) {
   doc.getElementById?.('splash')?.setAttribute('aria-label', gameTitle(edition));
 }
 
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate) {
+// onCardsClosed() is optional: called when she dismisses the clan moment, so
+// main.js can show the news card that waited for it.
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
@@ -338,6 +344,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             </select>
           </label>` : ''}
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
+        </div>
+        <h3 class="settings-group">Advanced</h3>
+        <div class="settings-grid settings-advanced">
           ${settingsSwitchHtml('set-perf-readout', !!s.perfReadout, 'Performance readout (fps counter)')}
           <label class="settings-row settings-quality">
             <span class="settings-label">Graphics quality (applies next walk)</span>
@@ -561,6 +570,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // Only what the card showed is marked, not what merged while it was up.
     if (markSeen) {
       try { progression.markColonySeen(utcToday(), seen || undefined); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); }
+      showClanMoment(); // it waited for this card
     }
   }
 
@@ -569,7 +579,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // colonyNews's snapshot of what the card shows, marked read on dismiss. Returns
   // whether it was shown.
   function showNews(html, seen) {
-    if (typeof html !== 'string' || !html || newsEl || noticeEl || visitOpen() || !homeVisible()) return false;
+    if (typeof html !== 'string' || !html || newsEl || noticeEl || momentEl || visitOpen() || !homeVisible()) return false;
     newsShown = seen && typeof seen === 'object' ? seen : null;
     newsEl = document.createElement('div');
     newsEl.id = 'colony-news';
@@ -595,10 +605,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (!noticeEl) return;
     noticeEl.remove();
     noticeEl = null;
+    showClanMoment(); // it waited for this card
   }
 
   function showNotice(text) {
-    if (typeof text !== 'string' || !text || noticeEl || visitOpen() || !homeVisible()) return false;
+    if (typeof text !== 'string' || !text || noticeEl || momentEl || visitOpen() || !homeVisible()) return false;
     noticeEl = document.createElement('div');
     noticeEl.id = 'home-notice';
     noticeEl.className = 'colony-news';
@@ -619,6 +630,76 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     noticeEl.append(card);
     root.after(noticeEl);
     ok.focus();
+    return true;
+  }
+
+  // ---- The clan moment (Launch A) -------------------------------------------
+  // "The clans have noticed you!": the five clan cards, once, when the Woods
+  // opens for a Clan Edition kid with no pick (clanpicker.clanMomentDue). Like
+  // the news card it lives outside #homebase, so render() can't wipe it. It
+  // never stacks: it waits for the visit celebration, the Rosa notice and the
+  // news card (each one's close tries it again), and they wait for it. This
+  // device remembers it was dismissed (localStorage); the pick itself is the
+  // save's clanPick, as before.
+  let momentEl = null;
+  let greeted = false; // the boot greeting has run: show() may now bring the moment up
+  const momentStore = () => { try { return globalThis.localStorage ?? null; } catch { return null; } };
+  let momentDismissed = false; // this session's memory, for a device with no storage
+  function momentSeen() {
+    if (momentDismissed) return true;
+    try { return momentStore()?.getItem?.(MOMENT_SEEN_KEY) === '1'; } catch { return false; }
+  }
+  function markMomentSeen() {
+    momentDismissed = true;
+    try { momentStore()?.setItem?.(MOMENT_SEEN_KEY, '1'); } catch { /* private window: this session only */ }
+  }
+  function closeClanMoment(seen) {
+    if (!momentEl) return;
+    momentEl.remove();
+    momentEl = null;
+    if (!seen) return; // a walk is starting: nothing more goes up now
+    markMomentSeen();
+    try { root.querySelector('#btn-start')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+    // the news card gave way to the moment: it may show now
+    try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); }
+  }
+  // force: Change place's "Choose your clan" (shown even after "Not yet").
+  function showClanMoment({ force = false } = {}) {
+    if (!shown || momentEl || newsEl || noticeEl || visitOpen() || !homeVisible() || dressing?.ui?.builder) return false;
+    // home, or Change place (a border crossing lands there); never over another sheet
+    if (!force && openSheet && openSheet !== 'places') return false;
+    const s = progression.state;
+    if (!clanMomentDue(s, CATALOG) || (!force && momentSeen())) return false;
+    closeWelcome();
+    const partner = s.colony?.partner?.petName;
+    momentEl = document.createElement('div');
+    momentEl.id = 'clan-moment';
+    momentEl.className = 'colony-news join-moment';
+    momentEl.innerHTML = renderClanMomentHtml(clanPickerModel(s), typeof partner === 'string' && partner ? partner : 'your partner');
+    momentEl.addEventListener('click', (e) => {
+      const card = e.target.closest?.(`[${PICK_ATTR}]`);
+      if (card) {
+        pickClan(card.getAttribute(PICK_ATTR)); // renders home under the card first,
+        closeClanMoment(true); // so focus lands on the new Start
+        return;
+      }
+      if (e.target.closest?.('.join-moment-later')) closeClanMoment(true);
+    });
+    momentEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { closeClanMoment(true); return; }
+      // aria-modal: Tab stays inside the card
+      if (e.key !== 'Tab') return;
+      const btns = [...(momentEl.querySelectorAll?.('button:not([aria-disabled="true"])') ?? [])];
+      if (!btns.length) return;
+      const i = btns.indexOf(document.activeElement);
+      const next = e.shiftKey ? (i <= 0 ? btns.length - 1 : i - 1) : (i === -1 || i === btns.length - 1 ? 0 : i + 1);
+      e.preventDefault();
+      btns[next].focus?.();
+    });
+    root.after(momentEl);
+    // The card itself takes focus, not a clan: an Enter still held from the
+    // button that brought her here must never pick one.
+    momentEl.querySelector('.join-moment-card')?.focus?.({ preventScroll: true });
     return true;
   }
 
@@ -646,6 +727,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const cb = visitClosed;
       visitClosed = null;
       cb?.(reason);
+      if (reason !== 'walk') showClanMoment(); // after the farewell and news, which go first
     },
   });
   function visitOpen() { return celebration.isOpen(); }
@@ -719,6 +801,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // once when it closes ('done', or 'walk' when a walk started over it).
   // Otherwise the welcome line shows, it returns false, and onClosed is not called.
   function showVisit(result, { onClosed } = {}) {
+    greeted = true;
     // Hidden: a walk already started (a room partner pressed Start during the
     // splash). Nothing goes up over the walk, but the prize is still worn.
     if (!homeVisible()) {
@@ -736,13 +819,14 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       if (shownOk) {
         // The badge pops once now that the greeting is in view (not on the
         // first render, which the splash covers).
-        try { root.querySelector('.dr-chip.visit')?.classList.add('pop'); } catch { /* a nicety */ }
+        try { root.querySelector('.dr-visit')?.classList.add('pop'); } catch { /* a nicety */ }
         return true;
       }
       visitClosed = null;
     }
     const n = Math.floor(asFiniteNonNeg(result && result.visits, 0));
     if (n >= 1) showWelcome(welcomeLine(n));
+    showClanMoment();
     return false;
   }
 
@@ -763,13 +847,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       onOpenSheet: (id) => setSheet(id),
       onProfileChange: () => rooms?.retrackProfile?.(),
       onCatSaved: () => rooms?.pushProfileNow?.(),
+      // Change place: a place she can walk is picked and she is back home with
+      // its card; a locked or unaffordable one leaves the sheet as it is.
+      onPlaced: (id, outcome) => { if (outcome && openSheet === 'places') { openSheet = null; backTo = null; } },
     });
     return dressing;
   }
 
   // The sheets on offer: Sync only when cloud saves are set up, Play together
-  // only when multiplayer is. (The den shop lives inside the den now —
-  // ui/denshopview.js.)
+  // only when multiplayer is. Menu and Change place always. (The den shop
+  // lives inside the den now — ui/denshopview.js.)
   function availableSheets() {
     return HOME_SHEETS.filter((id) => {
       if (id === 'sync') return !!(sync && sync.available);
@@ -780,11 +867,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   // The 👫 button beside Start, on the dressing room and on every sheet but
   // its own: one tap to the party screen. In a room it says how many are in.
+  // (A phone shows it round, the 👫 only; the words stay its name.)
   function playTogetherHtml(roomState) {
     if (!rooms || !rooms.available || openSheet === 'together') return '';
     const n = roomState && Array.isArray(roomState.roster) ? roomState.roster.length : 0;
-    const label = roomState ? `👫 ${n} together` : '👫 Play together';
-    return `<button id="btn-play-together" class="dr-together" type="button">${escapeHtml(label)}</button>`;
+    const words = roomState ? `${n} together` : 'Play together';
+    return `<button id="btn-play-together" class="dr-together" type="button" aria-label="${escapeHtml(words)}">`
+      + `<span aria-hidden="true">👫</span><span class="dr-together-words" aria-hidden="true">${escapeHtml(words)}</span></button>`;
   }
 
   // Start, with Play together beside it when multiplayer is on.
@@ -792,17 +881,100 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState)}</div>`;
   }
 
-  // null (or anything not on offer) = back to the dressing room.
+  // null (or anything not on offer) = back to the dressing room. A sheet opened
+  // from the Menu goes back to the Menu; the Menu and Change place go home.
+  let backTo = null;
   function setSheet(id) {
     const want = resolveSheet(id);
-    openSheet = want && availableSheets().includes(want) ? want : null;
+    const next = want && availableSheets().includes(want) ? want : null;
+    const prev = openSheet;
+    backTo = openSheet === 'menu' && next && next !== 'menu' && next !== 'places' ? 'menu' : null;
+    openSheet = next;
     render();
     root.scrollTop = 0; // a sheet (or the room) opens at its top
+    // Keyboard and screen-reader users land on the new screen's first control,
+    // or, going back, on the door they came through (the Menu, a tile, the card).
+    try {
+      const back = (next === null || next === 'menu') && prev ? root.querySelector(`[data-dr-sheet="${prev}"]`) : null;
+      (back ?? (next ? root.querySelector('#hb-back') : null))?.focus?.({ preventScroll: true });
+    } catch { /* a nicety */ }
+  }
+
+  // ---- The Menu sheet (Launch A) -------------------------------------------
+  // The old header's stats line, the rank's next step in plain words, six big
+  // kid tiles and a quiet grown-ups row.
+  function menuStatsHtml(s) {
+    const rank = rankFor(s.lifetimePoints);
+    const life = asFiniteNonNeg(s.lifetimePoints, 0);
+    const nextLine = rank.next
+      ? `${Math.max(0, rank.next.at - life)} ${PAW} more to ${escapeHtml(rank.next.title)}`
+      : 'Top rank!';
+    // s.streak / s.race come through progression's sanitizers on every load,
+    // but this is an innerHTML display path: coerce again here.
+    const streakCount = asFiniteNonNeg(s.streak?.count, 0);
+    const today = new Date().toISOString().slice(0, 10);
+    const raceBestMs = s.race?.date === today ? asFiniteNonNeg(s.race?.bestMs, null) : null;
+    // Only the mice this edition can reach (Legacy hides four territories).
+    const gold = goldForEdition(s.edition, CATALOG);
+    return [
+      `<span>🏆 ${escapeHtml(rank.title)} · ${nextLine}</span>`,
+      streakCount >= 2 ? `<span>🔥 ${streakCount} days in a row</span>` : '',
+      `<span>Best walk ${asFiniteNonNeg(s.bestWalk, 0)} ${PAW}</span>`,
+      renderGoldenTallyHtml(goldenFound(s.golden, gold), gold.size),
+      raceBestMs != null ? `<span>Today’s race best: ${(raceBestMs / 1000).toFixed(1)}s 🏁</span>` : '',
+      s.kitten?.stage === 3 ? '<span>🐱 Mochi lives with you now</span>' : '',
+    ].filter(Boolean).join('');
+  }
+
+  function menuTileSub(id, s, roomState) {
+    if (id === 'skills') return `${SKILLS.filter((k) => hasSkill(s, k.id)).length} of ${SKILLS.length} earned`;
+    if (id === 'journal') return 'critters + golden mice';
+    if (id === 'together' && roomState) {
+      const n = Array.isArray(roomState.roster) ? roomState.roster.length : 0;
+      return `${n} together now`;
+    }
+    return '';
+  }
+
+  function renderMenu(s, roomState) {
+    const on = availableSheets();
+    const tiles = MENU_TILES.filter((id) => on.includes(id)).map((id) => {
+      const sub = menuTileSub(id, s, roomState);
+      return `<button class="hb-tile" data-dr-sheet="${id}"><span class="hb-tile-icon" aria-hidden="true">${SHEET_ICON[id]}</span>`
+        + `<span class="hb-tile-name">${escapeHtml(SHEET_NAME[id])}</span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</button>`;
+    }).join('');
+    const grown = GROWNUP_SHEETS.filter((id) => on.includes(id))
+      .map((id) => `<button class="hb-grownup" data-dr-sheet="${id}"><span aria-hidden="true">${SHEET_ICON[id]}</span> ${escapeHtml(SHEET_NAME[id])}</button>`).join('');
+    return `<section class="hb-menu" aria-labelledby="hb-menu-title"><h2 id="hb-menu-title">Menu</h2>
+      <p class="hb-menu-stats">${menuStatsHtml(s)}</p>
+      <div class="hb-tiles">${tiles}</div>
+      <div class="hb-grownups"><p class="hb-grownups-label">For grown-ups</p><div class="hb-grownups-row">${grown}</div></div>
+    </section>`;
+  }
+
+  // ---- The Change place sheet (Launch A) -----------------------------------
+  // Her map and places (the dressing room's), the den as a place card, and her
+  // clan in one line.
+  function renderPlaces(s, roomState) {
+    const d = ensureDressing();
+    let line = '';
+    if (isClanEdition(s)) {
+      const partner = s.colony?.partner?.petName;
+      line = clanLineHtml(clanPickerModel(s), typeof partner === 'string' && partner ? partner : 'your partner', { canChoose: woodsOpen(s, CATALOG) });
+    }
+    // The den never joins a room walk (main.js starts it on its own), so a room hides it, as before.
+    const den = roomState ? ''
+      : '<button class="dr-place dr-den" id="btn-visit-den" type="button"><span class="dr-den-roof" aria-hidden="true">🏠</span><span class="cap">My den<small>visit your den</small></span></button>';
+    return `<section class="hb-places" aria-labelledby="hb-places-title"><h2 id="hb-places-title">Where to?</h2>
+      ${d.placesHtml({ clanLineHtml: line, denHtml: den })}
+    </section>`;
   }
 
   // One sheet's content: the same sections the old tabs held.
-  function renderSheetBody(id, s, colonyStatus) {
+  function renderSheetBody(id, s, colonyStatus, roomState) {
     switch (id) {
+      case 'menu': return renderMenu(s, roomState);
+      case 'places': return renderPlaces(s, roomState);
       case 'skills': return `
         <section class="skills-section"><h2>Cat Skills 🐾</h2>
           <p class="skills-intro">Abilities aren’t bought — they’re earned. Pull off the feat and the
@@ -905,15 +1077,18 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       // Where the walk actually happens: Legacy walks the Neighborhood in place
       // of a Clan-only choice, and must not name it.
       const areaId = effectiveArea({ area: chosen, edition: s.edition }, CATALOG);
+      // Menu and Change place are doors, not screens of their own: no dock.
+      const door = openSheet === 'menu' || openSheet === 'places';
+      const back = backTo === 'menu' ? '← Back to the menu' : '← Back to my cat';
       root.innerHTML = `
-      <div class="homebase-scroll hb-sheet" data-sheet="${escapeHtml(openSheet)}">
-        <button id="hb-back" class="hb-back">← Back to my cat</button>
-        ${renderSheetBody(openSheet, s, colonyStatus)}
-        <footer class="hb-sheet-dock">
+      <div class="homebase-scroll hb-sheet${door ? ' hb-door' : ''}" data-sheet="${escapeHtml(openSheet)}">
+        <button id="hb-back" class="hb-back">${back}</button>
+        ${renderSheetBody(openSheet, s, colonyStatus, roomState)}
+        ${door ? '' : `<footer class="hb-sheet-dock">
           <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
           ${duskHtml}
           ${startRowHtml(roomState)}
-        </footer>
+        </footer>`}
       </div>`;
       refocus(fid);
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
@@ -922,46 +1097,20 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       return;
     }
     const rank = rankFor(s.lifetimePoints);
-    const nextLine = rank.next
-      ? `next: ${Math.max(0, rank.next.at - s.lifetimePoints)} ${PAW} to ${escapeHtml(rank.next.title)}`
-      : 'top rank!';
-    // s.streak comes through progression.js's sanitizeStreak on every
-    // load/replaceFromPayload, but this is a display path (interpolated
-    // straight into innerHTML) — coerce again here rather than trust that
-    // upstream guarantee to hold forever.
-    const streakCount = asFiniteNonNeg(s.streak?.count, 0);
-    // Same defensive-coercion rationale as streakCount above: s.race comes
-    // through progression.js's sanitizeRace on every load/replaceFromPayload
-    // (so bestMs is already either null or a genuine finite positive
-    // number), but this is still an innerHTML display path, so bestMs is
-    // coerced again through asFiniteNonNeg rather than trusted wholesale.
-    const today = new Date().toISOString().slice(0, 10);
-    const raceBestMs = s.race?.date === today ? asFiniteNonNeg(s.race?.bestMs, null) : null;
-    // The header's pieces stay inline, not in one wrapper: on a phone
-    // .dr-header is display: contents, so the stats can move into More.
-    const headerHtml = `<h1 class="dr-title">${PAW} Whisker Walk 2: <button class="dr-edition" aria-label="Switch game edition" title="Switch game edition" data-edition-toggle>${editionTitle(s.edition)}</button></h1>`
+    const points = asFiniteNonNeg(s.points, 0);
+    // The top bar copies the walk HUD: the title as plain words (Launch A: the
+    // edition switch lives in Settings only), the points and rank pills, the
+    // quiet visit pill and the Menu door.
+    const headerHtml = `<h1 class="dr-title">${PAW} Whisker Walk 2 · <span class="dr-edition">${escapeHtml(editionTitle(s.edition))}</span></h1>`
+      + `<div class="hb-pill hb-points" role="img" aria-label="${points} whisker points">${PAW} ${points}</div>`
+      + `<div class="hb-pill hb-rank">🏆 ${escapeHtml(rank.title)}</div>`
       + visitBadgeHtml(s.visits)
-      + `<div class="dr-chip gold">${PAW} ${asFiniteNonNeg(s.points, 0)} whisker points</div>`
-      + `<div class="dr-chip">🏆 ${escapeHtml(rank.title)} — ${nextLine}</div>`;
-    // The old header's substats lines, one block (other branches add a line
-    // here). style.css chips each <span>.
-    // Only the mice this edition can reach (Legacy hides four territories).
-    const gold = goldForEdition(s.edition, CATALOG);
-    const statsHtml = `
-                  ${streakCount >= 2 ? `<span>🔥 ${streakCount}-day streak</span>` : ''}
-                  <span>best walk: ${s.bestWalk} ${PAW}</span>
-                  ${renderGoldenTallyHtml(goldenFound(s.golden, gold), gold.size)}
-                  ${raceBestMs != null ? `<span>Today’s race best: ${(raceBestMs / 1000).toFixed(1)}s 🏁</span>` : ''}
-                  ${s.kitten.stage === 3 ? '<span>🐱 Mochi lives with you now</span>' : ''}
-    `;
-    const extrasHtml = `
-      ${duskHtml}
-      ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}`.trim();
+      + '<button class="hb-menu-btn" data-dr-sheet="menu" aria-label="Menu"><span aria-hidden="true">☰</span><span class="hb-menu-word"> Menu</span></button>';
     const room = ensureDressing();
     if (room.deferRender?.(root)) return; // she is typing her cat's name: runs on blur
     const f = room.captureFocus(root);
     root.innerHTML = room.html({
-      headerHtml, statsHtml, startHtml: startRowHtml(roomState), extrasHtml, sheets: availableSheets(),
+      headerHtml, startHtml: startRowHtml(roomState), extrasHtml: duskHtml, rankTitle: rank.title,
     });
     room.afterRender(root);
     room.restoreFocus(root, f);
@@ -988,17 +1137,15 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   root.addEventListener('click', async (e) => {
     // The dressing room's own controls (portraits, slots, picker, places,
-    // pills, sheet buttons) go to its controller first.
+    // the wardrobe, the sheet doors and tiles) go to its controller first.
     if (dressing && dressing.handleClick(e)) return;
-    if (e.target.id === 'hb-back') {
-      setSheet(null);
+    if (e.target.closest?.('#hb-back')) {
+      setSheet(backTo);
       return;
     }
-    // The title's edition is a switch: a tap flips it. Legacy only hides the
-    // clan layer, so flipping never loses anything.
-    if (e.target.closest?.('[data-edition-toggle]')) {
-      progression.setEdition(isClanEdition(progression.state) ? 'legacy' : 'canon');
-      render();
+    // Change place's "Choose your clan" (before a pick): the moment again.
+    if (e.target.closest?.(`[${MOMENT_ATTR}]`)) {
+      showClanMoment({ force: true });
       return;
     }
     const buyMoveBtn = e.target.closest?.('[data-buy-move]');
@@ -1076,11 +1223,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       onStartWalk({ duskMode });
       return;
     }
-    if (e.target.id === 'btn-play-together') {
+    if (e.target.closest?.('#btn-play-together')) {
       setSheet('together');
       return;
     }
-    if (e.target.id === 'btn-visit-den') {
+    if (e.target.closest?.('#btn-visit-den')) {
       onVisitDen?.();
       return;
     }
@@ -1447,6 +1594,22 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   root.addEventListener('focusout', (e) => { dressing?.onFocusOut?.(e, render); });
 
+  // Enter starts the walk from home (Launch A), when nothing else would take
+  // it: no sheet, no card over home, not the builder, and no control has
+  // focus (a focused button's own Enter is its own, a field's is typing).
+  function enterStarts(e) {
+    if (e.key !== 'Enter' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    if (!shown || !greeted || !homeVisible() || openSheet || dressing?.ui?.builder) return;
+    if (momentEl || newsEl || noticeEl || visitOpen()) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && a !== document.documentElement && a !== root) return;
+    const start = root.querySelector('#btn-start');
+    if (!start || start.disabled) return;
+    e.preventDefault();
+    start.click();
+  }
+  document.addEventListener?.('keydown', enterStarts);
+
   // room state (roster arrivals, host migration) can change while sitting on
   // this screen waiting for friends — re-render to keep the roster/host
   // status live, but only while home base is actually visible.
@@ -1457,16 +1620,22 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
 
   return {
+    // show({ sheet }): a walk that ended at a border post opens Change place
+    // ('places'). The Menu and Change place are doors, so coming home from a
+    // walk started under one (the den) lands on the cat.
     show(opts) {
-      const pill = opts?.pill;
+      const sheet = resolveSheet(opts?.sheet);
       redeemResult = null; // a stale "Surprise!" or catnap line must not outlive a walk
       duskWanted = false; // as before: every visit starts with the dusk box clear
       shown = true;
-      if (pill) { openSheet = null; ensureDressing().setPill(pill); }
+      if (openSheet === 'menu' || openSheet === 'places') openSheet = null;
+      if (sheet && availableSheets().includes(sheet)) { openSheet = sheet; backTo = null; }
       render(); // also turns the hero stage back on
       root.classList.remove('hidden');
-      if (pill) root.querySelector('.dr-where')?.scrollIntoView?.({ block: 'start' });
       syncPairingPoll(); // render() ran while still hidden
+      // Back from a walk: the walk that opened the Woods brings the clan
+      // moment up now. (The boot's first show() waits for the greeting.)
+      if (greeted) showClanMoment();
     },
     showNews,
     showNotice,
@@ -1474,15 +1643,19 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     visitOpen,
     hide() {
       // A walk is starting: the celebration closes with 'walk' (its onClose
-      // wears a pending prize), before anything else is torn down.
+      // wears a pending prize), before anything else is torn down. (shown goes
+      // false first, so no card's close brings the clan moment up now.)
+      shown = false;
       celebration.close('walk');
       closeWelcome();
       closeNews(false); // a walk is starting: leave the news unread for next time
       closeNotice();
+      closeClanMoment(false); // a walk is starting: it comes back next time
       shown = false;
       // A walk is starting: stop the hero's frames and drop any preview.
       if (stage) stage.setVisible(false);
       dressing?.clearPreview();
+      dressing?.closeWardrobe?.(); // home again is the cat, not the wardrobe
       root.classList.add('hidden');
       syncPairingPoll(); // clears the poll: nothing pulls every 3 s during a walk
     },

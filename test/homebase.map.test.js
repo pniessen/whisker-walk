@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // stage and the dressing-room controller. The controller stub keeps the
 // onOpenSheet callback so a test can open the Settings sheet.
 let openSheet = null;
-const pillCalls = [];
+const placesCalls = [];
 vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 vi.mock('../src/ui/dressingroomview.js', () => ({
@@ -13,7 +13,8 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
     return {
       html: ({ headerHtml }) => `<header>${headerHtml}</header>`,
       afterRender() {}, handleClick() { return false; }, clearPreview() {},
-      setPill(p) { pillCalls.push(p); },
+      placesHtml: (o) => { placesCalls.push(o); return `<div class="dr-where">${o?.clanLineHtml ?? ''}${o?.denHtml ?? ''}</div>`; },
+      closeWardrobe() {},
       handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
     };
   },
@@ -100,23 +101,42 @@ describe('Settings: the map row', () => {
   });
 });
 
-describe('show({ pill })', () => {
-  it('opens the dressing room on Where to with no sheet open', () => {
-    const { hb } = (() => {
-      const progression = createProgression(memStorage());
-      const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
-      const hb = createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {});
-      return { hb };
-    })();
-    const scrolled = [];
-    doc.root.querySelector = (sel) => (sel === '.dr-where' ? { scrollIntoView: (o) => scrolled.push(o) } : null);
+describe("show({ sheet: 'places' })", () => {
+  function make() {
+    const progression = createProgression(memStorage());
+    const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
+    return createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {});
+  }
+  it('opens the Where to? sheet with no other sheet open', () => {
+    const hb = make();
     hb.show();
     openSheet('settings');
     expect(doc.root.innerHTML).toContain('data-sheet="settings"');
-    pillCalls.length = 0;
-    hb.show({ pill: 'where' });
-    expect(pillCalls).toEqual(['where']);
+    placesCalls.length = 0;
+    hb.show({ sheet: 'places' });
+    expect(doc.root.innerHTML).toContain('data-sheet="places"');
+    expect(doc.root.innerHTML).not.toContain('data-sheet="settings"');
+    expect(doc.root.innerHTML).toContain('Where to?');
+    expect(placesCalls).toHaveLength(1);
+    expect(doc.root.innerHTML).toContain('← Back to my cat');
+    expect(doc.root.classList.contains('hidden')).toBe(false);
+  });
+  it('a plain show() lands on the cat, never on the places sheet', () => {
+    const hb = make();
+    hb.show({ sheet: 'places' });
+    expect(doc.root.innerHTML).toContain('data-sheet="places"');
+    hb.hide();
+    hb.show();
     expect(doc.root.innerHTML).not.toContain('data-sheet=');
-    expect(scrolled).toEqual([{ block: 'start' }]);
+  });
+  it('an unknown sheet is ignored', () => {
+    const hb = make();
+    hb.show({ sheet: 'nope' });
+    expect(doc.root.innerHTML).not.toContain('data-sheet=');
+  });
+  it('the old pill option does nothing', () => {
+    const hb = make();
+    hb.show({ pill: 'where' });
+    expect(doc.root.innerHTML).not.toContain('data-sheet=');
   });
 });

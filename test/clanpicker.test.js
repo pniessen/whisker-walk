@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { clanPickerModel, renderClanPickerHtml, PICK_ATTR, CLAN_EMBLEMS } from '../src/ui/clanpicker.js';
+import {
+  clanPickerModel, renderClanPickerHtml, PICK_ATTR, CLAN_EMBLEMS,
+  MOMENT_SEEN_KEY, MOMENT_ATTR, woodsOpen, clanMomentDue, renderClanMomentHtml, clanLineHtml,
+} from '../src/ui/clanpicker.js';
+import { CATALOG } from '../src/progression.js';
 import { TERRITORIES } from '../src/territories.js';
 import { clanName, pickableClans, HOMES } from '../src/clanhomes.js';
 import { CLAN_SUFFIX, HOME_LINES } from '../src/clanwords.js';
@@ -160,7 +164,7 @@ describe('the greyed clan card (style.css)', () => {
   it('reads at 4.5:1 or better', async () => {
     const { readFileSync } = await import('node:fs');
     const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
-    const rule = css.match(/\.dr \.dr-home\.dr-home-off \{([^}]*)\}/)[1];
+    const rule = css.match(/(?<![\w-])\.dr-home\.dr-home-off \{([^}]*)\}/)[1];
     expect(rule).not.toMatch(/opacity/);
     const stops = rule.match(/#[0-9a-f]{6}/gi);
     expect(stops).toHaveLength(2);
@@ -177,7 +181,7 @@ describe('the greyed clan card (style.css)', () => {
 describe('the pickable clan cards (style.css, final fix wave)', () => {
   const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
   it('small text on a coloured card is full strength, the soon line included', () => {
-    const m = css.match(/\.dr \.dr-home:not\(\.dr-home-off\) small[^{]*\{([^}]*)\}/);
+    const m = css.match(/(?<![\w.-])\.dr-home:not\(\.dr-home-off\) small[^{]*\{([^}]*)\}/);
     expect(m, 'a rule for small text on pickable cards').not.toBeNull();
     expect(m[0]).toContain('.dr-home-soon');
     expect(m[1]).toMatch(/opacity: 1;/);
@@ -200,5 +204,116 @@ describe('disabled buttons (style.css)', () => {
     expect(css).not.toContain('#6a6250');
     expect(css).toContain('--btn-off-bg: rgba(231,169,160,.30)');
     expect(css.match(/var\(--btn-off-bg\)/g).length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('woodsOpen', () => {
+  const st = (walks, areas = ['neighborhood']) => ({ walks: { neighborhood: walks }, unlocked: { areas } });
+  it('opens at the Woods gate (two Twolegplace walks) or once the Woods is owned', () => {
+    const req = CATALOG.areas.woods.requires;
+    expect(req).toMatchObject({ area: 'neighborhood', walks: 2 });
+    expect(woodsOpen(st(0), CATALOG)).toBe(false);
+    expect(woodsOpen(st(1), CATALOG)).toBe(false);
+    expect(woodsOpen(st(2), CATALOG)).toBe(true);
+    expect(woodsOpen(st(9), CATALOG)).toBe(true);
+    expect(woodsOpen(st(0, ['neighborhood', 'woods']), CATALOG)).toBe(true);
+  });
+  it('is false without a Woods in the catalog and never throws on a hostile save', () => {
+    expect(woodsOpen(st(5), { areas: {} })).toBe(false);
+    expect(woodsOpen(st(5), null)).toBe(false);
+    expect(() => woodsOpen(null, CATALOG)).not.toThrow();
+    expect(woodsOpen({ walks: 'x', unlocked: 7 }, CATALOG)).toBe(false);
+    expect(woodsOpen({ walks: { neighborhood: NaN } }, CATALOG)).toBe(false);
+  });
+  it('a Woods with no gate is open', () => {
+    expect(woodsOpen({}, { areas: { woods: {} } })).toBe(true);
+  });
+});
+
+describe('clanMomentDue', () => {
+  const s = (over = {}) => ({
+    edition: 'canon', walks: { neighborhood: 2 }, unlocked: { areas: ['neighborhood'] },
+    clanPick: { mine: null, partner: null, partnerId: null }, ...over,
+  });
+  it('is due in Clan Edition with no pick and two neighborhood walks', () => {
+    expect(clanMomentDue(s(), CATALOG)).toBe(true);
+  });
+  it('is not due in Legacy', () => {
+    expect(clanMomentDue(s({ edition: 'legacy' }), CATALOG)).toBe(false);
+  });
+  it('is not due once she has picked her own clan', () => {
+    for (const id of pickableClans()) expect(clanMomentDue(s({ clanPick: { mine: id, partner: null, partnerId: null } }), CATALOG)).toBe(false);
+  });
+  it('a partner\'s pick alone does not stop it (the pick is hers to make)', () => {
+    expect(clanMomentDue(s({ clanPick: { mine: null, partner: 'river', partnerId: PARTNER } }), CATALOG)).toBe(true);
+  });
+  it('is not due after one walk, and is due with the Woods owned and no walks', () => {
+    expect(clanMomentDue(s({ walks: { neighborhood: 1 } }), CATALOG)).toBe(false);
+    expect(clanMomentDue(s({ walks: {}, unlocked: { areas: ['neighborhood', 'woods'] } }), CATALOG)).toBe(true);
+  });
+  it('an unknown pick id counts as no pick', () => {
+    expect(clanMomentDue(s({ clanPick: { mine: 'nowhere' } }), CATALOG)).toBe(true);
+  });
+  it('the seen key and attribute are composed, device-local names', () => {
+    expect(MOMENT_SEEN_KEY).toBe(`whisker-walk-${word}-moment-seen`);
+    expect(MOMENT_ATTR).toBe(`data-${word}-moment-open`);
+  });
+});
+
+describe('renderClanMomentHtml', () => {
+  const html = renderClanMomentHtml(clanPickerModel(save()), 'Robin');
+  it('is a labelled modal dialog', () => {
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    const id = html.match(/aria-labelledby="([^"]+)"/)[1];
+    expect(html).toContain(`id="${id}"`);
+    expect(html.match(new RegExp(`<h2 id="${id}">([^<]+)</h2>`))[1]).toContain(`${word}s have noticed you`);
+  });
+  it('shows the five clan cards, each with the pick attribute', () => {
+    expect(html.match(new RegExp(PICK_ATTR, 'g'))).toHaveLength(5);
+    for (const id of pickableClans()) expect(html).toContain(`${PICK_ATTR}="${id}"`);
+  });
+  it('has a Not yet button and says the pick can change later in Settings', () => {
+    expect(html).toMatch(new RegExp(`<button type="button" class="join-moment-later" data-${word}-later>Not yet</button>`));
+    expect(html).toContain('change it later in Settings');
+  });
+  it('escapes the partner name', () => {
+    const model = clanPickerModel(save({ clanPick: { mine: 'woods', partner: 'river', partnerId: PARTNER } }));
+    const out = renderClanMomentHtml(model, '<img src=x onerror=alert(1)>');
+    expect(out).not.toContain('<img src=x');
+  });
+});
+
+describe('clanLineHtml', () => {
+  const line = (over, name = 'Robin', opts) => clanLineHtml(clanPickerModel(save(over)), name, opts);
+  it('a pick says who she is, with the emblem and no button', () => {
+    const h = line({ clanPick: { mine: 'moor', partner: null, partnerId: null } });
+    expect(h).toContain('class="hb-pick-line"');
+    expect(h).toContain(`You’re <b>${clanName('moor')}</b>`);
+    expect(h).toContain(CLAN_EMBLEMS.moor);
+    expect(h).not.toContain('<button');
+    expect(h).not.toContain('Robin');
+  });
+  it('the same clan for both says you are both', () => {
+    const h = line({ clanPick: { mine: 'woods', partner: 'woods', partnerId: PARTNER } });
+    expect(h).toContain(`you’re both ${clanName('woods')}!`);
+  });
+  it('a different clan for the partner names them, escaped', () => {
+    const h = line({ clanPick: { mine: 'woods', partner: 'river', partnerId: PARTNER } }, '<b>Rob</b>');
+    expect(h).toContain(`is ${clanName('river')}`);
+    expect(h).toContain('&lt;b&gt;Rob&lt;/b&gt;');
+    expect(h).not.toContain('<b>Rob</b>');
+  });
+  it('no pick: nothing unless she can choose, then a button that reopens the moment', () => {
+    expect(line({})).toBe('');
+    expect(line({}, 'Robin', { canChoose: false })).toBe('');
+    const h = line({}, 'Robin', { canChoose: true });
+    expect(h).toContain('class="hb-pick-choose"');
+    expect(h).toContain(MOMENT_ATTR);
+    expect(h).toContain(`Choose your ${word}`);
+  });
+  it('a pick ignores canChoose (no choose button once she has chosen)', () => {
+    const h = line({ clanPick: { mine: 'pines', partner: null, partnerId: null } }, 'Robin', { canChoose: true });
+    expect(h).not.toContain(MOMENT_ATTR);
   });
 });

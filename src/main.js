@@ -446,7 +446,7 @@ function init() {
       blockList.add(otherId);
     },
   };
-  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast, () => audio.unlockFanfare());
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast, () => audio.unlockFanfare(), () => showColonyNews([]));
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
@@ -603,7 +603,7 @@ function init() {
     if (e.target.id === 'btn-summary-continue') {
       overlay.classList.add('hidden');
       const c = takeCrossing();
-      homebase.show(c && c.clan ? { pill: 'where' } : undefined);
+      homebase.show(c && c.clan ? { sheet: 'places' } : undefined);
       sync.autoSync(); // fire-and-forget; no-op when unlinked/offline
       pullThenNews(); // fire-and-forget; catches up feeds made on this walk, then the news card
     }

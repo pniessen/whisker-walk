@@ -250,11 +250,12 @@ describe('the Learn now button (style.css)', () => {
   it('is styled like the home sheets\' buttons, with a dimmed disabled state', () => {
     const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
     const rule = css.match(/\.fmove-buy \{([^}]*)\}/)[1];
-    expect(rule).toMatch(/background: #4a6ea5/);
-    expect(rule).toMatch(/color: #fff/);
+    // Launch A: a calm outlined pill (blue-grey fill, cream words); pink is Start's alone
+    expect(rule).toMatch(/background: #2c3d58/);
+    expect(rule).toMatch(/color: #f1e0c2/);
     expect(rule).toMatch(/font: inherit/);
-    expect(rule).toMatch(/border-radius: 8px/);
-    expect(rule).toMatch(/border: 0/);
+    expect(rule).toMatch(/border-radius: 999px/);
+    expect(rule).toMatch(/border: 1\.5px solid #8c9bb4/);
     expect(rule).toMatch(/min-height: 44px/);
     expect(css).toMatch(/\.fmove-buy:disabled \{[^}]*cursor: default/);
   });

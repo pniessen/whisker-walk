@@ -88,3 +88,61 @@ export function renderClanPickerHtml(model, partnerName) {
   const both = model.both && mineCard ? `<p class="dr-home-both">You're both ${escapeHtml(mineCard.name)}!</p>` : '';
   return `<div class="dr-homerow"><p class="dr-label">${escapeHtml(heading)}</p><div class="dr-homes">${buttons}</div>${both}</div>`;
 }
+
+// ---- The clan moment (Launch A, owner's decision 2026-11-05) ----------------
+// The pick is a one-time story beat, not a row of cards on home: when the
+// Woods opens (its gate in CATALOG.areas.woods.requires, or she already owns
+// it) for a Clan Edition player with no pick of her own, a card says the
+// clans have noticed her and shows the five cards once. After that the pick
+// changes only in Settings. Nothing new is saved: the pick is still the id.
+export const MOMENT_SEEN_KEY = `whisker-walk-${clanWord}-moment-seen`;
+export const MOMENT_ATTR = `data-${clanWord}-moment-open`;
+
+export function woodsOpen(state, catalog) {
+  const woods = catalog?.areas?.woods;
+  if (!woods) return false;
+  const owned = Array.isArray(state?.unlocked?.areas) && state.unlocked.areas.includes('woods');
+  if (owned) return true;
+  const req = woods.requires;
+  if (!req) return true;
+  const have = Number(state?.walks?.[req.area]);
+  return Number.isFinite(have) && have >= req.walks;
+}
+
+// Due: Clan Edition, no pick of her own, the Woods open. (Whether this device
+// has shown it already, and whether anything else is up, is the caller's.)
+export function clanMomentDue(state, catalog) {
+  if (state?.edition === 'legacy') return false; // inlined isClanEdition (no edition.js import here)
+  if (isClanId(state?.clanPick?.mine)) return false;
+  return woodsOpen(state, catalog);
+}
+
+const MOMENT_TITLE = `The ${clanWord}s have noticed you!`;
+const MOMENT_ASK = `Which ${clanWord} will you join?`;
+
+export function renderClanMomentHtml(model, partnerName) {
+  return `<div class="join-moment-card" role="dialog" aria-modal="true" aria-labelledby="join-moment-title" tabindex="-1">`
+    + `<p class="join-moment-paws" aria-hidden="true">🐾 🐾 🐾</p>`
+    + `<h2 id="join-moment-title">${escapeHtml(MOMENT_TITLE)}</h2>`
+    + `<p class="join-moment-ask">${escapeHtml(MOMENT_ASK)}</p>`
+    + renderClanPickerHtml(model, partnerName)
+    + `<div class="join-moment-foot"><button type="button" class="join-moment-later" data-${clanWord}-later>Not yet</button>`
+    + `<p class="join-moment-note">You can change it later in Settings.</p></div>`
+    + '</div>';
+}
+
+// Change place's one line about her clan: who she is (and who her sibling is),
+// or, before a pick, a way back to the moment once the Woods is open.
+export function clanLineHtml(model, partnerName, { canChoose = false } = {}) {
+  if (model.mine) {
+    const mine = model.cards.find((c) => c.mine);
+    const name = mine ? mine.name : clanName(model.mine);
+    const emblem = CLAN_EMBLEMS[model.mine] ? `<span class="dr-home-emblem">${CLAN_EMBLEMS[model.mine]}</span>` : '';
+    const partner = model.cards.find((c) => c.partner && !c.mine);
+    const extra = model.both ? ` — you’re both ${escapeHtml(name)}!`
+      : partner ? ` · ${escapeHtml(partnerName)} is ${escapeHtml(partner.name)}` : '';
+    return `<p class="hb-pick-line">${emblem}<span>You’re <b>${escapeHtml(name)}</b>${extra}</span></p>`;
+  }
+  if (!canChoose) return '';
+  return `<button type="button" class="hb-pick-choose" ${MOMENT_ATTR}><span>${escapeHtml(MOMENT_TITLE)}</span><b>Choose your ${clanWord} ›</b></button>`;
+}

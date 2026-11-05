@@ -91,7 +91,7 @@ const tap = (el, vc) => el.listeners.click({ target: { closest: () => ({ dataset
 describe('visitBadgeHtml', () => {
   it('shows the visit number with a paw, or confetti on a milestone', () => {
     expect(visitBadgeHtml(23)).toContain(`${PAW} Visit 23`);
-    expect(visitBadgeHtml(23)).toContain('class="dr-chip visit"');
+    expect(visitBadgeHtml(23)).toContain('class="hb-pill dr-visit"');
     expect(visitBadgeHtml(30)).toContain('🎉 Visit 30');
     expect(visitBadgeHtml(1)).toContain('🎉 Visit 1');
   });
@@ -103,12 +103,12 @@ describe('visitBadgeHtml', () => {
 });
 
 describe('the home base on a visit', () => {
-  it('puts the badge right after the title, before the points chip', () => {
+  it('puts the visit pill in the top bar after the points and rank pills, before the Menu door', () => {
     const { progression, hb } = setup();
     progression.recordVisit();
     hb.show();
     const h = doc.root.innerHTML;
-    expect(h).toMatch(/<\/h1><div class="dr-chip visit milestone">🎉 Visit 1<\/div><div class="dr-chip gold">/);
+    expect(h).toMatch(/<\/h1><div class="hb-pill hb-points"[^>]*>[\s\S]*?<\/div><div class="hb-pill hb-rank">[\s\S]*?<\/div><div class="hb-pill dr-visit milestone">🎉 Visit 1<\/div><button class="hb-menu-btn"/);
   });
 
   it('a plain visit shows the welcome line and no celebration', () => {
@@ -375,27 +375,30 @@ describe('showVisit while the home base is hidden', () => {
 });
 
 describe('the visit badge style', () => {
-  it('is a filled pink badge that pops once on a milestone, still under reduced motion', async () => {
+  it('is a quiet HUD pill, not pink, that still pops once on a milestone, and not at all under reduced motion', async () => {
     const { readFileSync } = await import('node:fs');
     const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
-    const rule = css.match(/\.dr-chip\.visit \{[^}]*\}/)[0];
-    expect(rule).toContain('#ff8fb1');
-    expect(rule).toContain('#3b0f22');
-    expect(css).toMatch(/\.dr-chip\.visit\.milestone\.pop \{[^}]*animation/);
-    expect(css).toMatch(/prefers-reduced-motion[^{]*\{[^}]*\.dr-chip\.visit\.milestone\.pop \{ animation: none/);
+    const rule = css.match(/\.hb-pill\.dr-visit \{[^}]*\}/)[0];
+    expect(rule).not.toContain('#ff8fb1');
+    expect(rule).not.toMatch(/pink|#ff[0-9a-f]{4}/i);
+    expect(rule).toMatch(/opacity: \.\d+/); // quiet
+    expect(css).not.toMatch(/\.dr-chip\.visit/);
+    expect(css).toMatch(/\.hb-pill\.dr-visit\.milestone \{[^}]*opacity: 1/);
+    expect(css).toMatch(/\.hb-pill\.dr-visit\.milestone\.pop \{[^}]*animation/);
+    expect(css).toMatch(/prefers-reduced-motion[^{]*\{[^}]*\.hb-pill\.dr-visit\.milestone\.pop \{ animation: none/);
   });
   it('pops the live badge when the celebration shows', () => {
     const { progression, hb } = setup();
     const visit = progression.recordVisit();
     hb.show();
     const badge = fakeEl(doc);
-    doc.root.querySelector = (sel) => (sel === '.dr-chip.visit' ? badge : null);
+    doc.root.querySelector = (sel) => (sel === '.dr-visit' ? badge : null);
     hb.showVisit(visit, { onClosed: () => {} });
     expect(badge.classList.contains('pop')).toBe(true);
   });
   it('marks a milestone badge', () => {
-    expect(visitBadgeHtml(30)).toContain('class="dr-chip visit milestone"');
-    expect(visitBadgeHtml(23)).toContain('class="dr-chip visit"');
+    expect(visitBadgeHtml(30)).toContain('class="hb-pill dr-visit milestone"');
+    expect(visitBadgeHtml(23)).toContain('class="hb-pill dr-visit"');
   });
 });
 
