@@ -21,7 +21,7 @@ import { CAPE, CAPE_SIT } from './cape.js';
 // there until its lowest vertex is SEAT mm off that surface. Then the whole
 // thing is brought back into the body's frame by 1 / bodyScale (placeOnBack),
 // so the torso's scale does not squash it (as model.js onCape does for the
-// clasp). Straps are drawn straight on the surface, a few mm out. One
+// confetti dots). Straps are drawn straight on the surface, a few mm out. One
 // vertex-coloured mesh per item (two for the wings, which flutter).
 
 export const BACK_ITEM_IDS = ['backpack', 'jetpack', 'wings'];

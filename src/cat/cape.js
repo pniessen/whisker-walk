@@ -35,7 +35,7 @@ export const CAPE = Object.freeze({ zFront: -0.8, zBack: 0.68, zBackSide: 0.98, 
 // under the cloth (wrapBack 1.1 left Digit's flicking tip 3-5% under it), and
 // the cloth is at least 4.5 cm from every tail vertex (Digit; 5.7 the
 // others). Its lowest point is 15.6 cm off the ground (the standing cloth came to 1.6 in the sit). The
-// neck edge (s 0) is the same, so the clasp does not move; the sitting back
+// neck edge (s 0) is the same, so the front bands (CAPE_TIE) start where they do standing; the sitting back
 // is still covered from the shoulders to the hips.
 export const CAPE_SIT = Object.freeze({ ...CAPE, zBackSide: 0.75, wrapBack: 1.0 });
 // The cape's point at (a, s): a across (-1 one flank, 0 the spine, +1 the
