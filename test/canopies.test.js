@@ -226,3 +226,21 @@ describe('canopy kinds', () => {
     }, 120_000);
   });
 });
+
+// polish-dusk7: the birch trunk's vertex colours are a warm grey-white (not the
+// full white that glowed at dusk) with near-black dashes, and every one is finite.
+describe('birch trunk colours (polish-dusk7)', () => {
+  it('are finite, pale runs sit below full white, dashes are dark', () => {
+    for (let i = 0; i < 40; i++) {
+      const g = b.tree(i * 3.1, i * 1.7, 1, { kind: "birch" });
+      const c = g.children[0].geometry.attributes.color.array;
+      let dark = 0;
+      for (let v = 0; v < c.length; v += 3) {
+        for (let k = 0; k < 3; k++) expect(Number.isFinite(c[v + k])).toBe(true);
+        expect(Math.max(c[v], c[v + 1], c[v + 2])).toBeLessThanOrEqual(0.56);
+        if (c[v] < 0.1) dark++;
+      }
+      expect(dark).toBeGreaterThan(0);
+    }
+  });
+});

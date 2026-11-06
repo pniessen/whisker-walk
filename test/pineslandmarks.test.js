@@ -175,8 +175,8 @@ describe('the built Pines', () => {
     const json = JSON.stringify({ colliders: area.colliders, perches: area.perches });
     expect(createHash('sha256').update(json).digest('hex'))
       .toBe('07f7a139f01f251cb168db793f31f36a75de57b34b3af79cec8f80469ddd13ab');
-    // the mire's soft glare
-    expect(scene.getObjectByName('water:mire-north').material.specularIntensity).toBe(0.18);
-    expect(scene.getObjectByName('water:mire-west').material.specularIntensity).toBe(0.18);
+    // the mire's soft glare (polish-dusk7: lowered from 0.18 so no white glints)
+    expect(scene.getObjectByName('water:mire-north').material.specularIntensity).toBe(0.08);
+    expect(scene.getObjectByName('water:mire-west').material.specularIntensity).toBe(0.08);
   }, 120_000);
 });

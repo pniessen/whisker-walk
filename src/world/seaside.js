@@ -659,12 +659,14 @@ export function build(scene, { water = {}, wind } = {}) {
   const cliff = new THREE.Mesh(strata(new THREE.BoxGeometry(60, 8, 18, 60, 24, 6), -10, 1.7),
     cliffMat(60, 8));
   cliff.position.set(-10, 4, -46);
+  cliff.userData.duskTint = true; // dims and cools at dusk like the ground (render/dusk.js tintDuskLawn)
   scene.add(cliff);
   for (let i = 0; i < 12; i++) addC(-38 + i * 5, -37, 2.5); // cliff face blocks walking through
   // Square in plan, so its four faces tile identically — no end-face caveat.
   const overlook = new THREE.Mesh(strata(new THREE.BoxGeometry(10, 8, 10, 10, 24, 10), -40, 4.2),
     cliffMat(10, 8));
   overlook.position.set(-40, 4, -40);
+  overlook.userData.duskTint = true;
   scene.add(overlook);
   addC(-40, -40, 6);
 

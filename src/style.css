@@ -1461,6 +1461,22 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .hb-places .dr-where > .dr-places { grid-template-columns: 1fr 1fr; }
 }
 
+/* desktop sheets use the page: Change place and Menu run wide (the map big on the
+   left, the place pictures in a grid on the right; the Menu tiles spread), and
+   Settings is one centred panel at a readable width, not a column hugging the left */
+@media (min-width: 1000px) {
+  .homebase-scroll.hb-sheet[data-sheet="places"], .homebase-scroll.hb-sheet[data-sheet="menu"] { max-width: min(1240px, 94vw); }
+  .hb-places .dr-where:has(.territory-map) { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); column-gap: 28px; }
+  .hb-places .dr-where > .territory-map { max-width: none; }
+  .hb-places .dr-where > .dr-places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .hb-tiles { gap: 16px; }
+  .hb-tile { min-height: 150px; }
+  .homebase-scroll.hb-sheet[data-sheet="settings"] { max-width: 760px; }
+}
+@media (min-width: 1400px) {
+  .hb-places .dr-where > .dr-places { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 /* the clan moment: a one-time story card over home (outside #homebase) */
 .join-moment .join-moment-card { width: 100%; max-width: 680px; max-height: 100%; overflow-y: auto;
   background: #2a3550; border: 2px solid #f2c14e; border-radius: 20px; padding: 20px 20px 16px; color: #f1e0c2;
