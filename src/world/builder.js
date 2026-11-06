@@ -6291,9 +6291,9 @@ export const SCREE_COLOR = 0x857f76;
 // five, a cobble (an icosahedron jittered radially, 20 triangles). Half a
 // width of 0.09 to 0.22 m, as tall as 0.5 to 0.85 of its width, but never
 // above SCREE_TOP. A spot that carries its wall's outward normal (nx, nz) heaps
-// its stones against the wall, the biggest closest to it, spread 0.75 m each
+// its stones against the wall, the biggest closest to it, spread 0.6 m each
 // way along it so spots 1.5 m apart read as one bed; stones from the fourth on
-// sit lifted onto their neighbours. A spot with no normal scatters as before.
+// sit up to 3 cm higher, settled into the heap. A spot with no normal scatters as before.
 // Each stone takes a warm sandstone shade, darker at its foot, in vertex
 // colours, flat-shaded. Every number comes from hash01: no draws.
 export const SCREE_SANDSTONE = [0x9a8670, 0x8a7560, 0xa89478, 0x857f76, 0x7a6a58];

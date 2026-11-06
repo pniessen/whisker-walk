@@ -111,6 +111,9 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
+//   gorge             61       36      63437   (polish-gorge7: was 60,181; the scree
+//                                               became chunky heaped sandstone, 4,904 ->
+//                                               ~8.2k, still one noCast mesh)
 //   gorge             61       36      60179   (polish-gorge6, after the 70k raise: was
 //                                               58,959; rounded rock arches at the five
 //                                               small dens (denW1, denW2, denE,
