@@ -6343,8 +6343,8 @@ function chunkyScree(spots, seed) {
         // out from the wall: 0 at the wall's side, 1 at the floor's; skewed
         // toward the wall so the bed heaps against it
         const t = hash01(k, i, seed + 5) ** 1.5;
-        const out = -0.45 + 0.8 * t;
-        const along = 0.75 * (2 * hash01(i + k, k, seed + 8) - 1);
+        const out = -0.45 + 0.7 * t;
+        const along = 0.6 * (2 * hash01(i + k, k, seed + 8) - 1);
         x = sp.x + nx * out - nz * along;
         z = sp.z + nz * out + nx * along;
         near = 1 - t;
@@ -6357,7 +6357,7 @@ function chunkyScree(spots, seed) {
       }
       const r = 0.09 + 0.13 * Math.min(1, 0.6 * near + 0.4 * hash01(k, i, seed + 2));
       const ratio = 0.5 + 0.35 * hash01(i, k, seed + 3);
-      const lift = k >= 3 ? 0.06 * hash01(k, i, seed + 10) : 0;
+      const lift = k >= 3 ? 0.03 * hash01(k, i, seed + 10) : 0;
       const geo = screeChunk(id, seed, cobble);
       geo.rotateY(hash01(i, k, seed + 6) * Math.PI * 2);
       geo.computeBoundingBox();

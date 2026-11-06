@@ -496,7 +496,8 @@ export function gorgeScree() {
       const z = r2(wz + nz * SCREE_OUT);
       if (!inBounds(x, z) || g.y(x, z) !== FLOOR) continue;
       if (g.y(wx - nx * 0.1, wz - nz * 0.1) < 0.3) continue; // no rock there
-      if (pathDist(x, z) < PATH_W / 2 + 0.5) continue;
+      // 0.9 off the path's edge: a heap reaches ~0.7 m from its spot (polish-gorge7)
+      if (pathDist(x, z) < PATH_W / 2 + 0.9) continue;
       if (holeDist(x, z) < 1.5 || mouthDist(x, z) < 2) continue;
       if (keepClearDist(x, z) < 2) continue;
       out.push(Object.freeze({ x, z, nx, nz }));
