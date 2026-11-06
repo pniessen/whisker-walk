@@ -5391,30 +5391,166 @@ export const PINE_OCCLUDER = Object.freeze([
 const PINE_TRUNK_COLOR = 0x7a5230;
 const PINE_FOLIAGE_COLOR = 0x2f5a3a;
 const PINE_TRUNK_SIDES = 6;
-const PINE_CONE_SIDES = 7;
+// Hem points per bough tier, bottom to top (the long drooping points and the
+// short raised notches alternate, so each is even). One tier is 2 x sides
+// triangles: its top skirt and its underside.
+const PINE_CONE_SIDES = Object.freeze([10, 10, 8, 8, 6]);
+// The five bough tiers inside the three PINE_CONES (unleaned, scale 1): the
+// height of the long points' hem, their radius, and the tier's apex. A long
+// point never sits below its cone's foot (under it the solid is only the
+// trunk) and never wider than the cone at its height, less a margin for the
+// lean. Tiers 0 and 2 hang from the feet of cones 0 and 1, tier 4 from cone
+// 2's and runs up to the tip; 1 and 3 hang half way up the cone below.
+const PINE_TIERS = [
+  { hemY: 1.12, r: 1.22, apexY: 2.15 },
+  { hemY: 1.55, r: 0.92, apexY: 2.6 },
+  { hemY: 2.12, r: 0.93, apexY: 3.0 },
+  { hemY: 2.6, r: 0.64, apexY: 3.45 },
+  { hemY: 3.07, r: 0.59, apexY: 4.3 },
+];
 
-// One pine's unplaced geometry: the trunk (already lifted to its centre
-// height) and the three cones, built in one place for `pine` and `pineStand`.
-function pineParts() {
-  const trunk = new THREE.CylinderGeometry(PINE_TRUNK.rTop, PINE_TRUNK.rBottom, PINE_TRUNK.h, PINE_TRUNK_SIDES);
-  trunk.translate(0, PINE_TRUNK.y, 0);
-  const cones = PINE_CONES.map(([r, h, y]) => {
-    const c = new THREE.ConeGeometry(r, h, PINE_CONE_SIDES);
-    c.translate(0, y, 0);
-    return c;
+// One pine's unplaced geometry: the trunk and the bough tiers packed into
+// three "cones" (tiers 0+1, 2+3, 4), built in one place for `pine` and
+// `pineStand`. Hand-built and indexed with a `color` attribute (a multiplier
+// on the material's colour), like beachClumpGeometry, so it is EXACTLY four
+// BufferGeometries and nothing else uuid-bearing (the area builds' Math.random
+// draws are pinned, test/waterlooks.test.js). Every pine has the same vertex
+// and index counts whatever its hash: a stand's fade (src/treefade.js) cuts
+// its index into one equal range per tree. All drift comes from hash01 of the
+// tree's (x, z): a small lean (a shear, so nothing dips under the ground; the
+// tip moves at most 0.1, inside test/pines.test.js's pine solid), a tint, the
+// tiers' size and twist, and each facet's shade.
+function pineParts(x = 0, z = 0) {
+  const H = (s) => hash01(x, z, s);
+  const part = () => {
+    const pos = [], col = [], idx = [];
+    return {
+      v(px, py, pz, [cr, cg, cb]) {
+        pos.push(px, py, pz);
+        col.push(cr, cg, cb);
+        return pos.length / 3 - 1;
+      },
+      tri(a, b, d) { idx.push(a, b, d); },
+      geo() {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        return g;
+      },
+    };
+  };
+  // the lean: the tip moves 0.05-0.1 m one way, growing with height squared
+  const leanA = H(2101) * Math.PI * 2;
+  const lean = 0.05 + 0.05 * H(2102);
+  const lx = Math.cos(leanA) * lean, lz = Math.sin(leanA) * lean;
+  const TOP = PINE_TIERS[PINE_TIERS.length - 1].apexY;
+  const at = (px, py, pz) => {
+    const k = (py / TOP) * (py / TOP);
+    return [px + lx * k, py, pz + lz * k];
+  };
+  // the tint: hue +-4 degrees and lightness +-0.04 on the material's green,
+  // carried as a multiplier so a stand's one material serves every tree
+  const base = new THREE.Color(PINE_FOLIAGE_COLOR);
+  const tinted = base.clone().offsetHSL((H(2103) - 0.5) * (8 / 360), 0, (H(2104) - 0.5) * 0.08);
+  const tint = [tinted.r / base.r, tinted.g / base.g, tinted.b / base.b];
+  const shade = (s, [r, g, b] = [1, 1, 1]) => [s * r * tint[0], s * g * tint[1], s * b * tint[2]];
+  // tips go a little yellow-green
+  const TIP = [1.1, 1.0, 0.72];
+
+  // The trunk: four rings of PINE_TRUNK_SIDES, the bottom one a root flare.
+  // The fight camera's PINE_OCCLUDER holds the trunk as one rBottom-wide
+  // cylinder, and test/fightcam.test.js wants every vertex inside it, so the
+  // flare is made by a slimmer stem rather than wider roots: alternate roots
+  // reach rBottom and 0.9 x it at the ground, the stem is 0.77 x rBottom by
+  // 0.3 m (1.3 x thinner than the foot) and rTop at the trunk's top. Darker
+  // at the foot. No caps: the foot is in the ground and the top in the boughs.
+  const T = part();
+  const S = PINE_TRUNK_SIDES;
+  const top = PINE_TRUNK.y + PINE_TRUNK.h / 2;
+  const stem = PINE_TRUNK.rBottom / 1.3;
+  const rings = [
+    { y: 0, r: (i) => PINE_TRUNK.rBottom * (i % 2 === 0 ? 1 : 0.9), s: 0.62 },
+    { y: 0.12, r: (i) => stem * (i % 2 === 0 ? 1.1 : 1.04), s: 0.74 },
+    { y: 0.3, r: () => stem, s: 0.86 },
+    { y: top, r: () => PINE_TRUNK.rTop, s: 1.06 },
+  ];
+  const turn = H(2105) * Math.PI * 2;
+  rings.forEach((ring, k) => {
+    for (let i = 0; i < S; i++) {
+      const a = turn + (i / S) * Math.PI * 2;
+      const r = ring.r(i);
+      const s = ring.s * (0.93 + 0.14 * H(2110 + k * 13 + i));
+      T.v(...at(Math.cos(a) * r, ring.y, Math.sin(a) * r), [s, s, s]);
+    }
   });
-  return { trunk, cones };
+  for (let k = 0; k < rings.length - 1; k++) {
+    for (let i = 0; i < S; i++) {
+      const j = (i + 1) % S;
+      const a = k * S + i, b = k * S + j, c = (k + 1) * S + i, d = (k + 1) * S + j;
+      T.tri(a, c, b);
+      T.tri(b, c, d);
+    }
+  }
+
+  // The boughs. Each tier is a skirt from its apex out to a hem whose points
+  // alternate long and low (the drooping bough tips, lit and yellow-green)
+  // with short raised notches, so the outline is ragged; under it a shallow
+  // dark underside up to the axis, so each tier shows a shadowed shelf over
+  // the one below. Every facet has its own vertices (flat, each its own
+  // shade), like the broadleaf canopies.
+  const groups = [part(), part(), part()];
+  const packing = [0, 0, 1, 1, 2];
+  const size = 0.94 + 0.06 * H(2106);
+  PINE_TIERS.forEach((tier, k) => {
+    const P = groups[packing[k]];
+    const M = PINE_CONE_SIDES[k];
+    const twist = H(2120 + k) * Math.PI * 2;
+    const lift = 0.9 + 0.04 * k; // lower tiers sit in more shade
+    const r = tier.r * size;
+    const rise = 0.16 + 0.06 * (r / 1.22);
+    const hem = [];
+    for (let i = 0; i < M; i++) {
+      const a = twist + ((i + 0.3 * (H(2130 + k * 17 + i) - 0.5)) / M) * Math.PI * 2;
+      const long = i % 2 === 0;
+      const rr = r * (long ? 0.93 + 0.07 * H(2140 + k * 17 + i) : 0.62 + 0.1 * H(2150 + k * 17 + i));
+      const yy = tier.hemY + (long ? 0.04 * H(2160 + k * 17 + i) : rise);
+      hem.push({ x: Math.cos(a) * rr, y: yy, z: Math.sin(a) * rr, long });
+    }
+    const apex = at(0, tier.apexY, 0);
+    const underY = tier.hemY + rise + 0.09 * (tier.apexY - tier.hemY);
+    const under = at(0, underY, 0);
+    for (let i = 0; i < M; i++) {
+      const p = hem[i], q = hem[(i + 1) % M];
+      const pp = at(p.x, p.y, p.z), qq = at(q.x, q.y, q.z);
+      const f = lift * (0.92 + 0.16 * H(2170 + k * 17 + i));
+      const hemCol = (h) => (h.long ? shade(1.18 * f, TIP) : shade(0.8 * f));
+      // top facet: apex, then the hem walked so it faces out and up
+      P.tri(P.v(...apex, shade(0.52 * f)), P.v(...qq, hemCol(q)), P.v(...pp, hemCol(p)));
+      // underside facet, facing down
+      const g = 0.9 + 0.2 * H(2180 + k * 17 + i);
+      P.tri(P.v(...under, shade(0.36 * g)), P.v(...pp, shade((p.long ? 0.52 : 0.46) * g)), P.v(...qq, shade((q.long ? 0.52 : 0.46) * g)));
+    }
+  });
+  return { trunk: T.geo(), cones: groups.map((P) => P.geo()) };
 }
 
-// A pine: a short bark trunk under three stacked cones, merged into one
-// foliage mesh. Taller and narrower than an oak and it sheds no leaves, so it
+// A pine: a short flared bark trunk under five tiers of ragged boughs (see
+// pineParts), merged into one foliage mesh. Taller and narrower than an oak and it sheds no leaves, so it
 // carries no `canopy` tag. No collider here.
 export function pine(x, z, scale = 1, { wind } = {}) {
   const g = new THREE.Group();
-  const { trunk: trunkGeo, cones } = pineParts();
-  const trunk = new THREE.Mesh(trunkGeo, surfMat(PINE_TRUNK_COLOR, 'bark'));
+  const { trunk: trunkGeo, cones } = pineParts(x, z);
+  // this pine's own materials, so turning their vertex colours on (the
+  // shading and tint pineParts paints) touches nothing else
+  const bark = surfMat(PINE_TRUNK_COLOR, 'bark');
+  bark.vertexColors = true;
+  const trunk = new THREE.Mesh(trunkGeo, bark);
   g.add(trunk);
-  const foliage = new THREE.Mesh(mergeGeometries(cones, false), surfMat(PINE_FOLIAGE_COLOR, 'foliage'));
+  const needles = surfMat(PINE_FOLIAGE_COLOR, 'foliage');
+  needles.vertexColors = true;
+  const foliage = new THREE.Mesh(mergeGeometries(cones, false), needles);
   for (const c of cones) c.dispose();
   g.add(foliage);
   g.scale.setScalar(scale);
@@ -5428,7 +5564,7 @@ export function pine(x, z, scale = 1, { wind } = {}) {
 }
 
 // A stand of pines as two merged meshes, `standTrunks` and `standFoliage`: each
-// tree is exactly `pine(x, z, scale)`'s trunk and three cones, scaled, turned
+// tree is exactly `pine(x, z, scale)`'s trunk and boughs, scaled, turned
 // about y by hash01(x, z, seed) x 2pi and put in place. One stand is two draw
 // calls and two shadow casters however many pines it holds, where a swaying
 // `pine` is two of each on its own. Dense forest is built this way. Both
@@ -5446,7 +5582,7 @@ export function pineStand(trees, seed) {
       geo.translate(t.x, t.y ?? 0, t.z);
       return geo;
     };
-    const parts = pineParts();
+    const parts = pineParts(t.x, t.z);
     trunks.push(place(parts.trunk));
     for (const c of parts.cones) cones.push(place(c));
   }
@@ -5456,9 +5592,13 @@ export function pineStand(trees, seed) {
     return geo;
   };
   const g = new THREE.Group();
-  const trunkMesh = new THREE.Mesh(merge(trunks), surfMat(PINE_TRUNK_COLOR, 'bark'));
+  const bark = surfMat(PINE_TRUNK_COLOR, 'bark');
+  bark.vertexColors = true;
+  const trunkMesh = new THREE.Mesh(merge(trunks), bark);
   trunkMesh.name = 'standTrunks';
-  const foliageMesh = new THREE.Mesh(merge(cones), surfMat(PINE_FOLIAGE_COLOR, 'foliage'));
+  const needles = surfMat(PINE_FOLIAGE_COLOR, 'foliage');
+  needles.vertexColors = true;
+  const foliageMesh = new THREE.Mesh(merge(cones), needles);
   foliageMesh.name = 'standFoliage';
   trunkMesh.castShadow = true;
   foliageMesh.castShadow = true;

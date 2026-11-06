@@ -301,7 +301,7 @@ describe('the Pines floor', () => {
     }
   });
 
-  it('builds one forestFloor mesh out of the shadow pass, inside the 58,700 triangle budget', () => {
+  it('builds one forestFloor mesh out of the shadow pass, inside the 64,424 triangle budget', () => {
     const scene = new THREE.Scene();
     const area = P.build(scene);
     const meshes = [];
@@ -316,7 +316,9 @@ describe('the Pines floor', () => {
     expect(meshes[0].castShadow).toBe(false);
     expect(trianglesOf(meshes[0].geometry)).toBeGreaterThan(2000);
     // polish-brambles: the camp's bramble mounds cost 2,604 more triangles (+2,700)
-    expect(tris).toBeLessThanOrEqual(58_700);
+    // polish-pines2: tiered pines are 120 triangles where the cones were 66,
+    // 5,724 more over the area's 106 pines (+5,724)
+    expect(tris).toBeLessThanOrEqual(64_424);
 
     // the ground carries pinesGroundTint: its colours over an untinted twin's
     const ground = scene.children.find((o) => o.userData?.ground && o.isMesh);
