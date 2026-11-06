@@ -114,6 +114,36 @@ describe('canopy kinds', () => {
     });
   }
 
+  // Every crown sits on its 2 m trunk: straight up from the trunk top (the
+  // axis and 0.2 round it), the canopy's underside is never above 1.9 in the
+  // Group's unscaled frame, at any of 240 hashed spots per kind.
+  it('every kind\'s crown sits on the trunk: underside over the axis <= 1.9', () => {
+    const rc = new THREE.Raycaster();
+    const up = new THREE.Vector3(0, 1, 0);
+    const offs = [[0, 0], [0.2, 0], [-0.2, 0], [0, 0.2], [0, -0.2]];
+    const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    for (const kind of KINDS) {
+      let worst = -Infinity;
+      for (let i = 0; i < 240; i++) {
+        const x = Math.round((b.hash01(i, kind.length, 7) - 0.5) * 24000) / 100;
+        const z = Math.round((b.hash01(i, kind.length, 8) - 0.5) * 24000) / 100;
+        const g = b.tree(x, z, 1, { kind });
+        const leaves = new THREE.Mesh(canopyOf(g).geometry, mat);
+        leaves.position.y = g.userData.canopy.y;
+        leaves.rotation.y = canopyOf(g).rotation.y;
+        leaves.updateMatrixWorld(true);
+        for (const [dx, dz] of offs) {
+          rc.set(new THREE.Vector3(dx, -10, dz), up);
+          const hit = rc.intersectObject(leaves)[0];
+          expect(hit, `${kind} at (${x}, ${z}) has canopy over its trunk`).toBeTruthy();
+          worst = Math.max(worst, hit.point.y);
+          expect(hit.point.y, `${kind} at (${x}, ${z}) underside +${dx},${dz}`).toBeLessThanOrEqual(1.9);
+        }
+      }
+      expect(worst, kind).toBeGreaterThan(1.2); // and it is the trunk's top it sits on, not swallowing it
+    }
+  });
+
   it('canopyGeometry is the canopy tree() draws', () => {
     for (const kind of KINDS) {
       const geo = b.canopyGeometry(5, 5, kind);

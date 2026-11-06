@@ -84,7 +84,9 @@ export function addIslandView(scene, areaId, { wind } = {}) {
   mound.scale.y = I.rise / I.r;
   mound.position.set(I.x, 0, I.z);
   scene.add(mound);
-  const tree = b.tree(I.x, I.z, ISLAND_WOODS.treeScale, { wind });
+  // The island's Old Ash seen from next door: the round crown island.js
+  // gives it, not whatever this area's (x, z) would hash to.
+  const tree = b.tree(I.x, I.z, ISLAND_WOODS.treeScale, { wind, kind: 'round' });
   tree.position.y = I.rise - 0.2;
   scene.add(tree);
   scene.add(islandBridgePlank(areaId));

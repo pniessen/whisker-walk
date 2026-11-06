@@ -3041,11 +3041,17 @@ function willowOccluder(curtainFloor) {
 // frame; the occluder's ellipsoid holds every vertex the kind can draw at any
 // (x, z) (test/canopies.test.js, test/fightcam.test.js).
 const canopyEll = (y, r, ry) => Object.freeze({ t: 'ell', y, r, ry });
+//
+// Each y is low enough that the crown sits ON the 2 m trunk: over any (x, z)
+// the canopy's underside above the trunk top (axis and 0.2 round it) is at
+// most 1.9, so no crown floats clear of its trunk (test/canopies.test.js).
+const canopyKindOf = (y, r, green, rx, ry) =>
+  Object.freeze({ y, r, green, occluder: Object.freeze([OAK_TRUNK, canopyEll(y, rx, ry)]) });
 export const CANOPY_KINDS = Object.freeze({
-  oak: Object.freeze({ y: 2.9, r: 1.9, green: 0x4a8c3c, occluder: Object.freeze([OAK_TRUNK, canopyEll(2.9, 2.45, 2.06)]) }),
-  birch: Object.freeze({ y: 3.3, r: 1.1, green: 0x6aa64a, occluder: Object.freeze([OAK_TRUNK, canopyEll(3.3, 1.52, 2.1)]) }),
+  oak: canopyKindOf(2.64, 1.9, 0x4a8c3c, 2.45, 2.06),
+  birch: canopyKindOf(3.0, 1.1, 0x6aa64a, 1.52, 2.1),
   round: Object.freeze({ y: 2.8, r: 1.6, green: 0x4e9440, occluder: TREE_OCCLUDER }),
-  old: Object.freeze({ y: 3.0, r: 2.3, green: 0x3f7d36, occluder: Object.freeze([OAK_TRUNK, canopyEll(3.0, 3.0, 2.5)]) }),
+  old: canopyKindOf(2.8, 2.3, 0x3f7d36, 3.0, 2.5),
 });
 
 // The kind a tree at (x, z) grows when the area doesn't say: about 40% oak,
