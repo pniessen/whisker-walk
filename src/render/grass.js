@@ -170,7 +170,7 @@ export function flatFootprints(scene, ground = FLAT_GROUND) {
         const mx = (s.x1 + s.x2) / 2;
         const mz = (s.z1 + s.z2) / 2;
         if (_o.y - ground.y(mx, mz) > 0.1) continue; // same raised-plane rule
-        out.push({ kind: 'capsule', x1: s.x1, z1: s.z1, x2: s.x2, z2: s.z2, r: trailReach(s.h) });
+        out.push({ kind: 'capsule', x1: s.x1, z1: s.z1, x2: s.x2, z2: s.z2, r: trailReach(s.h, child.userData.trailLook) });
       }
       continue;
     }

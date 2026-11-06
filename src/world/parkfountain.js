@@ -205,7 +205,9 @@ float fdSize;`);
   vec3 vel = aVel + vec3(0.0, -${G.toFixed(2)} * t, 0.0);
   float speed = length(vel);
   vec3 dir = vel / max(speed, 1e-4);
-  vec3 side = normalize(cross(dir, vec3(aVel.x, 0.0, aVel.z) + vec3(1e-4, 0.0, 0.0)));
+  // constant per drop: the launch heading's horizontal normal (aVel always
+  // has a horizontal part), so it never flips or vanishes at the apex
+  vec3 side = normalize(vec3(-aVel.z, 0.0, aVel.x));
   vec3 fwd = cross(side, dir);
   // swell in at the lip, shrink into the water: no pop at either end
   fdSize = smoothstep(0.0, 0.08, s) * (1.0 - smoothstep(0.9, 1.0, s));
@@ -240,7 +242,7 @@ varying vec3 vRipple;`);
   for (int k = 0; k < 2; k++) {
     float s = fract(uFountainTime / period + ph + float(k) * 0.5);
     float r = mix(0.12, 0.92, s);
-    float w = mix(0.06, 0.13, s);
+    float w = mix(0.1, 0.24, s);
     ring += (1.0 - smoothstep(0.0, w, abs(d - r))) * (1.0 - s) * smoothstep(0.0, 0.12, s);
   }
   diffuseColor.a *= clamp(ring, 0.0, 1.0) * (1.0 - smoothstep(0.85, 1.0, d));
@@ -260,7 +262,9 @@ function ripplesGeometry(arcs) {
     const y = arc.landY + 0.006;
     // 0.9-1.4 s rings, phase from the index
     const period = Math.round((arc.kind === 'stream' ? 11 : 8) + hash(arc.seed + 700) * 4);
-    const z3 = period + hash(arc.seed + 800) * 0.999;
+    // phase kept well inside (0.05, 0.95) so floor() of the interpolated
+    // varying can never land on the wrong period
+    const z3 = period + 0.05 + 0.9 * hash(arc.seed + 800);
     corners.forEach(([u, w], k) => {
       pos.set([x + u * half, y, z + w * half], (i * 4 + k) * 3);
       rip.set([u, w, z3], (i * 4 + k) * 3);
@@ -315,17 +319,17 @@ export function dressFountain(fountain, { reducedMotion = false } = {}) {
     dropsMat.onBeforeCompile = (shader) => patchDropsShader(shader, uniforms);
     dropsMat.customProgramCacheKey = () => DROPS_SHADER_KEY;
     const drops = quiet(new THREE.Mesh(dropsGeometry(arcs), dropsMat), 'fountainDrops', true);
-    drops.renderOrder = 2;
+    drops.renderOrder = 0; // sorted by distance, so faded trees / rain in front still cover it
 
     const ripplesMat = new THREE.MeshStandardMaterial({
       color: 0xeef8ff, emissive: 0x1c2830, roughness: 0.2, metalness: 0,
-      transparent: true, opacity: 0.55, depthWrite: false,
+      transparent: true, opacity: 0.32, depthWrite: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     });
     ripplesMat.onBeforeCompile = (shader) => patchRipplesShader(shader, uniforms);
     ripplesMat.customProgramCacheKey = () => RIPPLES_SHADER_KEY;
     const ripples = quiet(new THREE.Mesh(ripplesGeometry(arcs), ripplesMat), 'fountainRipples', true);
-    ripples.renderOrder = 1;
+    ripples.renderOrder = 0;
 
     if (tick) {
       drops.onBeforeRender = tick;

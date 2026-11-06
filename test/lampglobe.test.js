@@ -95,6 +95,9 @@ describe('lampPost globe onBeforeRender', () => {
 
   it('ignores a non-perspective (shadow / map) camera', () => {
     const { scene, globe } = setup();
+    // a near perspective view first dims it; the ortho view then sees full glow
+    draw(scene, globe, camAt(0.5));
+    expect(globe.material.emissiveIntensity).toBeLessThan(LAMP_LOOK.emissiveIntensity);
     const ortho = new THREE.OrthographicCamera();
     ortho.position.set(0.5, 3.3, 0);
     ortho.updateMatrixWorld(true);

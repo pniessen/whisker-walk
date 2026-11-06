@@ -3432,11 +3432,13 @@ export function lampGlobeScale(d, f = LAMP_GLOBE_FADE) {
 // shadow passes call onBeforeShadow, not this, but any other camera (an
 // orthographic map view, say) is ignored rather than measured from.
 function dimNearGlobe(renderer, scene, camera, geometry, material) {
-  if (!camera?.isPerspectiveCamera || !material || Array.isArray(material)) return;
+  if (!material || Array.isArray(material)) return;
   const ud = material.userData;
   if (ud.lampBase === undefined) ud.lampBase = material.emissiveIntensity;
   const base = ud.lampBase;
   if (!(base > 1)) return;
+  // Any other camera sees the full glow, not the last view's dimmed value.
+  if (!camera?.isPerspectiveCamera) { material.emissiveIntensity = base; return; }
   const a = this.matrixWorld.elements, c = camera.matrixWorld.elements;
   const dx = a[12] - c[12], dy = a[13] - c[13], dz = a[14] - c[14];
   material.emissiveIntensity = base * lampGlobeScale(Math.sqrt(dx * dx + dy * dy + dz * dz));

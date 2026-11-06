@@ -327,7 +327,7 @@ describe('City Park — the gravel trail (polish-park2)', async () => {
     const [gate] = PARK_HORIZON.edge.gaps;
     // The (0, 48) end runs on past the gate; the other ends are as authored
     // (joined, or pulled back h at a dead end).
-    expect(segs[0].x1).toBe(0);
+    expect(segs[0].x1).toBeCloseTo(0, 9);
     expect(segs[0].z1).toBeGreaterThan(gate.z + 2);
     expect(segs[0].z2).toBe(20);
     expect(trailField(segs, gate.x, gate.z, 'gravel').alpha).toBe(1);
@@ -465,5 +465,23 @@ describe('City Park — the two-tier fountain (polish-park2)', async () => {
     fountainOf(scene).traverse((o) => { if (o.isMesh) fountain += tris(o.geometry); });
     expect(total).toBeLessThanOrEqual(26535);
     expect(fountain).toBeLessThan(6000);
+  });
+});
+
+// Review fix (polish-park2): grass.js masks a trail by the trail's OWN look, so
+// the tidy gravel walk keeps its tufts right up to its edge rather than a bare
+// half-metre band beside it (the default trail look's wobble is ~4x wider).
+describe('grass beside the gravel walks', () => {
+  it('masks the park trail by the gravel reach, not the wild-trail reach', async () => {
+    const { flatFootprints } = await import('../src/render/grass.js');
+    const { trailReach } = await import('../src/world/pathribbon.js');
+    const scene = new THREE.Scene();
+    build(scene);
+    const caps = flatFootprints(scene).filter((f) => f.kind === 'capsule');
+    expect(caps.length).toBeGreaterThan(0);
+    for (const c of caps) {
+      expect(c.r).toBeCloseTo(trailReach(1.5, 'gravel'), 9);
+      expect(c.r).toBeLessThan(trailReach(1.5) - 0.2);
+    }
   });
 });
