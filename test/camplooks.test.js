@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS, caneTris } = await import('../src/world/camp.js');
+const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS, RING_LEAF_FIRST, RING_BERRY_TRIS, caneTris } = await import('../src/world/camp.js');
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
 
 const CAMPS = ['woods', 'river', 'moor', 'pines'];
@@ -109,7 +109,7 @@ describe('CAMP_LOOKS', () => {
     }
   }, 120_000);
 
-  it('each fruiting clump carries berries in the clan\'s fruit colours', () => {
+  it('each fruiting clump carries berries in the clan\'s fruit colours, the rest green buds', () => {
     // a corner whose colour is `base` times one factor in [lo, hi]
     const scaledAt = (col, i, base, lo, hi) => {
       const k = [col.getX(i) / base.r, col.getY(i) / base.g, col.getZ(i) / base.b];
@@ -118,20 +118,22 @@ describe('CAMP_LOOKS', () => {
     for (const a of CAMPS) {
       const look = CAMP_LOOKS[a];
       const fruits = look.ring.fruit.map(([hex]) => lin(hex));
+      // a clump out of fruit: its berries are buds, one of its greens × 0.7
+      const buds = look.ring.greens.map((hex) => lin(hex).multiplyScalar(0.7));
       const col = build(a).getObjectByName('campRing').geometry.attributes.color;
       const n = campDressing(a, []).ring.clumps.length;
       let fruiting = 0;
       for (let c = 0; c < n; c++) {
-        // the berries are the last 9 triangles of each clump's RING_CLUMP_TRIS
-        const first = (c + 1) * RING_CLUMP_TRIS - 9;
-        let all = true;
-        for (let v = first * 3; v < (first + 9) * 3 && all; v++) {
-          all = fruits.some((f) => scaledAt(col, v, f, 0.9, 1.1));
-        }
-        if (all) fruiting++;
+        // the berries are the last RING_BERRY_TRIS triangles of each clump's
+        const first = (c + 1) * RING_CLUMP_TRIS - RING_BERRY_TRIS;
+        const verts = [];
+        for (let v = first * 3; v < (first + RING_BERRY_TRIS) * 3; v++) verts.push(v);
+        const fruit = verts.every((v) => fruits.some((f) => scaledAt(col, v, f, 0.9, 1.1)));
+        const bud = buds.some((b) => verts.every((v) => sameColor(col, v, b)));
+        expect(fruit !== bud, `${a} clump ${c}: fruit ${fruit}, bud ${bud}`).toBe(true);
+        if (fruit) fruiting++;
       }
-      expect(fruiting / n, a).toBeGreaterThanOrEqual(0.4);
-      expect(fruiting / n, a).toBeLessThanOrEqual(1);
+      expect(Math.abs(fruiting / n - look.ring.fruitShare), `${a} ${fruiting}/${n}`).toBeLessThanOrEqual(0.15);
     }
   }, 120_000);
 
@@ -145,7 +147,7 @@ describe('CAMP_LOOKS', () => {
       cs.forEach((c, ci) => {
         // after the core (20) and the crowns (24): six one-triangle leaves
         for (let l = 0; l < 6; l++) {
-          const t = ci * RING_CLUMP_TRIS + 44 + l;
+          const t = ci * RING_CLUMP_TRIS + RING_LEAF_FIRST + l;
           for (let k = 0; k < 3; k++) p[k].fromBufferAttribute(pos, t * 3 + k);
           const n = e1.subVectors(p[1], p[0]).cross(e2.subVectors(p[2], p[0]));
           const mx = (p[0].x + p[1].x + p[2].x) / 3 - c.x;

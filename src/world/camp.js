@@ -204,13 +204,18 @@ const CLUMP_SEAT_GAP = 0.5;   // from any seat, and from the den's and rock's ed
 // every collider's edge, and inside the ring's arc (never in the gap); a cane
 // splits where points drop, and a run under 3 points vanishes.
 // polish-brambles: more, shorter arches (len 1.8..2.8, was 2.6..3.8) that
-// climb over the mounds' crowns (peak 0.82..0.94, was 0.7..0.9), and a
-// thicker cane (0.04 -> 0.018, was 0.036 -> 0.016); no step longer than
-// `reach` (a steep foot is lowered to fit). Thorns: THORN below.
+// lie over the mounds' tops (peak 0.72..0.85, was 0.7..0.9; non-gate clumps
+// are at most 0.8 m), rising out of the leaves (foot 0.28 m, was 0.08: the
+// base is hidden in the mound), and a thin cane (0.03 -> 0.014, was 0.036 ->
+// 0.016). No step climbs or falls more than `slope` times its run along the
+// ground (a steep foot is lowered to fit), so a cane arches gently instead of
+// standing up like a pole, and none rises more than `over` above the tallest
+// clump within `near` of it, so it lies over the mounds' tops instead of
+// towering over a small one. Thorns: THORN below.
 const CANE = {
   len: [1.8, 2.8], stagger: 1.6, step: 0.4, weave: 0.18, waves: [0.8, 1.4],
-  foot: 0.08, peak: [0.82, 0.94], skew: 0.2, bob: 0.1, bobs: [2, 3.5], w0: 0.04, w1: 0.018,
-  near: 0.45, seat: 0.4, edge: 0.25, reach: 0.76,
+  foot: 0.28, peak: [0.72, 0.85], skew: 0.2, bob: 0.1, bobs: [2, 3.5], w0: 0.03, w1: 0.014,
+  near: 0.45, seat: 0.4, edge: 0.25, slope: 0.45, over: 0.1,
 };
 const CLEARING_IN = 0.7;      // the clearing's radius: ring.r - 0.7
 const NEST_R = 0.4;
@@ -226,8 +231,9 @@ const KILL_EDGE_GAP = 0.3;
 const LEDGE_KILL = frozen({ gorge: frozen({ x: 9.4, z: 42.7 }) });
 
 // The ring's canes (CANE): pure, from hash01 of the camp's centre alone.
-// `clear(p)` is campDressing's seat and collider rule for a point.
-function ringCanes(cx, cz, ringR, gapA, span, clumps, clear) {
+// `clear(p)` is campDressing's seat and collider rule for a point; `placed`
+// is every clump before the colliders dropped any (the height cap's).
+function ringCanes(cx, cz, ringR, gapA, span, clumps, placed, clear) {
   const arc = span * ringR;
   const lerp = ([lo, hi], t) => lo + (hi - lo) * t;
   const runs = [];
@@ -256,10 +262,15 @@ function ringCanes(cx, cz, ringR, gapA, span, clumps, clear) {
           + CANE.bob * arch * Math.sin(2 * Math.PI * (u * bobs + bobPhase)));
         pts.push({ s, p: { x: cx + Math.cos(a) * d, y, z: cz + Math.sin(a) * d, w: CANE.w0 + (CANE.w1 - CANE.w0) * u } });
       }
-      // polish-brambles: the shorter, taller arches climb steeply at a skewed
-      // foot; no step may climb (or fall) more than keeps it within `reach`
-      // of the last point, so a point is lowered, never raised.
-      const rise = (q, p) => Math.sqrt(Math.max(0, CANE.reach ** 2 - (p.x - q.x) ** 2 - (p.z - q.z) ** 2));
+      // polish-brambles: a point no more than `over` above the tallest clump
+      // near it, then no step may climb (or fall) more than `slope` times its
+      // run along the ground, forward then back; a point is lowered, never
+      // raised.
+      for (const { p } of pts) {
+        const top = placed.reduce((t, c) => (Math.hypot(p.x - c.x, p.z - c.z) <= CANE.near ? Math.max(t, c.h) : t), 0);
+        if (top > 0) p.y = Math.min(p.y, top + CANE.over);
+      }
+      const rise = (q, p) => CANE.slope * Math.hypot(p.x - q.x, p.z - q.z);
       for (let j = 1; j <= m; j++) {
         const q = pts[j - 1].p;
         pts[j].p.y = Math.min(pts[j].p.y, q.y + rise(q, pts[j].p));
@@ -325,6 +336,9 @@ export function campDressing(areaId, colliders = []) {
   const rng = mulberry32(seedFromCode(`camp-${areaId}`));
   const lerp = ([lo, hi], t) => lo + (hi - lo) * t;
   const clumps = [];
+  // every clump the layout keeps, before the colliders drop any: the canes'
+  // height cap reads these, so a collider never moves a cane point it keeps
+  const placed = [];
   for (let i = 0; i < n; i++) {
     // slot centres strictly inside the arc, half a step in from each gap edge
     const a = gapA + RING_GAP_HALF + ((i + 0.5) / n) * span;
@@ -338,6 +352,7 @@ export function campDressing(areaId, colliders = []) {
     const c = { x: cx + Math.cos(a) * d, z: cz + Math.sin(a) * d, s, h, rot, row, gate };
     if (seats.some((p) => near(c, p) < CLUMP_SEAT_GAP)) continue;
     if ([L.den, L.rock].some((p) => near(c, p) - p.r < CLUMP_SEAT_GAP)) continue;
+    placed.push(c);
     if (cols.some((k) => near(c, k) < k.r + Math.max(0.25, CLUMP_R * s + 0.05))) continue;
     clumps.push(c);
   }
@@ -358,7 +373,7 @@ export function campDressing(areaId, colliders = []) {
   // the first spot, so a future layout change still draws a pile.
   if (!kill) kill = { x: L.rock.x + Math.cos(toCentre + KILL_TURNS[0]) * KILL_D[0], z: L.rock.z + Math.sin(toCentre + KILL_TURNS[0]) * KILL_D[0] };
 
-  const canes = ringCanes(cx, cz, ringR, gapA, span, clumps, (p) => (
+  const canes = ringCanes(cx, cz, ringR, gapA, span, clumps, placed, (p) => (
     seats.every((q) => near(p, q) >= CANE.seat)
     && [L.den, L.rock, ...cols].every((k) => near(p, k) - k.r >= CANE.edge)));
 
@@ -845,31 +860,21 @@ function speckle(geo, specks, salt) {
   return geo;
 }
 
-// The bramble wall (polish-viewclear): each clump a wide main lump (an
-// icosahedron, 20 triangles) and a taller, smaller one behind it on the outer
-// side (an octahedron, 8), every vertex within CLUMP_R · s of the clump's spot
-// and no higher than its h; the staggered rows (campDressing) put neighbours
-// 0.41 to 0.57 m apart and 0.36 m along the ring, about the main lumps' own
-// width (0.39 to 0.59 m across), so big neighbours meet or overlap and small
-// ones leave a gap the other row's lumps and the back lumps mostly fill.
-// polish-camps4: the lumps are lumpier, each vertex pulled in or pushed out
-// about its clump's foot (lumpy below: x 0.8 to 1.05, by a hash of the world
-// vertex, so the two copies of a seam vertex move together and the faces stay
-// closed; never above h, never out of the footprint), the main lump's crown
-// raised from 0.85 h to 0.92 h to make up the pull, and the old arched
-// strands (a little half torus over every other pair of clumps, which read as
-// apples with stalks) are gone. In their place the canes (campDressing
-// ring.canes): long arching bramble canes woven along the ring in two
-// staggered layers, in and out across both rows and over and under the
-// crowns, each a tapered 3-sided tube (6 triangles a segment) in the clan's
-// strand colour, so the wall reads as a tangle, not a row of balls. The
-// clan's greens by hash, dark at the foot, with the clan's specks on the
-// lumps (speckle; the canes carry none). One vertex-coloured mesh, out of the
-// shadow pass. polish-brambles rebuilt each clump as a leafy mound (ringMesh:
-// core, crown lumps, leaf cards, berries; RING_CLUMP_TRIS = 59 a clump),
-// arched the canes over them and gave them thorns (caneTris: 6 a segment, 3
-// a thorn), 6,033 to 6,066 a camp, under the area's 70,000
-// (test/budget.test.js). No ring vertex is above 1 m (ruling R3).
+// The bramble wall: each clump a leafy bramble mound (ringMesh and the
+// polish-brambles block before it: core, crown lumps, leaf cards, berries;
+// RING_CLUMP_TRIS = 59 a clump), every vertex within CLUMP_R · s of the
+// clump's spot and no higher than its h, the lumps made lumpy here (each
+// vertex pulled in or pushed out about its clump's foot, x 0.8 to 1.05 by a
+// hash of the world vertex, so the two copies of a seam vertex move together
+// and the faces stay closed). Over them the canes (campDressing ring.canes,
+// CANE): bramble canes woven along the ring in two staggered layers, in and
+// out across both rows, each a tapered 3-sided tube with thorns (caneTris: 6
+// a segment, 3 a thorn) in the clan's strand colour, so the wall reads as a
+// tangle, not a row of balls. The clan's greens by hash, dark at the foot,
+// with the clan's specks on the lumps (speckle; leaves, berries and canes
+// carry none). One vertex-coloured mesh, out of the shadow pass, 6,033 to
+// 6,066 triangles a camp, under the area's 70,000 (test/budget.test.js). No
+// ring vertex is above 1 m (ruling R3).
 //
 // Ruling R4: the wall has no collider. A collider would change the walkable
 // ground, the clan cats' routes and the flat trace for the Woods, River, Moor
@@ -963,7 +968,7 @@ function caneGeometry(cane, colorAt, thornAt) {
     radial.copy(f.side).multiplyScalar(Math.cos(th)).addScaledVector(f.nrm, Math.sin(th));
     axis.copy(radial).multiplyScalar(Math.cos(THORN.tilt)).addScaledVector(f.t, Math.sin(THORN.tilt)).normalize();
     foot.set(c.x, c.y, c.z).addScaledVector(radial, c.w);
-    e1.crossVectors(axis, f.t.lengthSq() > 0 && Math.abs(axis.dot(f.t)) < 0.99 ? f.t : up).normalize();
+    e1.crossVectors(axis, Math.abs(axis.dot(f.t)) < 0.99 ? f.t : up).normalize();
     e2.crossVectors(axis, e1);
     const r = THORN.base * c.w;
     for (let k = 0; k < 3; k++) {
@@ -999,10 +1004,16 @@ function caneGeometry(cane, colorAt, thornAt) {
 // rest. Specks land on the core and crowns only. Every clump-part vertex is
 // then kept within 0.98 CLUMP_R · s of the clump's spot and between 0 and h.
 export const RING_CLUMP_TRIS = 59;
-const LEAF = { n: 6, len: 0.11, w: 0.06, lean: 0.03, eLo: 0.25, eHi: 1.1 };
+// where a clump's leaf cards start (after the core 20 and crowns 24) and how
+// many triangles its berries take (the last of the clump's)
+export const RING_LEAF_FIRST = 44;
+export const RING_BERRY_TRIS = 9;
+// the mound's envelope (ENV) is widened to 0.9 R and leaves start at 0.4 rad
+// up it (were 0.8 R and 0.25), so leaves sit outside the core and show
+const LEAF = { n: 6, len: 0.11, w: 0.06, lean: 0.03, eLo: 0.4, eHi: 1.1 };
 const BERRY = { n: 3, r: 0.028, apex: 0.045, at: 0.95, eLo: 0.3, eHi: 0.95 };
-// the mound's envelope: a half-ellipsoid on the clump's spot
-const ENV = { r: 0.8, h: 0.88 };
+// the mound's envelope: a half-ellipsoid on the clump's spot (semi-axes r·R, h·c.h)
+const ENV = { r: 0.9, h: 0.88 };
 const TAU = Math.PI * 2;
 
 // a point on the clump's envelope (scaled by k) and its outward normal
@@ -1162,10 +1173,11 @@ function ringMesh(ring, cx, cz, look) {
       }
       const mid = p.clone();
       for (let i = 0; i < 3; i++) {
-        berries.push([base[i].clone(), base[(i + 1) % 3].clone(), apex.clone()]);
+        const tri = [base[i].clone(), base[(i + 1) % 3].clone(), apex.clone()];
+        tri.mid = mid;
+        berries.push(tri);
         berryCols.push(colr);
       }
-      berries.forEach((tri) => { tri.mid ??= mid; });
     }
     parts.push(facing(berries, berryCols, c, R, (tri) => centroid(tri).sub(tri.mid)));
   }
