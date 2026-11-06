@@ -399,6 +399,9 @@ const DEN_SQUASH = 0.8;
 //   floor: the clearing's colour and its SURFACE_PRESETS surface
 //   nest:  moss (the ring) and bracken (the hollow)
 //   rock:  the leader's rock
+//   rockMoss (optional): the moss on the Highrock's tops when it should differ
+//          from the nests' (the Moor's heather-purple nest moss would stain
+//          its rock); absent, the rock takes nest.moss
 // A ledge camp (the Gorge) has no ring, den or floor: its record carries the
 // woods values for those so campLook always returns a whole record.
 const deepFreeze = (o) => {
@@ -439,6 +442,7 @@ export const CAMP_LOOKS = deepFreeze({
     floor: { color: 0x84984f, surface: 'grass' },  // cropped turf
     nest: { moss: 0x8a6a80, bracken: 0xa89a62 },
     rock: 0x9a9488,
+    rockMoss: 0x7c8a52, // olive moorland moss; the nests' purple heather stays on the nests
   },
   // DuskClan: needles and moss, fern tips; a moss den
   pines: {
@@ -500,7 +504,15 @@ const RING_LOOK = {
 // fade: the soft band at the rim, solid inside r - fade, clear at r * wobble;
 // wobble: the rim's radius factor, 1 - wobble..1 (a sum of three low sinusoids).
 const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -3.5 };
-const NEST = { r: 0.35, tube: 0.09, squash: 0.55 };
+// The nests: a low moss dome (a 10-corner fan, then rings at r 0.17 / 0.33 /
+// 0.41: heights 0.045 / 0.09 / 0), the raised bank darker, and 10 bracken
+// fronds round the bank, each a bent two-triangle card leaning out and up.
+// 70 triangles a nest.
+const NEST = {
+  r: 0.35, sides: 10,
+  rings: [[0.17, 0.045], [0.33, 0.09], [0.41, 0]],
+  frond: { from: [0.31, 0.075], tip: [0.435, 0.135], halfBase: 0.045, halfTip: 0.02 },
+};
 const KILL_LOOK = { mouse: 0x7a5a3e, vole: 0x5e4a36, bird: 0x8a8478, wing: 0xa59d8c };
 
 // A position hash in [0, 1): the same corner always moves the same way, so the
@@ -1365,8 +1377,8 @@ function clearingMesh(clearing, look) {
   return mesh;
 }
 
-// The nests: a squashed moss ring under each elder and kit, dry bracken in
-// its hollow. One vertex-coloured mesh, out of the shadow pass.
+// The nests: a domed moss cushion under each elder and kit, bracken fronds
+// round its bank. One vertex-coloured mesh, out of the shadow pass.
 function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
   const parts = [];
   // `flat` < 1 presses a nest down towards the ground under it (the ledge's:
@@ -1374,15 +1386,58 @@ function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
   // decal).
   const press = (m, gy) => (flat === 1 ? m : m.premultiply(new THREE.Matrix4().makeTranslation(0, -gy, 0))
     .premultiply(new THREE.Matrix4().makeScale(1, flat, 1)).premultiply(new THREE.Matrix4().makeTranslation(0, gy, 0)));
+  const K = NEST.sides;
   for (const n of nests) {
     const gy = groundY(n.x, n.z);
-    const ring = new THREE.TorusGeometry(NEST.r, NEST.tube, 4, 10);
-    const sy = NEST.squash;
-    parts.push(bake(ring, press(place(n.x, gy + NEST.tube * sy, n.z, 1, sy, 1, hash01(n.x, 0, n.z, 13) * Math.PI, Math.PI / 2), gy),
-      (vx, vy, vz, c) => c.setHex(look.nest.moss).multiplyScalar(0.8 + 0.35 * hash01(vx, vy, vz, 14))));
-    const hollow = new THREE.CircleGeometry(NEST.r - 0.02, 10);
-    parts.push(bake(hollow, press(place(n.x, gy + 0.03, n.z, 1, 1, 1, 0, -Math.PI / 2), gy),
-      (vx, vy, vz, c) => c.setHex(look.nest.bracken).multiplyScalar(0.85 + 0.25 * hash01(vx, vy, vz, 15))));
+    const turn = hash01(n.x, 0, n.z, 13) * Math.PI * 2;
+    const tris = [];
+    const ringPt = (ring, i, wob = 0) => {
+      const t = turn + (i / K) * Math.PI * 2;
+      const r = NEST.rings[ring][0] * (1 + wob * (hash01(n.x + i, ring, n.z, 17) - 0.5));
+      return [Math.cos(t) * r, NEST.rings[ring][1], Math.sin(t) * r];
+    };
+    for (let i = 0; i < K; i++) {
+      const j = (i + 1) % K;
+      tris.push([0, 0, 0], ringPt(0, i), ringPt(0, j));
+      tris.push(ringPt(0, i), ringPt(1, i), ringPt(1, j), ringPt(0, i), ringPt(1, j), ringPt(0, j));
+      tris.push(ringPt(1, i), ringPt(2, i), ringPt(2, j), ringPt(1, i), ringPt(2, j), ringPt(1, j));
+    }
+    // the fronds: a base on the bank, a narrower tip out and up
+    const F = NEST.frond;
+    for (let i = 0; i < K; i++) {
+      const t = turn + ((i + 0.5 + 0.3 * (hash01(n.x, i, n.z, 18) - 0.5)) / K) * Math.PI * 2;
+      const lean = 0.9 + 0.2 * hash01(n.x, i, n.z, 19);
+      const c = Math.cos(t); const s = Math.sin(t);
+      const at = (r, y, side) => [c * r - s * side, y, s * r + c * side];
+      const b0 = at(F.from[0], F.from[1], -F.halfBase);
+      const b1 = at(F.from[0], F.from[1], F.halfBase);
+      const r1 = F.from[0] + (F.tip[0] - F.from[0]) * lean;
+      const y1 = F.from[1] + (F.tip[1] - F.from[1]) * lean;
+      const t0 = at(r1, y1, -F.halfTip);
+      const t1 = at(r1, y1, F.halfTip);
+      tris.push(b0, t1, b1, b0, t0, t1);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(tris.flat(), 3));
+    // colour by vertex index so the dome and the fronds can differ
+    const bodyVerts = K * 3 + K * 6 * 2; // the fan and the two bands, before the fronds
+    const colors = new Float32Array(tris.length * 3);
+    const cc = new THREE.Color();
+    for (let v = 0; v < tris.length; v++) {
+      const [lx, ly, lz] = tris[v];
+      if (v < bodyVerts) {
+        cc.setHex(look.nest.moss).multiplyScalar(0.8 + 0.35 * hash01(lx + n.x, ly, lz + n.z, 14));
+        if (Math.hypot(lx, lz) > 0.28) cc.multiplyScalar(0.8); // the bank is darker
+      } else {
+        cc.setHex(look.nest.bracken).multiplyScalar(0.85 + 0.25 * hash01(lx + n.x, ly, lz + n.z, 15));
+      }
+      colors.set([cc.r, cc.g, cc.b], v * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const m = press(place(n.x, gy, n.z, 1, 1, 1, 0, 0), gy);
+    geo.applyMatrix4(m);
+    geo.computeVertexNormals();
+    parts.push(geo);
   }
   const mesh = new THREE.Mesh(merged(parts), vcMaterial({ roughness: 0.9 }));
   mesh.name = 'campNests';
@@ -1453,7 +1508,7 @@ function addLedgeCamp(scene, area, L) {
   const made = withLocalUuids('gorge', () => ({
     // the leader looks west, so the rock's back is +x (away 0), inland
     rock: highrockGeometry(L.rock, 0, {
-      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.nest.moss,
+      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.rockMoss ?? look.nest.moss,
     }),
     nests: nestsMesh(D.nests, look, groundY, 0.5),
     kill: killMesh(D.kill, groundY),
@@ -1517,7 +1572,7 @@ export function addCamp(scene, area, areaId) {
     den: denGeometry(L.den, out, look),
     door: doorGeometry(L.den, out),
     rock: highrockGeometry(L.rock, Math.atan2(L.rock.z - L.cz, L.rock.x - L.cx), {
-      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.nest.moss,
+      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.rockMoss ?? look.nest.moss,
     }).translate(L.rock.x, 0, L.rock.z),
     nests: nestsMesh(D.nests, look),
     kill: killMesh(D.kill),

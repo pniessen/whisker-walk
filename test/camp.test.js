@@ -210,7 +210,7 @@ describe('addCamp', () => {
       expect(nrm, a).toBeDefined();
       expect(rock.material.vertexColors, a).toBe(true);
       expect(rock.material.color.getHex(), a).toBe(look.rock);
-      const m = new THREE.Color(look.nest.moss);
+      const m = new THREE.Color(look.rockMoss ?? look.nest.moss);
       const r = new THREE.Color(look.rock);
       const moss = [m.r / r.r, m.g / r.g, m.b / r.b];
       const isMoss = (c) => Math.abs(c[1] / c[0] - moss[1] / moss[0]) < 1e-3 * (moss[1] / moss[0])

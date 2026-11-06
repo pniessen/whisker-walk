@@ -31,13 +31,14 @@ const ALL = [...CAMPS, 'gorge'];
 // polish-camps3 (addCamp into a fresh Scene, { colliders: [] }; the Gorge with
 // its ground). The clearing is 57 since polish-camps4 (two-ring fading disc; was 30).
 // The rock is 3 * HIGHROCK_TRIS since polish-camps5 (the layered, mossy
-// Highrock; was 348, 116 triangles).
+// Highrock; was 348, 116 triangles). The nests are 1260 (6 x 70 triangles:
+// the domed moss cushion and its bracken fronds; was 1620, 6 x 90).
 const BASE_VERTS = {
-  woods: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
-  river: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
-  moor: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
-  pines: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
-  gorge: { campBedding: 1620, campRock: 3 * HIGHROCK_TRIS },
+  woods: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
+  river: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
+  moor: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
+  pines: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
+  gorge: { campBedding: 1260, campRock: 3 * HIGHROCK_TRIS },
 };
 
 const build = (a) => {
@@ -158,6 +159,44 @@ describe('CAMP_LOOKS', () => {
           expect(n.x * mx + n.y * my + n.z * mz, `${a} clump ${ci} leaf ${l}`).toBeGreaterThan(0);
         }
       });
+    }
+  }, 120_000);
+
+  // polish-camps5: a low moss dome with a raised bank and bracken fronds round it
+  it('each nest is a low domed cushion with a bracken rim, 100 triangles at most', () => {
+    for (const a of ALL) {
+      const scene = build(a);
+      const nests = scene.getObjectByName(a === 'gorge' ? 'campBedding' : 'campNests');
+      const pos = nests.geometry.attributes.position;
+      const col = nests.geometry.attributes.color;
+      const centres = a === 'gorge' ? null : campDressing(a, []).nests;
+      const per = pos.count / 6;
+      expect(per / 3, a).toBeLessThanOrEqual(100);
+      const brk = lin(CAMP_LOOKS[a].nest.bracken);
+      let bracken = false;
+      for (let i = 0; i < pos.count; i++) {
+        const k = [col.getX(i) / brk.r, col.getY(i) / brk.g, col.getZ(i) / brk.b];
+        if (k.every((v) => v >= 0.85 - 1e-4 && v <= 1.1 + 1e-4 && Math.abs(v - k[0]) < 1e-3)) bracken = true;
+      }
+      expect(bracken, `${a} bracken`).toBe(true);
+      for (let n = 0; n < 6; n++) {
+        const lo = n * per;
+        let cx = 0; let cz = 0; let minY = Infinity;
+        for (let i = lo; i < lo + per; i++) { cx += pos.getX(i); cz += pos.getZ(i); minY = Math.min(minY, pos.getY(i)); }
+        cx /= per; cz /= per;
+        if (centres) { // flat camps: the dressing's own spot
+          const c = centres.reduce((b, q) => (Math.hypot(q.x - cx, q.z - cz) < Math.hypot(b.x - cx, b.z - cz) ? q : b));
+          cx = c.x; cz = c.z;
+        }
+        const top = a === 'gorge' ? 0.5 : 1; // the ledge's pressed nests
+        for (let i = lo; i < lo + per; i++) {
+          const d = Math.hypot(pos.getX(i) - cx, pos.getZ(i) - cz);
+          const h = pos.getY(i) - minY;
+          expect(d, `${a} reach`).toBeLessThanOrEqual(0.35 + 0.12 + 0.03);
+          expect(h, `${a} height`).toBeLessThanOrEqual(0.16 * top + 1e-4);
+          if (d < 0.2) expect(h, `${a} middle`).toBeLessThanOrEqual(0.06 * top + 1e-4);
+        }
+      }
     }
   }, 120_000);
 
