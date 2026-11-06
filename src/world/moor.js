@@ -568,7 +568,9 @@ export function build(scene, { water = {}, wind } = {}) {
   // on it never part. Named so test/moor.test.js can find them and see past
   // them.
   const H = OLD_HAWTHORN;
-  const hawthorn = b.tree(H.x, H.z, H.scale);
+  // The oak crown (canopy kinds): a gnarled spreading thorn, never a pale
+  // birch under the brown limb.
+  const hawthorn = b.tree(H.x, H.z, H.scale, { kind: 'oak' });
   hawthorn.name = 'oldHawthorn';
   // The low limb the golden mouse sits out on (src/goldmice.js), reaching west
   // from the trunk to just past the mouse, its top under the mouse's belly. A

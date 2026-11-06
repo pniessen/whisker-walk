@@ -195,7 +195,9 @@ describe('the Woods floor', () => {
     expect(meshes).toHaveLength(1);
     expect(meshes[0].userData.noCast).toBe(true);
     expect(meshes[0].castShadow).toBe(false);
-    expect(tris).toBeLessThanOrEqual(58_500);
+    // polish-canopies: oak, birch and round crowns (and Task 2's old oaks)
+    // take the Woods to at most 58,148 + 6,000
+    expect(tris).toBeLessThanOrEqual(64_148);
 
     const places = keep(area);
     expect(places.some((p) => p.x === SPAWN.x && p.z === SPAWN.z)).toBe(true);

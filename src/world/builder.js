@@ -3004,8 +3004,9 @@ function edgeMesh(edge, salt, avoid, groundAt) {
 // many spots and scales and checks every vertex sits inside. Data only: no
 // mesh, no draw, nothing changes on screen.
 //
-// The oak's canopy blob reaches 1.90 of its 1.6 nominal radius (its second
-// lobe bulges out and down to y 0.9), hence the 1.95 sphere.
+// The round canopy (CANOPY_KINDS.round) reaches 1.89 of its 1.6 nominal
+// radius (its second lobe bulges out and down to y 0.96), hence the 1.95
+// sphere; the other kinds carry their own ellipsoids (CANOPY_KINDS).
 const OAK_TRUNK = Object.freeze({ t: 'cyl', r: 0.35, y0: 0, y1: 2 });
 export const TREE_OCCLUDER = Object.freeze([OAK_TRUNK, Object.freeze({ t: 'ell', y: 2.8, r: 1.95, ry: 1.95 })]);
 function willowOccluder(curtainFloor) {
@@ -3018,33 +3019,276 @@ function willowOccluder(curtainFloor) {
   ]);
 }
 
+// CANOPY KINDS (polish-canopies). Every broadleaf tree used to be the same
+// two-lobe ball; now each (x, z) grows one of three crowns, and an area can
+// ask for a fourth:
+//   oak    wide and clumpy: a detail-2 shell whose radius, direction by
+//          direction, is the union of a core and 3-4 lump spheres (so the
+//          silhouette is a cluster of rounded masses), squashed in y, with a
+//          low side lump.
+//   birch  narrow and tall on a pale, dark-marked trunk.
+//   round  the old ball, refined: both lobes at detail 1.
+//   old    (only when asked: the Woods) a bigger, darker oak.
+// Each canopy is lit from above by a vertex `color` (dark under the crown, one
+// shade per facet, see shadeCanopy) under the per-tree organicTint material.
+//
+// Uuid cost per tree is what it always was (the area builds' Math.random
+// counts are pinned in test/waterlooks.test.js): one trunk geometry, two
+// IcosahedronGeometry and one mergeGeometries for the canopy, a material and a
+// mesh each, the Group. Attributes and Colors carry no uuid.
+//
+// `y` is the canopy centre and `r` its nominal radius, in the Group's unscaled
+// frame; the occluder's ellipsoid holds every vertex the kind can draw at any
+// (x, z) (test/canopies.test.js, test/fightcam.test.js).
+const canopyEll = (y, r, ry) => Object.freeze({ t: 'ell', y, r, ry });
+export const CANOPY_KINDS = Object.freeze({
+  oak: Object.freeze({ y: 2.9, r: 1.9, green: 0x4a8c3c, occluder: Object.freeze([OAK_TRUNK, canopyEll(2.9, 2.45, 2.06)]) }),
+  birch: Object.freeze({ y: 3.3, r: 1.1, green: 0x6aa64a, occluder: Object.freeze([OAK_TRUNK, canopyEll(3.3, 1.52, 2.1)]) }),
+  round: Object.freeze({ y: 2.8, r: 1.6, green: 0x4e9440, occluder: TREE_OCCLUDER }),
+  old: Object.freeze({ y: 3.0, r: 2.3, green: 0x3f7d36, occluder: Object.freeze([OAK_TRUNK, canopyEll(3.0, 3.0, 2.5)]) }),
+});
+
+// The kind a tree at (x, z) grows when the area doesn't say: about 40% oak,
+// 35% round, 25% birch.
+export function canopyKind(x, z) {
+  const h = hash01(x, z, 41);
+  return h < 0.4 ? 'oak' : h < 0.75 ? 'round' : 'birch';
+}
+
+// A low-frequency radial field over the unit sphere, the canopies' own copy
+// of blobField's idea (read its header for why it is smooth waves over the
+// vertex DIRECTION and never per-vertex noise: that renders as a crumpled,
+// shattered ball). Returns roughly [-1, 1].
+function canopyField(x, z, salt) {
+  const waves = [];
+  for (let i = 0; i < 3; i++) {
+    const s = salt + i * 5;
+    const theta = hash01(x, z, s + 1) * Math.PI * 2;
+    const phi = hash01(x, z, s + 2) * Math.PI;
+    waves.push({
+      dx: Math.sin(phi) * Math.cos(theta),
+      dy: Math.cos(phi),
+      dz: Math.sin(phi) * Math.sin(theta),
+      freq: 1 + (i % 2),
+      phase: hash01(x, z, s + 3) * Math.PI * 2,
+      weight: 0.5 + 0.5 * hash01(x, z, s + 4),
+    });
+  }
+  const wsum = waves.reduce((a, w) => a + w.weight, 0);
+  return (ux, uy, uz) => {
+    let sum = 0;
+    for (const w of waves) sum += Math.sin((ux * w.dx + uy * w.dy + uz * w.dz) * Math.PI * w.freq + w.phase) * w.weight;
+    return sum / wsum;
+  };
+}
+
+// One lobe: an icosahedron of `radius` whose every vertex is moved along its
+// own direction to radius * reach(direction). Non-indexed, so normals
+// computed later are per facet.
+function canopyLobe(radius, detail, reach) {
+  const geo = new THREE.IcosahedronGeometry(radius, detail);
+  const pos = geo.attributes.position;
+  for (let v = 0; v < pos.count; v++) {
+    const px = pos.getX(v), py = pos.getY(v), pz = pos.getZ(v);
+    const len = Math.hypot(px, py, pz) || 1;
+    const k = reach(px / len, py / len, pz / len);
+    pos.setXYZ(v, px * k, py * k, pz * k);
+  }
+  return geo;
+}
+
+// The oak's cluster: how far from the centre, along unit direction u, the
+// union of the spheres reaches (each { cx, cy, cz, s }, the first one a core
+// round the centre so every direction hits something). Far intersection of
+// the ray with each sphere, the largest wins: the creases where two lumps meet
+// stay as creases, which is what reads as separate masses of leaves.
+function lumpReach(spheres, ux, uy, uz) {
+  let best = 0;
+  for (const { cx, cy, cz, s } of spheres) {
+    const b = ux * cx + uy * cy + uz * cz;
+    const disc = b * b - (cx * cx + cy * cy + cz * cz) + s * s;
+    if (disc >= 0) best = Math.max(best, b + Math.sqrt(disc));
+  }
+  return best;
+}
+
+// The oak's primary shell (unit radius; the caller scales): a core and 3-4
+// lumps round the crown and one on top.
+function oakSpheres(x, z, salt, lumps) {
+  const out = [{ cx: 0, cy: 0, cz: 0, s: 0.62 }];
+  const a0 = hash01(x, z, salt) * Math.PI * 2;
+  for (let i = 0; i < lumps; i++) {
+    const a = a0 + (i / lumps) * Math.PI * 2 + (hash01(x, z, salt + 1 + i) - 0.5) * 0.7;
+    const h = 0.4 + 0.1 * hash01(x, z, salt + 6 + i);
+    out.push({
+      cx: Math.cos(a) * h,
+      cy: 0.02 + 0.22 * hash01(x, z, salt + 11 + i),
+      cz: Math.sin(a) * h,
+      s: 0.48 + 0.08 * hash01(x, z, salt + 16 + i),
+    });
+  }
+  out.push({ cx: (hash01(x, z, salt + 21) - 0.5) * 0.2, cy: 0.34, cz: (hash01(x, z, salt + 22) - 0.5) * 0.2, s: 0.52 });
+  return out;
+}
+
+// Vertex colour: a height term (0.62 under the crown up to 1.0 over its top
+// quarter) times one shade per facet (0.86-1.0, hashed off the facet's centre
+// direction), so the hollows underneath go dark and the small facets read.
+function shadeCanopy(geo, x, z) {
+  const pos = geo.attributes.position;
+  let minY = Infinity, maxY = -Infinity;
+  for (let v = 0; v < pos.count; v++) {
+    const y = pos.getY(v);
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const top = minY + 0.75 * (maxY - minY);
+  const c = new Float32Array(pos.count * 3);
+  for (let f = 0; f < pos.count; f += 3) {
+    const cx = pos.getX(f) + pos.getX(f + 1) + pos.getX(f + 2);
+    const cy = pos.getY(f) + pos.getY(f + 1) + pos.getY(f + 2);
+    const cz = pos.getZ(f) + pos.getZ(f + 1) + pos.getZ(f + 2);
+    const len = Math.hypot(cx, cy, cz) || 1;
+    const shade = 0.86 + 0.14 * hash01(x + (cx / len) * 31.7, z + (cz / len) * 31.7, 60 + (cy / len) * 17.3);
+    for (let v = f; v < f + 3; v++) {
+      const k = (0.62 + 0.38 * smoothstep(minY, top, pos.getY(v))) * shade;
+      c[v * 3] = c[v * 3 + 1] = c[v * 3 + 2] = k;
+    }
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(c, 3));
+}
+
+// canopyGeometry(x, z, kind) — the canopy tree() hangs at CANOPY_KINDS[kind].y,
+// in its own frame (centre at the origin). Non-indexed, with position, normal,
+// uv and color. Pure in (x, z, kind). Its largest horizontal radius rides along
+// as geometry.userData.r (tree() hands it to userData.canopy).
+export function canopyGeometry(x, z, kind) {
+  const K = CANOPY_KINDS[kind] ?? CANOPY_KINDS.round;
+  const R = K.r;
+  let a, b2;
+  if (kind === 'oak' || kind === 'old') {
+    const old = kind === 'old';
+    const spheres = oakSpheres(x, z, 100, old ? 4 : 3 + (hash01(x, z, 99) < 0.5 ? 0 : 1));
+    const f = canopyField(x, z, 130);
+    a = canopyLobe(R, 2, (ux, uy, uz) => lumpReach(spheres, ux, uy, uz) * (1 + f(ux, uy, uz) * 0.06));
+    a.scale(1, 0.8, 1);
+    // the low side lump, between two of the crown's
+    const f2 = canopyField(x, z, 150);
+    b2 = canopyLobe(R * (0.34 + 0.06 * hash01(x, z, 141)), old ? 1 : 0, (ux, uy, uz) => 1 + f2(ux, uy, uz) * 0.2);
+    const ang = hash01(x, z, 100) * Math.PI * 2 + Math.PI / (old ? 4 : 3);
+    const off = R * (0.42 + 0.08 * hash01(x, z, 142));
+    b2.translate(Math.cos(ang) * off, -R * (0.14 + 0.08 * hash01(x, z, 143)), Math.sin(ang) * off);
+  } else if (kind === 'birch') {
+    const f = canopyField(x, z, 200);
+    a = canopyLobe(R * 0.9, 1, (ux, uy, uz) => 1 + f(ux, uy, uz) * 0.14);
+    a.scale(1, 1.6, 1);
+    const f2 = canopyField(x, z, 220);
+    b2 = canopyLobe(R * (0.36 + 0.06 * hash01(x, z, 211)), 0, (ux, uy, uz) => 1 + f2(ux, uy, uz) * 0.2);
+    const ang = hash01(x, z, 212) * Math.PI * 2;
+    const off = R * (0.5 + 0.1 * hash01(x, z, 213));
+    b2.translate(Math.cos(ang) * off, R * (0.55 + 0.25 * hash01(x, z, 214)), Math.sin(ang) * off);
+  } else {
+    const f = canopyField(x, z, 300);
+    a = canopyLobe(R * 0.88, 1, (ux, uy, uz) => 1 + f(ux, uy, uz) * 0.22);
+    const f2 = canopyField(x, z, 320);
+    b2 = canopyLobe(R * (0.36 + 0.1 * hash01(x, z, 311)), 1, (ux, uy, uz) => 1 + f2(ux, uy, uz) * 0.2);
+    const ang = hash01(x, z, 312) * Math.PI * 2;
+    const off = R * (0.45 + 0.15 * hash01(x, z, 313));
+    b2.translate(Math.cos(ang) * off, (hash01(x, z, 314) - 0.5) * R * 0.35, Math.sin(ang) * off);
+  }
+  const geo = mergeGeometries([a, b2], false);
+  a.dispose();
+  b2.dispose();
+  // per-tree drift, +-10% per axis, so no two crowns are one object stamped
+  geo.scale(
+    1 + (hash01(x, z, 51) - 0.5) * 0.2,
+    1 + (hash01(x, z, 52) - 0.5) * 0.2,
+    1 + (hash01(x, z, 53) - 0.5) * 0.2,
+  );
+  geo.computeVertexNormals(); // non-indexed: one flat normal per facet
+  shadeCanopy(geo, x, z);
+  const pos = geo.attributes.position;
+  let r = 0;
+  for (let v = 0; v < pos.count; v++) r = Math.max(r, Math.hypot(pos.getX(v), pos.getZ(v)));
+  geo.userData.r = Math.round(r * 100) / 100;
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+// The birch's trunk: thinner, open-ended (the foot is in the ground and the
+// top inside the crown), 6 sides and 6 rings (72 triangles: the Woods' budget
+// has no room for more). The rings are moved so a pale-dark-pale-dark-pale run
+// sits at a hashed height round a cat's eye; each dark ring carries a few dark
+// vertices on opposite sides, which the vertex colours spread into short
+// staggered horizontal dashes, and the foot darkens up into the last ring
+// like old bark.
+const BIRCH_SIDES = 6;
+function birchTrunkGeometry(x, z) {
+  const top = 0.16, bottom = 0.24;
+  const geo = new THREE.CylinderGeometry(top, bottom, 2, BIRCH_SIDES, 6, true);
+  const a = -0.1 + 0.6 * hash01(x, z, 230);
+  const rows = [1, a + 0.09, a, a - 0.09, a - 0.18, a - 0.27, -1];
+  const pos = geo.attributes.position;
+  const c = new Float32Array(pos.count * 3);
+  const cols = BIRCH_SIDES + 1;
+  const c0 = Math.floor(hash01(x, z, 232) * BIRCH_SIDES);
+  const marks = { 2: new Set([c0]), 4: new Set([(c0 + 3) % BIRCH_SIDES]) };
+  if (hash01(x, z, 233) < 0.6) marks[2].add((c0 + 1) % BIRCH_SIDES);
+  if (hash01(x, z, 234) < 0.5) marks[4].add((c0 + 4) % BIRCH_SIDES);
+  for (let v = 0; v < pos.count; v++) {
+    const row = Math.floor(v / cols);
+    const col = (v % cols) % BIRCH_SIDES; // the seam column repeats column 0
+    const y = rows[row];
+    const r0 = Math.hypot(pos.getX(v), pos.getZ(v)) || 1;
+    const r = top + ((1 - y) / 2) * (bottom - top);
+    pos.setXYZ(v, (pos.getX(v) * r) / r0, y, (pos.getZ(v) * r) / r0);
+    const k = marks[row]?.has(col) ? 0.12 : row === 6 ? 0.5 : 1;
+    c[v * 3] = c[v * 3 + 1] = c[v * 3 + 2] = k;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  return geo;
+}
+
 // `opts.wind` is the per-walk sway registry (see the WIND block at the top of
 // this file). Passing it plants the tree AND registers it in one line; leaving
 // it out is the tree this function has always returned.
+//
+// `opts.kind` picks the crown (CANOPY_KINDS); left out, the tree grows
+// canopyKind(x, z).
 //
 // The whole Group is registered, so trunk and canopy lean together as one
 // rigid body — which is the entire point of wind.js's rotation-only design:
 // `g.position.x/z` never moves, so the collider and the perch this tree may
 // carry stay exactly where the area declared them.
-export function tree(x, z, scale = 1, { wind } = {}) {
+export function tree(x, z, scale = 1, { wind, kind } = {}) {
+  if (!CANOPY_KINDS[kind]) kind = canopyKind(x, z);
+  const K = CANOPY_KINDS[kind];
   const g = new THREE.Group();
   // 'bark' is the roughest thing in the game (0.98) and ships MAP-LESS on
   // purpose — a 6-sided trunk is the cylinder rule's worked example. What
   // sells the trunk is the roughness step against the canopy above it.
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2, TRUNK_SIDES),
-    surfMat(0x7a5230, 'bark'));
+  // Always a 2-unit cylinder centred at y 1 (climbing.js's fork math), its
+  // foot no wider than 0.35 (inside the 0.5 x scale collider).
+  let trunk;
+  if (kind === 'birch') {
+    const bark = surfMat(0xe6e1d4, 'bark');
+    bark.vertexColors = true;
+    trunk = new THREE.Mesh(birchTrunkGeometry(x, z), bark);
+  } else {
+    trunk = new THREE.Mesh(new THREE.CylinderGeometry(kind === 'old' ? 0.3 : 0.25, 0.35, 2, TRUNK_SIDES),
+      surfMat(kind === 'old' ? 0x6e4a2c : 0x7a5230, 'bark'));
+  }
   trunk.position.y = 1;
   g.add(trunk);
   // 'foliage' at 0.8 — a leaf has a waxy cuticle and a canopy in sun carries a
   // sheen band that bark simply does not. Also map-less: a single facet is far
   // bigger than any tile, so a map here would be one stretched smear per face.
-  // See the ORGANIC CANOPY block above for why this is a merged, irregular,
-  // deterministic-per-(x,z) blob rather than a bare regular icosahedron.
-  const leaves = new THREE.Mesh(
-    blobGeometry(x, z, 1.6, { lobes: 2, saltBase: 0 }),
-    surfMat(organicTint(0x4e9440, x, z, 10), 'foliage'),
-  );
-  leaves.position.y = 2.8;
+  // The material is this tree's own (litMaterial makes a new one per call), so
+  // turning its vertex colours on touches nothing else.
+  const foliage = surfMat(organicTint(K.green, x, z, 10), 'foliage');
+  foliage.vertexColors = true;
+  const leaves = new THREE.Mesh(canopyGeometry(x, z, kind), foliage);
+  leaves.position.y = K.y;
   // A fixed per-tree orientation — the same rotation every time this exact
   // (x, z) is built, so co-walkers agree, but different from every other
   // tree's rotation so a row of them doesn't read as one object stamped
@@ -3056,8 +3300,9 @@ export function tree(x, z, scale = 1, { wind } = {}) {
   // Where the canopy is, in the Group's own (unscaled) frame. render/ambient.js
   // reads this off the scene at walk time to drop leaves from under real
   // canopies; it survives mergeStaticProps, which keeps every top-level Group.
-  g.userData.canopy = { y: leaves.position.y, r: 1.6 };
-  g.userData.occluder = TREE_OCCLUDER;
+  g.userData.canopy = { y: leaves.position.y, r: leaves.geometry.userData.r };
+  g.userData.canopyKind = kind;
+  g.userData.occluder = K.occluder;
   // Registered AFTER position/scale are set: wind.add derives this tree's
   // phase from its (x, z), so a tree registered at the origin would sway in
   // lockstep with every other tree in the area.

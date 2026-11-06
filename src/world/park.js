@@ -315,7 +315,8 @@ export function build(scene, { water = {}, wind } = {}) {
   // the one that caps Sure Claws' tree ceiling and holds gm-park-2 and
   // feather-5 — is a record in `perches` at a fixed (x, z, y), and wind only
   // rotates the Group about its own trunk axis.
-  const oak = b.tree(4.5, 27.3, 1.1, { wind });
+  // An oak by name and by crown (canopy kinds): never a birch under its limb.
+  const oak = b.tree(4.5, 27.3, 1.1, { wind, kind: 'oak' });
   // The low limb golden mouse gm-park-2 sits out on (src/goldmice.js). The
   // mouse used to sit on the branch perch's own (x, z), the trunk's axis,
   // inside the trunk and the canopy and hidden from every side. The limb

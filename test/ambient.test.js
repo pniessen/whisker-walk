@@ -23,6 +23,7 @@ const {
   createAmbient, ambientKind, ambientCapacity, findTrees, findLamps, KEEP_CLEAR, AMBIENT_KINDS,
   KEEP_OUT_PAD, RAIN_TINT, SUNSET_TINT,
 } = await import('../src/render/ambient.js');
+const { CANOPY_KINDS, canopyGeometry } = await import('../src/world/builder.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
@@ -252,11 +253,14 @@ describe('park leaves', () => {
     const { scene } = walkScene('park');
     const trees = findTrees(scene);
     expect(trees.length).toBeGreaterThanOrEqual(12);
-    // The oak by the bench (4.5, 27.3), scale 1.1: canopy at 2.8 * 1.1.
+    // The oak by the bench (4.5, 27.3), scale 1.1, an oak crown: canopy at
+    // the oak kind's centre and the radius its own canopy measures, x 1.1.
     const oak = trees.find((t) => Math.abs(t.x - 4.5) < 1e-6 && Math.abs(t.z - 27.3) < 1e-6);
     expect(oak).toBeTruthy();
-    expect(oak.y).toBeCloseTo(2.8 * 1.1, 5);
-    expect(oak.r).toBeCloseTo(1.6 * 1.1, 5);
+    const crown = canopyGeometry(4.5, 27.3, 'oak').userData.r;
+    expect(oak.y).toBeCloseTo(CANOPY_KINDS.oak.y * 1.1, 5);
+    expect(oak.r).toBeCloseTo(crown * 1.1, 5);
+    expect(crown).toBeGreaterThan(1.6);
   });
 
   it('lets each leaf go from under a real canopy', () => {
