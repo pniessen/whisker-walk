@@ -184,7 +184,9 @@ describe('the River marsh dressing', () => {
       .reduce((sum, m) => sum + (m ? triCount(m.geometry) : 0), 0);
     // polish-brambles: the camp's bramble mounds and thorned canes cost 2,799
     // more triangles (+3,000); +1,100 for polish-canopies' oak, birch and round crowns
-    expect(stats.triangles - life).toBeLessThanOrEqual(62000);
+    // polish-pines2: tiered pines are 120 triangles where the cones were 66,
+    // 486 more over the River's 9 pines (+486)
+    expect(stats.triangles - life).toBeLessThanOrEqual(62486);
     expect(stats.triangles).toBeLessThanOrEqual(63500);
   }, 120_000);
 
