@@ -151,6 +151,113 @@ describe('warehouse() keeps its shipped costs', () => {
   }, 120_000);
 });
 
+// polish-docks2 Task 2: loading bays, hoists and rooflines.
+describe('warehouse loading bays, hoists and rooflines', () => {
+  // docks.js's perches on or beside a warehouse roof, and the fire escape's
+  // top landing (its two perches stand at (18.0, 10.4)).
+  const ROOF_PERCHES = [
+    { x: 17.0, z: 12.1, y: 5.3 }, { x: 18.6, z: 13.6, y: 6.2 }, { x: 18.0, z: 10.4, y: 3.9 },
+    { x: 5.2, z: -21.1, y: 2.1 },
+  ];
+  let docks;
+  const docksScene = () => {
+    if (!docks) { docks = new THREE.Scene(); buildDocks(docks); docks.updateMatrixWorld(true); }
+    return docks;
+  };
+  // Warehouse groups, keyed by their footprint origin.
+  const warehouses = () => {
+    const out = new Map();
+    for (const o of docksScene().children) if (o.isGroup && o.userData.look) out.set(`${o.position.x},${o.position.z}`, o);
+    return out;
+  };
+  const worldVerts = (mesh, filter = () => true) => {
+    const a = mesh.geometry.attributes.position, v = new THREE.Vector3(), local = new THREE.Vector3(), out = [];
+    const toGroup = new THREE.Matrix4().copy(mesh.matrix);
+    for (let i = 0; i < a.count; i++) {
+      local.fromBufferAttribute(a, i).applyMatrix4(toGroup); // the group's own frame
+      if (!filter(local)) continue;
+      v.fromBufferAttribute(a, i).applyMatrix4(mesh.matrixWorld);
+      out.push({ w: v.clone(), g: local.clone() });
+    }
+    return out;
+  };
+
+  it('W1 and the fish shed stay flat; W2-W4 get rooflines of both kinds', () => {
+    const ws = warehouses();
+    expect(ws.size).toBe(5);
+    expect(ws.get('20,16').userData.look.roofline).toBe('flat');
+    expect(ws.get('6.5,-23.5').userData.look.roofline).toBe('flat');
+    const others = ['-6,20', '-26,15', '12,32'].map((k) => ws.get(k).userData.look.roofline);
+    for (const r of others) expect(r).not.toBe('flat');
+    expect(new Set(others)).toEqual(new Set(['stepped', 'sawtooth']));
+  }, 120_000);
+
+  it('a stepped roofline rises from the body, a saw-tooth one from the deck', () => {
+    for (const g of warehouses().values()) {
+      const h = g.children[0].geometry.parameters.height;
+      const r = g.userData.look.roofline;
+      const bodyTop = new THREE.Box3().setFromObject(g.children[0]).max.y;
+      const deckTop = new THREE.Box3().setFromObject(g.children[1]).max.y;
+      if (r === 'stepped') expect(bodyTop).toBeGreaterThan(h + 0.8); else expect(bodyTop).toBeCloseTo(h, 5);
+      if (r === 'sawtooth') expect(deckTop).toBeGreaterThan(h + 0.8); else expect(deckTop).toBeCloseTo(h + 0.12, 5);
+    }
+  }, 120_000);
+
+  it('no new geometry stands within 0.6 m of a roof perch or the fire escape', () => {
+    for (const g of warehouses().values()) {
+      const d = g.children[0].geometry.parameters.depth;
+      const kids = g.children;
+      // body and deck whole; the door and lintel only on the canal (-z) face,
+      // where the loading bay goes (the shipped +z door and lintel are as before)
+      const checked = [
+        ...worldVerts(kids[0]), ...worldVerts(kids[1]),
+        ...worldVerts(kids[kids.length - 2], (p) => p.z < -d / 2 + 0.01),
+        ...worldVerts(kids[kids.length - 1], (p) => p.z < -d / 2 + 0.01),
+      ];
+      for (const p of ROOF_PERCHES) {
+        const bad = checked.filter(({ w }) => Math.hypot(w.x - p.x, w.z - p.z) < 0.6 && w.y >= p.y - 0.3);
+        expect(bad.map(({ w }) => w.toArray())).toEqual([]);
+      }
+    }
+  }, 120_000);
+
+  it('the hoist exists only when h >= 3.4, keeps 1.8 m (x) from the perches and stays above the fade half', () => {
+    for (const g of warehouses().values()) {
+      const { height: h, depth: d } = g.children[0].geometry.parameters;
+      const deck = g.children[1];
+      const hoist = worldVerts(deck, (p) => p.z < -d / 2 - 0.05);
+      if (h >= 3.4) expect(hoist.length).toBeGreaterThan(0); else expect(hoist).toEqual([]);
+      for (const p of ROOF_PERCHES) for (const { w } of hoist) expect(Math.abs(w.x - p.x)).toBeGreaterThanOrEqual(1.8);
+      // treefade only takes xz from meshes whose min.y is under the group's
+      // half height: the deck (and its hoist) must never be one of them.
+      const all = new THREE.Box3().setFromObject(g);
+      expect(new THREE.Box3().setFromObject(deck).min.y).toBeGreaterThan((all.min.y + all.max.y) / 2);
+    }
+  }, 120_000);
+
+  it('the loading bay sits on the -z face between window trims, 1.8 m (x) clear of every perch', () => {
+    for (const g of warehouses().values()) {
+      const { width: w, height: h, depth: d } = g.children[0].geometry.parameters;
+      const kids = g.children;
+      const bayDoor = worldVerts(kids[kids.length - 2], (p) => p.z < -d / 2 + 0.01);
+      const bayStone = worldVerts(kids[kids.length - 1], (p) => p.z < -d / 2 + 0.01 && Math.abs(p.x - g.userData.look.bayX) < 0.8);
+      if (h < 3.4) { expect(bayDoor).toEqual([]); continue; }
+      expect(bayDoor.length).toBeGreaterThan(0);
+      expect(bayStone.length).toBeGreaterThan(0);
+      const xs = [...bayDoor, ...bayStone].map(({ g: p }) => p.x);
+      const lo = Math.min(...xs), hi = Math.max(...xs);
+      // the upper loading door only on a building of h >= 4
+      const upper = bayDoor.some(({ g: p }) => p.y > 2.25);
+      expect(upper).toBe(h >= 4);
+      // between window trims: each -z pane's trim spans its x +- 0.5
+      for (const pane of kids.filter((m) => m.userData.window && m.position.z < 0 && Math.abs(m.position.x) < w / 2)) {
+        expect(hi < pane.position.x - 0.5 || lo > pane.position.x + 0.5).toBe(true);
+      }
+      for (const p of ROOF_PERCHES) expect(Math.abs(g.position.x + g.userData.look.bayX - p.x)).toBeGreaterThanOrEqual(1.8);
+    }
+  }, 120_000);
+});
+
 describe('warehouselook pieces', () => {
   it('a box with skipped faces drops two triangles per face and stays indexed', () => {
     const pb = pieceBuffer();

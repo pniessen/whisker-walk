@@ -4072,7 +4072,9 @@ export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4
   const lintel = box(2.0, 0.16, 0.2, 0x5e5450);
   lintel.position.set(0, 2.3, d / 2 + 0.05);
   g.add(lintel);
-  withLocalUuids(`warehouse-${x},${z}`, () => bakeWarehouse(g, { x, z, w, d, h, roofColor, look }));
+  // userData.look: the per-building picks (roofline, loading-bay x, colours),
+  // read by test/warehouselook.test.js.
+  g.userData.look = withLocalUuids(`warehouse-${x},${z}`, () => bakeWarehouse(g, { x, z, w, d, h, roofColor, look }));
   g.position.set(x, 0, z);
   return g;
 }

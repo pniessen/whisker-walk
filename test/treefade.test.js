@@ -450,8 +450,9 @@ describe('treefade buildings and fade shapes', () => {
     // warehouse's parapet are left out), y from everything, door/window/lintel depth included.
     const want = new Map([
       [h, [7.5, 12.5, 0, 5, 3, 7.06]], // house(10, 5): x 10 +- 2.5, z 5 - 2 .. 5 + 2.06 (door)
-      // polish-docks2: sills/frames/piers — x from the window sills (0.11 proud), -z from the downpipe shoe (0.12)
-      [w, [-26.11, -13.89, 0, 6.3, -1.12, 7.15]], // warehouse(-20, 3, 12, 8, 6): sills, lintel, parapet top
+      // polish-docks2: sills/frames/piers — x from the window sills (0.11 proud); Task 2: -z from the
+      // upper loading door's stone sill (0.16 proud), top from the stepped parapet panel (h + 0.3 + 0.98)
+      [w, [-26.11, -13.89, 0, 7.28, -1.16, 7.15]], // warehouse(-20, 3, 12, 8, 6): sills, lintel, stepped parapet
     ]);
     for (const g of [h, w]) {
       const e = out.find((o) => o.obj === g);

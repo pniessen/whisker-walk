@@ -78,23 +78,40 @@ export function pieceBuffer() {
   const idx = [];
 
   // Four corners in (bl, br, tr, tl) order, one colour per corner.
-  function quad(corners, n, colors, uvScale = [1, 1], face = null) {
+  // `uvFixed` [u, v] pins every corner to one texel (the hoist's timber on
+  // the shingle-mapped deck reads as flat colour that way).
+  function quad(corners, n, colors, uvScale = [1, 1], face = null, uvFixed = null) {
     const f = face ?? Object.values(FACES).find((q) => dot(q.n, n) > 0.999);
     const base = pos.length / 3;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < corners.length; i++) {
       const p = corners[i];
       pos.push(p[0], p[1], p[2]);
       nrm.push(n[0], n[1], n[2]);
-      uv.push(dot(p, f.r) * uvScale[0], dot(p, f.u) * uvScale[1]);
-      const c = colors[i] ?? colors;
+      if (uvFixed) uv.push(uvFixed[0], uvFixed[1]);
+      else uv.push(dot(p, f.r) * uvScale[0], dot(p, f.u) * uvScale[1]);
+      const c = Array.isArray(colors[i]) ? colors[i] : colors;
       col.push(c[0], c[1], c[2]);
     }
-    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    idx.push(base, base + 1, base + 2);
+    if (corners.length === 4) idx.push(base, base + 2, base + 3);
+  }
+
+  // A flat polygon (3 or 4 corners) at any slope. The normal comes from the
+  // corners' winding and is flipped (with the winding) to face `out`. `face`
+  // names the planar projection its UVs take.
+  function poly(corners, out, rgb, uvScale, face) {
+    const a = corners[0], b = corners[1], c = corners[2];
+    const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    let n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    let pts = corners;
+    if (dot(n, out) < 0) { n = n.map((v) => -v); pts = [...corners].reverse(); }
+    const len = Math.hypot(n[0], n[1], n[2]);
+    quad(pts, n.map((v) => v / len), rgb, uvScale, FACES[face]);
   }
 
   // A face of an axis-aligned box. `rgb` is one colour or {bottom, top} (a
   // vertical gradient on the side faces).
-  function face(key, c, half, rgb, uvScale) {
+  function face(key, c, half, rgb, uvScale, uvFixed) {
     const f = FACES[key];
     const hr = Math.abs(dot(half, f.r));
     const hu = Math.abs(dot(half, f.u));
@@ -102,7 +119,7 @@ export function pieceBuffer() {
     const at = (sr, su) => [0, 1, 2].map((k) => c[k] + f.n[k] * hn + f.r[k] * hr * sr + f.u[k] * hu * su);
     const lo = rgb.bottom ?? rgb, hi = rgb.top ?? rgb;
     const colors = f.u[1] !== 0 ? [lo, lo, hi, hi] : [lo, lo, lo, lo];
-    quad([at(-1, -1), at(1, -1), at(1, 1), at(-1, 1)], f.n, colors, uvScale, f);
+    quad([at(-1, -1), at(1, -1), at(1, 1), at(-1, 1)], f.n, colors, uvScale, f, uvFixed);
   }
 
   /**
@@ -111,12 +128,12 @@ export function pieceBuffer() {
    * wall, a bottom on the ground, ends that butt into a neighbour. `top`
    * overrides the +y face's colour.
    */
-  function box(cx, cy, cz, sx, sy, sz, rgb, { skip = [], uvScale, top } = {}) {
+  function box(cx, cy, cz, sx, sy, sz, rgb, { skip = [], uvScale, top, uvFixed } = {}) {
     const c = [cx, cy, cz];
     const half = [sx / 2, sy / 2, sz / 2];
     for (const key of Object.keys(FACES)) {
       if (skip.includes(key)) continue;
-      face(key, c, half, key === '+y' && top ? top : rgb, uvScale);
+      face(key, c, half, key === '+y' && top ? top : rgb, uvScale, uvFixed);
     }
   }
 
@@ -132,7 +149,7 @@ export function pieceBuffer() {
     return geo;
   }
 
-  return { box, quad, toGeometry, get vertexCount() { return pos.length / 3; } };
+  return { box, quad, poly, toGeometry, get vertexCount() { return pos.length / 3; } };
 }
 
 /**
@@ -141,8 +158,11 @@ export function pieceBuffer() {
  *   roofline: 'flat' when any `clear` point is within 1.5 m of the footprint
  *             (a cat stands there), else 'stepped' or 'sawtooth' by hash.
  *   frame, stone, door: linear RGB.
- *   bay: which gap between window columns on the canal (-z) face takes the
- *        loading bay (0 .. cols-2), for Task 2.
+ *   bay: which gap between window columns on the canal (-z) face the hash
+ *        picks for the loading bay (0 .. cols-2);
+ *   bayX: the x (building frame) of the gap actually used: the hash gap, or
+ *        when that one is within 1.8 m (in x) of a `clear` point, the nearest
+ *        gap that is not (null if none is — then there is no bay).
  *   drift: four per-face wall multipliers (+z, -z, +x, -x) near 1.
  */
 export function lookFor(x, z, w, d, h, clear = []) {
@@ -150,12 +170,20 @@ export function lookFor(x, z, w, d, h, clear = []) {
   const roofline = near ? 'flat' : hash01(x, z, 1) < 0.5 ? 'stepped' : 'sawtooth';
   const pick = (arr, salt) => arr[Math.min(arr.length - 1, Math.floor(hash01(x, z, salt) * arr.length))];
   const cols = Math.max(2, Math.floor(w / 2.6));
+  const bay = Math.min(cols - 2, Math.floor(hash01(x, z, 4) * (cols - 1)));
+  // Gap i lies between window columns i and i + 1 (builder.js's panes sit at
+  // -w/2 + (i + 0.5) * w/cols).
+  const gaps = Array.from({ length: cols - 1 }, (_, i) => i)
+    .sort((a, b) => Math.abs(a - bay) - Math.abs(b - bay) || a - b)
+    .map((i) => -w / 2 + (i + 1) * (w / cols));
+  const bayX = gaps.find((gx) => clear.every((p) => Math.abs(x + gx - p.x) >= 1.8)) ?? null;
   return {
     roofline,
     frame: lin(pick(FRAME_HEX, 2)),
     stone: lin(STONE_HEX),
     door: lin(pick(DOOR_HEX, 3)),
-    bay: Math.min(cols - 2, Math.floor(hash01(x, z, 4) * (cols - 1))),
+    bay,
+    bayX,
     drift: [5, 6, 7, 8].map((s) => 0.97 + 0.06 * hash01(x, z, s)),
   };
 }
@@ -183,7 +211,7 @@ function wallBands(h, rows) {
   return out;
 }
 
-function bakeBody(w, d, h, rows, look) {
+function bakeBody(w, d, h, rows, look, coping) {
   const pb = pieceBuffer();
   const uvScale = [1 / w, 1 / h];
   const [dz1, dz0, dx1, dx0] = look.drift;
@@ -241,12 +269,30 @@ function bakeBody(w, d, h, rows, look) {
     pb.box(s * (w / 2 + CORNICE_OUT / 2), cy, 0, CORNICE_OUT, ch, d, { bottom: grey(0.7), top: grey(0.86) },
       { skip: [s > 0 ? '-x' : '+x', '+z', '-z'], uvScale });
   }
+  if (look.roofline === 'stepped') steppedParapets(pb, w, d, h, uvScale, coping);
   const geo = pb.toGeometry();
   // Authored from the ground up; the body mesh sits at y = h / 2.
   geo.translate(0, -h / 2, 0);
   // viewclear2 reads the footprint off children[0].geometry.parameters.
   geo.parameters = { width: w, height: h, depth: d };
   return geo;
+}
+
+// A stepped central parapet panel on both long faces, in the wall's own brick
+// or siding: two steps over the parapet top (h + PARAPET = h + 0.3), each
+// capped with a stone coping strip. Flush with the lip line (the lips are 0.16
+// thick, their outer face on the wall plane) and standing on the lip.
+// `coping` is a MULTIPLIER of the body's material colour (body convention).
+function steppedParapets(pb, w, d, h, uvScale, coping) {
+  const T = 0.16, top = h + 0.3;
+  const steps = [[0.5 * w, top, top + 0.45], [0.25 * w, top + 0.53, top + 0.9]];
+  for (const s of [1, -1]) {
+    const zc = s * (d / 2 - T / 2);
+    for (const [sw, y0, y1] of steps) {
+      pb.box(0, (y0 + y1) / 2, zc, sw, y1 - y0, T, { bottom: grey(0.94), top: grey(1) }, { skip: ['-y'], uvScale });
+      pb.box(0, y1 + 0.04, zc, sw + 0.06, 0.08, T + 0.06, scale(coping, 0.9), { uvScale, top: coping });
+    }
+  }
 }
 
 // --- the window trim ----------------------------------------------------------
@@ -289,7 +335,7 @@ function trimPane(pb, axis, s, wall, a, y, look) {
   place(0, H / 2 + F + hh / 2, ho / 2, W + 2 * F + 0.06, hh, ho, scale(stone, 0.92), ['back'], { top: stone });
 }
 
-function bakeLintel(lintel, panes, w, d, look) {
+function bakeLintel(lintel, panes, w, d, h, look) {
   const pb = pieceBuffer();
   // The shipped lintel piece, at its own origin.
   pb.box(0, 0, 0, 2.0, 0.16, 0.2, lin(0x5e5450));
@@ -306,7 +352,94 @@ function bakeLintel(lintel, panes, w, d, look) {
       trimPane(trim, 'z', s, s * d / 2, p.position.x, p.position.y, look);
     }
   }
+  if (h >= 3.4 && look.bayX !== null) loadingStone(trim, w, d, h, look.bayX, look);
   return mergeInto(pb, trim, [-lp.x, -lp.y, -lp.z]);
+}
+
+// --- the loading bay ------------------------------------------------------------
+//
+// On the canal (-z) face, centred in the gap between two window columns
+// (look.bayX). Authored in the GROUP's frame. The doors go into the door mesh
+// (wood plank map; ABSOLUTE colours; UVs on the shipped door's 1.6 x 2.2 m
+// basis so the planks are the front door's size), the stone jambs, heads and
+// the upper sill into the lintel mesh (flat; ABSOLUTE).
+const BAY = { w: 1.3, h: 2.0, up: { w: 1.2, y0: 2.3, y1: 3.55 }, jamb: 0.12, stoneOut: 0.14, doorOut: 0.1 };
+
+function plankDoor(pb, bx, wall, dw, y0, y1, battens, rgb) {
+  const uvScale = [1 / 1.6, 1 / 2.2];
+  const zo = wall - BAY.doorOut / 2;
+  pb.box(bx, (y0 + y1) / 2, zo, dw, y1 - y0, BAY.doorOut, rgb, { skip: ['+z', '-y'], uvScale });
+  // ledges: horizontal battens proud of the boards, and the dark meeting line
+  // of the two leaves down the middle
+  const ledge = scale(rgb, 0.62), out = 0.03;
+  const zl = wall - BAY.doorOut - out / 2;
+  for (const y of battens) pb.box(bx, y, zl, dw - 0.1, 0.12, out, ledge, { skip: ['+z'], uvScale });
+  pb.box(bx, (y0 + y1) / 2, wall - BAY.doorOut - 0.006, 0.035, y1 - y0, 0.012, scale(rgb, 0.4),
+    { skip: ['+z', '+y', '-y'], uvScale });
+}
+
+function loadingDoors(w, d, h, bx, look) {
+  const pb = pieceBuffer();
+  const wall = -d / 2;
+  plankDoor(pb, bx, wall, BAY.w, 0, BAY.h, [0.35, 1.0, 1.65], look.door);
+  if (h >= 4) {
+    const u = BAY.up;
+    plankDoor(pb, bx, wall, u.w, u.y0, u.y1, [u.y0 + 0.28, u.y1 - 0.28], look.door);
+  }
+  return pb;
+}
+
+function loadingStone(pb, w, d, h, bx, look) {
+  const stone = look.stone, side = scale(stone, 0.9);
+  const o = BAY.stoneOut, zc = -d / 2 - o / 2, J = BAY.jamb;
+  const opening = (dw, y0, y1, sill) => {
+    for (const s of [-1, 1]) {
+      pb.box(bx + s * (dw / 2 + J / 2), (y0 + y1) / 2, zc, J, y1 - y0, o, side, { skip: ['+z', '-y'] });
+    }
+    pb.box(bx, y1 + 0.08, zc, dw + 2 * J, 0.16, o, side, { skip: ['+z'], top: stone });
+    if (sill) pb.box(bx, y0 - 0.04, -d / 2 - (o + 0.02) / 2, dw + 2 * J + 0.06, 0.08, o + 0.02, side, { skip: ['+z'], top: stone });
+  };
+  opening(BAY.w, 0, BAY.h, false);
+  if (h >= 4) opening(BAY.up.w, BAY.up.y0, BAY.up.y1, true);
+}
+
+// --- the deck: saw-tooth roof and the hoist ---------------------------------------
+
+// North-light ridges across the deck, inside the parapet: each tooth's back
+// slopes up from the south (the canal) to 0.9 m and drops down a steep glazed
+// north face; the gable ends are closed. Group frame; the deck's top is
+// y = h + 0.12. MULTIPLIER colours (the deck keeps roofColor + shingle map):
+// shingle backs ×1, glazing ×0.35, gable ends ×0.8.
+function sawtooth(pb, w, d, h) {
+  const n = d < 8.5 ? 3 : 4;
+  const X = w / 2 - 0.2, z0 = -(d / 2 - 0.2), t = (d - 0.4) / n;
+  const y0 = h + 0.12, yt = y0 + 0.9, g = 0.14;
+  const uvScale = [1 / w, 1 / d];
+  for (let i = 0; i < n; i++) {
+    const za = z0 + i * t, zb = za + t, zt = zb - g;
+    pb.poly([[X, y0, za], [-X, y0, za], [-X, yt, zt], [X, yt, zt]], [0, 1, -1], grey(1), uvScale, '+y');
+    pb.poly([[-X, y0, zb], [X, y0, zb], [X, yt, zt], [-X, yt, zt]], [0, 0, 1], grey(0.35), uvScale, '+z');
+    for (const s of [-1, 1]) {
+      pb.poly([[s * X, y0, za], [s * X, y0, zb], [s * X, yt, zt]], [s, 0, 0], grey(0.8), uvScale, s > 0 ? '+x' : '-x');
+    }
+  }
+}
+
+// A timber hoist beam out of the canal wall above the bay, just under the
+// cornice, with a rope and a hook block. Group frame; `tint` turns a linear
+// colour into the deck's MULTIPLIER convention. The rope is cut short enough
+// that the hook stays well above half the building's height (treefade takes
+// a box's xz only from meshes that reach below that, and the deck must never
+// be one of them).
+function hoist(pb, d, h, bx, tint, uvFixed) {
+  const beamY = h - 0.35, out = 0.75;
+  const wood = tint(lin(0x6a5038)), rope = tint(lin(0x3a3026)), iron = tint(lin(0x2c2b2e));
+  pb.box(bx, beamY, -d / 2 - out / 2, 0.18, 0.2, out, wood, { skip: ['+z'], uvFixed, top: scale(wood, 1.08) });
+  const beamBottom = beamY - 0.1, hook = 0.14;
+  const ropeLen = Math.max(0.3, Math.min(1.0, beamBottom - (h / 2 + 0.9) - hook));
+  const rz = -d / 2 - out + 0.12;
+  pb.box(bx, beamBottom - ropeLen / 2, rz, 0.035, ropeLen, 0.035, rope, { skip: ['+y', '-y'], uvFixed });
+  pb.box(bx, beamBottom - ropeLen - hook / 2, rz, 0.12, hook, 0.1, iron, { uvFixed });
 }
 
 // --- the parapet lips and downpipes ---------------------------------------------
@@ -362,6 +495,14 @@ function mergeInto(dst, src, t) {
   return geo;
 }
 
+// A UV that lands mid-tab on the shingle tile (4 courses of 4 tabs, splits
+// every 1/8 across, a course shadow at the top of each quarter), whatever the
+// map's repeat: the hoist's pieces sample that one texel and read flat.
+function tabUv(map) {
+  const r = map?.repeat ?? { x: 1, y: 1 };
+  return [0.44 / r.x, 0.4 / r.y];
+}
+
 /**
  * bakeWarehouse(g, { x, z, w, d, h, roofColor, look }) — swaps the geometry of
  * warehouse()'s own meshes for baked, vertex-coloured ones. MUST run inside
@@ -378,13 +519,26 @@ export function bakeWarehouse(g, { x, z, w, d, h, roofColor, look: opts = {} }) 
   const rows = h > 3.4 ? [1.1, 2.7] : [1.1];
   const roofRgb = lin(roofColor);
 
-  body.geometry = bakeBody(w, d, h, rows, look);
+  const bc = body.material.color;
+  const ratio = (rgb, c) => [rgb[0] / c.r, rgb[1] / c.g, rgb[2] / c.b];
+  body.geometry = bakeBody(w, d, h, rows, look, ratio(look.stone, bc));
   body.material.vertexColors = true;
 
   // The deck: the same slab, its top in the shingle map's w x d basis.
   const dp = pieceBuffer();
   dp.box(0, 0, 0, w, 0.12, d, grey(1), { skip: ['-y'], uvScale: [1 / w, 1 / d] });
-  deck.geometry = dp.toGeometry();
+  const bay = h >= 3.4 && look.bayX !== null;
+  if (look.roofline === 'sawtooth' || bay) {
+    const extra = pieceBuffer();
+    if (look.roofline === 'sawtooth') sawtooth(extra, w, d, h);
+    if (bay) {
+      const dc = deck.material.color;
+      hoist(extra, d, h, look.bayX, (rgb) => ratio(rgb, dc), tabUv(deck.material.map));
+    }
+    deck.geometry = mergeInto(dp, extra, [0, -deck.position.y, 0]);
+  } else {
+    deck.geometry = dp.toGeometry();
+  }
   deck.material.vertexColors = true;
 
   // Lips: [w, 0.16 deep, on +z], [w, on -z], [on +x], [on -x]; lip 0 carries
@@ -401,11 +555,16 @@ export function bakeWarehouse(g, { x, z, w, d, h, roofColor, look: opts = {} }) 
   const doorRgb = [door.material.color.r, door.material.color.g, door.material.color.b];
   const db = pieceBuffer();
   db.box(0, 0, 0, 1.6, 2.2, 0.12, doorRgb, { skip: ['-z', '-y'], uvScale: [1 / 1.6, 1 / 2.2] });
-  door.geometry = db.toGeometry();
+  if (bay) {
+    const dp2 = door.position;
+    door.geometry = mergeInto(db, loadingDoors(w, d, h, look.bayX, look), [-dp2.x, -dp2.y, -dp2.z]);
+  } else {
+    door.geometry = db.toGeometry();
+  }
   door.material.color.set(0xffffff);
   door.material.vertexColors = true;
 
-  lintel.geometry = bakeLintel(lintel, panes, w, d, look);
+  lintel.geometry = bakeLintel(lintel, panes, w, d, h, look);
   lintel.material.color.set(0xffffff);
   lintel.material.vertexColors = true;
   return look;
