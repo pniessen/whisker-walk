@@ -47,6 +47,7 @@ import * as b from './builder.js';
 import { litMaterial } from '../render/materials.js';
 import { DEN_SPOTS } from '../den.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
+import { cosyShell } from './dencosy.js';
 
 const mat = (color, extra) => litMaterial(color, extra);
 const box = (w, h, d, color, extra) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, extra));
@@ -632,6 +633,9 @@ export function build(scene, { placed = {}, wind } = {}) {
   scene.add(west);
 
   wallDecor(scene);
+  // polish-cosy: wallpaper, dado, beams, the lamp, the door with its cat flap
+  // and the rag rug — looks only, four draws; see world/dencosy.js.
+  scene.add(cosyShell({ wallX: WALL, wallZ: WALL, wallH: WALL_H, winHalf: WIN_HALF, sillY: SILL_Y, winTop: WIN_TOP }));
   flatDetail(scene);
 
   const colliders = [];
