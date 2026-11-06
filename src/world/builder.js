@@ -4170,10 +4170,11 @@ function plankEdgeUVs(geo, w, thick, len) {
 // fit in that: the hewn wood stops at a wavy line and the bark (the wane)
 // carries on over a rounded shoulder that rolls down into a steep bark flank,
 // bulging out just under the water line, with smooth normals all the way;
-// one end flares into root buttresses that rise either side of the walked
-// strip, the other is a sawn end with end grain; and two broken branch stubs
-// stand up and out of the flanks over the water. Everything stays inside the
-// `w` footprint and nothing stands over the walked strip.
+// one end flares into low, round-topped root buttresses either side of the
+// walked strip that splay out and down into the water, the other is a sawn
+// end with end grain; and two broken branch stubs stand up and out of the
+// flanks over the water. Everything stays inside the `w` footprint and
+// nothing stands over the walked strip.
 //
 // Swept by hand into one indexed geometry with vertex colours
 // (logTrunkGeometry below): nine cross-sections, closer at the root end.
@@ -4256,8 +4257,12 @@ function logSections(len, w, flat, seed) {
     // top's crown) down to the bulge (vertical), so the bark rolls over
     // instead of meeting the top at a bevel; its third point sits at the
     // bridges' water line (0.13 m under the top), turned about 50 degrees.
-    // At the root the middle of it rises into a buttress hump outside the
-    // walked strip and the bulge swells to the footprint's edge.
+    // At the root the middle of it rises into a low buttress hump outside
+    // the walked strip (at most 0.13·s above the top): its two raised points
+    // stand within 0.005·s of each other, so the crest is a rounded ridge with
+    // no single tip, and the bulge splays out to the footprint's edge and
+    // down under the water line, so the flare runs down into the water and
+    // the bank instead of standing up.
     const x1 = hw - 0.05 * s, y1 = yTop(x1) - 0.006 * s;
     const yb = -0.25 * s, A = rb - x1, B = y1 - yb;
     const ell = (t) => ({ x: x1 + A * Math.sin(t), y: yb + B * Math.cos(t) });
@@ -4268,9 +4273,9 @@ function logSections(len, w, flat, seed) {
       // kept in order across (each a little short of the footprint's edge,
       // never back inside the walked strip), so a top nearly as wide as the
       // trunk can't fold the hump into a spike
-      { x: Math.max(x1 + 0.004 * s, Math.min(e2.x + 0.04 * s * f, R - 0.06 * s)), y: e2.y + 0.1 * s * f },
-      { x: Math.max(x1 + 0.008 * s, Math.min(lerp(e3.x, Math.max(hw + 0.25 * s, R * 0.8), f), R - 0.03 * s)), y: lerp(e3.y, 0.3 * s, f) },
-      { x: clampX(lerp(rb, R, f)), y: lerp(yb, -0.12 * s, f) },
+      { x: Math.max(x1 + 0.004 * s, Math.min(e2.x + 0.04 * s * f, R - 0.06 * s)), y: lerp(e2.y, 0.13 * s, f) },
+      { x: Math.max(x1 + 0.008 * s, Math.min(lerp(e3.x, Math.max(hw + 0.43 * s, R * 0.92), f), R - 0.03 * s)), y: lerp(e3.y, 0.125 * s, f) },
+      { x: clampX(lerp(rb, R, f)), y: lerp(yb, -0.18 * s, f) },
     ];
     // (Below the bulge the trunk is under the water or the bank everywhere,
     // so it closes straight to the bottom.)

@@ -916,6 +916,33 @@ describe('the Woods builders', () => {
       expect(rise(sawnZ - dz)).toBeLessThan(0.16);
     });
 
+    it('its root buttresses are low: at most 0.15 m above the walked top', () => {
+      const dz = rootZ === -15.5 ? 0.2 : -0.2;
+      for (const side of [-1, 1]) {
+        for (let x = 0.95; x <= 1.5 + 1e-9; x += 0.05) {
+          expect(at(side * x, rootZ + dz)?.point.y ?? -1, `x ${side * x}`).toBeLessThanOrEqual(0.16 + 0.15);
+        }
+      }
+    });
+
+    it('its root buttresses are rounded, not horns', () => {
+      // per side, the hump stands above the top for a good width, not at one tip
+      const dz = rootZ === -15.5 ? 0.2 : -0.2;
+      for (const side of [-1, 1]) {
+        let span = 0;
+        for (let x = 0.8; x <= 1.5 + 1e-9; x += 0.01) {
+          if ((at(side * x, rootZ + dz)?.point.y ?? -1) > 0.16 + 0.03) span += 0.01;
+        }
+        expect(span, `side ${side}`).toBeGreaterThanOrEqual(0.35);
+      }
+    });
+
+    it('triangle count is unchanged', () => {
+      // measured on main before the rounded root flare (and 314 vertices)
+      expect(triangles()).toBe(394);
+      expect(geo.attributes.position.count).toBe(314);
+    });
+
     it('shows end grain at the sawn end in at least three tones with a dark bark rim, and a dark root end', () => {
       const dir = sawnZ === -15.5 ? 1 : -1;
       for (const dx of [-0.8, -0.3, 0, 0.3, 0.8]) {
