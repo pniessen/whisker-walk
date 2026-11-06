@@ -140,6 +140,49 @@ describe('CAMP_LOOKS', () => {
     }
   }, 120_000);
 
+  // polish-camps5: rounder berries and softly shaded crown lumps
+  it('berries are at least 0.06 m across', () => {
+    for (const a of CAMPS) {
+      const pos = build(a).getObjectByName('campRing').geometry.attributes.position;
+      const n = campDressing(a, []).ring.clumps.length;
+      const vs = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(() => new THREE.Vector3());
+      for (let c = 0; c < n; c++) {
+        const first = ((c + 1) * RING_CLUMP_TRIS - RING_BERRY_TRIS) * 3;
+        for (let b = 0; b < 3; b++) {
+          for (let k = 0; k < 9; k++) vs[k].fromBufferAttribute(pos, first + b * 9 + k);
+          let far = 0;
+          for (let i = 0; i < 9; i++) for (let j = i + 1; j < 9; j++) far = Math.max(far, vs[i].distanceTo(vs[j]));
+          expect(far, `${a} clump ${c} berry ${b}`).toBeGreaterThanOrEqual(0.06);
+        }
+      }
+    }
+  }, 120_000);
+
+  it('crown lump normals point away from their lump\'s centre', () => {
+    const g = new THREE.Vector3();
+    const v = new THREE.Vector3();
+    const nv = new THREE.Vector3();
+    for (const a of CAMPS) {
+      const geo = build(a).getObjectByName('campRing').geometry;
+      const pos = geo.attributes.position;
+      const nor = geo.attributes.normal;
+      const n = campDressing(a, []).ring.clumps.length;
+      for (let c = 0; c < n; c++) {
+        for (let k = 0; k < 3; k++) {
+          const first = (c * RING_CLUMP_TRIS + 20 + k * 8) * 3;
+          g.set(0, 0, 0);
+          for (let i = 0; i < 24; i++) g.add(v.fromBufferAttribute(pos, first + i));
+          g.multiplyScalar(1 / 24);
+          for (let i = 0; i < 24; i++) {
+            v.fromBufferAttribute(pos, first + i).sub(g).normalize();
+            nv.fromBufferAttribute(nor, first + i);
+            expect(nv.dot(v), `${a} clump ${c} lump ${k} vertex ${i}`).toBeGreaterThan(Math.cos(Math.PI / 3));
+          }
+        }
+      }
+    }
+  }, 120_000);
+
   it('leaf cards face outward', () => {
     const p = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
     const e1 = new THREE.Vector3();

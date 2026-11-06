@@ -1098,7 +1098,7 @@ export const RING_BERRY_TRIS = 9;
 // the mound's envelope (ENV) is widened to 0.9 R and leaves start at 0.4 rad
 // up it (were 0.8 R and 0.25), so leaves sit outside the core and show
 const LEAF = { n: 6, len: 0.11, w: 0.06, lean: 0.03, eLo: 0.4, eHi: 1.1 };
-const BERRY = { n: 3, r: 0.028, apex: 0.045, at: 0.95, eLo: 0.3, eHi: 0.95 };
+const BERRY = { n: 3, r: 0.04, apex: 0.05, at: 0.97, eLo: 0.3, eHi: 0.95 };
 // the mound's envelope: a half-ellipsoid on the clump's spot (semi-axes r·R, h·c.h)
 const ENV = { r: 0.9, h: 0.88 };
 const TAU = Math.PI * 2;
@@ -1128,6 +1128,35 @@ function clampToClump(geo, c, R) {
     pos.setXYZ(i, c.x + dx, Math.max(0, Math.min(c.h, pos.getY(i))), c.z + dz);
   }
   geo.computeVertexNormals();
+  return geo;
+}
+
+// polish-camps5: a crown lump shaded round, not faceted: every vertex normal
+// is the direction from the lump's centre. No triangle changes;
+// speckle and merging leave normals alone.
+function softenAbout(geo) {
+  const pos = geo.attributes.position;
+  const nor = geo.attributes.normal;
+  // the centre is the mean of the lump's final corners (lumpy and the clamp
+  // have moved them off the octahedron's ideal centre)
+  let cx = 0;
+  let cy = 0;
+  let cz = 0;
+  for (let i = 0; i < pos.count; i++) {
+    cx += pos.getX(i);
+    cy += pos.getY(i);
+    cz += pos.getZ(i);
+  }
+  cx /= pos.count;
+  cy /= pos.count;
+  cz /= pos.count;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) - cx;
+    const y = pos.getY(i) - cy;
+    const z = pos.getZ(i) - cz;
+    const l = Math.hypot(x, y, z) || 1;
+    nor.setXYZ(i, x / l, y / l, z / l);
+  }
   return geo;
 }
 
@@ -1202,7 +1231,8 @@ function ringMesh(ring, cx, cz, look) {
       const top = k === tall ? c.h : c.h * (0.8 + 0.2 * ch[k]);
       const m = place(c.x + Math.cos(az) * 0.42 * R, top - rk, c.z + Math.sin(az) * 0.42 * R, rk, rk, rk,
         TAU * hash01(c.x, c.z, k, 43), 0.35 * hash01(c.x, c.z, k, 44));
-      parts.push(speckle(clampToClump(lumpy(bake(new THREE.OctahedronGeometry(1, 0), m, crownAt), c), c, R), look.ring.specks, 19));
+      const lump = clampToClump(lumpy(bake(new THREE.OctahedronGeometry(1, 0), m, crownAt), c), c, R);
+      parts.push(speckle(softenAbout(lump), look.ring.specks, 19));
     }
     // six leaf cards on the envelope, tips up the slope and leaning out
     const leaves = [];
@@ -1252,19 +1282,33 @@ function ringMesh(ring, cx, cz, look) {
           if (h < w) { pick = hex; break; }
           h -= w;
         }
-        let f = 0.9 + 0.2 * hash01(c.x, c.z, b, 52);
-        if (Math.abs(f - 1) < 0.02) f = f < 1 ? 0.98 : 1.02;
+        // 0.96..1.01, so the lit face (x 1.08) and the others (x 0.94) stay in 0.9..1.1
+        let f = 0.96 + 0.05 * hash01(c.x, c.z, b, 52);
+        if (Math.abs(f - 1) < 0.01) f = f < 1 ? 0.99 : 1.01;
         colr = pick.clone().multiplyScalar(f);
       } else {
         colr = green.clone().multiplyScalar(RING_LOOK.bud);
       }
       const mid = p.clone();
-      for (let i = 0; i < 3; i++) {
+      const tris = [0, 1, 2].map((i) => {
         const tri = [base[i].clone(), base[(i + 1) % 3].clone(), apex.clone()];
         tri.mid = mid;
-        berries.push(tri);
-        berryCols.push(colr);
+        return tri;
+      });
+      // a fruit's face turned most upward is its lit one (x 1.08), the rest x 0.94
+      let lit = -1;
+      if (fruiting) {
+        let best = -Infinity;
+        tris.forEach((tri, i) => {
+          const fn = _e1.subVectors(tri[1], tri[0]).cross(_e2.subVectors(tri[2], tri[0])).normalize();
+          if (fn.dot(centroid(tri).sub(mid)) < 0) fn.negate();
+          if (fn.y > best) { best = fn.y; lit = i; }
+        });
       }
+      tris.forEach((tri, i) => {
+        berries.push(tri);
+        berryCols.push(fruiting ? colr.clone().multiplyScalar(i === lit ? 1.08 : 0.94) : colr);
+      });
     }
     parts.push(facing(berries, berryCols, c, R, (tri) => centroid(tri).sub(tri.mid)));
   }
