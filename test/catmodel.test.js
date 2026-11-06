@@ -303,7 +303,9 @@ describe('cat model: budget and determinism', () => {
   // time, and is also cloned for every stray, ghost and co-walker — is spending
   // the scarce resource. Wave 6 spent triangles and RECLAIMED meshes.
   // The final ceilings (Global Constraints): the belly, chest and ruff are one mesh.
-  const CEILING = { tabby: 30, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 30, robbie: 31, d2: 31, digit: 34, hagrid: 19 };
+  // polish-faces (2026-11-06): the tabby and zeetoo wear the forehead M, one
+  // mesh like D2's bars and Robbie's blaze, so they move 30 -> 31 (simple 25).
+  const CEILING = { tabby: 31, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 31, robbie: 31, d2: 31, digit: 34, hagrid: 19 };
   const CEILING_SIMPLE = Object.fromEntries(Object.entries(CEILING).map(([b, n]) => [b, b === 'hagrid' ? 19 : n - 6]));
 
   for (const breed of ALL) {
@@ -553,7 +555,7 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
     expect(colourDistance(chestFront('black'), new THREE.Color(0x3a3a42))).toBeLessThan(0.02);
   });
   it('final mesh ceilings, fluffy cats included', () => {
-    const FINAL = { tabby: 30, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 30, robbie: 31, d2: 31, digit: 34 };
+    const FINAL = { tabby: 31, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 31, robbie: 31, d2: 31, digit: 34 }; // tabby, zeetoo: +1 for the M (polish-faces)
     for (const [b, n] of Object.entries(FINAL)) {
       expect(meshCount(buildCat(b))).toBe(n);
       expect(meshCount(buildCat(b, undefined, { simple: true }))).toBe(n - 6);

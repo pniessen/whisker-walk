@@ -451,7 +451,8 @@ describe('scar mesh', () => {
     const scars = [{ site: 'face', stage: 'full', side: 'l' }, { site: 'shoulder', stage: 'half', side: 'r' }];
     const tris = (cat) => { let n = 0; cat.traverse((m) => { if (m.isMesh) n += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; }); return n; };
     // Each breed's own mesh ceiling (catmodel.test.js CEILING, simple = full - 6) and the customs' 31 / 25, plus the one scar mesh.
-    const CEIL = { calico: 31, robbie: 31, d2: 31, digit: 34 };
+    // tabby and zeetoo: 31 since they wear the forehead M (polish-faces).
+    const CEIL = { tabby: 31, zeetoo: 31, calico: 31, robbie: 31, d2: 31, digit: 34 };
     const cap = (simple, name) => {
       const full = name.startsWith('custom') ? 31 : (CEIL[name] ?? 30);
       return { meshes: (simple ? full - 6 : full) + 1, tris: simple ? 5500 : 9000 };

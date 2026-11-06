@@ -96,7 +96,8 @@ export function lookToStyle(look) {
   const l = sanitizeLook(look);
   const accent = MARKS[l.marks].hex;
   const s = { base: COATS[l.coat].hex, belly: COATS[l.coat].belly, accent, scale: l.size, eyeColor: EYES[l.eyes].hex };
-  if (l.pattern === 'stripes') { s.stripes = true; s.headStripes = true; }
+  // A striped cat wears the tabby's letter M on her forehead (model.js, polish-faces).
+  if (l.pattern === 'stripes') { s.stripes = true; s.headStripes = 'M'; }
   else if (l.pattern === 'points') s.points = true;
   else if (l.pattern === 'patches') { s.patches = true; s.patch2 = accent; s.headPatch = accent; }
   else if (l.pattern === 'socks') { s.socks = true; s.chin = true; s.bib = true; }
