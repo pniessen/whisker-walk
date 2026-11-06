@@ -215,7 +215,9 @@ export function buildIsland(scene, { wind } = {}) {
   // child of the tree, in its scaled frame, so it sways with it: it reaches
   // south from the trunk at 2.0 m, from 0.6 to 2.2 m out, its thin end
   // outward, its top just under the mouse.
-  const ash = b.tree(OLD_ASH.x, OLD_ASH.z, OLD_ASH.scale, { wind });
+  // kind 'round' by name: lake.js draws this same tree from the neighbouring
+  // areas at other (x, z), so letting each hash its own crown gave it three.
+  const ash = b.tree(OLD_ASH.x, OLD_ASH.z, OLD_ASH.scale, { wind, kind: 'round' });
   ash.name = 'oldAsh';
   const s = OLD_ASH.scale;
   const limb = new THREE.Mesh(

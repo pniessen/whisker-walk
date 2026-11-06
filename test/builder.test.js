@@ -286,8 +286,9 @@ describe('builder — organic canopy (dice fix)', () => {
   });
 
   it('gives different (x, z) a different canopy geometry and orientation', () => {
-    const t1 = canopyOf(b.tree(5, 5, 1.2));
-    const t2 = canopyOf(b.tree(-8, 13, 1.2));
+    // one kind on both, so the lobe/detail structure is the same
+    const t1 = canopyOf(b.tree(5, 5, 1.2, { kind: 'round' }));
+    const t2 = canopyOf(b.tree(-8, 13, 1.2, { kind: 'round' }));
     const p1 = Array.from(t1.geometry.attributes.position.array);
     const p2 = Array.from(t2.geometry.attributes.position.array);
     expect(p1.length).toBe(p2.length); // same lobe/detail structure either way
@@ -331,13 +332,18 @@ describe('builder — organic canopy (dice fix)', () => {
 
   it('keeps the canopy/bush footprint roughly where it shipped (colliders are fixed elsewhere)', () => {
     // Sampled across many positions in an earlier manual check: max observed
-    // canopy radius ~1.82 against a nominal 1.6, max bush radius ~0.80
+    // canopy radius ~1.82 against a nominal 1.6 (the round kind), max bush radius ~0.80
     // against a nominal 0.7 — both a modest, bounded overshoot, never a
     // multiple of the original footprint.
     for (const [x, z] of [[0, 0], [5, 5], [-8, 13], [22, -17], [-30, 30]]) {
-      const leaves = canopyOf(b.tree(x, z, 1));
-      leaves.geometry.computeBoundingSphere();
-      expect(leaves.geometry.boundingSphere.radius).toBeLessThan(1.6 * 1.3);
+      // per kind now (polish-canopies): each crown stays near its own
+      // nominal radius, the tall birch measured by its height
+      for (const kind of ['oak', 'birch', 'round', 'old']) {
+        const leaves = canopyOf(b.tree(x, z, 1, { kind }));
+        leaves.geometry.computeBoundingSphere();
+        const nominal = b.CANOPY_KINDS[kind].r * (kind === 'birch' ? 1.6 : 1);
+        expect(leaves.geometry.boundingSphere.radius, kind).toBeLessThan(nominal * 1.3);
+      }
       const bush = b.bush(x, z);
       bush.geometry.computeBoundingSphere();
       expect(bush.geometry.boundingSphere.radius).toBeLessThan(0.7 * 1.3);

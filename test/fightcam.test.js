@@ -41,7 +41,7 @@ function subject(me, it, extra = {}) {
 function sceneOf(trees) {
   const scene = new THREE.Scene();
   for (const t of trees) {
-    const g = t.kind === 'pine' ? b.pine(t.x, t.z, t.scale ?? 1) : t.kind === 'willow' ? b.willow(t.x, t.z, t.scale ?? 1) : b.tree(t.x, t.z, t.scale ?? 1);
+    const g = t.kind === 'pine' ? b.pine(t.x, t.z, t.scale ?? 1) : t.kind === 'willow' ? b.willow(t.x, t.z, t.scale ?? 1) : b.tree(t.x, t.z, t.scale ?? 1, { kind: t.canopy });
     scene.add(g);
   }
   return scene;
@@ -86,6 +86,15 @@ describe('occluder shapes hold the real trees', () => {
     const { n, occ } = everyVertexInside(sceneOf(trees));
     expect(occ).toHaveLength(60);
     expect(n).toBeGreaterThan(1000);
+  });
+
+  test('every canopy kind, the Woods\' old oaks too, at many spots and scales', () => {
+    const trees = [];
+    for (const canopy of ['oak', 'birch', 'round', 'old']) {
+      for (let i = 0; i < 30; i++) trees.push({ kind: 'tree', canopy, x: ((i * 9.1) % 90) - 45, z: ((i * 5.3) % 90) - 45, scale: 1 + (i % 7) * 0.1 });
+    }
+    const { occ } = everyVertexInside(sceneOf(trees));
+    expect(occ).toHaveLength(120);
   });
 
   test('willows, the default curtain and a high one', () => {
@@ -443,7 +452,7 @@ describe('framing: tight, side-on, no trunk wall', () => {
   // The oak in front on the intruder's side (x < 0): one yaw step toward our
   // cat's side clears it, and our cat stays the nearer.
   test('a big oak beside the line is avoided', () => {
-    const occ = findOccluders(sceneOf([{ kind: 'tree', x: -1.6, z: 2.2, scale: 1.4 }]));
+    const occ = findOccluders(sceneOf([{ kind: 'tree', canopy: 'round', x: -1.6, z: 2.2, scale: 1.4 }]));
     const oak = occ[0];
     const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0, ...DESK });
     const share = frameClutter(v.pos, v, oak, DESK.aspect, DESK.fovY, FIGHT_FRAME.bottom, nearDepthOf(v, subj, DESK));
@@ -462,7 +471,7 @@ describe('framing: tight, side-on, no trunk wall', () => {
   // the intruder 0.4 m nearer the camera. Our cat in front outranks the
   // clutter: the camera keeps the side-on spot and hides the oak instead.
   test('dodging an oak never puts the intruder in front: the oak is hidden instead', () => {
-    const occ = findOccluders(sceneOf([{ kind: 'tree', x: 1.6, z: 2.2, scale: 1.4 }]));
+    const occ = findOccluders(sceneOf([{ kind: 'tree', canopy: 'round', x: 1.6, z: 2.2, scale: 1.4 }]));
     const oak = occ[0];
     const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0, ...DESK });
     expect(itNearer(v.pos, subj)).toBe(false);
