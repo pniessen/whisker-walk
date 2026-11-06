@@ -5667,8 +5667,8 @@ function pineParts(x = 0, z = 0) {
 }
 
 // A pine: a short flared bark trunk under five tiers of ragged boughs (see
-// pineParts), merged into one foliage mesh. Taller and narrower than an oak and it sheds no leaves, so it
-// carries no `canopy` tag. No collider here.
+// pineParts), merged into one foliage mesh. Taller and narrower than an oak
+// and it sheds no leaves, so it carries no `canopy` tag. No collider here.
 export function pine(x, z, scale = 1, { wind } = {}) {
   const g = new THREE.Group();
   const { trunk: trunkGeo, cones } = pineParts(x, z);
