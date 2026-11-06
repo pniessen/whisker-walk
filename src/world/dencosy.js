@@ -41,7 +41,7 @@ import { mulberry32, seedFromCode } from '../rng.js';
 
 export const DEN_DOOR = Object.freeze({ x: -7.3, w: 0.95, h: 2.1 });
 export const RAG_RUG = Object.freeze({ x: -7.3, z: -7.55, rx: 0.75, rz: 0.48 });
-export const BEAM_Z = Object.freeze([-6, -2, 2]);
+export const BEAM_Z = Object.freeze([-6, -1.5]);
 export const LAMP = Object.freeze({ x: 0, z: -6, shadeBottom: 2.78 });
 
 // Palette.
@@ -310,7 +310,9 @@ function woodwork(opts, rnd) {
     }
   }
 
-  // Beams across the wall tops, darker where they meet the walls.
+  // Two beams across the wall tops, darker where they meet the walls. Two,
+  // not three: a third at z 2 sat 6 m in front of the spawn camera and drew a
+  // heavy bar across the top of the opening view, hiding the lamp.
   const endLen = 0.25;
   for (const bz of BEAM_Z) {
     const z0 = bz - 0.1;
