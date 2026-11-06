@@ -165,7 +165,11 @@ describe('builder — roundedBox (Wave 4.1)', () => {
     // Neighborhood 380 -> 396: polish-twolegplace Task 2 dresses the eight lot
     // houses, each gaining a houseTrim and a houseGlass mesh (2 x 8).
     // Den 284 -> 288: polish-cosy's shell (wallpaper, woodwork, rag rug, lamp glow).
-    const expected = { neighborhood: 396, park: 172, docks: 519, seaside: 68, den: 288 };
+    // Park 172 -> 173: polish-park2 Task 1's one soft gravel trail mesh (the
+    // five path strips stay, hidden 1x1 data strips).
+    // Park 173 -> 176: polish-park2 Task 2's fountain gains its upper-bowl water,
+    // the falling drops and the landing ripples (three noCast meshes).
+    const expected = { neighborhood: 396, park: 176, docks: 519, seaside: 68, den: 288 };
     const builds = {
       neighborhood: buildNeighborhood, park: buildPark, docks: buildDocks,
       seaside: buildSeaside, den: buildDen,

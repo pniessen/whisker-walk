@@ -159,12 +159,17 @@ describe('City Park — the v20 visual pass', () => {
     it('gives the fountain stone its light response with the map left off', () => {
       const { scene } = built();
       const fountain = scene.children.find(
-        (o) => o.isGroup && Math.abs(o.position.z - 20) < 1e-6 && o.children.length === 3,
+        (o) => o.isGroup && Math.abs(o.position.z - 20) < 1e-6 && o.getObjectByName('fountainBasin'),
       );
-      const [basin, water, spire] = fountain.children;
+      // polish-park2 Task 2: found by name now that the group holds more.
+      const basin = fountain.getObjectByName('fountainBasin');
+      const water = fountain.getObjectByName('fountainWater');
+      const spire = fountain.getObjectByName('fountainSpire');
+      // the three shipped constructor slots keep their order
+      expect(fountain.children.slice(0, 3)).toEqual([basin, water, spire]);
       for (const stone of [basin, spire]) {
         expect(stone.material.roughness).toBe(surfaceProps('cobble').roughness);
-        // The cylinder rule: a planar tile smears on a 12- and an 8-sided drum.
+        // A planar tile smears on a turned profile.
         expect(stone.material.map).toBeFalsy();
       }
       // The disc keeps the 'water' PRESET and does not become a second
@@ -255,5 +260,228 @@ describe('City Park — the oak’s Twoleg (polish-places)', () => {
     expect(x).toBeGreaterThan(b.minX); expect(x).toBeLessThan(b.maxX);
     expect(z).toBeGreaterThan(b.minZ); expect(z).toBeLessThan(b.maxZ);
     for (const w of area.waters) expect(Math.hypot(x - w.x, z - w.z)).toBeGreaterThan(w.r);
+  });
+});
+
+// polish-park2: the five slabs are ONE soft gravel trail (pathribbon.js's
+// 'gravel' look), the south walk running on out through the hedge's gate.
+describe('City Park — the gravel trail (polish-park2)', async () => {
+  const { PARK_PATHS, PARK_HORIZON } = await import('../src/world/park.js');
+  const { trailField, quadRadius } = await import('../src/world/pathribbon.js');
+  const { inWater } = await import('../src/world/builder.js');
+
+  it('is one visible gravel pathTrail over five hidden strips, same params, same order', () => {
+    const { scene } = built();
+    const trails = scene.children.filter((c) => c.name === 'pathTrail');
+    expect(trails).toHaveLength(1);
+    expect(trails[0].visible).toBe(true);
+    expect(trails[0].userData.trailLook).toBe('gravel');
+    expect(trails[0].castShadow).toBe(false);
+    const strips = scene.children.filter((c) => c.name === 'path');
+    expect(strips).toHaveLength(5);
+    expect(PARK_PATHS).toEqual([
+      [0, 48, 0, 20], [0, 20, -4, 4], [-4, 4, -8, -18], [-8, -18, 12, -30], [0, 20, 16, 10],
+    ]);
+    strips.forEach((s, i) => {
+      const [x1, z1, x2, z2] = PARK_PATHS[i];
+      expect(s.visible).toBe(false);
+      expect(s.geometry.parameters.width).toBe(3);
+      expect(s.geometry.parameters.height).toBeCloseTo(Math.hypot(x2 - x1, z2 - z1), 9);
+      expect(s.position.x).toBeCloseTo((x1 + x2) / 2, 9);
+      expect(s.position.z).toBeCloseTo((z1 + z2) / 2, 9);
+    });
+    // Exactly one visible path-ish mesh.
+    const visible = scene.children.filter((c) => (c.name === 'path' || c.name === 'pathTrail') && c.visible);
+    expect(visible).toEqual([trails[0]]);
+  });
+
+  it('paints no gravel in the pond', () => {
+    const { scene, area } = built();
+    const segs = scene.children.find((c) => c.name === 'pathTrail').userData.trail;
+    const bad = [];
+    let wet = 0;
+    for (const s of segs) {
+      const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
+      const ux = (s.x2 - s.x1) / len;
+      const uz = (s.z2 - s.z1) / len;
+      // A metre past the quad, so the sweep reaches the pond's edge (the
+      // walk passes ~1 m off the water) and is not vacuous.
+      const R = quadRadius(s.h, 'gravel') + 1;
+      for (let a = -R; a <= len + R; a += 0.25) {
+        for (let c = -R; c <= R; c += 0.25) {
+          const x = s.x1 + ux * a - uz * c;
+          const z = s.z1 + uz * a + ux * c;
+          if (!inWater(area.waters, x, z)) continue;
+          wet++;
+          if (trailField(segs, x, z, 'gravel').alpha > 0.02) bad.push([+x.toFixed(2), +z.toFixed(2)]);
+        }
+      }
+    }
+    expect(bad.slice(0, 10)).toEqual([]);
+    expect(wet).toBeGreaterThan(0);
+  });
+
+  it('runs the south walk out through the hedge gate, inside the gap', () => {
+    const { scene } = built();
+    const segs = scene.children.find((c) => c.name === 'pathTrail').userData.trail;
+    const [gate] = PARK_HORIZON.edge.gaps;
+    // The (0, 48) end runs on past the gate; the other ends are as authored
+    // (joined, or pulled back h at a dead end).
+    expect(segs[0].x1).toBeCloseTo(0, 9);
+    expect(segs[0].z1).toBeGreaterThan(gate.z + 2);
+    expect(segs[0].z2).toBe(20);
+    expect(trailField(segs, gate.x, gate.z, 'gravel').alpha).toBe(1);
+    // ... and stays inside the hedge's gap there.
+    for (const x of [-gate.r, gate.r]) {
+      expect(trailField(segs, gate.x + x, gate.z, 'gravel').alpha).toBe(0);
+    }
+  });
+});
+
+describe('City Park — the two-tier fountain (polish-park2)', async () => {
+  const fx = await import('../src/world/parkfountain.js');
+  const fountainOf = (scene) => scene.children.find(
+    (o) => o.isGroup && Math.abs(o.position.z - 20) < 1e-6 && o.getObjectByName('fountainBasin'),
+  );
+  const tris = (g) => (g.index ? g.index.count : g.attributes.position.count) / 3;
+
+  it('turns the basin and spire as stone lathes at the shipped spot', () => {
+    const f = fountainOf(built().scene);
+    expect(f.position.toArray()).toEqual([0, 0, 20]);
+    expect(f.getObjectByName('fountainBasin').geometry.type).toBe('LatheGeometry');
+    expect(f.getObjectByName('fountainSpire').geometry.type).toBe('LatheGeometry');
+    // the lip tops out just under the shipped perch (y 0.75), over the water
+    const lipTop = Math.max(...fx.BASIN_PROFILE.map(([, y]) => y));
+    expect(lipTop).toBeGreaterThan(0.65);
+    expect(lipTop).toBeLessThan(0.75);
+    const water = f.getObjectByName('fountainWater');
+    expect(water.position.y + fx.BASIN_WATER.h / 2).toBeCloseTo(fx.BASIN_WATER.top, 6);
+    expect(fx.BASIN_WATER.top).toBeLessThan(lipTop);
+    // the finial tops out at ~2.2
+    const top = Math.max(...fx.SPIRE_PROFILE.map(([, y]) => y));
+    expect(top).toBeCloseTo(2.2, 2);
+  });
+
+  it('adds the upper water, drops and ripples — quiet in the shadow pass, animated ones unmerged', () => {
+    const f = fountainOf(built().scene);
+    const upper = f.getObjectByName('fountainUpperWater');
+    const drops = f.getObjectByName('fountainDrops');
+    const ripples = f.getObjectByName('fountainRipples');
+    for (const m of [upper, drops, ripples]) {
+      expect(m?.isMesh, m?.name).toBe(true);
+      expect(m.parent).toBe(f);
+      expect(m.castShadow).toBe(false);
+      expect(m.userData.noCast).toBe(true);
+    }
+    expect(upper.material.roughness).toBe(surfaceProps('water').roughness);
+    for (const m of [drops, ripples]) {
+      expect(m.userData.noMerge).toBe(true);
+      expect(m.material.transparent).toBe(true);
+      expect(m.material.depthWrite).toBe(false);
+    }
+    // three new meshes (the plan allows four): six in the fountain
+    let n = 0;
+    f.traverse((o) => { if (o.isMesh) n++; });
+    expect(n).toBe(6);
+    // the culling sphere covers every arc, so the drops are never culled mid-fall
+    const arcs = fx.fountainArcs();
+    const sphere = drops.geometry.boundingSphere;
+    for (const a of arcs) {
+      for (let k = 0; k <= 10; k++) {
+        const t = (k / 10) * a.T;
+        const r = a.r0 + a.vr * t;
+        const p = new THREE.Vector3(Math.cos(a.a) * r, a.y0 + a.vy * t - 3.5 * t * t, Math.sin(a.a) * r);
+        expect(sphere.containsPoint(p)).toBe(true);
+      }
+    }
+    // a ring of streams round the upper rim, landing in the basin water
+    const streams = arcs.filter((a) => a.kind === 'stream');
+    expect(streams).toHaveLength(fx.STREAMS);
+    for (const a of streams) {
+      expect(a.land).toBeGreaterThan(1.4);
+      expect(a.land).toBeLessThan(fx.BASIN_WATER.r - 0.3);
+      expect(a.landY).toBe(fx.BASIN_WATER.top);
+    }
+    expect(tris(drops.geometry)).toBe((fx.STREAMS * fx.STREAM_DROPS + fx.JETS * fx.JET_DROPS) * 8);
+    expect(tris(ripples.geometry)).toBe((fx.STREAMS + fx.JETS) * 2);
+  });
+
+  it('ticks uTime from the clock, and freezes it under reduced motion', () => {
+    const moving = fountainOf(built({ water: { reducedMotion: false } }).scene).getObjectByName('fountainDrops');
+    const u = moving.userData.fountain.uFountainTime;
+    const now = vi.spyOn(performance, 'now').mockReturnValue(1234567);
+    moving.onBeforeRender();
+    expect(u.value).toBeCloseTo((1234567 / 1000) % 3600, 6);
+    now.mockRestore();
+
+    const still = fountainOf(built({ water: { reducedMotion: true } }).scene);
+    const drops = still.getObjectByName('fountainDrops');
+    const ripples = still.getObjectByName('fountainRipples');
+    drops.onBeforeRender();
+    ripples.onBeforeRender();
+    expect(drops.userData.fountain.uFountainTime.value).toBe(fx.FROZEN_TIME);
+    // the drops and ripples read the same clock
+    expect(ripples.material.onBeforeCompile).toBeTypeOf('function');
+    expect(ripples.userData.fountain).toBe(drops.userData.fountain);
+  });
+
+  it('patches the standard shaders at anchors that exist (no silent no-op)', () => {
+    const f = fountainOf(built().scene);
+    for (const name of ['fountainDrops', 'fountainRipples']) {
+      const mat = f.getObjectByName(name).material;
+      const shader = {
+        uniforms: {},
+        vertexShader: THREE.ShaderLib.standard.vertexShader,
+        fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+      };
+      mat.onBeforeCompile(shader);
+      expect(shader.uniforms.uFountainTime, name).toBeDefined();
+      expect(shader.vertexShader).not.toBe(THREE.ShaderLib.standard.vertexShader);
+      expect(shader.vertexShader + shader.fragmentShader).toContain('uniform float uFountainTime;');
+      if (name === 'fountainDrops') {
+        expect(shader.vertexShader).toContain('attribute vec3 aStart;');
+        expect(shader.vertexShader).toContain('transformed = fdPos');
+      } else {
+        expect(shader.fragmentShader).not.toBe(THREE.ShaderLib.standard.fragmentShader);
+        expect(shader.fragmentShader).toContain('diffuseColor.a *=');
+      }
+      expect(mat.customProgramCacheKey()).toMatch(/^park-fountain-/);
+    }
+    expect(() => fx.inject('void main() {}', '#include <nope>', 'x')).toThrow(/anchor/);
+  });
+
+  it('keeps the fountain-edge lookout and the r-3 collider exactly where they were', () => {
+    const { area } = built();
+    expect(area.colliders).toContainEqual({ x: 0, z: 20, r: 3 });
+    const perch = area.perches.find((p) => p.label === 'fountain-edge lookout');
+    expect(perch).toMatchObject({ x: 2.8, z: 22.2, y: 0.75, kind: 'stone' });
+  });
+
+  it('keeps the Park under 26,535 triangles', () => {
+    const { scene } = built();
+    let total = 0;
+    let fountain = 0;
+    scene.traverse((o) => { if (o.isMesh) total += tris(o.geometry); });
+    fountainOf(scene).traverse((o) => { if (o.isMesh) fountain += tris(o.geometry); });
+    expect(total).toBeLessThanOrEqual(26535);
+    expect(fountain).toBeLessThan(6000);
+  });
+});
+
+// Review fix (polish-park2): grass.js masks a trail by the trail's OWN look, so
+// the tidy gravel walk keeps its tufts right up to its edge rather than a bare
+// half-metre band beside it (the default trail look's wobble is ~4x wider).
+describe('grass beside the gravel walks', () => {
+  it('masks the park trail by the gravel reach, not the wild-trail reach', async () => {
+    const { flatFootprints } = await import('../src/render/grass.js');
+    const { trailReach } = await import('../src/world/pathribbon.js');
+    const scene = new THREE.Scene();
+    build(scene);
+    const caps = flatFootprints(scene).filter((f) => f.kind === 'capsule');
+    expect(caps.length).toBeGreaterThan(0);
+    for (const c of caps) {
+      expect(c.r).toBeCloseTo(trailReach(1.5, 'gravel'), 9);
+      expect(c.r).toBeLessThan(trailReach(1.5) - 0.2);
+    }
   });
 });

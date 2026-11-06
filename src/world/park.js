@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
+import { addTrails } from './pathribbon.js';
+import { BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, latheGeometry, dressFountain } from './parkfountain.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 
 // =============================================================================
@@ -86,6 +88,30 @@ const surfNoMap = (color, surface) => litMaterial(color, surfaceProps(surface));
 // Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
 export const SPAWN = Object.freeze({ x: 0, z: 45 });
 
+// The five gravel walks, [x1, z1, x2, z2], in the order the old path() calls
+// made them (the hidden footprint strips keep that order; see addTrails).
+// South gate -> fountain, fountain -> pond bend, bend -> south-west lawn,
+// on to the east corner, and the fountain's east spur.
+export const PARK_PATHS = Object.freeze([
+  Object.freeze([0, 48, 0, 20]),
+  Object.freeze([0, 20, -4, 4]),
+  Object.freeze([-4, 4, -8, -18]),
+  Object.freeze([-8, -18, 12, -30]),
+  Object.freeze([0, 20, 16, 10]),
+]);
+// The walks' look (polish-park2): pathribbon.js's 'gravel' look over the
+// gravel tile, in a pale warm stone a shade lighter than path()'s 0xcbb8a0.
+export const PARK_PATH_STYLE = Object.freeze({ surface: 'gravel', color: 0xd6c6a8, look: 'gravel' });
+// The south walk's (0, 48) end counts as a map edge (edge: 48) and runs on
+// PARK_PATH_EXTEND metres, out through the hedge's field gate at z = 60.6
+// (PARK_HORIZON.edge.gaps) instead of stopping square in the lawn. 19, not
+// the plan's ~13: the horizon band lies flat (y -0.03) out to z ~66 and only
+// then rises, so a 13 m run left the round tip on show 2 m past the gate; at
+// 19 the walk runs on to z 67 and its tip goes in under the rising band
+// (which crosses the trail's y 0.01 at z ~66.3).
+export const PARK_PATH_EDGE = 48;
+export const PARK_PATH_EXTEND = 19;
+
 // The horizon band (see the note at its scene.add in build). Polish "edges":
 // the strip past the lawn's edge is the lawn's own colour, and a clipped
 // hedge runs round the edge with a field gate where the gravel path from the
@@ -160,7 +186,11 @@ export function build(scene, { water = {}, wind } = {}) {
   // colour: gravel's mean is 0.961, and path()'s 0xcbb8a0 is a fixed pale
   // warm tan that no call site passes, so the ~4% is uniform across every
   // path in the game and there is no untextured neighbour to match.
-  scene.add(b.path(0, 48, 0, 20, 3, { surface: 'gravel' }));
+  //
+  // polish-park2: the five hard slabs are now ONE soft trail (pathribbon.js,
+  // the 'gravel' look: tidy edge, an edging line, round joints, fine stones);
+  // PARK_PATHS above holds the five segments. The five hidden 1x1 'path'
+  // strips addTrails leaves behind are the same five, same params, same order.
   // The bend at (-4, 4) used to be at (-14, 6) — 4m from the pond's centre,
   // i.e. THREE METRES INSIDE a 7m pond, and shared by both segments, so the
   // walk ran through open water on both legs (measured against the corrected
@@ -178,43 +208,51 @@ export function build(scene, { water = {}, wind } = {}) {
   // walking beside the pond, which is the point of the path. Measured through
   // the real builder, not estimated; test/water.test.js samples the built
   // meshes and fails if any path ever enters water again.
-  scene.add(b.path(0, 20, -4, 4, 3, { surface: 'gravel' }));
-  scene.add(b.path(-4, 4, -8, -18, 3, { surface: 'gravel' }));
-  scene.add(b.path(-8, -18, 12, -30, 3, { surface: 'gravel' }));
-  scene.add(b.path(0, 20, 16, 10, 3, { surface: 'gravel' }));
+  addTrails(scene, [{ segs: PARK_PATHS, w: 3 }], PARK_PATH_STYLE, 'park',
+    { edge: PARK_PATH_EDGE, extend: PARK_PATH_EXTEND });
 
-  // fountain at the path junction. Dressed stone, map-less: a 12-sided basin
-  // and an 8-sided spire are the cylinder rule's worked example, and the spire
-  // is 0.2-0.3m across besides. 'cobble' (0.8) rather than 'wetStone' (0.55) —
-  // the sheen preset would put a bright bloom on a pale, sky-facing 2.6m drum,
-  // and the art direction's own rule is that between two defensible numbers the
-  // matter one wins. The rim is a shipped perch (kind 'stone'); nothing here
-  // changes its geometry, only its light response.
+  // fountain at the path junction. Dressed stone, map-less: a planar tile
+  // smears on a turned profile, and the column is 0.2-0.3m across besides.
+  // 'cobble' (0.8) rather than 'wetStone' (0.55) — the sheen preset would put
+  // a bright bloom on a pale, sky-facing 2.6m drum, and the art direction's own
+  // rule is that between two defensible numbers the matter one wins. The rim
+  // is a shipped perch (kind 'stone') and the collider stays r 3.
+  //
+  // polish-park2 Task 2: the glass-tube spire in a plain saucer becomes a
+  // two-tier stone fountain (parkfountain.js). The three constructor slots
+  // below are the shipped ones, in the shipped order — only the basin's and
+  // spire's geometry TYPE changed (cylinder -> lathe profile), which is still
+  // one geometry each, so the area's Math.random draws do not move. Everything
+  // new (upper water, falling drops, ripples) is made in dressFountain under
+  // local uuids.
   const fountain = new THREE.Group();
-  const basin = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.6, 0.6, 12),
+  const basin = new THREE.Mesh(latheGeometry(BASIN_PROFILE),
     surfNoMap(0xb8b8c0, 'cobble'));
-  basin.position.y = 0.3;
+  basin.name = 'fountainBasin';
   fountain.add(basin);
   // THE FOUNTAIN'S WATER KEEPS THE PRESET, and does not become a second
   // createWater. That is water.js's own split, written down in its ROUGH_DEEP
   // note: a body with a `waters` footprint record is drawn by createWater, and
   // water WITHOUT one — this disc, and the puddles — takes the 'water' preset.
   // The three reasons all hold here. It has no footprint record (v19 left it
-  // out deliberately: it is a r-2.2 disc wholly inside the basin's r-3
-  // collider, so the cat can never stand on or beside it). It is 4.4m across,
+  // out deliberately: it is a r-2.3 disc wholly inside the basin's r-3
+  // collider, so the cat can never stand on or beside it). It is 4.6m across,
   // which is smaller than createWater's 3m shelf plus 0.7m foam band — the ramp
   // would be all margin and no water. And it is a fountain basin: still, held,
   // and with no shoreline for a foam band to trace. Roughness 0.12 with no map
   // is exactly what a smooth dielectric film on a small disc wants, and the
   // colour is the one builder.puddle uses for the same reason.
-  const fountainWater = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.1, 12),
+  const fountainWater = new THREE.Mesh(
+    new THREE.CylinderGeometry(BASIN_WATER.r, BASIN_WATER.r, BASIN_WATER.h, BASIN_WATER.segments),
     litMaterial(0x8ab8d8, { surface: 'water' }));
-  fountainWater.position.y = 0.62;
+  fountainWater.position.y = BASIN_WATER.top - BASIN_WATER.h / 2;
+  fountainWater.name = 'fountainWater';
   fountain.add(fountainWater);
-  const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.4, 8),
+  const spire = new THREE.Mesh(latheGeometry(SPIRE_PROFILE),
     surfNoMap(0xb8b8c0, 'cobble'));
-  spire.position.y = 1.2;
+  spire.name = 'fountainSpire';
   fountain.add(spire);
+  dressFountain(fountain, { reducedMotion: !!water.reducedMotion });
   fountain.position.set(0, 0, 20);
   scene.add(fountain);
   addC(0, 20, 3);
@@ -391,7 +429,7 @@ export function build(scene, { water = {}, wind } = {}) {
       { id: 'feather-5', x: 4.5, z: 27.3, y: 2.1, label: 'a downy feather from way up high' },
     ],
     // The park's one body of water. See the POND note in this file's header;
-    // the fountain is not listed because its water disc (r 2.2) sits wholly
+    // the fountain is not listed because its water disc (r 2.29) sits wholly
     // inside the basin's own r-3 collider and has always been unreachable.
     waters: [POND],
     // The visual half of that same record: walk.js bundles these into a

@@ -3654,6 +3654,47 @@ export function bench(x, z, rotY = 0) {
   return g;
 }
 
+// Lamp globes close to the camera (polish-park2). At dusk render/dusk.js
+// gives every globe its own emissive material at LAMP_LOOK.emissiveIntensity
+// (2.4), well past the bloom threshold (1.1); a globe a metre or two from the
+// lens then fills a big patch of screen and blooms into a white sun. So the
+// globe dims its own emissive as the camera nears: full strength at >= FAR m,
+// easing (smoothstep) down to NEAR_SCALE of it at <= NEAR m. 0.35 x 2.4 = 0.84
+// keeps the warm 0xffc870 tint under the threshold, so up close it reads as a
+// frosted warm globe rather than a light source; from the path it still glows.
+export const LAMP_GLOBE_FADE = Object.freeze({ near: 2.5, far: 9, nearScale: 0.35 });
+
+// Pure: the emissive multiplier for a globe `d` metres from the camera.
+export function lampGlobeScale(d, f = LAMP_GLOBE_FADE) {
+  const t = Math.min(1, Math.max(0, (d - f.near) / (f.far - f.near)));
+  return f.nearScale + (1 - f.nearScale) * t * t * (3 - 2 * t);
+}
+
+// The globe mesh's onBeforeRender. Uses the `material` argument (the one
+// actually being drawn: dusk's swap, or treefade's per-tree clone) and keeps
+// that material's undimmed intensity in material.userData.lampBase. userData
+// survives Material.clone() (three deep-copies it), so a treefade clone taken
+// while the globe was dimmed still knows the true base; a fresh dusk material
+// has no lampBase yet and is read afresh. Only a base above 1 (the dusk glow)
+// is touched: the daytime globe (intensity 1) never changes.
+// Per-object mutation is safe because every globe owns its material (dusk.js
+// calls litMaterial per globe), and three re-uploads uniforms whenever the
+// material changes between draws. Only the perspective view camera counts:
+// shadow passes call onBeforeShadow, not this, but any other camera (an
+// orthographic map view, say) is ignored rather than measured from.
+function dimNearGlobe(renderer, scene, camera, geometry, material) {
+  if (!material || Array.isArray(material)) return;
+  const ud = material.userData;
+  if (ud.lampBase === undefined) ud.lampBase = material.emissiveIntensity;
+  const base = ud.lampBase;
+  if (!(base > 1)) return;
+  // Any other camera sees the full glow, not the last view's dimmed value.
+  if (!camera?.isPerspectiveCamera) { material.emissiveIntensity = base; return; }
+  const a = this.matrixWorld.elements, c = camera.matrixWorld.elements;
+  const dx = a[12] - c[12], dy = a[13] - c[13], dz = a[14] - c[14];
+  material.emissiveIntensity = base * lampGlobeScale(Math.sqrt(dx * dx + dy * dy + dz * dz));
+}
+
 export function lampPost(x, z) {
   const g = new THREE.Group();
   // Painted cast column. 'paintedMetal' is map-less, so the cylinder rule does
@@ -3675,6 +3716,8 @@ export function lampPost(x, z) {
   // must survive render/mergeprops.js's merge as its own mesh).
   lamp.userData.lampGlobe = true;
   lamp.userData.noMerge = true;
+  // ...and dims itself when the camera comes close (dimNearGlobe above).
+  lamp.onBeforeRender = dimNearGlobe;
   g.add(lamp);
   g.position.set(x, 0, z);
   // The globe's height, for render/ambient.js's dusk moths (read off the
