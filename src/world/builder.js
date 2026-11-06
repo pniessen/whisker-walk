@@ -4,6 +4,7 @@ import { litMaterial, repeatFor, surfaceProps, tileMetres } from '../render/mate
 import { skyBackground } from '../render/sky.js';
 import { conformTriangles } from './meshconform.js';
 import { withLocalUuids } from './localuuids.js';
+import { bakeWarehouse } from './warehouselook.js';
 import { makeRustleMaterial } from '../render/rustle.js';
 import { createRockRelief, strataBand, noise3, CREST_BAND, RELIEF_DEPTH, ROCK_ROW, ROW_MIN } from './rockrelief.js';
 import { smoothNormals } from './rocknormals.js';
@@ -4006,7 +4007,14 @@ export const PARAPET = 0.3;
 // Both are warehouse walls; which one a building wants is a colour decision
 // the caller has already made (docks.js's warm bodies are brick, its two cool
 // grey-blue ones are painted siding), so it is passed rather than guessed.
-export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4650, bodySurface = 'brick') {
+//
+// `look` (polish-docks2) = { clear?: [{x, z}] world perch points on or near
+// the roof, roofline? }. Every mesh below is still made by its shipped call, in
+// its shipped order — the Math.random draws and the roundedBox cache are
+// exactly what they were — and then warehouselook.js swaps their geometry for
+// baked, vertex-coloured masonry, window trim and downpipes on a local uuid
+// stream. No mesh is added.
+export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4650, bodySurface = 'brick', look = {}) {
   const g = new THREE.Group();
   // Colour compensation, per the luminance table in render/textures.js's
   // header: a map multiplies the base colour and the brick tile's mean is
@@ -4064,6 +4072,7 @@ export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4
   const lintel = box(2.0, 0.16, 0.2, 0x5e5450);
   lintel.position.set(0, 2.3, d / 2 + 0.05);
   g.add(lintel);
+  withLocalUuids(`warehouse-${x},${z}`, () => bakeWarehouse(g, { x, z, w, d, h, roofColor, look }));
   g.position.set(x, 0, z);
   return g;
 }
