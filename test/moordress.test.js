@@ -243,7 +243,8 @@ describe('the Moor dressing', () => {
     expect(dress.material.side).toBe(THREE.DoubleSide);
     expect(dress.material.customProgramCacheKey()).toBe('dressing-both-sides-v1');
     const stats = budgetStats(scene);
-    expect(stats.triangles).toBeLessThanOrEqual(59400);
+    // polish-brambles: the camp's bramble mounds cost 2,604 more triangles (+2,700)
+    expect(stats.triangles).toBeLessThanOrEqual(62100);
     expect(stats.meshes).toBe(85 + 2 + 1); // +1: polish-paths' one pathTrail mesh (the hidden path strips were already counted)
     expect(stats.casters).toBe(48);
   }, 120_000);

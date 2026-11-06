@@ -195,7 +195,8 @@ describe('the Woods floor', () => {
     expect(meshes).toHaveLength(1);
     expect(meshes[0].userData.noCast).toBe(true);
     expect(meshes[0].castShadow).toBe(false);
-    expect(tris).toBeLessThanOrEqual(58_500);
+    // polish-brambles: the camp's bramble mounds cost 2,604 more triangles (+2,700)
+    expect(tris).toBeLessThanOrEqual(61_200);
 
     const places = keep(area);
     expect(places.some((p) => p.x === SPAWN.x && p.z === SPAWN.z)).toBe(true);
@@ -299,7 +300,7 @@ describe('the Pines floor', () => {
     }
   });
 
-  it('builds one forestFloor mesh out of the shadow pass, inside the 56,000 triangle budget', () => {
+  it('builds one forestFloor mesh out of the shadow pass, inside the 58,700 triangle budget', () => {
     const scene = new THREE.Scene();
     const area = P.build(scene);
     const meshes = [];
@@ -313,7 +314,8 @@ describe('the Pines floor', () => {
     expect(meshes[0].userData.noCast).toBe(true);
     expect(meshes[0].castShadow).toBe(false);
     expect(trianglesOf(meshes[0].geometry)).toBeGreaterThan(2000);
-    expect(tris).toBeLessThanOrEqual(56_000);
+    // polish-brambles: the camp's bramble mounds cost 2,604 more triangles (+2,700)
+    expect(tris).toBeLessThanOrEqual(58_700);
 
     // the ground carries pinesGroundTint: its colours over an untinted twin's
     const ground = scene.children.find((o) => o.userData?.ground && o.isMesh);
