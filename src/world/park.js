@@ -3,6 +3,7 @@ import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { addTrails } from './pathribbon.js';
+import { BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, latheGeometry, dressFountain } from './parkfountain.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 
 // =============================================================================
@@ -210,38 +211,48 @@ export function build(scene, { water = {}, wind } = {}) {
   addTrails(scene, [{ segs: PARK_PATHS, w: 3 }], PARK_PATH_STYLE, 'park',
     { edge: PARK_PATH_EDGE, extend: PARK_PATH_EXTEND });
 
-  // fountain at the path junction. Dressed stone, map-less: a 12-sided basin
-  // and an 8-sided spire are the cylinder rule's worked example, and the spire
-  // is 0.2-0.3m across besides. 'cobble' (0.8) rather than 'wetStone' (0.55) —
-  // the sheen preset would put a bright bloom on a pale, sky-facing 2.6m drum,
-  // and the art direction's own rule is that between two defensible numbers the
-  // matter one wins. The rim is a shipped perch (kind 'stone'); nothing here
-  // changes its geometry, only its light response.
+  // fountain at the path junction. Dressed stone, map-less: a planar tile
+  // smears on a turned profile, and the column is 0.2-0.3m across besides.
+  // 'cobble' (0.8) rather than 'wetStone' (0.55) — the sheen preset would put
+  // a bright bloom on a pale, sky-facing 2.6m drum, and the art direction's own
+  // rule is that between two defensible numbers the matter one wins. The rim
+  // is a shipped perch (kind 'stone') and the collider stays r 3.
+  //
+  // polish-park2 Task 2: the glass-tube spire in a plain saucer becomes a
+  // two-tier stone fountain (parkfountain.js). The three constructor slots
+  // below are the shipped ones, in the shipped order — only the basin's and
+  // spire's geometry TYPE changed (cylinder -> lathe profile), which is still
+  // one geometry each, so the area's Math.random draws do not move. Everything
+  // new (upper water, falling drops, ripples) is made in dressFountain under
+  // local uuids.
   const fountain = new THREE.Group();
-  const basin = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.6, 0.6, 12),
+  const basin = new THREE.Mesh(latheGeometry(BASIN_PROFILE),
     surfNoMap(0xb8b8c0, 'cobble'));
-  basin.position.y = 0.3;
+  basin.name = 'fountainBasin';
   fountain.add(basin);
   // THE FOUNTAIN'S WATER KEEPS THE PRESET, and does not become a second
   // createWater. That is water.js's own split, written down in its ROUGH_DEEP
   // note: a body with a `waters` footprint record is drawn by createWater, and
   // water WITHOUT one — this disc, and the puddles — takes the 'water' preset.
   // The three reasons all hold here. It has no footprint record (v19 left it
-  // out deliberately: it is a r-2.2 disc wholly inside the basin's r-3
-  // collider, so the cat can never stand on or beside it). It is 4.4m across,
+  // out deliberately: it is a r-2.3 disc wholly inside the basin's r-3
+  // collider, so the cat can never stand on or beside it). It is 4.6m across,
   // which is smaller than createWater's 3m shelf plus 0.7m foam band — the ramp
   // would be all margin and no water. And it is a fountain basin: still, held,
   // and with no shoreline for a foam band to trace. Roughness 0.12 with no map
   // is exactly what a smooth dielectric film on a small disc wants, and the
   // colour is the one builder.puddle uses for the same reason.
-  const fountainWater = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.1, 12),
+  const fountainWater = new THREE.Mesh(
+    new THREE.CylinderGeometry(BASIN_WATER.r, BASIN_WATER.r, BASIN_WATER.h, BASIN_WATER.segments),
     litMaterial(0x8ab8d8, { surface: 'water' }));
-  fountainWater.position.y = 0.62;
+  fountainWater.position.y = BASIN_WATER.top - BASIN_WATER.h / 2;
+  fountainWater.name = 'fountainWater';
   fountain.add(fountainWater);
-  const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.4, 8),
+  const spire = new THREE.Mesh(latheGeometry(SPIRE_PROFILE),
     surfNoMap(0xb8b8c0, 'cobble'));
-  spire.position.y = 1.2;
+  spire.name = 'fountainSpire';
   fountain.add(spire);
+  dressFountain(fountain, { reducedMotion: !!water.reducedMotion });
   fountain.position.set(0, 0, 20);
   scene.add(fountain);
   addC(0, 20, 3);
@@ -417,7 +428,7 @@ export function build(scene, { water = {}, wind } = {}) {
       { id: 'feather-5', x: 4.5, z: 27.3, y: 2.1, label: 'a downy feather from way up high' },
     ],
     // The park's one body of water. See the POND note in this file's header;
-    // the fountain is not listed because its water disc (r 2.2) sits wholly
+    // the fountain is not listed because its water disc (r 2.29) sits wholly
     // inside the basin's own r-3 collider and has always been unreachable.
     waters: [POND],
     // The visual half of that same record: walk.js bundles these into a
