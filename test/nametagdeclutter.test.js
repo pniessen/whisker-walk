@@ -10,7 +10,7 @@ import {
 // a HUD box hides. Decided from last frame's natural rects (see nametag.js).
 
 const W = 1280, H = 720;
-const ent = (rect, depth, sub = false) => ({ rect, depth, sub });
+const ent = (rect, depth, sub = false, top = false) => ({ rect, depth, sub, top });
 const NONE = { hide: false, dropSub: false, lift: 0 };
 
 describe('declutterTags', () => {
@@ -102,6 +102,54 @@ describe('declutterTags', () => {
   });
 });
 
+describe('the leader goes on top', () => {
+  // At a camp the leader sits on the Highrock and the deputy just beside it:
+  // their tags meet. The leader's (top) is placed after every other tag, so it
+  // is the one that steps aside, and steps UP: it ends up above the deputy's.
+  it('a nearer leader lifts over a farther deputy, who is left alone', () => {
+    const leader = ent({ l: 100, t: 120, r: 300, b: 180 }, 4, false, true);
+    const deputy = ent({ l: 120, t: 140, r: 320, b: 200 }, 5);
+    const out = declutterTags([leader, deputy]);
+    expect(out.get(deputy)).toEqual(NONE);
+    const d = out.get(leader);
+    expect(d.hide).toBe(false);
+    expect(d.lift).toBe(180 - 140 + TAG_GAP_PX);
+  });
+
+  it('a two-line leader drops its rank line first, the deputy keeps both', () => {
+    // the deputy's tag above the leader's lower one: the rank line is enough
+    const leader = ent({ l: 100, t: 120, r: 300, b: 210 }, 4, true, true);
+    const deputy = ent({ l: 120, t: 50, r: 320, b: 140 }, 5, true);
+    const out = declutterTags([deputy, leader]);
+    expect(out.get(deputy)).toEqual(NONE);
+    expect(out.get(leader)).toEqual({ hide: false, dropSub: true, lift: 0 });
+  });
+
+  it('two leaders (a rival and the home one) fall back to depth order', () => {
+    const near = ent({ l: 100, t: 100, r: 300, b: 160 }, 4, false, true);
+    const far = ent({ l: 120, t: 120, r: 320, b: 180 }, 6, false, true);
+    const out = declutterTags([far, near]);
+    expect(out.get(near)).toEqual(NONE);
+    expect(out.get(far).lift).toBe(180 - 100 + TAG_GAP_PX);
+  });
+
+  it('makeNameTag marks a leader tag top, and no other', () => {
+    const prev = globalThis.document;
+    globalThis.document = {
+      createElement: () => ({ width: 0, height: 0, getContext: () => new Proxy({}, { get: () => () => ({ width: 10 }) }) }),
+    };
+    try {
+      expect(makeNameTag('Minnowstar', { sub: 'leader of BrookClan' }).userData.top).toBe(true);
+      expect(makeNameTag('Minnowstar', { sub: 'Leader of BrookClan' }).userData.top).toBe(true);
+      expect(makeNameTag('Reedtail', { sub: 'deputy of BrookClan' }).userData.top).toBeFalsy();
+      expect(makeNameTag('Leaderpaw').userData.top).toBeFalsy();
+    } finally {
+      if (prev === undefined) delete globalThis.document;
+      else globalThis.document = prev;
+    }
+  });
+});
+
 describe('fitTagToView rectOut', () => {
   it('fills the natural rect in CSS px, and leaves it alone off screen', () => {
     const cat = new THREE.Group();
@@ -177,8 +225,19 @@ describe('the render-time glue', () => {
     expect(tag.matrixWorld.equals(solo)).toBe(true);
   });
 
+  // The tag's on-screen height (up to a constant): its world height over its
+  // view depth. Each fitted tag is pulled toward the camera and shrunk by the
+  // same ratio (pullTag), so its world scale alone moves with the pull.
+  const screenH = (tag) => {
+    const e = tag.matrixWorld.elements;
+    const depth = -new THREE.Vector3(e[12], e[13], e[14]).applyMatrix4(cam.matrixWorldInverse).z;
+    return Math.hypot(e[4], e[5], e[6]) / depth;
+  };
+
   it('a dropped subtitle swaps to a one-line texture and back', () => {
-    const near = catTag(0, -5, { sub: 'leader of CliffClan' });
+    // (the near cat is the deputy: a leader's tag would be placed last, so
+    // it, not the far warrior's, would be the one to step aside)
+    const near = catTag(0, -5, { sub: 'deputy of CliffClan' });
     const far = catTag(0.1, -5.6, { sub: 'warrior of CliffClan' }, -0.52);
     const info = { render: { frame: 1 } };
     const r = { getSize: (v) => v.set(W, H), info };
@@ -188,14 +247,14 @@ describe('the render-time glue', () => {
       far.tag.onBeforeRender(r, null, cam);
     };
     frame(1);
-    const sy0 = Math.hypot(...far.tag.matrixWorld.elements.slice(4, 7));
+    const sy0 = screenH(far.tag);
     const map0 = far.tag.material.map;
     const nearMap0 = near.tag.material.map;
     frame(2);
     expect(far.tag.userData.fullMap).toBe(map0);
     expect(far.tag.material.map).not.toBe(far.tag.userData.fullMap);
     expect(far.tag.material.map).toBe(far.tag.userData.shortMap);
-    const sy2 = Math.hypot(...far.tag.matrixWorld.elements.slice(4, 7));
+    const sy2 = screenH(far.tag);
     expect(sy2 / sy0).toBeCloseTo(0.35 / 0.525, 9);
     expect(near.tag.material.map).toBe(nearMap0); // the nearer tag keeps its two lines
     // apart: two frames later it is whole again
@@ -204,11 +263,13 @@ describe('the render-time glue', () => {
     frame(3);
     frame(4);
     expect(far.tag.material.map).toBe(far.tag.userData.fullMap);
-    expect(Math.hypot(...far.tag.matrixWorld.elements.slice(4, 7))).toBeCloseTo(sy0, 6);
+    expect(screenH(far.tag)).toBeCloseTo(sy0, 6);
   });
 
   it('setNameTagMood refreshes the short texture', () => {
-    const near = catTag(0, -5, { sub: 'leader of CliffClan' });
+    // (the near cat is the deputy: a leader's tag would be placed last, so
+    // it, not the far warrior's, would be the one to step aside)
+    const near = catTag(0, -5, { sub: 'deputy of CliffClan' });
     const far = catTag(0.1, -5.6, { sub: 'warrior of CliffClan' }, -0.52);
     const info = { render: { frame: 100 } };
     const r = { getSize: (v) => v.set(W, H), info };
