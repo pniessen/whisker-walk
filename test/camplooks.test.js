@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS, RING_LEAF_FIRST, RING_BERRY_TRIS, caneTris } = await import('../src/world/camp.js');
+const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS, RING_LEAF_FIRST, RING_BERRY_TRIS, caneTris, HIGHROCK_TRIS } = await import('../src/world/camp.js');
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
 
 const CAMPS = ['woods', 'river', 'moor', 'pines'];
@@ -30,12 +30,14 @@ const ALL = [...CAMPS, 'gorge'];
 // position.count of each camp geometry, recorded on the code before
 // polish-camps3 (addCamp into a fresh Scene, { colliders: [] }; the Gorge with
 // its ground). The clearing is 57 since polish-camps4 (two-ring fading disc; was 30).
+// The rock is 3 * HIGHROCK_TRIS since polish-camps5 (the layered, mossy
+// Highrock; was 348, 116 triangles).
 const BASE_VERTS = {
-  woods: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
-  river: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
-  moor: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
-  pines: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
-  gorge: { campBedding: 1620, campRock: 348 },
+  woods: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
+  river: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
+  moor: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
+  pines: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
+  gorge: { campBedding: 1620, campRock: 3 * HIGHROCK_TRIS },
 };
 
 const build = (a) => {

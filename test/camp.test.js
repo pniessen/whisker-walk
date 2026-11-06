@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS, CLUMP_R, RING_CLUMP_TRIS, caneTris } = await import('../src/world/camp.js');
+const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS, CLUMP_R, RING_CLUMP_TRIS, caneTris, HIGHROCK_TRIS, HIGHROCK_BOULDER_TRIS } = await import('../src/world/camp.js');
 const { CAMP_DEN, WIDE_LEDGE_RECT, gorgeGround } = await import('../src/world/gorgeshape.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { DISCS } = await import('../src/rivalclans.js');
@@ -174,7 +174,9 @@ describe('addCamp', () => {
     return { scene, L, rock, verts, base };
   };
 
-  it('the Highrock is a boulder outcrop: within 0.8 m of its spot, 1.0 to 1.2 m tall, no more triangles than before', () => {
+  it('the Highrock is a boulder outcrop: within 0.8 m of its spot, 1.0 to 1.2 m tall, within its triangle budget', () => {
+    expect(HIGHROCK_TRIS).toBeLessThanOrEqual(116 + 450);
+    expect(HIGHROCK_BOULDER_TRIS).toBeLessThan(HIGHROCK_TRIS);
     for (const a of ROCK_CAMPS) {
       const { rock, verts } = buildRock(a);
       let top = -Infinity;
@@ -188,29 +190,74 @@ describe('addCamp', () => {
       expect(top, a).toBeLessThanOrEqual(1.2);
       const g = rock.geometry;
       expect(g.index, a).toBeNull();
-      expect(g.attributes.position.count / 3, a).toBeLessThanOrEqual(128);
+      expect(g.attributes.position.count / 3, a).toBe(HIGHROCK_TRIS);
     }
   });
 
-  it('the Highrock is shaded per face, dark at its foot, in the clan\'s rock colour', async () => {
+  // polish-camps5: a layered rock, its colour a per-face multiplier on the
+  // material's look.rock. The moss faces are the clan's nest moss: their
+  // multiplier is look.nest.moss / look.rock channel-wise (linear), times a
+  // scalar, so they are found by their channel ratios.
+  it('the Highrock is shaded per face in the clan\'s rock colour: dark at its foot and under its ledges, moss on its tops', async () => {
     const { campLook } = await import('../src/world/camp.js');
+    const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     for (const a of ROCK_CAMPS) {
       const { rock, verts } = buildRock(a);
+      const look = campLook(a);
       const col = rock.geometry.attributes.color;
+      const nrm = rock.geometry.attributes.normal;
       expect(col, a).toBeDefined();
+      expect(nrm, a).toBeDefined();
       expect(rock.material.vertexColors, a).toBe(true);
-      expect(rock.material.color.getHex(), a).toBe(campLook(a).rock);
-      let low = 0, lowN = 0, high = 0, highN = 0;
+      expect(rock.material.color.getHex(), a).toBe(look.rock);
+      const m = new THREE.Color(look.nest.moss);
+      const r = new THREE.Color(look.rock);
+      const moss = [m.r / r.r, m.g / r.g, m.b / r.b];
+      const isMoss = (c) => Math.abs(c[1] / c[0] - moss[1] / moss[0]) < 1e-3 * (moss[1] / moss[0])
+        && Math.abs(c[2] / c[0] - moss[2] / moss[0]) < 1e-3 * (moss[2] / moss[0]);
+      // green as drawn: the multiplier times look.rock (a pale lichen's
+      // multiplier over the Gorge's sandstone is greenish, its colour is not)
+      const shown = (c) => [c[0] * r.r, c[1] * r.g, c[2] * r.b];
+      const greenMoss = (m.g / m.r) > 1.15;
+      const faces = [];
       for (let t = 0; t < col.count; t += 3) {
         // one colour a face: all three corners the same
-        for (const k of [1, 2]) expect(col.getX(t + k), `${a} face ${t / 3}`).toBeCloseTo(col.getX(t), 6);
-        const y = (verts[t].y + verts[t + 1].y + verts[t + 2].y) / 3;
-        if (y < 0.25) { low += col.getX(t); lowN++; }
-        if (y > 0.7) { high += col.getX(t); highN++; }
-        expect(col.getX(t)).toBeGreaterThan(0.5);
-        expect(col.getX(t)).toBeLessThanOrEqual(1.1);
+        for (const k of [1, 2]) {
+          expect(col.getX(t + k), `${a} face ${t / 3}`).toBeCloseTo(col.getX(t), 6);
+          expect(col.getY(t + k), `${a} face ${t / 3}`).toBeCloseTo(col.getY(t), 6);
+          expect(col.getZ(t + k), `${a} face ${t / 3}`).toBeCloseTo(col.getZ(t), 6);
+        }
+        const c = [col.getX(t), col.getY(t), col.getZ(t)];
+        for (const ch of c) expect(ch, `${a} face ${t / 3}`).toBeGreaterThan(0);
+        faces.push({
+          c, l: lum(c), ny: nrm.getY(t),
+          y: (verts[t].y + verts[t + 1].y + verts[t + 2].y) / 3,
+          moss: isMoss(c),
+          grey: Math.abs(c[0] - c[1]) < 1e-6 && Math.abs(c[0] - c[2]) < 1e-6,
+        });
       }
-      expect(low / lowN, a).toBeLessThan(high / highN);
+      // dark at the foot, light at the top (the plain grey faces)
+      const mean = (fs) => fs.reduce((s, f) => s + f.l, 0) / fs.length;
+      const low = faces.filter((f) => f.grey && f.y < 0.25);
+      const high = faces.filter((f) => f.grey && f.y > 0.7);
+      expect(low.length, a).toBeGreaterThan(0);
+      expect(high.length, a).toBeGreaterThan(0);
+      expect(mean(low), a).toBeLessThan(mean(high));
+      // moss on up-facing faces, and only there
+      const mossy = faces.filter((f) => f.moss);
+      expect(mossy.filter((f) => f.ny > 0.55).length, a).toBeGreaterThan(4);
+      for (const f of mossy) expect(f.ny, `${a} moss`).toBeGreaterThan(0.5);
+      if (greenMoss) {
+        // (the River's blue-grey rock is itself a little green: greener than it)
+        const bar = Math.max(1.15, 1.15 * r.g / r.r);
+        const green = (f) => { const s = shown(f.c); return s[1] / s[0] > bar; };
+        expect(faces.some((f) => f.ny > 0.55 && green(f)), a).toBe(true);
+        for (const f of faces) if (green(f)) expect(f.ny, `${a} green`).toBeGreaterThan(0.5);
+      }
+      // dark joints under the ledges
+      const ls = faces.map((f) => f.l).sort((p, q) => p - q);
+      const median = ls[ls.length >> 1];
+      expect(faces.some((f) => f.ny < -0.2 && f.l < median), a).toBe(true);
     }
   });
 
@@ -235,13 +282,14 @@ describe('addCamp', () => {
       const kill = worldVerts(scene.getObjectByName('campKill')).map((v) => ({ x: v.x - L.rock.x, z: v.z - L.rock.z }));
       expect(kill.length, a).toBeGreaterThan(0);
       const dep = { x: L.seats.deputy.x - L.rock.x, z: L.seats.deputy.z - L.rock.z };
-      // the main boulder's 56 triangles come first, then the back stone and
-      // the two steps (20 each): the stones keep 0.25 m off the pile (the
-      // boulder is the collider's size, and the pile 0.3 m off its edge)
-      expect(verts.length, a).toBe(3 * (56 + 60));
+      // the main boulder's HIGHROCK_BOULDER_TRIS triangles come first, then
+      // the back stone and the two steps: the stones keep 0.25 m off the
+      // pile (the boulder is the collider's size, and the pile 0.3 m off its
+      // edge)
+      expect(verts.length, a).toBe(3 * HIGHROCK_TRIS);
       for (const [i, v] of verts.entries()) {
         const at = `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
-        if (i >= 3 * 56) for (const k of kill) expect(Math.hypot(v.x - k.x, v.z - k.z), at).toBeGreaterThanOrEqual(0.25);
+        if (i >= 3 * HIGHROCK_BOULDER_TRIS) for (const k of kill) expect(Math.hypot(v.x - k.x, v.z - k.z), at).toBeGreaterThanOrEqual(0.25);
         expect(Math.hypot(v.x - dep.x, v.z - dep.z), at).toBeGreaterThanOrEqual(0.45);
       }
     }
@@ -338,10 +386,12 @@ describe('addCamp', () => {
       expect(thornTris, a).toBeGreaterThan(0);
       expect(thornTris, a).toBe(3 * thorns);
       for (const cane of D.ring.canes) expect(caneTris(cane), a).toBe(6 * (cane.length - 1) + 3 * Math.floor((cane.length - 1) / 2));
-      // the whole camp is no dearer than before (River and Moor are at their caps)
+      // the whole camp is no dearer than before (River and Moor are at their
+      // caps); polish-camps5 gives each camp up to +700 over its 8,177 most
+      // (the Moor), the layered Highrock 294 of them
       let camp = 0;
       for (const o of scene.children) o.traverse((m) => { if (m.isMesh) camp += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });
-      expect(camp, a).toBeLessThanOrEqual(8400);
+      expect(camp, a).toBeLessThanOrEqual(8900);
       // ...and every clump is drawn
       for (const c of cs) expect(verts.some((v) => Math.hypot(v.x - c.x, v.z - c.z) <= CLUMP_R * c.s)).toBe(true);
       // the clearing lies flat just over the ground, within its radius

@@ -646,51 +646,93 @@ function doorGeometry(den, out) {
   return geo;
 }
 
-// The Highrock (polish-camps4): a stepped boulder the leader stands on, not
-// the armchair of slabs it was. Built around the origin (x, z 0, its foot at
+// The Highrock (polish-camps4, layered in polish-camps5): a stepped, layered
+// boulder the leader stands on. Built around the origin (x, z 0, its foot at
 // y 0) in a frame turned to `away`, the direction from the rock to its back
 // (a flat camp's is away from the camp's centre; the Gorge's is +x, inland,
 // as its leader looks west over the gorge), and moved to the rock's spot by
 // the caller. Four stones, all in one non-indexed, flat-shaded geometry:
-//  - the main boulder: eight sides, rings at y 0, 0.4, 0.68 and rock.h with
-//    radii 0.62, 0.66, 0.58 and 0.44, a little wider along the ring round
-//    the camp than out from its centre, every corner pushed in or out by up
-//    to 8 % (hash01; the top ring inward only) and a flat top cap at exactly
-//    rock.h (0.8), where the leader stands. 56 triangles, no bottom cap.
-//  - a back stone she leans on: a round, hash-jittered icosahedron behind her
-//    and turned off to one side (towards the fresh-kill pile), its top under
-//    1.15 m; its corners above 0.82 m all stay more than 0.44 m from the
-//    centre (corners only: a face between them can dip a few cm nearer just
-//    above the top, where only a paw or the tail could brush it).
-//  - two step boulders (icosahedra), tops ~0.5 and ~0.25 m, climbing round
-//    the side away from the pile, the low one nearer the camp, so the rock
-//    reads as a climb up to the top.
+//  - the main boulder: ten sides, laid in strata. Each stratum (at y ~0.25
+//    and ~0.51) is three rings: a joint ring drawn in under the ledge, the
+//    ledge's outer lip a few cm higher and wider (so the band between them
+//    faces down: a dark joint), and the ledge's top ring a little higher
+//    and 5-6 cm in (a nearly flat ledge, where moss grows); upright bands
+//    between strata. Then a rounded shoulder (y 0.72, r 0.5) into the top
+//    ring (rock.h, r 0.4) and a flat top cap at exactly rock.h (0.8), where
+//    the leader stands. A little wider along the ring round the camp than
+//    out from its centre, every corner pushed in or out by up to 6 % (hash01,
+//    one push for the rings of a stratum so a ledge keeps its depth; the top
+//    ring inward only), drawn in round the steps' side. No bottom cap.
+//    HIGHROCK_BOULDER_TRIS triangles, first in the geometry.
+//  - a back stone she leans on: a round, hash-jittered icosahedron (detail
+//    1, 80 triangles) behind her and turned off to one side (towards the
+//    fresh-kill pile), its top under 1.15 m; its corners above 0.82 m all
+//    stay more than 0.44 m from the centre (corners only: a face between
+//    them can dip a few cm nearer just above the top, where only a paw or
+//    the tail could brush it).
+//  - two step boulders (the same icosahedra), tops ~0.5 and ~0.25 m,
+//    climbing round the side away from the pile, the low one nearer the
+//    camp, so the rock reads as a climb up to the top.
 // No vertex is further than 0.78 m (x and z) from the centre, none further
 // back than 0.68 m along `away` (the Woods camp group stays under the
 // contact-shadow scan's MAX_SPAN 6.5) and none below y 0; the collider is
-// still the rock's r 0.6. Each face is coloured flat, a grey multiplier on
-// the material's look.rock: dark at the foot (0.72) to light at the top
-// (1.0), up-facing faces a touch lighter, ±6 % by a hash of the face. Every
-// hash takes the rock's spot as well, so no two camps' rocks are alike.
-// 116 triangles (it was 128).
+// still the rock's r 0.6. Each face is coloured flat, a multiplier on the
+// material's look.rock (opts.rock; it may pass 1 in a channel):
+//  - grey: dark at the foot (0.70) to light at the top (1.0), ±6 % by a hash
+//    of the face, each stone a touch darker (its tint);
+//  - faces facing down (under each ledge) × 0.62: dark joints;
+//  - a crack: the boulder's faces in one or two hash-picked columns × 0.7;
+//  - moss: up-facing faces (normal.y > 0.55), 60 % of them by hash (the top
+//    cap, the ledges, the shoulder and the stones' tops), in the clan's moss
+//    (opts.moss, look.nest.moss) × 0.85 ±6 %, divided channel-wise by
+//    look.rock (both linear), so the face shows that moss;
+//  - lichen: ~6 % of the other faces, pale 0xc9c79a over look.rock, × 0.95.
+// Every hash takes the rock's spot as well, so no two camps' rocks are alike.
 const HIGHROCK = {
-  rings: [[0, 0.62], [0.4, 0.66], [0.68, 0.58], [null, 0.44]], // [y, r]; null: rock.h
-  sides: 8,
+  // [y, r, stratum]; y null: rock.h. Rings of one stratum share a push.
+  rings: [
+    [0, 0.6, 0],
+    [0.2, 0.575, 1], [0.25, 0.655, 1], [0.27, 0.6, 1],  // joint, lip, ledge
+    [0.46, 0.58, 2], [0.51, 0.64, 2], [0.53, 0.58, 2], // joint, lip, ledge
+    [0.72, 0.5, 3],                                     // the shoulder
+    [null, 0.4, 4],                                     // the top ring
+  ],
+  sides: 10,
   along: 1.05,   // the ring-wise stretch ...
   out: 0.93,     // ... and the outward squash
-  push: 0.08,
+  push: 0.06,
+  tilt: 0.015,   // a stratum's rings rise or fall this much a corner, together
   stepSide: 0.16, // the boulder drawn in this share where the steps climb
   reach: 0.78,   // no vertex further from the centre (x and z)
   back: 0.68,    // nor further back along `away`
   clear: 0.44,   // a corner above clearY stays this far from the centre
   clearY: 0.82,
+  stoneDetail: 1, // IcosahedronGeometry detail: 80 triangles a stone
   // stones: [turn off `away` (times side), out, y, rOut, rAlong, rY, tint, salt]
   stones: [
     [-0.9, 0.5, 0.74, 0.27, 0.34, 0.38, 0.95, 31], // the back stone, to the pile's side
     [1.25, 0.5, 0.25, 0.27, 0.3, 0.29, 0.9, 32],    // the high step, top ~0.5
     [2.05, 0.58, 0.12, 0.22, 0.27, 0.15, 0.88, 33], // the low step, top ~0.25
   ],
+  base: 0.7,     // the grey at the foot (1.0 at the top)
+  joint: 0.62,   // a face facing down
+  crack: 0.7,
+  mossUp: 0.55,  // normal.y above this: a top moss can grow on ...
+  mossShare: 0.6, // ... and does on this share of them
+  mossShade: 0.85,
+  lichen: 0xc9c79a,
+  lichenShare: 0.06,
+  lichenShade: 0.95,
 };
+/** Triangles in the Highrock's main boulder (first in its geometry) and in all. */
+export const HIGHROCK_BOULDER_TRIS = (HIGHROCK.rings.length - 1) * 2 * HIGHROCK.sides + HIGHROCK.sides;
+export const HIGHROCK_TRIS = HIGHROCK_BOULDER_TRIS + HIGHROCK.stones.length * 20 * (HIGHROCK.stoneDetail + 1) ** 2;
+/**
+ * highrockGeometry(rockSpot, away, opts) -> BufferGeometry: the Highrock round
+ * the origin. opts.kill: the fresh-kill pile's x, z from the rock (the steps
+ * climb the other side); opts.rock, opts.moss: the clan's look.rock and
+ * look.nest.moss (hex or THREE.Color; the woods' when absent).
+ */
 function highrockGeometry(rockSpot, away, opts = {}) {
   const ox = rockSpot.x;
   const oz = rockSpot.z;
@@ -710,7 +752,7 @@ function highrockGeometry(rockSpot, away, opts = {}) {
   // the main boulder
   const { sides } = HIGHROCK;
   const phase = hash01(ox, 0, oz, 30) * (Math.PI * 2 / sides);
-  const rings = HIGHROCK.rings.map(([y0, r], ri) => {
+  const rings = HIGHROCK.rings.map(([y0, r, stratum], ri) => {
     const y = y0 ?? top;
     const last = ri === HIGHROCK.rings.length - 1;
     const pts = [];
@@ -718,9 +760,9 @@ function highrockGeometry(rockSpot, away, opts = {}) {
       // each ring turned half a side on from the one under it, so the
       // faces are triangles, not upright panels
       const a = phase + ((j + ri / 2) / sides) * Math.PI * 2;
-      const h = hash01(ox + j, ri, oz, 34);
+      const h = hash01(ox + j, stratum, oz, 34);
       const push = last ? 1 - h * HIGHROCK.push : 1 + (h * 2 - 1) * HIGHROCK.push;
-      const dy = ri === 1 || ri === 2 ? (hash01(ox, ri, oz + j, 35) - 0.5) * 0.08 : 0;
+      const dy = stratum === 1 || stratum === 2 ? (hash01(ox, stratum, oz + j, 35) * 2 - 1) * HIGHROCK.tilt : 0;
       // drawn in round the steps' side, so they stand out of it
       const lean = Math.max(0, Math.cos(a - side * 1.6)) ** 2 * HIGHROCK.stepSide;
       const rr = r * push * (1 - (last ? 0 : lean));
@@ -729,17 +771,27 @@ function highrockGeometry(rockSpot, away, opts = {}) {
     }
     return pts;
   });
+  // the crack: one or two columns of side faces
+  const crackA = Math.floor(hash01(ox, 1, oz, 39) * sides);
+  const crackB = hash01(ox, 2, oz, 39) < 0.5 ? (crackA + 3 + Math.floor(hash01(ox, 3, oz, 39) * 4)) % sides : -1;
+  const cracked = [];
   for (let ri = 0; ri + 1 < rings.length; ri++) {
     const lo = rings[ri];
     const hi = rings[ri + 1];
     for (let j = 0; j < sides; j++) {
       const n = (j + 1) % sides;
+      const crack = j === crackA || j === crackB;
       tri(lo[j], hi[j], lo[n]);
+      cracked.push(crack);
       tri(lo[n], hi[j], hi[n]);
+      cracked.push(crack);
     }
   }
   const crown = rings[rings.length - 1];
-  for (let j = 0; j < sides; j++) tri([0, top, 0], crown[(j + 1) % sides], crown[j]);
+  for (let j = 0; j < sides; j++) {
+    tri([0, top, 0], crown[(j + 1) % sides], crown[j]);
+    cracked.push(false);
+  }
 
   // the back stone and the steps
   for (const [turn, d, y, rOut, rAlong, rY, stoneTint, salt] of HIGHROCK.stones) {
@@ -747,7 +799,7 @@ function highrockGeometry(rockSpot, away, opts = {}) {
     const a = away + turn * side;
     const cxs = Math.cos(a) * d;
     const czs = Math.sin(a) * d;
-    const ico = new THREE.IcosahedronGeometry(1, 0);
+    const ico = new THREE.IcosahedronGeometry(1, HIGHROCK.stoneDetail);
     const p = ico.attributes.position;
     const ca = Math.cos(a);
     const sa = Math.sin(a);
@@ -766,6 +818,7 @@ function highrockGeometry(rockSpot, away, opts = {}) {
         face.push([cxs + lo * ca - la * sa, Math.max(0, y + uy * rY * j), czs + lo * sa + la * ca]);
       }
       tri(face[0], face[1], face[2]);
+      cracked.push(false);
     }
     ico.dispose();
   }
@@ -790,16 +843,38 @@ function highrockGeometry(rockSpot, away, opts = {}) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.computeVertexNormals();
   const nrm = geo.attributes.normal;
+  // the moss and the lichen as multipliers on look.rock (linear colours)
+  const rockC = new THREE.Color(opts.rock ?? WOODS_LOOK.rock);
+  const over = (c) => [c.r / Math.max(rockC.r, 1e-4), c.g / Math.max(rockC.g, 1e-4), c.b / Math.max(rockC.b, 1e-4)];
+  const moss = over(new THREE.Color(opts.moss ?? WOODS_LOOK.nest.moss));
+  const lichen = over(new THREE.Color(HIGHROCK.lichen));
   const col = new Float32Array(pos.length);
   for (let t = 0; t < pos.length; t += 9) {
+    const f = t / 9;
     const cy = (pos[t + 1] + pos[t + 4] + pos[t + 7]) / 3;
     const cx = (pos[t] + pos[t + 3] + pos[t + 6]) / 3;
     const cz = (pos[t + 2] + pos[t + 5] + pos[t + 8]) / 3;
-    let g = 0.72 + 0.28 * Math.min(1, cy / top);
-    g *= tints[t / 9] * (1 + (hash01(cx + ox, cy, cz + oz, 38) * 2 - 1) * 0.06);
-    if (nrm.getY(t / 3) > 0.6) g += 0.04;
-    g = Math.min(1.06, g);
-    for (let m = 0; m < 9; m++) col[t + m] = g;
+    const ny = nrm.getY(t / 3);
+    const jit = 1 + (hash01(cx + ox, cy, cz + oz, 38) * 2 - 1) * 0.06;
+    const pick = hash01(cx + ox, cy, cz + oz, 40);
+    let rgb;
+    if (ny > HIGHROCK.mossUp && pick < HIGHROCK.mossShare) {
+      const g = HIGHROCK.mossShade * jit;
+      rgb = [moss[0] * g, moss[1] * g, moss[2] * g];
+    } else if (ny <= HIGHROCK.mossUp && ny >= -0.2 && pick < HIGHROCK.lichenShare) {
+      const g = HIGHROCK.lichenShade;
+      rgb = [lichen[0] * g, lichen[1] * g, lichen[2] * g];
+    } else {
+      let g = (HIGHROCK.base + (1 - HIGHROCK.base) * Math.min(1, Math.max(0, cy / top))) * tints[f] * jit;
+      if (ny < -0.2) g *= HIGHROCK.joint;
+      if (cracked[f]) g *= HIGHROCK.crack;
+      rgb = [g, g, g];
+    }
+    for (let m = 0; m < 9; m += 3) {
+      col[t + m] = rgb[0];
+      col[t + m + 1] = rgb[1];
+      col[t + m + 2] = rgb[2];
+    }
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeBoundingBox();
@@ -1377,7 +1452,9 @@ function addLedgeCamp(scene, area, L) {
   const D = campDressing('gorge', area.colliders);
   const made = withLocalUuids('gorge', () => ({
     // the leader looks west, so the rock's back is +x (away 0), inland
-    rock: highrockGeometry(L.rock, 0, { kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z } }),
+    rock: highrockGeometry(L.rock, 0, {
+      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.nest.moss,
+    }),
     nests: nestsMesh(D.nests, look, groundY, 0.5),
     kill: killMesh(D.kill, groundY),
   }));
@@ -1440,7 +1517,7 @@ export function addCamp(scene, area, areaId) {
     den: denGeometry(L.den, out, look),
     door: doorGeometry(L.den, out),
     rock: highrockGeometry(L.rock, Math.atan2(L.rock.z - L.cz, L.rock.x - L.cx), {
-      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z },
+      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.nest.moss,
     }).translate(L.rock.x, 0, L.rock.z),
     nests: nestsMesh(D.nests, look),
     kill: killMesh(D.kill),
