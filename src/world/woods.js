@@ -292,6 +292,33 @@ export function woodsTreeSpots() {
   return spots;
 }
 
+// A few big old oaks (polish-canopies): up to five of the wood's trees, the
+// ones nearest the camp or the trail (within OLD_OAK_CAMP of the camp centre
+// or OLD_OAK_PATH of a path), become the wider, darker 'old' canopy, so the
+// places the kids pass most have a landmark crown. Ranked by a hash, at least
+// OLD_OAK_APART apart, and never inside the camp's own disc (the crown is
+// wide). Pure: returns a Set of indices into the spots list.
+const OLD_OAK_CAMP = 16;
+const OLD_OAK_PATH = 6;
+const OLD_OAK_APART = 7;
+const OLD_OAK_MAX = 5;
+export function woodsOldOaks(spots) {
+  const L = campLayout('woods');
+  const disc = DISCS.woods;
+  const near = (x, z) => Math.hypot(x - L.cx, z - L.cz) <= OLD_OAK_CAMP || WOODS_PATHS.some((s) => segDist(x, z, ...s) <= OLD_OAK_PATH);
+  const free = (x, z) => Math.hypot(x - L.cx, z - L.cz) > disc.r && Math.hypot(x - L.den.x, z - L.den.z) > L.den.r + 1 && Math.hypot(x - L.rock.x, z - L.rock.z) > L.rock.r + 1;
+  const ranked = spots
+    .map(({ x, z }, i) => ({ x, z, i, h: b.hash01(x, z, 77) }))
+    .filter(({ x, z }) => near(x, z) && free(x, z))
+    .sort((p, q) => q.h - p.h || p.i - q.i);
+  const taken = [];
+  for (const c of ranked) {
+    if (taken.length >= OLD_OAK_MAX) break;
+    if (taken.every((t) => Math.hypot(t.x - c.x, t.z - c.z) >= OLD_OAK_APART)) taken.push(c);
+  }
+  return new Set(taken.map((t) => t.i));
+}
+
 // The undergrowth: ferns all through the wood and a few bramble thickets,
 // seeded by name like the trees. None has a collider (a cat pushes through),
 // and every clump keeps off the paths, the decks, the water's edge, the
@@ -679,8 +706,10 @@ export function build(scene, { water = {}, wind } = {}) {
   // A collider a little wider than the trunk, growing with it, and a Sure
   // Claws fork on every one (climbing.js caps the fork at 1.9, so no scenery
   // tree out-tops the Great Oak's branch).
-  for (const { x, z, scale } of woodsTreeSpots()) {
-    scene.add(b.tree(x, z, scale, { wind }));
+  const treeSpots = woodsTreeSpots();
+  const oldOaks = woodsOldOaks(treeSpots);
+  for (const [i, { x, z, scale }] of treeSpots.entries()) {
+    scene.add(b.tree(x, z, scale, oldOaks.has(i) ? { wind, kind: 'old' } : { wind }));
     addC(x, z, r2(0.5 * scale));
     perches.push(sureClawsTreePerch(x, z, scale));
   }
@@ -698,7 +727,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // The Great Oak, with its mossy boulder at the foot, and Lookout Rocks on
   // the lakeshore: a low rock and a tall flat-topped one, its top at the 1.9
   // perch. Named so test/woods.test.js can find the oak and see past it.
-  const oak = b.tree(GREAT_OAK.x, GREAT_OAK.z, GREAT_OAK.scale, { wind });
+  const oak = b.tree(GREAT_OAK.x, GREAT_OAK.z, GREAT_OAK.scale, { wind, kind: 'oak' });
   oak.name = 'greatOak';
   // The low branch the golden mouse sits out on (src/goldmice.js), reaching
   // west from the trunk to just past the mouse, its top under the mouse's

@@ -160,4 +160,39 @@ describe('canopy kinds', () => {
     build(scene, {});
     expect(() => mergeStaticProps(scene)).not.toThrow();
   }, 120_000);
+
+  describe('old oaks in the Woods', () => {
+    it('woodsOldOaks picks 4-6 spots by the camp or the trail, apart, deterministically; woodsTreeSpots is unchanged', async () => {
+      const { woodsTreeSpots, woodsOldOaks, WOODS_PATHS } = await import('../src/world/woods.js');
+      const { campLayout } = await import('../src/world/camp.js');
+      const { segDist } = await import('../src/segdist.js');
+      const spots = woodsTreeSpots();
+      expect(spots.length).toBe(69);
+      expect(spots.slice(0, 3)).toEqual([{ x: -7.61, z: -46.95, scale: 1.07 }, { x: 3.44, z: -45.4, scale: 1.09 }, { x: 9.32, z: -45.67, scale: 1.51 }]);
+      expect(spots.slice(-3)).toEqual([{ x: 25.81, z: 34.65, scale: 1.58 }, { x: 32.86, z: 34.33, scale: 1.27 }, { x: 44.34, z: 34.83, scale: 1.2 }]);
+      const old = woodsOldOaks(spots);
+      expect([...woodsOldOaks(spots)]).toEqual([...old]);
+      expect(old.size).toBeGreaterThanOrEqual(4);
+      expect(old.size).toBeLessThanOrEqual(6);
+      const L = campLayout('woods');
+      const picked = [...old].map((i) => spots[i]);
+      for (const { x, z } of picked) {
+        const ok = Math.hypot(x - L.cx, z - L.cz) <= 16 || WOODS_PATHS.some((s) => segDist(x, z, ...s) <= 6);
+        expect(ok).toBe(true);
+      }
+      for (let i = 0; i < picked.length; i++) {
+        for (let j = i + 1; j < picked.length; j++) expect(Math.hypot(picked[i].x - picked[j].x, picked[i].z - picked[j].z)).toBeGreaterThanOrEqual(7);
+      }
+    });
+
+    it('a built Woods has those old oaks, and a Great Oak of kind oak', async () => {
+      const { build, woodsTreeSpots, woodsOldOaks } = await import('../src/world/woods.js');
+      const scene = new THREE.Scene();
+      build(scene);
+      const kinds = [];
+      scene.traverse((o) => { if (o.userData?.canopyKind) kinds.push(o.userData.canopyKind); });
+      expect(kinds.filter((k) => k === 'old').length).toBe(woodsOldOaks(woodsTreeSpots()).size);
+      expect(scene.getObjectByName('greatOak').userData.canopyKind).toBe('oak');
+    }, 120_000);
+  });
 });
