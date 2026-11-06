@@ -203,10 +203,19 @@ const CLUMP_SEAT_GAP = 0.5;   // from any seat, and from the den's and rock's ed
 // kept clump, `seat` off every seat, `edge` off the den's, the rock's and
 // every collider's edge, and inside the ring's arc (never in the gap); a cane
 // splits where points drop, and a run under 3 points vanishes.
+// polish-brambles: more, shorter arches (len 1.8..2.8, was 2.6..3.8) that
+// lie over the mounds' tops (peak 0.72..0.85, was 0.7..0.9; non-gate clumps
+// are at most 0.8 m), rising out of the leaves (foot 0.28 m, was 0.08: the
+// base is hidden in the mound), and a thin cane (0.03 -> 0.014, was 0.036 ->
+// 0.016). No step climbs or falls more than `slope` times its run along the
+// ground (a steep foot is lowered to fit), so a cane arches gently instead of
+// standing up like a pole, and none rises more than `over` above the tallest
+// clump within `near` of it, so it lies over the mounds' tops instead of
+// towering over a small one. Thorns: THORN below.
 const CANE = {
-  len: [2.6, 3.8], stagger: 1.6, step: 0.4, weave: 0.18, waves: [0.8, 1.4],
-  foot: 0.08, peak: [0.7, 0.9], skew: 0.2, bob: 0.1, bobs: [2, 3.5], w0: 0.036, w1: 0.016,
-  near: 0.45, seat: 0.4, edge: 0.25,
+  len: [1.8, 2.8], stagger: 1.6, step: 0.4, weave: 0.18, waves: [0.8, 1.4],
+  foot: 0.28, peak: [0.72, 0.85], skew: 0.2, bob: 0.1, bobs: [2, 3.5], w0: 0.03, w1: 0.014,
+  near: 0.45, seat: 0.4, edge: 0.25, slope: 0.45, over: 0.1,
 };
 const CLEARING_IN = 0.7;      // the clearing's radius: ring.r - 0.7
 const NEST_R = 0.4;
@@ -222,8 +231,9 @@ const KILL_EDGE_GAP = 0.3;
 const LEDGE_KILL = frozen({ gorge: frozen({ x: 9.4, z: 42.7 }) });
 
 // The ring's canes (CANE): pure, from hash01 of the camp's centre alone.
-// `clear(p)` is campDressing's seat and collider rule for a point.
-function ringCanes(cx, cz, ringR, gapA, span, clumps, clear) {
+// `clear(p)` is campDressing's seat and collider rule for a point; `placed`
+// is every clump before the colliders dropped any (the height cap's).
+function ringCanes(cx, cz, ringR, gapA, span, clumps, placed, clear) {
   const arc = span * ringR;
   const lerp = ([lo, hi], t) => lo + (hi - lo) * t;
   const runs = [];
@@ -240,7 +250,7 @@ function ringCanes(cx, cz, ringR, gapA, span, clumps, clear) {
       const bobs = lerp(CANE.bobs, h(5));
       // the peak off the middle (u 0.3..0.7): a cane leans one way
       const tip = 0.5 + CANE.skew * (h(6) * 2 - 1);
-      let run = [];
+      const pts = [];
       for (let j = 0; j <= m; j++) {
         const u = j / m;
         const s = s0 + u * len;
@@ -250,7 +260,27 @@ function ringCanes(cx, cz, ringR, gapA, span, clumps, clear) {
         const arch = Math.sin(Math.PI * v);
         const y = Math.min(peak, CANE.foot + (peak - CANE.foot) * arch
           + CANE.bob * arch * Math.sin(2 * Math.PI * (u * bobs + bobPhase)));
-        const p = { x: cx + Math.cos(a) * d, y, z: cz + Math.sin(a) * d, w: CANE.w0 + (CANE.w1 - CANE.w0) * u };
+        pts.push({ s, p: { x: cx + Math.cos(a) * d, y, z: cz + Math.sin(a) * d, w: CANE.w0 + (CANE.w1 - CANE.w0) * u } });
+      }
+      // polish-brambles: a point no more than `over` above the tallest clump
+      // near it, then no step may climb (or fall) more than `slope` times its
+      // run along the ground, forward then back; a point is lowered, never
+      // raised.
+      for (const { p } of pts) {
+        const top = placed.reduce((t, c) => (Math.hypot(p.x - c.x, p.z - c.z) <= CANE.near ? Math.max(t, c.h) : t), 0);
+        if (top > 0) p.y = Math.min(p.y, top + CANE.over);
+      }
+      const rise = (q, p) => CANE.slope * Math.hypot(p.x - q.x, p.z - q.z);
+      for (let j = 1; j <= m; j++) {
+        const q = pts[j - 1].p;
+        pts[j].p.y = Math.min(pts[j].p.y, q.y + rise(q, pts[j].p));
+      }
+      for (let j = m - 1; j >= 0; j--) {
+        const q = pts[j + 1].p;
+        pts[j].p.y = Math.min(pts[j].p.y, q.y + rise(q, pts[j].p));
+      }
+      let run = [];
+      for (const { s, p } of pts) {
         const keep = s > 0.05 && s < arc - 0.05
           && clumps.some((c) => Math.hypot(p.x - c.x, p.z - c.z) <= CANE.near)
           && clear(p);
@@ -306,6 +336,9 @@ export function campDressing(areaId, colliders = []) {
   const rng = mulberry32(seedFromCode(`camp-${areaId}`));
   const lerp = ([lo, hi], t) => lo + (hi - lo) * t;
   const clumps = [];
+  // every clump the layout keeps, before the colliders drop any: the canes'
+  // height cap reads these, so a collider never moves a cane point it keeps
+  const placed = [];
   for (let i = 0; i < n; i++) {
     // slot centres strictly inside the arc, half a step in from each gap edge
     const a = gapA + RING_GAP_HALF + ((i + 0.5) / n) * span;
@@ -319,6 +352,7 @@ export function campDressing(areaId, colliders = []) {
     const c = { x: cx + Math.cos(a) * d, z: cz + Math.sin(a) * d, s, h, rot, row, gate };
     if (seats.some((p) => near(c, p) < CLUMP_SEAT_GAP)) continue;
     if ([L.den, L.rock].some((p) => near(c, p) - p.r < CLUMP_SEAT_GAP)) continue;
+    placed.push(c);
     if (cols.some((k) => near(c, k) < k.r + Math.max(0.25, CLUMP_R * s + 0.05))) continue;
     clumps.push(c);
   }
@@ -339,7 +373,7 @@ export function campDressing(areaId, colliders = []) {
   // the first spot, so a future layout change still draws a pile.
   if (!kill) kill = { x: L.rock.x + Math.cos(toCentre + KILL_TURNS[0]) * KILL_D[0], z: L.rock.z + Math.sin(toCentre + KILL_TURNS[0]) * KILL_D[0] };
 
-  const canes = ringCanes(cx, cz, ringR, gapA, span, clumps, (p) => (
+  const canes = ringCanes(cx, cz, ringR, gapA, span, clumps, placed, (p) => (
     seats.every((q) => near(p, q) >= CANE.seat)
     && [L.den, L.rock, ...cols].every((k) => near(p, k) - k.r >= CANE.edge)));
 
@@ -356,8 +390,10 @@ const DEN_SQUASH = 0.8;
 
 // Each clan's camp in its own colours (polish-camps3). One record per camp:
 //   ring:  greens (a clump's green, by hash), strand (the bramble canes),
-//          specks ([hex, share]: berries, flowers, seed heads; a share of the
-//          clumps' triangles recoloured whole, by a hash of each centroid)
+//          specks ([hex, share]: flowers, seed heads, dark fruit; a share of
+//          the core and crown triangles recoloured whole, by a hash of each
+//          centroid), fruit ([hex, weight]: the berries' colours) and
+//          fruitShare (the share of clumps in fruit; the rest carry green buds)
 //   den:   base (the mound, dark at its foot), streak (new growth), strand
 //          (the woven strands and bands), frame (the doorway's stick arch)
 //   floor: the clearing's colour and its SURFACE_PRESETS surface
@@ -371,7 +407,10 @@ const deepFreeze = (o) => {
 };
 const WOODS_LOOK = {
   // StormClan: oak and fern bramble, blackberries
-  ring: { greens: [0x34521f, 0x46632a, 0x2a421c], strand: 0x3a2a18, specks: [[0x4a1430, 0.07], [0x9a2630, 0.03]] },
+  ring: {
+    greens: [0x34521f, 0x46632a, 0x2a421c], strand: 0x5a2f22, specks: [[0x4a1430, 0.035], [0x9a2630, 0.015]],
+    fruit: [[0x2b0d22, 0.75], [0xa3222c, 0.25]], fruitShare: 0.8,
+  },
   den: { base: 0x34481f, streak: 0x62803a, strand: 0x3a2c1c, frame: 0x5a4128 },
   floor: { color: 0xa4845c, surface: 'sand' },   // trampled earth
   nest: { moss: 0x6f8f3a, bracken: 0x8a6a3a },
@@ -381,7 +420,10 @@ export const CAMP_LOOKS = deepFreeze({
   woods: WOODS_LOOK,
   // BrookClan: reeds and pebbles, bulrush heads; a woven reed and straw den
   river: {
-    ring: { greens: [0x5e7f48, 0x6f8c50, 0x4a7466], strand: 0x56603a, specks: [[0x5e4630, 0.04]] },
+    ring: {
+      greens: [0x5e7f48, 0x6f8c50, 0x4a7466], strand: 0x6a4a30, specks: [[0x5e4630, 0.02]],
+      fruit: [[0x2b0d22, 0.8], [0xa3222c, 0.2]], fruitShare: 0.55,
+    },
     den: { base: 0x5a6a3a, streak: 0xa29e62, strand: 0x4a5a34, frame: 0x6a5a3a },
     floor: { color: 0xbdb8a8, surface: 'gravel' }, // pale pebbles
     nest: { moss: 0x6f9a6a, bracken: 0xb0a46a },
@@ -389,7 +431,10 @@ export const CAMP_LOOKS = deepFreeze({
   },
   // GaleClan: gorse and heather in flower; a dry heather den
   moor: {
-    ring: { greens: [0x56632a, 0x667030, 0x48522a], strand: 0x3e3622, specks: [[0xc9a42e, 0.06], [0x8a5a80, 0.05]] },
+    ring: {
+      greens: [0x56632a, 0x667030, 0x48522a], strand: 0x5a3a26, specks: [[0xc9a42e, 0.03], [0x8a5a80, 0.025]],
+      fruit: [[0xe0b82e, 0.6], [0x2b0d22, 0.4]], fruitShare: 0.7,
+    },
     den: { base: 0x4a4030, streak: 0x8a5a80, strand: 0x3a3022, frame: 0x6a5a3e },
     floor: { color: 0x84984f, surface: 'grass' },  // cropped turf
     nest: { moss: 0x8a6a80, bracken: 0xa89a62 },
@@ -397,7 +442,10 @@ export const CAMP_LOOKS = deepFreeze({
   },
   // DuskClan: needles and moss, fern tips; a moss den
   pines: {
-    ring: { greens: [0x1d3a2f, 0x27483a, 0x15302a], strand: 0x24263a, specks: [[0x4f7a3a, 0.07]] },
+    ring: {
+      greens: [0x1d3a2f, 0x27483a, 0x15302a], strand: 0x4a3040, specks: [[0x4f7a3a, 0.035]],
+      fruit: [[0x2b0d22, 0.8], [0x8a1c2a, 0.2]], fruitShare: 0.6,
+    },
     den: { base: 0x1e3228, streak: 0x3e5e3a, strand: 0x2a2620, frame: 0x3e2e22 },
     floor: { color: 0x7a5a3c, surface: 'sand' },   // needle litter
     nest: { moss: 0x5f8a3a, bracken: 0x6a4a30 },
@@ -430,8 +478,15 @@ const DEN_LOOK = {
 const DOOR = { w: 0.3, y: 0.3, at: 1.04, tilt: 0.31 };
 const FRAME_AT = 1.02;
 const RING_LOOK = {
-  foot: 0.62,         // a clump's green, times, at its foot ...
-  crown: 1.12,        // ... and at its crown (specks are not shaded)
+  coreFoot: 0.42,     // a clump's green, times, at the dark core's foot ...
+  coreTop: 0.78,      // ... and at its top
+  crownFoot: 0.78,    // the crown lumps' green, times, at their foot ...
+  crownTop: 1.22,     // ... and at their top (specks are not shaded)
+  leafTint: 0x9ab04a, // the leaf cards: the clump's green, lerped toward this ...
+  leafMix: 0.25,      // ... by this much ...
+  leafLo: 1.0,        // ... times leafLo to leafHi, by hash
+  leafHi: 1.3,
+  bud: 0.7,           // a clump out of fruit: its berries are buds, green times this
   lumpIn: -0.2,       // a lump vertex's pull towards its clump's foot ...
   lumpOut: 0.05,      // ... or push away from it (lumpy, in ringMesh)
 };
@@ -805,30 +860,21 @@ function speckle(geo, specks, salt) {
   return geo;
 }
 
-// The bramble wall (polish-viewclear): each clump a wide main lump (an
-// icosahedron, 20 triangles) and a taller, smaller one behind it on the outer
-// side (an octahedron, 8), every vertex within CLUMP_R · s of the clump's spot
-// and no higher than its h; the staggered rows (campDressing) put neighbours
-// 0.41 to 0.57 m apart and 0.36 m along the ring, about the main lumps' own
-// width (0.39 to 0.59 m across), so big neighbours meet or overlap and small
-// ones leave a gap the other row's lumps and the back lumps mostly fill.
-// polish-camps4: the lumps are lumpier, each vertex pulled in or pushed out
-// about its clump's foot (lumpy below: x 0.8 to 1.05, by a hash of the world
-// vertex, so the two copies of a seam vertex move together and the faces stay
-// closed; never above h, never out of the footprint), the main lump's crown
-// raised from 0.85 h to 0.92 h to make up the pull, and the old arched
-// strands (a little half torus over every other pair of clumps, which read as
-// apples with stalks) are gone. In their place the canes (campDressing
-// ring.canes): long arching bramble canes woven along the ring in two
-// staggered layers, in and out across both rows and over and under the
-// crowns, each a tapered 3-sided tube (6 triangles a segment) in the clan's
-// strand colour, so the wall reads as a tangle, not a row of balls. The
-// clan's greens by hash, dark at the foot, with the clan's specks on the
-// lumps (speckle; the canes carry none). One vertex-coloured mesh, out of the
-// shadow pass: 28 triangles a clump and 6 a cane segment, 3,240 to 3,258 a camp,
-// under the 3,360 the strands cost, so the River and the Moor stay under the
-// area's 60,000 (test/budget.test.js; ruling R7). No ring vertex is above 1 m
-// (ruling R3).
+// The bramble wall: each clump a leafy bramble mound (ringMesh and the
+// polish-brambles block before it: core, crown lumps, leaf cards, berries;
+// RING_CLUMP_TRIS = 59 a clump), every vertex within CLUMP_R · s of the
+// clump's spot and no higher than its h, the lumps made lumpy here (each
+// vertex pulled in or pushed out about its clump's foot, x 0.8 to 1.05 by a
+// hash of the world vertex, so the two copies of a seam vertex move together
+// and the faces stay closed). Over them the canes (campDressing ring.canes,
+// CANE): bramble canes woven along the ring in two staggered layers, in and
+// out across both rows, each a tapered 3-sided tube with thorns (caneTris: 6
+// a segment, 3 a thorn) in the clan's strand colour, so the wall reads as a
+// tangle, not a row of balls. The clan's greens by hash, dark at the foot,
+// with the clan's specks on the lumps (speckle; leaves, berries and canes
+// carry none). One vertex-coloured mesh, out of the shadow pass, 6,033 to
+// 6,066 triangles a camp, under the area's 70,000 (test/budget.test.js). No
+// ring vertex is above 1 m (ruling R3).
 //
 // Ruling R4: the wall has no collider. A collider would change the walkable
 // ground, the clan cats' routes and the flat trace for the Woods, River, Moor
@@ -846,21 +892,39 @@ const lumpy = (geo, c) => {
   return geo;
 };
 
+// polish-brambles: a thorn at every odd interior point of a cane (j = 1, 3,
+// ... <= n - 2): a 3-sided spike (3 triangles, no base) out of the tube's
+// surface at a hash angle round it, its base `base`·w across, `len0 + len1`·w
+// long, tilted `tilt` rad toward the cane's tip, in the strand colour × `lift`
+// (clamped), every vertex kept between the ground and 1 m.
+const THORN = { base: 0.6, len0: 0.05, len1: 0.5, tilt: 0.5, lift: 1.25 };
+const thornCount = (n) => Math.floor((n - 1) / 2);
+
+/** caneTris(cane) -> the triangles caneGeometry draws for a cane: 6 a tube
+ *  segment and 3 a thorn. */
+export function caneTris(cane) {
+  const n = cane.length;
+  return 6 * (n - 1) + 3 * thornCount(n);
+}
+
 // A tapered 3-sided tube along a cane's points, flat-shaded, coloured by
-// colorAt in world space. 6 triangles a segment.
-function caneGeometry(cane, colorAt) {
+// colorAt in world space, 6 triangles a segment; then its thorns (THORN), in
+// thornAt's colour. caneTris(cane) triangles in all.
+function caneGeometry(cane, colorAt, thornAt) {
   const n = cane.length;
   const pos = new Float32Array(n * 3 * 3);
   const t = new THREE.Vector3();
   const side = new THREE.Vector3();
   const nrm = new THREE.Vector3();
   const up = new THREE.Vector3(0, 1, 0);
+  const frames = [];
   for (let i = 0; i < n; i++) {
     const p = cane[Math.max(0, i - 1)];
     const q = cane[Math.min(n - 1, i + 1)];
     t.set(q.x - p.x, q.y - p.y, q.z - p.z).normalize();
     side.crossVectors(up, t).normalize();
     nrm.crossVectors(t, side);
+    frames.push({ t: t.clone(), side: side.clone(), nrm: nrm.clone() });
     const c = cane[i];
     // a little twist along the cane, so its flat faces catch the light unevenly
     const tw = i * 0.7;
@@ -885,36 +949,243 @@ function caneGeometry(cane, colorAt) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setIndex(index);
-  return bake(g, new THREE.Matrix4(), colorAt);
+  const tube = bake(g, new THREE.Matrix4(), colorAt);
+  // the thorns, 3 triangles each, wound to face out of the spike's axis
+  const tp = new Float32Array(thornCount(n) * 9 * 3);
+  const radial = new THREE.Vector3();
+  const axis = new THREE.Vector3();
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
+  const foot = new THREE.Vector3();
+  const corners = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const apex = new THREE.Vector3();
+  const keep = (v) => { v.y = Math.min(1.0, Math.max(0, v.y)); return v; };
+  let o = 0;
+  for (let j = 1; j <= n - 2; j += 2) {
+    const c = cane[j];
+    const f = frames[j];
+    const th = 2 * Math.PI * hash01(c.x, c.y, c.z, 46);
+    radial.copy(f.side).multiplyScalar(Math.cos(th)).addScaledVector(f.nrm, Math.sin(th));
+    axis.copy(radial).multiplyScalar(Math.cos(THORN.tilt)).addScaledVector(f.t, Math.sin(THORN.tilt)).normalize();
+    foot.set(c.x, c.y, c.z).addScaledVector(radial, c.w);
+    e1.crossVectors(axis, Math.abs(axis.dot(f.t)) < 0.99 ? f.t : up).normalize();
+    e2.crossVectors(axis, e1);
+    const r = THORN.base * c.w;
+    for (let k = 0; k < 3; k++) {
+      const ph = (k * Math.PI * 2) / 3;
+      keep(corners[k].copy(foot).addScaledVector(e1, r * Math.cos(ph)).addScaledVector(e2, r * Math.sin(ph)));
+    }
+    keep(apex.copy(foot).addScaledVector(axis, THORN.len0 + THORN.len1 * c.w));
+    for (let k = 0; k < 3; k++) {
+      for (const v of [corners[k], corners[(k + 1) % 3], apex]) {
+        tp[o++] = v.x;
+        tp[o++] = v.y;
+        tp[o++] = v.z;
+      }
+    }
+  }
+  if (o === 0) return tube;
+  const tg = new THREE.BufferGeometry();
+  tg.setAttribute('position', new THREE.BufferAttribute(tp, 3));
+  const thorns = bake(tg, new THREE.Matrix4(), thornAt);
+  const both = mergeGeometries([tube, thorns], false);
+  tube.dispose();
+  thorns.dispose();
+  return both;
 }
+
+// polish-brambles: each clump a leafy bramble mound, not a paper ball.
+// RING_CLUMP_TRIS triangles a clump, in this order in the merged ring: a dark
+// core lump (an icosahedron, 20, its top at 0.72 h), three smaller crown lumps
+// round it (octahedra, 8 each, tipped and turned so they are not upright
+// diamonds, one reaching h), six leaf cards (one triangle each, on the mound's
+// envelope, facing out) and three berries (3-sided pyramids, no base: 3 each),
+// in the clan's fruit colours on fruitShare of the clumps, green buds on the
+// rest. Specks land on the core and crowns only. Every clump-part vertex is
+// then kept within 0.98 CLUMP_R · s of the clump's spot and between 0 and h.
+export const RING_CLUMP_TRIS = 59;
+// where a clump's leaf cards start (after the core 20 and crowns 24) and how
+// many triangles its berries take (the last of the clump's)
+export const RING_LEAF_FIRST = 44;
+export const RING_BERRY_TRIS = 9;
+// the mound's envelope (ENV) is widened to 0.9 R and leaves start at 0.4 rad
+// up it (were 0.8 R and 0.25), so leaves sit outside the core and show
+const LEAF = { n: 6, len: 0.11, w: 0.06, lean: 0.03, eLo: 0.4, eHi: 1.1 };
+const BERRY = { n: 3, r: 0.028, apex: 0.045, at: 0.95, eLo: 0.3, eHi: 0.95 };
+// the mound's envelope: a half-ellipsoid on the clump's spot (semi-axes r·R, h·c.h)
+const ENV = { r: 0.9, h: 0.88 };
+const TAU = Math.PI * 2;
+
+// a point on the clump's envelope (scaled by k) and its outward normal
+function envelopeAt(c, R, phi, e, k, p, n) {
+  const a = ENV.r * R * k;
+  const b = ENV.h * c.h * k;
+  const ce = Math.cos(e);
+  const se = Math.sin(e);
+  p.set(c.x + a * ce * Math.cos(phi), b * se, c.z + a * ce * Math.sin(phi));
+  n.set((ce * Math.cos(phi)) / a, se / b, (ce * Math.sin(phi)) / a).normalize();
+}
+
+// keep a clump part inside its clump: xz within 0.98 R of the spot, 0 <= y <= h
+function clampToClump(geo, c, R) {
+  const pos = geo.attributes.position;
+  const rMax = 0.98 * R;
+  for (let i = 0; i < pos.count; i++) {
+    let dx = pos.getX(i) - c.x;
+    let dz = pos.getZ(i) - c.z;
+    const r = Math.hypot(dx, dz);
+    if (r > rMax) {
+      dx *= rMax / r;
+      dz *= rMax / r;
+    }
+    pos.setXYZ(i, c.x + dx, Math.max(0, Math.min(c.h, pos.getY(i))), c.z + dz);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// flat triangles (a list of [a, b, c] Vector3s), each wound so its face normal
+// points away from `from(tri)`, clamped into the clump, one flat colour each
+const _e1 = new THREE.Vector3();
+const _e2 = new THREE.Vector3();
+function facing(tris, colors, c, R, from) {
+  const pos = new Float32Array(tris.length * 9);
+  const col = new Float32Array(tris.length * 9);
+  const rMax = 0.98 * R;
+  tris.forEach((tri, t) => {
+    for (const v of tri) {
+      const dx = v.x - c.x;
+      const dz = v.z - c.z;
+      const r = Math.hypot(dx, dz);
+      if (r > rMax) v.set(c.x + (dx * rMax) / r, v.y, c.z + (dz * rMax) / r);
+      v.y = Math.max(0, Math.min(c.h, v.y));
+    }
+    const nrm = _e1.subVectors(tri[1], tri[0]).cross(_e2.subVectors(tri[2], tri[0]));
+    const o = from(tri);
+    const ord = nrm.dot(o) < 0 ? [0, 2, 1] : [0, 1, 2];
+    ord.forEach((k, j) => {
+      pos[t * 9 + j * 3] = tri[k].x;
+      pos[t * 9 + j * 3 + 1] = tri[k].y;
+      pos[t * 9 + j * 3 + 2] = tri[k].z;
+      col[t * 9 + j * 3] = colors[t].r;
+      col[t * 9 + j * 3 + 1] = colors[t].g;
+      col[t * 9 + j * 3 + 2] = colors[t].b;
+    });
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+const centroid = (tri) => new THREE.Vector3().add(tri[0]).add(tri[1]).add(tri[2]).multiplyScalar(1 / 3);
 
 function ringMesh(ring, cx, cz, look) {
   const parts = [];
+  const tint = new THREE.Color(RING_LOOK.leafTint);
+  const fruitHex = (look.ring.fruit ?? []).map(([hex, w]) => [new THREE.Color(hex), w]);
+  const fruitSum = fruitHex.reduce((n, [, w]) => n + w, 0);
+  const p = new THREE.Vector3();
+  const n = new THREE.Vector3();
   for (const c of ring.clumps) {
     const R = CLUMP_R * c.s;
     const out = Math.atan2(c.z - cz, c.x - cx);
     const along = out + Math.PI / 2;
-    const ox = Math.cos(out);
-    const oz = Math.sin(out);
     const greens = look.ring.greens;
     const green = new THREE.Color(greens[Math.floor(hash01(c.x, c.rot, c.z, 10) * greens.length)]);
-    const at = (vx, vy, vz, col) => {
-      const t = Math.max(0, Math.min(1, vy / c.h));
-      col.copy(green).multiplyScalar(RING_LOOK.foot + (RING_LOOK.crown - RING_LOOK.foot) * t * (0.8 + 0.4 * hash01(vx, vy, vz, 11)));
+    const shade = (lo, hi, top) => (vx, vy, vz, col) => {
+      const t = Math.max(0, Math.min(1, vy / top));
+      col.copy(green).multiplyScalar(lo + (hi - lo) * t * (0.8 + 0.4 * hash01(vx, vy, vz, 11)));
     };
     const yaw = -along + Math.sin(c.rot) * 0.15;
-    // the main lump, a widest corner turned onto the ring, so neighbours touch
-    const mainTop = c.h * 0.92;
-    const msy = mainTop / (2 * ICO_Y);
-    const main = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
-    parts.push(speckle(lumpy(bake(main, place(c.x, mainTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.8 * R, yaw), at), c), look.ring.specks, 19));
-    // the back lump, 0.4 R out: its reach, 0.4 + 0.55, stays under R
-    const bsy = c.h / 2;
-    const back = new THREE.OctahedronGeometry(1, 0);
-    parts.push(speckle(lumpy(bake(back, place(c.x + ox * 0.4 * R, bsy, c.z + oz * 0.4 * R, 0.55 * R, bsy, 0.55 * R, yaw + Math.PI / 4), at), c), look.ring.specks, 19));
+    // the core: a dark, wide lump, a widest corner turned onto the ring
+    const coreTop = c.h * 0.72;
+    const msy = coreTop / (2 * ICO_Y);
+    const core = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
+    const coreAt = shade(RING_LOOK.coreFoot, RING_LOOK.coreTop, coreTop);
+    parts.push(speckle(clampToClump(lumpy(bake(core, place(c.x, coreTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.85 * R, yaw), coreAt), c), c, R), look.ring.specks, 19));
+    // three crown lumps round it, the one with the highest hash reaching h
+    const ch = [0, 1, 2].map((k) => hash01(c.x, c.z, k, 40));
+    const tall = ch.indexOf(Math.max(...ch));
+    const crownAt = shade(RING_LOOK.crownFoot, RING_LOOK.crownTop, c.h);
+    for (let k = 0; k < 3; k++) {
+      const az = c.rot + (k * TAU) / 3 + (hash01(c.x, c.z, k, 41) - 0.5) * 0.6;
+      const rk = R * (0.38 + 0.12 * hash01(c.x, c.z, k, 42));
+      const top = k === tall ? c.h : c.h * (0.8 + 0.2 * ch[k]);
+      const m = place(c.x + Math.cos(az) * 0.42 * R, top - rk, c.z + Math.sin(az) * 0.42 * R, rk, rk, rk,
+        TAU * hash01(c.x, c.z, k, 43), 0.35 * hash01(c.x, c.z, k, 44));
+      parts.push(speckle(clampToClump(lumpy(bake(new THREE.OctahedronGeometry(1, 0), m, crownAt), c), c, R), look.ring.specks, 19));
+    }
+    // six leaf cards on the envelope, tips up the slope and leaning out
+    const leaves = [];
+    const leafCols = [];
+    for (let l = 0; l < LEAF.n; l++) {
+      const phi = TAU * hash01(c.x, c.z, l, 30);
+      const e = LEAF.eLo + (LEAF.eHi - LEAF.eLo) * hash01(c.x, c.z, l, 31);
+      envelopeAt(c, R, phi, e, 1, p, n);
+      const up = new THREE.Vector3(-Math.sin(e) * Math.cos(phi), Math.cos(e), -Math.sin(e) * Math.sin(phi));
+      const lat = new THREE.Vector3(-Math.sin(phi), 0, Math.cos(phi));
+      const turn = (hash01(c.x, c.z, l, 32) - 0.5) * 1.2;
+      const dir = up.clone().multiplyScalar(Math.cos(turn)).addScaledVector(lat, Math.sin(turn));
+      const side = new THREE.Vector3().crossVectors(n, dir).normalize();
+      const half = (LEAF.w * c.s) / 2;
+      const len = LEAF.len * c.s * (0.85 + 0.3 * hash01(c.x, c.z, l, 33));
+      leaves.push([
+        p.clone().addScaledVector(side, -half),
+        p.clone().addScaledVector(side, half),
+        p.clone().addScaledVector(dir, len).addScaledVector(n, LEAF.lean),
+      ]);
+      leafCols.push(green.clone().lerp(tint, RING_LOOK.leafMix)
+        .multiplyScalar(RING_LOOK.leafLo + (RING_LOOK.leafHi - RING_LOOK.leafLo) * hash01(c.x, c.z, l, 34)));
+    }
+    parts.push(facing(leaves, leafCols, c, R, (tri) => centroid(tri).sub(new THREE.Vector3(c.x, 0, c.z))));
+    // three berries (or buds) on the envelope, a little inside it
+    const fruiting = fruitHex.length > 0 && hash01(c.x, c.z, 0, 50) < look.ring.fruitShare;
+    const berries = [];
+    const berryCols = [];
+    for (let b = 0; b < BERRY.n; b++) {
+      const phi = TAU * hash01(c.x, c.z, b, 53);
+      const e = BERRY.eLo + (BERRY.eHi - BERRY.eLo) * hash01(c.x, c.z, b, 54);
+      envelopeAt(c, R, phi, e, BERRY.at, p, n);
+      const u = new THREE.Vector3(-Math.sin(phi), 0, Math.cos(phi));
+      const v = new THREE.Vector3().crossVectors(n, u).normalize();
+      const apex = p.clone().addScaledVector(n, BERRY.apex);
+      const base = [0, 1, 2].map((i) => {
+        const th = (i * TAU) / 3;
+        return p.clone().addScaledVector(u, BERRY.r * Math.cos(th)).addScaledVector(v, BERRY.r * Math.sin(th));
+      });
+      let colr;
+      if (fruiting) {
+        // a fruit by weight, shaded by a hash factor kept off 1, so a berry is
+        // never exactly a bare speck or fruit hex
+        let h = hash01(c.x, c.z, b, 51) * fruitSum;
+        let pick = fruitHex[fruitHex.length - 1][0];
+        for (const [hex, w] of fruitHex) {
+          if (h < w) { pick = hex; break; }
+          h -= w;
+        }
+        let f = 0.9 + 0.2 * hash01(c.x, c.z, b, 52);
+        if (Math.abs(f - 1) < 0.02) f = f < 1 ? 0.98 : 1.02;
+        colr = pick.clone().multiplyScalar(f);
+      } else {
+        colr = green.clone().multiplyScalar(RING_LOOK.bud);
+      }
+      const mid = p.clone();
+      for (let i = 0; i < 3; i++) {
+        const tri = [base[i].clone(), base[(i + 1) % 3].clone(), apex.clone()];
+        tri.mid = mid;
+        berries.push(tri);
+        berryCols.push(colr);
+      }
+    }
+    parts.push(facing(berries, berryCols, c, R, (tri) => centroid(tri).sub(tri.mid)));
   }
   const caneAt = (vx, vy, vz, col) => col.setHex(look.ring.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 18));
-  for (const cane of ring.canes) parts.push(caneGeometry(cane, caneAt));
+  const thornCol = new THREE.Color(look.ring.strand).multiplyScalar(THORN.lift);
+  thornCol.setRGB(Math.min(1, thornCol.r), Math.min(1, thornCol.g), Math.min(1, thornCol.b));
+  const thornAt = (vx, vy, vz, col) => col.copy(thornCol);
+  for (const cane of ring.canes) parts.push(caneGeometry(cane, caneAt, thornAt));
   const mesh = new THREE.Mesh(merged(parts), vcMaterial());
   mesh.name = 'campRing';
   mesh.userData.noCast = true;

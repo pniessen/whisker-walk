@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS, CLUMP_R } = await import('../src/world/camp.js');
+const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS, CLUMP_R, RING_CLUMP_TRIS, caneTris } = await import('../src/world/camp.js');
 const { CAMP_DEN, WIDE_LEDGE_RECT, gorgeGround } = await import('../src/world/gorgeshape.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { DISCS } = await import('../src/rivalclans.js');
@@ -247,7 +247,7 @@ describe('addCamp', () => {
     }
   });
 
-  it('the ring is taller and arched, out of the shadow pass, no more than 3,360 triangles', () => {
+  it('the ring is taller and arched, out of the shadow pass, no more than 6,200 triangles', () => {
     for (const a of CAMPS) {
       const scene = new THREE.Scene();
       addCamp(scene, { colliders: [] }, a);
@@ -261,7 +261,7 @@ describe('addCamp', () => {
       expect(ring.castShadow, a).toBe(false);
       const g = ring.geometry;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
-      expect(tris, a).toBeLessThanOrEqual(3360);
+      expect(tris, a).toBeLessThanOrEqual(6200);
       expect(g.attributes.color, a).toBeDefined();
     }
   });
@@ -301,15 +301,17 @@ describe('addCamp', () => {
       scene.updateMatrixWorld(true);
       const D = campDressing(a);
       const { cx, cz } = DISCS[a];
-      // polish-camps4: the clumps come first in the merged ring, 28
-      // triangles apiece (icosahedron 20 + octahedron 8), every one of their
+      // polish-brambles: the clumps come first in the merged ring,
+      // RING_CLUMP_TRIS triangles apiece (core 20, three crowns 24, six leaf
+      // cards, three berries 9), every one of their
       // vertices inside its clump's footprint and under its h; then the
-      // canes, a 3-sided tube along each, 6 triangles a segment. Every ring
+      // canes, a 3-sided tube along each, 6 triangles a segment, and a thorn
+      // (a 3-sided spike, 3 triangles) at every odd interior point. Every ring
       // vertex is within 0.6 m (xz) of a kept clump, between the ground and
       // 1 m (ruling R3).
       const verts = worldVerts(scene.getObjectByName('campRing'));
       const cs = D.ring.clumps;
-      const clumpVerts = 3 * 28 * cs.length;
+      const clumpVerts = 3 * RING_CLUMP_TRIS * cs.length;
       let caneOnly = 0;
       for (let i = 0; i < verts.length; i++) {
         const v = verts[i];
@@ -327,12 +329,19 @@ describe('addCamp', () => {
       expect(segs, a).toBeGreaterThan(0);
       const g = scene.getObjectByName('campRing').geometry;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
-      expect(tris, a).toBe(28 * cs.length + 6 * segs);
-      expect(tris, a).toBeLessThanOrEqual(3360);
+      expect(tris, a).toBe(RING_CLUMP_TRIS * cs.length + D.ring.canes.reduce((n, cane) => n + caneTris(cane), 0));
+      expect(tris, a).toBeLessThanOrEqual(6200);
+      // every cane carries thorns: what is left over past the clumps and the
+      // tubes is 3 triangles a thorn, one at each odd interior point
+      const thornTris = tris - RING_CLUMP_TRIS * cs.length - 6 * segs;
+      const thorns = D.ring.canes.reduce((n, cane) => n + Math.floor((cane.length - 1) / 2), 0);
+      expect(thornTris, a).toBeGreaterThan(0);
+      expect(thornTris, a).toBe(3 * thorns);
+      for (const cane of D.ring.canes) expect(caneTris(cane), a).toBe(6 * (cane.length - 1) + 3 * Math.floor((cane.length - 1) / 2));
       // the whole camp is no dearer than before (River and Moor are at their caps)
       let camp = 0;
       for (const o of scene.children) o.traverse((m) => { if (m.isMesh) camp += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });
-      expect(camp, a).toBeLessThanOrEqual(5427);
+      expect(camp, a).toBeLessThanOrEqual(8400);
       // ...and every clump is drawn
       for (const c of cs) expect(verts.some((v) => Math.hypot(v.x - c.x, v.z - c.z) <= CLUMP_R * c.s)).toBe(true);
       // the clearing lies flat just over the ground, within its radius

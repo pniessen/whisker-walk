@@ -180,7 +180,8 @@ describe('campDressing (pure)', () => {
   // A cane point's keep rules (polish-camps4 Task 3): near a kept clump, off
   // every seat, off the den's, the rock's and every collider's edge, and
   // outside the gap.
-  const checkCanes = (a, D, cols = []) => {
+  // `placed`: the clumps before a collider dropped any (the canes' height cap)
+  const checkCanes = (a, D, cols = [], placed = D.ring.clumps) => {
     const { cx, cz } = DISCS[a];
     const L = campLayout(a);
     for (const cane of D.ring.canes) {
@@ -193,16 +194,21 @@ describe('campDressing (pure)', () => {
         for (const s of seatsOf(L)) expect(dist(p, s), `${at} seat`).toBeGreaterThanOrEqual(0.4);
         for (const k of [L.den, L.rock, ...cols]) expect(dist(p, k) - k.r, `${at} edge`).toBeGreaterThanOrEqual(0.25);
         expect(angleOff(Math.atan2(p.z - cz, p.x - cx), D.ring.gap.a), `${at} gap`).toBeGreaterThan(D.ring.gap.half);
-        // the tube tapers 0.036 -> 0.016 and stays between the ground and 1 m
-        expect(p.w, at).toBeGreaterThanOrEqual(0.016 - 1e-9);
-        expect(p.w, at).toBeLessThanOrEqual(0.036 + 1e-9);
+        // the tube tapers 0.03 -> 0.014 and stays between the ground and 1 m
+        expect(p.w, at).toBeGreaterThanOrEqual(0.014 - 1e-9);
+        expect(p.w, at).toBeLessThanOrEqual(0.03 + 1e-9);
+        // it lies over the mounds: never more than 0.1 m above the tallest
+        // clump within 0.45 m
+        const top = Math.max(...placed.filter((c) => dist(p, c) <= 0.45).map((c) => c.h));
+        expect(p.y, `${at} over the mounds`).toBeLessThanOrEqual(top + 0.1 + 1e-9);
         expect(p.y - p.w, at).toBeGreaterThanOrEqual(0);
         expect(p.y + p.w, at).toBeLessThanOrEqual(1.0);
-        // points every ~0.4 m along the ground; a cane's foot may climb
-        // steeply out of the root
+        // points every ~0.4 m along the ground, arching gently: no step
+        // climbs or falls more than 0.45 times its run
         if (i > 0) {
           const q = cane[i - 1];
           expect(Math.hypot(p.x - q.x, p.z - q.z), at).toBeLessThanOrEqual(0.5);
+          expect(Math.abs(p.y - q.y), `${at} slope`).toBeLessThanOrEqual(0.45 * Math.hypot(p.x - q.x, p.z - q.z) + 1e-9);
           expect(Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z), at).toBeLessThanOrEqual(0.8);
         }
       }
@@ -217,9 +223,10 @@ describe('campDressing (pure)', () => {
       expect(D.ring.canes.length, a).toBeGreaterThanOrEqual(4);
       checkCanes(a, D);
       const pts = D.ring.canes.flat();
-      // they arch up over the lumps and come down into them
+      // they arch up over the lumps (polish-brambles: over the mounds' tops)
+      // and come down into them (their feet hidden in the leaves)
       expect(Math.max(...pts.map((p) => p.y)), a).toBeGreaterThanOrEqual(0.7);
-      expect(Math.min(...pts.map((p) => p.y)), a).toBeLessThanOrEqual(0.2);
+      expect(Math.min(...pts.map((p) => p.y)), a).toBeLessThanOrEqual(0.3);
       // they weave in and out across the two rows
       const rad = pts.map((p) => Math.hypot(p.x - cx, p.z - cz) - D.ring.r);
       expect(Math.min(...rad), a).toBeLessThan(-0.1);
@@ -236,7 +243,7 @@ describe('campDressing (pure)', () => {
       const pick = free.ring.clumps[Math.floor(free.ring.clumps.length / 2)];
       const post = { x: pick.x, z: pick.z, r: 0.4 };
       const D = campDressing(a, [post]);
-      checkCanes(a, D, [post]);
+      checkCanes(a, D, [post], free.ring.clumps);
       // every point that stays is one the free camp had
       const key = (p) => `${p.x},${p.y},${p.z},${p.w}`;
       const had = new Set(free.ring.canes.flat().map(key));

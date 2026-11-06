@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { addCamp, CAMP_LOOKS, campLook, campDressing } = await import('../src/world/camp.js');
+const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS, RING_LEAF_FIRST, RING_BERRY_TRIS, caneTris } = await import('../src/world/camp.js');
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
 
 const CAMPS = ['woods', 'river', 'moor', 'pines'];
@@ -87,9 +87,9 @@ describe('CAMP_LOOKS', () => {
       const look = CAMP_LOOKS[a];
       const col = build(a).getObjectByName('campRing').geometry.attributes.color;
       const tris = col.count / 3;
-      // clump triangles (28 a clump: 20 + 8) come first in the merged ring,
+      // clump triangles (RING_CLUMP_TRIS a clump) come first in the merged ring,
       // the canes' after them
-      const clumpTris = 28 * campDressing(a, []).ring.clumps.length;
+      const clumpTris = RING_CLUMP_TRIS * campDressing(a, []).ring.clumps.length;
       expect(tris, a).toBeGreaterThan(clumpTris);
       const specks = look.ring.specks.map(([hex, share]) => ({ c: lin(hex), share, n: 0 }));
       for (let t = 0; t < tris; t++) {
@@ -106,6 +106,56 @@ describe('CAMP_LOOKS', () => {
         expect(s.n, `${a} ${s.c.getHexString()}`).toBeGreaterThanOrEqual(1);
         expect(s.n / clumpTris, `${a} ${s.c.getHexString()}`).toBeLessThanOrEqual(1.5 * s.share);
       }
+    }
+  }, 120_000);
+
+  it('each fruiting clump carries berries in the clan\'s fruit colours, the rest green buds', () => {
+    // a corner whose colour is `base` times one factor in [lo, hi]
+    const scaledAt = (col, i, base, lo, hi) => {
+      const k = [col.getX(i) / base.r, col.getY(i) / base.g, col.getZ(i) / base.b];
+      return k.every((v) => v >= lo - 1e-4 && v <= hi + 1e-4 && Math.abs(v - k[0]) < 1e-3);
+    };
+    for (const a of CAMPS) {
+      const look = CAMP_LOOKS[a];
+      const fruits = look.ring.fruit.map(([hex]) => lin(hex));
+      // a clump out of fruit: its berries are buds, one of its greens × 0.7
+      const buds = look.ring.greens.map((hex) => lin(hex).multiplyScalar(0.7));
+      const col = build(a).getObjectByName('campRing').geometry.attributes.color;
+      const n = campDressing(a, []).ring.clumps.length;
+      let fruiting = 0;
+      for (let c = 0; c < n; c++) {
+        // the berries are the last RING_BERRY_TRIS triangles of each clump's
+        const first = (c + 1) * RING_CLUMP_TRIS - RING_BERRY_TRIS;
+        const verts = [];
+        for (let v = first * 3; v < (first + RING_BERRY_TRIS) * 3; v++) verts.push(v);
+        const fruit = verts.every((v) => fruits.some((f) => scaledAt(col, v, f, 0.9, 1.1)));
+        const bud = buds.some((b) => verts.every((v) => sameColor(col, v, b)));
+        expect(fruit !== bud, `${a} clump ${c}: fruit ${fruit}, bud ${bud}`).toBe(true);
+        if (fruit) fruiting++;
+      }
+      expect(Math.abs(fruiting / n - look.ring.fruitShare), `${a} ${fruiting}/${n}`).toBeLessThanOrEqual(0.15);
+    }
+  }, 120_000);
+
+  it('leaf cards face outward', () => {
+    const p = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+    const e1 = new THREE.Vector3();
+    const e2 = new THREE.Vector3();
+    for (const a of CAMPS) {
+      const pos = build(a).getObjectByName('campRing').geometry.attributes.position;
+      const cs = campDressing(a, []).ring.clumps;
+      cs.forEach((c, ci) => {
+        // after the core (20) and the crowns (24): six one-triangle leaves
+        for (let l = 0; l < 6; l++) {
+          const t = ci * RING_CLUMP_TRIS + RING_LEAF_FIRST + l;
+          for (let k = 0; k < 3; k++) p[k].fromBufferAttribute(pos, t * 3 + k);
+          const n = e1.subVectors(p[1], p[0]).cross(e2.subVectors(p[2], p[0]));
+          const mx = (p[0].x + p[1].x + p[2].x) / 3 - c.x;
+          const my = (p[0].y + p[1].y + p[2].y) / 3;
+          const mz = (p[0].z + p[1].z + p[2].z) / 3 - c.z;
+          expect(n.x * mx + n.y * my + n.z * mz, `${a} clump ${ci} leaf ${l}`).toBeGreaterThan(0);
+        }
+      });
     }
   }, 120_000);
 
@@ -156,14 +206,14 @@ describe('CAMP_LOOKS', () => {
   it('no new vertices', () => {
     for (const a of ALL) {
       const scene = build(a);
-      // the ring: 28 triangles a clump and 6 a cane segment (polish-camps4),
-      // no more than the 10,080 vertices it had with the arched strands
+      // the ring: RING_CLUMP_TRIS triangles a clump and caneTris a cane (6 a
+      // segment, 3 a thorn; polish-brambles), no more than 18,600 vertices
       if (a !== 'gorge') {
         const { clumps, canes } = campDressing(a, []).ring;
-        const segs = canes.reduce((n, c) => n + c.length - 1, 0);
+        const caneT = canes.reduce((n, c) => n + caneTris(c), 0);
         const ring = scene.getObjectByName('campRing').geometry.attributes.position.count;
-        expect(ring, `${a} campRing`).toBe(3 * (28 * clumps.length + 6 * segs));
-        expect(ring, `${a} campRing`).toBeLessThanOrEqual(10080);
+        expect(ring, `${a} campRing`).toBe(3 * (RING_CLUMP_TRIS * clumps.length + caneT));
+        expect(ring, `${a} campRing`).toBeLessThanOrEqual(18600);
       }
       for (const [name, n] of Object.entries(BASE_VERTS[a])) {
         expect(scene.getObjectByName(name).geometry.attributes.position.count, `${a} ${name}`).toBe(n);
