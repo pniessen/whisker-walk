@@ -5,6 +5,7 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
+import { withLocalUuids } from './localuuids.js';
 import { BRIDGE_PLANK, ISLAND_WOODS, bridgeEnds, fromWoods } from './lake.js';
 
 // The island in the Pines' lake, and the bridge to it, as ground a cat walks
@@ -193,6 +194,38 @@ export function islandReeds() {
   return spots;
 }
 
+// The island's dressing (polish-heather): ferns round the Old Ash's roots and
+// the rim, toadstools, one fallen log on the north-east grass, and a second,
+// inner reed fringe. A fixed list, picked by hand and checked by
+// test/islanddressing.test.js: every spot is 1.6 m clear of each collider's
+// edge, 2 m from everything a kid looks for or climbs, 1.5 m from the deck
+// and inside the shore. The reeds are the one derived list: hashed jitter
+// (hash01, no rng), 2.5 m from the deck and from every record.
+const INNER_REEDS = freeze({ r: 11.8, step: 2.4, jitter: 0.15 });
+export function islandInnerReeds() {
+  const n = Math.round((2 * Math.PI * INNER_REEDS.r) / INNER_REEDS.step);
+  const spots = [];
+  for (let i = 0; i < n; i++) {
+    const a = (2 * Math.PI * i) / n;
+    const rad = INNER_REEDS.r + (b.hash01(i, 7, 411) * 2 - 1) * INNER_REEDS.jitter;
+    const x = r2(ISLAND_LAND.x + Math.cos(a) * rad);
+    const z = r2(ISLAND_LAND.z + Math.sin(a) * rad);
+    if (deckDist(x, z) < 2.5) continue;
+    if (ISLAND_RECORDS.some((p) => Math.hypot(x - p.x, z - p.z) < 2.5)) continue;
+    spots.push({ x, z });
+  }
+  return spots;
+}
+export const ISLAND_DRESSING = freeze({
+  ferns: freezeAll([
+    { x: 24.4, z: 27 }, { x: 31.8, z: 27.4 }, { x: 25.5, z: 30.3 }, { x: 27.8, z: 24.8 },
+    { x: 37, z: 21.7 }, { x: 33.3, z: 37.1 },
+  ]),
+  toadstools: freezeAll([{ x: 24.9, z: 26.2 }, { x: 32, z: 35 }, { x: 37.5, z: 24 }]),
+  log: freeze({ x: 36, z: 23, length: 2.2, yaw: 2.2 }),
+  reeds: freezeAll(islandInnerReeds()),
+});
+
 // A mossy boulder, the first step of each chain: builder.rock's shape and
 // height, the Woods' mossy boulder. The two share the material buildIsland
 // makes, one per build: walk.js disposes every material at the end of a walk,
@@ -275,6 +308,23 @@ export function buildIsland(scene, { wind } = {}) {
   // The hidden mouse's bushes, and the puddle.
   for (const { x, z } of ISLAND_BUSHES) scene.add(b.bush(x, z, { wind }));
   for (const p of ISLAND_PUDDLES) scene.add(b.puddle(p.x, p.z, p.r));
+
+  // The dressing: low, out of the shadow pass, no colliders. Local uuids keep
+  // the Pines' draw count and the flat trace where they were.
+  withLocalUuids('island-dressing', () => {
+    const { ferns, toadstools, log, reeds } = ISLAND_DRESSING;
+    const add = (obj, name) => {
+      obj.name = name;
+      obj.traverse((o) => {
+        if (o.isMesh) { o.castShadow = false; o.userData.noCast = true; }
+      });
+      scene.add(obj);
+    };
+    add(b.fernBed(ferns, seedFromCode('island-ferns')), 'islandFerns');
+    add(b.toadstools(toadstools, seedFromCode('island-toadstools')), 'islandToadstools');
+    add(b.fallenLog(log.x, log.z, log.length, log.yaw), 'islandLog');
+    add(b.reedBed(reeds, seedFromCode('island-reeds2')), 'islandReeds2');
+  });
 
   return { colliders, perches };
 }
