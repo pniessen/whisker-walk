@@ -1,3 +1,4 @@
+import { withLocalUuids } from '../world/localuuids.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
@@ -16,14 +17,16 @@ import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullN
 import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt } from './torso.js';
 
 const STYLE = {
-  tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
+  // The tabby and zeetoo wear the tabby "M" on the forehead (polish-faces):
+  // from the front a striped cat without it read as a plain brown cat.
+  tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true, headStripes: 'M' },
   siamese:   { base: 0xe8dcc8, belly: 0xf2ead9, accent: 0x4a3b32, scale: 0.95, points: true },
   persian:   { base: 0xcfcfd4, belly: 0xe8e8ec, accent: 0xb5b5bc, scale: 1.05, fluffy: true, tailPlume: 1 },
   black:     { base: 0x2a2a30, belly: 0x3a3a42, accent: 0x1c1c22, scale: 1.0 },
   calico:    { base: 0xf0ead8, belly: 0xf8f4e8, accent: 0xd88030, scale: 1.0, patches: true },
   mainecoon: { base: 0x7a5b3a, belly: 0xb99a72, accent: 0x5a4028, scale: 1.3, fluffy: true, tufts: true, tailPlume: 1 },
   // the family pets
-  zeetoo:    { base: 0xa8825a, belly: 0xe0ccA0, accent: 0x74582f, scale: 1.0, stripes: true },
+  zeetoo:    { base: 0xa8825a, belly: 0xe0ccA0, accent: 0x74582f, scale: 1.0, stripes: true, headStripes: 'M' },
   // Robbie is a black cat with white socks and flanks — he used to be drawn as
   // the reverse. Black cap, ears and back come from `base`; muzzle, chest and
   // paws from `belly`; the `cow` markings below add the white flanks and blaze.
@@ -49,7 +52,9 @@ const STYLE = {
 //                 a cat whose underside is not white.
 //   band        — a `belly` band across the shoulders, painted over the
 //                 stripes (see coat.js).
-//   headStripes — three thin `accent` stripes up the forehead: the tabby "M".
+//   headStripes — three thin `accent` stripes up the forehead: the tabby "M"
+//                 as D2 and Digit wear it (true), or 'M': the letter itself,
+//                 two legs and a V (the tabby, zeetoo, a custom striped cat).
 //   chin        — a small WHITE_FUR patch under the muzzle.
 //   ears        — ear-cone scale, default 1. Baked into the cone, not the mesh,
 //                 because the animator owns the ears' rotation.
@@ -77,6 +82,12 @@ const STYLE = {
 //   bib         — a belly-coloured chest bib (see coat.js).
 //   tagCollar   — a built-in black collar with a round silver tag, drawn only
 //                 when no collar accessory is worn (never two collars).
+//   faceSheen   — face definition for a black cat (see DARK_FACE): a lit sheen
+//                 on the muzzle and cheeks, glossy fur on the skull, eyes with
+//                 a little glow and a bigger catchlight. Default: on when the
+//                 head and the muzzle are both near-black (darkFace()), so the
+//                 black cat, a custom black cat and a black clan coat get it
+//                 and Robbie (white muzzle) does not.
 const INNER_EAR = 0xe8a0a8;
 const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbie: 0xb8b040, d2: 0xa8b040, digit: 0xa0a048 };
 
@@ -177,6 +188,31 @@ const WHISKER_REACH = 0.22;
 // front of it, so neither pokes out of the head's outline from the side.
 const EYE_PUPIL_Z = -0.183;
 const EYE_SHINE_Z = -0.183;
+// A BLACK CAT'S FACE (polish-faces, 2026-11-06). Head, muzzle and cheeks were
+// all one near-black matte (0x2a2a30 / 0x3a3a42 at roughness 0.9), so from the
+// front the face was a flat silhouette with two eyes in it. A real black cat's
+// face is read from the light ON the fur: a soft sheen on the muzzle and the
+// whisker pads, glossy curves on the cheeks and the brow, and bright eyes with
+// a catchlight. So, for a dark face only:
+//   * muzzle and cheeks take a cool sheen tone, the belly lifted MUZZLE_LIFT of
+//     the way to SHEEN_TINT, and a lower roughness, so the key light rolls a
+//     highlight over the whisker pads. It stays a black cat's muzzle: the
+//     catfaces test pins its luminance under STILL_BLACK.
+//   * the skull is glossier (SKULL_ROUGH): the cheeks and the brow catch a rim
+//     of the light, which gives the head its shape from the front.
+//   * the eyes glow a little in their own colour (EYE_GLOW, a real cat's eyes
+//     shine back at you) and are glassy; the catchlight is bigger and lit, so
+//     it shows even at dusk.
+// Material and colour only: no mesh, geometry or object is added, so the
+// draw count and the build's Math.random draws are unchanged.
+export const DARK_FACE = Object.freeze({
+  MUZZLE_LIFT: 0.12, SHEEN_TINT: 0x9a9aac, MUZZLE_ROUGH: 0.6, SKULL_ROUGH: 0.74,
+  EYE_GLOW: 0.32, EYE_ROUGH: 0.3, SHINE_SCALE: 1.35, SHINE_GLOW: 0.8,
+});
+// Near-black: the relative luminance (linear) under which a head counts as dark.
+const DARK_LUM = 0.06;
+const linLum = (hex) => { const c = new THREE.Color(hex); return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; };
+export const darkFace = (s) => s.faceSheen ?? (linLum(s.points ? s.accent : s.base) < DARK_LUM && linLum(s.belly) < DARK_LUM);
 // How dark the back of an ear is, as a share of its front (vertex colour on
 // the ear's own colour): from behind, the ears read as ears, not as two more
 // bumps of the same fur.
@@ -209,6 +245,17 @@ function crownStripe(x, halfX, simple) {
     rings: simple ? 2 : 3, seg: simple ? 8 : 12,
   }));
 }
+// The letter M (headStripes: 'M'): the legs' and the V strokes' centres
+// across the brow (head space), the V's height and half-length, and each
+// stroke's slant in radians (positive leans a left stroke's top outward).
+const M_LEG_X = 0.068;
+const M_LEG_TWIST = 0;
+const M_V_X = 0.031;
+const M_V_Y = 0.116;
+const M_V_LEN = 0.23;
+const M_V_TWIST = -0.68;
+const M_RINGS = 3;
+const M_SEG = 14;
 // The dark tip starts this far along the blended link (a third: u = 2/3).
 const TIP_FROM = 1 / 3;
 
@@ -266,12 +313,22 @@ const PATCH_UP = new THREE.Vector3(0, 1, 0);
 // geometry per bar, as before, so the build creates exactly the objects it did
 // (three.js draws Math.random for every geometry's uuid, and the flat trace's
 // seeded stream runs through the cat builds).
-function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18, more = []) {
+//
+// `twist` (polish-faces): turns the first patch about its own centre, in the
+// tangent plane, before it is swung onto `dir`, so a bar can run on a slant
+// (the tabby M's inner V). 0, the default, leaves the geometry as it was.
+function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18, more = [], twist = 0) {
   const pos = [0, r * PATCH_LIFT, 0]; // centre vertex at the pole
   const nor = [0, 1, 0];
   const idx = [];
   const v = new THREE.Vector3();
   addPatch(pos, nor, idx, r, halfX, halfZ, rings, seg, true);
+  if (twist) {
+    const c = Math.cos(twist), sn = Math.sin(twist);
+    for (let i = 0; i < pos.length; i += 3) {
+      for (const a of [pos, nor]) { const x = a[i], z = a[i + 2]; a[i] = c * x + sn * z; a[i + 2] = -sn * x + c * z; }
+    }
+  }
   const toDir = new THREE.Quaternion().setFromUnitVectors(PATCH_UP, new THREE.Vector3(...dir).normalize());
   if (more.length) {
     // Each extra patch is built at the pole like the first, then turned onto its
@@ -333,10 +390,21 @@ function addPatch(pos, nor, idx, r, halfX, halfZ, rings, seg, first) {
 // wave's mesh delta is negative rather than zero: a tabby's stripes were three
 // meshes and are now one, and the cow cat's two body patches are now one.
 // Draw calls are the budget (VISUAL-PASS.md section 0); triangles are not.
+//
+// A patch may set its own `rings`/`seg` (default 4 x 18). A marking with a
+// `uuidKey` patch (the letter M) is built under withLocalUuids: its mesh,
+// geometry and material take their uuids from a local stream, so adding it
+// to a cat does not move the Math.random draws of whatever builds the cat
+// (the flat trace builds a tabby).
 function addMarking(host, r, color, patches) {
-  const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ, 4, 18, p.more));
-  const geo = geos.length === 1 ? geos[0] : mergeGeometries(geos);
-  host.add(new THREE.Mesh(geo, mat(color)));
+  const build = () => {
+    const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ, p.rings ?? 4, p.seg ?? 18, p.more, p.twist));
+    const geo = geos.length === 1 ? geos[0] : mergeGeometries(geos);
+    host.add(new THREE.Mesh(geo, mat(color)));
+  };
+  const key = patches.find((p) => p.uuidKey)?.uuidKey;
+  if (key) withLocalUuids(key, build);
+  else build();
 }
 
 // A patch's centre is authored the way the old blobs were — as a point in the
@@ -1013,9 +1081,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const EARS = s.ears ?? 1;
   const earH = s.tufts ? 0.19 : 0.15;
   const earLift = (earH * (EARS - 1)) / 2;
+  const eyes = [], shines = [], cheeks = [];
   for (const side of [-1, 1]) {
     if (!opts.simple) {
       const cheek = ball(0.065, s.belly, 1, 0.9, 0.8, 8, 6);
+      cheek.userData.cheek = true;
       cheek.position.set(side * 0.085, -0.07, -0.14);
       head.add(cheek);
     }
@@ -1046,7 +1116,30 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       const shine = ball(0.007, 0xffffff, 1, 1, 1, 4, 3);
       shine.position.set(side * 0.07, 0.048, EYE_SHINE_Z);
       head.add(shine);
+      shines.push(shine);
     }
+    eyes.push(eye);
+  }
+  head.traverse((c) => { if (c.userData.cheek) cheeks.push(c); });
+  if (darkFace(s)) {
+    // A black cat's face: see DARK_FACE.
+    const sheen = new THREE.Color(s.belly).lerp(new THREE.Color(DARK_FACE.SHEEN_TINT), DARK_FACE.MUZZLE_LIFT);
+    for (const m of [muzzle, ...cheeks]) {
+      m.material.color.copy(sheen);
+      m.material.roughness = DARK_FACE.MUZZLE_ROUGH;
+    }
+    skull.material.roughness = DARK_FACE.SKULL_ROUGH;
+    for (const e of eyes) {
+      e.material.emissive.copy(e.material.color);
+      e.material.emissiveIntensity = DARK_FACE.EYE_GLOW;
+      e.material.roughness = DARK_FACE.EYE_ROUGH;
+    }
+    for (const sh of shines) {
+      sh.scale.setScalar(DARK_FACE.SHINE_SCALE);
+      sh.material.emissive.setHex(0xffffff);
+      sh.material.emissiveIntensity = DARK_FACE.SHINE_GLOW;
+    }
+    head.userData.darkFace = true;
   }
   // whiskers
   // Polish 1a, Task 5: from the walk camera (behind) the old whiskers, 0.28
@@ -1213,7 +1306,26 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
 
   // The body's own markings (stripes, band, calico and cow patches) are
   // painted into the torso instead — see coat.js. Only the head's remain here.
-  if (s.headStripes) {
+  if (s.headStripes === 'M') {
+    // The tabby "M" drawn as the letter (polish-faces, 2026-11-06), for the
+    // tabby, zeetoo and a custom striped cat. Three straight bars read as
+    // stripes, not as an M, from the front. Two outer legs rise from over the
+    // inner corners of the eyes, and between them a V dips to the bridge of the
+    // nose: two slanted strokes (twist) meeting low in the middle. Each leg and
+    // the V's left stroke run on back over the crown like the bars below, so
+    // from behind it is the same three crown stripes. Still ONE mesh, in the
+    // coat's own stripe colour (accent), as thin as D2's bars so it never
+    // reads as one heavy mark (a scar).
+    // Thin strokes need fewer rings than a round patch (M_RINGS x M_SEG), so
+    // the whole M costs fewer triangles than D2's three bars.
+    const m = { rings: M_RINGS, seg: M_SEG, uuidKey: 'cat-face-M' };
+    onSkull(s.accent, [
+      { ...m, at: [-M_LEG_X, 0.12, -0.148], halfX: 0.055, halfZ: 0.26, twist: M_LEG_TWIST, more: crownStripe(-CROWN_STRIPE_X, 0.06, opts.simple) },
+      { ...m, at: [M_LEG_X, 0.12, -0.148], halfX: 0.055, halfZ: 0.26, twist: -M_LEG_TWIST },
+      { ...m, at: [-M_V_X, M_V_Y, -0.155], halfX: 0.05, halfZ: M_V_LEN, twist: M_V_TWIST, more: crownStripe(0, 0.07, opts.simple) },
+      { ...m, at: [M_V_X, M_V_Y, -0.155], halfX: 0.05, halfZ: M_V_LEN, twist: -M_V_TWIST, more: crownStripe(CROWN_STRIPE_X, 0.06, opts.simple) },
+    ]);
+  } else if (s.headStripes) {
     // The tabby "M": three thin bars running up the forehead from between the
     // eyes. On a patch swung onto a direction in the skull's YZ plane, halfX
     // stays across the face and halfZ runs up the slope of the brow, so these
