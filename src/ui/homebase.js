@@ -763,32 +763,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     welcomeEl.textContent = text;
     let rect = null;
     try { rect = heroStage()?.getBoundingClientRect?.() ?? null; } catch { rect = null; }
-    // A speech bubble beside the cat's head, never over her face: to the
-    // right of the head, or mirrored to the left when there is no room.
-    welcomeEl.setAttribute('data-side', 'right');
+    // A speech bubble that stays off the cat's face: in the stage's top-left
+    // corner (the cat rests at a three-quarter turn, so that corner is empty);
+    // on a narrow stage it runs along the top edge instead, above the head.
+    welcomeEl.setAttribute('data-side', 'corner');
     if (rect && rect.width > 0) {
-      const headHalf = Math.min(90, rect.width * 0.17);
-      const mid = rect.left + rect.width * 0.5;
-      const right = Number.isFinite(rect.right) ? rect.right : rect.left + rect.width;
-      const y = rect.top + rect.height * 0.2;
-      if (rect.width < 480) welcomeEl.style.fontSize = '0.8rem';
-      welcomeEl.style.top = `${Math.round(y)}px`;
-      const x = mid + headHalf;
-      if (right - x >= 120) {
-        welcomeEl.style.left = `${Math.round(x)}px`;
-        welcomeEl.style.maxWidth = `${Math.round(Math.max(120, right - x - 10))}px`;
-      } else {
-        const xl = mid - headHalf;
-        // The page's own width, without a scrollbar: `right` is measured from
-        // the same edge the bubble's box is.
-        const vw = document.documentElement?.clientWidth
-          || document.defaultView?.innerWidth
-          || (typeof window !== 'undefined' ? window.innerWidth : right);
-        welcomeEl.setAttribute('data-side', 'left');
-        welcomeEl.style.left = 'auto';
-        welcomeEl.style.right = `${Math.round(vw - xl)}px`;
-        welcomeEl.style.maxWidth = `${Math.round(Math.max(120, xl - rect.left - 10))}px`;
-      }
+      const narrow = rect.width < 480;
+      if (narrow) welcomeEl.style.fontSize = '0.8rem';
+      welcomeEl.style.top = `${Math.round(rect.top + 10)}px`;
+      welcomeEl.style.left = `${Math.round(rect.left + 12)}px`;
+      welcomeEl.style.maxWidth = `${Math.round(narrow ? rect.width - 120 : Math.min(190, rect.width * 0.3))}px`;
     }
     document.body.appendChild(welcomeEl);
     document.addEventListener?.('scroll', onWelcomeScroll, { capture: true, passive: true });
@@ -964,7 +948,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     }
     // The den never joins a room walk (main.js starts it on its own), so a room hides it, as before.
     const den = roomState ? ''
-      : '<button class="dr-place dr-den" id="btn-visit-den" type="button"><span class="dr-den-roof" aria-hidden="true">🏠</span><span class="cap">My den<small>visit your den</small></span></button>';
+      : `<button class="dr-place dr-den" id="btn-visit-den" type="button"><img src="${escapeHtml(PLACE_PICTURE('den'))}" alt="" onerror="this.remove()"><span class="cap">My den<small>visit your den</small></span></button>`;
     return `<section class="hb-places" aria-labelledby="hb-places-title"><h2 id="hb-places-title">Where to?</h2>
       ${d.placesHtml({ clanLineHtml: line, denHtml: den })}
     </section>`;

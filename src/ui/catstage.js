@@ -9,6 +9,9 @@ import { animateCat } from '../cat/animator.js';
 // are measured, so the framing fits the sitting cat (its tail, cape and
 // balloons included) and no animation loop is needed. Hagrid gets whatever
 // sit animateCat gives him (P5).
+// The stage rests at a three-quarter turn so the flank and stripes show (spin.js's
+// own default stays -0.45 for its tests).
+export const STAGE_REST = -1.25;
 export const STAGE_POSE = Object.freeze({ state: 'requestPet', t: 1.3 });
 
 // Trying on a back item (wings, jetpack, backpack) turns the hero so the
@@ -169,6 +172,7 @@ export function createCatStage({
   let camera = null;
   let glow = null;    // the soft pool of light on the floor
   let contact = null; // the dark contact shadow under the cat
+  let rug = null;     // a warm round rug the cat sits on
   let cat = null;
   let breed = null;
   let el = null;
@@ -187,7 +191,7 @@ export function createCatStage({
   let activeId = null; // the one pointer currently dragging
   let pose = 'sit'; // STAGE_POSES: what the next show() poses the cat as
   let lastShow = null; // show()'s last arguments, so setPose can rebuild the cat
-  const spin = createSpin();
+  const spin = createSpin({ rest: STAGE_REST });
   const stage = { failed: false };
 
   function disposeCat() {
@@ -206,9 +210,10 @@ export function createCatStage({
   }
 
   function disposeFloor() {
-    for (const m of [glow, contact]) { if (m) { m.geometry.dispose(); m.material.dispose(); } }
+    for (const m of [rug, glow, contact]) { if (m) { m.geometry.dispose(); m.material.dispose(); } }
     glow = null;
     contact = null;
+    rug = null;
   }
 
   function fail(err) {
@@ -250,12 +255,16 @@ export function createCatStage({
       canvas.addEventListener('pointerdown', onDown);
       canvas.addEventListener('pointermove', onMove);
       scene = new THREE.Scene();
-      const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
-      sun.position.set(2, 4, -3);
-      scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 1.1));
+      // a warm key from the side and front, a cool rim from behind, soft ambient
+      const sun = new THREE.DirectionalLight(0xffe6c0, 2.7);
+      sun.position.set(3.2, 3, 2.4);
+      const rim = new THREE.DirectionalLight(0x9cc0ff, 0.9);
+      rim.position.set(-3, 2, -3);
+      scene.add(sun, rim, new THREE.AmbientLight(0xbfd8ff, 0.85));
       glow = floorMesh('stageGlow', [0.45, 0.58, 0.85], 0.45, 2, -2);
       contact = floorMesh('stageContact', [0.01, 0.02, 0.06], 0.75, 1.2, -1);
-      scene.add(glow, contact);
+      rug = floorMesh('stageRug', [0.62, 0.42, 0.3], 0.5, 1.5, -3);
+      scene.add(rug, glow, contact);
       camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
     } catch (err) {
       if (renderer) { try { renderer.dispose(); } catch { /* ignore */ } }
@@ -339,7 +348,9 @@ export function createCatStage({
     glow.position.y = y;
     glow.scale.set(r * 2.1, 1, r * 2.1);
     contact.position.y = y + 0.002;
-    contact.scale.set(r * 1.45, 1, r * 1.45);
+    contact.scale.set(r * 1.15, 1, r * 1.15);
+    rug.position.y = y - 0.001;
+    rug.scale.set(r * 1.7, 1, r * 1.7);
   }
 
   function draw() {

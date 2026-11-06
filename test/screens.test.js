@@ -241,7 +241,7 @@ describe('Settings: switches, soft sliders, pill selects', () => {
     expect(track).toMatch(/width:\s*46px/);
     expect(track).toMatch(/height:\s*26px/);
     expect(track).toContain('#33425e');
-    expect(rule('.settings-switch input:checked + .switch {')).toContain('#e7a9a0');
+    expect(rule('.settings-switch input:checked + .switch {')).toContain('--gold'); // gold, not pink
     const knob = rule('.settings-switch .switch::after');
     expect(knob).toMatch(/width:\s*20px/);
     expect(knob).toContain('#f1e0c2');

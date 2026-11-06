@@ -505,8 +505,8 @@ body.touch-mode:not(.left-handed) .hud-top {
   border-radius: 50%; background: #f1e0c2; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
   transition: transform 0.15s ease;
 }
-.settings-switch input:checked + .switch { background: #e7a9a0; box-shadow: none; }
-.settings-switch input:checked + .switch::after { transform: translateX(20px); }
+.settings-switch input:checked + .switch { background: var(--gold, #f2c14e); box-shadow: none; }
+.settings-switch input:checked + .switch::after { transform: translateX(20px); background: #1c2431; }
 .settings-switch input:focus-visible + .switch { outline: 3px solid #fff; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .settings-switch .switch, .settings-switch .switch::after { transition: none; }
@@ -1239,6 +1239,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .dr-place.cant { opacity: .85; cursor: default; }
 /* My den: a warm card with a roof, no photo */
 .dr-place.dr-den { background: linear-gradient(165deg, #8a5a3c, #5a3a28); }
+.dr-place.dr-den img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .dr-den-roof { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); font-size: 38px; }
 
 /* the clan cards: the clan moment's (and the clan line's emblem badge) */
@@ -1315,7 +1316,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 /* ===== phone: one column, no scrolling ===== */
 @media (max-width: 600px) {
   .dr { column-gap: 10px; row-gap: 10px; padding: max(10px, env(safe-area-inset-top)) 14px 0;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
     grid-template-rows: auto minmax(0, 1fr) auto auto;
     grid-template-areas: "header header" "hero hero" "wearing today" "dock dock"; }
   .dr:not(.dr-building) { min-height: 0; }
@@ -1341,17 +1342,17 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .dr-view-home .dr-wearing { background: none; padding: 0; }
   .dr-view-home .dr-wearing .dr-label, .dr-view-home .dr-worn { display: none; }
   .dr-view-home .dr-dressup { height: 100%; min-height: 64px; border-radius: 16px; border: 0; background: var(--frame);
-    justify-content: flex-start; padding: 8px 12px; text-align: left; }
-  .dr-dressup-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none;
+    justify-content: flex-start; padding: 8px 10px; gap: 8px; text-align: left; }
+  .dr-dressup-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none;
     border-radius: 10px; background: var(--cream); font-size: 22px; }
   .dr-dressup-words { display: flex; flex-direction: column; min-width: 0; }
   .dr-dressup-words small { display: block; font-weight: 400; font-size: 12px; opacity: .75; }
   .dr-today .dr-label { display: none; }
   .dr .dr-today-card { aspect-ratio: auto; height: 100%; min-height: 64px; max-height: none; border-radius: 16px;
     background: var(--frame); display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
-  .dr-today-card img { position: static; width: 40px; height: 40px; flex: none; border-radius: 10px; }
+  .dr-today-card img { position: static; width: 36px; height: 36px; flex: none; border-radius: 10px; }
   .dr-today-card .cap { position: static; padding: 0; background: none; min-width: 0; }
-  .dr-today-name { font-size: 16px; gap: 6px; text-shadow: none; }
+  .dr-today-name { font-size: 15px; line-height: 1.15; gap: 6px; text-shadow: none; }
   .dr-today-emblem { display: none; }
   .dr-today-card .cap small { font-size: 12px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dr-today-card .cap small:not(.dr-today-change) { display: none; }
@@ -1361,9 +1362,9 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .dr-today-extras { top: 50%; right: 6px; left: auto; transform: translateY(-50%); }
   .dr-today-extras .dusk { width: 40px; height: 40px; min-height: 40px; padding: 0; justify-content: center; font-size: 18px; }
   .dr-today-extras .dusk-word { display: none; }
-  .dr-today-frame:has(.dr-today-extras) .dr-today-card { padding-right: 52px; }
+  .dr-today-frame:has(.dr-today-extras) .dr-today-card { padding-right: 50px; padding-left: 10px; gap: 8px; }
   .dr-today-card .cap { flex: 1 1 auto; }
-  .dr-today-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dr-today-name { display: block; white-space: normal; overflow-wrap: anywhere; }
   /* the wardrobe: while a slot is open only that slot shows, its picker one sideways row under it */
   .dr .dr-slots:has(.dr-slot.open) .dr-slot:not(.open) { display: none; }
   .dr .dr-slot.open { grid-column: 1 / -1; }
@@ -1415,6 +1416,10 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 #homebase .hb-menu h2, #homebase .hb-places h2 { font-size: 1.5rem; color: #f1e0c2; margin-bottom: 8px; }
 .hb-menu-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 16px; font-size: 14px; color: #f1e0c2; opacity: .9; }
 .hb-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+/* six columns so five tiles fill the grid: 2+2+2, then 3+3 (no hole) */
+.hb-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.hb-tile { grid-column: span 2; }
+.hb-tiles > .hb-tile:nth-child(4):nth-last-child(2), .hb-tiles > .hb-tile:nth-child(5):last-child { grid-column: span 3; }
 .hb-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 120px;
   padding: 14px 10px; border: 0; border-radius: 18px; background: #2c3d58; color: #f1e0c2; font: inherit; cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, .18); }
@@ -1430,6 +1435,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .hb-grownup:hover { background: rgba(255, 255, 255, .06); }
 @media (max-width: 600px) {
   .hb-tiles { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hb-tiles > .hb-tile:nth-child(4):nth-last-child(2), .hb-tiles > .hb-tile:nth-child(5):last-child { grid-column: auto; }
+  .hb-tiles > .hb-tile:nth-child(n) { grid-column: auto; }
   .hb-tile { min-height: 96px; }
 }
 
@@ -1667,6 +1674,7 @@ body.den-shop-open .chat-wheel { display: none !important; }
   border-color: transparent rgba(14, 19, 29, 0.82) transparent transparent;
 }
 /* mirrored: the bubble sits left of the head, the tail on its right */
+.visit-welcome[data-side="corner"]::before { display: none; }
 .visit-welcome[data-side="left"]::before {
   left: auto; right: -9px; border-width: 7px 0 7px 10px;
   border-color: transparent transparent transparent rgba(14, 19, 29, 0.82);
