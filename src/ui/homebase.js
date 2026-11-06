@@ -1068,7 +1068,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const glowReady = s.equipped.collar === 'glow';
     const roomState = rooms && rooms.available ? rooms.getState() : null;
     // The dusk toggle renders once: in the room's extras, or in a sheet's dock.
-    const duskHtml = glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" ${duskWanted ? 'checked' : ''} /> Dusk walk ✨</label>` : '';
+    // A day/dusk switch: the words follow the tick in CSS, so ticking it
+    // needs no redraw. Home puts it on the Today's walk card.
+    const duskHtml = glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" aria-label="Dusk walk" ${duskWanted ? 'checked' : ''} /><span class="dusk-off" aria-hidden="true">☀️<span class="dusk-word"> Day</span></span><span class="dusk-on" aria-hidden="true">🌙<span class="dusk-word"> Dusk ✨</span></span></label>` : '';
     if (openSheet) {
       // Ruling 10: every sheet keeps Start pinned at the bottom (the host-a-
       // room flow presses "Start the walk together" from 👫 Play together). The room

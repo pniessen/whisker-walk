@@ -299,17 +299,22 @@ function wearingHtml(m, ui, thumbs) {
 
 // Today's walk: one picture card for the place Start goes to; the whole card
 // opens the Change place sheet.
-function todayHtml(m) {
+// extrasHtml (the dusk switch) sits on the card's top-left corner, beside the
+// card, not inside it: a checkbox can't live inside a button.
+function todayHtml(m, extrasHtml = '') {
   const p = m.currentPlace;
   const emblem = p.clan && CLAN_EMBLEMS[p.clan] ? `<span class="dr-today-emblem">${CLAN_EMBLEMS[p.clan]}</span>` : '';
   const label = `Today’s walk: ${p.name}. Change place`;
   return `<section class="dr-today">
     <p class="dr-label">Today’s walk</p>
+    <div class="dr-today-frame">
     <button class="dr-today-card" data-dr-sheet="places" aria-label="${escapeHtml(label)}">
       <img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">
       <span class="dr-change" aria-hidden="true">Change place ›</span>
       <span class="cap"><span class="dr-today-name">${emblem}${escapeHtml(p.name)}</span>${p.line ? `<small>${escapeHtml(p.line)}</small>` : ''}<small class="dr-today-change" aria-hidden="true">change ›</small></span>
     </button>
+    ${extrasHtml ? `<div class="dr-today-extras">${extrasHtml}</div>` : ''}
+    </div>
   </section>`;
 }
 
@@ -360,10 +365,10 @@ export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '',
     <div class="dr-strip">${stripHtml(m, ui, thumbs)}</div>
   </section>
   ${wearingHtml(m, ui, thumbs)}
-  ${ui.wardrobe ? '' : todayHtml(m)}
+  ${ui.wardrobe ? '' : todayHtml(m, extrasHtml)}
   <footer class="dr-dock">
     <div class="where"><img src="${escapeHtml(PLACE_PICTURE(m.currentPlace.id))}" alt="" onerror="this.style.display='none'">Walking in <b>${escapeHtml(m.currentPlace.name)}</b></div>
-    ${extrasHtml}
+    ${ui.wardrobe ? extrasHtml : ''}
     ${startHtml}
   </footer>
 </div>`;

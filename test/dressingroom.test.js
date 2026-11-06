@@ -162,9 +162,23 @@ describe('dressing-room renderer', () => {
     expect(html).toContain('data-view="home"');
     expect(html).toContain('dr dr-view-home');
     expect(html).toContain('drag to spin');
-    // the extras and Start sit together in the dock, Start last
+    // home: the extras (the day/dusk switch) ride on the Today's walk card,
+    // beside the card's button, never inside it
+    const today = html.slice(html.indexOf('class="dr-today"'), html.indexOf('<footer class="dr-dock"'));
+    expect(today).toContain('<div class="dr-today-extras"><b>EXTRAS</b></div>');
+    expect(today.indexOf('</button>')).toBeLessThan(today.indexOf('EXTRAS'));
+  });
+  it('the wardrobe hides the walk card, so the extras move to the dock, before Start', () => {
+    const html = render({ ui: { wardrobe: true, moreCats: false } });
+    expect(html).not.toContain('class="dr-today"');
+    expect(count(html, /EXTRAS/g)).toBe(1);
     const dock = html.slice(html.indexOf('<footer class="dr-dock"'));
+    expect(dock.indexOf('EXTRAS')).toBeGreaterThan(-1);
     expect(dock.indexOf('EXTRAS')).toBeLessThan(dock.indexOf('id="start"'));
+  });
+  it('no extras, no empty corner on the card', () => {
+    const html = render({ extrasHtml: '' });
+    expect(html).not.toContain('dr-today-extras');
   });
   it('home shows the owned cats only (the rest wait behind "N more"); the wardrobe has one slot per slot; no phone pills', () => {
     const owned = defaultishState().unlocked.cats.length;

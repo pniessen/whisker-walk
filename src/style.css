@@ -1186,6 +1186,22 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .dr-change { position: absolute; top: 10px; right: 10px; background: rgba(20, 26, 38, .72); color: #fff;
   border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 14px; }
 .dr .dr-today-card:hover .dr-change { background: rgba(20, 26, 38, .9); }
+.dr-today-frame { position: relative; }
+/* the day/dusk switch on the card's top-left; ticked, the picture dims to dusk */
+.dr-today-extras { position: absolute; top: 10px; left: 10px; z-index: 1; }
+.dusk input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.dusk .dusk-on { display: none; }
+.dusk:has(input:checked) .dusk-on { display: inline; }
+.dusk:has(input:checked) .dusk-off { display: none; }
+.dr-dock .dusk:has(input:checked), .hb-sheet-dock .dusk:has(input:checked) { background: rgba(58, 44, 110, .88); color: #e6dcff; border-color: #8a7cd0; }
+.dusk:has(input:focus-visible) { outline: 3px solid var(--cream, #f1e0c2); outline-offset: 2px; }
+.dr-today-extras .dusk { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px;
+  border-radius: 999px; background: rgba(20, 26, 38, .72); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
+.dr-today-extras .dusk:hover { background: rgba(20, 26, 38, .9); }
+.dr-today-extras .dusk:has(input:checked) { background: rgba(58, 44, 110, .88); color: #e6dcff; }
+.dr-today-card img { transition: filter .35s ease; }
+.dr-today:has(#dusk-toggle:checked) .dr-today-card img { filter: brightness(.5) saturate(.75) hue-rotate(-15deg); }
+.dr-today:has(#dusk-toggle:checked) .dr-today-card { background: linear-gradient(165deg, #3b3f6e, #1d2340); }
 
 /* the dock: Start (big, pink, the only pink thing), Play together under it */
 .dr-dock { grid-area: dock; display: flex; flex-direction: column; gap: 10px; }
@@ -1341,6 +1357,13 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .dr-today-card .cap small:not(.dr-today-change) { display: none; }
   .dr-today-card .cap .dr-today-change { display: block; }
   .dr-change { display: none; }
+  /* the day/dusk switch: a round sun or moon at the tile's right end */
+  .dr-today-extras { top: 50%; right: 6px; left: auto; transform: translateY(-50%); }
+  .dr-today-extras .dusk { width: 40px; height: 40px; min-height: 40px; padding: 0; justify-content: center; font-size: 18px; }
+  .dr-today-extras .dusk-word { display: none; }
+  .dr-today-frame:has(.dr-today-extras) .dr-today-card { padding-right: 52px; }
+  .dr-today-card .cap { flex: 1 1 auto; }
+  .dr-today-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* the wardrobe: while a slot is open only that slot shows, its picker one sideways row under it */
   .dr .dr-slots:has(.dr-slot.open) .dr-slot:not(.open) { display: none; }
   .dr .dr-slot.open { grid-column: 1 / -1; }
