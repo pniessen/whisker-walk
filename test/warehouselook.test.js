@@ -24,7 +24,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { warehouse } = await import('../src/world/builder.js');
+const { warehouse, roundedBox, PARAPET } = await import('../src/world/builder.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { mergeStaticProps, mergeKey } = await import('../src/render/mergeprops.js');
 const { lookFor, pieceBuffer } = await import('../src/world/warehouselook.js');
@@ -129,9 +129,66 @@ describe('warehouse() keeps its shipped costs', () => {
     expect(a.length).toBe(b.length);
     for (let i = 0; i < a.length; i++) {
       expect(Array.from(a[i].geometry.attributes.position.array)).toEqual(Array.from(b[i].geometry.attributes.position.array));
-      if (a[i].geometry.attributes.color) {
-        expect(Array.from(a[i].geometry.attributes.color.array)).toEqual(Array.from(b[i].geometry.attributes.color.array));
+      for (const name of ['color', 'uv', 'normal']) {
+        if (!a[i].geometry.attributes[name]) continue;
+        expect(Array.from(a[i].geometry.attributes[name].array)).toEqual(Array.from(b[i].geometry.attributes[name].array));
       }
+      expect(Array.from(a[i].geometry.index?.array ?? [])).toEqual(Array.from(b[i].geometry.index?.array ?? []));
+    }
+  });
+
+  it('(g) the cached roundedBox geometries are only dereferenced, never written', () => {
+    // Every roundedBox size warehouse() asks for (W1): body, deck, lips,
+    // panes, door, lintel. Fetched first, so these ARE the cache entries.
+    const sizes = [[10, 5, 8], [10, 0.12, 8], [10, PARAPET, 0.16], [0.16, PARAPET, 8],
+      [0.8, 0.7, 0.08], [0.08, 0.7, 0.8], [1.6, 2.2, 0.12], [2.0, 0.16, 0.2]];
+    const geos = sizes.map((s) => roundedBox(...s));
+    const snap = () => geos.map((g) => Object.fromEntries(Object.entries(g.attributes).map(([k, a]) => [k, Array.from(a.array)])));
+    const before = snap();
+    W1();
+    expect(snap()).toEqual(before);
+    sizes.forEach((s, i) => expect(roundedBox(...s)).toBe(geos[i]));
+  });
+
+  it('(h) the +z trim clears the shipped door and lintel (W1 centre column)', () => {
+    const g = W1();
+    g.updateMatrixWorld(true); // a bare group's mesh.matrix is not composed until then
+    const lintel = g.children[g.children.length - 1];
+    const d = 8;
+    const a = lintel.geometry.attributes.position, v = new THREE.Vector3();
+    const bad = [];
+    for (let i = 0; i < a.count; i++) {
+      v.fromBufferAttribute(a, i).applyMatrix4(lintel.matrix); // the group's frame
+      if (v.z > d / 2 + 0.09 + 1e-6 && Math.abs(v.x) < 0.8 && v.y < 2.2) bad.push(v.toArray());
+    }
+    expect(bad).toEqual([]);
+    // nothing of the trim hangs below the lintel's bottom (2.22) over its span
+    const under = [];
+    for (let i = 24; i < a.count; i++) { // past the shipped lintel's own 24 vertices
+      v.fromBufferAttribute(a, i).applyMatrix4(lintel.matrix);
+      if (v.z > d / 2 && Math.abs(v.x) < 1.0 - 1e-6 && v.y > 2.0 && v.y < 2.22 - 1e-6) under.push(v.toArray());
+    }
+    expect(under).toEqual([]);
+  });
+
+  it('(i) no body face lies in the door front plane over the door span (fish shed cornice)', () => {
+    for (const g of [SHED(), W1()]) {
+      g.updateMatrixWorld(true);
+      const { depth: d } = g.children[0].geometry.parameters;
+      const body = g.children[0];
+      const pos = body.geometry.attributes.position, idx = body.geometry.index.array;
+      const v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+      const front = d / 2 + 0.09;
+      const bad = [];
+      for (let t = 0; t < idx.length; t += 3) {
+        for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, idx[t + k]).applyMatrix4(body.matrix);
+        const flat = v.every((p) => Math.abs(p.z - front) < 1e-4);
+        if (!flat) continue;
+        const lo = Math.min(...v.map((p) => p.x)), hi = Math.max(...v.map((p) => p.x));
+        const ylo = Math.min(...v.map((p) => p.y));
+        if (lo < 0.8 - 1e-6 && hi > -0.8 + 1e-6 && ylo < 2.2) bad.push(v.map((p) => p.toArray()));
+      }
+      expect(bad).toEqual([]);
     }
   });
 
@@ -175,7 +232,7 @@ describe('warehouse loading bays, hoists and rooflines', () => {
     const toGroup = new THREE.Matrix4().copy(mesh.matrix);
     for (let i = 0; i < a.count; i++) {
       local.fromBufferAttribute(a, i).applyMatrix4(toGroup); // the group's own frame
-      if (!filter(local)) continue;
+      if (!filter(local, i)) continue;
       v.fromBufferAttribute(a, i).applyMatrix4(mesh.matrixWorld);
       out.push({ w: v.clone(), g: local.clone() });
     }
@@ -206,14 +263,21 @@ describe('warehouse loading bays, hoists and rooflines', () => {
   it('no new geometry stands within 0.6 m of a roof perch or the fire escape', () => {
     for (const g of warehouses().values()) {
       const d = g.children[0].geometry.parameters.depth;
+      void d;
       const kids = g.children;
-      // body and deck whole; the door and lintel only on the canal (-z) face,
-      // where the loading bay goes (the shipped +z door and lintel are as before)
-      const checked = [
-        ...worldVerts(kids[0]), ...worldVerts(kids[1]),
-        ...worldVerts(kids[kids.length - 2], (p) => p.z < -d / 2 + 0.01),
-        ...worldVerts(kids[kids.length - 1], (p) => p.z < -d / 2 + 0.01),
-      ];
+      // Every baked mesh, whole: body, deck, the four lips (lip 0 with its
+      // downpipes), the door (loading doors) and the lintel (all the window
+      // trim, +z included). Only the shipped pieces each one starts with are
+      // left out — the lip slab (5 faces), the front door (4) and the lintel
+      // block (6), 4 vertices a face — they were there before this change.
+      const shipped = new Map([[kids[kids.length - 2], 16], [kids[kids.length - 1], 24]]);
+      for (const lip of kids.slice(2, 6)) shipped.set(lip, 20);
+      const checked = [];
+      for (const m of kids) {
+        if (!m.isMesh || m.userData.window) continue;
+        const skip = shipped.get(m) ?? 0;
+        checked.push(...worldVerts(m, (_p, i) => i >= skip));
+      }
       for (const p of ROOF_PERCHES) {
         const bad = checked.filter(({ w }) => Math.hypot(w.x - p.x, w.z - p.z) < 0.6 && w.y >= p.y - 0.3);
         expect(bad.map(({ w }) => w.toArray())).toEqual([]);
@@ -232,6 +296,29 @@ describe('warehouse loading bays, hoists and rooflines', () => {
       // half height: the deck (and its hoist) must never be one of them.
       const all = new THREE.Box3().setFromObject(g);
       expect(new THREE.Box3().setFromObject(deck).min.y).toBeGreaterThan((all.min.y + all.max.y) / 2);
+    }
+  }, 120_000);
+
+  it('every baked mesh of every Docks warehouse is sound: finite, in range, wound outward', () => {
+    for (const g of warehouses().values()) {
+      for (const m of g.children) {
+        if (!m.isMesh || m.userData.window) continue;
+        const geo = m.geometry;
+        for (const a of Object.values(geo.attributes)) expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+        const idx = geo.index.array, pos = geo.attributes.position, nrm = geo.attributes.normal;
+        expect(Math.max(...idx)).toBeLessThan(pos.count);
+        const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), N = new THREE.Vector3();
+        const bad = [];
+        for (let t = 0; t < idx.length; t += 3) {
+          A.fromBufferAttribute(pos, idx[t]); B.fromBufferAttribute(pos, idx[t + 1]); C.fromBufferAttribute(pos, idx[t + 2]);
+          const f = B.clone().sub(A).cross(C.clone().sub(A));
+          for (let k = 0; k < 3; k++) {
+            N.fromBufferAttribute(nrm, idx[t + k]);
+            if (!(f.dot(N) > 0)) { bad.push([g.position.x, g.position.z, g.children.indexOf(m), t / 3]); break; }
+          }
+        }
+        expect(bad).toEqual([]);
+      }
     }
   }, 120_000);
 

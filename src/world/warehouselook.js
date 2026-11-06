@@ -196,6 +196,11 @@ const PIER_W = 0.34;
 const PIER_OUT = 0.06;
 const CORNICE_OUT = 0.09;
 const SILL_OUT = 0.11;
+// warehouse()'s shipped front (+z) door and lintel, in the group's frame: the
+// door 1.6 wide and 0.0 .. 2.2 high, its front at d/2 + 0.09; the lintel 2.0
+// wide, 2.22 .. 2.38 high, its front at d/2 + 0.15.
+const DOOR = { half: 0.8, top: 2.2 };
+const LINTEL = { half: 1.0, y0: 2.22, y1: 2.38 };
 
 // The wall's horizontal bands, bottom to top: [y0, y1, bottom k, top k].
 function wallBands(h, rows) {
@@ -261,11 +266,25 @@ function bakeBody(w, d, h, rows, look, coping) {
         { skip: [s > 0 ? '-x' : '+x', '+z', '-z'], uvScale, top: grey(0.95) });
     }
   }
-  // The cornice band just under the parapet, proud of the piers.
+  // The cornice band just under the parapet, proud of the piers. On a low
+  // building (the fish shed, h 1.8) the +z band runs across the shipped front
+  // door, and its front would sit exactly on the door's front (both d/2 +
+  // 0.09): it is cut around the door's 1.6 m span there, its open inner ends
+  // hidden against the door's sides.
   const cy = h - 0.14, ch = 0.16;
+  const corniceRgb = { bottom: grey(0.7), top: grey(0.86) };
   for (const s of [1, -1]) {
-    pb.box(0, cy, s * (d / 2 + CORNICE_OUT / 2), w + 2 * CORNICE_OUT, ch, CORNICE_OUT, { bottom: grey(0.7), top: grey(0.86) },
-      { skip: [s > 0 ? '-z' : '+z'], uvScale });
+    const zc = s * (d / 2 + CORNICE_OUT / 2);
+    if (s > 0 && cy - ch / 2 < DOOR.top) {
+      const x0 = DOOR.half, x1 = w / 2 + CORNICE_OUT;
+      for (const sx of [-1, 1]) {
+        pb.box(sx * (x0 + x1) / 2, cy, zc, x1 - x0, ch, CORNICE_OUT, corniceRgb,
+          { skip: ['-z', sx > 0 ? '-x' : '+x'], uvScale });
+      }
+    } else {
+      pb.box(0, cy, zc, w + 2 * CORNICE_OUT, ch, CORNICE_OUT, corniceRgb,
+        { skip: [s > 0 ? '-z' : '+z'], uvScale });
+    }
     pb.box(s * (w / 2 + CORNICE_OUT / 2), cy, 0, CORNICE_OUT, ch, d, { bottom: grey(0.7), top: grey(0.86) },
       { skip: [s > 0 ? '-x' : '+x', '+z', '-z'], uvScale });
   }
@@ -301,7 +320,7 @@ function steppedParapets(pb, w, d, h, uvScale, coping) {
 // frame. `axis` is the face's normal axis ('x' or 'z'), `s` its sign, `wall`
 // the wall plane's coordinate, `a` the pane centre along the face, `y` its
 // centre height.
-function trimPane(pb, axis, s, wall, a, y, look) {
+function trimPane(pb, axis, s, wall, a, y, look, sillAvoid = null) {
   const W = 0.8, H = 0.7, F = 0.07;
   // place(along, up, out, sAlong, sUp, sOut, rgb, skipLocal): local face
   // names are 'back' (into the wall), 'front', 'l', 'r', 'top', 'bottom'.
@@ -327,10 +346,20 @@ function trimPane(pb, axis, s, wall, a, y, look) {
   const bt = 0.035, b0 = 0.06, bd = fo - b0;
   place(0, 0, b0 + bd / 2, bt, H, bd, frame, ['back', 'top', 'bottom']);
   place(0, 0, b0 + bd / 2, W, bt, bd, frame, ['back', 'l', 'r']);
-  // Stone sill under the frame, stone head over it.
+  // Stone sill under the frame, stone head over it. `sillAvoid` (the +z face
+  // only) is a span [lo, hi] of the face's x the sill must stay out of: the
+  // shipped lintel, which the pane over the door sits on. The sill is cut back
+  // to the lintel's end, or left out when it would sit wholly on the lintel
+  // (whose bottom, at 2.22, is 1 cm over the sill's).
   const stone = look.stone;
   const sh = 0.07;
-  place(0, -(H / 2 + F + sh / 2), SILL_OUT / 2, 1.0, sh, SILL_OUT, scale(stone, 0.86), ['back'], { top: stone });
+  let sLo = a - 0.5, sHi = a + 0.5;
+  if (sillAvoid && sLo < sillAvoid[1] && sHi > sillAvoid[0]) {
+    if (a > 0) sLo = Math.max(sLo, sillAvoid[1]); else sHi = Math.min(sHi, sillAvoid[0]);
+  }
+  if (sHi - sLo > 1e-6) {
+    place((sLo + sHi) / 2 - a, -(H / 2 + F + sh / 2), SILL_OUT / 2, sHi - sLo, sh, SILL_OUT, scale(stone, 0.86), ['back'], { top: stone });
+  }
   const hh = 0.1, ho = 0.05;
   place(0, H / 2 + F + hh / 2, ho / 2, W + 2 * F + 0.06, hh, ho, scale(stone, 0.92), ['back'], { top: stone });
 }
@@ -349,7 +378,15 @@ function bakeLintel(lintel, panes, w, d, h, look) {
       trimPane(trim, 'x', s, s * w / 2, p.position.z, p.position.y, look);
     } else {
       const s = Math.sign(p.position.z);
-      trimPane(trim, 'z', s, s * d / 2, p.position.x, p.position.y, look);
+      const px = p.position.x, py = p.position.y;
+      // On the front (+z) face, the shipped door and lintel stand over the
+      // middle of the wall. A pane whose trim would reach the door (a centre
+      // column, on W1 and W3) is behind the door already: no trim, or its sill
+      // would poke through the door's front. A pane over the door keeps its
+      // frame (buried in the lintel at the bottom) but not a sill on the lintel.
+      if (s > 0 && py < DOOR.top && Math.abs(px) < DOOR.half + 0.25) continue;
+      const overLintel = s > 0 && py - 0.35 - 0.07 - 0.07 < LINTEL.y1 && py > LINTEL.y0;
+      trimPane(trim, 'z', s, s * d / 2, px, py, look, overLintel ? [-LINTEL.half, LINTEL.half] : null);
     }
   }
   if (h >= 3.4 && look.bayX !== null) loadingStone(trim, w, d, h, look.bayX, look);
@@ -524,9 +561,11 @@ export function bakeWarehouse(g, { x, z, w, d, h, roofColor, look: opts = {} }) 
   body.geometry = bakeBody(w, d, h, rows, look, ratio(look.stone, bc));
   body.material.vertexColors = true;
 
-  // The deck: the same slab, its top in the shingle map's w x d basis.
+  // The deck: the same slab's top, in the shingle map's w x d basis.
   const dp = pieceBuffer();
-  dp.box(0, 0, 0, w, 0.12, d, grey(1), { skip: ['-y'], uvScale: [1 / w, 1 / d] });
+  // Top only: its four sides lie in the lips' outer faces (and the bottom on
+  // the body), so they would z-fight there.
+  dp.box(0, 0, 0, w, 0.12, d, grey(1), { skip: ['-y', '+x', '-x', '+z', '-z'], uvScale: [1 / w, 1 / d] });
   const bay = h >= 3.4 && look.bayX !== null;
   if (look.roofline === 'sawtooth' || bay) {
     const extra = pieceBuffer();
