@@ -51,6 +51,19 @@
 // pines is one group on the original, each faded pine its own group on its
 // clone. When none is faded the original goes back and the groups are
 // cleared. The shadow pass still draws every group, so the shadow stays.
+//
+// Close trees (polish-closeups). With the camera inside or right beside a tree
+// (a River willow, a Gorge pine), its faded foliage still read as a big green
+// slab at FADE_OPACITY: several translucent faces stack. So a faded tree (a
+// findOccluders entry, never a building box or a fadeOccluder lamp) whose axis
+// is within its R + NEAR_FOLIAGE of the camera horizontally, with the camera
+// below its top + 1, eases on down to FOLIAGE_NEAR_OPACITY (0). Its trunk
+// clones keep the FADE_OPACITY floor (opacity base * max(op, FADE_OPACITY)), so
+// the trunk, and what stands on it, never vanishes. A Group tree's trunk
+// clones are its meshes whose geometry box, in the Group's own frame, tops out
+// at or under its occluder's first cylinder (the trunk: the Old Willow's limb
+// counts); a material shared by trunk and foliage counts as trunk. A stand's
+// trunk mesh is `standTrunks`.
 import * as THREE from 'three';
 import { segmentBlocked } from './fightcam.js';
 
@@ -62,6 +75,8 @@ const LINE_PAD = 0.15;
 export const NEAR_POLE = 1.5; // m: a tagged pole this close to the camera (horizontally) fades even off the line
 export const WINDOW_HIDE = 0.3; // opacity below which a faded building's window panes are hidden
 export const BUILDING_PAD = 0.4; // m: a camera this close to a building's box counts as inside it
+export const FOLIAGE_NEAR_OPACITY = 0; // a close tree's foliage (trunk keeps FADE_OPACITY)
+export const NEAR_FOLIAGE = 2.5; // m beyond a tree's R within which the camera counts as close
 
 const DOWN_RATE = (1 - FADE_OPACITY) / FADE_DOWN_S;
 const UP_RATE = (1 - FADE_OPACITY) / FADE_UP_S;
@@ -132,6 +147,27 @@ export function findFadeOccluders(scene) {
   return out;
 }
 
+// Whether each of a tree's original materials (in `originals` key order) is
+// trunk: used by a mesh whose geometry box, carried into the tree Group's own
+// frame, tops out at or under the occluder's first cylinder.
+const _box = new THREE.Box3();
+const _mat = new THREE.Matrix4();
+const _m = new THREE.Matrix4();
+function trunkFlags(obj, keys) {
+  const cyl = obj.userData?.occluder?.find?.((sh) => sh.t === 'cyl');
+  if (!cyl) return null;
+  const trunk = new Set();
+  obj.traverse((o) => {
+    if (!o.isMesh || !o.geometry) return;
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    _mat.identity();
+    for (let a = o; a && a !== obj; a = a.parent) _mat.premultiply(_m.compose(a.position, a.quaternion, a.scale));
+    _box.copy(o.geometry.boundingBox).applyMatrix4(_mat);
+    if (_box.max.y <= cyl.y1 + 1e-3) for (const m of [].concat(o.material)) trunk.add(m);
+  });
+  return keys.map((m) => trunk.has(m));
+}
+
 function cloneFor(m) {
   const c = m.clone();
   // Material.clone() does not copy these; a clone must compile the same shader.
@@ -147,14 +183,14 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   const stands = new Map(); // stand Group → its state (see prepareStand)
   const standTrees = [];
   for (const occ of occluders) {
-    if (occ.obj) trees.push({ occ, obj: occ.obj, op: 1, swapped: false, meshes: null, originals: null, clones: null, base: null, cache: null, windows: null, winHidden: false });
+    if (occ.obj) trees.push({ occ, obj: occ.obj, tree: !occ.box && occ.near === undefined && !!occ.obj.userData?.occluder, op: 1, swapped: false, meshes: null, originals: null, clones: null, base: null, trunk: null, cache: null, windows: null, winHidden: false });
     else if (occ.stand && Number.isInteger(occ.index)) {
       let st = stands.get(occ.stand);
       if (!st) {
         st = { group: occ.stand, ok: null, meshes: null, originals: null, base: null, per: null, trees: [], shown: '', applied: false };
         stands.set(occ.stand, st);
       }
-      const t = { occ, st, index: occ.index, op: 1, clones: null };
+      const t = { occ, st, tree: true, index: occ.index, op: 1, clones: null };
       st.trees.push(t);
       standTrees.push(t);
     }
@@ -178,12 +214,18 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
       return c;
     };
     t.clones = t.originals.map((m) => (Array.isArray(m) ? m.map(one) : one(m)));
-    t.base = [...t.cache.keys()].map((m) => m.opacity);
+    const keys = [...t.cache.keys()];
+    t.base = keys.map((m) => m.opacity);
+    t.trunk = t.tree ? trunkFlags(t.obj, keys) : null;
   }
 
   function setOpacity(t) {
     let i = 0;
-    for (const c of t.cache.values()) c.opacity = t.base[i++] * t.op;
+    const floor = Math.max(t.op, FADE_OPACITY);
+    for (const c of t.cache.values()) {
+      c.opacity = t.base[i] * (t.trunk && t.trunk[i] ? floor : t.op);
+      i++;
+    }
   }
 
   function swapIn(t) {
@@ -225,6 +267,7 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
     st.meshes = meshes;
     st.originals = meshes.map((m) => m.material);
     st.base = st.originals.map((m) => m.opacity);
+    st.trunk = meshes.map((m) => m.name === 'standTrunks');
     st.per = meshes.map((m) => m.geometry.index.count / n);
     return true;
   }
@@ -255,7 +298,8 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
 
   function setStandOpacity(t) {
     const st = t.st;
-    for (let k = 0; k < t.clones.length; k++) t.clones[k].opacity = st.base[k] * t.op;
+    const floor = Math.max(t.op, FADE_OPACITY);
+    for (let k = 0; k < t.clones.length; k++) t.clones[k].opacity = st.base[k] * (st.trunk[k] ? floor : t.op);
   }
 
   // After the per-tree pass, for a stand one of whose trees moved this frame:
@@ -275,11 +319,12 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
     for (const t of st.trees) t.op = 1;
   }
 
-  // Eases the tree toward faded (in the way) or full; false when it is full and
+  // Eases the tree toward faded (in the way: FADE_OPACITY, or
+  // FOLIAGE_NEAR_OPACITY for a close tree) or full; false when it is full and
   // clear, so there is nothing to do.
   function step(t, dt, look, camDist, hidden) {
     const o = t.occ;
-    let want = false;
+    let want = false, close = false;
     if (o.box) {
       // a building: the camera inside (or within BUILDING_PAD), or the cam→look segment through it
       if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + o.R + BUILDING_PAD) {
@@ -296,14 +341,15 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
       want = (dCam < o.R && cam.y < o.top)
         || (o.near !== undefined && dCam < o.near && cam.y < o.top)
         || segmentBlocked(cam, far, o, LINE_PAD);
+      close = want && t.tree && dCam < o.R + NEAR_FOLIAGE && cam.y < o.top + 1;
     }
     if (!want && t.op >= 1) return false;
-    const target = want ? FADE_OPACITY : 1;
+    const target = close ? FOLIAGE_NEAR_OPACITY : want ? FADE_OPACITY : 1;
     // A tree the fight camera hid (fightcam.js) snaps: it reappears already
     // faded instead of opaque-then-easing in front of the cat.
     if (reducedMotion || (want && hidden)) t.op = target;
-    else if (want) t.op = Math.max(target, t.op - DOWN_RATE * dt);
-    else t.op = Math.min(1, t.op + UP_RATE * dt);
+    else if (t.op > target) t.op = Math.max(target, t.op - DOWN_RATE * dt);
+    else t.op = Math.min(target, t.op + UP_RATE * dt);
     if (t.op >= 1) t.op = 1;
     return true;
   }
@@ -381,7 +427,7 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         t.op = 1;
         setWindows(t, false);
         if (t.cache) for (const c of t.cache.values()) c.dispose();
-        t.meshes = t.originals = t.clones = t.base = t.cache = t.windows = null;
+        t.meshes = t.originals = t.clones = t.base = t.trunk = t.cache = t.windows = null;
       }
       for (const st of stands.values()) {
         restoreStand(st);

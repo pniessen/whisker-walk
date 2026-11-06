@@ -6,9 +6,9 @@
 // clone per faded tree), and puts every original back when clear and on dispose.
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { tree, pine, pineStand, house, warehouse } from '../src/world/builder.js';
+import { tree, pine, pineStand, willow, house, warehouse } from '../src/world/builder.js';
 import { findOccluders } from '../src/fightcam.js';
-import { createTreeFade, findFadeOccluders, segmentHitsBox, BUILDING_PAD, FADE_OPACITY, PAST_LOOK, WINDOW_HIDE } from '../src/treefade.js';
+import { createTreeFade, findFadeOccluders, segmentHitsBox, BUILDING_PAD, FADE_OPACITY, FOLIAGE_NEAR_OPACITY, NEAR_FOLIAGE, PAST_LOOK, WINDOW_HIDE } from '../src/treefade.js';
 import { closeDiffs } from './helpers/closeto.js';
 
 const meshesOf = (g) => {
@@ -37,8 +37,9 @@ describe('treefade', () => {
     camera.position.set(0, 2, -3);
     fade.update(1, camera, LOOK);
     expect(fade.faded().has(near)).toBe(true);
+    // the camera is 3 m from it, within R + NEAR_FOLIAGE: canopy 0, trunk at the floor (polish-closeups)
     for (const m of meshesOf(near)) {
-      expect(closeDiffs(m.material.opacity, FADE_OPACITY)).toEqual([]);
+      expect(closeDiffs(m.material.opacity, m.geometry.type === 'CylinderGeometry' ? FADE_OPACITY : FOLIAGE_NEAR_OPACITY)).toEqual([]);
       expect(m.material.transparent).toBe(true);
       expect(m.material.depthWrite).toBe(false);
     }
@@ -151,7 +152,8 @@ describe('treefade', () => {
     fade.update(1 / 60, camera, LOOK);
     near.visible = true; // and shows it again on exit
     fade.update(1 / 60, camera, LOOK);
-    for (const m of meshesOf(near)) expect(closeDiffs(m.material.opacity, FADE_OPACITY)).toEqual([]);
+    // close to the camera (polish-closeups): snaps to canopy 0, trunk at the floor
+    for (const m of meshesOf(near)) expect(closeDiffs(m.material.opacity, m.geometry.type === 'CylinderGeometry' ? FADE_OPACITY : FOLIAGE_NEAR_OPACITY)).toEqual([]);
     // a visible tree still eases in: one frame takes it only a little way down
     const w = world();
     const eased = createTreeFade(w.occ);
@@ -659,3 +661,144 @@ describe('treefade window panes', () => {
     expect(panes(h).every((w) => w.visible)).toBe(true);
   });
 });
+
+// polish-closeups: a tree the camera is in or beside clears its foliage to
+// FOLIAGE_NEAR_OPACITY (0), its trunk stays at the FADE_OPACITY floor; far
+// line-of-sight fades and buildings/lamps are unchanged.
+const isTrunk = (m) => m.geometry.type === 'CylinderGeometry';
+const sceneOf = (...objs) => { const s = new THREE.Scene(); s.add(...objs); return s; };
+const camAt = (x, y, z) => { const c = new THREE.PerspectiveCamera(60, 1, 0.1, 500); c.position.set(x, y, z); return c; };
+function expectSplit(g) {
+  const ms = meshesOf(g);
+  expect(ms.some(isTrunk)).toBe(true);
+  expect(ms.some((m) => !isTrunk(m))).toBe(true);
+  for (const m of ms) {
+    expect(closeDiffs(m.material.opacity, isTrunk(m) ? FADE_OPACITY : FOLIAGE_NEAR_OPACITY)).toEqual([]);
+    expect(m.material.transparent).toBe(true);
+    expect(m.material.depthWrite).toBe(false);
+  }
+}
+
+describe('treefade: close trees', () => {
+  it('FOLIAGE_NEAR_OPACITY is 0 and NEAR_FOLIAGE is 2.5 m', () => {
+    expect(FOLIAGE_NEAR_OPACITY).toBe(0);
+    expect(NEAR_FOLIAGE).toBe(2.5);
+  });
+
+  it('a tree the camera is inside clears its canopy to 0 and keeps its trunk at the floor', () => {
+    const t = tree(0, 0);
+    const fade = createTreeFade(findOccluders(sceneOf(t)));
+    fade.update(1, camAt(0, 2.8, 0), { x: 3, y: 0.35, z: 0 });
+    expect(fade.faded().has(t)).toBe(true);
+    expectSplit(t);
+    fade.dispose();
+  });
+
+  it('a tree just beside the camera on the line clears its canopy; a far one on the line keeps the floor', () => {
+    const t = tree(0, 0);
+    const fade = createTreeFade(findOccluders(sceneOf(t)));
+    fade.update(1, camAt(0, 2, -3), LOOK);
+    expectSplit(t);
+    fade.dispose();
+    const f = tree(0, 12);
+    const [o] = findOccluders(sceneOf(f));
+    expect(12).toBeGreaterThan(o.R + NEAR_FOLIAGE);
+    const fade2 = createTreeFade([o]);
+    fade2.update(1, camAt(0, 2, 0), { x: 0, y: 0.35, z: 20 });
+    expect(fade2.faded().has(f)).toBe(true);
+    for (const m of meshesOf(f)) expect(closeDiffs(m.material.opacity, FADE_OPACITY)).toEqual([]);
+    fade2.dispose();
+  });
+
+  it('a willow the camera is inside clears crown and curtain; the trunk keeps the floor', () => {
+    const w = willow(0, 0);
+    const fade = createTreeFade(findOccluders(sceneOf(w)));
+    fade.update(1, camAt(0.8, 2.2, 0), { x: 4, y: 0.35, z: 0 });
+    const ms = meshesOf(w);
+    expect(ms.some((m) => m.name === 'willowCurtain')).toBe(true);
+    for (const m of ms) {
+      expect(closeDiffs(m.material.opacity, isTrunk(m) ? FADE_OPACITY : 0)).toEqual([]);
+    }
+    fade.dispose();
+  });
+
+  it("the Old Willow's limb (a cylinder child at 1.9 / s) stays with the trunk at the floor", () => {
+    const s = 1.6;
+    const w = willow(0, 0, s, { curtainFloor: 2.0 });
+    const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.07 / s, 0.12 / s, 0.75 / s, 6), new THREE.MeshStandardMaterial());
+    limb.rotation.z = Math.PI / 2;
+    limb.position.set(-0.6 / s, 1.9 / s, 0);
+    w.add(limb);
+    const fade = createTreeFade(findOccluders(sceneOf(w)));
+    fade.update(1, camAt(0.8, 2.2, 0), { x: 4, y: 0.35, z: 0 });
+    expect(closeDiffs(limb.material.opacity, FADE_OPACITY)).toEqual([]);
+    for (const m of meshesOf(w)) expect(closeDiffs(m.material.opacity, isTrunk(m) ? FADE_OPACITY : 0)).toEqual([]);
+    fade.dispose();
+  });
+
+  it('a stand pine beside the camera clears its foliage clone only', () => {
+    const stand = pineStand([{ x: 0, z: 0, scale: 1 }, { x: 10, z: 0, scale: 1 }], 1);
+    const meshes = meshesOf(stand);
+    const originals = meshes.map((m) => m.material);
+    const fade = createTreeFade(findOccluders(sceneOf(stand)));
+    fade.update(1, camAt(0.5, 1.5, 0), { x: 3, y: 0.35, z: 0 });
+    meshes.forEach((m, k) => {
+      expect(Array.isArray(m.material)).toBe(true);
+      expect(m.material.length).toBe(2);
+      expect(m.material[0]).toBe(originals[k]);
+      const per = m.geometry.index.count / 2;
+      expect(groupsOf2(m)).toEqual([[0, per, 1], [per, 2 * per, 0]]);
+      const want = m.name === 'standTrunks' ? FADE_OPACITY : 0;
+      expect(closeDiffs(m.material[1].opacity, originals[k].opacity * want)).toEqual([]);
+      expect(originals[k].opacity).toBe(1);
+      expect(originals[k].transparent).toBe(false);
+    });
+    expect(meshes.map((m) => m.name).sort()).toEqual(['standFoliage', 'standTrunks']);
+    fade.dispose();
+  });
+
+  it('buildings and lamps still stop at FADE_OPACITY up close', () => {
+    const { h, camera, entries } = bworld();
+    const b = entries[0].box;
+    const fade = createTreeFade(entries);
+    camera.position.set((b.minX + b.maxX) / 2, 1.5, (b.minZ + b.maxZ) / 2);
+    fade.update(1, camera, { x: 30, y: 0.35, z: 30 });
+    expect(fade.faded().has(h)).toBe(true);
+    for (const m of meshesOf(h)) {
+      if (m.userData.window) continue;
+      expect(closeDiffs(m.material.opacity, FADE_OPACITY)).toEqual([]);
+    }
+    fade.dispose();
+    const pole = new THREE.Group();
+    pole.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 0.1), new THREE.MeshStandardMaterial()));
+    pole.userData.fadeOccluder = [{ t: 'cyl', r: 0.08, y0: 0, y1: 3.2 }, { t: 'ell', y: 3.3, r: 0.22, ry: 0.22 }];
+    pole.position.set(0.5, 0, -3);
+    const pf = createTreeFade(findFadeOccluders(sceneOf(pole)));
+    pf.update(1, camAt(0, 2, -3), LOOK);
+    expect(pf.faded().has(pole)).toBe(true);
+    for (const m of meshesOf(pole)) expect(closeDiffs(m.material.opacity, FADE_OPACITY)).toEqual([]);
+    pf.dispose();
+  });
+
+  it('reducedMotion snaps a close tree straight to 0', () => {
+    const t = tree(0, 0);
+    const fade = createTreeFade(findOccluders(sceneOf(t)), { reducedMotion: true });
+    fade.update(0.01, camAt(0, 2.8, 0), { x: 3, y: 0.35, z: 0 });
+    expectSplit(t);
+    fade.dispose();
+  });
+
+  it('a close tree the camera backs away from (still on the line) eases its canopy back up to the floor', () => {
+    const t = tree(0, 0);
+    const [o] = findOccluders(sceneOf(t));
+    const fade = createTreeFade([o]);
+    fade.update(1, camAt(0, 2, -3), LOOK);
+    expectSplit(t);
+    const back = -(o.R + NEAR_FOLIAGE + 3);
+    for (let i = 0; i < 20; i++) fade.update(0.1, camAt(0, 2, back), LOOK);
+    expect(fade.faded().has(t)).toBe(true);
+    for (const m of meshesOf(t)) expect(closeDiffs(m.material.opacity, FADE_OPACITY)).toEqual([]);
+    fade.dispose();
+  });
+});
+const groupsOf2 = (m) => m.geometry.groups.map((g) => [g.start, g.start + g.count, g.materialIndex]);
