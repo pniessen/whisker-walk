@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS, RING_LEAF_FIRST, RING_BERRY_TRIS, caneTris } = await import('../src/world/camp.js');
+const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS, RING_LEAF_FIRST, RING_BERRY_TRIS, caneTris, HIGHROCK_TRIS, NEST_TRIS } = await import('../src/world/camp.js');
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
 
 const CAMPS = ['woods', 'river', 'moor', 'pines'];
@@ -30,12 +30,15 @@ const ALL = [...CAMPS, 'gorge'];
 // position.count of each camp geometry, recorded on the code before
 // polish-camps3 (addCamp into a fresh Scene, { colliders: [] }; the Gorge with
 // its ground). The clearing is 57 since polish-camps4 (two-ring fading disc; was 30).
+// The rock is 3 * HIGHROCK_TRIS since polish-camps5 (the layered, mossy
+// Highrock; was 348, 116 triangles). The nests are 1260 (6 x 70 triangles:
+// the domed moss cushion and its bracken fronds; was 1620, 6 x 90).
 const BASE_VERTS = {
-  woods: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
-  river: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
-  moor: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
-  pines: { campDen: 3474, campRock: 348, campNests: 1620, campClearing: 57 },
-  gorge: { campBedding: 1620, campRock: 348 },
+  woods: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
+  river: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
+  moor: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
+  pines: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
+  gorge: { campBedding: 1260, campRock: 3 * HIGHROCK_TRIS },
 };
 
 const build = (a) => {
@@ -137,6 +140,49 @@ describe('CAMP_LOOKS', () => {
     }
   }, 120_000);
 
+  // polish-camps5: rounder berries and softly shaded crown lumps
+  it('berries are at least 0.06 m across', () => {
+    for (const a of CAMPS) {
+      const pos = build(a).getObjectByName('campRing').geometry.attributes.position;
+      const n = campDressing(a, []).ring.clumps.length;
+      const vs = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(() => new THREE.Vector3());
+      for (let c = 0; c < n; c++) {
+        const first = ((c + 1) * RING_CLUMP_TRIS - RING_BERRY_TRIS) * 3;
+        for (let b = 0; b < 3; b++) {
+          for (let k = 0; k < 9; k++) vs[k].fromBufferAttribute(pos, first + b * 9 + k);
+          let far = 0;
+          for (let i = 0; i < 9; i++) for (let j = i + 1; j < 9; j++) far = Math.max(far, vs[i].distanceTo(vs[j]));
+          expect(far, `${a} clump ${c} berry ${b}`).toBeGreaterThanOrEqual(0.06);
+        }
+      }
+    }
+  }, 120_000);
+
+  it('crown lump normals point away from their lump\'s centre', () => {
+    const g = new THREE.Vector3();
+    const v = new THREE.Vector3();
+    const nv = new THREE.Vector3();
+    for (const a of CAMPS) {
+      const geo = build(a).getObjectByName('campRing').geometry;
+      const pos = geo.attributes.position;
+      const nor = geo.attributes.normal;
+      const n = campDressing(a, []).ring.clumps.length;
+      for (let c = 0; c < n; c++) {
+        for (let k = 0; k < 3; k++) {
+          const first = (c * RING_CLUMP_TRIS + 20 + k * 8) * 3;
+          g.set(0, 0, 0);
+          for (let i = 0; i < 24; i++) g.add(v.fromBufferAttribute(pos, first + i));
+          g.multiplyScalar(1 / 24);
+          for (let i = 0; i < 24; i++) {
+            v.fromBufferAttribute(pos, first + i).sub(g).normalize();
+            nv.fromBufferAttribute(nor, first + i);
+            expect(nv.dot(v), `${a} clump ${c} lump ${k} vertex ${i}`).toBeGreaterThan(Math.cos(Math.PI / 3));
+          }
+        }
+      }
+    }
+  }, 120_000);
+
   it('leaf cards face outward', () => {
     const p = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
     const e1 = new THREE.Vector3();
@@ -156,6 +202,56 @@ describe('CAMP_LOOKS', () => {
           expect(n.x * mx + n.y * my + n.z * mz, `${a} clump ${ci} leaf ${l}`).toBeGreaterThan(0);
         }
       });
+    }
+  }, 120_000);
+
+  // polish-camps5: a low moss dome with a raised bank and bracken fronds round it
+  it('each nest is a low domed cushion with a bracken rim, 70 triangles', () => {
+    for (const a of ALL) {
+      const scene = build(a);
+      const nests = scene.getObjectByName(a === 'gorge' ? 'campBedding' : 'campNests');
+      const pos = nests.geometry.attributes.position;
+      const col = nests.geometry.attributes.color;
+      const centres = a === 'gorge' ? null : campDressing(a, []).nests;
+      const per = pos.count / 6;
+      expect(NEST_TRIS, a).toBe(70);
+      expect(per / 3, a).toBe(NEST_TRIS);
+      const brk = lin(CAMP_LOOKS[a].nest.bracken);
+      let bracken = false;
+      for (let i = 0; i < pos.count; i++) {
+        const k = [col.getX(i) / brk.r, col.getY(i) / brk.g, col.getZ(i) / brk.b];
+        if (k.every((v) => v >= 0.85 - 1e-4 && v <= 1.1 + 1e-4 && Math.abs(v - k[0]) < 1e-3)) bracken = true;
+      }
+      expect(bracken, `${a} bracken`).toBe(true);
+      for (let n = 0; n < 6; n++) {
+        const lo = n * per;
+        let cx = 0; let cz = 0; let minY = Infinity;
+        for (let i = lo; i < lo + per; i++) { cx += pos.getX(i); cz += pos.getZ(i); minY = Math.min(minY, pos.getY(i)); }
+        cx /= per; cz /= per;
+        if (centres) { // flat camps: the dressing's own spot
+          const c = centres.reduce((b, q) => (Math.hypot(q.x - cx, q.z - cz) < Math.hypot(b.x - cx, b.z - cz) ? q : b));
+          cx = c.x; cz = c.z;
+        }
+        // every face turned up to the game camera (FrontSide): the 50 dome
+        // faces and the 20 frond faces all have a geometric normal with y > 0
+        const p = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+        const e1 = new THREE.Vector3(); const e2 = new THREE.Vector3();
+        let down = '';
+        for (let t = 0; t < NEST_TRIS; t++) {
+          for (let k = 0; k < 3; k++) p[k].fromBufferAttribute(pos, lo + t * 3 + k);
+          const nrm = e1.subVectors(p[1], p[0]).cross(e2.subVectors(p[2], p[0]));
+          if (!(nrm.y > 0) && !down) down = `${a} nest ${n} ${t < 50 ? 'dome' : 'frond'} face ${t} normal y ${nrm.y}`;
+        }
+        expect(down, `${a} nest ${n} faces up`).toBe('');
+        const top = a === 'gorge' ? 0.5 : 1; // the ledge's pressed nests
+        for (let i = lo; i < lo + per; i++) {
+          const d = Math.hypot(pos.getX(i) - cx, pos.getZ(i) - cz);
+          const h = pos.getY(i) - minY;
+          expect(d, `${a} reach`).toBeLessThanOrEqual(0.35 + 0.12 + 0.03);
+          expect(h, `${a} height`).toBeLessThanOrEqual(0.16 * top + 1e-4);
+          if (d < 0.2) expect(h, `${a} middle`).toBeLessThanOrEqual(0.06 * top + 1e-4);
+        }
+      }
     }
   }, 120_000);
 

@@ -399,6 +399,9 @@ const DEN_SQUASH = 0.8;
 //   floor: the clearing's colour and its SURFACE_PRESETS surface
 //   nest:  moss (the ring) and bracken (the hollow)
 //   rock:  the leader's rock
+//   rockMoss (optional): the moss on the Highrock's tops when it should differ
+//          from the nests' (the Moor's heather-purple nest moss would stain
+//          its rock); absent, the rock takes nest.moss
 // A ledge camp (the Gorge) has no ring, den or floor: its record carries the
 // woods values for those so campLook always returns a whole record.
 const deepFreeze = (o) => {
@@ -439,6 +442,7 @@ export const CAMP_LOOKS = deepFreeze({
     floor: { color: 0x84984f, surface: 'grass' },  // cropped turf
     nest: { moss: 0x8a6a80, bracken: 0xa89a62 },
     rock: 0x9a9488,
+    rockMoss: 0x7c8a52, // olive moorland moss; the nests' purple heather stays on the nests
   },
   // DuskClan: needles and moss, fern tips; a moss den
   pines: {
@@ -500,7 +504,17 @@ const RING_LOOK = {
 // fade: the soft band at the rim, solid inside r - fade, clear at r * wobble;
 // wobble: the rim's radius factor, 1 - wobble..1 (a sum of three low sinusoids).
 const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -3.5 };
-const NEST = { r: 0.35, tube: 0.09, squash: 0.55 };
+// The nests: a low moss dome (a 10-corner fan, then rings at r 0.17 / 0.33 /
+// 0.41: heights 0.045 / 0.09 / 0), the raised bank darker, and 10 bracken
+// fronds round the bank, each a bent two-triangle card leaning out and up.
+// 70 triangles a nest.
+const NEST = {
+  sides: 10,
+  rings: [[0.17, 0.045], [0.33, 0.09], [0.41, 0]],
+  frond: { from: [0.3, 0.08], tip: [0.395, 0.145], halfBase: 0.055, halfTip: 0.04 },
+};
+// the fan and two bands (5 per side), then the fronds (2 per side)
+export const NEST_TRIS = NEST.sides * 5 + NEST.sides * 2;
 const KILL_LOOK = { mouse: 0x7a5a3e, vole: 0x5e4a36, bird: 0x8a8478, wing: 0xa59d8c };
 
 // A position hash in [0, 1): the same corner always moves the same way, so the
@@ -646,51 +660,93 @@ function doorGeometry(den, out) {
   return geo;
 }
 
-// The Highrock (polish-camps4): a stepped boulder the leader stands on, not
-// the armchair of slabs it was. Built around the origin (x, z 0, its foot at
+// The Highrock (polish-camps4, layered in polish-camps5): a stepped, layered
+// boulder the leader stands on. Built around the origin (x, z 0, its foot at
 // y 0) in a frame turned to `away`, the direction from the rock to its back
 // (a flat camp's is away from the camp's centre; the Gorge's is +x, inland,
 // as its leader looks west over the gorge), and moved to the rock's spot by
 // the caller. Four stones, all in one non-indexed, flat-shaded geometry:
-//  - the main boulder: eight sides, rings at y 0, 0.4, 0.68 and rock.h with
-//    radii 0.62, 0.66, 0.58 and 0.44, a little wider along the ring round
-//    the camp than out from its centre, every corner pushed in or out by up
-//    to 8 % (hash01; the top ring inward only) and a flat top cap at exactly
-//    rock.h (0.8), where the leader stands. 56 triangles, no bottom cap.
-//  - a back stone she leans on: a round, hash-jittered icosahedron behind her
-//    and turned off to one side (towards the fresh-kill pile), its top under
-//    1.15 m; its corners above 0.82 m all stay more than 0.44 m from the
-//    centre (corners only: a face between them can dip a few cm nearer just
-//    above the top, where only a paw or the tail could brush it).
-//  - two step boulders (icosahedra), tops ~0.5 and ~0.25 m, climbing round
-//    the side away from the pile, the low one nearer the camp, so the rock
-//    reads as a climb up to the top.
+//  - the main boulder: ten sides, laid in strata. Each stratum (at y ~0.25
+//    and ~0.51) is three rings: a joint ring drawn in under the ledge, the
+//    ledge's outer lip a few cm higher and wider (so the band between them
+//    faces down: a dark joint), and the ledge's top ring a little higher
+//    and 5-6 cm in (a nearly flat ledge, where moss grows); upright bands
+//    between strata. Then a rounded shoulder (y 0.72, r 0.5) into the top
+//    ring (rock.h, r 0.4) and a flat top cap at exactly rock.h (0.8), where
+//    the leader stands. A little wider along the ring round the camp than
+//    out from its centre, every corner pushed in or out by up to 6 % (hash01,
+//    one push for the rings of a stratum so a ledge keeps its depth; the top
+//    ring inward only), drawn in round the steps' side. No bottom cap.
+//    HIGHROCK_BOULDER_TRIS triangles, first in the geometry.
+//  - a back stone she leans on: a round, hash-jittered icosahedron (detail
+//    1, 80 triangles) behind her and turned off to one side (towards the
+//    fresh-kill pile), its top under 1.15 m; its corners above 0.82 m all
+//    stay more than 0.44 m from the centre (corners only: a face between
+//    them can dip a few cm nearer just above the top, where only a paw or
+//    the tail could brush it).
+//  - two step boulders (the same icosahedra), tops ~0.5 and ~0.25 m,
+//    climbing round the side away from the pile, the low one nearer the
+//    camp, so the rock reads as a climb up to the top.
 // No vertex is further than 0.78 m (x and z) from the centre, none further
 // back than 0.68 m along `away` (the Woods camp group stays under the
 // contact-shadow scan's MAX_SPAN 6.5) and none below y 0; the collider is
-// still the rock's r 0.6. Each face is coloured flat, a grey multiplier on
-// the material's look.rock: dark at the foot (0.72) to light at the top
-// (1.0), up-facing faces a touch lighter, ±6 % by a hash of the face. Every
-// hash takes the rock's spot as well, so no two camps' rocks are alike.
-// 116 triangles (it was 128).
+// still the rock's r 0.6. Each face is coloured flat, a multiplier on the
+// material's look.rock (opts.rock; it may pass 1 in a channel):
+//  - grey: dark at the foot (0.70) to light at the top (1.0), ±6 % by a hash
+//    of the face, each stone a touch darker (its tint);
+//  - faces facing down (under each ledge) × 0.62: dark joints;
+//  - a crack: the boulder's faces in one or two hash-picked columns × 0.7;
+//  - moss: up-facing faces (normal.y > 0.55), 60 % of them by hash (the top
+//    cap, the ledges, the shoulder and the stones' tops), in the clan's moss
+//    (opts.moss, look.nest.moss) × 0.85 ±6 %, divided channel-wise by
+//    look.rock (both linear), so the face shows that moss;
+//  - lichen: ~6 % of the side faces, pale 0xc9c79a over look.rock, × 0.95.
+// Every hash takes the rock's spot as well, so no two camps' rocks are alike.
 const HIGHROCK = {
-  rings: [[0, 0.62], [0.4, 0.66], [0.68, 0.58], [null, 0.44]], // [y, r]; null: rock.h
-  sides: 8,
+  // [y, r, stratum]; y null: rock.h. Rings of one stratum share a push.
+  rings: [
+    [0, 0.6, 0],
+    [0.2, 0.575, 1], [0.25, 0.655, 1], [0.27, 0.6, 1],  // joint, lip, ledge
+    [0.46, 0.58, 2], [0.51, 0.64, 2], [0.53, 0.58, 2], // joint, lip, ledge
+    [0.72, 0.5, 3],                                     // the shoulder
+    [null, 0.4, 4],                                     // the top ring
+  ],
+  sides: 10,
   along: 1.05,   // the ring-wise stretch ...
   out: 0.93,     // ... and the outward squash
-  push: 0.08,
+  push: 0.06,
+  tilt: 0.015,   // a stratum's rings rise or fall this much a corner, together
   stepSide: 0.16, // the boulder drawn in this share where the steps climb
   reach: 0.78,   // no vertex further from the centre (x and z)
   back: 0.68,    // nor further back along `away`
   clear: 0.44,   // a corner above clearY stays this far from the centre
   clearY: 0.82,
+  stoneDetail: 1, // IcosahedronGeometry detail: 80 triangles a stone
   // stones: [turn off `away` (times side), out, y, rOut, rAlong, rY, tint, salt]
   stones: [
     [-0.9, 0.5, 0.74, 0.27, 0.34, 0.38, 0.95, 31], // the back stone, to the pile's side
     [1.25, 0.5, 0.25, 0.27, 0.3, 0.29, 0.9, 32],    // the high step, top ~0.5
     [2.05, 0.58, 0.12, 0.22, 0.27, 0.15, 0.88, 33], // the low step, top ~0.25
   ],
+  base: 0.7,     // the grey at the foot (1.0 at the top)
+  joint: 0.62,   // a face facing down
+  crack: 0.7,
+  mossUp: 0.55,  // normal.y above this: a top moss can grow on ...
+  mossShare: 0.6, // ... and does on this share of them
+  mossShade: 0.85,
+  lichen: 0xc9c79a,
+  lichenShare: 0.06,
+  lichenShade: 0.95,
 };
+/** Triangles in the Highrock's main boulder (first in its geometry) and in all. */
+export const HIGHROCK_BOULDER_TRIS = (HIGHROCK.rings.length - 1) * 2 * HIGHROCK.sides + HIGHROCK.sides;
+export const HIGHROCK_TRIS = HIGHROCK_BOULDER_TRIS + HIGHROCK.stones.length * 20 * (HIGHROCK.stoneDetail + 1) ** 2;
+/**
+ * highrockGeometry(rockSpot, away, opts) -> BufferGeometry: the Highrock round
+ * the origin. opts.kill: the fresh-kill pile's x, z from the rock (the steps
+ * climb the other side); opts.rock, opts.moss: the clan's look.rock and
+ * look.nest.moss (hex or THREE.Color; the woods' when absent).
+ */
 function highrockGeometry(rockSpot, away, opts = {}) {
   const ox = rockSpot.x;
   const oz = rockSpot.z;
@@ -710,7 +766,7 @@ function highrockGeometry(rockSpot, away, opts = {}) {
   // the main boulder
   const { sides } = HIGHROCK;
   const phase = hash01(ox, 0, oz, 30) * (Math.PI * 2 / sides);
-  const rings = HIGHROCK.rings.map(([y0, r], ri) => {
+  const rings = HIGHROCK.rings.map(([y0, r, stratum], ri) => {
     const y = y0 ?? top;
     const last = ri === HIGHROCK.rings.length - 1;
     const pts = [];
@@ -718,9 +774,9 @@ function highrockGeometry(rockSpot, away, opts = {}) {
       // each ring turned half a side on from the one under it, so the
       // faces are triangles, not upright panels
       const a = phase + ((j + ri / 2) / sides) * Math.PI * 2;
-      const h = hash01(ox + j, ri, oz, 34);
+      const h = hash01(ox + j, stratum, oz, 34);
       const push = last ? 1 - h * HIGHROCK.push : 1 + (h * 2 - 1) * HIGHROCK.push;
-      const dy = ri === 1 || ri === 2 ? (hash01(ox, ri, oz + j, 35) - 0.5) * 0.08 : 0;
+      const dy = stratum === 1 || stratum === 2 ? (hash01(ox, stratum, oz + j, 35) * 2 - 1) * HIGHROCK.tilt : 0;
       // drawn in round the steps' side, so they stand out of it
       const lean = Math.max(0, Math.cos(a - side * 1.6)) ** 2 * HIGHROCK.stepSide;
       const rr = r * push * (1 - (last ? 0 : lean));
@@ -729,17 +785,27 @@ function highrockGeometry(rockSpot, away, opts = {}) {
     }
     return pts;
   });
+  // the crack: one or two columns of side faces
+  const crackA = Math.floor(hash01(ox, 1, oz, 39) * sides);
+  const crackB = hash01(ox, 2, oz, 39) < 0.5 ? (crackA + 3 + Math.floor(hash01(ox, 3, oz, 39) * 4)) % sides : -1;
+  const cracked = [];
   for (let ri = 0; ri + 1 < rings.length; ri++) {
     const lo = rings[ri];
     const hi = rings[ri + 1];
     for (let j = 0; j < sides; j++) {
       const n = (j + 1) % sides;
+      const crack = j === crackA || j === crackB;
       tri(lo[j], hi[j], lo[n]);
+      cracked.push(crack);
       tri(lo[n], hi[j], hi[n]);
+      cracked.push(crack);
     }
   }
   const crown = rings[rings.length - 1];
-  for (let j = 0; j < sides; j++) tri([0, top, 0], crown[(j + 1) % sides], crown[j]);
+  for (let j = 0; j < sides; j++) {
+    tri([0, top, 0], crown[(j + 1) % sides], crown[j]);
+    cracked.push(false);
+  }
 
   // the back stone and the steps
   for (const [turn, d, y, rOut, rAlong, rY, stoneTint, salt] of HIGHROCK.stones) {
@@ -747,7 +813,7 @@ function highrockGeometry(rockSpot, away, opts = {}) {
     const a = away + turn * side;
     const cxs = Math.cos(a) * d;
     const czs = Math.sin(a) * d;
-    const ico = new THREE.IcosahedronGeometry(1, 0);
+    const ico = new THREE.IcosahedronGeometry(1, HIGHROCK.stoneDetail);
     const p = ico.attributes.position;
     const ca = Math.cos(a);
     const sa = Math.sin(a);
@@ -766,6 +832,7 @@ function highrockGeometry(rockSpot, away, opts = {}) {
         face.push([cxs + lo * ca - la * sa, Math.max(0, y + uy * rY * j), czs + lo * sa + la * ca]);
       }
       tri(face[0], face[1], face[2]);
+      cracked.push(false);
     }
     ico.dispose();
   }
@@ -790,16 +857,38 @@ function highrockGeometry(rockSpot, away, opts = {}) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.computeVertexNormals();
   const nrm = geo.attributes.normal;
+  // the moss and the lichen as multipliers on look.rock (linear colours)
+  const rockC = new THREE.Color(opts.rock ?? WOODS_LOOK.rock);
+  const over = (c) => [c.r / Math.max(rockC.r, 1e-4), c.g / Math.max(rockC.g, 1e-4), c.b / Math.max(rockC.b, 1e-4)];
+  const moss = over(new THREE.Color(opts.moss ?? WOODS_LOOK.nest.moss));
+  const lichen = over(new THREE.Color(HIGHROCK.lichen));
   const col = new Float32Array(pos.length);
   for (let t = 0; t < pos.length; t += 9) {
+    const f = t / 9;
     const cy = (pos[t + 1] + pos[t + 4] + pos[t + 7]) / 3;
     const cx = (pos[t] + pos[t + 3] + pos[t + 6]) / 3;
     const cz = (pos[t + 2] + pos[t + 5] + pos[t + 8]) / 3;
-    let g = 0.72 + 0.28 * Math.min(1, cy / top);
-    g *= tints[t / 9] * (1 + (hash01(cx + ox, cy, cz + oz, 38) * 2 - 1) * 0.06);
-    if (nrm.getY(t / 3) > 0.6) g += 0.04;
-    g = Math.min(1.06, g);
-    for (let m = 0; m < 9; m++) col[t + m] = g;
+    const ny = nrm.getY(t / 3);
+    const jit = 1 + (hash01(cx + ox, cy, cz + oz, 38) * 2 - 1) * 0.06;
+    const pick = hash01(cx + ox, cy, cz + oz, 40);
+    let rgb;
+    if (ny > HIGHROCK.mossUp && pick < HIGHROCK.mossShare) {
+      const g = HIGHROCK.mossShade * jit;
+      rgb = [moss[0] * g, moss[1] * g, moss[2] * g];
+    } else if (ny <= HIGHROCK.mossUp && ny >= -0.2 && pick < HIGHROCK.lichenShare) {
+      const g = HIGHROCK.lichenShade;
+      rgb = [lichen[0] * g, lichen[1] * g, lichen[2] * g];
+    } else {
+      let g = (HIGHROCK.base + (1 - HIGHROCK.base) * Math.min(1, Math.max(0, cy / top))) * tints[f] * jit;
+      if (ny < -0.2) g *= HIGHROCK.joint;
+      if (cracked[f]) g *= HIGHROCK.crack;
+      rgb = [g, g, g];
+    }
+    for (let m = 0; m < 9; m += 3) {
+      col[t + m] = rgb[0];
+      col[t + m + 1] = rgb[1];
+      col[t + m + 2] = rgb[2];
+    }
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeBoundingBox();
@@ -1011,7 +1100,7 @@ export const RING_BERRY_TRIS = 9;
 // the mound's envelope (ENV) is widened to 0.9 R and leaves start at 0.4 rad
 // up it (were 0.8 R and 0.25), so leaves sit outside the core and show
 const LEAF = { n: 6, len: 0.11, w: 0.06, lean: 0.03, eLo: 0.4, eHi: 1.1 };
-const BERRY = { n: 3, r: 0.028, apex: 0.045, at: 0.95, eLo: 0.3, eHi: 0.95 };
+const BERRY = { n: 3, r: 0.04, apex: 0.05, at: 0.97, eLo: 0.3, eHi: 0.95 };
 // the mound's envelope: a half-ellipsoid on the clump's spot (semi-axes r·R, h·c.h)
 const ENV = { r: 0.9, h: 0.88 };
 const TAU = Math.PI * 2;
@@ -1041,6 +1130,35 @@ function clampToClump(geo, c, R) {
     pos.setXYZ(i, c.x + dx, Math.max(0, Math.min(c.h, pos.getY(i))), c.z + dz);
   }
   geo.computeVertexNormals();
+  return geo;
+}
+
+// polish-camps5: a crown lump shaded round, not faceted: every vertex normal
+// is the direction from the lump's centre. No triangle changes;
+// speckle and merging leave normals alone.
+function softenAbout(geo) {
+  const pos = geo.attributes.position;
+  const nor = geo.attributes.normal;
+  // the centre is the mean of the lump's final corners (lumpy and the clamp
+  // have moved them off the octahedron's ideal centre)
+  let cx = 0;
+  let cy = 0;
+  let cz = 0;
+  for (let i = 0; i < pos.count; i++) {
+    cx += pos.getX(i);
+    cy += pos.getY(i);
+    cz += pos.getZ(i);
+  }
+  cx /= pos.count;
+  cy /= pos.count;
+  cz /= pos.count;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) - cx;
+    const y = pos.getY(i) - cy;
+    const z = pos.getZ(i) - cz;
+    const l = Math.hypot(x, y, z) || 1;
+    nor.setXYZ(i, x / l, y / l, z / l);
+  }
   return geo;
 }
 
@@ -1115,7 +1233,8 @@ function ringMesh(ring, cx, cz, look) {
       const top = k === tall ? c.h : c.h * (0.8 + 0.2 * ch[k]);
       const m = place(c.x + Math.cos(az) * 0.42 * R, top - rk, c.z + Math.sin(az) * 0.42 * R, rk, rk, rk,
         TAU * hash01(c.x, c.z, k, 43), 0.35 * hash01(c.x, c.z, k, 44));
-      parts.push(speckle(clampToClump(lumpy(bake(new THREE.OctahedronGeometry(1, 0), m, crownAt), c), c, R), look.ring.specks, 19));
+      const lump = clampToClump(lumpy(bake(new THREE.OctahedronGeometry(1, 0), m, crownAt), c), c, R);
+      parts.push(speckle(softenAbout(lump), look.ring.specks, 19));
     }
     // six leaf cards on the envelope, tips up the slope and leaning out
     const leaves = [];
@@ -1165,19 +1284,35 @@ function ringMesh(ring, cx, cz, look) {
           if (h < w) { pick = hex; break; }
           h -= w;
         }
-        let f = 0.9 + 0.2 * hash01(c.x, c.z, b, 52);
-        if (Math.abs(f - 1) < 0.02) f = f < 1 ? 0.98 : 1.02;
+        // 0.96..1.01, any factor within 0.01 of 1 pushed out to 0.99 or 1.01
+        // (the hash's whole top two-fifths), so the lit face
+        // (x 1.08) and the others (x 0.94) stay in 0.9..1.1
+        let f = 0.96 + 0.05 * hash01(c.x, c.z, b, 52);
+        if (Math.abs(f - 1) < 0.01) f = f < 1 ? 0.99 : 1.01;
         colr = pick.clone().multiplyScalar(f);
       } else {
         colr = green.clone().multiplyScalar(RING_LOOK.bud);
       }
       const mid = p.clone();
-      for (let i = 0; i < 3; i++) {
+      const tris = [0, 1, 2].map((i) => {
         const tri = [base[i].clone(), base[(i + 1) % 3].clone(), apex.clone()];
         tri.mid = mid;
-        berries.push(tri);
-        berryCols.push(colr);
+        return tri;
+      });
+      // a fruit's face turned most upward is its lit one (x 1.08), the rest x 0.94
+      let lit = -1;
+      if (fruiting) {
+        let best = -Infinity;
+        tris.forEach((tri, i) => {
+          const fn = _e1.subVectors(tri[1], tri[0]).cross(_e2.subVectors(tri[2], tri[0])).normalize();
+          if (fn.dot(centroid(tri).sub(mid)) < 0) fn.negate();
+          if (fn.y > best) { best = fn.y; lit = i; }
+        });
       }
+      tris.forEach((tri, i) => {
+        berries.push(tri);
+        berryCols.push(fruiting ? colr.clone().multiplyScalar(i === lit ? 1.08 : 0.94) : colr);
+      });
     }
     parts.push(facing(berries, berryCols, c, R, (tri) => centroid(tri).sub(tri.mid)));
   }
@@ -1290,8 +1425,8 @@ function clearingMesh(clearing, look) {
   return mesh;
 }
 
-// The nests: a squashed moss ring under each elder and kit, dry bracken in
-// its hollow. One vertex-coloured mesh, out of the shadow pass.
+// The nests: a domed moss cushion under each elder and kit, bracken fronds
+// round its bank. One vertex-coloured mesh, out of the shadow pass.
 function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
   const parts = [];
   // `flat` < 1 presses a nest down towards the ground under it (the ledge's:
@@ -1299,15 +1434,60 @@ function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
   // decal).
   const press = (m, gy) => (flat === 1 ? m : m.premultiply(new THREE.Matrix4().makeTranslation(0, -gy, 0))
     .premultiply(new THREE.Matrix4().makeScale(1, flat, 1)).premultiply(new THREE.Matrix4().makeTranslation(0, gy, 0)));
+  const K = NEST.sides;
   for (const n of nests) {
     const gy = groundY(n.x, n.z);
-    const ring = new THREE.TorusGeometry(NEST.r, NEST.tube, 4, 10);
-    const sy = NEST.squash;
-    parts.push(bake(ring, press(place(n.x, gy + NEST.tube * sy, n.z, 1, sy, 1, hash01(n.x, 0, n.z, 13) * Math.PI, Math.PI / 2), gy),
-      (vx, vy, vz, c) => c.setHex(look.nest.moss).multiplyScalar(0.8 + 0.35 * hash01(vx, vy, vz, 14))));
-    const hollow = new THREE.CircleGeometry(NEST.r - 0.02, 10);
-    parts.push(bake(hollow, press(place(n.x, gy + 0.03, n.z, 1, 1, 1, 0, -Math.PI / 2), gy),
-      (vx, vy, vz, c) => c.setHex(look.nest.bracken).multiplyScalar(0.85 + 0.25 * hash01(vx, vy, vz, 15))));
+    const turn = hash01(n.x, 0, n.z, 13) * Math.PI * 2;
+    const tris = [];
+    const ringPt = (ring, i) => {
+      const t = turn + (i / K) * Math.PI * 2;
+      const r = NEST.rings[ring][0];
+      return [Math.cos(t) * r, NEST.rings[ring][1], Math.sin(t) * r];
+    };
+    for (let i = 0; i < K; i++) {
+      const j = (i + 1) % K;
+      // anticlockwise seen from above (the angle grows i -> j), so every face
+      // is turned up to the camera
+      tris.push([0, 0, 0], ringPt(0, j), ringPt(0, i));
+      tris.push(ringPt(0, i), ringPt(1, j), ringPt(1, i), ringPt(0, i), ringPt(0, j), ringPt(1, j));
+      tris.push(ringPt(1, i), ringPt(2, j), ringPt(2, i), ringPt(1, i), ringPt(1, j), ringPt(2, j));
+    }
+    // the fronds: a base on the bank, a narrower tip out and up
+    const F = NEST.frond;
+    for (let i = 0; i < K; i++) {
+      const t = turn + ((i + 0.5 + 0.3 * (hash01(n.x, i, n.z, 18) - 0.5)) / K) * Math.PI * 2;
+      const lean = 0.9 + 0.2 * hash01(n.x, i, n.z, 19);
+      const c = Math.cos(t); const s = Math.sin(t);
+      const at = (r, y, side) => [c * r - s * side, y, s * r + c * side];
+      const b0 = at(F.from[0], F.from[1], -F.halfBase);
+      const b1 = at(F.from[0], F.from[1], F.halfBase);
+      const r1 = F.from[0] + (F.tip[0] - F.from[0]) * lean;
+      const y1 = F.from[1] + (F.tip[1] - F.from[1]) * lean;
+      const t0 = at(r1, y1, -F.halfTip);
+      const t1 = at(r1, y1, F.halfTip);
+      tris.push(b0, b1, t1, b0, t1, t0); // the upper face turned up
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(tris.flat(), 3));
+    // colour by vertex index so the dome and the fronds can differ
+    const bodyVerts = K * 3 + K * 6 * 2; // the fan and the two bands, before the fronds
+    const colors = new Float32Array(tris.length * 3);
+    const cc = new THREE.Color();
+    for (let v = 0; v < tris.length; v++) {
+      const [lx, ly, lz] = tris[v];
+      if (v < bodyVerts) {
+        cc.setHex(look.nest.moss).multiplyScalar(0.8 + 0.35 * hash01(lx + n.x, ly, lz + n.z, 14));
+        if (Math.hypot(lx, lz) > 0.28) cc.multiplyScalar(0.8); // the bank is darker
+      } else {
+        cc.setHex(look.nest.bracken).multiplyScalar(0.85 + 0.25 * hash01(lx + n.x, ly, lz + n.z, 15));
+      }
+      colors.set([cc.r, cc.g, cc.b], v * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const m = press(place(n.x, gy, n.z, 1, 1, 1, 0, 0), gy);
+    geo.applyMatrix4(m);
+    geo.computeVertexNormals();
+    parts.push(geo);
   }
   const mesh = new THREE.Mesh(merged(parts), vcMaterial({ roughness: 0.9 }));
   mesh.name = 'campNests';
@@ -1377,7 +1557,9 @@ function addLedgeCamp(scene, area, L) {
   const D = campDressing('gorge', area.colliders);
   const made = withLocalUuids('gorge', () => ({
     // the leader looks west, so the rock's back is +x (away 0), inland
-    rock: highrockGeometry(L.rock, 0, { kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z } }),
+    rock: highrockGeometry(L.rock, 0, {
+      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.rockMoss ?? look.nest.moss,
+    }),
     nests: nestsMesh(D.nests, look, groundY, 0.5),
     kill: killMesh(D.kill, groundY),
   }));
@@ -1440,7 +1622,7 @@ export function addCamp(scene, area, areaId) {
     den: denGeometry(L.den, out, look),
     door: doorGeometry(L.den, out),
     rock: highrockGeometry(L.rock, Math.atan2(L.rock.z - L.cz, L.rock.x - L.cx), {
-      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z },
+      kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.rockMoss ?? look.nest.moss,
     }).translate(L.rock.x, 0, L.rock.z),
     nests: nestsMesh(D.nests, look),
     kill: killMesh(D.kill),

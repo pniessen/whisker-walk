@@ -374,9 +374,42 @@ function meetsPlaced(a) {
   return false;
 }
 
-// entries: [{ rect: {l,t,r,b} (CSS px, y down), depth, sub }], hud: [{l,t,r,b}]
-// -> Map<entry, { hide, dropSub, lift }>. Pure. `out` is cleared and refilled;
-// the decision objects it held for these same entries are reused.
+// Whether entry a is placed after entry b: a top tag after any other, then farther.
+const placedAfter = (a, b) => (!a.top !== !b.top ? !!a.top : a.depth > b.depth);
+
+// Place one entry's rect into w (dropping its rank line first when `drop`
+// and it meets a placed rect), lifted clear of the placed rects; fills d.
+// Returns true when it found room (d.hide false).
+function liftInto(e, d, w, drop) {
+  d.hide = false; d.dropSub = false; d.lift = 0;
+  w.l = e.rect.l; w.t = e.rect.t; w.r = e.rect.r; w.b = e.rect.b;
+  if (drop && e.sub && meetsPlaced(w)) {
+    d.dropSub = true;
+    w.t = w.b - (w.b - w.t) * SUB_DROP_KEEP;
+  }
+  if (meetsPlaced(w)) {
+    let lift = 0;
+    for (let p = 0; p < _placedN; p++) {
+      const q = _placed[p];
+      if (meetsGrown(w, q) && w.b - q.t + TAG_GAP_PX > lift) lift = w.b - q.t + TAG_GAP_PX;
+    }
+    d.lift = lift;
+    w.t -= lift; w.b -= lift;
+    if (lift > LIFT_MAX_TAGS * (w.b - w.t) || meetsPlaced(w) || w.t < 0) d.hide = true;
+  }
+  return !d.hide;
+}
+
+// entries: [{ rect: {l,t,r,b} (CSS px, y down), depth, sub, top }], hud:
+// [{l,t,r,b}] -> Map<entry, { hide, dropSub, lift }>. Pure. `out` is cleared
+// and refilled; the decision objects it held for these same entries are reused.
+//
+// `top` (a clan leader's tag, makeNameTag): placed after every tag without it,
+// nearest first within each group. At a camp the leader sits on the Highrock
+// with the deputy just beside it and their tags meet; placed last, the
+// leader's is the one that steps aside, and a lift puts it above the deputy's
+// (from below, the deputy's was half hidden behind the leader). Two leaders (a
+// rival's and the home one) fall back to depth order between themselves.
 export function declutterTags(entries, hud = [], out = new Map()) {
   const n = entries ? entries.length : 0;
   _reuse.length = 0;
@@ -387,7 +420,7 @@ export function declutterTags(entries, hud = [], out = new Map()) {
   for (let i = 0; i < n; i++) {
     let j = _order.length;
     _order.push(i);
-    while (j > 0 && entries[_order[j - 1]].depth > entries[i].depth) { _order[j] = _order[j - 1]; j--; }
+    while (j > 0 && placedAfter(entries[_order[j - 1]], entries[i])) { _order[j] = _order[j - 1]; j--; }
     _order[j] = i;
   }
   _placedN = 0;
@@ -397,21 +430,9 @@ export function declutterTags(entries, hud = [], out = new Map()) {
     const d = _reuse[i] || { hide: false, dropSub: false, lift: 0 };
     d.hide = false; d.dropSub = false; d.lift = 0;
     const w = _work;
-    w.l = e.rect.l; w.t = e.rect.t; w.r = e.rect.r; w.b = e.rect.b;
-    if (e.sub && meetsPlaced(w)) {
-      d.dropSub = true;
-      w.t = w.b - (w.b - w.t) * SUB_DROP_KEEP;
-    }
-    if (meetsPlaced(w)) {
-      let lift = 0;
-      for (let p = 0; p < _placedN; p++) {
-        const q = _placed[p];
-        if (meetsGrown(w, q) && w.b - q.t + TAG_GAP_PX > lift) lift = w.b - q.t + TAG_GAP_PX;
-      }
-      d.lift = lift;
-      w.t -= lift; w.b -= lift;
-      if (lift > LIFT_MAX_TAGS * (w.b - w.t) || meetsPlaced(w) || w.t < 0) d.hide = true;
-    }
+    // A leader's (top) tag keeps its rank line and only lifts, when the lift
+    // alone finds it room; otherwise it goes the usual way (drop, then lift).
+    if (!(e.top && e.sub && liftInto(e, d, w, false))) liftInto(e, d, w, true);
     if (!d.hide && hud) {
       for (let h = 0; h < hud.length; h++) {
         const q = hud[h];
@@ -556,19 +577,58 @@ function applyDecision(tag, d, k, camera) {
   me[12] += ce[4] * s; me[13] += ce[5] * s; me[14] += ce[6] * s;
 }
 
+// --- Tags pull toward the camera ------------------------------------------
+// Tags are depth-tested sprites, so a cat or a rock just in front of a tag hid
+// part of it (at a camp, the deputy's tag behind the leader on the Highrock).
+// So in the frame path a fitted tag is moved toward the camera along its own
+// view ray, by p = min(TAG_PULL_M, TAG_PULL_SHARE * depth) (none under 1 m
+// deep), and shrunk by (dist - p) / dist, dist its distance from the camera. A
+// sprite's centre projects along that ray and its quad is sized in view space,
+// so it covers exactly the same screen rect, only nearer: in front of anything
+// within ~2.5 m of it (the leader's head on the Highrock is ~1.7 m in front of
+// the deputy's tag from the camp's side). Never past the near plane: at most
+// 45 % of the way.
+// The tag's world top before the pull is kept on userData.fitTop (NaN when not
+// pulled) for the chat bubble, which sits above the tag where the tag "is",
+// with the frame it was taken on in userData.fitTopFrame: a tag culled this
+// frame (no onBeforeRender) leaves last frame's fitTop, which the bubble skips.
+export const TAG_PULL_M = 2.5;
+export const TAG_PULL_SHARE = 0.45;
+const PULL_MIN_DEPTH = 1;
+
+function pullTag(tag, depth, camera, frame) {
+  const ud = tag.userData;
+  if (!(depth >= PULL_MIN_DEPTH)) return;
+  const me = tag.matrixWorld.elements;
+  const ce = camera.matrixWorld.elements;
+  const dx = me[12] - ce[12], dy = me[13] - ce[13], dz = me[14] - ce[14];
+  const dist = Math.hypot(dx, dy, dz);
+  if (!(dist > 0)) return;
+  const sy = Math.hypot(me[4], me[5], me[6]);
+  if (!(sy > 0)) return; // hidden
+  const p = Math.min(TAG_PULL_M, TAG_PULL_SHARE * depth);
+  ud.fitTop = me[13] + sy / 2;
+  ud.fitTopFrame = frame;
+  const f = (dist - p) / dist;
+  for (let i = 0; i < 3; i++) { me[i] *= f; me[4 + i] *= f; }
+  me[12] = ce[12] + dx * f; me[13] = ce[13] + dy * f; me[14] = ce[14] + dz * f;
+}
+
 function fitOnRender(renderer, _scene, camera) {
   if (!renderer || typeof renderer.getSize !== 'function') return;
   renderer.getSize(_size);
   const frame = renderer.info && renderer.info.render ? renderer.info.render.frame : undefined;
   if (typeof frame !== 'number') {
+    this.userData.fitTop = NaN;
     fitTagToView(this, camera, _size.x, _size.y);
     return;
   }
   const st = glueFor(renderer);
   if (frame !== st.frame) newFrame(st, renderer, frame);
   const n = st.cur.length;
-  const e = st.curPool[n] || (st.curPool[n] = { rect: { l: 0, t: 0, r: 0, b: 0, depth: 0, k: 0 }, depth: 0, sub: false, tag: null });
+  const e = st.curPool[n] || (st.curPool[n] = { rect: { l: 0, t: 0, r: 0, b: 0, depth: 0, k: 0 }, depth: 0, sub: false, top: false, tag: null });
   e.rect.depth = NaN;
+  this.userData.fitTop = NaN;
   fitTagToView(this, camera, _size.x, _size.y, -Infinity, e.rect);
   let d = st.byTag.get(this);
   if (d && (d.frame !== frame || d.tag !== this)) d = undefined;
@@ -577,10 +637,12 @@ function fitOnRender(renderer, _scene, camera) {
   if (!(this.material && this.material.opacity <= 0)) {
     e.depth = e.rect.depth;
     e.sub = !!this.userData.sub;
+    e.top = this.userData.top === true;
     e.tag = this;
     st.cur.push(e);
   }
   applyDecision(this, d, e.rect.k, camera);
+  if (!(d && d.hide)) pullTag(this, e.rect.depth, camera, frame);
 }
 
 // For a chat bubble (chatbubble.js): fit it like a tag, and keep it above
@@ -591,14 +653,18 @@ const BUBBLE_GAP = 0.03;
 export function fitBubbleOnRender(renderer, _scene, camera) {
   if (!renderer || typeof renderer.getSize !== 'function') return;
   renderer.getSize(_size);
+  const frame = renderer.info && renderer.info.render ? renderer.info.render.frame : undefined;
   let minBottom = -Infinity;
   const kids = this.parent ? this.parent.children : null;
   if (kids) {
     for (let i = 0; i < kids.length; i++) {
       const c = kids[i];
       if (c === this || !c.visible || !c.userData || !c.userData.tagCtx) continue;
+      // a tag pulled this frame (pullTag): above where it was fitted, not
+      // where it's drawn; otherwise (culled, or a bare renderer) its matrix
       const te = c.matrixWorld.elements;
-      const top = te[13] + Math.hypot(te[4], te[5], te[6]) / 2;
+      const ft = typeof frame === 'number' && c.userData.fitTopFrame === frame ? c.userData.fitTop : NaN;
+      const top = Number.isFinite(ft) ? ft : te[13] + Math.hypot(te[4], te[5], te[6]) / 2;
       if (top + BUBBLE_GAP > minBottom) minBottom = top + BUBBLE_GAP;
     }
   }
@@ -785,6 +851,8 @@ export function makeNameTag(name, { cross = false, legend = false, sub = '', fit
   if (twoLine) tag.scale.set(SUB_TAG_SCALE_X, SUB_TAG_SCALE_Y, 1);
   tag.position.y = (isCross ? CROSS_TAG_Y : TAG_Y) + (twoLine ? SUB_LIFT : 0);
   if (twoLine) { tag.userData.sub = sub; tag.userData.subPx = subPx; }
+  // a clan leader's tag goes on top of the others (declutterTags)
+  if (twoLine && /^leader/i.test(sub)) tag.userData.top = true;
   if (fit) tag.userData.fit = true;
   tag.visible = false;
   // The canvas and its context are kept ON the sprite so the texture can be
