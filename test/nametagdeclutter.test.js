@@ -116,10 +116,19 @@ describe('the leader goes on top', () => {
     expect(d.lift).toBe(180 - 140 + TAG_GAP_PX);
   });
 
-  it('a two-line leader drops its rank line first, the deputy keeps both', () => {
-    // the deputy's tag above the leader's lower one: the rank line is enough
-    const leader = ent({ l: 100, t: 120, r: 300, b: 210 }, 4, true, true);
-    const deputy = ent({ l: 120, t: 50, r: 320, b: 140 }, 5, true);
+  it('a two-line leader keeps its rank line and lifts over the deputy', () => {
+    const leader = ent({ l: 100, t: 120, r: 300, b: 180 }, 4, true, true);
+    const deputy = ent({ l: 120, t: 140, r: 320, b: 200 }, 5, true);
+    const out = declutterTags([deputy, leader]);
+    expect(out.get(deputy)).toEqual(NONE);
+    expect(out.get(leader)).toEqual({ hide: false, dropSub: false, lift: 180 - 140 + TAG_GAP_PX });
+  });
+
+  it('a two-line leader with no room above drops its rank line the usual way', () => {
+    // the deputy's tag above the leader's lower one, the leader at the top of
+    // the screen: a lift would push it off, so the rank line goes instead
+    const leader = ent({ l: 100, t: 100, r: 300, b: 190 }, 4, true, true);
+    const deputy = ent({ l: 120, t: 60, r: 320, b: 120 }, 5, true);
     const out = declutterTags([deputy, leader]);
     expect(out.get(deputy)).toEqual(NONE);
     expect(out.get(leader)).toEqual({ hide: false, dropSub: true, lift: 0 });

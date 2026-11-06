@@ -263,8 +263,8 @@ describe('the pull toward the camera', () => {
   const frameRenderer = () => ({ getSize: (v) => v.set(W, H), info: { render: { frame: ++frameNo } } });
 
   it('exports its tuning', () => {
-    expect(TAG_PULL_M).toBe(1.5);
-    expect(TAG_PULL_SHARE).toBe(0.4);
+    expect(TAG_PULL_M).toBe(2.5);
+    expect(TAG_PULL_SHARE).toBe(0.45);
   });
 
   for (const [label, catPos, camPos, at] of [

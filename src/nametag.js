@@ -377,6 +377,29 @@ function meetsPlaced(a) {
 // Whether entry a is placed after entry b: a top tag after any other, then farther.
 const placedAfter = (a, b) => (!a.top !== !b.top ? !!a.top : a.depth > b.depth);
 
+// Place one entry's rect into w (dropping its rank line first when `drop`
+// and it meets a placed rect), lifted clear of the placed rects; fills d.
+// Returns true when it found room (d.hide false).
+function liftInto(e, d, w, drop) {
+  d.hide = false; d.dropSub = false; d.lift = 0;
+  w.l = e.rect.l; w.t = e.rect.t; w.r = e.rect.r; w.b = e.rect.b;
+  if (drop && e.sub && meetsPlaced(w)) {
+    d.dropSub = true;
+    w.t = w.b - (w.b - w.t) * SUB_DROP_KEEP;
+  }
+  if (meetsPlaced(w)) {
+    let lift = 0;
+    for (let p = 0; p < _placedN; p++) {
+      const q = _placed[p];
+      if (meetsGrown(w, q) && w.b - q.t + TAG_GAP_PX > lift) lift = w.b - q.t + TAG_GAP_PX;
+    }
+    d.lift = lift;
+    w.t -= lift; w.b -= lift;
+    if (lift > LIFT_MAX_TAGS * (w.b - w.t) || meetsPlaced(w) || w.t < 0) d.hide = true;
+  }
+  return !d.hide;
+}
+
 // entries: [{ rect: {l,t,r,b} (CSS px, y down), depth, sub, top }], hud:
 // [{l,t,r,b}] -> Map<entry, { hide, dropSub, lift }>. Pure. `out` is cleared
 // and refilled; the decision objects it held for these same entries are reused.
@@ -407,21 +430,9 @@ export function declutterTags(entries, hud = [], out = new Map()) {
     const d = _reuse[i] || { hide: false, dropSub: false, lift: 0 };
     d.hide = false; d.dropSub = false; d.lift = 0;
     const w = _work;
-    w.l = e.rect.l; w.t = e.rect.t; w.r = e.rect.r; w.b = e.rect.b;
-    if (e.sub && meetsPlaced(w)) {
-      d.dropSub = true;
-      w.t = w.b - (w.b - w.t) * SUB_DROP_KEEP;
-    }
-    if (meetsPlaced(w)) {
-      let lift = 0;
-      for (let p = 0; p < _placedN; p++) {
-        const q = _placed[p];
-        if (meetsGrown(w, q) && w.b - q.t + TAG_GAP_PX > lift) lift = w.b - q.t + TAG_GAP_PX;
-      }
-      d.lift = lift;
-      w.t -= lift; w.b -= lift;
-      if (lift > LIFT_MAX_TAGS * (w.b - w.t) || meetsPlaced(w) || w.t < 0) d.hide = true;
-    }
+    // A leader's (top) tag keeps its rank line and only lifts, when the lift
+    // alone finds it room; otherwise it goes the usual way (drop, then lift).
+    if (!(e.top && e.sub && liftInto(e, d, w, false))) liftInto(e, d, w, true);
     if (!d.hide && hud) {
       for (let h = 0; h < hud.length; h++) {
         const q = hud[h];
@@ -574,13 +585,15 @@ function applyDecision(tag, d, k, camera) {
 // deep), and shrunk by (dist - p) / dist, dist its distance from the camera. A
 // sprite's centre projects along that ray and its quad is sized in view space,
 // so it covers exactly the same screen rect, only nearer: in front of anything
-// within ~1.5 m of it. Never past the near plane: at most 40 % of the way.
+// within ~2.5 m of it (the leader's head on the Highrock is ~1.7 m in front of
+// the deputy's tag from the camp's side). Never past the near plane: at most
+// 45 % of the way.
 // The tag's world top before the pull is kept on userData.fitTop (NaN when not
 // pulled) for the chat bubble, which sits above the tag where the tag "is",
 // with the frame it was taken on in userData.fitTopFrame: a tag culled this
 // frame (no onBeforeRender) leaves last frame's fitTop, which the bubble skips.
-export const TAG_PULL_M = 1.5;
-export const TAG_PULL_SHARE = 0.4;
+export const TAG_PULL_M = 2.5;
+export const TAG_PULL_SHARE = 0.45;
 const PULL_MIN_DEPTH = 1;
 
 function pullTag(tag, depth, camera, frame) {
