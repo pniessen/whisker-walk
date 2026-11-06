@@ -257,3 +257,78 @@ describe('City Park — the oak’s Twoleg (polish-places)', () => {
     for (const w of area.waters) expect(Math.hypot(x - w.x, z - w.z)).toBeGreaterThan(w.r);
   });
 });
+
+// polish-park2: the five slabs are ONE soft gravel trail (pathribbon.js's
+// 'gravel' look), the south walk running on out through the hedge's gate.
+describe('City Park — the gravel trail (polish-park2)', async () => {
+  const { PARK_PATHS, PARK_HORIZON } = await import('../src/world/park.js');
+  const { trailField, quadRadius } = await import('../src/world/pathribbon.js');
+  const { inWater } = await import('../src/world/builder.js');
+
+  it('is one visible gravel pathTrail over five hidden strips, same params, same order', () => {
+    const { scene } = built();
+    const trails = scene.children.filter((c) => c.name === 'pathTrail');
+    expect(trails).toHaveLength(1);
+    expect(trails[0].visible).toBe(true);
+    expect(trails[0].userData.trailLook).toBe('gravel');
+    expect(trails[0].castShadow).toBe(false);
+    const strips = scene.children.filter((c) => c.name === 'path');
+    expect(strips).toHaveLength(5);
+    expect(PARK_PATHS).toEqual([
+      [0, 48, 0, 20], [0, 20, -4, 4], [-4, 4, -8, -18], [-8, -18, 12, -30], [0, 20, 16, 10],
+    ]);
+    strips.forEach((s, i) => {
+      const [x1, z1, x2, z2] = PARK_PATHS[i];
+      expect(s.visible).toBe(false);
+      expect(s.geometry.parameters.width).toBe(3);
+      expect(s.geometry.parameters.height).toBeCloseTo(Math.hypot(x2 - x1, z2 - z1), 9);
+      expect(s.position.x).toBeCloseTo((x1 + x2) / 2, 9);
+      expect(s.position.z).toBeCloseTo((z1 + z2) / 2, 9);
+    });
+    // Exactly one visible path-ish mesh.
+    const visible = scene.children.filter((c) => (c.name === 'path' || c.name === 'pathTrail') && c.visible);
+    expect(visible).toEqual([trails[0]]);
+  });
+
+  it('paints no gravel in the pond', () => {
+    const { scene, area } = built();
+    const segs = scene.children.find((c) => c.name === 'pathTrail').userData.trail;
+    const bad = [];
+    let wet = 0;
+    for (const s of segs) {
+      const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
+      const ux = (s.x2 - s.x1) / len;
+      const uz = (s.z2 - s.z1) / len;
+      // A metre past the quad, so the sweep reaches the pond's edge (the
+      // walk passes ~1 m off the water) and is not vacuous.
+      const R = quadRadius(s.h, 'gravel') + 1;
+      for (let a = -R; a <= len + R; a += 0.25) {
+        for (let c = -R; c <= R; c += 0.25) {
+          const x = s.x1 + ux * a - uz * c;
+          const z = s.z1 + uz * a + ux * c;
+          if (!inWater(area.waters, x, z)) continue;
+          wet++;
+          if (trailField(segs, x, z, 'gravel').alpha > 0.02) bad.push([+x.toFixed(2), +z.toFixed(2)]);
+        }
+      }
+    }
+    expect(bad.slice(0, 10)).toEqual([]);
+    expect(wet).toBeGreaterThan(0);
+  });
+
+  it('runs the south walk out through the hedge gate, inside the gap', () => {
+    const { scene } = built();
+    const segs = scene.children.find((c) => c.name === 'pathTrail').userData.trail;
+    const [gate] = PARK_HORIZON.edge.gaps;
+    // The (0, 48) end runs on past the gate; the other ends are as authored
+    // (joined, or pulled back h at a dead end).
+    expect(segs[0].x1).toBe(0);
+    expect(segs[0].z1).toBeGreaterThan(gate.z + 2);
+    expect(segs[0].z2).toBe(20);
+    expect(trailField(segs, gate.x, gate.z, 'gravel').alpha).toBe(1);
+    // ... and stays inside the hedge's gap there.
+    for (const x of [-gate.r, gate.r]) {
+      expect(trailField(segs, gate.x + x, gate.z, 'gravel').alpha).toBe(0);
+    }
+  });
+});

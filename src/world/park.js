@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
+import { addTrails } from './pathribbon.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 
 // =============================================================================
@@ -86,6 +87,30 @@ const surfNoMap = (color, surface) => litMaterial(color, surfaceProps(surface));
 // Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
 export const SPAWN = Object.freeze({ x: 0, z: 45 });
 
+// The five gravel walks, [x1, z1, x2, z2], in the order the old path() calls
+// made them (the hidden footprint strips keep that order; see addTrails).
+// South gate -> fountain, fountain -> pond bend, bend -> south-west lawn,
+// on to the east corner, and the fountain's east spur.
+export const PARK_PATHS = Object.freeze([
+  Object.freeze([0, 48, 0, 20]),
+  Object.freeze([0, 20, -4, 4]),
+  Object.freeze([-4, 4, -8, -18]),
+  Object.freeze([-8, -18, 12, -30]),
+  Object.freeze([0, 20, 16, 10]),
+]);
+// The walks' look (polish-park2): pathribbon.js's 'gravel' look over the
+// gravel tile, in a pale warm stone a shade lighter than path()'s 0xcbb8a0.
+export const PARK_PATH_STYLE = Object.freeze({ surface: 'gravel', color: 0xd6c6a8, look: 'gravel' });
+// The south walk's (0, 48) end counts as a map edge (edge: 48) and runs on
+// PARK_PATH_EXTEND metres, out through the hedge's field gate at z = 60.6
+// (PARK_HORIZON.edge.gaps) instead of stopping square in the lawn. 19, not
+// the plan's ~13: the horizon band lies flat (y -0.03) out to z ~66 and only
+// then rises, so a 13 m run left the round tip on show 2 m past the gate; at
+// 19 the walk runs on to z 67 and its tip goes in under the rising band
+// (which crosses the trail's y 0.01 at z ~66.3).
+export const PARK_PATH_EDGE = 48;
+export const PARK_PATH_EXTEND = 19;
+
 // The horizon band (see the note at its scene.add in build). Polish "edges":
 // the strip past the lawn's edge is the lawn's own colour, and a clipped
 // hedge runs round the edge with a field gate where the gravel path from the
@@ -160,7 +185,11 @@ export function build(scene, { water = {}, wind } = {}) {
   // colour: gravel's mean is 0.961, and path()'s 0xcbb8a0 is a fixed pale
   // warm tan that no call site passes, so the ~4% is uniform across every
   // path in the game and there is no untextured neighbour to match.
-  scene.add(b.path(0, 48, 0, 20, 3, { surface: 'gravel' }));
+  //
+  // polish-park2: the five hard slabs are now ONE soft trail (pathribbon.js,
+  // the 'gravel' look: tidy edge, an edging line, round joints, fine stones);
+  // PARK_PATHS above holds the five segments. The five hidden 1x1 'path'
+  // strips addTrails leaves behind are the same five, same params, same order.
   // The bend at (-4, 4) used to be at (-14, 6) — 4m from the pond's centre,
   // i.e. THREE METRES INSIDE a 7m pond, and shared by both segments, so the
   // walk ran through open water on both legs (measured against the corrected
@@ -178,10 +207,8 @@ export function build(scene, { water = {}, wind } = {}) {
   // walking beside the pond, which is the point of the path. Measured through
   // the real builder, not estimated; test/water.test.js samples the built
   // meshes and fails if any path ever enters water again.
-  scene.add(b.path(0, 20, -4, 4, 3, { surface: 'gravel' }));
-  scene.add(b.path(-4, 4, -8, -18, 3, { surface: 'gravel' }));
-  scene.add(b.path(-8, -18, 12, -30, 3, { surface: 'gravel' }));
-  scene.add(b.path(0, 20, 16, 10, 3, { surface: 'gravel' }));
+  addTrails(scene, [{ segs: PARK_PATHS, w: 3 }], PARK_PATH_STYLE, 'park',
+    { edge: PARK_PATH_EDGE, extend: PARK_PATH_EXTEND });
 
   // fountain at the path junction. Dressed stone, map-less: a 12-sided basin
   // and an 8-sided spire are the cylinder rule's worked example, and the spire

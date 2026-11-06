@@ -49,6 +49,40 @@ export const TRAIL_LOOK = {
   pebbleTint: [1.30, 1.26, 1.16], pebbleRim: 0.72, pebbleMinAlpha: 0.6,
 };
 
+// The City Park's tended gravel walk (polish-park2). Same keys as TRAIL_LOOK,
+// plus two optional ones only this look defines (the shader emits their GLSL
+// only when a look has them, so TRAIL_LOOK's text never changes):
+//   edgeLine / edgeLineSoft / edgeLineTint — a thin darker edging line, a band
+//     of signed distance just inside the edge (sd in [edgeLine[0], edgeLine[1]],
+//     each end softened by edgeLineSoft), drawn over the stones;
+//   pebbleDark / pebbleDarkShare — that share of the stones (a hash split per
+//     cell) takes the darker tint instead of pebbleTint.
+// A tidy edge (small wobble, crisp feather), no damp band, fine dense stones.
+export const GRAVEL_LOOK = {
+  wobbleA1: 0.03, wobbleL1: 6.0,
+  wobbleA2: 0.015, wobbleL2: 0.9,
+  wobbleA3: 0.008, wobbleL3: 0.32,
+  featherIn: -0.06, featherOut: 0.05,
+  edgeBand: 0.3, edgeTint: [0.96, 0.95, 0.93],
+  centreLift: 0.04,
+  blotch: 0.04, blotchL: 1.6,
+  pebbleCell: 0.16, pebbleChance: 0.4, pebbleRMin: 0.018, pebbleRMax: 0.04,
+  pebbleTint: [1.16, 1.13, 1.06], pebbleRim: 0.8, pebbleMinAlpha: 0.6,
+  pebbleDark: [0.74, 0.71, 0.66], pebbleDarkShare: 0.45,
+  edgeLine: [-0.17, -0.07], edgeLineSoft: 0.02, edgeLineTint: [0.62, 0.60, 0.56],
+};
+
+export const TRAIL_LOOKS = { trail: TRAIL_LOOK, gravel: GRAVEL_LOOK };
+
+// A look given by name or as an object, and its name ('custom' if unlisted).
+function lookOf(look) {
+  return typeof look === 'string' ? TRAIL_LOOKS[look] ?? TRAIL_LOOK : look ?? TRAIL_LOOK;
+}
+function lookName(look) {
+  if (typeof look === 'string') return TRAIL_LOOKS[look] ? look : 'trail';
+  return Object.keys(TRAIL_LOOKS).find((k) => TRAIL_LOOKS[k] === (look ?? TRAIL_LOOK)) ?? 'custom';
+}
+
 const JOIN_SLACK = 0.05;
 // See addTrails: strictly below every ground decal in the transparent pass.
 export const TRAIL_RENDER_ORDER = -4;
@@ -131,8 +165,8 @@ const TUCK_STEP = 0.05;
 const TUCK_STEPS = [0.2, 0.1, TUCK_STEP];
 // `dry` is `waters` with the decks stripped (built once per trailSegments
 // call); the cheap open-water test runs first, the deck test only on a hit.
-function tuckWet(s, waters, dry, step = TUCK_STEP) {
-  const R = trailReach(s.h);
+function tuckWet(s, waters, dry, step = TUCK_STEP, look = TRAIL_LOOK) {
+  const R = trailReach(s.h, look);
   const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
   // waterGap is 1-Lipschitz, so a water whose gap at the capsule's centre
   // exceeds the capsule's half-extent cannot be wet anywhere in it.
@@ -160,7 +194,7 @@ function tuckWet(s, waters, dry, step = TUCK_STEP) {
 // a narrow deck (the trail is wider than any deck) is drawn in, TUCK_STEP at a
 // time, down to a tip level with the deck end; still wet there, no tuck (the
 // end is pulled back as before).
-function tuckFor(decks, waters, dry, x, z, h) {
+function tuckFor(decks, waters, dry, x, z, h, look = TRAIL_LOOK) {
   let deck = null;
   let gap = DECK_REACH;
   for (const d of decks) {
@@ -185,24 +219,28 @@ function tuckFor(decks, waters, dry, x, z, h) {
     // Each coarser grid is a subset of the next finer one: wet there is wet
     // there, so most rejects cost the cheap pass; an accepted candidate has
     // passed every grid down to TUCK_STEP.
-    if (!TUCK_STEPS.some((st) => tuckWet(seg, waters, dry, st))) return seg;
+    if (!TUCK_STEPS.some((st) => tuckWet(seg, waters, dry, st, look))) return seg;
   }
   return null;
 }
 
 // The segments the trail is drawn from: [{ x1, z1, x2, z2, h }], flat, in
 // input order. Ends that meet another segment stay put (the capsule union
-// rounds the join); ends on the map edge run EDGE_EXTEND (8 m) further out so the trail
+// rounds the join); ends on the map edge run opts.extend (default
+// EDGE_EXTEND, 8 m) further out so the trail
 // leaves the map instead of stopping at it; free ends (dead ends, and the gaps
 // left for a bridge or stepping stones) are pulled back by h so the rounded
 // cap's tip lands on the authored end, never shortening a segment below 0.1 m.
 // With `decks` (the area's water decks), a free end within DECK_REACH of one
 // is not pulled back and gets a tuck segment (see TUCK), APPENDED after all
 // the input segments so segment i is still input segment i. With `waters`
-// too, each tuck is drawn in until it paints no open water (tuckFor).
+// too, each tuck is drawn in until it paints no open water (tuckFor), using
+// opts.look's reach (default TRAIL_LOOK).
 export function trailSegments(groups, opts = {}) {
   const all = flatten(groups);
   const kinds = endKinds(groups, opts);
+  const extend = opts.extend ?? EDGE_EXTEND;
+  const look = lookOf(opts.look);
   const decks = opts.decks ?? [];
   const waters = opts.waters ?? null;
   const dry = waters ? waters.map((w) => ({ ...w, decks: [] })) : null;
@@ -213,9 +251,9 @@ export function trailSegments(groups, opts = {}) {
     if (len < 1e-9) return { x1, z1, x2, z2, h };
     const ends = [[x1, z1], [x2, z2]];
     const move = kinds[i].map((k, e) => {
-      if (k === 'edge') return -EDGE_EXTEND;
+      if (k === 'edge') return -extend;
       if (k !== 'free') return 0;
-      const tuck = decks.length ? tuckFor(decks, waters, dry, ...ends[e], h) : null;
+      const tuck = decks.length ? tuckFor(decks, waters, dry, ...ends[e], h, look) : null;
       if (tuck) { tucks.push(tuck); return 0; }
       return h;
     });
@@ -278,20 +316,21 @@ function smoothstep(e0, e1, x) {
   return t * t * (3 - 2 * t);
 }
 
-const L = TRAIL_LOOK;
-const WOBBLE_SUM = L.wobbleA1 + L.wobbleA2 + L.wobbleA3;
+const wobbleSum = (L) => L.wobbleA1 + L.wobbleA2 + L.wobbleA3;
 // The width wobble at (x, z), unitless (a fraction of the half-width), in
-// [-WOBBLE_SUM, WOBBLE_SUM]. ONE value per point, shared by every segment:
-// segment i's wobbled edge distance is e_i = d_i - h_i * (1 + W).
-export function trailWobble(x, z) {
+// [-wobbleSum, wobbleSum] of the look (default TRAIL_LOOK). ONE value per
+// point, shared by every segment: segment i's wobbled edge distance is
+// e_i = d_i - h_i * (1 + W).
+export function trailWobble(x, z, look = TRAIL_LOOK) {
+  const L = lookOf(look);
   return L.wobbleA1 * (2 * vnoise(x / L.wobbleL1, z / L.wobbleL1, 1) - 1)
     + L.wobbleA2 * (2 * vnoise(x / L.wobbleL2, z / L.wobbleL2, 2) - 1)
     + L.wobbleA3 * (2 * vnoise(x / L.wobbleL3, z / L.wobbleL3, 8) - 1);
 }
-const maxWobble = (h) => h * WOBBLE_SUM;
+const maxWobble = (h, look) => h * wobbleSum(lookOf(look));
 // The furthest a segment's wobbled edge can reach from its centreline (the
 // alpha = 0.5 line, before the outer feather). grass.js masks this capsule.
-export const trailReach = (h) => h * (1 + WOBBLE_SUM);
+export const trailReach = (h, look = TRAIL_LOOK) => h * (1 + wobbleSum(lookOf(look)));
 
 // CPU twin of the fragment shader's coverage: which segment owns (x, z), the
 // wobbled signed distance from the trail edge (negative inside), and the
@@ -301,11 +340,12 @@ export const trailReach = (h) => h * (1 + WOBBLE_SUM);
 // sd = min_i e_i is then one continuous field. (Owning by the unwobbled
 // d_i - h_i but wobbling by the owner's h stepped the edge where a 3 m path
 // meets a 2 m trail: the owner flips on a line where the two wobbles differ.)
-export function trailField(segs, x, z) {
+export function trailField(segs, x, z, look = TRAIL_LOOK) {
+  const L = lookOf(look);
   let owner = -1;
   let best = Infinity;
   let d = Infinity;
-  const k = 1 + trailWobble(x, z);
+  const k = 1 + trailWobble(x, z, L);
   for (let i = 0; i < segs.length; i++) {
     const s = segs[i];
     const di = segDist(x, z, s.x1, s.z1, s.x2, s.z2);
@@ -321,12 +361,12 @@ export function trailField(segs, x, z) {
 // Half-size of a segment's quad across (and past each end): the capsule
 // radius, grown by the most the wobble can widen it, the outer feather and a
 // little slack.
-export const quadRadius = (h) => h + maxWobble(h) + L.featherOut + QUAD_PAD;
+export const quadRadius = (h, look = TRAIL_LOOK) => h + maxWobble(h, look) + lookOf(look).featherOut + QUAD_PAD;
 
 // One quad (two triangles, non-indexed) per segment, in world coordinates at
 // y = 0.01 (the mesh stays at the identity transform). uv = world (x, z) over
 // the surface's tile size, so the map tiles continuously across every quad.
-export function trailGeometry(segs, { surface } = {}) {
+export function trailGeometry(segs, { surface, look } = {}) {
   const tile = tileMetres(surface) ?? 1;
   const n = segs.length;
   const pos = new Float32Array(n * 18);
@@ -335,7 +375,7 @@ export function trailGeometry(segs, { surface } = {}) {
   const id = new Float32Array(n * 6);
   let v = 0;
   segs.forEach((s, i) => {
-    const R = quadRadius(s.h);
+    const R = quadRadius(s.h, look);
     const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
     const ux = len > 1e-9 ? (s.x2 - s.x1) / len : 1;
     const uz = len > 1e-9 ? (s.z2 - s.z1) / len : 0;
@@ -421,7 +461,20 @@ float trailSegDist(vec2 p, vec4 s) {
 `;
 }
 
-function fragBody() {
+function fragBody(look = TRAIL_LOOK) {
+  const L = lookOf(look);
+  // Emitted only for a look that defines the keys (see GRAVEL_LOOK), so the
+  // default look's text is unchanged.
+  const pebbleTint = L.pebbleDark
+    ? `(trailHash(tCell, 9.0) < ${f(L.pebbleDarkShare ?? 0.5)} ? ${v3(L.pebbleDark)} : ${v3(L.pebbleTint)})`
+    : v3(L.pebbleTint);
+  const soft = L.edgeLineSoft ?? 0.02;
+  const r4 = (x) => f(+x.toFixed(4));
+  const edgeLine = L.edgeLine ? `
+  // The edging line: a thin darker band just inside the edge, over the stones.
+  float tLine = smoothstep(${r4(L.edgeLine[0] - soft)}, ${r4(L.edgeLine[0] + soft)}, tSd)
+    * (1.0 - smoothstep(${r4(L.edgeLine[1] - soft)}, ${r4(L.edgeLine[1] + soft)}, tSd));
+  look *= mix(vec3(1.0), ${v3(L.edgeLineTint ?? [0.6, 0.6, 0.6])}, tLine);` : '';
   return `
 {
   vec2 tp = vTrailXZ;
@@ -469,9 +522,9 @@ function fragBody() {
     float q = length(tp - pc);
     float disk = (1.0 - smoothstep(pr - 0.01, pr, q))
       * smoothstep(${f(L.pebbleMinAlpha)}, ${f(L.pebbleMinAlpha + 0.1)}, tAlpha);
-    vec3 pebble = ${v3(L.pebbleTint)} * mix(1.0, ${f(L.pebbleRim)}, smoothstep(0.55 * pr, pr, q));
+    vec3 pebble = ${pebbleTint} * mix(1.0, ${f(L.pebbleRim)}, smoothstep(0.55 * pr, pr, q));
     look = mix(look, pebble, disk);
-  }
+  }${edgeLine}
   diffuseColor.rgb *= look;
   diffuseColor.a *= tW >= 1.0 ? tAlpha : 1.0 - pow(max(1.0 - tAlpha, 1e-6), tW);
 }
@@ -493,8 +546,12 @@ function makeUniforms(segs) {
 // once and shared by every clone (weather.js's rain swap and dusk.js's lawn
 // tint both clone a ground material, and Material.copy() does not carry
 // onBeforeCompile, customProgramCacheKey or an overridden clone()).
-export function installTrailShader(material, segs, uniforms = makeUniforms(segs)) {
+// `look` (name or object, default TRAIL_LOOK) picks the generated GLSL; the
+// program cache key is 'trail' + n for the default look, '<name>' + n else.
+export function installTrailShader(material, segs, uniforms = makeUniforms(segs), look = TRAIL_LOOK) {
   const n = segs.length;
+  const L = lookOf(look);
+  const name = lookName(look);
   material.transparent = true;
   material.depthWrite = false;
   material.onBeforeCompile = (shader) => {
@@ -504,18 +561,18 @@ export function installTrailShader(material, segs, uniforms = makeUniforms(segs)
       .replace(ANCHOR_VERT, `${ANCHOR_VERT}\n${VERT_BODY}`);
     shader.fragmentShader = shader.fragmentShader
       .replace(ANCHOR_COMMON, `${ANCHOR_COMMON}\n${fragDecl(n)}`)
-      .replace(ANCHOR_FRAG, `${ANCHOR_FRAG}\n${fragBody()}`);
+      .replace(ANCHOR_FRAG, `${ANCHOR_FRAG}\n${fragBody(L)}`);
   };
-  material.customProgramCacheKey = () => 'trail' + n;
+  material.customProgramCacheKey = () => name + n;
   const baseClone = Object.getPrototypeOf(material).clone;
   material.clone = function clone() {
-    return installTrailShader(baseClone.call(this), segs, uniforms);
+    return installTrailShader(baseClone.call(this), segs, uniforms, L);
   };
   return material;
 }
 
-export function trailMaterial(color, surface, segs) {
-  return installTrailShader(litMaterial(color, { surface, repeat: [1, 1] }), segs);
+export function trailMaterial(color, surface, segs, look = TRAIL_LOOK) {
+  return installTrailShader(litMaterial(color, { surface, repeat: [1, 1] }), segs, undefined, look);
 }
 
 // Adds an area's paths: the hidden 1x1 'path' data strips (one per segment,
@@ -531,22 +588,30 @@ export function trailMaterial(color, surface, segs) {
 // under it, kept off open water by `waters` (see trailSegments). The mesh's
 // userData.trail is the full list, tucks included; the hidden strips stay one
 // per INPUT segment.
-export function addTrails(scene, groups, style = {}, key = 'trail', { edge, decks, waters } = {}) {
+// `style.look` (a TRAIL_LOOKS key, default 'trail') picks the trail's look;
+// it lands in mesh.userData.trailLook. `extend` (default EDGE_EXTEND) is how
+// far a map-edge end runs on.
+export function addTrails(scene, groups, style = {}, key = 'trail', { edge, decks, waters, extend } = {}) {
+  const { look: lookKey = 'trail', ...pathStyle } = style;
   for (const g of groups) {
-    for (const s of g.segs) scene.add(path(...s, g.w, { ...style, footprint: true }));
+    for (const s of g.segs) scene.add(path(...s, g.w, { ...pathStyle, footprint: true }));
   }
+  const look = lookOf(lookKey);
   const opts = {};
   if (edge !== undefined) opts.edge = edge;
   if (decks !== undefined) opts.decks = decks;
   if (waters !== undefined) opts.waters = waters;
+  if (extend !== undefined) opts.extend = extend;
+  if (look !== TRAIL_LOOK) opts.look = look;
   const segs = trailSegments(groups, opts);
   if (segs.length === 0) return { mesh: null, segs };
   const mesh = withLocalUuids('trail-uuids-' + key, () => {
     const m = new THREE.Mesh(
-      trailGeometry(segs, { surface: style.surface }),
-      trailMaterial(style.color ?? 0xcbb8a0, style.surface, segs),
+      trailGeometry(segs, { surface: style.surface, look }),
+      trailMaterial(style.color ?? 0xcbb8a0, style.surface, segs, look),
     );
     m.name = 'pathTrail';
+    m.userData.trailLook = lookName(lookKey);
     // Joins walk.js's wet and dusk ground lists (they filter scene.children
     // by userData.ground || name === 'path').
     m.userData.ground = true;

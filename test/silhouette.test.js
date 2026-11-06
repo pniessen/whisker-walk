@@ -164,7 +164,9 @@ describe('builder — roundedBox (Wave 4.1)', () => {
     // Seaside 67 -> 68: polish-beach Task 3's beach dressing (one merged noCast mesh).
     // Neighborhood 380 -> 396: polish-twolegplace Task 2 dresses the eight lot
     // houses, each gaining a houseTrim and a houseGlass mesh (2 x 8).
-    const expected = { neighborhood: 396, park: 172, docks: 519, seaside: 68, den: 284 };
+    // Park 172 -> 173: polish-park2 Task 1's one soft gravel trail mesh (the
+    // five path strips stay, hidden 1x1 data strips).
+    const expected = { neighborhood: 396, park: 173, docks: 519, seaside: 68, den: 284 };
     const builds = {
       neighborhood: buildNeighborhood, park: buildPark, docks: buildDocks,
       seaside: buildSeaside, den: buildDen,

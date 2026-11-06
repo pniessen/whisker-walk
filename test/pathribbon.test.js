@@ -704,3 +704,79 @@ describe('trail tucks under decks (polish-crossings R2)', async () => {
     }, 120_000);
   }
 });
+
+// polish-park2: the City Park's 'gravel' look. The default look's bytes are
+// pinned by test/trailidentity.test.js; this pins what the new look adds.
+describe('gravel trail look (polish-park2)', async () => {
+  const { GRAVEL_LOOK, TRAIL_LOOKS, trailReach } = await import('../src/world/pathribbon.js');
+  const segs = trailSegments([{ segs: WOODS_PATHS, w: 3 }]);
+  const compiled = (look) => {
+    const s = {
+      uniforms: {},
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    };
+    const m = trailMaterial(0xd6c6a8, 'gravel', segs, look);
+    m.onBeforeCompile(s);
+    return { m, s };
+  };
+
+  it('is registered next to the default look and has every default key', () => {
+    expect(TRAIL_LOOKS.trail).toBe(TRAIL_LOOK);
+    expect(TRAIL_LOOKS.gravel).toBe(GRAVEL_LOOK);
+    for (const k of Object.keys(TRAIL_LOOK)) expect(GRAVEL_LOOK).toHaveProperty(k);
+    // The new keys are the gravel look's alone.
+    expect(TRAIL_LOOK.edgeLine).toBeUndefined();
+    expect(TRAIL_LOOK.pebbleDark).toBeUndefined();
+  });
+
+  it('emits its edging line and dark stones; the default emits neither', () => {
+    const def = compiled(undefined).s.fragmentShader;
+    const { m, s } = compiled('gravel');
+    expect(s.fragmentShader).not.toBe(def);
+    expect(s.fragmentShader).toContain('float tLine');
+    expect(s.fragmentShader).toContain('trailHash(tCell, 9.0)');
+    expect(def).not.toContain('tLine');
+    expect(def).not.toContain('trailHash(tCell, 9.0)');
+    expect(m.customProgramCacheKey()).toBe('gravel' + segs.length);
+    // A clone (rain / dusk swaps) keeps the look and its cache key.
+    const c = m.clone();
+    expect(c.customProgramCacheKey()).toBe('gravel' + segs.length);
+    const s2 = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+    c.onBeforeCompile(s2);
+    expect(s2.fragmentShader).toBe(s.fragmentShader);
+    // Named or passed as the object, the same program.
+    expect(compiled(GRAVEL_LOOK).s.fragmentShader).toBe(s.fragmentShader);
+    expect(compiled(TRAIL_LOOK).m.customProgramCacheKey()).toBe('trail' + segs.length);
+  });
+
+  it('is tidier than the default: less wobble, a crisper feather', () => {
+    expect(trailReach(1.5, 'gravel')).toBeLessThan(trailReach(1.5));
+    expect(quadRadius(1.5, GRAVEL_LOOK)).toBeLessThan(quadRadius(1.5));
+    expect(GRAVEL_LOOK.featherOut - GRAVEL_LOOK.featherIn)
+      .toBeLessThan(TRAIL_LOOK.featherOut - TRAIL_LOOK.featherIn);
+    // The edging line sits inside the edge, inside the opaque part.
+    expect(GRAVEL_LOOK.edgeLine[0]).toBeLessThan(GRAVEL_LOOK.edgeLine[1]);
+    expect(GRAVEL_LOOK.edgeLine[1]).toBeLessThan(0);
+    // Default-look callers are unchanged.
+    for (const [x, z] of [[1.3, -7.2], [40.1, 3.3], [-12, 22]]) {
+      expect(trailWobble(x, z)).toBe(trailWobble(x, z, TRAIL_LOOK));
+      expect(trailField(segs, x, z)).toEqual(trailField(segs, x, z, 'trail'));
+    }
+  });
+
+  it('addTrails: style.look names the look, extend overrides the edge run-on', () => {
+    const scene = new THREE.Scene();
+    const { mesh, segs: got } = addTrails(scene, [{ segs: [[0, 48, 0, 20]], w: 3 }],
+      { surface: 'gravel', color: 0xd6c6a8, look: 'gravel' }, 'gravel-test', { edge: 48, extend: 13 });
+    expect(mesh.userData.trailLook).toBe('gravel');
+    expect(mesh.material.customProgramCacheKey()).toBe('gravel1');
+    expect(got[0].z1).toBeCloseTo(61, 9);
+    // The hidden strip is path()'s, with the look key left out.
+    const strip = scene.children.find((c) => c.name === 'path');
+    expect(strip.visible).toBe(false);
+    expect(trailSegments([{ segs: [[0, 48, 0, 20]], w: 3 }], { edge: 48 })[0].z1).toBeCloseTo(48 + EDGE_EXTEND, 9);
+    const plain = addTrails(new THREE.Scene(), [{ segs: [[0, 48, 0, 20]], w: 3 }], {}, 'plain-test', { edge: 48 });
+    expect(plain.mesh.userData.trailLook).toBe('trail');
+  });
+});
