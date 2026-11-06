@@ -206,7 +206,7 @@ export const PINES_KEEP_OUT = Object.freeze({
 // line across open water. That costs the 6 m of real lake shore at x 26, z
 // 44..50, by the bay's south-east pocket; the bay's south shore keeps its foam.
 const WATER_COLOR = 0x5f98a8;
-const MIRE_COLOR = 0x5a5432;
+const MIRE_COLOR = 0x4a4528; // peat water: darker and browner (was 0x5a5432), so the sky lies on it dull
 // The four bogs are small stands of still, peat-stained water: a murky
 // green-brown (olive-brown, hue ~0.16, lightness ~0.24) that style 'bog' keeps murky all the
 // way down and edges with a dull green-brown instead of white foam. The two
@@ -218,12 +218,12 @@ const BOG_COLOR = 0x4a4a28;
 const WATER_LOOK = {
   lake: { y: 0.03, shores: ['minZ'], foamStrength: 0.22 },
   'lake-bay': { y: 0.025, shores: ['minX', 'minZ', 'maxZ'], foamStrength: 0.22 },
-  'mire-north': { y: 0.035, color: MIRE_COLOR, shores: ['minX', 'maxX'], foamStrength: 0.1, glare: 0.18, specCap: 0.22 },
-  'mire-west': { y: 0.02, color: MIRE_COLOR, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.1, glare: 0.18, specCap: 0.22 },
-  'bog-1': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
-  'bog-2': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
-  'bog-3': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
-  'bog-4': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
+  'mire-north': { y: 0.035, color: MIRE_COLOR, shores: ['minX', 'maxX'], foamStrength: 0.1, glare: 0.08, specCap: 0.1 },
+  'mire-west': { y: 0.02, color: MIRE_COLOR, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.1, glare: 0.08, specCap: 0.1 },
+  'bog-1': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25, glare: 0.08, specCap: 0.1 },
+  'bog-2': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25, glare: 0.08, specCap: 0.1 },
+  'bog-3': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25, glare: 0.08, specCap: 0.1 },
+  'bog-4': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25, glare: 0.08, specCap: 0.1 },
   'moor-river': { y: 0.035, shores: [], foamStrength: 0.22 },
   'moor-mouth': { y: 0.045, shores: [], foamStrength: 0.22 },
 };

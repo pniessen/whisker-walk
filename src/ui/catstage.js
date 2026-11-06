@@ -256,11 +256,13 @@ export function createCatStage({
       canvas.addEventListener('pointermove', onMove);
       scene = new THREE.Scene();
       // a warm key from the side and front, a cool rim from behind, soft ambient
-      const sun = new THREE.DirectionalLight(0xffe6c0, 2.7);
-      sun.position.set(3.2, 3, 2.4);
+      // (polish-dusk7: a lower ambient and a key that rakes across the flank, so
+      // the tabby's stripes keep their contrast instead of washing out)
+      const sun = new THREE.DirectionalLight(0xffe6c0, 2.8);
+      sun.position.set(4.2, 2.4, 1.6);
       const rim = new THREE.DirectionalLight(0x9cc0ff, 0.9);
       rim.position.set(-3, 2, -3);
-      scene.add(sun, rim, new THREE.AmbientLight(0xbfd8ff, 0.85));
+      scene.add(sun, rim, new THREE.AmbientLight(0xbfd8ff, 0.4));
       glow = floorMesh('stageGlow', [0.45, 0.58, 0.85], 0.45, 2, -2);
       contact = floorMesh('stageContact', [0.01, 0.02, 0.06], 0.75, 1.2, -1);
       rug = floorMesh('stageRug', [0.62, 0.42, 0.3], 0.5, 1.5, -3);

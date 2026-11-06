@@ -3230,6 +3230,7 @@ export function canopyGeometry(x, z, kind) {
 // staggered horizontal dashes, and the foot darkens up into the last ring
 // like old bark.
 const BIRCH_SIDES = 6;
+const BIRCH_PALE = [0.56, 0.54, 0.48];
 function birchTrunkGeometry(x, z) {
   const top = 0.16, bottom = 0.24;
   const geo = new THREE.CylinderGeometry(top, bottom, 2, BIRCH_SIDES, 6, true);
@@ -3249,8 +3250,13 @@ function birchTrunkGeometry(x, z) {
     const r0 = Math.hypot(pos.getX(v), pos.getZ(v)) || 1;
     const r = top + ((1 - y) / 2) * (bottom - top);
     pos.setXYZ(v, (pos.getX(v) * r) / r0, y, (pos.getZ(v) * r) / r0);
-    const k = marks[row]?.has(col) ? 0.12 : row === 6 ? 0.5 : 1;
-    c[v * 3] = c[v * 3 + 1] = c[v * 3 + 2] = k;
+    // The bark colour (0xe6e1d4) is multiplied by these in linear light. Plain
+    // 1 left the trunk the brightest thing in a dusk wood, so the pale runs
+    // sit at BIRCH_PALE (a warm grey-white, a touch more red than blue) and
+    // the dashes are near-black; the foot keeps its half-dark.
+    const k = marks[row]?.has(col) ? 0.09 : row === 6 ? 0.5 : 1;
+    const pale = k === 0.09 ? [1, 1, 1] : BIRCH_PALE;
+    c[v * 3] = k * pale[0]; c[v * 3 + 1] = k * pale[1]; c[v * 3 + 2] = k * pale[2];
   }
   geo.setAttribute('color', new THREE.BufferAttribute(c, 3));
   return geo;
