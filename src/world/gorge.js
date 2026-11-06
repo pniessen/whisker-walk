@@ -469,6 +469,8 @@ export function gorgeTrees() {
 // every 1.5 m along it and 0.6 m out onto the floor. Each wall is a line and
 // the way out from it. A spot is kept off the paths, every cave and den (and
 // so their mouths), every find, and anywhere the wall isn't rock after all.
+// A spot carries the wall's outward normal (nx, nz), so builder.scree can
+// heap its stones against the wall's foot.
 const SCREE_STEP = 1.5;
 const SCREE_OUT = 0.6;
 export const FLOOR_WALLS = [
@@ -494,10 +496,11 @@ export function gorgeScree() {
       const z = r2(wz + nz * SCREE_OUT);
       if (!inBounds(x, z) || g.y(x, z) !== FLOOR) continue;
       if (g.y(wx - nx * 0.1, wz - nz * 0.1) < 0.3) continue; // no rock there
-      if (pathDist(x, z) < PATH_W / 2 + 0.5) continue;
+      // 0.9 off the path's edge: a heap reaches ~0.7 m from its spot (polish-gorge7)
+      if (pathDist(x, z) < PATH_W / 2 + 0.9) continue;
       if (holeDist(x, z) < 1.5 || mouthDist(x, z) < 2) continue;
       if (keepClearDist(x, z) < 2) continue;
-      out.push(Object.freeze({ x, z }));
+      out.push(Object.freeze({ x, z, nx, nz }));
     }
   }
   screeOnce = Object.freeze(out);
@@ -1280,6 +1283,50 @@ export const ROCK_WALKS = Object.freeze([
 export const GORGE_FLOOR_COLOR = 0x9a8a6a;
 const GROUND_COLOR = GORGE_FLOOR_COLOR;
 
+// The floor's wash (polish-gorge7): per-channel multipliers on the ground
+// plane's vertex colours (on top of builder's macro variation), a pure function
+// of world (x, z). Damp and browner within ~3 m of the stream, paler sand
+// drifted against the wall feet, and faint drift bands (~7 m, warped, with a
+// longer second octave: the plane is a 2.5 m grid, so nothing finer) that fade
+// out where it is damp or pale. It lives in vertex colours, not a shader patch,
+// because rain and dusk clone the ground material. The stream's decks (the
+// stepping stones) are ignored here: the bank under them is as damp as any.
+// Damp blue is 0.25, not the plan's 0.27, so full damp (in the water) stays
+// within the promised 0.75..1.12 per channel.
+export const FLOOR_WASH = Object.freeze({
+  damp: Object.freeze({ reach: 3.2, mul: Object.freeze([0.2, 0.22, 0.25]) }),
+  pale: Object.freeze({ from: 0.4, to: 3.5, mul: Object.freeze([0.08, 0.06, 0.02]) }),
+  band: Object.freeze({ wave: 7, wave2: 11.3, octave2: 0.35, warp: 1.3, amp: 0.04 }),
+});
+const WASH_WATERS = GORGE_WATERS.map((w) => ({ ...w, decks: [] }));
+export function gorgeFloorWash(x, z) {
+  const { damp: D, pale: P, band: B } = FLOOR_WASH;
+  const clear = b.waterClearance(WASH_WATERS, x, z);
+  const damp = clear <= 0 ? 1 : 1 - smoothstep(0, D.reach, clear);
+  let wall = Infinity;
+  for (const [x1, z1, x2, z2] of FLOOR_WALLS) wall = Math.min(wall, segDist(x, z, x1, z1, x2, z2));
+  const pale = 1 - smoothstep(P.from, P.to, wall);
+  // across the canyon on a slant, so both the N-S floor and the E-W Narrows band
+  const v = 0.8 * x - 0.6 * z;
+  const u = 0.6 * x + 0.8 * z + B.warp * Math.sin(v / 5.3 + 0.7);
+  const tau = 2 * Math.PI;
+  const band = (Math.sin(tau * u / B.wave) + B.octave2 * Math.sin(tau * u / B.wave2 + 1.9)) / (1 + B.octave2);
+  const bandMul = 1 + B.amp * band * (1 - damp) * (1 - pale);
+  return [0, 1, 2].map((k) => (1 - D.mul[k] * damp) * (1 + P.mul[k] * pale) * bandMul);
+}
+function washFloor(plane) {
+  const col = plane.geometry.attributes.color;
+  const pos = plane.geometry.attributes.position;
+  plane.updateMatrix();
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(plane.matrix);
+    const w = gorgeFloorWash(v.x, v.z);
+    col.setXYZ(i, col.getX(i) * w[0], col.getY(i) * w[1], col.getZ(i) * w[2]);
+  }
+  col.needsUpdate = true;
+}
+
 // Where things stand on the rock's top, the relief leaves the top still (no
 // crest jag, no move): the goat's leap along the shoulder, (3.5..7.5, -16),
 // and where it lands and hides, (8, -12.5). Kept small (the relief fades back
@@ -1382,6 +1429,7 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.fog.far = GORGE_FOG.far;
   const plane = b.ground(120, GROUND_COLOR, { surface: 'grass' });
   plane.name = 'groundPlane';
+  washFloor(plane);
   trimHiddenGround(plane, MASSES);
   scene.add(plane);
   scene.add(b.horizonBand(GORGE_HORIZON));
@@ -1485,8 +1533,10 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // --- the scree ----------------------------------------------------------------
   // One merged bed, out of the shadow pass, on the floor (so at y 0), and no
-  // collider: a cat walks over loose stones.
-  const scree = b.scree(gorgeScree(), seedFromCode('gorge-scree'), { pebble: true });
+  // collider: a cat walks over loose stones. Chunky sandstone heaped at each
+  // wall's foot (polish-gorge7), built under local uuids so its stones add no
+  // Math.random draws to the build (waterlooks.test.js pins the count).
+  const scree = withLocalUuids('gorge-uuids-scree', () => b.scree(gorgeScree(), seedFromCode('gorge-scree'), { chunky: true }));
   scree.name = 'screeBed';
   scene.add(scree);
 
@@ -1526,7 +1576,12 @@ export function build(scene, { water = {}, wind } = {}) {
     waterFx,
     groundBounce: GROUND_COLOR,
     skyDusk: { top: 0x2c3460, horizon: 0xc98a6a },
-    duskLight: { sunColor: 0xff9a52, sunIntensity: 1.0, hemiSky: 0x7a84bc },
+    duskLight: {
+      sunColor: 0xff9a52, sunIntensity: 1.0, hemiSky: 0x7a84bc,
+      // polish-gorge7: the sand floor stays warm at dusk (the default lawnTint
+      // greys and blues a lawn); still darker, so it reads as evening.
+      lawnTint: { desat: 0.1, dark: 0.78, cool: [1.06, 0.98, 0.86] },
+    },
     perches,
     // Strays and ghosts stand only where a cat can walk (G7; keepout.js reads
     // onlyOn from Task 10).

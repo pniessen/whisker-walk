@@ -521,7 +521,16 @@
     "duskLight": {
       "sunColor": 16751186,
       "sunIntensity": 1,
-      "hemiSky": 8029372
+      "hemiSky": 8029372,
+      "lawnTint": {
+        "desat": 0.1,
+        "dark": 0.78,
+        "cool": [
+          1.06,
+          0.98,
+          0.86
+        ]
+      }
     },
     "perches": [
       {
@@ -1461,7 +1470,7 @@
     ],
     "skyBirdY": 34
   },
-  "meshes": 59,
+  "meshes": 61,
   "casters": 36,
   "rockMeshes": [
     "ledgeTops",

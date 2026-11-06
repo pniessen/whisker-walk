@@ -896,6 +896,8 @@ describe('the Gorge: tall pines, boulders, scree and grass', () => {
     expect(scree.length).toBeGreaterThan(60);
     for (const s of scree) {
       const at = `scree (${s.x}, ${s.z})`;
+      // polish-gorge7: each spot carries its wall's outward normal
+      expect(Math.hypot(s.nx, s.nz), at).toBeCloseTo(1, 6);
       expect(ground.y(s.x, s.z), at).toBe(0);
       expect(pathDist(s.x, s.z), at).toBeGreaterThanOrEqual(1.5 + 0.5);
       expect(keepDist(s.x, s.z), at).toBeGreaterThanOrEqual(2);

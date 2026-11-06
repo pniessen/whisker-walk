@@ -48,25 +48,26 @@ function planeTris(plane) {
 }
 
 describe('Gorge rock, beauty pass 2: triangle headroom', () => {
-  it('scree pebbles: 8 triangles a stone, smooth, no taller than before', () => {
+  // polish-gorge7: the pebbles became chunky heaped sandstone (12-triangle
+  // blocks and 20-triangle cobbles, flat-shaded), still low and noCast.
+  it('scree: chunky heaped stones, flat facets, never taller than 0.25 m', () => {
     const scree = scene.getObjectByName('scree');
     const tris = triCount(scree);
-    expect(tris).toBeLessThanOrEqual(5000);
-    expect(tris / 8).toBe(12260 / 20);
-    
+    expect(tris).toBeLessThanOrEqual(8500);
+    expect(tris).toBeGreaterThan(5000);
     const g = scree.geometry;
     const pos = g.attributes.position;
     const nor = g.attributes.normal;
-    let maxY = -Infinity;
+    expect(g.attributes.color.count).toBe(pos.count);
+    let maxY = -Infinity, minY = Infinity;
     for (let i = 0; i < pos.count; i++) {
       const y = pos.getY(i);
-      maxY = Math.max(maxY, y);
+      maxY = Math.max(maxY, y); minY = Math.min(minY, y);
       const len = Math.hypot(nor.getX(i), nor.getY(i), nor.getZ(i));
       expect(Math.abs(len - 1)).toBeLessThan(1e-3);
-      if (y > 0.02) expect(nor.getY(i)).toBeGreaterThan(-0.2);
     }
-    // the old icosahedron stones topped out at 0.179 m
-    expect(maxY).toBeLessThanOrEqual(0.18);
+    expect(maxY).toBeLessThanOrEqual(0.25 + 1e-6);
+    expect(minY).toBeGreaterThanOrEqual(-1e-6);
   });
 
   it('no ground-plane triangle lies wholly under rock', async () => {
