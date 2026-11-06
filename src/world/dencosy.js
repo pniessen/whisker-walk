@@ -41,7 +41,7 @@ import { mulberry32, seedFromCode } from '../rng.js';
 
 export const DEN_DOOR = Object.freeze({ x: -7.3, w: 0.95, h: 2.1 });
 export const RAG_RUG = Object.freeze({ x: -7.3, z: -7.55, rx: 0.75, rz: 0.48 });
-export const BEAM_Z = Object.freeze([-6, -1.5]);
+export const BEAM_Z = Object.freeze([-6, -2.4]);
 export const LAMP = Object.freeze({ x: 0, z: -6, shadeBottom: 2.78 });
 
 // Palette.
@@ -310,9 +310,12 @@ function woodwork(opts, rnd) {
     }
   }
 
-  // Two beams across the wall tops, darker where they meet the walls. Two,
-  // not three: a third at z 2 sat 6 m in front of the spawn camera and drew a
-  // heavy bar across the top of the opening view, hiding the lamp.
+  // Two beams across the wall tops (z -6 and -2.4), darker where they meet
+  // the walls. None further south: the chase camera's height follows the
+  // perch, so from the bookcase top or the wall ledge it looks down from
+  // 4–4.8 m, and a beam at z -1.5 (or the old one at z 2) crossed that
+  // sightline to the cat. At -2.4 the spawn camera still sees the lamp at
+  // z -6 under it (test/dencosy.test.js pins both sightlines).
   const endLen = 0.25;
   for (const bz of BEAM_Z) {
     const z0 = bz - 0.1;

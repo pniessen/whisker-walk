@@ -192,14 +192,15 @@ const SCAR_B = rgb(0xc0ae8a);
 // The pine the lightning snapped: ten sides, the foot flared to `r` (the
 // collider), the trunk tapering to `rTop` and broken off at `h` (the perch).
 // The top is a flat standing area at h out to r 0.5, ringed by a jagged rim
-// of splinters rising 0.15–0.45 m on about half of it, with one deep V-notch
-// where it split down the east side (+x) to h − 0.6. A pale scar where the
-// bark came off runs down the west side (-x) from the top to about 0.5 m.
-// Bark darkening to char toward the top.
+// of broken teeth: some up to 0.12 m proud, some snapped down to 0.17 m below
+// the perch, with one deep V-notch where it split down the east side (+x) to
+// h − 0.6. A pale scar where the bark came off runs down the west side (-x)
+// from the top to about 0.5 m. Bark darkening to char toward the top.
 //
-// The rim stays low (≤ h + 0.08) on the four compass lines, so the chase
-// camera sees the golden mouse sitting on the centre from every side
-// (test/pines.test.js "in sight from the chase camera").
+// No tooth rises above h + 0.12, so the chase camera (7.5 m out, 2.2–2.9 m
+// up) sees the golden mouse sitting on the centre from every bearing
+// (test/pines.test.js "in sight from the chase camera"); the jaggedness
+// comes from the teeth snapped below the perch instead.
 export function lightningStumpData(r, h, rTop) {
   const rnd = stream('lightning-stump');
   const sides = 10;
@@ -222,10 +223,6 @@ export function lightningStumpData(r, h, rTop) {
   ];
   // The rim: the ten wall corners plus a tooth between each pair.
   const RIM_R = rTop;
-  const cardinal = (deg) => {
-    const m = ((deg % 90) + 90) % 90;
-    return m < 1e-6 || 90 - m < 1e-6;
-  };
   const rim = [];
   for (let i = 0; i < sides * 2; i++) {
     const deg = i * (360 / (sides * 2));
@@ -233,10 +230,11 @@ export function lightningStumpData(r, h, rTop) {
     const q = RIM_R * (1 + (rnd() * 2 - 1) * 0.03);
     const roll = rnd();
     const tall = rnd();
-    let y = h + 0.02 + roll * 0.05;
+    let y = h + 0.02 + tall * 0.05; // a low tooth, ≤ h + 0.07
     if (i === 0) y = h - 0.6; // the split, on +x
-    else if (i === 1 || i === sides * 2 - 1) y = h + 0.3 + tall * 0.15; // the split's two lips
-    else if (!cardinal(deg) && roll < 0.55) y = h + 0.15 + tall * 0.3;
+    else if (i === 1 || i === sides * 2 - 1) y = h + 0.09 + tall * 0.03; // the split's two lips
+    else if (roll < 0.35) y = h - 0.05 - tall * 0.12; // snapped down below the perch
+    else if (roll > 0.7) y = h + 0.08 + tall * 0.04; // the tallest teeth, ≤ h + 0.12
     rim.push([Math.cos(a) * q, y, Math.sin(a) * q]);
   }
   // the flat standing area: a ring at r 0.5, all at h, and the centre

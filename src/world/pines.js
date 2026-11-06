@@ -890,8 +890,8 @@ export function build(scene, { water = {}, wind } = {}) {
   }
   // The charred, split Lightning Stump and the squat, mossy Frog Stones
   // (pineslandmarks.js): each flat on top at the perch, and as wide at the
-  // foot as its collider. Vertex colours carry the hue (P.color is the
-  // landmark's base, painted into them).
+  // foot as its collider. Vertex colours carry the whole hue (the builders
+  // paint their own palettes; P.color is not used here), the material white.
   const pillarData = {
     lightningStump: () => lightningStumpData(PILLAR.rBottom, PILLAR.y, PILLAR.rTop),
     frogStone: () => frogStoneData(PILLAR.rBottom, PILLAR.y),

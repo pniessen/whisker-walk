@@ -939,6 +939,32 @@ describe('the Pines: things to find, climb and race', () => {
       expect(m.vertexColors, name).toBe(true);
       expect(m.color.getHex(), name).toBe(0xffffff);
     }
+    // ...and the vertex colours (linear) say so: the stump dark and charred,
+    // the Frog Stones mossy (more green than red), the truce stones a greyish
+    // green (green leading, but no colour far from the others)
+    const meanColour = (mesh) => {
+      const c = mesh.geometry.attributes.color;
+      const sum = [0, 0, 0];
+      for (let i = 0; i < c.count; i++) {
+        sum[0] += c.getX(i); sum[1] += c.getY(i); sum[2] += c.getZ(i);
+      }
+      return sum.map((v) => v / c.count);
+    };
+    const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const stumpC = meanColour(scene.getObjectByName('lightningStump'));
+    // (about 0.056 with its pale scar; the Frog Stones are near 0.2)
+    expect(lum(stumpC), `stump ${stumpC}`).toBeLessThan(0.07);
+    const frogC = meanColour(scene.getObjectByName('frogStone'));
+    expect(frogC[1], `frog stones ${frogC}`).toBeGreaterThan(frogC[0]);
+    const truce = scene.getObjectByName('truceStones');
+    expect(truce.children).toHaveLength(2);
+    for (const stone of truce.children) {
+      const c = meanColour(stone);
+      expect(c[1], `truce ${c}`).toBeGreaterThan(c[0]);
+      expect(c[1], `truce ${c}`).toBeGreaterThan(c[2]);
+      expect(Math.max(...c) - Math.min(...c), `truce greyish ${c}`).toBeLessThan(0.5 * Math.max(...c));
+      expect(lum(c), `truce ${c}`).toBeGreaterThan(0.04);
+    }
     // the two boulders, one material made per build
     const rocks = ['lightningStumpRock', 'frogStoneRock'].map((n) => scene.getObjectByName(n));
     for (const r of rocks) expect(r).toBeTruthy();
@@ -1053,20 +1079,30 @@ describe('the Pines: things to find, climb and race', () => {
     }
     return list;
   };
-  const inSight = (m, sides, objects) => {
+  const inSight = (m, sides, objects, heights = [2.2]) => {
     scene.updateMatrixWorld(true);
     const target = new THREE.Vector3(m.x, m.y + 0.12, m.z);
-    for (const [dx, dz] of sides) {
-      const cam = new THREE.Vector3(m.x + dx * 7.5, 2.2, m.z + dz * 7.5);
-      const dir = target.clone().sub(cam);
-      const ray = new THREE.Raycaster(cam, dir.clone().normalize(), 0, dir.length());
-      expect(ray.intersectObjects(objects, true).length, `camera ${dx},${dz}`).toBe(0);
+    for (const camY of heights) {
+      for (const [dx, dz] of sides) {
+        const cam = new THREE.Vector3(m.x + dx * 7.5, camY, m.z + dz * 7.5);
+        const dir = target.clone().sub(cam);
+        const ray = new THREE.Raycaster(cam, dir.clone().normalize(), 0, dir.length());
+        expect(ray.intersectObjects(objects, true).length, `camera ${dx.toFixed(2)},${dz.toFixed(2)} at ${camY} m`).toBe(0);
+      }
     }
   };
+  // every 5°, all the way round
+  const allRound = Array.from({ length: 72 }, (_, k) => [Math.cos((k * 5 * Math.PI) / 180), Math.sin((k * 5 * Math.PI) / 180)]);
 
   it("the Lightning Stump's and the Frog Stones' golden mice are in sight from the chase camera", () => {
     const [stump, stones] = GOLD_MICE.pines;
-    inSight(stump, [[0, -1], [0, 1], [-1, 0], [1, 0]], blockers('lightningStump', 'lightningStumpRock'));
+    // the stump from every bearing, at the default zoom (2.2 m up) and the
+    // next one out (2.9 m): no splinter tooth (and not its boulder) hides the
+    // mouse. The pines only on the compass lines: a few of the in-between
+    // cameras stand inside a pine's own boughs.
+    const stumpAndRock = ['lightningStump', 'lightningStumpRock'].map((n) => scene.getObjectByName(n));
+    inSight(stump, allRound, stumpAndRock, [2.2, 2.9]);
+    inSight(stump, [[0, -1], [0, 1], [-1, 0], [1, 0]], blockers('lightningStump', 'lightningStumpRock'), [2.2, 2.9]);
     // The Frog Stones from the north and the west only: its east camera is
     // over mire-north and its south camera over mire-west, where no cat stands.
     inSight(stones, [[0, -1], [-1, 0]], blockers('frogStone', 'frogStoneRock'));

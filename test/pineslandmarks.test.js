@@ -95,8 +95,13 @@ describe('pineslandmarks data', () => {
       }
     }
     const stumpTop = Math.max(...verts(builders.stump()).map((p) => p[1]));
-    expect(stumpTop).toBeGreaterThan(PILLAR_H + 0.15);
-    expect(stumpTop).toBeLessThanOrEqual(PILLAR_H + 0.45);
+    // jagged, but no tooth above h + 0.12 (the golden mouse stays in sight)
+    expect(stumpTop).toBeGreaterThan(PILLAR_H + 0.08);
+    expect(stumpTop).toBeLessThanOrEqual(PILLAR_H + 0.12 + 1e-9);
+    // and some teeth snapped down below the perch
+    const rimLow = verts(builders.stump())
+      .filter(([x, y, z]) => Math.hypot(x, z) > 0.6 && y > PILLAR_H - 0.3 && y < PILLAR_H - 0.05);
+    expect(rimLow.length).toBeGreaterThan(0);
     const frogTop = Math.max(...verts(builders.frog()).map((p) => p[1]));
     expect(frogTop).toBeLessThanOrEqual(PILLAR_H + 0.03);
   });

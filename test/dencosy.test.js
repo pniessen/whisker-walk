@@ -115,6 +115,33 @@ describe('den cosy shell (polish-cosy)', () => {
     for (const [, y] of worldVerts(glow)) expect(y).toBeGreaterThanOrEqual(LAMP.shadeBottom - 1e-6);
   });
 
+  // The chase camera's height is relative to the perch, so a cat up on the
+  // bookcase or the wall ledge has it 2.2–2.9 m above her, 4.5 m south. No
+  // beam may cross that sightline, and the spawn camera still sees the lamp.
+  it('keeps the beams out of the sightlines to the high perches and to the lamp', () => {
+    const group = cosyShell();
+    group.updateMatrixWorld(true);
+    const wood = meshes(group).find((m) => m.name === 'denWoodwork');
+    const clear = (from, to, label, skip = () => false) => {
+      const dir = to.clone().sub(from);
+      const ray = new THREE.Raycaster(from, dir.clone().normalize(), 0, dir.length());
+      const hits = ray.intersectObject(wood, false).filter((h) => !skip(h));
+      expect(hits.length, `${label}: ${hits.map((h) => h.point.toArray().map((v) => v.toFixed(2)).join(','))}`).toBe(0);
+    };
+    const high = BEFORE.perches.filter((p) => p.y >= 1.1 && p.x < -7);
+    expect(high).toHaveLength(2); // the wall ledge and the bookcase top
+    for (const p of high) {
+      const cat = new THREE.Vector3(p.x, p.y + 0.3, p.z);
+      for (let up = 2.2; up <= 2.9 + 1e-9; up += 0.1) {
+        clear(new THREE.Vector3(p.x, p.y + up, p.z + 4.5), cat, `perch (${p.x}, ${p.z}) camera +${up.toFixed(1)}`);
+      }
+    }
+    // the spawn camera to just under the shade (the lamp's own woodwork aside)
+    const shade = new THREE.Vector3(LAMP.x, LAMP.shadeBottom - 0.02, LAMP.z);
+    clear(new THREE.Vector3(0, 2.9, 8.4), shade, 'spawn camera to the lamp',
+      (h) => Math.hypot(h.point.x - LAMP.x, h.point.z - LAMP.z) < 0.4);
+  });
+
   it('keeps the door clear of the north wall pictures', () => {
     // pictures at x ±5.6, 0.85 wide (+ frame); architrave edges inside -7.85..-6.75
     const wood = meshes(cosyShell()).find((m) => m.name === 'denWoodwork');
