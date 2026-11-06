@@ -457,13 +457,15 @@ describe('City Park — the two-tier fountain (polish-park2)', async () => {
     expect(perch).toMatchObject({ x: 2.8, z: 22.2, y: 0.75, kind: 'stone' });
   });
 
-  it('keeps the Park under 26,535 triangles', () => {
+  // 20,535 + 6,000 for polish-park2, + 1,100 for polish-canopies' oak, birch
+  // and round crowns (merged after it); the Park's real cap is 40k.
+  it('keeps the Park under 27,635 triangles', () => {
     const { scene } = built();
     let total = 0;
     let fountain = 0;
     scene.traverse((o) => { if (o.isMesh) total += tris(o.geometry); });
     fountainOf(scene).traverse((o) => { if (o.isMesh) fountain += tris(o.geometry); });
-    expect(total).toBeLessThanOrEqual(26535);
+    expect(total).toBeLessThanOrEqual(27635);
     expect(fountain).toBeLessThan(6000);
   });
 });
