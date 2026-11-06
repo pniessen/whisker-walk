@@ -203,10 +203,14 @@ const CLUMP_SEAT_GAP = 0.5;   // from any seat, and from the den's and rock's ed
 // kept clump, `seat` off every seat, `edge` off the den's, the rock's and
 // every collider's edge, and inside the ring's arc (never in the gap); a cane
 // splits where points drop, and a run under 3 points vanishes.
+// polish-brambles: more, shorter arches (len 1.8..2.8, was 2.6..3.8) that
+// climb over the mounds' crowns (peak 0.82..0.94, was 0.7..0.9), and a
+// thicker cane (0.04 -> 0.018, was 0.036 -> 0.016); no step longer than
+// `reach` (a steep foot is lowered to fit). Thorns: THORN below.
 const CANE = {
-  len: [2.6, 3.8], stagger: 1.6, step: 0.4, weave: 0.18, waves: [0.8, 1.4],
-  foot: 0.08, peak: [0.7, 0.9], skew: 0.2, bob: 0.1, bobs: [2, 3.5], w0: 0.036, w1: 0.016,
-  near: 0.45, seat: 0.4, edge: 0.25,
+  len: [1.8, 2.8], stagger: 1.6, step: 0.4, weave: 0.18, waves: [0.8, 1.4],
+  foot: 0.08, peak: [0.82, 0.94], skew: 0.2, bob: 0.1, bobs: [2, 3.5], w0: 0.04, w1: 0.018,
+  near: 0.45, seat: 0.4, edge: 0.25, reach: 0.76,
 };
 const CLEARING_IN = 0.7;      // the clearing's radius: ring.r - 0.7
 const NEST_R = 0.4;
@@ -240,7 +244,7 @@ function ringCanes(cx, cz, ringR, gapA, span, clumps, clear) {
       const bobs = lerp(CANE.bobs, h(5));
       // the peak off the middle (u 0.3..0.7): a cane leans one way
       const tip = 0.5 + CANE.skew * (h(6) * 2 - 1);
-      let run = [];
+      const pts = [];
       for (let j = 0; j <= m; j++) {
         const u = j / m;
         const s = s0 + u * len;
@@ -250,7 +254,22 @@ function ringCanes(cx, cz, ringR, gapA, span, clumps, clear) {
         const arch = Math.sin(Math.PI * v);
         const y = Math.min(peak, CANE.foot + (peak - CANE.foot) * arch
           + CANE.bob * arch * Math.sin(2 * Math.PI * (u * bobs + bobPhase)));
-        const p = { x: cx + Math.cos(a) * d, y, z: cz + Math.sin(a) * d, w: CANE.w0 + (CANE.w1 - CANE.w0) * u };
+        pts.push({ s, p: { x: cx + Math.cos(a) * d, y, z: cz + Math.sin(a) * d, w: CANE.w0 + (CANE.w1 - CANE.w0) * u } });
+      }
+      // polish-brambles: the shorter, taller arches climb steeply at a skewed
+      // foot; no step may climb (or fall) more than keeps it within `reach`
+      // of the last point, so a point is lowered, never raised.
+      const rise = (q, p) => Math.sqrt(Math.max(0, CANE.reach ** 2 - (p.x - q.x) ** 2 - (p.z - q.z) ** 2));
+      for (let j = 1; j <= m; j++) {
+        const q = pts[j - 1].p;
+        pts[j].p.y = Math.min(pts[j].p.y, q.y + rise(q, pts[j].p));
+      }
+      for (let j = m - 1; j >= 0; j--) {
+        const q = pts[j + 1].p;
+        pts[j].p.y = Math.min(pts[j].p.y, q.y + rise(q, pts[j].p));
+      }
+      let run = [];
+      for (const { s, p } of pts) {
         const keep = s > 0.05 && s < arc - 0.05
           && clumps.some((c) => Math.hypot(p.x - c.x, p.z - c.z) <= CANE.near)
           && clear(p);
@@ -374,7 +393,7 @@ const deepFreeze = (o) => {
 const WOODS_LOOK = {
   // StormClan: oak and fern bramble, blackberries
   ring: {
-    greens: [0x34521f, 0x46632a, 0x2a421c], strand: 0x3a2a18, specks: [[0x4a1430, 0.035], [0x9a2630, 0.015]],
+    greens: [0x34521f, 0x46632a, 0x2a421c], strand: 0x5a2f22, specks: [[0x4a1430, 0.035], [0x9a2630, 0.015]],
     fruit: [[0x2b0d22, 0.75], [0xa3222c, 0.25]], fruitShare: 0.8,
   },
   den: { base: 0x34481f, streak: 0x62803a, strand: 0x3a2c1c, frame: 0x5a4128 },
@@ -387,7 +406,7 @@ export const CAMP_LOOKS = deepFreeze({
   // BrookClan: reeds and pebbles, bulrush heads; a woven reed and straw den
   river: {
     ring: {
-      greens: [0x5e7f48, 0x6f8c50, 0x4a7466], strand: 0x56603a, specks: [[0x5e4630, 0.02]],
+      greens: [0x5e7f48, 0x6f8c50, 0x4a7466], strand: 0x6a4a30, specks: [[0x5e4630, 0.02]],
       fruit: [[0x2b0d22, 0.8], [0xa3222c, 0.2]], fruitShare: 0.55,
     },
     den: { base: 0x5a6a3a, streak: 0xa29e62, strand: 0x4a5a34, frame: 0x6a5a3a },
@@ -398,7 +417,7 @@ export const CAMP_LOOKS = deepFreeze({
   // GaleClan: gorse and heather in flower; a dry heather den
   moor: {
     ring: {
-      greens: [0x56632a, 0x667030, 0x48522a], strand: 0x3e3622, specks: [[0xc9a42e, 0.03], [0x8a5a80, 0.025]],
+      greens: [0x56632a, 0x667030, 0x48522a], strand: 0x5a3a26, specks: [[0xc9a42e, 0.03], [0x8a5a80, 0.025]],
       fruit: [[0xe0b82e, 0.6], [0x2b0d22, 0.4]], fruitShare: 0.7,
     },
     den: { base: 0x4a4030, streak: 0x8a5a80, strand: 0x3a3022, frame: 0x6a5a3e },
@@ -409,7 +428,7 @@ export const CAMP_LOOKS = deepFreeze({
   // DuskClan: needles and moss, fern tips; a moss den
   pines: {
     ring: {
-      greens: [0x1d3a2f, 0x27483a, 0x15302a], strand: 0x24263a, specks: [[0x4f7a3a, 0.035]],
+      greens: [0x1d3a2f, 0x27483a, 0x15302a], strand: 0x4a3040, specks: [[0x4f7a3a, 0.035]],
       fruit: [[0x2b0d22, 0.8], [0x8a1c2a, 0.2]], fruitShare: 0.6,
     },
     den: { base: 0x1e3228, streak: 0x3e5e3a, strand: 0x2a2620, frame: 0x3e2e22 },
@@ -847,8 +866,9 @@ function speckle(geo, specks, salt) {
 // clan's greens by hash, dark at the foot, with the clan's specks on the
 // lumps (speckle; the canes carry none). One vertex-coloured mesh, out of the
 // shadow pass. polish-brambles rebuilt each clump as a leafy mound (ringMesh:
-// core, crown lumps, leaf cards, berries; RING_CLUMP_TRIS = 59 a clump) and 6
-// a cane segment, 5,844 to 5,862 a camp, under the area's 70,000
+// core, crown lumps, leaf cards, berries; RING_CLUMP_TRIS = 59 a clump),
+// arched the canes over them and gave them thorns (caneTris: 6 a segment, 3
+// a thorn), 6,033 to 6,066 a camp, under the area's 70,000
 // (test/budget.test.js). No ring vertex is above 1 m (ruling R3).
 //
 // Ruling R4: the wall has no collider. A collider would change the walkable
@@ -867,21 +887,39 @@ const lumpy = (geo, c) => {
   return geo;
 };
 
+// polish-brambles: a thorn at every odd interior point of a cane (j = 1, 3,
+// ... <= n - 2): a 3-sided spike (3 triangles, no base) out of the tube's
+// surface at a hash angle round it, its base `base`·w across, `len0 + len1`·w
+// long, tilted `tilt` rad toward the cane's tip, in the strand colour × `lift`
+// (clamped), every vertex kept between the ground and 1 m.
+const THORN = { base: 0.6, len0: 0.05, len1: 0.5, tilt: 0.5, lift: 1.25 };
+const thornCount = (n) => Math.floor((n - 1) / 2);
+
+/** caneTris(cane) -> the triangles caneGeometry draws for a cane: 6 a tube
+ *  segment and 3 a thorn. */
+export function caneTris(cane) {
+  const n = cane.length;
+  return 6 * (n - 1) + 3 * thornCount(n);
+}
+
 // A tapered 3-sided tube along a cane's points, flat-shaded, coloured by
-// colorAt in world space. 6 triangles a segment.
-function caneGeometry(cane, colorAt) {
+// colorAt in world space, 6 triangles a segment; then its thorns (THORN), in
+// thornAt's colour. caneTris(cane) triangles in all.
+function caneGeometry(cane, colorAt, thornAt) {
   const n = cane.length;
   const pos = new Float32Array(n * 3 * 3);
   const t = new THREE.Vector3();
   const side = new THREE.Vector3();
   const nrm = new THREE.Vector3();
   const up = new THREE.Vector3(0, 1, 0);
+  const frames = [];
   for (let i = 0; i < n; i++) {
     const p = cane[Math.max(0, i - 1)];
     const q = cane[Math.min(n - 1, i + 1)];
     t.set(q.x - p.x, q.y - p.y, q.z - p.z).normalize();
     side.crossVectors(up, t).normalize();
     nrm.crossVectors(t, side);
+    frames.push({ t: t.clone(), side: side.clone(), nrm: nrm.clone() });
     const c = cane[i];
     // a little twist along the cane, so its flat faces catch the light unevenly
     const tw = i * 0.7;
@@ -906,7 +944,49 @@ function caneGeometry(cane, colorAt) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setIndex(index);
-  return bake(g, new THREE.Matrix4(), colorAt);
+  const tube = bake(g, new THREE.Matrix4(), colorAt);
+  // the thorns, 3 triangles each, wound to face out of the spike's axis
+  const tp = new Float32Array(thornCount(n) * 9 * 3);
+  const radial = new THREE.Vector3();
+  const axis = new THREE.Vector3();
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
+  const foot = new THREE.Vector3();
+  const corners = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const apex = new THREE.Vector3();
+  const keep = (v) => { v.y = Math.min(1.0, Math.max(0, v.y)); return v; };
+  let o = 0;
+  for (let j = 1; j <= n - 2; j += 2) {
+    const c = cane[j];
+    const f = frames[j];
+    const th = 2 * Math.PI * hash01(c.x, c.y, c.z, 46);
+    radial.copy(f.side).multiplyScalar(Math.cos(th)).addScaledVector(f.nrm, Math.sin(th));
+    axis.copy(radial).multiplyScalar(Math.cos(THORN.tilt)).addScaledVector(f.t, Math.sin(THORN.tilt)).normalize();
+    foot.set(c.x, c.y, c.z).addScaledVector(radial, c.w);
+    e1.crossVectors(axis, f.t.lengthSq() > 0 && Math.abs(axis.dot(f.t)) < 0.99 ? f.t : up).normalize();
+    e2.crossVectors(axis, e1);
+    const r = THORN.base * c.w;
+    for (let k = 0; k < 3; k++) {
+      const ph = (k * Math.PI * 2) / 3;
+      keep(corners[k].copy(foot).addScaledVector(e1, r * Math.cos(ph)).addScaledVector(e2, r * Math.sin(ph)));
+    }
+    keep(apex.copy(foot).addScaledVector(axis, THORN.len0 + THORN.len1 * c.w));
+    for (let k = 0; k < 3; k++) {
+      for (const v of [corners[k], corners[(k + 1) % 3], apex]) {
+        tp[o++] = v.x;
+        tp[o++] = v.y;
+        tp[o++] = v.z;
+      }
+    }
+  }
+  if (o === 0) return tube;
+  const tg = new THREE.BufferGeometry();
+  tg.setAttribute('position', new THREE.BufferAttribute(tp, 3));
+  const thorns = bake(tg, new THREE.Matrix4(), thornAt);
+  const both = mergeGeometries([tube, thorns], false);
+  tube.dispose();
+  thorns.dispose();
+  return both;
 }
 
 // polish-brambles: each clump a leafy bramble mound, not a paper ball.
@@ -1090,7 +1170,10 @@ function ringMesh(ring, cx, cz, look) {
     parts.push(facing(berries, berryCols, c, R, (tri) => centroid(tri).sub(tri.mid)));
   }
   const caneAt = (vx, vy, vz, col) => col.setHex(look.ring.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 18));
-  for (const cane of ring.canes) parts.push(caneGeometry(cane, caneAt));
+  const thornCol = new THREE.Color(look.ring.strand).multiplyScalar(THORN.lift);
+  thornCol.setRGB(Math.min(1, thornCol.r), Math.min(1, thornCol.g), Math.min(1, thornCol.b));
+  const thornAt = (vx, vy, vz, col) => col.copy(thornCol);
+  for (const cane of ring.canes) parts.push(caneGeometry(cane, caneAt, thornAt));
   const mesh = new THREE.Mesh(merged(parts), vcMaterial());
   mesh.name = 'campRing';
   mesh.userData.noCast = true;

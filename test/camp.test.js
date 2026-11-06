@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS, CLUMP_R, RING_CLUMP_TRIS } = await import('../src/world/camp.js');
+const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS, CLUMP_R, RING_CLUMP_TRIS, caneTris } = await import('../src/world/camp.js');
 const { CAMP_DEN, WIDE_LEDGE_RECT, gorgeGround } = await import('../src/world/gorgeshape.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { DISCS } = await import('../src/rivalclans.js');
@@ -305,7 +305,8 @@ describe('addCamp', () => {
       // RING_CLUMP_TRIS triangles apiece (core 20, three crowns 24, six leaf
       // cards, three berries 9), every one of their
       // vertices inside its clump's footprint and under its h; then the
-      // canes, a 3-sided tube along each, 6 triangles a segment. Every ring
+      // canes, a 3-sided tube along each, 6 triangles a segment, and a thorn
+      // (a 3-sided spike, 3 triangles) at every odd interior point. Every ring
       // vertex is within 0.6 m (xz) of a kept clump, between the ground and
       // 1 m (ruling R3).
       const verts = worldVerts(scene.getObjectByName('campRing'));
@@ -328,8 +329,15 @@ describe('addCamp', () => {
       expect(segs, a).toBeGreaterThan(0);
       const g = scene.getObjectByName('campRing').geometry;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
-      expect(tris, a).toBe(RING_CLUMP_TRIS * cs.length + 6 * segs);
+      expect(tris, a).toBe(RING_CLUMP_TRIS * cs.length + D.ring.canes.reduce((n, cane) => n + caneTris(cane), 0));
       expect(tris, a).toBeLessThanOrEqual(6200);
+      // every cane carries thorns: what is left over past the clumps and the
+      // tubes is 3 triangles a thorn, one at each odd interior point
+      const thornTris = tris - RING_CLUMP_TRIS * cs.length - 6 * segs;
+      const thorns = D.ring.canes.reduce((n, cane) => n + Math.floor((cane.length - 1) / 2), 0);
+      expect(thornTris, a).toBeGreaterThan(0);
+      expect(thornTris, a).toBe(3 * thorns);
+      for (const cane of D.ring.canes) expect(caneTris(cane), a).toBe(6 * (cane.length - 1) + 3 * Math.floor((cane.length - 1) / 2));
       // the whole camp is no dearer than before (River and Moor are at their caps)
       let camp = 0;
       for (const o of scene.children) o.traverse((m) => { if (m.isMesh) camp += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });

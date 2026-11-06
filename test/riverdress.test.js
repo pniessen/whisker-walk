@@ -178,13 +178,14 @@ describe('the River marsh dressing', () => {
     expect(shader.fragmentShader).not.toContain('#include <normal_fragment_begin>');
     expect(shader.fragmentShader).not.toContain('normal *= faceDirection;');
     const stats = budgetStats(scene);
-    // Task 3's mist and dragonflies keep their room under the 62,100 cap
+    // Task 3's mist and dragonflies keep their room under the 62,400 cap
     const life = ['marshMist', 'dragonflies']
       .map((n) => scene.getObjectByName(n))
       .reduce((sum, m) => sum + (m ? triCount(m.geometry) : 0), 0);
-    // polish-brambles: the camp's bramble mounds cost 2,604 more triangles (+2,700)
-    expect(stats.triangles - life).toBeLessThanOrEqual(60600);
-    expect(stats.triangles).toBeLessThanOrEqual(62100);
+    // polish-brambles: the camp's bramble mounds and thorned canes cost 2,799
+    // more triangles (+3,000)
+    expect(stats.triangles - life).toBeLessThanOrEqual(60900);
+    expect(stats.triangles).toBeLessThanOrEqual(62400);
   }, 120_000);
 
   it('the flower cups are lit from the side the camera sees (inside, from above)', () => {

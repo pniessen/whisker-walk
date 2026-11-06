@@ -193,9 +193,9 @@ describe('campDressing (pure)', () => {
         for (const s of seatsOf(L)) expect(dist(p, s), `${at} seat`).toBeGreaterThanOrEqual(0.4);
         for (const k of [L.den, L.rock, ...cols]) expect(dist(p, k) - k.r, `${at} edge`).toBeGreaterThanOrEqual(0.25);
         expect(angleOff(Math.atan2(p.z - cz, p.x - cx), D.ring.gap.a), `${at} gap`).toBeGreaterThan(D.ring.gap.half);
-        // the tube tapers 0.036 -> 0.016 and stays between the ground and 1 m
-        expect(p.w, at).toBeGreaterThanOrEqual(0.016 - 1e-9);
-        expect(p.w, at).toBeLessThanOrEqual(0.036 + 1e-9);
+        // the tube tapers 0.04 -> 0.018 and stays between the ground and 1 m
+        expect(p.w, at).toBeGreaterThanOrEqual(0.018 - 1e-9);
+        expect(p.w, at).toBeLessThanOrEqual(0.04 + 1e-9);
         expect(p.y - p.w, at).toBeGreaterThanOrEqual(0);
         expect(p.y + p.w, at).toBeLessThanOrEqual(1.0);
         // points every ~0.4 m along the ground; a cane's foot may climb
@@ -217,8 +217,9 @@ describe('campDressing (pure)', () => {
       expect(D.ring.canes.length, a).toBeGreaterThanOrEqual(4);
       checkCanes(a, D);
       const pts = D.ring.canes.flat();
-      // they arch up over the lumps and come down into them
-      expect(Math.max(...pts.map((p) => p.y)), a).toBeGreaterThanOrEqual(0.7);
+      // they arch up over the lumps (polish-brambles: over the mounds' crowns)
+      // and come down into them
+      expect(Math.max(...pts.map((p) => p.y)), a).toBeGreaterThanOrEqual(0.8);
       expect(Math.min(...pts.map((p) => p.y)), a).toBeLessThanOrEqual(0.2);
       // they weave in and out across the two rows
       const rad = pts.map((p) => Math.hypot(p.x - cx, p.z - cz) - D.ring.r);

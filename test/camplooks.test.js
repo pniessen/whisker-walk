@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS } = await import('../src/world/camp.js');
+const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS, caneTris } = await import('../src/world/camp.js');
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
 
 const CAMPS = ['woods', 'river', 'moor', 'pines'];
@@ -204,13 +204,13 @@ describe('CAMP_LOOKS', () => {
   it('no new vertices', () => {
     for (const a of ALL) {
       const scene = build(a);
-      // the ring: RING_CLUMP_TRIS triangles a clump and 6 a cane segment
-      // (polish-brambles), no more than 18,600 vertices
+      // the ring: RING_CLUMP_TRIS triangles a clump and caneTris a cane (6 a
+      // segment, 3 a thorn; polish-brambles), no more than 18,600 vertices
       if (a !== 'gorge') {
         const { clumps, canes } = campDressing(a, []).ring;
-        const segs = canes.reduce((n, c) => n + c.length - 1, 0);
+        const caneT = canes.reduce((n, c) => n + caneTris(c), 0);
         const ring = scene.getObjectByName('campRing').geometry.attributes.position.count;
-        expect(ring, `${a} campRing`).toBe(3 * (RING_CLUMP_TRIS * clumps.length + 6 * segs));
+        expect(ring, `${a} campRing`).toBe(3 * (RING_CLUMP_TRIS * clumps.length + caneT));
         expect(ring, `${a} campRing`).toBeLessThanOrEqual(18600);
       }
       for (const [name, n] of Object.entries(BASE_VERTS[a])) {
