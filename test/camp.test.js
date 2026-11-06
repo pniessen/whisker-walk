@@ -287,11 +287,25 @@ describe('addCamp', () => {
       // pile (the boulder is the collider's size, and the pile 0.3 m off its
       // edge)
       expect(verts.length, a).toBe(3 * HIGHROCK_TRIS);
-      for (const [i, v] of verts.entries()) {
-        const at = `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
-        if (i >= 3 * HIGHROCK_BOULDER_TRIS) for (const k of kill) expect(Math.hypot(v.x - k.x, v.z - k.z), at).toBeGreaterThanOrEqual(0.25);
-        expect(Math.hypot(v.x - dep.x, v.z - dep.z), at).toBeGreaterThanOrEqual(0.45);
+      // the nearest approaches in plain JS (thousands of vertices x the pile),
+      // one assertion each, with the culprit named only on a failure
+      let killMin = Infinity; let killAt = null;
+      let depMin = Infinity; let depAt = null;
+      for (let i = 0; i < verts.length; i++) {
+        const v = verts[i];
+        if (i >= 3 * HIGHROCK_BOULDER_TRIS) {
+          for (const k of kill) {
+            const d = Math.hypot(v.x - k.x, v.z - k.z);
+            if (d < killMin) { killMin = d; killAt = v; }
+          }
+        }
+        const d = Math.hypot(v.x - dep.x, v.z - dep.z);
+        if (d < depMin) { depMin = d; depAt = v; }
       }
+      const at = (v) => (v ? `${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}` : '');
+      if (killMin < 0.25) expect(killMin, `${a} stone vertex ${at(killAt)} near the pile`).toBeGreaterThanOrEqual(0.25);
+      if (depMin < 0.45) expect(depMin, `${a} vertex ${at(depAt)} near the deputy`).toBeGreaterThanOrEqual(0.45);
+      expect(killMin >= 0.25 && depMin >= 0.45, a).toBe(true);
     }
   });
 
@@ -391,7 +405,7 @@ describe('addCamp', () => {
       // (the Moor), the layered Highrock 294 of them
       let camp = 0;
       for (const o of scene.children) o.traverse((m) => { if (m.isMesh) camp += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });
-      expect(camp, a).toBeLessThanOrEqual(8900);
+      expect(camp, a).toBeLessThanOrEqual(8177 + 700);
       // ...and every clump is drawn
       for (const c of cs) expect(verts.some((v) => Math.hypot(v.x - c.x, v.z - c.z) <= CLUMP_R * c.s)).toBe(true);
       // the clearing lies flat just over the ground, within its radius

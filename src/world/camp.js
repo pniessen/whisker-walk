@@ -509,10 +509,12 @@ const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -3.5 }
 // fronds round the bank, each a bent two-triangle card leaning out and up.
 // 70 triangles a nest.
 const NEST = {
-  r: 0.35, sides: 10,
+  sides: 10,
   rings: [[0.17, 0.045], [0.33, 0.09], [0.41, 0]],
   frond: { from: [0.31, 0.075], tip: [0.435, 0.135], halfBase: 0.045, halfTip: 0.02 },
 };
+// the fan and two bands (5 per side), then the fronds (2 per side)
+export const NEST_TRIS = NEST.sides * 5 + NEST.sides * 2;
 const KILL_LOOK = { mouse: 0x7a5a3e, vole: 0x5e4a36, bird: 0x8a8478, wing: 0xa59d8c };
 
 // A position hash in [0, 1): the same corner always moves the same way, so the
@@ -698,7 +700,7 @@ function doorGeometry(den, out) {
 //    cap, the ledges, the shoulder and the stones' tops), in the clan's moss
 //    (opts.moss, look.nest.moss) × 0.85 ±6 %, divided channel-wise by
 //    look.rock (both linear), so the face shows that moss;
-//  - lichen: ~6 % of the other faces, pale 0xc9c79a over look.rock, × 0.95.
+//  - lichen: ~6 % of the side faces, pale 0xc9c79a over look.rock, × 0.95.
 // Every hash takes the rock's spot as well, so no two camps' rocks are alike.
 const HIGHROCK = {
   // [y, r, stratum]; y null: rock.h. Rings of one stratum share a push.
@@ -1282,7 +1284,9 @@ function ringMesh(ring, cx, cz, look) {
           if (h < w) { pick = hex; break; }
           h -= w;
         }
-        // 0.96..1.01, so the lit face (x 1.08) and the others (x 0.94) stay in 0.9..1.1
+        // 0.96..1.01, any factor within 0.01 of 1 pushed out to 0.99 or 1.01
+        // (the hash's whole top two-fifths), so the lit face
+        // (x 1.08) and the others (x 0.94) stay in 0.9..1.1
         let f = 0.96 + 0.05 * hash01(c.x, c.z, b, 52);
         if (Math.abs(f - 1) < 0.01) f = f < 1 ? 0.99 : 1.01;
         colr = pick.clone().multiplyScalar(f);
@@ -1435,16 +1439,18 @@ function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
     const gy = groundY(n.x, n.z);
     const turn = hash01(n.x, 0, n.z, 13) * Math.PI * 2;
     const tris = [];
-    const ringPt = (ring, i, wob = 0) => {
+    const ringPt = (ring, i) => {
       const t = turn + (i / K) * Math.PI * 2;
-      const r = NEST.rings[ring][0] * (1 + wob * (hash01(n.x + i, ring, n.z, 17) - 0.5));
+      const r = NEST.rings[ring][0];
       return [Math.cos(t) * r, NEST.rings[ring][1], Math.sin(t) * r];
     };
     for (let i = 0; i < K; i++) {
       const j = (i + 1) % K;
-      tris.push([0, 0, 0], ringPt(0, i), ringPt(0, j));
-      tris.push(ringPt(0, i), ringPt(1, i), ringPt(1, j), ringPt(0, i), ringPt(1, j), ringPt(0, j));
-      tris.push(ringPt(1, i), ringPt(2, i), ringPt(2, j), ringPt(1, i), ringPt(2, j), ringPt(1, j));
+      // anticlockwise seen from above (the angle grows i -> j), so every face
+      // is turned up to the camera
+      tris.push([0, 0, 0], ringPt(0, j), ringPt(0, i));
+      tris.push(ringPt(0, i), ringPt(1, j), ringPt(1, i), ringPt(0, i), ringPt(0, j), ringPt(1, j));
+      tris.push(ringPt(1, i), ringPt(2, j), ringPt(2, i), ringPt(1, i), ringPt(1, j), ringPt(2, j));
     }
     // the fronds: a base on the bank, a narrower tip out and up
     const F = NEST.frond;
@@ -1459,7 +1465,7 @@ function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
       const y1 = F.from[1] + (F.tip[1] - F.from[1]) * lean;
       const t0 = at(r1, y1, -F.halfTip);
       const t1 = at(r1, y1, F.halfTip);
-      tris.push(b0, t1, b1, b0, t0, t1);
+      tris.push(b0, b1, t1, b0, t1, t0); // the upper face turned up
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(tris.flat(), 3));

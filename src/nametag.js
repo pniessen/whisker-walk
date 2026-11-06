@@ -576,12 +576,14 @@ function applyDecision(tag, d, k, camera) {
 // so it covers exactly the same screen rect, only nearer: in front of anything
 // within ~1.5 m of it. Never past the near plane: at most 40 % of the way.
 // The tag's world top before the pull is kept on userData.fitTop (NaN when not
-// pulled) for the chat bubble, which sits above the tag where the tag "is".
+// pulled) for the chat bubble, which sits above the tag where the tag "is",
+// with the frame it was taken on in userData.fitTopFrame: a tag culled this
+// frame (no onBeforeRender) leaves last frame's fitTop, which the bubble skips.
 export const TAG_PULL_M = 1.5;
 export const TAG_PULL_SHARE = 0.4;
 const PULL_MIN_DEPTH = 1;
 
-function pullTag(tag, depth, camera) {
+function pullTag(tag, depth, camera, frame) {
   const ud = tag.userData;
   if (!(depth >= PULL_MIN_DEPTH)) return;
   const me = tag.matrixWorld.elements;
@@ -593,6 +595,7 @@ function pullTag(tag, depth, camera) {
   if (!(sy > 0)) return; // hidden
   const p = Math.min(TAG_PULL_M, TAG_PULL_SHARE * depth);
   ud.fitTop = me[13] + sy / 2;
+  ud.fitTopFrame = frame;
   const f = (dist - p) / dist;
   for (let i = 0; i < 3; i++) { me[i] *= f; me[4 + i] *= f; }
   me[12] = ce[12] + dx * f; me[13] = ce[13] + dy * f; me[14] = ce[14] + dz * f;
@@ -603,6 +606,7 @@ function fitOnRender(renderer, _scene, camera) {
   renderer.getSize(_size);
   const frame = renderer.info && renderer.info.render ? renderer.info.render.frame : undefined;
   if (typeof frame !== 'number') {
+    this.userData.fitTop = NaN;
     fitTagToView(this, camera, _size.x, _size.y);
     return;
   }
@@ -625,7 +629,7 @@ function fitOnRender(renderer, _scene, camera) {
     st.cur.push(e);
   }
   applyDecision(this, d, e.rect.k, camera);
-  if (!(d && d.hide)) pullTag(this, e.rect.depth, camera);
+  if (!(d && d.hide)) pullTag(this, e.rect.depth, camera, frame);
 }
 
 // For a chat bubble (chatbubble.js): fit it like a tag, and keep it above
@@ -636,15 +640,17 @@ const BUBBLE_GAP = 0.03;
 export function fitBubbleOnRender(renderer, _scene, camera) {
   if (!renderer || typeof renderer.getSize !== 'function') return;
   renderer.getSize(_size);
+  const frame = renderer.info && renderer.info.render ? renderer.info.render.frame : undefined;
   let minBottom = -Infinity;
   const kids = this.parent ? this.parent.children : null;
   if (kids) {
     for (let i = 0; i < kids.length; i++) {
       const c = kids[i];
       if (c === this || !c.visible || !c.userData || !c.userData.tagCtx) continue;
-      // a pulled tag (pullTag): above where it was fitted, not where it's drawn
+      // a tag pulled this frame (pullTag): above where it was fitted, not
+      // where it's drawn; otherwise (culled, or a bare renderer) its matrix
       const te = c.matrixWorld.elements;
-      const ft = c.userData.fitTop;
+      const ft = typeof frame === 'number' && c.userData.fitTopFrame === frame ? c.userData.fitTop : NaN;
       const top = Number.isFinite(ft) ? ft : te[13] + Math.hypot(te[4], te[5], te[6]) / 2;
       if (top + BUBBLE_GAP > minBottom) minBottom = top + BUBBLE_GAP;
     }

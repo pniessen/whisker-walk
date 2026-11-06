@@ -318,12 +318,52 @@ describe('the pull toward the camera', () => {
     const cam = camAt([0, 1.4, 1], [0, 1.1, -4]);
     fitTagToView(tag, cam, W, H);
     const r0 = rectOf(tag, cam);
-    tag.onBeforeRender(frameRenderer(), null, cam);
-    fitBubbleOnRender.call(bubble, renderer, null, cam);
+    const fr = frameRenderer(); // one frame: the tag, then its bubble
+    tag.onBeforeRender(fr, null, cam);
+    fitBubbleOnRender.call(bubble, fr, null, cam);
     const be = bubble.matrixWorld.elements;
     expect(be[13] - Math.hypot(be[4], be[5], be[6]) / 2).toBeGreaterThanOrEqual(tag.userData.fitTop);
     const rb = rectOf(bubble, cam), rt = rectOf(tag, cam);
     expect(rb.b).toBeLessThanOrEqual(rt.t);
     expect(rb.b).toBeLessThanOrEqual(r0.t);
+  });
+
+  it('a bubble fitted on a later frame than its tag was pulled ignores the stale fitTop', () => {
+    // frame N: the tag is fitted and pulled; frame N + 1: the tag is
+    // frustum-culled (no onBeforeRender) but its bubble still draws
+    const tag = frameTag([0.8, 0, -4]);
+    const cat = tag.parent;
+    const bubble = new THREE.Sprite(new THREE.SpriteMaterial());
+    bubble.scale.set(1.9, 0.57, 1);
+    bubble.position.y = tag.position.y + 0.5;
+    bubble.userData.fitLines = (34 / 64) / (40 / 96);
+    cat.add(bubble);
+    cat.updateMatrixWorld(true);
+    const cam = camAt([0, 1.4, 1], [0, 1.1, -4]);
+    fitTagToView(tag, cam, W, H);
+    const frN = frameRenderer();
+    tag.onBeforeRender(frN, null, cam);
+    expect(Number.isFinite(tag.userData.fitTop)).toBe(true);
+    // stand in for a stale fitTop (the cat has since moved) with one far
+    // above: read, it would push the bubble sky-high
+    tag.userData.fitTop = 50;
+    const frN1 = { getSize: (v) => v.set(W, H), info: { render: { frame: frN.info.render.frame + 1 } } };
+    fitBubbleOnRender.call(bubble, frN1, null, cam);
+    const be = bubble.matrixWorld.elements;
+    const te = tag.matrixWorld.elements;
+    const live = te[13] + Math.hypot(te[4], te[5], te[6]) / 2;
+    const bottom = be[13] - Math.hypot(be[4], be[5], be[6]) / 2;
+    expect(bottom).toBeGreaterThanOrEqual(live);
+    expect(bottom).toBeLessThan(10);
+  });
+
+  it('a tag fitted on a bare renderer clears fitTop', () => {
+    const tag = frameTag([0.8, 0, -4]);
+    const cam = camAt([0, 1.4, 1], [0, 1.1, -4]);
+    fitTagToView(tag, cam, W, H);
+    tag.onBeforeRender(frameRenderer(), null, cam);
+    expect(Number.isFinite(tag.userData.fitTop)).toBe(true);
+    tag.onBeforeRender(renderer, null, cam);
+    expect(Number.isFinite(tag.userData.fitTop)).toBe(false);
   });
 });

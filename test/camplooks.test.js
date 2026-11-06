@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS, RING_LEAF_FIRST, RING_BERRY_TRIS, caneTris, HIGHROCK_TRIS } = await import('../src/world/camp.js');
+const { addCamp, CAMP_LOOKS, campLook, campDressing, RING_CLUMP_TRIS, RING_LEAF_FIRST, RING_BERRY_TRIS, caneTris, HIGHROCK_TRIS, NEST_TRIS } = await import('../src/world/camp.js');
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
 
 const CAMPS = ['woods', 'river', 'moor', 'pines'];
@@ -206,7 +206,7 @@ describe('CAMP_LOOKS', () => {
   }, 120_000);
 
   // polish-camps5: a low moss dome with a raised bank and bracken fronds round it
-  it('each nest is a low domed cushion with a bracken rim, 100 triangles at most', () => {
+  it('each nest is a low domed cushion with a bracken rim, 70 triangles', () => {
     for (const a of ALL) {
       const scene = build(a);
       const nests = scene.getObjectByName(a === 'gorge' ? 'campBedding' : 'campNests');
@@ -214,7 +214,8 @@ describe('CAMP_LOOKS', () => {
       const col = nests.geometry.attributes.color;
       const centres = a === 'gorge' ? null : campDressing(a, []).nests;
       const per = pos.count / 6;
-      expect(per / 3, a).toBeLessThanOrEqual(100);
+      expect(NEST_TRIS, a).toBe(70);
+      expect(per / 3, a).toBe(NEST_TRIS);
       const brk = lin(CAMP_LOOKS[a].nest.bracken);
       let bracken = false;
       for (let i = 0; i < pos.count; i++) {
@@ -231,6 +232,17 @@ describe('CAMP_LOOKS', () => {
           const c = centres.reduce((b, q) => (Math.hypot(q.x - cx, q.z - cz) < Math.hypot(b.x - cx, b.z - cz) ? q : b));
           cx = c.x; cz = c.z;
         }
+        // every face turned up to the game camera (FrontSide): the 50 dome
+        // faces and the 20 frond faces all have a geometric normal with y > 0
+        const p = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+        const e1 = new THREE.Vector3(); const e2 = new THREE.Vector3();
+        let down = '';
+        for (let t = 0; t < NEST_TRIS; t++) {
+          for (let k = 0; k < 3; k++) p[k].fromBufferAttribute(pos, lo + t * 3 + k);
+          const nrm = e1.subVectors(p[1], p[0]).cross(e2.subVectors(p[2], p[0]));
+          if (!(nrm.y > 0) && !down) down = `${a} nest ${n} ${t < 50 ? 'dome' : 'frond'} face ${t} normal y ${nrm.y}`;
+        }
+        expect(down, `${a} nest ${n} faces up`).toBe('');
         const top = a === 'gorge' ? 0.5 : 1; // the ledge's pressed nests
         for (let i = lo; i < lo + per; i++) {
           const d = Math.hypot(pos.getX(i) - cx, pos.getZ(i) - cz);
