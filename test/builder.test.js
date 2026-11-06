@@ -2279,6 +2279,40 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     expect(pos(b.scree(spots, 4))).toEqual(pos(g));
     expect(() => b.scree([], 4)).not.toThrow();
   });
+
+  // polish-gorge7: the Gorge's scree is chunky sandstone heaped at the wall foot.
+  it('chunky scree is heaped sandstone: low, vertex-coloured, against its wall', () => {
+    const spots = [{ x: 0, z: 0, nx: 1, nz: 0 }, { x: 0, z: 1.5, nx: 1, nz: 0 }];
+    const g = b.scree(spots, 4, { chunky: true });
+    const found = [];
+    g.traverse((o) => { if (o.isMesh) found.push(o); });
+    expect(found).toHaveLength(1);
+    const m = found[0];
+    expect(m.name).toBe('scree');
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    const box = new THREE.Box3().setFromObject(g);
+    expect(box.max.y).toBeLessThanOrEqual(0.25);
+    expect(box.min.y).toBeGreaterThanOrEqual(-1e-6);
+    expect(m.geometry.attributes.color).toBeTruthy();
+    expect(m.material.vertexColors).toBe(true);
+    // heaped toward the wall (at -x, against the normal)
+    const p = m.geometry.attributes.position;
+    let sx = 0;
+    for (let v = 0; v < p.count; v++) sx += p.getX(v);
+    expect(sx / p.count).toBeLessThan(0.05);
+    // 3 to 6 stones a spot, blocks of 12 triangles and cobbles of 20
+    expect(tris(m)).toBeGreaterThanOrEqual(3 * 12 * spots.length);
+    expect(tris(m)).toBeLessThanOrEqual(7 * 20 * spots.length);
+    const again = b.scree(spots, 4, { chunky: true }).children[0].geometry.attributes;
+    expect(Array.from(again.position.array)).toEqual(Array.from(p.array));
+    expect(Array.from(again.color.array)).toEqual(Array.from(m.geometry.attributes.color.array));
+    expect(() => b.scree([], 4, { chunky: true })).not.toThrow();
+    // a spot with no wall normal still scatters, low and on the ground
+    const loose = new THREE.Box3().setFromObject(b.scree([{ x: 2, z: 2 }], 4, { chunky: true }));
+    expect(loose.max.y).toBeLessThanOrEqual(0.25);
+    expect(loose.min.y).toBeGreaterThanOrEqual(-1e-6);
+  });
 });
 
 // polish-places Task 4: the Seaside's backing dunes get an edge of their own.

@@ -469,6 +469,8 @@ export function gorgeTrees() {
 // every 1.5 m along it and 0.6 m out onto the floor. Each wall is a line and
 // the way out from it. A spot is kept off the paths, every cave and den (and
 // so their mouths), every find, and anywhere the wall isn't rock after all.
+// A spot carries the wall's outward normal (nx, nz), so builder.scree can
+// heap its stones against the wall's foot.
 const SCREE_STEP = 1.5;
 const SCREE_OUT = 0.6;
 export const FLOOR_WALLS = [
@@ -497,7 +499,7 @@ export function gorgeScree() {
       if (pathDist(x, z) < PATH_W / 2 + 0.5) continue;
       if (holeDist(x, z) < 1.5 || mouthDist(x, z) < 2) continue;
       if (keepClearDist(x, z) < 2) continue;
-      out.push(Object.freeze({ x, z }));
+      out.push(Object.freeze({ x, z, nx, nz }));
     }
   }
   screeOnce = Object.freeze(out);
@@ -1485,8 +1487,10 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // --- the scree ----------------------------------------------------------------
   // One merged bed, out of the shadow pass, on the floor (so at y 0), and no
-  // collider: a cat walks over loose stones.
-  const scree = b.scree(gorgeScree(), seedFromCode('gorge-scree'), { pebble: true });
+  // collider: a cat walks over loose stones. Chunky sandstone heaped at each
+  // wall's foot (polish-gorge7), built under local uuids so its stones add no
+  // Math.random draws to the build (waterlooks.test.js pins the count).
+  const scree = withLocalUuids('gorge-uuids-scree', () => b.scree(gorgeScree(), seedFromCode('gorge-scree'), { chunky: true }));
   scree.name = 'screeBed';
   scene.add(scree);
 

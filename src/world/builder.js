@@ -6285,11 +6285,123 @@ function rockDressing({ walks, masses, ceilings, seed, mouths, field, rockColour
 // never taller than 0.25 m, out of the caster sweep like the other low beds.
 export const SCREE_COLOR = 0x857f76;
 //
-// { pebble: true } (opt-in; the Gorge) makes each stone an octahedron, 8
-// triangles instead of 20, still one geometry per stone, with the normals of
-// the ellipsoid it stands for so it shades as a smooth pebble. Pebbles are
-// flattened a little more so they stay under the old stones' 0.18 m.
-export function scree(spots, seed, { pebble = false } = {}) {
+// { chunky: true } (opt-in; the Gorge, polish-gorge7) makes each stone a 3D
+// sandstone chunk: mostly an angular block (a box whose corners are jittered
+// by a hash of the corner, so its faces stay closed, 12 triangles) and, one in
+// five, a cobble (an icosahedron jittered radially, 20 triangles). Half a
+// width of 0.09 to 0.22 m, as tall as 0.5 to 0.85 of its width, but never
+// above SCREE_TOP. A spot that carries its wall's outward normal (nx, nz) heaps
+// its stones against the wall, the biggest closest to it, spread 0.75 m each
+// way along it so spots 1.5 m apart read as one bed; stones from the fourth on
+// sit lifted onto their neighbours. A spot with no normal scatters as before.
+// Each stone takes a warm sandstone shade, darker at its foot, in vertex
+// colours, flat-shaded. Every number comes from hash01: no draws.
+export const SCREE_SANDSTONE = [0x9a8670, 0x8a7560, 0xa89478, 0x857f76, 0x7a6a58];
+const SCREE_TOP = 0.25;
+const SCREE_FOOT_SHADE = 0.72;
+
+// One chunky stone at unit size (about -1..1 on each axis), non-indexed.
+function screeChunk(id, seed, cobble) {
+  let geo;
+  if (cobble) {
+    geo = new THREE.IcosahedronGeometry(1, 0); // non-indexed already
+    const p = geo.attributes.position;
+    for (let v = 0; v < p.count; v++) {
+      const x = p.getX(v), y = p.getY(v), z = p.getZ(v);
+      // a hash of the vertex itself, so the copies of one corner agree
+      const f = 1 + 0.3 * (hash01(x * 7.13 + z * 3.31, y * 5.77 + id, seed + 11) - 0.5);
+      p.setXYZ(v, x * f, y * f, z * f);
+    }
+  } else {
+    const box = new THREE.BoxGeometry(2, 2, 2);
+    const p = box.attributes.position;
+    for (let v = 0; v < p.count; v++) {
+      const sx = Math.sign(p.getX(v)), sy = Math.sign(p.getY(v)), sz = Math.sign(p.getZ(v));
+      const key = (sx + 1) * 9 + (sy + 1) * 3 + (sz + 1);
+      const j = (salt) => 0.36 * (hash01(key, id, seed + salt) - 0.5);
+      p.setXYZ(v, sx * (1 + j(12)), sy * (1 + j(13)), sz * (1 + j(14)));
+    }
+    geo = box.toNonIndexed();
+    box.dispose();
+  }
+  return geo;
+}
+
+function chunkyScree(spots, seed) {
+  const stones = [];
+  const col = new THREE.Color();
+  spots.forEach((sp, i) => {
+    const n = 3 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 4);
+    const wall = Number.isFinite(sp.nx) && Number.isFinite(sp.nz) && Math.hypot(sp.nx, sp.nz) > 0.5;
+    for (let k = 0; k < n; k++) {
+      const id = i * 8 + k;
+      const cobble = hash01(i, k, seed + 7) < 0.2;
+      let x, z, near;
+      if (wall) {
+        const l = Math.hypot(sp.nx, sp.nz);
+        const nx = sp.nx / l, nz = sp.nz / l;
+        // out from the wall: 0 at the wall's side, 1 at the floor's; skewed
+        // toward the wall so the bed heaps against it
+        const t = hash01(k, i, seed + 5) ** 1.5;
+        const out = -0.45 + 0.8 * t;
+        const along = 0.75 * (2 * hash01(i + k, k, seed + 8) - 1);
+        x = sp.x + nx * out - nz * along;
+        z = sp.z + nz * out + nx * along;
+        near = 1 - t;
+      } else {
+        const a = hash01(k, i, seed + 4) * Math.PI * 2;
+        const d = 0.5 * hash01(i + k, k, seed + 5);
+        x = sp.x + Math.cos(a) * d;
+        z = sp.z + Math.sin(a) * d;
+        near = hash01(i, k, seed + 9);
+      }
+      const r = 0.09 + 0.13 * Math.min(1, 0.6 * near + 0.4 * hash01(k, i, seed + 2));
+      const ratio = 0.5 + 0.35 * hash01(i, k, seed + 3);
+      const lift = k >= 3 ? 0.06 * hash01(k, i, seed + 10) : 0;
+      const geo = screeChunk(id, seed, cobble);
+      geo.rotateY(hash01(i, k, seed + 6) * Math.PI * 2);
+      geo.computeBoundingBox();
+      const bb = geo.boundingBox;
+      const w = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+      const height = Math.min(r * 2 * ratio, SCREE_TOP - lift);
+      geo.scale((2 * r) / w, height / (bb.max.y - bb.min.y), (2 * r) / w);
+      geo.computeBoundingBox();
+      const y0 = geo.boundingBox.min.y;
+      geo.translate(x, lift - y0, z);
+      // a sandstone shade per stone, darker at its foot
+      col.setHex(SCREE_SANDSTONE[Math.floor(hash01(id, k, seed + 15) * SCREE_SANDSTONE.length)]);
+      const tint = 1 + 0.12 * (hash01(k, id, seed + 16) - 0.5);
+      const p = geo.attributes.position;
+      const c = new Float32Array(p.count * 3);
+      for (let v = 0; v < p.count; v++) {
+        const s = tint * (p.getY(v) - lift < 0.4 * height ? SCREE_FOOT_SHADE : 1);
+        c[v * 3] = col.r * s; c[v * 3 + 1] = col.g * s; c[v * 3 + 2] = col.b * s;
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(c, 3));
+      geo.deleteAttribute('uv');
+      geo.computeVertexNormals(); // non-indexed: flat facets
+      stones.push(geo);
+    }
+  });
+  const geo = stones.length === 0 ? new THREE.BufferGeometry()
+    : stones.length === 1 ? stones[0] : mergeGeometries(stones, false);
+  if (stones.length > 1) for (const p of stones) p.dispose();
+  const mat = surfNoMap(0xffffff, 'cobble');
+  mat.vertexColors = true;
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = false;
+  m.userData.noCast = true;
+  return m;
+}
+
+export function scree(spots, seed, { chunky = false } = {}) {
+  if (chunky) {
+    const m = chunkyScree(spots, seed);
+    m.name = 'scree';
+    const g = new THREE.Group();
+    g.add(m);
+    return g;
+  }
   const stones = [];
   spots.forEach((sp, i) => {
     const n = 3 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 4);
@@ -6298,22 +6410,8 @@ export function scree(spots, seed, { pebble = false } = {}) {
       const flat = 0.4 + 0.2 * hash01(k, i, seed + 3);
       const a = hash01(k, i, seed + 4) * Math.PI * 2;
       const d = 0.5 * hash01(i + k, k, seed + 5);
-      const geo = pebble ? new THREE.OctahedronGeometry(r, 0) : new THREE.IcosahedronGeometry(r, 0);
-      const fy = pebble ? flat * 0.8 : flat;
-      geo.scale(1, fy, 1);
-      if (pebble) {
-        // Ellipsoid normal normalize(p / s^2), set before the turn so rotateY
-        // carries it; a fresh attribute, so no Math.random draws.
-        const pp = geo.attributes.position;
-        const nn = new Float32Array(pp.count * 3);
-        const sy = r * fy;
-        for (let v = 0; v < pp.count; v++) {
-          const nx = pp.getX(v) / (r * r), ny = pp.getY(v) / (sy * sy), nz = pp.getZ(v) / (r * r);
-          const l = Math.hypot(nx, ny, nz) || 1;
-          nn[v * 3] = nx / l; nn[v * 3 + 1] = ny / l; nn[v * 3 + 2] = nz / l;
-        }
-        geo.setAttribute('normal', new THREE.BufferAttribute(nn, 3));
-      }
+      const geo = new THREE.IcosahedronGeometry(r, 0);
+      geo.scale(1, flat, 1);
       geo.rotateY(hash01(i, k, seed + 6) * Math.PI * 2);
       geo.computeBoundingBox();
       geo.translate(sp.x + Math.cos(a) * d, -geo.boundingBox.min.y, sp.z + Math.sin(a) * d);
