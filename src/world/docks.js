@@ -202,8 +202,11 @@ export function build(scene, { water = {} } = {}) {
   // the read their colours already implied and now have a light response to
   // match. builder.warehouse compensates brick's 0.948 mean itself, so the
   // hexes below are still the shipped ones.
-  const warehouseAt = (x, z, w, d, h, bodyColor, roofColor, r, spread, bodySurface) => {
-    scene.add(b.warehouse(x, z, w, d, h, bodyColor, roofColor, bodySurface));
+  // `look` (polish-docks2) passes the perches on or beside a roof as `clear`:
+  // that roof stays flat and keeps its loading bay and hoist 1.8 m (in x)
+  // away from them, so a perched cat never stands inside new trim.
+  const warehouseAt = (x, z, w, d, h, bodyColor, roofColor, r, spread, bodySurface, look) => {
+    scene.add(b.warehouse(x, z, w, d, h, bodyColor, roofColor, bodySurface, look));
     addC(x - spread, z, r);
     addC(x + spread, z, r);
   };
@@ -270,7 +273,9 @@ export function build(scene, { water = {} } = {}) {
   // W1 is the tall one. Its flat roof (deck y 5.0, parapet top y 5.3) is the
   // top of the game's longest perch chain — see the chain table at the bottom
   // of this file before moving it a single metre.
-  warehouseAt(20, 16, 10, 8, 5.0, 0x8a6a5a, 0x44404a, 4.2, 2.8, 'brick');
+  // clear: the parapet perch, the roof tank and the fire escape (chain A).
+  warehouseAt(20, 16, 10, 8, 5.0, 0x8a6a5a, 0x44404a, 4.2, 2.8, 'brick',
+    { clear: [{ x: 17, z: 12.1 }, { x: 18.6, z: 13.6 }, { x: 18.0, z: 10.4 }] });
   warehouseAt(-6, 20, 12, 9, 4.2, 0x7a7a86, 0x3e3a46, 4.6, 3.0, 'siding');
   warehouseAt(-26, 15, 9, 8, 3.6, 0x86766a, 0x44404a, 4.3, 2.2, 'brick');
   warehouseAt(12, 32, 11, 8, 4.6, 0x74707e, 0x3e3a46, 4.3, 2.6, 'siding');
@@ -338,7 +343,9 @@ export function build(scene, { water = {} } = {}) {
   // under Spring Paws' 2.2, so it is the one chain in the area that visibly
   // collapses from two hops to one the moment that ability is earned.
   // painted timber rather than brick: it is a shed, not a warehouse
-  scene.add(b.warehouse(6.5, -23.5, 6, 5, 1.8, 0x7a6a5a, 0x44404a, 'siding'));
+  // clear: the roof perch and the crate that climbs to it (chain B).
+  scene.add(b.warehouse(6.5, -23.5, 6, 5, 1.8, 0x7a6a5a, 0x44404a, 'siding',
+    { clear: [{ x: 5.2, z: -21.1 }, { x: 4.0, z: -20.2 }] }));
   addC(6.5, -23.5, 3.2);
   scene.add(b.platform(4.0, -20.2, 1.1, 0, 1.0, undefined, { surface: 'wood' }));
   addC(4.0, -20.2, 0.55);
