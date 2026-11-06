@@ -381,8 +381,9 @@ describe('visit prize placement', () => {
   // Accessories polish Task 1: the head prizes are one hat mesh each, seated
   // on the skull (cathats.test.js has the full sweep). The cake and the crown's
   // points rise over the skull's top but start on it, and stay under the top
-  // hat's top; the laurel lies round the head, all of it under the skull's top.
-  it.each([['partycrown', true], ['leafcrown', false], ['candlehat', true]])('%s is one hat mesh, seated, under the top hat (rises over the skull: %s)', (id, rises) => {
+  // hat's top. The laurel is a wreath on top of the head (polish-crown), its
+  // leaves curled up a little over the skull's top.
+  it.each([['partycrown', true], ['leafcrown', true], ['candlehat', true]])('%s is one hat mesh, seated, under the top hat (rises over the skull: %s)', (id, rises) => {
     const cat = buildCat('tabby', { ...bareSet, head: id });
     cat.updateMatrixWorld(true);
     const { head } = cat.userData.parts;

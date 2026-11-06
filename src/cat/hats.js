@@ -379,25 +379,67 @@ function beanie(simple) {
   return finish('beanie', [shell, cuff, pom]);
 }
 
-// A band round the head on the skull, at height bandY(phi): front 0.12, back
-// 0.15 — above the brow, under the ears' tips.
-const BAND = { front: 0.12, back: 0.15 };
-const bandY = (phi) => (BAND.front + BAND.back) / 2 - ((BAND.back - BAND.front) / 2) * Math.cos(phi);
-function bandRing(segs, out, yAt = bandY) {
+// THE WREATH (polish-crown, 2026-11-06). The flower and leaf crowns used to
+// ride a band round the head at the brow (front 0.12): on the home stage,
+// whose camera looks down on a sitting cat, and at phone size the band and
+// its leaves lay across the brow and the tops of the eyes and read as green
+// goggles. They now sit ON TOP of the head like a wreath: a ring draped on the
+// skull round (0, cz), WREATH.rx across (between the ears) and rz long, so its
+// front is high on the forehead (y ~0.17, the eyes top out at 0.071) and its
+// back tips down behind the ears, as a laurel is worn.
+const WREATH = { cz: 0.03, rx: 0.07, rz: 0.125 };
+// The skull point under the wreath at parameter a (0 front, +pi/2 the +x side,
+// pi the back), `out` along the skull normal there. Returns [point, normal].
+function wreathAt(a, out = 0) {
+  const x = WREATH.rx * Math.sin(a), z = WREATH.cz - WREATH.rz * Math.cos(a);
+  return drape(new THREE.Vector3(x, skullY(x, z), z), out);
+}
+// Even spacing along the ring: s in [0, 1) of the way round (0 the front,
+// increasing toward +x) to the parameter a (a table of the draped ring's length).
+const WREATH_ARC = (() => {
+  const N = 720, len = [0];
+  let prev = wreathAt(0)[0];
+  for (let i = 1; i <= N; i++) {
+    const p = wreathAt((i / N) * Math.PI * 2)[0];
+    len.push(len[i - 1] + p.distanceTo(prev)); prev = p;
+  }
+  return { N, len, total: len[N] };
+})();
+function wreathParam(s) {
+  const { N, len, total } = WREATH_ARC;
+  const want = (((s % 1) + 1) % 1) * total;
+  let lo = 0, hi = N;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (len[m] <= want) lo = m; else hi = m; }
+  const f = (want - len[lo]) / (len[hi] - len[lo] || 1);
+  return ((lo + f) / N) * Math.PI * 2;
+}
+// A frame on the ring at s: the point, the skull normal, the ring's direction
+// of travel (toward +x at the front) and `inward` (across the ring, toward its
+// middle on top of the head).
+function wreathFrame(s, out = 0) {
+  const a = wreathParam(s);
+  const [p, n] = wreathAt(a, out);
+  const t = wreathAt(a + 1e-3, out)[0].sub(wreathAt(a - 1e-3, out)[0]);
+  t.addScaledVector(n, -t.dot(n)).normalize();
+  const inward = new THREE.Vector3().crossVectors(n, t).normalize();
+  const mid = new THREE.Vector3(0, p.y, WREATH.cz);
+  if (inward.dot(mid.sub(p)) < 0) inward.negate();
+  return { p, n, t, inward };
+}
+function wreathRing(segs, out) {
   const centres = [], normals = [];
   for (let i = 0; i < segs; i++) {
-    const phi = (i / segs) * Math.PI * 2;
-    const p = ringPoint(phi, yAt(phi)), n = skullNormal(p);
-    centres.push(p.addScaledVector(n, out)); normals.push(n);
+    const { p, n } = wreathFrame(i / segs, out);
+    centres.push(p); normals.push(n);
   }
   return { centres, normals };
 }
 
-// One flower lying on the skull at azimuth phi on the band: five petals (each
-// a low lens) round a domed centre, facing out of the head.
-function flower(phi, [petalHex, centreHex], size, simple) {
-  const [c, n] = drape(ringPoint(phi, bandY(phi) + 0.004), 0);
-  const up = upSkull(c, n);
+// One flower lying on the skull at s of the way round the wreath: five petals
+// (each a low lens) round a domed centre, facing out of the head.
+function flower(s, [petalHex, centreHex], size, simple) {
+  const { p: c, n, inward: up } = wreathFrame(s);
+  const phi = s * Math.PI * 2;
   const side = new THREE.Vector3().crossVectors(up, n).normalize();
   const parts = [];
   const rim = simple ? 4 : 6;
@@ -435,13 +477,14 @@ function flower(phi, [petalHex, centreHex], size, simple) {
   return parts;
 }
 
-// Flower Crown: a twisted green vine round the head on the skull, seven
-// flowers along it: five across the brow and two behind, either side of the
-// nape, where the walk camera sees them — none in the ears.
-const FLOWER_AT = [0, 0.6, -0.6, 1.07, -1.07, 2.55, -2.55];
+// Flower Crown: a twisted green vine round the wreath on top of the head,
+// seven flowers along it: five across the front of the crown and two at the
+// back, where the walk camera sees them (s: the share of the way round).
+const FLOWER_AT = [0, 0.095, -0.095, 0.185, -0.185, 0.4, -0.4];
+const FLOWER_SIZE = 0.044;
 function crown(simple) {
-  const segs = simple ? 16 : 28, sides = simple ? 4 : 5, tubeR = 0.0072;
-  const { centres, normals } = bandRing(segs, 0.0068);
+  const segs = simple ? 16 : 28, sides = simple ? 4 : 5, tubeR = 0.0068;
+  const { centres, normals } = wreathRing(segs, 0.0064);
   const twists = 14;
   const vine = tube(centres, normals, {
     closed: true, sides,
@@ -449,7 +492,7 @@ function crown(simple) {
     colour: (i, a) => (Math.cos(2 * (a + (twists * i * Math.PI * 2) / segs)) > 0 ? PRIZE_LEAF[0] : PRIZE_LEAF[2]),
   });
   const parts = [vine];
-  FLOWER_AT.forEach((phi, k) => parts.push(...flower(phi, FLOWERS[k % 3], 0.05, simple)));
+  FLOWER_AT.forEach((at, k) => parts.push(...flower(at, FLOWERS[k % 3], FLOWER_SIZE, simple)));
   return finish('crown', parts);
 }
 
@@ -489,26 +532,22 @@ function partycrown(simple) {
   return finish('partycrown', parts);
 }
 
-// Leaf Crown: laurel. A brown twig round the head on the skull, and twenty
-// pointed leaves lying on it in two overlapping rows, ten a side, each leaf's
-// stem on the twig and its tip swept forward along it, toward the brow. The
-// twig is not on the flower crown's band (front 0.12, back 0.15): from the 3/4
-// view and from behind (the walk camera) that ring's back half, high over the
-// back of the skull and bare of leaves behind ±2.7 rad, read as a twig hoop
-// floating over the head (final review). The laurel's ring is as low at the
-// back as at the front (front 0.12, back 0.105, laurelY) and its leaves run
-// all round: the last pair's stems at ±3.075 rad, a V of 0.13 rad at the nape.
-const LAUREL = { perSide: 10, from: 0.06, step: 0.335, len: 0.074, width: 0.03, rowOff: 0.003, slant: 0.42, front: 0.12, back: 0.105 };
-const laurelY = (phi) => (LAUREL.front + LAUREL.back) / 2 - ((LAUREL.back - LAUREL.front) / 2) * Math.cos(phi);
-function leaf(phi, side, row, hex, simple) {
-  const [c0, n0] = drape(ringPoint(phi, laurelY(phi)), 0);
-  const up = upSkull(c0, n0);
-  // the band's direction toward the back on this side
-  const back = new THREE.Vector3().crossVectors(n0, up).multiplyScalar(-side).normalize();
-  const dir = back.clone().multiplyScalar(Math.cos(LAUREL.slant)).addScaledVector(up, row * Math.sin(LAUREL.slant)).normalize();
+// Leaf Crown: laurel. A brown twig round the wreath on top of the head, and
+// twenty pointed leaves lying on it in two overlapping rows, ten a side, each
+// leaf's stem on the twig and the leaf running back from it toward the nape.
+// The inner row lies on the top of the head, the outer row droops outward
+// over the twig. (Before polish-crown it rode a band at the brow, front 0.12,
+// and its lower leaves came down to the eyes: green goggles on the stage.) The
+// leaves run all round: the last pair's stems a short V apart at the back.
+const LAUREL = { perSide: 10, from: 0.01, step: 0.0485, len: 0.064, width: 0.028, rowOff: 0.003, slant: 0.42, curl: 0.012 };
+function leaf(s, side, row, hex, simple) {
+  const { p: c0, n: n0, t, inward } = wreathFrame(s);
+  // the ring's direction toward the back on this side
+  const back = t.clone().multiplyScalar(side);
+  const dir = back.clone().multiplyScalar(Math.cos(LAUREL.slant)).addScaledVector(inward, row * Math.sin(LAUREL.slant)).normalize();
   const across = new THREE.Vector3().crossVectors(n0, dir).normalize();
   // the stem on the twig, the leaf running back from it
-  const mid = c0.clone().addScaledVector(up, row * LAUREL.rowOff).addScaledVector(dir, LAUREL.len * 0.5);
+  const mid = c0.clone().addScaledVector(inward, row * LAUREL.rowOff).addScaledVector(dir, LAUREL.len * 0.5);
   const nu = simple ? 4 : 6, lift = row > 0 ? 0.002 : 0;
   const light = shade(hex, 1.12), dark = shade(hex, 0.82);
   return grid(nu, 3, {}, (i, j) => {
@@ -516,22 +555,25 @@ function leaf(phi, side, row, hex, simple) {
     const w = j - 1;                          // -1, 0 (midrib), 1
     const half = (LAUREL.width / 2) * Math.max(0, 1 - u * u) ** 0.8 * (1 - 0.25 * u);
     const q = mid.clone().addScaledVector(dir, (u * LAUREL.len) / 2).addScaledVector(across, w * half);
-    const [p, n] = drape(q, (w === 0 ? 0.0075 : 0.004) + lift);
+    // each leaf curls up off the head toward its tip, so the wreath has some
+    // height and reads from the front, not only from above
+    const curl = LAUREL.curl * ((u + 1) / 2) ** 2;
+    const [p, n] = drape(q, (w === 0 ? 0.0075 : 0.004) + lift + curl);
     return { p, c: w === 0 ? light : (w > 0 ? hex : dark), out: n };
   });
 }
 function leafcrown(simple) {
   const segs = simple ? 14 : 28, sides = simple ? 4 : 5;
-  const { centres, normals } = bandRing(segs, 0.006, laurelY);
+  const { centres, normals } = wreathRing(segs, 0.006);
   const twig = tube(centres, normals, {
-    closed: true, sides, radius: () => 0.0048,
+    closed: true, sides, radius: () => 0.0052,
     colour: (i, a) => (Math.cos(a) > 0 ? TWIG : shade(TWIG, 0.75)),
   });
   const parts = [twig];
   for (const side of [-1, 1]) {
     for (let k = 0; k < LAUREL.perSide; k++) {
-      const phi = side * (LAUREL.from + k * LAUREL.step);
-      parts.push(leaf(phi, side, k % 2 ? -1 : 1, PRIZE_LEAF[(k + (side > 0 ? 1 : 0)) % 3], simple));
+      const at = side * (LAUREL.from + k * LAUREL.step);
+      parts.push(leaf(at, side, k % 2 ? -1 : 1, PRIZE_LEAF[(k + (side > 0 ? 1 : 0)) % 3], simple));
     }
   }
   return finish('leafcrown', parts);
@@ -594,4 +636,4 @@ export function buildHat(id, { simple = false } = {}) {
 }
 
 // for tests / tuning
-export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, BAND, PARTY, LAUREL, CAKE });
+export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH });

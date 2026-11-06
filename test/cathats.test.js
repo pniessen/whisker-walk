@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
-import { HAT_IDS, buildHat } from '../src/cat/hats.js';
+import { HAT_IDS, HAT_SHAPES, buildHat } from '../src/cat/hats.js';
+import { defaultPoseCat } from '../src/ui/catstage.js';
 
 // Accessories polish, Task 1 (2026-11-03): the owner said "Many of the hats
 // float above the cat's ears". Every hat is now one vertex-coloured mesh, in
@@ -46,14 +47,18 @@ describe('hats sit on the head (accessories polish Task 1)', () => {
     expect(tris(buildHat(id, { simple: true }))).toBeLessThanOrEqual(450);
   });
 
+  const WREATHS = ['crown', 'leafcrown'];
   const CASES = ['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => [false, true].flatMap((simple) => HAT_IDS.map((id) => [b, id, simple])));
   it.each(CASES)('%s %s (simple %s) sits on the skull, not above it', (breed, id, simple) => {
     const hats = hatOf(buildCat(breed, { head: id }, { simple }));
     expect(hats).toHaveLength(1);
     const V = verts(hats[0]).sort((a, b) => a.y - b.y);
+    for (const v of V) expect(rho(v)).toBeGreaterThanOrEqual(0.97);
+    // the wreaths lie on top of the head and tip down behind it, so their
+    // lowest points are leaf tips at the nape; their seat is tested below
+    if (WREATHS.includes(id)) return;
     const low = V.slice(0, Math.max(1, Math.ceil(V.length * 0.05)));
     for (const v of low) expect(Math.abs(rho(v) - 1) * 0.2).toBeLessThanOrEqual(0.012);
-    for (const v of V) expect(rho(v)).toBeGreaterThanOrEqual(0.97);
   }, 120_000);
 
   it('the candle hat\'s cake sits on the dome: its lowest ring touches the skull, under the ear tips', () => {
@@ -119,4 +124,71 @@ describe('hats sit on the head (accessories polish Task 1)', () => {
       expect(box.max.y, id).toBeLessThanOrEqual(limit + 1e-6);
     }
   });
+  // polish-crown (2026-11-06): the flower and leaf crowns rode a band at the
+  // brow and on the home stage and in Dress up read as green goggles over the
+  // eyes. They are wreaths on top of the head now.
+  it.each(WREATHS)('%s is a wreath seated on top of the head: it touches the skull all the way round', (id) => {
+    const { cz } = HAT_SHAPES.WREATH;
+    for (const simple of [false, true]) {
+      const V = verts(buildHat(id, { simple }));
+      const bins = new Array(12).fill(Infinity);
+      for (const v of V) {
+        const k = Math.floor(((Math.atan2(v.x, cz - v.z) + Math.PI) / (2 * Math.PI)) * 12) % 12;
+        bins[k] = Math.min(bins[k], Math.abs(rho(v) - 1) * 0.2);
+      }
+      for (const d of bins) expect(d, `${id} simple ${simple}`).toBeLessThanOrEqual(0.006);
+    }
+  });
+
+  const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
+  const eyeOf = (head) => head.children.filter((m) => m.isMesh && m.geometry.parameters?.radius === 0.036);
+  it.each(WREATHS)('%s: its lowest front point stays well above the eye line on every cat', (id) => {
+    for (const breed of BREEDS) {
+      const cat = buildCat(breed, { head: id });
+      const { head } = cat.userData.parts;
+      const eyes = eyeOf(head);
+      expect(eyes, breed).toHaveLength(2);
+      // head-local: the eye's top (its ball's radius times its y scale)
+      const eyeTop = Math.max(...eyes.map((e) => e.position.y + e.geometry.parameters.radius * e.scale.y));
+      const eyeZ = eyes[0].position.z;
+      const [hat] = hatOf(cat);
+      // the front half of the head, where a hat could cross the brow
+      const front = verts(hat).filter((v) => v.z < 0);
+      const lowFront = Math.min(...front.map((v) => v.y));
+      expect(lowFront, breed).toBeGreaterThan(eyeTop + 0.08);
+      // and nothing of the wreath reaches forward toward the face
+      expect(Math.min(...verts(hat).map((v) => v.z)), breed).toBeGreaterThan(eyeZ + 0.03);
+    }
+  });
+
+  it.each(WREATHS)('%s clears the eyes on screen from the front, the 3/4 stage view, from above and from the side', (id) => {
+    // view directions (toward the camera); 'stage' is catstage.js's CAM_DIR - CAM_TARGET
+    const VIEWS = { front: [0, 0, -1], stage: [1.85, 0.83, -2.45], stageL: [-1.85, 0.83, -2.45], above: [0, 1.2, -1], side: [1, 0.1, 0] };
+    for (const breed of BREEDS) {
+      for (const pose of ['stand', 'sit']) {
+        const cat = buildCat(breed, { head: id });
+        if (pose === 'sit') defaultPoseCat(cat);
+        cat.updateMatrixWorld(true);
+        const { head } = cat.userData.parts;
+        const [hat] = hatOf(cat);
+        // the wreath's front half (head-local z < 0): its back half dips to the
+        // nape, behind the head from these views and nowhere near the eyes
+        const hatW = verts(hat).filter((v) => v.z < 0).map((v) => v.applyMatrix4(hat.matrixWorld));
+        const eyeW = eyeOf(head).map((e) => {
+          e.geometry.computeBoundingBox();
+          const b = e.geometry.boundingBox, out = [];
+          for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) out.push(new THREE.Vector3(x, y, z).applyMatrix4(e.matrixWorld));
+          return out;
+        }).flat();
+        for (const [name, d] of Object.entries(VIEWS)) {
+          const dir = new THREE.Vector3(...d).normalize();
+          const up = new THREE.Vector3(0, 1, 0).addScaledVector(dir, -dir.y).normalize();
+          const hatLow = Math.min(...hatW.map((v) => v.dot(up)));
+          const eyeHigh = Math.max(...eyeW.map((v) => v.dot(up)));
+          // (head scale ~0.9: 3 cm of clear brow in the picture)
+          expect(hatLow - eyeHigh, `${breed} ${pose} ${name}`).toBeGreaterThan(0.03);
+        }
+      }
+    }
+  }, 120_000);
 });
