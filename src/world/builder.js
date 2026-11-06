@@ -3510,6 +3510,133 @@ function beachClumpGeometry(x, z, kind) {
   return merged;
 }
 
+// The default bush's shape (polish-pines2): a leafy shrub rather than one
+// green faceted rock. 4-5 small leaf clusters — a crown on top and the rest
+// round its sides, resting on the ground — over a dark hidden core cone that
+// fills the gaps between them, so no sky shows through at the foot.
+//
+// Each cluster is a little lumpy dome: a dark underside ring, a wider
+// "equator" ring whose points alternate long and short (the tufts), a
+// shoulder ring and a light tip; shoulder and tip lean outward on the side
+// clusters so they bulge away from the middle. (A first cut with 7-point
+// rings and only an equator under the tip read as green crystals: the
+// rounding needs the shoulder ring more than it needs points.) 5 points a
+// ring: 25 triangles a cluster, 8 for the core, so a bush is 108-133
+// triangles (the old blob was 100; a sixth cluster would pass the 150 cap).
+//
+// Colour is a MULTIPLIER on the material's green (bush() keeps the
+// organicTint base as the material colour, like the pines), so the
+// material's tint and whatever lighting dusk sets still apply: core ~0.45,
+// undersides ~0.55, equators ~0.9, shoulders ~1.0, tips ~1.15 and a little yellow-green,
+// with a per-cluster shade, a per-vertex drift (the mottle that keeps it
+// from reading as one surface) and a slight per-bush warm/cool cast.
+//
+// Mesh-local frame: the origin is the bush's belly, lifted 0.5 by bush(), so
+// the ground is local y -0.5; the core and the side clusters' feet sit a hair
+// below it so a bush never floats on a gentle slope. Everything from hash01:
+// same (x, z) -> the same arrays, byte for byte. Exactly 3 geometries
+// (core, clusters, their merge; the two parts disposed), as the blob was, so
+// bush() keeps its uuid draws.
+function shrubGeometry(x, z) {
+  const part = () => {
+    const pos = [], col = [], idx = [];
+    return {
+      v(px, py, pz, c) {
+        pos.push(px, py, pz);
+        col.push(c[0], c[1], c[2]);
+        return pos.length / 3 - 1;
+      },
+      tri(a, b, d) { idx.push(a, b, d); },
+      geo() {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        return g;
+      },
+    };
+  };
+  const H = (s) => hash01(x, z, s);
+  const A = part(), B = part();
+  const size = 0.93 + 0.13 * H(1101);
+  const warm = (H(1102) - 0.5) * 2;
+  const cast = [1 + 0.05 * warm, 1, 1 - 0.07 * warm];
+  const TIP = [1.06, 1.03, 0.8];
+  // shade s, tip weight t (0..1 toward TIP), per-vertex drift from salt
+  const shade = (s, t, salt) => {
+    const j = s * (0.93 + 0.14 * H(salt));
+    return [0, 1, 2].map((i) => j * cast[i] * (1 + (TIP[i] - 1) * t));
+  };
+  const GROUND = -0.53;
+  const K = 5;
+  // a ring of n points about (cx, cz): returns vertex ids
+  const ring = (P, n, cx, y, cz, r, turn, s, t, salt, wob = 0) => {
+    const ids = [];
+    for (let k = 0; k < n; k++) {
+      const a = turn + (k / n) * Math.PI * 2;
+      const rr = r * (k % 2 === 0 ? 1 : 1 - wob) * (1 - 0.08 * H(salt + k));
+      const yy = y + (k % 2 === 0 ? wob * 0.25 * r : 0);
+      ids.push(P.v(cx + Math.cos(a) * rr, yy, cz + Math.sin(a) * rr, shade(s, t, salt + 20 + k)));
+    }
+    return ids;
+  };
+  // outward-facing band between two rings of equal count, and a cap to an apex
+  const band = (P, lo, hi) => {
+    const n = lo.length;
+    for (let k = 0; k < n; k++) {
+      const k1 = (k + 1) % n;
+      P.tri(lo[k], hi[k], lo[k1]);
+      P.tri(lo[k1], hi[k], hi[k1]);
+    }
+  };
+  const cap = (P, ringIds, apex) => {
+    const n = ringIds.length;
+    for (let k = 0; k < n; k++) P.tri(apex, ringIds[(k + 1) % n], ringIds[k]);
+  };
+
+  // the core: a dark low cone, hidden among the clusters' feet
+  const coreTurn = H(1104) * Math.PI * 2;
+  const core = ring(A, 8, 0, GROUND, 0, 0.42 * size, coreTurn, 0.42, 0, 1110);
+  cap(A, core, A.v(0, 0.1 * size, 0, shade(0.55, 0, 1140)));
+
+  // the leaf clusters: 0 is the crown, the rest stand round it
+  const n = 4 + Math.floor(H(1103) * 2);
+  const turn = H(1105) * Math.PI * 2;
+  for (let i = 0; i < n; i++) {
+    const s = 1200 + i * 100;
+    const crown = i === 0;
+    const a = turn + ((i - 1) / (n - 1)) * Math.PI * 2 + (H(s) - 0.5) * 0.6;
+    const d = crown ? 0.06 * H(s + 1) : 0.31 + 0.08 * H(s + 1);
+    const cx = Math.cos(a) * d * size, cz = Math.sin(a) * d * size;
+    const rc = (crown ? 0.34 + 0.05 * H(s + 2) : 0.29 + 0.06 * H(s + 2)) * size;
+    const cy = (crown ? 0.1 + 0.07 * H(s + 3) : -0.14 + 0.1 * H(s + 3)) * size;
+    const clusterShade = 0.9 + 0.2 * H(s + 4);
+    const spin = H(s + 5) * Math.PI * 2;
+    const step = Math.PI / K;
+    // underside: hidden inside for the crown, on the ground for the others
+    const footY = crown ? cy - 0.6 * rc : GROUND + 0.03 * H(s + 6);
+    const lo = ring(B, K, cx * 0.8, footY, cz * 0.8, 0.7 * rc, spin, 0.55 * clusterShade, 0, s + 10);
+    const mid = ring(B, K, cx, cy + 0.05 * rc, cz, rc, spin + step, 0.88 * clusterShade, 0.2, s + 40, 0.2);
+    // the shoulder and tip lean outward on the side clusters
+    const lean = crown ? 0 : 0.22 * rc;
+    const ox = Math.cos(a) * lean, oz = Math.sin(a) * lean;
+    const up = ring(B, K, cx + ox * 0.6, cy + 0.52 * rc, cz + oz * 0.6, 0.62 * rc, spin + 2 * step,
+      1.0 * clusterShade, 0.5, s + 70, 0.15);
+    band(B, lo, mid);
+    band(B, mid, up);
+    const tip = B.v(cx + ox, cy + (0.76 + 0.08 * H(s + 8)) * rc, cz + oz, shade(1.15 * clusterShade, 1, s + 9));
+    cap(B, up, tip);
+  }
+
+  const ga = A.geo(), gb = B.geo();
+  const merged = mergeGeometries([ga, gb], false);
+  ga.dispose();
+  gb.dispose();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
 // A bush. Returns the same bare Mesh it always has — UNLESS `opts.wind` is
 // passed, in which case it comes back as a Group with that mesh inside it.
 //
@@ -3524,10 +3651,9 @@ function beachClumpGeometry(x, z, kind) {
 // y 0.5, so the bush is in exactly the same place either way and no geometry,
 // collider or hide-spot record moves a millimetre.
 export function bush(x, z, { wind, style, kind: forceKind } = {}) {
-  // 'foliage', same as a tree canopy and map-less for the same reason. Same
-  // organic-blob treatment as tree(), scaled down and salted differently (see
-  // the ORGANIC CANOPY block above) so a bush never coincidentally matches a
-  // tree's shape or a neighbouring bush's.
+  // 'foliage', same as a tree canopy and map-less for the same reason. The
+  // shape is shrubGeometry() above (leaf clusters round a core, hashed from
+  // the bush's own spot, so no two neighbouring bushes match).
   //
   // `style: 'beach'` swaps the canopy for a ground-rooted clump (see
   // beachClumpGeometry above): the same 3 geometries, 1 material, 1 mesh, so
@@ -3537,15 +3663,19 @@ export function bush(x, z, { wind, style, kind: forceKind } = {}) {
   // `kind` ('marram' | 'holly') overrides the hash pick: a spot that must be
   // tall (a mouse hide) or low can say so.
   const kind = beach ? (forceKind || (hash01(x, z, 1041) < 0.5 ? 'marram' : 'holly')) : null;
+  let leaves = null;
+  if (!beach) {
+    // polish-pines2: a leafy shrub (shrubGeometry above). The organicTint
+    // green stays the material colour; the vertex colours multiply it.
+    leaves = surfMat(organicTint(0x5aa04e, x, z, 1010, 8), 'foliage');
+    leaves.vertexColors = true;
+  }
   const m = beach
     ? new THREE.Mesh(
       beachClumpGeometry(x, z, kind),
       litMaterial(0xffffff, { ...surfaceProps('foliage'), vertexColors: true, side: THREE.DoubleSide }),
     )
-    : new THREE.Mesh(
-      blobGeometry(x, z, 0.7, { lobes: 2, saltBase: 1000 }),
-      surfMat(organicTint(0x5aa04e, x, z, 1010, 8), 'foliage'),
-    );
+    : new THREE.Mesh(shrubGeometry(x, z), leaves);
   if (beach) m.userData.beachPlant = kind;
   const lift = beach ? 0 : 0.5;
   m.rotation.y = hash01(x, z, 1030) * Math.PI * 2;

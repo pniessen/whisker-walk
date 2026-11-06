@@ -337,10 +337,13 @@ describe('bush() beach style', async () => {
     expect(Math.round(n)).toBeLessThanOrEqual(29521);
   }, 30000);
 
-  it('a default bush is unchanged: the canopy blob at belly height', () => {
+  it('a default bush is unchanged: the canopy shrub at belly height', () => {
     const m = bush(8, 2);
     expect(m.position.toArray()).toEqual([8, 0.5, 2]);
     expect(m.userData.beachPlant).toBeUndefined();
-    expect(m.material.vertexColors).toBe(false);
+    // polish-pines2: the default bush is a leafy shrub with vertex colours
+    // now too (test/shrubs.test.js), so tell it from a beach clump by the
+    // clump's double-sided material instead.
+    expect(m.material.side).not.toBe(THREE.DoubleSide);
   });
 });
