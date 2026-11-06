@@ -916,16 +916,29 @@ describe('the Pines: things to find, climb and race', () => {
     for (const name of ['lightningStump', 'frogStone']) {
       const tall = scene.getObjectByName(name);
       expect(tall, name).toBeTruthy();
-      expect(tall.geometry.parameters.radiusBottom, name).toBe(0.9);
-      expect(tall.geometry.parameters.radiusTop, name).toBe(0.75);
-      expect(tall.geometry.parameters.height, name).toBe(1.9);
-      expect(tall.geometry.parameters.radialSegments, name).toBe(7);
+      // polish-cosy: shaped solids (pineslandmarks.js), not cylinders. The
+      // foot is within the 0.9 collider and reaches it; the top is at 1.9.
+      const pos = tall.geometry.attributes.position;
+      let foot = 0;
+      let top = 0;
+      for (let i = 0; i < pos.count; i++) {
+        const rr = Math.hypot(pos.getX(i), pos.getZ(i));
+        if (pos.getY(i) < 0.3) foot = Math.max(foot, rr);
+        if (rr <= 0.4) top = Math.max(top, pos.getY(i));
+      }
+      expect(foot, name).toBeLessThanOrEqual(0.92);
+      expect(foot, name).toBeGreaterThan(0.85);
+      expect(top, name).toBeCloseTo(1.9, 5);
     }
-    expect(scene.getObjectByName('lightningStump').position).toMatchObject({ x: 3, y: 0.95, z: -29 });
-    expect(scene.getObjectByName('frogStone').position).toMatchObject({ x: -38, y: 0.95, z: -16 });
-    // the stump charred, the stone mossy grey
-    expect(scene.getObjectByName('lightningStump').material.color.getHex()).toBe(0x3e342c);
-    expect(scene.getObjectByName('frogStone').material.color.getHex()).toBe(0x7a8270);
+    expect(scene.getObjectByName('lightningStump').position).toMatchObject({ x: 3, y: 0, z: -29 });
+    expect(scene.getObjectByName('frogStone').position).toMatchObject({ x: -38, y: 0, z: -16 });
+    // the stump charred, the stone mossy grey: in the vertex colours now, the
+    // material white
+    for (const name of ['lightningStump', 'frogStone']) {
+      const m = scene.getObjectByName(name).material;
+      expect(m.vertexColors, name).toBe(true);
+      expect(m.color.getHex(), name).toBe(0xffffff);
+    }
     // the two boulders, one material made per build
     const rocks = ['lightningStumpRock', 'frogStoneRock'].map((n) => scene.getObjectByName(n));
     for (const r of rocks) expect(r).toBeTruthy();

@@ -18,6 +18,7 @@ import { withLocalUuids } from './localuuids.js';
 import { DISCS } from '../rivalclans.js';
 import { tintGround, once } from './dressing.js';
 import { forestFloorMesh, pinesFloorTint, pinesMossField, canopyShade } from './forestfloor.js';
+import { standingStoneData, lightningStumpData, frogStoneData, fillGeometry } from './pineslandmarks.js';
 
 // =============================================================================
 // The Pines and Swamp.
@@ -205,18 +206,20 @@ export const PINES_KEEP_OUT = Object.freeze({
 // line across open water. That costs the 6 m of real lake shore at x 26, z
 // 44..50, by the bay's south-east pocket; the bay's south shore keeps its foam.
 const WATER_COLOR = 0x5f98a8;
-const MIRE_COLOR = 0x4a5a48;
+const MIRE_COLOR = 0x5a5432;
 // The four bogs are small stands of still, peat-stained water: a murky
 // green-brown (olive-brown, hue ~0.16, lightness ~0.24) that style 'bog' keeps murky all the
 // way down and edges with a dull green-brown instead of white foam. The two
-// mires keep their own dour grey-green on the clear ramp (a gentler foam band
-// only): a big dark water that stays dark is the Black Mire's identity.
+// mires are peat water, tea brown-green, on the clear ramp (a gentler foam
+// band only) and with a soft glare (glare 0.18, specCap 0.22) so the sky
+// lies on them dully: a big dark water that stays dark is the Black Mire's
+// identity, but black glass it is not.
 const BOG_COLOR = 0x4a4a28;
 const WATER_LOOK = {
   lake: { y: 0.03, shores: ['minZ'], foamStrength: 0.22 },
   'lake-bay': { y: 0.025, shores: ['minX', 'minZ', 'maxZ'], foamStrength: 0.22 },
-  'mire-north': { y: 0.035, color: MIRE_COLOR, shores: ['minX', 'maxX'], foamStrength: 0.1 },
-  'mire-west': { y: 0.02, color: MIRE_COLOR, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.1 },
+  'mire-north': { y: 0.035, color: MIRE_COLOR, shores: ['minX', 'maxX'], foamStrength: 0.1, glare: 0.18, specCap: 0.22 },
+  'mire-west': { y: 0.02, color: MIRE_COLOR, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.1, glare: 0.18, specCap: 0.22 },
   'bog-1': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
   'bog-2': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
   'bog-3': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
@@ -267,7 +270,9 @@ export const BRIDGE_FOOT = Object.freeze(fromWoods('pines', ...ISLAND_BRIDGE_WOO
 // a mark that the path ends here and the lake begins. Each a collider, so a
 // cat walks between them to the shore.
 const TRUCE_STONES = [{ x: 9.0, z: 3.6, r: 0.4 }, { x: 12.2, z: 3.6, r: 0.4 }];
-const TRUCE_STONE_H = 0.9;
+// How tall the stones are drawn (pineslandmarks.js standingStoneData): the
+// collider is the radius only, so this is the look alone.
+const TRUCE_STONE_RENDER_H = 1.25;
 
 // The horizon. Hills all round, each side tinted for the neighbour over it:
 // more dark pines to the north (the colour the River and the Moor paint the
@@ -856,14 +861,19 @@ export function build(scene, { water = {}, wind } = {}) {
   ], PATH_STYLE, 'pines', { decks: PINES_WATERS.flatMap((w) => w.decks ?? []), waters: PINES_WATERS });
 
   // --- the truce stones -------------------------------------------------------
-  // Two mossy standing stones, one material between them (walk.js disposes
-  // every material at the end of a walk, so it is made per build).
+  // Two rough, leaning standing stones with moss and lichen
+  // (pineslandmarks.js), one material between them (walk.js disposes every
+  // material at the end of a walk, so it is made per build). The vertex
+  // colours carry the hue. Each geometry is made empty and filled from plain
+  // arrays, so the build makes the same Three objects in the same order as
+  // ever (test/waterlooks.test.js pins the uuid draws).
   const truceStones = new THREE.Group();
   truceStones.name = 'truceStones';
-  const stoneMat = litMaterial(0x7a8270, surfaceProps('cobble'));
-  for (const { x, z, r } of TRUCE_STONES) {
-    const stone = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r, TRUCE_STONE_H, 7), stoneMat);
-    stone.position.set(x, TRUCE_STONE_H / 2, z);
+  const stoneMat = litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true });
+  for (const [i, { x, z, r }] of TRUCE_STONES.entries()) {
+    const geo = fillGeometry(new THREE.BufferGeometry(), standingStoneData(`truce-${i}`, r, TRUCE_STONE_RENDER_H));
+    const stone = new THREE.Mesh(geo, stoneMat);
+    stone.position.set(x, 0, z);
     truceStones.add(stone);
     addC(x, z, r);
   }
@@ -878,13 +888,21 @@ export function build(scene, { water = {}, wind } = {}) {
     scene.add(rock);
     addC(x, z, r);
   }
+  // The charred, split Lightning Stump and the squat, mossy Frog Stones
+  // (pineslandmarks.js): each flat on top at the perch, and as wide at the
+  // foot as its collider. Vertex colours carry the hue (P.color is the
+  // landmark's base, painted into them).
+  const pillarData = {
+    lightningStump: () => lightningStumpData(PILLAR.rBottom, PILLAR.y, PILLAR.rTop),
+    frogStone: () => frogStoneData(PILLAR.rBottom, PILLAR.y),
+  };
   for (const P of [LIGHTNING_STUMP, FROG_STONE]) {
     const pillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(PILLAR.rTop, PILLAR.rBottom, PILLAR.y, PILLAR.sides),
-      litMaterial(P.color, surfaceProps(P.surface)),
+      fillGeometry(new THREE.BufferGeometry(), pillarData[P.name]()),
+      litMaterial(0xffffff, { ...surfaceProps(P.surface), vertexColors: true }),
     );
     pillar.name = P.name;
-    pillar.position.set(P.x, PILLAR.y / 2, P.z);
+    pillar.position.set(P.x, 0, P.z);
     scene.add(pillar);
     addC(P.x, P.z, PILLAR.r);
   }
