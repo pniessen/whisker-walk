@@ -511,7 +511,7 @@ const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -3.5 }
 const NEST = {
   sides: 10,
   rings: [[0.17, 0.045], [0.33, 0.09], [0.41, 0]],
-  frond: { from: [0.31, 0.075], tip: [0.435, 0.135], halfBase: 0.045, halfTip: 0.02 },
+  frond: { from: [0.3, 0.08], tip: [0.395, 0.145], halfBase: 0.055, halfTip: 0.04 },
 };
 // the fan and two bands (5 per side), then the fronds (2 per side)
 export const NEST_TRIS = NEST.sides * 5 + NEST.sides * 2;
