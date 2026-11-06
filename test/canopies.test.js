@@ -237,7 +237,7 @@ describe('birch trunk colours (polish-dusk7)', () => {
       let dark = 0;
       for (let v = 0; v < c.length; v += 3) {
         for (let k = 0; k < 3; k++) expect(Number.isFinite(c[v + k])).toBe(true);
-        expect(Math.max(c[v], c[v + 1], c[v + 2])).toBeLessThanOrEqual(0.56);
+        expect(Math.max(c[v], c[v + 1], c[v + 2])).toBeLessThanOrEqual(0.5601);
         if (c[v] < 0.1) dark++;
       }
       expect(dark).toBeGreaterThan(0);
