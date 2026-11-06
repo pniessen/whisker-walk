@@ -420,7 +420,7 @@ describe('sit or stand (setPose)', () => {
   });
 });
 
-const REST = -0.45; // spin.js rest angle
+const REST = -1.25; // STAGE_REST
 describe('back-item turn', () => {
   function turnSetup() {
     const cats = [];

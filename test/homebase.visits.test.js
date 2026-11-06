@@ -242,33 +242,11 @@ describe('the welcome line beside the head', () => {
     return { hb, line };
   }
 
-  it('sits to the right of the head, not over the face', () => {
+  it('sits in the stage corner, clear of the cat\'s face', () => {
     const { line } = plainVisit();
-    expect(line.attrs['data-side']).toBe('right');
-    expect(parseFloat(line.style.left)).toBeGreaterThan(0 + 390 / 2);
-  });
-
-  it('mirrors to the left of the head when there is no room on the right', () => {
-    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
-    const { progression, hb } = setup({ storage });
-    const visit = progression.recordVisit();
-    hb.show();
-    // A scrollbar: innerWidth counts it, the page's clientWidth does not.
-    doc.defaultView.innerWidth = 315;
-    doc.documentElement = { clientWidth: 300 };
-    const stageEl = fakeEl(doc);
-    stageEl.getBoundingClientRect = () => ({ left: 0, top: 100, width: 300, height: 400, right: 300 });
-    doc.root.querySelector = (sel) => (sel === '#dr-stage' ? stageEl : null);
-    hb.showVisit(visit, { onClosed: () => {} });
-    const line = doc.body.children.find((c) => c.className === 'visit-welcome');
-    expect(line.attrs['data-side']).toBe('left');
-    expect(line.style.left).toBe('auto');
-    expect(line.style.right).toMatch(/^\d+px$/);
-    const headHalf = Math.min(90, 300 * 0.17);
-    const bubbleRight = 300 - parseFloat(line.style.right); // measured from the page's own width
-    expect(bubbleRight).toBeLessThanOrEqual(150 - headHalf);
-    expect(bubbleRight).toBeGreaterThan(150 - headHalf - 2);
-    expect(parseFloat(line.style.maxWidth)).toBeGreaterThanOrEqual(120);
+    expect(line.attrs['data-side']).toBe('corner');
+    expect(parseFloat(line.style.top)).toBeLessThan(100 + 400 * 0.1);
+    expect(parseFloat(line.style.left) + parseFloat(line.style.maxWidth)).toBeLessThanOrEqual(390 - 100);
   });
 
   it('never goes up over an open sheet or the cat builder', () => {
