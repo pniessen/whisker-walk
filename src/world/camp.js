@@ -356,8 +356,10 @@ const DEN_SQUASH = 0.8;
 
 // Each clan's camp in its own colours (polish-camps3). One record per camp:
 //   ring:  greens (a clump's green, by hash), strand (the bramble canes),
-//          specks ([hex, share]: berries, flowers, seed heads; a share of the
-//          clumps' triangles recoloured whole, by a hash of each centroid)
+//          specks ([hex, share]: flowers, seed heads, dark fruit; a share of
+//          the core and crown triangles recoloured whole, by a hash of each
+//          centroid), fruit ([hex, weight]: the berries' colours) and
+//          fruitShare (the share of clumps in fruit; the rest carry green buds)
 //   den:   base (the mound, dark at its foot), streak (new growth), strand
 //          (the woven strands and bands), frame (the doorway's stick arch)
 //   floor: the clearing's colour and its SURFACE_PRESETS surface
@@ -371,7 +373,10 @@ const deepFreeze = (o) => {
 };
 const WOODS_LOOK = {
   // StormClan: oak and fern bramble, blackberries
-  ring: { greens: [0x34521f, 0x46632a, 0x2a421c], strand: 0x3a2a18, specks: [[0x4a1430, 0.07], [0x9a2630, 0.03]] },
+  ring: {
+    greens: [0x34521f, 0x46632a, 0x2a421c], strand: 0x3a2a18, specks: [[0x4a1430, 0.035], [0x9a2630, 0.015]],
+    fruit: [[0x2b0d22, 0.75], [0xa3222c, 0.25]], fruitShare: 0.8,
+  },
   den: { base: 0x34481f, streak: 0x62803a, strand: 0x3a2c1c, frame: 0x5a4128 },
   floor: { color: 0xa4845c, surface: 'sand' },   // trampled earth
   nest: { moss: 0x6f8f3a, bracken: 0x8a6a3a },
@@ -381,7 +386,10 @@ export const CAMP_LOOKS = deepFreeze({
   woods: WOODS_LOOK,
   // BrookClan: reeds and pebbles, bulrush heads; a woven reed and straw den
   river: {
-    ring: { greens: [0x5e7f48, 0x6f8c50, 0x4a7466], strand: 0x56603a, specks: [[0x5e4630, 0.04]] },
+    ring: {
+      greens: [0x5e7f48, 0x6f8c50, 0x4a7466], strand: 0x56603a, specks: [[0x5e4630, 0.02]],
+      fruit: [[0x2b0d22, 0.8], [0xa3222c, 0.2]], fruitShare: 0.55,
+    },
     den: { base: 0x5a6a3a, streak: 0xa29e62, strand: 0x4a5a34, frame: 0x6a5a3a },
     floor: { color: 0xbdb8a8, surface: 'gravel' }, // pale pebbles
     nest: { moss: 0x6f9a6a, bracken: 0xb0a46a },
@@ -389,7 +397,10 @@ export const CAMP_LOOKS = deepFreeze({
   },
   // GaleClan: gorse and heather in flower; a dry heather den
   moor: {
-    ring: { greens: [0x56632a, 0x667030, 0x48522a], strand: 0x3e3622, specks: [[0xc9a42e, 0.06], [0x8a5a80, 0.05]] },
+    ring: {
+      greens: [0x56632a, 0x667030, 0x48522a], strand: 0x3e3622, specks: [[0xc9a42e, 0.03], [0x8a5a80, 0.025]],
+      fruit: [[0xe0b82e, 0.6], [0x2b0d22, 0.4]], fruitShare: 0.7,
+    },
     den: { base: 0x4a4030, streak: 0x8a5a80, strand: 0x3a3022, frame: 0x6a5a3e },
     floor: { color: 0x84984f, surface: 'grass' },  // cropped turf
     nest: { moss: 0x8a6a80, bracken: 0xa89a62 },
@@ -397,7 +408,10 @@ export const CAMP_LOOKS = deepFreeze({
   },
   // DuskClan: needles and moss, fern tips; a moss den
   pines: {
-    ring: { greens: [0x1d3a2f, 0x27483a, 0x15302a], strand: 0x24263a, specks: [[0x4f7a3a, 0.07]] },
+    ring: {
+      greens: [0x1d3a2f, 0x27483a, 0x15302a], strand: 0x24263a, specks: [[0x4f7a3a, 0.035]],
+      fruit: [[0x2b0d22, 0.8], [0x8a1c2a, 0.2]], fruitShare: 0.6,
+    },
     den: { base: 0x1e3228, streak: 0x3e5e3a, strand: 0x2a2620, frame: 0x3e2e22 },
     floor: { color: 0x7a5a3c, surface: 'sand' },   // needle litter
     nest: { moss: 0x5f8a3a, bracken: 0x6a4a30 },
@@ -430,8 +444,15 @@ const DEN_LOOK = {
 const DOOR = { w: 0.3, y: 0.3, at: 1.04, tilt: 0.31 };
 const FRAME_AT = 1.02;
 const RING_LOOK = {
-  foot: 0.62,         // a clump's green, times, at its foot ...
-  crown: 1.12,        // ... and at its crown (specks are not shaded)
+  coreFoot: 0.42,     // a clump's green, times, at the dark core's foot ...
+  coreTop: 0.78,      // ... and at its top
+  crownFoot: 0.78,    // the crown lumps' green, times, at their foot ...
+  crownTop: 1.22,     // ... and at their top (specks are not shaded)
+  leafTint: 0x9ab04a, // the leaf cards: the clump's green, lerped toward this ...
+  leafMix: 0.25,      // ... by this much ...
+  leafLo: 1.0,        // ... times leafLo to leafHi, by hash
+  leafHi: 1.3,
+  bud: 0.7,           // a clump out of fruit: its berries are buds, green times this
   lumpIn: -0.2,       // a lump vertex's pull towards its clump's foot ...
   lumpOut: 0.05,      // ... or push away from it (lumpy, in ringMesh)
 };
@@ -825,10 +846,10 @@ function speckle(geo, specks, salt) {
 // strand colour, so the wall reads as a tangle, not a row of balls. The
 // clan's greens by hash, dark at the foot, with the clan's specks on the
 // lumps (speckle; the canes carry none). One vertex-coloured mesh, out of the
-// shadow pass: 28 triangles a clump and 6 a cane segment, 3,240 to 3,258 a camp,
-// under the 3,360 the strands cost, so the River and the Moor stay under the
-// area's 60,000 (test/budget.test.js; ruling R7). No ring vertex is above 1 m
-// (ruling R3).
+// shadow pass. polish-brambles rebuilt each clump as a leafy mound (ringMesh:
+// core, crown lumps, leaf cards, berries; RING_CLUMP_TRIS = 59 a clump) and 6
+// a cane segment, 5,844 to 5,862 a camp, under the area's 70,000
+// (test/budget.test.js). No ring vertex is above 1 m (ruling R3).
 //
 // Ruling R4: the wall has no collider. A collider would change the walkable
 // ground, the clan cats' routes and the flat trace for the Woods, River, Moor
@@ -888,30 +909,185 @@ function caneGeometry(cane, colorAt) {
   return bake(g, new THREE.Matrix4(), colorAt);
 }
 
+// polish-brambles: each clump a leafy bramble mound, not a paper ball.
+// RING_CLUMP_TRIS triangles a clump, in this order in the merged ring: a dark
+// core lump (an icosahedron, 20, its top at 0.72 h), three smaller crown lumps
+// round it (octahedra, 8 each, tipped and turned so they are not upright
+// diamonds, one reaching h), six leaf cards (one triangle each, on the mound's
+// envelope, facing out) and three berries (3-sided pyramids, no base: 3 each),
+// in the clan's fruit colours on fruitShare of the clumps, green buds on the
+// rest. Specks land on the core and crowns only. Every clump-part vertex is
+// then kept within 0.98 CLUMP_R · s of the clump's spot and between 0 and h.
+export const RING_CLUMP_TRIS = 59;
+const LEAF = { n: 6, len: 0.11, w: 0.06, lean: 0.03, eLo: 0.25, eHi: 1.1 };
+const BERRY = { n: 3, r: 0.028, apex: 0.045, at: 0.95, eLo: 0.3, eHi: 0.95 };
+// the mound's envelope: a half-ellipsoid on the clump's spot
+const ENV = { r: 0.8, h: 0.88 };
+const TAU = Math.PI * 2;
+
+// a point on the clump's envelope (scaled by k) and its outward normal
+function envelopeAt(c, R, phi, e, k, p, n) {
+  const a = ENV.r * R * k;
+  const b = ENV.h * c.h * k;
+  const ce = Math.cos(e);
+  const se = Math.sin(e);
+  p.set(c.x + a * ce * Math.cos(phi), b * se, c.z + a * ce * Math.sin(phi));
+  n.set((ce * Math.cos(phi)) / a, se / b, (ce * Math.sin(phi)) / a).normalize();
+}
+
+// keep a clump part inside its clump: xz within 0.98 R of the spot, 0 <= y <= h
+function clampToClump(geo, c, R) {
+  const pos = geo.attributes.position;
+  const rMax = 0.98 * R;
+  for (let i = 0; i < pos.count; i++) {
+    let dx = pos.getX(i) - c.x;
+    let dz = pos.getZ(i) - c.z;
+    const r = Math.hypot(dx, dz);
+    if (r > rMax) {
+      dx *= rMax / r;
+      dz *= rMax / r;
+    }
+    pos.setXYZ(i, c.x + dx, Math.max(0, Math.min(c.h, pos.getY(i))), c.z + dz);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// flat triangles (a list of [a, b, c] Vector3s), each wound so its face normal
+// points away from `from(tri)`, clamped into the clump, one flat colour each
+const _e1 = new THREE.Vector3();
+const _e2 = new THREE.Vector3();
+function facing(tris, colors, c, R, from) {
+  const pos = new Float32Array(tris.length * 9);
+  const col = new Float32Array(tris.length * 9);
+  const rMax = 0.98 * R;
+  tris.forEach((tri, t) => {
+    for (const v of tri) {
+      const dx = v.x - c.x;
+      const dz = v.z - c.z;
+      const r = Math.hypot(dx, dz);
+      if (r > rMax) v.set(c.x + (dx * rMax) / r, v.y, c.z + (dz * rMax) / r);
+      v.y = Math.max(0, Math.min(c.h, v.y));
+    }
+    const nrm = _e1.subVectors(tri[1], tri[0]).cross(_e2.subVectors(tri[2], tri[0]));
+    const o = from(tri);
+    const ord = nrm.dot(o) < 0 ? [0, 2, 1] : [0, 1, 2];
+    ord.forEach((k, j) => {
+      pos[t * 9 + j * 3] = tri[k].x;
+      pos[t * 9 + j * 3 + 1] = tri[k].y;
+      pos[t * 9 + j * 3 + 2] = tri[k].z;
+      col[t * 9 + j * 3] = colors[t].r;
+      col[t * 9 + j * 3 + 1] = colors[t].g;
+      col[t * 9 + j * 3 + 2] = colors[t].b;
+    });
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+const centroid = (tri) => new THREE.Vector3().add(tri[0]).add(tri[1]).add(tri[2]).multiplyScalar(1 / 3);
+
 function ringMesh(ring, cx, cz, look) {
   const parts = [];
+  const tint = new THREE.Color(RING_LOOK.leafTint);
+  const fruitHex = (look.ring.fruit ?? []).map(([hex, w]) => [new THREE.Color(hex), w]);
+  const fruitSum = fruitHex.reduce((n, [, w]) => n + w, 0);
+  const p = new THREE.Vector3();
+  const n = new THREE.Vector3();
   for (const c of ring.clumps) {
     const R = CLUMP_R * c.s;
     const out = Math.atan2(c.z - cz, c.x - cx);
     const along = out + Math.PI / 2;
-    const ox = Math.cos(out);
-    const oz = Math.sin(out);
     const greens = look.ring.greens;
     const green = new THREE.Color(greens[Math.floor(hash01(c.x, c.rot, c.z, 10) * greens.length)]);
-    const at = (vx, vy, vz, col) => {
-      const t = Math.max(0, Math.min(1, vy / c.h));
-      col.copy(green).multiplyScalar(RING_LOOK.foot + (RING_LOOK.crown - RING_LOOK.foot) * t * (0.8 + 0.4 * hash01(vx, vy, vz, 11)));
+    const shade = (lo, hi, top) => (vx, vy, vz, col) => {
+      const t = Math.max(0, Math.min(1, vy / top));
+      col.copy(green).multiplyScalar(lo + (hi - lo) * t * (0.8 + 0.4 * hash01(vx, vy, vz, 11)));
     };
     const yaw = -along + Math.sin(c.rot) * 0.15;
-    // the main lump, a widest corner turned onto the ring, so neighbours touch
-    const mainTop = c.h * 0.92;
-    const msy = mainTop / (2 * ICO_Y);
-    const main = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
-    parts.push(speckle(lumpy(bake(main, place(c.x, mainTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.8 * R, yaw), at), c), look.ring.specks, 19));
-    // the back lump, 0.4 R out: its reach, 0.4 + 0.55, stays under R
-    const bsy = c.h / 2;
-    const back = new THREE.OctahedronGeometry(1, 0);
-    parts.push(speckle(lumpy(bake(back, place(c.x + ox * 0.4 * R, bsy, c.z + oz * 0.4 * R, 0.55 * R, bsy, 0.55 * R, yaw + Math.PI / 4), at), c), look.ring.specks, 19));
+    // the core: a dark, wide lump, a widest corner turned onto the ring
+    const coreTop = c.h * 0.72;
+    const msy = coreTop / (2 * ICO_Y);
+    const core = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
+    const coreAt = shade(RING_LOOK.coreFoot, RING_LOOK.coreTop, coreTop);
+    parts.push(speckle(clampToClump(lumpy(bake(core, place(c.x, coreTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.85 * R, yaw), coreAt), c), c, R), look.ring.specks, 19));
+    // three crown lumps round it, the one with the highest hash reaching h
+    const ch = [0, 1, 2].map((k) => hash01(c.x, c.z, k, 40));
+    const tall = ch.indexOf(Math.max(...ch));
+    const crownAt = shade(RING_LOOK.crownFoot, RING_LOOK.crownTop, c.h);
+    for (let k = 0; k < 3; k++) {
+      const az = c.rot + (k * TAU) / 3 + (hash01(c.x, c.z, k, 41) - 0.5) * 0.6;
+      const rk = R * (0.38 + 0.12 * hash01(c.x, c.z, k, 42));
+      const top = k === tall ? c.h : c.h * (0.8 + 0.2 * ch[k]);
+      const m = place(c.x + Math.cos(az) * 0.42 * R, top - rk, c.z + Math.sin(az) * 0.42 * R, rk, rk, rk,
+        TAU * hash01(c.x, c.z, k, 43), 0.35 * hash01(c.x, c.z, k, 44));
+      parts.push(speckle(clampToClump(lumpy(bake(new THREE.OctahedronGeometry(1, 0), m, crownAt), c), c, R), look.ring.specks, 19));
+    }
+    // six leaf cards on the envelope, tips up the slope and leaning out
+    const leaves = [];
+    const leafCols = [];
+    for (let l = 0; l < LEAF.n; l++) {
+      const phi = TAU * hash01(c.x, c.z, l, 30);
+      const e = LEAF.eLo + (LEAF.eHi - LEAF.eLo) * hash01(c.x, c.z, l, 31);
+      envelopeAt(c, R, phi, e, 1, p, n);
+      const up = new THREE.Vector3(-Math.sin(e) * Math.cos(phi), Math.cos(e), -Math.sin(e) * Math.sin(phi));
+      const lat = new THREE.Vector3(-Math.sin(phi), 0, Math.cos(phi));
+      const turn = (hash01(c.x, c.z, l, 32) - 0.5) * 1.2;
+      const dir = up.clone().multiplyScalar(Math.cos(turn)).addScaledVector(lat, Math.sin(turn));
+      const side = new THREE.Vector3().crossVectors(n, dir).normalize();
+      const half = (LEAF.w * c.s) / 2;
+      const len = LEAF.len * c.s * (0.85 + 0.3 * hash01(c.x, c.z, l, 33));
+      leaves.push([
+        p.clone().addScaledVector(side, -half),
+        p.clone().addScaledVector(side, half),
+        p.clone().addScaledVector(dir, len).addScaledVector(n, LEAF.lean),
+      ]);
+      leafCols.push(green.clone().lerp(tint, RING_LOOK.leafMix)
+        .multiplyScalar(RING_LOOK.leafLo + (RING_LOOK.leafHi - RING_LOOK.leafLo) * hash01(c.x, c.z, l, 34)));
+    }
+    parts.push(facing(leaves, leafCols, c, R, (tri) => centroid(tri).sub(new THREE.Vector3(c.x, 0, c.z))));
+    // three berries (or buds) on the envelope, a little inside it
+    const fruiting = fruitHex.length > 0 && hash01(c.x, c.z, 0, 50) < look.ring.fruitShare;
+    const berries = [];
+    const berryCols = [];
+    for (let b = 0; b < BERRY.n; b++) {
+      const phi = TAU * hash01(c.x, c.z, b, 53);
+      const e = BERRY.eLo + (BERRY.eHi - BERRY.eLo) * hash01(c.x, c.z, b, 54);
+      envelopeAt(c, R, phi, e, BERRY.at, p, n);
+      const u = new THREE.Vector3(-Math.sin(phi), 0, Math.cos(phi));
+      const v = new THREE.Vector3().crossVectors(n, u).normalize();
+      const apex = p.clone().addScaledVector(n, BERRY.apex);
+      const base = [0, 1, 2].map((i) => {
+        const th = (i * TAU) / 3;
+        return p.clone().addScaledVector(u, BERRY.r * Math.cos(th)).addScaledVector(v, BERRY.r * Math.sin(th));
+      });
+      let colr;
+      if (fruiting) {
+        // a fruit by weight, shaded by a hash factor kept off 1, so a berry is
+        // never exactly a bare speck or fruit hex
+        let h = hash01(c.x, c.z, b, 51) * fruitSum;
+        let pick = fruitHex[fruitHex.length - 1][0];
+        for (const [hex, w] of fruitHex) {
+          if (h < w) { pick = hex; break; }
+          h -= w;
+        }
+        let f = 0.9 + 0.2 * hash01(c.x, c.z, b, 52);
+        if (Math.abs(f - 1) < 0.02) f = f < 1 ? 0.98 : 1.02;
+        colr = pick.clone().multiplyScalar(f);
+      } else {
+        colr = green.clone().multiplyScalar(RING_LOOK.bud);
+      }
+      const mid = p.clone();
+      for (let i = 0; i < 3; i++) {
+        berries.push([base[i].clone(), base[(i + 1) % 3].clone(), apex.clone()]);
+        berryCols.push(colr);
+      }
+      berries.forEach((tri) => { tri.mid ??= mid; });
+    }
+    parts.push(facing(berries, berryCols, c, R, (tri) => centroid(tri).sub(tri.mid)));
   }
   const caneAt = (vx, vy, vz, col) => col.setHex(look.ring.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 18));
   for (const cane of ring.canes) parts.push(caneGeometry(cane, caneAt));
