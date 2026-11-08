@@ -61,6 +61,91 @@ export function createRainSchedule(rng) {
   };
 }
 
+// How a clear day looks (polish-daylight). Every area authors a pale,
+// near-white horizon for its sky and fog (world/builder.js applySky), which
+// read as a milky wash next to the rich dusks. A clear walk grades that sky
+// here, on the scene it is handed, so rain (which greys whatever sky it finds),
+// sunset, dusk and the den all keep their looks to the bit. All the numbers are
+// in this one table: setting `strength` to 0 puts the old day back.
+//
+// The grade is adaptive, like render/sky.js's haze lift: it scales with how
+// pale the area's horizon already is (paleFrom..paleTo in Rec.709 luminance),
+// so the near-white horizons (Neighbourhood, Park, River, Moor, Woods) get the
+// full grade, the Pines most of it, and the Docks' grey harbour sky (0.60) none
+// at all: no colour, fog, light or exposure change.
+// The Gorge (the one non-flat map) keeps its own canyon haze and fog.
+export const CLEAR_DAY_LOOK = Object.freeze({
+  strength: 1,
+  paleFrom: 0.62, paleTo: 0.86,
+  topSat: 0.25,      // sky top: HSL saturation up by this fraction...
+  topDark: 0.05,     // ...and lightness down by this much (0..1)
+  topHue: 0.56,      // and its hue nudged toward a sky blue (0.56 = 202 deg),
+  topHueMix: 0.35,   // this far, so the minty tops (Park, Woods) read as sky
+  horizonToTop: 0.35, // horizon (and fog colour) pulled this far toward the graded top
+  horizonDark: 0.05, // and a little darker, so it stops reading as white
+  fogNear: 55,       // fog starts farther out (applySky: 40)...
+  fogFar: 150,       // ...and ends a little farther (applySky: 130)
+  envScale: 0.8,     // the neutral image light greys colours: a little less of it
+  hemiScale: 0.9,    // and a little less fill, so sun and shade part more
+  exposure: 0.91,    // the frame's exposure (main.js's 1.1 -> 1.0): ACES stops bleaching the lawns.
+                     // Applied by game/composer.js's applyDayGrade from weather.exposureScale.
+});
+
+const lum709 = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+
+// Pure: the graded (top, horizon) hexes for an area's authored day sky.
+// Works in sRGB hex space, the way the skies are authored and painted.
+export function clearDaySky(top, horizon, look = CLEAR_DAY_LOOK) {
+  const t = new THREE.Color().setHex(top, THREE.SRGBColorSpace);
+  const h = new THREE.Color().setHex(horizon, THREE.SRGBColorSpace);
+  // Luminance of the authored sRGB values (no colour management involved).
+  const hs = { r: ((horizon >> 16) & 255) / 255, g: ((horizon >> 8) & 255) / 255, b: (horizon & 255) / 255 };
+  const pale = Math.min(1, Math.max(0, (lum709(hs) - look.paleFrom) / (look.paleTo - look.paleFrom)));
+  const k = look.strength * pale;
+  if (k <= 0) return { top, horizon, k: 0 };
+  const hsl = {};
+  t.getHSL(hsl, THREE.SRGBColorSpace);
+  const gt = new THREE.Color().setHSL(
+    hsl.h + (look.topHue - hsl.h) * look.topHueMix * k,
+    Math.min(1, hsl.s * (1 + look.topSat * k)),
+    Math.max(0, hsl.l - look.topDark * k),
+    THREE.SRGBColorSpace,
+  );
+  const gh = h.clone().lerp(gt, look.horizonToTop * k);
+  gh.getHSL(hsl, THREE.SRGBColorSpace);
+  gh.setHSL(hsl.h, hsl.s, Math.max(0, hsl.l - look.horizonDark * k), THREE.SRGBColorSpace);
+  return { top: gt.getHex(THREE.SRGBColorSpace), horizon: gh.getHex(THREE.SRGBColorSpace), k };
+}
+
+// The clear walk's grade, applied to the scene applySky built. Only on flat
+// maps whose sky applySky recorded (scene.userData.daySky). The sky and fog
+// are per-walk and stay; the fill and image light go back on dispose.
+function applyClearDay(scene, ground, opts, api, look = CLEAR_DAY_LOOK) {
+  const day = scene.userData?.daySky;
+  if (!day || ground !== FLAT_GROUND || !scene.fog || !(look.strength > 0)) return;
+  const g = clearDaySky(day.top, day.horizon, look);
+  // A sky with no pale horizon to fix (the Docks' overcast harbour) keeps its
+  // whole look: fog, light and exposure too, not only its colours.
+  if (!(g.k > 0)) return;
+  // The horizon stop and the fog colour stay one value (render/sky.js contract).
+  scene.background = skyBackground(g.top, g.horizon);
+  scene.fog = new THREE.Fog(new THREE.Color(g.horizon), look.fogNear, look.fogFar);
+  const fill = opts.fill ?? null;
+  const prevFill = fill ? fill.intensity : null;
+  if (fill) fill.intensity = prevFill * look.hemiScale;
+  const prevEnv = typeof scene.environmentIntensity === 'number' ? scene.environmentIntensity : null;
+  if (prevEnv !== null) scene.environmentIntensity = prevEnv * look.envScale;
+  // Read by walk.js, which hands it to the composer (the renderer is not ours).
+  api.exposureScale = look.exposure;
+  let disposed = false;
+  api.dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    if (fill) fill.intensity = prevFill;
+    if (prevEnv !== null) scene.environmentIntensity = prevEnv;
+  };
+}
+
 const RAINBOW_COLORS = [0xe05050, 0xe09a40, 0xe8d84e, 0x58b858, 0x5878d8, 0x8858c8];
 
 // How rain looks, in one place. Cosy rain, not a storm: thin pale streaks that
@@ -288,7 +373,10 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
   // the rain column hides; a no-op on every walk without one. The rain's
   // sound is unchanged: you hear rain from a cave mouth.
   const api = { condition, rainbowVisible: false, rainbowPos: null, update() {}, isRaining: () => false, setSheltered() {}, addPuddles() {}, tintWet() {}, dispose() {} };
-  if (condition === 'clear') return api;
+  if (condition === 'clear') {
+    applyClearDay(scene, ground, opts, api);
+    return api;
+  }
 
   if (condition === 'sunset') {
     // Gradient rather than a flat fill, same helper applySky uses, and the
