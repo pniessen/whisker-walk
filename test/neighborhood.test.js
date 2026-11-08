@@ -77,10 +77,11 @@ describe('the Cozy Neighborhood — surfaces', () => {
     expect(g.material.roughness).toBe(surfaceProps('grass').roughness);
     expect(g.material.metalness).toBe(0);
     expect(g.material.map?.name).toBe('surface:grass');
-    // 0x7cb860 lifted by 1/0.955 — builder.ground does this itself so the hex
-    // in neighborhood.js stays the one a human picked. If this ever equals
-    // 0x7cb860 the compensation has been dropped and the lawn is 4.5% dark.
-    expect(g.material.color).toEqual(new THREE.Color(0x82c165));
+    // NEIGHBORHOOD_LAWN (0x6aa456 since polish-sheen) lifted by 1/0.955 —
+    // builder.ground does this itself so the hex in neighborhood.js stays the
+    // one a human picked. If this ever equals 0x6aa456 the compensation has
+    // been dropped and the lawn is 4.5% dark.
+    expect(g.material.color).toEqual(new THREE.Color(0x6fac5a));
   });
 
   it('derives the lawn repeat from the plane’s real size', () => {
@@ -180,7 +181,7 @@ describe('the Cozy Neighborhood — surfaces', () => {
 // was typed.
 describe('the Cozy Neighborhood — the hemisphere fill’s bounce', () => {
   it('returns the lawn’s own colour as its ground bounce', () => {
-    expect(build(new THREE.Scene()).groundBounce).toBe(0x7cb860);
+    expect(build(new THREE.Scene()).groundBounce).toBe(0x6aa456); // NEIGHBORHOOD_LAWN (polish-sheen)
   });
 });
 

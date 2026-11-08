@@ -127,7 +127,7 @@ describe('buildMapLayer', () => {
   it('buildMapLayer for the park has ground, edge, water and at least one path', () => {
     const { scene, areaData } = built('park');
     const layer = buildMapLayer(areaData, scene);
-    expect(layer.ground).toBe('#6cb058');
+    expect(layer.ground).toBe('#5c9e4e'); // PARK_LAWN (polish-sheen)
     expect(layer.edge).toEqual(areaData.bounds);
     expect(layer.water.length).toBeGreaterThan(0);
     expect(layer.water[0]).toMatchObject({ kind: 'circle' });

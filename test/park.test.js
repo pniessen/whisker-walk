@@ -133,8 +133,10 @@ describe('City Park — the v20 visual pass', () => {
       expect(lawn.material.map.repeat.y).toBe(Math.round(tiles));
       // builder.ground compensates grass's 0.955 mean itself, so the lawn on
       // screen lands on the hex park.js authored rather than 4.5% under it —
-      // which means the material's own colour must be LIFTED off 0x6cb058.
-      expect(lawn.material.color.getHex()).toBeGreaterThan(0x6cb058);
+      // which means the material's own colour must be LIFTED off PARK_LAWN
+      // (0x5c9e4e since polish-sheen). The lawn's mottle is in its vertex
+      // colours, not the material.
+      expect(lawn.material.color.getHex()).toBeGreaterThan(0x5c9e4e);
     });
 
     it('surfaces all five gravel walks at the same grit size', () => {
@@ -181,7 +183,9 @@ describe('City Park — the v20 visual pass', () => {
       // The disc keeps the 'water' PRESET and does not become a second
       // createWater — water.js's own split, since it carries no footprint
       // record and is sealed inside the basin's r-3 collider.
-      expect(water.material.roughness).toBe(surfaceProps('water').roughness);
+      // polish-sheen: rougher than the preset, so the sun's lobe spreads into a sheen
+      expect(water.material.roughness).toBe(FOUNTAIN_WATER.roughness);
+      expect(water.material.roughness).toBeGreaterThan(surfaceProps('water').roughness);
       // polish-quayside: its specular at a third (the low-camera glare)
       expect(water.material.specularIntensity).toBe(FOUNTAIN_WATER.specularIntensity);
       expect(water.geometry.type).toBe('CylinderGeometry');
@@ -251,7 +255,7 @@ describe('City Park — the v20 visual pass', () => {
 describe('City Park — the hemisphere fill’s bounce', () => {
   it('bounces the park’s own, deeper green', () => {
     const { area } = built();
-    expect(area.groundBounce).toBe(0x6cb058);
+    expect(area.groundBounce).toBe(0x5c9e4e); // PARK_LAWN (polish-sheen)
   });
 });
 
@@ -381,7 +385,7 @@ describe('City Park — the two-tier fountain (polish-park2)', async () => {
       expect(m.castShadow).toBe(false);
       expect(m.userData.noCast).toBe(true);
     }
-    expect(upper.material.roughness).toBe(surfaceProps('water').roughness);
+    expect(upper.material.roughness).toBe(FOUNTAIN_WATER.roughness); // polish-sheen
     expect(upper.material.specularIntensity).toBe(FOUNTAIN_WATER.specularIntensity);
     for (const m of [drops, ripples]) {
       expect(m.userData.noMerge).toBe(true);

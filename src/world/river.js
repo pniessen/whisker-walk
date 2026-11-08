@@ -117,12 +117,16 @@ export const RIVER_WATERS = Object.freeze([
 // The horizon band (see the note at its scene.add in build). Polish "edges":
 // the strip past the ground's edge is the ground's own colour, and pale reeds
 // line the edge, keeping off every water.
+// The marsh ground's base (polish-sheen): 0x7d9c55 read yellow-lime under the
+// Pass 8 day grade; a touch darker and less yellow (hue 86 -> 92). The wet,
+// dry and peaty patches (riverGroundTint) multiply it as before.
+export const RIVER_GROUND = 0x6f9152;
 export const RIVER_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 4, wavelength: 40,
   color: 0x7f9a66, salt: 37,
   avoid: Object.freeze([LAKE, LAKE_FAR, RIVER_WEST, RIVER_EAST]), keepLow: islandKeepLow('river'),
   sideTints: Object.freeze({ north: 0x3f5a46, east: 0x4f7a48, south: 0x8a9a62, west: 0xa3a878 }),
-  nearColor: 0x7d9c55,
+  nearColor: RIVER_GROUND,
   edge: Object.freeze({ half: 60, style: 'reeds', avoid: RIVER_WATERS }),
   // Where the lake and the rivers run out under the hills, a pale muddy
   // shore first, then the hills (builder.horizonBand's `shoreLip`). The reeds
@@ -503,7 +507,7 @@ function mossyBoulder(x, z, material) {
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0xa9d4e0, 0xdde8dc);
   // The ground, tinted where the marsh is wet, peaty or dry (riverdress.js).
-  const groundMesh = b.ground(120, 0x7d9c55, { surface: 'grass' });
+  const groundMesh = b.ground(120, RIVER_GROUND, { surface: 'grass' });
   tintGround(groundMesh, riverGroundTint);
   scene.add(groundMesh);
 
@@ -667,7 +671,7 @@ export function build(scene, { water = {}, wind } = {}) {
     puddles: PUDDLES.map((p) => ({ ...p })),
     waters: RIVER_WATERS,
     waterFx,
-    groundBounce: 0x7d9c55,
+    groundBounce: RIVER_GROUND,
     skyDusk: { top: 0x283652, horizon: 0x6a6478 },
     perches,
     // The mist and the dragonflies, run by walk.js once a walk.

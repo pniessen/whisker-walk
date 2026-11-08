@@ -14,10 +14,19 @@ export const FOUNTAIN_STONE = Object.freeze({ color: 0x9e978c, roughness: 0.95 }
 // it over the rim as a white blaze (rougher water only made the blaze wider).
 // specularIntensity scales both ends of the Fresnel curve, so the highlight
 // is a sheen and the water still reads wet. One material per mesh, as before.
-export const FOUNTAIN_WATER = Object.freeze({ color: 0x8ab8d8, specularIntensity: 0.3 });
+// polish-sheen: 0.3 -> 0.04. Survey 9 still saw a white bloom across the
+// basin's right rim from a low camera; hiding the parts one by one showed it
+// was this disc's sun highlight (the stone at 0.95 was innocent). A live
+// sweep: at 0.1, and even 0.04, the 'water' preset's 0.12 roughness keeps
+// the sun's lobe tight and bright enough to bloom; 0.04 at roughness 0.4
+// spreads it into a soft sheen that never blooms, and the sky's reflection
+// still says water. (Pass 6 found rougher water only widened the blaze; that
+// was at three times this specular.)
+export const FOUNTAIN_WATER = Object.freeze({ color: 0x8ab8d8, specularIntensity: 0.04, roughness: 0.4 });
 export function fountainWaterMaterial() {
   return new THREE.MeshPhysicalMaterial({
     color: FOUNTAIN_WATER.color, ...surfaceProps('water'), specularIntensity: FOUNTAIN_WATER.specularIntensity,
+    roughness: FOUNTAIN_WATER.roughness,
   });
 }
 
