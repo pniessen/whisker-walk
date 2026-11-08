@@ -1477,6 +1477,23 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
+/* the Menu sub-sheets on a desktop: centred at the Change place width (the
+   card sheets) or the Settings width (the Secret code), with their cards in a
+   grid that fills it and the empty states centred. Phones are untouched. */
+@media (min-width: 1000px) {
+  .homebase-scroll.hb-sheet:is([data-sheet="skills"], [data-sheet="colony"], [data-sheet="journal"], [data-sheet="album"], [data-sheet="social"]) { max-width: min(1240px, 94vw); }
+  .homebase-scroll.hb-sheet[data-sheet="code"] { max-width: 760px; }
+  .hb-sheet[data-sheet="skills"] .skills-intro { max-width: none; }
+  .hb-sheet[data-sheet="skills"] .cards, .hb-sheet[data-sheet="colony"] .cards { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .hb-sheet[data-sheet="journal"] .journal-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .hb-sheet[data-sheet="album"] .photos { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .hb-sheet[data-sheet="social"] .friends-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+  .hb-sheet[data-sheet="colony"] .colony-section:has(.empty-state) :is(.colony-banner, .colony-mode) { text-align: center; }
+  .hb-sheet[data-sheet="colony"] p.colony-empty, .hb-sheet[data-sheet="colony"] .colony-full,
+  .hb-sheet[data-sheet="social"] .empty-state, .hb-sheet[data-sheet="colony"] .empty-state { text-align: center; margin-left: auto; margin-right: auto; }
+  .hb-sheet:is([data-sheet="colony"], [data-sheet="social"], [data-sheet="album"]) .empty-state svg { width: 160px; }
+}
+
 /* the clan moment: a one-time story card over home (outside #homebase) */
 .join-moment .join-moment-card { width: 100%; max-width: 680px; max-height: 100%; overflow-y: auto;
   background: #2a3550; border: 2px solid #f2c14e; border-radius: 20px; padding: 20px 20px 16px; color: #f1e0c2;
