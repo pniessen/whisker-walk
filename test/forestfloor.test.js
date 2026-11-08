@@ -196,8 +196,10 @@ describe('the Woods floor', () => {
     expect(meshes[0].userData.noCast).toBe(true);
     expect(meshes[0].castShadow).toBe(false);
     // polish-brambles: the camp's bramble mounds cost 2,604 more triangles (+2,700);
-    // polish-canopies: oak, birch and round crowns and the old oaks (+6,000)
-    expect(tris).toBeLessThanOrEqual(67_200);
+    // polish-canopies: oak, birch and round crowns and the old oaks (+6,000);
+    // polish-foliage saved ~1,080, then polish-campring (+252) and polish-shrubs
+    // (brambles +1,036, scrub edge +546) brought the Woods to 67,242 (+100 margin)
+    expect(tris).toBeLessThanOrEqual(67_350);
 
     const places = keep(area);
     expect(places.some((p) => p.x === SPAWN.x && p.z === SPAWN.z)).toBe(true);
