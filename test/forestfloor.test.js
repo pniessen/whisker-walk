@@ -301,7 +301,7 @@ describe('the Pines floor', () => {
     }
   });
 
-  it('builds one forestFloor mesh out of the shadow pass, inside the 65,824 triangle budget', () => {
+  it('builds one forestFloor mesh out of the shadow pass, inside the 66,336 triangle budget', () => {
     const scene = new THREE.Scene();
     const area = P.build(scene);
     const meshes = [];
@@ -319,8 +319,9 @@ describe('the Pines floor', () => {
     // polish-heather: the island's ferns, toadstools, fallen log and inner
     // reed fringe cost 1,366 more triangles (+1,400); polish-pines2: tiered
     // pines are 120 triangles where the cones were 66, 5,724 more over the
-    // area's 106 pines (+5,724)
-    expect(tris).toBeLessThanOrEqual(65_824);
+    // area's 106 pines (+5,724); polish-shrubs: the pine-scrub edge mounds
+    // dome their tops, 2 more triangles a mound (+512)
+    expect(tris).toBeLessThanOrEqual(66_336);
 
     // the ground carries pinesGroundTint: its colours over an untinted twin's
     const ground = scene.children.find((o) => o.userData?.ground && o.isMesh);

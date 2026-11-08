@@ -279,7 +279,8 @@ describe('soft foliage (polish-foliage)', () => {
     const spots = [{ x: 0, z: 0 }, { x: 5, z: 2 }, { x: -3, z: 7 }];
     const m = b.brambleBed(spots, 3);
     const lobes = spots.reduce((s, sp) => s + 3 + Math.floor(b.hash01(sp.x, sp.z, 4) * 2), 0);
-    expect(m.geometry.attributes.position.count / 3).toBe(lobes * 20);
+    // polish-shrubs: each 20-triangle lobe also wears 7 two-triangle leaf cards
+    expect(m.geometry.attributes.position.count / 3).toBe(lobes * 34);
     expect(m.material.vertexColors).toBe(true);
     const pos = m.geometry.attributes.position, col = m.geometry.attributes.color;
     let hi = 0, lo = 0, nh = 0, nl = 0;
