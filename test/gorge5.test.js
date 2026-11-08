@@ -47,8 +47,9 @@ describe('polish-gorge5 task 1', () => {
     const body = ROCK_FRAGMENT;
     const calls = (body.match(/\bvnoise\s*\(/g) ?? []).length - (body.match(/float\s+vnoise\s*\(/g) ?? []).length;
     expect(calls).toBeLessThanOrEqual(3);
-    expect(ROCK_SHADE.nearLo).toBe(1.5);
-    expect(ROCK_SHADE.nearHi).toBe(4);
+    // polish-gorgewall: calm out to walk distance (was 1.5 / 4)
+    expect(ROCK_SHADE.nearLo).toBe(2);
+    expect(ROCK_SHADE.nearHi).toBe(9);
   });
 });
 

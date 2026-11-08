@@ -6,6 +6,10 @@
 // moves):
 //   bedding   soft, broken dark lines up the walls at irregular spacing,
 //             wavering a little with a slow noise, a touch lighter under each;
+//   strata    each band between two bedding lines takes its own hue (rust,
+//             cream or ochre) and shade, with a crisp edge at the line: the
+//             layered sandstone the vertex colours could only blur
+//             (polish-gorgewall);
 //   flutes    the wall normal swung to and fro along the wall's horizontal
 //             tangent, so vertical flutes catch the light (normal only), their
 //             period and depth wandering so some reaches are smooth;
@@ -26,8 +30,10 @@
 // meshes (rockFaces, lips, ledgeTops) wear it, so whichever material the
 // merged mesh keeps is patched. Patching makes no THREE objects.
 
-// The talus colour the wall feet lean towards (builder.rockArrays).
-export const TALUS_TINT = 0x9d9384;
+// The damp foot the walls lean towards over the walk (builder.rockArrays):
+// a darker, cool damp brown. Was a pale grey sand (0x9d9384), which read as a
+// haze band along every foot (survey 8 #1).
+export const TALUS_TINT = 0x6e6355;
 
 export const ROCK_SHADE = Object.freeze({
   wallLo: 0.35, // |n.y| below this: a wall
@@ -45,18 +51,26 @@ export const ROCK_SHADE = Object.freeze({
   bedBreaks: 3.0, // how many times a line breaks per unit of that noise
   bedBreakLo: 0.3, // a line shows where its break wave is over this
   bedBreakHi: 0.6, // and is full over this
-  bedDark: 0.06, // how much darker a bedding line is
+  bedDark: 0.08, // how much darker a bedding line is (was 0.06)
   bedWidth: 0.09, // of a cell, the dark line's width (above the line)
   bedLip: 0.03, // how much lighter the band's top just under a line is
   bedFadeLo: 0.05, // cells a pixel: bedding lines start fading
   bedFadeHi: 0.16, // and are gone
+  // Strata: each band between bedding lines is tinted one of three hues by
+  // a hash of the band, and lighter or darker by up to strataLevel.
+  strataRust: [1.1, 0.9, 0.78],
+  strataCream: [1.05, 1.05, 1.02],
+  strataOchre: [1.07, 0.99, 0.8],
+  strataLevel: 0.12,
+  strataFadeLo: 0.25, // cells a pixel: the bands start settling to plain
+  strataFadeHi: 0.6, // and are plain
   // Flutes: the phase runs at a base period, warped by a slow noise strong
   // enough that the local period wanders ~0.7..1.6 m; the same noise sets
   // how deep they are, so some reaches are smooth and some deeply fluted.
   fluteStep: 1.05, // metres between flutes, before the warp
   fluteWarp: 7.0, // radians the phase wanders
   fluteFreq: [0.25, 0.05, 0.25], // of the wander's noise
-  fluteTilt: 0.35, // how far the normal swings, at the deepest
+  fluteTilt: 0.26, // how far the normal swings, at the deepest (was 0.35: calmer at walk distance)
   fluteDeepLo: 0.3, // the noise under this: smooth rock
   fluteDeepHi: 0.8, // over this: fully fluted
   fluteFadeLo: 0.6, // radians of phase a pixel: flutes start fading
@@ -68,14 +82,15 @@ export const ROCK_SHADE = Object.freeze({
   grainFadeHi: 1.2, // and is flat
   // Up close (distance from the camera, metres) the flutes calm to 35% and the
   // grain turns anisotropic and stronger (layered sandstone, not a smear).
-  nearLo: 1.5, // closer than this: fully calm
-  nearHi: 4, // farther than this: full flutes, grain amplitude as before
+  nearLo: 2, // closer than this: fully calm
+  nearHi: 9, // farther than this: full flutes, grain amplitude as before (was 4: the walk camera is 4-8 m off a wall)
   overhang: 0.22, // a face looking straight down is this much darker
-  talusLo: 0.15, // metres over the walk: full talus below this
-  talusHi: 1.3, // none above this
+  talusLo: 0.2, // metres over the walk: the full damp foot below this
+  talusHi: 0.9, // none above this
 });
 
 const S = ROCK_SHADE;
+const STRATA_MEAN = [0, 1, 2].map((i) => Math.round(((S.strataRust[i] + S.strataCream[i] + S.strataOchre[i]) / 3) * 1000) / 1000);
 const f = (x) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 const v3 = ([a, b, c]) => `vec3( ${f(a)}, ${f(b)}, ${f(c)} )`;
 
@@ -129,7 +144,15 @@ const COLOUR = /* glsl */`
 		float rgOn = 1.0 - smoothstep( ${f(S.grainFadeLo)}, ${f(S.grainFadeHi)}, length( fwidth( rgp ) ) );
 		rshade *= ${f(S.grainBase)} + ${f(S.grainAmp)} * ( 0.5 + mix( 1.35, 1.0, rnear ) * ( mix( 0.5, vnoise( rgp ), rgOn ) - 0.5 ) );
 		rshade *= 1.0 - ${f(S.overhang)} * clamp( - rn.y, 0.0, 1.0 );
-		diffuseColor.rgb *= rshade;
+		// strata: under this cell's line, the band below; over it, this cell's
+		float rband = rcell - step( rd, 0.0 );
+		float rs1 = rockHash( vec3( rband, 41.0, 7.0 ) );
+		float rs2 = rockHash( vec3( rband, 13.0, 61.0 ) );
+		vec3 rhue = mix( mix( ${v3(S.strataRust)}, ${v3(S.strataCream)}, step( 0.34, rs1 ) ), ${v3(S.strataOchre)}, step( 0.67, rs1 ) );
+		rhue *= 1.0 + ${f(S.strataLevel)} * ( 2.0 * rs2 - 1.0 );
+		// far off the bands settle to their mean hue (no moire, no hue shift)
+		float rsOn = 1.0 - smoothstep( ${f(S.strataFadeLo)}, ${f(S.strataFadeHi)}, fwidth( rbed ) );
+		diffuseColor.rgb *= rshade * mix( vec3( 1.0 ), mix( ${v3(STRATA_MEAN)}, rhue, rsOn ), rwall );
 	}
 `;
 

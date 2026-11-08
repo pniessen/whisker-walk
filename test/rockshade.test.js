@@ -81,8 +81,8 @@ describe('rock shader patch', () => {
     expect(ROCK_FRAGMENT).toMatch(/highp/);
   });
 
-  it('its numbers are frozen and the talus tint is warm grey sand', () => {
+  it('its numbers are frozen and the talus tint is a damp cool brown', () => {
     expect(Object.isFrozen(ROCK_SHADE)).toBe(true);
-    expect(TALUS_TINT).toBe(0x9d9384);
+    expect(TALUS_TINT).toBe(0x6e6355); // the damp foot (polish-gorgewall)
   });
 });

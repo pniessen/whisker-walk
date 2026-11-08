@@ -528,14 +528,16 @@ const CLIFF_INSET = 0.6;
 const BANK_BANDS = Object.freeze([[-12, -9.6], [-7.9, -5.5]]);
 const TUFT_TRIES = 420;
 const TUFT_CAP = 140;
-export const MEADOW_SAND = 0xc8b28a;
-export const MEADOW_DRY = 0xb0a46e;
+// warmer sand (was 0xc8b28a / 0xb0a46e, a cool pale beige; polish-gorgewall)
+export const MEADOW_SAND = 0xcdb084;
+export const MEADOW_DRY = 0xb6a36a;
 export const MEADOW_GREEN = 0x7f9a52;
 const BANK_GREEN = 0x7f9358;
-// The talus apron: the grey gravel the wall's own tint (rockshade TALUS_TINT)
+// The talus apron: the damp gravel the wall's own foot (rockshade TALUS_TINT)
 // carries on across the floor, a 1 m strip every metre along each floor wall,
-// 0.8-1.4 m out, fading to the floor colour at its outer edge.
-export const MEADOW_TALUS = 0xa59b89;
+// 0.8-1.4 m out, fading to the floor colour at its outer edge. Was a pale grey
+// 0xa59b89, which read as a haze band along the walls' feet (polish-gorgewall).
+export const MEADOW_TALUS = 0x8d7a63;
 const TALUS_OUT = 0.8;
 const TALUS_VAR = 0.6;
 const TUFT_COLORS = Object.freeze([0x8f9a52, 0x6f8040]);
@@ -1420,6 +1422,18 @@ export function trimHiddenGround(plane, masses, { cache = true } = {}) {
   return dropped;
 }
 
+// The rock's tint: the Narrows' (narrows.js), calmed (polish-gorgewall). Its
+// recess darkening at a third (the gullies change every 1.2 m along a wall,
+// and a vertex colour that dark smeared into soft vertical streaks) and its
+// 1.1 m vertex bands at GORGE_NARROWS_MIX (rockshade.js draws the crisp
+// strata per pixel; a vertex band can only blur across its 1 m row).
+const GORGE_NARROWS_MIX = 0.6;
+function gorgeRockTint(x, y, z, rgb, recess, foot) {
+  const t = narrowsTint(x, y, z, rgb, recess / 3, foot);
+  return [0, 1, 2].map((i) => rgb[i] + (t[i] - rgb[i]) * GORGE_NARROWS_MIX);
+}
+const GORGE_ROCK_TINT_KEY = `${NARROWS_TINT_KEY}/gorgewall-1`;
+
 export function build(scene, { water = {}, wind } = {}) {
   const ground = gorgeGround();
   const colliders = [];
@@ -1437,7 +1451,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // --- the rock ---------------------------------------------------------------
   const rock = b.rockTerrain({
     walks: ROCK_WALKS, masses: MASSES, ceilings: CEILINGS, seed: seedFromCode('gorge-rock'), keep: GORGE_ROCK_KEEP,
-    mouths: GORGE_ROCK_MOUTHS, tint: narrowsTint, tintKey: NARROWS_TINT_KEY,
+    mouths: GORGE_ROCK_MOUTHS, tint: gorgeRockTint, tintKey: GORGE_ROCK_TINT_KEY,
   });
   rock.name = 'gorgeRock';
   scene.add(rock);
