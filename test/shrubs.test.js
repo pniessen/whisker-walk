@@ -103,3 +103,70 @@ describe('bush() leafy shrub', () => {
     expect(count(() => b.bush(3, 4, { wind: { add() {} } }))).toBe(24);
   });
 });
+
+// polish-shrubs (Pass 9): bushes, gorse, brambles and the edge's hedges and
+// scrub stop reading as faceted green rocks and prisms. Render-only.
+const THREE = await import('three');
+const triSpread = (g) => {
+  // the largest angle between the three normals of one triangle, over all
+  // triangles (0 = every facet flat)
+  const n = g.attributes.normal;
+  const idx = g.index ? g.index.array : null;
+  let worst = 0;
+  const count = idx ? idx.length : n.count;
+  const at = (i) => new THREE.Vector3(n.getX(i), n.getY(i), n.getZ(i));
+  for (let f = 0; f < count; f += 3) {
+    const [a, b2, c] = [0, 1, 2].map((j) => at(idx ? idx[f + j] : f + j));
+    worst = Math.max(worst, a.angleTo(b2), b2.angleTo(c), a.angleTo(c));
+  }
+  return worst;
+};
+const SPOTS9 = [{ x: 0, z: 0 }, { x: 4, z: 1 }, { x: -3, z: 6 }];
+
+describe('polish-shrubs', () => {
+  it('bush clusters are rounded: normals lean out of each lump (positions unchanged)', () => {
+    const g = b.bush(5, 5).geometry;
+    const p = g.attributes.position, n = g.attributes.normal;
+    // the highest vertex of each cluster (its tip) faces mostly up
+    let top = 0;
+    for (let v = 0; v < p.count; v++) if (p.getY(v) > p.getY(top)) top = v;
+    expect(n.getY(top)).toBeGreaterThan(0.8);
+    // and the normals spread across triangles (not one flat facet a face)
+    expect(triSpread(g)).toBeGreaterThan(0.3);
+  });
+
+  it('gorse: vertex-coloured, soft spiny lobes, darker foot; flowers are small pale three-sided pyramids', () => {
+    const g = b.gorseBed(SPOTS9, 7);
+    const lobes = g.children.find((m) => m.name === 'gorse');
+    const bloom = g.children.find((m) => m.name === 'gorseBloom');
+    expect(lobes.material.vertexColors).toBe(true);
+    expect(lobes.material.color.getHex()).toBe(0xffffff);
+    expect(triSpread(lobes.geometry)).toBeGreaterThan(0.2);
+    const p = lobes.geometry.attributes.position, c = lobes.geometry.attributes.color;
+    const ids = [...Array(p.count).keys()].sort((i, j) => p.getY(i) - p.getY(j));
+    const k = Math.floor(ids.length * 0.2);
+    const mean = (l) => l.reduce((s, i) => s + lum(c, i), 0) / l.length;
+    expect(mean(ids.slice(-k)) - mean(ids.slice(0, k))).toBeGreaterThan(0.03);
+    // each lobe: 20 triangles + 7 two-triangle spines (102 vertices)
+    expect(lobes.geometry.attributes.position.count % 102).toBe(0);
+    expect(lobes.material.side).toBe(THREE.DoubleSide);
+    // flowers: 3 triangles each, 8 a lobe, and pale butter (no channel at 0)
+    const lobeCount = lobes.geometry.attributes.position.count / 102;
+    expect(bloom.geometry.attributes.position.count / 3).toBe(lobeCount * 8 * 3);
+    expect(bloom.material.vertexColors).toBe(true);
+    expect(bloom.material.roughness).toBe(1);
+    const bc = bloom.geometry.attributes.color;
+    for (let v = 0; v < bc.count; v++) {
+      expect(bc.getX(v)).toBeLessThanOrEqual(1);
+      expect(bc.getZ(v)).toBeGreaterThan(0.05);
+    }
+  });
+
+  it('brambles: each 20-triangle lobe wears 7 two-triangle leaf cards, seen from both sides', () => {
+    const m = b.brambleBed(SPOTS9, 11);
+    const tris = m.geometry.attributes.position.count / 3;
+    expect(tris % 34).toBe(0);
+    expect(m.material.side).toBe(THREE.DoubleSide);
+    expect(m.geometry.attributes.color.count).toBe(m.geometry.attributes.position.count);
+  });
+});

@@ -175,7 +175,10 @@ describe('the edge, its own noCast mesh under the band', () => {
       expect(edge.userData.duskTint).toBe(true);
       expect(edge.frustumCulled).toBe(false);
       expect(edge.material.vertexColors).toBe(true);
-      expect(edge.material.flatShading).toBe(true);
+      // polish-shrubs: shaded from the pieces' own normals (flat for walls,
+      // trees and reeds; rounded for hedges and scrub), not flatShading
+      expect(edge.material.flatShading).toBe(false);
+      expect(edge.geometry.attributes.normal?.count).toBe(edge.geometry.attributes.position.count);
       expect(edge.material.color.getHex()).toBe(0xffffff);
       expect(edge.position.toArray()).toEqual([0, 0, 0]);
       expect(band.position.toArray()).toEqual([0, 0, 0]);

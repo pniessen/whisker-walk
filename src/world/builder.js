@@ -2047,8 +2047,10 @@ function ringPts(n, r, y, a0, wob = () => 1) {
 // h(i) is the piece's own hash.
 function mound(r, ht, faceColor, h) {
   const base = ringPts(6, r, 0, h(0) * Math.PI, (i) => 0.85 + 0.3 * h(1 + i));
-  const top = ringPts(3, 0.6 * r, 0, h(0) * Math.PI + 0.3, () => 1)
-    .map((p, j) => [p[0] + (h(7) - 0.5) * 0.2 * r, ht * (0.8 + 0.2 * h(8 + j)), p[2] + (h(11) - 0.5) * 0.2 * r]);
+  // polish-shrubs: the top ring narrower (0.6r -> 0.5r) and lower, under a
+  // lifted crown point (below), so the outline is a dome, not a cut prism
+  const top = ringPts(3, 0.5 * r, 0, h(0) * Math.PI + 0.3, () => 1)
+    .map((p, j) => [p[0] + (h(7) - 0.5) * 0.2 * r, ht * (0.66 + 0.16 * h(8 + j)), p[2] + (h(11) - 0.5) * 0.2 * r]);
   const tris = [];
   for (let j = 0; j < 3; j++) {
     const b0 = base[2 * j];
@@ -2056,7 +2058,12 @@ function mound(r, ht, faceColor, h) {
     const b2 = base[(2 * j + 2) % 6];
     tris.push([b0, b1, top[j]], [b1, b2, top[(j + 1) % 3]], [b1, top[(j + 1) % 3], top[j]]);
   }
-  tris.push([top[0], top[1], top[2]]);
+  // polish-shrubs: the flat top triangle becomes three round a crown point
+  // at the mound's full height, so its top domes instead of reading as a cut
+  // prism (+2 triangles a mound).
+  const cy = ht * (0.97 + 0.06 * h(12));
+  const c = [(top[0][0] + top[1][0] + top[2][0]) / 3, cy, (top[0][2] + top[1][2] + top[2][2]) / 3];
+  tris.push([top[0], top[1], c], [top[1], top[2], c], [top[2], top[0], c]);
   return facetGeo(tris, faceColor, [0, ht * 0.3, 0]);
 }
 
@@ -2256,6 +2263,20 @@ function dropBottom(g) {
 // geometries in world space, each already vertex-coloured. `groundAt(x, z)`
 // is the band's own surface height there: every piece is seated on the
 // lowest of it under its footprint, sunk EDGE_SINK.
+// polish-shrubs: how far the hedge's and the mounds' normals are rounded, and
+// the foot's share of the top's light (vertex colour, darker toward the
+// ground). The walls, trees, reeds and saplings stay flat-faceted.
+const HEDGE_SOFT = 0.6;
+const HEDGE_CROWN = 0.72; // the top's share of the foot's depth
+const MOUND_SOFT = 0.75;
+const EDGE_FOOT = 0.68;
+function footLit(g, ht) {
+  const p = g.attributes.position, c = g.attributes.color;
+  for (let v = 0; v < p.count; v++) {
+    const k = EDGE_FOOT + (1.1 - EDGE_FOOT) * smoothstep(0, ht, p.getY(v));
+    c.setXYZ(v, c.getX(v) * k, c.getY(v) * k, c.getZ(v) * k);
+  }
+}
 function buildEdge(out, edge, salt, avoid, groundAt) {
   const S = edgeStyle(edge.style);
   const st = salt + EDGE_SALT;
@@ -2267,8 +2288,17 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
   // Places a local-frame geometry at a spot, seated on the band under it
   // (`r` its footprint radius), and keeps it only if it is dry and, unless
   // it is the gate, has no green vertex inside a gap.
-  const place = (g0, x, z, yaw, r, { gate = false } = {}) => {
+  //
+  // polish-shrubs: each piece now carries its own normals, flat (one per
+  // facet, exactly what flatShading drew) unless `soft` is given, when they
+  // are pulled toward the piece's own round (softenFoliageNormals about
+  // soft.c in the piece's frame): a hedge's clipped top and a scrub mound
+  // read as leafy masses instead of green prisms. The mesh then shades from
+  // these normals (see edgeMesh).
+  const place = (g0, x, z, yaw, r, { gate = false, soft = null } = {}) => {
     const g = edgePart(g0);
+    g.computeVertexNormals(); // non-indexed: flat
+    if (soft) softenFoliageNormals(g, soft.s, soft.r, soft.c);
     g.rotateY(yaw);
     g.translate(x, seat(x, z, r), z);
     const p = g.attributes.position;
@@ -2350,6 +2380,7 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
       // held to the same per-vertex water clearance.
       const put = (g) => {
         const gx = edgePart(g);
+        gx.computeVertexNormals(); // flat, like every piece (see place)
         gx.rotateY(yaw);
         gx.translate(x, -BAND_SINK, z);
         const p = gx.attributes.position;
@@ -2494,17 +2525,28 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
       const g = dropBottom(new THREE.BoxGeometry(len, hh, depth));
       g.translate((a + bEnd) / 2, hh / 2, 0);
       const p = g.attributes.position;
+      const midX = (a + bEnd) / 2;
       for (let v = 0; v < p.count; v++) {
         if (p.getY(v) > hh * 0.75) {
           const lx = Math.round(p.getX(v) * 100);
           const lz = Math.round(p.getZ(v) * 100);
           p.setY(v, p.getY(v) + S.lift * hash01(lx, lz, st + k));
+          // polish-shrubs: the top drawn in (narrower across, a little in
+          // from each end), so with the rounded normals the hedge's crown
+          // reads soft and clipped rather than a sharp-edged block
+          p.setZ(v, p.getZ(v) * HEDGE_CROWN);
+          p.setX(v, p.getX(v) + Math.sign(midX - p.getX(v)) * 0.12);
         }
       }
-      const green = pick(S.greens, h(1));
+      // polish-shrubs: the green drifts between the style's greens (not a
+      // pick of two), a lit top over a darker foot, and normals rounded
+      // over the top so the run reads as one clipped hedge, not blocks.
+      const green = new THREE.Color(S.greens[0]).lerp(new THREE.Color(S.greens[S.greens.length - 1]), h(1));
       const light = 0.92 + 0.14 * h(2);
-      paintGeo(g, (v, vx, vy, vz) => shade(green, light * (0.95 + 0.1 * hash01(Math.round(vx * 100), Math.round(vz * 100), st + 7))));
-      place(g, x, z, yaw, Math.max(Math.abs(a), Math.abs(bEnd)));
+      paintGeo(g, (v, vx, vy, vz) => green.clone().multiplyScalar(light * (0.95 + 0.1 * hash01(Math.round(vx * 100), Math.round(vz * 100), st + 7))
+        * (EDGE_FOOT + (1.1 - EDGE_FOOT) * smoothstep(0, hh, vy))));
+      place(g, x, z, yaw, Math.max(Math.abs(a), Math.abs(bEnd)),
+        { soft: { s: HEDGE_SOFT, r: 0.5, c: [(a + bEnd) / 2, hh * 0.3, 0] } });
       return;
     }
 
@@ -2530,10 +2572,12 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
         // yellow tent), so the bloom is a tint: a few faces, and the top,
         // part-way to yellow.
         const g = mound(r, S.gorseH * (0.85 + 0.3 * h(16)), (f) => shade(S.gorse, 0.88 + 0.22 * hash01(f, k, st + 19))
-          .lerp(new THREE.Color(S.bloom), f === 9 || hash01(f, k, st + 17) < 0.25 ? 0.25 + 0.2 * hash01(f, k, st + 18) : 0),
+          .lerp(new THREE.Color(S.bloom), f >= 9 || hash01(f, k, st + 17) < 0.25 ? 0.25 + 0.2 * hash01(f, k, st + 18) : 0),
         (i) => h(40 + i));
+        const gh = S.gorseH * (0.85 + 0.3 * h(16));
+        footLit(g, gh);
         const [wx, wz] = at((h(17) - 0.5) * 0.8, -(0.25 + 0.8 * r));
-        place(g, wx, wz, yaw, r);
+        place(g, wx, wz, yaw, r, { soft: { s: MOUND_SOFT, r: 0.6, c: [0, gh * 0.2, 0] } });
       }
       return;
     }
@@ -2586,7 +2630,8 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
       const t = kind === 'corner' ? (i - 1) * 0.6 : (i - 0.5) * 1.4 + (h(11 + i) - 0.5) * 0.3;
       const nOut = kind === 'corner' ? (i === 1 ? 0.6 : 0) : (h(14 + i) - 0.5) * 0.6;
       const [wx, wz] = at(t, nOut);
-      place(g, wx, wz, h(17 + i) * Math.PI, r);
+      footLit(g, ht);
+      place(g, wx, wz, h(17 + i) * Math.PI, r, { soft: { s: MOUND_SOFT, r: 0.6, c: [0, ht * 0.2, 0] } });
     }
     if (kind === 'sapling') {
       const { r, h: ch, sides } = S.sapling;
@@ -2988,9 +3033,10 @@ function edgeMesh(edge, salt, avoid, groundAt) {
     const geo = out.length === 1 ? out[0]
       : out.length ? mergeGeometries(out, false) : new THREE.BufferGeometry();
     if (out.length > 1) for (const p of out) p.dispose();
-    if (out.length) geo.computeVertexNormals();
     geo.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geo, litMaterial(0xffffff, { flatShading: true, vertexColors: true }));
+    // polish-shrubs: shaded from the pieces' own normals (flat for walls,
+    // trees and reeds, rounded for hedges and mounds; see buildEdge's place)
+    const mesh = new THREE.Mesh(geo, litMaterial(0xffffff, { vertexColors: true }));
     mesh.name = 'horizonEdge';
     mesh.userData.noCast = true;
     mesh.userData.duskTint = true;
@@ -3603,13 +3649,26 @@ function beachClumpGeometry(x, z, kind) {
 // same (x, z) -> the same arrays, byte for byte. Exactly 3 geometries
 // (core, clusters, their merge; the two parts disposed), as the blob was, so
 // bush() keeps its uuid draws.
+//
+// polish-shrubs: the clusters still read as faceted green rocks at 2 m. The
+// smooth (indexed) normals of a five-sided lump bend hard at its rings, so
+// each vertex's normal is pulled SHRUB_ROUND of the way toward the direction
+// out from its own cluster's centre: the light rolls round each lump like a
+// leafy ball, while the lumps (and their dark creases) still read apart at
+// 10 m. Positions, colours and the triangle count are unchanged.
+const SHRUB_ROUND = 0.7;
+const SHRUB_GREEN = 0x62994a;
 function shrubGeometry(x, z) {
   const part = () => {
-    const pos = [], col = [], idx = [];
+    const pos = [], col = [], idx = [], ctr = [];
+    let centre = null;
     return {
+      // the cluster the next vertices belong to (null: keep the smooth normal)
+      centre(c) { centre = c; },
       v(px, py, pz, c) {
         pos.push(px, py, pz);
         col.push(c[0], c[1], c[2]);
+        ctr.push(centre);
         return pos.length / 3 - 1;
       },
       tri(a, b, d) { idx.push(a, b, d); },
@@ -3619,6 +3678,19 @@ function shrubGeometry(x, z) {
         g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
         g.setIndex(idx);
         g.computeVertexNormals();
+        const nrm = g.attributes.normal;
+        for (let v = 0; v < ctr.length; v++) {
+          const c = ctr[v];
+          if (!c) continue;
+          let rx = pos[v * 3] - c[0], ry = pos[v * 3 + 1] - c[1], rz = pos[v * 3 + 2] - c[2];
+          const rl = Math.hypot(rx, ry, rz) || 1;
+          rx /= rl; ry /= rl; rz /= rl;
+          const nx = (1 - SHRUB_ROUND) * nrm.getX(v) + SHRUB_ROUND * rx;
+          const ny = (1 - SHRUB_ROUND) * nrm.getY(v) + SHRUB_ROUND * ry;
+          const nz = (1 - SHRUB_ROUND) * nrm.getZ(v) + SHRUB_ROUND * rz;
+          const nl = Math.hypot(nx, ny, nz) || 1;
+          nrm.setXYZ(v, nx / nl, ny / nl, nz / nl);
+        }
         return g;
       },
     };
@@ -3682,6 +3754,9 @@ function shrubGeometry(x, z) {
     const step = Math.PI / K;
     // underside: hidden inside for the crown, on the ground for the others
     const footY = crown ? cy - 0.6 * rc : GROUND + 0.03 * H(s + 6);
+    // the lump's own middle, a little below its equator, so the foot ring
+    // turns down and out and the shoulder up and out
+    B.centre([cx * 0.95, cy - 0.1 * rc, cz * 0.95]);
     const lo = ring(B, K, cx * 0.8, footY, cz * 0.8, 0.7 * rc, spin, 0.55 * clusterShade, 0, s + 10);
     const mid = ring(B, K, cx, cy + 0.05 * rc, cz, rc, spin + step, 0.88 * clusterShade, 0.2, s + 40, 0.2);
     // the shoulder and tip lean outward on the side clusters
@@ -3733,7 +3808,8 @@ export function bush(x, z, { wind, style, kind: forceKind } = {}) {
   if (!beach) {
     // polish-pines2: a leafy shrub (shrubGeometry above). The organicTint
     // green stays the material colour; the vertex colours multiply it.
-    leaves = surfMat(organicTint(0x5aa04e, x, z, 1010, 8), 'foliage');
+    // polish-shrubs: a little olive, away from the canopies' green (0x5aa04e)
+    leaves = surfMat(organicTint(SHRUB_GREEN, x, z, 1010, 8), 'foliage');
     leaves.vertexColors = true;
   }
   const m = beach
@@ -5602,11 +5678,72 @@ export function fernBed(spots, seed) {
 // yellower top, one shade per lobe and a per-facet mottle, round the old
 // flat bramble green. Same geometries made in
 // the same order (the Woods' pinned uuid draws).
-const BRAMBLE_SOFT = 0.65;
+// polish-shrubs: 0.65 -> 0.85, and the mottle below is mostly per CORNER
+// (keyed on the corner, so the copies of a corner match and the colour runs
+// smooth across a facet) with only a faint per-facet step: a whole-facet
+// shade was what kept the facets reading as stone.
+const BRAMBLE_SOFT = 0.85;
 // the old flat 0x3b5e2e sits between these; THREE.Color takes the sRGB hex to
 // the linear values a vertex colour holds (the material is white)
 const BRAMBLE_LOW = new THREE.Color(0x22391f).toArray();
 const BRAMBLE_TOP = new THREE.Color(0x5e8540).toArray();
+// polish-shrubs: a lobe is still a blob from the path, so each one wears a
+// fringe of BRAMBLE_LEAVES leaf cards (a diamond, two triangles) on its upper
+// half: rooted just inside the surface, tipped out and up past it, so the
+// silhouette breaks into leaves. Their normals point out from the lobe's
+// centre, so they light with it; they are a little lighter and yellower than
+// the lobe's top. Appended to the lobe's own attributes (no new geometry, so
+// the Woods' uuid draws hold). +14 triangles a lobe.
+const BRAMBLE_LEAVES = 7;
+const BRAMBLE_LEAF = new THREE.Color(0x52783a).toArray();
+// gorse wears the same fringe as narrow dark spines (see gorseBed)
+const GORSE_SPINE = new THREE.Color(0x3a5530).toArray();
+function brambleLeaves(lobe, r, i, k, seed, { leaf = BRAMBLE_LEAF, width = 0.4 } = {}) {
+  const names = ['position', 'normal', 'uv', 'color'];
+  const add = { position: [], normal: [], uv: [], color: [] };
+  const H = (n, m) => hash01(i * 13 + n, k * 7 + m, seed + 40);
+  for (let q = 0; q < BRAMBLE_LEAVES; q++) {
+    const az = (q / BRAMBLE_LEAVES) * Math.PI * 2 + (H(q, 1) - 0.5) * 0.7;
+    const el = 0.05 + 0.85 * H(q, 2); // upper half of the lobe
+    const dx = Math.cos(az) * Math.cos(el), dy = Math.sin(el), dz = Math.sin(az) * Math.cos(el);
+    // the root sits just under the squashed surface
+    const root = [dx * r * 0.82, dy * r * 0.62 * 0.82, dz * r * 0.82];
+    // the leaf points out and a little up, 0.16-0.35 m long
+    const len = r * (0.36 + 0.14 * H(q, 3));
+    const ux0 = dx, uy0 = dy * 0.62 + 0.12, uz0 = dz;
+    const ul = Math.hypot(ux0, uy0, uz0);
+    const ux = ux0 / ul, uy = uy0 / ul, uz = uz0 / ul;
+    // across: horizontal, perpendicular to the leaf's heading, a little twisted
+    const tw = (H(q, 4) - 0.5) * 0.8;
+    let sx = -dz, sy = tw, sz = dx;
+    const sl = Math.hypot(sx, sy, sz) || 1;
+    const w = len * width;
+    sx = sx / sl * w / 2; sy = sy / sl * w / 2; sz = sz / sl * w / 2;
+    const tip = [root[0] + ux * len, root[1] + uy * len, root[2] + uz * len];
+    const midT = 0.45;
+    const m = [root[0] + ux * len * midT, root[1] + uy * len * midT, root[2] + uz * len * midT];
+    const L = [m[0] - sx, m[1] - sy, m[2] - sz], R = [m[0] + sx, m[1] + sy, m[2] + sz];
+    const nl = Math.hypot(dx, dy, dz);
+    const n = [dx / nl, (dy + 0.2) / nl, dz / nl];
+    const nn = Math.hypot(...n);
+    const shade = 0.82 + 0.3 * H(q, 5);
+    for (const v of [root, R, tip, root, tip, L]) {
+      add.position.push(...v);
+      add.normal.push(n[0] / nn, n[1] / nn, n[2] / nn);
+      add.uv.push(0, 0);
+      // root a shade darker than the tip
+      const f = v === root ? 0.7 : v === tip ? 1.05 : 0.92;
+      for (let c = 0; c < 3; c++) add.color.push(leaf[c] * shade * f);
+    }
+  }
+  for (const name of names) {
+    const a = lobe.attributes[name];
+    const out = new Float32Array(a.array.length + add[name].length);
+    out.set(a.array);
+    out.set(add[name], a.array.length);
+    lobe.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
+  }
+}
 export function brambleBed(spots, seed) {
   const geoms = [];
   spots.forEach((sp, i) => {
@@ -5633,10 +5770,12 @@ export function brambleBed(spots, seed) {
         // a mottle, one per facet and a little per corner, so the light
         // breaks up like leaves rather than running smooth like stone
         const f = Math.floor(v / 3);
-        const mottle = (0.84 + 0.28 * hash01(i * 31 + f, k, seed + 7)) * (0.93 + 0.14 * hash01(v, i * 5 + k, seed + 8));
+        const mottle = (0.96 + 0.08 * hash01(i * 31 + f, k, seed + 7))
+          * (0.8 + 0.34 * hash01(Math.round(pos.getX(v) * 1000) + i * 7, Math.round(pos.getZ(v) * 1000) + Math.round(pos.getY(v) * 1000) * 3, seed + 8 + k));
         for (let c = 0; c < 3; c++) col[v * 3 + c] = (BRAMBLE_LOW[c] + (BRAMBLE_TOP[c] - BRAMBLE_LOW[c]) * t) * shade * mottle;
       }
       lobe.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      brambleLeaves(lobe, r, i, k, seed);
       const a = hash01(k, i, seed + 3) * Math.PI * 2;
       const d = k === 0 ? 0 : 0.45 + 0.35 * hash01(i + k, k, seed + 4);
       lobe.rotateY(hash01(k, i, seed + 5) * Math.PI);
@@ -5646,6 +5785,8 @@ export function brambleBed(spots, seed) {
   });
   const m = mergedNoCast(geoms, 0xffffff, 'foliage');
   m.material.vertexColors = true;
+  // the leaf cards are seen from both sides (the closed lobes never are)
+  m.material.side = THREE.DoubleSide;
   return m;
 }
 
@@ -5765,13 +5906,32 @@ function heatherSpikes(cushions, seed) {
   return m;
 }
 
-// Gorse: brambleBed's huddle of squashed lobes in dark green, plus a second
-// merged mesh of yellow flecks on the upper half of each lobe. Two meshes
-// because one mesh has one colour. A bed a cat pushes through (no collider),
-// under 0.95 m, out of the caster sweep.
+// Gorse: brambleBed's huddle of squashed lobes, plus a second merged mesh of
+// yellow flowers on the upper half of each lobe. Two meshes because the
+// flowers want their own (brighter, matte) material. A bed a cat pushes
+// through (no collider), under 0.95 m, out of the caster sweep.
+//
+// polish-shrubs: the lobes were flat-shaded icosahedra in one flat green and
+// the flowers yellow icosahedron "crystals", so a bed read as green rocks
+// set with gems. Now each lobe takes brambleBed's recipe (corners nudged in
+// and out, keyed on the corner so the lobe stays closed; normals pulled most
+// of the way round; vertex colours from a dark foot to a lit top, with a
+// mottle) in gorse's darker, bluer green, and the flowers are many small
+// pale-butter three-sided pyramids (3 triangles each, no base) instead of 20-
+// triangle gems: GORSE_FLOWERS a lobe, in the same TWO geometries a lobe as
+// before, so the Moor's uuid draws (and its pinned build count) do not move.
+const GORSE_SOFT = 0.85;
+const GORSE_LOW = new THREE.Color(0x283d27).toArray();
+const GORSE_TOP = new THREE.Color(0x4f6a3a).toArray();
+const GORSE_BLOOM = 0xf2d65a;
+const GORSE_FLOWER_R = 0.05;
+const GORSE_FLOWERS = 8; // per lobe, split over its two flower geometries
 export function gorseBed(spots, seed) {
   const lobes = [];
   const flecks = [];
+  const bloomLow = new THREE.Color(0xd9b84a);
+  const bloomTop = new THREE.Color(GORSE_BLOOM);
+  const fc = new THREE.Color();
   spots.forEach((sp, i) => {
     const count = 3 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 2);
     for (let k = 0; k < count; k++) {
@@ -5782,27 +5942,81 @@ export function gorseBed(spots, seed) {
       const cy = r * 0.62 * 0.8;
       const cz = sp.z + Math.sin(a) * d;
       const lobe = new THREE.IcosahedronGeometry(r, 0);
+      // corners in and out by up to 11% (keyed on the corner: the copies of
+      // one corner move together, so no crack opens)
+      const pos = lobe.attributes.position;
+      for (let v = 0; v < pos.count; v++) {
+        const px = pos.getX(v), py = pos.getY(v), pz = pos.getZ(v);
+        const j = 0.9 + 0.2 * hash01(Math.round(px * 1000) + i * 7, Math.round(pz * 1000) + Math.round(py * 1000) * 3, seed + 21 + k);
+        pos.setXYZ(v, px * j, py * j, pz * j);
+      }
       lobe.scale(1, 0.62, 1);
+      lobe.computeVertexNormals();
+      softenFoliageNormals(lobe, GORSE_SOFT, 1);
+      const shade = 0.88 + 0.22 * hash01(i, k, seed + 26);
+      const top = r * 0.62;
+      const col = new Float32Array(pos.count * 3);
+      for (let v = 0; v < pos.count; v++) {
+        const t = smoothstep(-top * 0.7, top * 0.9, pos.getY(v));
+        const f = Math.floor(v / 3);
+        // mostly per corner (keyed on it, so the colour runs smooth across a
+        // facet), a faint step per facet
+        const mottle = (0.96 + 0.08 * hash01(i * 31 + f, k, seed + 27))
+          * (0.8 + 0.34 * hash01(Math.round(pos.getX(v) * 1000) + i * 7, Math.round(pos.getZ(v) * 1000) + Math.round(pos.getY(v) * 1000) * 3, seed + 28 + k));
+        for (let c = 0; c < 3; c++) col[v * 3 + c] = (GORSE_LOW[c] + (GORSE_TOP[c] - GORSE_LOW[c]) * t) * shade * mottle;
+      }
+      lobe.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      // a fringe of narrow spines breaks the lobe's outline (+14 triangles)
+      brambleLeaves(lobe, r, i, k, seed + 50, { leaf: GORSE_SPINE, width: 0.22 });
       lobe.rotateY(hash01(k, i, seed + 5) * Math.PI);
       lobe.translate(cx, cy, cz);
       lobes.push(lobe);
+      // the flowers: two geometries a lobe (as the two flecks were), each
+      // holding half the lobe's pyramids, sat just proud of its upper half
       for (let f = 0; f < 2; f++) {
-        const fa = hash01(k + f, i, seed + 6 + f) * Math.PI * 2;
-        const el = 0.6 + 0.6 * hash01(i, k + f, seed + 8 + f); // upper half only
-        const fleck = new THREE.IcosahedronGeometry(0.07, 0);
-        fleck.translate(
-          cx + Math.cos(fa) * Math.cos(el) * r * 0.95,
-          cy + Math.sin(el) * r * 0.62 * 0.95,
-          cz + Math.sin(fa) * Math.cos(el) * r * 0.95,
-        );
+        const fpos = [], fcol = [];
+        for (let q = 0; q < GORSE_FLOWERS / 2; q++) {
+          const u = f * GORSE_FLOWERS + q * 2;
+          const fa = hash01(k + u, i, seed + 6 + f) * Math.PI * 2;
+          const el = 0.6 + 0.7 * hash01(i, k + u, seed + 8 + f); // upper half only
+          const rr = GORSE_FLOWER_R * (0.75 + 0.5 * hash01(i + u, k, seed + 30));
+          const ox = cx + Math.cos(fa) * Math.cos(el) * r * 0.97;
+          const oy = cy + Math.sin(el) * r * 0.62 * 0.97;
+          const oz = cz + Math.sin(fa) * Math.cos(el) * r * 0.97;
+          // a tiny three-sided pyramid pointing out of the lobe
+          const nx = Math.cos(fa) * Math.cos(el), ny = Math.sin(el) * 1.6, nz = Math.sin(fa) * Math.cos(el);
+          const nl = Math.hypot(nx, ny, nz);
+          const apex = [ox + nx / nl * rr * 1.3, oy + ny / nl * rr * 1.3, oz + nz / nl * rr * 1.3];
+          const spin = hash01(u, i * 3 + k, seed + 31) * Math.PI * 2;
+          const base = [0, 1, 2].map((m) => {
+            const b = spin + (m / 3) * Math.PI * 2;
+            return [ox + Math.cos(b) * rr, oy - 0.3 * rr, oz + Math.sin(b) * rr];
+          });
+          fc.copy(bloomLow).lerp(bloomTop, 0.5 + 0.5 * hash01(u, k, seed + 32 + i));
+          for (let m = 0; m < 3; m++) {
+            const b0 = base[m], b1 = base[(m + 1) % 3];
+            fpos.push(...b0, ...b1, ...apex);
+            // the base a shade deeper than the tip
+            fcol.push(fc.r * 0.85, fc.g * 0.85, fc.b * 0.85, fc.r * 0.85, fc.g * 0.85, fc.b * 0.85, fc.r, fc.g, fc.b);
+          }
+        }
+        const fleck = new THREE.BufferGeometry();
+        fleck.setAttribute('position', new THREE.Float32BufferAttribute(fpos, 3));
+        fleck.setAttribute('color', new THREE.Float32BufferAttribute(fcol, 3));
+        fleck.computeVertexNormals();
         flecks.push(fleck);
       }
     }
   });
   const g = new THREE.Group();
-  const gorse = mergedNoCast(lobes, 0x4d6630, 'foliage');
+  const gorse = mergedNoCast(lobes, 0xffffff, 'foliage');
+  gorse.material.vertexColors = true;
+  gorse.material.side = THREE.DoubleSide; // the spines, from both sides
   gorse.name = 'gorse';
-  const bloom = mergedNoCast(flecks, 0xe8c43a, 'foliage');
+  const bloom = mergedNoCast(flecks, 0xffffff, 'foliage');
+  bloom.material.vertexColors = true;
+  // matte, so a low sun never blooms the flowers into a white blob
+  bloom.material.roughness = 1;
   bloom.name = 'gorseBloom';
   g.add(gorse, bloom);
   return g;
