@@ -504,17 +504,25 @@ const RING_LOOK = {
 // fade: the soft band at the rim, solid inside r - fade, clear at r * wobble;
 // wobble: the rim's radius factor, 1 - wobble..1 (a sum of three low sinusoids).
 const CLEARING = { y: 0.011, segments: 28, fade: 0.4, wobble: 0.1, order: -3.5 };
-// The nests: a low moss dome (a 10-corner fan, then rings at r 0.17 / 0.33 /
-// 0.41: heights 0.045 / 0.09 / 0), the raised bank darker, and 10 bracken
-// fronds round the bank, each a bent two-triangle card leaning out and up.
-// 70 triangles a nest.
+// The nests (polish-camps6): a moss cup, so it reads as a nest from above as
+// well as from the side. A 10-corner fan for its hollow floor (the middle at
+// 0.015 m, the floor ring r 0.14 at 0.025), its inside wall up to r 0.25 at
+// 0.085, a raised rim, its crest r 0.32 at 0.12, and the outside of the bank
+// down to the ground at r 0.41. The hollow dark (the moss lerped toward the
+// bracken, x 0.5), the wall a little dark, the crest the clan's moss, lit
+// (x 0.88 to 1.06), the outer bank in shade. 10 bracken fronds round the
+// crest, each a bent two-triangle card leaning out and up. 90 triangles a
+// nest, soft-shaded.
 const NEST = {
   sides: 10,
-  rings: [[0.17, 0.045], [0.33, 0.09], [0.41, 0]],
-  frond: { from: [0.3, 0.08], tip: [0.395, 0.145], halfBase: 0.055, halfTip: 0.04 },
+  middle: 0.015,
+  rings: [[0.14, 0.025], [0.25, 0.085], [0.32, 0.12], [0.41, 0]],
+  frond: { from: [0.31, 0.105], tip: [0.405, 0.15], halfBase: 0.055, halfTip: 0.04 },
+  hollow: 0.5, hollowBrown: 0.35, wall: [0.72, 0.9], crest: [0.88, 1.06], bank: [0.6, 0.72],
+  crease: 60 * Math.PI / 180,
 };
-// the fan and two bands (5 per side), then the fronds (2 per side)
-export const NEST_TRIS = NEST.sides * 5 + NEST.sides * 2;
+// the fan and three bands (7 per side), then the fronds (2 per side)
+export const NEST_TRIS = NEST.sides * 7 + NEST.sides * 2;
 const KILL_LOOK = { mouse: 0x7a5a3e, vole: 0x5e4a36, bird: 0x8a8478, wing: 0xa59d8c };
 
 // A position hash in [0, 1): the same corner always moves the same way, so the
@@ -690,17 +698,22 @@ function doorGeometry(den, out) {
 // No vertex is further than 0.78 m (x and z) from the centre, none further
 // back than 0.68 m along `away` (the Woods camp group stays under the
 // contact-shadow scan's MAX_SPAN 6.5) and none below y 0; the collider is
-// still the rock's r 0.6. Each face is coloured flat, a multiplier on the
-// material's look.rock (opts.rock; it may pass 1 in a channel):
-//  - grey: dark at the foot (0.70) to light at the top (1.0), ±6 % by a hash
-//    of the face, each stone a touch darker (its tint);
-//  - faces facing down (under each ledge) × 0.62: dark joints;
-//  - a crack: the boulder's faces in one or two hash-picked columns × 0.7;
-//  - moss: up-facing faces (normal.y > 0.55), 60 % of them by hash (the top
-//    cap, the ledges, the shoulder and the stones' tops), in the clan's moss
-//    (opts.moss, look.nest.moss) × 0.85 ±6 %, divided channel-wise by
-//    look.rock (both linear), so the face shows that moss;
-//  - lichen: ~6 % of the side faces, pale 0xc9c79a over look.rock, × 0.95.
+// still the rock's r 0.6. polish-camps6: soft-shaded (softNormals: faces
+// meeting under HIGHROCK.crease blend, so the stones and the sides read
+// round, while the ledge lips, the joints and the top's rim stay sharp), and
+// coloured per corner, not per face (camps5's per-face moss read as a
+// harlequin football), a multiplier on the material's look.rock (opts.rock;
+// it may pass 1 in a channel). Every term is a function of the corner's
+// place and soft normal, so a smooth patch has one colour where its faces
+// meet:
+//  - grey: dark at the foot (0.70) to light at the top (1.0), mottled by a
+//    soft value noise and a little hash, each stone a touch darker (its tint);
+//  - facing down (under each ledge): to x 0.6, dark joints;
+//  - cracks: one or two zigzag seams of corners up the boulder, x 0.42;
+//  - lichen: soft pale 0xc9c79a patches by noise on the sides;
+//  - moss: where the soft normal faces up, in noisy patches, olive at a
+//    patch's edge into the clan's moss (opts.moss) at its heart, divided
+//    channel-wise by look.rock (both linear) so it shows that moss.
 // Every hash takes the rock's spot as well, so no two camps' rocks are alike.
 const HIGHROCK = {
   // [y, r, stratum]; y null: rock.h. Rings of one stratum share a push.
@@ -729,18 +742,108 @@ const HIGHROCK = {
     [2.05, 0.58, 0.12, 0.22, 0.27, 0.15, 0.88, 33], // the low step, top ~0.25
   ],
   base: 0.7,     // the grey at the foot (1.0 at the top)
-  joint: 0.62,   // a face facing down
-  crack: 0.7,
-  mossUp: 0.55,  // normal.y above this: a top moss can grow on ...
-  mossShare: 0.6, // ... and does on this share of them
-  mossShade: 0.85,
+  mottle: 0.16,  // ± half this by a soft noise, ...
+  speck: 0.06,   // ... and ± half this by a hash of the corner
+  joint: 0.6,    // facing down (under a ledge)
+  crack: 0.42,   // a crack's corners
+  crease: 48 * Math.PI / 180, // faces meeting at more than this keep a hard edge
+  mossUp: [0.3, 0.8],   // the soft normal's y: no moss below, full above
+  mossEdge: [0.66, 0.9], // up * 0.5 + noise * 0.7: bare rock to moss
+  mossMax: 0.9,
+  mossShade: 0.74,
+  facet: 0.35,   // the drawn normal keeps this share of its face's own (low-poly)
+  olive: 0x6e7240, // a moss patch's edge (its heart: the clan's moss)
   lichen: 0xc9c79a,
-  lichenShare: 0.06,
+  lichenMax: 0.7,
   lichenShade: 0.95,
 };
 /** Triangles in the Highrock's main boulder (first in its geometry) and in all. */
 export const HIGHROCK_BOULDER_TRIS = (HIGHROCK.rings.length - 1) * 2 * HIGHROCK.sides + HIGHROCK.sides;
 export const HIGHROCK_TRIS = HIGHROCK_BOULDER_TRIS + HIGHROCK.stones.length * 20 * (HIGHROCK.stoneDetail + 1) ** 2;
+const smooth = (a, b, x) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+const mix = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t];
+// A soft value noise in [0, 1): hash01 at the corners of a unit lattice,
+// blended with a smoothstep, so patches have soft, wandering edges.
+function vnoise(x, y, z, salt) {
+  const xi = Math.floor(x); const yi = Math.floor(y); const zi = Math.floor(z);
+  const u = smooth(0, 1, x - xi); const w = smooth(0, 1, y - yi); const t = smooth(0, 1, z - zi);
+  const h = (a, b, c) => hash01(xi + a, yi + b, zi + c, salt);
+  const l = (a, b, k) => a + (b - a) * k;
+  return l(
+    l(l(h(0, 0, 0), h(1, 0, 0), u), l(h(0, 1, 0), h(1, 1, 0), u), w),
+    l(l(h(0, 0, 1), h(1, 0, 1), u), l(h(0, 1, 1), h(1, 1, 1), u), w),
+    t,
+  );
+}
+// Soft normals for a non-indexed triangle list: each corner takes the
+// angle-weighted sum of the face normals round its place (corners within
+// 0.1 mm) whose faces meet its own at under `crease`, so the facets of a
+// round lump blend and a ledge's edge stays sharp. A face's own normal is
+// always in its corners' sums, and every face's corners lie on its side.
+function softNormals(pos, crease) {
+  const nf = pos.length / 9;
+  const fn = new Float32Array(nf * 3);
+  const ang = new Float32Array(nf * 3);
+  const a = new THREE.Vector3(); const b = new THREE.Vector3(); const c = new THREE.Vector3();
+  const e1 = new THREE.Vector3(); const e2 = new THREE.Vector3();
+  const at = new Map();
+  const key = (i) => `${Math.round(pos[i] * 1e4)},${Math.round(pos[i + 1] * 1e4)},${Math.round(pos[i + 2] * 1e4)}`;
+  for (let f = 0; f < nf; f++) {
+    const i = f * 9;
+    a.fromArray(pos, i); b.fromArray(pos, i + 3); c.fromArray(pos, i + 6);
+    e1.subVectors(b, a); e2.subVectors(c, a);
+    const n = e1.clone().cross(e2).normalize();
+    fn.set([n.x, n.y, n.z], f * 3);
+    const corners = [[a, b, c], [b, c, a], [c, a, b]];
+    for (let k = 0; k < 3; k++) {
+      const [p, q, r] = corners[k];
+      ang[f * 3 + k] = e1.subVectors(q, p).angleTo(e2.subVectors(r, p)) || 0;
+      const kk = key(i + k * 3);
+      if (!at.has(kk)) at.set(kk, []);
+      at.get(kk).push(f * 3 + k);
+    }
+  }
+  const cosC = Math.cos(crease);
+  const out = new Float32Array(pos.length);
+  for (const list of at.values()) {
+    for (const ci of list) {
+      const f = Math.floor(ci / 3);
+      let x = 0; let y = 0; let z = 0;
+      for (const cj of list) {
+        const g = Math.floor(cj / 3);
+        const d = fn[f * 3] * fn[g * 3] + fn[f * 3 + 1] * fn[g * 3 + 1] + fn[f * 3 + 2] * fn[g * 3 + 2];
+        if (g !== f && d < cosC) continue;
+        x += fn[g * 3] * ang[cj]; y += fn[g * 3 + 1] * ang[cj]; z += fn[g * 3 + 2] * ang[cj];
+      }
+      const l = Math.hypot(x, y, z) || 1;
+      out.set([x / l, y / l, z / l], ci * 3);
+    }
+  }
+  return out;
+}
+
+// The drawn normals: the soft ones leaned back `keep` of the way toward each
+// face's own, so a stone still shows its facets, softly, in the low-poly
+// look of the rest of the camp (the colours keep the soft normals).
+function faceted(soft, pos, keep) {
+  const out = new Float32Array(soft.length);
+  const a = new THREE.Vector3(); const b = new THREE.Vector3(); const c = new THREE.Vector3();
+  const n = new THREE.Vector3(); const v = new THREE.Vector3();
+  for (let i = 0; i < pos.length; i += 9) {
+    a.fromArray(pos, i); b.fromArray(pos, i + 3); c.fromArray(pos, i + 6);
+    n.subVectors(b, a).cross(c.sub(a)).normalize();
+    for (let k = 0; k < 9; k += 3) {
+      v.fromArray(soft, i + k).multiplyScalar(1 - keep).addScaledVector(n, keep);
+      if (v.lengthSq() < 1e-12) v.fromArray(soft, i + k);
+      v.normalize().toArray(out, i + k);
+    }
+  }
+  return out;
+}
+
 /**
  * highrockGeometry(rockSpot, away, opts) -> BufferGeometry: the Highrock round
  * the origin. opts.kill: the fresh-kill pile's x, z from the rock (the steps
@@ -761,7 +864,9 @@ function highrockGeometry(rockSpot, away, opts = {}) {
   const pos = [];
   const tints = [];
   let tint = 1;
-  const tri = (p, q, r) => { pos.push(...p, ...q, ...r); tints.push(tint); };
+  // crk: a crack's darkening at each corner (1: none)
+  const crk = [];
+  const tri = (p, q, r, c = [1, 1, 1]) => { pos.push(...p, ...q, ...r); tints.push(tint); crk.push(...c); };
 
   // the main boulder
   const { sides } = HIGHROCK;
@@ -785,26 +890,29 @@ function highrockGeometry(rockSpot, away, opts = {}) {
     }
     return pts;
   });
-  // the crack: one or two columns of side faces
+  // the cracks: one or two dark seams, each a column of corners from the
+  // foot up to the shoulder that steps a side on at some rings (the rings'
+  // half-side turn makes it zigzag), so the dark runs down the corners and
+  // fades across the faces either side
   const crackA = Math.floor(hash01(ox, 1, oz, 39) * sides);
   const crackB = hash01(ox, 2, oz, 39) < 0.5 ? (crackA + 3 + Math.floor(hash01(ox, 3, oz, 39) * 4)) % sides : -1;
-  const cracked = [];
+  const crackAt = rings.map((_, ri) => {
+    const step = hash01(ox, ri, oz, 44) < 0.35 ? 1 : 0;
+    return ri < rings.length - 1 ? [crackA, crackB].filter((c) => c >= 0).map((c) => (c + step) % sides) : [];
+  });
+  const cf = (ri, j) => (crackAt[ri].includes(j) ? HIGHROCK.crack : 1);
   for (let ri = 0; ri + 1 < rings.length; ri++) {
     const lo = rings[ri];
     const hi = rings[ri + 1];
     for (let j = 0; j < sides; j++) {
       const n = (j + 1) % sides;
-      const crack = j === crackA || j === crackB;
-      tri(lo[j], hi[j], lo[n]);
-      cracked.push(crack);
-      tri(lo[n], hi[j], hi[n]);
-      cracked.push(crack);
+      tri(lo[j], hi[j], lo[n], [cf(ri, j), cf(ri + 1, j), cf(ri, n)]);
+      tri(lo[n], hi[j], hi[n], [cf(ri, n), cf(ri + 1, j), cf(ri + 1, n)]);
     }
   }
   const crown = rings[rings.length - 1];
   for (let j = 0; j < sides; j++) {
     tri([0, top, 0], crown[(j + 1) % sides], crown[j]);
-    cracked.push(false);
   }
 
   // the back stone and the steps
@@ -832,7 +940,6 @@ function highrockGeometry(rockSpot, away, opts = {}) {
         face.push([cxs + lo * ca - la * sa, Math.max(0, y + uy * rY * j), czs + lo * sa + la * ca]);
       }
       tri(face[0], face[1], face[2]);
-      cracked.push(false);
     }
     ico.dispose();
   }
@@ -855,40 +962,47 @@ function highrockGeometry(rockSpot, away, opts = {}) {
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.computeVertexNormals();
-  const nrm = geo.attributes.normal;
-  // the moss and the lichen as multipliers on look.rock (linear colours)
+  const nrm = softNormals(pos, HIGHROCK.crease);
+  geo.setAttribute('normal', new THREE.BufferAttribute(faceted(nrm, pos, HIGHROCK.facet), 3));
+  // the colours, per corner, as multipliers on look.rock (linear colours):
+  // every term is a function of the corner's place and its soft normal, so
+  // the corners a smooth patch shares match and the colour runs across it
   const rockC = new THREE.Color(opts.rock ?? WOODS_LOOK.rock);
   const over = (c) => [c.r / Math.max(rockC.r, 1e-4), c.g / Math.max(rockC.g, 1e-4), c.b / Math.max(rockC.b, 1e-4)];
-  const moss = over(new THREE.Color(opts.moss ?? WOODS_LOOK.nest.moss));
+  const clan = over(new THREE.Color(opts.moss ?? WOODS_LOOK.nest.moss));
+  const olive = over(new THREE.Color(HIGHROCK.olive));
   const lichen = over(new THREE.Color(HIGHROCK.lichen));
   const col = new Float32Array(pos.length);
-  for (let t = 0; t < pos.length; t += 9) {
-    const f = t / 9;
-    const cy = (pos[t + 1] + pos[t + 4] + pos[t + 7]) / 3;
-    const cx = (pos[t] + pos[t + 3] + pos[t + 6]) / 3;
-    const cz = (pos[t + 2] + pos[t + 5] + pos[t + 8]) / 3;
-    const ny = nrm.getY(t / 3);
-    const jit = 1 + (hash01(cx + ox, cy, cz + oz, 38) * 2 - 1) * 0.06;
-    const pick = hash01(cx + ox, cy, cz + oz, 40);
-    let rgb;
-    if (ny > HIGHROCK.mossUp && pick < HIGHROCK.mossShare) {
-      const g = HIGHROCK.mossShade * jit;
-      rgb = [moss[0] * g, moss[1] * g, moss[2] * g];
-    } else if (ny <= HIGHROCK.mossUp && ny >= -0.2 && pick < HIGHROCK.lichenShare) {
-      const g = HIGHROCK.lichenShade;
-      rgb = [lichen[0] * g, lichen[1] * g, lichen[2] * g];
-    } else {
-      let g = (HIGHROCK.base + (1 - HIGHROCK.base) * Math.min(1, Math.max(0, cy / top))) * tints[f] * jit;
-      if (ny < -0.2) g *= HIGHROCK.joint;
-      if (cracked[f]) g *= HIGHROCK.crack;
-      rgb = [g, g, g];
+  for (let v = 0; v < pos.length; v += 3) {
+    const x = pos[v] + ox;
+    const y = pos[v + 1];
+    const z = pos[v + 2] + oz;
+    const ny = nrm[v + 1];
+    const f = Math.floor(v / 9);
+    // grey: dark at the foot, light at the top, mottled
+    const mottle = 1 + (vnoise(x * 4.5, y * 4.5, z * 4.5, 41) - 0.5) * HIGHROCK.mottle
+      + (hash01(x, y, z, 38) - 0.5) * HIGHROCK.speck;
+    let g = (HIGHROCK.base + (1 - HIGHROCK.base) * Math.min(1, Math.max(0, y / top))) * tints[f] * mottle;
+    g *= 1 - (1 - HIGHROCK.joint) * smooth(-0.05, -0.5, ny); // under a ledge
+    g *= crk[v / 3];
+    let rgb = [g, g, g];
+    // lichen: pale patches on the sides
+    const lw = smooth(0.7, 0.86, vnoise(x * 5, y * 5, z * 5, 42)) * smooth(-0.3, 0, ny) * (1 - smooth(0.3, 0.6, ny))
+      * HIGHROCK.lichenMax;
+    rgb = mix(rgb, lichen.map((c) => c * HIGHROCK.lichenShade * mottle), lw);
+    // moss: where the rock faces up, in noisy patches, olive at their edges
+    // into the clan's moss in their hearts
+    const up = smooth(HIGHROCK.mossUp[0], HIGHROCK.mossUp[1], ny);
+    const nz = vnoise(x * 4.5, y * 4.5, z * 4.5, 43);
+    const mw = smooth(HIGHROCK.mossEdge[0], HIGHROCK.mossEdge[1], up * 0.5 + nz * 0.7) * up * HIGHROCK.mossMax;
+    if (mw > 0) {
+      const heart = smooth(0.55, 1.0, mw / HIGHROCK.mossMax * (0.55 + 0.45 * vnoise(x * 7, y * 7, z * 7, 45)));
+      const shade = HIGHROCK.mossShade * (0.92 + 0.16 * hash01(x, y, z, 46));
+      rgb = mix(rgb, mix(olive, clan, heart).map((c) => c * shade), mw);
     }
-    for (let m = 0; m < 9; m += 3) {
-      col[t + m] = rgb[0];
-      col[t + m + 1] = rgb[1];
-      col[t + m + 2] = rgb[2];
-    }
+    col[v] = rgb[0];
+    col[v + 1] = rgb[1];
+    col[v + 2] = rgb[2];
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeBoundingBox();
@@ -1425,8 +1539,8 @@ function clearingMesh(clearing, look) {
   return mesh;
 }
 
-// The nests: a domed moss cushion under each elder and kit, bracken fronds
-// round its bank. One vertex-coloured mesh, out of the shadow pass.
+// The nests: a moss cup under each elder and kit (NEST), bracken fronds
+// round its rim. One vertex-coloured mesh, out of the shadow pass.
 function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
   const parts = [];
   // `flat` < 1 presses a nest down towards the ground under it (the ledge's:
@@ -1448,11 +1562,12 @@ function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
       const j = (i + 1) % K;
       // anticlockwise seen from above (the angle grows i -> j), so every face
       // is turned up to the camera
-      tris.push([0, 0, 0], ringPt(0, j), ringPt(0, i));
-      tris.push(ringPt(0, i), ringPt(1, j), ringPt(1, i), ringPt(0, i), ringPt(0, j), ringPt(1, j));
-      tris.push(ringPt(1, i), ringPt(2, j), ringPt(2, i), ringPt(1, i), ringPt(1, j), ringPt(2, j));
+      tris.push([0, NEST.middle, 0], ringPt(0, j), ringPt(0, i));
+      for (let ring = 0; ring + 1 < NEST.rings.length; ring++) {
+        tris.push(ringPt(ring, i), ringPt(ring + 1, j), ringPt(ring + 1, i), ringPt(ring, i), ringPt(ring, j), ringPt(ring + 1, j));
+      }
     }
-    // the fronds: a base on the bank, a narrower tip out and up
+    // the fronds: a base on the crest, a narrower tip out and up
     const F = NEST.frond;
     for (let i = 0; i < K; i++) {
       const t = turn + ((i + 0.5 + 0.3 * (hash01(n.x, i, n.z, 18) - 0.5)) / K) * Math.PI * 2;
@@ -1469,15 +1584,23 @@ function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(tris.flat(), 3));
-    // colour by vertex index so the dome and the fronds can differ
-    const bodyVerts = K * 3 + K * 6 * 2; // the fan and the two bands, before the fronds
+    // colour by vertex index so the cup and the fronds can differ, and by
+    // radius within the cup: the hollow, the wall, the crest, the bank
+    const bodyVerts = K * 3 * (2 * NEST.rings.length - 1); // the cup, before the fronds
     const colors = new Float32Array(tris.length * 3);
     const cc = new THREE.Color();
+    const moss = new THREE.Color(look.nest.moss);
+    const hollow = moss.clone().lerp(new THREE.Color(look.nest.bracken), NEST.hollowBrown).multiplyScalar(NEST.hollow);
+    const band = ([lo, hi], h) => lo + (hi - lo) * h;
     for (let v = 0; v < tris.length; v++) {
       const [lx, ly, lz] = tris[v];
       if (v < bodyVerts) {
-        cc.setHex(look.nest.moss).multiplyScalar(0.8 + 0.35 * hash01(lx + n.x, ly, lz + n.z, 14));
-        if (Math.hypot(lx, lz) > 0.28) cc.multiplyScalar(0.8); // the bank is darker
+        const h = hash01(lx + n.x, ly, lz + n.z, 14);
+        const r = Math.hypot(lx, lz);
+        if (r < 0.2) cc.copy(hollow).multiplyScalar(0.9 + 0.2 * h);
+        else if (r < 0.28) cc.copy(moss).multiplyScalar(band(NEST.wall, h));
+        else if (r < 0.36) cc.copy(moss).multiplyScalar(band(NEST.crest, h));
+        else cc.copy(moss).multiplyScalar(band(NEST.bank, h));
       } else {
         cc.setHex(look.nest.bracken).multiplyScalar(0.85 + 0.25 * hash01(lx + n.x, ly, lz + n.z, 15));
       }
@@ -1486,7 +1609,7 @@ function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     const m = press(place(n.x, gy, n.z, 1, 1, 1, 0, 0), gy);
     geo.applyMatrix4(m);
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.BufferAttribute(softNormals(geo.attributes.position.array, NEST.crease), 3));
     parts.push(geo);
   }
   const mesh = new THREE.Mesh(merged(parts), vcMaterial({ roughness: 0.9 }));

@@ -31,14 +31,15 @@ const ALL = [...CAMPS, 'gorge'];
 // polish-camps3 (addCamp into a fresh Scene, { colliders: [] }; the Gorge with
 // its ground). The clearing is 57 since polish-camps4 (two-ring fading disc; was 30).
 // The rock is 3 * HIGHROCK_TRIS since polish-camps5 (the layered, mossy
-// Highrock; was 348, 116 triangles). The nests are 1260 (6 x 70 triangles:
-// the domed moss cushion and its bracken fronds; was 1620, 6 x 90).
+// Highrock; was 348, 116 triangles). The nests are 1620 since polish-camps6
+// (6 x 90 triangles: the moss cup and its bracken fronds; was 1260, 6 x 70,
+// the polish-camps5 dome).
 const BASE_VERTS = {
-  woods: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
-  river: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
-  moor: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
-  pines: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1260, campClearing: 57 },
-  gorge: { campBedding: 1260, campRock: 3 * HIGHROCK_TRIS },
+  woods: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
+  river: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
+  moor: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
+  pines: { campDen: 3474, campRock: 3 * HIGHROCK_TRIS, campNests: 1620, campClearing: 57 },
+  gorge: { campBedding: 1620, campRock: 3 * HIGHROCK_TRIS },
 };
 
 const build = (a) => {
@@ -205,8 +206,9 @@ describe('CAMP_LOOKS', () => {
     }
   }, 120_000);
 
-  // polish-camps5: a low moss dome with a raised bank and bracken fronds round it
-  it('each nest is a low domed cushion with a bracken rim, 70 triangles', () => {
+  // polish-camps5: a low moss dome with bracken fronds round it; polish-camps6
+  // made it a cup: a raised rim round a dark hollow
+  it('each nest is a moss cup with a bracken rim, 90 triangles', () => {
     for (const a of ALL) {
       const scene = build(a);
       const nests = scene.getObjectByName(a === 'gorge' ? 'campBedding' : 'campNests');
@@ -214,7 +216,7 @@ describe('CAMP_LOOKS', () => {
       const col = nests.geometry.attributes.color;
       const centres = a === 'gorge' ? null : campDressing(a, []).nests;
       const per = pos.count / 6;
-      expect(NEST_TRIS, a).toBe(70);
+      expect(NEST_TRIS, a).toBe(90);
       expect(per / 3, a).toBe(NEST_TRIS);
       const brk = lin(CAMP_LOOKS[a].nest.bracken);
       let bracken = false;
@@ -232,7 +234,7 @@ describe('CAMP_LOOKS', () => {
           const c = centres.reduce((b, q) => (Math.hypot(q.x - cx, q.z - cz) < Math.hypot(b.x - cx, b.z - cz) ? q : b));
           cx = c.x; cz = c.z;
         }
-        // every face turned up to the game camera (FrontSide): the 50 dome
+        // every face turned up to the game camera (FrontSide): the 70 cup
         // faces and the 20 frond faces all have a geometric normal with y > 0
         const p = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
         const e1 = new THREE.Vector3(); const e2 = new THREE.Vector3();
@@ -240,7 +242,7 @@ describe('CAMP_LOOKS', () => {
         for (let t = 0; t < NEST_TRIS; t++) {
           for (let k = 0; k < 3; k++) p[k].fromBufferAttribute(pos, lo + t * 3 + k);
           const nrm = e1.subVectors(p[1], p[0]).cross(e2.subVectors(p[2], p[0]));
-          if (!(nrm.y > 0) && !down) down = `${a} nest ${n} ${t < 50 ? 'dome' : 'frond'} face ${t} normal y ${nrm.y}`;
+          if (!(nrm.y > 0) && !down) down = `${a} nest ${n} ${t < 70 ? 'cup' : 'frond'} face ${t} normal y ${nrm.y}`;
         }
         expect(down, `${a} nest ${n} faces up`).toBe('');
         const top = a === 'gorge' ? 0.5 : 1; // the ledge's pressed nests
@@ -251,6 +253,16 @@ describe('CAMP_LOOKS', () => {
           expect(h, `${a} height`).toBeLessThanOrEqual(0.16 * top + 1e-4);
           if (d < 0.2) expect(h, `${a} middle`).toBeLessThanOrEqual(0.06 * top + 1e-4);
         }
+        // a cup: the rim stands above the hollow, and the hollow is darker
+        let rimY = -Infinity; let midY = 0; let midN = 0; let midL = 0; let rimL = 0; let rimN = 0;
+        const lum = (i) => 0.2126 * col.getX(i) + 0.7152 * col.getY(i) + 0.0722 * col.getZ(i);
+        for (let i = lo; i < lo + NEST_TRIS * 3 - 60; i++) { // the cup's corners, not the fronds'
+          const d = Math.hypot(pos.getX(i) - cx, pos.getZ(i) - cz);
+          if (d < 0.16) { midY += pos.getY(i); midL += lum(i); midN++; }
+          if (d > 0.29 && d < 0.35) { rimY = Math.max(rimY, pos.getY(i)); rimL += lum(i); rimN++; }
+        }
+        expect(rimY - midY / midN, `${a} nest ${n} cup`).toBeGreaterThan(0.07 * top);
+        expect(midL / midN, `${a} nest ${n} hollow`).toBeLessThan(0.7 * rimL / rimN);
       }
     }
   }, 120_000);

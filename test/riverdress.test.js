@@ -186,7 +186,9 @@ describe('the River marsh dressing', () => {
     // more triangles (+3,000); +1,100 for polish-canopies' oak, birch and round crowns
     // polish-pines2: tiered pines are 120 triangles where the cones were 66,
     // 486 more over the River's 9 pines (+486)
-    expect(stats.triangles - life).toBeLessThanOrEqual(62486);
+    // polish-camps6: the camp's six nests are moss cups, 20 triangles more
+    // each (+120)
+    expect(stats.triangles - life).toBeLessThanOrEqual(62606);
     expect(stats.triangles).toBeLessThanOrEqual(63500);
   }, 120_000);
 
