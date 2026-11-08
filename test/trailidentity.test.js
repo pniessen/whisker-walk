@@ -37,7 +37,8 @@ const PINNED = {
   river: 'a065becee7820ec3b014d241003027a3015ce09601544053a779becef6373bae',
   moor: 'a30e877411ce76128a4abdadcb3b475eeed63a3957ec1410eb2a4f5912b7f5a5',
   pines: '24c7e9ed54d55c2a9580446b06ccd513a8e4997e09e69599559043813af07e57',
-  gorge: '5f6b1d5e6954ec8b5f46205797b8785c29d169122645c99971f5bc7f6cae1e9c',
+  // polish-gorgelight: the Gorge trail's colour only (PATH_STYLE 0xb8a27e -> 0xb59a70), geometry unchanged
+  gorge: '1c4aa34ee691a11fb5d1274514cdf1728b33a501b2fa5ba01d604c1779485715',
 };
 
 const FAKE_VERT = '#include <common>\nvoid main() {\n#include <begin_vertex>\n}';

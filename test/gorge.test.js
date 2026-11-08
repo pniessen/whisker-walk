@@ -174,7 +174,7 @@ describe('the Gorge: the paths', () => {
     expect(paths).toHaveLength(GORGE_PATHS.length);
     const sand = surfaceProps('sand');
     for (const p of paths) {
-      expect(p.material.color.getHex()).toBe(0xb8a27e);
+      expect(p.material.color.getHex()).toBe(0xb59a70); // polish-gorgelight: warmer, a shade darker (was 0xb8a27e)
       expect(p.material.roughness).toBe(sand.roughness);
       expect(p.material.map).toBeTruthy();
     }

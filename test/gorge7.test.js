@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 
-// polish-gorge7 Task 2: the Gorge floor's wash (damp by the stream, paler at
-// the wall feet, faint drift bands) lives in the ground plane's vertex
-// colours, and its dusk lawnTint keeps the floor warm.
+// polish-gorge7 Task 2: the Gorge floor's wash (damp by the stream, faint
+// drift bands) lives in the ground plane's vertex colours, and its dusk
+// lawnTint keeps the floor warm. polish-gorgelight: the wall feet are darker
+// damp sand now (they were paler, a haze band), and the open middle warm ochre.
 
 // The same headless canvas stub every world test uses (see test/park.test.js).
 vi.stubGlobal('document', {
@@ -42,7 +43,7 @@ const plane = scene.getObjectByName('groundPlane');
 describe('Gorge floor wash (polish-gorge7)', () => {
   it('exports frozen constants', () => {
     expect(Object.isFrozen(FLOOR_WASH)).toBe(true);
-    expect(Object.keys(FLOOR_WASH).sort()).toEqual(['band', 'damp', 'pale']);
+    expect(Object.keys(FLOOR_WASH).sort()).toEqual(['band', 'damp', 'foot', 'ochre']);
   });
 
   it('is darker and browner within 1 m of the stream than mid-Narrows', () => {
@@ -50,21 +51,30 @@ describe('Gorge floor wash (polish-gorge7)', () => {
     for (const [x, z] of [[-10.3, 0], [-7.2, 20], [-8.75, -30], [-10.4, -11]]) {
       const w = gorgeFloorWash(x, z);
       expect(lum(w)).toBeLessThanOrEqual(lum(mid) - 0.1);
-      // browner: blue drops more than red
-      expect(w[2] / w[0]).toBeLessThan(mid[2] / mid[0]);
+      // browner than the plain floor: blue drops more than red (the open
+      // middle is ochre, yellower still: that is a hue, not damp)
+      expect(w[2] / w[0]).toBeLessThan(0.97);
     }
   });
 
-  it('is paler at a wall foot than mid-Narrows', () => {
-    expect(lum(gorgeFloorWash(-34, -15.2))).toBeGreaterThan(lum(gorgeFloorWash(-34, -11)));
-    expect(lum(gorgeFloorWash(-34, -6.8))).toBeGreaterThan(lum(gorgeFloorWash(-34, -11)));
+  it('is darker at a wall foot than mid-Narrows (polish-gorgelight: was paler, a haze band)', () => {
+    expect(lum(gorgeFloorWash(-34, -15.2))).toBeLessThan(lum(gorgeFloorWash(-34, -11)) - 0.05);
+    expect(lum(gorgeFloorWash(-34, -6.8))).toBeLessThan(lum(gorgeFloorWash(-34, -11)) - 0.05);
+  });
+
+  it('is a warm ochre in the open middle: red up, blue down, about the same light', () => {
+    const w = gorgeFloorWash(-3, 10);
+    expect(w[0]).toBeGreaterThan(1.0);
+    expect(w[2]).toBeLessThan(0.95);
+    expect(Math.abs(lum(w) - 1)).toBeLessThanOrEqual(0.06);
   });
 
   it('has faint drift bands: not constant across the Narrows, within ±6 %', () => {
     const ls = [];
     for (let z = -15; z <= -7; z += 0.25) ls.push(lum(gorgeFloorWash(-34, z)));
     expect(Math.max(...ls) - Math.min(...ls)).toBeGreaterThanOrEqual(0.03);
-    for (const l of ls) expect(Math.abs(l - 1)).toBeLessThanOrEqual(0.06);
+    // the darker feet take up to 11 % (polish-gorgelight)
+    for (const l of ls) expect(Math.abs(l - 1)).toBeLessThanOrEqual(0.12);
     // and the bands alone (away from walls and water) vary too
     const open = [];
     for (let z = -40; z <= 40; z += 0.5) open.push(lum(gorgeFloorWash(-3, z)));

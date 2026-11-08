@@ -129,8 +129,26 @@ export const GORGE_SKY = Object.freeze({ top: 0x86bde6, horizon: 0xeed8b8 });
 // The day haze, pushed out from applySky's 40..130 so the far walls keep
 // their colour (the fog colour stays GORGE_SKY.horizon).
 export const GORGE_FOG = Object.freeze({ near: 60, far: 175 });
+// The Gorge's clear day (polish-gorgelight): its own grade, in weather.js's
+// CLEAR_DAY_LOOK shape, applied by the clear walk only (weather.js reads it off
+// scene.userData.dayLook). GORGE_SKY and GORGE_FOG above stay the authored
+// entry state, so rain (which adjusts what it finds), sunset and dusk (which
+// set their own) look exactly as before. A bluer, deeper sky top; the haze
+// (horizon and fog) pulled a little toward it and darker, so it stops reading
+// as beige milk; the fog pushed farther out; less flat image light and fill,
+// and a touch less exposure, so the sun and shade part on the floor.
+export const GORGE_DAY_LOOK = Object.freeze({
+  strength: 1,
+  paleFrom: 0.62, paleTo: 0.86, // the authored horizon (0xeed8b8) is 0.85: nearly all of it
+  topSat: 0.22, topDark: 0.05, topHue: 0.57, topHueMix: 0.25,
+  horizonToTop: 0.22, // less than the flat maps' 0.35: the canyon haze stays warm
+  horizonDark: 0.08,
+  fogNear: 80, fogFar: 215,
+  envScale: 0.76, hemiScale: 0.88, exposure: 0.9,
+});
 const PATH_W = 3;
-export const PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xb8a27e });
+// warmer and a shade darker than the pale 0xb8a27e, which read as a milky strip (polish-gorgelight)
+export const PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xb59a70 });
 
 // The horizon: tall hills (40 m, over the 20 m rims), tinted for what is over
 // each edge: more rock north and east, the town's warm brick to the south past
@@ -313,7 +331,18 @@ function torFits(t, y, kept) {
 // temporary geometries are made under local uuids (BUILD_DRAWS stays put).
 // Called with the (x, z) and seed b.tor was given, before it is moved.
 const TOR_BLOCKS = [[1, 0, 0.5, 0], [0.7, 0.35, 0.45, 0.15], [0.5, 0.65, 0.35, 0.12]]; // as b.tor's
-export const GORGE_TOR_COLOR = 0xa39582; // weathered sandstone: grey granite read foreign here
+// Weathered stone, greyer than the cream 0xa39582 that read as pancakes on the
+// pale clifftop (polish-gorgelight), with lichen spots and a darker foot in
+// vertex colours (TOR_LICHEN): colour only, the same triangles.
+export const GORGE_TOR_COLOR = 0x9a948a;
+export const TOR_LICHEN = Object.freeze({
+  color: 0xa6a85a, // yellow-green crust
+  rust: 0xb3733c, // and a few orange spots
+  from: 0.56, to: 0.64, // noise3 over this: lichen
+  rustFrom: 0.66, rustTo: 0.74,
+  scale: 1.6, // noise cells a metre
+  foot: 0.8, // the foot this much of the colour, easing up to full by mid-height
+});
 const torHash = (x, z, salt) => {
   // builder.js's private hash01, copied: b.tor turns and drifts its blocks by it
   const v = Math.sin(x * 12.9898 + z * 78.233 + salt * 37.719) * 43758.5453;
@@ -355,8 +384,31 @@ export function roundTor(mesh, { x, z, r, h, seed }) {
     for (const g of geoms) g.dispose();
     merged.dispose();
   });
-  mesh.material.color.set(GORGE_TOR_COLOR);
+  torColours(mesh.geometry, { h, seed });
+  mesh.material.color.set(0xffffff);
+  mesh.material.vertexColors = true;
   return mesh;
+}
+// A tor's vertex colours: GORGE_TOR_COLOR, darker at the foot, with lichen
+// spots where a noise of world position runs high. Pure (x, y, z) -> colour,
+// so the blocks' shared corners match. Draws on no rng.
+export function torColours(geo, { h, seed }) {
+  const L = TOR_LICHEN;
+  const pos = geo.getAttribute('position');
+  const col = new Float32Array(pos.count * 3);
+  const base = new THREE.Color(GORGE_TOR_COLOR), lichen = new THREE.Color(L.color), rust = new THREE.Color(L.rust);
+  const c = new THREE.Color();
+  for (let v = 0; v < pos.count; v++) {
+    const x = pos.getX(v), y = pos.getY(v), z = pos.getZ(v);
+    c.copy(base).multiplyScalar(L.foot + (1 - L.foot) * smoothstep(0, 0.5 * h, y));
+    const n = noise3(x * L.scale, y * L.scale, z * L.scale, 4111 + 17 * seed);
+    c.lerp(lichen, 0.9 * smoothstep(L.from, L.to, n));
+    const r = noise3(x * L.scale * 1.7 + 9.1, y * L.scale * 1.7, z * L.scale * 1.7, 4127 + 17 * seed);
+    c.lerp(rust, 0.7 * smoothstep(L.rustFrom, L.rustTo, r) * smoothstep(0.25 * h, 0.6 * h, y));
+    col[3 * v] = c.r; col[3 * v + 1] = c.g; col[3 * v + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
 }
 
 let torsOnce = null;
@@ -528,8 +580,9 @@ const CLIFF_INSET = 0.6;
 const BANK_BANDS = Object.freeze([[-12, -9.6], [-7.9, -5.5]]);
 const TUFT_TRIES = 420;
 const TUFT_CAP = 140;
-// warmer sand (was 0xc8b28a / 0xb0a46e, a cool pale beige; polish-gorgewall)
-export const MEADOW_SAND = 0xcdb084;
+// warmer sand (was 0xc8b28a / 0xb0a46e, a cool pale beige; polish-gorgewall;
+// 0xcdb084 until polish-gorgelight, a shade warmer now)
+export const MEADOW_SAND = 0xc9a571;
 export const MEADOW_DRY = 0xb6a36a;
 export const MEADOW_GREEN = 0x7f9a52;
 const BANK_GREEN = 0x7f9358;
@@ -641,11 +694,17 @@ const _ca = new THREE.Color(), _cb = new THREE.Color();
 // Value noise sits near 0.5, so stretch the middle band to the full 0..1 range;
 // otherwise nearly everything renders as the dry tone.
 const smoothstep = (a, b, t) => { const u = Math.min(1, Math.max(0, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
+// Darker drifts over the clifftop sand (polish-gorgelight): the same lattice
+// read at another scale and offset (no new draws), darkening the dry and sandy
+// cells by up to MEADOW_DRIFT where it runs high.
+export const MEADOW_DRIFT = Object.freeze({ dark: 0.2, from: 0.58, to: 0.78, scale: 0.55, dx: 40.3, dz: -23.1 });
 export function topColor(out, x, z) {
   const v = smoothstep(0.3, 0.7, meadowNoise(x, z));
   if (v < 0.5) out.set(MEADOW_SAND).lerp(_cb.set(MEADOW_DRY), v * 2);
   else out.set(MEADOW_DRY).lerp(_cb.set(MEADOW_GREEN), (v - 0.5) * 2);
-  return out;
+  const D = MEADOW_DRIFT;
+  const d = smoothstep(D.from, D.to, meadowNoise(x * D.scale + D.dx, z * D.scale + D.dz));
+  return out.multiplyScalar(1 - D.dark * d * (1 - smoothstep(0.5, 0.9, v)));
 }
 // The stream's green verge (polish-gorge6, colour only: the cells, BANK_BANDS
 // and the meadow's rng are untouched). Sand at the water's edge, so the bank
@@ -1285,36 +1344,40 @@ export const ROCK_WALKS = Object.freeze([
 export const GORGE_FLOOR_COLOR = 0x9a8a6a;
 const GROUND_COLOR = GORGE_FLOOR_COLOR;
 
-// The floor's wash (polish-gorge7): per-channel multipliers on the ground
-// plane's vertex colours (on top of builder's macro variation), a pure function
-// of world (x, z). Damp and browner within ~3 m of the stream, paler sand
-// drifted against the wall feet, and faint drift bands (~7 m, warped, with a
-// longer second octave: the plane is a 2.5 m grid, so nothing finer) that fade
-// out where it is damp or pale. It lives in vertex colours, not a shader patch,
-// because rain and dusk clone the ground material. The stream's decks (the
-// stepping stones) are ignored here: the bank under them is as damp as any.
+// The floor's wash (polish-gorge7, polish-gorgelight): per-channel multipliers
+// on the ground plane's vertex colours (on top of builder's macro variation),
+// a pure function of world (x, z). Damp and browner within ~3 m of the stream;
+// darker damp sand at the wall feet too (it was paler there, which read as a
+// haze band along every foot); a warm ochre in the open middle, away from
+// both; and faint drift bands (~7 m, warped, with a longer second octave: the
+// plane is a 2.5 m grid, so nothing finer) that fade out where it is damp or
+// at a foot. It lives in vertex colours, not a shader patch, because rain and
+// dusk clone the ground material. The stream's decks (the stepping stones)
+// are ignored here: the bank under them is as damp as any.
 // Damp blue is 0.25, not the plan's 0.27, so full damp (in the water) stays
 // within the promised 0.75..1.12 per channel.
 export const FLOOR_WASH = Object.freeze({
   damp: Object.freeze({ reach: 3.2, mul: Object.freeze([0.2, 0.22, 0.25]) }),
-  pale: Object.freeze({ from: 0.4, to: 3.5, mul: Object.freeze([0.08, 0.06, 0.02]) }),
+  foot: Object.freeze({ from: 0.4, to: 3.5, mul: Object.freeze([0.1, 0.11, 0.12]) }),
+  ochre: Object.freeze({ mul: Object.freeze([1.05, 1.0, 0.88]) }),
   band: Object.freeze({ wave: 7, wave2: 11.3, octave2: 0.35, warp: 1.3, amp: 0.04 }),
 });
 const WASH_WATERS = GORGE_WATERS.map((w) => ({ ...w, decks: [] }));
 export function gorgeFloorWash(x, z) {
-  const { damp: D, pale: P, band: B } = FLOOR_WASH;
+  const { damp: D, foot: F, ochre: O, band: B } = FLOOR_WASH;
   const clear = b.waterClearance(WASH_WATERS, x, z);
   const damp = clear <= 0 ? 1 : 1 - smoothstep(0, D.reach, clear);
   let wall = Infinity;
   for (const [x1, z1, x2, z2] of FLOOR_WALLS) wall = Math.min(wall, segDist(x, z, x1, z1, x2, z2));
-  const pale = 1 - smoothstep(P.from, P.to, wall);
+  const foot = 1 - smoothstep(F.from, F.to, wall);
   // across the canyon on a slant, so both the N-S floor and the E-W Narrows band
   const v = 0.8 * x - 0.6 * z;
   const u = 0.6 * x + 0.8 * z + B.warp * Math.sin(v / 5.3 + 0.7);
   const tau = 2 * Math.PI;
   const band = (Math.sin(tau * u / B.wave) + B.octave2 * Math.sin(tau * u / B.wave2 + 1.9)) / (1 + B.octave2);
-  const bandMul = 1 + B.amp * band * (1 - damp) * (1 - pale);
-  return [0, 1, 2].map((k) => (1 - D.mul[k] * damp) * (1 + P.mul[k] * pale) * bandMul);
+  const open = (1 - damp) * (1 - foot);
+  const bandMul = 1 + B.amp * band * open;
+  return [0, 1, 2].map((k) => (1 - D.mul[k] * damp) * (1 - F.mul[k] * foot) * (1 + (O.mul[k] - 1) * open) * bandMul);
 }
 function washFloor(plane) {
   const col = plane.geometry.attributes.color;
@@ -1428,11 +1491,48 @@ export function trimHiddenGround(plane, masses, { cache = true } = {}) {
 // 1.1 m vertex bands at GORGE_NARROWS_MIX (rockshade.js draws the crisp
 // strata per pixel; a vertex band can only blur across its 1 m row).
 const GORGE_NARROWS_MIX = 0.6;
+// The palest vertex colours (the sunlit rims and crests, cream bands) were
+// what read as a pale vertical haze on a wall 2-3 m off (polish-gorgelight):
+// over ROCK_KNEE (linear luminance) a colour keeps only ROCK_KNEE_KEEP of the
+// rest, and what it loses in light it keeps in hue (a warm sandstone, not
+// grey). The per-pixel strata (rockshade.js) ride on top, unchanged.
+// And the greyest of them (the cream bands, near neutral) lean warm by
+// STONE_WARM's multipliers, fully under satFull, not at all over satNone
+// (HSL saturation of the linear colour), so a pale band reads as sandstone.
+export const ROCK_KNEE = Object.freeze({ at: 0.36, keep: 0.5, satFull: 0.22, satNone: 0.34 });
+const _rk = new THREE.Color(), _rkHsl = {};
 function gorgeRockTint(x, y, z, rgb, recess, foot) {
   const t = narrowsTint(x, y, z, rgb, recess / 3, foot);
-  return [0, 1, 2].map((i) => rgb[i] + (t[i] - rgb[i]) * GORGE_NARROWS_MIX);
+  let out = [0, 1, 2].map((i) => rgb[i] + (t[i] - rgb[i]) * GORGE_NARROWS_MIX);
+  _rk.setRGB(out[0], out[1], out[2]).getHSL(_rkHsl);
+  const w = 1 - smoothstep(ROCK_KNEE.satFull, ROCK_KNEE.satNone, _rkHsl.s);
+  out = out.map((c, k) => c * (1 + (STONE_WARM.mul[k] - 1) * w));
+  const l = 0.2126 * out[0] + 0.7152 * out[1] + 0.0722 * out[2];
+  if (!(l > ROCK_KNEE.at)) return out;
+  const k = (ROCK_KNEE.at + (l - ROCK_KNEE.at) * ROCK_KNEE.keep) / l;
+  return out.map((c) => c * k);
 }
-const GORGE_ROCK_TINT_KEY = `${NARROWS_TINT_KEY}/gorgewall-1`;
+const GORGE_ROCK_TINT_KEY = `${NARROWS_TINT_KEY}/gorgewall-1/gorgelight-2`;
+
+// Warms greyish stone colours toward the canyon's sandstone (polish-gorgelight):
+// a vertex's colour is multiplied by STONE_WARM, fully where it is grey and
+// less where it is already warm, so the lip stones and the grey scree chunks
+// stop reading as cool grey blocks. Colour only.
+export const STONE_WARM = Object.freeze({ mul: Object.freeze([1.08, 1.0, 0.84]), satFull: 0.12, satNone: 0.4 });
+const _hsl = {};
+export function warmStones(geo) {
+  const c = geo?.getAttribute('color');
+  if (!c) return geo;
+  const col = new THREE.Color();
+  for (let i = 0; i < c.count; i++) {
+    col.setRGB(c.getX(i), c.getY(i), c.getZ(i));
+    col.getHSL(_hsl);
+    const w = 1 - smoothstep(STONE_WARM.satFull, STONE_WARM.satNone, _hsl.s);
+    c.setXYZ(i, ...[col.r, col.g, col.b].map((v, k) => v * (1 + (STONE_WARM.mul[k] - 1) * w)));
+  }
+  c.needsUpdate = true;
+  return geo;
+}
 
 export function build(scene, { water = {}, wind } = {}) {
   const ground = gorgeGround();
@@ -1441,6 +1541,7 @@ export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, GORGE_SKY.top, GORGE_SKY.horizon);
   scene.fog.near = GORGE_FOG.near;
   scene.fog.far = GORGE_FOG.far;
+  if (scene.userData) scene.userData.dayLook = GORGE_DAY_LOOK;
   const plane = b.ground(120, GROUND_COLOR, { surface: 'grass' });
   plane.name = 'groundPlane';
   washFloor(plane);
@@ -1454,6 +1555,9 @@ export function build(scene, { water = {}, wind } = {}) {
     mouths: GORGE_ROCK_MOUTHS, tint: gorgeRockTint, tintKey: GORGE_ROCK_TINT_KEY,
   });
   rock.name = 'gorgeRock';
+  // The lip stones and bands warm, not grey (polish-gorgelight; colour only,
+  // after the build, so the rock's cached arrays and mouth tints are untouched).
+  warmStones(rock.getObjectByName('lips').geometry);
   scene.add(rock);
   // The Narrows' tufts, crest shrubs and the view out to the Moor: one
   // noCast mesh at the scene root, under local uuids (BUILD_DRAWS stays put).
@@ -1552,6 +1656,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // Math.random draws to the build (waterlooks.test.js pins the count).
   const scree = withLocalUuids('gorge-uuids-scree', () => b.scree(gorgeScree(), seedFromCode('gorge-scree'), { chunky: true }));
   scree.name = 'screeBed';
+  scree.traverse((o) => { if (o.isMesh) warmStones(o.geometry); });
   scene.add(scree);
 
   // --- the meadow ---------------------------------------------------------------
