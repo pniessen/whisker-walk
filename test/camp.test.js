@@ -345,7 +345,7 @@ describe('addCamp', () => {
     }
   });
 
-  it('the ring is taller and arched, out of the shadow pass, no more than 6,200 triangles', () => {
+  it('the ring is taller and arched, out of the shadow pass, no more than 6,500 triangles', () => {
     for (const a of CAMPS) {
       const scene = new THREE.Scene();
       addCamp(scene, { colliders: [] }, a);
@@ -359,7 +359,7 @@ describe('addCamp', () => {
       expect(ring.castShadow, a).toBe(false);
       const g = ring.geometry;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
-      expect(tris, a).toBeLessThanOrEqual(6200);
+      expect(tris, a).toBeLessThanOrEqual(6500); // polish-campring: +3 leaf cards a clump (~+300 a camp), was 6200
       expect(g.attributes.color, a).toBeDefined();
     }
   });
@@ -428,7 +428,7 @@ describe('addCamp', () => {
       const g = scene.getObjectByName('campRing').geometry;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
       expect(tris, a).toBe(RING_CLUMP_TRIS * cs.length + D.ring.canes.reduce((n, cane) => n + caneTris(cane), 0));
-      expect(tris, a).toBeLessThanOrEqual(6200);
+      expect(tris, a).toBeLessThanOrEqual(6500); // polish-campring: +3 leaf cards a clump (~+300 a camp), was 6200
       // every cane carries thorns: what is left over past the clumps and the
       // tubes is 3 triangles a thorn, one at each odd interior point
       const thornTris = tris - RING_CLUMP_TRIS * cs.length - 6 * segs;

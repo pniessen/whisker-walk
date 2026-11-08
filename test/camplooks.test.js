@@ -192,8 +192,8 @@ describe('CAMP_LOOKS', () => {
       const pos = build(a).getObjectByName('campRing').geometry.attributes.position;
       const cs = campDressing(a, []).ring.clumps;
       cs.forEach((c, ci) => {
-        // after the core (20) and the crowns (24): six one-triangle leaves
-        for (let l = 0; l < 6; l++) {
+        // after the core (20) and the crowns (24): nine one-triangle leaves (polish-campring)
+        for (let l = 0; l < 9; l++) {
           const t = ci * RING_CLUMP_TRIS + RING_LEAF_FIRST + l;
           for (let k = 0; k < 3; k++) p[k].fromBufferAttribute(pos, t * 3 + k);
           const n = e1.subVectors(p[1], p[0]).cross(e2.subVectors(p[2], p[0]));
@@ -315,13 +315,13 @@ describe('CAMP_LOOKS', () => {
     for (const a of ALL) {
       const scene = build(a);
       // the ring: RING_CLUMP_TRIS triangles a clump and caneTris a cane (6 a
-      // segment, 3 a thorn; polish-brambles), no more than 18,600 vertices
+      // segment, 3 a thorn; polish-brambles), no more than 19,500 vertices (polish-campring: +3 leaf cards a clump; was 18,600)
       if (a !== 'gorge') {
         const { clumps, canes } = campDressing(a, []).ring;
         const caneT = canes.reduce((n, c) => n + caneTris(c), 0);
         const ring = scene.getObjectByName('campRing').geometry.attributes.position.count;
         expect(ring, `${a} campRing`).toBe(3 * (RING_CLUMP_TRIS * clumps.length + caneT));
-        expect(ring, `${a} campRing`).toBeLessThanOrEqual(18600);
+        expect(ring, `${a} campRing`).toBeLessThanOrEqual(19500);
       }
       for (const [name, n] of Object.entries(BASE_VERTS[a])) {
         expect(scene.getObjectByName(name).geometry.attributes.position.count, `${a} ${name}`).toBe(n);
