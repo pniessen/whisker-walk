@@ -321,6 +321,25 @@ describe('createRace — candy hoop, faint hoops, pennant, near fade', () => {
     expect(rings[0].material.opacity).toBeLessThanOrEqual(1 * (NEAR_FADE.min + 0.01));
   });
 
+  it('a ring fades when the camera is near its hoop, not only near its centre (polish-quayside)', () => {
+    // The Docks quay on the phone: the camera 2 m from a ring's centre but a
+    // hand's breadth from its rim, and the candy hoop filled the screen corner.
+    const course = makeCourse();
+    const race = createRace(fakeScene(), course, SPAWN);
+    const rings = ringMeshes(race);
+    const ring = course[2];
+    const stateOpacity = rings[2].material.opacity;
+    // 2.10 m from the centre (the old rule: ~0.73 of full), 1.2 m from the hoop
+    const camera = { position: { x: ring.x + 1.9, y: RING_Y, z: ring.z + 0.9 } };
+    race.update(0.016, { x: 9999, z: 9999 }, camera);
+    expect(rings[2].material.opacity).toBeLessThanOrEqual(stateOpacity * (NEAR_FADE.min + 0.01));
+    // well clear of both: full
+    camera.position.x = ring.x + 4;
+    camera.position.z = ring.z + 3;
+    race.update(0.016, { x: 9999, z: 9999 }, camera);
+    expect(rings[2].material.opacity).toBeCloseTo(stateOpacity);
+  });
+
   it('createRace works with no document (node)', () => {
     expect(typeof document).toBe('undefined');
     let race;

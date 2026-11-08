@@ -711,9 +711,12 @@ function beam(p0, p1, t, hex, tz = t) {
 const box = (w, h, d, x, y, z, hex, jitter = 0.03) => paint(new THREE.BoxGeometry(w, h, d), hex, jitter).translate(x, y + h / 2, z);
 
 // Windows as darker quads on a wall: rows every 2.4 m from 1.3 m up, bays
-// every 2.3 m, a few left out by hash. `face(u, y)` maps a point on the wall
-// (u along it, y up) to [x, y, z]; `skip(u, y)` leaves a window out.
-function windows(tris, span, eave, face, out, salt, skip = () => false, maxRows = 3) {
+// every 2.3 m, a few left out by hash. `face(u, y, o)` maps a point on the wall
+// (u along it, y up, o out from it) to [x, y, z]; `skip(u, y)` leaves a window
+// out. polish-quayside: each pane now sits in a lighter frame (`frames`), with
+// a glazing bar across it and a sill under it standing 0.1 m proud, the
+// language docks2 gave the quay warehouses (warehouselook.js), read at 45 m.
+function windows(tris, span, eave, face, out, salt, skip = () => false, maxRows = 3, frames = null) {
   const bays = Math.floor((span - 1.0) / 2.3);
   if (bays < 1) return;
   const u0 = -((bays - 1) * 2.3) / 2;
@@ -724,8 +727,36 @@ function windows(tris, span, eave, face, out, salt, skip = () => false, maxRows 
       const u = u0 + c * 2.3;
       if (skip(u, y) || hash01(f * 7 + c, salt, 5.1) < 0.15) continue;
       quad(tris, face(u - 0.5, y), face(u + 0.5, y), face(u + 0.5, y + 1.2), face(u - 0.5, y + 1.2), out);
+      if (!frames) continue;
+      // the frame: a head and two jambs round the pane, in its plane
+      quad(frames, face(u - 0.6, y + 1.2), face(u + 0.6, y + 1.2), face(u + 0.6, y + 1.32), face(u - 0.6, y + 1.32), out);
+      for (const e of [-1, 1]) quad(frames, face(u + e * 0.5, y), face(u + e * 0.6, y), face(u + e * 0.6, y + 1.2), face(u + e * 0.5, y + 1.2), out);
+      // glazing bars, a hair proud of the pane
+      quad(frames, face(u - 0.04, y, 0.01), face(u + 0.04, y, 0.01), face(u + 0.04, y + 1.2, 0.01), face(u - 0.04, y + 1.2, 0.01), out);
+      quad(frames, face(u - 0.5, y + 0.56, 0.01), face(u + 0.5, y + 0.56, 0.01), face(u + 0.5, y + 0.64, 0.01), face(u - 0.5, y + 0.64, 0.01), out);
+      // the sill: its top and its front
+      const up = [0, 1, 0];
+      quad(frames, face(u - 0.66, y), face(u + 0.66, y), face(u + 0.66, y, 0.1), face(u - 0.66, y, 0.1), up);
+      quad(frames, face(u - 0.66, y - 0.1, 0.1), face(u + 0.66, y - 0.1, 0.1), face(u + 0.66, y, 0.1), face(u - 0.66, y, 0.1), out);
     }
   }
+}
+
+// Loading-door paints, the quay warehouses' own (warehouselook.js DOOR_HEX).
+const DOOR_PAINT = [0x53433a, 0x2f4a5a, 0x5a3a2e, 0x3e4a36];
+const COURSE = 0.6;
+// The walls as a box in horizontal courses, each course's tone nudged by hash
+// (about ±5%), so a brick or block wall reads in bands at 45 m. Ground at y 0.
+function coursed(w, h, d, hex, salt) {
+  const rows = Math.max(1, Math.round(h / COURSE));
+  const g = paint(new THREE.BoxGeometry(w, h, d, 1, rows, 1), hex);
+  const pos = g.attributes.position, col = g.attributes.color;
+  for (let v = 0; v < pos.count; v += 3) {
+    const yc = (pos.getY(v) + pos.getY(v + 1) + pos.getY(v + 2)) / 3 + h / 2;
+    const f = 0.95 + 0.1 * hash01(Math.floor(yc / (h / rows)), salt, 6.1);
+    for (let k = 0; k < 3; k++) col.setXYZ(v + k, col.getX(v + k) * f, col.getY(v + k) * f, col.getZ(v + k) * f);
+  }
+  return g.translate(0, h / 2, 0);
 }
 
 // A warehouse in its own frame: a body inset 0.25 m inside the footprint, its
@@ -738,8 +769,26 @@ function warehouseParts(p) {
   const body = p.color;
   const roofHex = lerpHex(body, 0x2e2c34, 0.5);
   const dark = lerpHex(body, 0x1e2430, 0.6);
-  const parts = [box(bw, e, bd, 0, 0, 0, body, 0.02)];
-  const roof = [], ends = [], glass = [], holes = [], culvert = [];
+  const salt = Math.round(p.x * 13 + p.z * 7);
+  // polish-quayside: the walls in brick courses (a slow tone change every
+  // 0.6 m, by vertex colour), a darker plinth, lighter string courses at each
+  // floor and under the eaves, framed windows with sills, a planked loading
+  // door under a lintel, and a gutter with a downpipe.
+  const parts = [coursed(bw, e, bd, body, salt)];
+  const roof = [], ends = [], glass = [], holes = [], culvert = [], frames = [], doors = [], seams = [];
+  const frameHex = lerpHex(body, 0xeae2d2, 0.6);
+  const bandHex = lerpHex(body, 0xd8cdb8, 0.3);
+  const gutterHex = 0x3a3e46;
+  // the plinth: round the back and sides, and along the front either side
+  // of the door or the culvert
+  const plinthHex = lerpHex(body, 0x2a2a30, 0.35);
+  parts.push(box(bw + 0.12, 0.7, bd, 0, 0, -0.06, plinthHex, 0.02));
+  const gap = isCanalEnd(p) ? CULVERT_HALF + 0.1 : 1.42;
+  const pw = bw / 2 + 0.06 - gap;
+  for (const sx of [-1, 1]) parts.push(box(pw, 0.7, 0.12, sx * (gap + pw / 2), 0, bd / 2, plinthHex, 0.02));
+  // string courses between the floors (clear of the windows and the door)
+  for (let y = 3.0; y < e - 0.9; y += 2.4) parts.push(box(bw + 0.08, 0.14, bd + 0.08, 0, y, 0, bandHex, 0.02));
+  parts.push(box(bw + 0.1, 0.22, bd + 0.1, 0, e - 0.42, 0, bandHex, 0.02));
   const P = (x, y, z) => [x, y, z];
   if (kind === 'gable') {
     for (const sx of [-1, 1]) {
@@ -764,7 +813,7 @@ function warehouseParts(p) {
   }
   // the front: a loading door, or over the canal the culvert's dark arch
   const fz = bd / 2 + 0.03;
-  const front = (u, y) => P(u, y, fz);
+  const front = (u, y, o = 0) => P(u, y, fz + o);
   let skipFront;
   if (isCanalEnd(p)) {
     const arch = [];
@@ -776,20 +825,39 @@ function warehouseParts(p) {
     for (let i = 0; i < 10; i++) culvert.push([front(0, CULVERT_SPRING), arch[i], arch[i + 1], [0, 0, 1]]);
     skipFront = (u, y) => y < CULVERT_TOP + 0.3 && Math.abs(u) < CULVERT_HALF + 0.7;
   } else {
-    const dh = Math.min(3.2, e - 1.4);
-    quad(holes, front(-1.3, 0), front(1.3, 0), front(1.3, dh), front(-1.3, dh), [0, 0, 1]);
-    skipFront = (u, y) => y < dh + 0.3 && Math.abs(u) < 2.0;
+    const dh = Math.min(2.7, e - 1.4);
+    // the door leaves in a painted plank finish, their seams and a centre
+    // meeting line darker, in a frame, under a lintel standing proud
+    quad(doors, front(-1.3, 0), front(1.3, 0), front(1.3, dh), front(-1.3, dh), [0, 0, 1]);
+    for (const u of [-0.87, -0.43, 0.43, 0.87]) quad(seams, front(u - 0.025, 0.05, 0.01), front(u + 0.025, 0.05, 0.01), front(u + 0.025, dh, 0.01), front(u - 0.025, dh, 0.01), [0, 0, 1]);
+    quad(seams, front(-0.05, 0, 0.01), front(0.05, 0, 0.01), front(0.05, dh, 0.01), front(-0.05, dh, 0.01), [0, 0, 1]);
+    for (const e2 of [-1, 1]) quad(frames, front(e2 * 1.3, 0), front(e2 * 1.42, 0), front(e2 * 1.42, dh), front(e2 * 1.3, dh), [0, 0, 1]);
+    quad(frames, front(-1.55, dh, 0.12), front(1.55, dh, 0.12), front(1.55, dh + 0.26, 0.12), front(-1.55, dh + 0.26, 0.12), [0, 0, 1]);
+    quad(frames, front(-1.55, dh + 0.26), front(1.55, dh + 0.26), front(1.55, dh + 0.26, 0.12), front(-1.55, dh + 0.26, 0.12), [0, 1, 0]);
+    quad(frames, front(-1.55, dh), front(1.55, dh), front(1.55, dh, 0.12), front(-1.55, dh, 0.12), [0, -1, 0]);
+    skipFront = (u, y) => y < dh + 0.5 && Math.abs(u) < 2.1;
   }
-  const salt = Math.round(p.x * 13 + p.z * 7);
-  windows(holes, bw, e, front, [0, 0, 1], salt, skipFront);
+  windows(holes, bw, e, front, [0, 0, 1], salt, skipFront, 3, frames);
   // one row down each side, for the corner views
   for (const sx of [-1, 1]) {
-    windows(holes, bd, e, (u, y) => P(sx * (bw / 2 + 0.03), y, u), [sx, 0, 0], salt + sx * 3, () => false, 1);
+    windows(holes, bd, e, (u, y, o = 0) => P(sx * (bw / 2 + 0.03 + o), y, u), [sx, 0, 0], salt + sx * 3, () => false, 1, frames);
   }
+  // the gutter along the front eave (a gable's eaves run down its sides) and
+  // a downpipe at one front corner
+  if (kind === 'gable') {
+    for (const sx of [-1, 1]) parts.push(box(0.16, 0.14, bd + 0.2, sx * (bw / 2 + 0.1), e - 0.36, 0, gutterHex, 0));
+  } else {
+    parts.push(box(bw + 0.2, 0.14, 0.16, 0, e - (kind === 'shed' ? 0.3 : 0.2), bd / 2 + 0.1, gutterHex, 0));
+  }
+  const px = (hash01(salt, 2, 7.3) < 0.5 ? -1 : 1) * (bw / 2 - 0.25);
+  parts.push(box(0.1, e - 0.3, 0.1, px, 0, bd / 2 + 0.08, gutterHex, 0));
   parts.push(facing(roof, roofHex, 0.04));
   if (ends.length) parts.push(facing(ends, body, 0.02));
   if (glass.length) parts.push(facing(glass, 0x56606c, 0.03));
   if (holes.length) parts.push(facing(holes, dark, 0.05));
+  if (frames.length) parts.push(facing(frames, frameHex, 0.03));
+  if (doors.length) parts.push(facing(doors, DOOR_PAINT[Math.floor(hash01(salt, 4, 2.9) * DOOR_PAINT.length)], 0.03));
+  if (seams.length) parts.push(facing(seams, 0x1e2228));
   // the tunnel the canal runs into: near-black, darker than any window
   if (culvert.length) parts.push(facing(culvert, 0x1a1e24));
   return parts;

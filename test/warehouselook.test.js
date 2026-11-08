@@ -179,6 +179,10 @@ describe('warehouse() keeps its shipped costs', () => {
       const pos = body.geometry.attributes.position, idx = body.geometry.index.array;
       const v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
       const front = d / 2 + 0.09;
+      // the door's real top: polish-quayside stops a low building's door
+      // 0.4 m under its roof (the fish shed's 1.4 m), and the cornice above it
+      // then runs whole, clear of the door
+      const doorTop = Math.min(2.2, g.children[0].geometry.parameters.height - 0.4);
       const bad = [];
       for (let t = 0; t < idx.length; t += 3) {
         for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, idx[t + k]).applyMatrix4(body.matrix);
@@ -186,7 +190,7 @@ describe('warehouse() keeps its shipped costs', () => {
         if (!flat) continue;
         const lo = Math.min(...v.map((p) => p.x)), hi = Math.max(...v.map((p) => p.x));
         const ylo = Math.min(...v.map((p) => p.y));
-        if (lo < 0.8 - 1e-6 && hi > -0.8 + 1e-6 && ylo < 2.2) bad.push(v.map((p) => p.toArray()));
+        if (lo < 0.8 - 1e-6 && hi > -0.8 + 1e-6 && ylo < doorTop) bad.push(v.map((p) => p.toArray()));
       }
       expect(bad).toEqual([]);
     }
@@ -197,14 +201,17 @@ describe('warehouse() keeps its shipped costs', () => {
     buildDocks(scene);
     const tris = trianglesOf(scene);
     expect(tris).toBeGreaterThan(SHIPPED.docksTriangles);
-    expect(tris - SHIPPED.docksTriangles).toBeLessThanOrEqual(12000);
+    // polish-quayside adds 7,250 (the skyline's detail 4,756 and two barges'
+    // 1,247 each): 12,000 + 7,250.
+    expect(tris - SHIPPED.docksTriangles).toBeLessThanOrEqual(19_250);
     mergeStaticProps(scene);
     let meshes = 0;
     scene.traverse((o) => { if (o.isMesh) meshes++; });
     // The lintel (now white + vertex colours, flat material) joins the four
     // lips' merge class, so each warehouse is one draw cheaper: 316 - 5.
     expect(meshes).toBeLessThanOrEqual(SHIPPED.docksMerged);
-    expect(meshes).toBe(SHIPPED.docksMerged - 5);
+    // polish-quayside: + 2, one vertex-coloured dressing mesh per barge.
+    expect(meshes).toBe(SHIPPED.docksMerged - 5 + 2);
   }, 120_000);
 });
 

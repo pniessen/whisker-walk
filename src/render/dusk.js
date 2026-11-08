@@ -236,12 +236,16 @@ export function tintDuskLawn({ ground, grass, look }) {
   }
   for (const mesh of meshes) {
     const orig = mesh.material;
+    // A mesh may ask for a stronger (or softer) tint than its area's with
+    // userData.duskLawnTint, merged over the look's one level deep like
+    // duskLook's own (the Seaside's beach huts, polish-quayside).
+    const lk = mesh.userData?.duskLawnTint ? { ...look, lawnTint: { ...look.lawnTint, ...mesh.userData.duskLawnTint } } : look;
     if (Array.isArray(orig)) {
       // A multi-material mesh flagged userData.duskTint (the camps' clearing
       // floor: opaque centre, fading rim; any other array is left alone): each material wears a tinted clone, colour only. Its vertex
       // colours are white, so tinting the material is exact here.
       if (!mesh.userData?.duskTint || !orig.length || !orig.every((m) => m?.color)) continue;
-      const tintedAll = orig.map((m) => { const t = m.clone(); t.onBeforeCompile = m.onBeforeCompile; t.customProgramCacheKey = m.customProgramCacheKey; t.color.copy(duskLawnColor(m.color, look)); return t; });
+      const tintedAll = orig.map((m) => { const t = m.clone(); t.onBeforeCompile = m.onBeforeCompile; t.customProgramCacheKey = m.customProgramCacheKey; t.color.copy(duskLawnColor(m.color, lk)); return t; });
       mesh.material = tintedAll;
       swaps.push({ mesh, orig, tinted: tintedAll });
       continue;
@@ -255,14 +259,14 @@ export function tintDuskLawn({ ground, grass, look }) {
       const m = orig.color;
       for (let v = 0; v < tc.count; v++) {
         c.setRGB(m.r * col.getX(v), m.g * col.getY(v), m.b * col.getZ(v));
-        const d = duskLawnColor(c, look);
+        const d = duskLawnColor(c, lk);
         tc.setXYZ(v, d.r, d.g, d.b);
       }
       geo.setAttribute('color', tc);
       attrSwaps.set(geo, { orig: col, tinted: tc });
       tinted.color.setRGB(1, 1, 1);
     } else {
-      tinted.color.copy(duskLawnColor(orig.color, look));
+      tinted.color.copy(duskLawnColor(orig.color, lk));
     }
     mesh.material = tinted;
     swaps.push({ mesh, orig, tinted });

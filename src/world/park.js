@@ -3,7 +3,7 @@ import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { addTrails } from './pathribbon.js';
-import { BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, latheGeometry, dressFountain } from './parkfountain.js';
+import { BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, FOUNTAIN_STONE, fountainWaterMaterial, latheGeometry, dressFountain } from './parkfountain.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 
 // =============================================================================
@@ -46,6 +46,8 @@ const POND = { id: 'pond', kind: 'circle', x: -14, z: 2, r: 7, shallow: 1.2 };
 // narrower than one tile gets a whole tile squashed into it. The fountain is
 // both, so it takes the preset's light response with the map left off.
 const surfNoMap = (color, surface) => litMaterial(color, surfaceProps(surface));
+// 'cobble's response with the map off, in parkfountain.js's warm matte stone.
+const fountainStone = () => Object.assign(surfNoMap(FOUNTAIN_STONE.color, 'cobble'), { roughness: FOUNTAIN_STONE.roughness });
 
 // -----------------------------------------------------------------------------
 // SURFACES AND WATER (v20). The Docks pilot's brief governs here too: the art
@@ -226,8 +228,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // new (upper water, falling drops, ripples) is made in dressFountain under
   // local uuids.
   const fountain = new THREE.Group();
-  const basin = new THREE.Mesh(latheGeometry(BASIN_PROFILE),
-    surfNoMap(0xb8b8c0, 'cobble'));
+  const basin = new THREE.Mesh(latheGeometry(BASIN_PROFILE), fountainStone());
   basin.name = 'fountainBasin';
   fountain.add(basin);
   // THE FOUNTAIN'S WATER KEEPS THE PRESET, and does not become a second
@@ -244,12 +245,11 @@ export function build(scene, { water = {}, wind } = {}) {
   // colour is the one builder.puddle uses for the same reason.
   const fountainWater = new THREE.Mesh(
     new THREE.CylinderGeometry(BASIN_WATER.r, BASIN_WATER.r, BASIN_WATER.h, BASIN_WATER.segments),
-    litMaterial(0x8ab8d8, { surface: 'water' }));
+    fountainWaterMaterial());
   fountainWater.position.y = BASIN_WATER.top - BASIN_WATER.h / 2;
   fountainWater.name = 'fountainWater';
   fountain.add(fountainWater);
-  const spire = new THREE.Mesh(latheGeometry(SPIRE_PROFILE),
-    surfNoMap(0xb8b8c0, 'cobble'));
+  const spire = new THREE.Mesh(latheGeometry(SPIRE_PROFILE), fountainStone());
   spire.name = 'fountainSpire';
   fountain.add(spire);
   dressFountain(fountain, { reducedMotion: !!water.reducedMotion });

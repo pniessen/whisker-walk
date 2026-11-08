@@ -1,6 +1,25 @@
 import * as THREE from 'three';
-import { litMaterial } from '../render/materials.js';
+import { surfaceProps } from '../render/materials.js';
 import { withLocalUuids } from './localuuids.js';
+
+// The fountain's stone (park.js builds the basin and the spire with it): a warm
+// mid grey, matte. polish-quayside: it was 0xb8b8c0 at 'cobble's 0.8, nearly
+// white, and beside the water's glare (below) the whole bowl read as one
+// white blaze from a low camera.
+export const FOUNTAIN_STONE = Object.freeze({ color: 0x9e978c, roughness: 0.95 });
+// Both pools' water: the 'water' preset's colour and smoothness, with the
+// specular turned down to a third. Seen from cat height the 4.6 m basin is
+// at a grazing angle, where Fresnel takes any surface's reflectance toward
+// 1: the sun's highlight sat on screen at full strength and the bloom spread
+// it over the rim as a white blaze (rougher water only made the blaze wider).
+// specularIntensity scales both ends of the Fresnel curve, so the highlight
+// is a sheen and the water still reads wet. One material per mesh, as before.
+export const FOUNTAIN_WATER = Object.freeze({ color: 0x8ab8d8, specularIntensity: 0.3 });
+export function fountainWaterMaterial() {
+  return new THREE.MeshPhysicalMaterial({
+    color: FOUNTAIN_WATER.color, ...surfaceProps('water'), specularIntensity: FOUNTAIN_WATER.specularIntensity,
+  });
+}
 
 // =============================================================================
 // The Park's two-tier fountain (polish-park2 Task 2).
@@ -305,7 +324,7 @@ export function dressFountain(fountain, { reducedMotion = false } = {}) {
 
     const upperWater = new THREE.Mesh(
       new THREE.CylinderGeometry(UPPER_WATER.r, UPPER_WATER.r, UPPER_WATER.h, UPPER_WATER.segments),
-      litMaterial(0x8ab8d8, { surface: 'water' }),
+      fountainWaterMaterial(),
     );
     upperWater.position.y = UPPER_WATER.top - UPPER_WATER.h / 2;
     quiet(upperWater, 'fountainUpperWater', false);
