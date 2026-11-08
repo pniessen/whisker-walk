@@ -194,11 +194,13 @@ describe('addCamp', () => {
     }
   });
 
-  // polish-camps5: a layered rock, its colour a per-face multiplier on the
-  // material's look.rock. The moss faces are the clan's nest moss: their
-  // multiplier is look.nest.moss / look.rock channel-wise (linear), times a
-  // scalar, so they are found by their channel ratios.
-  it('the Highrock is shaded per face in the clan\'s rock colour: dark at its foot and under its ledges, moss on its tops', async () => {
+  // polish-camps6: the rock's colour is a per-corner multiplier on the
+  // material's look.rock (polish-camps5 painted it per face, a harlequin).
+  // Every corner's colour comes from its place and its soft normal, so the
+  // corners that share a place and a normal share a colour: no hard
+  // triangle of moss. Moss is where the rock faces up, olive at a patch's
+  // edge into the clan's moss in its heart.
+  it('the Highrock is shaded per corner in the clan\'s rock colour: dark at its foot and under its ledges, soft moss on its tops', async () => {
     const { campLook } = await import('../src/world/camp.js');
     const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     for (const a of ROCK_CAMPS) {
@@ -210,54 +212,88 @@ describe('addCamp', () => {
       expect(nrm, a).toBeDefined();
       expect(rock.material.vertexColors, a).toBe(true);
       expect(rock.material.color.getHex(), a).toBe(look.rock);
-      const m = new THREE.Color(look.rockMoss ?? look.nest.moss);
       const r = new THREE.Color(look.rock);
-      const moss = [m.r / r.r, m.g / r.g, m.b / r.b];
-      const isMoss = (c) => Math.abs(c[1] / c[0] - moss[1] / moss[0]) < 1e-3 * (moss[1] / moss[0])
-        && Math.abs(c[2] / c[0] - moss[2] / moss[0]) < 1e-3 * (moss[2] / moss[0]);
-      // green as drawn: the multiplier times look.rock (a pale lichen's
-      // multiplier over the Gorge's sandstone is greenish, its colour is not)
+      const m = new THREE.Color(look.rockMoss ?? look.nest.moss);
       const shown = (c) => [c[0] * r.r, c[1] * r.g, c[2] * r.b];
-      const greenMoss = (m.g / m.r) > 1.15;
-      const faces = [];
-      for (let t = 0; t < col.count; t += 3) {
-        // one colour a face: all three corners the same
-        for (const k of [1, 2]) {
-          expect(col.getX(t + k), `${a} face ${t / 3}`).toBeCloseTo(col.getX(t), 6);
-          expect(col.getY(t + k), `${a} face ${t / 3}`).toBeCloseTo(col.getY(t), 6);
-          expect(col.getZ(t + k), `${a} face ${t / 3}`).toBeCloseTo(col.getZ(t), 6);
-        }
-        const c = [col.getX(t), col.getY(t), col.getZ(t)];
-        for (const ch of c) expect(ch, `${a} face ${t / 3}`).toBeGreaterThan(0);
-        faces.push({
-          c, l: lum(c), ny: nrm.getY(t),
-          y: (verts[t].y + verts[t + 1].y + verts[t + 2].y) / 3,
-          moss: isMoss(c),
-          grey: Math.abs(c[0] - c[1]) < 1e-6 && Math.abs(c[0] - c[2]) < 1e-6,
-        });
+      const corners = [];
+      for (let i = 0; i < col.count; i++) {
+        const c = [col.getX(i), col.getY(i), col.getZ(i)];
+        for (const ch of c) expect(ch, `${a} corner ${i}`).toBeGreaterThan(0);
+        corners.push({ i, c, l: lum(c), ny: nrm.getY(i), y: verts[i].y, grey: Math.abs(c[0] - c[1]) < 1e-6 && Math.abs(c[0] - c[2]) < 1e-6 });
       }
-      // dark at the foot, light at the top (the plain grey faces)
-      const mean = (fs) => fs.reduce((s, f) => s + f.l, 0) / fs.length;
-      const low = faces.filter((f) => f.grey && f.y < 0.25);
-      const high = faces.filter((f) => f.grey && f.y > 0.7);
+      // no harlequin: corners at one place with one normal have one colour
+      const at = new Map();
+      for (const k of corners) {
+        const v = verts[k.i];
+        const key = [v.x, v.y, v.z, nrm.getX(k.i), nrm.getY(k.i), nrm.getZ(k.i)].map((q) => Math.round(q * 1e3)).join(',');
+        if (!at.has(key)) at.set(key, k.c);
+        else for (let ch = 0; ch < 3; ch++) expect(k.c[ch], `${a} corner ${k.i}`).toBeCloseTo(at.get(key)[ch], 5);
+      }
+      // dark at the foot, light at the top (the plain grey corners)
+      const mean = (ks) => ks.reduce((s, k) => s + k.l, 0) / ks.length;
+      const low = corners.filter((k) => k.grey && k.y < 0.25);
+      const high = corners.filter((k) => k.grey && k.y > 0.6);
       expect(low.length, a).toBeGreaterThan(0);
       expect(high.length, a).toBeGreaterThan(0);
       expect(mean(low), a).toBeLessThan(mean(high));
-      // moss on up-facing faces, and only there
-      const mossy = faces.filter((f) => f.moss);
-      expect(mossy.filter((f) => f.ny > 0.55).length, a).toBeGreaterThan(4);
-      for (const f of mossy) expect(f.ny, `${a} moss`).toBeGreaterThan(0.5);
-      if (greenMoss) {
-        // (the River's blue-grey rock is itself a little green: greener than it)
+      // moss: tinted corners only where the rock faces up, and plenty of them
+      // on the tops, leaning the moss's way (green, or the Gorge's sand)
+      const mossy = corners.filter((k) => !k.grey && (k.c[1] / k.c[0] - 1) * Math.sign(m.g / r.g - m.r / r.r) > 0.05);
+      expect(mossy.filter((k) => k.ny > 0.6).length, a).toBeGreaterThan(30);
+      // and none where it faces sideways or down: there a corner is grey, or
+      // grey mixed with the pale lichen (0xc9c79a over look.rock), so its
+      // colour lies in the plane of (1, 1, 1) and the lichen's multiplier
+      const li = new THREE.Color(0xc9c79a);
+      const L = new THREE.Vector3(li.r / r.r, li.g / r.g, li.b / r.b);
+      const nrmP = new THREE.Vector3(1, 1, 1).cross(L).normalize();
+      for (const k of corners) {
+        if (k.ny >= 0.3) continue;
+        const off = Math.abs(nrmP.dot(new THREE.Vector3(...k.c)));
+        expect(off, `${a} corner ${k.i} ny ${k.ny.toFixed(2)}: no moss`).toBeLessThan(1e-4);
+      }
+      // greener as drawn than the rock, where it is green moss
+      if (m.g / m.r > 1.15) {
         const bar = Math.max(1.15, 1.15 * r.g / r.r);
-        const green = (f) => { const s = shown(f.c); return s[1] / s[0] > bar; };
-        expect(faces.some((f) => f.ny > 0.55 && green(f)), a).toBe(true);
-        for (const f of faces) if (green(f)) expect(f.ny, `${a} green`).toBeGreaterThan(0.5);
+        expect(corners.some((k) => k.ny > 0.6 && shown(k.c)[1] / shown(k.c)[0] > bar), a).toBe(true);
+        for (const k of corners) if (shown(k.c)[1] / shown(k.c)[0] > bar) expect(k.ny, `${a} green`).toBeGreaterThan(0.25);
       }
       // dark joints under the ledges
-      const ls = faces.map((f) => f.l).sort((p, q) => p - q);
+      const ls = corners.map((k) => k.l).sort((p, q) => p - q);
       const median = ls[ls.length >> 1];
-      expect(faces.some((f) => f.ny < -0.2 && f.l < median), a).toBe(true);
+      expect(corners.some((k) => k.ny < -0.2 && k.l < median * 0.8), a).toBe(true);
+    }
+  });
+
+  // polish-camps6: soft normals, so the round stones and the boulder's sides
+  // shade smoothly, and hard edges where a ledge meets the band under it
+  it('the Highrock is soft-shaded with crisp ledge edges', () => {
+    for (const a of ROCK_CAMPS) {
+      const { rock, verts } = buildRock(a);
+      const nrm = rock.geometry.attributes.normal;
+      const groups = new Map();
+      for (let i = 0; i < verts.length; i++) {
+        const v = verts[i];
+        const key = [v.x, v.y, v.z].map((q) => Math.round(q * 1e4)).join(',');
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(new THREE.Vector3().fromBufferAttribute(nrm, i));
+      }
+      let soft = 0; let hard = 0; let many = 0;
+      for (const ns of groups.values()) {
+        if (ns.length < 3) continue;
+        many++;
+        // (the drawn normals keep HIGHROCK.facet of each face's own, so a
+        // smooth place's normals differ a little: a soft low-poly look)
+        let spread = 0;
+        for (const p of ns) for (const q of ns) spread = Math.max(spread, p.angleTo(q));
+        if (spread < 0.3) soft++;
+        if (spread > 0.6) hard++;
+      }
+      // the stones and the sides are smooth; the ledges and the top's rim stay sharp
+      // (the Woods: 217 places; the hard ones mostly the boulder's ledge,
+      // joint and top rings)
+      expect(soft, a).toBeGreaterThan(many * 0.3);
+      expect(hard, a).toBeGreaterThan(20);
+      for (let i = 0; i < nrm.count; i++) expect(Math.hypot(nrm.getX(i), nrm.getY(i), nrm.getZ(i)), `${a} ${i}`).toBeCloseTo(1, 3);
     }
   });
 
