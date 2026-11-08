@@ -482,14 +482,21 @@ const DEN_LOOK = {
 const DOOR = { w: 0.3, y: 0.3, at: 1.04, tilt: 0.31 };
 const FRAME_AT = 1.02;
 const RING_LOOK = {
-  coreFoot: 0.42,     // a clump's green, times, at the dark core's foot ...
-  coreTop: 0.78,      // ... and at its top
-  crownFoot: 0.78,    // the crown lumps' green, times, at their foot ...
-  crownTop: 1.22,     // ... and at their top (specks are not shaded)
-  leafTint: 0x9ab04a, // the leaf cards: the clump's green, lerped toward this ...
-  leafMix: 0.25,      // ... by this much ...
-  leafLo: 1.0,        // ... times leafLo to leafHi, by hash
-  leafHi: 1.3,
+  // polish-campring: the core lifted (it shows between the crowns: it was a
+  // near-black faceted gem) and every lump lit at its top, warmed a little
+  coreFoot: 0.58,     // a clump's green, times, at the core's foot ...
+  coreTop: 1.04,      // ... and at its top
+  crownFoot: 0.74,    // the crown lumps' green, times, at their foot ...
+  crownTop: 1.36,     // ... and at their top (specks are not shaded)
+  warm: 0xc8c46a,     // the lit tops lean toward this sunlit yellow-green ...
+  warmMix: 0.16,      // ... by up to this much at the very top (t squared)
+  leafTint: 0x9ab04a, // the light leaf cards: the clump's green, lerped toward this ...
+  leafMix: 0.3,       // ... by this much ...
+  leafLo: 1.05,       // ... times leafLo to leafHi, by hash
+  leafHi: 1.35,
+  leafDeep: 0x4f6e2a, // every other card the deeper green: the clump's, lerped toward this ...
+  deepMix: 0.3,       // ... by this much, times the same leafLo..leafHi
+  leafUp: 0.7,        // a card's shading normal: its face normal plus this much up, so cards read lit, not black
   bud: 0.7,           // a clump out of fruit: its berries are buds, green times this
   lumpIn: -0.2,       // a lump vertex's pull towards its clump's foot ...
   lumpOut: 0.05,      // ... or push away from it (lumpy, in ringMesh)
@@ -520,6 +527,20 @@ const NEST = {
   frond: { from: [0.31, 0.105], tip: [0.405, 0.15], halfBase: 0.055, halfTip: 0.04 },
   hollow: 0.5, hollowBrown: 0.35, wall: [0.72, 0.9], crest: [0.88, 1.06], bank: [0.6, 0.72],
   crease: 60 * Math.PI / 180,
+};
+// polish-campring: the flat camps' nests in duller, browner colours, so from
+// above they read as nests, not lime rings round a black hole. The moss is
+// lerped toward the clan's bracken by `dull` and dimmed by `dim` (the wall,
+// crest and bank keep their own NEST bands on it); a `straw` share of the
+// wall/crest/bank faces turns to dry straw (the bracken lerped toward `straw`,
+// x 0.9..1.1) and a `tuft` share stays the clan's own moss (fresh tufts, the
+// crest's band), whole faces by a hash of each face's centre. The hollow is
+// warm brown: the bracken lerped toward `earth` by `hollowEarth`, x `hollow`,
+// never black. The ledge camp (the Gorge) keeps its bedding as it was (no tone).
+const NEST_TONE = {
+  dull: 0.45, dim: 0.86,
+  straw: 0xd8c08a, strawMix: 0.45, strawShare: 0.22, tuftShare: 0.2, // tufts: the clan's moss x 0.86..0.98
+  earth: 0x6a4428, hollowEarth: 0.5, hollow: 0.62,
 };
 // the fan and three bands (7 per side), then the fronds (2 per side)
 export const NEST_TRIS = NEST.sides * 7 + NEST.sides * 2;
@@ -1065,7 +1086,7 @@ function speckle(geo, specks, salt) {
 
 // The bramble wall: each clump a leafy bramble mound (ringMesh and the
 // polish-brambles block before it: core, crown lumps, leaf cards, berries;
-// RING_CLUMP_TRIS = 59 a clump), every vertex within CLUMP_R · s of the
+// RING_CLUMP_TRIS = 62 a clump since polish-campring, was 59), every vertex within CLUMP_R · s of the
 // clump's spot and no higher than its h, the lumps made lumpy here (each
 // vertex pulled in or pushed out about its clump's foot, x 0.8 to 1.05 by a
 // hash of the world vertex, so the two copies of a seam vertex move together
@@ -1075,8 +1096,8 @@ function speckle(geo, specks, salt) {
 // a segment, 3 a thorn) in the clan's strand colour, so the wall reads as a
 // tangle, not a row of balls. The clan's greens by hash, dark at the foot,
 // with the clan's specks on the lumps (speckle; leaves, berries and canes
-// carry none). One vertex-coloured mesh, out of the shadow pass, 6,033 to
-// 6,066 triangles a camp, under the area's 70,000 (test/budget.test.js). No
+// carry none). One vertex-coloured mesh, out of the shadow pass, 6,285 to
+// 6,318 triangles a camp (polish-campring; were 6,033 to 6,066), under the area's 70,000 (test/budget.test.js). No
 // ring vertex is above 1 m (ruling R3).
 //
 // Ruling R4: the wall has no collider. A collider would change the walkable
@@ -1201,19 +1222,23 @@ function caneGeometry(cane, colorAt, thornAt) {
 // RING_CLUMP_TRIS triangles a clump, in this order in the merged ring: a dark
 // core lump (an icosahedron, 20, its top at 0.72 h), three smaller crown lumps
 // round it (octahedra, 8 each, tipped and turned so they are not upright
-// diamonds, one reaching h), six leaf cards (one triangle each, on the mound's
-// envelope, facing out) and three berries (3-sided pyramids, no base: 3 each),
+// diamonds, one reaching h), nine leaf cards (one triangle each, on the upper
+// two-thirds of the mound's envelope, facing out, in two greens; polish-campring:
+// were six smaller ones) and three berries (3-sided pyramids, no base: 3 each),
 // in the clan's fruit colours on fruitShare of the clumps, green buds on the
 // rest. Specks land on the core and crowns only. Every clump-part vertex is
 // then kept within 0.98 CLUMP_R · s of the clump's spot and between 0 and h.
-export const RING_CLUMP_TRIS = 59;
+export const RING_CLUMP_TRIS = 62;
 // where a clump's leaf cards start (after the core 20 and crowns 24) and how
 // many triangles its berries take (the last of the clump's)
 export const RING_LEAF_FIRST = 44;
 export const RING_BERRY_TRIS = 9;
 // the mound's envelope (ENV) is widened to 0.9 R and leaves start at 0.4 rad
-// up it (were 0.8 R and 0.25), so leaves sit outside the core and show
-const LEAF = { n: 6, len: 0.11, w: 0.06, lean: 0.03, eLo: 0.4, eHi: 1.1 };
+// up it (were 0.8 R and 0.25), so leaves sit outside the core and show.
+// polish-campring: nine bigger cards (were six, len 0.11, w 0.06), on the upper
+// two-thirds (0.55..1.35 rad), leaning out more, so the silhouette breaks into
+// leaves instead of a gem's edges
+const LEAF = { n: 9, len: 0.16, w: 0.09, lean: 0.045, eLo: 0.55, eHi: 1.35 };
 const BERRY = { n: 3, r: 0.04, apex: 0.05, at: 0.97, eLo: 0.3, eHi: 0.95 };
 // the mound's envelope: a half-ellipsoid on the clump's spot (semi-axes r·R, h·c.h)
 const ENV = { r: 0.9, h: 0.88 };
@@ -1311,11 +1336,28 @@ function facing(tris, colors, c, R, from) {
   return g;
 }
 
+// polish-campring: tip every vertex normal up by `up` (normal + up·ŷ,
+// renormalised), so thin cards are shaded like the lit top of the mound they
+// lie on, not black when their face turns from the sun. No geometry changes.
+function liftNormals(geo, up) {
+  const nor = geo.attributes.normal;
+  for (let i = 0; i < nor.count; i++) {
+    const x = nor.getX(i);
+    const y = nor.getY(i) + up;
+    const z = nor.getZ(i);
+    const l = Math.hypot(x, y, z) || 1;
+    nor.setXYZ(i, x / l, y / l, z / l);
+  }
+  return geo;
+}
+
 const centroid = (tri) => new THREE.Vector3().add(tri[0]).add(tri[1]).add(tri[2]).multiplyScalar(1 / 3);
 
 function ringMesh(ring, cx, cz, look) {
   const parts = [];
   const tint = new THREE.Color(RING_LOOK.leafTint);
+  const deep = new THREE.Color(RING_LOOK.leafDeep);
+  const warm = new THREE.Color(RING_LOOK.warm);
   const fruitHex = (look.ring.fruit ?? []).map(([hex, w]) => [new THREE.Color(hex), w]);
   const fruitSum = fruitHex.reduce((n, [, w]) => n + w, 0);
   const p = new THREE.Vector3();
@@ -1326,17 +1368,20 @@ function ringMesh(ring, cx, cz, look) {
     const along = out + Math.PI / 2;
     const greens = look.ring.greens;
     const green = new THREE.Color(greens[Math.floor(hash01(c.x, c.rot, c.z, 10) * greens.length)]);
+    // dark at the foot, lit and a little warmer at the top (polish-campring)
     const shade = (lo, hi, top) => (vx, vy, vz, col) => {
       const t = Math.max(0, Math.min(1, vy / top));
-      col.copy(green).multiplyScalar(lo + (hi - lo) * t * (0.8 + 0.4 * hash01(vx, vy, vz, 11)));
+      col.copy(green).lerp(warm, RING_LOOK.warmMix * t * t)
+        .multiplyScalar(lo + (hi - lo) * t * (0.8 + 0.4 * hash01(vx, vy, vz, 11)));
     };
     const yaw = -along + Math.sin(c.rot) * 0.15;
-    // the core: a dark, wide lump, a widest corner turned onto the ring
+    // the core: a wide lump, a widest corner turned onto the ring, shaded
+    // round like the crowns (polish-campring: it was flat-shaded, a dark gem)
     const coreTop = c.h * 0.72;
     const msy = coreTop / (2 * ICO_Y);
     const core = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
     const coreAt = shade(RING_LOOK.coreFoot, RING_LOOK.coreTop, coreTop);
-    parts.push(speckle(clampToClump(lumpy(bake(core, place(c.x, coreTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.85 * R, yaw), coreAt), c), c, R), look.ring.specks, 19));
+    parts.push(speckle(softenAbout(clampToClump(lumpy(bake(core, place(c.x, coreTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.85 * R, yaw), coreAt), c), c, R)), look.ring.specks, 19));
     // three crown lumps round it, the one with the highest hash reaching h
     const ch = [0, 1, 2].map((k) => hash01(c.x, c.z, k, 40));
     const tall = ch.indexOf(Math.max(...ch));
@@ -1350,7 +1395,8 @@ function ringMesh(ring, cx, cz, look) {
       const lump = clampToClump(lumpy(bake(new THREE.OctahedronGeometry(1, 0), m, crownAt), c), c, R);
       parts.push(speckle(softenAbout(lump), look.ring.specks, 19));
     }
-    // six leaf cards on the envelope, tips up the slope and leaning out
+    // nine leaf cards on the envelope, tips up the slope and leaning out, the
+    // light and the deeper green in turn
     const leaves = [];
     const leafCols = [];
     for (let l = 0; l < LEAF.n; l++) {
@@ -1369,10 +1415,10 @@ function ringMesh(ring, cx, cz, look) {
         p.clone().addScaledVector(side, half),
         p.clone().addScaledVector(dir, len).addScaledVector(n, LEAF.lean),
       ]);
-      leafCols.push(green.clone().lerp(tint, RING_LOOK.leafMix)
+      leafCols.push(green.clone().lerp(l % 2 ? deep : tint, l % 2 ? RING_LOOK.deepMix : RING_LOOK.leafMix)
         .multiplyScalar(RING_LOOK.leafLo + (RING_LOOK.leafHi - RING_LOOK.leafLo) * hash01(c.x, c.z, l, 34)));
     }
-    parts.push(facing(leaves, leafCols, c, R, (tri) => centroid(tri).sub(new THREE.Vector3(c.x, 0, c.z))));
+    parts.push(liftNormals(facing(leaves, leafCols, c, R, (tri) => centroid(tri).sub(new THREE.Vector3(c.x, 0, c.z))), RING_LOOK.leafUp));
     // three berries (or buds) on the envelope, a little inside it
     const fruiting = fruitHex.length > 0 && hash01(c.x, c.z, 0, 50) < look.ring.fruitShare;
     const berries = [];
@@ -1541,7 +1587,7 @@ function clearingMesh(clearing, look) {
 
 // The nests: a moss cup under each elder and kit (NEST), bracken fronds
 // round its rim. One vertex-coloured mesh, out of the shadow pass.
-function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
+function nestsMesh(nests, look, groundY = () => 0, flat = 1, tone = NEST_TONE) {
   const parts = [];
   // `flat` < 1 presses a nest down towards the ground under it (the ledge's:
   // low enough, under 0.1 m, that the contact-shadow scan gives the bedding no
@@ -1589,15 +1635,36 @@ function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
     const bodyVerts = K * 3 * (2 * NEST.rings.length - 1); // the cup, before the fronds
     const colors = new Float32Array(tris.length * 3);
     const cc = new THREE.Color();
-    const moss = new THREE.Color(look.nest.moss);
-    const hollow = moss.clone().lerp(new THREE.Color(look.nest.bracken), NEST.hollowBrown).multiplyScalar(NEST.hollow);
+    const clan = new THREE.Color(look.nest.moss);
+    const bracken = new THREE.Color(look.nest.bracken);
+    const moss = tone ? clan.clone().lerp(bracken, tone.dull).multiplyScalar(tone.dim) : clan;
+    const hollow = tone
+      ? bracken.clone().lerp(new THREE.Color(tone.earth), tone.hollowEarth).multiplyScalar(tone.hollow)
+      : moss.clone().lerp(bracken, NEST.hollowBrown).multiplyScalar(NEST.hollow);
+    const straw = tone ? bracken.clone().lerp(new THREE.Color(tone.straw), tone.strawMix) : null;
     const band = ([lo, hi], h) => lo + (hi - lo) * h;
     for (let v = 0; v < tris.length; v++) {
       const [lx, ly, lz] = tris[v];
       if (v < bodyVerts) {
         const h = hash01(lx + n.x, ly, lz + n.z, 14);
         const r = Math.hypot(lx, lz);
-        if (r < 0.2) cc.copy(hollow).multiplyScalar(0.9 + 0.2 * h);
+        // a whole face's straw or fresh-moss tuft, by a hash of its centre
+        // (faces whose centre is out of the hollow only)
+        let face = false;
+        if (tone) {
+          const t0 = v - (v % 3);
+          const fx = (tris[t0][0] + tris[t0 + 1][0] + tris[t0 + 2][0]) / 3;
+          const fy = (tris[t0][1] + tris[t0 + 1][1] + tris[t0 + 2][1]) / 3;
+          const fz = (tris[t0][2] + tris[t0 + 1][2] + tris[t0 + 2][2]) / 3;
+          if (Math.hypot(fx, fz) >= 0.22) {
+            const fh = hash01(fx + n.x, fy, fz + n.z, 17);
+            const k = hash01(fx + n.x, fy, fz + n.z, 16);
+            if (fh < tone.strawShare) { cc.copy(straw).multiplyScalar(0.9 + 0.2 * k); face = true; }
+            else if (fh < tone.strawShare + tone.tuftShare) { cc.copy(clan).multiplyScalar(0.86 + 0.12 * k); face = true; }
+          }
+        }
+        if (face) { /* straw or a tuft, set above */ }
+        else if (r < 0.2) cc.copy(hollow).multiplyScalar(0.9 + 0.2 * h);
         else if (r < 0.28) cc.copy(moss).multiplyScalar(band(NEST.wall, h));
         else if (r < 0.36) cc.copy(moss).multiplyScalar(band(NEST.crest, h));
         else cc.copy(moss).multiplyScalar(band(NEST.bank, h));
@@ -1683,7 +1750,7 @@ function addLedgeCamp(scene, area, L) {
     rock: highrockGeometry(L.rock, 0, {
       kill: { x: D.kill.x - L.rock.x, z: D.kill.z - L.rock.z }, rock: look.rock, moss: look.rockMoss ?? look.nest.moss,
     }),
-    nests: nestsMesh(D.nests, look, groundY, 0.5),
+    nests: nestsMesh(D.nests, look, groundY, 0.5, null), // the ledge's bedding keeps its old tone
     kill: killMesh(D.kill, groundY),
   }));
   // The rock: a fresh geometry, material and mesh on Math.random, as the old
