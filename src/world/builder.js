@@ -3138,11 +3138,59 @@ function oakSpheres(x, z, salt, lumps) {
   return out;
 }
 
+// SOFT FACETS (polish-foliage). A canopy keeps its low-poly silhouette (the
+// positions never move) but each vertex's normal is pulled part of the way
+// from its facet's flat normal toward a "rounded" normal: the smooth normal
+// of the lobe it sits on (the facet normals round that corner, averaged)
+// mixed with the direction out from the crown's centre. So the light rolls
+// round the crown instead of stepping a whole shade per facet: from 15 m the
+// facets still read (the flat share and the per-facet shade below keep
+// them), and up close at 2 m they no longer read as panels bigger than the
+// cat's head. Pure in the geometry: same positions in, same normals out.
+const CANOPY_SOFT = 0.6; // share of the rounded normal (0 = flat facets, 1 = smooth)
+const CANOPY_RADIAL = 0.35; // share of "out from the centre" in the rounded normal
+function softenFoliageNormals(geo, soft, radial, centre = null) {
+  const pos = geo.attributes.position, nrm = geo.attributes.normal;
+  const n = pos.count;
+  // the smooth normal: facet normals summed over every vertex at one spot
+  // (non-indexed, so a corner is several vertices; keyed by position to 1e-4)
+  const key = (v) => `${Math.round(pos.getX(v) * 1e4)},${Math.round(pos.getY(v) * 1e4)},${Math.round(pos.getZ(v) * 1e4)}`;
+  const sum = new Map();
+  const keys = new Array(n);
+  for (let v = 0; v < n; v++) {
+    const k = keys[v] = key(v);
+    let s = sum.get(k);
+    if (!s) { s = [0, 0, 0]; sum.set(k, s); }
+    s[0] += nrm.getX(v); s[1] += nrm.getY(v); s[2] += nrm.getZ(v);
+  }
+  const cx = centre ? centre[0] : 0, cy = centre ? centre[1] : 0, cz = centre ? centre[2] : 0;
+  for (let v = 0; v < n; v++) {
+    const s = sum.get(keys[v]);
+    const sl = Math.hypot(s[0], s[1], s[2]) || 1;
+    const rx = pos.getX(v) - cx, ry = pos.getY(v) - cy, rz = pos.getZ(v) - cz;
+    const rl = Math.hypot(rx, ry, rz) || 1;
+    let tx = (1 - radial) * s[0] / sl + radial * rx / rl;
+    let ty = (1 - radial) * s[1] / sl + radial * ry / rl;
+    let tz = (1 - radial) * s[2] / sl + radial * rz / rl;
+    const tl = Math.hypot(tx, ty, tz) || 1;
+    tx /= tl; ty /= tl; tz /= tl;
+    const fx = nrm.getX(v), fy = nrm.getY(v), fz = nrm.getZ(v);
+    let ox = (1 - soft) * fx + soft * tx, oy = (1 - soft) * fy + soft * ty, oz = (1 - soft) * fz + soft * tz;
+    const ol = Math.hypot(ox, oy, oz) || 1;
+    nrm.setXYZ(v, ox / ol, oy / ol, oz / ol);
+  }
+  nrm.needsUpdate = true;
+}
+
 // Vertex colour: a height term (0.62 under the crown up to 1.0 over its top
 // quarter) times one shade per facet (0.86-1.0, hashed off the facet's centre
 // direction), so the hollows underneath go dark and the small facets read.
+// polish-foliage: the per-facet shade narrows to 0.9-1.0 (with soft normals
+// the full spread read as a patchwork up close), and a little underside AO,
+// from the facet's own normal, darkens the faces that look down by up to 12%.
 function shadeCanopy(geo, x, z) {
   const pos = geo.attributes.position;
+  const nrm = geo.attributes.normal;
   let minY = Infinity, maxY = -Infinity;
   for (let v = 0; v < pos.count; v++) {
     const y = pos.getY(v);
@@ -3156,9 +3204,10 @@ function shadeCanopy(geo, x, z) {
     const cy = pos.getY(f) + pos.getY(f + 1) + pos.getY(f + 2);
     const cz = pos.getZ(f) + pos.getZ(f + 1) + pos.getZ(f + 2);
     const len = Math.hypot(cx, cy, cz) || 1;
-    const shade = 0.86 + 0.14 * hash01(x + (cx / len) * 31.7, z + (cz / len) * 31.7, 60 + (cy / len) * 17.3);
+    const shade = 0.9 + 0.1 * hash01(x + (cx / len) * 31.7, z + (cz / len) * 31.7, 60 + (cy / len) * 17.3);
     for (let v = f; v < f + 3; v++) {
-      const k = (0.62 + 0.38 * smoothstep(minY, top, pos.getY(v))) * shade;
+      const ao = 1 - 0.12 * Math.max(0, -nrm.getY(v));
+      const k = (0.62 + 0.38 * smoothstep(minY, top, pos.getY(v))) * shade * ao;
       c[v * 3] = c[v * 3 + 1] = c[v * 3 + 2] = k;
     }
   }
@@ -3213,6 +3262,7 @@ export function canopyGeometry(x, z, kind) {
     1 + (hash01(x, z, 53) - 0.5) * 0.2,
   );
   geo.computeVertexNormals(); // non-indexed: one flat normal per facet
+  softenFoliageNormals(geo, CANOPY_SOFT, CANOPY_RADIAL);
   shadeCanopy(geo, x, z);
   const pos = geo.attributes.position;
   let r = 0;
@@ -3288,7 +3338,13 @@ export function tree(x, z, scale = 1, { wind, kind } = {}) {
     bark.vertexColors = true;
     trunk = new THREE.Mesh(birchTrunkGeometry(x, z), bark);
   } else {
-    trunk = new THREE.Mesh(new THREE.CylinderGeometry(kind === 'old' ? 0.3 : 0.25, 0.35, 2, TRUNK_SIDES),
+    // Open-ended (polish-foliage): the top sits inside the crown (the canopy
+    // test pins the underside over the axis at <= 1.9) and the foot in the
+    // ground, so neither cap is ever seen in the open. A camera INSIDE the
+    // crown sees no canopy (front faces only, or faded), and there the top cap
+    // read as a flat brown disc in the foreground; the bottom cap was always
+    // underground. 20 fewer triangles a tree, same uuid draws.
+    trunk = new THREE.Mesh(new THREE.CylinderGeometry(kind === 'old' ? 0.3 : 0.25, 0.35, 2, TRUNK_SIDES, 1, true),
       surfMat(kind === 'old' ? 0x6e4a2c : 0x7a5230, 'bark'));
   }
   trunk.position.y = 1;
@@ -5242,6 +5298,21 @@ export function fernBed(spots, seed) {
 // Bramble thickets, one merged mesh: each spot is three or four squashed
 // low-poly lobes huddled together, under a metre tall. No collider, like a
 // bush: a cat pushes through. Low and wide, so out of the caster sweep too.
+//
+// polish-foliage: at walk height these read as green faceted rocks (survey 8,
+// broken #2), so each lobe, with its triangles unchanged (20), is made to read
+// as leaves: its corners are nudged in and out a little (hashed off the corner
+// itself, so the copies of one corner move together and no crack opens), its
+// normals are pulled most of the way to the lobe's own round (out from its
+// centre), and it carries vertex colours: a dark core low down, a lighter,
+// yellower top, one shade per lobe and a per-facet mottle, round the old
+// flat bramble green. Same geometries made in
+// the same order (the Woods' pinned uuid draws).
+const BRAMBLE_SOFT = 0.65;
+// the old flat 0x3b5e2e sits between these; THREE.Color takes the sRGB hex to
+// the linear values a vertex colour holds (the material is white)
+const BRAMBLE_LOW = new THREE.Color(0x22391f).toArray();
+const BRAMBLE_TOP = new THREE.Color(0x5e8540).toArray();
 export function brambleBed(spots, seed) {
   const geoms = [];
   spots.forEach((sp, i) => {
@@ -5249,7 +5320,29 @@ export function brambleBed(spots, seed) {
     for (let k = 0; k < lobes; k++) {
       const r = 0.45 + 0.25 * hash01(i, k, seed + 2);
       const lobe = new THREE.IcosahedronGeometry(r, 0);
+      // corners in and out by up to 12% (keyed on the corner, so it stays closed)
+      const pos = lobe.attributes.position;
+      for (let v = 0; v < pos.count; v++) {
+        const px = pos.getX(v), py = pos.getY(v), pz = pos.getZ(v);
+        const j = 0.9 + 0.22 * hash01(Math.round(px * 1000) + i * 7, Math.round(pz * 1000) + Math.round(py * 1000) * 3, seed + 11 + k);
+        pos.setXYZ(v, px * j, py * j, pz * j);
+      }
       lobe.scale(1, 0.62, 1);
+      lobe.computeVertexNormals();
+      softenFoliageNormals(lobe, BRAMBLE_SOFT, 1);
+      // colour: low dark, high light, a shade per lobe
+      const shade = 0.88 + 0.24 * hash01(i, k, seed + 6);
+      const top = r * 0.62;
+      const col = new Float32Array(pos.count * 3);
+      for (let v = 0; v < pos.count; v++) {
+        const t = smoothstep(-top * 0.7, top * 0.9, pos.getY(v));
+        // a mottle, one per facet and a little per corner, so the light
+        // breaks up like leaves rather than running smooth like stone
+        const f = Math.floor(v / 3);
+        const mottle = (0.84 + 0.28 * hash01(i * 31 + f, k, seed + 7)) * (0.93 + 0.14 * hash01(v, i * 5 + k, seed + 8));
+        for (let c = 0; c < 3; c++) col[v * 3 + c] = (BRAMBLE_LOW[c] + (BRAMBLE_TOP[c] - BRAMBLE_LOW[c]) * t) * shade * mottle;
+      }
+      lobe.setAttribute('color', new THREE.BufferAttribute(col, 3));
       const a = hash01(k, i, seed + 3) * Math.PI * 2;
       const d = k === 0 ? 0 : 0.45 + 0.35 * hash01(i + k, k, seed + 4);
       lobe.rotateY(hash01(k, i, seed + 5) * Math.PI);
@@ -5257,7 +5350,9 @@ export function brambleBed(spots, seed) {
       geoms.push(lobe);
     }
   });
-  return mergedNoCast(geoms, 0x3b5e2e, 'foliage');
+  const m = mergedNoCast(geoms, 0xffffff, 'foliage');
+  m.material.vertexColors = true;
+  return m;
 }
 
 // Heather: a Group of two merged meshes. Each spot is two low dark-green

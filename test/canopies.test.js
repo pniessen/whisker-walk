@@ -244,3 +244,52 @@ describe('birch trunk colours (polish-dusk7)', () => {
     }
   });
 });
+
+// polish-foliage: soft facets (normals part-way to round, positions as they
+// were), no trunk caps, and bramble thickets that read as leaves, not rocks.
+describe('soft foliage (polish-foliage)', () => {
+  it('canopy normals are unit, outward and no longer one flat normal per facet', () => {
+    for (const kind of KINDS) {
+      const geo = b.canopyGeometry(5, 5, kind);
+      const pos = geo.attributes.position, nrm = geo.attributes.normal;
+      let split = 0;
+      for (let f = 0; f < pos.count; f += 3) {
+        for (let v = f; v < f + 3; v++) {
+          expect(Math.hypot(nrm.getX(v), nrm.getY(v), nrm.getZ(v))).toBeCloseTo(1, 5);
+          // outward: along the direction from the crown centre (the main lobe's origin)
+          const out = nrm.getX(v) * pos.getX(v) + nrm.getY(v) * pos.getY(v) + nrm.getZ(v) * pos.getZ(v);
+          if (kind === 'round' || kind === 'birch') expect(out, kind).toBeGreaterThan(-0.5);
+        }
+        const same = [1, 2].every((k) => Math.abs(nrm.getX(f) - nrm.getX(f + k)) + Math.abs(nrm.getY(f) - nrm.getY(f + k)) + Math.abs(nrm.getZ(f) - nrm.getZ(f + k)) < 1e-6);
+        if (!same) split++;
+      }
+      expect(split / (pos.count / 3), kind).toBeGreaterThan(0.9);
+    }
+  });
+
+  it('a bark trunk is open-ended: no flat cap at its top inside the crown', () => {
+    for (const kind of ['oak', 'round', 'old']) {
+      const p = trunkOf(b.tree(3, 4, 1, { kind })).geometry.parameters;
+      expect(p.openEnded, kind).toBe(true);
+      expect(p.height).toBe(2);
+    }
+  });
+
+  it('brambleBed keeps its triangles and lobe count, with leaf colours light on top and dark below', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 5, z: 2 }, { x: -3, z: 7 }];
+    const m = b.brambleBed(spots, 3);
+    const lobes = spots.reduce((s, sp) => s + 3 + Math.floor(b.hash01(sp.x, sp.z, 4) * 2), 0);
+    expect(m.geometry.attributes.position.count / 3).toBe(lobes * 20);
+    expect(m.material.vertexColors).toBe(true);
+    const pos = m.geometry.attributes.position, col = m.geometry.attributes.color;
+    let hi = 0, lo = 0, nh = 0, nl = 0;
+    for (let v = 0; v < pos.count; v++) {
+      const g = col.getY(v);
+      expect(g).toBeGreaterThan(col.getZ(v)); // green, not grey
+      if (pos.getY(v) > 0.55) { hi += g; nh++; } else if (pos.getY(v) < 0.2) { lo += g; nl++; }
+    }
+    expect(hi / nh - lo / nl).toBeGreaterThan(0.1);
+    const again = b.brambleBed(spots, 3);
+    expect(Array.from(again.geometry.attributes.position.array)).toEqual(Array.from(pos.array));
+  });
+});
