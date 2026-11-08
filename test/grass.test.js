@@ -37,6 +37,8 @@ const { build: buildMoor } = await import('../src/world/moor.js');
 const { riverGroundTint } = await import('../src/world/riverdress.js');
 const { moorGroundTint } = await import('../src/world/moordress.js');
 const { build: buildPines, pinesGroundTint, pinesTrees } = await import('../src/world/pines.js');
+const { parkLawnTint } = await import('../src/world/park.js');
+const { neighborhoodLawnTint } = await import('../src/world/neighborhood.js');
 const { build: buildWoods, woodsGroundTint } = await import('../src/world/woods.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
@@ -713,17 +715,22 @@ describe('ground tint under tufts', () => {
     expect(s.samples).toBe(n);
   });
 
-  it('the River, the Moor, the Woods and the Pines carry a ground tint, nothing else does', () => {
+  it('the River, the Moor, the Woods, the Pines and the two lawns carry a ground tint, nothing else does', () => {
     expect(GROUND_TINTS.river).toBe(riverGroundTint);
     expect(GROUND_TINTS.moor).toBe(moorGroundTint);
     expect(GROUND_TINTS.woods).toBe(woodsGroundTint);
     expect(GROUND_TINTS.pines).toBe(pinesGroundTint);
-    expect(Object.keys(GROUND_TINTS).sort()).toEqual(['moor', 'pines', 'river', 'woods']);
+    // polish-sheen: the Park and Neighbourhood lawns' slow mottle
+    expect(GROUND_TINTS.park).toBe(parkLawnTint);
+    expect(GROUND_TINTS.neighborhood).toBe(neighborhoodLawnTint);
+    expect(Object.keys(GROUND_TINTS).sort()).toEqual(['moor', 'neighborhood', 'park', 'pines', 'river', 'woods']);
     expect(GRASS_STYLES.river.ground).toBe(0.9);
     expect(GRASS_STYLES.moor.ground).toBe(0.9);
     expect(GRASS_STYLES.woods.ground).toBe(0.8);
     expect(GRASS_STYLES.pines.ground).toBe(0.8);
-    for (const id of ['park', 'neighborhood', 'seaside', 'gorge']) {
+    expect(GRASS_STYLES.park.ground).toBe(0.8);
+    expect(GRASS_STYLES.neighborhood.ground).toBe(0.8);
+    for (const id of ['seaside', 'gorge']) {
       expect(GRASS_STYLES[id].ground).toBe(0);
     }
   });
@@ -869,11 +876,12 @@ describe('ground tint under tufts', () => {
     grass.dispose();
   }, 120_000);
 
-  it('lawn tufts ignore ground tint', () => {
+  // polish-sheen: lawn tufts now follow the lawn's slow mottle
+  it('lawn tufts follow the lawn mottle', () => {
     const { scene, areaData, camera, tier } = walkScene('park');
     aimAt(camera, 0, 0);
     const grass = createGrass(scene, { areaId: 'park', areaData, tier, camera });
-    expect(grass.tint).toBeNull();
+    expect(grass.tint).not.toBeNull();
     grass.dispose();
   }, 120_000);
 });

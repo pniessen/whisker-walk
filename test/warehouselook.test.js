@@ -211,7 +211,9 @@ describe('warehouse() keeps its shipped costs', () => {
     // lips' merge class, so each warehouse is one draw cheaper: 316 - 5.
     expect(meshes).toBeLessThanOrEqual(SHIPPED.docksMerged);
     // polish-quayside: + 2, one vertex-coloured dressing mesh per barge.
-    expect(meshes).toBe(SHIPPED.docksMerged - 5 + 2);
+    // polish-sheen: + 1, the skyline's lit panes (docksSkylineLights), a
+    // hidden child shown only at dusk, so the day's draws are unchanged.
+    expect(meshes).toBe(SHIPPED.docksMerged - 5 + 2 + 1);
   }, 120_000);
 });
 

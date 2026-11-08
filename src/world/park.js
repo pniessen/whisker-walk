@@ -5,6 +5,31 @@ import { createWater } from '../render/water.js';
 import { addTrails } from './pathribbon.js';
 import { BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, FOUNTAIN_STONE, fountainWaterMaterial, latheGeometry, dressFountain } from './parkfountain.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
+import { tintGround, smoothField, smoothstep, lerp3 } from './dressing.js';
+
+// The lawn (polish-sheen). Under the Pass 8 day grade the old 0x6cb058 read as
+// flat lime, like a golf course: this is about 10% darker and a touch bluer
+// (hue 106 -> 110), so it reads as rich turf. Every copy of the lawn hex
+// (groundBounce, the band's nearColor) uses this constant.
+export const PARK_LAWN = 0x5c9e4e;
+
+// A slow mottle over a mown lawn: broad sunny patches a little warmer and
+// drier, broad shaded ones cooler and deeper, about 20 m across with a finer
+// 9 m wobble, so the lawn isn't one flat sheet. A multiplier on the ground's
+// vertex colour (tintGround) that grass.js's tufts follow too (GROUND_TINTS).
+// Pure function of (x, z); hash-seeded fields, no draws. Shared with the
+// neighbourhood's lawn (its own salt).
+const LAWN_WARM = [1.07, 1.04, 0.86];
+const LAWN_COOL = [0.86, 0.95, 0.97];
+export function lawnMottle(salt) {
+  return (x, z) => {
+    const f = 0.65 * smoothField(x, z, salt, 20) + 0.35 * smoothField(x, z, salt + 20, 9);
+    const warm = smoothstep(0.05, 0.55, f);
+    const cool = smoothstep(-0.05, -0.55, f);
+    return lerp3(lerp3([1, 1, 1], LAWN_WARM, warm), LAWN_COOL, cool);
+  };
+}
+export const parkLawnTint = lawnMottle(311);
 
 // =============================================================================
 // City Park.
@@ -57,7 +82,7 @@ const fountainStone = () => Object.assign(surfNoMap(FOUNTAIN_STONE.color, 'cobbl
 //
 //   * the ground is 'grass' — the largest single surface in the game, and the
 //     one colour the area is named for. builder.ground applies the grass tile's
-//     own luminance compensation, so the authored 0x6cb058 is untouched here;
+//     own luminance compensation, so the authored PARK_LAWN is untouched here;
 //   * the five path segments are 'gravel' — the road-aggregate tile, whose
 //     22-33mm stones are what a park walk is actually made of. They were
 //     'sand' before gravel existed, and at sand's 11mm grain the walks
@@ -120,8 +145,8 @@ export const PARK_PATH_EXTEND = 19;
 // south gate (3 m wide, on x = 0) runs out.
 export const PARK_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 8, wavelength: 40,
-  color: 0x8ac27e, salt: 23,
-  nearColor: 0x6cb058,
+  color: 0x7fb678, salt: 23,
+  nearColor: PARK_LAWN,
   edge: Object.freeze({
     half: 60, style: 'hedge', avoid: Object.freeze([POND]),
     gaps: Object.freeze([Object.freeze({ x: 0, z: 60.6, r: 2 })]),
@@ -133,7 +158,11 @@ export function build(scene, { water = {}, wind } = {}) {
   // The lawn. The repeat comes from the plane's own 120m inside ground(), and
   // the hex stays the one a human picked: builder.ground compensates grass's
   // 0.955 mean itself so the authored colour is what lands on screen.
-  scene.add(b.ground(120, 0x6cb058, { surface: 'grass' }));
+  // polish-sheen: PARK_LAWN, with its slow warm/cool mottle.
+  const lawn = b.ground(120, PARK_LAWN, { surface: 'grass' });
+  lawn.updateMatrix();
+  tintGround(lawn, parkLawnTint);
+  scene.add(lawn);
 
   // The horizon band (VISUAL-PASS.md Wave 4.3) — see builder.horizonBand's own
   // block for the geometry, and neighborhood.js's call for the reasoning
@@ -147,7 +176,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // more streets. 8m crests at 40m spacing gives two or three big rolling
   // masses per side instead of the suburb's five or six low swells.
   //
-  // The colour is the lawn's 0x6cb058 carried a third of the way to this
+  // The colour is the lawn's PARK_LAWN carried a third of the way to this
   // area's own horizon stop (0xd8f0e0, from applySky above) — aerial
   // perspective painted in, because fog does not begin until 40m and the near
   // corner of the band sits inside that.
@@ -464,7 +493,7 @@ export function build(scene, { water = {}, wind } = {}) {
     // b.ground() above. Marginally deeper than the neighbourhood's, which is
     // the point: the park should feel like the greener of the two from below
     // as well as from above.
-    groundBounce: 0x6cb058,
+    groundBounce: PARK_LAWN,
     skyDusk: { top: 0x2a3a5e, horizon: 0x6a5a7e },
     tippables: [
       { x: 7, z: 29, kind: 'can' }, { x: -3, z: 15, kind: 'pot' },

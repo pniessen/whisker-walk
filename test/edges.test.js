@@ -41,9 +41,10 @@ const AREAS = {
   pines: 'PINES_HORIZON',
 };
 const EXPECTED = {
-  neighborhood: { nearColor: 0x7cb860, style: 'hedge' },
-  park: { nearColor: 0x6cb058, style: 'hedge' },
-  river: { nearColor: 0x7d9c55, style: 'reeds' },
+  // polish-sheen: the lawns went deeper (NEIGHBORHOOD_LAWN, PARK_LAWN, RIVER_GROUND)
+  neighborhood: { nearColor: 0x6aa456, style: 'hedge' },
+  park: { nearColor: 0x5c9e4e, style: 'hedge' },
+  river: { nearColor: 0x6f9152, style: 'reeds' },
   woods: { nearColor: 0x547f3e, style: 'scrub' },
   moor: { nearColor: 0x8a9558, style: 'wall' },
   pines: { nearColor: 0x56603e, style: 'pinescrub' },
@@ -304,7 +305,7 @@ describe('near colour', () => {
     const band = scene.getObjectByName('horizonBand');
     const pos = band.geometry.attributes.position;
     const col = band.geometry.attributes.color;
-    const lawn = new THREE.Color(0x7cb860);
+    const lawn = new THREE.Color(0x6aa456); // NEIGHBORHOOD_LAWN (polish-sheen)
     const flat = opts.flat ?? 10;
     const ramp = opts.ramp ?? 26;
     let nearN = 0;

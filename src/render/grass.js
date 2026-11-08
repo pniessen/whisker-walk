@@ -8,6 +8,8 @@ import { riverGroundTint } from '../world/riverdress.js';
 import { moorGroundTint } from '../world/moordress.js';
 import { woodsGroundTint } from '../world/woods.js';
 import { pinesGroundTint } from '../world/pines.js';
+import { parkLawnTint } from '../world/park.js';
+import { neighborhoodLawnTint } from '../world/neighborhood.js';
 
 // ---------------------------------------------------------------------------
 // GRASS — low swaying tufts on the lawn near the camera (Stream 4 round two,
@@ -323,7 +325,7 @@ function patchNoise(x, z, size = PATCH_SIZE, salt = 7) {
 //              (lawn only: daisies and buttercups in mown turf)
 // ---------------------------------------------------------------------------
 const LAWN = Object.freeze({
-  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: null, ground: 0, hue: 0.12, flowers: 0.03,
+  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: null, ground: 0.8, hue: 0.12, flowers: 0.03, // ground: polish-sheen, tufts follow the lawn mottle
 });
 
 const smooth01 = (a, b, v) => {
@@ -422,6 +424,8 @@ export const GRASS_STYLES = Object.freeze({
 // ---------------------------------------------------------------------------
 export const GROUND_TINTS = Object.freeze({
   river: riverGroundTint, moor: moorGroundTint, woods: woodsGroundTint, pines: pinesGroundTint,
+  // polish-sheen: the lawns' slow warm/cool mottle (park.js lawnMottle)
+  park: parkLawnTint, neighborhood: neighborhoodLawnTint,
 });
 
 // tintSampler(fn, bounds, cell) — `fn(x, z) -> [r, g, b]` cached at the corners

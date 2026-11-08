@@ -1,5 +1,14 @@
 import * as b from './builder.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
+import { tintGround } from './dressing.js';
+import { lawnMottle } from './park.js';
+
+// The lawn (polish-sheen): 0x7cb860 read as flat lime under the Pass 8 day
+// grade; about 11% darker and a touch bluer (hue 101 -> 105). Every copy of
+// the lawn hex (groundBounce, the band's nearColor) uses this constant. The
+// mottle is the park's (park.js lawnMottle) on its own salt.
+export const NEIGHBORHOOD_LAWN = 0x6aa456;
+export const neighborhoodLawnTint = lawnMottle(173);
 
 // -----------------------------------------------------------------------------
 // SURFACES AND WIND (v20). The Docks pilot set the brief and it governs here
@@ -47,8 +56,8 @@ export const SPAWN = Object.freeze({ x: 0, z: 45 });
 // (the streets are 5 m wide on the axes, so each gap is 2.5 + 0.5 across).
 export const NEIGHBORHOOD_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34,
-  color: 0x94bd84, salt: 11,
-  nearColor: 0x7cb860,
+  color: 0x88b07d, salt: 11,
+  nearColor: NEIGHBORHOOD_LAWN,
   edge: Object.freeze({
     half: 60, style: 'hedge',
     gaps: Object.freeze([
@@ -67,9 +76,13 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
   //
   // The hex below is the one a human picked and is left ALONE: builder.ground
   // applies grass's luminance compensation (mean 0.955) itself, so the plane
-  // lands back on 0x7cb860 rather than 4.5% under it. That compensation lives
+  // lands back on NEIGHBORHOOD_LAWN rather than 4.5% under it. That compensation lives
   // in the builder precisely so this line does not have to know about it.
-  scene.add(b.ground(120, 0x7cb860, { surface: 'grass' }));
+  // polish-sheen: with its slow warm/cool mottle.
+  const lawn = b.ground(120, NEIGHBORHOOD_LAWN, { surface: 'grass' });
+  lawn.updateMatrix();
+  tintGround(lawn, neighborhoodLawnTint);
+  scene.add(lawn);
 
   // The horizon band (VISUAL-PASS.md Wave 4.3) — low hills out past the end of
   // the lawn, purely decorative: no collider, no perch, no POI, no record of
@@ -89,7 +102,7 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
   // happens here — so what belongs past the last garden fence is farmland
   // rolling away, not a mountain range.
   //
-  // The colour is the lawn's own 0x7cb860 carried about a third of the way to
+  // The colour is the lawn's own NEIGHBORHOOD_LAWN carried about a third of the way to
   // the sky's horizon stop (0xcfe8f0, the same hex applySky above hands the
   // fog). Distance does two things to a colour — it desaturates it and it
   // lifts it toward the sky — and fog only starts doing that at 40m, so the
@@ -359,7 +372,7 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
     // walk.js's HEMI_INTENSITY is the single dial for how much of it lands and
     // splitting that decision across five area files would guarantee they
     // drifted. The neighbourhood is grass wall to wall, so the choice is easy.
-    groundBounce: 0x7cb860,
+    groundBounce: NEIGHBORHOOD_LAWN,
     skyDusk: { top: 0x2a3a5e, horizon: 0x6a5a7e },
     tippables: [
       { x: -8, z: -32, kind: 'pot' }, { x: 10.5, z: -9.5, kind: 'pot' },

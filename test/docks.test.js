@@ -43,6 +43,7 @@ const { build: buildNeighborhood } = await import('../src/world/neighborhood.js'
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { GOLD_MICE, GOLD_TOTAL } = await import('../src/goldmice.js');
 const { surfaceProps } = await import('../src/render/materials.js');
+const { WARM_STONE_FINISH } = await import('../src/world/docksdressing.js');
 const { setTextureTier, getTextureTier } = await import('../src/render/textures.js');
 
 const area = build(new THREE.Scene());
@@ -512,9 +513,11 @@ describe('The Old Docks — surfaces', () => {
     const g = groundOf(scene);
     expect(g).toBeTruthy();
     // 'wetStone' and 'cobble' share one tile and differ ONLY in roughness, so
-    // roughness is the whole assertion: 0.42 is the damp read the area is
-    // named for, 0.8 would be a dry street.
-    expect(g.material.roughness).toBe(surfaceProps('wetStone').roughness);
+    // roughness was the whole assertion. polish-sheen: the low sun glared off
+    // the wet-stone sheen at the spawn, so docksdressing.js warmStone() now
+    // sets the ground matte (WARM_STONE_FINISH); the wet read lives in the
+    // patch and glint meshes. The tile is still the cobble.
+    expect(g.material.roughness).toBe(WARM_STONE_FINISH.roughness);
     expect(g.material.metalness).toBe(0);
     expect(g.material.map?.name).toBe('surface:cobble');
   });
@@ -547,7 +550,7 @@ describe('The Old Docks — surfaces', () => {
       build(scene);
       const g = groundOf(scene);
       expect(g.material.map).toBeNull();          // zero texture bytes on a phone
-      expect(g.material.roughness).toBe(surfaceProps('wetStone').roughness); // two floats are free
+      expect(g.material.roughness).toBe(WARM_STONE_FINISH.roughness); // two floats are free (polish-sheen finish)
     } finally {
       setTextureTier(before);
     }

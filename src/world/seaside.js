@@ -12,6 +12,12 @@ import { sandTint, dressBeach, KERB_COL } from './beachdress.js';
 // The edge dressing's dusk tint (render/dusk.js duskLawnColor): greyer and
 // darker than the default { desat 0.25, dark 0.72 }, and a touch cooler.
 export const HUT_DUSK_TINT = Object.freeze({ desat: 0.45, dark: 0.46, cool: Object.freeze([0.92, 0.98, 1.1]) });
+// The sand's dusk tint (polish-sheen): pale sand under the default
+// { desat 0.25, dark 0.72 } stayed the brightest ground in the game under a
+// night sky. A quarter darker (0.72 -> 0.54) and a little cooler and greyer,
+// so the beach reads as moonlit rather than lit; the dry ground and the wet
+// band take it alike (the huts keep theirs, the sea its own).
+export const SAND_DUSK_TINT = Object.freeze({ desat: 0.3, dark: 0.54, cool: Object.freeze([0.9, 0.97, 1.1]) });
 
 // The same two opt-in helpers world/builder.js keeps at the top of itself, for
 // the props this file builds locally rather than borrowing. They are duplicated
@@ -450,8 +456,11 @@ export function build(scene, { water = {}, wind } = {}) {
   const g = b.ground(140, BEACH, { surface: 'sand' });
   g.updateMatrix();
   tintGround(g, sandTint);
+  g.userData.duskLawnTint = SAND_DUSK_TINT;
   scene.add(g);
-  scene.add(wetSandBand());
+  const wet = wetSandBand();
+  wet.userData.duskLawnTint = SAND_DUSK_TINT;
+  scene.add(wet);
 
   // The horizon band (VISUAL-PASS.md Wave 4.3) — dunes and a headland. See
   // builder.horizonBand's own block for the geometry; it carries no collider,
@@ -840,5 +849,9 @@ export function build(scene, { water = {}, wind } = {}) {
   // The painted beach (beachdress.js): looks only, built from the record
   // it is about to return so its keep-outs are the real ones.
   dressBeach(scene, area, { ground: g });
+  // polish-sheen: the paint lying on the sand (shade, towel, moats, ripples)
+  // darkens with it at dusk, or it glows as a pale patch on the darker beach
+  const paint = scene.getObjectByName?.('beachPaint');
+  if (paint) paint.userData.duskLawnTint = SAND_DUSK_TINT;
   return area;
 }

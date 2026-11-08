@@ -716,7 +716,7 @@ const box = (w, h, d, x, y, z, hex, jitter = 0.03) => paint(new THREE.BoxGeometr
 // out. polish-quayside: each pane now sits in a lighter frame (`frames`), with
 // a glazing bar across it and a sill under it standing 0.1 m proud, the
 // language docks2 gave the quay warehouses (warehouselook.js), read at 45 m.
-function windows(tris, span, eave, face, out, salt, skip = () => false, maxRows = 3, frames = null) {
+function windows(tris, span, eave, face, out, salt, skip = () => false, maxRows = 3, frames = null, lit = null) {
   const bays = Math.floor((span - 1.0) / 2.3);
   if (bays < 1) return;
   const u0 = -((bays - 1) * 2.3) / 2;
@@ -727,6 +727,11 @@ function windows(tris, span, eave, face, out, salt, skip = () => false, maxRows 
       const u = u0 + c * 2.3;
       if (skip(u, y) || hash01(f * 7 + c, salt, 5.1) < 0.15) continue;
       quad(tris, face(u - 0.5, y), face(u + 0.5, y), face(u + 0.5, y + 1.2), face(u - 0.5, y + 1.2), out);
+      // polish-sheen: about three panes in five are someone's lit window at
+      // dusk, a hair proud of the dark pane (the dusk mesh, skylineMesh)
+      if (lit && hash01(f * 7 + c, salt, 8.3) < SKYLINE_LIT) {
+        quad(lit, face(u - 0.5, y, 0.02), face(u + 0.5, y, 0.02), face(u + 0.5, y + 1.2, 0.02), face(u - 0.5, y + 1.2, 0.02), out);
+      }
       if (!frames) continue;
       // the frame: a head and two jambs round the pane, in its plane
       quad(frames, face(u - 0.6, y + 1.2), face(u + 0.6, y + 1.2), face(u + 0.6, y + 1.32), face(u - 0.6, y + 1.32), out);
@@ -761,7 +766,7 @@ function coursed(w, h, d, hex, salt) {
 
 // A warehouse in its own frame: a body inset 0.25 m inside the footprint, its
 // roof (eaves out to the footprint's edge), and its doors and windows.
-function warehouseParts(p) {
+function warehouseParts(p, lit = null) {
   const { w, d, h, kind } = p;
   const bw = w - 0.5, bd = d - 0.5;
   const rise = kind === 'gable' ? Math.min(0.28 * w, 3) : kind === 'shed' ? Math.min(0.3 * d, 2.5) : 1.8;
@@ -837,10 +842,10 @@ function warehouseParts(p) {
     quad(frames, front(-1.55, dh), front(1.55, dh), front(1.55, dh, 0.12), front(-1.55, dh, 0.12), [0, -1, 0]);
     skipFront = (u, y) => y < dh + 0.5 && Math.abs(u) < 2.1;
   }
-  windows(holes, bw, e, front, [0, 0, 1], salt, skipFront, 3, frames);
+  windows(holes, bw, e, front, [0, 0, 1], salt, skipFront, 3, frames, lit);
   // one row down each side, for the corner views
   for (const sx of [-1, 1]) {
-    windows(holes, bd, e, (u, y, o = 0) => P(sx * (bw / 2 + 0.03 + o), y, u), [sx, 0, 0], salt + sx * 3, () => false, 1, frames);
+    windows(holes, bd, e, (u, y, o = 0) => P(sx * (bw / 2 + 0.03 + o), y, u), [sx, 0, 0], salt + sx * 3, () => false, 1, frames, lit);
   }
   // the gutter along the front eave (a gable's eaves run down its sides) and
   // a downpipe at one front corner
@@ -932,14 +937,55 @@ export function skylinePartsOf(p) {
   return parts;
 }
 
+// The skyline's lit panes for dusk (polish-sheen), in world space: the
+// warehouses' windows again, SKYLINE_LIT of them by hash, as flat quads 2 cm
+// proud of the dark panes. Exported so a test can count and place them.
+export const SKYLINE_LIT = 0.6;
+export const SKYLINE_LIGHT = 0xffd27a; // builder.js HOUSE_LIGHT, the town's windows
+export function skylineLitPanes() {
+  const out = [];
+  for (const p of SKYLINE) {
+    if (SKYLINE_KINDS[p.kind] !== warehouseParts) continue;
+    const lit = [];
+    warehouseParts(p, lit).forEach((g) => g.dispose());
+    if (!lit.length) continue;
+    const g = facing(lit, SKYLINE_LIGHT);
+    g.applyMatrix4(new THREE.Matrix4().makeRotationY(p.rot).setPosition(p.x, 0, p.z));
+    out.push(g);
+  }
+  return out;
+}
+
+// builder.js houseLightsMesh's recipe: one hidden MeshBasic mesh that
+// render/dusk.js shows at dusk (userData.duskWindow), fog off and not
+// tone-mapped so the panes stay warm yellow at 50 m. A child of the skyline,
+// so the dressing count and the merge are as they were; made inside
+// dressDocks' withLocalUuids stream like everything else here.
+function skylineLightsMesh() {
+  const parts = skylineLitPanes();
+  const geo = mergeGeometries(parts, false);
+  for (const g of parts) g.dispose();
+  for (const a of ['normal', 'uv', 'color']) if (geo.attributes[a]) geo.deleteAttribute(a);
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: SKYLINE_LIGHT, fog: false, toneMapped: false }));
+  mesh.name = 'docksSkylineLights';
+  mesh.userData = { duskWindow: true, noCast: true, noMerge: true };
+  mesh.visible = false;
+  mesh.frustumCulled = false;
+  mesh.castShadow = false;
+  return mesh;
+}
+
 function skylineMesh() {
   const parts = [];
   for (const p of SKYLINE) parts.push(...skylinePartsOf(p));
   // opaque and fogged (MeshStandardMaterial's default), so the far layer
   // fades to silhouette; matte, and no userData.window — the windows are
-  // vertex colours, so walk.js's dusk pass never lights them
+  // vertex colours, so walk.js's dusk pass never lights them; the lit panes
+  // are their own hidden child that the dusk pass shows (polish-sheen)
   const mesh = tag(new THREE.Mesh(mergeParts(parts), dressingMaterial({ roughness: 1 })));
   mesh.name = 'docksSkyline';
+  mesh.add(skylineLightsMesh());
   return mesh;
 }
 
@@ -966,10 +1012,21 @@ const SLATE = [0.94, 0.96, 1.02];
 // sandstone and a slate tint, from a 9–16 m value-noise field of the vertex's
 // world (x, z). Rescales the attribute in place and creates nothing; a pure
 // function of position. Marked, so a second call never doubles it.
+//
+// polish-sheen: it also takes the shine off. The ground wears the 'wetStone'
+// preset (roughness 0.55, normal mapped), and from the spawn camera the low
+// sun's specular on those cobbles bloomed into a white glare over the left
+// fifth of the first frame (survey 9's probe9: gone with every material at
+// roughness 1). Dry cobbles in the sun are matte; the wet look lives in the
+// separate patch and glint meshes below, which keep their own materials. The
+// material is the ground's own (litMaterial makes a new one per call), so
+// setting it here touches nothing else and creates nothing.
+export const WARM_STONE_FINISH = Object.freeze({ roughness: 0.9, envMapIntensity: 0.55 });
 export function warmStone(ground) {
   const col = ground?.geometry?.attributes?.color;
   if (!col || ground.userData.warmStone) return;
   ground.userData.warmStone = true;
+  if (ground.material && 'roughness' in ground.material) Object.assign(ground.material, WARM_STONE_FINISH);
   ground.updateMatrix();
   const pos = ground.geometry.attributes.position;
   const v = new THREE.Vector3();
