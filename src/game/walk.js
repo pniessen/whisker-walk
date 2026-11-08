@@ -673,6 +673,8 @@ export function createWalkLifecycle({
       // anything else is added) are what the rain darkens; the fill is dimmed.
       const wet = scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path'));
       weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion, ground, { tier, fill, wet });
+      // polish-daylight: a graded clear day also takes a touch less exposure.
+      if (weather.exposureScale) composerRig.applyDayGrade(weather.exposureScale);
       if (weather.condition === 'rain') {
         // Extra puddles. These are the only props in the game that EVERY area
         // gets whether it authored them or not, which is why their surface is

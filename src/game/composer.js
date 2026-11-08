@@ -167,6 +167,15 @@ export function createComposerRig(renderer, camera) {
     return lighting;
   }
 
+  // polish-daylight: a clear day's grade (weather.js CLEAR_DAY_LOOK.exposure)
+  // scales the exposure applyLighting just set. Called after applyLighting on
+  // the same walk; a clear walk is never a dusk walk, so Night Eyes never meets
+  // it. The next walk's applyLighting (and resetLighting) set the base back.
+  function applyDayGrade(exposureScale = 1) {
+    renderer.toneMappingExposure = baseExposure * exposureScale;
+    return renderer.toneMappingExposure;
+  }
+
   // endWalk hygiene: put the renderer back on its calibrated base exposure so
   // nothing rendered outside a walk inherits a walk's Night Eyes boost.
   function resetLighting() {
@@ -174,7 +183,7 @@ export function createComposerRig(renderer, camera) {
   }
 
   return {
-    ensure, attachScene, renderFrame, resize, applyLighting, resetLighting, baseExposure,
+    ensure, attachScene, renderFrame, resize, applyLighting, applyDayGrade, resetLighting, baseExposure,
     setPixelRatio, setBloomStrength,
   };
 }

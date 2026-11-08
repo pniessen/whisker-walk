@@ -511,6 +511,9 @@ export function applySky(scene, top, horizon) {
   // recedes into have to agree.
   scene.background = skyBackground(top, horizon);
   scene.fog = new THREE.Fog(horizon, 40, 130);
+  // The authored pair, kept for weather.js's clear-day grade (CLEAR_DAY_LOOK),
+  // which needs the stops and cannot read them back off a canvas texture.
+  if (scene.userData) scene.userData.daySky = { top, horizon };
 }
 
 // `surface` is opt-in and defaults to nothing at all, so every area that does
