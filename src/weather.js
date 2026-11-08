@@ -73,7 +73,7 @@ export function createRainSchedule(rng) {
 // so the near-white horizons (Neighbourhood, Park, River, Moor, Woods) get the
 // full grade, the Pines most of it, and the Docks' grey harbour sky (0.60) none
 // at all: no colour, fog, light or exposure change.
-// The Gorge (the one non-flat map) keeps its own canyon haze and fog.
+// The Gorge (the one non-flat map) brings its own table (gorge.js GORGE_DAY_LOOK).
 export const CLEAR_DAY_LOOK = Object.freeze({
   strength: 1,
   paleFrom: 0.62, paleTo: 0.86,
@@ -120,9 +120,14 @@ export function clearDaySky(top, horizon, look = CLEAR_DAY_LOOK) {
 // The clear walk's grade, applied to the scene applySky built. Only on flat
 // maps whose sky applySky recorded (scene.userData.daySky). The sky and fog
 // are per-walk and stay; the fill and image light go back on dispose.
+// An area may bring its own grade (scene.userData.dayLook, the same shape as
+// CLEAR_DAY_LOOK): the Gorge does (polish-gorgelight), and it is the only
+// way a non-flat map is graded.
 function applyClearDay(scene, ground, opts, api, look = CLEAR_DAY_LOOK) {
   const day = scene.userData?.daySky;
-  if (!day || ground !== FLAT_GROUND || !scene.fog || !(look.strength > 0)) return;
+  const own = scene.userData?.dayLook;
+  if (own) look = own;
+  if (!day || (ground !== FLAT_GROUND && !own) || !scene.fog || !(look.strength > 0)) return;
   const g = clearDaySky(day.top, day.horizon, look);
   // A sky with no pale horizon to fix (the Docks' overcast harbour) keeps its
   // whole look: fog, light and exposure too, not only its colours.

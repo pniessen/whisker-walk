@@ -49,7 +49,15 @@ const TAPER = 0.6; // the bumps and cove fade out over this beside the opening
 const NOISE_STEP = [0.7, 0.3]; // two octaves, metres per lattice step
 const NOISE_ROWS = 12;
 
-export const LINER_COLORS = Object.freeze({ echo: 0x6e7682, snug: 0x8a7058, glitter: 0x9a8664 });
+// The Echo Cave's liner was a cool blue-grey 0x6e7682, which read as a flat
+// blue-grey room cut into warm sandstone; a dusky warm grey now (its blue
+// crystals still give it its cool light; polish-gorgelight).
+export const LINER_COLORS = Object.freeze({ echo: 0x6b6260, snug: 0x8a7058, glitter: 0x9a8664 });
+// The corridor and the bend (caveTunnel) are the canyon's warm brown, darker
+// on the way in (up to TUNNEL_LOOK.dark, deepest at TUNNEL_LOOK.deep of the
+// way), then ease into the chamber's own liner colour and value by its door,
+// so no seam shows there.
+export const TUNNEL_LOOK = Object.freeze({ brown: 0x84694f, dark: 0.24, deep: 0.7 });
 const MOSS = [0x4f6b3a, 0x6f8a4a];
 const TWIGS = [0x6b4f33, 0x7f6142, 0x5e452d];
 const FUR = 0xa89f94;
@@ -711,9 +719,22 @@ export function caveTunnel(cave, { clear, seed, crystals, mouthTint } = {}) {
     const n = noise(s, pa[k]);
     return { n, b: taper(s) * n * (P[k][1] < COVE_FROM ? TUNNEL_BUMP_LOW : TUNNEL_BUMP_VAULT) };
   };
-  const base = new THREE.Color(LINER_COLORS[cave.id] ?? LINER_COLORS.echo);
+  const chamberCol = new THREE.Color(LINER_COLORS[cave.id] ?? LINER_COLORS.echo);
+  const brown = new THREE.Color(TUNNEL_LOOK.brown);
+  const base = new THREE.Color();
   const c = new THREE.Color();
-  const shade = (h, n) => c.copy(base).multiplyScalar(0.75 + 0.25 * (0.5 * Math.min(1, Math.max(0, h) / 1.6) + 0.5 * n));
+  // the colour s metres along the walking line: brown at the mouth, the
+  // chamber's at the far end, darker between
+  const along = (sv) => {
+    const f = Math.min(1, Math.max(0, sv / S));
+    const D = TUNNEL_LOOK.deep;
+    const dip = f <= D ? smooth(f / D) : 1 - smooth((f - D) / (1 - D));
+    // the chamber's colour comes in only past the darkest point, so the way
+    // in darkens even where the chamber itself is lighter (the Glitter Cave)
+    return base.copy(brown).lerp(chamberCol, f <= D ? 0 : smooth((f - D) / (1 - D))).multiplyScalar(1 - TUNNEL_LOOK.dark * dip);
+  };
+  let atS = 0;
+  const shade = (h, n) => c.copy(along(atS)).multiplyScalar(0.75 + 0.25 * (0.5 * Math.min(1, Math.max(0, h) / 1.6) + 0.5 * n));
   const tint = mouthTint ? new THREE.Color(mouthTint.color) : null;
   const tintLen = mouthTint?.len ?? 3.5;
   const tinted = (s, col) => (tint ? col.lerp(tint, 1 - smooth(s / tintLen)) : col);
@@ -733,6 +754,7 @@ export function caveTunnel(cave, { clear, seed, crystals, mouthTint } = {}) {
       let q = world(fr, u + inN[k][0] * b, h + inN[k][1] * b);
       if (h < COVE_FROM && !clear(q.x, q.z, 0)) { q = world(fr, u, h); b = 0; n = 0; }
       row.push(b);
+      atS = s;
       return m.vert(q.x, q.y, q.z, tinted(s, shade(h, n)));
     });
     bumps.push(row);
@@ -762,7 +784,7 @@ export function caveTunnel(cave, { clear, seed, crystals, mouthTint } = {}) {
   for (const [s, out] of [[0, -1], [S, 1]]) {
     const fr = frameAt(s);
     const want = new THREE.Vector3(fr.f[0] * out, 0, fr.f[1] * out);
-    const v = (u, h) => { const q = world(fr, u, h); return m.vert(q.x, q.y, q.z, tinted(s, shade(h, 0.5))); };
+    const v = (u, h) => { const q = world(fr, u, h); atS = s; return m.vert(q.x, q.y, q.z, tinted(s, shade(h, 0.5))); };
     // the arch from (1.5, 1.55) over to (-1.5, 1.55); the bumps are tapered away here
     const arch = P.map(([u, h], k) => (k >= 2 && k <= 8 ? v(u, h) : -1));
     const top = v(0, CORRIDOR_HEADROOM);
@@ -795,8 +817,8 @@ export function caveTunnel(cave, { clear, seed, crystals, mouthTint } = {}) {
     return lerp(heightOn(s0), heightOn(s1), clamp01((s - s0.s) / (s1.s - s0.s)));
   };
   from = m.pos.length / 3;
-  const hangColor = base.clone().multiplyScalar(1.05);
-  const tipColor = base.clone().lerp(new THREE.Color(0xffffff), 0.15);
+  const hangColor = chamberCol.clone().multiplyScalar(1.05);
+  const tipColor = chamberCol.clone().lerp(new THREE.Color(0xffffff), 0.15);
   const hangs = [];
   for (let t = 0; t < 60; t++) {
     const s = 2.2 + rng() * (S - 3.0), u = (rng() * 2 - 1) * 0.6, len = 0.25 + rng() * 0.25;

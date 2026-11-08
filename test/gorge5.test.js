@@ -344,15 +344,18 @@ describe('polish-gorge5 review: cached arches', () => {
 const sha = (a) => createHash('sha256').update(Buffer.from(new Float32Array(a).buffer)).digest('hex');
 // Recorded from the chambers and tunnels BEFORE caveRoom took its `look` and
 // caveTunnel its `mouthTint` (f8f1d5c): position, colour and index arrays.
+// polish-gorgelight re-recorded the COLOUR hashes only (positions and indices
+// unchanged): the Echo chamber's liner is a warm grey now, and every tunnel
+// grades from the canyon's brown at the mouth to its chamber's colour.
 const CHAMBER_SHA = {
-  echo: ['3ab139999a6a2e968ce312c86ec2e91beddac1b33c984fb6e47cb81631dd16c9', '5ea22b40a58aa10a0a58d1fbd9eb7b0f3eaed9b0e73f756ede4752973c0cf5ac', 'f984a1d9c528237a9310881cbc8d30463de704101e4af30f14aabe49ad12281c'],
+  echo: ['3ab139999a6a2e968ce312c86ec2e91beddac1b33c984fb6e47cb81631dd16c9', '369a94b04c9a86922cc1bcc658e7891b89edc5c8f55a8600a4647391742e2f1b', 'f984a1d9c528237a9310881cbc8d30463de704101e4af30f14aabe49ad12281c'],
   snug: ['128084fc50c1a91a11f6fccb920801d9eb70df640b84eeb0f43eb31ec9209523', 'be3e0082ba07f3f474fee722c6c33e5798594db3aa3c4202fe7dd866d71765c4', '04953ff558d7101f902ca99e4f57baed651a04abfde61dd7c0f204e99d7d648c'],
   glitter: ['f8460f2af1fa9e7144a8a3af2fe43901833b6fe39b3cfe9591a234951a3be9f2', '8b843d111f2eaf093d455a4fc7dd766be1b0c6863afc6feca65e7aa5a8a66ecb', '2250f78693a6172d314671ee95b2d85c932f27784c4cdcd96e72d3cfb1e9fafe'],
 };
 const TUNNEL_SHA = {
-  echo: ['763a3b0515f18251335362ccb7a8c6fbf57975d5f51f0167b80351402e9f2f75', '317961c5ded733a7a2138cda564c59c33b4e2d65f39a083f9552b803a57ed1da'],
-  snug: ['dd1fcd3c42987ed491f27aa4a3b854442304607c5c40041d1ca7648741da5d05', '7ec52e49a41d44c42b074487d10d5193710be0cb0ad80a24f9b9d390a8ab4919'],
-  glitter: ['521cd0d892f610400e6856f09cdbaf1f86221ffd05dda84d072cde66e3086b60', '7dcfe951629b50433292266ef46a4cb0b3b195247aa2eed7b651674ee36a5b32'],
+  echo: ['763a3b0515f18251335362ccb7a8c6fbf57975d5f51f0167b80351402e9f2f75', 'd25dda8ecef9c8c8b611df14265bcb090cf13004121de496fa5c307a1ad92190'],
+  snug: ['dd1fcd3c42987ed491f27aa4a3b854442304607c5c40041d1ca7648741da5d05', 'f3d3357d513826317bda7a86ddab0c766e2673fa35d01cb388c5b77392085e44'],
+  glitter: ['521cd0d892f610400e6856f09cdbaf1f86221ffd05dda84d072cde66e3086b60', 'd76594a5c76040b1d020a0bb671064b01b82225d33760d11e7655f4da70fc9a6'],
 };
 
 describe('polish-gorge5 task 3: the camp den lining and the tunnels\' first metres', () => {
