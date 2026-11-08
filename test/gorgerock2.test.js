@@ -319,7 +319,7 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
     const { FLOOR_WALLS, gorgeMeadow, MEADOW_TALUS, MEADOW_PATH_CLEAR, GORGE_PATHS, GORGE_WATERS } = await import('../src/world/gorge.js');
     const { GORGE_CAVES, GORGE_DENS } = await import('../src/world/gorgeshape.js');
     const { talus } = gorgeMeadow();
-    expect(MEADOW_TALUS).toBe(0xa59b89);
+    expect(MEADOW_TALUS).toBe(0x8d7a63); // damp gravel, was 0xa59b89 (polish-gorgewall)
     const seg = (x, z, ax, az, bx, bz) => {
       const dx = bx - ax, dz = bz - az;
       const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));

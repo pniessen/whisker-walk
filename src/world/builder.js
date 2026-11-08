@@ -6273,19 +6273,24 @@ export function toadstools(spots, seed) {
 //     where things stand on the rock and its top stays still.
 //
 // Three merged meshes:
-//   rockFaces  masses and ceiling caps; vertex colours from ROCK_LOW (cool
-//              grey-brown) at y 0 to ROCK_HIGH (sandstone) at the highest top,
-//              by each vertex's y BEFORE the relief, in the relief's own 1.1 m
-//              strata bands (so colour and shelves line up): each band +-9%,
-//              alternately tinted warm or cream, and darker in a recess (up
-//              to 25% at RELIEF_DEPTH). Casts.
+//   rockFaces  masses and ceiling caps; vertex colours from ROCK_LOW (a muted
+//              cool brown) at y 0 to ROCK_HIGH (pale sandstone) at the
+//              highest top, by each vertex's y BEFORE the relief, in the
+//              relief's own 1.1 m strata bands (so colour and shelves line
+//              up): each band +-ROCK_STRATA, alternately tinted warm or cream,
+//              and a little darker in a recess (RECESS_DARK at RELIEF_DEPTH).
+//              The undercut band over each wall's foot is darker (UNDERCUT_DARK)
+//              and faces looking up (ledges, rims) lighter (LEDGE_LIGHT). The
+//              crisp strata lines are per pixel (rockshade.js), not here: a
+//              vertex colour can only blur across its 1 m row (polish-gorgewall).
+//              Casts.
 //   ledgeTops  raised walkable shapes: their tops (ramps sloped) and exposed
 //              sides, warm sand-grey, one plain material. Casts.
 //   lips       the low rock bands at the edges (G3), coloured as the rock.
 //              noCast: they are thin, and the sweep would cast anything wide.
 // `tint(x, y, z, rgb, recess, foot) => [r, g, b]` (optional) recolours every rock
 // colour after rockColour (faces, lips, their dressing; not ledgeTops); give a `tintKey` for the cache.
-// The talus (rockshade.js TALUS_TINT) goes on after it, at the wall feet.
+// The damp foot (rockshade.js TALUS_TINT) and the undercut go on after it.
 // All three materials wear rockshade.js's shader patch.
 // The dressing (rockDressing, below) is appended to rockFaces and lips after
 // their shells: lip stones along every lip, boulders at the wall feet.
@@ -6293,7 +6298,7 @@ export function toadstools(spots, seed) {
 // { lipStones, footBoulders }.
 // G4 names a 'stone' surface; materials.js has no such preset (it would warn
 // and fall back), so the rock takes 'cobble's light response, as tor() does.
-export const ROCK_LOW = 0x6f6a66;
+export const ROCK_LOW = 0x7f7062; // a muted brown, warmer than the old cool grey 0x6f6a66 (polish-gorgewall)
 export const ROCK_HIGH = 0xc8b496;
 export const LEDGE_COLOR = 0xbca682;
 // Folds sharper than this keep their edge in the rock's shading (a walk top
@@ -6305,10 +6310,15 @@ const ROCK_CELL = 1.2; // side faces (and a top's ring) are cut into steps about
 // (CREST_BAND, how deep the cut ring round a rock top is, is the relief's own.)
 // ROW_MIN: a row line this close to a face's foot or top is left out (no
 // slivers); also rockrelief.js's.
-const ROCK_STRATA = 0.09; // each strata band is +-9% lighter or darker
+const ROCK_STRATA = 0.06; // each strata band is +-6% lighter or darker
 const STRATA_WARM = [1.03, 0.99, 0.95]; // alternate bands tinted warm
 const STRATA_CREAM = [1.01, 1.01, 1.00]; // and cream
-const RECESS_DARK = 0.25; // the deepest recess is this much darker
+// The deepest recess is this much darker. Was 0.25: the gullies' recess
+// changes every 1.2 m along a wall, and a vertex colour that dark smeared into
+// soft vertical streaks (survey 8 #1). The relief's own shading shows them.
+const RECESS_DARK = 0.1;
+const UNDERCUT_DARK = 0.1; // the undercut band over a wall's foot (rockrelief's undercutAt)
+const LEDGE_LIGHT = 0.14; // a face looking straight up is this much lighter
 const SIDE_EPS = 1e-4; // how far outside a face its neighbour is looked up
 const FLAT_EPS = 1e-7; // a face thinner than this is not drawn
 
@@ -6486,14 +6496,19 @@ function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mou
   // out by talusHi metres over the walk. Applied last, after any `tint`, so
   // the Narrows' feet carry it too. `foot` (rockrelief's at()) defaults to
   // Infinity: the dressing's colours take none.
+  // The foot is damp and dark (TALUS_TINT), not a pale band: the floor's
+  // pale sand meets a darker wall, so the wall's foot reads (polish-gorgewall).
   const talus = new THREE.Color(TALUS_TINT);
   const tinted = recolour
     ? (x, y, z, recess, foot) => recolour(x, y, z, plainColour(x, y, z, recess), recess, foot)
     : plainColour;
   const rockColour = (x, y, z, recess, foot = Infinity) => {
-    const rgb = tinted(x, y, z, recess, foot);
+    let rgb = tinted(x, y, z, recess, foot);
+    // the undercut: 0 at the foot, full from 1.0 to 1.8 m up, gone by 3.2
+    const u = UNDERCUT_DARK * smoothstep(0.3, 1.0, foot) * (1 - smoothstep(1.8, 3.2, foot));
+    if (u > 0) rgb = [rgb[0] * (1 - u), rgb[1] * (1 - u), rgb[2] * (1 - u)];
     const k = (1 - smoothstep(ROCK_SHADE.talusLo, ROCK_SHADE.talusHi, foot))
-      * (0.5 + 0.5 * noise3(x / 1.5, 0, z / 1.5, seed + 9));
+      * (0.75 + 0.25 * noise3(x / 1.5, 0, z / 1.5, seed + 9));
     if (!(k > 0)) return rgb;
     return [rgb[0] + (talus.r - rgb[0]) * k, rgb[1] + (talus.g - rgb[1]) * k, rgb[2] + (talus.b - rgb[2]) * k];
   };
@@ -6701,6 +6716,16 @@ function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mou
     const nor = new Float32Array(pos.length);
     nor.set(smoothNormals(pos.subarray(0, n), verts, ROCK_CREASE));
     nor.set(extra.nor, n);
+    // Faces looking up (shelves, ledges, the rims) lighter, as if sunlit
+    // and dusty: the shell only, by its smooth normal.
+    if (col) {
+      for (let i = 0; i < verts.length; i++) {
+        const lift = 1 + LEDGE_LIGHT * smoothstep(0.45, 0.95, nor[3 * i + 1]);
+        col[3 * i] *= lift;
+        col[3 * i + 1] *= lift;
+        col[3 * i + 2] *= lift;
+      }
+    }
     // The flat normals came from a scratch BufferGeometry, whose uuid drew 4
     // Math.random numbers; the area builds are pinned to their draw count
     // (test/waterlooks.test.js BUILD_DRAWS), so the same uuid is still drawn.
