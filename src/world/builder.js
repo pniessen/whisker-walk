@@ -3741,18 +3741,123 @@ export function mailbox(x, z) {
   return g;
 }
 
+// polish-quayside: the car's real shape. Everything here is built inside the
+// car's own withLocalUuids, and stays inside the old two-box car's bounding
+// box (x ±1.025 at the tyres, y 0 .. 1.425, z ±2), so its contact shadow, its
+// caster class and its collider (r 1.8) are what they were.
+//
+// The side profile in (z, y), front at +z: a low nose, a bonnet, the
+// windscreen base, the waist line back to a short boot, and two wheel arches
+// cut into the sill. Extruded across the car with a small bevel, so every
+// edge catches a rounded highlight. Authored CAR_BEVEL inside the outline the
+// bevel grows it back out to.
+const CAR_BEVEL = 0.04;
+const CAR_ARCH = { r: 0.44, y: 0.36, z: 1.3 };
+function carSideShape() {
+  const s = new THREE.Shape();
+  const { r, y: ay, z: az } = CAR_ARCH;
+  s.moveTo(-1.92, 0.37);
+  s.lineTo(-az - r, 0.37);
+  s.absarc(-az, ay, r, Math.PI, 0, true);
+  s.lineTo(az - r, 0.37);
+  s.absarc(az, ay, r, Math.PI, 0, true);
+  s.lineTo(1.92, 0.37);
+  s.lineTo(1.955, 0.5);
+  s.lineTo(1.955, 0.68);
+  s.lineTo(1.88, 0.79);
+  s.lineTo(1.6, 0.855);
+  s.lineTo(0.8, 0.9);
+  s.lineTo(-1.36, 0.9);
+  s.lineTo(-1.84, 0.87);
+  s.lineTo(-1.955, 0.74);
+  s.lineTo(-1.955, 0.48);
+  s.lineTo(-1.92, 0.37);
+  return s;
+}
+// A closed (z, y) outline extruded `width` across x (centred), bevelled.
+function carExtrude(shape, width, bevel, segs = 2) {
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: width - 2 * bevel, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel,
+    bevelSegments: segs, curveSegments: 8,
+  });
+  // extruded along +z from 0: turn so the extrusion runs across x and the
+  // shape's u becomes z (rotateY(-PI/2): (u, v, d) -> (-d, v, u))
+  g.rotateY(-Math.PI / 2);
+  g.translate((width - 2 * bevel) / 2, 0, 0);
+  return g;
+}
+const carPoly = (pts) => {
+  const s = new THREE.Shape();
+  pts.forEach(([u, v], i) => (i ? s.lineTo(u, v) : s.moveTo(u, v)));
+  return s;
+};
+// Non-indexed, position + normal + uv, so every piece of one material merges.
+const carPart = (g, x = 0, y = 0, z = 0) => {
+  const out = g.index ? g.toNonIndexed() : g;
+  if (out !== g) g.dispose();
+  if (!out.attributes.uv) out.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(out.attributes.position.count * 2), 2));
+  return out.translate(x, y, z);
+};
+const carMerge = (parts) => {
+  const g = mergeGeometries(parts, false);
+  for (const p of parts) p.dispose();
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+};
+// The windows' outline (windscreen, roof line, rear screen) over the waist.
+// The roof stays flat at 1.425 from z 0.45 back to -0.95: the car roof is a
+// perch ('king of the car roof', y 1.35 at the car's centre) and the
+// neighbourhood's knockable cup stands on it at local (0.58, 0), both where
+// the old cabin box's flat top was.
+const CAR_WHEELS = [[-0.9, 1.3], [0.9, 1.3], [-0.9, -1.3], [0.9, -1.3]];
+const CAR_GLASS = [[0.8, 0.88], [0.46, 1.33], [-0.96, 1.33], [-1.36, 0.88]];
+function carGeometries() {
+  // paint: the body, the roof panel, the A/B/C pillars and the door mirrors
+  const paint = [carPart(carExtrude(carSideShape(), 1.8, CAR_BEVEL, 2))];
+  paint.push(carPart(carExtrude(carPoly([[0.5, 1.33], [0.45, 1.405], [-0.95, 1.405], [-1.0, 1.33]]), 1.6, 0.02, 1)));
+  const pillar = (a, b, t = 0.07) => {
+    const len = Math.hypot(b[1] - a[1], b[2] - a[2]);
+    const g = new THREE.BoxGeometry(t, len, t);
+    g.rotateX(Math.atan2(b[2] - a[2], b[1] - a[1]));
+    return carPart(g, a[0], (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+  };
+  for (const sx of [-1, 1]) {
+    const x = sx * 0.765;
+    paint.push(pillar([x, 0.9, 0.8], [x, 1.36, 0.46]));
+    paint.push(pillar([x, 0.9, -1.36], [x, 1.36, -0.96]));
+    paint.push(pillar([x, 0.9, -0.3], [x, 1.36, -0.3], 0.08));
+    paint.push(carPart(new THREE.BoxGeometry(0.16, 0.1, 0.12), sx * 0.94, 0.96, 0.62));
+  }
+  const glass = carPart(carExtrude(carPoly(CAR_GLASS), 1.5, 0.03, 1));
+  // headlamps share the glass; the trim (bumpers, grille, sills) is the tyres' rubber
+  const lamps = [glass];
+  for (const sx of [-1, 1]) lamps.push(carPart(new THREE.BoxGeometry(0.34, 0.12, 0.05), sx * 0.58, 0.66, 1.945));
+  const trim = [];
+  for (const sz of [-1, 1]) trim.push(carPart(roundedBoxFresh(1.84, 0.16, 0.12), 0, 0.42, sz * 1.94));
+  trim.push(carPart(new THREE.BoxGeometry(0.8, 0.14, 0.04), 0, 0.64, 1.965));
+  const tail = [];
+  for (const sx of [-1, 1]) tail.push(carPart(new THREE.BoxGeometry(0.3, 0.14, 0.05), sx * 0.62, 0.68, -1.945));
+  return { paint: carMerge(paint), glass: carMerge(lamps), trim: carMerge(trim), tail: carMerge(tail) };
+}
+// roundedBox's geometry is shared and cached (and must not be mutated or
+// disposed), so the bumpers take a fresh chamfered box of their own.
+const roundedBoxFresh = (w, h, d) => roundedBox(w, h, d).clone();
+
 export function car(x, z, color = 0xd06048, rotY = 0) {
   const g = new THREE.Group();
   // The preset the table was written for: automotive paint is a clearcoat over
   // pigment, the metal is UNDER the paint, and metalness 0 is what keeps a red
   // car red instead of tinting its highlight and killing the diffuse term.
+  // The two boxes below are the shipped constructor calls in the shipped
+  // order (the area build's Math.random draws are pinned): their geometry is
+  // swapped for the car's real shape inside withLocalUuids.
   const body = surfBox(1.8, 0.6, 4, color, 'paintedMetal');
-  body.position.y = 0.6;
   g.add(body);
   const cabin = surfBox(1.6, 0.55, 2, 0xa8d8e8, 'glass');
-  cabin.position.set(0, 1.15, -0.2);
   g.add(cabin);
-  for (const [wx, wz] of [[-0.9, 1.3], [0.9, 1.3], [-0.9, -1.3], [0.9, -1.3]]) {
+  const wheels = [];
+  for (const [wx, wz] of CAR_WHEELS) {
     // Tyres stay explicitly 'matte'. Rubber loaded with carbon black is about
     // the least specular thing in the world, and it is the one material in the
     // game that has a reason to be flatter than the paint beside it.
@@ -3761,7 +3866,22 @@ export function car(x, z, color = 0xd06048, rotY = 0) {
     wheel.rotation.z = Math.PI / 2;
     wheel.position.set(wx, 0.35, wz);
     g.add(wheel);
+    wheels.push(wheel);
   }
+  withLocalUuids(`car:${x},${z}`, () => {
+    const geo = carGeometries();
+    body.geometry = geo.paint;
+    // a softer clearcoat than the preset's 0.35: the bonnet and roof are big
+    // flat sky-facing panels, and at 0.35 the sun bloomed white across them
+    body.material.roughness = 0.5;
+    cabin.geometry = geo.glass;
+    // bumpers and grille in the tyres' own rubber (non-indexed tyres, so the
+    // four tyres and the trim merge into one draw), the tail lamps warm red
+    for (const w of wheels) w.geometry = carPart(new THREE.CylinderGeometry(0.35, 0.35, 0.25, 16));
+    const trim = new THREE.Mesh(geo.trim, surfMat(0x2a2a30, 'matte'));
+    const tail = new THREE.Mesh(geo.tail, litMaterial(0xc8302c, { ...surfaceProps('paintedMetal'), emissive: 0x3a0808 }));
+    g.add(trim, tail);
+  });
   g.position.set(x, 0, z);
   g.rotation.y = rotY;
   return g;
@@ -4203,10 +4323,15 @@ export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4
     }
   }
   const door = surfBox(1.6, 2.2, 0.12, 0x53433a, 'wood');
-  door.position.set(0, 1.1, d / 2 + 0.03);
+  // polish-quayside: a low building (the Docks' fish shed, h 1.8) had a 2.2 m
+  // door and its lintel standing up past the roof. The door now stops 0.4 m
+  // under the roof (squashed, not a new box: the build's draws are pinned).
+  const doorH = Math.min(2.2, h - 0.4);
+  door.scale.y = doorH / 2.2;
+  door.position.set(0, doorH / 2, d / 2 + 0.03);
   g.add(door);
   const lintel = box(2.0, 0.16, 0.2, 0x5e5450);
-  lintel.position.set(0, 2.3, d / 2 + 0.05);
+  lintel.position.set(0, doorH + 0.1, d / 2 + 0.05);
   g.add(lintel);
   // userData.look: the per-building picks (roofline, loading-bay x, colours),
   // read by test/warehouselook.test.js. A stepped roofline raises the treefade
@@ -4472,6 +4597,143 @@ export function barrel(x, z, color = 0x4a6a5a) {
   return g;
 }
 
+// polish-quayside: the barge's real shape, all inside the old box barge's
+// bounding box (x ±1.65, y -0.05 .. 2.75, z ±4.55), so its contact shadow
+// and caster class do not move. Bow at +z (the deck cargo end), stern at -z.
+//
+// The plan outline: straight sides, a bluff rounded bow and a rounder stern.
+const BARGE = { half: 1.6, bowZ: 2.2, bowLen: 2.3, sternZ: -3.85, sternLen: 0.65, top: 0.65, keel: -0.05 };
+function bargeOutline(out = 0) {
+  const { half, bowZ, bowLen, sternZ, sternLen } = BARGE;
+  const a = half + out, n = 9, pts = [];
+  // starboard (+x) side from the stern round the bow to port, then back
+  for (let i = 0; i <= n; i++) { const t = (i / n) * Math.PI / 2; pts.push([a * Math.cos(t), bowZ + (bowLen + out) * Math.sin(t)]); }
+  for (let i = 1; i <= n; i++) { const t = Math.PI / 2 + (i / n) * Math.PI / 2; pts.push([a * Math.cos(t), bowZ + (bowLen + out) * Math.sin(t)]); }
+  for (let i = 0; i <= n; i++) { const t = Math.PI + (i / n) * Math.PI / 2; pts.push([a * Math.cos(t), sternZ + (sternLen + out) * Math.sin(t)]); }
+  for (let i = 1; i < n; i++) { const t = 1.5 * Math.PI + (i / n) * Math.PI / 2; pts.push([a * Math.cos(t), sternZ + (sternLen + out) * Math.sin(t)]); }
+  return pts; // closed, counter-clockwise seen from above (+y)
+}
+// A wall round a closed outline from y0 to y1, its foot pulled in by `tuck`
+// (the hull's tumble-home under the waterline), with smooth outward normals.
+function bargeWall(pts, y0, y1, tuck = 0, outward = 1) {
+  const n = pts.length, pos = [], nor = [];
+  const nrm = pts.map((p, i) => {
+    const a = pts[(i - 1 + n) % n], b = pts[(i + 1) % n];
+    const tx = b[0] - a[0], tz = b[1] - a[1], l = Math.hypot(tx, tz) || 1;
+    return [tz / l * outward, -tx / l * outward];
+  });
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, p = pts[i], q = pts[j], np = nrm[i], nq = nrm[j];
+    const lo = (v, nn) => [v[0] - nn[0] * tuck * outward, y0, v[1] - nn[1] * tuck * outward];
+    const P0 = lo(p, np), Q0 = lo(q, nq), P1 = [p[0], y1, p[1]], Q1 = [q[0], y1, q[1]];
+    const quad = outward > 0 ? [P0, Q1, Q0, P0, P1, Q1] : [P0, Q0, Q1, P0, Q1, P1];
+    const ns = outward > 0 ? [np, nq, nq, np, np, nq] : [np, nq, nq, np, nq, np];
+    for (const v of quad) pos.push(...v);
+    for (const nn of ns) { const l = Math.hypot(nn[0], 0.12, nn[1]); nor.push(nn[0] / l, 0.12 * outward / l, nn[1] / l); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  return g;
+}
+// A flat cap over a closed outline at height y (a fan from its centre).
+function bargeCap(pts, y) {
+  const pos = [];
+  let cx = 0, cz = 0;
+  for (const p of pts) { cx += p[0]; cz += p[1]; }
+  cx /= pts.length; cz /= pts.length;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length];
+    pos.push(cx, y, cz, p[0], y, p[1], q[0], y, q[1]);
+  }
+  return upGeometry(pos);
+}
+// Flat triangles (a flat [x, y, z, ...] list), each turned to face up.
+function upGeometry(pos) {
+  for (let i = 0; i < pos.length; i += 9) {
+    const ux = pos[i + 3] - pos[i], uz = pos[i + 5] - pos[i + 2], vx = pos[i + 6] - pos[i], vz = pos[i + 8] - pos[i + 2];
+    if (uz * vx - ux * vz < 0) for (let k = 0; k < 3; k++) [pos[i + 3 + k], pos[i + 6 + k]] = [pos[i + 6 + k], pos[i + 3 + k]];
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+// Paint a non-indexed geometry one colour (position + normal + color only).
+function bargePaint(g, hex) {
+  let out = g.index ? g.toNonIndexed() : g;
+  if (out !== g) g.dispose();
+  if (!out.attributes.normal) out.computeVertexNormals();
+  if (out.attributes.uv) out.deleteAttribute('uv');
+  const c = new THREE.Color(hex), n = out.attributes.position.count, col = new Float32Array(n * 3);
+  for (let v = 0; v < n; v++) col.set([c.r, c.g, c.b], v * 3);
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return out;
+}
+const bargeBox = (w, h, d, x, y, z, hex) => bargePaint(new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z), hex);
+const bargeRod = (a, b, t, hex) => {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A);
+  const g = new THREE.BoxGeometry(t, d.length(), t);
+  g.applyMatrix4(new THREE.Matrix4().compose(A.add(B).multiplyScalar(0.5),
+    new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()), new THREE.Vector3(1, 1, 1)));
+  return bargePaint(g, hex);
+};
+// The wheelhouse and everything that is not hull, rail or cargo, as one
+// vertex-coloured mesh: windows, roofs, the coachline, the rails, the life
+// ring, the stack's band and the tiller post.
+function bargeDressing(color) {
+  const parts = [];
+  const cream = 0xe4d6b8, roof = 0x7a3a2e, glass = 0x26323e, white = 0xf2efe6, red = 0xc8463a, rail = 0xd8d0bc;
+  // a cream coachline round the hull, just proud of it
+  parts.push(bargePaint(bargeWall(bargeOutline(0.012), 0.4, 0.48), 0xe8dcc0));
+  // the deck, inside the gunwale: dark painted steel
+  parts.push(bargePaint(bargeCap(bargeOutline(-0.06), 0.6), lerpBargeHex(color, 0x1e2026, 0.55)));
+  // the cabin (z -3.7 .. -0.7) is the old cream box; its roof overhangs a
+  // little in barge red, and a wheelhouse rises off its aft end
+  parts.push(bargeBox(2.36, 0.08, 3.16, 0, 1.75, -2.2, roof));
+  parts.push(bargeBox(1.9, 0.62, 1.3, 0, 1.83, -3.0, cream));
+  parts.push(bargeBox(2.06, 0.08, 1.46, 0, 2.45, -3.0, roof));
+  // windows: wheelhouse all round, portholes-ish squares down the cabin
+  const pane = (w, h, x, y, z, nx) => parts.push(bargeBox(nx ? 0.02 : w, h, nx ? w : 0.02, x, y, z, glass));
+  for (const sx of [-1, 1]) {
+    pane(0.4, 0.34, sx * 0.955, 2.0, -3.3, true);
+    pane(0.4, 0.34, sx * 0.955, 2.0, -2.7, true);
+    for (const z of [-3.3, -2.7, -1.25]) pane(0.36, 0.3, sx * 1.105, 1.22, z, true);
+  }
+  for (const x of [-0.5, 0, 0.5]) pane(0.36, 0.34, x, 2.0, -2.345, false);
+  pane(0.9, 0.32, 0, 1.24, -0.695, false); // the cabin's front window
+  // a red life ring on each side of the wheelhouse
+  for (const sx of [-1, 1]) {
+    const ring = new THREE.TorusGeometry(0.2, 0.05, 6, 14);
+    ring.rotateY(Math.PI / 2);
+    parts.push(bargePaint(ring.translate(sx * 1.16, 1.25, -1.95), white));
+    const band = new THREE.TorusGeometry(0.2, 0.052, 6, 4, Math.PI / 3);
+    band.rotateY(Math.PI / 2);
+    parts.push(bargePaint(band.translate(sx * 1.16, 1.25, -1.95), red));
+  }
+  // the stack's red band
+  parts.push(bargePaint(new THREE.CylinderGeometry(0.175, 0.175, 0.22, 12).translate(0, 2.55, -1.3), red));
+  // a rail round the foredeck: posts and a top rail each side, and across the bow
+  const ry = 0.66, rh = 1.18;
+  for (const sx of [-1, 1]) {
+    const x = sx * 1.5;
+    for (const z of [-0.45, 0.6, 1.65, 2.6]) parts.push(bargeRod([x, ry, z], [x, rh, z], 0.05, rail));
+    parts.push(bargeRod([x, rh, -0.45], [x, rh, 2.6], 0.045, rail));
+    parts.push(bargeRod([x, rh, 2.6], [sx * 0.6, rh, 4.2], 0.045, rail));
+    parts.push(bargeRod([sx * 0.6, ry, 4.2], [sx * 0.6, rh, 4.2], 0.05, rail));
+  }
+  parts.push(bargeRod([-0.6, rh, 4.2], [0.6, rh, 4.2], 0.045, rail));
+  // a bollard on the foredeck and one at the stern
+  parts.push(bargePaint(new THREE.CylinderGeometry(0.1, 0.12, 0.3, 8).translate(0, 0.75, 4.35), 0x2a2a30));
+  parts.push(bargePaint(new THREE.CylinderGeometry(0.1, 0.12, 0.3, 8).translate(0, 0.75, -4.1), 0x2a2a30));
+  const g = mergeGeometries(parts, false);
+  for (const p of parts) p.dispose();
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}
+const lerpBargeHex = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t).getHex();
+
 // A moored canal barge. Sits IN the water on purpose and carries no perch and
 // no collectible: the Docks canal is scenery plus a bridged crossing, never a
 // place the player has to reach (see docks.js's header — Sea Legs may never
@@ -4481,6 +4743,11 @@ export function barge(x, z, rotY = 0, color = 0x3a5a78) {
   // Painted steel hull; the cabin and gunwale stay flat (a 2.2m cabin is too
   // small for a siding tile to read as anything but stripes), and the deck
   // cargo is the same dock timber as the crates ashore.
+  // These are the shipped constructor calls in the shipped order (the area
+  // build's Math.random draws are pinned). polish-quayside swaps the hull and
+  // gunwale boxes for the lofted hull and its rubbing strake, moves the stack
+  // forward onto the cabin roof, and adds the wheelhouse, windows, rails and
+  // life rings as one vertex-coloured mesh, all inside withLocalUuids.
   const hull = surfBox(3.2, 0.7, 9, color, 'paintedMetal');
   hull.position.y = 0.3;
   g.add(hull);
@@ -4491,13 +4758,37 @@ export function barge(x, z, rotY = 0, color = 0x3a5a78) {
   cabin.position.set(0, 1.2, -2.2);
   g.add(cabin);
   const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 1.1, 12), mat(0x2f2f36));
-  stack.position.set(0, 2.2, -2.8);
+  stack.position.set(0, 2.2, -1.3);
   g.add(stack);
   for (let i = 0; i < 3; i++) { // deck cargo
     const crate = surfBox(0.9, 0.7, 0.9, 0xc8a678, 'wood');
     crate.position.set(0, 1.0, 1.4 + i * 1.1);
     g.add(crate);
   }
+  withLocalUuids(`barge:${x},${z}`, () => {
+    const { top, keel } = BARGE;
+    // the hull: its sides, tucked in under the water; no top (the deck is in
+    // the dressing) and no bottom (it is under the water)
+    hull.geometry = bargeWall(bargeOutline(), keel, top - 0.02, 0.18);
+    hull.geometry.computeBoundingBox();
+    hull.position.y = 0;
+    // the rubbing strake round the gunwale: its outer face, top and inner lip
+    const outer = bargeOutline(0.05), inner = bargeOutline(-0.06);
+    const strake = [bargeWall(outer, 0.58, 0.72), bargeWall(inner, 0.6, 0.72, 0, -1)];
+    const ringTop = [];
+    for (let i = 0; i < outer.length; i++) {
+      const j = (i + 1) % outer.length, a = outer[i], b = outer[j], c = inner[j], d = inner[i];
+      ringTop.push(a[0], 0.72, a[1], c[0], 0.72, c[1], b[0], 0.72, b[1], a[0], 0.72, a[1], d[0], 0.72, d[1], c[0], 0.72, c[1]);
+    }
+    strake.push(upGeometry(ringTop));
+    gunwale.geometry = mergeGeometries(strake, false);
+    for (const s of strake) s.dispose();
+    gunwale.geometry.computeBoundingBox();
+    gunwale.position.y = 0;
+    const dress = new THREE.Mesh(bargeDressing(color), litMaterial(0xffffff, { vertexColors: true }));
+    dress.name = 'bargeDressing';
+    g.add(dress);
+  });
   g.position.set(x, 0, z);
   g.rotation.y = rotY;
   return g;

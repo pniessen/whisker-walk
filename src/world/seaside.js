@@ -9,6 +9,10 @@ import { tintGround } from './dressing.js';
 import { propsFor } from '../propsets.js';
 import { sandTint, dressBeach, KERB_COL } from './beachdress.js';
 
+// The edge dressing's dusk tint (render/dusk.js duskLawnColor): greyer and
+// darker than the default { desat 0.25, dark 0.72 }, and a touch cooler.
+export const HUT_DUSK_TINT = Object.freeze({ desat: 0.45, dark: 0.46, cool: Object.freeze([0.92, 0.98, 1.1]) });
+
 // The same two opt-in helpers world/builder.js keeps at the top of itself, for
 // the props this file builds locally rather than borrowing. They are duplicated
 // rather than exported because they are three lines each and exporting them
@@ -511,7 +515,14 @@ export function build(scene, { water = {}, wind } = {}) {
   // behind the spawn (the chair nearest the sea), and a pair of huts toward
   // the far south-west corner. Every one stands 22m or more past the bounds,
   // so the 2.6m huts never come between the camera and the cat.
-  scene.add(b.horizonBand(SEASIDE_HORIZON));
+  const band = b.horizonBand(SEASIDE_HORIZON);
+  scene.add(band);
+  // polish-quayside: the huts, the lifeguard chair and the marram past the
+  // edge dim and cool at dusk like the cliff, not just a little like the sand.
+  // Their pastels and whites are the lightest things on the beach, and under
+  // the area's soft dusk tint they stayed bright against a night sky.
+  const edge = band.getObjectByName('horizonEdge');
+  if (edge) edge.userData.duskLawnTint = HUT_DUSK_TINT;
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });

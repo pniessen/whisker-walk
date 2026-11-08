@@ -169,7 +169,11 @@ describe('builder — roundedBox (Wave 4.1)', () => {
     // five path strips stay, hidden 1x1 data strips).
     // Park 173 -> 176: polish-park2 Task 2's fountain gains its upper-bowl water,
     // the falling drops and the landing ripples (three noCast meshes).
-    const expected = { neighborhood: 396, park: 176, docks: 519, seaside: 68, den: 288 };
+    // Neighborhood 396 -> 400: polish-quayside's car gains its trim (bumpers,
+    // grille) and tail-lamp meshes (2 x 2 cars).
+    // Docks 519 -> 521: polish-quayside's barges each gain one vertex-coloured
+    // dressing mesh (wheelhouse, windows, rails, life rings).
+    const expected = { neighborhood: 400, park: 176, docks: 521, seaside: 68, den: 288 };
     const builds = {
       neighborhood: buildNeighborhood, park: buildPark, docks: buildDocks,
       seaside: buildSeaside, den: buildDen,

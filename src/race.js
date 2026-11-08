@@ -267,7 +267,13 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 
       if (camera) {
         const cp = camera.position;
         for (const r of rings) {
-          const d = Math.hypot(cp.x - r.x, cp.y - (r.y + RING_Y), cp.z - r.z);
+          // the nearer of the ring's centre and its hoop (polish-quayside):
+          // the hoop is RING_RADIUS out from the centre, so a camera 2 m from
+          // the centre can be a hand's breadth from the rim, where the candy
+          // stripes filled the corner of the phone. The hoop is upright in
+          // the XY plane (TorusGeometry, never turned).
+          const qx = cp.x - r.x, qy = cp.y - (r.y + RING_Y), qz = cp.z - r.z;
+          const d = Math.min(Math.hypot(qx, qy, qz), Math.hypot(Math.hypot(qx, qy) - RING_RADIUS, qz));
           const k = Math.min(1, Math.max(0, (d - NEAR_FADE.end) / (NEAR_FADE.start - NEAR_FADE.end)));
           r.fade = NEAR_FADE.min + (1 - NEAR_FADE.min) * k;
           r.mesh.material.opacity = r.stateOpacity * r.fade;

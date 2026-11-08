@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { FOUNTAIN_STONE, FOUNTAIN_WATER } from '../src/world/parkfountain.js';
 
 // The same headless stub every world test uses. The world builders touch the
 // DOM in exactly two places — document.createElement('canvas') for the
@@ -168,7 +169,12 @@ describe('City Park — the v20 visual pass', () => {
       // the three shipped constructor slots keep their order
       expect(fountain.children.slice(0, 3)).toEqual([basin, water, spire]);
       for (const stone of [basin, spire]) {
-        expect(stone.material.roughness).toBe(surfaceProps('cobble').roughness);
+        // polish-quayside: a warm matte grey, rougher than 'cobble' (0.8), so a
+        // low camera no longer sees the sun bloom white across the rim
+        expect(stone.material.roughness).toBe(FOUNTAIN_STONE.roughness);
+        expect(stone.material.roughness).toBeGreaterThan(surfaceProps('cobble').roughness);
+        expect(stone.material.color.getHex()).toBe(FOUNTAIN_STONE.color);
+        expect(stone.material.metalness).toBe(0);
         // A planar tile smears on a turned profile.
         expect(stone.material.map).toBeFalsy();
       }
@@ -176,6 +182,8 @@ describe('City Park — the v20 visual pass', () => {
       // createWater — water.js's own split, since it carries no footprint
       // record and is sealed inside the basin's r-3 collider.
       expect(water.material.roughness).toBe(surfaceProps('water').roughness);
+      // polish-quayside: its specular at a third (the low-camera glare)
+      expect(water.material.specularIntensity).toBe(FOUNTAIN_WATER.specularIntensity);
       expect(water.geometry.type).toBe('CylinderGeometry');
       expect(water.material.metalness).toBe(0);
     });
@@ -374,6 +382,7 @@ describe('City Park — the two-tier fountain (polish-park2)', async () => {
       expect(m.userData.noCast).toBe(true);
     }
     expect(upper.material.roughness).toBe(surfaceProps('water').roughness);
+    expect(upper.material.specularIntensity).toBe(FOUNTAIN_WATER.specularIntensity);
     for (const m of [drops, ripples]) {
       expect(m.userData.noMerge).toBe(true);
       expect(m.material.transparent).toBe(true);

@@ -199,6 +199,8 @@ const SILL_OUT = 0.11;
 // warehouse()'s shipped front (+z) door and lintel, in the group's frame: the
 // door 1.6 wide and 0.0 .. 2.2 high, its front at d/2 + 0.09; the lintel 2.0
 // wide, 2.22 .. 2.38 high, its front at d/2 + 0.15.
+// On a building under 2.6 m (the fish shed) warehouse() stops the door 0.4 m
+// under the roof instead (polish-quayside), so the cornice runs over it whole.
 const DOOR = { half: 0.8, top: 2.2 };
 const LINTEL = { half: 1.0, y0: 2.22, y1: 2.38 };
 
@@ -275,7 +277,7 @@ function bakeBody(w, d, h, rows, look, coping) {
   const corniceRgb = { bottom: grey(0.7), top: grey(0.86) };
   for (const s of [1, -1]) {
     const zc = s * (d / 2 + CORNICE_OUT / 2);
-    if (s > 0 && cy - ch / 2 < DOOR.top) {
+    if (s > 0 && cy - ch / 2 < Math.min(DOOR.top, h - 0.4)) {
       const x0 = DOOR.half, x1 = w / 2 + CORNICE_OUT;
       for (const sx of [-1, 1]) {
         pb.box(sx * (x0 + x1) / 2, cy, zc, x1 - x0, ch, CORNICE_OUT, corniceRgb,
