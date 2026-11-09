@@ -326,15 +326,24 @@ export const FAR_TORS = Object.freeze([
 ].map((t) => Object.freeze(t)));
 
 // --- the ground tint ---------------------------------------------------------------
-// Multiplies the lawn's vertex colour. The roll: pale and warm on the crests,
-// darker and cooler in the hollows (about 34 m apart), and a little lighter
-// on the slopes that face the sun (north-west, rig.js's SUN_POSITION), so the
-// flat ground reads as rolling. Rusty bracken in patches about 18 m across,
-// and greener grass within 5 m of the water.
-const CREST = [1.14, 1.09, 0.88];
-const HOLLOW = [0.68, 0.8, 0.72];
+// Multiplies the lawn's vertex colour. The roll: warm on the crests, darker
+// and cooler in the hollows (about 34 m apart), and a little lighter on the
+// slopes that face the sun (north-west, rig.js's SUN_POSITION), so the flat
+// ground reads as rolling. Rusty bracken in patches about 18 m across, and
+// greener grass within 5 m of the water.
+// polish-moorlook (Pass 10): a heath, not a pale lawn. The crests no longer
+// bleach toward straw (they were x 1.14 / 1.09 / 0.88: the palest map), and a
+// slow heath mottle (~12 m patches, its own field) runs the turf between peaty
+// brown and a deeper moss green, so the open moor has some colour in it at
+// walk distance. The heather beds are parked; this is the ground under them.
+const CREST = [1.05, 1.03, 0.86];
+const HOLLOW = [0.76, 0.85, 0.74];
 const BRACKEN_TINT = [1.06, 0.82, 0.64];
 const WET = [0.9, 0.98, 0.88];
+const HEATH = (x, z) => smoothField(x, z, 59, 12);
+const PEAT = [0.98, 0.8, 0.66];
+const MOSS = [0.82, 0.98, 0.8];
+const MOTTLE = 0.85; // how far a patch's heart goes toward PEAT or MOSS
 const SUN = (() => { const l = Math.hypot(-36, -24); return [-36 / l, -24 / l]; })();
 const SLOPE_LIGHT = 0.8;
 export function moorGroundTint(x, z) {
@@ -346,6 +355,10 @@ export function moorGroundTint(x, z) {
   const gz = (ROLL(x, z + e) - ROLL(x, z - e)) / (2 * e);
   const lit = Math.max(-0.1, Math.min(0.1, -(gx * SUN[0] + gz * SUN[1]) * SLOPE_LIGHT));
   m = m.map((v) => v * (1 + lit));
+  const h = HEATH(x, z);
+  const peat = lerp3([1, 1, 1], PEAT, MOTTLE * smoothstep(0.05, 0.6, h));
+  const moss = lerp3([1, 1, 1], MOSS, MOTTLE * smoothstep(0.05, 0.6, -h));
+  m = m.map((v, i) => v * peat[i] * moss[i]);
   const wet = smoothstep(0, 1, 1 - waterDist(x, z) / 5);
   m = lerp3(m, BRACKEN_TINT, smoothstep(0.2, 0.55, BRACKEN(x, z)) * (1 - wet));
   return lerp3(m, WET, wet);

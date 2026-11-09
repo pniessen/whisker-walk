@@ -230,9 +230,111 @@ export const ISLAND_DRESSING = freeze({
 // height, the Woods' mossy boulder. The two share the material buildIsland
 // makes, one per build: walk.js disposes every material at the end of a walk,
 // so a module-level one would be handed to the next walk already disposed.
-const MOSSY = 0x7f8a6c;
+// polish-moorlook (Pass 10): the Highrock's recipe (camp.js), so the two read
+// as rocks and not pale grey soap bars. Same dodecahedron, same place and
+// height (each is the first step of a chain: its top stays at the 0.72 perch),
+// 0 more triangles. Turned about y by a hash of its spot, and a little
+// narrower one way, so the two are not twins. Normals mostly round (the
+// corner's direction from the centre, with FACET of its face's own kept, so
+// it stays low-poly). Coloured per corner, a multiplier on MOSSY (the
+// material is vertex-coloured): granite dark at the foot to light at the
+// top, mottled by a hash; moss where the round normal faces up, olive at a
+// patch's edge into MOSS at its heart; now and then a pale lichen corner.
+const MOSSY = 0x8c897e;
+const BOULDER = {
+  facet: 0.35,
+  narrow: 0.9,       // the stretch on one axis, 0.9..1 (never wider than its collider)
+  foot: 0.6,         // the grey at the waterline-dark foot ...
+  top: 1.04,         // ... and at the top
+  speck: 0.1,        // ± half this by a hash of the corner
+  mossUp: [0.25, 0.75], // round normal's y: no moss below, full above
+  moss: 0x5f6e34,
+  olive: 0x77783e,
+  lichen: 0xc4c094,
+  lichenShare: 0.12,
+};
+const h4 = (a, y, c, salt) => b.hash01(a + 3.7 * y, c - 1.3 * y, salt);
+function boulderGeometry(x, z) {
+  const g = new THREE.DodecahedronGeometry(0.5, 0);
+  const pos = g.attributes.position;
+  const nrm = g.attributes.normal;
+  const yaw = h4(x, 0, z, 71) * Math.PI * 2;
+  const sq = BOULDER.narrow + (1 - BOULDER.narrow) * h4(x, 1, z, 72);
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const base = new THREE.Color(MOSSY);
+  const over = (hex) => { const k = new THREE.Color(hex); return [k.r / base.r, k.g / base.g, k.b / base.b]; };
+  const moss = over(BOULDER.moss);
+  const olive = over(BOULDER.olive);
+  const lichen = over(BOULDER.lichen);
+  const col = new Float32Array(pos.count * 3);
+  const v = new THREE.Vector3();
+  const f = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    // turn and narrow (x only, before the turn), so the top stays where it was
+    const lx = pos.getX(i) * sq, ly = pos.getY(i), lz = pos.getZ(i);
+    pos.setXYZ(i, lx * c - lz * s, ly, lx * s + lz * c);
+    const fx = nrm.getX(i), fz = nrm.getZ(i);
+    f.set(fx * c - fz * s, nrm.getY(i), fx * s + fz * c);
+    v.set(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize();
+    const roundY = v.y;
+    v.multiplyScalar(1 - BOULDER.facet).addScaledVector(f, BOULDER.facet).normalize();
+    nrm.setXYZ(i, v.x, v.y, v.z);
+    // every hash takes the corner's world place, so a corner shared by
+    // several faces is one colour where they meet
+    const wx = pos.getX(i) + x, wy = pos.getY(i), wz = pos.getZ(i) + z;
+    const t = Math.max(0, Math.min(1, (wy + 0.3) / 0.8)); // y 0 (the ground) .. the top
+    const grey = (BOULDER.foot + (BOULDER.top - BOULDER.foot) * t) * (1 + (h4(wx, wy, wz, 73) - 0.5) * BOULDER.speck);
+    let k = [grey, grey, grey];
+    const up = Math.max(0, Math.min(1, (roundY - BOULDER.mossUp[0]) / (BOULDER.mossUp[1] - BOULDER.mossUp[0])));
+    const m = up * (0.55 + 0.45 * h4(wx, wz, wy, 74));
+    if (m > 0) {
+      const tone = m < 0.6 ? olive : moss;
+      k = k.map((g0, j) => g0 + (tone[j] * 0.9 - g0) * Math.min(1, m * 1.2));
+    } else if (h4(wz, wx, wy, 75) < BOULDER.lichenShare) {
+      k = k.map((g0, j) => g0 + (lichen[j] * 0.95 - g0) * 0.6);
+    }
+    col[i * 3] = k[0]; col[i * 3 + 1] = k[1]; col[i * 3 + 2] = k[2];
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+// The same recipe for the flat-topped stones (the Meeting Ring's six and the
+// Watch Rock), which were the palest things on the island: an upright
+// CylinderGeometry centred on its middle, coloured per corner as a
+// multiplier on its material's own hex (kept, the tests read it): dark at the
+// foot to light at the rim, mottled, and moss on some of the top's corners
+// (the cap's centre always a little mossy, so a patch spreads from it). The
+// side's corners share their place with no cap corner, so hard rims stay.
+const STONE_TOP = 0.9;
+function shadeStone(g, x, z, base, salt) {
+  const pos = g.attributes.position;
+  const nrm = g.attributes.normal;
+  const h = g.parameters.height;
+  const c0 = new THREE.Color(base);
+  const over = (hex) => { const k = new THREE.Color(hex); return [k.r / c0.r, k.g / c0.g, k.b / c0.b]; };
+  const moss = over(BOULDER.moss);
+  const olive = over(BOULDER.olive);
+  const col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const vx = pos.getX(i), vy = pos.getY(i), vz = pos.getZ(i);
+    const t = vy / h + 0.5;
+    const wx = vx + x, wz = vz + z;
+    // a pale stone: its top a little under the boulders' (STONE_TOP)
+    const grey = (BOULDER.foot + (STONE_TOP - BOULDER.foot) * t) * (1 + (h4(wx, vy, wz, salt) - 0.5) * BOULDER.speck);
+    let k = [grey, grey, grey];
+    if (nrm.getY(i) > 0.9) {
+      const centre = Math.hypot(vx, vz) < 1e-6;
+      const m = centre ? 0.7 : (h4(wx, vy, wz, salt + 1) < 0.6 ? 0.45 + 0.5 * h4(wz, vy, wx, salt + 2) : 0.15);
+      const tone = m < 0.6 ? olive : moss;
+      k = k.map((g0, j) => g0 + (tone[j] * 0.9 - g0) * m);
+    }
+    col[i * 3] = k[0]; col[i * 3 + 1] = k[1]; col[i * 3 + 2] = k[2];
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
 function mossyBoulder(x, z, material) {
-  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), material);
+  const m = new THREE.Mesh(boulderGeometry(x, z), material);
   m.position.set(x, 0.3, z);
   return m;
 }
@@ -264,7 +366,7 @@ export function buildIsland(scene, { wind } = {}) {
   colliders.push({ x: OLD_ASH.x, z: OLD_ASH.z, r: OLD_ASH.r });
 
   // The two chain boulders, one material between them.
-  const mossy = litMaterial(MOSSY, surfaceProps('cobble'));
+  const mossy = litMaterial(MOSSY, { ...surfaceProps('cobble'), vertexColors: true });
   for (const [rec, name] of [[ASH_BOULDER, 'ashBoulder'], [WATCH_STEP, 'watchRockStep']]) {
     const rock = mossyBoulder(rec.x, rec.z, mossy);
     rock.name = name;
@@ -278,8 +380,9 @@ export function buildIsland(scene, { wind } = {}) {
   // The Watch Rock, as wide at its foot as its collider, so a cat walking
   // round it never stops short of what it sees.
   const watch = new THREE.Mesh(
-    new THREE.CylinderGeometry(WATCH_ROCK.rTop, WATCH_ROCK.rBottom, WATCH_ROCK.y, WATCH_ROCK.sides),
-    litMaterial(0x8e8c88, surfaceProps('cobble')),
+    shadeStone(new THREE.CylinderGeometry(WATCH_ROCK.rTop, WATCH_ROCK.rBottom, WATCH_ROCK.y, WATCH_ROCK.sides),
+      WATCH_ROCK.x, WATCH_ROCK.z, 0x8e8c88, 81),
+    litMaterial(0x8e8c88, { ...surfaceProps('cobble'), vertexColors: true }),
   );
   watch.name = 'watchRock';
   watch.position.set(WATCH_ROCK.x, WATCH_ROCK.y / 2, WATCH_ROCK.z);
@@ -292,11 +395,12 @@ export function buildIsland(scene, { wind } = {}) {
   // merged, it is 12 m across, over contactshadows.js's MAX_SPAN, and a
   // 0.4 m stone sits fine on the grass without one.
   const parts = MEETING_STONES.map(({ x, z }) => {
-    const g = new THREE.CylinderGeometry(STONE.rTop, STONE.rBottom, STONE.h, STONE.sides);
+    const g = shadeStone(new THREE.CylinderGeometry(STONE.rTop, STONE.rBottom, STONE.h, STONE.sides), x, z, STONE.color, 85);
+    g.rotateY(h4(x, 0, z, 88) * Math.PI);
     g.translate(x, STONE.h / 2, z);
     return g;
   });
-  const ring = new THREE.Mesh(mergeGeometries(parts, false), litMaterial(STONE.color, surfaceProps('cobble')));
+  const ring = new THREE.Mesh(mergeGeometries(parts, false), litMaterial(STONE.color, { ...surfaceProps('cobble'), vertexColors: true }));
   for (const g of parts) g.dispose();
   ring.name = 'meetingRing';
   scene.add(ring);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as b from './builder.js';
 import { addTrails } from './pathribbon.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
-import { createWater } from '../render/water.js';
+import { createWater, MOOR_STREAM_LOOK } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
@@ -119,6 +119,12 @@ const RIVER_MOUTH = Object.freeze({ id: 'river-mouth', kind: 'rect', minX: -40, 
 
 export const MOOR_WATERS = Object.freeze([LAKE, LAKE_FAR, RIVER_SOUTH, RIVER_WEST, RIVER_MOUTH]);
 
+// The turf: a deeper heath olive (polish-moorlook, Pass 10; it was 0x8a9558,
+// the palest lawn of the wild maps). The ground, the strip past its edge and
+// the light bounced off it all take this one hex; moordress.js's tint adds the
+// roll, the heath mottle and the bracken.
+const MOOR_TURF = 0x6f8044;
+
 // How each water is drawn. One peaty green-blue, the Woods' own, because the
 // river and the lake are one water across the border. Heights differ wherever
 // footprints overlap (the bend, the mouth's corner, the mouth over the lake,
@@ -128,13 +134,17 @@ export const MOOR_WATERS = Object.freeze([LAKE, LAKE_FAR, RIVER_SOUTH, RIVER_WES
 // `shores` lists only the edges a cat can see: an edge out past the bounds is
 // open water to the horizon, not a bank, and painting foam there would be a
 // lie. The bay is all out of bounds, so it has none.
+//
+// polish-moorlook (Pass 10): the three stream pieces take MOOR_STREAM_LOOK
+// (water.js): a darker peaty body that mirrors far less sky. The lake keeps
+// the shared hex, being the Woods' and the Pines' water too.
 const WATER_COLOR = 0x5f98a8;
 const WATER_LOOK = {
   lake: { y: 0.03, shores: ['maxX', 'minZ'], foamStrength: 0.22 },
   'lake-far': { y: 0.025, foamStrength: 0.22 },
-  'river-south': { y: 0.02, shores: ['minX', 'maxX'], foamStrength: 0.08 },
-  'river-west': { y: 0.035, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.08 },
-  'river-mouth': { y: 0.045, shores: ['minX', 'maxX'], foamStrength: 0.08 },
+  'river-south': { y: 0.02, shores: ['minX', 'maxX'], foamStrength: 0.08, ...MOOR_STREAM_LOOK },
+  'river-west': { y: 0.035, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.08, ...MOOR_STREAM_LOOK },
+  'river-mouth': { y: 0.045, shores: ['minX', 'maxX'], foamStrength: 0.08, ...MOOR_STREAM_LOOK },
 };
 
 // The paths, as [x1, z1, x2, z2] centreline segments, all 3 m wide. The north
@@ -177,7 +187,7 @@ export const MOOR_HORIZON = Object.freeze({
   // colour, and a dry-stone wall with gorse runs round it, off the water
   // (all the way round since polish-places, with a few wind-bent hawthorns
   // out on the hills).
-  nearColor: 0x8a9558,
+  nearColor: MOOR_TURF,
   edge: Object.freeze({ half: 60, style: 'wall', avoid: MOOR_WATERS }),
   // Where the lake runs out west under the hills, a pale peaty beach first,
   // so a cat swimming out sees the water reach a shore before the hills rise
@@ -520,7 +530,7 @@ export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0x9cc4e4, 0xe4e6d8);
   // The ground, tinted so the moor rolls: pale crests, darker hollows,
   // bracken patches, greener by the water (moordress.js).
-  const groundMesh = b.ground(120, 0x8a9558, { surface: 'grass' });
+  const groundMesh = b.ground(120, MOOR_TURF, { surface: 'grass' });
   tintGround(groundMesh, moorGroundTint);
   scene.add(groundMesh);
   scene.add(b.horizonBand(MOOR_HORIZON));
@@ -678,7 +688,7 @@ export function build(scene, { water = {}, wind } = {}) {
     puddles: PUDDLES.map((p) => ({ ...p })),
     waters: MOOR_WATERS,
     waterFx,
-    groundBounce: 0x8a9558,
+    groundBounce: MOOR_TURF,
     skyDusk: { top: 0x2a3554, horizon: 0x70647a },
     perches,
   };

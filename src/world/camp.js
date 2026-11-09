@@ -435,8 +435,12 @@ export const CAMP_LOOKS = deepFreeze({
   // GaleClan: gorse and heather in flower; a dry heather den
   moor: {
     ring: {
-      greens: [0x56632a, 0x667030, 0x48522a], strand: 0x5a3a26, specks: [[0xc9a42e, 0.03], [0x8a5a80, 0.025]],
-      fruit: [[0xe0b82e, 0.6], [0x2b0d22, 0.4]], fruitShare: 0.7,
+      // polish-moorlook (Pass 10): the specks were whole lump facets in bright
+      // gorse yellow and pale mauve (3 % and 2.5 %), and up close they read as
+      // confetti; now fewer, and in the ring's own values: a dull gorse gold
+      // and a dark heather. The fruit is a dull gold and sloe, on fewer clumps.
+      greens: [0x56632a, 0x667030, 0x48522a], strand: 0x5a3a26, specks: [[0x9a8438, 0.012], [0x5a4258, 0.01]],
+      fruit: [[0xa88a32, 0.45], [0x2b0d22, 0.55]], fruitShare: 0.45,
     },
     den: { base: 0x4a4030, streak: 0x8a5a80, strand: 0x3a3022, frame: 0x6a5a3e },
     floor: { color: 0x84984f, surface: 'grass' },  // cropped turf

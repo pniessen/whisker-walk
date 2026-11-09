@@ -289,7 +289,8 @@ describe('the Moor dressing', () => {
     const all = [];
     for (let x = -48; x <= 48; x += 4) for (let z = -48; z <= 48; z += 4) all.push(moorGroundTint(x, z));
     for (const m of all) for (const v of m) {
-      expect(v).toBeGreaterThan(0.6);
+      // 0.45 since polish-moorlook: a peaty hollow's blue goes to ~0.48
+      expect(v).toBeGreaterThan(0.45);
       expect(v).toBeLessThan(1.25);
     }
     const g = all.map((m) => m[1]);
