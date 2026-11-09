@@ -188,8 +188,9 @@ describe('the River marsh dressing', () => {
     // 486 more over the River's 9 pines (+486)
     // polish-camps6: the camp's six nests are moss cups, 20 triangles more
     // each (+120)
-    expect(stats.triangles - life).toBeLessThanOrEqual(62606);
-    expect(stats.triangles).toBeLessThanOrEqual(63500);
+    // polish-bushes: the 3 hidden-mouse bushes wear leaf cards (+544)
+    expect(stats.triangles - life).toBeLessThanOrEqual(63150);
+    expect(stats.triangles).toBeLessThanOrEqual(64044);
   }, 120_000);
 
   it('the flower cups are lit from the side the camera sees (inside, from above)', () => {

@@ -31,7 +31,7 @@ const SPOTS = [[3, 4], [-2.4, -17], [0, 0], [5, 5], [-8, 13], [22, -17], [-30, 3
 const lum = (c, i) => 0.2126 * c.getX(i) + 0.7152 * c.getY(i) + 0.0722 * c.getZ(i);
 
 describe('bush() leafy shrub', () => {
-  it('stays one bare Mesh with a vertex-coloured, indexed geometry, ≤ 150 triangles', () => {
+  it('stays one bare Mesh with a vertex-coloured, indexed geometry, ≤ 353 triangles', () => {
     for (const [x, z] of SPOTS) {
       const m = b.bush(x, z);
       expect(m.isMesh).toBe(true);
@@ -43,7 +43,8 @@ describe('bush() leafy shrub', () => {
       expect(g.attributes.color.count).toBe(g.attributes.position.count);
       expect(m.material.vertexColors).toBe(true);
       const tris = g.index.count / 3;
-      expect(tris).toBeLessThanOrEqual(150);
+      // polish-bushes: main's worst (133) + the Pass 10 allowance of 220
+      expect(tris).toBeLessThanOrEqual(353);
       expect(tris).toBeGreaterThan(100); // more, smaller lumps than the old 100-triangle blob
     }
   });
@@ -162,11 +163,60 @@ describe('polish-shrubs', () => {
     }
   });
 
-  it('brambles: each 20-triangle lobe wears 7 two-triangle leaf cards, seen from both sides', () => {
+  it('brambles: each 20-triangle lobe wears 14 two-triangle shingle cards (polish-bushes), seen from both sides', () => {
     const m = b.brambleBed(SPOTS9, 11);
     const tris = m.geometry.attributes.position.count / 3;
-    expect(tris % 34).toBe(0);
+    expect(tris % 48).toBe(0);
     expect(m.material.side).toBe(THREE.DoubleSide);
+    expect(m.material.customProgramCacheKey()).toBe('dressing-both-sides-v1');
     expect(m.geometry.attributes.color.count).toBe(m.geometry.attributes.position.count);
   });
 });
+
+// polish-bushes (Pass 10): the bushes still read as faceted green rocks at
+// walk height, because the outline was still five-sided lumps with no leaves
+// on it. Seven-point rings with corner jitter, a leaf-card fringe and creases.
+describe('polish-bushes', () => {
+  it('adds at most 220 triangles a bush over main (108-133)', () => {
+    for (const [x, z] of SPOTS) {
+      const t = b.bush(x, z).geometry.index.count / 3;
+      expect(t).toBeGreaterThanOrEqual(108 + 120);
+      expect(t).toBeLessThanOrEqual(133 + 220);
+    }
+  });
+
+  it('is two-sided and lit by its built normals on both faces (the leaf cards)', () => {
+    const m = b.bush(5, 5);
+    expect(m.material.side).toBe(THREE.DoubleSide);
+    expect(m.material.customProgramCacheKey()).toBe('dressing-both-sides-v1');
+  });
+
+  it('breaks the outline: many distinct corner radii round the bush, not a few facets', () => {
+    // horizontal reach of every vertex in the upper half, binned by azimuth:
+    // a leafy outline has its farthest points spread round the whole bush
+    const g = b.bush(-8, 13).geometry;
+    const p = g.attributes.position;
+    const bins = new Array(24).fill(0);
+    for (let v = 0; v < p.count; v++) {
+      if (p.getY(v) < -0.2) continue;
+      const a = Math.atan2(p.getZ(v), p.getX(v));
+      const k = Math.floor(((a + Math.PI) / (Math.PI * 2)) * 24) % 24;
+      bins[k] = Math.max(bins[k], Math.hypot(p.getX(v), p.getZ(v)));
+    }
+    expect(bins.filter((r) => r > 0.3).length).toBe(24);
+  });
+
+  it('shades the creases: inward faces of the side lumps are darker than outward ones', () => {
+    const g = b.bush(0, 0).geometry;
+    const p = g.attributes.position, c = g.attributes.color;
+    let inner = 0, ni = 0, outer = 0, no = 0;
+    for (let v = 0; v < p.count; v++) {
+      const r = Math.hypot(p.getX(v), p.getZ(v));
+      if (p.getY(v) > 0 || p.getY(v) < -0.45) continue;
+      if (r < 0.2) { inner += lum(c, v); ni++; } else if (r > 0.5) { outer += lum(c, v); no++; }
+    }
+    expect(ni).toBeGreaterThan(0);
+    expect(outer / no).toBeGreaterThan(inner / ni);
+  });
+});
+

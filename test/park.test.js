@@ -472,13 +472,14 @@ describe('City Park — the two-tier fountain (polish-park2)', async () => {
 
   // 20,535 + 6,000 for polish-park2, + 1,100 for polish-canopies' oak, birch
   // and round crowns (merged after it); the Park's real cap is 40k.
-  it('keeps the Park under 27,635 triangles', () => {
+  // polish-bushes: + 1,438 for the 8 bushes' leaf cards.
+  it('keeps the Park under 29,073 triangles', () => {
     const { scene } = built();
     let total = 0;
     let fountain = 0;
     scene.traverse((o) => { if (o.isMesh) total += tris(o.geometry); });
     fountainOf(scene).traverse((o) => { if (o.isMesh) fountain += tris(o.geometry); });
-    expect(total).toBeLessThanOrEqual(27635);
+    expect(total).toBeLessThanOrEqual(29073);
     expect(fountain).toBeLessThan(6000);
   });
 });

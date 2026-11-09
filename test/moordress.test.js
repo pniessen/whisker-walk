@@ -246,7 +246,8 @@ describe('the Moor dressing', () => {
     // polish-brambles: the camp's bramble mounds and thorned canes cost 2,820
     // more triangles (+3,000); +900 for polish-canopies' oak, birch and round crowns
     // +500 for polish-pines2's tiered pines (+319) and polish-camps5's Highrock (+174)
-    expect(stats.triangles).toBeLessThanOrEqual(63800);
+    // polish-bushes: the 3 hidden-mouse bushes wear leaf cards (+506)
+    expect(stats.triangles).toBeLessThanOrEqual(64306);
     expect(stats.meshes).toBe(85 + 2 + 1); // +1: polish-paths' one pathTrail mesh (the hidden path strips were already counted)
     expect(stats.casters).toBe(48);
   }, 120_000);

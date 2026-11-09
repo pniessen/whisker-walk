@@ -3691,20 +3691,48 @@ function beachClumpGeometry(x, z, kind) {
 // each vertex's normal is pulled SHRUB_ROUND of the way toward the direction
 // out from its own cluster's centre: the light rolls round each lump like a
 // leafy ball, while the lumps (and their dark creases) still read apart at
-// 10 m. Positions, colours and the triangle count are unchanged.
+// 10 m.
+//
+// polish-bushes (Pass 10): that softened the LIGHT but not the OUTLINE. A
+// five-point ring is a pentagon whatever its normals do, and a bush with no
+// leaves on its edge is a stone from the side, so at walk height they still
+// read as green rocks. So now:
+//  - K 7 points a ring, each corner pushed in by up to SHRUB_JIT and nudged
+//    up or down (keyed on the corner, hash only), so the outline is lumpy;
+//  - every cluster wears a fringe of leaf cards on its upper half (the
+//    brambleLeaves recipe: a diamond rooted inside the lump, tipped out and
+//    up past it), in two greens with a lit tip and a dark root, so the
+//    silhouette breaks into leaves. Their normals are set, out from the lump
+//    and up, so they light with it; bush() makes the material two-sided and
+//    lit by those normals on both faces (dressing.js bothSidesLit);
+//  - the creases read: on the side clusters the face turned in toward the
+//    bush's middle is shaded down (SHRUB_CREASE), so two lumps meet in a
+//    dark fold instead of one green surface.
+// The cards ride part B (no new geometry, so bush() keeps its uuid draws).
+// Leaves are short (SHRUB_LEAF m), so the footprint barely grows (bounding
+// sphere still < 0.91). +~160-195 triangles a bush (148-183 rings + core,
+// 58-72 cards).
 const SHRUB_ROUND = 0.7;
 const SHRUB_GREEN = 0x62994a;
+const SHRUB_K = 7;
+const SHRUB_JIT = 0.16;
+const SHRUB_CREASE = 0.32;
+const SHRUB_LEAF = 0.18;
+const SHRUB_CARDS = { crown: 16, side: 14 };
 function shrubGeometry(x, z) {
   const part = () => {
-    const pos = [], col = [], idx = [], ctr = [];
+    const pos = [], col = [], idx = [], ctr = [], set = [];
     let centre = null;
     return {
+      pos, col,
       // the cluster the next vertices belong to (null: keep the smooth normal)
       centre(c) { centre = c; },
-      v(px, py, pz, c) {
+      // `n`: a normal to use as given (the leaf cards)
+      v(px, py, pz, c, n = null) {
         pos.push(px, py, pz);
         col.push(c[0], c[1], c[2]);
         ctr.push(centre);
+        set.push(n);
         return pos.length / 3 - 1;
       },
       tri(a, b, d) { idx.push(a, b, d); },
@@ -3716,6 +3744,7 @@ function shrubGeometry(x, z) {
         g.computeVertexNormals();
         const nrm = g.attributes.normal;
         for (let v = 0; v < ctr.length; v++) {
+          if (set[v]) { nrm.setXYZ(v, set[v][0], set[v][1], set[v][2]); continue; }
           const c = ctr[v];
           if (!c) continue;
           let rx = pos[v * 3] - c[0], ry = pos[v * 3 + 1] - c[1], rz = pos[v * 3 + 2] - c[2];
@@ -3743,14 +3772,15 @@ function shrubGeometry(x, z) {
     return [0, 1, 2].map((i) => j * cast[i] * (1 + (TIP[i] - 1) * t));
   };
   const GROUND = -0.53;
-  const K = 5;
-  // a ring of n points about (cx, cz): returns vertex ids
-  const ring = (P, n, cx, y, cz, r, turn, s, t, salt, wob = 0) => {
+  const K = SHRUB_K;
+  // a ring of n points about (cx, cz): returns vertex ids. `jit` pushes each
+  // corner in (and up or down a little), keyed on the corner
+  const ring = (P, n, cx, y, cz, r, turn, s, t, salt, wob = 0, jit = 0) => {
     const ids = [];
     for (let k = 0; k < n; k++) {
       const a = turn + (k / n) * Math.PI * 2;
-      const rr = r * (k % 2 === 0 ? 1 : 1 - wob) * (1 - 0.08 * H(salt + k));
-      const yy = y + (k % 2 === 0 ? wob * 0.25 * r : 0);
+      const rr = r * (k % 2 === 0 ? 1 : 1 - wob) * (1 - 0.08 * H(salt + k)) * (1 - jit * H(salt + 60 + k));
+      const yy = y + (k % 2 === 0 ? wob * 0.25 * r : 0) + jit * 0.5 * r * (H(salt + 90 + k) - 0.5);
       ids.push(P.v(cx + Math.cos(a) * rr, yy, cz + Math.sin(a) * rr, shade(s, t, salt + 20 + k)));
     }
     return ids;
@@ -3781,29 +3811,94 @@ function shrubGeometry(x, z) {
     const s = 1200 + i * 100;
     const crown = i === 0;
     const a = turn + ((i - 1) / (n - 1)) * Math.PI * 2 + (H(s) - 0.5) * 0.6;
-    const d = crown ? 0.06 * H(s + 1) : 0.31 + 0.08 * H(s + 1);
+    const d = crown ? 0.06 * H(s + 1) : 0.25 + 0.08 * H(s + 1);
     const cx = Math.cos(a) * d * size, cz = Math.sin(a) * d * size;
     const rc = (crown ? 0.34 + 0.05 * H(s + 2) : 0.29 + 0.06 * H(s + 2)) * size;
     const cy = (crown ? 0.1 + 0.07 * H(s + 3) : -0.14 + 0.1 * H(s + 3)) * size;
     const clusterShade = 0.9 + 0.2 * H(s + 4);
     const spin = H(s + 5) * Math.PI * 2;
     const step = Math.PI / K;
+    const first = B.pos.length / 3;
     // underside: hidden inside for the crown, on the ground for the others
     const footY = crown ? cy - 0.6 * rc : GROUND + 0.03 * H(s + 6);
     // the lump's own middle, a little below its equator, so the foot ring
     // turns down and out and the shoulder up and out
     B.centre([cx * 0.95, cy - 0.1 * rc, cz * 0.95]);
-    const lo = ring(B, K, cx * 0.8, footY, cz * 0.8, 0.7 * rc, spin, 0.55 * clusterShade, 0, s + 10);
-    const mid = ring(B, K, cx, cy + 0.05 * rc, cz, rc, spin + step, 0.88 * clusterShade, 0.2, s + 40, 0.2);
+    const lo = ring(B, K, cx * 0.8, footY, cz * 0.8, 0.6 * rc, spin, 0.55 * clusterShade, 0, s + 10);
+    const mid = ring(B, K, cx, cy + 0.05 * rc, cz, rc, spin + step, 0.88 * clusterShade, 0.2, s + 40, 0.2, SHRUB_JIT);
     // the shoulder and tip lean outward on the side clusters
     const lean = crown ? 0 : 0.22 * rc;
     const ox = Math.cos(a) * lean, oz = Math.sin(a) * lean;
     const up = ring(B, K, cx + ox * 0.6, cy + 0.52 * rc, cz + oz * 0.6, 0.62 * rc, spin + 2 * step,
-      1.0 * clusterShade, 0.5, s + 70, 0.15);
+      1.0 * clusterShade, 0.5, s + 70, 0.15, SHRUB_JIT);
     band(B, lo, mid);
     band(B, mid, up);
     const tip = B.v(cx + ox, cy + (0.76 + 0.08 * H(s + 8)) * rc, cz + oz, shade(1.15 * clusterShade, 1, s + 9));
     cap(B, up, tip);
+
+    // the leaf fringe, over the lump's upper half; a side cluster's faces
+    // its own way (the inside of the bush is hidden by its neighbours)
+    B.centre(null);
+    const L = crown ? SHRUB_CARDS.crown : SHRUB_CARDS.side;
+    const ccx = cx + ox * 0.5, ccy = cy + 0.05 * rc, ccz = cz + oz * 0.5;
+    for (let q = 0; q < L; q++) {
+      const hs = s + 200 + q * 7;
+      const az = crown
+        ? spin + ((q + 0.6 * H(hs)) / L) * Math.PI * 2
+        : a + ((q + 0.5) / L - 0.5) * 4.4 + (H(hs) - 0.5) * 0.35;
+      // spread over the lump: a side cluster's reach down its flank, the
+      // crown's round its shoulder, a few near the top
+      const el = (crown ? 0.05 : -0.75) + (crown ? 1.0 : 1.7) * ((q * 0.618 + 0.5 * H(hs + 1)) % 1);
+      const ce = Math.cos(el), se = Math.sin(el);
+      const dx = Math.cos(az) * ce, dy = se, dz = Math.sin(az) * ce;
+      // the root sits just under the lump's skin; the leaf lies up along it
+      // like a shingle, tipped out from it, so the lump is clothed in leaves
+      // and its edge breaks into them
+      // (lower down the lump flares, so its skin is further out)
+      const rr = rc * (0.8 + 0.3 * Math.max(0, -se));
+      const root = [ccx + dx * rr, ccy + dy * rr * 0.95, ccz + dz * rr];
+      let tx = -dx * dy, ty = 1 - dy * dy, tz = -dz * dy;
+      const tl = Math.hypot(tx, ty, tz) || 1;
+      let ux = 0.35 * dx + 0.94 * tx / tl, uy = 0.35 * dy + 0.94 * ty / tl, uz = 0.35 * dz + 0.94 * tz / tl;
+      const ul = Math.hypot(ux, uy, uz);
+      ux /= ul; uy /= ul; uz /= ul;
+      const len = SHRUB_LEAF * size * (0.85 + 0.35 * H(hs + 2));
+      const w = len * 1.05;
+      // across: along the lump, square to the heading, a little twisted
+      const tw = (H(hs + 3) - 0.5) * 0.5;
+      let sx = -Math.sin(az), sy = tw, sz = Math.cos(az);
+      const sl = Math.hypot(sx, sy, sz);
+      sx = (sx / sl) * w / 2; sy = (sy / sl) * w / 2; sz = (sz / sl) * w / 2;
+      const m = [root[0] + ux * len * 0.42, root[1] + uy * len * 0.42, root[2] + uz * len * 0.42];
+      // normal: out of the lump and up, so the fringe lights with it
+      let nx = dx, ny = dy + 0.45, nz = dz;
+      const nl = Math.hypot(nx, ny, nz);
+      nx /= nl; ny /= nl; nz /= nl;
+      const nrm = [nx, ny, nz];
+      // two greens (a deep and a fresh one), brighter higher up the lump
+      const g = (H(hs + 4) < 0.5 ? 0.82 : 1.0) * clusterShade * (0.9 + 0.16 * Math.max(0, se));
+      const r0 = B.v(...root, shade(g * 0.6, 0, hs + 5), nrm);
+      const lv = B.v(m[0] - sx, m[1] - sy, m[2] - sz, shade(g * 0.95, 0.2, hs + 6), nrm);
+      const tv = B.v(root[0] + ux * len, root[1] + uy * len, root[2] + uz * len, shade(g * 1.04, 0.5, hs + 7), nrm);
+      const rv = B.v(m[0] + sx, m[1] + sy, m[2] + sz, shade(g * 0.95, 0.2, hs + 8), nrm);
+      B.tri(r0, rv, tv);
+      B.tri(r0, tv, lv);
+    }
+
+    // the crease: a side cluster's face turned in toward the bush's middle
+    // (and low down) falls into shade where it meets its neighbours
+    if (!crown) {
+      const ax = Math.cos(a), az2 = Math.sin(a);
+      for (let v = first; v < B.pos.length / 3; v++) {
+        const hx = B.pos[v * 3] - cx, hz = B.pos[v * 3 + 2] - cz;
+        const hl = Math.hypot(hx, hz);
+        if (hl < 1e-6) continue;
+        const inward = Math.max(0, -(hx * ax + hz * az2) / hl);
+        const low = 1 - smoothstep(cy - 0.2 * rc, cy + 0.7 * rc, B.pos[v * 3 + 1]);
+        const f = 1 - SHRUB_CREASE * inward * (0.4 + 0.6 * low);
+        for (let c = 0; c < 3; c++) B.col[v * 3 + c] *= f;
+      }
+    }
   }
 
   const ga = A.geo(), gb = B.geo();
@@ -3847,6 +3942,11 @@ export function bush(x, z, { wind, style, kind: forceKind } = {}) {
     // polish-shrubs: a little olive, away from the canopies' green (0x5aa04e)
     leaves = surfMat(organicTint(SHRUB_GREEN, x, z, 1010, 8), 'foliage');
     leaves.vertexColors = true;
+    // polish-bushes: the leaf cards are seen from both sides and lit by the
+    // normals they were built with on both (the closed lumps never show a
+    // back face, so nothing changes for them)
+    leaves.side = THREE.DoubleSide;
+    bothSidesLit(leaves);
   }
   const m = beach
     ? new THREE.Mesh(
@@ -5780,6 +5880,66 @@ function brambleLeaves(lobe, r, i, k, seed, { leaf = BRAMBLE_LEAF, width = 0.4 }
     lobe.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
   }
 }
+// polish-bushes (Pass 10): the Woods' bramble lobes were the "green rocks"
+// at walk height (survey 10 broken #2; the POI shots it names show brambles,
+// not bush()): seven thin cards could not hide a 20-face lobe's big flat
+// facets. So a bramble lobe now wears BRAMBLE_SHINGLES broad leaf cards laid
+// up along its skin like shingles, tipped out from it, from just under its
+// waist to near its top, in two greens with a dark root and a lit tip. They
+// clothe the facets and break the outline. Normals as brambleLeaves (out of
+// the lobe, a little up). Gorse keeps brambleLeaves' spines.
+// +14 triangles a lobe over the old fringe (7 -> 14 cards).
+const BRAMBLE_SHINGLES = 14;
+const BRAMBLE_DEEP = new THREE.Color(0x4a7236).toArray();
+function brambleShingles(lobe, r, i, k, seed) {
+  const names = ['position', 'normal', 'uv', 'color'];
+  const add = { position: [], normal: [], uv: [], color: [] };
+  const H = (n, m) => hash01(i * 13 + n, k * 7 + m, seed + 40);
+  const SQ = 0.62;
+  for (let q = 0; q < BRAMBLE_SHINGLES; q++) {
+    const az = (q / BRAMBLE_SHINGLES) * Math.PI * 2 + (H(q, 1) - 0.5) * 0.5;
+    const el = -0.3 + 1.4 * ((q * 0.618 + 0.5 * H(q, 2)) % 1);
+    const ce = Math.cos(el), se = Math.sin(el);
+    const dx = Math.cos(az) * ce, dy = se, dz = Math.sin(az) * ce;
+    // on the squashed lobe's skin, a hair inside
+    const root = [dx * r * 0.88, dy * r * SQ * 0.88, dz * r * 0.88];
+    // up along the skin (the squashed sphere's tangent toward the top), tipped out
+    let tx = -dx * dy * SQ, ty = ce * ce, tz = -dz * dy * SQ;
+    const tl = Math.hypot(tx, ty, tz) || 1;
+    let ux = 0.4 * dx + 0.92 * tx / tl, uy = 0.4 * dy + 0.92 * ty / tl, uz = 0.4 * dz + 0.92 * tz / tl;
+    const ul = Math.hypot(ux, uy, uz);
+    ux /= ul; uy /= ul; uz /= ul;
+    const len = r * (0.42 + 0.16 * H(q, 3));
+    const w = len * 0.95;
+    const tw = (H(q, 4) - 0.5) * 0.5;
+    let sx = -Math.sin(az), sy = tw, sz = Math.cos(az);
+    const sl = Math.hypot(sx, sy, sz);
+    sx = sx / sl * w / 2; sy = sy / sl * w / 2; sz = sz / sl * w / 2;
+    const tip = [root[0] + ux * len, root[1] + uy * len, root[2] + uz * len];
+    const m = [root[0] + ux * len * 0.42, root[1] + uy * len * 0.42, root[2] + uz * len * 0.42];
+    const L = [m[0] - sx, m[1] - sy, m[2] - sz], R = [m[0] + sx, m[1] + sy, m[2] + sz];
+    let nx = dx, ny = dy + 0.35, nz = dz;
+    const nl = Math.hypot(nx, ny, nz);
+    nx /= nl; ny /= nl; nz /= nl;
+    // two greens, darker low on the lobe
+    const leaf = H(q, 6) < 0.5 ? BRAMBLE_DEEP : BRAMBLE_LEAF;
+    const shade = (0.85 + 0.25 * H(q, 5)) * (0.8 + 0.25 * smoothstep(-0.3, 1, se));
+    for (const v of [root, R, tip, root, tip, L]) {
+      add.position.push(...v);
+      add.normal.push(nx, ny, nz);
+      add.uv.push(0, 0);
+      const f = v === root ? 0.7 : v === tip ? 1.2 : 1.0;
+      for (let c = 0; c < 3; c++) add.color.push(leaf[c] * shade * f);
+    }
+  }
+  for (const name of names) {
+    const a = lobe.attributes[name];
+    const out = new Float32Array(a.array.length + add[name].length);
+    out.set(a.array);
+    out.set(add[name], a.array.length);
+    lobe.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
+  }
+}
 export function brambleBed(spots, seed) {
   const geoms = [];
   spots.forEach((sp, i) => {
@@ -5811,7 +5971,7 @@ export function brambleBed(spots, seed) {
         for (let c = 0; c < 3; c++) col[v * 3 + c] = (BRAMBLE_LOW[c] + (BRAMBLE_TOP[c] - BRAMBLE_LOW[c]) * t) * shade * mottle;
       }
       lobe.setAttribute('color', new THREE.BufferAttribute(col, 3));
-      brambleLeaves(lobe, r, i, k, seed);
+      brambleShingles(lobe, r, i, k, seed);
       const a = hash01(k, i, seed + 3) * Math.PI * 2;
       const d = k === 0 ? 0 : 0.45 + 0.35 * hash01(i + k, k, seed + 4);
       lobe.rotateY(hash01(k, i, seed + 5) * Math.PI);
@@ -5823,6 +5983,9 @@ export function brambleBed(spots, seed) {
   m.material.vertexColors = true;
   // the leaf cards are seen from both sides (the closed lobes never are)
   m.material.side = THREE.DoubleSide;
+  // polish-bushes: and lit by their built normals on both, so a card seen
+  // from behind doesn't go black (dressing.js bothSidesLit)
+  bothSidesLit(m.material);
   return m;
 }
 

@@ -344,6 +344,8 @@ describe('bush() beach style', async () => {
     // polish-pines2: the default bush is a leafy shrub with vertex colours
     // now too (test/shrubs.test.js), so tell it from a beach clump by the
     // clump's double-sided material instead.
-    expect(m.material.side).not.toBe(THREE.DoubleSide);
+    // polish-bushes: the shrub is double-sided now too (its leaf cards), so
+    // tell it from a beach clump by its tinted (non-white) material colour.
+    expect(m.material.color.getHex()).not.toBe(0xffffff);
   });
 });
