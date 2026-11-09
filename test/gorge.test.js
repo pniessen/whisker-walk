@@ -27,6 +27,7 @@ vi.stubGlobal('document', {
 });
 
 const gorge = await import('../src/world/gorge.js');
+const { crystalGlow } = await import('../src/world/caveroom.js');
 const { build: buildPines } = await import('../src/world/pines.js');
 const {
   shallowExcess, rooftopSpots, ROOFTOP_SALT, inWater, waterGap, PINE_CONES, PINE_TRUNK, capTopFor,
@@ -1458,7 +1459,9 @@ describe('the Gorge: inside the deep caves', () => {
         expect(m.castShadow).toBe(false);
         expect(m.material.emissiveIntensity).toBe(m.name === crystalName ? 0.9 : 0.6);
       }
-      expect(meshes[0].material.emissive.getHex()).toBe(COLORS[cave.id]);
+      // the lit colour is the cave's; the glow a deeper shade of it (polish-gorgefloor)
+      expect(meshes[0].material.color.getHex()).toBe(COLORS[cave.id]);
+      expect(meshes[0].material.emissive.getHex()).toBe(crystalGlow(COLORS[cave.id]));
       // 5-14 crystal spots along the chamber's walls (the Glitter Cave 7 and
       // more), each within 0.25 m of a wall
       const spots = gorge.caveCrystalSpots(cave);

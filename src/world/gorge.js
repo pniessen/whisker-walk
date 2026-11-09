@@ -1566,35 +1566,63 @@ export const GORGE_DAY_PAINT = Object.freeze({
     wallLo: 0.45, wallHi: 0.8, // |n.y|: a wall under wallLo, a top over wallHi (rockshade's split, a little wider)
   }),
   top: Object.freeze({ mul: Object.freeze([1.0, 0.9, 0.78]) }), // ledges and shoulders: warm sand
+  // polish-gorgefloor: the camp's wide ledge (WIDE_LEDGE_RECT, and the turn
+  // up to it) washed out to cream by day; its rock tops ~12% lower in value.
+  camp: Object.freeze({ dark: 0.12, pad: 1.5 }),
   clifftop: Object.freeze({
-    mul: Object.freeze([1.02, 0.9, 0.74]), // a shade warmer than the floor's sand
+    // polish-gorgefloor: the sand a shade darker and warmer (was [1.02, 0.9, 0.74])
+    mul: Object.freeze([0.95, 0.8, 0.62]),
     drift: Object.freeze({ dark: 0.3, from: 0.5, to: 0.72, scale: 0.42, dx: 13.7, dz: -7.2 }),
+    // the meadow's green cells (lime by day) to a dry sage, by how green a
+    // vertex is (g over r): full at sageFull of g
+    sage: Object.freeze({ mul: Object.freeze([1.14, 0.87, 1.16]), full: 0.22 }),
+    // and the tufts' blades a little toward it
+    tuft: Object.freeze({ mul: Object.freeze([1.06, 0.88, 1.05]) }),
   }),
   floor: Object.freeze({
-    mul: Object.freeze([0.84, 0.88, 0.96]), // cooler, greyer tan
-    damp: 0.2, // darker again by this, at full damp (the stream's margin)
-    foot: 0.16, // and at the walls' feet
+    // polish-gorgefloor: a warmer tan (was a cooler grey-tan [0.84, 0.88, 0.96])
+    mul: Object.freeze([1.0, 0.88, 0.72]),
+    damp: 0.32, // darker again by this, at full damp (the stream's margin)
+    foot: 0.24, // and at the walls' feet
+    // a slow sand/gravel mottle: two octaves of the meadow lattice (no new
+    // draws), lighter warm sand where high, a greyer gravel where low; faded
+    // where damp or at a foot. The plane is a 2.5 m grid, so ~5 m and up.
+    mottle: Object.freeze({
+      amp: 0.14, scale: 0.36, dx: -7.7, dz: 31.1, scale2: 0.85, dx2: 17.9, dz2: -12.3, octave2: 0.45,
+      sand: Object.freeze([1.04, 1.0, 0.92]), gravel: Object.freeze([0.95, 0.97, 1.04]),
+    }),
     green: Object.freeze({
-      mul: Object.freeze([0.7, 1.0, 0.55]), // the floor's tan to a dry grass green
+      mul: Object.freeze([0.84, 1.0, 0.72]), // the floor's tan to a dry sage green (was a lime [0.7, 1.0, 0.55])
       near: 0.4, far: 4.5, // metres from the water: green only in this band
       from: 0.52, to: 0.66, scale: 0.6, dx: -21.3, dz: 9.4, // noise over this: a patch
-      max: 0.85,
+      max: 0.75,
     }),
   }),
   tor: Object.freeze({ mul: Object.freeze([0.84, 0.72, 0.58]), satNone: 0.3 }), // grey-brown; the lichen left alone
-  scree: Object.freeze({ mul: Object.freeze([1.0, 0.82, 0.7]) }), // the walls' broken stone
-  ledge: Object.freeze({ mul: Object.freeze([1.0, 0.9, 0.78]) }), // ledgeTops' material colour
+  // polish-gorgefloor: a darker rust-brown (was a pale cream [1.0, 0.82, 0.7]),
+  // redder or browner along the bed by a slow noise
+  scree: Object.freeze({
+    mul: Object.freeze([0.56, 0.36, 0.25]),
+    brown: Object.freeze([0.9, 0.98, 1.06]), vary: 0.5, scale: 0.7, dx: 5.3, dz: 3.1,
+  }),
+  ledge: Object.freeze({ mul: Object.freeze([0.88, 0.79, 0.69]) }), // ledgeTops' material colour (was [1.0, 0.9, 0.78]: 12% lower)
   summit: Object.freeze({ mul: Object.freeze([0.84, 0.74, 0.62]) }),
 });
 
 // The floor's day multiplier at (x, z): [r, g, b].
 export function gorgeDayFloorMul(x, z) {
-  const F = GORGE_DAY_PAINT.floor, G = F.green;
+  const F = GORGE_DAY_PAINT.floor, G = F.green, M = F.mottle;
   const { clear, damp, foot } = floorWashParts(x, z);
   const dark = (1 - F.damp * damp) * (1 - F.foot * foot);
   const band = smoothstep(G.near * 0.5, G.near, clear) * (1 - smoothstep(G.far * 0.6, G.far, clear));
   const g = G.max * band * smoothstep(G.from, G.to, meadowNoise(x * G.scale + G.dx, z * G.scale + G.dz));
-  return [0, 1, 2].map((k) => F.mul[k] * dark * (1 + (G.mul[k] - 1) * g));
+  const mt = (meadowNoise(x * M.scale + M.dx, z * M.scale + M.dz)
+    + M.octave2 * meadowNoise(x * M.scale2 + M.dx2, z * M.scale2 + M.dz2)) / (1 + M.octave2);
+  const s = smoothstep(0.3, 0.7, mt) * 2 - 1; // -1 gravel .. 1 sand
+  const open = (1 - damp) * (1 - foot);
+  const hue = s > 0 ? M.sand : M.gravel;
+  return [0, 1, 2].map((k) => F.mul[k] * dark * (1 + (G.mul[k] - 1) * g)
+    * (1 + M.amp * s * open) * (1 + (hue[k] - 1) * Math.abs(s) * open));
 }
 // The clifftop's day multiplier at (x, z): warmer, with darker drifts.
 export function gorgeDayClifftopMul(x, z) {
@@ -1602,13 +1630,28 @@ export function gorgeDayClifftopMul(x, z) {
   const d = smoothstep(D.from, D.to, meadowNoise(x * D.scale + D.dx, z * D.scale + D.dz));
   return C.mul.map((m) => m * (1 - D.dark * d));
 }
+// A clifftop meadow cell's vertex: the sand's multiplier, and the green ones
+// turned dry sage (keeping the sand's drift), by how green the vertex is.
+export function gorgeDayMeadowTopMul(x, z, r, g) {
+  const C = GORGE_DAY_PAINT.clifftop, S = C.sage;
+  const m = gorgeDayClifftopMul(x, z);
+  const w = smoothstep(0, S.full, (g - r) / Math.max(g, 1e-4));
+  return m.map((v, k) => v + (v / C.mul[k] * S.mul[k] - v) * w);
+}
+// How much of the camp's day darkening a rock top at (x, z) takes.
+function campShade(x, z) {
+  const P = GORGE_DAY_PAINT.camp;
+  const d = Math.min(rectDist(WIDE_LEDGE_RECT, x, z), rectDist(TURN, x, z));
+  return 1 - P.dark * (1 - smoothstep(0, P.pad, d));
+}
 // A rock vertex's day multiplier: walls (by their normal) terracotta over the
 // damp foot; tops on the clifftop the clifftop's, other tops warm sand.
 export function gorgeDayRockMul(x, y, z, ny) {
   const W = GORGE_DAY_PAINT.wall;
   const wall = 1 - smoothstep(W.wallLo, W.wallHi, Math.abs(ny));
   const up = smoothstep(W.footFrom, W.footTo, y - FLOOR);
-  const top = y > CLIFFTOP - 0.3 ? gorgeDayClifftopMul(x, z) : GORGE_DAY_PAINT.top.mul;
+  const top = y > CLIFFTOP - 0.3 ? gorgeDayClifftopMul(x, z)
+    : Math.abs(y - WIDE_LEDGE_RECT.y0) < 1 ? GORGE_DAY_PAINT.top.mul.map((m) => m * campShade(x, z)) : GORGE_DAY_PAINT.top.mul;
   return [0, 1, 2].map((k) => {
     const w = W.footMul[k] + (W.mul[k] - W.footMul[k]) * up;
     return top[k] + (w - top[k]) * wall;
@@ -1672,11 +1715,16 @@ export function paintGorgeDay(scene) {
   // clifftop cells as the clifftop; the tufts' blades are left green
   each('gorgeMeadow', (m) => paintMesh(m, (x, y, z, ny, r, g, bl) => {
     if (Math.abs(y - (FLOOR + MEADOW_LIFT)) < lift) return gorgeDayFloorMul(x, z);
-    if (Math.abs(y - (CLIFFTOP + MEADOW_LIFT)) < lift && !(g > r)) return gorgeDayClifftopMul(x, z);
-    return [1, 1, 1];
+    if (Math.abs(y - (CLIFFTOP + MEADOW_LIFT)) < lift) return gorgeDayMeadowTopMul(x, z, r, g);
+    // the tufts' blades (on the clifftop, the Lookout and the turn): toward sage
+    return g > r ? P.clifftop.tuft.mul : [1, 1, 1];
   }));
   each('tors', (m) => paintMesh(m, (x, y, z, ny, r, g, bl) => mixMul(P.tor.mul, greyWeight(r, g, bl, P.tor.satNone))));
-  each('screeBed', (m) => paintMesh(m, () => P.scree.mul));
+  each('screeBed', (m) => paintMesh(m, (x, y, z) => {
+    const S = P.scree;
+    const w = S.vary * smoothstep(0.3, 0.7, meadowNoise(x * S.scale + S.dx, z * S.scale + S.dz));
+    return S.mul.map((v, k) => v * (1 + (S.brown[k] - 1) * w));
+  }));
   for (const name of ['summitRock', 'summitRockBoulder']) {
     const o = scene.getObjectByName(name);
     // one material for both: multiply it once

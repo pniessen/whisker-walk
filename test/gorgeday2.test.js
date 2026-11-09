@@ -69,9 +69,9 @@ describe('the Gorge clear-day paint (polish-gorgeday2)', () => {
     // the damp foot keeps nearly its own colour
     const foot = gorge.gorgeDayRockMul(0, 0.1, 0, 0);
     expect(Math.max(...foot) - Math.min(...foot)).toBeLessThan(0.15);
-    // the open floor goes cooler: blue gains on red
+    // the open floor goes a warmer tan (polish-gorgefloor; it was cooler)
     const F = gorge.gorgeDayFloorMul(-1, 40);
-    expect(F[2]).toBeGreaterThan(F[0]);
+    expect(F[0]).toBeGreaterThan(F[2] * 1.2);
   });
 
   it('the floor is darker by the stream and green in a few patches near it', () => {
@@ -82,8 +82,10 @@ describe('the Gorge clear-day paint (polish-gorgeday2)', () => {
       const away = gorge.gorgeDayFloorMul(-1, z);
       far = Math.max(far, away[1] / away[0]);
     }
-    expect(greenest).toBeGreaterThan(1.25);
-    expect(far).toBeLessThan(1.1);
+    // a dry sage near the water, not lime (polish-gorgefloor)
+    expect(greenest).toBeGreaterThan(far + 0.08);
+    expect(greenest).toBeLessThan(1.15);
+    expect(far).toBeLessThan(1.0);
     const wet = gorge.gorgeDayFloorMul(-7.6, 40), dry = gorge.gorgeDayFloorMul(-1, 40);
     expect(wet[0]).toBeLessThan(dry[0]);
   });
@@ -96,6 +98,45 @@ describe('the Gorge clear-day paint (polish-gorgeday2)', () => {
       lo = Math.min(lo, m[1]); hi = Math.max(hi, m[1]);
     }
     expect(hi - lo).toBeGreaterThan(0.12);
+  });
+
+  it('the floor has a slow sand/gravel mottle in the open (polish-gorgefloor)', () => {
+    let lo = Infinity, hi = 0;
+    for (let z = -40; z <= 40; z += 1) { const m = gorge.gorgeDayFloorMul(-1, z); lo = Math.min(lo, m[0]); hi = Math.max(hi, m[0]); }
+    expect(hi - lo).toBeGreaterThan(0.08);
+    expect(hi - lo).toBeLessThan(0.4);
+  });
+
+  it('the clifftop greens turn dry sage, the sand darker and warmer (polish-gorgefloor)', () => {
+    const g = new THREE.Color(gorge.MEADOW_GREEN);
+    const m = gorge.gorgeDayMeadowTopMul(20, -30, g.r, g.g);
+    const [r2, g2] = [g.r * m[0], g.g * m[1]];
+    expect(g2 / r2).toBeLessThan(1.2); // was ~1.5: lime
+    expect(g2 / r2).toBeGreaterThan(0.9); // still a grass
+    const sand = gorge.gorgeDayClifftopMul(20, -30);
+    expect(Math.max(...sand)).toBeLessThan(1);
+    expect(sand[0] / sand[2]).toBeGreaterThan(1.4);
+  });
+
+  it('the camp ledge tops are ~12% lower than the other ledges (polish-gorgefloor)', () => {
+    const camp = gorge.gorgeDayRockMul(12, 8.05, 42, 1);
+    const other = gorge.gorgeDayRockMul(-20, 8.05, -40, 1);
+    expect(camp[0] / other[0]).toBeCloseTo(0.88, 2);
+  });
+
+  it('the scree is a darker rust-brown (polish-gorgefloor)', () => {
+    const bed = scene.getObjectByName('screeBed');
+    let n = 0, rust = 0;
+    bed.traverse((t) => {
+      if (!t.isMesh) return;
+      const c = t.geometry.getAttribute('color');
+      for (let i = 0; i < c.count; i++) {
+        n++;
+        const l = 0.2126 * c.getX(i) + 0.7152 * c.getY(i) + 0.0722 * c.getZ(i);
+        if (c.getX(i) > c.getY(i) * 1.3 && l < 0.3) rust++;
+      }
+    });
+    expect(rust / n).toBeGreaterThan(0.8);
   });
 
   it('tors go grey-brown and keep their lichen', () => {
@@ -144,6 +185,9 @@ describe('dusk and rain keep the build to the bit (polish-gorgeday2)', () => {
     expect(day.customProgramCacheKey()).toBe('gorge-rock-v3-day');
     expect(s1.fragmentShader).not.toBe(s2.fragmentShader);
     expect(ROCK_DAY_FRAGMENT).not.toBe(ROCK_FRAGMENT);
+    // the near walls' stronger strata are the day program's only (polish-gorgefloor)
+    expect(ROCK_DAY_FRAGMENT).toContain('distance( rw, cameraPosition ) ) ) ), vec3( 0.0 ) )');
+    expect(ROCK_FRAGMENT).not.toContain('vec3( 0.0 ) )');
   });
 
   it('the sky band is a clear blue, the haze farther and bluer', () => {
