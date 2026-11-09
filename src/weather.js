@@ -9,18 +9,25 @@ import { tintDuskLawn, duskLawnColor } from './render/dusk.js';
 // fog and sun colour changed, so lawns and trees sat in noon light under an
 // orange sky. Frozen so a test (and the next person) can read the numbers.
 export const SUNSET_LOOK = Object.freeze({
-  sunColor: 0xffa860,   // a deeper amber than the old 0xffb060, so the lit side reads warm
-  sunIntensity: 2.4,    // brighter than the old 1.5: a low sun lights less ground per lux; 2.0 read olive in the Woods
+  // polish-goldenhour (survey 11 #5): the first look still read as noon under a
+  // peach sky (bright green lawns, white-grey clouds). Golden hour: a deeper
+  // amber sun, less neutral fill and image light, and lawns pushed hard warm.
+  sunColor: 0xff9448,   // deeper amber (was 0xffa860), so the lit side glows
+  sunIntensity: 2.8,    // brighter than the old 1.5 (and 2.4): a low sun lights less ground per lux, and with
+                        // the dimmer fill and env below 2.4 left the Seaside sand dull grey-brown
   elevationDeg: 15,     // down from rig.js's ~19 deg: longer shadows. Not lower: below ~15 deg the
                         // shadow fit's depth range (shadowfit.js BACKOFF 80) clips at radius 20
-  hemiSky: 0xffc89a,    // the fill's sky side takes the peach of the horizon
-  hemiGround: 0x8a6a48, // the fill's bounce goes half-way to a warm earth brown
-  hemiScale: 0.85,      // a little less fill, so the sun's warm side and the shade differ more
-  envScale: 0.7,        // the neutral image light dims, or it greys the amber back to noon
+  hemiSky: 0xffb070,    // the fill's sky side goes gold (was a paler peach 0xffc89a): with the neutral
+                        // image light down, the shade takes its colour from this, so it glows warm, not grey
+  hemiGround: 0x7a5638, // the fill's bounce goes half-way to a warm earth brown (was 0x8a6a48)
+  hemiScale: 0.82,      // a touch less fill (was 0.85), so the sun's warm side and the shade differ more;
+                        // 0.78 with env 0.55 read muddy in the Pines
+  envScale: 0.55,       // the neutral image light dims (was 0.7), or it greys the amber back to noon
   // The lawn tint (render/dusk.js's duskLawnColor): a touch less saturated, a
   // little darker, and warmer per channel. dusk.js calls the per-channel
-  // multiplier `cool`; here it warms (red up, blue down).
-  lawnTint: Object.freeze({ desat: 0.12, dark: 0.95, cool: Object.freeze([1.1, 0.97, 0.8]) }),
+  // multiplier `cool`; here it warms (red up, blue down). Was
+  // { desat 0.12, dark 0.95, cool [1.1, 0.97, 0.8] }.
+  lawnTint: Object.freeze({ desat: 0.08, dark: 0.92, cool: Object.freeze([1.16, 0.95, 0.72]) }),
 });
 
 export function rollWeather(rng) {

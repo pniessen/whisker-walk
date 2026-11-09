@@ -691,6 +691,18 @@ describe('sunset light', () => {
     return m;
   };
 
+  it('golden hour (polish-goldenhour): a strongly warm lawn, a dimmer neutral light, an amber sun', () => {
+    const { cool, dark } = SUNSET_LOOK.lawnTint;
+    expect(cool[0] / cool[2]).toBeGreaterThan(1.5); // was 1.1 / 0.8
+    expect(dark).toBeLessThanOrEqual(0.92);
+    expect(SUNSET_LOOK.envScale).toBeLessThanOrEqual(0.6);
+    expect(SUNSET_LOOK.hemiScale).toBeLessThan(0.85);
+    const sun = new THREE.Color(SUNSET_LOOK.sunColor);
+    expect(sun.r).toBeGreaterThan(sun.g);
+    expect(sun.g).toBeGreaterThan(sun.b * 1.5);
+    expect(SUNSET_LOOK.elevationDeg).toBe(15); // shadowfit's headroom
+  });
+
   it('drops the sun to SUNSET_LOOK.elevationDeg on the same bearing and distance', () => {
     const sun = mkSun();
     sun.target.position.set(2, 0, -1);
