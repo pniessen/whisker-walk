@@ -199,7 +199,8 @@ describe('the Woods floor', () => {
     // polish-canopies: oak, birch and round crowns and the old oaks (+6,000);
     // polish-foliage saved ~1,080, then polish-campring (+252) and polish-shrubs
     // (brambles +1,036, scrub edge +546) brought the Woods to 67,242 (+100 margin)
-    expect(tris).toBeLessThanOrEqual(67_350);
+    // polish-bushes: the 3 hidden-mouse bushes wear leaf cards (+544)
+    expect(tris).toBeLessThanOrEqual(67_894);
 
     const places = keep(area);
     expect(places.some((p) => p.x === SPAWN.x && p.z === SPAWN.z)).toBe(true);
@@ -303,7 +304,7 @@ describe('the Pines floor', () => {
     }
   });
 
-  it('builds one forestFloor mesh out of the shadow pass, inside the 66,588 triangle budget', () => {
+  it('builds one forestFloor mesh out of the shadow pass, inside the 67,638 triangle budget', () => {
     const scene = new THREE.Scene();
     const area = P.build(scene);
     const meshes = [];
@@ -324,7 +325,8 @@ describe('the Pines floor', () => {
     // area's 106 pines (+5,724); polish-campring: three more leaf cards on
     // each of the camp ring's 84 clumps (+252); polish-shrubs: the pine-scrub
     // edge mounds dome their tops, 2 more triangles a mound (+512)
-    expect(tris).toBeLessThanOrEqual(66_588);
+    // polish-bushes: the 6 bushes (3 hidden-mouse, 3 island) wear leaf cards (+1,050)
+    expect(tris).toBeLessThanOrEqual(67_638);
 
     // the ground carries pinesGroundTint: its colours over an untinted twin's
     const ground = scene.children.find((o) => o.userData?.ground && o.isMesh);
