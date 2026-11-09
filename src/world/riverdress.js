@@ -284,7 +284,9 @@ export const riverFlowers = once(() => {
 // reedbed peaty. Bolder than the brief's first multipliers (fix round 1
 // ruling): a wide shot has to show the marsh's colour, not a flat wash.
 const WET = [0.68, 0.82, 0.62];
-const DRY = [1.18, 1.08, 0.74];
+// polish-floors: DRY was [1.18, 1.08, 0.74], straw-yellow patches that made
+// the meadow read lime; now a sunnier, less yellow dry grass.
+const DRY = [1.1, 1.06, 0.84];
 const LUSH = [0.66, 0.86, 0.6];
 const PEATY = [0.78, 0.8, 0.64];
 export function riverGroundTint(x, z) {

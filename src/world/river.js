@@ -120,7 +120,9 @@ export const RIVER_WATERS = Object.freeze([
 // The marsh ground's base (polish-sheen): 0x7d9c55 read yellow-lime under the
 // Pass 8 day grade; a touch darker and less yellow (hue 86 -> 92). The wet,
 // dry and peaty patches (riverGroundTint) multiply it as before.
-export const RIVER_GROUND = 0x6f9152;
+// polish-floors: still read lime ("a golf course"); now a fresh meadow green
+// (0x6f9152, hue 92 -> 0x679553, hue 104), about as light.
+export const RIVER_GROUND = 0x679553;
 export const RIVER_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 4, wavelength: 40,
   color: 0x7f9a66, salt: 37,

@@ -22,15 +22,17 @@ import { Tris, bothSidesLit, smoothField, smoothstep, lerp3, lin, scale3, unit }
 
 // How much a tree's canopy shades (x, z): 1 within 1.2 m of the trunk
 // (scaled with the tree), fading to 0 by 3.2 m. The darkest tree wins.
-export function canopyShade(trees, x, z) {
+// `inner` / `outer` change those two radii (polish-floors: the Woods' tint
+// asks for a wider, softer shade; the Pines and the placement keep these).
+export function canopyShade(trees, x, z, { inner = 1.2, outer = 3.2 } = {}) {
   let best = 0;
   for (const t of trees) {
     const s = t.scale ?? 1;
-    const reach = 3.2 * s;
+    const reach = outer * s;
     const dx = x - t.x;
     const dz = z - t.z;
     if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
-    const v = 1 - smoothstep(1.2 * s, reach, Math.hypot(dx, dz));
+    const v = 1 - smoothstep(inner * s, reach, Math.hypot(dx, dz));
     if (v > best) best = v;
     if (best === 1) break;
   }
@@ -40,16 +42,17 @@ export function canopyShade(trees, x, z) {
 // How deep the leaf litter lies at (x, z) under the canopies: 1 near a
 // trunk, fading out by about 3.3 m (scaled with the tree) with a wobbly edge,
 // so the patches are drifts rather than discs. The deepest tree wins.
-export function litterDepth(trees, x, z) {
+// `outer` moves that 3.3 m fade (the Woods' tint reaches further).
+export function litterDepth(trees, x, z, { outer = 3.3 } = {}) {
   const wob = 1 + 0.28 * smoothField(x, z, 113, 2.6);
   let best = 0;
   for (const t of trees) {
     const s = t.scale ?? 1;
-    const reach = 4.4 * s;
+    const reach = outer * 1.34 * s;
     const dx = x - t.x;
     const dz = z - t.z;
     if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
-    const v = 1 - smoothstep(1.2 * s, 3.3 * s * wob, Math.hypot(dx, dz));
+    const v = 1 - smoothstep(1.2 * s, outer * s * wob, Math.hypot(dx, dz));
     if (v > best) best = v;
     if (best === 1) break;
   }
@@ -77,10 +80,18 @@ function amongTrees(trees, x, z) {
 // Linear multipliers (the ground's vertex colours multiply its linear colour,
 // so these are stronger than they look in sRGB). On the Woods' 0x547f3e
 // LITTER at full strength comes out a warm olive-brown (clamped to 1.5/0.5).
-const SHADE = [0.88, 0.85, 0.82];
+// polish-floors: the floor between the trees read as a bright park lawn. It
+// is now deeper and a little cooler (WOOD_DIM down, WOOD_COOL leaning blue-
+// green), the moss patches a deeper, cooler moss, and the canopy shade a touch
+// darker and spread wider and softer (WOODS_SHADE_REACH); the litter reaches
+// ~1.5 m further out from the trunks (WOODS_LITTER_REACH).
+const SHADE = [0.82, 0.8, 0.79];
 const LITTER = [1.6, 0.66, 0.48];
-const MOSS_TINT = [0.82, 1.04, 0.7];
-const WOOD_DIM = 0.92;
+const MOSS_TINT = [0.7, 0.95, 0.74];
+const WOOD_DIM = 0.8;
+const WOOD_COOL = [0.94, 1, 1.07];
+const WOODS_SHADE_REACH = Object.freeze({ inner: 1.0, outer: 4.6 });
+const WOODS_LITTER_REACH = Object.freeze({ outer: 4.8 });
 const clampTint = (v) => (v < 0.5 ? 0.5 : v > 1.5 ? 1.5 : v);
 const mul3 = (a, b) => [a[0] * b[0], a[1] * b[1], a[2] * b[2]];
 const ONE = [1, 1, 1];
@@ -95,14 +106,14 @@ const ONE = [1, 1, 1];
 // horizon band's near strip carries on with (no pale ring).
 export function woodsFloorTint(trees, clearing, { edge = null } = {}) {
   return (x, z) => {
-    const shade = canopyShade(trees, x, z);
+    const shade = canopyShade(trees, x, z, WOODS_SHADE_REACH);
     const drift = 0.85 * smoothstep(0.2, 0.6, smoothField(x, z, 91, 11)) * amongTrees(trees, x, z);
-    const litter = Math.max(litterDepth(trees, x, z), drift);
+    const litter = Math.max(litterDepth(trees, x, z, WOODS_LITTER_REACH), drift);
     let m = lerp3(ONE, SHADE, shade);
     m = mul3(m, lerp3(ONE, LITTER, litter));
     const moss = smoothstep(0.3, 0.7, smoothField(x, z, 97, 8)) * (1 - litter);
     m = mul3(m, lerp3(ONE, MOSS_TINT, moss));
-    m = scale3(m, WOOD_DIM);
+    m = scale3(mul3(m, WOOD_COOL), WOOD_DIM);
     // the wood's look fades out over the clearing's last 3 m
     let wood = smoothstep(clearing.r - 3, clearing.r, Math.hypot(x - clearing.x, z - clearing.z));
     if (edge != null) wood *= 1 - smoothstep(edge - 8, edge - 1, Math.max(Math.abs(x), Math.abs(z)));
