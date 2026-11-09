@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
-import { createWater } from '../render/water.js';
+import { createWater, PARK_POND_LOOK } from '../render/water.js';
 import { addTrails } from './pathribbon.js';
 import { BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, FOUNTAIN_STONE, fountainWaterMaterial, latheGeometry, dressFountain } from './parkfountain.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
@@ -329,7 +329,9 @@ export function build(scene, { water = {}, wind } = {}) {
   // radius, same centre, same footprint — only the tessellation is finer.
   const pond = createWater(POND, {
     y: 0.02,
-    color: 0x7ab0d8,
+    // polish-fountainglow: a calmer, less saturated green-blue with less sky
+    // in it (was color 0x7ab0d8 at the default glare and sky probe).
+    ...PARK_POND_LOOK,
     quality: water.quality ?? 'high',
     reducedMotion: water.reducedMotion ?? false,
     // softer than the 0.45 default: the water dressing now draws the shore

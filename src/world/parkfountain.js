@@ -59,8 +59,39 @@ export function fountainWaterMaterial() {
 
 export const FOUNTAIN_SEED = 'park-fountain';
 export const FROZEN_TIME = 0.37;
-export const DROPS_SHADER_KEY = 'park-fountain-drops-v1';
-export const RIPPLES_SHADER_KEY = 'park-fountain-ripples-v1';
+export const DROPS_SHADER_KEY = 'park-fountain-drops-v2';
+export const RIPPLES_SHADER_KEY = 'park-fountain-ripples-v2';
+
+// polish-fountainglow (Pass 11) — WHY THE FOUNTAIN BLOOMED. Survey 11 froze
+// the fountain's clock and scanned the HDR buffer: 36 by day, 600 at sunset,
+// against bloom's 1.1 threshold. Hiding one layer at a time put it on the
+// drops and then the ripples. The root cause is three things together:
+//   1. roughness 0.18 (drops) and 0.2 (ripples): GGX's peak is 1/(pi a^2)
+//      with a = roughness^2, about 300 at 0.18 — a mirror;
+//   2. the drops were FLAT-SHADED octahedra: eight perfect little mirrors per
+//      drop, each turning one exact face to the sun as it flies, so some face
+//      on some drop always sits on that peak (the "glass diamond" look);
+//   3. a low sun is grazing, where Fresnel takes F toward 1 — 25x the
+//      head-on 0.04, hence 36 by day and 600 at sunset.
+// The fix takes each in turn: rough water-spray roughness (DROP_LOOK and
+// RIPPLE_LOOK; peak ~5 instead of ~300), smooth per-vertex normals (a drop
+// shades as a rounded bead, never a facet), and, because neither layer ever
+// needs HDR, a final clamp of the fragment's colour to FOUNTAIN_HDR_CAP after
+// three's opaque_fragment, so no angle or light the probe missed can feed bloom.
+export const FOUNTAIN_HDR_CAP = 1.0;
+export const DROP_LOOK = Object.freeze({
+  color: 0xc4dcea, emissive: 0x1c2a34, roughness: 0.5, metalness: 0, opacity: 0.6,
+});
+export const RIPPLE_LOOK = Object.freeze({
+  color: 0xe4f0f6, emissive: 0x141e26, roughness: 0.6, metalness: 0, opacity: 0.3,
+});
+// The drops' cross-section, 60% of the shipped 0.018-0.026 m (stream) and
+// 0.014 m (jet), so they read as beads of falling water, not crystals.
+export const DROP_WIDTH = Object.freeze({ stream: 0.011, streamJitter: 0.005, jet: 0.0085 });
+
+// Appended after three's opaque_fragment (gl_FragColor is set there).
+const HDR_CLAMP = `
+gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(${FOUNTAIN_HDR_CAP.toFixed(2)}));`;
 
 // Storybook gravity: a touch under the real 9.8, so the arcs hang a moment
 // longer and read as falling water rather than as a blur.
@@ -149,7 +180,9 @@ export function fountainArcs() {
   return arcs;
 }
 
-// A unit octahedron, long along y: 8 faces, flat-shaded (non-indexed).
+// A unit octahedron, long along y: 8 faces (non-indexed). polish-fountainglow:
+// each vertex's normal is its own direction from the centre, so the faces
+// shade smoothly into one rounded bead rather than eight flat mirrors.
 const OCTA = (() => {
   const P = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
   const F = [[0, 2, 4], [4, 2, 1], [1, 2, 5], [5, 2, 0], [4, 3, 0], [1, 3, 4], [5, 3, 1], [0, 3, 5]];
@@ -165,7 +198,6 @@ function dropsGeometry(arcs) {
   const start = new Float32Array(verts * 3);
   const vel = new Float32Array(verts * 3);
   const time = new Float32Array(verts * 2);
-  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), fn = new THREE.Vector3();
   let v = 0;
   for (const arc of arcs) {
     const cx = Math.cos(arc.a), sz = Math.sin(arc.a);
@@ -176,15 +208,15 @@ function dropsGeometry(arcs) {
     for (let d = 0; d < arc.drops; d++) {
       const phase = (d + (hash(arc.seed * 13 + d) - 0.5) * 0.35) / arc.drops + hash(arc.seed + 400);
       // A size per drop: the stream's own scale (x = width, y = length scale).
-      const w = arc.kind === 'stream' ? 0.018 + hash(arc.seed * 7 + d) * 0.008 : 0.014;
+      const w = arc.kind === 'stream'
+        ? DROP_WIDTH.stream + hash(arc.seed * 7 + d) * DROP_WIDTH.streamJitter
+        : DROP_WIDTH.jet;
       for (const face of OCTA) {
-        a.fromArray(face[0]); b.fromArray(face[1]); c.fromArray(face[2]);
-        fn.copy(c).sub(b).cross(a.clone().sub(b)).normalize();
         for (const p of face) {
           pos.set([p[0] * w, p[1], p[2] * w], v * 3);
-          // Object-space normal of the unstretched face; the shader re-derives
-          // the stretch so this is only the direction the face turns.
-          nrm.set([fn.x, fn.y, fn.z], v * 3);
+          // Object-space normal of the unstretched bead at this vertex (its
+          // direction from the centre); the shader re-derives the stretch.
+          nrm.set(p, v * 3);
           start.set(s0, v * 3);
           vel.set(v0, v * 3);
           time.set([arc.T, phase - Math.floor(phase)], v * 2);
@@ -246,6 +278,7 @@ float fdSize;`);
 objectNormal = normalize(fdBasis[0] * objectNormal.x + normalize(fdBasis[1]) * objectNormal.y * 0.3 + fdBasis[2] * objectNormal.z);`);
   shader.vertexShader = inject(shader.vertexShader, '#include <begin_vertex>', `
 transformed = fdPos + fdBasis * transformed * fdSize;`);
+  shader.fragmentShader = inject(shader.fragmentShader, '#include <opaque_fragment>', HDR_CLAMP);
   return shader;
 }
 
@@ -275,6 +308,7 @@ varying vec3 vRipple;`);
   }
   diffuseColor.a *= clamp(ring, 0.0, 1.0) * (1.0 - smoothstep(0.85, 1.0, d));
 }`);
+  shader.fragmentShader = inject(shader.fragmentShader, '#include <opaque_fragment>', HDR_CLAMP);
   return shader;
 }
 
@@ -341,8 +375,7 @@ export function dressFountain(fountain, { reducedMotion = false } = {}) {
     const arcs = fountainArcs();
 
     const dropsMat = new THREE.MeshStandardMaterial({
-      color: 0xd8eef8, emissive: 0x2a3c48, roughness: 0.18, metalness: 0,
-      transparent: true, opacity: 0.78, depthWrite: false,
+      ...DROP_LOOK, transparent: true, depthWrite: false,
     });
     dropsMat.onBeforeCompile = (shader) => patchDropsShader(shader, uniforms);
     dropsMat.customProgramCacheKey = () => DROPS_SHADER_KEY;
@@ -350,8 +383,7 @@ export function dressFountain(fountain, { reducedMotion = false } = {}) {
     drops.renderOrder = 0; // sorted by distance, so faded trees / rain in front still cover it
 
     const ripplesMat = new THREE.MeshStandardMaterial({
-      color: 0xeef8ff, emissive: 0x1c2830, roughness: 0.2, metalness: 0,
-      transparent: true, opacity: 0.32, depthWrite: false,
+      ...RIPPLE_LOOK, transparent: true, depthWrite: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     });
     ripplesMat.onBeforeCompile = (shader) => patchRipplesShader(shader, uniforms);
