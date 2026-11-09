@@ -140,10 +140,13 @@ export const GORGE_FOG = Object.freeze({ near: 60, far: 175 });
 export const GORGE_DAY_LOOK = Object.freeze({
   strength: 1,
   paleFrom: 0.62, paleTo: 0.86, // the authored horizon (0xeed8b8) is 0.85: nearly all of it
-  topSat: 0.22, topDark: 0.05, topHue: 0.57, topHueMix: 0.25,
-  horizonToTop: 0.22, // less than the flat maps' 0.35: the canyon haze stays warm
-  horizonDark: 0.08,
-  fogNear: 80, fogFar: 215,
+  // polish-gorgeday2: a clear blue sky band over the rims, and a bluer, thinner
+  // haze half as far again, so the upper walls keep their colour
+  // (was topSat 0.22, horizonToTop 0.22, horizonDark 0.08, fog 80..215).
+  topSat: 0.35, topDark: 0.05, topHue: 0.57, topHueMix: 0.25,
+  horizonToTop: 0.5, // more than the flat maps' 0.35: a soft blue, not a beige haze
+  horizonDark: 0.06,
+  fogNear: 105, fogFar: 280,
   envScale: 0.76, hemiScale: 0.88, exposure: 0.9,
 });
 const PATH_W = 3;
@@ -1363,13 +1366,21 @@ export const FLOOR_WASH = Object.freeze({
   band: Object.freeze({ wave: 7, wave2: 11.3, octave2: 0.35, warp: 1.3, amp: 0.04 }),
 });
 const WASH_WATERS = GORGE_WATERS.map((w) => ({ ...w, decks: [] }));
-export function gorgeFloorWash(x, z) {
-  const { damp: D, foot: F, ochre: O, band: B } = FLOOR_WASH;
+// The wash's inputs at (x, z): how far from the water and from the nearest
+// floor wall, and the damp and foot weights read off them. The clear day's
+// paint (GORGE_DAY_PAINT) reads them too.
+function floorWashParts(x, z) {
+  const { damp: D, foot: F } = FLOOR_WASH;
   const clear = b.waterClearance(WASH_WATERS, x, z);
   const damp = clear <= 0 ? 1 : 1 - smoothstep(0, D.reach, clear);
   let wall = Infinity;
   for (const [x1, z1, x2, z2] of FLOOR_WALLS) wall = Math.min(wall, segDist(x, z, x1, z1, x2, z2));
   const foot = 1 - smoothstep(F.from, F.to, wall);
+  return { clear, damp, wall, foot };
+}
+export function gorgeFloorWash(x, z) {
+  const { damp: D, foot: F, ochre: O, band: B } = FLOOR_WASH;
+  const { damp, foot } = floorWashParts(x, z);
   // across the canyon on a slant, so both the N-S floor and the E-W Narrows band
   const v = 0.8 * x - 0.6 * z;
   const u = 0.6 * x + 0.8 * z + B.warp * Math.sin(v / 5.3 + 0.7);
@@ -1532,6 +1543,150 @@ export function warmStones(geo) {
   }
   c.needsUpdate = true;
   return geo;
+}
+
+// --- the clear day's paint (polish-gorgeday2) ---------------------------------
+// By day the canyon was one beige: walls, floor and haze all the same sand.
+// A clear walk (and only a clear walk: dusk, rain and sunset keep the build's
+// colours to the bit) repaints it once, at the walk's start, from this one
+// table: the walls warmer and deeper (terracotta, the damp foot kept, and
+// bolder per-pixel strata: rockshade.js ROCK_DAY_SHADE), the floor a cooler
+// grey-tan, darker along the stream and the wall feet, with a few green
+// patches near the water; the clifftop sand a shade warmer with darker
+// drifts; the tors grey-brown. Multipliers are on linear vertex colours, each
+// a pure function of world position, so every mesh that shares a spot (the
+// floor plane, the meadow's bank and talus cells over it) takes the same one.
+// paintGorgeDay replaces each colour attribute with a new one (the rock's
+// arrays are cached between builds) and touches only per-walk materials.
+export const GORGE_DAY_PAINT = Object.freeze({
+  wall: Object.freeze({
+    mul: Object.freeze([1.0, 0.7, 0.52]), // terracotta, and deeper
+    footFrom: 0.25, footTo: 1.6, // metres over the floor: the damp foot keeps its colour below
+    footMul: Object.freeze([0.96, 0.9, 0.86]), // and only darkens a touch
+    wallLo: 0.45, wallHi: 0.8, // |n.y|: a wall under wallLo, a top over wallHi (rockshade's split, a little wider)
+  }),
+  top: Object.freeze({ mul: Object.freeze([1.0, 0.9, 0.78]) }), // ledges and shoulders: warm sand
+  clifftop: Object.freeze({
+    mul: Object.freeze([1.02, 0.9, 0.74]), // a shade warmer than the floor's sand
+    drift: Object.freeze({ dark: 0.3, from: 0.5, to: 0.72, scale: 0.42, dx: 13.7, dz: -7.2 }),
+  }),
+  floor: Object.freeze({
+    mul: Object.freeze([0.84, 0.88, 0.96]), // cooler, greyer tan
+    damp: 0.2, // darker again by this, at full damp (the stream's margin)
+    foot: 0.16, // and at the walls' feet
+    green: Object.freeze({
+      mul: Object.freeze([0.7, 1.0, 0.55]), // the floor's tan to a dry grass green
+      near: 0.4, far: 4.5, // metres from the water: green only in this band
+      from: 0.52, to: 0.66, scale: 0.6, dx: -21.3, dz: 9.4, // noise over this: a patch
+      max: 0.85,
+    }),
+  }),
+  tor: Object.freeze({ mul: Object.freeze([0.84, 0.72, 0.58]), satNone: 0.3 }), // grey-brown; the lichen left alone
+  scree: Object.freeze({ mul: Object.freeze([1.0, 0.82, 0.7]) }), // the walls' broken stone
+  ledge: Object.freeze({ mul: Object.freeze([1.0, 0.9, 0.78]) }), // ledgeTops' material colour
+  summit: Object.freeze({ mul: Object.freeze([0.84, 0.74, 0.62]) }),
+});
+
+// The floor's day multiplier at (x, z): [r, g, b].
+export function gorgeDayFloorMul(x, z) {
+  const F = GORGE_DAY_PAINT.floor, G = F.green;
+  const { clear, damp, foot } = floorWashParts(x, z);
+  const dark = (1 - F.damp * damp) * (1 - F.foot * foot);
+  const band = smoothstep(G.near * 0.5, G.near, clear) * (1 - smoothstep(G.far * 0.6, G.far, clear));
+  const g = G.max * band * smoothstep(G.from, G.to, meadowNoise(x * G.scale + G.dx, z * G.scale + G.dz));
+  return [0, 1, 2].map((k) => F.mul[k] * dark * (1 + (G.mul[k] - 1) * g));
+}
+// The clifftop's day multiplier at (x, z): warmer, with darker drifts.
+export function gorgeDayClifftopMul(x, z) {
+  const C = GORGE_DAY_PAINT.clifftop, D = C.drift;
+  const d = smoothstep(D.from, D.to, meadowNoise(x * D.scale + D.dx, z * D.scale + D.dz));
+  return C.mul.map((m) => m * (1 - D.dark * d));
+}
+// A rock vertex's day multiplier: walls (by their normal) terracotta over the
+// damp foot; tops on the clifftop the clifftop's, other tops warm sand.
+export function gorgeDayRockMul(x, y, z, ny) {
+  const W = GORGE_DAY_PAINT.wall;
+  const wall = 1 - smoothstep(W.wallLo, W.wallHi, Math.abs(ny));
+  const up = smoothstep(W.footFrom, W.footTo, y - FLOOR);
+  const top = y > CLIFFTOP - 0.3 ? gorgeDayClifftopMul(x, z) : GORGE_DAY_PAINT.top.mul;
+  return [0, 1, 2].map((k) => {
+    const w = W.footMul[k] + (W.mul[k] - W.footMul[k]) * up;
+    return top[k] + (w - top[k]) * wall;
+  });
+}
+
+const _dv = new THREE.Vector3(), _dn = new THREE.Vector3(), _dm = new THREE.Matrix3();
+// A mesh's colours times mul(worldX, worldY, worldZ, worldNormalY, r, g, b),
+// written to a new attribute (the old one may be a cached array's view).
+function paintMesh(mesh, mul) {
+  const geo = mesh.geometry;
+  const col = geo?.getAttribute('color'), pos = geo?.getAttribute('position');
+  if (!col || !pos) return false;
+  const nor = geo.getAttribute('normal');
+  mesh.updateWorldMatrix(true, false);
+  _dm.getNormalMatrix(mesh.matrixWorld);
+  const out = new Float32Array(col.count * 3);
+  for (let i = 0; i < col.count; i++) {
+    _dv.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+    const ny = nor ? _dn.fromBufferAttribute(nor, i).applyMatrix3(_dm).normalize().y : 1;
+    const r = col.getX(i), g = col.getY(i), bl = col.getZ(i);
+    const m = mul(_dv.x, _dv.y, _dv.z, ny, r, g, bl);
+    out[3 * i] = r * m[0]; out[3 * i + 1] = g * m[1]; out[3 * i + 2] = bl * m[2];
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(out, 3));
+  return true;
+}
+const _ph = {};
+const greyWeight = (r, g, bl, satNone) => {
+  _rk.setRGB(r, g, bl).getHSL(_ph);
+  return 1 - smoothstep(satNone * 0.5, satNone, _ph.s);
+};
+const mixMul = (mul, w) => mul.map((m) => 1 + (m - 1) * w);
+// Whether a walk's life context is a clear day (what the paint is for).
+export const gorgeDayPaints = (ctx) => !ctx?.dusk && (ctx?.weather?.condition ?? 'clear') === 'clear';
+// Repaint a built Gorge (after the walk's prop merge) for a clear day. Finds
+// each part by its top-level child's name. Returns how many meshes it painted.
+export function paintGorgeDay(scene) {
+  const P = GORGE_DAY_PAINT;
+  const lift = MEADOW_LIFT * 4;
+  let n = 0;
+  const each = (name, fn) => {
+    const root = scene.getObjectByName(name);
+    root?.traverse((o) => { if (o.isMesh && fn(o)) n++; });
+  };
+  each('gorgeRock', (m) => {
+    // the rock's shader patch, with the day's bolder strata (a per-walk material)
+    for (const mat of [m.material].flat()) {
+      if (typeof mat?.onBeforeCompile === 'function' && mat.customProgramCacheKey?.().includes('gorge-rock')) {
+        mat.userData.rockDay = true;
+        mat.needsUpdate = true;
+      }
+    }
+    if (m.geometry.getAttribute('color')) return paintMesh(m, (x, y, z, ny) => gorgeDayRockMul(x, y, z, ny));
+    // ledgeTops: one material colour
+    for (const mat of [m.material].flat()) mat.color?.multiply(new THREE.Color(...P.ledge.mul));
+    return true;
+  });
+  each('groundPlane', (m) => paintMesh(m, (x, y, z) => gorgeDayFloorMul(x, z)));
+  // the meadow: floor-level cells (bank and talus) as the floor under them,
+  // clifftop cells as the clifftop; the tufts' blades are left green
+  each('gorgeMeadow', (m) => paintMesh(m, (x, y, z, ny, r, g, bl) => {
+    if (Math.abs(y - (FLOOR + MEADOW_LIFT)) < lift) return gorgeDayFloorMul(x, z);
+    if (Math.abs(y - (CLIFFTOP + MEADOW_LIFT)) < lift && !(g > r)) return gorgeDayClifftopMul(x, z);
+    return [1, 1, 1];
+  }));
+  each('tors', (m) => paintMesh(m, (x, y, z, ny, r, g, bl) => mixMul(P.tor.mul, greyWeight(r, g, bl, P.tor.satNone))));
+  each('screeBed', (m) => paintMesh(m, () => P.scree.mul));
+  for (const name of ['summitRock', 'summitRockBoulder']) {
+    const o = scene.getObjectByName(name);
+    // one material for both: multiply it once
+    if (o?.material && !o.material.userData.dayPainted) {
+      o.material.color.multiply(new THREE.Color(...P.summit.mul));
+      o.material.userData.dayPainted = true;
+      n++;
+    }
+  }
+  return n;
 }
 
 export function build(scene, { water = {}, wind } = {}) {
@@ -1719,7 +1874,12 @@ export function build(scene, { water = {}, wind } = {}) {
     // What only the Gorge does on a walk: shade by height, wheeling birds,
     // the ambience mix, and the caves' dark, glow, shelter and interiors
     // (gorgelife.js). walk.js calls it once per walk.
-    life: (ctx) => createGorgeLife({ ...ctx, caves: GORGE_CAVES, interiors }),
+    // A clear day repaints the canyon first (polish-gorgeday2; after the prop
+    // merge, before the first frame); dusk, rain and sunset keep the build's.
+    life: (ctx) => {
+      if (gorgeDayPaints(ctx)) paintGorgeDay(ctx.scene);
+      return createGorgeLife({ ...ctx, caves: GORGE_CAVES, interiors });
+    },
     skyBirdY: GORGE_BIRD_Y,
   };
 }

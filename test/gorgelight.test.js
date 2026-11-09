@@ -67,8 +67,10 @@ describe('the Gorge clear day (polish-gorgelight)', () => {
     const before = new THREE.Color(GORGE_SKY.horizon), after = new THREE.Color(g.horizon);
     expect(lum(after)).toBeLessThan(lum(before));
     expect(after.b / after.r).toBeGreaterThan(before.b / before.r);
-    // still a warm haze, not the sky's blue
-    expect(after.r).toBeGreaterThan(after.b);
+    // polish-gorgeday2: the haze is now a soft blue (the survey's "bluer"), but
+    // still paler and greyer than the sky top
+    const top = new THREE.Color(g.top);
+    expect(after.b / after.r).toBeLessThan(top.b / top.r);
     expect(fill.intensity).toBeCloseTo(GORGE_DAY_LOOK.hemiScale, 6);
     expect(s.environmentIntensity).toBeCloseTo(0.45 * GORGE_DAY_LOOK.envScale, 6);
     expect(w.exposureScale).toBe(GORGE_DAY_LOOK.exposure);

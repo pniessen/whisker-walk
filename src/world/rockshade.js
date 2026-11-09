@@ -89,8 +89,24 @@ export const ROCK_SHADE = Object.freeze({
   talusHi: 0.9, // none above this
 });
 
+// The Gorge's clear day (polish-gorgeday2): the same patch with bolder strata,
+// so the walls read as terracotta, cream and ochre bands rather than one
+// beige. Only the strata numbers differ; a material is given it by setting
+// material.userData.rockDay before it compiles (gorge.js paintGorgeDay does,
+// on a clear walk only). Dusk, rain and sunset compile the ROCK_SHADE program,
+// unchanged to the character.
+export const ROCK_DAY_SHADE = Object.freeze({
+  ...ROCK_SHADE,
+  strataRust: [1.22, 0.84, 0.7],
+  strataCream: [1.12, 1.1, 1.04],
+  strataOchre: [1.16, 0.98, 0.68],
+  strataLevel: 0.16,
+  strataFadeLo: 0.4, // the bands hold a little farther off
+  strataFadeHi: 0.9,
+});
+
 const S = ROCK_SHADE;
-const STRATA_MEAN = [0, 1, 2].map((i) => Math.round(((S.strataRust[i] + S.strataCream[i] + S.strataOchre[i]) / 3) * 1000) / 1000);
+const strataMean = (T) => [0, 1, 2].map((i) => Math.round(((T.strataRust[i] + T.strataCream[i] + T.strataOchre[i]) / 3) * 1000) / 1000);
 const f = (x) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 const v3 = ([a, b, c]) => `vec3( ${f(a)}, ${f(b)}, ${f(c)} )`;
 
@@ -117,7 +133,8 @@ highp float vnoise( highp vec3 p ) {
 `;
 
 // Branch-free throughout, so every fwidth() is in uniform control flow.
-const COLOUR = /* glsl */`
+// Written from a table (ROCK_SHADE, or ROCK_DAY_SHADE on a clear Gorge day).
+const colourGlsl = (S) => /* glsl */`
 	{
 		highp vec3 rw = vRockW;
 		vec3 rn = normalize( vRockN );
@@ -152,9 +169,11 @@ const COLOUR = /* glsl */`
 		rhue *= 1.0 + ${f(S.strataLevel)} * ( 2.0 * rs2 - 1.0 );
 		// far off the bands settle to their mean hue (no moire, no hue shift)
 		float rsOn = 1.0 - smoothstep( ${f(S.strataFadeLo)}, ${f(S.strataFadeHi)}, fwidth( rbed ) );
-		diffuseColor.rgb *= rshade * mix( vec3( 1.0 ), mix( ${v3(STRATA_MEAN)}, rhue, rsOn ), rwall );
+		diffuseColor.rgb *= rshade * mix( vec3( 1.0 ), mix( ${v3(strataMean(S))}, rhue, rsOn ), rwall );
 	}
 `;
+const COLOUR = colourGlsl(ROCK_SHADE);
+const DAY_COLOUR = colourGlsl(ROCK_DAY_SHADE);
 
 const FLUTES = /* glsl */`
 	{
@@ -187,6 +206,7 @@ const VERTEX = /* glsl */`
 
 // Everything the patch adds to the fragment shader (exported for the tests).
 export const ROCK_FRAGMENT = PARS + COLOUR + FLUTES;
+export const ROCK_DAY_FRAGMENT = PARS + DAY_COLOUR + FLUTES;
 
 const inject = (src, anchor, code) => {
   if (!src.includes(anchor)) throw new Error(`rockshade: no ${anchor} in the shader`);
@@ -206,7 +226,7 @@ export function patchRockMaterial(material, { flutes = true } = {}) {
       : inject(vs, '#include <project_vertex>', VERTEX);
     shader.vertexShader = vs;
     let fs = inject(shader.fragmentShader, '#include <common>', PARS);
-    fs = inject(fs, '#include <color_fragment>', COLOUR);
+    fs = inject(fs, '#include <color_fragment>', (this ?? material).userData?.rockDay ? DAY_COLOUR : COLOUR);
     if (flutes) fs = inject(fs, '#include <normal_fragment_maps>', FLUTES);
     shader.fragmentShader = fs;
   };
@@ -214,6 +234,8 @@ export function patchRockMaterial(material, { flutes = true } = {}) {
   // is the onBeforeCompile source).
   const prevKey = Object.prototype.hasOwnProperty.call(material, 'customProgramCacheKey')
     ? material.customProgramCacheKey.bind(material) : null;
-  material.customProgramCacheKey = () => (prevKey?.() ?? '') + 'gorge-rock-v3' + (flutes ? '' : '-nf');
+  material.customProgramCacheKey = function programKey() {
+    return (prevKey?.() ?? '') + 'gorge-rock-v3' + (flutes ? '' : '-nf') + ((this ?? material).userData?.rockDay ? '-day' : '');
+  };
   return material;
 }
