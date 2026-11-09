@@ -298,12 +298,12 @@ export const MOOR_STREAM_LOOK = Object.freeze({
 // blotches: the authored 0x7ab0d8 is a bright sky-cyan, and at the default
 // ENV_INTENSITY the open lawn's pale sky sat on it in big white patches. A
 // town-park pond is a deeper, quieter green-blue, so: a less saturated teal
-// body (lightness ~0.52, saturation ~0.25 instead of 0.66 / 0.55), the sky
+// body (lightness ~0.58, saturation ~0.26 instead of 0.66 / 0.55), the sky
 // probe at ENV_INTENSITY_POND, and a softer sun glint. park.js spreads this
 // into its createWater call; no other area's water changes.
-const ENV_INTENSITY_POND = 0.6;
+const ENV_INTENSITY_POND = 0.5;
 export const PARK_POND_LOOK = Object.freeze({
-  color: 0x6a9ca4,
+  color: 0x76aab0,
   glare: 0.3,
   specCap: 0.4,
   envIntensity: ENV_INTENSITY_POND,

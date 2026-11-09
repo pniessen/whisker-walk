@@ -19,7 +19,7 @@ Plan (src/world/parkfountain.js, src/render/water.js, one line in park.js):
 5. Both shaders: `gl_FragColor.rgb = min(rgb, 1.0)` after `opaque_fragment`
    (FOUNTAIN_HDR_CAP); shader keys bumped to v2.
 6. PARK_POND_LOOK in water.js (like MOOR_STREAM_LOOK): deeper, less saturated
-   green-blue 0x6a9ca4, envIntensity 0.6, glare 0.3, specCap 0.4; park.js
+   green-blue 0x76aab0, envIntensity 0.5, glare 0.3, specCap 0.4; park.js
    spreads it into the pond's createWater call.
 7. Tests in test/park.test.js: looks, clamp present, smooth normals, widths.
 8. Prove: hdrfountain.mjs park day/sunset (every base view < 2), hdr11b.mjs
