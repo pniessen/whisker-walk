@@ -293,6 +293,22 @@ export const MOOR_STREAM_LOOK = Object.freeze({
   envIntensity: ENV_INTENSITY_PEAT,
 });
 
+// PARK_POND_LOOK (polish-fountainglow, Pass 11) — the Park's duck pond only.
+// Survey 11 found it the most saturated blue in the game, with white sky
+// blotches: the authored 0x7ab0d8 is a bright sky-cyan, and at the default
+// ENV_INTENSITY the open lawn's pale sky sat on it in big white patches. A
+// town-park pond is a deeper, quieter green-blue, so: a less saturated teal
+// body (lightness ~0.58, saturation ~0.26 instead of 0.66 / 0.55), the sky
+// probe at ENV_INTENSITY_POND, and a softer sun glint. park.js spreads this
+// into its createWater call; no other area's water changes.
+const ENV_INTENSITY_POND = 0.5;
+export const PARK_POND_LOOK = Object.freeze({
+  color: 0x76aab0,
+  glare: 0.3,
+  specCap: 0.4,
+  envIntensity: ENV_INTENSITY_POND,
+});
+
 // SPEC_CAP — a ceiling on the specular light, per channel, linear. Cutting
 // GLARE alone to tame the sun's glint (0.3 was tried) dulled the whole
 // surface; capping the peak leaves the rest of the sparkle alone and just
@@ -316,7 +332,7 @@ export const WATER_TUNING = Object.freeze({
   SWELL_PERIOD, SWELL_DEPTH, RAMP_TEXEL_M, RAMP_MIN, RAMP_MAX,
   SHELF_M, FOAM_M, FOAM_STRENGTH, ROUGH_DEEP, ROUGH_SHORE, ROUGH_FOAM,
   ROUGH_LOW, ENV_INTENSITY, ENV_INTENSITY_LOW, CIRCLE_SEGMENTS, GLARE, GLARE_SEA, SPEC_CAP,
-  ENV_INTENSITY_PEAT,
+  ENV_INTENSITY_PEAT, ENV_INTENSITY_POND,
 });
 
 // --- small pure helpers ------------------------------------------------------

@@ -463,6 +463,66 @@ describe('City Park — the two-tier fountain (polish-park2)', async () => {
     expect(() => fx.inject('void main() {}', '#include <nope>', 'x')).toThrow(/anchor/);
   });
 
+  // polish-fountainglow (Pass 11): the drops and ripples fed bloom (survey 11:
+  // HDR 36 by day, 600 at sunset) from mirror roughness on flat-faced drops.
+  it('gives the drops and ripples soft water looks that can never feed bloom', () => {
+    const f = fountainOf(built().scene);
+    const drops = f.getObjectByName('fountainDrops');
+    const ripples = f.getObjectByName('fountainRipples');
+    expect(drops.material.roughness).toBeGreaterThanOrEqual(0.45);
+    expect(ripples.material.roughness).toBeGreaterThanOrEqual(0.55);
+    expect(drops.material.metalness).toBe(0);
+    expect(drops.material.opacity).toBeLessThanOrEqual(0.65);
+    expect(fx.FOUNTAIN_HDR_CAP).toBeLessThanOrEqual(1.1); // bloom's threshold
+    for (const mesh of [drops, ripples]) {
+      const shader = {
+        uniforms: {},
+        vertexShader: THREE.ShaderLib.standard.vertexShader,
+        fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+      };
+      mesh.material.onBeforeCompile(shader);
+      // the clamp comes after three sets gl_FragColor
+      const at = shader.fragmentShader.indexOf('#include <opaque_fragment>');
+      const clamp = shader.fragmentShader.indexOf('gl_FragColor.rgb = min(gl_FragColor.rgb');
+      expect(at, mesh.name).toBeGreaterThan(-1);
+      expect(clamp, mesh.name).toBeGreaterThan(at);
+    }
+  });
+
+  it('gives the duck pond its own calmer look (PARK_POND_LOOK)', async () => {
+    const { PARK_POND_LOOK, WATER_TUNING } = await import('../src/render/water.js');
+    let pond = null;
+    built().scene.traverse((o) => { if (o.name === 'water:pond') pond = o; });
+    expect(pond).not.toBeNull();
+    expect(pond.material.specularIntensity).toBe(PARK_POND_LOOK.glare);
+    expect(pond.material.envMapIntensity).toBe(PARK_POND_LOOK.envIntensity);
+    expect(PARK_POND_LOOK.envIntensity).toBeLessThan(WATER_TUNING.ENV_INTENSITY);
+    // less saturated than the old sky-cyan 0x7ab0d8 (s 0.55)
+    const hsl = {};
+    new THREE.Color(PARK_POND_LOOK.color).getHSL(hsl, THREE.SRGBColorSpace);
+    expect(hsl.s).toBeLessThan(0.4);
+  });
+
+  it('shades each drop as a smooth, slim bead (no flat mirror facets)', () => {
+    const drops = fountainOf(built().scene).getObjectByName('fountainDrops');
+    const pos = drops.geometry.attributes.position;
+    const nrm = drops.geometry.attributes.normal;
+    // the three corners of a face carry three different normals (smooth),
+    // each its corner's own direction from the drop's centre
+    for (let f = 0; f < 8; f++) {
+      const n = [0, 1, 2].map((k) => new THREE.Vector3().fromBufferAttribute(nrm, f * 3 + k));
+      expect(n[0].distanceTo(n[1])).toBeGreaterThan(0.5);
+      for (let k = 0; k < 3; k++) {
+        const p = new THREE.Vector3().fromBufferAttribute(pos, f * 3 + k);
+        expect(Math.sign(p.y)).toBe(Math.sign(n[k].y));
+      }
+    }
+    // slimmer than the shipped 0.018-0.026 m stream drops
+    let wMax = 0;
+    for (let i = 0; i < pos.count; i++) wMax = Math.max(wMax, Math.abs(pos.getX(i)), Math.abs(pos.getZ(i)));
+    expect(wMax).toBeLessThanOrEqual(0.026 * 0.65);
+  });
+
   it('keeps the fountain-edge lookout and the r-3 collider exactly where they were', () => {
     const { area } = built();
     expect(area.colliders).toContainEqual({ x: 0, z: 20, r: 3 });
