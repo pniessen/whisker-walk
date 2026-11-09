@@ -211,6 +211,36 @@ describe('water dressing', () => {
     expect(band.geometry.getAttribute('color').itemSize).toBe(4);
   }, 120_000);
 
+  // Pass 10 (polish-hotpixel): a far bank row seen edge-on is a sub-pixel
+  // sliver; MSAA extrapolated its vertex colour to ~128 and the half-float
+  // buffer to 32,752 on the Moor, which bloom blew into a big disc.
+  it('the band has an up normal, faces up everywhere and never draws HDR', () => {
+    for (const id of DRESSED_AREAS) {
+      const g = byName(dress(id).fx, 'waterdress:band').geometry;
+      const n = g.getAttribute('normal');
+      expect(n, id).toBeTruthy();
+      for (let k = 0; k < n.count; k++) expect([n.getX(k), n.getY(k), n.getZ(k)]).toEqual([0, 1, 0]);
+      const P = g.getAttribute('position').array, I = g.index.array;
+      for (let t = 0; t < I.length; t += 3) {
+        const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3;
+        const up = (P[b + 2] - P[a + 2]) * (P[c] - P[a]) - (P[b] - P[a]) * (P[c + 2] - P[a + 2]);
+        expect(up, `${id} triangle ${t / 3}`).toBeGreaterThanOrEqual(0);
+      }
+    }
+    const mat = byName(dress('moor').fx, 'waterdress:band').material;
+    const shader = {
+      uniforms: {},
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    };
+    mat.onBeforeCompile(shader);
+    expect(shader.fragmentShader).toMatch(/diffuseColor = clamp\( diffuseColor, 0\.0, 1\.0 \)/);
+    expect(shader.fragmentShader).toMatch(/gl_FragColor = clamp\( gl_FragColor, 0\.0, 1\.0 \)/);
+    // the foam breathe and the sea swash still ride the vertex shader
+    expect(shader.vertexShader).toMatch(/uBreathe/);
+    expect(shader.vertexShader).toMatch(/aSwash\.xy \* sin/);
+  }, 120_000);
+
   it('the band follows real shore only, never across open water', () => {
     for (const id of DRESSED_AREAS) {
       const { fx, areaData } = dress(id);

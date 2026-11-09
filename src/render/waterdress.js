@@ -663,8 +663,21 @@ function bandGeometry(runs) {
       }
     }
   }
+  // Wind every triangle to face up. Which way a quad winds follows which way
+  // the shore runs, and the material is two-sided, so a down-wound triangle
+  // would get its normal flipped under the ground and lose the sun.
+  for (let t = 0; t < ix; t += 3) {
+    const a = index[t] * 3, b = index[t + 1] * 3, c = index[t + 2] * 3;
+    const up = (pos[b + 2] - pos[a + 2]) * (pos[c] - pos[a]) - (pos[b] - pos[a]) * (pos[c + 2] - pos[a + 2]);
+    if (up < 0) { const k = index[t + 1]; index[t + 1] = index[t + 2]; index[t + 2] = k; }
+  }
+  // The strip lies flat, so its normal is straight up. Without a normal
+  // attribute the shader's normalize(vec3(0)) is undefined (NaN on some GPUs).
+  const normal = new Float32Array(verts * 3);
+  for (let k = 1; k < normal.length; k += 3) normal[k] = 1;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 4));
   geo.setAttribute('aFoam', new THREE.BufferAttribute(foam, 1));
   geo.setAttribute('aSwash', new THREE.BufferAttribute(swash, 3));
@@ -706,6 +719,16 @@ function bandMaterial(breathe, swash) {
       .replace('#include <color_vertex>', '#include <color_vertex>\n#if defined( USE_COLOR_ALPHA )\n\tvColor.a *= mix( 1.0, uBreathe, aFoam );\n#endif')
       // the mesh's matrix is the identity, so local x/z are world x/z
       .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.xz += aSwash.xy * sin( uSwash + aSwash.z );');
+    // A far bank row seen edge-on is a sliver thinner than a pixel. With
+    // MSAA a sample can be covered while the pixel's centre lies well outside
+    // it, and the vertex colour is extrapolated there: on the Moor one such
+    // pixel read ~128 (alpha ~1,500) and the half-float buffer hit 32,752,
+    // which bloom spread into a big yellow-white disc. The real colours and
+    // alpha are all in 0-1, so clamp them back, and clamp the lit result
+    // too: the band is never HDR, so nothing it draws should feed bloom.
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor = clamp( diffuseColor, 0.0, 1.0 );')
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tgl_FragColor = clamp( gl_FragColor, 0.0, 1.0 );');
   };
   mat.customProgramCacheKey = () => 'waterdress-band';
   return mat;
