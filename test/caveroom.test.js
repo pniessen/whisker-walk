@@ -351,7 +351,12 @@ describe('caveroom: the deep caves\' chambers', () => {
       expect(g.visible, cave.id).toBe(false);
       expect(m.castShadow, cave.id).toBe(false);
       expect(m.userData.noCast, cave.id).toBe(true);
-      expect(m.material.emissive.getHex(), cave.id).toBe(gorge.CAVE_COLORS[cave.id]);
+      // the glow a deeper, richer shade of the cave's colour (polish-gorgefloor)
+      expect(m.material.color.getHex(), cave.id).toBe(gorge.CAVE_COLORS[cave.id]);
+      expect(m.material.emissive.getHex(), cave.id).toBe(caveroom.crystalGlow(gorge.CAVE_COLORS[cave.id]));
+      const hsl = (c) => { const h = {}; c.getHSL(h); return h; };
+      expect(hsl(m.material.emissive).s, cave.id).toBeGreaterThan(hsl(m.material.color).s);
+      expect(hsl(m.material.emissive).l, cave.id).toBeLessThan(hsl(m.material.color).l * 0.7);
       expect(m.material.emissiveIntensity, cave.id).toBe(0.9);
       const finds = gorge.caveFinds(cave);
       const r = chamberOf(cave);

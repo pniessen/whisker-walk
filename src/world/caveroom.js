@@ -1015,10 +1015,29 @@ function nestMesh(m, nest, y0, rng, c) {
 // mesh, out of the shadow pass, the same every time for one seed.
 const DEG = Math.PI / 180;
 const BACK_KEEP = 0.07;
+// polish-gorgefloor: the clusters glowed their whole colour (emissive = the
+// colour at 0.9), which washed every facet to one flat cream. The glow is now
+// a deeper, richer shade of the cave's colour (an amber in the Glitter Cave,
+// a deeper ice blue in the Echo Cave), and the lit colour carries the pale
+// one: feet darker, tips bright, so the facets that catch the light read as
+// lit edges over the tinted body. Colour only.
+export const CRYSTAL_LOOK = Object.freeze({
+  glowSat: 1.45, glowSatAdd: 0.12, glowLight: 0.5, // the glow: HSL saturation x / +, lightness x
+  warmHue: 0.2, warmHueMul: 0.55, // a warm hue (under warmHue) leans this much toward orange: gold to amber
+  foot: Object.freeze([0.42, 0.42, 0.42]), tone: Object.freeze([0.85, 0.85, 0.85]), tip: Object.freeze([1.25, 1.25, 1.25]),
+});
+const _glowHsl = {};
+export function crystalGlow(color) {
+  const c = new THREE.Color(color);
+  c.getHSL(_glowHsl);
+  const L = CRYSTAL_LOOK;
+  const h = _glowHsl.h < L.warmHue ? _glowHsl.h * L.warmHueMul : _glowHsl.h;
+  return c.setHSL(h, Math.min(1, _glowHsl.s * L.glowSat + L.glowSatAdd), _glowHsl.l * L.glowLight).getHex();
+}
 export function crystalClusters(spots, seed, { color = 0x9fc7d8, size = 1, id = 'cave' } = {}) {
   const pos = [], col = [], idx = [];
   // vertex colours shade the material's own colour: darker at the foot
-  const foot = new THREE.Color(0.65, 0.65, 0.65), tone = new THREE.Color(0.95, 0.95, 0.95), tip = new THREE.Color(1, 1, 1);
+  const foot = new THREE.Color(...CRYSTAL_LOOK.foot), tone = new THREE.Color(...CRYSTAL_LOOK.tone), tip = new THREE.Color(...CRYSTAL_LOOK.tip);
   const vert = (v, c) => { pos.push(v.x, v.y, v.z); col.push(c.r, c.g, c.b); return pos.length / 3 - 1; };
   const a = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
   const o = new THREE.Vector3(), q = new THREE.Vector3(), X = new THREE.Vector3(1, 0, 0);
@@ -1089,7 +1108,7 @@ export function crystalClusters(spots, seed, { color = 0x9fc7d8, size = 1, id = 
   geo.dispose();
   geo = flat;
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, litMaterial(color, { emissive: color, emissiveIntensity: 0.9, vertexColors: true }));
+  const mesh = new THREE.Mesh(geo, litMaterial(color, { emissive: crystalGlow(color), emissiveIntensity: 0.9, vertexColors: true }));
   mesh.name = `caveCrystals:${id}`;
   mesh.castShadow = false;
   mesh.userData.noCast = true;

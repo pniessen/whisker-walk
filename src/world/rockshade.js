@@ -103,6 +103,13 @@ export const ROCK_DAY_SHADE = Object.freeze({
   strataLevel: 0.16,
   strataFadeLo: 0.4, // the bands hold a little farther off
   strataFadeHi: 0.9,
+  // Near walls (polish-gorgefloor): within strataNearHi metres of the camera
+  // each band's hue strays from the strata mean by up to (1 + strataNear)
+  // times as far, full inside strataNearLo, so a wall 3-4 m off (the phone's
+  // first frame) shows its bands rather than one soft orange.
+  strataNear: 1.1,
+  strataNearLo: 4,
+  strataNearHi: 10,
 });
 
 const S = ROCK_SHADE;
@@ -167,7 +174,8 @@ const colourGlsl = (S) => /* glsl */`
 		float rs2 = rockHash( vec3( rband, 13.0, 61.0 ) );
 		vec3 rhue = mix( mix( ${v3(S.strataRust)}, ${v3(S.strataCream)}, step( 0.34, rs1 ) ), ${v3(S.strataOchre)}, step( 0.67, rs1 ) );
 		rhue *= 1.0 + ${f(S.strataLevel)} * ( 2.0 * rs2 - 1.0 );
-		// far off the bands settle to their mean hue (no moire, no hue shift)
+${S.strataNear ? `		rhue = max( mix( ${v3(strataMean(S))}, rhue, 1.0 + ${f(S.strataNear)} * ( 1.0 - smoothstep( ${f(S.strataNearLo)}, ${f(S.strataNearHi)}, distance( rw, cameraPosition ) ) ) ), vec3( 0.0 ) );
+` : ''}		// far off the bands settle to their mean hue (no moire, no hue shift)
 		float rsOn = 1.0 - smoothstep( ${f(S.strataFadeLo)}, ${f(S.strataFadeHi)}, fwidth( rbed ) );
 		diffuseColor.rgb *= rshade * mix( vec3( 1.0 ), mix( ${v3(strataMean(S))}, rhue, rsOn ), rwall );
 	}
