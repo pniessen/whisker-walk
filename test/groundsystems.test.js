@@ -952,8 +952,9 @@ describe('things on the ground sit on the ground', () => {
     const rings = race.group.children.filter((m) => m.userData.raceRing);
     expect(rings[0].position.y).toBe(3 + RING_Y);
     expect(rings[1].position.y).toBe(RING_Y);
-    const pad = race.group.children.find((m) => m.geometry?.type === 'RingGeometry');
-    expect(pad.position.y).toBe(3 + 0.02);
+    // polish-startpad: the pad is one merged mesh (worn ring + paw stones), 4.5 cm up
+    const pad = race.group.children.find((m) => m.userData.racePad);
+    expect(pad.position.y).toBe(3 + 0.045);
   });
 
   it('the yarn ball never rolls off a rim', () => {
