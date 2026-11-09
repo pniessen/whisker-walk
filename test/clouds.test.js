@@ -23,6 +23,8 @@ const {
   CLOUD_AREAS, WIND_DIR, SKY_RADIUS, FADE_LEN, BASE_MIN, BAND_CLEARANCE_DEG,
   areaSeed, layoutClouds, cloudPlace, cloudReach, cloudPalette, bandElevation,
   puffGeometry, createClouds, lapOf, puffAt,
+  layoutBanks, bankPlace, bandProfile, bankBase, skyCounts, AREA_SKY,
+  BANK_CLEARANCE_DEG, BANK_ABOVE_TOP,
 } = await import('../src/render/clouds.js');
 const { LADDER } = await import('../src/render/quality.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -209,9 +211,12 @@ describe('cloud placement', () => {
       const bandTop = band.geometry.boundingBox.max.y;
       const bandDeg = bandElevation(scene, centre);
       const c = make(areaId);
+      // The high clouds come first in the mesh; the far banks (after them)
+      // have their own per-bearing rule (below).
+      const nHigh = c.clouds.reduce((s, cl) => s + cl.puffs.length, 0);
       for (const t of [0, 61, 333, 1200, 4000]) {
         c.update(t);
-        for (const box of puffBoxes(c.mesh)) {
+        for (const box of puffBoxes(c.mesh).slice(0, nHigh)) {
           // Physically above the band, by a wide margin.
           expect(box.min.y).toBeGreaterThan(bandTop + 10);
           // Seen from the area centre at cat height, above its crest.
@@ -228,6 +233,72 @@ describe('cloud placement', () => {
       c.dispose();
     });
   }
+
+  for (const areaId of CLOUD_AREAS) {
+    it(`${areaId}: every far bank clears the band in its own bearing, and stays inside the far plane`, () => {
+      const { scene, centre, camera } = world(areaId);
+      const prof = bandProfile(scene, centre);
+      const c = make(areaId);
+      expect(c.banks).toHaveLength(AREA_SKY[areaId].banks);
+      const nHigh = c.clouds.reduce((s, cl) => s + cl.puffs.length, 0);
+      for (const t of [0, 61, 333, 1200, 4000]) {
+        c.update(t);
+        for (const box of puffBoxes(c.mesh).slice(nHigh)) {
+          expect(box.min.y).toBeGreaterThan(prof.top + BANK_ABOVE_TOP - 1e-6);
+          // Every corner of the puff's box, seen from the area centre at cat
+          // height, sits over the band's crest in that corner's bearing.
+          for (const x of [box.min.x, box.max.x]) {
+            for (const z of [box.min.z, box.max.z]) {
+              const dx = x - centre.x;
+              const dz = z - centre.z;
+              const b = Math.floor(((Math.atan2(dz, dx) / (2 * Math.PI) + 1) % 1) * prof.bins) % prof.bins;
+              const el = (Math.atan2(box.min.y - 2, Math.hypot(dx, dz)) * 180) / Math.PI;
+              expect(el).toBeGreaterThan(prof.deg[b] + BANK_CLEARANCE_DEG * 0.5);
+            }
+          }
+          const far = Math.hypot(
+            Math.max(Math.abs(box.min.x - centre.x), Math.abs(box.max.x - centre.x)),
+            Math.max(Math.abs(box.min.z - centre.z), Math.abs(box.max.z - centre.z)),
+          );
+          expect(Math.hypot(far, box.max.y - camera.position.y)).toBeLessThan(GAME_FAR - 5);
+        }
+      }
+      c.dispose();
+    });
+  }
+
+  it('far banks: some low enough for the walk camera (~7 degrees up) in the open areas', () => {
+    for (const areaId of ['moor', 'seaside', 'river', 'park', 'neighborhood', 'pines']) {
+      const c = make(areaId);
+      const low = c.banks.filter((bk) => (Math.atan2(bk.base - 2, bk.dist) * 180) / Math.PI < 5.5);
+      expect(low.length, areaId).toBeGreaterThanOrEqual(2);
+      c.dispose();
+    }
+  });
+
+  it('far banks: deterministic, own stream, no Math.random, the Gorge has none', () => {
+    const spy = vi.spyOn(Math, 'random');
+    const a = layoutBanks('moor', 5);
+    for (const bk of a) bankPlace(bk, 12);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+    expect(layoutBanks('moor', 5)).toEqual(a);
+    expect(layoutBanks('seaside', 5)[0]).not.toEqual(a[0]);
+    expect(skyCounts('gorge', 10).banks).toBe(0);
+    expect(skyCounts('moor', 10)).toEqual({ clouds: 12, banks: 5 });
+    expect(skyCounts('moor', 6)).toEqual({ clouds: 7, banks: 3 });
+    expect(bankBase(null, 0, 0.1, 200)).toBe(BASE_MIN);
+  });
+
+  it('far banks hold their bearing, swaying only a little', () => {
+    for (const bk of layoutBanks('moor', 5)) {
+      for (const t of [0, 100, 450, 2000]) {
+        const p = bankPlace(bk, t);
+        expect(Math.abs(p.a - bk.bearing)).toBeLessThan(0.03);
+        expect(Math.hypot(p.x, p.z)).toBeCloseTo(bk.dist, 6);
+      }
+    }
+  });
 
   it('sits high: bases 30m up or more, and the Docks lifted over its skyline', () => {
     for (const areaId of CLOUD_AREAS) {
@@ -272,7 +343,7 @@ describe('the cloud mesh', () => {
     expect(c.mesh.isInstancedMesh).toBe(true);
     expect(c.mesh.castShadow).toBe(false);
     expect(c.mesh.material.fog).toBe(false);
-    expect(c.mesh.count).toBe(c.clouds.reduce((s, cl) => s + cl.puffs.length, 0));
+    expect(c.mesh.count).toBe([...c.clouds, ...c.banks].reduce((s, cl) => s + cl.puffs.length, 0));
     // A later caster sweep or merge leaves it alone.
     assignShadowCasters(scene);
     expect(c.mesh.castShadow).toBe(false);

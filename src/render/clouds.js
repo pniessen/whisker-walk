@@ -172,6 +172,152 @@ export function layoutClouds(areaId, count, baseMin = BASE_MIN) {
   return clouds;
 }
 
+// ---- Far banks (polish-hedgesky) -------------------------------------------
+// The clouds above sit 8 degrees and more over the horizon, out of the walk
+// camera's view (it sees ~7 degrees up), so a walk's sky was an empty
+// gradient. BANKS are the far, long, flat clouds that lie along the hills:
+// BANK_DIST out from the camera (they follow it like the rest), each in a
+// fixed bearing apart from a slow BANK_SWING sway and its puffs' billow. A
+// bank is BANK_BASE long low puffs stretched BANK_STRETCH along it and
+// squashed to BANK_SQUASH, with BANK_CROWN smaller rounder puffs lifted onto
+// its back over the joins, so its top is lumpy like a far cumulus bank
+// rather than a thin lens.
+// Each bank's base clears the horizon band's crest IN ITS OWN BEARING (the
+// band's elevation profile, measured from the area centre at cat height) by
+// BANK_CLEARANCE_DEG, and the band's top by BANK_ABOVE_TOP metres, so where
+// the hills are low a bank sits just over them, in view.
+export const BANK_DIST = 185;
+export const BANK_STRETCH = 1.8;
+export const BANK_SQUASH = 0.42;
+const BANK_BASE = 3;
+const BANK_CROWN = 2;
+export const BANK_CLEARANCE_DEG = 0.5;
+export const BANK_ABOVE_TOP = 4;
+const BANK_SWING = 0.026; // radians, ~1.5 degrees
+const BANK_SWING_PERIOD = 900; // seconds
+// Per area, on the high rungs: high clouds (instead of the tier's count) and
+// banks. The Moor and the Seaside are big open skies; the Gorge is a canyon,
+// its walls hide the low sky, so it has fewer clouds and no banks.
+export const AREA_SKY = Object.freeze({
+  moor: Object.freeze({ clouds: 12, banks: 5 }),
+  seaside: Object.freeze({ clouds: 12, banks: 5 }),
+  river: Object.freeze({ clouds: 10, banks: 5 }),
+  park: Object.freeze({ clouds: 10, banks: 4 }),
+  neighborhood: Object.freeze({ clouds: 10, banks: 4 }),
+  woods: Object.freeze({ clouds: 10, banks: 4 }),
+  pines: Object.freeze({ clouds: 10, banks: 4 }),
+  docks: Object.freeze({ clouds: 10, banks: 4 }),
+  gorge: Object.freeze({ clouds: 7, banks: 0 }),
+});
+// The tier's cloudCount (10 on the high rungs, 6 on the low) scales an area's
+// own counts.
+export function skyCounts(areaId, cloudCount) {
+  const a = AREA_SKY[areaId] ?? { clouds: 10, banks: 0 };
+  const k = cloudCount / 10;
+  return { clouds: Math.max(1, Math.round(a.clouds * k)), banks: Math.round(a.banks * k) };
+}
+
+export function bankSeed(areaId) {
+  return (seedFromCode(`cloudbanks:${areaId}`) ^ 0xba7c5) >>> 0;
+}
+
+// layoutBanks(areaId, count, baseAt) — `count` banks
+//   { bank: true, bearing, dist, base, scale, swing, phase, yaw: 0, puffs }
+// stratified round the compass. baseAt(bearing, halfAngle, farDist) gives a
+// bank's base (default: the BASE_MIN floor, for tests of the shapes alone).
+export function layoutBanks(areaId, count, baseAt = () => BASE_MIN) {
+  const rng = mulberry32(bankSeed(areaId));
+  const banks = [];
+  for (let i = 0; i < count; i++) {
+    const bearing = ((i + 0.2 + rng() * 0.6) / count) * Math.PI * 2;
+    const scale = 0.75 + rng() * 0.4;
+    const puffs = [];
+    const gap = 22 + rng() * 6;
+    // The long low puffs; `st`/`sq` a puff's own stretch and squash, `lift`
+    // how far its flat base sits over the bank's (never below it).
+    for (let j = 0; j < BANK_BASE; j++) {
+      const x = (j - (BANK_BASE - 1) / 2) * gap + (rng() - 0.5) * 6;
+      puffs.push({
+        x,
+        z: (rng() - 0.5) * 8,
+        r: (12 + rng() * 5) * (j === 1 ? 1 : 0.85),
+        // a small twist off the bank's own line (radians)
+        yaw: (rng() - 0.5) * 0.3,
+        st: BANK_STRETCH, sq: BANK_SQUASH, lift: 0,
+      });
+    }
+    // The crown: rounder puffs on its back, over the joins.
+    for (let j = 0; j < BANK_CROWN; j++) {
+      const r = 8 + rng() * 4;
+      puffs.push({
+        x: (j - (BANK_CROWN - 1) / 2) * gap + (rng() - 0.5) * 8,
+        z: (rng() - 0.5) * 6,
+        r,
+        yaw: (rng() - 0.5) * 0.6,
+        st: 1.15, sq: 0.62, lift: 2 + rng() * 3,
+      });
+    }
+    const bank = {
+      bank: true, bearing, dist: BANK_DIST, base: BASE_MIN, scale,
+      swing: BANK_SWING * (0.5 + rng() * 0.5) * (rng() < 0.5 ? -1 : 1),
+      phase: rng() * Math.PI * 2, yaw: 0, puffs,
+    };
+    const { horizontal } = cloudReach(bank);
+    const half = Math.atan2(horizontal, BANK_DIST) + Math.abs(bank.swing);
+    bank.base = baseAt(bearing, half, Math.hypot(BANK_DIST + 20 * scale, horizontal));
+    banks.push(bank);
+  }
+  return banks;
+}
+
+// bankPlace(bank, t, out) — a bank's centre relative to the camera's xz and
+// its bearing at time t: { x, z, a }.
+export function bankPlace(bank, t, out = null) {
+  const a = bank.bearing + bank.swing * Math.sin((TWO_PI * t) / BANK_SWING_PERIOD + bank.phase);
+  const o = out ?? {};
+  o.x = Math.cos(a) * bank.dist;
+  o.z = Math.sin(a) * bank.dist;
+  o.a = a;
+  return o;
+}
+
+// bandProfile(scene, centre, bins) — the band's steepest elevation (degrees)
+// in each of `bins` equal bearing sectors, seen from (centre, EYE_Y), and
+// the band's top (world y). null when the scene has no band.
+export function bandProfile(scene, centre = { x: 0, z: 0 }, bins = 72) {
+  const band = scene.getObjectByName('horizonBand');
+  const pos = band?.geometry?.attributes?.position;
+  if (!pos) return null;
+  band.updateWorldMatrix(true, false);
+  const v = new THREE.Vector3();
+  const deg = new Array(bins).fill(0);
+  let top = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(band.matrixWorld);
+    top = Math.max(top, v.y);
+    const dx = v.x - centre.x;
+    const dz = v.z - centre.z;
+    const el = (Math.atan2(v.y - EYE_Y, Math.hypot(dx, dz)) * 180) / Math.PI;
+    const b = Math.floor(((Math.atan2(dz, dx) / TWO_PI + 1) % 1) * bins) % bins;
+    if (el > deg[b]) deg[b] = el;
+  }
+  return { deg, top, bins };
+}
+
+// The base a bank at `bearing` (spanning ±halfAngle radians, its far edge
+// farDist out) needs over a band profile.
+export function bankBase(profile, bearing, halfAngle, farDist) {
+  if (!profile) return BASE_MIN;
+  const { deg, top, bins } = profile;
+  const w = TWO_PI / bins;
+  const lo = Math.floor((bearing - halfAngle) / w) - 1;
+  const hi = Math.floor((bearing + halfAngle) / w) + 1;
+  let el = 0;
+  for (let b = lo; b <= hi; b++) el = Math.max(el, deg[((b % bins) + bins) % bins]);
+  const tan = Math.tan(((el + BANK_CLEARANCE_DEG) * Math.PI) / 180);
+  return Math.ceil(Math.max(top + BANK_ABOVE_TOP, EYE_Y + tan * farDist));
+}
+
 // wrap x into [-half, half).
 function wrap(x, half) {
   const w = 2 * half;
@@ -252,9 +398,10 @@ export function puffAt(cloud, ci, j, t, out = null) {
 export function cloudReach(cloud) {
   let h = 0;
   let top = 0;
+  // (A bank's puffs carry their own stretch, squash and lift.)
   for (const p of cloud.puffs) {
-    h = Math.max(h, (Math.hypot(p.x, p.z) + p.r) * cloud.scale);
-    top = Math.max(top, (1 - FLAT_Y) * p.r * SQUASH * cloud.scale);
+    h = Math.max(h, (Math.hypot(p.x, p.z) + p.r * (p.st ?? 1)) * cloud.scale);
+    top = Math.max(top, ((1 - FLAT_Y) * p.r * (p.sq ?? SQUASH) + (p.lift ?? 0)) * cloud.scale);
   }
   return { horizontal: h, top };
 }
@@ -386,12 +533,16 @@ export function createClouds(scene, {
 
   // Lay out once at the floor to learn the reach, then raise the base if the
   // band needs it, and lay out again at that base (same seed, same shapes).
-  let clouds = layoutClouds(areaId, count);
+  const sky = skyCounts(areaId, count);
+  let clouds = layoutClouds(areaId, sky.clouds);
   const reach = Math.max(...clouds.map((c) => cloudReach(c).horizontal));
   const baseMin = baseFor(bandElevation(scene, centre), reach);
-  if (baseMin !== BASE_MIN) clouds = layoutClouds(areaId, count, baseMin);
+  if (baseMin !== BASE_MIN) clouds = layoutClouds(areaId, sky.clouds, baseMin);
+  // The far banks, each over the band in its own bearing (see BANKS above).
+  const profile = sky.banks > 0 ? bandProfile(scene, centre) : null;
+  const banks = layoutBanks(areaId, sky.banks, (bearing, half, far) => bankBase(profile, bearing, half, far));
 
-  const total = clouds.reduce((s, c) => s + c.puffs.length, 0);
+  const total = [...clouds, ...banks].reduce((s, c) => s + c.puffs.length, 0);
   const mood = dusk ? 'dusk' : sunset ? 'sunset' : 'day';
   const palette = cloudPalette(scene.fog?.color ?? 0xcfe8f0, mood);
   const uniforms = {
@@ -446,6 +597,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
   const s3 = new THREE.Vector3();
   const at = { x: 0, z: 0, u: 0, half: 0, fade: 0 }; // cloudPlace's scratch
   const pf = { x: 0, z: 0, r: 0, yaw: 0 }; // puffAt's scratch
+  const bp = { x: 0, z: 0, a: 0 }; // bankPlace's scratch
 
   // update(t) — once per rendered frame, after the camera moved. `t` is
   // absolute elapsed seconds (the same t wind/grass take).
@@ -478,6 +630,31 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
         mesh.setMatrixAt(i++, m4);
       }
     }
+    // The banks: fixed bearings (a slow sway), each puff laid along the bank
+    // (the bank's line across the line of sight) and stretched along it.
+    for (let bi = 0; bi < banks.length; bi++) {
+      const bank = banks[bi];
+      bankPlace(bank, time, bp);
+      const s = bank.scale;
+      const yaw = bp.a + Math.PI / 2;
+      const cos = Math.cos(yaw);
+      const sin = Math.sin(yaw);
+      for (let j = 0; j < bank.puffs.length; j++) {
+        const p = bank.puffs[j];
+        const omega = TWO_PI / (140 - 60 * hash01(bi, j, 0, 9));
+        const sn = Math.sin(omega * time);
+        const r = p.r * (1 - BILLOW * sn * sn);
+        const ox = (p.x * cos - p.z * sin) * s;
+        const oz = (p.x * sin + p.z * cos) * s;
+        p3.set(cx + bp.x + ox, bank.base + (p.lift - FLAT_Y * r * p.sq) * s, cz + bp.z + oz);
+        // three's yaw turns +x toward -z, so the bank's line (cos, sin) in xz
+        // is a turn of -yaw.
+        q.setFromAxisAngle(up, -yaw + p.yaw);
+        s3.set(r * p.st * s, r * p.sq * s, r * s);
+        m4.compose(p3, q, s3);
+        mesh.setMatrixAt(i++, m4);
+      }
+    }
     mesh.instanceMatrix.needsUpdate = true;
     // Follow the sky: a shower that clears hands the fog its old colour back.
     if (scene.fog) cloudPalette(scene.fog.color, mood, palette);
@@ -493,5 +670,5 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
   }
 
   update(0); // placed before the first frame
-  return { mesh, clouds, palette, night, update, dispose };
+  return { mesh, clouds, banks, palette, night, update, dispose };
 }

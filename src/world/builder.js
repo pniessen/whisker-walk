@@ -1832,8 +1832,10 @@ export const EDGE_STYLES = freezeDeep({
     step: 2.2, greens: [0x3f7a3a, 0x4d8a42], len: 2.4, depth: 1.0, hMin: 1.0, hMax: 1.3, lift: 0.12,
     gate: 0x8a6a48, gateH: 1.1, crowns: [0x4f7f3e, 0x5a8a46, 0x48743a], trunk: 0x5e4632, tree: 'oak', max: 1.6,
   },
+  // polish-hedgesky: the scrub's two greens are blended along the run (no
+  // more pale yellow-olive third), and it is laid straighter.
   scrub: {
-    step: 2.9, greens: [0x4f7d3e, 0x5f8f48, 0x6b8a3c], rMin: 0.7, rMax: 1.1, hMin: 0.6, hMax: 0.9,
+    step: 2.9, greens: [0x4d7b3d, 0x5a8a45], rMin: 0.7, rMax: 1.1, hMin: 0.6, hMax: 0.9, jitter: 0.25,
     crowns: [0x4a7a3c, 0x557f40, 0x5f8a46], trunk: 0x5e4632, tree: 'round', max: 1.4,
   },
   reeds: {
@@ -1852,7 +1854,7 @@ export const EDGE_STYLES = freezeDeep({
     treeShape: { trunk: [1.2, 0.4], r: [1.0, 0.4], ry: 0.7, lean: 0.6 },
   },
   pinescrub: {
-    step: 2.9, greens: [0x2f4a34, 0x3a5a3c], rMin: 0.6, rMax: 1.0, hMin: 0.6, hMax: 0.95,
+    step: 2.9, greens: [0x2f4a34, 0x3a5a3c], rMin: 0.6, rMax: 1.0, hMin: 0.6, hMax: 0.95, jitter: 0.25,
     sapling: { r: 0.6, h: 1.5, sides: 5 }, crowns: [0x2a4430, 0x34503a, 0x2f4a36], trunk: 0x4a3a2c,
     tree: 'pine', max: 1.6,
   },
@@ -2270,6 +2272,26 @@ const HEDGE_SOFT = 0.6;
 const HEDGE_CROWN = 0.72; // the top's share of the foot's depth
 const MOUND_SOFT = 0.75;
 const EDGE_FOOT = 0.68;
+// polish-hedgesky: the hedge and scrub runs read as one mass, not a picket
+// row of humps. Their height and green follow a slow noise along the
+// perimeter (edgeNoise, a knot every HEDGE_KNOT pieces) rather than a roll
+// per piece; scrub mounds are stretched MOUND_STRETCH along the edge so
+// neighbours overlap (the valley between two is shallow), and about one
+// piece in EDGE_LUMP_EVERY lifts one mound EDGE_LUMP_H taller and rounder,
+// a bush standing out of the scrub.
+const HEDGE_KNOT = 4;
+const HEDGE_SLOW = 0.75; // the slow noise's share of a piece's height
+const MOUND_STRETCH = 1.6;
+const EDGE_LUMP_EVERY = 5.5;
+const EDGE_LUMP_H = 1.3;
+// A wrap-around value noise in [0, 1] on perimeter parameter u in [0, 1):
+// `knots` knots round the ring, smoothstepped between.
+function edgeNoise(u, knots, seed) {
+  const f = (((u % 1) + 1) % 1) * knots;
+  const i = Math.floor(f);
+  const t = smoothstep(0, 1, f - i);
+  return hash01(i % knots, 5, seed) * (1 - t) + hash01((i + 1) % knots, 5, seed) * t;
+}
 function footLit(g, ht) {
   const p = g.attributes.position, c = g.attributes.color;
   for (let v = 0; v < p.count; v++) {
@@ -2314,6 +2336,10 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
   };
   const pick = (list, hv) => list[Math.min(list.length - 1, Math.floor(hv * list.length))];
   let hutCount = 0;
+  // polish-hedgesky: the slow noises along the run (see edgeNoise).
+  const knots = Math.max(8, Math.round((8 * (edge.half + EDGE_OUT)) / ((S.step ?? EDGE_STEP) * HEDGE_KNOT)));
+  const slowH = (u) => edgeNoise(u ?? 0, knots, st + 31);
+  const slowC = (u) => edgeNoise(u ?? 0, Math.max(6, Math.round(knots * 0.6)), st + 37);
 
   spots.forEach((sp, k) => {
     const { x, z, yaw, kind } = sp;
@@ -2504,7 +2530,7 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
       // Clipped privet: a box along the edge, its top corners lifted a little
       // so it reads clipped by hand rather than extruded. A corner is square.
       const corner = kind === 'corner';
-      const hh = S.hMin + (S.hMax - S.hMin) * h(0);
+      const hh = S.hMin + (S.hMax - S.hMin) * (HEDGE_SLOW * slowH(sp.u) + (1 - HEDGE_SLOW) * h(0));
       let a = corner ? -1.0 : -S.len / 2;
       let bEnd = corner ? 1.0 : S.len / 2;
       const depth = corner ? 2.0 : S.depth;
@@ -2620,18 +2646,28 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
 
     // Scrub and pine scrub: two overlapping mounds per piece (pieces every
     // S.step), three at a corner; the pine scrub's every fourth piece also
-    // has a sapling.
+    // has a sapling. polish-hedgesky: the mounds lie along the edge,
+    // stretched so they overlap, their height and green on the run's slow
+    // noise (see edgeNoise), now and then one a taller lump.
     const count = kind === 'corner' ? 3 : 2;
+    const nH = slowH(sp.u);
+    const runGreen = new THREE.Color(S.greens[0]).lerp(new THREE.Color(S.greens[S.greens.length - 1]), slowC(sp.u));
+    const lump = kind !== 'corner' && h(26) < 1 / EDGE_LUMP_EVERY ? (h(27) < 0.5 ? 0 : 1) : -1;
     for (let i = 0; i < count; i++) {
-      const r = S.rMin + (S.rMax - S.rMin) * h(1 + i);
-      const ht = Math.min(S.hMin + (S.hMax - S.hMin) * h(4 + i), S.max - 0.1);
-      const col = pick(S.greens, h(7 + i));
-      const g = mound(r, ht, (f) => shade(col, 0.86 + 0.24 * hash01(f, k * 3 + i, st + 21)), (j) => h(30 + 12 * i + j));
+      const isLump = i === lump;
+      const r = (S.rMin + (S.rMax - S.rMin) * (0.5 * nH + 0.5 * h(1 + i))) * (isLump ? 1.1 : 1);
+      const ht = Math.min((S.hMin + (S.hMax - S.hMin) * (HEDGE_SLOW * nH + (1 - HEDGE_SLOW) * h(4 + i)))
+        * (isLump ? EDGE_LUMP_H : 1), S.max - 0.1);
+      const stretch = isLump ? 1.15 : MOUND_STRETCH;
+      const tone = runGreen.clone().multiplyScalar(0.96 + 0.08 * h(7 + i));
+      const g = mound(r, ht, (f) => tone.clone().multiplyScalar(0.95 + 0.1 * hash01(f, k * 3 + i, st + 21)), (j) => h(30 + 12 * i + j));
+      g.scale(stretch, 1, 1);
       const t = kind === 'corner' ? (i - 1) * 0.6 : (i - 0.5) * 1.4 + (h(11 + i) - 0.5) * 0.3;
-      const nOut = kind === 'corner' ? (i === 1 ? 0.6 : 0) : (h(14 + i) - 0.5) * 0.6;
+      const nOut = kind === 'corner' ? (i === 1 ? 0.6 : 0) : (h(14 + i) - 0.5) * 0.3;
       const [wx, wz] = at(t, nOut);
       footLit(g, ht);
-      place(g, wx, wz, h(17 + i) * Math.PI, r, { soft: { s: MOUND_SOFT, r: 0.6, c: [0, ht * 0.2, 0] } });
+      const turn = kind === 'corner' ? h(17 + i) * Math.PI : (h(17 + i) - 0.5) * 0.3;
+      place(g, wx, wz, yaw + turn, r * stretch, { soft: { s: MOUND_SOFT, r: 0.6, c: [0, ht * 0.2, 0] } });
     }
     if (kind === 'sapling') {
       const { r, h: ch, sides } = S.sapling;
