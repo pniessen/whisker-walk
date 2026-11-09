@@ -200,7 +200,9 @@ describe('the Woods floor', () => {
     // polish-foliage saved ~1,080, then polish-campring (+252) and polish-shrubs
     // (brambles +1,036, scrub edge +546) brought the Woods to 67,242 (+100 margin)
     // polish-bushes: the 3 hidden-mouse bushes wear leaf cards (+544)
-    expect(tris).toBeLessThanOrEqual(67_894);
+    // polish-bushes: and the Woods brambles' 74 lobes wear 14 shingle cards
+    // instead of 7 leaves (+1,036)
+    expect(tris).toBeLessThanOrEqual(68_930);
 
     const places = keep(area);
     expect(places.some((p) => p.x === SPAWN.x && p.z === SPAWN.z)).toBe(true);

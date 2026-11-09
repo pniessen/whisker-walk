@@ -14,3 +14,8 @@
 5. **Footprint:** the side clusters sit about 0.03 m further in, and the leaves are short (`SHRUB_LEAF` 0.18 m). The bounding sphere stays under 0.91 and the footprint grows by under about 8 cm.
 6. **Budget:** at most +220 triangles a bush. Measured: 108–133 → 264–327, i.e. +156 to +194. Woods total ≤ +600. Report every area.
 7. **Checks:** the full suite, the build, and the flat-trace sha. Before/after pairs for the Woods POIs, Woods dusk on the phone, the Neighbourhood, the Park, and a 10 m view.
+
+## Finding and a second commit (ruling)
+The live check showed that the survey's acceptance "rock bushes" are not `bush()`. In `w-woods-day-desk-04-poi`, the two green rocks beside the cat are the Woods **bramble bed** (`brambleBed`, near (-28, 2.5)). In `-06-poi`, the foreground lump is a low tree canopy and the side lump is brambles. That explains why the bush passes never moved those shots.
+
+Ruling: `brambleBed` is not given to any Pass 10 build, and only the Woods calls it. So a separate, droppable commit gives each bramble lobe 14 broad shingle leaf cards (a new `brambleShingles()`, in place of the 7 thin `brambleLeaves` cards; gorse keeps its spines) and lights them on both sides with `bothSidesLit`. Cost: +14 triangles a lobe, 74 lobes, so +1,036 in the Woods (Woods 68,822 against the 70k cap). The forestfloor Woods pin goes up by exactly that.

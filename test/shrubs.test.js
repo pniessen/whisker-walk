@@ -163,11 +163,12 @@ describe('polish-shrubs', () => {
     }
   });
 
-  it('brambles: each 20-triangle lobe wears 7 two-triangle leaf cards, seen from both sides', () => {
+  it('brambles: each 20-triangle lobe wears 14 two-triangle shingle cards (polish-bushes), seen from both sides', () => {
     const m = b.brambleBed(SPOTS9, 11);
     const tris = m.geometry.attributes.position.count / 3;
-    expect(tris % 34).toBe(0);
+    expect(tris % 48).toBe(0);
     expect(m.material.side).toBe(THREE.DoubleSide);
+    expect(m.material.customProgramCacheKey()).toBe('dressing-both-sides-v1');
     expect(m.geometry.attributes.color.count).toBe(m.geometry.attributes.position.count);
   });
 });

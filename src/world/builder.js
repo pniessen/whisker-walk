@@ -5844,6 +5844,66 @@ function brambleLeaves(lobe, r, i, k, seed, { leaf = BRAMBLE_LEAF, width = 0.4 }
     lobe.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
   }
 }
+// polish-bushes (Pass 10): the Woods' bramble lobes were the "green rocks"
+// at walk height (survey 10 broken #2; the POI shots it names show brambles,
+// not bush()): seven thin cards could not hide a 20-face lobe's big flat
+// facets. So a bramble lobe now wears BRAMBLE_SHINGLES broad leaf cards laid
+// up along its skin like shingles, tipped out from it, from just under its
+// waist to near its top, in two greens with a dark root and a lit tip. They
+// clothe the facets and break the outline. Normals as brambleLeaves (out of
+// the lobe, a little up). Gorse keeps brambleLeaves' spines.
+// +14 triangles a lobe over the old fringe (7 -> 14 cards).
+const BRAMBLE_SHINGLES = 14;
+const BRAMBLE_DEEP = new THREE.Color(0x4a7236).toArray();
+function brambleShingles(lobe, r, i, k, seed) {
+  const names = ['position', 'normal', 'uv', 'color'];
+  const add = { position: [], normal: [], uv: [], color: [] };
+  const H = (n, m) => hash01(i * 13 + n, k * 7 + m, seed + 40);
+  const SQ = 0.62;
+  for (let q = 0; q < BRAMBLE_SHINGLES; q++) {
+    const az = (q / BRAMBLE_SHINGLES) * Math.PI * 2 + (H(q, 1) - 0.5) * 0.5;
+    const el = -0.3 + 1.4 * ((q * 0.618 + 0.5 * H(q, 2)) % 1);
+    const ce = Math.cos(el), se = Math.sin(el);
+    const dx = Math.cos(az) * ce, dy = se, dz = Math.sin(az) * ce;
+    // on the squashed lobe's skin, a hair inside
+    const root = [dx * r * 0.88, dy * r * SQ * 0.88, dz * r * 0.88];
+    // up along the skin (the squashed sphere's tangent toward the top), tipped out
+    let tx = -dx * dy * SQ, ty = ce * ce, tz = -dz * dy * SQ;
+    const tl = Math.hypot(tx, ty, tz) || 1;
+    let ux = 0.4 * dx + 0.92 * tx / tl, uy = 0.4 * dy + 0.92 * ty / tl, uz = 0.4 * dz + 0.92 * tz / tl;
+    const ul = Math.hypot(ux, uy, uz);
+    ux /= ul; uy /= ul; uz /= ul;
+    const len = r * (0.42 + 0.16 * H(q, 3));
+    const w = len * 0.95;
+    const tw = (H(q, 4) - 0.5) * 0.5;
+    let sx = -Math.sin(az), sy = tw, sz = Math.cos(az);
+    const sl = Math.hypot(sx, sy, sz);
+    sx = sx / sl * w / 2; sy = sy / sl * w / 2; sz = sz / sl * w / 2;
+    const tip = [root[0] + ux * len, root[1] + uy * len, root[2] + uz * len];
+    const m = [root[0] + ux * len * 0.42, root[1] + uy * len * 0.42, root[2] + uz * len * 0.42];
+    const L = [m[0] - sx, m[1] - sy, m[2] - sz], R = [m[0] + sx, m[1] + sy, m[2] + sz];
+    let nx = dx, ny = dy + 0.35, nz = dz;
+    const nl = Math.hypot(nx, ny, nz);
+    nx /= nl; ny /= nl; nz /= nl;
+    // two greens, darker low on the lobe
+    const leaf = H(q, 6) < 0.5 ? BRAMBLE_DEEP : BRAMBLE_LEAF;
+    const shade = (0.85 + 0.25 * H(q, 5)) * (0.8 + 0.25 * smoothstep(-0.3, 1, se));
+    for (const v of [root, R, tip, root, tip, L]) {
+      add.position.push(...v);
+      add.normal.push(nx, ny, nz);
+      add.uv.push(0, 0);
+      const f = v === root ? 0.7 : v === tip ? 1.2 : 1.0;
+      for (let c = 0; c < 3; c++) add.color.push(leaf[c] * shade * f);
+    }
+  }
+  for (const name of names) {
+    const a = lobe.attributes[name];
+    const out = new Float32Array(a.array.length + add[name].length);
+    out.set(a.array);
+    out.set(add[name], a.array.length);
+    lobe.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
+  }
+}
 export function brambleBed(spots, seed) {
   const geoms = [];
   spots.forEach((sp, i) => {
@@ -5875,7 +5935,7 @@ export function brambleBed(spots, seed) {
         for (let c = 0; c < 3; c++) col[v * 3 + c] = (BRAMBLE_LOW[c] + (BRAMBLE_TOP[c] - BRAMBLE_LOW[c]) * t) * shade * mottle;
       }
       lobe.setAttribute('color', new THREE.BufferAttribute(col, 3));
-      brambleLeaves(lobe, r, i, k, seed);
+      brambleShingles(lobe, r, i, k, seed);
       const a = hash01(k, i, seed + 3) * Math.PI * 2;
       const d = k === 0 ? 0 : 0.45 + 0.35 * hash01(i + k, k, seed + 4);
       lobe.rotateY(hash01(k, i, seed + 5) * Math.PI);
@@ -5887,6 +5947,9 @@ export function brambleBed(spots, seed) {
   m.material.vertexColors = true;
   // the leaf cards are seen from both sides (the closed lobes never are)
   m.material.side = THREE.DoubleSide;
+  // polish-bushes: and lit by their built normals on both, so a card seen
+  // from behind doesn't go black (dressing.js bothSidesLit)
+  bothSidesLit(m.material);
   return m;
 }
 
