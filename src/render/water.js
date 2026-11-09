@@ -275,6 +275,24 @@ const ENV_INTENSITY_LOW = 1.0;
 const GLARE = 0.4;
 const GLARE_SEA = 0.8;
 
+// MOOR_STREAM_LOOK (polish-moorlook, Pass 10) — the Moor's own streams
+// (river-south, river-west, river-mouth; not the lake, which is one water with
+// the Woods and the Pines). A moorland stream runs over peat: tea-dark, not
+// the lake's clear blue, and it has no business mirroring a white sky. The
+// default look turned the straight stream into a saturated blue canal with
+// big white sky blotches (survey 10, w-moor-day-desk-9-water). So: a darker
+// peaty teal-brown body, the sky probe at ENV_INTENSITY_PEAT (about 70% of
+// ENV_INTENSITY), and a softer sun glint (glare, specCap). moor.js spreads
+// this into createWater for those three pieces only; no other area's water
+// changes.
+const ENV_INTENSITY_PEAT = 0.6;
+export const MOOR_STREAM_LOOK = Object.freeze({
+  color: 0x62857a,
+  glare: 0.32,
+  specCap: 0.4,
+  envIntensity: ENV_INTENSITY_PEAT,
+});
+
 // SPEC_CAP — a ceiling on the specular light, per channel, linear. Cutting
 // GLARE alone to tame the sun's glint (0.3 was tried) dulled the whole
 // surface; capping the peak leaves the rest of the sparkle alone and just
@@ -298,6 +316,7 @@ export const WATER_TUNING = Object.freeze({
   SWELL_PERIOD, SWELL_DEPTH, RAMP_TEXEL_M, RAMP_MIN, RAMP_MAX,
   SHELF_M, FOAM_M, FOAM_STRENGTH, ROUGH_DEEP, ROUGH_SHORE, ROUGH_FOAM,
   ROUGH_LOW, ENV_INTENSITY, ENV_INTENSITY_LOW, CIRCLE_SEGMENTS, GLARE, GLARE_SEA, SPEC_CAP,
+  ENV_INTENSITY_PEAT,
 });
 
 // --- small pure helpers ------------------------------------------------------
@@ -920,6 +939,10 @@ function islandGeometry(w, box, segments) {
  *                          seaside passes GLARE_SEA.
  *   specCap      {number}  ceiling on direct + indirect specular, linear per
  *                          channel (default SPEC_CAP).
+ *   envIntensity {number}  the sky probe's multiplier on the high tier
+ *                          (default ENV_INTENSITY). The Moor's peaty streams
+ *                          pass MOOR_STREAM_LOOK's. The low tier keeps
+ *                          ENV_INTENSITY_LOW scaled by the same share.
  *   evening      {object}  { dusk?: { mul, glow }, sunset?: { mul, glow } }:
  *                          this water's own evening tints, preferred by
  *                          eveningWater over WATER_EVENING for the modes it
@@ -949,6 +972,7 @@ export function createWater(footprint, options = {}) {
     waters,
     glare = GLARE,
     specCap = SPEC_CAP,
+    envIntensity = ENV_INTENSITY,
     style = 'clear',
     evening = null,
   } = options;
@@ -1005,7 +1029,7 @@ export function createWater(footprint, options = {}) {
     roughness: ripple ? 1.0 : ROUGH_LOW,
     roughnessMap: ramp.roughness,
     normalMap: ripple?.texture ?? null,
-    envMapIntensity: tier === 'high' ? ENV_INTENSITY : ENV_INTENSITY_LOW,
+    envMapIntensity: tier === 'high' ? envIntensity : ENV_INTENSITY_LOW * (envIntensity / ENV_INTENSITY),
   });
   const prevCompile = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {

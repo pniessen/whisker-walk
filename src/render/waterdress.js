@@ -94,7 +94,7 @@ const FOAM_ALPHA = 0.5;
 const BANK_COLORS = Object.freeze({
   woods: { wet: 0x5b4e2c, damp: 0x66703a },
   river: { wet: 0x5b4e2c, damp: 0x66703a },
-  moor: { wet: 0x5a4c2e, damp: 0x6a6a3c },
+  moor: { wet: 0x4a3d26, damp: 0x5a5c32 }, // polish-moorlook: darker, peatier (was 0x5a4c2e / 0x6a6a3c)
   pines: { wet: 0x4a4229, damp: 0x58603a },
   // A wetter, darker sand. Task 4 gives the sea its own builder.
   seaside: { wet: 0x8c7650, damp: 0xa89470 },

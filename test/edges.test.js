@@ -46,7 +46,7 @@ const EXPECTED = {
   park: { nearColor: 0x5c9e4e, style: 'hedge' },
   river: { nearColor: 0x6f9152, style: 'reeds' },
   woods: { nearColor: 0x547f3e, style: 'scrub' },
-  moor: { nearColor: 0x8a9558, style: 'wall' },
+  moor: { nearColor: 0x6f8044, style: 'wall' },
   pines: { nearColor: 0x56603e, style: 'pinescrub' },
 };
 
