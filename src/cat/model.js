@@ -2,6 +2,7 @@ import { withLocalUuids } from '../world/localuuids.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
+import { addCatRim, RIM } from './rimlight.js';
 import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt, undersideColourAt, UNDER_BLEND, BELLY_BLEND, UNDER_FRONT } from './coat.js';
 import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
@@ -894,6 +895,7 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   // merge before any cat exists, so this flag is belt-and-braces for a harness
   // or a future caller that does not.
   g.userData.noMerge = true;
+  addCatRim([painted]); // polish-catlight: his feathers share the light sky rim
   g.userData.breed = 'hagrid';
   g.userData.parts = { body, head, tail, tailPivots, legs, earL, earR, whiskers: [] };
   // combGive (R11): the animator damps his comb's ear writes about the rest to
@@ -1777,6 +1779,16 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     body.updateMatrix(); head.updateMatrix(); underside.updateMatrix();
     layCapeTie(tie, head.matrix, body.matrix, head.matrix, underside.matrix);
   }
+
+  // polish-catlight: the fur catches a soft sky rim on the walk (rimlight.js).
+  // Coat, limbs, paws, tail, skull, muzzle, cheeks, ears and the head's
+  // markings; never the eyes, nose, inner ears, whiskers or accessories.
+  addCatRim([
+    body, underside, skull, muzzle, ...cheeks, head.userData.earL, head.userData.earR,
+    ...legs.flatMap((leg) => [leg.children[0], leg.userData.paw]),
+    ...[skull, muzzle].flatMap((h) => h.children.filter((c) => c.isMesh)),
+  ].map((m) => m?.material), { dark: darkFace(s) });
+  addCatRim(tailPivots.map((p) => p.children.find((c) => c.isMesh)?.material), { dark: darkFace(s), scale: RIM.tail });
 
   g.scale.setScalar(s.scale);
   // Never merged. render/mergeprops.js welds a top-level child's leaves into

@@ -457,7 +457,10 @@ function flower(s, [petalHex, centreHex], size, simple) {
     for (let m = 0; m < rim; m++) {
       const b = (m / rim) * Math.PI * 2;
       const q = mid.clone().addScaledVector(dir, Math.cos(b) * size * 0.5).addScaledVector(across, Math.sin(b) * size * 0.3);
-      const [pq] = drape(q, 0.0068);
+      // polish-catlight: the petal tips cup up, so a flower lying on top of
+      // the head still has some height from exactly side-on
+      // (a petal pointing forward lifts less: it must not reach toward the face)
+      const [pq] = drape(q, 0.0068 + FLOWER_CUP * Math.max(0, Math.cos(b)) * (dir.z < 0 ? 0.4 : 1));
       pos.push(pq); cols.push(Math.cos(b) < -0.3 ? petalDark : rgb(petalHex));
     }
     for (let m = 0; m < rim; m++) idx.push(0, 1 + m, 1 + ((m + 1) % rim));
@@ -482,6 +485,7 @@ function flower(s, [petalHex, centreHex], size, simple) {
 // back, where the walk camera sees them (s: the share of the way round).
 const FLOWER_AT = [0, 0.095, -0.095, 0.185, -0.185, 0.4, -0.4];
 const FLOWER_SIZE = 0.044;
+const FLOWER_CUP = 0.011; // how far a petal's tip lifts off the skull (polish-catlight)
 function crown(simple) {
   const segs = simple ? 16 : 28, sides = simple ? 4 : 5, tubeR = 0.0068;
   const { centres, normals } = wreathRing(segs, 0.0064);
@@ -539,7 +543,11 @@ function partycrown(simple) {
 // over the twig. (Before polish-crown it rode a band at the brow, front 0.12,
 // and its lower leaves came down to the eyes: green goggles on the stage.) The
 // leaves run all round: the last pair's stems a short V apart at the back.
-const LAUREL = { perSide: 10, from: 0.01, step: 0.0485, len: 0.064, width: 0.028, rowOff: 0.003, slant: 0.42, curl: 0.012 };
+// polish-catlight (Pass 10): from exactly side-on the leaves lay flat on the
+// skull and the wreath read as a line. Each leaf now curls higher toward its
+// tip (curl) and stands its far edge up off the twig (stand), so the wreath has
+// a ~2.5 cm profile from the side. Same leaves, same triangles.
+const LAUREL = { perSide: 10, from: 0.01, step: 0.0485, len: 0.064, width: 0.028, rowOff: 0.003, slant: 0.42, curl: 0.019, stand: 0.007 };
 function leaf(s, side, row, hex, simple) {
   const { p: c0, n: n0, t, inward } = wreathFrame(s);
   // the ring's direction toward the back on this side
@@ -550,6 +558,9 @@ function leaf(s, side, row, hex, simple) {
   const mid = c0.clone().addScaledVector(inward, row * LAUREL.rowOff).addScaledVector(dir, LAUREL.len * 0.5);
   const nu = simple ? 4 : 6, lift = row > 0 ? 0.002 : 0;
   const light = shade(hex, 1.12), dark = shade(hex, 0.82);
+  // the leaf's edge away from the twig (toward `inward` for the inner row,
+  // away from it for the outer) is the one that stands up
+  const far = Math.sign(across.dot(inward)) * row || 1;
   return grid(nu, 3, {}, (i, j) => {
     const u = (i / (nu - 1)) * 2 - 1;        // -1 stem .. 1 tip
     const w = j - 1;                          // -1, 0 (midrib), 1
@@ -558,7 +569,8 @@ function leaf(s, side, row, hex, simple) {
     // each leaf curls up off the head toward its tip, so the wreath has some
     // height and reads from the front, not only from above
     const curl = LAUREL.curl * ((u + 1) / 2) ** 2;
-    const [p, n] = drape(q, (w === 0 ? 0.0075 : 0.004) + lift + curl);
+    const stand = LAUREL.stand * Math.max(0, w * far) * (0.4 + 0.6 * (u + 1) / 2);
+    const [p, n] = drape(q, (w === 0 ? 0.0075 : 0.004) + lift + curl + stand);
     return { p, c: w === 0 ? light : (w > 0 ? hex : dark), out: n };
   });
 }
