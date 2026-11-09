@@ -44,7 +44,7 @@ const EXPECTED = {
   // polish-sheen: the lawns went deeper (NEIGHBORHOOD_LAWN, PARK_LAWN, RIVER_GROUND)
   neighborhood: { nearColor: 0x6aa456, style: 'hedge' },
   park: { nearColor: 0x5c9e4e, style: 'hedge' },
-  river: { nearColor: 0x6f9152, style: 'reeds' },
+  river: { nearColor: 0x679553, style: 'reeds' }, // polish-floors: RIVER_GROUND fresher green
   woods: { nearColor: 0x547f3e, style: 'scrub' },
   moor: { nearColor: 0x6f8044, style: 'wall' },
   pines: { nearColor: 0x56603e, style: 'pinescrub' },

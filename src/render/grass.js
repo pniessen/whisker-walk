@@ -325,7 +325,8 @@ function patchNoise(x, z, size = PATCH_SIZE, salt = 7) {
 //              (lawn only: daisies and buttercups in mown turf)
 // ---------------------------------------------------------------------------
 const LAWN = Object.freeze({
-  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: null, ground: 0.8, hue: 0.12, flowers: 0.03, // ground: polish-sheen, tufts follow the lawn mottle
+  // polish-floors: warm 0.1 -> 0.08, hue 0.12 -> 0.1, a small step away from acid yellow-green tufts
+  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.08, sway: SWAY_AMP, reach: 1, density: null, ground: 0.8, hue: 0.1, flowers: 0.03, // ground: polish-sheen, tufts follow the lawn mottle
 });
 
 const smooth01 = (a, b, v) => {
@@ -351,8 +352,10 @@ const DUNE = Object.freeze({
 export function woodsDensity(x, z) {
   return 0.85 * smooth01(0.42, 0.72, patchNoise(x, z, 3.4, 29));
 }
+// polish-floors: a touch darker and cooler (0x5a8f45 -> 0x558a44); the tufts also follow the
+// deeper floor tint (ground 0.8), so darker than this and they vanish into it at dusk.
 const WOODLAND = Object.freeze({
-  color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity, ground: 0.8, hue: 0.1, flowers: 0,
+  color: 0x558a44, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity, ground: 0.8, hue: 0.1, flowers: 0,
 });
 
 // The River's marsh: taller, yellower-green tufts in broad patches, so the
@@ -360,8 +363,9 @@ const WOODLAND = Object.freeze({
 export function marshDensity(x, z) {
   return 0.9 * smooth01(0.3, 0.6, patchNoise(x, z, 4.4, 43));
 }
+// polish-floors: yellow-lime 0x86a457 (hue 85) -> a fresh meadow green 0x7aa65c (hue 96), a touch lighter and warmer than the cooler ground so the tufts still show.
 const MARSH = Object.freeze({
-  color: 0x86a457, hMin: 0.14, hMax: 0.36, width: 1.0, warm: 0.14, sway: 0.4, reach: 1.4, density: marshDensity, ground: 0.9, hue: 0.12, flowers: 0,
+  color: 0x7aa65c, hMin: 0.14, hMax: 0.36, width: 1.0, warm: 0.12, sway: 0.4, reach: 1.4, density: marshDensity, ground: 0.9, hue: 0.12, flowers: 0,
 });
 
 // The Moor: knee-high tawny-green tufts in wide patches with bare earth
@@ -369,8 +373,11 @@ const MARSH = Object.freeze({
 export function moorDensity(x, z) {
   return 0.95 * smooth01(0.25, 0.55, patchNoise(x, z, 6.0, 53));
 }
+// polish-floors: pale straw 0x8f9a5a -> a heath olive-brown 0x737546, with a stronger warm
+// (tawny) lean per tuft, so the near frame reads as heath and not straw. Olive
+// on purpose: the bracken tint under many tufts (moordress.js) adds the rust.
 const MOOR = Object.freeze({
-  color: 0x8f9a5a, hMin: 0.08, hMax: 0.24, width: 1.0, warm: 0.18, sway: 0.6, reach: 1.4, density: moorDensity, ground: 0.9, hue: 0.14, flowers: 0,
+  color: 0x737546, hMin: 0.08, hMax: 0.24, width: 1.0, warm: 0.2, sway: 0.6, reach: 1.4, density: moorDensity, ground: 0.9, hue: 0.16, flowers: 0,
 });
 
 // The Pines: a thin, short, dark-green grass between the needles, so the forest
