@@ -4,7 +4,7 @@ Survey: polish-survey-11.md, ranked #2 and #9, broken #2.
 
 ## Start pad (src/race.js, the start-pad block in createRace + its helpers)
 - Replace the flat yellow `RingGeometry` + emissive yellow material with one merged geometry (`padGeometry`) and one material:
-  - a worn ring of earth (r 0.9–1.3, soft 0.2 m alpha edges, wobbled radii), a see-through brown (`PAD_LOOK.earth` at `wear` 0.42) so it darkens whatever ground it lies on in that ground's own tone (grass, path, cobbles, sand);
+  - a worn ring of earth (r 0.9–1.3, soft 0.2 m alpha edges, wobbled radii), a see-through brown (`PAD_LOOK.earth` at `wear` 0.5) so it darkens whatever ground it lies on in that ground's own tone (grass, path, cobbles, sand);
   - eight cream paw prints (main pad + four toes, low domed fans, vertex alpha 1) walking anticlockwise round the ring.
 - No emissive by day. At dusk `createRace(..., { dusk })` sets a warm emissive at half the old ring's (0x453810), masked to the stones by a two-line `onBeforeCompile` (smoothstep on vertex alpha).
 - Follows `ground.y` per vertex (the Gorge's slopes), 4.5 cm up instead of 2 cm: the old ring sat under the Seaside boardwalk (3 cm) and never showed there. Same x/z, same prompt radius, same `race.pad`.

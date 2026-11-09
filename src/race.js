@@ -126,7 +126,7 @@ export function raceCourse(pois, seed) {
 // the old yellow ring's emissive (0x8a7020), on the stones only.
 export const PAD_LOOK = Object.freeze({
   y: 0.045, rIn: 0.9, rOut: 1.3, soft: 0.2, segs: 24,
-  earth: 0x4a3826, wear: 0.42,
+  earth: 0x4a3826, wear: 0.5,
   stone: 0xeadcbc, stoneRim: 0xc9b48e, dome: 0.018, lift: 0.006,
   paws: 8, pawR: 1.1, pawStep: 0.05, pawScale: 1.7,
   duskGlow: 0x453810,
