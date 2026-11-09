@@ -186,11 +186,16 @@ export function layoutClouds(areaId, count, baseMin = BASE_MIN) {
 // band's elevation profile, measured from the area centre at cat height) by
 // BANK_CLEARANCE_DEG, and the band's top by BANK_ABOVE_TOP metres, so where
 // the hills are low a bank sits just over them, in view.
+// polish-goldenhour: the base row was squashed to 0.42 and read as a flat grey
+// lens on the Seaside (survey 11 #7); 0.55 gives it a rounder belly, and a
+// third crown puff (a taller one in the middle) gives the back a proper
+// cumulus heap. Banks also draw with their own lighter, smoother underside
+// (the aBank instance attribute in createClouds), so they are not grey on blue.
 export const BANK_DIST = 185;
 export const BANK_STRETCH = 1.8;
-export const BANK_SQUASH = 0.42;
-const BANK_BASE = 3;
-const BANK_CROWN = 2;
+export const BANK_SQUASH = 0.55;
+export const BANK_BASE = 3;
+export const BANK_CROWN = 3;
 export const BANK_CLEARANCE_DEG = 0.5;
 export const BANK_ABOVE_TOP = 4;
 const BANK_SWING = 0.026; // radians, ~1.5 degrees
@@ -246,15 +251,28 @@ export function layoutBanks(areaId, count, baseAt = () => BASE_MIN) {
         st: BANK_STRETCH, sq: BANK_SQUASH, lift: 0,
       });
     }
-    // The crown: rounder puffs on its back, over the joins.
-    for (let j = 0; j < BANK_CROWN; j++) {
+    // The crown: rounder puffs riding the back over the two joins (as before, from the
+    // bank's stream), plus a taller, bigger middle puff (polish-goldenhour)
+    // whose numbers come from hash01, not the stream: the stream's draws, and
+    // so every bank's bearing, size and sway, are what they were.
+    for (let j = 0; j < 2; j++) {
       const r = 8 + rng() * 4;
       puffs.push({
-        x: (j - (BANK_CROWN - 1) / 2) * gap + (rng() - 0.5) * 8,
+        x: (j - 0.5) * gap + (rng() - 0.5) * 8,
         z: (rng() - 0.5) * 6,
         r,
         yaw: (rng() - 0.5) * 0.6,
-        st: 1.15, sq: 0.62, lift: 2 + rng() * 3,
+        st: 1.15, sq: 0.66, lift: 2 + rng() * 3,
+      });
+    }
+    for (let j = 2; j < BANK_CROWN; j++) {
+      const r = 10 + hash01(i, j, 0, 21) * 3;
+      puffs.push({
+        x: (hash01(i, j, 0, 22) - 0.5) * 8,
+        z: (hash01(i, j, 0, 23) - 0.5) * 4,
+        r,
+        yaw: (hash01(i, j, 0, 24) - 0.5) * 0.6,
+        st: 1.25, sq: 0.66, lift: 5 + hash01(i, j, 0, 25) * 1.5,
       });
     }
     const bank = {
@@ -442,28 +460,35 @@ export function bandElevation(scene, centre = { x: 0, z: 0 }) {
 // and the underside drops below the horizon, so nothing glows white against a
 // dusk sky.
 // Sunset (weather.js's sunset walk, whose fog is the peach 0xf8c890 horizon):
-// the tops catch the low sun, a warm cream only a step brighter than the
-// horizon, never the day's near-white; the undersides go a dusky mauve.
-// Without this a sunset walk used the day palette and its tops read as white
-// cut-outs against an orange sky.
+// golden hour (polish-goldenhour). The sun is below the clouds, so it lights
+// their bellies: undersides a glowing peach-gold, tops in the shade going a
+// soft lilac. Never the day's near-white (white cut-outs on an orange sky).
+// `bankUnder` is the far banks' underside: day banks lift theirs part-way to
+// the top so a bank is not a grey lens on a blue sky (survey 11 #7); dusk and
+// sunset banks keep the clouds' own underside.
 const WHITE = new THREE.Color(0xffffff);
 const SLATE = new THREE.Color(0x76869e);
 const PEACH = new THREE.Color(0xf2b08c);
 const SUNLIT = new THREE.Color(0xffe2c4);
-const MAUVE = new THREE.Color(0x8a6a80);
+const LILAC = new THREE.Color(0xa48cc0);
+const GOLD = new THREE.Color(0xffa860);
 export function cloudPalette(horizon, mood = false, out = null) {
   const h = horizon instanceof THREE.Color ? horizon : new THREE.Color(horizon);
-  const p = out ?? { top: new THREE.Color(), under: new THREE.Color(), haze: new THREE.Color() };
+  const p = out ?? { top: new THREE.Color(), under: new THREE.Color(), haze: new THREE.Color(), bankUnder: new THREE.Color() };
+  p.bankUnder ??= new THREE.Color();
   p.haze.copy(h);
   if (mood === true || mood === 'dusk') {
     p.top.copy(h).lerp(PEACH, 0.38);
     p.under.copy(h).multiplyScalar(0.72);
+    p.bankUnder.copy(p.under);
   } else if (mood === 'sunset') {
-    p.top.copy(h).lerp(SUNLIT, 0.45);
-    p.under.copy(h).lerp(MAUVE, 0.5).multiplyScalar(0.85);
+    p.top.copy(h).lerp(LILAC, 0.6).multiplyScalar(0.92);
+    p.under.copy(h).lerp(GOLD, 0.55).lerp(SUNLIT, 0.1);
+    p.bankUnder.copy(p.under);
   } else {
     p.top.copy(WHITE).lerp(h, 0.12);
     p.under.copy(h).lerp(SLATE, 0.42).multiplyScalar(0.88);
+    p.bankUnder.copy(p.under).lerp(p.top, 0.45);
   }
   return p;
 }
@@ -548,6 +573,7 @@ export function createClouds(scene, {
   const uniforms = {
     uTop: { value: palette.top },
     uUnder: { value: palette.under },
+    uBankUnder: { value: palette.bankUnder },
     uHaze: { value: palette.haze },
     uHazeRange: { value: new THREE.Vector3(HAZE_NEAR, HAZE_FAR, HAZE_MAX) },
   };
@@ -562,22 +588,42 @@ export function createClouds(scene, {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 uniform vec3 uHazeRange;
-varying float vHaze;`)
+attribute float aBank;
+varying float vHaze;
+varying float vBank;
+varying float vUpSmooth;`)
       .replace('#include <project_vertex>', `#include <project_vertex>
-vHaze = smoothstep(uHazeRange.x, uHazeRange.y, length(mvPosition.xyz)) * uHazeRange.z;`);
+vHaze = smoothstep(uHazeRange.x, uHazeRange.y, length(mvPosition.xyz)) * uHazeRange.z;
+vBank = aBank;
+vUpSmooth = smoothstep(${FLAT_Y.toFixed(2)}, 0.5, position.y);`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform vec3 uTop;
 uniform vec3 uUnder;
+uniform vec3 uBankUnder;
 uniform vec3 uHaze;
-varying float vHaze;`)
+varying float vHaze;
+varying float vBank;
+varying float vUpSmooth;`)
       // vColor is (facet shade, height up the puff, 0); see COLOUR above.
-      .replace('#include <color_fragment>', `diffuseColor.rgb = mix(uUnder, uTop, vColor.g) * vColor.r;
+      // Banks (vBank 1): a per-vertex height blend and half the facet shade,
+      // so a long stretched bank reads as one soft heap, not a stack of
+      // facets; and their own (lighter by day) underside. High clouds
+      // (vBank 0) are exactly as before.
+      .replace('#include <color_fragment>', `float upK = mix(vColor.g, vUpSmooth, vBank);
+float shadeK = mix(vColor.r, 1.0 - 0.5 * (1.0 - vColor.r), vBank);
+diffuseColor.rgb = mix(mix(uUnder, uBankUnder, vBank), uTop, upK) * shadeK;
 diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
   };
   material.customProgramCacheKey = () => 'whisker-clouds';
 
-  const mesh = new THREE.InstancedMesh(puffGeometry(1), material, total);
+  const geometry = puffGeometry(1);
+  // aBank: 0 for the high clouds' puffs, 1 for the banks' (which come after them).
+  const nHigh = clouds.reduce((s, c) => s + c.puffs.length, 0);
+  const bankFlag = new Float32Array(total);
+  bankFlag.fill(1, nHigh);
+  geometry.setAttribute('aBank', new THREE.InstancedBufferAttribute(bankFlag, 1));
+  const mesh = new THREE.InstancedMesh(geometry, material, total);
   mesh.name = 'clouds';
   mesh.userData.clouds = true;
   // No cloud shadows: the shadow pass is the expensive one on the phone.

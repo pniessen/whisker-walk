@@ -23,7 +23,7 @@ const {
   CLOUD_AREAS, WIND_DIR, SKY_RADIUS, FADE_LEN, BASE_MIN, BAND_CLEARANCE_DEG,
   areaSeed, layoutClouds, cloudPlace, cloudReach, cloudPalette, bandElevation,
   puffGeometry, createClouds, lapOf, puffAt,
-  layoutBanks, bankPlace, bandProfile, bankBase, skyCounts, AREA_SKY,
+  layoutBanks, bankPlace, bandProfile, bankBase, skyCounts, AREA_SKY, BANK_SQUASH, BANK_BASE, BANK_CROWN,
   BANK_CLEARANCE_DEG, BANK_ABOVE_TOP,
 } = await import('../src/render/clouds.js');
 const { LADDER } = await import('../src/render/quality.js');
@@ -290,6 +290,40 @@ describe('cloud placement', () => {
     expect(bankBase(null, 0, 0.1, 200)).toBe(BASE_MIN);
   });
 
+  it('far banks: a rounder base row and a three-puff crown heaped in the middle (polish-goldenhour)', () => {
+    expect(BANK_SQUASH).toBeCloseTo(0.55, 6);
+    for (const bk of layoutBanks('seaside', 5)) {
+      expect(bk.puffs).toHaveLength(BANK_BASE + BANK_CROWN);
+      expect(BANK_CROWN).toBe(3);
+      const base = bk.puffs.slice(0, BANK_BASE);
+      const crown = bk.puffs.slice(BANK_BASE);
+      for (const p of base) expect(p.sq).toBe(BANK_SQUASH);
+      for (const p of crown) expect(p.lift).toBeGreaterThan(0);
+      expect(crown[2].lift).toBeGreaterThan(Math.max(crown[0].lift, crown[1].lift)); // the middle heap
+      expect(Math.abs(crown[2].x)).toBeLessThan(Math.min(Math.abs(crown[0].x), Math.abs(crown[1].x)));
+    }
+  });
+
+  it('day banks get a lighter underside than the high clouds; dusk banks keep theirs', () => {
+    const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const day = cloudPalette(new THREE.Color(0xcfe8f0));
+    expect(lum(day.bankUnder)).toBeGreaterThan(lum(day.under) + 0.05);
+    expect(lum(day.bankUnder)).toBeLessThan(lum(day.top));
+    const dusk = cloudPalette(new THREE.Color(0x6a5a8a), 'dusk');
+    expect(dusk.bankUnder.equals(dusk.under)).toBe(true);
+  });
+
+  it('the bank flag: 0 on the high clouds, 1 on the banks, in the one InstancedMesh', () => {
+    const c = make('seaside');
+    const flag = c.mesh.geometry.getAttribute('aBank');
+    expect(flag.isInstancedBufferAttribute).toBe(true);
+    const nHigh = c.clouds.reduce((s, cl) => s + cl.puffs.length, 0);
+    expect(flag.count).toBe(c.mesh.count);
+    for (let i = 0; i < flag.count; i++) expect(flag.getX(i)).toBe(i < nHigh ? 0 : 1);
+    expect(c.palette.bankUnder).toBeDefined();
+    c.dispose();
+  });
+
   it('far banks hold their bearing, swaying only a little', () => {
     for (const bk of layoutBanks('moor', 5)) {
       for (const t of [0, 100, 450, 2000]) {
@@ -393,16 +427,22 @@ describe('the cloud mesh', () => {
     }
   });
 
-  it('sunset palette: warm, no near-white tops, a dusky underside against the peach horizon', () => {
+  it('sunset palette (golden hour): peach-gold undersides, lilac tops, no near-white', () => {
     const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
     const horizon = new THREE.Color(0xf8c890); // weather.js's sunset fog
     const day = cloudPalette(horizon); // what a sunset walk used to get
     const p = cloudPalette(horizon, 'sunset');
     expect(lum(day.top)).toBeGreaterThan(0.85); // the near-white this fixes
     expect(lum(p.top)).toBeLessThan(0.8);
-    expect(lum(p.top)).toBeGreaterThan(lum(horizon)); // still catches the sun
-    expect(p.top.r).toBeGreaterThan(p.top.b); // warm
-    expect(lum(p.under)).toBeLessThan(lum(horizon) * 0.7);
+    expect(lum(p.under)).toBeLessThan(0.8);
+    // The low sun lights the bellies: the underside is the warm, bright one.
+    expect(lum(p.under)).toBeGreaterThan(lum(p.top));
+    expect(p.under.r).toBeGreaterThan(p.under.g);
+    expect(p.under.g).toBeGreaterThan(p.under.b * 1.5); // gold, not pink
+    // Lilac tops: bluer than the underside and than the horizon.
+    expect(p.top.b / p.top.r).toBeGreaterThan(p.under.b / p.under.r + 0.2);
+    expect(p.top.b / p.top.r).toBeGreaterThan(horizon.b / horizon.r);
+    expect(p.bankUnder.equals(p.under)).toBe(true);
     // The old boolean still means dusk.
     expect(cloudPalette(horizon, true).top.equals(cloudPalette(horizon, 'dusk').top)).toBe(true);
   });
