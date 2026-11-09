@@ -196,11 +196,11 @@ export const BANK_ABOVE_TOP = 4;
 const BANK_SWING = 0.026; // radians, ~1.5 degrees
 const BANK_SWING_PERIOD = 900; // seconds
 // Per area, on the high rungs: high clouds (instead of the tier's count) and
-// banks. The Moor and the Seaside are big open skies; the Gorge is a canyon,
+// banks. The Moor and the Seaside are big open skies (the most banks); the Gorge is a canyon,
 // its walls hide the low sky, so it has fewer clouds and no banks.
 export const AREA_SKY = Object.freeze({
-  moor: Object.freeze({ clouds: 12, banks: 5 }),
-  seaside: Object.freeze({ clouds: 12, banks: 5 }),
+  moor: Object.freeze({ clouds: 10, banks: 5 }),
+  seaside: Object.freeze({ clouds: 10, banks: 5 }),
   river: Object.freeze({ clouds: 10, banks: 5 }),
   park: Object.freeze({ clouds: 10, banks: 4 }),
   neighborhood: Object.freeze({ clouds: 10, banks: 4 }),

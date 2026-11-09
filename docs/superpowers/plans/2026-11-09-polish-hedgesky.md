@@ -33,7 +33,7 @@ The walk camera sees only ~7° above level; every cloud sits higher.
 - Each bank's base clears the band's crest IN ITS OWN BEARING (a per-5°
   elevation profile measured from the area centre) by 0.5°, and the band's
   top by 4m, so they sit just over the hills where the hills are low.
-- Per area: Moor and Seaside 5 banks and 12 high clouds, the Gorge 0 banks and
+- Per area: Moor and Seaside 5 banks (high clouds stay 10, for the triangle budget), the Gorge 0 banks and
   7 high clouds, others 4-5 banks. Low rung: banks scale with cloudCount.
 - Same single InstancedMesh and material (dusk/sunset palettes and haze free).
   ≤ 2,000 extra instanced triangles (5 banks x 5 puffs x 80), 0 draws.

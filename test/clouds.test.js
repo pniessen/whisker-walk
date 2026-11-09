@@ -285,8 +285,8 @@ describe('cloud placement', () => {
     expect(layoutBanks('moor', 5)).toEqual(a);
     expect(layoutBanks('seaside', 5)[0]).not.toEqual(a[0]);
     expect(skyCounts('gorge', 10).banks).toBe(0);
-    expect(skyCounts('moor', 10)).toEqual({ clouds: 12, banks: 5 });
-    expect(skyCounts('moor', 6)).toEqual({ clouds: 7, banks: 3 });
+    expect(skyCounts('moor', 10)).toEqual({ clouds: 10, banks: 5 });
+    expect(skyCounts('moor', 6)).toEqual({ clouds: 6, banks: 3 });
     expect(bankBase(null, 0, 0.1, 200)).toBe(BASE_MIN);
   });
 
