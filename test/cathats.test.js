@@ -191,4 +191,15 @@ describe('hats sit on the head (accessories polish Task 1)', () => {
       }
     }
   }, 120_000);
+
+  // polish-catlight (Pass 10): from exactly side-on the wreath read as a line.
+  // Its leaves and petals now stand up off the skull along the sides of the
+  // ring (the +-x flanks, where a side view looks across them).
+  it.each([['leafcrown', 0.03], ['crown', 0.017]])('%s stands up off the skull on its flanks (side-on profile)', (id, want) => {
+    const { cz } = HAT_SHAPES.WREATH;
+    const V = verts(buildHat(id));
+    const flank = V.filter((v) => { const a = Math.abs(Math.atan2(v.x, cz - v.z)); return a > 1.1 && a < 2.0; });
+    const lift = Math.max(...flank.map((v) => (rho(v) - 1) * 0.2));
+    expect(lift).toBeGreaterThanOrEqual(want);
+  });
 });

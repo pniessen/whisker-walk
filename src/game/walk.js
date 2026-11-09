@@ -31,6 +31,7 @@ import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn, createLampPools } from
 import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { disposeHenRig } from '../cat/henfight.js';
+import { setCatRimLight } from '../cat/rimlight.js';
 import { activeCat, scarKey } from '../customcats.js';
 import { herCatPortrait } from '../thumbnails.js';
 import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion } from '../ui/screencards.js';
@@ -635,6 +636,7 @@ export function createWalkLifecycle({
 
     // Warm low sun, cool sky fill, window glow: render/dusk.js.
     const duskLookNow = duskActive ? applyDusk({ scene, sun, fill, areaData }) : null;
+    setCatRimLight({ dusk: !!duskLookNow }); // polish-catlight: dusk rim weaker, cooler
 
     // v18 Night Eyes ('night-eyes', Task 2.3): dusk walks brighten. This has
     // to run AFTER duskActive is resolved above (a solo dusk walk only counts
