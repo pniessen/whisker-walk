@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
-import { raceCourse, createRace, RING_Y, NEAR_FADE } from '../src/race.js';
+import { raceCourse, createRace, RING_Y, NEAR_FADE, PAD_LOOK } from '../src/race.js';
 import { mulberry32 } from '../src/rng.js';
 
 // Mirrors the real world files' pois shape (8 entries, x/z only) — see
@@ -205,6 +205,38 @@ describe('createRace — positions for the corner map', () => {
     const race = createRace(fakeScene(), course, SPAWN);
     expect(race.rings).toEqual(course.map((p) => ({ x: p.x, z: p.z })));
     expect(race.pad).toEqual({ x: SPAWN.x + 2, z: SPAWN.z - 3 });
+  });
+});
+
+// polish-startpad: the flat yellow plastic ring became a worn circle of earth
+// with eight cream paw-print stones. Still one mesh, one geometry, one material
+// (race.js runs in every walk; the flat trace counts THREE objects).
+describe('createRace — the start pad', () => {
+  const padOf = (race) => race.group.children.filter((m) => m.userData.racePad);
+  it('is one see-through mesh under 400 triangles, every face up', () => {
+    const pads = padOf(createRace(fakeScene(), makeCourse(), SPAWN));
+    expect(pads).toHaveLength(1);
+    const g = pads[0].geometry;
+    expect(g.index.count / 3).toBeLessThanOrEqual(400);
+    expect(g.getAttribute('color').itemSize).toBe(4);
+    const n = g.getAttribute('normal');
+    for (let i = 0; i < n.count; i++) expect(n.getY(i)).toBeGreaterThan(0.5);
+    expect(pads[0].material.transparent).toBe(true);
+    expect(pads[0].material.depthWrite).toBe(false);
+  });
+  it('the worn ring fades out at its edges and the stones are opaque', () => {
+    const g = padOf(createRace(fakeScene(), makeCourse(), SPAWN))[0].geometry;
+    const a = g.getAttribute('color');
+    const alphas = Array.from({ length: a.count }, (_, i) => a.getW(i));
+    expect(alphas.filter((x) => x === 0).length).toBe(PAD_LOOK.segs * 2);
+    expect(Math.max(...alphas.filter((x) => x < 1))).toBeLessThan(0.6);
+    expect(alphas.filter((x) => x === 1).length).toBeGreaterThan(PAD_LOOK.paws * 30);
+  });
+  it('glows only at dusk, at half the old ring\'s emissive', () => {
+    const day = padOf(createRace(fakeScene(), makeCourse(), SPAWN))[0].material;
+    const dusk = padOf(createRace(fakeScene(), makeCourse(), SPAWN, { dusk: true }))[0].material;
+    expect(day.emissive.getHex()).toBe(0x000000);
+    expect(dusk.emissive.getHex()).toBe(0x453810);
   });
 });
 

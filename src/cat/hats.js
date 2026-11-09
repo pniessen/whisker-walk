@@ -437,7 +437,10 @@ function wreathRing(segs, out) {
 
 // One flower lying on the skull at s of the way round the wreath: five petals
 // (each a low lens) round a domed centre, facing out of the head.
-function flower(s, [petalHex, centreHex], size, simple) {
+// polish-startpad: `tilt` (radians) turns the whole flower outward about the
+// ring's direction, pivoting near its outer edge (which stays on the skull)
+// so its inner edge rests up on the vine: from side-on it shows its face.
+function flower(s, [petalHex, centreHex], size, simple, tilt = 0) {
   const { p: c, n, inward: up } = wreathFrame(s);
   const phi = s * Math.PI * 2;
   const side = new THREE.Vector3().crossVectors(up, n).normalize();
@@ -477,6 +480,16 @@ function flower(s, [petalHex, centreHex], size, simple) {
   centre.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), n));
   centre.translate(cc.x, cc.y, cc.z);
   parts.push(centre);
+  if (tilt) {
+    // the turn that takes n toward the outside of the ring (-up)
+    let q = new THREE.Quaternion().setFromAxisAngle(side, tilt);
+    if (n.clone().applyQuaternion(q).dot(up) > 0) q = new THREE.Quaternion().setFromAxisAngle(side, -tilt);
+    const pivot = c.clone().addScaledVector(up, -size * FLOWER_PIVOT);
+    const m = new THREE.Matrix4().makeTranslation(pivot.x, pivot.y, pivot.z)
+      .multiply(new THREE.Matrix4().makeRotationFromQuaternion(q))
+      .multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
+    for (const g of parts) g.applyMatrix4(m);
+  }
   return parts;
 }
 
@@ -485,7 +498,11 @@ function flower(s, [petalHex, centreHex], size, simple) {
 // back, where the walk camera sees them (s: the share of the way round).
 const FLOWER_AT = [0, 0.095, -0.095, 0.185, -0.185, 0.4, -0.4];
 const FLOWER_SIZE = 0.044;
-const FLOWER_CUP = 0.011; // how far a petal's tip lifts off the skull (polish-catlight)
+const FLOWER_CUP = 0.014; // how far a petal's tip lifts off the skull (polish-catlight 0.011; polish-startpad 0.014)
+// polish-startpad: the two side flowers (s +-0.185) tilt 25 degrees outward so
+// a side view sees a face, not an edge; the rest lie on the skull as before.
+const FLOWER_TILT = [0, 0, 0, 0.44, 0.44, 0, 0];
+const FLOWER_PIVOT = 0.8; // the tilt's hinge: this share of `size` out from the centre
 function crown(simple) {
   const segs = simple ? 16 : 28, sides = simple ? 4 : 5, tubeR = 0.0068;
   const { centres, normals } = wreathRing(segs, 0.0064);
@@ -496,7 +513,7 @@ function crown(simple) {
     colour: (i, a) => (Math.cos(2 * (a + (twists * i * Math.PI * 2) / segs)) > 0 ? PRIZE_LEAF[0] : PRIZE_LEAF[2]),
   });
   const parts = [vine];
-  FLOWER_AT.forEach((at, k) => parts.push(...flower(at, FLOWERS[k % 3], FLOWER_SIZE, simple)));
+  FLOWER_AT.forEach((at, k) => parts.push(...flower(at, FLOWERS[k % 3], FLOWER_SIZE, simple, FLOWER_TILT[k])));
   return finish('crown', parts);
 }
 

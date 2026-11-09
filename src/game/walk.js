@@ -1717,9 +1717,9 @@ export function createWalkLifecycle({
     // data, so both co-walkers agree, and it draws nothing from walkRng (the
     // daily course never did either: it has its own date-seeded stream).
     session.race = areaData.raceCourse
-      ? createRace(scene, areaData.raceCourse, areaData.spawn, { ground, kind: 'climb' })
+      ? createRace(scene, areaData.raceCourse, areaData.spawn, { ground, kind: 'climb', dusk: !!duskLookNow })
       : walkPois.length >= 5
-      ? createRace(scene, raceCourse(walkPois, seedFromCode(today + '-' + areaId)), areaData.spawn, { ground })
+      ? createRace(scene, raceCourse(walkPois, seedFromCode(today + '-' + areaId)), areaData.spawn, { ground, dusk: !!duskLookNow })
       : { state: 'idle', timeMs: 0, currentRing: 0, rings: [], pad: null, update() {}, promptAt: () => null, begin() {}, dispose() {} };
     session.areaId = areaId;
     session.raceDate = today;

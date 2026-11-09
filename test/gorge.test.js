@@ -1001,7 +1001,7 @@ describe('the Gorge: the climb race', () => {
 
   it('walk.js uses areaData.raceCourse when present, and the daily course otherwise', () => {
     const src = readFileSync(fileURLToPath(new URL('../src/game/walk.js', import.meta.url)), 'utf8');
-    expect(src).toMatch(/areaData\.raceCourse\s*\?\s*createRace\(scene, areaData\.raceCourse, areaData\.spawn, \{ ground, kind: 'climb' \}\)/);
+    expect(src).toMatch(/areaData\.raceCourse\s*\?\s*createRace\(scene, areaData\.raceCourse, areaData\.spawn, \{ ground, kind: 'climb', dusk: !!duskLookNow \}\)/);
     expect(src).toMatch(/raceCourse\(walkPois, seedFromCode\(today/);
   });
 });

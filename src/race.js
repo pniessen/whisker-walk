@@ -119,6 +119,89 @@ export function raceCourse(pois, seed) {
   return course;
 }
 
+// The start pad's look (polish-startpad). `earth` is the worn ring's colour,
+// laid over the ground at `wear` opacity (so it reads as that ground, a little
+// darker); its edges fade to nothing over `soft` metres. The paw stones are a
+// warm cream, a shade darker at the rim, domed `dome` m. `duskGlow` is half
+// the old yellow ring's emissive (0x8a7020), on the stones only.
+export const PAD_LOOK = Object.freeze({
+  y: 0.045, rIn: 0.9, rOut: 1.3, soft: 0.2, segs: 24,
+  earth: 0x4a3826, wear: 0.5,
+  stone: 0xeadcbc, stoneRim: 0xc9b48e, dome: 0.018, lift: 0.006,
+  paws: 8, pawR: 1.1, pawStep: 0.05, pawScale: 1.7,
+  duskGlow: 0x453810,
+});
+
+// padGeometry(groundAt) — the pad in its own frame (y up, centre at 0):
+// the worn ring (3 bands: soft inner edge, solid, soft outer edge, each
+// radius wobbled a little so it reads worn, not drawn) and eight paw prints
+// (a main pad + four toes, each a low domed fan) walking anticlockwise round
+// it, left and right feet a little in and out. groundAt(x, z) is the ground's
+// height there relative to the pad, so the pad follows a slope. 392 triangles (ring 144, paws 8 x 31).
+function padGeometry(groundAt) {
+  const L = PAD_LOOK;
+  const pos = [], col = [], idx = [];
+  const earth = new THREE.Color(L.earth), stone = new THREE.Color(L.stone), rim = new THREE.Color(L.stoneRim);
+  const vert = (x, y, z, c, a) => { pos.push(x, groundAt(x, z) + y, z); col.push(c.r, c.g, c.b, a); return pos.length / 3 - 1; };
+  // the worn ring
+  const radii = [L.rIn - L.soft, L.rIn, L.rOut, L.rOut + L.soft];
+  const rows = radii.map((r, j) => {
+    const row = [];
+    for (let i = 0; i < L.segs; i++) {
+      const a = (i / L.segs) * Math.PI * 2;
+      const wob = 1 + 0.045 * Math.sin(3 * a + j) + 0.03 * Math.sin(7 * a + 2 * j);
+      const alpha = j === 0 || j === 3 ? 0 : L.wear * (0.85 + 0.15 * Math.sin(5 * a + 1));
+      row.push(vert(Math.cos(a) * r * wob, 0, -Math.sin(a) * r * wob, earth, alpha));
+    }
+    return row;
+  });
+  for (let j = 0; j < 3; j++) {
+    for (let i = 0; i < L.segs; i++) {
+      const i2 = (i + 1) % L.segs;
+      const a = rows[j][i], b = rows[j][i2], c = rows[j + 1][i], d = rows[j + 1][i2];
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  // one low domed fan: centre (cx, cz), radii rx (across) and rz (along the
+  // walk), in the frame of a paw at (px, pz) facing (fx, fz)
+  const fan = (px, pz, fx, fz, cx, cz, rx, rz, n, shade) => {
+    const sx = -fz, sz = fx; // the paw's left
+    const at = (u, v) => [px + sx * u + fx * v, pz + sz * u + fz * v];
+    const [mx, mz] = at(cx, cz);
+    const top = stone.clone().multiplyScalar(shade);
+    const edge = rim.clone().multiplyScalar(shade);
+    const c0 = vert(mx, L.lift + L.dome, mz, top, 1);
+    const first = pos.length / 3;
+    for (let m = 0; m < n; m++) {
+      const b = (m / n) * Math.PI * 2;
+      const [x, z] = at(cx + Math.cos(b) * rx, cz + Math.sin(b) * rz);
+      vert(x, L.lift, z, edge, 1);
+    }
+    for (let m = 0; m < n; m++) idx.push(c0, first + m, first + ((m + 1) % n));
+  };
+  const k = L.pawScale;
+  for (let p = 0; p < L.paws; p++) {
+    const a = (p / L.paws) * Math.PI * 2 + 0.2;
+    const r = L.pawR + (p % 2 ? L.pawStep : -L.pawStep);
+    const px = Math.cos(a) * r, pz = -Math.sin(a) * r;
+    // anticlockwise seen from above: the walk direction is the tangent
+    const fx = -Math.sin(a), fz = -Math.cos(a);
+    const shade = 0.94 + 0.06 * Math.sin(p * 2.3);
+    // the main pad: wide, a little shorter than it is wide, behind the toes
+    fan(px, pz, fx, fz, 0, -0.03 * k, 0.05 * k, 0.04 * k, 7, shade);
+    // four toes in an arc ahead of it, the middle two a little further out
+    for (const [u, v] of [[-0.058, 0.03], [-0.021, 0.058], [0.021, 0.058], [0.058, 0.03]]) {
+      fan(px, pz, fx, fz, u * k, v * k, 0.019 * k, 0.023 * k, 6, shade);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 // createRace(scene, course, spawn) — course is the 5-waypoint array from
 // raceCourse; spawn is the area's own spawn point (areaData.spawn). Builds a
 // start pad just off spawn plus one upright ring per waypoint, and returns
@@ -128,15 +211,38 @@ export function raceCourse(pois, seed) {
 // on that ring's level (ground.sameLevel; always true on flat ground, so every
 // other race is unchanged). kind 'climb' is the Gorge's fixed course; it only
 // changes the pad's prompt and what finishing it is called (finishLabel).
-export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 'daily' } = {}) {
+export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 'daily', dusk = false } = {}) {
   const group = new THREE.Group();
 
-  // start pad: a flat ring lying on the ground, offset from spawn so it
-  // doesn't sit directly under the cat's own spawn position.
-  const padMat = litMaterial(0xf2e04e, { emissive: 0x8a7020 });
-  const pad = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.3, 24), padMat);
-  pad.rotation.x = -Math.PI / 2;
-  pad.position.set(spawn.x + 2, ground.y(spawn.x + 2, spawn.z - 3) + 0.02, spawn.z - 3);
+  // start pad, offset from spawn so it doesn't sit directly under the cat's
+  // own spawn position. polish-startpad: a worn circle of earth with eight
+  // cream paw-print stones walking round it, instead of a flat yellow ring.
+  // One geometry, one material, one mesh (race.js runs in every walk and
+  // the flat trace counts THREE objects). The worn ring is a soft see-through
+  // brown, so it darkens whatever it lies on (grass, path, cobbles, sand) in
+  // that ground's own tone; the stones are opaque (vertex alpha 1). By day
+  // nothing glows; at dusk only the stones glow, gently (half the old ring's).
+  const padX = spawn.x + 2, padZ = spawn.z - 3;
+  // 4.5 cm up (the old ring sat at 2 cm, under the Seaside boardwalk's 3 cm
+  // deck, so it never showed there); padGeometry's heights are relative to it
+  const padY = ground.y(padX, padZ) + PAD_LOOK.y;
+  const padMat = litMaterial(0xffffff, {
+    vertexColors: true, transparent: true, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    emissive: dusk ? PAD_LOOK.duskGlow : 0x000000,
+  });
+  // the glow is masked to the stones: the worn earth never lights up
+  padMat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= smoothstep( 0.7, 0.95, vColor.a );');
+  };
+  padMat.customProgramCacheKey = () => 'race-pad-v1';
+  const pad = new THREE.Mesh(padGeometry((x, z) => ground.y(padX + x, padZ + z) - (padY - PAD_LOOK.y)), padMat);
+  pad.position.set(padX, padY, padZ);
+  pad.castShadow = false;
+  pad.userData.noCast = true;
+  pad.userData.racePad = true;
+  pad.renderOrder = -1; // under the hoops and pennant among the see-through things
   group.add(pad);
 
   // Two shared hoop geometries; each ring has its own material so a ring
