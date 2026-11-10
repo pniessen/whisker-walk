@@ -93,4 +93,7 @@ it again with the refresh and load the save back with its code.
   Simulator,name=iPhone 18 Pro' -derivedDataPath ios/build` runs its unit
   tests (build `ios/web` first).
 - `npm run ios:refresh -- --dev` runs the refresh from a branch or worktree.
+- The refresh runs `npx vitest run --dir test`, not `npm test`: in the main
+  checkout a bare `npm test` also collects the tests of every other worktree
+  (`.worktrees/`, `.claude/worktrees/`).
 - Debug builds can be inspected from Safari on the Mac (Develop menu).

@@ -129,9 +129,12 @@ if (!dev) {
   if (!check.ok) stop(check.reason);
 }
 
-// 2. The same tests the website deploy runs.
+// 2. The same tests the website deploy runs. Only the repo's own test/
+//    folder: in the main checkout, a bare `npm test` would also collect the
+//    tests inside every other worktree (.worktrees/, .claude/worktrees/),
+//    whose unfinished work can fail and would block the family's refresh.
 step('Running the tests');
-logged('tests', 'npm', ['test']);
+logged('tests', 'npx', ['vitest', 'run', '--dir', 'test']);
 
 // 3. The app's copy of the game.
 step('Building the game for the app');
