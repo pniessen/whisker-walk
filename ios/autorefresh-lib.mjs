@@ -118,7 +118,7 @@ export function notifyScript({ title, message, urgent }) {
 const xml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /** The launchd agent that runs the nightly refresh. */
-export function launchAgentPlist({ label, node, repo, log, path, hour, minute }) {
+export function launchAgentPlist({ label, node, repo, log, path, hour, minute, args = ['--auto'] }) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -129,7 +129,7 @@ export function launchAgentPlist({ label, node, repo, log, path, hour, minute })
   <array>
     <string>${xml(node)}</string>
     <string>${xml(`${repo}/ios/refresh.mjs`)}</string>
-    <string>--auto</string>
+${args.map((a) => `    <string>${xml(a)}</string>`).join('\n')}
   </array>
   <key>WorkingDirectory</key>
   <string>${xml(repo)}</string>

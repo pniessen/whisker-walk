@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build:ios": "vite build --mode ios",
-    "ios:refresh": "node ios/refresh.mjs"
+    "ios:refresh": "node ios/refresh.mjs",
+    "ios:schedule": "node ios/schedule.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",

@@ -231,6 +231,11 @@ describe('launchAgentPlist: the 7 pm job', () => {
     expect(xml).toMatch(/<key>PATH<\/key>\s*<string>\/Users\/p\/.local\/share\/mise\/installs\/node\/26\/bin:\/usr\/bin:\/bin<\/string>/);
   });
 
+  it('takes other refresh arguments for a one-off test job', () => {
+    const x = launchAgentPlist({ label: 'l', node: '/n', repo: '/r', log: '/l', path: '/p', hour: 19, minute: 0, args: ['--auto', '--window-minutes=0'] });
+    expect(x).toMatch(/<string>--auto<\/string>\s*<string>--window-minutes=0<\/string>\s*<\/array>/);
+  });
+
   it('escapes XML special characters in paths', () => {
     const x = launchAgentPlist({ label: 'l', node: '/a&b/node', repo: '/r<1>', log: '/l', path: '/p', hour: 19, minute: 0 });
     expect(x).toContain('/a&amp;b/node');
