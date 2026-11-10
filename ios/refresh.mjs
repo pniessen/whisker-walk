@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { preflight, parseDevices, profileMatches, summarize } from './refresh-lib.mjs';
+import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory } from './refresh-lib.mjs';
 
 const TEAM_ID = 'CWCZY9U9A8';
 const BUNDLE_ID = 'com.pniessen.WhiskerWalk';
@@ -42,14 +42,21 @@ function step(message) {
 }
 
 // Run a long, noisy command with its output going to a log file.
-function logged(name, cmd, args) {
+function attempt(name, cmd, args) {
   mkdirSync(DERIVED, { recursive: true });
   const log = join(DERIVED, `refresh-${name}.log`);
   const r = run(cmd, args);
   writeFileSync(log, r.out + r.err);
-  if (!r.ok) stop(`${name} failed. Full log: ${log}`, r.out + r.err);
+  return { ...r, log };
+}
+
+function logged(name, cmd, args) {
+  const r = attempt(name, cmd, args);
+  if (!r.ok) stop(`${name} failed. Full log: ${r.log}`, r.out + r.err);
   return r.out;
 }
+
+const lastLine = (text) => text.trim().split('\n').filter(Boolean).pop() ?? '';
 
 // One value from a provisioning profile (they are signed plists).
 function profileValue(file, keyPath, format = 'raw') {
@@ -68,14 +75,39 @@ function readProfile(file) {
   };
 }
 
+const buildArgs = (destination) => [
+  '-project', PROJECT, '-scheme', 'WhiskerWalk', '-configuration', 'Release',
+  '-destination', destination, '-derivedDataPath', DERIVED,
+  '-allowProvisioningUpdates', '-allowProvisioningDeviceRegistration', 'build',
+];
+const builtProfile = () => readProfile(join(APP, 'embedded.mobileprovision'));
+
 function build(destination) {
-  logged('xcodebuild', 'xcodebuild', [
-    '-project', PROJECT, '-scheme', 'WhiskerWalk', '-configuration', 'Release',
-    '-destination', destination, '-derivedDataPath', DERIVED,
-    '-allowProvisioningUpdates', '-allowProvisioningDeviceRegistration', 'build',
-  ]);
-  return readProfile(join(APP, 'embedded.mobileprovision'));
+  logged('xcodebuild', 'xcodebuild', buildArgs(destination));
+  return builtProfile();
 }
+
+// A build for one new device registers it with the free team. If it fails,
+// only that device fails: the last good build is still installed elsewhere.
+function register(udid) {
+  const r = attempt(`register-${udid}`, 'xcodebuild', buildArgs(`platform=iOS,id=${udid}`));
+  if (r.ok) return { ok: true, profile: builtProfile() };
+  const error = (r.out + r.err).split('\n').find((l) => /error:/.test(l)) ?? lastLine(r.out + r.err);
+  // Rebuild the generic app so what gets installed is a complete, signed build.
+  build('generic/platform=iOS');
+  return { ok: false, detail: `${error.replace(/^.*error:\s*/, '').trim()} (log: ${r.log})` };
+}
+
+function install(udid) {
+  const r = run('xcrun', ['devicectl', 'device', 'install', 'app', '--device', udid, APP], { timeout: 120_000 });
+  return r.ok ? { ok: true } : { ok: false, detail: lastLine(r.error?.message ?? (r.err || r.out)) };
+}
+
+// When each device's current install stops opening (gitignored).
+const HISTORY = 'ios/installs.json';
+const readHistory = () => {
+  try { return JSON.parse(readFileSync(HISTORY, 'utf8')); } catch { return {}; }
+};
 
 function listDevices() {
   const file = join(tmpdir(), `whiskerwalk-devices-${process.pid}.json`);
@@ -125,24 +157,19 @@ let profile = build('generic/platform=iOS');
 // 6. Install on every family device.
 step('Installing on your devices');
 const devices = listDevices();
-const isNew = (d) => d.reachable && !profile.ProvisionedDevices.includes(d.udid);
-for (const d of devices.filter(isNew)) {
-  console.log(`  Setting up ${d.name} for the first time…`);
-  profile = build(`platform=iOS,id=${d.udid}`);
-}
-
-const results = devices.map((d) => {
-  if (!profile.ProvisionedDevices.includes(d.udid)) return { name: d.name, status: 'unregistered' };
-  if (!d.reachable) return { name: d.name, status: 'skipped' };
-  console.log(`  ${d.name}…`);
-  const r = run('xcrun', ['devicectl', 'device', 'install', 'app', '--device', d.udid, APP], { timeout: 120_000 });
-  if (r.ok) return { name: d.name, status: 'installed' };
-  const lastLine = (r.error?.message ?? (r.err || r.out)).trim().split('\n').filter(Boolean).pop();
-  return { name: d.name, status: 'failed', detail: lastLine };
+const named = new Map(devices.map((d) => [d.udid, d.name]));
+const outcome = refreshDevices({
+  devices,
+  profile,
+  register: (udid) => { console.log(`  Setting up ${named.get(udid)} for the first time…`); return register(udid); },
+  install: (udid) => { console.log(`  ${named.get(udid)}…`); return install(udid); },
 });
+profile = outcome.profile;
 
-// 7. Report.
+// 7. Report, and remember each device's new expiry for next time.
 const expiry = new Date(profile.ExpirationDate);
-const { lines, exitCode } = summarize(results, expiry, new Date());
+const history = readHistory();
+const { lines, exitCode } = summarize(outcome.results, expiry, new Date(), history);
+writeFileSync(HISTORY, `${JSON.stringify(updateHistory(history, outcome.results, expiry), null, 2)}\n`);
 console.log(`\n${lines.join('\n')}`);
 process.exit(exitCode);

@@ -28,12 +28,17 @@ Design and plan: `docs/superpowers/specs/2026-11-09-ios-app-design.md` and
 
 3. Read the last lines. Each device gets one:
    - `✓ installed`: done.
-   - `– skipped`: it was asleep, locked or out of range. Wake it and run the
-     refresh again (devices already done are simply done again).
+   - `– skipped`: it was asleep, locked or out of range, so it still has
+     last week's install; the line says the day that one stops opening. Wake
+     it and run the refresh again (devices already done are simply done
+     again). If that day is close, a **Warning** line names the device.
    - `– not set up yet`: a new device; follow "Setting up a new device".
-   - `✗ failed: …`: the reason is on the line. Unlock it and try again.
+   - `✗ failed: …`: the reason is on the line. Unlock it and try again. A new
+     device that can't be set up yet fails on its own line; the others are
+     still refreshed.
 
-   The last line says when this install expires and the day to refresh by.
+   After the device lines, "New installs expire …" gives the date for every
+   device marked `✓ installed`, and the day to refresh by.
 
 It takes a few minutes: it runs the game's tests, builds the game and the app,
 and asks Apple for a fresh 7-day signing permit.

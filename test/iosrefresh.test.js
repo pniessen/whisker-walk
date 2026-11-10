@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { preflight, parseDevices, profileMatches, summarize } from '../ios/refresh-lib.mjs';
+import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory } from '../ios/refresh-lib.mjs';
 
 // The weekly refresh (ios/refresh.mjs) reinstalls the iOS app on every family
 // device. These are its decisions: what may be built, which devices count,
@@ -107,5 +107,93 @@ describe('summarize', () => {
     const r = summarize([{ name: 'Dad', status: 'installed' }], new Date('2026-11-13T09:00:00Z'), now);
     expect(text(r)).toMatch(/warning/i);
     expect(text(summarize([{ name: 'Dad', status: 'installed' }], fresh, now))).not.toMatch(/warning/i);
+  });
+});
+
+describe('refreshDevices: one device never holds up the others', () => {
+  const phone = { udid: 'P', name: 'Dad', reachable: true };
+  const newIpad = { udid: 'N', name: 'Leo', reachable: true };
+  const asleep = { udid: 'S', name: 'Iris', reachable: false };
+  const profile = { ProvisionedDevices: ['P', 'S'], ExpirationDate: '2026-11-17T09:00:00Z' };
+
+  function fakes({ registerOk }) {
+    const installed = [];
+    return {
+      installed,
+      register: (udid) => (registerOk
+        ? { ok: true, profile: { ...profile, ProvisionedDevices: [...profile.ProvisionedDevices, udid] } }
+        : { ok: false, detail: 'Developer Mode is off' }),
+      install: (udid) => { installed.push(udid); return { ok: true }; },
+    };
+  }
+
+  it('a new device that cannot be set up fails alone; the rest still install', () => {
+    const f = fakes({ registerOk: false });
+    const { results } = refreshDevices({ devices: [phone, newIpad, asleep], profile, ...f });
+    expect(f.installed).toEqual(['P']);
+    expect(results.find((r) => r.name === 'Dad').status).toBe('installed');
+    expect(results.find((r) => r.name === 'Leo')).toMatchObject({ status: 'failed', detail: expect.stringMatching(/Developer Mode is off/) });
+    expect(results.find((r) => r.name === 'Iris').status).toBe('skipped');
+  });
+
+  it('a new device that can be set up is registered, then installed', () => {
+    const f = fakes({ registerOk: true });
+    const out = refreshDevices({ devices: [phone, newIpad], profile, ...f });
+    expect(f.installed.sort()).toEqual(['N', 'P']);
+    expect(out.profile.ProvisionedDevices).toContain('N');
+    expect(out.results.every((r) => r.status === 'installed')).toBe(true);
+  });
+
+  it('an unregistered device out of range is left for setup, not attempted', () => {
+    const f = fakes({ registerOk: true });
+    const { results } = refreshDevices({ devices: [{ udid: 'X', name: 'Gran', reachable: false }], profile, ...f });
+    expect(results).toEqual([{ name: 'Gran', udid: 'X', status: 'unregistered' }]);
+    expect(f.installed).toEqual([]);
+  });
+
+  it('a failed install is reported with its reason', () => {
+    const { results } = refreshDevices({
+      devices: [phone], profile,
+      register: () => ({ ok: false }),
+      install: () => ({ ok: false, detail: 'device locked' }),
+    });
+    expect(results[0]).toMatchObject({ status: 'failed', detail: 'device locked' });
+  });
+});
+
+describe('summarize: every device says when its own app stops opening', () => {
+  const now = new Date('2026-11-10T09:00:00Z');
+  const fresh = new Date('2026-11-17T09:00:00Z');
+  const text = (r) => r.lines.join('\n');
+
+  it('labels the date as the new installs’ expiry', () => {
+    expect(text(summarize([{ name: 'Dad', udid: 'P', status: 'installed' }], fresh, now))).toMatch(/New installs expire/);
+  });
+
+  it('a skipped device shows the date its earlier install stops opening', () => {
+    const history = { S: '2026-11-14T09:00:00Z' };
+    const r = summarize([{ name: 'Dad', udid: 'P', status: 'installed' }, { name: 'Iris', udid: 'S', status: 'skipped' }], fresh, now, history);
+    expect(text(r)).toMatch(/Iris.*skipped.*stops opening Sat 14 Nov/);
+    expect(text(r)).not.toMatch(/warning/i);
+  });
+
+  it('warns by name when a skipped device stops opening within 2 days', () => {
+    const history = { S: '2026-11-11T09:00:00Z' };
+    const r = summarize([{ name: 'Dad', udid: 'P', status: 'installed' }, { name: 'Iris', udid: 'S', status: 'skipped' }], fresh, now, history);
+    expect(text(r)).toMatch(/Warning:.*Iris/);
+  });
+
+  it('a skipped device with no record says it keeps its earlier date', () => {
+    const r = summarize([{ name: 'Dad', udid: 'P', status: 'installed' }, { name: 'Iris', udid: 'S', status: 'skipped' }], fresh, now, {});
+    expect(text(r)).toMatch(/Iris.*earlier/);
+  });
+});
+
+describe('updateHistory', () => {
+  it('records the new expiry for installed devices only, keeping the rest', () => {
+    const expiry = new Date('2026-11-17T09:00:00Z');
+    const results = [{ name: 'Dad', udid: 'P', status: 'installed' }, { name: 'Iris', udid: 'S', status: 'skipped' }];
+    expect(updateHistory({ S: '2026-11-14T09:00:00Z', P: '2026-11-12T00:00:00Z' }, results, expiry))
+      .toEqual({ S: '2026-11-14T09:00:00Z', P: '2026-11-17T09:00:00.000Z' });
   });
 });

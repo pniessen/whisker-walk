@@ -30,3 +30,4 @@ ios/web/
 ios/build/
 xcuserdata/
 *.xcuserstate
+ios/installs.json

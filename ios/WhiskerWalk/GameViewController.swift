@@ -19,7 +19,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
     ///   phones) still applies whenever it is larger than the safe area.
     private static let touchCSS = """
         html { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-        input, textarea, [contenteditable] { -webkit-user-select: auto; user-select: auto; }
+        input, textarea, [contenteditable] { -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; }
         .homebase-scroll {
           padding-top: max(32px, calc(env(safe-area-inset-top) + 8px));
           padding-left: max(20px, env(safe-area-inset-left));
@@ -121,7 +121,10 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
     /// (memory pressure on an older iPad). Without this the game comes back as
     /// a blank screen; with it, the game starts again with its save intact.
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        webView.reload()
+        switch CrashRecovery.action(currentURL: webView.url) {
+        case .reload: webView.reload()
+        case .loadStart: webView.load(URLRequest(url: AppScheme.startURL))
+        }
     }
 
     // MARK: WKUIDelegate
