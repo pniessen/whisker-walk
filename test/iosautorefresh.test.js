@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { planNight, isGameRunning, nightNotice, notifyScript, launchAgentPlist, latestResults, stillPending, stableNode } from '../ios/autorefresh-lib.mjs';
 
-// The nightly refresh (ios/refresh.mjs --auto, run by launchd at 7 pm) renews
-// a device only in its last 3 days, waits while the game is open (until the
-// last day), keeps the app alive with the last good build when main can't
-// ship, and tells the owner only when there is something to say.
+// The nightly refresh (ios/refresh.mjs --auto, run by launchd at 7 pm, retrying
+// until 11 pm) renews a device only on its last 3 nights, waits while the game
+// is open (until the last night), keeps the app alive with the last good build
+// when main can't ship, and tells the owner only when there is something to
+// say. Installs happen between 7 and 11 pm, so on any evening a device has
+// within a few hours of a whole number of days left: "nights left" rounds.
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date('2026-11-14T19:00:00Z');
@@ -14,11 +16,21 @@ const ipad = { udid: 'IPAD', name: 'Charlie’s iPad', reachable: true };
 
 const actions = (plan) => Object.fromEntries(plan.devices.map((d) => [d.udid, d.action]));
 
-describe('planNight: renew only in the last 3 days', () => {
-  it('leaves a device with more than 3 days left alone', () => {
-    const plan = planNight({ devices: [phone], history: { PHONE: inDays(3.5) }, playing: new Set(), now });
+describe('planNight: renew only on the last 3 nights', () => {
+  it('leaves a device with 4 nights left alone', () => {
+    const plan = planNight({ devices: [phone], history: { PHONE: inDays(3.6) }, playing: new Set(), now });
     expect(actions(plan)).toEqual({ PHONE: 'fine' });
     expect(plan.toRenew).toEqual([]);
+  });
+
+  it('leaves it alone at 11 pm the night before (installed at 7 pm, 3.84 days left)', () => {
+    const plan = planNight({ devices: [phone], history: { PHONE: inDays(3.84) }, playing: new Set(), now });
+    expect(plan.toRenew).toEqual([]);
+  });
+
+  it('renews at 7 pm four nights after a 7:03 pm install (3.00 days left)', () => {
+    const plan = planNight({ devices: [phone], history: { PHONE: inDays(3.002) }, playing: new Set(), now });
+    expect(plan.toRenew).toEqual(['PHONE']);
   });
 
   it('renews a reachable device with 3 days or fewer left', () => {
@@ -57,14 +69,19 @@ describe('planNight: renew only in the last 3 days', () => {
 });
 
 describe('planNight: an install closes the game, so wait while it is open', () => {
-  it('waits while the game is open and more than a day is left', () => {
+  it('waits while the game is open and more than one night is left', () => {
     const plan = planNight({ devices: [ipad], history: { IPAD: inDays(2) }, playing: new Set(['IPAD']), now });
     expect(actions(plan)).toEqual({ IPAD: 'waiting' });
     expect(plan.toRenew).toEqual([]);
   });
 
-  it('renews anyway on the last day: an interrupted walk beats a dead app', () => {
+  it('renews anyway on the last night: an interrupted walk beats a dead app', () => {
     const plan = planNight({ devices: [ipad], history: { IPAD: inDays(0.9) }, playing: new Set(['IPAD']), now });
+    expect(plan.toRenew).toEqual(['IPAD']);
+  });
+
+  it('counts a late (10:30 pm) install as one night left on its last 7 pm', () => {
+    const plan = planNight({ devices: [ipad], history: { IPAD: inDays(1.15) }, playing: new Set(['IPAD']), now });
     expect(plan.toRenew).toEqual(['IPAD']);
   });
 });
@@ -183,6 +200,24 @@ describe('nightNotice: speak only when there is something to say', () => {
 
   it('is quiet about a device away on its first due night', () => {
     expect(nightNotice({ plan: plan([dev('IPAD', 'Charlie’s iPad', 'away', 2.9)]), results: [], expiry: null, build: null, now })).toBeNull();
+  });
+
+  it('alerts on the second-to-last night even when a few hours over 2 days are left', () => {
+    const n = nightNotice({ plan: plan([dev('IPAD', 'Charlie’s iPad', 'away', 2.1)]), results: [], expiry: null, build: null, now });
+    expect(n?.urgent).toBe(true);
+  });
+
+  it('alerts when the device list is missing or unreadable: nothing can be renewed', () => {
+    const n = nightNotice({ plan: plan([]), results: [], expiry: null, build: null, now, historyProblem: 'ios/installs.json is missing' });
+    expect(n.urgent).toBe(true);
+    expect(n.message).toMatch(/ios\/installs.json is missing/);
+    expect(n.message).toMatch(/npm run ios:refresh/);
+  });
+
+  it('alerts when the Mac could not list devices all evening', () => {
+    const n = nightNotice({ plan: plan([]), results: [], expiry: null, build: null, now, listProblem: "the Mac couldn't list devices" });
+    expect(n.urgent).toBe(true);
+    expect(n.message).toMatch(/couldn't list devices/);
   });
 
   it('alerts when a due device has been away into its last 2 days, with its stop date', () => {

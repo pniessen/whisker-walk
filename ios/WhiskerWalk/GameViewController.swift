@@ -79,6 +79,8 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         webView.load(URLRequest(url: AppScheme.startURL))
         NotificationCenter.default.addObserver(self, selector: #selector(appBecameActive),
                                                name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive),
+                                               name: UIApplication.willResignActiveNotification, object: nil)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -92,7 +94,16 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         showExpiryWarningIfDue()
     }
 
-    /// In the app's last 2 days, a friendly banner over the top of the game
+    /// Leaving the app hides the banner, so it is shown fresh (for its full
+    /// 12 seconds) next time.
+    @objc private func appWillResignActive() {
+        if let banner = expiryBanner {
+            expiryBanner = nil
+            banner.removeFromSuperview()
+        }
+    }
+
+    /// In the app's last day, a friendly banner over the top of the game
     /// (tap to hide; it goes by itself after 12 seconds and comes back each
     /// time the app is opened).
     private func showExpiryWarningIfDue() {
@@ -101,7 +112,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         // Preview on the simulator, which has no profile:
         //   xcrun simctl launch booted com.pniessen.WhiskerWalk -PreviewExpiryWarning YES
         if UserDefaults.standard.bool(forKey: "PreviewExpiryWarning") {
-            expiry = Date().addingTimeInterval(24 * 60 * 60)
+            expiry = Date().addingTimeInterval(20 * 60 * 60)
         }
         #endif
         guard expiryBanner == nil, let text = ExpiryWarning.message(expiry: expiry, now: Date()) else { return }

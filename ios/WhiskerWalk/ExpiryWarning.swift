@@ -1,11 +1,12 @@
 import Foundation
 
 /// The free signing this app uses runs out after 7 days, and then the app
-/// stops opening. In its last 2 days the app says so, so a missed refresh is
-/// noticed in time.
+/// stops opening. In its last day the app says so, so a missed refresh is
+/// noticed in time. Not earlier: the Mac's nightly refresh renews on the
+/// last night, so an earlier banner would show every week while all is well.
 enum ExpiryWarning {
     /// Warn with this much time left.
-    static let warnWithin: TimeInterval = 2 * 24 * 60 * 60
+    static let warnWithin: TimeInterval = 24 * 60 * 60
 
     /// The expiry in a provisioning profile: a plist inside a signature.
     static func expiry(fromProfile data: Data) -> Date? {
@@ -25,14 +26,10 @@ enum ExpiryWarning {
         return expiry(fromProfile: data)
     }
 
-    /// The banner text, or nil while more than 2 days are left.
+    /// The banner text, or nil while more than a day is left.
     static func message(expiry: Date?, now: Date, calendar: Calendar = .current) -> String? {
         guard let expiry, expiry.timeIntervalSince(now) <= warnWithin else { return nil }
-        let weekday = DateFormatter()
-        weekday.locale = Locale(identifier: "en_US")
-        weekday.calendar = calendar
-        weekday.timeZone = calendar.timeZone
-        weekday.dateFormat = "EEEE"
-        return "This game needs a refresh soon — ask a grown-up! It stops opening on \(weekday.string(from: expiry))."
+        let when = calendar.isDate(expiry, inSameDayAs: now) ? "today" : "tomorrow"
+        return "This game needs a refresh soon — ask a grown-up! It stops opening \(when)."
     }
 }
