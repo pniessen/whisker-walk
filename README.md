@@ -16,9 +16,10 @@ Then open the printed localhost URL.
 
 **Whisker Walk 2** is also a home-screen app for the family's iPhones and
 iPads: tap the cat icon and you're in the game, full screen, offline. It's in
-`ios/`, signed with a free Apple ID, so it needs a refresh once a week
-(`npm run ios:refresh`). `ios/README.md` covers setting up a device, bringing
-a cat across from Safari, and the weekly refresh.
+`ios/`, signed with a free Apple ID, so each install lasts 7 days; a nightly
+job on the Mac (`npm run ios:schedule`) renews them automatically, and
+`npm run ios:refresh` does it by hand. `ios/README.md` covers setting up a
+device, bringing a cat across from Safari, and the refresh.
 
 ## Two editions
 

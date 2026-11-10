@@ -7,15 +7,66 @@ the internet (walking together still needs it).
 
 It is signed with a free Apple ID, which has two limits:
 
-- **Every install stops opening after 7 days.** Run the weekly refresh (below)
-  and it's good for another 7 days.
+- **Every install stops opening after 7 days.** The nightly refresh (below)
+  renews each device before then; you can also refresh by hand.
 - **At most 3 of your own apps on one device.** Hello World counts; delete it
   from a device if you need the room.
 
 Design and plan: `docs/superpowers/specs/2026-11-09-ios-app-design.md` and
 `docs/superpowers/plans/2026-11-09-ios-app.md`.
 
-## Every week: the refresh
+## Every night: the automatic refresh
+
+Turn it on once, in Terminal, in the main `cat-game` folder:
+
+```bash
+npm run ios:schedule
+```
+
+From then on, every evening at 7 pm this Mac (on and logged in; if it's
+asleep, it runs when it wakes):
+
+- **renews only devices on their last 3 nights**, so in a normal week each
+  device is reinstalled once;
+- **waits while Whisker Walk is open** on a device (installing closes the
+  game; a game left paused in the background counts as open), until that
+  device's last night;
+- **keeps trying every 30 minutes until 11 pm** for an iPad that's asleep or
+  off the Wi-Fi;
+- installs the latest `main` if its tests pass, and otherwise (tests failing,
+  uncommitted changes, not on `main`) **reinstalls the last version that
+  passed**, so the app never stops opening because of unfinished work;
+- shows **one Mac notification** when it did something: a quiet "Renewed
+  Charlie's iPad, good until …", or an alert with a sound when something
+  needs you (an install failed on a device's last 2 nights, an iPad has been
+  unreachable into its last 2 nights, the device list `ios/installs.json` is
+  missing, nothing could be built, or the job itself crashed).
+
+It keeps the Mac awake while it runs. Turning it on sends a test
+notification: if you don't see it, allow notifications for **Script Editor**
+in System Settings → Notifications (that's how the job posts them).
+
+On its last day, the app itself shows a banner: *"This game needs a refresh
+soon — ask a grown-up! It stops opening tomorrow."* It only appears if the
+last night's renewal didn't happen, so if the children mention it, run the
+refresh by hand.
+
+```bash
+npm run ios:schedule -- status    # on or off, and what the last run said
+npm run ios:schedule -- remove    # turn it off
+```
+
+The log is `~/Library/Logs/whisker-walk-refresh.log`. If Node is upgraded to
+a new major version, run `npm run ios:schedule` again (`status` says so).
+
+**Retiring a device** (an old iPad given away or wiped): delete its line from
+`ios/installs.json`, or the nightly job keeps alerting that it can't reach
+it. A refresh by hand while the nightly one is running waits its turn: it
+stops with "Another refresh is running"; try again in a few minutes.
+
+## By hand: the refresh
+
+Use this for a new device, after a nightly alert, or any time.
 
 1. Wake the devices, unlock them, and make sure they're on the home Wi-Fi
    (or plugged into this Mac).
@@ -54,17 +105,15 @@ save. The refresh always installs over the top, which keeps it.
 3. **Turn on Developer Mode:** on the device, **Settings → Privacy &
    Security**, scroll to the bottom, **Developer Mode** → on. It restarts;
    after unlocking, tap **Turn On** and enter the passcode.
-   (If Developer Mode isn't listed, open Xcode → **Window → Devices and
-   Simulators**, select the device, wait for it to finish preparing, then
-   look again.)
+   (If Developer Mode isn't listed, leave the device plugged in and unlocked
+   with Xcode open for a few minutes, then look again.)
 4. **Run the refresh** with the device still plugged in and unlocked:
    `npm run ios:refresh`. It registers the new device and installs the app.
 5. **Trust the developer certificate:** on the device, **Settings → General →
    VPN & Device Management** → under *Developer App*, tap
    **Apple Development: …** → **Trust**.
-6. **Turn on Wi-Fi refreshes:** in Xcode → **Window → Devices and
-   Simulators**, select the device and tick **Connect via network**. From now
-   on it can be refreshed over the home Wi-Fi without the cable.
+6. **Unplug it.** From now on it's refreshed over the home Wi-Fi, by the
+   nightly refresh or by hand; no setting needed.
 7. **Bring the cat across** (next section).
 
 **If an iPad can't run iPadOS 17 or later,** the app can't go on it. That
@@ -93,6 +142,14 @@ it again with the refresh and load the save back with its code.
   Simulator,name=iPhone 18 Pro' -derivedDataPath ios/build` runs its unit
   tests (build `ios/web` first).
 - `npm run ios:refresh -- --dev` runs the refresh from a branch or worktree.
+- `node ios/refresh.mjs --auto` is the nightly run (`--window-minutes=0` for
+  a single round, `--retry-minutes=N`; `WHISKERWALK_NO_NOTIFY=1` logs notices
+  instead of posting them). Its decisions are in
+  `ios/autorefresh-lib.mjs`, tested by `test/iosautorefresh.test.js`. The
+  last version that passed lives in `ios/last-good/` (gitignored: the game
+  bundle and its commit); every successful refresh from `main` updates it.
+- Debug builds preview the expiry banner on the simulator:
+  `xcrun simctl launch booted com.pniessen.WhiskerWalk -PreviewExpiryWarning YES`.
 - The refresh runs `npx vitest run --dir test`, not `npm test`: in the main
   checkout a bare `npm test` also collects the tests of every other worktree
   (`.worktrees/`, `.claude/worktrees/`).
