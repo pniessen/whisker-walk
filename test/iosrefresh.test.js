@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory } from '../ios/refresh-lib.mjs';
 
-// The weekly refresh (ios/refresh.mjs) reinstalls the iOS app on every family
+// The refresh (ios/refresh.mjs) reinstalls the iOS app on every family
 // device. These are its decisions: what may be built, which devices count,
 // which cached signing profile to throw away, and what to tell the owner.
 

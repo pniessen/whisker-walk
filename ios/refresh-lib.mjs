@@ -1,4 +1,4 @@
-// Decisions for the weekly refresh (ios/refresh.mjs), kept free of side
+// Decisions for the refresh (ios/refresh.mjs), kept free of side
 // effects so test/iosrefresh.test.js can pin them.
 
 /**
