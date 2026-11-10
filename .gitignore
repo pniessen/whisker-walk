@@ -24,3 +24,9 @@ verify-*.html
 
 # Brainstorming visual-companion scratch (mockups, server state)
 .superpowers/
+
+# iOS app (ios/): the bundled game build and Xcode output
+ios/web/
+ios/build/
+xcuserdata/
+*.xcuserstate

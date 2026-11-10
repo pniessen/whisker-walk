@@ -1,9 +1,36 @@
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { defineConfig } from 'vite';
+
+// The iOS app (ios/) bundles its own copy of the game: `npm run build:ios`
+// builds with this mode into ios/web, which the Xcode project copies into the
+// app. It uses a relative base because the app serves the files from its own
+// URL scheme, not from /whisker-walk/.
+export const IOS_MODE = 'ios';
+export const IOS_OUT_DIR = 'ios/web';
+
+// The app needs neither the offline service worker (src/swpolicy.js never
+// registers it in the app) nor the Clan Edition promo page, which only links
+// back to the website.
+const IOS_PRUNE = ['sw.js', 'clan-edition.html'];
+
+function iosPrune() {
+  return {
+    name: 'ios-prune',
+    closeBundle() {
+      for (const file of IOS_PRUNE) rmSync(join(IOS_OUT_DIR, file), { force: true });
+    },
+  };
+}
 
 // GitHub Pages serves the app from /whisker-walk/, so production builds need
 // that base path; dev stays at / so localhost play is unaffected.
-export default defineConfig(({ command }) => ({
-  base: command === 'build' ? '/whisker-walk/' : '/',
+export default defineConfig(({ command, mode }) => ({
+  base: mode === IOS_MODE ? './' : command === 'build' ? '/whisker-walk/' : '/',
+  ...(mode === IOS_MODE && {
+    build: { outDir: IOS_OUT_DIR, emptyOutDir: true },
+    plugins: [iosPrune()],
+  }),
   test: {
     // Vitest's default is 5000ms per test, and the visual pass outgrew it.
     // Two files now do real work rather than arithmetic:

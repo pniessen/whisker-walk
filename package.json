@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:ios": "vite build --mode ios",
+    "ios:refresh": "node ios/refresh.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",
