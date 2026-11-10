@@ -12,6 +12,14 @@ Play it at **https://pniessen.github.io/whisker-walk/**, or run it locally:
 
 Then open the printed localhost URL.
 
+## On iPhone and iPad
+
+**Whisker Walk 2** is also a home-screen app for the family's iPhones and
+iPads: tap the cat icon and you're in the game, full screen, offline. It's in
+`ios/`, signed with a free Apple ID, so it needs a refresh once a week
+(`npm run ios:refresh`). `ios/README.md` covers setting up a device, bringing
+a cat across from Safari, and the weekly refresh.
+
 ## Two editions
 
 The game has two editions, which share one save. You can switch between them

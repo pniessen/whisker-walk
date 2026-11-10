@@ -1,0 +1,67 @@
+{
+  "info": {
+    "note": "Trimmed from xcrun devicectl list devices --json-output on 2026-11-09 (iPhone + simulator); the iPad entry is hand-made, unreachable."
+  },
+  "result": {
+    "devices": [
+      {
+        "identifier": "00000000-0000-0000-0000-000000000000",
+        "connectionProperties": {
+          "pairingState": "paired",
+          "transportType": "wired",
+          "tunnelState": "connected"
+        },
+        "deviceProperties": {
+          "name": "Peter’s iPhone (9501)",
+          "osVersionNumber": "27.2",
+          "developerModeStatus": "enabled"
+        },
+        "hardwareProperties": {
+          "deviceType": "iPhone",
+          "marketingName": "iPhone 18 Pro",
+          "platform": "iOS",
+          "reality": "physical",
+          "udid": "00008160-000000000000PHON"
+        }
+      },
+      {
+        "identifier": "00000000-0000-0000-0000-000000000000",
+        "connectionProperties": {
+          "pairingState": "paired",
+          "transportType": "sameMachine",
+          "tunnelState": "connected"
+        },
+        "deviceProperties": {
+          "name": "iPhone 18 Pro",
+          "osVersionNumber": "27.2"
+        },
+        "hardwareProperties": {
+          "deviceType": "iPhone",
+          "marketingName": "iPhone 18 Pro",
+          "platform": "iOS",
+          "reality": "simulated",
+          "udid": "00000000-0000-0000-0000-00000000SIM0"
+        }
+      },
+      {
+        "identifier": "00000000-0000-0000-0000-000000000003",
+        "connectionProperties": {
+          "pairingState": "paired",
+          "tunnelState": "disconnected"
+        },
+        "deviceProperties": {
+          "name": "Iris’s iPad",
+          "osVersionNumber": "18.6",
+          "developerModeStatus": "enabled"
+        },
+        "hardwareProperties": {
+          "deviceType": "iPad",
+          "marketingName": "iPad (A16)",
+          "platform": "iOS",
+          "reality": "physical",
+          "udid": "00008120-000000000000IPAD"
+        }
+      }
+    ]
+  }
+}

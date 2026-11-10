@@ -67,8 +67,9 @@ const blockList = createBlockList(window.localStorage);
 // graph isn't something a SW should try to cache) and only for a matching
 // path — import.meta.env.BASE_URL is '/' in dev and '/whisker-walk/' on
 // Pages, so deriving the SW URL and scope from it (rather than a hardcoded
-// '/') keeps registration correct under either base.
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+// '/') keeps registration correct under either base. The iOS app build
+// never registers one.
+if ('serviceWorker' in navigator && import.meta.env.PROD && import.meta.env.MODE !== 'ios') {
   window.addEventListener('load', () => {
     const base = import.meta.env.BASE_URL;
     navigator.serviceWorker.register(`${base}sw.js`, { scope: base }).catch(() => {});

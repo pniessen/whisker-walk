@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Whisker Walk 2 app icon, "Waving hello": the splash-screen cat (index.html #splash)
+       with sparkly eyes and rosy cheeks, on the green hill under a crescent moon.
+       Square on purpose: iOS rounds the corners. Render to
+       WhiskerWalk/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png (1024px, no alpha). -->
+  <rect width="512" height="512" fill="#1c2431"/>
+
+  <!-- moon and stars -->
+  <circle cx="404" cy="96" r="26" fill="#f1e0c2" opacity="0.9"/>
+  <circle cx="392" cy="88" r="24" fill="#1c2431"/>
+  <circle cx="92" cy="92" r="5" fill="#f1e0c2"/>
+  <circle cx="150" cy="58" r="3.5" fill="#f1e0c2"/>
+  <circle cx="456" cy="170" r="4" fill="#f1e0c2"/>
+  <circle cx="62" cy="190" r="3" fill="#f1e0c2"/>
+
+  <!-- hill -->
+  <path d="M0,452 Q256,382 512,452 L512,512 L0,512 Z" fill="#9fbf9c"/>
+  <path d="M0,452 Q256,382 512,452" fill="none" stroke="#7fa87c" stroke-width="6" opacity="0.6"/>
+
+  <!-- tail, feet, body, head -->
+  <path d="M175,382 Q118,372 112,322 Q108,290 145,278" fill="none" stroke="#f1e0c2" stroke-width="24" stroke-linecap="round"/>
+  <ellipse cx="208" cy="432" rx="26" ry="17" fill="#f1e0c2"/>
+  <ellipse cx="302" cy="446" rx="28" ry="18" fill="#f1e0c2"/>
+  <ellipse cx="256" cy="372" rx="90" ry="74" fill="#f1e0c2"/>
+  <circle cx="256" cy="240" r="118" fill="#f1e0c2"/>
+
+  <!-- tabby stripes and ears -->
+  <path d="M215,160 q9,23 4,41 M256,150 q0,25 0,45 M297,160 q-9,23 -4,41" fill="none" stroke="#d8bd8f" stroke-width="9" stroke-linecap="round"/>
+  <polygon points="167,167 222,91 238,182" fill="#f1e0c2"/>
+  <polygon points="345,167 290,91 274,182" fill="#f1e0c2"/>
+  <polygon points="185,159 217,122 225,174" fill="#e7a9a0"/>
+  <polygon points="327,159 295,122 287,174" fill="#e7a9a0"/>
+
+  <!-- collar -->
+  <path d="M195,338 Q256,360 317,338" fill="none" stroke="#f0a58c" stroke-width="18" stroke-linecap="round"/>
+  <polygon points="244,348 268,348 256,368" fill="#f0a58c"/>
+
+  <!-- sparkly eyes, cheeks, nose, mouth -->
+  <ellipse cx="222" cy="242" rx="18" ry="24" fill="#1c2431"/>
+  <ellipse cx="290" cy="242" rx="18" ry="24" fill="#1c2431"/>
+  <circle cx="228" cy="231" r="7" fill="#ffffff"/>
+  <circle cx="296" cy="231" r="7" fill="#ffffff"/>
+  <circle cx="217" cy="252" r="3" fill="#ffffff"/>
+  <circle cx="285" cy="252" r="3" fill="#ffffff"/>
+  <ellipse cx="188" cy="282" rx="20" ry="12" fill="#f0a58c" opacity="0.6"/>
+  <ellipse cx="324" cy="282" rx="20" ry="12" fill="#f0a58c" opacity="0.6"/>
+  <path d="M246,280 h20 l-10,13 z" fill="#e7a9a0"/>
+  <path d="M256,293 v8 M256,301 q-15,13 -30,4 M256,301 q15,13 30,4" fill="none" stroke="#c99a72" stroke-width="5.5" stroke-linecap="round"/>
+
+  <!-- whiskers -->
+  <path d="M108,272 h52 M112,292 h50 M352,272 h52 M350,292 h50" stroke="#f1e0c2" stroke-width="5" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- waving paw -->
+  <path d="M330,372 Q368,348 402,312" fill="none" stroke="#f1e0c2" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="402" cy="306" r="22" fill="#f1e0c2"/>
+</svg>
