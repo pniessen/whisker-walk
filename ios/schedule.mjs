@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { launchAgentPlist } from './autorefresh-lib.mjs';
+import { launchAgentPlist, stableNode } from './autorefresh-lib.mjs';
 
 const LABEL = 'com.pniessen.whiskerwalk.refresh';
 const PLIST = join(homedir(), 'Library/LaunchAgents', `${LABEL}.plist`);
@@ -35,11 +35,11 @@ function install() {
   if (resolve(git('rev-parse', '--git-dir')) !== resolve(git('rev-parse', '--git-common-dir'))) {
     fail('Run this from the main checkout of cat-game, not from a worktree: the nightly job builds what is there.');
   }
-  // mise's node/<major> folder follows patch upgrades of that major version.
-  const nodeBin = dirname(process.execPath);
+  const node = stableNode(process.execPath, existsSync);
+  const nodeBin = dirname(node);
   const xml = launchAgentPlist({
     label: LABEL,
-    node: process.execPath,
+    node,
     repo,
     log: LOG,
     path: [nodeBin, '/usr/bin', '/bin', '/usr/sbin', '/sbin'].join(':'),

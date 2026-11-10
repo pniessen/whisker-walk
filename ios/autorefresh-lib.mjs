@@ -155,3 +155,15 @@ ${args.map((a) => `    <string>${xml(a)}</string>`).join('\n')}
 </plist>
 `;
 }
+
+/**
+ * mise installs node at installs/node/26.7.0/ and keeps an alias at
+ * installs/node/26/ that follows patch upgrades; the nightly job should point
+ * at the alias so a Node update doesn't silently break it.
+ */
+export function stableNode(execPath, exists) {
+  const m = /^(.*\/mise\/installs\/node\/)(\d+)\.\d+(?:\.\d+)?(\/bin\/node)$/.exec(execPath);
+  if (!m) return execPath;
+  const alias = `${m[1]}${m[2]}${m[3]}`;
+  return exists(alias) ? alias : execPath;
+}

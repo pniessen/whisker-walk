@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planNight, isGameRunning, nightNotice, notifyScript, launchAgentPlist, latestResults, stillPending } from '../ios/autorefresh-lib.mjs';
+import { planNight, isGameRunning, nightNotice, notifyScript, launchAgentPlist, latestResults, stillPending, stableNode } from '../ios/autorefresh-lib.mjs';
 
 // The nightly refresh (ios/refresh.mjs --auto, run by launchd at 7 pm) renews
 // a device only in its last 3 days, waits while the game is open (until the
@@ -200,6 +200,20 @@ describe('notifyScript', () => {
   });
   it('adds an alert sound when urgent', () => {
     expect(notifyScript({ title: 't', message: 'm', urgent: true })).toMatch(/sound name "Basso"$/);
+  });
+});
+
+describe('stableNode: a node path that survives patch upgrades', () => {
+  const exact = '/Users/p/.local/share/mise/installs/node/26.7.0/bin/node';
+  it('uses mise’s major-version alias when it exists', () => {
+    expect(stableNode(exact, (p) => p === '/Users/p/.local/share/mise/installs/node/26/bin/node'))
+      .toBe('/Users/p/.local/share/mise/installs/node/26/bin/node');
+  });
+  it('keeps the exact path when there is no alias', () => {
+    expect(stableNode(exact, () => false)).toBe(exact);
+  });
+  it('leaves a node outside mise alone', () => {
+    expect(stableNode('/usr/local/bin/node', () => true)).toBe('/usr/local/bin/node');
   });
 });
 
