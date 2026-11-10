@@ -80,7 +80,7 @@ export function updateHistory(history, results, expiry) {
 }
 
 const DAY = 24 * 60 * 60 * 1000;
-const day = (d) => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+export const day = (d) => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 
 const LINE = {
   installed: () => '✓ installed',

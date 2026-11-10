@@ -31,3 +31,6 @@ ios/build/
 xcuserdata/
 *.xcuserstate
 ios/installs.json
+
+# Nightly refresh: the last version that passed its tests (ios/refresh.mjs)
+ios/last-good/
