@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planNight, isGameRunning, nightNotice, notifyScript, launchAgentPlist } from '../ios/autorefresh-lib.mjs';
+import { planNight, isGameRunning, nightNotice, notifyScript, launchAgentPlist, latestResults, stillPending } from '../ios/autorefresh-lib.mjs';
 
 // The nightly refresh (ios/refresh.mjs --auto, run by launchd at 7 pm) renews
 // a device only in its last 3 days, waits while the game is open (until the
@@ -66,6 +66,27 @@ describe('planNight: an install closes the game, so wait while it is open', () =
   it('renews anyway on the last day: an interrupted walk beats a dead app', () => {
     const plan = planNight({ devices: [ipad], history: { IPAD: inDays(0.9) }, playing: new Set(['IPAD']), now });
     expect(plan.toRenew).toEqual(['IPAD']);
+  });
+});
+
+describe('latestResults and stillPending: retry the evening until every due device is done', () => {
+  const plan = (devices) => ({ devices, toRenew: devices.filter((d) => d.action === 'renew').map((d) => d.udid) });
+  const dev = (udid, action) => ({ udid, name: udid, action, daysLeft: 2 });
+
+  it('keeps only each device’s latest result', () => {
+    const r = latestResults([
+      { udid: 'IPAD', status: 'failed' }, { udid: 'PHONE', status: 'installed' }, { udid: 'IPAD', status: 'installed' },
+    ]);
+    expect(r).toEqual([{ udid: 'IPAD', status: 'installed' }, { udid: 'PHONE', status: 'installed' }]);
+  });
+
+  it('is done when every due device has been installed', () => {
+    expect(stillPending(plan([dev('IPAD', 'renew'), dev('PHONE', 'fine')]), [{ udid: 'IPAD', status: 'installed' }])).toEqual([]);
+  });
+
+  it('keeps going for away, waiting and failed devices', () => {
+    const p = plan([dev('A', 'away'), dev('W', 'waiting'), dev('F', 'renew'), dev('N', 'new')]);
+    expect(stillPending(p, [{ udid: 'F', status: 'failed' }]).sort()).toEqual(['A', 'F', 'W']);
   });
 });
 
@@ -140,6 +161,14 @@ describe('nightNotice: speak only when there is something to say', () => {
     expect(n.urgent).toBe(true);
     expect(n.message).toMatch(/Charlie’s iPad/);
     expect(n.message).toMatch(/device locked/);
+  });
+
+  it('retries a failed install quietly while more than 2 days are left', () => {
+    expect(nightNotice({
+      plan: plan([dev('IPAD', 'Charlie’s iPad', 'renew', 2.8)]),
+      results: [{ udid: 'IPAD', name: 'Charlie’s iPad', status: 'failed', detail: 'device locked' }],
+      expiry, build: fresh, now,
+    })).toBeNull();
   });
 
   it('alerts when nothing could be built, with what to run', () => {

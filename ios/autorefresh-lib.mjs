@@ -40,6 +40,21 @@ export function planNight({ devices, history, playing, now }) {
   return { devices: planned, toRenew: planned.filter((d) => d.action === 'renew').map((d) => d.udid) };
 }
 
+/** Each device's latest install result, in the order devices first appeared. */
+export function latestResults(results) {
+  const byDevice = new Map();
+  for (const r of results) byDevice.set(r.udid, r);
+  return [...byDevice.values()];
+}
+
+/** Due devices not yet installed tonight: worth another try later in the evening. */
+export function stillPending(plan, results) {
+  const installed = new Set(latestResults(results).filter((r) => r.status === 'installed').map((r) => r.udid));
+  return plan.devices
+    .filter((d) => ['renew', 'waiting', 'away'].includes(d.action) && !installed.has(d.udid))
+    .map((d) => d.udid);
+}
+
 /** True when Whisker Walk is open (or paused in the background) on the device. */
 export function isGameRunning(processesJson) {
   const procs = processesJson?.result?.runningProcesses ?? [];
@@ -58,7 +73,10 @@ export function nightNotice({ plan, results, expiry, build, now }) {
   let urgent = false;
 
   const installed = results.filter((r) => r.status === 'installed').map((r) => r.name);
-  const failed = results.filter((r) => r.status === 'failed');
+  // A failed install (often just a locked iPad) is retried tomorrow; it is
+  // worth an alert only in the device's last 2 days.
+  const daysLeft = new Map(plan.devices.map((d) => [d.udid, d.daysLeft]));
+  const failed = results.filter((r) => r.status === 'failed' && !(daysLeft.get(r.udid) > ALERT_DAYS));
 
   if (build?.kind === 'failed') {
     urgent = true;
