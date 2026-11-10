@@ -1,6 +1,8 @@
 // Decisions for the nightly refresh (ios/refresh.mjs --auto), kept free of
 // side effects so test/iosautorefresh.test.js can pin them.
 
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { day } from './refresh-lib.mjs';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -136,8 +138,22 @@ export function notifyScript({ title, message, urgent }) {
 
 const xml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** The launchd agent that runs the nightly refresh. */
+/**
+ * The launchd agent that runs the nightly refresh: under caffeinate, so the
+ * Mac stays awake through the retries, and through /bin/sh, so a refresh that
+ * crashes (or a checkout whose refresh has no nightly mode) still raises an
+ * alert. The nightly run itself exits 0 whenever it has reported.
+ */
 export function launchAgentPlist({ label, node, repo, log, path, hour, minute, args = ['--auto'] }) {
+  const crashed = notifyScript({
+    title: 'Whisker Walk needs you',
+    message: `The nightly refresh stopped with an error. See ${log}`,
+    urgent: true,
+  }).replace(/'/g, `'\\''`);
+  const program = [
+    '/usr/bin/caffeinate', '-i', '/bin/sh', '-c', `"$0" "$@" || /usr/bin/osascript -e '${crashed}'`,
+    node, `${repo}/ios/refresh.mjs`, ...args,
+  ];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -146,9 +162,7 @@ export function launchAgentPlist({ label, node, repo, log, path, hour, minute, a
   <string>${xml(label)}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>${xml(node)}</string>
-    <string>${xml(`${repo}/ios/refresh.mjs`)}</string>
-${args.map((a) => `    <string>${xml(a)}</string>`).join('\n')}
+${program.map((a) => `    <string>${xml(a)}</string>`).join('\n')}
   </array>
   <key>WorkingDirectory</key>
   <string>${xml(repo)}</string>
@@ -185,4 +199,33 @@ export function stableNode(execPath, exists) {
   if (!m) return execPath;
   const alias = `${m[1]}${m[2]}${m[3]}`;
   return exists(alias) ? alias : execPath;
+}
+
+/**
+ * One refresh at a time (by hand or nightly): the lock file holds the pid of
+ * the process that took it. A lock whose process has died is taken over.
+ * Returns { ok: true } or { ok: false, pid } naming the holder.
+ */
+export function takeLock(lock) {
+  mkdirSync(dirname(lock), { recursive: true });
+  for (let tries = 0; tries < 2; tries += 1) {
+    try {
+      writeFileSync(lock, `${process.pid}\n`, { flag: 'wx' });
+      return { ok: true };
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      let pid = NaN;
+      try { pid = Number(readFileSync(lock, 'utf8').trim()); } catch { /* just removed */ }
+      let alive = false;
+      try { process.kill(pid, 0); alive = pid !== process.pid; } catch (k) { alive = k.code === 'EPERM'; }
+      if (alive) return { ok: false, pid };
+      rmSync(lock, { force: true });
+    }
+  }
+  return { ok: false };
+}
+
+/** Release the lock, only if this process holds it. */
+export function dropLock(lock) {
+  try { if (readFileSync(lock, 'utf8').trim() === String(process.pid)) rmSync(lock); } catch { /* gone */ }
 }

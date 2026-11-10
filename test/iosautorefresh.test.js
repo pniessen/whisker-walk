@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { planNight, isGameRunning, nightNotice, notifyScript, launchAgentPlist, latestResults, stillPending, stableNode } from '../ios/autorefresh-lib.mjs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { planNight, isGameRunning, nightNotice, notifyScript, launchAgentPlist, latestResults, stillPending, stableNode, takeLock, dropLock } from '../ios/autorefresh-lib.mjs';
 
 // The nightly refresh (ios/refresh.mjs --auto, run by launchd at 7 pm, retrying
 // until 11 pm) renews a device only on its last 3 nights, waits while the game
@@ -262,11 +265,28 @@ describe('launchAgentPlist: the 7 pm job', () => {
     hour: 19, minute: 0,
   });
 
+  const argsOf = (x) => [...x.match(/<key>ProgramArguments<\/key>\s*<array>([\s\S]*?)<\/array>/)[1]
+    .matchAll(/<string>([\s\S]*?)<\/string>/g)].map((m) => m[1]);
+
   it('runs the refresh in auto mode from the main checkout', () => {
-    expect(xml).toContain('<string>/Users/p/.local/share/mise/installs/node/26/bin/node</string>');
-    expect(xml).toContain('<string>/Users/p/CLAUDE-CODE/projects/cat-game/ios/refresh.mjs</string>');
-    expect(xml).toContain('<string>--auto</string>');
+    const args = argsOf(xml);
+    expect(args.slice(5)).toEqual([
+      '/Users/p/.local/share/mise/installs/node/26/bin/node',
+      '/Users/p/CLAUDE-CODE/projects/cat-game/ios/refresh.mjs',
+      '--auto',
+    ]);
     expect(xml).toMatch(/<key>WorkingDirectory<\/key>\s*<string>\/Users\/p\/CLAUDE-CODE\/projects\/cat-game<\/string>/);
+  });
+
+  it('keeps the Mac awake while it runs (the retries last until 11 pm)', () => {
+    expect(argsOf(xml).slice(0, 2)).toEqual(['/usr/bin/caffeinate', '-i']);
+  });
+
+  it('alerts from the shell if the refresh crashes or the checkout has no nightly mode', () => {
+    const [, , sh, c, script] = argsOf(xml);
+    expect([sh, c]).toEqual(['/bin/sh', '-c']);
+    expect(script).toMatch(/^"\$0" "\$@" \|\| \/usr\/bin\/osascript -e /);
+    expect(script).toContain('/Users/p/Library/Logs/whisker-walk-refresh.log');
   });
 
   it('fires daily at 19:00 and only in the logged-in session', () => {
@@ -282,12 +302,38 @@ describe('launchAgentPlist: the 7 pm job', () => {
 
   it('takes other refresh arguments for a one-off test job', () => {
     const x = launchAgentPlist({ label: 'l', node: '/n', repo: '/r', log: '/l', path: '/p', hour: 19, minute: 0, args: ['--auto', '--window-minutes=0'] });
-    expect(x).toMatch(/<string>--auto<\/string>\s*<string>--window-minutes=0<\/string>\s*<\/array>/);
+    expect(argsOf(x).slice(-2)).toEqual(['--auto', '--window-minutes=0']);
   });
 
   it('escapes XML special characters in paths', () => {
     const x = launchAgentPlist({ label: 'l', node: '/a&b/node', repo: '/r<1>', log: '/l', path: '/p', hour: 19, minute: 0 });
     expect(x).toContain('/a&amp;b/node');
     expect(x).toContain('/r&lt;1&gt;');
+  });
+});
+
+describe('takeLock / dropLock: one refresh at a time', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ww-lock-'));
+  const lock = join(dir, 'refresh.lock');
+
+  it('takes a free lock and writes its pid', () => {
+    expect(takeLock(lock)).toEqual({ ok: true });
+    expect(readFileSync(lock, 'utf8').trim()).toBe(String(process.pid));
+    dropLock(lock);
+    expect(existsSync(lock)).toBe(false);
+  });
+
+  it('refuses a lock held by another live process', () => {
+    writeFileSync(lock, `${process.ppid}\n`);
+    expect(takeLock(lock)).toEqual({ ok: false, pid: process.ppid });
+    dropLock(lock); // not ours: left alone
+    expect(existsSync(lock)).toBe(true);
+    rmSync(lock);
+  });
+
+  it('takes over a lock left by a run that died', () => {
+    writeFileSync(lock, '999999\n');
+    expect(takeLock(lock)).toEqual({ ok: true });
+    dropLock(lock);
   });
 });

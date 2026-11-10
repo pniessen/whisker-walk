@@ -26,10 +26,11 @@ npm run ios:schedule
 From then on, every evening at 7 pm this Mac (on and logged in; if it's
 asleep, it runs when it wakes):
 
-- **renews only devices in their last 3 days**, so in a normal week each
+- **renews only devices on their last 3 nights**, so in a normal week each
   device is reinstalled once;
 - **waits while Whisker Walk is open** on a device (installing closes the
-  game), until that device's last day;
+  game; a game left paused in the background counts as open), until that
+  device's last night;
 - **keeps trying every 30 minutes until 11 pm** for an iPad that's asleep or
   off the Wi-Fi;
 - installs the latest `main` if its tests pass, and otherwise (tests failing,
@@ -37,15 +38,18 @@ asleep, it runs when it wakes):
   passed**, so the app never stops opening because of unfinished work;
 - shows **one Mac notification** when it did something: a quiet "Renewed
   Charlie's iPad, good until …", or an alert with a sound when something
-  needs you (an install failed in a device's last 2 days, an iPad has been
-  unreachable into its last 2 days, or nothing could be built).
+  needs you (an install failed on a device's last 2 nights, an iPad has been
+  unreachable into its last 2 nights, the device list `ios/installs.json` is
+  missing, nothing could be built, or the job itself crashed).
 
-The first time, macOS may ask whether to allow notifications from **Script
-Editor** (that's how the job posts them): allow them.
+It keeps the Mac awake while it runs. Turning it on sends a test
+notification: if you don't see it, allow notifications for **Script Editor**
+in System Settings → Notifications (that's how the job posts them).
 
-In the app's last 2 days, the app itself shows a banner: *"This game needs a
-refresh soon — ask a grown-up!"*. If the children mention it, run the refresh
-by hand.
+On its last day, the app itself shows a banner: *"This game needs a refresh
+soon — ask a grown-up! It stops opening tomorrow."* It only appears if the
+last night's renewal didn't happen, so if the children mention it, run the
+refresh by hand.
 
 ```bash
 npm run ios:schedule -- status    # on or off, and what the last run said
@@ -54,6 +58,11 @@ npm run ios:schedule -- remove    # turn it off
 
 The log is `~/Library/Logs/whisker-walk-refresh.log`. If Node is upgraded to
 a new major version, run `npm run ios:schedule` again (`status` says so).
+
+**Retiring a device** (an old iPad given away or wiped): delete its line from
+`ios/installs.json`, or the nightly job keeps alerting that it can't reach
+it. A refresh by hand while the nightly one is running waits its turn: it
+stops with "Another refresh is running"; try again in a few minutes.
 
 ## By hand: the refresh
 
@@ -134,7 +143,8 @@ it again with the refresh and load the save back with its code.
   tests (build `ios/web` first).
 - `npm run ios:refresh -- --dev` runs the refresh from a branch or worktree.
 - `node ios/refresh.mjs --auto` is the nightly run (`--window-minutes=0` for
-  a single round, `--retry-minutes=N`). Its decisions are in
+  a single round, `--retry-minutes=N`; `WHISKERWALK_NO_NOTIFY=1` logs notices
+  instead of posting them). Its decisions are in
   `ios/autorefresh-lib.mjs`, tested by `test/iosautorefresh.test.js`. The
   last version that passed lives in `ios/last-good/` (gitignored: the game
   bundle and its commit); every successful refresh from `main` updates it.
