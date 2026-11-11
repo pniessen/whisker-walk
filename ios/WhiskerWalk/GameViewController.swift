@@ -53,6 +53,11 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
             """
         config.userContentController.addUserScript(
             WKUserScript(source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        // What device this is, before any of the game's own code runs, so
+        // its first walk can start on graphics the hardware can hold.
+        config.userContentController.addUserScript(
+            WKUserScript(source: DeviceProfile.current().bootScript(),
+                         injectionTime: .atDocumentStart, forMainFrameOnly: true))
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.isOpaque = false
@@ -81,6 +86,33 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
                                                name: UIApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive),
                                                name: UIApplication.willResignActiveNotification, object: nil)
+        // The device's state while the game is open: running hot, Low Power
+        // Mode switched, iOS short of memory. Each is passed on to the game.
+        NotificationCenter.default.addObserver(self, selector: #selector(deviceStateChanged),
+                                               name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(deviceStateChanged),
+                                               name: .NSProcessInfoPowerStateDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(memoryWarningReceived),
+                                               name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
+    }
+
+    // MARK: Device profile
+
+    /// iOS posts the thermal and power notifications on whatever thread it
+    /// likes, so these two only hop to the main one.
+    @objc nonisolated private func deviceStateChanged() {
+        Task { @MainActor [weak self] in self?.sendDeviceProfile(memoryWarning: false) }
+    }
+
+    @objc nonisolated private func memoryWarningReceived() {
+        Task { @MainActor [weak self] in self?.sendDeviceProfile(memoryWarning: true) }
+    }
+
+    /// Tells the page the device's state as it is now (see DeviceProfile).
+    /// A page that is not the game, or not loaded yet, just ignores it.
+    private func sendDeviceProfile(memoryWarning: Bool) {
+        webView.evaluateJavaScript(DeviceProfile.current().eventScript(memoryWarning: memoryWarning),
+                                   completionHandler: nil)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -196,6 +228,10 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         webView.scrollView.pinchGestureRecognizer?.isEnabled = false
+        // The object set at document start was read when the web view was
+        // made. After a reload (crash recovery) that can be hours old, so the
+        // page is told the current state once it has loaded.
+        sendDeviceProfile(memoryWarning: false)
     }
 
     /// iOS can end the web content process while the app is in the background
