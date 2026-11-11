@@ -8,7 +8,9 @@
 // colony_dress, colony_trade_*) are defined in docs/supabase-colony.sql.
 // Every RPC arg name below (the `p_`-prefixed keys) must match its SQL
 // exactly: docs/supabase-setup.sql for the save/profile/friend RPCs and
-// docs/supabase-colony.sql for the colony ones.
+// docs/supabase-colony.sql for the colony ones. The v8 read RPCs
+// (profiles_by_ids, find_by_friend_code, friendships_of) and the v8 checks
+// on the write RPCs are in docs/supabase-v8-hardening.sql.
 //
 // createCloud({rpc, select}) takes injectable adapters so unit tests can
 // exercise the arg-mapping/result-passthrough logic with fakes, with no
@@ -96,6 +98,23 @@ export function generateSaveCode(cryptoLike = globalThis.crypto) {
   return `${w1}-${w2}-${w3}-${digits}`;
 }
 
+// The server refuses a save bigger than 2 MiB of jsonb text (upsert_save in
+// docs/supabase-v8-hardening.sql, which has the arithmetic). The client
+// stops a little earlier, at 1.75 MiB of JSON, because Postgres's text form
+// adds a space after every ':' and ',' — and so a too-big save is caught
+// here even before the owner has run the v8 SQL.
+export const CLOUD_SAVE_MAX_BYTES = 2 * 1024 * 1024;
+export const CLOUD_SAVE_SEND_MAX_BYTES = 1.75 * 1024 * 1024;
+
+/** payloadBytes(payload) -> the UTF-8 size of its JSON, or Infinity if it can't be serialised. */
+export function payloadBytes(payload) {
+  try {
+    return new TextEncoder().encode(JSON.stringify(payload)).length;
+  } catch {
+    return Infinity;
+  }
+}
+
 /** normalizeSaveCode(input) -> trimmed/uppercased/hyphen-normalized code, or '' for junk input. */
 export function normalizeSaveCode(input) {
   if (typeof input !== 'string') return '';
@@ -128,23 +147,63 @@ export function getOrCreateSecret(storage) {
   }
 }
 
+// True when an RPC error means "this function isn't on the server yet"
+// (PostgREST's PGRST202, or Postgres's undefined_function), i.e. the owner
+// hasn't run docs/supabase-v8-hardening.sql. Anything else — offline, a
+// timeout, a permission error — is a real failure and is not papered over.
+export function isMissingRpc(err) {
+  if (!err || typeof err !== 'object') return false;
+  if (err.code === 'PGRST202' || err.code === '42883') return true;
+  return typeof err.message === 'string' && /could not find the function/i.test(err.message);
+}
+
+// profiles_by_ids takes at most this many ids per call (the SQL's cap).
+const PROFILE_IDS_PER_CALL = 100;
+
 /**
- * createCloud({rpc, select}) -> cloud
+ * createCloud({rpc, select, getSecret?}) -> cloud
  *
  * `rpc(name, args) -> Promise<data>` and `select(table, filterType, ...args)
  * -> Promise<rows>` are injectable: fakes in tests, real adapters (below)
  * wrapping the Supabase client in production. Both are expected to already
  * unwrap `{data, error}` and throw on error — createCloud itself does no
- * error handling, just arg mapping and result passthrough.
+ * error handling beyond the v8 fallback below, just arg mapping and result
+ * passthrough. `getSecret()` (optional) returns this player's secret, which
+ * the v8 friendships_of RPC needs; without it friendships are read the old way.
+ *
+ * Profile and friendship READS try the v8 RPCs first and fall back to the
+ * old public table select when the server doesn't have them yet, so this
+ * client works against the database both before and after the owner runs
+ * docs/supabase-v8-hardening.sql. Once a function is known to be missing it
+ * isn't asked for again this session (one wasted round trip, not one per read).
  */
-export function createCloud({ rpc, select }) {
+export function createCloud({ rpc, select, getSecret }) {
+  const missing = new Set();
+  async function viaRpc(name, args, fallback) {
+    if (!missing.has(name)) {
+      try {
+        const rows = await rpc(name, args);
+        return Array.isArray(rows) ? rows : [];
+      } catch (err) {
+        if (!isMissingRpc(err)) throw err;
+        missing.add(name);
+      }
+    }
+    return fallback();
+  }
+
+  // 'too-big' without a round trip: the same answer the v8 server gives, so
+  // the caller has one path for it whichever side noticed.
   async function saveToCloud(code, secret, payload, lifetime) {
+    if (payloadBytes(payload) > CLOUD_SAVE_SEND_MAX_BYTES) return 'too-big';
     return rpc('upsert_save', { p_code: code, p_secret: secret, p_payload: payload, p_lifetime: lifetime });
   }
 
   // load_save's p_secret param is accepted but not verified server-side —
   // the SQL comment is explicit that the code alone grants read access on a
-  // new device, so there is nothing meaningful to pass here.
+  // new device, so there is nothing meaningful to pass here. (v8 makes a
+  // flood of wrong codes answer "no save" for everyone for a few minutes;
+  // that looks the same as a miss here.)
   async function loadFromCloud(code) {
     const data = await rpc('load_save', { p_code: code, p_secret: '' });
     return data ?? null;
@@ -166,15 +225,26 @@ export function createCloud({ rpc, select }) {
   }
 
   async function fetchProfiles(playerIds) {
-    return select('profiles', 'in', 'player_id', playerIds);
+    const out = [];
+    for (let i = 0; i < playerIds.length; i += PROFILE_IDS_PER_CALL) {
+      const ids = playerIds.slice(i, i + PROFILE_IDS_PER_CALL);
+      out.push(...await viaRpc('profiles_by_ids', { p_ids: ids }, () => select('profiles', 'in', 'player_id', ids)));
+    }
+    return out;
   }
 
+  // v8 matches the whole 8-character friend code exactly (no prefix search,
+  // so the public key can't list every player); the old server's `like`
+  // prefix query is the fallback.
   async function findByFriendCode(prefix) {
-    return select('profiles', 'like', 'player_id', prefix + '%');
+    return viaRpc('find_by_friend_code', { p_code: prefix }, () => select('profiles', 'like', 'player_id', prefix + '%'));
   }
 
   async function fetchFriendships(myId) {
-    return select('friendships', 'or', `a_id.eq.${myId},b_id.eq.${myId}`);
+    const secret = getSecret?.();
+    const old = () => select('friendships', 'or', `a_id.eq.${myId},b_id.eq.${myId}`);
+    if (!secret) return old();
+    return viaRpc('friendships_of', { p_player_id: myId, p_secret: secret }, old);
   }
 
   // addFriendByCode(myId, mySecret, otherId) -> {status: 'self'|'already'|'added'|'failed'}
@@ -260,10 +330,12 @@ async function realRpc(client, name, args) {
   return data;
 }
 
-// The anon grant on profiles is column-scoped (docs/supabase-setup.sql
-// revokes all then grants back this exact column list — `secret` is
-// deliberately excluded); select('*') gets a permission-denied error. The
-// friendships grant is table-wide, so '*' is fine there.
+// The old (pre-v8) read path. The anon grant on profiles was column-scoped
+// (the v7 setup revoked all then granted back this exact column list —
+// `secret` deliberately excluded); select('*') got a permission-denied
+// error. The friendships grant was table-wide, so '*' was fine there. Step B
+// of docs/supabase-v8-hardening.sql removes both grants; by then every
+// client reads through the RPCs above.
 const PUBLIC_SELECT_COLUMNS = {
   profiles: 'player_id, pet_name, breed, accessories, rank_title, last_seen',
 };
@@ -279,14 +351,15 @@ async function realSelect(client, table, filterType, ...args) {
 }
 
 /**
- * createLiveCloud(url, key) — real createCloud() wired to the shared
- * Supabase client (getSupabaseClient in net.js), so the RPC client and the
- * realtime co-walk transport reuse one connection instead of each creating
- * their own.
+ * createLiveCloud(url, key, {getSecret}?) — real createCloud() wired to the
+ * shared Supabase client (getSupabaseClient in net.js), so the RPC client and
+ * the realtime co-walk transport reuse one connection instead of each
+ * creating their own.
  */
-export function createLiveCloud(url, key) {
+export function createLiveCloud(url, key, { getSecret } = {}) {
   return createCloud({
     rpc: async (name, args) => realRpc(await getSupabaseClient(url, key), name, args),
     select: async (table, filterType, ...args) => realSelect(await getSupabaseClient(url, key), table, filterType, ...args),
+    getSecret,
   });
 }
