@@ -165,6 +165,25 @@ describe('the Menu', () => {
     expect(h).toContain('data-dr-sheet="settings"');
     expect(h).toContain('data-dr-sheet="code"');
   });
+  it('has a My den tile after Skills that says Visit, and a tap visits the den', () => {
+    const onVisitDen = vi.fn();
+    setup({ rooms: OPEN_ROOMS, onVisitDen });
+    openSheet('menu');
+    const h = html();
+    const den = '<button class="hb-tile hb-tile-den" id="btn-visit-den" type="button"><span class="hb-tile-icon" aria-hidden="true">🏠</span><span class="hb-tile-name">My den</span><small>Visit</small></button>';
+    expect(h).toContain(den);
+    expect(h.indexOf(den)).toBeGreaterThan(h.indexOf('data-dr-sheet="skills"'));
+    expect(h.indexOf(den)).toBeLessThan(h.indexOf('data-dr-sheet="controls"'));
+    expect(h.indexOf(den)).toBeLessThan(h.indexOf('For grown-ups'));
+    clickRoot({ '#btn-visit-den': {} });
+    expect(onVisitDen).toHaveBeenCalledTimes(1);
+  });
+  it('has no den tile in a room (the den never joins a room walk)', () => {
+    setup({ rooms: IN_ROOM });
+    openSheet('menu');
+    expect(html()).not.toContain('btn-visit-den');
+    expect(html()).toContain('data-dr-sheet="together"');
+  });
   it('the Skills tile says how many are earned', () => {
     setup();
     openSheet('menu');
@@ -218,31 +237,18 @@ describe('the Menu', () => {
 });
 
 describe('Change place (the places sheet)', () => {
-  it('has the den card and hands the dressing room the clan line and the den', () => {
+  it('hands the dressing room the clan line, and has no den card (the den is a Menu tile)', () => {
     setup();
     openSheet('places');
     const h = html();
     expect(h).toContain('data-sheet="places"');
     expect(h).toContain('Change place');
-    expect(h).toContain('id="btn-visit-den"');
-    expect(h).toContain('My den');
-    expect(dressingMock.placesArgs.at(-1).denHtml).toContain('id="btn-visit-den"');
+    expect(h).not.toContain('id="btn-visit-den"');
+    expect(h).not.toContain('My den');
+    expect(dressingMock.placesArgs.at(-1).denHtml).toBeUndefined();
     expect(h).toContain('hb-door');
     expect(h).toContain('← Back to my cat');
     expect(h).not.toContain('id="btn-start"');
-  });
-  it('has no den card in a room (the den never joins a room walk)', () => {
-    setup({ rooms: IN_ROOM });
-    openSheet('places');
-    expect(html()).not.toContain('btn-visit-den');
-    expect(dressingMock.placesArgs.at(-1).denHtml).toBe('');
-  });
-  it('the den card calls onVisitDen', () => {
-    const onVisitDen = vi.fn();
-    setup({ onVisitDen });
-    openSheet('places');
-    clickRoot({ '#btn-visit-den': {} });
-    expect(onVisitDen).toHaveBeenCalledTimes(1);
   });
   it('Legacy has no clan line', () => {
     setup({ state: (st) => { st.edition = 'legacy'; woodsOpened(st); } });

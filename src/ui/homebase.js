@@ -935,12 +935,23 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return '';
   }
 
+  // My den is a tile, not a sheet: a tap goes straight there (onVisitDen), as
+  // its old card at the bottom of Change place did. The den never joins a
+  // room walk (main.js starts it on its own), so a room hides it, as before.
+  function denTileHtml(roomState) {
+    if (roomState) return '';
+    return '<button class="hb-tile hb-tile-den" id="btn-visit-den" type="button"><span class="hb-tile-icon" aria-hidden="true">🏠</span>'
+      + '<span class="hb-tile-name">My den</span><small>Visit</small></button>';
+  }
+
   function renderMenu(s, roomState) {
     const on = availableSheets();
     const tiles = MENU_TILES.filter((id) => on.includes(id)).map((id) => {
       const sub = menuTileSub(id, s, roomState);
       return `<button class="hb-tile" data-dr-sheet="${id}"><span class="hb-tile-icon" aria-hidden="true">${SHEET_ICON[id]}</span>`
-        + `<span class="hb-tile-name">${escapeHtml(SHEET_NAME[id])}</span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</button>`;
+        + `<span class="hb-tile-name">${escapeHtml(SHEET_NAME[id])}</span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</button>`
+        // the den sits where Friends was, after Skills
+        + (id === 'skills' ? denTileHtml(roomState) : '');
     }).join('');
     const grown = GROWNUP_SHEETS.filter((id) => on.includes(id))
       .map((id) => `<button class="hb-grownup" data-dr-sheet="${id}"><span aria-hidden="true">${SHEET_ICON[id]}</span> ${escapeHtml(SHEET_NAME[id])}</button>`).join('');
@@ -952,8 +963,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
 
   // ---- The Change place sheet (Launch A) -----------------------------------
-  // Her map and places (the dressing room's), the den as a place card, and her
-  // clan in one line.
+  // Her map and places (the dressing room's) and her clan in one line. The den
+  // is a Menu tile now: unlike every place here it starts a walk at once.
   function renderPlaces(s, roomState) {
     const d = ensureDressing();
     let line = '';
@@ -961,11 +972,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const partner = s.colony?.partner?.petName;
       line = clanLineHtml(clanPickerModel(s), typeof partner === 'string' && partner ? partner : 'your partner', { canChoose: woodsOpen(s, CATALOG) });
     }
-    // The den never joins a room walk (main.js starts it on its own), so a room hides it, as before.
-    const den = roomState ? ''
-      : `<button class="dr-place dr-den" id="btn-visit-den" type="button"><img src="${escapeHtml(PLACE_PICTURE('den'))}" alt="" onerror="this.remove()"><span class="cap">My den<small>visit your den</small></span></button>`;
     return `<section class="hb-places" aria-labelledby="hb-places-title"><h2 id="hb-places-title">Change place</h2>
-      ${d.placesHtml({ clanLineHtml: line, denHtml: den })}
+      ${d.placesHtml({ clanLineHtml: line })}
     </section>`;
   }
 
