@@ -10,6 +10,7 @@ import { buildEnvMap } from './render/materials.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
 import { createPerfHud } from './ui/perfhud.js';
+import { BUILD_STAMP } from './buildstamp.js';
 import { createHomeBase } from './ui/homebase.js';
 import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
@@ -179,7 +180,7 @@ function init() {
     qualityAdapter.deviceChanged(e.detail);
     if (e.detail?.memoryWarning === true) releaseThumbnails();
   });
-  const perfHud = createPerfHud({ renderer, settings, coarse, adapter: qualityAdapter, diagnostics });
+  const perfHud = createPerfHud({ renderer, settings, coarse, adapter: qualityAdapter, diagnostics, build: BUILD_STAMP });
   // Haptics (src/haptics.js): the app's bridge on an iPhone (an iPad in the
   // app says it has no Taptic Engine, so stays still), navigator.vibrate on a
   // touch device that has it (desktop Chrome has the function but no motor,
