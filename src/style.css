@@ -552,6 +552,8 @@ body.touch-mode:not(.left-handed) .hud-top {
 }
 .settings-row:last-child { border-bottom: 0; }
 .settings-label { flex: 1; min-width: 0; }
+/* a plain line under a row saying what it does (the edition) */
+.settings-note { margin: 2px 0 6px; font-size: 0.85rem; line-height: 1.35; color: #f1e0c2; opacity: .75; }
 /* Switch: the real checkbox lies invisibly over the whole row (still
    focusable, still Space to flip); .switch draws the track and knob. */
 .settings-switch input {
@@ -1294,6 +1296,13 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .dr-today-card img { transition: filter .35s ease; }
 .dr-today:has(#dusk-toggle:checked) .dr-today-card img { filter: brightness(.5) saturate(.75) hue-rotate(-15deg); }
 .dr-today:has(#dusk-toggle:checked) .dr-today-card { background: linear-gradient(165deg, #3b3f6e, #1d2340); }
+/* dusk chosen (in Change place): a small moon on the card, status not a
+   control, so taps go through it to the card; the picture dims as before */
+.dr-dusk-badge { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: 50%; background: rgba(58, 44, 110, .88); color: #e6dcff; font-size: 16px; }
+.dr-today-extras:has(.dr-dusk-badge) { pointer-events: none; }
+.dr-today:has(.dr-dusk-badge) .dr-today-card img { filter: brightness(.5) saturate(.75) hue-rotate(-15deg); }
+.dr-today:has(.dr-dusk-badge) .dr-today-card { background: linear-gradient(165deg, #3b3f6e, #1d2340); }
 
 /* the dock: Start (big, pink, the only pink thing), Play together under it */
 .dr-dock { grid-area: dock; display: flex; flex-direction: column; gap: 10px; }
@@ -1483,6 +1492,13 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   padding: 8px 16px; border: 1.5px solid #5b6c88; border-radius: 999px; background: transparent;
   color: #f1e0c2; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
 .hb-back { align-self: flex-start; }
+/* the header row: Back on the left, and (from a Menu sheet) a cat-face Home on the right */
+.hb-sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.hb-sheet .hb-home { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px;
+  margin-bottom: 14px; padding: 0; border: 1.5px solid #5b6c88; border-radius: 50%; background: transparent;
+  font-size: 24px; line-height: 1; cursor: pointer; }
+.hb-sheet .hb-home:hover { background: rgba(255, 255, 255, .06); }
+.hb-sheet .hb-home:focus-visible { outline: 3px solid #f1e0c2; outline-offset: 2px; }
 .homebase-scroll.hb-sheet { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 0; }
 .homebase-scroll.hb-door { padding-bottom: 24px; }
 .hb-sheet-dock { position: sticky; bottom: 0; z-index: 2; margin: auto -20px 0; display: flex; flex-wrap: wrap;
@@ -1512,6 +1528,10 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .hb-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .hb-tile { grid-column: span 2; }
 .hb-tiles > .hb-tile:nth-child(4):nth-last-child(2), .hb-tiles > .hb-tile:nth-child(5):last-child { grid-column: span 3; }
+/* seven tiles (the den and Sound & controls joined): 3, then 2 and 2 */
+@media (min-width: 601px) {
+  .hb-tiles > .hb-tile:first-child:nth-last-child(7) ~ .hb-tile:nth-child(n+4) { grid-column: span 3; }
+}
 .hb-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 120px;
   padding: 14px 10px; border: 0; border-radius: 18px; background: #2c3d58; color: #f1e0c2; font: inherit; cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, .18); }
@@ -1529,13 +1549,37 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .hb-tiles { grid-template-columns: 1fr 1fr; gap: 10px; }
   .hb-tiles > .hb-tile:nth-child(4):nth-last-child(2), .hb-tiles > .hb-tile:nth-child(5):last-child { grid-column: auto; }
   .hb-tiles > .hb-tile:nth-child(n) { grid-column: auto; }
+  .hb-tiles > .hb-tile:nth-child(odd):last-child { grid-column: 1 / -1; } /* an odd one out fills its row */
   .hb-tile { min-height: 96px; }
 }
 
 /* Change place: the clan in one line, the map, more places and the den */
 .hb-places { color: #f1e0c2; }
+/* Day / Dusk at the top: one switch drawn as two halves, the chosen one lit;
+   greyed (with why) while the Glow Collar is off */
+.hb-dusk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 14px; }
+.hb-dusk-switch { position: relative; display: inline-flex; gap: 2px; padding: 3px; border: 1.5px solid #5b6c88; border-radius: 999px; cursor: pointer; }
+.hb-dusk-switch input { -webkit-appearance: none; appearance: none; position: absolute; inset: 0; width: 100%; height: 100%;
+  margin: 0; opacity: 0; cursor: pointer; }
+.hb-dusk-switch span { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px;
+  font-weight: 700; font-size: 15px; color: #f1e0c2; }
+.hb-dusk-switch:not(:has(input:checked)) .hb-dusk-day { background: #f2c14e; color: #1c2431; }
+.hb-dusk-switch:has(input:checked) .hb-dusk-night { background: rgba(58, 44, 110, .95); color: #e6dcff; box-shadow: inset 0 0 0 1.5px #8a7cd0; }
+.hb-dusk-switch:has(input:focus-visible) { outline: 3px solid #f1e0c2; outline-offset: 2px; }
+.hb-dusk.off .hb-dusk-switch { opacity: .5; cursor: not-allowed; }
+.hb-dusk.off .hb-dusk-switch input { cursor: not-allowed; }
+.hb-dusk-why { font-size: 13px; opacity: .85; }
+/* a place she cannot open yet answers a tap with a short wobble (a toast says why) */
+@keyframes hb-nudge { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.hb-places .nudge { animation: hb-nudge .4s ease-in-out; transform-box: fill-box; }
+@media (prefers-reduced-motion: reduce) { .hb-places .nudge { animation: none; } }
 .hb-pick-line { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; }
 .hb-pick-line .dr-home-emblem { margin: 0; }
+/* her clan's line is the door to change it: a full-width button, quiet until the gold Change */
+button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border: 1.5px solid #5b6c88; border-radius: 16px;
+  background: #2c3d58; color: #f1e0c2; font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.hb-pick-line .hb-pick-change { margin-left: auto; color: #f2c14e; white-space: nowrap; }
 .dr-where .hb-pick-choose { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; width: 100%;
   margin: 0 0 14px; padding: 12px 16px; min-height: 48px; border: 2px solid #f2c14e; border-radius: 16px;
   background: #2c3d58; color: #f1e0c2; font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
@@ -1563,7 +1607,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .hb-tiles { gap: 16px; }
   .hb-tile { min-height: 150px; }
-  .homebase-scroll.hb-sheet[data-sheet="settings"] { max-width: 760px; }
+  .homebase-scroll.hb-sheet:is([data-sheet="settings"], [data-sheet="controls"]) { max-width: 760px; }
 }
 @media (min-width: 1400px) {
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1573,17 +1617,17 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
    card sheets) or the Settings width (the Secret code), with their cards in a
    grid that fills it and the empty states centred. Phones are untouched. */
 @media (min-width: 1000px) {
-  .homebase-scroll.hb-sheet:is([data-sheet="skills"], [data-sheet="colony"], [data-sheet="journal"], [data-sheet="album"], [data-sheet="social"]) { max-width: min(1240px, 94vw); }
+  .homebase-scroll.hb-sheet:is([data-sheet="skills"], [data-sheet="colony"], [data-sheet="journal"], [data-sheet="album"]) { max-width: min(1240px, 94vw); }
   .homebase-scroll.hb-sheet[data-sheet="code"] { max-width: 760px; }
   .hb-sheet[data-sheet="skills"] .skills-intro { max-width: none; }
   .hb-sheet[data-sheet="skills"] .cards, .hb-sheet[data-sheet="colony"] .cards { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
   .hb-sheet[data-sheet="journal"] .journal-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
   .hb-sheet[data-sheet="album"] .photos { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
-  .hb-sheet[data-sheet="social"] .friends-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+  .hb-sheet:is([data-sheet="together"], [data-sheet="journal"]) .friends-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
   .hb-sheet[data-sheet="colony"] .colony-section:has(.empty-state) :is(.colony-banner, .colony-mode) { text-align: center; }
   .hb-sheet[data-sheet="colony"] p.colony-empty, .hb-sheet[data-sheet="colony"] .colony-full,
-  .hb-sheet[data-sheet="social"] .empty-state, .hb-sheet[data-sheet="colony"] .empty-state { text-align: center; margin-left: auto; margin-right: auto; }
-  .hb-sheet:is([data-sheet="colony"], [data-sheet="social"], [data-sheet="album"]) .empty-state svg { width: 160px; }
+  .hb-sheet[data-sheet="journal"] .friends-section .empty-state, .hb-sheet[data-sheet="colony"] .empty-state { text-align: center; margin-left: auto; margin-right: auto; }
+  .hb-sheet:is([data-sheet="colony"], [data-sheet="album"]) .empty-state svg, .hb-sheet[data-sheet="journal"] .friends-section .empty-state svg { width: 160px; }
 }
 
 /* the clan moment: a one-time story card over home (outside #homebase) */

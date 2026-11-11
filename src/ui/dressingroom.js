@@ -18,25 +18,48 @@ import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
-// doors; the rest open from the Menu (six kid tiles, then the grown-ups row).
-export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'social'];
+// doors; the rest open from the Menu (the kid tiles, then the grown-ups row).
+// Sound & controls is the children's half of the old Settings (volume, the
+// touch controls); Game settings keeps the grown-ups' half (edition, quality,
+// Start over). Friends folded into Play together (the friends list and the
+// friend code) and the Journal (the stray cats), so one sheet holds every code.
+export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'controls'];
 export const GROWNUP_SHEETS = ['settings', 'sync', 'code'];
 export const HOME_SHEETS = ['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS];
 export const SHEET_ICON = {
-  menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', social: '👥', journal: '📖',
-  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁',
+  menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', journal: '📖',
+  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁', controls: '🔊',
 };
 export const SHEET_NAME = {
-  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony', social: 'Friends',
-  journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Settings', code: 'Secret code',
+  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony',
+  journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Game settings', code: 'Secret code',
+  controls: 'Sound & controls',
 };
 export const SHEET_LABEL = Object.fromEntries(HOME_SHEETS.map((id) => [id, `${SHEET_ICON[id]} ${SHEET_NAME[id]}`]));
 // The den shop is not a home sheet: it lives inside the den (ui/denshopview.js).
+// The old Friends sheet ('social') opens Play together, where its friends
+// list and friend code went, so anything still asking for it lands there.
+const SHEET_ALIAS = { social: 'together' };
 export function resolveSheet(id) {
-  return typeof id === 'string' && HOME_SHEETS.includes(id) ? id : null;
+  if (typeof id !== 'string') return null;
+  const want = Object.hasOwn(SHEET_ALIAS, id) ? SHEET_ALIAS[id] : id;
+  return HOME_SHEETS.includes(want) ? want : null;
 }
 
 export const PLACE_PICTURE = (id) => `${import.meta.env.BASE_URL}places/${id}.jpg`;
+
+// Why a place she tapped did not open, in one line: the walks it waits for, or
+// the paws still to find. null when nothing is missing (she owns it, it would
+// open) or it is not a place in this edition.
+export function placeWhyLine(state, catalog, id) {
+  const a = typeof id === 'string' && has(catalog.areas, id) ? catalog.areas[id] : null;
+  if (!a || !areaInEdition(a, state?.edition) || ownedList(state, 'areas').includes(id)) return null;
+  const req = a.requires;
+  const have = req ? walksIn(state, req.area) : 0;
+  if (req && have < req.walks) return opensAfterLine(req, have, state?.edition, catalog);
+  const short = num(a.price) - num(state?.points);
+  return short > 0 ? `${short} more 🐾 to go` : null;
+}
 
 // Display order of the slots (independent of catalog insertion order).
 const SLOT_ORDER = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
@@ -361,8 +384,8 @@ function wearingHtml(m, ui, thumbs) {
 
 // Today's walk: one picture card for the place Start goes to; the whole card
 // opens the Change place sheet.
-// extrasHtml (the dusk switch) sits on the card's top-left corner, beside the
-// card, not inside it: a checkbox can't live inside a button.
+// extrasHtml (the dusk moon, when dusk is chosen in Change place) sits on the
+// card's top-left corner, beside the card, not inside it.
 function todayHtml(m, extrasHtml = '') {
   const p = m.currentPlace;
   const emblem = p.clan && CLAN_EMBLEMS[p.clan] ? `<span class="dr-today-emblem">${CLAN_EMBLEMS[p.clan]}</span>` : '';

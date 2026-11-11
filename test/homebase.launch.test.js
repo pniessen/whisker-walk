@@ -14,7 +14,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
     dressingMock.placesArgs = [];
     dressingMock.closeWardrobe = vi.fn();
     return {
-      html: ({ headerHtml, startHtml }) => `<header>${headerHtml}</header>${startHtml}`,
+      html: ({ headerHtml, startHtml, extrasHtml }) => `<header>${headerHtml}</header>${extrasHtml ?? ''}${startHtml}`,
       placesHtml: (o) => { dressingMock.placesArgs.push(o); return `<div class="dr-where">${o?.clanLineHtml ?? ''}${o?.denHtml ?? ''}</div>`; },
       closeWardrobe: () => dressingMock.closeWardrobe(),
       afterRender() {}, handleClick() { return false; }, clearPreview() {},
@@ -139,18 +139,20 @@ describe('the top bar', () => {
 });
 
 describe('the Menu', () => {
-  it('shows the six tiles, the stats line and the grown-ups row, with only Menu\'s doors available', () => {
+  it('shows the kid tiles, the stats line and the grown-ups row, with only Menu\'s doors available', () => {
     setup({ rooms: OPEN_ROOMS, sync: { available: true } });
     openSheet('menu');
     const h = html();
     expect(h).toContain('data-sheet="menu"');
     for (const id of MENU_TILES) expect(h).toContain(`<button class="hb-tile" data-dr-sheet="${id}">`);
-    expect(h.match(/class="hb-tile"/g)).toHaveLength(6);
+    expect(h.match(/class="hb-tile"/g)).toHaveLength(MENU_TILES.length);
     expect(h).toContain('class="hb-menu-stats"');
     expect(h).toContain('For grown-ups');
     for (const id of ['settings', 'sync', 'code']) expect(h).toContain(`<button class="hb-grownup" data-dr-sheet="${id}">`);
-    expect(h).toContain(SHEET_NAME.social); // Friends
-    expect(h).toContain('Friends');
+    // Friends folded into Play together and the Journal
+    expect(h).not.toContain('data-dr-sheet="social"');
+    expect(h).not.toContain('Friends');
+    expect(SHEET_NAME.together).toBe('Play together');
   });
   it('leaves out the tiles that are not available (no multiplayer: no Play together; no cloud: no Save)', () => {
     setup();
@@ -158,10 +160,29 @@ describe('the Menu', () => {
     const h = html();
     expect(h).not.toContain('data-dr-sheet="together"');
     expect(h).not.toContain('data-dr-sheet="sync"');
-    expect(h.match(/class="hb-tile"/g)).toHaveLength(5);
-    for (const id of ['colony', 'journal', 'album', 'skills', 'social']) expect(h).toContain(`data-dr-sheet="${id}"`);
+    expect(h.match(/class="hb-tile"/g)).toHaveLength(MENU_TILES.length - 1);
+    for (const id of ['colony', 'journal', 'album', 'skills', 'controls']) expect(h).toContain(`data-dr-sheet="${id}"`);
     expect(h).toContain('data-dr-sheet="settings"');
     expect(h).toContain('data-dr-sheet="code"');
+  });
+  it('has a My den tile after Skills that says Visit, and a tap visits the den', () => {
+    const onVisitDen = vi.fn();
+    setup({ rooms: OPEN_ROOMS, onVisitDen });
+    openSheet('menu');
+    const h = html();
+    const den = '<button class="hb-tile hb-tile-den" id="btn-visit-den" type="button"><span class="hb-tile-icon" aria-hidden="true">🏠</span><span class="hb-tile-name">My den</span><small>Visit</small></button>';
+    expect(h).toContain(den);
+    expect(h.indexOf(den)).toBeGreaterThan(h.indexOf('data-dr-sheet="skills"'));
+    expect(h.indexOf(den)).toBeLessThan(h.indexOf('data-dr-sheet="controls"'));
+    expect(h.indexOf(den)).toBeLessThan(h.indexOf('For grown-ups'));
+    clickRoot({ '#btn-visit-den': {} });
+    expect(onVisitDen).toHaveBeenCalledTimes(1);
+  });
+  it('has no den tile in a room (the den never joins a room walk)', () => {
+    setup({ rooms: IN_ROOM });
+    openSheet('menu');
+    expect(html()).not.toContain('btn-visit-den');
+    expect(html()).toContain('data-dr-sheet="together"');
   });
   it('the Skills tile says how many are earned', () => {
     setup();
@@ -193,6 +214,32 @@ describe('the Menu', () => {
     openSheet('settings');
     expect(html()).toContain('← Back to the menu');
   });
+  it('a sheet opened from the Menu has a cat-face Home at the right of the Back row, which goes to the cat', () => {
+    setup();
+    openSheet('menu');
+    openSheet('journal');
+    const h = html();
+    const row = '<div class="hb-sheet-head"><button id="hb-back" class="hb-back">← Back to the menu</button>'
+      + '<button id="hb-home" class="hb-home" type="button" aria-label="Back to my cat"><span aria-hidden="true">🐱</span></button></div>';
+    expect(h).toContain(row);
+    clickRoot({ '#hb-home': {} });
+    expect(html()).not.toContain('data-sheet=');
+  });
+  it('no Home button where Back already goes home (the Menu, Change place, a sheet opened directly)', () => {
+    setup();
+    for (const id of ['menu', 'places', 'settings']) {
+      openSheet(null);
+      openSheet(id);
+      expect(html()).toContain('← Back to my cat');
+      expect(html()).not.toContain('id="hb-home"');
+    }
+  });
+  it('the Home button is at least 44px', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.slice(css.indexOf('.hb-sheet .hb-home {'), css.indexOf('}', css.indexOf('.hb-sheet .hb-home {')));
+    expect(rule).toMatch(/width: 48px; height: 48px;/);
+  });
   it('a sheet opened directly (not from the Menu) goes back to the cat', () => {
     setup();
     openSheet('settings');
@@ -216,31 +263,18 @@ describe('the Menu', () => {
 });
 
 describe('Change place (the places sheet)', () => {
-  it('has the den card and hands the dressing room the clan line and the den', () => {
+  it('hands the dressing room the clan line, and has no den card (the den is a Menu tile)', () => {
     setup();
     openSheet('places');
     const h = html();
     expect(h).toContain('data-sheet="places"');
     expect(h).toContain('Change place');
-    expect(h).toContain('id="btn-visit-den"');
-    expect(h).toContain('My den');
-    expect(dressingMock.placesArgs.at(-1).denHtml).toContain('id="btn-visit-den"');
+    expect(h).not.toContain('id="btn-visit-den"');
+    expect(h).not.toContain('My den');
+    expect(dressingMock.placesArgs.at(-1).denHtml).toBeUndefined();
     expect(h).toContain('hb-door');
     expect(h).toContain('← Back to my cat');
     expect(h).not.toContain('id="btn-start"');
-  });
-  it('has no den card in a room (the den never joins a room walk)', () => {
-    setup({ rooms: IN_ROOM });
-    openSheet('places');
-    expect(html()).not.toContain('btn-visit-den');
-    expect(dressingMock.placesArgs.at(-1).denHtml).toBe('');
-  });
-  it('the den card calls onVisitDen', () => {
-    const onVisitDen = vi.fn();
-    setup({ onVisitDen });
-    openSheet('places');
-    clickRoot({ '#btn-visit-den': {} });
-    expect(onVisitDen).toHaveBeenCalledTimes(1);
   });
   it('Legacy has no clan line', () => {
     setup({ state: (st) => { st.edition = 'legacy'; woodsOpened(st); } });
@@ -256,11 +290,49 @@ describe('Change place (the places sheet)', () => {
     openSheet('places');
     expect(dressingMock.placesArgs.at(-1).clanLineHtml).toContain(MOMENT_ATTR);
   });
-  it('after a pick the clan line says who she is', () => {
+  it('after a pick the clan line says who she is, and is the door to change it', () => {
     setup({ state: (st) => { st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
     openSheet('places');
     expect(dressingMock.placesArgs.at(-1).clanLineHtml).toContain('hb-pick-line');
-    expect(dressingMock.placesArgs.at(-1).clanLineHtml).not.toContain(MOMENT_ATTR);
+    expect(dressingMock.placesArgs.at(-1).clanLineHtml).toContain(MOMENT_ATTR);
+  });
+  it('a place she cannot open answers the tap: one line says what is missing, and the card wobbles', () => {
+    const toast = vi.fn();
+    const progression = createProgression(memStorage());
+    progression.state.points = 21;
+    progression.state.walks.neighborhood = 2;
+    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', toast).show();
+    openSheet('places');
+    const card = fakeEl(doc);
+    doc.root.querySelectorAll = (sel) => (sel === '[data-dr-place="park"]' ? [card] : []);
+    dressingMock.opts.onPlaced('park', false);
+    expect(toast).toHaveBeenCalledWith('29 more 🐾 to go');
+    dressingMock.opts.onChange(); // the render the tap causes
+    expect(card.classList.contains('nudge')).toBe(true);
+    expect(html()).toContain('data-sheet="places"');
+    // a gated one says what it waits for
+    progression.state.walks.neighborhood = 0;
+    dressingMock.opts.onPlaced('park', false);
+    expect(toast).toHaveBeenLastCalledWith(expect.stringMatching(/^opens after 2 walks in .+ · 0\/2 so far$/));
+  });
+  it('no wobble when she asked for reduced motion (the line still comes)', () => {
+    const toast = vi.fn();
+    const progression = createProgression(memStorage());
+    const calm = { ...settings, all: () => ({ ...settings.all(), reducedMotion: true }) };
+    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, calm, () => {}, () => {}, null, 'me', toast).show();
+    openSheet('places');
+    const card = fakeEl(doc);
+    doc.root.querySelectorAll = () => [card];
+    dressingMock.opts.onPlaced('park', false);
+    dressingMock.opts.onChange();
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(card.classList.contains('nudge')).toBe(false);
+  });
+  it('the wobble CSS is skipped under the system reduced-motion setting', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).toContain('.hb-places .nudge { animation: hb-nudge');
+    expect(css).toContain('@media (prefers-reduced-motion: reduce) { .hb-places .nudge { animation: none; } }');
   });
   it('a place she can walk (onPlaced with an outcome) takes her home; a refused one leaves the sheet', () => {
     setup();
@@ -413,6 +485,36 @@ describe('the clan moment', () => {
     clickRoot({ [`[${MOMENT_ATTR}]`]: {} });
     expect(moment()).toBeTruthy();
   });
+  it('with a clan picked, Change place\'s clan line opens the same five cards, and a card changes it', () => {
+    const noteOwnPick = vi.fn(() => Promise.resolve(true));
+    const colonySync = { status: () => ({ mode: 'local' }), pull() {}, noteOwnPick };
+    // picked long ago, the moment seen, even with the Woods not open on this save
+    const { progression } = setup({ colonySync, state: (st) => { st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
+    store.set(MOMENT_SEEN_KEY, '1');
+    openSheet('places');
+    clickRoot({ [`[${MOMENT_ATTR}]`]: {} });
+    const el = moment();
+    expect(el).toBeTruthy();
+    expect(el.innerHTML.match(new RegExp(PICK_ATTR, 'g'))).toHaveLength(5);
+    const card = { getAttribute: (a) => (a === PICK_ATTR ? 'moor' : null) };
+    el.listeners.click({ target: { closest: (sel) => (sel === `[${PICK_ATTR}]` ? card : null) } });
+    expect(progression.state.clanPick.mine).toBe('moor');
+    expect(noteOwnPick).toHaveBeenCalledTimes(1);
+    expect(moment()).toBeUndefined();
+    expect(html()).toContain('data-sheet="places"');
+  });
+  it('a picked clan never brings the moment up by itself, only from its line', () => {
+    const { hb } = setup({ state: (st) => { woodsOpened(st); st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
+    hb.showVisit(PLAIN);
+    hb.show({ sheet: 'places' });
+    expect(moment()).toBeUndefined();
+  });
+  it('Legacy: the clan line is gone and nothing opens the cards', () => {
+    setup({ state: (st) => { st.edition = 'legacy'; st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
+    openSheet('places');
+    clickRoot({ [`[${MOMENT_ATTR}]`]: {} });
+    expect(moment()).toBeUndefined();
+  });
   it('only one is ever up', () => {
     const { hb } = setup({ state: woodsOpened });
     hb.showVisit(PLAIN);
@@ -533,9 +635,8 @@ describe('Settings: Advanced', () => {
     expect(adv).toBeGreaterThan(0);
     expect(h.indexOf('id="set-perf-readout"')).toBeGreaterThan(adv);
     expect(h.indexOf('id="set-quality"')).toBeGreaterThan(adv);
-    // everyday settings stay above it
-    expect(h.indexOf('id="set-volume"')).toBeLessThan(adv);
-    expect(h.indexOf('id="set-muted"')).toBeLessThan(adv);
+    // the edition stays above it
+    expect(h.indexOf('id="set-edition"')).toBeGreaterThan(0);
     expect(h.indexOf('id="set-edition"')).toBeLessThan(adv);
   });
   it('the grown-ups sheets have no Start dock: nothing says Start under Start over', () => {
@@ -555,6 +656,189 @@ describe('Settings: Advanced', () => {
     expect(h).toContain('Walking in <b>');
     expect(h).toContain('id="btn-start"');
     expect(h).not.toContain('id="dusk-toggle"');
+  });
+});
+
+describe('Settings in two halves', () => {
+  const KIDS = ['set-volume', 'set-music-volume', 'set-muted', 'set-left-handed', 'set-invert-y', 'set-map-mode', 'set-reduced-motion', 'set-hide-chat'];
+  const GROWN = ['set-edition', 'set-quality', 'set-perf-readout', 'btn-reset'];
+  it('Sound & controls is a kid tile holding sound and the controls, in order, with a slim dock', () => {
+    setup();
+    openSheet('menu');
+    expect(html()).toMatch(/<button class="hb-tile" data-dr-sheet="controls"><span class="hb-tile-icon" aria-hidden="true">🔊<\/span><span class="hb-tile-name">Sound &amp; controls<\/span>/);
+    openSheet('controls');
+    const h = html();
+    expect(h).toContain('data-sheet="controls"');
+    expect(h).toContain('← Back to the menu');
+    const at = KIDS.map((id) => h.indexOf(`id="${id}"`));
+    expect(at.every((i) => i > 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    for (const id of GROWN) expect(h).not.toContain(`id="${id}"`);
+    expect(h).toContain('hb-sheet-dock');
+    expect(h).toContain('id="btn-start"');
+    expect(h).not.toContain('id="dusk-toggle"');
+  });
+  it('Game settings, under For grown-ups, keeps the edition, graphics, the readout, and Start over last', () => {
+    setup();
+    openSheet('menu');
+    expect(html()).toContain('<button class="hb-grownup" data-dr-sheet="settings"><span aria-hidden="true">⚙️</span> Game settings</button>');
+    openSheet('settings');
+    const h = html();
+    expect(h).toContain('<h2>Game settings ⚙️</h2>');
+    for (const id of GROWN) expect(h).toContain(`id="${id}"`);
+    for (const id of KIDS) expect(h).not.toContain(`id="${id}"`);
+    // Start over is the last thing on the sheet: no dock under it
+    const reset = '<button id="btn-reset" class="danger">Start over</button>';
+    expect(h.slice(h.indexOf(reset) + reset.length).replace(/<\/section>|<\/div>|\s/g, '')).toBe('');
+  });
+  it('the controls keep their wiring from the new sheet', () => {
+    const set = vi.fn();
+    const onChange = vi.fn();
+    const progression = createProgression(memStorage());
+    const s2 = { get: () => null, set, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
+    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, s2, onChange, () => {}, null, 'me', () => {}).show();
+    openSheet('controls');
+    doc.root.listeners.click({ target: { id: 'set-left-handed', checked: true, dataset: {}, closest: () => null } });
+    expect(set).toHaveBeenCalledWith('leftHanded', true);
+    doc.root.listeners.input({ target: { id: 'set-volume', value: '40', dataset: {}, style: { setProperty() {} }, classList: { contains: () => true } } });
+    expect(set).toHaveBeenCalledWith('volume', 0.4);
+    doc.root.listeners.change({ target: { id: 'set-map-mode', value: 'turn', dataset: {} } });
+    expect(progression.state.mapMode).toBe('turn');
+    expect(onChange).toHaveBeenCalled();
+  });
+});
+
+describe('Play together holds the friends (Friends folded in)', () => {
+  const CLOUD = () => ({
+    available: true, myId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    fetchFriendships: vi.fn(() => Promise.resolve([])), fetchProfiles: vi.fn(() => Promise.resolve([])),
+  });
+  function setupCloud({ state, colonySync = null } = {}) {
+    const progression = createProgression(memStorage());
+    if (state) state(progression.state);
+    const cloud = CLOUD();
+    const hb = createHomeBase(progression, { photos: [] }, () => {}, OPEN_ROOMS, null, cloud, settings, () => {}, () => {}, colonySync, 'me', () => {});
+    hb.show();
+    return { progression, cloud };
+  }
+  it('in order: the cat\'s name, start or join a room, then Player pets and the friend code', () => {
+    setupCloud({ state: (st) => { st.petName = 'Mittens'; } });
+    openSheet('together');
+    const h = html();
+    const order = ['id="wt-petname-input"', 'id="wt-host"', 'id="wt-join"', 'id="player-pets-section"', 'Your friend code:', 'id="friend-code-add"'].map((x) => h.indexOf(x));
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(h).not.toContain('Stray cats');
+  });
+  it('the walk with her sibling comes after the name and before the room buttons', () => {
+    const colony = { id: 'c1', partner: { playerId: 'p2', petName: 'Robin' } };
+    const colonySync = { status: () => ({ mode: 'paired' }), pull() {} };
+    setupCloud({ colonySync, state: (st) => { st.petName = 'Mittens'; st.colony = { ...st.colony, ...colony }; } });
+    openSheet('together');
+    const h = html();
+    expect(h).toContain('id="wt-pair-walk"');
+    expect(h).toContain('Walk with Robin');
+    expect(h.indexOf('wt-pair')).toBeGreaterThan(h.indexOf('id="wt-petname-input"'));
+    expect(h.indexOf('wt-pair')).toBeLessThan(h.indexOf('id="wt-host"'));
+  });
+  it('opening Play together loads the Player pets, as opening Friends did', () => {
+    const { cloud } = setupCloud();
+    openSheet('together');
+    expect(cloud.fetchFriendships).toHaveBeenCalled();
+  });
+  it('anything still opening the old Friends sheet lands on Play together', () => {
+    const { cloud } = setupCloud();
+    openSheet('social');
+    expect(html()).toContain('data-sheet="together"');
+    expect(cloud.fetchFriendships).toHaveBeenCalled();
+  });
+  it('with no name yet, the friend code points up at the name box', () => {
+    setupCloud();
+    openSheet('together');
+    expect(html()).toContain('Give your cat a name at the top to add friends by code.');
+  });
+  it('the stray cats are in the Journal', () => {
+    const { progression } = setupCloud();
+    progression.state.friends.Smudge = { breed: 'tabby', greets: 2 };
+    openSheet('journal');
+    const h = html();
+    expect(h).toContain('<h3>Stray cats</h3>');
+    expect(h).toContain('Smudge');
+    expect(h.indexOf('Stray cats')).toBeLessThan(h.indexOf('hb-sheet-dock'));
+  });
+});
+
+describe('Day / Dusk in Change place', () => {
+  function setupStart({ glow = true, rooms = null } = {}) {
+    const progression = createProgression(memStorage());
+    if (glow) { progression.state.unlocked.accessories.push('glow'); progression.state.equipped.collar = 'glow'; }
+    const onStartWalk = vi.fn();
+    const hb = createHomeBase(progression, { photos: [] }, onStartWalk, rooms, null, null, settings, () => {}, () => {}, null, 'me', () => {});
+    hb.show();
+    return { progression, hb, onStartWalk };
+  }
+  const chooseDusk = (checked) => doc.root.listeners.change({ target: { id: 'dusk-toggle', checked, dataset: {} } });
+  const pressStart = () => doc.root.listeners.click({ target: { id: 'btn-start', dataset: {}, closest: () => null } });
+  it('is at the top of Change place, labelled Day and Dusk, the real control keeping its id', () => {
+    setupStart();
+    openSheet('places');
+    const h = html();
+    expect(h).toContain('<span class="hb-dusk-day">☀️ Day</span><span class="hb-dusk-night">🌙 Dusk</span>');
+    expect(h).toMatch(/<input type="checkbox" id="dusk-toggle" role="switch" aria-label="Dusk walk"\s*\/>/);
+    expect(h.indexOf('class="hb-dusk"')).toBeLessThan(h.indexOf('class="dr-where"'));
+    expect(h).not.toContain('Glow Collar');
+  });
+  it('without the Glow Collar it is greyed and says why, instead of hiding', () => {
+    setupStart({ glow: false });
+    openSheet('places');
+    const h = html();
+    expect(h).toContain('class="hb-dusk off"');
+    expect(h).toMatch(/id="dusk-toggle"[^>]*aria-describedby="dusk-why" disabled/);
+    expect(h).toContain('<small class="hb-dusk-why" id="dusk-why">wear the Glow Collar</small>');
+  });
+  it('home shows a small moon when dusk is chosen, and Start from home walks at dusk', () => {
+    const { onStartWalk } = setupStart();
+    expect(html()).not.toContain('dr-dusk-badge');
+    openSheet('places');
+    chooseDusk(true);
+    openSheet(null);
+    expect(html()).toContain('<span class="dr-dusk-badge" role="img" aria-label="Dusk walk">🌙</span>');
+    expect(html()).not.toContain('id="dusk-toggle"'); // status, not a control
+    pressStart();
+    expect(onStartWalk).toHaveBeenLastCalledWith({ duskMode: true });
+  });
+  it('the choice stands when home is shown again (back from a walk)', () => {
+    const { hb, onStartWalk } = setupStart();
+    openSheet('places');
+    chooseDusk(true);
+    hb.hide();
+    hb.show();
+    expect(html()).toContain('dr-dusk-badge');
+    openSheet('places');
+    expect(html()).toMatch(/id="dusk-toggle"[^>]*checked/);
+    openSheet(null);
+    pressStart();
+    expect(onStartWalk).toHaveBeenLastCalledWith({ duskMode: true });
+  });
+  it('dusk only counts while the Glow Collar is on', () => {
+    const { progression, onStartWalk } = setupStart();
+    openSheet('places');
+    chooseDusk(true);
+    progression.state.equipped.collar = null;
+    openSheet(null);
+    expect(html()).not.toContain('dr-dusk-badge');
+    pressStart();
+    expect(onStartWalk).toHaveBeenLastCalledWith({ duskMode: false });
+  });
+  it('Play together has no copy of the switch, and a room start gets the dusk chosen', () => {
+    const { onStartWalk } = setupStart({ rooms: OPEN_ROOMS });
+    openSheet('places');
+    chooseDusk(true);
+    openSheet('together');
+    expect(html()).not.toContain('id="dusk-toggle"');
+    expect(html()).toContain('id="btn-start"');
+    pressStart();
+    expect(onStartWalk).toHaveBeenLastCalledWith({ duskMode: true });
   });
 });
 

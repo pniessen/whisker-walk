@@ -94,7 +94,9 @@ export function renderClanPickerHtml(model, partnerName) {
 // Woods opens (its gate in CATALOG.areas.woods.requires, or she already owns
 // it) for a Clan Edition player with no pick of her own, a card says the
 // clans have noticed her and shows the five cards once. After that the pick
-// changes only in Settings. Nothing new is saved: the pick is still the id.
+// changes only from Change place's clan line, which opens the same cards
+// (Settings has no clan select: a stray tap there changed it with no card).
+// Nothing new is saved: the pick is still the id.
 export const MOMENT_SEEN_KEY = `whisker-walk-${clanWord}-moment-seen`;
 export const MOMENT_ATTR = `data-${clanWord}-moment-open`;
 
@@ -119,20 +121,27 @@ export function clanMomentDue(state, catalog) {
 
 const MOMENT_TITLE = `The ${clanWord}s have noticed you!`;
 const MOMENT_ASK = `Which ${clanWord} will you join?`;
+// The same card opened again from Change place once she has a clan: the
+// cards are the same, the words say she is changing, and "Not yet" keeps hers.
+const CHANGE_TITLE = `Change your ${clanWord}?`;
+const CHANGE_ASK = `Tap a ${clanWord} to join it.`;
+const KEEP_LABEL = `Keep my ${clanWord}`;
 
 export function renderClanMomentHtml(model, partnerName) {
+  const change = !!model.mine;
   return `<div class="join-moment-card" role="dialog" aria-modal="true" aria-labelledby="join-moment-title" tabindex="-1">`
     + `<p class="join-moment-paws" aria-hidden="true">🐾 🐾 🐾</p>`
-    + `<h2 id="join-moment-title">${escapeHtml(MOMENT_TITLE)}</h2>`
-    + `<p class="join-moment-ask">${escapeHtml(MOMENT_ASK)}</p>`
+    + `<h2 id="join-moment-title">${escapeHtml(change ? CHANGE_TITLE : MOMENT_TITLE)}</h2>`
+    + `<p class="join-moment-ask">${escapeHtml(change ? CHANGE_ASK : MOMENT_ASK)}</p>`
     + renderClanPickerHtml(model, partnerName)
-    + `<div class="join-moment-foot"><button type="button" class="join-moment-later" data-${clanWord}-later>Not yet</button>`
-    + `<p class="join-moment-note">You can change it later in Settings.</p></div>`
+    + `<div class="join-moment-foot"><button type="button" class="join-moment-later" data-${clanWord}-later>${escapeHtml(change ? KEEP_LABEL : 'Not yet')}</button>`
+    + '<p class="join-moment-note">You can change it later in 🗺️ Change place.</p></div>'
     + '</div>';
 }
 
 // Change place's one line about her clan: who she is (and who her sibling is),
-// or, before a pick, a way back to the moment once the Woods is open.
+// or, before a pick, a way back to the moment once the Woods is open. Either
+// way it is the one door to the clan cards, so a picked line is a button too.
 export function clanLineHtml(model, partnerName, { canChoose = false } = {}) {
   if (model.mine) {
     const mine = model.cards.find((c) => c.mine);
@@ -141,7 +150,7 @@ export function clanLineHtml(model, partnerName, { canChoose = false } = {}) {
     const partner = model.cards.find((c) => c.partner && !c.mine);
     const extra = model.both ? ` — you’re both ${escapeHtml(name)}!`
       : partner ? ` · ${escapeHtml(partnerName)} is ${escapeHtml(partner.name)}` : '';
-    return `<p class="hb-pick-line">${emblem}<span>You’re <b>${escapeHtml(name)}</b>${extra}</span></p>`;
+    return `<button type="button" class="hb-pick-line" ${MOMENT_ATTR}>${emblem}<span>You’re <b>${escapeHtml(name)}</b>${extra}</span><b class="hb-pick-change">Change ›</b></button>`;
   }
   if (!canChoose) return '';
   return `<button type="button" class="hb-pick-choose" ${MOMENT_ATTR}><span>${escapeHtml(MOMENT_TITLE)}</span><b>Choose your ${clanWord} ›</b></button>`;

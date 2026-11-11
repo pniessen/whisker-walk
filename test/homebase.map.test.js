@@ -72,11 +72,11 @@ function setup() {
   const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
   const hb = createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {});
   hb.show();
-  openSheet('settings');
+  openSheet('controls');
   return { progression };
 }
 
-describe('Settings: the map row', () => {
+describe('Sound & controls: the map row', () => {
   it('shows North up and Turns with me, with the saved mode selected', () => {
     const { progression } = setup();
     const html = doc.root.innerHTML;
@@ -84,7 +84,7 @@ describe('Settings: the map row', () => {
     expect(html).toMatch(/<option value="north" selected>North up<\/option>/);
     expect(html).toContain('<option value="turn" >Turns with me</option>');
     progression.setMapMode('turn');
-    openSheet('settings');
+    openSheet('controls');
     expect(doc.root.innerHTML).toMatch(/<option value="turn" selected>Turns with me<\/option>/);
   });
 

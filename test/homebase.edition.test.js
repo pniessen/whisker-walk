@@ -104,6 +104,16 @@ describe('Settings: the edition row', () => {
     expect(doc.root.innerHTML).toMatch(/<option value="legacy" selected>Legacy Edition<\/option>/);
   });
 
+  it('says in one line under the select what switching does', () => {
+    setup();
+    openSheet('settings');
+    const html = doc.root.innerHTML;
+    const line = `<p class="settings-note" id="set-edition-note">Switching renames the places and shows or hides the ${CLAN_SUFFIX.toLowerCase()} territories. Nothing is lost.</p>`;
+    expect(html).toContain(line);
+    expect(html.indexOf(line)).toBeGreaterThan(html.indexOf('id="set-edition"'));
+    expect(html.indexOf(line)).toBeLessThan(html.indexOf('id="set-quality"'));
+  });
+
   it('the Settings edition control calls setEdition with the chosen value', () => {
     const { progression } = setup();
     openSheet('settings');
@@ -253,7 +263,7 @@ describe('picking a clan', () => {
     expect(noteOwnPick).toHaveBeenCalledTimes(1);
     await clickPick('river');
     expect(noteOwnPick).toHaveBeenCalledTimes(2);
-    doc.root.listeners.change({ target: { id: 'set-clan-pick', value: 'river', dataset: {} } });
+    await clickPick('river');
     expect(noteOwnPick).toHaveBeenCalledTimes(2);
   });
 
@@ -288,27 +298,20 @@ describe('picking a clan', () => {
     expect(noteOwnPick).not.toHaveBeenCalled();
   });
 
-  it('Settings has the select in Clan Edition only, with pickable clans', () => {
-    const { progression } = setup();
+  it('Settings has no clan select: the clan cards are the one door (from Change place)', () => {
+    setup();
     openSheet('settings');
     const html = doc.root.innerHTML;
-    expect(html).toContain('id="set-clan-pick"');
-    expect(html).toContain(`Your ${CLAN_SUFFIX.toLowerCase()}`);
-    expect(html).toContain('<option value="" disabled selected>— not picked yet —</option>');
-    expect(html).toContain('<option value="woods" >StormClan</option>');
-    expect(html).toContain('value="gorge"');
-    progression.setEdition('legacy');
-    openSheet('settings');
-    expect(doc.root.innerHTML).not.toContain('set-clan-pick');
+    expect(html).not.toContain('set-clan-pick');
+    expect(html).not.toContain(`Your ${CLAN_SUFFIX.toLowerCase()}`);
+    expect(html).not.toContain('— not picked yet —');
   });
 
-  it('the select selects the stored pick, and a change does what a tap does', () => {
+  it('a change event from the old select id picks nothing (no stray-tap clan change)', () => {
     const { progression, noteOwnPick } = setupSync();
     doc.root.listeners.change({ target: { id: 'set-clan-pick', value: 'river', dataset: {} } });
-    expect(progression.state.clanPick.mine).toBe('river');
-    expect(noteOwnPick).toHaveBeenCalledTimes(1);
-    openSheet('settings');
-    expect(doc.root.innerHTML).toContain('<option value="river" selected>BrookClan</option>');
+    expect(progression.state.clanPick.mine).toBeNull();
+    expect(noteOwnPick).not.toHaveBeenCalled();
   });
 
   it('Legacy shows no homage name on the home screen, with a pick stored', () => {
