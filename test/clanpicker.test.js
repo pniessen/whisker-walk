@@ -273,9 +273,17 @@ describe('renderClanMomentHtml', () => {
     expect(html.match(new RegExp(PICK_ATTR, 'g'))).toHaveLength(5);
     for (const id of pickableClans()) expect(html).toContain(`${PICK_ATTR}="${id}"`);
   });
-  it('has a Not yet button and says the pick can change later in Settings', () => {
+  it('has a Not yet button and says the pick can change later in Change place', () => {
     expect(html).toMatch(new RegExp(`<button type="button" class="join-moment-later" data-${word}-later>Not yet</button>`));
-    expect(html).toContain('change it later in Settings');
+    expect(html).toContain('change it later in 🗺️ Change place');
+    expect(html).not.toContain('Settings');
+  });
+  it('opened again with a pick, it says she is changing and its button keeps hers', () => {
+    const out = renderClanMomentHtml(clanPickerModel(save({ clanPick: { mine: 'moor', partner: null, partnerId: null } })), 'Robin');
+    expect(out).toContain(`<h2 id="join-moment-title">Change your ${word}?</h2>`);
+    expect(out.match(new RegExp(PICK_ATTR, 'g'))).toHaveLength(5);
+    expect(out).toContain('✓ yours');
+    expect(out).toMatch(new RegExp(`data-${word}-later>Keep my ${word}</button>`));
   });
   it('escapes the partner name', () => {
     const model = clanPickerModel(save({ clanPick: { mine: 'woods', partner: 'river', partnerId: PARTNER } }));
@@ -286,12 +294,14 @@ describe('renderClanMomentHtml', () => {
 
 describe('clanLineHtml', () => {
   const line = (over, name = 'Robin', opts) => clanLineHtml(clanPickerModel(save(over)), name, opts);
-  it('a pick says who she is, with the emblem and no button', () => {
+  it('a pick says who she is, with the emblem, as the button that reopens the cards to change it', () => {
     const h = line({ clanPick: { mine: 'moor', partner: null, partnerId: null } });
     expect(h).toContain('class="hb-pick-line"');
     expect(h).toContain(`You’re <b>${clanName('moor')}</b>`);
     expect(h).toContain(CLAN_EMBLEMS.moor);
-    expect(h).not.toContain('<button');
+    expect(h).toMatch(/^<button type="button" class="hb-pick-line"/);
+    expect(h).toContain(MOMENT_ATTR);
+    expect(h).toContain('Change ›');
     expect(h).not.toContain('Robin');
   });
   it('the same clan for both says you are both', () => {
@@ -312,8 +322,10 @@ describe('clanLineHtml', () => {
     expect(h).toContain(MOMENT_ATTR);
     expect(h).toContain(`Choose your ${word}`);
   });
-  it('a pick ignores canChoose (no choose button once she has chosen)', () => {
+  it('a pick ignores canChoose (her line, not the Choose button, once she has chosen)', () => {
     const h = line({ clanPick: { mine: 'pines', partner: null, partnerId: null } }, 'Robin', { canChoose: true });
-    expect(h).not.toContain(MOMENT_ATTR);
+    expect(h).not.toContain('hb-pick-choose');
+    expect(h).toContain('hb-pick-line');
+    expect(line({ clanPick: { mine: 'pines', partner: null, partnerId: null } }, 'Robin', { canChoose: false })).toContain(MOMENT_ATTR);
   });
 });

@@ -259,3 +259,16 @@ export function herCatPortrait(state) {
     }
   }
 }
+
+// iOS said memory is short (the app's 'whisker-device' event, main.js): drop
+// every picture kept here. They are data-URL strings made once and held for
+// the life of the page; nothing is lost by letting them go, because each of
+// the three makers above builds what is missing the next time it is asked
+// (the next visit to the home base), exactly as on a first launch. Pictures
+// already on screen keep their own copy. It is a megabyte or two, not a
+// rescue: the honest size of what this page can give back cheaply.
+export function releaseThumbnails() {
+  cache = null;
+  customCache.clear();
+  portraitCache.clear();
+}

@@ -18,25 +18,48 @@ import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
-// doors; the rest open from the Menu (six kid tiles, then the grown-ups row).
-export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'social'];
+// doors; the rest open from the Menu (the kid tiles, then the grown-ups row).
+// Sound & controls is the children's half of the old Settings (volume, the
+// touch controls); Game settings keeps the grown-ups' half (edition, quality,
+// Start over). Friends folded into Play together (the friends list and the
+// friend code) and the Journal (the stray cats), so one sheet holds every code.
+export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'controls'];
 export const GROWNUP_SHEETS = ['settings', 'sync', 'code'];
 export const HOME_SHEETS = ['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS];
 export const SHEET_ICON = {
-  menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', social: '👥', journal: '📖',
-  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁',
+  menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', journal: '📖',
+  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁', controls: '🔊',
 };
 export const SHEET_NAME = {
-  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony', social: 'Friends',
-  journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Settings', code: 'Secret code',
+  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony',
+  journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Game settings', code: 'Secret code',
+  controls: 'Sound & controls',
 };
 export const SHEET_LABEL = Object.fromEntries(HOME_SHEETS.map((id) => [id, `${SHEET_ICON[id]} ${SHEET_NAME[id]}`]));
 // The den shop is not a home sheet: it lives inside the den (ui/denshopview.js).
+// The old Friends sheet ('social') opens Play together, where its friends
+// list and friend code went, so anything still asking for it lands there.
+const SHEET_ALIAS = { social: 'together' };
 export function resolveSheet(id) {
-  return typeof id === 'string' && HOME_SHEETS.includes(id) ? id : null;
+  if (typeof id !== 'string') return null;
+  const want = Object.hasOwn(SHEET_ALIAS, id) ? SHEET_ALIAS[id] : id;
+  return HOME_SHEETS.includes(want) ? want : null;
 }
 
 export const PLACE_PICTURE = (id) => `${import.meta.env.BASE_URL}places/${id}.jpg`;
+
+// Why a place she tapped did not open, in one line: the walks it waits for, or
+// the paws still to find. null when nothing is missing (she owns it, it would
+// open) or it is not a place in this edition.
+export function placeWhyLine(state, catalog, id) {
+  const a = typeof id === 'string' && has(catalog.areas, id) ? catalog.areas[id] : null;
+  if (!a || !areaInEdition(a, state?.edition) || ownedList(state, 'areas').includes(id)) return null;
+  const req = a.requires;
+  const have = req ? walksIn(state, req.area) : 0;
+  if (req && have < req.walks) return opensAfterLine(req, have, state?.edition, catalog);
+  const short = num(a.price) - num(state?.points);
+  return short > 0 ? `${short} more 🐾 to go` : null;
+}
 
 // Display order of the slots (independent of catalog insertion order).
 const SLOT_ORDER = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
@@ -297,28 +320,42 @@ const OUTFIT_SAVE_LABEL = {
   ok: '＋ Save this outfit',
   saved: 'Saved ✓',
   empty: 'Put something on to save it',
-  full: `${OUTFIT_MAX} outfits saved (✕ one to save another)`,
+  full: `${OUTFIT_MAX} saved. Delete one to save a new one.`,
 };
-function outfitHtml(o, thumbs) {
+const OUTFIT_PICS_MAX = 3; // the fallback row's small pictures; the rest are a "+N" chip
+function outfitHtml(o, thumbs, asking) {
   const names = o.items.map((it) => it.name).join(', ');
+  if (asking) {
+    // The question replaces just this row; both answers are thumb-sized.
+    return `<div class="dr-outfit ask" role="group" aria-label="${escapeHtml(`Delete ${o.label}?`)}">`
+      + `<span class="dr-outfit-q">Delete ${escapeHtml(o.label)}?</span>`
+      + `<button class="dr-outfit-yes" data-dr-outfit-yes="${escapeHtml(o.id)}">Yes, delete</button>`
+      + `<button class="dr-outfit-keep" data-dr-outfit-keep="${escapeHtml(o.id)}">Keep it</button></div>`;
+  }
   // One picture of her cat in the whole outfit when there is one (the view
-  // snaps it); otherwise its items' menu pictures.
+  // snaps it); otherwise a few of its items' menu pictures. With the whole
+  // picture the names stay in the aria-label only; the small item pictures
+  // are hard to tell apart, so the fallback row spells the names out.
   const whole = thumbs?.outfitPics?.[o.id];
+  const shown = o.items.slice(0, OUTFIT_PICS_MAX);
+  const extra = o.items.length - shown.length;
   const pics = whole
     ? `<span class="dr-outfit-pic whole">${img(whole, '')}</span>`
-    : o.items.map((it) => `<span class="dr-outfit-pic ${it.owned ? '' : 'gone'}">${img(thumbs?.accessories?.[it.id], '')}</span>`).join('');
+    : shown.map((it) => `<span class="dr-outfit-pic ${it.owned ? '' : 'gone'}">${img(thumbs?.accessories?.[it.id], '')}</span>`).join('')
+      + (extra > 0 ? `<span class="dr-outfit-more">+${extra}</span>` : '');
+  const small = o.worn ? 'on now ✓' : (whole ? '' : escapeHtml(names));
   return `<div class="dr-outfit ${o.worn ? 'on' : ''}">`
     + `<button class="dr-outfit-wear" data-dr-outfit="${escapeHtml(o.id)}" aria-pressed="${o.worn}" aria-label="${escapeHtml(`Wear ${o.label}: ${names}`)}">`
     + `<span class="dr-outfit-pics">${pics}</span>`
-    + `<span class="dr-outfit-words">${escapeHtml(o.label)}<small>${o.worn ? 'on now ✓' : escapeHtml(names)}</small></span></button>`
+    + `<span class="dr-outfit-words">${escapeHtml(o.label)}${small ? `<small>${small}</small>` : ''}</span></button>`
     + `<button class="dr-outfit-del" data-dr-outfit-del="${escapeHtml(o.id)}" aria-label="${escapeHtml(`Delete ${o.label}`)}">✕</button></div>`;
 }
-function outfitsHtml(m, thumbs) {
+function outfitsHtml(m, thumbs, ask = null) {
   const outfits = m.outfits ?? [];
   const save = m.outfitSave ?? 'empty';
   return `<div class="dr-outfits">
     <p class="dr-label">Saved outfits</p>
-    ${outfits.length ? `<div class="dr-outfit-list">${outfits.map((o) => outfitHtml(o, thumbs)).join('')}</div>` : ''}
+    ${outfits.length ? `<div class="dr-outfit-list">${outfits.map((o) => outfitHtml(o, thumbs, o.id === ask)).join('')}</div>` : ''}
     <button class="dr-outfit-save" data-dr-outfit-save ${save === 'ok' ? '' : 'disabled'}>${escapeHtml(OUTFIT_SAVE_LABEL[save] ?? OUTFIT_SAVE_LABEL.empty)}</button>
   </div>`;
 }
@@ -331,7 +368,7 @@ function wearingHtml(m, ui, thumbs) {
     return `<section class="dr-wearing dr-wardrobe-open" aria-label="Dress up">
     <div class="dr-wardrobe-head"><p class="dr-label">Dress up</p><button class="dr-done" data-dr-wardrobe-done>Done ✓</button></div>
     <div class="dr-slots">${m.slots.map((s) => slotHtml(s, openSlot, ui.pickerHtml, thumbs)).join('')}</div>
-    ${outfitsHtml(m, thumbs)}
+    ${outfitsHtml(m, thumbs, ui.outfitAsk)}
   </section>`;
   }
   const n = m.worn.length;
@@ -347,8 +384,8 @@ function wearingHtml(m, ui, thumbs) {
 
 // Today's walk: one picture card for the place Start goes to; the whole card
 // opens the Change place sheet.
-// extrasHtml (the dusk switch) sits on the card's top-left corner, beside the
-// card, not inside it: a checkbox can't live inside a button.
+// extrasHtml (the dusk moon, when dusk is chosen in Change place) sits on the
+// card's top-left corner, beside the card, not inside it.
 function todayHtml(m, extrasHtml = '') {
   const p = m.currentPlace;
   const emblem = p.clan && CLAN_EMBLEMS[p.clan] ? `<span class="dr-today-emblem">${CLAN_EMBLEMS[p.clan]}</span>` : '';

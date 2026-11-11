@@ -16,9 +16,12 @@ describe('home base sheets', () => {
     expect(hometabs.resolveTab).toBeUndefined();
   });
   it('HOME_SHEETS holds every sheet the old tabs led to', () => {
-    for (const id of ['skills', 'colony', 'social', 'journal', 'album', 'sync', 'settings', 'code']) {
+    for (const id of ['skills', 'colony', 'journal', 'album', 'sync', 'settings', 'code']) {
       expect(HOME_SHEETS).toContain(id);
     }
+    // the old Friends tab folded into Play together
+    expect(HOME_SHEETS).not.toContain('social');
+    expect(resolveSheet('social')).toBe('together');
     expect(HOME_SHEETS).not.toContain('cats');
     expect(HOME_SHEETS).not.toContain('accessories');
   });

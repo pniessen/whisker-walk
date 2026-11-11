@@ -3,15 +3,15 @@ import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
 import { activeCat } from '../customcats.js';
 import { renderFightMovesHtml, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
-import { HOME_SHEETS, MENU_TILES, GROWNUP_SHEETS, SHEET_ICON, SHEET_NAME, resolveSheet, PLACE_PICTURE } from './dressingroom.js';
+import { HOME_SHEETS, MENU_TILES, GROWNUP_SHEETS, SHEET_ICON, SHEET_NAME, resolveSheet, PLACE_PICTURE, placeWhyLine } from './dressingroom.js';
 import { createDressingRoom } from './dressingroomview.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
-import { pickableClans, clanName, ownClanTitle, alliesName } from '../clanhomes.js';
+import { ownClanTitle, alliesName } from '../clanhomes.js';
 import { CLAN_SUFFIX } from '../clanwords.js';
 import {
-  PICK_ATTR, PICK_SELECT_ID, MOMENT_ATTR, MOMENT_SEEN_KEY, clanPickerModel, clanMomentDue, renderClanMomentHtml, clanLineHtml, woodsOpen,
+  PICK_ATTR, MOMENT_ATTR, MOMENT_SEEN_KEY, clanPickerModel, clanMomentDue, renderClanMomentHtml, clanLineHtml, woodsOpen,
 } from './clanpicker.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { editionTitle, gameTitle, isClanEdition, placeName, effectiveArea } from '../edition.js';
@@ -130,8 +130,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // v21 Stream 5: the home screen is the dressing room (openSheet null) or
   // one sheet from HOME_SHEETS.
   let openSheet = null;
-  // The dusk toggle's tick, remembered across renders (a pill switch
-  // re-renders); never saved, and cleared on show() as it always was.
+  // Day or dusk, chosen in Change place: remembered across renders and walks
+  // for this session (home shows a moon while it stands), never saved. It
+  // only counts while the Glow Collar is on.
   let duskWanted = false;
   let shown = false; // between show() and hide()
 
@@ -213,15 +214,17 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const hasValidPetName = validPetName(name);
     // Paired siblings get their own room with nothing to type (Task 12).
     const pairWalk = renderPartnerWalkHtml({ status: colonySync ? colonySync.status() : null, colony, room: st });
+    // In order: the name (it unlocks everything under it), the walk with her
+    // sibling, then a room of her own to start or join.
     return `
       ${hasValidPetName ? '' : '<p class="wt-first">First, give your cat a name your friends will see:</p>'}
-      ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       <div class="wt-petname">
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Your cat's name" value="${escapeHtml(name)}" />
         <button id="wt-petname-save">Save</button>
         ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
       </div>
       ${isClanEdition(progression.state) ? renderStarNamePicker(candidateStarNames(myId), name) : ''}
+      ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       <div class="wt-actions">
         <button id="wt-host" ${hasValidPetName ? '' : 'disabled'}>Host a walk</button>
         <div class="wt-join-row">
@@ -289,14 +292,18 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return body;
   }
 
-  // Settings ⚙️ (Task 6): volume/mute/invert-Y/left-handed/reduced-motion,
-  // plus Start-over (moved here from the footer). Every control applies
-  // live via onSettingsChange — no reload, no walk restart. The volume
-  // slider is wired separately (an 'input' listener below, not this
-  // delegated click handler) so dragging it doesn't fight a render() every
-  // tick; the checkboxes and Start-over button DO go through the normal
-  // click-then-render() path since a discrete toggle has no drag to disrupt.
-  function renderSettings() {
+  // Settings ⚙️ (Task 6), in two halves since the navigation review: Sound &
+  // controls (the children's: volume, music, mute, the touch and look
+  // controls, the map, reduced motion, chat) and Game settings (the
+  // grown-ups': the edition, graphics, the fps readout and Start over, last
+  // with nothing under it). Only where each control is drawn changed: every
+  // id and its wiring below is as it was. Every control applies live via
+  // onSettingsChange — no reload, no walk restart. The volume slider is wired
+  // separately (an 'input' listener below, not this delegated click handler)
+  // so dragging it doesn't fight a render() every tick; the checkboxes and
+  // Start-over button DO go through the normal click-then-render() path since
+  // a discrete toggle has no drag to disrupt.
+  function renderControls() {
     if (!settings) return '';
     const s = settings.all();
     const pct = Math.round(s.volume * 100);
@@ -304,9 +311,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // The corner map's mode is kept on the save, not in settings, because
     // tapping the map during a walk flips the same value.
     const mapMode = progression.state.mapMode;
-    const edition = progression.state.edition;
     return `
-      <section class="settings-section"><h2>Settings ⚙️</h2>
+      <section class="settings-section"><h2>Sound &amp; controls 🔊</h2>
         <div class="settings-grid">
           <label class="settings-row settings-volume">
             <span class="settings-label">Volume</span>
@@ -319,9 +325,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <span id="set-music-volume-value" class="settings-volume-value">${musicPct}%</span>
           </label>
           ${settingsSwitchHtml('set-muted', !!s.muted, 'Mute all sound')}
-          ${settingsSwitchHtml('set-invert-y', !!s.invertY, 'Invert look (Y axis)')}
           ${settingsSwitchHtml('set-left-handed', !!s.leftHanded, 'Left-handed touch controls')}
-          ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
+          ${settingsSwitchHtml('set-invert-y', !!s.invertY, 'Invert look (Y axis)')}
           <label class="settings-row settings-quality">
             <span class="settings-label">Map</span>
             <select id="set-map-mode">
@@ -329,6 +334,22 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               <option value="turn" ${mapMode === 'turn' ? 'selected' : ''}>Turns with me</option>
             </select>
           </label>
+          ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
+          ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
+        </div>
+      </section>`;
+  }
+
+  // The edition is not a look: say what switching does, so a grown-up does
+  // not flip it like a colour (the save keeps everything either way).
+  const EDITION_NOTE = `Switching renames the places and shows or hides the ${CLAN_SUFFIX.toLowerCase()} territories. Nothing is lost.`;
+  function renderSettings() {
+    if (!settings) return '';
+    const s = settings.all();
+    const edition = progression.state.edition;
+    return `
+      <section class="settings-section"><h2>Game settings ⚙️</h2>
+        <div class="settings-grid">
           <label class="settings-row settings-quality">
             <span class="settings-label">Game edition</span>
             <select id="set-edition">
@@ -336,14 +357,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               <option value="legacy" ${edition === 'legacy' ? 'selected' : ''}>Legacy Edition</option>
             </select>
           </label>
-          ${isClanEdition(progression.state) ? `<label class="settings-row settings-quality">
-            <span class="settings-label">Your ${CLAN_SUFFIX.toLowerCase()}</span>
-            <select id="${PICK_SELECT_ID}">
-              <option value="" disabled ${progression.state.clanPick?.mine ? '' : 'selected'}>— not picked yet —</option>
-              ${pickableClans().map((id) => `<option value="${id}" ${progression.state.clanPick?.mine === id ? 'selected' : ''}>${clanName(id)}</option>`).join('')}
-            </select>
-          </label>` : ''}
-          ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
+          <p class="settings-note" id="set-edition-note">${EDITION_NOTE}</p>
         </div>
         <h3 class="settings-group">Advanced</h3>
         <div class="settings-grid settings-advanced">
@@ -376,7 +390,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           <input type="text" id="friend-code-input" maxlength="20" placeholder="CAT-XXXXXXXX" class="wt-code-input sync-code-input" ${hasValidPetName ? '' : 'disabled'} />
           <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
         </div>
-        ${!hasValidPetName ? '<div class="tag">Give your cat a name in 👫 Play together to add friends by code.</div>' : ''}
+        ${!hasValidPetName ? '<div class="tag">Give your cat a name at the top to add friends by code.</div>' : ''}
         ${friendCodeError ? `<div class="tag error">${escapeHtml(friendCodeError)}</div>` : ''}
         ${friendCodeSuccess ? `<div class="tag on">${escapeHtml(friendCodeSuccess)}</div>` : ''}
         ${friendCodeCandidate ? `
@@ -663,13 +677,15 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // the news card gave way to the moment: it may show now
     try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); }
   }
-  // force: Change place's "Choose your clan" (shown even after "Not yet").
+  // force: Change place's clan line (shown even after "Not yet", and with a
+  // clan already picked, to change it: that line is the only way to).
   function showClanMoment({ force = false } = {}) {
     if (!shown || momentEl || newsEl || noticeEl || visitOpen() || !homeVisible() || dressing?.ui?.builder) return false;
     // home, or Change place (a border crossing lands there); never over another sheet
     if (!force && openSheet && openSheet !== 'places') return false;
     const s = progression.state;
-    if (!clanMomentDue(s, CATALOG) || (!force && momentSeen())) return false;
+    const due = clanMomentDue(s, CATALOG) || (force && isClanEdition(s) && !!clanPickerModel(s).mine);
+    if (!due || (!force && momentSeen())) return false;
     closeWelcome();
     const partner = s.colony?.partner?.petName;
     momentEl = document.createElement('div');
@@ -820,6 +836,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // (afterRender), so a colony poll or a roster change mid-drag keeps the cat.
   let stage = null;
   let dressing = null;
+  let nudgePlace = null; // a place she could not open: wobbles once, on the next render
   let thumbs = null; // menuThumbnails(), made once with the dressing room
   function ensureDressing() {
     if (dressing) return dressing;
@@ -832,8 +849,18 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       onProfileChange: () => rooms?.retrackProfile?.(),
       onCatSaved: () => rooms?.pushProfileNow?.(),
       // Change place: a place she can walk is picked and she is back home with
-      // its card; a locked or unaffordable one leaves the sheet as it is.
-      onPlaced: (id, outcome) => { if (outcome && openSheet === 'places') { openSheet = null; backTo = null; } },
+      // its card; a locked or unaffordable one stays, but answers the tap: it
+      // wobbles (the render this tap causes) and one line says what is missing.
+      onPlaced: (id, outcome) => {
+        if (outcome) {
+          if (openSheet === 'places') { openSheet = null; backTo = null; }
+          return;
+        }
+        const why = placeWhyLine(progression.state, CATALOG, id);
+        if (!why) return;
+        nudgePlace = id;
+        try { toast?.(why); } catch { /* a toast is never worth a crash */ }
+      },
     });
     return dressing;
   }
@@ -920,12 +947,23 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return '';
   }
 
+  // My den is a tile, not a sheet: a tap goes straight there (onVisitDen), as
+  // its old card at the bottom of Change place did. The den never joins a
+  // room walk (main.js starts it on its own), so a room hides it, as before.
+  function denTileHtml(roomState) {
+    if (roomState) return '';
+    return '<button class="hb-tile hb-tile-den" id="btn-visit-den" type="button"><span class="hb-tile-icon" aria-hidden="true">🏠</span>'
+      + '<span class="hb-tile-name">My den</span><small>Visit</small></button>';
+  }
+
   function renderMenu(s, roomState) {
     const on = availableSheets();
     const tiles = MENU_TILES.filter((id) => on.includes(id)).map((id) => {
       const sub = menuTileSub(id, s, roomState);
       return `<button class="hb-tile" data-dr-sheet="${id}"><span class="hb-tile-icon" aria-hidden="true">${SHEET_ICON[id]}</span>`
-        + `<span class="hb-tile-name">${escapeHtml(SHEET_NAME[id])}</span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</button>`;
+        + `<span class="hb-tile-name">${escapeHtml(SHEET_NAME[id])}</span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</button>`
+        // the den sits where Friends was, after Skills
+        + (id === 'skills' ? denTileHtml(roomState) : '');
     }).join('');
     const grown = GROWNUP_SHEETS.filter((id) => on.includes(id))
       .map((id) => `<button class="hb-grownup" data-dr-sheet="${id}"><span aria-hidden="true">${SHEET_ICON[id]}</span> ${escapeHtml(SHEET_NAME[id])}</button>`).join('');
@@ -937,8 +975,20 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
 
   // ---- The Change place sheet (Launch A) -----------------------------------
-  // Her map and places (the dressing room's), the den as a place card, and her
-  // clan in one line.
+  // Her map and places (the dressing room's) and her clan in one line. The den
+  // is a Menu tile now: unlike every place here it starts a walk at once.
+  // Day / Dusk, at the top of Change place: the one place it is chosen. Dusk
+  // needs the Glow Collar, so without it the choice shows greyed and says so
+  // (hidden, she could never find out dusk exists). id dusk-toggle is the real
+  // control Start reads when it is on screen.
+  function duskChoiceHtml(s) {
+    const glow = s.equipped.collar === 'glow';
+    return `<div class="hb-dusk${glow ? '' : ' off'}">
+      <label class="hb-dusk-switch"><input type="checkbox" id="dusk-toggle" role="switch" aria-label="Dusk walk"${glow ? '' : ' aria-describedby="dusk-why" disabled'} ${glow && duskWanted ? 'checked' : ''} /><span class="hb-dusk-day">☀️ Day</span><span class="hb-dusk-night">🌙 Dusk</span></label>
+      ${glow ? '' : '<small class="hb-dusk-why" id="dusk-why">wear the Glow Collar</small>'}
+    </div>`;
+  }
+
   function renderPlaces(s, roomState) {
     const d = ensureDressing();
     let line = '';
@@ -946,11 +996,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const partner = s.colony?.partner?.petName;
       line = clanLineHtml(clanPickerModel(s), typeof partner === 'string' && partner ? partner : 'your partner', { canChoose: woodsOpen(s, CATALOG) });
     }
-    // The den never joins a room walk (main.js starts it on its own), so a room hides it, as before.
-    const den = roomState ? ''
-      : `<button class="dr-place dr-den" id="btn-visit-den" type="button"><img src="${escapeHtml(PLACE_PICTURE('den'))}" alt="" onerror="this.remove()"><span class="cap">My den<small>visit your den</small></span></button>`;
     return `<section class="hb-places" aria-labelledby="hb-places-title"><h2 id="hb-places-title">Change place</h2>
-      ${d.placesHtml({ clanLineHtml: line, denHtml: den })}
+      ${duskChoiceHtml(s)}
+      ${d.placesHtml({ clanLineHtml: line })}
     </section>`;
   }
 
@@ -981,16 +1029,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             trades: { give: tradeGive, want: tradeWant, confirmId: tradeConfirmId, busy: tradeBusy, error: tradeError },
           })}
         </section>`;
+      // Play together holds every code a child meets: the room's, then (from
+      // the old Friends sheet) the friends she walked with and her friend code.
       case 'together': return `
         <section class="walk-together"><h2>Play together 👫</h2>
           ${renderWalkTogether()}
-        </section>`;
-      case 'social': return `
-        <section class="friends-section"><h2>Friends 🐾</h2>
+        </section>
+        ${cloud && cloud.available ? `<section class="friends-section">
           ${renderPlayerPets()}
-          ${renderStrayFriends()}
-          ${cloud && cloud.available ? renderFriendCode() : ''}
-        </section>`;
+          ${renderFriendCode()}
+        </section>` : ''}`;
       case 'journal': {
         // Only the mice this edition can reach (Legacy hides four territories).
         const gold = goldForEdition(s.edition, CATALOG);
@@ -998,6 +1046,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         <section class="journal-section"><h2>Journal 📖</h2>
           ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, gold), gold.size,
     isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {})}
+          <div class="friends-section">${renderStrayFriends()}</div>
         </section>`;
       }
       case 'album': return `
@@ -1016,6 +1065,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         </div></section>`;
       case 'sync': return `<section class="walk-together sync-cloud"><h2>Cloud save ☁️</h2>${renderSync()}</section>`;
       case 'settings': return renderSettings();
+      case 'controls': return renderControls();
       case 'code': return renderRedeemHtml({ text: redeemText, busy: redeemBusy, result: redeemResult, catalog: CATALOG });
       default: return '';
     }
@@ -1051,10 +1101,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (openSheet && !availableSheets().includes(openSheet)) openSheet = null;
     const glowReady = s.equipped.collar === 'glow';
     const roomState = rooms && rooms.available ? rooms.getState() : null;
-    // The dusk toggle renders once: in the room's extras, or in a sheet's dock.
-    // A day/dusk switch: the words follow the tick in CSS, so ticking it
-    // needs no redraw. Home puts it on the Today's walk card.
-    const duskHtml = glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" aria-label="Dusk walk" ${duskWanted ? 'checked' : ''} /><span class="dusk-off" aria-hidden="true">☀️<span class="dusk-word"> Day</span></span><span class="dusk-on" aria-hidden="true">🌙<span class="dusk-word"> Dusk ✨</span></span></label>` : '';
+    // Home's Today's walk card says when dusk is chosen: a small moon, status
+    // only (the choice itself is in Change place).
+    const duskBadge = glowReady && duskWanted ? '<span class="dr-dusk-badge" role="img" aria-label="Dusk walk">🌙</span>' : '';
     if (openSheet) {
       // Ruling 10: every sheet keeps Start pinned at the bottom (the host-a-
       // room flow presses "Start the walk together" from 👫 Play together). The room
@@ -1066,24 +1115,40 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       // Menu and Change place are doors, not screens of their own: no dock.
       const door = openSheet === 'menu' || openSheet === 'places';
       // The dock by sheet: none on the doors or the grown-ups' sheets (no
-      // "Start the walk" under "Start over"); the whole dock on Play together,
-      // whose room starts from it; on the other sheets only where and Start.
+      // "Start the walk" under "Start over"); the whole dock (Start and Play
+      // together) on Play together, whose room starts from it; on the other
+      // sheets only where and Start. Dusk is chosen in Change place only; a
+      // Start from any dock reads that choice (duskWanted).
       const dock = door || GROWNUP_SHEETS.includes(openSheet) ? 'none' : openSheet === 'together' ? 'full' : 'slim';
       const back = backTo === 'menu' ? '← Back to the menu' : '← Back to my cat';
+      // From a sheet the Menu opened, home is two Backs: a cat face at the
+      // row's right goes straight there.
+      const home = backTo === 'menu'
+        ? '<button id="hb-home" class="hb-home" type="button" aria-label="Back to my cat"><span aria-hidden="true">🐱</span></button>' : '';
       root.innerHTML = `
       <div class="homebase-scroll hb-sheet${door ? ' hb-door' : ''}" data-sheet="${escapeHtml(openSheet)}">
-        <button id="hb-back" class="hb-back">${back}</button>
+        <div class="hb-sheet-head"><button id="hb-back" class="hb-back">${back}</button>${home}</div>
         ${renderSheetBody(openSheet, s, colonyStatus, roomState)}
         ${dock === 'none' ? '' : `<footer class="hb-sheet-dock">
           <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
-          ${dock === 'full' ? duskHtml : ''}
           ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState)}</div>`}
         </footer>`}
       </div>`;
       refocus(fid);
+      // The wobble: the card (or map region) she tapped, in the fresh DOM.
+      // Skipped when she asked for reduced motion (the CSS also skips it for
+      // the system setting).
+      const nudge = nudgePlace;
+      nudgePlace = null;
+      if (nudge && !settings?.all?.()?.reducedMotion) {
+        try {
+          const q = String(nudge).replace(/["\\]/g, '');
+          for (const el of root.querySelectorAll?.(`[data-dr-place="${q}"]`) ?? []) el.classList.add('nudge');
+        } catch { /* a nicety */ }
+      }
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
       syncPairingPoll();
-      if (cloud && cloud.available && openSheet === 'social') loadPlayerPets();
+      if (cloud && cloud.available && openSheet === 'together') loadPlayerPets();
       return;
     }
     const rank = rankFor(s.lifetimePoints);
@@ -1100,7 +1165,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (room.deferRender?.(root)) return; // she is typing her cat's name: runs on blur
     const f = room.captureFocus(root);
     root.innerHTML = room.html({
-      headerHtml, startHtml: startRowHtml(roomState), extrasHtml: duskHtml, rankTitle: rank.title,
+      headerHtml, startHtml: startRowHtml(roomState), extrasHtml: duskBadge, rankTitle: rank.title,
     });
     room.afterRender(root);
     room.restoreFocus(root, f);
@@ -1109,7 +1174,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     syncPairingPoll();
   }
 
-  // A clan card or the Settings select: save the pick, then tell the sibling's
+  // A clan card: save the pick, then tell the sibling's
   // device (fire-and-forget; a refusal changes nothing and sends nothing).
   // Re-picking the clan already picked sends nothing once that pick has been
   // pushed; after a failed push a re-tap is the way to try again.
@@ -1133,7 +1198,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       setSheet(backTo);
       return;
     }
-    // Change place's "Choose your clan" (before a pick): the moment again.
+    if (e.target.closest?.('#hb-home')) {
+      setSheet(null);
+      return;
+    }
+    // Change place's clan line (Choose, or Change once picked): the cards again.
     if (e.target.closest?.(`[${MOMENT_ATTR}]`)) {
       showClanMoment({ force: true });
       return;
@@ -1205,8 +1274,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const dusk = root.querySelector('#dusk-toggle');
       // A previewed cat or a tried-on accessory is never walked: the walk
       // reads the save's equipped cat and accessories (Review Focus 1).
-      // A slim sheet dock has no dusk switch: the choice made at home stands
-      // (while the Glow Collar that allows it is still on).
+      // Start is never beside the dusk switch now (it is in Change place, which
+      // has no dock), so the choice made there stands (while the Glow Collar
+      // that allows it is still on).
       const duskMode = dusk ? !!dusk.checked : !!(duskWanted && progression.state.equipped.collar === 'glow');
       dressing?.clearPreview();
       // Redraw without the preview, so "(trying)" can't linger if this start
@@ -1561,10 +1631,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       render();
       return;
     }
-    if (e.target.id === PICK_SELECT_ID) {
-      pickClan(e.target.value);
-      return;
-    }
     if (e.target.id === 'set-edition') {
       progression.setEdition(e.target.value);
       render();
@@ -1612,13 +1678,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
 
   return {
-    // show({ sheet }): a walk that ended at a border post opens Change place
-    // ('places'). The Menu and Change place are doors, so coming home from a
-    // walk started under one (the den) lands on the cat.
+    // show({ sheet }): a border crossing that could not pick its place opens
+    // Change place ('places'); one that picked it lands on the cat, like
+    // every other walk.
     show(opts) {
       const sheet = resolveSheet(opts?.sheet);
       redeemResult = null; // a stale "Surprise!" or catnap line must not outlive a walk
-      duskWanted = false; // as before: every visit starts with the dusk box clear
+      // duskWanted stands across walks this session: home's moon shows it.
       shown = true;
       // Coming home always lands on the cat, whatever sheet the walk was
       // started from (the Journal's dock, say), unless a sheet is asked for.

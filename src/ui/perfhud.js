@@ -9,6 +9,7 @@
 // stats and reuses one snapshot object. Strings are built only in the 500 ms
 // text refresh, so measuring does not disturb what is being measured.
 import { createFrameStats, createRenderCounter } from '../render/perfstats.js';
+import { FLOOR_RUNG } from '../render/quality.js';
 
 const REFRESH_MS = 500;
 const DASH = '–';
@@ -25,11 +26,14 @@ export function formatPerfLines(s) {
     `${fps} fps · ${ms} ms · worst ${worst} ms (3 s)`,
     `cpu ${s.workMs.toFixed(1)} ms`,
     `tier ${s.tierName} · setting ${s.quality} · touch ${s.coarse ? 'yes' : 'no'}`,
-    `shadow ${s.shadowMapSize} · postFx ${onOff(s.postFx)} · normals ${onOff(s.normalMaps)}`,
+    `shadow ${s.shadowMapSize > 0 ? s.shadowMapSize : 'off'} · postFx ${onOff(s.postFx)} · normals ${onOff(s.normalMaps)}`,
     s.adapt,
     `px ratio ${+s.pixelRatio.toFixed(2)} · ${s.bufferW}×${s.bufferH} · strays ${s.strays}`,
     `draws ${f.calls} · shadow ${f.shadowCalls} · scene ${f.sceneCalls} · other ${f.otherCalls}`,
     `tris ${f.triangles.toLocaleString('en-US')} · scene passes ${f.sceneRenders}`,
+    // Only in the iPhone and iPad app, which says what it is running on
+    // (render/deviceprofile.js): the model, memory, heat and Low Power Mode.
+    ...(s.device ? [s.device] : []),
   ];
 }
 
@@ -39,7 +43,13 @@ export function formatAdapt(st) {
   if (!st) return DASH;
   if (st.mode === 'manual') return 'manual';
   if (st.mode === 'reduced-motion') return 'reduced motion';
-  const base = `auto rung ${st.rung}/3 · start ${st.startRung} (${st.startReason})`;
+  // ?rung=N: held there for the page load, nothing stepped or remembered.
+  // The 30 fps cap is the step after the last rung (CAP_RUNG): shown as the
+  // floor rung plus the cap, never as a seventh rung.
+  const rung = (r) => `${Math.min(r, FLOOR_RUNG)}/${FLOOR_RUNG}${r > FLOOR_RUNG || (r === st.rung && st.cap30) ? ' + 30 fps cap' : ''}`;
+  if (st.mode === 'forced') return `forced rung ${rung(st.rung)} (?rung)`;
+  const start = `${Math.min(st.startRung, FLOOR_RUNG)}${st.startRung > FLOOR_RUNG ? ' + cap' : ''}`;
+  const base = `auto rung ${rung(st.rung)} · start ${start} (${st.startReason})`;
   return st.change ? `${base} · ${st.change}` : base;
 }
 
@@ -54,6 +64,7 @@ export function createPerfHud({ renderer, settings, coarse, adapter }) {
     shadowMapSize: 0, postFx: false, normalMaps: false,
     pixelRatio: 1, bufferW: 0, bufferH: 0, strays: 0,
     adapt: '',
+    device: '',
     frame: counter.frame,
   };
 
@@ -107,7 +118,8 @@ export function createPerfHud({ renderer, settings, coarse, adapter }) {
     snap.frameMs = stats.frameMs();
     snap.worstMs = stats.worstMs(now);
     snap.workMs = stats.workMs();
-    snap.tierName = tier?.name ?? '?';
+    // The label tells the rungs below LOW apart; their `name` is still 'low'.
+    snap.tierName = tier?.label ?? tier?.name ?? '?';
     snap.quality = settings.get('quality');
     snap.shadowMapSize = tier?.shadowMapSize ?? 0;
     // Live, not tier.postFx: the adapter can drop the composer mid-walk.
@@ -118,6 +130,7 @@ export function createPerfHud({ renderer, settings, coarse, adapter }) {
     snap.bufferH = renderer.domElement.height;
     snap.strays = session.strayCats?.strays?.length ?? 0;
     snap.adapt = formatAdapt(adapter?.status);
+    snap.device = adapter?.status?.device ?? '';
     el.textContent = formatPerfLines(snap).join('\n');
     el.classList.remove('hidden');
   }

@@ -31,6 +31,9 @@ import { createAvatarUpdater } from './game/avatar.js';
 import { createRooms } from './game/rooms.js';
 import { createComposerRig } from './game/composer.js';
 import { createQualityAdapter } from './game/adaptquality.js';
+import { parseForcedRung } from './render/quality.js';
+import { readDeviceProfile, DEVICE_EVENT } from './render/deviceprofile.js';
+import { releaseThumbnails } from './thumbnails.js';
 import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
@@ -152,7 +155,20 @@ function init() {
   // Adaptive Auto quality: every device starts a walk on the high rung and
   // steps down live if its frames stay slow; the step is remembered per
   // device in localStorage['whisker-walk-adapt'] (never the save).
-  const qualityAdapter = createQualityAdapter({ renderer, composerRig, storage: window.localStorage });
+  // ?rung=N holds Auto on rung N for this page load (testing; never saved).
+  const qualityAdapter = createQualityAdapter({
+    renderer, composerRig, storage: window.localStorage,
+    forcedRung: parseForcedRung(location.search),
+    // What the iPhone and iPad app says it is running on; null in a browser.
+    device: readDeviceProfile(window),
+  });
+  // The app's news about the device while the game is open: running hot, Low
+  // Power Mode, memory short. Never fired in a browser. A memory warning also
+  // lets go of the menu pictures (thumbnails.js), which are remade on demand.
+  window.addEventListener(DEVICE_EVENT, (e) => {
+    qualityAdapter.deviceChanged(e.detail);
+    if (e.detail?.memoryWarning === true) releaseThumbnails();
+  });
   const perfHud = createPerfHud({ renderer, settings, coarse, adapter: qualityAdapter });
   const log = createDiscoveryLog(progression);
 
@@ -464,10 +480,15 @@ function init() {
     clearResume(window.localStorage);
     settleAbandoned(progression, leftWalk.data);
   }
-  const visit = progression.recordVisit();
+  // A launch that picks a walk up again is not a new visit: nothing is
+  // counted, so a milestone celebration (and Rosa's farewell, below) is not
+  // used up behind a walk and waits for a launch that opens at home.
+  const resuming = leftWalk?.kind === 'resume';
+  const visit = resuming ? { visits: progression.state.visits, milestone: null } : progression.recordVisit();
   homebase.show();
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {
+    if (resuming) return; // kept for a launch that opens at home
     const farewell = progression.takeFarewell();
     if (farewell) homebase.showNotice(farewell);
   };
@@ -623,8 +644,12 @@ function init() {
     if (e.target.id === 'btn-cross-no') crossing.cancel();
     if (e.target.id === 'btn-summary-continue') {
       overlay.classList.add('hidden');
+      // takeCrossing() also clears the crossing. A crossing that picked the new
+      // place lands on home, whose Today's walk card already shows it; one
+      // that could not pick it (not open yet, or not enough 🐾) opens Change
+      // place, where that place says what is missing.
       const c = takeCrossing();
-      homebase.show(c && c.clan ? { sheet: 'places' } : undefined);
+      homebase.show(c && c.clan && !c.picked ? { sheet: 'places' } : undefined);
       sync.autoSync(); // fire-and-forget; no-op when unlinked/offline
       pullThenNews(); // fire-and-forget; catches up feeds made on this walk, then the news card
     }
@@ -713,10 +738,18 @@ function init() {
   // snapshotWalk gives null for a walk that cannot be picked up (a walk
   // together, the den) and writeResume ignores null.
   const noteWalk = () => {
-    if (session) writeResume(window.localStorage, snapshotWalk(session, { yaw: player.viewYaw(), now: Date.now() }));
+    if (session) writeResume(window.localStorage, snapshotWalk(session, { yaw: player.viewYaw(), now: Date.now(), paid: log.entries() }));
   };
-  document.addEventListener('visibilitychange', () => { if (document.hidden) noteWalk(); });
-  window.addEventListener('pagehide', noteWalk);
+  // Put away while the walk is running well (it has drawn frames for a
+  // while): that is the ordinary way a walk is left, so the count of failed
+  // tries starts over. Only here: a walk the page is killed in mid-play never
+  // gets this far, and uses its tries up (walkresume.js markTried).
+  const noteWalkOnHide = () => {
+    if (session?.healthy) session.resumeTries = 0;
+    noteWalk();
+  };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) noteWalkOnHide(); });
+  window.addEventListener('pagehide', noteWalkOnHide);
   let walkNoteAccum = 0;
   // Mouse wheel / trackpad zoom. Only cancelled (and only acted on) during an
   // engaged walk, so the browser's own ctrl+wheel zoom still works everywhere
@@ -759,17 +792,24 @@ function init() {
   // it does for any walk). The try is counted BEFORE the build: a walk that
   // cannot be rebuilt is settled on a later launch (RESUME_MAX_TRIES) rather
   // than tried forever.
-  if (leftWalk?.kind === 'resume') {
+  if (resuming) {
     const note = markTried(window.localStorage, leftWalk.data);
     try {
       startWalk({ duskMode: note.dusk, areaOverride: note.areaId, resume: note });
     } catch (err) {
       console.warn('Whisker Walk: could not pick the walk up', err);
+      // The walk counts as finished and is forgotten. If it got as far as a
+      // half-built session, start the page again clean: with the note gone
+      // that opens at home, once.
       clearResume(window.localStorage);
-      if (!session) settleAbandoned(progression, note);
+      settleAbandoned(progression, note);
+      if (session) window.location.reload();
     }
   }
   renderer.setAnimationLoop(() => {
+    // The 30 fps cap (game/adaptquality.js): a skipped refresh does nothing
+    // at all, not even read the clock, so the next frame's dt covers both.
+    if (session && !qualityAdapter.shouldRender(performance.now())) return;
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
@@ -1117,13 +1157,13 @@ function init() {
     perfHud.frameEnd(session, performance.now());
     // Mid-walk resume: note the walk every 5 s. After the draw on purpose: a
     // walk picked up again that cannot get through a frame never reaches
-    // this, so its count of failed tries stands and the next launch but one
-    // opens at home.
+    // this, so it is never marked healthy, its count of failed tries stands
+    // and the next launch but one opens at home.
     if (session) {
       walkNoteAccum += dt;
       if (walkNoteAccum >= 5) {
         walkNoteAccum = 0;
-        session.resumeTries = 0;
+        session.healthy = true;
         noteWalk();
       }
     }

@@ -8,7 +8,7 @@ import { clanName } from '../src/clanhomes.js';
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
   MENU_TILES, GROWNUP_SHEETS,
-  buildDressingModel, renderSlotPickerHtml, renderDressingRoomHtml, renderPlacesSheetHtml, poseToggleHtml,
+  buildDressingModel, renderSlotPickerHtml, renderDressingRoomHtml, renderPlacesSheetHtml, poseToggleHtml, placeWhyLine,
 } from '../src/ui/dressingroom.js';
 
 function defaultishState() {
@@ -297,8 +297,8 @@ describe('sheets and pictures', () => {
     expect(HOME_SHEETS).not.toContain('den-shop');
     expect(SHEET_LABEL['den-shop']).toBeUndefined();
   });
-  it('labels name the two doors, the six Menu tiles and the grown-ups sheets, in that order', () => {
-    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 Colony', '📖 Journal', '📸 Album', '⭐ Skills', '👥 Friends', '⚙️ Settings', '☁️ Cloud save', '🎁 Secret code']);
+  it('labels name the two doors, the Menu tiles and the grown-ups sheets, in that order', () => {
+    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 Colony', '📖 Journal', '📸 Album', '⭐ Skills', '🔊 Sound & controls', '⚙️ Game settings', '☁️ Cloud save', '🎁 Secret code']);
   });
   it('Play together is a sheet of its own', () => {
     expect(resolveSheet('together')).toBe('together');
@@ -728,14 +728,32 @@ describe('Launch A: the home screen (cat, place, go)', () => {
   });
 
   describe('the sheets', () => {
-    it('the Menu holds six kid tiles then three grown-up sheets; the doors are menu and places', () => {
-      expect(MENU_TILES).toEqual(['together', 'colony', 'journal', 'album', 'skills', 'social']);
+    it('the Menu holds the kid tiles then three grown-up sheets; the doors are menu and places', () => {
+      expect(MENU_TILES).toEqual(['together', 'colony', 'journal', 'album', 'skills', 'controls']);
       expect(GROWNUP_SHEETS).toEqual(['settings', 'sync', 'code']);
       expect(HOME_SHEETS).toEqual(['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS]);
     });
-    it('Friends and Cloud save are the names for social and sync', () => {
-      expect(SHEET_LABEL.social).toBe('👥 Friends');
+    it('Cloud save is the name for sync; Friends is folded into Play together', () => {
+      expect(SHEET_LABEL.social).toBeUndefined();
+      expect(resolveSheet('social')).toBe('together');
       expect(SHEET_LABEL.sync).toBe('☁️ Cloud save');
     });
+  });
+});
+
+// A tap on a place she cannot open yet answers with what is missing.
+describe('placeWhyLine', () => {
+  const base = (over = {}) => ({ points: 0, walks: { neighborhood: 0, park: 0, seaside: 0 }, unlocked: { areas: ['neighborhood'] }, edition: 'canon', ...over });
+  it('a gated place says how many walks it waits for', () => {
+    expect(placeWhyLine(base({ walks: { neighborhood: 1 }, edition: 'legacy' }), CATALOG, 'park')).toBe('opens after 2 walks in Cozy Neighborhood · 1/2 so far');
+  });
+  it('an open place she cannot afford says how many paws to go', () => {
+    expect(placeWhyLine(base({ points: 21, walks: { neighborhood: 2 } }), CATALOG, 'park')).toBe('29 more 🐾 to go');
+  });
+  it('nothing is missing: owned, affordable, unknown, or not in this edition', () => {
+    expect(placeWhyLine(base(), CATALOG, 'neighborhood')).toBeNull();
+    expect(placeWhyLine(base({ points: 50, walks: { neighborhood: 2 } }), CATALOG, 'park')).toBeNull();
+    expect(placeWhyLine(base(), CATALOG, 'nowhere')).toBeNull();
+    expect(placeWhyLine(base({ edition: 'legacy' }), CATALOG, 'woods')).toBeNull();
   });
 });

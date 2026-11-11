@@ -365,10 +365,19 @@ export const SCUFFLE_MAX_PER_WALK = 3;
 // The caller must ALSO gate on session.freezeTime <= 0 (spec §4: a scuffle
 // must never fire while the player is already frozen) and on bearsGrudge.
 // Those are session/save reads this module has no handle on.
-export function createEnemyWalkLog() {
-  const scuffled = new Set();
-  const forgiven = new Set();
+//
+// `saved` is a walk picked up again (game/walkresume.js): the cats already
+// scuffled with and already forgiven on this walk, so a cat she made up with
+// does not roll cross again and the per-walk ceiling does not start over.
+export function createEnemyWalkLog(saved = null) {
+  const names = (list) => (Array.isArray(list) ? list.filter(isGrudgeName) : []);
+  const scuffled = new Set(names(saved?.scuffled));
+  const forgiven = new Set(names(saved?.forgiven));
   return {
+    // For the resume note.
+    snapshot() {
+      return { scuffled: [...scuffled], forgiven: [...forgiven] };
+    },
     // true at most once per cat and at most SCUFFLE_MAX_PER_WALK times per
     // walk; marks the cat used on the way out.
     allowScuffle(name) {

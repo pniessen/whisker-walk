@@ -268,3 +268,16 @@ describe('the prompt pill under the crossing card (Polish 3)', () => {
     expect(css).toMatch(/body:has\(#overlay:not\(\.hidden\) \.cross-card\) #hud-prompt\s*\{[^}]*display: none/);
   });
 });
+
+// After a crossing, Continue lands on home when the new place was picked
+// (Today's walk shows it); only a place it could not pick opens Change place.
+describe('Continue after a crossing (main.js source pin)', () => {
+  it('calls takeCrossing and opens Change place only when the place was not picked', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    const at = src.indexOf("e.target.id === 'btn-summary-continue'");
+    const body = src.slice(at, src.indexOf('pullThenNews();', at));
+    expect(body).toContain('const c = takeCrossing();');
+    expect(body).toContain("homebase.show(c && c.clan && !c.picked ? { sheet: 'places' } : undefined);");
+  });
+});
