@@ -94,7 +94,7 @@ const IN_ROOM = { available: true, getState: () => ({ roster: [{ id: 'a' }, { id
 function setup({ rooms = null, sync = null, colonySync = null, onVisitDen = () => {}, state } = {}) {
   const progression = createProgression(memStorage());
   if (state) state(progression.state);
-  const hb = createHomeBase(progression, { photos: [] }, () => {}, rooms, sync, null, settings, () => {}, onVisitDen, colonySync, 'me', () => {});
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, cloud: null, settings, onSettingsChange: () => {}, onVisitDen, colonySync, myId: 'me', toast: () => {} });
   hb.show();
   return { progression, hb };
 }
@@ -301,7 +301,7 @@ describe('Change place (the places sheet)', () => {
     const progression = createProgression(memStorage());
     progression.state.points = 21;
     progression.state.walks.neighborhood = 2;
-    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', toast).show();
+    createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast }).show();
     openSheet('places');
     const card = fakeEl(doc);
     doc.root.querySelectorAll = (sel) => (sel === '[data-dr-place="park"]' ? [card] : []);
@@ -319,7 +319,7 @@ describe('Change place (the places sheet)', () => {
     const toast = vi.fn();
     const progression = createProgression(memStorage());
     const calm = { ...settings, all: () => ({ ...settings.all(), reducedMotion: true }) };
-    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, calm, () => {}, () => {}, null, 'me', toast).show();
+    createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings: calm, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast }).show();
     openSheet('places');
     const card = fakeEl(doc);
     doc.root.querySelectorAll = () => [card];
@@ -526,7 +526,7 @@ describe('the clan moment', () => {
     const progression = createProgression(memStorage());
     woodsOpened(progression.state);
     const onCardsClosed = vi.fn();
-    const hb = createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {}, undefined, onCardsClosed);
+    const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {}, onCardsClosed });
     hb.show();
     hb.showVisit(PLAIN, { onClosed: () => {} });
     moment().listeners.click({ target: { closest: (sel) => (sel === '.join-moment-later' ? {} : null) } });
@@ -536,7 +536,7 @@ describe('the clan moment', () => {
     const p2 = createProgression(memStorage());
     woodsOpened(p2.state);
     const hook2 = vi.fn();
-    const hb2 = createHomeBase(p2, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {}, undefined, hook2);
+    const hb2 = createHomeBase({ progression: p2, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {}, onCardsClosed: hook2 });
     hb2.show();
     hb2.showVisit(PLAIN, { onClosed: () => {} });
     expect(moment()).toBeTruthy();
@@ -696,7 +696,7 @@ describe('Settings in two halves', () => {
     const onChange = vi.fn();
     const progression = createProgression(memStorage());
     const s2 = { get: () => null, set, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
-    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, s2, onChange, () => {}, null, 'me', () => {}).show();
+    createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings: s2, onSettingsChange: onChange, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} }).show();
     openSheet('controls');
     doc.root.listeners.click({ target: { id: 'set-left-handed', checked: true, dataset: {}, closest: () => null } });
     expect(set).toHaveBeenCalledWith('leftHanded', true);
@@ -718,8 +718,8 @@ describe('the Vibration switch', () => {
     const onChange = vi.fn();
     const progression = createProgression(memStorage());
     const s2 = { get: () => null, set, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto', haptics: opts?.on ?? true }) };
-    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, s2, onChange, () => {}, null, 'me', () => {}, undefined, undefined,
-      ...(opts?.haptics === undefined ? [] : [{ haptics: opts.haptics }])).show();
+    createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings: s2, onSettingsChange: onChange, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {},
+      ...(opts?.haptics === undefined ? {} : { haptics: opts.haptics }) }).show();
     openSheet('controls');
     return { set, onChange };
   };
@@ -762,7 +762,7 @@ describe('Play together holds the friends (Friends folded in)', () => {
     const progression = createProgression(memStorage());
     if (state) state(progression.state);
     const cloud = CLOUD();
-    const hb = createHomeBase(progression, { photos: [] }, () => {}, OPEN_ROOMS, null, cloud, settings, () => {}, () => {}, colonySync, 'me', () => {});
+    const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: OPEN_ROOMS, sync: null, cloud, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: () => {} });
     hb.show();
     return { progression, cloud };
   }
@@ -818,7 +818,7 @@ describe('Day / Dusk in Change place', () => {
     const progression = createProgression(memStorage());
     if (glow) { progression.state.unlocked.accessories.push('glow'); progression.state.equipped.collar = 'glow'; }
     const onStartWalk = vi.fn();
-    const hb = createHomeBase(progression, { photos: [] }, onStartWalk, rooms, null, null, settings, () => {}, () => {}, null, 'me', () => {});
+    const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk, rooms, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
     hb.show();
     return { progression, hb, onStartWalk };
   }

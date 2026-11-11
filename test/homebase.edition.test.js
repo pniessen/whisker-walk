@@ -76,7 +76,7 @@ const rooms = { available: true, getState: () => null, onChange() {} };
 function setup() {
   const progression = createProgression(memStorage());
   const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
-  const hb = createHomeBase(progression, { photos: [] }, () => {}, rooms, null, null, settings, () => {}, () => {}, null, 'me', () => {});
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
   hb.show();
   return { progression };
 }
@@ -171,7 +171,7 @@ describe('the title names the edition', () => {
     createProgression(storage).setEdition('legacy');
     const progression = createProgression(storage);
     const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
-    createHomeBase(progression, { photos: [] }, () => {}, rooms, null, null, settings, () => {}, () => {}, null, 'me', () => {}).show();
+    createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} }).show();
     expect(doc.title).toBe('Whisker Walk 2: Legacy Edition');
   });
 
@@ -243,7 +243,7 @@ describe('picking a clan', () => {
     const colonySync = { status: () => ({ mode: 'local' }), pull: () => {}, noteOwnPick };
     const progression = createProgression(memStorage());
     const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
-    createHomeBase(progression, { photos: [] }, () => {}, rooms, null, null, settings, () => {}, () => {}, colonySync, 'me', () => {}).show();
+    createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: () => {} }).show();
     return { progression, noteOwnPick };
   }
 

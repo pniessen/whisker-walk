@@ -70,7 +70,7 @@ afterEach(() => {
 function setup() {
   const progression = createProgression(memStorage());
   const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
-  const hb = createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {});
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
   hb.show();
   openSheet('controls');
   return { progression };
@@ -105,7 +105,7 @@ describe("show({ sheet: 'places' })", () => {
   function make() {
     const progression = createProgression(memStorage());
     const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
-    return createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {});
+    return createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
   }
   it('opens the Change place sheet with no other sheet open', () => {
     const hb = make();
