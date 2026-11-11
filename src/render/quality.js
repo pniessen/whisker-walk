@@ -5,10 +5,24 @@
 // walk start; a settings change here only takes effect next walk.
 const HIGH = Object.freeze({
   name: 'high',
+  // What the ?perf readout calls the tier. The same as `name` on the four
+  // upper rungs; the two rungs below LOW keep name 'low' (the readers of
+  // `name` must go on treating them as low) and are told apart by this.
+  label: 'high',
   rung: 0,
   // Ambient strays per area (game/walk.js). A count knob, not a look knob.
   strays: 22,
   shadowMapSize: 2048,
+  // The sun's real shadow pass. On everywhere but the lite rung (see LITE).
+  shadows: true,
+  // Shadow-caster trim (render/rig.js trimShadowCasters): a part smaller
+  // than this many metres stops casting. 0 is no trim, which is every rung
+  // down to and including LOW; see SHADOW_LIGHT for the one that trims.
+  shadowMinPart: 0,
+  // Whether the cats she has fed are kept even when the stray count is
+  // smaller than her colony here (game/walk.js). Only the lite rung's count
+  // is small enough to need it; see LITE.
+  keepFedCats: false,
   envIntensity: 0.45,
   postFx: true,
   pixelRatioCap: 2,
@@ -91,9 +105,13 @@ const HIGH = Object.freeze({
 
 const LOW = Object.freeze({
   name: 'low',
+  label: 'low',
   rung: 3,
   strays: 14,
   shadowMapSize: 1024,
+  shadows: true,
+  shadowMinPart: 0,
+  keepFedCats: false,
   envIntensity: 0.32,
   postFx: false,
   pixelRatioCap: 1.5,
@@ -138,16 +156,128 @@ const LOW = Object.freeze({
   splashRings: 20,
 });
 
+// ---------------------------------------------------------------------------
+// The two rungs below LOW, for a device LOW is still too much for (the
+// weakest target is an iPad 7th generation: A10 Fusion, 3 GB). Reached by
+// Auto and by ?rung only; the manual "Low" setting still means LOW.
+//
+// The order things are given up in is the design. Resolution and glow went
+// first (rungs 1 and 2); next comes shadow quality (rung 4), then scenery
+// density and the real shadows themselves (rung 5), and last of all frame
+// rate (the 30 fps cap, render/adaptive.js). What never goes: her cat, the
+// cats she has befriended, paw prints, the goals, and anything that changes
+// what the game pays or how it plays.
+//
+// Rungs 0-2 were "fill rate first" because a fast phone that struggles is
+// GPU-bound. An A10 is the other case: draw calls are CPU work, and the
+// shadow pass is about 73% of them (217 of 297 in the Neighborhood on the
+// iPhone 18 reading), so below LOW the lever is the shadow pass.
+//
+// RUNG 4, "shadow-light": the same shadows, drawn with far fewer calls.
+//
+// Where the shadow draws actually are was counted (headless, at each area's
+// spawn, against the real shadow frustum): the static world puts only 23-72
+// casters in the Neighborhood's shadow box, and the rest are CATS. A cat is
+// 31 separate meshes (25 for a stray) and every one of them is its own shadow
+// draw: eyes, pupils, nose, whiskers, cheeks, paws, inner ears. Half a dozen
+// cats near the player cost more shadow draws than every house, tree and
+// fence in view together.
+//
+// So this rung stops the SMALL PARTS casting (rig.js trimShadowCasters): a
+// part casts only if it is at least 30 cm across, or a fifth the size of
+// the thing it belongs to. A cat goes from 31 (or 25) shadow draws to 10:
+// body, belly, head, four legs, tail, and the two ears, which are kept by
+// name because they are what makes a cat's shadow a cat's. Windows stop
+// casting too (they lie flat on a wall that already casts). At this rung's
+// 3.9 cm shadow texels, softened by another 4 cm, a part under 30 cm is a
+// few texels that fall inside the shadow of the body it is attached to.
+//
+// The options weighed, and why not:
+//   - A 512 map: texels are not draws. It would blur every shadow and remove
+//     no CPU work at all.
+//   - A tighter shadow box (radius 20 -> 16): removes about a quarter of what
+//     is left, but shadows then end visibly nearer the camera. Kept at 20.
+//   - Only her cat and big static shapes cast: more draws saved, but every
+//     other cat loses its shadow, which is easy to see. The trim keeps them.
+//   - Redrawing the shadow map every other frame: halves the draws on
+//     average but makes frames alternately heavy and light, the uneven frame
+//     pacing this whole ladder exists to remove.
+//   - Rendering the static world's shadows once and only the cats' each
+//     frame: three has no such split for one light, and the shadow box
+//     follows the camera, so "once" would be every few steps anyway.
+//
+// It is all live: flipping castShadow needs no rebuild and nothing visibly
+// pops, so a step to this rung takes effect on the very next frame.
+const SHADOW_LIGHT = Object.freeze({
+  ...LOW,
+  label: 'shadow-light',
+  rung: 4,
+  shadowMinPart: 0.3,
+});
+
+// RUNG 5, "lite": no real shadow pass at all, and less of everything that is
+// scenery rather than game.
+const LITE = Object.freeze({
+  ...SHADOW_LIGHT,
+  label: 'lite',
+  rung: 5,
+  // The sun casts nothing, so the shadow pass draws nothing (game/walk.js
+  // builds the walk with createNoShadows). The contact-shadow decals under
+  // every cat and prop stay (they are two draws, and have no tier knob for
+  // exactly this reason), so nothing floats. Mid-walk the shadows fade out
+  // over 1.5 s (game/adaptquality.js), the bloom fade's care again.
+  shadows: false,
+  shadowMapSize: 0,
+  // One device pixel per CSS pixel. On the 2160x1620 iPad that is a quarter
+  // of the native pixels, and less than half of LOW's 1.5 cap.
+  pixelRatioCap: 1,
+  // Eight strays. A stray is 25 main-pass draws as well as its shadow draws,
+  // so the count is the biggest scene-pass lever there is. Where a clan
+  // lives, the clan's own nine cats take all eight places (clancast.js), so
+  // the camp is still full and only the passing loners go.
+  strays: 8,
+  // ...but never the cats she has fed. createStrayCats counts her colony
+  // inside the stray count, so a count this small could drop a fed cat;
+  // with this set, walk.js raises the count to her colony's size here.
+  keepFedCats: true,
+  // A bare sky. Clouds are one draw call whatever the count, so this is
+  // not about draws: a near cloud is mostly overdraw, and this rung is the
+  // last stop before giving up frame rate.
+  cloudCount: 0,
+  // 613 tufts at most (LOW: 1,129; HIGH: 4,053), still one draw: the lawn
+  // near the cat keeps some texture for a seventh of HIGH's vertex work.
+  grassRadius: 5,
+  grassSpacing: 0.5,
+  // A quarter of the particles (LOW: half): 10 leaves, 3 to 7 of the rest.
+  // Still on, because a handful of points in one draw costs next to nothing.
+  ambientScale: 0.25,
+  // Paw prints, splashes and everything else exactly as LOW. The trail is
+  // the thing the children notice, and 48 prints are one draw call.
+});
+
 // The adaptive ladder. Order is fill rate first (pixel ratio, then post-fx and
-// MSAA, then today's LOW as the floor): see "Rung order" in
+// MSAA, then today's LOW), then the shadow pass, then scenery: see "Rung
+// order" in
 // docs/superpowers/plans/2026-10-25-whisker-walk-v21-stream4-adaptive.md and
-// "The rungs — fill rate first" in docs/VISUAL-PASS.md (Adaptive Auto).
-// `name` stays 'high' for rungs 0-2 because render/textures.js and
-// render/water.js read it.
+// "The rungs — fill rate first" and "Below LOW" in docs/VISUAL-PASS.md.
+// `name` stays 'high' for rungs 0-2 and 'low' for rungs 3-5 because
+// render/textures.js, render/water.js, render/waterdress.js and weather.js
+// read it.
 const RUNG1 = Object.freeze({ ...HIGH, rung: 1, pixelRatioCap: 1.5 });
 const RUNG2 = Object.freeze({ ...RUNG1, rung: 2, postFx: false, msaaSamples: 0 });
-export const LADDER = Object.freeze([HIGH, RUNG1, RUNG2, LOW]);
-export const FLOOR_RUNG = 3;
+export const LADDER = Object.freeze([HIGH, RUNG1, RUNG2, LOW, SHADOW_LIGHT, LITE]);
+// Today's LOW: what the manual "Low" setting and reduced motion mean, and
+// the last rung whose step waits for the next walk without doing anything
+// live.
+export const LOW_RUNG = 3;
+export const FLOOR_RUNG = 5;
+// One past the floor: not a tier, a state. "The lite rung, capped to a steady
+// 30 frames a second" (render/adaptive.js, the 30 fps cap). It is numbered
+// like a rung so that the adapt memory, the step-down and the retry treat
+// giving up frame rate as the last step of the same ladder: remembered like
+// a rung, retried like a rung. resolveQuality clamps to FLOOR_RUNG, so a
+// walk on CAP_RUNG is built from the lite tier.
+export const CAP_RUNG = FLOOR_RUNG + 1;
 
 // reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').
 // override: the persisted 'quality' setting — 'auto' adapts, 'high'/'low'
@@ -159,6 +289,26 @@ export function resolveQuality({ reducedMotion, override, rung = 0 } = {}) {
   if (reducedMotion) return LOW;
   const r = Number.isFinite(rung) ? Math.trunc(rung) : 0;
   return LADDER[Math.min(FLOOR_RUNG, Math.max(0, r))];
+}
+
+// ?rung=N, for looking at a rung on a device that would never reach it by
+// itself (nobody has a slow enough device to hand): Auto starts on rung N and
+// stays there for the whole page load. It never steps and never reads or
+// writes the adapt memory (game/adaptquality.js), so a look at the floor on a
+// fast phone leaves no trace. Returns the rung, or null when the switch is
+// absent or is not a whole number; a number past the end means the end.
+// ?rung=6 (CAP_RUNG) is the lite rung with the 30 fps cap on, so that state
+// can be looked at too. `search` is location.search (the iOS app passes it
+// too: see AppScheme.startURL in ios/).
+export function parseForcedRung(search, maxRung = CAP_RUNG) {
+  let text = null;
+  try {
+    text = new URLSearchParams(search ?? '').get('rung');
+  } catch {
+    return null;
+  }
+  if (text == null || !/^\d{1,3}$/.test(text.trim())) return null;
+  return Math.min(maxRung, Number(text.trim()));
 }
 
 // True when the governor may move the rung during a walk.

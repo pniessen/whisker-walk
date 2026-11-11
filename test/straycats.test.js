@@ -1291,7 +1291,10 @@ describe('game/walk.js — where a legendary cat may appear', () => {
     const callText = src.slice(call, src.indexOf('});', call));
     expect(callText).toContain('createStrayCats(scene, areaData, strayCount, strayStream(roomSeed ?? soloSeed)');
     expect(src).toContain('const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);');
-    expect(src).toContain('const strayCount = wanderStrayCount(loners, fedHere, !!wanderSpot);');
+    // (On the lite rung, quality.js LITE, the loners are first raised to her
+    // colony's size here, so no fed cat is dropped; every other rung passes
+    // `loners` as it is.)
+    expect(src).toContain('const strayCount = wanderStrayCount(tier.keepFedCats ? Math.max(loners, fedHere) : loners, fedHere, !!wanderSpot);');
     // Kittypets are kept out of a territory's ordinary cast on every walk.
     const excl = src.slice(src.indexOf('const excludeNames = '), src.indexOf(';\n', src.indexOf('const excludeNames = ')));
     expect(excl).toContain('territoryCastExcludes(areaId)');

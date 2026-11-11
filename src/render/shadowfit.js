@@ -250,8 +250,39 @@ export function createShadowFit(sun, camera, {
 
   update(); // so the walk's very first frame is already fitted, not centred on the world origin
 
+  let stopped = false;
+
   return {
-    update,
+    // After stop() there is no map to fit, so the per-frame work goes too.
+    update(catGroundY, dt) {
+      if (!stopped) update(catGroundY, dt);
+    },
+    // The live step to the lite rung (game/adaptquality.js): the shadows fade
+    // out, then the pass stops.
+    //
+    // setStrength(k) scales how dark the shadows are, 1 (as built) to 0. It
+    // is a uniform, so a fade costs nothing and recompiles nothing.
+    setStrength(k) {
+      if (stopped) return;
+      sun.shadow.intensity = intensity * Math.min(1, Math.max(0, k));
+    },
+    // stop() ends the shadow pass for the rest of the walk: three skips a
+    // light whose shadow has autoUpdate off, so no caster is drawn again.
+    //
+    // Deliberately NOT sun.castShadow = false, which is what the next walk
+    // is built with (createNoShadows). Taking a shadow-casting light away
+    // changes every lit material's program, and three would recompile them
+    // all on the next frame: a freeze of a second or more on exactly the
+    // device that has just proved it is slow. Leaving the light as it is
+    // and the strength at 0 keeps the programs; the cost is that this one
+    // walk still samples a shadow map that no longer darkens anything.
+    stop() {
+      if (stopped) return;
+      stopped = true;
+      sun.shadow.intensity = 0;
+      sun.shadow.autoUpdate = false;
+      sun.shadow.needsUpdate = false;
+    },
     // The eased ground height the fit is centred at. Read by tests.
     get groundY() {
       return groundY;
@@ -260,6 +291,24 @@ export function createShadowFit(sun, camera, {
     // shadow map belongs to the light, which endWalk's scene teardown already
     // drops along with the rest of the walk. Present because every session rig
     // has it and the render loop calls them uniformly.
+    dispose() {},
+  };
+}
+
+// The lite rung's rig (quality.js LITE, `shadows: false`): the same shape as
+// createShadowFit, and nothing in it. The sun casts no shadow, so three runs
+// no shadow pass and compiles every material without shadow code. The sun
+// keeps its authored position, which is all a directional light's direction
+// needs; the contact decals (contactshadows.js) are what grounds things.
+export function createNoShadows(sun) {
+  sun.castShadow = false;
+  return {
+    update() {},
+    setStrength() {},
+    stop() {},
+    get groundY() {
+      return 0;
+    },
     dispose() {},
   };
 }

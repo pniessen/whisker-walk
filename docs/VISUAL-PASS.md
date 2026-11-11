@@ -830,6 +830,9 @@ there. Manual High/Low turn adaptation off; Auto + reduced motion stays LOW.
 `?perf` shows the rung on its own line, e.g.
 `auto rung 1/3 · start 0 (top) · 0→1: 72% of frames over 20 ms for 4 s`.
 
+(2026-11-10: the ladder now goes on below rung 3, and the readout says `1/5`.
+See "Below LOW" after this section.)
+
 ## The rungs — fill rate first
 
 The iPhone 18 readings put CPU at 4.6–5.5 ms of a 16.7 ms frame, so a phone
@@ -886,6 +889,237 @@ the walk starts one rung higher. If it steps down again, `waitDays` doubles
 retry has held and `waitDays` resets to 7. A retry walk too short to judge
 proves nothing, so the next walk retries the same rung. A `steppedAt` in the
 future (clock change) is clamped to now. One rung at a time.
+
+# Below LOW: a device too weak for the lowest setting (branch `degrade-path`, 2026-11-10)
+
+LOW used to be the floor: a device that could not hold it stuttered for the
+whole walk. The weakest target is an iPad 7th generation (A10 Fusion, 3 GB,
+2160×1620), which nobody has measured; the estimate is that it cannot hold 60
+on HIGH and may struggle on LOW. Auto now has two more rungs under LOW and a
+last resort under those. The manual settings are unchanged (Low still means
+rung 3), and rungs 0 to 3 build exactly the walk they built before.
+
+`?perf` now reads `auto rung 4/5 · start 3 (device) · 3→4: 100% of frames over
+20 ms for 4 s`, and names the tier by its label (`tier shadow-light`, `tier
+lite`).
+
+## The order things are given up in
+
+| Step | What goes | Why here |
+|---|---|---|
+| rungs 1, 2 | resolution, then glow | fill rate first: a fast phone that struggles is GPU-bound |
+| rung 3 (LOW) | shadow map size, normal maps, eight of the 22 strays | what every phone got before Auto |
+| rung 4 | shadow *draws* nobody can see | the shadow pass is ~73% of draw calls, and draw calls are CPU |
+| rung 5 | scenery density and the real shadows | the last of the picture |
+| 30 fps | frame rate | only when the picture has nothing left to give |
+
+What never goes: her cat, the cats she has befriended, paw prints, the goals,
+and anything that changes what the game pays or how it plays.
+
+## The rungs
+
+| Rung | label | Changes from the rung above | Live? |
+|---|---|---|---|
+| 4 | `shadow-light` | parts under 30 cm stop casting shadows; windows stop casting | live, next frame, no visible change |
+| 5 | `lite` | no shadow pass; pixel ratio cap 1.5 → 1 | live: pixel ratio at once, shadows fade over 1.5 s then stop |
+| | | strays 14 → 8, clouds 6 → 0, grass 1,129 → 613 tufts, ambient ½ → ¼ | next walk |
+| 6 | (lite + cap) | a steady 30 frames a second | live |
+
+Both keep `name: 'low'`, because `textures.js`, `water.js`, `waterdress.js`
+and `weather.js` read the name and know only `high` and `low`.
+
+A walk that steps down **to** LOW still rests there for the rest of that walk,
+as before: LOW changes nothing live, so stepping on past it would remember a
+rung nobody had seen. The rungs below are reached from a walk that *starts* on
+LOW or lower.
+
+### Rung 4: where the shadow draws actually are
+
+Counted headless at each area's spawn against the real shadow frustum
+(`test/shadowlight.test.js`):
+
+- The **static world** puts only 23–72 casters in the Neighborhood's shadow box
+  (the Docks 38–115, the Woods 44–61, the Moor 5–7). `mergeprops.js` has
+  already folded each prop to one mesh per material.
+- A **cat is 31 meshes** (25 for a stray), and every one is its own shadow
+  draw: eyes, pupils, nose, cheeks, paws, inner ears. Half a dozen cats near
+  the player are more shadow draws than every house, tree and fence in view.
+
+So the rung trims *parts* (`rig.js` `trimShadowCasters`): a part goes on
+casting only if it is at least 30 cm across, or a fifth of the thing it
+belongs to. A cat keeps 10 of its 31: body, belly, head, four legs, tail, and
+both ears (kept by name; they are what makes the shadow a cat's). Windows stop
+casting: each is its own draw, flat on a wall that already casts.
+
+| Seven cats at the spawn | LOW | shadow-light |
+|---|---|---|
+| Neighborhood, four camera headings | 204–253 | 87–125 |
+| Docks, four camera headings | 219–296 | 102–171 |
+
+What is lost: at LOW's 3.9 cm shadow texels, softened by 4 cm, a part under
+30 cm is a few texels inside the shadow of the body it hangs off. The one
+place it can show is at a cat's feet, where the contact decal is already the
+darkest thing. **Not seen by eye yet.**
+
+Weighed and not taken: a 512 map (texels are not draws); a tighter shadow box
+(shadows would end visibly nearer); only her cat casting (every other cat
+loses its shadow); redrawing the map every other frame (alternating heavy and
+light frames is the unevenness this is meant to remove); static shadows
+rendered once (three has no such split for one light, and the box follows the
+camera).
+
+### Rung 5: no real shadows
+
+The sun casts nothing, so the shadow pass draws nothing. The contact-shadow
+decals stay on every rung (two draws, no tier knob, for exactly this reason),
+so nothing floats. Mid-walk, the shadows fade out over 1.5 s the way rung 2
+fades the bloom, and then the pass is *stopped*, not removed: taking the light
+away would recompile every material at once, a freeze on the very device that
+has just proved slow. The cost is that the one walk it happens in still
+samples a shadow map that no longer darkens anything; the next walk is built
+without shadows at all.
+
+Eight strays is the biggest scene-pass lever (a stray is 25 main-pass draws).
+Where a clan lives, its nine cats take all eight places, so the camp is full
+and only passing loners go. The cats she has fed are kept even where eight is
+fewer than her colony (`keepFedCats`). Fog is not touched: it is set by the
+area, the weather and dusk, not one per-walk value.
+
+**Co-walk:** nothing new draws from `walkRng`. Fewer strays are a prefix of the
+same cast on the strays' own stream (`test/cowalkstreams.test.js`); clouds,
+ambient and grass have their own streams or none.
+
+## A steady 30 fps
+
+A device that cannot hold 60 on rung 5 alternates between making and missing
+the display's refresh: 35 to 50 uneven frames a second. When the floor rung is
+still slow, the loop draws only when a 30th of a second has passed
+(`adaptive.js` `createFramePacer`), so every frame gets the same 33 ms.
+
+- It is the last step of the same ladder: entered only from rung 5 by the same
+  governor, remembered as rung 6, retried like a rung (the retry is rung 5
+  uncapped).
+- A skipped refresh does nothing at all, not even read the clock, so the next
+  frame's `dt` covers both. 33 ms is under the loop's 50 ms clamp, so game
+  time is unchanged. Checked by reading: the loop has one clock and one `dt`;
+  every `update` in `main.js` takes `dt`, the slow-mo `wdt`, or the clock's
+  elapsed `t`; easing in `player.js` is `1 - exp(-k·dt)` / `pow(x, dt)`; no
+  per-frame constant lerp or frame counter drives motion (the one counter,
+  in `pushthrough.js`, only ages a record).
+- **It does not fight the frame-cap detection.** The pacer is time-based, so a
+  display already held at 30 draws every refresh and is never halved. And the
+  cap is only *taken* when the slow window was uneven (at least a tenth of its
+  frames under 25 ms). Frames already steady at 30 or slower are a capped
+  display, or a device a cap cannot help: no cap, nothing remembered.
+
+## `?rung=N`
+
+Nobody has a slow device to hand, so every rung is forceable on a fast one.
+With the setting on Auto, `?rung=N` starts every walk of the page load on rung
+N and holds it: no stepping, the adapt memory neither read nor written.
+`?rung=6` is rung 5 with the 30 fps cap on. The readout says `forced rung 4/5
+(?rung)`.
+
+In the iPhone and iPad app the same switches are launch arguments:
+
+```bash
+xcrun devicectl device process launch --terminate-existing --device "<device name>" \
+  com.pniessen.WhiskerWalk -rung 4 -perf YES
+```
+
+## The device profile
+
+The app tells the game what it is running on (`ios/WhiskerWalk/DeviceProfile.swift`
+→ `window.__whiskerDevice` and the `whisker-device` event →
+`src/render/deviceprofile.js`). In Safari and on desktop there is no profile
+and nothing below applies. `?perf` shows it on a ninth line:
+`iPad7,11 · 2.9 GB · thermal nominal · low power off`.
+
+**The starting rung** for a device with no adapt memory. Every row is an
+estimate until real readings exist; only the iPhone 18 Pro has been measured.
+
+| Chip | Model identifiers | First walk starts on |
+|---|---|---|
+| A10 or older | iPad up to `7,x` (iPad 6th and 7th gen, Pro 10.5), iPhone up to `9,x` | 3 (LOW) |
+| A11 | `iPhone10,x` | 2 |
+| A12 | `iPad11,x` (iPad 8th gen, Air 3, mini 5), `iPhone11,x` | 2 |
+| A12X / A12Z | `iPad8,x` | 1 |
+| A13 | `iPad12,x` (iPad 9th gen), `iPhone12,x` | 1 |
+| A14 or newer | `iPad13,x` and up, `iPhone13,x` and up | 0 |
+| any, under 4 GB | (a "4 GB" device reports ~3.7; the line is 3.4) | never above 1 |
+| unknown, or no profile | | 0, as before |
+
+A remembered rung always wins: the table is asked only while the memory is
+empty. After that the governor steps a too-high guess down within seconds,
+and the retry tries a too-low one a rung higher on the sixth walk.
+
+**Heat.** On thermal `serious` or `critical` the walk drops one rung at the
+next frame (live where the rung allows) and writes nothing. When the state is
+back to `nominal` or `fair`, the next walk starts on the remembered rung. This
+closes "The thermal gap" above for the app; Safari still relies on the
+governor.
+
+**Memory warning.** One rung, the same temporary way, until the page is
+reloaded; and the menu pictures (`thumbnails.js`, a megabyte or two of data
+URLs) are let go and remade on demand. Nothing else is safe to drop mid-walk.
+
+**Low Power Mode** holds `requestAnimationFrame` at 30 a second. The app says
+so, so the governor judges against missing *that* refresh (over 40 ms) and
+never takes the 30 fps cap. In Safari the cap is still inferred as before, and
+only for a walk that starts on rung 0 or 1: a low-power phone in Safari that
+starts on rung 2 or lower can step down for nothing, and the retry brings it
+back.
+
+## Measuring the iPad 7th generation
+
+The first row of the table is a guess. This is how to replace it.
+
+1. Install the app on the iPad and plug it into the Mac. Turn Low Power Mode
+   **off** and let the iPad cool.
+2. For each rung `N` in 3, 4, 5, 6, launch held on that rung with the readout:
+   `xcrun devicectl device process launch --terminate-existing --device "<name>" com.pniessen.WhiskerWalk -rung N -perf YES`
+3. On each rung walk for a minute in each of: the **Cozy Neighborhood** (the
+   iPhone baseline), the **Docks** (most static shadows), the **Woods** (most
+   trees), and one **clan camp** (most cats together). Stand among several
+   cats for part of it.
+4. Note, per rung and area, from the readout:
+   - line 1: `fps`, `ms`, `worst` (3 s);
+   - line 2: `cpu` ms;
+   - line 7: `draws`, and its `shadow` and `scene` parts;
+   - line 9: the `thermal` word at the end of the minute.
+5. Then one launch with **no** `-rung` (`-perf YES` only) on a fresh install,
+   or after clearing `localStorage['whisker-walk-adapt']`: note what line 5
+   says at the start (`start 3 (device)`) and after two minutes.
+6. Last, ten minutes without stopping on the rung it settled on: note whether
+   `thermal` reaches `serious` and the start reason gains `+1 running hot`.
+
+Reading it:
+
+- **Holds** means `fps` 58 or more with `worst` under 25 ms. The table's value
+  for A10 should be the lowest-numbered rung that holds in all four areas.
+- `ms` near 33 with `cpu` under ~12: the GPU or the display is the limit, not
+  draw calls. Check Low Power Mode is off; if it is, rung 5's pixel ratio is
+  the step that should help.
+- `cpu` near or over 16: CPU-bound. Compare `draws` across rungs: `shadow`
+  should fall by about half from rung 3 to 4 and to 0 on rung 5; `scene` falls
+  on rung 5 (fewer strays).
+- `fps` between 35 and 50 and jumping on rung 5: that is what the 30 fps cap is
+  for. On `-rung 6` it should read a flat 30 with `ms` 33.3.
+- If rung 3 holds everywhere, the row could move up to 2: check `-rung 2`.
+  If nothing holds, the row should be 5, and the cap is doing the work.
+
+## Not verified
+
+- **Nothing here has been seen rendered.** The trim's "no visible change", the
+  shadow fade, the look of a walk with no real shadows and no clouds, and the
+  30 fps cap's evenness all need eyes: `?rung=4`, `?rung=5`, `?rung=6`.
+- No device slower than the iPhone 18 Pro has run any of it. Every row of the
+  starting-rung table is an estimate.
+- The live step to rung 5 leaves the shadow map sampled at zero strength for
+  the rest of that walk; whether an A10 notices is unmeasured.
+- The Swift bridge is unit-tested on the simulator; the thermal, Low Power
+  Mode and memory-warning notifications have not been seen arriving from a
+  real device.
 
 # Stream 4 round two — grass
 

@@ -155,6 +155,28 @@ it again with the refresh and load the save back with its code.
   `ios/autorefresh-lib.mjs`, tested by `test/iosautorefresh.test.js`. The
   last version that passed lives in `ios/last-good/` (gitignored: the game
   bundle and its commit); every successful refresh from `main` updates it.
+- **The device profile.** The app tells the game what it is running on, so
+  a slow iPad starts on graphics it can hold instead of finding out by
+  stuttering. `DeviceProfile.swift` reads the hardware model identifier
+  (`utsname.machine`, for example `iPad7,11`), physical memory, the thermal
+  state and Low Power Mode. A user script at document start sets one frozen
+  object before any of the game's code runs:
+  `window.__whiskerDevice = { model, memoryGB, thermal, lowPower }`.
+  While the game is open, a thermal-state change, a Low Power Mode change and
+  iOS's memory warning each replace that object and send a `whisker-device`
+  `CustomEvent` on `window` with the new values (`memoryWarning: true` for a
+  warning); the page is also told the current state after every load. The
+  game's side is `src/render/deviceprofile.js` and `src/game/adaptquality.js`;
+  what it does with each fact, and the starting-rung table, are in
+  `docs/VISUAL-PASS.md` ("Below LOW"). In Safari the object is absent and the
+  game behaves as it always has. Tests: `DeviceProfileTests.swift`,
+  `test/deviceprofile.test.js`.
+- **Looking at one graphics rung** on any device: launch with `-rung N`
+  (0 to 5; 6 is rung 5 with the 30 fps cap) and `-perf YES` for the readout.
+  They become `?rung=N&perf` on the page (`AppScheme.startURL(rung:perf:)`),
+  hold for that launch only, and nothing is remembered:
+  `xcrun devicectl device process launch --terminate-existing --device "<name>" com.pniessen.WhiskerWalk -rung 4 -perf YES`
+  (on the simulator: `xcrun simctl launch booted com.pniessen.WhiskerWalk -rung 4 -perf YES`).
 - Debug builds preview the expiry banner on the simulator:
   `xcrun simctl launch booted com.pniessen.WhiskerWalk -PreviewExpiryWarning YES`.
 - The refresh runs `npx vitest run --dir test`, not `npm test`: in the main

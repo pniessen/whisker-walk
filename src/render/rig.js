@@ -395,3 +395,84 @@ export function assignShadowCastersFor(child) {
   });
   return { meshes, casters };
 }
+
+// The shadow-light rung's trim (quality.js SHADOW_LIGHT, shadowMinPart): after
+// the sweep above has decided which THINGS cast, this decides which PARTS of
+// them are worth a shadow draw.
+//
+// Why parts: every mesh that casts is one draw call in the shadow pass, and a
+// cat is 31 meshes (25 for a stray), most of them a few centimetres across:
+// eyes, pupils, nose, cheeks, paws, inner ears. Counted at each area's spawn,
+// half a dozen cats near the player are more shadow draws than all the
+// houses, trees and fences in the shadow box together. The static world is
+// already merged to one mesh per material per prop (mergeprops.js), so there
+// is little left to take there; the cats are where the calls are.
+//
+// THE RULE. A part goes on casting if it is at least `minPart` metres across
+// (its largest side, in world space), or at least TRIM_REL of the largest
+// side of the top-level thing it belongs to. The second half is for small
+// animals: a kitten's legs are under 30 cm but they are a quarter of the
+// kitten, and its shadow should still stand on four legs. A full-size cat
+// keeps 8 parts either way (body, belly, head, four legs, tail).
+//
+// Two exceptions, both by name rather than by size:
+//   - EARS stay (head.userData.earL / earR, set by cat/model.js). They are
+//     19 cm cones, under the line, and they are also the two triangles that
+//     make a cat's shadow read as a cat's. Two draws a cat.
+//   - WINDOWS go (userData.window). They are kept unmerged for the dusk
+//     glow, so each is its own shadow draw, and each lies flat on a wall
+//     that is already casting the same shadow. The Docks has 78 of them.
+//
+// What is lost: at LOW's 3.9 cm shadow texels, softened by 4 cm, a part
+// under 30 cm is a handful of texels that fall inside or right beside the
+// shadow of the body it hangs off. The one place it can show is at a cat's
+// feet, where the paws' own sliver of shadow goes and the contact decal
+// (contactshadows.js) is already the darkest thing there.
+//
+// InstancedMesh is left alone: its geometry is one instance, so its box
+// says nothing about how big the drawn thing is, and it is one draw anyway.
+//
+// It only ever turns casting OFF, so it is safe to run on a live walk
+// (game/adaptquality.js does, at a step to the rung) and to run twice.
+// Something that joins the scene later (a ghost, a visiting cat) gets the
+// full sweep's answer and casts in full: a few draws for a few seconds,
+// against a second code path in every spawner.
+export const TRIM_REL = 0.2;
+const trimBox = new THREE.Box3();
+const trimSize = new THREE.Vector3();
+
+function largestSide(box) {
+  box.getSize(trimSize);
+  return Math.max(trimSize.x, trimSize.y, trimSize.z);
+}
+
+export function trimShadowCasters(scene, minPart) {
+  let trimmed = 0;
+  let casters = 0;
+  if (!(minPart > 0) || !scene?.children) return { trimmed, casters };
+  scene.updateMatrixWorld(true);
+  for (const child of scene.children) {
+    const ears = new Set();
+    let any = false;
+    child.traverse((obj) => {
+      if (obj.userData.earL) ears.add(obj.userData.earL);
+      if (obj.userData.earR) ears.add(obj.userData.earR);
+      if (obj.isMesh && obj.castShadow) any = true;
+    });
+    if (!any) continue;
+    trimBox.setFromObject(child);
+    const keepFrom = Math.min(minPart, largestSide(trimBox) * TRIM_REL);
+    child.traverse((obj) => {
+      if (!obj.isMesh || !obj.castShadow) return;
+      if (obj.isInstancedMesh || ears.has(obj)) { casters++; return; }
+      let small = !!obj.userData.window;
+      if (!small && obj.geometry) {
+        if (!obj.geometry.boundingBox) obj.geometry.computeBoundingBox();
+        trimBox.copy(obj.geometry.boundingBox).applyMatrix4(obj.matrixWorld);
+        small = largestSide(trimBox) < keepFrom;
+      }
+      if (small) { obj.castShadow = false; trimmed++; } else casters++;
+    });
+  }
+  return { trimmed, casters };
+}

@@ -504,9 +504,9 @@ describe('where clouds are not', () => {
     expect(() => { c.update(10); c.dispose(); }).not.toThrow();
   });
 
-  it('per tier: high rungs 10 clouds, the low rung 6, a tier of 0 none', () => {
+  it('per tier: high rungs 10 clouds, the low rung 6, the lite rung and a tier of 0 none', () => {
     const counts = LADDER.map((t) => t.cloudCount);
-    expect(counts).toEqual([10, 10, 10, 6]);
+    expect(counts).toEqual([10, 10, 10, 6, 6, 0]);
     for (const tier of LADDER) {
       const { scene, camera, centre } = world('park');
       const c = createClouds(scene, { areaId: 'park', tier, camera, centre });
