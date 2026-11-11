@@ -10,6 +10,29 @@ const CACHE = 'whisker-v1';
 const SCOPE = self.registration.scope;
 const SHELL = [SCOPE, new URL('index.html', SCOPE).href];
 
+// Hashed assets from old deploys pile up in the cache (about 2 MB a deploy).
+// The index only names the entry chunks, not lazy ones (Supabase), so "what
+// the current build references" can't be known safely; instead keep the newest
+// MAX_ASSETS (~4 builds of 3 files) and drop the older ones. Cache.keys() is
+// in insertion order, so oldest come first. Pure on purpose: test/swprune.test.js
+// loads it from this file between the markers. Never touches non-/assets/ URLs.
+// prune:start
+const MAX_ASSETS = 12;
+function assetsToPrune(urls, max) {
+  const assets = urls.filter((u) => new URL(u).pathname.includes('/assets/'));
+  return assets.length > max ? assets.slice(0, assets.length - max) : [];
+}
+// prune:end
+
+function pruneAssets() {
+  return caches
+    .open(CACHE)
+    .then((cache) =>
+      cache.keys().then((reqs) => Promise.all(assetsToPrune(reqs.map((r) => r.url), MAX_ASSETS).map((u) => cache.delete(u))))
+    )
+    .catch(() => {}); // pruning is housekeeping; never let it break the worker
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
@@ -25,6 +48,7 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+      .then(pruneAssets)
       .then(() => self.clients.claim())
   );
 });
@@ -64,7 +88,7 @@ self.addEventListener('fetch', (event) => {
           cached ||
           fetch(request).then((response) => {
             const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, copy));
+            caches.open(CACHE).then((cache) => cache.put(request, copy)).then(pruneAssets);
             return response;
           })
       )
