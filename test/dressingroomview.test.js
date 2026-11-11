@@ -92,7 +92,20 @@ describe('reduceDressingUi', () => {
       { wardrobe: true, moreCats: true, openSlot: 'head', previewCat: 'hagrid', tryOn: { slot: 'head', id: 'tophat' } },
       { type: 'clear-preview' },
     );
-    expect(ui).toEqual({ wardrobe: true, moreCats: true, openSlot: 'head', previewCat: null, tryOn: null, builder: null });
+    expect(ui).toEqual({ wardrobe: true, moreCats: true, openSlot: 'head', previewCat: null, tryOn: null, builder: null, outfitAsk: null });
+  });
+
+  it('outfit-ask holds one outfit at a time, and closing, a slot or clear-preview drop it', () => {
+    expect(INITIAL_DRESSING_UI.outfitAsk).toBe(null);
+    const ui = reduceDressingUi(base(), { type: 'outfit-ask', id: 'o1' });
+    expect(ui.outfitAsk).toBe('o1');
+    expect(reduceDressingUi(ui, { type: 'outfit-ask', id: 'o1' })).toBe(ui);
+    expect(reduceDressingUi(ui, { type: 'outfit-ask', id: 'o2' }).outfitAsk).toBe('o2');
+    expect(reduceDressingUi(ui, { type: 'outfit-ask', id: null }).outfitAsk).toBe(null);
+    const open = { ...ui, wardrobe: true };
+    expect(reduceDressingUi(open, { type: 'wardrobe', open: false }).outfitAsk).toBe(null);
+    expect(reduceDressingUi(open, { type: 'slot', slot: 'head' }).outfitAsk).toBe(null);
+    expect(reduceDressingUi(open, { type: 'clear-preview' }).outfitAsk).toBe(null);
   });
 
   it('an unknown action returns ui unchanged (same object)', () => {
