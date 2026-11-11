@@ -41,8 +41,12 @@ export function formatAdapt(st) {
   if (st.mode === 'manual') return 'manual';
   if (st.mode === 'reduced-motion') return 'reduced motion';
   // ?rung=N: held there for the page load, nothing stepped or remembered.
-  if (st.mode === 'forced') return `forced rung ${st.rung}/${FLOOR_RUNG} (?rung)`;
-  const base = `auto rung ${st.rung}/${FLOOR_RUNG} · start ${st.startRung} (${st.startReason})`;
+  // The 30 fps cap is the step after the last rung (CAP_RUNG): shown as the
+  // floor rung plus the cap, never as a seventh rung.
+  const rung = (r) => `${Math.min(r, FLOOR_RUNG)}/${FLOOR_RUNG}${r > FLOOR_RUNG || (r === st.rung && st.cap30) ? ' + 30 fps cap' : ''}`;
+  if (st.mode === 'forced') return `forced rung ${rung(st.rung)} (?rung)`;
+  const start = `${Math.min(st.startRung, FLOOR_RUNG)}${st.startRung > FLOOR_RUNG ? ' + cap' : ''}`;
+  const base = `auto rung ${rung(st.rung)} · start ${start} (${st.startReason})`;
   return st.change ? `${base} · ${st.change}` : base;
 }
 

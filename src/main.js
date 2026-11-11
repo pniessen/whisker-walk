@@ -775,6 +775,9 @@ function init() {
     }
   }
   renderer.setAnimationLoop(() => {
+    // The 30 fps cap (game/adaptquality.js): a skipped refresh does nothing
+    // at all, not even read the clock, so the next frame's dt covers both.
+    if (session && !qualityAdapter.shouldRender(performance.now())) return;
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;

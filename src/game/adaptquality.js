@@ -22,6 +22,13 @@
 //                                            1.5 s, then the pass stops
 //           strays 8, no clouds, thinner     next walk: counts are baked
 //           grass and ambient                into the area build
+//   30 fps  after rung 5, the last resort:   live: every other display frame
+//           a steady 30 (CAP_RUNG)           is skipped (shouldRender), game
+//                                            time untouched. Taken only if
+//                                            the slow frames were UNEVEN; a
+//                                            walk already steady at 30 (a
+//                                            capped display) gains nothing
+//                                            and is left alone
 // Every step is written to storage at once, so the next walk starts there,
 // with one exception: if the live steps bought under ADAPT.minGain by the
 // time the floor is due, the frames are capped (Low Power Mode, 30 Hz), so
@@ -34,9 +41,9 @@
 // setting on Auto, every walk of the page load starts on that rung and stays
 // there. It is how a rung is looked at on a device too fast to reach it.
 
-import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG } from '../render/quality.js';
+import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG, CAP_RUNG } from '../render/quality.js';
 import {
-  ADAPT, createFrameGovernor, readMemory, writeMemory, planWalkStart, noteStepDown,
+  ADAPT, CAP30, createFrameGovernor, createFramePacer, readMemory, writeMemory, planWalkStart, noteStepDown,
   noteRetryHeld,
 } from '../render/adaptive.js';
 import { BLOOM_STRENGTH } from './composer.js';
@@ -57,8 +64,11 @@ export function createQualityAdapter({
   forcedRung = null,
 }) {
   const governor = createFrameGovernor();
-  // One object, mutated in place, so a HUD can hold on to it.
-  const status = { mode: 'auto', rung: 0, startRung: 0, startReason: 'top', change: '' };
+  const pacer = createFramePacer();
+  // One object, mutated in place, so a HUD can hold on to it. `rung` runs to
+  // CAP_RUNG (the lite rung with the 30 fps cap on); `cap30` says the same
+  // thing as a flag, for the render loop and the readout.
+  const status = { mode: 'auto', rung: 0, startRung: 0, startReason: 'top', change: '', cap30: false };
   let adaptive = false;
   let mem = null;
   let startMem = null;     // the memory beginWalk wrote, restored on a frame-cap skip
@@ -87,6 +97,9 @@ export function createQualityAdapter({
     adaptive = isAdaptive({ override, reducedMotion });
 
     let tier;
+    // The rung the walk starts on. The tier's own rung, except on CAP_RUNG,
+    // which is the lite tier plus the 30 fps cap.
+    let startRung = -1;
     if (adaptive && forcedRung != null) {
       // Forced: Auto's ladder, but no governor and no memory. `adaptive` off
       // is what keeps frame() from sampling; storage is not even read.
@@ -95,6 +108,7 @@ export function createQualityAdapter({
       startMem = null;
       retryPending = false;
       tier = resolveQuality({ reducedMotion, override, rung: forcedRung });
+      startRung = forcedRung;
       status.mode = 'forced';
       status.startReason = 'forced';
     } else if (adaptive) {
@@ -104,6 +118,7 @@ export function createQualityAdapter({
       writeMemory(storage, mem);
       retryPending = plan.reason === 'retry';
       tier = resolveQuality({ reducedMotion, override, rung: plan.rung });
+      startRung = plan.rung;
       status.mode = 'auto';
       status.startReason = plan.reason;
     } else {
@@ -114,9 +129,12 @@ export function createQualityAdapter({
       status.mode = override === 'auto' ? 'reduced-motion' : 'manual';
       status.startReason = status.mode;
     }
-    status.rung = tier.rung;
-    status.startRung = tier.rung;
+    if (startRung < 0) startRung = tier.rung;
+    status.rung = startRung;
+    status.startRung = startRung;
     status.change = '';
+    status.cap30 = startRung >= CAP_RUNG;
+    pacer.reset();
 
     applyPixelRatio(tier);
     composerRig.setBloomStrength(BLOOM_STRENGTH);
@@ -168,11 +186,31 @@ export function createQualityAdapter({
       status.change = `${from}→${to} skipped: no gain from stepping down (frame cap?)`;
       return;
     }
+    const pct = Math.round(governor.lastSlowFraction() * 100);
+    if (to === CAP_RUNG) {
+      // The cap evens out frames that alternate between making and missing
+      // the display's refresh. A window with next to no fast frames in it
+      // is not alternating: it is already steady at 30 or slower (Low Power
+      // Mode, a 30 Hz display, or a device missing every refresh), and a
+      // cap would change nothing on screen. Not taken, not remembered.
+      if (governor.lastFastFraction() < CAP30.unevenMin) {
+        halted = true;
+        status.change = `${from}→30 fps skipped: frames already steady at 30 or slower (display cap?)`;
+        return;
+      }
+      status.cap30 = true;
+      pacer.reset();
+      mem = noteStepDown(mem, to, wallClock());
+      writeMemory(storage, mem);
+      retryPending = false;
+      status.rung = to;
+      status.change = `${from}→30 fps: ${pct}% of frames over ${ADAPT.slowMs} ms for ${ADAPT.windowMs / 1000} s`;
+      return;
+    }
     applyLive(to, session, nowMs);
     mem = noteStepDown(mem, to, wallClock());
     writeMemory(storage, mem);
     retryPending = false;
-    const pct = Math.round(governor.lastSlowFraction() * 100);
     status.rung = to;
     status.change = `${from}→${to}: ${pct}% of frames over ${ADAPT.slowMs} ms for ${ADAPT.windowMs / 1000} s` +
       (to === LOW_RUNG ? ' (next walk)' : to === FLOOR_RUNG ? ' (fewer strays, no clouds, thinner grass next walk)' : '');
@@ -215,7 +253,7 @@ export function createQualityAdapter({
       }
       return;
     }
-    if (status.rung >= FLOOR_RUNG) return;
+    if (status.rung >= CAP_RUNG) return;
     if (governor.sample(nowMs)) {
       stepDown(session, nowMs);
     } else if (retryPending && governor.judged()) {
@@ -225,5 +263,14 @@ export function createQualityAdapter({
     }
   }
 
-  return { beginWalk, frame, status };
+  // Asked once per display refresh, before anything else in the render loop:
+  // false means "skip this one entirely" (no update, no draw, the clock not
+  // read, so the next frame's dt covers both). Always true unless the 30 fps
+  // cap is on. Time-based, so a display that is itself held at 30 (Low Power
+  // Mode) is not halved again.
+  function shouldRender(nowMs) {
+    return !status.cap30 || pacer.due(nowMs);
+  }
+
+  return { beginWalk, frame, shouldRender, status };
 }

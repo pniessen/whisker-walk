@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG, parseForcedRung } from '../src/render/quality.js';
+import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG, CAP_RUNG, parseForcedRung } from '../src/render/quality.js';
 
 const high = { name: 'high', label: 'high', rung: 0, strays: 22, shadowMapSize: 2048, shadows: true, shadowMinPart: 0, keepFedCats: false, envIntensity: 0.45, postFx: true, pixelRatioCap: 2, msaaSamples: 4, shadowFitRadius: 20, normalMaps: true, grassRadius: 9, grassSpacing: 0.3, pawPrints: 96, pawFade: 9, cloudCount: 10, ambientScale: 1, splashDrops: 64, splashRings: 32 };
 const low  = { name: 'low',  label: 'low',  rung: 3, strays: 14, shadowMapSize: 1024, shadows: true, shadowMinPart: 0, keepFedCats: false, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5, msaaSamples: 0, shadowFitRadius: 20, normalMaps: false, grassRadius: 6, grassSpacing: 0.42, pawPrints: 48, pawFade: 6, cloudCount: 6, ambientScale: 0.5, splashDrops: 32, splashRings: 20 };
@@ -175,8 +175,15 @@ describe('parseForcedRung', () => {
     expect(parseForcedRung('?rung=1.5')).toBeNull();
     expect(parseForcedRung('?rung=1e2')).toBeNull();
   });
-  it('a number past the last rung means the last rung', () => {
-    expect(parseForcedRung('?rung=99')).toBe(FLOOR_RUNG);
+  it('rungs 4 and 5 are forceable, and 6 is the lite rung with the 30 fps cap on', () => {
+    expect(parseForcedRung('?rung=4')).toBe(4);
+    expect(parseForcedRung('?rung=5')).toBe(5);
+    expect(CAP_RUNG).toBe(FLOOR_RUNG + 1);
+    expect(parseForcedRung('?rung=6')).toBe(CAP_RUNG);
+    expect(resolveQuality({ override: 'auto', reducedMotion: false, rung: CAP_RUNG })).toBe(LADDER[FLOOR_RUNG]);
+  });
+  it('a number past the end means the end', () => {
+    expect(parseForcedRung('?rung=99')).toBe(CAP_RUNG);
     expect(parseForcedRung('?rung=99', 2)).toBe(2);
   });
 });

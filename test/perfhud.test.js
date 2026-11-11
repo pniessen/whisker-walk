@@ -77,7 +77,7 @@ describe('createPerfHud', () => {
     Object.defineProperty(el, 'textContent', { get: () => text, set: (v) => { text = v; el.writes++; } });
     vi.stubGlobal('document', { createElement: () => el, body: { appendChild: vi.fn() } });
     renderer = fakeRenderer();
-    Object.assign(adapter.status, { mode: 'auto', rung: 0, startRung: 0, startReason: 'top', change: '' });
+    Object.assign(adapter.status, { mode: 'auto', rung: 0, startRung: 0, startReason: 'top', change: '', cap30: false });
     session.useComposer = true;
     hud = createPerfHud({ renderer, settings, coarse: false, adapter });
   });
@@ -165,6 +165,23 @@ describe('createPerfHud', () => {
     hud.frameEnd(lite, 1002);
     expect(line(2)).toBe('tier lite · setting auto · touch no');
     expect(line(3)).toBe('shadow off · postFx off · normals off');
+  });
+
+  it('shows the 30 fps cap as the floor rung plus the cap, never a seventh rung', () => {
+    hud.setEnabled(true);
+    Object.assign(adapter.status, { rung: 6, startRung: 5, startReason: 'remembered', cap30: true, change: '5→30 fps: 62% of frames over 20 ms for 4 s' });
+    hud.frameStart(1000, session);
+    hud.frameEnd(session, 1002);
+    expect(line(4)).toBe('auto rung 5/5 + 30 fps cap · start 5 (remembered) · 5→30 fps: 62% of frames over 20 ms for 4 s');
+    Object.assign(adapter.status, { rung: 6, startRung: 6, change: '' });
+    hud.frameStart(1600, session);
+    hud.frameEnd(session, 1602);
+    expect(line(4)).toBe('auto rung 5/5 + 30 fps cap · start 5 + cap (remembered)');
+    Object.assign(adapter.status, { mode: 'forced', startReason: 'forced' });
+    hud.frameStart(2200, session);
+    hud.frameEnd(session, 2202);
+    expect(line(4)).toBe('forced rung 5/5 + 30 fps cap (?rung)');
+    Object.assign(adapter.status, { cap30: false });
   });
 
   it('says manual or reduced motion with no rung', () => {

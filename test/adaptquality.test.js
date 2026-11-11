@@ -528,3 +528,131 @@ describe('below LOW: the shadow-light and lite rungs', () => {
     }
   });
 });
+
+// At the floor rung, a walk whose frames alternate between making and missing
+// the display's refresh: 33.3, 33.3, 16.7 ms, two in three slow.
+const uneven = () => { let i = 0; return () => (i++ % 3 === 2 ? 16.7 : 33.3); };
+const atFloor = { rung: 5, steppedAt: WALL - DAY, walks: 2, waitDays: 7, retrying: false };
+// What the render loop would draw: refreshes every `ms`, asked of shouldRender.
+function drawnIn(adapter, fromMs, toMs, ms) {
+  let n = 0;
+  const count = Math.round((toMs - fromMs) / ms);
+  for (let i = 0; i < count; i++) if (adapter.shouldRender(fromMs + i * ms)) n++;
+  return n;
+}
+
+describe('the 30 fps cap, the last resort', () => {
+  it('every refresh is drawn while the cap is off', () => {
+    const { adapter } = setup();
+    expect(adapter.shouldRender(0)).toBe(true);
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    expect(adapter.status.cap30).toBe(false);
+    expect(drawnIn(adapter, 0, 1000, 1000 / 60)).toBe(60);
+  });
+
+  it('uneven slow frames on the floor rung turn the cap on, and it is remembered', () => {
+    const { adapter, storage } = setup({ memory: atFloor });
+    const session = lowSession();
+    expect(adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 })).toBe(LADDER[5]);
+    drive(adapter, session, 0, 12_000, uneven());
+    expect(adapter.status).toMatchObject({ rung: 6, cap30: true });
+    expect(adapter.status.change).toMatch(/^5→30 fps: 6\d% of frames over 20 ms for 4 s$/);
+    expect(stored(storage).rung).toBe(6);
+    // From now on every other 60 Hz refresh is skipped.
+    expect(drawnIn(adapter, 20_000, 21_000, 1000 / 60)).toBe(30);
+    // Nothing about the picture changed: the cap is the only step.
+    expect(session.shadows.setStrength).not.toHaveBeenCalled();
+    expect(session.small.castShadow).toBe(true);
+  });
+
+  it('is the end of the ladder: nothing further is judged or written', () => {
+    const { adapter, storage } = setup({ memory: atFloor });
+    const session = lowSession();
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    drive(adapter, session, 0, 12_000, uneven());
+    const writes = storage.setItem.mock.calls.length;
+    run(adapter, session, 12_040, 60_000, 33.3);
+    expect(storage.setItem.mock.calls.length).toBe(writes);
+    expect(adapter.status.rung).toBe(6);
+  });
+
+  it('frames already steady at 30 are a capped display, not a reason: no cap, nothing remembered', () => {
+    const { adapter, storage } = setup({ memory: atFloor });
+    const session = lowSession();
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    const before = stored(storage);
+    run(adapter, session, 0, 60_000, 33.3);
+    expect(adapter.status).toMatchObject({ rung: 5, cap30: false });
+    expect(adapter.status.change).toBe('5→30 fps skipped: frames already steady at 30 or slower (display cap?)');
+    expect(stored(storage)).toEqual(before);
+    expect(drawnIn(adapter, 60_000, 61_000, 1000 / 30)).toBe(30);
+  });
+
+  it('a device held at 30 by Low Power Mode with the cap remembered is not halved to 15', () => {
+    const { adapter } = setup({ memory: { ...atFloor, rung: 6 } });
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    expect(adapter.status.cap30).toBe(true);
+    expect(drawnIn(adapter, 0, 1000, 1000 / 30)).toBe(30);
+  });
+
+  it('a remembered cap starts the walk on the lite rung, capped', () => {
+    const { adapter, renderer } = setup({ memory: { ...atFloor, rung: 6 } });
+    expect(adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 })).toBe(LADDER[5]);
+    expect(adapter.status).toMatchObject({ rung: 6, startRung: 6, startReason: 'remembered', cap30: true });
+    expect(renderer.getPixelRatio()).toBe(1);
+    expect(drawnIn(adapter, 0, 1000, 1000 / 60)).toBe(30);
+  });
+
+  it('the retry from the cap is the lite rung uncapped; stepping down again puts it back', () => {
+    const { adapter, storage } = setup({
+      memory: { rung: 6, steppedAt: WALL - 20 * DAY, walks: 5, waitDays: 7, retrying: false },
+    });
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    expect(adapter.status).toMatchObject({ rung: 5, startReason: 'retry', cap30: false });
+    drive(adapter, lowSession(), 0, 12_000, uneven());
+    expect(adapter.status).toMatchObject({ rung: 6, cap30: true });
+    expect(stored(storage)).toMatchObject({ rung: 6, retrying: false, waitDays: 14 });
+  });
+
+  it('the cap belongs to the walk: a manual walk afterwards is uncapped', () => {
+    const { adapter } = setup({ memory: { ...atFloor, rung: 6 } });
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    expect(adapter.status.cap30).toBe(true);
+    adapter.beginWalk({ override: 'low', reducedMotion: false, nowMs: 5000 });
+    expect(adapter.status.cap30).toBe(false);
+    expect(drawnIn(adapter, 5000, 6000, 1000 / 60)).toBe(60);
+  });
+
+  it('?rung=6 holds the lite rung with the cap on', () => {
+    const { adapter, storage } = setup({ forcedRung: 6 });
+    expect(adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 })).toBe(LADDER[5]);
+    expect(adapter.status).toMatchObject({ mode: 'forced', rung: 6, cap30: true });
+    expect(drawnIn(adapter, 0, 1000, 1000 / 60)).toBe(30);
+    expect(storage.setItem).not.toHaveBeenCalled();
+  });
+
+  it('the whole way down in one walk from LOW: 4, 5, then the cap', () => {
+    const { adapter, storage } = setup({ memory: atLow });
+    const session = lowSession();
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    drive(adapter, session, 0, 40_000, uneven());
+    expect(adapter.status).toMatchObject({ rung: 6, cap30: true, startRung: 3 });
+    expect(stored(storage).rung).toBe(6);
+    expect(session.shadows.stop).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the render loop asks before it does anything', () => {
+  it('main.js skips a capped refresh before reading the clock or the readout', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    const loop = src.slice(src.indexOf('renderer.setAnimationLoop(() => {'));
+    const ask = loop.indexOf('if (session && !qualityAdapter.shouldRender(performance.now())) return;');
+    expect(ask).toBeGreaterThan(-1);
+    expect(ask).toBeLessThan(loop.indexOf('perfHud.frameStart('));
+    expect(ask).toBeLessThan(loop.indexOf('clock.getDelta()'));
+    // The clamp that keeps a 33 ms frame a 33 ms step of game time.
+    expect(loop).toContain('const dt = Math.min(clock.getDelta(), 0.05);');
+    expect(1 / 30).toBeLessThan(0.05);
+  });
+});

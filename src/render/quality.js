@@ -271,6 +271,13 @@ export const LADDER = Object.freeze([HIGH, RUNG1, RUNG2, LOW, SHADOW_LIGHT, LITE
 // live.
 export const LOW_RUNG = 3;
 export const FLOOR_RUNG = 5;
+// One past the floor: not a tier, a state. "The lite rung, capped to a steady
+// 30 frames a second" (render/adaptive.js, the 30 fps cap). It is numbered
+// like a rung so that the adapt memory, the step-down and the retry treat
+// giving up frame rate as the last step of the same ladder: remembered like
+// a rung, retried like a rung. resolveQuality clamps to FLOOR_RUNG, so a
+// walk on CAP_RUNG is built from the lite tier.
+export const CAP_RUNG = FLOOR_RUNG + 1;
 
 // reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').
 // override: the persisted 'quality' setting — 'auto' adapts, 'high'/'low'
@@ -289,10 +296,11 @@ export function resolveQuality({ reducedMotion, override, rung = 0 } = {}) {
 // stays there for the whole page load. It never steps and never reads or
 // writes the adapt memory (game/adaptquality.js), so a look at the floor on a
 // fast phone leaves no trace. Returns the rung, or null when the switch is
-// absent or is not a whole number; a number past the last rung means the
-// last rung. `search` is location.search (the iOS app passes it too: see
-// AppScheme.startURL in ios/).
-export function parseForcedRung(search, maxRung = FLOOR_RUNG) {
+// absent or is not a whole number; a number past the end means the end.
+// ?rung=6 (CAP_RUNG) is the lite rung with the 30 fps cap on, so that state
+// can be looked at too. `search` is location.search (the iOS app passes it
+// too: see AppScheme.startURL in ios/).
+export function parseForcedRung(search, maxRung = CAP_RUNG) {
   let text = null;
   try {
     text = new URLSearchParams(search ?? '').get('rung');
