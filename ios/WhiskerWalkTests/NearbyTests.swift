@@ -347,7 +347,7 @@ final class NearbyTests: XCTestCase {
         XCTAssertEqual(bridge.plan, NearbyPlan())
     }
 
-    // MARK: The real radio's fixed values
+    // MARK: The real radio's fixed values, and Info.plist
 
     @MainActor
     func test_the_peer_name_is_fixed_and_is_not_the_devices() {
@@ -367,6 +367,16 @@ final class NearbyTests: XCTestCase {
         XCTAssertTrue(type.utf8.allSatisfy { (0x61...0x7A).contains($0) || (0x30...0x39).contains($0) || $0 == 0x2D })
         XCTAssertTrue(type.utf8.contains { (0x61...0x7A).contains($0) })
         XCTAssertFalse(type.hasPrefix("-") || type.hasSuffix("-") || type.contains("--"))
+    }
+
+    @MainActor
+    func test_info_plist_declares_the_service_and_says_why() throws {
+        // The tests run inside the app, so this is the app's own Info.plist.
+        let services = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "NSBonjourServices") as? [String])
+        XCTAssertEqual(Set(services), ["_\(MultipeerRadio.serviceType)._tcp", "_\(MultipeerRadio.serviceType)._udp"])
+        let why = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "NSLocalNetworkUsageDescription") as? String)
+        XCTAssertTrue(why.contains("local network"))
+        XCTAssertTrue(why.contains("family"))
     }
 
     @MainActor

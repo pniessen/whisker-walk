@@ -470,3 +470,40 @@ describe('main.js wiring', async () => {
     ]);
   });
 });
+
+// The app's side is Swift (ios/WhiskerWalk/Nearby.swift) and is tested there
+// (NearbyTests.swift). The words the two sides must agree on are pinned here
+// by its text, so a rename on one side fails a test instead of going quiet.
+describe('the two sides agree', async () => {
+  const { readFileSync } = await import('node:fs');
+  const swift = readFileSync(new URL('../ios/WhiskerWalk/Nearby.swift', import.meta.url), 'utf8');
+  const plist = readFileSync(new URL('../ios/Info.plist', import.meta.url), 'utf8');
+  it('on the handler, the event and the cap', () => {
+    expect(swift).toContain(`static let handlerName = "${NEARBY_HANDLER}"`);
+    expect(swift).toContain(`static let eventName = "${NEARBY_EVENT}"`);
+    expect(swift).toContain(`static let maxRooms = ${MAX_NEARBY}`);
+  });
+  it('on the four messages, which are every message this module can send', () => {
+    const { nearby, sent, rooms } = setup();
+    nearby.setScreen('together');
+    rooms.set(HOSTED);
+    rooms.set(null);
+    nearby.setScreen('hidden');
+    const sentOps = [...new Set(ops(sent))].sort();
+    expect(sentOps).toEqual(['advertise', 'browse', 'stopAdvertising', 'stopBrowsing']);
+    for (const op of sentOps) expect(swift).toContain(`case "${op}":`);
+    expect(swift.match(/case "[A-Za-z]+":/g)).toHaveLength(4);
+  });
+  it('the app never opens a session, sends data, or uses the device\'s name as its peer name', () => {
+    const code = swift.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+    expect(code).not.toMatch(/MCSession\(|\.send\(|invitePeer|UIDevice\.current\.name/);
+    expect(code).toContain('invitationHandler(false, nil)');
+    expect(code).toContain('static let peerName = "Whisker Walk"');
+  });
+  it('Info.plist says why, and lists the service the app uses', () => {
+    expect(plist).toContain('<key>NSLocalNetworkUsageDescription</key>');
+    expect(plist).toContain('<string>_whisker-walk._tcp</string>');
+    expect(plist).toContain('<string>_whisker-walk._udp</string>');
+    expect(swift).toContain('static let serviceType = "whisker-walk"');
+  });
+});

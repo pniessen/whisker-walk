@@ -133,6 +133,48 @@ Safari into the app:
 Keep a save code linked on every device. If an app is ever deleted, install
 it again with the refresh and load the save back with its code.
 
+## Walking together in the same room: nearby joining
+
+When two devices running the app are in the same room, starting a walk
+together takes one tap and no code:
+
+1. On one device: **👫 Play together → Host a walk**. The room shows its code
+   as always, and under it **Nearby cats can join with one tap**.
+2. On the other device, open **👫 Play together**. Within a few seconds a row
+   appears above the code box: **"Mittens is starting a walk nearby"** with a
+   big **Join** button. Tap it. (Once Play together has been opened on a
+   device, even on an earlier day, that device also shows the offer as a card
+   over the cat's screen: **"Mittens is starting a walk nearby. Join?"**
+   **Not now** puts the card away for that room.)
+3. Both cats are in the room. Either child taps **Start the walk together**.
+
+What to know:
+
+- **Both devices need the app and the internet.** Only the room's code is
+  found locally; the walk itself runs over the internet exactly as before.
+  Safari and computers can't find rooms nearby. They join with the code.
+- **The typed code always works.** It is on the host's screen the whole time.
+  Use it for a cousin in another house, for a device in Safari, or whenever
+  nearby joining doesn't show up.
+- **The cat needs a name** (Play together → the name box). Tapping Join
+  without one opens the name box and says so.
+- **iOS asks once: "Whisker Walk 2 would like to find and connect to devices
+  on your local network."** It asks the first time a child opens
+  **Play together** on that device, never when the app starts, and never for
+  a child who only plays alone. Tap **Allow** on both devices.
+- **If someone tapped Don't Allow,** nothing breaks: the game says nothing
+  about it and rooms are joined with the typed code. To switch it on later:
+  **Settings → Privacy & Security → Local Network → Whisker Walk 2** → on
+  (or **Settings → Apps → Whisker Walk 2 → Local Network**). Then close Play
+  together and open it again.
+- **What other devices can see:** the room's 4-character code and the cat's
+  name, only while a hosted room is waiting on screen. Never the device's
+  name, and nothing from the save. Anyone close by with the app could see the
+  offer and join, just as anyone who can read the code off the screen could;
+  the room shows the name of every cat that joins, and **Leave room** ends it.
+- Nothing is looked for or findable during a walk or while the app is closed
+  or in the background.
+
 ## For developers
 
 - Cloud saves (the Save tile) are switched on by `VITE_SUPABASE_URL` and
@@ -186,6 +228,38 @@ it again with the refresh and load the save back with its code.
   off: Menu → Sound & controls → Vibration (stored with the other settings
   on the device, never in the save). The simulator plays nothing; feel is
   checked on an iPhone. Tests: `HapticsTests.swift`, `test/haptics.test.js`.
+- **Nearby joining.** `Nearby.swift` uses MultipeerConnectivity for discovery
+  only (`MCNearbyServiceAdvertiser` / `MCNearbyServiceBrowser`, service type
+  `whisker-walk`, so `_whisker-walk._tcp` and `._udp` under
+  `NSBonjourServices` in `Info.plist`, with `NSLocalNetworkUsageDescription`).
+  No session is ever opened, no data is sent, and an invitation is declined.
+  The peer display name is the fixed string `Whisker Walk`, never the
+  device's name. The advertiser's discovery info is `{ c: <code>, n: <name> }`.
+  The page drives it. Page to app,
+  `window.webkit.messageHandlers.nearby.postMessage(...)`:
+  `{ op: 'advertise', code, name }`, `{ op: 'stopAdvertising' }`,
+  `{ op: 'browse' }`, `{ op: 'stopBrowsing' }`; anything else is ignored. App
+  to page, a `whisker-nearby` `CustomEvent` on `window` on every change of
+  what is found, `detail: { rooms: [{ code, name }] }` (at most 6, one per
+  code, empty when nothing is found or the search stops). The game's side is
+  `src/game/nearby.js`, which holds the whole rule for when each is on:
+  advertise while this device hosted a code room that is still waiting on the
+  home base; browse while the cat's screen or Play together shows and there
+  is no room; neither before Play together has been opened once on the device
+  (the `whisker-walk-nearby-opted` flag in `localStorage`, which is what
+  keeps iOS's local-network question away from a solo player), in a walk, or
+  with the page hidden. The app also stops both in the background on its own
+  and starts them again in the foreground, and drops everything if the web
+  content process is lost. Both sides check a code against the typed-code
+  pattern and a name against the pet-name shape before believing it; the
+  event's JSON is made by `JSONSerialization` from strings already reduced to
+  letters, digits, spaces and hyphens. The block list is keyed by player id,
+  which is never advertised, so it cannot hide a nearby host. In Safari there
+  is no handler and none of this exists. Two real devices are the only real
+  test: host on one, look for the row and the card on the other, and try once
+  with Local Network switched off in Settings. The unit tests use a stand-in
+  radio and never touch the network. Tests: `NearbyTests.swift`,
+  `test/nearby.test.js`, `test/homebase.nearby.test.js`.
 - **Looking at one graphics rung** on any device: launch with `-rung N`
   (0 to 5; 6 is rung 5 with the 30 fps cap) and `-perf YES` for the readout.
   They become `?rung=N&perf` on the page (`AppScheme.startURL(rung:perf:)`),
