@@ -90,9 +90,10 @@ const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is em
 const BLUR_RENDER_MS = 250; // a skipped render runs this long after the name box loses focus
 // The builder's cat stands by default (legs, pattern and tail in view); her
 // 🐾 Sit pick is kept for the session's browser. The rest of the
-// dressing room always sits.
+// dressing room, the launch screen included, always stands (owner's choice,
+// 2026-11-11; it sat before).
 export const BUILDER_POSE_KEY = 'whisker-walk-builder-pose';
-const ROOM_POSE = 'sit';
+const ROOM_POSE = 'stand';
 // (window's, never Node's: tests pass their own or run without one)
 const defaultStorage = () => { try { return typeof window !== 'undefined' ? window.localStorage ?? null : null; } catch { return null; } };
 function readPose(storage) {
