@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatPerfLines, createPerfHud } from '../src/ui/perfhud.js';
+import { formatPerfLines, formatDiagHtml, createPerfHud, DIAG_SHOWN } from '../src/ui/perfhud.js';
+import { createDiagnostics } from '../src/diagnostics.js';
 
 const sample = {
   fps: 58.2, frameMs: 17.2, worstMs: 41.04, workMs: 6.1,
@@ -224,5 +225,137 @@ describe('createPerfHud', () => {
     hud.frameStart(1600, session);
     hud.frameEnd(session, 1602);
     expect(line(3)).toContain('postFx off');
+  });
+});
+
+describe('formatDiagHtml', () => {
+  const at = (h, m, sec) => new Date(2026, 10, 11, h, m, sec).getTime();
+  const entry = (over) => ({ time: at(9, 5, 7), kind: 'frame', message: 'TypeError: x', source: '', line: 0, count: 1, ...over });
+
+  it('is nothing at all while nothing has gone wrong', () => {
+    expect(formatDiagHtml([], 0, false)).toBe('');
+    expect(formatDiagHtml([], 0, true)).toBe('');
+  });
+
+  it('is one line, closed', () => {
+    expect(formatDiagHtml([entry()], 1, false)).toBe('<div class="diag-head">⚠ 1 error ▸</div>');
+    expect(formatDiagHtml([entry({ count: 3 })], 3, false)).toBe('<div class="diag-head">⚠ 3 errors ▸</div>');
+  });
+
+  it('opens on the last few entries, newest first, escaped', () => {
+    const list = [
+      entry({ message: 'oldest' }),
+      ...Array.from({ length: DIAG_SHOWN }, (_, i) => entry({ message: `m${i}`, time: at(10, i, 0) })),
+      entry({ kind: 'gl', message: '<b>lost</b>', source: 'main.js', line: 12, count: 2, time: at(23, 59, 59) }),
+    ];
+    const html = formatDiagHtml(list, 9, true);
+    expect(html.startsWith('<div class="diag-head">⚠ 9 errors ▾</div>')).toBe(true);
+    const lines = html.match(/<div class="diag-line">[^]*?<\/div>/g);
+    expect(lines).toHaveLength(DIAG_SHOWN);
+    expect(lines[0]).toBe('<div class="diag-line">23:59:59 gl ×2 · &lt;b&gt;lost&lt;/b&gt; (main.js:12)</div>');
+    expect(lines[1]).toBe(`<div class="diag-line">10:0${DIAG_SHOWN - 1}:00 frame · m${DIAG_SHOWN - 1}</div>`);
+    expect(html).not.toContain('oldest');
+  });
+});
+
+describe('createPerfHud with diagnostics', () => {
+  let made;
+  const settings = { get: () => 'auto' };
+  const session = { scene: { isScene: true }, tier: { name: 'high' }, strayCats: { strays: [] } };
+
+  function fakeEl() {
+    const classes = new Set();
+    const listeners = {};
+    return {
+      id: '', textContent: '', innerHTML: '', attrs: {}, listeners,
+      set className(v) { classes.clear(); v.split(' ').forEach((c) => c && classes.add(c)); },
+      classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c) },
+      get hidden() { return classes.has('hidden'); },
+      setAttribute(k, v) { this.attrs[k] = v; },
+      addEventListener(type, fn) { listeners[type] = fn; },
+    };
+  }
+
+  beforeEach(() => {
+    made = [];
+    vi.stubGlobal('document', {
+      createElement: () => { const e = fakeEl(); made.push(e); return e; },
+      body: { appendChild: vi.fn() },
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const setup = () => {
+    const diagnostics = createDiagnostics({ now: () => 0 });
+    const hud = createPerfHud({ renderer: fakeRenderer(), settings, coarse: false, adapter: { status: null }, diagnostics });
+    hud.setEnabled(true);
+    return { diagnostics, hud };
+  };
+  const diagEl = () => made.find((e) => e.id === 'perf-diag');
+
+  it('adds no element while nothing has gone wrong', () => {
+    const { hud } = setup();
+    hud.frameStart(1000, session);
+    hud.frameEnd(session, 1002);
+    hud.frameStart(1600, null);
+    hud.frameEnd(null, 1602);
+    expect(diagEl()).toBeUndefined();
+  });
+
+  it('shows one line once something has, on the home screen too, and opens on a tap', () => {
+    const { diagnostics, hud } = setup();
+    diagnostics.note('frame', new Error('boom'));
+    hud.frameStart(1000, null);
+    hud.frameEnd(null, 1002);
+    const el = diagEl();
+    expect(el.hidden).toBe(false);
+    expect(el.attrs.role).toBe('button');
+    expect(el.innerHTML).toBe('<div class="diag-head">⚠ 1 error ▸</div>');
+    el.listeners.click();
+    expect(el.innerHTML).toContain('frame · Error: boom');
+    el.listeners.click();
+    expect(el.innerHTML).toBe('<div class="diag-head">⚠ 1 error ▸</div>');
+  });
+
+  it('redraws only when the record changed, at most every 500 ms', () => {
+    const { diagnostics, hud } = setup();
+    diagnostics.note('save', 'quota');
+    hud.frameStart(1000, session);
+    hud.frameEnd(session, 1002);
+    const el = diagEl();
+    let writes = 0;
+    let html = el.innerHTML;
+    Object.defineProperty(el, 'innerHTML', { get: () => html, set: (v) => { html = v; writes++; } });
+    hud.frameStart(1600, session);
+    hud.frameEnd(session, 1602);
+    expect(writes).toBe(0);
+    diagnostics.note('save', 'quota');
+    hud.frameStart(1700, session);
+    hud.frameEnd(session, 1702);
+    expect(writes).toBe(0);
+    hud.frameStart(2200, session);
+    hud.frameEnd(session, 2202);
+    expect(writes).toBe(1);
+    expect(html).toBe('<div class="diag-head">⚠ 2 errors ▸</div>');
+  });
+
+  it('draws on demand once the loop has stopped, only while the readout is on', () => {
+    const { diagnostics, hud } = setup();
+    diagnostics.note('gl', 'graphics context lost');
+    hud.showDiagnostics();
+    expect(diagEl().innerHTML).toBe('<div class="diag-head">⚠ 1 error ▸</div>');
+    hud.setEnabled(false);
+    diagnostics.note('gl', 'again');
+    hud.showDiagnostics();
+    expect(diagEl().innerHTML).toBe('<div class="diag-head">⚠ 1 error ▸</div>');
+  });
+
+  it('hides with the readout', () => {
+    const { diagnostics, hud } = setup();
+    diagnostics.note('gl', 'graphics context lost');
+    hud.frameStart(1000, session);
+    hud.frameEnd(session, 1002);
+    hud.setEnabled(false);
+    expect(diagEl().hidden).toBe(true);
   });
 });

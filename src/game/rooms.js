@@ -15,6 +15,7 @@
 import { rankFor, CATALOG } from '../progression.js';
 import { createNet, createSupabaseTransport, generateRoomCode } from '../net.js';
 import { seedFromCode } from '../rng.js';
+import { note } from '../diagnostics.js';
 import { catProfileFields, scarKey } from '../customcats.js';
 import { roomAreaMove } from '../edition.js';
 import { decideLobbyEvent, pickRoomStart, walkersIn, START_GATHER_MS, MEMBER_GATHER_MS } from './lobby.js';
@@ -240,6 +241,7 @@ export function createRooms({
       await net.join(code, roomProfile());
     } catch (err) {
       console.warn('Whisker Walk: failed to join room', err);
+      note('room', err);
       roomOpInFlight = false;
       return { ok: false };
     }
@@ -281,6 +283,7 @@ export function createRooms({
         await net.join(code, roomProfile());
       } catch (err) {
         console.warn('Whisker Walk: failed to host a room', err);
+        note('room', err);
         roomOpInFlight = false;
         return { ok: false };
       }

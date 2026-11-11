@@ -30,6 +30,7 @@ import { sanitizeSnapshot, unsyncedFeeds, COLONY_MAX, isPlayerId } from '../colo
 import { CATALOG, isTradeableAccessory } from '../progression.js';
 import { validPetName } from '../net.js';
 import { clanTitleFor } from '../clannames.js';
+import { note } from '../diagnostics.js';
 
 // A kept pending join (see trouble()) has no expiry of its own; give it the
 // invite's window so an offline player isn't polled at forever.
@@ -111,6 +112,7 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     if (warned === key) return;
     warned = key;
     console.warn(`Whisker Walk: colony sync — ${key}`, detail);
+    note('cloud', detail ?? key);
   }
   // A pull that couldn't sync. The local colony (and its link) is left alone.
   // One failed poll tick must not wipe the sibling's on-screen code and stop
