@@ -5,7 +5,7 @@ import { wireScars } from './scars.js';
 import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
-import { validPetName } from './net.js';
+import { safeRemoteName } from './net.js';
 import { createWaterState, stepWaterState, shakeProgress } from './waterstate.js';
 import { waterPose, applyWaterLook } from './cat/waterlook.js';
 import { FLAT_GROUND, groundTilt, easeTilt } from './ground.js';
@@ -83,14 +83,14 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
   // which may not have enforced the same validation the local client does
   // (an old build, a tampered client, a wire glitch) — whitelist breed
   // against the known personality set and petName against the same rule
-  // net.js's sender-side validPetName enforces, falling back to safe
+  // net.js's safeRemoteName enforces (validPetName and more), falling back to safe
   // defaults rather than handing an unknown breed key to buildCat (which
   // would throw) or an unvalidated string into the name tag.
   function sanitizeProfile(profile) {
     const breed = Object.prototype.hasOwnProperty.call(PERSONALITIES, profile.breed)
       ? profile.breed
       : 'tabby';
-    const petName = validPetName(profile.petName) ? profile.petName : 'Mystery Cat';
+    const petName = safeRemoteName(profile.petName);
     const accessories =
       profile.accessories && typeof profile.accessories === 'object' ? profile.accessories : {};
     return { ...profile, breed, petName, accessories, look: wireLook(accessories) };

@@ -4,7 +4,7 @@ import { wireLook } from './customcats.js';
 import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
-import { validPetName } from './net.js';
+import { safeRemoteName } from './net.js';
 import { keepOutPoint } from './keepout.js';
 import { groundOf, leanOnGround } from './ground.js';
 
@@ -39,10 +39,10 @@ export function rollGhosts(rng, friends) {
 // docs/supabase-setup.sql). Mirrors remotecats.js's sanitizeProfile: an
 // unrecognized breed falls back to 'tabby' rather than handing buildCat a
 // key it doesn't know (which throws), and petName is whitelisted the same
-// way net.js's outgoing validPetName does for co-walk names.
+// way remote co-walk names are (net.js's safeRemoteName).
 function sanitizeGhostProfile(raw) {
   const breed = Object.prototype.hasOwnProperty.call(PERSONALITIES, raw?.breed) ? raw.breed : 'tabby';
-  const petName = validPetName(raw?.petName) ? raw.petName : 'Mystery Cat';
+  const petName = safeRemoteName(raw?.petName);
   const accessories = raw?.accessories && typeof raw.accessories === 'object' ? raw.accessories : {};
   const greets = Number.isFinite(raw?.greets) ? raw.greets : 0;
   return { playerId: raw?.playerId, petName, breed, accessories, look: wireLook(accessories), greets };
