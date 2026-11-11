@@ -11,7 +11,7 @@ describe('paw icon', () => {
   });
   test('the pounce button keeps its accessible name; the visit chip keeps its words', () => {
     const src = readFileSync(new URL('../src/ui/touchui.js', import.meta.url), 'utf8');
-    expect(src).toContain('aria-label="Pounce or climb">${PAW}</button>');
+    expect(src).toContain('aria-label="Pounce or climb">${PAW}<span class="tui-label">pounce</span></button>');
     expect(visitBadgeHtml(3)).toMatch(/class="paw"[^>]*>🐾<\/span> Visit 3/);
   });
   test('style.css draws it with a mask and keeps an emoji halo fallback', () => {
