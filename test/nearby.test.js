@@ -443,3 +443,30 @@ describe('the home card and "Not now"', () => {
     expect(nearby.cardRoom()).toBe(null);
   });
 });
+
+// main.js boots the whole game and cannot run headless, so its wiring is
+// pinned by its text, as the haptics' is.
+describe('main.js wiring', async () => {
+  const { readFileSync } = await import('node:fs');
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const mod = readFileSync(new URL('../src/game/nearby.js', import.meta.url), 'utf8');
+  it('made after the rooms and before the home base, which is handed it', () => {
+    const made = main.indexOf('const nearby = createNearby({');
+    expect(made).toBeGreaterThan(main.indexOf('} = createRooms({'));
+    expect(made).toBeLessThan(main.indexOf('const homebase = createHomeBase('));
+    expect(main).toContain('bridge: pickBridge(window), storage: window.localStorage, rooms,');
+    expect(main).toContain('{ haptics: haptics.available, nearby });');
+  });
+  it('hears the shell\'s event and follows the page being hidden', () => {
+    expect(main).toContain('window.addEventListener(NEARBY_EVENT, (e) => nearby.receive(e.detail));');
+    expect(main).toContain('const nearbySeen = () => nearby.setVisible(!document.hidden);');
+    expect(main).toContain("document.addEventListener('visibilitychange', nearbySeen);");
+  });
+  it('the module never touches the walk\'s random numbers: its only imports are the two checks', () => {
+    expect(mod).not.toMatch(/walkRng|Math\.random|fetch\(/);
+    expect(mod.match(/^import .*$/gm)).toEqual([
+      "import { validPetName } from '../net.js';",
+      "import { TYPED_CODE } from './rooms.js';",
+    ]);
+  });
+});

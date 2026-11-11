@@ -125,10 +125,15 @@ export function showEditionTitle(doc, edition) {
 // main.js can show the news card that waited for it.
 // `haptics`: whether this device can buzz at all (src/haptics.js); the
 // Vibration switch is only drawn where it can.
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, { haptics: canBuzz = false } = {}) {
+// `nearby`: game/nearby.js, the rooms the app found on the local network.
+// Absent, or not available (Safari, desktop), nothing of it is drawn.
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, { haptics: canBuzz = false, nearby = null } = {}) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
+  // A nearby Join was tapped with no cat name: Play together says so above
+  // the name box until she has one.
+  let nameNeeded = false;
   // v21 Stream 5: the home screen is the dressing room (openSheet null) or
   // one sheet from HOME_SHEETS.
   let openSheet = null;
@@ -206,6 +211,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               ? st.roster.map((p) => `<span class="wt-roster-chip">🟢 ${escapeHtml(p.petName)}</span>`).join('')
               : '<span class="tag">waiting for friends…</span>'}
           </div>
+          ${nearby?.available && nearby.advertising() ? '<div class="tag wt-nearby-on">Nearby cats can join with one tap</div>' : ''}
           <button id="wt-leave">Leave room</button>
         </div>`;
     }
@@ -219,7 +225,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // In order: the name (it unlocks everything under it), the walk with her
     // sibling, then a room of her own to start or join.
     return `
-      ${hasValidPetName ? '' : '<p class="wt-first">First, give your cat a name your friends will see:</p>'}
+      ${hasValidPetName ? '' : nameNeeded
+    ? '<p class="wt-first wt-name-needed">Your cat needs a name before it can join a walk. Type one here and tap Save:</p>'
+    : '<p class="wt-first">First, give your cat a name your friends will see:</p>'}
       <div class="wt-petname">
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Your cat's name" value="${escapeHtml(name)}" />
         <button id="wt-petname-save">Save</button>
@@ -227,6 +235,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       </div>
       ${isClanEdition(progression.state) ? renderStarNamePicker(candidateStarNames(myId), name) : ''}
       ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
+      ${nearby?.available ? `<div id="wt-nearby" class="wt-nearby">${nearbyRowsHtml()}</div>` : ''}
       <div class="wt-actions">
         <button id="wt-host" ${hasValidPetName ? '' : 'disabled'}>Host a walk</button>
         <div class="wt-join-row">
@@ -235,6 +244,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         </div>
         ${joinError ? `<div class="tag error">${escapeHtml(joinError)}</div>` : ''}
       </div>`;
+  }
+
+  // One row per room the app found nearby, each with its own Join. No row
+  // when there is none: nothing says "searching", because most of the time
+  // nobody is hosting and that is not a fault. The Join is never disabled:
+  // with no cat name yet it leads to the name box instead (joinNearby).
+  function nearbyRowsHtml() {
+    return nearby.rooms().map((r) => `<div class="wt-nearby-row">`
+      + `<span class="wt-nearby-who">${PAW} <b>${escapeHtml(r.name)}</b> is starting a walk nearby</span>`
+      + `<button class="primary wt-nearby-join" data-nearby-code="${escapeHtml(r.code)}">Join</button></div>`).join('');
   }
 
   function renderSync() {
@@ -589,6 +608,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       try { progression.markColonySeen(utcToday(), seen || undefined); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); }
       showClanMoment(); // it waited for this card
     }
+    syncNearbyCard();
   }
 
   // showNews(html, seen): put the card over the home base. html is renderNewsHtml's
@@ -609,6 +629,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       if (e.key === 'Escape') closeNews(true);
     });
     root.after(newsEl);
+    syncNearbyCard(); // the nearby card steps aside
     newsEl.querySelector('#colony-news-ok')?.focus();
     return true;
   }
@@ -623,6 +644,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     noticeEl.remove();
     noticeEl = null;
     showClanMoment(); // it waited for this card
+    syncNearbyCard();
   }
 
   function showNotice(text) {
@@ -646,8 +668,121 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     card.append(line, ok);
     noticeEl.append(card);
     root.after(noticeEl);
+    syncNearbyCard(); // the nearby card steps aside
     ok.focus();
     return true;
+  }
+
+  // ---- The nearby card ------------------------------------------------------
+  // "<Name> is starting a walk nearby. Join?" over the cat's screen, when the
+  // app has found a room on the local network (game/nearby.js). It is the
+  // lowest card there is: it goes up only when no other card, sheet, room or
+  // walk is, and when any other card goes up it steps aside without being
+  // dismissed, to come back after. Each card's show and close, and every
+  // render, ends in syncNearbyCard, which is the one place that decides.
+  let nearbyEl = null;
+  let nearbyShown = null; // the room the card is for
+  let nearbyBusy = false; // a Join from the card is on its way
+
+  function removeNearbyCard() {
+    if (!nearbyEl) return;
+    nearbyEl.remove();
+    nearbyEl = null;
+    nearbyShown = null;
+  }
+
+  function nearbyCardDue() {
+    if (!nearby?.available || nearbyBusy || !shown || !greeted || !homeVisible()) return null;
+    if (openSheet || dressing?.ui?.builder || newsEl || noticeEl || momentEl || visitOpen()) return null;
+    return nearby.cardRoom(); // null while a room is pending
+  }
+
+  function syncNearbyCard() {
+    if (!nearby?.available) return;
+    const due = nearbyCardDue();
+    if (nearbyEl && (!due || due.code !== nearbyShown.code)) removeNearbyCard();
+    if (!due || nearbyEl) return;
+    nearbyShown = due;
+    nearbyEl = document.createElement('div');
+    nearbyEl.id = 'nearby-card';
+    nearbyEl.className = 'colony-news nearby-card';
+    const card = document.createElement('div');
+    card.className = 'colony-news-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', 'A walk nearby');
+    card.setAttribute('tabindex', '-1');
+    const line = document.createElement('p');
+    line.className = 'colony-notice-line';
+    line.textContent = `${due.name} is starting a walk nearby. Join?`; // text, never markup
+    const btns = document.createElement('div');
+    btns.className = 'nearby-card-btns';
+    const join = document.createElement('button');
+    join.type = 'button';
+    join.className = 'colony-news-btn';
+    join.textContent = 'Join';
+    join.addEventListener('click', () => joinNearby(due.code, null));
+    const later = document.createElement('button');
+    later.type = 'button';
+    later.className = 'nearby-card-later';
+    later.textContent = 'Not now';
+    const notNow = () => {
+      nearby.dismiss(due.code); // its change comes back here and takes the card down
+      removeNearbyCard();
+      // the cards that waited behind this one may go up now
+      if (!showClanMoment()) { try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); } }
+    };
+    later.addEventListener('click', notNow);
+    nearbyEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') notNow();
+    });
+    btns.append(join, later);
+    card.append(line, btns);
+    nearbyEl.append(card);
+    root.after(nearbyEl);
+    // The card takes focus, not Join: it arrives by itself, and an Enter
+    // already on its way to Start must never join a room.
+    try { card.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+  }
+
+  // Join a room found nearby, from a row's button (btn) or from the card
+  // (btn null). The join itself is the typed code's: rooms.join(code), which
+  // checks the code's shape again. Without a cat name there is nobody to
+  // join as, so she is taken to the name box and told why.
+  async function joinNearby(code, btn) {
+    if (nearbyBusy) return;
+    const fromCard = !btn;
+    if (!validPetName(progression.state.petName ?? '')) {
+      nameNeeded = true;
+      removeNearbyCard();
+      if (openSheet === 'together') render(); else setSheet('together');
+      try { root.querySelector('#wt-petname-input')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+      return;
+    }
+    joinError = null;
+    if (btn) btn.disabled = true;
+    nearbyBusy = true;
+    removeNearbyCard();
+    let res;
+    try { res = await rooms.join(code); } catch { res = { ok: false }; } finally { nearbyBusy = false; }
+    if (!res || !res.ok) {
+      joinError = 'Could not join that walk — try again, or type the room code.';
+      if (fromCard) nearby.dismiss(code); // the card does not ask again; the row stays
+    }
+    if (!homeVisible()) return; // a walk began meanwhile
+    // From the card she lands in the room: who is in it, and Start.
+    if (fromCard && openSheet !== 'together') setSheet('together'); else render();
+  }
+
+  // Tells game/nearby.js what is showing (it decides what the app may do on
+  // the local network from that), and counts opening Play together as the
+  // first use. Called wherever the pairing poll is synced: after every
+  // render, and on show and hide.
+  function syncNearby() {
+    if (!nearby?.available) return;
+    const visible = homeVisible();
+    if (visible && openSheet === 'together') nearby.noteOptIn();
+    nearby.setScreen(!visible ? 'hidden' : !openSheet ? 'home' : openSheet === 'together' ? 'together' : 'other');
+    syncNearbyCard();
   }
 
   // ---- The clan moment (Launch A) -------------------------------------------
@@ -679,6 +814,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     try { root.querySelector('#btn-start')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
     // the news card gave way to the moment: it may show now
     try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); }
+    syncNearbyCard();
   }
   // force: Change place's clan line (shown even after "Not yet", and with a
   // clan already picked, to change it: that line is the only way to).
@@ -716,6 +852,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       btns[next].focus?.();
     });
     root.after(momentEl);
+    syncNearbyCard(); // the nearby card steps aside
     // The card itself takes focus, not a clan: an Enter still held from the
     // button that brought her here must never pick one.
     momentEl.querySelector('.join-moment-card')?.focus?.({ preventScroll: true });
@@ -823,6 +960,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         // The badge pops once now that the greeting is in view (not on the
         // first render, which the splash covers).
         try { root.querySelector('.dr-visit')?.classList.add('pop'); } catch { /* a nicety */ }
+        syncNearbyCard(); // the nearby card steps aside
         return true;
       }
       visitClosed = null;
@@ -830,6 +968,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const n = Math.floor(asFiniteNonNeg(result && result.visits, 0));
     if (n >= 1) showWelcome(welcomeLine(n));
     showClanMoment();
+    syncNearbyCard(); // the greeting has run: a room found meanwhile may ask now
     return false;
   }
 
@@ -1151,6 +1290,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       }
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
       syncPairingPoll();
+      syncNearby();
       if (cloud && cloud.available && openSheet === 'together') loadPlayerPets();
       return;
     }
@@ -1175,6 +1315,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     refocus(fid);
     stage.setVisible(shown);
     syncPairingPoll();
+    syncNearby();
   }
 
   // A clan card: save the pick, then tell the sibling's
@@ -1333,6 +1474,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       return;
     }
     if (e.target.id === 'wt-host') {
+      nearby?.noteOptIn(); // hosting is what makes this device findable nearby
       joinError = null;
       e.target.disabled = true;
       const res = await rooms.host();
@@ -1353,6 +1495,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       if (!res.ok) joinError = 'Could not join that room — check the code and try again.';
       else joinError = null;
       render();
+      return;
+    }
+    // A room found nearby: its row's Join.
+    const nearbyCode = e.target.dataset?.nearbyCode;
+    if (nearbyCode !== undefined && nearby?.available) {
+      await joinNearby(nearbyCode, e.target);
       return;
     }
     if (e.target.id === 'wt-pair-walk') {
@@ -1667,7 +1815,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   function enterStarts(e) {
     if (e.key !== 'Enter' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
     if (!shown || !greeted || !homeVisible() || openSheet || dressing?.ui?.builder) return;
-    if (momentEl || newsEl || noticeEl || visitOpen()) return;
+    if (momentEl || newsEl || noticeEl || nearbyEl || visitOpen()) return;
     const a = document.activeElement;
     if (a && a !== document.body && a !== document.documentElement && a !== root) return;
     const start = root.querySelector('#btn-start');
@@ -1683,6 +1831,19 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   if (rooms) {
     rooms.onChange(() => {
       if (!root.classList.contains('hidden')) render();
+    });
+  }
+
+  // A room found nearby came or went (or "Not now"): only the rows are
+  // redrawn, not the sheet, so a half-typed code or name is never wiped; and
+  // the card over home follows.
+  if (nearby?.available) {
+    nearby.onChange(() => {
+      if (homeVisible() && openSheet === 'together') {
+        const slot = root.querySelector('#wt-nearby');
+        if (slot) slot.innerHTML = nearbyRowsHtml();
+      }
+      syncNearbyCard();
     });
   }
 
@@ -1703,6 +1864,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       render(); // also turns the hero stage back on
       root.classList.remove('hidden');
       syncPairingPoll(); // render() ran while still hidden
+      syncNearby();
       // Back from a walk: the walk that opened the Woods brings the clan
       // moment up now. (The boot's first show() waits for the greeting.)
       if (greeted) showClanMoment();
@@ -1721,6 +1883,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       closeNews(false); // a walk is starting: leave the news unread for next time
       closeNotice();
       closeClanMoment(false); // a walk is starting: it comes back next time
+      removeNearbyCard(); // a walk is starting: not dismissed, it may ask again at home
       shown = false;
       // A walk is starting: stop the hero's frames and drop any preview.
       if (stage) stage.setVisible(false);
@@ -1728,6 +1891,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       dressing?.closeWardrobe?.(); // home again is the cat, not the wardrobe
       root.classList.add('hidden');
       syncPairingPoll(); // clears the poll: nothing pulls every 3 s during a walk
+      syncNearby(); // and nothing is looked for or findable during a walk
     },
     // Re-renders only if currently visible — used by main.js's M-key mute
     // handler so a mute toggled from the keyboard while sitting on this
