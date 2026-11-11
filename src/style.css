@@ -1150,6 +1150,26 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .dr-slot.open { outline: 2px solid var(--cream); }
 .dr .dr-slot.open { opacity: 1; }
 .dr .dr-slot.trying { border: 1px dashed var(--cream); }
+/* Saved outfits, under the wardrobe's slots. */
+.dr-outfits { margin-top: 12px; display: grid; gap: 7px; }
+.dr-outfits .dr-label { margin: 0; }
+.dr-outfit-list { display: grid; gap: 7px; }
+.dr-outfit { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.dr .dr-outfit-wear { flex: 1; min-width: 0; min-height: 48px; background: var(--panel); border-radius: 10px; display: flex;
+  align-items: center; gap: 10px; padding: 5px 10px; font-size: 13px; text-align: left; }
+.dr .dr-outfit.on .dr-outfit-wear { outline: 2px solid var(--pink); }
+.dr-outfit-pics { display: flex; gap: 4px; flex: none; }
+.dr-outfit-pic { width: 30px; height: 30px; border-radius: 8px; background: var(--cream); display: inline-block; overflow: hidden; }
+.dr-outfit-pic img { width: 100%; height: 100%; display: block; }
+.dr-outfit-pic.gone { opacity: .35; }
+.dr-outfit-pic.whole { width: 52px; height: 52px; border-radius: 10px; }
+.dr-outfit-words { min-width: 0; font-weight: 700; }
+.dr-outfit-words small { display: block; font-size: 11px; font-weight: 400; opacity: .7; overflow-wrap: anywhere; }
+.dr .dr-outfit-del { flex: none; width: 44px; min-height: 44px; border-radius: 10px; border: 1px dashed #5b6c88; opacity: .8; font-size: 14px; }
+.dr .dr-outfit-del:hover { opacity: 1; background: rgba(255, 255, 255, .06); }
+.dr .dr-outfit-save { min-height: 44px; border-radius: 999px; border: 1.5px solid #5b6c88; font-weight: 700; font-size: 14px; padding: 6px 14px; }
+.dr .dr-outfit-save:hover:not(:disabled) { background: rgba(255, 255, 255, .06); }
+.dr .dr-outfit-save:disabled { border-style: dashed; font-weight: 400; opacity: .7; cursor: default; }
 .dr-picker { grid-column: 1 / -1; background: #1a2436; border-radius: 10px; padding: 8px; display: grid;
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
 .dr .dr-pick { background: var(--panel); border-radius: 9px; padding: 6px; font-size: 11px; text-align: center;
