@@ -913,7 +913,7 @@ lite`).
 | rung 5 | scenery density and the real shadows | the last of the picture |
 | 30 fps | frame rate | only when the picture has nothing left to give |
 
-What never goes: her cat, the cats she has befriended, paw prints, the goals,
+What never goes: the player's cat, the cats the player has befriended, paw prints, the goals,
 and anything that changes what the game pays or how it plays.
 
 ## The rungs
@@ -962,7 +962,7 @@ place it can show is at a cat's feet, where the contact decal is already the
 darkest thing. **Not seen by eye yet.**
 
 Weighed and not taken: a 512 map (texels are not draws); a tighter shadow box
-(shadows would end visibly nearer); only her cat casting (every other cat
+(shadows would end visibly nearer); only the player's cat casting (every other cat
 loses its shadow); redrawing the map every other frame (alternating heavy and
 light frames is the unevenness this is meant to remove); static shadows
 rendered once (three has no such split for one light, and the box follows the
@@ -981,8 +981,8 @@ without shadows at all.
 
 Eight strays is the biggest scene-pass lever (a stray is 25 main-pass draws).
 Where a clan lives, its nine cats take all eight places, so the camp is full
-and only passing loners go. The cats she has fed are kept even where eight is
-fewer than her colony (`keepFedCats`). Fog is not touched: it is set by the
+and only passing loners go. The cats the player has fed are kept even where eight is
+fewer than the player's colony (`keepFedCats`). Fog is not touched: it is set by the
 area, the weather and dusk, not one per-walk value.
 
 **Co-walk:** nothing new draws from `walkRng`. Fewer strays are a prefix of the
@@ -2267,7 +2267,7 @@ from open ground through the bend to the chamber's end and back.
   The Echo chamber at dusk is 85% of the floor, far above the 25% line, so
   `DARK_FLOOR` stays where it is. On screen the caves hardly darken at all: the
   sun and fill drop to 0.3, but the image-based light, exposure and bloom do
-  not, and the glow lights her cat and the floor round her. The chambers read
+  not, and the glow lights the player's cat and the floor round her. The chambers read
   as warm, soft rooms (Snug and Glitter pale tan, Echo grey-blue). Cosy, not
   cave-dark. Whether that is the look the owner wants is his call.
 - **Camera in rock** (below the ground, or above a cave or den ceiling): 0 of
@@ -2356,14 +2356,14 @@ weather re-roll each walk.
   (0.56 m on the floor 15 s later). From step 3 to step 1 in the cave it stays
   close (0.76 m) until she walks out, then recovers. Step 1 to 0, step 0 to 3,
   and step 3 to 0 on open ground are all fine.
-- **At a cave's bend, zoom step 3 brings the camera inside her cat's head**
+- **At a cave's bend, zoom step 3 brings the camera inside the cat's head**
   (0.19-0.34 m: a huge eye at the Echo Cave's second bend, the inside of her
   head at the Snug Cave's first). At steps 0-2 the bends hold 0.6-2.4 m. At
   the Glitter Cave's far bend, step 0 can look straight down on her, or at a
   bare wall. On ordinary walks in and out it happens for a moment while she
   turns at a bend: the camera came within 0.4 m of her on 8 of 48 walks (at
   every step).
-- **The glow makes a white-hot spot on her cat's head and back** (bloom on a
+- **The glow makes a white-hot spot on the cat's head and back** (bloom on a
   light 0.7 m above her). Her coat still reads, but she looks lit by a lamp.
 - **The caves barely darken on screen** (see the luma table): soft and cosy,
   but not much of a "deeper is darker" feeling.
@@ -2483,7 +2483,7 @@ on the phone size. The full suite (221 files, 6,100 tests) and the build pass;
   camp ended the walk-along: "Flintbelly heads back to camp. A longer patrol
   next time!" (the patrol ends in camp by design; it paid nothing because the
   walk took under the minimum in game time, which runs about a fifth of real
-  time headless). On an earlier try, where her cat stuck against leg A's lip
+  time headless). On an earlier try, where the player's cat stuck against leg A's lip
   and Flintbelly gave up on the floor: "Good patrol!" and +8.
 - **A GaleClan visitor** (Torshade, then Cottontail) walks the floor on the
   route through the Narrows; "Cottontail of GaleClan is on your land! Fight!"
@@ -2667,7 +2667,7 @@ Branch `polish-gorgesky` (survey items #1b, #7, #14). Ground, colliders, spawn a
 - A warm, dim sun (0xffb27a, 0.8).
 - A cool sky fill (0x7d8cc4, 0.5), with the ground bounce at 55%.
 - Image light at 45% (Night Eyes still multiplies on top).
-- A soft teal PointLight at the collar when her own cat wears the glow collar. It needs no shadow and goes with the cat.
+- A soft teal PointLight at the collar when the player's own cat wears the glow collar. It needs no shadow and goes with the cat.
 - The ground half of the Woods spawn frame drops from 90% of day's brightness to 60%, and the Moor's does the same.
 - The Gorge has its own dusk: a canyon-sunset sky (0x2c3460 over 0xc98a6a) and an orange sun (0xff9a52, 1.0) that rims the high rock. The floor sits in shade, at SHADE_FLOOR_DUSK 0.45.
 - Weather is only rolled on non-dusk walks, so dusk and rain never meet. Dusk is the base, and weather.js is untouched.

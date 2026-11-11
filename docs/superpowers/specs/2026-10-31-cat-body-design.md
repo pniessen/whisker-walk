@@ -27,7 +27,7 @@ They chose **Version 2** of a turntable sketch (`cat-shapes.html` in the session
 - The body is built from a few named numbers and a coat description, so the planned cat builder can drive coat colours, pattern, fur, size and eyes without new drawing code (§7).
 
 **Non-goals**
-- No change to the head beyond its size and position. The face is the cute part, and she likes it.
+- No change to the head beyond its size and position. The face is the cute part, and the older playtester likes it.
 - No change to how cats move, play or score. Speed, nose, napping and bravery are all unchanged.
 - Hagrid the chicken is built separately and does not change at all.
 - No new poses. Existing poses are refitted to the new body, not redesigned.

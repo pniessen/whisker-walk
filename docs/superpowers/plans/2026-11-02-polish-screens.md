@@ -4,7 +4,7 @@
 
 **Goal:** Dress up the screens around a walk (Ready/pause card, walk summary) and smooth the home's rough edges (Settings controls, Journal, Album/Social empty states, the visit bubble), looks only.
 
-**Architecture:** The Ready/pause card and the summary get one shared "screen panel" look (navy card panel, the home's pink pill, her cat's portrait). Her cat's portrait is a cached snapshot from `src/thumbnails.js` (same throwaway-context snapper the home uses), taken under a seeded local `Math.random`. Count-up and confetti live in a small new module `src/ui/screencards.js`; confetti reuses `confettiHtml` from `src/ui/visitcelebration.js`. Home fixes are markup + CSS in `src/ui/homebase.js`, `src/journal.js`, a new `src/ui/emptystates.js` and `src/style.css`.
+**Architecture:** The Ready/pause card and the summary get one shared "screen panel" look (navy card panel, the home's pink pill, the cat's portrait). The cat's portrait is a cached snapshot from `src/thumbnails.js` (same throwaway-context snapper the home uses), taken under a seeded local `Math.random`. Count-up and confetti live in a small new module `src/ui/screencards.js`; confetti reuses `confettiHtml` from `src/ui/visitcelebration.js`. Home fixes are markup + CSS in `src/ui/homebase.js`, `src/journal.js`, a new `src/ui/emptystates.js` and `src/style.css`.
 
 **Tech Stack:** Vanilla JS + DOM, Three 0.185 (portrait only), Vite 8, Vitest 4 (jsdom-free tests build HTML strings; homebase tests use the fake doc in test/homebase.visits.test.js).
 
@@ -54,7 +54,7 @@
 - [ ] **Step 2: Run** `npx vitest run test/screens.test.js` → FAIL.
 - [ ] **Step 3: Implement.** `herCatPortrait` reuses `makeSnapper` and the same lights as `customThumbnails`, builds `buildCat(breed, wear, look ? { look } : {})`, swaps `Math.random = mulberry32(seedFromCode('portrait'))` around context creation + build + snap, restores in `finally`. Markup: `<div class="pause-card"><div class="screen-panel">[img]<h1>Ready?</h1>[welcome]<div class="screen-actions">resume, end</div><p class="controls-hint">…</p></div></div>`. In walk.js compute `session.portrait = herCatPortrait(progression.state)` right before the Ready card's `overlay.innerHTML` (after the build, so area draw counts can't move). crossing.js passes `portrait: s.portrait`. CSS: `.pause-card` keeps its full-screen dim; `.screen-panel` is the panel (max-width 440px, padding 22px 26px, grid gap 12px, centred); `.screen-cat` 132px square (96px under `max-height: 500px`); `.pause-card .primary` pink pill, `.pause-card .secondary` secondary pill, both `min-width: 220px`; actions stack in a column; controls hint at 0.85rem in a soft rounded box. Remove `.pause-card button` from the old blue button rule. Landscape (`max-height: 500px`): panel becomes two columns (cat left, text + buttons right) or scrolls; nothing cut off.
 - [ ] **Step 4: Run** the test file, then the full suite → PASS. Take `ready-*` and `pause-*` shots and look at them (desk, phone, land).
-- [ ] **Step 5: Commit** `feat(screens): Ready card on a panel with pink pills and her cat`.
+- [ ] **Step 5: Commit** `feat(screens): Ready card on a panel with pink pills and the player's cat`.
 
 ### Task 2: Walk summary — panel, cat, stat tiles, cheer, count-up, best-walk confetti
 
@@ -74,7 +74,7 @@
 - [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Implement** `screencards.js`; rebuild the summary markup: `.summary-card` (scrim, `position: relative`) › confetti (record only) › `.screen-panel.summary-panel` › cat img (when portrait) › `h1 Walk complete!` › `.summary-cheer` line › record banner or best line › `.summary-stats` of tiles (`.stat` gets a panel-tone rounded tile with an emoji line above the number: 🐾 whisker points, 🔍 discoveries, 😺 cats greeted, ⭐ goals done) › the existing extra lines › `#btn-summary-continue.primary` (text `Continue`). Stat values carry `data-count` (and `data-suffix="/3"` for goals) with the final number as text. After `overlay.innerHTML = summaryHtml`, call `countUp(overlay, { reduced: prefersReducedMotion(settings) })`. Phone: tiles in a 2×2 grid; landscape: cat 80px, tiles in one row, panel scrolls.
 - [ ] **Step 4: Run** tests + suite → PASS; shots `summary-*` (incl. `-best`), look at them.
-- [ ] **Step 5: Commit** `feat(screens): walk summary on a panel with her cat, counting numbers and best-walk confetti`.
+- [ ] **Step 5: Commit** `feat(screens): walk summary on a panel with the player's cat, counting numbers and best-walk confetti`.
 
 ### Task 3: Settings — styled switches, sliders and pill selects
 

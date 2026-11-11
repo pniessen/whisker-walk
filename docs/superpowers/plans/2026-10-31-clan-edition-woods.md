@@ -66,7 +66,7 @@ These are for the owner (the parent), not the implementer.
 ## What this plan defers (each gets its own plan)
 
 - **The per-kid clan pick** and the allies rule (decision 2).
-- **The homage name lists** for her to choose from (decision 3). Until then the Woods has **no rival patrol**.
+- **The homage name lists** for them to choose from (decision 3). Until then the Woods has **no rival patrol**.
 - **Kittypets**: the name list, collars, "the kittypet" wording, and **wanderers** into territories (decision 6).
 - **The other territories**: the River and Marshes, the Moor, the Pines and Swamp, and later the Gorge.
 - **The island** and its bridge, with the truce path.
@@ -87,13 +87,13 @@ These are for the owner (the parent), not the implementer.
 | `src/world/builder.js` | Horizon side tints and one-sided rooftops; log bridge, stepping stones, fallen log, reed bed |
 | `src/world/woods.js` (new) | The Woods map |
 | `src/goldmice.js`, `src/marks.js`, `src/render/{grass,clouds,pawprints,ambient}.js` | Woods entries |
-| `src/territories.js` (new) | Her layout as data, and the territory map's model |
+| `src/territories.js` (new) | The playtester's layout as data, and the territory map's model |
 | `src/ui/territorymap.js` (new) | The territory map as inline SVG |
 | `src/ui/dressingroom.js` | "Where to?" by edition: Legacy cards, or the map plus "Other places" |
 
 ## The Woods in numbers
 
-Coordinates are metres, x east, z south (north is −z, as the corner map draws it). Her board puts the lake north-west of the Woods, the pond on its west edge, the river along its north, Twolegplace to the east and the Moor to the north (spec §3, §4).
+Coordinates are metres, x east, z south (north is −z, as the corner map draws it). The playtester's board puts the lake north-west of the Woods, the pond on its west edge, the river along its north, Twolegplace to the east and the Moor to the north (spec §3, §4).
 
 | Thing | Value |
 |---|---|
@@ -610,7 +610,7 @@ it('a Legacy room start proposes the Neighborhood', () => {
     `{ id: 'pines', areaId: null, name: 'The Pines and Swamp', x: 308, y: 199, r: 150, status: 'soon' }`,
     `{ id: 'gorge', areaId: null, name: 'The Gorge', x: 815, y: 353, r: 80, status: 'later' }`.
     Twolegplace's name comes from `PLACE_WORDS.town`.
-  - Her water and paths, simplified from her drawing (board units):
+  - The playtester's water and paths, simplified from their drawing (board units):
     - `LAKE = [[397,370],[402,281],[405,241],[416,220],[431,209],[452,207],[472,209],[495,220],[507,237],[522,327],[517,352],[469,415],[450,426],[429,425],[400,408]]`
     - `ISLAND = { name: 'The island', status: 'soon', outline: [[437,307],[444,297],[456,291],[476,289],[485,309],[478,321],[464,329],[449,329],[440,320]] }`, `STAR = { x: 455, y: 314 }`
     - `POND = { x: 380, y: 463, r: 22 }`
@@ -621,7 +621,7 @@ it('a Legacy room start proposes the Neighborhood', () => {
   - `renderTerritoryMapHtml(model) -> string`: one `<svg viewBox="0 0 1000 700" class="territory-map" role="img" aria-label="Territory map">`. A built region is a `<g data-dr-place="<areaId>">`, so the dressing-room controller's existing `onPlace` buys (free) or selects it; a `soon`/`later` region and the island have no `data-dr-place`. Every text node is escaped.
 
 - [ ] **Step 1: Write the failing tests** in `test/territories.test.js`:
-  - `the layout is her drawing`: six regions with the centres and radii above, and the star inside the island's outline.
+  - `the layout is the playtester's drawing`: six regions with the centres and radii above, and the star inside the island's outline.
   - `Twolegplace is the Neighborhood and is always open`.
   - `the Woods is locked until 2 Twolegplace walks, then "Tap to explore", then "tap to walk here" once opened`.
   - `the selected place says today's walk`.

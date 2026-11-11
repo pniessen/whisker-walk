@@ -151,7 +151,7 @@ owner can change their mind cheaply later.
   must not become a place to type free text, because that is the one thing the
   no-accounts, no-chat safety model rests on.
 - **The older playtester's game.** If the older playtester understands the clan and the
-  young player is following her around being told what things mean, this has
+  young player is following them around being told what things mean, this has
   failed goal 2.
 - **Breaking the merged colony.** Stream 2 is merged, working, and holds days
   of both children's progress. A regression there is not a bug, it is lost
@@ -177,7 +177,7 @@ text capped at 16 characters, blocklist-filtered by `validPetName()` in
 `ghosts.js`, `remotecats.js` and `colony.js`'s partner record. A composed name
 like `Mossstar` passes `validPetName` as it stands, so **a chosen clan name for
 the player's cat needs no wire change, no schema change and no new column.**
-The free-text path stays — a child who wants to call her cat Noodle may — and
+The free-text path stays — a child who wants to call their cat Noodle may — and
 the clan-name picker becomes the offered default.
 
 **Pool contents are the builder's to choose**, with four hard rules:
@@ -313,7 +313,7 @@ role selects and colours those. That is enough to serve the v21 spec's §9 item
   the cat name as tiebreak, reusing `tamedCats()`'s idiom, and store the
   verdict once it is settled.
 - **Leader — both players, one `-star` each.** Each child's own cat carries a
-  `-star` name, chosen by her (§6.1). Non-canonical and chosen knowingly: it
+  `-star` name, chosen by the player (§6.1). Non-canonical and chosen knowingly: it
   gives each child the best name in the books and makes neither one anybody's
   subordinate. The clan has two leaders and no one minds.
 
@@ -374,7 +374,7 @@ older, so this is implemented as **the inviter's name wins**: the device that
 created the invite keeps its clan name, the joiner adopts it, and each device
 can tell which it was from the existing invite flow without any new field
 crossing the wire. In practice the older playtester is the one who sets up pairing —
-the v21 spec's §9 item 9 has her yelling the code across the house — so this is
+the v21 spec's §9 item 9 has the player yelling the code across the house — so this is
 a faithful reading rather than a substitution. **It is worth the owner knowing
 that whoever invites decides**, and that the other child's clan name changes
 once, visibly, at that moment. An unpair and re-pair must not change it again:
@@ -529,7 +529,7 @@ the other, and whichever lands second is where that payoff appears.
 - **Kits are the one item that could force SQL into 3a** and reverse decision
   11. §6.5 makes it the builder's first task for that reason.
 - **Seven ranks is a lot of vocabulary for a young player**, and goal 2 is that
-  she loses nothing. The real test is her, not a roleplayed reader.
+  she loses nothing. The real test is the older playtester, not a roleplayed reader.
 - **Carry is REQUIRED and is now second.** If the children play 3a and the
   world still leaves nothing behind, the v21 spec's central diagnosis —
   "almost every verb resolves instantly and leaves nothing behind" — is
@@ -539,9 +539,9 @@ the other, and whichever lands second is where that payoff appears.
   and the v21 spec's §9 item 2 ("names are permanent and belong to the finder")
   is satisfied only in the weak sense that nothing can change them. If the
   young player minds, the fix is decision 11's third option and it costs SQL.
-- **the real older playtester overrules this document.** She is available, she is
-  the reason it exists, and the v21 spec already says she overrules the
-  roleplayed playtest readers. She should be asked about the pools, the reveal
+- **the real older playtester overrules this document.** They are available, they are
+  the reason it exists, and the v21 spec already says they overrule the
+  roleplayed playtest readers. The older playtester should be asked about the pools, the reveal
   and the rival clans before they are built, not after.
 
 ---
