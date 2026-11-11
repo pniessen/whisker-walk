@@ -18,7 +18,7 @@
 - Systems talk via the event bus (`src/events.js`) — no direct cross-imports between peer systems.
 - Controls: WASD + mouse look (Pointer Lock), `E` to interact/pet, `Esc` releases pointer → pause overlay.
 - Target 60fps on a typical laptop; keep per-frame allocations out of hot loops.
-- Run all commands from the repo root `/Users/pniessen/Documents/cat-game`.
+- Run all commands from the repo root `<repo>`.
 - Commit after every task (messages given per task). Never commit `node_modules/` or `dist/` (already gitignored).
 
 ## File Structure

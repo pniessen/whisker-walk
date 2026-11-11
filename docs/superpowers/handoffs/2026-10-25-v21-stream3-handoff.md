@@ -53,7 +53,7 @@ The spec is the authority: `docs/superpowers/specs/2026-10-24-whisker-walk-v21-r
   3. Stray name tags are sprites with `userData.tagName`. Find the player's cat by pushing the joystick and seeing which non-stray cat moves.
 
 ## Small follow-ups left from Stream 2 (optional, not Stream 3)
-- A sibling alone in the pair room can start a walk. If the other sibling then joins and becomes host, a second walk can start in the same room.
+- A partner alone in the pair room can start a walk. If the other partner then joins and becomes host, a second walk can start in the same room.
 - Six toasts stack over the cat at a taming moment.
 - The sticky home-base header takes about half of a phone screen. That belongs to Stream 5.
 - `.claude/launch.json` has a redundant `whisker-walk-colony` config on port 5175, which can be deleted.

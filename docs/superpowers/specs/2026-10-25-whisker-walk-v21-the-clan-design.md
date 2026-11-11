@@ -16,8 +16,8 @@ it changed.
 
 ## 1. Intent, and the why
 
-The owner's 11-year-old daughter — the player the whole of v21 is built for —
-loves Erin Hunter's *Warrior Cats*. Her 9-year-old sister knows the books too.
+The older playtester — the player the whole of v21 is built for —
+loves Erin Hunter's *Warrior Cats*. The younger playtester knows the books too.
 
 That is the entire why, and it is a better one than the v21 spec had. v21's
 problem statement is "give two kids a reason to come back," and its answer was
@@ -39,7 +39,7 @@ mechanics v21 had already decided to build, with reasons attached:
   *to*, and it does it without a score.
 - **Code 15 — "A warrior rejects the soft life of a kittypet."** The player's
   cat *is* a house cat that goes out for walks. The game is a kittypet playing
-  at being a warrior, and that is the joke the elder sister will enjoy most.
+  at being a warrior, and that is the joke the older playtester will enjoy most.
 
 **One rule of the fifteen is explicitly rejected.** Code 11 says boundaries
 must be marked **daily**. The v21 spec's §9 item 3 ("colony progress advances
@@ -86,7 +86,7 @@ owner can change their mind cheaply later.
 
 - The two players are **one clan**, never a clan each. Shared contribution over
   competition is the v21 spec's §4; two player clans would make a border
-  between siblings.
+  between partners.
 - **Rank is never a score.** No rank appears in a points total, a goal, or
   `AWARDS`. See §5.
 - **"The elder's clan name wins" is implemented as "the inviter's wins"** — see
@@ -124,12 +124,12 @@ owner can change their mind cheaply later.
 - **No new SQL and no change to the colony RPCs in 3a.** Decision 11 exists
   to buy this. See §6.2.
 - **No rival-clan *combat*.** Rivals contest territory, scent over marks, and
-  chase. Nothing here is a fight the 9-year-old can lose.
+  chase. Nothing here is a fight the younger playtester can lose.
 - **No reading comprehension test.** Nothing requires knowing the books, and
   nothing explains them either.
 - **Not the books' plot.** No prophecies, no character arcs, no deaths. The
   structures and the vocabulary only.
-- **No clan between the siblings.** One clan, two leaders.
+- **No clan between the partners.** One clan, two leaders.
 
 ---
 
@@ -142,7 +142,7 @@ owner can change their mind cheaply later.
   a streak, a decay, or a reminder. If any screen in this feature can say
   "you haven't marked your borders today," the feature has failed.
 - **Rank as rank.** If `-star` outranks `-paw` in anything other than a name,
-  the 9-year-old is in a hierarchy with her sister. Rank must be descriptive,
+  the younger playtester is in a hierarchy with the other playtester. Rank must be descriptive,
   never a permission: no rank gates an area, a verb, a cosmetic, or a feed.
 - **Losing a cat's name.** A name is permanent and belongs to the finder (v21
   spec §9 item 2). A migration, a merge, a sanitizer default or a rival clan
@@ -150,8 +150,8 @@ owner can change their mind cheaply later.
 - **A fan-fiction engine.** The naming system generates from closed pools. It
   must not become a place to type free text, because that is the one thing the
   no-accounts, no-chat safety model rests on.
-- **The elder sister's game.** If the 11-year-old understands the clan and the
-  9-year-old is following her around being told what things mean, this has
+- **The older playtester's game.** If the older playtester understands the clan and the
+  young player is following her around being told what things mean, this has
   failed goal 2.
 - **Breaking the merged colony.** Stream 2 is merged, working, and holds days
   of both children's progress. A regression there is not a bug, it is lost
@@ -373,7 +373,7 @@ owner's words were "the elder's wins". The code has no notion of which child is
 older, so this is implemented as **the inviter's name wins**: the device that
 created the invite keeps its clan name, the joiner adopts it, and each device
 can tell which it was from the existing invite flow without any new field
-crossing the wire. In practice the elder sister is the one who sets up pairing —
+crossing the wire. In practice the older playtester is the one who sets up pairing —
 the v21 spec's §9 item 9 has her yelling the code across the house — so this is
 a faithful reading rather than a substitution. **It is worth the owner knowing
 that whoever invites decides**, and that the other child's clan name changes
@@ -528,7 +528,7 @@ the other, and whichever lands second is where that payoff appears.
   alone without them.
 - **Kits are the one item that could force SQL into 3a** and reverse decision
   11. §6.5 makes it the builder's first task for that reason.
-- **Seven ranks is a lot of vocabulary for a 9-year-old**, and goal 2 is that
+- **Seven ranks is a lot of vocabulary for a young player**, and goal 2 is that
   she loses nothing. The real test is her, not a roleplayed reader.
 - **Carry is REQUIRED and is now second.** If the children play 3a and the
   world still leaves nothing behind, the v21 spec's central diagnosis —
@@ -538,8 +538,8 @@ the other, and whichever lands second is where that payoff appears.
   safety with a real loss: the ceremony becomes a reveal rather than a choice,
   and the v21 spec's §9 item 2 ("names are permanent and belong to the finder")
   is satisfied only in the weak sense that nothing can change them. If the
-  11-year-old minds, the fix is decision 11's third option and it costs SQL.
-- **The real 11-year-old overrules this document.** She is available, she is
+  young player minds, the fix is decision 11's third option and it costs SQL.
+- **the real older playtester overrules this document.** She is available, she is
   the reason it exists, and the v21 spec already says she overrules the
   roleplayed playtest readers. She should be asked about the pools, the reveal
   and the rival clans before they are built, not after.

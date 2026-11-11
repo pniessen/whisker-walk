@@ -241,7 +241,7 @@ export const DENIED_NAMES = new Set([
 ]);
 
 // ---- Homage clan names (decision 3) ----
-// These are homages chosen with the 11-year-old: close in feel to the books,
+// These are homages chosen with the older playtester: close in feel to the books,
 // never the book names themselves. HOMAGE_PREFIXES holds the names chosen on
 // 2026-10-31; the rest of each HOMAGE_CHOICES list are spares (checked by the
 // tests), so a change is one line. Once a name has shipped, change a value
@@ -277,8 +277,8 @@ export const HOME_LINES = Object.freeze({
 // Troutkit and Mintpaw are book names); Glade, Slate, Shingle and Teal took
 // their old places. A word that fails a test is swapped for one that passes
 // the same tests, never the rule weakened. Once shipped, a value changes only
-// if the 11-year-old asks, because nothing stores it. CliffClan's sixteen
-// (gorge, part 4 K6) are all the planner's: the owner's daughter has not
+// if the older playtester asks, because nothing stores it. CliffClan's sixteen
+// (gorge, part 4 K6) are all the planner's: the older playtester has not
 // chosen its first nine. Do not add these to the scanner's list.
 export const CLAN_CAT_PREFIXES = Object.freeze({
   woods: Object.freeze(['Badger', 'Bark', 'Bluejay', 'Burr', 'Conker', 'Fawn', 'Root', 'Glade', 'Bryony',

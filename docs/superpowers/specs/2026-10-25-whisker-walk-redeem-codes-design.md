@@ -17,8 +17,8 @@ it. A code should feel like a present, never like a test you can fail.
 2. **Where codes live:** a hashed list shipped in the client
    (`src/redeemcodes.js`). Adding codes = edit that file + redeploy. No server,
    no SQL, no schema.
-3. **Uses:** once per save. Each girl can redeem a given code once on her own
-   save. (A code meant for one girl only is just a code given to one girl.)
+3. **Uses:** once per save. Each player can redeem a given code once on their own
+   save. (A code meant for one player only is just a code given to one player.)
 4. **Making a code:** `node scripts/make-code.mjs` invents a friendly code,
    checks the rewards exist in CATALOG, and prints the code plus the one line to
    paste into `src/redeemcodes.js`. It never writes files.
@@ -170,7 +170,7 @@ Validates every id against CATALOG (imports `src/progression.js`), refuses an
 empty reward, and prints:
 
 ```
-Code for the girls:   TUNA-MOON-7K3Q
+Code for the players:   TUNA-MOON-7K3Q
 Paste into src/redeemcodes.js:
   '9f2c…': { label: 'Halloween', points: 50, accessories: ['wizard'], cats: [] },
 ```
@@ -202,5 +202,5 @@ Paste into src/redeemcodes.js:
 - Rate limit numbers: 3 misses → 30 s, doubling to 5 min.
 - Code-given accessories are ordinary items: they can be traded in the colony
   like anything bought. (Protecting them would touch colony.js and the
-  wardrobe push, which another stream owns.) Side effect: if a sister trades
+  wardrobe push, which another stream owns.) Side effect: if a partner trades
   an item over before the code is redeemed, the code pays its price in points.

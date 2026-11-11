@@ -646,8 +646,8 @@ describe('the render loop asks before it does anything', () => {
   it('main.js skips a capped refresh before reading the clock or the readout', async () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-    const loop = src.slice(src.indexOf('renderer.setAnimationLoop(() => {'));
-    const ask = loop.indexOf('if (session && !qualityAdapter.shouldRender(performance.now())) return;');
+    const loop = src.slice(src.indexOf('function walkFrame() {'));
+    const ask = loop.indexOf('if (session && !qualityAdapter.shouldRender(performance.now())) return false;');
     expect(ask).toBeGreaterThan(-1);
     expect(ask).toBeLessThan(loop.indexOf('perfHud.frameStart('));
     expect(ask).toBeLessThan(loop.indexOf('clock.getDelta()'));

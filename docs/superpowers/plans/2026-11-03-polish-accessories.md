@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Work only in `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.worktrees/polish-accessories`; dev server port 5221 only.
+- Work only in `<repo>/.worktrees/polish-accessories`; dev server port 5221 only.
 - Tests: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**'`; also `npm run build`. Long geometry sweeps get explicit timeouts (120_000).
 - Never touch `test/fixtures/hagrid-golden.json`; Hagrid's built meshes must stay byte-identical (hagrid golden must pass unchanged).
 - `test/fixtures/catgolden.json` is regenerated ONCE, in its own commit at the end (Task 5), with `UPDATE_GOLDEN=1 npx vitest run test/catgolden.test.js` and a dated comment line added to the test's header.
@@ -21,7 +21,7 @@
 - Each accessory is one merged mesh per material (vertex colours, `litMaterial(0xffffff, { vertexColors: true })`); tiny parts never their own mesh. Mesh counts per accessory must be ≤ `test/fixtures/accessory-mesh-delta.json` (update the fixture DOWN to the new counts in the task that changes them).
 - Float fixtures compared with `closeDiffs` (test/helpers/closeto.js).
 - Commits: explicit `git add <paths>`; message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Live check harness: `verify-catbody.html?breeds=…&acc=slot:id&state=…&view=…&light=game[&zoom=&at=]`. Shot script: `node /private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/acc-live/shots.mjs` with `WHICH=after ONLY=<regex>`; output in `scratchpad/snaps-polish-accessories/after/`, BEFORE shots with the same names in `before/`. Look at your shots before reporting.
+- Live check harness: `verify-catbody.html?breeds=…&acc=slot:id&state=…&view=…&light=game[&zoom=&at=]`. Shot script: `node <scratchpad>/acc-live/shots.mjs` with `WHICH=after ONLY=<regex>`; output in `scratchpad/snaps-polish-accessories/after/`, BEFORE shots with the same names in `before/`. Look at your shots before reporting.
 
 ## Review Focus
 

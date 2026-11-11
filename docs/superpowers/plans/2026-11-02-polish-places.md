@@ -8,11 +8,11 @@
 
 **Tech Stack:** Three 0.185, Vite 8, Vitest 4.
 
-**Spec:** `scratchpad/polish-survey-3.md` (rows polish #4, #8, #9, #10, #11 and "Build B4") and `scratchpad/polish-common.md` (shared rules, survey-3 section). Scratchpad = `/private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/`.
+**Spec:** `scratchpad/polish-survey-3.md` (rows polish #4, #8, #9, #10, #11 and "Build B4") and `scratchpad/polish-common.md` (shared rules, survey-3 section). Scratchpad = `<scratchpad>/`.
 
 ## Global Constraints
 
-- Worktree `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.worktrees/polish-places`, branch `polish-places`. Never touch main, other worktrees or `.claude/launch.json`; never push or merge.
+- Worktree `<repo>/.worktrees/polish-places`, branch `polish-places`. Never touch main, other worktrees or `.claude/launch.json`; never push or merge.
 - Tests: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**'` and `npm run build`. Long geometry sweeps get explicit timeouts (120_000). The Mac is heavily loaded: never weaken a test for a load timeout.
 - Commits: explicit `git add <paths>`; every message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - **Determinism:** no Math.random in build code. `test/waterlooks.test.js` BUILD_DRAWS must stay exactly `neighborhood 4408, park 2252, seaside 860, docks 6916, woods 11344, river 15484, moor 7944, pines 11580, gorge 4488`. Every THREE geometry/material/Object3D constructor draws 4 Math.random (uuid), so new objects are made inside `withLocalUuids(key, fn)` (`src/world/localuuids.js`), and an object you REMOVE from a build must still be constructed (or replaced by an equal count of constructions) outside it.

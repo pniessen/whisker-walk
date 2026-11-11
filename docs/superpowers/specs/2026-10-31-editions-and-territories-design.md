@@ -1,7 +1,7 @@
 # Whisker Walk — Clan Edition, Legacy Edition and the five territories (design)
 
 2026-10-31. A design only: nothing here is built. It answers items 3, 4 and 5
-of the 11-year-old playtester's feedback, passed on by her dad:
+of the playtester's feedback, passed on by the owner:
 
 - **3.** A switchable **Clan Edition / Legacy Edition**.
 - **4.** In Clan Edition, keep some of the old cat names as **kittypets**
@@ -47,7 +47,7 @@ otherwise, these win:
      test that a Legacy walk spawns no rival patrol and shows no clan wording.
      A Legacy-only walk must not write to clan fields.
 2. **Each kid picks their own clan.**
-   - This runs into the anti-goal about sibling rivalry, so the design must
+   - This runs into the anti-goal about partner rivalry, so the design must
      make different clans **allies, never opponents**, for the two kids:
      - in a co-walk, the two kids' clans are always friends;
      - nothing scores one kid's clan against the other's;
@@ -60,7 +60,7 @@ otherwise, these win:
 3. **Close homages, not the books' exact names.**
    - The code is on public GitHub, so clan and place names should clearly
      echo the books without copying them.
-   - Propose a short list per clan for the 11-year-old to choose from before
+   - Propose a short list per clan for the older playtester to choose from before
      any names go into the game. Their meaning and flavour should match: the
      storm clan of the woods, the wind clan of the moor, the river clan, the
      shadow clan of the pines, the sky clan of the gorge.
@@ -117,7 +117,7 @@ otherwise, these win:
    chosen, and that it never counts against a kid. Builder: wanderers are
    local visuals or strays under the existing stray rules, and add nothing on
    the wire.
-7. **The territory layout comes from the 11-year-old's own drawing.** She
+7. **The territory layout comes from the older playtester's own drawing.** She
    rearranged the proposal on 2026-10-31. It is saved in the "Clan Territory
    Map" artifact (https://claude.ai/artifact/K8j8579QoYSxJj1eFajuxC,
    db `layouts/current`, version 22), on a 1000 × 700 board with north up.
@@ -297,11 +297,10 @@ already). Good things follow:
   underneath, so progress maps across exactly.~~ The territories are new
   maps, so their progress starts fresh; everything a kid owns is shared (§3,
   "Unlocking territories").
-- **Co-walks across editions just work.** If she is on Clan Edition and he is
-  on Legacy, they walk the same world. He sees his edition's words, she sees
-  hers. The rival patrol is worked out locally on each device with nothing
-  sent between them, so a Legacy kid simply sees none. If she hosts a walk in
-  the Woods, he can join it on Legacy, the same way a joiner can already walk
+- **Co-walks across editions just work.** If one player is on Clan Edition and the other is
+  on Legacy, they walk the same world. Each sees their own edition's words. The rival patrol is worked out locally on each device with nothing
+  sent between them, so a Legacy kid simply sees none. If one hosts a walk in
+  the Woods, the other can join it on Legacy, the same way a joiner can already walk
   an area they haven't unlocked.
 - **The switch can be flipped any time from the home screen, but not during
   a walk.** A walk's world is built when it starts, so the new edition shows
@@ -810,20 +809,20 @@ Ranked by how much the answer changes what gets built.
    owner.)*
    - Why it matters: (A) costs nothing and risks nothing. (B) is a second
      words layer across the colony, rivals and toasts.
-   - It also decides what the boy sees if Legacy is his preference.
+   - It also decides what the younger playtester sees if Legacy is their preference.
    - The game's title already says "Clan Edition" today, so the word may mean
      something specific to her.
 2. **Which clan is theirs, and is it one clan for both kids?** *(For both
    kids.)*
    - Her pick sets their home territory, where the rival patrols go, and the
      clan name on every screen.
-   - The clan spec deliberately makes the siblings **one clan**, so there is
+   - The clan spec deliberately makes the partners **one clan**, so there is
      no border between them.
-   - If the boy wants a different clan, the choices are:
+   - If the younger playtester wants a different clan, the choices are:
      - one shared clan anyway (recommended);
      - each kid "comes from" a clan as flavour, sharing one colony;
      - two clans. That reverses a deliberate design call and creates exactly
-       the sibling rivalry the anti-goals forbid.
+       the partner rivalry the anti-goals forbid.
 3. **Canonical names or homages?** *(For the owner; see §5.)* This changes
    the strings file and whether the save must accept new clan names. It is
    also a decision about a public repository.
@@ -844,7 +843,7 @@ Ranked by how much the answer changes what gets built.
    Marmalade".
 7. **Should the Moor and the Gorge appear in Legacy Edition too, under plain
    names** (for example "Windy Hills" and "The Canyon")? *(For the owner and
-   the boy.)* If yes, both editions get the new places. If no, they are
+   the younger playtester.)* If yes, both editions get the new places. If no, they are
    Clan-only, but co-walks still work, since a joiner can already walk an
    area they haven't unlocked.
 8. **Should the world be able to change for Legacy too?** *(For the owner.)*
@@ -877,14 +876,14 @@ Ranked by how much the answer changes what gets built.
 
 - **Either kid loses progress**: a cat, points, an unlock, a mark or a walk
   count, from switching, a co-walk across editions, or an un-updated device.
-- **The 9-year-old loses to his sister on reflexes.** Nothing here may
-  become a sibling contest. Territory is never held *against* each other, and
+- **The younger playtester loses to the older one on reflexes.** Nothing here may
+  become a partner contest. Territory is never held *against* each other, and
   rival chases stay recoverable and funny.
 - **Anything legible only to book readers.** The Moor must read as "windy
   hills" and a kittypet as "a house cat with a collar" to someone who has
   never opened the books. Every borrowed word sits next to something you can
   see.
-- **A clan war between siblings.** Each kid may pick a different clan
+- **A clan war between partners.** Each kid may pick a different clan
   (decision 2), so the two kids' clans are always allies: nothing scores one
   against the other, and patrols come only from the computer-run clans.
 - **Chores**: nothing asks you to patrol or mark a border daily (the clan
@@ -1001,6 +1000,6 @@ prints, clouds and ambient life merged). Still true, plus:*
 - **Family pets** live in `CATALOG.cats` (`progression.js`) and in
   `PERSONALITIES` (`cat/brain.js`): zeetoo, robbie, d2, digit and hagrid.
   Rosa is retired with a refund.
-- The clan spec calls the 9-year-old a "sister" in places. He is a boy
+- The clan spec used a different word for the younger playtester in places. That wording
   (corrected 2026-10-25).
 - The test suite was green when this was written: 134 files, 3283 tests.

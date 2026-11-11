@@ -1,6 +1,6 @@
 # Swimming and wading: design
 
-*2026-10-31. From the 11-year-old playtester ("when a cat hits water there
+*2026-10-31. From the playtester ("when a cat hits water there
 should be a swimming type behaviour, rather than just walking across"),
 answered by the owner in chat. Sketches the owner and playtester chose from:
 https://claude.ai/artifact/RQ23zRXL6q23FHQPwqBgEr (they picked A, C and D).*

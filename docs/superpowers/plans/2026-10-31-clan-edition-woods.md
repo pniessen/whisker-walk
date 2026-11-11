@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A saved Clan / Legacy edition switch, a home-screen territory map drawn from the 11-year-old's layout, and the Woods as the first all-new territory the kids can walk.
+**Goal:** A saved Clan / Legacy edition switch, a home-screen territory map drawn from the older playtester's layout, and the Woods as the first all-new territory the kids can walk.
 
 **Architecture:** The edition is one additive save field read through a small pure module (`src/edition.js`). Legacy hides the clan layer at display and walk-start time; it never deletes anything. The Woods is a new outdoor area built like `src/world/park.js`, registered in the same tables as the four existing areas, and offered only in Clan Edition through an inline-SVG territory map. Colony feeding in the Woods stays off until the owner has run one SQL edit.
 

@@ -1,4 +1,5 @@
 import { DEFAULT_ZOOM_STEP, MAX_ZOOM_STEP } from './camzoom.js';
+import { note } from './diagnostics.js';
 
 const KEY = 'whisker-walk-settings';
 
@@ -90,6 +91,7 @@ export function createSettings(storage) {
       storage.setItem(KEY, JSON.stringify(state));
     } catch (err) {
       console.warn('Whisker Walk: could not save settings', err);
+      note('save', err);
     }
   }
 

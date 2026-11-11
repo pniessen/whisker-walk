@@ -406,7 +406,7 @@ export const SKILLS = [
     // but GIVING requires this very ability — so until you hold it the only
     // source is RECEIVING, which needs a best-friend stray (six greets, or
     // four with Charmer) AND a 0.3 roll on top, once per walk at most. Five
-    // of those is a long RNG grind for a ten-year-old; three is still a
+    // of those is a long RNG grind for a young player; three is still a
     // real errand. The wording is deliberately left as "give or receive"
     // because that is exactly what the predicate counts — once earned, a
     // gift you leave advances it too.

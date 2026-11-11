@@ -1,4 +1,4 @@
-// The clan territories: the 11-year-old's own map, as data, and the model the
+// The clan territories: the older playtester's own map, as data, and the model the
 // home screen's territory map draws. Pure: no DOM, no THREE, nothing written
 // to the save. Coordinates are board units on a 1000 x 700 board, simplified
 // from her drawing; keep them as she placed them.

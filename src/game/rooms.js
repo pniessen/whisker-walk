@@ -13,8 +13,9 @@
 // before init() has finished wiring both.
 
 import { rankFor, CATALOG } from '../progression.js';
-import { createNet, createSupabaseTransport, generateRoomCode } from '../net.js';
+import { createNet, createSupabaseTransport, generateRoomCode, safeRemoteName } from '../net.js';
 import { seedFromCode } from '../rng.js';
+import { note } from '../diagnostics.js';
 import { catProfileFields, scarKey } from '../customcats.js';
 import { roomAreaMove } from '../edition.js';
 import { decideLobbyEvent, pickRoomStart, walkersIn, START_GATHER_MS, MEMBER_GATHER_MS } from './lobby.js';
@@ -177,7 +178,7 @@ export function createRooms({
     const walkers = walkersIn(room.lastStateAt, room.roster.map((p) => p?.playerId), pid, Date.now());
     if (walkers.length) {
       const who = room.roster.find((p) => p?.playerId === walkers[0]);
-      const name = who && typeof who.petName === 'string' && who.petName ? who.petName : 'Your friend';
+      const name = safeRemoteName(who?.petName, 'Your friend'); // another device's name: never shown raw
       try { toast?.(`${name} is already on a walk! Wait till they come home, then press Start.`); } catch { /* a toast is never worth a crash */ }
       return false;
     }
@@ -240,6 +241,7 @@ export function createRooms({
       await net.join(code, roomProfile());
     } catch (err) {
       console.warn('Whisker Walk: failed to join room', err);
+      note('room', err);
       roomOpInFlight = false;
       return { ok: false };
     }
@@ -281,6 +283,7 @@ export function createRooms({
         await net.join(code, roomProfile());
       } catch (err) {
         console.warn('Whisker Walk: failed to host a room', err);
+        note('room', err);
         roomOpInFlight = false;
         return { ok: false };
       }

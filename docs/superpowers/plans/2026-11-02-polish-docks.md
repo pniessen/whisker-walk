@@ -8,11 +8,11 @@
 
 **Tech Stack:** Three.js 0.185 (`mergeGeometries` from `three/examples/jsm/utils/BufferGeometryUtils.js`), Vitest 4, Vite 8.
 
-**Spec:** the controller prompt (Docks = polish survey item #12) + `/private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/polish-common.md` (shared rules, read it all including the final "Update" section).
+**Spec:** the controller prompt (Docks = polish survey item #12) + `<scratchpad>/polish-common.md` (shared rules, read it all including the final "Update" section).
 
 ## Global Constraints
 
-- Work only in `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.worktrees/polish-docks`. Own `src/world/docks.js` and the new `src/world/docksdressing.js` + `test/docksdressing.test.js`. Touch other files only where a task says so (test pins), and keep those edits minimal.
+- Work only in `<repo>/.worktrees/polish-docks`. Own `src/world/docks.js` and the new `src/world/docksdressing.js` + `test/docksdressing.test.js`. Touch other files only where a task says so (test pins), and keep those edits minimal.
 - No `Math.random` reached by the dressing outside `withLocalUuids`; all placement variation from `hash01` / `mulberry32` / `seedFromCode` (`mulberry32`, `seedFromCode` from `src/rng.js`; `hash01`: write a local copy of builder.js's private `hash01(x, z, salt)` in docksdressing.js — pure integer hash, no Math.random).
 - `test/waterlooks.test.js` BUILD_DRAWS.docks stays **6916**. `test/flattrace.test.js` stays green with the fixture unchanged (sha256 `6b502ab6b1f9ce328fd6c6b7ce656fd473e50670708fac53985590bc9f0e54a7`).
 - Do not use builder.js helpers or `litMaterial`/`surfMat` surfaces inside the dressing: they share cached textures/geometries across areas, and a cache entry first created under the local stream would change OTHER areas' draw counts. Build dressing from raw THREE primitives + own `MeshStandardMaterial`s (no maps).

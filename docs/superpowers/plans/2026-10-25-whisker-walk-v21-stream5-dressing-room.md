@@ -8,7 +8,7 @@
 
 **Tech Stack:** Vanilla JS ES modules, three.js, Vite, Vitest. No framework.
 
-**Spec:** `docs/superpowers/specs/2026-10-24-whisker-walk-v21-reason-to-come-back-design.md`, "Stream 5 — The start screen (last)". Accepted mockup (git-ignored, main checkout only): `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.superpowers/brainstorm/69803-1792884520/content/dressing-room-v2.html`.
+**Spec:** `docs/superpowers/specs/2026-10-24-whisker-walk-v21-reason-to-come-back-design.md`, "Stream 5 — The start screen (last)". Accepted mockup (git-ignored, main checkout only): `<repo>/.superpowers/brainstorm/69803-1792884520/content/dressing-room-v2.html`.
 
 ## Global Constraints
 

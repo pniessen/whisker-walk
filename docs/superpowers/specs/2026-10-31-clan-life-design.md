@@ -1,6 +1,6 @@
 # Clan life in the territories: design
 
-*2026-10-31. Comes from the 11-year-old playtester's notes, relayed by the
+*2026-10-31. Comes from the playtester's notes, relayed by the
 owner and answered by them in chat. Clan Edition only.*
 
 ## Why
@@ -14,7 +14,7 @@ friendly, and an enemy cat on your land means a fight.
 
 Success: she walks into her clan's territory, sees her clanmates by name and
 rank, boops one, goes on a patrol with a warrior, spots an intruder from a
-neighbouring clan, and fights it off. Her 9-year-old brother can do all of
+neighbouring clan, and fights it off. The younger playtester can do all of
 that too, and wins about as often as she does.
 
 ## What the owner decided
@@ -28,7 +28,7 @@ that too, and wins about as often as she does.
    together.**
 4. **Another clan's cat on your clan's land means a fight**, and fights are
    **real: they can be won or lost.** "More realistic" (the playtester). This
-   overrides the earlier "no battles / nothing the 9-year-old can lose" rule
+   overrides the earlier "no battles / nothing the younger playtester can lose" rule
    (editions spec non-goals; v21 clan spec §4) for fights only.
 5. **Win:** the intruder flees over the border back to its own territory.
    **Lose:** the intruder just carries on walking where it was going.
@@ -54,7 +54,7 @@ that too, and wins about as often as she does.
   taming progress. A lost fight's whole cost is that the intruder stays.
   (The owner set the consequence; this keeps the editions spec anti-goal
   "either kid loses progress".)
-- **Never sibling against sibling.** Fights are only against computer-run
+- **Never partner against partner.** Fights are only against computer-run
   clans. The two kids' clans are always allies (decision 2 of the editions
   spec), so neither kid's clan cats ever fight the other kid.
 - **Not a reflex test.** No move has to be tapped faster than a slow reader
@@ -110,7 +110,7 @@ In Clan Edition, a territory's cast becomes:
   clan's land only (see §4).
 
 Which clan counts as "the home clan" follows the pick-your-clan plan's rules.
-**You are at home** in your own clan's territory and in your sibling's
+**You are at home** in your own clan's territory and in your partner's
 clan's territory (decision 9): its cats are friendly, and you can fight
 intruders there. Any other territory is home to that territory's clan, and
 there you are the visitor: its patrol chases you off as rival patrols do
@@ -331,7 +331,7 @@ Plans: `docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`
   656, Moor 573, Pines 416; phone 459, 556, 376, 441.
 - Still the owner's: the iPhone 18 reading (60 fps held at the camps,
   mid-fight and with an intruder in view) and the fairness playtest (five
-  fights each for the 9- and 11-year-old; if he wins far fewer, lengthen
+  fights each for the younger and the older playtester; if he wins far fewer, lengthen
   the answer window first, then the teach line's size; losing never costs
   anything).
 
@@ -370,7 +370,7 @@ Plan: `docs/superpowers/plans/2026-11-04-border-patrol-fight.md`.
 - A territory reads as a clan's home at a glance: names, ranks, a marked
   camp.
 - Your own clan feels like yours: friendly verbs and a patrol buddy.
-- A fight is exciting to watch, fair to a 9-year-old, and never costs
+- A fight is exciting to watch, fair to a young player, and never costs
   anything.
 
 ## Non-goals
@@ -385,8 +385,8 @@ Plan: `docs/superpowers/plans/2026-11-04-border-patrol-fight.md`.
 ## Anti-goals (a failure even if it ships)
 
 - A kid loses anything from a fight.
-- The faster kid reliably wins: if playtesting shows the 9-year-old losing
-  far more often than his sister, the clue window is too short.
+- The faster kid reliably wins: if playtesting shows the younger playtester losing
+  far more often than the older playtester, the clue window is too short.
 - Two kids on a co-walk see different cats or different outcomes.
 - A territory gets slower on the iPhone than it is today.
 

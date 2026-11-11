@@ -94,7 +94,7 @@ Part 2's and part 3's Global Constraints hold unchanged. These are restated beca
   - The words are `Crag, Granite, Scree, Sprig, Flint, Merlin, Shale, Pika, Gully, Bluff, Tarn, Puff, Nimble, Stonecrop, Thrift, Crest`.
   - That gives Cragstar, an elder Granite…, Screekit, Sprigkit, warriors Flint…, Merlin… and Shale… (the raiders, slots 4–6), Pikapaw, Gullypaw, a deputy Bluff…, an elder Tarn…, Puffkit, Nimblekit, Stonecrop…, Thrift… and Crestpaw.
   - The planner checked each word against stray names, kit names, the other casts and the Gorge's labels. Pebble, Tumble and Juniper are stray names, and Kestrel and Eagle are on `clanwords.test.js`'s taken list, so all five were dropped. The review checked the other fourteen against every rule in that file; Merlin and Thrift were checked against `validPetName` and `DENIED_NAMES` at every suffix.
-  - The other clans' first nine were chosen by the owner's daughter. These are the planner's: see Owner question 1.
+  - The other clans' first nine were chosen by the older playtester. These are the planner's: see Owner question 1.
   - Cost if wrong: any word is a one-string swap until shipped.
 - **K7. Coats: ginger, russet and white.** The coats have to read against cool grey rock (`ROCK_LOW 0x59606c`), sand ledges (`0x9c8a70`, `ROCK_HIGH 0xc4b08e`) and the dark floor (`0x5f5d52`). Every rock tone has HSL saturation ≤ 0.35. Every coat base has saturation ≥ 0.45 or lightness ≥ 0.85. The rows are:
   - `coat('tabby', 0xc8682a, 0xf0d2b0, 0x8a3e16, { stripes: true, headStripes: true })`, a ginger tabby;
@@ -147,11 +147,11 @@ Part 2's and part 3's Global Constraints hold unchanged. These are restated beca
    - The fight stands on flat floor.
    - The fight camera's choice with the ground stays out of rock and in frame.
    - Tested in Task 4 (`'a fight on the Gorge's route stands on flat floor and its camera stays out of rock'`).
-3. **Co-walking sisters, one CliffClan and one GaleClan, in the Gorge or the Moor.**
+3. **Co-walking partners, one CliffClan and one GaleClan, in the Gorge or the Moor.**
    - Both devices see the same visitor at the same moment.
    - A visitor of either kid's clan is never hostile.
    - At home there is no patrol.
-   - Tested in Task 4 (`'sisters in CliffClan and GaleClan: same visitor, never hostile to either'`).
+   - Tested in Task 4 (`'partners in CliffClan and GaleClan: same visitor, never hostile to either'`).
 4. **Picking CliffClan on an existing save, then reloading.** The pick sticks, the save stays v4, the home welcome says CliffClan, and Legacy can't pick it. Tested in Task 5.
 5. **A LOW-tier Gorge walk with fed colony cats.**
    - The clan's nine spawn on their seats and homes.
@@ -347,7 +347,7 @@ Part 2's and part 3's Global Constraints hold unchanged. These are restated beca
       - Every staged spot has ground y 0.
       - `chooseFightView({ …, ground })` puts the camera at or above `ground.y + CAM_ROCK_CLEAR` and below `ground.ceil − CAM_CEIL_CLEAR`. Both constants come from `src/camzoom.js`.
       - This is the Gorge's rock check. `fightcamworld.test.js` runs flat (no `ground`), and its comment says so.
-    - `'sisters in CliffClan and GaleClan: same visitor, never hostile to either'`. This is Review Focus 3.
+    - `'partners in CliffClan and GaleClan: same visitor, never hostile to either'`. This is Review Focus 3.
       - Over 400 slots, `intruderAt('gorge', t)` and `intruderAt('moor', t)` are equal across two calls.
       - `isHostile(v, { clanHome: true, picks: ['gorge', 'moor'] })` is false for every visitor of either area.
       - With picks `['gorge']`, a GaleClan visitor in the Gorge is hostile.
@@ -433,7 +433,7 @@ Part 2's and part 3's Global Constraints hold unchanged. These are restated beca
 
 Nothing blocks the build. The build uses each default below.
 
-1. **The cast's names (K6).** The other clans' first nine words were your daughter's. CliffClan's are the planner's: Cragstar, Granite…, Screekit, Sprigkit, Flint…, Merlin…, Shale…, Pikapaw, Gullypaw, then Bluff…, Tarn…, Puffkit, Nimblekit, Stonecrop…, Thrift… and Crestpaw.
+1. **The cast's names (K6).** The other clans' first nine words were the older playtester's. CliffClan's are the planner's: Cragstar, Granite…, Screekit, Sprigkit, Flint…, Merlin…, Shale…, Pikapaw, Gullypaw, then Bluff…, Tarn…, Puffkit, Nimblekit, Stonecrop…, Thrift… and Crestpaw.
    - **Default:** ship these.
    - Any word she picks instead is a one-line swap, if it passes the name tests.
 2. **The den is lit, not dark (K2).**

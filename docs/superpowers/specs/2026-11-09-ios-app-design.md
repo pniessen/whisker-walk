@@ -12,7 +12,7 @@ are in the game, with no Safari, no typing the address, no bookmark, no
 browser bars.
 
 The players are the owner (iPhone 18 Pro, iOS 27.2) and their two children,
-a daughter (11) and a son (9), who **each have an iPad**. Model and iPadOS
+two young playtesters, who **each have an iPad**. Model and iPadOS
 version of the iPads are not yet known.
 
 ## Goals
@@ -34,7 +34,7 @@ version of the iPads are not yet known.
    existing cloud save and save codes (the "Sync ☁️" panel,
    `src/game/cloudsync.js`). The owner wants this (2026-11-09), partly so
    each child stays the same player to the others for walking together and
-   sibling colonies. The Sync panel must work inside the app, which runs on
+   partner colonies. The Sync panel must work inside the app, which runs on
    a different origin from the website.
 
 ## Non-goals (this round)

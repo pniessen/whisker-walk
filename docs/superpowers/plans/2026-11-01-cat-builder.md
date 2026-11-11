@@ -19,7 +19,7 @@ Built from main at 92a4d1b (the new cat body, Clan Edition, clan picks, clan cas
 - **A custom cat is never stronger than a ready-made one.** Its numbers are one of six `PERSONALITIES` rows, unchanged: keenNose → `tabby`, chaser → `siamese`, napper → `persian`, fearless → `black`, pouncer → `calico`, steady → `mainecoon`. Family rows (Zeetoo, Robbie, D2, Digit, Hagrid) can never be picked.
 - **All six personalities are open from the start** (owner). No locked state, no buy path.
 - **Up to 3 custom cats per kid. No delete, no removal API, no id reuse, no confirm UI** (owner). Ids are `'mine1'`, `'mine2'`, `'mine3'`, handed out in that order.
-- **Her brother sees her usual pet name** (owner). `petName` on the room profile, the cloud profile (`pet_name`), ghosts, the friend list, the walk log, reply seeds and the roster never changes when she switches cats. The custom cat's name shows only on her own screen: the builder, the dressing-room hero and strip, the visit celebration, **the name tag over her own cat on her walks**, and her pouncer perk toast (owner, 2026-11-01). Nothing carries it to another player (it travels only inside her own cloud save).
+- **The partner sees the usual pet name** (owner). `petName` on the room profile, the cloud profile (`pet_name`), ghosts, the friend list, the walk log, reply seeds and the roster never changes when she switches cats. The custom cat's name shows only on her own screen: the builder, the dressing-room hero and strip, the visit celebration, **the name tag over her own cat on her walks**, and her pouncer perk toast (owner, 2026-11-01). Nothing carries it to another player (it travels only inside her own cloud save).
 - **Names use `validPetName` (`src/net.js`)**: 2–16 characters, starts with a letter, letters/spaces/hyphens only, no `NAME_BLOCKLIST` substring. The hint is the pet-name sheet's exact words: `Pet names are 2–16 letters, spaces, or hyphens.`
 - **Mesh ceilings for every custom pattern × fur:** 31 full, 25 `simple` (the body patterns are painted, so the spec's 33/27 dropped to 31/25 after the cat body). Triangles: 8000 full, 5500 simple. Colours never change the count.
 - **Ready-made cats stay byte-identical.** `test/fixtures/catgolden.json` and `test/fixtures/hagrid-golden.json` must keep passing **unchanged**. Never run `UPDATE_GOLDEN=1` in this plan (it rewrites `catgolden.json`). `catpose-baseline.json` and `accessory-mesh-delta.json` are untouched too.
@@ -1008,17 +1008,17 @@ Nothing merges until this is done. A failed check goes back to the owning task w
 
 - [ ] **Step 1: Build.** `npm run build` in the worktree. Expected: success.
 
-- [ ] **Step 2: Start a dev server for the worktree.** `preview_start` reads `.claude/launch.json` from the **main checkout** (`/Users/pniessen/CLAUDE-CODE/projects/cat-game/.claude/launch.json`, which may carry other agents' entries: leave them alone). Add one entry and remember to remove only it:
+- [ ] **Step 2: Start a dev server for the worktree.** `preview_start` reads `.claude/launch.json` from the **main checkout** (`<repo>/.claude/launch.json`, which may carry other agents' entries: leave them alone). Add one entry and remember to remove only it:
 
 ```json
 { "name": "whisker-walk-catbuilder", "runtimeExecutable": "npx",
-  "runtimeArgs": ["vite", "/Users/pniessen/CLAUDE-CODE/projects/cat-game/.worktrees/<the build worktree>", "--port", "5187", "--strictPort"],
+  "runtimeArgs": ["vite", "<repo>/.worktrees/<the build worktree>", "--port", "5187", "--strictPort"],
   "port": 5187 }
 ```
 
 Check the port is free first (`lsof -nP -iTCP:5187 -sTCP:LISTEN` prints nothing; else pick another free 518x). The positional root makes Vite serve (and read the config of) the build worktree, not main; do not rely on a `cwd` key. The worktree has no `.env.local`, so multiplayer is off. **First check:** the page shows `＋ Make a cat` (if not, it is serving main: stop and fix the entry).
 
-- [ ] **Step 3: Drive it headless.** Use the Playwright already installed in the chess-game project (`/Users/pniessen/CLAUDE-CODE/projects/chess-game/node_modules/playwright`), from a script in the scratchpad (not in the repo), Chromium headless, two viewports: 390×844 (`isMobile: true, hasTouch: true`) and 1280×800. Screenshots go in the scratchpad. Check:
+- [ ] **Step 3: Drive it headless.** Use the Playwright already installed in the chess-game project (`<other-project>/node_modules/playwright`), from a script in the scratchpad (not in the repo), Chromium headless, two viewports: 390×844 (`isMobile: true, hasTouch: true`) and 1280×800. Screenshots go in the scratchpad. Check:
   - **Under a minute:** from a fresh save, tap ＋ Make a cat, type a name, tap Done: three taps and a name. Time it from the ＋ tap. The new cat is on the stage, dressed in the current outfit, and the Wearing panel is open.
   - Every row: each coat, markings colour, pattern, fur and eye swatch changes the stage at once; Markings dims for Solid and White socks with the right note and comes back for Tabby; the size slider grows and shrinks the cat live; the Personality blurb changes.
   - At 390 px: no horizontal scroll; the stage stays visible while the rows scroll; every tap target measures ≥ 44 px (`getBoundingClientRect`); the Done row stays on screen.
@@ -1032,7 +1032,7 @@ Check the port is free first (`lsof -nP -iTCP:5187 -sTCP:LISTEN` prints nothing;
   - Reload: the cats and the choice persist. Paste a hostile save into `localStorage` (`customCats: 'x'`, `equipped.custom: 'mine9'`, a cat with `size: 99` and a 200-character name) and reload: the game loads, and the cat is repaired.
   - Console: no errors.
 
-- [ ] **Step 4: Co-walk.** Not testable headless without multiplayer. Ask the owner to try it on the two iPhones: she walks a custom cat; her own screen shows the cat's name over her cat; her brother (new build) sees the same coat, pattern, fur, eyes and size, her usual pet name on the tag (ruling 15), and a re-made cat after she taps Done while they are in a room. If one phone is on an older build, it shows the mapped ready-made cat in her outfit with her pet name.
+- [ ] **Step 4: Co-walk.** Not testable headless without multiplayer. Ask the owner to try it on two iPhones: one walks a custom cat; that screen shows the cat's name over the cat; the partner (new build) sees the same coat, pattern, fur, eyes and size, the usual pet name on the tag (ruling 15), and a re-made cat after Done is tapped while they are in a room. If one phone is on an older build, it shows the mapped ready-made cat in her outfit with her pet name.
 
 - [ ] **Step 5: Swatches with her.** Show the eight coats, six markings colours and four eye colours on the iPhone in the walk's lighting; apply her picks to the hexes and bellies in `src/customcats.js` (ids stay; no test pins a hex outside Task 1's table assertions, which read the table). Re-run the whole suite.
 

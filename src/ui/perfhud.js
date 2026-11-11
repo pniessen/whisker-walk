@@ -10,6 +10,7 @@
 // text refresh, so measuring does not disturb what is being measured.
 import { createFrameStats, createRenderCounter } from '../render/perfstats.js';
 import { FLOOR_RUNG } from '../render/quality.js';
+import { escapeHtml } from '../game/util.js';
 
 const REFRESH_MS = 500;
 const DASH = '–';
@@ -53,7 +54,29 @@ export function formatAdapt(st) {
   return st.change ? `${base} · ${st.change}` : base;
 }
 
-export function createPerfHud({ renderer, settings, coarse, adapter }) {
+// The diagnostics line (src/diagnostics.js): nothing at all while nothing has
+// gone wrong, one line ("⚠ 3 errors ▸") once something has, and the last few
+// entries, newest first, when that line is tapped open. Its own element, so
+// the readout above it is never taller than before.
+export const DIAG_SHOWN = 4;
+const pad2 = (n) => String(n).padStart(2, '0');
+function clockOf(ms) {
+  const d = new Date(ms);
+  return Number.isFinite(d.getTime()) ? `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}` : '--:--:--';
+}
+export function formatDiagHtml(entries, total, open, shown = DIAG_SHOWN) {
+  if (!total || !entries.length) return '';
+  const head = `<div class="diag-head">⚠ ${total} ${total === 1 ? 'error' : 'errors'} ${open ? '▾' : '▸'}</div>`;
+  if (!open) return head;
+  const lines = entries.slice(-shown).reverse().map((e) => {
+    const where = e.source ? ` (${e.source}${e.line ? `:${e.line}` : ''})` : '';
+    const times = e.count > 1 ? ` ×${e.count}` : '';
+    return `<div class="diag-line">${clockOf(e.time)} ${escapeHtml(e.kind)}${times} · ${escapeHtml(e.message)}${escapeHtml(where)}</div>`;
+  });
+  return head + lines.join('');
+}
+
+export function createPerfHud({ renderer, settings, coarse, adapter, diagnostics = null }) {
   const stats = createFrameStats();
   const counter = createRenderCounter(renderer);
   // One snapshot object, refilled on each refresh, so formatPerfLines gets a
@@ -72,6 +95,31 @@ export function createPerfHud({ renderer, settings, coarse, adapter }) {
   let enabled = false;
   let startedAt = 0;
   let lastRefresh = 0;
+  // The diagnostics line: drawn again only when the record or the open state
+  // changed (diagnostics.version), and only on the 500 ms refresh.
+  let diagEl = null;
+  let diagDrawn = -1;
+  let diagOpen = false;
+
+  function refreshDiag() {
+    if (!diagnostics || diagnostics.version === diagDrawn) return;
+    diagDrawn = diagnostics.version;
+    const html = formatDiagHtml(diagnostics.entries(), diagnostics.total, diagOpen);
+    if (!html) { if (diagEl) diagEl.classList.add('hidden'); return; }
+    if (!diagEl) {
+      diagEl = document.createElement('div');
+      diagEl.id = 'perf-diag';
+      diagEl.setAttribute('role', 'button');
+      diagEl.addEventListener('click', () => {
+        diagOpen = !diagOpen;
+        diagDrawn = -1;
+        refreshDiag();
+      });
+      document.body.appendChild(diagEl);
+    }
+    diagEl.innerHTML = html;
+    diagEl.classList.remove('hidden');
+  }
 
   function ensureEl() {
     if (el) return el;
@@ -94,6 +142,8 @@ export function createPerfHud({ renderer, settings, coarse, adapter }) {
     } else {
       counter.uninstall();
       if (el) el.classList.add('hidden');
+      if (diagEl) diagEl.classList.add('hidden');
+      diagDrawn = -1; // drawn afresh when the readout comes back
     }
   }
 
@@ -108,7 +158,12 @@ export function createPerfHud({ renderer, settings, coarse, adapter }) {
 
   function frameEnd(session, now) {
     if (!enabled) return;
-    if (!session) { el.classList.add('hidden'); return; }
+    if (!session) {
+      el.classList.add('hidden');
+      // The home screen too: a walk that ended on errors lands here.
+      if (diagnostics && now - lastRefresh >= REFRESH_MS) { lastRefresh = now; refreshDiag(); }
+      return;
+    }
     counter.endFrame();
     stats.work(now - startedAt);
     if (now - lastRefresh < REFRESH_MS) return;
@@ -133,7 +188,14 @@ export function createPerfHud({ renderer, settings, coarse, adapter }) {
     snap.device = adapter?.status?.device ?? '';
     el.textContent = formatPerfLines(snap).join('\n');
     el.classList.remove('hidden');
+    refreshDiag();
   }
 
-  return { setEnabled, frameStart, frameEnd, get enabled() { return enabled; } };
+  // Draws the diagnostics line now: for when the render loop has stopped
+  // (main.js stopLoop) and frameEnd will not come again.
+  function showDiagnostics() {
+    if (enabled) refreshDiag();
+  }
+
+  return { setEnabled, frameStart, frameEnd, showDiagnostics, get enabled() { return enabled; } };
 }

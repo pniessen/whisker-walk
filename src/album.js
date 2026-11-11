@@ -1,3 +1,5 @@
+import { note } from './diagnostics.js';
+
 const KEY = 'whisker-walk-album';
 const ALBUM_VERSION = 1;
 
@@ -70,6 +72,7 @@ export function createAlbum(storage, cap = 24) {
       storage.setItem(KEY, JSON.stringify({ version: ALBUM_VERSION, photos }));
     } catch (err) {
       console.warn('Whisker Walk: could not save album', err);
+      note('save', err);
     }
   };
 

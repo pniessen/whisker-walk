@@ -633,7 +633,8 @@ body.touch-mode:not(.left-handed) .hud-top {
 .wt-join-row { display: flex; gap: 8px; align-items: center; }
 .tag.error { color: #f28080; }
 .wt-room { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.wt-room-code { font-weight: 700; color: #f2c14e; }
+/* Big: a nearby joiner checks it against her own screen (homebase.js). */
+.wt-room-code { font-weight: 700; color: #f2c14e; font-size: 1.35rem; letter-spacing: 0.04em; }
 .wt-roster { display: flex; flex-wrap: wrap; gap: 8px; }
 .wt-roster-chip {
   background: rgba(255,255,255,0.08); border-radius: 999px; padding: 4px 12px; font-size: 0.85rem;
@@ -1091,6 +1092,24 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 @media (max-height: 500px) {
   #perf-readout { font-size: 10px; top: calc(env(safe-area-inset-top) + 8px); transform: none; }
 }
+/* The diagnostics line (perfhud.js): only with the readout on and only once
+   something has gone wrong. Bottom centre, apart from the readout so that
+   never grows; tapping it opens the last few entries upwards. */
+#perf-diag {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 4px);
+  transform: translateX(-50%);
+  max-width: min(92vw, 560px);
+  font: 10px/1.35 ui-monospace, Menlo, monospace;
+  color: #ffd27a;
+  background: rgba(0, 0, 0, .7);
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  z-index: 60;
+}
+#perf-diag .diag-line { color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---- the home screen (Launch A, 2026-11-05: "Cat, place, go") ----
    One screen, no scrolling at 1280x800 or 390x844: the cat, Wearing (Dress
@@ -1334,6 +1353,9 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .wt-nearby-who { font-size: 1.05rem; overflow-wrap: anywhere; }
 .wt-nearby-join { min-height: 48px; min-width: 96px; font-size: 1.1rem; }
 .wt-nearby-on { flex-basis: 100%; }
+/* The room code under the name: a name on the air can be anyone's. */
+.wt-nearby-code, .nearby-card-code { flex-basis: 100%; font-size: 0.95rem; opacity: 0.85; letter-spacing: 0.02em; }
+.wt-name-hint { margin-top: 6px; }
 /* The same offer as a card over the cat's screen: the notice card, smaller,
    with Join and Not now side by side. */
 .nearby-card .colony-news-card { max-width: 360px; }
@@ -1345,6 +1367,17 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   background: transparent; color: #f1e0c2; font: inherit; font-size: 1.05rem; font-weight: 700; cursor: pointer;
 }
 .nearby-card-later:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+/* "Are you sure?" (confirmcard.js): the nearby card's shape; a Yes that
+   erases is red, not the friendly yellow. The overlay is fixed so it covers
+   a sheet scrolled down to Start over. */
+.confirm-overlay { position: fixed; z-index: 6; }
+.confirm-card { max-width: 380px; }
+.confirm-card:focus { outline: none; }
+.confirm-card .colony-news-btn.confirm-card-danger { background: #e98a8a; color: #2a1414; }
+/* Cloud save's kept copies */
+.sync-backups { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 14px; }
+.sync-backup-line { margin: 0; color: #a8c0e0; font-size: 0.95rem; }
+.sync-backup-pts { opacity: 0.8; font-weight: 400; }
 
 /* places: picture cards with a gradient caption (the Change place sheet) */
 .dr-places { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }

@@ -131,10 +131,11 @@ const found = (...list) => ({ rooms: list.map(([code, name]) => ({ code, name })
 const tap = (target) => doc.root.listeners.click({ target: Object.assign(target, { id: target.id ?? '', dataset: target.dataset ?? {}, closest: () => null }) });
 const card = () => doc.body.children.find((c) => c.id === 'nearby-card');
 const moment = () => doc.body.children.find((c) => c.id === 'clan-moment');
-// the card's pieces: card > [line, row > [join, later]]
+// the card's pieces: card > [line, code line, row > [join, later]]
 const cardLine = () => card().children[0].children[0].textContent;
-const cardJoin = () => card().children[0].children[1].children[0];
-const cardLater = () => card().children[0].children[1].children[1];
+const cardCode = () => card().children[0].children[1].textContent;
+const cardJoin = () => card().children[0].children[2].children[0];
+const cardLater = () => card().children[0].children[2].children[1];
 const ops = (sent) => sent.map((m) => m.op);
 const woodsOpened = (st) => { st.walks.neighborhood = 2; };
 
@@ -235,6 +236,9 @@ describe('the rows in Play together', () => {
     expect(h.match(/class="wt-nearby-row"/g)).toHaveLength(2);
     expect(h).toContain('<b>Robin</b> is starting a walk nearby');
     expect(h).toContain('<b>Tiger Lily</b> is starting a walk nearby');
+    // a name on the air can be anyone's: the code is there to check against the host's screen
+    expect(h).toContain('<span class="wt-nearby-code">Room WXYZ: check it&#39;s the code on their screen</span>');
+    expect(h).toContain('<span class="wt-nearby-code">Room QRST: check it&#39;s the code on their screen</span>');
     expect(h).toContain('<button class="primary wt-nearby-join" data-nearby-code="WXYZ">Join</button>');
     expect(h.indexOf('wt-nearby-row')).toBeGreaterThan(h.indexOf('id="wt-petname-input"'));
     expect(h.indexOf('wt-nearby-row')).toBeLessThan(h.indexOf('id="wt-join-code"'));
@@ -252,12 +256,13 @@ describe('the rows in Play together', () => {
     nearby.receive(found());
     expect(slot.innerHTML).toBe('');
   });
-  it('a name is escaped even if the module let one through', () => {
+  it('a name the module let through is still checked: never markup, never shown', () => {
     const { nearby } = setup();
     nearby.rooms = () => [{ code: 'WXYZ', name: '<img src=x onerror=alert(1)>' }];
     openSheet('together');
     expect(html()).not.toContain('<img src=x');
-    expect(html()).toContain('&lt;img src=x');
+    expect(html()).not.toContain('&lt;img src=x');
+    expect(html()).toContain('<b>Mystery Cat</b> is starting a walk nearby');
   });
   it('Join with a name set calls the existing join with that code, and the room shows', async () => {
     const { nearby, rooms } = setup();
@@ -356,15 +361,16 @@ describe('the card over home', () => {
     nearby.receive(found(['WXYZ', 'Robin']));
     expect(card()).toBeTruthy();
     expect(cardLine()).toBe('Robin is starting a walk nearby. Join?');
+    expect(cardCode()).toBe("Room WXYZ: check it's the code on their screen");
     expect(cardJoin().textContent).toBe('Join');
     expect(cardLater().textContent).toBe('Not now');
   });
-  it('the name is set as text, never as markup', () => {
+  it('the name is set as text, never as markup, and only a good pet name is shown at all', () => {
     const { nearby } = setup();
     nearby.cardRoom = () => ({ code: 'WXYZ', name: '<b>x</b>' });
     nearby.receive(found(['WXYZ', 'Robin']));
     expect(card().innerHTML).toBe('');
-    expect(cardLine()).toBe('<b>x</b> is starting a walk nearby. Join?');
+    expect(cardLine()).toBe('Mystery Cat is starting a walk nearby. Join?');
   });
   it('only one, however many rooms there are', () => {
     const { nearby } = setup();

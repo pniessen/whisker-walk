@@ -6,9 +6,9 @@
 
 **Architecture:** Two new pure-ish modules carry the new work: `src/render/dusk.js` (dusk light numbers + one apply function called from walk.js's existing dusk block) and `src/world/caveroom.js` (seeded geometry for each cave chamber: liner, stalactites, moss, nest, crystal clusters). The Gorge palette and ground dressing live in `src/world/gorge.js`. Nothing touches gameplay records (ground, colliders, spawn, routes).
 
-**Tech Stack:** Three.js 0.185, Vite 8, Vitest 4. Worktree `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.worktrees/polish-gorgesky`, branch `polish-gorgesky`, cut from main 4650869.
+**Tech Stack:** Three.js 0.185, Vite 8, Vitest 4. Worktree `<repo>/.worktrees/polish-gorgesky`, branch `polish-gorgesky`, cut from main 4650869.
 
-**Spec:** the controller's brief (survey items #1b, #7, #14) and `/private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/polish-common.md` (shared rules). Survey rows #1, #7, #14 in `polish-survey.md` in the same scratchpad.
+**Spec:** the controller's brief (survey items #1b, #7, #14) and `<scratchpad>/polish-common.md` (shared rules). Survey rows #1, #7, #14 in `polish-survey.md` in the same scratchpad.
 
 ## Global Constraints
 
@@ -20,7 +20,7 @@
 - Performance (iPhone 18, 60 fps on HIGH): new dressing is merged to one mesh per material, small dressing is `castShadow = false` and `userData.noCast = true`. Budgets below are per task.
 - Files this build owns: `src/world/gorge.js`, `src/world/gorgeshape.js`, `src/gorgelife.js`, `src/caves.js`, `src/render/sky.js`, the `skyDusk`/dusk-light lines in each area file and the dusk block in `src/game/walk.js`. New files: `src/render/dusk.js`, `src/world/caveroom.js`. Do NOT edit `src/weather.js` (polish-water), `src/cat/*` (polish-catlooks), `src/world/camp.js`. Small edits to `src/world/builder.js` only if a task says so.
 - Copy: none of this adds words the kids read.
-- Mood: cosy, never scary (a 9-year-old plays it). Dusk is warm and dim, not dark.
+- Mood: cosy, never scary (a young player plays it). Dusk is warm and dim, not dark.
 
 ## Review Focus
 

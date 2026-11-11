@@ -1,8 +1,14 @@
 -- Whisker Walk v7 security fix — a NULL secret must never pass the check.
--- Paste this whole file into Supabase → SQL Editor → New query → Run.
--- Safe to re-run (idempotent). Run it after docs/supabase-setup.sql, and run
--- it again if you ever re-run docs/supabase-setup.sql, because that file puts
--- back the old versions of these three functions.
+--
+-- HISTORICAL MIGRATION — normally you don't run this any more. The fix below
+-- is now part of docs/supabase-setup.sql (for a new project) and of
+-- docs/supabase-v8-hardening.sql (for the live database). Running this file
+-- AFTER either of those puts back these three functions WITHOUT v8's checks
+-- (size caps, name checks, friend-id check); its only remaining use is as
+-- the rollback for v8 sections 2, 4 and 5.
+--
+-- Originally: paste this whole file into Supabase → SQL Editor → New query
+-- → Run, after the v7 docs/supabase-setup.sql. Safe to re-run (idempotent).
 --
 -- What was wrong. upsert_save, upsert_profile and record_friend_greet check
 -- the caller's secret with `stored_secret <> p_secret`. When the caller sends

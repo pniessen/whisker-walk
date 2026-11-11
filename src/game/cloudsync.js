@@ -10,6 +10,7 @@
 
 import { createLiveCloud, generateSaveCode, normalizeSaveCode, getOrCreateSecret } from '../cloud.js';
 import { summarizeSaveForPreview } from '../progression.js';
+import { note } from '../diagnostics.js';
 
 // A toast surface that stays visible on the home base screen (unlike
 // #hud, which is display:none whenever no walk is in progress) — cloud
@@ -34,7 +35,16 @@ export function createCloudToast(container) {
 const CLOUD_CODE_KEY = 'whisker-walk-cloudcode';
 const CLOUD_SECRET_KEY = 'whisker-walk-cloudsecret';
 
-export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, progression, album, cloudToast }) {
+// What the player reads when the cloud won't take a save. 'too-big' and
+// 'busy' come from the v8 upsert_save (docs/supabase-v8-hardening.sql);
+// 'too-big' is also what cloud.saveToCloud answers on its own when the save
+// is over the limit, so this works before the owner runs that SQL. The save
+// itself is always still on the device.
+const TOO_BIG_MESSAGE = "This save is too big for the cloud. It's still safe on this device.";
+const BUSY_MESSAGE = 'The cloud is busy right now — try again later.';
+
+// makeCloud is injectable for tests; the game always uses createLiveCloud.
+export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, progression, album, cloudToast, makeCloud = createLiveCloud }) {
   // the capability secret that authorizes profile/friendship writes (and, for
   // a freshly-created save row, doubles as that row's initial secret) —
   // memoized lazily via getPsecret() below, on first actual use, rather than
@@ -55,7 +65,8 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
   function getCloud() {
     if (!MP) return null;
     if (!cloudInstance) {
-      cloudInstance = createLiveCloud(supabaseUrl, supabaseAnonKey);
+      // getPsecret lets friendship reads go through the v8 friendships_of RPC
+      cloudInstance = makeCloud(supabaseUrl, supabaseAnonKey, { getSecret: getPsecret });
     }
     return cloudInstance;
   }
@@ -118,9 +129,12 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
         }
         return { ok: false, message: 'Sync denied — this code may be linked elsewhere. Unlink and save a new code.' };
       }
+      if (result === 'too-big') return { ok: false, message: TOO_BIG_MESSAGE };
+      if (result === 'busy') return { ok: false, message: BUSY_MESSAGE };
       return { ok: false, message: 'Unexpected sync result.' };
     } catch (err) {
       console.warn('Whisker Walk: cloud sync failed', err);
+      note('cloud', err);
       return { ok: false, message: 'Could not reach the cloud — check your connection and try again.' };
     }
   }
@@ -142,6 +156,8 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
         const payload = composeCloudPayload();
         const secret = getPsecret();
         const result = await cloud.saveToCloud(code, secret, payload, payload.save.lifetimePoints ?? 0);
+        if (result === 'too-big') return { ok: false, error: TOO_BIG_MESSAGE };
+        if (result === 'busy') return { ok: false, error: BUSY_MESSAGE };
         if (result !== 'created') {
           return { ok: false, error: 'That code was already taken — please try again.' };
         }
@@ -150,6 +166,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
         return { ok: true, code };
       } catch (err) {
         console.warn('Whisker Walk: saveToCloud failed', err);
+        note('cloud', err);
         return { ok: false, error: 'Could not reach the cloud — check your connection and try again.' };
       }
     },
@@ -179,6 +196,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
         };
       } catch (err) {
         console.warn('Whisker Walk: loadFromCloud failed', err);
+        note('cloud', err);
         return { ok: false, error: 'Could not reach the cloud — check your connection and try again.' };
       }
     },

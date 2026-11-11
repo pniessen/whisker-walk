@@ -8,11 +8,11 @@
 
 **Tech Stack:** Three 0.185, Vite 8, Vitest 4, plain ES modules.
 
-**Spec:** the controller's brief (survey items #2 and #4, pass-1 split items 7–9) in `scratchpad/polish-survey.md` lines 54–100, plus the shared rules in `scratchpad/polish-common.md`. Scratchpad = `/private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad`.
+**Spec:** the controller's brief (survey items #2 and #4, pass-1 split items 7–9) in `scratchpad/polish-survey.md` lines 54–100, plus the shared rules in `scratchpad/polish-common.md`. Scratchpad = `<scratchpad>`.
 
 ## Global Constraints
 
-- Work only in `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.worktrees/polish-camps` (branch `polish-camps`). Dev server port 5198 only. Never push or merge, never edit `.claude/launch.json`.
+- Work only in `<repo>/.worktrees/polish-camps` (branch `polish-camps`). Dev server port 5198 only. Never push or merge, never edit `.claude/launch.json`.
 - Do NOT edit `src/world/builder.js`, `src/world/gorge.js`, `src/world/gorgeshape.js` (gorge-rock owns them), `src/cat/*`, `src/scars.js`, `src/weather.js`, `src/render/water.js`, or the water/bank parts of woods/moor/pines/seaside.
 - Tests: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**'` (main: 222 files, 6,152 tests, all green) and `npm run build`. Long geometry sweeps get explicit timeouts (120_000/180_000). Never weaken a test to beat a load timeout.
 - Determinism: no `Math.random`, no draws on walkRng or strayStream in anything a world build or walk runs. `test/fixtures/flat-trace.json` sha256 must stay `6b502ab6b1f9ce328fd6c6b7ce656fd473e50670708fac53985590bc9f0e54a7`; Moor build draw count stays 7944 (`test/flattrace.test.js`). If the trace moves, diff it key by key: only render-side fields may change, and then the re-record is a separate final commit.
