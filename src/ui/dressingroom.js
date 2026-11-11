@@ -357,8 +357,8 @@ function wearingHtml(m, ui, thumbs) {
 
 // Today's walk: one picture card for the place Start goes to; the whole card
 // opens the Change place sheet.
-// extrasHtml (the dusk switch) sits on the card's top-left corner, beside the
-// card, not inside it: a checkbox can't live inside a button.
+// extrasHtml (the dusk moon, when dusk is chosen in Change place) sits on the
+// card's top-left corner, beside the card, not inside it.
 function todayHtml(m, extrasHtml = '') {
   const p = m.currentPlace;
   const emblem = p.clan && CLAN_EMBLEMS[p.clan] ? `<span class="dr-today-emblem">${CLAN_EMBLEMS[p.clan]}</span>` : '';

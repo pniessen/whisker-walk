@@ -130,8 +130,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // v21 Stream 5: the home screen is the dressing room (openSheet null) or
   // one sheet from HOME_SHEETS.
   let openSheet = null;
-  // The dusk toggle's tick, remembered across renders (a pill switch
-  // re-renders); never saved, and cleared on show() as it always was.
+  // Day or dusk, chosen in Change place: remembered across renders and walks
+  // for this session (home shows a moon while it stands), never saved. It
+  // only counts while the Glow Collar is on.
   let duskWanted = false;
   let shown = false; // between show() and hide()
 
@@ -965,6 +966,18 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // ---- The Change place sheet (Launch A) -----------------------------------
   // Her map and places (the dressing room's) and her clan in one line. The den
   // is a Menu tile now: unlike every place here it starts a walk at once.
+  // Day / Dusk, at the top of Change place: the one place it is chosen. Dusk
+  // needs the Glow Collar, so without it the choice shows greyed and says so
+  // (hidden, she could never find out dusk exists). id dusk-toggle is the real
+  // control Start reads when it is on screen.
+  function duskChoiceHtml(s) {
+    const glow = s.equipped.collar === 'glow';
+    return `<div class="hb-dusk${glow ? '' : ' off'}">
+      <label class="hb-dusk-switch"><input type="checkbox" id="dusk-toggle" role="switch" aria-label="Dusk walk"${glow ? '' : ' aria-describedby="dusk-why" disabled'} ${glow && duskWanted ? 'checked' : ''} /><span class="hb-dusk-day">☀️ Day</span><span class="hb-dusk-night">🌙 Dusk</span></label>
+      ${glow ? '' : '<small class="hb-dusk-why" id="dusk-why">wear the Glow Collar</small>'}
+    </div>`;
+  }
+
   function renderPlaces(s, roomState) {
     const d = ensureDressing();
     let line = '';
@@ -973,6 +986,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       line = clanLineHtml(clanPickerModel(s), typeof partner === 'string' && partner ? partner : 'your partner', { canChoose: woodsOpen(s, CATALOG) });
     }
     return `<section class="hb-places" aria-labelledby="hb-places-title"><h2 id="hb-places-title">Change place</h2>
+      ${duskChoiceHtml(s)}
       ${d.placesHtml({ clanLineHtml: line })}
     </section>`;
   }
@@ -1076,10 +1090,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (openSheet && !availableSheets().includes(openSheet)) openSheet = null;
     const glowReady = s.equipped.collar === 'glow';
     const roomState = rooms && rooms.available ? rooms.getState() : null;
-    // The dusk toggle renders once: in the room's extras, or in a sheet's dock.
-    // A day/dusk switch: the words follow the tick in CSS, so ticking it
-    // needs no redraw. Home puts it on the Today's walk card.
-    const duskHtml = glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" aria-label="Dusk walk" ${duskWanted ? 'checked' : ''} /><span class="dusk-off" aria-hidden="true">☀️<span class="dusk-word"> Day</span></span><span class="dusk-on" aria-hidden="true">🌙<span class="dusk-word"> Dusk ✨</span></span></label>` : '';
+    // Home's Today's walk card says when dusk is chosen: a small moon, status
+    // only (the choice itself is in Change place).
+    const duskBadge = glowReady && duskWanted ? '<span class="dr-dusk-badge" role="img" aria-label="Dusk walk">🌙</span>' : '';
     if (openSheet) {
       // Ruling 10: every sheet keeps Start pinned at the bottom (the host-a-
       // room flow presses "Start the walk together" from 👫 Play together). The room
@@ -1091,8 +1104,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       // Menu and Change place are doors, not screens of their own: no dock.
       const door = openSheet === 'menu' || openSheet === 'places';
       // The dock by sheet: none on the doors or the grown-ups' sheets (no
-      // "Start the walk" under "Start over"); the whole dock on Play together,
-      // whose room starts from it; on the other sheets only where and Start.
+      // "Start the walk" under "Start over"); the whole dock (Start and Play
+      // together) on Play together, whose room starts from it; on the other
+      // sheets only where and Start. Dusk is chosen in Change place only; a
+      // Start from any dock reads that choice (duskWanted).
       const dock = door || GROWNUP_SHEETS.includes(openSheet) ? 'none' : openSheet === 'together' ? 'full' : 'slim';
       const back = backTo === 'menu' ? '← Back to the menu' : '← Back to my cat';
       root.innerHTML = `
@@ -1101,7 +1116,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         ${renderSheetBody(openSheet, s, colonyStatus, roomState)}
         ${dock === 'none' ? '' : `<footer class="hb-sheet-dock">
           <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
-          ${dock === 'full' ? duskHtml : ''}
           ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState)}</div>`}
         </footer>`}
       </div>`;
@@ -1125,7 +1139,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (room.deferRender?.(root)) return; // she is typing her cat's name: runs on blur
     const f = room.captureFocus(root);
     root.innerHTML = room.html({
-      headerHtml, startHtml: startRowHtml(roomState), extrasHtml: duskHtml, rankTitle: rank.title,
+      headerHtml, startHtml: startRowHtml(roomState), extrasHtml: duskBadge, rankTitle: rank.title,
     });
     room.afterRender(root);
     room.restoreFocus(root, f);
@@ -1230,8 +1244,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const dusk = root.querySelector('#dusk-toggle');
       // A previewed cat or a tried-on accessory is never walked: the walk
       // reads the save's equipped cat and accessories (Review Focus 1).
-      // A slim sheet dock has no dusk switch: the choice made at home stands
-      // (while the Glow Collar that allows it is still on).
+      // Start is never beside the dusk switch now (it is in Change place, which
+      // has no dock), so the choice made there stands (while the Glow Collar
+      // that allows it is still on).
       const duskMode = dusk ? !!dusk.checked : !!(duskWanted && progression.state.equipped.collar === 'glow');
       dressing?.clearPreview();
       // Redraw without the preview, so "(trying)" can't linger if this start
@@ -1639,7 +1654,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     show(opts) {
       const sheet = resolveSheet(opts?.sheet);
       redeemResult = null; // a stale "Surprise!" or catnap line must not outlive a walk
-      duskWanted = false; // as before: every visit starts with the dusk box clear
+      // duskWanted stands across walks this session: home's moon shows it.
       shown = true;
       // Coming home always lands on the cat, whatever sheet the walk was
       // started from (the Journal's dock, say), unless a sheet is asked for.

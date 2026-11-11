@@ -14,7 +14,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
     dressingMock.placesArgs = [];
     dressingMock.closeWardrobe = vi.fn();
     return {
-      html: ({ headerHtml, startHtml }) => `<header>${headerHtml}</header>${startHtml}`,
+      html: ({ headerHtml, startHtml, extrasHtml }) => `<header>${headerHtml}</header>${extrasHtml ?? ''}${startHtml}`,
       placesHtml: (o) => { dressingMock.placesArgs.push(o); return `<div class="dr-where">${o?.clanLineHtml ?? ''}${o?.denHtml ?? ''}</div>`; },
       closeWardrobe: () => dressingMock.closeWardrobe(),
       afterRender() {}, handleClick() { return false; }, clearPreview() {},
@@ -701,6 +701,80 @@ describe('Play together holds the friends (Friends folded in)', () => {
     expect(h).toContain('<h3>Stray cats</h3>');
     expect(h).toContain('Smudge');
     expect(h.indexOf('Stray cats')).toBeLessThan(h.indexOf('hb-sheet-dock'));
+  });
+});
+
+describe('Day / Dusk in Change place', () => {
+  function setupStart({ glow = true, rooms = null } = {}) {
+    const progression = createProgression(memStorage());
+    if (glow) { progression.state.unlocked.accessories.push('glow'); progression.state.equipped.collar = 'glow'; }
+    const onStartWalk = vi.fn();
+    const hb = createHomeBase(progression, { photos: [] }, onStartWalk, rooms, null, null, settings, () => {}, () => {}, null, 'me', () => {});
+    hb.show();
+    return { progression, hb, onStartWalk };
+  }
+  const chooseDusk = (checked) => doc.root.listeners.change({ target: { id: 'dusk-toggle', checked, dataset: {} } });
+  const pressStart = () => doc.root.listeners.click({ target: { id: 'btn-start', dataset: {}, closest: () => null } });
+  it('is at the top of Change place, labelled Day and Dusk, the real control keeping its id', () => {
+    setupStart();
+    openSheet('places');
+    const h = html();
+    expect(h).toContain('<span class="hb-dusk-day">☀️ Day</span><span class="hb-dusk-night">🌙 Dusk</span>');
+    expect(h).toMatch(/<input type="checkbox" id="dusk-toggle" role="switch" aria-label="Dusk walk"\s*\/>/);
+    expect(h.indexOf('class="hb-dusk"')).toBeLessThan(h.indexOf('class="dr-where"'));
+    expect(h).not.toContain('Glow Collar');
+  });
+  it('without the Glow Collar it is greyed and says why, instead of hiding', () => {
+    setupStart({ glow: false });
+    openSheet('places');
+    const h = html();
+    expect(h).toContain('class="hb-dusk off"');
+    expect(h).toMatch(/id="dusk-toggle"[^>]*aria-describedby="dusk-why" disabled/);
+    expect(h).toContain('<small class="hb-dusk-why" id="dusk-why">wear the Glow Collar</small>');
+  });
+  it('home shows a small moon when dusk is chosen, and Start from home walks at dusk', () => {
+    const { onStartWalk } = setupStart();
+    expect(html()).not.toContain('dr-dusk-badge');
+    openSheet('places');
+    chooseDusk(true);
+    openSheet(null);
+    expect(html()).toContain('<span class="dr-dusk-badge" role="img" aria-label="Dusk walk">🌙</span>');
+    expect(html()).not.toContain('id="dusk-toggle"'); // status, not a control
+    pressStart();
+    expect(onStartWalk).toHaveBeenLastCalledWith({ duskMode: true });
+  });
+  it('the choice stands when home is shown again (back from a walk)', () => {
+    const { hb, onStartWalk } = setupStart();
+    openSheet('places');
+    chooseDusk(true);
+    hb.hide();
+    hb.show();
+    expect(html()).toContain('dr-dusk-badge');
+    openSheet('places');
+    expect(html()).toMatch(/id="dusk-toggle"[^>]*checked/);
+    openSheet(null);
+    pressStart();
+    expect(onStartWalk).toHaveBeenLastCalledWith({ duskMode: true });
+  });
+  it('dusk only counts while the Glow Collar is on', () => {
+    const { progression, onStartWalk } = setupStart();
+    openSheet('places');
+    chooseDusk(true);
+    progression.state.equipped.collar = null;
+    openSheet(null);
+    expect(html()).not.toContain('dr-dusk-badge');
+    pressStart();
+    expect(onStartWalk).toHaveBeenLastCalledWith({ duskMode: false });
+  });
+  it('Play together has no copy of the switch, and a room start gets the dusk chosen', () => {
+    const { onStartWalk } = setupStart({ rooms: OPEN_ROOMS });
+    openSheet('places');
+    chooseDusk(true);
+    openSheet('together');
+    expect(html()).not.toContain('id="dusk-toggle"');
+    expect(html()).toContain('id="btn-start"');
+    pressStart();
+    expect(onStartWalk).toHaveBeenLastCalledWith({ duskMode: true });
   });
 });
 
