@@ -22,6 +22,7 @@ import { createProgression } from '../src/progression.js';
 import { renderJournalHtml } from '../src/journal.js';
 import { FLAT_GROUND } from '../src/ground.js';
 import { buildHeightFixture } from './fixtures/heightfield.js';
+import { bus } from '../src/events.js';
 
 const DT = 1 / 30;
 const RUN = 3;
@@ -225,6 +226,28 @@ describe('the fight', () => {
     expect(h.calls.filter((c) => !['hold', 'release', 'toast', 'ui', 'audio', 'fx', 'stage'].includes(c.kind))).toEqual([]);
     expect(h.s.fight).toBeNull(); expect(h.s.fightPose).toBeNull(); expect(h.ui.showing).toBeNull();
     expect(h.hud.toast).toHaveBeenLastCalledWith('Mossjaw shook it off and walked on. Try again soon!');
+  });
+
+  // The sharper tap of a hit (src/haptics.js, wired in main.js): one
+  // 'fight:hit' on the bus with each round's thump, in both stagings, saying
+  // whether my cat landed it. Local only: the wire carries no more than before.
+  test('each blow that lands says so on the bus, once a round, landed or taken', () => {
+    for (const actions of [false, true]) {
+      for (const [answers, mine] of [['right', true], ['wrong', false]]) {
+        const hits = [];
+        const off = bus.on('fight:hit', (e) => hits.push(e));
+        try {
+          const quiet = harness({ answers, actions, solo: true });
+          quiet.challenge(); quiet.fight(); quiet.runToEnd();
+          expect(hits.length, `${answers} actions=${actions}`).toBeGreaterThan(0);
+          expect(hits.length).toBe(quiet.audio.landThump.mock.calls.length);
+          expect(hits.every((e) => e.mine === mine)).toBe(true);
+          expect(quiet.sent).toEqual([]);
+        } finally {
+          off();
+        }
+      }
+    }
   });
 
   test('"Fight!" walks the cat over before the rounds start, and never chases', () => {
@@ -1437,8 +1460,10 @@ describe('clanfight.js is pinned', () => {
     expect(code).not.toMatch(/progression/i);
     const specs = [...SRC.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(specs.length).toBeGreaterThan(0);
+    // '../events.js' is the bus (an emitter that stores nothing), for the
+    // 'fight:hit' a landed blow sends to the haptics.
     for (const s of specs) {
-      expect(['../fight.js', '../fightactions.js', '../fightmoves.js', '../intruders.js', '../ui/fightui.js', '../clanhomes.js', '../rng.js']).toContain(s);
+      expect(['../fight.js', '../fightactions.js', '../fightmoves.js', '../intruders.js', '../ui/fightui.js', '../clanhomes.js', '../rng.js', '../events.js']).toContain(s);
     }
     expect(SRC).toMatch(/progression/); // ...and the header says why
   });

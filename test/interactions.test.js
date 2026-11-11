@@ -1987,6 +1987,52 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.session.rest).toBe(null);
       }
     });
+    // The haptic purr (src/haptics.js, wired in main.js) follows the sound: a
+    // 'purr' on the bus with every piece the sound plays, for as long, and a
+    // 'purr:end' the frame the nap ends, so the buzz stops with the cat.
+    it('a nap and head scratches put the purr on the bus, and the nap\'s end stops it', () => {
+      const h = restHarness();
+      const said = [];
+      const offs = [
+        bus.on('purr', (e) => said.push(['purr', e.seconds])),
+        bus.on('purr:end', () => said.push(['end'])),
+      ];
+      try {
+        const r = spot('nap');
+        h.walkTo(r.x + 0.5, r.z);
+        h.press();
+        expect(said).toEqual([['purr', h.purrs[0]]]);
+        h.tick(1 / 60, 60 * 3);
+        expect(said.length).toBe(h.purrs.length);
+        expect(said.every(([kind, sec], i) => kind === 'purr' && sec === h.purrs[i])).toBe(true);
+        h.player.setTouchMove({ x: 0.2, z: -1, mag: 0.4 });
+        h.tick(1 / 60, 1);
+        h.player.setTouchMove(null);
+        expect(h.session.rest).toBe(null);
+        expect(said.at(-1)).toEqual(['end']);
+        const n = said.length;
+        h.tick(1 / 60, 60 * 2);
+        expect(said.length).toBe(n); // nothing more once awake
+        // A sip neither purrs nor ends a purr.
+        const d = spot('drink');
+        h.walkTo(d.x + 0.5, d.z);
+        h.press();
+        h.tick(1 / 60, 60 * 4);
+        expect(said.length).toBe(n);
+        // Head scratches: one purr, as long as the sound's.
+        const villager = { type: 'villager', scratched: false, group: new THREE.Group() };
+        villager.group.position.set(d.x + 6.5, 0, d.z);
+        h.session.critters.list = [villager];
+        h.walkTo(d.x + 6, d.z);
+        expect(h.session.prompt?.kind).toBe('scratch');
+        h.press();
+        expect(said.at(-1)).toEqual(['purr', 2.5]);
+        expect(h.purrs.at(-1)).toBe(2.5);
+      } finally {
+        for (const off of offs) off();
+      }
+    });
+
     // The shipped nap-pile award, pinned through updateAvatar: lying still
     // beside a napping sister pays it once the idle nap begins (idleTime >
     // napAt), exactly as before Task 15; a cushion nap pays it at that same

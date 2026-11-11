@@ -34,6 +34,7 @@ import { createQualityAdapter } from './game/adaptquality.js';
 import { parseForcedRung } from './render/quality.js';
 import { readDeviceProfile, DEVICE_EVENT } from './render/deviceprofile.js';
 import { releaseThumbnails } from './thumbnails.js';
+import { createHaptics, hapticForDiscovery } from './haptics.js';
 import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
@@ -170,6 +171,18 @@ function init() {
     if (e.detail?.memoryWarning === true) releaseThumbnails();
   });
   const perfHud = createPerfHud({ renderer, settings, coarse, adapter: qualityAdapter });
+  // Haptics (src/haptics.js): the app's bridge on an iPhone (an iPad in the
+  // app says it has no Taptic Engine, so stays still), navigator.vibrate on a
+  // touch device that has it (desktop Chrome has the function but no motor,
+  // hence `coarse`), else nothing. The game's moments reach it through the
+  // bus below, never from game code directly.
+  const haptics = createHaptics({
+    bridge: window.webkit?.messageHandlers?.haptic ?? null,
+    deviceHaptics: readDeviceProfile(window)?.haptics === true,
+    vibrate: coarse && typeof navigator.vibrate === 'function' ? (pattern) => navigator.vibrate(pattern) : null,
+    now: () => performance.now(),
+    enabled: settings.get('haptics'),
+  });
   const log = createDiscoveryLog(progression);
 
   // Cloud save wiring (lazy capability handles + the home base's Sync ☁️
@@ -246,6 +259,7 @@ function init() {
     touchUI.setLeftHanded(settings.get('leftHanded'));
     // With ?perf the readout stays on even if the Settings box is unchecked, by design.
     perfHud.setEnabled(settings.get('perfReadout') || perfFlag);
+    haptics.setEnabled(settings.get('haptics'));
   }
   applySettings();
   // routed through handleTouchAction('interact') rather than calling
@@ -403,8 +417,9 @@ function init() {
     // Fight moves and scars: her cat's scars changed; her brother and the
     // cloud profile see it.
     onScarsChanged: () => { rooms.retrackProfile(); pushProfileNow(); },
-    // Mid-walk resume: an ended walk leaves nothing to pick up.
-    onWalkEnded: () => clearResume(window.localStorage),
+    // Mid-walk resume: an ended walk leaves nothing to pick up. Nor does a
+    // purr outlive the walk it was in.
+    onWalkEnded: () => { clearResume(window.localStorage); haptics.stopPurr(); },
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -569,6 +584,7 @@ function init() {
 
   bus.on('discovery', ({ type, points }) => {
     hud.setPoints(progression.state.points);
+    haptics.play(hapticForDiscovery(type));
     if (type === 'jackpot') {
       audio.fanfare();
     } else if (type === 'collectible' || type === 'treasure') {
@@ -591,10 +607,19 @@ function init() {
         session.rankTitle = r;
         hud.setRank(r);
         hud.toast(`RANK UP — ${r}! 🏆`);
+        haptics.play('success');
       }
     }
   });
+  // The haptic moments that are not awards: a pounce landing (avatar.js), a
+  // blow in a clan fight, landed or taken (clanfight.js), and the purr of
+  // head scratches and naps (interactions.js, avatar.js).
+  bus.on('pounce:land', () => haptics.play('tap'));
+  bus.on('fight:hit', () => haptics.play('hit'));
+  bus.on('purr', ({ seconds }) => haptics.purr(seconds));
+  bus.on('purr:end', () => haptics.stopPurr());
   bus.on('player:lockchange', ({ locked }) => {
+    if (!locked) haptics.stopPurr(); // paused: the purr stops with the walk
     if (session) overlay.classList.toggle('hidden', locked);
     // The first engage is the walk beginning: from here on the card behind
     // the walk is the "Paused" one (walk.js pauseCardFor), and a touch walk
@@ -732,6 +757,9 @@ function init() {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) session?.clanFight?.abort();
   });
+  // Put away (the home screen, another app, the screen locked): the purr
+  // stops now, not when the page next gets time to run.
+  document.addEventListener('visibilitychange', () => { if (document.hidden) haptics.stopPurr(); });
   // Mid-walk resume: the note of the walk in progress. Written every few
   // seconds by the render loop, and here the moment the game is hidden, which
   // on an iPad is the last thing that happens before it can be closed.

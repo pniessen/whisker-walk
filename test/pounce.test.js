@@ -15,6 +15,7 @@ import { createInteractions } from '../src/game/interactions.js';
 import { createAvatarUpdater, pounceCatchLine } from '../src/game/avatar.js';
 import { createDiscoveryLog } from '../src/discoveries.js';
 import { createWaterState } from '../src/waterstate.js';
+import { bus } from '../src/events.js';
 
 // ---------------------------------------------------------------------------
 // v18 CF-9a — the pounce hop arc.
@@ -465,7 +466,7 @@ describe('updateAvatar measures from the paws, not the drawn body', () => {
       settings: { get: () => false },
       log: { award() {}, awardOnce: () => 0 },
       hud: { toast() {} },
-      audio: { landThump() {}, step() {}, purr() {}, fanfare() {} },
+      audio: { landThump() {}, step() {}, purr() {}, fanfare() {}, waterSplash() {} },
       petNameFor: () => 'x', completeTag() {}, noteBat() {},
     });
     return { s, cat, player, updateAvatar, hunted, batted };
@@ -515,6 +516,29 @@ describe('updateAvatar measures from the paws, not the drawn body', () => {
     h.cat.position.set(0.3, SPRING_PAWS_HOP, 0);
     h.updateAvatar(h.s, 1 / 60, 0);
     expect(h.batted).toHaveLength(1);
+  });
+
+  // The light tap of a landing (src/haptics.js, wired in main.js): one
+  // 'pounce:land' on the frame the pounce window runs out, and none while it
+  // is still in the air or once it is down.
+  it('says on the bus, once, when a pounce lands', () => {
+    const h = avatarHarness();
+    const landed = [];
+    const off = bus.on('pounce:land', (e) => landed.push(e));
+    try {
+      h.s.pounceTime = 0.05;
+      h.updateAvatar(h.s, 1 / 60, 0);
+      h.updateAvatar(h.s, 1 / 60, 0);
+      expect(landed).toEqual([]);
+      for (let i = 0; i < 10; i++) h.updateAvatar(h.s, 1 / 60, 0);
+      expect(landed).toEqual([{ water: false }]);
+      h.player.inWater = true;
+      h.s.pounceTime = 0.01;
+      for (let i = 0; i < 10; i++) h.updateAvatar(h.s, 1 / 60, 0);
+      expect(landed).toEqual([{ water: false }, { water: true }]);
+    } finally {
+      off();
+    }
   });
 });
 

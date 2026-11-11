@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   createHaptics, pickOutput, hapticsAvailable, hapticForDiscovery,
   BRIDGE_MESSAGES, VIBRATE_PATTERNS, MIN_GAP_MS, PURR_BEAT_MS, PURR_MAX_S, HAPTIC_KINDS,
@@ -257,5 +258,34 @@ describe('hapticForDiscovery — which awards buzz', () => {
     for (const t of ['critter', 'scenic', 'pet', 'perk', 'photo', 'intruder', 'patrol', undefined, 'constructor']) {
       expect(hapticForDiscovery(t)).toBeNull();
     }
+  });
+});
+
+// main.js is the one place the game's moments meet the haptics: pinned here
+// by its text, since main.js boots the whole game and cannot run headless.
+describe('main.js wiring', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  it('listens on the bus for every moment, and calls nothing from game code', () => {
+    expect(main).toContain('haptics.play(hapticForDiscovery(type));');
+    expect(main).toContain("bus.on('pounce:land', () => haptics.play('tap'));");
+    expect(main).toContain("bus.on('fight:hit', () => haptics.play('hit'));");
+    expect(main).toContain("bus.on('purr', ({ seconds }) => haptics.purr(seconds));");
+    expect(main).toContain("bus.on('purr:end', () => haptics.stopPurr());");
+    const rankUp = main.indexOf('hud.toast(`RANK UP');
+    expect(main.indexOf("haptics.play('success');", rankUp) - rankUp).toBeLessThan(80);
+    for (const f of ['game/avatar.js', 'game/interactions.js', 'game/clanfight.js', 'game/walk.js']) {
+      expect(readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8'), f).not.toMatch(/\bhaptics\.(play|purr|stopPurr|setEnabled)\(|haptics\.js'/);
+    }
+  });
+  it('the purr stops on pause, at the end of the walk, and when the page is hidden', () => {
+    expect(main).toContain('if (!locked) haptics.stopPurr();');
+    expect(main).toContain('onWalkEnded: () => { clearResume(window.localStorage); haptics.stopPurr(); },');
+    expect(main).toContain("document.addEventListener('visibilitychange', () => { if (document.hidden) haptics.stopPurr(); });");
+  });
+  it('follows the setting live, and picks its output from the bridge, the device profile and vibrate', () => {
+    expect(main).toContain("haptics.setEnabled(settings.get('haptics'));");
+    expect(main).toContain('bridge: window.webkit?.messageHandlers?.haptic ?? null,');
+    expect(main).toContain('deviceHaptics: readDeviceProfile(window)?.haptics === true,');
+    expect(main).toContain("vibrate: coarse && typeof navigator.vibrate === 'function'");
   });
 });

@@ -48,6 +48,7 @@ import { isHostile, CHALLENGE_RANGE, CHALLENGE_KEEP, RECHALLENGE_DELAY } from '.
 import { FIGHT_LINES } from '../ui/fightui.js';
 import { clanName } from '../clanhomes.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { bus } from '../events.js';
 
 export const FIGHT_GAP = 1.6;      // m between the two cats
 export const WALKOVER_MAX = 3;     // s at most of walking over
@@ -680,6 +681,15 @@ export function createClanFight({
     // END LOST
   }
 
+  // A round's blow lands, once a round in either staging: the thump, and a
+  // 'fight:hit' for the sharper tap of a hit (src/haptics.js, wired in
+  // main.js). `mine` is whether my cat landed it; taking one buzzes too.
+  // Local only: nothing here goes on the wire.
+  function blowLands(mine) {
+    audio.landThump();
+    bus.emit('fight:hit', { mine: !!mine });
+  }
+
   // Where both cats stand and how they look this frame.
   function stagePoses(s) {
     if (actions) { stageActions(s); return; }
@@ -756,7 +766,7 @@ export function createClanFight({
             const mz = (spot.z + foeAt.z) / 2;
             fx.burst({ x: mx, y: T ? T.y(mx, mz) + 0.2 : 0.2, z: mz }, DUST, 8);
           }
-          audio.landThump();
+          blowLands(r.won);
         }
         const back = ph === 'tumble'
           ? smooth(clamp01((tt - loserAt) / LOSER_TIME))
@@ -918,7 +928,7 @@ export function createClanFight({
     }
     if (!r.thumped && u >= (reducedMotion ? 0 : THUMP_AT[kind] ?? 0)) {
       r.thumped = true;
-      audio.landThump();
+      blowLands(r.won);
     }
   }
 

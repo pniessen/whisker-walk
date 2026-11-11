@@ -42,6 +42,7 @@ import { postStatus, promptFor } from '../bordercross.js';
 import * as THREE from 'three';
 import { villagerPos } from '../critters.js';
 import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js';
+import { bus } from '../events.js';
 
 // How far off the cat spots the Gorge's goat for the journal: past its 6 m
 // notice (critters.js GOAT_NOTICE), so she sees it before it bolts.
@@ -1794,11 +1795,12 @@ export function createInteractions({
       if (!rest) return;
       s.rest = rest;
       hud.toast(REST_TOASTS[rest.kind]);
-      if (rest.kind === 'nap') audio.purr?.(NAP_PURR_LEN);
+      if (rest.kind === 'nap') { audio.purr?.(NAP_PURR_LEN); bus.emit('purr', { seconds: NAP_PURR_LEN }); }
     } else if (s.prompt.kind === 'scratch') {
       s.prompt.data.scratched = true;
       log.award('pet', 'pet', 'blissful head scratches');
       audio.purr(2.5);
+      bus.emit('purr', { seconds: 2.5 }); // the haptic purr, as long as the sound
       if (PERSONALITIES[s.cat.userData.breed].special === 'napper') {
         log.award('perk', 'nap-pet', 'a deep contented purr'); // Persians LIVE for this
       }
