@@ -1,6 +1,7 @@
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
-import { validPetName } from '../net.js';
+import { validPetName, goodNewPetName, safeRemoteName, safeRemoteBreed } from '../net.js';
+import { metOnly, deviceMetPlayers } from '../metplayers.js';
 import { activeCat } from '../customcats.js';
 import { renderFightMovesHtml, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
 import { HOME_SHEETS, MENU_TILES, GROWNUP_SHEETS, SHEET_ICON, SHEET_NAME, resolveSheet, PLACE_PICTURE, placeWhyLine } from './dressingroom.js';
@@ -128,7 +129,9 @@ export function showEditionTitle(doc, edition) {
 // Vibration switch is only drawn where it can.
 // `nearby`: game/nearby.js, the rooms the app found on the local network.
 // Absent, or not available (Safari, desktop), nothing of it is drawn.
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, { haptics: canBuzz = false, nearby = null } = {}) {
+// `metPlayers`: src/metplayers.js (the device's own list when absent).
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, { haptics: canBuzz = false, nearby = null, metPlayers = null } = {}) {
+  const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
@@ -197,6 +200,30 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let cloudJustLinked = false; // show the big "write this down" code once, right after linking
   let cloudPreview = null; // pending { code, secret, payload, local, cloud } from previewLoad
 
+  // The cats in the room this child can see: a hidden visitor (src/blocklist.js)
+  // is not listed or named.
+  const roomCats = (roster) => roster.filter((p) => !cloud?.isBlocked?.(p?.playerId));
+
+  // "<Name> joined" for each cat that comes into the room after this child,
+  // so she always knows who is there. Whoever was already in it when she
+  // arrived is in the list she sees, so is not toasted.
+  let arrivalsRoom = null; // { code, ids }
+  function noteRoomArrivals() {
+    const st = rooms.getState();
+    if (!st) { arrivalsRoom = null; return; }
+    const cats = roomCats(st.roster).filter((p) => p?.playerId !== myId);
+    if (!arrivalsRoom || arrivalsRoom.code !== st.code) {
+      arrivalsRoom = { code: st.code, ids: new Set(cats.map((p) => p.playerId)) };
+      return;
+    }
+    for (const p of cats) {
+      if (arrivalsRoom.ids.has(p.playerId)) continue;
+      arrivalsRoom.ids.add(p.playerId);
+      if (!homeVisible()) continue; // in a walk, game/walk.js says it
+      try { toast?.(`${safeRemoteName(p.petName)} joined 🐾`); } catch { /* a toast is never worth a crash */ }
+    }
+  }
+
   function renderWalkTogether() {
     if (!rooms || !rooms.available) {
       return `<div class="tag">multiplayer not configured</div>`;
@@ -209,7 +236,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           <div class="wt-room-code">${renderRoomTitleHtml(st, colony)}</div>
           <div class="wt-roster">
             ${st.roster.length
-              ? st.roster.map((p) => `<span class="wt-roster-chip">🟢 ${escapeHtml(p.petName)}</span>`).join('')
+              ? roomCats(st.roster).map((p) => `<span class="wt-roster-chip">🟢 ${escapeHtml(safeRemoteName(p.petName))}</span>`).join('')
               : '<span class="tag">waiting for friends…</span>'}
           </div>
           ${nearby?.available && nearby.advertising() ? '<div class="tag wt-nearby-on">Nearby cats can join with one tap</div>' : ''}
@@ -232,6 +259,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       <div class="wt-petname">
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Your cat's name" value="${escapeHtml(name)}" />
         <button id="wt-petname-save">Save</button>
+        <div class="tag wt-name-hint">Pick a cat name, not your real name. Other players can see it.</div>
         ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
       </div>
       ${isClanEdition(progression.state) ? renderStarNamePicker(candidateStarNames(myId), name) : ''}
@@ -251,9 +279,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // when there is none: nothing says "searching", because most of the time
   // nobody is hosting and that is not a fault. The Join is never disabled:
   // with no cat name yet it leads to the name box instead (joinNearby).
+  // Anyone near enough can put any cat's name on the air, so each row and
+  // the card show the room code too, to check against the host's screen.
+  const nearbyCodeLine = (code) => `Room ${code}: check it's the code on their screen`;
   function nearbyRowsHtml() {
     return nearby.rooms().map((r) => `<div class="wt-nearby-row">`
-      + `<span class="wt-nearby-who">${PAW} <b>${escapeHtml(r.name)}</b> is starting a walk nearby</span>`
+      + `<span class="wt-nearby-who">${PAW} <b>${escapeHtml(safeRemoteName(r.name))}</b> is starting a walk nearby</span>`
+      + `<span class="wt-nearby-code">${escapeHtml(nearbyCodeLine(r.code))}</span>`
       + `<button class="primary wt-nearby-join" data-nearby-code="${escapeHtml(r.code)}">Join</button></div>`).join('');
   }
 
@@ -463,7 +495,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const token = ++playerPetsToken;
     try {
       const rows = await cloud.fetchFriendships(cloud.myId);
-      const otherIds = [...new Set(rows.map((r) => (r.a_id === cloud.myId ? r.b_id : r.a_id)))];
+      // Only players this device booped or added by code (src/metplayers.js):
+      // anyone can write a friendships row naming this child.
+      const shown = new Set(metOnly(met(), [...new Set(rows.map((r) => (r.a_id === cloud.myId ? r.b_id : r.a_id)))]));
+      const otherIds = [...shown];
       const profiles = otherIds.length ? await cloud.fetchProfiles(otherIds) : [];
       if (token !== playerPetsToken) return; // a newer render()/loadPlayerPets() superseded this fetch
       const el = root.querySelector('#player-pets-roster');
@@ -479,12 +514,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const rowsHtml = rows
         .map((r) => {
           const otherId = r.a_id === cloud.myId ? r.b_id : r.a_id;
-          if (cloud.isBlocked?.(otherId)) return '';
+          if (!shown.has(otherId) || cloud.isBlocked?.(otherId)) return '';
           const p = profileById.get(otherId);
           if (!p) return '';
           return `<div class="friend-row" data-player-id="${escapeHtml(otherId)}">
             <span class="friend-icon">${heartFor(r.greets)}</span>
-            <span class="friend-name">${escapeHtml(p.pet_name)}</span> — ${escapeHtml(p.breed)}, ${escapeHtml(relativeTime(p.last_seen))}
+            <span class="friend-name">${escapeHtml(safeRemoteName(p.pet_name))}</span> — ${escapeHtml(safeRemoteBreed(p.breed))}, ${escapeHtml(relativeTime(p.last_seen))}
             <button class="friend-hide" data-action="hide-player" data-player-id="${escapeHtml(otherId)}"
               title="Hide this visitor" aria-label="Hide this visitor">✕</button>
           </div>`;
@@ -714,7 +749,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     card.setAttribute('tabindex', '-1');
     const line = document.createElement('p');
     line.className = 'colony-notice-line';
-    line.textContent = `${due.name} is starting a walk nearby. Join?`; // text, never markup
+    line.textContent = `${safeRemoteName(due.name)} is starting a walk nearby. Join?`; // text, never markup
+    const codeLine = document.createElement('p');
+    codeLine.className = 'nearby-card-code';
+    codeLine.textContent = nearbyCodeLine(due.code);
     const btns = document.createElement('div');
     btns.className = 'nearby-card-btns';
     const join = document.createElement('button');
@@ -737,7 +775,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       if (e.key === 'Escape') notNow();
     });
     btns.append(join, later);
-    card.append(line, btns);
+    card.append(line, codeLine, btns);
     nearbyEl.append(card);
     root.after(nearbyEl);
     // The card takes focus, not Join: it arrives by itself, and an Enter
@@ -1456,7 +1494,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // field: the chosen name IS state.petName (no new field, spec §6.1).
     const starPick = e.target.dataset?.starName;
     if (starPick !== undefined) {
-      if (validPetName(starPick)) {
+      if (goodNewPetName(starPick)) {
         progression.setPetName(starPick);
         petNameError = null;
       } else {
@@ -1468,11 +1506,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (e.target.id === 'wt-petname-save') {
       const input = root.querySelector('#wt-petname-input');
       const name = (input?.value ?? '').trim();
-      if (validPetName(name)) {
+      if (goodNewPetName(name)) {
         progression.setPetName(name);
         petNameError = null;
       } else {
-        petNameError = 'Cat names are 2–16 letters, spaces, or hyphens.';
+        petNameError = validPetName(name) ? 'Please pick a different name.' : 'Cat names are 2–16 letters, spaces, or hyphens.';
       }
       render();
       return;
@@ -1549,7 +1587,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         const self = rows.some((r) => r.player_id === cloud.myId);
         const match = rows.find((r) => r.player_id !== cloud.myId);
         if (match) {
-          friendCodeCandidate = { playerId: match.player_id, petName: match.pet_name, breed: match.breed };
+          friendCodeCandidate = { playerId: match.player_id, petName: safeRemoteName(match.pet_name), breed: safeRemoteBreed(match.breed) };
         } else {
           friendCodeError = self ? "That's your own code!" : 'No player found with that code.';
         }
@@ -1574,6 +1612,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         // (the push could still have failed, e.g. offline). 'self'/anything
         // else: no-op, shouldn't be reachable since the UI already excludes
         // your own code above.
+        // A friend added by code is one this child chose: she shows in Player pets.
+        if (result?.status === 'already' || result?.status === 'added') met().add(friendCodeCandidate.playerId);
         if (result?.status === 'already') {
           friendCodeSuccess = `You're already friends with ${friendCodeCandidate.petName}!`;
           friendCodeError = null;
@@ -1834,6 +1874,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // status live, but only while home base is actually visible.
   if (rooms) {
     rooms.onChange(() => {
+      noteRoomArrivals();
       if (!root.classList.contains('hidden')) render();
     });
   }
