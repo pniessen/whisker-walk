@@ -515,7 +515,7 @@ test('the walk wires push-throughs in: solid frames, every cat a mover, no wire,
   expect(code.match(/createPushThroughs\(scene, propsFor\(areaId\)\.flaps, \{ reducedMotion(, ground)? \}\)/g)).toHaveLength(1);
   const solid = code.indexOf('for (const c of pushThroughs.colliders) areaData.colliders.push(');
   expect(solid).toBeGreaterThan(code.indexOf('clearSpot(p, areaData.colliders'));
-  expect(solid).toBeLessThan(code.indexOf('const session = {'));
+  expect(solid).toBeLessThan(code.indexOf('const session = createSession({'));
   const rivalA = walk.indexOf("The rival's border and its patrol");
   const rivalB = walk.indexOf('session.rival = {', rivalA);
   expect(rivalA).toBeGreaterThan(0);
