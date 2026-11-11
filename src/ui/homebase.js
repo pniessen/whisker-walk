@@ -1045,7 +1045,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     backTo = openSheet === 'menu' && next && next !== 'menu' && next !== 'places' ? 'menu' : null;
     openSheet = next;
     // Usage counts: a sheet opened from somewhere else, not a re-open of itself.
-    if (next && next !== prev) { try { progression.noteUse?.(next); } catch { /* a count, never a blocker */ } }
+    // (Back from a sheet to the Menu is not an open of the Menu.)
+    if (next && next !== prev && !(next === 'menu' && prev)) { try { progression.noteUse?.(next); } catch { /* a count, never a blocker */ } }
     render();
     root.scrollTop = 0; // a sheet (or the room) opens at its top
     // Keyboard and screen-reader users land on the new screen's first control,
