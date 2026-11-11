@@ -1014,6 +1014,66 @@ function retireCats(parsed) {
   return { parsed: { ...parsed, points, retired }, farewell };
 }
 
+// ---- Save backups ---------------------------------------------------------
+// Copies of the raw save string, each kind under its own key beside the save:
+// never inside the save, so they never reach the cloud payload. At most one
+// of each kind. A wrapper { at, raw } says when; `raw` is kept byte for byte
+// (it may not even be JSON). Read back, a backup is untrusted outside data:
+// its numbers go through summarizeSaveForPreview, and a restore goes through
+// loadState like any boot.
+export const BACKUP_KEYS = Object.freeze({
+  unreadable: 'whisker-walk-save.bak', // a save this build could not read
+  cloud: 'whisker-walk-save.before-cloud', // what the last Load from cloud replaced
+  reset: 'whisker-walk-save.before-reset', // what the last Start over erased
+  restore: 'whisker-walk-save.before-restore', // what the last restore replaced
+});
+
+function parseOrNull(raw) {
+  try { return JSON.parse(raw); } catch { return null; }
+}
+// A save this build's loadState can read (v2 and v3 migrate).
+function readableSave(parsed) {
+  return isPlainObject(parsed) && [2, 3, SAVE_VERSION].includes(parsed.version);
+}
+function newerSave(parsed) {
+  return isPlainObject(parsed) && typeof parsed.version === 'number' && parsed.version > SAVE_VERSION;
+}
+
+function readBackup(storage, kind) {
+  try {
+    const w = parseOrNull(storage.getItem(BACKUP_KEYS[kind]));
+    if (!isPlainObject(w) || typeof w.raw !== 'string' || !w.raw) return null;
+    return { at: asFiniteNonNeg(w.at, null), raw: w.raw };
+  } catch (err) {
+    console.warn('Whisker Walk: could not read save backup', err);
+    return null;
+  }
+}
+// Never throws: a failed backup must not stop the game loading or playing.
+function writeBackup(storage, kind, raw) {
+  try {
+    storage.setItem(BACKUP_KEYS[kind], JSON.stringify({ at: Date.now(), raw }));
+    return true;
+  } catch (err) {
+    console.warn('Whisker Walk: could not write save backup', err);
+    return false;
+  }
+}
+function removeBackup(storage, kind) {
+  try { storage.removeItem?.(BACKUP_KEYS[kind]); } catch (err) { console.warn('Whisker Walk: could not clear save backup', err); }
+}
+// The first unreadable save is kept until it is restored: a later one only
+// replaces it when the kept copy is not even JSON and the new one is.
+function backUpUnreadable(storage, raw) {
+  const kept = readBackup(storage, 'unreadable');
+  if (kept && (kept.raw === raw || isPlainObject(parseOrNull(kept.raw)) || !isPlainObject(parseOrNull(raw)))) return;
+  writeBackup(storage, 'unreadable', raw);
+}
+// The current raw save, or null (absent, or storage refused).
+function readRaw(storage) {
+  try { return storage.getItem(SAVE_KEY); } catch { return null; }
+}
+
 // Shared by createProgression's initial load AND replaceFromPayload below —
 // a cloud-loaded (or otherwise externally supplied) save must go through
 // the exact same parse/version-migration/sanitize path as a normal boot,
@@ -1022,9 +1082,16 @@ function retireCats(parsed) {
 // save, so the caller must persist it now (the marker only protects against a
 // second refund once it is on disk); `farewell` is the retired cat id the
 // player had equipped, if any.
+//
+// A save it cannot read is copied to the unreadable backup before anything
+// can write over it, and `failed` is set. One from a newer version of the game
+// also sets `keepMain`: this build plays fresh but must not write over it, so
+// the newer build finds it untouched (a stale cached build is the likely way
+// to get here).
 function loadState(storage) {
+  let raw = null;
   try {
-    const raw = storage.getItem(SAVE_KEY);
+    raw = storage.getItem(SAVE_KEY);
     if (raw) {
       const first = JSON.parse(raw);
       const { parsed, farewell } = retireCats(first);
@@ -1037,10 +1104,18 @@ function loadState(storage) {
       if (parsed && parsed.version === 2) {
         return { state: migrateV3ToV4({ ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {}, petName: null }), changed, farewell };
       }
+      backUpUnreadable(storage, raw);
+      if (newerSave(first)) {
+        console.warn('Whisker Walk: save is from a newer version, keeping it and starting fresh');
+        return { state: defaultState(), changed: false, farewell: null, failed: true, keepMain: true };
+      }
       console.warn('Whisker Walk: incompatible save, starting fresh');
+      return { state: defaultState(), changed: false, farewell: null, failed: true };
     }
   } catch (err) {
+    if (raw) backUpUnreadable(storage, raw);
     console.warn('Whisker Walk: could not read save, starting fresh', err);
+    if (raw) return { state: defaultState(), changed: false, farewell: null, failed: true };
   }
   return { state: defaultState(), changed: false, farewell: null };
 }
@@ -1051,8 +1126,13 @@ export function createProgression(storage) {
   let pendingFarewell = null;
   // Moves the sanitiser added on load wait here for takeNewMoves (R18).
   let pendingMoves = [];
+  // A newer version's save is on the main key: leave it be (see loadState).
+  // Only an explicit Start over, cloud load or restore writes over it, and
+  // each of those keeps its own copy first.
+  let keepMain = false;
 
   const save = () => {
+    if (keepMain) return;
     try {
       storage.setItem(SAVE_KEY, JSON.stringify(state));
     } catch (err) {
@@ -1065,6 +1145,7 @@ export function createProgression(storage) {
   // One write either way (Polish 3: the farewell path used to write twice).
   const adopt = (loaded) => {
     state = loaded.state;
+    keepMain = !!loaded.keepMain;
     for (const id of ADDED_MOVES.get(state) ?? []) if (!pendingMoves.includes(id)) pendingMoves.push(id);
     if (loaded.farewell) {
       // The line names the preset that takes over, so it must be the one walked.
@@ -1073,7 +1154,14 @@ export function createProgression(storage) {
     }
     if (loaded.changed || loaded.farewell) save();
   };
-  adopt(loadState(storage));
+  {
+    const raw = readRaw(storage);
+    const loaded = loadState(storage);
+    adopt(loaded);
+    // The kept unreadable copy is the very save this build just read (a
+    // newer version's, now that the game caught up): it is in use again.
+    if (raw && !loaded.failed && readBackup(storage, 'unreadable')?.raw === raw) removeBackup(storage, 'unreadable');
+  }
 
   // Settle each verdict from `colony`; true when something was written.
   // A stored verdict is kept unless the new pick is STRICTLY earlier than it,
@@ -1572,7 +1660,14 @@ export function createProgression(storage) {
       }
       return false;
     },
+    // Start over keeps a copy of what it erases. A save with no lifetime
+    // points (a second Start over in a row) never replaces a kept copy.
     reset() {
+      const raw = readRaw(storage);
+      if (raw && !(readBackup(storage, 'reset') && summarizeSaveForPreview(parseOrNull(raw)).lifetimePoints === 0)) {
+        writeBackup(storage, 'reset', raw);
+      }
+      keepMain = false;
       state = defaultState();
       save();
     },
@@ -2138,6 +2233,9 @@ export function createProgression(storage) {
       const localUsage = state.usage;
       const localFights = state.fightsWon;
       const localMoves = state.fightMoves;
+      // What this device had is kept first, so the load can be undone.
+      const before = readRaw(storage);
+      if (before) writeBackup(storage, 'cloud', before);
       try {
         storage.setItem(SAVE_KEY, JSON.stringify(rawSaveObject));
       } catch (err) {
@@ -2165,6 +2263,53 @@ export function createProgression(storage) {
       // A move this phone already had is not new to her.
       pendingMoves = pendingMoves.filter((id) => !localMoves.includes(id));
       save();
+    },
+    // The backups that exist, for the Cloud save sheet: [{ kind, at, newer,
+    // restorable, points, lifetimePoints }]. `at` is ms or null; the numbers
+    // are null when the copy is not a save at all.
+    backupInfo() {
+      const out = [];
+      for (const kind of Object.keys(BACKUP_KEYS)) {
+        const b = readBackup(storage, kind);
+        if (!b) continue;
+        const parsed = parseOrNull(b.raw);
+        const s = isPlainObject(parsed) ? summarizeSaveForPreview(parsed) : null;
+        out.push({
+          kind, at: b.at, newer: newerSave(parsed), restorable: readableSave(parsed),
+          points: s ? s.points : null, lifetimePoints: s ? s.lifetimePoints : null,
+        });
+      }
+      return out;
+    },
+    // Put one backup back as the save, through the same loadState a boot
+    // uses. The save it replaces is kept as the 'restore' copy first (so a
+    // restore can be undone); if that copy cannot be kept, nothing changes.
+    // A used copy is cleared; restoring 'restore' itself swaps the two.
+    // Returns whether the save was replaced.
+    restoreBackup(kind) {
+      if (!Object.hasOwn(BACKUP_KEYS, kind)) return false;
+      const b = readBackup(storage, kind);
+      if (!b || !readableSave(parseOrNull(b.raw))) return false;
+      const before = readRaw(storage);
+      if (before && before !== b.raw && !writeBackup(storage, 'restore', before)) return false;
+      try {
+        storage.setItem(SAVE_KEY, b.raw);
+      } catch (err) {
+        console.warn('Whisker Walk: could not restore save backup', err);
+        return false;
+      }
+      const loaded = loadState(storage);
+      if (loaded.failed) {
+        try {
+          if (before) storage.setItem(SAVE_KEY, before); else storage.removeItem?.(SAVE_KEY);
+        } catch (err) {
+          console.warn('Whisker Walk: could not put the save back', err);
+        }
+        return false;
+      }
+      if (kind !== 'restore') removeBackup(storage, kind);
+      adopt(loaded);
+      return true;
     },
     // The one-time gentle line after a retired cat was equipped, then null.
     takeFarewell() {
