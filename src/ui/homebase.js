@@ -1121,9 +1121,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       // Start from any dock reads that choice (duskWanted).
       const dock = door || GROWNUP_SHEETS.includes(openSheet) ? 'none' : openSheet === 'together' ? 'full' : 'slim';
       const back = backTo === 'menu' ? '← Back to the menu' : '← Back to my cat';
+      // From a sheet the Menu opened, home is two Backs: a cat face at the
+      // row's right goes straight there.
+      const home = backTo === 'menu'
+        ? '<button id="hb-home" class="hb-home" type="button" aria-label="Back to my cat"><span aria-hidden="true">🐱</span></button>' : '';
       root.innerHTML = `
       <div class="homebase-scroll hb-sheet${door ? ' hb-door' : ''}" data-sheet="${escapeHtml(openSheet)}">
-        <button id="hb-back" class="hb-back">${back}</button>
+        <div class="hb-sheet-head"><button id="hb-back" class="hb-back">${back}</button>${home}</div>
         ${renderSheetBody(openSheet, s, colonyStatus, roomState)}
         ${dock === 'none' ? '' : `<footer class="hb-sheet-dock">
           <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
@@ -1192,6 +1196,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (dressing && dressing.handleClick(e)) return;
     if (e.target.closest?.('#hb-back')) {
       setSheet(backTo);
+      return;
+    }
+    if (e.target.closest?.('#hb-home')) {
+      setSheet(null);
       return;
     }
     // Change place's clan line (Choose, or Change once picked): the cards again.

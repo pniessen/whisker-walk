@@ -214,6 +214,32 @@ describe('the Menu', () => {
     openSheet('settings');
     expect(html()).toContain('← Back to the menu');
   });
+  it('a sheet opened from the Menu has a cat-face Home at the right of the Back row, which goes to the cat', () => {
+    setup();
+    openSheet('menu');
+    openSheet('journal');
+    const h = html();
+    const row = '<div class="hb-sheet-head"><button id="hb-back" class="hb-back">← Back to the menu</button>'
+      + '<button id="hb-home" class="hb-home" type="button" aria-label="Back to my cat"><span aria-hidden="true">🐱</span></button></div>';
+    expect(h).toContain(row);
+    clickRoot({ '#hb-home': {} });
+    expect(html()).not.toContain('data-sheet=');
+  });
+  it('no Home button where Back already goes home (the Menu, Change place, a sheet opened directly)', () => {
+    setup();
+    for (const id of ['menu', 'places', 'settings']) {
+      openSheet(null);
+      openSheet(id);
+      expect(html()).toContain('← Back to my cat');
+      expect(html()).not.toContain('id="hb-home"');
+    }
+  });
+  it('the Home button is at least 44px', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.slice(css.indexOf('.hb-sheet .hb-home {'), css.indexOf('}', css.indexOf('.hb-sheet .hb-home {')));
+    expect(rule).toMatch(/width: 48px; height: 48px;/);
+  });
   it('a sheet opened directly (not from the Menu) goes back to the cat', () => {
     setup();
     openSheet('settings');

@@ -1420,6 +1420,13 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   padding: 8px 16px; border: 1.5px solid #5b6c88; border-radius: 999px; background: transparent;
   color: #f1e0c2; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
 .hb-back { align-self: flex-start; }
+/* the header row: Back on the left, and (from a Menu sheet) a cat-face Home on the right */
+.hb-sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.hb-sheet .hb-home { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px;
+  margin-bottom: 14px; padding: 0; border: 1.5px solid #5b6c88; border-radius: 50%; background: transparent;
+  font-size: 24px; line-height: 1; cursor: pointer; }
+.hb-sheet .hb-home:hover { background: rgba(255, 255, 255, .06); }
+.hb-sheet .hb-home:focus-visible { outline: 3px solid #f1e0c2; outline-offset: 2px; }
 .homebase-scroll.hb-sheet { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 0; }
 .homebase-scroll.hb-door { padding-bottom: 24px; }
 .hb-sheet-dock { position: sticky; bottom: 0; z-index: 2; margin: auto -20px 0; display: flex; flex-wrap: wrap;
