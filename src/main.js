@@ -31,6 +31,7 @@ import { createAvatarUpdater } from './game/avatar.js';
 import { createRooms } from './game/rooms.js';
 import { createComposerRig } from './game/composer.js';
 import { createQualityAdapter } from './game/adaptquality.js';
+import { parseForcedRung } from './render/quality.js';
 import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
@@ -152,7 +153,11 @@ function init() {
   // Adaptive Auto quality: every device starts a walk on the high rung and
   // steps down live if its frames stay slow; the step is remembered per
   // device in localStorage['whisker-walk-adapt'] (never the save).
-  const qualityAdapter = createQualityAdapter({ renderer, composerRig, storage: window.localStorage });
+  // ?rung=N holds Auto on rung N for this page load (testing; never saved).
+  const qualityAdapter = createQualityAdapter({
+    renderer, composerRig, storage: window.localStorage,
+    forcedRung: parseForcedRung(location.search),
+  });
   const perfHud = createPerfHud({ renderer, settings, coarse, adapter: qualityAdapter });
   const log = createDiscoveryLog(progression);
 

@@ -161,6 +161,25 @@ export function resolveQuality({ reducedMotion, override, rung = 0 } = {}) {
   return LADDER[Math.min(FLOOR_RUNG, Math.max(0, r))];
 }
 
+// ?rung=N, for looking at a rung on a device that would never reach it by
+// itself (nobody has a slow enough device to hand): Auto starts on rung N and
+// stays there for the whole page load. It never steps and never reads or
+// writes the adapt memory (game/adaptquality.js), so a look at the floor on a
+// fast phone leaves no trace. Returns the rung, or null when the switch is
+// absent or is not a whole number; a number past the last rung means the
+// last rung. `search` is location.search (the iOS app passes it too: see
+// AppScheme.startURL in ios/).
+export function parseForcedRung(search, maxRung = FLOOR_RUNG) {
+  let text = null;
+  try {
+    text = new URLSearchParams(search ?? '').get('rung');
+  } catch {
+    return null;
+  }
+  if (text == null || !/^\d{1,3}$/.test(text.trim())) return null;
+  return Math.min(maxRung, Number(text.trim()));
+}
+
 // True when the governor may move the rung during a walk.
 export function isAdaptive({ reducedMotion, override } = {}) {
   return override === 'auto' && !reducedMotion;

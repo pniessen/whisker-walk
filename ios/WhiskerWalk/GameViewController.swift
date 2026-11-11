@@ -76,7 +76,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        webView.load(URLRequest(url: AppScheme.startURL))
+        webView.load(URLRequest(url: AppScheme.launchURL))
         NotificationCenter.default.addObserver(self, selector: #selector(appBecameActive),
                                                name: UIApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive),
@@ -204,7 +204,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         switch CrashRecovery.action(currentURL: webView.url) {
         case .reload: webView.reload()
-        case .loadStart: webView.load(URLRequest(url: AppScheme.startURL))
+        case .loadStart: webView.load(URLRequest(url: AppScheme.launchURL))
         }
     }
 

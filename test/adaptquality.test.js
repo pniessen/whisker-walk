@@ -32,7 +32,7 @@ function stored(storage) {
 const DAY = 86_400_000;
 const WALL = 100 * DAY;
 
-function setup({ memory, storage, dpr = 3 } = {}) {
+function setup({ memory, storage, dpr = 3, ...more } = {}) {
   const renderer = fakeRenderer();
   const composerRig = fakeRig();
   const store = storage ?? fakeStorage(memory);
@@ -40,6 +40,7 @@ function setup({ memory, storage, dpr = 3 } = {}) {
     renderer, composerRig, storage: store,
     devicePixelRatio: () => dpr,
     wallClock: () => WALL,
+    ...more,
   });
   return { adapter, renderer, composerRig, storage: store };
 }
@@ -349,6 +350,50 @@ describe('status.mode (F5)', () => {
     adapter.beginWalk({ override: 'low', reducedMotion: false, nowMs: 0 });
     expect(adapter.status.mode).toBe('manual');
     adapter.beginWalk({ override: 'auto', reducedMotion: true, nowMs: 0 });
+    expect(adapter.status.mode).toBe('reduced-motion');
+  });
+});
+
+describe('a forced rung (?rung=N)', () => {
+  it('starts Auto on that rung, never steps, and never reads or writes storage', () => {
+    const { adapter, renderer, storage } = setup({
+      forcedRung: 2,
+      memory: { rung: 1, steppedAt: WALL - DAY, walks: 2, waitDays: 7, retrying: false },
+    });
+    const before = storage.map.get(MEMORY_KEY);
+    const session = { useComposer: false };
+    const tier = adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    expect(tier).toBe(LADDER[2]);
+    expect(renderer.getPixelRatio()).toBe(1.5);
+    expect(adapter.status).toMatchObject({ mode: 'forced', rung: 2, startRung: 2, startReason: 'forced', change: '' });
+    run(adapter, session, 0, 60_000, 40);
+    expect(adapter.status).toMatchObject({ mode: 'forced', rung: 2, change: '' });
+    expect(storage.getItem).not.toHaveBeenCalled();
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(storage.map.get(MEMORY_KEY)).toBe(before);
+  });
+
+  it('holds for every walk of the page load', () => {
+    const { adapter } = setup({ forcedRung: 3 });
+    expect(adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 })).toBe(LADDER[3]);
+    expect(adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 9000 })).toBe(LADDER[3]);
+  });
+
+  it('rung 0 forced is still forced: a slow walk does not step', () => {
+    const { adapter, storage } = setup({ forcedRung: 0 });
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    run(adapter, { useComposer: true }, 0, 30_000, 40);
+    expect(adapter.status).toMatchObject({ mode: 'forced', rung: 0 });
+    expect(storage.setItem).not.toHaveBeenCalled();
+  });
+
+  it('manual High/Low and reduced motion keep their meaning', () => {
+    const { adapter } = setup({ forcedRung: 2 });
+    expect(adapter.beginWalk({ override: 'high', reducedMotion: false, nowMs: 0 })).toBe(LADDER[0]);
+    expect(adapter.status.mode).toBe('manual');
+    expect(adapter.beginWalk({ override: 'low', reducedMotion: false, nowMs: 0 })).toBe(LADDER[3]);
+    expect(adapter.status.mode).toBe('manual');
+    expect(adapter.beginWalk({ override: 'auto', reducedMotion: true, nowMs: 0 })).toBe(LADDER[3]);
     expect(adapter.status.mode).toBe('reduced-motion');
   });
 });

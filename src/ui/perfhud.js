@@ -9,6 +9,7 @@
 // stats and reuses one snapshot object. Strings are built only in the 500 ms
 // text refresh, so measuring does not disturb what is being measured.
 import { createFrameStats, createRenderCounter } from '../render/perfstats.js';
+import { FLOOR_RUNG } from '../render/quality.js';
 
 const REFRESH_MS = 500;
 const DASH = '–';
@@ -39,7 +40,9 @@ export function formatAdapt(st) {
   if (!st) return DASH;
   if (st.mode === 'manual') return 'manual';
   if (st.mode === 'reduced-motion') return 'reduced motion';
-  const base = `auto rung ${st.rung}/3 · start ${st.startRung} (${st.startReason})`;
+  // ?rung=N: held there for the page load, nothing stepped or remembered.
+  if (st.mode === 'forced') return `forced rung ${st.rung}/${FLOOR_RUNG} (?rung)`;
+  const base = `auto rung ${st.rung}/${FLOOR_RUNG} · start ${st.startRung} (${st.startReason})`;
   return st.change ? `${base} · ${st.change}` : base;
 }
 

@@ -18,6 +18,9 @@
 // frame() must run BEFORE the frame's draw: a pixel-ratio change clears the
 // canvas, and after the draw that would present a blank frame.
 // Manual High/Low and reduced motion never adapt and never touch storage.
+// Neither does a forced rung (?rung=N, quality.js parseForcedRung): with the
+// setting on Auto, every walk of the page load starts on that rung and stays
+// there. It is how a rung is looked at on a device too fast to reach it.
 
 import { resolveQuality, isAdaptive, LADDER, FLOOR_RUNG } from '../render/quality.js';
 import {
@@ -34,6 +37,7 @@ export function createQualityAdapter({
   storage,
   devicePixelRatio = () => window.devicePixelRatio,
   wallClock = () => Date.now(),
+  forcedRung = null,
 }) {
   const governor = createFrameGovernor();
   // One object, mutated in place, so a HUD can hold on to it.
@@ -65,7 +69,17 @@ export function createQualityAdapter({
     adaptive = isAdaptive({ override, reducedMotion });
 
     let tier;
-    if (adaptive) {
+    if (adaptive && forcedRung != null) {
+      // Forced: Auto's ladder, but no governor and no memory. `adaptive` off
+      // is what keeps frame() from sampling; storage is not even read.
+      adaptive = false;
+      mem = null;
+      startMem = null;
+      retryPending = false;
+      tier = resolveQuality({ reducedMotion, override, rung: forcedRung });
+      status.mode = 'forced';
+      status.startReason = 'forced';
+    } else if (adaptive) {
       const plan = planWalkStart(readMemory(storage), wallClock());
       mem = plan.mem;
       startMem = { ...mem };

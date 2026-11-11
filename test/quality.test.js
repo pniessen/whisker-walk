@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveQuality, isAdaptive, LADDER, FLOOR_RUNG } from '../src/render/quality.js';
+import { resolveQuality, isAdaptive, LADDER, FLOOR_RUNG, parseForcedRung } from '../src/render/quality.js';
 
 const high = { name: 'high', rung: 0, strays: 22, shadowMapSize: 2048, envIntensity: 0.45, postFx: true, pixelRatioCap: 2, msaaSamples: 4, shadowFitRadius: 20, normalMaps: true, grassRadius: 9, grassSpacing: 0.3, pawPrints: 96, pawFade: 9, cloudCount: 10, ambientScale: 1, splashDrops: 64, splashRings: 32 };
 const low  = { name: 'low',  rung: 3, strays: 14, shadowMapSize: 1024, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5, msaaSamples: 0, shadowFitRadius: 20, normalMaps: false, grassRadius: 6, grassSpacing: 0.42, pawPrints: 48, pawFade: 6, cloudCount: 6, ambientScale: 0.5, splashDrops: 32, splashRings: 20 };
@@ -106,5 +106,32 @@ describe('the quality ladder', () => {
     expect(isAdaptive({ override: 'auto', reducedMotion: true })).toBe(false);
     expect(isAdaptive({ override: 'high', reducedMotion: false })).toBe(false);
     expect(isAdaptive({ override: 'low', reducedMotion: false })).toBe(false);
+  });
+});
+
+// ?rung=N holds Auto on one rung for a page load, so a rung can be looked at
+// on a device that would never step down to it.
+describe('parseForcedRung', () => {
+  it('reads a whole number from the query string', () => {
+    expect(parseForcedRung('?rung=0')).toBe(0);
+    expect(parseForcedRung('?rung=2')).toBe(2);
+    expect(parseForcedRung('?perf&rung=3')).toBe(3);
+    expect(parseForcedRung('rung=1')).toBe(1);
+  });
+  it('is null when the switch is absent or is not a whole number', () => {
+    expect(parseForcedRung('')).toBeNull();
+    expect(parseForcedRung('?perf')).toBeNull();
+    expect(parseForcedRung(undefined)).toBeNull();
+    expect(parseForcedRung(null)).toBeNull();
+    expect(parseForcedRung('?rung')).toBeNull();
+    expect(parseForcedRung('?rung=')).toBeNull();
+    expect(parseForcedRung('?rung=low')).toBeNull();
+    expect(parseForcedRung('?rung=-1')).toBeNull();
+    expect(parseForcedRung('?rung=1.5')).toBeNull();
+    expect(parseForcedRung('?rung=1e2')).toBeNull();
+  });
+  it('a number past the last rung means the last rung', () => {
+    expect(parseForcedRung('?rung=99')).toBe(FLOOR_RUNG);
+    expect(parseForcedRung('?rung=99', 2)).toBe(2);
   });
 });

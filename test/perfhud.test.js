@@ -150,6 +150,14 @@ describe('createPerfHud', () => {
     expect(line(4)).toBe('auto rung 1/3 · start 0 (top) · 0→1: 72% of frames over 20 ms for 4 s');
   });
 
+  it('says a forced rung is forced', () => {
+    hud.setEnabled(true);
+    Object.assign(adapter.status, { mode: 'forced', rung: 2, startRung: 2, startReason: 'forced' });
+    hud.frameStart(1000, session);
+    hud.frameEnd(session, 1002);
+    expect(line(4)).toBe('forced rung 2/3 (?rung)');
+  });
+
   it('says manual or reduced motion with no rung', () => {
     hud.setEnabled(true);
     Object.assign(adapter.status, { mode: 'manual', rung: 3, startRung: 3, startReason: 'manual' });
