@@ -104,6 +104,16 @@ describe('Settings: the edition row', () => {
     expect(doc.root.innerHTML).toMatch(/<option value="legacy" selected>Legacy Edition<\/option>/);
   });
 
+  it('says in one line under the select what switching does', () => {
+    setup();
+    openSheet('settings');
+    const html = doc.root.innerHTML;
+    const line = `<p class="settings-note" id="set-edition-note">Switching renames the places and shows or hides the ${CLAN_SUFFIX.toLowerCase()} territories. Nothing is lost.</p>`;
+    expect(html).toContain(line);
+    expect(html.indexOf(line)).toBeGreaterThan(html.indexOf('id="set-edition"'));
+    expect(html.indexOf(line)).toBeLessThan(html.indexOf('id="set-quality"'));
+  });
+
   it('the Settings edition control calls setEdition with the chosen value', () => {
     const { progression } = setup();
     openSheet('settings');
