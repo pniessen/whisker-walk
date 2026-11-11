@@ -5,14 +5,9 @@
 // passes `blocked` (another card is up) and its other cards wait while this
 // one is open.
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
+import { escapeHtml as esc } from '../escapehtml.js';
 
 export const CONFIRM_ATTR = 'data-confirm';
-
-function esc(str) {
-  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
 
 // The card's markup. "Not now" comes first and takes focus: the safe answer
 // is the one an Enter or a stray tap reaches.

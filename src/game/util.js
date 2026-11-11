@@ -9,11 +9,7 @@ export const nowSec = () => performance.now() / 1000;
 // petNames arrive over the network from other players' clients, which may
 // not have enforced validPetName themselves — escape before interpolating
 // into innerHTML (the summary card's "walked with" line).
-export function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
+export { escapeHtml } from '../escapehtml.js';
 
 // volume factor for a remote meow/cluck event: full volume within earshot
 // (<=8 units), fading linearly down to a quiet 0.2 floor by 40 units.

@@ -5,17 +5,13 @@
 import { HOMES, clanName, picksOf, isClanId } from '../clanhomes.js';
 import { HOME_LINES, CLAN_SUFFIX } from '../clanwords.js';
 import { TERRITORIES } from '../territories.js';
+import { escapeHtml } from '../escapehtml.js';
 
 const clanWord = CLAN_SUFFIX.toLowerCase();
 // Names that would spell the word as a hyphen-bounded literal are composed.
 export const PICK_ATTR = `data-${clanWord}-pick`;
 export const PICK_SELECT_ID = `set-${clanWord}-pick`;
 
-function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
 
 // One small hand-drawn emblem per clan, in its dark gradient colour, for the
 // cream badge on its card. Keyed by territory id; an unknown id gets none.
