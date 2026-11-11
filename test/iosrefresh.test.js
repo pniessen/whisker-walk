@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory } from '../ios/refresh-lib.mjs';
+import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory, cloudProblem } from '../ios/refresh-lib.mjs';
 
 // The refresh (ios/refresh.mjs) reinstalls the iOS app on every family
 // device. These are its decisions: what may be built, which devices count,
@@ -195,5 +195,27 @@ describe('updateHistory', () => {
     const results = [{ name: 'Dad', udid: 'P', status: 'installed' }, { name: 'Iris', udid: 'S', status: 'skipped' }];
     expect(updateHistory({ S: '2026-11-14T09:00:00Z', P: '2026-11-12T00:00:00Z' }, results, expiry))
       .toEqual({ S: '2026-11-14T09:00:00Z', P: '2026-11-17T09:00:00.000Z' });
+  });
+});
+
+// The cloud settings are baked into the game when it is built. A build
+// without them has no Save tile, so a child can't bring a cat across or
+// restore a deleted app: the refresh must never ship one.
+describe('cloudProblem: never ship a game without cloud saves', () => {
+  const env = { VITE_SUPABASE_URL: 'https://abcd.supabase.co', VITE_SUPABASE_ANON_KEY: 'anon-key' };
+  it('passes when both settings are set', () => {
+    expect(cloudProblem(env)).toBeNull();
+  });
+  it('refuses when the settings are missing, naming where they go', () => {
+    expect(cloudProblem({})).toMatch(/cloud saves.*\.env\.local/);
+  });
+  it('refuses when one setting is blank', () => {
+    expect(cloudProblem({ ...env, VITE_SUPABASE_ANON_KEY: '  ' })).toMatch(/VITE_SUPABASE_ANON_KEY/);
+  });
+  it('passes a built game that contains the cloud address', () => {
+    expect(cloudProblem(env, 'const u="https://abcd.supabase.co";')).toBeNull();
+  });
+  it('refuses a built game that left the cloud address out', () => {
+    expect(cloudProblem(env, 'const u=void 0;')).toMatch(/left out cloud saves/);
   });
 });

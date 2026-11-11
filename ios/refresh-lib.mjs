@@ -117,3 +117,22 @@ export function summarize(results, expiry, now, history = {}) {
   const failed = results.some((r) => r.status === 'failed');
   return { lines, exitCode: installed && !failed ? 0 : 1 };
 }
+
+/** The settings that switch on cloud saves, baked into the game at build time. */
+export const CLOUD_KEYS = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
+
+/**
+ * Why this build would ship a game without cloud saves, or null if it won't.
+ * `env` is what Vite will build with; `bundle`, when given, is the built
+ * game's script text, which must contain the cloud address.
+ */
+export function cloudProblem(env, bundle) {
+  const missing = CLOUD_KEYS.filter((k) => !String(env[k] ?? '').trim());
+  if (missing.length > 0) {
+    return `cloud saves aren't set up: ${missing.join(' and ')} missing from .env.local`;
+  }
+  if (bundle !== undefined && !bundle.includes(env.VITE_SUPABASE_URL.trim())) {
+    return 'the game build left out cloud saves';
+  }
+  return null;
+}
