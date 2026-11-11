@@ -64,7 +64,7 @@ import { createScent } from '../scent.js';
 import { createToy } from '../toy.js';
 import { createQuest } from '../quests.js';
 import { QUEST_TRAIL_COLOR } from '../questscent.js';
-import { createGoals } from '../goals.js';
+import { createGoals, GOAL_POOL } from '../goals.js';
 import { rankFor, CATALOG } from '../progression.js';
 import { catsInArea, colonyWear, denResidents, denMoment } from '../colony.js';
 import { createDenCats } from '../dencats.js';
@@ -445,7 +445,9 @@ export function createWalkLifecycle({
     // which is why it lives here and not in each caller. A no-op when nothing
     // is pending, so a cycle-back's outfit is never touched; the card itself
     // still closes with 'walk' in getHomebase().hide() below.
-    progression.wearPendingVisitPrize();
+    // (Not on a walk picked up again: that launch is not a new visit, and a
+    // prize put on now could change the walk being rebuilt, dusk included.)
+    if (!resume) progression.wearPendingVisitPrize();
     // Read ONCE per walk, here, and passed down from this one place. Every
     // system below that cares (fx, skyLife, weather, and now the water and the
     // wind) wants the same answer, and the two new ones are on the 60Hz path —
@@ -493,8 +495,9 @@ export function createWalkLifecycle({
     //
     // Solo, the stream is seeded as well (mid-walk resume): the seed is noted
     // while the walk is on, and a walk picked up again draws the same weather,
-    // secrets, quest and goals from it. Nobody shares a solo seed, so draw
-    // order still does not matter solo. soloSeed is undefined in a room walk.
+    // secrets, quest and goals from it. So draw order now matters solo too:
+    // a solo draw that depends on the save must not sit on this stream (see
+    // soloGiftRng). soloSeed is undefined in a room walk.
     const soloSeed = roomSeed === undefined ? (resume?.seed ?? newWalkSeed()) : undefined;
     const walkRng = mulberry32(roomSeed ?? soloSeed);
     const state = progression.state;
@@ -1095,12 +1098,19 @@ export function createWalkLifecycle({
       : NO_DEN_CATS;
 
     if (roomSeed === undefined) {
+      const soloGiftRng = mulberry32((soloSeed ^ 0x61f75a3) >>> 0);
       for (const stray of strayCats.strays) {
         // CF-7: was a bare Math.random(). Harmless as written — this whole
         // block is already solo-only, where walkRng IS Math.random — but the
         // guard and the roll were two separate facts a future edit could
         // separate, so the roll now names the walk's stream explicitly.
-        if (progression.friendLevel(stray.name) === 'best' && walkRng() < 0.3) stray.hasGift = true;
+        //
+        // Mid-walk resume: these draws (and the found gift's below) depend on
+        // the save, which changes during a walk: a new best friend or a first
+        // stashed gift would shift every walkRng draw after them on a walk
+        // picked up again. So solo they have a stream of their own, and the
+        // scent and the goals behind them draw the same either way.
+        if (progression.friendLevel(stray.name) === 'best' && soloGiftRng() < 0.3) stray.hasGift = true;
       }
       // ...and at most ONE stashed gift may be found this walk. Solo-only,
       // exactly like the best-friend roll above: the draw is conditional on
@@ -1114,9 +1124,9 @@ export function createWalkLifecycle({
       // first is what keeps the ability from being dead for an offline
       // player. claimGift() is the single point of truth for the payout, so
       // the hand-over can never award twice.
-      const found = pickFoundGift(walkRng, gifts.list);
+      const found = pickFoundGift(soloGiftRng, gifts.list);
       if (found && strayCats.strays.length) {
-        const finder = strayCats.strays[Math.floor(walkRng() * strayCats.strays.length)];
+        const finder = strayCats.strays[Math.floor(soloGiftRng() * strayCats.strays.length)];
         if (finder) finder.foundGift = found;
       }
     }
@@ -1321,7 +1331,7 @@ export function createWalkLifecycle({
     // endWalk's goalsDone/summary) treats a null goals as "this walk has no
     // goal HUD" rather than crashing on it.
     const goals = isDen ? null : createGoals(walkRng, areaData);
-    if (resume) restoreGoals(goals, resume.goals);
+    if (resume) restoreGoals(goals, resume.goals, GOAL_POOL);
     // Co-walk duo goal (Task 6.2): both clients derive this from the SAME
     // seeded goal pool + walkRng draw, then deterministically overwrite
     // slot 0 with an identical shared goal — no extra wire event needed to
@@ -1459,7 +1469,7 @@ export function createWalkLifecycle({
       // walk in progress. game/interactions.js reads it as s.enemies, and
       // optional-calls it so a stand-in session in a test simply never
       // scuffles rather than crashing.
-      enemies: createEnemyWalkLog(),
+      enemies: createEnemyWalkLog(resume?.enemies),
       scent,
       quest, questGiver, questObject,
       walk: { carried: 0, carryCap: equipped.back === 'backpack' ? 3 : 2 },
@@ -1974,6 +1984,8 @@ export function createWalkLifecycle({
     session.minimapShown = null;
 
     log.startWalk();
+    // A walk picked up again has already paid for what it paid for.
+    if (resume) log.restore(resume.paid);
     hud.show();
     hud.setArea(placeName(areaId, progression.state.edition, CATALOG) || areaData.name);
     // Kittypets: the arrival line waits for the walk to start (the Ready? card

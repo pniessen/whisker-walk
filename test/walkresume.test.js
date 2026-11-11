@@ -4,7 +4,9 @@ import {
   newWalkSeed, snapshotWalk, readResume, writeResume, clearResume, markTried,
   restoreGoals, restoreTallies, settleAbandoned, resumeWelcome,
 } from '../src/game/walkresume.js';
-import { createGoals } from '../src/goals.js';
+import { createGoals, GOAL_POOL } from '../src/goals.js';
+import { createEnemyWalkLog } from '../src/enemies.js';
+import { createDiscoveryLog } from '../src/discoveries.js';
 import { createProgression } from '../src/progression.js';
 import { mulberry32 } from '../src/rng.js';
 
@@ -43,11 +45,13 @@ function session(over = {}) {
       { id: 'greet-cats', progress: 2, done: false, target: 3 },
       { id: 'box-sit', progress: 0, done: false, target: 1 },
     ] },
+    enemies: createEnemyWalkLog({ scuffled: ['Biscuit'], forgiven: ['Biscuit'] }),
     resumeTries: 0,
     ...over,
   };
 }
-const snap = (over) => snapshotWalk(session(over), { yaw: 1.25, now: NOW });
+const PAID = [['tip-bin-1', 1], ['greet-Biscuit', 2]];
+const snap = (over) => snapshotWalk(session(over), { yaw: 1.25, now: NOW, paid: PAID });
 
 describe('snapshotWalk', () => {
   it('notes the place, the spot, the tallies and what was picked up', () => {
@@ -65,6 +69,8 @@ describe('snapshotWalk', () => {
         { id: 'greet-cats', progress: 2, done: false },
         { id: 'box-sit', progress: 0, done: false },
       ],
+      paid: [['tip-bin-1', 1], ['greet-Biscuit', 2]],
+      enemies: { scuffled: ['Biscuit'], forgiven: ['Biscuit'] },
     });
   });
 
@@ -137,7 +143,7 @@ describe('readResume', () => {
       ...snap(), yaw: 'north', discoveries: -3, greeted: 1e12, carried: 2.5,
       clanPaid: { friend: 'lots' }, collected: ['c1', 7, 'c3'], scenics: 'all',
       goals: [{ id: 'collect', progress: 2, done: true }, { progress: 1 }, 'x'], tries: 'many',
-      stamp: 42,
+      stamp: 42, paid: [['tip-1', 1], ['bad'], ['neg', -1], [7, 1], 'x'], enemies: { scuffled: 'all', forgiven: ['Biscuit', 3] },
     }));
     const { data } = read(storage);
     expect(data).toMatchObject({
@@ -145,6 +151,8 @@ describe('readResume', () => {
       clanPaid: { friend: 0, boop: 0, patrol: 0 },
       collected: ['c1', 'c3'], scenics: [],
       goals: [{ id: 'collect', progress: 2, done: true }],
+      paid: [['tip-1', 1]],
+      enemies: { scuffled: [], forgiven: ['Biscuit'] },
     });
     expect(data.stamp).toBe('walk-' + data.at);
   });
@@ -267,5 +275,69 @@ describe('small pieces', () => {
     expect(resumeWelcome('The Woods')).toBe('Welcome back! Your walk in the Woods is right where you left it.');
     expect(resumeWelcome('Seaside')).toBe('Welcome back! Your walk in Seaside is right where you left it.');
     expect(resumeWelcome('')).toBe('Welcome back! Your walk is right where you left it.');
+  });
+});
+
+describe('what a picked-up walk must not pay for twice', () => {
+  it('the discovery log hands over what the walk has paid for, and takes it back', () => {
+    const progression = { points: 0, addPoints(n) { this.points += n; } };
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    expect(log.awardOnce('mischief', 'tip-bin-1', 'tipped a bin')).toBe(4);
+    log.award('friend', 'greet-Biscuit', 'greeted Biscuit');
+    const paid = log.entries();
+    expect(paid).toEqual([['tip-bin-1', 1], ['greet-Biscuit', 1]]);
+
+    // the game is closed and opened: a fresh log, the walk rebuilt
+    const again = createDiscoveryLog(progression);
+    again.startWalk();
+    again.restore(paid);
+    const before = progression.points;
+    expect(again.awardOnce('mischief', 'tip-bin-1', 'tipped a bin')).toBe(0);
+    expect(progression.points).toBe(before);
+    // a repeatable award carries on at its repeat rate, not its first-time rate
+    expect(again.award('friend', 'greet-Biscuit', 'greeted Biscuit')).toBe(3);
+    // and something new still pays in full
+    expect(again.awardOnce('mischief', 'tip-bin-2', 'tipped a bin')).toBe(4);
+  });
+
+  it('a cat she made up with stays made up, and the scuffle ceiling does not start over', () => {
+    const first = createEnemyWalkLog();
+    expect(first.allowScuffle('Biscuit')).toBe(true);
+    first.markForgiven('Biscuit');
+    const again = createEnemyWalkLog(first.snapshot());
+    expect(again.wasForgiven('Biscuit')).toBe(true);
+    expect(again.allowScuffle('Biscuit')).toBe(false);
+    expect(again.scuffleCount()).toBe(1);
+    expect(createEnemyWalkLog(null).scuffleCount()).toBe(0);
+    expect(createEnemyWalkLog({ scuffled: 'x', forgiven: [1, null] }).snapshot()).toEqual({ scuffled: [], forgiven: [] });
+  });
+
+  it('the goals come back as the ones she had, even when the stream rolls others', () => {
+    // The rebuilt walk rolled three different goals (its stream shifted).
+    const rolled = createGoals(mulberry32(99), null);
+    const kept = rolled.goals; // the array note() closes over
+    const want = GOAL_POOL.filter((g) => !rolled.goals.some((r) => r.id === g.id)).slice(0, 3);
+    expect(want).toHaveLength(3);
+    restoreGoals(rolled, [
+      { id: want[0].id, progress: want[0].target, done: true },
+      { id: want[1].id, progress: 0, done: false },
+      { id: want[2].id, progress: 0, done: false },
+    ], GOAL_POOL);
+    expect(rolled.goals).toBe(kept);
+    expect(rolled.goals.map((g) => g.id)).toEqual(want.map((g) => g.id));
+    expect(rolled.goals[0]).toMatchObject({ done: true, progress: want[0].target, text: want[0].text });
+    // a finished goal does not pay again; an unfinished one still counts
+    expect(rolled.note(want[0].type).completed).toBeUndefined();
+    const step = rolled.note(want[1].type);
+    expect(rolled.goals[1].progress).toBe(1);
+    expect(step.completed === undefined || step.completed.id === want[1].id).toBe(true);
+  });
+
+  it('a note whose goals are not all known falls back to matching the rolled ones', () => {
+    const rolled = createGoals(mulberry32(7), null);
+    const ids = rolled.goals.map((g) => g.id);
+    restoreGoals(rolled, [{ id: ids[0], progress: 1, done: false }, { id: 'gone-goal', progress: 1, done: false }, { id: ids[2], progress: 0, done: false }], GOAL_POOL);
+    expect(rolled.goals.map((g) => g.id)).toEqual(ids);
   });
 });
