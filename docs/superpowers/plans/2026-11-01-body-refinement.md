@@ -49,7 +49,7 @@ Each is final for this build; "cost if wrong" is what changing it later would ta
 
 - **A cat in boots (rainboots lift the paw, sneakers add a stripe, gold booties a cuff) sitting, napping, stalking, pinned or rolled:** the boot moves with the folded foot, sits on the ground and never floats or sinks — test in Task 5.
 - **Digit (legs ×1.35, scale 0.82, legLift 0.2125) in every fold and in the fight's rear-up pitch:** nothing in the ground, no thigh through its back — test in Task 5 (fold sweep includes Digit) and Task 9 (fight placement re-run).
-- **The partner's screen:** a partner's simple build folds to the same shape as the full build on the partner's own screen — test in Task 5.
+- **The partner's screen:** a partner's simple build folds to the same shape as the full build on the player's own screen — test in Task 5.
 - **Hagrid in states written for cats** (the fight's arch, rearUp, flinch, pinned, pinning, roll; swim; wade; shake; nap; sniff): no throw, no gap at the neck, comb not split — test in Task 8.
 - **A cat disposed while folded** (strays, intruders, remote cats, thumbnails, den cats each have their own dispose loop): the limb's geometry object never changes identity through any fold, so every existing loop disposes it — test in Task 5.
 
