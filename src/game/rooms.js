@@ -24,7 +24,9 @@ import { decideLobbyEvent, pickRoomStart, walkersIn, START_GATHER_MS, MEMBER_GAT
 // so it can't be guessed, and nobody has to type it. A typed code is always
 // TYPED_CODE (4 characters), so it can never name a pair room.
 const COLONY_ROOM_ID = /^[0-9a-f]{16}$/;
-const TYPED_CODE = /^[A-Z0-9]{4}$/;
+// Exported for game/nearby.js: a room found nearby is believed only if its
+// code has this same shape.
+export const TYPED_CODE = /^[A-Z0-9]{4}$/;
 
 // toast(text) is optional: main.js's cloud toast (textContent, never markup),
 // used when a Start is refused because someone in the room is already walking.
@@ -265,6 +267,9 @@ export function createRooms({
       return {
         code: pendingRoom.code, roster: pendingRoom.roster, isHost: pendingRoom.net.isHost(),
         pair: pendingRoom.pair, starting: !!gathering,
+        // This child tapped Host for this room (game/nearby.js: only such a
+        // room is ever made findable nearby; isHost can move to a joiner).
+        hosted: pendingRoom.hosted === true,
       };
     },
     async host() {
@@ -286,6 +291,7 @@ export function createRooms({
         return { ok: false };
       }
       setupRoomNet(net, code);
+      pendingRoom.hosted = true;
       roomOpInFlight = false;
       notifyRoomChange();
       pushProfileNow(); // fire-and-forget — the room roster already carries petName/breed live

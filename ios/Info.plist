@@ -9,6 +9,17 @@
 		<key>UIColorName</key>
 		<string>LaunchBackground</string>
 	</dict>
+	<!-- Nearby one-tap joining (Nearby.swift). iOS shows this sentence the
+	     first time the game looks for, or is found by, another device on the
+	     local network: when Play together is first opened, never at launch. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Whisker Walk uses your local network to find a family member's device in the same room, so you can start a walk together without typing a code.</string>
+	<!-- The one service it advertises and browses for (MultipeerRadio.serviceType). -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_whisker-walk._tcp</string>
+		<string>_whisker-walk._udp</string>
+	</array>
 	<key>UIStatusBarHidden</key>
 	<true/>
 	<!-- Always full screen on iPad: no split view or slide over. -->

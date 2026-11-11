@@ -10,6 +10,9 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
     /// Plays the page's haptic words (Haptics.swift). Its own object, so the
     /// content controller's strong hold on it never reaches back to here.
     private let haptics = HapticPlayer()
+    /// Finds rooms hosted nearby, for one-tap joining (Nearby.swift). Its own
+    /// object for the same reason.
+    private let nearby = NearbyBridge()
 
     /// The game's splash colour (#1c2431), so nothing flashes white.
     private let background = UIColor(named: "LaunchBackground") ?? .black
@@ -65,6 +68,9 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         // serves both, and on an iPad the profile's `haptics: false` keeps
         // the page from sending.
         config.userContentController.add(haptics, name: HapticPlayer.handlerName)
+        // window.webkit.messageHandlers.nearby. It does nothing, and iOS asks
+        // nothing about the local network, until the page first sends to it.
+        config.userContentController.add(nearby, name: NearbyBridge.handlerName)
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.isOpaque = false
@@ -246,6 +252,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
     /// (memory pressure on an older iPad). Without this the game comes back as
     /// a blank screen; with it, the game starts again with its save intact.
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        nearby.reset() // the page that asked to be found, or to look, is gone
         switch CrashRecovery.action(currentURL: webView.url) {
         case .reload: webView.reload()
         case .loadStart: webView.load(URLRequest(url: AppScheme.launchURL))

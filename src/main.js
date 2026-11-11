@@ -29,6 +29,7 @@ import { createPhotoMode } from './game/photo.js';
 import { createInteractions } from './game/interactions.js';
 import { createAvatarUpdater } from './game/avatar.js';
 import { createRooms } from './game/rooms.js';
+import { createNearby, pickBridge, NEARBY_EVENT } from './game/nearby.js';
 import { createComposerRig } from './game/composer.js';
 import { createQualityAdapter } from './game/adaptquality.js';
 import { parseForcedRung } from './render/quality.js';
@@ -385,6 +386,21 @@ function init() {
     startWalk: (opts) => startWalk(opts),
     toast: cloudToast,
   });
+  // Nearby one-tap joining (src/game/nearby.js): in the app, the shell finds
+  // rooms hosted on the same local network and the home base offers a Join
+  // with no code to type. Made after the rooms, whose changes it follows, and
+  // before the home base, which tells it what is showing. In a browser there
+  // is no bridge: the event never fires and nothing is drawn.
+  const nearby = createNearby({
+    bridge: pickBridge(window), storage: window.localStorage, rooms,
+    getName: () => progression.state.petName,
+  });
+  window.addEventListener(NEARBY_EVENT, (e) => nearby.receive(e.detail));
+  // Put away (another app, the screen locked): nothing is looked for and
+  // nothing is findable until the game is back in front.
+  const nearbySeen = () => nearby.setVisible(!document.hidden);
+  nearbySeen();
+  document.addEventListener('visibilitychange', nearbySeen);
 
   // The den shop, inside the den (src/ui/denshopview.js): pauses like ⏸ and
   // walks on like the pause card's explore button.
@@ -481,7 +497,7 @@ function init() {
       blockList.add(otherId);
     },
   };
-  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast, () => audio.unlockFanfare(), () => showColonyNews([]), { haptics: haptics.available });
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast, () => audio.unlockFanfare(), () => showColonyNews([]), { haptics: haptics.available, nearby });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
