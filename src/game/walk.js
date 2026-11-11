@@ -177,16 +177,48 @@ const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 // portrait (session.portrait; none without WebGL). The buttons hold plain
 // text only: main.js routes overlay clicks by e.target.id and rewrites
 // #btn-resume's text on the first touch.
-export function pauseCardHtml({ welcome, touch, portrait = null }) {
+//
+// One card, three moments (`mode`), so the card says what state the walk is in:
+//   'ready'   before the walk has begun: "Ready?" (desktop always, where the
+//             first click is what takes the mouse; touch starts walking at once)
+//   'back'    a walk picked up again, before it goes on: "Welcome back!"
+//   'paused'  any time after the walk has begun: "Paused"
+const CARD_TITLE = { ready: 'Ready?', back: 'Welcome back!', paused: 'Paused' };
+export function resumeLabel(mode, touch) {
+  if (mode === 'ready') return touch ? 'Tap to explore' : 'Start exploring (click)';
+  return touch ? 'Keep walking' : 'Keep walking (click)';
+}
+// Which moment a session is in. `started` is set by main.js on the first
+// engage; `resumed` by startWalk for a walk picked up again.
+export function cardMode(s) {
+  return s?.started ? 'paused' : s?.resumed ? 'back' : 'ready';
+}
+// The card for a session as it stands. Once the walk has begun the welcome
+// line has been read (or toasted) and is left off.
+export function pauseCardFor(s, touch) {
+  const mode = cardMode(s);
+  return pauseCardHtml({ welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode });
+}
+export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready' }) {
   return `<div class="pause-card"><div class="screen-panel">
     ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
-    <div class="screen-body"><h1>Ready?</h1>
+    <div class="screen-body"><h1>${CARD_TITLE[mode] ?? CARD_TITLE.ready}</h1>
     ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
     <div class="screen-actions">
-      <button id="btn-resume" class="primary">${touch ? 'Tap to explore' : 'Start exploring (click)'}</button>
+      <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>
       <button id="btn-end" class="secondary">End walk &amp; head home</button>
     </div>
     <p class="controls-hint">${hintHtml(touch ? TOUCH_HINT : KEYS_HINT)}</p></div></div></div>`;
+}
+
+// A touch walk starts without the Ready? card, so its first few walks say
+// how to move in one toast (takeStartLines, given by main.js on the engage).
+export const TOUCH_HINT_WALKS = 3;
+export const TOUCH_START_HINT = 'Left thumb moves your cat. Drag to look around.';
+export function takeStartLines(session) {
+  const lines = Array.isArray(session?.startLines) ? session.startLines : [];
+  if (session) session.startLines = null;
+  return lines;
 }
 
 // The controls hint, one unbreakable piece per control: a line wraps only
@@ -1956,7 +1988,10 @@ export function createWalkLifecycle({
     // Her cat's picture for the Ready card (and the summary), snapped after
     // the area is built so its throwaway build can't move any draw count.
     session.portrait = herCatPortrait(progression.state);
-    overlay.innerHTML = pauseCardHtml({ welcome, touch: getIsTouch(), portrait: session.portrait });
+    // A walk picked up again opens on its "Welcome back!" card, paused.
+    session.resumed = !!resume;
+    session.started = false;
+    overlay.innerHTML = pauseCardFor(session, getIsTouch());
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());
@@ -1974,6 +2009,17 @@ export function createWalkLifecycle({
     // instantly instead of waiting for the next walk.
     const musicMood = duskActive ? 'dusk' : weather.condition === 'rain' ? 'rain' : weather.condition === 'sunset' ? 'sunset' : 'day';
     music.start(roomSeed ?? seedFromCode(walkStamp), musicMood);
+    // On touch a new walk starts walking at once: no "Ready?" tap between
+    // Start and the cat (a desktop keeps its card, since the first click is
+    // what takes the mouse; a walk picked up again keeps its card too). The
+    // card's welcome line is toasted instead, and the first few walks get the
+    // controls in a line. Last in startWalk: engaging tells main.js the walk
+    // has begun, and everything it touches exists by now.
+    if (getIsTouch() && !resume) {
+      const walked = Object.values(state.walks).reduce((n, w) => n + w, 0);
+      session.startLines = [welcome, walked < TOUCH_HINT_WALKS ? TOUCH_START_HINT : null].filter(Boolean);
+      player.setTouchEngaged(true);
+    }
   }
 
   // A crossing the last endWalk made, handed to main.js once (takeCrossing).

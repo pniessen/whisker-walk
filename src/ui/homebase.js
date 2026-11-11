@@ -217,7 +217,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       ${hasValidPetName ? '' : '<p class="wt-first">First, give your cat a name your friends will see:</p>'}
       ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       <div class="wt-petname">
-        <input type="text" id="wt-petname-input" maxlength="16" placeholder="Pet's name" value="${escapeHtml(name)}" />
+        <input type="text" id="wt-petname-input" maxlength="16" placeholder="Your cat's name" value="${escapeHtml(name)}" />
         <button id="wt-petname-save">Save</button>
         ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
       </div>
@@ -949,7 +949,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // The den never joins a room walk (main.js starts it on its own), so a room hides it, as before.
     const den = roomState ? ''
       : `<button class="dr-place dr-den" id="btn-visit-den" type="button"><img src="${escapeHtml(PLACE_PICTURE('den'))}" alt="" onerror="this.remove()"><span class="cap">My den<small>visit your den</small></span></button>`;
-    return `<section class="hb-places" aria-labelledby="hb-places-title"><h2 id="hb-places-title">Where to?</h2>
+    return `<section class="hb-places" aria-labelledby="hb-places-title"><h2 id="hb-places-title">Change place</h2>
       ${d.placesHtml({ clanLineHtml: line, denHtml: den })}
     </section>`;
   }
@@ -960,7 +960,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       case 'menu': return renderMenu(s, roomState);
       case 'places': return renderPlaces(s, roomState);
       case 'skills': return `
-        <section class="skills-section"><h2>Cat Skills 🐾</h2>
+        <section class="skills-section"><h2>Skills ⭐</h2>
           <p class="skills-intro">Abilities aren’t bought — they’re earned. Pull off the feat and the
             ability is yours forever.</p>
           ${renderSkillsHtml(s)}
@@ -969,7 +969,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     : ''}
         </section>`;
       case 'colony': return `
-        <section class="colony-section"><h2>Your colony 🐈</h2>
+        <section class="colony-section"><h2>Colony 🐈</h2>
           ${renderColonyHtml({
             colony: s.colony, me: myId, members: progression.colonyMembers(), now: Date.now(),
             status: colonyStatus, clanRoles: s.clanRoles, clanName: ownClanTitle(s), alliesName: alliesName(s), edition: s.edition,
@@ -995,13 +995,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         // Only the mice this edition can reach (Legacy hides four territories).
         const gold = goldForEdition(s.edition, CATALOG);
         return `
-        <section class="journal-section"><h2>Critter Journal 📖</h2>
+        <section class="journal-section"><h2>Journal 📖</h2>
           ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, gold), gold.size,
     isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {})}
         </section>`;
       }
       case 'album': return `
-        <section><h2>Photo album 📸</h2><div class="photos">
+        <section><h2>Album 📸</h2><div class="photos">
           ${album.photos.length
             ? album.photos.map((p) => {
               // p.date is sanitize-shaped (YYYY-MM-DD or absent — see
@@ -1014,7 +1014,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             }).join('')
             : emptyStateHtml('album')}
         </div></section>`;
-      case 'sync': return `<section class="walk-together sync-cloud"><h2>Sync ☁️</h2>${renderSync()}</section>`;
+      case 'sync': return `<section class="walk-together sync-cloud"><h2>Cloud save ☁️</h2>${renderSync()}</section>`;
       case 'settings': return renderSettings();
       case 'code': return renderRedeemHtml({ text: redeemText, busy: redeemBusy, result: redeemResult, catalog: CATALOG });
       default: return '';
@@ -1065,15 +1065,19 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const areaId = effectiveArea({ area: chosen, edition: s.edition }, CATALOG);
       // Menu and Change place are doors, not screens of their own: no dock.
       const door = openSheet === 'menu' || openSheet === 'places';
+      // The dock by sheet: none on the doors or the grown-ups' sheets (no
+      // "Start the walk" under "Start over"); the whole dock on Play together,
+      // whose room starts from it; on the other sheets only where and Start.
+      const dock = door || GROWNUP_SHEETS.includes(openSheet) ? 'none' : openSheet === 'together' ? 'full' : 'slim';
       const back = backTo === 'menu' ? '← Back to the menu' : '← Back to my cat';
       root.innerHTML = `
       <div class="homebase-scroll hb-sheet${door ? ' hb-door' : ''}" data-sheet="${escapeHtml(openSheet)}">
         <button id="hb-back" class="hb-back">${back}</button>
         ${renderSheetBody(openSheet, s, colonyStatus, roomState)}
-        ${door ? '' : `<footer class="hb-sheet-dock">
+        ${dock === 'none' ? '' : `<footer class="hb-sheet-dock">
           <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
-          ${duskHtml}
-          ${startRowHtml(roomState)}
+          ${dock === 'full' ? duskHtml : ''}
+          ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState)}</div>`}
         </footer>`}
       </div>`;
       refocus(fid);
@@ -1201,7 +1205,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const dusk = root.querySelector('#dusk-toggle');
       // A previewed cat or a tried-on accessory is never walked: the walk
       // reads the save's equipped cat and accessories (Review Focus 1).
-      const duskMode = !!(dusk && dusk.checked);
+      // A slim sheet dock has no dusk switch: the choice made at home stands
+      // (while the Glow Collar that allows it is still on).
+      const duskMode = dusk ? !!dusk.checked : !!(duskWanted && progression.state.equipped.collar === 'glow');
       dressing?.clearPreview();
       // Redraw without the preview, so "(trying)" can't linger if this start
       // doesn't leave home (a room start that fails).
@@ -1236,7 +1242,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         progression.setPetName(starPick);
         petNameError = null;
       } else {
-        petNameError = 'Pet names are 2–16 letters, spaces, or hyphens.';
+        petNameError = 'Cat names are 2–16 letters, spaces, or hyphens.';
       }
       render();
       return;
@@ -1248,7 +1254,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         progression.setPetName(name);
         petNameError = null;
       } else {
-        petNameError = 'Pet names are 2–16 letters, spaces, or hyphens.';
+        petNameError = 'Cat names are 2–16 letters, spaces, or hyphens.';
       }
       render();
       return;
@@ -1351,7 +1357,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           friendCodeError = null;
         } else if (result?.status === 'failed') {
           friendCodeSuccess = null;
-          friendCodeError = "Couldn't add friend — set your pet's name first";
+          friendCodeError = "Couldn't add friend — give your cat a name first";
         } else {
           friendCodeSuccess = null;
           friendCodeError = null;
@@ -1614,8 +1620,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       redeemResult = null; // a stale "Surprise!" or catnap line must not outlive a walk
       duskWanted = false; // as before: every visit starts with the dusk box clear
       shown = true;
-      if (openSheet === 'menu' || openSheet === 'places') openSheet = null;
-      if (sheet && availableSheets().includes(sheet)) { openSheet = sheet; backTo = null; }
+      // Coming home always lands on the cat, whatever sheet the walk was
+      // started from (the Journal's dock, say), unless a sheet is asked for.
+      openSheet = null;
+      backTo = null;
+      if (sheet && availableSheets().includes(sheet)) openSheet = sheet;
       render(); // also turns the hero stage back on
       root.classList.remove('hidden');
       syncPairingPoll(); // render() ran while still hidden

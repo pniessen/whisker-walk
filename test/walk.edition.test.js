@@ -200,11 +200,12 @@ describe('a Legacy walk', () => {
     expect(src).toContain('clanPaid: { friend: 0, boop: 0, patrol: 0 }');
   });
 
-  it('the home welcome is gated on the den, comes from homeWelcome and sits on the Ready card', () => {
+  it('the home welcome is gated on the den, comes from homeWelcome and sits on the card (a touch walk toasts it)', () => {
     const src = readFileSync('src/game/walk.js', 'utf8');
     expect(src).toMatch(/isDen \? null : homeWelcome\(areaId, progression\.state\)/);
     expect(src).not.toContain('hud.toast(welcome)');
-    expect(src).toMatch(/<h1>Ready\?<\/h1>\s*\$\{welcome \? `<p class="home-welcome">/);
+    expect(src).toMatch(/<h1>\$\{CARD_TITLE\[mode\] \?\? CARD_TITLE\.ready\}<\/h1>\s*\$\{welcome \? `<p class="home-welcome">/);
+    expect(src).toContain('session.startLines = [welcome,');
   });
 
   it('the dock names the place for the edition', () => {

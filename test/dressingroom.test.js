@@ -298,7 +298,7 @@ describe('sheets and pictures', () => {
     expect(SHEET_LABEL['den-shop']).toBeUndefined();
   });
   it('labels name the two doors, the six Menu tiles and the grown-ups sheets, in that order', () => {
-    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Where to?', '👫 Play together', '🐈 Colony', '📖 Journal', '📸 Album', '⭐ Skills', '👥 Friends', '⚙️ Settings', '☁️ Save', '🎁 Secret code']);
+    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 Colony', '📖 Journal', '📸 Album', '⭐ Skills', '👥 Friends', '⚙️ Settings', '☁️ Cloud save', '🎁 Secret code']);
   });
   it('Play together is a sheet of its own', () => {
     expect(resolveSheet('together')).toBe('together');
@@ -733,9 +733,9 @@ describe('Launch A: the home screen (cat, place, go)', () => {
       expect(GROWNUP_SHEETS).toEqual(['settings', 'sync', 'code']);
       expect(HOME_SHEETS).toEqual(['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS]);
     });
-    it('Friends and Save are the kid-facing names for social and sync', () => {
+    it('Friends and Cloud save are the names for social and sync', () => {
       expect(SHEET_LABEL.social).toBe('👥 Friends');
-      expect(SHEET_LABEL.sync).toBe('☁️ Save');
+      expect(SHEET_LABEL.sync).toBe('☁️ Cloud save');
     });
   });
 });

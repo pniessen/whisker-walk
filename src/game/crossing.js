@@ -7,7 +7,7 @@
 import { CATALOG } from '../progression.js';
 import { carryLabel } from '../carry.js';
 import { crossCardHtml, crossExtras, decideBorderCross, targetName, lower } from '../bordercross.js';
-import { pauseCardHtml } from './walk.js';
+import { pauseCardFor } from './walk.js';
 
 export const CROSS_RESEND_MS = 150;
 export const CROSS_END_MS = 400;
@@ -26,7 +26,7 @@ export function createCrossing({
   catalog = CATALOG, setTimeout = globalThis.setTimeout,
 }) {
   function restoreCard(s) {
-    overlay.innerHTML = pauseCardHtml({ welcome: s.welcome, touch: getIsTouch(), portrait: s.portrait });
+    overlay.innerHTML = pauseCardFor(s, getIsTouch());
     s.crossing = null;
   }
 

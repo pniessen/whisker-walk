@@ -221,7 +221,7 @@ describe('Change place (the places sheet)', () => {
     openSheet('places');
     const h = html();
     expect(h).toContain('data-sheet="places"');
-    expect(h).toContain('Where to?');
+    expect(h).toContain('Change place');
     expect(h).toContain('id="btn-visit-den"');
     expect(h).toContain('My den');
     expect(dressingMock.placesArgs.at(-1).denHtml).toContain('id="btn-visit-den"');
@@ -538,14 +538,37 @@ describe('Settings: Advanced', () => {
     expect(h.indexOf('id="set-muted"')).toBeLessThan(adv);
     expect(h.indexOf('id="set-edition"')).toBeLessThan(adv);
   });
-  it('Settings is a grown-ups sheet with the Start dock', () => {
+  it('the grown-ups sheets have no Start dock: nothing says Start under Start over', () => {
     setup();
-    openSheet('settings');
-    expect(html()).toContain('id="btn-start"');
+    for (const id of ['settings', 'code']) {
+      openSheet(id);
+      expect(html()).toContain(`data-sheet="${id}"`);
+      expect(html()).not.toContain('id="btn-start"');
+      expect(html()).not.toContain('hb-sheet-dock');
+    }
+  });
+  it('a children\'s sheet keeps a slim dock: where, and Start', () => {
+    setup();
+    openSheet('journal');
+    const h = html();
+    expect(h).toContain('hb-sheet-dock');
+    expect(h).toContain('Walking in <b>');
+    expect(h).toContain('id="btn-start"');
+    expect(h).not.toContain('id="dusk-toggle"');
   });
 });
 
 describe('coming home', () => {
+  it('show() lands on the cat, whatever sheet the walk was started from', () => {
+    const { hb } = setup();
+    openSheet('menu');
+    openSheet('journal');
+    expect(html()).toContain('data-sheet="journal"');
+    hb.hide();
+    hb.show(); // back from the walk
+    expect(html()).not.toContain('data-sheet=');
+    expect(html()).not.toContain('← Back to the menu');
+  });
   it('hide() puts the wardrobe away', () => {
     const { hb } = setup();
     hb.hide();

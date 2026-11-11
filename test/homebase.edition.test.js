@@ -211,10 +211,10 @@ describe('Legacy hides the clan layer on the home screen', () => {
     progression.state.unlocked.areas.push('woods');
     progression.setArea('woods');
     expect(progression.state.area).toBe('woods');
-    openSheet('settings');
+    openSheet('journal');
     expect(doc.root.innerHTML).toContain('Walking in <b>The Woods</b>');
     progression.setEdition('legacy');
-    openSheet('settings');
+    openSheet('journal');
     expect(doc.root.innerHTML).toContain('Walking in <b>Cozy Neighborhood</b>');
     expect(doc.root.innerHTML).not.toContain('The Woods');
     expect(progression.state.area).toBe('woods'); // hidden, not rewritten

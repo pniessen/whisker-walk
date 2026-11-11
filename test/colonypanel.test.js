@@ -306,9 +306,9 @@ describe('renderPairingHtml', () => {
     expect(renderPairingHtml(undefined)).toBe('');
   });
 
-  it('needs-name says to name the pet in Social first and offers no controls', () => {
+  it('needs-name points at Play together, where the name is set, and offers no controls', () => {
     const html = renderPairingHtml(st('needs-name'), { hasPetName: false });
-    expect(html).toContain('Give your pet a name in Social first, then you can share your colony.');
+    expect(html).toContain('Give your cat a name in 👫 Play together first, then you can share your colony.');
     expect(html).not.toContain('<button');
     expect(html).not.toContain('<input');
   });
