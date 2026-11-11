@@ -1,3 +1,4 @@
+import { BUILD_STAMP } from '../buildstamp.js';
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
@@ -394,6 +395,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             </select>
           </label>
         </div>${usageHtml(progression.state.usage, { visits: progression.state.visits, walks: Object.values(progression.state.walks ?? {}).reduce((a, b) => a + asFiniteNonNeg(b, 0), 0) })}
+        <p class="settings-note" id="hb-build">Build ${escapeHtml(BUILD_STAMP)}</p>
         <button id="btn-reset" class="danger">Start over</button>
       </section>`;
   }

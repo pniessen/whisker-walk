@@ -1,4 +1,5 @@
 import { rmSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { defineConfig } from 'vite';
 
@@ -23,15 +24,36 @@ function iosPrune() {
   };
 }
 
+// Which build is a child on? Short commit sha (+ if the tree has uncommitted
+// changes) and the UTC build date, shown in Game settings. Computed once at
+// config time, so it is the same for `vite`, `vite build` and `--mode ios`; a
+// shallow CI checkout still has HEAD. Without git (or outside a repo) the
+// build must not fail, so it falls back to 'dev'.
+export function buildStamp(now = new Date()) {
+  let sha = 'dev';
+  try {
+    const run = (cmd) => execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    sha = run('git rev-parse --short HEAD') || 'dev';
+    if (sha !== 'dev' && run('git status --porcelain')) sha += '+';
+  } catch {
+    /* no git: keep whatever we have */
+  }
+  return `${sha} · ${now.toISOString().slice(0, 10)}`;
+}
+
 // GitHub Pages serves the app from /whisker-walk/, so production builds need
 // that base path; dev stays at / so localhost play is unaffected.
 export default defineConfig(({ command, mode }) => ({
+  define: { __BUILD_STAMP__: JSON.stringify(buildStamp()) },
   base: mode === IOS_MODE ? './' : command === 'build' ? '/whisker-walk/' : '/',
   ...(mode === IOS_MODE && {
     build: { outDir: IOS_OUT_DIR, emptyOutDir: true },
     plugins: [iosPrune()],
   }),
   test: {
+    // Without this a bare `npm test` also collects the copies of tests inside
+    // .worktrees/ and .claude/worktrees/.
+    dir: 'test',
     // Vitest's default is 5000ms per test, and the visual pass outgrew it.
     // Two files now do real work rather than arithmetic:
     //
