@@ -481,7 +481,7 @@ function init() {
       blockList.add(otherId);
     },
   };
-  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast, () => audio.unlockFanfare(), () => showColonyNews([]));
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast, () => audio.unlockFanfare(), () => showColonyNews([]), { haptics: haptics.available });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the

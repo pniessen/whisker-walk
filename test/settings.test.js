@@ -20,6 +20,7 @@ describe('createSettings', () => {
       perfReadout: false,
       quality: 'auto',
       cameraZoom: 1,
+      haptics: true,
     });
     expect(settings.get('volume')).toBe(0.8);
   });
@@ -51,6 +52,7 @@ describe('createSettings', () => {
       perfReadout: false,
       quality: 'auto',
       cameraZoom: 1,
+      haptics: true,
     });
   });
 
@@ -68,6 +70,7 @@ describe('createSettings', () => {
       perfReadout: false,
       quality: 'auto',
       cameraZoom: 1,
+      haptics: true,
     });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
@@ -130,6 +133,20 @@ describe('createSettings', () => {
     const storage = fakeStorage();
     createSettings(storage).set('perfReadout', true);
     expect(createSettings(storage).get('perfReadout')).toBe(true);
+  });
+
+  it('haptics (the Vibration switch) defaults to on, rejects a non-boolean, persists a set', () => {
+    expect(createSettings(fakeStorage()).get('haptics')).toBe(true);
+    for (const junk of ['no', 0, null, {}, []]) {
+      const bad = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ haptics: junk }) }));
+      expect(bad.get('haptics')).toBe(true);
+    }
+    // A settings object saved before the switch existed keeps everything and gains it, on.
+    const old = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ volume: 0.3, muted: true }) }));
+    expect(old.all()).toMatchObject({ volume: 0.3, muted: true, haptics: true });
+    const storage = fakeStorage();
+    createSettings(storage).set('haptics', false);
+    expect(createSettings(storage).get('haptics')).toBe(false);
   });
 
   it('cameraZoom defaults to step 1 (today\'s camera), turns junk into the default, persists a valid step', () => {
