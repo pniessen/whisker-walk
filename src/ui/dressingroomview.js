@@ -15,7 +15,7 @@ import { newBuilder, editBuilder, reduceBuilder, isDirty, buildBuilderModel, ren
 
 // Launch A: home is the cat, Wearing and Today's walk; Dress up opens the
 // wardrobe (the slot grid) in place, and "🔒 N more" shows the locked cats.
-export const INITIAL_DRESSING_UI = Object.freeze({ wardrobe: false, moreCats: false, openSlot: null, previewCat: null, tryOn: null, builder: null });
+export const INITIAL_DRESSING_UI = Object.freeze({ wardrobe: false, moreCats: false, openSlot: null, previewCat: null, tryOn: null, builder: null, outfitAsk: null });
 
 const has = (obj, k) => !!obj && typeof k === 'string' && Object.prototype.hasOwnProperty.call(obj, k);
 
@@ -34,13 +34,16 @@ const has = (obj, k) => !!obj && typeof k === 'string' && Object.prototype.hasOw
 //   {type:'builder', builder}      open, update or (null) close the builder;
 //                                   opening it drops the preview and try-on
 //   {type:'builder-done'}          the builder saved: close it, into the wardrobe
+//   {type:'outfit-ask', id}        ask "Delete Outfit N?" under that one saved
+//                                   outfit (id null = stop asking); only one
+//                                   row asks at a time, and it is never saved
 export function reduceDressingUi(ui, action) {
   const cur = ui && typeof ui === 'object' ? ui : INITIAL_DRESSING_UI;
   switch (action && action.type) {
     case 'wardrobe': {
       const open = !!action.open;
       if (open === !!cur.wardrobe) return cur;
-      return open ? { ...cur, wardrobe: true } : { ...cur, wardrobe: false, openSlot: null, tryOn: null };
+      return open ? { ...cur, wardrobe: true } : { ...cur, wardrobe: false, openSlot: null, tryOn: null, outfitAsk: null };
     }
     case 'more-cats':
       return { ...cur, moreCats: !cur.moreCats };
@@ -52,7 +55,7 @@ export function reduceDressingUi(ui, action) {
       if (typeof action.slot !== 'string') return cur;
       const openSlot = cur.openSlot === action.slot ? null : action.slot;
       const tryOn = cur.tryOn && cur.tryOn.slot === openSlot ? cur.tryOn : null;
-      return { ...cur, openSlot, tryOn };
+      return { ...cur, openSlot, tryOn, outfitAsk: null };
     }
     case 'try-on': {
       if (typeof action.id !== 'string' || typeof action.slot !== 'string') {
@@ -62,8 +65,12 @@ export function reduceDressingUi(ui, action) {
       return { ...cur, openSlot: action.slot, tryOn: same ? null : { slot: action.slot, id: action.id } };
     }
     case 'clear-preview':
-      return cur.previewCat === null && cur.tryOn === null && (cur.builder ?? null) === null
-        ? cur : { ...cur, previewCat: null, tryOn: null, builder: null };
+      return cur.previewCat === null && cur.tryOn === null && (cur.builder ?? null) === null && (cur.outfitAsk ?? null) === null
+        ? cur : { ...cur, previewCat: null, tryOn: null, builder: null, outfitAsk: null };
+    case 'outfit-ask': {
+      const id = typeof action.id === 'string' ? action.id : null;
+      return id === (cur.outfitAsk ?? null) ? cur : { ...cur, outfitAsk: id };
+    }
     case 'builder': {
       const builder = action.builder && typeof action.builder === 'object' ? action.builder : null;
       if (builder === (cur.builder ?? null)) return cur;
@@ -77,7 +84,7 @@ export function reduceDressingUi(ui, action) {
 }
 
 const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-wardrobe],'
-  + '[data-dr-wardrobe-done],[data-dr-more-cats],[data-dr-outfit],[data-dr-outfit-save],[data-dr-outfit-del],'
+  + '[data-dr-wardrobe-done],[data-dr-more-cats],[data-dr-outfit],[data-dr-outfit-save],[data-dr-outfit-del],[data-dr-outfit-yes],[data-dr-outfit-keep],'
   + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay]';
 const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is empty
 const BLUR_RENDER_MS = 250; // a skipped render runs this long after the name box loses focus
@@ -182,11 +189,11 @@ export function createDressingRoom({
     const want = m.outfits.map((o) => {
       const saved = state.outfits.find((x) => x.id === o.id)?.wear ?? {};
       const wear = Object.fromEntries(Object.entries(saved).filter(([, id]) => progression.isUnlocked('accessories', id)));
-      return { id: o.id, wear, key: `outfit|${h.breed}|${look}|${JSON.stringify(wear)}` };
+      return { id: o.id, wear, key: `outfit|whole|${h.breed}|${look}|${JSON.stringify(wear)}` };
     });
     const missing = want.filter((w) => !has(t.outfits, w.key) && !failedSnaps.has(w.key));
     if (missing.length) {
-      const entries = missing.map((w) => ({ key: w.key, breed: h.breed, look: h.look, wear: w.wear }));
+      const entries = missing.map((w) => ({ key: w.key, breed: h.breed, look: h.look, wear: w.wear, closeUp: false })); // whole cat, so a cape or boots show
       let got = {};
       try { got = snapCustom(entries) || {}; } catch { got = {}; }
       for (const e of entries) {
@@ -219,7 +226,7 @@ export function createDressingRoom({
     const pickerHtml = ui.wardrobe && ui.openSlot ? renderSlotPickerHtml(state, catalog, ui.openSlot, ui.tryOn, t) : '';
     return renderDressingRoomHtml({
       model: m, headerHtml, startHtml, extrasHtml, rankTitle, thumbs: { ...t, wearing, outfitPics: ui.wardrobe && m.outfits.length ? snapOutfits(m, t) : {} },
-      ui: { wardrobe: ui.wardrobe, moreCats: ui.moreCats, openSlot: ui.openSlot, pickerHtml },
+      ui: { wardrobe: ui.wardrobe, moreCats: ui.moreCats, openSlot: ui.openSlot, outfitAsk: ui.outfitAsk ?? null, pickerHtml },
     });
   }
 
@@ -389,13 +396,21 @@ export function createDressingRoom({
   function onOutfit(id) {
     const before = JSON.stringify(progression.state?.equipped ?? {});
     if (!progression.wearOutfit(id)) return;
+    dispatch({ type: 'outfit-ask', id: null });
     dispatch({ type: 'try-on', slot: null, id: null });
     if (JSON.stringify(progression.state?.equipped ?? {}) !== before) profileChanged();
   }
   function onOutfitSave() {
+    dispatch({ type: 'outfit-ask', id: null });
     if (progression.saveOutfit()) autoSync();
   }
+  // ✕ only asks (it sits close to the wear button, so a thumb can slip);
+  // "Yes, delete" is what forgets the outfit.
   function onOutfitDel(id) {
+    dispatch({ type: 'outfit-ask', id });
+  }
+  function onOutfitYes(id) {
+    dispatch({ type: 'outfit-ask', id: null });
     if (progression.deleteOutfit(id)) autoSync();
   }
 
@@ -420,8 +435,11 @@ export function createDressingRoom({
     if (d.drMine !== undefined) return `[data-dr-mine="${q(d.drMine)}"]`;
     if (d.drAcc !== undefined) return `[data-dr-acc="${q(d.drAcc)}"]`;
     if (d.drOutfit !== undefined) return `[data-dr-outfit="${q(d.drOutfit)}"]`;
-    // Saving disables the button and deleting removes the row: land on the save button's place.
-    if (d.drOutfitSave !== undefined || d.drOutfitDel !== undefined) return '[data-dr-outfit-save]';
+    // ✕ opens the question: land on the safe answer. Keep it brings ✕ back;
+    // saving disables the button and Yes removes the row: land on the save button's place.
+    if (d.drOutfitDel !== undefined) return `[data-dr-outfit-keep="${q(d.drOutfitDel)}"]`;
+    if (d.drOutfitKeep !== undefined) return `[data-dr-outfit-del="${q(d.drOutfitKeep)}"]`;
+    if (d.drOutfitSave !== undefined || d.drOutfitYes !== undefined) return '[data-dr-outfit-save]';
     return null;
   }
 
@@ -451,6 +469,8 @@ export function createDressingRoom({
     else if (d.drMoreCats !== undefined) dispatch({ type: 'more-cats' });
     else if (d.drOutfitSave !== undefined) onOutfitSave();
     else if (d.drOutfitDel !== undefined) onOutfitDel(d.drOutfitDel);
+    else if (d.drOutfitYes !== undefined) onOutfitYes(d.drOutfitYes);
+    else if (d.drOutfitKeep !== undefined) dispatch({ type: 'outfit-ask', id: null });
     else if (d.drOutfit !== undefined) onOutfit(d.drOutfit);
     else if (d.drMine !== undefined) onMine(d.drMine);
     else if (d.drMake !== undefined) onMake();

@@ -297,28 +297,42 @@ const OUTFIT_SAVE_LABEL = {
   ok: '＋ Save this outfit',
   saved: 'Saved ✓',
   empty: 'Put something on to save it',
-  full: `${OUTFIT_MAX} outfits saved (✕ one to save another)`,
+  full: `${OUTFIT_MAX} saved. Delete one to save a new one.`,
 };
-function outfitHtml(o, thumbs) {
+const OUTFIT_PICS_MAX = 3; // the fallback row's small pictures; the rest are a "+N" chip
+function outfitHtml(o, thumbs, asking) {
   const names = o.items.map((it) => it.name).join(', ');
+  if (asking) {
+    // The question replaces just this row; both answers are thumb-sized.
+    return `<div class="dr-outfit ask" role="group" aria-label="${escapeHtml(`Delete ${o.label}?`)}">`
+      + `<span class="dr-outfit-q">Delete ${escapeHtml(o.label)}?</span>`
+      + `<button class="dr-outfit-yes" data-dr-outfit-yes="${escapeHtml(o.id)}">Yes, delete</button>`
+      + `<button class="dr-outfit-keep" data-dr-outfit-keep="${escapeHtml(o.id)}">Keep it</button></div>`;
+  }
   // One picture of her cat in the whole outfit when there is one (the view
-  // snaps it); otherwise its items' menu pictures.
+  // snaps it); otherwise a few of its items' menu pictures. With the whole
+  // picture the names stay in the aria-label only; the small item pictures
+  // are hard to tell apart, so the fallback row spells the names out.
   const whole = thumbs?.outfitPics?.[o.id];
+  const shown = o.items.slice(0, OUTFIT_PICS_MAX);
+  const extra = o.items.length - shown.length;
   const pics = whole
     ? `<span class="dr-outfit-pic whole">${img(whole, '')}</span>`
-    : o.items.map((it) => `<span class="dr-outfit-pic ${it.owned ? '' : 'gone'}">${img(thumbs?.accessories?.[it.id], '')}</span>`).join('');
+    : shown.map((it) => `<span class="dr-outfit-pic ${it.owned ? '' : 'gone'}">${img(thumbs?.accessories?.[it.id], '')}</span>`).join('')
+      + (extra > 0 ? `<span class="dr-outfit-more">+${extra}</span>` : '');
+  const small = o.worn ? 'on now ✓' : (whole ? '' : escapeHtml(names));
   return `<div class="dr-outfit ${o.worn ? 'on' : ''}">`
     + `<button class="dr-outfit-wear" data-dr-outfit="${escapeHtml(o.id)}" aria-pressed="${o.worn}" aria-label="${escapeHtml(`Wear ${o.label}: ${names}`)}">`
     + `<span class="dr-outfit-pics">${pics}</span>`
-    + `<span class="dr-outfit-words">${escapeHtml(o.label)}<small>${o.worn ? 'on now ✓' : escapeHtml(names)}</small></span></button>`
+    + `<span class="dr-outfit-words">${escapeHtml(o.label)}${small ? `<small>${small}</small>` : ''}</span></button>`
     + `<button class="dr-outfit-del" data-dr-outfit-del="${escapeHtml(o.id)}" aria-label="${escapeHtml(`Delete ${o.label}`)}">✕</button></div>`;
 }
-function outfitsHtml(m, thumbs) {
+function outfitsHtml(m, thumbs, ask = null) {
   const outfits = m.outfits ?? [];
   const save = m.outfitSave ?? 'empty';
   return `<div class="dr-outfits">
     <p class="dr-label">Saved outfits</p>
-    ${outfits.length ? `<div class="dr-outfit-list">${outfits.map((o) => outfitHtml(o, thumbs)).join('')}</div>` : ''}
+    ${outfits.length ? `<div class="dr-outfit-list">${outfits.map((o) => outfitHtml(o, thumbs, o.id === ask)).join('')}</div>` : ''}
     <button class="dr-outfit-save" data-dr-outfit-save ${save === 'ok' ? '' : 'disabled'}>${escapeHtml(OUTFIT_SAVE_LABEL[save] ?? OUTFIT_SAVE_LABEL.empty)}</button>
   </div>`;
 }
@@ -331,7 +345,7 @@ function wearingHtml(m, ui, thumbs) {
     return `<section class="dr-wearing dr-wardrobe-open" aria-label="Dress up">
     <div class="dr-wardrobe-head"><p class="dr-label">Dress up</p><button class="dr-done" data-dr-wardrobe-done>Done ✓</button></div>
     <div class="dr-slots">${m.slots.map((s) => slotHtml(s, openSlot, ui.pickerHtml, thumbs)).join('')}</div>
-    ${outfitsHtml(m, thumbs)}
+    ${outfitsHtml(m, thumbs, ui.outfitAsk)}
   </section>`;
   }
   const n = m.worn.length;

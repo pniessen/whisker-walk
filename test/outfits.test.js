@@ -217,7 +217,7 @@ describe('outfits in the dressing room', async () => {
     expect(html).toContain('data-dr-outfit="o1" aria-pressed="true"');
     expect(html).toContain('aria-label="Wear Outfit 1: Top Hat, Bow Tie"');
     expect(html).toContain('src="data:hat"');
-    expect(html).toContain('on now ✓');
+    expect(html).toContain('<small>on now ✓</small>');
   });
 
   it('a tap on an outfit puts it on, drops a try-on and tells her friends once', () => {
@@ -236,13 +236,70 @@ describe('outfits in the dressing room', async () => {
     expect(calls.profile).toBe(1);
   });
 
-  it('✕ forgets an outfit without undressing the cat', () => {
-    const { p, room } = setup();
+  it('✕ only asks; Yes, delete forgets the outfit without undressing the cat', () => {
+    const { p, room, calls } = setup();
     bare(p); wear(p, 'tophat'); p.saveOutfit();
     click(room, { drOutfitDel: 'o1' });
+    expect(p.state.outfits).toHaveLength(1);
+    expect(room.ui.outfitAsk).toBe('o1');
+    const html = room.html();
+    expect(html).toContain('Delete Outfit 1?');
+    expect(html).toContain('data-dr-outfit-yes="o1">Yes, delete');
+    expect(html).toContain('data-dr-outfit-keep="o1">Keep it');
+    expect(html).not.toContain('data-dr-outfit="o1"'); // the row is the question now
+    const sync = calls.sync;
+    click(room, { drOutfitYes: 'o1' });
     expect(p.state.outfits).toEqual([]);
+    expect(calls.sync).toBe(sync + 1);
+    expect(room.ui.outfitAsk).toBe(null);
     expect(p.state.equipped.head).toBe('tophat');
     expect(room.html()).not.toContain('data-dr-outfit="o1"');
+  });
+
+  it('Keep it, wearing, saving, a slot or closing the wardrobe end the question without deleting', () => {
+    const { p, room } = setup();
+    bare(p); wear(p, 'tophat'); p.saveOutfit();
+    bare(p); wear(p, 'bowtie'); p.saveOutfit();
+    bare(p); wear(p, 'bell');
+    const ends = [{ drOutfitKeep: 'o1' }, { drOutfit: 'o2' }, { drOutfitSave: '' }, { drSlot: 'head' }, { drWardrobeDone: '' }];
+    for (const end of ends) {
+      click(room, { drWardrobe: '' });
+      click(room, { drOutfitDel: 'o1' });
+      expect(room.ui.outfitAsk).toBe('o1');
+      click(room, end);
+      expect(room.ui.outfitAsk).toBe(null);
+      expect(p.state.outfits.length).toBeGreaterThanOrEqual(2);
+      expect(p.state.outfits.map((o) => o.id)).toEqual(expect.arrayContaining(['o1', 'o2']));
+    }
+  });
+
+  it('only one row asks at a time', () => {
+    const { p, room } = setup();
+    bare(p); wear(p, 'tophat'); p.saveOutfit();
+    bare(p); wear(p, 'bowtie'); p.saveOutfit();
+    click(room, { drOutfitDel: 'o1' });
+    click(room, { drOutfitDel: 'o2' });
+    expect(room.ui.outfitAsk).toBe('o2');
+    const html = room.html();
+    expect(html).toContain('data-dr-outfit="o1"');
+    expect(html).not.toContain('data-dr-outfit-yes="o1"');
+    expect(html).toContain('data-dr-outfit-yes="o2"');
+  });
+
+  it('a keyboard tap on ✕ lands on Keep it; Keep it lands back on ✕', () => {
+    const { p, room } = setup();
+    bare(p); wear(p, 'tophat'); p.saveOutfit();
+    const seen = [];
+    const root = { querySelector: (sel) => { seen.push(sel); return null; } };
+    const tap = (dataset) => {
+      const t = { dataset, ownerDocument: { activeElement: null } };
+      t.ownerDocument.activeElement = t;
+      room.handleClick({ target: { closest: () => t } });
+      room.restoreFocus(root, null);
+    };
+    tap({ drOutfitDel: 'o1' });
+    tap({ drOutfitKeep: 'o1' });
+    expect(seen).toEqual(['[data-dr-outfit-keep="o1"]', '[data-dr-outfit-del="o1"]']);
   });
 
   it('with nothing on, or five saved, the button says why it will not save', () => {
@@ -251,7 +308,7 @@ describe('outfits in the dressing room', async () => {
     expect(room.html()).toMatch(/data-dr-outfit-save disabled>Put something on to save it/);
     for (const id of ['tophat', 'bell', 'bandana', 'sunglasses', 'bowtie']) { bare(p); wear(p, id); p.saveOutfit(); }
     bare(p); wear(p, 'tophat', 'bell');
-    expect(room.html()).toMatch(/data-dr-outfit-save disabled>5 outfits saved/);
+    expect(room.html()).toMatch(/data-dr-outfit-save disabled>5 saved\. Delete one to save a new one\./);
   });
 });
 
@@ -272,8 +329,15 @@ describe('outfit pictures', async () => {
     click(room, { drWardrobe: '' });
     expect(room.html()).toContain('<span class="dr-outfit-pic whole"><img src="data:outfit"');
     expect(snaps.filter((e) => e.key.startsWith('outfit|'))).toEqual([
-      expect.objectContaining({ breed: 'tabby', wear: { head: 'tophat', neck: 'bowtie' } }),
+      // whole cat (closeUp false), and the framing is part of the cache key
+      expect.objectContaining({ breed: 'tabby', wear: { head: 'tophat', neck: 'bowtie' }, closeUp: false, key: expect.stringContaining('|whole|') }),
     ]);
+    // with the picture, the row is the picture and the label: no item names, nothing small when not worn
+    p.unequip('head');
+    const html = room.html();
+    expect(html).not.toContain('<small>Top Hat');
+    expect(html).not.toContain('<small></small>');
+    expect(html).toContain('aria-label="Wear Outfit 1: Top Hat, Bow Tie"');
     room.html();
     expect(snaps.filter((e) => e.key.startsWith('outfit|'))).toHaveLength(1);
   });
@@ -288,5 +352,17 @@ describe('outfit pictures', async () => {
     const html = room.html();
     expect(html).toContain('src="data:hat"');
     expect(html).toContain('<small>Top Hat, Bow Tie</small>');
+  });
+
+  it('the fallback row shows at most three item pictures, then a +N chip', () => {
+    const p = dressed();
+    bare(p); wear(p, 'tophat', 'bowtie', 'sunglasses', 'bell'); p.saveOutfit(); bare(p);
+    const room = createDressingRoom({
+      progression: p, thumbs: { cats: {}, accessories: {} }, snapCustom: () => { throw new Error('no WebGL'); },
+    });
+    click(room, { drWardrobe: '' });
+    const html = room.html();
+    expect((html.match(/class="dr-outfit-pic /g) || []).length).toBe(3);
+    expect(html).toContain('<span class="dr-outfit-more">+1</span>');
   });
 });
