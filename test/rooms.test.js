@@ -85,6 +85,22 @@ describe('rooms.walkWithPartner', () => {
     expect(host.pull).not.toHaveBeenCalled();
   });
 
+  // Nearby joining (game/nearby.js) makes a room findable only on the device
+  // whose child tapped Host. isHost cannot say that: it is the smallest id in
+  // the room, which can be a joiner's.
+  it('only the device that tapped Host has a hosted room', async () => {
+    const { host, kid } = pair(hub);
+    const res = await kid.rooms.host(); // the larger id hosts
+    expect(kid.rooms.getState().hosted).toBe(true);
+    await host.rooms.join(res.code);    // the smaller id joins, and becomes isHost
+    expect(host.rooms.getState().hosted).toBe(false);
+    expect(host.rooms.getState().isHost).toBe(true);
+    expect(kid.rooms.getState().hosted).toBe(true);
+    await kid.rooms.leave();
+    await kid.rooms.walkWithPartner();
+    expect(kid.rooms.getState().hosted).toBe(false);
+  });
+
   it('refuses while not paired, without a usable colony id, or with multiplayer off', async () => {
     const unpaired = client(hub, { pid: HOST, petName: 'Mittens', mode: 'unpaired' });
     expect(await unpaired.rooms.walkWithPartner()).toEqual({ ok: false });
