@@ -149,8 +149,10 @@ describe('the Menu', () => {
     expect(h).toContain('class="hb-menu-stats"');
     expect(h).toContain('For grown-ups');
     for (const id of ['settings', 'sync', 'code']) expect(h).toContain(`<button class="hb-grownup" data-dr-sheet="${id}">`);
-    expect(h).toContain(SHEET_NAME.social); // Friends
-    expect(h).toContain('Friends');
+    // Friends folded into Play together and the Journal
+    expect(h).not.toContain('data-dr-sheet="social"');
+    expect(h).not.toContain('Friends');
+    expect(SHEET_NAME.together).toBe('Play together');
   });
   it('leaves out the tiles that are not available (no multiplayer: no Play together; no cloud: no Save)', () => {
     setup();
@@ -159,7 +161,7 @@ describe('the Menu', () => {
     expect(h).not.toContain('data-dr-sheet="together"');
     expect(h).not.toContain('data-dr-sheet="sync"');
     expect(h.match(/class="hb-tile"/g)).toHaveLength(MENU_TILES.length - 1);
-    for (const id of ['colony', 'journal', 'album', 'skills', 'social', 'controls']) expect(h).toContain(`data-dr-sheet="${id}"`);
+    for (const id of ['colony', 'journal', 'album', 'skills', 'controls']) expect(h).toContain(`data-dr-sheet="${id}"`);
     expect(h).toContain('data-dr-sheet="settings"');
     expect(h).toContain('data-dr-sheet="code"');
   });
@@ -633,6 +635,66 @@ describe('Settings in two halves', () => {
     doc.root.listeners.change({ target: { id: 'set-map-mode', value: 'turn', dataset: {} } });
     expect(progression.state.mapMode).toBe('turn');
     expect(onChange).toHaveBeenCalled();
+  });
+});
+
+describe('Play together holds the friends (Friends folded in)', () => {
+  const CLOUD = () => ({
+    available: true, myId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    fetchFriendships: vi.fn(() => Promise.resolve([])), fetchProfiles: vi.fn(() => Promise.resolve([])),
+  });
+  function setupCloud({ state, colonySync = null } = {}) {
+    const progression = createProgression(memStorage());
+    if (state) state(progression.state);
+    const cloud = CLOUD();
+    const hb = createHomeBase(progression, { photos: [] }, () => {}, OPEN_ROOMS, null, cloud, settings, () => {}, () => {}, colonySync, 'me', () => {});
+    hb.show();
+    return { progression, cloud };
+  }
+  it('in order: the cat\'s name, start or join a room, then Player pets and the friend code', () => {
+    setupCloud({ state: (st) => { st.petName = 'Mittens'; } });
+    openSheet('together');
+    const h = html();
+    const order = ['id="wt-petname-input"', 'id="wt-host"', 'id="wt-join"', 'id="player-pets-section"', 'Your friend code:', 'id="friend-code-add"'].map((x) => h.indexOf(x));
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(h).not.toContain('Stray cats');
+  });
+  it('the walk with her sibling comes after the name and before the room buttons', () => {
+    const colony = { id: 'c1', partner: { playerId: 'p2', petName: 'Robin' } };
+    const colonySync = { status: () => ({ mode: 'paired' }), pull() {} };
+    setupCloud({ colonySync, state: (st) => { st.petName = 'Mittens'; st.colony = { ...st.colony, ...colony }; } });
+    openSheet('together');
+    const h = html();
+    expect(h).toContain('id="wt-pair-walk"');
+    expect(h).toContain('Walk with Robin');
+    expect(h.indexOf('wt-pair')).toBeGreaterThan(h.indexOf('id="wt-petname-input"'));
+    expect(h.indexOf('wt-pair')).toBeLessThan(h.indexOf('id="wt-host"'));
+  });
+  it('opening Play together loads the Player pets, as opening Friends did', () => {
+    const { cloud } = setupCloud();
+    openSheet('together');
+    expect(cloud.fetchFriendships).toHaveBeenCalled();
+  });
+  it('anything still opening the old Friends sheet lands on Play together', () => {
+    const { cloud } = setupCloud();
+    openSheet('social');
+    expect(html()).toContain('data-sheet="together"');
+    expect(cloud.fetchFriendships).toHaveBeenCalled();
+  });
+  it('with no name yet, the friend code points up at the name box', () => {
+    setupCloud();
+    openSheet('together');
+    expect(html()).toContain('Give your cat a name at the top to add friends by code.');
+  });
+  it('the stray cats are in the Journal', () => {
+    const { progression } = setupCloud();
+    progression.state.friends.Smudge = { breed: 'tabby', greets: 2 };
+    openSheet('journal');
+    const h = html();
+    expect(h).toContain('<h3>Stray cats</h3>');
+    expect(h).toContain('Smudge');
+    expect(h.indexOf('Stray cats')).toBeLessThan(h.indexOf('hb-sheet-dock'));
   });
 });
 

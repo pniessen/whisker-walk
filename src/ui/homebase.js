@@ -213,15 +213,17 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const hasValidPetName = validPetName(name);
     // Paired siblings get their own room with nothing to type (Task 12).
     const pairWalk = renderPartnerWalkHtml({ status: colonySync ? colonySync.status() : null, colony, room: st });
+    // In order: the name (it unlocks everything under it), the walk with her
+    // sibling, then a room of her own to start or join.
     return `
       ${hasValidPetName ? '' : '<p class="wt-first">First, give your cat a name your friends will see:</p>'}
-      ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       <div class="wt-petname">
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Your cat's name" value="${escapeHtml(name)}" />
         <button id="wt-petname-save">Save</button>
         ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
       </div>
       ${isClanEdition(progression.state) ? renderStarNamePicker(candidateStarNames(myId), name) : ''}
+      ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       <div class="wt-actions">
         <button id="wt-host" ${hasValidPetName ? '' : 'disabled'}>Host a walk</button>
         <div class="wt-join-row">
@@ -387,7 +389,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           <input type="text" id="friend-code-input" maxlength="20" placeholder="CAT-XXXXXXXX" class="wt-code-input sync-code-input" ${hasValidPetName ? '' : 'disabled'} />
           <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
         </div>
-        ${!hasValidPetName ? '<div class="tag">Give your cat a name in 👫 Play together to add friends by code.</div>' : ''}
+        ${!hasValidPetName ? '<div class="tag">Give your cat a name at the top to add friends by code.</div>' : ''}
         ${friendCodeError ? `<div class="tag error">${escapeHtml(friendCodeError)}</div>` : ''}
         ${friendCodeSuccess ? `<div class="tag on">${escapeHtml(friendCodeSuccess)}</div>` : ''}
         ${friendCodeCandidate ? `
@@ -994,16 +996,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             trades: { give: tradeGive, want: tradeWant, confirmId: tradeConfirmId, busy: tradeBusy, error: tradeError },
           })}
         </section>`;
+      // Play together holds every code a child meets: the room's, then (from
+      // the old Friends sheet) the friends she walked with and her friend code.
       case 'together': return `
         <section class="walk-together"><h2>Play together 👫</h2>
           ${renderWalkTogether()}
-        </section>`;
-      case 'social': return `
-        <section class="friends-section"><h2>Friends 🐾</h2>
+        </section>
+        ${cloud && cloud.available ? `<section class="friends-section">
           ${renderPlayerPets()}
-          ${renderStrayFriends()}
-          ${cloud && cloud.available ? renderFriendCode() : ''}
-        </section>`;
+          ${renderFriendCode()}
+        </section>` : ''}`;
       case 'journal': {
         // Only the mice this edition can reach (Legacy hides four territories).
         const gold = goldForEdition(s.edition, CATALOG);
@@ -1011,6 +1013,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         <section class="journal-section"><h2>Journal 📖</h2>
           ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, gold), gold.size,
     isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {})}
+          <div class="friends-section">${renderStrayFriends()}</div>
         </section>`;
       }
       case 'album': return `
@@ -1097,7 +1100,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       refocus(fid);
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
       syncPairingPoll();
-      if (cloud && cloud.available && openSheet === 'social') loadPlayerPets();
+      if (cloud && cloud.available && openSheet === 'together') loadPlayerPets();
       return;
     }
     const rank = rankFor(s.lifetimePoints);

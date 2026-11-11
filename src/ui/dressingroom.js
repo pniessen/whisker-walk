@@ -21,23 +21,29 @@ import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT
 // doors; the rest open from the Menu (the kid tiles, then the grown-ups row).
 // Sound & controls is the children's half of the old Settings (volume, the
 // touch controls); Game settings keeps the grown-ups' half (edition, quality,
-// Start over).
-export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'social', 'controls'];
+// Start over). Friends folded into Play together (the friends list and the
+// friend code) and the Journal (the stray cats), so one sheet holds every code.
+export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'controls'];
 export const GROWNUP_SHEETS = ['settings', 'sync', 'code'];
 export const HOME_SHEETS = ['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS];
 export const SHEET_ICON = {
-  menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', social: '👥', journal: '📖',
+  menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', journal: '📖',
   album: '📸', sync: '☁️', settings: '⚙️', code: '🎁', controls: '🔊',
 };
 export const SHEET_NAME = {
-  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony', social: 'Friends',
+  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony',
   journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Game settings', code: 'Secret code',
   controls: 'Sound & controls',
 };
 export const SHEET_LABEL = Object.fromEntries(HOME_SHEETS.map((id) => [id, `${SHEET_ICON[id]} ${SHEET_NAME[id]}`]));
 // The den shop is not a home sheet: it lives inside the den (ui/denshopview.js).
+// The old Friends sheet ('social') opens Play together, where its friends
+// list and friend code went, so anything still asking for it lands there.
+const SHEET_ALIAS = { social: 'together' };
 export function resolveSheet(id) {
-  return typeof id === 'string' && HOME_SHEETS.includes(id) ? id : null;
+  if (typeof id !== 'string') return null;
+  const want = Object.hasOwn(SHEET_ALIAS, id) ? SHEET_ALIAS[id] : id;
+  return HOME_SHEETS.includes(want) ? want : null;
 }
 
 export const PLACE_PICTURE = (id) => `${import.meta.env.BASE_URL}places/${id}.jpg`;
