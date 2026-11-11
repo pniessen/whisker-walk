@@ -40,8 +40,9 @@ export function newWalkSeed(rand = Math.random) {
 }
 
 // The note for the walk in progress, or null when this walk is not one that
-// can be picked up. `yaw` is the player's view heading (player.viewYaw()).
-export function snapshotWalk(session, { yaw, now }) {
+// can be picked up. `yaw` is the player's view heading (player.viewYaw());
+// `paid` is the discovery log's entries (what this walk has already paid for).
+export function snapshotWalk(session, { yaw, now, paid = [] }) {
   if (!session || session.net || session.areaId === 'den' || session.soloSeed === undefined) return null;
   const meshes = session.collectibleMeshes;
   return {
@@ -64,11 +65,18 @@ export function snapshotWalk(session, { yaw, now }) {
     collected: session.areaData.collectibles.filter((c) => !meshes.has(c.id)).map((c) => c.id),
     scenics: [...(session.scenicsVisited ?? [])],
     goals: (session.goals?.goals ?? []).map((g) => ({ id: g.id, progress: g.progress, done: g.done })),
+    paid: paid.map(([key, n]) => [key, n]),
+    enemies: session.enemies?.snapshot?.() ?? { scuffled: [], forgiven: [] },
   };
 }
 
 const count = (v) => (Number.isInteger(v) && v >= 0 && v <= COUNT_MAX ? v : 0);
 const strings = (v) => (Array.isArray(v) ? v.filter((s) => typeof s === 'string').slice(0, LIST_MAX) : []);
+const PAID_MAX = 2000; // a long walk pays for a few hundred things at most
+const paidEntries = (v) => (Array.isArray(v) ? v : [])
+  .filter((e) => Array.isArray(e) && typeof e[0] === 'string' && Number.isInteger(e[1]) && e[1] > 0)
+  .slice(0, PAID_MAX)
+  .map(([key, n]) => [key, Math.min(n, COUNT_MAX)]);
 
 // A note read back from storage is checked like any other outside data. The
 // parts a walk cannot be rebuilt without (place, seed, spot, time) reject the
@@ -103,6 +111,8 @@ function sanitize(raw, areaIds) {
       .filter((g) => g && typeof g === 'object' && typeof g.id === 'string')
       .slice(0, 10)
       .map((g) => ({ id: g.id, progress: count(g.progress), done: g.done === true })),
+    paid: paidEntries(raw.paid),
+    enemies: { scuffled: strings(raw.enemies?.scuffled), forgiven: strings(raw.enemies?.forgiven) },
   };
 }
 
@@ -141,18 +151,30 @@ export function clearResume(storage) {
 }
 
 // Written BEFORE the walk is rebuilt. If the rebuild takes the game down,
-// the next launch sees the try; the walk itself clears the count once it has
-// run for a while (main.js's checkpoint timer).
+// the next launch sees the try. The count is cleared only when the game is
+// put away while the walk is running well (main.js's noteWalk on hide): a
+// walk that keeps ending without that (the page killed mid-play for memory,
+// a frame that throws) uses its tries up and is settled, however long each
+// try ran.
 export function markTried(storage, data) {
   const tried = { ...data, tries: data.tries + 1 };
   writeResume(storage, tried);
   return tried;
 }
 
-// The goals a seeded walk rolls are the same three; this puts their progress
-// back. Matched by id, so a note from an older build just restores less.
-export function restoreGoals(goals, saved) {
+// The walk's three goals, put back as they were. The goals are rebuilt from
+// the note's own ids (`pool` is goals.js's GOAL_POOL), not trusted to the
+// seeded stream: the stream is shared with draws that depend on the save
+// (a new best friend, a stashed gift), so it can roll different goals the
+// second time, and a goal already finished and paid for must never come back
+// as a new one. A note whose goals cannot all be found (an older build, a
+// renamed goal) falls back to matching the rolled ones by id.
+export function restoreGoals(goals, saved, pool = []) {
   if (!goals) return;
+  const rebuilt = saved.map((s) => pool.find((g) => g.id === s.id));
+  if (saved.length === goals.goals.length && new Set(saved.map((s) => s.id)).size === saved.length && rebuilt.every(Boolean)) {
+    goals.goals.splice(0, goals.goals.length, ...rebuilt.map((g) => ({ ...g, progress: 0, done: false })));
+  }
   for (const s of saved) {
     const g = goals.goals.find((x) => x.id === s.id);
     if (!g) continue;

@@ -464,10 +464,15 @@ function init() {
     clearResume(window.localStorage);
     settleAbandoned(progression, leftWalk.data);
   }
-  const visit = progression.recordVisit();
+  // A launch that picks a walk up again is not a new visit: nothing is
+  // counted, so a milestone celebration (and Rosa's farewell, below) is not
+  // used up behind a walk and waits for a launch that opens at home.
+  const resuming = leftWalk?.kind === 'resume';
+  const visit = resuming ? { visits: progression.state.visits, milestone: null } : progression.recordVisit();
   homebase.show();
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {
+    if (resuming) return; // kept for a launch that opens at home
     const farewell = progression.takeFarewell();
     if (farewell) homebase.showNotice(farewell);
   };
@@ -713,10 +718,18 @@ function init() {
   // snapshotWalk gives null for a walk that cannot be picked up (a walk
   // together, the den) and writeResume ignores null.
   const noteWalk = () => {
-    if (session) writeResume(window.localStorage, snapshotWalk(session, { yaw: player.viewYaw(), now: Date.now() }));
+    if (session) writeResume(window.localStorage, snapshotWalk(session, { yaw: player.viewYaw(), now: Date.now(), paid: log.entries() }));
   };
-  document.addEventListener('visibilitychange', () => { if (document.hidden) noteWalk(); });
-  window.addEventListener('pagehide', noteWalk);
+  // Put away while the walk is running well (it has drawn frames for a
+  // while): that is the ordinary way a walk is left, so the count of failed
+  // tries starts over. Only here: a walk the page is killed in mid-play never
+  // gets this far, and uses its tries up (walkresume.js markTried).
+  const noteWalkOnHide = () => {
+    if (session?.healthy) session.resumeTries = 0;
+    noteWalk();
+  };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) noteWalkOnHide(); });
+  window.addEventListener('pagehide', noteWalkOnHide);
   let walkNoteAccum = 0;
   // Mouse wheel / trackpad zoom. Only cancelled (and only acted on) during an
   // engaged walk, so the browser's own ctrl+wheel zoom still works everywhere
@@ -759,14 +772,18 @@ function init() {
   // it does for any walk). The try is counted BEFORE the build: a walk that
   // cannot be rebuilt is settled on a later launch (RESUME_MAX_TRIES) rather
   // than tried forever.
-  if (leftWalk?.kind === 'resume') {
+  if (resuming) {
     const note = markTried(window.localStorage, leftWalk.data);
     try {
       startWalk({ duskMode: note.dusk, areaOverride: note.areaId, resume: note });
     } catch (err) {
       console.warn('Whisker Walk: could not pick the walk up', err);
+      // The walk counts as finished and is forgotten. If it got as far as a
+      // half-built session, start the page again clean: with the note gone
+      // that opens at home, once.
       clearResume(window.localStorage);
-      if (!session) settleAbandoned(progression, note);
+      settleAbandoned(progression, note);
+      if (session) window.location.reload();
     }
   }
   renderer.setAnimationLoop(() => {
@@ -1117,13 +1134,13 @@ function init() {
     perfHud.frameEnd(session, performance.now());
     // Mid-walk resume: note the walk every 5 s. After the draw on purpose: a
     // walk picked up again that cannot get through a frame never reaches
-    // this, so its count of failed tries stands and the next launch but one
-    // opens at home.
+    // this, so it is never marked healthy, its count of failed tries stands
+    // and the next launch but one opens at home.
     if (session) {
       walkNoteAccum += dt;
       if (walkNoteAccum >= 5) {
         walkNoteAccum = 0;
-        session.resumeTries = 0;
+        session.healthy = true;
         noteWalk();
       }
     }

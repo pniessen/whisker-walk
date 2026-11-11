@@ -45,6 +45,16 @@ export function createDiscoveryLog(progression) {
     startWalk() {
       seen = new Map();
     },
+    // Mid-walk resume (game/walkresume.js): what this walk has already paid
+    // for, as [key, count] pairs, and putting it back after startWalk() on a
+    // walk picked up again. Without it, closing and reopening the game would
+    // pay every once-per-walk award a second time.
+    entries() {
+      return [...seen];
+    },
+    restore(entries) {
+      for (const [key, n] of entries) seen.set(key, n);
+    },
     count(key) {
       return seen.get(key) || 0;
     },
