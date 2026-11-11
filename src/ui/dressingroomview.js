@@ -126,7 +126,17 @@ export function createDressingRoom({
     if (!thumbs.outfits) thumbs.outfits = {};
     return thumbs;
   };
-  const dispatch = (action) => { ui = reduceDressingUi(ui, action); };
+  // Usage counts (src/usage.js): Dress up and the cat builder, each time one
+  // goes from closed to open.
+  const dispatch = (action) => {
+    const was = ui;
+    ui = reduceDressingUi(ui, action);
+    try {
+      // (finishing a cat in the builder lands in Dress up: not her opening it)
+      if (ui.wardrobe && !was.wardrobe && action?.type !== 'builder-done') progression.noteUse?.('dressup');
+      if (ui.builder && !was.builder) progression.noteUse?.('builder');
+    } catch { /* a count, never a blocker */ }
+  };
   const autoSync = () => { sync?.autoSync?.(); };
   const profileChanged = () => { onProfileChange?.(); };
   const builderOp = (action) => { if (ui.builder) dispatch({ type: 'builder', builder: reduceBuilder(ui.builder, action) }); };

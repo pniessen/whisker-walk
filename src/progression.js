@@ -1,6 +1,7 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
 import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_PERSONALITIES } from './customcats.js';
 import { sanitizeOutfits, wornNow, canSaveOutfit, nextOutfitId, OUTFIT_SLOTS } from './outfits.js';
+import { sanitizeUsage, bumpUsage, mergeUsage } from './usage.js';
 import { validPetName } from './net.js';
 import { AWARDS } from './discoveries.js';
 import { SKILL_IDS, friendRungs, hasSkill } from './skills.js';
@@ -396,6 +397,9 @@ function defaultState() {
     // Saved outfits (src/outfits.js): up to five accessory combinations she
     // can put back on. Additive, so SAVE_VERSION stays 4.
     outfits: [],
+    // Usage counts (src/usage.js): how often each home screen is opened, for
+    // the grown-ups' readout in Game settings. Additive; SAVE_VERSION stays.
+    usage: {},
     area: 'neighborhood',
     lifetimePoints: 0,
     bestWalk: 0,
@@ -930,6 +934,7 @@ function sanitizeState(parsed) {
     equipped: { cat: equippedCat, collar: equippedCollar, ...equippedSlots, custom: equippedCustom },
     customCats,
     outfits: sanitizeOutfits(parsed.outfits, CATALOG),
+    usage: sanitizeUsage(parsed.usage),
     area,
     lifetimePoints: asFiniteNonNeg(parsed.lifetimePoints, 0),
     bestWalk: asFiniteNonNeg(parsed.bestWalk, 0),
@@ -1414,6 +1419,14 @@ export function createProgression(storage) {
         const item = outfit.wear[slot];
         state.equipped[slot] = item && state.unlocked.accessories.includes(item) ? item : null;
       }
+      save();
+      return true;
+    },
+    // One more open of a home screen (src/usage.js). Unknown ids are ignored.
+    noteUse(id) {
+      const next = bumpUsage(state.usage, id, state.visits);
+      if (next === state.usage) return false;
+      state.usage = next;
       save();
       return true;
     },
@@ -2122,6 +2135,7 @@ export function createProgression(storage) {
       const localSeen = state.visitPrizesSeen;
       const localCustomCats = state.customCats;
       const localOutfits = state.outfits;
+      const localUsage = state.usage;
       const localFights = state.fightsWon;
       const localMoves = state.fightMoves;
       try {
@@ -2139,6 +2153,8 @@ export function createProgression(storage) {
       }
       // The same for saved outfits: an older build's payload has none to give.
       if (!(isPlainObject(rawSaveObject) && Object.hasOwn(rawSaveObject, 'outfits'))) state.outfits = localOutfits;
+      // Usage counts never go down: the larger of this device's and the save's.
+      state.usage = mergeUsage(localUsage, state.usage);
       for (const id of prizesWonBy(state.visitPrizesSeen)) {
         if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
       }
