@@ -146,8 +146,8 @@ describe('refreshDevices: one device never holds up the others', () => {
 
   it('an unregistered device out of range is left for setup, not attempted', () => {
     const f = fakes({ registerOk: true });
-    const { results } = refreshDevices({ devices: [{ udid: 'X', name: 'Gran', reachable: false }], profile, ...f });
-    expect(results).toEqual([{ name: 'Gran', udid: 'X', status: 'unregistered' }]);
+    const { results } = refreshDevices({ devices: [{ udid: 'X', name: 'Grandparent’s iPad', reachable: false }], profile, ...f });
+    expect(results).toEqual([{ name: 'Grandparent’s iPad', udid: 'X', status: 'unregistered' }]);
     expect(f.installed).toEqual([]);
   });
 

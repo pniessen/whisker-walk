@@ -18,7 +18,7 @@
 The game's systems depth (cloud saves, co-walks, ghosts, chat, ranks, goals)
 is well ahead of its *feel*. The world is sparse, the cat is static, and the
 audio is oscillator bleeps — so moment-to-moment play under-sells the
-engineering. For 10–12-year-old players the priority is **reactivity**: a
+engineering. For young players the priority is **reactivity**: a
 world and a cat that visibly and audibly respond to everything the player
 does. Every wave below pushes on that.
 

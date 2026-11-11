@@ -43,7 +43,7 @@ a fourth area — **The Old Docks** — exists to spend the new abilities in.
   deliberate — points are already abundant late-game, so pricing skills would
   have made them a formality.
 - **Always-on, no loadout.** An unlocked ability is permanently active. There is
-  no equip screen, no slot budget, no build-crafting. For the 10–12-year-old
+  no equip screen, no slot budget, no build-crafting. For a young
   audience, earning a skill should simply make you better forever.
 - **Challenges are predicates over save state, not a new subsystem.** Nearly
   every feat is expressible against state the game already persists (`journal`,
