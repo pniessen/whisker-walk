@@ -270,6 +270,44 @@ describe('Change place (the places sheet)', () => {
     expect(dressingMock.placesArgs.at(-1).clanLineHtml).toContain('hb-pick-line');
     expect(dressingMock.placesArgs.at(-1).clanLineHtml).toContain(MOMENT_ATTR);
   });
+  it('a place she cannot open answers the tap: one line says what is missing, and the card wobbles', () => {
+    const toast = vi.fn();
+    const progression = createProgression(memStorage());
+    progression.state.points = 21;
+    progression.state.walks.neighborhood = 2;
+    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', toast).show();
+    openSheet('places');
+    const card = fakeEl(doc);
+    doc.root.querySelectorAll = (sel) => (sel === '[data-dr-place="park"]' ? [card] : []);
+    dressingMock.opts.onPlaced('park', false);
+    expect(toast).toHaveBeenCalledWith('29 more 🐾 to go');
+    dressingMock.opts.onChange(); // the render the tap causes
+    expect(card.classList.contains('nudge')).toBe(true);
+    expect(html()).toContain('data-sheet="places"');
+    // a gated one says what it waits for
+    progression.state.walks.neighborhood = 0;
+    dressingMock.opts.onPlaced('park', false);
+    expect(toast).toHaveBeenLastCalledWith(expect.stringMatching(/^opens after 2 walks in .+ · 0\/2 so far$/));
+  });
+  it('no wobble when she asked for reduced motion (the line still comes)', () => {
+    const toast = vi.fn();
+    const progression = createProgression(memStorage());
+    const calm = { ...settings, all: () => ({ ...settings.all(), reducedMotion: true }) };
+    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, calm, () => {}, () => {}, null, 'me', toast).show();
+    openSheet('places');
+    const card = fakeEl(doc);
+    doc.root.querySelectorAll = () => [card];
+    dressingMock.opts.onPlaced('park', false);
+    dressingMock.opts.onChange();
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(card.classList.contains('nudge')).toBe(false);
+  });
+  it('the wobble CSS is skipped under the system reduced-motion setting', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).toContain('.hb-places .nudge { animation: hb-nudge');
+    expect(css).toContain('@media (prefers-reduced-motion: reduce) { .hb-places .nudge { animation: none; } }');
+  });
   it('a place she can walk (onPlaced with an outcome) takes her home; a refused one leaves the sheet', () => {
     setup();
     openSheet('places');

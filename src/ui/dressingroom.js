@@ -48,6 +48,19 @@ export function resolveSheet(id) {
 
 export const PLACE_PICTURE = (id) => `${import.meta.env.BASE_URL}places/${id}.jpg`;
 
+// Why a place she tapped did not open, in one line: the walks it waits for, or
+// the paws still to find. null when nothing is missing (she owns it, it would
+// open) or it is not a place in this edition.
+export function placeWhyLine(state, catalog, id) {
+  const a = typeof id === 'string' && has(catalog.areas, id) ? catalog.areas[id] : null;
+  if (!a || !areaInEdition(a, state?.edition) || ownedList(state, 'areas').includes(id)) return null;
+  const req = a.requires;
+  const have = req ? walksIn(state, req.area) : 0;
+  if (req && have < req.walks) return opensAfterLine(req, have, state?.edition, catalog);
+  const short = num(a.price) - num(state?.points);
+  return short > 0 ? `${short} more 🐾 to go` : null;
+}
+
 // Display order of the slots (independent of catalog insertion order).
 const SLOT_ORDER = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
 const SLOT_LABEL = { collar: 'Collar', head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };

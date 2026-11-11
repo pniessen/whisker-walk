@@ -8,7 +8,7 @@ import { clanName } from '../src/clanhomes.js';
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
   MENU_TILES, GROWNUP_SHEETS,
-  buildDressingModel, renderSlotPickerHtml, renderDressingRoomHtml, renderPlacesSheetHtml, poseToggleHtml,
+  buildDressingModel, renderSlotPickerHtml, renderDressingRoomHtml, renderPlacesSheetHtml, poseToggleHtml, placeWhyLine,
 } from '../src/ui/dressingroom.js';
 
 function defaultishState() {
@@ -738,5 +738,22 @@ describe('Launch A: the home screen (cat, place, go)', () => {
       expect(resolveSheet('social')).toBe('together');
       expect(SHEET_LABEL.sync).toBe('☁️ Cloud save');
     });
+  });
+});
+
+// A tap on a place she cannot open yet answers with what is missing.
+describe('placeWhyLine', () => {
+  const base = (over = {}) => ({ points: 0, walks: { neighborhood: 0, park: 0, seaside: 0 }, unlocked: { areas: ['neighborhood'] }, edition: 'canon', ...over });
+  it('a gated place says how many walks it waits for', () => {
+    expect(placeWhyLine(base({ walks: { neighborhood: 1 }, edition: 'legacy' }), CATALOG, 'park')).toBe('opens after 2 walks in Cozy Neighborhood · 1/2 so far');
+  });
+  it('an open place she cannot afford says how many paws to go', () => {
+    expect(placeWhyLine(base({ points: 21, walks: { neighborhood: 2 } }), CATALOG, 'park')).toBe('29 more 🐾 to go');
+  });
+  it('nothing is missing: owned, affordable, unknown, or not in this edition', () => {
+    expect(placeWhyLine(base(), CATALOG, 'neighborhood')).toBeNull();
+    expect(placeWhyLine(base({ points: 50, walks: { neighborhood: 2 } }), CATALOG, 'park')).toBeNull();
+    expect(placeWhyLine(base(), CATALOG, 'nowhere')).toBeNull();
+    expect(placeWhyLine(base({ edition: 'legacy' }), CATALOG, 'woods')).toBeNull();
   });
 });

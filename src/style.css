@@ -1490,6 +1490,11 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .hb-dusk.off .hb-dusk-switch { opacity: .5; cursor: not-allowed; }
 .hb-dusk.off .hb-dusk-switch input { cursor: not-allowed; }
 .hb-dusk-why { font-size: 13px; opacity: .85; }
+/* a place she cannot open yet answers a tap with a short wobble (a toast says why) */
+@keyframes hb-nudge { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.hb-places .nudge { animation: hb-nudge .4s ease-in-out; transform-box: fill-box; }
+@media (prefers-reduced-motion: reduce) { .hb-places .nudge { animation: none; } }
 .hb-pick-line { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; }
 .hb-pick-line .dr-home-emblem { margin: 0; }
 /* her clan's line is the door to change it: a full-width button, quiet until the gold Change */

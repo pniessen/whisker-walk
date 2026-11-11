@@ -3,7 +3,7 @@ import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
 import { activeCat } from '../customcats.js';
 import { renderFightMovesHtml, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
-import { HOME_SHEETS, MENU_TILES, GROWNUP_SHEETS, SHEET_ICON, SHEET_NAME, resolveSheet, PLACE_PICTURE } from './dressingroom.js';
+import { HOME_SHEETS, MENU_TILES, GROWNUP_SHEETS, SHEET_ICON, SHEET_NAME, resolveSheet, PLACE_PICTURE, placeWhyLine } from './dressingroom.js';
 import { createDressingRoom } from './dressingroomview.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
@@ -836,6 +836,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // (afterRender), so a colony poll or a roster change mid-drag keeps the cat.
   let stage = null;
   let dressing = null;
+  let nudgePlace = null; // a place she could not open: wobbles once, on the next render
   let thumbs = null; // menuThumbnails(), made once with the dressing room
   function ensureDressing() {
     if (dressing) return dressing;
@@ -848,8 +849,18 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       onProfileChange: () => rooms?.retrackProfile?.(),
       onCatSaved: () => rooms?.pushProfileNow?.(),
       // Change place: a place she can walk is picked and she is back home with
-      // its card; a locked or unaffordable one leaves the sheet as it is.
-      onPlaced: (id, outcome) => { if (outcome && openSheet === 'places') { openSheet = null; backTo = null; } },
+      // its card; a locked or unaffordable one stays, but answers the tap: it
+      // wobbles (the render this tap causes) and one line says what is missing.
+      onPlaced: (id, outcome) => {
+        if (outcome) {
+          if (openSheet === 'places') { openSheet = null; backTo = null; }
+          return;
+        }
+        const why = placeWhyLine(progression.state, CATALOG, id);
+        if (!why) return;
+        nudgePlace = id;
+        try { toast?.(why); } catch { /* a toast is never worth a crash */ }
+      },
     });
     return dressing;
   }
@@ -1120,6 +1131,17 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         </footer>`}
       </div>`;
       refocus(fid);
+      // The wobble: the card (or map region) she tapped, in the fresh DOM.
+      // Skipped when she asked for reduced motion (the CSS also skips it for
+      // the system setting).
+      const nudge = nudgePlace;
+      nudgePlace = null;
+      if (nudge && !settings?.all?.()?.reducedMotion) {
+        try {
+          const q = String(nudge).replace(/["\\]/g, '');
+          for (const el of root.querySelectorAll?.(`[data-dr-place="${q}"]`) ?? []) el.classList.add('nudge');
+        } catch { /* a nicety */ }
+      }
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
       syncPairingPoll();
       if (cloud && cloud.available && openSheet === 'together') loadPlayerPets();
