@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:quick": "WW_TEST_QUICK=1 vitest run",
     "test:watch": "vitest",
     "build:ios": "vite build --mode ios",
     "ios:refresh": "node ios/refresh.mjs",
