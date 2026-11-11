@@ -26,7 +26,7 @@ export function formatPerfLines(s) {
     `${fps} fps · ${ms} ms · worst ${worst} ms (3 s)`,
     `cpu ${s.workMs.toFixed(1)} ms`,
     `tier ${s.tierName} · setting ${s.quality} · touch ${s.coarse ? 'yes' : 'no'}`,
-    `shadow ${s.shadowMapSize} · postFx ${onOff(s.postFx)} · normals ${onOff(s.normalMaps)}`,
+    `shadow ${s.shadowMapSize > 0 ? s.shadowMapSize : 'off'} · postFx ${onOff(s.postFx)} · normals ${onOff(s.normalMaps)}`,
     s.adapt,
     `px ratio ${+s.pixelRatio.toFixed(2)} · ${s.bufferW}×${s.bufferH} · strays ${s.strays}`,
     `draws ${f.calls} · shadow ${f.shadowCalls} · scene ${f.sceneCalls} · other ${f.otherCalls}`,
@@ -110,7 +110,8 @@ export function createPerfHud({ renderer, settings, coarse, adapter }) {
     snap.frameMs = stats.frameMs();
     snap.worstMs = stats.worstMs(now);
     snap.workMs = stats.workMs();
-    snap.tierName = tier?.name ?? '?';
+    // The label tells the rungs below LOW apart; their `name` is still 'low'.
+    snap.tierName = tier?.label ?? tier?.name ?? '?';
     snap.quality = settings.get('quality');
     snap.shadowMapSize = tier?.shadowMapSize ?? 0;
     // Live, not tier.postFx: the adapter can drop the composer mid-walk.

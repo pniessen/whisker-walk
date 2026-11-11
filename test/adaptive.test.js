@@ -177,7 +177,7 @@ describe('device memory', () => {
   it('out-of-range fields are sanitized', () => {
     const s = mapStorage();
     s.setItem(MEMORY_KEY, '{"rung":9,"walks":-3,"waitDays":1000,"retrying":"yes"}');
-    expect(readMemory(s)).toEqual({ rung: 3, steppedAt: 0, walks: 0, waitDays: 56, retrying: false });
+    expect(readMemory(s)).toEqual({ rung: 5, steppedAt: 0, walks: 0, waitDays: 56, retrying: false });
     s.setItem(MEMORY_KEY, '{"rung":-1.5,"steppedAt":-5,"walks":2.7,"waitDays":1}');
     expect(readMemory(s)).toEqual({ rung: 0, steppedAt: 0, walks: 2, waitDays: 7, retrying: false });
     s.setItem(MEMORY_KEY, '{"rung":"2","steppedAt":null,"walks":"x","waitDays":null}');

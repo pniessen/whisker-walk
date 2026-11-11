@@ -6,7 +6,7 @@ const sample = {
   tierName: 'high', quality: 'auto', coarse: false,
   shadowMapSize: 2048, postFx: true, normalMaps: true,
   pixelRatio: 2, bufferW: 2560, bufferH: 1440, strays: 22,
-  adapt: 'auto rung 0/3 · start 0 (top)',
+  adapt: 'auto rung 0/5 · start 0 (top)',
   frame: { calls: 1110, triangles: 109402, shadowCalls: 412, sceneCalls: 690, otherCalls: 8, sceneRenders: 1, renders: 3 },
 };
 
@@ -17,7 +17,7 @@ describe('formatPerfLines', () => {
       'cpu 6.1 ms',
       'tier high · setting auto · touch no',
       'shadow 2048 · postFx on · normals on',
-      'auto rung 0/3 · start 0 (top)',
+      'auto rung 0/5 · start 0 (top)',
       'px ratio 2 · 2560×1440 · strays 22',
       'draws 1110 · shadow 412 · scene 690 · other 8',
       'tris 109,402 · scene passes 1',
@@ -143,11 +143,11 @@ describe('createPerfHud', () => {
     hud.setEnabled(true);
     hud.frameStart(1000, session);
     hud.frameEnd(session, 1002);
-    expect(line(4)).toBe('auto rung 0/3 · start 0 (top)');
+    expect(line(4)).toBe('auto rung 0/5 · start 0 (top)');
     Object.assign(adapter.status, { rung: 1, change: '0→1: 72% of frames over 20 ms for 4 s' });
     hud.frameStart(1600, session);
     hud.frameEnd(session, 1602);
-    expect(line(4)).toBe('auto rung 1/3 · start 0 (top) · 0→1: 72% of frames over 20 ms for 4 s');
+    expect(line(4)).toBe('auto rung 1/5 · start 0 (top) · 0→1: 72% of frames over 20 ms for 4 s');
   });
 
   it('says a forced rung is forced', () => {
@@ -155,7 +155,16 @@ describe('createPerfHud', () => {
     Object.assign(adapter.status, { mode: 'forced', rung: 2, startRung: 2, startReason: 'forced' });
     hud.frameStart(1000, session);
     hud.frameEnd(session, 1002);
-    expect(line(4)).toBe('forced rung 2/3 (?rung)');
+    expect(line(4)).toBe('forced rung 2/5 (?rung)');
+  });
+
+  it('names the rungs below LOW by their label, and says when the shadow pass is off', () => {
+    hud.setEnabled(true);
+    const lite = { ...session, useComposer: false, tier: { name: 'low', label: 'lite', shadowMapSize: 0, postFx: false, normalMaps: false } };
+    hud.frameStart(1000, lite);
+    hud.frameEnd(lite, 1002);
+    expect(line(2)).toBe('tier lite · setting auto · touch no');
+    expect(line(3)).toBe('shadow off · postFx off · normals off');
   });
 
   it('says manual or reduced motion with no rung', () => {

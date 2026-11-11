@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { resolveQuality, isAdaptive, LADDER, FLOOR_RUNG, parseForcedRung } from '../src/render/quality.js';
+import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG, parseForcedRung } from '../src/render/quality.js';
 
-const high = { name: 'high', rung: 0, strays: 22, shadowMapSize: 2048, envIntensity: 0.45, postFx: true, pixelRatioCap: 2, msaaSamples: 4, shadowFitRadius: 20, normalMaps: true, grassRadius: 9, grassSpacing: 0.3, pawPrints: 96, pawFade: 9, cloudCount: 10, ambientScale: 1, splashDrops: 64, splashRings: 32 };
-const low  = { name: 'low',  rung: 3, strays: 14, shadowMapSize: 1024, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5, msaaSamples: 0, shadowFitRadius: 20, normalMaps: false, grassRadius: 6, grassSpacing: 0.42, pawPrints: 48, pawFade: 6, cloudCount: 6, ambientScale: 0.5, splashDrops: 32, splashRings: 20 };
+const high = { name: 'high', label: 'high', rung: 0, strays: 22, shadowMapSize: 2048, shadows: true, shadowMinPart: 0, keepFedCats: false, envIntensity: 0.45, postFx: true, pixelRatioCap: 2, msaaSamples: 4, shadowFitRadius: 20, normalMaps: true, grassRadius: 9, grassSpacing: 0.3, pawPrints: 96, pawFade: 9, cloudCount: 10, ambientScale: 1, splashDrops: 64, splashRings: 32 };
+const low  = { name: 'low',  label: 'low',  rung: 3, strays: 14, shadowMapSize: 1024, shadows: true, shadowMinPart: 0, keepFedCats: false, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5, msaaSamples: 0, shadowFitRadius: 20, normalMaps: false, grassRadius: 6, grassSpacing: 0.42, pawPrints: 48, pawFade: 6, cloudCount: 6, ambientScale: 0.5, splashDrops: 32, splashRings: 20 };
 
 describe('resolveQuality', () => {
   it('auto → high on a desktop pointer with motion allowed', () => {
@@ -67,13 +67,58 @@ describe('resolveQuality', () => {
 
 describe('the quality ladder', () => {
   const auto = (rung) => resolveQuality({ override: 'auto', reducedMotion: false, rung });
-  it('has four frozen rungs, floor 3, with HIGH/LOW at the ends', () => {
-    expect(LADDER).toHaveLength(4);
-    expect(FLOOR_RUNG).toBe(3);
+  it('has six frozen rungs, floor 5, with HIGH at the top and LOW at rung 3', () => {
+    expect(LADDER).toHaveLength(6);
+    expect(LOW_RUNG).toBe(3);
+    expect(FLOOR_RUNG).toBe(5);
     expect(Object.isFrozen(LADDER)).toBe(true);
     LADDER.forEach((t, i) => { expect(Object.isFrozen(t)).toBe(true); expect(t.rung).toBe(i); expect(t.shadowFitRadius).toBe(20); });
     expect(LADDER[0]).toEqual(high);
     expect(LADDER[3]).toEqual(low);
+  });
+  it('every rung has every knob', () => {
+    const keys = Object.keys(high).sort();
+    for (const t of LADDER) expect(Object.keys(t).sort()).toEqual(keys);
+  });
+  // Rungs 0-3 are what shipped before the two lower rungs existed: pixel for
+  // pixel the same walk.
+  it('rungs 0 to 3 are untouched by the rungs below them', () => {
+    expect(LADDER[1]).toEqual({ ...high, rung: 1, pixelRatioCap: 1.5 });
+    expect(LADDER[2]).toEqual({ ...high, rung: 2, pixelRatioCap: 1.5, postFx: false, msaaSamples: 0 });
+    for (const t of LADDER.slice(0, 4)) {
+      expect(t.shadows).toBe(true);
+      expect(t.shadowMinPart).toBe(0);
+      expect(t.keepFedCats).toBe(false);
+    }
+  });
+  it('rung 4, shadow-light, is LOW with small parts no longer casting', () => {
+    expect(auto(4)).toEqual({ ...low, label: 'shadow-light', rung: 4, shadowMinPart: 0.3 });
+  });
+  it('rung 5, lite, has no shadow pass and less scenery, and keeps what matters', () => {
+    const t = auto(5);
+    expect(t).toEqual({
+      ...low, label: 'lite', rung: 5, shadowMinPart: 0.3,
+      shadows: false, shadowMapSize: 0, pixelRatioCap: 1,
+      strays: 8, keepFedCats: true, cloudCount: 0,
+      grassRadius: 5, grassSpacing: 0.5, ambientScale: 0.25,
+    });
+    // Paw prints and splashes are LOW's, untouched.
+    expect(t.pawPrints).toBe(low.pawPrints);
+    expect(t.pawFade).toBe(low.pawFade);
+    expect(t.splashRings).toBe(low.splashRings);
+  });
+  // render/textures.js, render/water.js, render/waterdress.js and weather.js
+  // read tier.name and know only 'high' and 'low'.
+  it('the rungs below LOW still answer to the name low', () => {
+    expect(LADDER.map((t) => t.name)).toEqual(['high', 'high', 'high', 'low', 'low', 'low']);
+    expect(LADDER.map((t) => t.label)).toEqual(['high', 'high', 'high', 'low', 'shadow-light', 'lite']);
+  });
+  it('the manual settings and reduced motion never reach below LOW', () => {
+    for (const rung of [0, 3, 4, 5, 9]) {
+      expect(resolveQuality({ reducedMotion: false, override: 'low', rung })).toEqual(low);
+      expect(resolveQuality({ reducedMotion: false, override: 'high', rung })).toEqual(high);
+      expect(resolveQuality({ reducedMotion: true, override: 'auto', rung })).toEqual(low);
+    }
   });
   it('rung 1 trims the pixel ratio only', () => {
     const t = auto(1);
@@ -91,7 +136,7 @@ describe('the quality ladder', () => {
   });
   it('rung 3 is exactly low', () => { expect(auto(3)).toEqual(low); });
   it('clamps and sanitises the rung', () => {
-    expect(auto(7)).toEqual(low);
+    expect(auto(7)).toEqual(LADDER[5]);
     expect(auto(-1)).toEqual(high);
     expect(auto(NaN)).toEqual(high);
     expect(auto(undefined)).toEqual(high);

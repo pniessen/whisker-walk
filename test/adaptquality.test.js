@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import * as THREE from 'three';
 import { createQualityAdapter } from '../src/game/adaptquality.js';
 import { LADDER } from '../src/render/quality.js';
 import { MEMORY_KEY } from '../src/render/adaptive.js';
@@ -395,5 +396,135 @@ describe('a forced rung (?rung=N)', () => {
     expect(adapter.status.mode).toBe('manual');
     expect(adapter.beginWalk({ override: 'auto', reducedMotion: true, nowMs: 0 })).toBe(LADDER[3]);
     expect(adapter.status.mode).toBe('reduced-motion');
+  });
+});
+
+// A session as far as the two lower rungs' live steps can tell: a scene with
+// one thing made of a big part and a small one, both casting, and the shadow
+// rig's two verbs (render/shadowfit.js).
+function lowSession() {
+  const scene = new THREE.Scene();
+  const thing = new THREE.Group();
+  const big = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial());
+  const small = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshStandardMaterial());
+  big.castShadow = true;
+  small.castShadow = true;
+  thing.add(big, small);
+  scene.add(thing);
+  return {
+    useComposer: false, scene, big, small,
+    shadows: { setStrength: vi.fn(), stop: vi.fn() },
+  };
+}
+const atLow = { rung: 3, steppedAt: WALL - DAY, walks: 2, waitDays: 7, retrying: false };
+
+describe('below LOW: the shadow-light and lite rungs', () => {
+  it('a walk that steps down to LOW rests there: LOW has not been seen yet', () => {
+    const { adapter, renderer, storage } = setup({
+      memory: { rung: 2, steppedAt: WALL - DAY, walks: 2, waitDays: 7, retrying: false },
+    });
+    const session = lowSession();
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    run(adapter, session, 0, 120_000, 40);
+    expect(adapter.status.rung).toBe(3);
+    expect(stored(storage).rung).toBe(3);
+    expect(session.small.castShadow).toBe(true);
+    expect(session.shadows.setStrength).not.toHaveBeenCalled();
+    expect(session.shadows.stop).not.toHaveBeenCalled();
+    expect(renderer.getPixelRatio()).toBe(1.5);
+  });
+
+  it('from LOW, a slow walk steps to shadow-light live: small parts stop casting at once', () => {
+    const { adapter, renderer, storage } = setup({ memory: atLow });
+    const session = lowSession();
+    expect(adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 })).toBe(LADDER[3]);
+    run(adapter, session, 0, 9100, 40);
+    expect(adapter.status.rung).toBe(4);
+    expect(adapter.status.change).toBe('3→4: 100% of frames over 20 ms for 4 s');
+    expect(stored(storage).rung).toBe(4);
+    expect(session.big.castShadow).toBe(true);
+    expect(session.small.castShadow).toBe(false);
+    // Nothing else moves: same pixels, shadows as dark as they were.
+    expect(renderer.getPixelRatio()).toBe(1.5);
+    expect(session.shadows.setStrength).not.toHaveBeenCalled();
+    expect(session.shadows.stop).not.toHaveBeenCalled();
+  });
+
+  it('then to lite: the pixel ratio drops at once and the shadows fade out, then stop', () => {
+    const { adapter, renderer, storage } = setup({ memory: atLow });
+    const session = lowSession();
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    run(adapter, session, 0, 9100, 40);
+    expect(adapter.status.rung).toBe(4);
+    run(adapter, session, 9140, 14400, 40);
+    expect(adapter.status.rung).toBe(5);
+    expect(adapter.status.change).toBe('4→5: 100% of frames over 20 ms for 4 s (fewer strays, no clouds, thinner grass next walk)');
+    expect(stored(storage).rung).toBe(5);
+    expect(renderer.getPixelRatio()).toBe(1);
+    expect(session.shadows.stop).not.toHaveBeenCalled(); // fading, not cut
+
+    run(adapter, session, 14440, 16500, 40);
+    const strengths = session.shadows.setStrength.mock.calls.map(([k]) => k);
+    expect(strengths.length).toBeGreaterThan(10);
+    expect(strengths[0]).toBeLessThanOrEqual(1);
+    for (let i = 1; i < strengths.length; i++) expect(strengths[i]).toBeLessThan(strengths[i - 1]);
+    expect(strengths.at(-1)).toBeGreaterThan(0);
+    expect(session.shadows.stop).toHaveBeenCalledTimes(1);
+
+    // The fade is over: nothing touches the shadows again.
+    const calls = session.shadows.setStrength.mock.calls.length;
+    run(adapter, session, 16540, 20000, 16);
+    expect(session.shadows.setStrength.mock.calls.length).toBe(calls);
+    expect(session.shadows.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('a walk that got fast enough on shadow-light stays there', () => {
+    const { adapter, storage } = setup({ memory: atLow });
+    const session = lowSession();
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    drive(adapter, session, 0, 60_000, () => (adapter.status.rung === 3 ? 30 : 16));
+    expect(adapter.status.rung).toBe(4);
+    expect(stored(storage).rung).toBe(4);
+    expect(session.shadows.stop).not.toHaveBeenCalled();
+  });
+
+  it('a remembered rung 4 or 5 starts the walk there', () => {
+    for (const rung of [4, 5]) {
+      const { adapter, renderer } = setup({ memory: { ...atLow, rung } });
+      expect(adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 })).toBe(LADDER[rung]);
+      expect(adapter.status).toMatchObject({ rung, startRung: rung, startReason: 'remembered' });
+      expect(renderer.getPixelRatio()).toBe(rung === 5 ? 1 : 1.5);
+    }
+  });
+
+  it('a shadow fade left by a walk that ended cannot reach the next walk', () => {
+    const { adapter } = setup({ memory: { ...atLow, rung: 4 } });
+    const first = lowSession();
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    run(adapter, first, 0, 9100, 40); // 4 → 5: the fade has started
+    expect(adapter.status.rung).toBe(5);
+    const second = lowSession();
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 10_000 });
+    run(adapter, second, 10_000, 13_000, 16);
+    expect(second.shadows.setStrength).not.toHaveBeenCalled();
+    expect(second.shadows.stop).not.toHaveBeenCalled();
+    expect(first.shadows.stop).not.toHaveBeenCalled();
+  });
+
+  it('a session with no scene or shadow rig steps without throwing', () => {
+    const { adapter } = setup({ memory: atLow });
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    expect(() => run(adapter, { useComposer: false }, 0, 30_000, 40)).not.toThrow();
+    expect(adapter.status.rung).toBe(5);
+  });
+
+  it('?rung=4 and ?rung=5 hold those rungs', () => {
+    for (const rung of [4, 5]) {
+      const { adapter, storage } = setup({ forcedRung: rung });
+      expect(adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 })).toBe(LADDER[rung]);
+      run(adapter, lowSession(), 0, 30_000, 40);
+      expect(adapter.status).toMatchObject({ mode: 'forced', rung });
+      expect(storage.setItem).not.toHaveBeenCalled();
+    }
   });
 });

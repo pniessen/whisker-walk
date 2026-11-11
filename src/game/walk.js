@@ -103,7 +103,7 @@ import { litMaterial } from '../render/materials.js';
 import { setTextureTier } from '../render/textures.js';
 import { waterRig, eveningWater } from '../render/water.js';
 import { createWind } from '../render/wind.js';
-import { createSun, createFill, SUN_BIAS, assignShadowCasters, assignShadowCastersFor } from '../render/rig.js';
+import { createSun, createFill, SUN_BIAS, assignShadowCasters, assignShadowCastersFor, trimShadowCasters } from '../render/rig.js';
 import { createIntruders, isHostile, NO_INTRUDERS, INTRUDER_DECAL_RADIUS } from '../intruders.js';
 import { createClanFight, NO_CLAN_FIGHT } from './clanfight.js';
 import { createBorderFight } from './borderfight.js';
@@ -113,7 +113,7 @@ import { createFightCam, findOccluders } from '../fightcam.js';
 import { createTreeFade, findFadeOccluders } from '../treefade.js';
 import { createRustle } from '../render/rustle.js';
 import { createFightUi } from '../ui/fightui.js';
-import { createShadowFit } from '../render/shadowfit.js';
+import { createShadowFit, createNoShadows } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
 import { createGrass, groundFinds } from '../render/grass.js';
@@ -995,7 +995,13 @@ export function createWalkLifecycle({
     const fedHere = colonyCats.length;
     const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);
     // The wanderer takes an ordinary loner's slot, never a colony cat's.
-    const strayCount = wanderStrayCount(loners, fedHere, !!wanderSpot);
+    // The lite rung's count is small enough to fall below her colony here
+    // (createStrayCats counts fed cats inside the number and drops the ones
+    // that do not fit), and a cat she has fed is never what a slow device
+    // gives up: tier.keepFedCats raises the count to the colony's size. It
+    // is a longer prefix of the same cast on the strays' own stream, like
+    // every other count, so no draw shifts anywhere.
+    const strayCount = wanderStrayCount(tier.keepFedCats ? Math.max(loners, fedHere) : loners, fedHere, !!wanderSpot);
     const strayCats = createStrayCats(scene, areaData, strayCount, strayStream(roomSeed ?? soloSeed), {
       grudges: progression.grudgeNames?.() ?? [],
       collarFor: (name) => collarFor(progression.state, name),
@@ -1245,7 +1251,9 @@ export function createWalkLifecycle({
     // and tightens to tier.shadowFitRadius, and does the texel snapping that
     // makes a moving shadow camera viable at all. It owns mapSize, the frustum,
     // normalBias and sun.position from here on; see render/shadowfit.js.
-    const shadows = createShadowFit(sun, camera, {
+    // The lite rung (quality.js LITE) has no shadow pass: the same rig shape,
+    // empty, and a sun that casts nothing.
+    const shadows = tier.shadows === false ? createNoShadows(sun) : createShadowFit(sun, camera, {
       radius: tier.shadowFitRadius,
       mapSize: tier.shadowMapSize,
     });
@@ -1253,6 +1261,9 @@ export function createWalkLifecycle({
     // behind every number in them.
     sun.shadow.bias = SUN_BIAS;
     assignShadowCasters(scene);
+    // The shadow-light rung: small parts (a cat's eyes, paws, whiskers) stop
+    // casting. Only ever turns casting off, and reads no random stream.
+    if (tier.shadowMinPart > 0) trimShadowCasters(scene, tier.shadowMinPart);
     // Stream 4 round two — lawn tufts (render/grass.js). HERE, after the caster
     // sweep, the contact-shadow scan and the prop merge have all run, so none
     // of them ever sees it: one draw call in the main pass, none in the shadow
