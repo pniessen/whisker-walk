@@ -281,6 +281,25 @@ body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
   background: rgba(255,255,255,0.55); border: 2px solid rgba(255,255,255,0.8);
   transition: transform 0.03s linear;
 }
+/* The resting joystick: a faint ring where the thumb goes, so a new player
+   can see how to move. Bottom-left (bottom-right left-handed), from the start
+   of a walk until the first touch on the move side. Never a hit target. */
+.tui-joystick-rest {
+  position: absolute; width: 120px; height: 120px; border-radius: 50%; box-sizing: border-box;
+  left: max(40px, calc(24px + env(safe-area-inset-left)));
+  bottom: max(56px, calc(40px + env(safe-area-inset-bottom)));
+  border: 2px solid rgba(255,255,255,0.35); background: rgba(20,26,38,0.2);
+  opacity: 0.3; pointer-events: none; transition: opacity 0.4s;
+}
+.tui-joystick-rest::after {
+  content: ''; position: absolute; top: 50%; left: 50%; width: 44px; height: 44px;
+  margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(255,255,255,0.55);
+}
+.tui-joystick-rest.gone { opacity: 0; }
+body.left-handed .tui-joystick-rest {
+  left: auto; right: max(40px, calc(24px + env(safe-area-inset-right)));
+}
+@media (prefers-reduced-motion: reduce) { .tui-joystick-rest { transition: none; } }
 .tui-actions {
   position: absolute;
   right: max(16px, env(safe-area-inset-right));
@@ -295,6 +314,16 @@ body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
   display: grid; place-items: center; touch-action: none; cursor: pointer;
 }
 .tui-btn:active { background: rgba(20,26,38,0.8); }
+/* A word under each action button on a player's first walks (setLabels). It
+   hangs below the circle (absolute), so the tap target stays 56px; the 10px
+   row gap holds it. */
+.tui-btn { position: relative; }
+.tui-label {
+  display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  font-size: 10px; line-height: 10px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap;
+  color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8); pointer-events: none;
+}
+.tui-labelled .tui-label { display: block; }
 .tui-pause {
   position: absolute;
   /* Top-left, in the top row level with the points pill (.hud-top steps right
@@ -321,7 +350,7 @@ body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
   position: absolute;
   right: max(28px, calc(12px + env(safe-area-inset-right)));
   bottom: max(24px, calc(24px + env(safe-area-inset-bottom)));
-  display: flex; gap: 10px;
+  display: flex; gap: 16px;
   pointer-events: auto; touch-action: none;
 }
 .tui-zoom-btn {
@@ -776,15 +805,15 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 /* On a touch screen the spot above sits right on the 📷 button (the bottom
    cell of the action cluster), so a kid tapping for a photo opened the chat.
    There the chat button joins the zoom row under the cluster instead, as a
-   third 44px round button to the left of + and − (right 136px = the row's
-   28px + its 98px width + a 10px gap), dressed like them. Left-handed mirrors
+   third 44px round button to the left of + and − (right 148px = the row's
+   28px + its 104px width + a 16px gap, the same 16px as between + and −), dressed like them. Left-handed mirrors
    it. Both sides stay out of the joystick's 40%. The tray opens above the
    row, fixed to the screen and clamped to its width (280px outside, the
    desktop tray's 260px plus padding), and scrolls rather than running off
    the top of a landscape phone. Desktop keeps the spot above. */
 @media (pointer: coarse) {
   .chat-wheel {
-    right: max(136px, calc(120px + env(safe-area-inset-right)));
+    right: max(148px, calc(132px + env(safe-area-inset-right)));
     bottom: max(24px, calc(24px + env(safe-area-inset-bottom)));
   }
   .chat-toggle {
@@ -801,12 +830,12 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   }
   body.left-handed .chat-wheel {
     right: auto;
-    left: max(136px, calc(120px + env(safe-area-inset-left)));
+    left: max(148px, calc(132px + env(safe-area-inset-left)));
   }
   body.left-handed .chat-tray { right: auto; left: max(16px, env(safe-area-inset-left)); }
 }
 body.touch-mode .chat-wheel {
-  right: max(136px, calc(120px + env(safe-area-inset-right)));
+  right: max(148px, calc(132px + env(safe-area-inset-right)));
   bottom: max(24px, calc(24px + env(safe-area-inset-bottom)));
 }
 body.touch-mode .chat-toggle {
@@ -823,7 +852,7 @@ body.touch-mode .chat-tray {
 }
 body.left-handed.touch-mode .chat-wheel {
   right: auto;
-  left: max(136px, calc(120px + env(safe-area-inset-left)));
+  left: max(148px, calc(132px + env(safe-area-inset-left)));
 }
 body.left-handed.touch-mode .chat-tray { right: auto; left: max(16px, env(safe-area-inset-left)); }
 

@@ -561,9 +561,9 @@ describe('HUD layout (style.css)', () => {
       const at = css.indexOf(head);
       return at < 0 ? '' : css.slice(at, css.indexOf('\n}\n', at));
     };
-    const right = 'right: max(136px, calc(120px + env(safe-area-inset-right)))';
+    const right = 'right: max(148px, calc(132px + env(safe-area-inset-right)))';
     const bottom = 'bottom: max(24px, calc(24px + env(safe-area-inset-bottom)))';
-    const left = 'left: max(136px, calc(120px + env(safe-area-inset-left)))';
+    const left = 'left: max(148px, calc(132px + env(safe-area-inset-left)))';
     test('desktop keeps the chat button where it was', () => {
       const r = rule('.chat-wheel');
       expect(r).toContain('right: 16px');
@@ -586,7 +586,7 @@ describe('HUD layout (style.css)', () => {
       expect(lh).toContain('right: auto');
       expect(lh).toContain(left);
       const coarse = block('@media (pointer: coarse) {\n  .chat-wheel');
-      expect(coarse).toMatch(/body\.left-handed \.chat-wheel \{[^}]*right: auto;[^}]*left: max\(136px/);
+      expect(coarse).toMatch(/body\.left-handed \.chat-wheel \{[^}]*right: auto;[^}]*left: max\(148px/);
       expect(css.indexOf('body.left-handed.touch-mode .chat-wheel {'))
         .toBeGreaterThan(css.indexOf('body.left-handed .chat-wheel {'));
       expect(rule('body.left-handed.touch-mode .chat-tray')).toContain('left: max(16px, env(safe-area-inset-left))');

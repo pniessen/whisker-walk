@@ -56,15 +56,16 @@ export function createTouchUI(root, callbacks, opts = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'touch-ui hidden';
   wrap.innerHTML = `
+    <div class="tui-joystick-rest" id="tui-joystick-rest" aria-hidden="true"></div>
     <div class="tui-joystick hidden" id="tui-joystick">
       <div class="tui-joystick-base"></div>
       <div class="tui-joystick-nub"></div>
     </div>
     <div class="tui-actions" id="tui-actions">
-      <button class="tui-btn" type="button" data-action="pounce" aria-label="Pounce or climb">${PAW}</button>
-      <button class="tui-btn" type="button" data-action="meow" aria-label="Meow">😺</button>
-      <button class="tui-btn" type="button" data-action="yarn" aria-label="Yarn ball">🧶</button>
-      <button class="tui-btn" type="button" data-action="camera" aria-label="Toggle camera">📷</button>
+      <button class="tui-btn" type="button" data-action="pounce" aria-label="Pounce or climb">${PAW}<span class="tui-label">pounce</span></button>
+      <button class="tui-btn" type="button" data-action="meow" aria-label="Meow">😺<span class="tui-label">meow</span></button>
+      <button class="tui-btn" type="button" data-action="yarn" aria-label="Yarn ball">🧶<span class="tui-label">yarn</span></button>
+      <button class="tui-btn" type="button" data-action="camera" aria-label="Toggle camera">📷<span class="tui-label">photo</span></button>
     </div>
     <button class="tui-pause" type="button" id="tui-pause" aria-label="Pause">⏸</button>
     <div class="tui-zoom" id="tui-zoom">
@@ -75,6 +76,12 @@ export function createTouchUI(root, callbacks, opts = {}) {
   root.appendChild(wrap);
 
   const joystick = wrap.querySelector('#tui-joystick');
+  const rest = wrap.querySelector('#tui-joystick-rest');
+  // The resting ring shows the way to move before any touch: from the start
+  // of each walk until the first finger lands on the move side.
+  let visible = false;
+  function restOn() { rest.classList.remove('gone'); }
+  function restOff() { rest.classList.add('gone'); }
   const nub = wrap.querySelector('.tui-joystick-nub');
 
   let joyTouch = null; // { id, originX, originY, lastX, lastY, startT }
@@ -155,6 +162,7 @@ export function createTouchUI(root, callbacks, opts = {}) {
         pinch.start(spread());
       } else if (joyTouch === null && inJoystickZone) {
         joyTouch = { id: t.identifier, originX: x, originY: y, lastX: x, lastY: y, startT: now };
+        restOff();
         showJoystick(x, y);
       } else if (orbitTouch === null) {
         orbitTouch = { id: t.identifier, lastX: x, lastY: y, startX: x, startY: y, startT: now, pinched: false };
@@ -238,14 +246,21 @@ export function createTouchUI(root, callbacks, opts = {}) {
   }
 
   return {
-    setVisible(visible) {
-      wrap.classList.toggle('hidden', !visible);
-      if (!visible) {
+    setVisible(v) {
+      // Coming back from hidden is a new walk: the ring rests again.
+      if (v && !visible) restOn();
+      visible = !!v;
+      wrap.classList.toggle('hidden', !v);
+      if (!v) {
         joyTouch = null;
         orbitTouch = null;
         pinchTouch = null;
         hideJoystick();
       }
+    },
+    // The word under each action button, on a player's first few walks.
+    setLabels(on) {
+      wrap.classList.toggle('tui-labelled', !!on);
     },
     // Live-applies settings.leftHanded (homebase checkbox): flips the
     // touchstart zone split above AND, via the CSS class, the action
