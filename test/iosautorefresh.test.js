@@ -14,8 +14,8 @@ import { planNight, isGameRunning, nightNotice, notifyScript, launchAgentPlist, 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date('2026-11-14T19:00:00Z');
 const inDays = (n) => new Date(now.getTime() + n * DAY).toISOString();
-const phone = { udid: 'PHONE', name: 'Peter’s iPhone', reachable: true };
-const ipad = { udid: 'IPAD', name: 'Charlie’s iPad', reachable: true };
+const phone = { udid: 'PHONE', name: 'Owner’s iPhone', reachable: true };
+const ipad = { udid: 'IPAD', name: 'Kid B’s iPad', reachable: true };
 
 const actions = (plan) => Object.fromEntries(plan.devices.map((d) => [d.udid, d.action]));
 
@@ -133,28 +133,28 @@ describe('nightNotice: speak only when there is something to say', () => {
   const fresh = { kind: 'fresh' };
 
   it('is silent on a quiet night', () => {
-    expect(nightNotice({ plan: plan([dev('PHONE', 'Peter’s iPhone', 'fine', 5)]), results: [], expiry: null, build: null, now })).toBeNull();
+    expect(nightNotice({ plan: plan([dev('PHONE', 'Owner’s iPhone', 'fine', 5)]), results: [], expiry: null, build: null, now })).toBeNull();
   });
 
   it('is silent while it waits for a game to close with time to spare', () => {
-    expect(nightNotice({ plan: plan([dev('IPAD', 'Charlie’s iPad', 'waiting', 2)]), results: [], expiry: null, build: null, now })).toBeNull();
+    expect(nightNotice({ plan: plan([dev('IPAD', 'Kid B’s iPad', 'waiting', 2)]), results: [], expiry: null, build: null, now })).toBeNull();
   });
 
   it('says quietly which devices were renewed and until when', () => {
     const n = nightNotice({
-      plan: plan([dev('IPAD', 'Charlie’s iPad', 'renew', 2)]),
-      results: [{ udid: 'IPAD', name: 'Charlie’s iPad', status: 'installed' }],
+      plan: plan([dev('IPAD', 'Kid B’s iPad', 'renew', 2)]),
+      results: [{ udid: 'IPAD', name: 'Kid B’s iPad', status: 'installed' }],
       expiry, build: fresh, now,
     });
     expect(n.urgent).toBe(false);
-    expect(n.message).toMatch(/Charlie’s iPad/);
+    expect(n.message).toMatch(/Kid B’s iPad/);
     expect(n.message).toMatch(/Sat 21 Nov/);
   });
 
   it('warns when the update was held back and the last good version went on instead', () => {
     const n = nightNotice({
-      plan: plan([dev('IPAD', 'Charlie’s iPad', 'renew', 2)]),
-      results: [{ udid: 'IPAD', name: 'Charlie’s iPad', status: 'installed' }],
+      plan: plan([dev('IPAD', 'Kid B’s iPad', 'renew', 2)]),
+      results: [{ udid: 'IPAD', name: 'Kid B’s iPad', status: 'installed' }],
       expiry, build: { kind: 'fallback', reason: 'the tests failed' }, now,
     });
     expect(n.urgent).toBe(true);
@@ -164,8 +164,8 @@ describe('nightNotice: speak only when there is something to say', () => {
 
   it('alerts when the signing was not actually renewed (under 6 days)', () => {
     const n = nightNotice({
-      plan: plan([dev('IPAD', 'Charlie’s iPad', 'renew', 2)]),
-      results: [{ udid: 'IPAD', name: 'Charlie’s iPad', status: 'installed' }],
+      plan: plan([dev('IPAD', 'Kid B’s iPad', 'renew', 2)]),
+      results: [{ udid: 'IPAD', name: 'Kid B’s iPad', status: 'installed' }],
       expiry: new Date(inDays(2)), build: fresh, now,
     });
     expect(n.urgent).toBe(true);
@@ -174,26 +174,26 @@ describe('nightNotice: speak only when there is something to say', () => {
 
   it('alerts when an install failed, naming the device', () => {
     const n = nightNotice({
-      plan: plan([dev('IPAD', 'Charlie’s iPad', 'renew', 2)]),
-      results: [{ udid: 'IPAD', name: 'Charlie’s iPad', status: 'failed', detail: 'device locked' }],
+      plan: plan([dev('IPAD', 'Kid B’s iPad', 'renew', 2)]),
+      results: [{ udid: 'IPAD', name: 'Kid B’s iPad', status: 'failed', detail: 'device locked' }],
       expiry, build: fresh, now,
     });
     expect(n.urgent).toBe(true);
-    expect(n.message).toMatch(/Charlie’s iPad/);
+    expect(n.message).toMatch(/Kid B’s iPad/);
     expect(n.message).toMatch(/device locked/);
   });
 
   it('retries a failed install quietly while more than 2 days are left', () => {
     expect(nightNotice({
-      plan: plan([dev('IPAD', 'Charlie’s iPad', 'renew', 2.8)]),
-      results: [{ udid: 'IPAD', name: 'Charlie’s iPad', status: 'failed', detail: 'device locked' }],
+      plan: plan([dev('IPAD', 'Kid B’s iPad', 'renew', 2.8)]),
+      results: [{ udid: 'IPAD', name: 'Kid B’s iPad', status: 'failed', detail: 'device locked' }],
       expiry, build: fresh, now,
     })).toBeNull();
   });
 
   it('alerts when nothing could be built, with what to run', () => {
     const n = nightNotice({
-      plan: plan([dev('IPAD', 'Charlie’s iPad', 'renew', 2)]),
+      plan: plan([dev('IPAD', 'Kid B’s iPad', 'renew', 2)]),
       results: [], expiry: null, build: { kind: 'failed', reason: 'no last good version is saved yet' }, now,
     });
     expect(n.urgent).toBe(true);
@@ -202,11 +202,11 @@ describe('nightNotice: speak only when there is something to say', () => {
   });
 
   it('is quiet about a device away on its first due night', () => {
-    expect(nightNotice({ plan: plan([dev('IPAD', 'Charlie’s iPad', 'away', 2.9)]), results: [], expiry: null, build: null, now })).toBeNull();
+    expect(nightNotice({ plan: plan([dev('IPAD', 'Kid B’s iPad', 'away', 2.9)]), results: [], expiry: null, build: null, now })).toBeNull();
   });
 
   it('alerts on the second-to-last night even when a few hours over 2 days are left', () => {
-    const n = nightNotice({ plan: plan([dev('IPAD', 'Charlie’s iPad', 'away', 2.1)]), results: [], expiry: null, build: null, now });
+    const n = nightNotice({ plan: plan([dev('IPAD', 'Kid B’s iPad', 'away', 2.1)]), results: [], expiry: null, build: null, now });
     expect(n?.urgent).toBe(true);
   });
 
@@ -224,9 +224,9 @@ describe('nightNotice: speak only when there is something to say', () => {
   });
 
   it('alerts when a due device has been away into its last 2 days, with its stop date', () => {
-    const n = nightNotice({ plan: plan([dev('IPAD', 'Charlie’s iPad', 'away', 1.5)]), results: [], expiry: null, build: null, now });
+    const n = nightNotice({ plan: plan([dev('IPAD', 'Kid B’s iPad', 'away', 1.5)]), results: [], expiry: null, build: null, now });
     expect(n.urgent).toBe(true);
-    expect(n.message).toMatch(/Charlie’s iPad/);
+    expect(n.message).toMatch(/Kid B’s iPad/);
     expect(n.message).toMatch(/Mon 16 Nov/);
   });
 });

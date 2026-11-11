@@ -37,7 +37,7 @@ asleep, it runs when it wakes):
   uncommitted changes, not on `main`) **reinstalls the last version that
   passed**, so the app never stops opening because of unfinished work;
 - shows **one Mac notification** when it did something: a quiet "Renewed
-  Charlie's iPad, good until …", or an alert with a sound when something
+  Kid B's iPad, good until …", or an alert with a sound when something
   needs you (an install failed on a device's last 2 nights, an iPad has been
   unreachable into its last 2 nights, the device list `ios/installs.json` is
   missing, nothing could be built, or the job itself crashed).

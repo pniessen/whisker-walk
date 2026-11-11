@@ -37,7 +37,7 @@ describe('parseDevices', () => {
 
   it('reads name, udid and iOS version', () => {
     const phone = devs.find((d) => d.model === 'iPhone 18 Pro');
-    expect(phone).toMatchObject({ name: 'Peter’s iPhone (9501)', udid: '00008160-000000000000PHON', osVersion: '27.2' });
+    expect(phone).toMatchObject({ name: 'Owner’s iPhone (0000)', udid: '00008160-000000000000PHON', osVersion: '27.2' });
   });
 
   it('a plugged-in device is reachable, one out of range is not', () => {
@@ -78,42 +78,42 @@ describe('summarize', () => {
   const text = (r) => r.lines.join('\n');
 
   it('succeeds when something installed and nothing failed, even if a device was asleep', () => {
-    const r = summarize([{ name: 'Dad', status: 'installed' }, { name: 'Iris', status: 'skipped', detail: 'asleep' }], fresh, now);
+    const r = summarize([{ name: 'Owner’s iPhone', status: 'installed' }, { name: 'Kid A’s iPad', status: 'skipped', detail: 'asleep' }], fresh, now);
     expect(r.exitCode).toBe(0);
-    expect(text(r)).toMatch(/Iris.*skipped/);
+    expect(text(r)).toMatch(/Kid A’s iPad.*skipped/);
   });
 
   it('fails when nothing was installed', () => {
-    expect(summarize([{ name: 'Iris', status: 'skipped' }], fresh, now).exitCode).toBe(1);
+    expect(summarize([{ name: 'Kid A’s iPad', status: 'skipped' }], fresh, now).exitCode).toBe(1);
     expect(summarize([], fresh, now).exitCode).toBe(1);
   });
 
   it('fails when an install errored, and names it', () => {
-    const r = summarize([{ name: 'Dad', status: 'installed' }, { name: 'Leo', status: 'failed', detail: 'device locked' }], fresh, now);
+    const r = summarize([{ name: 'Owner’s iPhone', status: 'installed' }, { name: 'Grandparent’s iPad', status: 'failed', detail: 'device locked' }], fresh, now);
     expect(r.exitCode).toBe(1);
-    expect(text(r)).toMatch(/Leo.*device locked/);
+    expect(text(r)).toMatch(/Grandparent’s iPad.*device locked/);
   });
 
   it('points a new device at the setup guide', () => {
-    const r = summarize([{ name: 'Leo', status: 'unregistered' }, { name: 'Dad', status: 'installed' }], fresh, now);
-    expect(text(r)).toMatch(/Leo.*ios\/README\.md/);
+    const r = summarize([{ name: 'Grandparent’s iPad', status: 'unregistered' }, { name: 'Owner’s iPhone', status: 'installed' }], fresh, now);
+    expect(text(r)).toMatch(/Grandparent’s iPad.*ios\/README\.md/);
   });
 
   it('says when to refresh again: the day before it expires', () => {
-    expect(text(summarize([{ name: 'Dad', status: 'installed' }], fresh, now))).toMatch(/16 Nov/);
+    expect(text(summarize([{ name: 'Owner’s iPhone', status: 'installed' }], fresh, now))).toMatch(/16 Nov/);
   });
 
   it('warns when the new install expires in under 6 days', () => {
-    const r = summarize([{ name: 'Dad', status: 'installed' }], new Date('2026-11-13T09:00:00Z'), now);
+    const r = summarize([{ name: 'Owner’s iPhone', status: 'installed' }], new Date('2026-11-13T09:00:00Z'), now);
     expect(text(r)).toMatch(/warning/i);
-    expect(text(summarize([{ name: 'Dad', status: 'installed' }], fresh, now))).not.toMatch(/warning/i);
+    expect(text(summarize([{ name: 'Owner’s iPhone', status: 'installed' }], fresh, now))).not.toMatch(/warning/i);
   });
 });
 
 describe('refreshDevices: one device never holds up the others', () => {
-  const phone = { udid: 'P', name: 'Dad', reachable: true };
-  const newIpad = { udid: 'N', name: 'Leo', reachable: true };
-  const asleep = { udid: 'S', name: 'Iris', reachable: false };
+  const phone = { udid: 'P', name: 'Owner’s iPhone', reachable: true };
+  const newIpad = { udid: 'N', name: 'Grandparent’s iPad', reachable: true };
+  const asleep = { udid: 'S', name: 'Kid A’s iPad', reachable: false };
   const profile = { ProvisionedDevices: ['P', 'S'], ExpirationDate: '2026-11-17T09:00:00Z' };
 
   function fakes({ registerOk }) {
@@ -131,9 +131,9 @@ describe('refreshDevices: one device never holds up the others', () => {
     const f = fakes({ registerOk: false });
     const { results } = refreshDevices({ devices: [phone, newIpad, asleep], profile, ...f });
     expect(f.installed).toEqual(['P']);
-    expect(results.find((r) => r.name === 'Dad').status).toBe('installed');
-    expect(results.find((r) => r.name === 'Leo')).toMatchObject({ status: 'failed', detail: expect.stringMatching(/Developer Mode is off/) });
-    expect(results.find((r) => r.name === 'Iris').status).toBe('skipped');
+    expect(results.find((r) => r.name === 'Owner’s iPhone').status).toBe('installed');
+    expect(results.find((r) => r.name === 'Grandparent’s iPad')).toMatchObject({ status: 'failed', detail: expect.stringMatching(/Developer Mode is off/) });
+    expect(results.find((r) => r.name === 'Kid A’s iPad').status).toBe('skipped');
   });
 
   it('a new device that can be set up is registered, then installed', () => {
@@ -167,32 +167,32 @@ describe('summarize: every device says when its own app stops opening', () => {
   const text = (r) => r.lines.join('\n');
 
   it('labels the date as the new installs’ expiry', () => {
-    expect(text(summarize([{ name: 'Dad', udid: 'P', status: 'installed' }], fresh, now))).toMatch(/New installs expire/);
+    expect(text(summarize([{ name: 'Owner’s iPhone', udid: 'P', status: 'installed' }], fresh, now))).toMatch(/New installs expire/);
   });
 
   it('a skipped device shows the date its earlier install stops opening', () => {
     const history = { S: '2026-11-14T09:00:00Z' };
-    const r = summarize([{ name: 'Dad', udid: 'P', status: 'installed' }, { name: 'Iris', udid: 'S', status: 'skipped' }], fresh, now, history);
-    expect(text(r)).toMatch(/Iris.*skipped.*stops opening Sat 14 Nov/);
+    const r = summarize([{ name: 'Owner’s iPhone', udid: 'P', status: 'installed' }, { name: 'Kid A’s iPad', udid: 'S', status: 'skipped' }], fresh, now, history);
+    expect(text(r)).toMatch(/Kid A’s iPad.*skipped.*stops opening Sat 14 Nov/);
     expect(text(r)).not.toMatch(/warning/i);
   });
 
   it('warns by name when a skipped device stops opening within 2 days', () => {
     const history = { S: '2026-11-11T09:00:00Z' };
-    const r = summarize([{ name: 'Dad', udid: 'P', status: 'installed' }, { name: 'Iris', udid: 'S', status: 'skipped' }], fresh, now, history);
-    expect(text(r)).toMatch(/Warning:.*Iris/);
+    const r = summarize([{ name: 'Owner’s iPhone', udid: 'P', status: 'installed' }, { name: 'Kid A’s iPad', udid: 'S', status: 'skipped' }], fresh, now, history);
+    expect(text(r)).toMatch(/Warning:.*Kid A’s iPad/);
   });
 
   it('a skipped device with no record says it keeps its earlier date', () => {
-    const r = summarize([{ name: 'Dad', udid: 'P', status: 'installed' }, { name: 'Iris', udid: 'S', status: 'skipped' }], fresh, now, {});
-    expect(text(r)).toMatch(/Iris.*earlier/);
+    const r = summarize([{ name: 'Owner’s iPhone', udid: 'P', status: 'installed' }, { name: 'Kid A’s iPad', udid: 'S', status: 'skipped' }], fresh, now, {});
+    expect(text(r)).toMatch(/Kid A’s iPad.*earlier/);
   });
 });
 
 describe('updateHistory', () => {
   it('records the new expiry for installed devices only, keeping the rest', () => {
     const expiry = new Date('2026-11-17T09:00:00Z');
-    const results = [{ name: 'Dad', udid: 'P', status: 'installed' }, { name: 'Iris', udid: 'S', status: 'skipped' }];
+    const results = [{ name: 'Owner’s iPhone', udid: 'P', status: 'installed' }, { name: 'Kid A’s iPad', udid: 'S', status: 'skipped' }];
     expect(updateHistory({ S: '2026-11-14T09:00:00Z', P: '2026-11-12T00:00:00Z' }, results, expiry))
       .toEqual({ S: '2026-11-14T09:00:00Z', P: '2026-11-17T09:00:00.000Z' });
   });

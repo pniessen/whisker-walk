@@ -33,7 +33,7 @@ import WebKit
 ///
 /// What is put on the air is the code and the cat's name only. The peer's
 /// display name is a fixed string, never the device's name (which is often
-/// "Charlie's iPad"), and nothing identifies the player or the save.
+/// "Kid B's iPad"), and nothing identifies the player or the save.
 ///
 /// Everything another device says is untrusted: it is checked here
 /// (`NearbyRoom`) before it reaches the page, and the page checks it again.
