@@ -31,7 +31,7 @@ import { createAvatarUpdater } from './game/avatar.js';
 import { createRooms } from './game/rooms.js';
 import { createComposerRig } from './game/composer.js';
 import { createQualityAdapter } from './game/adaptquality.js';
-import { createWalkLifecycle, chatHintLine } from './game/walk.js';
+import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
@@ -245,7 +245,7 @@ function init() {
     // the pause overlay may already be showing stale desktop copy from
     // before this upgrade — refresh the resume label so it isn't stale.
     const resumeBtn = document.getElementById('btn-resume');
-    if (resumeBtn) resumeBtn.textContent = 'Tap to explore';
+    if (resumeBtn) resumeBtn.textContent = resumeLabel(cardMode(session), true);
   });
   // Hagrid is a chicken; chickens cluck. pitch defaults to 1 (normal voice);
   // co-walk duets pass 1.26 (+4 semitones) to layer a harmonized second voice.
@@ -575,6 +575,14 @@ function init() {
   });
   bus.on('player:lockchange', ({ locked }) => {
     if (session) overlay.classList.toggle('hidden', locked);
+    // The first engage is the walk beginning: from here on the card behind
+    // the walk is the "Paused" one (walk.js pauseCardFor), and a touch walk
+    // that began without its Ready? card gets that card's lines as toasts.
+    if (session && locked && !session.started) {
+      session.started = true;
+      overlay.innerHTML = pauseCardFor(session, isTouch);
+      for (const line of takeStartLines(session)) hud.toast(line);
+    }
     crossing?.onLockChange(locked);
     if (session && !locked) { session.cameraMode = false; hud.setCamera(false); }
     // Kittypets: a wanderer's arrival line, kept by walk.js until the walk

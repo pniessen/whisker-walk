@@ -107,7 +107,7 @@ describe("show({ sheet: 'places' })", () => {
     const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
     return createHomeBase(progression, { photos: [] }, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {});
   }
-  it('opens the Where to? sheet with no other sheet open', () => {
+  it('opens the Change place sheet with no other sheet open', () => {
     const hb = make();
     hb.show();
     openSheet('settings');
@@ -116,7 +116,7 @@ describe("show({ sheet: 'places' })", () => {
     hb.show({ sheet: 'places' });
     expect(doc.root.innerHTML).toContain('data-sheet="places"');
     expect(doc.root.innerHTML).not.toContain('data-sheet="settings"');
-    expect(doc.root.innerHTML).toContain('Where to?');
+    expect(doc.root.innerHTML).toContain('Change place');
     expect(placesCalls).toHaveLength(1);
     expect(doc.root.innerHTML).toContain('← Back to my cat');
     expect(doc.root.classList.contains('hidden')).toBe(false);

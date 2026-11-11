@@ -228,7 +228,7 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
 
   if (mode === 'needs-name') {
     return `<div class="colony-pair" data-pair="needs-name">
-      <p class="colony-pair-text">Give your pet a name in Social first, then you can share your colony.</p>
+      <p class="colony-pair-text">Give your cat a name in 👫 Play together first, then you can share your colony.</p>
     </div>`;
   }
   if (mode !== 'unpaired') return ''; // local, not-set-up, offline, paired

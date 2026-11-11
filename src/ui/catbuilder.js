@@ -117,7 +117,7 @@ function rowBody(row, model) {
       + `<p class="cb-blurb">${e(model.blurb)}</p>`;
   }
   return `<input type="text" data-cb-name value="${e(row.value)}" maxlength="${NAME_MAX}" autocomplete="off" autocapitalize="words" enterkeyhint="done" aria-label="Cat name">`
-    + '<p class="cb-hint">Pet names are 2–16 letters, spaces, or hyphens.</p>';
+    + '<p class="cb-hint">Cat names are 2–16 letters, spaces, or hyphens.</p>';
 }
 
 export const DONE_LABEL = 'Done, now dress it up →';

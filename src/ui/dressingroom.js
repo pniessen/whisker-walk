@@ -27,8 +27,8 @@ export const SHEET_ICON = {
   album: '📸', sync: '☁️', settings: '⚙️', code: '🎁',
 };
 export const SHEET_NAME = {
-  menu: 'Menu', places: 'Where to?', together: 'Play together', skills: 'Skills', colony: 'Colony', social: 'Friends',
-  journal: 'Journal', album: 'Album', sync: 'Save', settings: 'Settings', code: 'Secret code',
+  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony', social: 'Friends',
+  journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Settings', code: 'Secret code',
 };
 export const SHEET_LABEL = Object.fromEntries(HOME_SHEETS.map((id) => [id, `${SHEET_ICON[id]} ${SHEET_NAME[id]}`]));
 // The den shop is not a home sheet: it lives inside the den (ui/denshopview.js).
