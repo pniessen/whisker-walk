@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat, CAPE_TIE } from '../src/cat/model.js';
-import { SKULL, HEAD } from '../src/cat/torso.js';
+import { HEAD } from '../src/cat/torso.js';
 import { animateCat } from '../src/cat/animator.js';
-import { PRESETS, STATES, meshCount } from './helpers/catfingerprint.js';
+import { STATES, meshCount } from './helpers/catfingerprint.js';
+import {
+  DESCRIBE, BREEDS, CAPES, CASES, BARE, kitCat, capeOf, claspOf, verts, meshVerts, world, outside,
+  tieOf, atOf, rangeVerts, TIE_SWEEP, SITS, capePieces,
+} from './helpers/cape.js';
 
 // polish-pose Task 2 (2026-11-02): a cape is a cloak. The owner: today's capes
 // "look like a dishtowel draped over the tail, they don't cover the back or any
@@ -15,57 +19,15 @@ import { PRESETS, STATES, meshCount } from './helpers/catfingerprint.js';
 //
 // Every measure is in the cat's own frame (world / cat.scale.x), so Digit
 // (scale 0.82) is judged by her own size.
+//
+// The four pose sweeps (the clasp in every pose, the cloth out of the fur, the
+// tail never covered, the tail curl seen from behind in the sit) live in
+// test/helpers/cape.js and run per cape from catcape.<sweep>.<cape>.test.js,
+// so they run side by side instead of one after another in this file.
 
-const BREEDS = PRESETS.filter((b) => b !== 'hagrid');
-const CAPES = ['cape', 'confetticape'];
-const CASES = BREEDS.flatMap((b) => CAPES.flatMap((id) => [false, true].map((simple) => [b, id, simple])));
-const BARE = { collar: null, head: null, face: null, neck: null, feet: null, back: null };
-const kitCat = (b, id, simple) => buildCat(b, { ...BARE, body: id }, { simple });
-const capeOf = (cat) => cat.userData.parts.body.children.find((c) => c.userData.cape);
-const claspOf = (cat) => cat.userData.parts.body.children.find((c) => c.userData.capeClasp);
 const v = new THREE.Vector3();
-const verts = (m, s) => {
-  const out = [], p = m.geometry.attributes.position;
-  for (let i = 0; i < p.count; i++) out.push(new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld).divideScalar(s));
-  return out;
-};
-const meshVerts = (obj, s) => {
-  const out = [];
-  obj.traverse((m) => { if (m.isMesh) out.push(...verts(m, s)); });
-  return out;
-};
-const world = (o, s) => o.getWorldPosition(new THREE.Vector3()).divideScalar(s);
 
-// How far a cat-frame point lies outside the torso's fur, along the ray from
-// the body centre through it (negative: inside).
-const ray = new THREE.Raycaster();
-const outside = (cat, P) => {
-  const { body } = cat.userData.parts, s = cat.scale.x;
-  const C = body.getWorldPosition(new THREE.Vector3());
-  const Pw = P.clone().multiplyScalar(s);
-  const dir = Pw.clone().sub(C).normalize(), F = Pw.clone().addScaledVector(dir, 1);
-  ray.set(F, dir.clone().negate());
-  const hit = ray.intersectObject(body, false)[0];
-  return hit ? (hit.distance - F.distanceTo(Pw)) / s : Infinity;
-};
-
-// The same against the whole fur: the torso and the underside (the chest,
-// which counter-yaws under the turned torso in the cross and drops in the sit).
-const outsideFur = (cat, P) => {
-  const { body, underside } = cat.userData.parts, s = cat.scale.x;
-  const C = body.getWorldPosition(new THREE.Vector3());
-  const Pw = P.clone().multiplyScalar(s);
-  const dir = Pw.clone().sub(C).normalize(), F = Pw.clone().addScaledVector(dir, 1);
-  ray.set(F, dir.clone().negate());
-  const hit = ray.intersectObjects([body, underside], false)[0];
-  return hit ? (hit.distance - F.distanceTo(Pw)) / s : Infinity;
-};
-
-// The sweep: every state at three times, and the walking states at speed 1.5 too.
-const WALKING = ['follow', 'stalk'];
-const SWEEP = STATES.flatMap((st) => [0.4, 1.3, 2.2].flatMap((t) => [[st, t, 0], ...(WALKING.includes(st) ? [[st, t, 1.5]] : [])]));
-
-describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
+describe(DESCRIBE, () => {
   it.each(CASES)('%s %s (simple %s): built on the body, nothing hung on the group', (b, id, simple) => {
     const cat = kitCat(b, id, simple);
     const cape = capeOf(cat), clasp = claspOf(cat);
@@ -110,16 +72,7 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
   // clasp rides the neck as the collar's charm does. userData.tie holds the
   // vertex ranges ({ clasp: [start, count] | null, bands: [[start, count] ×2],
   // rows }) and userData.at the clasp's centre, body-local.
-  const tieOf = claspOf;
-  const atOf = (cat) => cat.userData.parts.body.localToWorld(new THREE.Vector3(...tieOf(cat).userData.at)).divideScalar(cat.scale.x);
-  const rangeVerts = (cat, [start, count]) => verts(tieOf(cat), cat.scale.x).slice(start, start + count);
-  // How far a cat-frame point lies outside the skull (an ellipsoid, torso.js
-  // SKULL, on the head), in units of the skull's size: > 1 outside.
-  const skullOut = (cat, P) => {
-    const { head } = cat.userData.parts;
-    const L = head.worldToLocal(P.clone().multiplyScalar(cat.scale.x));
-    return Math.hypot(L.x / (SKULL.R * SKULL.SCALE[0]), L.y / (SKULL.R * SKULL.SCALE[1]), L.z / (SKULL.R * SKULL.SCALE[2]));
-  };
+  // (tieOf, atOf and rangeVerts: test/helpers/cape.js)
   it.each(CASES)('%s %s (simple %s): one gold clasp at the throat, the front edges running to it from the shoulders', (b, id, simple) => {
     const cat = kitCat(b, id, simple);
     animateCat(cat, 'follow', 1.3, 0, false);
@@ -166,32 +119,6 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
     expect(sides[0] * sides[1], 'one each side').toBe(-1);
   });
 
-  // In every pose (all the cat's states, walking too), every vertex of the
-  // clasp and the bands is out of the fur (body and underside, along the ray
-  // from the body centre), out of the skull, and off the ground.
-  const ALL_STATES = [...STATES, 'arch', 'swipe', 'roll', 'pinning', 'pinned', 'flinch', 'rearUp', 'backUp', 'swim', 'wade', 'shake'];
-  const TIE_SWEEP = ALL_STATES.flatMap((st) => [0.4, 1.3, 2.2].flatMap((t) => [[st, t, 0], ...(WALKING.includes(st) ? [[st, t, 1.5]] : [])]));
-  it.each(CASES)('%s %s (simple %s): in every pose the clasp and the front edges stay out of the chest and the head', (b, id, simple) => {
-    const cat = kitCat(b, id, simple);
-    for (const [state, t, speed] of TIE_SWEEP) {
-      animateCat(cat, state, t, speed, false);
-      cat.updateMatrixWorld(true);
-      const s = cat.scale.x, label = `${state} t ${t} speed ${speed}`;
-      let fur = Infinity, skull = Infinity, low = Infinity;
-      for (const P of verts(tieOf(cat), s)) {
-        fur = Math.min(fur, outsideFur(cat, P));
-        skull = Math.min(skull, skullOut(cat, P));
-        low = Math.min(low, P.y);
-      }
-      expect(fur, `${label}: out of the fur`).toBeGreaterThanOrEqual(0.002);
-      expect(skull, `${label}: out of the head`).toBeGreaterThanOrEqual(1);
-      expect(low, `${label}: off the ground`).toBeGreaterThanOrEqual(0);
-      // and the clasp still at the throat: under the head's centre, near it
-      const c = atOf(cat), hc = world(cat.userData.parts.head, s);
-      expect(c.distanceTo(hc), `${label}: clasp near the head`).toBeLessThanOrEqual(0.32);
-    }
-  }, 180_000);
-
   // The clasp rides the neck as the collar does: with a plain ring on (the
   // studded collar keeps the clasp), in every pose the clasp's centre is
   // within 5 cm of where the collar would hang a charm (the throat spot,
@@ -228,56 +155,6 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
     expect(tieOf(kitCat('digit', 'cape', false)).userData.tie.clasp).toBeNull();
   });
 
-  it.each(CASES)('%s %s (simple %s): in every state it stays out of the fur and the ground', (b, id, simple) => {
-    const cat = kitCat(b, id, simple);
-    const cape = capeOf(cat);
-    for (const [state, t, speed] of SWEEP) {
-      animateCat(cat, state, t, speed, false);
-      cat.updateMatrixWorld(true);
-      const s = cat.scale.x;
-      let worst = Infinity, low = Infinity;
-      for (const P of verts(cape, s)) {
-        worst = Math.min(worst, outside(cat, P));
-        low = Math.min(low, P.y);
-      }
-      const label = `${state} t ${t} speed ${speed}`;
-      expect(worst, `${label}: out of the fur`).toBeGreaterThanOrEqual(0.002);
-      expect(low, `${label}: out of the ground`).toBeGreaterThanOrEqual(-0.005);
-    }
-  }, 180_000);
-
-  it.each(CASES)('%s %s (simple %s): in every state the tail is never covered', (b, id, simple) => {
-    const cat = kitCat(b, id, simple);
-    const cape = capeOf(cat);
-    const cast = new THREE.Raycaster();
-    for (const [state, t, speed] of SWEEP) {
-      animateCat(cat, state, t, speed, false);
-      cat.updateMatrixWorld(true);
-      const s = cat.scale.x, { body, tail } = cat.userData.parts;
-      const C = body.getWorldPosition(new THREE.Vector3());
-      const label = `${state} t ${t} speed ${speed}`;
-      // a tail vertex near the fur with the cape between it and the body
-      // centre; in the sit every tail vertex, near the fur or not (the curl
-      // lies more than 2 cm out, beside the haunch; the sit's own checks
-      // below look from the camera)
-      const sit = state === 'requestPet' || state === 'perch';
-      let covered = 0;
-      for (const P of meshVerts(tail, s)) {
-        if (!sit && outside(cat, P) > 0.02) continue;
-        const Pw = P.clone().multiplyScalar(s), d = Pw.distanceTo(C);
-        cast.set(C, Pw.clone().sub(C).normalize());
-        cast.far = d;
-        if (cast.intersectObject(cape, false).length) covered++;
-      }
-      expect(covered, `${label}: tail vertices under the cape`).toBe(0);
-      // and the root comes out behind the hem
-      const root = world(tail, s);
-      let near = Infinity;
-      for (const P of verts(cape, s)) near = Math.min(near, P.distanceTo(root));
-      expect(near, `${label}: the tail root clear of the cape`).toBeGreaterThanOrEqual(0.04);
-    }
-  }, 180_000);
-
   // The sit (polish-pose fix wave). The upright sit curls the tail forward
   // round the left haunch, on the ground beside it, well over 2 cm out of the
   // fur, so the check above did not see the standing hem lying over it (192
@@ -287,33 +164,8 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
   // cat and behind-left (the side the tail curls to), of the tail vertices
   // that the body, chest and legs do not hide, at most 3% may be behind a
   // cape piece; and no tail vertex comes within 1 cm of the cloth.
-  const SITS = ['requestPet', 'perch'].flatMap((st) => [0, 0.5, 1, 1.5, 2, 2.5, 3].map((t) => [st, t]));
-  const EYES = { behind: [0, 1.3, 2.0], behindLeft: [-0.8, 1.3, 2.0] };
-  const capePieces = (cat) => cat.userData.parts.body.children.filter((c) => c.userData.cape || c.userData.capeClasp || c.userData.capeDots);
-  it.each(CASES)('%s %s (simple %s): sitting, the whole tail curl shows from behind', (b, id, simple) => {
-    const cat = kitCat(b, id, simple);
-    const cast = new THREE.Raycaster(), d = new THREE.Vector3(), E = new THREE.Vector3();
-    for (const [state, t] of SITS) {
-      animateCat(cat, state, t, 0, false);
-      cat.updateMatrixWorld(true);
-      const s = cat.scale.x, { body, underside, legs, tail } = cat.userData.parts;
-      const fur = [body, underside], cloth = capePieces(cat);
-      for (const [eye, at] of Object.entries(EYES)) {
-        E.fromArray(at).multiplyScalar(s);
-        let seen = 0, under = 0;
-        for (const P of meshVerts(tail, s)) {
-          const Pw = P.multiplyScalar(s), far = d.subVectors(Pw, E).length();
-          cast.set(E, d.normalize());
-          cast.far = far - 1e-4;
-          if (cast.intersectObjects(fur, false).length || cast.intersectObjects(legs, true).length) continue;
-          seen++;
-          if (cast.intersectObjects(cloth, false).length) under++;
-        }
-        expect(seen, `${state} t ${t} ${eye}: tail seen`).toBeGreaterThan(0);
-        expect(under / seen, `${state} t ${t} ${eye}: ${under}/${seen} under the cape`).toBeLessThanOrEqual(0.03);
-      }
-    }
-  }, 180_000);
+  // (SITS, EYES and capePieces: test/helpers/cape.js; the 3% check:
+  // catcape.sit.<cape>.test.js)
 
   it.each(CASES)('%s %s (simple %s): sitting, the cloth never comes within 1 cm of the tail', (b, id, simple) => {
     const cat = kitCat(b, id, simple);
@@ -409,7 +261,6 @@ describe('a cape is a cloak on the torso (polish-pose Task 2)', () => {
       expect(Math.abs(hit.distance - c.distanceTo(C)) / s, `dot ${d} on the cloth`).toBeLessThanOrEqual(0.01);
     }
   });
-
 
   it('Hagrid wears no cape (his rig shows none)', () => {
     for (const id of CAPES) {

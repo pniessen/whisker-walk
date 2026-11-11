@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { defineConfig } from 'vite';
+import { HEAVY_TESTS, HeavyFirst } from './test/heavy.js';
 
 // The iOS app (ios/) bundles its own copy of the game: `npm run build:ios`
 // builds with this mode into ios/web, which the Xcode project copies into the
@@ -78,5 +79,12 @@ export default defineConfig(({ command, mode }) => ({
     // fails the run rather than hanging CI indefinitely. It is a guard against
     // hangs, not a budget for slow tests.
     testTimeout: 30000,
+    // The heaviest files start first (test/heavy.js says why), and
+    // `npm run test:quick` (WW_TEST_QUICK=1) leaves them out; `npm test`
+    // always runs every file. The exclude list repeats vitest's default.
+    sequence: { sequencer: HeavyFirst },
+    ...(process.env.WW_TEST_QUICK && {
+      exclude: ['**/node_modules/**', '**/.git/**', ...HEAVY_TESTS.map((f) => `**/${f}`)],
+    }),
   },
 }));
