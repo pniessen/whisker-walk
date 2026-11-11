@@ -11,8 +11,9 @@
 
 import { isValidChatMsg } from './chat.js';
 import { PERSONALITIES } from './cat/brain.js';
+import { CODE_ALPHABET } from './codealphabet.js';
 
-const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no I/O/0/1
+const ROOM_CODE_ALPHABET = CODE_ALPHABET; // no I/O/0/1
 const MAX_MESSAGE_BYTES = 2048;
 
 // A co-walk is for up to 4 cats (the v5 multiplayer spec). Presence beyond

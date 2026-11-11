@@ -29,6 +29,7 @@
 import { sanitizeSnapshot, unsyncedFeeds, COLONY_MAX, isPlayerId } from '../colony.js';
 import { CATALOG, isTradeableAccessory } from '../progression.js';
 import { validPetName } from '../net.js';
+import { CODE_ALPHABET } from '../codealphabet.js';
 import { clanTitleFor } from '../clannames.js';
 import { note } from '../diagnostics.js';
 
@@ -44,7 +45,7 @@ export const FEED_PUSH_MAX = 40;     // most catch-up feeds pushed by one pull
 const WARDROBE_MAX = 40;             // colony_sync stores at most 40 items
 const KNOWN_ITEMS = new Set(Object.keys(CATALOG.accessories));
 // The invite alphabet (no 0/O, 1/I/L), as colony_invite_open mints it.
-const INVITE_CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
+const INVITE_CODE = new RegExp(`^[${CODE_ALPHABET}]{6}$`);
 // Every status word the colony RPCs return is lower-case letters and dashes.
 const STATUS_WORD = /^[a-z-]{1,24}$/;
 const NO_RESULT = () => ({ appliedTrades: [], rewards: [], settled: [] });

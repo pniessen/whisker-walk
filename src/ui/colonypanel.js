@@ -21,6 +21,7 @@ import { emptyStateHtml } from './emptystates.js';
 import { placeName, accessoryName } from '../edition.js';
 import { PAW, pawify } from './pawicon.js';
 import { escapeHtml } from '../escapehtml.js';
+import { CODE_ALPHABET } from '../codealphabet.js';
 
 
 const own = (obj, key) => !!obj && typeof obj === 'object' && Object.prototype.hasOwnProperty.call(obj, key);
@@ -157,7 +158,7 @@ function catCard(cat, p, ctx) {
 // tested without a DOM.
 
 // The characters an invite code can contain (no 0/O, 1/I/L), as the SQL mints.
-export const INVITE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const INVITE_ALPHABET = CODE_ALPHABET;
 export const INVITE_CODE_LENGTH = 6;
 export const PAIRING_POLL_MS = 3000;
 
