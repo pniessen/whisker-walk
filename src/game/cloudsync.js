@@ -10,6 +10,7 @@
 
 import { createLiveCloud, generateSaveCode, normalizeSaveCode, getOrCreateSecret } from '../cloud.js';
 import { summarizeSaveForPreview } from '../progression.js';
+import { note } from '../diagnostics.js';
 
 // A toast surface that stays visible on the home base screen (unlike
 // #hud, which is display:none whenever no walk is in progress) — cloud
@@ -121,6 +122,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
       return { ok: false, message: 'Unexpected sync result.' };
     } catch (err) {
       console.warn('Whisker Walk: cloud sync failed', err);
+      note('cloud', err);
       return { ok: false, message: 'Could not reach the cloud — check your connection and try again.' };
     }
   }
@@ -150,6 +152,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
         return { ok: true, code };
       } catch (err) {
         console.warn('Whisker Walk: saveToCloud failed', err);
+        note('cloud', err);
         return { ok: false, error: 'Could not reach the cloud — check your connection and try again.' };
       }
     },
@@ -179,6 +182,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
         };
       } catch (err) {
         console.warn('Whisker Walk: loadFromCloud failed', err);
+        note('cloud', err);
         return { ok: false, error: 'Could not reach the cloud — check your connection and try again.' };
       }
     },
