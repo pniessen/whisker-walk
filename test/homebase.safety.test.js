@@ -110,8 +110,7 @@ function setup({ name = 'Mittens', cloud = null, met = createMetPlayers(memStora
   if (name) progression.state.petName = name;
   const rooms = fakeRooms();
   const toasts = [];
-  const hb = createHomeBase(progression, { photos: [] }, () => {}, rooms, null, cloud, settings, () => {}, () => {}, null, 'me000000',
-    (t) => toasts.push(t), () => {}, () => {}, { metPlayers: met });
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync: null, cloud, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me000000', toast: (t) => toasts.push(t), onCelebrate: () => {}, onCardsClosed: () => {}, metPlayers: met });
   hb.show();
   hb.showVisit({ milestone: null, visits: 2 });
   return { progression, hb, rooms, toasts, met };

@@ -118,8 +118,7 @@ function setup({ app = true, opted = true, name = 'Mittens', joinOk = true, gree
   });
   const toasts = [];
   const onCardsClosed = vi.fn();
-  const hb = createHomeBase(progression, { photos: [] }, () => {}, rooms, null, null, settings, () => {}, () => {}, colonySync, 'me',
-    (t) => toasts.push(t), () => {}, onCardsClosed, { nearby });
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: (t) => toasts.push(t), onCelebrate: () => {}, onCardsClosed, nearby });
   hb.show();
   if (greeted) hb.showVisit({ milestone: null, visits: 2 });
   return { progression, hb, rooms, nearby, sent, storage, toasts, onCardsClosed };
@@ -144,7 +143,7 @@ describe('outside the app (Safari, desktop, Android): no bridge', () => {
     const plain = (() => {
       const progression = createProgression(memStorage());
       progression.state.petName = 'Mittens';
-      const hb = createHomeBase(progression, { photos: [] }, () => {}, fakeRooms(), null, null, settings, () => {}, () => {}, null, 'me', () => {});
+      const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: fakeRooms(), sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
       hb.show();
       openSheet('together');
       return html();
@@ -169,7 +168,7 @@ describe('outside the app (Safari, desktop, Android): no bridge', () => {
   });
   it('a home base made without the option at all still works', () => {
     const progression = createProgression(memStorage());
-    const hb = createHomeBase(progression, { photos: [] }, () => {}, fakeRooms(), null, null, settings, () => {}, () => {}, null, 'me', () => {});
+    const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: fakeRooms(), sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
     hb.show();
     hb.showVisit({ milestone: null, visits: 2 });
     openSheet('together');
