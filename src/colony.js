@@ -31,6 +31,7 @@ import { OUTSIDE_WORDS } from './clanwords.js';
 import { DEN_SPOTS, DEN_HOMES } from './den.js';
 // DOM-free: net.js imports only chat.js. One definition of a valid pet name.
 import { validPetName } from './net.js';
+import { CODE_ALPHABET } from './codealphabet.js';
 
 export const TAME_FEEDS = 6;        // feeds that fill the bar from nothing
 export const HEAD_START_MAX = 3;    // most a past friendship can pre-fill
@@ -524,7 +525,7 @@ function sanitizeColonyUnsafe(v, knownItems) {
 // A paired snapshot is mapped to the shared field names (finder_id -> finder,
 // by_id -> by, from_id -> from, ...) and run through sanitizeColony, so the
 // per-entry rules, caps and the knownItems filter are the one set in this file.
-const INVITE_CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
+const INVITE_CODE = new RegExp(`^[${CODE_ALPHABET}]{6}$`);
 const SAFE_PET_NAME = 'your partner';
 
 const mapEach = (list, f) => asArray(list).map((x) => (isPlainObject(x) ? f(x) : x));

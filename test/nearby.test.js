@@ -455,7 +455,7 @@ describe('main.js wiring', async () => {
     expect(made).toBeGreaterThan(main.indexOf('} = createRooms({'));
     expect(made).toBeLessThan(main.indexOf('const homebase = createHomeBase('));
     expect(main).toContain('bridge: pickBridge(window), storage: window.localStorage, rooms,');
-    expect(main).toContain('{ haptics: haptics.available, nearby });');
+    expect(main).toContain('haptics: haptics.available, nearby });');
   });
   it('hears the shell\'s event and follows the page being hidden', () => {
     expect(main).toContain('window.addEventListener(NEARBY_EVENT, (e) => nearby.receive(e.detail));');

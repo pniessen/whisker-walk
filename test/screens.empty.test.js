@@ -106,7 +106,7 @@ function setup() {
   const progression = createProgression(memStorage());
   const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
   const rooms = { available: true, getState: () => null, onChange() {} };
-  const hb = createHomeBase(progression, { photos: [] }, () => {}, rooms, null, null, settings, () => {}, () => {}, null, 'me', () => {});
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
   hb.show();
   return { progression };
 }

@@ -177,7 +177,7 @@ describe('the home base uses it', () => {
     const progression = createProgression(storage);
     const album = { photos: [], clear: vi.fn() };
     const settings = { get: () => null, set() {}, all: () => ({}) };
-    const hb = createHomeBase(progression, album, () => {}, null, sync, null, settings, () => {}, () => {}, null, 'me', () => {});
+    const hb = createHomeBase({ progression, album, onStartWalk: () => {}, rooms: null, sync, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
     hb.show();
     return { progression, album, hb };
   }

@@ -1,4 +1,5 @@
 import { BUILD_STAMP } from '../buildstamp.js';
+import { escapeHtml } from '../game/util.js';
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName, goodNewPetName, safeRemoteName, safeRemoteBreed } from '../net.js';
@@ -50,15 +51,6 @@ export function visitBadgeHtml(visits) {
 // How long the welcome line stays before it is removed (its CSS fade ends
 // just before this).
 const WELCOME_MS = 4600;
-
-// petNames in a room roster arrive over the network (another player's
-// client, not necessarily one that enforced validPetName) — escape before
-// interpolating into innerHTML.
-function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
 
 // last_seen (profiles) / a fetch timestamp rendered as a short relative
 // string ("2h ago"). Anything not a valid date collapses to '' rather than
@@ -125,14 +117,22 @@ export function showEditionTitle(doc, edition) {
   doc.getElementById?.('splash')?.setAttribute('aria-label', gameTitle(edition));
 }
 
-// onCardsClosed() is optional: called when she dismisses the clan moment, so
-// main.js can show the news card that waited for it.
-// `haptics`: whether this device can buzz at all (src/haptics.js); the
-// Vibration switch is only drawn where it can.
-// `nearby`: game/nearby.js, the rooms the app found on the local network.
-// Absent, or not available (Safari, desktop), nothing of it is drawn.
-// `metPlayers`: src/metplayers.js (the device's own list when absent).
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, { haptics: canBuzz = false, nearby = null, metPlayers = null } = {}) {
+// createHomeBase takes one options object:
+//   progression, album: the saved game and the photo album
+//   onStartWalk: called to begin a walk; rooms, sync, cloud, colonySync: the
+//     online pieces (each may be null)
+//   settings, onSettingsChange: the settings store and its change hook
+//   onVisitDen: called to walk into a family den
+//   myId: this player's id; toast: shows a short message
+//   onCelebrate (optional): called when a milestone celebration starts
+//   onCardsClosed (optional): called when she dismisses the clan moment, so
+//     main.js can show the news card that waited for it
+//   haptics: whether this device can buzz at all (src/haptics.js); the
+//     Vibration switch is only drawn where it can
+//   nearby: game/nearby.js, the rooms the app found on the local network.
+//     Absent, or not available (Safari, desktop), nothing of it is drawn
+//   metPlayers: src/metplayers.js (the device's own list when absent)
+export function createHomeBase({ progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;

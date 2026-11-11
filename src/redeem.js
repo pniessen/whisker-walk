@@ -1,7 +1,8 @@
 // Redeem codes: pure normalise + hash helpers (v21 §10.4).
-// DOM-free; its only import is the plain-data code table. Only hashes of codes
+// DOM-free; its only imports are the plain-data code table and escapehtml.js. Only hashes of codes
 // are ever stored or compared.
 import { REDEEM_CODES } from './redeemcodes.js';
+import { escapeHtml } from './escapehtml.js';
 
 export const REDEEM_SALT = 'whisker-walk-redeem-v1';
 export const REDEEM_ITERATIONS = 100000;
@@ -128,14 +129,8 @@ export function createRedeemer({ progression, codes = REDEEM_CODES, hash = hashC
 
 // ---------------------------------------------------------------------------
 // Kid-facing copy and markup. Pure and DOM-free (unit-tested); homebase.js
-// only wires it. escapeHtml is duplicated, not imported, for the same reason
-// as in ui/hometabs.js: importing homebase.js would pull in the DOM.
+// only wires it.
 // ---------------------------------------------------------------------------
-function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
 
 function joinNice(list) {
   if (list.length <= 1) return list.join('');

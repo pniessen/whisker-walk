@@ -589,7 +589,7 @@ test('walk.js makes the built posts solid, after the scent and before the first 
   const push = src.indexOf('for (const p of playerMarks.posts) areaData.colliders.push(');
   expect(push).toBeGreaterThan(-1);
   expect(push).toBeGreaterThan(src.indexOf('const scent = createScent('));
-  expect(push).toBeLessThan(src.indexOf('const session = {'));
+  expect(push).toBeLessThan(src.indexOf('const session = createSession({'));
   // and outside the rival slice
   const slice = src.slice(src.indexOf("The rival's border and its patrol"), src.indexOf('session.rival = {'));
   expect(slice).not.toContain('playerMarks');

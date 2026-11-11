@@ -82,7 +82,7 @@ function setup({ storage = memStorage(), onCelebrate, sync = null } = {}) {
   const progression = createProgression(storage);
   const album = { photos: [] };
   const settings = { get: () => null, set() {}, all: () => ({}) };
-  const hb = createHomeBase(progression, album, () => {}, null, sync, null, settings, () => {}, () => {}, null, 'me', () => {}, onCelebrate);
+  const hb = createHomeBase({ progression, album, onStartWalk: () => {}, rooms: null, sync, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {}, onCelebrate });
   return { progression, hb };
 }
 const celebration = () => doc.body.children.find((c) => String(c.className).startsWith('visit-cel'));
