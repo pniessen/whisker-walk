@@ -46,6 +46,14 @@ import { takeMoveLines } from './fightmoves.js';
 import { createCrossing, swallowsCanvasClick } from './game/crossing.js';
 import { readResume, writeResume, clearResume, markTried, snapshotWalk, settleAbandoned } from './game/walkresume.js';
 import { sheetTopFrom } from './fightcam.js';
+import { diagnostics, note, listenForErrors } from './diagnostics.js';
+import { createFrameGuard, claimAutoReload, stuckNoticeHtml, WALK_ENDED_LINE, RELOAD_BUTTON_ID } from './game/recovery.js';
+
+// Uncaught errors and rejections anywhere in the page go into the small
+// diagnostics record (src/diagnostics.js) the perf readout shows a grown-up.
+// Recorded, not swallowed: the console still gets them. First, so a failure
+// during boot is caught too.
+listenForErrors(window);
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
 // survives reloads so a mid-walk refresh doesn't orphan a room membership.
@@ -171,7 +179,7 @@ function init() {
     qualityAdapter.deviceChanged(e.detail);
     if (e.detail?.memoryWarning === true) releaseThumbnails();
   });
-  const perfHud = createPerfHud({ renderer, settings, coarse, adapter: qualityAdapter });
+  const perfHud = createPerfHud({ renderer, settings, coarse, adapter: qualityAdapter, diagnostics });
   // Haptics (src/haptics.js): the app's bridge on an iPhone (an iPad in the
   // app says it has no Taptic Engine, so stays still), navigator.vibrate on a
   // touch device that has it (desktop Chrome has the function but no motor,
@@ -683,6 +691,7 @@ function init() {
     if (e.target.id === 'btn-end') endWalk();
     if (e.target.id === 'btn-cross-yes') crossing.confirm();
     if (e.target.id === 'btn-cross-no') crossing.cancel();
+    if (e.target.id === RELOAD_BUTTON_ID) window.location.reload();
     if (e.target.id === 'btn-summary-continue') {
       overlay.classList.add('hidden');
       // takeCrossing() also clears the crossing. A crossing that picked the new
@@ -842,6 +851,7 @@ function init() {
       startWalk({ duskMode: note.dusk, areaOverride: note.areaId, resume: note });
     } catch (err) {
       console.warn('Whisker Walk: could not pick the walk up', err);
+      note('resume', err);
       // The walk counts as finished and is forgotten. If it got as far as a
       // half-built session, start the page again clean: with the note gone
       // that opens at home, once.
@@ -850,10 +860,114 @@ function init() {
       if (session) window.location.reload();
     }
   }
+  // The frame guard (src/game/recovery.js holds the policy and its numbers).
+  // A throw used to repeat on every frame with the game frozen. Now one is
+  // noted and that frame skipped; frames that keep throwing end the walk
+  // through endWalk, the same door the pause card's End walk button uses: it
+  // tears everything down, pays the walk like any other (the points and finds
+  // were saved as they were earned), forgets the resume note (onWalkEnded),
+  // so a broken walk is never offered again, and leaves a co-walk room the
+  // ordinary way. The child gets the summary with one gentle line on it.
+  const frameGuard = createFrameGuard();
+  let loopStopped = false;
+  // The last resort: this page cannot carry on (the home screen's own frame
+  // keeps throwing, a walk could not even be torn down, or the graphics are
+  // lost and the page has reloaded itself once already this minute). The
+  // loop stops, so nothing throws again, and a reload is offered.
+  function stopLoop(kind) {
+    if (loopStopped) return;
+    loopStopped = true;
+    renderer.setAnimationLoop(null);
+    if (kind === 'error' && session) {
+      // A walk that could not be torn down is not noted again on the way out
+      // (pagehide) and is not picked up after the reload: it is dropped here.
+      clearResume(window.localStorage);
+      session = null;
+    }
+    try { player.disable(); } catch { /* the notice matters more */ }
+    overlay.innerHTML = stuckNoticeHtml(kind);
+    overlay.classList.remove('hidden');
+    perfHud.showDiagnostics();
+  }
+  function onFrameError(err) {
+    const verdict = frameGuard.fail(performance.now());
+    note('frame', err);
+    if (frameGuard.streak === 1) console.warn('Whisker Walk: a frame failed', err);
+    if (verdict !== 'trip') return;
+    frameGuard.reset();
+    if (!session) { stopLoop('error'); return; }
+    try {
+      endWalk();
+    } catch (endErr) {
+      note('frame', endErr);
+      console.warn('Whisker Walk: could not end the walk cleanly', endErr);
+      stopLoop('error');
+      return;
+    }
+    // The one gentle line stands where the summary's cheer would ("What a
+    // walk!" reads oddly after a walk that broke).
+    const cheer = overlay.querySelector('.summary-cheer');
+    if (cheer) cheer.textContent = WALK_ENDED_LINE;
+    else overlay.querySelector('.summary-panel h1')?.insertAdjacentHTML('afterend', `<div class="summary-cheer">${WALK_ENDED_LINE}</div>`);
+  }
+
+  // The main canvas losing its graphics context (a GPU reset, memory pressure
+  // on an iPad). three.js stops drawing until a restore, but what a walk
+  // built on the GPU (the env map, the composer's targets, every texture) is
+  // not rebuilt by it, so the game never carries on a restored context: the
+  // page reloads once, and a walk picks up from its note on "Welcome back".
+  // At most one automatic reload a minute (recovery.js claimAutoReload);
+  // after that the plain notice. catstage.js handles its own small canvas.
+  let glReloadPending = false;
+  function reloadAfterContextLoss() {
+    glReloadPending = false;
+    let delay = 0;
+    if (session?.net) {
+      // A walk together cannot be picked up: it ends the ordinary way, so
+      // the room is left and a fight's intruder let go on the partner's
+      // screen, and a reload waits a moment for that to be sent.
+      try { endWalk(); } catch (err) { note('gl', err); }
+      delay = 300;
+    }
+    let tabStorage = null;
+    try { tabStorage = window.sessionStorage; } catch { /* blocked: no automatic reload */ }
+    if (!claimAutoReload(tabStorage, Date.now())) { stopLoop('gl'); return; }
+    // Not "running well" on the way out, so the pagehide note keeps its
+    // count of tries: a walk that loses the context every time it is picked
+    // up is settled after RESUME_MAX_TRIES like any walk that cannot run.
+    if (session) session.healthy = false;
+    noteWalk();
+    setTimeout(() => window.location.reload(), delay);
+  }
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault(); // three.js does too; it is what allows a restore at all
+    note('gl', 'graphics context lost');
+    if (session) session.healthy = false;
+    noteWalk();
+    // A hidden page (put away on an iPad) reloads when it is back in front.
+    if (document.hidden) glReloadPending = true;
+    else reloadAfterContextLoss();
+  });
+  canvas.addEventListener('webglcontextrestored', () => note('gl', 'graphics context restored'));
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && glReloadPending) reloadAfterContextLoss();
+  });
+
+  // One try/catch around the whole frame: nothing allocated, nothing extra
+  // read on a good frame, and the frame's own order is untouched. A refresh
+  // the 30 fps cap skips (walkFrame gives false) ran nothing, so it does not
+  // count as a good frame between two that threw.
   renderer.setAnimationLoop(() => {
+    try {
+      if (walkFrame() !== false) frameGuard.ok();
+    } catch (err) {
+      onFrameError(err);
+    }
+  });
+  function walkFrame() {
     // The 30 fps cap (game/adaptquality.js): a skipped refresh does nothing
     // at all, not even read the clock, so the next frame's dt covers both.
-    if (session && !qualityAdapter.shouldRender(performance.now())) return;
+    if (session && !qualityAdapter.shouldRender(performance.now())) return false;
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
@@ -1211,5 +1325,5 @@ function init() {
         noteWalk();
       }
     }
-  });
+  }
 }
