@@ -136,6 +136,7 @@ import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
 import { bus } from '../events.js';
 import { createUnlockCelebration } from './celebrate.js';
 import { nowSec, escapeHtml, hashName } from './util.js';
+import { metOnly, deviceMetPlayers } from '../metplayers.js';
 
 // Every walkable area the game can build. Registering here is the last of
 // the three steps that make an area real: the builder module, the
@@ -347,12 +348,15 @@ export function createWalkLifecycle({
       const rows = await cloud.fetchFriendships(pid);
       if (getSession() !== mySession) return;
       const greetsById = new Map();
-      const otherIds = [];
+      const allIds = [];
       for (const r of rows) {
         const otherId = r.a_id === pid ? r.b_id : r.a_id;
-        otherIds.push(otherId);
+        allIds.push(otherId);
         greetsById.set(otherId, r.greets);
       }
+      // Only players this device booped or added by code (src/metplayers.js):
+      // anyone can write a friendships row naming this child.
+      const otherIds = metOnly(deviceMetPlayers(), allIds);
       if (!otherIds.length) return;
       const profiles = await cloud.fetchProfiles(otherIds);
       if (getSession() !== mySession) return;
@@ -1916,17 +1920,30 @@ export function createWalkLifecycle({
 
     if (session.net) {
       const net = session.net;
+      // A hidden visitor ("Hide this visitor", src/blocklist.js) is never
+      // drawn or named, and netevents.js shows nothing she sends.
+      session.isBlocked = (id) => blockList.has(id);
+      // Who was here when the walk began; anyone after that is toasted, so a
+      // child always knows who has come into her walk.
+      let rosterSeen = null;
       net.onRoster((roster) => {
         const session = getSession();
         if (!session) return; // presence sync can land after endWalk tore the session down
-        const liveIds = new Set(roster.map((p) => p.playerId));
+        const liveIds = new Set(roster.filter((p) => !blockList.has(p.playerId)).map((p) => p.playerId));
         for (const r of remotes.list) {
           if (!liveIds.has(r.playerId)) { remotes.remove(r.playerId); session.intruders.dropHolder(r.playerId); }
           if (!liveIds.has(r.playerId)) session.rival.foe?.dropHolder(r.playerId);
         }
+        const firstSync = rosterSeen === null;
+        rosterSeen ??= new Set();
         for (const p of roster) {
           if (p.playerId === session.playerId) continue; // don't render yourself as a remote pet
-          remotes.upsert(p, nowSec());
+          if (!liveIds.has(p.playerId)) continue;
+          const entry = remotes.upsert(p, nowSec());
+          if (!rosterSeen.has(p.playerId)) {
+            rosterSeen.add(p.playerId);
+            if (!firstSync) hud.toast(`${entry.petName} joined the walk 🐾`); // sanitized by remotecats
+          }
         }
         hud.setRoster(remotes.list.map((r) => r.petName));
         session.chatWheel?.refresh();
