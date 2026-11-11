@@ -29,6 +29,7 @@ import { createVisitCelebration } from './visitcelebration.js';
 import { settingsSwitchHtml } from './screencards.js';
 import { emptyStateHtml } from './emptystates.js';
 import { PAW } from './pawicon.js';
+import { createConfirmCard } from './confirmcard.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -196,6 +197,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let cloudStatus = null; // inline result text after a manual "Sync now"
   let cloudJustLinked = false; // show the big "write this down" code once, right after linking
   let cloudPreview = null; // pending { code, secret, payload, local, cloud } from previewLoad
+  let backupMsg = null; // the result line after putting a kept copy back
 
   function renderWalkTogether() {
     if (!rooms || !rooms.available) {
@@ -274,7 +276,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <div class="sync-col"><h3>This device</h3><div>${escapeHtml(fmt(cloudPreview.local))}</div></div>
             <div class="sync-col"><h3>Cloud save ${escapeHtml(cloudPreview.code)}</h3><div>${escapeHtml(fmt(cloudPreview.cloud))}</div></div>
           </div>
-          <div class="tag error">Loading will overwrite everything on this device — this can't be undone.</div>
+          <div class="tag error">Loading will overwrite everything on this device. You can undo it here afterwards, but photos won’t come back.</div>
           <div class="sync-actions">
             <button id="sync-confirm-load" class="primary" ${cloudBusy ? 'disabled' : ''}>Confirm — overwrite this device</button>
             <button id="sync-cancel-load" ${cloudBusy ? 'disabled' : ''}>Cancel</button>
@@ -311,8 +313,42 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           ${cloudError ? `<div class="tag error">${escapeHtml(cloudError)}</div>` : ''}
         </div>`;
     }
-    return body;
+    return cloudPreview || (cloudJustLinked && sync.getCode()) ? body : body + renderBackups();
   }
+
+  // The kept copies of the save (progression's backups), under the cloud
+  // controls: each only while it exists. The copy a restore itself keeps
+  // ('restore') has no button; a mistaken undo is put right by loading
+  // from the cloud again.
+  function renderBackups() {
+    let info = [];
+    try { info = progression.backupInfo?.() ?? []; } catch { info = []; }
+    const find = (kind) => info.find((b) => b.kind === kind);
+    const pts = (b) => (b.points === null ? '' : ` <small class="sync-backup-pts">(${escapeHtml(b.points)} 🐾)</small>`);
+    const rows = [];
+    const cloudCopy = find('cloud');
+    if (cloudCopy?.restorable) rows.push(`<button data-backup-restore="cloud">Undo the last cloud load${pts(cloudCopy)}</button>`);
+    const resetCopy = find('reset');
+    if (resetCopy?.restorable) rows.push(`<button data-backup-restore="reset">Bring back the save from before Start over${pts(resetCopy)}</button>`);
+    const bad = find('unreadable');
+    if (bad?.restorable) {
+      rows.push('<p class="sync-backup-line">This device found a save it couldn’t open, and kept a copy.</p>'
+        + `<button data-backup-restore="unreadable">Try to restore${pts(bad)}</button>`);
+    } else if (bad?.newer) {
+      rows.push('<p class="sync-backup-line">This device has a save from a newer version of the game. It’s kept safe: update the game to get it back.</p>');
+    } else if (bad) {
+      rows.push('<p class="sync-backup-line">This device found a save it couldn’t open, and kept a copy in case it can be fixed.</p>');
+    }
+    if (!rows.length && !backupMsg) return '';
+    return `<div class="sync-backups">${rows.join('')}${backupMsg ? `<div class="tag">${escapeHtml(backupMsg)}</div>` : ''}</div>`;
+  }
+
+  // What each kept copy's confirm says.
+  const BACKUP_ASK = {
+    cloud: { text: 'Undo the last cloud load?', note: 'This device goes back to what it had before. Photos don’t come back.', yes: 'Yes, undo it' },
+    reset: { text: 'Bring back the save from before Start over?', note: 'It replaces what’s on this device now.', yes: 'Yes, bring it back' },
+    unreadable: { text: 'Try to restore the save this device kept?', note: 'It replaces what’s on this device now.', yes: 'Yes, try it' },
+  };
 
   // Settings ⚙️ (Task 6), in two halves since the navigation review: Sound &
   // controls (the children's: volume, music, mute, the touch and look
@@ -617,7 +653,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // colonyNews's snapshot of what the card shows, marked read on dismiss. Returns
   // whether it was shown.
   function showNews(html, seen) {
-    if (typeof html !== 'string' || !html || newsEl || noticeEl || momentEl || visitOpen() || !homeVisible()) return false;
+    if (typeof html !== 'string' || !html || newsEl || noticeEl || momentEl || visitOpen() || confirmCard.isOpen() || !homeVisible()) return false;
     newsShown = seen && typeof seen === 'object' ? seen : null;
     newsEl = document.createElement('div');
     newsEl.id = 'colony-news';
@@ -649,7 +685,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
 
   function showNotice(text) {
-    if (typeof text !== 'string' || !text || noticeEl || momentEl || visitOpen() || !homeVisible()) return false;
+    if (typeof text !== 'string' || !text || noticeEl || momentEl || visitOpen() || confirmCard.isOpen() || !homeVisible()) return false;
     noticeEl = document.createElement('div');
     noticeEl.id = 'home-notice';
     noticeEl.className = 'colony-news';
@@ -674,6 +710,21 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return true;
   }
 
+  // "Are you sure?" (confirmcard.js), for Start over and putting a kept copy
+  // back. It goes up only when no other card is, and they wait for it.
+  const confirmCard = createConfirmCard({
+    mount: (el) => {
+      root.after(el);
+      syncNearbyCard(); // the nearby card steps aside
+    },
+    blocked: () => !homeVisible() || !!(newsEl || noticeEl || momentEl || visitOpen()),
+    onClosed: () => {
+      // the cards that waited behind this one may go up now
+      if (!showClanMoment()) { try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); } }
+      syncNearbyCard();
+    },
+  });
+
   // ---- The nearby card ------------------------------------------------------
   // "<Name> is starting a walk nearby. Join?" over the cat's screen, when the
   // app has found a room on the local network (game/nearby.js). It is the
@@ -694,7 +745,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   function nearbyCardDue() {
     if (!nearby?.available || nearbyBusy || !shown || !greeted || !homeVisible()) return null;
-    if (openSheet || dressing?.ui?.builder || newsEl || noticeEl || momentEl || visitOpen()) return null;
+    if (openSheet || dressing?.ui?.builder || newsEl || noticeEl || momentEl || visitOpen() || confirmCard.isOpen()) return null;
     return nearby.cardRoom(); // null while a room is pending
   }
 
@@ -820,7 +871,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // force: Change place's clan line (shown even after "Not yet", and with a
   // clan already picked, to change it: that line is the only way to).
   function showClanMoment({ force = false } = {}) {
-    if (!shown || momentEl || newsEl || noticeEl || visitOpen() || !homeVisible() || dressing?.ui?.builder) return false;
+    if (!shown || momentEl || newsEl || noticeEl || visitOpen() || confirmCard.isOpen() || !homeVisible() || dressing?.ui?.builder) return false;
     // home, or Change place (a border crossing lands there); never over another sheet
     if (!force && openSheet && openSheet !== 'places') return false;
     const s = progression.state;
@@ -870,6 +921,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let visitClosed = null; // the caller's onClosed for the celebration that is up
   const celebration = createVisitCelebration(document.body, {
     onOpen: () => {
+      confirmCard.close(); // never under the celebration: the question goes unanswered
       try { onCelebrate?.(); } catch (err) { console.warn('Whisker Walk: celebration sound failed', err); }
       progression.wearPendingVisitPrize();
       render();
@@ -1044,6 +1096,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const prev = openSheet;
     backTo = openSheet === 'menu' && next && next !== 'menu' && next !== 'places' ? 'menu' : null;
     openSheet = next;
+    backupMsg = null; // a restore's result line is for the sheet it happened on
     // Usage counts: a sheet opened from somewhere else, not a re-open of itself.
     // (Back from a sheet to the Menu is not an open of the Menu.)
     if (next && next !== prev && !(next === 'menu' && prev)) { try { progression.noteUse?.(next); } catch { /* a count, never a blocker */ } }
@@ -1441,15 +1494,49 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       onVisitDen?.();
       return;
     }
+    // Start over asks first, in the page (window.confirm is a silent "no" in
+    // the iOS app). Progression keeps a copy of what it erases, which Cloud
+    // save can bring back; the album's photos are not kept.
     if (e.target.id === 'btn-reset') {
-      if (window.confirm('Erase all progress and start over?')) {
-        progression.reset();
-        album.clear();
-        dressing?.clearPreview(); // a preview of the old save means nothing now
-        openSheet = null; // back to the (fresh) cat
-        render();
-        root.scrollTop = 0;
-      }
+      confirmCard.ask({
+        text: 'Erase all progress and start over?',
+        note: sync && sync.available ? 'A copy is kept, so Cloud save ☁️ can bring it back. Photos are not kept.' : '',
+        yes: 'Yes, start over',
+        danger: true,
+        returnFocus: () => root.querySelector('#btn-reset')?.focus?.({ preventScroll: true }),
+        onYes: () => {
+          progression.reset();
+          album.clear();
+          backupMsg = null;
+          dressing?.clearPreview(); // a preview of the old save means nothing now
+          openSheet = null; // back to the (fresh) cat
+          render();
+          root.scrollTop = 0;
+        },
+      });
+      return;
+    }
+    // Cloud save's kept copies: put one back, after asking.
+    const restoreBtn = e.target.closest?.('[data-backup-restore]');
+    if (restoreBtn) {
+      const kind = restoreBtn.getAttribute('data-backup-restore');
+      if (!Object.hasOwn(BACKUP_ASK, kind)) return;
+      confirmCard.ask({
+        ...BACKUP_ASK[kind],
+        returnFocus: () => root.querySelector(`[data-backup-restore="${kind}"]`)?.focus?.({ preventScroll: true }),
+        onYes: () => {
+          let ok = false;
+          try { ok = progression.restoreBackup(kind); } catch (err) { console.warn('Whisker Walk: restore failed', err); }
+          if (ok) dressing?.clearPreview();
+          backupMsg = ok ? 'Done! Your earlier progress is back.' : 'That didn’t work, so nothing was changed.';
+          render();
+          // a copy from before Rosa's retirement says her farewell, as a cloud load does
+          if (ok) {
+            const farewell = progression.takeFarewell();
+            if (farewell) showNotice(farewell);
+          }
+        },
+      });
       return;
     }
     // A picked star name goes through the same validated path as the text
@@ -1625,6 +1712,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const res = await sync.confirmLoad(cloudPreview);
       cloudBusy = false;
       cloudPreview = null;
+      backupMsg = null;
       if (!res.ok) cloudError = res.error;
       render();
       // A pre-update cloud save with Rosa equipped queued her farewell while
@@ -1819,7 +1907,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   function enterStarts(e) {
     if (e.key !== 'Enter' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
     if (!shown || !greeted || !homeVisible() || openSheet || dressing?.ui?.builder) return;
-    if (momentEl || newsEl || noticeEl || nearbyEl || visitOpen()) return;
+    if (momentEl || newsEl || noticeEl || nearbyEl || visitOpen() || confirmCard.isOpen()) return;
     const a = document.activeElement;
     if (a && a !== document.body && a !== document.documentElement && a !== root) return;
     const start = root.querySelector('#btn-start');
@@ -1887,6 +1975,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       closeNews(false); // a walk is starting: leave the news unread for next time
       closeNotice();
       closeClanMoment(false); // a walk is starting: it comes back next time
+      confirmCard.close(); // a walk is starting: unanswered, nothing happens
       removeNearbyCard(); // a walk is starting: not dismissed, it may ask again at home
       shown = false;
       // A walk is starting: stop the hero's frames and drop any preview.

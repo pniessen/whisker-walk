@@ -1345,6 +1345,17 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   background: transparent; color: #f1e0c2; font: inherit; font-size: 1.05rem; font-weight: 700; cursor: pointer;
 }
 .nearby-card-later:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+/* "Are you sure?" (confirmcard.js): the nearby card's shape; a Yes that
+   erases is red, not the friendly yellow. The overlay is fixed so it covers
+   a sheet scrolled down to Start over. */
+.confirm-overlay { position: fixed; z-index: 6; }
+.confirm-card { max-width: 380px; }
+.confirm-card:focus { outline: none; }
+.confirm-card .colony-news-btn.confirm-card-danger { background: #e98a8a; color: #2a1414; }
+/* Cloud save's kept copies */
+.sync-backups { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 14px; }
+.sync-backup-line { margin: 0; color: #a8c0e0; font-size: 0.95rem; }
+.sync-backup-pts { opacity: 0.8; font-weight: 400; }
 
 /* places: picture cards with a gradient caption (the Change place sheet) */
 .dr-places { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
