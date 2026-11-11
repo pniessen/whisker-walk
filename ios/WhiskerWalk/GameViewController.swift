@@ -7,6 +7,9 @@ import WebKit
 final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UIScrollViewDelegate {
     private var webView: WKWebView!
     private var expiryBanner: UIButton?
+    /// Plays the page's haptic words (Haptics.swift). Its own object, so the
+    /// content controller's strong hold on it never reaches back to here.
+    private let haptics = HapticPlayer()
 
     /// The game's splash colour (#1c2431), so nothing flashes white.
     private let background = UIColor(named: "LaunchBackground") ?? .black
@@ -58,6 +61,10 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         config.userContentController.addUserScript(
             WKUserScript(source: DeviceProfile.current().bootScript(),
                          injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        // window.webkit.messageHandlers.haptic, on every device: one build
+        // serves both, and on an iPad the profile's `haptics: false` keeps
+        // the page from sending.
+        config.userContentController.add(haptics, name: HapticPlayer.handlerName)
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.isOpaque = false
@@ -124,6 +131,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
 
     @objc private func appBecameActive() {
         showExpiryWarningIfDue()
+        haptics.prepare()
     }
 
     /// Leaving the app hides the banner, so it is shown fresh (for its full
