@@ -10,6 +10,7 @@
 // import-free, so this module stays DOM-free and cheap to test.
 import { FIGHT_MOVES } from '../fightmoves.js';
 import { SKILL_FAMILIES, SKILLS, hasSkill, skillProgress } from '../skills.js';
+import { escapeHtml } from '../escapehtml.js';
 
 // ---------------------------------------------------------------------------
 // Skills panel
@@ -20,14 +21,6 @@ import { SKILL_FAMILIES, SKILLS, hasSkill, skillProgress } from '../skills.js';
 // gate an ability actually checks.
 // ---------------------------------------------------------------------------
 
-// Duplicated from homebase.js rather than imported, for the same reason the
-// renderer lives here at all: importing homebase.js would pull in the DOM.
-// Small enough that a copy beats a third module.
-function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
 
 // Feat counts reach this function already coerced by skills.js's own
 // hostile-state helpers, but this is an innerHTML display path fed

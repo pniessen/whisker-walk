@@ -15,6 +15,7 @@ import { CAT_BLURBS } from './catblurbs.js';
 import { sanitizeCustomCats, presetFor, lookKey, COATS, CUSTOM_MAX } from '../customcats.js';
 import { PAW } from './pawicon.js';
 import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT_MAX } from '../outfits.js';
+import { escapeHtml } from '../escapehtml.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
@@ -65,11 +66,6 @@ export function placeWhyLine(state, catalog, id) {
 const SLOT_ORDER = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
 const SLOT_LABEL = { collar: 'Collar', head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };
 
-function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
 const num = (v) => Math.floor(asFiniteNonNeg(v, 0));
 const has = (obj, k) => Object.prototype.hasOwnProperty.call(obj, k);
 const plain = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});

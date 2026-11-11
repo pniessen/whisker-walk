@@ -6,15 +6,11 @@
 import { placeName, isClanEdition } from './edition.js';
 import { TERRITORIES, opensAfterLine } from './territories.js';
 import { postsFor } from './borderposts.js';
+import { escapeHtml } from './escapehtml.js';
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const isObj = (v) => !!v && typeof v === 'object';
 
-function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
 
 // The place's name: the catalog/edition name, else the map's own territory
 // (the Gorge is not in the catalog), else ''.

@@ -20,14 +20,8 @@ import { isTradeableAccessory } from '../progression.js';
 import { emptyStateHtml } from './emptystates.js';
 import { placeName, accessoryName } from '../edition.js';
 import { PAW, pawify } from './pawicon.js';
+import { escapeHtml } from '../escapehtml.js';
 
-// Duplicated from hometabs.js rather than imported (a copy beats a shared
-// helper module for six lines).
-function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
 
 const own = (obj, key) => !!obj && typeof obj === 'object' && Object.prototype.hasOwnProperty.call(obj, key);
 
