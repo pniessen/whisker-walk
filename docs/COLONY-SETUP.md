@@ -1,6 +1,6 @@
 # Switching on the shared colony
 
-The shared colony keeps the stray cats both kids have fed in one place online, so each of them sees the other's progress. That needs a few new tables in the game's Supabase database, and this page is how to add them. It takes about five minutes.
+The shared colony keeps the stray cats both players have fed in one place online, so each of them sees the other's progress. That needs a few new tables in the game's Supabase database, and this page is how to add them. It takes about five minutes.
 
 ## 1. Why this is needed
 
