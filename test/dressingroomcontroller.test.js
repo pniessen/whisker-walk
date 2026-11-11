@@ -399,10 +399,10 @@ describe('createDressingRoom: her own cats and the builder', () => {
       return { dr, stage, calls, storage, onChange, progression };
     }
 
-    it('the builder cat stands by default; the room stays sitting', () => {
+    it('the builder cat stands by default; the room stands too', () => {
       const { dr, calls } = posed();
       dr.afterRender({ id: 'dr-stage' });
-      expect(calls.at(-2)).toEqual(['setPose', 'sit', { redraw: false }]);
+      expect(calls.at(-2)).toEqual(['setPose', 'stand', { redraw: false }]);
       dr.handleClick(click({ drMake: '' }));
       dr.afterRender({ id: 'dr-stage' });
       expect(calls.at(-2)).toEqual(['setPose', 'stand', { redraw: false }]);
@@ -412,7 +412,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
       expect(html).toContain(`data-dr-pose="sit">${PAW} Sit</button>`);
       dr.handleClick(click({ cbCancel: '' })); // clean draft: closes at once
       dr.afterRender({ id: 'dr-stage' });
-      expect(calls.at(-2)).toEqual(['setPose', 'sit', { redraw: false }]);
+      expect(calls.at(-2)).toEqual(['setPose', 'stand', { redraw: false }]);
       expect(dr.html()).not.toContain('data-dr-pose');
     });
 
