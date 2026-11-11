@@ -1,3 +1,4 @@
+import { note } from './diagnostics.js';
 // A small, per-device "hide this visitor" list (final fix wave, Task 3).
 //
 // record_friend_greet (docs/supabase-setup.sql) validates the CALLER's own
@@ -34,6 +35,7 @@ function writeSet(storage, set) {
     storage.setItem(KEY, JSON.stringify([...set]));
   } catch (err) {
     console.warn('Whisker Walk: could not persist blocked list', err);
+    note('save', err);
   }
 }
 

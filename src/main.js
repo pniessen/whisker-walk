@@ -87,7 +87,7 @@ const blockList = createBlockList(window.localStorage);
 if ('serviceWorker' in navigator && import.meta.env.PROD && import.meta.env.MODE !== 'ios') {
   window.addEventListener('load', () => {
     const base = import.meta.env.BASE_URL;
-    navigator.serviceWorker.register(`${base}sw.js`, { scope: base }).catch(() => {});
+    navigator.serviceWorker.register(`${base}sw.js`, { scope: base }).catch((err) => note('sw', err));
   });
 }
 
@@ -102,8 +102,9 @@ const overlay = document.getElementById('overlay');
 let renderer = null;
 try {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-} catch {
+} catch (err) {
   renderer = null;
+  note('gl', err);
 }
 
 if (!renderer) {

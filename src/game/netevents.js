@@ -15,6 +15,7 @@ import { shedKittypetCollar } from '../housecats.js';
 import { FLAT_GROUND } from '../ground.js';
 import { safeRemoteName } from '../net.js';
 import { deviceMetPlayers } from '../metplayers.js';
+import { note } from '../diagnostics.js';
 
 // Gorge part 1 (R13): the receiver's own ground under a streamed [x, z].
 const groundY = (s, x, z) => (s.ground ?? FLAT_GROUND).y(x, z);
@@ -112,7 +113,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
               else if (greets === 3) hud.toast(`${name} is now your friend across walks! ♥`);
               else if (greets === 6) hud.toast(`${name} is now your BEST friend across walks! 💕`);
             })
-            .catch((err) => console.warn('Whisker Walk: recordGreet failed', err));
+            .catch((err) => { console.warn('Whisker Walk: recordGreet failed', err); note('cloud', err); });
         }
       }
     }

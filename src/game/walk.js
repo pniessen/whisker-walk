@@ -123,6 +123,7 @@ import { createClouds } from '../render/clouds.js';
 import { createAmbient } from '../render/ambient.js';
 import { createWaterDressing } from '../render/waterdress.js';
 import { createFishJumps } from '../render/fishjump.js';
+import { note } from '../diagnostics.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
 // is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
 // 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
@@ -403,6 +404,7 @@ export function createWalkLifecycle({
       for (const ghost of mySession.ghosts.list) mySession.decals.follow(ghost.group);
     } catch (err) {
       console.warn('Whisker Walk: ghost spawn failed', err);
+      note('room', err);
     }
   }
 

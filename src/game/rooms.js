@@ -74,7 +74,7 @@ export function createRooms({
   // open). Fire-and-forget for callers; tests await it.
   function retrackProfile() {
     if (!pendingRoom) return Promise.resolve();
-    return pendingRoom.net.updateProfile(roomProfile()).catch((err) => console.warn('Whisker Walk: retrack failed', err));
+    return pendingRoom.net.updateProfile(roomProfile()).catch((err) => { console.warn('Whisker Walk: retrack failed', err); note('room', err); });
   }
 
   // Cloud profile push (Task 3): publishes what's currently equipped under
@@ -111,6 +111,7 @@ export function createRooms({
       // Resolves false on a failed push (never rejects), so a caller that
       // cares (the clan pick) can try again; every other caller ignores it.
       console.warn('Whisker Walk: pushProfile failed', err);
+      note('cloud', err);
       return false;
     });
   }

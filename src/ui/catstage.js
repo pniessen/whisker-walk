@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createSpin } from './spin.js';
 import { SIZE } from '../customcats.js';
 import { animateCat } from '../cat/animator.js';
+import { note } from '../diagnostics.js';
 
 // The stage cat sits (Ruling P4): the hero and the try-ons always, the cat
 // builder's draft when she taps 🐾 Sit (it stands by default; see setPose).
@@ -221,6 +222,7 @@ export function createCatStage({
     stage.failed = true;
     endDrag();
     console.warn('Whisker Walk: live cat unavailable, using a still picture', err);
+    note('gl', err);
     cancel();
     if (ro) { ro.disconnect(); ro = null; }
     disposeCat();

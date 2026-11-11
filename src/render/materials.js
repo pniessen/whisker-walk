@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { surfaceTexture, surfaceMaps, textureTileMetres, isTextureName } from './textures.js';
+import { note } from '../diagnostics.js';
 
 // Cozy low-poly art direction stays flat/matte: roughness 0.9, no metalness.
 // `extra` carries per-call-site overrides (emissive, transparent, opacity, …)
@@ -386,6 +387,7 @@ function warnOnce(name, message) {
   if (warned.has(name)) return;
   warned.add(name);
   if (typeof console !== 'undefined') console.warn(message);
+  note('asset', message);
 }
 
 function presetFor(name) {

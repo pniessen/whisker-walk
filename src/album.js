@@ -28,6 +28,7 @@ function loadPhotos(storage) {
     }
   } catch (err) {
     console.warn('Whisker Walk: could not read album, starting empty', err);
+    note('save', err);
   }
   return photos;
 }
@@ -109,6 +110,7 @@ export function createAlbum(storage, cap = 24) {
         storage.setItem(KEY, JSON.stringify(sanitized));
       } catch (err) {
         console.warn('Whisker Walk: could not write cloud album', err);
+        note('cloud', err);
       }
       photos = loadPhotos(storage);
     },

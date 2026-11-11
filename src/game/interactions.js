@@ -43,6 +43,7 @@ import * as THREE from 'three';
 import { villagerPos } from '../critters.js';
 import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js';
 import { bus } from '../events.js';
+import { note } from '../diagnostics.js';
 
 // How far off the cat spots the Gorge's goat for the journal: past its 6 m
 // notice (critters.js GOAT_NOTICE), so she sees it before it bolts.
@@ -1705,7 +1706,7 @@ export function createInteractions({
               else if (greets === 3) hud.toast(`${name} is now your friend across walks! ♥`);
               else if (greets === 6) hud.toast(`${name} is now your BEST friend across walks! 💕`);
             })
-            .catch((err) => console.warn('Whisker Walk: ghost recordGreet failed', err));
+            .catch((err) => { console.warn('Whisker Walk: ghost recordGreet failed', err); note('cloud', err); });
         }
       }
     } else if (s.prompt.kind === 'kitten') {

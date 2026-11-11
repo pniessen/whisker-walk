@@ -86,6 +86,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
       storage.setItem(CLOUD_SECRET_KEY, secret);
     } catch (err) {
       console.warn('Whisker Walk: could not persist cloud link', err);
+      note('cloud', err);
     }
   }
   function clearCloudLink() {
@@ -94,6 +95,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
       storage.removeItem(CLOUD_SECRET_KEY);
     } catch (err) {
       console.warn('Whisker Walk: could not clear cloud link', err);
+      note('cloud', err);
     }
   }
   // deep-cloned snapshot: composed once per RPC call so an in-flight
