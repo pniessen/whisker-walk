@@ -39,6 +39,7 @@ import { waterClearance, nearestDry } from './world/builder.js';
 import { takeArrivalLine } from './housecats.js';
 import { takeMoveLines } from './fightmoves.js';
 import { createCrossing, swallowsCanvasClick } from './game/crossing.js';
+import { readResume, writeResume, clearResume, markTried, snapshotWalk, settleAbandoned } from './game/walkresume.js';
 import { sheetTopFrom } from './fightcam.js';
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
@@ -386,6 +387,8 @@ function init() {
     // Fight moves and scars: her cat's scars changed; her brother and the
     // cloud profile see it.
     onScarsChanged: () => { rooms.retrackProfile(); pushProfileNow(); },
+    // Mid-walk resume: an ended walk leaves nothing to pick up.
+    onWalkEnded: () => clearResume(window.localStorage),
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -452,6 +455,15 @@ function init() {
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
   // welcome line, the farewell goes up straight away and the news on the pull.
+  // Mid-walk resume (src/game/walkresume.js): the note of a walk the game was
+  // closed in the middle of. Read once, here. A walk left too long is settled
+  // now, before the home screen draws its numbers; one still fresh is picked
+  // up at the end of init (see "Mid-walk resume" above the render loop).
+  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: Object.keys(progression.state.walks) });
+  if (leftWalk?.kind === 'stale') {
+    clearResume(window.localStorage);
+    settleAbandoned(progression, leftWalk.data);
+  }
   const visit = progression.recordVisit();
   homebase.show();
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
@@ -687,6 +699,17 @@ function init() {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) session?.clanFight?.abort();
   });
+  // Mid-walk resume: the note of the walk in progress. Written every few
+  // seconds by the render loop, and here the moment the game is hidden, which
+  // on an iPad is the last thing that happens before it can be closed.
+  // snapshotWalk gives null for a walk that cannot be picked up (a walk
+  // together, the den) and writeResume ignores null.
+  const noteWalk = () => {
+    if (session) writeResume(window.localStorage, snapshotWalk(session, { yaw: player.viewYaw(), now: Date.now() }));
+  };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) noteWalk(); });
+  window.addEventListener('pagehide', noteWalk);
+  let walkNoteAccum = 0;
   // Mouse wheel / trackpad zoom. Only cancelled (and only acted on) during an
   // engaged walk, so the browser's own ctrl+wheel zoom still works everywhere
   // else; a Mac trackpad pinch inside the game arrives here as ctrl+wheel and
@@ -722,6 +745,22 @@ function init() {
   // read (no layout), only while a fight is on.
   const hudEl = document.getElementById('hud');
   const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes, camp: null, posts: null };
+  // Mid-walk resume: pick up the walk the game was closed in. Last in init,
+  // when everything a walk touches exists; the boot splash is still up, and
+  // startWalk hides the home screen behind it (a visit celebration closes as
+  // it does for any walk). The try is counted BEFORE the build: a walk that
+  // cannot be rebuilt is settled on a later launch (RESUME_MAX_TRIES) rather
+  // than tried forever.
+  if (leftWalk?.kind === 'resume') {
+    const note = markTried(window.localStorage, leftWalk.data);
+    try {
+      startWalk({ duskMode: note.dusk, areaOverride: note.areaId, resume: note });
+    } catch (err) {
+      console.warn('Whisker Walk: could not pick the walk up', err);
+      clearResume(window.localStorage);
+      if (!session) settleAbandoned(progression, note);
+    }
+  }
   renderer.setAnimationLoop(() => {
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
@@ -1068,5 +1107,17 @@ function init() {
     qualityAdapter.frame(session, performance.now());
     renderFrame();
     perfHud.frameEnd(session, performance.now());
+    // Mid-walk resume: note the walk every 5 s. After the draw on purpose: a
+    // walk picked up again that cannot get through a frame never reaches
+    // this, so its count of failed tries stands and the next launch but one
+    // opens at home.
+    if (session) {
+      walkNoteAccum += dt;
+      if (walkNoteAccum >= 5) {
+        walkNoteAccum = 0;
+        session.resumeTries = 0;
+        noteWalk();
+      }
+    }
   });
 }

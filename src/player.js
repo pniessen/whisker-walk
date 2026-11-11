@@ -658,6 +658,14 @@ export function createPlayer(camera, canvas) {
       hopTime = 0;
       Object.assign(waterState, createWaterState());
     },
+    // Mid-walk resume: the heading the camera looks along, read for the note
+    // and put back when the walk is picked up again (after setAvatar).
+    viewYaw() {
+      return yaw;
+    },
+    setViewYaw(v) {
+      if (Number.isFinite(v)) yaw = v;
+    },
     // Gorge part 1: the walk's ground. Call once per walk, after setAvatar.
     setGround(g) {
       ground = g || FLAT_GROUND;
