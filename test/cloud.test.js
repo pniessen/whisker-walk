@@ -1,17 +1,97 @@
 import { describe, it, expect } from 'vitest';
-import { generateSaveCode, normalizeSaveCode, getOrCreateSecret, createCloud } from '../src/cloud.js';
+import { generateSaveCode, normalizeSaveCode, getOrCreateSecret, createCloud, randomIndex } from '../src/cloud.js';
+
+// A crypto-shaped fake: getRandomValues fills from a fixed list of uint32s.
+function fakeCrypto(values) {
+  let i = 0;
+  const calls = { n: 0 };
+  return {
+    calls,
+    getRandomValues(buf) { calls.n++; for (let j = 0; j < buf.length; j++) buf[j] = values[i++ % values.length]; return buf; },
+  };
+}
+// A seeded uint32 stream (mulberry32) for distribution checks.
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return (t ^ (t >>> 14)) >>> 0;
+  };
+}
 
 describe('generateSaveCode', () => {
+  const FORMAT = /^[A-Z]{4,6}-[A-Z]{4,6}-[A-Z]{4,6}-\d{2}$/;
+
   it('produces WORD-WORD-WORD-NN from the embedded wordlist', () => {
-    const code = generateSaveCode(() => 0);
-    expect(/^[A-Z]{4,6}-[A-Z]{4,6}-[A-Z]{4,6}-\d{2}$/.test(code)).toBe(true);
+    expect(generateSaveCode(fakeCrypto([0]))).toBe('OTTER-OTTER-OTTER-00');
+    expect(generateSaveCode()).toMatch(FORMAT); // the real crypto
   });
 
-  it('varies with the rng and stays two-digit zero-padded at the low end', () => {
-    const low = generateSaveCode(() => 0);
-    const high = generateSaveCode(() => 0.999999);
-    expect(low).not.toBe(high);
-    expect(low.slice(-2)).toBe('00');
+  it('draws every part from crypto.getRandomValues (one uint32 each)', () => {
+    const c = fakeCrypto([1, 2, 255, 42]);
+    expect(generateSaveCode(c)).toBe('PANDA-ZEBRA-VELVET-42');
+    expect(c.calls.n).toBe(4);
+  });
+
+  it('keeps the format across the whole uint32 range, zero-padding the digits', () => {
+    expect(generateSaveCode(fakeCrypto([0xffffffff - 255, 7, 0xfffffeff, 5]))).toMatch(/-05$/);
+    const next = seeded(7);
+    for (let i = 0; i < 2000; i++) {
+      const v = [next(), next(), next(), next()];
+      expect(generateSaveCode(fakeCrypto(v))).toMatch(FORMAT);
+    }
+  });
+
+  it('spreads words and digits evenly (seeded source)', () => {
+    const next = seeded(42);
+    const src = { getRandomValues(buf) { buf[0] = next(); return buf; } };
+    const words = new Map(); const digits = new Array(100).fill(0);
+    const N = 20000;
+    for (let i = 0; i < N; i++) {
+      const [w1, w2, w3, d] = generateSaveCode(src).split('-');
+      for (const w of [w1, w2, w3]) words.set(w, (words.get(w) ?? 0) + 1);
+      digits[Number(d)]++;
+    }
+    expect(words.size).toBe(256);
+    const wExp = (3 * N) / 256; // ~234 each
+    for (const n of words.values()) expect(Math.abs(n - wExp)).toBeLessThan(wExp * 0.4);
+    for (const n of digits) expect(Math.abs(n - N / 100)).toBeLessThan((N / 100) * 0.4);
+  });
+
+  it('falls back to Math.random only when there is no getRandomValues', () => {
+    expect(generateSaveCode(undefined)).toMatch(FORMAT); // default param: the real crypto
+    expect(generateSaveCode(null)).toMatch(FORMAT);
+    expect(generateSaveCode({})).toMatch(FORMAT);
+  });
+});
+
+describe('randomIndex (no modulo bias)', () => {
+  it('rejects draws at or above the largest multiple of n, then takes x % n', () => {
+    // 2^32 = 42949672 * 100 + 96, so 4294967200..4294967295 are thrown away
+    const limit = 4294967200;
+    const seq = [limit, limit + 95, 4294967295, 199];
+    let i = 0;
+    expect(randomIndex(100, () => seq[i++])).toBe(99);
+    expect(i).toBe(4);
+    i = 0;
+    expect(randomIndex(100, () => [limit - 1][i++])).toBe(99);
+  });
+  it('never rejects for a power of two', () => {
+    let calls = 0;
+    expect(randomIndex(256, () => { calls++; return 0xffffffff; })).toBe(255);
+    expect(calls).toBe(1);
+  });
+  it('gives each result exactly the same number of accepted inputs', () => {
+    // over a scaled-down space the same rule is exact: 0..(floor(M/n)*n - 1) maps evenly
+    const n = 100; const limit = Math.floor(2 ** 32 / n) * n;
+    expect(limit % n).toBe(0);
+    expect(2 ** 32 - limit).toBe(96);
+  });
+  it('stops retrying a broken source that never returns a usable value', () => {
+    expect(randomIndex(100, () => 0xffffffff)).toBe(0xffffffff % 100);
   });
 });
 
