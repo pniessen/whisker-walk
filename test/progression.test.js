@@ -767,6 +767,7 @@ describe('createProgression', () => {
         equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },
         customCats: [],
         outfits: [],
+        usage: {},
         area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
         journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
         race: { date: null, area: null, bestMs: null },
@@ -2381,11 +2382,12 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, outfits, fightsWon, fightMoves, scars, scarredIntruders, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, outfits, usage, fightsWon, fightMoves, scars, scarredIntruders, ...rest } = p.state;
     expect([fightsWon, fightMoves, scars, scarredIntruders]).toEqual([0, [], {}, []]);
     expect(edition).toBe('canon');
     expect(customCats).toEqual([]);
     expect(outfits).toEqual([]);
+    expect(usage).toEqual({});
     expect(clanPick).toEqual({ mine: null, partner: null, partnerId: null });
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], den: [] });

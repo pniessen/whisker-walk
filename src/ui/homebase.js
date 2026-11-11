@@ -23,6 +23,7 @@ import {
 import { renderJournalHtml } from '../journal.js';
 import { goldForEdition } from '../goldmice.js';
 import { createRedeemer, renderRedeemHtml } from '../redeem.js';
+import { usageHtml } from '../usage.js';
 import { isMilestone, welcomeLine } from '../visits.js';
 import { createVisitCelebration } from './visitcelebration.js';
 import { settingsSwitchHtml } from './screencards.js';
@@ -392,7 +393,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               <option value="low" ${s.quality === 'low' ? 'selected' : ''}>Low detail</option>
             </select>
           </label>
-        </div>
+        </div>${usageHtml(progression.state.usage, { visits: progression.state.visits, walks: Object.values(progression.state.walks ?? {}).reduce((a, b) => a + asFiniteNonNeg(b, 0), 0) })}
         <button id="btn-reset" class="danger">Start over</button>
       </section>`;
   }
@@ -1043,6 +1044,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const prev = openSheet;
     backTo = openSheet === 'menu' && next && next !== 'menu' && next !== 'places' ? 'menu' : null;
     openSheet = next;
+    // Usage counts: a sheet opened from somewhere else, not a re-open of itself.
+    // (Back from a sheet to the Menu is not an open of the Menu.)
+    if (next && next !== prev && !(next === 'menu' && prev)) { try { progression.noteUse?.(next); } catch { /* a count, never a blocker */ } }
     render();
     root.scrollTop = 0; // a sheet (or the room) opens at its top
     // Keyboard and screen-reader users land on the new screen's first control,
