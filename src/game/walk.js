@@ -1881,8 +1881,12 @@ export function createWalkLifecycle({
     chatWheel.setVisible(true);
     // The chat hint, once per walk (startWalk runs once per walk). It waits
     // on the session like the arrival line: under the Ready? card a toast is
-    // never seen. main.js toasts chatHintLine on the first engage.
-    session.chatHintPending = true;
+    // never seen. main.js toasts chatHintLine on the first engage. Only on a
+    // player's first TOUCH_HINT_WALKS walks (the touch controls hint's rule);
+    // the touch buttons' word labels follow the same rule.
+    const earlyWalk = Object.values(state.walks).reduce((n, w) => n + w, 0) < TOUCH_HINT_WALKS;
+    session.chatHintPending = earlyWalk;
+    touchUI.setLabels?.(earlyWalk);
     // R18: moves the save granted on load (fights she won before moves
     // existed) are toasted once, at the next Clan Edition walk. The lines wait
     // on the session (the Ready? card covers toasts); main.js toasts them on
