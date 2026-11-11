@@ -68,9 +68,9 @@
   - Downhill and level ground are unchanged. It composes with the water pace and the scare freeze the way `waterPace` does.
   - Cost if wrong: one constant.
 - **R7. Slope tilt.**
-  - Every cat that walks (her cat, remote co-walkers, strays, clan cats, intruders, ghosts, the kitten) pitches and rolls to the ground's slope under it, so the paws sit on the slope plane rather than floating or sinking. The spec lists "floating above a slope" as an anti-goal.
+  - Every cat that walks (the player's cat, remote co-walkers, strays, clan cats, intruders, ghosts, the kitten) pitches and rolls to the ground's slope under it, so the paws sit on the slope plane rather than floating or sinking. The spec lists "floating above a slope" as an anti-goal.
   - `groundTilt(ground, x, z, yaw, out)` returns `{ pitch, roll }` from the slope's gradient, each capped at `TILT_MAX = 0.35` rad. It uses the `'YXZ'` order convention that the fight build introduced (`applyWaterLook`'s `fightTilt`).
-  - Her cat's and remote cats' tilt is eased at `TILT_RATE = 10`/s and passed into `applyWaterLook`, which after the fight merge is "the one place the game writes a walking cat group's rotation.x and rotation.z". A fight's tilt replaces it; fights stand on level ground.
+  - The cat's and remote cats' tilt is eased at `TILT_RATE = 10`/s and passed into `applyWaterLook`, which after the fight merge is "the one place the game writes a walking cat group's rotation.x and rotation.z". A fight's tilt replaces it; fights stand on level ground.
   - NPC cats set their tilt directly with no easing.
   - On `ground.flat` nothing is passed and no rotation is written that is not written today.
   - Cost if wrong: if the owner wants "slightly", the tilt becomes a fraction of the slope, which is a constant. Paws then sink a little uphill.
@@ -81,12 +81,12 @@
   - The fraction snaps in on the same frame (a camera that lags is a camera seen through rock) and eases back out with the existing `PULL_HOLD` / `PULL_OUT_SPEED` rule.
   - After that, `MIN_CAMERA_Y` applies above `ground.y` under the camera, and the camera is held at or below `ceil − CAM_CEIL_CLEAR`. `validateGround` requires every ceiling to be at least `MIN_CAMERA_Y + CAM_CEIL_CLEAR = 0.8` m above the ground under it, so these two clamps can never cross.
   - Cave framing (in close and low) and any nicer cliff-foot framing are tuned in plan 3. This is the engine.
-  - Cost if wrong: at a cliff foot the camera sits close behind her cat's head until she turns, which looks crowded. Plan 3 can add a pitch-up there. Review Focus 3.
+  - Cost if wrong: at a cliff foot the camera sits close behind the cat's head until she turns, which looks crowded. Plan 3 can add a pitch-up there. Review Focus 3.
 - **R9. NPC walkers respect edges.**
   - Strays, clan cats, ghosts and the kitten move freely. Each keeps its previous x/z before its per-frame step and calls `ground.slide` at its existing x/z chokepoint (straycats.js `keepOut`, ghosts.js `keepOutPoint`, the clancats roamer/buddy/homeward writes, kitten.js's two writes). It then sets `y = ground.y(x, z)`.
   - Critters move freely when they flee or run to a hide (critters.js 480, 488-489 and 527: `p.addScaledVector`), so those writes slide too. Hides (`Vector3(h.x, 0, h.z)`, critters.js:197) are seated at `ground.y`, so `distanceTo(hideAt) <= HIDE_REACH` (518) still succeeds off the base.
   - Intruders, rival patrols and the yard dog follow authored anchors or routes. They only read `ground.y`, and plan 2 or plan 4 validates their routes against the ground.
-  - Scripted moves of her cat also respect rims:
+  - Scripted moves of the player's cat also respect rims:
     - The rival chase's scamper (rivalcats.js 293-317) lands on a spot chosen by `findLanding` with `isWalkableAt`. With `ground`, a landing is rejected unless `ground.canStep(from, landing)`.
     - The fight's walk-over adds `canStep` from the cat's current x/z to its per-step test (R11).
   - Cost if wrong: a route-following actor crosses a rim on a Gorge route. Plan 2 and plan 4 tests catch it.
@@ -97,7 +97,7 @@
   - Cost if wrong: on the clifftop she digs up a find on the floor below, or an intruder on the floor challenges her. Each is a one-line gate.
 - **R11. Fights stand on one level.**
   - `fightReach`'s `ok` and the per-frame staging check also reject a spot whose ground differs from my anchor spot's by more than `FIGHT_LEVEL_TOL = 0.3`.
-  - Her cat's y comes from the avatar's base y (R4, Task 3), which includes the ground. `s.fightLift` stays relative.
+  - The cat's y comes from the avatar's base y (R4, Task 3), which includes the ground. `s.fightLift` stays relative.
   - `intruders.stage(visit, { y })` takes a **relative** lift. clanfight passes `itLift` unchanged, and `intruders.place()` adds `ground.y(st.x, st.z)`, which is Task 6's job.
   - The dust bursts become `ground.y(mid) + 0.2`.
   - The walk-over's per-step test adds `canStep` (R9).
@@ -247,7 +247,7 @@
 - Produces: `player.setGround(ground)`, called by walk.js once per walk after `setAvatar`; `setAvatar` resets it to `FLAT_GROUND`. Also `session.ground` (walk.js), which every later task reads, and a 5th `update` argument is **not** added: the player holds the ground.
 
 - [ ] **Step 1: Write the failing tests** in `test/groundsystems.test.js`, using a headless player as in Task 1 on `buildHeightFixture`:
-  - `'her cat walks up the ramp and stands on the plateau'`: start at `(-7,0)`, move +x for 6 s. The cat's `position.y` equals `ground.y(x,z)` within 1e-9 every frame, and ends at 3 on the plateau.
+  - `'the player's cat walks up the ramp and stands on the plateau'`: start at `(-7,0)`, move +x for 6 s. The cat's `position.y` equals `ground.y(x,z)` within 1e-9 every frame, and ends at 3 on the plateau.
   - `'a rim stops her from both sides'`: walking +z from `(8,3)` for 3 s ends with z ≤ 5 and y === 3. From the floor at `(8,7)` walking −z for 3 s ends with z ≥ 5 and y === 0.
   - `'a pounce at a rim lands short even on a 0.1 s frame'`: at `(8,4.5)` facing +z, `player.pounce()`, then `update(0.1, …)` ×5. y is always 3 + hopY, and z stays ≤ 5 (Review Focus 1).
   - `'zoomies along the ledge stay on it'`: from `(13,0.5)`, zooming with input +z and a slight +x drift, `ground.y === 3` every frame.
@@ -263,7 +263,7 @@
   - walk.js: `const ground = groundOf(areaData)` right after the area build (line ~462), put `ground` into the `session` literal, and call `player.setGround(ground)`. Spawn: `cat.position.set(spawn.x, ground.y(spawn.x, spawn.z), spawn.z)`. Start camera: `lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z)`.
   - rivalcats and yarddog receive `ground` in their factory options (default `FLAT_GROUND`) and write `catPos.y = ground.y(catPos.x, catPos.z) + hop`.
 - [ ] **Step 4: Run them to see them pass.** Run `npx vitest run test/groundsystems.test.js test/flattrace.test.js test/camzoom.test.js test/player-zoom.test.js test/water.test.js test/pounce.test.js test/straywater.test.js test/waterstate.test.js`, then the full suite. Expected: PASS, with the flat trace identical.
-- [ ] **Step 5: Commit** with the message `feat(ground): her cat stands on the ground, stops at rims and climbs a little slower`.
+- [ ] **Step 5: Commit** with the message `feat(ground): the player's cat stands on the ground, stops at rims and climbs a little slower`.
 
 ### Task 4: Perches, golden mice, knockables and finds on the ground
 
@@ -307,7 +307,7 @@
 - Produces:
   - `cameraRockFraction(look, wanted, ground) → number f` in `[MIN_CAM_DIST / |wanted − look|, 1]`, with 12 samples and 5 bisections (R8). The camera goes at `look + f·(wanted − look)`.
   - `CAM_ROCK_CLEAR = 0.35`, `CAM_CEIL_CLEAR = 0.3`, `MIN_CAM_DIST = 0.3`.
-  - `createShadowFit(sun, camera, { radius, mapSize, lead })`'s `update(groundY = 0)`, where `fitCentre(camera, lead, out, groundY = 0)` sets `out.y = groundY`. main.js passes the ground under **her cat**, eased at 4 /s inside shadowfit, not the ground under the fit centre about 15 m ahead: that would jump at every rim and could leave the cat outside the fit. On flat ground it is 0, eased 0, and identical.
+  - `createShadowFit(sun, camera, { radius, mapSize, lead })`'s `update(groundY = 0)`, where `fitCentre(camera, lead, out, groundY = 0)` sets `out.y = groundY`. main.js passes the ground under **the player's cat**, eased at 4 /s inside shadowfit, not the ground under the fit centre about 15 m ahead: that would jump at every rim and could leave the cat outside the fit. On flat ground it is 0, eased 0, and identical.
 
 - [ ] **Step 1: Write the failing tests.**
   - camzoom.test.js:
@@ -409,7 +409,7 @@
 
 - [ ] **Step 1: Write the failing tests.**
   - `fightReach(spot, foeAt, ok)` on the fixture with my spot on the plateau at `(8,4)` and the foe at `(8,5.6)` across the rim: every returned `me`/`it` spot (beyond the two anchors) has `|ground.y − 3| ≤ 0.3`. With `FLAT_GROUND`, the result deep-equals today's.
-  - `'a fight on the plateau stands on it'`: drive the controller headlessly as `test/clanfight.test.js` does. The staged intruder's y is `3 + itLift`: clanfight passes `itLift` and `place()` adds the ground. The dust burst y is `3.2`. The walk-over never moves her cat across the rim: from `(8,7)` on the floor with the anchor spot on the plateau, the walk-over stops at the rim and the fight does not start there. Use the controller's existing "can't reach the spot" path, whatever the fight build names it.
+  - `'a fight on the plateau stands on it'`: drive the controller headlessly as `test/clanfight.test.js` does. The staged intruder's y is `3 + itLift`: clanfight passes `itLift` and `place()` adds the ground. The dust burst y is `3.2`. The walk-over never moves the player's cat across the rim: from `(8,7)` on the floor with the anchor spot on the plateau, the walk-over stops at the rim and the fight does not start there. Use the controller's existing "can't reach the spot" path, whatever the fight build names it.
   - fightcam, `'the fight camera rides the ground and stays out of rock'`: `chooseFightView` with a subject on the plateau returns `pos.y ≥ 3 + 0.8` and `look.y ≈ 3 + LOOK_Y`, and no candidate below `ground.y + CAM_ROCK_CLEAR`. With `FLAT_GROUND`, every existing case is unchanged.
 - [ ] **Step 2: Run them to see them fail.** Run `npx vitest run test/clanfight.test.js test/fightcam.test.js test/groundsystems.test.js`. Expected: FAIL.
 - [ ] **Step 3: Implement R11.** Check `test/fightcamworld.test.js` stays green: every shipped intruder route is flat.
@@ -429,7 +429,7 @@
 - [ ] **Step 1: Write the failing tests.**
   - waterlook.test.js, `'with no slope tilt nothing changes'`: rotation x/z and order equal the fight build's results for the same inputs.
   - groundsystems.test.js:
-    - `'her cat leans into the ramp and its paws touch it'`: walking up the ramp, the settled `cat.rotation.x` ≈ the uphill pitch (sign per Task 2's check). Each paw's world position (`cat.userData` legs' `paw`, after `animateCat` with `'follow'` **at speed 0**, since the gait lifts paws) is within 0.03 m of `ground.y` under it, using the real cat model built as in `test/catgolden.test.js`'s helper. Every cat-shaped NPC on the ramp has `rotation.order === 'YXZ'` and `|rotation.x| > 0.2` when facing up it.
+    - `'the player's cat leans into the ramp and its paws touch it'`: walking up the ramp, the settled `cat.rotation.x` ≈ the uphill pitch (sign per Task 2's check). Each paw's world position (`cat.userData` legs' `paw`, after `animateCat` with `'follow'` **at speed 0**, since the gait lifts paws) is within 0.03 m of `ground.y` under it, using the real cat model built as in `test/catgolden.test.js`'s helper. Every cat-shaped NPC on the ramp has `rotation.order === 'YXZ'` and `|rotation.x| > 0.2` when facing up it.
     - `'tilt eases in at the ramp’s foot'`: no frame-to-frame change > `TILT_RATE·dt` + 1e-9.
 - [ ] **Step 2: Run them to see them fail.** Run `npx vitest run test/waterlook.test.js test/groundsystems.test.js`. Expected: FAIL.
 - [ ] **Step 3: Implement R7.** On `ground.flat` the avatar passes `null`, so the flat trace's rotation columns stay identical. If Task 1 found that body-refine's `fitLongLegs` or the fold code reads `cat.position.y`, hand it the value minus `ground.y` here.

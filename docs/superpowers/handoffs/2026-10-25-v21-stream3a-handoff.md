@@ -34,7 +34,7 @@ All five were found the hard way — a builder check against the source killed t
 - Every 3b answer is already recorded in the clan spec's §11, so **3b needs no second brainstorm**.
 
 ## Before you build Phase 4, ask the real older playtester
-She reads the books, she is the reason this stream exists, and the v21 spec says she overrules the roleplayed playtest readers. Worth asking about: the word pools, the fact that a colony cat's clan name is revealed rather than chosen, and whether four rival clans sound good or annoying.
+The older playtester reads the books, is the reason this stream exists, and the v21 spec says they overrule the roleplayed playtest readers. Worth asking about: the word pools, the fact that a colony cat's clan name is revealed rather than chosen, and whether four rival clans sound good or annoying.
 
 ## Process (unchanged — it worked for Stream 2)
 1. Use `superpowers:using-git-worktrees`, then `superpowers:subagent-driven-development` on a feature branch: one implementer per task, plus a task reviewer.

@@ -23,7 +23,7 @@
 - Budget: the Cozy Neighborhood's. At most 450 meshes, 380 casters and 60,000 triangles as built; 260 meshes and 205 casters merged (`test/budget.test.js`).
 - Every borrowed *Warrior Cats* word stays in `src/clanwords.js`. This plan adds none; its labels are plain words ("Sun-warmed Rocks", "the old willow").
 - **Tasks 1–6 and 8 deploy as one unit.** Task 7 deploys only after the owner's colony SQL edit is live (owner step 2), **together with the Woods' colony task** (Woods plan Task 11), since that one edit gates both. Either can be merged first in code; they share the `NO_LEGENDARY_YET` list.
-- **Controller rulings (decided):** **R1** the pines stand where her Pines circle overlaps the River's north edge, about x −6..24 m; **R2** the island is one spot seen from both maps, the Woods' `(−72, −72)`, which is `(28, −72)` in River coordinates; **R3** the lake stays in the River's north-east corner but its shared edge matches the Woods' (`maxZ −34`).
+- **Controller rulings (decided):** **R1** the pines stand where the playtester's Pines circle overlaps the River's north edge, about x −6..24 m; **R2** the island is one spot seen from both maps, the Woods' `(−72, −72)`, which is `(28, −72)` in River coordinates; **R3** the lake stays in the River's north-east corner but its shared edge matches the Woods' (`maxZ −34`).
 - **Reuse the Legacy guards that shipped with the Woods; restate none of them.** `effectiveArea` (which also picks the "today's walk" card), `setArea`/`canBuy`/`onPlace` refusing Clan-only areas in Legacy, `roomAreaMove` with `rooms.js`'s fallback to an override, and the page title following the edition all key off `edition: 'canon'` in the catalog. The River gets them by being registered (Task 5); Task 6 only proves they cover it.
 - **Owner decisions (2026-10-31, settled, not open):** the long path from Twolegplace enters the River and Marshes from its **east side, by the Woods** (at z 40, lined up with the Woods' own long path); the sunny rock climb is named **"Sun-warmed Rocks"**; the River gets a **quiet water-lapping sound under the usual birdsong**.
 - Comments and docs are plain and say why. Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
@@ -64,7 +64,7 @@ These are for the owner (the parent), not the implementer.
 
    Expected: `true`. Then the Woods' colony task and the River's (Task 7) ship together, in one deploy.
 3. **Check the River on the iPhone 18** after Task 8: a River walk on the HIGH tier holds 60 fps. Note its draw count beside the Woods' and the Neighborhood's.
-4. **Show her the River.** The path's entry, the "Sun-warmed Rocks" name and the water sound are already decided (Global Constraints). The one open name is "the old willow", a plain word for a place in the books.
+4. **Show the playtester the River.** The path's entry, the "Sun-warmed Rocks" name and the water sound are already decided (Global Constraints). The one open name is "the old willow", a plain word for a place in the books.
 
 ## What this plan defers (each gets its own plan)
 
@@ -93,7 +93,7 @@ These are for the owner (the parent), not the implementer.
 
 ## The River and Marshes in numbers
 
-Coordinates are metres, x east, z south (north is −z, as the corner map draws it). Her board puts the Woods to the east (sharing the pond), the Pines and Swamp to the north (overlapping a little), the lake to the north-east, and the far west where the river comes in. Her river runs along the north third, jogs south, and runs east into the pond (`RIVER` in `src/territories.js`, board y 375–393 then 451–463), so the map's river has three reaches.
+Coordinates are metres, x east, z south (north is −z, as the corner map draws it). The playtester's board puts the Woods to the east (sharing the pond), the Pines and Swamp to the north (overlapping a little), the lake to the north-east, and the far west where the river comes in. Her river runs along the north third, jogs south, and runs east into the pond (`RIVER` in `src/territories.js`, board y 375–393 then 451–463), so the map's river has three reaches.
 
 | Thing | Value |
 |---|---|
@@ -104,7 +104,7 @@ Coordinates are metres, x east, z south (north is −z, as the corner map draws 
 | `LAKE` | `{ id: 'lake', kind: 'rect', minX: 26, maxX: 120, minZ: -95, maxZ: -34 }` (the lake's south-west shore; `maxZ` is the Woods' lake edge, R3; past z −95 is the Pines' far shore) |
 | `LAKE_FAR` | `{ id: 'lake-far', kind: 'rect', minX: 0, maxX: 30, minZ: -95, maxZ: -56 }`: open water north of the bounds, round the island (R2). Outside `bounds`, so it changes nothing a cat can walk |
 | `RIVER_WEST` | `{ id: 'river-west', kind: 'rect', minX: -120, maxX: 19, minZ: -34, maxZ: -29, decks: [LOG_BRIDGE] }` (in from the far west) |
-| `RIVER_BEND` | `{ id: 'river-bend', kind: 'rect', minX: 14, maxX: 19, minZ: -34, maxZ: -9 }` (her jog south; no deck) |
+| `RIVER_BEND` | `{ id: 'river-bend', kind: 'rect', minX: 14, maxX: 19, minZ: -34, maxZ: -9 }` (the playtester's jog south; no deck) |
 | `RIVER_EAST` | `{ id: 'river-east', kind: 'rect', minX: 14, maxX: 120, minZ: -14, maxZ: -9, decks: [STEPPING_STONES] }` (on into the Woods, at the Woods' z −14..−9) |
 | `POND` | `{ id: 'pond', kind: 'circle', x: 44, z: -6, r: 6 }` (6 m inside the east edge, as the Woods' is 6 m inside its west edge) |
 | `POOLS` | `pool-1 (-30, 12) r 3.5`, `pool-2 (-12, 34) r 2.5`, `pool-3 (-40, 33) r 3`, each `kind: 'circle'` |
@@ -124,7 +124,7 @@ Coordinates are metres, x east, z south (north is −z, as the corner map draws 
 | `KEEP_CLEAR` | every POI, scenic, collectible, golden mouse, chain perch, gold bush, puddle and the spawn |
 | Willows | `riverTrees().willows`: 14–24, scale 1.1–1.5, along the banks (Task 4) |
 | Alders | `riverTrees().alders` (`b.tree`): 6–14, scale 0.9–1.3, in the drier south-east toward the Woods |
-| Pines | `riverTrees().pines` (`b.pine`): 6–12, scale 1.1–1.6, on the north edge at about x −6..24 where her Pines circle overlaps the River (R1) |
+| Pines | `riverTrees().pines` (`b.pine`): 6–12, scale 1.1–1.6, on the north edge at about x −6..24 where the playtester's Pines circle overlaps the River (R1) |
 | Reeds | `riverReeds()`: 300–`MAX_REEDS` (480) clumps, no two closer than `REED_SPACING` (1.0 m), in one `b.reedBed` |
 | Lily pads | `riverLilyPads()`: 15–40 pads on the pond's west half and the three pools, one `b.lilyPads` |
 | Island on the horizon | at `(28, -72)`, the Woods' `(-72, -72)` moved 100 m east into River coordinates (R2): mound (flattened sphere r 9, rise 1.4) and `b.tree(28, -72, 2.6)`; the island bridge as one plank box from the Pines' shore at `(10.6, -95.2)` to the island's north-west rim at `(22.6, -79.2)`, y 0.3, 2 m wide, named `islandBridge`. All outside `bounds`, no collider |

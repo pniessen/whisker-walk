@@ -38,7 +38,7 @@ round Play together button and Start.
   slot reads `＋` and the slot name, not "nothing yet". The old
   "WEARING · 2 OF 7 SLOTS · 2 OF 28 OWNED" label and the abilities chip are gone
   (the count moves to the Skills tile).
-- **Today's walk**: one picture card for the place she will walk (the
+- **Today's walk**: one picture card for the place the player will walk (the
   effective place, so Legacy never names a Clan-only place), with a line under
   the name (Clan Edition: `StormClan land` on a clan territory) and a
   `Change place ›` chip. The whole card is one button that opens the Change
@@ -57,7 +57,7 @@ Title "Where to?". Clan Edition: the clan as one line (`You're StormClan`,
 `You're both StormClan!`, or the ally), or, when the Woods is open and she has
 no clan, a `Choose your clan ›` button that reopens the clan moment. Then the
 territory map (unchanged), "More places" (Park, Seaside, Docks) and a **My den**
-card. Legacy: the place cards and My den. Tapping a place she can walk picks
+card. Legacy: the place cards and My den. Tapping a place the player can walk picks
 it and goes back home, where the card shows it; a place that opens or is
 bought the same way picks it too. A locked or unaffordable place stays put.
 My den starts the den walk, as "Visit your den" did (not offered in a room).

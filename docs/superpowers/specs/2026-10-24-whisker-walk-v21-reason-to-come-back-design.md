@@ -685,7 +685,7 @@ available and overrules both.
    partner reader found async the best part of the whole plan; the cold reader
    attacked the premise — overnight taming is "the game telling me to go
    away," and timers do not pull a kid back, people do. The difference is that
-   every good async moment the first reader described was *caused by her
+   every good async moment the first reader described was *caused by them
    partner*, and the bad one the second described was *caused by a timer*. So:
    no hatch timers, no overnight growth, nothing that rewards logging off. A
    colony changes only because the other player did something.
@@ -698,7 +698,7 @@ available and overrules both.
    unprompted as one of the best ideas in the document. Do not skip it.
 6. **A cat that needs two different feeders.** The partner reader's own idea
    and the best in either report: a cat too frightened to come home unless
-   **both** players have fed it. Her reasoning — "your whole plan is 'sharing
+   **both** players have fed it. Their reasoning — "your whole plan is 'sharing
    is nice' and sharing is not automatically nice" — is sharper than anything
    in §2. This converts a partner from an intruder into someone you go and
    fetch.
@@ -706,7 +706,7 @@ available and overrules both.
    readers' words, it is "a sticker in a drawer." A dressed colony cat shows up
    dressed on the other device.
 8. **Cats must do things on their own in the den.** The one sentence in Stream
-   2 the cold reader said she would come back for — "they get into trouble
+   2 the cold reader said they would come back for — "they get into trouble
    while nobody is watching" — and the partner reader independently asked for
    the same: be somewhere different each day, be stuck in a box, have knocked
    something over.
@@ -741,7 +741,7 @@ available and overrules both.
   — the nose is yours." The nose leads; the number is there for a player who is
   stuck rather than pushed at one who isn't.
 - **Journal and photo album — left alone in v21.** The cold reader called these
-  homework and said she would never open the tab once. That is one roleplayed
+  homework and said they would never open the tab once. That is one roleplayed
   opinion against a shipped feature, so nothing is removed, but it is a reason
   not to invest further in them until the real player is asked.
 

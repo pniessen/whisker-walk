@@ -229,7 +229,7 @@ Freeze each list and each object.
 The header comment says:
 - these are homages chosen with the older playtester (decision 3);
 - `HOMAGE_PREFIXES` holds the names chosen on 2026-10-31, and the rest of each list are spares, so a change is one line;
-- once a name has shipped, change a value only if she asks, because nothing is stored by name (saves store the id).
+- once a name has shipped, change a value only if the playtester asks, because nothing is stored by name (saves store the id).
 
 Do **not** add these words to the scanner's `BORROWED` list. They are ordinary words that `src/` already uses for other things: "storm" (the weather) and `'CLIFF'` (a friend-code word list in `src/cloud.js`). Adding them would break the scan for no gain.
 

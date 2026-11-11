@@ -434,7 +434,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - Nothing else on the receiving side: no points beyond that one shared award, no saves, no feats besides the award's own tally.
 
 - [ ] **Step 1: Write the failing tests**
-- `the partner's fight holds the intruder on my screen, facing her cat`;
+- `the partner's fight holds the intruder on my screen, facing the player's cat`;
 - `fled wins over walked-on, in either order`;
 - **`a partner's loss doesn't release the intruder while my fight is on`**: my fight holds it; a remote `intruder-done` `fled: false` arrives; it is still held until my own fight ends;
 - `fighting together: when either wins, both are paid once`: I'm mid-fight, a remote `fled: true` arrives → one `intruder` award for me, my fight ends; a second `fled: true`, or my own win on the same visit, pays nothing more; a watching device (no fight) gets no award;
@@ -472,11 +472,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Two browsers, one co-walk** (partners, StormClan and GaleClan; then one device on Legacy):
   - In the Woods, both screens show the same intruder on the same route. A GaleClan intruder is offered to nobody (it's the partner's clan); a BrookClan one is offered to both.
-  - One kid fights: the other screen shows the intruder held, facing her cat, then fleeing (win) or walking on (loss). Both press Fight at once: no stuck intruder; one loses and one wins → it flees on both screens and both kids get the award once.
+  - One kid fights: the other screen shows the intruder held, facing the player's cat, then fleeing (win) or walking on (loss). Both press Fight at once: no stuck intruder; one loses and one wins → it flees on both screens and both kids get the award once.
   - On Legacy: the intruder walks, holds and flees, with no tag and no panel.
   - Lose a fight: points, colony, marks and feats are unchanged (compare the save before and after in devtools).
 - [ ] **Step 2: Phone check** on the iPhone 18, portrait **and landscape**: the three buttons are under the thumb, readable at arm's length, no toast covers them, the joystick and zoom buttons are hidden during the fight, nothing covers the two cats, and "Fight!" walks the cat over. Then the draw reading, the same protocol as Part 1 (HIGH, Auto off, 10 s average after warm-up, draws recorded) at the **Woods, River and Moor** camps, mid-fight and once with an intruder walking past the busy camp in view, beside Part 1's camp readings. Expect the intruder to add about 24 main-pass draws plus its shadow draws (it casts, like a roaming warrior) and the dust bursts a few; 60 fps held. If not, stop and report; Part 1's lever order is the owner's call, not this task's.
-- [ ] **Step 3: The fairness note.** Ask the owner to let the younger playtester play five fights and the older playtester five. Record the wins in the commit body. If he wins far fewer (the anti-goal), the first fix is `TIMING.answer`, then the teach line's size; never make losing cost anything.
+- [ ] **Step 3: The fairness note.** Ask the owner to let the younger playtester play five fights and the older playtester five. Record the wins in the commit body. If one of them wins far fewer (the anti-goal), the first fix is `TIMING.answer`, then the teach line's size; never make losing cost anything.
 - [ ] **Step 4: Run the whole suite**
 
 Run: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**'`

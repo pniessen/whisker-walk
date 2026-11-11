@@ -117,11 +117,11 @@ otherwise, these win:
    chosen, and that it never counts against a kid. Builder: wanderers are
    local visuals or strays under the existing stray rules, and add nothing on
    the wire.
-7. **The territory layout comes from the older playtester's own drawing.** She
+7. **The territory layout comes from the older playtester's own drawing.** They
    rearranged the proposal on 2026-10-31. It is saved in the "Clan Territory
    Map" artifact (https://claude.ai/artifact/K8j8579QoYSxJj1eFajuxC,
    db `layouts/current`, version 22), on a 1000 × 700 board with north up.
-   Her layout replaces §3's.
+   Their layout replaces §3's.
 
    ```
                  N
@@ -149,7 +149,7 @@ otherwise, these win:
    **The ★ meeting place** sits in open ground in the middle, between the
    Pines, the Moor and the Woods, and belongs to no territory.
 
-   **Her river** is one long river:
+   **Their river** is one long river:
    - it enters from the far west and runs through the River and Marshes;
    - it makes a loop where the River and Marshes meet the Woods (read as a
      pond: to confirm);
@@ -160,13 +160,13 @@ otherwise, these win:
    **A path** runs out of Twolegplace north-west into the Woods: the
    kittypets' way into clan land (to confirm).
 
-   She left no notes and kept every territory's size. The Moor, Woods,
+   They left no notes and kept every territory's size. The Moor, Woods,
    Twolegplace and Gorge moved; the Pines and River barely did.
 8. **The lake and the island** (owner, 2026-10-31):
    - There is a **lake in the middle, where the four territories meet**: the
      Pines and Swamp, the Moor, the Woods, and the River and Marshes.
    - The lake has an **island, and the meeting place (★) is on the island.**
-   - The river she drew, which nearly circles the ★, reads as this lake's
+   - The river they drew, which nearly circles the ★, reads as this lake's
      shore and the streams feeding it. Each of the four territories has a
      stretch of lakeshore.
    - Builder:
@@ -174,7 +174,7 @@ otherwise, these win:
        meet. It's the natural spot for both kids' clans to gather together,
        which keeps them allies (decision 2).
      - The island is walkable, reached by a bridge (see below).
-   - She drew both on her map (version 22):
+   - They drew both on their map (version 22):
      - the lake is a large outline around the middle (board x ≈ 400–520,
        y ≈ 205–425);
      - the island is a smaller land outline around the ★.
@@ -201,7 +201,7 @@ otherwise, these win:
        or costs a kid anything. This matters because each kid may be in a
        different clan (decision 2).
    - **A small pond where the River and Marshes meet the Woods** (owner,
-     2026-10-31): the loop in her river.
+     2026-10-31): the loop in their river.
      - It sits on the border, so it belongs to both territories.
      - It's a good spot for fishing or drinking.
 9. **Saves start on Clan Edition, and "Twolegplace" stays** (owner,
@@ -217,7 +217,7 @@ otherwise, these win:
      (cliffs, ledges, perches you climb up to).
    - The cliff dens are natural spots to explore, hide in and nap in.
 
-**Done (2026-10-31):** §3, §4 and §8 are rewritten around her drawing, and
+**Done (2026-10-31):** §3, §4 and §8 are rewritten around their drawing, and
 text the decisions contradict is removed or marked *stale*. The first
 implementation plan, the edition switch plus the Woods, is
 `docs/superpowers/plans/2026-10-31-clan-edition-woods.md`.
@@ -234,7 +234,7 @@ implementation plan, the edition switch plus the Woods, is
 - **Legacy Edition is the older plain game** (decision 1): no clan names, no
   rival clans, no clan words. The clan layer is hidden, not deleted, and comes
   back when the kid flips to Clan Edition.
-- **Clan Edition is a new world** of all-new maps, laid out the way she drew
+- **Clan Edition is a new world** of all-new maps, laid out the way they drew
   it (§3): the Woods, the Moor, the River and Marshes, and the Pines and Swamp
   around a lake, with a walkable island in the middle and the Gorge to come
   later. Twolegplace is the Cozy Neighborhood, shared by both editions.
@@ -311,7 +311,7 @@ already). Good things follow:
 - **On the home screen title**: tap "Clan Edition" to switch. The same
   choice also sits in Settings, in plain words.
 - **It is saved with the kid's save, not the device.** Cloud sync then carries
-  it with her, the same way the corner map's north-up choice is designed to.
+  it with the older playtester, the same way the corner map's north-up choice is designed to.
 - **Existing saves start on Clan Edition.** *(Changed 2026-10-31.)* The
   draft said Legacy, back when Legacy meant "today's game". Decision 1 made
   Legacy the plain game, so starting there would hide the clan names, roles
@@ -376,7 +376,7 @@ already). Good things follow:
    Biscuit, Mochi, Clementine, Petunia, Butterscotch, Truffle, Custard,
    Peaches, Waffles.** **Duchess**, the Neighborhood's legendary cat, is also
    a kittypet, the grandest one in Twolegplace. The other 36 strays stay
-   loners and rogues. *She should pick or veto the list* (§6, question 6).
+   loners and rogues. *The older playtester should pick or veto the list* (§6, question 6).
 2. **Kittypets keep their old names, always.** In the world they are "Marmalade
    the kittypet", never a clan name.
 3. **In Clan Edition, kittypets wear a collar** (decoration only, using the
@@ -406,7 +406,7 @@ already). Good things follow:
 7. **The family cats are always kittypets and always keep their names.**
    Robbie, D2, Digit, Zeetoo and Hagrid are the kids' real house cats. In Clan
    Edition the home screen can say *"Robbie, a kittypet who walks with
-   ThunderClan"* (with her chosen homage name in place of the books' one,
+   ThunderClan"* (with their chosen homage name in place of the books' one,
    per decision 3). The shop doesn't change.
 
 None of this renames, adds or removes a stored name, so the colony and the
@@ -432,7 +432,7 @@ server are untouched.
 
 ## 3. Territories
 
-*Rewritten 2026-10-31 around her drawing (decision 7, version 22) and
+*Rewritten 2026-10-31 around their drawing (decision 7, version 22) and
 decisions 4–9. The earlier draft re-dressed today's areas as territories and
 compared three ways of building that; decision 5 overturned it, so it is gone.
 Every territory below is a **new map**.*
@@ -454,7 +454,7 @@ east, for later.
 | **The island** | Nobody's: everyone's meeting place | A small grassy island with the ★ meeting place on it | Only the lake. One bridge reaches it. | All of it |
 | **The Gorge** *(later)* | The sky clan | Rocks, dens dug into the cliff walls, tall pines (decision 9) | Nearly touches Twolegplace. The north path runs past its west side. | None |
 
-The clan names above are placeholders. The real ones are homages that she
+The clan names above are placeholders. The real ones are homages that they
 chooses from a short list (decision 3), in a later step.
 
 ### Water: the river, the pond, the lake and the island
@@ -571,7 +571,7 @@ Why:
   what the horizon shows.
 
 A **direct crossing** (step over the border and the next territory starts
-straight away, with a short crossing card) can come later if she wants it.
+straight away, with a short crossing card) can come later if they want it.
 
 **One big continuous world stays rejected.** It means weeks of engine work,
 loading regions mid-walk on the iPhone, and re-anchoring every colony cat's
@@ -680,7 +680,7 @@ would mostly hide.
 
 ## 4. The map sketch
 
-Redrawn from her map (version 22, north up). Sizes are rough; what touches
+Redrawn from their map (version 22, north up). Sizes are rough; what touches
 what is exact.
 
 ```
@@ -724,7 +724,7 @@ what is exact.
 - Twolegplace and the Gorge, nearly. The Gorge's side of the map stays an
   "unexplored" edge until it is built.
 
-**Builder: her drawing in numbers** (1000 × 700 board, north up; territories
+**Builder: their drawing in numbers** (1000 × 700 board, north up; territories
 are circles):
 
 | Place | Centre (x, y) | Radius |
@@ -736,8 +736,8 @@ are circles):
 | The Pines and Swamp | 308, 199 | 150 |
 | The River and Marshes | 232, 488 | 160 |
 | ★ meeting place | 455, 314 | (on the island) |
-| The lake | x 397–522, y 207–426 | (her outline) |
-| The island | x 437–485, y 289–329 | (her outline) |
+| The lake | x 397–522, y 207–426 | (their outline) |
+| The island | x 437–485, y 289–329 | (their outline) |
 
 The home-screen territory map draws straight from this layout, kept as data
 in the game (`src/territories.js` in the Woods plan).
@@ -747,7 +747,7 @@ in the game (`src/territories.js` in the Woods plan).
 ## 5. Naming and ownership
 
 *Settled by decision 3 (2026-10-31): close homages, not the books' exact
-names, with a short list per clan for her to choose from. The recommendation
+names, with a short list per clan for them to choose from. The recommendation
 at the end of this section (canonical clan names) is **stale**. The facts
 about the code and the public repository still hold.*
 
@@ -776,7 +776,7 @@ plays it, not of who could see it.
 **My recommendation, and it is the owner's call:**
 
 - Use the **canonical clan names** in Clan Edition: ThunderClan, WindClan,
-  RiverClan, ShadowClan, SkyClan. They are the whole point for her, and they
+  RiverClan, ShadowClan, SkyClan. They are the whole point for the older playtester, and they
   are words, not characters.
 - Use **light homages for place names**: Sunny Rocks for Sunningrocks, the
   Gathering Hollow for Fourtrees. Keep **Twolegplace** and **Thunderpath** as
@@ -793,7 +793,7 @@ plays it, not of who could see it.
 
 *Status 2026-10-31.* Answered by the owner's decisions: 1 (decision 1),
 2 (decision 2), 3 (decision 3), 4 (decision 4), 5 (decisions 5, 7 and 8:
-all-new maps from her drawing, so the "does the Docks feel like ShadowClan"
+all-new maps from their drawing, so the "does the Docks feel like ShadowClan"
 part no longer applies), and 8 (moot: Clan Edition's territories are new
 maps, so Legacy's world never changes). Still open: 6 (the kittypet list),
 7 (should Legacy get the new maps under plain names; the Woods plan keeps
@@ -805,16 +805,16 @@ Ranked by how much the answer changes what gets built.
 
 1. **What is "Legacy Edition"?** Is it (A) today's game exactly, which is
    what I assumed? Or (B) the older plain game, with no clan words at all,
-   colony cats by their own names and no rival clans? *(For her, with the
+   colony cats by their own names and no rival clans? *(For the older playtester, with the
    owner.)*
    - Why it matters: (A) costs nothing and risks nothing. (B) is a second
      words layer across the colony, rivals and toasts.
    - It also decides what the younger playtester sees if Legacy is their preference.
    - The game's title already says "Clan Edition" today, so the word may mean
-     something specific to her.
+     something specific to them.
 2. **Which clan is theirs, and is it one clan for both kids?** *(For both
    kids.)*
-   - Her pick sets their home territory, where the rival patrols go, and the
+   - Their pick sets their home territory, where the rival patrols go, and the
      clan name on every screen.
    - The clan spec deliberately makes the partners **one clan**, so there is
      no border between them.
@@ -826,19 +826,19 @@ Ranked by how much the answer changes what gets built.
 3. **Canonical names or homages?** *(For the owner; see §5.)* This changes
    the strings file and whether the save must accept new clan names. It is
    also a decision about a public repository.
-4. **Must the Gorge exist from day one?** *(For her.)* It is the biggest and
+4. **Must the Gorge exist from day one?** *(For the older playtester.)* It is the biggest and
    riskiest single build: the engine has no terrain, and cliffs are expensive
    shadow casters on the iPhone. SkyClan arrives late in the books too.
    Launching with four clans plus "the Gorge, coming soon" on the map
    halves the new-area work.
-5. **Is the territory map right?** *(For her: ask her to draw it.)*
+5. **Is the territory map right?** *(For the older playtester: ask them to draw it.)*
    - Does the Seaside feel like RiverClan?
    - Do the Docks feel like ShadowClan? That is my weakest match. If it
      feels wrong, ShadowClan becomes a third new area and the Docks stays a
      Twolegplace-side place.
-   - Which borders and contested places matter to her?
+   - Which borders and contested places matter to them?
 6. **Which old names are kittypets, and should a kittypet who joins the clan
-   keep its old name?** *(For her.)* This sets the list in §2 and the Colony
+   keep its old name?** *(For the older playtester.)* This sets the list in §2 and the Colony
    card's wording. My default shows both: "Amberpaw, once a kittypet called
    Marmalade".
 7. **Should the Moor and the Gorge appear in Legacy Edition too, under plain
@@ -849,8 +849,8 @@ Ranked by how much the answer changes what gets built.
 8. **Should the world be able to change for Legacy too?** *(For the owner.)*
    For example, real extra trees in the Park that you bump into. Without that
    permission, Clan Edition's dressing must be decoration you walk through.
-9. **Does she want to walk across a border during one walk?** *(For her.)*
-   This is option (b)'s optional last step. If she doesn't care, skip it.
+9. **Do they want to walk across a border during one walk?** *(For the older playtester.)*
+   This is option (b)'s optional last step. If they don't care, skip it.
 
 ---
 
@@ -906,7 +906,7 @@ the island. **The Gorge comes later** (decision 4).
    `docs/superpowers/plans/2026-10-31-clan-edition-woods.md`.
    - The saved edition, a switch in Settings and on the title, and Legacy
      quietly hiding the clan layer (decision 1).
-   - The home-screen territory map in Clan Edition, drawn from her layout,
+   - The home-screen territory map in Clan Edition, drawn from their layout,
      with the territories not built yet shown as "coming soon" and the
      Gorge's edge as "unexplored".
    - The Woods as a new map: paths, the pond, its stretch of lakeshore, the
@@ -915,8 +915,8 @@ the island. **The Gorge comes later** (decision 4).
      corner map.
    - Colony feeding in the Woods turns on only after the owner's one SQL edit,
      which also covers every later territory.
-2. **Clans: her pick of names, and each kid's clan.**
-   - A short list of homage names per clan for her to choose from
+2. **Clans: their pick of names, and each kid's clan.**
+   - A short list of homage names per clan for them to choose from
      (decision 3).
    - Each kid picks a clan; the two kids' clans are always allies
      (decision 2).

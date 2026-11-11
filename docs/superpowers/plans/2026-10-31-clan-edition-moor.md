@@ -83,10 +83,10 @@ These are for the owner (the parent), not the implementer.
 
    Expected: `true`. The Moor's colony task (Task 8) then ships in the same deploy as the Woods' colony task.
 3. **Check the Moor on the iPhone 18** after Task 9: a Moor walk on the HIGH tier holds 60 fps. Note its draw count beside the Woods' and the Neighborhood's.
-4. **Show her the Moor.** The order, the three place names and the sound are already decided (Global Constraints). Still open, none blocking the build and each a one-line change:
+4. **Show the playtester the Moor.** The order, the three place names and the sound are already decided (Global Constraints). Still open, none blocking the build and each a one-line change:
    - **the unlock:** the Moor opens after 2 Woods walks, the same moment as the River (both are the Woods' neighbours in §3's table);
    - **the journal name:** "Moor Rabbit";
-   - **her map:** the river comes in from the Woods at the south, turns west south of the middle and pours into the lake from the north 10 m from the Pines border; the lake fills the south-west corner; the north path from Twolegplace arrives up the east side as the Woods' own north path carried on, then bends west to (34, −8) and on across the moor top (coordinator's ruling: her board's line leaves the Moor's east edge, so the path keeps that bend); the island and its bridge are seen across the lake, not walked to.
+   - **the playtester's map:** the river comes in from the Woods at the south, turns west south of the middle and pours into the lake from the north 10 m from the Pines border; the lake fills the south-west corner; the north path from Twolegplace arrives up the east side as the Woods' own north path carried on, then bends west to (34, −8) and on across the moor top (coordinator's ruling: her board's line leaves the Moor's east edge, so the path keeps that bend); the island and its bridge are seen across the lake, not walked to.
 
 ## What this plan defers (each gets its own plan)
 
@@ -118,7 +118,7 @@ These are for the owner (the parent), not the implementer.
 
 ## The Moor in numbers
 
-Coordinates are metres, x east, z south (north is −z, as the corner map draws it). The Moor sits directly north of the Woods in the same x frame: the Moor's south edge (z 50) is the Woods' north edge (z −50), so a Woods point (x, z) is the Moor point (x, z + 100). Her board puts the Pines and Swamp to the west, the Woods to the south, the lake to the south-west, the north path from Twolegplace arriving on the east side, and the Gorge (later) off to the south-east. Her river (`RIVER` in `src/territories.js`, board x 598–644 north, then y 199–205 west to the lake at (455, 196)) gives the Moor two reaches and a mouth.
+Coordinates are metres, x east, z south (north is −z, as the corner map draws it). The Moor sits directly north of the Woods in the same x frame: the Moor's south edge (z 50) is the Woods' north edge (z −50), so a Woods point (x, z) is the Moor point (x, z + 100). The playtester's board puts the Pines and Swamp to the west, the Woods to the south, the lake to the south-west, the north path from Twolegplace arriving on the east side, and the Gorge (later) off to the south-east. Her river (`RIVER` in `src/territories.js`, board x 598–644 north, then y 199–205 west to the lake at (455, 196)) gives the Moor two reaches and a mouth.
 
 | Thing | Value |
 |---|---|

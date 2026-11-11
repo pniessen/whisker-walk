@@ -427,7 +427,7 @@ Part 2's and part 3's Global Constraints hold unchanged. These are restated beca
    - It drops scars from CliffClan cats.
    - It sees different Moor visitors from an updated co-walker.
 2. **The iPhone 18 check:** on HIGH, 60 fps at the camp and on the clifftop looking down at it.
-3. **Show her CliffClan** before the names ship for good (Owner question 1).
+3. **Show the playtester CliffClan** before the names ship for good (Owner question 1).
 
 ## Owner questions
 
@@ -435,7 +435,7 @@ Nothing blocks the build. The build uses each default below.
 
 1. **The cast's names (K6).** The other clans' first nine words were the older playtester's. CliffClan's are the planner's: Cragstar, Granite…, Screekit, Sprigkit, Flint…, Merlin…, Shale…, Pikapaw, Gullypaw, then Bluff…, Tarn…, Puffkit, Nimblekit, Stonecrop…, Thrift… and Crestpaw.
    - **Default:** ship these.
-   - Any word she picks instead is a one-line swap, if it passes the name tests.
+   - Any word the playtester picks instead is a one-line swap, if it passes the name tests.
 2. **The den is lit, not dark (K2).**
    - **Default:** lit, because it is the nursery.
    - Making it dark like the deep caves is one record.

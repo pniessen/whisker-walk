@@ -218,10 +218,10 @@ reaches the other device over the existing walk event channel
 confirms this is enough, or proposes something simpler.
 *As built (Part 2):* two events are enough, because the intruder's walk is
 already shared through the clock. `intruder-fight` says "I am holding this
-visit's cat": on her screen it stops and faces my cat, and her Fight pill
+visit's cat": on the partner's screen it stops and faces my cat, and the partner's Fight pill
 for it goes away. `intruder-done` (`fled` true or false) says how my fight
 ended. The rounds themselves stay on the fighter's screen. Holds are counted
-per visit, so her loss never lets it walk on while I am still fighting it,
+per visit, so a partner's loss never lets it walk on while I am still fighting it,
 and a hold with no word back lets go after 40 s. A win beats a loss in
 either order: once it flees on a screen, a later "walked on" is ignored. If
 both kids fight the same cat and either wins, it flees on both screens and
@@ -331,7 +331,7 @@ Plans: `docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`
   656, Moor 573, Pines 416; phone 459, 556, 376, 441.
 - Still the owner's: the iPhone 18 reading (60 fps held at the camps,
   mid-fight and with an intruder in view) and the fairness playtest (five
-  fights each for the younger and the older playtester; if he wins far fewer, lengthen
+  fights each for the younger and the older playtester; if one of them wins far fewer, lengthen
   the answer window first, then the teach line's size; losing never costs
   anything).
 
