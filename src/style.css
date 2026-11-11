@@ -212,6 +212,37 @@ body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-ar
     flex-direction: column-reverse;
   }
 }
+/* A phone on its side: the bottom anchors above put the walk toasts mid-screen,
+   on the player's cat, for the first seconds of every walk. They go to the top
+   centre instead, under the rank pill and level with the goals panel (which
+   hugs the left edge), mirroring the portrait rule above. The width is capped
+   so a long toast wraps rather than running under the goals panel. The fight
+   sheet is a bottom sheet and the challenge pill rides the prompt's place, so
+   nothing of the fight UI lives up here; the race/quest objective pill (a
+   centred pill at the same 48px) does, so while it is showing the toasts step
+   down past it. The 2-id selectors out-rank the fight rules' bottom anchors. */
+@media (pointer: coarse) and (max-height: 500px) {
+  #hud #hud-toasts,
+  #hud.fight-asking #hud-toasts,
+  #hud.fighting #hud-toasts {
+    top: calc(max(16px, env(safe-area-inset-top)) + 48px); bottom: auto;
+    max-width: max(240px, calc(100vw - 2 * (max(16px, env(safe-area-inset-left)) + 236px)));
+    flex-direction: column-reverse;
+  }
+  #hud:has(.hud-objective:not(.hidden)) #hud-toasts { top: calc(max(16px, env(safe-area-inset-top)) + 92px); }
+  .hud-goals { max-width: 220px; }
+}
+@media (max-height: 500px) {
+  body.touch-mode #hud #hud-toasts,
+  body.touch-mode #hud.fight-asking #hud-toasts,
+  body.touch-mode #hud.fighting #hud-toasts {
+    top: calc(max(16px, env(safe-area-inset-top)) + 48px); bottom: auto;
+    max-width: max(240px, calc(100vw - 2 * (max(16px, env(safe-area-inset-left)) + 236px)));
+    flex-direction: column-reverse;
+  }
+  body.touch-mode #hud:has(.hud-objective:not(.hidden)) #hud-toasts { top: calc(max(16px, env(safe-area-inset-top)) + 92px); }
+  body.touch-mode .hud-goals { max-width: 220px; }
+}
 .hud-crosshair {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   font-size: 1.6rem; opacity: 0.7;
