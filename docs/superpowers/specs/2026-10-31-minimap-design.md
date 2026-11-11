@@ -10,7 +10,7 @@ area. That makes the zoomies challenge (race.js: five rings at the area's POIs)
 hard: the HUD says "Race: ring 2/5" and nothing says which way ring 2 is. A
 small always-on map gives the missing "where am I in this place" picture.
 
-The players are a girl of 11 and a boy of 9. Success: a kid glances at the
+The players are two young playtesters. Success: a kid glances at the
 corner, sees the next ring, and heads for it.
 
 ## Goals
@@ -18,7 +18,7 @@ corner, sees the next ring, and heads for it.
 - A small round map, always on, in a corner of the walk screen.
 - Two modes, chosen per player:
   - **North up** (owner's pick): the map holds still, the cat's arrow turns.
-  - **Turns with the cat** (his daughter's pick): the cat always points up,
+  - **Turns with the cat** (the older playtester's pick): the cat always points up,
     the map rotates around it.
 - Shows: the area's simple shape, the player's cat, zoomies rings, the active
   quest target, and scenic spots.

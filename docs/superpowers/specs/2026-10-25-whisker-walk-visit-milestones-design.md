@@ -4,13 +4,13 @@ Date: 2026-10-25 · Status: draft for owner approval
 
 ## Intent
 
-The owner's 11-year-old has been playing *Finch*, and what she likes is the
+The older playtester has been playing *Finch*, and what she likes is the
 small celebration that greets her when she opens it. Whisker Walk should give
 her that same moment of arriving and being welcomed, built on a **visit
 count** instead of a run of consecutive days. A day counter punishes a missed
 day. A visit counter can only go up.
 
-The players are the owner's two children, a girl of 11 and a boy of 9, on
+The players are the owner's two young playtesters, on
 separate devices with separate saves. Both get this.
 
 ## Decisions (owner, 2026-10-25)
@@ -80,7 +80,7 @@ separate devices with separate saves. Both get this.
 - **Points as a prize.** A milestone that pays whisker points has failed.
 - **Getting in the way.** An ordinary visit must never need a tap before
   Start. Only style A and C milestones ask for a tap, and only one.
-- **Sibling comparison.** Nothing shows one kid's visit count to the other.
+- **Partner comparison.** Nothing shows one kid's visit count to the other.
 
 ## Constraints
 
@@ -137,7 +137,7 @@ About **ten** new accessories, flagged `prize: true` in `CATALOG.accessories`
 with no purchasable price. Index 0 → prize 1, index 1 → prize 2, and so on.
 
 Theme *(my suggestion, owner may swap)*: a party set with a few Warrior Cats
-nods for the 11-year-old. For example:
+nods for the older playtester. For example:
 
 | # | Visit | Item | Slot |
 |---|-------|------|------|

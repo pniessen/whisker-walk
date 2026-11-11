@@ -1,6 +1,6 @@
 # polish-faces: the tabby M and a black cat's face (2026-11-06)
 
-Owner-approved change in src/cat/*. The body, proportions and stripe pattern are the daughter's picks and are untouched. hats.js is another build's.
+Owner-approved change in src/cat/*. The body, proportions and stripe pattern are the older playtester's picks and are untouched. hats.js is another build's.
 
 ## Task 1: the tabby "M"
 - `headStripes: 'M'` on the tabby and zeetoo: the letter itself (two legs over the inner eye corners, a V dipping to the nose bridge) rather than D2/Digit's three bars, which read as stripes from the front. D2 and Digit keep `true` (signed off from photos).

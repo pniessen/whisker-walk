@@ -95,7 +95,7 @@ It is tried after the boot greeting (never under the splash or with the
 visit celebration), each time home is shown after a walk (the walk that opens
 the Woods brings it up straight away), and when one of the other cards
 closes. Picking a clan saves the id exactly as before (`setClanPick`, then the
-sibling sync), and closes it. Afterwards the clan changes only in Settings.
+partner sync), and closes it. Afterwards the clan changes only in Settings.
 The five cards no longer sit on home.
 
 ## Settings

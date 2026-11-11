@@ -143,7 +143,7 @@ duet, rally a yarn ball, nap in a pile and patrol together.
 3. Anyone in the room can press **Start the walk together**. The walk starts
    for everyone, in the area of whoever pressed it.
 
-Siblings who share a colony get a **Walk with …** button instead, so there's no
+Partners who share a colony get a **Walk with …** button instead, so there's no
 code to type. Fights are only ever against computer-run cats, never another
 player.
 
@@ -165,7 +165,7 @@ the repo's GitHub Actions secrets.
 
 ## Develop
 
-    npm test          # unit tests (Vitest), about 8,800 of them
+    npm test          # unit tests (Vitest); about 300 files, so run one file while working
     npm run build     # production build in dist/
     npm run preview   # serve the production build
 
@@ -192,3 +192,7 @@ If a change moves it, find out why before you re-record it.
 - `2026-10-31-clan-life-design.md`: camps, intruders and fights, including
   the 2026-11-04 border patrol amendment.
 - `2026-10-31-cat-builder-design.md`: the cat builder.
+
+To decode the task and decision ids that `src/` comments cite (CF-7, Task 6.2,
+Polish 3, R18, K6 ...), see `docs/GLOSSARY.md`. `docs/SESSION-HANDOFF.md` is a
+one-page map of where things live.

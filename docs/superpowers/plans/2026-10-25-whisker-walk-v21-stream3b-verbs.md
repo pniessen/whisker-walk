@@ -379,7 +379,7 @@ test('dispose removes every mesh and disposes every geometry and material once',
   - `{ v:1, id, type:'carry-drop', itemId, pos:[x,z] }` — sent on every local drop (by the player or by rain).
 
 Receiver rules (`applyRemoteEvent`):
-- `carry-pick`: `itemId` must be a string naming an item in `s.carry.items.list`; the sender must be a remote in `s.remotes.list`. The item leaves the ground and is held by that remote's group. **If the receiver is holding that same item, nothing changes for the receiver — both cats hold one, nobody loses** (ruling: a simultaneous grab must never have a loser between two siblings; items are not unique treasures).
+- `carry-pick`: `itemId` must be a string naming an item in `s.carry.items.list`; the sender must be a remote in `s.remotes.list`. The item leaves the ground and is held by that remote's group. **If the receiver is holding that same item, nothing changes for the receiver — both cats hold one, nobody loses** (ruling: a simultaneous grab must never have a loser between two partners; items are not unique treasures).
 - `carry-drop`: the same id check, plus `pos` an array of two finite numbers inside `areaData.bounds`; the item is placed there on the ground. If the receiver is holding it, ignore.
 - A remote that disappears (`DESPAWN_AFTER`, or leaving) takes its held item with it: it stays hidden for the rest of the walk on the receiver.
 - Neither event pays points, writes the save, or records a mark on the receiver.

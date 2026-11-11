@@ -8,7 +8,7 @@
 
 **Tech Stack:** Vanilla JS + DOM, Three 0.185 (portrait only), Vite 8, Vitest 4 (jsdom-free tests build HTML strings; homebase tests use the fake doc in test/homebase.visits.test.js).
 
-**Spec:** survey items #10 and #17 in `/private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/polish-survey.md` (l.65, l.72) and the shared rules in `.../scratchpad/polish-common.md`.
+**Spec:** survey items #10 and #17 in `<scratchpad>/polish-survey.md` (l.65, l.72) and the shared rules in `.../scratchpad/polish-common.md`.
 
 ## Global Constraints
 

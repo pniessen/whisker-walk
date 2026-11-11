@@ -29,7 +29,7 @@
 1. **A prize at price 0 being buyable.** `canBuy` checks `points >= price`, so a prize with no price would be free in the shop. Expect `canBuy('accessories', prizeId)` to be false always. (Task 2)
 2. **A reload or closed tab between unwrapping and the tap (styles A and C).** Expect the prize to be owned already and worn on the next open. (Task 2)
 3. **A hostile or old cloud payload** with `visits: 1e15`, `visitPrizesSeen: 'x'`, `visitPrizePending: '__proto__'`, or a cloud save older than local. Expect clamping, counts that never go down, and prizes rebuilt. (Task 2)
-4. **The sibling pressing Start, or the colony news pull landing, mid-celebration.** Expect the celebration to close, the prize to be worn, and the news to show after it, not over it or never. (Tasks 6 and 7)
+4. **The partner pressing Start, or the colony news pull landing, mid-celebration.** Expect the celebration to close, the prize to be worn, and the news to show after it, not over it or never. (Tasks 6 and 7)
 5. **A partner payload offering a prize in a trade.** Expect the trade to be ignored for that item and nothing added. (Task 3)
 
 ---

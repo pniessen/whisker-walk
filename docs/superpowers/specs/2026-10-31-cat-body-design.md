@@ -6,7 +6,7 @@ Sections marked **For the builder** carry the engineering detail. The rest is wr
 
 ## 1. Why, and the look we are aiming for
 
-Today's cats look like "a baguette with legs": a long, even sausage of a body on short pegs, with three or four flat stripes laid over the top like stickers. The owner and his daughter (11, the one who picked this look) want them **"more realistic, but also cute"**: a real cat's body and posture, with the big-eyed, short-nosed head kept just as it is.
+Today's cats look like "a baguette with legs": a long, even sausage of a body on short pegs, with three or four flat stripes laid over the top like stickers. The owner and the older playtester (11, the one who picked this look) want them **"more realistic, but also cute"**: a real cat's body and posture, with the big-eyed, short-nosed head kept just as it is.
 
 They chose **Version 2** of a turntable sketch (`cat-shapes.html` in the session scratchpad). It is the target. It is a simplified copy of the game's cat in an older Three.js, so it shows the *shape*, not the final code. What it shows:
 

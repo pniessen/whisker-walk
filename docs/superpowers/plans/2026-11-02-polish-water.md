@@ -8,7 +8,7 @@
 
 **Tech Stack:** Three 0.185, Vite 8, Vitest 4. Plain ES modules.
 
-**Spec:** the parent's brief (survey items #8, #11, #16) plus `polish-common.md` and `polish-survey.md` in the session scratchpad (`/private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/`).
+**Spec:** the parent's brief (survey items #8, #11, #16) plus `polish-common.md` and `polish-survey.md` in the session scratchpad (`<scratchpad>/`).
 
 ## Global Constraints
 

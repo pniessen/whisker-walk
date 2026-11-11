@@ -1,6 +1,6 @@
 # Fight actions, special moves and scars: design
 
-*2026-11-01. From the 11-year-old playtester after Clan Life Part 2 shipped:
+*2026-11-01. From the playtester after Clan Life Part 2 shipped:
 "fights should have more modes than just circling around each other" and "you
 should be able to buy new fighting moves, or earn them as you gain experience
 (or both)". Answered by the owner in chat. Sketch the owner and playtester
@@ -179,7 +179,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
 - **Her own scars** belong to the cat that fought (owner, 2026-11-01): if
   she loses as one cat and switches to another, the new one has no scar. The
   equipped cat's scars show everywhere it shows: walks, dressing-room stage,
-  album photos, and to her brother on a walk together. Scars travel to a
+  album photos, and to the partner on a walk together. Scars travel to a
   co-walker in a new `accessories.scars` key (up to two site + fade-stage
   pairs) sent for **every** cat, not only custom ones (today only a custom
   cat sends a look: src/customcats.js `catProfileFields`). It is sanitised on
@@ -201,7 +201,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
   fighting, gets **no scars** (he has no torso to hang them on), and his
   rounds keep today's short tumble instead of the four cat actions; his
   goldens stay byte-identical.
-- **Her brother never sees her fight actions**: each kid's fight runs and is
+- **The partner never sees the player's fight actions**: each kid's fight runs and is
   drawn on their own device (Part 2), as today.
 - **Losing changes nothing — except a scar.** Part 2's rule "losing a fight
   changes nothing in progression" is amended by the owner's decision: losing
@@ -249,7 +249,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
 
 - Fights look like the sketch: leaps, swats, pins and tumbles, readable on a
   phone.
-- A kid feels herself get better: moves unlock as she wins.
+- A kid feels themselves get better: moves unlock as they win.
 - Some moves can only be earned; buying is a shortcut for the rest.
 - Scars are a badge that fades, on both sides.
 
@@ -267,7 +267,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
   clue (except the top earn-only move, by design).
 - A scar that never goes away, or one that makes her cat look hurt rather than
   battle-tested.
-- The 9-year-old feels punished for losing.
+- The young player feels punished for losing.
 - The phone drops below 60 fps mid-fight.
 
 ## Left to the builder

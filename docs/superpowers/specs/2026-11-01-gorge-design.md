@@ -1,7 +1,7 @@
 # The Gorge: design
 
 *2026-11-01. The last Clan Edition territory, home of CliffClan. Described by
-the owner from his 11-year-old daughter's picture ("wandering in mountains,
+the owner from the older playtester's picture ("wandering in mountains,
 caves, shadows"), answered in chat. Builds on the editions spec
 (docs/superpowers/specs/2026-10-31-editions-and-territories-design.md:
 owner decisions 4 and 10, §3 "Territories", the Gorge rows) and every
@@ -242,7 +242,7 @@ other territories).
 
 ## Anti-goals
 
-- A cave that feels scary or a dark spot a 9-year-old can't see through.
+- A cave that feels scary or a dark spot a young player can't see through.
 - A cat getting stuck, clipping into rock, or floating above a slope.
 - The phone slowing down when looking down from the top.
 

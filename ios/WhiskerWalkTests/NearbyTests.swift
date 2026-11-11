@@ -63,7 +63,7 @@ final class NearbyTests: XCTestCase {
         for i in 0..<20 { crowded["k\(i)"] = "v" }
         XCTAssertNil(NearbyRoom(discoveryInfo: crowded))
         // A few extra keys are ignored, and are not carried along.
-        let extra = NearbyRoom(discoveryInfo: ["c": "ABCD", "n": "Mittens", "id": "player-1", "device": "Charlie's iPad"])
+        let extra = NearbyRoom(discoveryInfo: ["c": "ABCD", "n": "Mittens", "id": "player-1", "device": "Kid B's iPad"])
         XCTAssertEqual(extra?.discoveryInfo, ["c": "ABCD", "n": "Mittens"])
     }
 

@@ -16,7 +16,7 @@
 
 **Tech Stack:** Vanilla JS (ES modules), Three.js 0.185, Vite 8, Vitest 4.
 
-**Spec:** `docs/superpowers/specs/2026-11-01-gorge-design.md`: owner decision 2, "Caves", the anti-goals ("a cave that feels scary or a dark spot a 9-year-old can't see through"; "clipping into rock") and "How it is split" item 3. It builds on part 1 (`…-gorge-1-ground-height.md`, R8 camera rock and ceiling avoidance) and part 2 (`…-gorge-2-map.md`). Part 2 authored every cave's shape, ceilings, finds and the Echo Cave's golden mouse; **this plan changes no shape**.
+**Spec:** `docs/superpowers/specs/2026-11-01-gorge-design.md`: owner decision 2, "Caves", the anti-goals ("a cave that feels scary or a dark spot a young player can't see through"; "clipping into rock") and "How it is split" item 3. It builds on part 1 (`…-gorge-1-ground-height.md`, R8 camera rock and ceiling avoidance) and part 2 (`…-gorge-2-map.md`). Part 2 authored every cave's shape, ceilings, finds and the Echo Cave's golden mouse; **this plan changes no shape**.
 
 ## Global Constraints
 
@@ -228,4 +228,4 @@ Part 2's Global Constraints hold unchanged: nothing changes elsewhere, SAVE_VERS
 
 ## Execution handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-11-01-gorge-3-caves.md`. I recommend **subagent-driven** execution. There are only five build tasks, but three of them touch the per-frame hot path (the camera, the lights, the strays). The cost of a mistake is a dark or scary moment for a 9-year-old, so a gate per task is worth it.
+Plan complete and saved to `docs/superpowers/plans/2026-11-01-gorge-3-caves.md`. I recommend **subagent-driven** execution. There are only five build tasks, but three of them touch the per-frame hot path (the camera, the lights, the strays). The cost of a mistake is a dark or scary moment for a young player, so a gate per task is worth it.

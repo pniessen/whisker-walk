@@ -8,7 +8,7 @@
 
 **Tech Stack:** Three.js 0.185, Vite 8, Vitest 4 (node env; `document` is absent unless a test stubs it).
 
-**Spec:** scratchpad `polish-survey-2.md` (Build A3; ranked rows #1, #2, #3) and `polish-common.md` (shared rules), both at `/private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/`.
+**Spec:** scratchpad `polish-survey-2.md` (Build A3; ranked rows #1, #2, #3) and `polish-common.md` (shared rules), both at `<scratchpad>/`.
 
 ## Global Constraints
 

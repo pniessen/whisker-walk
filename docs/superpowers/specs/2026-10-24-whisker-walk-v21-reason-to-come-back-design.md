@@ -50,7 +50,7 @@ do by accident and makes it the spine of the game.**
 
 ### The second finding: the game is unfair, not hard
 
-Mid-brainstorm the 11-year-old volunteered that the existing objectives, "find
+Mid-brainstorm the older playtester volunteered that the existing objectives, "find
 the lost glasses" specifically, are too difficult. Investigation confirmed this
 is a missing affordance, not difficulty tuning. From `src/quests.js`, the three
 objective strings as shipped:
@@ -78,7 +78,7 @@ costs a four-character room code texted between devices, with the host
 choosing the area and starting for everyone while the other child's button
 reads "Waiting for host…".
 
-Two consequences. The 9-year-old plays on the 11-year-old's schedule. And when
+Two consequences. The younger playtester plays on the older playtester's schedule. And when
 they are not online simultaneously — which is most of the time — the world
 they supposedly share retains no evidence of each other whatsoever.
 
@@ -90,7 +90,7 @@ they supposedly share retains no evidence of each other whatsoever.
    player is away, and they can tell.
 2. **A reason to care.** The thing that changes is a relationship with a named
    creature, not a number.
-3. **Legibility.** A 9-year-old always knows what to do next and where to go.
+3. **Legibility.** A young player always knows what to do next and where to go.
    No objective is ever a blind search.
 4. **Shared, asynchronously.** Both kids contribute to one world and each finds
    traces of the other without needing to be online at the same time.
@@ -110,7 +110,7 @@ they supposedly share retains no evidence of each other whatsoever.
   players and invited friend codes, as today. This was the playtest's biggest
   structural request and it is declined deliberately: it collides with the
   no-accounts model, needs presence infrastructure, and puts unknown players
-  near children. The cost is accepted — when one sibling is out, the game is
+  near children. The cost is accepted — when one partner is out, the game is
   single-player.
 - No change to the live co-walk **wire format** or chat-safety model, and no
   change to the curated phrase set. *Clarification (author's call): this means
@@ -139,9 +139,9 @@ they supposedly share retains no evidence of each other whatsoever.
   good. Rain that makes you drop what you are carrying is good. Anything that
   destroys accumulated progress — taming, colony membership, a persistent mark,
   a traded item — is forbidden, because it breaks the add-only rule in §9 and
-  turns a sibling into a liability. Losing a thing you were holding is a story;
+  turns a partner into a liability. Losing a thing you were holding is a story;
   losing four days of work is a reason to stop playing.
-- **The 9-year-old losing.** Any mechanic that pits the siblings directly
+- **The young player losing.** Any mechanic that pits the partners directly
   against each other on reflex or speed will be lost by the younger one every
   time. Shared contribution beats competition.
 - **Another progress bar.** If the reward for the colony is whisker points,
@@ -206,7 +206,7 @@ independently shippable and leaves the game better than it found it.
 
 ### Stream 1 — Legibility (first, and smallest)
 
-Unblocks the 11-year-old's actual complaint. Nothing here is new technology.
+Unblocks the older playtester's actual complaint. Nothing here is new technology.
 
 **1.1 Scent-tracked objectives.** The signature fix. `scent.js` already exports
 `trailPoints(from, to, rng, steps)`, which generates a deterministic trail
@@ -218,7 +218,7 @@ replaces the game's most frustrating moment with its most characteristic verb.
 Design notes:
 
 - Faded paw-scent puffs along the trail, denser as the target nears.
-- Legible without words: "warmer / colder" is understood by a 9-year-old.
+- Legible without words: "warmer / colder" is understood by a young player.
 - Revealed while stalking (Shift), so the player is *doing something* to track.
   This is the hook that makes it a skill rather than a map.
 - Deterministic, so both devices in a co-walk see the same trail.
@@ -299,7 +299,7 @@ This is the heart of v21.
    friendship row — and `blocklist.js` says in its own header that it is not a
    fix, only a per-device hide. A shared colony inherits that hole, which would
    let a stranger write into the kids' colony. Stream 2 therefore adds a
-   pairing/invite flow (and likely a new RPC), and the no-room-code sibling
+   pairing/invite flow (and likely a new RPC), and the no-room-code partner
    join is built **on top of** that rather than on the existing unilateral add.
    This remains no-accounts and no-personal-data: friend codes stay the
    identity model.
@@ -327,12 +327,12 @@ visible, and get into trouble while nobody is watching.
 the shape): it satisfies every goal at once. It changes while you are away
 (goal 1). It is a named creature, not a number (goal 2). It is contributed to
 rather than competed over, which dissolves the age gap (goals 4 and the
-9-year-old anti-goal). It gives the persistent marks of Stream 3 a *reason* to
+young player anti-goal). It gives the persistent marks of Stream 3 a *reason* to
 persist — the mess is the colony's, and it is how you learn something happened
 without you.
 
-**Asynchronous by design.** The 11-year-old walks after school, finds a
-skittish stray behind the bins, feeds it twice, goes to bed. The 9-year-old
+**Asynchronous by design.** The young player walks after school, finds a
+skittish stray behind the bins, feeds it twice, goes to bed. The young player
 walks that evening, same colony, and the stray is still there, still half-tame,
 and someone has obviously been working on it.
 
@@ -342,7 +342,7 @@ and someone has obviously been working on it.
 - `kitten.js` — already models a staged relationship ending in "lives with
   you". This is the template for a taming ladder.
 - `ghosts.js` — an asynchronous-*presence* feature, and the natural rendering
-  hook for "a sibling was here". Note it transports no actions: it renders a
+  hook for "a partner was here". Note it transports no actions: it renders a
   friend's appearance off the public `profiles` select.
 - `gifts.js` — the leave-a-gift verb. Note its own header says it is
   **local-only**: "a co-walker in the same room walk sees their own gifts and
@@ -356,7 +356,7 @@ shared-mutable-state path in this codebase at all:
 - `saves` is one row per *device save* — whole-payload last-write-wins,
   authorized by a row secret, with a monotonic guard: `upsert_save` returns
   `'stale'` when `p_lifetime < existing.lifetime` (`docs/supabase-setup.sql`).
-  Two siblings pointing at one save code would **fuse** their points, cats,
+  Two partners pointing at one save code would **fuse** their points, cats,
   album and den, and whoever lost the lifetime race would get permanent
   `'stale'` rejections. This is not a shared colony; it is save corruption.
 - `profiles` and `friendships` are the only genuinely cross-player tables.
@@ -369,7 +369,7 @@ bulk of Stream 2. **Two linked** colonies that visit each other can ride the
 existing read-only `profiles`-shaped pattern at roughly a third of the cost.
 See §8 — this is the owner's call and it gates the stream.
 
-**Drop the room code for siblings.** A linked player should appear as joinable
+**Drop the room code for partners.** A linked player should appear as joinable
 without anyone typing four characters. Live co-walk protocol is unchanged; this
 is about how a session is *entered*. (Author's call; the owner named the
 friction, not the remedy.)
@@ -385,9 +385,9 @@ and a co-walk should show them off.
 short:
 
 - `TAME_FEEDS = 6`. Earlier greets give a 1/2/3 head start on the same bar.
-- About 1 name in 4 is shy and needs both siblings, but only while the colony
-  has 2 members and the other sibling has fed a colony cat in the last 14
-  days. A sibling who stops playing can't strand a shy cat.
+- About 1 name in 4 is shy and needs both partners, but only while the colony
+  has 2 members and the other partner has fed a colony cat in the last 14
+  days. A partner who stops playing can't strand a shy cat.
 - The colony holds at most 24 cats and 2 members. A child alone can start at
   most 12 cats, so two colonies filled solo before pairing always fit in the
   shared 24, and the cap never removes a tamed cat. The den has a home for each of the 24: the 12
@@ -401,7 +401,7 @@ Things that changed or were added while building:
 - **Tamed is stored and settled.** `tamedBy` and `tamedWalk` are never
   cleared. Every sync also runs a settle step, which tames a cat whose bar is
   full once the shy rule no longer applies, for example after the owner
-  unpairs by hand, or once the other sibling hasn't fed any cat for 14 days.
+  unpairs by hand, or once the other partner hasn't fed any cat for 14 days.
   Without it, that cat could never come home.
 - **A lone member counts as unpaired.** A colony with fewer than 2 members
   syncs as `unpaired`, so a child left alone after an unpair can pair again.
@@ -461,7 +461,7 @@ across the room because you can.
 **Marks are PRIVATE — author's call, resolving a contradiction in an earlier
 draft.** That draft described marks as a local save key while also justifying
 them as "how you learn something happened without you", which only works if a
-sibling's scratch shows up in your world. Both cannot be true cheaply: marks
+partner's scratch shows up in your world. Both cannot be true cheaply: marks
 are far more numerous than colony members, and sharing them would put every one
 on the same new wire as the colony and force the question of what a mark's
 identity is across two devices.
@@ -582,7 +582,7 @@ the real numbers.
 - **Colony state schema and its migration step.** New key in
   `progression.js`, sanitizer, escape-at-render, and a migration that leaves a
   v20 save working.
-- **How a linked sibling appears as joinable** without a room code, inside the
+- **How a linked partner appears as joinable** without a room code, inside the
   existing identity model (friend codes, no accounts).
 - **Which Stream 4 items to take**, once the frame-rate baseline exists. Do not
   pre-commit; the number decides.
@@ -648,14 +648,14 @@ even though its files are otherwise disjoint from everything else.
 ## 9. Playtest feedback (2026-10-24) — adopted, and still open
 
 Two independent readings of this document were commissioned from the target
-player's perspective: an 11-year-old, heavy Roblox player. One read it cold as a
-player, one as the older sibling who would share the colony with a 9-year-old.
+player's perspective: an young player, heavy Roblox player. One read it cold as a
+player, one as the older partner who would share the colony with a young player.
 Both were instructed not to be encouraging.
 
 **Caveat for the builder:** these were roleplayed readings, not the real child.
 Where the two readers reached the same conclusion independently, weight it
 heavily. Where only the Roblox-comparison reader asked for a Roblox feature,
-weight it lower — the prompt invited that answer. The real 11-year-old is
+weight it lower — the prompt invited that answer. The real young player is
 available and overrules both.
 
 ### Adopted — build these
@@ -663,14 +663,14 @@ available and overrules both.
 1. **One bar per cat, with a head start.** See Stream 2 decision 3. The
    strongest signal in the exercise; both readers independently called the
    two-meter design a cheat.
-2. **Add-only is the governing rule for everything shared.** The sibling
+2. **Add-only is the governing rule for everything shared.** The partner
    reader traced every predicted fight to one root: a player undoing or moving
    something the other player did. Consequences:
    - **Taming never regresses.** This collides with shipped code —
      `straycats.js` already models grudges and cross cats. A cat may be annoyed
-     at one player without losing the other player's progress, and a sibling
+     at one player without losing the other player's progress, and a partner
      scaring a half-tame cat must not wipe days of work.
-   - **Names are permanent and belong to the finder.** Left open, a 9-year-old
+   - **Names are permanent and belong to the finder.** Left open, a young player
      names a cat something stupid on purpose and it is in the den forever.
      Either the finder names it and nobody can change it, or cats arrive
      pre-named.
@@ -682,36 +682,36 @@ available and overrules both.
      whoever tamed it.
 3. **Colony progress advances by PLAYER ACTION, never by a clock.** This
    resolves the one place the two readers flatly contradicted each other. The
-   sibling reader found async the best part of the whole plan; the cold reader
+   partner reader found async the best part of the whole plan; the cold reader
    attacked the premise — overnight taming is "the game telling me to go
    away," and timers do not pull a kid back, people do. The difference is that
    every good async moment the first reader described was *caused by her
-   sibling*, and the bad one the second described was *caused by a timer*. So:
+   partner*, and the bad one the second described was *caused by a timer*. So:
    no hatch timers, no overnight growth, nothing that rewards logging off. A
    colony changes only because the other player did something.
 4. **A "while you were out" screen, first thing on open.** Named by the
-   sibling reader as make-or-break: if the player has to go and find what
+   partner reader as make-or-break: if the player has to go and find what
    changed, they won't, "and the whole plan dies." List it immediately — who
    fed what, what is new in the den, what got knocked over.
 5. **Carrying is promoted from suggestion to requirement.** Stream 3 currently
    files it among directions the builder may skip. Both readers picked it out
    unprompted as one of the best ideas in the document. Do not skip it.
-6. **A cat that needs two different feeders.** The sibling reader's own idea
+6. **A cat that needs two different feeders.** The partner reader's own idea
    and the best in either report: a cat too frightened to come home unless
    **both** players have fed it. Her reasoning — "your whole plan is 'sharing
    is nice' and sharing is not automatically nice" — is sharper than anything
-   in §2. This converts a sibling from an intruder into someone you go and
+   in §2. This converts a partner from an intruder into someone you go and
    fetch.
 7. **Cosmetics must be visible to the other player.** Otherwise, in both
    readers' words, it is "a sticker in a drawer." A dressed colony cat shows up
    dressed on the other device.
 8. **Cats must do things on their own in the den.** The one sentence in Stream
    2 the cold reader said she would come back for — "they get into trouble
-   while nobody is watching" — and the sibling reader independently asked for
+   while nobody is watching" — and the partner reader independently asked for
    the same: be somewhere different each day, be stuck in a box, have knocked
    something over.
 9. **Fix the host problem, not just the room code.** Stream 2 proposed dropping
-   the four-character code. The sibling reader says the code is irrelevant —
+   the four-character code. The partner reader says the code is irrelevant —
    "we live in the same house, I just yell it." The actual friction is
    `Waiting for host…` and the host choosing the area for both. Let either
    player start; let a joiner go somewhere else.
@@ -735,7 +735,7 @@ available and overrules both.
 ### Author's calls, not owner decisions
 
 - **Distance readout — smell-first, number available but not forced.** The
-  readers disagreed outright: the sibling reader says the number is what
+  readers disagreed outright: the partner reader says the number is what
   actually prevents frustration and must never be hidden; the cold reader says
   drop the marker and number entirely because "markers are what every game has
   — the nose is yours." The nose leads; the number is there for a player who is
@@ -770,7 +770,7 @@ off prowling, which is the behaviour this game wants to reward.
 **10.3 Trading — folded into Stream 2.** It is the same wire and the same
 schema work as the colony, and it obeys the same add-only rule: a completed
 trade is final and cannot be reversed by either side. With two players this is
-a sibling swap, not an economy, which keeps it small. It also directly serves
+a partner swap, not an economy, which keeps it small. It also directly serves
 §9 item 7 — a cosmetic becomes worth having when it can be *given*. Note the
 sequencing: trading depends on the colony's shared-state path, so it cannot
 start before Stream 2's schema exists.

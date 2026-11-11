@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Two siblings tame the same named strays over many walks, one bar per cat, until each cat comes home to the den — and each finds the other's work waiting when they open the game.
+**Goal:** Two partners tame the same named strays over many walks, one bar per cat, until each cat comes home to the den — and each finds the other's work waiting when they open the game.
 
 **Architecture:** A pure leaf module (`src/colony.js`) owns every rule: the taming ladder, the add-only merge, sanitizing, news, trades and rewards. `progression.js` stores the colony as one new save key and is still the only writer. A new SQL file adds six tables and nine `SECURITY DEFINER` RPCs that the owner runs. All colony reads and writes go through those RPCs, and the tables have no public select. `game/colonysync.js` talks to the cloud and degrades to a local single-player colony whenever the cloud is missing. The walk spawns colony cats at fixed spots, adds a feed verb, and puts tamed cats in the den. The home base gains a Colony tab and a "while you were out" card. Pair walks join a private room derived from the colony id, so nobody types a code and either player can start.
 
@@ -24,10 +24,10 @@ Every one of these can be changed with a constant. They are fixed here so tasks 
 | Head start (decision 3) | Greets from **before this walk** set the starting offset on the **same** bar: 1 greet → 1, 3 → 2, 6+ → 3, using the base `friendRungs(false)` 1/3/6 ladder. The offset is recorded on each feed, and the cat uses the largest one recorded, so it can only grow. The UI may say "you already knew Peanut ♥" but never draws a second track. |
 | Names (§9.2) | Cats arrive pre-named from `CAT_NAMES` and can never be renamed. The finder is whoever fed the cat first, and is shown as "found by …". |
 | Fixed spot | A cat's spot is its `home` where it was first fed. It is stored once and never moved: first insert wins, on the server and in the merge. |
-| Two-feeder cat (§9.6) | About 1 in 4 names are **shy**, derived from the name. A shy cat with a full bar stays in its area until a second, different colony member has fed it. The rule applies only while the colony has 2 members **and** that other member has fed some colony cat within `SHY_PARTNER_DAYS = 14` days (final review I1), so neither a solo player nor one whose sibling stopped playing is ever stuck: the settle step then tames the cat for whoever filled the bar. Walk stamps are read defensively; one that doesn't parse, or is in the future, doesn't count as recent. |
+| Two-feeder cat (§9.6) | About 1 in 4 names are **shy**, derived from the name. A shy cat with a full bar stays in its area until a second, different colony member has fed it. The rule applies only while the colony has 2 members **and** that other member has fed some colony cat within `SHY_PARTNER_DAYS = 14` days (final review I1), so neither a solo player nor one whose partner stopped playing is ever stuck: the settle step then tames the cat for whoever filled the bar. Walk stamps are read defensively; one that doesn't parse, or is in the future, doesn't count as recent. |
 | Tamed is stored, not derived | The client that fills the bar sets `tamedBy`/`tamedWalk`, and they are never cleared. So taming can't regress (§9.2), even if pairing later makes a cat count as shy. |
 | Colony size | `COLONY_MAX = 24` cats in total, in progress plus tamed (the server's cap too), for a pair. A colony with fewer than 2 members starts no new cat past `SOLO_MAX = 12` (re-review N1): 12 each alone, 24 together, so two colonies filled solo before pairing always fit (final review C1). `SOLO_MAX` only gates new cats; nothing is ever trimmed for it. The cap **never removes a tamed cat**: past it, untamed cats are trimmed, local-only ones before the server's. It equals `DEN_HOMES.length` (the 12 furniture anchors plus 12 cat-only spots), so every tamed cat gets a den home; a tamed cat past the last home, which only a hostile or hand-edited colony can reach, is left out of the den. |
-| Colony members | At most **2** players (the siblings). One colony per player. No unpairing in-game (add-only); `docs/COLONY-SETUP.md` gives the owner the SQL to unpair. |
+| Colony members | At most **2** players (the partners). One colony per player. No unpairing in-game (add-only); `docs/COLONY-SETUP.md` gives the owner the SQL to unpair. |
 | Pairing (decision 4) | The inviter shows a 6-character code that expires in 20 minutes. The joiner types it in, and the inviter must then confirm the joiner's pet name. That is consent from both sides, and a stranger cannot start it. |
 | Den (§9.2, §9.8) | Furniture stays per-device, which is already true and means the den is split by construction. Tamed cats get a deterministic home spot, from taming order, that nobody can move. Each UTC day, each cat does one deterministic thing: nap, box, knocked-over, window or groom. That is presentation, not progress, so §9.3 holds. |
 | Rewards (§9.7) | Colony milestones of 1, 3, 6 and 12 tamed cats unlock an accessory on each device: the first item in that milestone's list that you don't already own. No points, ever. |
@@ -983,7 +983,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 |---|---|
 | no MP | nothing |
 | `needs-name` | `Give your pet a name in Social first, then you can share your colony.` |
-| `unpaired`, no invite | `🐈 Share your colony with your brother or sister` — [Get a sharing code] — `Got a code?` [______] [Join] |
+| `unpaired`, no invite | `🐈 Share your colony with your partner` — [Get a sharing code] — `Got a code?` [______] [Join] |
 | inviting | `Your code: K7P2QM — read it out to them. It works for 20 minutes.` + `Waiting for them to type it…` |
 | inviting, with a joiner | `${joiner} wants to share your colony. Is that them?` [Yes, share!] [No] |
 | joining | `Waiting for ${inviter} to say yes…` |
@@ -1013,7 +1013,7 @@ Expected: PASS.
 
 ```bash
 git add src/ui/colonypanel.js src/ui/homebase.js test/colonypanel.test.js
-git commit -m "feat(colony): pair with a sibling — a short code, then a yes from both
+git commit -m "feat(colony): pair with a partner — a short code, then a yes from both
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1075,7 +1075,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 11: Trading — a final swap between siblings
+### Task 11: Trading — a final swap between partners
 
 **Model:** sonnet.
 
@@ -1088,7 +1088,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Produces: `renderTradesHtml({ colony, me, owned }) -> string`. Shown only when paired. It has:
   - **Make a swap:** `<select data-trade-give>`, with my owned items minus starters; `<select data-trade-want>`, with partner wardrobe items I don't own; [Offer swap]. Under it, the line `Swaps are forever — no take-backs!`
   - **My open offer:** `You offered ${give} for ${want}` [Cancel]
-  - **An offer to me:** `${partner} offers ${give} for your ${want}` [Swap!] [No thanks]. Swap needs a second click on `Yes — swap forever` (§10.3's final, said plainly to a 9-year-old).
+  - **An offer to me:** `${partner} offers ${give} for your ${want}` [Swap!] [No thanks]. Swap needs a second click on `Yes — swap forever` (§10.3's final, said plainly to a young player).
   - When either list is empty, a line explaining why ("Unlock some accessories to trade", "${partner} has nothing you don't already have").
 - A completed trade toasts once, after the pull that applied it: `Swapped! You got ${item name} 🎁`.
 
@@ -1112,7 +1112,7 @@ Expected: PASS.
 
 ```bash
 git add src/ui/colonypanel.js src/ui/homebase.js src/game/colonysync.js test/colonypanel.test.js test/colonysync.test.js
-git commit -m "feat(colony): trade accessories with your sibling — final, said plainly
+git commit -m "feat(colony): trade accessories with your partner — final, said plainly
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1186,7 +1186,7 @@ Expected: PASS.
 
 ```bash
 git add src/game/lobby.js src/game/rooms.js src/game/walk.js src/game/netevents.js src/ui/homebase.js test/lobby.test.js test/netevents.test.js
-git commit -m "feat(colony): walk with your sibling — no code, and either of you can start
+git commit -m "feat(colony): walk with your partner — no code, and either of you can start
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1216,6 +1216,6 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ## Done when
 
 - A child can greet and feed a stray across walks until it comes home to the den. The cat has one bar, starts ahead if you knew it, and shows who fed it.
-- Two paired siblings feed the same cats. A shy cat needs both of them. Each sees the other's work on a "while you were out" card. They can walk together without a code, with either one starting, and they can swap accessories, which is final.
+- Two paired partners feed the same cats. A shy cat needs both of them. Each sees the other's work on a "while you were out" card. They can walk together without a code, with either one starting, and they can swap accessories, which is final.
 - With no network, or the SQL not yet run, all of the above works as a single-player local colony.
 - `npm test` passes, `SAVE_VERSION` is still 4, and the owner has the SQL file and its run instructions.

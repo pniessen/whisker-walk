@@ -180,7 +180,7 @@ The spec describes Far Call as a *held* V press. `src/main.js:444` fires
 `doMeow()` on keydown with no keyup plumbing, so hold detection means new input
 handling in an untested module for no gameplay gain. **Ruling: Far Call makes the
 ordinary V press carry far.** The spec text is the thing that is wrong here, not
-the implementation. Simpler for a 10-year-old, and it avoids editing `main.js`.
+the implementation. Simpler for a young player, and it avoids editing `main.js`.
 
 ### CF-7 — RESOLVED: the best-friend gift roll names `walkRng`
 Raised as an observation: the best-friend gift was rolled with a bare
@@ -201,7 +201,7 @@ reasoning in a comment at the call site. **Closed — nothing outstanding here.*
 2. **`npx`/`node` are not on PATH.** `eval "$(/opt/homebrew/bin/mise activate bash)" && mise exec -- npx …`
    works in most sandboxes, but at least one agent's Bash sandbox rejected the
    `eval` form as too complex. The direct shim always works:
-   `/Users/pniessen/.local/share/mise/shims/npx vitest run --dir test`
+   `npx vitest run --dir test`
 3. **Always pass `--dir test`.** Agent worktrees live under `.claude/worktrees/`,
    *inside* the project, so vitest's default glob collects their copied suites
    and silently multiplies the count (806/90 was observed for a 403/45 suite).

@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Work only in `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.worktrees/polish-tails`; dev server port 5237 only.
+- Work only in `<repo>/.worktrees/polish-tails`; dev server port 5237 only.
 - Tests: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**'` (main: 248 files, 8,227 tests, green); also `npm run build`. Long geometry sweeps get explicit timeouts (120_000). Never weaken a test to absorb a load timeout.
 - **Never touch `test/fixtures/hagrid-golden.json`.** Hagrid (a hen) must be byte-identical: no plume, no stalk carriage (gate on `base.tailCurl`, which only cats have).
 - `test/fixtures/catgolden.json` is regenerated ONCE, in its own commit (Task 3), with `UPDATE_GOLDEN=1 npx vitest run test/catgolden.test.js` plus a dated header line in catgolden.test.js saying which keys moved.
@@ -22,7 +22,7 @@
 - Existing pose tests must keep passing on their merits: cape clearance (test/catcape.test.js: no tail vertex under the cloth, root ≥ 4 cm from it, sit cloth ≥ 1 cm from the tail), nap (test/catnap.test.js), sit (test/catsitupright.test.js), folds/stalk (test/folds.test.js, `tailRootAboveRump`), walking-tail hook (test/cattail.test.js). If a plume breaks one, change the plume (e.g. keep the radius near the root at today's value), not the test — unless the test pins the OLD tail's exact radius, then update it with a comment saying why.
 - Float fixtures compared with `closeDiffs` (test/helpers/closeto.js).
 - Commits: explicit `git add <paths>`; message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Live harness: `verify-catbody.html?breeds=…&state=…&speed=1.5&t=…&view=side|three|rear3&zoom=…&light=game[&acc=body:cape]`. Shot script: `node /private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/tails/shoot.mjs wip [regex]` → `scratchpad/snaps-polish-tails/wip/`; BEFORE shots with the same names are in `snaps-polish-tails/before/`. Look at your shots before reporting.
+- Live harness: `verify-catbody.html?breeds=…&state=…&speed=1.5&t=…&view=side|three|rear3&zoom=…&light=game[&acc=body:cape]`. Shot script: `node <scratchpad>/tails/shoot.mjs wip [regex]` → `scratchpad/snaps-polish-tails/wip/`; BEFORE shots with the same names are in `snaps-polish-tails/before/`. Look at your shots before reporting.
 
 ## Review Focus
 

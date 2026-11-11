@@ -1460,7 +1460,7 @@ below that.
 
 ## Camera zoom (2026-10-31)
 
-The 11-year-old playtester asked for "a zoom in/out feature that is easier
+The playtester asked for "a zoom in/out feature that is easier
 to use". There was no camera zoom at all, so the kids were pinch-zooming the
 browser page. `src/camzoom.js` adds four fixed steps; the camera eases
 between them in about 0.25 s, and jumps there under Reduced motion.
@@ -2442,11 +2442,11 @@ on the phone size. The full suite (221 files, 6,100 tests) and the build pass;
 - **The territory map's camp badge sat on the Gorge's label (K8).** At
   `CAMP_AT.gorge [850, 400]` and `LABEL_AT.gorge (815, 340)` the "mine" badge
   and its gold ring covered "tap to walk here" (2,424 units² of overlap; the
-  plain badge 701, the sibling's ring 1,280). Nudged, as K8 and ruling P6
+  plain badge 701, the partner's ring 1,280). Nudged, as K8 and ruling P6
   allow: **`LABEL_AT.gorge` (815, 340) → (815, 300)** and **`CAMP_AT.gorge`
   [850, 400] → [845, 405]**. Now the name and line sit in the top half of the
   region and the badge under them, south-east of centre as the camp sits on
-  the walk map: 0 overlap in all three states (mine, sibling's, neither), 11
+  the walk map: 0 overlap in all three states (mine, partner's, neither), 11
   units clear of the line with the gold ring. The camp is 60 from the
   region's centre (inside its r 80). The cost: the label's mountain icon and
   the top of "The Gorge" now cross the region's top edge onto the paper by the
@@ -2580,7 +2580,7 @@ GaleClan (the patrol on the ring). Draws (shadow / scene), triangles, frame ms
   ground record only on this one floor fight (0 of 420 frames in rock); a
   fight right against the west wall was not staged.
 - Sound; touch walking (keys and mouse turns; touch only for the picker);
-  the phone's draw counts; dusk and rain; the co-walk (the sibling's ring
+  the phone's draw counts; dusk and rain; the co-walk (the partner's ring
   appeared on the territory map from a seeded pick only); reduced motion.
 - The iPhone 18 reading at the camp and on the look-down, on HIGH: the
   owner's.

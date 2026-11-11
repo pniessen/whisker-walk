@@ -135,7 +135,7 @@ Look (all in `dressing`, one mesh, DoubleSide):
 - [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Implement**; river.js: `const life = withLocalUuids('river-life', () => { ...add marshMist(RIVER_WATERS, BOUNDS) and dragonflies(riverDragonflyHomes()) to scene; return { mist, flies }; })`; return `life: (ctx) => createMarshLife({ ...life, ...ctx })`.
 - [ ] **Step 4: Run** the Task 2 command list plus `test/marshlife.test.js` → PASS; trace sha unchanged; `npm run build` OK.
-- [ ] **Step 5: Live check** on port 5241 (dev server already running): a dusk River walk shows mist over the water and the frame has no console errors; a day walk shows dragonflies moving. (`node /private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/rivermoor/shots.mjs after river dusk` and `... after river stream`, then look at the jpgs in snaps-polish-rivermoor.)
+- [ ] **Step 5: Live check** on port 5241 (dev server already running): a dusk River walk shows mist over the water and the frame has no console errors; a day walk shows dragonflies moving. (`node <scratchpad>/rivermoor/shots.mjs after river dusk` and `... after river stream`, then look at the jpgs in snaps-polish-rivermoor.)
 - [ ] **Step 6: Commit** — `feat(river): low mist over the water at dusk and sunset, dragonflies darting by day`.
 
 ### Task 4: The Moor's dressing

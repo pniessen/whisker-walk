@@ -3,7 +3,7 @@ import UIKit
 import WebKit
 
 /// Nearby one-tap joining: finding a room that is being hosted in the same
-/// room of the house, so the second child taps Join instead of typing a code.
+/// room of the house, so the second player taps Join instead of typing a code.
 ///
 /// The walk itself is still an ordinary online room; the only thing that
 /// travels locally is the room's code and the host's cat name. This uses
@@ -25,15 +25,15 @@ import WebKit
 ///
 ///     detail: { rooms: [{ code: "ABCD", name: "Mittens" }] }
 ///
-/// The page sends nothing until a child has opened Play together or tapped
+/// The page sends nothing until a player has opened Play together or tapped
 /// Host once, so iOS's "find devices on your local network" question is never
-/// asked of a child who only plays alone. If the answer was "Don't Allow",
+/// asked of a player who only plays alone. If the answer was "Don't Allow",
 /// starting simply finds nothing: no error reaches the page, and the typed
 /// code works as it always has.
 ///
 /// What is put on the air is the code and the cat's name only. The peer's
 /// display name is a fixed string, never the device's name (which is often
-/// "Charlie's iPad"), and nothing identifies the player or the save.
+/// "Kid B's iPad"), and nothing identifies the player or the save.
 ///
 /// Everything another device says is untrusted: it is checked here
 /// (`NearbyRoom`) before it reaches the page, and the page checks it again.
@@ -290,7 +290,7 @@ final class NearbyBridge: NSObject, WKScriptMessageHandler {
 
 /// MultipeerConnectivity, for discovery only.
 ///
-/// Nothing here is made until it is first needed, so a child who only plays
+/// Nothing here is made until it is first needed, so a player who only plays
 /// alone never has a peer, an advertiser or a browser at all.
 @MainActor
 final class MultipeerRadio: NSObject, NearbyRadio {
