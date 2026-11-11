@@ -31,12 +31,15 @@
 //                                            and is left alone
 // Every step is written to storage at once, so the next walk starts there,
 // with one exception: if the live steps bought under ADAPT.minGain by the
-// time the floor is due, the frames are capped (Low Power Mode, 30 Hz), so
+// time LOW is due, the frames are capped (Low Power Mode, 30 Hz), so
 // the start-of-walk memory is put back and adapting stops for the walk.
 // The governor's warm-up is armed by the first frame, not by beginWalk.
 // frame() must run BEFORE the frame's draw: a pixel-ratio change clears the
 // canvas, and after the draw that would present a blank frame.
 // Manual High/Low and reduced motion never adapt and never touch storage.
+// Neither does a forced rung (?rung=N, quality.js parseForcedRung): with the
+// setting on Auto, every walk of the page load starts on that rung and stays
+// there. It is how a rung is looked at on a device too fast to reach it.
 //
 // The device profile (render/deviceprofile.js; only the iPhone and iPad app
 // supplies one) adds four things, none of which exist in Safari or on desktop:
@@ -49,9 +52,6 @@
 //   - Low Power Mode says outright that the display is held at 30, so the
 //     governor judges against that instead of inferring a cap;
 //   - the profile is shown in the ?perf readout.
-// Neither does a forced rung (?rung=N, quality.js parseForcedRung): with the
-// setting on Auto, every walk of the page load starts on that rung and stays
-// there. It is how a rung is looked at on a device too fast to reach it.
 
 import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG, CAP_RUNG } from '../render/quality.js';
 import {

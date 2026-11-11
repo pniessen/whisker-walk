@@ -176,7 +176,7 @@ const LOW = Object.freeze({
 // RUNG 4, "shadow-light": the same shadows, drawn with far fewer calls.
 //
 // Where the shadow draws actually are was counted (headless, at each area's
-// spawn, against the real shadow frustum): the static world puts only 24-72
+// spawn, against the real shadow frustum): the static world puts only 23-72
 // casters in the Neighborhood's shadow box, and the rest are CATS. A cat is
 // 31 separate meshes (25 for a stray) and every one of them is its own shadow
 // draw: eyes, pupils, nose, whiskers, cheeks, paws, inner ears. Half a dozen
