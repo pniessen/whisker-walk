@@ -123,7 +123,9 @@ export function showEditionTitle(doc, edition) {
 
 // onCardsClosed() is optional: called when she dismisses the clan moment, so
 // main.js can show the news card that waited for it.
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed) {
+// `haptics`: whether this device can buzz at all (src/haptics.js); the
+// Vibration switch is only drawn where it can.
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, { haptics: canBuzz = false } = {}) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
@@ -325,6 +327,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <span id="set-music-volume-value" class="settings-volume-value">${musicPct}%</span>
           </label>
           ${settingsSwitchHtml('set-muted', !!s.muted, 'Mute all sound')}
+          ${canBuzz ? settingsSwitchHtml('set-haptics', s.haptics !== false, 'Vibration') : ''}
           ${settingsSwitchHtml('set-left-handed', !!s.leftHanded, 'Left-handed touch controls')}
           ${settingsSwitchHtml('set-invert-y', !!s.invertY, 'Invert look (Y axis)')}
           <label class="settings-row settings-quality">
@@ -1510,6 +1513,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     }
     if (e.target.id === 'set-muted') {
       settings.set('muted', e.target.checked);
+      onSettingsChange?.();
+      render();
+      return;
+    }
+    if (e.target.id === 'set-haptics') {
+      settings.set('haptics', e.target.checked);
       onSettingsChange?.();
       render();
       return;

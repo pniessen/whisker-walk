@@ -4,10 +4,12 @@
 //
 // The app shell (ios/WhiskerWalk/DeviceProfile.swift) sets one frozen object
 // before the game boots,
-//   window.__whiskerDevice = { model, memoryGB, thermal, lowPower }
+//   window.__whiskerDevice = { haptics, model, memoryGB, thermal, lowPower }
 // and sends a 'whisker-device' CustomEvent on window with the same fields
 // whenever the thermal state or Low Power Mode changes, plus
-// memoryWarning: true when iOS says memory is short.
+// memoryWarning: true when iOS says memory is short. `haptics` is whether the
+// device can buzz (an iPhone yes, an iPad no: it has no Taptic Engine), for
+// src/haptics.js; nothing here reads it.
 //
 // In Safari and on desktop there is no such object and no such event, and
 // everything here answers the way the game behaved before the bridge existed:
@@ -24,7 +26,7 @@ const THERMAL = ['nominal', 'fair', 'serious', 'critical'];
 // the only thing that can set a global. Returns a plain profile, or null when
 // there is nothing usable (no object, or no model and no memory figure).
 // Unknown fields are dropped; a field of the wrong type takes its harmless
-// value (no model, memory unknown, nominal, not low power).
+// value (no model, memory unknown, nominal, not low power, no haptics).
 export function sanitizeProfile(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const model = typeof raw.model === 'string' && /^[A-Za-z0-9,_-]{1,32}$/.test(raw.model) ? raw.model : '';
@@ -36,6 +38,7 @@ export function sanitizeProfile(raw) {
     memoryGB,
     thermal: THERMAL.includes(raw.thermal) ? raw.thermal : 'nominal',
     lowPower: raw.lowPower === true,
+    haptics: raw.haptics === true,
   };
 }
 

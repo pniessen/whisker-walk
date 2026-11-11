@@ -161,7 +161,7 @@ it again with the refresh and load the save back with its code.
   (`utsname.machine`, for example `iPad7,11`), physical memory, the thermal
   state and Low Power Mode. A user script at document start sets one frozen
   object before any of the game's code runs:
-  `window.__whiskerDevice = { model, memoryGB, thermal, lowPower }`.
+  `window.__whiskerDevice = { haptics, model, memoryGB, thermal, lowPower }`.
   While the game is open, a thermal-state change, a Low Power Mode change and
   iOS's memory warning each replace that object and send a `whisker-device`
   `CustomEvent` on `window` with the new values (`memoryWarning: true` for a
@@ -171,6 +171,21 @@ it again with the refresh and load the save back with its code.
   `docs/VISUAL-PASS.md` ("Below LOW"). In Safari the object is absent and the
   game behaves as it always has. Tests: `DeviceProfileTests.swift`,
   `test/deviceprofile.test.js`.
+- **Haptics.** In the app the game posts one word to
+  `window.webkit.messageHandlers.haptic` and `Haptics.swift` plays it:
+  `tap` (light: a pounce landing, a treasure, tipping something over),
+  `double` (two soft taps: a greeting or a nose boop), `success` (a goal, a
+  rank up, a golden mouse), `hit` (rigid: a blow landed or taken in a clan
+  fight) and `purr` (one soft beat; the game sends one every 0.42 s while a
+  purr lasts and stops on its own, so nothing can keep buzzing in the app).
+  Any other message is ignored. iPads have no Taptic Engine: the device
+  profile says `haptics: false` there, so the game sends nothing and shows no
+  switch. The game's side, the moments and the rate limit, is
+  `src/haptics.js`; in a browser with `navigator.vibrate` (Android) the same
+  moments use that, and in Safari and on desktop nothing happens. To switch it
+  off: Menu → Sound & controls → Vibration (stored with the other settings
+  on the device, never in the save). The simulator plays nothing; feel is
+  checked on an iPhone. Tests: `HapticsTests.swift`, `test/haptics.test.js`.
 - **Looking at one graphics rung** on any device: launch with `-rung N`
   (0 to 5; 6 is rung 5 with the 30 fps cap) and `-perf YES` for the readout.
   They become `?rung=N&perf` on the page (`AppScheme.startURL(rung:perf:)`),

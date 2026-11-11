@@ -15,6 +15,9 @@ const DEFAULTS = {
   // Camera zoom step (src/camzoom.js): 0 close .. 3 far, 1 is the camera the
   // game always had. Per device, like the rest of this file, never the save.
   cameraZoom: DEFAULT_ZOOM_STEP,
+  // The Vibration switch (src/haptics.js). On by default: a purr in the
+  // hand is the point. Only offered where something can buzz.
+  haptics: true,
 };
 
 // Resolved into a render tier by src/render/quality.js (resolveQuality) —
@@ -61,6 +64,7 @@ function sanitize(raw) {
     perfReadout: typeof raw.perfReadout === 'boolean' ? raw.perfReadout : DEFAULTS.perfReadout,
     quality: clampEnum(raw.quality, QUALITY, DEFAULTS.quality),
     cameraZoom: zoomStep(raw.cameraZoom, DEFAULTS.cameraZoom),
+    haptics: typeof raw.haptics === 'boolean' ? raw.haptics : DEFAULTS.haptics,
   };
 }
 

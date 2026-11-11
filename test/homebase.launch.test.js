@@ -708,6 +708,51 @@ describe('Settings in two halves', () => {
   });
 });
 
+// The Vibration switch (src/haptics.js): in Sound & controls, right under
+// Mute, and only where something can buzz (main.js passes haptics.available:
+// an iPhone in the app, or a touch browser with navigator.vibrate). Desktop,
+// Safari and an iPad never see a switch that does nothing.
+describe('the Vibration switch', () => {
+  const controls = (opts) => {
+    const set = vi.fn();
+    const onChange = vi.fn();
+    const progression = createProgression(memStorage());
+    const s2 = { get: () => null, set, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto', haptics: opts?.on ?? true }) };
+    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, s2, onChange, () => {}, null, 'me', () => {}, undefined, undefined,
+      ...(opts?.haptics === undefined ? [] : [{ haptics: opts.haptics }])).show();
+    openSheet('controls');
+    return { set, onChange };
+  };
+  it('is not there where nothing can buzz, or when nobody says', () => {
+    controls();
+    expect(html()).not.toContain('set-haptics');
+    controls({ haptics: false });
+    expect(html()).not.toContain('set-haptics');
+    expect(html()).not.toContain('Vibration');
+  });
+  it('is there, on, right under Mute, where something can', () => {
+    controls({ haptics: true });
+    const h = html();
+    expect(h).toContain('<input type="checkbox" role="switch" id="set-haptics" checked />');
+    expect(h).toContain('Vibration');
+    expect(h.indexOf('id="set-muted"')).toBeLessThan(h.indexOf('id="set-haptics"'));
+    expect(h.indexOf('id="set-haptics"')).toBeLessThan(h.indexOf('id="set-left-handed"'));
+    controls({ haptics: true, on: false });
+    expect(html()).toContain('<input type="checkbox" role="switch" id="set-haptics" />');
+  });
+  it('is wired like its neighbours', () => {
+    const { set, onChange } = controls({ haptics: true });
+    doc.root.listeners.click({ target: { id: 'set-haptics', checked: false, dataset: {}, closest: () => null } });
+    expect(set).toHaveBeenCalledWith('haptics', false);
+    expect(onChange).toHaveBeenCalled();
+  });
+  it('is never on the grown-ups\' sheet', () => {
+    controls({ haptics: true });
+    openSheet('settings');
+    expect(html()).not.toContain('set-haptics');
+  });
+});
+
 describe('Play together holds the friends (Friends folded in)', () => {
   const CLOUD = () => ({
     available: true, myId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',

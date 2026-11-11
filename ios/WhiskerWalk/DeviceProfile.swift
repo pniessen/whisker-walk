@@ -1,4 +1,4 @@
-import Foundation
+import UIKit
 
 /// What the game is told about the device it is running on, so it can choose
 /// its graphics for the hardware instead of finding out by stuttering.
@@ -25,16 +25,21 @@ struct DeviceProfile: Equatable, Sendable {
     /// Low Power Mode. It holds the display at 30 frames a second, which the
     /// game would otherwise have to guess from its frame times.
     var lowPower: Bool
+    /// Whether the device can play the game's haptics (Haptics.swift): true
+    /// on an iPhone, false on an iPad, which has no Taptic Engine. The page
+    /// sends nothing, and offers no Vibration switch, where it is false.
+    var haptics: Bool
 
     /// The name of the object the page reads, and of the event it listens for.
     static let globalName = "__whiskerDevice"
     static let eventName = "whisker-device"
 
-    init(model: String, memoryBytes: UInt64, thermal: ProcessInfo.ThermalState, lowPower: Bool) {
+    init(model: String, memoryBytes: UInt64, thermal: ProcessInfo.ThermalState, lowPower: Bool, haptics: Bool = false) {
         self.model = Self.cleanModel(model)
         self.memoryGB = Self.memoryGB(bytes: memoryBytes)
         self.thermal = Self.thermalName(thermal)
         self.lowPower = lowPower
+        self.haptics = haptics
     }
 
     /// A model identifier is letters, digits and a comma. Anything else is
@@ -69,7 +74,7 @@ struct DeviceProfile: Equatable, Sendable {
     func json(memoryWarning: Bool = false) -> String {
         let warning = memoryWarning ? #""memoryWarning":true,"# : ""
         let memory = String(format: "%.1f", memoryGB)
-        return #"{"lowPower":\#(lowPower),"memoryGB":\#(memory),\#(warning)"model":"\#(model)","thermal":"\#(thermal)"}"#
+        return #"{"haptics":\#(haptics),"lowPower":\#(lowPower),"memoryGB":\#(memory),\#(warning)"model":"\#(model)","thermal":"\#(thermal)"}"#
     }
 
     /// Runs at document start, before any of the game's own code: sets the
@@ -105,9 +110,12 @@ struct DeviceProfile: Equatable, Sendable {
         }
     }
 
+    /// On the main actor because the idiom (iPhone or iPad) is UIKit's.
+    @MainActor
     static func current() -> DeviceProfile {
         let info = ProcessInfo.processInfo
         return DeviceProfile(model: modelIdentifier(), memoryBytes: info.physicalMemory,
-                             thermal: info.thermalState, lowPower: info.isLowPowerModeEnabled)
+                             thermal: info.thermalState, lowPower: info.isLowPowerModeEnabled,
+                             haptics: HapticKind.deviceSupports(UIDevice.current.userInterfaceIdiom))
     }
 }

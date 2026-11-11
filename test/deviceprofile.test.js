@@ -7,7 +7,8 @@ import {
 // What the iPhone and iPad app tells the game about its device
 // (ios/WhiskerWalk/DeviceProfile.swift), and what the game makes of it.
 
-const iPad7 = { model: 'iPad7,11', memoryGB: 2.9, thermal: 'nominal', lowPower: false };
+// An iPad: no Taptic Engine, so the app says haptics: false.
+const iPad7 = { model: 'iPad7,11', memoryGB: 2.9, thermal: 'nominal', lowPower: false, haptics: false };
 
 describe('the names the app and the game agree on', () => {
   it('match the Swift side', () => {
@@ -31,15 +32,26 @@ describe('sanitizeProfile', () => {
     expect(sanitizeProfile({ ...iPad7, memoryWarning: true, extra: 1 })).toEqual(iPad7);
   });
   it('a field of the wrong type takes its harmless value', () => {
-    expect(sanitizeProfile({ model: 'iPad7,11' })).toEqual({ model: 'iPad7,11', memoryGB: null, thermal: 'nominal', lowPower: false });
+    expect(sanitizeProfile({ model: 'iPad7,11' })).toEqual({ model: 'iPad7,11', memoryGB: null, thermal: 'nominal', lowPower: false, haptics: false });
     expect(sanitizeProfile({ ...iPad7, thermal: 'molten', lowPower: 'yes' })).toEqual(iPad7);
     expect(sanitizeProfile({ ...iPad7, memoryGB: NaN }).memoryGB).toBeNull();
     expect(sanitizeProfile({ ...iPad7, memoryGB: -3 }).memoryGB).toBeNull();
     expect(sanitizeProfile({ ...iPad7, memoryGB: Infinity }).memoryGB).toBeNull();
   });
+  it('haptics is true only when the app says exactly true (an iPhone), and changes no starting rung', () => {
+    const iPhone = { model: 'iPhone18,1', memoryGB: 11.2, thermal: 'nominal', lowPower: false, haptics: true };
+    expect(sanitizeProfile(iPhone)).toEqual(iPhone);
+    for (const haptics of [undefined, false, 'true', 1, {}]) {
+      expect(sanitizeProfile({ ...iPhone, haptics }).haptics).toBe(false);
+    }
+    expect(readDeviceProfile({ __whiskerDevice: Object.freeze({ ...iPhone }) }).haptics).toBe(true);
+    for (const p of [iPad7, { ...iPad7, model: 'iPad13,1', memoryGB: 2.9 }, iPhone, { ...iPhone, model: 'iPhone10,6', memoryGB: 2.8 }]) {
+      expect(startRungFor({ ...p, haptics: true })).toBe(startRungFor({ ...p, haptics: false }));
+    }
+  });
   it('a model that is not a short plain word is no model', () => {
     for (const model of ['<script>', 'iPad7,11; drop', 'a'.repeat(33), '', 'iPad 7']) {
-      expect(sanitizeProfile({ model, memoryGB: 3 })).toEqual({ model: '', memoryGB: 3, thermal: 'nominal', lowPower: false });
+      expect(sanitizeProfile({ model, memoryGB: 3 })).toEqual({ model: '', memoryGB: 3, thermal: 'nominal', lowPower: false, haptics: false });
     }
   });
 });

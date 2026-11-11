@@ -24,6 +24,7 @@ import { uprightTag } from '../nametag.js';
 import { tickRest, NAP_PURR_LEN } from '../rests.js';
 import { validPetName } from '../net.js';
 import { groundTilt, easeTilt } from '../ground.js';
+import { bus } from '../events.js';
 
 // The y the local cat is drawn at, before the water look: the ground under
 // it (Gorge part 1, R4), then perchY + hopY (where player.js drew it) and a
@@ -130,6 +131,8 @@ export function createAvatarUpdater({
         s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
         audio.landThump();
       }
+      // For the light tap of a landing (src/haptics.js, wired in main.js).
+      bus.emit('pounce:land', { water: !!player.inWater });
       s.landTime = 0.12;
       // pounce-tag (Task 6.2, room walks only): landing within 1.3 of a
       // remote counts as a tag touch. Feed it through tagState — this is
@@ -199,9 +202,13 @@ export function createAvatarUpdater({
     // no session, no tick, no purr. Pays nothing.
     if (s.rest) {
       const stirred = player.inputActive || s.pounceTime > 0 || !!s.perched || s.freezeTime > 0 || !!s.chasing;
+      const napping = s.rest.kind === 'nap';
       const next = tickRest(s.rest, dt, { stirred });
       s.rest = next.rest;
-      if (next.purr) audio.purr(NAP_PURR_LEN);
+      // The haptic purr follows the sound piece by piece, and stops the
+      // moment the nap does rather than when the last piece fades.
+      if (next.purr) { audio.purr(NAP_PURR_LEN); bus.emit('purr', { seconds: NAP_PURR_LEN }); }
+      if (napping && !s.rest) bus.emit('purr:end');
     }
     const wasNapping = s.pose === 'nap';
     let pose = 'follow';
