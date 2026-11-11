@@ -54,7 +54,7 @@ body.touch-mode { --map-size: 110px; }
   font-size: 0.8rem; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
 .hud-area:empty { display: none; }
-body.touch-mode .hud-area { font-size: 0.72rem; }
+body.touch-mode .hud-area { font-size: 0.82rem; padding: 2px 8px; }
 /* The den has no map, so its caption would float small in an empty corner:
    there it goes back to a plain pill at the right edge, like its neighbours. */
 .hud-map:not(:has(.hud-map-disc)) { align-items: flex-end; }
@@ -90,11 +90,14 @@ body.touch-mode .hud-area { font-size: 0.72rem; }
 }
 /* 48px under the top row, which rides the safe-area inset (a standalone PWA). */
 .hud-goals {
-  position: absolute; top: calc(max(16px, env(safe-area-inset-top)) + 48px); left: 16px;
+  position: absolute; top: calc(max(16px, env(safe-area-inset-top)) + 48px); left: max(16px, env(safe-area-inset-left));
   background: rgba(20,26,38,0.55); border-radius: 10px; padding: 8px 12px;
-  font-size: 0.85rem; display: flex; flex-direction: column; gap: 3px;
+  font-size: 14px; display: flex; flex-direction: column; gap: 3px;
+  max-width: 300px; text-shadow: 0 1px 1px rgba(0,0,0,0.6);
 }
-.goal.done { color: #7ee2a0; }
+.goal { padding: 1px 5px; border-radius: 6px; overflow-wrap: anywhere; }
+/* A finished goal: its check mark, the green text and a green tint behind. */
+.goal.done { color: #7ee2a0; background: rgba(126,226,160,0.16); }
 /* Desktop: the interact prompt (.hud-prompt, bottom 96px, ~40px tall) tops out
    near 136px, so a toast's bottom edge sits at 146px, ~10px clear of it. While
    the fight challenge pill is up (two 48px buttons, ~100px tall, same bottom
@@ -686,11 +689,14 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 @media (max-width: 480px) {
   .homebase-scroll { padding: 20px 14px 44px; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
-  .hud-goals { font-size: 0.72rem; padding: 6px 9px; gap: 2px; }
+  /* 14px goals; the width stops short of the corner map so a long goal wraps
+     instead of running under it. */
+  .hud-goals { font-size: 14px; line-height: 1.2; padding: 6px 9px; gap: 2px;
+    max-width: calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right)) - var(--map-size) - 12px); }
   /* On a phone the band at 64px is shared with the goals list (the touch
      pause now rides the top row), so the objective drops below the map and its
      caption, level with the roster. */
-  .hud-objective { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 34px); }
+  .hud-objective { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 44px); }
   /* The top row shares its width with the map (and the touch pause button),
      so side by side the rank was always cut off ("Mythic…"). On a phone the
      rank goes on a second line under the points, a size smaller, where the
@@ -700,7 +706,7 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
   .hud-points, .hud-rank { padding: 5px 10px; white-space: nowrap; }
   .hud-points { flex-shrink: 0; }
   .hud-rank {
-    font-size: 0.75rem; padding: 3px 8px; margin: 0;
+    font-size: 0.82rem; padding: 3px 8px; margin: 0;
     max-width: 100%; overflow: hidden; text-overflow: ellipsis;
   }
   /* The goals list steps down under the two-line top row (points and rank,
