@@ -633,7 +633,8 @@ body.touch-mode:not(.left-handed) .hud-top {
 .wt-join-row { display: flex; gap: 8px; align-items: center; }
 .tag.error { color: #f28080; }
 .wt-room { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.wt-room-code { font-weight: 700; color: #f2c14e; }
+/* Big: a nearby joiner checks it against her own screen (homebase.js). */
+.wt-room-code { font-weight: 700; color: #f2c14e; font-size: 1.35rem; letter-spacing: 0.04em; }
 .wt-roster { display: flex; flex-wrap: wrap; gap: 8px; }
 .wt-roster-chip {
   background: rgba(255,255,255,0.08); border-radius: 999px; padding: 4px 12px; font-size: 0.85rem;
@@ -1352,6 +1353,9 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .wt-nearby-who { font-size: 1.05rem; overflow-wrap: anywhere; }
 .wt-nearby-join { min-height: 48px; min-width: 96px; font-size: 1.1rem; }
 .wt-nearby-on { flex-basis: 100%; }
+/* The room code under the name: a name on the air can be anyone's. */
+.wt-nearby-code, .nearby-card-code { flex-basis: 100%; font-size: 0.95rem; opacity: 0.85; letter-spacing: 0.02em; }
+.wt-name-hint { margin-top: 6px; }
 /* The same offer as a card over the cat's screen: the notice card, smaller,
    with Join and Not now side by side. */
 .nearby-card .colony-news-card { max-width: 360px; }

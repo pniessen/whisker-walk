@@ -13,6 +13,8 @@ import { nowSec, meowVolumeForDistance } from './util.js';
 import { isStrayName } from '../straynames.js';
 import { shedKittypetCollar } from '../housecats.js';
 import { FLAT_GROUND } from '../ground.js';
+import { safeRemoteName } from '../net.js';
+import { deviceMetPlayers } from '../metplayers.js';
 
 // Gorge part 1 (R13): the receiver's own ground under a streamed [x, z].
 const groundY = (s, x, z) => (s.ground ?? FLAT_GROUND).y(x, z);
@@ -52,9 +54,18 @@ export function takeHeldItemsWithRemotes(remotes, items, localCat) {
   }
 }
 
+// Events a hidden visitor's device may still change my world with: each only
+// mirrors something she did to the shared world (a tipped pot, a dug treat, a
+// picked-up collectible), with nothing of hers drawn, heard or named.
+const BLOCKED_WORLD_EVENTS = new Set(['tip', 'knock', 'tip-gnome', 'dig', 'collect']);
+// How long after her own boop window an answer is still taken (seconds).
+const BOOP_CONFIRM_GRACE = 4;
+
 // getPartner() → my colony partner ({ playerId, petName, wardrobe }) or null
 // (v21 Stream 2). Optional: without it no colony-feed is ever shown.
-export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult, getPartner, onBorderCross = () => {} }) {
+// metPlayers (src/metplayers.js): a completed boop marks the other player as
+// met on this device, which is what lets her show in Player pets and as a ghost.
+export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult, getPartner, onBorderCross = () => {}, metPlayers = null }) {
   function petNameFor(s, playerId) {
     return s.remotes.list.find((r) => r.playerId === playerId)?.petName ?? 'A friend';
   }
@@ -84,6 +95,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       turnToFace(s, otherId);
       hud.toast(`💕 boop with ${petNameFor(s, otherId)}!`);
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'boop-confirm', withId: otherId });
+      (metPlayers ?? deviceMetPlayers()).add(otherId);
       // cross-walk friendship persistence (Task 3): fire-and-forget,
       // gated on the same `points > 0` branch as the local award so a
       // redundant completeBoop reached via more than one of the three
@@ -108,6 +120,16 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
     // boop-confirm shouldn't wipe an in-flight request to a third player
     if (s.pendingBoop?.withId === otherId) s.pendingBoop = null;
     if (s.incomingBoop?.fromId === otherId) s.incomingBoop = null;
+  }
+
+  const isRemote = (s, id) => !!s.remotes?.list.some((r) => r.playerId === id);
+
+  // Did this device ask `otherId` for a boop (interactions.js sets
+  // pendingBoop on the child's E press beside that cat) recently enough for
+  // this to be the answer? Her side has 4 s to press back, plus the trip.
+  function boopAskedOf(s, otherId) {
+    const p = s.pendingBoop;
+    return !!p && p.withId === otherId && nowSec() <= p.until + BOOP_CONFIRM_GRACE && isRemote(s, otherId);
   }
 
   // Pounce-tag chain convergence point (Task 6.2). Reachable from two
@@ -149,6 +171,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
   // headed for ourselves — if it happened within our own prompt range, let
   // the player know why their prompt just vanished.
   function maybeSnipeToast(s, ev, pos) {
+    if (ev.quiet) return;
     if (pos && s.cat.position.distanceTo(pos) <= 6) {
       hud.toast(`${petNameFor(s, ev.id)} got there first!`);
     }
@@ -158,8 +181,19 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
   // awarding any points — points are earned only by the player who actually
   // performed the action; this just mirrors the resulting world state
   // (topple/mound-open/mesh-removal/sound) so both clients see the same walk.
+  //
+  // A sender on this device's block list ("Hide this visitor", walk.js puts
+  // s.isBlocked on the session) is not drawn (walk.js never upserts her), so
+  // nothing she sends may show: no sound, no toast, no boop, no hold. Only the
+  // silent mirror of the shared world (BLOCKED_WORLD_EVENTS) still runs, with
+  // no toast, because my sister's device, which has not hidden her, applies
+  // it too, and our two worlds must stay the same.
   function applyRemoteEvent(s, ev) {
     if (!s || !ev || typeof ev.type !== 'string') return;
+    if (s.isBlocked?.(ev.id)) {
+      if (!BLOCKED_WORLD_EVENTS.has(ev.type)) return;
+      ev = { ...ev, quiet: true };
+    }
     if (ev.type === 'tip') {
       const e = s.tippables.list.find((x) => x.id === ev.tipId);
       if (e && s.tippables.tipById(ev.tipId)) maybeSnipeToast(s, ev, e.group.position);
@@ -202,7 +236,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       // duet: a reply meow (V) within the next 3s, from us, harmonizes with this one
       if (dist <= 8) s.duetWindow = { withId: ev.id, until: nowSec() + 3 };
     } else if (ev.type === 'boop-request') {
-      if (ev.toId !== s.playerId) return;
+      if (ev.toId !== s.playerId || !isRemote(s, ev.id)) return;
       const now = nowSec();
       if (s.pendingBoop && s.pendingBoop.withId === ev.id && now <= s.pendingBoop.until) {
         // we'd already sent our own request to them — request + counter-request = mutual
@@ -211,7 +245,10 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
         s.incomingBoop = { fromId: ev.id, until: now + 4 };
       }
     } else if (ev.type === 'boop-confirm') {
-      if (ev.withId === s.playerId) completeBoop(s, ev.id);
+      // Only the answer to a boop this child asked for (her own E press near
+      // that cat): a confirm on its own is not a boop, or anyone in the room
+      // could make this device record a friendship with them.
+      if (ev.withId === s.playerId && boopAskedOf(s, ev.id)) completeBoop(s, ev.id);
     } else if (ev.type === 'duet') {
       if (ev.withId === s.playerId) {
         log.awardOnce('duet', `duet-${ev.id}`, `a harmonized duet with ${petNameFor(s, ev.id)} 🎶`);
@@ -398,7 +435,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
     const partner = getPartner?.();
     if (!partner || typeof partner.playerId !== 'string' || ev.id !== partner.playerId) return;
     if (!isStrayName(ev.cat)) return;
-    const who = partner.petName ? String(partner.petName) : 'Your partner';
+    const who = safeRemoteName(partner.petName, 'Your partner');
     hud.toast(`${who} fed ${ev.cat} 🐟`);
     const stray = s.strayCats?.strays?.find((c) => c.name === ev.cat);
     if (stray) s.fx?.burst(stray.group.position, 0xf2c14e, 12);
