@@ -1,17 +1,100 @@
 import { describe, it, expect } from 'vitest';
-import { generateSaveCode, normalizeSaveCode, getOrCreateSecret, createCloud } from '../src/cloud.js';
+import {
+  generateSaveCode, normalizeSaveCode, getOrCreateSecret, createCloud, randomIndex, isMissingRpc,
+  CLOUD_SAVE_SEND_MAX_BYTES, payloadBytes,
+} from '../src/cloud.js';
+
+// A crypto-shaped fake: getRandomValues fills from a fixed list of uint32s.
+function fakeCrypto(values) {
+  let i = 0;
+  const calls = { n: 0 };
+  return {
+    calls,
+    getRandomValues(buf) { calls.n++; for (let j = 0; j < buf.length; j++) buf[j] = values[i++ % values.length]; return buf; },
+  };
+}
+// A seeded uint32 stream (mulberry32) for distribution checks.
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return (t ^ (t >>> 14)) >>> 0;
+  };
+}
 
 describe('generateSaveCode', () => {
+  const FORMAT = /^[A-Z]{4,6}-[A-Z]{4,6}-[A-Z]{4,6}-\d{2}$/;
+
   it('produces WORD-WORD-WORD-NN from the embedded wordlist', () => {
-    const code = generateSaveCode(() => 0);
-    expect(/^[A-Z]{4,6}-[A-Z]{4,6}-[A-Z]{4,6}-\d{2}$/.test(code)).toBe(true);
+    expect(generateSaveCode(fakeCrypto([0]))).toBe('OTTER-OTTER-OTTER-00');
+    expect(generateSaveCode()).toMatch(FORMAT); // the real crypto
   });
 
-  it('varies with the rng and stays two-digit zero-padded at the low end', () => {
-    const low = generateSaveCode(() => 0);
-    const high = generateSaveCode(() => 0.999999);
-    expect(low).not.toBe(high);
-    expect(low.slice(-2)).toBe('00');
+  it('draws every part from crypto.getRandomValues (one uint32 each)', () => {
+    const c = fakeCrypto([1, 2, 255, 42]);
+    expect(generateSaveCode(c)).toBe('PANDA-ZEBRA-VELVET-42');
+    expect(c.calls.n).toBe(4);
+  });
+
+  it('keeps the format across the whole uint32 range, zero-padding the digits', () => {
+    expect(generateSaveCode(fakeCrypto([0xffffffff - 255, 7, 0xfffffeff, 5]))).toMatch(/-05$/);
+    const next = seeded(7);
+    for (let i = 0; i < 2000; i++) {
+      const v = [next(), next(), next(), next()];
+      expect(generateSaveCode(fakeCrypto(v))).toMatch(FORMAT);
+    }
+  });
+
+  it('spreads words and digits evenly (seeded source)', () => {
+    const next = seeded(42);
+    const src = { getRandomValues(buf) { buf[0] = next(); return buf; } };
+    const words = new Map(); const digits = new Array(100).fill(0);
+    const N = 20000;
+    for (let i = 0; i < N; i++) {
+      const [w1, w2, w3, d] = generateSaveCode(src).split('-');
+      for (const w of [w1, w2, w3]) words.set(w, (words.get(w) ?? 0) + 1);
+      digits[Number(d)]++;
+    }
+    expect(words.size).toBe(256);
+    const wExp = (3 * N) / 256; // ~234 each
+    for (const n of words.values()) expect(Math.abs(n - wExp)).toBeLessThan(wExp * 0.4);
+    for (const n of digits) expect(Math.abs(n - N / 100)).toBeLessThan((N / 100) * 0.4);
+  });
+
+  it('falls back to Math.random only when there is no getRandomValues', () => {
+    expect(generateSaveCode(undefined)).toMatch(FORMAT); // default param: the real crypto
+    expect(generateSaveCode(null)).toMatch(FORMAT);
+    expect(generateSaveCode({})).toMatch(FORMAT);
+  });
+});
+
+describe('randomIndex (no modulo bias)', () => {
+  it('rejects draws at or above the largest multiple of n, then takes x % n', () => {
+    // 2^32 = 42949672 * 100 + 96, so 4294967200..4294967295 are thrown away
+    const limit = 4294967200;
+    const seq = [limit, limit + 95, 4294967295, 199];
+    let i = 0;
+    expect(randomIndex(100, () => seq[i++])).toBe(99);
+    expect(i).toBe(4);
+    i = 0;
+    expect(randomIndex(100, () => [limit - 1][i++])).toBe(99);
+  });
+  it('never rejects for a power of two', () => {
+    let calls = 0;
+    expect(randomIndex(256, () => { calls++; return 0xffffffff; })).toBe(255);
+    expect(calls).toBe(1);
+  });
+  it('gives each result exactly the same number of accepted inputs', () => {
+    // over a scaled-down space the same rule is exact: 0..(floor(M/n)*n - 1) maps evenly
+    const n = 100; const limit = Math.floor(2 ** 32 / n) * n;
+    expect(limit % n).toBe(0);
+    expect(2 ** 32 - limit).toBe(96);
+  });
+  it('stops retrying a broken source that never returns a usable value', () => {
+    expect(randomIndex(100, () => 0xffffffff)).toBe(0xffffffff % 100);
   });
 });
 
@@ -56,6 +139,16 @@ describe('getOrCreateSecret', () => {
     expect(secret.length).toBeGreaterThan(30);
   });
 });
+
+// What supabase-js throws for a function the server doesn't have (PostgREST).
+const missingFn = (name) => Object.assign(new Error(`Could not find the function public.${name} in the schema cache`), { code: 'PGRST202' });
+// The live database before the owner runs docs/supabase-v8-hardening.sql:
+// none of the v8 read RPCs exist.
+const V8_READS = ['profiles_by_ids', 'find_by_friend_code', 'friendships_of'];
+async function oldServerRpc(name) {
+  if (V8_READS.includes(name)) throw missingFn(name);
+  return undefined;
+}
 
 describe('createCloud RPC arg mapping', () => {
   it('saveToCloud maps to p_-prefixed upsert_save args and passes through the result', async () => {
@@ -135,25 +228,25 @@ describe('createCloud RPC arg mapping', () => {
     expect(await cloud.recordGreet('me', 'wrong', 'other', 'walk-1')).toBe(-1);
   });
 
-  it('fetchProfiles selects profiles by id with an `in` filter', async () => {
+  it('fetchProfiles on an old server selects profiles by id with an `in` filter', async () => {
     const calls = [];
     const select = async (...args) => {
       calls.push(args);
       return [{ player_id: 'a' }];
     };
-    const cloud = createCloud({ rpc: async () => {}, select });
+    const cloud = createCloud({ rpc: oldServerRpc, select });
     const result = await cloud.fetchProfiles(['a', 'b']);
     expect(calls).toEqual([['profiles', 'in', 'player_id', ['a', 'b']]]);
     expect(result).toEqual([{ player_id: 'a' }]);
   });
 
-  it('findByFriendCode selects profiles by a `like` prefix match on player_id', async () => {
+  it('findByFriendCode on an old server selects profiles by a `like` prefix match on player_id', async () => {
     const calls = [];
     const select = async (...args) => {
       calls.push(args);
       return [];
     };
-    const cloud = createCloud({ rpc: async () => {}, select });
+    const cloud = createCloud({ rpc: oldServerRpc, select });
     await cloud.findByFriendCode('abc123defg');
     expect(calls).toEqual([['profiles', 'like', 'player_id', 'abc123defg%']]);
   });
@@ -289,5 +382,108 @@ describe('colony wrappers', () => {
     expect(calls[1].args).toEqual({ p_player_id: 'me', p_secret: 'sek', p_trade_id: 4, p_accept: false });
     await cloud.colonySync('me', 'sek', ['crown']);
     expect(calls[2].args.p_wardrobe).toEqual(['crown']);
+  });
+});
+
+describe('v8 reads: RPC first, old table select as the fallback', () => {
+  function logged(rpcImpl, selectRows = []) {
+    const log = [];
+    const cloud = createCloud({
+      rpc: async (name, args) => { log.push(['rpc', name, args]); return rpcImpl(name, args); },
+      select: async (...args) => { log.push(['select', ...args]); return selectRows; },
+      getSecret: () => 'sek',
+    });
+    return { cloud, log };
+  }
+
+  it('new server: uses the RPCs and never touches the tables', async () => {
+    const { cloud, log } = logged((name) => (name === 'friendships_of' ? [{ a_id: 'me', b_id: 'o', greets: 2 }] : [{ player_id: 'o', pet_name: 'Mo' }]));
+    expect(await cloud.fetchProfiles(['o'])).toEqual([{ player_id: 'o', pet_name: 'Mo' }]);
+    expect(await cloud.findByFriendCode('3fa85f64')).toEqual([{ player_id: 'o', pet_name: 'Mo' }]);
+    expect(await cloud.fetchFriendships('me')).toEqual([{ a_id: 'me', b_id: 'o', greets: 2 }]);
+    expect(log).toEqual([
+      ['rpc', 'profiles_by_ids', { p_ids: ['o'] }],
+      ['rpc', 'find_by_friend_code', { p_code: '3fa85f64' }],
+      ['rpc', 'friendships_of', { p_player_id: 'me', p_secret: 'sek' }],
+    ]);
+  });
+
+  it('new server: an empty answer is an answer (no fallback), and null reads as []', async () => {
+    const { cloud, log } = logged(() => null, [{ player_id: 'leak' }]);
+    expect(await cloud.findByFriendCode('3fa85f64')).toEqual([]);
+    expect(log.some((l) => l[0] === 'select')).toBe(false);
+  });
+
+  it('old server: falls back to the table selects, and asks for each missing RPC only once', async () => {
+    const { cloud, log } = logged((name) => { throw missingFn(name); }, [{ player_id: 'o' }]);
+    for (let i = 0; i < 2; i++) {
+      expect(await cloud.fetchProfiles(['o'])).toEqual([{ player_id: 'o' }]);
+      expect(await cloud.findByFriendCode('3fa85f64')).toEqual([{ player_id: 'o' }]);
+      expect(await cloud.fetchFriendships('me')).toEqual([{ player_id: 'o' }]);
+    }
+    expect(log.filter((l) => l[0] === 'rpc').map((l) => l[1])).toEqual(V8_READS);
+    const once = [
+      ['select', 'profiles', 'in', 'player_id', ['o']],
+      ['select', 'profiles', 'like', 'player_id', '3fa85f64%'],
+      ['select', 'friendships', 'or', 'a_id.eq.me,b_id.eq.me'],
+    ];
+    expect(log.filter((l) => l[0] === 'select')).toEqual([...once, ...once]);
+  });
+
+  it('a real failure (offline, permission) is thrown, not hidden behind the old select', async () => {
+    const offline = new TypeError('Failed to fetch');
+    const { cloud, log } = logged(() => { throw offline; });
+    await expect(cloud.fetchProfiles(['o'])).rejects.toBe(offline);
+    await expect(cloud.findByFriendCode('3fa85f64')).rejects.toBe(offline);
+    expect(log.some((l) => l[0] === 'select')).toBe(false);
+  });
+
+  it('without a secret, friendships are read the old way (no RPC)', async () => {
+    const log = [];
+    const cloud = createCloud({ rpc: async (n) => { log.push(n); return []; }, select: async () => { log.push('select'); return []; } });
+    await cloud.fetchFriendships('me');
+    expect(log).toEqual(['select']);
+  });
+
+  it('asks profiles_by_ids for at most 100 ids per call', async () => {
+    const sizes = [];
+    const { cloud } = logged((name, args) => { sizes.push(args.p_ids.length); return args.p_ids.map((id) => ({ player_id: id })); });
+    const ids = Array.from({ length: 230 }, (_, i) => `id${i}`);
+    const rows = await cloud.fetchProfiles(ids);
+    expect(sizes).toEqual([100, 100, 30]);
+    expect(rows.map((r) => r.player_id)).toEqual(ids);
+  });
+
+  it('isMissingRpc knows PostgREST\'s and Postgres\'s "no such function", and nothing else', () => {
+    expect(isMissingRpc({ code: 'PGRST202' })).toBe(true);
+    expect(isMissingRpc({ code: '42883' })).toBe(true);
+    expect(isMissingRpc({ message: 'Could not find the function public.x(p) in the schema cache' })).toBe(true);
+    expect(isMissingRpc({ code: '42501', message: 'permission denied' })).toBe(false);
+    expect(isMissingRpc(new TypeError('Failed to fetch'))).toBe(false);
+    expect(isMissingRpc(null)).toBe(false);
+  });
+});
+
+describe('saveToCloud size cap', () => {
+  it('answers too-big without calling the server when the save is over the send cap', async () => {
+    const calls = [];
+    const cloud = createCloud({ rpc: async (name) => { calls.push(name); return 'updated'; }, select: async () => [] });
+    const big = { save: {}, album: { photos: [{ thumb: 'data:image/jpeg;base64,' + 'A'.repeat(CLOUD_SAVE_SEND_MAX_BYTES) }] } };
+    expect(payloadBytes(big)).toBeGreaterThan(CLOUD_SAVE_SEND_MAX_BYTES);
+    expect(await cloud.saveToCloud('PLUM-OTTER-CROW-42', 's', big, 1)).toBe('too-big');
+    expect(calls).toEqual([]);
+    expect(await cloud.saveToCloud('PLUM-OTTER-CROW-42', 's', { save: {} }, 1)).toBe('updated');
+    expect(calls).toEqual(['upsert_save']);
+  });
+  it('a full album of worst-case photos is well under the cap', () => {
+    // 24 photos of 13 KB base64 (random noise at JPEG q0.6, the worst a 160x120 thumb gets)
+    const photo = { key: 'scenic-fountain', label: 'The fountain', area: 'Park', date: '2026-11-11', thumb: 'data:image/jpeg;base64,' + 'A'.repeat(13000) };
+    const payload = { save: { filler: 'x'.repeat(100000) }, album: { version: 1, photos: Array(24).fill(photo) } };
+    expect(payloadBytes(payload)).toBeLessThan(CLOUD_SAVE_SEND_MAX_BYTES / 3);
+  });
+  it('payloadBytes counts UTF-8 bytes, and Infinity for something unserialisable', () => {
+    expect(payloadBytes({ a: 'é' })).toBe(10);
+    const loop = {}; loop.self = loop;
+    expect(payloadBytes(loop)).toBe(Infinity);
   });
 });

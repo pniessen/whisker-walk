@@ -1,8 +1,10 @@
 // A small, per-device "hide this visitor" list (final fix wave, Task 3).
 //
 // record_friend_greet (docs/supabase-setup.sql) validates the CALLER's own
-// identity but never validates p_other_id — any client that knows another
-// player's playerId can drive greets against them, and spawnGhosts (main.js)
+// identity; since v8 (docs/supabase-v8-hardening.sql) it also refuses an
+// other id that has no profile or is the caller's own, but there is still no
+// consent step — any client that knows another real player's playerId can
+// drive greets against them, and spawnGhosts (main.js)
 // materializes those as uninvited ghost visits with no consent step on the
 // victim's side. This module is NOT a fix for that (see the "Known
 // limitation — unilateral friendships" note in
