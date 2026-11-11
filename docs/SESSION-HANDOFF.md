@@ -63,7 +63,7 @@ Linux in CI, so float fixtures should compare with a tolerance.
 | `src/render/` | Renderer rig, quality ladder and adaptive Auto, materials, sky, water, shadows, performance readout |
 | `src/world/` | The areas (neighbourhood, park, seaside, docks, woods, moor, river, pines and island, gorge) and the builder that assembles them |
 | `src/cloud.js`, `src/net.js` | Supabase client: save/profile/friend RPCs and the realtime transport |
-| `docs/*.sql` | The live Supabase contract: `supabase-setup.sql`, `supabase-colony.sql`, `supabase-v7-secret-fix.sql`. The owner runs these in the Supabase SQL editor; do not change one without telling the owner to re-run it. `docs/COLONY-SETUP.md` explains it |
+| `docs/*.sql` | The live Supabase contract: `supabase-setup.sql`, `supabase-colony.sql`, `supabase-v8-hardening.sql` (`supabase-v7-secret-fix.sql` is history; don't run it). The owner runs these in the Supabase SQL editor; do not change one without telling the owner to re-run it. `docs/COLONY-SETUP.md` explains it |
 | `ios/` | The iPhone/iPad app (a WKWebView shell around the bundled web build, Xcode project, Swift tests) and the Node refresh scripts. `ios/README.md` is the guide |
 | `test/` | Vitest suites, about 300 files; `test/fixtures/` holds pinned recordings (re-record only after finding out why one moved) |
 | `docs/VISUAL-PASS.md` | Running log of visual and performance passes |

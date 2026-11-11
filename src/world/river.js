@@ -17,7 +17,7 @@ import { marshMist, dragonflies, riverDragonflyHomes, createMarshLife } from './
 // =============================================================================
 // The River and Marshes.
 //
-// The second clan territory, drawn by the 11-year-old on her territory map:
+// The second clan territory, drawn by the older playtester on the territory map:
 // reedbeds and willows along a slow river, a pond on the east edge shared with
 // the Woods, and a lake in the north-east corner with an island on it.
 // Coordinates are metres, x east and z south, so north is -z, as the corner

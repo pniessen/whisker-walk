@@ -1,7 +1,7 @@
 // =============================================================================
 // CAMERA ZOOM — how far behind the cat the chase camera sits.
 //
-// WHY. The 11-year-old playtester asked for "a zoom in/out feature that is
+// WHY. The older playtester asked for "a zoom in/out feature that is
 // easier to use". The game had no camera zoom at all, so the kids were
 // pinch-zooming the browser page instead. A farther view also helps them see
 // where they are in an area.

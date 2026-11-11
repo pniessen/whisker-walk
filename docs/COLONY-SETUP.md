@@ -75,16 +75,16 @@ Nothing breaks if the file hasn't been run yet. Each device keeps its own colony
 
 If both children played before you ran the file, each has a colony of their own. A child playing alone can have at most 12 cats in their colony; after that the game won't let them start feeding a new cat. A shared colony has room for 24, which is exactly two of those. So when the children pair, the two colonies join into one, and every cat from both stays, on both devices. Nothing is removed to make room for this limit: a child left on their own with more than 12 cats (for example after you unpair them) keeps every cat and can keep feeding them, and just can't start a new one.
 
-## 7. Run the security fix for the original setup
+## 7. Run the hardening file
 
-The game's original setup file, `docs/supabase-setup.sql`, has a hole: three of its functions don't refuse a request that comes with no secret at all. Because of it, someone who knew a child's save code could overwrite that save, and anyone could record greets as any player. `docs/supabase-v7-secret-fix.sql` closes it.
+`docs/supabase-v8-hardening.sql` closes several holes in the original setup: it refuses requests that come with no secret, caps how big a save or profile can be, checks cat names and breeds on the server, checks friend greets, slows down guessing of save codes, and adds narrower functions for looking up profiles and friends. It includes everything the older `docs/supabase-v7-secret-fix.sql` did.
 
 1. In **SQL Editor**, click **New query**.
-2. Open `docs/supabase-v7-secret-fix.sql`, copy **the whole file**, paste it in, and click **Run**. You should see "Success. No rows returned".
+2. Open `docs/supabase-v8-hardening.sql`, copy **the whole file**, paste it in, and click **Run**. You should see "Success. No rows returned". It's safe to run again, and safe to run before the newest game build is on any device.
+3. Run the check queries at the end of the file to confirm it worked.
+4. **Step B waits.** The file ends with a block marked STEP B, commented out. It turns off public reading of the profiles and friendships tables. Run it only after every device has the newest build (the website reloaded, the iOS app refreshed); a device on an older build would lose its friends list and other cats' names.
 
-It only replaces those three functions (`upsert_save`, `upsert_profile` and `record_friend_greet`). It doesn't change any table or any saved data, and the game keeps working exactly as before. It's safe to run again.
-
-**If you ever re-run `docs/supabase-setup.sql`, run this fix again afterwards.** Re-running the setup file puts the old versions of the three functions back.
+**Don't run `docs/supabase-v7-secret-fix.sql` any more.** It is kept only as history; running it after the hardening file puts weaker versions of three functions back. For a brand-new project, `docs/supabase-setup.sql` already contains the hardened functions, so run that and then `docs/supabase-colony.sql`. Don't re-run `docs/supabase-setup.sql` on the live project before Step B.
 
 ## 8. Keep each child on their own device
 

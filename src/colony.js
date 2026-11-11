@@ -683,7 +683,7 @@ export const NEWS_LINES_MAX = 8;   // the card never shows more than this many l
 // Plain text only; the renderer escapes it. What counts as "since last time"
 // is `colony.seen` (progression.markColonySeen records it when the card is
 // dismissed). ONE line per cat for the partner's doings, the biggest first,
-// because a 9-year-old will not read eleven lines:
+// because a young reader will not read eleven lines:
 //   1  cats the PARTNER tamed since last seen: "X came home to the den! 🏠".
 //      A cat I tamed myself is excluded (I was there; the walk celebrated it).
 //   2  the partner's new cats (found by them, none of its feeds seen yet),
