@@ -32,6 +32,8 @@ import { createRooms } from './game/rooms.js';
 import { createComposerRig } from './game/composer.js';
 import { createQualityAdapter } from './game/adaptquality.js';
 import { parseForcedRung } from './render/quality.js';
+import { readDeviceProfile, DEVICE_EVENT } from './render/deviceprofile.js';
+import { releaseThumbnails } from './thumbnails.js';
 import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
@@ -157,6 +159,15 @@ function init() {
   const qualityAdapter = createQualityAdapter({
     renderer, composerRig, storage: window.localStorage,
     forcedRung: parseForcedRung(location.search),
+    // What the iPhone and iPad app says it is running on; null in a browser.
+    device: readDeviceProfile(window),
+  });
+  // The app's news about the device while the game is open: running hot, Low
+  // Power Mode, memory short. Never fired in a browser. A memory warning also
+  // lets go of the menu pictures (thumbnails.js), which are remade on demand.
+  window.addEventListener(DEVICE_EVENT, (e) => {
+    qualityAdapter.deviceChanged(e.detail);
+    if (e.detail?.memoryWarning === true) releaseThumbnails();
   });
   const perfHud = createPerfHud({ renderer, settings, coarse, adapter: qualityAdapter });
   const log = createDiscoveryLog(progression);

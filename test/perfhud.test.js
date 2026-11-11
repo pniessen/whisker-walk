@@ -24,6 +24,13 @@ describe('formatPerfLines', () => {
     ]);
   });
 
+  it('adds the device line only when the app supplied a profile', () => {
+    const lines = formatPerfLines({ ...sample, device: 'iPad7,11 · 2.9 GB · thermal nominal · low power off' });
+    expect(lines).toHaveLength(9);
+    expect(lines[8]).toBe('iPad7,11 · 2.9 GB · thermal nominal · low power off');
+    expect(formatPerfLines({ ...sample, device: '' })).toHaveLength(8);
+  });
+
   it('shows dashes before any frame data exists', () => {
     const lines = formatPerfLines({ ...sample, fps: 0, frameMs: 0, worstMs: 0 });
     expect(lines[0]).toBe('– fps · – ms · worst – ms (3 s)');
@@ -182,6 +189,18 @@ describe('createPerfHud', () => {
     hud.frameEnd(session, 2202);
     expect(line(4)).toBe('forced rung 5/5 + 30 fps cap (?rung)');
     Object.assign(adapter.status, { cap30: false });
+  });
+
+  it('prints the device profile from the adapter, live', () => {
+    hud.setEnabled(true);
+    hud.frameStart(1000, session);
+    hud.frameEnd(session, 1002);
+    expect(el.textContent.split('\n')).toHaveLength(8);
+    adapter.status.device = 'iPad7,11 · 2.9 GB · thermal serious · low power off';
+    hud.frameStart(1600, session);
+    hud.frameEnd(session, 1602);
+    expect(line(8)).toBe('iPad7,11 · 2.9 GB · thermal serious · low power off');
+    adapter.status.device = '';
   });
 
   it('says manual or reduced motion with no rung', () => {

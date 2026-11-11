@@ -31,6 +31,9 @@ export function formatPerfLines(s) {
     `px ratio ${+s.pixelRatio.toFixed(2)} · ${s.bufferW}×${s.bufferH} · strays ${s.strays}`,
     `draws ${f.calls} · shadow ${f.shadowCalls} · scene ${f.sceneCalls} · other ${f.otherCalls}`,
     `tris ${f.triangles.toLocaleString('en-US')} · scene passes ${f.sceneRenders}`,
+    // Only in the iPhone and iPad app, which says what it is running on
+    // (render/deviceprofile.js): the model, memory, heat and Low Power Mode.
+    ...(s.device ? [s.device] : []),
   ];
 }
 
@@ -61,6 +64,7 @@ export function createPerfHud({ renderer, settings, coarse, adapter }) {
     shadowMapSize: 0, postFx: false, normalMaps: false,
     pixelRatio: 1, bufferW: 0, bufferH: 0, strays: 0,
     adapt: '',
+    device: '',
     frame: counter.frame,
   };
 
@@ -126,6 +130,7 @@ export function createPerfHud({ renderer, settings, coarse, adapter }) {
     snap.bufferH = renderer.domElement.height;
     snap.strays = session.strayCats?.strays?.length ?? 0;
     snap.adapt = formatAdapt(adapter?.status);
+    snap.device = adapter?.status?.device ?? '';
     el.textContent = formatPerfLines(snap).join('\n');
     el.classList.remove('hidden');
   }

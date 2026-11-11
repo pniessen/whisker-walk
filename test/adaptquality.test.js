@@ -656,3 +656,325 @@ describe('the render loop asks before it does anything', () => {
     expect(1 / 30).toBeLessThan(0.05);
   });
 });
+
+// The iPhone and iPad app's device profile (render/deviceprofile.js). Without
+// one (every test above) nothing here applies.
+const iPad7 = { model: 'iPad7,11', memoryGB: 2.9, thermal: 'nominal', lowPower: false };
+const begin = (adapter, nowMs = 0) => adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs });
+
+describe('the device profile: where a device with no memory starts', () => {
+  it('an iPad 7th generation starts its first walk on LOW, and that becomes its memory', () => {
+    const { adapter, renderer, storage } = setup({ device: iPad7 });
+    expect(begin(adapter)).toBe(LADDER[3]);
+    expect(adapter.status).toMatchObject({ rung: 3, startRung: 3, startReason: 'device' });
+    expect(adapter.status.device).toBe('iPad7,11 · 2.9 GB · thermal nominal · low power off');
+    expect(renderer.getPixelRatio()).toBe(1.5);
+    expect(stored(storage)).toEqual({ rung: 3, steppedAt: 0, walks: 1, waitDays: 7, retrying: false });
+    begin(adapter, 9000);
+    expect(adapter.status).toMatchObject({ rung: 3, startReason: 'remembered' });
+  });
+
+  it('a remembered rung from real frame times always wins over the table', () => {
+    const { adapter } = setup({
+      device: iPad7,
+      memory: { rung: 0, steppedAt: 0, walks: 3, waitDays: 7, retrying: false },
+    });
+    expect(begin(adapter)).toBe(LADDER[0]);
+    expect(adapter.status.startReason).toBe('top');
+    const lower = setup({ device: { ...iPad7, model: 'iPhone18,1', memoryGB: 11.2 }, memory: atFloor });
+    expect(begin(lower.adapter)).toBe(LADDER[5]);
+    expect(lower.adapter.status.startReason).toBe('remembered');
+  });
+
+  it('the table is a guess the ordinary machinery corrects: slow frames step it down at once', () => {
+    const { adapter, storage } = setup({ device: iPad7 });
+    const session = lowSession();
+    begin(adapter);
+    run(adapter, session, 0, 9100, 40);
+    expect(adapter.status.rung).toBe(4);
+    expect(stored(storage).rung).toBe(4);
+  });
+
+  it('...and the sixth walk tries one rung higher', () => {
+    const { adapter, storage } = setup({ device: iPad7 });
+    for (let i = 0; i < 5; i++) {
+      begin(adapter, i * 1000);
+      expect(adapter.status.rung).toBe(3);
+    }
+    begin(adapter, 6000);
+    expect(adapter.status).toMatchObject({ rung: 2, startReason: 'retry' });
+    expect(stored(storage)).toMatchObject({ rung: 2, retrying: true });
+  });
+
+  it('a profile the table does not know starts at the top, as with no profile', () => {
+    for (const device of [{ model: 'iPhone18,1', memoryGB: 11.2 }, { model: 'arm64', memoryGB: 16 }, null, 'junk']) {
+      const { adapter, storage } = setup({ device });
+      expect(begin(adapter)).toBe(LADDER[0]);
+      expect(adapter.status.startReason).toBe('top');
+      expect(stored(storage)).toEqual({ rung: 0, steppedAt: 0, walks: 1, waitDays: 7, retrying: false });
+    }
+  });
+
+  it('manual settings, reduced motion and ?rung ignore the table', () => {
+    const { adapter, storage } = setup({ device: iPad7 });
+    expect(adapter.beginWalk({ override: 'high', reducedMotion: false, nowMs: 0 })).toBe(LADDER[0]);
+    expect(adapter.beginWalk({ override: 'auto', reducedMotion: true, nowMs: 0 })).toBe(LADDER[3]);
+    expect(storage.setItem).not.toHaveBeenCalled();
+    const forced = setup({ device: iPad7, forcedRung: 0 });
+    expect(begin(forced.adapter)).toBe(LADDER[0]);
+  });
+
+  it('storage that throws starts from the table every walk and never throws', () => {
+    const storage = fakeStorage();
+    storage.getItem = vi.fn(() => { throw new Error('SecurityError'); });
+    const { adapter } = setup({ device: iPad7, storage });
+    expect(begin(adapter)).toBe(LADDER[3]);
+    expect(begin(adapter, 5000)).toBe(LADDER[3]);
+  });
+});
+
+describe('the device profile: running hot is a temporary rung', () => {
+  const rung1 = { rung: 1, steppedAt: WALL - DAY, walks: 2, waitDays: 7, retrying: false };
+
+  it('a walk started hot starts one rung lower, and the memory is not touched', () => {
+    const { adapter, storage } = setup({ device: { ...iPad7, thermal: 'serious' }, memory: rung1 });
+    expect(begin(adapter)).toBe(LADDER[2]);
+    expect(adapter.status).toMatchObject({ rung: 2, startRung: 2, startReason: 'remembered +1 running hot' });
+    expect(stored(storage)).toMatchObject({ rung: 1, walks: 3 });
+  });
+
+  it('once it has cooled, the next walk starts back on the remembered rung', () => {
+    const { adapter, storage } = setup({ device: { ...iPad7, thermal: 'critical' }, memory: rung1 });
+    expect(begin(adapter)).toBe(LADDER[2]);
+    adapter.deviceChanged({ ...iPad7, thermal: 'fair' });
+    expect(adapter.status.rung).toBe(2); // nothing pops back mid-walk
+    expect(begin(adapter, 9000)).toBe(LADDER[1]);
+    expect(adapter.status).toMatchObject({ rung: 1, startReason: 'remembered' });
+    expect(stored(storage).rung).toBe(1);
+  });
+
+  it('heating up mid-walk steps down at the next frame, live, and writes nothing', () => {
+    const { adapter, renderer, storage } = setup({ device: iPad7, memory: { ...rung1, rung: 0 } });
+    const session = { useComposer: true };
+    begin(adapter);
+    run(adapter, session, 0, 2000, 16);
+    const before = stored(storage);
+    const writes = storage.setItem.mock.calls.length;
+    adapter.deviceChanged({ ...iPad7, thermal: 'serious' });
+    expect(adapter.status.rung).toBe(0); // not until a frame
+    adapter.frame(session, 2016);
+    expect(adapter.status.rung).toBe(1);
+    expect(adapter.status.change).toBe('0→1: running hot (not remembered)');
+    expect(adapter.status.device).toBe('iPad7,11 · 2.9 GB · thermal serious · low power off');
+    expect(renderer.getPixelRatio()).toBe(1.5);
+    expect(stored(storage)).toEqual(before);
+    expect(storage.setItem.mock.calls.length).toBe(writes);
+  });
+
+  it('is one rung, however many times the app says so, and however often it heats again', () => {
+    const { adapter } = setup({ device: iPad7, memory: atLow });
+    const session = lowSession();
+    begin(adapter);
+    adapter.deviceChanged({ ...iPad7, thermal: 'serious' });
+    adapter.deviceChanged({ ...iPad7, thermal: 'critical' });
+    adapter.deviceChanged({ ...iPad7, thermal: 'serious' });
+    run(adapter, session, 0, 3000, 16);
+    expect(adapter.status.rung).toBe(4);
+    adapter.deviceChanged({ ...iPad7, thermal: 'nominal' });
+    adapter.deviceChanged({ ...iPad7, thermal: 'serious' });
+    run(adapter, session, 3016, 6000, 16);
+    expect(adapter.status.rung).toBe(4);
+  });
+
+  it('from shadow-light the temporary rung is lite: the shadows fade, as on a remembered step', () => {
+    const { adapter, renderer, storage } = setup({ device: iPad7, memory: { ...atLow, rung: 4 } });
+    const session = lowSession();
+    begin(adapter);
+    adapter.deviceChanged({ ...iPad7, thermal: 'serious' });
+    run(adapter, session, 0, 3000, 16);
+    expect(adapter.status.rung).toBe(5);
+    expect(renderer.getPixelRatio()).toBe(1);
+    expect(session.shadows.stop).toHaveBeenCalledTimes(1);
+    expect(stored(storage).rung).toBe(4);
+  });
+
+  it('on the floor the temporary rung is the 30 fps cap', () => {
+    const { adapter, storage } = setup({ device: iPad7, memory: atFloor });
+    begin(adapter);
+    adapter.deviceChanged({ ...iPad7, thermal: 'serious' });
+    adapter.frame(lowSession(), 16);
+    expect(adapter.status).toMatchObject({ rung: 6, cap30: true, change: '5→30 fps: running hot (not remembered)' });
+    expect(stored(storage).rung).toBe(5);
+    begin(adapter, 9000);
+    expect(adapter.status).toMatchObject({ rung: 6, cap30: true, startReason: 'remembered +1 running hot' });
+    adapter.deviceChanged({ ...iPad7, thermal: 'nominal' });
+    begin(adapter, 18_000);
+    expect(adapter.status).toMatchObject({ rung: 5, cap30: false });
+  });
+
+  it('a temporary step to LOW changes nothing live and says so', () => {
+    const { adapter, renderer } = setup({ device: iPad7, memory: { ...rung1, rung: 2 } });
+    begin(adapter);
+    adapter.deviceChanged({ ...iPad7, thermal: 'serious' });
+    adapter.frame({ useComposer: false }, 16);
+    expect(adapter.status).toMatchObject({ rung: 3, change: '2→3: running hot (not remembered, next walk)' });
+    expect(renderer.getPixelRatio()).toBe(1.5);
+  });
+
+  it('a hot walk that is still slow remembers one rung down, not the heat too', () => {
+    const { adapter, storage } = setup({ device: { ...iPad7, thermal: 'serious' }, memory: atLow });
+    const session = lowSession();
+    expect(begin(adapter)).toBe(LADDER[4]);
+    run(adapter, session, 0, 9100, 40);
+    expect(adapter.status.rung).toBe(5);
+    expect(stored(storage).rung).toBe(4);
+  });
+
+  it('a retry walked hot proves nothing: it stays a retry', () => {
+    const { adapter, storage } = setup({
+      device: { ...iPad7, thermal: 'serious' },
+      memory: { rung: 2, steppedAt: WALL - 20 * DAY, walks: 5, waitDays: 14, retrying: false },
+    });
+    begin(adapter);
+    expect(adapter.status).toMatchObject({ rung: 2, startReason: 'retry +1 running hot' });
+    run(adapter, { useComposer: false }, 0, 20_000, 16);
+    expect(stored(storage)).toMatchObject({ rung: 1, retrying: true, waitDays: 14 });
+  });
+
+  it('waits for a fade in progress, then steps', () => {
+    const { adapter } = setup({ device: iPad7, memory: rung1 });
+    const session = { useComposer: true };
+    begin(adapter);
+    run(adapter, session, 0, 9100, 40); // 1 → 2: the bloom fade has started
+    expect(adapter.status.rung).toBe(2);
+    adapter.deviceChanged({ ...iPad7, thermal: 'serious' });
+    adapter.frame(session, 9140);
+    expect(adapter.status.rung).toBe(2);
+    run(adapter, session, 9180, 11_000, 40);
+    expect(session.useComposer).toBe(false);
+    expect(adapter.status.rung).toBe(3);
+  });
+
+  it('means nothing between walks, on a manual walk, or under ?rung', () => {
+    const idle = setup({ device: iPad7 });
+    expect(() => idle.adapter.deviceChanged({ ...iPad7, thermal: 'serious' })).not.toThrow();
+    expect(() => idle.adapter.deviceChanged(null)).not.toThrow();
+    expect(() => idle.adapter.deviceChanged('hot')).not.toThrow();
+    const manual = setup({ device: iPad7 });
+    manual.adapter.beginWalk({ override: 'high', reducedMotion: false, nowMs: 0 });
+    manual.adapter.deviceChanged({ ...iPad7, thermal: 'serious', memoryWarning: true });
+    run(manual.adapter, { useComposer: true }, 0, 2000, 16);
+    expect(manual.adapter.status).toMatchObject({ mode: 'manual', rung: 0 });
+    const forced = setup({ device: { ...iPad7, thermal: 'critical' }, forcedRung: 1 });
+    expect(begin(forced.adapter)).toBe(LADDER[1]);
+    forced.adapter.deviceChanged({ ...iPad7, thermal: 'critical', memoryWarning: true });
+    run(forced.adapter, { useComposer: true }, 0, 2000, 16);
+    expect(forced.adapter.status).toMatchObject({ mode: 'forced', rung: 1 });
+  });
+});
+
+describe('the device profile: a memory warning is a temporary rung too', () => {
+  it('steps down at the next frame, once, and lasts until the page is reloaded', () => {
+    const { adapter, storage } = setup({ device: iPad7, memory: atLow });
+    const session = lowSession();
+    begin(adapter);
+    adapter.deviceChanged({ ...iPad7, memoryWarning: true });
+    adapter.deviceChanged({ ...iPad7, memoryWarning: true });
+    run(adapter, session, 0, 3000, 16);
+    expect(adapter.status).toMatchObject({ rung: 4, change: '3→4: memory warning (not remembered)' });
+    expect(session.small.castShadow).toBe(false);
+    expect(stored(storage).rung).toBe(3);
+    expect(begin(adapter, 9000)).toBe(LADDER[4]);
+    expect(adapter.status.startReason).toBe('remembered +1 memory warning');
+    expect(stored(storage).rung).toBe(3);
+  });
+
+  it('hot and warned together are two rungs', () => {
+    const { adapter, storage } = setup({ device: iPad7, memory: atLow });
+    const session = lowSession();
+    begin(adapter);
+    adapter.deviceChanged({ ...iPad7, thermal: 'serious', memoryWarning: true });
+    run(adapter, session, 0, 4000, 16);
+    expect(adapter.status.rung).toBe(5);
+    expect(stored(storage).rung).toBe(3);
+    begin(adapter, 9000);
+    expect(adapter.status).toMatchObject({ rung: 5, startReason: 'remembered +2 running hot, memory warning' });
+  });
+
+  it('a warning between walks is carried into the next walk', () => {
+    const { adapter } = setup({ device: iPad7, memory: atLow });
+    adapter.deviceChanged({ ...iPad7, memoryWarning: true });
+    expect(begin(adapter)).toBe(LADDER[4]);
+  });
+});
+
+describe('the device profile: Low Power Mode says the display is held at 30', () => {
+  const lowPower = { ...iPad7, lowPower: true };
+
+  it('steady 33 ms frames are healthy there: nothing steps, nothing is written', () => {
+    const { adapter, storage } = setup({ device: lowPower, memory: { ...atLow, rung: 0 } });
+    begin(adapter);
+    const writes = storage.setItem.mock.calls.length;
+    run(adapter, { useComposer: true }, 0, 60_000, 33.3);
+    expect(adapter.status).toMatchObject({ rung: 0, change: '' });
+    expect(storage.setItem.mock.calls.length).toBe(writes);
+    // ...where without the app's word the same frames step to rung 2.
+    const blind = setup({ memory: { ...atLow, rung: 0 } });
+    begin(blind.adapter);
+    run(blind.adapter, { useComposer: true }, 0, 60_000, 33.3);
+    expect(blind.adapter.status.rung).toBe(2);
+  });
+
+  it('frames missing the 30 Hz refresh as well still step down, and say what they were judged against', () => {
+    const { adapter, storage } = setup({ device: lowPower, memory: atLow });
+    begin(adapter);
+    run(adapter, lowSession(), 0, 9100, 50);
+    expect(adapter.status.rung).toBe(4);
+    expect(adapter.status.change).toBe('3→4: 100% of frames over 40 ms for 4 s');
+    expect(stored(storage).rung).toBe(4);
+  });
+
+  it('never takes the 30 fps cap: the display is already there', () => {
+    const { adapter, storage } = setup({ device: lowPower, memory: atFloor });
+    begin(adapter);
+    run(adapter, lowSession(), 0, 60_000, 66);
+    expect(adapter.status).toMatchObject({ rung: 5, cap30: false });
+    expect(stored(storage).rung).toBe(5);
+  });
+
+  it('switching it off mid-walk goes back to the ordinary test, after a fresh warm-up', () => {
+    const { adapter } = setup({ device: lowPower, memory: { ...atLow, rung: 0 } });
+    const session = { useComposer: true };
+    begin(adapter);
+    run(adapter, session, 0, 20_000, 33.3);
+    expect(adapter.status.rung).toBe(0);
+    adapter.deviceChanged(iPad7);
+    expect(adapter.status.device).toBe('iPad7,11 · 2.9 GB · thermal nominal · low power off');
+    run(adapter, session, 20_030, 24_900, 30);
+    expect(adapter.status.rung).toBe(0); // warming up again
+    run(adapter, session, 24_930, 29_500, 30);
+    expect(adapter.status.rung).toBe(1);
+    expect(adapter.status.change).toBe('0→1: 100% of frames over 20 ms for 4 s');
+  });
+
+  it('switching it on mid-walk stops 33 ms frames counting as slow', () => {
+    const { adapter } = setup({ device: iPad7, memory: { ...atLow, rung: 0 } });
+    const session = { useComposer: true };
+    begin(adapter);
+    run(adapter, session, 0, 3000, 16);
+    adapter.deviceChanged(lowPower);
+    run(adapter, session, 3033, 60_000, 33.3);
+    expect(adapter.status.rung).toBe(0);
+  });
+});
+
+describe('main.js wires the bridge', () => {
+  it('hands the adapter the profile at boot and every event after, and lets go of the menu pictures on a memory warning', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    expect(src).toContain('device: readDeviceProfile(window),');
+    expect(src).toContain('window.addEventListener(DEVICE_EVENT, (e) => {');
+    expect(src).toContain('qualityAdapter.deviceChanged(e.detail);');
+    expect(src).toContain('if (e.detail?.memoryWarning === true) releaseThumbnails();');
+  });
+});

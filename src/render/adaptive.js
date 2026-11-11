@@ -79,6 +79,13 @@ const CAPACITY = 1024;
 
 // sample(now) once per frame; true means "step down one rung". The caller
 // then calls restart(now, ADAPT.settleMs). Nothing in sample allocates.
+// Known to be on a display held at 30 frames a second (the app says Low Power
+// Mode is on, and WebKit then calls requestAnimationFrame 30 times a second):
+// every healthy frame is 33 ms, so "over 20 ms" would call them all slow. The
+// same test one refresh rate down: more than half the frames missing the
+// 30 Hz refresh as well.
+export const ADAPT_CAPPED = Object.freeze({ ...ADAPT, slowMs: 40 });
+
 export function createFrameGovernor(opts = ADAPT) {
   const { windowMs, slowMs, maxGapMs, minSamples, fastMs = CAP30.fastMs } = opts;
   const stamps = new Float64Array(CAPACITY);
@@ -205,6 +212,19 @@ function sanitize(raw) {
     waitDays: isNum(raw.waitDays) ? clamp(raw.waitDays, MIN_WAIT_DAYS, MAX_WAIT_DAYS) : d.waitDays,
     retrying: raw.retrying === true,
   };
+}
+
+// True when this device has an adapt memory at all (whatever it says). False
+// on the very first Auto walk, which is the one walk the device profile's
+// starting-rung table is consulted for (render/deviceprofile.js): from then
+// on what the frames said is remembered here and wins. Storage that throws
+// has no memory, so every walk starts from the table's answer.
+export function hasMemory(storage) {
+  try {
+    return storage.getItem(MEMORY_KEY) != null;
+  } catch {
+    return false;
+  }
 }
 
 // Safari private mode and blocked storage throw; a hand-edited value can be

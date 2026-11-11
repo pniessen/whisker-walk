@@ -37,15 +37,28 @@
 // frame() must run BEFORE the frame's draw: a pixel-ratio change clears the
 // canvas, and after the draw that would present a blank frame.
 // Manual High/Low and reduced motion never adapt and never touch storage.
+//
+// The device profile (render/deviceprofile.js; only the iPhone and iPad app
+// supplies one) adds four things, none of which exist in Safari or on desktop:
+//   - a first walk with no memory starts on the profile's table rung;
+//   - running hot (thermal serious or critical) and a memory warning each
+//     drop ONE rung at once, live where the rung allows, and TEMPORARILY:
+//     nothing is written, so when the device has cooled the next walk
+//     starts back on the remembered rung (a memory warning lasts until the
+//     page is reloaded);
+//   - Low Power Mode says outright that the display is held at 30, so the
+//     governor judges against that instead of inferring a cap;
+//   - the profile is shown in the ?perf readout.
 // Neither does a forced rung (?rung=N, quality.js parseForcedRung): with the
 // setting on Auto, every walk of the page load starts on that rung and stays
 // there. It is how a rung is looked at on a device too fast to reach it.
 
 import { resolveQuality, isAdaptive, LADDER, LOW_RUNG, FLOOR_RUNG, CAP_RUNG } from '../render/quality.js';
 import {
-  ADAPT, CAP30, createFrameGovernor, createFramePacer, readMemory, writeMemory, planWalkStart, noteStepDown,
-  noteRetryHeld,
+  ADAPT, ADAPT_CAPPED, CAP30, DEFAULT_MEMORY, createFrameGovernor, createFramePacer, hasMemory, readMemory,
+  writeMemory, planWalkStart, noteStepDown, noteRetryHeld,
 } from '../render/adaptive.js';
+import { sanitizeProfile, startRungFor, isHot, describeProfile } from '../render/deviceprofile.js';
 import { BLOOM_STRENGTH } from './composer.js';
 import { trimShadowCasters } from '../render/rig.js';
 
@@ -62,13 +75,24 @@ export function createQualityAdapter({
   devicePixelRatio = () => window.devicePixelRatio,
   wallClock = () => Date.now(),
   forcedRung = null,
+  device: deviceAtBoot = null,
 }) {
-  const governor = createFrameGovernor();
+  // Two governors, one in use: the ordinary one, and the one for a display
+  // the app says is held at 30 (Low Power Mode). See ADAPT_CAPPED.
+  const openGovernor = createFrameGovernor();
+  const cappedGovernor = createFrameGovernor(ADAPT_CAPPED);
+  let device = sanitizeProfile(deviceAtBoot); // null in Safari and on desktop
+  let governor = device?.lowPower ? cappedGovernor : openGovernor;
+  let limits = device?.lowPower ? ADAPT_CAPPED : ADAPT;
   const pacer = createFramePacer();
   // One object, mutated in place, so a HUD can hold on to it. `rung` runs to
   // CAP_RUNG (the lite rung with the 30 fps cap on); `cap30` says the same
   // thing as a flag, for the render loop and the readout.
-  const status = { mode: 'auto', rung: 0, startRung: 0, startReason: 'top', change: '', cap30: false };
+  // `device` is the profile as one line of text ('' without one).
+  const status = {
+    mode: 'auto', rung: 0, startRung: 0, startReason: 'top', change: '', cap30: false,
+    device: describeProfile(device),
+  };
   let adaptive = false;
   let mem = null;
   let startMem = null;     // the memory beginWalk wrote, restored on a frame-cap skip
@@ -79,6 +103,20 @@ export function createQualityAdapter({
   let fadeSession = null; // the session a fade belongs to, or null
   let fadeStart = 0;
   let fadeKind = 'bloom'; // 'bloom' (rung 2) or 'shadows' (rung 5)
+  // Temporary rungs: taken because of the device's state right now, never
+  // written to the memory. memoryPressed is "iOS warned about memory during
+  // this page load". tempDrop is how many temporary rungs this walk is
+  // carrying on top of the remembered one; pendingDrops are temporary steps
+  // asked for mid-walk (deviceChanged has no session), taken one a frame.
+  let memoryPressed = false;
+  let tempDrop = 0;
+  let pendingDrops = 0;
+  let pendingWhy = '';
+  let walking = false; // between an Auto beginWalk and the next beginWalk
+
+  const tempWanted = () => (isHot(device?.thermal) ? 1 : 0) + (memoryPressed ? 1 : 0);
+  const tempWhy = () => [isHot(device?.thermal) ? 'running hot' : '', memoryPressed ? 'memory warning' : '']
+    .filter(Boolean).join(', ');
 
   // setPixelRatio reassigns canvas.width, which clears the drawing buffer, so
   // an unchanged ratio (a dpr-1 desktop stepping to rung 1) touches neither.
@@ -100,6 +138,8 @@ export function createQualityAdapter({
     // The rung the walk starts on. The tier's own rung, except on CAP_RUNG,
     // which is the lite tier plus the 30 fps cap.
     let startRung = -1;
+    tempDrop = 0;
+    pendingDrops = 0;
     if (adaptive && forcedRung != null) {
       // Forced: Auto's ladder, but no governor and no memory. `adaptive` off
       // is what keeps frame() from sampling; storage is not even read.
@@ -112,15 +152,27 @@ export function createQualityAdapter({
       status.mode = 'forced';
       status.startReason = 'forced';
     } else if (adaptive) {
-      const plan = planWalkStart(readMemory(storage), wallClock());
+      // No memory yet: the device profile's table says where to start (0
+      // without a profile, which is the top, as it always was). From this
+      // walk on the memory exists, so the table is never asked again and
+      // what the frames say is what is remembered. steppedAt stays 0, so
+      // the retry tries one rung higher as soon as five walks have started:
+      // the table is a guess, and this is how a low guess is corrected.
+      const fresh = !hasMemory(storage);
+      const seeded = fresh ? startRungFor(device) : 0;
+      const remembered = fresh ? { ...DEFAULT_MEMORY, rung: seeded } : readMemory(storage);
+      const plan = planWalkStart(remembered, wallClock());
       mem = plan.mem;
       startMem = { ...mem };
       writeMemory(storage, mem);
       retryPending = plan.reason === 'retry';
-      tier = resolveQuality({ reducedMotion, override, rung: plan.rung });
-      startRung = plan.rung;
+      // Running hot, or warned about memory: one rung lower each for this
+      // walk, on top of the remembered rung and never written to it.
+      tempDrop = Math.min(tempWanted(), CAP_RUNG - plan.rung);
+      startRung = plan.rung + tempDrop;
+      tier = resolveQuality({ reducedMotion, override, rung: startRung });
       status.mode = 'auto';
-      status.startReason = plan.reason;
+      status.startReason = (seeded > 0 ? 'device' : plan.reason) + (tempDrop > 0 ? ` +${tempDrop} ${tempWhy()}` : '');
     } else {
       mem = null;
       startMem = null;
@@ -143,6 +195,7 @@ export function createQualityAdapter({
     armPending = true;
     halted = false;
     baselineMeanMs = 0;
+    walking = adaptive;
     governor.restart(nowMs, ADAPT.warmupMs);
     return tier;
   }
@@ -168,6 +221,66 @@ export function createQualityAdapter({
       fadeKind = 'shadows';
     }
     // to === LOW_RUNG: nothing live; the next walk starts there.
+  }
+
+  // What the memory holds after a step the frames earned: one rung below what
+  // it held. That is `to` itself on an ordinary walk; on a walk carrying a
+  // temporary rung (hot, memory warning) it is one less, so the heat is not
+  // remembered along with the slowness.
+  const rememberedAfterStep = () => Math.min(CAP_RUNG, mem.rung + 1);
+
+  // A temporary step: the same live changes as a step the frames earned,
+  // with nothing judged and nothing written. On the floor rung the step is
+  // the 30 fps cap, taken without the evenness test (nothing was measured).
+  function tempStep(session, nowMs, why) {
+    const from = status.rung;
+    if (from >= CAP_RUNG) return;
+    const to = from + 1;
+    if (to === CAP_RUNG) {
+      status.cap30 = true;
+      pacer.reset();
+    } else {
+      applyLive(to, session, nowMs);
+    }
+    tempDrop += 1;
+    status.rung = to;
+    status.change = `${from}→${to === CAP_RUNG ? '30 fps' : to}: ${why} (not remembered` +
+      (to === LOW_RUNG ? ', next walk)' : ')');
+    governor.restart(nowMs, ADAPT.settleMs);
+  }
+
+  // The app's 'whisker-device' event (main.js passes event.detail straight
+  // in). Running hot and a memory warning each ask for one temporary rung,
+  // once: a second 'serious' while already hot, or a second warning in the
+  // same page load, asks for nothing more. Cooling down changes nothing in
+  // the walk that is on (nothing pops back); the next walk starts without
+  // the rung. A change of Low Power Mode swaps the governor and gives it a
+  // fresh warm-up, since every frame time has just changed meaning.
+  function deviceChanged(detail) {
+    const next = sanitizeProfile(detail);
+    if (!next) return;
+    const wasHot = isHot(device?.thermal);
+    const wasCapped = device?.lowPower === true;
+    device = next;
+    status.device = describeProfile(device);
+    if (next.lowPower !== wasCapped) {
+      governor = next.lowPower ? cappedGovernor : openGovernor;
+      limits = next.lowPower ? ADAPT_CAPPED : ADAPT;
+      armPending = true;
+    }
+    const asks = [];
+    if (isHot(next.thermal) && !wasHot) asks.push('running hot');
+    if (detail.memoryWarning === true && !memoryPressed) {
+      memoryPressed = true;
+      asks.push('memory warning');
+    }
+    // Never more temporary rungs than there are reasons for right now: a
+    // device that cools and heats again within one walk already has its rung.
+    const room = tempWanted() - tempDrop - pendingDrops;
+    if (walking && asks.length > 0 && room > 0) {
+      pendingDrops += Math.min(asks.length, room);
+      pendingWhy = asks.join(', ');
+    }
   }
 
   function stepDown(session, nowMs) {
@@ -200,19 +313,19 @@ export function createQualityAdapter({
       }
       status.cap30 = true;
       pacer.reset();
-      mem = noteStepDown(mem, to, wallClock());
+      mem = noteStepDown(mem, rememberedAfterStep(), wallClock());
       writeMemory(storage, mem);
       retryPending = false;
       status.rung = to;
-      status.change = `${from}→30 fps: ${pct}% of frames over ${ADAPT.slowMs} ms for ${ADAPT.windowMs / 1000} s`;
+      status.change = `${from}→30 fps: ${pct}% of frames over ${limits.slowMs} ms for ${limits.windowMs / 1000} s`;
       return;
     }
     applyLive(to, session, nowMs);
-    mem = noteStepDown(mem, to, wallClock());
+    mem = noteStepDown(mem, rememberedAfterStep(), wallClock());
     writeMemory(storage, mem);
     retryPending = false;
     status.rung = to;
-    status.change = `${from}→${to}: ${pct}% of frames over ${ADAPT.slowMs} ms for ${ADAPT.windowMs / 1000} s` +
+    status.change = `${from}→${to}: ${pct}% of frames over ${limits.slowMs} ms for ${limits.windowMs / 1000} s` +
       (to === LOW_RUNG ? ' (next walk)' : to === FLOOR_RUNG ? ' (fewer strays, no clouds, thinner grass next walk)' : '');
     // LOW changes nothing in this walk, so this walk can say nothing about
     // it: adapting rests until the next walk has been built on it.
@@ -222,7 +335,7 @@ export function createQualityAdapter({
 
   // Allocates nothing except at a step-down.
   function frame(session, nowMs) {
-    if (!adaptive || !session || halted) return;
+    if (!adaptive || !session) return;
     if (armPending) {
       armPending = false;
       governor.restart(nowMs, ADAPT.warmupMs);
@@ -253,10 +366,22 @@ export function createQualityAdapter({
       }
       return;
     }
-    if (status.rung >= CAP_RUNG) return;
+    // A temporary step asked for since the last frame (the device ran hot,
+    // or iOS warned about memory). After any fade, one a frame, and even on
+    // a walk that has stopped judging its frames.
+    if (pendingDrops > 0) {
+      pendingDrops -= 1;
+      tempStep(session, nowMs, pendingWhy);
+      return;
+    }
+    if (halted || status.rung >= CAP_RUNG) return;
+    // On a display already held at 30 the cap has nothing to even out.
+    if (limits === ADAPT_CAPPED && status.rung >= FLOOR_RUNG) return;
     if (governor.sample(nowMs)) {
       stepDown(session, nowMs);
-    } else if (retryPending && governor.judged()) {
+    } else if (retryPending && tempDrop === 0 && governor.judged()) {
+      // (A retry judged while a temporary rung is on was not judged on the
+      // rung being retried: it stays pending and the next walk tries again.)
       retryPending = false;
       mem = noteRetryHeld(mem);
       writeMemory(storage, mem);
@@ -272,5 +397,5 @@ export function createQualityAdapter({
     return !status.cap30 || pacer.due(nowMs);
   }
 
-  return { beginWalk, frame, shouldRender, status };
+  return { beginWalk, frame, shouldRender, deviceChanged, status };
 }
