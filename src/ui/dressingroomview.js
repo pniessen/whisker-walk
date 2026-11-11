@@ -77,7 +77,7 @@ export function reduceDressingUi(ui, action) {
 }
 
 const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-wardrobe],'
-  + '[data-dr-wardrobe-done],[data-dr-more-cats],'
+  + '[data-dr-wardrobe-done],[data-dr-more-cats],[data-dr-outfit],[data-dr-outfit-save],[data-dr-outfit-del],'
   + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay]';
 const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is empty
 const BLUR_RENDER_MS = 250; // a skipped render runs this long after the name box loses focus
@@ -115,6 +115,7 @@ export function createDressingRoom({
     if (!thumbs) thumbs = menuThumbnails();
     if (!thumbs.mine) thumbs.mine = {};
     if (!thumbs.worn) thumbs.worn = {};
+    if (!thumbs.outfits) thumbs.outfits = {};
     return thumbs;
   };
   const dispatch = (action) => { ui = reduceDressingUi(ui, action); };
@@ -169,6 +170,34 @@ export function createDressingRoom({
     return out;
   }
 
+  // Saved outfits' pictures: the cat on show wearing each whole outfit (only
+  // what she still owns, as a tap would put on). Snapped once per look and
+  // outfit, the way the Wearing pictures are; without one (no WebGL) the row
+  // falls back to its items' menu pictures. outfit id -> data URL.
+  function snapOutfits(m, t) {
+    const h = m.hero;
+    const out = {};
+    const look = h.look ? lookKey(h.look) : '';
+    const state = progression.state;
+    const want = m.outfits.map((o) => {
+      const saved = state.outfits.find((x) => x.id === o.id)?.wear ?? {};
+      const wear = Object.fromEntries(Object.entries(saved).filter(([, id]) => progression.isUnlocked('accessories', id)));
+      return { id: o.id, wear, key: `outfit|${h.breed}|${look}|${JSON.stringify(wear)}` };
+    });
+    const missing = want.filter((w) => !has(t.outfits, w.key) && !failedSnaps.has(w.key));
+    if (missing.length) {
+      const entries = missing.map((w) => ({ key: w.key, breed: h.breed, look: h.look, wear: w.wear }));
+      let got = {};
+      try { got = snapCustom(entries) || {}; } catch { got = {}; }
+      for (const e of entries) {
+        if (typeof got[e.key] === 'string' && got[e.key]) t.outfits[e.key] = got[e.key];
+        else failedSnaps.add(e.key);
+      }
+    }
+    for (const w of want) if (has(t.outfits, w.key)) out[w.id] = t.outfits[w.key];
+    return out;
+  }
+
   function html({ headerHtml = '', startHtml = '', extrasHtml = '', rankTitle = '' } = {}) {
     const state = progression.state;
     const t = getThumbs();
@@ -189,7 +218,7 @@ export function createDressingRoom({
     const wearing = snapWorn(m, t);
     const pickerHtml = ui.wardrobe && ui.openSlot ? renderSlotPickerHtml(state, catalog, ui.openSlot, ui.tryOn, t) : '';
     return renderDressingRoomHtml({
-      model: m, headerHtml, startHtml, extrasHtml, rankTitle, thumbs: { ...t, wearing },
+      model: m, headerHtml, startHtml, extrasHtml, rankTitle, thumbs: { ...t, wearing, outfitPics: ui.wardrobe && m.outfits.length ? snapOutfits(m, t) : {} },
       ui: { wardrobe: ui.wardrobe, moreCats: ui.moreCats, openSlot: ui.openSlot, pickerHtml },
     });
   }
@@ -355,6 +384,21 @@ export function createDressingRoom({
     }
   }
 
+  // Saved outfits (src/outfits.js). Wearing one drops any try-on (the hero
+  // shows the outfit, all of it); friends see the change like any other.
+  function onOutfit(id) {
+    const before = JSON.stringify(progression.state?.equipped ?? {});
+    if (!progression.wearOutfit(id)) return;
+    dispatch({ type: 'try-on', slot: null, id: null });
+    if (JSON.stringify(progression.state?.equipped ?? {}) !== before) profileChanged();
+  }
+  function onOutfitSave() {
+    if (progression.saveOutfit()) autoSync();
+  }
+  function onOutfitDel(id) {
+    if (progression.deleteOutfit(id)) autoSync();
+  }
+
   function onPlace(id) {
     if (!has(catalog.areas, id)) return;
     // Legacy hides Clan-only places; a stray click on one buys and sets nothing.
@@ -375,6 +419,9 @@ export function createDressingRoom({
     if (d.drCat !== undefined) return `[data-dr-cat="${q(d.drCat)}"]`;
     if (d.drMine !== undefined) return `[data-dr-mine="${q(d.drMine)}"]`;
     if (d.drAcc !== undefined) return `[data-dr-acc="${q(d.drAcc)}"]`;
+    if (d.drOutfit !== undefined) return `[data-dr-outfit="${q(d.drOutfit)}"]`;
+    // Saving disables the button and deleting removes the row: land on the save button's place.
+    if (d.drOutfitSave !== undefined || d.drOutfitDel !== undefined) return '[data-dr-outfit-save]';
     return null;
   }
 
@@ -402,6 +449,9 @@ export function createDressingRoom({
     else if (d.drWardrobe !== undefined) dispatch({ type: 'wardrobe', open: true });
     else if (d.drWardrobeDone !== undefined) dispatch({ type: 'wardrobe', open: false });
     else if (d.drMoreCats !== undefined) dispatch({ type: 'more-cats' });
+    else if (d.drOutfitSave !== undefined) onOutfitSave();
+    else if (d.drOutfitDel !== undefined) onOutfitDel(d.drOutfitDel);
+    else if (d.drOutfit !== undefined) onOutfit(d.drOutfit);
     else if (d.drMine !== undefined) onMine(d.drMine);
     else if (d.drMake !== undefined) onMake();
     else if (d.drEdit !== undefined) onEdit(d.drEdit);

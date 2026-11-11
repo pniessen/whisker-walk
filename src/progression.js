@@ -1,5 +1,6 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
 import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_PERSONALITIES } from './customcats.js';
+import { sanitizeOutfits, wornNow, canSaveOutfit, nextOutfitId, OUTFIT_SLOTS } from './outfits.js';
 import { validPetName } from './net.js';
 import { AWARDS } from './discoveries.js';
 import { SKILL_IDS, friendRungs, hasSkill } from './skills.js';
@@ -392,6 +393,9 @@ function defaultState() {
     // Cat builder: up to three cats she made herself. Additive, so SAVE_VERSION
     // stays 4 (equipped.custom is the same). equipped.cat always stays a preset.
     customCats: [],
+    // Saved outfits (src/outfits.js): up to five accessory combinations she
+    // can put back on. Additive, so SAVE_VERSION stays 4.
+    outfits: [],
     area: 'neighborhood',
     lifetimePoints: 0,
     bestWalk: 0,
@@ -925,6 +929,7 @@ function sanitizeState(parsed) {
     unlocked: { cats: unlockedCats, accessories: unlockedAcc, areas: unlockedAreas },
     equipped: { cat: equippedCat, collar: equippedCollar, ...equippedSlots, custom: equippedCustom },
     customCats,
+    outfits: sanitizeOutfits(parsed.outfits, CATALOG),
     area,
     lifetimePoints: asFiniteNonNeg(parsed.lifetimePoints, 0),
     bestWalk: asFiniteNonNeg(parsed.bestWalk, 0),
@@ -1385,6 +1390,39 @@ export function createProgression(storage) {
     unequip(slot) {
       state.equipped[slot] = null;
       save();
+    },
+    // Saved outfits (src/outfits.js). saveOutfit() keeps what the cat has on
+    // now → the new outfit's id, or null when there is nothing on, it is
+    // already saved, or all five are used.
+    saveOutfit() {
+      const wear = wornNow(state.equipped, CATALOG);
+      if (canSaveOutfit(state.outfits, wear) !== 'ok') return null;
+      const id = nextOutfitId(state.outfits);
+      if (!id) return null;
+      state.outfits.push({ id, wear });
+      save();
+      return id;
+    },
+    // wearOutfit(id) puts the whole outfit on: every slot becomes the
+    // outfit's item, or bare. An item she no longer owns (traded away) is
+    // left off; the outfit keeps it for when she has it again. → true when
+    // the outfit exists.
+    wearOutfit(id) {
+      const outfit = state.outfits.find((o) => o.id === id);
+      if (!outfit) return false;
+      for (const slot of OUTFIT_SLOTS) {
+        const item = outfit.wear[slot];
+        state.equipped[slot] = item && state.unlocked.accessories.includes(item) ? item : null;
+      }
+      save();
+      return true;
+    },
+    deleteOutfit(id) {
+      const i = state.outfits.findIndex((o) => o.id === id);
+      if (i < 0) return false;
+      state.outfits.splice(i, 1);
+      save();
+      return true;
     },
     setMapMode(mode) {
       if (mode === 'north' || mode === 'turn') {
@@ -2083,6 +2121,7 @@ export function createProgression(storage) {
       const localVisits = state.visits;
       const localSeen = state.visitPrizesSeen;
       const localCustomCats = state.customCats;
+      const localOutfits = state.outfits;
       const localFights = state.fightsWon;
       const localMoves = state.fightMoves;
       try {
@@ -2098,6 +2137,8 @@ export function createProgression(storage) {
         state.customCats = localCustomCats;
         state.equipped.custom = null;
       }
+      // The same for saved outfits: an older build's payload has none to give.
+      if (!(isPlainObject(rawSaveObject) && Object.hasOwn(rawSaveObject, 'outfits'))) state.outfits = localOutfits;
       for (const id of prizesWonBy(state.visitPrizesSeen)) {
         if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
       }
