@@ -166,7 +166,7 @@ describe('her cat stands on the ground', () => {
     expect(walkSrc).toMatch(/camera\.lookAt\(cat\.position\.x, cat\.position\.y \+ CAT_LOOK_Y, cat\.position\.z\)/);
     expect(walkSrc).not.toMatch(/camera\.lookAt\(cat\.position\.x, CAT_LOOK_Y, cat\.position\.z\)/);
     // the session literal carries the ground for every later system
-    expect(walkSrc).toMatch(/const session = \{\n\s+scene, areaData, ground,/);
+    expect(walkSrc).toMatch(/const session = createSession\(\{\n\s+scene, areaData, ground,/);
     // the spawn rule itself, on the fixture's plateau
     const g = buildHeightFixture(new THREE.Scene()).ground;
     const cat = new THREE.Group();
@@ -1335,7 +1335,7 @@ describe('the whole branch stands on the ground', () => {
     const walk = read('game/walk.js');
     expect(walk).toMatch(/const ground = groundOf\(areaData\);/);
     expect(walk).toMatch(/player\.setGround\(ground\);/);
-    expect(walk).toMatch(/const session = \{\s*scene, areaData, ground,/);
+    expect(walk).toMatch(/const session = createSession\(\{\s*scene, areaData, ground,/);
     // Factories that take the ground in an options object: every call in
     // walk.js names `ground` (the walk's groundOf(areaData)).
     const takesGround = [

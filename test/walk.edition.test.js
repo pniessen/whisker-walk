@@ -331,7 +331,7 @@ describe('the clan in the walk (source pins)', () => {
 
   it('joins campMarker to the session literal, never assigned before it exists', () => {
     const w = readFileSync('src/game/walk.js', 'utf8');
-    const literal = w.indexOf('const session = {');
+    const literal = w.indexOf('const session = createSession({');
     expect(w.slice(0, literal)).not.toMatch(/session\.campMarker\s*=/);
     expect(w.slice(literal, literal + 4000)).toMatch(/\bcampMarker,/);
     expect(readFileSync('src/main.js', 'utf8')).toContain('mapFrame.camp = session.campMarker');
@@ -339,10 +339,10 @@ describe('the clan in the walk (source pins)', () => {
 
   it('joins clanCats to the session literal, never assigned before it exists', () => {
     const s = src();
-    const literal = s.indexOf('const session = {');
+    const literal = s.indexOf('const session = createSession({');
     expect(literal).toBeGreaterThan(-1);
     expect(s.slice(0, literal)).not.toMatch(/session\.clanCats\s*=/);
-    const body = s.slice(literal, s.indexOf('};', literal));
+    const body = s.slice(literal, s.indexOf('});', literal));
     expect(body).toMatch(/\bclanCats,/);
     expect(s).toContain('session.clanCats.dispose()');
   });
@@ -377,7 +377,7 @@ describe('the clan in the walk (source pins)', () => {
     const s = src();
     const at = s.indexOf('session.intruders = ');
     expect(at).toBeGreaterThan(-1);
-    expect(at).toBeGreaterThan(s.indexOf('const session = {'));
+    expect(at).toBeGreaterThan(s.indexOf('const session = createSession({'));
     expect(at).toBeGreaterThan(s.indexOf('const clanHome = '));
     expect(s.slice(0, at)).not.toMatch(/session\.intruders\s*=/);
     const call = s.slice(at, s.indexOf('NO_INTRUDERS', at));

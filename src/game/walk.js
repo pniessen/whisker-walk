@@ -137,6 +137,7 @@ import { bus } from '../events.js';
 import { createUnlockCelebration } from './celebrate.js';
 import { nowSec, escapeHtml, hashName } from './util.js';
 import { metOnly, deviceMetPlayers } from '../metplayers.js';
+import { createSession } from './session.js';
 
 // Every walkable area the game can build. Registering here is the last of
 // the three steps that make an area real: the builder module, the
@@ -1371,7 +1372,7 @@ export function createWalkLifecycle({
     // PointLight with castShadow false, added here so shaders compile with it
     // once. Draws on no rng.
     const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: duskActive }) ?? NO_AREA_LIFE;
-    const session = {
+    const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
@@ -1512,7 +1513,7 @@ export function createWalkLifecycle({
       pose: 'follow',
       stretchTime: 0,
       sniffTime: 0,
-    };
+    });
     setSession(session);
 
     // golden mice: personal, position-static, award-local — no wire events,

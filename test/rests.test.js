@@ -245,5 +245,5 @@ test('the walk adds the birdbath colliders to the walk\'s collider list before t
   expect(code.match(/createRests\(scene, propsFor\(areaId\)\.rests(, \{ ground \})?\)/g)).toHaveLength(1);
   const solid = code.indexOf('for (const c of rests.colliders) areaData.colliders.push(');
   expect(solid).toBeGreaterThan(code.indexOf('clearSpot(p, areaData.colliders'));
-  expect(solid).toBeLessThan(code.indexOf('const session = {'));
+  expect(solid).toBeLessThan(code.indexOf('const session = createSession({'));
 });
