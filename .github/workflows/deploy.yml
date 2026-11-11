@@ -39,9 +39,25 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Fetch the live site and fail the run if it is broken or is not this commit.
+  # Plain node (no npm ci): scripts/smoke.mjs uses only built-ins and GETs.
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Smoke check the live site
+        run: node scripts/smoke.mjs "${{ needs.deploy.outputs.page_url }}" --commit "$GITHUB_SHA" --retry-seconds 180
