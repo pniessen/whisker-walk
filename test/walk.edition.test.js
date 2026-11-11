@@ -308,7 +308,7 @@ describe('the clan in the walk (source pins)', () => {
     const s = src();
     // Kittypets (ruling R2, amended): the wanderer takes an ordinary loner's slot.
     const strays = s.indexOf('const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);');
-    expect(s.indexOf('createStrayCats(scene, areaData, strayCount, strayStream(roomSeed)')).toBeGreaterThan(strays);
+    expect(s.indexOf('createStrayCats(scene, areaData, strayCount, strayStream(roomSeed ?? soloSeed)')).toBeGreaterThan(strays);
     const clan = s.indexOf('castFor(areaId).slice(0, clanCountFor(tier.strays, fedHere))');
     const fed = s.indexOf('const fedHere = colonyCats.length;');
     expect(strays).toBeGreaterThan(-1);

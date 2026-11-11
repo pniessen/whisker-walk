@@ -1289,7 +1289,7 @@ describe('game/walk.js — where a legendary cat may appear', () => {
     // Ruling R2 (amended): the wanderer takes an ordinary loner's slot, never
     // a colony cat's, and only when it is passed.
     const callText = src.slice(call, src.indexOf('});', call));
-    expect(callText).toContain('createStrayCats(scene, areaData, strayCount, strayStream(roomSeed)');
+    expect(callText).toContain('createStrayCats(scene, areaData, strayCount, strayStream(roomSeed ?? soloSeed)');
     expect(src).toContain('const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);');
     expect(src).toContain('const strayCount = wanderStrayCount(loners, fedHere, !!wanderSpot);');
     // Kittypets are kept out of a territory's ordinary cast on every walk.

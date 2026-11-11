@@ -90,6 +90,7 @@ import { GOLD_MICE, createGoldMice } from '../goldmice.js';
 import { crossingOutcome } from '../bordercross.js';
 import { rivalForWalk, placeName, effectiveArea, isClanEdition } from '../edition.js';
 import { picksOf, homeWelcome } from '../clanhomes.js';
+import { newWalkSeed, restoreGoals, restoreTallies, resumeWelcome } from './walkresume.js';
 import { createEnemyWalkLog } from '../enemies.js';
 import { kittenPlan, createKittenEncounter } from '../kitten.js';
 import { raceCourse, createRace } from '../race.js';
@@ -223,6 +224,9 @@ export function createWalkLifecycle({
   // Fight moves and scars: her cat's rendered scars changed (a lost fight, a
   // walk's fade). main.js re-tracks the room profile and re-pushes the cloud one.
   onScarsChanged = () => {},
+  // Mid-walk resume: a walk that ends has nothing left to pick up (main.js
+  // forgets walkresume.js's note).
+  onWalkEnded = () => {},
 }) {
   // ------------------------------------------------------------------
   // v18 Task 2.7 — the in-walk skill-unlock celebration.
@@ -396,7 +400,10 @@ export function createWalkLifecycle({
   }
 
 
-  function startWalk({ duskMode = false, roomSeed, areaOverride } = {}) {
+  // `resume` is a walk picked up again (walkresume.js's note, main.js's boot):
+  // the same seed and stamp build the same walk, then the cat, the treasures,
+  // the goals and the tallies are put back. Solo only; never with a roomSeed.
+  function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null } = {}) {
     // A visit prize held for the tap (styles A and C) goes on FIRST, before
     // anything below reads state.equipped (the avatar, the collar/crown
     // perks). Style C never dims and A lets go after its reveal, so Start,
@@ -451,7 +458,13 @@ export function createWalkLifecycle({
     // randomness, give the new system its own seeded stream (sky life already
     // does this — see the note further down) rather than adding a second lazy
     // consumer here.
-    const walkRng = roomSeed !== undefined ? mulberry32(roomSeed) : Math.random;
+    //
+    // Solo, the stream is seeded as well (mid-walk resume): the seed is noted
+    // while the walk is on, and a walk picked up again draws the same weather,
+    // secrets, quest and goals from it. Nobody shares a solo seed, so draw
+    // order still does not matter solo. soloSeed is undefined in a room walk.
+    const soloSeed = roomSeed === undefined ? (resume?.seed ?? newWalkSeed()) : undefined;
+    const walkRng = mulberry32(roomSeed ?? soloSeed);
     const state = progression.state;
     // areaOverride: a joiner who hasn't unlocked the host's area still walks
     // there for this one co-walk, without progression.setArea persisting an
@@ -462,7 +475,8 @@ export function createWalkLifecycle({
     // — no weather/secrets/quest/strays/goals/race/goldMice/sky-life indoors,
     // but ghosts still visit and the kitten's home-stage still shows up.
     const isDen = areaId === 'den';
-    const walkStamp = 'walk-' + Date.now();
+    // A walk picked up again keeps its stamp: the same border warrior, the same song.
+    const walkStamp = resume?.stamp ?? 'walk-' + Date.now();
     const scene = new THREE.Scene();
     scene.environment = envMap;
     // scene.environmentIntensity is set a little further down, by
@@ -731,7 +745,11 @@ export function createWalkLifecycle({
     });
 
     const collectibleMeshes = new Map();
+    // A walk picked up again: what was already picked up stays picked up.
+    // No mesh in the map is all "collected" means (interactions.js).
+    const alreadyCollected = new Set(resume?.collected ?? []);
     for (const c of areaData.collectibles) {
+      if (alreadyCollected.has(c.id)) continue;
       const m = new THREE.Mesh(
         new THREE.SphereGeometry(0.18, 8, 8),
         litMaterial(0xf25c8a, { emissive: 0x5a1a30 })
@@ -908,7 +926,10 @@ export function createWalkLifecycle({
     // On a partner walk (ruling R40) the decision is `shared`: it reads only
     // the shared roll and the shared colony, never my own greets, so both
     // sisters' screens give the same answer.
-    const legend = colonyWalk && !isDen ? legendaryFor(state, areaId, legendaryRoll(roomSeed), { shared: roomSeed !== undefined }) : null;
+    // Solo the roll comes off the walk's own seed, so a walk picked up again
+    // rolls the same visitor (its spot too: the extras' rng below).
+    const soloLegendRoll = roomSeed === undefined ? mulberry32((soloSeed ^ 0x1e6e2d) >>> 0)() : 0;
+    const legend = colonyWalk && !isDen ? legendaryFor(state, areaId, roomSeed === undefined ? soloLegendRoll : legendaryRoll(roomSeed), { shared: roomSeed !== undefined }) : null;
     // Kittypets — now and then a kittypet wanders into the Woods, the River or
     // the Moor. housecats.js decides from the UTC day and the area (plus the
     // shared colony on a colony walk), so it draws nothing from walkRng or the
@@ -924,10 +945,10 @@ export function createWalkLifecycle({
     const wanderSpot = wanderName && !legend ? wanderSpotFor(clearSpot(wanderStart(areaData.spawn), areaData.colliders ?? [], areaData.bounds, areaData.waters ?? []), clanWalkableFor(areaData, areaId), DISCS[areaId]) : null;
     const extras = legend ? [{
       name: legend,
-      rng: mulberry32((seedFromCode(legend) ^ (roomSeed ?? Math.floor(Math.random() * 2 ** 31))) >>> 0),
+      rng: mulberry32((seedFromCode(legend) ^ (roomSeed ?? soloSeed)) >>> 0),
     }] : wanderSpot ? [{
       name: wanderName, wanderer: true, spot: wanderSpot,
-      rng: mulberry32((seedFromCode(wanderName) ^ (roomSeed ?? Math.floor(Math.random() * 2 ** 31))) >>> 0),
+      rng: mulberry32((seedFromCode(wanderName) ^ (roomSeed ?? soloSeed)) >>> 0),
     }] : [];
     // Clan Life Part 1 — in a territory with a camp, the clan's cats replace
     // strays one for one: lonersFor gives tier.strays − the clan shown − the
@@ -943,7 +964,7 @@ export function createWalkLifecycle({
     const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);
     // The wanderer takes an ordinary loner's slot, never a colony cat's.
     const strayCount = wanderStrayCount(loners, fedHere, !!wanderSpot);
-    const strayCats = createStrayCats(scene, areaData, strayCount, strayStream(roomSeed), {
+    const strayCats = createStrayCats(scene, areaData, strayCount, strayStream(roomSeed ?? soloSeed), {
       grudges: progression.grudgeNames?.() ?? [],
       collarFor: (name) => collarFor(progression.state, name),
       roomSeed,
@@ -1268,6 +1289,7 @@ export function createWalkLifecycle({
     // endWalk's goalsDone/summary) treats a null goals as "this walk has no
     // goal HUD" rather than crashing on it.
     const goals = isDen ? null : createGoals(walkRng, areaData);
+    if (resume) restoreGoals(goals, resume.goals);
     // Co-walk duo goal (Task 6.2): both clients derive this from the SAME
     // seeded goal pool + walkRng draw, then deterministically overwrite
     // slot 0 with an identical shared goal — no extra wire event needed to
@@ -1313,6 +1335,10 @@ export function createWalkLifecycle({
       ghosts: NO_GHOSTS,
       denCats,
       walkStamp,
+      // Mid-walk resume (walkresume.js): the solo walk's seed, and how many
+      // times picking this walk up has failed (main.js clears it once it runs).
+      soloSeed,
+      resumeTries: 0,
       // v21 Stream 2: solo, or a room whose every other member is my colony
       // partner (computed beside createStrayCats). Gates the live
       // 'colony-feed' event in game/interactions.js's feedStray.
@@ -1633,7 +1659,10 @@ export function createWalkLifecycle({
     // Null where no fight can happen (built after the border fight, so it is
     // there too).
     session.fightCam = session.clanFight !== NO_CLAN_FIGHT ? createFightCam({ occluders, colliders: areaData.colliders, bounds: areaData.bounds, reducedMotion, lookY: CAT_LOOK_Y, ground }) : null;
-    const welcome = isDen ? null : homeWelcome(areaId, progression.state);
+    // A walk picked up again (never the den) says so instead.
+    const welcome = resume
+      ? resumeWelcome(placeName(areaId, progression.state.edition, CATALOG) || areaData.name)
+      : isDen ? null : homeWelcome(areaId, progression.state);
 
     // v21 3b Task 16 — The dog in its yard. One per outdoor area (propsets.js's
     // dogYard; the den has none, so this is the inert NO_DOG there). Trot onto
@@ -1889,6 +1918,16 @@ export function createWalkLifecycle({
     // greys out the spots already visited this walk. A tap on the map flips
     // north-up / turning and remembers the choice in the save.
     session.scenicsVisited = isDen ? null : new Set();
+    // A walk picked up again: the tallies carry on, and the cat goes back to
+    // its spot, looking the way it looked. The spot is cleared like any other
+    // (it may have been a roof or mid-river): out of walls and water, onto
+    // the ground. Everything that follows the cat catches up on its first frame.
+    if (resume) {
+      restoreTallies(session, resume, { points: state.points });
+      const spot = clearSpot({ x: resume.x, z: resume.z }, areaData.colliders ?? [], areaData.bounds, areaData.waters ?? [], 0.6);
+      cat.position.set(spot.x, ground.y(spot.x, spot.z), spot.z);
+      player.setViewYaw(resume.yaw);
+    }
     session.minimap = isDen ? null : createMinimap(hud.mapHost, {
       areaId,
       layer: buildMapLayer(areaData, scene),
@@ -1949,6 +1988,7 @@ export function createWalkLifecycle({
   function endWalk({ crossTo = null, ledBy = null, together = null } = {}) {
     const session = getSession();
     if (!session) return;
+    onWalkEnded();
     // Who was here, read before the teardown below drops the room.
     const walkedWithNames = session.net ? session.remotes.list.map((r) => r.petName) : [];
     // session.areaId is the area actually walked (set in startWalk from

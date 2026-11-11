@@ -1399,7 +1399,7 @@ describe('the Gorge: the Snug Cave\'s cat', () => {
 
   it('walk.js gives the strays the area\'s homes', () => {
     const walkSrc = readFileSync(fileURLToPath(new URL('../src/game/walk.js', import.meta.url)), 'utf8');
-    expect(walkSrc).toMatch(/createStrayCats\(scene, areaData, strayCount, strayStream\(roomSeed\), \{[\s\S]*?homes: areaData\.strayHomes \?\? \[\],[\s\S]*?\}\);/);
+    expect(walkSrc).toMatch(/createStrayCats\(scene, areaData, strayCount, strayStream\(roomSeed \?\? soloSeed\), \{[\s\S]*?homes: areaData\.strayHomes \?\? \[\],[\s\S]*?\}\);/);
   });
 });
 
