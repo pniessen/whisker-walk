@@ -219,14 +219,16 @@ describe('Settings: switches, soft sliders, pill selects', () => {
 
   it('every settings checkbox goes through the switch row, ids unchanged', () => {
     const s = hb();
-    const at = s.indexOf('function renderSettings');
+    // Both halves of the old Settings: Sound & controls, then Game settings.
+    const at = s.indexOf('function renderControls');
     const body = s.slice(at, s.indexOf('function renderFriendCode', at));
     expect(body).not.toContain('type="checkbox"');
     for (const id of ['set-muted', 'set-invert-y', 'set-left-handed', 'set-reduced-motion', 'set-hide-chat', 'set-perf-readout']) {
       expect(body).toMatch(new RegExp(`settingsSwitchHtml\\('${id}', `));
     }
     expect(body).toContain('<button id="btn-reset" class="danger">Start over</button>');
-    expect(body).toContain('<h2>Settings ⚙️</h2>');
+    expect(body).toContain('<h2>Sound &amp; controls 🔊</h2>');
+    expect(body).toContain('<h2>Game settings ⚙️</h2>');
     expect(body).toContain('<input type="range" class="settings-range" id="set-volume" style="--fill:${pct}%" ');
     expect(body).toContain('<input type="range" class="settings-range" id="set-music-volume" style="--fill:${musicPct}%" ');
     expect(s).toContain("if (e.target.classList?.contains('settings-range')) e.target.style.setProperty('--fill', `${e.target.value}%`);");

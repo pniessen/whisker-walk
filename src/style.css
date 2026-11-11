@@ -1495,7 +1495,7 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .hb-tiles { gap: 16px; }
   .hb-tile { min-height: 150px; }
-  .homebase-scroll.hb-sheet[data-sheet="settings"] { max-width: 760px; }
+  .homebase-scroll.hb-sheet:is([data-sheet="settings"], [data-sheet="controls"]) { max-width: 760px; }
 }
 @media (min-width: 1400px) {
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(3, minmax(0, 1fr)); }

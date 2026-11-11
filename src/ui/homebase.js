@@ -288,14 +288,18 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return body;
   }
 
-  // Settings ⚙️ (Task 6): volume/mute/invert-Y/left-handed/reduced-motion,
-  // plus Start-over (moved here from the footer). Every control applies
-  // live via onSettingsChange — no reload, no walk restart. The volume
-  // slider is wired separately (an 'input' listener below, not this
-  // delegated click handler) so dragging it doesn't fight a render() every
-  // tick; the checkboxes and Start-over button DO go through the normal
-  // click-then-render() path since a discrete toggle has no drag to disrupt.
-  function renderSettings() {
+  // Settings ⚙️ (Task 6), in two halves since the navigation review: Sound &
+  // controls (the children's: volume, music, mute, the touch and look
+  // controls, the map, reduced motion, chat) and Game settings (the
+  // grown-ups': the edition, graphics, the fps readout and Start over, last
+  // with nothing under it). Only where each control is drawn changed: every
+  // id and its wiring below is as it was. Every control applies live via
+  // onSettingsChange — no reload, no walk restart. The volume slider is wired
+  // separately (an 'input' listener below, not this delegated click handler)
+  // so dragging it doesn't fight a render() every tick; the checkboxes and
+  // Start-over button DO go through the normal click-then-render() path since
+  // a discrete toggle has no drag to disrupt.
+  function renderControls() {
     if (!settings) return '';
     const s = settings.all();
     const pct = Math.round(s.volume * 100);
@@ -303,9 +307,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // The corner map's mode is kept on the save, not in settings, because
     // tapping the map during a walk flips the same value.
     const mapMode = progression.state.mapMode;
-    const edition = progression.state.edition;
     return `
-      <section class="settings-section"><h2>Settings ⚙️</h2>
+      <section class="settings-section"><h2>Sound &amp; controls 🔊</h2>
         <div class="settings-grid">
           <label class="settings-row settings-volume">
             <span class="settings-label">Volume</span>
@@ -318,9 +321,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <span id="set-music-volume-value" class="settings-volume-value">${musicPct}%</span>
           </label>
           ${settingsSwitchHtml('set-muted', !!s.muted, 'Mute all sound')}
-          ${settingsSwitchHtml('set-invert-y', !!s.invertY, 'Invert look (Y axis)')}
           ${settingsSwitchHtml('set-left-handed', !!s.leftHanded, 'Left-handed touch controls')}
-          ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
+          ${settingsSwitchHtml('set-invert-y', !!s.invertY, 'Invert look (Y axis)')}
           <label class="settings-row settings-quality">
             <span class="settings-label">Map</span>
             <select id="set-map-mode">
@@ -328,6 +330,19 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               <option value="turn" ${mapMode === 'turn' ? 'selected' : ''}>Turns with me</option>
             </select>
           </label>
+          ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
+          ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
+        </div>
+      </section>`;
+  }
+
+  function renderSettings() {
+    if (!settings) return '';
+    const s = settings.all();
+    const edition = progression.state.edition;
+    return `
+      <section class="settings-section"><h2>Game settings ⚙️</h2>
+        <div class="settings-grid">
           <label class="settings-row settings-quality">
             <span class="settings-label">Game edition</span>
             <select id="set-edition">
@@ -335,7 +350,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               <option value="legacy" ${edition === 'legacy' ? 'selected' : ''}>Legacy Edition</option>
             </select>
           </label>
-          ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
         </div>
         <h3 class="settings-group">Advanced</h3>
         <div class="settings-grid settings-advanced">
@@ -1010,6 +1024,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         </div></section>`;
       case 'sync': return `<section class="walk-together sync-cloud"><h2>Cloud save ☁️</h2>${renderSync()}</section>`;
       case 'settings': return renderSettings();
+      case 'controls': return renderControls();
       case 'code': return renderRedeemHtml({ text: redeemText, busy: redeemBusy, result: redeemResult, catalog: CATALOG });
       default: return '';
     }

@@ -18,17 +18,21 @@ import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
-// doors; the rest open from the Menu (six kid tiles, then the grown-ups row).
-export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'social'];
+// doors; the rest open from the Menu (the kid tiles, then the grown-ups row).
+// Sound & controls is the children's half of the old Settings (volume, the
+// touch controls); Game settings keeps the grown-ups' half (edition, quality,
+// Start over).
+export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'social', 'controls'];
 export const GROWNUP_SHEETS = ['settings', 'sync', 'code'];
 export const HOME_SHEETS = ['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS];
 export const SHEET_ICON = {
   menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', social: '👥', journal: '📖',
-  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁',
+  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁', controls: '🔊',
 };
 export const SHEET_NAME = {
   menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony', social: 'Friends',
-  journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Settings', code: 'Secret code',
+  journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Game settings', code: 'Secret code',
+  controls: 'Sound & controls',
 };
 export const SHEET_LABEL = Object.fromEntries(HOME_SHEETS.map((id) => [id, `${SHEET_ICON[id]} ${SHEET_NAME[id]}`]));
 // The den shop is not a home sheet: it lives inside the den (ui/denshopview.js).

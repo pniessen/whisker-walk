@@ -139,13 +139,13 @@ describe('the top bar', () => {
 });
 
 describe('the Menu', () => {
-  it('shows the six tiles, the stats line and the grown-ups row, with only Menu\'s doors available', () => {
+  it('shows the kid tiles, the stats line and the grown-ups row, with only Menu\'s doors available', () => {
     setup({ rooms: OPEN_ROOMS, sync: { available: true } });
     openSheet('menu');
     const h = html();
     expect(h).toContain('data-sheet="menu"');
     for (const id of MENU_TILES) expect(h).toContain(`<button class="hb-tile" data-dr-sheet="${id}">`);
-    expect(h.match(/class="hb-tile"/g)).toHaveLength(6);
+    expect(h.match(/class="hb-tile"/g)).toHaveLength(MENU_TILES.length);
     expect(h).toContain('class="hb-menu-stats"');
     expect(h).toContain('For grown-ups');
     for (const id of ['settings', 'sync', 'code']) expect(h).toContain(`<button class="hb-grownup" data-dr-sheet="${id}">`);
@@ -158,8 +158,8 @@ describe('the Menu', () => {
     const h = html();
     expect(h).not.toContain('data-dr-sheet="together"');
     expect(h).not.toContain('data-dr-sheet="sync"');
-    expect(h.match(/class="hb-tile"/g)).toHaveLength(5);
-    for (const id of ['colony', 'journal', 'album', 'skills', 'social']) expect(h).toContain(`data-dr-sheet="${id}"`);
+    expect(h.match(/class="hb-tile"/g)).toHaveLength(MENU_TILES.length - 1);
+    for (const id of ['colony', 'journal', 'album', 'skills', 'social', 'controls']) expect(h).toContain(`data-dr-sheet="${id}"`);
     expect(h).toContain('data-dr-sheet="settings"');
     expect(h).toContain('data-dr-sheet="code"');
   });
@@ -563,9 +563,8 @@ describe('Settings: Advanced', () => {
     expect(adv).toBeGreaterThan(0);
     expect(h.indexOf('id="set-perf-readout"')).toBeGreaterThan(adv);
     expect(h.indexOf('id="set-quality"')).toBeGreaterThan(adv);
-    // everyday settings stay above it
-    expect(h.indexOf('id="set-volume"')).toBeLessThan(adv);
-    expect(h.indexOf('id="set-muted"')).toBeLessThan(adv);
+    // the edition stays above it
+    expect(h.indexOf('id="set-edition"')).toBeGreaterThan(0);
     expect(h.indexOf('id="set-edition"')).toBeLessThan(adv);
   });
   it('the grown-ups sheets have no Start dock: nothing says Start under Start over', () => {
@@ -585,6 +584,55 @@ describe('Settings: Advanced', () => {
     expect(h).toContain('Walking in <b>');
     expect(h).toContain('id="btn-start"');
     expect(h).not.toContain('id="dusk-toggle"');
+  });
+});
+
+describe('Settings in two halves', () => {
+  const KIDS = ['set-volume', 'set-music-volume', 'set-muted', 'set-left-handed', 'set-invert-y', 'set-map-mode', 'set-reduced-motion', 'set-hide-chat'];
+  const GROWN = ['set-edition', 'set-quality', 'set-perf-readout', 'btn-reset'];
+  it('Sound & controls is a kid tile holding sound and the controls, in order, with a slim dock', () => {
+    setup();
+    openSheet('menu');
+    expect(html()).toMatch(/<button class="hb-tile" data-dr-sheet="controls"><span class="hb-tile-icon" aria-hidden="true">🔊<\/span><span class="hb-tile-name">Sound &amp; controls<\/span>/);
+    openSheet('controls');
+    const h = html();
+    expect(h).toContain('data-sheet="controls"');
+    expect(h).toContain('← Back to the menu');
+    const at = KIDS.map((id) => h.indexOf(`id="${id}"`));
+    expect(at.every((i) => i > 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    for (const id of GROWN) expect(h).not.toContain(`id="${id}"`);
+    expect(h).toContain('hb-sheet-dock');
+    expect(h).toContain('id="btn-start"');
+    expect(h).not.toContain('id="dusk-toggle"');
+  });
+  it('Game settings, under For grown-ups, keeps the edition, graphics, the readout, and Start over last', () => {
+    setup();
+    openSheet('menu');
+    expect(html()).toContain('<button class="hb-grownup" data-dr-sheet="settings"><span aria-hidden="true">⚙️</span> Game settings</button>');
+    openSheet('settings');
+    const h = html();
+    expect(h).toContain('<h2>Game settings ⚙️</h2>');
+    for (const id of GROWN) expect(h).toContain(`id="${id}"`);
+    for (const id of KIDS) expect(h).not.toContain(`id="${id}"`);
+    // Start over is the last thing on the sheet: no dock under it
+    const reset = '<button id="btn-reset" class="danger">Start over</button>';
+    expect(h.slice(h.indexOf(reset) + reset.length).replace(/<\/section>|<\/div>|\s/g, '')).toBe('');
+  });
+  it('the controls keep their wiring from the new sheet', () => {
+    const set = vi.fn();
+    const onChange = vi.fn();
+    const progression = createProgression(memStorage());
+    const s2 = { get: () => null, set, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
+    createHomeBase(progression, { photos: [] }, () => {}, null, null, null, s2, onChange, () => {}, null, 'me', () => {}).show();
+    openSheet('controls');
+    doc.root.listeners.click({ target: { id: 'set-left-handed', checked: true, dataset: {}, closest: () => null } });
+    expect(set).toHaveBeenCalledWith('leftHanded', true);
+    doc.root.listeners.input({ target: { id: 'set-volume', value: '40', dataset: {}, style: { setProperty() {} }, classList: { contains: () => true } } });
+    expect(set).toHaveBeenCalledWith('volume', 0.4);
+    doc.root.listeners.change({ target: { id: 'set-map-mode', value: 'turn', dataset: {} } });
+    expect(progression.state.mapMode).toBe('turn');
+    expect(onChange).toHaveBeenCalled();
   });
 });
 
