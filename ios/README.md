@@ -135,6 +135,13 @@ it again with the refresh and load the save back with its code.
 
 ## For developers
 
+- Cloud saves (the Save tile) are switched on by `VITE_SUPABASE_URL` and
+  `VITE_SUPABASE_ANON_KEY` in `.env.local`, which is only in the main checkout
+  and is baked into the game when it is built. The refresh refuses to build
+  without them and checks the built game still has them, so the children
+  never get an app they can't load a save into. On a nightly run that means
+  the last good version goes on instead, with an alert.
+
 - `npm run build:ios` builds the app's copy of the game into `ios/web/`
   (gitignored). The website build (`npm run build`) is unchanged.
 - `ios/WhiskerWalk.xcodeproj` is the app. `xcodebuild test -project

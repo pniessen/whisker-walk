@@ -20,7 +20,8 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory } from './refresh-lib.mjs';
+import { loadEnv } from 'vite';
+import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory, cloudProblem } from './refresh-lib.mjs';
 import {
   planNight, isGameRunning, nightNotice, notifyScript, latestResults, stillPending,
   takeLock as takeLockFile, dropLock as dropLockFile,
@@ -234,10 +235,24 @@ function checkMain() {
   throw new StepFailed(check.reason, { reason });
 }
 
+// Cloud saves are baked into the game at build time (from .env.local). A
+// game built without them has no Save tile, so never ship one: check the
+// settings Vite will use before building, and the built game after.
+function checkCloud(builtDir) {
+  const env = loadEnv('ios', process.cwd(), 'VITE_');
+  const bundle = builtDir === undefined ? undefined : readdirSync(join(builtDir, 'assets'))
+    .filter((name) => name.endsWith('.js'))
+    .map((name) => readFileSync(join(builtDir, 'assets', name), 'utf8'))
+    .join('\n');
+  const problem = cloudProblem(env, bundle);
+  if (problem) throw new StepFailed(`Not shipping a game without cloud saves: ${problem}.`, { reason: problem });
+}
+
 // Test, build and sign main. On success (except --dev) it becomes the last
 // good version the nightly run can fall back to.
 function freshBuild() {
   if (!dev) checkMain();
+  checkCloud();
   const commit = git('rev-parse', 'HEAD'); // what is tested and built
   // The same tests the website deploy runs. Only the repo's own test/
   // folder: in the main checkout, a bare `npm test` would also collect the
@@ -247,6 +262,7 @@ function freshBuild() {
   logged('tests', 'npx', ['vitest', 'run', '--dir', 'test'], { reason: 'the tests failed on main', timeout: TIMEOUT.tests });
   step('Building the game for the app');
   logged('build-ios', 'npm', ['run', 'build:ios'], { reason: 'the game build failed', timeout: TIMEOUT.buildIos });
+  checkCloud('ios/web');
   renewProfile();
   step('Building and signing the app');
   const profile = build('generic/platform=iOS');
