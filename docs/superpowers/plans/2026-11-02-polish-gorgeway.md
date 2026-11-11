@@ -8,7 +8,7 @@
 
 **Tech Stack:** Three.js 0.185, Vite 8, Vitest 4. Plain ES modules.
 
-**Spec:** `scratchpad/polish-survey-2.md` rows polish #4 and #5 and "Build B1", plus `scratchpad/polish-common.md` (both in `/private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/`).
+**Spec:** `scratchpad/polish-survey-2.md` rows polish #4 and #5 and "Build B1", plus `scratchpad/polish-common.md` (both in `<scratchpad>/`).
 
 ## Global Constraints
 

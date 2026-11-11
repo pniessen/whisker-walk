@@ -4,13 +4,13 @@ Date: 2026-10-31. Status: design only, no product code. Built against the `woods
 
 ## 1. Intent and why
 
-Our 11-year-old playtester asked for it: she wants to make her own cat from scratch, give it a name, and then dress it up the way she dresses cats today. Her 9-year-old brother gets the same builder. Each kid plays on their own iPhone, and sometimes they walk together.
+The older playtester asked for it: they want to make her own cat from scratch, give it a name, and then dress it up the way she dresses cats today. The younger playtester gets the same builder. Each kid plays on their own iPhone, and sometimes they walk together.
 
-The owner and his daughter have already decided the following. These decisions are binding:
+The owner and the older playtester have already decided the following. These decisions are binding:
 
 - She **builds the cat first** and then **accessorises it in the dressing room**, exactly as cats are dressed today. The builder is the step before accessorising.
 - **The choices are:** coat colour, markings colour, pattern (Solid, Tabby stripes, Pointed, Patches, White socks), fur (Short, Fluffy, Long-haired), eye colour, size (small to big), a name, and a personality.
-- **The personality is one of the six that already exist:** keen nose, chaser, pouncer, napper, fearless or steady. A custom cat is never stronger than a ready-made one. That keeps things fair for the 9-year-old.
+- **The personality is one of the six that already exist:** keen nose, chaser, pouncer, napper, fearless or steady. A custom cat is never stronger than a ready-made one. That keeps things fair for the younger playtester.
 - **The builder is free from the start** and works the same in Legacy and Clan Edition.
 - **Each kid can have up to 3 custom cats.**
 - **She can edit a cat any time:** looks, personality or name. Its accessories stay on.
@@ -19,7 +19,7 @@ The owner and his daughter have already decided the following. These decisions a
 ## 2. Goals, non-goals, anti-goals
 
 **Goals**
-- She can make a cat that looks like hers, walk it, dress it and show it to her brother on a co-walk.
+- She can make a cat that looks like hers, walk it, dress it and show it to the partner on a co-walk.
 - A custom cat plays exactly like the ready-made cat that has the same personality.
 - Each kid keeps up to three custom cats. She can change any of them later.
 
@@ -65,7 +65,7 @@ Custom cat names use the game's existing rule, `validPetName` in `src/net.js`:
 - only letters, spaces and hyphens;
 - no word from `NAME_BLOCKLIST` (a substring match).
 
-The hint under the field reuses the pet-name sheet's exact words: "Pet names are 2–16 letters, spaces, or hyphens." Using the same rule matters for co-walks. Every build, old or new, already accepts any name that passes it, so her brother's phone never shows "Mystery Cat" instead. Two of her cats may share a name. A custom cat may share a name with a stray, because a custom cat never enters the colony, which is the only place stray names are keys.
+The hint under the field reuses the pet-name sheet's exact words: "Pet names are 2–16 letters, spaces, or hyphens." Using the same rule matters for co-walks. Every build, old or new, already accepts any name that passes it, so the partner's phone never shows "Mystery Cat" instead. Two of her cats may share a name. A custom cat may share a name with a stray, because a custom cat never enters the colony, which is the only place stray names are keys.
 
 ## 4. How it's built
 
@@ -170,7 +170,7 @@ Today `rooms.js` sends `{ playerId, petName, breed: equipped.cat, accessories: {
 - `sanitizeProfile` accepts the preset breed and the name, which passes the same `validPetName`.
 - It passes the accessories object to `buildCat`, which reads only the seven named slot keys and ignores `look`.
 
-So her brother sees a Tabby (or Siamese, or the right preset) in her outfit, labelled with her cat's name. Nothing throws, and nothing desyncs.
+So the partner sees a Tabby (or Siamese, or the right preset) in her outfit, labelled with her cat's name. Nothing throws, and nothing desyncs.
 
 **What a new build does.**
 - `sanitizeProfile` and `sanitizeGhostProfile` add `look = sanitizeLook(accessories.look)`.
@@ -228,14 +228,14 @@ The room profile is tracked at join (`rooms.js`). If she finishes the builder wh
 
 ## 7. Open questions for the owner (ranked)
 1. **Personalities she hasn't bought.** Fearless, Pouncer and Steady belong to Black Cat, Calico and Maine Coon, which cost 45, 45 and 60 paws. Reading "free from the start, any of the six" literally, a custom cat can have them right away. Buying those three would then only buy their looks. **Recommended: yes, all six from the start, as decided.** Say if you'd rather lock a personality until its cat is bought.
-2. **Whose name does her brother see?** While she walks her cat Ember, the design shows "Ember" on the cat's name tag in co-walks, ghosts and the roster. The colony panel, which names the player, keeps her usual pet name. The alternative is to keep her usual pet name everywhere.
+2. **Whose name does the partner see?** While she walks her cat Ember, the design shows "Ember" on the cat's name tag in co-walks, ghosts and the roster. The colony panel, which names the player, keeps her usual pet name. The alternative is to keep her usual pet name everywhere.
 3. **No delete at 3 cats.** At 3, she changes one of her cats instead of deleting it. Is that OK, or should there be a "let this cat go" button with a confirm?
 
 ---
 
 ## Owner's answers (2026-10-31): these settle §7's open questions
 
-1. **Co-walk name:** her brother sees **her usual pet name** whichever cat she walks as. The custom cat's name shows only on her own screen. The profile's `pet_name` (ghosts, friend list, walk log, reply seeds) never changes when she switches cats, so the plan must not reuse `petName` for the cat's name.
+1. **Co-walk name:** the partner sees **the player's usual pet name** whichever cat she walks as. The custom cat's name shows only on her own screen. The profile's `pet_name` (ghosts, friend list, walk log, reply seeds) never changes when she switches cats, so the plan must not reuse `petName` for the cat's name.
 2. **Personalities:** **all six are open from the start**, whether or not she owns the matching ready-made cat ("free from the start"). The Personality row has no locked state and no buy path.
 3. **At 3 custom cats:** **no delete button.** She makes a new cat by reopening the builder on one of her three and changing it. No removal API, no id reuse, and no confirm UI.
 

@@ -22,7 +22,7 @@
 - Long geometry tests get explicit timeouts (120_000). Float fixtures use `closeDiffs`.
 - Tests: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**'`; also `npm run build`.
 - Commits: explicit `git add <paths>`; every message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Per-task measure: `TAG=<task> OUTF=<scratch>/snaps-polish-gorgerock2/scripts/measure.out npx vitest run -c <scratch>/snaps-polish-gorgerock2/scripts/vitest.gr.config.js` (prints meshes, casters, tris, shellTris, per-mesh `named`). `<scratch>` = `/private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad`.
+- Per-task measure: `TAG=<task> OUTF=<scratch>/snaps-polish-gorgerock2/scripts/measure.out npx vitest run -c <scratch>/snaps-polish-gorgerock2/scripts/vitest.gr.config.js` (prints meshes, casters, tris, shellTris, per-mesh `named`). `<scratch>` = `<scratchpad>`.
 
 Before (measured at 5ab279f): meshes 60, casters 36, tris 59,307; groundPlane 4,608; rockFaces 10,488 (shell 8,688); ledgeTops 398; lips 4,551 (shell 1,251); scree 12,260; tor* 1,188; summitRockBoulder 36; gorgeMeadow 3,136; narrowsDressing 1,066.
 

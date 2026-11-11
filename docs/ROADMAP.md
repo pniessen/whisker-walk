@@ -134,7 +134,7 @@ destinations.
 
 ---
 
-## v16 — "Together" (sibling/multiplayer wave)
+## v16 — "Together" (partner/multiplayer wave)
 
 Theme: playing *with* each other, not just near each other. The killer wave
 for a two-kid household.

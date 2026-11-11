@@ -16,7 +16,7 @@
 
 ## Rules for every task
 
-- Work in `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.worktrees/polish-viewclear2` (branch polish-viewclear2) only.
+- Work in `<repo>/.worktrees/polish-viewclear2` (branch polish-viewclear2) only.
 - No Math.random in build paths. Add no new meshes, materials or geometries in any area build: the waterlooks BUILD_DRAWS pins must not move.
 - The flat trace stays sha256 d2657f02…72f0.
 - Tests: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**' <files>`. Give long tests explicit timeouts.

@@ -33,7 +33,7 @@ All five were found the hard way — a builder check against the source killed t
 - Both leaders (`-star`), all four den roles, the inviter's clan name winning at pairing, and derived rather than chosen colony-cat names.
 - Every 3b answer is already recorded in the clan spec's §11, so **3b needs no second brainstorm**.
 
-## Before you build Phase 4, ask the real 11-year-old
+## Before you build Phase 4, ask the real older playtester
 She reads the books, she is the reason this stream exists, and the v21 spec says she overrules the roleplayed playtest readers. Worth asking about: the word pools, the fact that a colony cat's clan name is revealed rather than chosen, and whether four rival clans sound good or annoying.
 
 ## Process (unchanged — it worked for Stream 2)
@@ -59,7 +59,7 @@ Carried forward unchanged from the previous hand-off, still accurate:
 - To find things in the 3D world without changing code: import `/node_modules/.vite/deps/three.js?v=…` (take the exact URL from `performance.getEntriesByType('resource')`), then wrap `Object3D.prototype.updateMatrixWorld` to grab the scene — `WebGLRenderer.render` is per-instance, so patching its prototype does nothing. Stray name tags are sprites with `userData.tagName`; find the player's cat by pushing the joystick and seeing which non-stray cat moves.
 
 ## Small follow-ups still open (not Stream 3a)
-- A sibling alone in the pair room can start a walk; if the other then joins and becomes host, a second walk can start in the same room.
+- A partner alone in the pair room can start a walk; if the other then joins and becomes host, a second walk can start in the same room.
 - Six toasts stack over the cat at a taming moment.
 - The sticky home-base header takes about half a phone screen — that belongs to Stream 5.
 - `.claude/launch.json` has a redundant `whisker-walk-colony` config on port 5175 that can be deleted.

@@ -8,11 +8,11 @@
 
 **Tech Stack:** Three.js 0.185, Vite 8, Vitest 4, Playwright (headless Chromium from ~/CLAUDE-CODE/projects/chess-game) for the live check.
 
-**Spec:** the controller's brief (survey items #6, #9, #13, #15 and polish-5's parked tail note) in `/private/tmp/claude-501/-Users-pniessen-CLAUDE-CODE-projects-cat-game/6f2ddd3a-4768-4d57-890f-2d7e74238375/scratchpad/polish-survey.md` (ranked list ~line 54) and the shared rules in `.../scratchpad/polish-common.md`. Before shots: `.../scratchpad/snaps-polish-catlooks/before/` (sit-front, perch-front, lineup-perch-three, hagrid-*, scars-*, walk-rear, digit-stalk-*, home-*, walkgame-*).
+**Spec:** the controller's brief (survey items #6, #9, #13, #15 and polish-5's parked tail note) in `<scratchpad>/polish-survey.md` (ranked list ~line 54) and the shared rules in `.../scratchpad/polish-common.md`. Before shots: `.../scratchpad/snaps-polish-catlooks/before/` (sit-front, perch-front, lineup-perch-three, hagrid-*, scars-*, walk-rear, digit-stalk-*, home-*, walkgame-*).
 
 ## Global Constraints
 
-- Work only in `/Users/pniessen/CLAUDE-CODE/projects/cat-game/.worktrees/polish-catlooks` (branch `polish-catlooks`). Never push, never merge, never edit `.claude/launch.json`. Dev server (controller only) on port 5196.
+- Work only in `<repo>/.worktrees/polish-catlooks` (branch `polish-catlooks`). Never push, never merge, never edit `.claude/launch.json`. Dev server (controller only) on port 5196.
 - Files this build owns: `src/cat/*`, `src/scars.js`, `test/fixtures/catgolden.json`, `test/fixtures/hagrid-golden.json`. Do not edit `src/world/*`, `src/weather.js`, `src/render/water.js`, `src/nametag.js`, `src/fightcam.js`, `src/ui/fightui.js`. Tests may be added/edited anywhere under `test/`.
 - Determinism: no `Math.random` in any build or walk code; no new draws on `walkRng` or the stray stream. Variation comes from sines of position or `hash01`/`mulberry32`.
 - `test/fixtures/flat-trace.json` stays at sha256 `6b502ab6b1f9ce328fd6c6b7ce656fd473e50670708fac53985590bc9f0e54a7`; only Task 8 may re-record it, and only if every changed key is a contact-shadow/render size (positions and movement byte-identical).

@@ -174,7 +174,7 @@ past, and must never fire while the player is frozen already.
 grudge is cleared from the save and the cat becomes greetable again (and the
 greet then proceeds normally). "Could become a friend again" allows this to be
 probabilistic, but a failed offer must not consume the gift, or the mechanic
-becomes a slot machine a ten-year-old will hate.
+becomes a slot machine a young player will hate.
 
 ### D7 — The gift is a treat bought with whisker points (resolved 2026-08-27)
 
@@ -190,7 +190,7 @@ collect → give → collect farm. It is the wrong currency.
 
 Points are the only non-farmable, scalable currency the game has; the cost is
 symmetric with the 5-point scuffle; and "buy the cat a treat to say sorry"
-reads correctly to a ten-year-old.
+reads correctly to a young player.
 
 **The offer is deterministic — it always works.** The spec originally allowed
 "could become a friend again" to be probabilistic. It is not, for a reason

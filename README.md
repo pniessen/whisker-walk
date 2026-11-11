@@ -143,7 +143,7 @@ duet, rally a yarn ball, nap in a pile and patrol together.
 3. Anyone in the room can press **Start the walk together**. The walk starts
    for everyone, in the area of whoever pressed it.
 
-Siblings who share a colony get a **Walk with …** button instead, so there's no
+Partners who share a colony get a **Walk with …** button instead, so there's no
 code to type. Fights are only ever against computer-run cats, never another
 player.
 

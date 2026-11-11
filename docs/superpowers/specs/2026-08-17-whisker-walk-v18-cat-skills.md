@@ -199,7 +199,7 @@ race, ambience, weather, ghosts, and co-walks with no per-system work.
 
 - No skill tree, prerequisites, or branching — twelve flat unlocks.
 - No respec, no loadout, no skill points.
-- No PvP or competitive use of abilities in co-walks. If one sibling has Spring
+- No PvP or competitive use of abilities in co-walks. If one partner has Spring
   Paws and the other doesn't, the co-walk still works; abilities are local and
   need no wire representation. **This is load-bearing: no new broadcast kind,
   no net protocol change.**
@@ -274,7 +274,7 @@ ability that opens it. The Docks was deliberately authored for exactly this.
 The spec describes Far Call as a **held** V press. `main.js` fires `doMeow()` on
 keydown with no keyup plumbing, so hold detection means new input handling in an
 untested module for no gameplay gain. **The spec text is what is wrong here, not
-the implementation** — and a plain press is simpler for a ten-year-old.
+the implementation** — and a plain press is simpler for a young player.
 
 ### The Long Zoomies wording was wrong (CF-11)
 

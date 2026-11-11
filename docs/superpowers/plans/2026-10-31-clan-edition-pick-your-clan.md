@@ -8,11 +8,11 @@
 - **Clan ids are the home territory ids:** `woods`, `moor`, `river`, `pines` and `gorge`. "Your clan's home" is then just `areaId === pick`.
 - **Homage words** live in `src/clanwords.js`. The **structural data** (each clan's neighbours, whether it can be picked yet, the truce places, the patrol rule) lives in a new leaf, `src/clanhomes.js`.
 - **`rivalFor(areaId, picks)` keeps one fixed disc per area.** Only the clan that owns the disc depends on the picks, and it is worked out from an unordered set of picks. So two devices holding the same picks compute the same patrol.
-- **That is not a promise that two devices always agree.** Each device holds its own cached copy of the sibling's pick.
+- **That is not a promise that two devices always agree.** Each device holds its own cached copy of the partner's pick.
   - A device may briefly hold a stale copy. The room-join pull refreshes it and skips the throttle (Task 5).
   - In a co-walk with a friend who is not the colony partner, neither device knows the other's pick at all.
-  - Either way the mismatch is cosmetic: a different patrol clan name and coat on one screen. It takes nothing, and it never makes the sibling's own clan hostile to the sibling.
-- **The pick is an additive save field.** The sibling's pick reaches the other device through the public profile row that already exists, and is cached in the save. No SQL is needed.
+  - Either way the mismatch is cosmetic: a different patrol clan name and coat on one screen. It takes nothing, and it never makes the partner's own clan hostile to the partner.
+- **The pick is an additive save field.** The partner's pick reaches the other device through the public profile row that already exists, and is cached in the save. No SQL is needed.
 
 **Tech Stack:** Three.js 0.185, Vite 8, Vitest 4, plain ES modules.
 
@@ -69,16 +69,16 @@ The owner answered the clan questions on 2026-10-31. The coordinator ruled on th
 - **D5. Where picking happens.**
   - A "Pick your clan" row of cards in the **Where to** pill, above the territory map (Clan Edition only).
   - A select in Settings, labelled `` `Your ${CLAN_SUFFIX.toLowerCase()}` `` (Clan Edition only).
-- **D6. Reaching the sibling: coordinator's ruling. No SQL change.**
+- **D6. Reaching the partner: coordinator's ruling. No SQL change.**
   - Each device publishes its pick as `home` inside the `accessories` jsonb of its public profile row. `upsert_profile` already stores any jsonb, and no reader iterates its keys.
   - A paired colony pull reads the partner's row, at most once a minute, and caches the pick in `state.clanPick`.
-  - **Coordinator's ruling:** the pull made on joining the siblings' room skips that minute's throttle.
+  - **Coordinator's ruling:** the pull made on joining the partners' room skips that minute's throttle.
   - A cached pick is only ever replaced by a valid one, never cleared, unless the partner changes. So a partner on an old build can't erase it.
 - **D7. Patrols: decided by the owner.** In your own clan's territory, a neighbouring clan patrols at the same camp. Each territory has one fixed disc (its "camp"). Its clan is:
   - the territory's own clan, if neither kid picked it;
   - otherwise the first neighbour, in the row's order, that neither kid picked;
   - otherwise no patrol.
-  - **Note (2026-10-31, owner's decision for clan life):** once Clan Life Part 1 lands, the owner has decided that intruders replace this neighbour patrol at your own camp: on land where you are at home (your clan's or your sibling's), no patrol runs. That supersedes D7 for the clan-life era. Build D7 here as written; Clan Life Part 1, Task 5 (`docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`) gates the patrol off at home, and Part 2 (`docs/superpowers/plans/2026-10-31-clan-life-2-intruders-fights.md`) adds the intruders.
+  - **Note (2026-10-31, owner's decision for clan life):** once Clan Life Part 1 lands, the owner has decided that intruders replace this neighbour patrol at your own camp: on land where you are at home (your clan's or your partner's), no patrol runs. That supersedes D7 for the clan-life era. Build D7 here as written; Clan Life Part 1, Task 5 (`docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`) gates the patrol off at home, and Part 2 (`docs/superpowers/plans/2026-10-31-clan-life-2-intruders-fights.md`) adds the intruders.
 - **D8. Camp spots: coordinator's ruling. They stay as proposed.**
   - **Woods:** (2, −43), r 6. It sits in the north glade across the river, facing the Moor.
     - Its ring reaches z −49, about 1 m from the map's north edge (z −50). **Coordinator's ruling: accepted.**
@@ -93,8 +93,8 @@ The owner answered the clan questions on 2026-10-31. The coordinator ruled on th
 - **D9. Old areas don't change.** The Neighborhood/Twolegplace, Park, Seaside and Docks keep HedgeClan, AlderClan, DuneClan and HeronClan, whatever the picks.
 - **D10. Colony title.**
   - It shows your clan, e.g. "StormClan".
-  - When the sibling's pick differs, it shows "StormClan & GaleClan · allies".
-  - **Coordinator's ruling:** "· allies" shows only when `mine` is set. A kid who hasn't picked sees the minted name alone, even if the sibling has picked.
+  - When the partner's pick differs, it shows "StormClan & GaleClan · allies".
+  - **Coordinator's ruling:** "· allies" shows only when `mine` is set. A kid who hasn't picked sees the minted name alone, even if the partner has picked.
 - **D11. Coming home.** A walk that starts in your own clan's territory toasts once: "Home to StormClan's land 🏡".
 
 ## The questions, as answered (2026-10-31)
@@ -116,7 +116,7 @@ The chosen word is in bold; the rest are spares.
 
 ## Review Focus
 
-1. **The partner's pick is unknown or stale** (not paired, offline, or the sibling on an old build that pushes a profile without `home`). Expected: a known pick is never forgotten, and an unknown one simply isn't excluded. Test: Task 5, "an old-build profile without home keeps the cached pick".
+1. **The partner's pick is unknown or stale** (not paired, offline, or the partner on an old build that pushes a profile without `home`). Expected: a known pick is never forgotten, and an unknown one simply isn't excluded. Test: Task 5, "an old-build profile without home keeps the cached pick".
 2. **Any pair of picks, the same pick, or only one pick.** Expected: the patrol clan is never a pick, and the same set of picks gives the same clan in either order. Test: Task 2, an exhaustive loop over every territory × every ordered pair of picks, asserting that the result is not a pick and that it is symmetric. Devices whose cached picks differ may show different patrol names; that is cosmetic (see Architecture).
 3. **Legacy** (a Legacy save with a pick, or a Legacy kid in a co-walk). Expected: no patrol, no picker, no homage name, and the pick kept. Tests: Task 3 (`rivalForWalk` legacy null), Task 4 (the flip invariant still deep-equal), Task 7 (no picker in Legacy).
 4. **Hostile payloads.** A cloud save `clanPick` of `{ mine: '__proto__' }`, a profile `home` of `'constructor'`, `42` or `'gorge'` from a newer build, or a bad `partnerId`. Expected: sanitised, never thrown; a known id like `'gorge'` survives even though it can't be picked here. Tests: Tasks 4 and 5.
@@ -227,7 +227,7 @@ gorge: ['Cliff', 'Cloud', 'Hawk', 'Falcon'],
 Freeze each list and each object.
 
 The header comment says:
-- these are homages chosen with the 11-year-old (decision 3);
+- these are homages chosen with the older playtester (decision 3);
 - `HOMAGE_PREFIXES` holds the names chosen on 2026-10-31, and the rest of each list are spares, so a change is one line;
 - once a name has shipped, change a value only if she asks, because nothing is stored by name (saves store the id).
 
@@ -591,7 +591,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: The pick reaches the sibling's device
+### Task 5: The pick reaches the partner's device
 
 **Files:**
 - Modify: `src/game/rooms.js` (`pushProfileNow`), `src/game/colonysync.js`
@@ -642,7 +642,7 @@ test('a newly learned partner pick fires onChange exactly once', async () => {
   // vi.setSystemTime past PICK_FETCH_MS; the same pick comes back: no change, no call
   await cs.pull();
   expect(onChange).not.toHaveBeenCalled();
-  // the sibling changes clan
+  // the partner changes clan
   // (script.fetchProfiles now returns home 'river'; vi.setSystemTime past PICK_FETCH_MS again)
   await cs.pull();
   expect(onChange).toHaveBeenCalledTimes(1);
@@ -823,7 +823,7 @@ There is **no** rendered-HTML borrowed-word test: "Pick your clan" renders the w
 `test/colonypanel.test.js`:
 - the title reads "StormClan & GaleClan · allies" for different picks;
 - just "StormClan" for the same pick;
-- just the minted name when only the sibling has picked;
+- just the minted name when only the partner has picked;
 - unchanged, the minted name, with no pick;
 - empty in Legacy.
 

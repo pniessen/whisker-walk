@@ -1,6 +1,6 @@
 # Body refinement: ruff, legs and feet, and Hagrid: design
 
-*2026-11-01. From the 11-year-old playtester ("the bodies need more work —
+*2026-11-01. From the playtester ("the bodies need more work —
 much better than before, but let's keep refining to make them more
 realistic") and the owner's notes on screenshots. Approved by the owner on a
 3D sketch, iterated five times in chat:
@@ -100,7 +100,7 @@ was a big step, but up close three things still read as a toy:
   the full-build ceiling may rise to 9,000 (simple stays 5,500); the plan
   says so with measured numbers. The `simple` build never changed legs and
   is also used for the remote co-walker, ghosts and rival strays, so a
-  sibling's cat looks the same on both screens: simple may use fewer sides,
+  partner's cat looks the same on both screens: simple may use fewer sides,
   never a different leg shape.
 - **The paw contract stays:** `leg.userData.paw` remains a separate mesh at
   `PAW_Y` with the sole where it is today, because the feet accessories

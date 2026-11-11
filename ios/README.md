@@ -48,7 +48,7 @@ in System Settings → Notifications (that's how the job posts them).
 
 On its last day, the app itself shows a banner: *"This game needs a refresh
 soon — ask a grown-up! It stops opening tomorrow."* It only appears if the
-last night's renewal didn't happen, so if the children mention it, run the
+last night's renewal didn't happen, so if the players mention it, run the
 refresh by hand.
 
 ```bash
@@ -117,7 +117,7 @@ save. The refresh always installs over the top, which keeps it.
 7. **Bring the cat across** (next section).
 
 **If an iPad can't run iPadOS 17 or later,** the app can't go on it. That
-child plays in Safari instead: open https://pniessen.github.io/whisker-walk/,
+player plays in Safari instead: open https://pniessen.github.io/whisker-walk/,
 tap **Share → Add to Home Screen**.
 
 ## Bringing a cat across from Safari
@@ -146,7 +146,7 @@ together takes one tap and no code:
    device, even on an earlier day, that device also shows the offer as a card
    over the cat's screen: **"Mittens is starting a walk nearby. Join?"**
    **Not now** puts the card away for that room.)
-3. Both cats are in the room. Either child taps **Start the walk together**.
+3. Both cats are in the room. Either player taps **Start the walk together**.
 
 What to know:
 
@@ -159,9 +159,9 @@ What to know:
 - **The cat needs a name** (Play together → the name box). Tapping Join
   without one opens the name box and says so.
 - **iOS asks once: "Whisker Walk 2 would like to find and connect to devices
-  on your local network."** It asks the first time a child opens
+  on your local network."** It asks the first time a player opens
   **Play together** on that device, never when the app starts, and never for
-  a child who only plays alone. Tap **Allow** on both devices.
+  a player who only plays alone. Tap **Allow** on both devices.
 - **If someone tapped Don't Allow,** nothing breaks: the game says nothing
   about it and rooms are joined with the typed code. To switch it on later:
   **Settings → Privacy & Security → Local Network → Whisker Walk 2** → on
@@ -180,7 +180,7 @@ What to know:
 - Cloud saves (the Save tile) are switched on by `VITE_SUPABASE_URL` and
   `VITE_SUPABASE_ANON_KEY` in `.env.local`, which is only in the main checkout
   and is baked into the game when it is built. The refresh refuses to build
-  without them and checks the built game still has them, so the children
+  without them and checks the built game still has them, so the players
   never get an app they can't load a save into. On a nightly run that means
   the last good version goes on instead, with an alert.
 

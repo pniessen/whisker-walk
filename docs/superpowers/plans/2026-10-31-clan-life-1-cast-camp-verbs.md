@@ -12,7 +12,7 @@
 - **Clan cats replace strays one for one.** In a territory with a camp, the walk spawns `lonersFor(areaId, tier.strays, fedHere)` ordinary strays: `tier.strays − clan count − 1` (the 1 is the intruder slot Part 2 fills). HIGH: 16 + 1 + 5 = 22. LOW: 9 + 1 + 4 = 14. Fewer strays from the same stream is a prefix of today's cast, so no existing draw moves. The old areas and the den call `createStrayCats` with exactly today's arguments.
 - **Fed colony cats keep their places.** Colony cats already take the loner slots first (`createStrayCats` puts them at the head of the cast). On HIGH, when a territory holds more than 5 fed-but-untamed colony cats, the extra clan slots (9–15) give way one for one, down to the core 9, so up to 12 fed cats stay visible (see "The loner trade-off" below).
 - **Edition-independent world, edition-dependent words.** Every device in a territory spawns the same clan cats in the same places. Legacy shows them as plain cats, with no tag, prompt or camp marker. Clan Edition adds tags, prompts and map marks.
-- **"At home"** is `clanHomeFor(areaId, edition, picks)`: Clan Edition, and the territory's clan is your pick or your sibling's (decision 9, using the pick-your-clan plan's `picksOf`). At home there is no hostile camp patrol: intruders replace it (owner's decision 2026-10-31, superseding pick-your-clan's D7 for the clan-life era). Everywhere else today's patrol rules stand.
+- **"At home"** is `clanHomeFor(areaId, edition, picks)`: Clan Edition, and the territory's clan is your pick or your partner's (decision 9, using the pick-your-clan plan's `picksOf`). At home there is no hostile camp patrol: intruders replace it (owner's decision 2026-10-31, superseding pick-your-clan's D7 for the clan-life era). Everywhere else today's patrol rules stand.
 - **Clan cats are a separate list** (`session.clanCats`), never in `strayCats.strays`, and their names are never stray names. So the feed prompt, grudges and the colony can't see them. That is structural: two independent halves, as `isGrudgeableStray` documents.
 
 **Tech Stack:** Three.js 0.185, Vite 8, Vitest 4, plain ES modules.
@@ -51,14 +51,14 @@
 ## Owner's decisions and rulings (2026-10-31)
 
 **Owner's decisions** (answered in chat, relayed by the coordinator):
-1. **Home patrol: intruders replace the neighbour patrol at your own camp.** At home (your clan's land or your sibling's) no patrol chases you off the camp. This **supersedes pick-your-clan's D7 for the clan-life era**; that plan's D7 carries a dated note pointing here.
-2. **Name words:** the 36 words in Task 1, as listed. (The 28 extra words that the busier HIGH camp needs were added afterwards by the coordinator's ruling 4 below; they are the builder's picks and still want the 11-year-old's look.)
+1. **Home patrol: intruders replace the neighbour patrol at your own camp.** At home (your clan's land or your partner's) no patrol chases you off the camp. This **supersedes pick-your-clan's D7 for the clan-life era**; that plan's D7 carries a dated note pointing here.
+2. **Name words:** the 36 words in Task 1, as listed. (The 28 extra words that the busier HIGH camp needs were added afterwards by the coordinator's ruling 4 below; they are the builder's picks and still want the older playtester's look.)
 3. **Each clan has its own colours**, so a clan's cats read as one family at a glance and an intruder stands out. Each clan has a small palette of coats that suits its land (StormClan browns and tabbies, GaleClan light greys and creams, BrookClan grey-blues and silvers, DuskClan blacks and dark tortoiseshells; CliffClan later). A cat's coat is derived from its clan and slot, never stored, so both devices match; intruders wear their own clan's colours.
 4. **A busier camp** than 1 leader, 1 elder, 2 kits, 3 warriors and 2 apprentices.
 
 **Coordinator's rulings:**
 - **The HIGH cast** (ruling on decision 4): 1 leader, 1 deputy (`RANK_KEYS.deputy`, named with a warrior suffix, tag "deputy of StormClan"), 2 elders, 4 kits, 5 warriors, 3 apprentices: **16 clan cats + 1 intruder slot + 5 loners = 22**. **LOW (14):** the core 9 + 1 + 4.
-- An intruder from either kid's clan (own or sibling's) never starts a fight for anyone; it just walks through (Part 2).
+- An intruder from either kid's clan (own or partner's) never starts a fight for anyone; it just walks through (Part 2).
 - The fight's teach line shows in every fight (Part 2).
 - No intruder dot on the corner map; spotting it is part of the fun.
 - The personality edges and the award values stay as proposed.
@@ -88,13 +88,13 @@
 
 ## Still open (small; build the default unless told otherwise)
 
-- The 28 extra name words (slots 9–15) and the palettes are the builder's picks; show them to the 11-year-old. Any word or colour she changes is one line.
+- The 28 extra name words (slots 9–15) and the palettes are the builder's picks; show them to the older playtester. Any word or colour she changes is one line.
 
 ## Review Focus
 
 1. **A co-walk on different tiers or editions** (one device high, one low; one Legacy). Expected: the core 9 clan cats at the same spots on both, with the HIGH device's extra 7 in their own places; Legacy unlabelled but the same coats. Test: Task 3 "the cast agrees across tiers as a prefix, and across editions exactly".
 2. **The colony in a territory** (6–12 fed loners on HIGH, a full colony, a low-tier device). Expected: every fed cat up to 12 (HIGH) or 4 (LOW) still stands at its spot; the camp's core 9 never thins; clan cats never offer a feed prompt. Tests: Task 1 "fed cats beyond 5 take the extra clan slots", Task 3 "fed colony cats stay visible", Task 5 "a clan cat never gets the feed prompt".
-3. **A kid with no pick, or a stale sibling pick.** Expected: every territory is someone else's land: greet only, today's patrol. Test: Task 1 `clanHomeFor` with `[]` picks; Task 5 "no boop or patrol prompt away from home".
+3. **A kid with no pick, or a stale partner pick.** Expected: every territory is someone else's land: greet only, today's patrol. Test: Task 1 `clanHomeFor` with `[]` picks; Task 5 "no boop or patrol prompt away from home".
 4. **A clan cat spot on a bad place** (water, a tree, the camp patrol ring, off the map). Expected: never. Test: Task 2's built-map checks for every spot and roaming circle.
 5. **Hostile or unknown ids** (`'__proto__'`, `'island'`, `'den'`, a future `'gorge'` with no row). Expected: no cast, today's stray count, no throw. Test: Task 1 "unknown areas have no cast and keep today's strays".
 
@@ -230,7 +230,7 @@ test('fed cats beyond 5 take the extra clan slots, never the core', () => {
   expect(clanCountFor(14, 12)).toBe(9); // LOW never drops below the core
   for (const bad of [NaN, -3, '7', undefined]) expect(clanCountFor(22, bad)).toBe(16);
 });
-test('clanHomeFor: your pick or your sibling\'s, Clan Edition only', () => {
+test('clanHomeFor: your pick or your partner\'s, Clan Edition only', () => {
   expect(clanHomeFor('woods', 'canon', ['woods'])).toBe(true);
   expect(clanHomeFor('woods', 'canon', ['moor', 'woods'])).toBe(true);
   expect(clanHomeFor('woods', 'canon', [])).toBe(false);
@@ -268,7 +268,7 @@ pines: ['Cone', 'Bog', 'Slate', 'Resin', 'Needle', 'Beetle', 'Toad', 'Frog', 'Ad
 
 Append `'Rootpaw', 'Toadkit', 'Troutkit', 'Mintpaw', 'Mintfur'` to `DENIED_NAMES` (in its RiverClan / "the rest" lines; a comment says why).
 
-All 64 were checked on 2026-10-31 with a throwaway test: every word × every suffix passes `validPetName`, none contains a canon clan word, none is a `PREFIXES`, `CAT_PREFIXES`, `RIVAL_PREFIXES`, homage (or homage spare), stray, kit or legendary word, and the fixed-suffix slots have no doubled join. `CLAN_COATS` lives in `clancast.js` (colours aren't words); freeze every row. Freeze each list and the object. The header comment says: hand-picked, our own words; a word that fails a test is swapped for one that passes the same tests, never the rule weakened; once shipped, a value changes only if the 11-year-old asks, because nothing stores it. No gorge row yet: the Gorge adds one when its camp lands. Do not add these words to the scanner's `BORROWED` list.
+All 64 were checked on 2026-10-31 with a throwaway test: every word × every suffix passes `validPetName`, none contains a canon clan word, none is a `PREFIXES`, `CAT_PREFIXES`, `RIVAL_PREFIXES`, homage (or homage spare), stray, kit or legendary word, and the fixed-suffix slots have no doubled join. `CLAN_COATS` lives in `clancast.js` (colours aren't words); freeze every row. Freeze each list and the object. The header comment says: hand-picked, our own words; a word that fails a test is swapped for one that passes the same tests, never the rule weakened; once shipped, a value changes only if the older playtester asks, because nothing stores it. No gorge row yet: the Gorge adds one when its camp lands. Do not add these words to the scanner's `BORROWED` list.
 
 The `DENIED_NAMES` list can't know every book name. Before committing, read the 64 words' kit, paw and star names once against a published character list (the builder's own check, as `DENIED_NAMES` was built); move any hit to a warrior slot within its own clan's list, as above, and add it to `DENIED_NAMES`.
 
@@ -484,7 +484,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `mapMarkers(frame)` adds `{ kind: 'camp', x, z, color }` when `frame.camp` is set. It is pushed **first**, so every other marker draws over it.
   - `minimap.js` draws `camp` as a small dome with a dark door in `color` with a white outline, and pins it to the rim when off the map (the kid can always find the way back to camp).
   - `walk.js`: a local beside `clanCats` (Task 3), `const campMarker = !isDen && isClanEdition(state) && clanCast.length ? { x: cx, z: cz, color: CLAN_COLOURS[areaId] } : null` (centre from `campLayout`), joined to the `session` literal (around line 1061) as `campMarker,`; `main.js` sets `mapFrame.camp = session.campMarker`. Pin in `test/walk.edition.test.js`: no `session.campMarker =` before `const session = {`, and the literal holds `campMarker,`.
-  - `CAMP_AT: Readonly<Record<ClanId, [number, number]>>` in `territories.js`, SVG board points inside each built region: woods `[575, 400]` (the north glade, facing the Moor), river `[244, 470]`; the Moor's point is read off its camp row the same way (its place in the region relative to the Moor map's centre). `territoryMapModel(state, catalog)` gives each region a `camp: { x, y, color, mine, ally } | null`: set only in Clan Edition, for a region whose `id` has a camp (`castFor(id).length`); `mine` when `state.clanPick.mine === id`; `ally` when the sibling's current pick (via `picksOf`) is `id` and it isn't `mine`.
+  - `CAMP_AT: Readonly<Record<ClanId, [number, number]>>` in `territories.js`, SVG board points inside each built region: woods `[575, 400]` (the north glade, facing the Moor), river `[244, 470]`; the Moor's point is read off its camp row the same way (its place in the region relative to the Moor map's centre). `territoryMapModel(state, catalog)` gives each region a `camp: { x, y, color, mine, ally } | null`: set only in Clan Edition, for a region whose `id` has a camp (`castFor(id).length`); `mine` when `state.clanPick.mine === id`; `ally` when the partner's current pick (via `picksOf`) is `id` and it isn't `mine`.
   - `renderTerritoryMapHtml` draws, for a region with `camp`, `<g class="tm-camp[ mine][ ally]"><title>…</title>` + a small dome icon at `(x, y)` in `color`. `mine` adds a gold ring and a slightly larger icon; `ally` a thin white ring. The `<title>` reads `` `${clanName(id)} camp` ``. Camp icons sit inside the region's `<g>` but after its tap target, with `pointer-events: none`, so a tap still selects the place.
 
 - [ ] **Step 1: Write the failing tests**
@@ -628,9 +628,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `docs/superpowers/specs/2026-10-31-clan-life-design.md` (the readings, under its 2026-10-31 answers note)
 
-- [ ] **Step 1: Two browsers, one co-walk** (`npm run dev`; two profiles paired as siblings, picks StormClan and BrookClan):
+- [ ] **Step 1: Two browsers, one co-walk** (`npm run dev`; two profiles paired as partners, picks StormClan and BrookClan):
   - Walk the Woods together, both on HIGH. Both screens show the same 16 clan cats in the same places, in StormClan browns, and the same loners. Then one device on LOW: it shows the core 9 in the same places. Both kids get boop and patrol offers (the Woods is home to one and ally land to the other). No patrol circles the camp.
-  - Start a patrol on one screen: on the other, that warrior walks beside the sister's cat.
+  - Start a patrol on one screen: on the other, that warrior walks beside the partner's cat.
   - Flip one device to Legacy and repeat: the same cats, no tags, no prompts, no camp marker.
   - Walk the Moor (nobody's clan): touch noses only; GaleClan's patrol chases you off the camp.
   - The corner map shows the camp (pinned to the rim when far); the territory map shows each camp, yours ringed in gold.

@@ -187,7 +187,7 @@ Every fix independently re-probed with hostile payloads.
     *inside* the project, so vitest's default glob collects their copied suites
     and silently multiplies the count.
   - **`npx`/`node` are not on PATH** in agent sandboxes. The direct shim always
-    works: `/Users/pniessen/.local/share/mise/shims/npx vitest run --dir test`.
+    works: `npx vitest run --dir test`.
   - **A worktree has no `node_modules`** — resolution walks up to the parent
     repo's, which is why nesting worktrees inside the project works at all.
     Do **not** "fix" this by running `npm install` in a worktree.

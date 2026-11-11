@@ -99,5 +99,5 @@ Nothing is lost. Every cat, feed and tamed cat stays in the colony, on the serve
 
 If a child has moved anyway, you can link the new device back to the colony:
 
-1. Unpair the **old** device's player id, as in section 5. Its friend code is the one shown in **Social** on the old device. If that device is gone, look up the sibling's player id the same way: the old id is the other `colony_members` row with the same `colony_id`.
-2. On the sibling's device, tap **Get a sharing code**, and type it in on the new device. The sibling who stayed must be the one who gets the code.
+1. Unpair the **old** device's player id, as in section 5. Its friend code is the one shown in **Social** on the old device. If that device is gone, look up the partner's player id the same way: the old id is the other `colony_members` row with the same `colony_id`.
+2. On the partner's device, tap **Get a sharing code**, and type it in on the new device. The partner who stayed must be the one who gets the code.

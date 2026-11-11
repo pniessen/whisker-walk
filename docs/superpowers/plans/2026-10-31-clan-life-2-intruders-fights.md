@@ -26,7 +26,7 @@
 
 - Everything in Part 1's Global Constraints holds here too (streams, co-walk agreement, budget, SAVE_VERSION 4, our own words and the borrowed-word scan, reduced motion, tests by membership, commits, the test command).
 - **Losing a fight changes nothing in progression.** No points, cats, unlocks, marks, walks, taming, grudges or feats. `src/fight.js`, `src/intruders.js` and `src/ui/fightui.js` import nothing that stores progress; `src/game/clanfight.js` is given no progression; its lose path is asserted structurally and by behaviour (Task 4).
-- **Never sibling against sibling:** a kid is never offered a fight against a cat of either kid's clan (`picks.includes(intruder.clan)` → no fight). Fights only on land where you are at home, never in Legacy, the old areas, the island or someone else's territory.
+- **Never partner against partner:** a kid is never offered a fight against a cat of either kid's clan (`picks.includes(intruder.clan)` → no fight). Fights only on land where you are at home, never in Legacy, the old areas, the island or someone else's territory.
 - **Not a reflex test:** any tap within the answer window counts the same; speed never matters. The clue is honest: it always shows the move that follows.
 - **Budget:** one intruder mesh at a time, inside the slot Part 1 reserved (`INTRUDER_SLOTS = 1`). A fight adds only short-lived `fx` bursts and the DOM panel.
 - **Phone first:** the three move buttons sit in the bottom third of the screen, full width, each at least 88 px tall, with the safe-area inset. Desktop also takes keys.
@@ -36,7 +36,7 @@
 Recorded in full in Part 1's "Owner's decisions and rulings". The ones this part builds on:
 - **Owner's decision:** at home, intruders replace the neighbour patrol at your own camp (supersedes pick-your-clan's D7 for the clan-life era).
 - **Owner's decision:** each clan has its own colours; **intruders wear their own clan's colours** (Part 1's `member.style`), so a GaleClan cream on StormClan's brown land stands out.
-- **Ruling:** an intruder from either kid's clan (own or sibling's) never starts a fight for anyone; it just walks through.
+- **Ruling:** an intruder from either kid's clan (own or partner's) never starts a fight for anyone; it just walks through.
 - **Ruling:** the teach line shows in every fight.
 - **Ruling:** no intruder dot on the corner map; spotting it is part of the fun. (Nothing in this plan adds one; Task 2's test pins that `mapMarkers` has no intruder kind.)
 - **Ruling:** the personality edges and award values below stay as proposed.
@@ -67,8 +67,8 @@ Recorded in full in Part 1's "Owner's decisions and rulings". The ones this part
 
 ## Review Focus
 
-1. **Two kids at home press Fight on the same intruder at once.** Expected: both fights run; one's loss never lets it walk while the other still fights; it flees on both screens if either wins, and both are paid once; a later "walked on" never un-flees it. Tests: Task 2 "holds are counted", Task 5 "a sibling's loss doesn't release the intruder while my fight is on", "fighting together", "fled wins over walked-on, in either order".
-2. **The intruder belongs to a kid's clan** (sister picked GaleClan, a GaleClan warrior crosses StormClan's woods). Expected: no fight for either kid; it is a cat passing through. Test: Task 2 "an ally clan's cat is never hostile".
+1. **Two kids at home press Fight on the same intruder at once.** Expected: both fights run; one's loss never lets it walk while the other still fights; it flees on both screens if either wins, and both are paid once; a later "walked on" never un-flees it. Tests: Task 2 "holds are counted", Task 5 "a partner's loss doesn't release the intruder while my fight is on", "fighting together", "fled wins over walked-on, in either order".
+2. **The intruder belongs to a kid's clan** (the partner picked GaleClan, a GaleClan warrior crosses StormClan's woods). Expected: no fight for either kid; it is a cat passing through. Test: Task 2 "an ally clan's cat is never hostile".
 3. **A kid who never taps.** Expected: each round is lost only after the full window (4 s, or 5 s with the longer look); the second look replays once. Test: Task 3 "timeouts lose slowly, and the second look replays once".
 4. **The fight is interrupted** (walk ends, the tab hides, the co-walker leaves, the device is Legacy). Expected: no award, no stuck input, intruder released; Legacy never shows the panel. Tests: Task 4 "ending the walk mid-fight releases the cat and pays nothing", "Legacy never shows the panel".
 5. **Hostile or stale events** (`visit` not a number, another area, a sender who isn't a remote, a `done` for a visit that has ended). Expected: ignored, never thrown. Test: Task 5.
@@ -429,14 +429,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - **Sending (this task):** `createClanFight` gains `sendEvent` (walk.js passes `(ev) => session.net?.sendEvent(ev)`; nothing is sent solo). It sends `{ v: 1, id, type: 'intruder-fight', area, visit }` at `startFight`, and `{ v: 1, id, type: 'intruder-done', area, visit, fled }` when its fight ends (won, lost or `abort`).
   - **Receiving:** `applyRemoteEvent` handles both, on every device and edition (it is world state only, like `tip` and `carry-drop`): the sender must be a remote in this walk (`list.find`); `area === s.areaId`; `Number.isInteger(visit)` and `visit === s.intruders.current()?.visit`; `fled` a boolean. Then:
     - `intruder-fight`: `s.intruders.hold(visit, ev.id, remote.group.position)` (a counted, non-local holder); if my challenge pill is up for that visit, hide it and toast `` `${petName} is already facing ${name}!` ``; my own fight on the same visit (both pressed at once) carries on.
-    - `intruder-done`, `fled: false`: `s.intruders.release(visit, ev.id)`. **My own fight is still a holder, so a sibling's loss never lets the intruder walk on while I'm fighting it.**
+    - `intruder-done`, `fled: false`: `s.intruders.release(visit, ev.id)`. **My own fight is still a holder, so a partner's loss never lets the intruder walk on while I'm fighting it.**
     - `intruder-done`, `fled: true`: `s.intruders.flee(visit)` (a later release is a no-op, so a win beats a loss whichever order they arrive in). If I'm mid-fight on that visit, my fight ends and **I get the award too** (owner question 1 ruling): `s.clanFight.chasedOffTogether(visit)` pays `log.awardOnce('intruder', `intruder-${visit}`, `chased off ${name} together`)` and toasts `` `You and ${petName} chased ${name} off together! 🏃` ``. The per-visit key means each kid is paid exactly once: if I had already won, nothing more. A kid who was only watching gets nothing.
   - Nothing else on the receiving side: no points beyond that one shared award, no saves, no feats besides the award's own tally.
 
 - [ ] **Step 1: Write the failing tests**
-- `the sister's fight holds the intruder on my screen, facing her cat`;
+- `the partner's fight holds the intruder on my screen, facing her cat`;
 - `fled wins over walked-on, in either order`;
-- **`a sibling's loss doesn't release the intruder while my fight is on`**: my fight holds it; a remote `intruder-done` `fled: false` arrives; it is still held until my own fight ends;
+- **`a partner's loss doesn't release the intruder while my fight is on`**: my fight holds it; a remote `intruder-done` `fled: false` arrives; it is still held until my own fight ends;
 - `fighting together: when either wins, both are paid once`: I'm mid-fight, a remote `fled: true` arrives → one `intruder` award for me, my fight ends; a second `fled: true`, or my own win on the same visit, pays nothing more; a watching device (no fight) gets no award;
 - `hostile and stale events are ignored`: a non-remote sender, another area, `visit` of `'3'`, `NaN`, `-1`, a past visit, `fled: 'yes'`, a missing `s.intruders`: no call, no throw;
 - `Legacy screens follow too` (a session with `clanEdition: false` still holds and flees);
@@ -470,13 +470,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `docs/superpowers/specs/2026-10-31-clan-life-design.md` (§4 "Co-walks": the two-event answer; the defaults table above, as built)
 
-- [ ] **Step 1: Two browsers, one co-walk** (siblings, StormClan and GaleClan; then one device on Legacy):
-  - In the Woods, both screens show the same intruder on the same route. A GaleClan intruder is offered to nobody (it's the sister's clan); a BrookClan one is offered to both.
+- [ ] **Step 1: Two browsers, one co-walk** (partners, StormClan and GaleClan; then one device on Legacy):
+  - In the Woods, both screens show the same intruder on the same route. A GaleClan intruder is offered to nobody (it's the partner's clan); a BrookClan one is offered to both.
   - One kid fights: the other screen shows the intruder held, facing her cat, then fleeing (win) or walking on (loss). Both press Fight at once: no stuck intruder; one loses and one wins → it flees on both screens and both kids get the award once.
   - On Legacy: the intruder walks, holds and flees, with no tag and no panel.
   - Lose a fight: points, colony, marks and feats are unchanged (compare the save before and after in devtools).
 - [ ] **Step 2: Phone check** on the iPhone 18, portrait **and landscape**: the three buttons are under the thumb, readable at arm's length, no toast covers them, the joystick and zoom buttons are hidden during the fight, nothing covers the two cats, and "Fight!" walks the cat over. Then the draw reading, the same protocol as Part 1 (HIGH, Auto off, 10 s average after warm-up, draws recorded) at the **Woods, River and Moor** camps, mid-fight and once with an intruder walking past the busy camp in view, beside Part 1's camp readings. Expect the intruder to add about 24 main-pass draws plus its shadow draws (it casts, like a roaming warrior) and the dust bursts a few; 60 fps held. If not, stop and report; Part 1's lever order is the owner's call, not this task's.
-- [ ] **Step 3: The fairness note.** Ask the owner to let the 9-year-old play five fights and the 11-year-old five. Record the wins in the commit body. If he wins far fewer (the anti-goal), the first fix is `TIMING.answer`, then the teach line's size; never make losing cost anything.
+- [ ] **Step 3: The fairness note.** Ask the owner to let the younger playtester play five fights and the older playtester five. Record the wins in the commit body. If he wins far fewer (the anti-goal), the first fix is `TIMING.answer`, then the teach line's size; never make losing cost anything.
 - [ ] **Step 4: Run the whole suite**
 
 Run: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**'`
