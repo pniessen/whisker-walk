@@ -1633,9 +1633,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
 
   return {
-    // show({ sheet }): a walk that ended at a border post opens Change place
-    // ('places'). The Menu and Change place are doors, so coming home from a
-    // walk started under one (the den) lands on the cat.
+    // show({ sheet }): a border crossing that could not pick its place opens
+    // Change place ('places'); one that picked it lands on the cat, like
+    // every other walk.
     show(opts) {
       const sheet = resolveSheet(opts?.sheet);
       redeemResult = null; // a stale "Surprise!" or catnap line must not outlive a walk

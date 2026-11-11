@@ -623,8 +623,12 @@ function init() {
     if (e.target.id === 'btn-cross-no') crossing.cancel();
     if (e.target.id === 'btn-summary-continue') {
       overlay.classList.add('hidden');
+      // takeCrossing() also clears the crossing. A crossing that picked the new
+      // place lands on home, whose Today's walk card already shows it; one
+      // that could not pick it (not open yet, or not enough 🐾) opens Change
+      // place, where that place says what is missing.
       const c = takeCrossing();
-      homebase.show(c && c.clan ? { sheet: 'places' } : undefined);
+      homebase.show(c && c.clan && !c.picked ? { sheet: 'places' } : undefined);
       sync.autoSync(); // fire-and-forget; no-op when unlinked/offline
       pullThenNews(); // fire-and-forget; catches up feeds made on this walk, then the news card
     }
