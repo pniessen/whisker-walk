@@ -1,4 +1,5 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
+import { note } from './diagnostics.js';
 import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_PERSONALITIES } from './customcats.js';
 import { sanitizeOutfits, wornNow, canSaveOutfit, nextOutfitId, OUTFIT_SLOTS } from './outfits.js';
 import { sanitizeUsage, bumpUsage, mergeUsage } from './usage.js';
@@ -1046,6 +1047,7 @@ function readBackup(storage, kind) {
     return { at: asFiniteNonNeg(w.at, null), raw: w.raw };
   } catch (err) {
     console.warn('Whisker Walk: could not read save backup', err);
+    note('save', err);
     return null;
   }
 }
@@ -1056,11 +1058,12 @@ function writeBackup(storage, kind, raw) {
     return true;
   } catch (err) {
     console.warn('Whisker Walk: could not write save backup', err);
+    note('save', err);
     return false;
   }
 }
 function removeBackup(storage, kind) {
-  try { storage.removeItem?.(BACKUP_KEYS[kind]); } catch (err) { console.warn('Whisker Walk: could not clear save backup', err); }
+  try { storage.removeItem?.(BACKUP_KEYS[kind]); } catch (err) { console.warn('Whisker Walk: could not clear save backup', err); note('save', err); }
 }
 // The first unreadable save is kept until it is restored: a later one only
 // replaces it when the kept copy is not even JSON and the new one is.
@@ -1107,14 +1110,17 @@ function loadState(storage) {
       backUpUnreadable(storage, raw);
       if (newerSave(first)) {
         console.warn('Whisker Walk: save is from a newer version, keeping it and starting fresh');
+        note('save', 'save is from a newer version');
         return { state: defaultState(), changed: false, farewell: null, failed: true, keepMain: true };
       }
       console.warn('Whisker Walk: incompatible save, starting fresh');
+      note('save', 'incompatible save');
       return { state: defaultState(), changed: false, farewell: null, failed: true };
     }
   } catch (err) {
     if (raw) backUpUnreadable(storage, raw);
     console.warn('Whisker Walk: could not read save, starting fresh', err);
+    note('save', err);
     if (raw) return { state: defaultState(), changed: false, farewell: null, failed: true };
   }
   return { state: defaultState(), changed: false, farewell: null };
@@ -1137,6 +1143,7 @@ export function createProgression(storage) {
       storage.setItem(SAVE_KEY, JSON.stringify(state));
     } catch (err) {
       console.warn('Whisker Walk: could not write save', err);
+      note('save', err);
     }
   };
 
@@ -2240,6 +2247,7 @@ export function createProgression(storage) {
         storage.setItem(SAVE_KEY, JSON.stringify(rawSaveObject));
       } catch (err) {
         console.warn('Whisker Walk: could not write cloud save', err);
+        note('cloud', err);
       }
       adopt(loadState(storage));
       state.visits = Math.max(localVisits, state.visits);
@@ -2296,6 +2304,7 @@ export function createProgression(storage) {
         storage.setItem(SAVE_KEY, b.raw);
       } catch (err) {
         console.warn('Whisker Walk: could not restore save backup', err);
+        note('save', err);
         return false;
       }
       const loaded = loadState(storage);
@@ -2304,6 +2313,7 @@ export function createProgression(storage) {
           if (before) storage.setItem(SAVE_KEY, before); else storage.removeItem?.(SAVE_KEY);
         } catch (err) {
           console.warn('Whisker Walk: could not put the save back', err);
+          note('save', err);
         }
         return false;
       }

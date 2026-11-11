@@ -25,7 +25,9 @@ export function formatPerfLines(s) {
   const worst = hasData ? s.worstMs.toFixed(1) : DASH;
   return [
     `${fps} fps · ${ms} ms · worst ${worst} ms (3 s)`,
-    `cpu ${s.workMs.toFixed(1)} ms`,
+    // The build stamp rides on this line (when given), so a ?perf screenshot
+    // from a child's device says which build it came from.
+    `cpu ${s.workMs.toFixed(1)} ms${s.build ? ` · build ${s.build}` : ''}`,
     `tier ${s.tierName} · setting ${s.quality} · touch ${s.coarse ? 'yes' : 'no'}`,
     `shadow ${s.shadowMapSize > 0 ? s.shadowMapSize : 'off'} · postFx ${onOff(s.postFx)} · normals ${onOff(s.normalMaps)}`,
     s.adapt,
@@ -76,7 +78,7 @@ export function formatDiagHtml(entries, total, open, shown = DIAG_SHOWN) {
   return head + lines.join('');
 }
 
-export function createPerfHud({ renderer, settings, coarse, adapter, diagnostics = null }) {
+export function createPerfHud({ renderer, settings, coarse, adapter, diagnostics = null, build = '' }) {
   const stats = createFrameStats();
   const counter = createRenderCounter(renderer);
   // One snapshot object, refilled on each refresh, so formatPerfLines gets a
@@ -88,6 +90,7 @@ export function createPerfHud({ renderer, settings, coarse, adapter, diagnostics
     pixelRatio: 1, bufferW: 0, bufferH: 0, strays: 0,
     adapt: '',
     device: '',
+    build: String(build || ''),
     frame: counter.frame,
   };
 

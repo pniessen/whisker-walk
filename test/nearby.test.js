@@ -462,11 +462,12 @@ describe('main.js wiring', async () => {
     expect(main).toContain('const nearbySeen = () => nearby.setVisible(!document.hidden);');
     expect(main).toContain("document.addEventListener('visibilitychange', nearbySeen);");
   });
-  it('the module never touches the walk\'s random numbers: its only imports are the two checks', () => {
+  it('the module never touches the walk\'s random numbers: its only imports are the two checks and the diagnostics record', () => {
     expect(mod).not.toMatch(/walkRng|Math\.random|fetch\(/);
     expect(mod.match(/^import .*$/gm)).toEqual([
       "import { validPetName } from '../net.js';",
       "import { TYPED_CODE } from './rooms.js';",
+      "import { note } from '../diagnostics.js';",
     ]);
   });
 });

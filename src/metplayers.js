@@ -1,3 +1,4 @@
+import { note } from './diagnostics.js';
 // The players THIS device has met: booped on a walk, or added by friend code.
 //
 // The server's friendships table can be written by anyone for any pair
@@ -40,6 +41,7 @@ export function createMetPlayers(storage) {
       storage?.setItem?.(MET_KEY, JSON.stringify({ ids: [...ids], seeded }));
     } catch (err) {
       console.warn('Whisker Walk: could not save the met list', err);
+      note('save', err);
     }
   }
   return {

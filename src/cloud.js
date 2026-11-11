@@ -19,6 +19,7 @@
 // net.js (see getSupabaseClient there).
 
 import { getSupabaseClient } from './net.js';
+import { note } from './diagnostics.js';
 
 // 256-word safe list for save codes: short (4-6 letter), friendly
 // nouns/animals/colors. No offensive or ambiguous words. ~30.6 bits of
@@ -110,7 +111,8 @@ export const CLOUD_SAVE_SEND_MAX_BYTES = 1.75 * 1024 * 1024;
 export function payloadBytes(payload) {
   try {
     return new TextEncoder().encode(JSON.stringify(payload)).length;
-  } catch {
+  } catch (err) {
+    note('cloud', err);
     return Infinity;
   }
 }

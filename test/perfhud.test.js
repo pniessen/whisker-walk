@@ -25,6 +25,11 @@ describe('formatPerfLines', () => {
     ]);
   });
 
+  it('appends the build stamp to the cpu line only when one is given', () => {
+    expect(formatPerfLines({ ...sample, build: 'a1b2c3d · 2026-11-11' })[1]).toBe('cpu 6.1 ms · build a1b2c3d · 2026-11-11');
+    expect(formatPerfLines({ ...sample, build: '' })[1]).toBe('cpu 6.1 ms');
+  });
+
   it('adds the device line only when the app supplied a profile', () => {
     const lines = formatPerfLines({ ...sample, device: 'iPad7,11 · 2.9 GB · thermal nominal · low power off' });
     expect(lines).toHaveLength(9);
@@ -202,6 +207,15 @@ describe('createPerfHud', () => {
     hud.frameEnd(session, 1602);
     expect(line(8)).toBe('iPad7,11 · 2.9 GB · thermal serious · low power off');
     adapter.status.device = '';
+  });
+
+  it('shows the build stamp on the live cpu line when the hud is given one', () => {
+    const stamped = createPerfHud({ renderer, settings, coarse: false, adapter, build: 'a1b2c3d' });
+    stamped.setEnabled(true);
+    stamped.frameStart(1000, session);
+    stamped.frameEnd(session, 1002);
+    expect(el.textContent.split('\n')[1]).toBe('cpu 2.0 ms · build a1b2c3d');
+    stamped.setEnabled(false);
   });
 
   it('says manual or reduced motion with no rung', () => {
