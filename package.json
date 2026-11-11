@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node scripts/buildjson.mjs dist",
+    "smoke": "node scripts/smoke.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:quick": "WW_TEST_QUICK=1 vitest run",
