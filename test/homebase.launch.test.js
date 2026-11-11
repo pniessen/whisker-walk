@@ -256,11 +256,11 @@ describe('Change place (the places sheet)', () => {
     openSheet('places');
     expect(dressingMock.placesArgs.at(-1).clanLineHtml).toContain(MOMENT_ATTR);
   });
-  it('after a pick the clan line says who she is', () => {
+  it('after a pick the clan line says who she is, and is the door to change it', () => {
     setup({ state: (st) => { st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
     openSheet('places');
     expect(dressingMock.placesArgs.at(-1).clanLineHtml).toContain('hb-pick-line');
-    expect(dressingMock.placesArgs.at(-1).clanLineHtml).not.toContain(MOMENT_ATTR);
+    expect(dressingMock.placesArgs.at(-1).clanLineHtml).toContain(MOMENT_ATTR);
   });
   it('a place she can walk (onPlaced with an outcome) takes her home; a refused one leaves the sheet', () => {
     setup();
@@ -412,6 +412,36 @@ describe('the clan moment', () => {
     openSheet('places');
     clickRoot({ [`[${MOMENT_ATTR}]`]: {} });
     expect(moment()).toBeTruthy();
+  });
+  it('with a clan picked, Change place\'s clan line opens the same five cards, and a card changes it', () => {
+    const noteOwnPick = vi.fn(() => Promise.resolve(true));
+    const colonySync = { status: () => ({ mode: 'local' }), pull() {}, noteOwnPick };
+    // picked long ago, the moment seen, even with the Woods not open on this save
+    const { progression } = setup({ colonySync, state: (st) => { st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
+    store.set(MOMENT_SEEN_KEY, '1');
+    openSheet('places');
+    clickRoot({ [`[${MOMENT_ATTR}]`]: {} });
+    const el = moment();
+    expect(el).toBeTruthy();
+    expect(el.innerHTML.match(new RegExp(PICK_ATTR, 'g'))).toHaveLength(5);
+    const card = { getAttribute: (a) => (a === PICK_ATTR ? 'moor' : null) };
+    el.listeners.click({ target: { closest: (sel) => (sel === `[${PICK_ATTR}]` ? card : null) } });
+    expect(progression.state.clanPick.mine).toBe('moor');
+    expect(noteOwnPick).toHaveBeenCalledTimes(1);
+    expect(moment()).toBeUndefined();
+    expect(html()).toContain('data-sheet="places"');
+  });
+  it('a picked clan never brings the moment up by itself, only from its line', () => {
+    const { hb } = setup({ state: (st) => { woodsOpened(st); st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
+    hb.showVisit(PLAIN);
+    hb.show({ sheet: 'places' });
+    expect(moment()).toBeUndefined();
+  });
+  it('Legacy: the clan line is gone and nothing opens the cards', () => {
+    setup({ state: (st) => { st.edition = 'legacy'; st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
+    openSheet('places');
+    clickRoot({ [`[${MOMENT_ATTR}]`]: {} });
+    expect(moment()).toBeUndefined();
   });
   it('only one is ever up', () => {
     const { hb } = setup({ state: woodsOpened });

@@ -8,10 +8,9 @@ import { createDressingRoom } from './dressingroomview.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
-import { pickableClans, clanName, ownClanTitle, alliesName } from '../clanhomes.js';
-import { CLAN_SUFFIX } from '../clanwords.js';
+import { ownClanTitle, alliesName } from '../clanhomes.js';
 import {
-  PICK_ATTR, PICK_SELECT_ID, MOMENT_ATTR, MOMENT_SEEN_KEY, clanPickerModel, clanMomentDue, renderClanMomentHtml, clanLineHtml, woodsOpen,
+  PICK_ATTR, MOMENT_ATTR, MOMENT_SEEN_KEY, clanPickerModel, clanMomentDue, renderClanMomentHtml, clanLineHtml, woodsOpen,
 } from './clanpicker.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { editionTitle, gameTitle, isClanEdition, placeName, effectiveArea } from '../edition.js';
@@ -336,13 +335,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               <option value="legacy" ${edition === 'legacy' ? 'selected' : ''}>Legacy Edition</option>
             </select>
           </label>
-          ${isClanEdition(progression.state) ? `<label class="settings-row settings-quality">
-            <span class="settings-label">Your ${CLAN_SUFFIX.toLowerCase()}</span>
-            <select id="${PICK_SELECT_ID}">
-              <option value="" disabled ${progression.state.clanPick?.mine ? '' : 'selected'}>— not picked yet —</option>
-              ${pickableClans().map((id) => `<option value="${id}" ${progression.state.clanPick?.mine === id ? 'selected' : ''}>${clanName(id)}</option>`).join('')}
-            </select>
-          </label>` : ''}
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
         </div>
         <h3 class="settings-group">Advanced</h3>
@@ -663,13 +655,15 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // the news card gave way to the moment: it may show now
     try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); }
   }
-  // force: Change place's "Choose your clan" (shown even after "Not yet").
+  // force: Change place's clan line (shown even after "Not yet", and with a
+  // clan already picked, to change it: that line is the only way to).
   function showClanMoment({ force = false } = {}) {
     if (!shown || momentEl || newsEl || noticeEl || visitOpen() || !homeVisible() || dressing?.ui?.builder) return false;
     // home, or Change place (a border crossing lands there); never over another sheet
     if (!force && openSheet && openSheet !== 'places') return false;
     const s = progression.state;
-    if (!clanMomentDue(s, CATALOG) || (!force && momentSeen())) return false;
+    const due = clanMomentDue(s, CATALOG) || (force && isClanEdition(s) && !!clanPickerModel(s).mine);
+    if (!due || (!force && momentSeen())) return false;
     closeWelcome();
     const partner = s.colony?.partner?.petName;
     momentEl = document.createElement('div');
@@ -1109,7 +1103,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     syncPairingPoll();
   }
 
-  // A clan card or the Settings select: save the pick, then tell the sibling's
+  // A clan card: save the pick, then tell the sibling's
   // device (fire-and-forget; a refusal changes nothing and sends nothing).
   // Re-picking the clan already picked sends nothing once that pick has been
   // pushed; after a failed push a re-tap is the way to try again.
@@ -1133,7 +1127,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       setSheet(backTo);
       return;
     }
-    // Change place's "Choose your clan" (before a pick): the moment again.
+    // Change place's clan line (Choose, or Change once picked): the cards again.
     if (e.target.closest?.(`[${MOMENT_ATTR}]`)) {
       showClanMoment({ force: true });
       return;
@@ -1559,10 +1553,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (e.target.id === 'set-map-mode') {
       progression.setMapMode(e.target.value);
       render();
-      return;
-    }
-    if (e.target.id === PICK_SELECT_ID) {
-      pickClan(e.target.value);
       return;
     }
     if (e.target.id === 'set-edition') {
