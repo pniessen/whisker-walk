@@ -25,7 +25,7 @@ Whisker Walk is a small family game about walking a cat. It is run by the game's
 
 - You can play the whole game without giving it anything about yourself. It never asks for your real name, your age, an email address or a password.
 - The game has no ads, no tracking and no analytics.
-- Your game is saved on your own device. It only goes online if you choose to use **Cloud save**, **Play together** or the **Colony**.
+- Your game is saved on your own device. Nothing goes online until you tap **Save to cloud** or save a cat name in **Play together**.
 - The only thing you type that other players can see is your cat's name. Please pick a cat name, not your real name.
 - You can ask for anything stored online to be deleted. See "Deleting your data".
 
@@ -44,7 +44,7 @@ Clearing the browser's site data, or deleting the app, removes all of it from th
 
 ## What goes online, and when
 
-Nothing in this section happens unless you use the feature named.
+Nothing in this section happens until you tap **Save to cloud** or save a cat name. Saving a cat name is what switches on the profile, friends and colony parts below.
 
 ### Cloud save
 
@@ -74,7 +74,7 @@ A room is joined with a four-character code. Anyone who has the code can join th
 
 ### The colony
 
-If two players pair their colonies, the game stores the shared colony online: the stray cats in it (their game names and where they were found), which player found, fed, tamed or dressed each one, the accessories each player can trade, and trade offers between the two.
+Once you have saved a cat name, the game keeps your colony online each time it opens, whether or not you have paired it with another player's. It stores the colony: the stray cats in it (their game names and where they were found), which player found, fed, tamed or dressed each one, the accessories each player can trade, and trade offers between the two.
 
 ### Finding a player in the same room (iPhone and iPad app only)
 
