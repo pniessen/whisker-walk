@@ -305,6 +305,24 @@ describe('hiding a visitor in Player pets', () => {
   });
 });
 
+describe('every code box has a visible label', () => {
+  it('Play together: Room code and Friend code, with the share line under her own code', () => {
+    setup({ cloud: fakeCloud() });
+    openSheet('together');
+    const h = html();
+    expect(h).toContain('<label class="code-label" for="wt-join-code">Room code</label>');
+    expect(h).toContain('<label class="code-label" for="friend-code-input">Friend code</label>');
+    expect(h.indexOf('Your friend code:')).toBeLessThan(h.indexOf('Only share it with people you know.'));
+    expect(h.indexOf('Only share it with people you know.')).toBeLessThan(h.indexOf('for="friend-code-input"'));
+    expect(h.indexOf('for="wt-join-code"')).toBeLessThan(h.indexOf('id="wt-join-code"'));
+  });
+  it('placeholders are lightened to at least 4.5:1', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).toContain('#homebase input::placeholder { color: #b3bfd1; opacity: 1; }');
+  });
+});
+
 describe('friend code', () => {
   async function lookUp(hb, cloud) {
     openSheet('together');

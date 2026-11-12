@@ -33,7 +33,7 @@ export const SHEET_ICON = {
 };
 export const SHEET_NAME = {
   menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony',
-  journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Game settings', code: 'Secret code',
+  journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Game settings', code: 'Gift code',
   controls: 'Sound & controls',
 };
 export const SHEET_LABEL = Object.fromEntries(HOME_SHEETS.map((id) => [id, `${SHEET_ICON[id]} ${SHEET_NAME[id]}`]));

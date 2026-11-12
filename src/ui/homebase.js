@@ -152,7 +152,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   let duskWanted = false;
   let shown = false; // between show() and hide()
 
-  // Secret-code box (its own sheet). Typed text, the last result and the busy flag
+  // Gift-code box (its own sheet). Typed text, the last result and the busy flag
   // live here because render() rebuilds the panel.
   const redeemer = createRedeemer({ progression });
   let redeemText = '';
@@ -277,9 +277,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       ${nearby?.available ? `<div id="wt-nearby" class="wt-nearby">${nearbyRowsHtml()}</div>` : ''}
       <div class="wt-actions">
         <button id="wt-host">Host a walk</button>
-        <div class="wt-join-row">
-          <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
-          <button id="wt-join">Join</button>
+        <div class="code-field">
+          <label class="code-label" for="wt-join-code">Room code</label>
+          <div class="wt-join-row">
+            <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
+            <button id="wt-join">Join</button>
+          </div>
         </div>
         ${joinError ? `<div class="tag error">${escapeHtml(joinError)}</div>` : ''}
       </div>`;
@@ -350,9 +353,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       body = `
         <div class="sync-unlinked">
           <button id="sync-save" ${cloudBusy ? 'disabled' : ''}>${cloudBusy ? 'Saving…' : 'Save to cloud'}</button>
-          <div class="sync-load-row">
-            <input type="text" id="sync-load-code" maxlength="24" placeholder="WORD-WORD-WORD-00" class="wt-code-input sync-code-input" />
-            <button id="sync-load" ${cloudBusy ? 'disabled' : ''}>Load from cloud</button>
+          <div class="code-field">
+            <label class="code-label" for="sync-load-code">Save code from another device</label>
+            <div class="sync-load-row">
+              <input type="text" id="sync-load-code" maxlength="24" placeholder="WORD-WORD-WORD-00" class="wt-code-input sync-code-input" />
+              <button id="sync-load" ${cloudBusy ? 'disabled' : ''}>Load from cloud</button>
+            </div>
           </div>
           ${cloudError ? `<div class="tag error">${escapeHtml(cloudError)}</div>` : ''}
         </div>`;
@@ -542,9 +548,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     return `
       <div class="friend-code-block">
         <div class="tag">Your friend code: <strong>${escapeHtml(code)}</strong></div>
-        <div class="wt-join-row">
-          <input type="text" id="friend-code-input" maxlength="20" placeholder="CAT-XXXXXXXX" class="wt-code-input sync-code-input" ${hasValidPetName ? '' : 'disabled'} />
-          <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
+        <p class="tag friend-code-share">Only share it with people you know.</p>
+        <div class="code-field">
+          <label class="code-label" for="friend-code-input">Friend code</label>
+          <div class="wt-join-row">
+            <input type="text" id="friend-code-input" maxlength="20" placeholder="CAT-XXXXXXXX" class="wt-code-input sync-code-input" ${hasValidPetName ? '' : 'disabled'} />
+            <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
+          </div>
         </div>
         ${!hasValidPetName ? '<div class="tag">Give your cat a name at the top to add friends by code.</div>' : ''}
         ${friendCodeError ? `<div class="tag error">${escapeHtml(friendCodeError)}</div>` : ''}
@@ -2005,7 +2015,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
   });
 
-  // The secret-code form (delegated: render() rebuilds it). While hashing the
+  // The gift-code form (delegated: render() rebuilds it). While hashing the
   // box and button are disabled, so a second submit cannot return the first
   // result. A thrown error reads as the kind 'unsupported' line.
   root.addEventListener('submit', async (e) => {

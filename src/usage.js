@@ -19,7 +19,7 @@ export const USAGE_IDS = Object.freeze([
 export const USAGE_NAME = Object.freeze({
   menu: 'Menu', places: 'Change place', together: 'Play together', colony: 'Colony', journal: 'Journal',
   album: 'Album', skills: 'Skills', controls: 'Sound & controls', settings: 'Game settings',
-  sync: 'Cloud save', code: 'Secret code', dressup: 'Dress up', builder: 'Cat builder',
+  sync: 'Cloud save', code: 'Gift code', dressup: 'Dress up', builder: 'Cat builder',
 });
 export const USAGE_MAX = 1e6;
 

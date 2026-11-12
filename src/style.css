@@ -637,6 +637,12 @@ body.touch-mode:not(.left-handed) .hud-top {
   min-height: 44px; padding: 8px 14px; color: #fff; font-family: inherit; font-size: 16px; /* >=16px prevents iOS Safari auto-zoom on focus */
 }
 .wt-code-input { text-transform: uppercase; width: 5em; letter-spacing: 0.1em; }
+/* Every code box has a visible name above it (not just a placeholder). */
+.code-field { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.code-label { display: block; font-size: 0.95rem; font-weight: 700; color: #e4ebf5; margin: 6px 0 2px; }
+.friend-code-share { margin: 4px 0 8px; }
+/* Placeholders at least 4.5:1 on their field (the browser's grey was ~2.1:1). */
+#homebase input::placeholder { color: #b3bfd1; opacity: 1; }
 .wt-join-row { display: flex; gap: 8px; align-items: center; }
 .tag.error { color: #f28080; }
 .wt-room { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
@@ -991,7 +997,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 }
 .colony-pair-error { font-size: 0.9rem; color: #f28080; margin: 8px 0 0; overflow-wrap: anywhere; }
 
-/* --- v21 secret-code box (Cats tab). Input and button wrap on a phone. --- */
+/* --- v21 gift-code box (Cats tab). Input and button wrap on a phone. --- */
 .redeem-section { margin-top: 16px; max-width: 60ch; }
 .redeem-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .redeem-input {
@@ -1690,7 +1696,7 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
 }
 
 /* the Menu sub-sheets on a desktop: centred at the Change place width (the
-   card sheets) or the Settings width (the Secret code), with their cards in a
+   card sheets) or the Settings width (the Gift code), with their cards in a
    grid that fills it and the empty states centred. Phones are untouched. */
 @media (min-width: 1000px) {
   .homebase-scroll.hb-sheet:is([data-sheet="skills"], [data-sheet="colony"], [data-sheet="journal"], [data-sheet="album"]) { max-width: min(1240px, 94vw); }

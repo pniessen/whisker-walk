@@ -136,6 +136,13 @@ describe('Unlink on the linked Cloud save sheet', () => {
   });
 });
 
+describe('the save code box', () => {
+  it('has a visible label', () => {
+    setup();
+    expect(html()).toContain('<label class="code-label" for="sync-load-code">Save code from another device</label>');
+  });
+});
+
 describe('Load from cloud while linked', () => {
   it('is drawn beside Sync now', () => {
     setup({ code: CODE });
