@@ -181,9 +181,10 @@ export function renderRedeemHtml({ text, busy, result, catalog }) {
   const msg = redeemMessage(result, catalog);
   const dis = busy ? ' disabled' : '';
   return `
-    <section class="redeem-section"><h2>🎁 Got a secret code?</h2>
+    <section class="redeem-section"><h2>🎁 Got a gift code?</h2>
+      <label class="code-label" for="redeem-input">Gift code</label>
       <form class="redeem-form">
-        <input id="redeem-input" class="redeem-input" type="text" value="${escapeHtml(text)}" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" aria-label="Secret code"${dis}>
+        <input id="redeem-input" class="redeem-input" type="text" value="${escapeHtml(text)}" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40"${dis}>
         <button type="submit" class="redeem-btn"${dis}>${busy ? 'Opening…' : 'Open it!'}</button>
       </form>
       <p class="redeem-msg" aria-live="polite">${escapeHtml(msg)}</p>

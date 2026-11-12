@@ -244,13 +244,19 @@ describe('renderRedeemHtml', () => {
   const catalog = { cats: {}, accessories: {} };
   it('renders the form', () => {
     const h = renderRedeemHtml({ text: '', busy: false, result: null, catalog });
-    expect(h).toContain('🎁 Got a secret code?');
+    expect(h).toContain('🎁 Got a gift code?');
     expect(h).toContain('<form class="redeem-form"');
     expect(h).toContain('id="redeem-input"');
     for (const a of ['autocomplete="off"', 'autocapitalize="characters"', 'spellcheck="false"', 'maxlength="40"']) expect(h).toContain(a);
     expect(h).toContain('Open it!');
     expect(h).not.toContain('disabled');
     expect(h).toContain('aria-live="polite"');
+  });
+  it('the box has a visible label, Gift code, that names it', () => {
+    const h = renderRedeemHtml({ text: '', busy: false, result: null, catalog });
+    expect(h).toContain('<label class="code-label" for="redeem-input">Gift code</label>');
+    expect(h.indexOf('code-label')).toBeLessThan(h.indexOf('id="redeem-input"'));
+    expect(h.toLowerCase()).not.toContain('secret');
   });
   it('disables while busy', () => {
     const h = renderRedeemHtml({ text: 'x', busy: true, result: null, catalog });

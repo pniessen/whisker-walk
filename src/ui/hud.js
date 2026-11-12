@@ -1,19 +1,22 @@
 import { bus } from '../events.js';
 import { objectiveDistance } from '../questscent.js';
 import { PAW } from './pawicon.js';
+import { toastLifeMs } from './toastlife.js';
 
 // Toasts (polish-hud2, R2/R3). At most two on screen: a burst of discoveries
 // used to stack four or five pills in a column that climbed over the cat.
 // Lines past the cap wait in a short queue rather than being lost (a fight
 // win can fire four lines in one tick, a taming three or four). A shown
-// toast gives up its slot early only once it has been read for 1.2 s; the
-// next waiting line appears as it fades. Otherwise each toast lives 2.6 s,
-// then fades for 0.35 s (style.css .toast) and leaves the DOM. The fade is
-// short so the text never outlives its dark pill as "ghost text".
+// toast gives up its slot early only once it has been read for 2.5 s; the
+// next waiting line appears as it fades. Otherwise each toast lives as long
+// as its words need (toastLifeMs: 3 to 9 s), then fades for 0.35 s
+// (style.css .toast) and leaves the DOM. The fade is short so the text never
+// outlives its dark pill as "ghost text". A tap on a toast holds it: its
+// clock starts again and no waiting line pushes it out; a second tap lets
+// it go.
 export const MAX_TOASTS = 2;
-export const TOAST_LIFE_MS = 2600;
 export const TOAST_FADE_MS = 350;
-export const MIN_SHOWN_MS = 1200;
+export const MIN_SHOWN_MS = 2500;
 // At most this many lines wait; past it the oldest waiting line is dropped,
 // so a runaway loop can't build a minute-long backlog.
 export const MAX_QUEUED_TOASTS = 6;
@@ -52,7 +55,7 @@ export function createHud() {
     <div class="hud-roster hidden" id="hud-roster"></div>
     <div class="hud-objective hidden" id="hud-objective"></div>
     <div class="hud-goals hidden" id="hud-goals"></div>
-    <div class="hud-toasts" id="hud-toasts"></div>
+    <div class="hud-toasts" id="hud-toasts" role="status" aria-live="polite"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
     <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · +/− zoom · M mute · Esc menu</div>
     <div class="hud-crosshair hidden" id="hud-crosshair">·</div>
@@ -88,25 +91,36 @@ export function createHud() {
   };
   const startToastLife = (t) => {
     clearTimeout(t.life);
-    t.life = setTimeout(() => retireToast(t), TOAST_LIFE_MS);
+    t.life = setTimeout(() => retireToast(t), toastLifeMs(t.el.textContent));
+  };
+  // First tap: hold it (a fresh clock, and no early retiring). Second: let go.
+  const tapToast = (t) => {
+    if (!liveToasts.includes(t)) return;
+    if (t.held) { retireToast(t); return; }
+    t.held = true;
+    t.ripe = false;
+    clearTimeout(t.ripeTimer);
+    startToastLife(t);
   };
   const showToast = (item) => {
     const el = document.createElement('div');
     el.className = 'toast';
     el.textContent = item.build(item.count, item.points);
     toastsEl.appendChild(el);
-    const t = { ...item, el, shownAt: Date.now(), ripe: false, life: null, ripeTimer: null, gone: null };
+    const t = { ...item, el, shownAt: Date.now(), ripe: false, held: false, life: null, ripeTimer: null, gone: null };
+    el.addEventListener?.('click', () => tapToast(t));
     liveToasts.push(t);
     startToastLife(t);
     // Once read for MIN_SHOWN_MS it may give up its slot to a waiting line.
     t.ripeTimer = setTimeout(() => { t.ripe = true; pumpToasts(); }, MIN_SHOWN_MS);
   };
   // Fill free slots from the queue; when lines still wait and the screen is
-  // full, the oldest shown toast makes room once it has been up 1.2 s (now
-  // if it already has, else its ripe timer calls back here then).
+  // full, the oldest unheld shown toast makes room once it has been up 2.5 s
+  // (now if it already has, else its ripe timer calls back here then).
   const pumpToasts = () => {
     while (liveToasts.length < MAX_TOASTS && toastQueue.length) showToast(toastQueue.shift());
-    if (toastQueue.length && liveToasts[0]?.ripe) retireToast(liveToasts[0]);
+    const oldest = liveToasts.find((t) => !t.held);
+    if (toastQueue.length && oldest?.ripe) retireToast(oldest);
   };
 
   const api = {

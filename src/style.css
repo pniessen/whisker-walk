@@ -116,6 +116,10 @@ body.touch-mode .hud-area { font-size: 0.82rem; padding: 2px 8px; }
   transition: opacity 0.35s, transform 0.35s; font-size: 1.05rem;
 }
 .toast.fade { opacity: 0; transform: translateY(-6px); }
+/* A tap holds a toast (hud.js, cloudsync.js), so the pill itself takes
+   taps although #hud and #cloud-toasts let them through; a fading one doesn't. */
+.toast { pointer-events: auto; cursor: pointer; }
+.toast.fade { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
   .toast.fade { transform: none; }
 }
@@ -473,7 +477,8 @@ body.touch-mode:not(.left-handed) .hud-top {
 }
 .walk-together button.primary:hover, .friend-code-block button.primary:hover, .walk-together #wt-host:hover { filter: brightness(1.06); background: #f2c14e; }
 .walk-together button.danger { background: transparent; color: #e98a8a; border-color: #e98a8a; }
-.walk-together button:disabled, .friend-code-block button:disabled {
+/* #wt-host is gold by id, so its disabled look needs the id too. */
+.walk-together button:disabled, .friend-code-block button:disabled, .walk-together #wt-host:disabled {
   background: #2a3346; color: #8896b0; border-color: #3a4560; cursor: default; filter: none;
 }
 .walk-together button:focus-visible, .friend-code-block button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
@@ -518,15 +523,17 @@ body.touch-mode:not(.left-handed) .hud-top {
 }
 .friend-icon { margin-right: 6px; }
 .friend-name { font-weight: 700; color: #fff; }
+/* Hide / Show again: a word, at least 44px on every screen (it asks first). */
 .friend-hide {
-  float: right; border: 0; border-radius: 50%; width: 26px; height: 26px;
-  line-height: 26px; padding: 0; text-align: center; cursor: pointer;
-  background: rgba(255,255,255,0.12); color: #c0ccdd; font-weight: 700;
+  float: right; border: 0; border-radius: 999px; min-width: 44px; min-height: 44px;
+  padding: 0 16px; margin: -6px -6px -6px 8px; text-align: center; cursor: pointer;
+  background: rgba(255,255,255,0.12); color: #e4ebf5; font: inherit; font-weight: 700;
 }
 .friend-hide:hover { background: rgba(255,255,255,0.22); color: #fff; }
-@media (pointer: coarse) {
-  .friend-hide { width: 32px; height: 32px; line-height: 32px; }
-}
+.friend-hide:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.friend-row { display: flow-root; }
+.friend-row-hidden { line-height: 32px; }
+.player-pets-hidden-count { margin: 12px 0 6px; font-size: 0.9rem; color: #a8c0e0; }
 .player-pets { margin-top: 12px; }
 .player-pets h3 { font-size: 0.9rem; color: #a8c0e0; margin-bottom: 6px; font-weight: 700; }
 .friend-code-block { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -630,6 +637,12 @@ body.touch-mode:not(.left-handed) .hud-top {
   min-height: 44px; padding: 8px 14px; color: #fff; font-family: inherit; font-size: 16px; /* >=16px prevents iOS Safari auto-zoom on focus */
 }
 .wt-code-input { text-transform: uppercase; width: 5em; letter-spacing: 0.1em; }
+/* Every code box has a visible name above it (not just a placeholder). */
+.code-field { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.code-label { display: block; font-size: 0.95rem; font-weight: 700; color: #e4ebf5; margin: 6px 0 2px; }
+.friend-code-share { margin: 4px 0 8px; }
+/* Placeholders at least 4.5:1 on their field (the browser's grey was ~2.1:1). */
+#homebase input::placeholder { color: #b3bfd1; opacity: 1; }
 .wt-join-row { display: flex; gap: 8px; align-items: center; }
 .tag.error { color: #f28080; }
 .wt-room { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
@@ -641,6 +654,8 @@ body.touch-mode:not(.left-handed) .hud-top {
 }
 .sync-cloud .sync-actions, .sync-load-row, .sync-unlinked { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .sync-cloud .sync-actions { margin-top: 8px; }
+/* Unlink on its own row, well away from Sync now (it asks first, too). */
+.sync-unlink-row { margin-top: 22px; }
 .sync-code-input { text-transform: uppercase; width: 14em; letter-spacing: 0.04em; }
 .sync-code-big { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .sync-code-value { font-size: 1.5rem; font-weight: 700; color: #f2c14e; letter-spacing: 0.03em; }
@@ -982,7 +997,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 }
 .colony-pair-error { font-size: 0.9rem; color: #f28080; margin: 8px 0 0; overflow-wrap: anywhere; }
 
-/* --- v21 secret-code box (Cats tab). Input and button wrap on a phone. --- */
+/* --- v21 gift-code box (Cats tab). Input and button wrap on a phone. --- */
 .redeem-section { margin-top: 16px; max-width: 60ch; }
 .redeem-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .redeem-input {
@@ -1190,6 +1205,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .dr-hero-name { font-weight: 700; font-size: 24px; }
 .dr-hero-blurb { font-size: 14px; opacity: .8; }
 .dr-hero-rank { display: none; font-size: 13px; opacity: .8; }
+.dr-hero-rank.dr-hero-looking { display: block; opacity: 1; font-size: 14px; }
 /* Unlock a cat: outlined, never pink (pink is Start's) */
 .dr .dr-hero-buy { pointer-events: auto; margin-top: 6px; background: rgba(20, 28, 42, .6); color: var(--cream);
   border: 1.5px solid var(--cream); border-radius: 999px; padding: 8px 18px; min-height: 44px; font-weight: 700; }
@@ -1202,6 +1218,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   position: relative; padding: 0; overflow: hidden; }
 .dr-portrait img { width: 100%; height: 100%; object-fit: cover; }
 .dr-portrait.sel { outline: 3px solid var(--gold); outline-offset: 1px; }
+/* A locked cat on show, not the one she walks: a dashed ring, not gold. */
+.dr-portrait.looking { outline: 3px dashed var(--cream); outline-offset: 1px; }
 .dr .dr-portrait.locked { background: var(--lock); }
 .dr-portrait.locked img { opacity: .45; filter: grayscale(.6); }
 .dr-portrait.locked::after { content: '🔒'; position: absolute; right: 2px; bottom: 0; font-size: 13px; }
@@ -1678,7 +1696,7 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
 }
 
 /* the Menu sub-sheets on a desktop: centred at the Change place width (the
-   card sheets) or the Settings width (the Secret code), with their cards in a
+   card sheets) or the Settings width (the Gift code), with their cards in a
    grid that fills it and the empty states centred. Phones are untouched. */
 @media (min-width: 1000px) {
   .homebase-scroll.hb-sheet:is([data-sheet="skills"], [data-sheet="colony"], [data-sheet="journal"], [data-sheet="album"]) { max-width: min(1240px, 94vw); }
@@ -1815,6 +1833,8 @@ body.den-shop-open .chat-wheel { display: none !important; }
   opacity: 1; transition: opacity 0.7s;
 }
 .visit-cel.fade { opacity: 0; }
+/* Put away while a sheet, the wardrobe or the builder is open (setAway). */
+.visit-cel.away { display: none !important; } /* beats .visit-cel.style-c { display: block } */
 .visit-cel-dim { position: absolute; inset: 0; background: rgba(14, 19, 29, 0.78); pointer-events: auto; transition: opacity 0.4s; }
 /* Once A's present is open (and on a cycle-back A, which has none), the dimmer
    lets taps through to Start and lightens; the card auto-closes by itself. */
@@ -1990,7 +2010,13 @@ body.den-shop-open .chat-wheel { display: none !important; }
 .dr .cb-foot [data-cb-cancel], .dr .cb-done { min-height: 48px; border-radius: 999px; font-weight: 700; }
 .dr .cb-foot [data-cb-cancel] { padding: 10px 16px; background: var(--panel); }
 .dr .cb-done { padding: 10px 18px; background: var(--pink); color: var(--navy); font-size: 16px; }
-.dr .cb-done:disabled { background: rgba(231,169,160,.30); color: #f6dcd7; }
+.dr .cb-done.cb-done-wait { background: rgba(231,169,160,.30); color: #f6dcd7; }
+/* Done with no name yet sends her to the name box, which glows once. */
+.cb-row.cb-attention input[type="text"] { outline: 3px solid var(--pink); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .cb-row.cb-attention { animation: cb-attention 0.5s ease-in-out 2; }
+  @keyframes cb-attention { 50% { transform: scale(1.03); } }
+}
 /* a row passing under the bar dissolves instead of being sliced */
 .cb-foot::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 28px;
   background: linear-gradient(to bottom, transparent, var(--navy)); pointer-events: none; }
@@ -2000,11 +2026,12 @@ body.den-shop-open .chat-wheel { display: none !important; }
   box-shadow: 0 0 0 10px var(--navy), 0 48px 0 10px var(--navy); }
 .dr .cb-leave button { min-height: 44px; padding: 8px 16px; border-radius: 999px; background: var(--panel); white-space: nowrap; }
 /* A phone has no room for the question and both buttons in one row: the
-   question takes its own, so Keep going never wraps away from Leave. */
+   question takes its own, so the two answers stay side by side. Keep making
+   my cat comes first and is the pink one; leaving is plain. */
 @media (max-width: 480px) {
   .cb-leave > span { flex-basis: 100%; }
 }
-.dr .cb-leave [data-cb-leave] { background: var(--pink); color: var(--navy); }
+.dr .cb-leave [data-cb-stay] { background: var(--pink); color: var(--navy); }
 @media (max-width: 600px) {
   .dr.dr-building { padding-bottom: 0; }
   /* the room's 14 px side padding: cover it too, so no row peeks past the stuck stage */

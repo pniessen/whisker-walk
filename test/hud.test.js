@@ -1,6 +1,7 @@
 import { describe, it, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createHud, discoveryText, MAX_TOASTS, MIN_SHOWN_MS, MAX_QUEUED_TOASTS } from '../src/ui/hud.js';
+import { toastLifeMs } from '../src/ui/toastlife.js';
 import { bus } from '../src/events.js';
 
 // The project has no DOM environment (no jsdom/happy-dom); like den.test.js and
@@ -25,7 +26,7 @@ class FakeEl {
   set textContent(v) { this.writes += 1; this.own = String(v); this.children = []; }
   set className(v) { this.cls = new Set(String(v).split(/\s+/).filter(Boolean)); }
   appendChild(c) { this.writes += 1; this.children.push(c); c.parent = this; return c; }
-  addEventListener() {}
+  addEventListener(t, f) { (this.ls ??= {})[t] = f; }
   // Detaches from its parent, so "how many toasts are on screen" is countable.
   remove() {
     if (!this.parent) return;
@@ -235,8 +236,9 @@ describe('discovery lead words (polish-hud2)', () => {
 });
 
 // polish-hud2 (R2, R3): at most two toasts on screen; lines past that wait and
-// show as the oldest fades (each read for at least 1.2 s); a burst of critters
-// folds into one counting toast.
+// show as the oldest fades (each read for at least 2.5 s); a burst of critters
+// folds into one counting toast. Each lives toastLifeMs(its words): 3 s for a
+// short line.
 describe('toast cap and merge', () => {
   const box = () => byId.get('hud-toasts');
   const texts = () => box().children.map((c) => c.textContent);
@@ -269,16 +271,16 @@ describe('toast cap and merge', () => {
     };
   };
 
-  it('keeps at most two on screen; a third waits, then shows as the oldest fades at 1.2 s', () => {
+  it('keeps at most two on screen; a third waits, then shows as the oldest fades at 2.5 s', () => {
     const hud = createHud();
     expect(MAX_TOASTS).toBe(2);
-    expect(MIN_SHOWN_MS).toBe(1200);
+    expect(MIN_SHOWN_MS).toBe(2500);
     hud.toast('one', 1);
     hud.toast('two', 2);
     hud.toast('three', 3);
     expect(texts()).toEqual(['one  +1 🐾', 'two  +2 🐾']); // "three" waits
     expect(box().children.some((c) => c.cls.has('fade'))).toBe(false);
-    vi.advanceTimersByTime(1199);
+    vi.advanceTimersByTime(2499);
     expect(texts()).toEqual(['one  +1 🐾', 'two  +2 🐾']);
     vi.advanceTimersByTime(1);
     expect(box().children[0].cls.has('fade')).toBe(true); // "one" makes room
@@ -287,13 +289,13 @@ describe('toast cap and merge', () => {
     expect(texts()).toEqual(['two  +2 🐾', 'three  +3 🐾']);
   });
 
-  it('three toasts in one tick each get at least 1.2 s and never more than two show at once', () => {
+  it('three toasts in one tick each get at least 2.5 s and never more than two show at once', () => {
     const hud = createHud();
     hud.toast('You chased off Mossjaw! 🛡️', 12);
     hud.toast('RANK UP — Brave Paw! 🏆');
     hud.toast('New move: Pounce');
     const w = watch();
-    w.run(8000);
+    w.run(12000);
     expect(w.all.map((s) => s.text)).toEqual(['You chased off Mossjaw! 🛡️  +12 🐾', 'RANK UP — Brave Paw! 🏆', 'New move: Pounce']);
     for (const s of w.all) expect(s.fadeAt - s.at).toBeGreaterThanOrEqual(MIN_SHOWN_MS);
     expect(w.maxShown).toBe(2);
@@ -305,7 +307,7 @@ describe('toast cap and merge', () => {
     const lines = ['a', 'b', 'c', 'd', 'e'];
     for (const l of lines) hud.toast(l);
     const w = watch();
-    w.run(10000);
+    w.run(16000);
     expect(w.all.map((s) => s.text)).toEqual(lines);
     const starts = w.all.map((s) => s.at);
     expect([...starts].sort((x, y) => x - y)).toEqual(starts);
@@ -313,21 +315,21 @@ describe('toast cap and merge', () => {
     expect(w.maxShown).toBe(2);
   });
 
-  it('with nothing waiting a toast keeps its full 2.6 s', () => {
+  it('with nothing waiting a toast keeps its full life (3 s for a short line)', () => {
     const hud = createHud();
     hud.toast('one');
     hud.toast('two');
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(2999);
     expect(box().children.some((c) => c.cls.has('fade'))).toBe(false);
-    vi.advanceTimersByTime(600);
+    vi.advanceTimersByTime(1);
     expect(box().children.every((c) => c.cls.has('fade'))).toBe(true);
   });
 
-  it('a line arriving after the oldest has been up 1.2 s retires it at once', () => {
+  it('a line arriving after the oldest has been up 2.5 s retires it at once', () => {
     const hud = createHud();
     hud.toast('one');
     hud.toast('two');
-    vi.advanceTimersByTime(1500);
+    vi.advanceTimersByTime(2600);
     hud.toast('three');
     expect(box().children[0].cls.has('fade')).toBe(true);
     expect(texts()).toEqual(['one', 'two', 'three']);
@@ -337,7 +339,7 @@ describe('toast cap and merge', () => {
     const hud = createHud();
     for (let i = 1; i <= 10; i++) hud.toast(`line ${i}`);
     const w = watch();
-    w.run(20000);
+    w.run(30000);
     // two shown at once, the next two waiting lines dropped, the last six shown
     expect(w.all.map((s) => s.text)).toEqual(['line 1', 'line 2', 'line 5', 'line 6', 'line 7', 'line 8', 'line 9', 'line 10']);
   });
@@ -351,7 +353,7 @@ describe('toast cap and merge', () => {
     bus.emit('discovery', { type: 'treasure', key: 't', label: 'a lost marble', points: 8, repeat: false });
     critter('a frog'); // the last waiting line is the marble: a line of its own
     const w = watch();
-    w.run(10000);
+    w.run(16000);
     expect(w.all.map((s) => s.text).slice(2)).toEqual([
       'You spotted 2 critters  +8 🐾',
       'You spotted a lost marble  +8 🐾',
@@ -359,11 +361,11 @@ describe('toast cap and merge', () => {
     ]);
   });
 
-  it('lives 2.6 s, then fades and leaves', () => {
+  it('lives its time (3 s for "hello +2"), then fades and leaves', () => {
     const hud = createHud();
     hud.toast('hello', 2);
     const el = box().children[0];
-    vi.advanceTimersByTime(2599);
+    vi.advanceTimersByTime(2999);
     expect(el.cls.has('fade')).toBe(false);
     vi.advanceTimersByTime(1);
     expect(el.cls.has('fade')).toBe(true);
@@ -377,10 +379,10 @@ describe('toast cap and merge', () => {
     hud.toast('one');
     vi.advanceTimersByTime(1000);
     hud.toast('two');
-    hud.toast('three'); // waits; "one" makes room at 1.2 s
-    vi.advanceTimersByTime(200 + 350);
+    hud.toast('three'); // waits; "one" makes room at 2.5 s
+    vi.advanceTimersByTime(1500 + 350);
     expect(texts()).toEqual(['two', 'three']);
-    vi.advanceTimersByTime(1050); // "one"'s old 2.6 s mark
+    vi.advanceTimersByTime(150); // "one"'s old 3 s mark
     expect(texts()).toEqual(['two', 'three']);
     expect(box().children.every((c) => !c.cls.has('fade'))).toBe(true);
   });
@@ -412,20 +414,21 @@ describe('toast cap and merge', () => {
     createHud();
     critter('a songbird');
     bus.emit('discovery', { type: 'flower', key: 'f', label: 'a daisy 🌼', points: 2, repeat: false });
-    critter('a squirrel'); // waits for the songbird's 1.2 s
-    vi.advanceTimersByTime(1200 + 350);
+    critter('a squirrel'); // waits for the songbird's 2.5 s
+    vi.advanceTimersByTime(2500 + 350);
     expect(texts()).toEqual(['You spotted a daisy 🌼  +2 🐾', 'You spotted a squirrel  +5 🐾']);
   });
 
   it('merging restarts the clock', () => {
     createHud();
     critter('a songbird');
+    expect(toastLifeMs('You spotted 2 critters  +10 🐾')).toBe(3350);
     vi.advanceTimersByTime(1500);
     critter('a squirrel');
-    vi.advanceTimersByTime(1100); // 2.6 s after the first
+    vi.advanceTimersByTime(1850); // 3.35 s after the first
     expect(texts()).toEqual(['You spotted 2 critters  +10 🐾']);
     expect(box().children[0].cls.has('fade')).toBe(false);
-    vi.advanceTimersByTime(1500); // 2.6 s after the merge
+    vi.advanceTimersByTime(1500); // 3.35 s after the merge
     expect(box().children[0].cls.has('fade')).toBe(true);
     vi.advanceTimersByTime(350);
     expect(box().children).toHaveLength(0);
@@ -434,7 +437,7 @@ describe('toast cap and merge', () => {
   it('a fading critter toast is not merged into', () => {
     createHud();
     critter('a songbird');
-    vi.advanceTimersByTime(2700); // fading
+    vi.advanceTimersByTime(3400); // fading
     critter('a squirrel');
     expect(texts()).toEqual(['You spotted a songbird  +5 🐾', 'You spotted a squirrel  +5 🐾']);
   });
@@ -611,5 +614,78 @@ describe('HUD layout (style.css)', () => {
       expect(rule('.hud-toasts')).toContain('bottom: 146px');
       expect(css).toMatch(/\n#hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: 210px/);
     });
+  });
+});
+
+describe('the page can be zoomed', () => {
+  it('the viewport no longer forbids pinch-zoom', () => {
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const meta = html.match(/<meta name="viewport" content="([^"]*)"/)[1];
+    expect(meta).toBe('width=device-width, initial-scale=1, viewport-fit=cover');
+    expect(meta).not.toMatch(/user-scalable|maximum-scale/);
+  });
+});
+
+describe('toastLifeMs: long enough to read', () => {
+  it('max(3 s, 0.6 s + 0.55 s a word), capped at 9 s', () => {
+    expect(toastLifeMs('Hi')).toBe(3000);
+    expect(toastLifeMs('one two three four')).toBe(3000);
+    expect(toastLifeMs('one two three four five six')).toBe(3900);
+    expect(toastLifeMs('w '.repeat(40))).toBe(9000);
+    expect(toastLifeMs('')).toBe(3000);
+    expect(toastLifeMs(null)).toBe(3000);
+  });
+  it('counts words, not emoji or dashes', () => {
+    expect(toastLifeMs('a b c d e f — 🐾 🐾')).toBe(toastLifeMs('a b c d e f'));
+    expect(toastLifeMs('a b c d e +5')).toBe(toastLifeMs('a b c d e f'));
+  });
+});
+
+describe('a tapped toast stays', () => {
+  const box = () => byId.get('hud-toasts');
+  const texts = () => box().children.map((c) => c.textContent);
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.runAllTimers(); vi.useRealTimers(); });
+
+  it('the toast box is a polite live region', () => {
+    createHud();
+    expect(box()).toBeTruthy();
+    expect(readFileSync(new URL('../src/ui/hud.js', import.meta.url), 'utf8'))
+      .toContain('<div class="hud-toasts" id="hud-toasts" role="status" aria-live="polite"></div>');
+    expect(readFileSync(new URL('../index.html', import.meta.url), 'utf8'))
+      .toContain('<div id="cloud-toasts" class="hud-toasts" role="status" aria-live="polite"></div>');
+  });
+  it('a tap restarts its clock and a waiting line does not push it out; a second tap lets it go', () => {
+    const hud = createHud();
+    hud.toast('one');
+    hud.toast('two');
+    vi.advanceTimersByTime(2000);
+    box().children[0].ls.click(); // hold "one"
+    hud.toast('three');
+    vi.advanceTimersByTime(600); // "two" is ripe and makes room; "one" stays
+    expect(box().children[0].cls.has('fade')).toBe(false);
+    expect(box().children[1].cls.has('fade')).toBe(true);
+    vi.advanceTimersByTime(2300); // 2.9 s after the tap
+    expect(box().children[0].textContent).toBe('one');
+    expect(box().children[0].cls.has('fade')).toBe(false);
+    box().children[0].ls.click(); // let go
+    expect(box().children[0].cls.has('fade')).toBe(true);
+    vi.advanceTimersByTime(350);
+    expect(texts()).toEqual(['three']);
+  });
+  it('a held toast still goes when its fresh time ends', () => {
+    const hud = createHud();
+    hud.toast('one');
+    vi.advanceTimersByTime(2000);
+    box().children[0].ls.click();
+    vi.advanceTimersByTime(2999);
+    expect(box().children[0].cls.has('fade')).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(box().children[0].cls.has('fade')).toBe(true);
+  });
+  it('toasts take taps although the HUD lets them through', () => {
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).toContain('.toast { pointer-events: auto; cursor: pointer; }');
+    expect(css).toContain('.toast.fade { pointer-events: none; }');
   });
 });

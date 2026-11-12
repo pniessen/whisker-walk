@@ -3,7 +3,8 @@
 // refusals ('too-big', 'busy'), which work the same whether the server or
 // cloud.saveToCloud's own size check said it.
 import { describe, it, expect, vi } from 'vitest';
-import { createCloudSync } from '../src/game/cloudsync.js';
+import { createCloudSync, createCloudToast, CLOUD_TOAST_FADE_MS } from '../src/game/cloudsync.js';
+import { toastLifeMs } from '../src/ui/toastlife.js';
 
 function fakeStorage() {
   const m = new Map();
@@ -77,5 +78,52 @@ describe('cloud sync: a save the cloud refuses', () => {
     s.getCloud();
     expect(typeof s.made[0].getSecret).toBe('function');
     expect(s.made[0].getSecret()).toBe(s.getPsecret());
+  });
+});
+
+describe('the home base cloud toast', () => {
+  function setupToast() {
+    vi.useFakeTimers();
+    const kids = [];
+    globalThis.document = {
+      createElement: () => {
+        const el = { className: '', textContent: '', ls: {}, cls: new Set(), removed: false };
+        el.classList = { add: (c) => el.cls.add(c) };
+        el.addEventListener = (t, f) => { el.ls[t] = f; };
+        el.remove = () => { el.removed = true; };
+        return el;
+      },
+    };
+    const toast = createCloudToast({ appendChild: (el) => kids.push(el) });
+    return { toast, kids };
+  }
+  const done = () => { vi.useRealTimers(); delete globalThis.document; };
+
+  it('stays as long as its words need, then fades and goes', () => {
+    const { toast, kids } = setupToast();
+    try {
+      const text = 'The cloud has newer progress. Open Cloud save.';
+      toast(text);
+      const life = toastLifeMs(text);
+      expect(life).toBeGreaterThanOrEqual(3000);
+      vi.advanceTimersByTime(life - 1);
+      expect(kids[0].cls.has('fade')).toBe(false);
+      vi.advanceTimersByTime(1);
+      expect(kids[0].cls.has('fade')).toBe(true);
+      vi.advanceTimersByTime(CLOUD_TOAST_FADE_MS);
+      expect(kids[0].removed).toBe(true);
+    } finally { done(); }
+  });
+  it('a tap holds it for a fresh spell; a second tap lets it go', () => {
+    const { toast, kids } = setupToast();
+    try {
+      toast('Hi there');
+      vi.advanceTimersByTime(2500);
+      kids[0].ls.click();
+      vi.advanceTimersByTime(2999);
+      expect(kids[0].cls.has('fade')).toBe(false);
+      kids[0].ls.click();
+      expect(kids[0].cls.has('fade')).toBe(true);
+    } finally { done(); }
   });
 });

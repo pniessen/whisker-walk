@@ -480,10 +480,13 @@ const partnerNameOf = (partner) => (partner && partner.petName ? String(partner.
 // host's starts everyone, anyone else's asks the host (game/rooms.js), so
 // nobody is told to wait. While that ask is out it reads "Starting…" and is
 // disabled, so a second press can't send a second ask.
-export function renderStartButtonHtml(room) {
-  if (!room) return `<button id="btn-start" class="primary">Start the walk ${PAW}</button>`;
+// as: the owned cat's name while a locked cat or a try-on is on show, so
+// Start says which cat it really walks ("Start as Tabby 🐾").
+export function renderStartButtonHtml(room, { as = null } = {}) {
+  const who = typeof as === 'string' && as ? escapeHtml(as) : null;
+  if (!room) return `<button id="btn-start" class="primary">${who ? `Start as ${who}` : 'Start the walk'} ${PAW}</button>`;
   if (room.starting) return '<button id="btn-start" class="primary" disabled>Starting…</button>';
-  return `<button id="btn-start" class="primary">Start the walk together ${PAW}</button>`;
+  return `<button id="btn-start" class="primary">${who ? `Start together as ${who}` : 'Start the walk together'} ${PAW}</button>`;
 }
 
 // One button, no code to type: only while paired (status.mode is 'local'

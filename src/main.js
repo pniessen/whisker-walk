@@ -240,7 +240,7 @@ function init() {
     settings,
     player,
     isDen: () => session?.areaId === 'den',
-    onCapped: () => hud.toast('The den is cosy — no room to zoom out further 🏠'),
+    onCapped: () => hud.toast('The den can’t zoom out any more 🏠'),
   });
   const zoomBy = (dir) => {
     if (session && player.engaged) zoomControl.step(dir);
@@ -499,13 +499,20 @@ function init() {
     // (spawnGhosts) and Player pets roster rows. This is a client-side,
     // per-device "stop showing me this visitor" list, not a server-side fix
     // (see docs/superpowers/specs/2026-08-01-whisker-walk-v7-online.md's
-    // "Known limitation" note) — homebase's roster ✕ button and spawnGhosts
+    // "Known limitation" note) — homebase's roster Hide button and spawnGhosts
     // both consult it.
     isBlocked(otherId) {
       return blockList.has(otherId);
     },
     blockPlayer(otherId) {
       blockList.add(otherId);
+    },
+    // Player pets' "Show again": hiding is never for good.
+    unblockPlayer(otherId) {
+      blockList.remove(otherId);
+    },
+    blockedPlayers() {
+      return blockList.all();
     },
   };
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).

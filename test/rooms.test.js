@@ -301,7 +301,7 @@ describe('anyone can press Start, and it starts everyone', () => {
     await kid.rooms.walkWithPartner();
     walkingHost.sendState({ v: 1, id: HOST, pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
     expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
-    expect(kid.toasts).toEqual(['Mittens is already on a walk! Wait till they come home, then press Start.']);
+    expect(kid.toasts).toEqual(['Mittens is on a walk. Press Start when they’re back.']);
     expect(kid.rooms.getState().starting).toBe(false);
     // Once she has been quiet a while (home again), Start works.
     vi.advanceTimersByTime(WALKING_FRESH_MS);
