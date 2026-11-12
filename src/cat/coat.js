@@ -105,7 +105,22 @@ export function coatColourAt(coat, unit, out = new THREE.Color()) {
     const m = patchMask(unit, p, p.toPole);
     if (m > 0) out.lerp(p.colour, m);
   }
-  return out;
+  return out.multiplyScalar(furShade(unit[0], unit[1], unit[2]));
+}
+
+// SOFT FUR SHADING (cat-beauty A4): a baked ambient-occlusion term on the
+// coat, by undeformed torso direction. The fur darkens toward the underside
+// (the sky cannot reach it) and a little more where the legs join (the armpit
+// and the groin, low at the front and back), so the torso reads as a rounded
+// furry body rather than an evenly lit ball. It is part of the coat colour, so
+// the limb tops (limbs.js) and the underside's eased rim (undersideColourAt)
+// take it too and every seam still matches. Colour only.
+export const FUR_SHADE = Object.freeze({ low: 0.2, joint: 0.1, from: -0.05, to: -0.85 });
+export function furShade(x, y, z) {
+  const k = Math.min(1, Math.max(0, (y - FUR_SHADE.from) / (FUR_SHADE.to - FUR_SHADE.from)));
+  const low = k * k * (3 - 2 * k);
+  const j = Math.max(0, Math.abs(z) - 0.35) / 0.65; // toward the shoulders' and hips' ends
+  return 1 - FUR_SHADE.low * low - FUR_SHADE.joint * low * j;
 }
 
 // Paint `coat` into `geo`'s colour attribute, per vertex of geo.userData.unit.
