@@ -1191,6 +1191,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       onOpenSheet: (id) => setSheet(id),
       onProfileChange: () => rooms?.retrackProfile?.(),
       onCatSaved: () => rooms?.pushProfileNow?.(),
+      // Spending paw points asks first ("Get it?"), on the same card as Start over.
+      confirmSpend: (opts) => confirmCard.ask(opts),
       // Change place: a place she can walk is picked and she is back home with
       // its card; a locked or unaffordable one stays, but answers the tap: it
       // wobbles (the render this tap causes) and one line says what is missing.

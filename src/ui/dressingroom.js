@@ -158,7 +158,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     if (gated) {
       lockLine = opensAfterLine(req, have, state?.edition, catalog);
     } else if (!owned) {
-      lockLine = points >= price ? `Tap to unlock — ${price} 🐾` : `${price} 🐾 — keep walking!`;
+      lockLine = points >= price ? `Unlock — ${price} 🐾` : `${price} 🐾 — keep walking!`;
     }
     return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === walkArea, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
   });
@@ -279,6 +279,13 @@ function slotHtml(s, openSlot, picker, thumbs) {
 }
 
 function placeHtml(p) {
+  // One she can buy: the picture is not a button (a tap there never spends);
+  // its Unlock button asks first (dressingroomview.js).
+  if (p.canBuy) {
+    return `<div class="dr-place can-buy">`
+      + `<img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">`
+      + `<span class="cap">${escapeHtml(p.name)}<button type="button" class="dr-place-buy" data-dr-place-buy="${escapeHtml(p.id)}">${escapeHtml(p.lockLine)}</button></span></div>`;
+  }
   const sub = p.selected ? 'today’s walk' : p.owned ? 'tap to walk here' : p.lockLine;
   const cant = !p.owned && !p.locked && !p.canBuy;
   return `<button class="dr-place ${p.selected ? 'sel' : ''} ${p.locked ? 'locked' : ''} ${cant ? 'cant' : ''}" data-dr-place="${escapeHtml(p.id)}">`

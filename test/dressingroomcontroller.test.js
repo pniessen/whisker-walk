@@ -29,13 +29,17 @@ function setup({ buyResult = true, points = 9999 } = {}) {
     equipCat: spy('equipCat'),
     equipAccessory: spy('equipAccessory'),
     unequip: spy('unequip'),
+    canBuy: vi.fn(() => true),
     buy: spy('buy', buyResult),
     setArea: spy('setArea'),
   };
   const sync = { autoSync: vi.fn(() => calls.push('autoSync')) };
   const onChange = vi.fn();
-  const dr = createDressingRoom({ progression, sync, thumbs: {}, onChange });
-  return { dr, progression, sync, onChange, calls, state };
+  // The home base's confirm card, as a list of questions asked.
+  const asks = [];
+  const confirmSpend = vi.fn((o) => { asks.push(o); return true; });
+  const dr = createDressingRoom({ progression, sync, thumbs: {}, onChange, confirmSpend });
+  return { dr, progression, sync, onChange, calls, state, asks, confirmSpend };
 }
 const click = (dataset) => ({ target: { closest: () => ({ dataset }) } });
 
@@ -59,18 +63,23 @@ describe('createDressingRoom handleClick', () => {
     expect(JSON.stringify(t.state)).toBe(before);
   });
 
-  it('hero Unlock with enough points buys, then equips, then syncs', () => {
+  it('hero Unlock only asks; its Yes buys, then equips, then syncs', () => {
     const t = setup();
     t.dr.handleClick(click({ drBuyCat: lockedCat }));
+    expect(t.progression.buy).not.toHaveBeenCalled();
+    expect(t.asks).toHaveLength(1);
+    expect(t.asks[0]).toMatchObject({ text: `Get ${CATALOG.cats[lockedCat].name} for ${CATALOG.cats[lockedCat].price} 🐾?`, yes: 'Yes, get it', no: 'Not now' });
+    t.asks[0].onYes();
     expect(t.progression.buy).toHaveBeenCalledWith('cats', lockedCat);
     expect(t.progression.equipCat).toHaveBeenCalledWith(lockedCat);
     expect(t.calls).toEqual(['buy', 'equipCat', 'autoSync']);
     expect(t.dr.ui.previewCat).toBe(null);
   });
 
-  it('a failed buy equips nothing and does not sync', () => {
+  it('a failed buy (Yes after she can no longer afford it) equips nothing and does not sync', () => {
     const t = setup({ buyResult: false });
     t.dr.handleClick(click({ drBuyCat: lockedCat }));
+    t.asks[0].onYes();
     expect(t.progression.buy).toHaveBeenCalled();
     expect(t.progression.equipCat).not.toHaveBeenCalled();
     expect(t.sync.autoSync).not.toHaveBeenCalled();
@@ -291,6 +300,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
     const dr = createDressingRoom({
       progression, sync, stage, onChange, onProfileChange, snapCustom, ...(now ? { now } : {}),
       thumbs: { cats: {}, accessories: {}, mine: {} },
+      confirmSpend: (o) => { o.onYes(); return true; }, // she says Yes at once
     });
     return { dr, progression, sync, stage, onChange, onProfileChange };
   }

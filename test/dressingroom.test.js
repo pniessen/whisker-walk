@@ -105,7 +105,7 @@ describe('dressing-room model', () => {
     s.points = price;
     const afford = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'park');
     expect(afford.canBuy).toBe(true);
-    expect(afford.lockLine).toBe(`Tap to unlock — ${price} 🐾`);
+    expect(afford.lockLine).toBe(`Unlock — ${price} 🐾`);
   });
   it('abilities are counted from the live skill list', () => {
     expect(buildDressingModel(defaultishState(), CATALOG).abilities.total).toBe(SKILLS.length);
@@ -250,8 +250,13 @@ describe('dressing-room renderer', () => {
     expect(poor).toContain(`${price} 🐾 — keep walking!`);
     expect(poor).toMatch(/class="dr-place [^"]*\bcant\b/);
     s.points = price;
-    const rich = card(sheet(s));
-    expect(rich).toContain(`Tap to unlock — ${price} 🐾`);
+    // One she can buy: the picture is not a button and carries no
+    // data-dr-place (a tap there never buys); its own Unlock button asks.
+    const html = sheet(s);
+    expect(html).not.toMatch(/data-dr-place="park"/);
+    const rich = html.match(/<div class="dr-place can-buy">[\s\S]*?<\/div>/)[0];
+    expect(rich).toContain(`<button type="button" class="dr-place-buy" data-dr-place-buy="park">Unlock — ${price} 🐾</button>`);
+    expect(rich).toContain(CATALOG.areas.park.name);
     expect(rich).not.toMatch(/\bcant\b/);
     const gated = card(sheet({ ...defaultishState(), edition: 'legacy' }));
     expect(gated).toContain('opens after 2 walks');

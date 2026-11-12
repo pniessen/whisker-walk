@@ -6,7 +6,8 @@
 // stage shows, nothing more, and clearPreview() (called by the owner on hide
 // and before Start) drops them, so a walk always uses the owned, equipped cat.
 import { CATALOG } from '../progression.js';
-import { areaInEdition } from '../edition.js';
+import { areaInEdition, accessoryName, placeName } from '../edition.js';
+import { spendAsk } from './confirmcard.js';
 import { menuThumbnails, customThumbnails, accessoryFraming } from '../thumbnails.js';
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { CUSTOM_MAX, lookKey } from '../customcats.js';
@@ -83,7 +84,7 @@ export function reduceDressingUi(ui, action) {
   }
 }
 
-const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-wardrobe],'
+const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-place-buy],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-wardrobe],'
   + '[data-dr-wardrobe-done],[data-dr-more-cats],[data-dr-outfit],[data-dr-outfit-save],[data-dr-outfit-del],[data-dr-outfit-yes],[data-dr-outfit-keep],'
   + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay]';
 const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is empty
@@ -107,7 +108,7 @@ export function createDressingRoom({
   progression, catalog = CATALOG, stage = null, sync = null, thumbs = null,
   onChange = () => {}, onOpenSheet = null, onProfileChange = () => {}, snapCustom = customThumbnails, now = () => Date.now(),
   onCatSaved = () => {}, later = (fn, ms) => setTimeout(fn, ms), storage = defaultStorage(),
-  onPlaced = () => {},
+  onPlaced = () => {}, confirmSpend = null,
 }) {
   let builderPose = readPose(storage); // 'stand' | 'sit'
   let doneAt = null; // when Done last closed the builder (Start then sits under her finger)
@@ -324,14 +325,38 @@ export function createDressingRoom({
     }
   }
 
+  // Spending paw points asks first (confirmSpend: the home base's confirm
+  // card). The tap only asks; Yes runs the same buy as before, then renders
+  // with focus on `after`. No card wired up: nothing is bought.
+  function askSpend(kind, name, price, opener, after, buyNow) {
+    const q = (sel) => { try { globalThis.document?.querySelector?.(sel)?.focus?.({ preventScroll: true }); } catch { /* a nicety */ } };
+    const asked = typeof confirmSpend === 'function' && confirmSpend({
+      ...spendAsk({ kind, name, price, points: progression.state?.points }),
+      returnFocus: () => q(opener),
+      onYes: () => {
+        focusAfter = after;
+        buyNow();
+        inClick = true;
+        try { onChange(); } finally { inClick = false; }
+      },
+    });
+    if (asked) focusAfter = null; // the card has focus; the render must not take it
+  }
+  const sel = (attr, id) => {
+    const q = String(id).replace(/["\\]/g, '');
+    return `[${attr}="${q}"]`;
+  };
+
   function onBuyCat(id) {
-    if (!has(catalog.cats, id)) return;
-    if (progression.buy('cats', id)) {
+    if (!has(catalog.cats, id) || !progression.canBuy('cats', id)) return;
+    const c = catalog.cats[id];
+    askSpend('cat', c.name, c.price, sel('data-dr-buy-cat', id), sel('data-dr-cat', id), () => {
+      if (!progression.buy('cats', id)) return; // she can't afford it any more: nothing changes
       progression.equipCat(id); // the cat on show is now yours, and the one you walk
       dispatch({ type: 'preview-cat', id, owned: true });
       autoSync();
       profileChanged();
-    }
+    });
   }
 
   const myCats = () => (Array.isArray(progression.state?.customCats) ? progression.state.customCats : []);
@@ -411,13 +436,16 @@ export function createDressingRoom({
       if (worn() !== before) profileChanged();
     } else if (act === 'try') {
       if (!progression.isUnlocked('accessories', id)) dispatch({ type: 'try-on', slot, id });
-    } else if (act === 'buy') {
-      if (progression.buy('accessories', id)) {
+    } else if (act === 'buy' && progression.canBuy('accessories', id)) {
+      const a = catalog.accessories[id];
+      askSpend('item', accessoryName(a, progression.state?.edition), a.price, `${sel('data-dr-acc', id)}[data-dr-act="buy"]`, sel('data-dr-acc', id), () => {
+        const was = worn();
+        if (!progression.buy('accessories', id)) return;
         progression.equipAccessory(id); // it was on the cat already as a try-on
         dispatch({ type: 'try-on', slot, id: null });
         autoSync();
-        if (worn() !== before) profileChanged();
-      }
+        if (worn() !== was) profileChanged();
+      });
     }
   }
 
@@ -448,6 +476,16 @@ export function createDressingRoom({
     if (!has(catalog.areas, id)) return;
     // Legacy hides Clan-only places; a stray click on one buys and sets nothing.
     if (!areaInEdition(catalog.areas[id], progression.state?.edition)) return;
+    // A place that costs paws is bought only through the card's Yes, whatever was tapped.
+    const price = Number(catalog.areas[id].price) || 0;
+    if (price > 0 && progression.canBuy('areas', id)) {
+      const name = placeName(id, progression.state?.edition, catalog) || catalog.areas[id].name;
+      askSpend('place', name, price, sel('data-dr-place-buy', id), null, () => pick(id));
+      return;
+    }
+    pick(id);
+  }
+  function pick(id) {
     const outcome = progression.pickPlace(id);
     if (outcome === 'bought') autoSync();
     // 'set' | 'bought' | false: the owner goes home on a place she can walk.
@@ -494,6 +532,7 @@ export function createDressingRoom({
     else if (d.drAcc !== undefined) onAcc(d.drAcc, d.drAct);
     else if (d.drSlot !== undefined) dispatch({ type: 'slot', slot: d.drSlot });
     else if (d.drPlace !== undefined) onPlace(d.drPlace);
+    else if (d.drPlaceBuy !== undefined) onPlace(d.drPlaceBuy);
     else if (d.drWardrobe !== undefined) dispatch({ type: 'wardrobe', open: true });
     else if (d.drWardrobeDone !== undefined) dispatch({ type: 'wardrobe', open: false });
     else if (d.drMoreCats !== undefined) dispatch({ type: 'more-cats' });
