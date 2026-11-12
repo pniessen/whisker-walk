@@ -117,22 +117,25 @@ function rowBody(row, model) {
       + `<p class="cb-blurb">${e(model.blurb)}</p>`;
   }
   return `<input type="text" data-cb-name value="${e(row.value)}" maxlength="${NAME_MAX}" autocomplete="off" autocapitalize="words" enterkeyhint="done" aria-label="Cat name">`
-    + '<p class="cb-hint">Cat names are 2–16 letters, spaces, or hyphens.</p>';
+    + '<p class="cb-hint">Use 2 to 16 letters.</p>';
 }
 
 export const DONE_LABEL = 'Done, now dress it up →';
 export const NEED_NAME_LABEL = 'Name your cat first ✏️';
 export const doneLabel = (canDone) => (canDone ? DONE_LABEL : NEED_NAME_LABEL);
+// Done is never disabled: without a name it is dimmed (cb-done-wait) and a
+// tap takes her to the name box (dressingroomview's pointAtName).
+export const DONE_WAIT_CLASS = 'cb-done-wait';
 
 export function renderBuilderHtml(model) {
   const rows = model.rows.map((r) => `<section class="cb-row" data-cb-row="${r.key}"><h3>${e(r.title)}</h3>${rowBody(r, model)}</section>`).join('');
   const leave = model.confirmLeave
-    ? '<div class="cb-leave" role="alertdialog" aria-labelledby="cb-leave-q"><span id="cb-leave-q">Leave without saving?</span> <button data-cb-leave>Leave</button> <button data-cb-stay>Keep going</button></div>'
+    ? '<div class="cb-leave" role="alertdialog" aria-labelledby="cb-leave-q"><span id="cb-leave-q">Leave without saving?</span> <button data-cb-stay>Keep making my cat</button> <button data-cb-leave>Leave, don’t save</button></div>'
     : '';
   // Not now and Done share one solid band stuck to the bottom (.cb-foot)
   return `<div class="cb-head"><h2>${e(model.title)}</h2></div>`
     + rows
     + `<div class="cb-foot"><button data-cb-cancel>✕ Not now</button>`
-    + `<button class="cb-done" data-cb-done${model.canDone ? '' : ' disabled'}>${doneLabel(model.canDone)}</button></div>`
+    + `<button class="cb-done${model.canDone ? '' : ` ${DONE_WAIT_CLASS}`}" data-cb-done>${doneLabel(model.canDone)}</button></div>`
     + leave;
 }

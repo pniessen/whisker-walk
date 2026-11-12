@@ -139,7 +139,7 @@ describe('slot picker', () => {
     expect(css).not.toMatch(/prize-surprise::first-line/);
     expect(css).toMatch(/\.dr-pick\.prize-surprise \.gift\s*\{[^}]*font-size:\s*30px/);
   });
-  it('on a phone the leave question has its own row, so Leave and Keep going stay side by side (Polish 3)', async () => {
+  it('on a phone the leave question has its own row, so its two answers stay side by side (Polish 3)', async () => {
     const { readFileSync } = await import('node:fs');
     const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
     expect(css).toMatch(/\.dr \.cb-leave button\s*\{[^}]*white-space: nowrap/);
