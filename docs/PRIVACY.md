@@ -3,8 +3,8 @@ DRAFT — not published, not legal advice.
 
 Before this goes anywhere public, the owner needs to:
   1. Fill in the placeholders marked [LIKE THIS]: the date and the contact.
-  2. Read "Deleting your data" and confirm you are willing to do it by hand,
-     because the game has no delete button for online data yet.
+  2. Run docs/supabase-v9-delete.sql on the database first: the delete button
+     this page describes only works once that file has been run.
   3. If the game is ever offered to children outside your own family, have a
      lawyer read it: the US children's privacy law (COPPA) and its
      equivalents elsewhere then apply, and they ask for more than a policy
@@ -53,7 +53,7 @@ When you tap **Save to cloud**, the game makes up a code (three words and a numb
 - the save and the album, exactly as they are on your device;
 - the code, a secret that proves later uploads come from your device, your total points, and the time of the last upload.
 
-Anyone who has your code can load a copy of your save. Treat the code like a password, and do not post screenshots of the Cloud save screen. **Unlink** stops further uploads from that device; it does not delete the copy already stored online.
+Anyone who has your code can load a copy of your save. Treat the code like a password, and do not post screenshots of the Cloud save screen. **Unlink** stops further uploads from that device; it does not delete the copy already stored online. To delete it, see "Deleting your data".
 
 ### Play together and friends
 
@@ -112,7 +112,9 @@ Online data is kept until it is deleted on request. It is not removed automatica
 ## Deleting your data
 
 - **On a device:** use **Start over** in Game settings, or clear the site's data in the browser, or delete the app.
-- **Online:** write to [CONTACT] with your cloud save code, or your friend code, or both. The owner will delete the matching save, profile, friend links and colony records by hand. The game does not yet have a button that does this for you.
+- **Online, from the game:** open ☰ Menu → Cloud save → **Delete my online data** on the device. It deletes the cloud save and album stored under that device's code, and that device's cat profile, friend links and colony sharing. The game on the device stays, except that the cat name used for playing together is cleared, which also stops anything being uploaded again until a new name is saved. It cannot be undone. Do it on each device you have used: another device linked to the same save code would upload the save again.
+- **What stays after that:** if you shared a colony, your partner keeps it and its cats. Records of who found or fed those cats keep your device's random id, which no longer points to any profile.
+- **Online, by request:** if you no longer have the device, write to [CONTACT] with your cloud save code, or your friend code, or both, and the owner will delete the matching records by hand.
 
 ## Security
 
