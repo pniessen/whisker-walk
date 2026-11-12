@@ -4,9 +4,9 @@ Date: 2026-10-25 · Status: draft for owner approval
 
 ## Intent
 
-The older playtester has been playing *Finch*, and what she likes is the
-small celebration that greets her when she opens it. Whisker Walk should give
-her that same moment of arriving and being welcomed, built on a **visit
+The older playtester has been playing *Finch*, and what they like is the
+small celebration that greets the player when they open it. Whisker Walk should give
+them that same moment of arriving and being welcomed, built on a **visit
 count** instead of a run of consecutive days. A day counter punishes a missed
 day. A visit counter can only go up.
 
@@ -31,7 +31,7 @@ separate devices with separate saves. Both get this.
 7. **All three celebration styles get used, varied across milestones**
    (mockups, 2026-10-25):
    - **A. The big moment:** the screen dims, confetti falls, and a present
-     card says "Visit #N!". She taps **Open it!** to unwrap the accessory.
+     card says "Visit #N!". They tap **Open it!** to unwrap the accessory.
      After the reveal the dimmer lets taps through and the card closes by
      itself about 4 s later ("Yay!" closes it sooner), so Start is one tap
      away; a cycle-back A never blocks and closes at about 6 s (ruling,
@@ -39,7 +39,7 @@ separate devices with separate saves. Both get this.
    - **B. Quick and cheerful:** a burst of confetti and a banner saying
      "Visit N! Your cat got a ___. It's already on!" The cat is already
      wearing it. Nothing to tap.
-   - **C. The cat greets her:** the cat wiggles and says hello in a speech
+   - **C. The cat greets the player:** the cat wiggles and says hello in a speech
      bubble ("You came back! This is our 10th visit. I found something for
      you…"), and a present sits beside it to tap.
 8. **Prizes can't be traded.** They stay with the kid who won them. Colony
@@ -159,15 +159,15 @@ and slots are the builder's call within the theme. Check the existing
 
 **Granting:** the prize goes into owned accessories and is **put on
 immediately**, replacing whatever was in that slot (the old item stays
-owned). Style B shows it already worn. In A and C it's put on when she taps
-the present. If she closes the tab before tapping, grant and wear it anyway
+owned). Style B shows it already worn. In A and C it's put on when they tap
+the present. If the player closes the tab before tapping, grant and wear it anyway
 on the next load. *(My call: a present is never lost.)*
 
 **After prize 10 (visit 90+):** cycle back. Celebrations continue in the same
-style rotation. Instead of giving a duplicate, the cat shows off one prize she
+style rotation. Instead of giving a duplicate, the cat shows off one prize the player
 already owns, cycling through them in order: "Remember this? You looked
 great in it!", with a button to put it on. In style B the button is optional
-and never blocks Start, and nothing changes her outfit unless she taps it.
+and never blocks Start, and nothing changes the player's outfit unless they tap it.
 *(My call on how "cycle back" works.)*
 
 **If the other player presses Start mid-celebration** (any member's Start

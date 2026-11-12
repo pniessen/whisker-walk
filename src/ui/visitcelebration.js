@@ -11,6 +11,7 @@
 
 import { escapeHtml } from '../game/util.js';
 import { confettiCount } from '../visits.js';
+import { note } from '../diagnostics.js';
 
 const B_HOLD_MS = 5000;
 const FADE_MS = 700;
@@ -124,7 +125,7 @@ const REVEAL_LOCK_MS = 500;
 const GIFT_SIZE = 56; // px, matches .visit-cel-gift
 
 function safe(fn, ...args) {
-  try { fn(...args); } catch (err) { console.warn('visit celebration callback failed', err); }
+  try { fn(...args); } catch (err) { console.warn('visit celebration callback failed', err); note('ui', err); }
 }
 
 export function createVisitCelebration(mount, {

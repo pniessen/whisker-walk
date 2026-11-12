@@ -1,3 +1,4 @@
+import { note } from './diagnostics.js';
 // The visit greeting at boot (visit milestones, Task 7): main.js's ordering of
 // the welcome line / celebration, the Rosa farewell and the "While you were
 // out" news, pulled out here so it can be tested without the whole game.
@@ -56,6 +57,7 @@ export function startVisitGreeting({ visit, homebase, showFarewell, showNews, sp
     } catch (err) {
       // Never leave the news held for the whole session, nor reject ready.
       console.warn('visit greeting failed', err);
+      note('ui', err);
       shown = false;
     }
     if (!shown && holding) afterCards(walking ? 'walk' : 'done');

@@ -3,6 +3,7 @@ import { buildCat } from './cat/model.js';
 import { CATALOG } from './progression.js';
 import { activeCat } from './customcats.js';
 import { mulberry32, seedFromCode } from './rng.js';
+import { note } from './diagnostics.js';
 
 // Renders menu thumbnails from the real in-game models, so the shop pictures
 // always match what you get. One throwaway WebGL context renders everything
@@ -65,6 +66,7 @@ function renderAll() {
     return renderAllUnsafe();
   } catch (err) {
     console.warn('Whisker Walk: thumbnail rendering unavailable', err);
+    note('gl', err);
     return { cats: {}, accessories: {} }; // graceful: cards just show no image
   }
 }
@@ -139,7 +141,7 @@ export function customThumbnails(entries) {
         customCache.set(e.key, e.wear ? snap(cat, e.closeUp !== false, e.rotY ?? -0.45) : snap(cat, false));
       }
     } catch (err) {
-      if (!customWarned) { customWarned = true; console.warn('Whisker Walk: custom portraits unavailable', err); }
+      if (!customWarned) { customWarned = true; console.warn('Whisker Walk: custom portraits unavailable', err); note('gl', err); }
     } finally {
       if (renderer) { renderer.dispose(); renderer.forceContextLoss(); }
     }
@@ -249,7 +251,7 @@ export function herCatPortrait(state) {
     return url;
   } catch (err) {
     portraitBroken = true;
-    if (!portraitWarned) { portraitWarned = true; console.warn('Whisker Walk: her cat portrait unavailable', err); }
+    if (!portraitWarned) { portraitWarned = true; console.warn('Whisker Walk: her cat portrait unavailable', err); note('gl', err); }
     return null;
   } finally {
     try {

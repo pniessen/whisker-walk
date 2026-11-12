@@ -169,6 +169,7 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       onChange?.();
     } catch (err) {
       console.warn('Whisker Walk: colony onChange failed', err);
+      note('cloud', err);
     }
   }
 
@@ -451,12 +452,14 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       }
     } catch (err) {
       console.warn('Whisker Walk: colony bookkeeping failed', err);
+      note('cloud', err);
     }
     if (appliedTrades.length > 0) {
       try {
         onTradesApplied?.(appliedTrades.map((t) => ({ ...t })));
       } catch (err) {
         console.warn('Whisker Walk: colony onTradesApplied failed', err);
+        note('cloud', err);
       }
     }
     notifyIfChanged();
@@ -470,7 +473,7 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     if (freshPick) lastPickTry = -Infinity;
     if (!inflight) {
       inflight = doPull()
-        .catch(() => NO_RESULT())
+        .catch((err) => { note('cloud', err); return NO_RESULT(); })
         .finally(() => { inflight = null; });
     }
     return inflight;
@@ -501,6 +504,7 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       if (st === 'denied') profileFor = null;
     } catch (err) {
       console.warn('Whisker Walk: colony action failed', err);
+      note('cloud', err);
       st = 'error';
     }
     if (inflight) await inflight;

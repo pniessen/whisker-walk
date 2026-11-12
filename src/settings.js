@@ -76,6 +76,7 @@ function load(storage) {
     return sanitize(JSON.parse(raw));
   } catch (err) {
     console.warn('Whisker Walk: could not read settings, using defaults', err);
+    note('save', err);
     return { ...DEFAULTS };
   }
 }

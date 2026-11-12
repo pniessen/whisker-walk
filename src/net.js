@@ -12,6 +12,7 @@
 import { isValidChatMsg } from './chat.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { CODE_ALPHABET } from './codealphabet.js';
+import { note } from './diagnostics.js';
 
 const ROOM_CODE_ALPHABET = CODE_ALPHABET; // no I/O/0/1
 const MAX_MESSAGE_BYTES = 2048;
@@ -185,7 +186,8 @@ export function capRoster(list, selfId) {
 function messageSizeOk(msg) {
   try {
     return JSON.stringify(msg).length <= MAX_MESSAGE_BYTES;
-  } catch {
+  } catch (err) {
+    note('room', err);
     return false;
   }
 }

@@ -12,20 +12,20 @@ D rolling tumble, E scars that fade).*
 
 Clan Life Part 2 gave Clan Edition real fights (src/fight.js, src/intruders.js,
 src/game/clanfight.js, src/ui/fightui.js): an intruder from another clan walks
-onto the kid's home land; she picks Fight or Back off; a best-of-three
+onto the kid's home land; they pick Fight or Back off; a best-of-three
 "read the move" fight follows. Each round the intruder shows an honest clue
-(crouches low / raises a paw / backs up) and she answers Pounce, Dodge or
+(crouches low / raises a paw / backs up) and they answer Pounce, Dodge or
 Swipe. Between rounds the cats circle; each round's result is a short
 1.4 s "tumble".
 
-What she sees is mostly two cats circling. Her original ask (clan-life design)
-was hissing, clawing, jumping and rolling, and that is still what she wants.
-She also wants to grow as a fighter: new moves to buy or earn.
+What the player sees is mostly two cats circling. The player's original ask (clan-life design)
+was hissing, clawing, jumping and rolling, and that is still what they want.
+They also want to grow as a fighter: new moves to buy or earn.
 
 Success: a fight looks like a real cat fight from the books — leaps, swats,
 pins and rolling tumbles — each round's result reads at a glance (who landed
-what), and after a few weeks of play her cat knows moves it didn't have on
-day one, some of which she could only earn by fighting.
+what), and after a few weeks of play the player's cat knows moves it didn't have on
+day one, some of which they could only earn by fighting.
 
 ## What the owner decided
 
@@ -40,7 +40,7 @@ day one, some of which she could only earn by fighting.
 2. **Scars, on both sides** (sketch E):
    - a cat that loses a fight gets a scratch scar: on the face, shoulder,
      back, side or hindquarters, not all at once (owner, 2026-11-01);
-   - her own cat can get one (when she loses), and an intruder she beats
+   - the player's own cat can get one (when the player loses), and an intruder she beats
      carries her scar;
    - **scars fade after some walks** and then are gone.
 3. **New fighting moves:** some can only be **earned** (by fighting); others
@@ -76,8 +76,8 @@ by the round's winner on the loser:
 |---|---|
 | Swipe (beats "backs up") | A. Leap and scratch |
 | Pounce (beats "raises a paw") | B. Up on hind legs, swatting |
-| Dodge (beats "crouches low") | the intruder lunges, misses, and her cat lands on its back: C. Jump on top and pin |
-| A lost round (wrong answer or no answer) | the intruder lands A, B or C on her cat, by which clue it showed: "backs up" → A, "raises a paw" → B, "crouches low" → C |
+| Dodge (beats "crouches low") | the intruder lunges, misses, and the player's cat lands on its back: C. Jump on top and pin |
+| A lost round (wrong answer or no answer) | the intruder lands A, B or C on the player's cat, by which clue it showed: "backs up" → A, "raises a paw" → B, "crouches low" → C |
 | The Rolling Tumble special (below) | D. Rolling tumble, ending with the intruder breaking away |
 
 Every round, the deciding one included, plays its own action from this table
@@ -106,9 +106,9 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
   counts as two round wins** — so it finishes the fight from 0–0 or 1–1, and
   turns 0–1 into a win. Used on the wrong clue, it loses the round like any
   wrong answer, and it's spent.
-- It plays its own bigger action (below), always with her cat as the winner.
+- It plays its own bigger action (below), always with the player's cat as the winner.
 
-| Special move | Answers the clue | Action | How she gets it |
+| Special move | Answers the clue | Action | How the player gets it |
 |---|---|---|---|
 | **Rear-up Swat** | "It raises a paw…" | B, bigger and longer | **earn** (3 fights won) **or buy** (300 paw points) |
 | **Leap and Scratch** | "It backs up…" | A, bigger and longer | **earn** (6 fights won) **or buy** (600 paw points) |
@@ -121,11 +121,11 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
 - **Experience = fights won**, counted for good in the save (a fight lost adds
   nothing and takes nothing away). Backing off adds nothing.
 - Buying uses paw points like any purchase (the shop / dressing room's
-  existing buy flow). Earning a buyable move she hasn't bought just unlocks it
+  existing buy flow). Earning a buyable move the player hasn't bought just unlocks it
   free; buying early skips the wait. No refunds needed: a bought move is never
   taken away.
 - A toast when a move unlocks ("New move: Pin! Use it when they crouch."),
-  and a place to see her moves and how close the next one is (the journal or
+  and a place to see the cat's moves and how close the next one is (the journal or
   the dressing room; the builder picks, phone-first).
 - **Fight panel:** the three basic buttons stay as they are (bottom third,
   ≥ 88 px, Part 2's phone rules). Owned specials sit in a second, smaller row
@@ -134,7 +134,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
 
 ### Scars
 
-- **Who gets one:** the loser of a whole fight (not of a round). Her cat when
+- **Who gets one:** the loser of a whole fight (not of a round). The player's cat when
   she loses; the intruder when she wins. Backing off gives no scar.
 - **Where (owner, 2026-11-01):** a scar can sit at one of several sites, not
   all at once:
@@ -149,7 +149,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
   and scratch → face; rear-up swatting → shoulder; pin → back; rolling
   tumble → side or hindquarters (alternating by a stable hash of the scarred
   cat's id). Left or right side is fixed per cat so a scar doesn't jump
-  sides. Since the intruder's winning action follows its clue, her cat can
+  sides. Since the intruder's winning action follows its clue, the player's cat can
   get face, shoulder or back scars; side and hindquarters come from her own
   Rolling Tumble, so they appear on intruders.
 - **How many at once:** at most **two** scars on a cat, at two different
@@ -174,7 +174,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
 - **Fading:** each scar lasts **5 walks** on its own: full for the next 2
   walks, half for the next 2, faint for the last one, then gone. Walks counted
   are any walks (Legacy walks too), so a scar from Clan Edition fades even if
-  she plays Legacy. A new scar at a site that already has one resets that
+  they play Legacy. A new scar at a site that already has one resets that
   scar to full.
 - **Her own scars** belong to the cat that fought (owner, 2026-11-01): if
   she loses as one cat and switches to another, the new one has no scar. The
@@ -188,9 +188,9 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
   which is fine for a cosmetic field, and is re-pushed when scars change.
 - **Intruder scars:** intruders are cast slots of the territory's clans
   (Part 2 `RAIDER_SLOTS`, src/intruders.js). The save keeps a small list
-  keyed by **cast id** (not name) of cats she has scarred; that cat shows its
-  scar **anywhere it appears on her device**, as an intruder or standing in
-  its own clan's camp, fading by her walk count the same way. Each kid's
+  keyed by **cast id** (not name) of cats the player has scarred; that cat shows its
+  scar **anywhere it appears on the player's device**, as an intruder or standing in
+  its own clan's camp, fading by the player's walk count the same way. Each kid's
   device keeps its own list (Claude's call: keep it local rather than
   syncing).
 - **Chasing off together** (`chasedOffTogether`, both kids in one fight's
@@ -205,7 +205,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
   drawn on their own device (Part 2), as today.
 - **Losing changes nothing — except a scar.** Part 2's rule "losing a fight
   changes nothing in progression" is amended by the owner's decision: losing
-  now leaves a cosmetic, fading scar on her cat. It still costs no points,
+  now leaves a cosmetic, fading scar on the player's cat. It still costs no points,
   cats, unlocks, marks, moves or fights-won count. The structural tests in
   Part 2 that pin the lose path must be updated to allow exactly this one
   cosmetic field and nothing else. The win path changes too: src/game/clanfight.js
@@ -220,7 +220,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
   `fightsWon` (non-negative integer, clamped), `fightMoves` (owned special-move
   ids from a fixed list), `scars`, kept **per cat** (owner, 2026-11-01: the cat that fought
   keeps its own scars; keyed by preset breed id or custom-cat id, each up to
-  two site id + walks-left 0–5; a cat she switches away from keeps fading by
+  two site id + walks-left 0–5; a cat the player switches away from keeps fading by
   her walk count; a deleted or replaced custom cat's scars are dropped), and
   `scarredIntruders` (at most ~24 entries keyed by cast id, each up to two
   site/walks-left pairs, oldest dropped).
@@ -228,7 +228,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
   Special moves don't go over the wire; each kid's fight runs on their own
   device as today (Part 2's co-walk events stay as they are).
 - **Legacy:** no fights, so no moves UI; a scar from Clan Edition still shows
-  on her cat in Legacy while it fades (Claude's call: it's her cat's look; the
+  on the player's cat in Legacy while it fades (Claude's call: it's the player's cat's look; the
   owner may prefer hiding it in Legacy).
 
 ## Constraints
@@ -265,7 +265,7 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
 
 - A fight becomes a reflex test, or a special move wins without reading a
   clue (except the top earn-only move, by design).
-- A scar that never goes away, or one that makes her cat look hurt rather than
+- A scar that never goes away, or one that makes the player's cat look hurt rather than
   battle-tested.
 - The young player feels punished for losing.
 - The phone drops below 60 fps mid-fight.
@@ -275,5 +275,5 @@ learn **special moves**. Each is a finisher she can use **once per fight**.
 - Exact action animations, timings, camera framing per action, and the
   square-off beats.
 - The scar's exact look per coat, and how it's drawn (texture vs decal).
-- Where her moves list lives, and the unlock toast copy.
+- Where the player's moves list lives, and the unlock toast copy.
 - Final unlock counts and prices (first guesses above).

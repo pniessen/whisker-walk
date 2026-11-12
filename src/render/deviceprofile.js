@@ -16,6 +16,7 @@
 // no profile, start at the top, nothing temporary.
 
 import { LOW_RUNG } from './quality.js';
+import { note } from '../diagnostics.js';
 
 export const DEVICE_GLOBAL = '__whiskerDevice';
 export const DEVICE_EVENT = 'whisker-device';
@@ -47,7 +48,8 @@ export function sanitizeProfile(raw) {
 export function readDeviceProfile(win = globalThis) {
   try {
     return sanitizeProfile(win?.[DEVICE_GLOBAL]);
-  } catch {
+  } catch (err) {
+    note('bridge', err);
     return null;
   }
 }

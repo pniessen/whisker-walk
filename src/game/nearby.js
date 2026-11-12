@@ -38,6 +38,7 @@
 
 import { validPetName } from '../net.js';
 import { TYPED_CODE } from './rooms.js';
+import { note } from '../diagnostics.js';
 
 export const NEARBY_HANDLER = 'nearby';
 export const NEARBY_EVENT = 'whisker-nearby';
@@ -62,7 +63,8 @@ export function pickBridge(win = globalThis) {
   try {
     const handler = win?.webkit?.messageHandlers?.[NEARBY_HANDLER];
     return handler && typeof handler.postMessage === 'function' ? handler : null;
-  } catch {
+  } catch (err) {
+    note('bridge', err);
     return null;
   }
 }
@@ -123,12 +125,12 @@ export function createNearby({
 
   function notify() {
     for (const fn of handlers) {
-      try { fn(); } catch (err) { console.warn('Whisker Walk: nearby listener failed', err); }
+      try { fn(); } catch (err) { console.warn('Whisker Walk: nearby listener failed', err); note('bridge', err); }
     }
   }
 
   function post(msg) {
-    try { bridge.postMessage(msg); } catch { /* a bridge torn down: a missed message, nothing more */ }
+    try { bridge.postMessage(msg); } catch (err) { note('bridge', err); /* a bridge torn down: a missed message, nothing more */ }
   }
 
   function opted() {

@@ -213,7 +213,7 @@ These are for the owner (the parent), not the implementer.
 1. **Update both devices** before either kid walks the Pines with the island. This is the same step as the Pines plan's, and nothing new is stored.
 2. **No SQL.**
 3. **Check the Pines on the iPhone 18** after Task 8, island included: 60 fps on HIGH, standing on the island looking back up the bridge.
-4. **Show her the island.**
+4. **Show the playtester the island.**
 
 ## What this plan defers
 
@@ -540,7 +540,7 @@ it('the bridge runs from 0.6 m onto the island to the Pines shore, and its plank
   const [, land] = bridgeEnds('pines');
   expect(land.x).toBeCloseTo(10.0, 9);
   expect(land.z).toBeCloseTo(4.0, 9);
-  // the bridge points the same way on her map as in the world
+  // the bridge points the same way on the playtester's map as in the world
   const [[bx0, by0], [bx1, by1]] = BRIDGE; // src/territories.js: shore -> island, board y is south
   const board = Math.atan2(bx1 - bx0, by1 - by0), world = Math.atan2(ix - fx, iz - fz);
   expect(Math.abs(board - world)).toBeLessThan(Math.PI / 180);

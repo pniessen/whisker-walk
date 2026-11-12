@@ -2,14 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the Gorge's three deep caves feel like caves. They get darker the deeper she goes, with a soft warm glow round her cat so she always sees her way. The camera comes in close and low. Each chamber holds something worth the walk, and in the Snug Cave a cat lives. None of it is ever scary.
+**Goal:** Make the Gorge's three deep caves feel like caves. They get darker the deeper she goes, with a soft warm glow round the player's cat so she always sees her way. The camera comes in close and low. Each chamber holds something worth the walk, and in the Snug Cave a cat lives. None of it is ever scary.
 
 **Architecture:**
 - A pure module, `src/caves.js`, says how deep into a cave a spot is, from part 2's `GORGE_CAVES` records.
 - Part 2's `gorgeLife` hook grows three ways:
   - it dims the sun and fill by depth, through the same `composeIntensity` it already uses for shade;
   - it drives one warm `PointLight`, added when the Gorge walk starts, so no shader recompiles mid-walk;
-  - it shows each cave's interior dressing only while her cat is near that cave.
+  - it shows each cave's interior dressing only while the player's cat is near that cave.
 - The camera eases to a close, low view under any ceiling (`src/camzoom.js` and `src/player.js`).
 - Weather hides its rain under a ceiling, and the ambience adds drips by depth.
 - `createStrayCats` gains fixed homes, so one ordinary stray lives in the Snug Cave with no change to any stream.
@@ -47,7 +47,7 @@ Part 2's Global Constraints hold unchanged: nothing changes elsewhere, SAVE_VERS
   - Each frame it sits at the cat + (0, 0.7, 0), with intensity `GLOW_MAX · smoothstep(0, 0.35, depth)` and `GLOW_MAX = 2.0`. It moves at C2's linear rates, scaled by `GLOW_MAX`.
   - It always exists on a Gorge walk, so the shaders are compiled with it from the start.
   - **What it costs:** every Gorge material is `MeshStandardMaterial`, so one more light is worked out for every lit pixel of the whole Gorge, the look-down included, even at intensity 0. Cutting its `distance` does not lower that cost. So Task 6 re-measures part 2's floor and look-down readings with the light in place.
-  - **The fallback,** if the look-down loses frames on the iPhone: drop the `PointLight`. Use a soft additive glow disc on the ground under her cat (one small `noCast` mesh) plus a warm emissive lift on her own cat's materials while `depth > 0`. Both scale with depth.
+  - **The fallback,** if the look-down loses frames on the iPhone: drop the `PointLight`. Use a soft additive glow disc on the ground under the player's cat (one small `noCast` mesh) plus a warm emissive lift on the player's own cat's materials while `depth > 0`. Both scale with depth.
   - Cost if wrong: the fallback is one task's work and changes no test about darkness.
 - **C4. The camera under a ceiling.**
   - Wherever `ground.ceil(cat)` is finite (caves and dens), the zoom view eases at 3 /s toward `CAVE_VIEW = { dist: 2.4, height: 0.9 }`, taking the smaller of each value and the player's own step. It eases back out at 1.5 /s once she is out.
@@ -56,7 +56,7 @@ Part 2's Global Constraints hold unchanged: nothing changes elsewhere, SAVE_VERS
   - Cost if wrong: two constants.
 - **C5. Interiors.**
   - Each deep cave gets one group, `caveInterior:<id>`. It holds one merged `noCast` mesh of crystals and glints (`caveCrystals`), emissive and soft, with a different colour per cave: Echo `0x9fc7d8`, Snug `0xe8c890`, Glitter `0xf2d27a`. For the Glitter Cave, a second mesh of gold flecks on the chamber walls.
-  - A group is visible only while her cat is within `CAVE_SHOW_R = 12` m (2D) of any of its cave's rectangles and `|ground.y(cat) − cave.y| ≤ 3`.
+  - A group is visible only while the player's cat is within `CAVE_SHOW_R = 12` m (2D) of any of its cave's rectangles and `|ground.y(cat) − cave.y| ≤ 3`.
   - The rock, the caps and the finds are part 2's and always drawn.
   - Cost if wrong: the look-down shows nothing inside the caves anyway, so the only risk is a pop-in at 12 m, which is out of sight round the bend.
 - **C6. Rain stays outside.** `weather.setSheltered(on)` hides the rain column while `ground.ceil(camera)` is finite and shows it again outside. `walk.js` passes `weather: session.weather` into `gorgeLife`'s context. Every weather object, including the dusk no-op weather (`walk.js` ~622) and any early-return shape in `weather.js`, gets a `setSheltered` that does nothing when there is no rain. The rain sound is unchanged: you hear rain from a cave mouth.
@@ -66,7 +66,7 @@ Part 2's Global Constraints hold unchanged: nothing changes elsewhere, SAVE_VERS
 - **C8. The Snug Cave's cat.**
   - `createStrayCats(…, { homes: [{ x, z, roam }] })`. After the colony cats, the first ordinary stray of the cast takes the first home, and so on.
   - It still spends all five draws for its index, so the stream position after spawn stays `47 + 5 · count`.
-  - Its position and home are the home's. Its wander targets stay within `roam` of home. Its personality is the rolled one with `'shy'` turned into `'bold'`, so she can greet it.
+  - Its position and home are the home's. Its wander targets stay within `roam` of home. Its personality is the rolled one with `'shy'` turned into `'bold'`, so the player can greet it.
   - `areaData.strayHomes = [{ x: 22.5, z: 9.5, roam: 2 }]`.
   - Part 2 put the Snug Cave's bend and chamber in `STAND_ON`, so `dryGroundPoint` leaves the homed cat and its targets inside the cave.
   - The name changes walk to walk; the cave always has a cat. Both co-walkers draw the same cast from `strayStream(roomSeed)`, so they see the same cat.
@@ -141,7 +141,7 @@ Part 2's Global Constraints hold unchanged: nothing changes elsewhere, SAVE_VERS
 
 - [ ] **Step 1: Write the failing tests** in `test/gorgelife.test.js`, with a stub sun and fill (`{ intensity }`) and Task 2's caves on part 2's ground:
   - `'deeper is darker, never below the floor'`. Walk the Echo Cave path: the sun's factor (intensity ÷ the outside value at the same shade) falls steadily to `DARK_FLOOR` ± 0.02 in the chamber and never below 0.3.
-  - `'the glow comes on as she goes in and sits on her cat'`. It is 0 outside. In the chamber it is ≥ `GLOW_MAX` − 0.05 after 2 s. The light's position is the cat + (0, 0.7, 0) every frame.
+  - `'the glow comes on as she goes in and sits on the player's cat'`. It is 0 outside. In the chamber it is ≥ `GLOW_MAX` − 0.05 after 2 s. The light's position is the cat + (0, 0.7, 0) every frame.
   - `'the light comes back at a linear rate'`: from the chamber factor of 0.3, after `t` seconds out, the factor is `min(1, 0.3 + 2.0 · t)`.
   - `'leaving a cave brings the light and the camera back'`. This is Review Focus 1. From the chamber, walk out at zoomies speed: 1 s after the mouth the factor is ≥ 0.98 and the glow ≤ 0.05.
   - `'a weather write in a cave becomes the new base and stays dimmed'`. This is Review Focus 3. In the chamber, set `sun.intensity = 2.2` and update: the result is `2.2 × shade × dark`, within 1e-6.
@@ -154,7 +154,7 @@ Part 2's Global Constraints hold unchanged: nothing changes elsewhere, SAVE_VERS
 - [ ] **Step 2: Run them to see them fail.**
 - [ ] **Step 3: Implement** C2, C3, C6 and C7.
 - [ ] **Step 4: Run the full suite.** Expected: PASS.
-- [ ] **Step 5: Commit** `src/gorgelife.js src/main.js src/game/walk.js src/world/gorge.js src/weather.js src/audio.js test/gorgelife.test.js test/weather.test.js test/audio.test.js` with the message `feat(caves): darker deeper, a warm glow round her cat, rain outside and drips inside`.
+- [ ] **Step 5: Commit** `src/gorgelife.js src/main.js src/game/walk.js src/world/gorge.js src/weather.js src/audio.js test/gorgelife.test.js test/weather.test.js test/audio.test.js` with the message `feat(caves): darker deeper, a warm glow round the player's cat, rain outside and drips inside`.
 
 ### Task 4: What the caves look like inside, and their mouths on the corner map
 
@@ -222,7 +222,7 @@ Part 2's Global Constraints hold unchanged: nothing changes elsewhere, SAVE_VERS
 ## Owner steps
 
 1. **The iPhone 18 check:** on HIGH, walk into the Echo Cave chamber and the Glitter Cave chamber. Both must hold 60 fps and never look black. Do it once on a dusk walk too.
-2. **Show her the caves** before naming anything for good. The names "the Echo Cave", "the Snug Cave" and "the Glitter Cave" are the planner's; if the kids pick others, each is one string in `GORGE_CAVES`.
+2. **Show the playtester the caves** before naming anything for good. The names "the Echo Cave", "the Snug Cave" and "the Glitter Cave" are the planner's; if the kids pick others, each is one string in `GORGE_CAVES`.
 
 ---
 

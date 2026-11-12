@@ -88,7 +88,7 @@
 
 ## Still open (small; build the default unless told otherwise)
 
-- The 28 extra name words (slots 9–15) and the palettes are the builder's picks; show them to the older playtester. Any word or colour she changes is one line.
+- The 28 extra name words (slots 9–15) and the palettes are the builder's picks; show them to the older playtester. Any word or colour the older playtester changes is one line.
 
 ## Review Focus
 

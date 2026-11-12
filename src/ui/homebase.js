@@ -33,6 +33,7 @@ import { settingsSwitchHtml } from './screencards.js';
 import { emptyStateHtml } from './emptystates.js';
 import { PAW } from './pawicon.js';
 import { createConfirmCard } from './confirmcard.js';
+import { note } from '../diagnostics.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -568,6 +569,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
         ? `<div id="player-pets-roster" class="friends-list">${rowsHtml}</div>`
         : `<div id="player-pets-roster" class="tag">No player pets yet — walk together and touch noses!</div>`;
     } catch (err) {
+      note('cloud', err);
       if (token !== playerPetsToken) return;
       root.querySelector('#player-pets-section')?.remove();
     }
@@ -633,7 +635,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
     let res;
     try {
       res = await step();
-    } catch {
+    } catch (err) {
+      note('cloud', err);
       res = { ok: false, status: 'error' };
     }
     pairBusy = false;
@@ -654,7 +657,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
     let res;
     try {
       res = await step();
-    } catch {
+    } catch (err) {
+      note('cloud', err);
       res = { ok: false, status: 'error' };
     }
     tradeBusy = false;
@@ -679,7 +683,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
     // Dismissing is what marks it read; closing because a walk began is not.
     // Only what the card showed is marked, not what merged while it was up.
     if (markSeen) {
-      try { progression.markColonySeen(utcToday(), seen || undefined); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); }
+      try { progression.markColonySeen(utcToday(), seen || undefined); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); note('save', err); }
       showClanMoment(); // it waited for this card
     }
     syncNearbyCard();
@@ -757,7 +761,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
     blocked: () => !homeVisible() || !!(newsEl || noticeEl || momentEl || visitOpen()),
     onClosed: () => {
       // the cards that waited behind this one may go up now
-      if (!showClanMoment()) { try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); } }
+      if (!showClanMoment()) { try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); note('ui', err); } }
       syncNearbyCard();
     },
   });
@@ -821,7 +825,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
       nearby.dismiss(due.code); // its change comes back here and takes the card down
       removeNearbyCard();
       // the cards that waited behind this one may go up now
-      if (!showClanMoment()) { try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); } }
+      if (!showClanMoment()) { try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); note('ui', err); } }
     };
     later.addEventListener('click', notNow);
     nearbyEl.addEventListener('keydown', (e) => {
@@ -905,7 +909,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
     markMomentSeen();
     try { root.querySelector('#btn-start')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
     // the news card gave way to the moment: it may show now
-    try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); }
+    try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); note('ui', err); }
     syncNearbyCard();
   }
   // force: Change place's clan line (shown even after "Not yet", and with a
@@ -962,7 +966,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
   const celebration = createVisitCelebration(document.body, {
     onOpen: () => {
       confirmCard.close(); // never under the celebration: the question goes unanswered
-      try { onCelebrate?.(); } catch (err) { console.warn('Whisker Walk: celebration sound failed', err); }
+      try { onCelebrate?.(); } catch (err) { console.warn('Whisker Walk: celebration sound failed', err); note('audio', err); }
       progression.wearPendingVisitPrize();
       render();
     },
@@ -1566,7 +1570,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
         returnFocus: () => root.querySelector(`[data-backup-restore="${kind}"]`)?.focus?.({ preventScroll: true }),
         onYes: () => {
           let ok = false;
-          try { ok = progression.restoreBackup(kind); } catch (err) { console.warn('Whisker Walk: restore failed', err); }
+          try { ok = progression.restoreBackup(kind); } catch (err) { console.warn('Whisker Walk: restore failed', err); note('save', err); }
           if (ok) dressing?.clearPreview();
           backupMsg = ok ? 'Done! Your earlier progress is back.' : 'That didn’t work, so nothing was changed.';
           render();
@@ -1681,6 +1685,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
           friendCodeError = self ? "That's your own code!" : 'No player found with that code.';
         }
       } catch (err) {
+        note('cloud', err);
         friendCodeError = 'Could not look up that code — try again.';
       }
       friendCodeBusy = false;
@@ -1719,6 +1724,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
         friendCodeCandidate = null;
       } catch (err) {
         friendCodeSuccess = null;
+        note('cloud', err);
         friendCodeError = 'Could not add that friend — try again.';
       }
       friendCodeBusy = false;

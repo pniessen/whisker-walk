@@ -115,7 +115,7 @@ CliffClan lives on the ledges and in the caves.
   They are natural spots for golden mice, finds and clan cats.
 - **Deep caves (2 or 3):** a tunnel into the rock that bends so the
   entrance light drops away, then a small chamber. It gets darker the deeper
-  she goes, with **a soft glow around her cat** so she always sees her way
+  she goes, with **a soft glow around the player's cat** so the player always sees their way
   (Claude's call: never pitch black, never scary). Inside: a prize (golden
   mouse or treasure) or a cat (a loner, a CliffClan elder, or a kittypet who
   got lost — the builder picks per cave).
