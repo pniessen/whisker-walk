@@ -24,7 +24,7 @@ const STYLE = {
   siamese:   { base: 0xe8dcc8, belly: 0xf2ead9, accent: 0x4a3b32, scale: 0.95, points: true },
   persian:   { base: 0xcfcfd4, belly: 0xe8e8ec, accent: 0xb5b5bc, scale: 1.05, fluffy: true, tailPlume: 1 },
   black:     { base: 0x2a2a30, belly: 0x3a3a42, accent: 0x1c1c22, scale: 1.0 },
-  calico:    { base: 0xf0ead8, belly: 0xf8f4e8, accent: 0xd88030, scale: 1.0, patches: true },
+  calico:    { base: 0xf0ead8, belly: 0xf8f4e8, accent: 0xd88030, scale: 1.0, patches: true, calicoMore: true, patch2: 0x2e2a2a },
   mainecoon: { base: 0x7a5b3a, belly: 0xb99a72, accent: 0x5a4028, scale: 1.3, fluffy: true, tufts: true, tailPlume: 1 },
   // the family pets
   zeetoo:    { base: 0xa8825a, belly: 0xe0ccA0, accent: 0x74582f, scale: 1.0, stripes: true, headStripes: 'M' },
@@ -256,7 +256,15 @@ const M_V_Y = 0.116;
 const M_V_LEN = 0.23;
 const M_V_TWIST = -0.68;
 const M_RINGS = 3;
+// The tabby's mascara line and cheek bar (cat-beauty A3), head space: centre
+// past the eye's outer corner, the stroke's half-width and half-length (patch
+// units) and its slant, and how far below it the cheek bar runs.
+const MASCARA = Object.freeze({ x: 0.15, y: 0.025, z: -0.105, w: 0.045, len: 0.2, twist: 1.1, cheekDy: 0.05 });
 const M_SEG = 14;
+// A tabby tail's ring on each of its first three links (cat-beauty A3): the
+// link's height segments, the ring's centre along the link (0 pivot, 1 end),
+// its solid half-width and soft edge (link units), and how far toward accent.
+const TAIL_RING = Object.freeze({ seg: 3, at: 0.5, half: 0.17, soft: 0.2, strength: 0.8 });
 // The dark tip starts this far along the blended link (a third: u = 2/3).
 const TIP_FROM = 1 / 3;
 
@@ -997,6 +1005,56 @@ export function coatColor(breed, look = null) {
   return (Object.hasOwn(STYLE, breed) ? STYLE[breed] : STYLE.tabby).base;
 }
 
+// -----------------------------------------------------------------------------
+// COAT GENETICS ON THE FACE (cat-beauty, Tier A: colour only).
+//
+// Nose leather follows the coat: a seal point's seal, a brown tabby's brick
+// red, a ginger's salmon pink, a blue's blue-grey; white, cream, silver and
+// calico cats keep the pink, and so does a black (dark-faced) cat. The family
+// cats keep the pink they were drawn with from their photos (FAMILY_NOSE).
+const FAMILY_NOSE = new Set(['zeetoo', 'robbie', 'd2', 'digit']);
+export const NOSE = Object.freeze({ brick: 0xb0605a, salmon: 0xe2907e, blue: 0x7c6a74, pointMix: 0.7 });
+export function noseHex(s, breed) {
+  if (s.nose != null) return s.nose;
+  if (FAMILY_NOSE.has(breed)) return INNER_EAR; // breed is null for a style or look row
+  // A black (dark-faced or dark-coated) cat keeps the pink nose (owner's
+  // choice, 2026-11-11): a black nose on a black face is real, but it fails
+  // the nose-contrast check (1.46 of 3) and makes the face harder to read. A
+  // builder's black cat with Pointed marks keeps it too: the point-coloured
+  // nose fell under that check where the pink one passed.
+  if (darkFace(s) || linLum(s.base) < DARK_LUM) return INNER_EAR;
+  if (s.points) return new THREE.Color(INNER_EAR).lerp(new THREE.Color(s.accent), NOSE.pointMix).getHex();
+  const hsl = new THREE.Color(s.base).getHSL({ h: 0, s: 0, l: 0 });
+  if (s.stripes) return hsl.h < 0.075 && hsl.s > 0.5 ? NOSE.salmon : NOSE.brick;
+  if (hsl.s < 0.15 && hsl.l > 0.25 && hsl.l < 0.55) return NOSE.blue;
+  return INNER_EAR;
+}
+// A pointed cat (Siamese, a builder's "Pointed") wears its colour as a MASK:
+// over the muzzle, the whisker pads and round the eyes, connected to the dark
+// ears, while the crown and the back of the head shade toward the body colour.
+// It used to be the reverse (a dark hood round a pale snout), which reads as a
+// bicolour, not a Siamese. The muzzle and cheeks take the point colour lifted a
+// little toward the body (so the pads keep their shape in the light); the
+// skull is vertex-painted from the mask at the face to POINT_MASK.back of the
+// way to the body colour behind. Colour only: same meshes, same triangles.
+export const POINT_MASK = Object.freeze({ face: 0.18, back: 0.55, from: -0.25, to: 0.75 });
+export const faceHex = (s) => (s.points ? new THREE.Color(s.accent).lerp(new THREE.Color(s.base), POINT_MASK.face).getHex() : s.belly);
+function paintPointMask(skull, s) {
+  const geo = skull.geometry, p = geo.attributes.position, col = new Float32Array(p.count * 3);
+  const mask = new THREE.Color(s.accent), back = new THREE.Color(s.accent).lerp(new THREE.Color(s.base), POINT_MASK.back), c = new THREE.Color();
+  const r = geo.parameters.radius;
+  for (let i = 0; i < p.count; i++) {
+    // -z is the face; the mask also runs low round the cheeks (y < 0)
+    const front = -p.getZ(i) / r, low = -p.getY(i) / r;
+    const k = Math.min(1, Math.max(0, (Math.max(front, 0.6 * low + 0.2) - POINT_MASK.from) / (POINT_MASK.to - POINT_MASK.from)));
+    c.lerpColors(back, mask, k * k * (3 - 2 * k));
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  skull.material.color.setHex(0xffffff);
+  skull.material.vertexColors = true;
+}
+
 // A copy of a breed's STYLE row (read-only: tests build a cat from a variant).
 export const catStyle = (breed) => Object.freeze({ ...STYLE[breed] });
 
@@ -1066,14 +1124,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const SKULL_SCALE = SKULL.SCALE;
   const head = new THREE.Group();
   const skull = ball(SKULL_R, pointColor, ...SKULL_SCALE);
+  if (s.points) paintPointMask(skull, s);
   head.add(skull);
   const MUZZLE_R = 0.09;
   const MUZZLE_SCALE = [1.25, 0.75, 0.9];
   const MUZZLE_CENTRE = [0, -0.06, -0.16];
-  const muzzle = ball(MUZZLE_R, s.belly, ...MUZZLE_SCALE);
+  const muzzle = ball(MUZZLE_R, faceHex(s), ...MUZZLE_SCALE);
   muzzle.position.set(...MUZZLE_CENTRE);
   head.add(muzzle);
-  const nose = ball(0.024, INNER_EAR, 1, 0.8, 0.8, 6, 5);
+  const nose = ball(0.024, noseHex(s, opts.style || opts.look != null ? null : breed), 1, 0.8, 0.8, 6, 5);
   nose.position.set(0, -0.02, -0.245);
   nose.userData.nose = true;   // tests find the nose by this, not by child order
   head.add(nose);
@@ -1083,10 +1142,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const EARS = s.ears ?? 1;
   const earH = s.tufts ? 0.19 : 0.15;
   const earLift = (earH * (EARS - 1)) / 2;
-  const eyes = [], shines = [], cheeks = [];
+  const eyes = [], pupils = [], shines = [], cheeks = [];
   for (const side of [-1, 1]) {
     if (!opts.simple) {
-      const cheek = ball(0.065, s.belly, 1, 0.9, 0.8, 8, 6);
+      const cheek = ball(0.065, faceHex(s), 1, 0.9, 0.8, 8, 6);
       cheek.userData.cheek = true;
       cheek.position.set(side * 0.085, -0.07, -0.14);
       head.add(cheek);
@@ -1096,10 +1155,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     ear.rotation.z = -side * 0.22;
     head.add(ear);
     if (!opts.simple) {
+      // cat-beauty A6: the inner ear rides its ear. It was the head's child,
+      // so every twitch, flick and fear/anger pin turned the ear and left the
+      // pink cone standing on its own beside it. The same place at rest: the
+      // old offset from the ear (-0.005 x outward, -0.02 y, -0.025 z, both
+      // turned by the same -side*0.22) is the ear-local (side*-0.0005, -0.0199, -0.025) after rotation.
       const inner = new THREE.Mesh(new THREE.ConeGeometry(0.045 * EARS, 0.09 * EARS, 4), mat(INNER_EAR));
-      inner.position.set(side * 0.115, 0.16 + earLift, -0.015);
-      inner.rotation.z = -side * 0.22;
-      head.add(inner);
+      const rz = -side * 0.22, dx = -side * 0.005, dy = -0.02;
+      inner.position.set(Math.cos(rz) * dx + Math.sin(rz) * dy, -Math.sin(rz) * dx + Math.cos(rz) * dy, -0.025);
+      ear.add(inner);
     }
     if (side === -1) head.userData.earL = ear;
     else head.userData.earR = ear;
@@ -1114,6 +1178,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const pupil = ball(0.017, 0x1a1a1e, 0.7, 1.2, 0.6, 6, 5);
     pupil.position.set(side * 0.083, 0.03, EYE_PUPIL_Z);
     head.add(pupil);
+    pupils.push(pupil);
     if (!opts.simple) {
       const shine = ball(0.007, 0xffffff, 1, 1, 1, 4, 3);
       shine.position.set(side * 0.07, 0.048, EYE_SHINE_Z);
@@ -1143,6 +1208,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
     head.userData.darkFace = true;
   }
+  // The lids (cat-beauty): the animator closes the eyes to blink and to sleep
+  // by scaling these, about the scales they were built with (animator.js lids).
+  head.userData.eyes = { eyes, pupils, shines };
   // whiskers
   // Polish 1a, Task 5: from the walk camera (behind) the old whiskers, 0.28
   // out and swept BACK to z -0.14, stood 9 cm clear of the head on both sides,
@@ -1232,15 +1300,26 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const TF = plume > 0 ? 1 : (s.tailFluff ?? 1);
   const tailRad = (u) => tailRadius(u, plume) * TF;
   const darkTip = !!(s.stripes || s.points);
+  // A family cat by its breed key, even when a test or variant hands in its own
+  // row as opts.style (tailplume.test.js: D2 keeps today's tail). The game's
+  // style callers (clan, rival, intruder cats) never pass a family breed.
+  const family = FAMILY_NOSE.has(breed) && opts.look == null;
+  const ringedTail = !!s.stripes && !opts.simple && !family && !(s.tailPlume ?? (s.tailFluff > 1 || s.fluffy)); // a plume hides rings, and a long-haired tabby sits near the 9,000 cap
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
     if (i > 0) pivot.position.set(0, 0, TAIL.LINK);
-    const blend = darkTip && i === 3;
+    const blend = darkTip && i === 3 && !s.points; // a pointed tail is the point colour all along
+    // cat-beauty A3: a tabby's tail is RINGED. Links 1 and 2 of
+    // a full build carries one soft dark ring (TAIL_RING) in its vertex colours,
+    // so with the dark last third it reads as a striped tail from the walk
+    // camera, where the tail is most of what shows. Not on a simple build (the
+    // stray triangle cap) nor on the family cats (drawn from their photos).
+    const ringed = ringedTail && i >= 1 && i < 3; // link 0 stays plain: its rings put vertices over the stalk's rump line (folds.test.js)
     // The link runs from its pivot along +z: the cylinder's +y axis turned onto
     // +z. Open-ended; the balls below close every end. The blended link has
     // rings at each third of its length, for its colours to change along.
-    const parts = [new THREE.CylinderGeometry(tailRad((i + 1) / 5), tailRad(i / 5), TAIL.LINK, 12, blend ? 3 : 1, true)
+    const parts = [new THREE.CylinderGeometry(tailRad((i + 1) / 5), tailRad(i / 5), TAIL.LINK, 12, blend ? 3 : ringed ? TAIL_RING.seg : 1, true)
       .rotateX(Math.PI / 2).translate(0, 0, TAIL.LINK / 2)];
     // A simple build (strays, rivals, ghosts) rounds them at 8×5: Digit's
     // simple cat sits at the 5,500-triangle cap once the chest is in.
@@ -1257,9 +1336,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       : ball(tailRad(i / 5)));   // a rounded joint
     if (i === 4) parts.push(ball(tailRad(1)).translate(0, 0, TAIL.LINK)); // the tip
     const geo = mergeGeometries(parts);
-    const seg = new THREE.Mesh(geo, blend
+    const seg = new THREE.Mesh(geo, blend || ringed
       ? litMaterial(0xffffff, { vertexColors: true })
-      : mat(i >= 3 && darkTip ? s.accent : s.base));
+      : mat((i >= 3 && darkTip) || s.points ? s.accent : s.base));
     if (blend) {
       // Coat at and behind the pivot, the tip colour from a third of the way
       // along the link (u = 2/3 of the whole tail) on.
@@ -1267,6 +1346,18 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       const from = new THREE.Color(s.base), to = new THREE.Color(s.accent), c = new THREE.Color();
       for (let k = 0; k < pos.count; k++) {
         c.lerpColors(from, to, Math.min(1, Math.max(0, pos.getZ(k) / (TAIL.LINK * TIP_FROM))));
+        col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
+    if (ringed) {
+      const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+      const from = new THREE.Color(s.base), to = new THREE.Color(s.accent), c = new THREE.Color();
+      for (let k = 0; k < pos.count; k++) {
+        const u = pos.getZ(k) / TAIL.LINK;
+        const d = Math.abs(u - TAIL_RING.at) - TAIL_RING.half;
+        const ring = 1 - Math.min(1, Math.max(0, d / TAIL_RING.soft));
+        c.lerpColors(from, to, ring * TAIL_RING.strength);
         col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
       }
       geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -1326,6 +1417,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       { ...m, at: [M_LEG_X, 0.12, -0.148], halfX: 0.055, halfZ: 0.26, twist: -M_LEG_TWIST },
       { ...m, at: [-M_V_X, M_V_Y, -0.155], halfX: 0.05, halfZ: M_V_LEN, twist: M_V_TWIST, more: crownStripe(0, 0.07, opts.simple) },
       { ...m, at: [M_V_X, M_V_Y, -0.155], halfX: 0.05, halfZ: M_V_LEN, twist: -M_V_TWIST, more: crownStripe(CROWN_STRIPE_X, 0.06, opts.simple) },
+      // cat-beauty A3: the "mascara" — a thin line sweeping back from each
+      // eye's outer corner toward the ear — and a softer cheek bar under it.
+      // In the M's own mesh and colour: no new object (full builds only).
+      ...(opts.simple || family ? [] : [-1, 1].flatMap((side) => [
+        { ...m, rings: 2, seg: 10, at: [side * MASCARA.x, MASCARA.y, MASCARA.z], halfX: MASCARA.w, halfZ: MASCARA.len, twist: side * MASCARA.twist },
+        // the cheek bar only on short fur: a fluffy cat's cheeks are its ruff's
+        ...(s.fluffy ? [] : [{ ...m, rings: 2, seg: 10, at: [side * MASCARA.x, MASCARA.y - MASCARA.cheekDy, MASCARA.z + 0.01], halfX: MASCARA.w * 0.85, halfZ: MASCARA.len * 0.8, twist: side * (MASCARA.twist + 0.25) }]),
+      ])),
     ]);
   } else if (s.headStripes) {
     // The tabby "M": three thin bars running up the forehead from between the

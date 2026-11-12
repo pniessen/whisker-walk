@@ -134,3 +134,36 @@ describe("the black cat's face", () => {
     expect(DARK_FACE.MUZZLE_LIFT).toBeLessThanOrEqual(0.2);
   });
 });
+
+// cat-beauty A2 with the owner's change (2026-11-11): nose leather follows the
+// coat, except that a black cat keeps the pink nose it has always had (a black
+// nose on a black face fails "the nose shows" above), and the family cats keep
+// the pink from their photos.
+describe('nose leather by coat', () => {
+  const PINK = 0xe8a0a8;
+  const noseOf = (breed, opts) => face(buildCat(breed, undefined, opts)).nose.material.color.getHex();
+  const look = (coat, marks, pattern) => ({ look: { coat, marks, pattern, fur: 'short', eyes: 'green', size: 1 } });
+
+  it('the black cat keeps its pink nose, full and simple, and so does a custom black cat of any pattern', () => {
+    expect(noseOf('black')).toBe(PINK);
+    expect(noseOf('black', { simple: true })).toBe(PINK);
+    for (const marks of ['chocolate', 'black', 'white', 'seal', 'orange', 'grey']) {
+      for (const pattern of ['solid', 'stripes', 'points', 'patches', 'socks']) expect(noseOf('tabby', look('black', marks, pattern)), `${marks} ${pattern}`).toBe(PINK);
+    }
+  });
+  it('a DuskClan black keeps the pink nose too', async () => {
+    const { CLAN_COATS } = await import('../src/clancast.js');
+    for (const row of CLAN_COATS.pines) expect(noseOf(row.eyes, { simple: true, style: row })).toBe(PINK);
+  });
+  it('the family cats keep their pink noses', () => {
+    for (const b of ['zeetoo', 'robbie', 'd2', 'digit']) expect(noseOf(b), b).toBe(PINK);
+  });
+  it('other coats follow their genetics: brick tabby, seal-point Siamese, salmon ginger tabby, blue-grey (GaleClan grey); pale coats stay pink', async () => {
+    expect(noseOf('tabby')).toBe(0xb0605a);
+    expect(noseOf('siamese')).toBe(new THREE.Color(PINK).lerp(new THREE.Color(0x4a3b32), 0.7).getHex());
+    expect(noseOf('tabby', look('ginger', 'chocolate', 'stripes'))).toBe(0xe2907e);
+    const { CLAN_COATS } = await import('../src/clancast.js');
+    expect(noseOf('tabby', { simple: true, style: CLAN_COATS.moor[0] })).toBe(0x7c6a74);
+    for (const b of ['persian', 'calico', 'mainecoon']) expect(noseOf(b), b).toBe(PINK);
+  });
+});

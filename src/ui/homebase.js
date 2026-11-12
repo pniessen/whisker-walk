@@ -152,7 +152,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   let duskWanted = false;
   let shown = false; // between show() and hide()
 
-  // Secret-code box (its own sheet). Typed text, the last result and the busy flag
+  // Gift-code box (its own sheet). Typed text, the last result and the busy flag
   // live here because render() rebuilds the panel.
   const redeemer = createRedeemer({ progression });
   let redeemText = '';
@@ -189,6 +189,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // resolves, the stale fetch's token no longer matches and it no-ops
   // instead of writing fetched-for-the-old-DOM data into the new one.
   let playerPetsToken = 0;
+  const playerPetNames = new Map(); // playerId -> safe name, from the last roster fetch
 
   // Friend codes (Task 4) section state — mirrors the wt-*/joinError
   // pattern above: busy flag, an error string, and (once a code resolves
@@ -254,7 +255,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const name = progression.state.petName ?? '';
     // a joiner with no valid pet name can never build a profile row (their
     // own recordGreet calls are denied server-side), so their greets would
-    // silently fail — Join is gated the same as Host, not just Host.
+    // silently fail — Join is gated the same as Host, not just Host. Both
+    // stay tappable: with no name a tap leads to the name box (needName).
     const hasValidPetName = validPetName(name);
     // Paired siblings get their own room with nothing to type (Task 12).
     const pairWalk = renderPartnerWalkHtml({ status: colonySync ? colonySync.status() : null, colony, room: st });
@@ -274,10 +276,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       ${nearby?.available ? `<div id="wt-nearby" class="wt-nearby">${nearbyRowsHtml()}</div>` : ''}
       <div class="wt-actions">
-        <button id="wt-host" ${hasValidPetName ? '' : 'disabled'}>Host a walk</button>
-        <div class="wt-join-row">
-          <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
-          <button id="wt-join" ${hasValidPetName ? '' : 'disabled'}>Join</button>
+        <button id="wt-host">Host a walk</button>
+        <div class="code-field">
+          <label class="code-label" for="wt-join-code">Room code</label>
+          <div class="wt-join-row">
+            <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
+            <button id="wt-join">Join</button>
+          </div>
         </div>
         ${joinError ? `<div class="tag error">${escapeHtml(joinError)}</div>` : ''}
       </div>`;
@@ -336,6 +341,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             ${cloudStatus ? `<div class="tag">${escapeHtml(cloudStatus)}</div>` : ''}
             <div class="sync-actions">
               <button id="sync-now" ${cloudBusy ? 'disabled' : ''}>${cloudBusy ? 'Syncing…' : 'Sync now'}</button>
+              <button id="sync-load-linked" ${cloudBusy ? 'disabled' : ''}>Load from cloud</button>
+            </div>
+            ${cloudError ? `<div class="tag error">${escapeHtml(cloudError)}</div>` : ''}
+            <div class="sync-unlink-row">
               <button id="sync-unlink" class="danger" ${cloudBusy ? 'disabled' : ''}>Unlink</button>
             </div>
           </div>`;
@@ -344,9 +353,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       body = `
         <div class="sync-unlinked">
           <button id="sync-save" ${cloudBusy ? 'disabled' : ''}>${cloudBusy ? 'Saving…' : 'Save to cloud'}</button>
-          <div class="sync-load-row">
-            <input type="text" id="sync-load-code" maxlength="24" placeholder="WORD-WORD-WORD-00" class="wt-code-input sync-code-input" />
-            <button id="sync-load" ${cloudBusy ? 'disabled' : ''}>Load from cloud</button>
+          <div class="code-field">
+            <label class="code-label" for="sync-load-code">Save code from another device</label>
+            <div class="sync-load-row">
+              <input type="text" id="sync-load-code" maxlength="24" placeholder="WORD-WORD-WORD-00" class="wt-code-input sync-code-input" />
+              <button id="sync-load" ${cloudBusy ? 'disabled' : ''}>Load from cloud</button>
+            </div>
           </div>
           ${cloudError ? `<div class="tag error">${escapeHtml(cloudError)}</div>` : ''}
         </div>`;
@@ -536,9 +548,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     return `
       <div class="friend-code-block">
         <div class="tag">Your friend code: <strong>${escapeHtml(code)}</strong></div>
-        <div class="wt-join-row">
-          <input type="text" id="friend-code-input" maxlength="20" placeholder="CAT-XXXXXXXX" class="wt-code-input sync-code-input" ${hasValidPetName ? '' : 'disabled'} />
-          <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
+        <p class="tag friend-code-share">Only share it with people you know.</p>
+        <div class="code-field">
+          <label class="code-label" for="friend-code-input">Friend code</label>
+          <div class="wt-join-row">
+            <input type="text" id="friend-code-input" maxlength="20" placeholder="CAT-XXXXXXXX" class="wt-code-input sync-code-input" ${hasValidPetName ? '' : 'disabled'} />
+            <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
+          </div>
         </div>
         ${!hasValidPetName ? '<div class="tag">Give your cat a name at the top to add friends by code.</div>' : ''}
         ${friendCodeError ? `<div class="tag error">${escapeHtml(friendCodeError)}</div>` : ''}
@@ -561,6 +577,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       <div id="player-pets-section" class="player-pets">
         <h3>Player pets</h3>
         <div id="player-pets-roster" class="tag">loading…</div>
+        <div id="player-pets-hidden"></div>
       </div>`;
   }
 
@@ -599,6 +616,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       const el = root.querySelector('#player-pets-roster');
       if (!el) return; // section isn't in the current DOM (re-rendered away, e.g. cloud went unavailable)
       const profileById = new Map(profiles.map((p) => [p.player_id, p]));
+      playerPetNames.clear();
+      for (const p of profiles) playerPetNames.set(p.player_id, safeRemoteName(p.pet_name));
       // petName/breed/last_seen all arrive from OTHER players' pushProfile
       // calls — untrusted, same class as walk-together roster names —
       // escapeHtml every one of them before interpolating. A blocked
@@ -616,7 +635,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             <span class="friend-icon">${heartFor(r.greets)}</span>
             <span class="friend-name">${escapeHtml(safeRemoteName(p.pet_name))}</span> — ${escapeHtml(safeRemoteBreed(p.breed))}, ${escapeHtml(relativeTime(p.last_seen))}
             <button class="friend-hide" data-action="hide-player" data-player-id="${escapeHtml(otherId)}"
-              title="Hide this visitor" aria-label="Hide this visitor">✕</button>
+              aria-label="Hide ${escapeHtml(safeRemoteName(p.pet_name))}">Hide</button>
           </div>`;
         })
         .filter(Boolean)
@@ -624,6 +643,21 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       el.outerHTML = rowsHtml
         ? `<div id="player-pets-roster" class="friends-list">${rowsHtml}</div>`
         : `<div id="player-pets-roster" class="tag">No player pets yet — walk together and touch noses!</div>`;
+      // The cats she hid, each with a way back. Only ids are kept on this
+      // device: a name shows only when that cat came back in this fetch
+      // (a cat she met); otherwise "A hidden cat". Nobody is looked up.
+      const hidden = cloud.blockedPlayers?.() ?? [];
+      const hiddenEl = root.querySelector('#player-pets-hidden');
+      if (hiddenEl) {
+        hiddenEl.innerHTML = hidden.length
+          ? `<p class="player-pets-hidden-count">Hidden cats: ${hidden.length}</p>`
+            + hidden.map((id) => {
+              const name = playerPetNames.get(id);
+              return `<div class="friend-row friend-row-hidden"><span class="friend-name">${name ? escapeHtml(name) : 'A hidden cat'}</span>`
+                + `<button class="friend-hide" data-action="unhide-player" data-player-id="${escapeHtml(id)}"${name ? ` aria-label="Show ${escapeHtml(name)} again"` : ''}>Show again</button></div>`;
+            }).join('')
+          : '';
+      }
     } catch (err) {
       note('cloud', err);
       if (token !== playerPetsToken) return;
@@ -814,7 +848,9 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       root.after(el);
       syncNearbyCard(); // the nearby card steps aside
     },
-    blocked: () => !homeVisible() || !!(newsEl || noticeEl || momentEl || visitOpen()),
+    // A celebration put away under a sheet does not hold up that sheet's own
+    // question (Start over, Unlink…).
+    blocked: () => !homeVisible() || !!(newsEl || noticeEl || momentEl || celebration.isShowing()),
     onClosed: () => {
       // the cards that waited behind this one may go up now
       if (!showClanMoment()) { try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); note('ui', err); } }
@@ -900,14 +936,20 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // (btn null). The join itself is the typed code's: rooms.join(code), which
   // checks the code's shape again. Without a cat name there is nobody to
   // join as, so she is taken to the name box and told why.
+  // No cat name yet: Play together says so above the name box, and the box
+  // takes focus.
+  function needName() {
+    nameNeeded = true;
+    if (openSheet === 'together') render(); else setSheet('together');
+    try { root.querySelector('#wt-petname-input')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+  }
+
   async function joinNearby(code, btn) {
     if (nearbyBusy) return;
     const fromCard = !btn;
     if (!validPetName(progression.state.petName ?? '')) {
-      nameNeeded = true;
       removeNearbyCard();
-      if (openSheet === 'together') render(); else setSheet('together');
-      try { root.querySelector('#wt-petname-input')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+      needName();
       return;
     }
     joinError = null;
@@ -1040,6 +1082,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     },
   });
   function visitOpen() { return celebration.isOpen(); }
+  // The celebration floats on document.body, so a sheet, the wardrobe or the
+  // builder would sit under it: it is put away while one is open, and back
+  // (still unopened, nothing marked) when home returns.
+  function syncCelebration() {
+    celebration.setAway(!!(openSheet || dressing?.ui?.builder || dressing?.ui?.wardrobe));
+  }
   const heroStage = () => root.querySelector('#dr-stage');
 
   // The welcome line: a small line over the hero stage that fades by itself
@@ -1182,9 +1230,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       + `<span aria-hidden="true">👫</span><span class="dr-together-words" aria-hidden="true">${escapeHtml(words)}</span></button>`;
   }
 
+  // The cat Start walks, named while a locked cat or a try-on is on show.
+  function startAs() {
+    try { return dressing?.walkingAs?.() ?? null; } catch { return null; }
+  }
+
   // Start, with Play together beside it when multiplayer is on.
   function startRowHtml(roomState) {
-    return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState)}</div>`;
+    return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState, { as: startAs() })}</div>`;
   }
 
   // null (or anything not on offer) = back to the dressing room. A sheet opened
@@ -1430,7 +1483,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         ${renderSheetBody(openSheet, s, colonyStatus, roomState)}
         ${dock === 'none' ? '' : `<footer class="hb-sheet-dock">
           <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
-          ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState)}</div>`}
+          ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState, { as: startAs() })}</div>`}
         </footer>`}
       </div>`;
       refocus(fid);
@@ -1446,6 +1499,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         } catch { /* a nicety */ }
       }
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
+      syncCelebration();
       syncPairingPoll();
       syncNearby();
       if (cloud && cloud.available && openSheet === 'together') loadPlayerPets();
@@ -1471,6 +1525,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     room.restoreFocus(root, f);
     refocus(fid);
     stage.setVisible(shown);
+    syncCelebration();
     syncPairingPoll();
     syncNearby();
   }
@@ -1664,6 +1719,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       render();
       return;
     }
+    // Host or Join with no cat name yet: say so above the name box and go
+    // there, as a nearby Join does, instead of a dead button.
+    if ((e.target.id === 'wt-host' || e.target.id === 'wt-join') && !validPetName(progression.state.petName ?? '')) {
+      needName();
+      return;
+    }
     if (e.target.id === 'wt-host') {
       nearby?.noteOptIn(); // hosting is what makes this device findable nearby
       joinError = null;
@@ -1711,10 +1772,27 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // Unilateral-friendship mitigation (Task 3, final fix wave): stop
       // showing this visitor in the roster (and, on future walks, as a
       // ghost) on THIS device — see src/blocklist.js for why this can't be
-      // a server-side fix. Re-fetches + re-filters the roster rather than
-      // just removing the DOM row, so the "No player pets yet…" empty
-      // state appears correctly if this was the last one.
-      cloud.blockPlayer?.(e.target.dataset.playerId);
+      // a server-side fix. Asks first; Show again undoes it. Re-fetches +
+      // re-filters the roster rather than just removing the DOM row, so the
+      // "No player pets yet…" empty state appears correctly if this was the
+      // last one.
+      const id = e.target.dataset.playerId;
+      const name = playerPetNames.get(id) ?? 'this cat';
+      const q = String(id).replace(/["\\]/g, '');
+      confirmCard.ask({
+        text: `Hide ${name}?`,
+        note: 'You won’t see their cat any more.',
+        yes: 'Yes, hide',
+        returnFocus: () => root.querySelector(`[data-action="hide-player"][data-player-id="${q}"]`)?.focus?.({ preventScroll: true }),
+        onYes: () => {
+          cloud.blockPlayer?.(id);
+          loadPlayerPets();
+        },
+      });
+      return;
+    }
+    if (e.target.dataset.action === 'unhide-player') {
+      cloud.unblockPlayer?.(e.target.dataset.playerId);
       loadPlayerPets();
       return;
     }
@@ -1801,10 +1879,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       render();
       return;
     }
-    if (e.target.id === 'sync-load') {
-      const input = root.querySelector('#sync-load-code');
+    // Load from cloud: the typed code, or (linked) this device's own code.
+    // Either way it is the same preview, which compares before it overwrites.
+    if (e.target.id === 'sync-load' || e.target.id === 'sync-load-linked') {
+      const code = e.target.id === 'sync-load' ? (root.querySelector('#sync-load-code')?.value ?? '') : (sync.getCode() ?? '');
       cloudBusy = true; cloudError = null; render();
-      const res = await sync.previewLoad(input?.value ?? '');
+      const res = await sync.previewLoad(code);
       cloudBusy = false;
       if (res.ok) cloudPreview = res.preview;
       else cloudError = res.error;
@@ -1870,12 +1950,25 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       });
       return;
     }
+    // Unlink asks first: afterwards this device no longer shows the code.
     if (e.target.id === 'sync-unlink') {
-      sync.unlink();
-      cloudStatus = null;
-      cloudError = null;
-      cloudJustLinked = false;
-      render();
+      const code = sync.getCode();
+      if (cloudBusy || !code) return;
+      confirmCard.ask({
+        text: 'Stop saving to the cloud?',
+        note: `Your save code is ${code}. Write it down. It’s the only way to get this save back.`,
+        no: 'Keep saving',
+        yes: 'Yes, stop',
+        danger: true,
+        returnFocus: () => root.querySelector('#sync-unlink')?.focus?.({ preventScroll: true }),
+        onYes: () => {
+          sync.unlink();
+          cloudStatus = null;
+          cloudError = null;
+          cloudJustLinked = false;
+          render();
+        },
+      });
       return;
     }
     if (e.target.id === 'set-muted') {
@@ -1922,7 +2015,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
   });
 
-  // The secret-code form (delegated: render() rebuilds it). While hashing the
+  // The gift-code form (delegated: render() rebuilds it). While hashing the
   // box and button are disabled, so a second submit cannot return the first
   // result. A thrown error reads as the kind 'unsupported' line.
   root.addEventListener('submit', async (e) => {

@@ -4,7 +4,7 @@ import { createFakeHub, createNet } from '../src/net.js';
 import { createProgression } from '../src/progression.js';
 import { START_GATHER_MS } from '../src/game/lobby.js';
 
-// Child-safety pass on the lobby (game/rooms.js): the "already on a walk" toast
+// Child-safety pass on the lobby (game/rooms.js): the "is on a walk" toast
 // never shows another device's name raw, the room list is capped, and a Start
 // from someone not in the room starts nothing.
 
@@ -40,7 +40,7 @@ describe('rooms: names and members', () => {
     await bad.join(res.code, { playerId: 'aaaa', petName: '<img src=x onerror=alert(1)>' });
     bad.sendState({ v: 1, id: 'aaaa', pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
     expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
-    expect(kid.toasts).toEqual(['Your friend is already on a walk! Wait till they come home, then press Start.']);
+    expect(kid.toasts).toEqual(['Your friend is on a walk. Press Start when they’re back.']);
   });
   it('the room lists at most four cats, the same four on every device', async () => {
     const kid = client(hub, 'p3', 'Robin');

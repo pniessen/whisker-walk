@@ -12,12 +12,13 @@ describe('the builder', () => {
     expect(m.look).toEqual(DEFAULT_LOOK);
     expect(m.breed).toBe('tabby');
     expect(m.canDone).toBe(false);
-    expect(html(newBuilder())).toMatch(/data-cb-done[^>]*disabled/);
+    expect(html(newBuilder())).toContain('<button class="cb-done cb-done-wait" data-cb-done>');
+    expect(html(newBuilder())).not.toMatch(/data-cb-done[^>]*disabled/); // dimmed, never dead
   });
   it('a valid name is all it takes', () => {
     const b = reduceBuilder(newBuilder(), { type: 'name', value: 'Ember' });
     expect(buildBuilderModel(b).canDone).toBe(true);
-    expect(html(b)).not.toMatch(/data-cb-done[^>]*disabled/);
+    expect(html(b)).toContain('<button class="cb-done" data-cb-done>');
   });
   it('rows come in the sketch order', () => {
     const order = ['Coat colour', 'Markings colour', 'Pattern', 'Fur', 'Eyes', 'Size', 'Personality', 'Name'];
@@ -64,6 +65,18 @@ describe('the builder', () => {
     expect(isDirty(changed)).toBe(true);
     expect(html(reduceBuilder(changed, { type: 'ask-leave' }))).toContain('Leave without saving?');
   });
+  it('the leave question puts the safe answer first, and pink; leaving is plain', () => {
+    const h = html(reduceBuilder(newBuilder(), { type: 'ask-leave' }));
+    expect(h).toContain('<span id="cb-leave-q">Leave without saving?</span> <button data-cb-stay>Keep making my cat</button> <button data-cb-leave>Leave, don’t save</button>');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).toContain('.dr .cb-leave [data-cb-stay] { background: var(--pink); color: var(--navy); }');
+    expect(css).not.toMatch(/\.cb-leave \[data-cb-leave\] \{[^}]*pink/);
+  });
+  it('the name box glows once when Done points at it, and not with motion under reduced motion', () => {
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).toContain('.cb-row.cb-attention input[type="text"] { outline: 3px solid var(--pink); outline-offset: 2px; }');
+    expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\) \{\s*\.cb-row\.cb-attention \{ animation/);
+  });
   it('the leave question is named for screen readers', () => {
     const h = html(reduceBuilder(newBuilder(), { type: 'ask-leave' }));
     const id = h.match(/role="alertdialog" aria-labelledby="([^"]+)"/)[1];
@@ -72,7 +85,7 @@ describe('the builder', () => {
   it('Not now and Done sit together in one footer band', () => {
     const h = html(newBuilder());
     const foot = h.slice(h.indexOf('<div class="cb-foot">'));
-    expect(foot).toMatch(/^<div class="cb-foot"><button data-cb-cancel>[^<]*<\/button><button class="cb-done" data-cb-done disabled>[^<]*<\/button><\/div>/);
+    expect(foot).toMatch(/^<div class="cb-foot"><button data-cb-cancel>[^<]*<\/button><button class="cb-done cb-done-wait" data-cb-done>[^<]*<\/button><\/div>/);
   });
   it('the builder is the same in both editions and has no borrowed word', () => {
     const src = readFileSync('src/ui/catbuilder.js', 'utf8');
@@ -83,15 +96,16 @@ describe('the builder', () => {
     }
   });
 
-  it('Done asks for a name while it is disabled', () => {
-    expect(html(newBuilder())).toContain('data-cb-done disabled>Name your cat first ✏️</button>');
+  it('Done asks for a name while there is none (and the hint is short)', () => {
+    expect(html(newBuilder())).toContain('data-cb-done>Name your cat first ✏️</button>');
+    expect(html(newBuilder())).toContain('<p class="cb-hint">Use 2 to 16 letters.</p>');
     const b = reduceBuilder(newBuilder(), { type: 'name', value: 'Mossy' });
     expect(html(b)).toContain('data-cb-done>Done, now dress it up →</button>');
   });
 
-  it('the disabled Done is dimmed pink, not khaki', () => {
+  it('the waiting Done is dimmed pink, not khaki', () => {
     const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
-    const match = css.match(/\.cb-done:disabled \{[^}]*\}/);
+    const match = css.match(/\.cb-done\.cb-done-wait \{[^}]*\}/);
     expect(match).not.toBeNull();
     const rule = match[0];
     expect(rule).toContain('rgba(231,169,160,.30)');

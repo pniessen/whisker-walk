@@ -11,7 +11,7 @@ import { menuThumbnails, customThumbnails, accessoryFraming } from '../thumbnail
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { CUSTOM_MAX, lookKey } from '../customcats.js';
 import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, renderPlacesSheetHtml, resolveSheet } from './dressingroom.js';
-import { newBuilder, editBuilder, reduceBuilder, isDirty, buildBuilderModel, renderBuilderHtml, doneLabel } from './catbuilder.js';
+import { newBuilder, editBuilder, reduceBuilder, isDirty, buildBuilderModel, renderBuilderHtml, doneLabel, DONE_WAIT_CLASS } from './catbuilder.js';
 
 // Launch A: home is the cat, Wearing and Today's walk; Dress up opens the
 // wardrobe (the slot grid) in place, and "🔒 N more" shows the locked cats.
@@ -360,6 +360,25 @@ export function createDressingRoom({
     else dispatch({ type: 'builder', builder: null });
   }
 
+  // Done before the name is good: bring the name box into view, put her in
+  // it, and make it glow once (style.css .cb-attention: no movement under
+  // reduced motion).
+  let attentionTimer = null;
+  function pointAtName(from) {
+    const box = from?.closest?.('.dr')?.querySelector?.('[data-cb-name]');
+    if (!box) return;
+    const still = !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    try { box.scrollIntoView?.({ block: 'center', behavior: still ? 'auto' : 'smooth' }); } catch { /* a nicety */ }
+    try { box.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+    const row = box.closest?.('.cb-row');
+    if (!row?.classList) return;
+    row.classList.remove('cb-attention');
+    void row.offsetWidth; // restart the glow on a second tap
+    row.classList.add('cb-attention');
+    clearTimeout(attentionTimer);
+    attentionTimer = setTimeout(() => row.classList.remove('cb-attention'), 1600);
+  }
+
   // Done: save (new or over the old version), walk it, back to Wearing to dress it.
   function onDone() {
     const b = ui.builder;
@@ -492,7 +511,11 @@ export function createDressingRoom({
     else if (d.cbCancel !== undefined) onCancel();
     else if (d.cbLeave !== undefined) dispatch({ type: 'builder', builder: null });
     else if (d.cbStay !== undefined) builderOp({ type: 'stay' });
-    else if (d.cbDone !== undefined) onDone();
+    else if (d.cbDone !== undefined) {
+      // No name yet: no render (it would rebuild the box she is sent to).
+      if (ui.builder && !buildBuilderModel(ui.builder).canDone) { focusAfter = null; pointAtName(t); return true; }
+      onDone();
+    }
     inClick = true;
     try { onChange(); } finally { inClick = false; }
     return true;
@@ -510,7 +533,7 @@ export function createDressingRoom({
       const bm = buildBuilderModel(ui.builder);
       const root = t.closest?.('.dr');
       const done = root?.querySelector?.('[data-cb-done]');
-      if (done) { done.disabled = !bm.canDone; done.textContent = doneLabel(bm.canDone); }
+      if (done) { done.classList?.toggle?.(DONE_WAIT_CLASS, !bm.canDone); done.textContent = doneLabel(bm.canDone); }
       const name = root?.querySelector?.('.dr-hero-name');
       if (name) name.textContent = bm.name || YOUR_CAT;
       return true;
@@ -607,7 +630,14 @@ export function createDressingRoom({
     if (ui.moreCats) dispatch({ type: 'more-cats' });
   }
 
+  // The owned cat Start will walk, while a locked cat or a try-on is on show
+  // (null otherwise): Start says so.
+  function walkingAs() {
+    return ui.builder ? null : model().walkingAs;
+  }
+
   return {
+    walkingAs,
     html, afterRender, handleClick, handleInput, captureFocus, restoreFocus, startAllowed, clearPreview,
     deferRender, onFocusOut, closeWardrobe, placesHtml,
     get ui() { return ui; },

@@ -57,6 +57,15 @@ export function coatFromStyle(s) {
     // patch2 (Clan Life Part 1): a row's own second patch colour, so a clan
     // tortoiseshell stays in its palette. The calico has none: unchanged.
     patches.push({ at: [-0.12, 0.54, 0.14], halfX: 0.56, halfZ: 0.64, colour: s.patch2 ?? 0x333333 });
+    // cat-beauty A5 (the calico's own row, `calicoMore`): a real calico is
+    // white below with BIG patches of both colours on top, so add a black
+    // saddle over the hips, an orange one on the right haunch and a black spot
+    // on the left shoulder. Painted, so free.
+    if (s.calicoMore) {
+      patches.push({ at: [0.05, 0.56, 0.36], halfX: 0.7, halfZ: 0.42, colour: s.patch2 ?? 0x333333 });
+      patches.push({ at: [0.24, 0.42, 0.40], halfX: 0.5, halfZ: 0.5, colour: s.accent });
+      patches.push({ at: [-0.24, 0.48, -0.28], halfX: 0.45, halfZ: 0.4, colour: s.patch2 ?? 0x333333 });
+    }
   }
   if (s.cow) {
     // Robbie: white flanks low on each side, and the bib on the front of the chest.
@@ -105,7 +114,22 @@ export function coatColourAt(coat, unit, out = new THREE.Color()) {
     const m = patchMask(unit, p, p.toPole);
     if (m > 0) out.lerp(p.colour, m);
   }
-  return out;
+  return out.multiplyScalar(furShade(unit[0], unit[1], unit[2]));
+}
+
+// SOFT FUR SHADING (cat-beauty A4): a baked ambient-occlusion term on the
+// coat, by undeformed torso direction. The fur darkens toward the underside
+// (the sky cannot reach it) and a little more where the legs join (the armpit
+// and the groin, low at the front and back), so the torso reads as a rounded
+// furry body rather than an evenly lit ball. It is part of the coat colour, so
+// the limb tops (limbs.js) and the underside's eased rim (undersideColourAt)
+// take it too and every seam still matches. Colour only.
+export const FUR_SHADE = Object.freeze({ low: 0.2, joint: 0.1, from: -0.05, to: -0.85 });
+export function furShade(x, y, z) {
+  const k = Math.min(1, Math.max(0, (y - FUR_SHADE.from) / (FUR_SHADE.to - FUR_SHADE.from)));
+  const low = k * k * (3 - 2 * k);
+  const j = Math.max(0, Math.abs(z) - 0.35) / 0.65; // toward the shoulders' and hips' ends
+  return 1 - FUR_SHADE.low * low - FUR_SHADE.joint * low * j;
 }
 
 // Paint `coat` into `geo`'s colour attribute, per vertex of geo.userData.unit.

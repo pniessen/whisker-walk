@@ -196,3 +196,9 @@ If a change moves it, find out why before you re-record it.
 To decode the task and decision ids that `src/` comments cite (CF-7, Task 6.2,
 Polish 3, R18, K6 ...), see `docs/GLOSSARY.md`. `docs/SESSION-HANDOFF.md` is a
 one-page map of where things live.
+
+## Contact
+
+Questions or feedback: **hello@whiskerwalk.org**. For anything about your
+data, see [docs/PRIVACY.md](docs/PRIVACY.md) and write to
+**privacy@whiskerwalk.org**.

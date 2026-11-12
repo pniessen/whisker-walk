@@ -249,8 +249,58 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   fitNeck(cat, state);
   tieCape(cat, state);
   slideHood(cat);
+  lids(cat, state, t, moveSpeed);
   // Last: a scar rides the head and torso where everything above left them.
   if (cat.userData.parts.scars) fitScars(cat);
+}
+
+// THE LIDS (cat-beauty). A cat that never blinks reads as a toy, and one that
+// naps with its eyes wide open reads as staring. Each eye is closed by
+// flattening it (the eye's own white-less ball sinks into the skull) while
+// its pupil widens into the dark lid line; the catchlight goes out.
+//   * nap: closed.
+//   * every state: a quick blink every BLINK.every seconds, offset per cat by
+//     userData.blinkSeed (0..1; the stray and clan crowds set it from the
+//     cat's index or id, so they do not blink in step). Two identical cats at
+//     the same t pose identically (animator.test.js, folds.test.js).
+//   * sitting, or standing still: now and then the SLOW blink, the cat's
+//     "I trust you", half closed for most of a second.
+//   * pupils: wide when scared, stalking or pouncing (a hunting or frightened
+//     cat's pupils dilate), narrow slits when cross.
+// Scales only, about the built ones (remembered on first use): allocates
+// nothing after the first frame.
+export const BLINK = Object.freeze({
+  every: 4.7, quick: 0.16, slowEvery: 11.3, slow: 1.2, slowLow: 0.4, shut: 0.06, line: 0.32, lineWide: 2.4,
+  pupil: { scared: 1.5, stalk: 1.35, pounce: 1.35, cross: 0.6 },
+});
+const lidBase = (m) => (m.userData.lidScale ??= m.scale.clone());
+const bump = (x) => Math.sin(Math.PI * Math.min(1, Math.max(0, x))); // 0 → 1 → 0
+function lids(cat, state, t, moveSpeed) {
+  const set = cat.userData.parts.head.userData.eyes;
+  if (!set) return; // Hagrid
+  const off = cat.userData.blinkSeed ?? 0; // 0..1, set by whoever places many cats (strays, clan cats)
+  let open = 1;
+  if (state === 'nap') open = 0;
+  else {
+    const q = (t + off * BLINK.every) % BLINK.every;
+    if (q < BLINK.quick) open = 1 - bump(q / BLINK.quick);
+    const idle = state === 'perch' || state === 'requestPet' || (state === 'follow' && moveSpeed <= 0.1);
+    if (idle) {
+      const r = (t + off * BLINK.slowEvery) % BLINK.slowEvery;
+      // ease down, hold, ease up: the flat-topped bump of a slow blink
+      if (r < BLINK.slow) open = Math.min(open, 1 - (1 - BLINK.slowLow) * Math.min(1, 1.6 * bump(r / BLINK.slow)));
+    }
+  }
+  const lid = Math.max(BLINK.shut, open);
+  const dilate = BLINK.pupil[state] ?? 1;
+  for (const e of set.eyes) { const b = lidBase(e); e.scale.set(b.x, b.y * lid, b.z); }
+  for (const p of set.pupils) {
+    const b = lidBase(p);
+    // open: the pupil (dilated by mood); closing: it widens into the lid line
+    const w = dilate + (BLINK.lineWide - dilate) * (1 - open);
+    p.scale.set(b.x * w, b.y * Math.max(BLINK.line, lid), b.z);
+  }
+  for (const sh of set.shines) { const b = lidBase(sh); sh.scale.copy(b).multiplyScalar(open > 0.5 ? 1 : 1e-4); }
 }
 
 // A cape (and the confetti cape's dots) wears its sit cloth in the sit and

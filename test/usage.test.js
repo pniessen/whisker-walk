@@ -13,6 +13,7 @@ describe('usage counts: the pure helpers', () => {
   test('every home sheet is counted, plus Dress up and the builder, each with a name', () => {
     expect([...USAGE_IDS].sort()).toEqual([...HOME_SHEETS, 'dressup', 'builder'].sort());
     for (const id of USAGE_IDS) expect(USAGE_NAME[id]).toMatch(/\S/);
+    expect(USAGE_NAME.code).toBe('Gift code'); // the id stays 'code'
   });
   test('a bump adds one and stamps the visit; an unknown id changes nothing', () => {
     const a = bumpUsage({}, 'journal', 7);

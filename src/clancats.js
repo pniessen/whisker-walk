@@ -174,6 +174,7 @@ export function createClanCats(scene, area, cast, {
     const scale = RANK_SCALE[member.rank] ?? 1;
     const scars = scarsFor(member.id);
     const group = buildCat(member.breed, undefined, { simple: true, style: member.style, scars: Array.isArray(scars) ? scars : [] });
+    group.userData.blinkSeed = [...String(member.id)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 997, 7) / 997; // cat-beauty A1
     group.scale.multiplyScalar(scale);
     // A seat's y (the leader's rock) is metres above the ground under it (R4).
     const seatY = G ? G.y(seat.x, seat.z) + seat.y : seat.y;

@@ -15,7 +15,8 @@ import { fingerprintCat, buildFor, goldenKeys, hagridKeys } from './helpers/catf
 // 2026-11-02, polish-sit: catgolden.json regenerated once: the chest bib re-aimed for the upright sit (coat.js UNDER_FRONT.chest, UNDER_BLEND), so all 30 cat keys' underside line moved in its vertex colours only (no geometry, tris, boxes or other lines). Hagrid unchanged.
 // 2026-11-03, polish-accessories Task 5: catgolden.json regenerated once for the accessories rebuild: the 10 *:dressed keys (tophat, backpack, scarf, collar and bell re-modelled and re-seated) plus digit:full and digit:simple (his built-in tag collar re-seated); no other key moved. hagrid-golden.json unchanged.
 // 2026-11-03, polish-tails: catgolden.json regenerated once for the plume tails (torso.js PLUME): the 6 persian:* and mainecoon:* keys (tail links fuller, tris and boxes with them); no other key moved. The stalk carriage has no golden key. hagrid-golden.json unchanged.
-const GOLDEN_FILE = new URL('./fixtures/catgolden.json', import.meta.url);
+// 2026-11-11, cat-beauty Tier A (owner's sign-off by picture): catgolden.json regenerated once. Every key: the torso, underside and limb vertex colours (A4 baked fur shade, colour only); every full and dressed key: the inner ears re-parented onto their ears (A6, same place at rest), so the head's later children re-index. tabby full/dressed: the mascara and cheek bar in the M mesh and ringed tail links 1-2 (+216 tris), brick nose; siamese: the vertex-painted point mask on the skull, point-coloured muzzle and cheeks, seal nose, the tail point colour all along (-48 tris); calico: the bigger patches. No key's meshes or box moved. hagrid-golden.json unchanged.
+const GOLDEN_FILE =new URL('./fixtures/catgolden.json', import.meta.url);
 const HAGRID_FILE = new URL('./fixtures/hagrid-golden.json', import.meta.url);
 
 const collect = (keys) => Object.fromEntries(keys.map((k) => [k, fingerprintCat(buildFor(k))]));
