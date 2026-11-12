@@ -1083,7 +1083,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const EARS = s.ears ?? 1;
   const earH = s.tufts ? 0.19 : 0.15;
   const earLift = (earH * (EARS - 1)) / 2;
-  const eyes = [], shines = [], cheeks = [];
+  const eyes = [], pupils = [], shines = [], cheeks = [];
   for (const side of [-1, 1]) {
     if (!opts.simple) {
       const cheek = ball(0.065, s.belly, 1, 0.9, 0.8, 8, 6);
@@ -1114,6 +1114,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const pupil = ball(0.017, 0x1a1a1e, 0.7, 1.2, 0.6, 6, 5);
     pupil.position.set(side * 0.083, 0.03, EYE_PUPIL_Z);
     head.add(pupil);
+    pupils.push(pupil);
     if (!opts.simple) {
       const shine = ball(0.007, 0xffffff, 1, 1, 1, 4, 3);
       shine.position.set(side * 0.07, 0.048, EYE_SHINE_Z);
@@ -1143,6 +1144,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
     head.userData.darkFace = true;
   }
+  // The lids (cat-beauty): the animator closes the eyes to blink and to sleep
+  // by scaling these, about the scales they were built with (animator.js lids).
+  head.userData.eyes = { eyes, pupils, shines };
   // whiskers
   // Polish 1a, Task 5: from the walk camera (behind) the old whiskers, 0.28
   // out and swept BACK to z -0.14, stood 9 cm clear of the head on both sides,
