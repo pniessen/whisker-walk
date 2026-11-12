@@ -2,7 +2,7 @@
 DRAFT — not published, not legal advice.
 
 Before this goes anywhere public, the owner needs to:
-  1. Fill in the three placeholders marked [LIKE THIS].
+  1. Fill in the placeholders marked [LIKE THIS]: the date and the contact.
   2. Read "Deleting your data" and confirm you are willing to do it by hand,
      because the game has no delete button for online data yet.
   3. If the game is ever offered to children outside your own family, have a
@@ -19,7 +19,7 @@ sends, this page has to change with it.
 
 **Last updated:** [DATE]
 
-Whisker Walk is a small family game about walking a cat. It is run by [NAME OR "the game's owner"], not by a company. This page says what the game keeps, where it keeps it, and how to have it removed.
+Whisker Walk is a small family game about walking a cat. It is run by the game's owner, a parent, not by a company. This page says what the game keeps, where it keeps it, and how to have it removed.
 
 ## The short version
 
