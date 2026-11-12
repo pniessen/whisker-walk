@@ -220,6 +220,17 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
       clearCloudLink();
       deniedNotified = false;
     },
+    // "Delete my online data" (game/onlinedelete.js): ask the server to
+    // delete the linked save row, with the row secret kept beside the code.
+    // -> 'not-linked', or deleteSave's one word. Changes nothing on the
+    // device: the caller unlinks once the row is gone.
+    async deleteCloudSave() {
+      const link = readCloudLink();
+      if (!link) return 'not-linked';
+      const cloud = getCloud();
+      if (!cloud) return 'unavailable';
+      return cloud.deleteSave(link.code, link.secret);
+    },
     // fire-and-forget auto-sync (after the walk summary and after shop
     // buys) — never awaited by callers, never throws.
     autoSync() {
