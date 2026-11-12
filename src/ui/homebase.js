@@ -189,6 +189,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // resolves, the stale fetch's token no longer matches and it no-ops
   // instead of writing fetched-for-the-old-DOM data into the new one.
   let playerPetsToken = 0;
+  const playerPetNames = new Map(); // playerId -> safe name, from the last roster fetch
 
   // Friend codes (Task 4) section state — mirrors the wt-*/joinError
   // pattern above: busy flag, an error string, and (once a code resolves
@@ -566,6 +567,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       <div id="player-pets-section" class="player-pets">
         <h3>Player pets</h3>
         <div id="player-pets-roster" class="tag">loading…</div>
+        <div id="player-pets-hidden"></div>
       </div>`;
   }
 
@@ -604,6 +606,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       const el = root.querySelector('#player-pets-roster');
       if (!el) return; // section isn't in the current DOM (re-rendered away, e.g. cloud went unavailable)
       const profileById = new Map(profiles.map((p) => [p.player_id, p]));
+      playerPetNames.clear();
+      for (const p of profiles) playerPetNames.set(p.player_id, safeRemoteName(p.pet_name));
       // petName/breed/last_seen all arrive from OTHER players' pushProfile
       // calls — untrusted, same class as walk-together roster names —
       // escapeHtml every one of them before interpolating. A blocked
@@ -621,7 +625,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             <span class="friend-icon">${heartFor(r.greets)}</span>
             <span class="friend-name">${escapeHtml(safeRemoteName(p.pet_name))}</span> — ${escapeHtml(safeRemoteBreed(p.breed))}, ${escapeHtml(relativeTime(p.last_seen))}
             <button class="friend-hide" data-action="hide-player" data-player-id="${escapeHtml(otherId)}"
-              title="Hide this visitor" aria-label="Hide this visitor">✕</button>
+              aria-label="Hide ${escapeHtml(safeRemoteName(p.pet_name))}">Hide</button>
           </div>`;
         })
         .filter(Boolean)
@@ -629,6 +633,21 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       el.outerHTML = rowsHtml
         ? `<div id="player-pets-roster" class="friends-list">${rowsHtml}</div>`
         : `<div id="player-pets-roster" class="tag">No player pets yet — walk together and touch noses!</div>`;
+      // The cats she hid, each with a way back. Only ids are kept on this
+      // device: a name shows only when that cat came back in this fetch
+      // (a cat she met); otherwise "A hidden cat". Nobody is looked up.
+      const hidden = cloud.blockedPlayers?.() ?? [];
+      const hiddenEl = root.querySelector('#player-pets-hidden');
+      if (hiddenEl) {
+        hiddenEl.innerHTML = hidden.length
+          ? `<p class="player-pets-hidden-count">Hidden cats: ${hidden.length}</p>`
+            + hidden.map((id) => {
+              const name = playerPetNames.get(id);
+              return `<div class="friend-row friend-row-hidden"><span class="friend-name">${name ? escapeHtml(name) : 'A hidden cat'}</span>`
+                + `<button class="friend-hide" data-action="unhide-player" data-player-id="${escapeHtml(id)}"${name ? ` aria-label="Show ${escapeHtml(name)} again"` : ''}>Show again</button></div>`;
+            }).join('')
+          : '';
+      }
     } catch (err) {
       note('cloud', err);
       if (token !== playerPetsToken) return;
@@ -1738,10 +1757,27 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // Unilateral-friendship mitigation (Task 3, final fix wave): stop
       // showing this visitor in the roster (and, on future walks, as a
       // ghost) on THIS device — see src/blocklist.js for why this can't be
-      // a server-side fix. Re-fetches + re-filters the roster rather than
-      // just removing the DOM row, so the "No player pets yet…" empty
-      // state appears correctly if this was the last one.
-      cloud.blockPlayer?.(e.target.dataset.playerId);
+      // a server-side fix. Asks first; Show again undoes it. Re-fetches +
+      // re-filters the roster rather than just removing the DOM row, so the
+      // "No player pets yet…" empty state appears correctly if this was the
+      // last one.
+      const id = e.target.dataset.playerId;
+      const name = playerPetNames.get(id) ?? 'this cat';
+      const q = String(id).replace(/["\\]/g, '');
+      confirmCard.ask({
+        text: `Hide ${name}?`,
+        note: 'You won’t see their cat any more.',
+        yes: 'Yes, hide',
+        returnFocus: () => root.querySelector(`[data-action="hide-player"][data-player-id="${q}"]`)?.focus?.({ preventScroll: true }),
+        onYes: () => {
+          cloud.blockPlayer?.(id);
+          loadPlayerPets();
+        },
+      });
+      return;
+    }
+    if (e.target.dataset.action === 'unhide-player') {
+      cloud.unblockPlayer?.(e.target.dataset.playerId);
       loadPlayerPets();
       return;
     }

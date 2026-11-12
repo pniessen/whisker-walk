@@ -101,7 +101,9 @@ function fakeCloud({ rows = [], profiles = [], blocked = [], codeRows = [], addS
     findByFriendCode: vi.fn(async () => codeRows),
     addFriendByCode: vi.fn(async () => ({ status: addStatus })),
     isBlocked: (id) => blocked.includes(id),
-    blockPlayer() {},
+    blockPlayer: vi.fn((id) => { if (!blocked.includes(id)) blocked.push(id); }),
+    unblockPlayer: vi.fn((id) => { const i = blocked.indexOf(id); if (i >= 0) blocked.splice(i, 1); }),
+    blockedPlayers: () => [...blocked],
   };
 }
 
@@ -210,6 +212,96 @@ describe('Player pets', () => {
     await flush();
     expect(out.html).toContain('Robin');
     expect(met.seeded()).toBe(true);
+  });
+});
+
+describe('hiding a visitor in Player pets', () => {
+  // Catches the roster and the hidden list as loadPlayerPets writes them.
+  function catchBoth() {
+    const out = { roster: null, hidden: null };
+    const slot = { set outerHTML(v) { out.roster = v; } };
+    const hiddenSlot = { set innerHTML(v) { out.hidden = v; } };
+    doc.root.querySelector = (sel) => (sel === '#player-pets-roster' ? slot : sel === '#player-pets-hidden' ? hiddenSlot : null);
+    return out;
+  }
+  const card = () => doc.body.children.filter((c) => c.id === 'confirm-card').at(-1);
+  const answer = (a) => card().listeners.click({ target: { closest: () => ({ getAttribute: () => a }) }, detail: 1 });
+  function met2() {
+    const met = createMetPlayers(memStorage());
+    met.seed(['robin', 'wren']);
+    return met;
+  }
+  it('each row has a Hide button named for the cat', async () => {
+    setup({ cloud: fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')] }), met: met2() });
+    const out = catchBoth();
+    openSheet('together');
+    await flush();
+    expect(out.roster).toContain('aria-label="Hide Robin">Hide</button>');
+    expect(out.roster).not.toContain('✕');
+    expect(out.hidden).toBe('');
+  });
+  it('Hide asks first; Not now hides nothing', async () => {
+    const cloud = fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')] });
+    setup({ cloud, met: met2() });
+    catchBoth();
+    openSheet('together');
+    await flush();
+    await tap({ dataset: { action: 'hide-player', playerId: 'robin' } });
+    const h = card().innerHTML;
+    expect(h).toContain('Hide Robin?');
+    expect(h).toContain('You won’t see their cat any more.');
+    expect(h).toContain('data-confirm="no">Not now</button>');
+    expect(h).toContain('data-confirm="yes">Yes, hide</button>');
+    expect(h.indexOf('confirm-card-no')).toBeLessThan(h.indexOf('confirm-card-yes'));
+    answer('no');
+    expect(cloud.blockPlayer).not.toHaveBeenCalled();
+  });
+  it('Yes, hide hides her; the hidden list names her with Show again, which brings her back', async () => {
+    const cloud = fakeCloud({ rows: [row('robin'), row('wren')], profiles: [profile('robin', 'Robin'), profile('wren', '<b>x</b>')] });
+    setup({ cloud, met: met2() });
+    const out = catchBoth();
+    openSheet('together');
+    await flush();
+    await tap({ dataset: { action: 'hide-player', playerId: 'robin' } });
+    await new Promise((r) => setTimeout(r, 650)); // the confirm card's double-tap guard (600 ms)
+    answer('yes');
+    await flush();
+    expect(cloud.blockPlayer).toHaveBeenCalledWith('robin');
+    expect(out.roster).not.toContain('Robin');
+    expect(out.hidden).toContain('<p class="player-pets-hidden-count">Hidden cats: 1</p>');
+    expect(out.hidden).toContain('<span class="friend-name">Robin</span>');
+    expect(out.hidden).toContain('data-action="unhide-player" data-player-id="robin" aria-label="Show Robin again">Show again</button>');
+    await tap({ dataset: { action: 'unhide-player', playerId: 'robin' } });
+    await flush();
+    expect(cloud.unblockPlayer).toHaveBeenCalledWith('robin');
+    expect(out.roster).toContain('Robin');
+    expect(out.hidden).toBe('');
+  });
+  it('a hidden id with no profile in this fetch is "A hidden cat", and nobody is looked up for it', async () => {
+    const cloud = fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')], blocked: ['ghost-id'] });
+    setup({ cloud, met: met2() });
+    const out = catchBoth();
+    openSheet('together');
+    await flush();
+    expect(out.hidden).toContain('Hidden cats: 1');
+    expect(out.hidden).toContain('<span class="friend-name">A hidden cat</span>');
+    expect(cloud.fetchProfiles).toHaveBeenCalledWith(['robin']);
+  });
+  it('a hostile hidden name shows the fallback', async () => {
+    const cloud = fakeCloud({ rows: [row('robin')], profiles: [profile('robin', '<img src=x>')], blocked: ['robin'] });
+    setup({ cloud, met: met2() });
+    const out = catchBoth();
+    openSheet('together');
+    await flush();
+    expect(out.hidden).toContain('<span class="friend-name">Mystery Cat</span>');
+    expect(out.hidden).not.toContain('src=x');
+  });
+  it('the Hide control is at least 44px everywhere', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.slice(css.indexOf('.friend-hide {'), css.indexOf('}', css.indexOf('.friend-hide {')));
+    expect(rule).toContain('min-width: 44px; min-height: 44px;');
+    expect(css).not.toMatch(/\.friend-hide \{ width: 32px/);
   });
 });
 
