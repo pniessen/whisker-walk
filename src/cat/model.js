@@ -1008,17 +1008,22 @@ export function coatColor(breed, look = null) {
 // -----------------------------------------------------------------------------
 // COAT GENETICS ON THE FACE (cat-beauty, Tier A: colour only).
 //
-// Nose leather follows the coat: a black cat's is black, a seal point's seal,
-// a brown tabby's brick red with a darker rim, a ginger's salmon pink, a blue's
-// blue-grey; white, cream, silver and calico cats keep the pink. The family
+// Nose leather follows the coat: a seal point's seal, a brown tabby's brick
+// red, a ginger's salmon pink, a blue's blue-grey; white, cream, silver and
+// calico cats keep the pink, and so does a black (dark-faced) cat. The family
 // cats keep the pink they were drawn with from their photos (FAMILY_NOSE).
 const FAMILY_NOSE = new Set(['zeetoo', 'robbie', 'd2', 'digit']);
-export const NOSE = Object.freeze({ black: 0x3e3438, brick: 0xb0605a, salmon: 0xe2907e, blue: 0x7c6a74, pointMix: 0.7 });
+export const NOSE = Object.freeze({ brick: 0xb0605a, salmon: 0xe2907e, blue: 0x7c6a74, pointMix: 0.7 });
 export function noseHex(s, breed) {
   if (s.nose != null) return s.nose;
   if (FAMILY_NOSE.has(breed)) return INNER_EAR; // breed is null for a style or look row
+  // A black (dark-faced or dark-coated) cat keeps the pink nose (owner's
+  // choice, 2026-11-11): a black nose on a black face is real, but it fails
+  // the nose-contrast check (1.46 of 3) and makes the face harder to read. A
+  // builder's black cat with Pointed marks keeps it too: the point-coloured
+  // nose fell under that check where the pink one passed.
+  if (darkFace(s) || linLum(s.base) < DARK_LUM) return INNER_EAR;
   if (s.points) return new THREE.Color(INNER_EAR).lerp(new THREE.Color(s.accent), NOSE.pointMix).getHex();
-  if (darkFace(s)) return NOSE.black;
   const hsl = new THREE.Color(s.base).getHSL({ h: 0, s: 0, l: 0 });
   if (s.stripes) return hsl.h < 0.075 && hsl.s > 0.5 ? NOSE.salmon : NOSE.brick;
   if (hsl.s < 0.15 && hsl.l > 0.25 && hsl.l < 0.55) return NOSE.blue;
