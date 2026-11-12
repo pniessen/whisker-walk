@@ -607,7 +607,14 @@ export function createDressingRoom({
     if (ui.moreCats) dispatch({ type: 'more-cats' });
   }
 
+  // The owned cat Start will walk, while a locked cat or a try-on is on show
+  // (null otherwise): Start says so.
+  function walkingAs() {
+    return ui.builder ? null : model().walkingAs;
+  }
+
   return {
+    walkingAs,
     html, afterRender, handleClick, handleInput, captureFocus, restoreFocus, startAllowed, clearPreview,
     deferRender, onFocusOut, closeWardrobe, placesHtml,
     get ui() { return ui; },

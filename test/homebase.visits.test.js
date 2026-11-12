@@ -13,7 +13,8 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
     dressingMock.opts = opts;
     dressingMock.ui = { builder: null };
     return {
-      html: ({ headerHtml }) => `<header>${headerHtml}</header>`,
+      html: ({ headerHtml, startHtml }) => `<header>${headerHtml}</header>${startHtml}`,
+      walkingAs: () => dressingMock.walkingAs ?? null,
       afterRender() {}, handleClick() { return false; }, clearPreview() {},
       handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
       get ui() { return dressingMock.ui; },
@@ -262,6 +263,21 @@ describe('the home base on a visit', () => {
     hb.hide();
     expect(onClosed).toHaveBeenCalledWith('walk');
     expect(JSON.stringify(progression.state.equipped)).toBe(before);
+  });
+});
+
+describe('Start while a locked cat or a try-on is on show', () => {
+  it('says which cat it walks, at home and on a sheet; plain again after', () => {
+    const { hb } = setup();
+    hb.show();
+    dressingMock.walkingAs = 'Tabby';
+    dressingMock.opts.onChange();
+    expect(doc.root.innerHTML).toContain('<button id="btn-start" class="primary">Start as Tabby');
+    dressingMock.opts.onOpenSheet('journal');
+    expect(doc.root.innerHTML).toContain('Start as Tabby');
+    dressingMock.walkingAs = null;
+    dressingMock.opts.onOpenSheet(null);
+    expect(doc.root.innerHTML).toContain('<button id="btn-start" class="primary">Start the walk');
   });
 });
 

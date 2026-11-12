@@ -120,6 +120,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     : {
       id: heroId, name: catalog.cats[heroId]?.name ?? '', blurb: CAT_BLURBS[heroId] ?? '',
       owned: heroOwned, price: heroPrice, canBuy: !heroOwned && points >= heroPrice, breed: heroId, look: null,
+      looking: previewing && !heroOwned, // a locked cat, shown but not walked
     };
   const cats = catIds.map((id) => ({
     id, name: catalog.cats[id].name, owned: ownedCats.includes(id), price: num(catalog.cats[id].price),
@@ -184,8 +185,13 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     })),
   }));
 
+  // A locked cat or a try-on on show is not what Start walks: the cat (and
+  // outfit) she owns is. walkingAs names that cat while either is up.
+  const walkName = myCat ? myCat.name : catalog.cats[selectedCat]?.name ?? '';
+  const walkingAs = hero.looking || (t && !ownedAcc.includes(t.id)) ? walkName : null;
+
   return {
-    hero, cats, mine, canMake: mine.length < CUSTOM_MAX, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,
+    hero, cats, mine, walkingAs, canMake: mine.length < CUSTOM_MAX, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,
     // 'ok' | 'empty' | 'saved' | 'full': whether the look she has on can be saved.
     outfits, outfitSave: canSaveOutfit(savedOutfits, wearNow),
     currentPlace: {
@@ -246,7 +252,9 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
 
 function portraitHtml(c, thumbs) {
   const title = `${c.name}${c.owned ? '' : ` — ${c.price} 🐾`}`;
-  return `<button class="dr-portrait ${c.selected || c.previewing ? 'sel' : ''} ${c.owned ? '' : 'locked'}" data-dr-cat="${escapeHtml(c.id)}" aria-pressed="${c.selected || c.previewing}" title="${escapeHtml(title)}">${img(thumbs?.cats?.[c.id], c.name)}</button>`;
+  // Only the cat she will walk gets the solid ring; a locked one on show is
+  // "looking" (a dashed ring).
+  return `<button class="dr-portrait ${c.selected ? 'sel' : c.previewing ? 'looking' : ''} ${c.owned ? '' : 'locked'}" data-dr-cat="${escapeHtml(c.id)}" aria-pressed="${c.selected}" title="${escapeHtml(title)}">${img(thumbs?.cats?.[c.id], c.name)}</button>`;
 }
 
 // One of her own cats: its snapped portrait, or a coat-coloured dot with
@@ -420,7 +428,11 @@ export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '',
   const nameHtml = toggle
     ? `<div class="dr-hero-row"><div class="dr-hero-name">${escapeHtml(heroName)}</div>${toggle}</div>`
     : `<div class="dr-hero-name">${escapeHtml(heroName)}</div>`;
-  const rank = !building && rankTitle ? `<div class="dr-hero-rank">${escapeHtml(rankTitle)}</div>` : '';
+  // Under a locked cat on show: that it is only a look, not her rank (which
+  // read as the cat's).
+  const rank = building ? ''
+    : h.looking ? '<div class="dr-hero-rank dr-hero-looking">Just looking. Unlock to walk with this cat.</div>'
+    : rankTitle ? `<div class="dr-hero-rank">${escapeHtml(rankTitle)}</div>` : '';
   const heroHtml = `<section class="dr-hero">
     <div class="dr-stage" id="dr-stage">
       <div class="dr-spin-hint">↔ drag to spin</div>

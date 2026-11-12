@@ -1220,9 +1220,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       + `<span aria-hidden="true">👫</span><span class="dr-together-words" aria-hidden="true">${escapeHtml(words)}</span></button>`;
   }
 
+  // The cat Start walks, named while a locked cat or a try-on is on show.
+  function startAs() {
+    try { return dressing?.walkingAs?.() ?? null; } catch { return null; }
+  }
+
   // Start, with Play together beside it when multiplayer is on.
   function startRowHtml(roomState) {
-    return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState)}</div>`;
+    return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState, { as: startAs() })}</div>`;
   }
 
   // null (or anything not on offer) = back to the dressing room. A sheet opened
@@ -1468,7 +1473,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         ${renderSheetBody(openSheet, s, colonyStatus, roomState)}
         ${dock === 'none' ? '' : `<footer class="hb-sheet-dock">
           <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
-          ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState)}</div>`}
+          ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState, { as: startAs() })}</div>`}
         </footer>`}
       </div>`;
       refocus(fid);

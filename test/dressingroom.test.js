@@ -22,6 +22,40 @@ function defaultishState() {
 }
 const count = (s, re) => (s.match(re) || []).length;
 
+describe('previewing a locked cat or trying something on', () => {
+  it('only the cat she walks keeps the solid ring; the locked one on show is "looking"', () => {
+    const h = renderDressingRoomHtml({ model: buildDressingModel(defaultishState(), CATALOG, { previewCat: 'hagrid' }), ui: {} });
+    expect(h).toMatch(/class="dr-portrait sel [^"]*" data-dr-cat="tabby" aria-pressed="true"/);
+    expect(h).toMatch(/class="dr-portrait looking locked" data-dr-cat="hagrid" aria-pressed="false"/);
+    expect(count(h, /dr-portrait sel/g)).toBe(1);
+  });
+  it('under the locked cat\'s name: just looking, not her rank', () => {
+    const h = renderDressingRoomHtml({ model: buildDressingModel(defaultishState(), CATALOG, { previewCat: 'hagrid' }), rankTitle: 'House Cat', ui: {} });
+    expect(h).toContain('<div class="dr-hero-rank dr-hero-looking">Just looking. Unlock to walk with this cat.</div>');
+    expect(h).not.toContain('House Cat');
+    const own = renderDressingRoomHtml({ model: buildDressingModel(defaultishState(), CATALOG), rankTitle: 'House Cat', ui: {} });
+    expect(own).toContain('<div class="dr-hero-rank">House Cat</div>');
+    expect(own).not.toContain('Just looking');
+  });
+  it('walkingAs names the owned cat while a locked cat or a not-owned try-on is up', () => {
+    const s = defaultishState();
+    expect(buildDressingModel(s, CATALOG).walkingAs).toBe(null);
+    expect(buildDressingModel(s, CATALOG, { previewCat: 'hagrid' }).walkingAs).toBe(CATALOG.cats.tabby.name);
+    expect(buildDressingModel(s, CATALOG, { tryOn: { slot: 'head', id: 'crown' } }).walkingAs).toBe(CATALOG.cats.tabby.name);
+    expect(buildDressingModel(s, CATALOG, { tryOn: { slot: 'collar', id: 'bell' } }).walkingAs).toBe(null); // owned
+  });
+  it('a custom cat she walks is the name Start gives, and keeps its ring', async () => {
+    const { DEFAULT_LOOK } = await import('../src/customcats.js');
+    const s = { ...defaultishState(), customCats: [{ id: 'mine1', name: 'Pip', personality: 'fearless', look: { ...DEFAULT_LOOK } }], equipped: { ...defaultishState().equipped, custom: 'mine1' } };
+    const m = buildDressingModel(s, CATALOG, { previewCat: 'hagrid' });
+    expect(m.mine).toHaveLength(1);
+    expect(m.walkingAs).toBe('Pip');
+    const h = renderDressingRoomHtml({ model: m, ui: {} });
+    expect(h).toContain('class="dr-portrait dr-mine sel"');
+    expect(count(h, /dr-portrait sel/g)).toBe(0);
+  });
+});
+
 describe('dressing-room model', () => {
   it('one portrait per catalog cat, in catalog order', () => {
     const m = buildDressingModel(defaultishState(), CATALOG);
