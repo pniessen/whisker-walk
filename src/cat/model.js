@@ -256,7 +256,15 @@ const M_V_Y = 0.116;
 const M_V_LEN = 0.23;
 const M_V_TWIST = -0.68;
 const M_RINGS = 3;
+// The tabby's mascara line and cheek bar (cat-beauty A3), head space: centre
+// past the eye's outer corner, the stroke's half-width and half-length (patch
+// units) and its slant, and how far below it the cheek bar runs.
+const MASCARA = Object.freeze({ x: 0.15, y: 0.025, z: -0.105, w: 0.045, len: 0.2, twist: 1.1, cheekDy: 0.05 });
 const M_SEG = 14;
+// A tabby tail's ring on each of its first three links (cat-beauty A3): the
+// link's height segments, the ring's centre along the link (0 pivot, 1 end),
+// its solid half-width and soft edge (link units), and how far toward accent.
+const TAIL_RING = Object.freeze({ seg: 3, at: 0.5, half: 0.17, soft: 0.2, strength: 0.8 });
 // The dark tip starts this far along the blended link (a third: u = 2/3).
 const TIP_FROM = 1 / 3;
 
@@ -1282,15 +1290,23 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const TF = plume > 0 ? 1 : (s.tailFluff ?? 1);
   const tailRad = (u) => tailRadius(u, plume) * TF;
   const darkTip = !!(s.stripes || s.points);
+  const family = FAMILY_NOSE.has(breed) && !opts.style && opts.look == null;
+  const ringedTail = !!s.stripes && !opts.simple && !family && !(s.tailPlume ?? (s.tailFluff > 1 || s.fluffy)); // a plume hides rings, and a long-haired tabby sits near the 9,000 cap
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
     if (i > 0) pivot.position.set(0, 0, TAIL.LINK);
     const blend = darkTip && i === 3 && !s.points; // a pointed tail is the point colour all along
+    // cat-beauty A3: a tabby's tail is RINGED. Links 1 and 2 of
+    // a full build carries one soft dark ring (TAIL_RING) in its vertex colours,
+    // so with the dark last third it reads as a striped tail from the walk
+    // camera, where the tail is most of what shows. Not on a simple build (the
+    // stray triangle cap) nor on the family cats (drawn from their photos).
+    const ringed = ringedTail && i >= 1 && i < 3; // link 0 stays plain: its rings put vertices over the stalk's rump line (folds.test.js)
     // The link runs from its pivot along +z: the cylinder's +y axis turned onto
     // +z. Open-ended; the balls below close every end. The blended link has
     // rings at each third of its length, for its colours to change along.
-    const parts = [new THREE.CylinderGeometry(tailRad((i + 1) / 5), tailRad(i / 5), TAIL.LINK, 12, blend ? 3 : 1, true)
+    const parts = [new THREE.CylinderGeometry(tailRad((i + 1) / 5), tailRad(i / 5), TAIL.LINK, 12, blend ? 3 : ringed ? TAIL_RING.seg : 1, true)
       .rotateX(Math.PI / 2).translate(0, 0, TAIL.LINK / 2)];
     // A simple build (strays, rivals, ghosts) rounds them at 8×5: Digit's
     // simple cat sits at the 5,500-triangle cap once the chest is in.
@@ -1307,7 +1323,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       : ball(tailRad(i / 5)));   // a rounded joint
     if (i === 4) parts.push(ball(tailRad(1)).translate(0, 0, TAIL.LINK)); // the tip
     const geo = mergeGeometries(parts);
-    const seg = new THREE.Mesh(geo, blend
+    const seg = new THREE.Mesh(geo, blend || ringed
       ? litMaterial(0xffffff, { vertexColors: true })
       : mat((i >= 3 && darkTip) || s.points ? s.accent : s.base));
     if (blend) {
@@ -1317,6 +1333,18 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       const from = new THREE.Color(s.base), to = new THREE.Color(s.accent), c = new THREE.Color();
       for (let k = 0; k < pos.count; k++) {
         c.lerpColors(from, to, Math.min(1, Math.max(0, pos.getZ(k) / (TAIL.LINK * TIP_FROM))));
+        col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
+    if (ringed) {
+      const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+      const from = new THREE.Color(s.base), to = new THREE.Color(s.accent), c = new THREE.Color();
+      for (let k = 0; k < pos.count; k++) {
+        const u = pos.getZ(k) / TAIL.LINK;
+        const d = Math.abs(u - TAIL_RING.at) - TAIL_RING.half;
+        const ring = 1 - Math.min(1, Math.max(0, d / TAIL_RING.soft));
+        c.lerpColors(from, to, ring * TAIL_RING.strength);
         col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
       }
       geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -1376,6 +1404,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       { ...m, at: [M_LEG_X, 0.12, -0.148], halfX: 0.055, halfZ: 0.26, twist: -M_LEG_TWIST },
       { ...m, at: [-M_V_X, M_V_Y, -0.155], halfX: 0.05, halfZ: M_V_LEN, twist: M_V_TWIST, more: crownStripe(0, 0.07, opts.simple) },
       { ...m, at: [M_V_X, M_V_Y, -0.155], halfX: 0.05, halfZ: M_V_LEN, twist: -M_V_TWIST, more: crownStripe(CROWN_STRIPE_X, 0.06, opts.simple) },
+      // cat-beauty A3: the "mascara" — a thin line sweeping back from each
+      // eye's outer corner toward the ear — and a softer cheek bar under it.
+      // In the M's own mesh and colour: no new object (full builds only).
+      ...(opts.simple || family ? [] : [-1, 1].flatMap((side) => [
+        { ...m, rings: 2, seg: 10, at: [side * MASCARA.x, MASCARA.y, MASCARA.z], halfX: MASCARA.w, halfZ: MASCARA.len, twist: side * MASCARA.twist },
+        // the cheek bar only on short fur: a fluffy cat's cheeks are its ruff's
+        ...(s.fluffy ? [] : [{ ...m, rings: 2, seg: 10, at: [side * MASCARA.x, MASCARA.y - MASCARA.cheekDy, MASCARA.z + 0.01], halfX: MASCARA.w * 0.85, halfZ: MASCARA.len * 0.8, twist: side * (MASCARA.twist + 0.25) }]),
+      ])),
     ]);
   } else if (s.headStripes) {
     // The tabby "M": three thin bars running up the forehead from between the
