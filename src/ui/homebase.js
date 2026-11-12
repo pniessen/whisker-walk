@@ -122,6 +122,8 @@ export function showEditionTitle(doc, edition) {
 //   progression, album: the saved game and the photo album
 //   onStartWalk: called to begin a walk; rooms, sync, cloud, colonySync: the
 //     online pieces (each may be null)
+//   onlineDelete (optional): game/onlinedelete.js, the Cloud save sheet's
+//     "Delete my online data"; absent, the button isn't drawn
 //   settings, onSettingsChange: the settings store and its change hook
 //   onVisitDen: called to walk into a family den
 //   myId: this player's id; toast: shows a short message
@@ -133,7 +135,7 @@ export function showEditionTitle(doc, edition) {
 //   nearby: game/nearby.js, the rooms the app found on the local network.
 //     Absent, or not available (Safari, desktop), nothing of it is drawn
 //   metPlayers: src/metplayers.js (the device's own list when absent)
-export function createHomeBase({ progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null }) {
+export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -203,6 +205,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
   let cloudJustLinked = false; // show the big "write this down" code once, right after linking
   let cloudPreview = null; // pending { code, secret, payload, local, cloud } from previewLoad
   let backupMsg = null; // the result line after putting a kept copy back
+  let deleteMsg = null; // the result line after "Delete my online data"
+  let deleting = false; // that delete is on its way (cloudBusy is set too)
 
   // The cats in the room this child can see: a hidden visitor (src/blocklist.js)
   // is not listed or named.
@@ -347,7 +351,32 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
           ${cloudError ? `<div class="tag error">${escapeHtml(cloudError)}</div>` : ''}
         </div>`;
     }
-    return cloudPreview || (cloudJustLinked && sync.getCode()) ? body : body + renderBackups();
+    return cloudPreview || (cloudJustLinked && sync.getCode()) ? body : body + renderBackups() + renderOnlineDelete();
+  }
+
+  // "Delete my online data": drawn whether or not this device is linked (a
+  // device can have a cat profile and colony sharing online with no cloud
+  // save). Not while a room is open or the colony is mid-pairing: the room
+  // and the pairing poll would put the cat name straight back, so the button
+  // waits, and says why, until she has left the room or the pairing is over.
+  function onlineDeleteBlocked() {
+    if (rooms?.getState?.()) return 'Leave the walk room first, then you can delete.';
+    const st = colonySync ? colonySync.status() : null;
+    const expires = st?.invite && typeof st.invite.expiresAt === 'string' ? Date.parse(st.invite.expiresAt) : NaN;
+    if (pairBusy || st?.joining || (Number.isFinite(expires) && expires > Date.now())) {
+      return 'Colony sharing is in the middle of pairing. Try again once that’s finished.';
+    }
+    return null;
+  }
+  function renderOnlineDelete() {
+    if (!onlineDelete?.available) return '';
+    const blocked = onlineDeleteBlocked();
+    return `
+      <div class="sync-delete">
+        <button id="sync-delete-online" class="danger" ${cloudBusy || blocked ? 'disabled' : ''}>${deleting ? 'Deleting…' : 'Delete my online data'}</button>
+        ${blocked ? `<div class="tag">${escapeHtml(blocked)}</div>` : ''}
+        ${deleteMsg ? `<div class="tag">${escapeHtml(deleteMsg)}</div>` : ''}
+      </div>`;
   }
 
   // The kept copies of the save (progression's backups), under the cloud
@@ -375,6 +404,33 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
     }
     if (!rows.length && !backupMsg) return '';
     return `<div class="sync-backups">${rows.join('')}${backupMsg ? `<div class="tag">${escapeHtml(backupMsg)}</div>` : ''}</div>`;
+  }
+
+  // "Delete my online data": the confirm card, and the line for each answer.
+  const KEEPS = 'The game on this device stays as it is, except that its cat name for playing together is cleared. This can’t be undone.';
+  function onlineDeleteAsk(code) {
+    return {
+      text: 'Delete this device’s online data?',
+      note: code
+        ? `Deletes the cloud save and photo album under the code ${code}, and this device’s cat profile, friends and colony sharing. ${KEEPS} Another device linked to the same save code will upload the save again, unless you unlink it or delete there too.`
+        : `Deletes this device’s cat profile, friends and colony sharing. ${KEEPS}`,
+      yes: 'Yes, delete it',
+      danger: true,
+    };
+  }
+  const NOTHING = 'Nothing was deleted.';
+  function onlineDeleteMessage({ outcome, player, save }) {
+    if (outcome === 'done') return 'Done. Your online data is deleted. To play together again, give your cat a name in Play together.';
+    if (outcome === 'unavailable') return `Deleting isn’t switched on yet. ${NOTHING}`;
+    if (outcome === 'denied') return `The cloud wouldn’t let this device delete it. ${NOTHING}`;
+    if (outcome === 'busy') return `The cloud is busy right now — try again later. ${NOTHING}`;
+    if (outcome === 'partial') {
+      const playerGone = player === 'ok' || player === 'none';
+      return playerGone
+        ? 'The cat profile, friends and colony sharing are deleted, but the cloud save isn’t yet. Tap Delete my online data again to finish.'
+        : 'The cloud save is deleted and this device is unlinked, but the cat profile, friends and colony sharing aren’t yet. Tap Delete my online data again to finish.';
+    }
+    return `Could not reach the cloud — check your connection and try again. ${NOTHING}`;
   }
 
   // What each kept copy's confirm says.
@@ -1789,6 +1845,29 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, c
       cloudBusy = false;
       cloudStatus = res.message;
       render();
+      return;
+    }
+    if (e.target.id === 'sync-delete-online') {
+      if (!onlineDelete?.available || cloudBusy || onlineDeleteBlocked()) return;
+      confirmCard.ask({
+        ...onlineDeleteAsk(sync?.getCode?.() ?? null),
+        returnFocus: () => root.querySelector('#sync-delete-online')?.focus?.({ preventScroll: true }),
+        onYes: async () => {
+          if (cloudBusy) return;
+          cloudBusy = true; deleting = true; deleteMsg = null; cloudStatus = null; cloudError = null; render();
+          let res;
+          try {
+            res = await onlineDelete.run();
+          } catch (err) {
+            note('cloud', err);
+            res = { outcome: 'offline' };
+          }
+          cloudBusy = false; deleting = false;
+          if (res.outcome === 'done' || res.save === 'ok' || res.save === 'none') cloudJustLinked = false;
+          deleteMsg = onlineDeleteMessage(res);
+          render();
+        },
+      });
       return;
     }
     if (e.target.id === 'sync-unlink') {
