@@ -182,6 +182,46 @@ describe('the home base on a visit', () => {
     expect(hb.showNews('<div>news</div>', null)).toBe(true);
   });
 
+  it('visit 1: put away while a sheet, the wardrobe or the builder is open, back unopened after', () => {
+    const { progression, hb } = setup();
+    const visit = progression.recordVisit();
+    hb.show();
+    const onClosed = vi.fn();
+    hb.showVisit(visit, { onClosed });
+    const cel = celebration();
+    expect(cel.classes.has('away')).toBe(false);
+    dressingMock.opts.onOpenSheet('menu');
+    expect(cel.classes.has('away')).toBe(true);
+    dressingMock.opts.onOpenSheet('settings');
+    expect(cel.classes.has('away')).toBe(true);
+    vi.advanceTimersByTime(60000);
+    expect(hb.visitOpen()).toBe(true); // not lost, not opened, not worn
+    expect(onClosed).not.toHaveBeenCalled();
+    expect(progression.state.equipped.head).not.toBe('partycrown');
+    dressingMock.opts.onOpenSheet(null);
+    expect(cel.classes.has('away')).toBe(false);
+    dressingMock.ui = { builder: { name: '' } };
+    dressingMock.opts.onChange();
+    expect(cel.classes.has('away')).toBe(true);
+    dressingMock.ui = { builder: null, wardrobe: true };
+    dressingMock.opts.onChange();
+    expect(cel.classes.has('away')).toBe(true);
+    dressingMock.ui = { builder: null, wardrobe: false };
+    dressingMock.opts.onChange();
+    expect(cel.classes.has('away')).toBe(false);
+    tap(cel, 'open'); // still opens
+    expect(progression.state.equipped.head).toBe('partycrown');
+  });
+
+  it('a put-away celebration does not hold up a sheet\'s own question', () => {
+    const { progression, hb } = setup();
+    hb.show();
+    hb.showVisit(progression.recordVisit());
+    dressingMock.opts.onOpenSheet('settings');
+    doc.root.listeners.click({ target: { id: 'btn-reset', closest: () => null, dataset: {} }, detail: 1 });
+    expect(doc.body.children.find((c) => c.id === 'confirm-card')).toBeTruthy();
+  });
+
   it('a walk starting mid-celebration closes it with walk and still wears the prize', () => {
     const { progression, hb } = setup();
     const visit = progression.recordVisit();

@@ -136,6 +136,9 @@ export function createVisitCelebration(mount, {
   let card = null;
   let current = null;
   let timers = [];
+  // Put away (setAway) while a sheet, the wardrobe or the builder covers
+  // home: hidden, its timers stopped, and back as it was when home returns.
+  let away = false;
   // Style C is placed in screen coordinates next to the cat's stage, but the
   // home page scrolls: re-measure on every scroll (capture, so a scrolling
   // panel counts as well as the window) and on resize, or the bubble and the
@@ -170,6 +173,7 @@ export function createVisitCelebration(mount, {
     root = null;
     card = null;
     current = null;
+    away = false;
   }
 
   function finish(reason) {
@@ -179,6 +183,7 @@ export function createVisitCelebration(mount, {
   }
 
   function fadeThenClose(holdMs) {
+    if (current) current.hold = holdMs; // what setAway re-arms on the way back
     timers.push(setTimer(() => {
       if (root) root.classList.add('fade');
       timers.push(setTimer(() => finish('done'), FADE_MS));
@@ -265,7 +270,7 @@ export function createVisitCelebration(mount, {
       const m = { ...milestone, style };
       const isNew = m.prize?.isNew !== false;
       const doc = mount.ownerDocument;
-      current = { milestone: m, petName, thumb, opened: false, locked: false };
+      current = { milestone: m, petName, thumb, anchor, opened: false, locked: false, hold: null };
       root = doc.createElement('div');
       root.className = `visit-cel style-${style.toLowerCase()}${isNew ? '' : ' cycle'}`;
       if (style === 'A') {
@@ -304,5 +309,26 @@ export function createVisitCelebration(mount, {
       finish(reason === 'walk' ? 'walk' : 'done');
     },
     isOpen() { return !!root; },
+    // Up and in view (not put away).
+    isShowing() { return !!root && !away; },
+    // setAway(true): hide it, stopping its timers, so a hold cannot run out
+    // unseen; nothing closes and nothing is worn or marked. setAway(false):
+    // back, with its hold started again in full.
+    setAway(on) {
+      const want = !!on && !!root;
+      if (want === away) return;
+      away = want;
+      if (!root) return;
+      if (away) {
+        clearTimers();
+        current.locked = false;
+        root.classList.remove('fade');
+        root.classList.add('away');
+        return;
+      }
+      root.classList.remove('away');
+      if (current.hold !== null) fadeThenClose(current.hold);
+      if (current.milestone.style === 'C') place(current.anchor);
+    },
   };
 }

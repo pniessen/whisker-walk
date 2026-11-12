@@ -819,7 +819,9 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       root.after(el);
       syncNearbyCard(); // the nearby card steps aside
     },
-    blocked: () => !homeVisible() || !!(newsEl || noticeEl || momentEl || visitOpen()),
+    // A celebration put away under a sheet does not hold up that sheet's own
+    // question (Start over, Unlink…).
+    blocked: () => !homeVisible() || !!(newsEl || noticeEl || momentEl || celebration.isShowing()),
     onClosed: () => {
       // the cards that waited behind this one may go up now
       if (!showClanMoment()) { try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); note('ui', err); } }
@@ -1051,6 +1053,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     },
   });
   function visitOpen() { return celebration.isOpen(); }
+  // The celebration floats on document.body, so a sheet, the wardrobe or the
+  // builder would sit under it: it is put away while one is open, and back
+  // (still unopened, nothing marked) when home returns.
+  function syncCelebration() {
+    celebration.setAway(!!(openSheet || dressing?.ui?.builder || dressing?.ui?.wardrobe));
+  }
   const heroStage = () => root.querySelector('#dr-stage');
 
   // The welcome line: a small line over the hero stage that fades by itself
@@ -1457,6 +1465,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         } catch { /* a nicety */ }
       }
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
+      syncCelebration();
       syncPairingPoll();
       syncNearby();
       if (cloud && cloud.available && openSheet === 'together') loadPlayerPets();
@@ -1482,6 +1491,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     room.restoreFocus(root, f);
     refocus(fid);
     stage.setVisible(shown);
+    syncCelebration();
     syncPairingPoll();
     syncNearby();
   }

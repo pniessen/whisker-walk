@@ -10,7 +10,7 @@ function fakeMount() {
       const el = {
         className: '', innerHTML: '', children: [], listeners: {}, removed: false, attrs: {},
         classes: new Set(),
-        classList: { add: (c) => el.classes.add(c), contains: (c) => el.classes.has(c) },
+        classList: { add: (c) => el.classes.add(c), remove: (c) => el.classes.delete(c), contains: (c) => el.classes.has(c) },
         style: {},
         setAttribute(k, v) { el.attrs[k] = v; },
         appendChild(c) { el.children.push(c); },
@@ -360,6 +360,46 @@ describe('createVisitCelebration', () => {
     cel.show(ms(10, 'C', false), { anchor: () => ({ left: 14, top: 79, width: 347, height: 2000 }) });
     expect(html(root())).toContain('visit-cel-side');
     expect(root().children[0].style.cssText).toContain('height:733px'); // 812 - 79
+  });
+});
+
+describe('setAway: put away under a sheet', () => {
+  it('B: its hold stops while away and starts again in full when back', () => {
+    const { cel, root, cb, t } = setup();
+    cel.show(ms(5, 'B'), {});
+    expect(t.delays()).toEqual([5000]);
+    cel.setAway(true);
+    expect(root().classes.has('away')).toBe(true);
+    expect(t.size).toBe(0);
+    expect(cel.isOpen()).toBe(true);
+    expect(cel.isShowing()).toBe(false);
+    cel.setAway(true); // twice is once
+    cel.setAway(false);
+    expect(root().classes.has('away')).toBe(false);
+    expect(t.delays()).toEqual([5000]);
+    expect(cel.isShowing()).toBe(true);
+    expect(cb.onClose).not.toHaveBeenCalled();
+    t.runAll();
+    expect(cb.onClose).toHaveBeenCalledWith('done');
+  });
+  it('C unopened: nothing runs while away; the present still opens after', () => {
+    const { cel, root, cb, t } = setup();
+    cel.show(ms(1, 'C'), {});
+    cel.setAway(true);
+    cel.setAway(false);
+    expect(t.size).toBe(0);
+    expect(cb.onOpen).not.toHaveBeenCalled();
+    click(root(), 'open');
+    expect(cb.onOpen).toHaveBeenCalledTimes(1);
+  });
+  it('does nothing when nothing is up, and a closed one starts fresh', () => {
+    const { cel, root } = setup();
+    expect(() => cel.setAway(true)).not.toThrow();
+    cel.show(ms(1, 'C'), {});
+    expect(root().classes.has('away')).toBe(false);
+  });
+  it('is hidden by CSS', () => {
+    expect(readFileSync(new URL('../src/style.css', import.meta.url), 'utf8')).toContain('.visit-cel.away { display: none !important; }'); // .style-c sets display: block later
   });
 });
 
