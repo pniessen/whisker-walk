@@ -25,6 +25,7 @@ import { createBlockList } from './blocklist.js';
 import { phraseIdForDigit } from './chatkeys.js';
 import { createCloudToast, createCloudSync } from './game/cloudsync.js';
 import { createColonySync } from './game/colonysync.js';
+import { createOnlineDelete } from './game/onlinedelete.js';
 import { createNetEvents } from './game/netevents.js';
 import { createPhotoMode } from './game/photo.js';
 import { createInteractions } from './game/interactions.js';
@@ -507,7 +508,9 @@ function init() {
       blockList.add(otherId);
     },
   };
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby });
+  // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
+  const onlineDelete = createOnlineDelete({ MP, pid, getCloud, getPsecret, sync, progression });
+  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the

@@ -252,6 +252,28 @@ begin
      where f.a_id = p_player_id or f.b_id = p_player_id;
 end $$;
 
+-- "Delete my online data" (the Cloud save sheet): deletes one save row
+-- when the secret is the row's own. Why each line is there, and the limit
+-- on wrong answers: see docs/supabase-v9-delete.sql.
+create or replace function public.delete_save(p_code text, p_secret text)
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_secret text;
+begin
+  if p_code is null or length(p_code) > 64 then return 'none'; end if;
+  if ww_rate_over('delete-miss', 600, 50) then return 'busy'; end if;
+  select s.secret into v_secret from saves s where s.code = p_code for update;
+  if not found then
+    perform ww_rate_hit('delete-miss', 600, 50);
+    return 'none';
+  end if;
+  if v_secret is distinct from p_secret then
+    perform ww_rate_hit('delete-miss', 600, 50);
+    return 'denied';
+  end if;
+  delete from saves s where s.code = p_code;
+  return 'ok';
+end $$;
+
 grant execute on function public.upsert_save to anon;
 grant execute on function public.load_save to anon;
 grant execute on function public.upsert_profile to anon;
@@ -259,6 +281,7 @@ grant execute on function public.record_friend_greet to anon;
 grant execute on function public.profiles_by_ids to anon;
 grant execute on function public.find_by_friend_code to anon;
 grant execute on function public.friendships_of to anon;
+grant execute on function public.delete_save to anon;
 
 -- Ask the Supabase API to pick up the new functions straight away.
 notify pgrst, 'reload schema';

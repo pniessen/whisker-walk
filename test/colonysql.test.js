@@ -26,7 +26,10 @@ describe('supabase-colony.sql', () => {
   // real table inside a SECURITY DEFINER function. Every function, helper too.
   it('pins every function\'s search_path to public, pg_temp', () => {
     const defs = [...sql.matchAll(/create or replace function public\.([a-z_]+)\([\s\S]*?\$\$/gi)];
-    expect(defs.length).toBe(Object.keys(RPCS).length + 1); // the nine RPCs and colony_authed
+    // the nine RPCs, colony_authed, and delete_player (docs/supabase-v9-delete.sql;
+    // its own checks are in test/v9delete.test.js)
+    expect(defs.length).toBe(Object.keys(RPCS).length + 2);
+    expect(defs.map((d) => d[1])).toContain('delete_player');
     for (const d of defs) expect(d[0], d[1]).toMatch(/security definer set search_path = public, pg_temp as \$\$/i);
     expect(sql).not.toMatch(/search_path = public as/i);
   });

@@ -1378,6 +1378,14 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .sync-backups { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 14px; }
 .sync-backup-line { margin: 0; color: #a8c0e0; font-size: 0.95rem; }
 .sync-backup-pts { opacity: 0.8; font-weight: 400; }
+/* Delete my online data: last on the sheet, set apart, a soft-red outline pill like Start over */
+.sync-delete {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.12);
+}
+.sync-delete .danger { border: 1px solid #e98a8a; border-radius: 999px; padding: 8px 18px; font-weight: 700; }
+.sync-delete .danger:hover:not(:disabled) { background: rgba(233,138,138,0.12); }
+.sync-delete .danger:disabled { opacity: 0.55; cursor: default; }
 
 /* places: picture cards with a gradient caption (the Change place sheet) */
 .dr-places { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }

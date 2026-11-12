@@ -487,3 +487,44 @@ describe('saveToCloud size cap', () => {
     expect(payloadBytes(loop)).toBe(Infinity);
   });
 });
+
+describe('deleteSave / deletePlayer ("Delete my online data", docs/supabase-v9-delete.sql)', () => {
+  const make = (rpc) => {
+    const calls = [];
+    const cloud = createCloud({ rpc: async (name, args) => { calls.push({ name, args }); return rpc(name, args); }, select: async () => [] });
+    return { cloud, calls };
+  };
+  it('send the SQL\'s argument names', async () => {
+    const { cloud, calls } = make(async () => 'ok');
+    await cloud.deleteSave('PLUM-OTTER-CROW-42', 's1');
+    await cloud.deletePlayer('p1', 's2');
+    expect(calls).toEqual([
+      { name: 'delete_save', args: { p_code: 'PLUM-OTTER-CROW-42', p_secret: 's1' } },
+      { name: 'delete_player', args: { p_player_id: 'p1', p_secret: 's2' } },
+    ]);
+  });
+  it('pass the server\'s four answers through', async () => {
+    for (const word of ['ok', 'none', 'denied', 'busy']) {
+      const { cloud } = make(async () => word);
+      expect(await cloud.deleteSave('C', 's')).toBe(word);
+      expect(await cloud.deletePlayer('p', 's')).toBe(word);
+    }
+  });
+  it("a missing function is 'unavailable', never success", async () => {
+    for (const err of [missingFn('delete_save'), { code: '42883', message: 'function public.delete_save(text, text) does not exist' }]) {
+      const { cloud } = make(async () => { throw err; });
+      expect(await cloud.deleteSave('C', 's')).toBe('unavailable');
+      expect(await cloud.deletePlayer('p', 's')).toBe('unavailable');
+    }
+  });
+  it("a failed call is 'offline', and an odd answer is 'bad'", async () => {
+    const { cloud } = make(async () => { throw new TypeError('Failed to fetch'); });
+    expect(await cloud.deleteSave('C', 's')).toBe('offline');
+    expect(await cloud.deletePlayer('p', 's')).toBe('offline');
+    for (const odd of [null, undefined, 'OK', { status: 'ok' }, 1, '<b>ok</b>']) {
+      const { cloud: c } = make(async () => odd);
+      expect(await c.deleteSave('C', 's')).toBe('bad');
+      expect(await c.deletePlayer('p', 's')).toBe('bad');
+    }
+  });
+});

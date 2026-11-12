@@ -10,7 +10,8 @@
 // exactly: docs/supabase-setup.sql for the save/profile/friend RPCs and
 // docs/supabase-colony.sql for the colony ones. The v8 read RPCs
 // (profiles_by_ids, find_by_friend_code, friendships_of) and the v8 checks
-// on the write RPCs are in docs/supabase-v8-hardening.sql.
+// on the write RPCs are in docs/supabase-v8-hardening.sql, and the two
+// delete RPCs (delete_save, delete_player) in docs/supabase-v9-delete.sql.
 //
 // createCloud({rpc, select}) takes injectable adapters so unit tests can
 // exercise the arg-mapping/result-passthrough logic with fakes, with no
@@ -158,6 +159,9 @@ export function isMissingRpc(err) {
   if (err.code === 'PGRST202' || err.code === '42883') return true;
   return typeof err.message === 'string' && /could not find the function/i.test(err.message);
 }
+
+// What delete_save / delete_player can answer (docs/supabase-v9-delete.sql).
+const DELETE_ANSWERS = new Set(['ok', 'none', 'denied', 'busy']);
 
 // profiles_by_ids takes at most this many ids per call (the SQL's cap).
 const PROFILE_IDS_PER_CALL = 100;
@@ -318,11 +322,35 @@ export function createCloud({ rpc, select, getSecret }) {
     return rpc('colony_trade_cancel', { p_player_id: id, p_secret: secret, p_trade_id: tradeId });
   }
 
+  // "Delete my online data" (docs/supabase-v9-delete.sql). Unlike the calls
+  // above these never throw: the answer is one word, so the caller can never
+  // mistake a failure for a delete. 'ok' | 'none' (nothing there: done too) |
+  // 'denied' | 'busy' are the server's; 'unavailable' means the functions
+  // aren't on the server yet (the owner hasn't run the file), 'offline' that
+  // the call didn't get an answer, and 'bad' an answer that isn't one of these.
+  async function deleteCall(name, args) {
+    try {
+      const r = await rpc(name, args);
+      return DELETE_ANSWERS.has(r) ? r : 'bad';
+    } catch (err) {
+      if (isMissingRpc(err)) return 'unavailable';
+      note('cloud', err);
+      return 'offline';
+    }
+  }
+  async function deleteSave(code, secret) {
+    return deleteCall('delete_save', { p_code: code, p_secret: secret });
+  }
+  async function deletePlayer(id, secret) {
+    return deleteCall('delete_player', { p_player_id: id, p_secret: secret });
+  }
+
   return {
     saveToCloud, loadFromCloud, pushProfile, recordGreet, fetchProfiles, findByFriendCode, fetchFriendships,
     addFriendByCode,
     colonyInviteOpen, colonyInviteJoin, colonyInviteAnswer, colonySync, colonyFeed, colonyDress,
     colonyTradeOffer, colonyTradeAnswer, colonyTradeCancel,
+    deleteSave, deletePlayer,
   };
 }
 

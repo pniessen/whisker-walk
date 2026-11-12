@@ -1,8 +1,8 @@
 -- Whisker Walk v21 "The Shared Colony" — one-time database setup.
 -- Paste this whole file into Supabase → SQL Editor → New query → Run.
--- Safe to re-run (idempotent). Run docs/supabase-setup.sql (v7) first; this
--- file only reads the v7 `profiles` table (to check a player's secret and to
--- show pet names) and never changes any v7 table.
+-- Safe to re-run (idempotent). Run docs/supabase-setup.sql (v7) first; this file
+-- reads `profiles` (secrets, pet names); only delete_player changes a v7 table:
+-- it deletes the caller's OWN profile and friendships, with that profile's secret.
 --
 -- What it adds: six private colony_* tables and nine RPCs. Nobody can read
 -- the tables directly (RLS on, no policies, anon revoked), so walks stay
@@ -11,9 +11,9 @@
 --
 -- ADD-ONLY. Nothing a player does can take colony progress away from either
 -- sibling. Each rule that enforces this is marked "ADD-ONLY" below. The only
--- ways anything is ever removed are the owner's own SQL (see
--- docs/COLONY-SETUP.md, "How to unpair") and the housekeeping of expired
--- invites and old, already-resolved trades.
+-- ways anything is ever removed are the owner's own SQL (docs/COLONY-SETUP.md,
+-- "How to unpair"), the housekeeping of expired invites and resolved trades, and
+-- delete_player, for one device only (a partner keeps the colony and every cat).
 
 -- ── Guard: the v7 setup must already be in place ──────────────────────
 -- PL/pgSQL bodies aren't checked when they are created, so without this a
@@ -575,6 +575,43 @@ begin
   return 'cancelled';
 end $$;
 
+-- "Delete my online data" (the Cloud save sheet): deletes this player's
+-- invites, waiting trade offers, membership (and the colony, if nobody is
+-- left in it), friendships and profile, when the secret is the profile's own.
+-- A partner who stays keeps the colony and its cats. It uses the v8 limit
+-- helpers from docs/supabase-setup.sql. Why each line is there: see
+-- docs/supabase-v9-delete.sql.
+create or replace function public.delete_player(p_player_id text, p_secret text)
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_secret text; v_colony text;
+begin
+  if p_player_id is null or length(p_player_id) > 64 then return 'none'; end if;
+  if ww_rate_over('delete-miss', 600, 50) then return 'busy'; end if;
+  select pr.secret into v_secret from profiles pr where pr.player_id = p_player_id for update;
+  if not found then return 'none'; end if;
+  if v_secret is distinct from p_secret then
+    perform ww_rate_hit('delete-miss', 600, 50);
+    return 'denied';
+  end if;
+  select m.colony_id into v_colony from colony_members m where m.player_id = p_player_id;
+  -- serialise with the partner's trade and feed calls, which lock this row too
+  if v_colony is not null then
+    perform 1 from colonies co where co.id = v_colony for update;
+  end if;
+  delete from colony_invites ci where ci.inviter_id = p_player_id;
+  update colony_invites ci set joiner_id = null where ci.joiner_id = p_player_id;
+  update colony_trades t set status = 'cancelled', decided_at = now()
+   where t.status = 'offered' and (t.from_id = p_player_id or t.to_id = p_player_id);
+  delete from colony_members m where m.player_id = p_player_id;
+  if v_colony is not null
+     and not exists (select 1 from colony_members m where m.colony_id = v_colony) then
+    delete from colonies co where co.id = v_colony;
+  end if;
+  delete from friendships f where f.a_id = p_player_id or f.b_id = p_player_id;
+  delete from profiles pr where pr.player_id = p_player_id;
+  return 'ok';
+end $$;
+
 grant execute on function public.colony_invite_open to anon;
 grant execute on function public.colony_invite_join to anon;
 grant execute on function public.colony_invite_answer to anon;
@@ -584,6 +621,7 @@ grant execute on function public.colony_dress to anon;
 grant execute on function public.colony_trade_offer to anon;
 grant execute on function public.colony_trade_answer to anon;
 grant execute on function public.colony_trade_cancel to anon;
+grant execute on function public.delete_player to anon;
 
 -- Ask the Supabase API to pick up the new functions straight away.
 notify pgrst, 'reload schema';
