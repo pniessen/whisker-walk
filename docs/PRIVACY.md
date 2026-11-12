@@ -2,7 +2,7 @@
 DRAFT — not published, not legal advice.
 
 Before this goes anywhere public, the owner needs to:
-  1. Fill in the placeholders marked [LIKE THIS]: the date and the contact.
+  1. Fill in the placeholders marked [LIKE THIS]: the date.
   2. Run docs/supabase-v9-delete.sql on the database first: the delete button
      this page describes only works once that file has been run.
   3. If the game is ever offered to children outside your own family, have a
@@ -114,7 +114,7 @@ Online data is kept until it is deleted on request. It is not removed automatica
 - **On a device:** use **Start over** in Game settings, or clear the site's data in the browser, or delete the app.
 - **Online, from the game:** open ☰ Menu → Cloud save → **Delete my online data** on the device. It deletes the cloud save and album stored under that device's code, and that device's cat profile, friend links and colony sharing. The game on the device stays, except that the cat name used for playing together is cleared, which also stops anything being uploaded again until a new name is saved. It cannot be undone. Do it on each device you have used: another device linked to the same save code would upload the save again.
 - **What stays after that:** if you shared a colony, your partner keeps it and its cats. Records of who found or fed those cats keep your device's random id, which no longer points to any profile.
-- **Online, by request:** if you no longer have the device, write to [CONTACT] with your cloud save code, or your friend code, or both, and the owner will delete the matching records by hand.
+- **Online, by request:** if you no longer have the device, write to privacy@whiskerwalk.org with your cloud save code, or your friend code, or both, and the owner will delete the matching records by hand.
 
 ## Security
 
@@ -126,4 +126,4 @@ If the game starts storing or sending anything new, this page will be updated fi
 
 ## Contact
 
-Questions, or a request to see or delete data: [CONTACT].
+Questions, or a request to see or delete data: privacy@whiskerwalk.org.
