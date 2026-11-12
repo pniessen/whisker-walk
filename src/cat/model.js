@@ -1062,6 +1062,15 @@ function paintPointMask(skull, s) {
   skull.material.vertexColors = true;
 }
 
+// The full build's muzzle (cat-beauty B2), head space: the whisker pads (the
+// cheek balls, r 0.065), the chin (the muzzle ball, r 0.09) and the nose leather
+// (r 0.024), a little shield sat where the pads meet.
+export const CAT_MUZZLE = Object.freeze({
+  padAt: [0.046, -0.066, -0.178], padScale: [0.86, 0.8, 0.82],
+  chinAt: [0, -0.085, -0.15], chinScale: [0.95, 0.62, 0.85],
+  noseAt: [0, -0.022, -0.232], noseScale: [1.15, 0.72, 0.7],
+});
+
 // A copy of a breed's STYLE row (read-only: tests build a cat from a variant).
 export const catStyle = (breed) => Object.freeze({ ...STYLE[breed] });
 
@@ -1133,14 +1142,21 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const skull = ball(SKULL_R, pointColor, ...SKULL_SCALE);
   if (s.points) paintPointMask(skull, s);
   head.add(skull);
+  // cat-beauty B2: on a full build (which has the cheek balls) the muzzle is
+  // a cat's: two round WHISKER PADS meeting under the nose (the cheek balls,
+  // moved in and forward) over a smaller chin (the muzzle ball, narrower and
+  // set back). It was one broad cream bun with the cheeks behind it, which read
+  // as a bear's or a dog's snout. A simple build keeps the bun (no cheeks).
+  const PADS = !opts.simple;
   const MUZZLE_R = 0.09;
-  const MUZZLE_SCALE = [1.25, 0.75, 0.9];
-  const MUZZLE_CENTRE = [0, -0.06, -0.16];
+  const MUZZLE_SCALE = PADS ? CAT_MUZZLE.chinScale : [1.25, 0.75, 0.9];
+  const MUZZLE_CENTRE = PADS ? CAT_MUZZLE.chinAt : [0, -0.06, -0.16];
   const muzzle = ball(MUZZLE_R, faceHex(s), ...MUZZLE_SCALE);
   muzzle.position.set(...MUZZLE_CENTRE);
   head.add(muzzle);
   const nose = ball(0.024, noseHex(s, opts.style || opts.look != null ? null : breed), 1, 0.8, 0.8, 6, 5);
   nose.position.set(0, -0.02, -0.245);
+  if (PADS) { nose.position.set(...CAT_MUZZLE.noseAt); nose.scale.set(...CAT_MUZZLE.noseScale); }
   nose.userData.nose = true;   // tests find the nose by this, not by child order
   head.add(nose);
   // `ears` grows the cone in its geometry (the animator writes ear rotation, so
@@ -1155,6 +1171,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       const cheek = ball(0.065, faceHex(s), 1, 0.9, 0.8, 8, 6);
       cheek.userData.cheek = true;
       cheek.position.set(side * 0.085, -0.07, -0.14);
+      cheek.position.set(side * CAT_MUZZLE.padAt[0], CAT_MUZZLE.padAt[1], CAT_MUZZLE.padAt[2]);
+      cheek.scale.set(...CAT_MUZZLE.padScale);
       head.add(cheek);
     }
     const ear = new THREE.Mesh(earGeometry(0.075 * EARS, earH * EARS), litMaterial(pointColor, { vertexColors: true }));
