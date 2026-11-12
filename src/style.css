@@ -116,6 +116,10 @@ body.touch-mode .hud-area { font-size: 0.82rem; padding: 2px 8px; }
   transition: opacity 0.35s, transform 0.35s; font-size: 1.05rem;
 }
 .toast.fade { opacity: 0; transform: translateY(-6px); }
+/* A tap holds a toast (hud.js, cloudsync.js), so the pill itself takes
+   taps although #hud and #cloud-toasts let them through; a fading one doesn't. */
+.toast { pointer-events: auto; cursor: pointer; }
+.toast.fade { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
   .toast.fade { transform: none; }
 }

@@ -11,18 +11,30 @@
 import { createLiveCloud, generateSaveCode, normalizeSaveCode, getOrCreateSecret } from '../cloud.js';
 import { summarizeSaveForPreview } from '../progression.js';
 import { note } from '../diagnostics.js';
+import { toastLifeMs } from '../ui/toastlife.js';
 
 // A toast surface that stays visible on the home base screen (unlike
 // #hud, which is display:none whenever no walk is in progress) — cloud
-// sync results (stale/denied) need to reach the player there too.
+// sync results (stale/denied) need to reach the player there too. It stays
+// as long as its words need (toastLifeMs); a tap holds it for a fresh spell,
+// a second tap lets it go. The container is a polite live region (index.html).
+export const CLOUD_TOAST_FADE_MS = 800;
 export function createCloudToast(container) {
   return function cloudToast(text) {
     const el = document.createElement('div');
     el.className = 'toast';
     el.textContent = text;
     container.appendChild(el);
-    setTimeout(() => el.classList.add('fade'), 2600);
-    setTimeout(() => el.remove(), 3400);
+    let fadeTimer = null;
+    let held = false;
+    const go = () => {
+      clearTimeout(fadeTimer);
+      el.classList.add('fade');
+      setTimeout(() => el.remove(), CLOUD_TOAST_FADE_MS);
+    };
+    const live = () => { clearTimeout(fadeTimer); fadeTimer = setTimeout(go, toastLifeMs(text)); };
+    el.addEventListener?.('click', () => { if (held) go(); else { held = true; live(); } });
+    live();
   };
 }
 
@@ -121,12 +133,12 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
         return { ok: true, message: 'Synced ✓' };
       }
       if (result === 'stale') {
-        cloudToast('Cloud has newer progress — open Sync at home base');
+        cloudToast('The cloud has newer progress. Open Cloud save.');
         return { ok: false, message: 'Cloud has newer progress than this device — use Load from cloud to pull it down.' };
       }
       if (result === 'denied') {
         if (!deniedNotified) {
-          cloudToast('Cloud sync denied — unlink and save a new code at home base');
+          cloudToast('Cloud save didn’t work. Open Cloud save.');
           deniedNotified = true;
         }
         return { ok: false, message: 'Sync denied — this code may be linked elsewhere. Unlink and save a new code.' };

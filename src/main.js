@@ -240,7 +240,7 @@ function init() {
     settings,
     player,
     isDen: () => session?.areaId === 'den',
-    onCapped: () => hud.toast('The den is cosy — no room to zoom out further 🏠'),
+    onCapped: () => hud.toast('The den can’t zoom out any more 🏠'),
   });
   const zoomBy = (dir) => {
     if (session && player.engaged) zoomControl.step(dir);

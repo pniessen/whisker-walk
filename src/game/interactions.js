@@ -1509,7 +1509,7 @@ export function createInteractions({
     const raining = s.weather?.isRaining?.() === true;
     if (!tickRain(carry.mouth, dt, raining)) return;
     const released = putDownCarried(s);
-    if (released) hud.toast(`Your paws are too slippery — you dropped the ${carryLabel(released.kind)}! 💧`);
+    if (released) hud.toast(`Slippery paws! You dropped the ${carryLabel(released.kind)}. 💧`);
   }
 
   function handleInteract(s) {
@@ -1631,7 +1631,7 @@ export function createInteractions({
       const stray = s.prompt.data;
       if (!isGrudgeableStray(s.strayCats, stray) || !progression.hasGrudge?.(stray.name)) return;
       if (spendablePoints() < TREAT_COST) {
-        hud.toast(`A treat costs ${TREAT_COST} 🐾 — go and find a few first`);
+        hud.toast(`A treat costs ${TREAT_COST} 🐾. Find some more first.`);
         return;
       }
       if ((progression.deductPoints?.(TREAT_COST) ?? 0) <= 0) return;

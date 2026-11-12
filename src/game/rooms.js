@@ -180,7 +180,7 @@ export function createRooms({
     if (walkers.length) {
       const who = room.roster.find((p) => p?.playerId === walkers[0]);
       const name = safeRemoteName(who?.petName, 'Your friend'); // another device's name: never shown raw
-      try { toast?.(`${name} is already on a walk! Wait till they come home, then press Start.`); } catch { /* a toast is never worth a crash */ }
+      try { toast?.(`${name} is on a walk. Press Start when they’re back.`); } catch { /* a toast is never worth a crash */ }
       return false;
     }
     // The player id is mixed in so two presses in the same millisecond still

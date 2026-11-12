@@ -739,7 +739,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.session.carry.mouth.held?.kind).toBe('shell');
         rainFor(h, 0.5);
         expect(h.session.carry.mouth.held).toBe(null);
-        expect(h.toasts).toEqual(['Your paws are too slippery — you dropped the shell! 💧']);
+        expect(h.toasts).toEqual(['Slippery paws! You dropped the shell. 💧']);
         expect(h.session.carry.onDeck(h.session.carry.items.list[0].mesh.position.x,
           h.session.carry.items.list[0].mesh.position.z)).toBe(false);
       });
@@ -966,7 +966,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         // down in front of the cat (the mouth spot), a step from where it stands
         expect(Math.hypot(item.mesh.position.x - 20, item.mesh.position.z - 20)).toBeLessThan(1);
         expect(h.session.carry.mouth.dropped.get('park-stick-1')).toMatchObject({ homeX: 5, homeZ: 0 });
-        expect(h.toasts).toEqual(['Your paws are too slippery — you dropped the stick! 💧']);
+        expect(h.toasts).toEqual(['Slippery paws! You dropped the stick. 💧']);
         expect(found).toEqual([]);
         expect(snapshot(h)).toBe(before);
         h.walkTo(20, 20);
