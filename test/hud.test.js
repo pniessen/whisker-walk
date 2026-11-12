@@ -617,6 +617,15 @@ describe('HUD layout (style.css)', () => {
   });
 });
 
+describe('the page can be zoomed', () => {
+  it('the viewport no longer forbids pinch-zoom', () => {
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const meta = html.match(/<meta name="viewport" content="([^"]*)"/)[1];
+    expect(meta).toBe('width=device-width, initial-scale=1, viewport-fit=cover');
+    expect(meta).not.toMatch(/user-scalable|maximum-scale/);
+  });
+});
+
 describe('toastLifeMs: long enough to read', () => {
   it('max(3 s, 0.6 s + 0.55 s a word), capped at 9 s', () => {
     expect(toastLifeMs('Hi')).toBe(3000);

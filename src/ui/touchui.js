@@ -225,8 +225,9 @@ export function createTouchUI(root, callbacks, opts = {}) {
   }
   wrap.addEventListener('touchend', handleTouchEnd, { passive: false });
   wrap.addEventListener('touchcancel', handleTouchEnd, { passive: false });
-  // iOS Safari ignores the viewport's user-scalable=no (an accessibility
-  // choice) and still page-zooms on a pinch. touch-action: none plus the
+  // The page itself may be zoomed (the viewport no longer forbids it, for
+  // low-vision players), but a pinch in a walk zooms the camera, not the
+  // page: touch-action: none plus the
   // preventDefaults above stop it on most browsers; Safari's own gesture
   // events are the remaining path, so they are cancelled too. On `root`
   // (#hud), not just this layer, so a pinch that starts on another HUD piece
