@@ -260,6 +260,31 @@ describe('the name box', () => {
   it('a cat already named with one of those words can still Host and Join', () => {
     setup({ name: 'Pisstopher' });
     openSheet('together');
-    expect(html()).toContain('<button id="wt-host" >Host a walk</button>');
+    expect(html()).toContain('<button id="wt-host">Host a walk</button>');
+  });
+});
+
+describe('Host and Join with no cat name yet', () => {
+  for (const id of ['wt-host', 'wt-join']) {
+    it(`${id}: stays tappable; a tap says a name is needed and goes to the name box`, async () => {
+      const { rooms } = setup({ name: null });
+      openSheet('together');
+      expect(html()).toContain(`<button id="${id}">`);
+      expect(html()).not.toContain('Your cat needs a name before');
+      const focused = [];
+      doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? { value: '', focus: () => focused.push(sel) } : sel === '#wt-join-code' ? { value: 'ABCD' } : null);
+      await tap({ id });
+      expect(html()).toContain('Your cat needs a name before it can join a walk. Type one here and tap Save:');
+      expect(focused).toEqual(['#wt-petname-input']);
+      expect(rooms.host).not.toHaveBeenCalled();
+      expect(rooms.join).not.toHaveBeenCalled();
+    });
+  }
+  it('the disabled look reaches Host too (its gold is set by id)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.slice(css.indexOf('.walk-together button:disabled'), css.indexOf('}', css.indexOf('.walk-together button:disabled')));
+    expect(rule).toContain('.walk-together #wt-host:disabled');
+    expect(css.indexOf('.walk-together #wt-host:disabled')).toBeGreaterThan(css.indexOf('.walk-together #wt-host:hover'));
   });
 });

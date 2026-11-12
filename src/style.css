@@ -473,7 +473,8 @@ body.touch-mode:not(.left-handed) .hud-top {
 }
 .walk-together button.primary:hover, .friend-code-block button.primary:hover, .walk-together #wt-host:hover { filter: brightness(1.06); background: #f2c14e; }
 .walk-together button.danger { background: transparent; color: #e98a8a; border-color: #e98a8a; }
-.walk-together button:disabled, .friend-code-block button:disabled {
+/* #wt-host is gold by id, so its disabled look needs the id too. */
+.walk-together button:disabled, .friend-code-block button:disabled, .walk-together #wt-host:disabled {
   background: #2a3346; color: #8896b0; border-color: #3a4560; cursor: default; filter: none;
 }
 .walk-together button:focus-visible, .friend-code-block button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }

@@ -254,7 +254,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const name = progression.state.petName ?? '';
     // a joiner with no valid pet name can never build a profile row (their
     // own recordGreet calls are denied server-side), so their greets would
-    // silently fail — Join is gated the same as Host, not just Host.
+    // silently fail — Join is gated the same as Host, not just Host. Both
+    // stay tappable: with no name a tap leads to the name box (needName).
     const hasValidPetName = validPetName(name);
     // Paired siblings get their own room with nothing to type (Task 12).
     const pairWalk = renderPartnerWalkHtml({ status: colonySync ? colonySync.status() : null, colony, room: st });
@@ -274,10 +275,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       ${nearby?.available ? `<div id="wt-nearby" class="wt-nearby">${nearbyRowsHtml()}</div>` : ''}
       <div class="wt-actions">
-        <button id="wt-host" ${hasValidPetName ? '' : 'disabled'}>Host a walk</button>
+        <button id="wt-host">Host a walk</button>
         <div class="wt-join-row">
           <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
-          <button id="wt-join" ${hasValidPetName ? '' : 'disabled'}>Join</button>
+          <button id="wt-join">Join</button>
         </div>
         ${joinError ? `<div class="tag error">${escapeHtml(joinError)}</div>` : ''}
       </div>`;
@@ -904,14 +905,20 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // (btn null). The join itself is the typed code's: rooms.join(code), which
   // checks the code's shape again. Without a cat name there is nobody to
   // join as, so she is taken to the name box and told why.
+  // No cat name yet: Play together says so above the name box, and the box
+  // takes focus.
+  function needName() {
+    nameNeeded = true;
+    if (openSheet === 'together') render(); else setSheet('together');
+    try { root.querySelector('#wt-petname-input')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+  }
+
   async function joinNearby(code, btn) {
     if (nearbyBusy) return;
     const fromCard = !btn;
     if (!validPetName(progression.state.petName ?? '')) {
-      nameNeeded = true;
       removeNearbyCard();
-      if (openSheet === 'together') render(); else setSheet('together');
-      try { root.querySelector('#wt-petname-input')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+      needName();
       return;
     }
     joinError = null;
@@ -1666,6 +1673,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         petNameError = validPetName(name) ? 'Please pick a different name.' : 'Cat names are 2–16 letters, spaces, or hyphens.';
       }
       render();
+      return;
+    }
+    // Host or Join with no cat name yet: say so above the name box and go
+    // there, as a nearby Join does, instead of a dead button.
+    if ((e.target.id === 'wt-host' || e.target.id === 'wt-join') && !validPetName(progression.state.petName ?? '')) {
+      needName();
       return;
     }
     if (e.target.id === 'wt-host') {
