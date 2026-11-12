@@ -997,6 +997,51 @@ export function coatColor(breed, look = null) {
   return (Object.hasOwn(STYLE, breed) ? STYLE[breed] : STYLE.tabby).base;
 }
 
+// -----------------------------------------------------------------------------
+// COAT GENETICS ON THE FACE (cat-beauty, Tier A: colour only).
+//
+// Nose leather follows the coat: a black cat's is black, a seal point's seal,
+// a brown tabby's brick red with a darker rim, a ginger's salmon pink, a blue's
+// blue-grey; white, cream, silver and calico cats keep the pink. The family
+// cats keep the pink they were drawn with from their photos (FAMILY_NOSE).
+const FAMILY_NOSE = new Set(['zeetoo', 'robbie', 'd2', 'digit']);
+export const NOSE = Object.freeze({ black: 0x3e3438, brick: 0xb0605a, salmon: 0xe2907e, blue: 0x7c6a74, pointMix: 0.7 });
+export function noseHex(s, breed) {
+  if (s.nose != null) return s.nose;
+  if (FAMILY_NOSE.has(breed)) return INNER_EAR; // breed is null for a style or look row
+  if (s.points) return new THREE.Color(INNER_EAR).lerp(new THREE.Color(s.accent), NOSE.pointMix).getHex();
+  if (darkFace(s)) return NOSE.black;
+  const hsl = new THREE.Color(s.base).getHSL({ h: 0, s: 0, l: 0 });
+  if (s.stripes) return hsl.h < 0.075 && hsl.s > 0.5 ? NOSE.salmon : NOSE.brick;
+  if (hsl.s < 0.15 && hsl.l > 0.25 && hsl.l < 0.55) return NOSE.blue;
+  return INNER_EAR;
+}
+// A pointed cat (Siamese, a builder's "Pointed") wears its colour as a MASK:
+// over the muzzle, the whisker pads and round the eyes, connected to the dark
+// ears, while the crown and the back of the head shade toward the body colour.
+// It used to be the reverse (a dark hood round a pale snout), which reads as a
+// bicolour, not a Siamese. The muzzle and cheeks take the point colour lifted a
+// little toward the body (so the pads keep their shape in the light); the
+// skull is vertex-painted from the mask at the face to POINT_MASK.back of the
+// way to the body colour behind. Colour only: same meshes, same triangles.
+export const POINT_MASK = Object.freeze({ face: 0.18, back: 0.55, from: -0.25, to: 0.75 });
+export const faceHex = (s) => (s.points ? new THREE.Color(s.accent).lerp(new THREE.Color(s.base), POINT_MASK.face).getHex() : s.belly);
+function paintPointMask(skull, s) {
+  const geo = skull.geometry, p = geo.attributes.position, col = new Float32Array(p.count * 3);
+  const mask = new THREE.Color(s.accent), back = new THREE.Color(s.accent).lerp(new THREE.Color(s.base), POINT_MASK.back), c = new THREE.Color();
+  const r = geo.parameters.radius;
+  for (let i = 0; i < p.count; i++) {
+    // -z is the face; the mask also runs low round the cheeks (y < 0)
+    const front = -p.getZ(i) / r, low = -p.getY(i) / r;
+    const k = Math.min(1, Math.max(0, (Math.max(front, 0.6 * low + 0.2) - POINT_MASK.from) / (POINT_MASK.to - POINT_MASK.from)));
+    c.lerpColors(back, mask, k * k * (3 - 2 * k));
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  skull.material.color.setHex(0xffffff);
+  skull.material.vertexColors = true;
+}
+
 // A copy of a breed's STYLE row (read-only: tests build a cat from a variant).
 export const catStyle = (breed) => Object.freeze({ ...STYLE[breed] });
 
@@ -1066,14 +1111,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const SKULL_SCALE = SKULL.SCALE;
   const head = new THREE.Group();
   const skull = ball(SKULL_R, pointColor, ...SKULL_SCALE);
+  if (s.points) paintPointMask(skull, s);
   head.add(skull);
   const MUZZLE_R = 0.09;
   const MUZZLE_SCALE = [1.25, 0.75, 0.9];
   const MUZZLE_CENTRE = [0, -0.06, -0.16];
-  const muzzle = ball(MUZZLE_R, s.belly, ...MUZZLE_SCALE);
+  const muzzle = ball(MUZZLE_R, faceHex(s), ...MUZZLE_SCALE);
   muzzle.position.set(...MUZZLE_CENTRE);
   head.add(muzzle);
-  const nose = ball(0.024, INNER_EAR, 1, 0.8, 0.8, 6, 5);
+  const nose = ball(0.024, noseHex(s, opts.style || opts.look != null ? null : breed), 1, 0.8, 0.8, 6, 5);
   nose.position.set(0, -0.02, -0.245);
   nose.userData.nose = true;   // tests find the nose by this, not by child order
   head.add(nose);
@@ -1086,7 +1132,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const eyes = [], pupils = [], shines = [], cheeks = [];
   for (const side of [-1, 1]) {
     if (!opts.simple) {
-      const cheek = ball(0.065, s.belly, 1, 0.9, 0.8, 8, 6);
+      const cheek = ball(0.065, faceHex(s), 1, 0.9, 0.8, 8, 6);
       cheek.userData.cheek = true;
       cheek.position.set(side * 0.085, -0.07, -0.14);
       head.add(cheek);
@@ -1240,7 +1286,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
     if (i > 0) pivot.position.set(0, 0, TAIL.LINK);
-    const blend = darkTip && i === 3;
+    const blend = darkTip && i === 3 && !s.points; // a pointed tail is the point colour all along
     // The link runs from its pivot along +z: the cylinder's +y axis turned onto
     // +z. Open-ended; the balls below close every end. The blended link has
     // rings at each third of its length, for its colours to change along.
@@ -1263,7 +1309,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const geo = mergeGeometries(parts);
     const seg = new THREE.Mesh(geo, blend
       ? litMaterial(0xffffff, { vertexColors: true })
-      : mat(i >= 3 && darkTip ? s.accent : s.base));
+      : mat((i >= 3 && darkTip) || s.points ? s.accent : s.base));
     if (blend) {
       // Coat at and behind the pivot, the tip colour from a third of the way
       // along the link (u = 2/3 of the whole tail) on.
