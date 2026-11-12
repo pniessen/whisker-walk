@@ -86,7 +86,16 @@ If both children played before you ran the file, each has a colony of their own.
 
 **Don't run `docs/supabase-v7-secret-fix.sql` any more.** It is kept only as history; running it after the hardening file puts weaker versions of three functions back. For a brand-new project, `docs/supabase-setup.sql` already contains the hardened functions, so run that and then `docs/supabase-colony.sql`. Don't re-run `docs/supabase-setup.sql` on the live project before Step B.
 
-## 8. Keep each child on their own device
+## 8. Run the delete file
+
+`docs/supabase-v9-delete.sql` switches on **Delete my online data**, the button at the bottom of the game's **Cloud save** sheet. With it a grown-up can delete, from the device itself, what that device put online: its cloud save and photo album (if it is linked to a save code), its cat profile, its friends and its colony sharing. Until you run the file the button says "Deleting isn't switched on yet. Nothing was deleted." and changes nothing.
+
+1. Run `docs/supabase-v9-delete.sql` the same way: **New query**, paste **the whole file**, **Run**. It's safe to run again, and safe to run before the newest game build is on any device. It needs the hardening file (section 7) first; if that is missing it stops with "Run docs/supabase-v8-hardening.sql first" and changes nothing.
+2. Run the check queries at the end of the file.
+
+What a delete does to the other child: if the two were sharing a colony, the other child keeps it, with every cat, and their Colony tab offers **Get a sharing code** again, just as after an unpair (section 5). Trade offers that were still waiting between them are cancelled. A brand-new project doesn't need this file: `docs/supabase-setup.sql` and `docs/supabase-colony.sql` already contain both functions. To undo it, run the rollback lines at the end of the file.
+
+## 9. Keep each child on their own device
 
 The game recognises each child by an id that belongs to the device (the browser on it), not to the save. The colony, though, travels inside the save. So if a child moves their save to a different device with **Load from cloud**, the new device has a different id, and there:
 
