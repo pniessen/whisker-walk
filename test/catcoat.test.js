@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
-import { tabbyMix } from '../src/cat/coat.js';
+import { tabbyMix, furShade } from '../src/cat/coat.js';
 import { PRESETS, samples, nearest, legacyDir, colourDistance, lum } from './helpers/catfingerprint.js';
 
 // Task 4: the coats are painted into the torso's vertex colours. Every check
@@ -10,9 +10,24 @@ import { PRESETS, samples, nearest, legacyDir, colourDistance, lum } from './hel
 const where = (s, pred) => s.filter(({ u }) => pred(...u)).map(({ c }) => lum(c));
 
 describe('painted coats', () => {
-  it('a black cat is exactly its base colour everywhere', () => {
-    const want = new THREE.Color(0x2a2a30);
-    for (const { c } of samples('black')) expect(colourDistance(c, want)).toBeLessThan(1e-6);
+  // cat-beauty A4 (2026-11-11, owner's sign-off): the coat carries a baked
+  // soft shade (coat.js furShade), so a plain coat is its base colour times
+  // that shade: exactly the base on the upper half, at most 0.8 of it right
+  // underneath and a little less toward the legs, never under 0.7.
+  it('a black cat is exactly its base colour times the baked fur shade everywhere', () => {
+    const base = new THREE.Color(0x2a2a30);
+    let top = 0, under = 0;
+    for (const { u, c } of samples('black')) {
+      const k = furShade(...u);
+      expect(colourDistance(c, base.clone().multiplyScalar(k))).toBeLessThan(1e-6);
+      expect(k).toBeGreaterThanOrEqual(0.7);
+      expect(k).toBeLessThanOrEqual(1);
+      if (u[1] >= -0.05) { expect(k).toBe(1); top++; }
+      if (u[1] <= -0.85) { expect(k).toBeLessThanOrEqual(0.8 + 1e-9); under++; }
+    }
+    expect(top).toBeGreaterThan(100);
+    expect(under).toBeGreaterThan(0);
+    expect(furShade(0, -1, 0)).toBeCloseTo(0.8, 12); // straight underneath: 0.8, no leg-join term at the middle
   });
 
   it('tabbyMix: dark spine, clean belly', () => {
@@ -47,21 +62,34 @@ describe('painted coats', () => {
       expect(bands).toBeGreaterThanOrEqual(5);
     });
 
-    it(`robbie${tag}: white bib and flanks, black saddle`, () => {
+    // cat-beauty A4: the low flanks sit under the baked fur shade, so the
+    // white is read through it (luminance over the shade above 0.8, as before).
+    it(`robbie${tag}: white bib and flanks (under the baked fur shade), black saddle`, () => {
       const s = samples('robbie', opts);
+      const whiteThrough = (pred) => s.filter(({ u }) => pred(...u)).map(({ u, c }) => lum(c) / furShade(...u));
       const sets = [
-        where(s, (x, y, z) => z < -0.9 && Math.abs(x) < 0.15),
-        where(s, (x, y, z) => x < -0.85 && y < 0 && Math.abs(z) < 0.3),
-        where(s, (x, y, z) => x > 0.85 && y < 0 && Math.abs(z) < 0.3),
+        whiteThrough((x, y, z) => z < -0.9 && Math.abs(x) < 0.15),
+        whiteThrough((x, y, z) => x < -0.85 && y < 0 && Math.abs(z) < 0.3),
+        whiteThrough((x, y, z) => x > 0.85 && y < 0 && Math.abs(z) < 0.3),
       ];
       for (const set of sets) { expect(set.length).toBeGreaterThan(0); expect(Math.min(...set)).toBeGreaterThan(0.8); }
       expect(Math.max(...where(s, (x, y) => y > 0.9))).toBeLessThan(0.2);
     });
 
-    it(`calico${tag}: orange on one flank, grey on the other`, () => {
+    // cat-beauty A5 (2026-11-11, owner's sign-off): the calico is white below
+    // with big orange and black patches on top; her black is 0x2e2a2a (her
+    // row's patch2), where the one small grey patch used to be 0x333333.
+    it(`calico${tag}: orange on one flank, black on the other, a black saddle, an orange haunch, a black shoulder spot, white below`, () => {
       const s = samples('calico', opts);
-      expect(colourDistance(nearest(s, legacyDir([0.12, 0.54, -0.08])).c, new THREE.Color(0xd88030))).toBeLessThan(0.02);
-      expect(colourDistance(nearest(s, legacyDir([-0.12, 0.54, 0.14])).c, new THREE.Color(0x333333))).toBeLessThan(0.02);
+      const at = (p) => nearest(s, legacyDir(p)).c;
+      const orange = new THREE.Color(0xd88030), black = new THREE.Color(0x2e2a2a);
+      expect(colourDistance(at([0.12, 0.54, -0.08]), orange)).toBeLessThan(0.02);
+      expect(colourDistance(at([-0.12, 0.54, 0.14]), black)).toBeLessThan(0.02);
+      expect(colourDistance(at([0.05, 0.56, 0.36]), black)).toBeLessThan(0.02);  // saddle over the hips
+      expect(colourDistance(at([0.24, 0.42, 0.40]), orange)).toBeLessThan(0.02); // right haunch
+      expect(colourDistance(at([-0.24, 0.48, -0.28]), black)).toBeLessThan(0.02); // left shoulder
+      const under = nearest(s, [0, -1, 0]);
+      expect(colourDistance(under.c, new THREE.Color(0xf0ead8).multiplyScalar(furShade(...under.u)))).toBeLessThan(0.02); // white (shaded) below
     });
   }
 
