@@ -17,7 +17,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
   },
 }));
 
-const { confirmCardHtml, createConfirmCard } = await import('../src/ui/confirmcard.js');
+const { confirmCardHtml, createConfirmCard, spendAsk } = await import('../src/ui/confirmcard.js');
 const { CONFIRM_DELAY_MS } = await import('../src/ui/colonypanel.js');
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression, BACKUP_KEYS } = await import('../src/progression.js');
@@ -90,6 +90,28 @@ describe('confirmCardHtml', () => {
     expect(h).not.toContain('aria-describedby');
     expect(h).not.toContain('confirm-card-note');
     expect(h).toContain('class="colony-news-btn" id="confirm-card-yes"');
+  });
+});
+
+describe('spendAsk: the "Get it?" wording', () => {
+  it('names the thing, the price and what is left; Not now first, a friendly Yes', () => {
+    expect(spendAsk({ name: 'Red Bow', price: 30, points: 100 })).toEqual({
+      text: 'Get the Red Bow for 30 🐾?', note: 'You’ll have 70 🐾 left.', no: 'Not now', yes: 'Yes, get it',
+    });
+    expect(spendAsk({ kind: 'cat', name: 'Robbie', price: 45, points: 45 }).text).toBe('Get Robbie for 45 🐾?');
+    expect(spendAsk({ kind: 'cat', name: 'Robbie', price: 45, points: 45 }).note).toBe('You’ll have 0 🐾 left.');
+    expect(spendAsk({ kind: 'place', name: 'City Park', price: 100, points: 150 })).toMatchObject({ text: 'Open City Park for 100 🐾?', note: 'You’ll have 50 🐾 left.', yes: 'Yes, open it' });
+    expect(spendAsk({ kind: 'move', name: 'Leap', price: 300, points: 900 })).toMatchObject({ text: 'Learn Leap for 300 🐾?', note: 'You’ll have 600 🐾 left.', yes: 'Yes, learn it' });
+  });
+  it('is total: odd numbers and kinds never show a negative or NaN', () => {
+    expect(spendAsk({ name: 'X', price: 30, points: 10 }).note).toBe('You’ll have 0 🐾 left.');
+    expect(spendAsk({ kind: 'nope', name: 'X', price: NaN, points: 'x' })).toMatchObject({ text: 'Get the X for 0 🐾?', note: 'You’ll have 0 🐾 left.' });
+    expect(spendAsk({ name: 'X', price: 12.7, points: 20.9 })).toMatchObject({ text: 'Get the X for 12 🐾?', note: 'You’ll have 8 🐾 left.' });
+  });
+  it('its card is the plain (not red) Yes', () => {
+    const h = confirmCardHtml(spendAsk({ name: 'Red Bow', price: 30, points: 100 }));
+    expect(h).toContain('<button type="button" class="colony-news-btn" id="confirm-card-yes" data-confirm="yes">Yes, get it</button>');
+    expect(h).not.toContain('confirm-card-danger');
   });
 });
 

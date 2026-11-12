@@ -21,9 +21,33 @@ export function confirmCardHtml({ text, note = '', yes, no = 'Not now', danger =
     + '</div></div>';
 }
 
+// "Get it?" before paw points are spent from a menu (a hat, a cat, a place, a
+// fighting move, a piece of den furniture): one tap only asks, Yes buys. A
+// purchase is a happy Yes, so it keeps the friendly yellow (no `danger`).
+// kind: 'item' (default) | 'cat' (a name, so no "the") | 'place' | 'move'.
+const SPEND_WORDS = {
+  item: { verb: 'Get the', yes: 'Yes, get it' },
+  cat: { verb: 'Get', yes: 'Yes, get it' },
+  place: { verb: 'Open', yes: 'Yes, open it' },
+  move: { verb: 'Learn', yes: 'Yes, learn it' },
+};
+const whole = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : 0);
+export function spendAsk({ kind = 'item', name = '', price = 0, points = 0 } = {}) {
+  const w = Object.hasOwn(SPEND_WORDS, kind) ? SPEND_WORDS[kind] : SPEND_WORDS.item;
+  const p = whole(price);
+  return {
+    text: `${w.verb} ${String(name)} for ${p} 🐾?`,
+    note: `You’ll have ${Math.max(0, whole(points) - p)} 🐾 left.`,
+    no: 'Not now',
+    yes: w.yes,
+  };
+}
+
 // mount(el): puts the card on the page. blocked(): another card is up.
 // onClosed(answer): after the card is gone ('yes', 'no'; not after close()).
-export function createConfirmCard({ mount, blocked = () => false, onClosed = () => {}, now = () => Date.now() } = {}) {
+// doc: the document to build it in (the den shop passes its own).
+export function createConfirmCard({ mount, blocked = () => false, onClosed = () => {}, now = () => Date.now(), doc = null } = {}) {
+  const d = () => doc ?? document;
   let el = null;
   let asked = null;
   let shownAt = 0;
@@ -46,7 +70,7 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
     if (el || !opts || typeof opts.onYes !== 'function' || typeof opts.text !== 'string' || !opts.text || blocked()) return false;
     asked = opts;
     shownAt = now();
-    el = document.createElement('div');
+    el = d().createElement('div');
     el.id = 'confirm-card';
     el.className = 'colony-news confirm-overlay';
     el.innerHTML = confirmCardHtml(opts);
@@ -71,7 +95,7 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
     if (e.key !== 'Tab' || !el) return;
     const btns = [...(el.querySelectorAll?.('button') ?? [])];
     if (!btns.length) return;
-    const i = btns.indexOf(document.activeElement);
+    const i = btns.indexOf(d().activeElement);
     const next = e.shiftKey ? (i <= 0 ? btns.length - 1 : i - 1) : (i === -1 || i === btns.length - 1 ? 0 : i + 1);
     e.preventDefault();
     btns[next].focus?.();

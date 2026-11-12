@@ -8,7 +8,9 @@
 //     focused <select> stepping and a focused button pressing.
 // The project has no DOM library, so this installs a tiny tree with real
 // capture/target/bubble propagation, which is all these guards depend on.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createProgression } from '../src/progression.js';
+import { CONFIRM_DELAY_MS } from '../src/ui/colonypanel.js';
 import { createEmitter } from '../src/events.js';
 import { createDenShopView } from '../src/ui/denshopview.js';
 
@@ -32,6 +34,7 @@ class Node {
   }
   set className(v) { this.cls = new Set(String(v).split(/\s+/).filter(Boolean)); }
   appendChild(c) { c.parent = this; this.children.push(c); return c; }
+  remove() { if (this.parent) this.parent.children = this.parent.children.filter((c) => c !== this); this.parent = null; }
   setAttribute(k, v) { this.attrs[k] = v; }
   querySelector() { return null; }
   closest(sel) {
@@ -70,7 +73,7 @@ function dispatch(target, type, props = {}) {
   return ev;
 }
 
-function setup() {
+function setup({ progression: prog = null } = {}) {
   const doc = new Node('document');
   doc.body = new Node('body', doc);
   const app = new Node('app', doc.body);
@@ -88,7 +91,7 @@ function setup() {
   const bus = createEmitter();
   const pause = vi.fn();
   const resume = vi.fn();
-  const progression = { state: { points: 0, den: { owned: [], placed: {} } } };
+  const progression = prog ?? { state: { points: 0, den: { owned: [], placed: {} } } };
   const view = createDenShopView({
     progression, pause, resume, bus, canvas, doc, hudRoot: hud, mountRoot: app,
   });
@@ -162,5 +165,95 @@ describe('den shop overlay input guards', () => {
     t.view.setActive(true);
     dispatch(t.canvas, 'keydown', { code: 'ArrowUp' });
     expect(t.playerKeys).toEqual(['ArrowUp']);
+  });
+});
+
+// Buy — 25 🐾 only asks (the shared "Get it?" card), over the paused den.
+describe('den shop: buying asks first', () => {
+  function shop(points = 40) {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    progression.state.points = points;
+    const t = setup({ progression });
+    t.view.setActive(true);
+    t.view.open();
+    const app = t.doc.body.children[0];
+    const card = () => app.children.find((c) => c.id === 'confirm-card');
+    const buyBtn = new Node('button', t.sheet);
+    buyBtn.attrs['data-den-buy'] = 'bed';
+    buyBtn.dataset.denBuy = 'bed';
+    const tapBuy = () => dispatch(buyBtn, 'click');
+    // a tap on the card's Yes / Not now; detail 2 is a double tap's second
+    const answer = (a, detail = 1) => {
+      const b = new Node('button', card());
+      b.attrs['data-confirm'] = a;
+      b.closest = (sel) => (sel === '[data-confirm]' ? { getAttribute: () => a } : null);
+      dispatch(b, 'click', { detail });
+    };
+    return { ...t, progression, card, tapBuy, answer };
+  }
+  const wait = () => vi.advanceTimersByTime(CONFIRM_DELAY_MS);
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('a tap on Buy opens "Get the Donut Bed for 25 🐾?" over the shop and buys nothing', () => {
+    const t = shop();
+    t.tapBuy();
+    expect(t.card()).toBeTruthy();
+    expect(t.card().cls.has('ds-confirm')).toBe(true);
+    expect(t.card().innerHTML).toContain('Get the Donut Bed for 25 🐾?');
+    expect(t.card().innerHTML).toContain('You’ll have 15 🐾 left.');
+    expect(t.card().innerHTML).toContain('>Yes, get it</button>');
+    expect(t.progression.state.points).toBe(40);
+    expect(t.progression.state.den.owned).toEqual([]);
+    expect(t.view.isOpen).toBe(true);
+  });
+
+  it('Not now changes nothing; Escape on the card answers Not now and keeps the shop open', () => {
+    const t = shop();
+    t.tapBuy();
+    wait();
+    t.answer('no');
+    expect(t.card()).toBeUndefined();
+    t.tapBuy();
+    const ev = dispatch(t.card(), 'keydown', { key: 'Escape', code: 'Escape' });
+    expect(ev.defaultPrevented).toBe(false);
+    expect(t.card()).toBeUndefined();
+    expect(t.view.isOpen).toBe(true);
+    expect(t.resume).not.toHaveBeenCalled();
+    expect(t.playerKeys).toEqual([]);
+    expect(t.progression.state.points).toBe(40);
+    expect(t.progression.state.den.owned).toEqual([]);
+  });
+
+  it('Yes buys once, even on a double tap', () => {
+    const t = shop();
+    t.tapBuy();
+    t.answer('yes'); // too soon after the tap that asked
+    t.answer('yes', 2);
+    expect(t.progression.state.den.owned).toEqual([]);
+    wait();
+    t.answer('yes');
+    expect(t.card()).toBeUndefined();
+    expect(t.progression.state.den.owned).toEqual(['bed']);
+    expect(t.progression.state.points).toBe(15);
+    t.tapBuy(); // already hers: nothing to ask
+    expect(t.card()).toBeUndefined();
+    expect(t.progression.state.points).toBe(15);
+  });
+
+  it('a Yes after she can no longer afford it buys nothing; closing the shop drops the question', () => {
+    const t = shop();
+    t.tapBuy();
+    t.progression.state.points = 10;
+    wait();
+    t.answer('yes');
+    expect(t.progression.state.den.owned).toEqual([]);
+    expect(t.progression.state.points).toBe(10);
+    t.progression.state.points = 40;
+    t.tapBuy();
+    t.view.close();
+    expect(t.card()).toBeUndefined();
+    expect(t.progression.state.den.owned).toEqual([]);
   });
 });

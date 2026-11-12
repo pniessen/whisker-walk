@@ -1289,7 +1289,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .dr-pick .act { display: block; margin-top: 3px; font-weight: 700; color: var(--gold); white-space: nowrap; }
 .dr-pick small { display: block; font-size: 10px; opacity: .6; }
 .dr-pick.on { outline: 2px solid var(--gold); }
-.dr-pick.locked { gap: 4px; }
+/* Try on and Unlock stay well apart: a thumb aiming at one never lands on the other */
+.dr-pick.locked { gap: 12px; }
 .dr-pick.locked .act { color: var(--muted); font-weight: 400; }
 .dr-pick.prize-surprise { justify-content: center; font-size: 11px; color: var(--cream);
   background: linear-gradient(135deg, var(--panel), #3a2a4a); border: 1px dashed var(--cream); cursor: default; }
@@ -1420,6 +1421,11 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 /* not enough paws yet: the picture stays visible, just dimmed and quiet */
 .dr-place.cant img { filter: saturate(.55) brightness(.8); }
 .dr-place.cant { opacity: .85; cursor: default; }
+/* one she can buy: the picture is plain; only its Unlock button buys (after asking) */
+.dr-place.can-buy { cursor: default; }
+.dr-place.can-buy img { filter: saturate(.7) brightness(.85); }
+.dr-where .dr-place-buy { display: block; margin-top: 6px; min-height: 44px; padding: 6px 14px; border-radius: 999px;
+  border: 1.5px solid var(--cream); background: rgba(20, 28, 42, .7); color: var(--cream); font-weight: 700; font-size: 13px; }
 /* My den: a warm card with a roof, no photo */
 .dr-place.dr-den { background: linear-gradient(165deg, #8a5a3c, #5a3a28); }
 .dr-place.dr-den img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -1821,6 +1827,8 @@ body.den-shop-open .chat-wheel { display: none !important; }
   background: #4a6ea5; color: #fff; font: inherit; font-weight: 700; cursor: pointer;
 }
 .ds-buy:hover { background: #5a7eb5; }
+/* "Get it?" over the den shop (z 20), not under it */
+.confirm-overlay.ds-confirm { z-index: 21; }
 
 /* Visit celebrations (src/ui/visitcelebration.js)
    A full card over a dimmer, B a small banner, C a speech bubble from the
