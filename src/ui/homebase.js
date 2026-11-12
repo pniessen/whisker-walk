@@ -336,6 +336,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             ${cloudStatus ? `<div class="tag">${escapeHtml(cloudStatus)}</div>` : ''}
             <div class="sync-actions">
               <button id="sync-now" ${cloudBusy ? 'disabled' : ''}>${cloudBusy ? 'Syncing…' : 'Sync now'}</button>
+              <button id="sync-load-linked" ${cloudBusy ? 'disabled' : ''}>Load from cloud</button>
+            </div>
+            ${cloudError ? `<div class="tag error">${escapeHtml(cloudError)}</div>` : ''}
+            <div class="sync-unlink-row">
               <button id="sync-unlink" class="danger" ${cloudBusy ? 'disabled' : ''}>Unlink</button>
             </div>
           </div>`;
@@ -1801,10 +1805,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       render();
       return;
     }
-    if (e.target.id === 'sync-load') {
-      const input = root.querySelector('#sync-load-code');
+    // Load from cloud: the typed code, or (linked) this device's own code.
+    // Either way it is the same preview, which compares before it overwrites.
+    if (e.target.id === 'sync-load' || e.target.id === 'sync-load-linked') {
+      const code = e.target.id === 'sync-load' ? (root.querySelector('#sync-load-code')?.value ?? '') : (sync.getCode() ?? '');
       cloudBusy = true; cloudError = null; render();
-      const res = await sync.previewLoad(input?.value ?? '');
+      const res = await sync.previewLoad(code);
       cloudBusy = false;
       if (res.ok) cloudPreview = res.preview;
       else cloudError = res.error;
@@ -1870,12 +1876,25 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       });
       return;
     }
+    // Unlink asks first: afterwards this device no longer shows the code.
     if (e.target.id === 'sync-unlink') {
-      sync.unlink();
-      cloudStatus = null;
-      cloudError = null;
-      cloudJustLinked = false;
-      render();
+      const code = sync.getCode();
+      if (cloudBusy || !code) return;
+      confirmCard.ask({
+        text: 'Stop saving to the cloud?',
+        note: `Your save code is ${code}. Write it down. It’s the only way to get this save back.`,
+        no: 'Keep saving',
+        yes: 'Yes, stop',
+        danger: true,
+        returnFocus: () => root.querySelector('#sync-unlink')?.focus?.({ preventScroll: true }),
+        onYes: () => {
+          sync.unlink();
+          cloudStatus = null;
+          cloudError = null;
+          cloudJustLinked = false;
+          render();
+        },
+      });
       return;
     }
     if (e.target.id === 'set-muted') {

@@ -641,6 +641,8 @@ body.touch-mode:not(.left-handed) .hud-top {
 }
 .sync-cloud .sync-actions, .sync-load-row, .sync-unlinked { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .sync-cloud .sync-actions { margin-top: 8px; }
+/* Unlink on its own row, well away from Sync now (it asks first, too). */
+.sync-unlink-row { margin-top: 22px; }
 .sync-code-input { text-transform: uppercase; width: 14em; letter-spacing: 0.04em; }
 .sync-code-big { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .sync-code-value { font-size: 1.5rem; font-weight: 700; color: #f2c14e; letter-spacing: 0.03em; }
