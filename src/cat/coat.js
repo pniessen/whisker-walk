@@ -57,6 +57,15 @@ export function coatFromStyle(s) {
     // patch2 (Clan Life Part 1): a row's own second patch colour, so a clan
     // tortoiseshell stays in its palette. The calico has none: unchanged.
     patches.push({ at: [-0.12, 0.54, 0.14], halfX: 0.56, halfZ: 0.64, colour: s.patch2 ?? 0x333333 });
+    // cat-beauty A5 (the calico's own row, `calicoMore`): a real calico is
+    // white below with BIG patches of both colours on top, so add a black
+    // saddle over the hips, an orange one on the right haunch and a black spot
+    // on the left shoulder. Painted, so free.
+    if (s.calicoMore) {
+      patches.push({ at: [0.05, 0.56, 0.36], halfX: 0.7, halfZ: 0.42, colour: s.patch2 ?? 0x333333 });
+      patches.push({ at: [0.24, 0.42, 0.40], halfX: 0.5, halfZ: 0.5, colour: s.accent });
+      patches.push({ at: [-0.24, 0.48, -0.28], halfX: 0.45, halfZ: 0.4, colour: s.patch2 ?? 0x333333 });
+    }
   }
   if (s.cow) {
     // Robbie: white flanks low on each side, and the bib on the front of the chest.
