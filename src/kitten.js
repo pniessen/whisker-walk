@@ -99,14 +99,27 @@ function createTrail(scene, ground) {
   };
 }
 
+// cat-beauty B3: a kitten is not a small cat. Half size as before, but her
+// head is KITTEN_LOOK.head bigger for her body (eyes and ears with it) and her
+// tail shorter, the proportions that read as "baby" at a glance. She wears
+// nothing, so no accessory fit is at stake; the animator never writes the
+// head's or the tail's scale.
+export const KITTEN_LOOK = Object.freeze({ size: 0.5, head: 1.28, tail: 0.75 });
+export function kittenProportions(group) {
+  group.scale.multiplyScalar(KITTEN_LOOK.size);
+  const { head, tail } = group.userData.parts;
+  head.scale.multiplyScalar(KITTEN_LOOK.head);
+  tail.scale.multiplyScalar(KITTEN_LOOK.tail);
+  return group;
+}
+
 // meet: the kitten sits at KITTEN_SPOT and mews (onMew, caller-supplied so
 // this module stays audio-free) until comforted; after interact() she
 // follows the cat, lerping in at FOLLOW_SPEED and stopping at
 // FOLLOW_STOP_DIST, facing her movement direction the same way strays.js
 // faces theirs (atan2 + PI).
 function createMeet(scene, onMew, ground) {
-  const group = buildCat('calico');
-  group.scale.multiplyScalar(0.5);
+  const group = kittenProportions(buildCat('calico'));
   group.position.set(KITTEN_SPOT.x, ground.y(KITTEN_SPOT.x, KITTEN_SPOT.z), KITTEN_SPOT.z);
   scene.add(group);
 
@@ -166,8 +179,7 @@ function createMeet(scene, onMew, ground) {
 // (radius WANDER_RADIUS, comfortably inside the brief's 4-unit cap) around
 // the area's spawn point.
 function createHome(scene, spawn, ground) {
-  const group = buildCat('calico');
-  group.scale.multiplyScalar(0.5);
+  const group = kittenProportions(buildCat('calico'));
   group.position.set(spawn.x, ground.y(spawn.x, spawn.z), spawn.z);
   scene.add(group);
 
