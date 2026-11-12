@@ -1300,7 +1300,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const TF = plume > 0 ? 1 : (s.tailFluff ?? 1);
   const tailRad = (u) => tailRadius(u, plume) * TF;
   const darkTip = !!(s.stripes || s.points);
-  const family = FAMILY_NOSE.has(breed) && !opts.style && opts.look == null;
+  // A family cat by its breed key, even when a test or variant hands in its own
+  // row as opts.style (tailplume.test.js: D2 keeps today's tail). The game's
+  // style callers (clan, rival, intruder cats) never pass a family breed.
+  const family = FAMILY_NOSE.has(breed) && opts.look == null;
   const ringedTail = !!s.stripes && !opts.simple && !family && !(s.tailPlume ?? (s.tailFluff > 1 || s.fluffy)); // a plume hides rings, and a long-haired tabby sits near the 9,000 cap
   let parent = tail;
   for (let i = 0; i < 5; i++) {
