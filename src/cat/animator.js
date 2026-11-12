@@ -270,7 +270,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
 // Scales only, about the built ones (remembered on first use): allocates
 // nothing after the first frame.
 export const BLINK = Object.freeze({
-  every: 4.7, quick: 0.16, slowEvery: 11.3, slow: 1.2, slowLow: 0.18, shut: 0.06, line: 0.32, lineWide: 2.4,
+  every: 4.7, quick: 0.16, slowEvery: 11.3, slow: 1.2, slowLow: 0.4, shut: 0.06, line: 0.32, lineWide: 2.4,
   pupil: { scared: 1.5, stalk: 1.35, pounce: 1.35, cross: 0.6 },
 });
 const lidBase = (m) => (m.userData.lidScale ??= m.scale.clone());
