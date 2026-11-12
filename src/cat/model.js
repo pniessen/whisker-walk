@@ -1150,10 +1150,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     ear.rotation.z = -side * 0.22;
     head.add(ear);
     if (!opts.simple) {
+      // cat-beauty A6: the inner ear rides its ear. It was the head's child,
+      // so every twitch, flick and fear/anger pin turned the ear and left the
+      // pink cone standing on its own beside it. The same place at rest: the
+      // old offset from the ear (-0.005 x outward, -0.02 y, -0.025 z, both
+      // turned by the same -side*0.22) is the ear-local (side*-0.0005, -0.0199, -0.025) after rotation.
       const inner = new THREE.Mesh(new THREE.ConeGeometry(0.045 * EARS, 0.09 * EARS, 4), mat(INNER_EAR));
-      inner.position.set(side * 0.115, 0.16 + earLift, -0.015);
-      inner.rotation.z = -side * 0.22;
-      head.add(inner);
+      const rz = -side * 0.22, dx = -side * 0.005, dy = -0.02;
+      inner.position.set(Math.cos(rz) * dx + Math.sin(rz) * dy, -Math.sin(rz) * dx + Math.cos(rz) * dy, -0.025);
+      ear.add(inner);
     }
     if (side === -1) head.userData.earL = ear;
     else head.userData.earR = ear;
