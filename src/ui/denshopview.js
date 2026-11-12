@@ -19,6 +19,7 @@ import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
 import { renderDenShopHtml, changedSpots, SPOT_LABEL } from './denshop.js';
 import { applyDenSpot } from '../game/denlive.js';
 import { bus as gameBus } from '../events.js';
+import { createConfirmCard, spendAsk } from './confirmcard.js';
 
 /**
  * createDenShopView({ hud, progression, sync, player, getSession, pause, resume,
@@ -63,6 +64,21 @@ export function createDenShopView({
   let open = false;
   let note = '';
 
+  // Buy only asks ("Get the Sunbeam Rug for 25 🐾?"): the walk is already
+  // paused under the sheet. The card sits over the sheet (style.css
+  // .ds-confirm), and its keys stop at the card like the sheet's do, so
+  // Escape answers Not now without closing the shop and player.js never sees
+  // Space or an arrow.
+  const confirm = createConfirmCard({
+    doc,
+    mount: (el) => {
+      el.classList.add('ds-confirm');
+      el.addEventListener('keydown', (e) => e.stopPropagation());
+      mountRoot.appendChild(el);
+    },
+    blocked: () => !open,
+  });
+
   function render() {
     const body = sheet.querySelector('.ds-body');
     const scroll = body ? body.scrollTop : 0;
@@ -84,14 +100,30 @@ export function createDenShopView({
 
   function hide({ walkOn = true } = {}) {
     if (!open) return;
+    confirm.close(); // unanswered: nothing is bought
     open = false;
     sheet.classList.add('hidden');
     doc.body.classList.remove('den-shop-open');
     if (walkOn) resume();
   }
 
+  function askBuy(id) {
+    const item = DEN_ITEMS[id];
+    const points = progression.state?.points;
+    if (!item || progression.state?.den?.owned?.includes?.(id) || !(points >= item.price)) return;
+    const q = String(id).replace(/["\\]/g, '');
+    confirm.ask({
+      ...spendAsk({ name: item.name, price: item.price, points }),
+      returnFocus: () => sheet.querySelector?.(`[data-den-buy="${q}"]`)?.focus?.(),
+      onYes: () => {
+        buy(id);
+        sheet.querySelector?.('.ds-done')?.focus?.(); // its button is gone once bought
+      },
+    });
+  }
+
   function buy(id) {
-    if (!progression.buyDenItem(id)) return;
+    if (!progression.buyDenItem(id)) return; // she can no longer afford it: nothing changes
     sync?.autoSync?.();
     hud?.setPoints?.(progression.state.points);
     note = `${DEN_ITEMS[id]?.name ?? 'It'} is yours! Now pick a spot for it.`;
@@ -119,7 +151,7 @@ export function createDenShopView({
     if (!t || !t.closest) return;
     if (t.closest('[data-den-done]')) { hide(); return; }
     const buyBtn = t.closest('[data-den-buy]');
-    if (buyBtn) buy(buyBtn.dataset.denBuy);
+    if (buyBtn) askBuy(buyBtn.dataset.denBuy);
   });
   sheet.addEventListener('change', (e) => {
     const spotId = e.target?.dataset?.denSpot;

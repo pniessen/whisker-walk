@@ -1827,6 +1827,8 @@ body.den-shop-open .chat-wheel { display: none !important; }
   background: #4a6ea5; color: #fff; font: inherit; font-weight: 700; cursor: pointer;
 }
 .ds-buy:hover { background: #5a7eb5; }
+/* "Get it?" over the den shop (z 20), not under it */
+.confirm-overlay.ds-confirm { z-index: 21; }
 
 /* Visit celebrations (src/ui/visitcelebration.js)
    A full card over a dimmer, B a small banner, C a speech bubble from the
