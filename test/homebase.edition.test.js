@@ -341,20 +341,67 @@ describe('Fighting moves in the Skills sheet', () => {
     openSheet('skills');
     expect(doc.root.innerHTML).not.toContain('fight-moves-list');
   });
-  it('tapping Learn now buys the move and charges the price', async () => {
+  // The "Get it?" card (confirmcard.js), mounted after the home base.
+  const askCard = () => doc.body.children.filter((c) => c.id === 'confirm-card').at(-1);
+  const answer = (a, detail = 1) => askCard().listeners.click({ target: { closest: () => ({ getAttribute: () => a }) }, detail });
+  let clock;
+  beforeEach(() => { clock = 1e6; vi.spyOn(Date, 'now').mockImplementation(() => clock); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('tapping Learn now only asks: "Learn Rear-up Swat for 300 🐾?", nothing spent', async () => {
     const { progression } = setup();
     progression.state.points = 400;
     openSheet('skills');
     await clickBuy('rearUpSwat');
-    expect(progression.ownedMoves()).toContain('rearUpSwat');
-    expect(progression.state.points).toBe(100);
+    expect(askCard().innerHTML).toContain('Learn Rear-up Swat for 300 🐾?');
+    expect(askCard().innerHTML).toContain('You’ll have 100 🐾 left.');
+    expect(askCard().innerHTML).toContain('>Yes, learn it</button>');
+    expect(askCard().innerHTML.indexOf('Not now')).toBeLessThan(askCard().innerHTML.indexOf('Yes, learn it'));
+    expect(progression.ownedMoves()).toEqual([]);
+    expect(progression.state.points).toBe(400);
+  });
+  it('Not now leaves the points and the moves alone', async () => {
+    const { progression } = setup();
+    progression.state.points = 400;
+    openSheet('skills');
+    await clickBuy('rearUpSwat');
+    clock += 1000;
+    answer('no');
+    expect(progression.ownedMoves()).toEqual([]);
+    expect(progression.state.points).toBe(400);
+    expect(doc.root.innerHTML).toContain('data-buy-move="rearUpSwat"');
+  });
+  it('Yes learns the move and charges the price once, even on a double tap', async () => {
+    const { progression } = setup();
+    progression.state.points = 700;
+    openSheet('skills');
+    await clickBuy('rearUpSwat');
+    answer('yes'); // the tail of the tap that asked: refused
+    expect(progression.ownedMoves()).toEqual([]);
+    clock += 1000;
+    answer('yes');
+    answer('yes');
+    expect(progression.ownedMoves()).toEqual(['rearUpSwat']);
+    expect(progression.state.points).toBe(400);
     expect(doc.root.innerHTML).not.toContain('data-buy-move="rearUpSwat"');
+  });
+  it('a Yes after she can no longer afford it learns nothing', async () => {
+    const { progression } = setup();
+    progression.state.points = 400;
+    openSheet('skills');
+    await clickBuy('rearUpSwat');
+    progression.state.points = 250;
+    clock += 1000;
+    answer('yes');
+    expect(progression.ownedMoves()).toEqual([]);
+    expect(progression.state.points).toBe(250);
   });
   it('a tap that cannot buy changes nothing', async () => {
     const { progression } = setup();
     progression.state.points = 400;
     openSheet('skills');
     await clickBuy('leapScratch');
+    expect(askCard()).toBeUndefined(); // nothing to ask about
     expect(progression.ownedMoves()).toEqual([]);
     expect(progression.state.points).toBe(400);
   });

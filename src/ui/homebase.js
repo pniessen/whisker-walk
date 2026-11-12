@@ -32,7 +32,8 @@ import { createVisitCelebration } from './visitcelebration.js';
 import { settingsSwitchHtml } from './screencards.js';
 import { emptyStateHtml } from './emptystates.js';
 import { PAW } from './pawicon.js';
-import { createConfirmCard } from './confirmcard.js';
+import { createConfirmCard, spendAsk } from './confirmcard.js';
+import { moveById } from '../fightmoves.js';
 import { note } from '../diagnostics.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
@@ -1567,8 +1568,21 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     const buyMoveBtn = e.target.closest?.('[data-buy-move]');
     if (buyMoveBtn) {
-      progression.buyMove(buyMoveBtn.dataset.buyMove);
-      render();
+      // Learn now only asks; Yes is the same buyMove as before.
+      const id = buyMoveBtn.dataset.buyMove;
+      const m = progression.canBuyMove(id) ? moveById(id) : null;
+      if (!m) return;
+      const q = String(id).replace(/["\\]/g, '');
+      confirmCard.ask({
+        ...spendAsk({ kind: 'move', name: m.name, price: m.price, points: progression.state.points }),
+        returnFocus: () => root.querySelector(`[data-buy-move="${q}"]`)?.focus?.({ preventScroll: true }),
+        onYes: () => {
+          progression.buyMove(id); // refused (and nothing spent) if she can no longer afford it
+          render();
+          // its button is gone once learned: the sheet's way back
+          if (!root.querySelector(`[data-buy-move="${q}"]`)) root.querySelector('#hb-back, #hb-home')?.focus?.({ preventScroll: true });
+        },
+      });
       return;
     }
     const clanCard = e.target.closest?.(`[${PICK_ATTR}]`);
