@@ -1078,12 +1078,18 @@ describe('buildCat with opts.style (a clan coat)', () => {
     return out;
   };
 
-  it('paints the torso from the row, not from the breed', async () => {
+  // cat-beauty A4 (2026-11-11): the row's base under the baked fur shade
+  // (coat.js furShade), vertex by vertex.
+  it('paints the torso from the row (under the baked fur shade), not from the breed', async () => {
     const { CLAN_COATS } = await import('../src/clancast.js');
+    const { furShade } = await import('../src/cat/coat.js');
     const row = CLAN_COATS.river[0];
     const want = new THREE.Color(row.base);
-    const clan = torsoColours(buildCat('tabby', undefined, { simple: true, style: row }));
-    for (const c of clan) expect(colourDistance(c, want)).toBeLessThan(1e-6);
+    const built = buildCat('tabby', undefined, { simple: true, style: row });
+    const unit = built.userData.parts.body.geometry.userData.unit;
+    const clan = torsoColours(built);
+    expect(clan.length).toBeGreaterThan(100);
+    clan.forEach((c, i) => expect(colourDistance(c, want.clone().multiplyScalar(furShade(unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2])))).toBeLessThan(1e-6));
     const tabby = torsoColours(buildCat('tabby', undefined, { simple: true }));
     expect(tabby.some((c) => colourDistance(c, want) > 0.01)).toBe(true);
   });
@@ -1193,10 +1199,14 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
     return c;
   };
 
-  it("a dark-tipped tail is dark over its last third only (digit, tabby, siamese)", () => {
+  // cat-beauty (2026-11-11, owner's sign-off): the tabby's full build rings
+  // links 1-2 (A3) and the Siamese's tail is the point colour all along (A2),
+  // pinned in the two tests after this one; Digit (a family cat, drawn from
+  // photos) and the tabby's simple build keep the plain tail with a dark last third.
+  it("a dark-tipped tail is dark over its last third only (digit, digit and tabby simple)", () => {
     const L = 0.14;
-    for (const [breed, base, tip] of [['digit', 0x7a6248, 0x2a2018], ['tabby', 0x9c7a4f, 0x6f5636], ['siamese', 0xe8dcc8, 0x4a3b32]]) {
-      const links = buildCat(breed).userData.parts.tailPivots.map((pv) => pv.children.find((o) => o.isMesh));
+    for (const [breed, base, tip, simple] of [['digit', 0x7a6248, 0x2a2018, false], ['digit', 0x7a6248, 0x2a2018, true], ['tabby', 0x9c7a4f, 0x6f5636, true]]) {
+      const links = buildCat(breed, undefined, { simple }).userData.parts.tailPivots.map((pv) => pv.children.find((o) => o.isMesh));
       let nBase = 0, nTip = 0;
       links.forEach((m, k) => {
         const p = m.geometry.attributes.position;
@@ -1208,6 +1218,48 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
       });
       expect(nBase).toBeGreaterThan(100);
       expect(nTip).toBeGreaterThan(50);
+    }
+  });
+
+  it("a tabby's full-build tail is ringed: link 0 plain, one ring on each of links 1-2, then the dark last third", () => {
+    const L = 0.14, base = new THREE.Color(0x9c7a4f), tip = new THREE.Color(0x6f5636);
+    const ring = base.clone().lerp(tip, 0.8); // the ring's solid middle: 0.8 of the way to the stripe colour
+    const links = buildCat('tabby').userData.parts.tailPivots.map((pv) => pv.children.find((o) => o.isMesh));
+    let nRing = 0, nPlain = 0, nTip = 0;
+    links.forEach((m, k) => {
+      const p = m.geometry.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const c = drawn(m, i), v = p.getZ(i) / L, u = (k * L + Math.min(L, Math.max(0, p.getZ(i)))) / (5 * L);
+        if (k === 0) expect(colourDistance(c, base), `link 0 v ${v}`).toBeLessThan(1e-6);
+        if (k === 1 || k === 2) {
+          // every vertex lies on the base-to-ring line, ...
+          const t = (c.r - base.r) / (tip.r - base.r);
+          expect(t, `link ${k} v ${v}`).toBeGreaterThanOrEqual(-1e-6);
+          expect(t, `link ${k} v ${v}`).toBeLessThanOrEqual(0.8 + 1e-6);
+          expect(colourDistance(c, base.clone().lerp(tip, t)), `link ${k} v ${v}`).toBeLessThan(1e-6);
+          // ... solid ring in the link's middle, plain coat at both its ends
+          if (Math.abs(v - 0.5) <= 0.17) { expect(colourDistance(c, ring), `link ${k} v ${v}`).toBeLessThan(1e-6); nRing++; }
+          if (Math.abs(v - 0.5) >= 0.37) { expect(colourDistance(c, base), `link ${k} v ${v}`).toBeLessThan(1e-6); nPlain++; }
+        }
+        if (u >= 2 / 3 - 1e-9) { expect(colourDistance(c, tip), `link ${k} u ${u}`).toBeLessThan(1e-6); nTip++; }
+      }
+    });
+    expect(nRing).toBeGreaterThan(40);
+    expect(nPlain).toBeGreaterThan(40);
+    expect(nTip).toBeGreaterThan(50);
+  });
+
+  it('a pointed tail is the point colour all along (siamese, full and simple)', () => {
+    const tip = new THREE.Color(0x4a3b32);
+    for (const simple of [false, true]) {
+      const links = buildCat('siamese', undefined, { simple }).userData.parts.tailPivots.map((pv) => pv.children.find((o) => o.isMesh));
+      expect(links).toHaveLength(5);
+      let n = 0;
+      links.forEach((m, k) => {
+        const p = m.geometry.attributes.position;
+        for (let i = 0; i < p.count; i++) { expect(colourDistance(drawn(m, i), tip), `siamese ${simple} link ${k}`).toBeLessThan(1e-6); n++; }
+      });
+      expect(n).toBeGreaterThan(150);
     }
   });
 

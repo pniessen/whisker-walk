@@ -554,6 +554,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       ? { [fixed.wear.slot]: fixed.wear.id }
       : typeof collarId === 'string' ? { collar: collarId } : undefined;
     const group = buildCat(breed, wear, { simple: true });
+    group.userData.blinkSeed = (i * 0.618034) % 1; // cat-beauty A1: a crowd does not blink in step
     noCastCollar(group);
     group.scale.multiplyScalar(0.85); // strays read as slightly smaller than your cat
     // Position, facing and the personality roll below are drawn from `rng` in

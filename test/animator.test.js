@@ -592,3 +592,31 @@ describe('animateCat: neckwear rides the neck with the collar (fix wave I3)', ()
     }
   });
 });
+
+// cat-beauty A1, tuned 2026-11-11: the eyes close in the nap, blink, and slow
+// blink when the cat sits; a real slow blink stops about half closed, so the
+// lids come down to 0.4 of open (60 % closed), not nearly shut.
+describe('the lids', () => {
+  const eyeOpen = (cat) => {
+    const e = cat.userData.parts.head.userData.eyes.eyes[0];
+    return e.scale.y / e.userData.lidScale.y;
+  };
+  it('the slow blink stops between half and two-thirds closed', () => {
+    const cat = buildCat('tabby');
+    let low = 1;
+    // after the first quick blink (0..0.16 s), sample the slow blink's 1.2 s window
+    for (let t = 0.2; t < 1.2; t += 0.01) { animateCat(cat, 'perch', t, 0, false); low = Math.min(low, eyeOpen(cat)); }
+    expect(low).toBeGreaterThanOrEqual(1 / 3 - 1e-9);
+    expect(low).toBeLessThanOrEqual(0.5 + 1e-9);
+    expect(low).toBeCloseTo(0.4, 6);
+  });
+  it('asleep, the eyes are closed; a quick blink closes them too', () => {
+    const cat = buildCat('tabby');
+    animateCat(cat, 'nap', 1, 0, false);
+    expect(eyeOpen(cat)).toBeCloseTo(0.06, 9);
+    animateCat(cat, 'follow', 0.08, 1.5, false); // the middle of the quick blink
+    expect(eyeOpen(cat)).toBeCloseTo(0.06, 9);
+    animateCat(cat, 'follow', 2, 1.5, false);
+    expect(eyeOpen(cat)).toBe(1);
+  });
+});
