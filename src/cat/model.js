@@ -220,8 +220,15 @@ export const darkFace = (s) => s.faceSheen ?? (linLum(s.points ? s.accent : s.ba
 const EAR_BACK_SHADE = 0.7;
 // The ear cone (4 sides, as before), its back shaded by EAR_BACK_SHADE: a
 // vertex-colour multiplier, so the material keeps the ear's own colour.
+// cat-beauty B1: the ear is a THIN, broad-based shell with a flat face to the
+// front. The 4-sided cone pointed a corner forward, so from the front each ear
+// was a diamond pyramid with a ridge down its middle and the pink inner cone
+// peeping out of one facet. Turned 45° it shows a face; EAR_SHAPE.depth thins
+// it front to back and .width broadens its base, as a cat's ear is: a cupped
+// triangle, not a horn. Same 4 sides, same triangles.
+export const EAR_SHAPE = Object.freeze({ width: 1.12, depth: 0.55, innerDepth: 0.35, innerZ: -0.017 });
 function earGeometry(r, h) {
-  const geo = new THREE.ConeGeometry(r, h, 4);
+  const geo = new THREE.ConeGeometry(r, h, 4).rotateY(Math.PI / 4).scale(EAR_SHAPE.width, 1, EAR_SHAPE.depth);
   const n = geo.attributes.normal, col = new Float32Array(n.count * 3);
   for (let i = 0; i < n.count; i++) {
     const t = Math.min(1, Math.max(0, (n.getZ(i) + 0.1) / 0.8));
@@ -1160,9 +1167,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       // pink cone standing on its own beside it. The same place at rest: the
       // old offset from the ear (-0.005 x outward, -0.02 y, -0.025 z, both
       // turned by the same -side*0.22) is the ear-local (side*-0.0005, -0.0199, -0.025) after rotation.
-      const inner = new THREE.Mesh(new THREE.ConeGeometry(0.045 * EARS, 0.09 * EARS, 4), mat(INNER_EAR));
+      const inner = new THREE.Mesh(new THREE.ConeGeometry(0.045 * EARS, 0.09 * EARS, 4)
+        .rotateY(Math.PI / 4).scale(EAR_SHAPE.width, 1, EAR_SHAPE.innerDepth), mat(INNER_EAR));
       const rz = -side * 0.22, dx = -side * 0.005, dy = -0.02;
-      inner.position.set(Math.cos(rz) * dx + Math.sin(rz) * dy, -Math.sin(rz) * dx + Math.cos(rz) * dy, -0.025);
+      // B1: on the thin ear's front face, a hair proud of it
+      inner.position.set(Math.cos(rz) * dx + Math.sin(rz) * dy, -Math.sin(rz) * dx + Math.cos(rz) * dy, EAR_SHAPE.innerZ);
       ear.add(inner);
     }
     if (side === -1) head.userData.earL = ear;
