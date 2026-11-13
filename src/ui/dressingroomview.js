@@ -511,6 +511,27 @@ export function createDressingRoom({
     return null;
   }
 
+  // Done ✓ in Dress up, and "Keep making my cat" in the builder: named
+  // because the browser's Back uses them too (back(), below).
+  const wardrobeDone = () => dispatch({ type: 'wardrobe', open: false });
+  const builderStay = () => builderOp({ type: 'stay' });
+
+  // The browser's Back and Escape (ui/backstack.js): what the open layer's
+  // own button does. The builder: ✕ Not now (which asks before a changed cat
+  // is lost; Back on that question keeps making the cat). Dress up: Done ✓.
+  // true when there was a layer to close.
+  function back() {
+    if (ui.builder) {
+      if (ui.builder.confirmLeave) builderStay();
+      else onCancel();
+    } else if (ui.wardrobe) wardrobeDone();
+    else return false;
+    focusAfter = null;
+    inClick = true;
+    try { onChange(); } finally { inClick = false; }
+    return true;
+  }
+
   // true when this was a dressing-room control (even if it changed nothing)
   function handleClick(e) {
     const t = e?.target?.closest?.(DR_SELECTOR);
@@ -534,7 +555,7 @@ export function createDressingRoom({
     else if (d.drPlace !== undefined) onPlace(d.drPlace);
     else if (d.drPlaceBuy !== undefined) onPlace(d.drPlaceBuy);
     else if (d.drWardrobe !== undefined) dispatch({ type: 'wardrobe', open: true });
-    else if (d.drWardrobeDone !== undefined) dispatch({ type: 'wardrobe', open: false });
+    else if (d.drWardrobeDone !== undefined) wardrobeDone();
     else if (d.drMoreCats !== undefined) dispatch({ type: 'more-cats' });
     else if (d.drOutfitSave !== undefined) onOutfitSave();
     else if (d.drOutfitDel !== undefined) onOutfitDel(d.drOutfitDel);
@@ -549,7 +570,7 @@ export function createDressingRoom({
     else if (d.cbPersonality !== undefined) builderOp({ type: 'personality', value: d.cbPersonality });
     else if (d.cbCancel !== undefined) onCancel();
     else if (d.cbLeave !== undefined) dispatch({ type: 'builder', builder: null });
-    else if (d.cbStay !== undefined) builderOp({ type: 'stay' });
+    else if (d.cbStay !== undefined) builderStay();
     else if (d.cbDone !== undefined) {
       // No name yet: no render (it would rebuild the box she is sent to).
       if (ui.builder && !buildBuilderModel(ui.builder).canDone) { focusAfter = null; pointAtName(t); return true; }
@@ -678,7 +699,7 @@ export function createDressingRoom({
   return {
     walkingAs,
     html, afterRender, handleClick, handleInput, captureFocus, restoreFocus, startAllowed, clearPreview,
-    deferRender, onFocusOut, closeWardrobe, placesHtml,
+    deferRender, onFocusOut, closeWardrobe, placesHtml, back,
     get ui() { return ui; },
   };
 }

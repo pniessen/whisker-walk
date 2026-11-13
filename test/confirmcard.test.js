@@ -152,6 +152,21 @@ describe('createConfirmCard', () => {
     expect(onClosed.mock.calls).toEqual([['no'], ['no']]);
   });
 
+  it('cancel() (the browser\'s Back) is Not now: closed, nothing run, onClosed told', () => {
+    const { c, onClosed } = make();
+    const onYes = vi.fn();
+    const returnFocus = vi.fn();
+    c.cancel(); // nothing up: nothing happens
+    expect(onClosed).not.toHaveBeenCalled();
+    c.ask({ text: 'Sure?', yes: 'Yes', onYes, returnFocus });
+    c.cancel();
+    expect(c.isOpen()).toBe(false);
+    expect(card()).toBeUndefined();
+    expect(onYes).not.toHaveBeenCalled();
+    expect(returnFocus).toHaveBeenCalledTimes(1);
+    expect(onClosed.mock.calls).toEqual([['no']]);
+  });
+
   it('a Yes in the first moments, or from a double-tap, is ignored', () => {
     const { c } = make();
     const onYes = vi.fn();
