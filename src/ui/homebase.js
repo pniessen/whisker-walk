@@ -869,12 +869,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   let nearbyEl = null;
   let nearbyShown = null; // the room the card is for
   let nearbyBusy = false; // a Join from the card is on its way
+  let nearbyNotNow = null; // the card's "Not now", for back()
 
   function removeNearbyCard() {
     if (!nearbyEl) return;
     nearbyEl.remove();
     nearbyEl = null;
     nearbyShown = null;
+    nearbyNotNow = null;
   }
 
   function nearbyCardDue() {
@@ -921,6 +923,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       if (!showClanMoment()) { try { onCardsClosed?.(); } catch (err) { console.warn('Whisker Walk: cards-closed hook failed', err); note('ui', err); } }
     };
     later.addEventListener('click', notNow);
+    nearbyNotNow = notNow;
     nearbyEl.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') notNow();
     });
@@ -1266,6 +1269,9 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     } catch { /* a nicety */ }
   }
 
+  // The sheet's "← Back" button, and the browser's Back and Escape (back()).
+  function sheetBack() { setSheet(backTo); }
+
   // ---- The Menu sheet (Launch A) -------------------------------------------
   // The old header's stats line, the rank's next step in plain words, six big
   // kid tiles and a quiet grown-ups row.
@@ -1554,7 +1560,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // the wardrobe, the sheet doors and tiles) go to its controller first.
     if (dressing && dressing.handleClick(e)) return;
     if (e.target.closest?.('#hb-back')) {
-      setSheet(backTo);
+      sheetBack();
       return;
     }
     if (e.target.closest?.('#hb-home')) {
@@ -2176,7 +2182,36 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     });
   }
 
+  // The browser's Back and Escape (ui/backstack.js, wired in main.js).
+  // depth(): how many layers are open over the bare home screen. A sheet the
+  // Menu opened is two (its Back goes to the Menu); the visit celebration and
+  // the welcome line are not layers (they go by themselves).
+  function depth() {
+    if (!shown || !homeVisible()) return 0;
+    let n = 0;
+    if (dressing?.ui?.wardrobe) n += 1;
+    if (dressing?.ui?.builder) n += 1;
+    if (openSheet) n += backTo === 'menu' ? 2 : 1;
+    if (newsEl || noticeEl || momentEl || nearbyEl) n += 1;
+    if (confirmCard.isOpen()) n += 1;
+    return n;
+  }
+  // back(): close the top layer the way its own button does (a question is
+  // answered "Not now"). true when there was one.
+  function back() {
+    if (!shown || !homeVisible()) return false;
+    if (confirmCard.isOpen()) { confirmCard.cancel(); return true; }
+    if (momentEl) { closeClanMoment(true); return true; }
+    if (noticeEl) { closeNotice(); return true; }
+    if (newsEl) { closeNews(true); return true; }
+    if (nearbyEl && nearbyNotNow) { nearbyNotNow(); return true; }
+    if (openSheet) { sheetBack(); return true; }
+    return !!dressing?.back?.();
+  }
+
   return {
+    depth,
+    back,
     // show({ sheet }): a border crossing that could not pick its place opens
     // Change place ('places'); one that picked it lands on the cat, like
     // every other walk.

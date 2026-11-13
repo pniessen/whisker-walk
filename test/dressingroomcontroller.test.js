@@ -369,6 +369,31 @@ describe('createDressingRoom: her own cats and the builder', () => {
     expect(progression.state.customCats).toEqual([]);
     expect(dr.ui.builder).not.toBe(null);
   });
+  it('back() (the browser\'s Back): Not now in the builder, then "Keep making my cat" on its question', () => {
+    const { dr, progression, onChange } = real();
+    expect(dr.back()).toBe(false); // nothing open
+    progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK });
+    dr.handleClick(click({ drEdit: 'mine1' }));
+    onChange.mockClear();
+    expect(dr.back()).toBe(true); // clean: closes at once
+    expect(dr.ui.builder).toBe(null);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    dr.handleClick(click({ drEdit: 'mine1' }));
+    dr.handleClick(click({ cbPick: 'coat', cbValue: 'black' }));
+    expect(dr.back()).toBe(true); // changed: asks
+    expect(dr.ui.builder.confirmLeave).toBe(true);
+    expect(dr.back()).toBe(true); // Back on the question keeps her cat
+    expect(dr.ui.builder.confirmLeave).toBe(false);
+    expect(dr.ui.builder.draft.look.coat).toBe('black');
+  });
+  it('back() in Dress up is Done', () => {
+    const { dr } = real();
+    dr.handleClick(click({ drWardrobe: '' }));
+    expect(dr.ui.wardrobe).toBe(true);
+    expect(dr.back()).toBe(true);
+    expect(dr.ui.wardrobe).toBe(false);
+    expect(dr.back()).toBe(false);
+  });
   it('Not now: clean closes at once; changed asks once; Leave keeps the old version', () => {
     const { dr, progression } = real();
     progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK });

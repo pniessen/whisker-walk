@@ -14,6 +14,7 @@ import { BUILD_STAMP } from './buildstamp.js';
 import { createHomeBase } from './ui/homebase.js';
 import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
+import { attachBackStack, walkBackAction } from './ui/backstack.js';
 import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir } from './camzoom.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
@@ -715,6 +716,37 @@ function init() {
       sync.autoSync(); // fire-and-forget; no-op when unlinked/offline
       pullThenNews(); // fire-and-forget; catches up feeds made on this walk, then the news card
     }
+  });
+  // The browser's Back (an iPad's edge-swipe) goes one level up inside the
+  // game instead of leaving the page, and Escape closes the home screen's top
+  // layer (ui/backstack.js). During a walk Back pauses; the walk's own Escape
+  // is not touched (homebase.back() does nothing while home is hidden).
+  const summaryUp = () => !session && !overlay.classList.contains('hidden') && !!overlay.querySelector('#btn-summary-continue');
+  function walkBack() {
+    const action = walkBackAction({
+      summary: summaryUp(),
+      walking: !!session,
+      shopAsk: denShop.isAsking,
+      shop: denShop.isOpen,
+      crossing: !!session?.crossing,
+      engaged: player.engaged,
+      photo: !!session?.cameraMode,
+      started: !!session?.started,
+      touch: isTouch,
+    });
+    if (action === 'continue') overlay.querySelector('#btn-summary-continue')?.click();
+    else if (action === 'shop-not-now') denShop.notNow();
+    else if (action === 'shop-done') denShop.close();
+    else if (action === 'cross-no') crossing?.cancel();
+    else if (action === 'photo-off') doCameraToggle();
+    else if (action === 'pause') handleTouchAction('pause');
+    else if (action === 'resume') resumeWalk();
+  }
+  attachBackStack({
+    win: window,
+    depth: () => homebase.depth() + (session || summaryUp() ? 1 : 0),
+    closeTop: () => { if (!homebase.back()) walkBack(); },
+    escape: () => homebase.back(),
   });
   document.addEventListener('keydown', (e) => {
     // Clan Life Part 2: while the fight sheet is up, every key is the fight's

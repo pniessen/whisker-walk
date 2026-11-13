@@ -204,5 +204,9 @@ export function createDenShopView({
     open: show,
     close: hide,
     get isOpen() { return open; },
+    // The browser's Back (ui/backstack.js): the question first ("Not now"),
+    // then the shop (close, as Done does).
+    get isAsking() { return confirm.isOpen(); },
+    notNow() { confirm.cancel(); },
   };
 }

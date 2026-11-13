@@ -104,6 +104,8 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
   return {
     ask,
     isOpen: () => !!el,
+    // The browser's Back: the same as its "Not now" button.
+    cancel() { finish('no'); },
     // Taken down without an answer (a walk is starting): nothing runs.
     close() {
       if (!el) return;
