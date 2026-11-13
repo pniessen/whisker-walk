@@ -413,9 +413,11 @@ secret or a cat name.
                        'ww_rate_hit','ww_rate_over') or proname like 'colony%')
     order by proname;
 
-3. The counter helpers are NOT callable by players (both false):
-   select has_function_privilege('anon', 'public.ww_rate_hit(text,integer,integer)', 'execute'),
-          has_function_privilege('anon', 'public.ww_rate_over(text,integer,integer)', 'execute');
+3. The counter helpers are NOT callable by players (both false). The two
+   columns are named, because Supabase's SQL editor shows only one of two
+   columns that share a name:
+   select has_function_privilege('anon', 'public.ww_rate_hit(text,integer,integer)', 'execute') as hit,
+          has_function_privilege('anon', 'public.ww_rate_over(text,integer,integer)', 'execute') as over;
 
 4. Before running this file — how big is the biggest save, and how many are
    there? (max_bytes should be far below 2097152):

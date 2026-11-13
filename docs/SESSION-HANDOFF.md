@@ -30,8 +30,9 @@ inside seeded generation, thread the injected RNG (`src/rng.js`) through.
 | iOS web bundle | `npm run build:ios` (Vite `ios` mode, output in `ios/web/`) |
 | Refresh iPhone/iPad installs | `npm run ios:refresh`; `npm run ios:schedule` turns on the nightly 7 pm run (see `ios/README.md`) |
 
-Deploy: every push to `main` runs `.github/workflows/deploy.yml` (`npm ci`,
-`npm test`, `npm run build`, then GitHub Pages). It passes
+Deploy: every push to `main` runs `.github/workflows/deploy.yml` (the tests on
+four machines side by side, each running a quarter with `vitest run --shard`,
+then `npm run build`, GitHub Pages, and a check of the live site). It passes
 `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from repository secrets;
 locally they go in a gitignored `.env.local`. `keepalive.yml` pings the
 Supabase project twice a week so the free tier does not pause. Tests run on
