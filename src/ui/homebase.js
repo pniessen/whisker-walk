@@ -5,6 +5,9 @@ import { menuThumbnails } from '../thumbnails.js';
 import { validPetName, goodNewPetName, safeRemoteName, safeRemoteBreed } from '../net.js';
 import { metOnly, deviceMetPlayers } from '../metplayers.js';
 import { activeCat } from '../customcats.js';
+import {
+  WALKING_NAME, WALKING_NAME_HELP, WALKING_NAME_SAFETY, WALKING_NAME_RULE, walkingNameIntro, offeredWalkingName,
+} from './walkingname.js';
 import { renderFightMovesHtml, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
 import { HOME_SHEETS, MENU_TILES, GROWNUP_SHEETS, SHEET_ICON, SHEET_NAME, resolveSheet, PLACE_PICTURE, placeWhyLine } from './dressingroom.js';
 import { createDressingRoom } from './dressingroomview.js';
@@ -141,8 +144,9 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
-  // A nearby Join was tapped with no cat name: Play together says so above
-  // the name box until she has one.
+  // She was sent to the name box with no walking name: Play together says
+  // why above it until she has one. 'walk' (Host, Join, a nearby Join) or
+  // 'colony' (the Colony sheet's button); false when she just opened it.
   let nameNeeded = false;
   // v21 Stream 5: the home screen is the dressing room (openSheet null) or
   // one sheet from HOME_SHEETS.
@@ -259,18 +263,23 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // silently fail — Join is gated the same as Host, not just Host. Both
     // stay tappable: with no name a tap leads to the name box (needName).
     const hasValidPetName = validPetName(name);
+    // Walking a cat she made and named, with no walking name yet: that name
+    // is offered as a button. A tap saves it; nothing saves it for her.
+    const offered = offeredWalkingName(progression.state);
     // Paired siblings get their own room with nothing to type (Task 12).
     const pairWalk = renderPartnerWalkHtml({ status: colonySync ? colonySync.status() : null, colony, room: st });
     // In order: the name (it unlocks everything under it), the walk with her
     // sibling, then a room of her own to start or join.
+    // The line above the name box names it until a name is saved; after that
+    // its label does.
     return `
-      ${hasValidPetName ? '' : nameNeeded
-    ? '<p class="wt-first wt-name-needed">Your cat needs a name before it can join a walk. Type one here and tap Save:</p>'
-    : '<p class="wt-first">First, give your cat a name your friends will see:</p>'}
+      ${hasValidPetName ? '' : `<p class="wt-first${nameNeeded ? ' wt-name-needed' : ''}">${escapeHtml(walkingNameIntro(nameNeeded))}</p>`}
       <div class="wt-petname">
-        <input type="text" id="wt-petname-input" maxlength="16" placeholder="Your cat's name" value="${escapeHtml(name)}" />
+        ${hasValidPetName ? `<label class="wt-name-label" for="wt-petname-input">${escapeHtml(WALKING_NAME)}</label>` : ''}
+        <input type="text" id="wt-petname-input" maxlength="16" placeholder="Type a name" aria-label="${escapeHtml(WALKING_NAME)}" value="${escapeHtml(name)}" />
         <button id="wt-petname-save">Save</button>
-        <div class="tag wt-name-hint">Pick a cat name, not your real name. Other players can see it.</div>
+        ${offered ? `<button type="button" id="wt-petname-use" class="wt-name-use">Use “${escapeHtml(offered)}”</button>` : ''}
+        <div class="tag wt-name-hint">${escapeHtml(WALKING_NAME_HELP)} ${escapeHtml(WALKING_NAME_SAFETY)}</div>
         ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
       </div>
       ${isClanEdition(progression.state) ? renderStarNamePicker(candidateStarNames(myId), name) : ''}
@@ -420,7 +429,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
 
   // "Delete my online data": the confirm card, and the line for each answer.
-  const KEEPS = 'The game on this device stays as it is, except that its cat name for playing together is cleared. This can’t be undone.';
+  const KEEPS = 'The game on this device stays as it is, except that your walking name is cleared. This can’t be undone.';
   function onlineDeleteAsk(code) {
     return {
       text: 'Delete this device’s online data?',
@@ -433,7 +442,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
   const NOTHING = 'Nothing was deleted.';
   function onlineDeleteMessage({ outcome, player, save }) {
-    if (outcome === 'done') return 'Done. Your online data is deleted. To play together again, give your cat a name in Play together.';
+    if (outcome === 'done') return 'Done. Your online data is deleted. To play together again, pick a walking name in Play together.';
     if (outcome === 'unavailable') return `Deleting isn’t switched on yet. ${NOTHING}`;
     if (outcome === 'denied') return `The cloud wouldn’t let this device delete it. ${NOTHING}`;
     if (outcome === 'busy') return `The cloud is busy right now — try again later. ${NOTHING}`;
@@ -557,7 +566,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
           </div>
         </div>
-        ${!hasValidPetName ? '<div class="tag">Give your cat a name at the top to add friends by code.</div>' : ''}
+        ${!hasValidPetName ? '<div class="tag">Pick your walking name at the top to add friends by code.</div>' : ''}
         ${friendCodeError ? `<div class="tag error">${escapeHtml(friendCodeError)}</div>` : ''}
         ${friendCodeSuccess ? `<div class="tag on">${escapeHtml(friendCodeSuccess)}</div>` : ''}
         ${friendCodeCandidate ? `
@@ -940,10 +949,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // (btn null). The join itself is the typed code's: rooms.join(code), which
   // checks the code's shape again. Without a cat name there is nobody to
   // join as, so she is taken to the name box and told why.
-  // No cat name yet: Play together says so above the name box, and the box
-  // takes focus.
-  function needName() {
-    nameNeeded = true;
+  // No walking name yet: Play together says so above the name box (why:
+  // 'walk' or 'colony'), and the box takes focus.
+  function needName(why = 'walk') {
+    nameNeeded = why;
     if (openSheet === 'together') render(); else setSheet('together');
     try { root.querySelector('#wt-petname-input')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
   }
@@ -1596,6 +1605,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       pickClan(clanCard.dataset.clanPick);
       return;
     }
+    // Colony, no walking name yet: its button leads to the name box.
+    if (e.target.id === 'colony-pair-name') {
+      needName('colony');
+      return;
+    }
     if (e.target.id === 'colony-pair-open') {
       await runPairing(() => colonySync.pairing.open());
       return;
@@ -1724,7 +1738,18 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         progression.setPetName(starPick);
         petNameError = null;
       } else {
-        petNameError = 'Cat names are 2–16 letters, spaces, or hyphens.';
+        petNameError = WALKING_NAME_RULE;
+      }
+      render();
+      return;
+    }
+    // "Use {her cat's name}": the offer is worked out again from the save,
+    // never read back from the page.
+    if (e.target.id === 'wt-petname-use') {
+      const offer = offeredWalkingName(progression.state);
+      if (offer) {
+        progression.setPetName(offer);
+        petNameError = null;
       }
       render();
       return;
@@ -1736,7 +1761,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         progression.setPetName(name);
         petNameError = null;
       } else {
-        petNameError = validPetName(name) ? 'Please pick a different name.' : 'Cat names are 2–16 letters, spaces, or hyphens.';
+        petNameError = validPetName(name) ? 'Please pick a different name.' : WALKING_NAME_RULE;
       }
       render();
       return;
@@ -1872,7 +1897,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           friendCodeError = null;
         } else if (result?.status === 'failed') {
           friendCodeSuccess = null;
-          friendCodeError = "Couldn't add friend — give your cat a name first";
+          friendCodeError = "Couldn't add friend — pick your walking name first";
         } else {
           friendCodeSuccess = null;
           friendCodeError = null;

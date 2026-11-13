@@ -284,8 +284,8 @@ describe('the rows in Play together', () => {
     doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? nameBox : null);
     await tap({ dataset: { nearbyCode: 'WXYZ' } });
     expect(rooms.join).not.toHaveBeenCalled();
-    expect(html()).toContain('Your cat needs a name before it can join a walk');
-    expect(html().indexOf('Your cat needs a name')).toBeLessThan(html().indexOf('id="wt-petname-input"'));
+    expect(html()).toContain('You need a walking name before you can join a walk');
+    expect(html().indexOf('You need a walking name')).toBeLessThan(html().indexOf('id="wt-petname-input"'));
     expect(nameBox.focus).toHaveBeenCalled();
     expect(html()).toContain('wt-nearby-row'); // the row waits for her
   });
@@ -297,7 +297,7 @@ describe('the rows in Play together', () => {
     doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? { value: 'Mittens' } : null);
     await tap({ id: 'wt-petname-save' });
     expect(progression.state.petName).toBe('Mittens');
-    expect(html()).not.toContain('Your cat needs a name before');
+    expect(html()).not.toContain('You need a walking name before');
     await tap({ dataset: { nearbyCode: 'WXYZ' } });
     expect(rooms.join).toHaveBeenCalledWith('WXYZ');
   });
@@ -429,7 +429,7 @@ describe('the card over home', () => {
     expect(rooms.join).not.toHaveBeenCalled();
     expect(card()).toBeUndefined();
     expect(html()).toContain('data-sheet="together"');
-    expect(html()).toContain('Your cat needs a name before it can join a walk');
+    expect(html()).toContain('You need a walking name before you can join a walk');
     expect(html()).toContain('data-nearby-code="WXYZ"');
     expect(nameBox.focus).toHaveBeenCalled();
   });

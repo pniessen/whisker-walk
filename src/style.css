@@ -1374,7 +1374,11 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .wt-nearby-on { flex-basis: 100%; }
 /* The room code under the name: a name on the air can be anyone's. */
 .wt-nearby-code, .nearby-card-code { flex-basis: 100%; font-size: 0.95rem; opacity: 0.85; letter-spacing: 0.02em; }
-.wt-name-hint { margin-top: 6px; }
+.wt-name-hint { margin-top: 6px; flex-basis: 100%; }
+/* "Your walking name" over the box, on a line of its own */
+.wt-name-label { flex-basis: 100%; font-weight: 700; }
+/* "Use {her cat's name}": an offer under the box; a long name may wrap */
+.wt-name-use { overflow-wrap: anywhere; }
 /* The same offer as a card over the cat's screen: the notice card, smaller,
    with Join and Not now side by side. */
 .nearby-card .colony-news-card { max-width: 360px; }
