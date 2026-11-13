@@ -800,7 +800,7 @@ describe('Play together holds the friends (Friends folded in)', () => {
   it('with no name yet, the friend code points up at the name box', () => {
     setupCloud();
     openSheet('together');
-    expect(html()).toContain('Give your cat a name at the top to add friends by code.');
+    expect(html()).toContain('Pick your walking name at the top to add friends by code.');
   });
   it('the stray cats are in the Journal', () => {
     const { progression } = setupCloud();

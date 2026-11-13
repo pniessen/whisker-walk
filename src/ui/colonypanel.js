@@ -22,6 +22,7 @@ import { placeName, accessoryName } from '../edition.js';
 import { PAW, pawify } from './pawicon.js';
 import { escapeHtml } from '../escapehtml.js';
 import { CODE_ALPHABET } from '../codealphabet.js';
+import { PICK_WALKING_NAME } from './walkingname.js';
 
 
 const own = (obj, key) => !!obj && typeof obj === 'object' && Object.prototype.hasOwnProperty.call(obj, key);
@@ -223,7 +224,10 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
 
   if (mode === 'needs-name') {
     return `<div class="colony-pair" data-pair="needs-name">
-      <p class="colony-pair-text">Give your cat a name in 👫 Play together first, then you can share your colony.</p>
+      <p class="colony-pair-text">To share your colony, you need a walking name first.</p>
+      <div class="colony-pair-row">
+        <button type="button" id="colony-pair-name" class="colony-pair-btn">${escapeHtml(PICK_WALKING_NAME)} →</button>
+      </div>
     </div>`;
   }
   if (mode !== 'unpaired') return ''; // local, not-set-up, offline, paired
