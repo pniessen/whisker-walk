@@ -2209,3 +2209,160 @@ body.touch-mode .fight-key { display: none; }
 .hb-usage-table thead th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #a8c0e0; }
 .hb-usage-table td { font-variant-numeric: tabular-nums; }
 .hb-usage-table tr.never { opacity: .55; }
+
+/* ===== Sideways phones, tiny windows and enlarged text (UX review, finding 11) =====
+   Three cases the layouts above did not cover. Each one is behind its own
+   media query, so an upright phone (390x844), a tablet and a laptop never see
+   a rule from here.
+   A. A phone on its side (wider than 600px, at most 500px tall).
+   B. A window both narrow and short (at most 600px wide and 430px tall: a
+      browser zoomed to 400%), where the phone layout cannot fit and must scroll.
+   C. A narrow window (at most 340px: a small phone with Display Zoom; at most
+      260px: a phone with the page zoomed to 200%), where two tiles side by
+      side leave no room for words. */
+
+/* --- A. a phone on its side --- */
+@media (orientation: landscape) and (min-width: 601px) and (max-height: 500px) {
+  /* home: the cat on the left; Dress up, the place and Start on the right,
+     all on one screen. The notch is on a side now, so the sides keep clear of it. */
+  .dr { column-gap: 14px; row-gap: 8px;
+    padding: max(8px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    grid-template-columns: minmax(0, 1.2fr) minmax(260px, 1fr);
+    grid-template-rows: auto auto minmax(96px, 1fr) auto;
+    grid-template-areas: "header header" "hero wearing" "hero today" "hero dock"; }
+  .dr:not(.dr-building) { min-height: 0; }
+  .dr.dr-view-wardrobe { grid-template-areas: "header header" "hero wearing" "hero wearing" "hero dock"; }
+  /* the title is the splash's job here too: kept for screen readers only */
+  .dr-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
+  .dr-stage { min-height: 110px; }
+  .dr-hero-name { font-size: 20px; }
+  .dr .dr-portrait { width: 46px; height: 46px; }
+  .dr-strip { margin-top: 6px; }
+  /* Dress up: one tile, as on an upright phone */
+  .dr-view-home .dr-wearing { background: none; padding: 0; }
+  .dr-view-home .dr-wearing .dr-label, .dr-view-home .dr-worn { display: none; }
+  .dr-view-home .dr-dressup { min-height: 56px; border-radius: 16px; border: 0; background: var(--frame);
+    justify-content: flex-start; padding: 8px 12px; gap: 10px; text-align: left; }
+  .dr-dressup-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none;
+    border-radius: 10px; background: var(--cream); font-size: 22px; }
+  .dr-dressup-words { display: flex; flex-direction: column; min-width: 0; }
+  .dr-dressup-words small { display: block; font-weight: 400; font-size: 12px; opacity: .75; }
+  /* Today's walk: the picture takes whatever height is left */
+  .dr-today { display: grid; grid-template-rows: minmax(0, 1fr); min-height: 0; }
+  .dr-today .dr-label { display: none; }
+  .dr-today-frame { display: grid; grid-template-rows: minmax(0, 1fr); min-height: 0; }
+  .dr .dr-today-card { aspect-ratio: auto; height: auto; min-height: 96px; max-height: none; }
+  .dr-today-card .cap { padding: 18px 12px 8px; }
+  .dr-today-name { font-size: 19px; }
+  /* Start with a round Play together beside it */
+  .dr-start-row { flex-wrap: nowrap; }
+  .dr-start-row #btn-start { order: 0; flex: 1 1 auto; }
+  .dr .dr-dock #btn-start { min-height: 56px; padding: 10px 18px; font-size: 20px; }
+  .dr .dr-dock .dr-together { flex: 0 0 56px; width: 56px; padding: 0; border-radius: 50%; font-size: 22px; }
+  .dr-dock .dr-together-words { display: none; }
+  /* Dress up: the place line would cost the wardrobe a row; home shows the place */
+  .dr-view-wardrobe .dr-dock .where { display: none; }
+
+  /* the cat builder: the cat on the left, its rows on the right (they scroll) */
+  .dr.dr-building { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: auto auto;
+    grid-template-areas: "header header" "hero cb"; padding-bottom: 0; }
+  .dr-building .dr-hero { top: max(8px, env(safe-area-inset-top)); align-self: start; padding-bottom: 0; }
+  .dr-building .dr-stage { height: calc(100vh - 76px); height: calc(100dvh - 76px - env(safe-area-inset-bottom));
+    min-height: 180px; max-height: none; }
+
+  /* sheets: less air on top, clear of the notch, and Start's bar in one row */
+  .homebase-scroll { padding: 12px max(20px, env(safe-area-inset-right)) 24px max(20px, env(safe-area-inset-left)); }
+  .hb-sheet .hb-back, .hb-sheet .hb-home { margin-bottom: 8px; }
+  .hb-sheet-dock { flex-wrap: nowrap;
+    margin-left: calc(-1 * max(20px, env(safe-area-inset-left))); margin-right: calc(-1 * max(20px, env(safe-area-inset-right)));
+    padding: 6px max(20px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+  .hb-sheet-dock .where { flex: 0 1 auto; min-width: 0; }
+  .hb-sheet-dock #btn-start { min-height: 48px; padding: 8px 22px; }
+  /* the Menu: four tiles to a row, so the grown-ups row is close */
+  #homebase .hb-menu h2, #homebase .hb-places h2 { font-size: 1.25rem; margin-bottom: 4px; }
+  .hb-menu-stats { margin-bottom: 10px; }
+  .hb-tiles { display: flex; flex-wrap: wrap; gap: 10px; }
+  .hb-tile { flex: 1 1 22%; min-height: 76px; padding: 8px 10px; gap: 2px; }
+  .hb-tile-icon { font-size: 28px; }
+  .hb-grownups { margin-top: 14px; padding-top: 10px; }
+
+  /* the clan moment: every clan in one row, so "Not yet" is on the card */
+  .join-moment .join-moment-card { max-width: 780px; padding: 12px 16px 10px; }
+  .join-moment-paws { display: none; }
+  .join-moment h2 { margin: 0; font-size: 1.3rem; }
+  .join-moment-ask { margin-bottom: 8px; font-size: 1rem; }
+  .join-moment .dr-homerow { margin-bottom: 8px; }
+  .join-moment .dr-homes { grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 8px; }
+  .join-moment .dr-home { min-height: 80px; padding: 8px; font-size: 13px; }
+}
+
+/* --- A and B: a short window. A card over the screen never grows past it:
+   it scrolls inside itself, so its last button can always be reached. (The
+   overlay's one row is as tall as the screen, not as tall as the card.) --- */
+@media (max-height: 500px), (max-width: 260px) {
+  .colony-news { grid-template-rows: minmax(0, 1fr);
+    padding-top: max(10px, env(safe-area-inset-top)); padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .visit-cel:not(.style-c) .visit-cel-card { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+}
+@media (max-height: 500px) {
+  .visit-cel:not(.style-c) { padding-top: 12px; padding-bottom: 12px; }
+  .visit-cel:not(.style-c) .visit-cel-card { gap: 6px; padding: 12px 16px; }
+  .visit-cel-title { font-size: 1.3rem; }
+  .visit-cel-thumb { width: 64px; height: 64px; }
+}
+
+/* --- B. narrow and short, or very narrow: the home screen scrolls. The cat
+   keeps a fixed height, the doors follow it, and Start stays stuck to the
+   bottom edge. --- */
+@media (max-width: 600px) and (max-height: 430px), (max-width: 260px) {
+  .dr:not(.dr-building) { height: auto; min-height: 100%; }
+  .dr-stage { min-height: 150px; }
+  .dr-dock { position: sticky; bottom: 0; z-index: 2; }
+  .dr .dr-dock #btn-start { min-height: 48px; padding: 8px 14px; font-size: 18px; }
+  .dr .dr-dock .dr-together { flex-basis: 48px; width: 48px; }
+  /* the wardrobe is as long as it needs to be: the page scrolls, not the panel */
+  .dr-view-wardrobe .dr-wearing { max-height: none; overflow-y: visible; }
+  .dr-view-wardrobe .dr-dock .where { display: none; }
+  /* the builder: only Not now / Done stick; the cat scrolls away with the rows */
+  .dr-building .dr-hero { position: static; }
+  .dr-building .dr-stage { height: 150px; }
+  /* sheets: Start's bar sits at the end of the sheet instead of over it */
+  .hb-sheet-dock { position: static; }
+  /* Ready? / Paused / the walk summary: one column, buttons as wide as the card */
+  .screen-panel:has(.screen-cat) { grid-template-columns: minmax(0, 1fr); }
+  .screen-cat { width: 64px; height: 64px; }
+  .pause-card .primary, .pause-card .secondary { min-width: 0; width: 100%; }
+}
+
+/* --- C. narrow (a small phone with Display Zoom is 320px wide): Dress up and
+   the place each get a full row, so a long place name wraps by whole words --- */
+@media (max-width: 340px) {
+  .dr { grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "header" "hero" "wearing" "today" "dock"; }
+  .dr.dr-view-wardrobe { grid-template-areas: "header" "hero" "wearing" "wearing" "dock"; }
+  .dr-today-name, .dr-slot span { overflow-wrap: break-word; }
+}
+/* very narrow (a phone with the page zoomed to 200%): one thing per row everywhere */
+@media (max-width: 260px) {
+  .dr { padding-left: 10px; padding-right: 10px; }
+  .dr-top { flex-wrap: wrap; }
+  .dr-dock { margin: 0 -10px; padding-left: 10px; padding-right: 10px; }
+  .dr .dr-dock #btn-start { font-size: 17px; }
+  .dr-wardrobe-head { flex-wrap: wrap; }
+  .dr-slots { grid-template-columns: minmax(0, 1fr); }
+  .dr-homes, .join-moment .dr-homes { grid-template-columns: minmax(0, 1fr); }
+  /* a saved outfit: its name goes under its picture */
+  .dr .dr-outfit-wear { flex-wrap: wrap; gap: 4px 10px; }
+  .dr-outfit-words { min-width: 0; }
+  .cb-foot { grid-template-columns: minmax(0, 1fr); }
+  /* the builder's side covers match the 10px padding (14px would add a sideways scroll) */
+  .dr-building .dr-hero, .cb-foot { box-shadow: -10px 0 0 var(--navy), 10px 0 0 var(--navy); }
+  .cb-foot::before { left: -10px; right: -10px; }
+  .hb-tiles { grid-template-columns: minmax(0, 1fr); }
+  .hb-tile { min-height: 72px; }
+  /* the welcome bubble: homebase.js leaves it 120px less than the stage, which
+     is a few letters wide here; it may use the screen */
+  .visit-welcome { max-width: calc(100vw - 44px) !important; overflow-wrap: break-word; }
+}
