@@ -138,7 +138,7 @@ describe('the confirm card', () => {
     const h = card().innerHTML;
     expect(h).toContain('Delete this device’s online data?');
     expect(h).toContain(`Deletes the cloud save and photo album under the code ${CODE}, and this device’s cat profile, friends and colony sharing.`);
-    expect(h).toContain('The game on this device stays as it is, except that its cat name for playing together is cleared. This can’t be undone.');
+    expect(h).toContain('The game on this device stays as it is, except that your walking name is cleared. This can’t be undone.');
     expect(h).toContain('Another device linked to the same save code will upload the save again, unless you unlink it or delete there too.');
     expect(h.indexOf('id="confirm-card-no"')).toBeLessThan(h.indexOf('id="confirm-card-yes"'));
     expect(h).toContain('data-confirm="no">Not now</button>');
@@ -172,7 +172,7 @@ describe('the confirm card', () => {
     await click({ id: 'sync-delete-online' }); // a tap while it runs does nothing
     expect(card()).toBeUndefined();
     s.release();
-    await vi.waitFor(() => expect(html()).toContain('Done. Your online data is deleted. To play together again, give your cat a name in Play together.'));
+    await vi.waitFor(() => expect(html()).toContain('Done. Your online data is deleted. To play together again, pick a walking name in Play together.'));
     expect(html()).toContain('<div class="sync-unlinked">');
     expect(html()).toContain(BUTTON);
   });

@@ -800,7 +800,7 @@ describe('Play together holds the friends (Friends folded in)', () => {
   it('with no name yet, the friend code points up at the name box', () => {
     setupCloud();
     openSheet('together');
-    expect(html()).toContain('Give your cat a name at the top to add friends by code.');
+    expect(html()).toContain('Pick your walking name at the top to add friends by code.');
   });
   it('the stray cats are in the Journal', () => {
     const { progression } = setupCloud();
@@ -902,5 +902,97 @@ describe('coming home', () => {
     const { hb } = setup();
     hb.hide();
     expect(dressingMock.closeWardrobe).toHaveBeenCalled();
+  });
+});
+
+// The browser's Back and Escape (src/ui/backstack.js asks depth() and back()).
+describe('Back: depth() and back()', () => {
+  it('bare home is depth 0 and back() closes nothing', () => {
+    const { hb } = setup();
+    expect(hb.depth()).toBe(0);
+    expect(hb.back()).toBe(false);
+  });
+  it('the Menu is one layer, a sheet it opened is two; back() is the sheet\'s own Back', () => {
+    const { hb } = setup();
+    openSheet('menu');
+    expect(hb.depth()).toBe(1);
+    openSheet('journal');
+    expect(hb.depth()).toBe(2);
+    expect(hb.back()).toBe(true);
+    expect(html()).toContain('data-sheet="menu"');
+    expect(hb.depth()).toBe(1);
+    expect(hb.back()).toBe(true);
+    expect(html()).not.toContain('data-sheet=');
+    expect(hb.depth()).toBe(0);
+  });
+  it('Change place from the Menu, or a sheet opened directly, is one layer: back() goes to the cat', () => {
+    const { hb } = setup();
+    openSheet('menu');
+    openSheet('places');
+    expect(hb.depth()).toBe(1);
+    hb.back();
+    expect(html()).not.toContain('data-sheet=');
+    openSheet('settings');
+    expect(hb.depth()).toBe(1);
+    hb.back();
+    expect(hb.depth()).toBe(0);
+  });
+  it('the cat-face Home from two layers down leaves depth 0', () => {
+    const { hb } = setup();
+    openSheet('menu');
+    openSheet('journal');
+    clickRoot({ '#hb-home': {} });
+    expect(hb.depth()).toBe(0);
+  });
+  it('Dress up and the cat builder are layers, closed by the dressing room\'s own back()', () => {
+    const { hb } = setup();
+    dressingMock.ui = { builder: null, wardrobe: true };
+    expect(hb.depth()).toBe(1);
+    dressingMock.ui = { builder: { breed: 'tabby' }, wardrobe: true };
+    expect(hb.depth()).toBe(2);
+    expect(hb.back()).toBe(false); // the stub has no back(): nothing closed, nothing thrown
+  });
+  it('a card over home is a layer; back() is its own dismissal (the clan moment follows the notice)', () => {
+    const { hb } = setup({ state: woodsOpened });
+    expect(hb.showNotice('Bye Rosa')).toBe(true);
+    hb.showVisit(PLAIN);
+    expect(hb.depth()).toBe(1);
+    expect(hb.back()).toBe(true);
+    expect(doc.body.children.find((c) => c.id === 'home-notice')).toBeUndefined();
+    expect(moment()).toBeTruthy(); // it waited for the notice
+    expect(hb.depth()).toBe(1);
+    expect(hb.back()).toBe(true);
+    expect(moment()).toBeUndefined();
+    expect(store.get(MOMENT_SEEN_KEY)).toBe('1'); // as "Not yet" does
+    expect(hb.depth()).toBe(0);
+  });
+  it('the news card: back() marks it read, as OK does', () => {
+    const { hb, progression } = setup();
+    const seen = vi.spyOn(progression, 'markColonySeen');
+    expect(hb.showNews('<button id="colony-news-ok">ok</button>', null)).toBe(true);
+    expect(hb.depth()).toBe(1);
+    hb.back();
+    expect(seen).toHaveBeenCalledTimes(1);
+    expect(hb.depth()).toBe(0);
+  });
+  it('a question is answered "Not now" first, and the sheet under it stays', () => {
+    const { hb, progression } = setup();
+    progression.addPoints(40);
+    openSheet('menu');
+    openSheet('settings');
+    doc.root.listeners.click({ target: { id: 'btn-reset', dataset: {}, closest: () => null }, detail: 1 });
+    expect(hb.depth()).toBe(3);
+    expect(hb.back()).toBe(true);
+    expect(doc.body.children.find((c) => c.id === 'confirm-card')).toBeUndefined();
+    expect(progression.state.points).toBe(40);
+    expect(html()).toContain('data-sheet="settings"');
+    expect(hb.depth()).toBe(2);
+  });
+  it('during a walk (home hidden) there is no depth and back() does nothing', () => {
+    const { hb } = setup();
+    openSheet('menu');
+    hb.hide();
+    expect(hb.depth()).toBe(0);
+    expect(hb.back()).toBe(false);
   });
 });
