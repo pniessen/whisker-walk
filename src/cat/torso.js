@@ -86,6 +86,13 @@ export function shellInflate(uy) {
 }
 
 export const HEAD = { POS: [0, 0.70, -0.40], SCALE: 1.06 };
+// B3 (cat realism round 1): the two proportion numbers, as OPTIONS. 1 and 1 are
+// today's cat, exactly. `head` scales the whole head (and the hat, glasses and
+// neckwear on it); `body` lengthens the torso and moves the hips, the tail's
+// root and the head along with its ends. Only the picture harness sets them,
+// before it builds a cat; the owner picks from that sheet.
+export const PROPORTION = { head: 1, body: 1 };
+
 // The skull: a sphere of radius R scaled by SCALE, centred on the head's origin
 // (model.js buildCat). scarmesh.js lays a face scar on this same ellipsoid.
 export const SKULL = Object.freeze({ R: 0.21, SCALE: Object.freeze([1, 0.92, 0.95]) });

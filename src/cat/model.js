@@ -15,7 +15,7 @@ import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
 import { buildBackItem, buildHood } from './backitems.js';
 import { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry, capeTieGeometry, layCapeTie } from './cape.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
-import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals } from './torso.js';
+import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals, PROPORTION } from './torso.js';
 
 const STYLE = {
   // The tabby and zeetoo wear the tabby "M" on the forehead (polish-faces):
@@ -1134,7 +1134,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // back-slot accessories take fx/fy/fz too. With no `body` the factors are
   // exactly 1, so a standard breed's scale is TORSO.SCALE untouched.
   const BODY_R = TORSO.R;
-  const [fx, fy, fz] = s.body ?? [1, 1, 1];
+  const [fx, fy, fz0] = s.body ?? [1, 1, 1];
+  const fz = fz0 * PROPORTION.body; // B3: 1 unless the picture harness sets it
   const BODY_SCALE = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
   // A balloon's tie, authored on the old torso, re-placed on the new one at
   // the same distance from the fur (torso.js torsoRetarget).
@@ -1293,8 +1294,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       }
     }
   }
-  head.position.set(...HEAD.POS);
-  head.scale.setScalar(HEAD.SCALE);
+  head.position.set(HEAD.POS[0], HEAD.POS[1], HEAD.POS[2] * PROPORTION.body);
+  head.scale.setScalar(HEAD.SCALE * PROPORTION.head);
   g.add(head);
 
   // legs: hip-pivoted groups, each one smooth limb (limbs.js) and a paw.
@@ -1328,7 +1329,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     paw.position.set(0, PAW_Y, -0.012); // the sole stays where it always was
     leg.add(paw);
     leg.userData.paw = paw;
-    leg.position.set(x, LEGS.HIP_Y, z);
+    leg.position.set(x, LEGS.HIP_Y, z * PROPORTION.body);
     g.add(leg);
     legs.push(leg);
   }
@@ -1425,7 +1426,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     tailPivots.push(pivot);
     parent = pivot;
   }
-  tail.position.set(0, TORSO.CENTRE_Y + TAIL.ROOT_DY, TAIL.ROOT_Z);
+  tail.position.set(0, TORSO.CENTRE_Y + TAIL.ROOT_DY, TAIL.ROOT_Z * PROPORTION.body);
   tail.rotation.x = TAIL.ROOT_TILT;
   tail.scale.setScalar(TAIL.SCALE);
   g.add(tail);
@@ -1936,7 +1937,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       pose: (kind) => seamPose(kind, leg.position, bodyY, hipY, BODY_SCALE, fx),
     },
   }));
-  const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, HEAD.POS[2]];
+  const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, head.position.z];
 
   // The cape's clasp and front bands, laid once for the resting cat (the
   // animator re-lays them every frame): at rest the neck's carry is the identity.
