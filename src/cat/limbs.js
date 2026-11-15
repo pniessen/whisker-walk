@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LEGS, TORSO, PAW_HALF, PAW_Y, REF_RIG } from './torso.js';
+import { LEGS, TORSO, PAW_HALF, PAW_Y, REF_RIG, seamNormals, keepFacing } from './torso.js';
 
 // The smooth limb (body refinement, docs/superpowers/specs/2026-11-01-body-refinement-design.md):
 // each leg is ONE tube along a smooth curve, from a shoulder (front) or a
@@ -310,6 +310,23 @@ function bakedFold(kind, hind, simple, hipY) {
   return baked;
 }
 
+// A4: a baked fold with its normals flowed into the torso as that fold's pose
+// carries it (`seam.pose(kind)`: the matrix from the leg's frame into the
+// posed torso's, and the posed body's scale). The positions, box and paw are
+// the shared fold's own; only the normals are this copy's. Shared by every
+// leg with the same fold and the same `seam.key` (same torso, same hip).
+const seamCache = new Map();
+function seamedFold(baked, kind, foldKey, seam, idx) {
+  if (!seam) return baked;
+  const key = `${foldKey}|${seam.key}`;
+  let out = seamCache.get(key);
+  if (out) return out;
+  const m = seam.pose(kind);
+  out = Object.freeze({ ...baked, nor: keepFacing(baked.pos, seamNormals(baked.pos, baked.nor.slice(), m.matrix, m.scale), baked.nor, idx) });
+  seamCache.set(key, out);
+  return out;
+}
+
 // A fold's `flat`: each vertex's leg-local x scaled by flat at the top (t 0,
 // the dome too) easing (smoothstep) to 1 at FLAT_SPAN x the knee's (or the
 // elbow's) t and below; its normal carried through the same scale (x divided
@@ -334,15 +351,22 @@ function flatten(pos, nor, t, flat, knee) {
 // bounding box becomes its own Box3 (applyFold copies into it) and its
 // bounding sphere, set once, holds every fold. `len` is the limb's length
 // (LEGS.LEN * legLen), the one the standing limb was built from.
-export function attachFolds(leg, { hind, simple, hipY, len }) {
+export function attachFolds(leg, { hind, simple, hipY, len, seam = null }) {
   const geo = leg.children[0].geometry;
+  // The seams (cat realism A4): the standing limb's normals flow into the
+  // torso's where they meet, written into the limb before `stand` copies it.
+  if (seam) {
+    const m = seam.pose('stand');
+    const own = geo.attributes.normal.array.slice();
+    keepFacing(geo.attributes.position.array, seamNormals(geo.attributes.position.array, geo.attributes.normal.array, m.matrix, m.scale), own, geo.index.array);
+  }
   const pos = geo.attributes.position.array.slice();
   const nor = geo.attributes.normal.array.slice();
   // The standing paw's centre, leg-local: where the limb of length `len` ends.
   const stand = { pos, nor, box: new THREE.Box3().setFromArray(pos), paw: new THREE.Vector3(0, PAW_Y - (len - LEGS.LEN), -0.012), pawRotX: 0 };
   const folds = { stand };
   for (const kind of Object.keys(FOLDS)) {
-    if (FOLDS[kind][hind ? 'hind' : 'front']) folds[kind] = bakedFold(kind, hind, simple, hipY);
+    if (FOLDS[kind][hind ? 'hind' : 'front']) folds[kind] = seamedFold(bakedFold(kind, hind, simple, hipY), kind, `${kind}|${+hind}|${+simple}|${hipY}`, seam, geo.index.array);
   }
   const sphere = new THREE.Sphere();
   const s = new THREE.Sphere(), v = new THREE.Vector3();

@@ -15,7 +15,7 @@ import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
 import { buildBackItem, buildHood } from './backitems.js';
 import { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry, capeTieGeometry, layCapeTie } from './cape.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
-import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt } from './torso.js';
+import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals } from './torso.js';
 
 const STYLE = {
   // The tabby and zeetoo wear the tabby "M" on the forehead (polish-faces):
@@ -937,6 +937,7 @@ export const CAT_LOOK_Y = HEAD.POS[1] + 0.04;
 // `f` is STYLE.body (Digit's narrow frame). userData.ranges gives each part's
 // vertex range; userData.chestCentre the chest's centre, torso-local.
 // A simple build rounds the belly and chest at 12×8 (the triangle cap).
+const IDENTITY16 = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   const [fx, fy, fz] = f;
   const BS = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
@@ -988,6 +989,9 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   }
   const geo = mergeGeometries(Object.values(parts));
   for (const p of Object.values(parts)) p.dispose();
+  // The seams (cat realism A4, torso.js SEAM): the belly's and the chest's
+  // normals flow into the torso's where they meet it (the ruff keeps its own).
+  seamNormals(geo.attributes.position.array, geo.attributes.normal.array, IDENTITY16, BS, SEAM.underReach, ranges.belly[0], ranges.chest[1]);
   geo.userData.ranges = ranges;
   geo.userData.chestCentre = [0, CHEST.DY / BS[1], CHEST.Z * fz / BS[2]];
   // the chest and belly balls as ellipsoids in the cat's resting frame (cape.js
@@ -1073,6 +1077,30 @@ export const CAT_MUZZLE = Object.freeze({
   chinAt: [0, -0.085, -0.15], chinScale: [0.95, 0.62, 0.85],
   noseAt: [0, -0.022, -0.232], noseScale: [1.15, 0.72, 0.7],
 });
+
+// A4, the seams: where the torso is, seen from a leg, in the pose that goes
+// with each fold (animator.js pose(), fitLongLegs and applyPoseFit, at rest):
+// the matrix (a Matrix4's elements) from the leg's own frame into the posed
+// torso mesh's, and the posed body's scale. `stand` is the cat as built. The
+// sit pitches the torso and moves it, the nap (tuck) squashes it, both and
+// the stalk (crouch) lower it by the pose's drop and the leg lift; sitting
+// and stalking bring a narrow cat's hips in by its width share `fx`.
+const SEAM_POSES = Object.freeze({
+  stand: Object.freeze({}),
+  sit: Object.freeze({ dy: -0.02 + SIT.bodyDY + POSE_FIT.requestPet.body, z: SIT.bodyZ, pitch: SIT.pitch, lift: true, hipsIn: true }),
+  tuck: Object.freeze({ dy: -0.1, scale: Object.freeze([1.12, 0.73, 0.89]), lift: true }),
+  crouch: Object.freeze({ dy: -0.1, lift: true, hipsIn: true }),
+  ball: Object.freeze({ scale: Object.freeze([1.05, 1.05, 0.9]) }),
+});
+function seamPose(kind, hip, bodyY, hipY, bodyScale, fx) {
+  const P = SEAM_POSES[kind] ?? SEAM_POSES.stand;
+  const k = P.scale ?? [1, 1, 1];
+  const scale = [bodyScale[0] * k[0], bodyScale[1] * k[1], bodyScale[2] * k[2]];
+  const at = new THREE.Vector3(0, bodyY + (P.dy ?? 0) - (P.lift ? hipY - REF_RIG.HIP_Y : 0), P.z ?? 0);
+  const body = new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), P.pitch ?? 0), new THREE.Vector3(...scale));
+  const leg = new THREE.Matrix4().makeTranslation(hip.x * (P.hipsIn ? fx : 1), hip.y, hip.z);
+  return { matrix: body.invert().multiply(leg).elements, scale };
+}
 
 // A copy of a breed's STYLE row (read-only: tests build a cat from a variant).
 export const catStyle = (breed) => Object.freeze({ ...STYLE[breed] });
@@ -1897,8 +1925,17 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   }
   // The folds (Task 5, R1): each leg gets its baked fold shapes now, with its
   // final limb, paw and feet item in place, so a fold moves exactly these.
-  legs.forEach((leg, i) => attachFolds(leg, { hind: i >= 2, simple: !!opts.simple, hipY, len: LEGS.LEN * LEG_LEN }));
   const bodyY = TORSO.CENTRE_Y + dy;
+  // The seams (cat realism A4, torso.js SEAM): each limb's normals flow into
+  // the torso's where the two meet, standing and in every fold, each fold
+  // against the torso as its own pose carries it (seamPose).
+  legs.forEach((leg, i) => attachFolds(leg, {
+    hind: i >= 2, simple: !!opts.simple, hipY, len: LEGS.LEN * LEG_LEN,
+    seam: {
+      key: `${fx},${fy},${fz}|${leg.position.x},${leg.position.z}`,
+      pose: (kind) => seamPose(kind, leg.position, bodyY, hipY, BODY_SCALE, fx),
+    },
+  }));
   const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, HEAD.POS[2]];
 
   // The cape's clasp and front bands, laid once for the resting cat (the

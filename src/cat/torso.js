@@ -315,6 +315,106 @@ export function torsoUnitAt(dir, out = [0, 0, 0]) {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// THE SEAMS (cat realism round 1, A4; 2026-11-15). A leg, the chest and the
+// belly are separate smooth parts pushed into the torso, and each used to meet
+// it with a visible crease: the light changed direction in one step along the
+// line where they cross. Now every vertex of such a part that lies inside the
+// torso, or within SEAM.reach of its surface, has its shading direction (its
+// normal) turned toward the torso's own at that spot: all the way at the
+// surface, easing back to the part's own SEAM.reach out (and only as far as
+// the part faces the same way as the torso there). The light then flows
+// across the join. Positions and colours are untouched, and it is worked out
+// once when the cat is built (model.js), never per frame.
+export const SEAM = { reach: 0.07, underReach: 0.05, square: 0.2 };
+
+// The torso's outward normal at the undeformed unit direction `u`, in the
+// torso mesh's own frame (before the body's scale), by finite differences.
+export function torsoNormalAt(u, out = [0, 0, 0]) {
+  const e = 1e-3;
+  // two directions square to u
+  let ax = -u[1], ay = u[0], az = 0;
+  if (Math.abs(u[2]) > 0.9) { ax = 0; ay = -u[2]; az = u[1]; }
+  const aL = Math.hypot(ax, ay, az); ax /= aL; ay /= aL; az /= aL;
+  const bx = u[1] * az - u[2] * ay, by = u[2] * ax - u[0] * az, bz = u[0] * ay - u[1] * ax;
+  const at = (dx, dy, dz) => {
+    const x = u[0] + dx, y = u[1] + dy, z = u[2] + dz, L = Math.hypot(x, y, z);
+    return deformTorso(x / L, y / L, z / L);
+  };
+  const p0 = at(0, 0, 0), p1 = at(e * ax, e * ay, e * az), p2 = at(e * bx, e * by, e * bz);
+  const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
+  const vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2];
+  let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+  let L = Math.hypot(nx, ny, nz);
+  if (nx * p0[0] + ny * p0[1] + nz * p0[2] < 0) L = -L;
+  out[0] = nx / L; out[1] = ny / L; out[2] = nz / L;
+  return out;
+}
+
+// Blend the normals `nor` of the vertices `pos` (both flat xyz arrays, in some
+// part's own frame) toward the torso's. `m` is the 4x4 (column-major, as a
+// THREE.Matrix4's elements) taking the part's frame into the torso mesh's own
+// frame (before the body's scale, where the surface is R * deformTorso);
+// `scale` the body's scale, for measuring how far out a vertex is in metres.
+// Only vertices [from, to) are touched. Returns nor.
+const _su = [0, 0, 0], _sn = [0, 0, 0], _sd = [0, 0, 0];
+export function seamNormals(pos, nor, m, scale, reach = SEAM.reach, from = 0, to = pos.length / 3) {
+  for (let i = from; i < to; i++) {
+    const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+    _sd[0] = (m[0] * x + m[4] * y + m[8] * z + m[12]) / TORSO.R;
+    _sd[1] = (m[1] * x + m[5] * y + m[9] * z + m[13]) / TORSO.R;
+    _sd[2] = (m[2] * x + m[6] * y + m[10] * z + m[14]) / TORSO.R;
+    const rho = Math.hypot(_sd[0], _sd[1], _sd[2]);
+    if (rho < 1e-6) continue;
+    torsoUnitAt(_sd, _su);
+    const [sx, sy, sz] = deformTorso(_su[0], _su[1], _su[2]);
+    const sL = Math.hypot(sx, sy, sz);
+    // how far outside the surface, in metres along the ray from the centre
+    const out = (rho / sL - 1) * Math.hypot(sx * scale[0], sy * scale[1], sz * scale[2]) * TORSO.R;
+    if (out >= reach) continue;
+    const k = out <= 0 ? 0 : out / reach;
+    let w = 1 - k * k * (3 - 2 * k);
+    torsoNormalAt(_su, _sn);
+    // back into the part's frame: a normal goes through the transpose
+    let tx = m[0] * _sn[0] + m[1] * _sn[1] + m[2] * _sn[2];
+    let ty = m[4] * _sn[0] + m[5] * _sn[1] + m[6] * _sn[2];
+    let tz = m[8] * _sn[0] + m[9] * _sn[1] + m[10] * _sn[2];
+    const tL = Math.hypot(tx, ty, tz); tx /= tL; ty /= tL; tz /= tL;
+    // A vertex facing away from the torso's surface there (the inside of a
+    // thigh, a part's hidden far side) keeps its own normal: the turn fades
+    // out as the two normals come square, so no face is ever lit from behind.
+    const facing = tx * nor[i * 3] + ty * nor[i * 3 + 1] + tz * nor[i * 3 + 2];
+    if (facing <= SEAM.square) continue;
+    w *= Math.min(1, (facing - SEAM.square) * 2);
+    const nx = nor[i * 3] + (tx - nor[i * 3]) * w, ny = nor[i * 3 + 1] + (ty - nor[i * 3 + 1]) * w, nz = nor[i * 3 + 2] + (tz - nor[i * 3 + 2]) * w;
+    const nL = Math.hypot(nx, ny, nz);
+    if (nL < 1e-6) continue;
+    nor[i * 3] = nx / nL; nor[i * 3 + 1] = ny / nL; nor[i * 3 + 2] = nz / nL;
+  }
+  return nor;
+}
+
+// After seamNormals on an indexed part: any face (of `idx`) that the turned
+// normals `nor` now light from behind, and that the part's `own` normals did
+// not, gets its three vertices' own normals back. Returns nor.
+export function keepFacing(pos, nor, own, idx) {
+  const lit = (n, a, b, c, wx, wy, wz) => wx * (n[a] + n[b] + n[c]) + wy * (n[a + 1] + n[b + 1] + n[c + 1]) + wz * (n[a + 2] + n[b + 2] + n[c + 2]);
+  for (let pass = 0; pass < 4; pass++) {
+    let fixed = 0;
+    for (let f = 0; f < idx.length; f += 3) {
+      const a = idx[f] * 3, b = idx[f + 1] * 3, c = idx[f + 2] * 3;
+      const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2];
+      const vx = pos[c] - pos[a], vy = pos[c + 1] - pos[a + 1], vz = pos[c + 2] - pos[a + 2];
+      const wx = uy * vz - uz * vy, wy = uz * vx - ux * vz, wz = ux * vy - uy * vx;
+      if (lit(nor, a, b, c, wx, wy, wz) >= 0 || lit(own, a, b, c, wx, wy, wz) < 0) continue;
+      for (const k of [a, b, c]) { nor[k] = own[k]; nor[k + 1] = own[k + 1]; nor[k + 2] = own[k + 2]; }
+      fixed++;
+    }
+    if (!fixed) break;
+  }
+  return nor;
+}
+
 // A back-slot point authored against the old torso, moved onto the new one
 // with the same "how far from the fur": its unit-ellipsoid coordinates in
 // LEGACY_BODY (scaled by the cat's body factors f), radius ρ and direction d,
