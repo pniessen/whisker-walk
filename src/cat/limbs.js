@@ -356,9 +356,15 @@ export function attachFolds(leg, { hind, simple, hipY, len, seam = null }) {
   // The seams (cat realism A4): the standing limb's normals flow into the
   // torso's where they meet, written into the limb before `stand` copies it.
   if (seam) {
-    const m = seam.pose('stand');
-    const own = geo.attributes.normal.array.slice();
-    keepFacing(geo.attributes.position.array, seamNormals(geo.attributes.position.array, geo.attributes.normal.array, m.matrix, m.scale), own, geo.index.array);
+    const key = `stand|${+hind}|${+simple}|${len}|${hipY}|${seam.key}`;
+    let seamed = seamCache.get(key);
+    if (!seamed) {
+      const m = seam.pose('stand');
+      const own = geo.attributes.normal.array.slice();
+      seamed = keepFacing(geo.attributes.position.array, seamNormals(geo.attributes.position.array, own.slice(), m.matrix, m.scale), own, geo.index.array);
+      seamCache.set(key, seamed);
+    }
+    geo.attributes.normal.array.set(seamed);
   }
   const pos = geo.attributes.position.array.slice();
   const nor = geo.attributes.normal.array.slice();

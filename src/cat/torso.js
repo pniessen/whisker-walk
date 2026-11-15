@@ -11,7 +11,12 @@ export const TORSO = {
   // The deformation (sketch): a deep chest, slim waist just behind the middle,
   // round hips, a belly tucked up toward them, a gentle 0.08 haunch (the sketch's
   // first 0.24 was rejected) and a back that rises toward the hips.
-  SHAPE: { chest: 0.16, chestLow: 0.12, waist: 0.14, waistZ: 0.15, waistW: 0.08, waistDrop: 0.08, hips: 0.12, tuck: 0.28, haunch: 0.08, haunchZ: 0.55, haunchZW: 0.07, haunchY: -0.15, haunchYW: 0.2, backRise: 0.07 },
+  // Cat realism B2 (2026-11-15): tailBase.. draw the rump out round the tail's
+  // root (a 5 cm taper of body, in unit z, centred on the root's direction
+  // tailBaseY up, tailBaseW wide), and thigh.. draw it back (and thighOut wider)
+  // low on each side over the thigh tops (deformTorso). tailBase is a taste
+  // call: 0.14 recommended, 0.07 the smaller one shown on the sheet.
+  SHAPE: { chest: 0.16, chestLow: 0.12, waist: 0.14, waistZ: 0.15, waistW: 0.08, waistDrop: 0.08, hips: 0.12, tuck: 0.28, haunch: 0.08, haunchZ: 0.55, haunchZW: 0.07, haunchY: -0.15, haunchYW: 0.2, backRise: 0.07, tailBase: 0.14, tailBaseUp: 0.02, tailBaseY: 0.42, tailBaseW: 0.05, thigh: 0.12, thighOut: 0.03, thighAt: [0.45, 0.0, 0.88], thighW: 0.2 },
   // [around, along the length]: 40 and 28 rings over the ~7 tabby bands.
   SEG: { full: [40, 40], simple: [24, 28] },
 };
@@ -36,7 +41,12 @@ export const LEGS = { LEN: 0.35, HIP_Y: 0.39, FRONT_Z: -0.24, HIND_Z: 0.24, FRON
 // which from the walk camera read as a lump with a horn on it. The tip is no
 // rounder than 0.0135: the cross pose holds the tail straight up, and its tip
 // sets the cat's top there, which the name tag clears (nametag.js CROSS_TAG_Y).
-export const TAIL = { LINK: 0.14, R: 0.072, TAPER: 0.8125, CURL: 0.28, ROOT_TILT: 0.28, SCALE: 0.85, ROOT_DY: 0.10, ROOT_Z: 0.33, ROOT_BALL: 0.072 };
+// Cat realism B2 (2026-11-15): the root is where it was; the rump now comes
+// out round it (TORSO.SHAPE.tailBase), so the root ball lies mostly inside
+// that taper and reads as the tail's own base, not a button on a flat rump.
+// SEAM_LIFT: the tail's lift (rad above level) at which the first link's
+// shading is fitted to the rump's (model.js, the seams).
+export const TAIL = { LINK: 0.14, R: 0.072, TAPER: 0.8125, CURL: 0.28, ROOT_TILT: 0.28, SCALE: 0.85, ROOT_DY: 0.10, ROOT_Z: 0.33, ROOT_BALL: 0.072, SEAM_LIFT: 0.33 };
 
 // The tail's radius at fraction u of its length (0 root, 1 tip).
 export const tailR = (u) => TAIL.R * (1 - TAIL.TAPER * u);
@@ -91,9 +101,13 @@ export const REF_RIG = { HIP_Y: 0.30, REACH: 0.2585 + 0.062 * 0.62 };
 // 0.0058 under the ground on every preset (0.0055 simple), so it comes UP by
 // 0.006 and rests on it (0.0002 / 0.0005 above). The old 0.004 was measured
 // for the nose-down torso, whose rump rested 0.0204 above ground.
+// Cat realism B2 (2026-11-15): the rump is fuller low behind the thighs
+// (TORSO.SHAPE thigh), and sitting it is the pitched torso's lowest point: at
+// 0.006 it rested 0.0024 under the ground on every preset (0.0021 simple), so
+// it comes up 0.0025 more and rests on it again (0.0001 / 0.0004 above).
 export const POSE_FIT = Object.freeze({
-  requestPet: Object.freeze({ body: 0.006 }),
-  perch: Object.freeze({ body: 0.006 }),
+  requestPet: Object.freeze({ body: 0.0085 }),
+  perch: Object.freeze({ body: 0.0085 }),
 });
 
 // The sit (requestPet, perch): the classic Warrior Cats sit (polish-sit,
@@ -170,8 +184,11 @@ export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, he
 //     and Digit (the narrowest torso) for: tip forward, every link outside
 //     the torso and the legs at either end of the flick, nothing in the
 //     ground, even bends.
+// Cat realism B2 (2026-11-15): ROOT z 0.347 -> 0.357, re-fitted to the fuller
+// rump by the same search (the root 1.9 cm under the fur, the tail's lowest
+// vertex within 1 mm of the ground, links 2-4 clear of the torso).
 export const SIT_TAIL = Object.freeze({
-  ROOT: [0.035, 0.347],
+  ROOT: [0.035, 0.357],
   rotX: 0.425,
   pivotX: [-0.3, 0.281, 0.241, 0.219, 0.116],
   pivotY: [1.299, 0.728, 0.672, 0.499, 0.159],
@@ -231,19 +248,26 @@ export const NAP_TAIL = Object.freeze({
 // no tail under the cape, the tip 23 cm out to the side; napping, lowest
 // vertex 0.2-0.5 cm over the ground, 2.3 cm clear of the torso. Same meanings as SIT_TAIL and
 // NAP_TAIL; a partial plume takes the blend (lyingTail).
+// Cat realism B2 (2026-11-15): both re-fitted to the fuller rump. Sitting:
+// ROOT [0.048, 0.34] -> [0.065, 0.36], rotX 0.44 -> 0.48, the first two
+// pivots [-0.295, 0.111] / [1.209, 0.698, 0.687] -> [-0.32, 0.078] / [1.2,
+// 0.595, 0.694]: the root 2.2 cm under the fur, the lowest vertex 0.5 cm in
+// the ground, links 2-4 0.5 cm clear, no tail under the sit's cape (its hem
+// is taken up a touch, cape.js CAPE_SIT). Napping: ROOT y -0.074 -> -0.084,
+// pivotY[0] 0.884 -> 0.934: link 1 is 1.7 cm clear again.
 export const SIT_TAIL_PLUME = Object.freeze({
   ...SIT_TAIL,
-  ROOT: [0.048, 0.34],
-  rotX: 0.44,
-  pivotX: [-0.295, 0.111, 0.211, 0.219, 0.116],
-  pivotY: [1.209, 0.698, 0.687, 0.499, 0.159],
+  ROOT: [0.065, 0.36],
+  rotX: 0.48,
+  pivotX: [-0.32, 0.078, 0.211, 0.219, 0.116],
+  pivotY: [1.2, 0.595, 0.694, 0.499, 0.159],
 });
 export const NAP_TAIL_PLUME = Object.freeze({
   ...NAP_TAIL,
-  ROOT: [-0.074, 0.346],
+  ROOT: [-0.084, 0.346],
   rotX: 0.36,
   pivotX: [0.512, 0.425, 0.537, 0.628, 0.136],
-  pivotY: [0.884, 0.469, 0.487, -0.014, 0.049],
+  pivotY: [0.934, 0.469, 0.487, -0.014, 0.049],
 });
 
 // A lying tail `plume` of the way from `thin` (today's) to `full` (the plume's).
@@ -255,6 +279,7 @@ export function lyingTail(thin, full, plume) {
 // A point on the unit sphere (nose at -z, rump at +z) pushed into the cat's torso.
 export function deformTorso(x, y, z, S = TORSO.SHAPE) {
   const front = Math.max(0, -z), back = Math.max(0, z);
+  const x0 = x, y0 = y, z0 = z;
   const waist = Math.exp(-((z - S.waistZ) ** 2) / S.waistW);
   let kx = 1 - S.waist * waist + S.hips * back * back;
   let ky = 1 + S.chest * front - S.waistDrop * waist;
@@ -263,6 +288,24 @@ export function deformTorso(x, y, z, S = TORSO.SHAPE) {
   kx *= 1 + S.haunch * haunch;
   x *= kx; y *= ky;
   if (y > 0) y += S.backRise * (z + 1) * 0.5 * (1 - x * x);
+  // The tail base (cat realism B2): the rump is drawn out toward the tail's
+  // root in a soft mound, so the tail leaves a taper of body, not a flat rump.
+  if (S.tailBase && z0 > 0) {
+    const dy = y0 - S.tailBaseY, dz = z0 - Math.sqrt(1 - S.tailBaseY * S.tailBaseY);
+    const bump = Math.exp(-(x0 * x0 + dy * dy + dz * dz) / S.tailBaseW) * Math.min(1, z0 * 4);
+    z += S.tailBase * bump;
+    y += S.tailBaseUp * bump;
+  }
+  // The thigh tops (B2): low on each side of the rump the surface is drawn
+  // back and a little out over the top of the thigh, so from behind the hind
+  // legs come out of one rump instead of standing on it as two balls.
+  if (S.thigh && z0 > 0) {
+    const [tx, ty, tz] = S.thighAt;
+    const dx = Math.abs(x0) - tx, dy = y0 - ty, dz = z0 - tz;
+    const bump = Math.exp(-(dx * dx + dy * dy + dz * dz) / S.thighW) * Math.min(1, z0 * 4);
+    z += S.thigh * bump;
+    x *= 1 + S.thighOut * bump;
+  }
   return [x, y, z];
 }
 
@@ -326,7 +369,7 @@ export function torsoUnitAt(dir, out = [0, 0, 0]) {
 // the part faces the same way as the torso there). The light then flows
 // across the join. Positions and colours are untouched, and it is worked out
 // once when the cat is built (model.js), never per frame.
-export const SEAM = { reach: 0.07, underReach: 0.05, square: 0.2 };
+export const SEAM = { reach: 0.07, underReach: 0.05, tailReach: 0.05, square: 0.2 };
 
 // The torso's outward normal at the undeformed unit direction `u`, in the
 // torso mesh's own frame (before the body's scale), by finite differences.

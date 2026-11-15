@@ -9,7 +9,7 @@ import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
 import { ruffGeometry, RUFF, jawFluffColour } from '../src/cat/ruff.js';
 import { DEFAULT_LOOK, lookToStyle } from '../src/customcats.js';
-import { SKULL } from '../src/cat/torso.js';
+import { SKULL, TORSO } from '../src/cat/torso.js';
 
 // Wave 6 (docs/VISUAL-PASS.md) reshaped the cat. These are the properties that
 // wave established and that a later edit could silently undo — none of them are
@@ -494,7 +494,14 @@ describe('cat model: strong hind legs and a tail that grows out of the rump (Tas
     const { body, tail } = cat.userData.parts;
     const c = body.getWorldPosition(new THREE.Vector3()), r = tail.getWorldPosition(new THREE.Vector3());
     const hit = surfaceHit([body], c, r);
-    expect(Math.abs(r.distanceTo(c) - hit.distanceTo(c))).toBeLessThan(0.03);
+    // 2026-11-15 (cat realism B2): the rump is now drawn out round the root in
+    // a tail base (torso.js TORSO.SHAPE.tailBase, up to 5 cm of body at the
+    // root). The root is where it was, within 3 cm of the rump UNDER that base
+    // (the same torso without it), and no deeper under the base than its height.
+    const depth = hit.distanceTo(c) - r.distanceTo(c);
+    const base = TORSO.SHAPE.tailBase * TORSO.R * TORSO.SCALE[2];
+    expect(depth).toBeGreaterThan(-0.03);
+    expect(depth).toBeLessThan(base + 0.03);
     expect(tail.scale.x).toBe(0.85);
   });
   it('the tail is still five meshes (root, joints and tip merged in)', () => {

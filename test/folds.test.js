@@ -161,7 +161,10 @@ describe('legs fold at the joints (Task 5)', () => {
     // lower (SIT.bodyDY) and 0.2 cm up (POSE_FIT 0.004 -> 0.006), the rump on the ground.
     const tabby = make('tabby', false);
     expect(pose(tabby, 'nap').userData.parts.body.position.y).toBeCloseTo(0.24, 9);
-    expect(pose(tabby, 'requestPet').userData.parts.body.position.y).toBeCloseTo(0.281, 9);
+    // 2026-11-15 (cat realism B2): 0.281 is now 0.2835. The rump is fuller low
+    // behind the thighs and is the sitting torso's lowest point, so the sit's
+    // pose fit rose 0.0025 to rest it on the ground again (torso.js POSE_FIT).
+    expect(pose(tabby, 'requestPet').userData.parts.body.position.y).toBeCloseTo(0.2835, 9);
     expect(pose(tabby, 'stalk').userData.parts.body.position.y).toBeCloseTo(0.24, 9);
   });
 
