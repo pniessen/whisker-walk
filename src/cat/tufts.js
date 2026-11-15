@@ -1,61 +1,69 @@
 import * as THREE from 'three';
 import { mulberry32, seedFromCode } from '../rng.js';
-import { TORSO, CHEST, SKULL, TAIL, deformTorso, torsoNormalAt, torsoUnitAt, tailRadius } from './torso.js';
+import { TORSO, CHEST, SKULL, TAIL, deformTorso, torsoNormalAt, torsoUnitAt } from './torso.js';
 import { coatColourAt, undersideColourAt } from './coat.js';
 
 // FUR TUFTS (cat realism round 2, B7; 2026-11-15). Fur you can see in the
-// cat's outline, made of solid geometry: soft LOCKS of fur, each a short
-// tapered, slightly curved clump lying along the coat (back and down), its
-// root sunk under the surface it grows from. No transparency, no texture and
-// no new object: every lock is written into the arrays of a mesh the cat
-// already has (the torso, the underside, the skull, the tail's links, the
-// ears), so a cat costs exactly the draw calls it did, and a lock rides its
-// part in every pose for nothing. Nothing here is re-fitted per frame: no lock
-// grows from the neck's skin or from a leg (both are re-laid when the cat
-// moves); the mane grows from the shoulders and the cheeks, the trousers from
-// the rump over the backs of the thighs.
+// cat's outline, made of solid geometry. Most of it is BANDS (addBand): a
+// strip of fur lying along the coat or hanging from it, its far edge cut into
+// a few uneven lobes, the clumps fur gathers into; neighbouring lobes share
+// their base, so a band reads as a layer of fur with a soft broken edge, not
+// as separate spikes. The bib's fringe and the ear tips are single LOCKS
+// (addLock), short tapered clumps. Every root is sunk under the surface it
+// grows from and wears that surface's normal and colour, so the light and
+// the markings flow from the coat onto the fur.
+//
+// No transparency, no texture and no new object: everything is written into
+// the arrays of a mesh the cat already has (the torso, the underside, the
+// skull, the tail's links, the ears), so a cat costs exactly the draw calls
+// it did, and the fur rides its part in every pose for nothing. Nothing here
+// is re-fitted per frame: no fur grows from the neck's skin or from a leg
+// (both are re-laid when the cat moves); the mane grows from the shoulders
+// and the cheeks, the trousers from the rump over the backs of the thighs.
 //
 // What a cat gets (tuftPlan):
-//   short hair  a little: two small clumps at each cheek, three on the chest,
-//               two "britches" behind each thigh, a broken belly line and a
-//               brushy tail tip. Still a sleek cat.
-//   long hair   a mane round the base of the neck (on the shoulders, never
-//               the scar's spot on the shoulder blade), a fuller cheek ruff,
-//               trousers, a belly skirt, a bushier tail outline and, where the
-//               row has `tufts` (the Maine Coon, a builder's long fur), ear
-//               tips. `fluffy` (D2, a builder's fluffy fur) is the same set,
-//               shorter and thinner.
-//   a kitten    short, even fuzz all round.
+//   short hair  a little: a small band at each cheek, one across the lower
+//               breast, "britches" behind each thigh, a slight broken line
+//               under the belly and a brushy tail tip. Still a sleek cat.
+//   long hair   a mane down each side of the neck's base (ahead of the
+//               shoulder blade, where a shoulder scar lies), a fuller cheek
+//               ruff, trousers, a belly skirt, a bushier tail outline and,
+//               where the row has `tufts` (the Maine Coon, a builder's long
+//               fur), ear tips. `fluffy` (D2, a builder's fluffy fur) is the
+//               same set, shorter.
+//   a kitten    short, even fuzz: cheeks, neck, breast, britches, tail.
 // A simple build (the crowd) gets a lighter set of the same.
 //
 // Outfits (worked out once, when the cat is built; buildCat is run again when
-// she changes clothes): a coat, sweater or hoodie covers the torso, so every
-// torso and chest lock is left out under one; a cape covers the shoulders and
-// the rump (no mane, no trousers, no chest clumps: its bands cross the
-// chest; a plumed tail's fur starts past its hem), the belly skirt hangs
-// below its hem and stays; a backpack's,
-// jetpack's or wings' straps run where the mane lies, so the mane is left out;
-// with a collar or anything round the neck the cheek ruff is kept short
-// enough to end above it, and with something round the neck the chest clumps
-// are left out (a tie, a scarf's tail and a bandana lie there).
+// she changes clothes): a coat, sweater or hoodie covers the torso, so all
+// the torso's and the chest's fur is left out under one; a cape covers the
+// shoulders and the rump (no mane, no trousers, no chest fur: its bands cross
+// the chest; a plumed tail's fur starts past its hem), the belly skirt hangs
+// below its hem and stays; a backpack's, jetpack's or wings' straps run where
+// the mane lies, so the mane is left out; with a collar or anything round the
+// neck a long-haired cat's cheek ruff keeps to the upper cheek, above it, and
+// with something round the neck the chest's fur is left out (a tie, a scarf's
+// tail and a bandana lie there); a hat covers the ear tips. Hanging fur is
+// drawn in where it would reach the ground in the sit, the nap or the stalk,
+// and a lying tail's fur is turned off the ground and the haunch.
 //
-// Every lock's place, length and lean is jittered by a stream seeded from the
-// cat's own style (tuftSeed), never Math.random and never the walk's stream:
-// the same cat always grows the same fur. No three.js object is made here (a
+// Every band's lobes and lean are jittered by a stream seeded from the cat's
+// own style (tuftSeed), never Math.random and never the walk's stream: the
+// same cat always grows the same fur. No three.js object is made here (a
 // geometry or a mesh would draw its uuid from Math.random and shift every
 // seeded stream that follows a cat's build); the arrays are grown in place,
 // as the neck's are (neck.js addNeck).
 
-// `amount` is the taste call: 1 as built; below 1 locks are dropped and the
-// rest are shorter, above 1 they are longer and stand out more. The picture
-// harness overrides it; the game never does.
+// `amount` is the taste call: 1 as built; below 1 the fur is shorter and
+// lies closer, above 1 it is longer and stands out more. The picture harness
+// overrides it; the game never does.
 export const TUFT = {
   amount: 1,
-  // lengths and widths in metres on a standard cat (before the cat's scale)
-  short: { len: 0.038, width: 0.036, rise: 0.16 },
-  fluffy: { len: 0.075, width: 0.055, rise: 0.26 },
-  long: { len: 0.105, width: 0.07, rise: 0.3 },
-  kitten: { len: 0.032, width: 0.032, rise: 0.22 },
+  // the longest lobe of a band, in metres on a standard cat (before the cat's scale)
+  short: { len: 0.038 },
+  fluffy: { len: 0.075 },
+  long: { len: 0.105 },
+  kitten: { len: 0.032 },
   // a lock's ridge stands this share of its width over its edges; its root is
   // sunk this share of its width under the surface
   thick: 0.4, sink: 0.25,
@@ -248,15 +256,8 @@ function along(d, n, lift = 0) {
   const t = norm([d[0] - n[0] * k, d[1] - n[1] * k, d[2] - n[2] * k]);
   return lift ? norm([t[0] + n[0] * lift, t[1] + n[1] * lift, t[2] + n[2] * lift]) : t;
 }
-// A lock list's shared jitter and the taste call. Returns null for a lock the
-// amount drops, else its size factors.
-function vary(rand, keepAll = false) {
-  const rank = rand(), a = TUFT.amount;
-  const len = 0.82 + 0.36 * rand(), wid = 0.88 + 0.24 * rand(), bend = (rand() - 0.5) * 0.36, turn = (rand() - 0.5) * 0.3;
-  if (!keepAll && a < 1 && rank > a) return null;
-  const k = a < 1 ? 0.75 + 0.25 * a : 1 + 0.5 * (a - 1);
-  return { len: len * k, wid, bend, turn, rise: a > 1 ? 1 + 0.4 * (a - 1) : 1 };
-}
+// One lock's own jitter: its length, sideways curl and lean.
+const jitter = (rand) => ({ len: 0.82 + 0.36 * rand(), bend: (rand() - 0.5) * 0.36, turn: (rand() - 0.5) * 0.3 });
 
 // ---------------------------------------------------------------------------
 // THE TORSO'S FUR: the mane (long fur), the trousers or britches, the belly
@@ -516,7 +517,7 @@ export function earTufts(plan, seed, geo, side, shade) {
   let top = 0;
   for (let i = 1; i < p.count; i++) if (p.getY(i) > p.getY(top)) top = i;
   const rand = mulberry32(seed ^ (side > 0 ? 0x3c6ef372 : 0x9e3779b9));
-  const v = vary(rand, true);
+  const v = jitter(rand);
   const col = [shade, shade, shade];
   addLock(out, [p.getX(top), p.getY(top) - 0.022, p.getZ(top) + 0.004], [0, 0, 1], norm([side * 0.18 + v.turn * 0.3, 1, 0.12]), {
     len: 0.05 * v.len, width: 0.022, rise: 0.08, droop: 0, bend: v.bend * 0.6, rings: 2, closed: true, sink: 0, thick: 0.25,

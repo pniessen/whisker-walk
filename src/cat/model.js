@@ -1210,6 +1210,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   g.add(body);
   // Fur tufts (cat realism B7, tufts.js): locks of fur written into the meshes
   // the cat already has. Which regions grow them depends on what she wears.
+  // opts.kitten (kitten.js): a kitten's short, even fuzz in place of her breed's fur.
   const tufts = { seed: tuftSeed(s), plan: tuftPlan(s, accessories, { simple: !!opts.simple, kitten: !!opts.kitten }) };
   // Hanging fur is kept off the ground where the body rests on it: the sit, the nap and the stalk.
   const legRise = LEGS.LEN * ((s.legLen ?? 1) - 1);
