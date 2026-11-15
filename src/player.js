@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { bus } from './events.js';
 import { CAT_LOOK_Y } from './cat/model.js';
-import { cameraOffset, moveDirection, viewForward } from './catcam.js';
+import { cameraOffset, moveDirection, viewForward, moveKeyHeld, isLetterMoveKey } from './catcam.js';
 import { isStalkMag } from './touchinput.js';
 import { hasSkill } from './skills.js';
 import { waterClearance, nearestDry, shallowExcess, nearestShallow } from './world/builder.js';
@@ -680,8 +680,7 @@ export function createPlayer(camera, canvas) {
       return velocity.length();
     },
     get inputActive() {
-      return keys.has('ArrowUp') || keys.has('ArrowDown') || keys.has('ArrowLeft') || keys.has('ArrowRight') ||
-        (!!touchMove && touchMove.mag > 0);
+      return moveKeyHeld(keys) || (!!touchMove && touchMove.mag > 0);
     },
     get stalking() {
       return keys.has('ShiftLeft') || keys.has('ShiftRight') ||
@@ -1036,6 +1035,13 @@ export function createPlayer(camera, canvas) {
   document.addEventListener('keydown', (e) => {
     if (!enabled) return;
     if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+    // W-A-S-D walk too, but never as part of a shortcut (Cmd-S, Ctrl-W…: the
+    // browser may not send that letter's key-up, which would leave the cat
+    // walking), and never while she is typing in a box.
+    if (isLetterMoveKey(e.code)) {
+      const tag = document.activeElement?.tagName || '';
+      if (e.metaKey || e.ctrlKey || e.altKey || tag === 'INPUT' || tag === 'TEXTAREA') return;
+    }
     keys.add(e.code);
   });
   document.addEventListener('keyup', (e) => keys.delete(e.code));

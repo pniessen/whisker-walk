@@ -20,12 +20,31 @@ export function viewForward(yaw) {
   return new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
 }
 
+// The keys that move the cat: the arrows, and W-A-S-D as well (the owner's
+// answer 6, 2026-11-15). By key POSITION (event.code), so on a keyboard laid
+// out differently it is still the same four keys under the left hand.
+// No other key of the game is one of these (E, Q, V, M, T, C, the digits).
+export const MOVE_KEYS = Object.freeze({
+  up: Object.freeze(['ArrowUp', 'KeyW']),
+  down: Object.freeze(['ArrowDown', 'KeyS']),
+  left: Object.freeze(['ArrowLeft', 'KeyA']),
+  right: Object.freeze(['ArrowRight', 'KeyD']),
+});
+const LETTER_MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
+export const isLetterMoveKey = (code) => LETTER_MOVE_KEYS.has(code);
+const held = (keys, list) => keys.has(list[0]) || keys.has(list[1]);
+
+// Any move key held.
+export function moveKeyHeld(keys) {
+  return held(keys, MOVE_KEYS.up) || held(keys, MOVE_KEYS.down) || held(keys, MOVE_KEYS.left) || held(keys, MOVE_KEYS.right);
+}
+
 export function moveDirection(keys, yaw) {
   const dir = new THREE.Vector3();
-  if (keys.has('ArrowUp')) dir.z -= 1;
-  if (keys.has('ArrowDown')) dir.z += 1;
-  if (keys.has('ArrowLeft')) dir.x -= 1;
-  if (keys.has('ArrowRight')) dir.x += 1;
+  if (held(keys, MOVE_KEYS.up)) dir.z -= 1;
+  if (held(keys, MOVE_KEYS.down)) dir.z += 1;
+  if (held(keys, MOVE_KEYS.left)) dir.x -= 1;
+  if (held(keys, MOVE_KEYS.right)) dir.x += 1;
   if (dir.lengthSq() === 0) return dir;
   return dir.normalize().applyAxisAngle(UP, yaw);
 }
