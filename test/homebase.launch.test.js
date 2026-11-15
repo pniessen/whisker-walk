@@ -996,3 +996,128 @@ describe('Back: depth() and back()', () => {
     expect(hb.back()).toBe(false);
   });
 });
+
+// 2026-11-15, guided-first-walk design, sections 6 and 7: the "next thing"
+// line above Start, and the first pick opening its land.
+describe('the next-thing line and the first pick', () => {
+  const NEXT = 'button[data-next]';
+  const tapNext = (action, place = null) => clickRoot({ [NEXT]: { getAttribute: (a) => (a === 'data-next' ? action : a === 'data-next-place' ? place : null) } });
+  const rule = () => Number(html().match(/data-next-rule="(\d+)"/)?.[1] ?? 0);
+  const pickCard = (id) => {
+    const card = { getAttribute: (a) => (a === PICK_ATTR ? id : null) };
+    moment().listeners.click({ target: { closest: (sel) => (sel === `[${PICK_ATTR}]` ? card : null) } });
+  };
+
+  it('a brand-new save reads "A friend is waiting outside", just above Start', () => {
+    setup();
+    expect(rule()).toBe(2);
+    expect(html()).toContain('A friend is waiting outside. Tap Start!');
+    expect(html().indexOf('class="hb-next"')).toBeLessThan(html().indexOf('id="btn-start"'));
+    expect(html().match(/class="hb-next"/g)).toHaveLength(1); // always exactly one
+  });
+
+  it('after a first walk it says what is next, and after the second it is the pick', () => {
+    const { progression, hb } = setup();
+    progression.addPoints(55);
+    progression.completeWalk('neighborhood');
+    hb.refresh();
+    expect(rule()).toBe(7); // "One more walk here and the Woods opens!" (the free place first)
+    progression.completeWalk('neighborhood');
+    hb.refresh();
+    expect(rule()).toBe(4);
+    expect(html()).toContain('The wild cats have seen you. Pick your home!');
+  });
+
+  it('the line is not there on a sheet, or in a room with someone', () => {
+    setup();
+    openSheet('menu');
+    expect(html()).not.toContain('hb-next');
+    setup({ rooms: IN_ROOM });
+    expect(html()).not.toContain('hb-next');
+  });
+
+  it('a tap on the pick line brings up the cards, even after "Not yet"', () => {
+    setup({ state: woodsOpened });
+    store.set(MOMENT_SEEN_KEY, '1');
+    expect(moment()).toBeUndefined();
+    tapNext('pick');
+    expect(moment()).toBeTruthy();
+  });
+
+  it('the first pick opens that land at once and makes it today\'s walk', () => {
+    const { progression, hb } = setup({ state: woodsOpened });
+    hb.showVisit(PLAIN);
+    expect(progression.isUnlocked('areas', 'pines')).toBe(false); // four of the five are locked after walk two
+    pickCard('pines');
+    expect(progression.state.clanPick.mine).toBe('pines');
+    expect(progression.isUnlocked('areas', 'pines')).toBe(true);
+    expect(progression.state.area).toBe('pines');
+    expect(rule()).toBe(5);
+    expect(html()).toContain('Your new home is the Pines and Swamp. Go and see your camp!');
+  });
+
+  it('a later change of group does not move today\'s walk or open anything', () => {
+    const { progression } = setup({ state: (st) => { st.walks.neighborhood = 2; st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
+    openSheet('places');
+    clickRoot({ [`[${MOMENT_ATTR}]`]: {} });
+    pickCard('moor');
+    expect(progression.state.clanPick.mine).toBe('moor');
+    expect(progression.state.area).toBe('neighborhood');
+    expect(progression.isUnlocked('areas', 'moor')).toBe(false);
+  });
+
+  it('Legacy Edition never shows the group rules', () => {
+    const { progression, hb } = setup({ state: (st) => { st.walks.neighborhood = 2; st.edition = 'legacy'; } });
+    hb.showVisit(PLAIN);
+    expect(moment()).toBeUndefined();
+    expect(rule()).toBeGreaterThan(6);
+    progression.state.clanPick = { mine: 'woods', partner: null, partnerId: null };
+    hb.refresh();
+    expect(rule()).toBeGreaterThan(6);
+    expect(html()).not.toMatch(/Pick your home|new home|way to your home/);
+  });
+
+  it('a tap on a place line makes that place today\'s walk', () => {
+    const { progression } = setup({ state: (st) => { st.walks.neighborhood = 2; st.clanPick = { mine: 'gorge', partner: null, partnerId: null }; } });
+    expect(rule()).toBe(6);
+    expect(html()).toContain('The way to your home starts in the Woods.');
+    tapNext('place', 'woods');
+    expect(progression.state.area).toBe('woods');
+    // junk from the page is refused
+    tapNext('place', '__proto__');
+    tapNext('place', null);
+    expect(progression.state.area).toBe('woods');
+  });
+
+  it('the thing-to-wear line counts a visit once, however often home is drawn', () => {
+    const { progression, hb } = setup({ state: (st) => { st.walks.neighborhood = 3; st.walks.woods = 1; st.clanPick = { mine: 'woods', partner: null, partnerId: null }; st.points = 55; } });
+    expect(rule()).toBe(8);
+    hb.refresh();
+    hb.refresh();
+    expect(progression.state.tutorial.told).toEqual({ thing: 'beanie', visits: 1 });
+    expect(rule()).toBe(8);
+  });
+
+  it('a first visit\'s present: the line says so, and a tap on it opens the present', () => {
+    const { progression, hb } = setup();
+    const visit = progression.recordVisit();
+    hb.show();
+    expect(hb.showVisit(visit)).toBe(true);
+    expect(rule()).toBe(1);
+    expect(html()).toContain('Tap the present! 🎁');
+    expect(progression.state.equipped.head).not.toBe('partycrown');
+    tapNext('present');
+    expect(progression.state.equipped.head).toBe('partycrown'); // opened, as its own button does
+    expect(rule()).toBe(2);
+    tapNext('present'); // nothing left to open
+    expect(rule()).toBe(2);
+  });
+
+  it('the den line goes to the den and is not shown again today', () => {
+    const onVisitDen = vi.fn();
+    setup({ onVisitDen });
+    tapNext('den');
+    expect(onVisitDen).toHaveBeenCalledTimes(1);
+    expect(store.get('whisker-walk-den-day')).toBe(new Date().toISOString().slice(0, 10));
+  });
+});

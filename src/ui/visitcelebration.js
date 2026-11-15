@@ -309,6 +309,14 @@ export function createVisitCelebration(mount, {
       finish(reason === 'walk' ? 'walk' : 'done');
     },
     isOpen() { return !!root; },
+    // A present is up and not opened yet (the home screen's "next thing" line
+    // says so), and the way to open it from there: the same as its own button.
+    hasPresent() { return !!root && !!current && !current.opened; },
+    openPresent() {
+      if (!root || !current || current.opened) return false;
+      handleClick({ target: { closest: () => ({ dataset: { vc: 'open' } }) } });
+      return true;
+    },
     // Up and in view (not put away).
     isShowing() { return !!root && !away; },
     // setAway(true): hide it, stopping its timers, so a hold cannot run out
