@@ -15,7 +15,8 @@ import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
 import { buildBackItem, buildHood } from './backitems.js';
 import { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry, capeTieGeometry, layCapeTie } from './cape.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
-import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals, PROPORTION } from './torso.js';
+import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals, keepFacing, PROPORTION, NECK } from './torso.js';
+import { NECK_RINGS, neckLoops, neckGeometry, layNeck } from './neck.js';
 
 const STYLE = {
   // The tabby and zeetoo wear the tabby "M" on the forehead (polish-faces):
@@ -937,6 +938,8 @@ export const CAT_LOOK_Y = HEAD.POS[1] + 0.04;
 // `f` is STYLE.body (Digit's narrow frame). userData.ranges gives each part's
 // vertex range; userData.chestCentre the chest's centre, torso-local.
 // A simple build rounds the belly and chest at 12×8 (the triangle cap).
+const underSeams = new Map();
+const tailSeams = new Map();
 const IDENTITY16 = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   const [fx, fy, fz] = f;
@@ -980,6 +983,24 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
     // vertex-coloured and without uv
     parts.ruff = toTorso(ruffGeometry(s, opts.simple));
   }
+  // The neck (cat realism B1, neck.js): full builds only. Its points are laid
+  // by layNeck (buildCat, then the animator every frame); here it gets its
+  // colours: ring 0 the coat (the chest's colour under the throat), ring 4
+  // the skull's, the rings between eased from one to the other.
+  let loops = null;
+  if (!opts.simple && opts.neck) {
+    loops = neckLoops(!!opts.neck.bare);
+    const neck = neckGeometry(), N = NECK.AROUND, col = neck.attributes.color.array;
+    const from = new THREE.Color(), to = new THREE.Color(), chest = new THREE.Color(coat.chest), c = new THREE.Color();
+    for (let j = 0; j < N; j++) {
+      const up = Math.cos((j / N) * Math.PI * 2); // 1 at the nape, -1 at the throat
+      const k = Math.min(1, Math.max(0, (-up - 0.1) / 0.5));
+      coatColourAt(coat, [loops.bu[j * 3], loops.bu[j * 3 + 1], loops.bu[j * 3 + 2]], from).lerp(chest, k * k * (3 - 2 * k));
+      opts.neck.skullColourAt(loops.h[j * 3], loops.h[j * 3 + 1], loops.h[j * 3 + 2], to);
+      for (let i = 0; i < NECK_RINGS; i++) c.lerpColors(from, to, i / (NECK_RINGS - 1)).toArray(col, (i * N + j) * 3);
+    }
+    parts.neck = neck;
+  }
   const ranges = {};
   let at = 0;
   for (const [k, geo] of Object.entries(parts)) {
@@ -991,8 +1012,16 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   for (const p of Object.values(parts)) p.dispose();
   // The seams (cat realism A4, torso.js SEAM): the belly's and the chest's
   // normals flow into the torso's where they meet it (the ruff keeps its own).
-  seamNormals(geo.attributes.position.array, geo.attributes.normal.array, IDENTITY16, BS, SEAM.underReach, ranges.belly[0], ranges.chest[1]);
+  // Worked out once for each body shape and build, then copied.
+  const seamKey = `${f}|${+!!opts.simple}`;
+  let seamed = underSeams.get(seamKey);
+  if (!seamed) {
+    seamed = seamNormals(geo.attributes.position.array, geo.attributes.normal.array.slice(0, ranges.chest[1] * 3), IDENTITY16, BS, SEAM.underReach, ranges.belly[0], ranges.chest[1]);
+    underSeams.set(seamKey, seamed);
+  }
+  geo.attributes.normal.array.set(seamed);
   geo.userData.ranges = ranges;
+  if (loops) geo.userData.neck = { start: ranges.neck[0], around: NECK.AROUND, napeTo: Math.floor(NECK.AROUND / 6), loops };
   geo.userData.chestCentre = [0, CHEST.DY / BS[1], CHEST.Z * fz / BS[2]];
   // the chest and belly balls as ellipsoids in the cat's resting frame (cape.js
   // layCapeTie keeps the cape's front bands and clasp out of them)
@@ -1053,15 +1082,21 @@ export function noseHex(s, breed) {
 // way to the body colour behind. Colour only: same meshes, same triangles.
 export const POINT_MASK = Object.freeze({ face: 0.18, back: 0.55, from: -0.25, to: 0.75 });
 export const faceHex = (s) => (s.points ? new THREE.Color(s.accent).lerp(new THREE.Color(s.base), POINT_MASK.face).getHex() : s.belly);
+// The mask's colour at a point of the skull's own geometry (radius r, before
+// the skull's scale).
+function pointMaskAt(s, x, y, z, r, out,
+  back = new THREE.Color(s.accent).lerp(new THREE.Color(s.base), POINT_MASK.back), mask = new THREE.Color(s.accent)) {
+  // -z is the face; the mask also runs low round the cheeks (y < 0)
+  const front = -z / r, low = -y / r;
+  const k = Math.min(1, Math.max(0, (Math.max(front, 0.6 * low + 0.2) - POINT_MASK.from) / (POINT_MASK.to - POINT_MASK.from)));
+  return out.lerpColors(back, mask, k * k * (3 - 2 * k));
+}
 function paintPointMask(skull, s) {
   const geo = skull.geometry, p = geo.attributes.position, col = new Float32Array(p.count * 3);
   const mask = new THREE.Color(s.accent), back = new THREE.Color(s.accent).lerp(new THREE.Color(s.base), POINT_MASK.back), c = new THREE.Color();
   const r = geo.parameters.radius;
   for (let i = 0; i < p.count; i++) {
-    // -z is the face; the mask also runs low round the cheeks (y < 0)
-    const front = -p.getZ(i) / r, low = -p.getY(i) / r;
-    const k = Math.min(1, Math.max(0, (Math.max(front, 0.6 * low + 0.2) - POINT_MASK.from) / (POINT_MASK.to - POINT_MASK.from)));
-    c.lerpColors(back, mask, k * k * (3 - 2 * k));
+    pointMaskAt(s, p.getX(i), p.getY(i), p.getZ(i), r, c, back, mask);
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -1159,12 +1194,16 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // The underside: belly, chest and (fluffy cats) ruff, merged into ONE
   // vertex-coloured mesh hung on the torso, so it naps, sits and stretches with
   // it. The animator counter-yaws it (R4) so the chest stays under the chin.
+  // The neck's head end wears the skull's colour: the point colour, or on a
+  // pointed cat the mask's own shade at that spot (paintPointMask).
+  const skullColourAt = (x, y, z, out) => (s.points ? pointMaskAt(s, x, y, z, SKULL.R, out) : out.set(pointColor));
   const underside = new THREE.Mesh(
-    undersideGeometry(s, coat, [fx, fy, fz], opts),
+    undersideGeometry(s, coat, [fx, fy, fz], { ...opts, neck: { skullColourAt, bare: !accessories.body } }),
     litMaterial(0xffffff, { vertexColors: true }));
   underside.userData.underside = true;
   underside.userData.ranges = underside.geometry.userData.ranges;
   underside.userData.chestCentre = underside.geometry.userData.chestCentre;
+  underside.userData.neck = underside.geometry.userData.neck; // full builds (neck.js)
   body.add(underside);
 
   // head
@@ -1430,6 +1469,23 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   tail.rotation.x = TAIL.ROOT_TILT;
   tail.scale.setScalar(TAIL.SCALE);
   g.add(tail);
+  // The seams (cat realism A4/B2): the first link's normals flow into the
+  // rump's where it leaves the tail base. The link turns with the tail, so
+  // they are fitted for a tail carried TAIL.SEAM_LIFT above level, between
+  // the standing tail (level) and the walking one (raised ~0.67 rad).
+  {
+    const geo0 = tailPivots[0].children[0].geometry;
+    const link = new THREE.Matrix4().compose(tail.position, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -TAIL.SEAM_LIFT), tail.scale);
+    const m = new THREE.Matrix4().compose(body.position, new THREE.Quaternion(), body.scale).invert().multiply(link).elements;
+    const key = `${BODY_SCALE}|${plume}|${TF}|${+!!opts.simple}|${tail.position.z}`;
+    let seamed = tailSeams.get(key);
+    if (!seamed) {
+      const own = geo0.attributes.normal.array.slice();
+      seamed = keepFacing(geo0.attributes.position.array, seamNormals(geo0.attributes.position.array, own.slice(), m, BODY_SCALE, SEAM.tailReach), own, geo0.index.array);
+      tailSeams.set(key, seamed);
+    }
+    geo0.attributes.normal.array.set(seamed);
+  }
 
   // -------------------------------------------------------------------------
   // BREED MARKINGS. Every one of these is now a patch of the surface it sits on
@@ -1945,6 +2001,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   if (tie) {
     body.updateMatrix(); head.updateMatrix(); underside.updateMatrix();
     layCapeTie(tie, head.matrix, body.matrix, head.matrix, underside.matrix);
+  }
+
+  // The neck, laid for the resting cat (the animator re-lays it every frame);
+  // its mesh's bounds are widened so it is never culled as the head moves.
+  if (underside.userData.neck) {
+    body.updateMatrix(); head.updateMatrix(); underside.updateMatrix();
+    layNeck(underside.userData.neck, body.matrix, head.matrix, head.matrix, underside.matrix, underside.geometry);
+    underside.geometry.computeBoundingSphere();
+    underside.geometry.boundingSphere.radius *= 1.5;
   }
 
   // polish-catlight: the fur catches a soft sky rim on the walk (rimlight.js).

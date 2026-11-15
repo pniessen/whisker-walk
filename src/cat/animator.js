@@ -3,6 +3,7 @@ import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG } from '.
 import { fitScars } from './scarmesh.js';
 import { HOOD, slideHoodTo } from './backitems.js';
 import { layCapeTie } from './cape.js';
+import { layNeck } from './neck.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 import { isHenFightState, poseHen, syncHenRig } from './henfight.js';
 
@@ -246,6 +247,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   }
   // Every state, once the body is where the pose fit left it.
   floatBalloons(cat);
+  fitNeckSkin(cat, state);
   fitNeck(cat, state);
   tieCape(cat, state);
   slideHood(cat);
@@ -584,6 +586,27 @@ function fitNeck(cat, state) {
   if (neckwear) for (const item of neckwear) carry(item);
 }
 
+// The neck's skin (cat realism B1, neck.js; full builds only, a simple cat
+// has none and leaves at the first check). Its torso end rides the body, its
+// skull end the head, and its middle the neck line exactly as a collar does
+// (the same neckMove, the same NECK_FIT; with the head as built in the
+// stretch and the swim), so whatever is worn round the neck rests on it in
+// every pose. 60 points, no allocation.
+const _neckM = new THREE.Matrix4();
+function fitNeckSkin(cat, state) {
+  const { body, head, underside } = cat.userData.parts;
+  const neck = underside?.userData.neck;
+  if (!neck) return;
+  body.updateMatrix(); head.updateMatrix(); underside.updateMatrix();
+  if (HEAD_NECKWEAR.has(state)) _neckM.copy(head.matrix);
+  else {
+    const { turn, anchor } = NECK_FIT[state] ?? NECK_FIT_DEFAULT;
+    neckMove(cat, turn, anchor);
+    _neckM.multiplyMatrices(head.matrix, _X);
+  }
+  layNeck(neck, body.matrix, head.matrix, _neckM, underside.matrix, underside.geometry);
+}
+
 // The cape's clasp and front bands (cape.js CAPE_TIE, owner 2026-11-04): the
 // clasp rides the neck exactly as the collar does (the same neckMove carry; on
 // the head as built in the stretch and the swim), and each band runs from the
@@ -615,6 +638,7 @@ function tieCape(cat, state) {
 export function refitNeck(cat, state) {
   const { body, underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(body, underside);
+  fitNeckSkin(cat, state);
   fitNeck(cat, state);
   tieCape(cat, state);
 }

@@ -1,3 +1,4 @@
+import { torsoBox } from './neck.js';
 import * as THREE from 'three';
 import { animateCat } from './animator.js';
 
@@ -40,6 +41,9 @@ export function waterFit(cat) {
   if (cat.userData.waterFit) return cat.userData.waterFit;
   const saved = [];
   cat.traverse((o) => saved.push(o, o.position.clone(), o.rotation.clone(), o.scale.clone()));
+  // the neck's skin is laid per pose (neck.js): keep its points as posed too
+  const under = cat.userData.parts.underside, neck = under?.userData.neck;
+  const laid = neck && ['position', 'normal'].map((k) => under.geometry.attributes[k].array.slice());
   const parent = cat.parent;
   cat.parent = null; // measure in the group's own frame, whatever it hangs from
   cat.position.set(0, 0, 0);
@@ -47,12 +51,13 @@ export function waterFit(cat) {
   cat.scale.set(1, 1, 1);
   animateCat(cat, 'follow', 0, 0);
   cat.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(cat.userData.parts.body, true);
+  const box = torsoBox(cat.userData.parts.body); // the torso and all on it, less the neck's skin (neck.js)
   for (let i = 0; i < saved.length; i += 4) {
     saved[i].position.copy(saved[i + 1]);
     saved[i].rotation.copy(saved[i + 2]);
     saved[i].scale.copy(saved[i + 3]);
   }
+  if (laid) ['position', 'normal'].forEach((k, i) => { under.geometry.attributes[k].array.set(laid[i]); under.geometry.attributes[k].needsUpdate = true; });
   cat.parent = parent;
   cat.updateMatrixWorld(true);
   const fit = { torsoMin: box.min.y, torsoH: box.max.y - box.min.y };

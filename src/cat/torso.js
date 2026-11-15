@@ -93,6 +93,35 @@ export const HEAD = { POS: [0, 0.70, -0.40], SCALE: 1.06 };
 // before it builds a cat; the owner picks from that sheet.
 export const PROPORTION = { head: 1, body: 1 };
 
+// THE NECK (cat realism B1, 2026-11-15; neck.js, animator.js fitNeckSkin). A
+// short thick skin from the shoulders and the front of the torso to the back
+// and underside of the skull, in three loops of AROUND points with two eased
+// rings between them:
+//   B, on the torso's own surface. Under the throat and at the sides it is the
+//      torso's section at unit z BASE_Z, just ahead of where a cape or a coat
+//      ends (cape.js CAPE.zFront -0.8). On a cat that wears nothing on its
+//      body the top of the loop reaches back over the shoulders to NAPE_Z, so
+//      the skin bridges the notch behind the head; a dressed cat's stays at
+//      BASE_Z all round, so its neck comes out of the garment's neckline and
+//      never through the cloth.
+//   M, round the neck line where the collar sits (head frame, carried exactly
+//      as the collar is, animator.js neckMove): R_SIDE across, R_BACK behind
+//      and R_FRONT at the throat, each a little inside the collar's ring
+//      (0.15 less its 0.028 tube), so a collar or scarf rests ON the neck. On
+//      a bare-bodied cat its nape point stands out to M_NAPE (the back of a
+//      collar is already under the shoulders' fur there).
+//   H, on the skull, ALPHA round the axis that points down and TILT back: from
+//      a little above the skull's middle at the back to under the chin.
+// B and H lie SINK under their surfaces and wear those surfaces' normals and
+// colours, so the neck leaves the body and enters the head without a crease.
+// Standing, most of it is inside the head and chest; the nape shows always,
+// the rest when the head lowers, lifts or turns away from the shoulders. Full
+// builds only: it is re-laid every frame (60 points), which the crowd's
+// simple cats skip.
+// NAPE (0..1) is the taste call: how far the bare cat's nape stands out, 1 the
+// full bridge to M_NAPE, 0 none (a dressed cat's neck).
+export const NECK = { AROUND: 12, BASE_Z: -0.84, NAPE_Z: -0.45, M_AT: [0, -0.14, 0.055], R_SIDE: 0.125, R_BACK: 0.14, R_FRONT: 0.115, M_NAPE: [0, -0.025, 0.21], NAPE: 1, NAPE_REACH: 0.4, TILT: 0.7, ALPHA: 0.87, SINK: 0.012 };
+
 // The skull: a sphere of radius R scaled by SCALE, centred on the head's origin
 // (model.js buildCat). scarmesh.js lays a face scar on this same ellipsoid.
 export const SKULL = Object.freeze({ R: 0.21, SCALE: Object.freeze([1, 0.92, 0.95]) });
