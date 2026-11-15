@@ -100,8 +100,14 @@ export function walkFacts(session, { player, state }, f = {}) {
   return f;
 }
 
-export function createTips({ player, progression, settings, hud, getIsTouch }) {
-  let live = null; // { session, engine, facts, accum, lastYaw, turned }
+// The hints count REAL seconds, not the walk's own clock: the walk's clock
+// runs slow on a device that cannot keep up (its step is capped), and "twelve
+// seconds" and "one a minute" are promises about the child's time. A gap
+// longer than this between two frames is a pause (the card was up), not play.
+const REAL_STEP_MAX_S = 1;
+
+export function createTips({ player, progression, settings, hud, getIsTouch, now = () => performance.now() }) {
+  let live = null; // { session, engine, facts, accum, lastYaw, turned, lastAt }
 
   const enabled = () => settings?.get?.('showTips') !== false;
 
@@ -129,7 +135,7 @@ export function createTips({ player, progression, settings, hud, getIsTouch }) {
       });
       session.hints = engine;
       live = {
-        session, engine, accum: 0, turned: 0, lastYaw: null,
+        session, engine, accum: 0, turned: 0, lastYaw: null, lastAt: null,
         facts: { t: 0, walkNo: walked + 1, looked: (state.tutorial.hints.look ?? 0) >= 3 },
       };
     },
@@ -137,7 +143,10 @@ export function createTips({ player, progression, settings, hud, getIsTouch }) {
     update(session, dt) {
       if (!live || live.session !== session) return;
       const f = live.facts;
-      f.t += dt;
+      const at = now();
+      const real = live.lastAt === null ? dt : Math.min(REAL_STEP_MAX_S, Math.max(0, (at - live.lastAt) / 1000));
+      live.lastAt = at;
+      f.t += real;
       // Turning the view (a drag, the mouse): once she has, she knows how.
       const yaw = player.viewYaw();
       if (live.lastYaw !== null && !f.looked) {
@@ -145,7 +154,7 @@ export function createTips({ player, progression, settings, hud, getIsTouch }) {
         if (live.turned > LOOKED_RAD) { f.looked = true; progression.knowHint('look'); }
       }
       live.lastYaw = yaw;
-      live.accum += dt;
+      live.accum += real;
       if (live.accum < FACTS_EVERY_S) return;
       const step = live.accum;
       live.accum = 0;
