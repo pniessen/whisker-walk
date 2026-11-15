@@ -75,7 +75,7 @@ const TAIL_SWAY_DAMP = [0, 0.2, 0.6, 0.8, 0.8];
 // just in front of it (the line swings ~55° back and sideways): turned with
 // it, the streamers, tie and charms stuck straight out forward, and carried
 // at the head's own drop the streamers went 9 cm into the ground. So in the
-// nap they take a little of the neck's turn (0.15) about a point a third of
+// nap they take a little of the neck's turn (0.15; 0.10 since the smaller head) about a point a third of
 // the way from the chest to the head (NECK_FIT: `turn` the share of the turn
 // taken; `anchor` -1 at the chest, 0 at the neck's midpoint, 1 at the head;
 // any other pose takes the neck's own move, { turn: 1, anchor: 0 }). Measured
@@ -88,7 +88,10 @@ const TAIL_SWAY_DAMP = [0, 0.2, 0.6, 0.8, 0.8];
 // the lowered head. So they are in the swim, which sinks the shoulders and
 // holds the head up out of the water: carried on the neck, Digit's tag collar
 // dipped under the waterline; on the head it stays up with it.
-const NECK_FIT = { nap: { turn: 0.15, anchor: -0.35 } };
+// 2026-11-15 (cat realism B3, head 8% smaller): the nap's share of the turn
+// 0.15 -> 0.10. The smaller head's nose sits 1-2 mm further back, and at 0.15
+// the bell's front edge came out just ahead of it.
+const NECK_FIT = { nap: { turn: 0.10, anchor: -0.35 } };
 const NECK_FIT_DEFAULT = { turn: 1, anchor: 0 };
 const HEAD_NECKWEAR = new Set(['stretch', 'swim']);
 

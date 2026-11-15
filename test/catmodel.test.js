@@ -452,7 +452,8 @@ describe('cat model: the Version 2 proportions', () => {
     const cat = buildCat('tabby'); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
     expect(new THREE.Box3().setFromObject(cat.userData.parts.body).min.y).toBeGreaterThan(0.18); // was 0.10
     expect(cat.userData.parts.head.position.toArray()).toEqual([0, 0.70, -0.40]);
-    expect(cat.userData.parts.head.scale.x).toBe(1.06);
+    // 2026-11-15: 1.06 x 0.92, the owner's pick of the 8% smaller head (cat realism B3).
+    expect(cat.userData.parts.head.scale.x).toBeCloseTo(1.06 * 0.92, 10);
     expect(cat.userData.base.legLift).toBeCloseTo(0.09, 6);
     expect(cat.userData.base.hipY).toBeCloseTo(0.39, 6);
   });

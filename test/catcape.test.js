@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat, CAPE_TIE } from '../src/cat/model.js';
-import { HEAD } from '../src/cat/torso.js';
+import { HEAD, PROPORTION } from '../src/cat/torso.js';
 import { animateCat } from '../src/cat/animator.js';
 import { STATES, meshCount } from './helpers/catfingerprint.js';
 import {
@@ -100,7 +100,8 @@ describe(DESCRIBE, () => {
       expect(reach.length, 'gold').toBeGreaterThan(0);
       expect(reach.length, 'a ruby').toBeLessThan(count);
       // (r is in the head's frame, as every neck piece is: × HEAD.SCALE on the cat)
-      const r = CAPE_TIE.r * HEAD.SCALE;
+      // 2026-11-15: the head is 8% smaller (B3), and the tie with it.
+      const r = CAPE_TIE.r * HEAD.SCALE * PROPORTION.head;
       expect(Math.max(...reach)).toBeCloseTo(r, 3);
       expect(Math.min(...reach)).toBeGreaterThanOrEqual(r * CAPE_TIE.flat - 1e-3);
     }

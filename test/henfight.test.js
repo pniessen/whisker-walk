@@ -195,7 +195,8 @@ describe('catDims for Hagrid', () => {
 
   it('leaves a tabby\'s numbers exactly as they were', () => {
     expect(catDims(buildCat('tabby'))).toEqual({
-      top: 0.9683838503046882, backY: 0.6722790867090225, pinnedBackY: 0.4144409424304961,
+      // 2026-11-15: top 0.96838 -> 0.94691, the 8% smaller head (cat realism B3); the rest unmoved.
+      top: 0.9469131422803132, backY: 0.6722790867090225, pinnedBackY: 0.4144409424304961,
       hindZ: 0.2949736685231328, pivotY: 0.43,
     });
   });

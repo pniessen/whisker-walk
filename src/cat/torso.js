@@ -86,12 +86,13 @@ export function shellInflate(uy) {
 }
 
 export const HEAD = { POS: [0, 0.70, -0.40], SCALE: 1.06 };
-// B3 (cat realism round 1): the two proportion numbers, as OPTIONS. 1 and 1 are
-// today's cat, exactly. `head` scales the whole head (and the hat, glasses and
-// neckwear on it); `body` lengthens the torso and moves the hips, the tail's
-// root and the head along with its ends. Only the picture harness sets them,
-// before it builds a cat; the owner picks from that sheet.
-export const PROPORTION = { head: 1, body: 1 };
+// B3 (cat realism round 1): the two proportion numbers. `head` scales the
+// whole head (and the hat, glasses and neckwear on it); `body` lengthens the
+// torso and moves the hips, the tail's root and the head along with its ends.
+// Owner's pick from the three-column sheet, 2026-11-15: the head 8% smaller,
+// the body as it was. The picture harness may still override them before it
+// builds a cat.
+export const PROPORTION = { head: 0.92, body: 1 };
 
 // THE NECK (cat realism B1, 2026-11-15; neck.js, animator.js fitNeckSkin). A
 // short thick skin from the shoulders and the front of the torso to the back

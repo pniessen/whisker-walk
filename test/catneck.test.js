@@ -113,8 +113,9 @@ describe('the neck (cat realism B1)', () => {
     expect(torso.max.y).toBeCloseTo(new THREE.Box3().setFromObject(buildCat('tabby', undefined, { simple: true }).userData.parts.body, true).max.y, 2);
   });
 
-  it('the proportion options are off: 1 and 1', () => {
-    expect(PROPORTION).toEqual({ head: 1, body: 1 });
-    expect(buildCat('tabby').userData.parts.head.scale.x).toBe(HEAD.SCALE);
+  // 2026-11-15: the owner picked "head 8% smaller" from the B3 sheet.
+  it('the head is 8% smaller and the body its old length', () => {
+    expect(PROPORTION).toEqual({ head: 0.92, body: 1 });
+    expect(buildCat('tabby').userData.parts.head.scale.x).toBeCloseTo(HEAD.SCALE * 0.92, 10);
   });
 });

@@ -20,6 +20,10 @@ import { closeDiffs } from './helpers/closeto.js';
 // with the previous fixture: only shadows.all and shadows.active differ, and in
 // shadows.active only the player cat's blob scale (1.7082 -> 1.6968, the
 // thinner ears make her box 0.7% smaller). No position, speed or state moved.
+// 2026-11-15, later the same day: re-recorded once for cat realism round 1
+// (rump, neck, head 8% smaller). Compared field by field: only shadows.all and
+// shadows.active differ, and in shadows.active only cats' blob scales (each
+// about 1% smaller, from the smaller head). No position, speed or state moved.
 //
 // What runs, in main.js's frame order: player.update, critters, strays, clan
 // cats (the four territories), intruders (a fixed clock with a visit on the
