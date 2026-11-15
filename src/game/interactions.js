@@ -573,6 +573,7 @@ export function createInteractions({
     if (!s.enemies?.allowScuffle(stray.name)) return;
 
     audio.hiss();
+    bus.emit('tip', { id: 'hiss', name: stray.name });
     s.fx?.burst(stray.group.position, 0xd8cdb8, 10);   // a dust-puff scuffle
     // D3, and the one place this wave is allowed to subtract. deductPoints
     // touches state.points ONLY and floors at zero — state.lifetimePoints,
