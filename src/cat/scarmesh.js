@@ -79,7 +79,8 @@ export const SCAR_LAYOUT = Object.freeze({
 // The ear nick (polish-catlooks, 2026-11-02): a face scar also marks the ear
 // on its side, where the walk camera sees it: two short strokes in a shallow
 // V across the back of the ear, toward its outer edge, about 60% of the way up
-// from its base. The ear is a 4-sided cone whose base corners point back
+// from its base. (Since cat-beauty B1 the ear has a flat back face; see layNick.)
+// Before B1: the ear is a 4-sided cone whose base corners point back
 // (+z), out, forward and in, so its back-outer facet faces the camera behind
 // the cat. `points` are the V's [across, up] on that facet: across runs from
 // the back corner (0) to the outer corner (1), up from the base (0) to the tip
@@ -227,8 +228,22 @@ function layNick(ear, sx, out) {
   const r = prm.radius, h = prm.height;
   // three.js puts a cone's base corner k at (r sin(k pi/2), -h/2, r cos(k pi/2)).
   const A = new THREE.Vector3(0, h / 2, 0);
-  const B = new THREE.Vector3(0, -h / 2, r);
-  const C = new THREE.Vector3(sx * r, -h / 2, 0);
+  let B = new THREE.Vector3(0, -h / 2, r);
+  let C = new THREE.Vector3(sx * r, -h / 2, 0);
+  // cat-beauty B1 (2026-11-15): the ear is now a thin shell with a flat BACK
+  // face (model.js earGeometry turns the cone 45° and thins it), so its base
+  // has a back-outer corner. The nick lies on that back face, from the middle
+  // of its base edge (0) to the back-outer corner (1): still the outer half of
+  // the ear's back. Read from the ear's own vertices, so it follows EAR_SHAPE.
+  const ring = ear.geometry.attributes.position;
+  const v = new THREE.Vector3();
+  let corner = null;
+  for (let i = 0; i < ring.count; i++) {
+    v.fromBufferAttribute(ring, i);
+    if (Math.abs(v.y + h / 2) > 1e-6 || v.z < 1e-6 || v.x * sx < 1e-6) continue;
+    if (!corner || v.x * sx > corner.x * sx) corner = v.clone();
+  }
+  if (corner) { C = corner; B = new THREE.Vector3(0, -h / 2, corner.z); }
   const N = new THREE.Vector3().crossVectors(C.clone().sub(B), A.clone().sub(B)).normalize();
   if (N.x * sx + N.z < 0) N.negate();
   const at = ([v, u]) => B.clone().lerp(C, v).lerp(A, u);

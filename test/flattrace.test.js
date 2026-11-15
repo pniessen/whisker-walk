@@ -16,6 +16,10 @@ import { closeDiffs } from './helpers/closeto.js';
 // Task 1 (UPDATE_TRACE=1 is for Task 1 only).
 // 2026-11-02: re-recorded once for the body refinement, after an isolation
 // check proved the change came only from three.js id draws in cat builds.
+// 2026-11-15: re-recorded once for cat-beauty Tier B. Compared field by field
+// with the previous fixture: only shadows.all and shadows.active differ, and in
+// shadows.active only the player cat's blob scale (1.7082 -> 1.6968, the
+// thinner ears make her box 0.7% smaller). No position, speed or state moved.
 //
 // What runs, in main.js's frame order: player.update, critters, strays, clan
 // cats (the four territories), intruders (a fixed clock with a visit on the
