@@ -46,7 +46,7 @@ describe('the tabby M', () => {
       expect(marks).toHaveLength(1);
       expect(marks[0].material.color.getHex()).toBe(hex(catStyle(breed).accent).getHex());
       expect(meshCount(buildCat(breed))).toBe(31);
-      expect(triangles(buildCat(breed))).toBeLessThanOrEqual(9000);
+      expect(triangles(buildCat(breed))).toBeLessThanOrEqual(10350); // 2026-11-15, realism 3/A3: 9,000 -> 10,350, the owner's +15% for the detailed cat (rounder head, eyes and pads, the snout and mouth: about +860); the crowd cap stays
       expect(triangles(buildCat(breed, undefined, { simple: true }))).toBeLessThanOrEqual(5500);
     }
   });
@@ -160,7 +160,9 @@ describe('nose leather by coat', () => {
   });
   it('other coats follow their genetics: brick tabby, seal-point Siamese, salmon ginger tabby, blue-grey (GaleClan grey); pale coats stay pink', async () => {
     expect(noseOf('tabby')).toBe(0xb0605a);
-    expect(noseOf('siamese')).toBe(new THREE.Color(PINK).lerp(new THREE.Color(0x4a3b32), 0.7).getHex());
+    // 2026-11-15, realism 3/A2: 0.7 -> 0.42 of the way to the point colour. At 0.7 the seal
+    // point's nose was nearly its mask's colour and did not show (the audit's "Siamese nose").
+    expect(noseOf('siamese')).toBe(new THREE.Color(PINK).lerp(new THREE.Color(0x4a3b32), 0.42).getHex());
     expect(noseOf('tabby', look('ginger', 'chocolate', 'stripes'))).toBe(0xe2907e);
     const { CLAN_COATS } = await import('../src/clancast.js');
     expect(noseOf('tabby', { simple: true, style: CLAN_COATS.moor[0] })).toBe(0x7c6a74);

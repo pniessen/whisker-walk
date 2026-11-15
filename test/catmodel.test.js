@@ -328,7 +328,7 @@ describe('cat model: budget and determinism', () => {
     it(`${breed} scarred draws no more than its ceiling + 1, full and simple, inside the triangle caps`, () => {
       expect(meshCount(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(CEILING[breed] + 1);
       expect(meshCount(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(CEILING_SIMPLE[breed] + 1);
-      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
+      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(10350); // 2026-11-15, realism 3/A3: 9,000 -> 10,350, the owner's +15% for the detailed cat (rounder head, eyes and pads, the snout and mouth: about +860); the crowd cap stays
       expect(triangles(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(5500);
     });
   }
@@ -573,7 +573,7 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
   });
   it('stays inside the triangle budget', () => {
     for (const b of PRESETS) {
-      expect(triangles(buildCat(b))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
+      expect(triangles(buildCat(b))).toBeLessThanOrEqual(10350); // 2026-11-15, realism 3/A3: 9,000 -> 10,350, the owner's +15% for the detailed cat (rounder head, eyes and pads, the snout and mouth: about +860); the crowd cap stays
       expect(triangles(buildCat(b, undefined, { simple: true }))).toBeLessThanOrEqual(5500);
     }
   });
@@ -715,7 +715,17 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   const noseBox = (cat) => {
     const noses = []; cat.userData.parts.head.traverse((o) => { if (o.isMesh && o.userData.nose) noses.push(o); });
     expect(noses).toHaveLength(1);
-    return new THREE.Box3().setFromObject(noses[0]);
+    // 2026-11-15, realism 3/A1: the nose mesh now carries the mouth line too
+    // (face.js noseGeometry), which runs down the muzzle. "The nose" here is
+    // still the leather: its vertices come first (geometry.userData.leather).
+    const leather = noses[0].geometry.userData.leather;
+    if (!leather) return new THREE.Box3().setFromObject(noses[0]); // a crowd cat's ball nose
+    // Measured as the ball was (Box3.setFromObject: the part's own box, carried by its world matrix).
+    noses[0].updateWorldMatrix(true, false);
+    const box = new THREE.Box3(), v = new THREE.Vector3();
+    for (let i = 0; i < leather.count; i++) box.expandByPoint(v.fromBufferAttribute(noses[0].geometry.attributes.position, i));
+    box.applyMatrix4(noses[0].matrixWorld);
+    return box;
   };
   const underChin = (bare, meshes) => {
     const nose = noseBox(bare);
@@ -949,7 +959,8 @@ describe('cat model: the ruff is a small bib (body refinement, Task 6)', () => {
       const { head, underside } = cat.userData.parts, skull = head.children[0];
       let nose; head.traverse((o) => { if (o.userData.nose) nose = o; });
       nose.geometry.computeBoundingBox();
-      const mouthY = nose.position.y + nose.geometry.boundingBox.min.y * nose.scale.y;   // head-local
+      // 2026-11-15, realism 3/A1: the leather's lower edge, not the nose mesh's (which now includes the mouth line below it)
+      const mouthY = nose.position.y + (nose.geometry.userData.leather?.minY ?? nose.geometry.boundingBox.min.y) * nose.scale.y;   // head-local
       const toSkull = skull.matrixWorld.clone().invert(), toHead = head.matrixWorld.clone().invert();
       const [a, z] = underside.userData.ranges.ruff, p = underside.geometry.attributes.position;
       for (let i = a; i < z; i++) {

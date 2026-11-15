@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { litMaterial } from '../render/materials.js';
 import { HEAD, SKULL } from './torso.js';
+import { faceWarp } from './face.js';
 
 // The scar mesh (2026-11-01 fight moves and scars, Task 4). A scar is three
 // short scratch lines (sketch E): thin strips raised a hair off the head or
@@ -105,6 +106,7 @@ function skullSurface(colour) {
     const t = 1 / Math.hypot(d.x / a, d.y / b, d.z / c);
     const point = d.clone().multiplyScalar(t);
     const normal = new THREE.Vector3(point.x / (a * a), point.y / (b * b), point.z / (c * c)).normalize();
+    faceWarp(point); // the shaped face (face.js, the B5 option); nothing by default
     return { point, normal, colour };
   };
 }
@@ -223,6 +225,31 @@ function layScar(layout, sx, surface, out) {
 // with the ear when the animator pins it), appended to `out` like layScar's.
 // False when the ear is not the 4-sided cone it is expected to be.
 function layNick(ear, sx, out) {
+  // A shell ear (face.js shellEarGeometry, the B6 option) has a curved back:
+  // it gives its own back surface, and the same two strokes are laid on that.
+  const backAt = ear.geometry.userData.backAt;
+  if (backAt) {
+    const units = out.units, segs = SCAR_NICK.segments;
+    const colour = ear.material.color.clone();
+    for (let k = 0; k < 2; k++) {
+      const [v0, u0] = SCAR_NICK.points[k], [v1, u1] = SCAR_NICK.points[k + 1];
+      const a = backAt(v0, u0, sx).point, b = backAt(v1, u1, sx).point;
+      const along = b.clone().sub(a).normalize();
+      for (let j = 0; j <= segs; j++) {
+        const t = j / segs, on = backAt(v0 + (v1 - v0) * t, u0 + (u1 - u0) * t, sx);
+        const side = new THREE.Vector3().crossVectors(on.normal, along).normalize();
+        const H = on.point.clone().addScaledVector(on.normal, SCAR_NICK.lift / units);
+        const w = (SCAR_NICK.width / 2) * NICK_TAPER[j] / units;
+        for (const s of [1, -1]) {
+          out.points.push(H.clone().addScaledVector(side, s * w));
+          out.normals.push(on.normal.clone());
+          out.under.push(colour.clone().multiplyScalar(on.shade));
+        }
+      }
+      out.strips.push(segs);
+    }
+    return true;
+  }
   const prm = ear.geometry.parameters;
   if (!prm || prm.radialSegments !== 4 || !(prm.radius > 0) || !(prm.height > 0)) return false;
   const r = prm.radius, h = prm.height;

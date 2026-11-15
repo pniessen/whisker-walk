@@ -455,7 +455,7 @@ describe('scar mesh', () => {
     const CEIL = { tabby: 31, zeetoo: 31, calico: 31, robbie: 31, d2: 31, digit: 34 };
     const cap = (simple, name) => {
       const full = name.startsWith('custom') ? 31 : (CEIL[name] ?? 30);
-      return { meshes: (simple ? full - 6 : full) + 1, tris: simple ? 5500 : 9000 };
+      return { meshes: (simple ? full - 6 : full) + 1, tris: simple ? 5500 : 10350 }; // 2026-11-15, realism 3/A3: 9,000 -> 10,350, the owner's +15% for the detailed cat (rounder head, eyes and pads, the snout and mouth: about +860); the crowd cap stays
     };
     const casts = [...PRESETS.map((b) => [b, (o) => buildCat(b, undefined, o)]),
       ['custom', (o) => buildCat('tabby', undefined, { ...o, look: { ...DEFAULT_LOOK, pattern: 'stripes', fur: 'fluffy', size: 1.15 } })],
