@@ -1,3 +1,4 @@
+import { torsoBox } from '../../src/cat/neck.js';
 import * as THREE from 'three';
 import { buildCat } from '../../src/cat/model.js';
 import { animateCat } from '../../src/cat/animator.js';
@@ -96,7 +97,11 @@ export function poseMeasure(cat, state, t = 1.3) {
   const torso = [cat.userData.parts.body];
   const belly = cat.children[1];
   if (!cat.userData.parts.underside && belly && belly.isMesh) torso.push(belly);
-  const tb = ext(torso);
+  // 2026-11-15 (cat realism B1): the neck's skin is part of the underside's
+  // mesh but reaches up to the skull, so the torso is measured without it
+  // (neck.js torsoBox, as waterlook.js measures it): the torso's top is still
+  // the torso's.
+  const tb = cat.userData.parts.underside?.userData.neck ? torsoBox(cat.userData.parts.body) : ext(torso);
   return { min: r4(all.min.y / s), max: r4(all.max.y / s), torsoMin: r4(tb.min.y / s), torsoMax: r4(tb.max.y / s) };
 }
 

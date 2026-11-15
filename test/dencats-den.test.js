@@ -119,7 +119,7 @@ describe('queens and their kits in the real den', () => {
     const area = build(new THREE.Scene(), { placed: {} });
     const dc = createDenCats(scene, catsFor('2026-11-01'), { obstacles: obstaclesOf(area), kits });
     expect(dc.littles.length).toBeGreaterThan(0);
-    for (const little of dc.littles) expect(little.body.userData.parts.head.scale.x).toBeCloseTo(1.35 * 1.06, 6);
+    for (const little of dc.littles) expect(little.body.userData.parts.head.scale.x).toBeCloseTo(1.35 * 1.06 * 0.92, 6); // 2026-11-15: x 0.92, the 8% smaller head (cat realism B3)
   });
 
   it('every kit is placed beside its mother, clear of her, each other, furniture and walls, over 20 days', () => {

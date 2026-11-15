@@ -11,7 +11,12 @@ export const TORSO = {
   // The deformation (sketch): a deep chest, slim waist just behind the middle,
   // round hips, a belly tucked up toward them, a gentle 0.08 haunch (the sketch's
   // first 0.24 was rejected) and a back that rises toward the hips.
-  SHAPE: { chest: 0.16, chestLow: 0.12, waist: 0.14, waistZ: 0.15, waistW: 0.08, waistDrop: 0.08, hips: 0.12, tuck: 0.28, haunch: 0.08, haunchZ: 0.55, haunchZW: 0.07, haunchY: -0.15, haunchYW: 0.2, backRise: 0.07 },
+  // Cat realism B2 (2026-11-15): tailBase.. draw the rump out round the tail's
+  // root (a 5 cm taper of body, in unit z, centred on the root's direction
+  // tailBaseY up, tailBaseW wide), and thigh.. draw it back (and thighOut wider)
+  // low on each side over the thigh tops (deformTorso). tailBase is a taste
+  // call: 0.14 recommended, 0.07 the smaller one shown on the sheet.
+  SHAPE: { chest: 0.16, chestLow: 0.12, waist: 0.14, waistZ: 0.15, waistW: 0.08, waistDrop: 0.08, hips: 0.12, tuck: 0.28, haunch: 0.08, haunchZ: 0.55, haunchZW: 0.07, haunchY: -0.15, haunchYW: 0.2, backRise: 0.07, tailBase: 0.14, tailBaseUp: 0.02, tailBaseY: 0.42, tailBaseW: 0.05, thigh: 0.12, thighOut: 0.03, thighAt: [0.45, 0.0, 0.88], thighW: 0.2 },
   // [around, along the length]: 40 and 28 rings over the ~7 tabby bands.
   SEG: { full: [40, 40], simple: [24, 28] },
 };
@@ -36,7 +41,12 @@ export const LEGS = { LEN: 0.35, HIP_Y: 0.39, FRONT_Z: -0.24, HIND_Z: 0.24, FRON
 // which from the walk camera read as a lump with a horn on it. The tip is no
 // rounder than 0.0135: the cross pose holds the tail straight up, and its tip
 // sets the cat's top there, which the name tag clears (nametag.js CROSS_TAG_Y).
-export const TAIL = { LINK: 0.14, R: 0.072, TAPER: 0.8125, CURL: 0.28, ROOT_TILT: 0.28, SCALE: 0.85, ROOT_DY: 0.10, ROOT_Z: 0.33, ROOT_BALL: 0.072 };
+// Cat realism B2 (2026-11-15): the root is where it was; the rump now comes
+// out round it (TORSO.SHAPE.tailBase), so the root ball lies mostly inside
+// that taper and reads as the tail's own base, not a button on a flat rump.
+// SEAM_LIFT: the tail's lift (rad above level) at which the first link's
+// shading is fitted to the rump's (model.js, the seams).
+export const TAIL = { LINK: 0.14, R: 0.072, TAPER: 0.8125, CURL: 0.28, ROOT_TILT: 0.28, SCALE: 0.85, ROOT_DY: 0.10, ROOT_Z: 0.33, ROOT_BALL: 0.072, SEAM_LIFT: 0.33 };
 
 // The tail's radius at fraction u of its length (0 root, 1 tip).
 export const tailR = (u) => TAIL.R * (1 - TAIL.TAPER * u);
@@ -76,6 +86,43 @@ export function shellInflate(uy) {
 }
 
 export const HEAD = { POS: [0, 0.70, -0.40], SCALE: 1.06 };
+// B3 (cat realism round 1): the two proportion numbers. `head` scales the
+// whole head (and the hat, glasses and neckwear on it); `body` lengthens the
+// torso and moves the hips, the tail's root and the head along with its ends.
+// Owner's pick from the three-column sheet, 2026-11-15: the head 8% smaller,
+// the body as it was. The picture harness may still override them before it
+// builds a cat.
+export const PROPORTION = { head: 0.92, body: 1 };
+
+// THE NECK (cat realism B1, 2026-11-15; neck.js, animator.js fitNeckSkin). A
+// short thick skin from the shoulders and the front of the torso to the back
+// and underside of the skull, in three loops of AROUND points with two eased
+// rings between them:
+//   B, on the torso's own surface. Under the throat and at the sides it is the
+//      torso's section at unit z BASE_Z, just ahead of where a cape or a coat
+//      ends (cape.js CAPE.zFront -0.8). On a cat that wears nothing on its
+//      body the top of the loop reaches back over the shoulders to NAPE_Z, so
+//      the skin bridges the notch behind the head; a dressed cat's stays at
+//      BASE_Z all round, so its neck comes out of the garment's neckline and
+//      never through the cloth.
+//   M, round the neck line where the collar sits (head frame, carried exactly
+//      as the collar is, animator.js neckMove): R_SIDE across, R_BACK behind
+//      and R_FRONT at the throat, each a little inside the collar's ring
+//      (0.15 less its 0.028 tube), so a collar or scarf rests ON the neck. On
+//      a bare-bodied cat its nape point stands out to M_NAPE (the back of a
+//      collar is already under the shoulders' fur there).
+//   H, on the skull, ALPHA round the axis that points down and TILT back: from
+//      a little above the skull's middle at the back to under the chin.
+// B and H lie SINK under their surfaces and wear those surfaces' normals and
+// colours, so the neck leaves the body and enters the head without a crease.
+// Standing, most of it is inside the head and chest; the nape shows always,
+// the rest when the head lowers, lifts or turns away from the shoulders. Full
+// builds only: it is re-laid every frame (60 points), which the crowd's
+// simple cats skip.
+// NAPE (0..1) is the taste call: how far the bare cat's nape stands out, 1 the
+// full bridge to M_NAPE, 0 none (a dressed cat's neck).
+export const NECK = { AROUND: 12, BASE_Z: -0.84, NAPE_Z: -0.45, M_AT: [0, -0.14, 0.055], R_SIDE: 0.125, R_BACK: 0.14, R_FRONT: 0.115, M_NAPE: [0, -0.025, 0.21], NAPE: 1, NAPE_REACH: 0.4, TILT: 0.7, ALPHA: 0.87, SINK: 0.012 };
+
 // The skull: a sphere of radius R scaled by SCALE, centred on the head's origin
 // (model.js buildCat). scarmesh.js lays a face scar on this same ellipsoid.
 export const SKULL = Object.freeze({ R: 0.21, SCALE: Object.freeze([1, 0.92, 0.95]) });
@@ -91,9 +138,13 @@ export const REF_RIG = { HIP_Y: 0.30, REACH: 0.2585 + 0.062 * 0.62 };
 // 0.0058 under the ground on every preset (0.0055 simple), so it comes UP by
 // 0.006 and rests on it (0.0002 / 0.0005 above). The old 0.004 was measured
 // for the nose-down torso, whose rump rested 0.0204 above ground.
+// Cat realism B2 (2026-11-15): the rump is fuller low behind the thighs
+// (TORSO.SHAPE thigh), and sitting it is the pitched torso's lowest point: at
+// 0.006 it rested 0.0024 under the ground on every preset (0.0021 simple), so
+// it comes up 0.0025 more and rests on it again (0.0001 / 0.0004 above).
 export const POSE_FIT = Object.freeze({
-  requestPet: Object.freeze({ body: 0.006 }),
-  perch: Object.freeze({ body: 0.006 }),
+  requestPet: Object.freeze({ body: 0.0085 }),
+  perch: Object.freeze({ body: 0.0085 }),
 });
 
 // The sit (requestPet, perch): the classic Warrior Cats sit (polish-sit,
@@ -170,8 +221,11 @@ export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, he
 //     and Digit (the narrowest torso) for: tip forward, every link outside
 //     the torso and the legs at either end of the flick, nothing in the
 //     ground, even bends.
+// Cat realism B2 (2026-11-15): ROOT z 0.347 -> 0.357, re-fitted to the fuller
+// rump by the same search (the root 1.9 cm under the fur, the tail's lowest
+// vertex within 1 mm of the ground, links 2-4 clear of the torso).
 export const SIT_TAIL = Object.freeze({
-  ROOT: [0.035, 0.347],
+  ROOT: [0.035, 0.357],
   rotX: 0.425,
   pivotX: [-0.3, 0.281, 0.241, 0.219, 0.116],
   pivotY: [1.299, 0.728, 0.672, 0.499, 0.159],
@@ -231,19 +285,26 @@ export const NAP_TAIL = Object.freeze({
 // no tail under the cape, the tip 23 cm out to the side; napping, lowest
 // vertex 0.2-0.5 cm over the ground, 2.3 cm clear of the torso. Same meanings as SIT_TAIL and
 // NAP_TAIL; a partial plume takes the blend (lyingTail).
+// Cat realism B2 (2026-11-15): both re-fitted to the fuller rump. Sitting:
+// ROOT [0.048, 0.34] -> [0.065, 0.36], rotX 0.44 -> 0.48, the first two
+// pivots [-0.295, 0.111] / [1.209, 0.698, 0.687] -> [-0.32, 0.078] / [1.2,
+// 0.595, 0.694]: the root 2.2 cm under the fur, the lowest vertex 0.5 cm in
+// the ground, links 2-4 0.5 cm clear, no tail under the sit's cape (its hem
+// is taken up a touch, cape.js CAPE_SIT). Napping: ROOT y -0.074 -> -0.084,
+// pivotY[0] 0.884 -> 0.934: link 1 is 1.7 cm clear again.
 export const SIT_TAIL_PLUME = Object.freeze({
   ...SIT_TAIL,
-  ROOT: [0.048, 0.34],
-  rotX: 0.44,
-  pivotX: [-0.295, 0.111, 0.211, 0.219, 0.116],
-  pivotY: [1.209, 0.698, 0.687, 0.499, 0.159],
+  ROOT: [0.065, 0.36],
+  rotX: 0.48,
+  pivotX: [-0.32, 0.078, 0.211, 0.219, 0.116],
+  pivotY: [1.2, 0.595, 0.694, 0.499, 0.159],
 });
 export const NAP_TAIL_PLUME = Object.freeze({
   ...NAP_TAIL,
-  ROOT: [-0.074, 0.346],
+  ROOT: [-0.084, 0.346],
   rotX: 0.36,
   pivotX: [0.512, 0.425, 0.537, 0.628, 0.136],
-  pivotY: [0.884, 0.469, 0.487, -0.014, 0.049],
+  pivotY: [0.934, 0.469, 0.487, -0.014, 0.049],
 });
 
 // A lying tail `plume` of the way from `thin` (today's) to `full` (the plume's).
@@ -255,6 +316,7 @@ export function lyingTail(thin, full, plume) {
 // A point on the unit sphere (nose at -z, rump at +z) pushed into the cat's torso.
 export function deformTorso(x, y, z, S = TORSO.SHAPE) {
   const front = Math.max(0, -z), back = Math.max(0, z);
+  const x0 = x, y0 = y, z0 = z;
   const waist = Math.exp(-((z - S.waistZ) ** 2) / S.waistW);
   let kx = 1 - S.waist * waist + S.hips * back * back;
   let ky = 1 + S.chest * front - S.waistDrop * waist;
@@ -263,6 +325,24 @@ export function deformTorso(x, y, z, S = TORSO.SHAPE) {
   kx *= 1 + S.haunch * haunch;
   x *= kx; y *= ky;
   if (y > 0) y += S.backRise * (z + 1) * 0.5 * (1 - x * x);
+  // The tail base (cat realism B2): the rump is drawn out toward the tail's
+  // root in a soft mound, so the tail leaves a taper of body, not a flat rump.
+  if (S.tailBase && z0 > 0) {
+    const dy = y0 - S.tailBaseY, dz = z0 - Math.sqrt(1 - S.tailBaseY * S.tailBaseY);
+    const bump = Math.exp(-(x0 * x0 + dy * dy + dz * dz) / S.tailBaseW) * Math.min(1, z0 * 4);
+    z += S.tailBase * bump;
+    y += S.tailBaseUp * bump;
+  }
+  // The thigh tops (B2): low on each side of the rump the surface is drawn
+  // back and a little out over the top of the thigh, so from behind the hind
+  // legs come out of one rump instead of standing on it as two balls.
+  if (S.thigh && z0 > 0) {
+    const [tx, ty, tz] = S.thighAt;
+    const dx = Math.abs(x0) - tx, dy = y0 - ty, dz = z0 - tz;
+    const bump = Math.exp(-(dx * dx + dy * dy + dz * dz) / S.thighW) * Math.min(1, z0 * 4);
+    z += S.thigh * bump;
+    x *= 1 + S.thighOut * bump;
+  }
   return [x, y, z];
 }
 
@@ -313,6 +393,106 @@ export function torsoUnitAt(dir, out = [0, 0, 0]) {
   }
   out[0] = u0; out[1] = u1; out[2] = u2;
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// THE SEAMS (cat realism round 1, A4; 2026-11-15). A leg, the chest and the
+// belly are separate smooth parts pushed into the torso, and each used to meet
+// it with a visible crease: the light changed direction in one step along the
+// line where they cross. Now every vertex of such a part that lies inside the
+// torso, or within SEAM.reach of its surface, has its shading direction (its
+// normal) turned toward the torso's own at that spot: all the way at the
+// surface, easing back to the part's own SEAM.reach out (and only as far as
+// the part faces the same way as the torso there). The light then flows
+// across the join. Positions and colours are untouched, and it is worked out
+// once when the cat is built (model.js), never per frame.
+export const SEAM = { reach: 0.07, underReach: 0.05, tailReach: 0.05, square: 0.2 };
+
+// The torso's outward normal at the undeformed unit direction `u`, in the
+// torso mesh's own frame (before the body's scale), by finite differences.
+export function torsoNormalAt(u, out = [0, 0, 0]) {
+  const e = 1e-3;
+  // two directions square to u
+  let ax = -u[1], ay = u[0], az = 0;
+  if (Math.abs(u[2]) > 0.9) { ax = 0; ay = -u[2]; az = u[1]; }
+  const aL = Math.hypot(ax, ay, az); ax /= aL; ay /= aL; az /= aL;
+  const bx = u[1] * az - u[2] * ay, by = u[2] * ax - u[0] * az, bz = u[0] * ay - u[1] * ax;
+  const at = (dx, dy, dz) => {
+    const x = u[0] + dx, y = u[1] + dy, z = u[2] + dz, L = Math.hypot(x, y, z);
+    return deformTorso(x / L, y / L, z / L);
+  };
+  const p0 = at(0, 0, 0), p1 = at(e * ax, e * ay, e * az), p2 = at(e * bx, e * by, e * bz);
+  const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
+  const vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2];
+  let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+  let L = Math.hypot(nx, ny, nz);
+  if (nx * p0[0] + ny * p0[1] + nz * p0[2] < 0) L = -L;
+  out[0] = nx / L; out[1] = ny / L; out[2] = nz / L;
+  return out;
+}
+
+// Blend the normals `nor` of the vertices `pos` (both flat xyz arrays, in some
+// part's own frame) toward the torso's. `m` is the 4x4 (column-major, as a
+// THREE.Matrix4's elements) taking the part's frame into the torso mesh's own
+// frame (before the body's scale, where the surface is R * deformTorso);
+// `scale` the body's scale, for measuring how far out a vertex is in metres.
+// Only vertices [from, to) are touched. Returns nor.
+const _su = [0, 0, 0], _sn = [0, 0, 0], _sd = [0, 0, 0];
+export function seamNormals(pos, nor, m, scale, reach = SEAM.reach, from = 0, to = pos.length / 3) {
+  for (let i = from; i < to; i++) {
+    const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+    _sd[0] = (m[0] * x + m[4] * y + m[8] * z + m[12]) / TORSO.R;
+    _sd[1] = (m[1] * x + m[5] * y + m[9] * z + m[13]) / TORSO.R;
+    _sd[2] = (m[2] * x + m[6] * y + m[10] * z + m[14]) / TORSO.R;
+    const rho = Math.hypot(_sd[0], _sd[1], _sd[2]);
+    if (rho < 1e-6) continue;
+    torsoUnitAt(_sd, _su);
+    const [sx, sy, sz] = deformTorso(_su[0], _su[1], _su[2]);
+    const sL = Math.hypot(sx, sy, sz);
+    // how far outside the surface, in metres along the ray from the centre
+    const out = (rho / sL - 1) * Math.hypot(sx * scale[0], sy * scale[1], sz * scale[2]) * TORSO.R;
+    if (out >= reach) continue;
+    const k = out <= 0 ? 0 : out / reach;
+    let w = 1 - k * k * (3 - 2 * k);
+    torsoNormalAt(_su, _sn);
+    // back into the part's frame: a normal goes through the transpose
+    let tx = m[0] * _sn[0] + m[1] * _sn[1] + m[2] * _sn[2];
+    let ty = m[4] * _sn[0] + m[5] * _sn[1] + m[6] * _sn[2];
+    let tz = m[8] * _sn[0] + m[9] * _sn[1] + m[10] * _sn[2];
+    const tL = Math.hypot(tx, ty, tz); tx /= tL; ty /= tL; tz /= tL;
+    // A vertex facing away from the torso's surface there (the inside of a
+    // thigh, a part's hidden far side) keeps its own normal: the turn fades
+    // out as the two normals come square, so no face is ever lit from behind.
+    const facing = tx * nor[i * 3] + ty * nor[i * 3 + 1] + tz * nor[i * 3 + 2];
+    if (facing <= SEAM.square) continue;
+    w *= Math.min(1, (facing - SEAM.square) * 2);
+    const nx = nor[i * 3] + (tx - nor[i * 3]) * w, ny = nor[i * 3 + 1] + (ty - nor[i * 3 + 1]) * w, nz = nor[i * 3 + 2] + (tz - nor[i * 3 + 2]) * w;
+    const nL = Math.hypot(nx, ny, nz);
+    if (nL < 1e-6) continue;
+    nor[i * 3] = nx / nL; nor[i * 3 + 1] = ny / nL; nor[i * 3 + 2] = nz / nL;
+  }
+  return nor;
+}
+
+// After seamNormals on an indexed part: any face (of `idx`) that the turned
+// normals `nor` now light from behind, and that the part's `own` normals did
+// not, gets its three vertices' own normals back. Returns nor.
+export function keepFacing(pos, nor, own, idx) {
+  const lit = (n, a, b, c, wx, wy, wz) => wx * (n[a] + n[b] + n[c]) + wy * (n[a + 1] + n[b + 1] + n[c + 1]) + wz * (n[a + 2] + n[b + 2] + n[c + 2]);
+  for (let pass = 0; pass < 4; pass++) {
+    let fixed = 0;
+    for (let f = 0; f < idx.length; f += 3) {
+      const a = idx[f] * 3, b = idx[f + 1] * 3, c = idx[f + 2] * 3;
+      const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2];
+      const vx = pos[c] - pos[a], vy = pos[c + 1] - pos[a + 1], vz = pos[c + 2] - pos[a + 2];
+      const wx = uy * vz - uz * vy, wy = uz * vx - ux * vz, wz = ux * vy - uy * vx;
+      if (lit(nor, a, b, c, wx, wy, wz) >= 0 || lit(own, a, b, c, wx, wy, wz) < 0) continue;
+      for (const k of [a, b, c]) { nor[k] = own[k]; nor[k + 1] = own[k + 1]; nor[k + 2] = own[k + 2]; }
+      fixed++;
+    }
+    if (!fixed) break;
+  }
+  return nor;
 }
 
 // A back-slot point authored against the old torso, moved onto the new one

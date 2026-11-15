@@ -37,7 +37,11 @@ export const CAPE = Object.freeze({ zFront: -0.8, zBack: 0.68, zBackSide: 0.98, 
 // others). Its lowest point is 15.6 cm off the ground (the standing cloth came to 1.6 in the sit). The
 // neck edge (s 0) is the same, so the front bands (CAPE_TIE) start where they do standing; the sitting back
 // is still covered from the shoulders to the hips.
-export const CAPE_SIT = Object.freeze({ ...CAPE, zBackSide: 0.75, wrapBack: 1.0 });
+// Cat realism B2 (2026-11-15): the rump is fuller behind the thighs and a
+// plumed tail lies a little further out round it, so the sit's hem is taken up
+// a touch more (zBackSide 0.75 -> 0.72, wrapBack 1.0 -> 0.9): at 0.74 / 0.95
+// two or three of a Persian's or Maine Coon's root vertices lay under it.
+export const CAPE_SIT = Object.freeze({ ...CAPE, zBackSide: 0.72, wrapBack: 0.9 });
 // The cape's point at (a, s): a across (-1 one flank, 0 the spine, +1 the
 // other), s along (0 the neck edge, 1 the hem). Body-local, before the body's
 // scale (the frame of the torso's own geometry). See CAPE.
