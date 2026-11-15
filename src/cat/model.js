@@ -17,6 +17,7 @@ import { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry, capeTieGeometry, lay
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
 import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals, keepFacing, PROPORTION, NECK } from './torso.js';
 import { NECK_RINGS, neckLoops, addNeck, layNeck } from './neck.js';
+import { FACE, FACE_SEG, EYES, SHELL_EAR, noseGeometry, addSnout, whiskerGeometry, eyeGeometry, eyeFrame, shellEarGeometry, shapeSkull, faceWarp, lensGlow } from './face.js';
 
 const STYLE = {
   // The tabby and zeetoo wear the tabby "M" on the forehead (polish-faces):
@@ -1324,18 +1325,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const whiskers = [];
   if (!opts.simple) {
     const whiskerMat = new THREE.LineBasicMaterial({ color: 0xf8f8f8, transparent: true, opacity: 0.45 });
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < 3; i++) {
-        const y = -0.05 - i * 0.018;
-        const geo = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(side * 0.07, y, -0.19),
-          new THREE.Vector3(side * WHISKER_REACH, y + (i - 1) * 0.03, -0.235),
-        ]);
-        const w = new THREE.Line(geo, whiskerMat);
-        head.add(w);
-        whiskers.push(w);
-      }
-    }
+    // realism 3/A6: four whiskers a side that fan and curve, and two short
+    // ones over each eye, as ONE LineSegments (face.js whiskerGeometry): one
+    // draw call where there were six. The six lines' geometries and objects
+    // are no longer made, so their uuids' random numbers (4 each) are drawn
+    // here instead: every seeded world builds exactly as it did.
+    const w = new THREE.LineSegments(whiskerGeometry(WHISKER_REACH), whiskerMat);
+    head.add(w);
+    whiskers.push(w);
+    for (let i = 0; i < 40; i++) Math.random();
   }
   head.position.set(HEAD.POS[0], HEAD.POS[1], HEAD.POS[2] * PROPORTION.body);
   head.scale.setScalar(HEAD.SCALE * PROPORTION.head);

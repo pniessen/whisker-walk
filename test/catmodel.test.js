@@ -10,6 +10,7 @@ import { VISIT_PRIZES } from '../src/visits.js';
 import { ruffGeometry, RUFF, jawFluffColour } from '../src/cat/ruff.js';
 import { DEFAULT_LOOK, lookToStyle } from '../src/customcats.js';
 import { SKULL, TORSO } from '../src/cat/torso.js';
+import { WHISKERS } from '../src/cat/face.js';
 
 // Wave 6 (docs/VISUAL-PASS.md) reshaped the cat. These are the properties that
 // wave established and that a later edit could silently undo — none of them are
@@ -1136,24 +1137,35 @@ describe('buildCat with opts.style (a clan coat)', () => {
 describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
   // The skull's silhouette from behind, head space: its half-width at height y.
   const skullHalfWidth = (y) => SKULL.R * SKULL.SCALE[0] * Math.sqrt(Math.max(0, 1 - (y / (SKULL.R * SKULL.SCALE[1])) ** 2));
-  const whiskerEnds = (cat) => cat.userData.parts.whiskers.map((w) => {
-    const p = w.geometry.attributes.position;
-    const a = new THREE.Vector3().fromBufferAttribute(p, 0), b = new THREE.Vector3().fromBufferAttribute(p, 1);
-    return Math.abs(a.x) > Math.abs(b.x) ? { outer: a, inner: b, w } : { outer: b, inner: a, w };
-  });
+  // 2026-11-15, realism 3/A6: the whiskers are ONE LineSegments (they were six
+  // Lines): four curved whiskers a side from the pad and two short ones over
+  // each eye, 4 segments each (face.js WHISKERS). Each whisker's root and tip
+  // are its first and last points; the same checks as before on each.
+  const whiskerEnds = (cat) => {
+    const [w] = cat.userData.parts.whiskers, p = w.geometry.attributes.position, per = WHISKERS.seg * 2, out = [];
+    for (let i = 0; i < p.count; i += per) {
+      const inner = new THREE.Vector3().fromBufferAttribute(p, i), outer = new THREE.Vector3().fromBufferAttribute(p, i + per - 1);
+      const all = Array.from({ length: per }, (_, k) => new THREE.Vector3().fromBufferAttribute(p, i + k));
+      out.push({ inner, outer, all, w });
+    }
+    return out;
+  };
 
-  it('whiskers end near the head and sweep forward, faint (tabby, digit)', () => {
+  it('whiskers end near the head and sweep forward, faint; one draw call (tabby, digit)', () => {
     for (const breed of ['tabby', 'digit']) {
       const cat = buildCat(breed), ends = whiskerEnds(cat);
-      expect(ends).toHaveLength(6);
-      for (const { outer, inner, w } of ends) {
+      expect(cat.userData.parts.whiskers).toHaveLength(1);
+      expect(cat.userData.parts.whiskers[0].isLineSegments).toBe(true);
+      expect(ends).toHaveLength(2 * (WHISKERS.pad.length + WHISKERS.brow.length));
+      for (const { outer, inner, all, w } of ends) {
         // whiskers are head children at the head's origin: geometry is head space
         expect(w.parent).toBe(cat.userData.parts.head);
         expect(w.position.toArray()).toEqual([0, 0, 0]);
-        // From behind they end within 4 cm of the skull's outline at their height...
-        expect(Math.abs(outer.x), `${breed} whisker reach`).toBeLessThanOrEqual(skullHalfWidth(outer.y) + 0.04);
+        // From behind they end within 4 cm of the skull's outline at their height (every point of the curve)...
+        for (const q of all) expect(Math.abs(q.x), `${breed} whisker reach`).toBeLessThanOrEqual(skullHalfWidth(q.y) + 0.04);
         // ...and run forward from the root (front is -z), so the head hides most of them.
         expect(outer.z, `${breed} whisker sweep`).toBeLessThan(inner.z);
+        expect(Math.abs(outer.x), `${breed} whisker runs outward`).toBeGreaterThan(Math.abs(inner.x));
         expect(w.material.opacity).toBeLessThanOrEqual(0.5);
       }
     }
