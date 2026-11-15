@@ -94,8 +94,9 @@ describe('the edition switch and the save', () => {
     expect(s.marks.park).toHaveLength(2);
     expect(s.clan).toEqual({ name: 'MossClan', adopted: true });
   });
-  test('edition, clanPick, customCats, the fight keys, outfits and usage are the only new top-level keys', () => {
-    expect(Object.keys(load().state).sort()).toEqual([...KEYS_AT_FB6BA0F, 'edition', 'clanPick', 'customCats', 'fightsWon', 'fightMoves', 'scars', 'scarredIntruders', 'outfits', 'usage'].sort());
+  // 2026-11-15, guided-first-walk design (section 8): `tutorial` joins them.
+  test('edition, clanPick, customCats, the fight keys, outfits, usage and tutorial are the only new top-level keys', () => {
+    expect(Object.keys(load().state).sort()).toEqual([...KEYS_AT_FB6BA0F, 'edition', 'clanPick', 'customCats', 'fightsWon', 'fightMoves', 'scars', 'scarredIntruders', 'outfits', 'usage', 'tutorial'].sort());
   });
   test('the caps are unchanged', () => {
     expect([COLONY_MAX, SOLO_MAX, colonyCap(1), colonyCap(2)]).toEqual([24, 12, 12, 24]);

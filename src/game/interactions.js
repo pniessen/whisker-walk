@@ -140,6 +140,7 @@ export function createInteractions({
   function doMeow() {
     const session = getSession();
     catVoice();
+    bus.emit('tip:did', { id: 'call' }); // she knows how to call a cat over
     // v18 Far Call ('far-call'): the same meow, carried farther — strays AND
     // curious critters in the outer band come over to see who shouted
     // (movement only; see straycats.reactToMeow and critters.reactToMeow).
@@ -1290,6 +1291,7 @@ export function createInteractions({
       audio.hiss();
       s.fx?.burst(stray.group.position, 0x8a3a4a, 10);
       hud.toast(`${stray.name} hisses and backs away…${outsider(stray.name, 'grudge', (w) => ` a ${w} now!`)} 😾`);
+      bus.emit('tip', { id: 'hiss', name: stray.name });
       // No friendship award and NO recordGreet: it did not go well. That is
       // also why the greet count — and therefore the ♡/♥/💕 ladder and D5's
       // immunity — cannot be advanced by a greet that ruptured.

@@ -150,8 +150,10 @@ export function createScent(scene, area, rng) {
   // is exactly the property sniff() has relied on since it shipped; trailTo
   // does not weaken it, and deliberately does not introduce a bare
   // Math.random() alongside it either.)
-  function layTrail(from, to, { steps = 7, life = 8, peak = 0.85, color = 0xf2e04e } = {}) {
-    for (const p of trailPoints(from, to, rng, steps)) {
+  // `rand` is the wobble's source: the walk's stream unless a caller hands in
+  // its own (the stand-still sniff, which must not draw from the stream).
+  function layTrail(from, to, { steps = 7, life = 8, peak = 0.85, color = 0xf2e04e, rand = rng } = {}) {
+    for (const p of trailPoints(from, to, rand, steps)) {
       const decal = new THREE.Mesh(
         new THREE.CircleGeometry(0.14, 8),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: peak })
@@ -196,6 +198,33 @@ export function createScent(scene, area, rng) {
       if (!best) return null;
       best.revealed = true;
       layTrail(pos, best);
+      return best;
+    },
+    // The stand-still sniff (game/autosniff.js): the cat sniffs by itself.
+    // Two differences from sniff() above. It points at the nearest treasure
+    // not yet dug up even if it was sniffed out before, so a child who lost
+    // the trail gets it again. And its trail's wobble is a fixed pattern, not
+    // a draw: standing still must never take a number from the walk's stream.
+    standSniff(pos, range) {
+      let best = null;
+      let bestD = range;
+      for (const tr of treats) {
+        if (tr.dug) continue;
+        const d = Math.hypot(tr.x - pos.x, tr.z - pos.z);
+        if (d < bestD) {
+          bestD = d;
+          best = tr;
+        }
+      }
+      if (!best) return null;
+      best.revealed = true;
+      let i = 0;
+      const wobble = () => {
+        i += 1;
+        const v = Math.sin(i * 12.9898) * 43758.5453;
+        return v - Math.floor(v);
+      };
+      layTrail(pos, best, { rand: wobble });
       return best;
     },
     // v18 Twitchy Nose ('twitchy-nose') — lay a scent trail toward an

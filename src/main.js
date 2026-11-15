@@ -39,6 +39,8 @@ import { parseForcedRung } from './render/quality.js';
 import { readDeviceProfile, DEVICE_EVENT } from './render/deviceprofile.js';
 import { releaseThumbnails } from './thumbnails.js';
 import { createHaptics, hapticForDiscovery } from './haptics.js';
+import { createTips } from './game/tips.js';
+import { tickAutoSniff } from './game/autosniff.js';
 import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
@@ -275,6 +277,9 @@ function init() {
     haptics.setEnabled(settings.get('haptics'));
   }
   applySettings();
+  // The hints on a walk (src/game/tips.js): one line the first time something
+  // comes up. Begun on the walk's first engage, ended with the walk.
+  const tips = createTips({ player, progression, settings, hud, getIsTouch: () => isTouch });
   // routed through handleTouchAction('interact') rather than calling
   // handleInteract directly so the prompt-pill tap shares the exact same
   // session/engaged guard as every other touch action.
@@ -447,7 +452,7 @@ function init() {
     onScarsChanged: () => { rooms.retrackProfile(); pushProfileNow(); },
     // Mid-walk resume: an ended walk leaves nothing to pick up. Nor does a
     // purr outlive the walk it was in.
-    onWalkEnded: () => { clearResume(window.localStorage); haptics.stopPurr(); },
+    onWalkEnded: () => { clearResume(window.localStorage); haptics.stopPurr(); tips.end(); },
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -663,6 +668,7 @@ function init() {
     // that began without its Ready? card gets that card's lines as toasts.
     if (session && locked && !session.started) {
       session.started = true;
+      tips.begin(session);
       overlay.innerHTML = pauseCardFor(session, isTouch);
       for (const line of takeStartLines(session)) hud.toast(line);
     }
@@ -701,7 +707,11 @@ function init() {
   }, true);
   overlay.addEventListener('click', (e) => {
     if (e.target.id === 'btn-resume') resumeWalk();
-    if (e.target.id === 'btn-end') endWalk();
+    if (e.target.id === 'btn-end') {
+      // She found the way home by herself: that hint is never needed.
+      if (session) progression.knowHint('home');
+      endWalk();
+    }
     if (e.target.id === 'btn-cross-yes') crossing.confirm();
     if (e.target.id === 'btn-cross-no') crossing.cancel();
     if (e.target.id === RELOAD_BUTTON_ID) window.location.reload();
@@ -1222,6 +1232,9 @@ function init() {
       session.carry.items.update(dt); // v21 3b: a held thing follows its holder's mouth
       tickCarryRain(session, dt); // v21 3b: falling rain loosens the grip; the item slips
       session.scent.update(dt);
+      // The stand-still sniff, then the hints (both this device's own).
+      tickAutoSniff(session, dt);
+      tips.update(session, dt);
       session.fx.update(dt, camera);
       session.skyLife.update(dt);
       // Water and wind both stay on REAL dt/t, never the slow-mo `wdt` above.

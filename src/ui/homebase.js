@@ -38,6 +38,7 @@ import { PAW } from './pawicon.js';
 import { createConfirmCard, spendAsk } from './confirmcard.js';
 import { moveById } from '../fightmoves.js';
 import { note } from '../diagnostics.js';
+import { line as tutorialLine } from '../tutorialwords.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -529,6 +530,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             </select>
           </label>
           <p class="settings-note" id="set-edition-note">${EDITION_NOTE}</p>
+          ${settingsSwitchHtml('set-show-tips', s.showTips !== false, tutorialLine('settings.tips'))}
         </div>
         <h3 class="settings-group">Advanced</h3>
         <div class="settings-grid settings-advanced">
@@ -2045,6 +2047,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (e.target.id === 'set-reduced-motion') {
       settings.set('reducedMotion', e.target.checked);
       onSettingsChange?.();
+      render();
+      return;
+    }
+    // "Show tips": the hint lines on a walk (src/hints.js). Read live by the
+    // walk, so there is nothing to push.
+    if (e.target.id === 'set-show-tips') {
+      settings.set('showTips', e.target.checked);
       render();
       return;
     }
