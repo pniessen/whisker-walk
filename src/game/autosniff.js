@@ -20,14 +20,16 @@ export function sniffRange(breed) {
 }
 
 // Once a frame while the walk is played. Returns the treasure sniffed out, or
-// null. Not while the cat is busy: a button is up (she is next to something),
-// on a perch, in a photo, a fight, a rest, a chase or a fright.
+// null. Not while the cat is busy: on a perch, in a photo, a fight, a rest, a
+// chase or a fright, or already at the treasure with its dig button up. Any
+// other button does not stop it: a friendly cat that follows her keeps its
+// button up for minutes, and she must still be able to sniff.
 export function tickAutoSniff(session, dt) {
   session.walkTime = (session.walkTime ?? 0) + dt;
   if (!session.scent?.standSniff) return null;
   if ((session.idleTime ?? 0) < AUTO_SNIFF_STILL_S) return null;
   if (session.walkTime - (session.autoSniffAt ?? -Infinity) < AUTO_SNIFF_EVERY_S) return null;
-  if (session.prompt || session.perched || session.cameraMode || session.fight || session.rest
+  if (session.prompt?.kind === 'dig' || session.perched || session.cameraMode || session.fight || session.rest
     || session.chasing || session.freezeTime > 0) return null;
   const found = session.scent.standSniff(session.cat.position, sniffRange(session.cat.userData?.breed));
   if (!found) return null;

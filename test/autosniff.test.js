@@ -58,11 +58,19 @@ describe('tickAutoSniff', () => {
   });
 
   it('not while the cat is busy', () => {
-    for (const busy of [{ prompt: { kind: 'stray' } }, { perched: {} }, { cameraMode: true }, { fight: {} }, { rest: { kind: 'nap' } }, { chasing: true }, { freezeTime: 1 }]) {
+    for (const busy of [{ prompt: { kind: 'dig' } }, { perched: {} }, { cameraMode: true }, { fight: {} }, { rest: { kind: 'nap' } }, { chasing: true }, { freezeTime: 1 }]) {
       const s = Object.assign(walk(), busy);
       s.idleTime = 5;
       expect(tickAutoSniff(s, 0.1), JSON.stringify(busy)).toBe(null);
       expect(s.calls).toHaveLength(0);
+    }
+  });
+
+  it('a cat beside her (its button up) does not stop the sniff', () => {
+    for (const kind of ['stray', 'stray-feed', 'collect', 'tip']) {
+      const s = Object.assign(walk(), { prompt: { kind } });
+      s.idleTime = 5;
+      expect(tickAutoSniff(s, 0.1), kind).not.toBe(null);
     }
   });
 
