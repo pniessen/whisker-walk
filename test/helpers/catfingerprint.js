@@ -131,7 +131,10 @@ export function samples(breed, opts = {}) {
   const unit = geo.userData.unit;
   const col = geo.attributes.color;
   const out = [];
-  for (let i = 0; i < col.count; i++) {
+  // 2026-11-15 (cat realism B7): the torso's own vertices (one per unit
+  // direction); the fur tufts that follow them in the geometry (tufts.js) are
+  // not samples of the painted coat.
+  for (let i = 0; i < unit.length / 3; i++) {
     out.push({ u: [unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2]], c: new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)) });
   }
   return out;

@@ -119,7 +119,7 @@ export function kittenProportions(group) {
 // FOLLOW_STOP_DIST, facing her movement direction the same way strays.js
 // faces theirs (atan2 + PI).
 function createMeet(scene, onMew, ground) {
-  const group = kittenProportions(buildCat('calico'));
+  const group = kittenProportions(buildCat('calico', undefined, { kitten: true }));
   group.position.set(KITTEN_SPOT.x, ground.y(KITTEN_SPOT.x, KITTEN_SPOT.z), KITTEN_SPOT.z);
   scene.add(group);
 
@@ -179,7 +179,7 @@ function createMeet(scene, onMew, ground) {
 // (radius WANDER_RADIUS, comfortably inside the brief's 4-unit cap) around
 // the area's spawn point.
 function createHome(scene, spawn, ground) {
-  const group = kittenProportions(buildCat('calico'));
+  const group = kittenProportions(buildCat('calico', undefined, { kitten: true }));
   group.position.set(spawn.x, ground.y(spawn.x, spawn.z), spawn.z);
   scene.add(group);
 

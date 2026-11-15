@@ -11,7 +11,7 @@ describe('custom looks', () => {
     for (const look of looks()) for (const breed of ['tabby', 'mainecoon']) {
       expect(meshCount(buildCat(breed, undefined, { look })), JSON.stringify(look)).toBeLessThanOrEqual(31);
       expect(meshCount(buildCat(breed, undefined, { look, simple: true }))).toBeLessThanOrEqual(25);
-      expect(triangles(buildCat(breed, undefined, { look }))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
+      expect(triangles(buildCat(breed, undefined, { look }))).toBeLessThanOrEqual(9450); // R4: the smooth legs and the ruff need the 9,000 ceiling // 2026-11-15 (cat realism B7): 9,000 -> 9,450 (+5%, inside the plan's 15% allowance) for the fur tufts; a striped long-haired builder cat is the largest, 9,330 (9,386 scarred)
       expect(triangles(buildCat(breed, undefined, { look, simple: true }))).toBeLessThanOrEqual(5500);
     }
   });
@@ -20,7 +20,7 @@ describe('custom looks', () => {
     for (const look of looks()) for (const breed of ['tabby', 'mainecoon']) {
       expect(meshCount(buildCat(breed, undefined, { look, scars })), JSON.stringify(look)).toBeLessThanOrEqual(32);
       expect(meshCount(buildCat(breed, undefined, { look, scars, simple: true }))).toBeLessThanOrEqual(26);
-      expect(triangles(buildCat(breed, undefined, { look, scars }))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
+      expect(triangles(buildCat(breed, undefined, { look, scars }))).toBeLessThanOrEqual(9450); // R4: the smooth legs and the ruff need the 9,000 ceiling // 2026-11-15 (cat realism B7): 9,000 -> 9,450 (+5%, inside the plan's 15% allowance) for the fur tufts; a striped long-haired builder cat is the largest, 9,330 (9,386 scarred)
       expect(triangles(buildCat(breed, undefined, { look, scars, simple: true }))).toBeLessThanOrEqual(5500);
     }
   });

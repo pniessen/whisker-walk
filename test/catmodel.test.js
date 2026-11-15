@@ -327,7 +327,7 @@ describe('cat model: budget and determinism', () => {
     it(`${breed} scarred draws no more than its ceiling + 1, full and simple, inside the triangle caps`, () => {
       expect(meshCount(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(CEILING[breed] + 1);
       expect(meshCount(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(CEILING_SIMPLE[breed] + 1);
-      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
+      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(9450); // R4: the smooth legs and the ruff need the 9,000 ceiling // 2026-11-15 (cat realism B7): 9,000 -> 9,450 (+5%, inside the plan's 15% allowance) for the fur tufts; a striped long-haired builder cat is the largest, 9,330 (9,386 scarred)
       expect(triangles(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(5500);
     });
   }
@@ -572,7 +572,7 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
   });
   it('stays inside the triangle budget', () => {
     for (const b of PRESETS) {
-      expect(triangles(buildCat(b))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
+      expect(triangles(buildCat(b))).toBeLessThanOrEqual(9450); // R4: the smooth legs and the ruff need the 9,000 ceiling // 2026-11-15 (cat realism B7): 9,000 -> 9,450 (+5%, inside the plan's 15% allowance) for the fur tufts; a striped long-haired builder cat is the largest, 9,330 (9,386 scarred)
       expect(triangles(buildCat(b, undefined, { simple: true }))).toBeLessThanOrEqual(5500);
     }
   });
@@ -1080,9 +1080,13 @@ it('the camera looks inside the head: between its centre and its top (tabby, fol
 describe('buildCat with opts.style (a clan coat)', () => {
   const meshesOf = (c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n++; }); return n; };
   const torsoColours = (cat) => {
-    const col = cat.userData.parts.body.geometry.attributes.color;
+    const geo = cat.userData.parts.body.geometry, col = geo.attributes.color;
     const out = [];
-    for (let i = 0; i < col.count; i++) out.push(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)));
+    // 2026-11-15 (cat realism B7): the torso's own vertices; the fur tufts that
+    // follow them (tufts.js) wear the coat where each lock lies, not where a
+    // torso vertex is, and have their own colour tests (cattufts.test.js).
+    const count = geo.userData.tufts?.start ?? col.count;
+    for (let i = 0; i < count; i++) out.push(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)));
     return out;
   };
 

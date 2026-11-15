@@ -46,7 +46,7 @@ describe('the tabby M', () => {
       expect(marks).toHaveLength(1);
       expect(marks[0].material.color.getHex()).toBe(hex(catStyle(breed).accent).getHex());
       expect(meshCount(buildCat(breed))).toBe(31);
-      expect(triangles(buildCat(breed))).toBeLessThanOrEqual(9000);
+      expect(triangles(buildCat(breed))).toBeLessThanOrEqual(9450); // 2026-11-15 (cat realism B7): 9,000 -> 9,450 (+5%, inside the plan's 15% allowance) for the fur tufts; a striped long-haired builder cat is the largest, 9,330 (9,386 scarred)
       expect(triangles(buildCat(breed, undefined, { simple: true }))).toBeLessThanOrEqual(5500);
     }
   });

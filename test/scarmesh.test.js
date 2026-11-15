@@ -455,7 +455,8 @@ describe('scar mesh', () => {
     const CEIL = { tabby: 31, zeetoo: 31, calico: 31, robbie: 31, d2: 31, digit: 34 };
     const cap = (simple, name) => {
       const full = name.startsWith('custom') ? 31 : (CEIL[name] ?? 30);
-      return { meshes: (simple ? full - 6 : full) + 1, tris: simple ? 5500 : 9000 };
+      // 2026-11-15 (cat realism B7): 9,000 -> 9,450 (+5%, inside the plan's 15% allowance) for the fur tufts
+      return { meshes: (simple ? full - 6 : full) + 1, tris: simple ? 5500 : 9450 };
     };
     const casts = [...PRESETS.map((b) => [b, (o) => buildCat(b, undefined, o)]),
       ['custom', (o) => buildCat('tabby', undefined, { ...o, look: { ...DEFAULT_LOOK, pattern: 'stripes', fur: 'fluffy', size: 1.15 } })],
