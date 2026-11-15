@@ -54,24 +54,30 @@ export function neckLoops(bare = false) {
   return { b, bn, bu, m, h, hn };
 }
 
-// The neck's own geometry: NECK_RINGS x AROUND points (laid by layNeck), white
-// vertex colours for the caller to paint, and its faces. No uv, as the rest of
-// the underside.
-export function neckGeometry() {
-  const N = NECK.AROUND, count = NECK_RINGS * N;
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
-  geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3).fill(1), 3));
-  const idx = [];
+// Add the neck to the underside's geometry `geo` (indexed; position, normal
+// and colour): NECK_RINGS x AROUND more points (laid by layNeck) with the
+// colours `col`, and their faces. Returns the neck's first vertex. The arrays
+// are grown in place of making a geometry to merge: a new three.js geometry
+// draws a uuid from Math.random, which would shift every seeded stream that
+// follows a cat's build.
+export function addNeck(geo, col) {
+  const N = NECK.AROUND, count = NECK_RINGS * N, start = geo.attributes.position.count;
+  const grow = (name, fill) => {
+    const old = geo.attributes[name].array, arr = new Float32Array(old.length + count * 3);
+    arr.set(old);
+    if (fill) arr.set(fill, old.length);
+    geo.setAttribute(name, new THREE.BufferAttribute(arr, 3));
+  };
+  grow('position'); grow('normal'); grow('color', col);
+  const idx = Array.from(geo.index.array);
   for (let i = 0; i < NECK_RINGS - 1; i++) {
     for (let j = 0; j < N; j++) {
-      const a = i * N + j, b = i * N + (j + 1) % N, c = (i + 1) * N + j, d = (i + 1) * N + (j + 1) % N;
+      const a = start + i * N + j, b = start + i * N + (j + 1) % N, c = start + (i + 1) * N + j, d = start + (i + 1) * N + (j + 1) % N;
       idx.push(a, b, c, b, d, c);
     }
   }
   geo.setIndex(idx);
-  return geo;
+  return start;
 }
 
 // Lay the neck: write its points and normals into `geo` (the underside's

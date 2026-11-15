@@ -16,7 +16,7 @@ import { buildBackItem, buildHood } from './backitems.js';
 import { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry, capeTieGeometry, layCapeTie } from './cape.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
 import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals, keepFacing, PROPORTION, NECK } from './torso.js';
-import { NECK_RINGS, neckLoops, neckGeometry, layNeck } from './neck.js';
+import { NECK_RINGS, neckLoops, addNeck, layNeck } from './neck.js';
 
 const STYLE = {
   // The tabby and zeetoo wear the tabby "M" on the forehead (polish-faces):
@@ -987,19 +987,19 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   // by layNeck (buildCat, then the animator every frame); here it gets its
   // colours: ring 0 the coat (the chest's colour under the throat), ring 4
   // the skull's, the rings between eased from one to the other.
-  let loops = null;
+  let loops = null, neckCol = null;
   if (!opts.simple && opts.neck) {
     loops = neckLoops(!!opts.neck.bare);
-    const neck = neckGeometry(), N = NECK.AROUND, col = neck.attributes.color.array;
+    const N = NECK.AROUND;
+    neckCol = new Float32Array(NECK_RINGS * N * 3);
     const from = new THREE.Color(), to = new THREE.Color(), chest = new THREE.Color(coat.chest), c = new THREE.Color();
     for (let j = 0; j < N; j++) {
       const up = Math.cos((j / N) * Math.PI * 2); // 1 at the nape, -1 at the throat
       const k = Math.min(1, Math.max(0, (-up - 0.1) / 0.5));
       coatColourAt(coat, [loops.bu[j * 3], loops.bu[j * 3 + 1], loops.bu[j * 3 + 2]], from).lerp(chest, k * k * (3 - 2 * k));
       opts.neck.skullColourAt(loops.h[j * 3], loops.h[j * 3 + 1], loops.h[j * 3 + 2], to);
-      for (let i = 0; i < NECK_RINGS; i++) c.lerpColors(from, to, i / (NECK_RINGS - 1)).toArray(col, (i * N + j) * 3);
+      for (let i = 0; i < NECK_RINGS; i++) c.lerpColors(from, to, i / (NECK_RINGS - 1)).toArray(neckCol, (i * N + j) * 3);
     }
-    parts.neck = neck;
   }
   const ranges = {};
   let at = 0;
@@ -1020,8 +1020,12 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
     underSeams.set(seamKey, seamed);
   }
   geo.attributes.normal.array.set(seamed);
+  if (loops) {
+    const start = addNeck(geo, neckCol);
+    ranges.neck = [start, start + NECK_RINGS * NECK.AROUND];
+    geo.userData.neck = { start, around: NECK.AROUND, napeTo: Math.floor(NECK.AROUND / 6), loops };
+  }
   geo.userData.ranges = ranges;
-  if (loops) geo.userData.neck = { start: ranges.neck[0], around: NECK.AROUND, napeTo: Math.floor(NECK.AROUND / 6), loops };
   geo.userData.chestCentre = [0, CHEST.DY / BS[1], CHEST.Z * fz / BS[2]];
   // the chest and belly balls as ellipsoids in the cat's resting frame (cape.js
   // layCapeTie keeps the cape's front bands and clasp out of them)
