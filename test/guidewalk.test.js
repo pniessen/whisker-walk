@@ -386,3 +386,119 @@ describe('a guided walk picked up again', () => {
     expect(done.tutorial.view()).toMatchObject({ id: 'guide.home', chip: 'line' });
   });
 });
+
+// The first camp walk (design section 7). Here with nobody to lead (the walk
+// together's form: the trail, the pill and the bubble); the waiting cat's own
+// moving is leadwait.js's, tested there and seen in the browser.
+function campHarness({ camp = false, cat = null } = {}) {
+  const storage = memStorage();
+  storage.setItem('whisker-walk-save', JSON.stringify({ version: 4, walks: { neighborhood: 2 }, points: 30, lifetimePoints: 30, clanPick: { mine: 'woods', partner: null, partnerId: null }, tutorial: { first: 'done', camp, hints: {}, told: { thing: null, visits: 0 } } }));
+  const progression = createProgression(storage);
+  const area = { bounds: { minX: -60, maxX: 60, minZ: -60, maxZ: 60 }, spawn: { x: 44, z: 12 }, colliders: [], waters: [] };
+  const plan = lessonFor(progression.state, { areaId: 'woods', clanEdition: true, hasCamp: true });
+  const goals = { goals: [{ id: 'collect', text: 'Pick up 2 treasures', progress: 0, target: 2, done: false }] };
+  const lesson = plan ? { kind: 'camp', camp: { x: 2, z: -43, r: 6 }, open: false, room: false, cat, heading: headingToward(area.spawn, { x: 2, z: -43 }), heldGoals: goals, finished: false, skipped: false } : null;
+  const calls = { guide: [], objective: [], goals: [], trails: [], popups: [], blocked: [], points: [] };
+  const session = {
+    lesson, goals: null, areaData: area, ground: FLAT_GROUND, reducedMotion: false, clanEdition: true,
+    cat: { position: new THREE.Vector3(44, 0, 12) }, campMarker: { x: 2, z: -43, color: 0x55aa55 },
+    scent: { trailTo: (from, to) => { calls.trails.push({ x: to.x, z: to.z }); } },
+    hints: { setBlocked: (v) => calls.blocked.push(v) },
+    fx: { burst() {}, popup: (p, text) => calls.popups.push(text) },
+    quest: null, race: { state: 'idle' },
+  };
+  const hud = { setToastCap() {}, setGoals: (g) => calls.goals.push(g), setPoints: (n) => calls.points.push(n), setObjective: (t, d) => calls.objective.push([t, d]), setLesson() {} };
+  const guideWalk = createGuideWalk({
+    player: { speed: 0 }, progression, settings: { get: () => false }, hud, touchUI: {},
+    bubble: { guide: (v) => calls.guide.push(v), update() {}, clear() {} },
+    audio: { chime() {}, trill() {}, unlockFanfare() {} }, getIsTouch: () => true,
+  });
+  const tick = (secs) => { for (let t = 0; t < secs; t += 0.2) guideWalk.update(session, 0.2); };
+  return { progression, session, lesson, guideWalk, calls, tick, line: () => calls.guide.at(-1) };
+}
+
+describe('the first camp walk, played', () => {
+  it('the bubble, the pill counting down, the beating mark and the paw prints point the way; the goals wait', () => {
+    const h = campHarness();
+    expect(h.lesson).toBeTruthy();
+    h.guideWalk.begin(h.session);
+    expect(h.line().text).toBe('Follow the paw prints to your camp.');
+    expect(h.session.campMarker.pulse).toBe('beat');
+    expect(h.session.goals).toBe(null);
+    expect(h.calls.blocked).toEqual([true]); // no hint takes the bubble on the way
+    h.tick(1);
+    const [words, metres] = h.calls.objective.at(-1);
+    expect(words).toBe('Your camp 🏡');
+    expect(metres).toBeCloseTo(Math.hypot(42, 55), 0);
+    // paw prints lead from the cat toward the camp
+    const p = h.calls.trails.at(-1);
+    const before = Math.hypot(44 - 2, 12 + 43);
+    expect(Math.hypot(p.x - 2, p.z + 43)).toBeLessThan(before - 5);
+    // ...and are laid again as she walks
+    const laid = h.calls.trails.length;
+    h.session.cat.position.set(30, 0, -5);
+    h.tick(6);
+    expect(h.calls.trails.length).toBeGreaterThan(laid);
+    expect(h.calls.objective.at(-1)[1]).toBeCloseTo(Math.hypot(28, 38), 0);
+  });
+
+  it('with a cat of the group to follow, the line names it', () => {
+    const cat = { name: 'Conkerbelly', group: { position: new THREE.Vector3(40, 0, 6), rotation: { y: 0 } }, camp: false };
+    const h = campHarness({ cat });
+    h.session.clanCats = { setLead: () => true };
+    h.guideWalk.begin(h.session);
+    expect(h.line().text).toBe('Follow Conkerbelly to your camp.');
+  });
+
+  it('arriving: +10, the camp words, the goals appear, and it never shows again', () => {
+    const h = campHarness();
+    h.guideWalk.begin(h.session);
+    h.session.cat.position.set(6, 0, -40); // inside the camp's circle
+    const before = h.progression.state.points;
+    h.tick(0.5);
+    expect(h.progression.state.points).toBe(before + CAMP_GIFT);
+    expect(h.calls.popups).toEqual(['+10 🐾']);
+    expect(h.line().text).toBe('This is your camp. Say hello to everyone!');
+    expect(h.session.goals).toBeTruthy();
+    expect(h.calls.objective.at(-1)).toEqual([null, undefined]); // the pill is put away
+    expect(h.session.campMarker.pulse).toBeUndefined();
+    expect(h.calls.blocked).toEqual([true]); // the hints wait until the words have been read
+    expect(h.progression.state.tutorial.camp).toBe(true);
+    h.tick(10);
+    expect(h.line()).toBe(null); // the words go after a while
+    expect(h.calls.blocked.at(-1)).toBe(false);
+    expect(h.progression.state.points).toBe(before + CAMP_GIFT); // once
+    expect(lessonFor(h.progression.state, { areaId: 'woods', clanEdition: true, hasCamp: true })).toBe(null);
+  });
+
+  it('two minutes of other things: the bubble shrinks to a chip and the goals appear anyway; the trail keeps pointing', () => {
+    const h = campHarness();
+    h.guideWalk.begin(h.session);
+    h.tick(119);
+    expect(h.session.goals).toBe(null);
+    expect(h.line().chip).toBe(null);
+    h.tick(2);
+    expect(h.session.goals).toBeTruthy();
+    expect(h.line().chip).toBe('paw');
+    const laid = h.calls.trails.length;
+    h.tick(6);
+    expect(h.calls.trails.length).toBeGreaterThan(laid);
+    expect(h.progression.state.tutorial.camp).toBe(false); // still to be reached
+  });
+
+  it('skip: the walk is an ordinary walk, and the camp walk is not shown again', () => {
+    const h = campHarness();
+    h.guideWalk.begin(h.session);
+    h.tick(1);
+    expect(h.guideWalk.skip(h.session)).toBe(true);
+    expect(h.line()).toBe(null);
+    expect(h.session.goals).toBeTruthy();
+    expect(h.session.campMarker.pulse).toBeUndefined();
+    expect(h.progression.state.tutorial.camp).toBe(true);
+    expect(h.progression.state.points).toBe(30); // no gift for skipping
+  });
+
+  it('a save that has been to its camp, or Legacy Edition, has no camp walk', () => {
+    expect(campHarness({ camp: true }).lesson).toBe(null);
+  });
+});

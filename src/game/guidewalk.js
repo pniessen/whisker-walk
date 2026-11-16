@@ -548,7 +548,8 @@ export function createGuideWalk({
     const L = session.lesson;
     if (session.campMarker) delete session.campMarker.pulse;
     if (rt.objective) { hud.setObjective(null); rt.objective = false; }
-    session.hints?.setBlocked?.(false);
+    // (At the camp the hints wait a little longer, until the arrival words have been read.)
+    if (!arrived) session.hints?.setBlocked?.(false);
     progression.setTutorialCamp?.();
     rt.e?.release();
     showGoals(session);
@@ -568,7 +569,7 @@ export function createGuideWalk({
     if (rt.done) return;
     if (rt.arrived) {
       rt.hereFor += step;
-      if (rt.hereFor >= CAMP_HERE_S) { rt.done = true; paint(); }
+      if (rt.hereFor >= CAMP_HERE_S) { rt.done = true; session.hints?.setBlocked?.(false); paint(); }
       return;
     }
     rt.t += step;
