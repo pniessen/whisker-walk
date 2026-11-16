@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   RESUME_KEY, RESUME_MAX_AGE_MS, RESUME_MAX_TRIES,
-  newWalkSeed, snapshotWalk, readResume, writeResume, clearResume, markTried,
+  newWalkSeed, newClearSeed, snapshotWalk, readResume, writeResume, clearResume, markTried,
   restoreGoals, restoreTallies, settleAbandoned, resumeWelcome,
 } from '../src/game/walkresume.js';
 import { createGoals, GOAL_POOL } from '../src/goals.js';
@@ -339,5 +339,83 @@ describe('what a picked-up walk must not pay for twice', () => {
     const ids = rolled.goals.map((g) => g.id);
     restoreGoals(rolled, [{ id: ids[0], progress: 1, done: false }, { id: 'gone-goal', progress: 1, done: false }, { id: ids[2], progress: 0, done: false }], GOAL_POOL);
     expect(rolled.goals.map((g) => g.id)).toEqual(ids);
+  });
+});
+
+// 2026-11-15, guided first walk (design section 8): the note carries the
+// guide's step, so a guided walk picked up again carries on from that step.
+describe('the guided walk in the note', () => {
+  const readG = (storage) => readResume(storage, { now: NOW + 60_000, areaIds: AREAS });
+  const lesson = (over = {}) => ({
+    kind: 'first', skipped: false, gift: 0, stray: { name: 'Biscuit' },
+    tutorial: { snapshot: () => ({ step: 4, did: { moved: true, hello: true, fish: true, treasure: false, pounce: true } }) },
+    heldGoals: { goals: [{ id: 'collect', progress: 1, done: false, target: 2 }] },
+    ...over,
+  });
+
+  it('a walk with no lesson has no guide key at all', () => {
+    expect(Object.hasOwn(snap(), 'guide')).toBe(false);
+    expect(Object.hasOwn(snap({ lesson: { kind: 'camp' } }), 'guide')).toBe(false);
+  });
+
+  it('carries the step, what was done, the guide\'s name and the gift, and reads them back', () => {
+    const note = snap({ areaId: 'neighborhood', goals: null, lesson: lesson({ gift: 20 }) });
+    expect(note.guide).toEqual({ step: 4, did: { moved: true, hello: true, fish: true, treasure: false, pounce: true }, name: 'Biscuit', gift: 20 });
+    // the goals a lesson holds aside are the walk's all the same
+    expect(note.goals).toEqual([{ id: 'collect', progress: 1, done: false }]);
+    const storage = memStorage();
+    writeResume(storage, note);
+    expect(readG(storage).data.guide).toEqual(note.guide);
+  });
+
+  it('a skipped lesson leaves nothing to carry on', () => {
+    expect(Object.hasOwn(snap({ lesson: lesson({ skipped: true }) }), 'guide')).toBe(false);
+  });
+
+  it('junk in the note is cleaned or dropped', () => {
+    const storage = memStorage();
+    const base = snap({ areaId: 'neighborhood' });
+    writeResume(storage, { ...base, guide: { step: 3, did: { hello: 'yes', fish: true, extra: 1 }, name: 'x'.repeat(99), gift: 5000 } });
+    expect(readG(storage).data.guide).toEqual({ step: 3, did: { moved: false, hello: false, fish: true, treasure: false, pounce: false }, name: 'x'.repeat(24), gift: 0 });
+    for (const junk of [{ step: 0 }, { step: 99 }, { step: '3' }, 'guide', 7, []]) {
+      writeResume(storage, { ...base, guide: junk });
+      expect(Object.hasOwn(readG(storage).data, 'guide'), JSON.stringify(junk)).toBe(false);
+    }
+  });
+});
+
+describe('a seed for a clear day', () => {
+  it('tries seeds until the walk\'s own weather roll says clear', () => {
+    const rolls = [];
+    let n = 0;
+    const rand = () => { n += 1; return n / 100; };
+    const seed = newClearSeed((s) => { rolls.push(s); return rolls.length === 4; }, rand);
+    expect(rolls).toHaveLength(4);
+    expect(seed).toBe(rolls[3]);
+  });
+
+  it('with the real roll: the first draw of the seed\'s stream is clear weather', async () => {
+    const { rollWeather } = await import('../src/weather.js');
+    const { mulberry32 } = await import('../src/rng.js');
+    const clear = (s) => rollWeather(mulberry32(s)) === 'clear';
+    const r = mulberry32(77);
+    for (let i = 0; i < 40; i++) expect(clear(newClearSeed(clear, r))).toBe(true);
+  });
+
+  it('gives up after its tries rather than loop for ever', () => {
+    let asked = 0;
+    const seed = newClearSeed(() => { asked += 1; return false; }, Math.random, 5);
+    expect(asked).toBe(5);
+    expect(Number.isInteger(seed)).toBe(true);
+  });
+
+  it('walk.js rolls the weather first off the walk\'s stream, so the seed\'s first draw is the weather', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8').replace(/\/\/.*$/gm, '');
+    const made = src.indexOf('const walkRng = mulberry32(roomSeed ?? soloSeed);');
+    const rolled = src.indexOf('rollWeather(walkRng)');
+    expect(made).toBeGreaterThan(0);
+    expect(rolled).toBeGreaterThan(made);
+    expect(src.slice(made + 10, rolled)).not.toMatch(/walkRng\(\)|\(walkRng[,)]/); // nothing draws in between
   });
 });

@@ -770,3 +770,30 @@ describe('the hint line is announced politely and is never a button', () => {
     expect(src).not.toMatch(/<button[^>]*hud-hint/);
   });
 });
+
+// 2026-11-15, guided first walk (design section 3): while a guided step is
+// open at most one ordinary toast shows at a time, so the bubble is not buried.
+describe('one toast at a time while a guided step is open', () => {
+  const shown = () => byId.get('hud-toasts').children.length;
+  it('setToastCap(1) shows one and keeps the rest waiting; null puts the usual two back', () => {
+    const hud = createHud();
+    hud.setToastCap(1);
+    hud.toast('one');
+    hud.toast('two');
+    hud.toast('three');
+    expect(shown()).toBe(1);
+    hud.setToastCap(null);
+    expect(shown()).toBe(MAX_TOASTS); // a waiting line came in at once; none was lost
+    hud.toast('four');
+    expect(shown()).toBe(MAX_TOASTS);
+  });
+
+  it('a cap is never more than the usual, and junk means the usual', () => {
+    const hud = createHud();
+    for (const junk of [99, 0, -1, 1.5, 'x', undefined]) {
+      hud.setToastCap(junk);
+      hud.toast('a'); hud.toast('b'); hud.toast('c');
+    }
+    expect(shown()).toBe(MAX_TOASTS);
+  });
+});
