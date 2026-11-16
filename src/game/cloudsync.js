@@ -55,6 +55,20 @@ const CLOUD_SECRET_KEY = 'whisker-walk-cloudsecret';
 const TOO_BIG_MESSAGE = "This save is too big for the cloud. It's still safe on this device.";
 const BUSY_MESSAGE = 'The cloud is busy right now — try again later.';
 
+// Has this device been deliberately put online? (2026-11-16) True once a
+// walking name is saved in Play together (that is what publishes a cat
+// profile, and Host, Join, friend codes and colony sharing all need it), or
+// once the device is linked to a cloud save (Save to cloud, or Load from
+// cloud confirmed). Both are things somebody tapped; nothing sets either on
+// its own. Until then the game stays off the network: see onlineAllowed in
+// createCloudSync, the only place this is asked.
+//
+// The name test is "any saved name", the same test rooms.pushProfileNow has
+// always used, so no device that publishes a profile today reads as offline.
+export function onlineOptedIn({ petName = null, cloudLinked = false } = {}) {
+  return cloudLinked === true || (typeof petName === 'string' && petName.length > 0);
+}
+
 // makeCloud is injectable for tests; the game always uses createLiveCloud.
 export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, progression, album, cloudToast, makeCloud = createLiveCloud }) {
   // the capability secret that authorizes profile/friendship writes (and, for
@@ -73,14 +87,39 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
   // cloud RPC client — created lazily (only once actually needed, and only
   // when MP) rather than at module scope, so an unconfigured deploy never
   // even attempts the dynamic supabase-js import.
+  //
+  // openCloud() is the UNGATED handle. It is only for a tap that is itself
+  // the choice to go online or to clean up online: Save to cloud, Load from
+  // cloud (both below) and Delete my online data (game/onlinedelete.js).
+  // Everything else asks getCloud().
   let cloudInstance = null;
-  function getCloud() {
+  function openCloud() {
     if (!MP) return null;
     if (!cloudInstance) {
       // getPsecret lets friendship reads go through the v8 friendships_of RPC
       cloudInstance = makeCloud(supabaseUrl, supabaseAnonKey, { getSecret: getPsecret });
     }
     return cloudInstance;
+  }
+
+  // The one answer to "may this device talk to the online database, or open
+  // a room, without being asked to right now?" (2026-11-16). See
+  // onlineOptedIn above for the rule. Read from the save and the cloud link
+  // every time, so saving a walking name or linking a save turns it on at
+  // once, and Delete my online data (which clears the name and the link)
+  // turns it off again.
+  function onlineAllowed() {
+    if (!MP) return false;
+    let petName = null;
+    try { petName = progression.state.petName; } catch { petName = null; }
+    return onlineOptedIn({ petName, cloudLinked: readCloudLink() !== null });
+  }
+
+  // The GATED handle every background path uses (the walk-start friends
+  // lookup, the Player pets list, profile pushes, greets, the colony): null,
+  // so no client and no request, until onlineAllowed().
+  function getCloud() {
+    return onlineAllowed() ? openCloud() : null;
   }
 
   function readCloudLink() {
@@ -163,7 +202,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
     // player's own psecret (the row's secret then becomes the thing
     // future writes must present, not psecret itself).
     async saveToCloud() {
-      const cloud = getCloud();
+      const cloud = openCloud(); // the tap that opts in
       if (!cloud) return { ok: false, error: 'Cloud sync is not available.' };
       const code = generateSaveCode();
       try {
@@ -187,7 +226,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
     // "Load from cloud" step 1: fetch + build a local-vs-cloud comparison
     // for the confirm-overwrite card. Nothing is written yet.
     async previewLoad(rawCode) {
-      const cloud = getCloud();
+      const cloud = openCloud(); // a typed code and a tap: deliberate
       if (!cloud) return { ok: false, error: 'Cloud sync is not available.' };
       const code = normalizeSaveCode(rawCode);
       if (!code) return { ok: false, error: 'Enter a save code first.' };
@@ -251,5 +290,5 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
     },
   };
 
-  return { getPsecret, getCloud, sync };
+  return { getPsecret, getCloud, openCloud, onlineAllowed, sync };
 }

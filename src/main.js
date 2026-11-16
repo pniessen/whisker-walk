@@ -33,6 +33,7 @@ import { createInteractions } from './game/interactions.js';
 import { createAvatarUpdater } from './game/avatar.js';
 import { createRooms } from './game/rooms.js';
 import { createNearby, pickBridge, NEARBY_EVENT } from './game/nearby.js';
+import { createHomebaseCloud } from './game/homebasecloud.js';
 import { createComposerRig } from './game/composer.js';
 import { createQualityAdapter } from './game/adaptquality.js';
 import { parseForcedRung } from './render/quality.js';
@@ -206,7 +207,9 @@ function init() {
   // Cloud save wiring (lazy capability handles + the home base's Sync ☁️
   // panel) lives in src/game/cloudsync.js — created here, alongside the other
   // system factories, so every later call site sees it already built.
-  const { getPsecret, getCloud, sync } = createCloudSync({
+  // getCloud is null until the device has been put online (onlineAllowed);
+  // openCloud is the ungated one, for Delete my online data only.
+  const { getPsecret, getCloud, openCloud, onlineAllowed, sync } = createCloudSync({
     MP,
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -419,7 +422,7 @@ function init() {
     MP, pid,
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    progression, getCloud, getPsecret, colonySync,
+    progression, getCloud, getPsecret, colonySync, onlineAllowed,
     getSession: () => session,
     startWalk: (opts) => startWalk(opts),
     toast: cloudToast,
@@ -486,65 +489,11 @@ function init() {
     getEdition: () => progression.state.edition,
   });
 
-  // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the
-  // lazy cloud instance, handed to homebase so it can fetch friendships +
-  // profiles for its own async render without knowing about MP/getCloud.
-  const homebaseCloud = {
-    available: MP,
-    myId: pid,
-    fetchFriendships(id) {
-      const cloud = getCloud();
-      return cloud ? cloud.fetchFriendships(id) : Promise.reject(new Error('cloud unavailable'));
-    },
-    fetchProfiles(ids) {
-      const cloud = getCloud();
-      return cloud ? cloud.fetchProfiles(ids) : Promise.reject(new Error('cloud unavailable'));
-    },
-    // Friend codes (Task 4): homebase never sees psecret directly — it
-    // passes back only the raw prefix (findByFriendCode) or the resolved
-    // other-player id (addFriendByCode), same "thin adapter" boundary Task
-    // 3 established for fetchFriendships/fetchProfiles above.
-    findByFriendCode(prefix) {
-      const cloud = getCloud();
-      return cloud ? cloud.findByFriendCode(prefix) : Promise.reject(new Error('cloud unavailable'));
-    },
-    addFriendByCode(otherId) {
-      const cloud = getCloud();
-      if (!cloud) return Promise.reject(new Error('cloud unavailable'));
-      // record_friend_greet (called inside cloud.addFriendByCode) validates
-      // the CALLER's own profile row/secret — a player who only just typed
-      // their pet name (never hosted/joined a room or finished a walk) has
-      // no profile row on the server yet, which would otherwise make every
-      // friend-code add fail with a denied (-1). Push it first — awaited,
-      // not fire-and-forget, so the row genuinely exists before the RPC
-      // that needs it — and let cloud.addFriendByCode's own 'failed' status
-      // (see below) surface anything that still goes wrong.
-      return Promise.resolve(pushProfileNow()).then(() => cloud.addFriendByCode(pid, getPsecret(), otherId));
-    },
-    // Unilateral-friendship mitigation (final fix wave, Task 3): record_friend_greet
-    // doesn't validate p_other_id, so any client can drive greets against a
-    // victim who never agreed to anything — those surface as ghosts
-    // (spawnGhosts) and Player pets roster rows. This is a client-side,
-    // per-device "stop showing me this visitor" list, not a server-side fix
-    // (see docs/superpowers/specs/2026-08-01-whisker-walk-v7-online.md's
-    // "Known limitation" note) — homebase's roster Hide button and spawnGhosts
-    // both consult it.
-    isBlocked(otherId) {
-      return blockList.has(otherId);
-    },
-    blockPlayer(otherId) {
-      blockList.add(otherId);
-    },
-    // Player pets' "Show again": hiding is never for good.
-    unblockPlayer(otherId) {
-      blockList.remove(otherId);
-    },
-    blockedPlayers() {
-      return blockList.all();
-    },
-  };
+  // Player pets 🐾🐾 roster, friend codes and the hide list: the home base's
+  // adapter over the gated cloud handle (src/game/homebasecloud.js).
+  const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
-  const onlineDelete = createOnlineDelete({ MP, pid, getCloud, getPsecret, sync, progression });
+  const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
   const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
