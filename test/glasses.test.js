@@ -173,8 +173,8 @@ describe('glasses that read (polish-catlooks Task 3)', () => {
       const yaw = GLASSES.cat.yaw;
       for (const side of [-1, 1]) {
         const c = new THREE.Vector3(side * 0.083, 0.03, -0.17), n = new THREE.Vector3(side * Math.sin(yaw), 0, -Math.cos(yaw));
-        const eyeParts = head.children.filter((o) => o.isMesh && !o.userData.glassesPart
-          && [0.083, 0.07].includes(side * o.position.x) && [0.03, 0.048].includes(o.position.y));
+        // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): the eye, pupil and shine by their tags (they were found by the ball eye's fixed positions)
+        const eyeParts = head.children.filter((o) => o.isMesh && (o.userData.eye || o.userData.pupil || o.userData.shine) && Math.sign(o.position.x) === side);
         expect(eyeParts.length).toBe(3);
         const eyeFront = Math.max(...eyeParts.flatMap((o) => verts(o).map((v) => v.clone().sub(c).dot(n))));
         const lensBack = Math.min(...verts(lenses).filter((v) => Math.sign(v.x) === side).map((v) => v.clone().sub(c).dot(n)));

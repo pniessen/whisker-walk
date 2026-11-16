@@ -1,3 +1,4 @@
+import { SHELL_EAR } from '../src/cat/face.js';
 import { describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import * as THREE from 'three';
@@ -150,7 +151,8 @@ describe('scar mesh', () => {
     const cat = buildCat('tabby', undefined, { scars: [{ site: 'face', stage: 'full', side: 'r' }] });
     const { head } = cat.userData.parts;
     cat.updateMatrixWorld(true);
-    const eye = head.children.find((m) => m.isMesh && m.geometry.parameters?.radius === 0.036 && m.position.x > 0);
+    // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): the eye by its tag (a lens, not the 0.036 ball)
+    const eye = head.children.find((m) => m.isMesh && m.userData.eye && m.position.x > 0);
     const c = centroids(cat).map((p) => head.worldToLocal(p.clone()));
     const mid = c[1];
     // Above the eye's centre, within an eye's width of it, on the front of the face.
@@ -455,7 +457,7 @@ describe('scar mesh', () => {
     const CEIL = { tabby: 31, zeetoo: 31, calico: 31, robbie: 31, d2: 31, digit: 34 };
     const cap = (simple, name) => {
       const full = name.startsWith('custom') ? 31 : (CEIL[name] ?? 30);
-      return { meshes: (simple ? full - 6 : full) + 1, tris: simple ? 5500 : 9000 };
+      return { meshes: (simple ? full - 6 : full) + 1, tris: simple ? 5500 : 10350 }; // 2026-11-15, realism 3/A3: 9,000 -> 10,350, the owner's +15% for the detailed cat (rounder head, eyes and pads, the snout and mouth: about +860); the crowd cap stays
     };
     const casts = [...PRESETS.map((b) => [b, (o) => buildCat(b, undefined, o)]),
       ['custom', (o) => buildCat('tabby', undefined, { ...o, look: { ...DEFAULT_LOOK, pattern: 'stripes', fur: 'fluffy', size: 1.15 } })],
@@ -546,13 +548,17 @@ describe('scar mesh', () => {
       const sc = cat.getWorldScale(new THREE.Vector3()).x;
       const check = (label) => {
         const pts = nick();
-        const geo = ear.geometry.parameters;
+        // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): a shell ear is not a cone; its height is in geometry.userData.shell (face.js)
+        const geo = ear.geometry.parameters ?? { height: ear.geometry.userData.shell.h };
         for (const p of pts) {
           expect(meshDistance(ear, p, sc), `${b} ${simple} ${side} ${label}`).toBeLessThanOrEqual(0.003);
           expect(meshDistance(other, p, sc), `${b} ${simple} ${side} ${label} other ear`).toBeGreaterThan(0.02);
           // On the ear's back (+z), toward its outer edge, about 60% up.
           const l = ear.worldToLocal(p.clone());
-          expect(l.z, `${b} ${side} ${label} back`).toBeGreaterThan(0);
+          // 2026-11-15, realism 3: a shell ear's rim leans a little forward of its own origin, so "the back" is behind the rim at that height (0 on the old cone)
+          const sh = ear.geometry.userData.shell;
+          const rimZ = sh ? sh.r * SHELL_EAR.rimZ * (1 - (l.y + sh.h / 2) / sh.h) : 0;
+          expect(l.z, `${b} ${side} ${label} back`).toBeGreaterThan(rimZ);
           expect(l.x * (side === 'r' ? 1 : -1), `${b} ${side} ${label} outer`).toBeGreaterThan(0);
           const up = (l.y + geo.height / 2) / geo.height;
           expect(up, `${b} ${side} ${label} height`).toBeGreaterThan(0.45);

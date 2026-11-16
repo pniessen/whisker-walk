@@ -25,6 +25,11 @@ import { closeDiffs } from './helpers/closeto.js';
 // shadows.active differ, and in shadows.active only cats' blob scales (each
 // about 1% smaller, from the smaller head). No position, speed or state moved.
 //
+// 2026-11-15, the same day again: re-recorded once for cat realism round 2
+// (fur tufts), merged onto round 3. Compared field by field: only shadows.all
+// and shadows.active differ, and in shadows.active only cats' blob scales
+// (the fur makes each box a little wider). No position, speed or state moved.
+//
 // What runs, in main.js's frame order: player.update, critters, strays, clan
 // cats (the four territories), intruders (a fixed clock with a visit on the
 // map), the toy (and main.js's float-ashore drift), gold mice, knockables
@@ -51,6 +56,9 @@ import { closeDiffs } from './helpers/closeto.js';
 // rival, the yard dog, the race, weather, splash, grass, wind, water and sky
 // life are not in the plan's list; their own tests and Task 10's wiring sweep
 // cover them.)
+// 2026-11-15, cat realism round 3 (the face; owner's approval and picks from the sheets): re-recorded once.
+// Compared field by field first: only shadows.* moved (66 values in each of the 8 areas), the cat's ground
+// shadow following its new outline (shell ears, the nose's point). No position, pose or seeded value moved.
 
 vi.stubGlobal('document', {
   createElement: () => ({

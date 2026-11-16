@@ -18,7 +18,12 @@ function triangles(mesh) {
   const g = mesh.geometry, p = g.attributes.position, out = [];
   const idx = g.index ? g.index.array : Array.from({ length: p.count }, (_, i) => i);
   const v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  // 2026-11-15 (cat realism B7): the part's own closed surface only. Its fur
+  // tufts (tufts.js) follow it in the index; they are open flaps of fur lying
+  // on the surface, with no inside, so a signed distance to one means nothing.
+  const fur = g.userData.tufts, from = fur?.index ?? idx.length, to = fur ? fur.index + fur.indices : idx.length;
   for (let f = 0; f < idx.length; f += 3) {
+    if (f >= from && f < to) continue;
     for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(p, idx[f + k]).applyMatrix4(mesh.matrixWorld);
     const tri = new THREE.Triangle(v[0].clone(), v[1].clone(), v[2].clone());
     const n = tri.getNormal(new THREE.Vector3());

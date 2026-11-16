@@ -10,6 +10,7 @@ import { VISIT_PRIZES } from '../src/visits.js';
 import { ruffGeometry, RUFF, jawFluffColour } from '../src/cat/ruff.js';
 import { DEFAULT_LOOK, lookToStyle } from '../src/customcats.js';
 import { SKULL, TORSO } from '../src/cat/torso.js';
+import { WHISKERS } from '../src/cat/face.js';
 
 // Wave 6 (docs/VISUAL-PASS.md) reshaped the cat. These are the properties that
 // wave established and that a later edit could silently undo — none of them are
@@ -305,8 +306,9 @@ describe('cat model: budget and determinism', () => {
   // The final ceilings (Global Constraints): the belly, chest and ruff are one mesh.
   // polish-faces (2026-11-06): the tabby and zeetoo wear the forehead M, one
   // mesh like D2's bars and Robbie's blaze, so they move 30 -> 31 (simple 25).
-  const CEILING = { tabby: 31, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 31, robbie: 31, d2: 31, digit: 34, hagrid: 19 };
-  const CEILING_SIMPLE = Object.fromEntries(Object.entries(CEILING).map(([b, n]) => [b, b === 'hagrid' ? 19 : n - 6]));
+  // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): every detailed cat's ceiling comes DOWN by 2 (a shell ear has no inner-ear mesh); the crowd cat's is unchanged.
+  const CEILING = { tabby: 29, siamese: 28, persian: 28, black: 28, calico: 29, mainecoon: 28, zeetoo: 29, robbie: 29, d2: 29, digit: 32, hagrid: 19 };
+  const CEILING_SIMPLE = Object.fromEntries(Object.entries(CEILING).map(([b, n]) => [b, b === 'hagrid' ? 19 : n - 4]));
 
   for (const breed of ALL) {
     it(`${breed} draws no more meshes than its ceiling (${CEILING[breed]})`, () => {
@@ -327,7 +329,7 @@ describe('cat model: budget and determinism', () => {
     it(`${breed} scarred draws no more than its ceiling + 1, full and simple, inside the triangle caps`, () => {
       expect(meshCount(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(CEILING[breed] + 1);
       expect(meshCount(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(CEILING_SIMPLE[breed] + 1);
-      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
+      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(10350); // 2026-11-15, realism 3/A3: 9,000 -> 10,350, the owner's +15% for the detailed cat (rounder head, eyes and pads, the snout and mouth: about +860); the crowd cap stays
       expect(triangles(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(5500);
     });
   }
@@ -564,15 +566,16 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
     expect(colourDistance(chestFront('black'), new THREE.Color(0x3a3a42))).toBeLessThan(0.02);
   });
   it('final mesh ceilings, fluffy cats included', () => {
-    const FINAL = { tabby: 31, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 31, robbie: 31, d2: 31, digit: 34 }; // tabby, zeetoo: +1 for the M (polish-faces)
+    // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): full builds 2 fewer each (no inner-ear meshes); simple builds as they were (full - 4 now)
+    const FINAL = { tabby: 29, siamese: 28, persian: 28, black: 28, calico: 29, mainecoon: 28, zeetoo: 29, robbie: 29, d2: 29, digit: 32 }; // tabby, zeetoo: +1 for the M (polish-faces)
     for (const [b, n] of Object.entries(FINAL)) {
       expect(meshCount(buildCat(b))).toBe(n);
-      expect(meshCount(buildCat(b, undefined, { simple: true }))).toBe(n - 6);
+      expect(meshCount(buildCat(b, undefined, { simple: true }))).toBe(n - 4);
     }
   });
   it('stays inside the triangle budget', () => {
     for (const b of PRESETS) {
-      expect(triangles(buildCat(b))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
+      expect(triangles(buildCat(b))).toBeLessThanOrEqual(10350); // 2026-11-15, realism 3/A3: 9,000 -> 10,350, the owner's +15% for the detailed cat (rounder head, eyes and pads, the snout and mouth: about +860); the crowd cap stays
       expect(triangles(buildCat(b, undefined, { simple: true }))).toBeLessThanOrEqual(5500);
     }
   });
@@ -714,7 +717,17 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   const noseBox = (cat) => {
     const noses = []; cat.userData.parts.head.traverse((o) => { if (o.isMesh && o.userData.nose) noses.push(o); });
     expect(noses).toHaveLength(1);
-    return new THREE.Box3().setFromObject(noses[0]);
+    // 2026-11-15, realism 3/A1: the nose mesh now carries the mouth line too
+    // (face.js noseGeometry), which runs down the muzzle. "The nose" here is
+    // still the leather: its vertices come first (geometry.userData.leather).
+    const leather = noses[0].geometry.userData.leather;
+    if (!leather) return new THREE.Box3().setFromObject(noses[0]); // a crowd cat's ball nose
+    // Measured as the ball was (Box3.setFromObject: the part's own box, carried by its world matrix).
+    noses[0].updateWorldMatrix(true, false);
+    const box = new THREE.Box3(), v = new THREE.Vector3();
+    for (let i = 0; i < leather.count; i++) box.expandByPoint(v.fromBufferAttribute(noses[0].geometry.attributes.position, i));
+    box.applyMatrix4(noses[0].matrixWorld);
+    return box;
   };
   const underChin = (bare, meshes) => {
     const nose = noseBox(bare);
@@ -948,7 +961,8 @@ describe('cat model: the ruff is a small bib (body refinement, Task 6)', () => {
       const { head, underside } = cat.userData.parts, skull = head.children[0];
       let nose; head.traverse((o) => { if (o.userData.nose) nose = o; });
       nose.geometry.computeBoundingBox();
-      const mouthY = nose.position.y + nose.geometry.boundingBox.min.y * nose.scale.y;   // head-local
+      // 2026-11-15, realism 3/A1: the leather's lower edge, not the nose mesh's (which now includes the mouth line below it)
+      const mouthY = nose.position.y + (nose.geometry.userData.leather?.minY ?? nose.geometry.boundingBox.min.y) * nose.scale.y;   // head-local
       const toSkull = skull.matrixWorld.clone().invert(), toHead = head.matrixWorld.clone().invert();
       const [a, z] = underside.userData.ranges.ruff, p = underside.geometry.attributes.position;
       for (let i = a; i < z; i++) {
@@ -1080,9 +1094,13 @@ it('the camera looks inside the head: between its centre and its top (tabby, fol
 describe('buildCat with opts.style (a clan coat)', () => {
   const meshesOf = (c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n++; }); return n; };
   const torsoColours = (cat) => {
-    const col = cat.userData.parts.body.geometry.attributes.color;
+    const geo = cat.userData.parts.body.geometry, col = geo.attributes.color;
     const out = [];
-    for (let i = 0; i < col.count; i++) out.push(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)));
+    // 2026-11-15 (cat realism B7): the torso's own vertices; the fur tufts that
+    // follow them (tufts.js) wear the coat where each lock lies, not where a
+    // torso vertex is, and have their own colour tests (cattufts.test.js).
+    const count = geo.userData.tufts?.start ?? col.count;
+    for (let i = 0; i < count; i++) out.push(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)));
     return out;
   };
 
@@ -1136,24 +1154,35 @@ describe('buildCat with opts.style (a clan coat)', () => {
 describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
   // The skull's silhouette from behind, head space: its half-width at height y.
   const skullHalfWidth = (y) => SKULL.R * SKULL.SCALE[0] * Math.sqrt(Math.max(0, 1 - (y / (SKULL.R * SKULL.SCALE[1])) ** 2));
-  const whiskerEnds = (cat) => cat.userData.parts.whiskers.map((w) => {
-    const p = w.geometry.attributes.position;
-    const a = new THREE.Vector3().fromBufferAttribute(p, 0), b = new THREE.Vector3().fromBufferAttribute(p, 1);
-    return Math.abs(a.x) > Math.abs(b.x) ? { outer: a, inner: b, w } : { outer: b, inner: a, w };
-  });
+  // 2026-11-15, realism 3/A6: the whiskers are ONE LineSegments (they were six
+  // Lines): four curved whiskers a side from the pad and two short ones over
+  // each eye, 4 segments each (face.js WHISKERS). Each whisker's root and tip
+  // are its first and last points; the same checks as before on each.
+  const whiskerEnds = (cat) => {
+    const [w] = cat.userData.parts.whiskers, p = w.geometry.attributes.position, per = WHISKERS.seg * 2, out = [];
+    for (let i = 0; i < p.count; i += per) {
+      const inner = new THREE.Vector3().fromBufferAttribute(p, i), outer = new THREE.Vector3().fromBufferAttribute(p, i + per - 1);
+      const all = Array.from({ length: per }, (_, k) => new THREE.Vector3().fromBufferAttribute(p, i + k));
+      out.push({ inner, outer, all, w });
+    }
+    return out;
+  };
 
-  it('whiskers end near the head and sweep forward, faint (tabby, digit)', () => {
+  it('whiskers end near the head and sweep forward, faint; one draw call (tabby, digit)', () => {
     for (const breed of ['tabby', 'digit']) {
       const cat = buildCat(breed), ends = whiskerEnds(cat);
-      expect(ends).toHaveLength(6);
-      for (const { outer, inner, w } of ends) {
+      expect(cat.userData.parts.whiskers).toHaveLength(1);
+      expect(cat.userData.parts.whiskers[0].isLineSegments).toBe(true);
+      expect(ends).toHaveLength(2 * (WHISKERS.pad.length + WHISKERS.brow.length));
+      for (const { outer, inner, all, w } of ends) {
         // whiskers are head children at the head's origin: geometry is head space
         expect(w.parent).toBe(cat.userData.parts.head);
         expect(w.position.toArray()).toEqual([0, 0, 0]);
-        // From behind they end within 4 cm of the skull's outline at their height...
-        expect(Math.abs(outer.x), `${breed} whisker reach`).toBeLessThanOrEqual(skullHalfWidth(outer.y) + 0.04);
+        // From behind they end within 4 cm of the skull's outline at their height (every point of the curve)...
+        for (const q of all) expect(Math.abs(q.x), `${breed} whisker reach`).toBeLessThanOrEqual(skullHalfWidth(q.y) + 0.04);
         // ...and run forward from the root (front is -z), so the head hides most of them.
         expect(outer.z, `${breed} whisker sweep`).toBeLessThan(inner.z);
+        expect(Math.abs(outer.x), `${breed} whisker runs outward`).toBeGreaterThan(Math.abs(inner.x));
         expect(w.material.opacity).toBeLessThanOrEqual(0.5);
       }
     }
@@ -1319,7 +1348,8 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
     }
     return worst * SKULL_R * skull.getWorldScale(new THREE.Vector3()).x;
   };
-  const eyeParts = (head, side) => [0.036, 0.017, 0.007].map((r) => head.children.find((m) => m.isMesh && m.geometry.parameters?.radius === r && Math.sign(m.position.x) === side));
+  // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): the eye, pupil and shine are found by their tags (the eye is a lens, no longer the 0.036 ball)
+  const eyeParts = (head, side) => ['eye', 'pupil', 'shine'].map((tag) => head.children.find((m) => m.isMesh && m.userData[tag] && Math.sign(m.position.x) === side));
 
   it('from the side, the far eye (eye, pupil, shine) stays inside the head outline, standing and stalking', () => {
     for (const breed of ['tabby', 'digit']) for (const state of ['follow', 'stalk']) {
@@ -1329,24 +1359,29 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
       expect(far.every(Boolean)).toBe(true);
       for (const yaw of [0, 10, 20, 30]) for (const up of [0, 0.12]) {
         const a = (yaw * Math.PI) / 180, dir = new THREE.Vector3(Math.cos(a), up, Math.sin(a)); // from the side, round toward the rear
-        for (const m of far) expect(poke(skull, m, dir), `${breed} ${state} yaw ${yaw} up ${up} r ${m.geometry.parameters.radius}`).toBeLessThanOrEqual(0.001);
+        for (const m of far) expect(poke(skull, m, dir), `${breed} ${state} yaw ${yaw} up ${up} ${m.userData.eye ? 'eye' : m.userData.pupil ? 'pupil' : 'shine'}`).toBeLessThanOrEqual(0.001);
       }
     }
   });
 
-  it('the eyes still stand out of the face: eye proud of the skull, pupil proud of the eye', () => {
+  // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): the soft eye is a lens set INTO the face, so it no longer stands 5 mm
+  // proud of the skull as the ball did (that was the audit's "eyes bulge like
+  // lenses"). What must still hold: it is in front of the skull, not sunk under
+  // it, the pupil is proud of the lens and the catchlight of the lens under it.
+  // Measured out of the face along the eye's own facing, from the eye's centre.
+  it('the eyes lie on the face: the lens just proud of the skull, the pupil and catchlight proud of the lens', () => {
     const head = buildCat('tabby').userData.parts.head;
-    const frontZ = (m) => { m.updateMatrix(); const b = new THREE.Box3().setFromBufferAttribute(m.geometry.attributes.position).applyMatrix4(m.matrix); return b.min.z; };
     for (const side of [-1, 1]) {
       const [eye, pupil, shine] = eyeParts(head, side);
+      const out = new THREE.Vector3(0, 0, -1).applyQuaternion(eye.quaternion);
+      const front = (m) => { m.updateMatrix(); const p = m.geometry.attributes.position; let f = -Infinity; for (let i = 0; i < p.count; i++) f = Math.max(f, new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(m.matrix).sub(eye.position).dot(out)); return f; };
+      // the eye's centre is on the skull ellipsoid
       const [ax, ay, az] = SKULL.SCALE.map((s) => s * SKULL_R);
-      const skullZ = -az * Math.sqrt(1 - (eye.position.x / ax) ** 2 - (eye.position.y / ay) ** 2);
-      expect(frontZ(eye)).toBeLessThanOrEqual(skullZ - 0.005);
-      expect(frontZ(pupil)).toBeLessThanOrEqual(frontZ(eye) - 0.001);
-      // the shine stands out of the eye's surface where it sits
-      const [ex, ey, ez] = [0.036, 0.036 * 1.15, 0.036 * 0.7];
-      const dx = (shine.position.x - eye.position.x) / ex, dy = (shine.position.y - eye.position.y) / ey;
-      expect(frontZ(shine)).toBeLessThanOrEqual(eye.position.z - ez * Math.sqrt(1 - dx * dx - dy * dy) - 0.002);
+      expect((eye.position.x / ax) ** 2 + (eye.position.y / ay) ** 2 + (eye.position.z / az) ** 2).toBeCloseTo(1, 6);
+      expect(front(eye)).toBeGreaterThanOrEqual(0.003);
+      expect(front(eye)).toBeLessThanOrEqual(0.006);
+      expect(front(pupil)).toBeGreaterThanOrEqual(front(eye) + 0.001);
+      expect(front(shine)).toBeGreaterThanOrEqual(front(eye) + 0.002);
     }
   });
 });

@@ -40,7 +40,8 @@ describe('cat rim light', () => {
     const { head, whiskers } = cat.userData.parts;
     const nose = head.children.find((c) => c.userData.nose);
     expect(rimOf(nose)).toBeUndefined();
-    const eyes = head.children.filter((m) => m.isMesh && m.geometry.parameters?.radius === 0.036);
+    // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): the eyes are found by their tag (lenses, not the 0.036 balls)
+    const eyes = head.children.filter((m) => m.isMesh && m.userData.eye);
     expect(eyes).toHaveLength(2);
     for (const e of eyes) expect(rimOf(e)).toBeUndefined();
     for (const w of whiskers) expect(w.material.userData.catRim).toBeUndefined();
