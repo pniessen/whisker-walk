@@ -327,3 +327,112 @@ describe('the tail root wears the rump\'s colour (round 1\'s leftover)', () => {
     }
   });
 });
+
+describe('coat detail (A5): barred legs, a necklace, a darker back line, a paler underside', () => {
+  const colourOf = (attr, i) => new THREE.Color(attr.getX(i), attr.getY(i), attr.getZ(i));
+  const dist = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+  it('the four family cats are exactly as they were: no detail on the coat, no bars on the legs', async () => {
+    const { coatFromStyle, coatColourAt } = await import('../src/cat/coat.js');
+    const { catStyle } = await import('../src/cat/model.js');
+    for (const breed of ['zeetoo', 'robbie', 'd2', 'digit']) {
+      for (const simple of [false, true]) {
+        const cat = make(breed, simple);
+        const { body, legs } = cat.userData.parts;
+        expect(body.userData.coat.detail, breed).toBe(false);
+        const plain = coatFromStyle(catStyle(breed));
+        const unit = body.geometry.userData.unit, col = body.geometry.attributes.color, c = new THREE.Color();
+        for (let i = 0; i < unit.length / 3; i++) {
+          coatColourAt(plain, [unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2]], c);
+          expect(dist(colourOf(col, i), c), `${breed} torso ${i}`).toBeLessThan(1e-6);
+        }
+        const s = catStyle(breed), legHex = new THREE.Color(s.whiteLegs ? s.belly : s.base);
+        for (const leg of legs) {
+          const g = leg.children[0].geometry;
+          g.userData.t.forEach((t, i) => { if (t >= 0.18) expect(dist(colourOf(g.attributes.color, i), legHex), `${breed} leg`).toBeLessThan(1e-6); });
+        }
+      }
+    }
+  });
+  it('a striped coat has barred legs and a necklace; an unstriped one has neither', async () => {
+    const { catStyle } = await import('../src/cat/model.js');
+    const looks = [['tabby', {}], ['tabby', { look: { coat: 'ginger', marks: 'chocolate', pattern: 'stripes', fur: 'long', eyes: 'green', size: 1 } }], ['tabby', { look: { coat: 'grey', marks: 'black', pattern: 'stripes', fur: 'short', eyes: 'green', size: 1 } }]];
+    for (const [breed, opts] of looks) {
+      for (const simple of [false, true]) {
+        const cat = make(breed, simple, {}, opts);
+        const { body, legs, underside } = cat.userData.parts;
+        const coat = body.userData.coat, accent = new THREE.Color(coat.accent), base = new THREE.Color(coat.base);
+        expect(coat.detail && coat.stripes).toBe(true);
+        for (const leg of legs) {
+          const g = leg.children[0].geometry, col = g.attributes.color;
+          const near = (i) => dist(colourOf(col, i), accent) / dist(base, accent); // 1 plain .. 0 stripe colour
+          const rings = {};
+          g.userData.t.forEach((t, i) => { if (t > 0.2 && t < 0.99) (rings[t.toFixed(3)] ??= []).push(near(i)); });
+          const share = Object.values(rings).map((r) => r[0]);
+          expect(share.filter((k) => k < 0.6).length, 'bars').toBeGreaterThanOrEqual(3);
+          expect(share.filter((k) => k > 0.99).length, 'plain between').toBeGreaterThanOrEqual(3);
+          expect(Math.min(...share)).toBeGreaterThan(0.4); // soft: never the full stripe colour
+        }
+        // the necklace: chest vertices on the ball's front pulled toward the stripe colour, and pale ones left between
+        const [a, b] = underside.userData.ranges.chest, col = underside.geometry.attributes.color, pale = new THREE.Color(coat.chest);
+        let barred = 0, clean = 0;
+        for (let i = a; i < b; i++) {
+          const c = colourOf(col, i);
+          if (dist(c, pale) < 0.02) clean++;
+          else if (dist(c, pale.clone().lerp(accent, 0.45)) < 0.05) barred++;
+        }
+        expect(barred, `${simple} necklace`).toBeGreaterThanOrEqual(2);
+        expect(clean, `${simple} bib`).toBeGreaterThanOrEqual(1);
+      }
+    }
+    for (const breed of ['black', 'persian', 'siamese', 'calico', 'mainecoon']) {
+      const cat = make(breed);
+      const s = catStyle(breed), legHex = new THREE.Color(s.points ? s.accent : s.base);
+      for (const leg of cat.userData.parts.legs) {
+        const g = leg.children[0].geometry;
+        g.userData.t.forEach((t, i) => { if (t >= 0.18) expect(dist(colourOf(g.attributes.color, i), legHex), `${breed} leg`).toBeLessThan(1e-6); });
+      }
+    }
+  });
+  it('the back line and the underside are slight, and a patch keeps its own colour', async () => {
+    const { coatFromStyle, coatColourAt } = await import('../src/cat/coat.js');
+    const { catStyle } = await import('../src/cat/model.js');
+    const a = new THREE.Color(), b = new THREE.Color();
+    for (const breed of ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon']) {
+      const plain = coatFromStyle(catStyle(breed)), detail = coatFromStyle(catStyle(breed), { detail: true });
+      let worst = 0, sum = 0, n = 0;
+      for (let i = 0; i < 4000; i++) {
+        const y = 1 - 2 * ((i + 0.5) / 4000), r = Math.sqrt(1 - y * y), th = i * 2.399963;
+        const u = [r * Math.cos(th), y, r * Math.sin(th)];
+        coatColourAt(plain, u, a); coatColourAt(detail, u, b);
+        const d = dist(a, b);
+        worst = Math.max(worst, d);
+        if (y > -0.4) { sum += (b.r + b.g + b.b) - (a.r + a.g + a.b); n += a.r + a.g + a.b; } // the back and flanks, what a camera sees (the belly ball covers the rest)
+      }
+      expect(worst, breed).toBeLessThan(0.16);          // slight everywhere (the tabby's underside, right under the belly, moves most)
+      expect(Math.abs(sum / n), breed).toBeLessThan(0.03); // and the whole coat is the same cat
+      expect(worst, breed).toBeGreaterThan(breed === 'black' ? 0.005 : 0.02); // but it is there
+    }
+    // the calico's patch centres are untouched
+    const plain = coatFromStyle(catStyle('calico')), detail = coatFromStyle(catStyle('calico'), { detail: true });
+    for (const u of [[0.33, 0.72, -0.2], [-0.3, 0.75, 0.3], [0.1, 0.8, 0.7]]) {
+      const L = Math.hypot(...u), v = u.map((x) => x / L);
+      const p = coatColourAt(plain, v, a), d = coatColourAt(detail, v, b);
+      if (dist(p, new THREE.Color(0xf0ead8)) > 0.3) expect(dist(p, d), JSON.stringify(u)).toBeLessThan(1e-6);
+    }
+  });
+  it('the fur tufts wear the new colours: each torso tuft is the coat painted under it', () => {
+    const cat = make('tabby', false, {}, { look: { coat: 'ginger', marks: 'chocolate', pattern: 'stripes', fur: 'long', eyes: 'green', size: 1 } });
+    const g = cat.userData.parts.body.geometry, fur = g.userData.tufts;
+    expect(fur).toBeTruthy();
+    const col = g.attributes.color, body = g.userData.unit.length / 3;
+    // a tuft's root colours come from coatColourAt on this very coat, so some tuft vertex matches a torso vertex's detailed colour closely
+    let matched = 0;
+    for (let i = fur.start; i < fur.start + Math.min(fur.count, 60); i++) {
+      const c = colourOf(col, i);
+      let best = Infinity;
+      for (let k = 0; k < body; k += 3) best = Math.min(best, dist(c, colourOf(col, k)));
+      if (best < 0.06) matched++;
+    }
+    expect(matched).toBeGreaterThan(40);
+  });
+});

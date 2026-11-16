@@ -1122,14 +1122,15 @@ describe('buildCat with opts.style (a clan coat)', () => {
   // (coat.js furShade), vertex by vertex.
   it('paints the torso from the row (under the baked fur shade), not from the breed', async () => {
     const { CLAN_COATS } = await import('../src/clancast.js');
-    const { furShade } = await import('../src/cat/coat.js');
+    const { furShade, furDetail } = await import('../src/cat/coat.js');
     const row = CLAN_COATS.river[0];
-    const want = new THREE.Color(row.base);
+    const want = new THREE.Color(row.base), belly = new THREE.Color(row.belly);
     const built = buildCat('tabby', undefined, { simple: true, style: row });
     const unit = built.userData.parts.body.geometry.userData.unit;
     const clan = torsoColours(built);
     expect(clan.length).toBeGreaterThan(100);
-    clan.forEach((c, i) => expect(colourDistance(c, want.clone().multiplyScalar(furShade(unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2])))).toBeLessThan(1e-6));
+    // 2026-11-15 (cat realism A5): the row's base fur with the coat detail every coat now has (the row's own belly underneath, a darker back line)
+    clan.forEach((c, i) => { const u = [unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2]]; expect(colourDistance(c, furDetail(want.clone(), belly, u).multiplyScalar(furShade(...u)))).toBeLessThan(1e-6); });
     const tabby = torsoColours(buildCat('tabby', undefined, { simple: true }));
     expect(tabby.some((c) => colourDistance(c, want) > 0.01)).toBe(true);
   });

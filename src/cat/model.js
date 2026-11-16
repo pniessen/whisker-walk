@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { addCatRim, RIM } from './rimlight.js';
-import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt, undersideColourAt, UNDER_BLEND, BELLY_BLEND, UNDER_FRONT } from './coat.js';
+import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt, undersideColourAt, UNDER_BLEND, BELLY_BLEND, UNDER_FRONT, legBarMix } from './coat.js';
 import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
@@ -1208,7 +1208,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // The coat is painted into the torso's vertex colours (coat.js): tabby
   // bands, the calico's patches, Robbie's bib and flanks, D2's shoulder band.
   // White material, so a painted base is exactly today's material colour.
-  const coat = coatFromStyle(s);
+  // Coat detail (cat realism A5, coat.js COAT_DETAIL): not on the four family
+  // cats, whose markings are drawn from their photos.
+  const coatDetail = !(FAMILY_NOSE.has(breed) && opts.look == null);
+  const coat = coatFromStyle(s, { detail: coatDetail });
   const body = new THREE.Mesh(
     paintCoat(torsoGeometry(BODY_R, ...TORSO.SEG[opts.simple ? 'simple' : 'full']), coat),
     litMaterial(0xffffff, { vertexColors: true }));
@@ -1439,6 +1442,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const legs = [];
   const legHex = s.whiteLegs ? s.belly : pointColor;
   const limbTop = [];
+  const legBars = coatDetail && s.stripes && !s.whiteLegs ? s.accent : null; // a striped coat's barred legs
   const legSpots = [
     [-LEGS.FRONT_X, LEGS.FRONT_Z, false], [LEGS.FRONT_X, LEGS.FRONT_Z, false], // front L, R
     [-LEGS.HIND_X, LEGS.HIND_Z, true], [LEGS.HIND_X, LEGS.HIND_Z, true], // back L, R
@@ -1448,7 +1452,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const topColour = coatColourAt(coat, legTopDir(x, z, [fx, fy, fz]));
     limbTop.push(topColour);
     const limb = new THREE.Mesh(
-      paintLimb(limbGeometry(LEGS.LEN, hind, opts.simple), legHex, topColour),
+      paintLimb(limbGeometry(LEGS.LEN, hind, opts.simple), legHex, topColour, legBars, legBarMix),
       litMaterial(0xffffff, { vertexColors: true }));
     leg.add(limb);
     // The foot (body refinement Task 4, limbs.js footGeometry): a soft oval
@@ -2115,7 +2119,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const [limb, ...hung] = child.children;
     limb.geometry.dispose();
     const k = legs.indexOf(child);
-    limb.geometry = paintLimb(limbGeometry(LEGS.LEN * LEG_LEN, k >= 2, opts.simple), legHex, limbTop[k]);
+    limb.geometry = paintLimb(limbGeometry(LEGS.LEN * LEG_LEN, k >= 2, opts.simple), legHex, limbTop[k], legBars, legBarMix);
     for (const part of hung) part.position.y -= dy; // the paw, a cuff, a sneaker stripe
   }
   // The folds (Task 5, R1): each leg gets its baked fold shapes now, with its

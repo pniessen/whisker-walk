@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildCat } from '../src/cat/model.js';
-import { coatColourAt, coatFromStyle } from '../src/cat/coat.js';
+import { coatColourAt, coatFromStyle, legBarMix } from '../src/cat/coat.js';
 import { LEGS, PAW_Y, PAW_HALF, REF_RIG } from '../src/cat/torso.js';
 import { LEG_SHAPE, LIMB_SEG, LEG_BLEND, tubeGeometry, limbGeometry, paintLimb, legTopDir, CLAW_HEX, FOOT, footGeometry, plainPawGeometry, FOLDS, FOLD_BY_STATE } from '../src/cat/limbs.js';
 import { lookToStyle, DEFAULT_LOOK, PATTERNS, FURS } from '../src/customcats.js';
@@ -54,7 +54,8 @@ describe('the smooth limb', () => {
     ];
     const builtCoats = [
       ...['tabby', 'calico', 'robbie', 'd2'].map((b, i) => cats[i].userData.parts.body.userData.coat),
-      ...LOOKS.map((look) => coatFromStyle(lookToStyle(look))),
+      // 2026-11-15 (cat realism A5): a builder cat's coat is built with the coat detail (model.js), so the same here
+      ...LOOKS.map((look) => coatFromStyle(lookToStyle(look), { detail: true })),
     ];
     cats.forEach((cat, k) => {
       const coat = builtCoats[k];
@@ -200,9 +201,15 @@ describe('the smooth limb', () => {
         const col = geo.attributes.color;
         const top = coatColourAt(coat, legTopDir(leg.position.x, leg.position.z, coat.frame));
         const want = f32(new THREE.Color(legHex));
+        // 2026-11-15 (cat realism A5): a striped coat's legs are barred (coat.js
+        // legBarMix; not the family cats'): the leg colour between the bars,
+        // eased toward the stripe colour on them.
+        const barred = coat.detail && coat.stripes;
         for (let i = 0; i < t.length; i++) {
           const got = [col.getX(i), col.getY(i), col.getZ(i)];
-          if (t[i] >= LEG_BLEND) expect(got).toEqual(want);
+          const m = barred ? legBarMix(t[i]) : 0;
+          if (t[i] >= LEG_BLEND && m > 0) expect(got).toEqual(f32(new THREE.Color(legHex).lerp(new THREE.Color(coat.accent), m)));
+          else if (t[i] >= LEG_BLEND) expect(got).toEqual(want);
           if (t[i] === 0) expect(got).toEqual(f32(top));
         }
       }

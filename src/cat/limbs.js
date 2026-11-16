@@ -458,8 +458,11 @@ export function applyFold(leg, kind) {
 // The limb's vertex colours: `topHex` (a hex or a THREE.Color, the torso's
 // painted colour at the hip) at t 0, easing (smoothstep) into `legHex` by
 // t = LEG_BLEND, `legHex` exactly below that.
-export function paintLimb(geo, legHex, topHex) {
+// `barHex` (cat realism A5; a striped coat's leg bars, coat.js COAT_DETAIL):
+// soft bars of that colour across the leg, `barMix(t)` of the way to it.
+export function paintLimb(geo, legHex, topHex, barHex = null, barMix = null) {
   const leg = new THREE.Color(legHex), top = new THREE.Color(topHex), c = new THREE.Color();
+  const bar = barHex === null ? null : new THREE.Color(barHex);
   const { t } = geo.userData;
   const col = new Float32Array(t.length * 3);
   for (let i = 0; i < t.length; i++) {
@@ -467,6 +470,7 @@ export function paintLimb(geo, legHex, topHex) {
     if (k >= 1) c.copy(leg);
     else if (k <= 0) c.copy(top);
     else c.copy(top).lerp(leg, smooth(k));
+    if (bar) { const m = barMix(t[i]); if (m > 0) c.lerp(bar, m); }
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
