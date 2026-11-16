@@ -458,6 +458,16 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
         ctx.stroke();
       }
     } else if (m.kind === 'camp') {
+      // The first camp walk: a ring round the mark, beating, or (reduced
+      // motion) still and thick.
+      if (m.pulse) {
+        const beat = m.pulse === 'beat' ? 0.5 + 0.5 * Math.sin(Date.now() / 260) : 1;
+        ctx.beginPath();
+        ctx.arc(x, y + 1, 10 + beat * 3, 0, Math.PI * 2);
+        ctx.lineWidth = m.pulse === 'beat' ? 2.2 : 3.2;
+        ctx.strokeStyle = `rgba(255,246,226,${m.pulse === 'beat' ? 0.55 + 0.45 * (1 - beat) : 1})`;
+        ctx.stroke();
+      }
       // A small dome with a dark door, in the clan's colour.
       ctx.beginPath();
       ctx.moveTo(x - 6, y + 4);

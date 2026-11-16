@@ -75,6 +75,8 @@ export const GOAT_SPOT = 10;
 // deliberate match cannot silently become a mismatch.
 // ---------------------------------------------------------------------------
 const STRAY_PROMPT_RANGE = 2.5;
+// The guided first walk's steps 1 to 5 (game/guidewalk.js sets session.lesson).
+const lessonOpen = (s) => s?.lesson?.open === true;
 
 // Task 5 (the clanmates): the most a walk pays for each clan verb (touch noses for
 // the first 4 clan cats, boop for 4, patrols for 2). A verb past its cap
@@ -141,6 +143,7 @@ export function createInteractions({
     const session = getSession();
     catVoice();
     bus.emit('tip:did', { id: 'call' }); // she knows how to call a cat over
+    bus.emit('guide:did', { what: 'meow' }); // the guided walk's guide answers
     // v18 Far Call ('far-call'): the same meow, carried farther — strays AND
     // curious critters in the outer band come over to see who shouted
     // (movement only; see straycats.reactToMeow and critters.reactToMeow).
@@ -265,6 +268,7 @@ export function createInteractions({
       const from = session.cat.position.clone();
       session.cat.position.set(next.x, ground.flat ? next.y : ground.y(next.x, next.z) + next.y, next.z);
       catVoice();
+      bus.emit('guide:did', { what: 'pounce' }); // the paw button did its thing
       // A puff of dust at the take-off point, so a wall-run reads as an
       // ability firing rather than as the cat merely not falling off.
       if (ranTheFence) session.fx?.burst(from, 0xd8cdb8, 6);
@@ -329,6 +333,7 @@ export function createInteractions({
       // the other.
       session.pounceTime = 0.3;
       session.pounceCooldown = 1.2;
+      bus.emit('guide:did', { what: 'pounce' }); // the guided walk's step 5
     }
   }
 
@@ -554,6 +559,8 @@ export function createInteractions({
   // -------------------------------------------------------------------
   function maybeScuffle(s, stray, catP) {
     if (!stray.cross) return;
+    // The guided first walk (steps 1 to 5): nobody swats a new child.
+    if (lessonOpen(s)) return;
     // Clan Life Part 2: never beside a fight, nor while its challenge is up,
     // so a cross stray can't cost points while the kid is reading a move.
     if (s.fight || s.clanFight?.uiShowing) return;
@@ -975,7 +982,10 @@ export function createInteractions({
         setPrompt(`E — touch noses with ${ghost.petName} 👻`);
       }
     }
-    if (!s.prompt && s.kittenEnc) {
+    // The guided first walk (steps 1 to 5) keeps the yellow button for the
+    // guide: no lost-kitten, race, mark or gift offer competes with it.
+    const lesson = lessonOpen(s);
+    if (!s.prompt && s.kittenEnc && !lesson) {
       const kp = s.kittenEnc.promptAt(catP);
       if (kp) {
         s.prompt = { kind: 'kitten' };
@@ -1032,7 +1042,7 @@ export function createInteractions({
         setPrompt(`E — pet ${dc.name}`);
       }
     }
-    if (!s.prompt) {
+    if (!s.prompt && !lesson) {
       const rp = s.race.promptAt(catP);
       if (rp) {
         s.prompt = { kind: 'race' };
@@ -1083,7 +1093,7 @@ export function createInteractions({
     // over (contested): re-marking takes it back. From the ground only, never
     // swimming. Guarded on the session's marks renderer, so a stand-in test
     // session without one never offers it. The den has no markables.
-    if (!s.prompt && s.playerMarks && !s.perched && !player.swimming) {
+    if (!s.prompt && s.playerMarks && !s.perched && !player.swimming && !lesson) {
       const target = markableToScratch(s, catP);
       if (target) {
         s.prompt = { kind: 'mark', data: target };
@@ -1095,7 +1105,7 @@ export function createInteractions({
     // with a marks renderer, and only where the walk has a rival border (the
     // den's NO_RIVAL has borderMarks: null). Only a decal whose ring has no
     // border mark of mine on it yet.
-    if (!s.prompt && s.playerMarks && s.rival?.borderMarks && !s.perched && !player.swimming) {
+    if (!s.prompt && s.playerMarks && s.rival?.borderMarks && !s.perched && !player.swimming && !lesson) {
       const target = borderDecalToScent(s, catP);
       if (target) {
         s.prompt = { kind: 'border-mark', data: target };
@@ -1130,7 +1140,7 @@ export function createInteractions({
     // 3m-wide target that would otherwise shadow a stray standing on it. A
     // cat without the skill never reaches this branch at all, so the prompt
     // ladder is byte-identical to today's for a no-skills save.
-    if (!s.prompt && s.gifts && hasSkill(progression.state, 'gift-paws')) {
+    if (!s.prompt && s.gifts && !lesson && hasSkill(progression.state, 'gift-paws')) {
       const spot = openScenicNear(s, catP);
       if (spot) {
         s.prompt = { kind: 'gift-leave', data: spot };
@@ -1282,6 +1292,9 @@ export function createInteractions({
     if (grudgeable
         // A wanderer is a harmless visitor (Kittypets decision 6): it never turns hostile.
         && !stray.wanderer
+        // The guided first walk (steps 1 to 5): the first stranger is friendly,
+        // and so is every other cat until the lesson is over.
+        && !lessonOpen(s)
         && shouldTurnHostile(progression.state, stray.name, s.walkStamp, {
           forgivenThisWalk: s.enemies?.wasForgiven(stray.name) ?? false,
         })
@@ -1329,6 +1342,7 @@ export function createInteractions({
     else if (level === 'friend') hud.toast(`${stray.name}${outsider(stray.name, 'met')} is now your friend! ♥`);
     else if (level === 'best') hud.toast(`${stray.name}${outsider(stray.name, 'met')} is your BEST friend! 💕`);
     catVoice();
+    bus.emit('guide:did', { what: 'greet', stray }); // the guided walk's step 2
   }
 
   // The clan's outsider word after a stray's name (" the loner"), or '' in
@@ -1344,6 +1358,17 @@ export function createInteractions({
   function livesElsewhere(colony, name, areaId) {
     const entry = Array.isArray(colony?.cats) ? colony.cats.find((c) => c.name === name) : null;
     return !!entry && entry.area !== areaId;
+  }
+
+  // Could this stray be fed on this walk, once greeted? The feed prompt's own
+  // rules, asked by the guided first walk before it asks the child to share a
+  // fish (a full colony, or a cat that lives elsewhere, passes that step over).
+  function canFeedStray(s, stray) {
+    const colony = progression.state?.colony;
+    if (!colony || !progression.feedColonyCat || !feedsHere(s.areaId)) return false;
+    if (!isGrudgeableStray(s.strayCats, stray) || stray.cross || progression.hasGrudge?.(stray.name)) return false;
+    if (livesElsewhere(colony, stray.name, s.areaId)) return false;
+    return canFeed(colony, stray.name, pid, s.walkStamp, { members: progression.colonyMembers?.() ?? 1, now: Date.now() }) === 'ok';
   }
 
   // -------------------------------------------------------------------
@@ -1383,6 +1408,7 @@ export function createInteractions({
 
     s.fx?.burst(stray.group.position, 0xf2c14e, 12);
     audio.trill(0.8);
+    bus.emit('guide:did', { what: 'feed', stray }); // the guided walk's step 3
     // The bar after this feed. With a partner, who fed how much — the bar is
     // shared, and seeing your sibling's share is the point of sharing it.
     const { have, need, byPlayer } = r.progress;
@@ -1533,6 +1559,7 @@ export function createInteractions({
       s.walk.carried += 1;
       log.awardOnce('collectible', `col-${c.id}`, c.label);
       s.fx.burst(s.cat.position, 0xf2c14e, 12);
+      bus.emit('guide:did', { what: 'collect' }); // the guided walk's step 4
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'collect', collectibleId: c.id });
     } else if (s.prompt.kind === 'tip') {
       const target = s.prompt.data;
@@ -1828,6 +1855,8 @@ export function createInteractions({
     setPrompt, updateInteractions, awardStrayGreet, handleInteract, tickCarryRain,
     // Task 6: walk.js's onClanBuddyEnd calls it (patrol together).
     endClanPatrol,
+    // The guided first walk (game/guidewalk.js) asks before step 3.
+    canFeedStray,
     // Exported for test/interactions.test.js. updateInteractions calls it
     // itself — main.js does not need to, and must not start, or the senses
     // would run twice a frame.

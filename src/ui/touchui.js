@@ -259,9 +259,21 @@ export function createTouchUI(root, callbacks, opts = {}) {
         hideJoystick();
       }
     },
-    // The word under each action button, on a player's first few walks.
+    // The word under each action button. `on` is true / false for all four,
+    // or { pounce, meow, yarn, camera } to say which still show theirs (a
+    // button keeps its word until it has been used twice: main.js counts).
     setLabels(on) {
-      wrap.classList.toggle('tui-labelled', !!on);
+      const each = on && typeof on === 'object';
+      wrap.classList.toggle('tui-labelled', each ? true : !!on);
+      for (const btn of wrap.querySelectorAll('.tui-btn')) {
+        btn.classList.toggle('tui-known', each ? on[btn.dataset.action] === false : false);
+      }
+    },
+    // The resting ring shows again (the guided first walk's step 1, when a
+    // first touch put it away and the cat still has not walked). Never while
+    // a thumb is on the move side.
+    restAgain() {
+      if (visible && joyTouch === null) restOn();
     },
     // Live-applies settings.leftHanded (homebase checkbox): flips the
     // touchstart zone split above AND, via the CSS class, the action

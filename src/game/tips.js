@@ -106,8 +106,15 @@ export function walkFacts(session, { player, state }, f = {}) {
 // longer than this between two frames is a pause (the card was up), not play.
 const REAL_STEP_MAX_S = 1;
 
-export function createTips({ player, progression, settings, hud, getIsTouch, now = () => performance.now() }) {
+// `bubble` (ui/guidebubble.js) draws the line with the ring round its control;
+// without one the line goes straight to the HUD. `coach` is the guided walk
+// (game/guidewalk.js): begun, updated with the same real seconds and ended
+// here, so it runs exactly when the hints do (never while the walk is paused)
+// and is told about the walk after session.hints exists.
+export function createTips({ player, progression, settings, hud, getIsTouch, now = () => performance.now(), bubble = null, coach = null }) {
   let live = null; // { session, engine, facts, accum, lastYaw, turned, lastAt }
+  let coached = null; // { session, lastAt }: a walk the coach is on (the den has no hints, but none of its own either)
+  const showLine = (text, pic, ring) => (bubble ? bubble.hint(text, pic, ring) : hud.setHint(text, pic));
 
   const enabled = () => settings?.get?.('showTips') !== false;
 
@@ -122,7 +129,8 @@ export function createTips({ player, progression, settings, hud, getIsTouch, now
     // A walk begins. The den has no hints (nothing in the table happens there).
     begin(session) {
       live = null;
-      hud.setHint(null);
+      coached = null;
+      showLine(null);
       if (!session || session.areaId === 'den') return;
       const state = progression.state;
       const walked = Object.values(state.walks).reduce((n, w) => n + (Number.isFinite(w) ? w : 0), 0);
@@ -130,14 +138,15 @@ export function createTips({ player, progression, settings, hud, getIsTouch, now
         count: (id) => progression.state.tutorial.hints[id] ?? 0,
         countUp: (id) => progression.countHint(id),
         enabled,
-        show: ({ id, slots }) => hud.setHint(line(`hint.${id}`, { ...slots, touch: !!getIsTouch() }), HINT_PICS[id]),
-        hide: () => hud.setHint(null),
+        show: ({ id, ring, slots }) => showLine(line(`hint.${id}`, { ...slots, touch: !!getIsTouch() }), HINT_PICS[id], ring),
+        hide: () => showLine(null),
       });
       session.hints = engine;
       live = {
         session, engine, accum: 0, turned: 0, lastYaw: null, lastAt: null,
         facts: { t: 0, walkNo: walked + 1, looked: (state.tutorial.hints.look ?? 0) >= 3 },
       };
+      if (coach) { coached = { session }; coach.begin(session); }
     },
     // Once a frame while the walk is being played.
     update(session, dt) {
@@ -146,6 +155,7 @@ export function createTips({ player, progression, settings, hud, getIsTouch, now
       const at = now();
       const real = live.lastAt === null ? dt : Math.min(REAL_STEP_MAX_S, Math.max(0, (at - live.lastAt) / 1000));
       live.lastAt = at;
+      if (coach && coached?.session === session) coach.update(session, real);
       f.t += real;
       // Turning the view (a drag, the mouse): once she has, she knows how.
       const yaw = player.viewYaw();
@@ -158,6 +168,7 @@ export function createTips({ player, progression, settings, hud, getIsTouch, now
       if (live.accum < FACTS_EVERY_S) return;
       const step = live.accum;
       live.accum = 0;
+      bubble?.update(); // the ring follows its control
       if (!enabled() && !live.engine.showing) return; // tips off: nothing to gather
       walkFacts(session, { player, state: progression.state }, f);
       live.engine.update(step, f);
@@ -165,7 +176,9 @@ export function createTips({ player, progression, settings, hud, getIsTouch, now
     end() {
       if (live) live.engine.end();
       live = null;
-      hud.setHint(null);
+      if (coach && coached) coach.end();
+      coached = null;
+      showLine(null);
     },
   };
 }
