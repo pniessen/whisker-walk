@@ -163,3 +163,16 @@ export function literalsIn(src) {
   code(0, false);
   return out;
 }
+
+// A segment of a whole screen is kept in the snapshot when it carries a word
+// from the tables (given by the caller, so this file imports nothing from
+// src/) or one of the words the game writes beside them. The rest of a screen
+// (its ordinary buttons, the guided walk's lines) is left out, so the snapshot
+// moves only when one of these words does.
+export const WORDS_BESIDE = ['patrol', 'border', 'intruder', 'territor', 'camp', 'scent', 'star name', 'allies', 'land', 'edition', 'war paint', 'fighting moves'];
+export function seriesFilter(tableWords, names = []) {
+  const esc = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const whole = new RegExp(`\\b(${tableWords.map(esc).join('|')})s?\\b`, 'i');
+  const beside = new RegExp(WORDS_BESIDE.map(esc).join('|'), 'i');
+  return (text) => whole.test(text) || beside.test(text) || names.some((n) => text.includes(n));
+}

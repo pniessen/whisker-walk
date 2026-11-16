@@ -3953,12 +3953,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Conkerbelly! 🛡️",
      "letsYouPass": "Conkerbelly lets you pass. 🐾",
      "wonThisTime": [
       "Conkerbelly won this time. That scratch will heal in a few walks!",
       "Conkerbelly won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Conkerbelly! 🛡️"
+     ]
     },
     "Fawnheart": {
      "atHome": [
@@ -3977,12 +3977,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Fawnheart! 🛡️",
      "letsYouPass": "Fawnheart lets you pass. 🐾",
      "wonThisTime": [
       "Fawnheart won this time. That scratch will heal in a few walks!",
       "Fawnheart won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Fawnheart! 🛡️"
+     ]
     },
     "Rootfang": {
      "atHome": [
@@ -4001,12 +4001,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Rootfang! 🛡️",
      "letsYouPass": "Rootfang lets you pass. 🐾",
      "wonThisTime": [
       "Rootfang won this time. That scratch will heal in a few walks!",
       "Rootfang won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Rootfang! 🛡️"
+     ]
     },
     "Volefur": {
      "atHome": [
@@ -4025,12 +4025,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Volefur! 🛡️",
      "letsYouPass": "Volefur lets you pass. 🐾",
      "wonThisTime": [
       "Volefur won this time. That scratch will heal in a few walks!",
       "Volefur won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Volefur! 🛡️"
+     ]
     },
     "Troutstripe": {
      "atHome": [
@@ -4049,12 +4049,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Troutstripe! 🛡️",
      "letsYouPass": "Troutstripe lets you pass. 🐾",
      "wonThisTime": [
       "Troutstripe won this time. That scratch will heal in a few walks!",
       "Troutstripe won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Troutstripe! 🛡️"
+     ]
     },
     "Mintshade": {
      "atHome": [
@@ -4073,12 +4073,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Mintshade! 🛡️",
      "letsYouPass": "Mintshade lets you pass. 🐾",
      "wonThisTime": [
       "Mintshade won this time. That scratch will heal in a few walks!",
       "Mintshade won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Mintshade! 🛡️"
+     ]
     },
     "Cottontail": {
      "atHome": [
@@ -4097,12 +4097,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Cottontail! 🛡️",
      "letsYouPass": "Cottontail lets you pass. 🐾",
      "wonThisTime": [
       "Cottontail won this time. That scratch will heal in a few walks!",
       "Cottontail won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Cottontail! 🛡️"
+     ]
     },
     "Torshade": {
      "atHome": [
@@ -4121,12 +4121,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Torshade! 🛡️",
      "letsYouPass": "Torshade lets you pass. 🐾",
      "wonThisTime": [
       "Torshade won this time. That scratch will heal in a few walks!",
       "Torshade won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Torshade! 🛡️"
+     ]
     },
     "Bilberryear": {
      "atHome": [
@@ -4145,12 +4145,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Bilberryear! 🛡️",
      "letsYouPass": "Bilberryear lets you pass. 🐾",
      "wonThisTime": [
       "Bilberryear won this time. That scratch will heal in a few walks!",
       "Bilberryear won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Bilberryear! 🛡️"
+     ]
     },
     "Needlestripe": {
      "atHome": [
@@ -4169,12 +4169,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Needlestripe! 🛡️",
      "letsYouPass": "Needlestripe lets you pass. 🐾",
      "wonThisTime": [
       "Needlestripe won this time. That scratch will heal in a few walks!",
       "Needlestripe won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Needlestripe! 🛡️"
+     ]
     },
     "Beetlefur": {
      "atHome": [
@@ -4193,12 +4193,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Beetlefur! 🛡️",
      "letsYouPass": "Beetlefur lets you pass. 🐾",
      "wonThisTime": [
       "Beetlefur won this time. That scratch will heal in a few walks!",
       "Beetlefur won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Beetlefur! 🛡️"
+     ]
     },
     "Toadtail": {
      "atHome": [
@@ -4217,12 +4217,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Toadtail! 🛡️",
      "letsYouPass": "Toadtail lets you pass. 🐾",
      "wonThisTime": [
       "Toadtail won this time. That scratch will heal in a few walks!",
       "Toadtail won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Toadtail! 🛡️"
+     ]
     },
     "Flintbelly": {
      "atHome": [
@@ -4241,12 +4241,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Flintbelly! 🛡️",
      "letsYouPass": "Flintbelly lets you pass. 🐾",
      "wonThisTime": [
       "Flintbelly won this time. That scratch will heal in a few walks!",
       "Flintbelly won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Flintbelly! 🛡️"
+     ]
     },
     "Merlinheart": {
      "atHome": [
@@ -4265,12 +4265,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Merlinheart! 🛡️",
      "letsYouPass": "Merlinheart lets you pass. 🐾",
      "wonThisTime": [
       "Merlinheart won this time. That scratch will heal in a few walks!",
       "Merlinheart won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Merlinheart! 🛡️"
+     ]
     },
     "Shalewhisker": {
      "atHome": [
@@ -4289,12 +4289,12 @@
       "Run",
       "Q"
      ],
+     "facedDown": "You faced down Shalewhisker! 🛡️",
      "letsYouPass": "Shalewhisker lets you pass. 🐾",
      "wonThisTime": [
       "Shalewhisker won this time. That scratch will heal in a few walks!",
       "Shalewhisker won this time. Try again soon!"
-     ],
-     "chasedOff": "You chased off Shalewhisker! 🛡️"
+     ]
     }
    },
    "journalFooter": [
@@ -4322,6 +4322,14 @@
      "Wear it"
     ]
    }
+  },
+  "chat": {
+   "phrasesRead": 16,
+   "phrasesWithASeriesWord": [],
+   "repliesRead": 159,
+   "repliesWithASeriesWord": [
+    "Leave a scent trail!"
+   ]
   },
   "screens": {
    "pickYourGroup": {

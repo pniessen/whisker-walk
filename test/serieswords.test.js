@@ -65,7 +65,9 @@ import {
 import { renderColonyHtml } from '../src/ui/colonypanel.js';
 import { ISLAND_WHERE, renderTerritoryMapHtml } from '../src/ui/territorymap.js';
 import { buildDressingModel, placeWhyLine, renderPlacesSheetHtml } from '../src/ui/dressingroom.js';
-import { checkAgainstFixture, htmlText, sorted, uniq, sortKeys } from './helpers/serieswords.js';
+import { PHRASES } from '../src/chat.js';
+import { PERSONALITY_KEYS, replyFor } from '../src/catreplies.js';
+import { checkAgainstFixture, htmlText, sorted, uniq, sortKeys, seriesFilter } from './helpers/serieswords.js';
 
 const FIXTURE = 'series-words-on.json';
 
@@ -375,10 +377,9 @@ function lines() {
     fights[m.name] = {
       atHome: htmlText(renderChallengeHtml({ name: m.name, clan: m.clan })),
       atTheirBorder: htmlText(renderChallengeHtml({ name: m.name, clan: m.clan, ...BORDER_ASK })),
-      facedDown: discoveryText(words.award(m.name)),
+      facedDown: discoveryText({ type: words.award(m.name).type, label: words.award(m.name).text }),
       letsYouPass: words.won(m.name),
       wonThisTime: [words.lost(m.name, true), words.lost(m.name, false)],
-      chasedOff: discoveryText({ type: 'intruder', label: `You chased off ${m.name}! 🛡️` }),
     };
   }
   const warpaint = CATALOG.accessories.warpaint;
@@ -522,6 +523,23 @@ function screens() {
   return { pickYourGroup: pick, colony, fight, map, places };
 }
 
+// The canned chat phrases and the cats' replies: none carries a table word
+// today. Any that does, or that carries a word written beside them, is listed.
+function chat() {
+  const keep = seriesFilter(
+    [...Object.values(RANK_WORDS), ...Object.values(OUTSIDE_WORDS), ...Object.values(PLACE_WORDS), CLAN_SUFFIX],
+    [...CLANS.map(clanName), ...OLD_AREAS.map((id) => rivalFor(id).name)],
+  );
+  const replies = new Set();
+  for (const who of [...PERSONALITY_KEYS, 'nobody']) for (const p of PHRASES) for (let seed = 0; seed < 40; seed++) replies.add(replyFor(who, p.id, seed));
+  return {
+    phrasesRead: PHRASES.length,
+    phrasesWithASeriesWord: PHRASES.map((p) => p.text).filter(keep),
+    repliesRead: replies.size,
+    repliesWithASeriesWord: sorted(replies).filter(keep),
+  };
+}
+
 function clanEdition() {
   return {
     vocabulary: vocabulary(),
@@ -535,6 +553,7 @@ function clanEdition() {
     },
     tags: { secondLine: tagLines(), outsideCats: outsideLines() },
     lines: lines(),
+    chat: chat(),
     screens: screens(),
   };
 }
