@@ -38,6 +38,8 @@ import { PAW } from './pawicon.js';
 import { createConfirmCard, spendAsk } from './confirmcard.js';
 import { moveById } from '../fightmoves.js';
 import { note } from '../diagnostics.js';
+import { line as tutorialLine } from '../tutorialwords.js';
+import { nextThing, nextThingHtml, NEXT_ATTR } from './nextthing.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -529,6 +531,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             </select>
           </label>
           <p class="settings-note" id="set-edition-note">${EDITION_NOTE}</p>
+          ${settingsSwitchHtml('set-show-tips', s.showTips !== false, tutorialLine('settings.tips'))}
         </div>
         <h3 class="settings-group">Advanced</h3>
         <div class="settings-grid settings-advanced">
@@ -1171,6 +1174,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         thumb: thumbs?.accessories?.[milestone.prize?.id],
       });
       if (shownOk) {
+        // The "next thing" line now says there is a present to open.
+        if (celebration.hasPresent()) render();
         // The badge pops once now that the greeting is in view (not on the
         // first render, which the splash covers).
         try { root.querySelector('.dr-visit')?.classList.add('pop'); } catch { /* a nicety */ }
@@ -1537,15 +1542,66 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (room.deferRender?.(root)) return; // she is typing her cat's name: runs on blur
     const f = room.captureFocus(root);
     root.innerHTML = room.html({
-      headerHtml, startHtml: startRowHtml(roomState), extrasHtml: duskBadge, rankTitle: rank.title,
+      headerHtml, startHtml: nextLineHtml(s, roomState) + startRowHtml(roomState), extrasHtml: duskBadge, rankTitle: rank.title,
     });
     room.afterRender(root);
+    // The first pick (or the line's own tap) changed today's walk: its card
+    // wobbles once, as a tapped place does on the map.
+    if (nudgeToday) {
+      nudgeToday = false;
+      if (!settings?.all?.()?.reducedMotion) { try { root.querySelector('.dr-today-card')?.classList.add('nudge'); } catch { /* a nicety */ } }
+    }
     room.restoreFocus(root, f);
     refocus(fid);
     stage.setVisible(shown);
     syncCelebration();
     syncPairingPoll();
     syncNearby();
+  }
+
+  // ---- The "next thing" line (ui/nextthing.js) ------------------------------
+  // One line above Start on the home view: not in the wardrobe, and not while
+  // she is in a room with someone (the room panel is the next thing there).
+  // What it is about this render is kept for the tap.
+  let nudgeToday = false;
+  let toldNow = null; // the thing to wear the line pointed at on this visit
+  const DEN_DAY_KEY = 'whisker-walk-den-day';
+  const denVisitedToday = () => { try { return momentStore()?.getItem?.(DEN_DAY_KEY) === utcToday(); } catch { return false; } };
+  const noteDenVisit = () => { try { momentStore()?.setItem?.(DEN_DAY_KEY, utcToday()); } catch { /* this visit only */ } };
+  function nextLineHtml(s, roomState) {
+    if (roomState || dressing?.ui?.wardrobe) return '';
+    let thing = null;
+    try {
+      const ctx = () => ({ catalog: CATALOG, present: celebration.hasPresent(), toldNow, denVisitedToday: denVisitedToday() });
+      thing = nextThing(s, ctx());
+      // Rule 8 counts the visits it has pointed at a thing, once a visit.
+      if (thing?.rule === 8 && thing.thing && toldNow !== thing.thing) {
+        toldNow = thing.thing;
+        progression.noteTold?.(thing.thing);
+      }
+    } catch (err) {
+      console.warn('Whisker Walk: the next-thing line failed', err);
+      note('ui', err);
+      return '';
+    }
+    return nextThingHtml(thing);
+  }
+  // A tap on the line does the obvious thing.
+  function nextTap(btn) {
+    const action = btn.getAttribute(NEXT_ATTR);
+    if (action === 'present') { celebration.openPresent(); return; }
+    if (action === 'start') { root.querySelector('#btn-start')?.click?.(); return; }
+    if (action === 'pick') { showClanMoment({ force: true }); return; }
+    if (action === 'dressup') { root.querySelector('[data-dr-wardrobe]')?.click?.(); return; }
+    if (action === 'den') { noteDenVisit(); onVisitDen?.(); return; }
+    if (action === 'place') {
+      const id = btn.getAttribute('data-next-place');
+      const before = progression.state.area;
+      if (progression.pickPlace(id) && progression.state.area !== before) sync?.autoSync?.();
+      nudgeToday = true;
+      render();
+      try { root.querySelector('#btn-start')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+    }
   }
 
   // A clan card: save the pick, then tell the sibling's
@@ -1555,7 +1611,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   let pushedPick;
   function pickClan(id) {
     const before = progression.state.clanPick?.mine ?? null;
-    if (progression.setClanPick(id) && (progression.state.clanPick?.mine !== before || pushedPick !== id)) {
+    // The FIRST pick also opens that land and makes it today's walk
+    // (progression.pickHome; guided-first-walk design, section 7).
+    const picked = progression.pickHome ? progression.pickHome(id) : progression.setClanPick(id);
+    if (picked === 'first') nudgeToday = true;
+    if (picked && (progression.state.clanPick?.mine !== before || pushedPick !== id)) {
       pushedPick = id;
       Promise.resolve(colonySync?.noteOwnPick())
         .then((ok) => { if (ok === false && pushedPick === id) pushedPick = undefined; })
@@ -1567,6 +1627,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   root.addEventListener('click', async (e) => {
     // The dressing room's own controls (portraits, slots, picker, places,
     // the wardrobe, the sheet doors and tiles) go to its controller first.
+    const nextBtn = e.target.closest?.(`button[${NEXT_ATTR}]`);
+    if (nextBtn) {
+      nextTap(nextBtn);
+      return;
+    }
     if (dressing && dressing.handleClick(e)) return;
     if (e.target.closest?.('#hb-back')) {
       sheetBack();
@@ -1682,6 +1747,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       return;
     }
     if (e.target.closest?.('#btn-visit-den')) {
+      noteDenVisit();
       onVisitDen?.();
       return;
     }
@@ -2045,6 +2111,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (e.target.id === 'set-reduced-motion') {
       settings.set('reducedMotion', e.target.checked);
       onSettingsChange?.();
+      render();
+      return;
+    }
+    // "Show tips": the hint lines on a walk (src/hints.js). Read live by the
+    // walk, so there is nothing to push.
+    if (e.target.id === 'set-show-tips') {
+      settings.set('showTips', e.target.checked);
       render();
       return;
     }

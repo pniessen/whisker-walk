@@ -279,7 +279,8 @@ describe('main.js wiring', () => {
   });
   it('the purr stops on pause, at the end of the walk, and when the page is hidden', () => {
     expect(main).toContain('if (!locked) haptics.stopPurr();');
-    expect(main).toContain('onWalkEnded: () => { clearResume(window.localStorage); haptics.stopPurr(); },');
+    // 2026-11-15 (guided walk step 1): the hints end with the walk too (tips.end()).
+    expect(main).toContain('onWalkEnded: () => { clearResume(window.localStorage); haptics.stopPurr(); tips.end(); },');
     expect(main).toContain("document.addEventListener('visibilitychange', () => { if (document.hidden) haptics.stopPurr(); });");
   });
   it('follows the setting live, and picks its output from the bridge, the device profile and vibrate', () => {

@@ -2,6 +2,8 @@ import { bus } from '../events.js';
 import { objectiveDistance } from '../questscent.js';
 import { PAW } from './pawicon.js';
 import { toastLifeMs } from './toastlife.js';
+import { bothForms, hasLine } from '../tutorialwords.js';
+import { escapeHtml } from '../escapehtml.js';
 
 // Toasts (polish-hud2, R2/R3). At most two on screen: a burst of discoveries
 // used to stack four or five pills in a column that climbed over the cat.
@@ -44,6 +46,17 @@ export function discoveryText({ type, label, repeat }) {
   return `${repeat ? 'Again — ' : 'You spotted '}${label}`;
 }
 
+// A goal's "how" line, in both forms: the page's touch mode shows one (CSS,
+// like the viewfinder's two hints), so a device that turns out to be touch
+// mid-walk reads the right words without a redraw.
+export function goalHowHtml(goal) {
+  if (!goal || !hasLine(goal.how)) return '';
+  const { touch, keys } = bothForms(goal.how);
+  const body = touch === keys ? escapeHtml(touch)
+    : `<span class="how-keys">${escapeHtml(keys)}</span><span class="how-touch">${escapeHtml(touch)}</span>`;
+  return `<div class="goal-how">${body}</div>`;
+}
+
 export function createHud() {
   const root = document.getElementById('hud');
   root.innerHTML = `
@@ -55,6 +68,7 @@ export function createHud() {
     <div class="hud-roster hidden" id="hud-roster"></div>
     <div class="hud-objective hidden" id="hud-objective"></div>
     <div class="hud-goals hidden" id="hud-goals"></div>
+    <div class="hud-hint hidden" id="hud-hint" role="status" aria-live="polite"><span id="hud-hint-pic" class="hud-hint-pic" aria-hidden="true"></span><span id="hud-hint-text" class="hud-hint-text"></span></div>
     <div class="hud-toasts" id="hud-toasts" role="status" aria-live="polite"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
     <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · +/− zoom · M mute · Esc menu</div>
@@ -73,6 +87,7 @@ export function createHud() {
   const promptTapHandlers = [];
   let lastPrompt = { text: null, tappable: null };
   let lastObjective = { text: null, dist: null };
+  let lastHint = null;
   // Shown toasts, oldest first; a toast leaves this list as it starts to
   // fade. Waiting lines (past the cap) queue up behind them, oldest first.
   const liveToasts = [];
@@ -237,15 +252,37 @@ export function createHud() {
         el.appendChild(chip);
       }
     },
+    // Only the first unfinished goal shows its "how" line, so there is one
+    // thing to read at a time (guided-first-walk design, section 5).
     setGoals(goals) {
       const el = root.querySelector('#hud-goals');
       el.classList.toggle('hidden', !goals);
       if (goals) {
+        const next = goals.find((g) => !g.done);
         el.innerHTML = goals.map((g) =>
           `<div class="goal ${g.done ? 'done' : ''}">${g.done ? '✓' : '○'} ${g.text}` +
-          (g.target > 1 ? ` — ${Math.min(g.progress, g.target)}/${g.target}` : '') + `</div>`
+          (g.target > 1 ? ` — ${Math.min(g.progress, g.target)}/${g.target}` : '') + `</div>` +
+          (g === next ? goalHowHtml(g) : '')
         ).join('');
       }
+    },
+    // The hint line (src/hints.js through game/tips.js): one short sentence
+    // with a small picture, read out politely once. null puts it away. Text
+    // only (textContent): a hint can carry a cat's name. #hud wears `hinting`
+    // while it is up, so the CSS can make room for it. The guided walk's
+    // bubble (step 3 of the build) is this same element.
+    setHint(text, pic) {
+      const on = typeof text === 'string' && text !== '';
+      const key = on ? `${pic || ''}|${text}` : null;
+      if (key === lastHint) return;
+      lastHint = key;
+      const el = root.querySelector('#hud-hint');
+      if (on) {
+        root.querySelector('#hud-hint-pic').textContent = pic || '';
+        root.querySelector('#hud-hint-text').textContent = text;
+      }
+      el.classList.toggle('hidden', !on);
+      root.classList.toggle('hinting', on);
     },
   };
 

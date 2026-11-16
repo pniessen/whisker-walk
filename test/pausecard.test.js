@@ -64,6 +64,13 @@ describe('a touch walk that starts at once', () => {
     expect(takeStartLines(null)).toEqual([]);
     expect(TOUCH_HINT_WALKS).toBe(3);
   });
+
+  // 2026-11-15, guided-first-walk design (section 8): the hint was "Left thumb
+  // moves your cat…", which is wrong in left-handed mode. It names no side now.
+  it('the start hint says how to walk without saying left or right', () => {
+    expect(TOUCH_START_HINT).toBe('Push the circle to walk. Drag to look around.');
+    expect(TOUCH_START_HINT).not.toMatch(/left|right/i);
+  });
 });
 
 describe('the crossing card puts the right card back', () => {

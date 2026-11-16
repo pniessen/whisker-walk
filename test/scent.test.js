@@ -194,3 +194,54 @@ describe('createScent on raised ground', () => {
     expect(stayed).toBeGreaterThan(0);
   });
 });
+
+// 2026-11-15, guided-first-walk design (section 5): the stand-still sniff.
+describe('standSniff (the cat sniffs by itself)', () => {
+  const counted = () => {
+    let n = 0;
+    const rng = () => { n += 1; return 0.4; };
+    return { rng, draws: () => n };
+  };
+
+  it('finds the nearest treasure in range and lays a trail', () => {
+    const added = [];
+    const scent = createScent({ add: (m) => added.push(m), remove() {} }, AREA, () => 0.4);
+    const before = added.length;
+    const treat = scent.treats[0];
+    expect(scent.standSniff({ x: treat.x - 5, z: treat.z }, 18)).toBe(treat);
+    expect(added.length - before).toBe(7); // seven paw prints, as an E sniff lays
+    expect(treat.revealed).toBe(true);
+  });
+
+  it('draws nothing from the walk\'s stream', () => {
+    const c = counted();
+    const scent = createScent(scene, AREA, c.rng);
+    const built = c.draws();
+    const treat = scent.treats[0];
+    scent.standSniff({ x: treat.x - 5, z: treat.z }, 18);
+    scent.standSniff({ x: treat.x - 3, z: treat.z }, 18);
+    scent.standSniff({ x: 999, z: 999 }, 18);
+    expect(c.draws()).toBe(built);
+    // the E sniff still draws what it always drew (2 per paw print)
+    const other = scent.treats[1];
+    other.revealed = false;
+    scent.sniff({ x: other.x - 1, z: other.z }, 2);
+    expect(c.draws()).toBe(built + 14);
+  });
+
+  it('points at a treasure again after its trail has gone, but never at a dug one', () => {
+    const scent = createScent(scene, AREA, () => 0.4);
+    const treat = scent.treats[0];
+    const near = { x: treat.x - 1, z: treat.z };
+    expect(scent.standSniff(near, 3)).toBe(treat);
+    expect(scent.sniff(near, 3)).toBe(null); // E: already sniffed out
+    expect(scent.standSniff(near, 3)).toBe(treat); // standing still: the trail again
+    scent.digAt({ x: treat.x, z: treat.z });
+    expect(scent.standSniff(near, 3)).toBe(null);
+  });
+
+  it('out of range finds nothing', () => {
+    const scent = createScent(scene, AREA, () => 0.4);
+    expect(scent.standSniff({ x: 999, z: 999 }, 18)).toBe(null);
+  });
+});

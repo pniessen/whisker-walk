@@ -38,6 +38,7 @@ import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } 
 // write still happens here: marks.js computes, this module saves.
 import { emptyMarks, sanitizeMarks, addMark as addMarkTo, contestMark as contestMarkIn, MARK_AREAS } from './marks.js';
 
+import { HINT_IDS, HINT_COUNT_MAX } from './hints.js';
 const SAVE_KEY = 'whisker-walk-save';
 // v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
 // are ADDITIVE fields sanitized independently with a default, exactly like
@@ -541,6 +542,53 @@ function defaultState() {
     // partner's player id so a new partner resets it. Additive, so
     // SAVE_VERSION stays 4: an older save starts with no pick.
     clanPick: { mine: null, partner: null, partnerId: null },
+    // The guided first walk and the hints (design: .claude/plans/
+    // guided-first-walk-design.md, section 8). Additive, so SAVE_VERSION stays
+    // 4: a save without the field is read by sanitizeTutorial below.
+    //   first  null (never guided) | 'part' | 'done' | 'skipped' | 'old'
+    //   camp   the first walk on home land has happened
+    //   hints  hint id -> times shown, each 0..HINT_COUNT_MAX (src/hints.js)
+    //   told   the thing to wear the home line last pointed at, and on how
+    //          many visits (ui/nextthing.js rule 8)
+    tutorial: emptyTutorial(),
+  };
+}
+
+export const TUTORIAL_FIRST = Object.freeze([null, 'part', 'done', 'skipped', 'old']);
+const TOLD_VISITS_MAX = 3;
+
+function emptyTutorial() {
+  return { first: null, camp: false, hints: {}, told: { thing: null, visits: 0 } };
+}
+
+// The `tutorial` field, cleaned like every other: unknown keys dropped,
+// numbers clamped to 0..3, anything else reset. `facts` is what the rest of
+// the (already cleaned) save says, for the two values a save from before the
+// field existed has to be given:
+//   first  'old' when it has finished any walk or ever earned a point (that
+//          player already knows the game, so the guided walk never starts by
+//          itself), else null;
+//   camp   true when she has ever walked on her home land.
+// A cloud save comes through here too (replaceFromPayload -> loadState), so
+// the same rules hold for it.
+export function sanitizeTutorial(v, { walked = false, earned = false, homeWalked = false } = {}) {
+  const firstFor = () => (walked || earned ? 'old' : null);
+  if (!isPlainObject(v)) return { ...emptyTutorial(), first: firstFor(), camp: !!homeWalked };
+  const hints = {};
+  if (isPlainObject(v.hints)) {
+    for (const id of HINT_IDS) {
+      if (!Object.hasOwn(v.hints, id)) continue;
+      const n = Math.min(HINT_COUNT_MAX, asFiniteNonNegInt(v.hints[id], 0));
+      if (n > 0) hints[id] = n;
+    }
+  }
+  const thing = isPlainObject(v.told) && typeof v.told.thing === 'string'
+    && Object.hasOwn(CATALOG.accessories, v.told.thing) && !CATALOG.accessories[v.told.thing].prize ? v.told.thing : null;
+  return {
+    first: Object.hasOwn(v, 'first') && TUTORIAL_FIRST.includes(v.first) ? v.first : firstFor(),
+    camp: typeof v.camp === 'boolean' ? v.camp : !!homeWalked,
+    hints,
+    told: { thing, visits: thing ? Math.min(TOLD_VISITS_MAX, asFiniteNonNegInt(v.told.visits, 0)) : 0 },
   };
 }
 
@@ -926,6 +974,7 @@ function sanitizeState(parsed) {
   const feats = sanitizeFeats(parsed.feats);
   const fightsWon = Math.min(FIGHTS_WON_MAX, asFiniteNonNegInt(parsed.fightsWon, feats.intruder ?? 0));
   const fm = sanitizeFightMoves(parsed.fightMoves, fightsWon);
+  const clanPick = sanitizeClanPick(parsed.clanPick);
 
   const result = {
     version: SAVE_VERSION,
@@ -964,7 +1013,12 @@ function sanitizeState(parsed) {
     visitPrizePending: isPrizeAccessory(parsed.visitPrizePending) ? parsed.visitPrizePending : null,
     mapMode: parsed.mapMode === 'turn' ? 'turn' : 'north',
     edition: sanitizeEdition(parsed.edition),
-    clanPick: sanitizeClanPick(parsed.clanPick),
+    clanPick,
+    tutorial: sanitizeTutorial(parsed.tutorial, {
+      walked: Object.values(walks).some((n) => n > 0),
+      earned: asFiniteNonNeg(parsed.lifetimePoints, 0) > 0 || asFiniteNonNeg(parsed.points, 0) > 0,
+      homeWalked: !!clanPick.mine && Object.hasOwn(walks, clanPick.mine) && walks[clanPick.mine] > 0,
+    }),
     fightsWon,
     fightMoves: fm.moves,
     scars: sanitizeScars(parsed.scars, customCats),
@@ -1554,6 +1608,57 @@ export function createProgression(storage) {
       }
       return true;
     },
+    // The pick from the cards (design section 7, owner's answer 2). The FIRST
+    // pick also opens that land at once, whatever its gate says, and makes it
+    // today's walk; a later change of group does neither. A group's id is its
+    // land's area id. 'first' | 'changed' | false (refused, as setClanPick).
+    pickHome(id) {
+      const first = state.clanPick.mine === null;
+      if (!api.setClanPick(id)) return false;
+      if (!first) return 'changed';
+      if (Object.hasOwn(CATALOG.areas, id) && areaInEdition(CATALOG.areas[id], state.edition)) {
+        if (!state.unlocked.areas.includes(id)) state.unlocked.areas.push(id);
+        state.area = id;
+        save();
+      }
+      return 'first';
+    },
+    // ---- The guided first walk and the hints (state.tutorial) ---------------
+    // A hint went up: one more on its count (never past HINT_COUNT_MAX).
+    countHint(id) {
+      if (!HINT_IDS.includes(id)) return 0;
+      const n = Math.min(HINT_COUNT_MAX, (state.tutorial.hints[id] ?? 0) + 1);
+      if (state.tutorial.hints[id] !== n) {
+        state.tutorial.hints[id] = n;
+        save();
+      }
+      return n;
+    },
+    // She did the thing without being told: that hint is never needed.
+    knowHint(id) {
+      if (!HINT_IDS.includes(id) || state.tutorial.hints[id] === HINT_COUNT_MAX) return;
+      state.tutorial.hints[id] = HINT_COUNT_MAX;
+      save();
+    },
+    // Where the guided first walk stands (TUTORIAL_FIRST). For the guided
+    // walk itself (step 3 of the build): 'part' when left half way, 'done' at
+    // its finish, 'skipped', and null again for "Play the first walk again".
+    setTutorialFirst(v) {
+      if (!TUTORIAL_FIRST.includes(v) || state.tutorial.first === v) return false;
+      state.tutorial.first = v;
+      save();
+      return true;
+    },
+    // The home line pointed at a thing to wear on this visit (nextthing.js
+    // rule 8): counted per thing, so after three visits it stops saying so.
+    noteTold(thing) {
+      if (typeof thing !== 'string' || !Object.hasOwn(CATALOG.accessories, thing)) return;
+      const t = state.tutorial.told;
+      state.tutorial.told = t.thing === thing
+        ? { thing, visits: Math.min(TOLD_VISITS_MAX, t.visits + 1) }
+        : { thing, visits: 1 };
+      save();
+    },
     // The partner's pick, cached. A new partner replaces both fields; the same
     // partner with no valid id (an old build) never erases a known pick.
     setPartnerClanPick(partnerId, id) {
@@ -1612,6 +1717,8 @@ export function createProgression(storage) {
     // before, incrementing nothing new.
     completeWalk(areaId = state.area, { dusk = false } = {}) {
       state.walks[areaId] += 1;
+      // A walk on her home land: the first camp walk has happened.
+      if (areaId === state.clanPick.mine) state.tutorial.camp = true;
       if (dusk && state.duskWalks < DUSK_WALKS_MAX) state.duskWalks += 1;
       // R1: every scar fades one step on any completed walk, den and Legacy too.
       for (const key of Object.keys(state.scars)) {

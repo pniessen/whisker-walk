@@ -90,7 +90,8 @@ describe('handleInteract — tipping props (v18 CF-2)', () => {
   afterEach(() => { for (const off of offs) off(); });
 
   // Wires a goals object to the discovery bus exactly the way main.js does,
-  // and forces the 'Tip 3 things over' goal to be one of the three drawn.
+  // and forces the 'Knock 3 things over' goal to be one of the three drawn.
+  // (2026-11-15, guided-first-walk design, section 5: the goal was 'Tip 3 things over'.)
   function goalsOnBus() {
     let i = -1;
     const pool = ['tip-things', 'spot-critters', 'collect'];
@@ -125,7 +126,7 @@ describe('handleInteract — tipping props (v18 CF-2)', () => {
     expect(h.progression.state.points).toBe(3 * AWARDS.mischief);
   });
 
-  it('moves the "Tip 3 things over" goal once per prop, so a cascade finishes it', () => {
+  it('moves the "Knock 3 things over" goal once per prop, so a cascade finishes it', () => {
     const goal = goalsOnBus();
     const h = harness({ spots: row(0, 1.0, 2.0), state: { skills: ['big-swat'] } });
     h.swat(h.tippables.list[0]);
