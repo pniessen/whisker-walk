@@ -1,0 +1,16 @@
+{
+ "about": "Lines with series-adjacent words that are built inside a closure, pinned as source text. A to-do list for the word refactor; see test/serieswords.source.test.js.",
+ "notReached": [
+  "src/game/clanfight.js :: ${} ran back to ${}'s land! 🏃",
+  "src/game/clanfight.js :: ${} shook it off and walked on. That scratch will heal in a few walks!",
+  "src/game/clanfight.js :: ${} shook it off and walked on. Try again soon!",
+  "src/game/clanfight.js :: You and ${} chased ${} off together! 🏃",
+  "src/game/clanfight.js :: You chased off ${}! 🛡️",
+  "src/game/crossing.js :: ${} is leading the way to ${}! 🧭",
+  "src/game/interactions.js :: ${} marks it too 🐾",
+  "src/game/interactions.js :: E — scent over their mark",
+  "src/game/interactions.js :: E — scratch your mark into it",
+  "src/game/netevents.js :: ${} is already facing ${}!",
+  "src/game/walk.js :: ${} chased you back over their border! 🐾"
+ ]
+}

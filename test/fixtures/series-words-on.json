@@ -1,0 +1,5789 @@
+{
+ "about": "Every series-derived string today's game shows. Recorded by test/serieswords.test.js; see its header before re-recording.",
+ "clanEdition": {
+  "vocabulary": {
+   "edition": {
+    "title": "Clan Edition",
+    "page": "Whisker Walk 2: Clan Edition",
+    "unknownEditionReadsAs": "Clan Edition"
+   },
+   "groupSuffix": "Clan",
+   "groupNames": {
+    "woods": "StormClan",
+    "river": "BrookClan",
+    "moor": "GaleClan",
+    "pines": "DuskClan",
+    "gorge": "CliffClan"
+   },
+   "homeLines": {
+    "woods": "oak woods, ferns and sunny clearings",
+    "moor": "open heather, wind and rabbits",
+    "river": "reeds, fishing and the pond",
+    "pines": "dark pines and the swamp",
+    "gorge": "rocks, cliff dens and tall pines"
+   },
+   "rivalGroupNames": {
+    "neighborhood": "HedgeClan",
+    "park": "AlderClan",
+    "seaside": "DuneClan",
+    "docks": "HeronClan"
+   },
+   "rankWords": {
+    "kit": "kit",
+    "apprentice": "apprentice",
+    "warrior": "warrior",
+    "elder": "elder",
+    "queen": "queen",
+    "medicine": "medicine cat",
+    "deputy": "deputy",
+    "leader": "leader"
+   },
+   "rankEndings": {
+    "kit": "kit",
+    "apprentice": "paw",
+    "leader": "star"
+   },
+   "grownEndings": [
+    "fur",
+    "tail",
+    "whisker",
+    "heart",
+    "foot",
+    "stripe",
+    "eye",
+    "wing",
+    "fang",
+    "leaf",
+    "shade",
+    "ear",
+    "belly",
+    "song"
+   ],
+   "outsideWords": {
+    "met": "loner",
+    "grudge": "rogue",
+    "player": "kittypet",
+    "house": "kittypet"
+   },
+   "placeWords": {
+    "town": "Twolegplace"
+   },
+   "placeNames": {
+    "neighborhood": "Twolegplace",
+    "park": "City Park",
+    "seaside": "Seaside",
+    "docks": "The Old Docks",
+    "woods": "The Woods",
+    "river": "The River and Marshes",
+    "moor": "The Moor",
+    "pines": "The Pines and Swamp",
+    "gorge": "The Gorge"
+   },
+   "mapNames": {
+    "town": "Twolegplace",
+    "woods": "The Woods",
+    "moor": "The Moor",
+    "river": "The River and Marshes",
+    "pines": "The Pines and Swamp",
+    "gorge": "The Gorge",
+    "island": "The island",
+    "islandWhere": "in the Pines and Swamp"
+   },
+   "ownGroupTitles": {
+    "all": [
+     "AcornClan",
+     "AspenClan",
+     "BerryClan",
+     "BirchClan",
+     "BriarClan",
+     "CloverClan",
+     "DawnClan",
+     "FernClan",
+     "HawthornClan",
+     "LarchClan",
+     "LarkClan",
+     "LichenClan",
+     "MarshClan",
+     "MossClan",
+     "NettleClan",
+     "PrimroseClan",
+     "SageClan",
+     "SparrowClan",
+     "TansyClan",
+     "ThistleClan",
+     "WillowClan",
+     "WrenClan"
+    ],
+    "bySeed": {
+     "player-0": "BriarClan",
+     "player-1": "TansyClan",
+     "player-2": "AspenClan",
+     "player-3": "SparrowClan",
+     "player-4": "AcornClan",
+     "player-5": "NettleClan",
+     "player-6": "DawnClan",
+     "player-7": "FernClan",
+     "player-8": "SageClan",
+     "player-9": "LarchClan",
+     "player-10": "CloverClan",
+     "player-12": "WrenClan",
+     "player-13": "LichenClan",
+     "player-16": "BirchClan",
+     "player-21": "PrimroseClan",
+     "player-22": "ThistleClan",
+     "player-25": "MarshClan",
+     "player-31": "HawthornClan",
+     "player-32": "BerryClan",
+     "player-44": "MossClan",
+     "player-53": "WillowClan",
+     "player-73": "LarkClan"
+    },
+    "unusableSeed": [
+     "MossClan",
+     "MossClan"
+    ],
+    "savedTitleKept": [
+     "AcornClan",
+     "AspenClan",
+     "BerryClan",
+     "BirchClan",
+     "BriarClan",
+     "CloverClan",
+     "DawnClan",
+     "FernClan",
+     "HawthornClan",
+     "LarchClan",
+     "LarkClan",
+     "LichenClan",
+     "MarshClan",
+     "MossClan",
+     "NettleClan",
+     "PrimroseClan",
+     "SageClan",
+     "SparrowClan",
+     "TansyClan",
+     "ThistleClan",
+     "WillowClan",
+     "WrenClan"
+    ],
+    "savedTitleDropped": [
+     "StormClan -> null",
+     "MossBand -> null",
+     "Moss -> null"
+    ]
+   },
+   "prizeNames": {
+    "warpaint": "Clan War Paint"
+   },
+   "fightMoves": {
+    "rearUpSwat": {
+     "name": "Rear-up Swat",
+     "short": "Swat",
+     "hint": "Paw up",
+     "when": "they raise a paw",
+     "learned": "New move: Rear-up Swat! Use it when they raise a paw."
+    },
+    "leapScratch": {
+     "name": "Leap and Scratch",
+     "short": "Leap",
+     "hint": "Backs up",
+     "when": "they back up",
+     "learned": "New move: Leap and Scratch! Use it when they back up."
+    },
+    "pin": {
+     "name": "Pin",
+     "short": "Pin",
+     "hint": "Crouch",
+     "when": "they crouch",
+     "learned": "New move: Pin! Use it when they crouch."
+    },
+    "rollingTumble": {
+     "name": "Rolling Tumble",
+     "short": "Tumble",
+     "hint": "Any move",
+     "when": null,
+     "learned": "New move: Rolling Tumble! Use it on any move."
+    }
+   },
+   "fightWords": {
+    "teach": "Crouch → Dodge · Paw up → Pounce · Backs up → Swipe",
+    "teachWithAllMoves": "Crouch → Dodge · Paw up → Pounce · Backs up → Swipe · 🐾 → Swat · ↩️ → Leap · ⬇️ → Pin · any → Tumble",
+    "read": "Read its move!",
+    "lines": {
+     "won": "Nice one! 🐾",
+     "lost": "It got that one!",
+     "secondLook": "Steady… look again 👀"
+    },
+    "clues": {
+     "pounce": "It crouches low…",
+     "swipe": "It raises a paw…",
+     "charge": "It backs up…"
+    },
+    "ask": "is on your land!",
+    "borderAsk": {
+     "ask": "blocks your path!",
+     "off": "Run"
+    }
+   }
+  },
+  "names": {
+   "stored": {
+    "Pickles": {
+     "kind": "stray",
+     "firstHalf": "Wren",
+     "forms": {
+      "kit": "Wrenkit",
+      "apprentice": "Wrenpaw",
+      "warrior": "Wrenwing",
+      "leader": "Wrenstar"
+     },
+     "grownEnding": "wing",
+     "ladder": {
+      "fed 0 of 6": "Wrenkit (kit) | Colony tab: Wrenkit (kit)",
+      "fed 1 of 6": "Wrenkit (kit) | Colony tab: Wrenkit (kit)",
+      "fed 2 of 6": "Wrenpaw (apprentice) | Colony tab: Wrenpaw (apprentice)",
+      "fed 3 of 6": "Wrenpaw (apprentice) | Colony tab: Wrenpaw (apprentice)",
+      "fed 4 of 6": "Wrenpaw (apprentice) | Colony tab: Wrenpaw (apprentice)",
+      "fed 5 of 6": "Wrenpaw (apprentice) | Colony tab: Wrenpaw (apprentice)",
+      "fed 6 of 6": "Wrenwing (warrior) | Colony tab: Wrenwing (warrior)",
+      "tamed": "Wrenwing (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Marmalade": {
+     "kind": "stray",
+     "firstHalf": "Amber",
+     "forms": {
+      "kit": "Amberkit",
+      "apprentice": "Amberpaw",
+      "warrior": "Amberleaf",
+      "leader": "Amberstar"
+     },
+     "grownEnding": "leaf",
+     "ladder": {
+      "fed 0 of 6": "Amberkit (kit) | Colony tab: Amberkit (kit)",
+      "fed 1 of 6": "Amberkit (kit) | Colony tab: Amberkit (kit)",
+      "fed 2 of 6": "Amberpaw (apprentice) | Colony tab: Amberpaw (apprentice)",
+      "fed 3 of 6": "Amberpaw (apprentice) | Colony tab: Amberpaw (apprentice)",
+      "fed 4 of 6": "Amberpaw (apprentice) | Colony tab: Amberpaw (apprentice)",
+      "fed 5 of 6": "Amberpaw (apprentice) | Colony tab: Amberpaw (apprentice)",
+      "fed 6 of 6": "Amberleaf (warrior) | Colony tab: Amberleaf (warrior)",
+      "tamed": "Amberleaf (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Marmalade the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Marmalade left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Baron von Fluff": {
+     "kind": "stray",
+     "firstHalf": "Lichen",
+     "forms": {
+      "kit": "Lichenkit",
+      "apprentice": "Lichenpaw",
+      "warrior": "Lichenear",
+      "leader": "Lichenstar"
+     },
+     "grownEnding": "ear",
+     "ladder": {
+      "fed 0 of 6": "Lichenkit (kit) | Colony tab: Lichenkit (kit)",
+      "fed 1 of 6": "Lichenkit (kit) | Colony tab: Lichenkit (kit)",
+      "fed 2 of 6": "Lichenpaw (apprentice) | Colony tab: Lichenpaw (apprentice)",
+      "fed 3 of 6": "Lichenpaw (apprentice) | Colony tab: Lichenpaw (apprentice)",
+      "fed 4 of 6": "Lichenpaw (apprentice) | Colony tab: Lichenpaw (apprentice)",
+      "fed 5 of 6": "Lichenpaw (apprentice) | Colony tab: Lichenpaw (apprentice)",
+      "fed 6 of 6": "Lichenear (warrior) | Colony tab: Lichenear (warrior)",
+      "tamed": "Lichenear (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Baron von Fluff the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Baron von Fluff left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Mochi": {
+     "kind": "stray",
+     "firstHalf": "Moss",
+     "forms": {
+      "kit": "Mosskit",
+      "apprentice": "Mosspaw",
+      "warrior": "Mosseye",
+      "leader": "Mossstar"
+     },
+     "grownEnding": "eye",
+     "ladder": {
+      "fed 0 of 6": "Mosskit (kit) | Colony tab: Mosskit (kit)",
+      "fed 1 of 6": "Mosskit (kit) | Colony tab: Mosskit (kit)",
+      "fed 2 of 6": "Mosspaw (apprentice) | Colony tab: Mosspaw (apprentice)",
+      "fed 3 of 6": "Mosspaw (apprentice) | Colony tab: Mosspaw (apprentice)",
+      "fed 4 of 6": "Mosspaw (apprentice) | Colony tab: Mosspaw (apprentice)",
+      "fed 5 of 6": "Mosspaw (apprentice) | Colony tab: Mosspaw (apprentice)",
+      "fed 6 of 6": "Mosseye (warrior) | Colony tab: Mosseye (warrior)",
+      "tamed": "Mosseye (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Mochi the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Mochi left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Biscuit": {
+     "kind": "stray",
+     "firstHalf": "Primrose",
+     "forms": {
+      "kit": "Primrosekit",
+      "apprentice": "Primrosepaw",
+      "warrior": "Primroseear",
+      "leader": "Primrosestar"
+     },
+     "grownEnding": "ear",
+     "ladder": {
+      "fed 0 of 6": "Primrosekit (kit) | Colony tab: Primrosekit (kit)",
+      "fed 1 of 6": "Primrosekit (kit) | Colony tab: Primrosekit (kit)",
+      "fed 2 of 6": "Primrosepaw (apprentice) | Colony tab: Primrosepaw (apprentice)",
+      "fed 3 of 6": "Primrosepaw (apprentice) | Colony tab: Primrosepaw (apprentice)",
+      "fed 4 of 6": "Primrosepaw (apprentice) | Colony tab: Primrosepaw (apprentice)",
+      "fed 5 of 6": "Primrosepaw (apprentice) | Colony tab: Primrosepaw (apprentice)",
+      "fed 6 of 6": "Primroseear (warrior) | Colony tab: Primroseear (warrior)",
+      "tamed": "Primroseear (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Biscuit the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Biscuit left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Clementine": {
+     "kind": "stray",
+     "firstHalf": "Sage",
+     "forms": {
+      "kit": "Sagekit",
+      "apprentice": "Sagepaw",
+      "warrior": "Sagetail",
+      "leader": "Sagestar"
+     },
+     "grownEnding": "tail",
+     "ladder": {
+      "fed 0 of 6": "Sagekit (kit) | Colony tab: Sagekit (kit)",
+      "fed 1 of 6": "Sagekit (kit) | Colony tab: Sagekit (kit)",
+      "fed 2 of 6": "Sagepaw (apprentice) | Colony tab: Sagepaw (apprentice)",
+      "fed 3 of 6": "Sagepaw (apprentice) | Colony tab: Sagepaw (apprentice)",
+      "fed 4 of 6": "Sagepaw (apprentice) | Colony tab: Sagepaw (apprentice)",
+      "fed 5 of 6": "Sagepaw (apprentice) | Colony tab: Sagepaw (apprentice)",
+      "fed 6 of 6": "Sagetail (warrior) | Colony tab: Sagetail (warrior)",
+      "tamed": "Sagetail (queen)"
+     },
+     "denRole": "queen",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Clementine the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Clementine left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell",
+     "kits": [
+      "Bramble",
+      "Pebble"
+     ]
+    },
+    "Noodle": {
+     "kind": "stray",
+     "firstHalf": "Sparrow",
+     "forms": {
+      "kit": "Sparrowkit",
+      "apprentice": "Sparrowpaw",
+      "warrior": "Sparroweye",
+      "leader": "Sparrowstar"
+     },
+     "grownEnding": "eye",
+     "ladder": {
+      "fed 0 of 6": "Sparrowkit (kit) | Colony tab: Sparrowkit (kit)",
+      "fed 1 of 6": "Sparrowkit (kit) | Colony tab: Sparrowkit (kit)",
+      "fed 2 of 6": "Sparrowpaw (apprentice) | Colony tab: Sparrowpaw (apprentice)",
+      "fed 3 of 6": "Sparrowpaw (apprentice) | Colony tab: Sparrowpaw (apprentice)",
+      "fed 4 of 6": "Sparrowpaw (apprentice) | Colony tab: Sparrowpaw (apprentice)",
+      "fed 5 of 6": "Sparrowpaw (apprentice) | Colony tab: Sparrowpaw (apprentice)",
+      "fed 6 of 6": "Sparroweye (warrior) | Colony tab: Sparroweye (warrior)",
+      "tamed": "Sparroweye (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Pumpkin": {
+     "kind": "stray",
+     "firstHalf": "Willow",
+     "forms": {
+      "kit": "Willowkit",
+      "apprentice": "Willowpaw",
+      "warrior": "Willowtail",
+      "leader": "Willowstar"
+     },
+     "grownEnding": "tail",
+     "ladder": {
+      "fed 0 of 6": "Willowkit (kit) | Colony tab: Willowkit (kit)",
+      "fed 1 of 6": "Willowkit (kit) | Colony tab: Willowkit (kit)",
+      "fed 2 of 6": "Willowpaw (apprentice) | Colony tab: Willowpaw (apprentice)",
+      "fed 3 of 6": "Willowpaw (apprentice) | Colony tab: Willowpaw (apprentice)",
+      "fed 4 of 6": "Willowpaw (apprentice) | Colony tab: Willowpaw (apprentice)",
+      "fed 5 of 6": "Willowpaw (apprentice) | Colony tab: Willowpaw (apprentice)",
+      "fed 6 of 6": "Willowtail (warrior) | Colony tab: Willowtail (warrior)",
+      "tamed": "Willowtail (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Sardine": {
+     "kind": "stray",
+     "firstHalf": "Rowan",
+     "forms": {
+      "kit": "Rowankit",
+      "apprentice": "Rowanpaw",
+      "warrior": "Rowanbelly",
+      "leader": "Rowanstar"
+     },
+     "grownEnding": "belly",
+     "ladder": {
+      "fed 0 of 6": "Rowankit (kit) | Colony tab: Rowankit (kit)",
+      "fed 1 of 6": "Rowankit (kit) | Colony tab: Rowankit (kit)",
+      "fed 2 of 6": "Rowanpaw (apprentice) | Colony tab: Rowanpaw (apprentice)",
+      "fed 3 of 6": "Rowanpaw (apprentice) | Colony tab: Rowanpaw (apprentice)",
+      "fed 4 of 6": "Rowanpaw (apprentice) | Colony tab: Rowanpaw (apprentice)",
+      "fed 5 of 6": "Rowanpaw (apprentice) | Colony tab: Rowanpaw (apprentice)",
+      "fed 6 of 6": "Rowanbelly (warrior) | Colony tab: Rowanbelly (warrior)",
+      "tamed": "Rowanbelly (elder)"
+     },
+     "denRole": "elder",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Waffles": {
+     "kind": "stray",
+     "firstHalf": "Ivy",
+     "forms": {
+      "kit": "Ivykit",
+      "apprentice": "Ivypaw",
+      "warrior": "Ivywing",
+      "leader": "Ivystar"
+     },
+     "grownEnding": "wing",
+     "ladder": {
+      "fed 0 of 6": "Ivykit (kit) | Colony tab: Ivykit (kit)",
+      "fed 1 of 6": "Ivykit (kit) | Colony tab: Ivykit (kit)",
+      "fed 2 of 6": "Ivypaw (apprentice) | Colony tab: Ivypaw (apprentice)",
+      "fed 3 of 6": "Ivypaw (apprentice) | Colony tab: Ivypaw (apprentice)",
+      "fed 4 of 6": "Ivypaw (apprentice) | Colony tab: Ivypaw (apprentice)",
+      "fed 5 of 6": "Ivypaw (apprentice) | Colony tab: Ivypaw (apprentice)",
+      "fed 6 of 6": "Ivywing (warrior) | Colony tab: Ivywing (warrior)",
+      "tamed": "Ivywing (elder)"
+     },
+     "denRole": "elder",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Waffles the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Waffles left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Miso": {
+     "kind": "stray",
+     "firstHalf": "Poppy",
+     "forms": {
+      "kit": "Poppykit",
+      "apprentice": "Poppypaw",
+      "warrior": "Poppyear",
+      "leader": "Poppystar"
+     },
+     "grownEnding": "ear",
+     "ladder": {
+      "fed 0 of 6": "Poppykit (kit) | Colony tab: Poppykit (kit)",
+      "fed 1 of 6": "Poppykit (kit) | Colony tab: Poppykit (kit)",
+      "fed 2 of 6": "Poppypaw (apprentice) | Colony tab: Poppypaw (apprentice)",
+      "fed 3 of 6": "Poppypaw (apprentice) | Colony tab: Poppypaw (apprentice)",
+      "fed 4 of 6": "Poppypaw (apprentice) | Colony tab: Poppypaw (apprentice)",
+      "fed 5 of 6": "Poppypaw (apprentice) | Colony tab: Poppypaw (apprentice)",
+      "fed 6 of 6": "Poppyear (warrior) | Colony tab: Poppyear (warrior)",
+      "tamed": "Poppyear (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Turnip": {
+     "kind": "stray",
+     "firstHalf": "Thistle",
+     "forms": {
+      "kit": "Thistlekit",
+      "apprentice": "Thistlepaw",
+      "warrior": "Thistleear",
+      "leader": "Thistlestar"
+     },
+     "grownEnding": "ear",
+     "ladder": {
+      "fed 0 of 6": "Thistlekit (kit) | Colony tab: Thistlekit (kit)",
+      "fed 1 of 6": "Thistlekit (kit) | Colony tab: Thistlekit (kit)",
+      "fed 2 of 6": "Thistlepaw (apprentice) | Colony tab: Thistlepaw (apprentice)",
+      "fed 3 of 6": "Thistlepaw (apprentice) | Colony tab: Thistlepaw (apprentice)",
+      "fed 4 of 6": "Thistlepaw (apprentice) | Colony tab: Thistlepaw (apprentice)",
+      "fed 5 of 6": "Thistlepaw (apprentice) | Colony tab: Thistlepaw (apprentice)",
+      "fed 6 of 6": "Thistleear (warrior) | Colony tab: Thistleear (warrior)",
+      "tamed": "Thistleear (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Gadget": {
+     "kind": "stray",
+     "firstHalf": "Daisy",
+     "forms": {
+      "kit": "Daisykit",
+      "apprentice": "Daisypaw",
+      "warrior": "Daisyshade",
+      "leader": "Daisystar"
+     },
+     "grownEnding": "shade",
+     "ladder": {
+      "fed 0 of 6": "Daisykit (kit) | Colony tab: Daisykit (kit)",
+      "fed 1 of 6": "Daisykit (kit) | Colony tab: Daisykit (kit)",
+      "fed 2 of 6": "Daisypaw (apprentice) | Colony tab: Daisypaw (apprentice)",
+      "fed 3 of 6": "Daisypaw (apprentice) | Colony tab: Daisypaw (apprentice)",
+      "fed 4 of 6": "Daisypaw (apprentice) | Colony tab: Daisypaw (apprentice)",
+      "fed 5 of 6": "Daisypaw (apprentice) | Colony tab: Daisypaw (apprentice)",
+      "fed 6 of 6": "Daisyshade (warrior) | Colony tab: Daisyshade (warrior)",
+      "tamed": "Daisyshade (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Petunia": {
+     "kind": "stray",
+     "firstHalf": "Briar",
+     "forms": {
+      "kit": "Briarkit",
+      "apprentice": "Briarpaw",
+      "warrior": "Briarshade",
+      "leader": "Briarstar"
+     },
+     "grownEnding": "shade",
+     "ladder": {
+      "fed 0 of 6": "Briarkit (kit) | Colony tab: Briarkit (kit)",
+      "fed 1 of 6": "Briarkit (kit) | Colony tab: Briarkit (kit)",
+      "fed 2 of 6": "Briarpaw (apprentice) | Colony tab: Briarpaw (apprentice)",
+      "fed 3 of 6": "Briarpaw (apprentice) | Colony tab: Briarpaw (apprentice)",
+      "fed 4 of 6": "Briarpaw (apprentice) | Colony tab: Briarpaw (apprentice)",
+      "fed 5 of 6": "Briarpaw (apprentice) | Colony tab: Briarpaw (apprentice)",
+      "fed 6 of 6": "Briarshade (warrior) | Colony tab: Briarshade (warrior)",
+      "tamed": "Briarshade (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Petunia the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Petunia left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Sir Pounce": {
+     "kind": "stray",
+     "firstHalf": "Acorn",
+     "forms": {
+      "kit": "Acornkit",
+      "apprentice": "Acornpaw",
+      "warrior": "Acornbelly",
+      "leader": "Acornstar"
+     },
+     "grownEnding": "belly",
+     "ladder": {
+      "fed 0 of 6": "Acornkit (kit) | Colony tab: Acornkit (kit)",
+      "fed 1 of 6": "Acornkit (kit) | Colony tab: Acornkit (kit)",
+      "fed 2 of 6": "Acornpaw (apprentice) | Colony tab: Acornpaw (apprentice)",
+      "fed 3 of 6": "Acornpaw (apprentice) | Colony tab: Acornpaw (apprentice)",
+      "fed 4 of 6": "Acornpaw (apprentice) | Colony tab: Acornpaw (apprentice)",
+      "fed 5 of 6": "Acornpaw (apprentice) | Colony tab: Acornpaw (apprentice)",
+      "fed 6 of 6": "Acornbelly (warrior) | Colony tab: Acornbelly (warrior)",
+      "tamed": "Acornbelly (queen)"
+     },
+     "denRole": "queen",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Sir Pounce the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Sir Pounce left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell",
+     "kits": [
+      "Peanut",
+      "Cupcake"
+     ]
+    },
+    "Dumpling": {
+     "kind": "stray",
+     "firstHalf": "Rush",
+     "forms": {
+      "kit": "Rushkit",
+      "apprentice": "Rushpaw",
+      "warrior": "Rushfoot",
+      "leader": "Rushstar"
+     },
+     "grownEnding": "foot",
+     "ladder": {
+      "fed 0 of 6": "Rushkit (kit) | Colony tab: Rushkit (kit)",
+      "fed 1 of 6": "Rushkit (kit) | Colony tab: Rushkit (kit)",
+      "fed 2 of 6": "Rushpaw (apprentice) | Colony tab: Rushpaw (apprentice)",
+      "fed 3 of 6": "Rushpaw (apprentice) | Colony tab: Rushpaw (apprentice)",
+      "fed 4 of 6": "Rushpaw (apprentice) | Colony tab: Rushpaw (apprentice)",
+      "fed 5 of 6": "Rushpaw (apprentice) | Colony tab: Rushpaw (apprentice)",
+      "fed 6 of 6": "Rushfoot (warrior) | Colony tab: Rushfoot (warrior)",
+      "tamed": "Rushfoot (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Olive": {
+     "kind": "stray",
+     "firstHalf": "Berry",
+     "forms": {
+      "kit": "Berrykit",
+      "apprentice": "Berrypaw",
+      "warrior": "Berrysong",
+      "leader": "Berrystar"
+     },
+     "grownEnding": "song",
+     "ladder": {
+      "fed 0 of 6": "Berrykit (kit) | Colony tab: Berrykit (kit)",
+      "fed 1 of 6": "Berrykit (kit) | Colony tab: Berrykit (kit)",
+      "fed 2 of 6": "Berrypaw (apprentice) | Colony tab: Berrypaw (apprentice)",
+      "fed 3 of 6": "Berrypaw (apprentice) | Colony tab: Berrypaw (apprentice)",
+      "fed 4 of 6": "Berrypaw (apprentice) | Colony tab: Berrypaw (apprentice)",
+      "fed 5 of 6": "Berrypaw (apprentice) | Colony tab: Berrypaw (apprentice)",
+      "fed 6 of 6": "Berrysong (warrior) | Colony tab: Berrysong (warrior)",
+      "tamed": "Berrysong (elder)"
+     },
+     "denRole": "elder",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Paprika": {
+     "kind": "stray",
+     "firstHalf": "Dawn",
+     "forms": {
+      "kit": "Dawnkit",
+      "apprentice": "Dawnpaw",
+      "warrior": "Dawnsong",
+      "leader": "Dawnstar"
+     },
+     "grownEnding": "song",
+     "ladder": {
+      "fed 0 of 6": "Dawnkit (kit) | Colony tab: Dawnkit (kit)",
+      "fed 1 of 6": "Dawnkit (kit) | Colony tab: Dawnkit (kit)",
+      "fed 2 of 6": "Dawnpaw (apprentice) | Colony tab: Dawnpaw (apprentice)",
+      "fed 3 of 6": "Dawnpaw (apprentice) | Colony tab: Dawnpaw (apprentice)",
+      "fed 4 of 6": "Dawnpaw (apprentice) | Colony tab: Dawnpaw (apprentice)",
+      "fed 5 of 6": "Dawnpaw (apprentice) | Colony tab: Dawnpaw (apprentice)",
+      "fed 6 of 6": "Dawnsong (warrior) | Colony tab: Dawnsong (warrior)",
+      "tamed": "Dawnsong (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Crumpet": {
+     "kind": "stray",
+     "firstHalf": "Bluebell",
+     "forms": {
+      "kit": "Bluebellkit",
+      "apprentice": "Bluebellpaw",
+      "warrior": "Bluebellwing",
+      "leader": "Bluebellstar"
+     },
+     "grownEnding": "wing",
+     "ladder": {
+      "fed 0 of 6": "Bluebellkit (kit) | Colony tab: Bluebellkit (kit)",
+      "fed 1 of 6": "Bluebellkit (kit) | Colony tab: Bluebellkit (kit)",
+      "fed 2 of 6": "Bluebellpaw (apprentice) | Colony tab: Bluebellpaw (apprentice)",
+      "fed 3 of 6": "Bluebellpaw (apprentice) | Colony tab: Bluebellpaw (apprentice)",
+      "fed 4 of 6": "Bluebellpaw (apprentice) | Colony tab: Bluebellpaw (apprentice)",
+      "fed 5 of 6": "Bluebellpaw (apprentice) | Colony tab: Bluebellpaw (apprentice)",
+      "fed 6 of 6": "Bluebellwing (warrior) | Colony tab: Bluebellwing (warrior)",
+      "tamed": "Bluebellwing (elder)"
+     },
+     "denRole": "elder",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Zucchini": {
+     "kind": "stray",
+     "firstHalf": "Birch",
+     "forms": {
+      "kit": "Birchkit",
+      "apprentice": "Birchpaw",
+      "warrior": "Birchfur",
+      "leader": "Birchstar"
+     },
+     "grownEnding": "fur",
+     "ladder": {
+      "fed 0 of 6": "Birchkit (kit) | Colony tab: Birchkit (kit)",
+      "fed 1 of 6": "Birchkit (kit) | Colony tab: Birchkit (kit)",
+      "fed 2 of 6": "Birchpaw (apprentice) | Colony tab: Birchpaw (apprentice)",
+      "fed 3 of 6": "Birchpaw (apprentice) | Colony tab: Birchpaw (apprentice)",
+      "fed 4 of 6": "Birchpaw (apprentice) | Colony tab: Birchpaw (apprentice)",
+      "fed 5 of 6": "Birchpaw (apprentice) | Colony tab: Birchpaw (apprentice)",
+      "fed 6 of 6": "Birchfur (warrior) | Colony tab: Birchfur (warrior)",
+      "tamed": "Birchfur (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Maple": {
+     "kind": "stray",
+     "firstHalf": "Nettle",
+     "forms": {
+      "kit": "Nettlekit",
+      "apprentice": "Nettlepaw",
+      "warrior": "Nettlebelly",
+      "leader": "Nettlestar"
+     },
+     "grownEnding": "belly",
+     "ladder": {
+      "fed 0 of 6": "Nettlekit (kit) | Colony tab: Nettlekit (kit)",
+      "fed 1 of 6": "Nettlekit (kit) | Colony tab: Nettlekit (kit)",
+      "fed 2 of 6": "Nettlepaw (apprentice) | Colony tab: Nettlepaw (apprentice)",
+      "fed 3 of 6": "Nettlepaw (apprentice) | Colony tab: Nettlepaw (apprentice)",
+      "fed 4 of 6": "Nettlepaw (apprentice) | Colony tab: Nettlepaw (apprentice)",
+      "fed 5 of 6": "Nettlepaw (apprentice) | Colony tab: Nettlepaw (apprentice)",
+      "fed 6 of 6": "Nettlebelly (warrior) | Colony tab: Nettlebelly (warrior)",
+      "tamed": "Nettlebelly (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Tofu": {
+     "kind": "stray",
+     "firstHalf": "Violet",
+     "forms": {
+      "kit": "Violetkit",
+      "apprentice": "Violetpaw",
+      "warrior": "Violetfang",
+      "leader": "Violetstar"
+     },
+     "grownEnding": "fang",
+     "ladder": {
+      "fed 0 of 6": "Violetkit (kit) | Colony tab: Violetkit (kit)",
+      "fed 1 of 6": "Violetkit (kit) | Colony tab: Violetkit (kit)",
+      "fed 2 of 6": "Violetpaw (apprentice) | Colony tab: Violetpaw (apprentice)",
+      "fed 3 of 6": "Violetpaw (apprentice) | Colony tab: Violetpaw (apprentice)",
+      "fed 4 of 6": "Violetpaw (apprentice) | Colony tab: Violetpaw (apprentice)",
+      "fed 5 of 6": "Violetpaw (apprentice) | Colony tab: Violetpaw (apprentice)",
+      "fed 6 of 6": "Violetfang (warrior) | Colony tab: Violetfang (warrior)",
+      "tamed": "Violetfang (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Wasabi": {
+     "kind": "stray",
+     "firstHalf": "Crocus",
+     "forms": {
+      "kit": "Crocuskit",
+      "apprentice": "Crocuspaw",
+      "warrior": "Crocuswhisker",
+      "leader": "Crocusstar"
+     },
+     "grownEnding": "whisker",
+     "ladder": {
+      "fed 0 of 6": "Crocuskit (kit) | Colony tab: Crocuskit (kit)",
+      "fed 1 of 6": "Crocuskit (kit) | Colony tab: Crocuskit (kit)",
+      "fed 2 of 6": "Crocuspaw (apprentice) | Colony tab: Crocuspaw (apprentice)",
+      "fed 3 of 6": "Crocuspaw (apprentice) | Colony tab: Crocuspaw (apprentice)",
+      "fed 4 of 6": "Crocuspaw (apprentice) | Colony tab: Crocuspaw (apprentice)",
+      "fed 5 of 6": "Crocuspaw (apprentice) | Colony tab: Crocuspaw (apprentice)",
+      "fed 6 of 6": "Crocuswhisker (warrior) | Colony tab: Crocuswhisker (warrior)",
+      "tamed": "Crocuswhisker (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Pretzel": {
+     "kind": "stray",
+     "firstHalf": "Aspen",
+     "forms": {
+      "kit": "Aspenkit",
+      "apprentice": "Aspenpaw",
+      "warrior": "Aspenfoot",
+      "leader": "Aspenstar"
+     },
+     "grownEnding": "foot",
+     "ladder": {
+      "fed 0 of 6": "Aspenkit (kit) | Colony tab: Aspenkit (kit)",
+      "fed 1 of 6": "Aspenkit (kit) | Colony tab: Aspenkit (kit)",
+      "fed 2 of 6": "Aspenpaw (apprentice) | Colony tab: Aspenpaw (apprentice)",
+      "fed 3 of 6": "Aspenpaw (apprentice) | Colony tab: Aspenpaw (apprentice)",
+      "fed 4 of 6": "Aspenpaw (apprentice) | Colony tab: Aspenpaw (apprentice)",
+      "fed 5 of 6": "Aspenpaw (apprentice) | Colony tab: Aspenpaw (apprentice)",
+      "fed 6 of 6": "Aspenfoot (warrior) | Colony tab: Aspenfoot (warrior)",
+      "tamed": "Aspenfoot (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Nimbus": {
+     "kind": "stray",
+     "firstHalf": "Lily",
+     "forms": {
+      "kit": "Lilykit",
+      "apprentice": "Lilypaw",
+      "warrior": "Lilysong",
+      "leader": "Lilystar"
+     },
+     "grownEnding": "song",
+     "ladder": {
+      "fed 0 of 6": "Lilykit (kit) | Colony tab: Lilykit (kit)",
+      "fed 1 of 6": "Lilykit (kit) | Colony tab: Lilykit (kit)",
+      "fed 2 of 6": "Lilypaw (apprentice) | Colony tab: Lilypaw (apprentice)",
+      "fed 3 of 6": "Lilypaw (apprentice) | Colony tab: Lilypaw (apprentice)",
+      "fed 4 of 6": "Lilypaw (apprentice) | Colony tab: Lilypaw (apprentice)",
+      "fed 5 of 6": "Lilypaw (apprentice) | Colony tab: Lilypaw (apprentice)",
+      "fed 6 of 6": "Lilysong (warrior) | Colony tab: Lilysong (warrior)",
+      "tamed": "Lilysong (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Pepper": {
+     "kind": "stray",
+     "firstHalf": "Aster",
+     "forms": {
+      "kit": "Asterkit",
+      "apprentice": "Asterpaw",
+      "warrior": "Asterfoot",
+      "leader": "Asterstar"
+     },
+     "grownEnding": "foot",
+     "ladder": {
+      "fed 0 of 6": "Asterkit (kit) | Colony tab: Asterkit (kit)",
+      "fed 1 of 6": "Asterkit (kit) | Colony tab: Asterkit (kit)",
+      "fed 2 of 6": "Asterpaw (apprentice) | Colony tab: Asterpaw (apprentice)",
+      "fed 3 of 6": "Asterpaw (apprentice) | Colony tab: Asterpaw (apprentice)",
+      "fed 4 of 6": "Asterpaw (apprentice) | Colony tab: Asterpaw (apprentice)",
+      "fed 5 of 6": "Asterpaw (apprentice) | Colony tab: Asterpaw (apprentice)",
+      "fed 6 of 6": "Asterfoot (warrior) | Colony tab: Asterfoot (warrior)",
+      "tamed": "Asterfoot (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Butterscotch": {
+     "kind": "stray",
+     "firstHalf": "Dew",
+     "forms": {
+      "kit": "Dewkit",
+      "apprentice": "Dewpaw",
+      "warrior": "Dewsong",
+      "leader": "Dewstar"
+     },
+     "grownEnding": "song",
+     "ladder": {
+      "fed 0 of 6": "Dewkit (kit) | Colony tab: Dewkit (kit)",
+      "fed 1 of 6": "Dewkit (kit) | Colony tab: Dewkit (kit)",
+      "fed 2 of 6": "Dewpaw (apprentice) | Colony tab: Dewpaw (apprentice)",
+      "fed 3 of 6": "Dewpaw (apprentice) | Colony tab: Dewpaw (apprentice)",
+      "fed 4 of 6": "Dewpaw (apprentice) | Colony tab: Dewpaw (apprentice)",
+      "fed 5 of 6": "Dewpaw (apprentice) | Colony tab: Dewpaw (apprentice)",
+      "fed 6 of 6": "Dewsong (warrior) | Colony tab: Dewsong (warrior)",
+      "tamed": "Dewsong (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Butterscotch the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Butterscotch left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Fig": {
+     "kind": "stray",
+     "firstHalf": "Breeze",
+     "forms": {
+      "kit": "Breezekit",
+      "apprentice": "Breezepaw",
+      "warrior": "Breezefur",
+      "leader": "Breezestar"
+     },
+     "grownEnding": "fur",
+     "ladder": {
+      "fed 0 of 6": "Breezekit (kit) | Colony tab: Breezekit (kit)",
+      "fed 1 of 6": "Breezekit (kit) | Colony tab: Breezekit (kit)",
+      "fed 2 of 6": "Breezepaw (apprentice) | Colony tab: Breezepaw (apprentice)",
+      "fed 3 of 6": "Breezepaw (apprentice) | Colony tab: Breezepaw (apprentice)",
+      "fed 4 of 6": "Breezepaw (apprentice) | Colony tab: Breezepaw (apprentice)",
+      "fed 5 of 6": "Breezepaw (apprentice) | Colony tab: Breezepaw (apprentice)",
+      "fed 6 of 6": "Breezefur (warrior) | Colony tab: Breezefur (warrior)",
+      "tamed": "Breezefur (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Tangerine": {
+     "kind": "stray",
+     "firstHalf": "Larch",
+     "forms": {
+      "kit": "Larchkit",
+      "apprentice": "Larchpaw",
+      "warrior": "Larchfur",
+      "leader": "Larchstar"
+     },
+     "grownEnding": "fur",
+     "ladder": {
+      "fed 0 of 6": "Larchkit (kit) | Colony tab: Larchkit (kit)",
+      "fed 1 of 6": "Larchkit (kit) | Colony tab: Larchkit (kit)",
+      "fed 2 of 6": "Larchpaw (apprentice) | Colony tab: Larchpaw (apprentice)",
+      "fed 3 of 6": "Larchpaw (apprentice) | Colony tab: Larchpaw (apprentice)",
+      "fed 4 of 6": "Larchpaw (apprentice) | Colony tab: Larchpaw (apprentice)",
+      "fed 5 of 6": "Larchpaw (apprentice) | Colony tab: Larchpaw (apprentice)",
+      "fed 6 of 6": "Larchfur (warrior) | Colony tab: Larchfur (warrior)",
+      "tamed": "Larchfur (elder)"
+     },
+     "denRole": "elder",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Cocoa": {
+     "kind": "stray",
+     "firstHalf": "Fern",
+     "forms": {
+      "kit": "Fernkit",
+      "apprentice": "Fernpaw",
+      "warrior": "Fernfur",
+      "leader": "Fernstar"
+     },
+     "grownEnding": "fur",
+     "ladder": {
+      "fed 0 of 6": "Fernkit (kit) | Colony tab: Fernkit (kit)",
+      "fed 1 of 6": "Fernkit (kit) | Colony tab: Fernkit (kit)",
+      "fed 2 of 6": "Fernpaw (apprentice) | Colony tab: Fernpaw (apprentice)",
+      "fed 3 of 6": "Fernpaw (apprentice) | Colony tab: Fernpaw (apprentice)",
+      "fed 4 of 6": "Fernpaw (apprentice) | Colony tab: Fernpaw (apprentice)",
+      "fed 5 of 6": "Fernpaw (apprentice) | Colony tab: Fernpaw (apprentice)",
+      "fed 6 of 6": "Fernfur (warrior) | Colony tab: Fernfur (warrior)",
+      "tamed": "Fernfur (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Sprout": {
+     "kind": "stray",
+     "firstHalf": "Laurel",
+     "forms": {
+      "kit": "Laurelkit",
+      "apprentice": "Laurelpaw",
+      "warrior": "Laurelwhisker",
+      "leader": "Laurelstar"
+     },
+     "grownEnding": "whisker",
+     "ladder": {
+      "fed 0 of 6": "Laurelkit (kit) | Colony tab: Laurelkit (kit)",
+      "fed 1 of 6": "Laurelkit (kit) | Colony tab: Laurelkit (kit)",
+      "fed 2 of 6": "Laurelpaw (apprentice) | Colony tab: Laurelpaw (apprentice)",
+      "fed 3 of 6": "Laurelpaw (apprentice) | Colony tab: Laurelpaw (apprentice)",
+      "fed 4 of 6": "Laurelpaw (apprentice) | Colony tab: Laurelpaw (apprentice)",
+      "fed 5 of 6": "Laurelpaw (apprentice) | Colony tab: Laurelpaw (apprentice)",
+      "fed 6 of 6": "Laurelwhisker (warrior) | Colony tab: Laurelwhisker (warrior)",
+      "tamed": "Laurelwhisker (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Juniper": {
+     "kind": "stray",
+     "firstHalf": "Tansy",
+     "forms": {
+      "kit": "Tansykit",
+      "apprentice": "Tansypaw",
+      "warrior": "Tansystripe",
+      "leader": "Tansystar"
+     },
+     "grownEnding": "stripe",
+     "ladder": {
+      "fed 0 of 6": "Tansykit (kit) | Colony tab: Tansykit (kit)",
+      "fed 1 of 6": "Tansykit (kit) | Colony tab: Tansykit (kit)",
+      "fed 2 of 6": "Tansypaw (apprentice) | Colony tab: Tansypaw (apprentice)",
+      "fed 3 of 6": "Tansypaw (apprentice) | Colony tab: Tansypaw (apprentice)",
+      "fed 4 of 6": "Tansypaw (apprentice) | Colony tab: Tansypaw (apprentice)",
+      "fed 5 of 6": "Tansypaw (apprentice) | Colony tab: Tansypaw (apprentice)",
+      "fed 6 of 6": "Tansystripe (warrior) | Colony tab: Tansystripe (warrior)",
+      "tamed": "Tansystripe (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Meatball": {
+     "kind": "stray",
+     "firstHalf": "Tawny",
+     "forms": {
+      "kit": "Tawnykit",
+      "apprentice": "Tawnypaw",
+      "warrior": "Tawnyleaf",
+      "leader": "Tawnystar"
+     },
+     "grownEnding": "leaf",
+     "ladder": {
+      "fed 0 of 6": "Tawnykit (kit) | Colony tab: Tawnykit (kit)",
+      "fed 1 of 6": "Tawnykit (kit) | Colony tab: Tawnykit (kit)",
+      "fed 2 of 6": "Tawnypaw (apprentice) | Colony tab: Tawnypaw (apprentice)",
+      "fed 3 of 6": "Tawnypaw (apprentice) | Colony tab: Tawnypaw (apprentice)",
+      "fed 4 of 6": "Tawnypaw (apprentice) | Colony tab: Tawnypaw (apprentice)",
+      "fed 5 of 6": "Tawnypaw (apprentice) | Colony tab: Tawnypaw (apprentice)",
+      "fed 6 of 6": "Tawnyleaf (warrior) | Colony tab: Tawnyleaf (warrior)",
+      "tamed": "Tawnyleaf (elder)"
+     },
+     "denRole": "elder",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Parsnip": {
+     "kind": "stray",
+     "firstHalf": "Pine",
+     "forms": {
+      "kit": "Pinekit",
+      "apprentice": "Pinepaw",
+      "warrior": "Pineheart",
+      "leader": "Pinestar"
+     },
+     "grownEnding": "heart",
+     "ladder": {
+      "fed 0 of 6": "Pinekit (kit) | Colony tab: Pinekit (kit)",
+      "fed 1 of 6": "Pinekit (kit) | Colony tab: Pinekit (kit)",
+      "fed 2 of 6": "Pinepaw (apprentice) | Colony tab: Pinepaw (apprentice)",
+      "fed 3 of 6": "Pinepaw (apprentice) | Colony tab: Pinepaw (apprentice)",
+      "fed 4 of 6": "Pinepaw (apprentice) | Colony tab: Pinepaw (apprentice)",
+      "fed 5 of 6": "Pinepaw (apprentice) | Colony tab: Pinepaw (apprentice)",
+      "fed 6 of 6": "Pineheart (warrior) | Colony tab: Pineheart (warrior)",
+      "tamed": "Pineheart (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Ziggy": {
+     "kind": "stray",
+     "firstHalf": "Spruce",
+     "forms": {
+      "kit": "Sprucekit",
+      "apprentice": "Sprucepaw",
+      "warrior": "Sprucefur",
+      "leader": "Sprucestar"
+     },
+     "grownEnding": "fur",
+     "ladder": {
+      "fed 0 of 6": "Sprucekit (kit) | Colony tab: Sprucekit (kit)",
+      "fed 1 of 6": "Sprucekit (kit) | Colony tab: Sprucekit (kit)",
+      "fed 2 of 6": "Sprucepaw (apprentice) | Colony tab: Sprucepaw (apprentice)",
+      "fed 3 of 6": "Sprucepaw (apprentice) | Colony tab: Sprucepaw (apprentice)",
+      "fed 4 of 6": "Sprucepaw (apprentice) | Colony tab: Sprucepaw (apprentice)",
+      "fed 5 of 6": "Sprucepaw (apprentice) | Colony tab: Sprucepaw (apprentice)",
+      "fed 6 of 6": "Sprucefur (warrior) | Colony tab: Sprucefur (warrior)",
+      "tamed": "Sprucefur (queen)"
+     },
+     "denRole": "queen",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": "",
+     "kits": [
+      "Peanut",
+      "Cupcake"
+     ]
+    },
+    "Bean": {
+     "kind": "stray",
+     "firstHalf": "Elm",
+     "forms": {
+      "kit": "Elmkit",
+      "apprentice": "Elmpaw",
+      "warrior": "Elmheart",
+      "leader": "Elmstar"
+     },
+     "grownEnding": "heart",
+     "ladder": {
+      "fed 0 of 6": "Elmkit (kit) | Colony tab: Elmkit (kit)",
+      "fed 1 of 6": "Elmkit (kit) | Colony tab: Elmkit (kit)",
+      "fed 2 of 6": "Elmpaw (apprentice) | Colony tab: Elmpaw (apprentice)",
+      "fed 3 of 6": "Elmpaw (apprentice) | Colony tab: Elmpaw (apprentice)",
+      "fed 4 of 6": "Elmpaw (apprentice) | Colony tab: Elmpaw (apprentice)",
+      "fed 5 of 6": "Elmpaw (apprentice) | Colony tab: Elmpaw (apprentice)",
+      "fed 6 of 6": "Elmheart (warrior) | Colony tab: Elmheart (warrior)",
+      "tamed": "Elmheart (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Churro": {
+     "kind": "stray",
+     "firstHalf": "Linden",
+     "forms": {
+      "kit": "Lindenkit",
+      "apprentice": "Lindenpaw",
+      "warrior": "Lindenfoot",
+      "leader": "Lindenstar"
+     },
+     "grownEnding": "foot",
+     "ladder": {
+      "fed 0 of 6": "Lindenkit (kit) | Colony tab: Lindenkit (kit)",
+      "fed 1 of 6": "Lindenkit (kit) | Colony tab: Lindenkit (kit)",
+      "fed 2 of 6": "Lindenpaw (apprentice) | Colony tab: Lindenpaw (apprentice)",
+      "fed 3 of 6": "Lindenpaw (apprentice) | Colony tab: Lindenpaw (apprentice)",
+      "fed 4 of 6": "Lindenpaw (apprentice) | Colony tab: Lindenpaw (apprentice)",
+      "fed 5 of 6": "Lindenpaw (apprentice) | Colony tab: Lindenpaw (apprentice)",
+      "fed 6 of 6": "Lindenfoot (warrior) | Colony tab: Lindenfoot (warrior)",
+      "tamed": "Lindenfoot (queen)"
+     },
+     "denRole": "queen",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": "",
+     "kits": [
+      "Pip"
+     ]
+    },
+    "Anchovy": {
+     "kind": "stray",
+     "firstHalf": "Yarrow",
+     "forms": {
+      "kit": "Yarrowkit",
+      "apprentice": "Yarrowpaw",
+      "warrior": "Yarrowleaf",
+      "leader": "Yarrowstar"
+     },
+     "grownEnding": "leaf",
+     "ladder": {
+      "fed 0 of 6": "Yarrowkit (kit) | Colony tab: Yarrowkit (kit)",
+      "fed 1 of 6": "Yarrowkit (kit) | Colony tab: Yarrowkit (kit)",
+      "fed 2 of 6": "Yarrowpaw (apprentice) | Colony tab: Yarrowpaw (apprentice)",
+      "fed 3 of 6": "Yarrowpaw (apprentice) | Colony tab: Yarrowpaw (apprentice)",
+      "fed 4 of 6": "Yarrowpaw (apprentice) | Colony tab: Yarrowpaw (apprentice)",
+      "fed 5 of 6": "Yarrowpaw (apprentice) | Colony tab: Yarrowpaw (apprentice)",
+      "fed 6 of 6": "Yarrowleaf (warrior) | Colony tab: Yarrowleaf (warrior)",
+      "tamed": "Yarrowleaf (elder)"
+     },
+     "denRole": "elder",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Popcorn": {
+     "kind": "stray",
+     "firstHalf": "Thyme",
+     "forms": {
+      "kit": "Thymekit",
+      "apprentice": "Thymepaw",
+      "warrior": "Thymebelly",
+      "leader": "Thymestar"
+     },
+     "grownEnding": "belly",
+     "ladder": {
+      "fed 0 of 6": "Thymekit (kit) | Colony tab: Thymekit (kit)",
+      "fed 1 of 6": "Thymekit (kit) | Colony tab: Thymekit (kit)",
+      "fed 2 of 6": "Thymepaw (apprentice) | Colony tab: Thymepaw (apprentice)",
+      "fed 3 of 6": "Thymepaw (apprentice) | Colony tab: Thymepaw (apprentice)",
+      "fed 4 of 6": "Thymepaw (apprentice) | Colony tab: Thymepaw (apprentice)",
+      "fed 5 of 6": "Thymepaw (apprentice) | Colony tab: Thymepaw (apprentice)",
+      "fed 6 of 6": "Thymebelly (warrior) | Colony tab: Thymebelly (warrior)",
+      "tamed": "Thymebelly (queen)"
+     },
+     "denRole": "queen",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": "",
+     "kits": [
+      "Pebble",
+      "Wiggle"
+     ]
+    },
+    "Gnocchi": {
+     "kind": "stray",
+     "firstHalf": "Basil",
+     "forms": {
+      "kit": "Basilkit",
+      "apprentice": "Basilpaw",
+      "warrior": "Basilsong",
+      "leader": "Basilstar"
+     },
+     "grownEnding": "song",
+     "ladder": {
+      "fed 0 of 6": "Basilkit (kit) | Colony tab: Basilkit (kit)",
+      "fed 1 of 6": "Basilkit (kit) | Colony tab: Basilkit (kit)",
+      "fed 2 of 6": "Basilpaw (apprentice) | Colony tab: Basilpaw (apprentice)",
+      "fed 3 of 6": "Basilpaw (apprentice) | Colony tab: Basilpaw (apprentice)",
+      "fed 4 of 6": "Basilpaw (apprentice) | Colony tab: Basilpaw (apprentice)",
+      "fed 5 of 6": "Basilpaw (apprentice) | Colony tab: Basilpaw (apprentice)",
+      "fed 6 of 6": "Basilsong (warrior) | Colony tab: Basilsong (warrior)",
+      "tamed": "Basilsong (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Beignet": {
+     "kind": "stray",
+     "firstHalf": "Rose",
+     "forms": {
+      "kit": "Rosekit",
+      "apprentice": "Rosepaw",
+      "warrior": "Rosebelly",
+      "leader": "Rosestar"
+     },
+     "grownEnding": "belly",
+     "ladder": {
+      "fed 0 of 6": "Rosekit (kit) | Colony tab: Rosekit (kit)",
+      "fed 1 of 6": "Rosekit (kit) | Colony tab: Rosekit (kit)",
+      "fed 2 of 6": "Rosepaw (apprentice) | Colony tab: Rosepaw (apprentice)",
+      "fed 3 of 6": "Rosepaw (apprentice) | Colony tab: Rosepaw (apprentice)",
+      "fed 4 of 6": "Rosepaw (apprentice) | Colony tab: Rosepaw (apprentice)",
+      "fed 5 of 6": "Rosepaw (apprentice) | Colony tab: Rosepaw (apprentice)",
+      "fed 6 of 6": "Rosebelly (warrior) | Colony tab: Rosebelly (warrior)",
+      "tamed": "Rosebelly (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Truffle": {
+     "kind": "stray",
+     "firstHalf": "Daffodil",
+     "forms": {
+      "kit": "Daffodilkit",
+      "apprentice": "Daffodilpaw",
+      "warrior": "Daffodilear",
+      "leader": "Daffodilstar"
+     },
+     "grownEnding": "ear",
+     "ladder": {
+      "fed 0 of 6": "Daffodilkit (kit) | Colony tab: Daffodilkit (kit)",
+      "fed 1 of 6": "Daffodilkit (kit) | Colony tab: Daffodilkit (kit)",
+      "fed 2 of 6": "Daffodilpaw (apprentice) | Colony tab: Daffodilpaw (apprentice)",
+      "fed 3 of 6": "Daffodilpaw (apprentice) | Colony tab: Daffodilpaw (apprentice)",
+      "fed 4 of 6": "Daffodilpaw (apprentice) | Colony tab: Daffodilpaw (apprentice)",
+      "fed 5 of 6": "Daffodilpaw (apprentice) | Colony tab: Daffodilpaw (apprentice)",
+      "fed 6 of 6": "Daffodilear (warrior) | Colony tab: Daffodilear (warrior)",
+      "tamed": "Daffodilear (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Truffle the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Truffle left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Ramen": {
+     "kind": "stray",
+     "firstHalf": "Mallow",
+     "forms": {
+      "kit": "Mallowkit",
+      "apprentice": "Mallowpaw",
+      "warrior": "Mallowleaf",
+      "leader": "Mallowstar"
+     },
+     "grownEnding": "leaf",
+     "ladder": {
+      "fed 0 of 6": "Mallowkit (kit) | Colony tab: Mallowkit (kit)",
+      "fed 1 of 6": "Mallowkit (kit) | Colony tab: Mallowkit (kit)",
+      "fed 2 of 6": "Mallowpaw (apprentice) | Colony tab: Mallowpaw (apprentice)",
+      "fed 3 of 6": "Mallowpaw (apprentice) | Colony tab: Mallowpaw (apprentice)",
+      "fed 4 of 6": "Mallowpaw (apprentice) | Colony tab: Mallowpaw (apprentice)",
+      "fed 5 of 6": "Mallowpaw (apprentice) | Colony tab: Mallowpaw (apprentice)",
+      "fed 6 of 6": "Mallowleaf (warrior) | Colony tab: Mallowleaf (warrior)",
+      "tamed": "Mallowleaf (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Custard": {
+     "kind": "stray",
+     "firstHalf": "Orchid",
+     "forms": {
+      "kit": "Orchidkit",
+      "apprentice": "Orchidpaw",
+      "warrior": "Orchidshade",
+      "leader": "Orchidstar"
+     },
+     "grownEnding": "shade",
+     "ladder": {
+      "fed 0 of 6": "Orchidkit (kit) | Colony tab: Orchidkit (kit)",
+      "fed 1 of 6": "Orchidkit (kit) | Colony tab: Orchidkit (kit)",
+      "fed 2 of 6": "Orchidpaw (apprentice) | Colony tab: Orchidpaw (apprentice)",
+      "fed 3 of 6": "Orchidpaw (apprentice) | Colony tab: Orchidpaw (apprentice)",
+      "fed 4 of 6": "Orchidpaw (apprentice) | Colony tab: Orchidpaw (apprentice)",
+      "fed 5 of 6": "Orchidpaw (apprentice) | Colony tab: Orchidpaw (apprentice)",
+      "fed 6 of 6": "Orchidshade (warrior) | Colony tab: Orchidshade (warrior)",
+      "tamed": "Orchidshade (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Custard the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Custard left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Peaches": {
+     "kind": "stray",
+     "firstHalf": "Cress",
+     "forms": {
+      "kit": "Cresskit",
+      "apprentice": "Cresspaw",
+      "warrior": "Cressfang",
+      "leader": "Cressstar"
+     },
+     "grownEnding": "fang",
+     "ladder": {
+      "fed 0 of 6": "Cresskit (kit) | Colony tab: Cresskit (kit)",
+      "fed 1 of 6": "Cresskit (kit) | Colony tab: Cresskit (kit)",
+      "fed 2 of 6": "Cresspaw (apprentice) | Colony tab: Cresspaw (apprentice)",
+      "fed 3 of 6": "Cresspaw (apprentice) | Colony tab: Cresspaw (apprentice)",
+      "fed 4 of 6": "Cresspaw (apprentice) | Colony tab: Cresspaw (apprentice)",
+      "fed 5 of 6": "Cresspaw (apprentice) | Colony tab: Cresspaw (apprentice)",
+      "fed 6 of 6": "Cressfang (warrior) | Colony tab: Cressfang (warrior)",
+      "tamed": "Cressfang (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Peaches the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Peaches left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Static": {
+     "kind": "stray",
+     "firstHalf": "Heath",
+     "forms": {
+      "kit": "Heathkit",
+      "apprentice": "Heathpaw",
+      "warrior": "Heathwing",
+      "leader": "Heathstar"
+     },
+     "grownEnding": "wing",
+     "ladder": {
+      "fed 0 of 6": "Heathkit (kit) | Colony tab: Heathkit (kit)",
+      "fed 1 of 6": "Heathkit (kit) | Colony tab: Heathkit (kit)",
+      "fed 2 of 6": "Heathpaw (apprentice) | Colony tab: Heathpaw (apprentice)",
+      "fed 3 of 6": "Heathpaw (apprentice) | Colony tab: Heathpaw (apprentice)",
+      "fed 4 of 6": "Heathpaw (apprentice) | Colony tab: Heathpaw (apprentice)",
+      "fed 5 of 6": "Heathpaw (apprentice) | Colony tab: Heathpaw (apprentice)",
+      "fed 6 of 6": "Heathwing (warrior) | Colony tab: Heathwing (warrior)",
+      "tamed": "Heathwing (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Doppler": {
+     "kind": "stray",
+     "firstHalf": "Myrtle",
+     "forms": {
+      "kit": "Myrtlekit",
+      "apprentice": "Myrtlepaw",
+      "warrior": "Myrtlefur",
+      "leader": "Myrtlestar"
+     },
+     "grownEnding": "fur",
+     "ladder": {
+      "fed 0 of 6": "Myrtlekit (kit) | Colony tab: Myrtlekit (kit)",
+      "fed 1 of 6": "Myrtlekit (kit) | Colony tab: Myrtlekit (kit)",
+      "fed 2 of 6": "Myrtlepaw (apprentice) | Colony tab: Myrtlepaw (apprentice)",
+      "fed 3 of 6": "Myrtlepaw (apprentice) | Colony tab: Myrtlepaw (apprentice)",
+      "fed 4 of 6": "Myrtlepaw (apprentice) | Colony tab: Myrtlepaw (apprentice)",
+      "fed 5 of 6": "Myrtlepaw (apprentice) | Colony tab: Myrtlepaw (apprentice)",
+      "fed 6 of 6": "Myrtlefur (warrior) | Colony tab: Myrtlefur (warrior)",
+      "tamed": "Myrtlefur (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Comet": {
+     "kind": "stray",
+     "firstHalf": "Pond",
+     "forms": {
+      "kit": "Pondkit",
+      "apprentice": "Pondpaw",
+      "warrior": "Pondfur",
+      "leader": "Pondstar"
+     },
+     "grownEnding": "fur",
+     "ladder": {
+      "fed 0 of 6": "Pondkit (kit) | Colony tab: Pondkit (kit)",
+      "fed 1 of 6": "Pondkit (kit) | Colony tab: Pondkit (kit)",
+      "fed 2 of 6": "Pondpaw (apprentice) | Colony tab: Pondpaw (apprentice)",
+      "fed 3 of 6": "Pondpaw (apprentice) | Colony tab: Pondpaw (apprentice)",
+      "fed 4 of 6": "Pondpaw (apprentice) | Colony tab: Pondpaw (apprentice)",
+      "fed 5 of 6": "Pondpaw (apprentice) | Colony tab: Pondpaw (apprentice)",
+      "fed 6 of 6": "Pondfur (warrior) | Colony tab: Pondfur (warrior)",
+      "tamed": "Pondfur (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Bramble": {
+     "kind": "kit",
+     "firstHalf": "Stream",
+     "forms": {
+      "kit": "Streamkit",
+      "apprentice": "Streampaw",
+      "warrior": "Streamfur",
+      "leader": "Streamstar"
+     },
+     "grownEnding": "fur",
+     "ladder": {
+      "fed 0 of 6": "Streamkit (kit) | Colony tab: Streampaw (apprentice)",
+      "fed 1 of 6": "Streamkit (kit) | Colony tab: Streampaw (apprentice)",
+      "fed 2 of 6": "Streampaw (apprentice) | Colony tab: Streampaw (apprentice)",
+      "fed 3 of 6": "Streampaw (apprentice) | Colony tab: Streampaw (apprentice)",
+      "fed 4 of 6": "Streampaw (apprentice) | Colony tab: Streampaw (apprentice)",
+      "fed 5 of 6": "Streampaw (apprentice) | Colony tab: Streampaw (apprentice)",
+      "fed 6 of 6": "Streamfur (warrior) | Colony tab: Streamfur (warrior)",
+      "tamed": "Streamfur (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Pebble": {
+     "kind": "kit",
+     "firstHalf": "Sunny",
+     "forms": {
+      "kit": "Sunnykit",
+      "apprentice": "Sunnypaw",
+      "warrior": "Sunnystripe",
+      "leader": "Sunnystar"
+     },
+     "grownEnding": "stripe",
+     "ladder": {
+      "fed 0 of 6": "Sunnykit (kit) | Colony tab: Sunnypaw (apprentice)",
+      "fed 1 of 6": "Sunnykit (kit) | Colony tab: Sunnypaw (apprentice)",
+      "fed 2 of 6": "Sunnypaw (apprentice) | Colony tab: Sunnypaw (apprentice)",
+      "fed 3 of 6": "Sunnypaw (apprentice) | Colony tab: Sunnypaw (apprentice)",
+      "fed 4 of 6": "Sunnypaw (apprentice) | Colony tab: Sunnypaw (apprentice)",
+      "fed 5 of 6": "Sunnypaw (apprentice) | Colony tab: Sunnypaw (apprentice)",
+      "fed 6 of 6": "Sunnystripe (warrior) | Colony tab: Sunnystripe (warrior)",
+      "tamed": "Sunnystripe (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Wiggle": {
+     "kind": "kit",
+     "firstHalf": "Twig",
+     "forms": {
+      "kit": "Twigkit",
+      "apprentice": "Twigpaw",
+      "warrior": "Twigstripe",
+      "leader": "Twigstar"
+     },
+     "grownEnding": "stripe",
+     "ladder": {
+      "fed 0 of 6": "Twigkit (kit) | Colony tab: Twigpaw (apprentice)",
+      "fed 1 of 6": "Twigkit (kit) | Colony tab: Twigpaw (apprentice)",
+      "fed 2 of 6": "Twigpaw (apprentice) | Colony tab: Twigpaw (apprentice)",
+      "fed 3 of 6": "Twigpaw (apprentice) | Colony tab: Twigpaw (apprentice)",
+      "fed 4 of 6": "Twigpaw (apprentice) | Colony tab: Twigpaw (apprentice)",
+      "fed 5 of 6": "Twigpaw (apprentice) | Colony tab: Twigpaw (apprentice)",
+      "fed 6 of 6": "Twigstripe (warrior) | Colony tab: Twigstripe (warrior)",
+      "tamed": "Twigstripe (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Fennel": {
+     "kind": "kit",
+     "firstHalf": "Blossom",
+     "forms": {
+      "kit": "Blossomkit",
+      "apprentice": "Blossompaw",
+      "warrior": "Blossomfur",
+      "leader": "Blossomstar"
+     },
+     "grownEnding": "fur",
+     "ladder": {
+      "fed 0 of 6": "Blossomkit (kit) | Colony tab: Blossompaw (apprentice)",
+      "fed 1 of 6": "Blossomkit (kit) | Colony tab: Blossompaw (apprentice)",
+      "fed 2 of 6": "Blossompaw (apprentice) | Colony tab: Blossompaw (apprentice)",
+      "fed 3 of 6": "Blossompaw (apprentice) | Colony tab: Blossompaw (apprentice)",
+      "fed 4 of 6": "Blossompaw (apprentice) | Colony tab: Blossompaw (apprentice)",
+      "fed 5 of 6": "Blossompaw (apprentice) | Colony tab: Blossompaw (apprentice)",
+      "fed 6 of 6": "Blossomfur (warrior) | Colony tab: Blossomfur (warrior)",
+      "tamed": "Blossomfur (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Bumble": {
+     "kind": "kit",
+     "firstHalf": "Marsh",
+     "forms": {
+      "kit": "Marshkit",
+      "apprentice": "Marshpaw",
+      "warrior": "Marshfang",
+      "leader": "Marshstar"
+     },
+     "grownEnding": "fang",
+     "ladder": {
+      "fed 0 of 6": "Marshkit (kit) | Colony tab: Marshpaw (apprentice)",
+      "fed 1 of 6": "Marshkit (kit) | Colony tab: Marshpaw (apprentice)",
+      "fed 2 of 6": "Marshpaw (apprentice) | Colony tab: Marshpaw (apprentice)",
+      "fed 3 of 6": "Marshpaw (apprentice) | Colony tab: Marshpaw (apprentice)",
+      "fed 4 of 6": "Marshpaw (apprentice) | Colony tab: Marshpaw (apprentice)",
+      "fed 5 of 6": "Marshpaw (apprentice) | Colony tab: Marshpaw (apprentice)",
+      "fed 6 of 6": "Marshfang (warrior) | Colony tab: Marshfang (warrior)",
+      "tamed": "Marshfang (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Pip": {
+     "kind": "kit",
+     "firstHalf": "Pansy",
+     "forms": {
+      "kit": "Pansykit",
+      "apprentice": "Pansypaw",
+      "warrior": "Pansysong",
+      "leader": "Pansystar"
+     },
+     "grownEnding": "song",
+     "ladder": {
+      "fed 0 of 6": "Pansykit (kit) | Colony tab: Pansypaw (apprentice)",
+      "fed 1 of 6": "Pansykit (kit) | Colony tab: Pansypaw (apprentice)",
+      "fed 2 of 6": "Pansypaw (apprentice) | Colony tab: Pansypaw (apprentice)",
+      "fed 3 of 6": "Pansypaw (apprentice) | Colony tab: Pansypaw (apprentice)",
+      "fed 4 of 6": "Pansypaw (apprentice) | Colony tab: Pansypaw (apprentice)",
+      "fed 5 of 6": "Pansypaw (apprentice) | Colony tab: Pansypaw (apprentice)",
+      "fed 6 of 6": "Pansysong (warrior) | Colony tab: Pansysong (warrior)",
+      "tamed": "Pansysong (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Peanut": {
+     "kind": "kit",
+     "firstHalf": "Clover",
+     "forms": {
+      "kit": "Cloverkit",
+      "apprentice": "Cloverpaw",
+      "warrior": "Clovereye",
+      "leader": "Cloverstar"
+     },
+     "grownEnding": "eye",
+     "ladder": {
+      "fed 0 of 6": "Cloverkit (kit) | Colony tab: Cloverpaw (apprentice)",
+      "fed 1 of 6": "Cloverkit (kit) | Colony tab: Cloverpaw (apprentice)",
+      "fed 2 of 6": "Cloverpaw (apprentice) | Colony tab: Cloverpaw (apprentice)",
+      "fed 3 of 6": "Cloverpaw (apprentice) | Colony tab: Cloverpaw (apprentice)",
+      "fed 4 of 6": "Cloverpaw (apprentice) | Colony tab: Cloverpaw (apprentice)",
+      "fed 5 of 6": "Cloverpaw (apprentice) | Colony tab: Cloverpaw (apprentice)",
+      "fed 6 of 6": "Clovereye (warrior) | Colony tab: Clovereye (warrior)",
+      "tamed": "Clovereye (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Cupcake": {
+     "kind": "kit",
+     "firstHalf": "Robin",
+     "forms": {
+      "kit": "Robinkit",
+      "apprentice": "Robinpaw",
+      "warrior": "Robinfoot",
+      "leader": "Robinstar"
+     },
+     "grownEnding": "foot",
+     "ladder": {
+      "fed 0 of 6": "Robinkit (kit) | Colony tab: Robinpaw (apprentice)",
+      "fed 1 of 6": "Robinkit (kit) | Colony tab: Robinpaw (apprentice)",
+      "fed 2 of 6": "Robinpaw (apprentice) | Colony tab: Robinpaw (apprentice)",
+      "fed 3 of 6": "Robinpaw (apprentice) | Colony tab: Robinpaw (apprentice)",
+      "fed 4 of 6": "Robinpaw (apprentice) | Colony tab: Robinpaw (apprentice)",
+      "fed 5 of 6": "Robinpaw (apprentice) | Colony tab: Robinpaw (apprentice)",
+      "fed 6 of 6": "Robinfoot (warrior) | Colony tab: Robinfoot (warrior)",
+      "tamed": "Robinfoot (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Puddle": {
+     "kind": "kit",
+     "firstHalf": "Finch",
+     "forms": {
+      "kit": "Finchkit",
+      "apprentice": "Finchpaw",
+      "warrior": "Finchfoot",
+      "leader": "Finchstar"
+     },
+     "grownEnding": "foot",
+     "ladder": {
+      "fed 0 of 6": "Finchkit (kit) | Colony tab: Finchpaw (apprentice)",
+      "fed 1 of 6": "Finchkit (kit) | Colony tab: Finchpaw (apprentice)",
+      "fed 2 of 6": "Finchpaw (apprentice) | Colony tab: Finchpaw (apprentice)",
+      "fed 3 of 6": "Finchpaw (apprentice) | Colony tab: Finchpaw (apprentice)",
+      "fed 4 of 6": "Finchpaw (apprentice) | Colony tab: Finchpaw (apprentice)",
+      "fed 5 of 6": "Finchpaw (apprentice) | Colony tab: Finchpaw (apprentice)",
+      "fed 6 of 6": "Finchfoot (warrior) | Colony tab: Finchfoot (warrior)",
+      "tamed": "Finchfoot (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Tumble": {
+     "kind": "kit",
+     "firstHalf": "Swallow",
+     "forms": {
+      "kit": "Swallowkit",
+      "apprentice": "Swallowpaw",
+      "warrior": "Swallowbelly",
+      "leader": "Swallowstar"
+     },
+     "grownEnding": "belly",
+     "ladder": {
+      "fed 0 of 6": "Swallowkit (kit) | Colony tab: Swallowpaw (apprentice)",
+      "fed 1 of 6": "Swallowkit (kit) | Colony tab: Swallowpaw (apprentice)",
+      "fed 2 of 6": "Swallowpaw (apprentice) | Colony tab: Swallowpaw (apprentice)",
+      "fed 3 of 6": "Swallowpaw (apprentice) | Colony tab: Swallowpaw (apprentice)",
+      "fed 4 of 6": "Swallowpaw (apprentice) | Colony tab: Swallowpaw (apprentice)",
+      "fed 5 of 6": "Swallowpaw (apprentice) | Colony tab: Swallowpaw (apprentice)",
+      "fed 6 of 6": "Swallowbelly (warrior) | Colony tab: Swallowbelly (warrior)",
+      "tamed": "Swallowbelly (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Toffee": {
+     "kind": "kit",
+     "firstHalf": "Plover",
+     "forms": {
+      "kit": "Ploverkit",
+      "apprentice": "Ploverpaw",
+      "warrior": "Plovershade",
+      "leader": "Ploverstar"
+     },
+     "grownEnding": "shade",
+     "ladder": {
+      "fed 0 of 6": "Ploverkit (kit) | Colony tab: Ploverpaw (apprentice)",
+      "fed 1 of 6": "Ploverkit (kit) | Colony tab: Ploverpaw (apprentice)",
+      "fed 2 of 6": "Ploverpaw (apprentice) | Colony tab: Ploverpaw (apprentice)",
+      "fed 3 of 6": "Ploverpaw (apprentice) | Colony tab: Ploverpaw (apprentice)",
+      "fed 4 of 6": "Ploverpaw (apprentice) | Colony tab: Ploverpaw (apprentice)",
+      "fed 5 of 6": "Ploverpaw (apprentice) | Colony tab: Ploverpaw (apprentice)",
+      "fed 6 of 6": "Plovershade (warrior) | Colony tab: Plovershade (warrior)",
+      "tamed": "Plovershade (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Ember": {
+     "kind": "kit",
+     "firstHalf": "Linnet",
+     "forms": {
+      "kit": "Linnetkit",
+      "apprentice": "Linnetpaw",
+      "warrior": "Linnetear",
+      "leader": "Linnetstar"
+     },
+     "grownEnding": "ear",
+     "ladder": {
+      "fed 0 of 6": "Linnetkit (kit) | Colony tab: Linnetpaw (apprentice)",
+      "fed 1 of 6": "Linnetkit (kit) | Colony tab: Linnetpaw (apprentice)",
+      "fed 2 of 6": "Linnetpaw (apprentice) | Colony tab: Linnetpaw (apprentice)",
+      "fed 3 of 6": "Linnetpaw (apprentice) | Colony tab: Linnetpaw (apprentice)",
+      "fed 4 of 6": "Linnetpaw (apprentice) | Colony tab: Linnetpaw (apprentice)",
+      "fed 5 of 6": "Linnetpaw (apprentice) | Colony tab: Linnetpaw (apprentice)",
+      "fed 6 of 6": "Linnetear (warrior) | Colony tab: Linnetear (warrior)",
+      "tamed": "Linnetear (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Duchess": {
+     "kind": "legendary",
+     "firstHalf": "Iris",
+     "forms": {
+      "kit": "Iriskit",
+      "apprentice": "Irispaw",
+      "warrior": "Iristail",
+      "leader": "Irisstar"
+     },
+     "grownEnding": "tail",
+     "ladder": {
+      "fed 0 of 6": "Iriskit (kit) | Colony tab: Iriskit (kit)",
+      "fed 1 of 6": "Iriskit (kit) | Colony tab: Iriskit (kit)",
+      "fed 2 of 6": "Irispaw (apprentice) | Colony tab: Irispaw (apprentice)",
+      "fed 3 of 6": "Irispaw (apprentice) | Colony tab: Irispaw (apprentice)",
+      "fed 4 of 6": "Irispaw (apprentice) | Colony tab: Irispaw (apprentice)",
+      "fed 5 of 6": "Irispaw (apprentice) | Colony tab: Irispaw (apprentice)",
+      "fed 6 of 6": "Iristail (warrior) | Colony tab: Iristail (warrior)",
+      "tamed": "Iristail (queen)"
+     },
+     "denRole": "queen",
+     "whenMet": " the kittypet",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Duchess the kittypet has wandered in from Twolegplace 🔔",
+     "joins": "Duchess left Twolegplace to join you! She'll be waiting in the den 🏠",
+     "collar": "heart"
+    },
+    "Professor Whiskers": {
+     "kind": "legendary",
+     "firstHalf": "Chestnut",
+     "forms": {
+      "kit": "Chestnutkit",
+      "apprentice": "Chestnutpaw",
+      "warrior": "Chestnuteye",
+      "leader": "Chestnutstar"
+     },
+     "grownEnding": "eye",
+     "ladder": {
+      "fed 0 of 6": "Chestnutkit (kit) | Colony tab: Chestnutkit (kit)",
+      "fed 1 of 6": "Chestnutkit (kit) | Colony tab: Chestnutkit (kit)",
+      "fed 2 of 6": "Chestnutpaw (apprentice) | Colony tab: Chestnutpaw (apprentice)",
+      "fed 3 of 6": "Chestnutpaw (apprentice) | Colony tab: Chestnutpaw (apprentice)",
+      "fed 4 of 6": "Chestnutpaw (apprentice) | Colony tab: Chestnutpaw (apprentice)",
+      "fed 5 of 6": "Chestnutpaw (apprentice) | Colony tab: Chestnutpaw (apprentice)",
+      "fed 6 of 6": "Chestnuteye (warrior) | Colony tab: Chestnuteye (warrior)",
+      "tamed": "Chestnuteye (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Captain Barnacle": {
+     "kind": "legendary",
+     "firstHalf": "Coral",
+     "forms": {
+      "kit": "Coralkit",
+      "apprentice": "Coralpaw",
+      "warrior": "Coralear",
+      "leader": "Coralstar"
+     },
+     "grownEnding": "ear",
+     "ladder": {
+      "fed 0 of 6": "Coralkit (kit) | Colony tab: Coralkit (kit)",
+      "fed 1 of 6": "Coralkit (kit) | Colony tab: Coralkit (kit)",
+      "fed 2 of 6": "Coralpaw (apprentice) | Colony tab: Coralpaw (apprentice)",
+      "fed 3 of 6": "Coralpaw (apprentice) | Colony tab: Coralpaw (apprentice)",
+      "fed 4 of 6": "Coralpaw (apprentice) | Colony tab: Coralpaw (apprentice)",
+      "fed 5 of 6": "Coralpaw (apprentice) | Colony tab: Coralpaw (apprentice)",
+      "fed 6 of 6": "Coralear (warrior) | Colony tab: Coralear (warrior)",
+      "tamed": "Coralear (elder)"
+     },
+     "denRole": "elder",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    },
+    "Lord Lantern": {
+     "kind": "legendary",
+     "firstHalf": "Owl",
+     "forms": {
+      "kit": "Owlkit",
+      "apprentice": "Owlpaw",
+      "warrior": "Owlbelly",
+      "leader": "Owlstar"
+     },
+     "grownEnding": "belly",
+     "ladder": {
+      "fed 0 of 6": "Owlkit (kit) | Colony tab: Owlkit (kit)",
+      "fed 1 of 6": "Owlkit (kit) | Colony tab: Owlkit (kit)",
+      "fed 2 of 6": "Owlpaw (apprentice) | Colony tab: Owlpaw (apprentice)",
+      "fed 3 of 6": "Owlpaw (apprentice) | Colony tab: Owlpaw (apprentice)",
+      "fed 4 of 6": "Owlpaw (apprentice) | Colony tab: Owlpaw (apprentice)",
+      "fed 5 of 6": "Owlpaw (apprentice) | Colony tab: Owlpaw (apprentice)",
+      "fed 6 of 6": "Owlbelly (warrior) | Colony tab: Owlbelly (warrior)",
+      "tamed": "Owlbelly (warrior)"
+     },
+     "denRole": "warrior",
+     "whenMet": " the loner",
+     "whenCross": " a rogue now!",
+     "inColony": ""
+    }
+   },
+   "camps": {
+    "woods": [
+     {
+      "seat": 0,
+      "rank": "leader",
+      "rankWord": "leader",
+      "name": "Badgerstar",
+      "tag": "Badgerstar / leader of StormClan",
+      "tagOnTop": true,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 1,
+      "rank": "elder",
+      "rankWord": "elder",
+      "name": "Barkleaf",
+      "tag": "Barkleaf / elder of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 2,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Bluejaykit",
+      "tag": "Bluejaykit / kit of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 3,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Burrkit",
+      "tag": "Burrkit / kit of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 4,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Conkerbelly",
+      "tag": "Conkerbelly / warrior of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 5,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Fawnheart",
+      "tag": "Fawnheart / warrior of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 6,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Rootfang",
+      "tag": "Rootfang / warrior of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 7,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Gladepaw",
+      "tag": "Gladepaw / apprentice of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 8,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Bryonypaw",
+      "tag": "Bryonypaw / apprentice of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 9,
+      "rank": "deputy",
+      "rankWord": "deputy",
+      "name": "Thrushear",
+      "tag": "Thrushear / deputy of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 10,
+      "rank": "elder",
+      "rankWord": "elder",
+      "name": "Hollowear",
+      "tag": "Hollowear / elder of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 11,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Nutmegkit",
+      "tag": "Nutmegkit / kit of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 12,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Loamkit",
+      "tag": "Loamkit / kit of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 13,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Rookshade",
+      "tag": "Rookshade / warrior of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 14,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Dormousestripe",
+      "tag": "Dormousestripe / warrior of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 15,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Spindlepaw",
+      "tag": "Spindlepaw / apprentice of StormClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     }
+    ],
+    "river": [
+     {
+      "seat": 0,
+      "rank": "leader",
+      "rankWord": "leader",
+      "name": "Minnowstar",
+      "tag": "Minnowstar / leader of BrookClan",
+      "tagOnTop": true,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 1,
+      "rank": "elder",
+      "rankWord": "elder",
+      "name": "Pikebelly",
+      "tag": "Pikebelly / elder of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 2,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Shinglekit",
+      "tag": "Shinglekit / kit of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 3,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Newtkit",
+      "tag": "Newtkit / kit of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 4,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Volefur",
+      "tag": "Volefur / warrior of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 5,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Troutstripe",
+      "tag": "Troutstripe / warrior of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 6,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Mintshade",
+      "tag": "Mintshade / warrior of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 7,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Dipperpaw",
+      "tag": "Dipperpaw / apprentice of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 8,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Tealpaw",
+      "tag": "Tealpaw / apprentice of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 9,
+      "rank": "deputy",
+      "rankWord": "deputy",
+      "name": "Caddisfur",
+      "tag": "Caddisfur / deputy of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 10,
+      "rank": "elder",
+      "rankWord": "elder",
+      "name": "Gudgeonwing",
+      "tag": "Gudgeonwing / elder of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 11,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Mayflykit",
+      "tag": "Mayflykit / kit of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 12,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Siltkit",
+      "tag": "Siltkit / kit of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 13,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Roacheye",
+      "tag": "Roacheye / warrior of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 14,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Wadertail",
+      "tag": "Wadertail / warrior of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 15,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Marigoldpaw",
+      "tag": "Marigoldpaw / apprentice of BrookClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     }
+    ],
+    "moor": [
+     {
+      "seat": 0,
+      "rank": "leader",
+      "rankWord": "leader",
+      "name": "Curlewstar",
+      "tag": "Curlewstar / leader of GaleClan",
+      "tagOnTop": true,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 1,
+      "rank": "elder",
+      "rankWord": "elder",
+      "name": "Lapwingfoot",
+      "tag": "Lapwingfoot / elder of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 2,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Peatkit",
+      "tag": "Peatkit / kit of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 3,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Grousekit",
+      "tag": "Grousekit / kit of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 4,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Cottontail",
+      "tag": "Cottontail / warrior of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 5,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Torshade",
+      "tag": "Torshade / warrior of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 6,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Bilberryear",
+      "tag": "Bilberryear / warrior of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 7,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Stoatpaw",
+      "tag": "Stoatpaw / apprentice of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 8,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Pipitpaw",
+      "tag": "Pipitpaw / apprentice of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 9,
+      "rank": "deputy",
+      "rankWord": "deputy",
+      "name": "Cairnwhisker",
+      "tag": "Cairnwhisker / deputy of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 10,
+      "rank": "elder",
+      "rankWord": "elder",
+      "name": "Lingfang",
+      "tag": "Lingfang / elder of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 11,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Wispkit",
+      "tag": "Wispkit / kit of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 12,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Snipekit",
+      "tag": "Snipekit / kit of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 13,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Quillshade",
+      "tag": "Quillshade / warrior of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 14,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Ridgefur",
+      "tag": "Ridgefur / warrior of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 15,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Whinpaw",
+      "tag": "Whinpaw / apprentice of GaleClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     }
+    ],
+    "pines": [
+     {
+      "seat": 0,
+      "rank": "leader",
+      "rankWord": "leader",
+      "name": "Conestar",
+      "tag": "Conestar / leader of DuskClan",
+      "tagOnTop": true,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 1,
+      "rank": "elder",
+      "rankWord": "elder",
+      "name": "Bogeye",
+      "tag": "Bogeye / elder of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 2,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Slatekit",
+      "tag": "Slatekit / kit of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 3,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Resinkit",
+      "tag": "Resinkit / kit of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 4,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Needlestripe",
+      "tag": "Needlestripe / warrior of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 5,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Beetlefur",
+      "tag": "Beetlefur / warrior of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 6,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Toadtail",
+      "tag": "Toadtail / warrior of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 7,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Frogpaw",
+      "tag": "Frogpaw / apprentice of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 8,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Adderpaw",
+      "tag": "Adderpaw / apprentice of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 9,
+      "rank": "deputy",
+      "rankWord": "deputy",
+      "name": "Sablefoot",
+      "tag": "Sablefoot / deputy of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 10,
+      "rank": "elder",
+      "rankWord": "elder",
+      "name": "Mirefoot",
+      "tag": "Mirefoot / elder of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 11,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Gnatkit",
+      "tag": "Gnatkit / kit of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 12,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Sloekit",
+      "tag": "Sloekit / kit of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 13,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Funguseye",
+      "tag": "Funguseye / warrior of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 14,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Sootbelly",
+      "tag": "Sootbelly / warrior of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 15,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Batpaw",
+      "tag": "Batpaw / apprentice of DuskClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     }
+    ],
+    "gorge": [
+     {
+      "seat": 0,
+      "rank": "leader",
+      "rankWord": "leader",
+      "name": "Cragstar",
+      "tag": "Cragstar / leader of CliffClan",
+      "tagOnTop": true,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 1,
+      "rank": "elder",
+      "rankWord": "elder",
+      "name": "Graniteleaf",
+      "tag": "Graniteleaf / elder of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 2,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Screekit",
+      "tag": "Screekit / kit of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 3,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Sprigkit",
+      "tag": "Sprigkit / kit of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 4,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Flintbelly",
+      "tag": "Flintbelly / warrior of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 5,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Merlinheart",
+      "tag": "Merlinheart / warrior of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 6,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Shalewhisker",
+      "tag": "Shalewhisker / warrior of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 7,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Pikapaw",
+      "tag": "Pikapaw / apprentice of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 8,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Gullypaw",
+      "tag": "Gullypaw / apprentice of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 9,
+      "rank": "deputy",
+      "rankWord": "deputy",
+      "name": "Bluffear",
+      "tag": "Bluffear / deputy of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 10,
+      "rank": "elder",
+      "rankWord": "elder",
+      "name": "Tarnheart",
+      "tag": "Tarnheart / elder of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 11,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Puffkit",
+      "tag": "Puffkit / kit of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 12,
+      "rank": "kit",
+      "rankWord": "kit",
+      "name": "Nimblekit",
+      "tag": "Nimblekit / kit of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 13,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Stonecropfang",
+      "tag": "Stonecropfang / warrior of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 14,
+      "rank": "warrior",
+      "rankWord": "warrior",
+      "name": "Thriftear",
+      "tag": "Thriftear / warrior of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 15,
+      "rank": "apprentice",
+      "rankWord": "apprentice",
+      "name": "Crestpaw",
+      "tag": "Crestpaw / apprentice of CliffClan",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     }
+    ]
+   },
+   "patrols": {
+    "neighborhood": {
+     "HedgeClan": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    },
+    "park": {
+     "AlderClan": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    },
+    "seaside": {
+     "DuneClan": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    },
+    "docks": {
+     "HeronClan": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    },
+    "woods": {
+     "StormClan": [
+      "nobody picked",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ],
+     "GaleClan": [
+      "picked woods",
+      "picked woods + river",
+      "picked woods + pines",
+      "picked woods + gorge"
+     ],
+     "BrookClan": [
+      "picked woods + moor"
+     ]
+    },
+    "river": {
+     "BrookClan": [
+      "nobody picked",
+      "picked woods",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ],
+     "DuskClan": [
+      "picked river",
+      "picked woods + river",
+      "picked river + moor",
+      "picked river + gorge"
+     ],
+     "StormClan": [
+      "picked river + pines"
+     ]
+    },
+    "moor": {
+     "GaleClan": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked pines + gorge"
+     ],
+     "StormClan": [
+      "picked moor",
+      "picked river + moor",
+      "picked moor + pines",
+      "picked moor + gorge"
+     ],
+     "DuskClan": [
+      "picked woods + moor"
+     ]
+    },
+    "pines": {
+     "DuskClan": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + gorge",
+      "picked moor + gorge"
+     ],
+     "BrookClan": [
+      "picked pines",
+      "picked woods + pines",
+      "picked moor + pines",
+      "picked pines + gorge"
+     ],
+     "GaleClan": [
+      "picked river + pines"
+     ]
+    },
+    "gorge": {
+     "CliffClan": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked river + moor",
+      "picked river + pines",
+      "picked moor + pines"
+     ],
+     "GaleClan": [
+      "picked gorge",
+      "picked woods + gorge",
+      "picked river + gorge",
+      "picked pines + gorge"
+     ],
+     "(no patrol)": [
+      "picked moor + gorge"
+     ]
+    },
+    "island": {
+     "(no patrol)": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    },
+    "den": {
+     "(no patrol)": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    }
+   },
+   "borderPatrolCats": {
+    "woods": [
+     "Conkerbelly",
+     "Fawnheart",
+     "Rootfang"
+    ],
+    "river": [
+     "Mintshade",
+     "Troutstripe",
+     "Volefur"
+    ],
+    "moor": [
+     "Bilberryear",
+     "Cottontail",
+     "Torshade"
+    ],
+    "pines": [
+     "Beetlefur",
+     "Needlestripe",
+     "Toadtail"
+    ],
+    "gorge": [
+     "Flintbelly",
+     "Merlinheart",
+     "Shalewhisker"
+    ]
+   },
+   "intruders": {
+    "woods": {
+     "canVisit": [
+      "Bilberryear of GaleClan",
+      "Cottontail of GaleClan",
+      "Mintshade of BrookClan",
+      "Torshade of GaleClan",
+      "Troutstripe of BrookClan",
+      "Volefur of BrookClan"
+     ],
+     "firstTwelveVisits": [
+      "(nobody)",
+      "Torshade of GaleClan",
+      "Volefur of BrookClan",
+      "Cottontail of GaleClan",
+      "(nobody)",
+      "Troutstripe of BrookClan",
+      "Cottontail of GaleClan",
+      "Mintshade of BrookClan",
+      "(nobody)",
+      "Bilberryear of GaleClan",
+      "Bilberryear of GaleClan",
+      "Mintshade of BrookClan"
+     ]
+    },
+    "river": {
+     "canVisit": [
+      "Beetlefur of DuskClan",
+      "Conkerbelly of StormClan",
+      "Fawnheart of StormClan",
+      "Needlestripe of DuskClan",
+      "Rootfang of StormClan",
+      "Toadtail of DuskClan"
+     ],
+     "firstTwelveVisits": [
+      "(nobody)",
+      "Toadtail of DuskClan",
+      "Fawnheart of StormClan",
+      "Beetlefur of DuskClan",
+      "(nobody)",
+      "Rootfang of StormClan",
+      "Beetlefur of DuskClan",
+      "Conkerbelly of StormClan",
+      "(nobody)",
+      "Needlestripe of DuskClan",
+      "Beetlefur of DuskClan",
+      "Fawnheart of StormClan"
+     ]
+    },
+    "moor": {
+     "canVisit": [
+      "Beetlefur of DuskClan",
+      "Conkerbelly of StormClan",
+      "Fawnheart of StormClan",
+      "Flintbelly of CliffClan",
+      "Merlinheart of CliffClan",
+      "Needlestripe of DuskClan",
+      "Rootfang of StormClan",
+      "Shalewhisker of CliffClan",
+      "Toadtail of DuskClan"
+     ],
+     "firstTwelveVisits": [
+      "Fawnheart of StormClan",
+      "(nobody)",
+      "Conkerbelly of StormClan",
+      "Conkerbelly of StormClan",
+      "Merlinheart of CliffClan",
+      "(nobody)",
+      "Shalewhisker of CliffClan",
+      "Flintbelly of CliffClan",
+      "Shalewhisker of CliffClan",
+      "(nobody)",
+      "(nobody)",
+      "Flintbelly of CliffClan"
+     ]
+    },
+    "pines": {
+     "canVisit": [
+      "Bilberryear of GaleClan",
+      "Cottontail of GaleClan",
+      "Mintshade of BrookClan",
+      "Torshade of GaleClan",
+      "Troutstripe of BrookClan",
+      "Volefur of BrookClan"
+     ],
+     "firstTwelveVisits": [
+      "Torshade of GaleClan",
+      "(nobody)",
+      "Bilberryear of GaleClan",
+      "Volefur of BrookClan",
+      "Troutstripe of BrookClan",
+      "(nobody)",
+      "Volefur of BrookClan",
+      "Cottontail of GaleClan",
+      "Torshade of GaleClan",
+      "(nobody)",
+      "(nobody)",
+      "Bilberryear of GaleClan"
+     ]
+    },
+    "gorge": {
+     "canVisit": [
+      "Bilberryear of GaleClan",
+      "Cottontail of GaleClan",
+      "Torshade of GaleClan"
+     ],
+     "firstTwelveVisits": [
+      "Cottontail of GaleClan",
+      "Bilberryear of GaleClan",
+      "(nobody)",
+      "Cottontail of GaleClan",
+      "Cottontail of GaleClan",
+      "Bilberryear of GaleClan",
+      "(nobody)",
+      "Torshade of GaleClan",
+      "Bilberryear of GaleClan",
+      "Torshade of GaleClan",
+      "Cottontail of GaleClan",
+      "(nobody)"
+     ]
+    }
+   },
+   "starNames": {
+    "everyNameOffered": [
+     "Acornstar",
+     "Aspenstar",
+     "Berrystar",
+     "Birchstar",
+     "Briarstar",
+     "Cloverstar",
+     "Dawnstar",
+     "Fernstar",
+     "Hawthornstar",
+     "Larchstar",
+     "Larkstar",
+     "Lichenstar",
+     "Marshstar",
+     "Mossstar",
+     "Nettlestar",
+     "Primrosestar",
+     "Sagestar",
+     "Sparrowstar",
+     "Tansystar",
+     "Thistlestar",
+     "Willowstar",
+     "Wrenstar"
+    ],
+    "offeredTo": {
+     "player-0": [
+      "Wrenstar",
+      "Thistlestar",
+      "Cloverstar"
+     ],
+     "player-1": [
+      "Larkstar",
+      "Wrenstar",
+      "Thistlestar"
+     ],
+     "player-2": [
+      "Sparrowstar",
+      "Larkstar",
+      "Wrenstar"
+     ],
+     "player-3": [
+      "Briarstar",
+      "Sparrowstar",
+      "Larkstar"
+     ],
+     "player-4": [
+      "Birchstar",
+      "Briarstar",
+      "Sparrowstar"
+     ],
+     "player-5": [
+      "Dawnstar",
+      "Birchstar",
+      "Briarstar"
+     ],
+     "player-6": [
+      "Berrystar",
+      "Dawnstar",
+      "Birchstar"
+     ],
+     "player-7": [
+      "Willowstar",
+      "Berrystar",
+      "Dawnstar"
+     ],
+     "player-8": [
+      "Larchstar",
+      "Hawthornstar",
+      "Primrosestar"
+     ],
+     "player-9": [
+      "Aspenstar",
+      "Larchstar",
+      "Hawthornstar"
+     ],
+     "player-10": [
+      "Acornstar",
+      "Marshstar",
+      "Aspenstar"
+     ],
+     "player-11": [
+      "Marshstar",
+      "Aspenstar",
+      "Larchstar"
+     ],
+     "player-12": [
+      "Lichenstar",
+      "Nettlestar",
+      "Acornstar"
+     ],
+     "player-13": [
+      "Nettlestar",
+      "Acornstar",
+      "Marshstar"
+     ],
+     "player-14": [
+      "Hawthornstar",
+      "Primrosestar",
+      "Sagestar"
+     ],
+     "player-15": [
+      "Primrosestar",
+      "Sagestar",
+      "Tansystar"
+     ],
+     "player-18": [
+      "Mossstar",
+      "Fernstar",
+      "Willowstar"
+     ],
+     "player-19": [
+      "Fernstar",
+      "Willowstar",
+      "Berrystar"
+     ],
+     "player-22": [
+      "Tansystar",
+      "Mossstar",
+      "Fernstar"
+     ],
+     "player-23": [
+      "Sagestar",
+      "Tansystar",
+      "Mossstar"
+     ],
+     "player-34": [
+      "Thistlestar",
+      "Cloverstar",
+      "Lichenstar"
+     ],
+     "player-35": [
+      "Cloverstar",
+      "Lichenstar",
+      "Nettlestar"
+     ]
+    },
+    "picker": [
+     "Or pick a star name",
+     "Cloverstar",
+     "Lichenstar",
+     "Nettlestar"
+    ],
+    "pickerWithOneChosen": [
+     "Or pick a star name (now: Lichenstar)",
+     "Cloverstar",
+     "Lichenstar",
+     "Nettlestar"
+    ]
+   }
+  },
+  "tags": {
+   "secondLine": {
+    "kit": {
+     "woods": "kit of StormClan",
+     "river": "kit of BrookClan",
+     "moor": "kit of GaleClan",
+     "pines": "kit of DuskClan",
+     "gorge": "kit of CliffClan"
+    },
+    "apprentice": {
+     "woods": "apprentice of StormClan",
+     "river": "apprentice of BrookClan",
+     "moor": "apprentice of GaleClan",
+     "pines": "apprentice of DuskClan",
+     "gorge": "apprentice of CliffClan"
+    },
+    "warrior": {
+     "woods": "warrior of StormClan",
+     "river": "warrior of BrookClan",
+     "moor": "warrior of GaleClan",
+     "pines": "warrior of DuskClan",
+     "gorge": "warrior of CliffClan"
+    },
+    "elder": {
+     "woods": "elder of StormClan",
+     "river": "elder of BrookClan",
+     "moor": "elder of GaleClan",
+     "pines": "elder of DuskClan",
+     "gorge": "elder of CliffClan"
+    },
+    "queen": {
+     "woods": "queen of StormClan",
+     "river": "queen of BrookClan",
+     "moor": "queen of GaleClan",
+     "pines": "queen of DuskClan",
+     "gorge": "queen of CliffClan"
+    },
+    "medicine": {
+     "woods": "medicine cat of StormClan",
+     "river": "medicine cat of BrookClan",
+     "moor": "medicine cat of GaleClan",
+     "pines": "medicine cat of DuskClan",
+     "gorge": "medicine cat of CliffClan"
+    },
+    "deputy": {
+     "woods": "deputy of StormClan",
+     "river": "deputy of BrookClan",
+     "moor": "deputy of GaleClan",
+     "pines": "deputy of DuskClan",
+     "gorge": "deputy of CliffClan"
+    },
+    "leader": {
+     "woods": "leader of StormClan (on top)",
+     "river": "leader of BrookClan (on top)",
+     "moor": "leader of GaleClan (on top)",
+     "pines": "leader of DuskClan (on top)",
+     "gorge": "leader of CliffClan (on top)"
+    }
+   },
+   "outsideCats": {
+    "Pickles": {
+     "met": " the loner",
+     "cross": " a rogue now!",
+     "house": " the kittypet",
+     "player": " the kittypet",
+     "unknownKey": "",
+     "inColony": ""
+    },
+    "Marmalade": {
+     "met": " the kittypet",
+     "cross": "",
+     "house": " the kittypet",
+     "player": " the kittypet",
+     "unknownKey": "",
+     "inColony": ""
+    },
+    "notAName": ""
+   }
+  },
+  "lines": {
+   "homeWelcome": {
+    "woods": "Home to StormClan's land 🏡",
+    "river": "Home to BrookClan's land 🏡",
+    "moor": "Home to GaleClan's land 🏡",
+    "pines": "Home to DuskClan's land 🏡",
+    "gorge": "Home to CliffClan's land 🏡"
+   },
+   "homeWelcomeElsewhere": null,
+   "landOfTodaysWalk": {
+    "neighborhood": "",
+    "park": "",
+    "seaside": "",
+    "docks": "",
+    "woods": "StormClan land",
+    "river": "BrookClan land",
+    "moor": "GaleClan land",
+    "pines": "DuskClan land",
+    "gorge": "CliffClan land"
+   },
+   "campOnTheMap": {
+    "woods": "StormClan camp",
+    "river": "BrookClan camp",
+    "moor": "GaleClan camp",
+    "pines": "DuskClan camp",
+    "gorge": "CliffClan camp"
+   },
+   "scentedOverYourMark": {
+    "StormClan": {
+     "scratch": "StormClan scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "StormClan scented over your mark! 🐾",
+     "drop": "StormClan scented over your mark! 🐾"
+    },
+    "BrookClan": {
+     "scratch": "BrookClan scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "BrookClan scented over your mark! 🐾",
+     "drop": "BrookClan scented over your mark! 🐾"
+    },
+    "GaleClan": {
+     "scratch": "GaleClan scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "GaleClan scented over your mark! 🐾",
+     "drop": "GaleClan scented over your mark! 🐾"
+    },
+    "DuskClan": {
+     "scratch": "DuskClan scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "DuskClan scented over your mark! 🐾",
+     "drop": "DuskClan scented over your mark! 🐾"
+    },
+    "CliffClan": {
+     "scratch": "CliffClan scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "CliffClan scented over your mark! 🐾",
+     "drop": "CliffClan scented over your mark! 🐾"
+    },
+    "HedgeClan": {
+     "scratch": "HedgeClan scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "HedgeClan scented over your mark! 🐾",
+     "drop": "HedgeClan scented over your mark! 🐾"
+    },
+    "AlderClan": {
+     "scratch": "AlderClan scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "AlderClan scented over your mark! 🐾",
+     "drop": "AlderClan scented over your mark! 🐾"
+    },
+    "DuneClan": {
+     "scratch": "DuneClan scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "DuneClan scented over your mark! 🐾",
+     "drop": "DuneClan scented over your mark! 🐾"
+    },
+    "HeronClan": {
+     "scratch": "HeronClan scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "HeronClan scented over your mark! 🐾",
+     "drop": "HeronClan scented over your mark! 🐾"
+    }
+   },
+   "wandererStays": {
+    "neighborhood": "Marmalade will wait for you here in Twolegplace 🐾",
+    "park": "Marmalade will wait for you here in City Park 🐾",
+    "seaside": "Marmalade will wait for you here in Seaside 🐾",
+    "docks": "Marmalade will wait for you here in The Old Docks 🐾",
+    "woods": "Marmalade will wait for you here in The Woods 🐾",
+    "river": "Marmalade will wait for you here in The River and Marshes 🐾",
+    "moor": "Marmalade will wait for you here in The Moor 🐾",
+    "pines": "Marmalade will wait for you here in The Pines and Swamp 🐾",
+    "gorge": "Marmalade will wait for you here in The Gorge 🐾"
+   },
+   "opensAfter": {
+    "park": "opens after 2 walks in Twolegplace · 1/2 so far",
+    "seaside": "opens after 2 walks in City Park · 1/2 so far",
+    "docks": "opens after 2 walks in Seaside · 1/2 so far",
+    "woods": "opens after 2 walks in Twolegplace · 1/2 so far",
+    "river": "opens after 2 walks in The Woods · 1/2 so far",
+    "moor": "opens after 2 walks in The Woods · 1/2 so far",
+    "pines": "opens after 2 walks in The River and Marshes · 1/2 so far",
+    "gorge": "opens after 2 walks in The Moor · 1/2 so far"
+   },
+   "whyAPlaceIsShut": {
+    "neighborhood": null,
+    "park": "opens after 2 walks in Twolegplace · 0/2 so far",
+    "seaside": "opens after 2 walks in City Park · 0/2 so far",
+    "docks": "opens after 2 walks in Seaside · 0/2 so far",
+    "woods": "opens after 2 walks in Twolegplace · 0/2 so far",
+    "river": "opens after 2 walks in The Woods · 0/2 so far",
+    "moor": "opens after 2 walks in The Woods · 0/2 so far",
+    "pines": "opens after 2 walks in The River and Marshes · 0/2 so far",
+    "gorge": "opens after 2 walks in The Moor · 0/2 so far"
+   },
+   "borderPosts": {
+    "town-woods": {
+     "to": "The Woods",
+     "beforeItOpens": "🔒 The Woods opens after 2 walks in Twolegplace · 1/2 so far",
+     "open": "E — Head to the Woods?",
+     "openForAGuest": "The Woods is this way 🧭",
+     "card": [
+      "Head to the Woods?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Woods! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Woods! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "town-moor": {
+     "to": "The Moor",
+     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 0/2 so far",
+     "open": "E — Head to the Moor?",
+     "openForAGuest": "The Moor is this way 🧭",
+     "card": [
+      "Head to the Moor?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Moor! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Moor! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "town-river": {
+     "to": "The River and Marshes",
+     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 0/2 so far",
+     "open": "E — Head to the River and Marshes?",
+     "openForAGuest": "The River and Marshes is this way 🧭",
+     "card": [
+      "Head to the River and Marshes?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the River and Marshes! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the River and Marshes! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-town-short": {
+     "to": "Twolegplace",
+     "beforeItOpens": "E — Head to Twolegplace?",
+     "open": "E — Head to Twolegplace?",
+     "openForAGuest": "Twolegplace is this way 🧭",
+     "card": [
+      "Head to Twolegplace?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: Twolegplace! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to Twolegplace! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-town-long": {
+     "to": "Twolegplace",
+     "beforeItOpens": "E — Head to Twolegplace?",
+     "open": "E — Head to Twolegplace?",
+     "openForAGuest": "Twolegplace is this way 🧭",
+     "card": [
+      "Head to Twolegplace?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: Twolegplace! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to Twolegplace! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-river-long": {
+     "to": "The River and Marshes",
+     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 1/2 so far",
+     "open": "E — Head to the River and Marshes?",
+     "openForAGuest": "The River and Marshes is this way 🧭",
+     "card": [
+      "Head to the River and Marshes?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the River and Marshes! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the River and Marshes! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-river-pond": {
+     "to": "The River and Marshes",
+     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 1/2 so far",
+     "open": "E — Head to the River and Marshes?",
+     "openForAGuest": "The River and Marshes is this way 🧭",
+     "card": [
+      "Head to the River and Marshes?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the River and Marshes! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the River and Marshes! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-moor-path": {
+     "to": "The Moor",
+     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 1/2 so far",
+     "open": "E — Head to the Moor?",
+     "openForAGuest": "The Moor is this way 🧭",
+     "card": [
+      "Head to the Moor?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Moor! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Moor! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-moor-river": {
+     "to": "The Moor",
+     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 1/2 so far",
+     "open": "E — Head to the Moor?",
+     "openForAGuest": "The Moor is this way 🧭",
+     "card": [
+      "Head to the Moor?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Moor! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Moor! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "river-woods-long": {
+     "to": "The Woods",
+     "beforeItOpens": "🔒 The Woods opens after 2 walks in Twolegplace · 0/2 so far",
+     "open": "E — Head to the Woods?",
+     "openForAGuest": "The Woods is this way 🧭",
+     "card": [
+      "Head to the Woods?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Woods! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Woods! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "river-town-long": {
+     "to": "Twolegplace",
+     "beforeItOpens": "E — Head to Twolegplace?",
+     "open": "E — Head to Twolegplace?",
+     "openForAGuest": "Twolegplace is this way 🧭",
+     "card": [
+      "Head to Twolegplace?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: Twolegplace! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to Twolegplace! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "river-woods-pond": {
+     "to": "The Woods",
+     "beforeItOpens": "🔒 The Woods opens after 2 walks in Twolegplace · 0/2 so far",
+     "open": "E — Head to the Woods?",
+     "openForAGuest": "The Woods is this way 🧭",
+     "card": [
+      "Head to the Woods?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Woods! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Woods! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "river-pines-path": {
+     "to": "The Pines and Swamp",
+     "beforeItOpens": "🔒 The Pines and Swamp opens after 2 walks in The River and Marshes · 1/2 so far",
+     "open": "E — Head to the Pines and Swamp?",
+     "openForAGuest": "The Pines and Swamp is this way 🧭",
+     "card": [
+      "Head to the Pines and Swamp?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Pines and Swamp! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Pines and Swamp! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "moor-woods-path": {
+     "to": "The Woods",
+     "beforeItOpens": "🔒 The Woods opens after 2 walks in Twolegplace · 0/2 so far",
+     "open": "E — Head to the Woods?",
+     "openForAGuest": "The Woods is this way 🧭",
+     "card": [
+      "Head to the Woods?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Woods! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Woods! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "moor-woods-river": {
+     "to": "The Woods",
+     "beforeItOpens": "🔒 The Woods opens after 2 walks in Twolegplace · 0/2 so far",
+     "open": "E — Head to the Woods?",
+     "openForAGuest": "The Woods is this way 🧭",
+     "card": [
+      "Head to the Woods?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Woods! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Woods! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "moor-gorge": {
+     "to": "The Gorge",
+     "beforeItOpens": "🔒 The Gorge opens after 2 walks in The Moor · 1/2 so far",
+     "open": "E — Head to the Gorge?",
+     "openForAGuest": "The Gorge is this way 🧭",
+     "card": [
+      "Head to the Gorge?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Gorge! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Gorge! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "moor-pines-trail": {
+     "to": "The Pines and Swamp",
+     "beforeItOpens": "🔒 The Pines and Swamp opens after 2 walks in The River and Marshes · 0/2 so far",
+     "open": "E — Head to the Pines and Swamp?",
+     "openForAGuest": "The Pines and Swamp is this way 🧭",
+     "card": [
+      "Head to the Pines and Swamp?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Pines and Swamp! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Pines and Swamp! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "pines-river-path": {
+     "to": "The River and Marshes",
+     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 0/2 so far",
+     "open": "E — Head to the River and Marshes?",
+     "openForAGuest": "The River and Marshes is this way 🧭",
+     "card": [
+      "Head to the River and Marshes?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the River and Marshes! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the River and Marshes! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "pines-moor-trail": {
+     "to": "The Moor",
+     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 0/2 so far",
+     "open": "E — Head to the Moor?",
+     "openForAGuest": "The Moor is this way 🧭",
+     "card": [
+      "Head to the Moor?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Moor! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Moor! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "gorge-moor": {
+     "to": "The Moor",
+     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 0/2 so far",
+     "open": "E — Head to the Moor?",
+     "openForAGuest": "The Moor is this way 🧭",
+     "card": [
+      "Head to the Moor?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Moor! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Moor! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "gorge-town": {
+     "to": "Twolegplace",
+     "beforeItOpens": "E — Head to Twolegplace?",
+     "open": "E — Head to Twolegplace?",
+     "openForAGuest": "Twolegplace is this way 🧭",
+     "card": [
+      "Head to Twolegplace?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: Twolegplace! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to Twolegplace! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    }
+   },
+   "crossingWithABuddy": [
+    "Your race stops here.",
+    "Your quest stops here.",
+    "The feather comes home to your den.",
+    "Conkerbelly walks home.",
+    "Robin comes too."
+   ],
+   "fights": {
+    "Conkerbelly": {
+     "atHome": [
+      "Conkerbelly of StormClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Conkerbelly of StormClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Conkerbelly! 🛡️",
+     "letsYouPass": "Conkerbelly lets you pass. 🐾",
+     "wonThisTime": [
+      "Conkerbelly won this time. That scratch will heal in a few walks!",
+      "Conkerbelly won this time. Try again soon!"
+     ]
+    },
+    "Fawnheart": {
+     "atHome": [
+      "Fawnheart of StormClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Fawnheart of StormClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Fawnheart! 🛡️",
+     "letsYouPass": "Fawnheart lets you pass. 🐾",
+     "wonThisTime": [
+      "Fawnheart won this time. That scratch will heal in a few walks!",
+      "Fawnheart won this time. Try again soon!"
+     ]
+    },
+    "Rootfang": {
+     "atHome": [
+      "Rootfang of StormClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Rootfang of StormClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Rootfang! 🛡️",
+     "letsYouPass": "Rootfang lets you pass. 🐾",
+     "wonThisTime": [
+      "Rootfang won this time. That scratch will heal in a few walks!",
+      "Rootfang won this time. Try again soon!"
+     ]
+    },
+    "Volefur": {
+     "atHome": [
+      "Volefur of BrookClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Volefur of BrookClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Volefur! 🛡️",
+     "letsYouPass": "Volefur lets you pass. 🐾",
+     "wonThisTime": [
+      "Volefur won this time. That scratch will heal in a few walks!",
+      "Volefur won this time. Try again soon!"
+     ]
+    },
+    "Troutstripe": {
+     "atHome": [
+      "Troutstripe of BrookClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Troutstripe of BrookClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Troutstripe! 🛡️",
+     "letsYouPass": "Troutstripe lets you pass. 🐾",
+     "wonThisTime": [
+      "Troutstripe won this time. That scratch will heal in a few walks!",
+      "Troutstripe won this time. Try again soon!"
+     ]
+    },
+    "Mintshade": {
+     "atHome": [
+      "Mintshade of BrookClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Mintshade of BrookClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Mintshade! 🛡️",
+     "letsYouPass": "Mintshade lets you pass. 🐾",
+     "wonThisTime": [
+      "Mintshade won this time. That scratch will heal in a few walks!",
+      "Mintshade won this time. Try again soon!"
+     ]
+    },
+    "Cottontail": {
+     "atHome": [
+      "Cottontail of GaleClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Cottontail of GaleClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Cottontail! 🛡️",
+     "letsYouPass": "Cottontail lets you pass. 🐾",
+     "wonThisTime": [
+      "Cottontail won this time. That scratch will heal in a few walks!",
+      "Cottontail won this time. Try again soon!"
+     ]
+    },
+    "Torshade": {
+     "atHome": [
+      "Torshade of GaleClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Torshade of GaleClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Torshade! 🛡️",
+     "letsYouPass": "Torshade lets you pass. 🐾",
+     "wonThisTime": [
+      "Torshade won this time. That scratch will heal in a few walks!",
+      "Torshade won this time. Try again soon!"
+     ]
+    },
+    "Bilberryear": {
+     "atHome": [
+      "Bilberryear of GaleClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Bilberryear of GaleClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Bilberryear! 🛡️",
+     "letsYouPass": "Bilberryear lets you pass. 🐾",
+     "wonThisTime": [
+      "Bilberryear won this time. That scratch will heal in a few walks!",
+      "Bilberryear won this time. Try again soon!"
+     ]
+    },
+    "Needlestripe": {
+     "atHome": [
+      "Needlestripe of DuskClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Needlestripe of DuskClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Needlestripe! 🛡️",
+     "letsYouPass": "Needlestripe lets you pass. 🐾",
+     "wonThisTime": [
+      "Needlestripe won this time. That scratch will heal in a few walks!",
+      "Needlestripe won this time. Try again soon!"
+     ]
+    },
+    "Beetlefur": {
+     "atHome": [
+      "Beetlefur of DuskClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Beetlefur of DuskClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Beetlefur! 🛡️",
+     "letsYouPass": "Beetlefur lets you pass. 🐾",
+     "wonThisTime": [
+      "Beetlefur won this time. That scratch will heal in a few walks!",
+      "Beetlefur won this time. Try again soon!"
+     ]
+    },
+    "Toadtail": {
+     "atHome": [
+      "Toadtail of DuskClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Toadtail of DuskClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Toadtail! 🛡️",
+     "letsYouPass": "Toadtail lets you pass. 🐾",
+     "wonThisTime": [
+      "Toadtail won this time. That scratch will heal in a few walks!",
+      "Toadtail won this time. Try again soon!"
+     ]
+    },
+    "Flintbelly": {
+     "atHome": [
+      "Flintbelly of CliffClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Flintbelly of CliffClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Flintbelly! 🛡️",
+     "letsYouPass": "Flintbelly lets you pass. 🐾",
+     "wonThisTime": [
+      "Flintbelly won this time. That scratch will heal in a few walks!",
+      "Flintbelly won this time. Try again soon!"
+     ]
+    },
+    "Merlinheart": {
+     "atHome": [
+      "Merlinheart of CliffClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Merlinheart of CliffClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Merlinheart! 🛡️",
+     "letsYouPass": "Merlinheart lets you pass. 🐾",
+     "wonThisTime": [
+      "Merlinheart won this time. That scratch will heal in a few walks!",
+      "Merlinheart won this time. Try again soon!"
+     ]
+    },
+    "Shalewhisker": {
+     "atHome": [
+      "Shalewhisker of CliffClan is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Shalewhisker of CliffClan blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Shalewhisker! 🛡️",
+     "letsYouPass": "Shalewhisker lets you pass. 🐾",
+     "wonThisTime": [
+      "Shalewhisker won this time. That scratch will heal in a few walks!",
+      "Shalewhisker won this time. Try again soon!"
+     ]
+    }
+   },
+   "journalFooter": [
+    "🛡️ Intruders chased off: 4"
+   ],
+   "warPaintPrize": {
+    "visit": 50,
+    "styleInTheSchedule": "C",
+    "present": [
+     "Visit #50!",
+     "It's a Clan War Paint!",
+     "Clan War Paint",
+     "Yay!"
+    ],
+    "alreadyOn": [
+     "Visit 50!",
+     "Mittens got a Clan War Paint. It's already on!"
+    ],
+    "catGivesIt": [
+     "It's a Clan War Paint!"
+    ],
+    "again": [
+     "Visit 50!",
+     "Remember your Clan War Paint? You looked great in it!",
+     "Wear it"
+    ]
+   }
+  },
+  "chat": {
+   "phrasesRead": 16,
+   "phrasesWithASeriesWord": [],
+   "repliesRead": 159,
+   "repliesWithASeriesWord": [
+    "Leave a scent trail!"
+   ]
+  },
+  "screens": {
+   "pickYourGroup": {
+    "cards": [
+     "Pick your clan",
+     "StormClan",
+     "of The Woods",
+     "oak woods, ferns and sunny clearings",
+     "BrookClan",
+     "of The River and Marshes",
+     "reeds, fishing and the pond",
+     "GaleClan",
+     "of The Moor",
+     "open heather, wind and rabbits",
+     "DuskClan",
+     "of The Pines and Swamp",
+     "dark pines and the swamp",
+     "CliffClan",
+     "of The Gorge",
+     "rocks, cliff dens and tall pines"
+    ],
+    "campSoonLine": "camp coming soon",
+    "cardsWhenACampIsNotReady": [
+     "Pick your clan",
+     "StormClan",
+     "of The Woods",
+     "camp coming soon",
+     "BrookClan",
+     "of The River and Marshes",
+     "reeds, fishing and the pond",
+     "GaleClan",
+     "of The Moor",
+     "open heather, wind and rabbits",
+     "DuskClan",
+     "of The Pines and Swamp",
+     "dark pines and the swamp",
+     "CliffClan",
+     "of The Gorge",
+     "rocks, cliff dens and tall pines"
+    ],
+    "cardsWhenATerritoryIsNotBuilt": [
+     "Pick your clan",
+     "StormClan",
+     "of The Woods",
+     "oak woods, ferns and sunny clearings",
+     "territory coming soon",
+     "BrookClan",
+     "of The River and Marshes",
+     "reeds, fishing and the pond",
+     "GaleClan",
+     "of The Moor",
+     "open heather, wind and rabbits",
+     "DuskClan",
+     "of The Pines and Swamp",
+     "dark pines and the swamp",
+     "CliffClan",
+     "of The Gorge",
+     "rocks, cliff dens and tall pines"
+    ],
+    "moment": [
+     "🐾 🐾 🐾",
+     "The clans have noticed you!",
+     "Which clan will you join?",
+     "Pick your clan",
+     "StormClan",
+     "of The Woods",
+     "oak woods, ferns and sunny clearings",
+     "BrookClan",
+     "of The River and Marshes",
+     "reeds, fishing and the pond",
+     "GaleClan",
+     "of The Moor",
+     "open heather, wind and rabbits",
+     "DuskClan",
+     "of The Pines and Swamp",
+     "dark pines and the swamp",
+     "CliffClan",
+     "of The Gorge",
+     "rocks, cliff dens and tall pines",
+     "Not yet",
+     "You can change it later in 🗺️ Change place."
+    ],
+    "momentIsDue": [
+     true,
+     false
+    ],
+    "lineBeforeAPick": [
+     "The clans have noticed you!",
+     "Choose your clan ›"
+    ],
+    "lineBeforeTheWoodsOpen": [],
+    "picked": {
+     "woods": {
+      "heading": "Your clan: StormClan",
+      "change": [
+       "🐾 🐾 🐾",
+       "Change your clan?",
+       "Tap a clan to join it."
+      ],
+      "line": [
+       "You’re",
+       "StormClan",
+       "Change ›"
+      ],
+      "lineWithASibling": [
+       "You’re",
+       "StormClan",
+       "· Robin is BrookClan",
+       "Change ›"
+      ],
+      "cardsWithASibling": [
+       "Your clan: StormClan",
+       "StormClan",
+       "of The Woods",
+       "oak woods, ferns and sunny clearings",
+       "✓ yours",
+       "BrookClan",
+       "of The River and Marshes",
+       "reeds, fishing and the pond",
+       "🤝 Robin's",
+       "GaleClan",
+       "of The Moor",
+       "open heather, wind and rabbits",
+       "DuskClan",
+       "of The Pines and Swamp",
+       "dark pines and the swamp",
+       "CliffClan",
+       "of The Gorge",
+       "rocks, cliff dens and tall pines"
+      ]
+     },
+     "river": {
+      "heading": "Your clan: BrookClan",
+      "change": [
+       "🐾 🐾 🐾",
+       "Change your clan?",
+       "Tap a clan to join it."
+      ],
+      "line": [
+       "You’re",
+       "BrookClan",
+       "Change ›"
+      ],
+      "lineWithASibling": [
+       "You’re",
+       "BrookClan",
+       "· Robin is GaleClan",
+       "Change ›"
+      ],
+      "cardsWithASibling": [
+       "Your clan: BrookClan",
+       "StormClan",
+       "of The Woods",
+       "oak woods, ferns and sunny clearings",
+       "BrookClan",
+       "of The River and Marshes",
+       "reeds, fishing and the pond",
+       "✓ yours",
+       "GaleClan",
+       "of The Moor",
+       "open heather, wind and rabbits",
+       "🤝 Robin's",
+       "DuskClan",
+       "of The Pines and Swamp",
+       "dark pines and the swamp",
+       "CliffClan",
+       "of The Gorge",
+       "rocks, cliff dens and tall pines"
+      ]
+     },
+     "moor": {
+      "heading": "Your clan: GaleClan",
+      "change": [
+       "🐾 🐾 🐾",
+       "Change your clan?",
+       "Tap a clan to join it."
+      ],
+      "line": [
+       "You’re",
+       "GaleClan",
+       "Change ›"
+      ],
+      "lineWithASibling": [
+       "You’re",
+       "GaleClan",
+       "· Robin is DuskClan",
+       "Change ›"
+      ],
+      "cardsWithASibling": [
+       "Your clan: GaleClan",
+       "StormClan",
+       "of The Woods",
+       "oak woods, ferns and sunny clearings",
+       "BrookClan",
+       "of The River and Marshes",
+       "reeds, fishing and the pond",
+       "GaleClan",
+       "of The Moor",
+       "open heather, wind and rabbits",
+       "✓ yours",
+       "DuskClan",
+       "of The Pines and Swamp",
+       "dark pines and the swamp",
+       "🤝 Robin's",
+       "CliffClan",
+       "of The Gorge",
+       "rocks, cliff dens and tall pines"
+      ]
+     },
+     "pines": {
+      "heading": "Your clan: DuskClan",
+      "change": [
+       "🐾 🐾 🐾",
+       "Change your clan?",
+       "Tap a clan to join it."
+      ],
+      "line": [
+       "You’re",
+       "DuskClan",
+       "Change ›"
+      ],
+      "lineWithASibling": [
+       "You’re",
+       "DuskClan",
+       "· Robin is CliffClan",
+       "Change ›"
+      ],
+      "cardsWithASibling": [
+       "Your clan: DuskClan",
+       "StormClan",
+       "of The Woods",
+       "oak woods, ferns and sunny clearings",
+       "BrookClan",
+       "of The River and Marshes",
+       "reeds, fishing and the pond",
+       "GaleClan",
+       "of The Moor",
+       "open heather, wind and rabbits",
+       "DuskClan",
+       "of The Pines and Swamp",
+       "dark pines and the swamp",
+       "✓ yours",
+       "CliffClan",
+       "of The Gorge",
+       "rocks, cliff dens and tall pines",
+       "🤝 Robin's"
+      ]
+     },
+     "gorge": {
+      "heading": "Your clan: CliffClan",
+      "change": [
+       "🐾 🐾 🐾",
+       "Change your clan?",
+       "Tap a clan to join it."
+      ],
+      "line": [
+       "You’re",
+       "CliffClan",
+       "Change ›"
+      ],
+      "lineWithASibling": [
+       "You’re",
+       "CliffClan",
+       "· Robin is StormClan",
+       "Change ›"
+      ],
+      "cardsWithASibling": [
+       "Your clan: CliffClan",
+       "StormClan",
+       "of The Woods",
+       "oak woods, ferns and sunny clearings",
+       "🤝 Robin's",
+       "BrookClan",
+       "of The River and Marshes",
+       "reeds, fishing and the pond",
+       "GaleClan",
+       "of The Moor",
+       "open heather, wind and rabbits",
+       "DuskClan",
+       "of The Pines and Swamp",
+       "dark pines and the swamp",
+       "CliffClan",
+       "of The Gorge",
+       "rocks, cliff dens and tall pines",
+       "✓ yours"
+      ]
+     }
+    },
+    "partnerOnly": [
+     "Pick your clan",
+     "StormClan",
+     "of The Woods",
+     "oak woods, ferns and sunny clearings",
+     "BrookClan",
+     "of The River and Marshes",
+     "reeds, fishing and the pond",
+     "🤝 Robin's",
+     "GaleClan",
+     "of The Moor",
+     "open heather, wind and rabbits",
+     "DuskClan",
+     "of The Pines and Swamp",
+     "dark pines and the swamp",
+     "CliffClan",
+     "of The Gorge",
+     "rocks, cliff dens and tall pines"
+    ],
+    "both": {
+     "cards": [
+      "Your clan: StormClan",
+      "StormClan",
+      "of The Woods",
+      "oak woods, ferns and sunny clearings",
+      "✓ yours",
+      "🤝 Robin's",
+      "BrookClan",
+      "of The River and Marshes",
+      "reeds, fishing and the pond",
+      "GaleClan",
+      "of The Moor",
+      "open heather, wind and rabbits",
+      "DuskClan",
+      "of The Pines and Swamp",
+      "dark pines and the swamp",
+      "CliffClan",
+      "of The Gorge",
+      "rocks, cliff dens and tall pines",
+      "You're both StormClan!"
+     ],
+     "line": [
+      "You’re",
+      "StormClan",
+      "— you’re both StormClan!",
+      "Change ›"
+     ]
+    }
+   },
+   "colony": {
+    "leadByFeeds": {
+     "fed 0": [
+      "Acornkit | kit",
+      "Amberkit | kit",
+      "Aspenkit | kit",
+      "Asterkit | kit",
+      "Basilkit | kit",
+      "Berrykit | kit",
+      "Birchkit | kit",
+      "Blossompaw | apprentice",
+      "Bluebellkit | kit",
+      "Breezekit | kit",
+      "Briarkit | kit",
+      "Chestnutkit | kit",
+      "Cloverpaw | apprentice",
+      "Coralkit | kit",
+      "Cresskit | kit",
+      "Crocuskit | kit",
+      "Daffodilkit | kit",
+      "Daisykit | kit",
+      "Dawnkit | kit",
+      "Dewkit | kit",
+      "Elmkit | kit",
+      "Fernkit | kit",
+      "Finchpaw | apprentice",
+      "Heathkit | kit",
+      "Iriskit | kit",
+      "Ivykit | kit",
+      "Larchkit | kit",
+      "Laurelkit | kit",
+      "Lichenkit | kit",
+      "Lilykit | kit",
+      "Lindenkit | kit",
+      "Linnetpaw | apprentice",
+      "Mallowkit | kit",
+      "Marshpaw | apprentice",
+      "Mosskit | kit",
+      "Myrtlekit | kit",
+      "Nettlekit | kit",
+      "Orchidkit | kit",
+      "Owlkit | kit",
+      "Pansypaw | apprentice",
+      "Pinekit | kit",
+      "Ploverpaw | apprentice",
+      "Pondkit | kit",
+      "Poppykit | kit",
+      "Primrosekit | kit",
+      "Robinpaw | apprentice",
+      "Rosekit | kit",
+      "Rowankit | kit",
+      "Rushkit | kit",
+      "Sagekit | kit",
+      "Sparrowkit | kit",
+      "Sprucekit | kit",
+      "Streampaw | apprentice",
+      "Sunnypaw | apprentice",
+      "Swallowpaw | apprentice",
+      "Tansykit | kit",
+      "Tawnykit | kit",
+      "Thistlekit | kit",
+      "Thymekit | kit",
+      "Twigpaw | apprentice",
+      "Violetkit | kit",
+      "Willowkit | kit",
+      "Wrenkit | kit",
+      "Yarrowkit | kit"
+     ],
+     "fed 1": [
+      "Acornkit | kit",
+      "Amberkit | kit",
+      "Aspenkit | kit",
+      "Asterkit | kit",
+      "Basilkit | kit",
+      "Berrykit | kit",
+      "Birchkit | kit",
+      "Blossompaw | apprentice",
+      "Bluebellkit | kit",
+      "Breezekit | kit",
+      "Briarkit | kit",
+      "Chestnutkit | kit",
+      "Cloverpaw | apprentice",
+      "Coralkit | kit",
+      "Cresskit | kit",
+      "Crocuskit | kit",
+      "Daffodilkit | kit",
+      "Daisykit | kit",
+      "Dawnkit | kit",
+      "Dewkit | kit",
+      "Elmkit | kit",
+      "Fernkit | kit",
+      "Finchpaw | apprentice",
+      "Heathkit | kit",
+      "Iriskit | kit",
+      "Ivykit | kit",
+      "Larchkit | kit",
+      "Laurelkit | kit",
+      "Lichenkit | kit",
+      "Lilykit | kit",
+      "Lindenkit | kit",
+      "Linnetpaw | apprentice",
+      "Mallowkit | kit",
+      "Marshpaw | apprentice",
+      "Mosskit | kit",
+      "Myrtlekit | kit",
+      "Nettlekit | kit",
+      "Orchidkit | kit",
+      "Owlkit | kit",
+      "Pansypaw | apprentice",
+      "Pinekit | kit",
+      "Ploverpaw | apprentice",
+      "Pondkit | kit",
+      "Poppykit | kit",
+      "Primrosekit | kit",
+      "Robinpaw | apprentice",
+      "Rosekit | kit",
+      "Rowankit | kit",
+      "Rushkit | kit",
+      "Sagekit | kit",
+      "Sparrowkit | kit",
+      "Sprucekit | kit",
+      "Streampaw | apprentice",
+      "Sunnypaw | apprentice",
+      "Swallowpaw | apprentice",
+      "Tansykit | kit",
+      "Tawnykit | kit",
+      "Thistlekit | kit",
+      "Thymekit | kit",
+      "Twigpaw | apprentice",
+      "Violetkit | kit",
+      "Willowkit | kit",
+      "Wrenkit | kit",
+      "Yarrowkit | kit"
+     ],
+     "fed 2": [
+      "Acornpaw | apprentice",
+      "Amberpaw | apprentice",
+      "Aspenpaw | apprentice",
+      "Asterpaw | apprentice",
+      "Basilpaw | apprentice",
+      "Berrypaw | apprentice",
+      "Birchpaw | apprentice",
+      "Blossompaw | apprentice",
+      "Bluebellpaw | apprentice",
+      "Breezepaw | apprentice",
+      "Briarpaw | apprentice",
+      "Chestnutpaw | apprentice",
+      "Cloverpaw | apprentice",
+      "Coralpaw | apprentice",
+      "Cresspaw | apprentice",
+      "Crocuspaw | apprentice",
+      "Daffodilpaw | apprentice",
+      "Daisypaw | apprentice",
+      "Dawnpaw | apprentice",
+      "Dewpaw | apprentice",
+      "Elmpaw | apprentice",
+      "Fernpaw | apprentice",
+      "Finchpaw | apprentice",
+      "Heathpaw | apprentice",
+      "Irispaw | apprentice",
+      "Ivypaw | apprentice",
+      "Larchpaw | apprentice",
+      "Laurelpaw | apprentice",
+      "Lichenpaw | apprentice",
+      "Lilypaw | apprentice",
+      "Lindenpaw | apprentice",
+      "Linnetpaw | apprentice",
+      "Mallowpaw | apprentice",
+      "Marshpaw | apprentice",
+      "Mosspaw | apprentice",
+      "Myrtlepaw | apprentice",
+      "Nettlepaw | apprentice",
+      "Orchidpaw | apprentice",
+      "Owlpaw | apprentice",
+      "Pansypaw | apprentice",
+      "Pinepaw | apprentice",
+      "Ploverpaw | apprentice",
+      "Pondpaw | apprentice",
+      "Poppypaw | apprentice",
+      "Primrosepaw | apprentice",
+      "Robinpaw | apprentice",
+      "Rosepaw | apprentice",
+      "Rowanpaw | apprentice",
+      "Rushpaw | apprentice",
+      "Sagepaw | apprentice",
+      "Sparrowpaw | apprentice",
+      "Sprucepaw | apprentice",
+      "Streampaw | apprentice",
+      "Sunnypaw | apprentice",
+      "Swallowpaw | apprentice",
+      "Tansypaw | apprentice",
+      "Tawnypaw | apprentice",
+      "Thistlepaw | apprentice",
+      "Thymepaw | apprentice",
+      "Twigpaw | apprentice",
+      "Violetpaw | apprentice",
+      "Willowpaw | apprentice",
+      "Wrenpaw | apprentice",
+      "Yarrowpaw | apprentice"
+     ],
+     "fed 3": [
+      "Acornpaw | apprentice",
+      "Amberpaw | apprentice",
+      "Aspenpaw | apprentice",
+      "Asterpaw | apprentice",
+      "Basilpaw | apprentice",
+      "Berrypaw | apprentice",
+      "Birchpaw | apprentice",
+      "Blossompaw | apprentice",
+      "Bluebellpaw | apprentice",
+      "Breezepaw | apprentice",
+      "Briarpaw | apprentice",
+      "Chestnutpaw | apprentice",
+      "Cloverpaw | apprentice",
+      "Coralpaw | apprentice",
+      "Cresspaw | apprentice",
+      "Crocuspaw | apprentice",
+      "Daffodilpaw | apprentice",
+      "Daisypaw | apprentice",
+      "Dawnpaw | apprentice",
+      "Dewpaw | apprentice",
+      "Elmpaw | apprentice",
+      "Fernpaw | apprentice",
+      "Finchpaw | apprentice",
+      "Heathpaw | apprentice",
+      "Irispaw | apprentice",
+      "Ivypaw | apprentice",
+      "Larchpaw | apprentice",
+      "Laurelpaw | apprentice",
+      "Lichenpaw | apprentice",
+      "Lilypaw | apprentice",
+      "Lindenpaw | apprentice",
+      "Linnetpaw | apprentice",
+      "Mallowpaw | apprentice",
+      "Marshpaw | apprentice",
+      "Mosspaw | apprentice",
+      "Myrtlepaw | apprentice",
+      "Nettlepaw | apprentice",
+      "Orchidpaw | apprentice",
+      "Owlpaw | apprentice",
+      "Pansypaw | apprentice",
+      "Pinepaw | apprentice",
+      "Ploverpaw | apprentice",
+      "Pondpaw | apprentice",
+      "Poppypaw | apprentice",
+      "Primrosepaw | apprentice",
+      "Robinpaw | apprentice",
+      "Rosepaw | apprentice",
+      "Rowanpaw | apprentice",
+      "Rushpaw | apprentice",
+      "Sagepaw | apprentice",
+      "Sparrowpaw | apprentice",
+      "Sprucepaw | apprentice",
+      "Streampaw | apprentice",
+      "Sunnypaw | apprentice",
+      "Swallowpaw | apprentice",
+      "Tansypaw | apprentice",
+      "Tawnypaw | apprentice",
+      "Thistlepaw | apprentice",
+      "Thymepaw | apprentice",
+      "Twigpaw | apprentice",
+      "Violetpaw | apprentice",
+      "Willowpaw | apprentice",
+      "Wrenpaw | apprentice",
+      "Yarrowpaw | apprentice"
+     ],
+     "fed 4": [
+      "Acornpaw | apprentice",
+      "Amberpaw | apprentice",
+      "Aspenpaw | apprentice",
+      "Asterpaw | apprentice",
+      "Basilpaw | apprentice",
+      "Berrypaw | apprentice",
+      "Birchpaw | apprentice",
+      "Blossompaw | apprentice",
+      "Bluebellpaw | apprentice",
+      "Breezepaw | apprentice",
+      "Briarpaw | apprentice",
+      "Chestnutpaw | apprentice",
+      "Cloverpaw | apprentice",
+      "Coralpaw | apprentice",
+      "Cresspaw | apprentice",
+      "Crocuspaw | apprentice",
+      "Daffodilpaw | apprentice",
+      "Daisypaw | apprentice",
+      "Dawnpaw | apprentice",
+      "Dewpaw | apprentice",
+      "Elmpaw | apprentice",
+      "Fernpaw | apprentice",
+      "Finchpaw | apprentice",
+      "Heathpaw | apprentice",
+      "Irispaw | apprentice",
+      "Ivypaw | apprentice",
+      "Larchpaw | apprentice",
+      "Laurelpaw | apprentice",
+      "Lichenpaw | apprentice",
+      "Lilypaw | apprentice",
+      "Lindenpaw | apprentice",
+      "Linnetpaw | apprentice",
+      "Mallowpaw | apprentice",
+      "Marshpaw | apprentice",
+      "Mosspaw | apprentice",
+      "Myrtlepaw | apprentice",
+      "Nettlepaw | apprentice",
+      "Orchidpaw | apprentice",
+      "Owlpaw | apprentice",
+      "Pansypaw | apprentice",
+      "Pinepaw | apprentice",
+      "Ploverpaw | apprentice",
+      "Pondpaw | apprentice",
+      "Poppypaw | apprentice",
+      "Primrosepaw | apprentice",
+      "Robinpaw | apprentice",
+      "Rosepaw | apprentice",
+      "Rowanpaw | apprentice",
+      "Rushpaw | apprentice",
+      "Sagepaw | apprentice",
+      "Sparrowpaw | apprentice",
+      "Sprucepaw | apprentice",
+      "Streampaw | apprentice",
+      "Sunnypaw | apprentice",
+      "Swallowpaw | apprentice",
+      "Tansypaw | apprentice",
+      "Tawnypaw | apprentice",
+      "Thistlepaw | apprentice",
+      "Thymepaw | apprentice",
+      "Twigpaw | apprentice",
+      "Violetpaw | apprentice",
+      "Willowpaw | apprentice",
+      "Wrenpaw | apprentice",
+      "Yarrowpaw | apprentice"
+     ],
+     "fed 5": [
+      "Acornpaw | apprentice",
+      "Amberpaw | apprentice",
+      "Aspenpaw | apprentice",
+      "Asterpaw | apprentice",
+      "Basilpaw | apprentice",
+      "Berrypaw | apprentice",
+      "Birchpaw | apprentice",
+      "Blossompaw | apprentice",
+      "Bluebellpaw | apprentice",
+      "Breezepaw | apprentice",
+      "Briarpaw | apprentice",
+      "Chestnutpaw | apprentice",
+      "Cloverpaw | apprentice",
+      "Coralpaw | apprentice",
+      "Cresspaw | apprentice",
+      "Crocuspaw | apprentice",
+      "Daffodilpaw | apprentice",
+      "Daisypaw | apprentice",
+      "Dawnpaw | apprentice",
+      "Dewpaw | apprentice",
+      "Elmpaw | apprentice",
+      "Fernpaw | apprentice",
+      "Finchpaw | apprentice",
+      "Heathpaw | apprentice",
+      "Irispaw | apprentice",
+      "Ivypaw | apprentice",
+      "Larchpaw | apprentice",
+      "Laurelpaw | apprentice",
+      "Lichenpaw | apprentice",
+      "Lilypaw | apprentice",
+      "Lindenpaw | apprentice",
+      "Linnetpaw | apprentice",
+      "Mallowpaw | apprentice",
+      "Marshpaw | apprentice",
+      "Mosspaw | apprentice",
+      "Myrtlepaw | apprentice",
+      "Nettlepaw | apprentice",
+      "Orchidpaw | apprentice",
+      "Owlpaw | apprentice",
+      "Pansypaw | apprentice",
+      "Pinepaw | apprentice",
+      "Ploverpaw | apprentice",
+      "Pondpaw | apprentice",
+      "Poppypaw | apprentice",
+      "Primrosepaw | apprentice",
+      "Robinpaw | apprentice",
+      "Rosepaw | apprentice",
+      "Rowanpaw | apprentice",
+      "Rushpaw | apprentice",
+      "Sagepaw | apprentice",
+      "Sparrowpaw | apprentice",
+      "Sprucepaw | apprentice",
+      "Streampaw | apprentice",
+      "Sunnypaw | apprentice",
+      "Swallowpaw | apprentice",
+      "Tansypaw | apprentice",
+      "Tawnypaw | apprentice",
+      "Thistlepaw | apprentice",
+      "Thymepaw | apprentice",
+      "Twigpaw | apprentice",
+      "Violetpaw | apprentice",
+      "Willowpaw | apprentice",
+      "Wrenpaw | apprentice",
+      "Yarrowpaw | apprentice"
+     ],
+     "fed 6": [
+      "Acornbelly | warrior",
+      "Amberleaf | warrior",
+      "Aspenfoot | warrior",
+      "Asterfoot | warrior",
+      "Basilsong | warrior",
+      "Berrysong | warrior",
+      "Birchfur | warrior",
+      "Blossomfur | warrior",
+      "Bluebellwing | warrior",
+      "Breezefur | warrior",
+      "Briarshade | warrior",
+      "Chestnuteye | warrior",
+      "Clovereye | warrior",
+      "Coralear | warrior",
+      "Cressfang | warrior",
+      "Crocuswhisker | warrior",
+      "Daffodilear | warrior",
+      "Daisyshade | warrior",
+      "Dawnsong | warrior",
+      "Dewsong | warrior",
+      "Elmheart | warrior",
+      "Fernfur | warrior",
+      "Finchfoot | warrior",
+      "Heathwing | warrior",
+      "Iristail | warrior",
+      "Ivywing | warrior",
+      "Larchfur | warrior",
+      "Laurelwhisker | warrior",
+      "Lichenear | warrior",
+      "Lilysong | warrior",
+      "Lindenfoot | warrior",
+      "Linnetear | warrior",
+      "Mallowleaf | warrior",
+      "Marshfang | warrior",
+      "Mosseye | warrior",
+      "Myrtlefur | warrior",
+      "Nettlebelly | warrior",
+      "Orchidshade | warrior",
+      "Owlbelly | warrior",
+      "Pansysong | warrior",
+      "Pineheart | warrior",
+      "Plovershade | warrior",
+      "Pondfur | warrior",
+      "Poppyear | warrior",
+      "Primroseear | warrior",
+      "Robinfoot | warrior",
+      "Rosebelly | warrior",
+      "Rowanbelly | warrior",
+      "Rushfoot | warrior",
+      "Sagetail | warrior",
+      "Sparroweye | warrior",
+      "Sprucefur | warrior",
+      "Streamfur | warrior",
+      "Sunnystripe | warrior",
+      "Swallowbelly | warrior",
+      "Tansystripe | warrior",
+      "Tawnyleaf | warrior",
+      "Thistleear | warrior",
+      "Thymebelly | warrior",
+      "Twigstripe | warrior",
+      "Violetfang | warrior",
+      "Willowtail | warrior",
+      "Wrenwing | warrior",
+      "Yarrowleaf | warrior"
+     ]
+    },
+    "banner": {
+     "woods": {
+      "own": "StormClan",
+      "withAllies": "StormClan & BrookClan · allies"
+     },
+     "river": {
+      "own": "BrookClan",
+      "withAllies": "BrookClan & GaleClan · allies"
+     },
+     "moor": {
+      "own": "GaleClan",
+      "withAllies": "GaleClan & DuskClan · allies"
+     },
+     "pines": {
+      "own": "DuskClan",
+      "withAllies": "DuskClan & CliffClan · allies"
+     },
+     "gorge": {
+      "own": "CliffClan",
+      "withAllies": "CliffClan & StormClan · allies"
+     },
+     "beforeAPick": "ThistleClan",
+     "siblingsInOneGroup": ""
+    },
+    "leadTamed": [
+     "Acornbelly | queen",
+     "Amberleaf | warrior",
+     "Aspenfoot | warrior",
+     "Asterfoot | warrior",
+     "Basilsong | warrior",
+     "Berrysong | elder",
+     "Birchfur | warrior",
+     "Blossomfur | warrior",
+     "Bluebellwing | elder",
+     "Breezefur | warrior",
+     "Briarshade | warrior",
+     "Chestnuteye | warrior",
+     "Clovereye | warrior",
+     "Coralear | elder",
+     "Cressfang | warrior",
+     "Crocuswhisker | warrior",
+     "Daffodilear | warrior",
+     "Daisyshade | warrior",
+     "Dawnsong | warrior",
+     "Dewsong | warrior",
+     "Elmheart | warrior",
+     "Fernfur | warrior",
+     "Finchfoot | warrior",
+     "Heathwing | warrior",
+     "Iristail | queen",
+     "Ivywing | elder",
+     "Larchfur | elder",
+     "Laurelwhisker | warrior",
+     "Lichenear | warrior",
+     "Lilysong | warrior",
+     "Lindenfoot | queen",
+     "Linnetear | warrior",
+     "Mallowleaf | warrior",
+     "Marshfang | warrior",
+     "Mosseye | warrior",
+     "Myrtlefur | warrior",
+     "Nettlebelly | warrior",
+     "Orchidshade | warrior",
+     "Owlbelly | warrior",
+     "Pansysong | warrior",
+     "Pineheart | warrior",
+     "Plovershade | warrior",
+     "Pondfur | warrior",
+     "Poppyear | warrior",
+     "Primroseear | warrior",
+     "Robinfoot | warrior",
+     "Rosebelly | warrior",
+     "Rowanbelly | elder",
+     "Rushfoot | warrior",
+     "Sagetail | queen",
+     "Sparroweye | warrior",
+     "Sprucefur | queen",
+     "Streamfur | warrior",
+     "Sunnystripe | warrior",
+     "Swallowbelly | warrior",
+     "Tansystripe | warrior",
+     "Tawnyleaf | elder",
+     "Thistleear | warrior",
+     "Thymebelly | queen",
+     "Twigstripe | warrior",
+     "Violetfang | warrior",
+     "Willowtail | warrior",
+     "Wrenwing | warrior",
+     "Yarrowleaf | elder"
+    ],
+    "heldRoles": {
+     "medicine": [
+      "Sparroweye | warrior",
+      "Wrenwing | medicine cat",
+      "Willowtail | warrior"
+     ],
+     "deputy": [
+      "Sparroweye | deputy",
+      "Wrenwing | warrior",
+      "Willowtail | warrior"
+     ],
+     "bothOnOneCat": [
+      "Sparroweye | warrior",
+      "Wrenwing | warrior",
+      "Willowtail | medicine cat · deputy"
+     ],
+     "oneEach": [
+      "Sparroweye | deputy",
+      "Wrenwing | medicine cat",
+      "Willowtail | warrior"
+     ]
+    },
+    "wholeTab": [
+     "StormClan & GaleClan · allies",
+     "Shared with Robin",
+     "🐾",
+     "Swap accessories 🔄",
+     "Make a swap",
+     "Unlock some accessories to trade 🎩",
+     "Swaps are forever — no take-backs!",
+     "Amberleaf",
+     "medicine cat",
+     "Marmalade",
+     "mainecoon",
+     "[aria-label] Amberleaf's trust",
+     "6 of 6 feeds · tamed ✅",
+     "you fed 6 · Robin fed 0",
+     "lives in your den 🏠",
+     "found by you",
+     "Dress Marmalade",
+     "[aria-label] Dress Marmalade",
+     "nothing",
+     "Bell Collar",
+     "Clan War Paint",
+     "Sparrowpaw",
+     "apprentice",
+     "Noodle",
+     "tabby",
+     "[aria-label] Sparrowpaw's trust",
+     "5 of 6 feeds",
+     "You already knew Noodle ♥",
+     "you fed 3 · Robin fed 0",
+     "in The Woods",
+     "found by you",
+     "Dress Noodle",
+     "[aria-label] Dress Noodle",
+     "nothing",
+     "Bell Collar",
+     "Clan War Paint",
+     "Willowpaw",
+     "apprentice",
+     "Pumpkin",
+     "siamese",
+     "[aria-label] Willowpaw's trust",
+     "2 of 6 feeds",
+     "you fed 0 · Robin fed 2",
+     "in City Park",
+     "found by Robin",
+     "Streampaw",
+     "apprentice",
+     "Bramble",
+     "persian",
+     "[aria-label] Streampaw's trust",
+     "1 of 6 feeds",
+     "you fed 1 · Robin fed 0",
+     "in Twolegplace",
+     "found by you",
+     "Dress Bramble",
+     "[aria-label] Dress Bramble",
+     "nothing",
+     "Bell Collar",
+     "Clan War Paint",
+     "Wrenkit",
+     "kit",
+     "Pickles",
+     "tabby",
+     "[aria-label] Wrenkit's trust",
+     "1 of 6 feeds",
+     "you fed 1 · Robin fed 0",
+     "in Twolegplace",
+     "found by you",
+     "Dress Pickles",
+     "[aria-label] Dress Pickles",
+     "nothing",
+     "Bell Collar",
+     "Clan War Paint"
+    ]
+   },
+   "fight": {
+    "sheetReading": [
+     "[aria-label] You: 1 of 2",
+     "You",
+     "[aria-label] It: 0 of 2",
+     "It",
+     "⬇️",
+     "It crouches low…",
+     "Pounce",
+     "1",
+     "Swipe",
+     "2",
+     "Dodge",
+     "3",
+     "Crouch → Dodge · Paw up → Pounce · Backs up → Swipe"
+    ],
+    "sheetWithEveryMove": [
+     "[aria-label] You: 0 of 2",
+     "You",
+     "[aria-label] It: 1 of 2",
+     "It",
+     "It got that one!",
+     "🐾",
+     "Rear-up Swat",
+     "Swat",
+     "4",
+     "↩️",
+     "Leap and Scratch",
+     "Leap",
+     "5",
+     "⬇️",
+     "Pin",
+     "Pin",
+     "6",
+     "✨",
+     "Rolling Tumble",
+     "Tumble",
+     "7",
+     "Pounce",
+     "1",
+     "Swipe",
+     "2",
+     "Dodge",
+     "3",
+     "Crouch → Dodge · Paw up → Pounce · Backs up → Swipe · 🐾 → Swat · ↩️ → Leap · ⬇️ → Pin · any → Tumble"
+    ],
+    "movesToLearn": [
+     "Fighting moves 🐾",
+     "Win fights to learn moves. Two can be learned early with paw points.",
+     "Rear-up Swat",
+     "Use it when they raise a paw.",
+     "Win 1 more fight to learn it",
+     "Learn now — 300 🐾",
+     "Leap and Scratch",
+     "Use it when they back up.",
+     "Win 4 more fights to learn it",
+     "Learn now — 600 🐾",
+     "Pin",
+     "Use it when they crouch.",
+     "Win 8 more fights to learn it",
+     "Rolling Tumble",
+     "Use it on any move.",
+     "Win 18 more fights to learn it"
+    ],
+    "movesLearned": [
+     "Fighting moves 🐾",
+     "Win fights to learn moves. Two can be learned early with paw points.",
+     "Rear-up Swat",
+     "Use it when they raise a paw.",
+     "✓",
+     "Leap and Scratch",
+     "Use it when they back up.",
+     "✓",
+     "Pin",
+     "Use it when they crouch.",
+     "✓",
+     "Rolling Tumble",
+     "Use it on any move.",
+     "✓"
+    ]
+   },
+   "map": {
+    "firstDay": [
+     "[aria-label] Territory map",
+     "Twolegplace · today’s walk",
+     "🏠",
+     "Twolegplace",
+     "today’s walk",
+     "The Woods · opens after 2 walks in Twolegplace · 0/2 so far",
+     "🌳",
+     "🔒 The Woods",
+     "opens after 2 walks in",
+     "Twolegplace",
+     "0/2 so far",
+     "StormClan camp",
+     "The Moor · opens after 2 walks in The Woods · 0/2 so far",
+     "🌾",
+     "🔒 The Moor",
+     "opens after 2 walks in",
+     "The Woods",
+     "0/2 so far",
+     "GaleClan camp",
+     "The River and Marshes · opens after 2 walks in The Woods · 0/2 so far",
+     "🌿",
+     "🔒 The River",
+     "and Marshes",
+     "opens after 2 walks in",
+     "The Woods",
+     "0/2 so far",
+     "BrookClan camp",
+     "The Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+     "🌲",
+     "🔒 The Pines",
+     "and Swamp",
+     "opens after 2 walks in",
+     "The River and Marshes",
+     "0/2 so far",
+     "DuskClan camp",
+     "The Gorge · opens after 2 walks in The Moor · 0/2 so far",
+     "⛰️",
+     "🔒 The Gorge",
+     "opens after 2 walks in",
+     "The Moor",
+     "0/2 so far",
+     "CliffClan camp",
+     "The island, in the Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+     "The island",
+     "in the Pines and Swamp"
+    ],
+    "everythingOpenHomeAndAlly": [
+     "[aria-label] Territory map",
+     "Twolegplace · tap to walk here",
+     "🏠",
+     "Twolegplace",
+     "tap to walk here",
+     "The Woods · today’s walk",
+     "🌳",
+     "The Woods",
+     "today’s walk",
+     "StormClan camp",
+     "The Moor · tap to walk here",
+     "🌾",
+     "The Moor",
+     "tap to walk here",
+     "GaleClan camp",
+     "The River and Marshes · tap to walk here",
+     "🌿",
+     "The River and",
+     "Marshes",
+     "tap to walk here",
+     "BrookClan camp",
+     "The Pines and Swamp · tap to walk here",
+     "🌲",
+     "The Pines and",
+     "Swamp",
+     "tap to walk here",
+     "DuskClan camp",
+     "The Gorge · tap to walk here",
+     "⛰️",
+     "The Gorge",
+     "tap to walk here",
+     "CliffClan camp",
+     "The island, in the Pines and Swamp · tap to walk here",
+     "The island",
+     "in the Pines and Swamp"
+    ],
+    "campMarks": {
+     "woods": [
+      "StormClan camp",
+      "GaleClan camp",
+      "BrookClan camp",
+      "DuskClan camp",
+      "CliffClan camp"
+     ],
+     "river": [
+      "StormClan camp",
+      "GaleClan camp",
+      "BrookClan camp",
+      "DuskClan camp",
+      "CliffClan camp"
+     ],
+     "moor": [
+      "StormClan camp",
+      "GaleClan camp",
+      "BrookClan camp",
+      "DuskClan camp",
+      "CliffClan camp"
+     ],
+     "pines": [
+      "StormClan camp",
+      "GaleClan camp",
+      "BrookClan camp",
+      "DuskClan camp",
+      "CliffClan camp"
+     ],
+     "gorge": [
+      "StormClan camp",
+      "GaleClan camp",
+      "BrookClan camp",
+      "DuskClan camp",
+      "CliffClan camp"
+     ]
+    }
+   },
+   "places": {
+    "firstDay": {
+     "today": "Twolegplace",
+     "places": [
+      "Twolegplace",
+      "City Park · opens after 2 walks in Twolegplace · 0/2 so far",
+      "Seaside · opens after 2 walks in City Park · 0/2 so far",
+      "The Old Docks · opens after 2 walks in Seaside · 0/2 so far",
+      "The Woods · opens after 2 walks in Twolegplace · 0/2 so far",
+      "The River and Marshes · opens after 2 walks in The Woods · 0/2 so far",
+      "The Moor · opens after 2 walks in The Woods · 0/2 so far",
+      "The Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+      "The Gorge · opens after 2 walks in The Moor · 0/2 so far"
+     ],
+     "sheet": [
+      "The clans have noticed you!",
+      "Choose your clan ›",
+      "[aria-label] Territory map",
+      "Twolegplace · today’s walk",
+      "🏠",
+      "Twolegplace",
+      "today’s walk",
+      "The Woods · opens after 2 walks in Twolegplace · 0/2 so far",
+      "🌳",
+      "🔒 The Woods",
+      "opens after 2 walks in",
+      "Twolegplace",
+      "0/2 so far",
+      "StormClan camp",
+      "The Moor · opens after 2 walks in The Woods · 0/2 so far",
+      "🌾",
+      "🔒 The Moor",
+      "opens after 2 walks in",
+      "The Woods",
+      "0/2 so far",
+      "GaleClan camp",
+      "The River and Marshes · opens after 2 walks in The Woods · 0/2 so far",
+      "🌿",
+      "🔒 The River",
+      "and Marshes",
+      "opens after 2 walks in",
+      "The Woods",
+      "0/2 so far",
+      "BrookClan camp",
+      "The Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+      "🌲",
+      "🔒 The Pines",
+      "and Swamp",
+      "opens after 2 walks in",
+      "The River and Marshes",
+      "0/2 so far",
+      "DuskClan camp",
+      "The Gorge · opens after 2 walks in The Moor · 0/2 so far",
+      "⛰️",
+      "🔒 The Gorge",
+      "opens after 2 walks in",
+      "The Moor",
+      "0/2 so far",
+      "CliffClan camp",
+      "The island, in the Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+      "The island",
+      "in the Pines and Swamp",
+      "More places",
+      "City Park",
+      "opens after 2 walks in Twolegplace · 0/2 so far",
+      "Seaside",
+      "opens after 2 walks in City Park · 0/2 so far",
+      "The Old Docks",
+      "opens after 2 walks in Seaside · 0/2 so far"
+     ]
+    },
+    "everythingOpenAtHome": {
+     "today": "The Woods · StormClan land",
+     "places": [
+      "Twolegplace",
+      "City Park",
+      "Seaside",
+      "The Old Docks",
+      "The Woods",
+      "The River and Marshes",
+      "The Moor",
+      "The Pines and Swamp",
+      "The Gorge"
+     ],
+     "sheet": [
+      "You’re",
+      "StormClan",
+      "· Robin is GaleClan",
+      "Change ›",
+      "[aria-label] Territory map",
+      "Twolegplace · tap to walk here",
+      "🏠",
+      "Twolegplace",
+      "tap to walk here",
+      "The Woods · today’s walk",
+      "🌳",
+      "The Woods",
+      "today’s walk",
+      "StormClan camp",
+      "The Moor · tap to walk here",
+      "🌾",
+      "The Moor",
+      "tap to walk here",
+      "GaleClan camp",
+      "The River and Marshes · tap to walk here",
+      "🌿",
+      "The River and",
+      "Marshes",
+      "tap to walk here",
+      "BrookClan camp",
+      "The Pines and Swamp · tap to walk here",
+      "🌲",
+      "The Pines and",
+      "Swamp",
+      "tap to walk here",
+      "DuskClan camp",
+      "The Gorge · tap to walk here",
+      "⛰️",
+      "The Gorge",
+      "tap to walk here",
+      "CliffClan camp",
+      "The island, in the Pines and Swamp · tap to walk here",
+      "The island",
+      "in the Pines and Swamp",
+      "More places",
+      "City Park",
+      "tap to walk here",
+      "Seaside",
+      "tap to walk here",
+      "The Old Docks",
+      "tap to walk here"
+     ]
+    },
+    "worn": [
+     "Clan War Paint"
+    ]
+   }
+  }
+ },
+ "legacyEdition": {
+  "edition": {
+   "title": "Legacy Edition",
+   "page": "Whisker Walk 2: Legacy Edition",
+   "isClanEdition": false
+  },
+  "placeNames": {
+   "neighborhood": "Cozy Neighborhood",
+   "park": "City Park",
+   "seaside": "Seaside",
+   "docks": "The Old Docks",
+   "woods": "The Woods",
+   "river": "The River and Marshes",
+   "moor": "The Moor",
+   "pines": "The Pines and Swamp",
+   "gorge": "The Gorge"
+  },
+  "prizeNames": {
+   "warpaint": "War Paint"
+  },
+  "warPaintPrizeCard": [
+   "Visit 50!",
+   "Mittens got a Clan War Paint. It's already on!"
+  ],
+  "ownGroupTitle": "",
+  "alliesName": "",
+  "homeWelcome": null,
+  "patrols": {
+   "neighborhood": "(no patrol)",
+   "park": "(no patrol)",
+   "seaside": "(no patrol)",
+   "docks": "(no patrol)",
+   "woods": "(no patrol)",
+   "river": "(no patrol)",
+   "moor": "(no patrol)",
+   "pines": "(no patrol)",
+   "gorge": "(no patrol)"
+  },
+  "atHome": false,
+  "momentIsDue": false,
+  "collar": null,
+  "opensAfter": {
+   "park": "opens after 2 walks in Cozy Neighborhood · 1/2 so far",
+   "seaside": "opens after 2 walks in City Park · 1/2 so far",
+   "docks": "opens after 2 walks in Seaside · 1/2 so far",
+   "woods": "opens after 2 walks in Cozy Neighborhood · 1/2 so far",
+   "river": "opens after 2 walks in The Woods · 1/2 so far",
+   "moor": "opens after 2 walks in The Woods · 1/2 so far",
+   "pines": "opens after 2 walks in The River and Marshes · 1/2 so far",
+   "gorge": "opens after 2 walks in The Moor · 1/2 so far"
+  },
+  "borderPostToTown": "E — Head to Cozy Neighborhood?",
+  "colonyTab": [
+   "Just you for now",
+   "Noodle",
+   "tabby",
+   "[aria-label] Noodle's trust",
+   "6 of 6 feeds · tamed ✅",
+   "you fed 6",
+   "lives in your den 🏠",
+   "found by you",
+   "Dress Noodle",
+   "[aria-label] Dress Noodle",
+   "nothing",
+   "Bell Collar",
+   "War Paint",
+   "Marmalade",
+   "mainecoon",
+   "[aria-label] Marmalade's trust",
+   "3 of 6 feeds",
+   "you fed 3",
+   "in Cozy Neighborhood",
+   "found by you",
+   "Dress Marmalade",
+   "[aria-label] Dress Marmalade",
+   "nothing",
+   "Bell Collar",
+   "War Paint",
+   "Pickles",
+   "tabby",
+   "[aria-label] Pickles's trust",
+   "1 of 6 feeds",
+   "you fed 1",
+   "in Cozy Neighborhood",
+   "found by you",
+   "Dress Pickles",
+   "[aria-label] Dress Pickles",
+   "nothing",
+   "Bell Collar",
+   "War Paint"
+  ],
+  "places": {
+   "today": "Cozy Neighborhood",
+   "places": [
+    "Cozy Neighborhood",
+    "City Park",
+    "Seaside",
+    "The Old Docks"
+   ],
+   "hasTerritoryMap": false,
+   "sheet": [
+    "Cozy Neighborhood",
+    "today’s walk",
+    "City Park",
+    "tap to walk here",
+    "Seaside",
+    "tap to walk here",
+    "The Old Docks",
+    "tap to walk here"
+   ]
+  },
+  "mapModelCamps": [
+   "Cozy Neighborhood: no camp",
+   "The Woods: no camp",
+   "The Moor: no camp",
+   "The River and Marshes: no camp",
+   "The Pines and Swamp: no camp",
+   "The Gorge: no camp"
+  ],
+  "journalFooter": [
+   "🥇 Golden mice: 0/12"
+  ]
+ }
+}
