@@ -134,7 +134,12 @@ describe(DESCRIBE, () => {
       animateCat(cat, state, t, speed, false);
       cat.updateMatrixWorld(true);
       const want = collar.localToWorld(local.clone()).divideScalar(cat.scale.x);
-      expect(atOf(cat).distanceTo(want), `${state} t ${t} speed ${speed}`).toBeLessThanOrEqual(0.05);
+      // 2026-11-15 (cat realism, the nap): the napping head lies on the paws
+      // in front of the chest, where the throat spot used to be, and the
+      // collar's ring lies behind it. The clasp is pushed out from under the
+      // head (as the sniff and the swim push it out of the chest) and rests
+      // on the paws under the chin, 16 cm from the ring's own throat spot.
+      expect(atOf(cat).distanceTo(want), `${state} t ${t} speed ${speed}`).toBeLessThanOrEqual(state === 'nap' ? 0.17 : 0.05);
     }
   }, 120_000);
 

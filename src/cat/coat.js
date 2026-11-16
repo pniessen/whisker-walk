@@ -48,9 +48,48 @@ export function patchMask(unit, { dir, halfX, halfZ }, toPole = poleFrame(dir)) 
   return Math.max(0, 1 - (e - 1) / PATCH_EDGE);
 }
 
+// COAT DETAIL (cat realism A5, 2026-11-15). Colour only, and only on a coat
+// built with `detail` (model.js: every cat but the four family cats, whose
+// markings are drawn from photos):
+//   * every coat: a slightly darker line along the back (`back` of the base
+//     fur's brightness off, in a soft band `backW` wide about the spine, in
+//     the same angle the tabby's own spine line uses) and a slightly paler
+//     underside (the base fur eased `under` of the way to the belly colour
+//     from `underFrom` down to `underTo`, undeformed unit y). Both are laid on
+//     the base fur, under the stripes and the patches: a calico's patches, a
+//     pointed cat's points and a clan coat's patches are exactly as they were,
+//     and a black cat stays black (its belly is a shade off its coat).
+//   * striped coats: one or two "necklace" bars across the chest (`necklace`
+//     of the way to the stripe colour, at `bars` on the chest ball's own
+//     height, `barW` half-wide, on its front: the ball's rings level with its
+//     centre and 30° under it, so the pale ring between them, where the bib's
+//     middle is, stays the bib's own colour), and barred legs (limbs.js
+//     paintLimb: `legBars` of the way to the stripe colour at `legAt` along
+//     the leg, `legW` half-wide).
+export const COAT_DETAIL = Object.freeze({
+  back: 0.1, backW: 0.14, under: 0.3, underFrom: -0.1, underTo: -0.7,
+  necklace: 0.45, bars: Object.freeze([0, -0.577]), barW: 0.12,
+  legBars: 0.5, legAt: Object.freeze([2 / 9, 4 / 9, 6 / 9]), legW: 0.09,
+});
+// How much of a necklace bar lies at the unit direction `d` from the chest's centre (cat frame).
+export function necklaceMix(d) {
+  const front = Math.min(1, Math.max(0, (-d[2] - 0.1) / 0.3));
+  if (front <= 0) return 0;
+  let bar = 0;
+  for (const at of COAT_DETAIL.bars) bar = Math.max(bar, 1 - Math.abs(d[1] - at) / COAT_DETAIL.barW);
+  return bar <= 0 ? 0 : bar * front * COAT_DETAIL.necklace;
+}
+// The leg bars' share of the stripe colour at curve parameter t (0 hip .. 1 paw).
+export function legBarMix(t) {
+  let bar = 0;
+  for (const at of COAT_DETAIL.legAt) bar = Math.max(bar, 1 - Math.abs(t - at) / COAT_DETAIL.legW);
+  return Math.max(0, bar) * COAT_DETAIL.legBars;
+}
+
 // A STYLE row's coat. Patch `at` points are in the old torso's frame
 // (LEGACY_BODY), where they were authored; `frame` is the row's body factors.
-export function coatFromStyle(s) {
+// `detail`: the coat detail above (off unless asked for).
+export function coatFromStyle(s, { detail = false } = {}) {
   const patches = [];
   if (s.patches) {
     patches.push({ at: [0.12, 0.54, -0.08], halfX: 0.62, halfZ: 0.72, colour: s.accent });
@@ -83,6 +122,7 @@ export function coatFromStyle(s) {
     stripeStrength: s.stripes ? 0.9 : 0,
     patches,
     chest: s.bib ? WHITE_FUR : s.belly,
+    detail: !!detail,
     frame: s.body ?? [1, 1, 1],
   };
 }
@@ -98,17 +138,29 @@ function prepare(coat) {
     const dir = q.at.map((a, i) => (a - LEGACY_BODY.CENTRE[i]) / scale[i]);
     return { dir, halfX: q.halfX, halfZ: q.halfZ, colour: new THREE.Color(q.colour), toPole: poleFrame(dir) };
   });
-  p = { patches, base: new THREE.Color(coat.base), accent: new THREE.Color(coat.accent) };
+  p = { patches, base: new THREE.Color(coat.base), accent: new THREE.Color(coat.accent), belly: new THREE.Color(coat.belly) };
   prepared.set(coat, p);
   return p;
+}
+
+// The base fur `out` (a THREE.Color, changed in place) with the coat detail's
+// paler underside (eased toward `belly`) and darker line along the back at
+// the undeformed unit direction `unit` (COAT_DETAIL).
+export function furDetail(out, belly, unit) {
+  const D = COAT_DETAIL;
+  const k = Math.min(1, Math.max(0, (unit[1] - D.underFrom) / (D.underTo - D.underFrom)));
+  if (k > 0) out.lerp(belly, D.under * k * k * (3 - 2 * k));
+  if (unit[1] > 0) { const a = Math.atan2(unit[0], unit[1]); out.multiplyScalar(1 - D.back * Math.exp(-(a * a) / D.backW)); }
+  return out;
 }
 
 // The colour `coat` paints at the undeformed unit direction `unit` ([x, y, z]):
 // base fur, then the tabby pattern toward `accent`, then each patch in order.
 // paintCoat paints every torso vertex with it; a limb's top blends from it.
 export function coatColourAt(coat, unit, out = new THREE.Color()) {
-  const { patches, base, accent } = prepare(coat);
+  const { patches, base, accent, belly } = prepare(coat);
   out.copy(base);
+  if (coat.detail) furDetail(out, belly, unit);
   if (coat.stripes) out.lerp(accent, tabbyMix(unit[0], unit[1], unit[2]) * coat.stripeStrength);
   for (const p of patches) {
     const m = patchMask(unit, p, p.toPole);
@@ -191,5 +243,11 @@ export function undersideColourAt(coat, bellyHex, unitFromPartCentre, unitOnTors
   const x = Math.min(1, Math.max(0, (cd - band.inner) / (band.outer - band.inner)));
   const t = x * x * (3 - 2 * x);
   coatColourAt(coat, unitOnTorso, out);
-  return t >= 1 ? out : out.lerp(paleC.set(bellyHex), 1 - t);
+  if (t < 1) out.lerp(paleC.set(bellyHex), 1 - t);
+  // a striped coat's necklace bars, across the chest only (COAT_DETAIL)
+  if (coat.detail && coat.stripes && front === UNDER_FRONT.chest) {
+    const m = necklaceMix(unitFromPartCentre);
+    if (m > 0) out.lerp(prepare(coat).accent, m);
+  }
+  return out;
 }

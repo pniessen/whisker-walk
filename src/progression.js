@@ -584,13 +584,23 @@ export function sanitizeTutorial(v, { walked = false, earned = false, homeWalked
   }
   const thing = isPlainObject(v.told) && typeof v.told.thing === 'string'
     && Object.hasOwn(CATALOG.accessories, v.told.thing) && !CATALOG.accessories[v.told.thing].prize ? v.told.thing : null;
-  return {
+  const out = {
     first: Object.hasOwn(v, 'first') && TUTORIAL_FIRST.includes(v.first) ? v.first : firstFor(),
     camp: typeof v.camp === 'boolean' ? v.camp : !!homeWalked,
     hints,
     told: { thing, visits: thing ? Math.min(TOLD_VISITS_MAX, asFiniteNonNegInt(v.told.visits, 0)) : 0 },
   };
+  // Two more, kept only once the guided walk has set them (so a save that
+  // never met a guide has exactly the four fields above):
+  //   guide  the guide cat's name, for the home line of a walk left half way
+  //   gift   the finish gift has been given (a replay gives no second one)
+  if (isStrayName(v.guide)) out.guide = v.guide;
+  if (v.gift === true) out.gift = true;
+  return out;
 }
+
+// The guided first walk's finish gift (design section 3, owner's answer 5).
+export const TUTORIAL_GIFT = 20;
 
 // Total over any payload; ids are checked as own keys of HOMES, so a newer
 // build's clan survives and '__proto__' never does. A partner pick without a
@@ -1646,6 +1656,31 @@ export function createProgression(storage) {
     setTutorialFirst(v) {
       if (!TUTORIAL_FIRST.includes(v) || state.tutorial.first === v) return false;
       state.tutorial.first = v;
+      save();
+      return true;
+    },
+    // The guide cat of the guided first walk, by name (a stray's): the home
+    // line of a walk left half way says who is waiting.
+    setTutorialGuide(name) {
+      if (!isStrayName(name) || state.tutorial.guide === name) return false;
+      state.tutorial.guide = name;
+      save();
+      return true;
+    },
+    // The finish gift: TUTORIAL_GIFT points, once per save. Returns the
+    // points given (0 the second time, so a replay gives no second gift).
+    giveTutorialGift() {
+      if (state.tutorial.gift === true) return 0;
+      state.tutorial.gift = true;
+      state.points += TUTORIAL_GIFT;
+      state.lifetimePoints += TUTORIAL_GIFT;
+      save();
+      return TUTORIAL_GIFT;
+    },
+    // The first camp walk has been shown (or skipped): never again.
+    setTutorialCamp() {
+      if (state.tutorial.camp === true) return false;
+      state.tutorial.camp = true;
       save();
       return true;
     },

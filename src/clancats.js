@@ -243,6 +243,18 @@ export function createClanCats(scene, area, cast, {
     });
   }
 
+  // A led cat's stride, held to clan ground: a step the ground refuses is
+  // tried along each axis alone, then not taken (the buddy's rule). `p` is the
+  // leader's spot (a plain { x, z }, in place), (px, pz) where it stood.
+  const holdStep = (c, p, px, pz) => {
+    if (okStep(px, pz, p.x, p.z)) return p;
+    if (okStep(px, pz, p.x, pz)) { p.z = pz; return p; }
+    if (okStep(px, pz, px, p.z)) { p.x = px; return p; }
+    p.x = px;
+    p.z = pz;
+    return p;
+  };
+
   // The neighbouring kit seat: 0<->1 and 2<->3, so a LOW camp (kits 0 and 1)
   // hops between the same two seats a HIGH one does.
   const neighbourSeat = (i) => kitSeats[i ^ 1] ?? kitSeats[i];
@@ -619,6 +631,41 @@ export function createClanCats(scene, area, cast, {
       return true;
     },
     endBuddy,
+    // Stands a roaming cat at (x, z) for this walk (the first camp walk's
+    // waiting cat, moved onto the way to the camp). Its home stays where it
+    // was, so it walks back there when it is let go. false when the spot is
+    // not clan ground, or the cat keeps the camp. Draws nothing.
+    standAt(cat, x, z, yaw) {
+      if (!cat || !list.includes(cat) || cat.camp || cat.buddy) return false;
+      if (!Number.isFinite(x) || !Number.isFinite(z) || !ok(x, z)) return false;
+      cat.group.position.set(x, G ? G.y(x, z) : cat.home.y, z);
+      if (Number.isFinite(yaw)) cat.group.rotation.y = yaw;
+      cat.target = null;
+      cat.state = 'idle';
+      return true;
+    },
+    // setLead(cat, fn | null): fn(cat, dt, catPos, holdStep) moves a roaming
+    // cat each frame and returns { pose, speed } (the first camp walk's
+    // waiting cat; the leader is handed in, so this module imports nothing
+    // for it). null lets it go: it walks home the way a patrol buddy does.
+    setLead(cat, fn) {
+      if (!cat || !list.includes(cat) || cat.camp || cat.buddy) return false;
+      const was = !!cat.lead;
+      cat.lead = typeof fn === 'function' ? fn : null;
+      if (cat.lead) {
+        cat.target = null;
+        cat.hold = 0;
+        cat.resume = null;
+      } else if (was) {
+        cat.state = 'home';
+        cat.trail = [];
+        cat.skirt = null;
+        cat.lost = false;
+        cat.lostLeg = false;
+        cat.homeTries = 0;
+      }
+      return true;
+    },
     // The paw-on-the-post look: a second's stretch where it stands. Display only.
     markBeside(cat) {
       if (cat?.buddy) cat.buddy.mark = MARK_TIME;
@@ -651,6 +698,15 @@ export function createClanCats(scene, area, cast, {
         }
         if (c.buddy) {
           updateBuddy(c, dt, t);
+          continue;
+        }
+        // A cat that is showing the way to the camp (setLead below): its
+        // leader moves it, on the same ground it roams. Nothing is drawn from
+        // its stream.
+        if (c.lead) {
+          const r = c.lead(c, dt, catPos, holdStep);
+          if (G) c.group.position.y = G.y(c.group.position.x, c.group.position.z);
+          animateCat(c.group, r?.pose ?? 'follow', t, r?.speed ?? 0);
           continue;
         }
         if (c.state === 'greet') {

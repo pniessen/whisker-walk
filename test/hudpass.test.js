@@ -61,7 +61,9 @@ describe('chat hint only on the first three walks', () => {
     expect(walkSrc).toMatch(/const earlyWalk = Object\.values\(state\.walks\)\.reduce\(\(n, w\) => n \+ w, 0\) < TOUCH_HINT_WALKS;\n/);
     expect(walkSrc).toMatch(/session\.chatHintPending = earlyWalk && roomSeed !== undefined;/);
     expect(walkSrc).not.toMatch(/chatHintPending = true/);
-    expect(walkSrc).toContain('touchUI.setLabels?.(earlyWalk)');
+    // 2026-11-15, guided-first-walk design (section 4): a touch button keeps its
+    // word until it has been used twice (ui/buttonwords.js), not for three walks.
+    expect(walkSrc).toContain('touchUI.setLabels?.(buttonUses ? buttonUses.words() : earlyWalk)');
   });
 });
 

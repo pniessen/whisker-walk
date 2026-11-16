@@ -35,7 +35,11 @@ four machines side by side, each running a quarter with `vitest run --shard`,
 then `npm run build`, GitHub Pages, and a check of the live site). It passes
 `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from repository secrets;
 locally they go in a gitignored `.env.local`. `keepalive.yml` pings the
-Supabase project twice a week so the free tier does not pause. Tests run on
+Supabase project twice a week so the free tier does not pause. The ping calls
+the `profiles_by_ids` function with an empty list (it reads and writes
+nothing, and keeps working after v8 Step B closes the tables); it has not yet
+been confirmed against the live database, so run it once by hand from the
+Actions tab after a change to it or to the SQL. Tests run on
 Linux in CI, so float fixtures should compare with a tolerance.
 
 ## How work is done here
@@ -67,6 +71,9 @@ Linux in CI, so float fixtures should compare with a tolerance.
 | `docs/*.sql` | The live Supabase contract: `supabase-setup.sql`, `supabase-colony.sql`, `supabase-v8-hardening.sql`, `supabase-v9-delete.sql` ("Delete my online data"; `supabase-v7-secret-fix.sql` is history; don't run it). The owner runs these in the Supabase SQL editor; do not change one without telling the owner to re-run it. `docs/COLONY-SETUP.md` explains it |
 | `ios/` | The iPhone/iPad app (a WKWebView shell around the bundled web build, Xcode project, Swift tests) and the Node refresh scripts. `ios/README.md` is the guide |
 | `test/` | Vitest suites, about 300 files; `test/fixtures/` holds pinned recordings (re-record only after finding out why one moved) |
+| `docs/PRIVACY.md` | The draft privacy policy (not yet reviewed by a lawyer). It must stay true of the code: if a change alters what the game stores or sends, change this page with it. Its appendix lists the gaps the owner still has to decide on |
+| `CREDITS.md` | Third-party libraries and where every asset comes from. Add a row when a library or an asset file is added. There is no LICENSE file on purpose: the owner has not chosen one |
+| `docs/family/` | Family keepsakes that are not part of the website (the old Clan Edition announcement page, without its gift codes). Nothing here is built or deployed; keep gift codes and personal details out of `public/` |
 | `docs/VISUAL-PASS.md` | Running log of visual and performance passes |
 | `docs/superpowers/` | Specs, plans and handoffs for every wave |
 

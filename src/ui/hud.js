@@ -92,6 +92,9 @@ export function createHud() {
   // fade. Waiting lines (past the cap) queue up behind them, oldest first.
   const liveToasts = [];
   const toastQueue = [];
+  // How many toasts may show at once: MAX_TOASTS, or fewer while a guided
+  // step is open (setToastCap), so its bubble is never buried.
+  let toastCap = MAX_TOASTS;
   // Retire a toast: fade it now, take it out of the DOM after the fade, and
   // let the next waiting line in. Its timers are cleared so they can't fire
   // on a toast already on its way out.
@@ -133,7 +136,7 @@ export function createHud() {
   // full, the oldest unheld shown toast makes room once it has been up 2.5 s
   // (now if it already has, else its ripe timer calls back here then).
   const pumpToasts = () => {
-    while (liveToasts.length < MAX_TOASTS && toastQueue.length) showToast(toastQueue.shift());
+    while (liveToasts.length < toastCap && toastQueue.length) showToast(toastQueue.shift());
     const oldest = liveToasts.find((t) => !t.held);
     if (toastQueue.length && oldest?.ripe) retireToast(oldest);
   };
@@ -251,6 +254,19 @@ export function createHud() {
         chip.textContent = `🟢 ${name}`; // textContent, not innerHTML — names come over the network
         el.appendChild(chip);
       }
+    },
+    // The guided first walk is on this walk (walk.js, from its start to its
+    // end or a skip): #hud wears `lesson-on`, and a keyboard's key strip stays
+    // away, even before the bubble first shows.
+    setLesson(on) {
+      root.classList.toggle('lesson-on', !!on);
+    },
+    // "One toast at a time" while a guided step is open (the guided first
+    // walk): n toasts at most, or null for the usual MAX_TOASTS. Lines past
+    // it wait their turn as always; none is lost.
+    setToastCap(n) {
+      toastCap = Number.isInteger(n) && n >= 1 ? Math.min(n, MAX_TOASTS) : MAX_TOASTS;
+      pumpToasts();
     },
     // Only the first unfinished goal shows its "how" line, so there is one
     // thing to read at a time (guided-first-walk design, section 5).

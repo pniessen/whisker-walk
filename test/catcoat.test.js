@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
-import { tabbyMix, furShade } from '../src/cat/coat.js';
+import { tabbyMix, furShade, furDetail } from '../src/cat/coat.js';
 import { PRESETS, samples, nearest, legacyDir, colourDistance, lum } from './helpers/catfingerprint.js';
 
 // Task 4: the coats are painted into the torso's vertex colours. Every check
@@ -15,11 +15,16 @@ describe('painted coats', () => {
   // that shade: exactly the base on the upper half, at most 0.8 of it right
   // underneath and a little less toward the legs, never under 0.7.
   it('a black cat is exactly its base colour times the baked fur shade everywhere', () => {
-    const base = new THREE.Color(0x2a2a30);
+    // 2026-11-15 (cat realism A5): every coat's base fur now carries a slightly
+    // darker line along the back and a slightly paler underside (coat.js
+    // furDetail), so "its base colour" is the base with that detail. The black
+    // cat stays black: no sample is more than 0.03 from the plain base times the shade.
+    const base = new THREE.Color(0x2a2a30), belly = new THREE.Color(0x3a3a42);
     let top = 0, under = 0;
     for (const { u, c } of samples('black')) {
       const k = furShade(...u);
-      expect(colourDistance(c, base.clone().multiplyScalar(k))).toBeLessThan(1e-6);
+      expect(colourDistance(c, furDetail(base.clone(), belly, u).multiplyScalar(k))).toBeLessThan(1e-6);
+      expect(colourDistance(c, base.clone().multiplyScalar(k))).toBeLessThan(0.03);
       expect(k).toBeGreaterThanOrEqual(0.7);
       expect(k).toBeLessThanOrEqual(1);
       if (u[1] >= -0.05) { expect(k).toBe(1); top++; }
@@ -89,7 +94,8 @@ describe('painted coats', () => {
       expect(colourDistance(at([0.24, 0.42, 0.40]), orange)).toBeLessThan(0.02); // right haunch
       expect(colourDistance(at([-0.24, 0.48, -0.28]), black)).toBeLessThan(0.02); // left shoulder
       const under = nearest(s, [0, -1, 0]);
-      expect(colourDistance(under.c, new THREE.Color(0xf0ead8).multiplyScalar(furShade(...under.u)))).toBeLessThan(0.02); // white (shaded) below
+      // 2026-11-15 (cat realism A5): her white is a touch paler underneath (coat.js furDetail, toward her belly's 0xf8f4e8)
+      expect(colourDistance(under.c, furDetail(new THREE.Color(0xf0ead8), new THREE.Color(0xf8f4e8), under.u).multiplyScalar(furShade(...under.u)))).toBeLessThan(0.02); // white (shaded) below
     });
   }
 

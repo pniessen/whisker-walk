@@ -45,8 +45,12 @@ describe('old-rig pose baseline', () => {
 });
 
 // R1/R2 on the reshaped body, measured against the old rig's baseline.
-// The body offsets animator.js pose() gives these states (stretch bodyY + 0.04, pounce + 0.02).
-const OLD_BODY_OFFSET = { stretch: 0.04, pounce: 0.02 };
+// The body offset animator.js pose() gives this state (pounce + 0.02).
+// 2026-11-15 (cat realism A7): the stretch left this table. It was bodyY + 0.04
+// under a nose-up torso with the front paws in the air; it is now a play bow,
+// the torso pitched nose-down onto its forearms, so its height is no longer
+// the old pose's: its own check is below (the chest low over the ground, never in it).
+const OLD_BODY_OFFSET = { pounce: 0.02 };
 const rise = (b) => buildCat(b).userData.base.legLift - BASELINE[b].legLift;
 describe('poses on the new body (R1, R2)', () => {
   for (const b of PRESETS) for (const s of STATES) {
@@ -60,6 +64,11 @@ describe('poses on the new body (R1, R2)', () => {
         const cat = buildCat(b); animateCat(cat, s, 1.3, 0, false);
         const oldY = LEGACY_BODY.CENTRE[1] + BASELINE[b].legLift + OLD_BODY_OFFSET[s];
         expect(Math.abs(cat.userData.parts.body.position.y - (oldY + rise(b)))).toBeLessThanOrEqual(0.02);
+      } else if (s === 'stretch') {
+        // 2026-11-15 (cat realism A7): the play bow's chest is down by the ground
+        // (2.5-4.5 cm over it on every preset), never in it and never left up in the air.
+        expect(now.torsoMin).toBeGreaterThanOrEqual(0);
+        expect(now.torsoMin).toBeLessThanOrEqual(0.06);
       } else if (STANDING.includes(s)) {
         expect(Math.abs(now.torsoMin - (was.torsoMin + rise(b)))).toBeLessThanOrEqual(0.02); // R1
       } else if (s === 'requestPet' || s === 'perch') {

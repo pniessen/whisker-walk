@@ -2891,6 +2891,77 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
     expect(AWARDS.gift).toBe(10);
   });
 
+  // --- 0. the guided first walk (2026-11-15, guided-first-walk design, section 8)
+  // While its steps are open (session.lesson.open) the first stranger is
+  // friendly: no greet goes badly, no cross cat swats, and the yellow button is
+  // kept for the guide. The moment the lesson is over, everything is as it was.
+  describe('the guided first walk keeps every cat friendly', () => {
+    it('a greet that would have gone badly is an ordinary greet while the lesson is open', () => {
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      h.session.walkStamp = stampFor(s.name, true); // this cat hisses today
+      h.session.lesson = { kind: 'first', open: true };
+      h.greet(s);
+      expect(h.hisses).toEqual([]);
+      expect(h.toasts.some((t) => /hisses/.test(t))).toBe(false);
+      expect(h.toasts.some((t) => t.startsWith(`You met ${s.name}`))).toBe(true);
+      expect(h.progression.hasGrudge(s.name)).toBe(false);
+      expect(s.cross).toBe(false);
+    });
+
+    it('the same greet does go badly once the lesson is over, or on a walk with none', () => {
+      for (const lesson of [null, { kind: 'first', open: false }]) {
+        const h = enemyHarness();
+        const s = h.park(0, 1);
+        h.session.walkStamp = stampFor(s.name, true);
+        h.session.lesson = lesson;
+        h.greet(s);
+        expect(h.hisses).toHaveLength(1);
+        expect(h.progression.hasGrudge(s.name)).toBe(true);
+      }
+    });
+
+    it('a cross cat does not swat a new child during the lesson, and does after it', () => {
+      const name = createStrayCats(scene, AREA, 1, mulberry32(11)).strays[0].name;
+      const h = enemyHarness({ grudges: [name], points: 30 });
+      h.park(0, 0.6);
+      h.session.lesson = { kind: 'first', open: true };
+      h.scan();
+      expect(h.hisses).toEqual([]);
+      expect(h.session.freezeTime).toBe(0);
+      expect(h.progression.state.points).toBe(30);
+      h.session.lesson.open = false;
+      h.scan();
+      expect(h.hisses).toHaveLength(1);
+    });
+
+    it('greeting, feeding, picking up and pouncing each tell the guided walk, and nothing else changes', () => {
+      const heard = [];
+      const off = bus.on('guide:did', (e) => { if (e) heard.push(e.what); });
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      h.session.walkStamp = stampFor(s.name, false);
+      h.greet(s);
+      expect(heard).toEqual(['greet']);
+      if (typeof off === 'function') off();
+    });
+
+    it('the race, the lost kitten and a gift spot do not take the yellow button while the lesson is open', () => {
+      const h = enemyHarness();
+      h.session.race = { promptAt: () => 'E — start the daily zoomies race' };
+      h.session.kittenEnc = { promptAt: () => 'E — comfort the kitten' };
+      h.session.lesson = { kind: 'first', open: true };
+      h.walkTo(40, 40);
+      expect(h.session.prompt).toBe(null);
+      h.session.lesson.open = false;
+      h.scan();
+      expect(h.session.prompt.kind).toBe('kitten');
+      h.session.kittenEnc = null;
+      h.scan();
+      expect(h.session.prompt.kind).toBe('race');
+    });
+  });
+
   // --- 1. the rupture -----------------------------------------------------
 
   describe('the rupture', () => {

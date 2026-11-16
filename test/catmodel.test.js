@@ -215,6 +215,12 @@ describe('cat model: D2 and Digit, from the photos', () => {
         const lowest = (breed, outfit) => {
           const cat = buildCat(breed, outfit);
           animateCat(cat, state, 1.3, 0, false);
+          // 2026-11-15 (cat realism A7): the stretch is a play bow whose torso
+          // pitches steeper on a long-legged cat (0.75 rad on Digit, 0.44 on a
+          // tabby), so the loose box of each turned part (boxOf) reaches a
+          // different depth under two cats that both rest on the ground. In
+          // the stretch the cat's own vertices are measured.
+          if (state === 'stretch') { cat.updateMatrixWorld(true); return new THREE.Box3().setFromObject(cat, true).min.y / cat.scale.x; }
           return boxOf(cat).min.y / cat.scale.x;
         };
         const digit = lowest('digit', acc);
@@ -798,7 +804,15 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     for (const [state, t, speed] of NECK_STATES) {
       const at = `${state} t ${t} speed ${speed}`, r = neckReading(breed, id, state, t, speed);
       expect(r.front.z, `${at}: behind the nose`).toBeGreaterThan(r.nose.min.z);
-      expect(r.front.y, `${at}: below the mouth`).toBeLessThan(r.nose.min.y);
+      // 2026-11-15 (cat realism, the nap): the napping head now lies on the
+      // forepaws, its mouth 2-4 cm over the ground, so nothing worn round the
+      // neck can be both under the mouth and out of the ground. There the
+      // pieces lie between the shoulders and the back of the head instead:
+      // every one at least 10 cm behind the nose's tip (it was 0.4 cm), which
+      // keeps what "below the mouth" was for (nothing held out in front like
+      // a stick in the mouth); out of the ground is test/catrealposes.test.js.
+      if (state === 'nap') expect((r.front.z - r.nose.min.z) / r.k, `${at}: well behind the nose`).toBeGreaterThanOrEqual(0.10);
+      else expect(r.front.y, `${at}: below the mouth`).toBeLessThan(r.nose.min.y);
       expect(r.out, `${at}: nothing more than 10 cm out in front of the chest`).toBeLessThanOrEqual(0.10);
       if (!r.ring) continue;
       expect(r.ring.out, `${at}: the ring within 6 cm of the chest's front`).toBeLessThanOrEqual(0.06);
@@ -1108,14 +1122,15 @@ describe('buildCat with opts.style (a clan coat)', () => {
   // (coat.js furShade), vertex by vertex.
   it('paints the torso from the row (under the baked fur shade), not from the breed', async () => {
     const { CLAN_COATS } = await import('../src/clancast.js');
-    const { furShade } = await import('../src/cat/coat.js');
+    const { furShade, furDetail } = await import('../src/cat/coat.js');
     const row = CLAN_COATS.river[0];
-    const want = new THREE.Color(row.base);
+    const want = new THREE.Color(row.base), belly = new THREE.Color(row.belly);
     const built = buildCat('tabby', undefined, { simple: true, style: row });
     const unit = built.userData.parts.body.geometry.userData.unit;
     const clan = torsoColours(built);
     expect(clan.length).toBeGreaterThan(100);
-    clan.forEach((c, i) => expect(colourDistance(c, want.clone().multiplyScalar(furShade(unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2])))).toBeLessThan(1e-6));
+    // 2026-11-15 (cat realism A5): the row's base fur with the coat detail every coat now has (the row's own belly underneath, a darker back line)
+    clan.forEach((c, i) => { const u = [unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2]]; expect(colourDistance(c, furDetail(want.clone(), belly, u).multiplyScalar(furShade(...u)))).toBeLessThan(1e-6); });
     const tabby = torsoColours(buildCat('tabby', undefined, { simple: true }));
     expect(tabby.some((c) => colourDistance(c, want) > 0.01)).toBe(true);
   });
@@ -1267,7 +1282,12 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
       const p = m.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) {
         const c = drawn(m, i), v = p.getZ(i) / L, u = (k * L + Math.min(L, Math.max(0, p.getZ(i)))) / (5 * L);
-        if (k === 0) expect(colourDistance(c, base), `link 0 v ${v}`).toBeLessThan(1e-6);
+        // 2026-11-15 (cat realism, the tail's root): link 0 is no longer one
+        // plain colour. Its root ball wears the rump's own painted colour (so
+        // it does not show as a disc from behind) and it eases to the plain
+        // coat by its far end, where it meets link 1.
+        if (k === 0 && v >= 1 - 1e-6) expect(colourDistance(c, base), `link 0 v ${v}`).toBeLessThan(1e-6);
+        if (k === 0 && v <= 1e-6) expect(colourDistance(c, base), `link 0 v ${v}: the rump's colour`).toBeGreaterThan(0.01);
         if (k === 1 || k === 2) {
           // every vertex lies on the base-to-ring line, ...
           const t = (c.r - base.r) / (tip.r - base.r);

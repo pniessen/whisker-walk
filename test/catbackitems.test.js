@@ -319,7 +319,11 @@ describe('hoods lie on the neck behind the head (accessories polish Task 3)', ()
   // and at every quarter of the slide in between (fix round 1: one straight
   // morph from end to end sagged 5-8 mm into the coat part way). Every vertex
   // is cast onto the shell from outside; a ray that misses it is counted.
-  const SLIDES = [['follow', 0], ['nap', 1], ['requestPet', 0], ['cross', null], ['follow', 0.25], ['follow', 0.5], ['follow', 0.75]];
+  // 2026-11-15 (cat realism, the nap): the napping head now lies forward on
+  // the paws, away from the hood, so the hood stays where it stands (slide 0;
+  // it slid all the way back, 1, while the head was laid on the shoulders).
+  // It is still out of the head (the test above) and on the coat (here).
+  const SLIDES = [['follow', 0], ['nap', 0], ['requestPet', 0], ['cross', null], ['follow', 0.25], ['follow', 0.5], ['follow', 0.75]];
   it.each([...HOODS.map(([id]) => [id, null]), ['hoodie', 'backpack']])('%s (back %s): the hood rests on the coat all along its slide', (id, back) => {
     for (const breed of ['tabby', 'digit']) {
       const cat = buildCat(breed, { ...BARE, body: id, back });
