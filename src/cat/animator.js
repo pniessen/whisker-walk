@@ -220,7 +220,6 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
   const sitting = (state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds;
-  if (underside) sinkChest(cat.userData.parts.body, underside, !!sitting);
   // The balloons (userData.float, below: floatBalloons) remember their rest
   // here, before fitLongLegs first moves anything; they are written outright
   // every frame, so never restored.
@@ -568,7 +567,7 @@ function dropChest(body, underside) {
 // time and kept (the sit's pitch and scale are the same every time).
 function sinkChest(body, underside, sitting) {
   const ud = underside.userData;
-  if (!!ud.sunk === sitting) return;
+  ud.sunk = sitting;
   const { ranges } = ud;
   if (!ranges?.chest) return;
   const pos = underside.geometry.attributes.position;
@@ -576,7 +575,9 @@ function sinkChest(body, underside, sitting) {
   if (!ud.chestRest) {
     ud.chestRest = spans.map(([from, to]) => pos.array.slice(from * 3, to * 3));
     _c.set(0, -SIT.chestSink, 0).applyQuaternion(_q.copy(body.quaternion).invert()).divide(body.scale).divide(underside.scale);
-    ud.chestSink = _c.toArray();
+    // (not _c.toArray(): growing a fresh array through Vector3.toArray makes that method's store generic for every caller,
+    // and layNeck writes 240 points through it each frame: measured, the whole animator ran twice as slow from then on)
+    ud.chestSink = [_c.x, _c.y, _c.z];
   }
   const [dx, dy, dz] = ud.chestSink, cz = ud.chestCentre[2];
   spans.forEach(([from], s) => {
@@ -590,7 +591,6 @@ function sinkChest(body, underside, sitting) {
     }
   });
   pos.needsUpdate = true;
-  ud.sunk = sitting;
 }
 
 // The collar on the neck, in every pose (accessories polish Task 4; it was
@@ -925,7 +925,10 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   }
   tail.position.z = tail.userData.rootZ ??= tail.position.z; // the stalk moves it (STALK_TAIL)
   const { underside } = cat.userData.parts;
-  if (underside) { underside.scale.set(1, 1, 1); underside.userData.drop = 0; } // the sit flattens and lowers it (SIT.chestDepth, chestDrop)
+  if (underside) {
+    underside.scale.set(1, 1, 1); underside.userData.drop = 0;
+    if (underside.userData.sunk) sinkChest(body, underside, false); // getting up from a sit: the chest's own vertices go back (SIT.chestSink)
+  } // the sit flattens and lowers it (SIT.chestDepth, chestDrop)
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
   // The folds (body refinement Task 5, R1/R3): each leg takes its state's fold
   // (a write only when the fold changes). A rig with folds no longer squashes a
@@ -1111,6 +1114,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // (1 on every other cat, which is left as it was).
       underside.scale.z = SIT.chestDepth;
       underside.userData.drop = SIT.chestDrop;
+      if (!underside.userData.sunk && folds) sinkChest(body, underside, true); // sitting down (SIT.chestSink, chestFlat)
       const k = bsx / TORSO.SCALE[0];
       if (k !== 1) for (const leg of legs) leg.position.x = leg.userData.hipX * k;
       for (let i = 0; i < 2; i++) {

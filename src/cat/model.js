@@ -1240,6 +1240,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   underside.userData.ranges = underside.geometry.userData.ranges;
   underside.userData.chestCentre = underside.geometry.userData.chestCentre;
   underside.userData.neck = underside.geometry.userData.neck; // full builds (neck.js)
+  underside.userData.sunk = false; // the sit's chest (animator.js sinkChest); its rest copy is made the first time she sits
+  underside.userData.chestRest = null;
+  underside.userData.chestSink = null;
   body.add(underside);
 
   // head
