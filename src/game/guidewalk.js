@@ -22,7 +22,7 @@
 
 import * as THREE from 'three';
 import { createTutorial, guidedStart, STEP, AWAY_M } from '../tutorial.js';
-import { createLeader, yawToward, WALK_SPEED, TROT_SPEED, LEAD_NEAR_M } from '../leadwait.js';
+import { createLeader, yawToward, WALK_SPEED, TROT_SPEED } from '../leadwait.js';
 import { findPath, pointAlong, pathLength } from '../pathfind.js';
 import { line } from '../tutorialwords.js';
 import { isWalkableAt } from '../player.js';
@@ -33,6 +33,8 @@ export const CAMP_AHEAD_M = 8;        // the camp walk's cat waits this far alon
 export const CAMP_GIFT = 10;          // points on reaching the camp
 export const CAMP_CHIP_AFTER_S = 120; // the camp bubble shrinks, and the goals come anyway
 const CAMP_HERE_S = 9;                // the arrival line stays this long
+const CAMP_FETCH_M = 3.5;             // the cat is at the camp and the child this far off...
+const CAMP_FETCH_S = 6;               // ...for this long: it goes back for the child
 const TRAIL_EVERY_S = 2.5;            // paw prints are laid again this often
 const TRAIL_AHEAD_M = 7;              // and reach this far ahead of the cat
 const REPLAN_S = 1.5;                 // a cat coming after the child looks again this often
@@ -142,6 +144,13 @@ export function placeCampGuide(clanCats, way, from) {
 // A leading cat trots a little faster than the child's cat walks (its pace is
 // its breed's), so it stays ahead to be followed; it still stops and waits.
 const leadSpeed = (L) => Math.max(TROT_SPEED, (Number.isFinite(L?.pace) ? L.pace : 0) * 1.15);
+
+// How the camp walk's cat leads: to a few steps inside the camp's circle,
+// stopping every few metres like the guide, so the straight line to it is
+// (nearly always) the way it went.
+const campLead = (L) => ({
+  speed: leadSpeed(L), standoff: Math.max(2, (L.camp.r ?? 6) - 2.5), ahead: GUIDE_LEAD_AHEAD_M, near: GUIDE_LEAD_NEAR_M,
+});
 
 // A fixed wobble for the paw prints, so laying them takes nothing from the
 // walk's stream (scent.js standSniff's pattern).
@@ -535,11 +544,11 @@ export function createGuideWalk({
       name: L.cat && session.clanEdition ? L.cat.name : null,
       camp: L.camp,
       wayFrom: (from) => findPath(walkable, session.areaData.bounds, from, L.camp, { canStep, memo }) ?? [{ x: L.camp.x, z: L.camp.z }],
-      accum: FACTS_EVERY_S, trailIn: 0, t: 0, hereFor: 0,
+      accum: FACTS_EVERY_S, trailIn: 0, t: 0, hereFor: 0, waited: 0,
       arrived: false, done: false, chip: false, objective: false,
     };
     if (session.campMarker) session.campMarker.pulse = reduced(session) ? 'still' : 'beat';
-    if (e) e.leadTo(L.camp, { speed: leadSpeed(L), standoff: Math.max(2, (L.camp.r ?? 6) - 2.5) });
+    if (e) e.leadTo(L.camp, campLead(L));
     // One thing at a time: no hint takes the bubble on the way to the camp.
     session.hints?.setBlocked?.(true);
     paint();
@@ -602,9 +611,14 @@ export function createGuideWalk({
       // Left far behind, the cat comes back for the child, then leads again.
       const gap = flat(child, e.leader.pos);
       if (gap > AWAY_M && !e.coming) { e.comeTo(child, { standoff: 3, speed: TROT_SPEED * 1.25 }); rt.relead = true; }
-      if (rt.relead && !e.coming && gap < LEAD_NEAR_M + 0.5) {
+      // She is at the camp and the child is not coming (a ledge or a bank in
+      // between: the straight way to her is not the way): she goes back for
+      // the child and leads the way round again.
+      rt.waited = e.leader.order === 'lead' && e.leader.arrived && gap > CAMP_FETCH_M ? rt.waited + step : 0;
+      if (rt.waited >= CAMP_FETCH_S && !e.coming) { rt.waited = 0; e.comeTo(child, { standoff: 2, speed: TROT_SPEED }); rt.relead = true; }
+      if (rt.relead && !e.coming && gap < GUIDE_LEAD_NEAR_M + 0.6) {
         rt.relead = false;
-        e.leadTo(L.camp, { speed: leadSpeed(L), standoff: Math.max(2, (L.camp.r ?? 6) - 2.5) });
+        e.leadTo(L.camp, campLead(L));
       }
     }
     rt.trailIn -= step;

@@ -502,3 +502,20 @@ describe('the first camp walk, played', () => {
     expect(campHarness({ camp: true }).lesson).toBe(null);
   });
 });
+
+// How walk.js asks (read from its source: a whole walk is too big to build in a test).
+describe('walk.js and the lessons', () => {
+  it('a walk with a room seed is asked for as a room walk, so it is never guided; a first walk with someone else marks the lesson skipped', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    expect(src).toContain('areaId: lessonArea, room: roomSeed !== undefined, resume,');
+    expect(src).toContain("if (session.net && progression.state.tutorial?.first === null) progression.setTutorialFirst('skipped');");
+    // the waiting camp cat is moved only on a solo walk
+    expect(src).toContain('const way = roomSeed === undefined ? findPath(clanWalkable, areaData.bounds, from, camp, { canStep }) : null;');
+    // the goals are rolled as always and only held aside, never in a room
+    expect(src).toContain('const goals = isDen ? null : createGoals(walkRng, areaData);');
+    expect(src).toContain('const holdGoals = !!lesson && !lesson.finished && roomSeed === undefined && !!goals;');
+    // the guided walk's lines stand in place of the goals tile on the summary
+    expect(src).toContain('hasGoals: !!session.goals && !firstLesson');
+  });
+});
