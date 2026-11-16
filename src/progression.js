@@ -32,7 +32,7 @@ import { medicineOrder, deputyOrder } from './clanroles.js';
 import { RANK_KEYS, PREFIXES, CLAN_SUFFIX } from './clanwords.js';
 import { clanTitleFor } from './clannames.js';
 import { phrase } from './clanphrases.js';
-import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEdition } from './edition.js';
+import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEdition, accessoryName } from './edition.js';
 import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
@@ -1539,7 +1539,10 @@ export function createProgression(storage) {
         else state.visitPrizePending = id;
       }
       save();
-      const { name, slot } = CATALOG.accessories[id];
+      // The name as this save's edition shows it everywhere else (2026-11-16:
+      // Legacy's card said the Clan Edition name of the war paint).
+      const { slot } = CATALOG.accessories[id];
+      const name = accessoryName(CATALOG.accessories[id], state.edition);
       return { visits, milestone: { visit: m, index, style, prize: { id, name, slot, isNew } } };
     },
     // wearPendingVisitPrize() → the prize id put on, or null when none was

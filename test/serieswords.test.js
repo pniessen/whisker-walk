@@ -579,8 +579,11 @@ function legacyEdition() {
     prizeNames: Object.fromEntries(Object.keys(CATALOG.accessories)
       .filter((id) => CATALOG.accessories[id].legacyName || CATALOG.accessories[id].name.includes(CLAN_SUFFIX))
       .map((id) => [id, accessoryName(CATALOG.accessories[id], L)])),
-    // the card is handed the catalog's own name, whatever the edition
-    warPaintPrizeCard: htmlText(celebrationHtml({ visit: prizeVisit('warpaint'), style: 'B', prize: { id: 'warpaint', name: warpaint.name, slot: warpaint.slot, isNew: true } }, { petName: 'Mittens' })),
+    // 2026-11-16: the card is handed the name the save's edition uses, as
+    // progression.recordVisit now does (it used to hand the catalog's own name,
+    // so Legacy's card said the Clan Edition name: a bug, fixed on purpose).
+    // This ONE entry was re-recorded: "Mittens got a War Paint. It's already on!"
+    warPaintPrizeCard: htmlText(celebrationHtml({ visit: prizeVisit('warpaint'), style: 'B', prize: { id: 'warpaint', name: accessoryName(warpaint, L), slot: warpaint.slot, isNew: true } }, { petName: 'Mittens' })),
     ownGroupTitle: ownClanTitle(s),
     alliesName: alliesName(s),
     homeWelcome: homeWelcome(CLANS[0], s),
