@@ -86,7 +86,7 @@ describe('the phrase table', () => {
       'chased off', 'ran back to', 'shook it off', 'off together', 'faced down', 'lets you pass', 'won this time',
       'is already facing', 'chased you back', 'leading the way', 'marks it too', 'scent over their mark',
       'scratch your mark into it', 'scented over your mark', 'is on your land', 'blocks your path',
-      'heads back to camp', 'patrol with', 'has wandered in from', 'have noticed you', 'will you join',
+      'heads back to camp', 'patrol with', 'walks the border', 'has wandered in from', 'have noticed you', 'will you join',
       'camp coming soon', 'territory coming soon', 'pick a star name', 'great oak', 'sun-warmed', 'meeting ring',
       'meeting stone', 'War Paint', 'Rear-up Swat', 'Leap and Scratch', 'Rolling Tumble',
     ];

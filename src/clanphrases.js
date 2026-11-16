@@ -72,12 +72,15 @@ const TABLE = Object.freeze({
   'home.welcome': (group) => `Home to ${group}'s land 🏡`,
   'colony.allies': 'allies',
   'map.camp': (group) => `${group} camp`,
+  // the line under today's place when it is a group's territory
+  'place.groupLand': (group) => `${group} land`,
 
   // ---- the star name ---------------------------------------------------------
   'star.pick': 'Or pick a star name',
 
   // ---- a group cat on a walk -------------------------------------------------
   'patrol.prompt': (name) => `E — patrol with ${name}`,
+  'patrol.start': (name) => `${name} walks the border with you 🐾`,
   'patrol.endGood': (name) => `${name} heads back to camp. Good patrol!`,
   'patrol.endShort': (name) => `${name} heads back to camp. A longer patrol next time!`,
   'patrol.award': (name) => `a patrol with ${name}`,

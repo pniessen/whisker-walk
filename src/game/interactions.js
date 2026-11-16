@@ -1709,7 +1709,7 @@ export function createInteractions({
       if (s.clanBuddy || cat.patrolled || !s.clanCats.startBuddy(cat, s.cat)) return;
       cat.patrolled = true;
       s.clanBuddy = cat;
-      hud.toast(`${cat.name} walks the border with you 🐾`);
+      hud.toast(phrase('patrol.start', cat.name));
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'clan-buddy', catId: cat.id, on: true });
     } else if (s.prompt.kind === 'clan-bye') {
       const cat = s.prompt.data;
