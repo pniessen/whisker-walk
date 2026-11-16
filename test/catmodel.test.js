@@ -215,6 +215,12 @@ describe('cat model: D2 and Digit, from the photos', () => {
         const lowest = (breed, outfit) => {
           const cat = buildCat(breed, outfit);
           animateCat(cat, state, 1.3, 0, false);
+          // 2026-11-15 (cat realism A7): the stretch is a play bow whose torso
+          // pitches steeper on a long-legged cat (0.75 rad on Digit, 0.44 on a
+          // tabby), so the loose box of each turned part (boxOf) reaches a
+          // different depth under two cats that both rest on the ground. In
+          // the stretch the cat's own vertices are measured.
+          if (state === 'stretch') { cat.updateMatrixWorld(true); return new THREE.Box3().setFromObject(cat, true).min.y / cat.scale.x; }
           return boxOf(cat).min.y / cat.scale.x;
         };
         const digit = lowest('digit', acc);
@@ -798,7 +804,15 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     for (const [state, t, speed] of NECK_STATES) {
       const at = `${state} t ${t} speed ${speed}`, r = neckReading(breed, id, state, t, speed);
       expect(r.front.z, `${at}: behind the nose`).toBeGreaterThan(r.nose.min.z);
-      expect(r.front.y, `${at}: below the mouth`).toBeLessThan(r.nose.min.y);
+      // 2026-11-15 (cat realism, the nap): the napping head now lies on the
+      // forepaws, its mouth 2-4 cm over the ground, so nothing worn round the
+      // neck can be both under the mouth and out of the ground. There the
+      // pieces lie between the shoulders and the back of the head instead:
+      // every one at least 10 cm behind the nose's tip (it was 0.4 cm), which
+      // keeps what "below the mouth" was for (nothing held out in front like
+      // a stick in the mouth); out of the ground is test/catrealposes.test.js.
+      if (state === 'nap') expect((r.front.z - r.nose.min.z) / r.k, `${at}: well behind the nose`).toBeGreaterThanOrEqual(0.10);
+      else expect(r.front.y, `${at}: below the mouth`).toBeLessThan(r.nose.min.y);
       expect(r.out, `${at}: nothing more than 10 cm out in front of the chest`).toBeLessThanOrEqual(0.10);
       if (!r.ring) continue;
       expect(r.ring.out, `${at}: the ring within 6 cm of the chest's front`).toBeLessThanOrEqual(0.06);

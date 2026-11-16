@@ -117,7 +117,11 @@ describe('createDenCats', () => {
 
   it('a boxed cat, sitting up, shows exactly as much as it used to', () => {
     const now = poseMeasure(buildCat('tabby'), 'requestPet');
-    expect(BOX_SIT_Y + now.torsoMax).toBeCloseTo(-0.2 + BASELINE.tabby.requestPet.torsoMax, 2);
+    // 2026-11-15 (cat realism, the sit's chest): the sitting torso's highest
+    // point was its chest ball, which now lies 3.4 cm lower on the breast
+    // (torso.js SIT.chestSink, chestFlat); the torso itself sits where it did,
+    // so the boxed cat shows as much of itself as before.
+    expect(BOX_SIT_Y + now.torsoMax + 0.0344).toBeCloseTo(-0.2 + BASELINE.tabby.requestPet.torsoMax, 2);
   });
 
   it('builds the full cat model, not the simple rig (a lying cat must read as a cat)', () => {

@@ -254,6 +254,18 @@ export const SIT_TAIL = Object.freeze({
   flick: 0.15, // the tip link's sideways flick, sin(t*2.2)
 });
 
+// The nap's head (cat realism 2026-11-15; cats with folds, Hagrid keeps his).
+// It was held up beside the shoulders with the face tipped to the sky
+// (+0.08, -0.24, +0.14 from where it stands, nose-up 0.55), which with the
+// forearms out in front read as a crouching cat looking up. Now it is down
+// on the forepaws: `head` its offset from where it stands [x, y, z] (the
+// chin 1-2 cm over the paws, forward of the chest so the head and a hood
+// stay out of each other), `rot` its turn: the nose a touch down, the face
+// turned to the cat's left toward the tail's tip (NAP_TAIL), the cheek
+// rolled onto the paws. The body, the folded legs and the wrapped tail are
+// as they were: a true loaf or curl needs new shapes (plan item B11).
+export const NAP = Object.freeze({ head: Object.freeze([-0.02, -0.32, -0.08]), rot: Object.freeze([-0.05, 0.75, 0.18]) });
+
 // polish-pose Task 1 (2026-11-02): the napping tail lies flush and curls
 // round the body, nose to tail (animator.js; cats with folds only, Hagrid's
 // fan rides his body already). Before, the nap lowered and squashed the body

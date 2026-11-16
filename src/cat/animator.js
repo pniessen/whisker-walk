@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG, BOW } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG, BOW, NAP } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { HOOD, slideHoodTo } from './backitems.js';
 import { layCapeTie } from './cape.js';
@@ -94,7 +94,12 @@ const TAIL_SWAY_DAMP = [0, 0.2, 0.6, 0.8, 0.8];
 // 2026-11-15 (cat realism B3, head 8% smaller): the nap's share of the turn
 // 0.15 -> 0.10. The smaller head's nose sits 1-2 mm further back, and at 0.15
 // the bell's front edge came out just ahead of it.
-export const NECK_FIT = { nap: { turn: 0.10, anchor: -0.35 } };
+// 2026-11-15 (cat realism, the nap's head down on the paws, torso.js NAP):
+// anchor -0.35 -> -0.6. The head now lies 8 cm lower, and carried a third of
+// the way to it the streamers went 1.5 cm into the ground; nearer the chest
+// every piece is clear of it again (1.4 cm at the least), the ring lying
+// between the shoulders and the back of the head.
+export const NECK_FIT = { nap: { turn: 0.10, anchor: -0.6 } };
 const NECK_FIT_DEFAULT = { turn: 1, anchor: 0 };
 const HEAD_NECKWEAR = new Set(['swim']);
 
@@ -995,8 +1000,13 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   if (state === 'nap') {
     body.position.y = base.bodyY - 0.1;
     body.scale.set(bsx * 1.12, bsy * 0.73, bsz * 0.89);
-    head.position.set(hx + 0.08, hy - 0.24, hz + 0.14);
-    head.rotation.set(0.55, 0.5, 0);
+    if (folds) {
+      head.position.set(hx + NAP.head[0], hy + NAP.head[1], hz + NAP.head[2]);
+      head.rotation.set(NAP.rot[0], NAP.rot[1], NAP.rot[2]);
+    } else {
+      head.position.set(hx + 0.08, hy - 0.24, hz + 0.14);
+      head.rotation.set(0.55, 0.5, 0);
+    }
     if (!folds) for (const leg of legs) leg.scale.y = 0.25;
     if (folds) {
       // polish-pose Task 1: the tail lies flush on the ground and curls round

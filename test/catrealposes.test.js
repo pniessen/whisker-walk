@@ -220,3 +220,36 @@ describe('stalking, no thigh pokes through the body', () => {
     }
   }, 240_000);
 });
+
+describe('napping, the head is down on the paws', () => {
+  it('the chin rests just over the forepaws, the nose level or down, the face turned to the tail', () => {
+    for (const [breed, simple] of BUILDS) {
+      const cat = pose(make(breed, simple), 'nap');
+      const { head, legs } = cat.userData.parts;
+      const at = label(breed, simple);
+      const paws = Math.max(span(legs[0].userData.paw).max, span(legs[1].userData.paw).max);
+      const chin = span(head.children[0]).min; // the skull's lowest point
+      // It was held 12-13 cm over the paws, the face tipped 0.55 rad to the sky.
+      expect(chin - paws, at).toBeLessThanOrEqual(0.04);
+      expect(chin, at).toBeGreaterThanOrEqual(0.02);
+      expect(head.rotation.x, at).toBeLessThanOrEqual(0);
+      expect(head.rotation.y, at).toBeGreaterThan(0.5);
+      // forward of the front hips, over the paws
+      expect(head.position.z, at).toBeLessThan(legs[0].position.z - 0.1);
+    }
+  });
+  it('nothing worn is in the ground, and the tail still lies wrapped round the cat\'s left', () => {
+    const worn = [{}, { collar: 'bell' }, { collar: 'studded' }, { neck: 'scarf' }, { neck: 'necktie' }, { neck: 'bowtie' }, { neck: 'bandana' }, { neck: 'streamerscarf' },
+      { body: 'cape' }, { body: 'hoodie' }, { back: 'backpack' }, { head: 'tophat', face: 'glasses' }];
+    for (const breed of PRESETS) {
+      for (const acc of worn) {
+        const cat = pose(make(breed, false, acc), 'nap');
+        expect(span(cat).min, `${breed} ${JSON.stringify(acc)}`).toBeGreaterThanOrEqual(-0.001);
+      }
+      const cat = pose(make(breed), 'nap');
+      const tip = cat.userData.parts.tailPivots[4].getWorldPosition(new THREE.Vector3());
+      expect(tip.x, breed).toBeLessThan(-0.15);
+      expect(tip.z, breed).toBeLessThan(cat.userData.parts.tail.position.z - 0.1);
+    }
+  });
+});

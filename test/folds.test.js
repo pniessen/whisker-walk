@@ -64,7 +64,9 @@ const limbOf = (leg) => leg.children[0];
 // (SIT.headDY) to be held high over the chest; was 0.02 and 0.06 for the
 // nose-down torso.
 const DROP = { nap: 0.1, stalk: 0.1, pinned: 0.1, requestPet: 0.065, perch: 0.065, roll: 0 };
-const HEAD_DY = { nap: -0.24, stalk: -0.16, pinned: -0.22, requestPet: 0.09, perch: 0.09, roll: -0.1 };
+// 2026-11-15 (cat realism, the nap): the napping head is down on the forepaws,
+// 0.32 under where it stands (torso.js NAP); it was held up at -0.24.
+const HEAD_DY = { nap: -0.32, stalk: -0.16, pinned: -0.22, requestPet: 0.09, perch: 0.09, roll: -0.1 };
 
 // The poke measure and Task 1's baseline table (T1) live in helpers/catpoke.js.
 const pokes = (cat, state, opts) => pokesOf(cat, (i) => kindOf(state, i) !== 'stand', opts);
