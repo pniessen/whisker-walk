@@ -143,6 +143,14 @@ body.touch-mode .hud-objective:not(.hidden) ~ .hud-hint { top: calc(max(16px, en
     right: max(16px, env(safe-area-inset-right)); width: auto; max-width: none;
   }
 }
+/* A phone at most 480px wide puts the objective pill under the corner map too
+   (the rule is further down): there the bubble steps down under the pill, so
+   the two are never one on top of the other (the first camp walk shows both). */
+@media (max-width: 480px) {
+  body.touch-mode .hud-objective:not(.hidden) ~ .hud-hint:not(.chip) {
+    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 88px);
+  }
+}
 /* ---- The guided walk's bubble and ring (ui/guidebubble.js) ----------------
    The bubble is the hint line above with three things added: key shapes for a
    keyboard (in the picture's place), a second line under the first, and a
@@ -292,6 +300,12 @@ body.touch-mode .hud-toasts {
   width: max-content; max-width: calc(100vw - 32px);
 }
 body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-area-inset-bottom)); }
+/* While the bubble is up the yellow button may wear the ring, whose arrow
+   stands above it: the toasts start above that arrow. (A phone held upright
+   has its toasts at the top instead, see below.) */
+@media (min-width: 481px) {
+  body.touch-mode #hud.hinting:not(.hint-chip):not(.fight-asking):not(.fighting) .hud-toasts { bottom: calc(326px + env(safe-area-inset-bottom)); }
+}
 /* Short (landscape) touch screens: the action cluster sits at the right edge,
    horizontally clear of the centred prompt, so the prompt keeps its old 96px
    and the toasts only need to clear it. 165px keeps a single toast's top at
@@ -340,6 +354,7 @@ body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-ar
    toasts start) they start below it, clear of a bubble of two or three lines. */
 @media (max-width: 480px) and (min-height: 501px) {
   body.touch-mode #hud.hinting:not(.hint-chip) #hud-toasts { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 152px); }
+  body.touch-mode #hud.hinting:not(.hint-chip):has(.hud-objective:not(.hidden)) #hud-toasts { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 196px); }
 }
 /* A phone on its side: the bottom anchors above put the walk toasts mid-screen,
    on the player's cat, for the first seconds of every walk. They go to the top

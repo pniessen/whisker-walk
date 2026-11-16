@@ -138,6 +138,10 @@ export function placeCampGuide(clanCats, way, from) {
   return cat;
 }
 
+// A leading cat trots a little faster than the child's cat walks (its pace is
+// its breed's), so it stays ahead to be followed; it still stops and waits.
+const leadSpeed = (L) => Math.max(TROT_SPEED, (Number.isFinite(L?.pace) ? L.pace : 0) * 1.15);
+
 // A fixed wobble for the paw prints, so laying them takes nothing from the
 // walk's stream (scent.js standSniff's pattern).
 function wobbler() {
@@ -248,9 +252,11 @@ export function createGuideWalk({
     session.hints?.setBlocked?.(true);
     hud.setToastCap?.(1);
   }
-  function switchOn(session) {
+  // `hints` false keeps the hints held back a little longer: at the finish
+  // they wait until the finish line and the way home have been read.
+  function switchOn(session, { hints = true } = {}) {
     session.strayCats?.setCalm?.(false);
-    session.hints?.setBlocked?.(false);
+    if (hints) session.hints?.setBlocked?.(false);
     hud.setToastCap?.(null);
   }
   function showGoals(session) {
@@ -272,6 +278,7 @@ export function createGuideWalk({
     if (L.finished) {
       // A walk picked up again after its finish: only the small last line.
       rt = { kind: 'first', session, L, name, tut: L.tutorial, idle: true };
+      session.hints?.setBlocked?.(false);
       showGoals(session);
       paint();
       return;
@@ -334,7 +341,7 @@ export function createGuideWalk({
     if (!rt.target) return;
     // She stops every few metres and looks back (closer than a leader's usual
     // gap: on a phone a cat six metres off to one side is out of the picture).
-    e.leadTo(rt.target, { speed: rt.slow ? WALK_SPEED : TROT_SPEED, standoff: 1.1, ahead: GUIDE_LEAD_AHEAD_M, near: GUIDE_LEAD_NEAR_M });
+    e.leadTo(rt.target, { speed: rt.slow ? WALK_SPEED : leadSpeed(rt.L), standoff: 1.1, ahead: GUIDE_LEAD_AHEAD_M, near: GUIDE_LEAD_NEAR_M });
   }
 
   function promptOf(session) {
@@ -371,7 +378,7 @@ export function createGuideWalk({
     const { session, L, e } = rt;
     L.open = false;
     L.finished = true;
-    switchOn(session);
+    switchOn(session, { hints: false });
     dropGroundRing();
     progression.setTutorialFirst('done');
     const gift = progression.giveTutorialGift?.() ?? 0;
@@ -436,6 +443,8 @@ export function createGuideWalk({
         finishFirst();
       } else if (fx.t === 'step') {
         if (fx.step > STEP.hello) dropGroundRing();
+        // The last line is a chip now: the hints may have the bubble again.
+        if (fx.step === STEP.free) session.hints?.setBlocked?.(false);
         L.open = rt.tut.open;
         rt.relead = false;
       }
@@ -529,7 +538,9 @@ export function createGuideWalk({
       arrived: false, done: false, chip: false, objective: false,
     };
     if (session.campMarker) session.campMarker.pulse = reduced(session) ? 'still' : 'beat';
-    if (e) e.leadTo(L.camp, { standoff: Math.max(2, (L.camp.r ?? 6) - 2.5) });
+    if (e) e.leadTo(L.camp, { speed: leadSpeed(L), standoff: Math.max(2, (L.camp.r ?? 6) - 2.5) });
+    // One thing at a time: no hint takes the bubble on the way to the camp.
+    session.hints?.setBlocked?.(true);
     paint();
   }
 
@@ -537,6 +548,7 @@ export function createGuideWalk({
     const L = session.lesson;
     if (session.campMarker) delete session.campMarker.pulse;
     if (rt.objective) { hud.setObjective(null); rt.objective = false; }
+    session.hints?.setBlocked?.(false);
     progression.setTutorialCamp?.();
     rt.e?.release();
     showGoals(session);
@@ -581,6 +593,7 @@ export function createGuideWalk({
       // Two minutes of other things: the bubble shrinks and the goals come
       // anyway. The trail and the cat keep pointing.
       rt.chip = true;
+      session.hints?.setBlocked?.(false);
       showGoals(session);
     }
     if (e) {
@@ -589,7 +602,7 @@ export function createGuideWalk({
       if (gap > AWAY_M && !e.coming) { e.comeTo(child, { standoff: 3, speed: TROT_SPEED * 1.25 }); rt.relead = true; }
       if (rt.relead && !e.coming && gap < LEAD_NEAR_M + 0.5) {
         rt.relead = false;
-        e.leadTo(L.camp, { standoff: Math.max(2, (L.camp.r ?? 6) - 2.5) });
+        e.leadTo(L.camp, { speed: leadSpeed(L), standoff: Math.max(2, (L.camp.r ?? 6) - 2.5) });
       }
     }
     rt.trailIn -= step;
@@ -667,14 +680,17 @@ export function createGuideWalk({
 
 // The lesson a walk carries on its session, built by walk.js once the cats
 // exist. null when the walk turns out to have nobody to lead (no stray).
-export function buildFirstLesson(plan, { strayCats, areaData, goals, resume }) {
+export function buildFirstLesson(plan, { strayCats, areaData, goals, resume, pace = 0 }) {
   const stray = placeGuide(strayCats, areaData, {
     name: plan.name,
     near: plan.resumed && resume ? { x: resume.x, z: resume.z } : null,
   });
   if (!stray) return null;
+  // A walk picked up again after the hello: she has been greeted on this walk
+  // already, so the yellow button goes straight on to the fish.
+  if (plan.resumed && plan.did?.hello) stray.greeted = true;
   return {
-    kind: 'first', stray, open: plan.step <= STEP.pounce, resumed: !!plan.resumed,
+    kind: 'first', stray, pace, open: plan.step <= STEP.pounce, resumed: !!plan.resumed,
     // Picked up again after its finish: straight to the small last line.
     tutorial: createTutorial({ step: plan.step >= STEP.finish ? STEP.free : plan.step, did: plan.did }),
     heldGoals: goals, finished: plan.step >= STEP.finish, skipped: false, gift: plan.gift ?? 0,

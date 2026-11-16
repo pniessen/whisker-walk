@@ -1110,14 +1110,14 @@ export function createWalkLifecycle({
     // means no lesson, and an ordinary walk.
     let lesson = null;
     if (lessonPlan?.kind === 'first') {
-      lesson = buildFirstLesson(lessonPlan, { strayCats, areaData, goals: null, resume });
+      lesson = buildFirstLesson(lessonPlan, { strayCats, areaData, goals: null, resume, pace });
     } else if (lessonPlan?.kind === 'camp' && campAt) {
       const camp = { x: campAt.cx, z: campAt.cz, r: DISCS[areaId]?.r ?? 6 };
       const from = resume ? { x: resume.x, z: resume.z } : areaData.spawn;
       const canStep = ground.flat ? null : (ax, az, bx, bz) => ground.canStep(ax, az, bx, bz);
       const way = roomSeed === undefined ? findPath(clanWalkable, areaData.bounds, from, camp, { canStep }) : null;
       lesson = {
-        kind: 'camp', camp, open: false, room: roomSeed !== undefined, walkable: clanWalkable,
+        kind: 'camp', camp, pace, open: false, room: roomSeed !== undefined, walkable: clanWalkable,
         cat: way ? placeCampGuide(clanCats, way, from) : null,
         heading: headingToward(areaData.spawn, camp),
         heldGoals: null, finished: false, skipped: false,

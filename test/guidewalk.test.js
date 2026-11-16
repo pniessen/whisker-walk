@@ -270,7 +270,7 @@ describe('a guided first walk, played', () => {
     expect(calls.popups).toContain('+20 🐾');
     expect(calls.fanfare).toBe(1);
     expect(progression.state.tutorial).toMatchObject({ first: 'done', gift: true });
-    expect(calls.blocked).toEqual([true, false]); // hints back
+    expect(calls.blocked).toEqual([true]);        // hints wait until the finish has been read
     expect(calls.cap).toEqual([1, null]);         // toasts back
     expect(session.goals).toBeTruthy();           // the goals appear
     expect(h.line().text).toBe(`You did it! ${guide.name} is your friend now.`);
@@ -278,6 +278,7 @@ describe('a guided first walk, played', () => {
     expect(h.line()).toMatchObject({ text: 'Tap ⏸ when you want to go home.', ring: 'pause', chip: null });
     h.tick(6.5);
     expect(h.line()).toMatchObject({ text: 'Tap ⏸ when you want to go home.', chip: 'line' });
+    expect(calls.blocked).toEqual([true, false]); // hints back, now the last line is a chip
     h.tick(6);
     expect(guide.lead).toBe(null); // she wanders like any friendly stray
   });
@@ -355,5 +356,33 @@ describe('a guided first walk, played', () => {
     expect(h.calls.blocked).toEqual([]);
     expect(h.calls.guide.every((v) => v === null)).toBe(true);
     expect(CAMP_GIFT).toBe(10);
+  });
+});
+
+describe('a guided walk picked up again', () => {
+  it('after the hello, the guide is the same cat, beside the child, already greeted: the button goes on to the fish', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 8, mulberry32(21), { roomSeed: 5 });
+    const name = cats.strays[3].name;
+    const plan = lessonFor({ tutorial: { first: 'part' }, clanPick: { mine: null } }, {
+      areaId: 'neighborhood', resume: { x: 10, z: 20, guide: { step: STEP.fish, did: { moved: true, hello: true }, name, gift: 0 } },
+    });
+    const lesson = buildFirstLesson(plan, { strayCats: cats, areaData: AREA, goals: null, resume: { x: 10, z: 20 } });
+    expect(lesson.stray.name).toBe(name);
+    expect(lesson.stray.greeted).toBe(true);
+    expect(lesson.tutorial.step).toBe(STEP.fish);
+    expect(lesson.resumed).toBe(true);
+    const p = lesson.stray.group.position;
+    expect(Math.hypot(p.x - 10, p.z - 20)).toBeCloseTo(2.5, 1); // beside the child
+  });
+
+  it('before the hello she is not yet greeted; after the finish only the small last line is left', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 8, mulberry32(21), { roomSeed: 5 });
+    const early = buildFirstLesson({ kind: 'first', step: STEP.hello, did: { moved: true }, name: null, resumed: true }, { strayCats: cats, areaData: AREA, goals: null, resume: { x: 0, z: 40 } });
+    expect(early.stray.greeted).toBe(false);
+    const done = buildFirstLesson({ kind: 'first', step: STEP.home, did: {}, name: null, resumed: true, gift: 20 }, { strayCats: cats, areaData: AREA, goals: null, resume: { x: 0, z: 40 } });
+    expect(done.finished).toBe(true);
+    expect(done.open).toBe(false);
+    expect(done.gift).toBe(20);
+    expect(done.tutorial.view()).toMatchObject({ id: 'guide.home', chip: 'line' });
   });
 });

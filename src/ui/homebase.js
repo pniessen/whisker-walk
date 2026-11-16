@@ -511,6 +511,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           </label>
           ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
+          <div class="settings-row settings-replay">
+            <button type="button" id="set-replay-first" class="secondary">${escapeHtml(tutorialLine('guide.replay'))}</button>
+            ${replayNote ? `<p class="settings-note" id="set-replay-note" role="status">${escapeHtml(tutorialLine('guide.replay-set'))}</p>` : ''}
+          </div>
         </div>
       </section>`;
   }
@@ -534,10 +538,6 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           </label>
           <p class="settings-note" id="set-edition-note">${EDITION_NOTE}</p>
           ${settingsSwitchHtml('set-show-tips', s.showTips !== false, tutorialLine('settings.tips'))}
-          <div class="settings-row settings-replay">
-            <button type="button" id="set-replay-first" class="secondary">${escapeHtml(tutorialLine('guide.replay'))}</button>
-            ${replayNote ? `<p class="settings-note" id="set-replay-note" role="status">${escapeHtml(tutorialLine('guide.replay-set'))}</p>` : ''}
-          </div>
         </div>
         <h3 class="settings-group">Advanced</h3>
         <div class="settings-grid settings-advanced">
