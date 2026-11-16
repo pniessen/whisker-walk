@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG, BOW, NAP } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG, BOW, NAP, GROOM } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { HOOD, slideHoodTo } from './backitems.js';
 import { layCapeTie } from './cape.js';
 import { layNeck } from './neck.js';
-import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
+import { FOLDS, FOLD_BY_STATE, FOLD_LEG, applyFold } from './limbs.js';
 import { isHenFightState, poseHen, syncHenRig } from './henfight.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
@@ -933,7 +933,8 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   // swings the crouched legs at STALK_SWING of the walk's stride); a rig
   // without them (Hagrid) keeps today's lines.
   const f = FOLD_BY_STATE[state];
-  legs.forEach((leg, i) => applyFold(leg, f ? f[i < 2 ? 0 : 1] : 'stand'));
+  const own = FOLD_LEG[state];
+  legs.forEach((leg, i) => applyFold(leg, own?.[i] ?? (f ? f[i < 2 ? 0 : 1] : 'stand')));
   const folds = !!legs[0].userData.folds;
 
   // ear twitches: brief, occasional, alternating
@@ -1066,9 +1067,16 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   }
 
   if (state === 'groom') {
-    head.rotation.set(0.5, 0.65, 0.1);
-    head.position.y = hy - 0.06 + Math.sin(t * 7) * 0.02; // little licks
-    legs[1].rotation.x = -1.15; // raised front paw
+    if (folds) {
+      // The raised paw is the front right leg's own fold (limbs.js FOLDS.lick,
+      // applied above); the head comes down to it (torso.js GROOM).
+      head.rotation.set(GROOM.rot[0], GROOM.rot[1], GROOM.rot[2]);
+      head.position.set(hx, hy + GROOM.head[0] + Math.sin(t * 7) * GROOM.lick, hz + GROOM.head[1]); // little licks
+    } else {
+      head.rotation.set(0.5, 0.65, 0.1);
+      head.position.y = hy - 0.06 + Math.sin(t * 7) * 0.02; // little licks
+      legs[1].rotation.x = -1.15; // raised front paw
+    }
     tail.rotation.x = -0.35 + c;
     for (const p of tailPivots) p.rotation.y = Math.sin(t * 1.6) * 0.12;
     return;

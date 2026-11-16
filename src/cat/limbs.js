@@ -279,6 +279,18 @@ export const FOLDS = Object.freeze({
   // that presses flat on it. `ground`: the points are in the ground frame
   // like a crouch's (y = g - hipY), but the body is not lowered by legLift
   // with them: the hind legs stand, the animator alone places the torso.
+  // The raised grooming paw (cat realism 2026-11-15): one front leg only
+  // (FOLD_LEG). It was the standing leg swung back under the belly, a stub
+  // nobody saw. The upper leg comes down to an elbow just ahead of the chest
+  // and the forearm rises forward to a paw held under the chin, its toes
+  // curled back toward the mouth (pawRotX 2.5: the paw's own up axis points
+  // down the forearm, so the limb's last stretch runs into its heel as a
+  // standing leg's does). Not a crouch: the points ride with the hip, so a
+  // long-legged cat lifts its paw as high under its chin as a tabby does.
+  lick: Object.freeze({
+    crouch: false, drop: 0.045,
+    front: fold([[0.255, 0.06], [0.16, -0.03], [0.204, -0.1355], [0.252, -0.1715]], [0.085, 0.06, 0.042, 0.036], [0.27, -0.17], 2.5),
+  }),
   bow: Object.freeze({
     crouch: false, ground: true, drop: 0.115,
     front: fold([[0.185, 0.05], [0.085, 0.01], [0.05, -0.13], [0.04, -0.24]], [0.085, 0.06, 0.042, 0.036], [0.0415, -0.27]),
@@ -297,6 +309,10 @@ export const FOLD_BY_STATE = Object.freeze({
   roll: Object.freeze(['ball', 'ball']),
   stretch: Object.freeze(['bow', 'stand']),
 });
+
+// One leg's own fold in a state, by leg index (0 front left, 1 front right):
+// grooming raises the front right paw to the mouth.
+export const FOLD_LEG = Object.freeze({ groom: Object.freeze({ 1: 'lick' }) });
 
 // A fold's tube keeps the inside of each bend within FOLD_BEND x its radius
 // of curvature (tubeArrays' `bend`), so a tight knee presses in, not over

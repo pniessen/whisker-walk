@@ -207,6 +207,12 @@ export const POSE_FIT = Object.freeze({
 //     ground at every legLen.
 export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, headDY: 0.09, headDZ: 0.06, chestDepth: 0.75, chestDrop: 0.03, chestSink: 0.03, chestFlat: 0.8, foreZ: -0.06, foreTilt: 0 });
 
+// Grooming (cat realism 2026-11-15): the head comes down and forward to the
+// raised front right paw (limbs.js FOLDS.lick) and turns to it: `head` its
+// offset from where it stands [y, z], `rot` its turn (nose down, the face to
+// the cat's right, a small roll), `lick` the bob of each lick (m).
+export const GROOM = Object.freeze({ head: Object.freeze([-0.1, -0.05]), rot: Object.freeze([-0.3, -0.3, -0.1]), lick: 0.02 });
+
 // The stretch (cat realism A7, 2026-11-15): a play bow. It was a torso tipped
 // nose-UP with the head dropped 24 cm (the pale chest stood up behind the
 // head as a lump) over front legs swung forward in the air. Now the torso

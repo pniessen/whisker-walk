@@ -494,7 +494,8 @@ describe('the fold table', () => {
   it('every fold is in the ground frame, its top inside the lowered body, nothing below the ground', () => {
     // 2026-11-15 (cat realism A7): the stretch is a play bow, its front legs a
     // fold of their own (`bow`: forearms along the ground, the paws pressed on it).
-    expect(Object.keys(FOLDS)).toEqual(['stand', 'sit', 'tuck', 'crouch', 'ball', 'bow']);
+    // The groom's raised paw is a fold too (`lick`, one front leg; limbs.js FOLD_LEG).
+    expect(Object.keys(FOLDS)).toEqual(['stand', 'sit', 'tuck', 'crouch', 'ball', 'lick', 'bow']);
     expect(FOLDS.stand.crouch).toBe(false);
     for (const [kind, f] of Object.entries(FOLDS)) {
       if (kind === 'stand') continue;

@@ -253,3 +253,43 @@ describe('napping, the head is down on the paws', () => {
     }
   });
 });
+
+describe('grooming, the raised paw shows under the chin', () => {
+  it('the front right paw is lifted clear of the ground, ahead of the chest and under the lowered head; the other three stand', () => {
+    for (const [breed, simple] of BUILDS) {
+      const cat = make(breed, simple);
+      const { legs, head, body } = cat.userData.parts;
+      pose(cat, 'follow', 0);
+      const standing = head.position.y;
+      pose(cat, 'groom');
+      const at = label(breed, simple);
+      const paw = new THREE.Box3().setFromObject(legs[1].userData.paw, true);
+      const lift = cat.userData.base.hipY - 0.30; // the hip over the reference rig's
+      // It was swung back under the belly: its paw behind the front hips, hidden by the torso from the side and from above.
+      expect(paw.min.y, at).toBeGreaterThan(0.15 + lift);
+      expect(paw.max.z, at).toBeLessThan(legs[1].position.z - 0.05); // ahead of its own hip
+      expect(paw.max.y, at).toBeLessThan(head.position.y);            // under the head's centre
+      expect(paw.min.z, at).toBeGreaterThan(head.position.z - 0.25);  // not out past the nose
+      expect(head.position.y, at).toBeLessThan(standing - 0.05);      // the head comes down to it
+      expect(head.rotation.x, at).toBeLessThan(0);                    // nose down
+      // not buried: the paw's front is ahead of the torso's own front there
+      const front = new THREE.Box3().setFromObject(body, true).min.z;
+      expect(paw.min.z, at).toBeLessThan(front + 0.02);
+      for (const i of [0, 2, 3]) {
+        const low = span(legs[i]).min;
+        expect(Math.abs(low), `${at} leg ${i}`).toBeLessThanOrEqual(0.005);
+        expect(legs[i].userData.fold, `${at} leg ${i}`).toBe('stand');
+      }
+      expect(legs[1].userData.fold, at).toBe('lick');
+      pose(cat, 'follow', 0);
+      expect(legs[1].userData.fold, at).toBe('stand');
+    }
+  });
+  it('a boot goes up with the paw', () => {
+    for (const feet of ['booties', 'rainboots', 'sneakers', 'socks']) {
+      const cat = pose(make('tabby', false, { feet }), 'groom');
+      const leg = cat.userData.parts.legs[1];
+      expect(span(leg).min, feet).toBeGreaterThan(0.1);
+    }
+  });
+});

@@ -130,6 +130,7 @@ const INVERTED_MAX = {
   // 2026-11-15 (cat realism A7): the stretch's play bow, front legs only (a
   // hind leg asked for it stands, so its ceiling is the standing hind limb's).
   bow: { front: [0, 0], hind: [4, 6] },
+  lick: { front: [0, 0], hind: [4, 6] }, // the groom's raised front paw, as the bow: a hind leg stands
 };
 
 describe('legs fold at the joints (Task 5)', () => {
