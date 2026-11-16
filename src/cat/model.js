@@ -1106,7 +1106,9 @@ function paintPointMask(skull, s) {
   const mask = new THREE.Color(s.accent), back = new THREE.Color(s.accent).lerp(new THREE.Color(s.base), POINT_MASK.back), c = new THREE.Color();
   const r = geo.parameters.radius;
   for (let i = 0; i < p.count; i++) {
-    pointMaskAt(s, p.getX(i), p.getY(i), p.getZ(i), r, c, back, mask);
+    // a snout vertex (realism 3/A2, appended to the sphere) takes the mask's shade of the skull under it
+    const k = r / (Math.hypot(p.getX(i), p.getY(i), p.getZ(i)) || r);
+    pointMaskAt(s, p.getX(i) * k, p.getY(i) * k, p.getZ(i) * k, r, c, back, mask);
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));

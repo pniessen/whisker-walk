@@ -342,8 +342,8 @@ export const EYES = Object.freeze({
   at: [0.083, 0.03], // the right eye's centre from the front (today's spot)
   soft: Object.freeze({ a: 0.039, up: 0.035, down: 0.031, sharp: 0.72, slant: 0.14, pupil: [0.62, 1.2, 0.3], seg: 14 }),
   cat: Object.freeze({ a: 0.036, up: 0.028, down: 0.026, sharp: 0.8, slant: 0.3, pupil: [0.46, 1.08, 0.3], seg: 14 }),
-  rings: Object.freeze([0.42, 0.86]), // the light iris ends, the rim begins (share of the lens)
-  irisIn: 1.22, irisOut: 0.7, rim: 0x16110e,
+  rings: Object.freeze([0.42, 0.88]), // the light iris ends, the rim begins (share of the lens)
+  irisIn: 1.22, irisOut: 0.7, rim: 0x241a14,
   lift: Object.freeze({ centre: 0.004, iris: 0.0022, rim: 0.003, edge: 0.0006, skirt: -0.004 }),
   pupilLift: 0.0032, shine: Object.freeze([-0.012, 0.015, 0.0015]),
 });
