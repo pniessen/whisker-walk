@@ -6,6 +6,8 @@
 //   walkable(x, z)             may a cat stand here?
 //   canStep(ax, az, bx, bz)    may it step from a to b? (a rim on raised
 //                              ground; every step is fine when not given)
+//   memo                       an object the grid's answers are kept on between
+//                              calls over the same map (optional)
 // The list runs from the first point after `from` to the end, with the points
 // in a straight run dropped. A start or an end that is not walkable is moved
 // to the nearest grid point that is. No way at all gives null, and the caller
@@ -13,14 +15,18 @@
 
 const NEIGHBOURS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
-export function findPath(walkable, bounds, from, to, { cell = 1, canStep = null, maxCells = 40000 } = {}) {
+export function findPath(walkable, bounds, from, to, { cell = 1, canStep = null, maxCells = 40000, memo = null } = {}) {
   if (!bounds || !from || !to || typeof walkable !== 'function') return null;
   const w = Math.max(1, Math.floor((bounds.maxX - bounds.minX) / cell) + 1);
   const h = Math.max(1, Math.floor((bounds.maxZ - bounds.minZ) / cell) + 1);
   if (w * h > maxCells) return null;
   const gx = (i) => bounds.minX + i * cell;
   const gz = (j) => bounds.minZ + j * cell;
-  const ok = new Int8Array(w * h); // 0 not asked, 1 yes, -1 no
+  // 0 not asked, 1 yes, -1 no. A caller that asks again and again over the
+  // same map (a cat coming after a child) hands in `memo` to keep the answers.
+  const kept = memo && memo.w === w && memo.h === h && memo.cell === cell ? memo.ok : null;
+  const ok = kept ?? new Int8Array(w * h);
+  if (memo && !kept) { memo.ok = ok; memo.w = w; memo.h = h; memo.cell = cell; }
   const free = (i, j) => {
     if (i < 0 || j < 0 || i >= w || j >= h) return false;
     const k = j * w + i;

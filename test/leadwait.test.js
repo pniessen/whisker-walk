@@ -116,3 +116,17 @@ describe('the way round things', () => {
     expect(pointAlong({ x: 0, z: 0 }, path, 99)).toEqual({ x: 3, z: -4 });
   });
 });
+
+describe('asking the way again and again', () => {
+  it('a memo keeps the map\'s answers, so the second ask does not ask the map again', () => {
+    const bounds = { minX: -20, maxX: 20, minZ: -20, maxZ: 20 };
+    let asked = 0;
+    const walkable = (x, z) => { asked += 1; return Math.hypot(x, z + 8) >= 5; };
+    const memo = {};
+    const first = findPath(walkable, bounds, { x: 0, z: 0 }, { x: 0, z: -16 }, { memo });
+    const cost = asked;
+    const second = findPath(walkable, bounds, { x: 0, z: 0 }, { x: 0, z: -16 }, { memo });
+    expect(second).toEqual(first);
+    expect(asked - cost).toBeLessThan(cost / 2); // only the straight-line checks ask again
+  });
+});
