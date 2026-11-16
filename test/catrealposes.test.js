@@ -4,6 +4,7 @@ import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import { BOW } from '../src/cat/torso.js';
 import { PRESETS } from './helpers/catfingerprint.js';
+import { flankLumps } from './helpers/catflank.js';
 
 // Cat realism, the pose fixes (A7 and the old blemishes, 2026-11-15). One
 // describe per fix; each holds the measure that would have caught the blemish.
@@ -196,4 +197,26 @@ describe('sitting, the chest is drawn into the chest line', () => {
       expect(Array.from(pos.slice(a, b)), label(breed, simple)).toEqual(Array.from(built.slice(a, b)));
     }
   });
+});
+
+// The stalk's thigh through the body. Rounds 1 and 2 (the rump drawn over the
+// thigh tops, torso.js TORSO.SHAPE thigh) already brought it in: measured
+// 2026-11-15, no upper-leg vertex stands more than 0.8 cm out of the flank on
+// any preset (0.1-0.2 cm on a standard cat, 0.5-0.8 cm on the slim Siamese and
+// Digit), still or creeping. folds.test.js holds the tabby and Digit to 1.2 cm;
+// this holds every preset and the kitten to 1 cm.
+describe('stalking, no thigh pokes through the body', () => {
+  const period = (2 * Math.PI) / (4.5 + 1.5 * 1.4); // walkGait's stride at 1.5
+  const poses = [[1.3, 0], ...Array.from({ length: 8 }, (_, k) => [0.2 + (k / 8) * period, 1.5])];
+  it('no upper-leg vertex lies more than 1 cm outside the torso', () => {
+    const builds = [...BUILDS.map(([b, simple]) => [b, simple, {}]), ['calico', false, { kitten: true }]];
+    for (const [breed, simple, opts] of builds) {
+      const cat = make(breed, simple, {}, opts);
+      for (const [t, speed] of poses) {
+        const r = flankLumps(pose(cat, 'stalk', t, speed));
+        expect(r.checked, label(breed, simple)).toBeGreaterThan(100);
+        expect(r.worst, `${label(breed, simple)} t ${t.toFixed(2)} speed ${speed}: ${r.at}`).toBeLessThanOrEqual(0.01);
+      }
+    }
+  }, 240_000);
 });
