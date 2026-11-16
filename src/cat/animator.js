@@ -215,6 +215,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
   const sitting = (state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds;
+  if (underside) sinkChest(cat.userData.parts.body, underside, !!sitting);
   // The balloons (userData.float, below: floatBalloons) remember their rest
   // here, before fitLongLegs first moves anything; they are written outright
   // every frame, so never restored.
@@ -548,6 +549,43 @@ function keepChestUnderHead(body, underside) {
 function dropChest(body, underside) {
   _c.set(0, -underside.userData.drop, 0).applyQuaternion(_q.copy(body.quaternion).invert()).divide(body.scale);
   underside.position.add(_c);
+}
+
+// The sitting chest is drawn into the chest line (torso.js SIT.chestSink,
+// chestFlat; cat realism 2026-11-15). The chest ball's own vertices, and the
+// tufts and ruff that lie on it (the underside's ranges; never the belly or
+// the neck), are written SIT.chestSink lower (straight down in the cat's
+// frame, so S⁻¹·Q⁻¹·(0, -sink, 0) in the body's, over the underside's own
+// scale) and SIT.chestFlat as deep about the chest's centre when the cat sits
+// down, and put back exactly (from a copy kept the first time) when it gets
+// up. A write only when the cat sits down or gets up, as a fold's is; no
+// triangle is added. The offset is worked out from the sitting body the first
+// time and kept (the sit's pitch and scale are the same every time).
+function sinkChest(body, underside, sitting) {
+  const ud = underside.userData;
+  if (!!ud.sunk === sitting) return;
+  const { ranges } = ud;
+  if (!ranges?.chest) return;
+  const pos = underside.geometry.attributes.position;
+  const spans = [ranges.chest, ranges.tufts, ranges.ruff].filter(Boolean);
+  if (!ud.chestRest) {
+    ud.chestRest = spans.map(([from, to]) => pos.array.slice(from * 3, to * 3));
+    _c.set(0, -SIT.chestSink, 0).applyQuaternion(_q.copy(body.quaternion).invert()).divide(body.scale).divide(underside.scale);
+    ud.chestSink = _c.toArray();
+  }
+  const [dx, dy, dz] = ud.chestSink, cz = ud.chestCentre[2];
+  spans.forEach(([from], s) => {
+    const rest = ud.chestRest[s];
+    if (!sitting) { pos.array.set(rest, from * 3); return; }
+    for (let i = 0; i < rest.length; i += 3) {
+      const k = from * 3 + i;
+      pos.array[k] = rest[i] + dx;
+      pos.array[k + 1] = rest[i + 1] + dy;
+      pos.array[k + 2] = cz + (rest[i + 2] - cz) * SIT.chestFlat + dz;
+    }
+  });
+  pos.needsUpdate = true;
+  ud.sunk = sitting;
 }
 
 // The collar on the neck, in every pose (accessories polish Task 4; it was

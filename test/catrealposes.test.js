@@ -154,3 +154,46 @@ describe('landing, the head comes down with the body (A7)', () => {
     }
   });
 });
+
+describe('sitting, the chest is drawn into the chest line', () => {
+  const ray = new THREE.Raycaster();
+  // How far the chest ball's vertices stand out of the torso's own surface, along the ray from the torso's centre.
+  function chestProud(cat) {
+    const { body, underside } = cat.userData.parts;
+    const C = body.getWorldPosition(new THREE.Vector3()), dir = new THREE.Vector3(), from = new THREE.Vector3();
+    const [a, b] = underside.userData.ranges.chest, p = underside.geometry.attributes.position;
+    let worst = -Infinity;
+    for (let i = a; i < b; i++) {
+      _v.fromBufferAttribute(p, i).applyMatrix4(underside.matrixWorld);
+      dir.subVectors(_v, C).normalize();
+      ray.set(from.copy(C).addScaledVector(dir, 2), dir.clone().negate());
+      const hit = ray.intersectObject(body, false)[0];
+      worst = Math.max(worst, _v.distanceTo(C) - (2 - hit.distance));
+    }
+    return worst;
+  }
+  it('the chest ball stands no more than 3.5 cm out of the torso (it stood 7 cm out, a ball with a shelf under it)', () => {
+    for (const [breed, simple] of BUILDS) {
+      for (const state of ['perch', 'requestPet']) {
+        expect(chestProud(pose(make(breed, simple), state)), `${label(breed, simple)} ${state}`).toBeLessThanOrEqual(0.035);
+      }
+    }
+  });
+  it('only the chest, its tufts and the ruff move; getting up puts every vertex back exactly', () => {
+    for (const [breed, simple] of BUILDS) {
+      const cat = make(breed, simple);
+      const { underside } = cat.userData.parts;
+      const { belly, chest } = underside.userData.ranges;
+      const pos = underside.geometry.attributes.position.array;
+      pose(cat, 'follow', 0);
+      const built = pos.slice();
+      pose(cat, 'perch');
+      expect(Array.from(pos.slice(belly[0] * 3, belly[1] * 3)), label(breed, simple)).toEqual(Array.from(built.slice(belly[0] * 3, belly[1] * 3)));
+      expect(pos[chest[0] * 3 + 1]).not.toBe(built[chest[0] * 3 + 1]);
+      pose(cat, 'perch', 2.0); pose(cat, 'requestPet');
+      pose(cat, 'follow', 0);
+      const [a, b] = [0, (underside.userData.ranges.neck?.[0] ?? pos.length / 3) * 3]; // the neck is re-laid every frame
+      expect(Array.from(pos.slice(a, b)), label(breed, simple)).toEqual(Array.from(built.slice(a, b)));
+    }
+  });
+});

@@ -185,6 +185,17 @@ export const POSE_FIT = Object.freeze({
 //     breast. 0.04 and 0.05 let the torso's top poke through between chin and
 //     chest (the Persian's front shot); the neck items still sit on the fur
 //     (catsit.test.js) and the rump on the ground (catsitupright.test.js).
+//   chestSink, chestFlat (cat realism 2026-11-15): the chest still stood out
+//     under the chin as a separate pale ball with a shelf under it. Sitting,
+//     the chest ball alone (with the tufts and the ruff on it; not the belly,
+//     which a lower underside pushed out under the torso, and not the neck) is
+//     lowered chestSink more (m, straight down) and its depth scaled by
+//     chestFlat again about its centre, so its front lies in the line from
+//     the throat to the forelegs and what shows is a bib on the breast. These
+//     are written into the chest's own vertices when the cat sits down and
+//     taken out when it gets up (animator.js sinkChest), so the chest's centre
+//     as the neck line reads it (neckMove) has not moved: the collar, the neck
+//     pieces, the cape's clasp and the neck's skin sit exactly where they did.
 //   foreZ (metres, cat frame, - is forward): both front hips move forward by
 //     this: -0.06, the hips at z -0.30, inside the chest; the paws stand 8.3 cm
 //     behind the chest's front (the upper chest, y 0.46-0.48), as a sitting
@@ -194,7 +205,7 @@ export const POSE_FIT = Object.freeze({
 //     the hip-to-paw line 0.03 rad, Digit's longer leg 0.025). No swing means
 //     fitLongLegs leaves each leg its fitted length, so the soles stay on the
 //     ground at every legLen.
-export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, headDY: 0.09, headDZ: 0.06, chestDepth: 0.75, chestDrop: 0.03, foreZ: -0.06, foreTilt: 0 });
+export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, headDY: 0.09, headDZ: 0.06, chestDepth: 0.75, chestDrop: 0.03, chestSink: 0.03, chestFlat: 0.8, foreZ: -0.06, foreTilt: 0 });
 
 // The stretch (cat realism A7, 2026-11-15): a play bow. It was a torso tipped
 // nose-UP with the head dropped 24 cm (the pale chest stood up behind the
