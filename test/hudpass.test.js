@@ -56,7 +56,10 @@ describe('hud readability pass: CSS', () => {
 
 describe('chat hint only on the first three walks', () => {
   it('walk.js sets chatHintPending from the same walk count as the touch hint', () => {
-    expect(walkSrc).toMatch(/const earlyWalk = Object\.values\(state\.walks\)\.reduce\(\(n, w\) => n \+ w, 0\) < TOUCH_HINT_WALKS;\n\s*session\.chatHintPending = earlyWalk;/);
+    // 2026-11-15, guided-first-walk design (section 4): the chat hint keeps
+    // its walk count and is now shown only in a room (a room walk has a roomSeed).
+    expect(walkSrc).toMatch(/const earlyWalk = Object\.values\(state\.walks\)\.reduce\(\(n, w\) => n \+ w, 0\) < TOUCH_HINT_WALKS;\n/);
+    expect(walkSrc).toMatch(/session\.chatHintPending = earlyWalk && roomSeed !== undefined;/);
     expect(walkSrc).not.toMatch(/chatHintPending = true/);
     expect(walkSrc).toContain('touchUI.setLabels?.(earlyWalk)');
   });

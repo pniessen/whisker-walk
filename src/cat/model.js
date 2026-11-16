@@ -17,7 +17,8 @@ import { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry, capeTieGeometry, lay
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
 import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals, keepFacing, PROPORTION, NECK } from './torso.js';
 import { NECK_RINGS, neckLoops, addNeck, layNeck } from './neck.js';
-import { tuftSeed, tuftPlan, torsoTufts, chestTufts, cheekTufts, tailTufts, earTufts, appendTufts } from './tufts.js';
+import { tuftSeed, tuftPlan, torsoTufts, chestTufts, cheekTufts, tailTufts, appendTufts } from './tufts.js';
+import { FACE, FACE_SEG, EYES, SHELL_EAR, noseGeometry, addSnout, whiskerGeometry, eyeGeometry, eyeFrame, shellEarGeometry, shapeSkull, faceWarp, lensGlow } from './face.js';
 
 const STYLE = {
   // The tabby and zeetoo wear the tabby "M" on the forehead (polish-faces):
@@ -600,6 +601,7 @@ function addPrizeFace(head, id, { k, x, y, z, starZ, skull }) {
         const yaw = Math.atan2(cx / (ax * ax), -sz / (az * az));
         const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.08 * k, 0.012 * k, 0.012 * k), mat(PRIZE_WARPAINT));
         stripe.position.set(side * cx, sy, sz - 0.003 * k);
+        if (k === 1) faceWarp(stripe.position); // the cat's shaped cheek (B5; Hagrid's k is 0.75)
         stripe.rotation.y = -side * yaw;
         stripe.rotation.z = -side * 0.3;
         head.add(stripe);
@@ -1066,7 +1068,11 @@ export function coatColor(breed, look = null) {
 // calico cats keep the pink, and so does a black (dark-faced) cat. The family
 // cats keep the pink they were drawn with from their photos (FAMILY_NOSE).
 const FAMILY_NOSE = new Set(['zeetoo', 'robbie', 'd2', 'digit']);
-export const NOSE = Object.freeze({ brick: 0xb0605a, salmon: 0xe2907e, blue: 0x7c6a74, pointMix: 0.7 });
+// realism 3/A2 (2026-11-15): pointMix 0.7 -> 0.42 and pointRough: a seal
+// point's nose was nearly the colour of its mask and did not show.
+export const NOSE = Object.freeze({ brick: 0xb0605a, salmon: 0xe2907e, blue: 0x7c6a74, pointMix: 0.42, pointRough: 0.5 });
+// The mouth line (A1): the muzzle's own colour taken most of the way to a dark ink.
+export const MOUTH = Object.freeze({ ink: 0x1c1214, mix: 0.72 });
 export function noseHex(s, breed) {
   if (s.nose != null) return s.nose;
   if (FAMILY_NOSE.has(breed)) return INNER_EAR; // breed is null for a style or look row
@@ -1106,7 +1112,9 @@ function paintPointMask(skull, s) {
   const mask = new THREE.Color(s.accent), back = new THREE.Color(s.accent).lerp(new THREE.Color(s.base), POINT_MASK.back), c = new THREE.Color();
   const r = geo.parameters.radius;
   for (let i = 0; i < p.count; i++) {
-    pointMaskAt(s, p.getX(i), p.getY(i), p.getZ(i), r, c, back, mask);
+    // a snout vertex (realism 3/A2, appended to the sphere) takes the mask's shade of the skull under it
+    const k = r / (Math.hypot(p.getX(i), p.getY(i), p.getZ(i)) || r);
+    pointMaskAt(s, p.getX(i) * k, p.getY(i) * k, p.getZ(i) * k, r, c, back, mask);
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -1235,13 +1243,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const SKULL_R = SKULL.R;
   const SKULL_SCALE = SKULL.SCALE;
   const head = new THREE.Group();
-  const skull = ball(SKULL_R, pointColor, ...SKULL_SCALE);
-  if (s.points) paintPointMask(skull, s);
-  // The cheek ruff (tufts.js), on the skull as built: its radius and scale are
-  // read here. (Not skull.scale.toArray(): a first call of Vector3.toArray on a
-  // plain array, before the neck's per-frame calls on typed arrays, doubled
-  // animateCat's time on a full cat, 14 -> 27 µs, measured 2026-11-15.)
-  appendTufts(skull.geometry, cheekTufts(s, tufts.plan, tufts.seed, skullColourAt, skull.geometry.parameters.radius, [skull.scale.x, skull.scale.y, skull.scale.z]));
+  // realism 3/A3: the detailed cat's skull, pads, eyes and pupils are finer
+  // (face.js FACE_SEG); a crowd cat's are as they were.
+  const skull = opts.simple ? ball(SKULL_R, pointColor, ...SKULL_SCALE) : ball(SKULL_R, pointColor, ...SKULL_SCALE, ...FACE_SEG.skull);
+  shapeSkull(skull.geometry, SKULL_SCALE); // B5: nothing unless FACE.profile is picked
   head.add(skull);
   // cat-beauty B2: on a full build (which has the cheek balls) the muzzle is
   // a cat's: two round WHISKER PADS meeting under the nose (the cheek balls,
@@ -1255,10 +1260,38 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const muzzle = ball(MUZZLE_R, faceHex(s), ...MUZZLE_SCALE);
   muzzle.position.set(...MUZZLE_CENTRE);
   head.add(muzzle);
-  const nose = ball(0.024, noseHex(s, opts.style || opts.look != null ? null : breed), 1, 0.8, 0.8, 6, 5);
-  nose.position.set(0, -0.02, -0.245);
-  if (PADS) { nose.position.set(...CAT_MUZZLE.noseAt); nose.scale.set(...CAT_MUZZLE.noseScale); }
+  const noseColour = noseHex(s, opts.style || opts.look != null ? null : breed);
+  let nose;
+  if (PADS) {
+    // realism 3/A1+A2: the nose leather lies flat on a short snout, with the
+    // mouth under it, all one mesh in the nose's material (face.js
+    // noseGeometry): the same one mesh, geometry and material as the ball.
+    const padHalf = CAT_MUZZLE.padScale.map((k) => 0.065 * k), chinHalf = CAT_MUZZLE.chinScale.map((k) => MUZZLE_R * k);
+    const lip = new THREE.Color(faceHex(s)), muzzleShape = { padAt: CAT_MUZZLE.padAt, padHalf, chinAt: CAT_MUZZLE.chinAt, chinHalf };
+    nose = new THREE.Mesh(noseGeometry({
+      muzzle: muzzleShape, at: CAT_MUZZLE.noseAt, nose: new THREE.Color(noseColour), mouth: lip.clone().lerp(new THREE.Color(MOUTH.ink), MOUTH.mix),
+    }), litMaterial(noseColour, { vertexColors: true }));
+    // the snout the leather lies on is the skull's own fur (appended to its
+    // geometry, in its vertex colours; a pointed cat's mask is painted next)
+    addSnout(skull.geometry, SKULL_SCALE, { muzzle: muzzleShape, fur: new THREE.Color(s.cow ? s.belly : pointColor), lip, skull: new THREE.Color(pointColor), blaze: !!s.cow });
+    skull.material.vertexColors = true;
+    nose.position.set(...CAT_MUZZLE.noseAt);
+    // A2: a pointed cat's leather has a little shine, so it shows on the mask
+    if (s.points && s.nose == null) nose.material.roughness = NOSE.pointRough;
+  } else {
+    nose = ball(0.024, noseColour, 1, 0.8, 0.8, 6, 5);
+    nose.position.set(0, -0.02, -0.245);
+  }
   nose.userData.nose = true;   // tests find the nose by this, not by child order
+  // The cheek ruff (tufts.js), on the skull as built: its radius and scale are
+  // read here, after the snout and before a pointed cat's mask is painted over
+  // all of it. Its colours are the skull's own (1: the vertex colours multiply
+  // the skull's material). (Not skull.scale.toArray(): a first call of
+  // Vector3.toArray on a plain array, before the neck's per-frame calls on
+  // typed arrays, doubled animateCat's time on a full cat, 14 -> 27 µs,
+  // measured 2026-11-15.)
+  appendTufts(skull.geometry, cheekTufts(s, tufts.plan, tufts.seed, (x, y, z, c) => c.setRGB(1, 1, 1), skull.geometry.parameters.radius, [skull.scale.x, skull.scale.y, skull.scale.z]));
+  if (s.points) paintPointMask(skull, s);
   head.add(nose);
   // `ears` grows the cone in its geometry (the animator writes ear rotation, so
   // the mesh transform is not ours to scale) and lifts it by half the added
@@ -1269,19 +1302,34 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const eyes = [], pupils = [], shines = [], cheeks = [];
   for (const side of [-1, 1]) {
     if (!opts.simple) {
-      const cheek = ball(0.065, faceHex(s), 1, 0.9, 0.8, 8, 6);
+      const cheek = ball(0.065, faceHex(s), 1, 0.9, 0.8, ...FACE_SEG.pad);
       cheek.userData.cheek = true;
       cheek.position.set(side * 0.085, -0.07, -0.14);
       cheek.position.set(side * CAT_MUZZLE.padAt[0], CAT_MUZZLE.padAt[1], CAT_MUZZLE.padAt[2]);
       cheek.scale.set(...CAT_MUZZLE.padScale);
       head.add(cheek);
     }
-    const ear = new THREE.Mesh(earGeometry(0.075 * EARS, earH * EARS), litMaterial(pointColor, { vertexColors: true }));
-    appendTufts(ear.geometry, earTufts(tufts.plan, tufts.seed, ear.geometry, side, 0.85)); // a long-furred cat's ear tips (tufts.js)
+    // B6 (an option, face.js FACE.ears): the shell ear carries its own pink
+    // hollow, so it has no inner-ear mesh (two draw calls fewer).
+    const shell = FACE.ears === 'shell';
+    const ear = shell
+      ? new THREE.Mesh(shellEarGeometry(0.075 * EARS, (s.tufts ? 0.165 : 0.15) * EARS, {
+        simple: opts.simple, tuft: tufts.plan.ears, // not under a hat (tufts.js tuftPlan)
+        backShade: EAR_BACK_SHADE,
+        pink: [0, 1, 2].map((i) => new THREE.Color(INNER_EAR).toArray()[i] / Math.max(new THREE.Color(pointColor).toArray()[i], 1e-3)),
+      }), litMaterial(pointColor, { vertexColors: true }))
+      : new THREE.Mesh(earGeometry(0.075 * EARS, earH * EARS), litMaterial(pointColor, { vertexColors: true }));
     ear.position.set(side * 0.12, 0.18 + earLift, 0.01);
     ear.rotation.z = -side * 0.22;
+    if (shell) {
+      ear.position.set(side * SHELL_EAR.at[0], SHELL_EAR.at[1] + (0.15 * (EARS - 1)) / 2, SHELL_EAR.at[2]);
+      ear.rotation.set(-SHELL_EAR.tip, -side * SHELL_EAR.yaw, -side * 0.22);
+      // the inner ear's mesh, geometry and material are not made: draw their
+      // uuids' random numbers all the same, so seeded worlds do not move
+      if (!opts.simple) for (let i = 0; i < 12; i++) Math.random();
+    }
     head.add(ear);
-    if (!opts.simple) {
+    if (!opts.simple && !shell) {
       // cat-beauty A6: the inner ear rides its ear. It was the head's child,
       // so every twitch, flick and fear/anger pin turned the ear and left the
       // pink cone standing on its own beside it. The same place at rest: the
@@ -1297,20 +1345,39 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     if (side === -1) head.userData.earL = ear;
     else head.userData.earR = ear;
 
-    const eye = ball(0.036, s.eyeColor ?? EYE_COLORS[breed] ?? 0x4e9440, 1, 1.15, 0.7, 8, 6);
+    // B4 (an option, face.js FACE.eyes): 'soft' and 'cat' are an almond lens
+    // laid on the face, with pupil and catchlight on it. A crowd cat keeps
+    // today's eyes. A3: today's ball is finer on the detailed cat.
+    const eyeKind = opts.simple ? 'today' : FACE.eyes;
+    const eyeHex = s.eyeColor ?? EYE_COLORS[breed] ?? 0x4e9440;
+    const lens = eyeKind === 'today' ? null : eyeFrame(side, eyeKind);
+    const eye = lens
+      ? new THREE.Mesh(eyeGeometry(side, eyeKind, new THREE.Color(eyeHex)), litMaterial(eyeHex, { vertexColors: true }))
+      : opts.simple ? ball(0.036, eyeHex, 1, 1.15, 0.7, 8, 6) : ball(0.036, eyeHex, 1, 1.15, 0.7, ...FACE_SEG.eye);
     eye.position.set(side * 0.083, 0.03, -0.165);
+    if (lens) { eye.position.copy(lens.at); eye.quaternion.copy(lens.turn); }
+    eye.userData.eye = true;
     head.add(eye);
     // Polish 1a, Task 5: the pupil and the shine sit on the eye rather than
     // out in front of it (they were at z -0.19 and -0.195), so from the side
     // the far eye's pupil and shine no longer poke out of the head's outline.
     // The eye itself is where it was.
-    const pupil = ball(0.017, 0x1a1a1e, 0.7, 1.2, 0.6, 6, 5);
+    const pupil = opts.simple ? ball(0.017, 0x1a1a1e, 0.7, 1.2, 0.6, 6, 5) : ball(0.017, 0x1a1a1e, 0.7, 1.2, 0.6, ...FACE_SEG.pupil);
     pupil.position.set(side * 0.083, 0.03, EYE_PUPIL_Z);
+    if (lens) {
+      // on the lens, upright (the pupil does not take the eye's slant)
+      pupil.scale.set(...EYES[eyeKind].pupil);
+      pupil.position.copy(lens.at).addScaledVector(lens.n, EYES.pupilLift);
+      pupil.quaternion.copy(lens.flat);
+    }
+    pupil.userData.pupil = true;
     head.add(pupil);
     pupils.push(pupil);
     if (!opts.simple) {
       const shine = ball(0.007, 0xffffff, 1, 1, 1, 4, 3);
       shine.position.set(side * 0.07, 0.048, EYE_SHINE_Z);
+      if (lens) shine.position.set(side * EYES.shine[0], EYES.shine[1], -EYES.shine[2]).applyQuaternion(lens.flat).add(lens.at);
+      shine.userData.shine = true;
       head.add(shine);
       shines.push(shine);
     }
@@ -1329,6 +1396,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       e.material.emissive.copy(e.material.color);
       e.material.emissiveIntensity = DARK_FACE.EYE_GLOW;
       e.material.roughness = DARK_FACE.EYE_ROUGH;
+      if (e.material.vertexColors) lensGlow(e.material); // B4: the rim does not glow
     }
     for (const sh of shines) {
       sh.scale.setScalar(DARK_FACE.SHINE_SCALE);
@@ -1351,18 +1419,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const whiskers = [];
   if (!opts.simple) {
     const whiskerMat = new THREE.LineBasicMaterial({ color: 0xf8f8f8, transparent: true, opacity: 0.45 });
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < 3; i++) {
-        const y = -0.05 - i * 0.018;
-        const geo = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(side * 0.07, y, -0.19),
-          new THREE.Vector3(side * WHISKER_REACH, y + (i - 1) * 0.03, -0.235),
-        ]);
-        const w = new THREE.Line(geo, whiskerMat);
-        head.add(w);
-        whiskers.push(w);
-      }
-    }
+    // realism 3/A6: four whiskers a side that fan and curve, and two short
+    // ones over each eye, as ONE LineSegments (face.js whiskerGeometry): one
+    // draw call where there were six. The six lines' geometries and objects
+    // are no longer made, so their uuids' random numbers (4 each) are drawn
+    // here instead: every seeded world builds exactly as it did.
+    const w = new THREE.LineSegments(whiskerGeometry(WHISKER_REACH), whiskerMat);
+    head.add(w);
+    whiskers.push(w);
+    for (let i = 0; i < 40; i++) Math.random();
   }
   head.position.set(HEAD.POS[0], HEAD.POS[1], HEAD.POS[2] * PROPORTION.body);
   head.scale.setScalar(HEAD.SCALE * PROPORTION.head);
@@ -1619,6 +1684,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   for (const [host, { r, byColour }] of queued) {
     for (const [colour, patches] of byColour) addMarking(host, r, colour, patches);
   }
+  // B5: the skull's markings lie on its shaped front (nothing unless picked)
+  if (FACE.profile !== 'today') for (const m of skull.children) if (m.isMesh) shapeSkull(m.geometry, SKULL_SCALE, false);
 
   // accessories — head/g-parented so they track poses; every item here is
   // added BEFORE the final g.scale.setScalar(s.scale) below, so all of its

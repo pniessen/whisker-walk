@@ -21,7 +21,8 @@ function face(cat) {
     head,
     skull: head.children[0],
     muzzle: balls.find((m) => radius(m) === 0.09),
-    eyes: balls.filter((m) => radius(m) === 0.036),
+    // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): the eyes are lenses now, found by their tag (they were the 0.036 balls)
+    eyes: head.children.filter((c) => c.userData.eye),
     shines: balls.filter((m) => radius(m) === 0.007),
     nose: head.children.find((c) => c.userData.nose),
   };
@@ -45,8 +46,8 @@ describe('the tabby M', () => {
       const marks = skull.children.filter((c) => c.isMesh);
       expect(marks).toHaveLength(1);
       expect(marks[0].material.color.getHex()).toBe(hex(catStyle(breed).accent).getHex());
-      expect(meshCount(buildCat(breed))).toBe(31);
-      expect(triangles(buildCat(breed))).toBeLessThanOrEqual(9450); // 2026-11-15 (cat realism B7): 9,000 -> 9,450 (+5%, inside the plan's 15% allowance) for the fur tufts; a striped long-haired builder cat is the largest, 9,330 (9,386 scarred)
+      expect(meshCount(buildCat(breed))).toBe(29); // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): 31 -> 29, a shell ear has no inner-ear mesh
+      expect(triangles(buildCat(breed))).toBeLessThanOrEqual(10350); // 2026-11-15, realism 3/A3: 9,000 -> 10,350, the owner's +15% for the detailed cat (rounder head, eyes and pads, the snout and mouth: about +860); the crowd cap stays
       expect(triangles(buildCat(breed, undefined, { simple: true }))).toBeLessThanOrEqual(5500);
     }
   });
@@ -84,6 +85,7 @@ describe("the black cat's face", () => {
   });
 
   it('its eyes stand out: contrast 6 or more against the coat, with a glow of their own', () => {
+    expect(black().eyes).toHaveLength(2);
     for (const eye of black().eyes) {
       expect(contrast(eye.material.color, base)).toBeGreaterThanOrEqual(6);
       expect(eye.material.emissiveIntensity).toBeGreaterThan(0);
@@ -116,10 +118,10 @@ describe("the black cat's face", () => {
   });
 
   it('the face adds no mesh (draw calls) and no triangles', () => {
-    expect(meshCount(buildCat('black'))).toBe(30);
+    expect(meshCount(buildCat('black'))).toBe(28); // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): 30 -> 28, a shell ear has no inner-ear mesh
     const plain = buildCat('black', undefined, { style: { ...catStyle('black'), faceSheen: false } });
     expect(triangles(buildCat('black'))).toBe(triangles(plain));
-    expect(meshCount(plain)).toBe(30);
+    expect(meshCount(plain)).toBe(28);
   });
 
   it("Robbie's face is unchanged: matte muzzle in his belly white", () => {
@@ -160,7 +162,9 @@ describe('nose leather by coat', () => {
   });
   it('other coats follow their genetics: brick tabby, seal-point Siamese, salmon ginger tabby, blue-grey (GaleClan grey); pale coats stay pink', async () => {
     expect(noseOf('tabby')).toBe(0xb0605a);
-    expect(noseOf('siamese')).toBe(new THREE.Color(PINK).lerp(new THREE.Color(0x4a3b32), 0.7).getHex());
+    // 2026-11-15, realism 3/A2: 0.7 -> 0.42 of the way to the point colour. At 0.7 the seal
+    // point's nose was nearly its mask's colour and did not show (the audit's "Siamese nose").
+    expect(noseOf('siamese')).toBe(new THREE.Color(PINK).lerp(new THREE.Color(0x4a3b32), 0.42).getHex());
     expect(noseOf('tabby', look('ginger', 'chocolate', 'stripes'))).toBe(0xe2907e);
     const { CLAN_COATS } = await import('../src/clancast.js');
     expect(noseOf('tabby', { simple: true, style: CLAN_COATS.moor[0] })).toBe(0x7c6a74);

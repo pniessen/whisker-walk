@@ -8,14 +8,14 @@ import { coatColourAt, undersideColourAt } from './coat.js';
 // strip of fur lying along the coat or hanging from it, its far edge cut into
 // a few uneven lobes, the clumps fur gathers into; neighbouring lobes share
 // their base, so a band reads as a layer of fur with a soft broken edge, not
-// as separate spikes. The bib's fringe and the ear tips are single LOCKS
-// (addLock), short tapered clumps. Every root is sunk under the surface it
+// as separate spikes. The bib's fringe is single LOCKS (addLock), short
+// tapered clumps. Every root is sunk under the surface it
 // grows from and wears that surface's normal and colour, so the light and
 // the markings flow from the coat onto the fur.
 //
 // No transparency, no texture and no new object: everything is written into
 // the arrays of a mesh the cat already has (the torso, the underside, the
-// skull, the tail's links, the ears), so a cat costs exactly the draw calls
+// skull, the tail's links), so a cat costs exactly the draw calls
 // it did, and the fur rides its part in every pose for nothing. Nothing here
 // is re-fitted per frame: no fur grows from the neck's skin or from a leg
 // (both are re-laid when the cat moves); the mane grows from the shoulders
@@ -27,12 +27,13 @@ import { coatColourAt, undersideColourAt } from './coat.js';
 //               under the belly and a brushy tail tip. Still a sleek cat.
 //   long hair   a mane down each side of the neck's base (ahead of the
 //               shoulder blade, where a shoulder scar lies), a fuller cheek
-//               ruff, trousers, a belly skirt, a bushier tail outline and,
-//               where the row has `tufts` (the Maine Coon, a builder's long
-//               fur), ear tips. `fluffy` (D2, a builder's fluffy fur) is the
+//               ruff, trousers, a belly skirt and a bushier tail outline (a
+//               row with `tufts` also has ear tips, built into the ear by
+//               face.js; `ears` in the plan leaves them out under a hat).
+//               `fluffy` (D2, a builder's fluffy fur) is the
 //               same set, shorter.
 //   a kitten    short, even fuzz: cheeks, neck, breast, britches, tail.
-// A simple build (the crowd) gets a lighter set of the same.
+// A simple build (the crowd) gets a lighter set of the same, without the skirt.
 //
 // Outfits (worked out once, when the cat is built; buildCat is run again when
 // she changes clothes): a coat, sweater or hoodie covers the torso, so all
@@ -99,7 +100,9 @@ export function tuftPlan(s, acc = {}, { simple = false, kitten = false } = {}) {
     chest: !shell && !cape && !acc.neck,
     cheeks: true, cheekShort: neckwear,
     // a cape's hem hangs over the tail's first links: a plume's fur starts past it
-    tail: true, tailFrom: cape ? 2 : 1,
+    // (and past the first link in any case: it lies against the rump, and the
+    // merged cat's triangle cap is tight)
+    tail: true, tailFrom: 2,
     ears: !!s.tufts && !acc.head,
   };
 }
@@ -256,9 +259,6 @@ function along(d, n, lift = 0) {
   const t = norm([d[0] - n[0] * k, d[1] - n[1] * k, d[2] - n[2] * k]);
   return lift ? norm([t[0] + n[0] * lift, t[1] + n[1] * lift, t[2] + n[2] * lift]) : t;
 }
-// One lock's own jitter: its length, sideways curl and lean.
-const jitter = (rand) => ({ len: 0.82 + 0.36 * rand(), bend: (rand() - 0.5) * 0.36, turn: (rand() - 0.5) * 0.3 });
-
 // ---------------------------------------------------------------------------
 // THE TORSO'S FUR: the mane (long fur), the trousers or britches, the belly
 // skirt or line. In the torso mesh's own frame (before the body's scale `bs`),
@@ -351,11 +351,15 @@ export function torsoTufts(s, coat, bs, plan, seed, lowPoses = []) {
   }
   if (plan.trousers) {
     both((side) => band(through(TROUSERS.path, side), () => [TROUSERS.dir[0] * side, TROUSERS.dir[1], TROUSERS.dir[2]],
-      TROUSERS.lobes, long ? per : 2, size.len * TROUSERS.len, long ? TROUSERS.mid : 0.01, { hang: true }));
+      // the crowd's short-haired cats: one lobe (Digit's simple build with two scars sits at its 5,500 cap)
+      plan.simple && !long ? 1 : TROUSERS.lobes, long ? per : 2, size.len * TROUSERS.len, long ? TROUSERS.mid : 0.01, { hang: true }));
   }
-  if (plan.skirt && long) {
+  // Trimmed for the merged cat's triangle cap (2026-11-15, with realism 3's
+  // face): the skirt, the least seen band, is two steps a lobe, and a crowd
+  // cat has none.
+  if (plan.skirt && long && !plan.simple) {
     both((side) => band(through(SKIRT.path, side), () => [SKIRT.dir[0] * side, SKIRT.dir[1], SKIRT.dir[2]],
-      plan.simple ? 2 : SKIRT.lobes, per, size.len * SKIRT.len, SKIRT.mid, { hang: true }));
+      SKIRT.lobes, 2, size.len * SKIRT.len, SKIRT.mid, { hang: true }));
   } else if (plan.skirt && !plan.simple && plan.kind !== 'kitten') {
     // short fur: a slight broken line under the belly
     both((side) => band(through(SKIRT.path, side), () => [SKIRT.dir[0] * side, SKIRT.dir[1], SKIRT.dir[2]], 2, 2, size.len * 0.8, 0.006, { hang: true }));
@@ -502,27 +506,6 @@ export function tailTufts(s, plan, seed, i, plume, radius, colourAt, lying = [])
     const len = bushy ? size.len * 0.6 : Math.min(size.len, 0.03);
     addBand(out, stations, { len: len * kLen, mid: (bushy ? 0.012 : 0.004) * kUp, sink: bushy ? 0.01 : 0.004,  colourAt: (j, k, into) => { const col = stations[j].col; into[0] = col[0]; into[1] = col[1]; into[2] = col[2]; } });
   }
-  return out;
-}
-
-// ---------------------------------------------------------------------------
-// THE EAR TIPS (a row with `tufts`): one small lock standing on from each
-// ear's tip, lynx-style. In the ear's own frame; the tip is read from the
-// ear's geometry `geo` (its highest vertex), so the lock follows the ear's
-// shape. `side` -1 the cat's left; the ear's flat face is to the front (-z).
-export function earTufts(plan, seed, geo, side, shade) {
-  const out = newOut();
-  if (!plan.ears) return out;
-  const p = geo.attributes.position;
-  let top = 0;
-  for (let i = 1; i < p.count; i++) if (p.getY(i) > p.getY(top)) top = i;
-  const rand = mulberry32(seed ^ (side > 0 ? 0x3c6ef372 : 0x9e3779b9));
-  const v = jitter(rand);
-  const col = [shade, shade, shade];
-  addLock(out, [p.getX(top), p.getY(top) - 0.022, p.getZ(top) + 0.004], [0, 0, 1], norm([side * 0.18 + v.turn * 0.3, 1, 0.12]), {
-    len: 0.05 * v.len, width: 0.022, rise: 0.08, droop: 0, bend: v.bend * 0.6, rings: 2, closed: true, sink: 0, thick: 0.25,
-    colourAt: (t, into) => { into[0] = col[0]; into[1] = col[1]; into[2] = col[2]; },
-  });
   return out;
 }
 

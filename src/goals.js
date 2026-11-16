@@ -1,15 +1,20 @@
+// Titles and "how" keys: guided-first-walk design, section 5 (2026-11-15). The
+// title is the short line the HUD and the finished-goal toast read; `how`
+// names the one sentence in tutorialwords.js that says how to do it, shown
+// under the first unfinished goal only. Ids, types and targets are unchanged,
+// and so is the order (createGoals draws by index).
 export const GOAL_POOL = [
-  { id: 'spot-critters', text: 'Spot 4 critters', type: 'critter', target: 4 },
-  { id: 'collect', text: 'Collect 2 treasures', type: 'collectible', target: 2 },
-  { id: 'tip-things', text: 'Tip 3 things over', type: 'mischief', target: 3 },
-  { id: 'greet-cats', text: 'Greet 3 cats', type: 'friend', target: 3 },
-  { id: 'take-photos', text: 'Take 2 photos', type: 'photo', target: 2 },
-  { id: 'get-scratches', text: 'Get head scratches', type: 'pet', target: 1 },
-  { id: 'yarn-play', text: 'Have a yarn play session', type: 'play', target: 1 },
-  { id: 'dig-treasure', text: 'Dig up a buried treasure', type: 'treasure', target: 1 },
-  { id: 'box-sit', text: 'Sit in a box', type: 'sits', target: 1 },
-  { id: 'scenic-spots', text: 'Visit 2 scenic spots', type: 'scenic', target: 2 },
-  { id: 'pounce-play', text: 'Pounce-tag 2 critters', type: 'hunt', target: 2 },
+  { id: 'spot-critters', text: 'Spot 4 animals', how: 'how.spot-critters', type: 'critter', target: 4 },
+  { id: 'collect', text: 'Pick up 2 treasures', how: 'how.collect', type: 'collectible', target: 2 },
+  { id: 'tip-things', text: 'Knock 3 things over', how: 'how.tip-things', type: 'mischief', target: 3 },
+  { id: 'greet-cats', text: 'Say hello to 3 cats', how: 'how.greet-cats', type: 'friend', target: 3 },
+  { id: 'take-photos', text: 'Take 2 photos', how: 'how.take-photos', type: 'photo', target: 2 },
+  { id: 'get-scratches', text: 'Get a head scratch', how: 'how.get-scratches', type: 'pet', target: 1 },
+  { id: 'yarn-play', text: 'Play with your yarn', how: 'how.yarn-play', type: 'play', target: 1 },
+  { id: 'dig-treasure', text: 'Dig up a treasure', how: 'how.dig-treasure', type: 'treasure', target: 1 },
+  { id: 'box-sit', text: 'Sit in a box', how: 'how.box-sit', type: 'sits', target: 1 },
+  { id: 'scenic-spots', text: 'Visit 2 special places', how: 'how.scenic-spots', type: 'scenic', target: 2 },
+  { id: 'pounce-play', text: 'Pounce on 2 animals', how: 'how.pounce-play', type: 'hunt', target: 2 },
 ];
 
 // goalFits(goal, areaData) → false when the area itself has nothing that

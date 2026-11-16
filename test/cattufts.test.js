@@ -6,7 +6,7 @@ import { TUFT, tuftPlan, tuftSeed, furKind, lobeReach } from '../src/cat/tufts.j
 import { TORSO, torsoSurface } from '../src/cat/torso.js';
 import { SCAR_LAYOUT } from '../src/cat/scarmesh.js';
 import { mulberry32 } from '../src/rng.js';
-import { PRESETS, meshCount } from './helpers/catfingerprint.js';
+import { PRESETS, meshCount, triangles } from './helpers/catfingerprint.js';
 
 // Cat realism round 2, B7 (2026-11-15): fur tufts (src/cat/tufts.js). Locks and
 // lobed bands of fur written into meshes the cat already has.
@@ -56,10 +56,10 @@ describe('fur tufts (cat realism B7)', () => {
     expect(draws(() => buildCat('calico', undefined, { kitten: true }))).toBe(DRAWS['calico|0']);
   });
 
-  it('adds no mesh: the tufts are in the torso, the underside, the skull, the tail links and the ears', () => {
+  it('adds no mesh: the tufts are in the torso, the underside, the skull and the tail links', () => {
     for (const b of PRESETS) {
-      const cat = buildCat(b), { body, underside, head, tailPivots, earL, earR } = cat.userData.parts;
-      const hosts = new Set([body, underside, head.children[0], earL, earR, ...tailPivots.map((p) => p.children[0])]);
+      const cat = buildCat(b), { body, underside, head, tailPivots } = cat.userData.parts;
+      const hosts = new Set([body, underside, head.children[0], ...tailPivots.map((p) => p.children[0])]);
       for (const [mesh] of tufted(cat)) expect(hosts.has(mesh), `${b}: ${mesh.name || mesh.uuid}`).toBe(true);
       expect(body.geometry.userData.tufts, b).toBeTruthy();
       expect(head.children[0].geometry.userData.tufts, b).toBeTruthy();
@@ -86,6 +86,27 @@ describe('fur tufts (cat realism B7)', () => {
       expect(simple, `${b} simple`).toBeLessThanOrEqual(250);
     }
     expect(allTuftTris(buildCat('calico', undefined, { kitten: true }))).toBeLessThanOrEqual(200);
+  });
+
+  // The merged cat (realism 2's fur on realism 3's face): the detailed cat's cap
+  // is 10,350, the owner's whole +15% over 9,000, and may not rise again; the
+  // crowd's stays 5,500. The worst cases wear two scars: D2 among the presets
+  // (9,988), a striped long-haired builder cat over all (10,328); Digit's simple
+  // build is the crowd's (5,480).
+  it('every cat with two scars fits under the triangle caps: 10,350 detailed, 5,500 simple', () => {
+    const scars = [{ site: 'face', stage: 'full', side: 'l' }, { site: 'shoulder', stage: 'full', side: 'r' }];
+    let worst = 0, worstSimple = 0;
+    const check = (label, breed, opts) => {
+      const full = triangles(buildCat(breed, undefined, { ...opts, scars })), simple = triangles(buildCat(breed, undefined, { ...opts, scars, simple: true }));
+      expect(full, label).toBeLessThanOrEqual(10350);
+      expect(simple, `${label} simple`).toBeLessThanOrEqual(5500);
+      worst = Math.max(worst, full); worstSimple = Math.max(worstSimple, simple);
+    };
+    for (const b of PRESETS) check(b, b, {});
+    for (const fur of ['short', 'fluffy', 'long']) for (const pattern of ['solid', 'stripes', 'points', 'patches', 'socks']) check(`${pattern} ${fur}`, 'tabby', { look: LOOK(fur, pattern) });
+    expect(triangles(buildCat('d2', undefined, { scars }))).toBeLessThanOrEqual(10000);
+    expect(worst).toBe(triangles(buildCat('tabby', undefined, { look: LOOK('long', 'stripes'), scars })));
+    expect(worstSimple).toBeLessThanOrEqual(5480);
   });
 
   it('long fur is longer than fluffy fur, and that longer than short; a kitten has her own', () => {
@@ -179,12 +200,15 @@ describe('fur tufts (cat realism B7)', () => {
       expect(buildCat('tabby', { ...BARE }).userData.parts.underside.userData.ranges.tufts).toBeDefined();
       expect(buildCat('tabby', { ...BARE, collar: 'bell' }).userData.parts.underside.userData.ranges.tufts).toBeDefined();
     });
-    it('a hat covers the ear tips: a Maine Coon\'s ear tufts are left out under one', () => {
-      const ears = (cat) => tuftTris(cat.userData.parts.earL) + tuftTris(cat.userData.parts.earR);
-      expect(ears(buildCat('mainecoon'))).toBeGreaterThan(0);
-      expect(ears(buildCat('mainecoon', { ...BARE, head: 'beanie' }))).toBe(0);
-      expect(ears(buildCat('persian'))).toBe(0); // no `tufts` on her row
-      expect(ears(buildCat('tabby'))).toBe(0);
+    it('a hat covers the ear tips: a Maine Coon\'s ear tufts (face.js, built into the ear) are left out under one', () => {
+      // the ear's height: a tufted ear stands taller by its tip
+      const top = (cat) => { const g = cat.userData.parts.earL.geometry; g.computeBoundingBox(); return g.boundingBox.max.y; };
+      expect(tuftPlan(catStyle('mainecoon'), { ...BARE }).ears).toBe(true);
+      expect(tuftPlan(catStyle('mainecoon'), { ...BARE, head: 'beanie' }).ears).toBe(false);
+      expect(tuftPlan(catStyle('persian'), { ...BARE }).ears).toBe(false); // no `tufts` on her row
+      expect(top(buildCat('mainecoon', { ...BARE }))).toBeGreaterThan(top(buildCat('mainecoon', { ...BARE, head: 'beanie' })) + 0.005);
+      // one set of ear tips only: nothing of tufts.js is on an ear
+      for (const b of PRESETS) for (const ear of ['earL', 'earR']) expect(buildCat(b).userData.parts[ear].geometry.userData.tufts, b).toBeUndefined();
     });
     it('boots, socks and glasses change nothing: no fur grows on a paw or at the eyes', () => {
       for (const acc of [{ feet: 'rainboots' }, { feet: 'socks' }, { face: 'glasses' }]) {
@@ -231,6 +255,24 @@ describe('fur tufts (cat realism B7)', () => {
         }
       }
     });
+  });
+
+  // On realism 3's face: the cheek ruff keeps to the side of the head, behind
+  // the eyes and the whiskers' roots (both at head z -0.16 and further forward).
+  it('the cheek ruff stays clear of the eyes and the whiskers\' roots', () => {
+    const v = new THREE.Vector3();
+    for (const b of PRESETS) for (const acc of [{}, { collar: 'bell' }]) {
+      const cat = buildCat(b, { ...BARE, ...acc }), { head } = cat.userData.parts, skull = head.children[0];
+      const t = skull.geometry.userData.tufts, p = skull.geometry.attributes.position;
+      const eyes = head.userData.eyes.eyes.map((e) => e.position);
+      expect(eyes).toHaveLength(2);
+      for (let i = t.start; i < t.start + t.count; i++) {
+        v.fromBufferAttribute(p, i).multiply(skull.scale); // head frame
+        expect(v.z, `${b} vertex ${i}`).toBeGreaterThan(-0.12);
+        for (const e of eyes) expect(v.distanceTo(e), `${b} vertex ${i}`).toBeGreaterThan(0.07); // an eye is under 0.045 from its centre to its rim
+        expect(Math.abs(v.x), `${b} vertex ${i}`).toBeGreaterThan(0.1); // the whiskers leave the pads at |x| 0.07
+      }
+    }
   });
 
   it('hanging fur stays off the ground where the body rests on it, and a lying tail\'s fur off the ground too', () => {

@@ -1,6 +1,7 @@
 import { describe, it, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createHud, discoveryText, MAX_TOASTS, MIN_SHOWN_MS, MAX_QUEUED_TOASTS } from '../src/ui/hud.js';
+import { createHud, discoveryText, goalHowHtml, MAX_TOASTS, MIN_SHOWN_MS, MAX_QUEUED_TOASTS } from '../src/ui/hud.js';
+import { createGoals, GOAL_POOL } from '../src/goals.js';
 import { toastLifeMs } from '../src/ui/toastlife.js';
 import { bus } from '../src/events.js';
 
@@ -208,7 +209,8 @@ describe('the discovery toast', () => {
 
 describe('discovery lead words (polish-hud2)', () => {
   it('goals, the race finish, the jackpot and duo goals read as their own lines', () => {
-    expect(discoveryText({ type: 'goal', label: 'goal complete: Spot 4 critters' })).toBe('Goal complete: Spot 4 critters');
+    // 2026-11-15, guided-first-walk design (section 5): the goal's new title.
+    expect(discoveryText({ type: 'goal', label: 'goal complete: Spot 4 animals' })).toBe('Goal complete: Spot 4 animals');
     expect(discoveryText({ type: 'goal', label: 'the daily zoomies race' })).toBe('You finished the daily zoomies race');
     expect(discoveryText({ type: 'goal', label: 'the climb to the clifftop' })).toBe('You finished the climb to the clifftop');
     expect(discoveryText({ type: 'jackpot', label: 'ALL GOALS COMPLETE! 🎯' })).toBe('ALL GOALS COMPLETE! 🎯');
@@ -224,8 +226,8 @@ describe('discovery lead words (polish-hud2)', () => {
     try {
       const hud = createHud();
       const toast = vi.spyOn(hud, 'toast');
-      bus.emit('discovery', { type: 'goal', key: 'goal-1', label: 'goal complete: Spot 4 critters', points: 15, repeat: false });
-      expect(toast).toHaveBeenLastCalledWith('Goal complete: Spot 4 critters', 15);
+      bus.emit('discovery', { type: 'goal', key: 'goal-1', label: 'goal complete: Spot 4 animals', points: 15, repeat: false });
+      expect(toast).toHaveBeenLastCalledWith('Goal complete: Spot 4 animals', 15);
       bus.emit('discovery', { type: 'duogoal', key: 'd', label: 'a goal completed TOGETHER! 🤝', points: 10, repeat: false });
       expect(toast).toHaveBeenLastCalledWith('A goal completed TOGETHER! 🤝', 10);
     } finally {
@@ -687,5 +689,84 @@ describe('a tapped toast stays', () => {
     const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
     expect(css).toContain('.toast { pointer-events: auto; cursor: pointer; }');
     expect(css).toContain('.toast.fade { pointer-events: none; }');
+  });
+});
+
+// 2026-11-15, guided-first-walk design (section 5): a goal's "how" line, under
+// the first unfinished goal only.
+describe('the goals\' how line', () => {
+  const goalsEl = () => byId.get('hud-goals');
+  const three = () => ['collect', 'box-sit', 'take-photos'].map((id) => ({ ...GOAL_POOL.find((g) => g.id === id), progress: 0, done: false }));
+
+  it('only the first unfinished goal shows how', () => {
+    const hud = createHud();
+    const goals = three();
+    hud.setGoals(goals);
+    let html = goalsEl().innerHTML;
+    expect(html.match(/class="goal-how"/g)).toHaveLength(1);
+    expect(html).toContain('○ Pick up 2 treasures — 0/2</div><div class="goal-how">');
+    expect(html).toContain('<span class="how-keys">Find something shiny. Press E.</span><span class="how-touch">Find something shiny. Tap the button.</span>');
+    goals[0].done = true;
+    hud.setGoals(goals);
+    html = goalsEl().innerHTML;
+    expect(html.match(/class="goal-how"/g)).toHaveLength(1);
+    expect(html).toContain('○ Sit in a box</div><div class="goal-how">Walk into a cardboard box and stop.</div>');
+    expect(html).not.toContain('Find something shiny');
+    for (const g of goals) g.done = true;
+    hud.setGoals(goals);
+    expect(goalsEl().innerHTML).not.toContain('goal-how');
+  });
+
+  it('each goal line itself is unchanged: mark, title, count', () => {
+    const hud = createHud();
+    const goals = three();
+    goals[2].progress = 1;
+    hud.setGoals(goals);
+    expect(goalsEl().innerHTML).toContain('<div class="goal ">○ Take 2 photos — 1/2</div>');
+    hud.setGoals(null);
+    expect(goalsEl().cls.has('hidden')).toBe(true);
+  });
+
+  it('a goal with no how line (a duo goal) gets none', () => {
+    expect(goalHowHtml({ id: 'duo-greet', text: 'Together: greet 5 cats' })).toBe('');
+    expect(goalHowHtml({ how: '__proto__' })).toBe('');
+    expect(goalHowHtml(null)).toBe('');
+  });
+
+  it('the goals a walk rolls carry their how key', () => {
+    const g = createGoals(() => 0.1).goals;
+    for (const goal of g) expect(goalHowHtml(goal)).toContain('class="goal-how"');
+  });
+});
+
+// 2026-11-15, guided-first-walk design (section 4): the hint line.
+describe('setHint', () => {
+  const el = () => byId.get('hud-hint');
+  it('shows one line with its picture, as text, and puts it away', () => {
+    const hud = createHud();
+    expect(el().cls.has('hidden')).toBe(true);
+    hud.setHint('<b>Biscuit</b> is shy. Hold Shift to creep.', '🐾');
+    expect(el().cls.has('hidden')).toBe(false);
+    expect(byId.get('hud-hint-text').textContent).toBe('<b>Biscuit</b> is shy. Hold Shift to creep.'); // textContent: never markup
+    expect(byId.get('hud-hint-pic').textContent).toBe('🐾');
+    hud.setHint(null);
+    expect(el().cls.has('hidden')).toBe(true);
+  });
+
+  it('writes the DOM only when the line changes', () => {
+    const hud = createHud();
+    hud.setHint('Tap the paw to jump up.', '🐾');
+    const writes = byId.get('hud-hint-text').writes;
+    hud.setHint('Tap the paw to jump up.', '🐾');
+    expect(byId.get('hud-hint-text').writes).toBe(writes);
+  });
+});
+
+describe('the hint line is announced politely and is never a button', () => {
+  it('createHud draws it as a polite live region', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../src/ui/hud.js', import.meta.url), 'utf8');
+    expect(src).toContain('<div class="hud-hint hidden" id="hud-hint" role="status" aria-live="polite">');
+    expect(src).not.toMatch(/<button[^>]*hud-hint/);
   });
 });

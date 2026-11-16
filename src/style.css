@@ -98,6 +98,51 @@ body.touch-mode .hud-area { font-size: 0.82rem; padding: 2px 8px; }
 .goal { padding: 1px 5px; border-radius: 6px; overflow-wrap: anywhere; }
 /* A finished goal: its check mark, the green text and a green tint behind. */
 .goal.done { color: #7ee2a0; background: rgba(126,226,160,0.16); }
+/* The first unfinished goal's "how" line (guided-first-walk design, section
+   5): smaller, indented under its goal. Both forms are drawn; the page's
+   touch mode shows one. */
+.goal-how { padding: 0 5px 2px 22px; font-size: 13px; line-height: 1.3; opacity: 0.92; overflow-wrap: anywhere; }
+.goal-how .how-touch { display: none; }
+body.touch-mode .goal-how .how-keys { display: none; }
+body.touch-mode .goal-how .how-touch { display: inline; }
+/* The hint line (hud.setHint): one sentence, dark on cream, 18px, never a
+   button. Desktop: bottom-centre, in the place of the key strip, which steps
+   aside while a hint is up. Touch: full width under the top row and the
+   corner map (on a phone the goals step aside for it). It does not move or
+   pulse, so it is the same with reduced motion. */
+.hud-hint {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  width: max-content; max-width: min(560px, calc(100vw - 32px));
+  background: #fff6e2; color: #3a2a10; border: 2px solid #e6c98f; border-radius: 16px;
+  padding: 9px 16px; font-size: 18px; line-height: 1.3; font-weight: 600;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.3); z-index: 2;
+}
+.hud-hint-pic { font-size: 22px; flex: none; }
+.hud-hint-pic:empty { display: none; }
+#hud.hinting .hud-controls { visibility: hidden; }
+/* Touch, wide (a tablet, a phone on its side): centred in the band left of
+   the corner map, under the top row; a quest or race line pushes it down. */
+body.touch-mode .hud-hint {
+  bottom: auto; top: calc(max(16px, env(safe-area-inset-top)) + 48px);
+  /* clear of the goals (300px wide at most) on its left */
+  left: calc(max(16px, env(safe-area-inset-left)) + 312px);
+  right: calc(max(16px, env(safe-area-inset-right)) + var(--map-size) + 12px);
+  transform: none; margin: 0 auto; width: fit-content; max-width: 460px;
+}
+body.touch-mode .hud-objective:not(.hidden) ~ .hud-hint { top: calc(max(16px, env(safe-area-inset-top)) + 96px); }
+/* Narrower than that leaves no room beside the goals: they step aside. */
+@media (max-width: 900px) {
+  body.touch-mode #hud.hinting .hud-goals { display: none; }
+  body.touch-mode .hud-hint { left: max(16px, env(safe-area-inset-left)); }
+}
+/* A phone held upright: full width, under the corner map and its caption. */
+@media (max-width: 600px) {
+  body.touch-mode .hud-hint, body.touch-mode .hud-objective:not(.hidden) ~ .hud-hint {
+    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 44px);
+    right: max(16px, env(safe-area-inset-right)); width: auto; max-width: none;
+  }
+}
 /* Desktop: the interact prompt (.hud-prompt, bottom 96px, ~40px tall) tops out
    near 136px, so a toast's bottom edge sits at 146px, ~10px clear of it. While
    the fight challenge pill is up (two 48px buttons, ~100px tall, same bottom
@@ -1666,6 +1711,25 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
 .hb-places .nudge { animation: hb-nudge .4s ease-in-out; transform-box: fill-box; }
 @media (prefers-reduced-motion: reduce) { .hb-places .nudge { animation: none; } }
+/* Today's walk card wobbles the same way when the first pick (or the "next
+   thing" line) changes the place. */
+.dr-today-card.nudge { animation: hb-nudge .4s ease-in-out; }
+@media (prefers-reduced-motion: reduce) { .dr-today-card.nudge { animation: none; } }
+/* The "next thing" line (ui/nextthing.js): one line in a soft band just above
+   Start. A button (44px tall at least) when a tap leads somewhere, plain text
+   when it does not. */
+.hb-next { margin: 0; }
+.hb-next-line {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px;
+  margin: 0; padding: 8px 14px; border-radius: 14px; text-align: left;
+  background: rgba(255,246,226,0.18); border: 1.5px solid rgba(255,236,196,0.45);
+  color: #fff6e2; font: inherit; font-size: 1rem; font-weight: 600; line-height: 1.3;
+}
+button.hb-next-line { cursor: pointer; }
+button.hb-next-line:hover, button.hb-next-line:focus-visible { background: rgba(255,246,226,0.24); }
+.hb-next-pic { flex: none; font-size: 1.25rem; }
+.hb-next-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.hb-next-go { flex: none; font-size: 1.3rem; opacity: 0.8; }
 .hb-pick-line { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; }
 .hb-pick-line .dr-home-emblem { margin: 0; }
 /* her clan's line is the door to change it: a full-width button, quiet until the gold Change */
