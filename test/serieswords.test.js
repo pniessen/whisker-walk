@@ -38,7 +38,7 @@ import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, KITTYPET_NAMES, isKittypetName }
 import { prefixFor, warriorSuffixFor, clanRankFor, colonyRankFor, clanNameOf, clanTitleFor, candidateStarNames } from '../src/clannames.js';
 import { HOMES, TRUCE_AREAS, clanName, pickableClans, patrolClanFor, ownClanTitle, alliesName, homeWelcome } from '../src/clanhomes.js';
 import { rivalFor } from '../src/rivalclans.js';
-import { CAST_RANKS, CAST_CORE, RAIDER_SLOTS, ROAM_SLOTS, clanCast, castFor, borderWarriorFor, clanHomeFor, tagSubFor } from '../src/clancast.js';
+import { CAST_RANKS, CAST_CORE, RAIDER_SLOTS, ROAM_SLOTS, clanCast, castFor, borderWarriorFor, clanHomeFor, tagOptsFor } from '../src/clancast.js';
 import { roleFor, kitsFor } from '../src/clanroles.js';
 import { editionTitle, gameTitle, placeName, accessoryName, rivalForWalk, isClanEdition } from '../src/edition.js';
 import { TERRITORIES, ISLAND, opensAfterLine, territoryMapModel } from '../src/territories.js';
@@ -144,7 +144,9 @@ function withCanvas(fn) {
 // name, its second line, and whether it is the one tag that goes on top.
 function tagOf(member) {
   return withCanvas(() => {
-    const tag = makeNameTag(member.name, { sub: tagSubFor(member) });
+    // 2026-11-16: the tag is built the way the game builds it (tagOptsFor: the
+    // top tag is chosen by rank id, no longer by the word on the tag).
+    const tag = makeNameTag(member.name, tagOptsFor(member));
     return { name: tag.userData.tagName, line: tag.userData.sub, top: tag.userData.top === true };
   });
 }

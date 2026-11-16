@@ -171,6 +171,14 @@ export function tagSubFor(member) {
   return `${RANK_WORDS[member.rank]} of ${clanName(member.clan)}`;
 }
 
+// The options makeNameTag takes for a cast cat: the second line, and whether
+// this is the one tag that goes on top of the others (the leader's). `top` is
+// decided from the rank ID, never from the displayed word, so a change of
+// words cannot move it.
+export function tagOptsFor(member) {
+  return { sub: tagSubFor(member), top: member.rank === RANK_KEYS.leader };
+}
+
 // Where the roaming ranks live: eight homes, for slots 4-8 then 13-15 in that
 // order, so the first five are the same whether or not the extras are shown.
 // Candidates come from the area's own seed (`${areaId}|roam`), never a shared

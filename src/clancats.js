@@ -37,7 +37,7 @@ import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
 import { makeNameTag, NAME_TAG_RANGE, tagBudget, CAMP_TAG_MAX } from './nametag.js';
 import { mulberry32, seedFromCode } from './rng.js';
-import { RANK_SCALE, ROAM_SLOTS, CAST_RANKS, tagSubFor } from './clancast.js';
+import { RANK_SCALE, ROAM_SLOTS, CAST_RANKS, tagOptsFor } from './clancast.js';
 import { RANK_KEYS } from './clanwords.js';
 import { isTrespassing } from './rivalclans.js';
 
@@ -195,7 +195,7 @@ export function createClanCats(scene, area, cast, {
     }
     let tag = null;
     if (showNames) {
-      tag = makeNameTag(member.name, { sub: tagSubFor(member) });
+      tag = makeNameTag(member.name, tagOptsFor(member));
       if (tag) {
         // Counter-scaled, so a kit's tag reads as big as a warrior's.
         tag.scale.x /= scale;

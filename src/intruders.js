@@ -37,7 +37,7 @@ import { setCatScars } from './cat/scarmesh.js';
 import { makeNameTag, NAME_TAG_RANGE, uprightTag } from './nametag.js';
 import { seedFromCode } from './rng.js';
 import { HOMES, isClanId } from './clanhomes.js';
-import { castFor, clanCast, RAIDER_SLOTS, tagSubFor } from './clancast.js';
+import { castFor, clanCast, RAIDER_SLOTS, tagOptsFor } from './clancast.js';
 
 export const INTRUDER_PERIOD = 120; // s of wall clock per visit slot
 export const ENTER_AT = 10; // s into its slot that a visitor comes on the map
@@ -281,7 +281,7 @@ export function createIntruders(scene, areaId, {
     const isHostileHere = hostile(at.clan) === true;
     let tag = null;
     if (showNames) {
-      tag = makeNameTag(member.name, { cross: isHostileHere, sub: tagSubFor(member) });
+      tag = makeNameTag(member.name, { cross: isHostileHere, ...tagOptsFor(member) });
       if (tag) {
         tag.scale.x /= INTRUDER_SCALE;
         tag.scale.y /= INTRUDER_SCALE;

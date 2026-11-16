@@ -1,7 +1,7 @@
 import { test, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  clanCast, castFor, clanCountFor, lonersFor, clanHomeFor, tagSubFor,
+  clanCast, castFor, clanCountFor, lonersFor, clanHomeFor, tagSubFor, tagOptsFor,
   CAST_RANKS, CAST_CORE, CAST_HIGH, INTRUDER_SLOTS, MIN_LONERS_HIGH, RAIDER_SLOTS, RANK_SCALE, CLAN_COLOURS, CLAN_COATS,
 } from '../src/clancast.js';
 import { CLAN_CAT_PREFIXES, RANK_KEYS, RANK_SUFFIX, RANK_WORDS, DENIED_NAMES } from '../src/clanwords.js';
@@ -176,6 +176,19 @@ test('clanHomeFor: your pick or your sibling\'s, Clan Edition only', () => {
   expect(clanHomeFor('park', 'canon', ['woods'])).toBe(false);
   expect(clanHomeFor('woods', 'canon', 'woods')).toBe(false);
   expect(clanHomeFor('island', 'canon', ['island'])).toBe(false);
+});
+
+test('tagOptsFor puts only the leader on top, by rank id and not by the word', () => {
+  for (const clan of ['woods', 'moor', 'river', 'pines', 'gorge']) {
+    for (const m of clanCast(clan)) {
+      const opts = tagOptsFor(m);
+      expect(opts.sub).toBe(tagSubFor(m));
+      expect(opts.top).toBe(m.rank === RANK_KEYS.leader);
+    }
+    expect(clanCast(clan).filter((m) => tagOptsFor(m).top).length).toBe(1);
+  }
+  // a rank whose WORD starts with "leader" is not the leader
+  expect(tagOptsFor({ name: 'X', rank: RANK_KEYS.deputy, clan: 'woods' }).top).toBe(false);
 });
 
 test('tagSubFor names the rank and the clan', () => {
