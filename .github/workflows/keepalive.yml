@@ -2,7 +2,32 @@ name: Supabase keep-alive
 
 # Supabase pauses free-tier projects after 7 days of inactivity. This pings
 # the project a few times a week so it never idles long enough to pause.
-# One harmless read against the public `profiles` table counts as activity.
+#
+# The ping calls one database function through the REST API:
+#
+#   POST /rest/v1/rpc/profiles_by_ids   with the body {"p_ids": []}
+#
+# Why this call (reasoned from docs/supabase-v8-hardening.sql, section 6):
+#   - It keeps working before AND after "STEP B" of that file. The job used to
+#     read the `profiles` table directly; STEP B takes that read away from the
+#     public key, so the old ping would have started failing. STEP B only
+#     drops the two table policies and the table grants. It does not touch
+#     `grant execute on function public.profiles_by_ids to anon`, and the
+#     function is `security definer`, so it does not need the table grant.
+#   - It reads nothing personal. The function returns the rows whose
+#     player_id is in the list it is given; the list is empty, so it returns
+#     no rows. The answer is `[]`.
+#   - It writes nothing. The function is a single `select`, marked `stable`.
+#   - It uses up none of the shared limits. Its body never calls ww_rate_hit
+#     or ww_rate_over. (The other two read functions were not chosen:
+#     find_by_friend_code counts a 'friend-miss' for a code nobody has, and
+#     friendships_of wants a player id and secret.)
+#   - It still counts as activity: the request goes through the project's API
+#     and runs a query in the database, the same as the old table read did.
+#
+# This could not be tried against the live database when it was written.
+# After merging, run it once by hand (Actions -> Supabase keep-alive -> Run
+# workflow) and check that it goes green. Do the same after running STEP B.
 
 on:
   schedule:
@@ -20,12 +45,26 @@ jobs:
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
-          code=$(curl -sS -o /dev/null -w '%{http_code}' \
-            "$SUPABASE_URL/rest/v1/profiles?select=player_id&limit=1" \
-            -H "apikey: $SUPABASE_ANON_KEY")
+          body_file=$(mktemp)
+          code=$(curl -sS -o "$body_file" -w '%{http_code}' \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/profiles_by_ids" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"p_ids": []}')
           echo "Supabase responded with HTTP $code"
-          # 200 = read succeeded; treat anything else as a failure worth a notification.
+          # 200 = the function ran. Anything else is a failure worth a
+          # notification: 404 means the function is missing (the v8 file was
+          # not run, or was rolled back), 401/403 a key or grant problem, and
+          # 5xx or 540 a paused or unwell project. The body is not printed on
+          # failure; the status says enough.
           if [ "$code" != "200" ]; then
             echo "::error::Unexpected status $code — project may be paused or misconfigured."
+            exit 1
+          fi
+          # An empty list in must give an empty list out. Anything else means
+          # the function is not the one this job was written for.
+          answer=$(tr -d '[:space:]' < "$body_file")
+          if [ "$answer" != "[]" ]; then
+            echo "::error::Expected an empty list from profiles_by_ids, got something else."
             exit 1
           fi

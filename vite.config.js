@@ -11,10 +11,9 @@ import { HEAVY_TESTS, HeavyFirst } from './test/heavy.js';
 export const IOS_MODE = 'ios';
 export const IOS_OUT_DIR = 'ios/web';
 
-// The app needs neither the offline service worker (src/swpolicy.js never
-// registers it in the app) nor the Clan Edition promo page, which only links
-// back to the website.
-const IOS_PRUNE = ['sw.js', 'clan-edition.html'];
+// The app does not need the offline service worker (src/swpolicy.js never
+// registers it in the app).
+const IOS_PRUNE = ['sw.js'];
 
 function iosPrune() {
   return {
