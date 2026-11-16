@@ -194,7 +194,7 @@ export function limbGeometry(len, hind, simple = false) {
 // having a baked fold shape written into its limb's one geometry, never by
 // squashing the leg group: sitting tucks the hind legs under the haunch with
 // the foot flat in front, a nap (and being pinned) folds all four under the
-// body with the forearms forward sphinx-style, a stalk bends them low, a roll
+// body with the forearms forward (the nap as a loaf, FOLDS.loaf), a stalk bends them low, a roll
 // balls them up.
 //
 // R2: each fold is given in the GROUND frame on the reference rig, as
@@ -228,6 +228,18 @@ export const FOLDS = Object.freeze({
   // Three points with one gentle bend at the knee (0.13, -0.24), so no face
   // folds over; the heel (0.045, -0.22) ends inside the paw, which sits 25 cm
   // ahead of the hip, its front peeking out under the belly behind the forelegs.
+  // Cat realism B11 (2026-11-16): the haunch. The thigh hidden inside the rump
+  // left the sitting cat a tube standing on end. It is now a full thigh
+  // (0.11) lying low against the flank, its top at 0.17 and 3 cm further
+  // forward, running forward and down to the knee and on to a foot 8 cm
+  // further forward, beside the forelegs; the animator stands the hips
+  // SIT.hindOut further apart, so it shows out of the torso's side, and it
+  // wears the coat (paintFold). Its top stays under the hip, so a hind scar
+  // over the hip stays clear of it (scarmesh.test.js). `seamReach`: its
+  // shading flows into the torso's only close to the surface (the default
+  // reach flattened the whole thigh into the flank's shading), so it reads
+  // as a rounded mass with a soft crease round it. The fold before this is
+  // kept as `sitIn` for a cat dressed on its body.
   sit: Object.freeze({
     crouch: true, drop: 0.065, seamReach: 0.025,
     hind: fold([[0.17, -0.15], [0.115, -0.26], [0.045, -0.3]], [0.11, 0.09, 0.036], [0.0415, -0.33], 0, 0.9),

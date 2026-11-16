@@ -200,6 +200,11 @@ export const POSE_FIT = Object.freeze({
 //     taken out when it gets up (animator.js sinkChest), so the chest's centre
 //     as the neck line reads it (neckMove) has not moved: the collar, the neck
 //     pieces, the cape's clasp and the neck's skin sit exactly where they did.
+//   hindOut (m; cat realism B11, 2026-11-16): sitting, each hind hip stands
+//     this much further out, so the folded thigh (limbs.js FOLDS.sit) shows
+//     as a rounded haunch out of the torso's side, widest low down: from
+//     behind the sitting cat is a pear, where it was a tube on end. Not on a
+//     cat dressed on its body (limbs.js SLIM_FOLD).
 //   foreZ (metres, cat frame, - is forward): both front hips move forward by
 //     this: -0.06, the hips at z -0.30, inside the chest; the paws stand 8.3 cm
 //     behind the chest's front (the upper chest, y 0.46-0.48), as a sitting
@@ -277,8 +282,7 @@ export const SIT_TAIL = Object.freeze({
 // chin 1-2 cm over the paws, forward of the chest so the head and a hood
 // stay out of each other), `rot` its turn: the nose a touch down, the face
 // turned to the cat's left toward the tail's tip (NAP_TAIL), the cheek
-// rolled onto the paws. The body, the folded legs and the wrapped tail are
-// as they were: a true loaf or curl needs new shapes (plan item B11).
+// rolled onto the paws.
 // Cat realism B11 (2026-11-16): the body is a loaf. It was the standing
 // torso squashed flat (scale 1.12, 0.73, 0.89, 10 cm down) over legs folded
 // like a crouching cat's, which read as a sphinx with daylight under it. Now
