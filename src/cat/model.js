@@ -1237,7 +1237,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const head = new THREE.Group();
   const skull = ball(SKULL_R, pointColor, ...SKULL_SCALE);
   if (s.points) paintPointMask(skull, s);
-  appendTufts(skull.geometry, cheekTufts(s, tufts.plan, tufts.seed, skullColourAt, skull.geometry.parameters.radius, skull.scale.toArray())); // the cheek ruff (tufts.js)
+  // The cheek ruff (tufts.js), on the skull as built: its radius and scale are
+  // read here. (Not skull.scale.toArray(): a first call of Vector3.toArray on a
+  // plain array, before the neck's per-frame calls on typed arrays, doubled
+  // animateCat's time on a full cat, 14 -> 27 µs, measured 2026-11-15.)
+  appendTufts(skull.geometry, cheekTufts(s, tufts.plan, tufts.seed, skullColourAt, skull.geometry.parameters.radius, [skull.scale.x, skull.scale.y, skull.scale.z]));
   head.add(skull);
   // cat-beauty B2: on a full build (which has the cheek balls) the muzzle is
   // a cat's: two round WHISKER PADS meeting under the nose (the cheek balls,
