@@ -47,27 +47,58 @@ function turn(from, to, k) {
 }
 
 // How far along a lead's way the child has come: the nearest spot on the way
-// to the child, looked for only a little behind and some way ahead of where
-// the child was last (so a leg that doubles back close by is not mistaken for
-// progress), and only when the child is beside the way at all.
+// to the child. Looked for only a little behind and some way ahead of where
+// the child was last, and only when the child is beside the way at all, so a
+// leg that doubles back close by is not mistaken for progress. Further ahead
+// than that it counts only when the child is standing right on the way (a
+// child who ran on ahead along it).
 const WAY_BACK_M = 3;
 const WAY_FWD_M = 10;
 const WAY_BESIDE_M = 6;
+const WAY_FAR_FWD_M = 30;
+const WAY_ON_M = 2.2;
 const WAY_SLACK_M = 1.5;
 function alongWay(o, child) {
   let best = o.childAt;
   let bestD = WAY_BESIDE_M;
+  const lo = o.childAt - WAY_BACK_M;
+  const hi = o.childAt + WAY_FAR_FWD_M;
   for (let k = 1; k < o.line.length; k++) {
-    if (o.cum[k] < o.childAt - WAY_BACK_M || o.cum[k - 1] > o.childAt + WAY_FWD_M) continue;
+    if (o.cum[k] < lo || o.cum[k - 1] > hi) continue;
     const a = o.line[k - 1];
     const b = o.line[k];
     const len = o.cum[k] - o.cum[k - 1];
     if (len <= 0) continue;
     const t = Math.max(0, Math.min(1, ((child.x - a.x) * (b.x - a.x) + (child.z - a.z) * (b.z - a.z)) / (len * len)));
-    const s = Math.max(o.childAt - WAY_BACK_M, Math.min(o.childAt + WAY_FWD_M, o.cum[k - 1] + t * len));
+    const s = Math.max(lo, Math.min(hi, o.cum[k - 1] + t * len));
     const tt = (s - o.cum[k - 1]) / len;
     const dist = Math.hypot(child.x - (a.x + (b.x - a.x) * tt), child.z - (a.z + (b.z - a.z) * tt));
-    if (dist < bestD) { bestD = dist; best = s; }
+    if (dist >= bestD) continue;
+    if (s > o.childAt + WAY_FWD_M && dist >= WAY_ON_M) continue;
+    bestD = dist;
+    best = s;
+  }
+  return best;
+}
+
+// The child is standing right by the leader's own stretch of the way (within
+// WAY_WITH_M of it, on the WAY_WITH_BACK_M behind the leader): the child has
+// come that far, however it got there (a corner cut, a way of its own). Across
+// a drop from a leg that doubles back the child is not this close to it.
+const WAY_WITH_M = 2.2;
+const WAY_WITH_BACK_M = 7;
+function besideLeader(o, child) {
+  let best = -1;
+  for (let k = 1; k < o.line.length; k++) {
+    if (o.cum[k] < o.at - WAY_WITH_BACK_M || o.cum[k - 1] > o.at + 1) continue;
+    const a = o.line[k - 1];
+    const b = o.line[k];
+    const len = o.cum[k] - o.cum[k - 1];
+    if (len <= 0) continue;
+    const lo = Math.max(0, (o.at - WAY_WITH_BACK_M - o.cum[k - 1]) / len);
+    const hi = Math.min(1, (o.at + 1 - o.cum[k - 1]) / len);
+    const t = Math.max(lo, Math.min(hi, ((child.x - a.x) * (b.x - a.x) + (child.z - a.z) * (b.z - a.z)) / (len * len)));
+    if (Math.hypot(child.x - (a.x + (b.x - a.x) * t), child.z - (a.z + (b.z - a.z) * t)) < WAY_WITH_M) best = Math.max(best, o.cum[k - 1] + t * len);
   }
   return best;
 }
@@ -190,9 +221,11 @@ export function createLeader({ x = 0, z = 0, yaw = 0, fix = null } = {}) {
       if (o.kind === 'lead') {
         if (arrived) { look(child, d); return { speed: 0, pose: 'requestPet' }; }
         const gap = child ? Math.hypot(child.x - pos.x, child.z - pos.z) : 0;
-        if (child) o.childAt = alongWay(o, child);
+        if (child) o.childAt = Math.max(alongWay(o, child), besideLeader(o, child));
         const behind = o.at - o.childAt; // metres of the way between them
-        if (waiting ? (gap > o.near || behind > o.ahead) : (gap > o.ahead || behind > o.ahead + WAY_SLACK_M)) {
+        // (A child who is further along the way than the leader is not waited
+        // for: the leader trots on after her.)
+        if (behind > -0.5 && (waiting ? (gap > o.near || behind > o.ahead) : (gap > o.ahead || behind > o.ahead + WAY_SLACK_M))) {
           waiting = true;
           look(child, d);
           return { speed: 0, pose: 'requestPet' };

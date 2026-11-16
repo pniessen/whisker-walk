@@ -151,3 +151,36 @@ describe('leading where the way doubles back', () => {
     expect(l.arrived).toBe(true);
   });
 });
+
+describe('a child who runs on ahead, or comes back by a way of her own', () => {
+  it('a child further along the way than the leader is not waited for: the leader trots on after her', () => {
+    const l = createLeader({ x: 0, z: 0 });
+    l.lead([{ x: 0, z: -40 }], { ahead: 4.2, near: 2.6 });
+    const child = { x: 0, z: 0 };
+    for (let i = 0; i < 60; i++) l.step(0.05, child);
+    expect(l.waiting).toBe(true); // the child has not moved: she waits
+    const stopped = l.pos.z;
+    child.z = -25; // the child runs on ahead along the way
+    for (let i = 0; i < 100; i++) l.step(0.05, child);
+    expect(l.waiting).toBe(false);
+    expect(l.pos.z).toBeLessThan(stopped - 8);
+  });
+
+  it('a child who left the way and comes back to it right beside the leader has caught up: the leader sets off again', () => {
+    // 20 m east, 4 m north, then back west: the two long legs are 4 m apart.
+    const l = createLeader({ x: 0, z: 0 });
+    l.lead([{ x: 20, z: 0 }, { x: 20, z: -4 }, { x: -20, z: -4 }], { ahead: 4.2, near: 2.6 });
+    const child = { x: 0, z: 0 };
+    for (let i = 0; i < 60; i++) l.step(0.05, child);
+    expect(l.waiting).toBe(true);
+    // The child wanders off north, away from the way...
+    child.x = 2; child.z = -14;
+    for (let i = 0; i < 40; i++) l.step(0.05, child);
+    expect(l.waiting).toBe(true);
+    // ...and across the 4 m between the legs she is still not "with" a leader on the far leg.
+    // Then she comes back and stands right by the leader: the leader goes on.
+    const at = { x: l.pos.x, z: l.pos.z };
+    for (let i = 0; i < 100; i++) { child.x = l.pos.x - 1; child.z = l.pos.z + 0.6; l.step(0.05, child); }
+    expect(Math.hypot(l.pos.x - at.x, l.pos.z - at.z)).toBeGreaterThan(4);
+  });
+});
