@@ -122,7 +122,9 @@ function torsoHit(geo, S) {
   const nor = geo.attributes.normal;
   const col = geo.attributes.color;
   const index = geo.index;
-  const tris = index ? index.count / 3 : pos.count / 3;
+  // the torso's own facets only: its fur tufts (tufts.js) follow them in the
+  // index, and a scar lies on the coat, never on a lock of fur
+  const tris = (geo.userData.tufts?.index ?? (index ? index.count : pos.count)) / 3;
   const at = (k) => (index ? index.getX(k) : k);
   const ray = new THREE.Ray();
   const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();

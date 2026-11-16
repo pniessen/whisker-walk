@@ -1094,9 +1094,13 @@ it('the camera looks inside the head: between its centre and its top (tabby, fol
 describe('buildCat with opts.style (a clan coat)', () => {
   const meshesOf = (c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n++; }); return n; };
   const torsoColours = (cat) => {
-    const col = cat.userData.parts.body.geometry.attributes.color;
+    const geo = cat.userData.parts.body.geometry, col = geo.attributes.color;
     const out = [];
-    for (let i = 0; i < col.count; i++) out.push(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)));
+    // 2026-11-15 (cat realism B7): the torso's own vertices; the fur tufts that
+    // follow them (tufts.js) wear the coat where each lock lies, not where a
+    // torso vertex is, and have their own colour tests (cattufts.test.js).
+    const count = geo.userData.tufts?.start ?? col.count;
+    for (let i = 0; i < count; i++) out.push(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)));
     return out;
   };
 

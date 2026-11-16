@@ -17,7 +17,10 @@ const linkGeo = (cat, i) => cat.userData.parts.tailPivots[i].children[0].geometr
 const maxRadius = (geo, keep = () => true) => {
   const p = geo.attributes.position;
   let r = 0;
-  for (let k = 0; k < p.count; k++) if (keep(p.getZ(k))) r = Math.max(r, Math.hypot(p.getX(k), p.getY(k)));
+  // 2026-11-15 (cat realism B7): the link's own tube and balls; the fur locks
+  // that follow them in the geometry (tufts.js) are not the tail's radius.
+  const count = geo.userData.tufts?.start ?? p.count;
+  for (let k = 0; k < count; k++) if (keep(p.getZ(k))) r = Math.max(r, Math.hypot(p.getX(k), p.getY(k)));
   return r;
 };
 // the tip link's radius at its far end (the end ring and the tip ball's equator)

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { bibLocks, tuftSeed } from './tufts.js';
 
 // THE RUFF (body refinement, R9): a fluffy cat's ruff is a small bib tucked
 // under the chin and close to the chest, a little fluff behind each jaw that
@@ -47,19 +48,20 @@ export const RUFF = Object.freeze({
   // KNEE: each point's one middle ring, this far from its base along its
   // length and this fraction of R wide, so the tip is a short blunt round
   // rather than a cone's spike (Task 10 fix: the cones read as teeth)
-  FRINGE: Object.freeze({ N: 5, R: 0.03, LEN: 0.05, KNEE: Object.freeze([0.5, 0.85]), ZSCALE: 0.6, SPREAD: 1.3, EDGE: 0.075, Y: -0.16, Z: -0.068, RISE: 0.02, TILT: 0 }),
+  FRINGE: Object.freeze({ N: 5, R: 0.03, LEN: 0.05, KNEE: Object.freeze([0.5, 0.85]), ZSCALE: 0.6, SPREAD: 1.3, EDGE: 0.075, Y: -0.16, Z: -0.068, RISE: 0.02, TILT: 0,
+    // cat realism B7: the fringe is N locks of fur (tufts.js bibLocks), placed as the points were
+    LOCKS: Object.freeze({ edge: 0.075, spread: 1.3, y: -0.15, z: -0.068, rise: 0.02 }) }),
   // the jaw fluff's colour: the base coat this far toward the belly, then kept
   // within JAW_CAP (linear RGB distance) of the belly (jawFluffColour)
   JAW_MIX: 0.35,
   JAW_CAP: 0.25,
 });
 
-// Segments: [bib w, h], [jaw w, h], fringe sides. A simple build has fewer
-// segments, never a different shape. A fringe point is 3 triangles a side (two
-// rows, the tip's a fan). Full 192 + 2·36 + 5·18 = 354 triangles (≤ 360);
-// simple 100 + 2·24 + 5·12 = 208 (≤ 210). The jaw fluff took fewer segments
-// (was 8×5 / 6×4) to pay for the rounded points; it is small. The points are open at the base: it is buried in the bib.
-const SEG = { full: { bib: [12, 9], jaw: [6, 4], fringe: 6 }, simple: { bib: [10, 6], jaw: [4, 4], fringe: 4 } };
+// Segments: [bib w, h], [jaw w, h]. A simple build has fewer segments, never
+// a different shape. Cat realism B7 (2026-11-15): the fringe is five locks of
+// fur, 10 triangles each. Full 192 + 2·36 + 5·10 = 314 triangles (was 354
+// with the points); simple 100 + 2·24 + 5·10 = 198 (was 208).
+const SEG = { full: { bib: [12, 9], jaw: [6, 4] }, simple: { bib: [10, 6], jaw: [4, 4] } };
 
 const placed = (geo, pos, rot, scale) => geo.applyMatrix4(new THREE.Matrix4().compose(
   new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(...scale)));
@@ -84,31 +86,6 @@ export function jawFluffColour(s) {
   return d > RUFF.JAW_CAP ? belly.clone().lerp(j, RUFF.JAW_CAP / d) : j;
 }
 
-// One fringe point, tip up (placed flips it): an open cone (its base is buried
-// in the bib) with one middle ring pushed out to FRINGE.KNEE, so its sides
-// stay full most of the way and close in a blunt rounded tip, with smooth
-// round normals so it shades as one soft lobe, not facets.
-function softPoint(sides) {
-  const { R, LEN, KNEE: [along, wide] } = RUFF.FRINGE;
-  const g = new THREE.ConeGeometry(R, LEN, sides, 2, true);
-  const p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    if (Math.abs(p.getY(i)) > 1e-9) continue; // the middle ring (y 0, half width)
-    p.setXYZ(i, p.getX(i) * 2 * wide, -LEN / 2 + along * LEN, p.getZ(i) * 2 * wide);
-  }
-  // smooth round normals (not the facets'): each ring's point outward, tipping
-  // toward the tip as the ring narrows, the tip's along the axis
-  const n = g.attributes.normal, v = new THREE.Vector3();
-  for (let i = 0; i < p.count; i++) {
-    const y = p.getY(i), r = Math.hypot(p.getX(i), p.getZ(i));
-    if (r < 1e-9) { n.setXYZ(i, 0, 1, 0); continue; }
-    const lift = y > -LEN / 2 + 1e-9 ? 0.9 : 0.15; // knee ring : base ring
-    v.set(p.getX(i) / r, lift, p.getZ(i) / r).normalize();
-    n.setXYZ(i, v.x, v.y, v.z);
-  }
-  return g;
-}
-
 // The ruff for style row `s` (reads s.belly and s.base), in the cat's frame,
 // vertex-coloured, without uv. userData.parts gives the
 // bib's, the jaw fluff's and the fringe's vertex ranges; userData.fringeBases
@@ -122,13 +99,19 @@ export function ruffGeometry(s, simple = false) {
     [ax + BIB.OFF[0], ay + BIB.OFF[1], az + BIB.OFF[2]], [0, 0, 0], BIB.SCALE), belly)];
   const jaw = [-1, 1].map((side) => coloured(placed(new THREE.SphereGeometry(JAW.R, ...seg.jaw),
     [ax + side * JAW.X, ay + JAW.Y, az + JAW.Z], [0, 0, side * JAW.ROLL], JAW.SCALE), jawFluffColour(s)));
-  const fringe = [];
-  for (let i = 0; i < FRINGE.N; i++) {
-    const a = (i / (FRINGE.N - 1) - 0.5) * FRINGE.SPREAD;
-    fringe.push(coloured(placed(softPoint(seg.fringe),
-      [ax + Math.sin(a) * FRINGE.EDGE, ay + FRINGE.Y + Math.abs(a) * FRINGE.RISE, az + FRINGE.Z],
-      [Math.PI - FRINGE.TILT, 0, -a * 0.5], [1, 1, FRINGE.ZSCALE]), belly));
-  }
+  // The fringe (cat realism B7, 2026-11-15): FRINGE.N soft locks of fur
+  // (tufts.js bibLocks) hang from the bib's lower edge, overlapping and uneven.
+  // They replace the five even blunt points, which still read as a row of
+  // teeth. One geometry a lock, as there was one a point, so building a ruff
+  // makes exactly as many three.js objects as it did.
+  const fringe = bibLocks(FRINGE.N, tuftSeed(s), simple, RUFF.AT, FRINGE.LOCKS).map((lock) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lock.pos), 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(lock.nor), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(lock.col.map((k, i) => k * [belly.r, belly.g, belly.b][i % 3])), 3));
+    g.setIndex(lock.idx);
+    return g;
+  });
   const parts = {};
   let at = 0;
   for (const [k, list] of Object.entries({ bib, jaw, fringe })) {
@@ -136,13 +119,12 @@ export function ruffGeometry(s, simple = false) {
     parts[k] = [at, at + n];
     at += n;
   }
-  // each point's open base ring (its last row: sides + 1 vertices with the seam)
+  // each lock's root ring (its first three vertices), sunk in the bib
   const fringeBases = [];
   let from = parts.fringe[0];
   for (const g of fringe) {
-    const n = g.attributes.position.count;
-    fringeBases.push([from + n - (seg.fringe + 1), seg.fringe + 1]);
-    from += n;
+    fringeBases.push([from, 3]);
+    from += g.attributes.position.count;
   }
   const all = [...bib, ...jaw, ...fringe];
   const geo = mergeGeometries(all);

@@ -17,6 +17,7 @@ import { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry, capeTieGeometry, lay
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
 import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals, keepFacing, PROPORTION, NECK } from './torso.js';
 import { NECK_RINGS, neckLoops, addNeck, layNeck } from './neck.js';
+import { tuftSeed, tuftPlan, torsoTufts, chestTufts, cheekTufts, tailTufts, appendTufts } from './tufts.js';
 import { FACE, FACE_SEG, EYES, SHELL_EAR, noseGeometry, addSnout, whiskerGeometry, eyeGeometry, eyeFrame, shellEarGeometry, shapeSkull, faceWarp, lensGlow } from './face.js';
 
 const STYLE = {
@@ -1022,6 +1023,11 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
     underSeams.set(seamKey, seamed);
   }
   geo.attributes.normal.array.set(seamed);
+  // The chest's small clumps (cat realism B7, tufts.js): short fur and kittens.
+  if (opts.tufts) {
+    const t = appendTufts(geo, chestTufts(s, coat, f, BS, opts.tufts.plan, opts.tufts.seed));
+    if (t) ranges.tufts = [t.start, t.start + t.count];
+  }
   if (loops) {
     const start = addNeck(geo, neckCol);
     ranges.neck = [start, start + NECK_RINGS * NECK.AROUND];
@@ -1139,12 +1145,19 @@ const SEAM_POSES = Object.freeze({
   crouch: Object.freeze({ dy: -0.1, lift: true, hipsIn: true }),
   ball: Object.freeze({ scale: Object.freeze([1.05, 1.05, 0.9]) }),
 });
+// The torso mesh's matrix (its own frame into the cat's) in the pose that goes
+// with fold `kind`, at rest.
+function posedBody(kind, bodyY, hipY, bodyScale) {
+  const P = SEAM_POSES[kind] ?? SEAM_POSES.stand;
+  const k = P.scale ?? [1, 1, 1];
+  const at = new THREE.Vector3(0, bodyY + (P.dy ?? 0) - (P.lift ? hipY - REF_RIG.HIP_Y : 0), P.z ?? 0);
+  return new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), P.pitch ?? 0), new THREE.Vector3(bodyScale[0] * k[0], bodyScale[1] * k[1], bodyScale[2] * k[2]));
+}
 function seamPose(kind, hip, bodyY, hipY, bodyScale, fx) {
   const P = SEAM_POSES[kind] ?? SEAM_POSES.stand;
   const k = P.scale ?? [1, 1, 1];
   const scale = [bodyScale[0] * k[0], bodyScale[1] * k[1], bodyScale[2] * k[2]];
-  const at = new THREE.Vector3(0, bodyY + (P.dy ?? 0) - (P.lift ? hipY - REF_RIG.HIP_Y : 0), P.z ?? 0);
-  const body = new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), P.pitch ?? 0), new THREE.Vector3(...scale));
+  const body = posedBody(kind, bodyY, hipY, bodyScale);
   const leg = new THREE.Matrix4().makeTranslation(hip.x * (P.hipsIn ? fx : 1), hip.y, hip.z);
   return { matrix: body.invert().multiply(leg).elements, scale };
 }
@@ -1203,6 +1216,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   body.position.y = TORSO.CENTRE_Y;
   body.userData.coat = coat; // the limbs' tops blend from it (limbs.js)
   g.add(body);
+  // Fur tufts (cat realism B7, tufts.js): locks of fur written into the meshes
+  // the cat already has. Which regions grow them depends on what she wears.
+  // opts.kitten (kitten.js): a kitten's short, even fuzz in place of her breed's fur.
+  const tufts = { seed: tuftSeed(s), plan: tuftPlan(s, accessories, { simple: !!opts.simple, kitten: !!opts.kitten }) };
+  // Hanging fur is kept off the ground where the body rests on it: the sit, the nap and the stalk.
+  const legRise = LEGS.LEN * ((s.legLen ?? 1) - 1);
+  const lowPoses = ['sit', 'tuck', 'crouch'].map((kind) => posedBody(kind, TORSO.CENTRE_Y + legRise, LEGS.HIP_Y + legRise, BODY_SCALE).elements);
+  appendTufts(body.geometry, torsoTufts(s, coat, BODY_SCALE, tufts.plan, tufts.seed, lowPoses));
   // The underside: belly, chest and (fluffy cats) ruff, merged into ONE
   // vertex-coloured mesh hung on the torso, so it naps, sits and stretches with
   // it. The animator counter-yaws it (R4) so the chest stays under the chin.
@@ -1210,7 +1231,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // pointed cat the mask's own shade at that spot (paintPointMask).
   const skullColourAt = (x, y, z, out) => (s.points ? pointMaskAt(s, x, y, z, SKULL.R, out) : out.set(pointColor));
   const underside = new THREE.Mesh(
-    undersideGeometry(s, coat, [fx, fy, fz], { ...opts, neck: { skullColourAt, bare: !accessories.body } }),
+    undersideGeometry(s, coat, [fx, fy, fz], { ...opts, tufts, neck: { skullColourAt, bare: !accessories.body } }),
     litMaterial(0xffffff, { vertexColors: true }));
   underside.userData.underside = true;
   underside.userData.ranges = underside.geometry.userData.ranges;
@@ -1262,6 +1283,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     nose.position.set(0, -0.02, -0.245);
   }
   nose.userData.nose = true;   // tests find the nose by this, not by child order
+  // The cheek ruff (tufts.js), on the skull as built: its radius and scale are
+  // read here, after the snout and before a pointed cat's mask is painted over
+  // all of it. Its colours are the skull's own (1: the vertex colours multiply
+  // the skull's material). (Not skull.scale.toArray(): a first call of
+  // Vector3.toArray on a plain array, before the neck's per-frame calls on
+  // typed arrays, doubled animateCat's time on a full cat, 14 -> 27 µs,
+  // measured 2026-11-15.)
+  appendTufts(skull.geometry, cheekTufts(s, tufts.plan, tufts.seed, (x, y, z, c) => c.setRGB(1, 1, 1), skull.geometry.parameters.radius, [skull.scale.x, skull.scale.y, skull.scale.z]));
   if (s.points) paintPointMask(skull, s);
   head.add(nose);
   // `ears` grows the cone in its geometry (the animator writes ear rotation, so
@@ -1285,7 +1314,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const shell = FACE.ears === 'shell';
     const ear = shell
       ? new THREE.Mesh(shellEarGeometry(0.075 * EARS, (s.tufts ? 0.165 : 0.15) * EARS, {
-        simple: opts.simple, tuft: !!s.tufts, backShade: EAR_BACK_SHADE,
+        simple: opts.simple, tuft: tufts.plan.ears, // not under a hat (tufts.js tuftPlan)
+        backShade: EAR_BACK_SHADE,
         pink: [0, 1, 2].map((i) => new THREE.Color(INNER_EAR).toArray()[i] / Math.max(new THREE.Color(pointColor).toArray()[i], 1e-3)),
       }), litMaterial(pointColor, { vertexColors: true }))
       : new THREE.Mesh(earGeometry(0.075 * EARS, earH * EARS), litMaterial(pointColor, { vertexColors: true }));
@@ -1525,6 +1555,17 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
         col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
       }
       geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
+    // the tail's fur (tufts.js): a brushy tip, or a plume's bushier outline,
+    // in the link's own colours
+    {
+      const from = new THREE.Color(s.base), to = new THREE.Color(s.accent);
+      appendTufts(geo, tailTufts(s, tufts.plan, tufts.seed, i, plume, tailRad, (z, c) => {
+        if (blend) return c.lerpColors(from, to, Math.min(1, Math.max(0, z / (TAIL.LINK * TIP_FROM))));
+        if (!ringed) return c.copy(from);
+        const d = Math.abs(z / TAIL.LINK - TAIL_RING.at) - TAIL_RING.half;
+        return c.lerpColors(from, to, (1 - Math.min(1, Math.max(0, d / TAIL_RING.soft))) * TAIL_RING.strength);
+      }, plume > 0 ? [lyingTail(SIT_TAIL, SIT_TAIL_PLUME, plume), lyingTail(NAP_TAIL, NAP_TAIL_PLUME, plume)] : [SIT_TAIL, NAP_TAIL]));
     }
     pivot.add(seg);
     parent.add(pivot);
