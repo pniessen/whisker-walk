@@ -63,7 +63,9 @@ describe('the smooth limb', () => {
       const unit = geo.userData.unit;
       const col = geo.attributes.color;
       const c = new THREE.Color();
-      for (let i = 0; i < col.count; i++) {
+      // 2026-11-15 (cat realism B7): the torso's own vertices (one per unit
+      // direction); the fur tufts that follow them (tufts.js) have their own tests
+      for (let i = 0; i < unit.length / 3; i++) {
         coatColourAt(coat, [unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2]], c);
         expect([col.getX(i), col.getY(i), col.getZ(i)]).toEqual(f32(c));
       }
