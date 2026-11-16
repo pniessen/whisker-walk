@@ -51,6 +51,9 @@ import { closeDiffs } from './helpers/closeto.js';
 // rival, the yard dog, the race, weather, splash, grass, wind, water and sky
 // life are not in the plan's list; their own tests and Task 10's wiring sweep
 // cover them.)
+// 2026-11-15, cat realism round 3 (the face; owner's approval and picks from the sheets): re-recorded once.
+// Compared field by field first: only shadows.* moved (66 values in each of the 8 areas), the cat's ground
+// shadow following its new outline (shell ears, the nose's point). No position, pose or seeded value moved.
 
 vi.stubGlobal('document', {
   createElement: () => ({

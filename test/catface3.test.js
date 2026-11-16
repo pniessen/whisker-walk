@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import * as THREE from 'three';
 import { buildCat, catStyle } from '../src/cat/model.js';
@@ -10,9 +10,10 @@ import { fingerprintCat, buildFor, goldenKeys, meshCount, triangles, PRESETS } f
 
 // Cat realism round 3, the face (2026-11-15). Tier A is on every detailed cat;
 // the Tier B shapes are options (face.js FACE) whose default is today's.
+const PICKS = { ...FACE }; // the game's defaults, read before any test changes them
 const TODAY = { eyes: 'today', profile: 'today', ears: 'today' };
 const pick = (o) => Object.assign(FACE, TODAY, o);
-afterEach(() => pick({}));
+afterEach(() => Object.assign(FACE, PICKS));
 const EVERY = FACE_OPTIONS.eyes.flatMap((eyes) => FACE_OPTIONS.profile.flatMap((profile) => FACE_OPTIONS.ears.map((ears) => ({ eyes, profile, ears }))));
 const name = (o) => `${o.eyes}/${o.profile}/${o.ears}`;
 const draws = (cat) => { let n = 0; cat.traverse((o) => { if (o.isMesh || o.isLine) n++; }); return n; };
@@ -24,62 +25,33 @@ const GOLDEN = JSON.parse(fs.readFileSync(new URL('./fixtures/catgolden.json', i
 const DRESSED = { collar: 'bell', head: 'tophat', face: 'glasses', neck: 'scarf', body: 'sweater', back: 'backpack', feet: 'sneakers' };
 
 describe('the options default to today', () => {
-  it('FACE is today for every option, and each option list starts with it', () => {
-    expect(FACE).toEqual(TODAY);
+  // 2026-11-15: the owner picked soft eyes and shell ears from the sheets and kept today's profile.
+  it('FACE holds the owner\'s picks, and each option list starts with today', () => {
+    expect(PICKS).toEqual({ eyes: 'soft', profile: 'today', ears: 'shell' });
     for (const k of Object.keys(TODAY)) expect(FACE_OPTIONS[k][0]).toBe('today');
   });
 
-  // Until the owner approves the pictures the recorded fingerprints are round
-  // 1's. With the default options a cat differs from them only in the Tier A
-  // parts: the head's skull (finer, with the snout), muzzle pads, nose, eyes
-  // and pupils, and the whiskers (one line where there were six, so the
-  // head's later children move up five places). Everything else is the same
-  // line, in the same order: torso, underside, limbs, paws, tail, ears, inner
-  // ears, catchlights, the chin and the skull's markings, and all the clothes.
-  it('a default cat matches the recorded fingerprints except the Tier A face parts', () => {
-    for (const key of goldenKeys().filter((k) => /:(full|dressed|simple)$/.test(k))) {
-      const cat = buildFor(key), now = fingerprintCat(cat), was = GOLDEN[key];
-      const head = cat.userData.parts.head, headAt = cat.children.indexOf(head);
-      if (key.endsWith(':simple')) {
-        // a crowd cat is untouched, but for a pointed cat's lighter nose (A2: one line, its colour only)
-        const moved = now.lines.map((l, i) => [l, was.lines[i]]).filter(([a, b]) => a !== b);
-        const colourOnly = ([a, b]) => a.replace(/\|c[0-9a-f]{6}\|/, '|c|') === b.replace(/\|c[0-9a-f]{6}\|/, '|c|');
-        expect(moved.length, key).toBe(catStyle(key.split(':')[0]).points ? 1 : 0);
-        expect(moved.every(colourOnly), key).toBe(true);
-        expect({ ...now, lines: 0 }, key).toEqual({ ...was, lines: 0 });
-        continue;
-      }
-      // the head's direct children that Tier A rebuilt, by index
-      const changed = new Set();
-      head.children.forEach((c, i) => { if (i === 0 || c.userData.nose || c.userData.cheek || c.userData.eye || c.userData.pupil || c.isLine) changed.add(i); });
-      const whiskerAt = head.children.findIndex((c) => c.isLine);
-      const strip = (line) => line.split('|').slice(1).join('|');
-      const path = (line) => line.split('|')[0].split('.').map(Number);
-      // today's lines that are not a rebuilt part, with their path moved back to where it was recorded
-      const kept = now.lines.filter((l) => { const p = path(l); return !(p[0] === headAt && p.length === 2 && changed.has(p[1])); })
-        .map((l) => { const p = path(l); if (p[0] === headAt && p[1] > whiskerAt) p[1] += 5; return `${p.join('.')}|${strip(l)}`; });
-      const wasKept = was.lines.filter((l) => {
-        const p = path(l);
-        if (p[0] !== headAt || p.length !== 2) return true;
-        return !(changed.has(p[1]) || (p[1] >= whiskerAt && p[1] < whiskerAt + 6));
-      });
-      expect(kept, key).toEqual(wasKept);
-      expect(now.meshes, key).toBe(was.meshes);
-    }
-  });
-
-  it('Tier A adds no draw call and takes five away; a crowd cat has the triangles it had', () => {
+  // The picks against today's shapes: the same draw calls but for the two
+  // inner-ear meshes a shell ear does not need; a crowd cat keeps its eyes.
+  // (Before the fixtures were re-recorded for round 3, a test here held the
+  // default cat to round 1's fingerprints apart from the Tier A parts.)
+  it('the picked face draws two meshes fewer than today\'s, and no cat is over its cap', () => {
     for (const breed of PRESETS) {
+      pick({});
+      const today = { full: draws(buildCat(breed)), simple: draws(buildCat(breed, undefined, { simple: true })) };
+      Object.assign(FACE, PICKS);
       const full = buildCat(breed), simple = buildCat(breed, undefined, { simple: true });
-      const was = GOLDEN[`${breed}:full`], wasLines = was.lines.length;
-      expect(draws(full), breed).toBe(wasLines - 5);
-      expect(triangles(simple), breed).toBe(GOLDEN[`${breed}:simple`].tris);
-      expect(triangles(full) - was.tris, breed).toBeLessThanOrEqual(950);
+      expect(draws(full), breed).toBe(today.full - 2);
+      expect(draws(simple), breed).toBe(today.simple);
+      expect(triangles(full), breed).toBeLessThanOrEqual(10350);
+      expect(triangles(simple), breed).toBeLessThanOrEqual(5500);
+      expect(simple.userData.parts.head.children.find((c) => c.userData.eye).geometry.type, breed).toBe('SphereGeometry');
     }
   });
 });
 
 describe('Tier A: nose, mouth, round parts, whiskers', () => {
+  beforeEach(() => pick({})); // measured on today's shapes; the options have their own tests below
   it('the nose mesh is the leather and the mouth: the leather lies on the snout, the mouth under it', () => {
     for (const breed of PRESETS) {
       const cat = buildCat(breed); cat.updateMatrixWorld(true);

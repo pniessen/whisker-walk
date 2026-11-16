@@ -17,7 +17,9 @@ import { SKULL } from './torso.js';
 //            fuller cheeks below the eyes)
 //   ears:    'today' | 'shell' (a cupped shell with a wider base, lower and
 //            further out, tipped forward; ear-tip tufts on a tufted cat)
-export const FACE = { eyes: 'today', profile: 'today', ears: 'today' };
+// Owner's picks from the option sheets, 2026-11-15: soft eyes, shell ears,
+// today's profile.
+export const FACE = { eyes: 'soft', profile: 'today', ears: 'shell' };
 export const FACE_OPTIONS = Object.freeze({
   eyes: Object.freeze(['today', 'soft', 'cat']),
   profile: Object.freeze(['today', 'profile']),
@@ -451,10 +453,19 @@ export function shellEarGeometry(r, h, { simple = false, tuft = false, backShade
   // For the scar's ear nick (scarmesh.js layNick): a point of the ear's BACK
   // and its normal, v across (0 the middle, 1 the outer edge, on side sx) and
   // u up (0 base, 1 tip).
+  // It follows the sheet as BUILT (its rows and columns, straight between
+  // them), so the nick lies on a crowd cat's coarse ear as on a detailed one.
+  const built = (t, s) => {
+    const ft = Math.min(Math.max(t, 0), 1) * N, i = Math.min(Math.floor(ft), N - 1), kt = ft - i;
+    const fs = ((Math.min(Math.max(s, -1), 1) + 1) / 2) * M, j = Math.min(Math.floor(fs), M - 1), ks = fs - j;
+    const node = (r, c) => new THREE.Vector3(...back(r / N, (c / M) * 2 - 1));
+    const lo = node(i, j).lerp(node(i, j + 1), ks), hi = node(i + 1, j).lerp(node(i + 1, j + 1), ks);
+    return lo.lerp(hi, kt);
+  };
   geo.userData.backAt = (v, u, sx) => {
     const s = sx * v, e = 0.01;
-    const P = new THREE.Vector3(...back(u, s));
-    const du = new THREE.Vector3(...back(u + e, s)).sub(P), ds = new THREE.Vector3(...back(u, s + e)).sub(P);
+    const P = built(u, s);
+    const du = built(u + e, s).sub(P), ds = built(u, s + sx * e).sub(P);
     const n = new THREE.Vector3().crossVectors(du, ds).normalize();
     if (n.z < 0) n.negate();
     return { point: P, normal: n, shade: shade(u, s)[0] };

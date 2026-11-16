@@ -36,7 +36,8 @@ describe('custom looks', () => {
     }
   });
   it('a look draws its eyes, and a preset keeps its own', () => {
-    const eyeHex = (cat) => cat.userData.parts.head.children.find((m) => m.isMesh && m.geometry.parameters?.radius === 0.036).material.color.getHex();
+    // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): the eye is a lens, not the 0.036 ball; it is found by its tag (model.js userData.eye)
+    const eyeHex = (cat) => cat.userData.parts.head.children.find((m) => m.isMesh && m.userData.eye).material.color.getHex();
     expect(eyeHex(buildCat('siamese', undefined, { look: { ...DEFAULT_LOOK, eyes: 'copper' } }))).toBe(EYES.copper.hex);
     expect(eyeHex(buildCat('siamese'))).toBe(0x68a8d8);
   });

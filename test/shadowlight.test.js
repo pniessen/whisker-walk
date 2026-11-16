@@ -51,13 +51,14 @@ function sceneWith(...things) {
 }
 
 describe('trimShadowCasters — which parts of a thing are worth a shadow draw', () => {
-  it('her cat: 31 shadow draws become 10, and both ears are among them', () => {
+  // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): 31 -> 29 casters before the trim (the shell ears have no inner-ear meshes).
+  it('her cat: 29 shadow draws become 10, and both ears are among them', () => {
     const cat = buildCat('tabby');
     const scene = sceneWith(cat);
-    expect(casters(cat)).toBe(31);
+    expect(casters(cat)).toBe(29);
     const r = trimShadowCasters(scene, MIN);
     expect(casters(cat)).toBe(10);
-    expect(r).toEqual({ trimmed: 21, casters: 10 });
+    expect(r).toEqual({ trimmed: 19, casters: 10 });
     let head = null;
     cat.traverse((o) => { if (o.userData.earL) head = o; });
     expect(head.userData.earL.castShadow).toBe(true);
@@ -150,7 +151,7 @@ describe('trimShadowCasters — which parts of a thing are worth a shadow draw',
     for (const tier of LADDER.slice(0, 4)) {
       expect(trimShadowCasters(scene, tier.shadowMinPart)).toEqual({ trimmed: 0, casters: 0 });
     }
-    expect(casters(cat)).toBe(31);
+    expect(casters(cat)).toBe(29);
     expect(trimShadowCasters(null, MIN)).toEqual({ trimmed: 0, casters: 0 });
   });
 

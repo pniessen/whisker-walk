@@ -141,7 +141,9 @@ describe('hats sit on the head (accessories polish Task 1)', () => {
   });
 
   const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
-  const eyeOf = (head) => head.children.filter((m) => m.isMesh && m.geometry.parameters?.radius === 0.036);
+  // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): the eye is a slanted lens, found by its tag; its top is its highest vertex (head space), not a ball's radius.
+  const eyeOf = (head) => head.children.filter((m) => m.isMesh && m.userData.eye);
+  const topOf = (e) => { e.updateMatrix(); return new THREE.Box3().setFromBufferAttribute(e.geometry.attributes.position).applyMatrix4(e.matrix).max.y; };
   it.each(WREATHS)('%s: its lowest front point stays well above the eye line on every cat', (id) => {
     for (const breed of BREEDS) {
       const cat = buildCat(breed, { head: id });
@@ -149,7 +151,7 @@ describe('hats sit on the head (accessories polish Task 1)', () => {
       const eyes = eyeOf(head);
       expect(eyes, breed).toHaveLength(2);
       // head-local: the eye's top (its ball's radius times its y scale)
-      const eyeTop = Math.max(...eyes.map((e) => e.position.y + e.geometry.parameters.radius * e.scale.y));
+      const eyeTop = Math.max(...eyes.map(topOf));
       const eyeZ = eyes[0].position.z;
       const [hat] = hatOf(cat);
       // the front half of the head, where a hat could cross the brow

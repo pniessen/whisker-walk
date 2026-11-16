@@ -306,8 +306,9 @@ describe('cat model: budget and determinism', () => {
   // The final ceilings (Global Constraints): the belly, chest and ruff are one mesh.
   // polish-faces (2026-11-06): the tabby and zeetoo wear the forehead M, one
   // mesh like D2's bars and Robbie's blaze, so they move 30 -> 31 (simple 25).
-  const CEILING = { tabby: 31, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 31, robbie: 31, d2: 31, digit: 34, hagrid: 19 };
-  const CEILING_SIMPLE = Object.fromEntries(Object.entries(CEILING).map(([b, n]) => [b, b === 'hagrid' ? 19 : n - 6]));
+  // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): every detailed cat's ceiling comes DOWN by 2 (a shell ear has no inner-ear mesh); the crowd cat's is unchanged.
+  const CEILING = { tabby: 29, siamese: 28, persian: 28, black: 28, calico: 29, mainecoon: 28, zeetoo: 29, robbie: 29, d2: 29, digit: 32, hagrid: 19 };
+  const CEILING_SIMPLE = Object.fromEntries(Object.entries(CEILING).map(([b, n]) => [b, b === 'hagrid' ? 19 : n - 4]));
 
   for (const breed of ALL) {
     it(`${breed} draws no more meshes than its ceiling (${CEILING[breed]})`, () => {
@@ -565,10 +566,11 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
     expect(colourDistance(chestFront('black'), new THREE.Color(0x3a3a42))).toBeLessThan(0.02);
   });
   it('final mesh ceilings, fluffy cats included', () => {
-    const FINAL = { tabby: 31, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 31, robbie: 31, d2: 31, digit: 34 }; // tabby, zeetoo: +1 for the M (polish-faces)
+    // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): full builds 2 fewer each (no inner-ear meshes); simple builds as they were (full - 4 now)
+    const FINAL = { tabby: 29, siamese: 28, persian: 28, black: 28, calico: 29, mainecoon: 28, zeetoo: 29, robbie: 29, d2: 29, digit: 32 }; // tabby, zeetoo: +1 for the M (polish-faces)
     for (const [b, n] of Object.entries(FINAL)) {
       expect(meshCount(buildCat(b))).toBe(n);
-      expect(meshCount(buildCat(b, undefined, { simple: true }))).toBe(n - 6);
+      expect(meshCount(buildCat(b, undefined, { simple: true }))).toBe(n - 4);
     }
   });
   it('stays inside the triangle budget', () => {
@@ -1342,7 +1344,8 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
     }
     return worst * SKULL_R * skull.getWorldScale(new THREE.Vector3()).x;
   };
-  const eyeParts = (head, side) => [0.036, 0.017, 0.007].map((r) => head.children.find((m) => m.isMesh && m.geometry.parameters?.radius === r && Math.sign(m.position.x) === side));
+  // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): the eye, pupil and shine are found by their tags (the eye is a lens, no longer the 0.036 ball)
+  const eyeParts = (head, side) => ['eye', 'pupil', 'shine'].map((tag) => head.children.find((m) => m.isMesh && m.userData[tag] && Math.sign(m.position.x) === side));
 
   it('from the side, the far eye (eye, pupil, shine) stays inside the head outline, standing and stalking', () => {
     for (const breed of ['tabby', 'digit']) for (const state of ['follow', 'stalk']) {
@@ -1352,24 +1355,29 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
       expect(far.every(Boolean)).toBe(true);
       for (const yaw of [0, 10, 20, 30]) for (const up of [0, 0.12]) {
         const a = (yaw * Math.PI) / 180, dir = new THREE.Vector3(Math.cos(a), up, Math.sin(a)); // from the side, round toward the rear
-        for (const m of far) expect(poke(skull, m, dir), `${breed} ${state} yaw ${yaw} up ${up} r ${m.geometry.parameters.radius}`).toBeLessThanOrEqual(0.001);
+        for (const m of far) expect(poke(skull, m, dir), `${breed} ${state} yaw ${yaw} up ${up} ${m.userData.eye ? 'eye' : m.userData.pupil ? 'pupil' : 'shine'}`).toBeLessThanOrEqual(0.001);
       }
     }
   });
 
-  it('the eyes still stand out of the face: eye proud of the skull, pupil proud of the eye', () => {
+  // 2026-11-15, realism 3 (owner's picks: soft eyes, shell ears): the soft eye is a lens set INTO the face, so it no longer stands 5 mm
+  // proud of the skull as the ball did (that was the audit's "eyes bulge like
+  // lenses"). What must still hold: it is in front of the skull, not sunk under
+  // it, the pupil is proud of the lens and the catchlight of the lens under it.
+  // Measured out of the face along the eye's own facing, from the eye's centre.
+  it('the eyes lie on the face: the lens just proud of the skull, the pupil and catchlight proud of the lens', () => {
     const head = buildCat('tabby').userData.parts.head;
-    const frontZ = (m) => { m.updateMatrix(); const b = new THREE.Box3().setFromBufferAttribute(m.geometry.attributes.position).applyMatrix4(m.matrix); return b.min.z; };
     for (const side of [-1, 1]) {
       const [eye, pupil, shine] = eyeParts(head, side);
+      const out = new THREE.Vector3(0, 0, -1).applyQuaternion(eye.quaternion);
+      const front = (m) => { m.updateMatrix(); const p = m.geometry.attributes.position; let f = -Infinity; for (let i = 0; i < p.count; i++) f = Math.max(f, new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(m.matrix).sub(eye.position).dot(out)); return f; };
+      // the eye's centre is on the skull ellipsoid
       const [ax, ay, az] = SKULL.SCALE.map((s) => s * SKULL_R);
-      const skullZ = -az * Math.sqrt(1 - (eye.position.x / ax) ** 2 - (eye.position.y / ay) ** 2);
-      expect(frontZ(eye)).toBeLessThanOrEqual(skullZ - 0.005);
-      expect(frontZ(pupil)).toBeLessThanOrEqual(frontZ(eye) - 0.001);
-      // the shine stands out of the eye's surface where it sits
-      const [ex, ey, ez] = [0.036, 0.036 * 1.15, 0.036 * 0.7];
-      const dx = (shine.position.x - eye.position.x) / ex, dy = (shine.position.y - eye.position.y) / ey;
-      expect(frontZ(shine)).toBeLessThanOrEqual(eye.position.z - ez * Math.sqrt(1 - dx * dx - dy * dy) - 0.002);
+      expect((eye.position.x / ax) ** 2 + (eye.position.y / ay) ** 2 + (eye.position.z / az) ** 2).toBeCloseTo(1, 6);
+      expect(front(eye)).toBeGreaterThanOrEqual(0.003);
+      expect(front(eye)).toBeLessThanOrEqual(0.006);
+      expect(front(pupil)).toBeGreaterThanOrEqual(front(eye) + 0.001);
+      expect(front(shine)).toBeGreaterThanOrEqual(front(eye) + 0.002);
     }
   });
 });
