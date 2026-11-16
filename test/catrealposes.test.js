@@ -436,3 +436,16 @@ describe('coat detail (A5): barred legs, a necklace, a darker back line, a paler
     expect(matched).toBeGreaterThan(40);
   });
 });
+
+describe('the new poses draw no random numbers', () => {
+  it('posing through every changed state calls Math.random not once', () => {
+    const cats = [make('tabby'), make('persian', true), make('digit', false, { collar: 'bell', body: 'cape', back: 'backpack', feet: 'rainboots' })];
+    const real = Math.random;
+    let n = 0;
+    Math.random = () => { n++; return real(); };
+    try {
+      for (const cat of cats) for (const state of ['follow', 'stretch', 'groom', 'perch', 'requestPet', 'nap', 'land', 'stalk', 'follow']) pose(cat, state, 1.3, state === 'stalk' ? 1.5 : 0);
+    } finally { Math.random = real; }
+    expect(n).toBe(0);
+  });
+});
