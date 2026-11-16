@@ -293,3 +293,37 @@ describe('grooming, the raised paw shows under the chin', () => {
     }
   });
 });
+
+describe('the tail root wears the rump\'s colour (round 1\'s leftover)', () => {
+  it('at the root ball the link is the coat painted on the rump under it; by its far end it is the tail\'s own colour', async () => {
+    const { coatColourAt } = await import('../src/cat/coat.js');
+    const { torsoUnitAt, TAIL } = await import('../src/cat/torso.js');
+    for (const breed of ['tabby', 'calico', 'black', 'persian', 'mainecoon']) {
+      const cat = make(breed);
+      const { body, tail, tailPivots } = cat.userData.parts;
+      // the tail carried as the root was painted for: TAIL.SEAM_LIFT above level
+      tail.rotation.set(-TAIL.SEAM_LIFT, 0, 0); tailPivots[0].rotation.set(0, 0, 0);
+      cat.updateMatrixWorld(true);
+      const link = tailPivots[0].children[0], col = link.geometry.attributes.color, p = link.geometry.attributes.position;
+      expect(col, breed).toBeTruthy();
+      const want = new THREE.Color(), got = new THREE.Color(), inv = body.matrixWorld.clone().invert();
+      let ball = 0, worst = 0;
+      const n = link.geometry.userData.tufts?.start ?? p.count; // the link's own surface (its fur follows)
+      for (let i = 0; i < n; i++) {
+        if (p.getZ(i) > 1e-6) continue;
+        ball++;
+        // the rump under this vertex
+        _v.fromBufferAttribute(p, i).applyMatrix4(link.matrixWorld).applyMatrix4(inv);
+        coatColourAt(body.userData.coat, torsoUnitAt([_v.x, _v.y, _v.z]), want);
+        got.fromBufferAttribute(col, i);
+        worst = Math.max(worst, Math.hypot(got.r - want.r, got.g - want.g, got.b - want.b));
+      }
+      expect(ball, breed).toBeGreaterThan(20);
+      expect(worst, breed).toBeLessThan(0.02);
+    }
+    // family cats, pointed cats and crowd cats keep the plain root
+    for (const [breed, simple] of [['digit', false], ['d2', false], ['robbie', false], ['zeetoo', false], ['siamese', false], ['tabby', true]]) {
+      expect(make(breed, simple).userData.parts.tailPivots[0].children[0].geometry.attributes.color, breed).toBeUndefined();
+    }
+  });
+});

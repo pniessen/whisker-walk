@@ -1281,7 +1281,12 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
       const p = m.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) {
         const c = drawn(m, i), v = p.getZ(i) / L, u = (k * L + Math.min(L, Math.max(0, p.getZ(i)))) / (5 * L);
-        if (k === 0) expect(colourDistance(c, base), `link 0 v ${v}`).toBeLessThan(1e-6);
+        // 2026-11-15 (cat realism, the tail's root): link 0 is no longer one
+        // plain colour. Its root ball wears the rump's own painted colour (so
+        // it does not show as a disc from behind) and it eases to the plain
+        // coat by its far end, where it meets link 1.
+        if (k === 0 && v >= 1 - 1e-6) expect(colourDistance(c, base), `link 0 v ${v}`).toBeLessThan(1e-6);
+        if (k === 0 && v <= 1e-6) expect(colourDistance(c, base), `link 0 v ${v}: the rump's colour`).toBeGreaterThan(0.01);
         if (k === 1 || k === 2) {
           // every vertex lies on the base-to-ring line, ...
           const t = (c.r - base.r) / (tip.r - base.r);

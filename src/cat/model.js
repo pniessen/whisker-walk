@@ -1499,6 +1499,20 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // style callers (clan, rival, intruder cats) never pass a family breed.
   const family = FAMILY_NOSE.has(breed) && opts.look == null;
   const ringedTail = !!s.stripes && !opts.simple && !family && !(s.tailPlume ?? (s.tailFluff > 1 || s.fluffy)); // a plume hides rings, and a long-haired tabby sits near the 9,000 cap
+  // The root link's colour at a point of it (link frame, z along the tail):
+  // the coat painted on the rump under that point, the tail carried
+  // TAIL.SEAM_LIFT above level as for the seams below, easing to the tail's
+  // own colour by the link's far end.
+  const rootM = new THREE.Matrix4().compose(
+    new THREE.Vector3(0, TAIL.ROOT_DY, TAIL.ROOT_Z * PROPORTION.body),
+    new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -TAIL.SEAM_LIFT), new THREE.Vector3().setScalar(TAIL.SCALE));
+  const rootV = new THREE.Vector3(), rootU = [0, 0, 0], rootBase = new THREE.Color(s.base);
+  const rootColour = (x, y, z, out) => {
+    rootV.set(x, y, z).applyMatrix4(rootM);
+    coatColourAt(coat, torsoUnitAt([rootV.x / BODY_SCALE[0], rootV.y / BODY_SCALE[1], rootV.z / BODY_SCALE[2]], rootU), out);
+    const k = Math.min(1, Math.max(0, z / TAIL.LINK));
+    return out.lerp(rootBase, k * k * (3 - 2 * k));
+  };
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
@@ -1530,9 +1544,23 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       : ball(tailRad(i / 5)));   // a rounded joint
     if (i === 4) parts.push(ball(tailRad(1)).translate(0, 0, TAIL.LINK)); // the tip
     const geo = mergeGeometries(parts);
-    const seg = new THREE.Mesh(geo, blend || ringed
+    // Cat realism 2026-11-15 (round 1's leftover): from straight behind, the
+    // tail's root showed as a soft disc on the rump, because the root link is
+    // the plain coat colour while the rump under it is painted (shaded low
+    // down, striped or patched). The root link now wears the rump's own
+    // painted colour at its root ball and eases into the tail's colour along
+    // its length (rootColour). Colour only. A pointed cat's tail is the point
+    // colour to the root, as it was; the family cats' tails (drawn from their
+    // photos) and a crowd cat's stay plain too.
+    const rooted = i === 0 && !s.points && !family && !opts.simple;
+    const seg = new THREE.Mesh(geo, blend || ringed || rooted
       ? litMaterial(0xffffff, { vertexColors: true })
       : mat((i >= 3 && darkTip) || s.points ? s.accent : s.base));
+    if (rooted) {
+      const pos = geo.attributes.position, col = new Float32Array(pos.count * 3), c = new THREE.Color();
+      for (let k = 0; k < pos.count; k++) rootColour(pos.getX(k), pos.getY(k), pos.getZ(k), c).toArray(col, k * 3);
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
     if (blend) {
       // Coat at and behind the pivot, the tip colour from a third of the way
       // along the link (u = 2/3 of the whole tail) on.
@@ -1562,6 +1590,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       const from = new THREE.Color(s.base), to = new THREE.Color(s.accent);
       appendTufts(geo, tailTufts(s, tufts.plan, tufts.seed, i, plume, tailRad, (z, c) => {
         if (blend) return c.lerpColors(from, to, Math.min(1, Math.max(0, z / (TAIL.LINK * TIP_FROM))));
+        if (rooted) return rootColour(0, 0, z, c);
         if (!ringed) return c.copy(from);
         const d = Math.abs(z / TAIL.LINK - TAIL_RING.at) - TAIL_RING.half;
         return c.lerpColors(from, to, (1 - Math.min(1, Math.max(0, d / TAIL_RING.soft))) * TAIL_RING.strength);
