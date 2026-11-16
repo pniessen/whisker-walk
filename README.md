@@ -169,8 +169,9 @@ the repo's GitHub Actions secrets.
     npm run build     # production build in dist/
     npm run preview   # serve the production build
 
-**Built with:** Three.js 0.185, Vite 8 and Vitest 4. There is no backend apart
-from the optional Supabase realtime channel.
+**Built with:** Three.js 0.185, Vite 8 and Vitest 4. There is no server of our
+own: the optional online parts (cloud save, friends, the shared colony and
+walking together) use a Supabase database and its realtime channel.
 
 **Deploying.** Every push to `main` runs the tests and deploys to GitHub Pages
 (`.github/workflows`).
@@ -196,6 +197,20 @@ If a change moves it, find out why before you re-record it.
 To decode the task and decision ids that `src/` comments cite (CF-7, Task 6.2,
 Polish 3, R18, K6 ...), see `docs/GLOSSARY.md`. `docs/SESSION-HANDOFF.md` is a
 one-page map of where things live.
+
+## Credits and licence
+
+[CREDITS.md](CREDITS.md) lists the third-party libraries the game is built
+with (Three.js and the Supabase client, both MIT) and where every picture and
+sound comes from: the game draws its art and makes its sounds in code. The
+project's own licence has not been chosen yet, so no licence file is included;
+until one is, all rights are reserved.
+
+## Privacy
+
+[docs/PRIVACY.md](docs/PRIVACY.md) is a draft privacy policy, checked against
+the code but not yet reviewed by a lawyer. It says what stays on the device,
+what the game sends online and when, and how to delete it.
 
 ## Contact
 
