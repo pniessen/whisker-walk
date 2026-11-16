@@ -75,7 +75,9 @@ describe('cloud sync: a save the cloud refuses', () => {
 
   it('hands the cloud the player secret getter, for the v8 friendships_of read', () => {
     const s = setup(() => 'created');
-    s.getCloud();
+    // 2026-11-16: getCloud() is now null for a device not yet put online
+    // (test/offlinefirst.test.js); openCloud() is the same factory, ungated.
+    s.openCloud();
     expect(typeof s.made[0].getSecret).toBe('function');
     expect(s.made[0].getSecret()).toBe(s.getPsecret());
   });

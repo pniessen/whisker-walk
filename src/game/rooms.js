@@ -41,6 +41,10 @@ export function createRooms({
   colonySync,
   toast,
   createTransport = () => createSupabaseTransport(supabaseUrl, supabaseAnonKey),
+  // cloudsync.js's gate (2026-11-16): no room is opened, so no live
+  // connection is made, on a device that has not been put online. main.js
+  // always passes it; the default is for tests that build rooms on their own.
+  onlineAllowed = () => true,
 }) {
   // Room state lives OUTSIDE the walk session — a room can be formed on the
   // home base screen (host/join) before anyone has clicked Start, and
@@ -276,7 +280,7 @@ export function createRooms({
       };
     },
     async host() {
-      if (!MP || pendingRoom || roomOpInFlight) return { ok: false };
+      if (!MP || !onlineAllowed() || pendingRoom || roomOpInFlight) return { ok: false };
       roomOpInFlight = true;
       const code = generateRoomCode();
       const net = createNet(createTransport());
@@ -304,7 +308,7 @@ export function createRooms({
     // A typed code. Only the 4-character shape a code room has is accepted,
     // so nothing typed can ever reach a pair room ('P' + 16 hex).
     async join(code) {
-      if (!MP || pendingRoom || roomOpInFlight) return { ok: false };
+      if (!MP || !onlineAllowed() || pendingRoom || roomOpInFlight) return { ok: false };
       if (typeof code !== 'string' || !TYPED_CODE.test(code)) return { ok: false };
       return joinRoom(code, false);
     },
@@ -313,7 +317,7 @@ export function createRooms({
     // at join (fire-and-forget: colonySync.pull never rejects, and a slow
     // pull must never hold up the room).
     async walkWithPartner() {
-      if (!MP || pendingRoom || roomOpInFlight) return { ok: false };
+      if (!MP || !onlineAllowed() || pendingRoom || roomOpInFlight) return { ok: false };
       if (colonySync?.status().mode !== 'paired') return { ok: false };
       const id = progression.state.colony?.id;
       if (typeof id !== 'string' || !COLONY_ROOM_ID.test(id)) return { ok: false };
