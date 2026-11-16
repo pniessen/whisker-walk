@@ -567,17 +567,31 @@ describe('animateCat: neckwear rides the neck with the collar (fix wave I3)', ()
   // Task 4: standing at rest (follow, breathing at 0) the neck carry is the
   // identity, for every breed; walking they ride the neck (the collar's move,
   // and they did move); in the stretch they are worn on the head as built.
-  it('standing at rest the neck pieces are exactly as built (within 1e-9); walking they ride the neck; the stretch wears them as built', () => {
+  // 2026-11-15 (cat realism A7): the stretch is now a play bow whose neck line
+  // is a neck again (the head forward of and over the lowered chest), so the
+  // neck pieces ride it there as in every other pose; they were worn on the
+  // head as built while the old stretch dropped the head under the chest. The
+  // swim still wears them on the head as built.
+  it('standing at rest the neck pieces are exactly as built (within 1e-9); walking and stretching they ride the neck; the swim wears them as built', () => {
     for (const breed of ['tabby', 'digit', 'persian', 'mainecoon', 'd2', 'robbie']) {
       const fresh = buildCat(breed, { collar: 'bell', neck: 'streamerscarf' }).userData.parts.head;
       const built = [fresh.userData.collar, ...fresh.userData.neckwear];
       const items = (h) => [h.userData.collar, ...h.userData.neckwear];
-      for (const [state, t, speed] of [['follow', 0, 0], ['stretch', 1.3, 0]]) {
+      for (const [state, t, speed] of [['follow', 0, 0], ['swim', 1.3, 0]]) {
         const cat = buildCat(breed, { collar: 'bell', neck: 'streamerscarf' });
         animateCat(cat, 'stalk', 1.3, 0, false); animateCat(cat, state, t, speed, false);
         items(cat.userData.parts.head).forEach((item, i) => {
           expect(closeDiffs(item.position.toArray(), built[i].position.toArray(), 1e-9), `${breed} ${state} ${i}`).toEqual([]);
           expect(closeDiffs(item.quaternion.toArray(), built[i].quaternion.toArray(), 1e-9), `${breed} ${state} ${i}`).toEqual([]);
+        });
+      }
+      {
+        const head = buildCat(breed, { collar: 'bell', neck: 'streamerscarf' }).userData.parts.head;
+        animateCat(head.parent, 'stretch', 1.3, 0, false);
+        const collarMove = moveOf(head.userData.collar, built[0]);
+        expect(head.userData.collar.position.distanceTo(built[0].position), `${breed} stretch`).toBeGreaterThan(1e-4);
+        head.userData.neckwear.forEach((item, i) => {
+          expect(closeDiffs(moveOf(item, built[i + 1]), collarMove, 1e-6), `${breed} stretch piece ${i}`).toEqual([]);
         });
       }
       for (const t of [0.4, 1.3, 2.2]) {

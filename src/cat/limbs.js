@@ -272,6 +272,17 @@ export const FOLDS = Object.freeze({
     front: fold([[0.30, 0], [0.25, -0.02], [0.241, -0.069], [0.20, -0.041]], [0.085, 0.055, 0.045, 0.036], [0.18, -0.07], -0.6),
     hind: fold([[0.30, 0], [0.24, -0.05], [0.203, -0.029], [0.1615, -0.0576]], [0.10, 0.075, 0.05, 0.036], [0.17, -0.07], 0.6),
   }),
+  // The play bow (cat realism A7, 2026-11-15; the stretch): front legs only.
+  // The shoulder is down at BOW.shoulder (torso.js; the animator pitches the
+  // torso nose-down onto it and moves the hip there), the elbow low behind
+  // the paw and the forearm lies along the ground into the heel of a paw
+  // that presses flat on it. `ground`: the points are in the ground frame
+  // like a crouch's (y = g - hipY), but the body is not lowered by legLift
+  // with them: the hind legs stand, the animator alone places the torso.
+  bow: Object.freeze({
+    crouch: false, ground: true, drop: 0.115,
+    front: fold([[0.185, 0.05], [0.085, 0.01], [0.05, -0.13], [0.04, -0.24]], [0.085, 0.06, 0.042, 0.036], [0.0415, -0.27]),
+  }),
 });
 
 // R3: which states fold, as [front, hind]. Every other state stands (the
@@ -284,6 +295,7 @@ export const FOLD_BY_STATE = Object.freeze({
   requestPet: Object.freeze(['stand', 'sit']),
   perch: Object.freeze(['stand', 'sit']),
   roll: Object.freeze(['ball', 'ball']),
+  stretch: Object.freeze(['bow', 'stand']),
 });
 
 // A fold's tube keeps the inside of each bend within FOLD_BEND x its radius
@@ -299,7 +311,7 @@ function bakedFold(kind, hind, simple, hipY) {
   if (baked) return baked;
   const f = FOLDS[kind];
   const shape = f[hind ? 'hind' : 'front'];
-  const y0 = f.crouch ? hipY : REF_RIG.HIP_Y;
+  const y0 = f.crouch || f.ground ? hipY : REF_RIG.HIP_Y;
   const { pos, nor, t } = tubeArrays(shape.points.map(([g, z]) => [0, g - y0, z]), shape.radii, LIMB_SEG[simple ? 'simple' : 'full'], FOLD_BEND);
   if (shape.flat !== 1) flatten(pos, nor, t, shape.flat, FLAT_SPAN / (shape.points.length - 1));
   baked = Object.freeze({

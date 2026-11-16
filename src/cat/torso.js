@@ -196,6 +196,17 @@ export const POSE_FIT = Object.freeze({
 //     ground at every legLen.
 export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, headDY: 0.09, headDZ: 0.06, chestDepth: 0.75, chestDrop: 0.03, foreZ: -0.06, foreTilt: 0 });
 
+// The stretch (cat realism A7, 2026-11-15): a play bow. It was a torso tipped
+// nose-UP with the head dropped 24 cm (the pale chest stood up behind the
+// head as a lump) over front legs swung forward in the air. Now the torso
+// pitches nose-DOWN about the standing hind hips until the front hips are
+// `shoulder` over the ground (the same height on every cat, so a long-legged
+// one bows steeper), the front legs fold onto the ground (limbs.js
+// FOLDS.bow) and the head is held low over the paws: `head` is its centre
+// from the lowered front hip [up, forward (-z)], `headTip` its nose-up tilt.
+// Cats with folds only (Hagrid keeps his stretch).
+export const BOW = Object.freeze({ shoulder: 0.185, head: Object.freeze([0.25, -0.22]), headTip: 0.05, maxPitch: 0.8 });
+
 // polish-sit Task 2 (2026-11-02): the sitting tail lies round the paws, the
 // Warrior Cats sit's other half (animator.js; cats with folds only, Hagrid's
 // fan keeps his). Before, the root stayed where the standing cat carries it

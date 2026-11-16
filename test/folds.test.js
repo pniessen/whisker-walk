@@ -125,6 +125,9 @@ const INVERTED_MAX = {
   tuck: { front: [0, 0], hind: [0, 0] },
   crouch: { front: [0, 0], hind: [0, 0] },
   ball: { front: [0, 0], hind: [0, 0] },
+  // 2026-11-15 (cat realism A7): the stretch's play bow, front legs only (a
+  // hind leg asked for it stands, so its ceiling is the standing hind limb's).
+  bow: { front: [0, 0], hind: [4, 6] },
 };
 
 describe('legs fold at the joints (Task 5)', () => {

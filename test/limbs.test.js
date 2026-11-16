@@ -492,7 +492,9 @@ describe('the foot', () => {
 // The folds (body refinement Task 5, R1-R3): the table's own rules.
 describe('the fold table', () => {
   it('every fold is in the ground frame, its top inside the lowered body, nothing below the ground', () => {
-    expect(Object.keys(FOLDS)).toEqual(['stand', 'sit', 'tuck', 'crouch', 'ball']);
+    // 2026-11-15 (cat realism A7): the stretch is a play bow, its front legs a
+    // fold of their own (`bow`: forearms along the ground, the paws pressed on it).
+    expect(Object.keys(FOLDS)).toEqual(['stand', 'sit', 'tuck', 'crouch', 'ball', 'bow']);
     expect(FOLDS.stand.crouch).toBe(false);
     for (const [kind, f] of Object.entries(FOLDS)) {
       if (kind === 'stand') continue;
@@ -509,6 +511,7 @@ describe('the fold table', () => {
   });
 
   it('which states fold (R3)', () => {
-    expect(FOLD_BY_STATE).toEqual({ nap: ['tuck', 'tuck'], pinned: ['tuck', 'tuck'], stalk: ['crouch', 'crouch'], requestPet: ['stand', 'sit'], perch: ['stand', 'sit'], roll: ['ball', 'ball'] });
+    // 2026-11-15 (cat realism A7): the stretch folds its front legs into the bow.
+    expect(FOLD_BY_STATE).toEqual({ nap: ['tuck', 'tuck'], pinned: ['tuck', 'tuck'], stalk: ['crouch', 'crouch'], requestPet: ['stand', 'sit'], perch: ['stand', 'sit'], roll: ['ball', 'ball'], stretch: ['bow', 'stand'] });
   });
 });

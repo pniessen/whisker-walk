@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG, BOW } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { HOOD, slideHoodTo } from './backitems.js';
 import { layCapeTie } from './cape.js';
@@ -81,19 +81,22 @@ const TAIL_SWAY_DAMP = [0, 0.2, 0.6, 0.8, 0.8];
 // any other pose takes the neck's own move, { turn: 1, anchor: 0 }). Measured
 // on every preset with each neck item and the full kit at t 0.4/1.3/2.2:
 // clear of the ground (0.2 mm at the least; the head-locked items went 9 mm
-// in), behind the nose and below the mouth. The stretch's play bow drops the
-// head below the chest (~118°): carried, the ring flipped onto the back of
-// the head, and moved without the turn it sank into the head; there they are
-// worn on the head as built (HEAD_NECKWEAR), which reads as a collar round
-// the lowered head. So they are in the swim, which sinks the shoulders and
-// holds the head up out of the water: carried on the neck, Digit's tag collar
-// dipped under the waterline; on the head it stays up with it.
+// in), behind the nose and below the mouth. In the swim, which sinks the
+// shoulders and holds the head up out of the water, they are worn on the head
+// as built (HEAD_NECKWEAR): carried on the neck, Digit's tag collar dipped
+// under the waterline; on the head it stays up with it.
+// 2026-11-15 (cat realism A7): the stretch left HEAD_NECKWEAR. Its old pose
+// dropped the head below a raised chest (~118°), where a carried ring flipped
+// onto the back of the head; the play bow holds the head forward of and over
+// the lowered chest, a neck again, so the collar and the neck pieces ride it
+// as in any other pose (the longest, the streamer scarf on Digit, ends 5 mm
+// in the ground; every other piece on every cat is clear of it).
 // 2026-11-15 (cat realism B3, head 8% smaller): the nap's share of the turn
 // 0.15 -> 0.10. The smaller head's nose sits 1-2 mm further back, and at 0.15
 // the bell's front edge came out just ahead of it.
-const NECK_FIT = { nap: { turn: 0.10, anchor: -0.35 } };
+export const NECK_FIT = { nap: { turn: 0.10, anchor: -0.35 } };
 const NECK_FIT_DEFAULT = { turn: 1, anchor: 0 };
-const HEAD_NECKWEAR = new Set(['stretch', 'swim']);
+const HEAD_NECKWEAR = new Set(['swim']);
 
 // v20 "Ruffled Fur" — the 'cross' pose.
 //
@@ -245,6 +248,15 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     const root = (sitting ? sitTail(cat) : napTail(cat)).ROOT;
     body.updateMatrix();
     _anchor.set(0, root[0] / sy, root[1] / sz).applyMatrix4(body.matrix);
+    tail.position.y = _anchor.y;
+    tail.position.z = _anchor.z;
+  }
+  // The stretch's tail root rides the pitched rump (cat realism A7): the tail
+  // hangs on the cat, so it is carried by the body's own move from rest.
+  if (state === 'stretch' && cat.userData.parts.legs[0].userData.folds) {
+    const { tail } = cat.userData.parts;
+    carryBody(cat);
+    _anchor.set(0, tail.position.y, tail.position.z).applyMatrix4(_ride);
     tail.position.y = _anchor.y;
     tail.position.z = _anchor.z;
   }
@@ -549,8 +561,8 @@ function dropChest(body, underside) {
 // frame, then put back into the head's. At rest (follow, breathing at 0) the
 // carry is the identity. A rig with no underside (Hagrid) has no chest to
 // carry from: his collar is put back where it was built (its rest, remembered
-// the first time it is moved), as always; so is everyone's in the stretch
-// and the swim (HEAD_NECKWEAR). The nap takes a little of the neck's move (NECK_FIT).
+// the first time it is moved), as always; so is everyone's in the swim
+// (HEAD_NECKWEAR). The nap takes a little of the neck's move (NECK_FIT).
 // Deterministic.
 //
 // Fix wave (polish-5): the posed chest is read through the underside
@@ -593,7 +605,7 @@ function fitNeck(cat, state) {
 // has none and leaves at the first check). Its torso end rides the body, its
 // skull end the head, and its middle the neck line exactly as a collar does
 // (the same neckMove, the same NECK_FIT; with the head as built in the
-// stretch and the swim), so whatever is worn round the neck rests on it in
+// swim), so whatever is worn round the neck rests on it in
 // every pose. 60 points, no allocation.
 const _neckM = new THREE.Matrix4();
 function fitNeckSkin(cat, state) {
@@ -612,7 +624,7 @@ function fitNeckSkin(cat, state) {
 
 // The cape's clasp and front bands (cape.js CAPE_TIE, owner 2026-11-04): the
 // clasp rides the neck exactly as the collar does (the same neckMove carry; on
-// the head as built in the stretch and the swim), and each band runs from the
+// the head as built in the swim), and each band runs from the
 // cloth at the shoulder to it, bowed out from the posed chest and head, and
 // kept clear of the skull, the torso and the chest (cape.js). Re-laid
 // every frame, once the head, the body and the chest are where this frame
@@ -964,7 +976,28 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   }
 
   if (state === 'stretch') {
-    // classic wake-up: front down, butt up
+    if (folds) {
+      // The play bow (torso.js BOW, cat realism A7): rump up on standing hind
+      // legs, the torso pitched nose-down about the hind hips until the front
+      // hips are BOW.shoulder over the ground, the forearms along the ground
+      // (limbs.js FOLDS.bow, already applied above), the head low over the paws.
+      const frontZ = legs[0].userData.hipZ, hindZ = legs[2].userData.hipZ, span = hindZ - frontZ;
+      const p = Math.min(BOW.maxPitch, Math.asin(Math.min(1, (base.hipY - BOW.shoulder) / span)));
+      const cp = Math.cos(p), sp = Math.sin(p);
+      // the hind hip's place in the torso (from its centre) stays where it stands
+      const hy0 = base.hipY - base.bodyY;
+      body.rotation.x = -p;
+      body.position.y = base.hipY - (hy0 * cp + hindZ * sp);
+      body.position.z = hindZ - (-hy0 * sp + hindZ * cp);
+      const shoulderY = base.hipY - span * sp, shoulderZ = hindZ - span * cp;
+      legs[0].position.z = shoulderZ;
+      legs[1].position.z = shoulderZ;
+      head.position.set(hx, shoulderY + BOW.head[0], shoulderZ + BOW.head[1]);
+      head.rotation.x = BOW.headTip;
+      tail.rotation.x = -1.15 + c; // c = 0: a straight tail
+      return;
+    }
+    // Hagrid: front down, butt up
     body.rotation.x = 0.35;
     body.position.y = base.bodyY + 0.04;
     head.position.set(hx, hy - 0.24, hz - 0.06);
