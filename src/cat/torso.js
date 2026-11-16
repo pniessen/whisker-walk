@@ -119,9 +119,13 @@ export const PROPORTION = { head: 0.92, body: 1 };
 // the rest when the head lowers, lifts or turns away from the shoulders. Full
 // builds only: it is re-laid every frame (60 points), which the crowd's
 // simple cats skip.
+// SIT_DIP (m; cat realism B11, 2026-11-16): sitting, the head is held high
+// over the shoulders and the nape ran from them to the skull as one straight
+// ramp. The nape's middle points are drawn this far in toward the throat
+// (neck.js layNeck), so the back of the neck curves in under the skull.
 // NAPE (0..1) is the taste call: how far the bare cat's nape stands out, 1 the
 // full bridge to M_NAPE, 0 none (a dressed cat's neck).
-export const NECK = { AROUND: 12, BASE_Z: -0.84, NAPE_Z: -0.45, M_AT: [0, -0.14, 0.055], R_SIDE: 0.125, R_BACK: 0.14, R_FRONT: 0.115, M_NAPE: [0, -0.025, 0.21], NAPE: 1, NAPE_REACH: 0.4, TILT: 0.7, ALPHA: 0.87, SINK: 0.012 };
+export const NECK = { AROUND: 12, BASE_Z: -0.84, NAPE_Z: -0.45, M_AT: [0, -0.14, 0.055], R_SIDE: 0.125, R_BACK: 0.14, R_FRONT: 0.115, M_NAPE: [0, -0.025, 0.21], NAPE: 1, NAPE_REACH: 0.4, TILT: 0.7, ALPHA: 0.87, SINK: 0.012, SIT_DIP: 0.035 };
 
 // The skull: a sphere of radius R scaled by SCALE, centred on the head's origin
 // (model.js buildCat). scarmesh.js lays a face scar on this same ellipsoid.
@@ -196,6 +200,11 @@ export const POSE_FIT = Object.freeze({
 //     taken out when it gets up (animator.js sinkChest), so the chest's centre
 //     as the neck line reads it (neckMove) has not moved: the collar, the neck
 //     pieces, the cape's clasp and the neck's skin sit exactly where they did.
+//   hindOut (m; cat realism B11, 2026-11-16): sitting, each hind hip stands
+//     this much further out, so the folded thigh (limbs.js FOLDS.sit) shows
+//     as a rounded haunch out of the torso's side, widest low down: from
+//     behind the sitting cat is a pear, where it was a tube on end. Not on a
+//     cat dressed on its body (limbs.js SLIM_FOLD).
 //   foreZ (metres, cat frame, - is forward): both front hips move forward by
 //     this: -0.06, the hips at z -0.30, inside the chest; the paws stand 8.3 cm
 //     behind the chest's front (the upper chest, y 0.46-0.48), as a sitting
@@ -205,7 +214,12 @@ export const POSE_FIT = Object.freeze({
 //     the hip-to-paw line 0.03 rad, Digit's longer leg 0.025). No swing means
 //     fitLongLegs leaves each leg its fitted length, so the soles stay on the
 //     ground at every legLen.
-export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, headDY: 0.09, headDZ: 0.06, chestDepth: 0.75, chestDrop: 0.03, chestSink: 0.03, chestFlat: 0.8, foreZ: -0.06, foreTilt: 0 });
+export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, headDY: 0.09, headDZ: 0.06, chestDepth: 0.75, chestDrop: 0.03, chestSink: 0.03, chestFlat: 0.8, foreZ: -0.06, foreTilt: 0, hindOut: 0.055 });
+
+// The sitting haunch's coat (cat realism B11, 2026-11-16; limbs.js paintFold):
+// the folded hind limb wears the torso's painted coat down to curve parameter
+// coatFrom, easing into its own leg colour by coatTo.
+export const HAUNCH = Object.freeze({ coatFrom: 0.5, coatTo: 0.85 });
 
 // Grooming (cat realism 2026-11-15): the head comes down and forward to the
 // raised front right paw (limbs.js FOLDS.lick) and turns to it: `head` its
@@ -268,9 +282,18 @@ export const SIT_TAIL = Object.freeze({
 // chin 1-2 cm over the paws, forward of the chest so the head and a hood
 // stay out of each other), `rot` its turn: the nose a touch down, the face
 // turned to the cat's left toward the tail's tip (NAP_TAIL), the cheek
-// rolled onto the paws. The body, the folded legs and the wrapped tail are
-// as they were: a true loaf or curl needs new shapes (plan item B11).
-export const NAP = Object.freeze({ head: Object.freeze([-0.02, -0.32, -0.08]), rot: Object.freeze([-0.05, 0.75, 0.18]) });
+// rolled onto the paws.
+// Cat realism B11 (2026-11-16): the body is a loaf. It was the standing
+// torso squashed flat (scale 1.12, 0.73, 0.89, 10 cm down) over legs folded
+// like a crouching cat's, which read as a sphinx with daylight under it. Now
+// `drop` lowers it until the belly rests on the ground, `scale` leaves the
+// back high and round over a wide base, `pitch` (nose-up) settles the rump,
+// and the legs take the loaf fold (limbs.js FOLDS.loaf): the hind thighs lie
+// along the flanks as haunches, their hips `hindOut` further apart, and wear
+// the coat (HAUNCH); the forearms are short under the chest, the paws just
+// showing under the chin.
+export const NAP = Object.freeze({ head: Object.freeze([-0.02, -0.32, -0.08]), rot: Object.freeze([-0.05, 0.75, 0.18]),
+  drop: 0.12, scale: Object.freeze([1.16, 0.88, 0.87]), pitch: 0.07, hindOut: 0.045 });
 
 // polish-pose Task 1 (2026-11-02): the napping tail lies flush and curls
 // round the body, nose to tail (animator.js; cats with folds only, Hagrid's
@@ -301,11 +324,18 @@ export const NAP = Object.freeze({ head: Object.freeze([-0.02, -0.32, -0.08]), r
 //     links' headings on tabby and Digit (simple) for: root flush, every link
 //     outside the torso and above the ground at either end of the breathing
 //     and the sway, the tip forward and outside the body, even bends.
+// Cat realism B11 (2026-11-16): ROOT [-0.094, 0.323] -> [-0.03, 0.353] and the
+// last turns [0.487, -0.014] -> [0.483, 0.033], by the same kind of search
+// (tabby, Digit, Siamese, Robbie; full and simple). The loaf's body lies
+// 2.5 cm lower and is rounder and wider (NAP), which carried the root 6 cm
+// down, the lying links 5.5 cm into the ground and link 1 into the rump. Now
+// the root is 1 cm under the rump's fur, the lowest vertex 0.3 cm over the
+// ground and every link past the root 2.3 cm or more clear of the torso.
 export const NAP_TAIL = Object.freeze({
-  ROOT: [-0.094, 0.323],
+  ROOT: [-0.036, 0.353],
   rotX: 0.4,
   pivotX: [0.532, 0.465, 0.537, 0.628, 0.136],
-  pivotY: [0.804, 0.419, 0.487, -0.014, 0.049],
+  pivotY: [0.804, 0.419, 0.483, 0.033, 0.049],
   // The tip link's slow sway, sin(t*0.9). The chain's frames roll as it
   // turns, so on the ground this lifts and lowers the tip: the tip end's
   // centre moves between 1.5 and 3.3 cm up, a sleeping tail's twitch.
@@ -339,12 +369,17 @@ export const SIT_TAIL_PLUME = Object.freeze({
   pivotX: [-0.32, 0.078, 0.211, 0.219, 0.116],
   pivotY: [1.2, 0.595, 0.694, 0.499, 0.159],
 });
+// Cat realism B11 (2026-11-16): the napping plume re-fitted to the loaf (NAP)
+// by the same search on the Persian and the Maine Coon: ROOT [-0.084, 0.346]
+// -> [-0.027, 0.401], the pivots as below. The root is 2.5 cm out of the
+// rump's fur, the lowest vertex 0.7 cm over the ground, every link past the
+// root 1.7 cm or more clear of the wider torso.
 export const NAP_TAIL_PLUME = Object.freeze({
   ...NAP_TAIL,
-  ROOT: [-0.084, 0.346],
-  rotX: 0.36,
-  pivotX: [0.512, 0.425, 0.537, 0.628, 0.136],
-  pivotY: [0.934, 0.469, 0.487, -0.014, 0.049],
+  ROOT: [-0.027, 0.401],
+  rotX: 0.361,
+  pivotX: [0.512, 0.38, 0.334, 0.9, 0.136],
+  pivotY: [0.931, 0.535, 0.33, 0.154, 0.139],
 });
 
 // A lying tail `plume` of the way from `thin` (today's) to `full` (the plume's).
@@ -510,6 +545,87 @@ export function seamNormals(pos, nor, m, scale, reach = SEAM.reach, from = 0, to
     const nL = Math.hypot(nx, ny, nz);
     if (nL < 1e-6) continue;
     nor[i * 3] = nx / nL; nor[i * 3 + 1] = ny / nL; nor[i * 3 + 2] = nz / nL;
+  }
+  return nor;
+}
+
+// THE CHEST IS PART OF THE TORSO (cat realism B11, 2026-11-16). The chest is a
+// ball pushed into the front of the torso, and it met the torso at an angle
+// all round its rim: a pale cap with an edge, standing 3.1 cm out. Its points
+// are now drawn in toward the torso's own surface near that rim: a point
+// `out` metres outside the surface (along the ray from the torso's centre)
+// is left out * smoothstep(out / toe) outside it. So the rim leaves the torso
+// level with it and rises in a soft bell, and everything further out than
+// `toe` (the front of the breast, where a tie or a bell rests) is exactly
+// where it was. `rim`: a point of the built chest left within rim[0] metres
+// of the surface wears the coat painted on the torso under it, easing to its
+// own colour by rim[1], so no pale edge shows where the two meet.
+// `floor`: a point that was outside the surface is left at least this far
+// out of it (or where it was, if nearer). The chest's faces are flat and the
+// torso under them is round, so a face between points lying right on the
+// surface dips under it and the coat shows through as flecks on the bib
+// (worst on a crowd cat's coarser chest): CHEST_BLEND.floor, [full, simple].
+// model.js undersideGeometry (the cat as built) and animator.js sinkChest (the
+// sitting chest, whose own shift moved the rim) both use it; never per frame.
+export const CHEST_BLEND = Object.freeze({ toe: 0.03, rim: Object.freeze([0.006, 0.014]), floor: Object.freeze([0.004, 0.007]) });
+
+// Draw the points [from, to) of `pos` (flat xyz) toward the torso as above.
+// A point p is in the torso mesh's own frame as p * k + o (k, o: xyz; the
+// underside's scale and position, [1,1,1] and [0,0,0] for the cat as built);
+// `scale` is the body's scale. `each(i, out, unit)`, if given, is called for
+// every point with how far outside the surface it now is (m; <= 0 inside,
+// untouched) and the undeformed unit direction of the torso under it.
+const _bd = [0, 0, 0], _bu = [0, 0, 0];
+const ONE3 = Object.freeze([1, 1, 1]), ZERO3 = Object.freeze([0, 0, 0]);
+export function blendIntoTorso(pos, from, to, scale, k = ONE3, o = ZERO3, each = null, toe = CHEST_BLEND.toe, floor = 0) {
+  for (let i = from; i < to; i++) {
+    _bd[0] = (pos[i * 3] * k[0] + o[0]) / TORSO.R;
+    _bd[1] = (pos[i * 3 + 1] * k[1] + o[1]) / TORSO.R;
+    _bd[2] = (pos[i * 3 + 2] * k[2] + o[2]) / TORSO.R;
+    const rho = Math.hypot(_bd[0], _bd[1], _bd[2]);
+    if (rho < 1e-6) { if (each) each(i, -1, _bd); continue; }
+    torsoUnitAt(_bd, _bu);
+    const [sx, sy, sz] = deformTorso(_bu[0], _bu[1], _bu[2]);
+    const sL = Math.hypot(sx, sy, sz);
+    const perRho = Math.hypot(sx * scale[0], sy * scale[1], sz * scale[2]) / sL * TORSO.R; // metres per unit of rho along this ray
+    let out = (rho - sL) * perRho;
+    if (out > 0 && out < toe) {
+      const x = out / toe;
+      out = Math.max(out * x * x * (3 - 2 * x), Math.min(out, floor));
+      const f = (sL + out / perRho) / rho * TORSO.R;
+      pos[i * 3] = (_bd[0] * f - o[0]) / k[0];
+      pos[i * 3 + 1] = (_bd[1] * f - o[1]) / k[1];
+      pos[i * 3 + 2] = (_bd[2] * f - o[2]) / k[2];
+    }
+    if (each) each(i, out, _bu);
+  }
+  return pos;
+}
+
+// Smooth normals for the points [from, to) of an indexed part whose points
+// were moved: each face's normal (area-weighted) gathered at its corners,
+// points at the same place sharing one sum (a sphere's seam and poles are
+// doubled points), so no line shows along a seam. Faces of `idx` with a
+// corner outside the range are skipped.
+export function weldedNormals(pos, nor, idx, from, to) {
+  const sums = new Map(), keyOf = new Array(to - from);
+  for (let i = from; i < to; i++) {
+    const key = `${Math.round(pos[i * 3] * 1e5)},${Math.round(pos[i * 3 + 1] * 1e5)},${Math.round(pos[i * 3 + 2] * 1e5)}`;
+    keyOf[i - from] = key;
+    if (!sums.has(key)) sums.set(key, [0, 0, 0]);
+  }
+  for (let f = 0; f < idx.length; f += 3) {
+    const a = idx[f], b = idx[f + 1], c = idx[f + 2];
+    if (a < from || a >= to || b < from || b >= to || c < from || c >= to) continue;
+    const ux = pos[b * 3] - pos[a * 3], uy = pos[b * 3 + 1] - pos[a * 3 + 1], uz = pos[b * 3 + 2] - pos[a * 3 + 2];
+    const vx = pos[c * 3] - pos[a * 3], vy = pos[c * 3 + 1] - pos[a * 3 + 1], vz = pos[c * 3 + 2] - pos[a * 3 + 2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    for (const v of [a, b, c]) { const sum = sums.get(keyOf[v - from]); sum[0] += nx; sum[1] += ny; sum[2] += nz; }
+  }
+  for (let i = from; i < to; i++) {
+    const [x, y, z] = sums.get(keyOf[i - from]), L = Math.hypot(x, y, z);
+    if (L < 1e-12) continue;
+    nor[i * 3] = x / L; nor[i * 3 + 1] = y / L; nor[i * 3 + 2] = z / L;
   }
   return nor;
 }

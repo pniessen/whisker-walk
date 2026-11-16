@@ -194,7 +194,7 @@ export function limbGeometry(len, hind, simple = false) {
 // having a baked fold shape written into its limb's one geometry, never by
 // squashing the leg group: sitting tucks the hind legs under the haunch with
 // the foot flat in front, a nap (and being pinned) folds all four under the
-// body with the forearms forward sphinx-style, a stalk bends them low, a roll
+// body with the forearms forward (the nap as a loaf, FOLDS.loaf), a stalk bends them low, a roll
 // balls them up.
 //
 // R2: each fold is given in the GROUND frame on the reference rig, as
@@ -228,9 +228,21 @@ export const FOLDS = Object.freeze({
   // Three points with one gentle bend at the knee (0.13, -0.24), so no face
   // folds over; the heel (0.045, -0.22) ends inside the paw, which sits 25 cm
   // ahead of the hip, its front peeking out under the belly behind the forelegs.
+  // Cat realism B11 (2026-11-16): the haunch. The thigh hidden inside the rump
+  // left the sitting cat a tube standing on end. It is now a full thigh
+  // (0.11) lying low against the flank, its top at 0.17 and 3 cm further
+  // forward, running forward and down to the knee and on to a foot 8 cm
+  // further forward, beside the forelegs; the animator stands the hips
+  // SIT.hindOut further apart, so it shows out of the torso's side, and it
+  // wears the coat (paintFold). Its top stays under the hip, so a hind scar
+  // over the hip stays clear of it (scarmesh.test.js). `seamReach`: its
+  // shading flows into the torso's only close to the surface (the default
+  // reach flattened the whole thigh into the flank's shading), so it reads
+  // as a rounded mass with a soft crease round it. The fold before this is
+  // kept as `sitIn` for a cat dressed on its body.
   sit: Object.freeze({
-    crouch: true, drop: 0.065,
-    hind: fold([[0.235, -0.18], [0.13, -0.24], [0.045, -0.22]], [0.08, 0.07, 0.036], [0.0415, -0.25]),
+    crouch: true, drop: 0.065, seamReach: 0.025,
+    hind: fold([[0.17, -0.15], [0.115, -0.26], [0.045, -0.3]], [0.11, 0.09, 0.036], [0.0415, -0.33], 0, 0.9),
   }),
   // All four under the body: forearms forward (paws peeking out in front),
   // the hind shin back to a hock on the ground and the foot flat forward
@@ -240,6 +252,30 @@ export const FOLDS = Object.freeze({
     crouch: true, drop: 0.10,
     front: fold([[0.20, 0], [0.07, 0.06], [0.04, -0.08]], [0.085, 0.05, 0.036], [0.0415, -0.13]),
     hind: fold([[0.20, 0], [0.085, -0.08], [0.042, 0.035]], [0.10, 0.077, 0.036], [0.0415, 0]),
+  }),
+  // The loaf (cat realism B11, 2026-11-16; the nap, torso.js NAP): the body
+  // rests on the ground and the legs are packed against it. Front: the elbow
+  // back on the ground beside the chest, a short forearm forward, the paws
+  // just showing under the chin. Hind: a full thigh lying along the flank as
+  // a haunch (the animator sets the hips NAP.hindOut further apart), the knee
+  // forward and the foot flat under the belly's edge.
+  loaf: Object.freeze({
+    crouch: true, drop: 0.12, seamReach: 0.025,
+    front: fold([[0.14, 0.07], [0.06, 0.07], [0.04, -0.06]], [0.07, 0.05, 0.036], [0.0415, -0.11], 0, 0.7),
+    hind: fold([[0.15, -0.02], [0.095, -0.15], [0.045, -0.19]], [0.115, 0.085, 0.036], [0.0415, -0.22], 0, 0.9),
+  }),
+  // A cat that wears something on its body (a cape, a hoodie, a sweater) keeps
+  // its thighs INSIDE the torso, sitting and napping: a haunch standing out of
+  // the side came through the cloth. These are the hind legs it folds then
+  // (SLIM_FOLD; the animator leaves its hips where they are): the sit's as it
+  // was before B11, the loaf's the same line with a slim thigh.
+  sitIn: Object.freeze({
+    crouch: true, drop: 0.065,
+    hind: fold([[0.235, -0.18], [0.13, -0.24], [0.045, -0.22]], [0.08, 0.07, 0.036], [0.0415, -0.25]),
+  }),
+  loafIn: Object.freeze({
+    crouch: true, drop: 0.12,
+    hind: fold([[0.18, -0.02], [0.095, -0.13], [0.045, -0.19]], [0.08, 0.07, 0.036], [0.0415, -0.22]),
   }),
   // Bent low, paws still under the shoulders and hips, ready to go.
   // polish-catlooks Task 6 (2026-11-02): the crouch reads as one low body.
@@ -301,7 +337,7 @@ export const FOLDS = Object.freeze({
 // stretch keeps lengthening its legs by scale; pinning keeps standing legs on
 // the other cat's back).
 export const FOLD_BY_STATE = Object.freeze({
-  nap: Object.freeze(['tuck', 'tuck']),
+  nap: Object.freeze(['loaf', 'loaf']),
   pinned: Object.freeze(['tuck', 'tuck']),
   stalk: Object.freeze(['crouch', 'crouch']),
   requestPet: Object.freeze(['stand', 'sit']),
@@ -309,6 +345,9 @@ export const FOLD_BY_STATE = Object.freeze({
   roll: Object.freeze(['ball', 'ball']),
   stretch: Object.freeze(['bow', 'stand']),
 });
+
+// The hind fold a cat dressed on its body takes in place of a haunch (FOLDS.sitIn, loafIn).
+export const SLIM_FOLD = Object.freeze({ sit: 'sitIn', loaf: 'loafIn' });
 
 // One leg's own fold in a state, by leg index (0 front left, 1 front right):
 // grooming raises the front right paw to the mouth.
@@ -350,7 +389,7 @@ function seamedFold(baked, kind, foldKey, seam, idx) {
   let out = seamCache.get(key);
   if (out) return out;
   const m = seam.pose(kind);
-  out = Object.freeze({ ...baked, nor: keepFacing(baked.pos, seamNormals(baked.pos, baked.nor.slice(), m.matrix, m.scale), baked.nor, idx) });
+  out = Object.freeze({ ...baked, nor: keepFacing(baked.pos, seamNormals(baked.pos, baked.nor.slice(), m.matrix, m.scale, FOLDS[kind].seamReach), baked.nor, idx) });
   seamCache.set(key, out);
   return out;
 }
@@ -441,6 +480,15 @@ export function applyFold(leg, kind) {
   n.array.set(f.nor);
   n.needsUpdate = true;
   geo.boundingBox.copy(f.box);
+  // A fold with colours of its own (paintFold: the sit's haunch); every other
+  // fold wears the limb's. Written only when the colours change.
+  const col = f.col ?? folds.stand.col;
+  if (col && col !== ud.col) {
+    const c = geo.attributes.color;
+    c.array.set(col);
+    c.needsUpdate = true;
+    ud.col = col;
+  }
   const { pos: rest, rotX, paw: at } = ud.rest;
   const paw = leg.children[at];
   _move.subVectors(f.paw, folds.stand.paw);
@@ -453,6 +501,33 @@ export function applyFold(leg, kind) {
     part.rotation.x = rotX[i] + f.pawRotX;
   }
   ud.fold = k;
+}
+
+// A fold's own colours (cat realism B11, 2026-11-16: the sitting haunch). The
+// folded limb's upper part lies against the torso as a haunch, and in the
+// limb's plain leg colour it read as a pale patch stuck on a striped flank.
+// Fold `kind` of this leg gets a colour array of its own: `colourAt(i, out)`
+// (the coat painted on the torso under point i of the fold) down to curve
+// parameter `from`, easing (smoothstep) into the limb's
+// own colours by `to`. applyFold swaps it in with the fold's shape. The leg's
+// fold entry becomes this leg's own copy (the baked arrays stay shared).
+export function paintFold(leg, kind, colourAt, from, to) {
+  const { folds } = leg.userData;
+  const f = folds?.[kind];
+  const geo = leg.children[0].geometry, own = geo.attributes.color?.array;
+  if (!f || !own) return;
+  folds.stand.col ??= own.slice();
+  const { t } = geo.userData;
+  const col = new Float32Array(own.length), c = new THREE.Color();
+  for (let i = 0; i < t.length; i++) {
+    const k = smooth(Math.min(1, Math.max(0, (t[i] - from) / (to - from))));
+    if (k >= 1) { col[i * 3] = own[i * 3]; col[i * 3 + 1] = own[i * 3 + 1]; col[i * 3 + 2] = own[i * 3 + 2]; continue; }
+    colourAt(i, c);
+    col[i * 3] = c.r + (own[i * 3] - c.r) * k;
+    col[i * 3 + 1] = c.g + (own[i * 3 + 1] - c.g) * k;
+    col[i * 3 + 2] = c.b + (own[i * 3 + 2] - c.b) * k;
+  }
+  folds[kind] = Object.freeze({ ...f, col });
 }
 
 // The limb's vertex colours: `topHex` (a hex or a THREE.Color, the torso's

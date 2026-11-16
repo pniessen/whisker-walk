@@ -79,6 +79,13 @@ describe('poses on the new body (R1, R2)', () => {
         // is on the ground, never in it, never hovering over it.
         expect(now.torsoMin).toBeGreaterThanOrEqual(-0.01);
         expect(now.torsoMin).toBeLessThanOrEqual(0.03);
+      } else if (s === 'nap') {
+        // 2026-11-16 (cat realism B11): the nap is a loaf, its belly resting
+        // ON the ground (0.2-0.8 cm over it, torso.js NAP.drop), where the old
+        // rig's squashed crouch held it 6 cm up, so the band below (no lower
+        // than the old one less 1 cm) no longer holds, as for the sit.
+        expect(now.torsoMin).toBeGreaterThanOrEqual(0);
+        expect(now.torsoMin).toBeLessThanOrEqual(0.03);
       } else {
         expect(now.torsoMin).toBeGreaterThanOrEqual(Math.max(was.torsoMin - 0.01, -0.01));
         expect(now.torsoMin).toBeLessThanOrEqual(Math.max(was.torsoMin, 0) + 0.02);

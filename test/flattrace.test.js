@@ -59,6 +59,8 @@ import { closeDiffs } from './helpers/closeto.js';
 // 2026-11-15, cat realism round 3 (the face; owner's approval and picks from the sheets): re-recorded once.
 // Compared field by field first: only shadows.* moved (66 values in each of the 8 areas), the cat's ground
 // shadow following its new outline (shell ears, the nose's point). No position, pose or seeded value moved.
+// 2026-11-16, cat realism round B11 (owner's approval from the sheets): re-recorded once.
+// Checked first: only neighborhood.*.shadows.all (19) and one shadows.active moved, nothing else.
 
 vi.stubGlobal('document', {
   createElement: () => ({

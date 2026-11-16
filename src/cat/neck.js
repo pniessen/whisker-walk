@@ -98,7 +98,7 @@ const _P = new Float32Array(NECK_RINGS * 64 * 3), _Nn = new Float32Array(NECK_RI
 // measured through toArray the whole animator took twice as long from the
 // moment such a cat was built (0.013 -> 0.026 ms a cat, 2026-11-15).
 const put = (arr, k, v) => { arr[k] = v.x; arr[k + 1] = v.y; arr[k + 2] = v.z; };
-export function layNeck(neck, bodyM, headM, carryM, underM, geo) {
+export function layNeck(neck, bodyM, headM, carryM, underM, geo, dip = 0) {
   const N = neck.around, R = NECK_RINGS;
   const { b, bn, m, h, hn } = neck.loops;
   for (let j = 0; j < N; j++) {
@@ -124,6 +124,7 @@ export function layNeck(neck, bodyM, headM, carryM, underM, geo) {
     _P[(3 * N + j) * 3 + 2] = -0.125 * _B.z + 0.75 * _M.z + 0.375 * _H.z;
     put(_P, (4 * N + j) * 3, _H);
   }
+  if (dip) dipNape(neck, carryM, dip);
   // Normals, cat frame. The end rings wear their surfaces' own (the torso's,
   // the skull's); the three between take the skin's, from their neighbours
   // round the ring and along the neck, turned to face out from the ring.
@@ -159,6 +160,30 @@ export function layNeck(neck, bodyM, headM, carryM, underM, geo) {
   }
   pos.clearUpdateRanges(); pos.addUpdateRange(at, count * 3); pos.needsUpdate = true;
   nor.clearUpdateRanges(); nor.addUpdateRange(at, count * 3); nor.needsUpdate = true;
+}
+
+// The nape's dip (NECK.SIT_DIP; the sit, cat realism B11): each middle point
+// of the nape (ring 2 of the points just laid in _P) is drawn `dip` metres in
+// toward the throat's point across the ring, most at the top of the nape, and
+// the eased rings either side of it follow (0.75 of the way, as they are 0.75
+// of the middle point), so the back of the neck curves in between the
+// shoulders and the skull. Its own function, called only in the sit: written
+// into layNeck's loop it slowed every state's neck (measured 2026-11-16).
+function dipNape(neck, carryM, dip) {
+  const N = neck.around, { m } = neck.loops;
+  for (let j = 0; j < N; j++) {
+    if (j > neck.napeTo && j < N - neck.napeTo) continue;
+    const up = Math.cos((j / N) * Math.PI * 2), k = (2 * N + j) * 3;
+    _l.fromArray(m, ((j + N / 2) % N) * 3).applyMatrix4(carryM);
+    _l.x -= _P[k]; _l.y -= _P[k + 1]; _l.z -= _P[k + 2];
+    const L = _l.length();
+    if (L < 1e-6) continue;
+    _l.multiplyScalar(dip * up * up / L);
+    const a = k - N * 3, b = k + N * 3;
+    _P[k] += _l.x; _P[k + 1] += _l.y; _P[k + 2] += _l.z;
+    _P[a] += _l.x * 0.75; _P[a + 1] += _l.y * 0.75; _P[a + 2] += _l.z * 0.75;
+    _P[b] += _l.x * 0.75; _P[b + 1] += _l.y * 0.75; _P[b + 2] += _l.z * 0.75;
+  }
 }
 
 // The torso's own extent: Box3.setFromObject(body, true) (every vertex of the

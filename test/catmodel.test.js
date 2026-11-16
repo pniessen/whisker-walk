@@ -1262,6 +1262,10 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
       let nBase = 0, nTip = 0;
       links.forEach((m, k) => {
         const p = m.geometry.attributes.position;
+        // 2026-11-16 (cat realism B11): a crowd cat's root link now wears the rump's painted colour
+        // at its root and eases into the tail's (as a full build's has since 2026-11-15;
+        // catrealposes.test.js holds it), so link 0 of a non-family cat is not checked here.
+        if (k === 0 && breed !== 'digit') return;
         for (let i = 0; i < p.count; i++) {
           const u = (k * L + Math.min(L, Math.max(0, p.getZ(i)))) / (5 * L);
           if (u <= 0.6 + 1e-9) { expect(colourDistance(drawn(m, i), new THREE.Color(base)), `${breed} link ${k} u ${u}`).toBeLessThan(1e-6); nBase++; }
