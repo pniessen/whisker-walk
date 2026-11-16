@@ -31,6 +31,7 @@ import { isStrayName } from './straynames.js';
 import { medicineOrder, deputyOrder } from './clanroles.js';
 import { RANK_KEYS, PREFIXES, CLAN_SUFFIX } from './clanwords.js';
 import { clanTitleFor } from './clannames.js';
+import { phrase } from './clanphrases.js';
 import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEdition } from './edition.js';
 import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
@@ -267,7 +268,7 @@ export const CATALOG = {
     balloonbunch: { name: 'Balloon Bunch', slot: 'back', price: 0, prize: true },
     sparklecollar: { name: 'Sparkle Collar', slot: 'collar', price: 0, prize: true },
     // "Clan War Paint": the borrowed word comes from clanwords.js, like every other.
-    warpaint: { name: `${CLAN_SUFFIX} War Paint`, legacyName: 'War Paint', slot: 'face', price: 0, prize: true },
+    warpaint: { get name() { return phrase('prize.warpaint.canon'); }, get legacyName() { return phrase('prize.warpaint.legacy'); }, slot: 'face', price: 0, prize: true },
     candlehat: { name: 'Birthday-Candle Hat', slot: 'head', price: 0, prize: true },
     streamerscarf: { name: 'Streamer Scarf', slot: 'neck', price: 0, prize: true },
     goldbooties: { name: 'Golden Paw Booties', slot: 'feet', price: 0, prize: true },

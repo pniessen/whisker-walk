@@ -21,7 +21,8 @@
 // THREE.
 // It does NOT import colony.js, so TAME_FEEDS is mirrored below and pinned by
 // a test rather than imported.
-import { PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES, RANK_KEYS } from './clanwords.js';
+import { PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_KEYS } from './clanwords.js';
+import { phrase } from './clanphrases.js';
 import { validPetName } from './net.js';
 import { seedFromCode } from './rng.js';
 import { isStrayName, KIT_NAMES } from './straynames.js';
@@ -100,7 +101,7 @@ export function clanNameOf(storedName, progress, rank = clanRankFor(progress)) {
 // The title of a player's clan, from a seed (e.g. a player code): MossClan.
 export function clanTitleFor(seed) {
   // An unusable seed still gets a real title, never "nullClan".
-  return (prefixFor(seed) ?? PREFIXES[0]) + CLAN_SUFFIX;
+  return phrase('group.name', prefixFor(seed) ?? PREFIXES[0]);
 }
 
 // The names a player may pick for their OWN cat: prefix + the top-rank suffix

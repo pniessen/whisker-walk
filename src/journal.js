@@ -1,5 +1,6 @@
 // v15 Collector's Journal — static catalog + Album-tab renderer for the 12
 // JOURNAL_TYPES ids tracked in progression.js's state.journal.
+import { phrase } from './clanphrases.js';
 
 // All content here is a fixed, static catalog (ids/emoji/names/hints are
 // never user- or network-supplied), so none of it needs HTML-escaping.
@@ -76,7 +77,7 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
     </div>`;
   }).join('');
   const chased = chasedOff === undefined ? ''
-    : `<div class="journal-footer">🛡️ Intruders chased off: ${Number.isFinite(chasedOff) && chasedOff > 0 ? Math.floor(chasedOff) : 0}</div>`;
+    : `<div class="journal-footer">🛡️ ${phrase('journal.chasedOff')}: ${Number.isFinite(chasedOff) && chasedOff > 0 ? Math.floor(chasedOff) : 0}</div>`;
   return `<div class="journal-grid">${cards}</div>
     <div class="journal-footer">🥇 Golden mice: ${found}/${total}</div>${chased}`;
 }

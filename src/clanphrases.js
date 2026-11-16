@@ -41,8 +41,6 @@ const TABLE = Object.freeze({
   // ---- the pieces a group's name and a cat's tag are built from -------------
   // prefix -> the group's name (Moss -> MossClan)
   'group.name': (prefix) => prefix + CLAN_SUFFIX,
-  // the lowercase word for a group, as it is written inside a sentence
-  'group.word': () => groupWord(),
   // the second line of a tag: "<rank word> of <group>"
   'tag.rankOfGroup': (rankWord, group) => `${rankWord} of ${group}`,
   // what follows a cat's name when it is not in the colony: " the <word>"

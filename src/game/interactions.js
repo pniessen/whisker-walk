@@ -971,7 +971,7 @@ export function createInteractions({
         setPrompt(
           kind === 'clan-greet' ? `E — touch noses with ${mate.name}`
             : kind === 'clan-boop' ? `E — boop ${mate.name} 💕`
-              : kind === 'clan-patrol' ? `E — patrol with ${mate.name}`
+              : kind === 'clan-patrol' ? phrase('patrol.prompt', mate.name)
                 : `E — say goodbye to ${mate.name}`,
         );
       }
@@ -1237,10 +1237,9 @@ export function createInteractions({
     s.clanBuddy = null;
     const paying = Number.isFinite(seconds) && seconds >= PATROL_MIN;
     hud.toast(reason === 'far' ? `${cat.name} couldn't keep up!`
-      : paying ? `${cat.name} heads back to camp. Good patrol!`
-      : `${cat.name} heads back to camp. A longer patrol next time!`);
+      : phrase(paying ? 'patrol.endGood' : 'patrol.endShort', cat.name));
     if (paying) {
-      clanPay(s, 'patrol', `patrol-${cat.id}`, `a patrol with ${cat.name}`);
+      clanPay(s, 'patrol', `patrol-${cat.id}`, phrase('patrol.award', cat.name));
     }
     if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'clan-buddy', catId: cat.id, on: false });
   }
@@ -1305,7 +1304,7 @@ export function createInteractions({
       s.strayCats.turnHostile(stray, s.cat.position);
       audio.hiss();
       s.fx?.burst(stray.group.position, 0x8a3a4a, 10);
-      hud.toast(`${stray.name} hisses and backs away…${outsider(stray.name, 'grudge', (w) => ` a ${w} now!`)} 😾`);
+      hud.toast(`${stray.name} hisses and backs away…${outsider(stray.name, 'grudge', (w) => phrase('outside.crossNow', w))} 😾`);
       bus.emit('tip', { id: 'hiss', name: stray.name });
       // No friendship award and NO recordGreet: it did not go well. That is
       // also why the greet count — and therefore the ♡/♥/💕 ladder and D5's

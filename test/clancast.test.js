@@ -201,7 +201,9 @@ test('clancast.js stays pure', () => {
   const src = readFileSync(new URL('../src/clancast.js', import.meta.url), 'utf8');
   const specs = [...src.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1]);
   expect(specs.length).toBeGreaterThan(0);
-  const allowed = ['./clanhomes.js', './clanwords.js', './rivalclans.js', './rng.js', './straynames.js'];
+  // 2026-11-16 (series switch, phase 1): pin updated. './clanphrases.js' is the
+  // phrase table the tag's second line now comes from (words only, no THREE).
+  const allowed = ['./clanhomes.js', './clanwords.js', './clanphrases.js', './rivalclans.js', './rng.js', './straynames.js'];
   for (const s of specs) expect(allowed, s).toContain(s);
 });
 

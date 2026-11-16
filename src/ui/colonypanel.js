@@ -15,6 +15,7 @@ import { tamingProgress, COLONY_MAX, colonyCap } from '../colony.js';
 import { strayBreed } from '../straynames.js';
 import { clanNameOf, colonyRankFor } from '../clannames.js';
 import { RANK_WORDS, RANK_KEYS } from '../clanwords.js';
+import { phrase } from '../clanphrases.js';
 import { roleFor } from '../clanroles.js';
 import { isTradeableAccessory } from '../progression.js';
 import { emptyStateHtml } from './emptystates.js';
@@ -314,7 +315,7 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
     ? `<div id="colony-trading">${renderTradesHtml({ colony: safeColony, me, owned, catalog, state: trades })}</div>` : '';
   // Legacy hides the clan's name; it stays in the save for Clan Edition.
   // With an allies name (the sibling picked a different clan) the title names both.
-  const allies = edition !== 'legacy' && typeof alliesName === 'string' && alliesName ? ` &amp; ${escapeHtml(alliesName)} · allies` : '';
+  const allies = edition !== 'legacy' && typeof alliesName === 'string' && alliesName ? ` &amp; ${escapeHtml(alliesName)} · ${phrase('colony.allies')}` : '';
   const title = edition !== 'legacy' && typeof clanName === 'string' && clanName ? `${escapeHtml(clanName)}${allies}` : '';
   const heading = title ? `<h3 class="colony-banner">${title}</h3>` : '';
   return `${heading}${header}<div id="colony-pairing">${pair}</div>${trading}${list}${full}`;

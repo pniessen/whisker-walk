@@ -27,6 +27,7 @@ import { isStrayName, isKittypetName } from './straynames.js';
 import { friendRungs } from './skills.js';
 import { seedFromCode } from './rng.js';
 import { OUTSIDE_WORDS } from './clanwords.js';
+import { phrase } from './clanphrases.js';
 // Pure data (no imports of its own), so colony.js stays free of THREE and DOM.
 import { DEN_SPOTS, DEN_HOMES } from './den.js';
 // DOM-free: net.js imports only chat.js. One definition of a valid pet name.
@@ -809,7 +810,7 @@ export function colonyNews(colony, { me, ymd, rewards = [], accessories } = {}) 
 // phrase around the word; the default is ' the loner'. A non-string name
 // claims nothing, so it gets ''. A kittypet name reads as the kittypet ('met'
 // becomes 'house') and never as a rogue ('grudge' is ''). Never throws.
-export function outsideTag(colony, name, key, make = (w) => ` the ${w}`) {
+export function outsideTag(colony, name, key, make = (w) => phrase('outside.the', w)) {
   if (typeof name !== 'string') return '';
   const cats = Array.isArray(colony?.cats) ? colony.cats : [];
   if (cats.some((c) => c && c.name === name)) return '';

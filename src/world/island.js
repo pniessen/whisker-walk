@@ -7,6 +7,7 @@ import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { withLocalUuids } from './localuuids.js';
 import { BRIDGE_PLANK, ISLAND_WOODS, bridgeEnds, fromWoods } from './lake.js';
+import { phrase } from '../clanphrases.js';
 
 // The island in the Pines' lake, and the bridge to it, as ground a cat walks
 // on. Everything here is in Pines coordinates (metres, x east, z south) and is
@@ -113,7 +114,7 @@ export const ISLAND_POIS = freezeAll([
 // territory, and the meeting place belongs to no one.
 export const ISLAND_SCENICS = freezeAll([
   { id: 'bridge-landing', x: 22, z: 20.5, label: 'the end of the bridge', gifts: false },
-  { id: 'meeting-ring', x: 30.5, z: 25.5, label: 'the meeting ring under the old ash', gifts: false },
+  { id: 'meeting-ring', x: 30.5, z: 25.5, label: phrase('landmark.island.ring'), gifts: false },
   { id: 'lake-view', x: 35.5, z: 36, label: 'the lake, looking over to the Woods', gifts: false },
 ]);
 
@@ -124,7 +125,7 @@ export const ISLAND_COLLECTIBLES = freezeAll([
   // on the deck, 13 m out from the shore
   { id: 'pines-find-9', x: 12.76, z: 7.68, label: 'a pine cone dropped on the planks' },
   // on the north meeting stone, so one small hop up
-  { id: 'pines-find-10', x: 28, z: 22, y: STONE.h, label: 'a bright beetle wing on a meeting stone' },
+  { id: 'pines-find-10', x: 28, z: 22, y: STONE.h, label: phrase('landmark.island.stoneFind') },
 ]);
 
 // The bushes the hidden golden mouse (gm-pines-6) sits among. No colliders:
