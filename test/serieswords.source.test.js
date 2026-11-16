@@ -34,6 +34,9 @@ import { checkAgainstFixture, readFixture, stringsIn, literalsIn, sorted, uniq, 
 const OUTPUT_FIXTURES = ['series-words-on.json', 'series-words-on-play.json', 'series-words-on-home.json', 'series-words-on-world.json'];
 const SOURCE_FIXTURE = 'series-words-on-source.json';
 
+// Printed straight to the run's output: vitest keeps a passing test's console quiet.
+const say = (text) => process.stdout.write(`${text}\n`);
+
 const recorded = OUTPUT_FIXTURES.flatMap((f) => stringsIn(readFixture(f)));
 const everything = recorded.join('\n');
 const tokens = new Set(everything.split(/[^A-Za-z]+/).filter(Boolean));
@@ -100,7 +103,7 @@ describe('series words: nothing in the word tables goes unrecorded', () => {
       const seen = all.filter((w) => appears.whole(w));
       lines.push(`${name}: ${seen.length} of ${all.length} values appear in a recorded string`);
     }
-    console.info(`[series words] exports of clanwords.js the snapshot does not exercise:\n  ${lines.join('\n  ')}`);
+    say(`[series words] exports of clanwords.js the snapshot does not exercise:\n  ${lines.join('\n  ')}`);
     expect(lines.length).toBe(NOT_SHOWN.length);
   });
 });
@@ -158,7 +161,7 @@ describe('series words: lines the snapshot cannot reach are pinned as source tex
   it('lists new unrecorded lines (never fails)', () => {
     const pinned = new Set(readFixture(SOURCE_FIXTURE).notReached.map((e) => e.slice(e.indexOf(' :: ') + 4)));
     const fresh = notReached.filter((e) => !pinned.has(e.slice(e.indexOf(' :: ') + 4)));
-    if (fresh.length) console.info(`[series words] lines in src/ that match the search and are recorded nowhere:\n  ${fresh.join('\n  ')}`);
+    if (fresh.length) say(`[series words] lines in src/ that match the search and are recorded nowhere:\n  ${fresh.join('\n  ')}`);
     expect(Array.isArray(fresh)).toBe(true);
   });
 });
