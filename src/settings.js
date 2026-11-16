@@ -19,6 +19,9 @@ const DEFAULTS = {
   // The Vibration switch (src/haptics.js). On by default: a purr in the
   // hand is the point. Only offered where something can buzz.
   haptics: true,
+  // "Show tips" (src/hints.js): the hint lines on a walk. On by default; off
+  // hides them all (never the home screen's line).
+  showTips: true,
 };
 
 // Resolved into a render tier by src/render/quality.js (resolveQuality) —
@@ -66,6 +69,7 @@ function sanitize(raw) {
     quality: clampEnum(raw.quality, QUALITY, DEFAULTS.quality),
     cameraZoom: zoomStep(raw.cameraZoom, DEFAULTS.cameraZoom),
     haptics: typeof raw.haptics === 'boolean' ? raw.haptics : DEFAULTS.haptics,
+    showTips: typeof raw.showTips === 'boolean' ? raw.showTips : DEFAULTS.showTips,
   };
 }
 

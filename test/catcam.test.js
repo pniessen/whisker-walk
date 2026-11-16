@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cameraOffset, moveDirection, viewForward } from '../src/catcam.js';
+import { cameraOffset, moveDirection, viewForward, moveKeyHeld, isLetterMoveKey, MOVE_KEYS } from '../src/catcam.js';
 
 describe('cameraOffset', () => {
   it('sits behind and above the cat at yaw 0 (camera at +z looking toward -z)', () => {
@@ -48,5 +48,37 @@ describe('moveDirection', () => {
   it('diagonals are normalized', () => {
     const d = moveDirection(new Set(['ArrowUp', 'ArrowRight']), 0);
     expect(d.length()).toBeCloseTo(1);
+  });
+});
+
+// 2026-11-15, guided-first-walk design (owner's answer 6): W-A-S-D as well as
+// the arrow keys.
+describe('W-A-S-D', () => {
+  it('each letter moves exactly as its arrow does', () => {
+    for (const [letter, arrow] of [['KeyW', 'ArrowUp'], ['KeyS', 'ArrowDown'], ['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']]) {
+      for (const yaw of [0, 0.7, Math.PI / 2]) {
+        const a = moveDirection(new Set([arrow]), yaw);
+        const l = moveDirection(new Set([letter]), yaw);
+        expect([l.x, l.y, l.z]).toEqual([a.x, a.y, a.z]);
+      }
+    }
+  });
+
+  it('a letter and its arrow held together count once; opposite keys cancel', () => {
+    expect(moveDirection(new Set(['KeyW', 'ArrowUp']), 0).length()).toBeCloseTo(1);
+    expect(moveDirection(new Set(['KeyW', 'ArrowDown']), 0).length()).toBe(0);
+    expect(moveDirection(new Set(['KeyW', 'KeyD']), 0).length()).toBeCloseTo(1);
+  });
+
+  it('moveKeyHeld sees all eight keys and nothing else', () => {
+    for (const k of Object.values(MOVE_KEYS).flat()) expect(moveKeyHeld(new Set([k]))).toBe(true);
+    expect(Object.values(MOVE_KEYS).flat()).toHaveLength(8);
+    for (const k of ['KeyE', 'KeyQ', 'KeyV', 'KeyM', 'KeyT', 'KeyC', 'Space', 'ShiftLeft', 'Digit1', 'Enter']) expect(moveKeyHeld(new Set([k]))).toBe(false);
+    expect(moveKeyHeld(new Set())).toBe(false);
+  });
+
+  it('no move letter is another key of the game', () => {
+    for (const k of ['KeyW', 'KeyA', 'KeyS', 'KeyD']) expect(isLetterMoveKey(k)).toBe(true);
+    for (const k of ['KeyE', 'KeyQ', 'KeyV', 'KeyM', 'KeyT', 'KeyC', 'ArrowUp']) expect(isLetterMoveKey(k)).toBe(false);
   });
 });

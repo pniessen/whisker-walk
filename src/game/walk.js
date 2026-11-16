@@ -65,6 +65,7 @@ import { createToy } from '../toy.js';
 import { createQuest } from '../quests.js';
 import { QUEST_TRAIL_COLOR } from '../questscent.js';
 import { createGoals, GOAL_POOL } from '../goals.js';
+import { line as tutorialLine } from '../tutorialwords.js';
 import { rankFor, CATALOG } from '../progression.js';
 import { catsInArea, colonyWear, denResidents, denMoment } from '../colony.js';
 import { createDenCats } from '../dencats.js';
@@ -217,7 +218,9 @@ export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready' 
 // A touch walk starts without the Ready? card, so its first few walks say
 // how to move in one toast (takeStartLines, given by main.js on the engage).
 export const TOUCH_HINT_WALKS = 3;
-export const TOUCH_START_HINT = 'Left thumb moves your cat. Drag to look around.';
+// The words are in tutorialwords.js. They never say left or right: the move
+// side swaps in left-handed mode (guided-first-walk design, 2026-11-15).
+export const TOUCH_START_HINT = tutorialLine('start.touch', { touch: true });
 export function takeStartLines(session) {
   const lines = Array.isArray(session?.startLines) ? session.startLines : [];
   if (session) session.startLines = null;
@@ -1638,6 +1641,7 @@ export function createWalkLifecycle({
           player.halt();
           session.chasing = true; // avatar.js plays the run gait; interactions.js ignores climb/pounce
           hud.toast(`${who} chased you back over their border! 🐾`);
+          bus.emit('tip', { id: 'rival' });
         },
         onSettled: () => { player.halt(); session.chasing = false; },
         // The border patrol fight (B1): the warrior on patrol, chosen above.
@@ -1750,6 +1754,7 @@ export function createWalkLifecycle({
       fearless: fearlessCat,
       onBark: () => {
         audio.bark();
+        bus.emit('tip', { id: 'dog' });
         if (fearlessCat && !shrugged) {
           shrugged = true;
           hud.toast("The dog barks. You don't even flinch. 😼");
@@ -1859,6 +1864,7 @@ export function createWalkLifecycle({
       if (!p) return;
       if (!sendGate.allow(session.playerId)) return;          // reuse existing 1500ms self-cooldown
       chatBubbles.show(session.cat, p.text);                   // local bubble
+      bus.emit('tip:did', { id: 'chat' });                     // she knows how to say something
       if (session.net) session.net.sendChat({ v: 1, id: session.playerId, phraseId }); // players (v8)
       // Aim at the nearest AI cat and let it answer.
       const catP = session.cat.position;
@@ -1913,7 +1919,9 @@ export function createWalkLifecycle({
     // player's first TOUCH_HINT_WALKS walks (the touch controls hint's rule);
     // the touch buttons' word labels follow the same rule.
     const earlyWalk = Object.values(state.walks).reduce((n, w) => n + w, 0) < TOUCH_HINT_WALKS;
-    session.chatHintPending = earlyWalk;
+    // Only in a room: alone there is nobody to chat to (guided-first-walk
+    // design, section 4). roomSeed is what makes this walk a room's.
+    session.chatHintPending = earlyWalk && roomSeed !== undefined;
     touchUI.setLabels?.(earlyWalk);
     // R18: moves the save granted on load (fights she won before moves
     // existed) are toasted once, at the next Clan Edition walk. The lines wait

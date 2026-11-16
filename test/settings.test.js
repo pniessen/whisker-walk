@@ -21,6 +21,7 @@ describe('createSettings', () => {
       quality: 'auto',
       cameraZoom: 1,
       haptics: true,
+      showTips: true, // 2026-11-15, guided-first-walk design: the "Show tips" switch, on by default
     });
     expect(settings.get('volume')).toBe(0.8);
   });
@@ -53,6 +54,7 @@ describe('createSettings', () => {
       quality: 'auto',
       cameraZoom: 1,
       haptics: true,
+      showTips: true, // 2026-11-15, guided-first-walk design: the "Show tips" switch, on by default
     });
   });
 
@@ -71,6 +73,7 @@ describe('createSettings', () => {
       quality: 'auto',
       cameraZoom: 1,
       haptics: true,
+      showTips: true, // 2026-11-15, guided-first-walk design: the "Show tips" switch, on by default
     });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
@@ -165,5 +168,16 @@ describe('createSettings', () => {
     expect(s.get('cameraZoom')).toBe(3);
     s.set('cameraZoom', 0);
     expect(createSettings(storage).get('cameraZoom')).toBe(0);
+  });
+
+  // 2026-11-15, guided-first-walk design (section 8): "Show tips".
+  it('showTips is on by default, persists a set, and junk reads as on', () => {
+    const storage = fakeStorage();
+    const settings = createSettings(storage);
+    expect(settings.get('showTips')).toBe(true);
+    settings.set('showTips', false);
+    expect(createSettings(storage).get('showTips')).toBe(false);
+    const junk = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ showTips: 'no' }) }));
+    expect(junk.get('showTips')).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ import { isLegendaryName } from './legendary.js';
 import { dryGroundPoint } from './keepout.js';
 import { groundOf, leanOnGround } from './ground.js';
 import { CAT_RADIUS } from './player.js';
+import { bus } from './events.js';
 
 const WANDER_SPEED = 1.4;
 const SCURRY_SPEED = 2.6;
@@ -922,6 +923,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
               s.group.position.distanceTo(catPos) < 4 &&
               (opts.catSpeed ?? 0) > 2.5 && !opts.stalking) {
             s.scurry = 2.5;
+            bus.emit('tip', { id: 'creep', name: s.name }); // a hint, this device only; no dice
             s.scurryDir = s.group.position.clone().sub(catPos).setY(0);
             // Degenerate case only: the cat is standing exactly on you, so
             // there is no bearing to flee along and one has to be picked.

@@ -258,7 +258,8 @@ test('the walk.js dog block pays and takes nothing, and leaves the carried item 
   expect(code).toContain('Woof! The dog chased you off its lawn! 🐕');
   expect(code).toContain("The dog barks. You don't even flinch. 😼");
   // the fearless line is said once a walk (the bark itself repeats)
-  expect(code).toMatch(/let shrugged = false;[\s\S]*onBark: \(\) => \{\s*audio\.bark\(\);\s*if \(fearlessCat && !shrugged\) \{\s*shrugged = true;\s*hud\.toast\("The dog barks/);
+  // 2026-11-15 (guided walk step 1): a bark also raises the dog hint (bus 'tip'); it pays and takes nothing.
+  expect(code).toMatch(/let shrugged = false;[\s\S]*onBark: \(\) => \{\s*audio\.bark\(\);\s*bus\.emit\('tip', \{ id: 'dog' \}\);\s*if \(fearlessCat && !shrugged\) \{\s*shrugged = true;\s*hud\.toast\("The dog barks/);
   expect(code.match(/hud\.toast\("The dog barks/g)).toHaveLength(1);
   // and nothing of the dog went into the rival's slice
   const r0 = src.indexOf("The rival's border and its patrol");
