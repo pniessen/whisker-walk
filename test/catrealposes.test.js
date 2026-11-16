@@ -180,21 +180,34 @@ describe('sitting, the chest is drawn into the chest line', () => {
       }
     }
   });
-  it('only the chest, its tufts and the ruff move; getting up puts every vertex back exactly', () => {
+  // 2026-11-16 (cat realism B11): the belly's points near the torso's surface
+  // are now drawn onto it too when the cat sits (animator.js sinkChest: the
+  // sit's flattened, lowered underside left its rim as a ragged pale edge), so
+  // the belly no longer stays exactly as built: no point of it moves more
+  // than 1.5 cm. The chest still moves, and getting up still puts every
+  // vertex, normal and colour back exactly.
+  it('only the chest, its tufts, the ruff and the belly\'s rim move; getting up puts every vertex back exactly', () => {
     for (const [breed, simple] of BUILDS) {
       const cat = make(breed, simple);
       const { underside } = cat.userData.parts;
       const { belly, chest } = underside.userData.ranges;
       const pos = underside.geometry.attributes.position.array;
+      const nor = underside.geometry.attributes.normal.array, col = underside.geometry.attributes.color.array;
       pose(cat, 'follow', 0);
-      const built = pos.slice();
+      const built = pos.slice(), builtNor = nor.slice(), builtCol = col.slice();
       pose(cat, 'perch');
-      expect(Array.from(pos.slice(belly[0] * 3, belly[1] * 3)), label(breed, simple)).toEqual(Array.from(built.slice(belly[0] * 3, belly[1] * 3)));
+      const [sx, sy, sz] = cat.userData.base.bodyScale;
+      for (let i = belly[0] * 3; i < belly[1] * 3; i += 3) {
+        const d = Math.hypot((pos[i] - built[i]) * sx, (pos[i + 1] - built[i + 1]) * sy, (pos[i + 2] - built[i + 2]) * sz);
+        expect(d, `${label(breed, simple)} belly point ${i / 3}`).toBeLessThanOrEqual(0.015);
+      }
       expect(pos[chest[0] * 3 + 1]).not.toBe(built[chest[0] * 3 + 1]);
       pose(cat, 'perch', 2.0); pose(cat, 'requestPet');
       pose(cat, 'follow', 0);
       const [a, b] = [0, (underside.userData.ranges.neck?.[0] ?? pos.length / 3) * 3]; // the neck is re-laid every frame
       expect(Array.from(pos.slice(a, b)), label(breed, simple)).toEqual(Array.from(built.slice(a, b)));
+      expect(Array.from(nor.slice(a, b)), label(breed, simple)).toEqual(Array.from(builtNor.slice(a, b)));
+      expect(Array.from(col.slice(a, b)), label(breed, simple)).toEqual(Array.from(builtCol.slice(a, b)));
     }
   });
 });
@@ -298,8 +311,9 @@ describe('the tail root wears the rump\'s colour (round 1\'s leftover)', () => {
   it('at the root ball the link is the coat painted on the rump under it; by its far end it is the tail\'s own colour', async () => {
     const { coatColourAt } = await import('../src/cat/coat.js');
     const { torsoUnitAt, TAIL } = await import('../src/cat/torso.js');
-    for (const breed of ['tabby', 'calico', 'black', 'persian', 'mainecoon']) {
-      const cat = make(breed);
+    // 2026-11-16 (cat realism B11): pointed cats (the Siamese) and crowd cats (the simple tabby) wear it too; they were left plain.
+    for (const [breed, simple] of [['tabby'], ['calico'], ['black'], ['persian'], ['mainecoon'], ['siamese'], ['tabby', true], ['siamese', true]]) {
+      const cat = make(breed, !!simple);
       const { body, tail, tailPivots } = cat.userData.parts;
       // the tail carried as the root was painted for: TAIL.SEAM_LIFT above level
       tail.rotation.set(-TAIL.SEAM_LIFT, 0, 0); tailPivots[0].rotation.set(0, 0, 0);
@@ -321,8 +335,8 @@ describe('the tail root wears the rump\'s colour (round 1\'s leftover)', () => {
       expect(ball, breed).toBeGreaterThan(20);
       expect(worst, breed).toBeLessThan(0.02);
     }
-    // family cats, pointed cats and crowd cats keep the plain root
-    for (const [breed, simple] of [['digit', false], ['d2', false], ['robbie', false], ['zeetoo', false], ['siamese', false], ['tabby', true]]) {
+    // the family cats keep the plain root, full and simple
+    for (const [breed, simple] of [['digit', false], ['d2', false], ['robbie', false], ['zeetoo', false], ['digit', true], ['robbie', true]]) {
       expect(make(breed, simple).userData.parts.tailPivots[0].children[0].geometry.attributes.color, breed).toBeUndefined();
     }
   });

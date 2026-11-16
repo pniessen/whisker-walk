@@ -98,7 +98,7 @@ const _P = new Float32Array(NECK_RINGS * 64 * 3), _Nn = new Float32Array(NECK_RI
 // measured through toArray the whole animator took twice as long from the
 // moment such a cat was built (0.013 -> 0.026 ms a cat, 2026-11-15).
 const put = (arr, k, v) => { arr[k] = v.x; arr[k + 1] = v.y; arr[k + 2] = v.z; };
-export function layNeck(neck, bodyM, headM, carryM, underM, geo) {
+export function layNeck(neck, bodyM, headM, carryM, underM, geo, dip = 0) {
   const N = neck.around, R = NECK_RINGS;
   const { b, bn, m, h, hn } = neck.loops;
   for (let j = 0; j < N; j++) {
@@ -113,6 +113,15 @@ export function layNeck(neck, bodyM, headM, carryM, underM, geo) {
       _c.addVectors(_B, _H).multiplyScalar(0.5);
       const reach = NECK.NAPE_REACH * _B.distanceTo(_H), off = _M.distanceTo(_c);
       if (off > reach) _M.sub(_c).multiplyScalar(reach / off).add(_c);
+      // The nape's dip (NECK.SIT_DIP; the sit): the point is drawn in toward
+      // the throat's point across the ring, most at the top of the nape, so
+      // the back of the neck curves in between the shoulders and the skull.
+      if (dip) {
+        const up = Math.cos((j / N) * Math.PI * 2);
+        _l.fromArray(m, ((j + N / 2) % N) * 3).applyMatrix4(carryM).sub(_M);
+        const L = _l.length();
+        if (L > 1e-6) _M.addScaledVector(_l, dip * up * up / L);
+      }
     }
     put(_P, j * 3, _B);
     _P[(N + j) * 3] = 0.375 * _B.x + 0.75 * _M.x - 0.125 * _H.x;
@@ -157,8 +166,15 @@ export function layNeck(neck, bodyM, headM, carryM, underM, geo) {
     put(pos.array, at + k * 3, _B.fromArray(_P, k * 3).applyMatrix4(_Uinv));
     put(nor.array, at + k * 3, _n.fromArray(_Nn, k * 3).applyMatrix3(_ut).normalize());
   }
-  pos.clearUpdateRanges(); pos.addUpdateRange(at, count * 3); pos.needsUpdate = true;
-  nor.clearUpdateRanges(); nor.addUpdateRange(at, count * 3); nor.needsUpdate = true;
+  // Only the neck's own points are sent to the graphics chip, unless something
+  // else in this mesh was rewritten this frame (the sitting chest, animator.js
+  // sinkChest, sets userData.resend): then the whole arrays go once. Before
+  // 2026-11-16 the neck's range replaced that write, so on a cat already drawn
+  // the sitting chest's move never reached the screen.
+  pos.clearUpdateRanges(); nor.clearUpdateRanges();
+  if (geo.userData.resend) geo.userData.resend = false;
+  else { pos.addUpdateRange(at, count * 3); nor.addUpdateRange(at, count * 3); }
+  pos.needsUpdate = true; nor.needsUpdate = true;
 }
 
 // The torso's own extent: Box3.setFromObject(body, true) (every vertex of the

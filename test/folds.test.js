@@ -63,13 +63,21 @@ const limbOf = (leg) => leg.children[0];
 // the nose-up torso's rump rests on the ground, and its head goes up 0.09
 // (SIT.headDY) to be held high over the chest; was 0.02 and 0.06 for the
 // nose-down torso.
-const DROP = { nap: 0.1, stalk: 0.1, pinned: 0.1, requestPet: 0.065, perch: 0.065, roll: 0 };
+// 2026-11-16 (cat realism B11, the loaf): the nap's body comes down 0.12 (torso.js NAP.drop), was 0.1.
+const DROP = { nap: 0.12, stalk: 0.1, pinned: 0.1, requestPet: 0.065, perch: 0.065, roll: 0 };
 // 2026-11-15 (cat realism, the nap): the napping head is down on the forepaws,
 // 0.32 under where it stands (torso.js NAP); it was held up at -0.24.
 const HEAD_DY = { nap: -0.32, stalk: -0.16, pinned: -0.22, requestPet: 0.09, perch: 0.09, roll: -0.1 };
 
 // The poke measure and Task 1's baseline table (T1) live in helpers/catpoke.js.
-const pokes = (cat, state, opts) => pokesOf(cat, (i) => kindOf(state, i) !== 'stand', opts);
+// 2026-11-16 (cat realism B11): sitting and napping, the hind thigh is a haunch
+// that stands out of the torso's SIDE on purpose (limbs.js FOLDS.sit, loaf;
+// its hips moved apart). A haunch vertex beside the flank sends its own ray
+// down the torso's steep side and reads as a poke, so in those states each
+// vertex is measured against the torso's top within HAUNCH_REACH of it
+// (catpoke.js `reach`, made for exactly this): out of the BACK still fails.
+const HAUNCH_REACH = { requestPet: 0.08, perch: 0.08, nap: 0.08 };
+const pokes = (cat, state, opts) => pokesOf(cat, (i) => kindOf(state, i) !== 'stand', opts ?? (HAUNCH_REACH[state] ? { reach: HAUNCH_REACH[state] } : undefined));
 const ray = new THREE.Raycaster();
 const DOWN = new THREE.Vector3(0, -1, 0);
 const UP = new THREE.Vector3(0, 1, 0);
@@ -125,6 +133,10 @@ const INVERTED_MAX = {
   stand: { front: [0, 0], hind: [4, 6] },
   sit: { front: [0, 0], hind: [0, 0] },
   tuck: { front: [0, 0], hind: [0, 0] },
+  loaf: { front: [0, 0], hind: [0, 0] }, // 2026-11-16 (cat realism B11): the nap's loaf fold
+  // a cat dressed on its body: the hind thighs inside the cloth (a front leg asked for either stands)
+  sitIn: { front: [0, 0], hind: [0, 0] },
+  loafIn: { front: [0, 0], hind: [0, 0] },
   crouch: { front: [0, 0], hind: [0, 0] },
   ball: { front: [0, 0], hind: [0, 0] },
   // 2026-11-15 (cat realism A7): the stretch's play bow, front legs only (a
@@ -166,7 +178,8 @@ describe('legs fold at the joints (Task 5)', () => {
     // As measured on main. The sit's 0.324 is now 0.281 (polish-sit): 4.5 cm
     // lower (SIT.bodyDY) and 0.2 cm up (POSE_FIT 0.004 -> 0.006), the rump on the ground.
     const tabby = make('tabby', false);
-    expect(pose(tabby, 'nap').userData.parts.body.position.y).toBeCloseTo(0.24, 9);
+    // 2026-11-16 (cat realism B11): the nap's 0.24 is now 0.22, the loaf's belly resting on the ground (torso.js NAP.drop 0.12).
+    expect(pose(tabby, 'nap').userData.parts.body.position.y).toBeCloseTo(0.22, 9);
     // 2026-11-15 (cat realism B2): 0.281 is now 0.2835. The rump is fuller low
     // behind the thighs and is the sitting torso's lowest point, so the sit's
     // pose fit rose 0.0025 to rest it on the ground again (torso.js POSE_FIT).

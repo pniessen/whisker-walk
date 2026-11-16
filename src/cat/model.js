@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { litMaterial } from '../render/materials.js';
 import { addCatRim, RIM } from './rimlight.js';
 import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt, undersideColourAt, UNDER_BLEND, BELLY_BLEND, UNDER_FRONT, legBarMix } from './coat.js';
-import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds } from './limbs.js';
+import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds, paintFold } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { henFightState, HEN_POSE_TOP } from './henfight.js';
@@ -15,7 +15,7 @@ import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
 import { buildBackItem, buildHood } from './backitems.js';
 import { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry, capeTieGeometry, layCapeTie } from './cape.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
-import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals, keepFacing, PROPORTION, NECK } from './torso.js';
+import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals, keepFacing, PROPORTION, NECK, HAUNCH, NAP, CHEST_BLEND, blendIntoTorso, weldedNormals } from './torso.js';
 import { NECK_RINGS, neckLoops, addNeck, layNeck } from './neck.js';
 import { tuftSeed, tuftPlan, torsoTufts, chestTufts, cheekTufts, tailTufts, appendTufts } from './tufts.js';
 import { FACE, FACE_SEG, EYES, SHELL_EAR, noseGeometry, addSnout, whiskerGeometry, eyeGeometry, eyeFrame, shellEarGeometry, shapeSkull, faceWarp, lensGlow } from './face.js';
@@ -1013,6 +1013,35 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   }
   const geo = mergeGeometries(Object.values(parts));
   for (const p of Object.values(parts)) p.dispose();
+  // The chest is drawn into the torso round its rim (cat realism B11, torso.js
+  // CHEST_BLEND). The points that now lie within CHEST_BLEND.rim[0] of the
+  // torso wear the coat painted under them, easing back to their own colour
+  // by rim[1] out: more of the chest lies flush with the torso than did, and
+  // a pale point lying flush would be a pale edge.
+  {
+    const [c0, c1] = ranges.chest, col = geo.attributes.color.array, c = new THREE.Color();
+    const [r0, r1] = CHEST_BLEND.rim;
+    blendIntoTorso(geo.attributes.position.array, c0, c1, BS, undefined, undefined, (i, out, unit) => {
+      if (out <= 0 || out >= r1) return;
+      const x = Math.max(0, (out - r0) / (r1 - r0)), t = x * x * (3 - 2 * x);
+      coatColourAt(coat, unit, c);
+      col[i * 3] = c.r + (col[i * 3] - c.r) * t; col[i * 3 + 1] = c.g + (col[i * 3 + 1] - c.g) * t; col[i * 3 + 2] = c.b + (col[i * 3 + 2] - c.b) * t;
+    });
+    weldedNormals(geo.attributes.position.array, geo.attributes.normal.array, geo.index.array, c0, c1);
+  }
+  // The sitting underside's colours (animator.js sinkChest): a chest or belly
+  // point built at torso-local (x, y, z) that now lies over the torso's
+  // undeformed direction `unit` keeps its own share of the pale front and
+  // takes the coat painted under where it sits now.
+  {
+    const dir = [0, 0, 0], v = new THREE.Vector3();
+    const at = (centre, hex, front, band) => (x, y, z, unit, out) => {
+      v.set(x * BS[0] - centre[0], y * BS[1] + TORSO.CENTRE_Y - centre[1], z * BS[2] - centre[2]).normalize();
+      dir[0] = v.x; dir[1] = v.y; dir[2] = v.z;
+      return undersideColourAt(coat, hex, dir, unit, out, front, band);
+    };
+    geo.userData.sitColourAt = { chest: at(chestAt, coat.chest, UNDER_FRONT.chest, UNDER_BLEND), belly: at(bellyAt, s.belly, UNDER_FRONT.belly, BELLY_BLEND) };
+  }
   // The seams (cat realism A4, torso.js SEAM): the belly's and the chest's
   // normals flow into the torso's where they meet it (the ruff keeps its own).
   // Worked out once for each body shape and build, then copied.
@@ -1140,8 +1169,11 @@ export const CAT_MUZZLE = Object.freeze({
 // and stalking bring a narrow cat's hips in by its width share `fx`.
 const SEAM_POSES = Object.freeze({
   stand: Object.freeze({}),
-  sit: Object.freeze({ dy: -0.02 + SIT.bodyDY + POSE_FIT.requestPet.body, z: SIT.bodyZ, pitch: SIT.pitch, lift: true, hipsIn: true }),
+  sit: Object.freeze({ dy: -0.02 + SIT.bodyDY + POSE_FIT.requestPet.body, z: SIT.bodyZ, pitch: SIT.pitch, lift: true, hipsIn: true, hipsOut: SIT.hindOut }),
   tuck: Object.freeze({ dy: -0.1, scale: Object.freeze([1.12, 0.73, 0.89]), lift: true }),
+  loaf: Object.freeze({ dy: -NAP.drop, scale: NAP.scale, pitch: NAP.pitch, lift: true, hipsOut: NAP.hindOut }),
+  sitIn: Object.freeze({ dy: -0.02 + SIT.bodyDY + POSE_FIT.requestPet.body, z: SIT.bodyZ, pitch: SIT.pitch, lift: true, hipsIn: true }),
+  loafIn: Object.freeze({ dy: -NAP.drop, scale: NAP.scale, pitch: NAP.pitch, lift: true }),
   crouch: Object.freeze({ dy: -0.1, lift: true, hipsIn: true }),
   ball: Object.freeze({ scale: Object.freeze([1.05, 1.05, 0.9]) }),
 });
@@ -1158,7 +1190,7 @@ function seamPose(kind, hip, bodyY, hipY, bodyScale, fx) {
   const k = P.scale ?? [1, 1, 1];
   const scale = [bodyScale[0] * k[0], bodyScale[1] * k[1], bodyScale[2] * k[2]];
   const body = posedBody(kind, bodyY, hipY, bodyScale);
-  const leg = new THREE.Matrix4().makeTranslation(hip.x * (P.hipsIn ? fx : 1), hip.y, hip.z);
+  const leg = new THREE.Matrix4().makeTranslation(hip.x * (P.hipsIn ? fx : 1) + Math.sign(hip.x) * (P.hipsOut ?? 0), hip.y, hip.z);
   return { matrix: body.invert().multiply(leg).elements, scale };
 }
 
@@ -1239,6 +1271,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   underside.userData.underside = true;
   underside.userData.ranges = underside.geometry.userData.ranges;
   underside.userData.chestCentre = underside.geometry.userData.chestCentre;
+  underside.userData.sitColourAt = underside.geometry.userData.sitColourAt;
   underside.userData.neck = underside.geometry.userData.neck; // full builds (neck.js)
   underside.userData.sunk = false; // the sit's chest (animator.js sinkChest); its rest copy is made the first time she sits
   underside.userData.chestRest = null;
@@ -1513,7 +1546,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const rootM = new THREE.Matrix4().compose(
     new THREE.Vector3(0, TAIL.ROOT_DY, TAIL.ROOT_Z * PROPORTION.body),
     new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -TAIL.SEAM_LIFT), new THREE.Vector3().setScalar(TAIL.SCALE));
-  const rootV = new THREE.Vector3(), rootU = [0, 0, 0], rootBase = new THREE.Color(s.base);
+  const rootV = new THREE.Vector3(), rootU = [0, 0, 0], rootBase = new THREE.Color(s.points ? s.accent : s.base);
   const rootColour = (x, y, z, out) => {
     rootV.set(x, y, z).applyMatrix4(rootM);
     coatColourAt(coat, torsoUnitAt([rootV.x / BODY_SCALE[0], rootV.y / BODY_SCALE[1], rootV.z / BODY_SCALE[2]], rootU), out);
@@ -1556,10 +1589,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // the plain coat colour while the rump under it is painted (shaded low
     // down, striped or patched). The root link now wears the rump's own
     // painted colour at its root ball and eases into the tail's colour along
-    // its length (rootColour). Colour only. A pointed cat's tail is the point
-    // colour to the root, as it was; the family cats' tails (drawn from their
-    // photos) and a crowd cat's stay plain too.
-    const rooted = i === 0 && !s.points && !family && !opts.simple;
+    // its length (rootColour). Colour only. The family cats' tails (drawn from
+    // their photos) stay plain.
+    // 2026-11-16 (cat realism B11): a pointed cat's root link and a crowd
+    // cat's take it too (they were left plain; the dark disc on a Siamese's
+    // pale rump was the plainest of all). A pointed tail eases from the rump's
+    // colour into the point colour along its first link.
+    const rooted = i === 0 && !family;
     const seg = new THREE.Mesh(geo, blend || ringed || rooted
       ? litMaterial(0xffffff, { vertexColors: true })
       : mat((i >= 3 && darkTip) || s.points ? s.accent : s.base));
@@ -2138,6 +2174,21 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       pose: (kind) => seamPose(kind, leg.position, bodyY, hipY, BODY_SCALE, fx),
     },
   }));
+  // The sitting haunch wears the coat (limbs.js paintFold, torso.js HAUNCH):
+  // each hind thigh takes the colour painted on the sitting torso under it.
+  {
+    const hm = new THREE.Matrix4(), hv = new THREE.Vector3(), hu = [0, 0, 0];
+    for (const leg of legs.slice(2)) {
+      hm.fromArray(seamPose('sit', leg.position, bodyY, hipY, BODY_SCALE, fx).matrix);
+      const under = (x, y, z, out) => {
+        hv.set(x, y, z).applyMatrix4(hm);
+        return coatColourAt(coat, torsoUnitAt([hv.x, hv.y, hv.z], hu), out);
+      };
+      paintFold(leg, 'sit', under, HAUNCH.coatFrom, HAUNCH.coatTo);
+      hm.fromArray(seamPose('loaf', leg.position, bodyY, hipY, BODY_SCALE, fx).matrix);
+      paintFold(leg, 'loaf', under, HAUNCH.coatFrom, HAUNCH.coatTo);
+    }
+  }
   const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, head.position.z];
 
   // The cape's clasp and front bands, laid once for the resting cat (the
@@ -2185,7 +2236,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // fitLongLegs; poseFit is the per-state correction applyPoseFit adds after it.
   g.userData.base = {
     bodyY, bodyScale: [...BODY_SCALE], headPos, tailRotX: TAIL.ROOT_TILT, tailCurl: TAIL.CURL,
-    hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT,
+    hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT, slimHaunch: !!accessories.body,
     // polish-tails: a plumed tail lies along its own sit and nap curves, and
     // stalking droops its fuller first link (animator.js STALK_CARRIAGE).
     ...(plume > 0 && { tailPlume: plume, sitTail: lyingTail(SIT_TAIL, SIT_TAIL_PLUME, plume), napTail: lyingTail(NAP_TAIL, NAP_TAIL_PLUME, plume) }),

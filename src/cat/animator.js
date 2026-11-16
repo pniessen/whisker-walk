@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG, BOW, NAP, GROOM } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG, BOW, NAP, GROOM, NECK, SEAM, blendIntoTorso, weldedNormals, seamNormals } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { HOOD, slideHoodTo } from './backitems.js';
 import { layCapeTie } from './cape.js';
 import { layNeck } from './neck.js';
-import { FOLDS, FOLD_BY_STATE, FOLD_LEG, applyFold } from './limbs.js';
+import { FOLDS, FOLD_BY_STATE, FOLD_LEG, SLIM_FOLD, applyFold } from './limbs.js';
 import { isHenFightState, poseHen, syncHenRig } from './henfight.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
@@ -99,7 +99,11 @@ const TAIL_SWAY_DAMP = [0, 0.2, 0.6, 0.8, 0.8];
 // the way to it the streamers went 1.5 cm into the ground; nearer the chest
 // every piece is clear of it again (1.4 cm at the least), the ring lying
 // between the shoulders and the back of the head.
-export const NECK_FIT = { nap: { turn: 0.10, anchor: -0.6 } };
+// 2026-11-16 (cat realism B11): the stretch carries them from nearer the head
+// (anchor 0.5). At the neck's midpoint the longest piece, the streamer scarf
+// on Digit, ended 5 mm in the ground under the bowed chest; now every piece
+// on every cat is clear of it (1 mm at the least).
+export const NECK_FIT = { nap: { turn: 0.10, anchor: -0.6 }, stretch: { turn: 1, anchor: 0.5 } };
 const NECK_FIT_DEFAULT = { turn: 1, anchor: 0 };
 const HEAD_NECKWEAR = new Set(['swim']);
 
@@ -565,32 +569,68 @@ function dropChest(body, underside) {
 // up. A write only when the cat sits down or gets up, as a fold's is; no
 // triangle is added. The offset is worked out from the sitting body the first
 // time and kept (the sit's pitch and scale are the same every time).
+// Cat realism B11 (2026-11-16): that shift carried the chest's rim across the
+// torso (and the sit's flattened, lowered underside the belly's), where each
+// showed as a pale cap with a ragged edge. The first time a cat sits, the
+// chest and the belly as the sit leaves them are drawn into the sitting torso
+// round their rims (torso.js blendIntoTorso), their normals are made for that
+// shape and flowed into the torso's, and each point (the chest's tufts too)
+// takes the coat painted under where it now lies (sitColourAt). The arrays
+// are kept and written when the cat sits down, the built ones when it gets
+// up. The tufts and the ruff make the plain shift, as before.
+const _sinkC = new THREE.Color();
+const _sinkM = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 function sinkChest(body, underside, sitting) {
   const ud = underside.userData;
   ud.sunk = sitting;
   const { ranges } = ud;
   if (!ranges?.chest) return;
-  const pos = underside.geometry.attributes.position;
-  const spans = [ranges.chest, ranges.tufts, ranges.ruff].filter(Boolean);
-  if (!ud.chestRest) {
-    ud.chestRest = spans.map(([from, to]) => pos.array.slice(from * 3, to * 3));
+  const geo = underside.geometry;
+  const pos = geo.attributes.position, nor = geo.attributes.normal, col = geo.attributes.color;
+  if (!ud.sit) {
+    // every span the sit rewrites: [from, to, sunk (the chest's shift), blended into the torso, coloured by]
+    const spans = [[...ranges.chest, true, true, 'chest'], [...ranges.belly, false, true, 'belly']];
+    if (ranges.tufts) spans.push([...ranges.tufts, true, false, 'chest']);
+    if (ranges.ruff) spans.push([...ranges.ruff, true, false, null]);
+    const cut = (a, [from, to]) => a.array.slice(from * 3, to * 3);
+    const rest = spans.map((sp) => ({ pos: cut(pos, sp), nor: cut(nor, sp), col: cut(col, sp) }));
     _c.set(0, -SIT.chestSink, 0).applyQuaternion(_q.copy(body.quaternion).invert()).divide(body.scale).divide(underside.scale);
-    // (not _c.toArray(): growing a fresh array through Vector3.toArray makes that method's store generic for every caller,
-    // and layNeck writes 240 points through it each frame: measured, the whole animator ran twice as slow from then on)
-    ud.chestSink = [_c.x, _c.y, _c.z];
+    const dx = _c.x, dy = _c.y, dz = _c.z, cz = ud.chestCentre[2];
+    // where the sitting underside lies in the torso's frame: its scale, and
+    // the place keepChestUnderHead and dropChest give it (no yaw in a sit)
+    const K = underside.scale, c = ud.chestCentre;
+    _c.set(0, -SIT.chestDrop, 0).applyQuaternion(_q).divide(body.scale);
+    const k = [K.x, K.y, K.z], o = [c[0] * (1 - K.x) + _c.x, c[1] * (1 - K.y) + _c.y, c[2] * (1 - K.z) + _c.z];
+    const scale = [body.scale.x, body.scale.y, body.scale.z];
+    _sinkM[0] = k[0]; _sinkM[5] = k[1]; _sinkM[10] = k[2]; _sinkM[12] = o[0]; _sinkM[13] = o[1]; _sinkM[14] = o[2];
+    // worked out in the geometry's own arrays (the faces index them), then kept
+    spans.forEach(([from, to, sunk, blend, paint], s) => {
+      const r = rest[s].pos, P = pos.array;
+      if (sunk) for (let i = 0; i < r.length; i += 3) {
+        P[from * 3 + i] = r[i] + dx;
+        P[from * 3 + i + 1] = r[i + 1] + dy;
+        P[from * 3 + i + 2] = cz + (r[i + 2] - cz) * SIT.chestFlat + dz;
+      }
+      const colourAt = paint && ud.sitColourAt?.[paint];
+      if (!colourAt) return;
+      blendIntoTorso(P, from, to, scale, k, o, (i, out, unit) => {
+        const j = (i - from) * 3;
+        colourAt(r[j], r[j + 1], r[j + 2], unit, _sinkC);
+        col.array[i * 3] = _sinkC.r; col.array[i * 3 + 1] = _sinkC.g; col.array[i * 3 + 2] = _sinkC.b;
+      }, blend ? undefined : 0);
+      if (!blend) return;
+      weldedNormals(P, nor.array, geo.index.array, from, to);
+      seamNormals(P, nor.array, _sinkM, scale, SEAM.underReach, from, to);
+    });
+    ud.sit = { spans, rest, sat: spans.map((sp) => ({ pos: cut(pos, sp), nor: cut(nor, sp), col: cut(col, sp) })) };
   }
-  const [dx, dy, dz] = ud.chestSink, cz = ud.chestCentre[2];
-  spans.forEach(([from], s) => {
-    const rest = ud.chestRest[s];
-    if (!sitting) { pos.array.set(rest, from * 3); return; }
-    for (let i = 0; i < rest.length; i += 3) {
-      const k = from * 3 + i;
-      pos.array[k] = rest[i] + dx;
-      pos.array[k + 1] = rest[i + 1] + dy;
-      pos.array[k + 2] = cz + (rest[i + 2] - cz) * SIT.chestFlat + dz;
-    }
-  });
-  pos.needsUpdate = true;
+  const { spans, rest, sat } = ud.sit;
+  for (let s = 0; s < spans.length; s++) {
+    const a = sitting ? sat[s] : rest[s], at = spans[s][0] * 3;
+    pos.array.set(a.pos, at); nor.array.set(a.nor, at); col.array.set(a.col, at);
+  }
+  pos.needsUpdate = true; nor.needsUpdate = true; col.needsUpdate = true;
+  geo.userData.resend = true; // the neck's own write must not narrow this one (neck.js layNeck)
 }
 
 // The collar on the neck, in every pose (accessories polish Task 4; it was
@@ -662,7 +702,7 @@ function fitNeckSkin(cat, state) {
     neckMove(cat, turn, anchor);
     _neckM.multiplyMatrices(head.matrix, _X);
   }
-  layNeck(neck, body.matrix, head.matrix, _neckM, underside.matrix, underside.geometry);
+  layNeck(neck, body.matrix, head.matrix, _neckM, underside.matrix, underside.geometry, state === 'perch' || state === 'requestPet' ? NECK.SIT_DIP : 0);
 }
 
 // The cape's clasp and front bands (cape.js CAPE_TIE, owner 2026-11-04): the
@@ -937,7 +977,13 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   // without them (Hagrid) keeps today's lines.
   const f = FOLD_BY_STATE[state];
   const own = FOLD_LEG[state];
-  legs.forEach((leg, i) => applyFold(leg, own?.[i] ?? (f ? f[i < 2 ? 0 : 1] : 'stand')));
+  // A cat dressed on its body keeps its thighs inside the cloth (limbs.js SLIM_FOLD, base.slimHaunch).
+  const slim = base.slimHaunch;
+  for (let i = 0; i < legs.length; i++) {
+    let kind = own?.[i] ?? (f ? f[i < 2 ? 0 : 1] : 'stand');
+    if (slim && i >= 2) kind = SLIM_FOLD[kind] ?? kind;
+    applyFold(legs[i], kind);
+  }
   const folds = !!legs[0].userData.folds;
 
   // ear twitches: brief, occasional, alternating
@@ -1002,8 +1048,17 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   }
 
   if (state === 'nap') {
-    body.position.y = base.bodyY - 0.1;
-    body.scale.set(bsx * 1.12, bsy * 0.73, bsz * 0.89);
+    if (folds) {
+      // The loaf (torso.js NAP, cat realism B11): low on the ground, the back
+      // high and round, the haunches out at the sides.
+      body.position.y = base.bodyY - NAP.drop;
+      body.scale.set(bsx * NAP.scale[0], bsy * NAP.scale[1], bsz * NAP.scale[2]);
+      body.rotation.x = NAP.pitch;
+      if (!slim) for (let i = 2; i < 4; i++) legs[i].position.x += Math.sign(legs[i].userData.hipX) * NAP.hindOut;
+    } else {
+      body.position.y = base.bodyY - 0.1;
+      body.scale.set(bsx * 1.12, bsy * 0.73, bsz * 0.89);
+    }
     if (folds) {
       head.position.set(hx + NAP.head[0], hy + NAP.head[1], hz + NAP.head[2]);
       head.rotation.set(NAP.rot[0], NAP.rot[1], NAP.rot[2]);
@@ -1117,6 +1172,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       if (!underside.userData.sunk && folds) sinkChest(body, underside, true); // sitting down (SIT.chestSink, chestFlat)
       const k = bsx / TORSO.SCALE[0];
       if (k !== 1) for (const leg of legs) leg.position.x = leg.userData.hipX * k;
+      if (folds && !slim) for (let i = 2; i < 4; i++) legs[i].position.x += Math.sign(legs[i].userData.hipX) * SIT.hindOut; // the haunches stand out of the sides (SIT.hindOut)
       for (let i = 0; i < 2; i++) {
         const leg = legs[i];
         leg.position.z = leg.userData.hipZ + SIT.foreZ;

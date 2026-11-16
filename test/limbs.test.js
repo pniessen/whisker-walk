@@ -502,14 +502,19 @@ describe('the fold table', () => {
     // 2026-11-15 (cat realism A7): the stretch is a play bow, its front legs a
     // fold of their own (`bow`: forearms along the ground, the paws pressed on it).
     // The groom's raised paw is a fold too (`lick`, one front leg; limbs.js FOLD_LEG).
-    expect(Object.keys(FOLDS)).toEqual(['stand', 'sit', 'tuck', 'crouch', 'ball', 'lick', 'bow']);
+    // 2026-11-16 (cat realism B11): the nap has a fold of its own, `loaf` (`tuck` stays the pinned cat's).
+    expect(Object.keys(FOLDS)).toEqual(['stand', 'sit', 'tuck', 'loaf', 'sitIn', 'loafIn', 'crouch', 'ball', 'lick', 'bow']); // sitIn, loafIn: a dressed cat's slim hind folds
     expect(FOLDS.stand.crouch).toBe(false);
     for (const [kind, f] of Object.entries(FOLDS)) {
       if (kind === 'stand') continue;
       for (const which of Object.keys(f).filter((k) => k === 'front' || k === 'hind')) {
         const { points, radii, paw, pawRotX } = f[which];
         expect(radii.length, `${kind} ${which}`).toBe(points.length);
-        expect(points[0][0], `${kind} ${which} top`).toBeCloseTo(REF_RIG.HIP_Y - f.drop, 9);
+        // 2026-11-16 (cat realism B11): the sit's and the loaf's upper legs lie
+        // against the body as haunches and shoulders, lower than the lowered
+        // hip; every other fold's top is at it, as before.
+        if (kind === 'sit' || kind === 'loaf' || kind === 'loafIn') expect(points[0][0], `${kind} ${which} top`).toBeLessThanOrEqual(REF_RIG.HIP_Y - f.drop + 1e-9);
+        else expect(points[0][0], `${kind} ${which} top`).toBeCloseTo(REF_RIG.HIP_Y - f.drop, 9);
         points.forEach(([g], i) => expect(g, `${kind} ${which} point ${i}`).toBeGreaterThanOrEqual(radii[i] + 0.002 - 1e-9));
         expect(paw.length).toBe(2);
         expect(typeof pawRotX).toBe('number');
@@ -520,6 +525,7 @@ describe('the fold table', () => {
 
   it('which states fold (R3)', () => {
     // 2026-11-15 (cat realism A7): the stretch folds its front legs into the bow.
-    expect(FOLD_BY_STATE).toEqual({ nap: ['tuck', 'tuck'], pinned: ['tuck', 'tuck'], stalk: ['crouch', 'crouch'], requestPet: ['stand', 'sit'], perch: ['stand', 'sit'], roll: ['ball', 'ball'], stretch: ['bow', 'stand'] });
+    // 2026-11-16 (cat realism B11): the nap folds into the loaf.
+    expect(FOLD_BY_STATE).toEqual({ nap: ['loaf', 'loaf'], pinned: ['tuck', 'tuck'], stalk: ['crouch', 'crouch'], requestPet: ['stand', 'sit'], perch: ['stand', 'sit'], roll: ['ball', 'ball'], stretch: ['bow', 'stand'] });
   });
 });
