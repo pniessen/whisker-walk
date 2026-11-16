@@ -8,7 +8,8 @@
 // in test/clanwords.test.js flags 'clan' and every PLACE_WORDS value in any
 // src/ string literal. Player-facing words come from clanwords.js.
 
-import { CLAN_SUFFIX, PLACE_WORDS } from './clanwords.js';
+import { PLACE_WORDS } from './clanwords.js';
+import { phrase } from './clanphrases.js';
 import { rivalFor } from './rivalclans.js';
 
 export const EDITIONS = Object.freeze(['canon', 'legacy']);
@@ -26,12 +27,12 @@ export function isClanEdition(state) {
 }
 
 export function editionTitle(edition) {
-  return edition === 'legacy' ? 'Legacy Edition' : `${CLAN_SUFFIX} Edition`;
+  return phrase(edition === 'legacy' ? 'edition.title.legacy' : 'edition.title.canon');
 }
 
 // The page's title for a save on `edition`.
 export function gameTitle(edition) {
-  return `Whisker Walk 2: ${editionTitle(edition)}`;
+  return phrase('edition.game', editionTitle(edition));
 }
 
 // A catalog entry marked edition: 'canon' is a Clan Edition place; Legacy hides it.

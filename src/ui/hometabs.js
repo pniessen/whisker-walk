@@ -11,6 +11,7 @@
 import { FIGHT_MOVES } from '../fightmoves.js';
 import { SKILL_FAMILIES, SKILLS, hasSkill, skillProgress } from '../skills.js';
 import { escapeHtml } from '../escapehtml.js';
+import { phrase } from '../clanphrases.js';
 
 // ---------------------------------------------------------------------------
 // Skills panel
@@ -182,7 +183,7 @@ export function renderStarNamePicker(candidates, current) {
     `<button type="button" class="star-name-pick${c === chosen ? ' chosen' : ''}" data-star-name="${escapeHtml(c)}">${escapeHtml(c)}</button>`
   ).join('');
   return `<div class="star-name-picker">
-    <div class="tag">Or pick a star name${chosen ? ` (now: ${escapeHtml(chosen)})` : ''}</div>
+    <div class="tag">${phrase('star.pick')}${chosen ? ` (now: ${escapeHtml(chosen)})` : ''}</div>
     ${buttons}
   </div>`;
 }

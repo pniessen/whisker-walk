@@ -24,7 +24,8 @@
 // To add a territory later: edit its HOMES row only if its neighbours change;
 // add its camp disc in rivalclans.js; a truce place needs nothing here except
 // an entry in TRUCE_AREAS.
-import { HOMAGE_PREFIXES, CLAN_SUFFIX } from './clanwords.js';
+import { HOMAGE_PREFIXES } from './clanwords.js';
+import { phrase } from './clanphrases.js';
 
 const row = (neighbours, pickable) => Object.freeze({ neighbours: Object.freeze(neighbours), pickable });
 
@@ -48,7 +49,7 @@ export function pickableClans() {
 }
 
 export function clanName(id) {
-  return isClanId(id) ? HOMAGE_PREFIXES[id] + CLAN_SUFFIX : '';
+  return isClanId(id) ? phrase('group.name', HOMAGE_PREFIXES[id]) : '';
 }
 
 export function patrolClanFor(areaId, picks) {
@@ -105,5 +106,5 @@ export function alliesName(state) {
 export function homeWelcome(areaId, state) {
   if (!inClanEdition(state)) return null;
   const mine = mineOf(state);
-  return mine && areaId === mine ? `Home to ${clanName(mine)}'s land 🏡` : null;
+  return mine && areaId === mine ? phrase('home.welcome', clanName(mine)) : null;
 }

@@ -12,6 +12,7 @@
 import { clanName } from '../clanhomes.js';
 import { LAND } from '../territories.js';
 import { escapeHtml } from '../escapehtml.js';
+import { phrase } from '../clanphrases.js';
 
 const n = (v) => Math.round(v * 10) / 10;
 const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -121,7 +122,7 @@ function campHtml(r) {
   const dome = `<path class="tm-camp-dome" fill="${escapeHtml(c.color)}" d="M${n(c.x - w)} ${n(c.y + 8 * k)} A${n(w)} ${n(w)} 0 0 1 ${n(c.x + w)} ${n(c.y + 8 * k)} Z"/>`
     + `<path class="tm-camp-door" d="M${n(c.x - 5 * k)} ${n(c.y + 8 * k)} A${n(5 * k)} ${n(5 * k)} 0 0 1 ${n(c.x + 5 * k)} ${n(c.y + 8 * k)} Z"/>`;
   const cls = `tm-camp${c.mine ? ' mine' : ''}${c.ally ? ' ally' : ''}`;
-  return `<g class="${cls}"><title>${escapeHtml(`${clanName(r.id)} camp`)}</title>${ring}${badge}${dome}</g>`;
+  return `<g class="${cls}"><title>${escapeHtml(phrase('map.camp', clanName(r.id)))}</title>${ring}${badge}${dome}</g>`;
 }
 
 // Where the island is, said under its name and in its tap title.

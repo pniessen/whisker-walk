@@ -15,7 +15,7 @@ import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
 import { ownClanTitle, alliesName } from '../clanhomes.js';
-import { CLAN_SUFFIX } from '../clanwords.js';
+import { phrase } from '../clanphrases.js';
 import {
   PICK_ATTR, MOMENT_ATTR, MOMENT_SEEN_KEY, clanPickerModel, clanMomentDue, renderClanMomentHtml, clanLineHtml, woodsOpen,
 } from './clanpicker.js';
@@ -521,7 +521,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   // The edition is not a look: say what switching does, so a grown-up does
   // not flip it like a colour (the save keeps everything either way).
-  const EDITION_NOTE = `Switching renames the places and shows or hides the ${CLAN_SUFFIX.toLowerCase()} territories. Nothing is lost.`;
+  const EDITION_NOTE = phrase('edition.note');
   function renderSettings() {
     if (!settings) return '';
     const s = settings.all();

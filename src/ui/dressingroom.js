@@ -16,6 +16,7 @@ import { sanitizeCustomCats, presetFor, lookKey, COATS, CUSTOM_MAX } from '../cu
 import { PAW } from './pawicon.js';
 import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT_MAX } from '../outfits.js';
 import { escapeHtml } from '../escapehtml.js';
+import { phrase } from '../clanphrases.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
@@ -198,7 +199,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
       id: walkArea, name: placeName(walkArea, state?.edition, catalog),
       // Clan Edition: whose land today's walk is on ("StormClan land").
       clan: isClanEdition(state) && isClanId(walkArea) ? walkArea : null,
-      line: isClanEdition(state) && isClanId(walkArea) ? `${clanName(walkArea)} land` : '',
+      line: isClanEdition(state) && isClanId(walkArea) ? phrase('place.groupLand', clanName(walkArea)) : '',
     },
     // What she has on, for the Wearing summary (display order, prizes included).
     worn: slotIds.map((slot) => ({ slot, id: equippedId(state, catalog, slot) })).filter((w) => w.id)

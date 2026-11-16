@@ -1,4 +1,5 @@
 import { markKey, shouldContest, CONTEST_REACH } from './marks.js';
+import { phrase } from './clanphrases.js';
 import { rivalFor } from './rivalclans.js';
 
 // =============================================================================
@@ -24,9 +25,7 @@ export const CONTEST_EVERY = 0.25;
 // scratch can be scratched again to take it back (ruling R24); a dig or a
 // drop cannot, so its toast does not say to.
 export function contestToast(name, kind) {
-  return kind === 'scratch'
-    ? `${name} scented over your mark! Scratch it again to take it back. 🐾`
-    : `${name} scented over your mark! 🐾`;
+  return phrase(kind === 'scratch' ? 'mark.scentedOverRetake' : 'mark.scentedOver', name);
 }
 
 // createMarkContest({ areaId, progression, playerMarks, patrolPos, isChasing, toast })

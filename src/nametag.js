@@ -834,7 +834,7 @@ export function uprightTag(tag, pitch, roll, anchorY = 0) {
 //
 // opts.fit: the wide pill, so a long typed name (16 letters) fits at the
 // shrink-to-fit floor. Off by default; kept on userData.fit for repaints.
-export function makeNameTag(name, { cross = false, legend = false, sub = '', fit = false } = {}) {
+export function makeNameTag(name, { cross = false, legend = false, sub = '', fit = false, top = false } = {}) {
   if (typeof document === 'undefined') return null;
   const twoLine = typeof sub === 'string' && sub.length > 0;
   const tagCanvas = document.createElement('canvas');
@@ -851,8 +851,11 @@ export function makeNameTag(name, { cross = false, legend = false, sub = '', fit
   if (twoLine) tag.scale.set(SUB_TAG_SCALE_X, SUB_TAG_SCALE_Y, 1);
   tag.position.y = (isCross ? CROSS_TAG_Y : TAG_Y) + (twoLine ? SUB_LIFT : 0);
   if (twoLine) { tag.userData.sub = sub; tag.userData.subPx = subPx; }
-  // a clan leader's tag goes on top of the others (declutterTags)
-  if (twoLine && /^leader/i.test(sub)) tag.userData.top = true;
+  // A clan leader's tag goes on top of the others (declutterTags). The caller
+  // says so with opts.top, worked out from the cat's rank id (tagOptsFor in
+  // clancast.js); the tag never reads the displayed rank word, so the word can
+  // change without moving this.
+  if (twoLine && top === true) tag.userData.top = true;
   if (fit) tag.userData.fit = true;
   tag.visible = false;
   // The canvas and its context are kept ON the sprite so the texture can be

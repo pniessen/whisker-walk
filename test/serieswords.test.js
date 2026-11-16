@@ -38,7 +38,7 @@ import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, KITTYPET_NAMES, isKittypetName }
 import { prefixFor, warriorSuffixFor, clanRankFor, colonyRankFor, clanNameOf, clanTitleFor, candidateStarNames } from '../src/clannames.js';
 import { HOMES, TRUCE_AREAS, clanName, pickableClans, patrolClanFor, ownClanTitle, alliesName, homeWelcome } from '../src/clanhomes.js';
 import { rivalFor } from '../src/rivalclans.js';
-import { CAST_RANKS, CAST_CORE, RAIDER_SLOTS, ROAM_SLOTS, clanCast, castFor, borderWarriorFor, clanHomeFor, tagSubFor } from '../src/clancast.js';
+import { CAST_RANKS, CAST_CORE, RAIDER_SLOTS, ROAM_SLOTS, clanCast, castFor, borderWarriorFor, clanHomeFor, tagOptsFor } from '../src/clancast.js';
 import { roleFor, kitsFor } from '../src/clanroles.js';
 import { editionTitle, gameTitle, placeName, accessoryName, rivalForWalk, isClanEdition } from '../src/edition.js';
 import { TERRITORIES, ISLAND, opensAfterLine, territoryMapModel } from '../src/territories.js';
@@ -67,6 +67,7 @@ import { ISLAND_WHERE, renderTerritoryMapHtml } from '../src/ui/territorymap.js'
 import { buildDressingModel, placeWhyLine, renderPlacesSheetHtml } from '../src/ui/dressingroom.js';
 import { PHRASES } from '../src/chat.js';
 import { PERSONALITY_KEYS, replyFor } from '../src/catreplies.js';
+import { PHRASE_IDS, phrase } from '../src/clanphrases.js';
 import { checkAgainstFixture, htmlText, sorted, uniq, sortKeys, seriesFilter } from './helpers/serieswords.js';
 
 const FIXTURE = 'series-words-on.json';
@@ -144,7 +145,9 @@ function withCanvas(fn) {
 // name, its second line, and whether it is the one tag that goes on top.
 function tagOf(member) {
   return withCanvas(() => {
-    const tag = makeNameTag(member.name, { sub: tagSubFor(member) });
+    // 2026-11-16: the tag is built the way the game builds it (tagOptsFor: the
+    // top tag is chosen by rank id, no longer by the word on the tag).
+    const tag = makeNameTag(member.name, tagOptsFor(member));
     return { name: tag.userData.tagName, line: tag.userData.sub, top: tag.userData.top === true };
   });
 }
@@ -576,8 +579,11 @@ function legacyEdition() {
     prizeNames: Object.fromEntries(Object.keys(CATALOG.accessories)
       .filter((id) => CATALOG.accessories[id].legacyName || CATALOG.accessories[id].name.includes(CLAN_SUFFIX))
       .map((id) => [id, accessoryName(CATALOG.accessories[id], L)])),
-    // the card is handed the catalog's own name, whatever the edition
-    warPaintPrizeCard: htmlText(celebrationHtml({ visit: prizeVisit('warpaint'), style: 'B', prize: { id: 'warpaint', name: warpaint.name, slot: warpaint.slot, isNew: true } }, { petName: 'Mittens' })),
+    // 2026-11-16: the card is handed the name the save's edition uses, as
+    // progression.recordVisit now does (it used to hand the catalog's own name,
+    // so Legacy's card said the Clan Edition name: a bug, fixed on purpose).
+    // This ONE entry was re-recorded: "Mittens got a War Paint. It's already on!"
+    warPaintPrizeCard: htmlText(celebrationHtml({ visit: prizeVisit('warpaint'), style: 'B', prize: { id: 'warpaint', name: accessoryName(warpaint, L), slot: warpaint.slot, isNew: true } }, { petName: 'Mittens' })),
     ownGroupTitle: ownClanTitle(s),
     alliesName: alliesName(s),
     homeWelcome: homeWelcome(CLANS[0], s),
@@ -600,11 +606,64 @@ function legacyEdition() {
   };
 }
 
+// ---- the phrase table (src/clanphrases.js), added 2026-11-16 ----------------
+// Every id of the table with what it says, for the values below. This is where
+// the lines that used to be written inside a closure (a fight's end, the chase
+// back over a border, the mark prompts) are recorded as OUTPUT; they were
+// pinned as source text in series-words-on-source.json before.
+function phraseSamples() {
+  const group = clanName('woods');
+  const theirs = clanName('moor');
+  const mate = clanCast('woods')[4].name;
+  const foe = clanCast('moor')[RAIDER_SLOTS[0]].name;
+  return {
+    'group.name': [PREFIXES[0]],
+    'tag.rankOfGroup': [RANK_WORDS[RANK_KEYS.leader], group],
+    'outside.the': [OUTSIDE_WORDS.met],
+    'outside.crossNow': [OUTSIDE_WORDS.grudge],
+    'edition.game': [editionTitle('canon')],
+    'pick.headingMine': [group],
+    'pick.both': [group],
+    'pick.lineBoth': [group],
+    'home.welcome': [group],
+    'map.camp': [group],
+    'place.groupLand': [group],
+    'patrol.prompt': [mate],
+    'patrol.start': [mate],
+    'patrol.endGood': [mate],
+    'patrol.endShort': [mate],
+    'patrol.award': [mate],
+    'house.arrival': [PET, OUTSIDE_WORDS.house, PLACE_WORDS.town],
+    'house.joined': [PET, PLACE_WORDS.town],
+    'border.chasedBack': [foe],
+    'cross.leading': [PARTNER_NAME, 'the Moor'],
+    'mark.buddyToo': [mate],
+    'mark.scentedOver': [theirs],
+    'mark.scentedOverRetake': [theirs],
+    'fight.challenge': [foe, theirs, phrase('fight.homeAsk')],
+    'fight.homeAward': [foe],
+    'fight.homeWon': [foe, theirs],
+    'fight.homeLostScar': [foe],
+    'fight.homeLost': [foe],
+    'fight.homeTogether': [PARTNER_NAME, foe],
+    'fight.borderAward': [foe],
+    'fight.borderWon': [foe],
+    'fight.borderLostScar': [foe],
+    'fight.borderLost': [foe],
+    'fight.alreadyFacing': [PARTNER_NAME, foe],
+  };
+}
+function phrases() {
+  const samples = phraseSamples();
+  return Object.fromEntries(PHRASE_IDS.map((id) => [id, phrase(id, ...(samples[id] ?? []))]));
+}
+
 function snapshot() {
   return {
     about: 'Every series-derived string today\'s game shows. Recorded by test/serieswords.test.js; see its header before re-recording.',
     clanEdition: clanEdition(),
     legacyEdition: legacyEdition(),
+    phrases: phrases(),
   };
 }
 
@@ -630,5 +689,17 @@ describe('series words: today\'s game, pinned', () => {
     // an intruder is a threat only at home, and never from either child's group
     expect(isHostile({ clan: CLANS[1] }, { clanHome: true, picks: [CLANS[0]] })).toBe(true);
     expect(sortKeys({ b: 1, a: 2 })).toEqual({ a: 2, b: 1 });
+  });
+
+  it('records every phrase of the phrase table, each with every value filled in', () => {
+    const said = phrases();
+    expect(Object.keys(said)).toEqual([...PHRASE_IDS]);
+    for (const id of PHRASE_IDS) {
+      expect(typeof said[id], id).toBe('string');
+      expect(said[id].length, id).toBeGreaterThan(0);
+      expect(said[id], id).not.toMatch(/undefined|null|NaN|\[object/);
+    }
+    // a sample is for an id the table has
+    for (const id of Object.keys(phraseSamples())) expect(PHRASE_IDS, id).toContain(id);
   });
 });

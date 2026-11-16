@@ -14,6 +14,7 @@ import { withLocalUuids } from './localuuids.js';
 import { DISCS } from '../rivalclans.js';
 import { tintGround, once } from './dressing.js';
 import { forestFloorMesh, woodsFloorTint } from './forestfloor.js';
+import { phrase } from '../clanphrases.js';
 
 // =============================================================================
 // The Woods.
@@ -176,7 +177,7 @@ const POIS = [
 const SCENICS = [
   { id: 'lake-view', x: -26, z: -30, label: 'the lakeshore' },
   { id: 'woods-pond', x: -34, z: -2, label: 'the pond on the border' },
-  { id: 'great-oak', x: 6, z: 23, label: 'the great oak' },
+  { id: 'great-oak', x: 6, z: 23, label: phrase('landmark.woods.oak') },
 ];
 
 const COLLECTIBLES = [
@@ -205,7 +206,7 @@ const OAK_ROOT = { x: 8.77, z: 20.67, r: 0.35 };
 const LOOKOUT_TOP = { x: -23, z: -27, y: 1.9, r: 0.9, rTop: 0.75, rBottom: 1.0 };
 const CHAIN_PERCHES = [
   { x: 8, z: 20, y: 0.72, kind: 'stone' },
-  { x: GREAT_OAK.x, z: GREAT_OAK.z, y: 2.1, kind: 'tree', label: 'great oak lookout', vantage: true },
+  { x: GREAT_OAK.x, z: GREAT_OAK.z, y: 2.1, kind: 'tree', label: phrase('landmark.woods.oakLookout'), vantage: true },
   { x: -22, z: -26, y: 0.72, kind: 'stone' },
   { x: LOOKOUT_TOP.x, z: LOOKOUT_TOP.z, y: LOOKOUT_TOP.y, kind: 'stone', label: 'lookout rocks', vantage: true },
 ];
@@ -796,7 +797,7 @@ export function build(scene, { water = {}, wind } = {}) {
     scenics: SCENICS.map((c) => ({ ...c })),
     critterSpawns: critterSpawns(),
     moments: [
-      { id: 'squirrel-dash', label: 'two squirrels racing up the great oak', x: 9, z: 24, from: { x: 20, z: 30 } },
+      { id: 'squirrel-dash', label: phrase('landmark.woods.oakSquirrels'), x: 9, z: 24, from: { x: 20, z: 30 } },
     ],
     puddles: PUDDLES.map((p) => ({ ...p })),
     waters: WOODS_WATERS,

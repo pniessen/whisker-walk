@@ -71,6 +71,18 @@ describe('recordVisit', () => {
     expect(p.state.visitPrizePending).toBe(null);
   });
 
+  // 2026-11-16: Legacy Edition's card said "Clan War Paint" while Legacy calls
+  // it "War Paint" everywhere else. The milestone now carries the edition's name.
+  it('the war paint milestone carries the name this save\'s edition uses', () => {
+    const at49 = () => seeded({ visits: 49, visitPrizesSeen: 40 });
+    const clan = createProgression(at49()).recordVisit();
+    expect(clan.milestone).toMatchObject({ visit: 50, prize: { id: 'warpaint', name: 'Clan War Paint', slot: 'face', isNew: true } });
+    const p = createProgression(at49());
+    p.setEdition('legacy');
+    const legacy = p.recordVisit();
+    expect(legacy.milestone).toMatchObject({ visit: 50, prize: { id: 'warpaint', name: 'War Paint', slot: 'face', isNew: true } });
+  });
+
   it('the milestone carries the prize name and slot', () => {
     const r = createProgression(memStorage()).recordVisit();
     expect(r.milestone).toEqual({

@@ -142,15 +142,25 @@ describe('the leader goes on top', () => {
     expect(out.get(far).lift).toBe(180 - 100 + TAG_GAP_PX);
   });
 
-  it('makeNameTag marks a leader tag top, and no other', () => {
+  // 2026-11-16 (series switch, phase 1): RULE CHANGED. The tag used to find the
+  // leader by reading its own second line (/^leader/i). It now takes opts.top
+  // from the caller, who works it out from the rank id (tagOptsFor), so the
+  // displayed word can change without moving which tag is on top.
+  it('makeNameTag marks a tag top when told to, never from the words on it', () => {
     const prev = globalThis.document;
     globalThis.document = {
       createElement: () => ({ width: 0, height: 0, getContext: () => new Proxy({}, { get: () => () => ({ width: 10 }) }) }),
     };
     try {
-      expect(makeNameTag('Minnowstar', { sub: 'leader of BrookClan' }).userData.top).toBe(true);
-      expect(makeNameTag('Minnowstar', { sub: 'Leader of BrookClan' }).userData.top).toBe(true);
+      expect(makeNameTag('Minnowstar', { sub: 'leader of BrookClan', top: true }).userData.top).toBe(true);
+      // a different word for the same rank is still on top
+      expect(makeNameTag('Minnow', { sub: 'chief of the Reedbank Band', top: true }).userData.top).toBe(true);
+      // the word alone decides nothing
+      expect(makeNameTag('Minnowstar', { sub: 'leader of BrookClan' }).userData.top).toBeFalsy();
       expect(makeNameTag('Reedtail', { sub: 'deputy of BrookClan' }).userData.top).toBeFalsy();
+      expect(makeNameTag('Reedtail', { sub: 'deputy of BrookClan', top: false }).userData.top).toBeFalsy();
+      // only a two-line tag can be the top one, as before
+      expect(makeNameTag('Leaderpaw', { top: true }).userData.top).toBeFalsy();
       expect(makeNameTag('Leaderpaw').userData.top).toBeFalsy();
     } finally {
       if (prev === undefined) delete globalThis.document;

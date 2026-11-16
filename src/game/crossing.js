@@ -7,6 +7,7 @@
 import { CATALOG } from '../progression.js';
 import { carryLabel } from '../carry.js';
 import { crossCardHtml, crossExtras, decideBorderCross, targetName, lower } from '../bordercross.js';
+import { phrase } from '../clanphrases.js';
 import { pauseCardFor } from './walk.js';
 
 export const CROSS_RESEND_MS = 150;
@@ -94,7 +95,7 @@ export function createCrossing({
     s.crossLed = true;
     const together = remotes.map((r) => r.petName);
     const name = remotes.find((r) => r.playerId === ev.id)?.petName ?? 'A friend';
-    hud.toast(`${name} is leading the way to ${lower(targetName(d.to, getEdition(), catalog))}! 🧭`);
+    hud.toast(phrase('cross.leading', name, lower(targetName(d.to, getEdition(), catalog))));
     setTimeout(() => { if (getSession() === s) endWalk({ crossTo: d.to, ledBy: name, together }); }, LED_DELAY_MS);
   }
 

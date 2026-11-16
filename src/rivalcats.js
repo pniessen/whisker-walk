@@ -4,7 +4,7 @@ import { animateCat } from './cat/animator.js';
 import { setCatScars } from './cat/scarmesh.js';
 import { strayBreed } from './straynames.js';
 import { makeNameTag, NAME_TAG_RANGE, uprightTag } from './nametag.js';
-import { RANK_SCALE, tagSubFor } from './clancast.js';
+import { RANK_SCALE, tagOptsFor } from './clancast.js';
 
 // A rival cat that patrols its territory's border, and chases a trespasser
 // back over it.
@@ -281,7 +281,7 @@ export function createRivalPatrol(scene, areaId, {
     mesh.scale.multiplyScalar(k);
     mesh.userData.borderFoe = true;
     if (foeIn.showNames) {
-      tag = makeNameTag(member.name, { cross: true, sub: tagSubFor(member) });
+      tag = makeNameTag(member.name, { cross: true, ...tagOptsFor(member) });
       if (tag) {
         tag.scale.x /= k;
         tag.scale.y /= k;

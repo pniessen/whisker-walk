@@ -6,6 +6,7 @@ import { HOMES, clanName, picksOf, isClanId } from '../clanhomes.js';
 import { HOME_LINES, CLAN_SUFFIX } from '../clanwords.js';
 import { TERRITORIES } from '../territories.js';
 import { escapeHtml } from '../escapehtml.js';
+import { phrase } from '../clanphrases.js';
 
 const clanWord = CLAN_SUFFIX.toLowerCase();
 // Names that would spell the word as a hyphen-bounded literal are composed.
@@ -35,7 +36,7 @@ export const CLAN_EMBLEMS = Object.freeze({
 
 // The line on a clan's card that can't be picked yet (G10): its territory is
 // walkable, but its camp comes later.
-export const CAMP_SOON_LINE = 'camp coming soon';
+export const CAMP_SOON_LINE = phrase('pick.campSoon');
 
 // Every HOMES clan gets a card. A pickable one is a pick button; one that isn't
 // shows greyed, with CAMP_SOON_LINE. `territories` and `homes` are parameters
@@ -52,7 +53,7 @@ export function clanPickerModel(state, territories = TERRITORIES, homes = HOMES)
     return {
       id,
       name: clanName(id),
-      line: pickable ? HOME_LINES[id] ?? '' : CAMP_SOON_LINE,
+      line: pickable ? HOME_LINES[id] ?? '' : phrase('pick.campSoon'),
       place: t ? t.name : '',
       soon: !pickable || (!!t && t.status !== 'built'),
       pickable,
@@ -65,7 +66,7 @@ export function clanPickerModel(state, territories = TERRITORIES, homes = HOMES)
 
 export function renderClanPickerHtml(model, partnerName) {
   const mineCard = model.cards.find((c) => c.mine);
-  const heading = model.mine === null ? `Pick your ${clanWord}` : `Your ${clanWord}: ${mineCard ? mineCard.name : clanName(model.mine)}`;
+  const heading = model.mine === null ? phrase('pick.heading') : phrase('pick.headingMine', mineCard ? mineCard.name : clanName(model.mine));
   // A card that can't be picked is greyed, with no pick attribute, so a tap on
   // it finds nothing to pick.
   const open = (c) => (c.pickable
@@ -77,11 +78,11 @@ export function renderClanPickerHtml(model, partnerName) {
       : `<span class="dr-home-name">${escapeHtml(c.name)}</span>`)
     + `<small>of ${escapeHtml(c.place)}</small>`
     + `<small>${escapeHtml(c.line)}</small>`
-    + (c.soon && c.pickable ? '<small class="dr-home-soon">territory coming soon</small>' : '')
+    + (c.soon && c.pickable ? `<small class="dr-home-soon">${phrase('pick.territorySoon')}</small>` : '')
     + (c.mine ? '<small class="dr-home-tag">✓ yours</small>' : '')
     + (c.partner ? `<small class="dr-home-tag">🤝 ${escapeHtml(partnerName)}'s</small>` : '')
     + '</button>').join('');
-  const both = model.both && mineCard ? `<p class="dr-home-both">You're both ${escapeHtml(mineCard.name)}!</p>` : '';
+  const both = model.both && mineCard ? `<p class="dr-home-both">${phrase('pick.both', escapeHtml(mineCard.name))}</p>` : '';
   return `<div class="dr-homerow"><p class="dr-label">${escapeHtml(heading)}</p><div class="dr-homes">${buttons}</div>${both}</div>`;
 }
 
@@ -115,22 +116,19 @@ export function clanMomentDue(state, catalog) {
   return woodsOpen(state, catalog);
 }
 
-const MOMENT_TITLE = `The ${clanWord}s have noticed you!`;
-const MOMENT_ASK = `Which ${clanWord} will you join?`;
+
 // The same card opened again from Change place once she has a clan: the
 // cards are the same, the words say she is changing, and "Not yet" keeps hers.
-const CHANGE_TITLE = `Change your ${clanWord}?`;
-const CHANGE_ASK = `Tap a ${clanWord} to join it.`;
-const KEEP_LABEL = `Keep my ${clanWord}`;
+// The words are read from the phrase table when the card is drawn.
 
 export function renderClanMomentHtml(model, partnerName) {
   const change = !!model.mine;
   return `<div class="join-moment-card" role="dialog" aria-modal="true" aria-labelledby="join-moment-title" tabindex="-1">`
     + `<p class="join-moment-paws" aria-hidden="true">🐾 🐾 🐾</p>`
-    + `<h2 id="join-moment-title">${escapeHtml(change ? CHANGE_TITLE : MOMENT_TITLE)}</h2>`
-    + `<p class="join-moment-ask">${escapeHtml(change ? CHANGE_ASK : MOMENT_ASK)}</p>`
+    + `<h2 id="join-moment-title">${escapeHtml(phrase(change ? 'pick.changeTitle' : 'pick.momentTitle'))}</h2>`
+    + `<p class="join-moment-ask">${escapeHtml(phrase(change ? 'pick.changeAsk' : 'pick.momentAsk'))}</p>`
     + renderClanPickerHtml(model, partnerName)
-    + `<div class="join-moment-foot"><button type="button" class="join-moment-later" data-${clanWord}-later>${escapeHtml(change ? KEEP_LABEL : 'Not yet')}</button>`
+    + `<div class="join-moment-foot"><button type="button" class="join-moment-later" data-${clanWord}-later>${escapeHtml(change ? phrase('pick.keep') : 'Not yet')}</button>`
     + '<p class="join-moment-note">You can change it later in 🗺️ Change place.</p></div>'
     + '</div>';
 }
@@ -144,10 +142,10 @@ export function clanLineHtml(model, partnerName, { canChoose = false } = {}) {
     const name = mine ? mine.name : clanName(model.mine);
     const emblem = CLAN_EMBLEMS[model.mine] ? `<span class="dr-home-emblem">${CLAN_EMBLEMS[model.mine]}</span>` : '';
     const partner = model.cards.find((c) => c.partner && !c.mine);
-    const extra = model.both ? ` — you’re both ${escapeHtml(name)}!`
+    const extra = model.both ? phrase('pick.lineBoth', escapeHtml(name))
       : partner ? ` · ${escapeHtml(partnerName)} is ${escapeHtml(partner.name)}` : '';
     return `<button type="button" class="hb-pick-line" ${MOMENT_ATTR}>${emblem}<span>You’re <b>${escapeHtml(name)}</b>${extra}</span><b class="hb-pick-change">Change ›</b></button>`;
   }
   if (!canChoose) return '';
-  return `<button type="button" class="hb-pick-choose" ${MOMENT_ATTR}><span>${escapeHtml(MOMENT_TITLE)}</span><b>Choose your ${clanWord} ›</b></button>`;
+  return `<button type="button" class="hb-pick-choose" ${MOMENT_ATTR}><span>${escapeHtml(phrase('pick.momentTitle'))}</span><b>${phrase('pick.choose')}</b></button>`;
 }

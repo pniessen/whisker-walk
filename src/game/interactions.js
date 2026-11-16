@@ -39,6 +39,7 @@ import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
 import { postNear } from '../borderposts.js';
 import { postStatus, promptFor } from '../bordercross.js';
+import { phrase } from '../clanphrases.js';
 import * as THREE from 'three';
 import { villagerPos } from '../critters.js';
 import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js';
@@ -683,7 +684,7 @@ export function createInteractions({
     if (!progression.addMark(s.areaId, full)) return false;
     s.playerMarks?.sync(progression.marksIn(s.areaId));
     // Task 6: a clanmate on patrol with me marks it too. Display only.
-    if (s.clanBuddy) { s.clanCats?.markBeside?.(s.clanBuddy); hud.toast(`${s.clanBuddy.name} marks it too 🐾`); }
+    if (s.clanBuddy) { s.clanCats?.markBeside?.(s.clanBuddy); hud.toast(phrase('mark.buddyToo', s.clanBuddy.name)); }
     return true;
   }
 
@@ -970,7 +971,7 @@ export function createInteractions({
         setPrompt(
           kind === 'clan-greet' ? `E — touch noses with ${mate.name}`
             : kind === 'clan-boop' ? `E — boop ${mate.name} 💕`
-              : kind === 'clan-patrol' ? `E — patrol with ${mate.name}`
+              : kind === 'clan-patrol' ? phrase('patrol.prompt', mate.name)
                 : `E — say goodbye to ${mate.name}`,
         );
       }
@@ -1097,7 +1098,7 @@ export function createInteractions({
       const target = markableToScratch(s, catP);
       if (target) {
         s.prompt = { kind: 'mark', data: target };
-        setPrompt('E — scratch your mark into it');
+        setPrompt(phrase('mark.promptScratch'));
       }
     }
     // v21 3b Task 12 — scent over one of the rival's border marks. Right after
@@ -1109,7 +1110,7 @@ export function createInteractions({
       const target = borderDecalToScent(s, catP);
       if (target) {
         s.prompt = { kind: 'border-mark', data: target };
-        setPrompt('E — scent over their mark');
+        setPrompt(phrase('mark.promptScent'));
       }
     }
     // v21 3b Task 15 — have a drink, a nibble or a nap. Right after the border
@@ -1236,10 +1237,9 @@ export function createInteractions({
     s.clanBuddy = null;
     const paying = Number.isFinite(seconds) && seconds >= PATROL_MIN;
     hud.toast(reason === 'far' ? `${cat.name} couldn't keep up!`
-      : paying ? `${cat.name} heads back to camp. Good patrol!`
-      : `${cat.name} heads back to camp. A longer patrol next time!`);
+      : phrase(paying ? 'patrol.endGood' : 'patrol.endShort', cat.name));
     if (paying) {
-      clanPay(s, 'patrol', `patrol-${cat.id}`, `a patrol with ${cat.name}`);
+      clanPay(s, 'patrol', `patrol-${cat.id}`, phrase('patrol.award', cat.name));
     }
     if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'clan-buddy', catId: cat.id, on: false });
   }
@@ -1304,7 +1304,7 @@ export function createInteractions({
       s.strayCats.turnHostile(stray, s.cat.position);
       audio.hiss();
       s.fx?.burst(stray.group.position, 0x8a3a4a, 10);
-      hud.toast(`${stray.name} hisses and backs away…${outsider(stray.name, 'grudge', (w) => ` a ${w} now!`)} 😾`);
+      hud.toast(`${stray.name} hisses and backs away…${outsider(stray.name, 'grudge', (w) => phrase('outside.crossNow', w))} 😾`);
       bus.emit('tip', { id: 'hiss', name: stray.name });
       // No friendship award and NO recordGreet: it did not go well. That is
       // also why the greet count — and therefore the ♡/♥/💕 ladder and D5's
@@ -1709,7 +1709,7 @@ export function createInteractions({
       if (s.clanBuddy || cat.patrolled || !s.clanCats.startBuddy(cat, s.cat)) return;
       cat.patrolled = true;
       s.clanBuddy = cat;
-      hud.toast(`${cat.name} walks the border with you 🐾`);
+      hud.toast(phrase('patrol.start', cat.name));
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'clan-buddy', catId: cat.id, on: true });
     } else if (s.prompt.kind === 'clan-bye') {
       const cat = s.prompt.data;

@@ -1,7 +1,7 @@
 import { test, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  clanCast, castFor, clanCountFor, lonersFor, clanHomeFor, tagSubFor,
+  clanCast, castFor, clanCountFor, lonersFor, clanHomeFor, tagSubFor, tagOptsFor,
   CAST_RANKS, CAST_CORE, CAST_HIGH, INTRUDER_SLOTS, MIN_LONERS_HIGH, RAIDER_SLOTS, RANK_SCALE, CLAN_COLOURS, CLAN_COATS,
 } from '../src/clancast.js';
 import { CLAN_CAT_PREFIXES, RANK_KEYS, RANK_SUFFIX, RANK_WORDS, DENIED_NAMES } from '../src/clanwords.js';
@@ -178,6 +178,19 @@ test('clanHomeFor: your pick or your sibling\'s, Clan Edition only', () => {
   expect(clanHomeFor('island', 'canon', ['island'])).toBe(false);
 });
 
+test('tagOptsFor puts only the leader on top, by rank id and not by the word', () => {
+  for (const clan of ['woods', 'moor', 'river', 'pines', 'gorge']) {
+    for (const m of clanCast(clan)) {
+      const opts = tagOptsFor(m);
+      expect(opts.sub).toBe(tagSubFor(m));
+      expect(opts.top).toBe(m.rank === RANK_KEYS.leader);
+    }
+    expect(clanCast(clan).filter((m) => tagOptsFor(m).top).length).toBe(1);
+  }
+  // a rank whose WORD starts with "leader" is not the leader
+  expect(tagOptsFor({ name: 'X', rank: RANK_KEYS.deputy, clan: 'woods' }).top).toBe(false);
+});
+
 test('tagSubFor names the rank and the clan', () => {
   const cast = clanCast('woods');
   expect(tagSubFor(cast[0])).toBe(`${RANK_WORDS.leader} of ${clanName('woods')}`);
@@ -188,7 +201,9 @@ test('clancast.js stays pure', () => {
   const src = readFileSync(new URL('../src/clancast.js', import.meta.url), 'utf8');
   const specs = [...src.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1]);
   expect(specs.length).toBeGreaterThan(0);
-  const allowed = ['./clanhomes.js', './clanwords.js', './rivalclans.js', './rng.js', './straynames.js'];
+  // 2026-11-16 (series switch, phase 1): pin updated. './clanphrases.js' is the
+  // phrase table the tag's second line now comes from (words only, no THREE).
+  const allowed = ['./clanhomes.js', './clanwords.js', './clanphrases.js', './rivalclans.js', './rng.js', './straynames.js'];
   for (const s of specs) expect(allowed, s).toContain(s);
 });
 

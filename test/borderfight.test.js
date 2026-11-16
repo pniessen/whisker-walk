@@ -172,7 +172,9 @@ describe('the border patrol fight', () => {
   test('borderfight.js is handed no progression and imports only the fight, the border and the patrol', () => {
     const src = readFileSync(new URL('../src/game/borderfight.js', import.meta.url), 'utf8');
     const specs = [...src.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]).sort();
-    expect(specs).toEqual(['../rivalcats.js', '../rivalclans.js', './clanfight.js']);
+    // 2026-11-16 (series switch, phase 1): pin updated. The fight's words come from the phrase
+    // table (src/clanphrases.js: words only, stores nothing).
+    expect(specs).toEqual(['../clanphrases.js', '../rivalcats.js', '../rivalclans.js', './clanfight.js']);
     expect(src.replace(/\/\/.*$/gm, '')).not.toMatch(/progression|colony/);
   });
 });

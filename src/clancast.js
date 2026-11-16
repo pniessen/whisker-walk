@@ -14,6 +14,7 @@ import { isClanId, clanName, TRUCE_AREAS } from './clanhomes.js';
 import { DISCS } from './rivalclans.js';
 import { CLAN_CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, RANK_KEYS, RANK_WORDS, DENIED_NAMES } from './clanwords.js';
 import { seedFromCode, mulberry32 } from './rng.js';
+import { phrase } from './clanphrases.js';
 
 const K = RANK_KEYS;
 export const CAST_RANKS = Object.freeze([
@@ -168,7 +169,15 @@ export function clanHomeFor(areaId, edition, picks) {
 }
 
 export function tagSubFor(member) {
-  return `${RANK_WORDS[member.rank]} of ${clanName(member.clan)}`;
+  return phrase('tag.rankOfGroup', RANK_WORDS[member.rank], clanName(member.clan));
+}
+
+// The options makeNameTag takes for a cast cat: the second line, and whether
+// this is the one tag that goes on top of the others (the leader's). `top` is
+// decided from the rank ID, never from the displayed word, so a change of
+// words cannot move it.
+export function tagOptsFor(member) {
+  return { sub: tagSubFor(member), top: member.rank === RANK_KEYS.leader };
 }
 
 // Where the roaming ranks live: eight homes, for slots 4-8 then 13-15 in that
