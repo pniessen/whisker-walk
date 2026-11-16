@@ -120,7 +120,7 @@ body.touch-mode .goal-how .how-touch { display: inline; }
 }
 .hud-hint-pic { font-size: 22px; flex: none; }
 .hud-hint-pic:empty { display: none; }
-#hud.hinting .hud-controls { visibility: hidden; }
+#hud.hinting .hud-controls, #hud.lesson-on .hud-controls { visibility: hidden; }
 /* Touch, wide (a tablet, a phone on its side): centred in the band left of
    the corner map, under the top row; a quest or race line pushes it down. */
 body.touch-mode .hud-hint {
@@ -143,6 +143,86 @@ body.touch-mode .hud-objective:not(.hidden) ~ .hud-hint { top: calc(max(16px, en
     right: max(16px, env(safe-area-inset-right)); width: auto; max-width: none;
   }
 }
+/* A phone at most 480px wide puts the objective pill under the corner map too
+   (the rule is further down): there the bubble steps down under the pill, so
+   the two are never one on top of the other (the first camp walk shows both). */
+@media (max-width: 480px) {
+  body.touch-mode .hud-objective:not(.hidden) ~ .hud-hint:not(.chip) {
+    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 88px);
+  }
+}
+/* ---- The guided walk's bubble and ring (ui/guidebubble.js) ----------------
+   The bubble is the hint line above with three things added: key shapes for a
+   keyboard (in the picture's place), a second line under the first, and a
+   small "chip" form for a line that should not nag. */
+.hud-hint { flex-wrap: wrap; }
+.hud-hint-text { flex: 1 1 0; min-width: 0; }
+.hud-hint-keys { display: inline-flex; gap: 4px; flex: none; }
+.hud-hint-keys:empty { display: none; }
+.hud-hint-keys kbd {
+  display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 7px; box-sizing: border-box;
+  border: 2px solid #b89b62; border-bottom-width: 4px; border-radius: 7px; background: #fffdf6; color: #3a2a10;
+  font: inherit; font-size: 15px; font-weight: 700; line-height: 1;
+}
+/* The four arrow keys light up in turn. */
+.hud-hint-keys.turns kbd { animation: guide-key 2.4s infinite; }
+.hud-hint-keys.turns kbd:nth-child(2) { animation-delay: 0.6s; }
+.hud-hint-keys.turns kbd:nth-child(3) { animation-delay: 1.2s; }
+.hud-hint-keys.turns kbd:nth-child(4) { animation-delay: 1.8s; }
+@keyframes guide-key { 0%, 24%, 100% { background: #fffdf6; } 6%, 18% { background: #f2c14e; } }
+.hud-hint-more { flex: 1 0 100%; font-size: 15px; font-weight: 500; line-height: 1.3; }
+.hud-hint-more:empty { display: none; }
+/* The chip: the same line, small; or (chip-paw) only its picture. */
+.hud-hint.chip { padding: 4px 11px; font-size: 13px; font-weight: 600; border-width: 1.5px; border-radius: 999px; gap: 6px; opacity: 0.94; box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+.hud-hint.chip .hud-hint-pic { font-size: 15px; }
+.hud-hint.chip .hud-hint-keys kbd { min-width: 22px; height: 22px; font-size: 12px; border-width: 1.5px; border-bottom-width: 3px; padding: 0 5px; }
+.hud-hint.chip-paw .hud-hint-text, .hud-hint.chip-paw .hud-hint-keys {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+/* Touch: a chip keeps to the left under the top row, and the goals come back
+   beside or under it (a full bubble hides them on a narrow screen). */
+body.touch-mode .hud-hint.chip { margin: 0; width: fit-content; max-width: calc(100vw - 32px); }
+@media (max-width: 900px) {
+  body.touch-mode #hud.hinting.hint-chip .hud-goals { display: flex; }
+  body.touch-mode .hud-hint.chip, body.touch-mode .hud-objective:not(.hidden) ~ .hud-hint.chip {
+    top: auto; bottom: calc(222px + env(safe-area-inset-bottom)); left: max(16px, env(safe-area-inset-left)); right: auto;
+  }
+  body.touch-mode.left-handed .hud-hint.chip { left: auto; right: max(16px, env(safe-area-inset-right)); }
+}
+@media (prefers-reduced-motion: reduce) { .hud-hint-keys.turns kbd { animation: none; } }
+/* The ring round the real control: an outline, never a cover, never a hit
+   target. It beats (a soft grow and shrink) with an arrow that bobs toward
+   the control. Still form (.still: "Reduced motion", or the device's own
+   setting below): a thick dashed outline and the arrow, not moving. */
+.guide-ring {
+  position: fixed; z-index: 3; box-sizing: border-box; pointer-events: none;
+  border: 4px solid #ffe27a; box-shadow: 0 0 0 2px rgba(58,42,16,0.55), 0 0 14px 2px rgba(255,226,122,0.7);
+  animation: guide-ring-beat 1.3s ease-in-out infinite;
+}
+.guide-ring.grow { border-width: 6px; }
+@keyframes guide-ring-beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.09); } }
+.guide-ring-arrow {
+  position: absolute; left: 50%; bottom: calc(100% + 7px); width: 0; height: 0; margin-left: -11px;
+  border-left: 11px solid transparent; border-right: 11px solid transparent; border-top: 16px solid #ffe27a;
+  filter: drop-shadow(0 1px 1px rgba(58,42,16,0.9)); animation: guide-arrow-bob 1.3s ease-in-out infinite;
+}
+.guide-ring[data-arrow="bottom"] .guide-ring-arrow {
+  bottom: auto; top: calc(100% + 7px); border-top: 0; border-bottom: 16px solid #ffe27a;
+}
+@keyframes guide-arrow-bob { 0%, 100% { transform: translateY(-4px); } 50% { transform: translateY(2px); } }
+.guide-ring.still { animation: none; border-style: dashed; border-width: 6px; }
+.guide-ring.still .guide-ring-arrow { animation: none; }
+/* The thumb picture: slides up on the walk circle twice, or taps a button once. */
+.guide-ring-thumb { display: none; position: absolute; left: 50%; top: 50%; margin: -4px 0 0 -14px; font-size: 28px; line-height: 1; }
+.guide-ring[data-thumb="slide"] .guide-ring-thumb { display: block; animation: guide-thumb-slide 1.6s ease-in-out 2 both; }
+.guide-ring[data-thumb="tap"] .guide-ring-thumb { display: block; animation: guide-thumb-tap 1.2s ease-in-out 1 both; }
+@keyframes guide-thumb-slide { 0% { transform: translateY(14px); opacity: 0; } 15% { opacity: 1; } 75% { transform: translateY(-34px); opacity: 1; } 100% { transform: translateY(-34px); opacity: 0; } }
+@keyframes guide-thumb-tap { 0% { transform: translateY(18px) scale(1); opacity: 0; } 30% { transform: translateY(0) scale(1); opacity: 1; } 50% { transform: translateY(0) scale(0.82); } 70% { transform: translateY(0) scale(1); opacity: 1; } 100% { opacity: 0; } }
+.guide-ring.still .guide-ring-thumb { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .guide-ring { animation: none; border-style: dashed; border-width: 6px; }
+  .guide-ring-arrow, .guide-ring[data-thumb] .guide-ring-thumb { animation: none; }
+}
 /* Desktop: the interact prompt (.hud-prompt, bottom 96px, ~40px tall) tops out
    near 136px, so a toast's bottom edge sits at 146px, ~10px clear of it. While
    the fight challenge pill is up (two 48px buttons, ~100px tall, same bottom
@@ -152,6 +232,9 @@ body.touch-mode .hud-objective:not(.hidden) ~ .hud-hint { top: calc(max(16px, en
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
 #hud.fight-asking .hud-toasts { bottom: 210px; }
+/* A keyboard, while the bubble is up: the ring round the yellow button has
+   its arrow above it, so the toasts start above that arrow. */
+body:not(.touch-mode) #hud.hinting:not(.fight-asking):not(.fighting) .hud-toasts { bottom: 184px; }
 /* A toast fades in 0.35 s with a small rise (hud.js removes it right after).
    The fade is short so the white text never outlives its dark pill, which
    left "ghost text" over the cat when the old 0.8 s fade overlapped a busy
@@ -217,6 +300,12 @@ body.touch-mode .hud-toasts {
   width: max-content; max-width: calc(100vw - 32px);
 }
 body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-area-inset-bottom)); }
+/* While the bubble is up the yellow button may wear the ring, whose arrow
+   stands above it: the toasts start above that arrow. (A phone held upright
+   has its toasts at the top instead, see below.) */
+@media (min-width: 481px) {
+  body.touch-mode #hud.hinting:not(.hint-chip):not(.fight-asking):not(.fighting) .hud-toasts { bottom: calc(326px + env(safe-area-inset-bottom)); }
+}
 /* Short (landscape) touch screens: the action cluster sits at the right edge,
    horizontally clear of the centred prompt, so the prompt keeps its old 96px
    and the toasts only need to clear it. 165px keeps a single toast's top at
@@ -260,6 +349,12 @@ body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-ar
     top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 100px); bottom: auto;
     flex-direction: column-reverse;
   }
+}
+/* ...and while the bubble is up (it sits under the corner map, where these
+   toasts start) they start below it, clear of a bubble of two or three lines. */
+@media (max-width: 480px) and (min-height: 501px) {
+  body.touch-mode #hud.hinting:not(.hint-chip) #hud-toasts { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 152px); }
+  body.touch-mode #hud.hinting:not(.hint-chip):has(.hud-objective:not(.hidden)) #hud-toasts { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 196px); }
 }
 /* A phone on its side: the bottom anchors above put the walk toasts mid-screen,
    on the player's cat, for the first seconds of every walk. They go to the top
@@ -373,6 +468,8 @@ body.left-handed .tui-joystick-rest {
   color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8); pointer-events: none;
 }
 .tui-labelled .tui-label { display: block; }
+/* A button used twice has no more need of its word (ui/buttonwords.js). */
+.tui-labelled .tui-btn.tui-known .tui-label { display: none; }
 .tui-pause {
   position: absolute;
   /* Top-left, in the top row level with the points pill (.hud-top steps right
@@ -732,6 +829,17 @@ body.touch-mode:not(.left-handed) .hud-top {
 .screen-panel h1 { margin: 0; color: #fff; }
 .screen-cat { display: block; width: 132px; height: 132px; }
 .screen-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+/* "Skip the lesson" (a guided walk's pause card): a third, quiet button. */
+.screen-actions button.quiet {
+  min-height: 44px; min-width: 44px; padding: 8px 16px; border: 0; background: transparent; color: inherit;
+  font: inherit; font-size: 0.95rem; opacity: 0.85; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.screen-actions button.quiet:hover, .screen-actions button.quiet:focus-visible { opacity: 1; }
+/* The guided first walk's lines on the summary card. */
+.best-line.guide-line { color: #ffe9b0; font-size: 1.05rem; font-weight: 600; }
+/* "Play the first walk again" in Settings. */
+.settings-row.settings-replay { display: block; }
+.settings-replay button { min-height: 44px; }
 .pause-card .primary, .pause-card .secondary {
   border-radius: 999px; min-height: 48px; min-width: 220px; padding: 12px 30px;
   font: inherit; font-weight: 700; font-size: 1.05rem; cursor: pointer;

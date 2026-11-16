@@ -40,8 +40,11 @@ import { readDeviceProfile, DEVICE_EVENT } from './render/deviceprofile.js';
 import { releaseThumbnails } from './thumbnails.js';
 import { createHaptics, hapticForDiscovery } from './haptics.js';
 import { createTips } from './game/tips.js';
+import { createGuideWalk } from './game/guidewalk.js';
+import { createGuideBubble } from './ui/guidebubble.js';
+import { createButtonUses } from './ui/buttonwords.js';
 import { tickAutoSniff } from './game/autosniff.js';
-import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode } from './game/walk.js';
+import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode, SKIP_LESSON_ID } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
@@ -248,13 +251,19 @@ function init() {
   const zoomBy = (dir) => {
     if (session && player.engaged) zoomControl.step(dir);
   };
+  // Each touch button keeps its small word until it has been used twice
+  // (ui/buttonwords.js): counted here, when a button does its thing in a walk.
+  const buttonUses = createButtonUses(window.localStorage);
   const touchUI = createTouchUI(document.getElementById('hud'), {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
     onAction: (name) => {
       const zoomDir = zoomActionDir(name);
       if (zoomDir) zoomBy(zoomDir);
-      else handleTouchAction(name);
+      else {
+        handleTouchAction(name);
+        if (session && player.engaged && buttonUses.use(name)) touchUI.setLabels(buttonUses.words());
+      }
     },
     onZoom: zoomBy,
   }, { leftHanded: settings.get('leftHanded') });
@@ -279,7 +288,19 @@ function init() {
   applySettings();
   // The hints on a walk (src/game/tips.js): one line the first time something
   // comes up. Begun on the walk's first engage, ended with the walk.
-  const tips = createTips({ player, progression, settings, hud, getIsTouch: () => isTouch });
+  // The guided first walk and the first camp walk (src/game/guidewalk.js) use
+  // the same bubble, with a ring round the real control (ui/guidebubble.js);
+  // the hints begin, update and end them (their `coach`).
+  const bubble = createGuideBubble({ hud, getIsTouch: () => isTouch, getReduced: () => settings.get('reducedMotion') === true });
+  const guideWalk = createGuideWalk({
+    player, progression, settings, hud, audio, bubble, touchUI,
+    getIsTouch: () => isTouch,
+    // canFeedStray is interactions.js's, made further down; only called on a walk.
+    canFeedStray: (s, stray) => canFeedStray(s, stray),
+    // A lesson that ends or is skipped changes the pause card under it.
+    onLessonChange: (s) => { if (s === session && overlay.querySelector('#btn-resume')) overlay.innerHTML = pauseCardFor(s, isTouch); },
+  });
+  const tips = createTips({ player, progression, settings, hud, getIsTouch: () => isTouch, bubble, coach: guideWalk });
   // routed through handleTouchAction('interact') rather than calling
   // handleInteract directly so the prompt-pill tap shares the exact same
   // session/engaged guard as every other touch action.
@@ -372,7 +393,7 @@ function init() {
   // Interactions/prompts + the shared action helpers (src/game/interactions.js).
   const {
     doMeow, doYarn, doPounceOrClimb, doCameraToggle, handleTouchAction,
-    updateInteractions, awardStrayGreet, handleInteract, tickCarryRain, endClanPatrol,
+    updateInteractions, awardStrayGreet, handleInteract, tickCarryRain, endClanPatrol, canFeedStray,
   } = createInteractions({
     MP, pid, getCloud, getPsecret,
     getSession: () => session,
@@ -453,6 +474,7 @@ function init() {
     // Mid-walk resume: an ended walk leaves nothing to pick up. Nor does a
     // purr outlive the walk it was in.
     onWalkEnded: () => { clearResume(window.localStorage); haptics.stopPurr(); tips.end(); },
+    buttonUses,
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -712,6 +734,8 @@ function init() {
       if (session) progression.knowHint('home');
       endWalk();
     }
+    // "Skip the lesson": one tap, nothing asked; the card is redrawn without it.
+    if (e.target.id === SKIP_LESSON_ID && session) guideWalk.skip(session);
     if (e.target.id === 'btn-cross-yes') crossing.confirm();
     if (e.target.id === 'btn-cross-no') crossing.cancel();
     if (e.target.id === RELOAD_BUTTON_ID) window.location.reload();

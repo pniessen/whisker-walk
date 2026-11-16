@@ -44,6 +44,8 @@ const CROSS_HOLD = 1.5;
 // (the position is clamped to the area bounds exactly as the wander targets
 // and the shy scurry are).
 const RECOIL_STEP = 0.9;
+// A cat showing the way wears its name from this far (metres).
+const LEAD_TAG_RANGE = 40;
 
 // ---------------------------------------------------------------------------
 // The per-stray wander stream
@@ -739,8 +741,59 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       Math.atan2(fromPos.x - stray.group.position.x, fromPos.z - stray.group.position.z) + Math.PI;
   }
 
+  // The guided first walk (game/guidewalk.js): while it is on, no shy cat runs
+  // from the child. Set and cleared by the walk; no dice either way.
+  let calm = false;
+  // A led cat's spot (a plain { x, z }, in place), held on ground that cat
+  // may stand on, for its leader's own "did that stride get anywhere" check.
+  const holdSpot = (s, p) => {
+    const q = dryGroundPoint(s.stand, p.x, p.z, true);
+    p.x = q.x;
+    p.z = q.z;
+    return p;
+  };
+
   return {
     strays,
+    setCalm(v) { calm = !!v; },
+    // The cat that can show a new child the way: the first of this walk's
+    // cast whose name is not a shy one (design section 3), and who is not
+    // cross, not one of the colony's (they keep their spots), not a visitor.
+    // The lowest picture setting's shorter cast is the start of the longer
+    // one, so she is the same cat there. Reads the list; draws nothing.
+    pickGuide() {
+      const plain = strays.filter((s) => !s.cross && !s.colony && !s.wanderer && !isLegendaryName(s.name));
+      return plain.find((s) => !isShy(s.name)) ?? plain[0] ?? null;
+    },
+    // Stands a stray at (x, z) for this walk: its spot and its home (so a
+    // first fish founds it there). The spot goes through the same dry-ground
+    // rule as a rolled one. Draws nothing.
+    standAt(stray, x, z, yaw) {
+      if (!strays.includes(stray) || !Number.isFinite(x) || !Number.isFinite(z)) return false;
+      const p = dryGroundPoint(stray.stand,
+        THREE.MathUtils.clamp(x, b.minX + 0.5, b.maxX - 0.5),
+        THREE.MathUtils.clamp(z, b.minZ + 0.5, b.maxZ - 0.5));
+      stray.group.position.set(p.x, ground.y(p.x, p.z), p.z);
+      stray.home.set(p.x, ground.y(p.x, p.z), p.z);
+      if (Number.isFinite(yaw)) stray.group.rotation.y = yaw;
+      stray.target = null;
+      stray.state = 'idle';
+      return true;
+    },
+    // setLead(stray, fn | null): fn(stray, dt, catPos, holdSpot) moves the
+    // cat each frame and returns { pose, speed }. null hands it back to the
+    // wander FSM, idle where it stands, with a timer that needs no draw.
+    setLead(stray, fn) {
+      if (!strays.includes(stray)) return false;
+      stray.lead = typeof fn === 'function' ? fn : null;
+      if (!stray.lead) {
+        stray.state = 'idle';
+        stray.pose = 'follow';
+        stray.target = null;
+        stray.timer = Math.max(stray.timer, 2);
+      }
+      return true;
+    },
     // nearest(pos, maxDist, opts) → the closest stray in range, or null.
     //
     // The filters are independent and compose; all default off, so an
@@ -917,8 +970,21 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
         const px = s.group.position.x;
         const pz = s.group.position.z;
 
+        // A cat that is showing the way (setLead below): its leader moves it.
+        // None of the wander FSM runs and nothing is drawn from its stream;
+        // it is still kept on ground a stray may stand on. Its name shows
+        // from further off, so the child can see who is waiting.
+        if (s.lead) {
+          if (s.tag && catPos) s.tag.visible = s.group.position.distanceTo(catPos) < LEAD_TAG_RANGE;
+          const r = s.lead(s, dt, catPos, holdSpot);
+          keepOut(s, s.group.position, true);
+          onGround(s.group.position, px, pz);
+          animateCat(s.group, r?.pose ?? 'follow', t, r?.speed ?? 0);
+          continue;
+        }
+
         // shy strays scurry away from a fast, non-stalking approach — this overrides wander entirely
-        if (s.personality === 'shy' && s.state !== 'greet' && s.state !== 'cross') {
+        if (s.personality === 'shy' && !calm && s.state !== 'greet' && s.state !== 'cross') {
           if (s.scurry <= 0 && catPos &&
               s.group.position.distanceTo(catPos) < 4 &&
               (opts.catSpeed ?? 0) > 2.5 && !opts.stalking) {

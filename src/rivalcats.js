@@ -205,9 +205,11 @@ const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; }, g
 // 16's yard dog shares this gate), so the rival and the dog never both write
 // the cat's position: whichever started first finishes, and the other waits.
 // Nor while my cat is in a clan fight (Clan Life Part 2): nothing moves a
-// fighting cat but the fight.
+// fighting cat but the fight. Nor during the guided first walk's steps
+// (session.lesson.open, game/guidewalk.js): nothing takes the cat out of a
+// new child's hands (the dog still barks).
 export const chaseAllowed = (player, session) => player.perchY === 0 && !session.cameraMode && session.chasing !== true
-  && session.fight == null;
+  && session.fight == null && session.lesson?.open !== true;
 
 // createRivalPatrol(scene, areaId, opts) -> { update(dt, catPos, avatar?), dispose(), state, pos }
 //

@@ -97,10 +97,18 @@ export const WORDS = Object.freeze({
   'guide.summary-gift': same('A gift from {name}: +20 🐾'),
   'guide.skip': same('Skip the lesson'),
   'guide.replay': same('Play the first walk again'),
+  'guide.replay-set': same('Your next street walk is the first walk.'),
+  // The "Ready?" card on a keyboard player's very first walk: one line, not
+  // the whole list (the pause card keeps the list).
+  'ready.keys': same('Arrow keys to walk'),
 
   // ---- The first walk on home land (design section 7), for step 4 ----------
   'camp.follow': same('Follow {name} to your camp.'),
   'camp.here': same('This is your camp. Say hello to everyone!'),
+  // With nobody to lead (a walk together, or no cat free to wait).
+  'camp.trail': same('Follow the paw prints to your camp.'),
+  // The distance pill's words; the metres follow.
+  'camp.pill': same('Your camp 🏡'),
 
   // ---- Settings -------------------------------------------------------------
   'settings.tips': same('Show tips'),

@@ -39,6 +39,41 @@ export function newWalkSeed(rand = Math.random) {
   return Math.floor(rand() * 2 ** 31) >>> 0;
 }
 
+// A seed for the guided first walk: one whose walk is a clear day (the
+// design's "clear daylight"). The weather is the first thing a walk rolls off
+// its stream (walk.js), so a seed is simply tried until that roll says clear.
+// The walk built from it is an ordinary walk in every draw, and a walk picked
+// up again from the same seed is clear again with nothing more to remember.
+// `clearFor(seed)` is walk.js's own roll; after `tries` it gives up and the
+// walk has whatever weather it has.
+export function newClearSeed(clearFor, rand = Math.random, tries = 24) {
+  let seed = newWalkSeed(rand);
+  for (let i = 1; !clearFor(seed) && i < tries; i++) seed = newWalkSeed(rand);
+  return seed;
+}
+
+// The guided first walk's part of the note: which step it is at, what the
+// child has already done, the guide's name, the gift given. null for a walk
+// with no guided lesson, or one whose lesson was skipped.
+function guideNote(session) {
+  const L = session.lesson;
+  if (!L || L.kind !== 'first' || !L.tutorial || L.skipped) return null;
+  const snap = L.tutorial.snapshot();
+  return { step: snap.step, did: snap.did, name: L.stray?.name ?? null, gift: L.gift ?? 0 };
+}
+const GUIDE_DID = ['moved', 'hello', 'fish', 'treasure', 'pounce'];
+function sanitizeGuide(g) {
+  if (!g || typeof g !== 'object' || !Number.isInteger(g.step) || g.step < 1 || g.step > 9) return null;
+  const did = {};
+  for (const k of GUIDE_DID) did[k] = g.did?.[k] === true;
+  return {
+    step: g.step,
+    did,
+    name: typeof g.name === 'string' ? g.name.slice(0, 24) : null,
+    gift: Number.isInteger(g.gift) && g.gift > 0 && g.gift <= 100 ? g.gift : 0,
+  };
+}
+
 // The note for the walk in progress, or null when this walk is not one that
 // can be picked up. `yaw` is the player's view heading (player.viewYaw());
 // `paid` is the discovery log's entries (what this walk has already paid for).
@@ -64,9 +99,12 @@ export function snapshotWalk(session, { yaw, now, paid = [] }) {
     carried: session.walk.carried,
     collected: session.areaData.collectibles.filter((c) => !meshes.has(c.id)).map((c) => c.id),
     scenics: [...(session.scenicsVisited ?? [])],
-    goals: (session.goals?.goals ?? []).map((g) => ({ id: g.id, progress: g.progress, done: g.done })),
+    // A lesson holds the goals aside until it is over; they are the walk's all the same.
+    goals: ((session.goals ?? session.lesson?.heldGoals)?.goals ?? []).map((g) => ({ id: g.id, progress: g.progress, done: g.done })),
     paid: paid.map(([key, n]) => [key, n]),
     enemies: session.enemies?.snapshot?.() ?? { scuffled: [], forgiven: [] },
+    // The guided first walk's step (the key is only there on such a walk).
+    ...(guideNote(session) ? { guide: guideNote(session) } : {}),
   };
 }
 
@@ -113,6 +151,7 @@ function sanitize(raw, areaIds) {
       .map((g) => ({ id: g.id, progress: count(g.progress), done: g.done === true })),
     paid: paidEntries(raw.paid),
     enemies: { scuffled: strings(raw.enemies?.scuffled), forgiven: strings(raw.enemies?.forgiven) },
+    ...(sanitizeGuide(raw.guide) ? { guide: sanitizeGuide(raw.guide) } : {}),
   };
 }
 
