@@ -41,6 +41,7 @@ const FEED_REACH_M = 2.2;             // step 3: further than this, she comes ov
 const GUIDE_LEAD_AHEAD_M = 4.2;       // step 4: she stops this far ahead of the child
 const GUIDE_LEAD_NEAR_M = 2.6;        // and sets off again once the child is this near
 const DEMO_CLEAR_M = 1.7;             // her pounce is shown this far from the child's cat
+const GROUND_RING_LIFT_M = 0.05;     // the ring under the guide: this far over the ground she stands on
 const TRAIL_COLOR = 0xf2e04e;         // the paw prints the buried-treasure sniff draws
 
 // The small picture beside each line (touch), and the key shapes (keyboard).
@@ -162,7 +163,7 @@ function groundRing() {
     new THREE.MeshBasicMaterial({ color: TRAIL_COLOR, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }),
   );
   ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.05;
+  ring.position.y = GROUND_RING_LIFT_M; // above her own group's origin, which stands on the ground
   ring.userData.contactDecal = true;
   ring.userData.noCast = true;
   return ring;
