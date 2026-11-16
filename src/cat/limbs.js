@@ -494,9 +494,9 @@ export function applyFold(leg, kind) {
 // A fold's own colours (cat realism B11, 2026-11-16: the sitting haunch). The
 // folded limb's upper part lies against the torso as a haunch, and in the
 // limb's plain leg colour it read as a pale patch stuck on a striped flank.
-// Fold `kind` of this leg gets a colour array of its own: `colourAt(x, y, z,
-// out)` (the coat painted on the torso under that leg-local point of the
-// fold) down to curve parameter `from`, easing (smoothstep) into the limb's
+// Fold `kind` of this leg gets a colour array of its own: `colourAt(i, out)`
+// (the coat painted on the torso under point i of the fold) down to curve
+// parameter `from`, easing (smoothstep) into the limb's
 // own colours by `to`. applyFold swaps it in with the fold's shape. The leg's
 // fold entry becomes this leg's own copy (the baked arrays stay shared).
 export function paintFold(leg, kind, colourAt, from, to) {
@@ -509,7 +509,8 @@ export function paintFold(leg, kind, colourAt, from, to) {
   const col = new Float32Array(own.length), c = new THREE.Color();
   for (let i = 0; i < t.length; i++) {
     const k = smooth(Math.min(1, Math.max(0, (t[i] - from) / (to - from))));
-    colourAt(f.pos[i * 3], f.pos[i * 3 + 1], f.pos[i * 3 + 2], c);
+    if (k >= 1) { col[i * 3] = own[i * 3]; col[i * 3 + 1] = own[i * 3 + 1]; col[i * 3 + 2] = own[i * 3 + 2]; continue; }
+    colourAt(i, c);
     col[i * 3] = c.r + (own[i * 3] - c.r) * k;
     col[i * 3 + 1] = c.g + (own[i * 3 + 1] - c.g) * k;
     col[i * 3 + 2] = c.b + (own[i * 3 + 2] - c.b) * k;

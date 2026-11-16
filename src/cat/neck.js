@@ -113,15 +113,6 @@ export function layNeck(neck, bodyM, headM, carryM, underM, geo, dip = 0) {
       _c.addVectors(_B, _H).multiplyScalar(0.5);
       const reach = NECK.NAPE_REACH * _B.distanceTo(_H), off = _M.distanceTo(_c);
       if (off > reach) _M.sub(_c).multiplyScalar(reach / off).add(_c);
-      // The nape's dip (NECK.SIT_DIP; the sit): the point is drawn in toward
-      // the throat's point across the ring, most at the top of the nape, so
-      // the back of the neck curves in between the shoulders and the skull.
-      if (dip) {
-        const up = Math.cos((j / N) * Math.PI * 2);
-        _l.fromArray(m, ((j + N / 2) % N) * 3).applyMatrix4(carryM).sub(_M);
-        const L = _l.length();
-        if (L > 1e-6) _M.addScaledVector(_l, dip * up * up / L);
-      }
     }
     put(_P, j * 3, _B);
     _P[(N + j) * 3] = 0.375 * _B.x + 0.75 * _M.x - 0.125 * _H.x;
@@ -133,6 +124,7 @@ export function layNeck(neck, bodyM, headM, carryM, underM, geo, dip = 0) {
     _P[(3 * N + j) * 3 + 2] = -0.125 * _B.z + 0.75 * _M.z + 0.375 * _H.z;
     put(_P, (4 * N + j) * 3, _H);
   }
+  if (dip) dipNape(neck, carryM, dip);
   // Normals, cat frame. The end rings wear their surfaces' own (the torso's,
   // the skull's); the three between take the skin's, from their neighbours
   // round the ring and along the neck, turned to face out from the ring.
@@ -166,15 +158,32 @@ export function layNeck(neck, bodyM, headM, carryM, underM, geo, dip = 0) {
     put(pos.array, at + k * 3, _B.fromArray(_P, k * 3).applyMatrix4(_Uinv));
     put(nor.array, at + k * 3, _n.fromArray(_Nn, k * 3).applyMatrix3(_ut).normalize());
   }
-  // Only the neck's own points are sent to the graphics chip, unless something
-  // else in this mesh was rewritten this frame (the sitting chest, animator.js
-  // sinkChest, sets userData.resend): then the whole arrays go once. Before
-  // 2026-11-16 the neck's range replaced that write, so on a cat already drawn
-  // the sitting chest's move never reached the screen.
-  pos.clearUpdateRanges(); nor.clearUpdateRanges();
-  if (geo.userData.resend) geo.userData.resend = false;
-  else { pos.addUpdateRange(at, count * 3); nor.addUpdateRange(at, count * 3); }
-  pos.needsUpdate = true; nor.needsUpdate = true;
+  pos.clearUpdateRanges(); pos.addUpdateRange(at, count * 3); pos.needsUpdate = true;
+  nor.clearUpdateRanges(); nor.addUpdateRange(at, count * 3); nor.needsUpdate = true;
+}
+
+// The nape's dip (NECK.SIT_DIP; the sit, cat realism B11): each middle point
+// of the nape (ring 2 of the points just laid in _P) is drawn `dip` metres in
+// toward the throat's point across the ring, most at the top of the nape, and
+// the eased rings either side of it follow (0.75 of the way, as they are 0.75
+// of the middle point), so the back of the neck curves in between the
+// shoulders and the skull. Its own function, called only in the sit: written
+// into layNeck's loop it slowed every state's neck (measured 2026-11-16).
+function dipNape(neck, carryM, dip) {
+  const N = neck.around, { m } = neck.loops;
+  for (let j = 0; j < N; j++) {
+    if (j > neck.napeTo && j < N - neck.napeTo) continue;
+    const up = Math.cos((j / N) * Math.PI * 2), k = (2 * N + j) * 3;
+    _l.fromArray(m, ((j + N / 2) % N) * 3).applyMatrix4(carryM);
+    _l.x -= _P[k]; _l.y -= _P[k + 1]; _l.z -= _P[k + 2];
+    const L = _l.length();
+    if (L < 1e-6) continue;
+    _l.multiplyScalar(dip * up * up / L);
+    const a = k - N * 3, b = k + N * 3;
+    _P[k] += _l.x; _P[k + 1] += _l.y; _P[k + 2] += _l.z;
+    _P[a] += _l.x * 0.75; _P[a + 1] += _l.y * 0.75; _P[a + 2] += _l.z * 0.75;
+    _P[b] += _l.x * 0.75; _P[b + 1] += _l.y * 0.75; _P[b + 2] += _l.z * 0.75;
+  }
 }
 
 // The torso's own extent: Box3.setFromObject(body, true) (every vertex of the

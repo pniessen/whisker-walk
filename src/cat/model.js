@@ -942,6 +942,8 @@ export const CAT_LOOK_Y = HEAD.POS[1] + 0.04;
 // vertex range; userData.chestCentre the chest's centre, torso-local.
 // A simple build rounds the belly and chest at 12×8 (the triangle cap).
 const underSeams = new Map();
+const chestBlends = new Map();
+const haunchUnits = new Map();
 const tailSeams = new Map();
 const IDENTITY16 = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
@@ -1017,17 +1019,30 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   // CHEST_BLEND). The points that now lie within CHEST_BLEND.rim[0] of the
   // torso wear the coat painted under them, easing back to their own colour
   // by rim[1] out: more of the chest lies flush with the torso than did, and
-  // a pale point lying flush would be a pale edge.
+  // a pale point lying flush would be a pale edge. The shape is worked out
+  // once for each body shape and build, then copied; the colours are each coat's.
+  const seamKey = `${f}|${+!!opts.simple}`;
   {
     const [c0, c1] = ranges.chest, col = geo.attributes.color.array, c = new THREE.Color();
     const [r0, r1] = CHEST_BLEND.rim;
-    blendIntoTorso(geo.attributes.position.array, c0, c1, BS, undefined, undefined, (i, out, unit) => {
-      if (out <= 0 || out >= r1) return;
-      const x = Math.max(0, (out - r0) / (r1 - r0)), t = x * x * (3 - 2 * x);
+    let blend = chestBlends.get(seamKey);
+    if (!blend) {
+      const pos = geo.attributes.position.array, nor = geo.attributes.normal.array, rim = [];
+      blendIntoTorso(pos, c0, c1, BS, undefined, undefined, (i, out, unit) => { if (out > 0 && out < r1) rim.push(i, out, unit[0], unit[1], unit[2]); });
+      weldedNormals(pos, nor, geo.index.array, c0, c1);
+      blend = { pos: pos.slice(c0 * 3, c1 * 3), nor: nor.slice(c0 * 3, c1 * 3), rim };
+      chestBlends.set(seamKey, blend);
+    } else {
+      geo.attributes.position.array.set(blend.pos, c0 * 3);
+      geo.attributes.normal.array.set(blend.nor, c0 * 3);
+    }
+    const { rim } = blend, unit = [0, 0, 0];
+    for (let k = 0; k < rim.length; k += 5) {
+      const i = rim[k], x = Math.max(0, (rim[k + 1] - r0) / (r1 - r0)), t = x * x * (3 - 2 * x);
+      unit[0] = rim[k + 2]; unit[1] = rim[k + 3]; unit[2] = rim[k + 4];
       coatColourAt(coat, unit, c);
       col[i * 3] = c.r + (col[i * 3] - c.r) * t; col[i * 3 + 1] = c.g + (col[i * 3 + 1] - c.g) * t; col[i * 3 + 2] = c.b + (col[i * 3 + 2] - c.b) * t;
-    });
-    weldedNormals(geo.attributes.position.array, geo.attributes.normal.array, geo.index.array, c0, c1);
+    }
   }
   // The sitting underside's colours (animator.js sinkChest): a chest or belly
   // point built at torso-local (x, y, z) that now lies over the torso's
@@ -1045,7 +1060,6 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   // The seams (cat realism A4, torso.js SEAM): the belly's and the chest's
   // normals flow into the torso's where they meet it (the ruff keeps its own).
   // Worked out once for each body shape and build, then copied.
-  const seamKey = `${f}|${+!!opts.simple}`;
   let seamed = underSeams.get(seamKey);
   if (!seamed) {
     seamed = seamNormals(geo.attributes.position.array, geo.attributes.normal.array.slice(0, ranges.chest[1] * 3), IDENTITY16, BS, SEAM.underReach, ranges.belly[0], ranges.chest[1]);
@@ -1061,6 +1075,7 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
     const start = addNeck(geo, neckCol);
     ranges.neck = [start, start + NECK_RINGS * NECK.AROUND];
     geo.userData.neck = { start, around: NECK.AROUND, napeTo: Math.floor(NECK.AROUND / 6), loops };
+    geo.userData.resend = false; // animator.js sinkChest / fitNeckSkin
   }
   geo.userData.ranges = ranges;
   geo.userData.chestCentre = [0, CHEST.DY / BS[1], CHEST.Z * fz / BS[2]];
@@ -1546,7 +1561,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const rootM = new THREE.Matrix4().compose(
     new THREE.Vector3(0, TAIL.ROOT_DY, TAIL.ROOT_Z * PROPORTION.body),
     new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -TAIL.SEAM_LIFT), new THREE.Vector3().setScalar(TAIL.SCALE));
-  const rootV = new THREE.Vector3(), rootU = [0, 0, 0], rootBase = new THREE.Color(s.points ? s.accent : s.base);
+  const rootV = new THREE.Vector3(), rootU = [0, 0, 0], rootBase = new THREE.Color(s.base);
   const rootColour = (x, y, z, out) => {
     rootV.set(x, y, z).applyMatrix4(rootM);
     coatColourAt(coat, torsoUnitAt([rootV.x / BODY_SCALE[0], rootV.y / BODY_SCALE[1], rootV.z / BODY_SCALE[2]], rootU), out);
@@ -1589,13 +1604,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // the plain coat colour while the rump under it is painted (shaded low
     // down, striped or patched). The root link now wears the rump's own
     // painted colour at its root ball and eases into the tail's colour along
-    // its length (rootColour). Colour only. The family cats' tails (drawn from
-    // their photos) stay plain.
-    // 2026-11-16 (cat realism B11): a pointed cat's root link and a crowd
-    // cat's take it too (they were left plain; the dark disc on a Siamese's
-    // pale rump was the plainest of all). A pointed tail eases from the rump's
-    // colour into the point colour along its first link.
-    const rooted = i === 0 && !family;
+    // its length (rootColour). Colour only. A pointed cat's tail is the point
+    // colour to the root, as it was (its rump is painted the point colour
+    // round the root, so there the disc is the marking itself); the family
+    // cats' tails (drawn from their photos) stay plain too.
+    // 2026-11-16 (cat realism B11): a crowd cat's root link takes it as well
+    // (it was left plain).
+    const rooted = i === 0 && !s.points && !family;
     const seg = new THREE.Mesh(geo, blend || ringed || rooted
       ? litMaterial(0xffffff, { vertexColors: true })
       : mat((i >= 3 && darkTip) || s.points ? s.accent : s.base));
@@ -2174,19 +2189,28 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       pose: (kind) => seamPose(kind, leg.position, bodyY, hipY, BODY_SCALE, fx),
     },
   }));
-  // The sitting haunch wears the coat (limbs.js paintFold, torso.js HAUNCH):
-  // each hind thigh takes the colour painted on the sitting torso under it.
+  // The sitting and the loafing haunch wear the coat (limbs.js paintFold,
+  // torso.js HAUNCH): each hind thigh takes the colour painted on the posed
+  // torso under it. Where on the torso each point of each fold lies is worked
+  // out once for each body shape, hip and build (haunchUnits), then reused.
   {
     const hm = new THREE.Matrix4(), hv = new THREE.Vector3(), hu = [0, 0, 0];
-    for (const leg of legs.slice(2)) {
-      hm.fromArray(seamPose('sit', leg.position, bodyY, hipY, BODY_SCALE, fx).matrix);
-      const under = (x, y, z, out) => {
-        hv.set(x, y, z).applyMatrix4(hm);
-        return coatColourAt(coat, torsoUnitAt([hv.x, hv.y, hv.z], hu), out);
-      };
-      paintFold(leg, 'sit', under, HAUNCH.coatFrom, HAUNCH.coatTo);
-      hm.fromArray(seamPose('loaf', leg.position, bodyY, hipY, BODY_SCALE, fx).matrix);
-      paintFold(leg, 'loaf', under, HAUNCH.coatFrom, HAUNCH.coatTo);
+    for (const leg of legs.slice(2)) for (const kind of ['sit', 'loaf']) {
+      const fpos = leg.userData.folds[kind].pos;
+      const key = `${kind}|${fx},${fy},${fz}|${leg.position.x},${leg.position.z}|${hipY}|${+!!opts.simple}`;
+      let units = haunchUnits.get(key);
+      if (!units) {
+        units = new Float32Array(fpos.length);
+        hm.fromArray(seamPose(kind, leg.position, bodyY, hipY, BODY_SCALE, fx).matrix);
+        for (let i = 0; i < fpos.length; i += 3) {
+          hv.fromArray(fpos, i).applyMatrix4(hm);
+          hu[0] = hv.x; hu[1] = hv.y; hu[2] = hv.z;
+          torsoUnitAt(hu, hu);
+          units[i] = hu[0]; units[i + 1] = hu[1]; units[i + 2] = hu[2];
+        }
+        haunchUnits.set(key, units);
+      }
+      paintFold(leg, kind, (i, out) => { hu[0] = units[i * 3]; hu[1] = units[i * 3 + 1]; hu[2] = units[i * 3 + 2]; return coatColourAt(coat, hu, out); }, HAUNCH.coatFrom, HAUNCH.coatTo);
     }
   }
   const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, head.position.z];

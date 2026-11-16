@@ -311,8 +311,8 @@ describe('the tail root wears the rump\'s colour (round 1\'s leftover)', () => {
   it('at the root ball the link is the coat painted on the rump under it; by its far end it is the tail\'s own colour', async () => {
     const { coatColourAt } = await import('../src/cat/coat.js');
     const { torsoUnitAt, TAIL } = await import('../src/cat/torso.js');
-    // 2026-11-16 (cat realism B11): pointed cats (the Siamese) and crowd cats (the simple tabby) wear it too; they were left plain.
-    for (const [breed, simple] of [['tabby'], ['calico'], ['black'], ['persian'], ['mainecoon'], ['siamese'], ['tabby', true], ['siamese', true]]) {
+    // 2026-11-16 (cat realism B11): crowd cats (the simple tabby and calico) wear it too; they were left plain.
+    for (const [breed, simple] of [['tabby'], ['calico'], ['black'], ['persian'], ['mainecoon'], ['tabby', true], ['calico', true]]) {
       const cat = make(breed, !!simple);
       const { body, tail, tailPivots } = cat.userData.parts;
       // the tail carried as the root was painted for: TAIL.SEAM_LIFT above level
@@ -335,8 +335,8 @@ describe('the tail root wears the rump\'s colour (round 1\'s leftover)', () => {
       expect(ball, breed).toBeGreaterThan(20);
       expect(worst, breed).toBeLessThan(0.02);
     }
-    // the family cats keep the plain root, full and simple
-    for (const [breed, simple] of [['digit', false], ['d2', false], ['robbie', false], ['zeetoo', false], ['digit', true], ['robbie', true]]) {
+    // family cats and pointed cats keep the plain root, full and simple
+    for (const [breed, simple] of [['digit', false], ['d2', false], ['robbie', false], ['zeetoo', false], ['siamese', false], ['digit', true], ['robbie', true], ['siamese', true]]) {
       expect(make(breed, simple).userData.parts.tailPivots[0].children[0].geometry.attributes.color, breed).toBeUndefined();
     }
   });

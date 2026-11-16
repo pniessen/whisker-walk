@@ -702,7 +702,16 @@ function fitNeckSkin(cat, state) {
     neckMove(cat, turn, anchor);
     _neckM.multiplyMatrices(head.matrix, _X);
   }
-  layNeck(neck, body.matrix, head.matrix, _neckM, underside.matrix, underside.geometry, state === 'perch' || state === 'requestPet' ? NECK.SIT_DIP : 0);
+  const geo = underside.geometry;
+  layNeck(neck, body.matrix, head.matrix, _neckM, underside.matrix, geo, state === 'perch' || state === 'requestPet' ? NECK.SIT_DIP : 0);
+  // layNeck sends only the neck's own points to the graphics chip. When the
+  // sitting chest was rewritten this frame (sinkChest sets `resend`) the whole
+  // arrays go once: before 2026-11-16 the neck's range replaced that write, so
+  // on a cat already drawn the sitting chest's move never reached the screen.
+  if (geo.userData.resend) {
+    geo.userData.resend = false;
+    geo.attributes.position.clearUpdateRanges(); geo.attributes.normal.clearUpdateRanges();
+  }
 }
 
 // The cape's clasp and front bands (cape.js CAPE_TIE, owner 2026-11-04): the
@@ -978,12 +987,10 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   const f = FOLD_BY_STATE[state];
   const own = FOLD_LEG[state];
   // A cat dressed on its body keeps its thighs inside the cloth (limbs.js SLIM_FOLD, base.slimHaunch).
-  const slim = base.slimHaunch;
-  for (let i = 0; i < legs.length; i++) {
-    let kind = own?.[i] ?? (f ? f[i < 2 ? 0 : 1] : 'stand');
-    if (slim && i >= 2) kind = SLIM_FOLD[kind] ?? kind;
-    applyFold(legs[i], kind);
-  }
+  const slim = base.slimHaunch === true;
+  const ff = f ? f[0] : 'stand', fh = f ? (slim ? SLIM_FOLD[f[1]] ?? f[1] : f[1]) : 'stand';
+  if (own) legs.forEach((leg, i) => applyFold(leg, own[i] ?? (i < 2 ? ff : fh)));
+  else { applyFold(legs[0], ff); applyFold(legs[1], ff); applyFold(legs[2], fh); applyFold(legs[3], fh); }
   const folds = !!legs[0].userData.folds;
 
   // ear twitches: brief, occasional, alternating

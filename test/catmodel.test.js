@@ -1310,10 +1310,7 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
     expect(nTip).toBeGreaterThan(50);
   });
 
-  // 2026-11-16 (cat realism B11): "all along" is now "from the end of the root link on". The
-  // root link eases from the rump's painted colour at its root ball (the dark tail's root showed
-  // as a disc on the pale rump from behind) into the point colour by its far end.
-  it('a pointed tail is the point colour from its first joint on (siamese, full and simple)', () => {
+  it('a pointed tail is the point colour all along (siamese, full and simple)', () => {
     const tip = new THREE.Color(0x4a3b32);
     for (const simple of [false, true]) {
       const links = buildCat('siamese', undefined, { simple }).userData.parts.tailPivots.map((pv) => pv.children.find((o) => o.isMesh));
@@ -1321,11 +1318,7 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
       let n = 0;
       links.forEach((m, k) => {
         const p = m.geometry.attributes.position;
-        const from = m.geometry.userData.tufts?.start ?? p.count;
-        for (let i = 0; i < p.count; i++) {
-          if (k === 0 && (i >= from || p.getZ(i) < 0.14 - 1e-6)) continue; // the root link: only its far end ring
-          expect(colourDistance(drawn(m, i), tip), `siamese ${simple} link ${k}`).toBeLessThan(1e-6); n++;
-        }
+        for (let i = 0; i < p.count; i++) { expect(colourDistance(drawn(m, i), tip), `siamese ${simple} link ${k}`).toBeLessThan(1e-6); n++; }
       });
       expect(n).toBeGreaterThan(150);
     }
