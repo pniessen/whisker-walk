@@ -157,6 +157,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // for this session (home shows a moon while it stands), never saved. It
   // only counts while the Glow Collar is on.
   let duskWanted = false;
+  // "Play the first walk again" was pressed on this visit: its one line shows.
+  let replayNote = false;
   let shown = false; // between show() and hide()
 
   // Gift-code box (its own sheet). Typed text, the last result and the busy flag
@@ -532,6 +534,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           </label>
           <p class="settings-note" id="set-edition-note">${EDITION_NOTE}</p>
           ${settingsSwitchHtml('set-show-tips', s.showTips !== false, tutorialLine('settings.tips'))}
+          <div class="settings-row settings-replay">
+            <button type="button" id="set-replay-first" class="secondary">${escapeHtml(tutorialLine('guide.replay'))}</button>
+            ${replayNote ? `<p class="settings-note" id="set-replay-note" role="status">${escapeHtml(tutorialLine('guide.replay-set'))}</p>` : ''}
+          </div>
         </div>
         <h3 class="settings-group">Advanced</h3>
         <div class="settings-grid settings-advanced">
@@ -1572,7 +1578,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (roomState || dressing?.ui?.wardrobe) return '';
     let thing = null;
     try {
-      const ctx = () => ({ catalog: CATALOG, present: celebration.hasPresent(), toldNow, denVisitedToday: denVisitedToday() });
+      const ctx = () => ({ catalog: CATALOG, present: celebration.hasPresent(), toldNow, denVisitedToday: denVisitedToday(), guideName: s.tutorial?.guide ?? null });
       thing = nextThing(s, ctx());
       // Rule 8 counts the visits it has pointed at a thing, once a visit.
       if (thing?.rule === 8 && thing.thing && toldNow !== thing.thing) {
@@ -1754,6 +1760,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // Start over asks first, in the page (window.confirm is a silent "no" in
     // the iOS app). Progression keeps a copy of what it erases, which Cloud
     // save can bring back; the album's photos are not kept.
+    // "Play the first walk again": the next solo walk on the street is the
+    // guided first walk (no second gift: progression gives it once a save).
+    if (e.target.id === 'set-replay-first') {
+      progression.setTutorialFirst?.(null);
+      replayNote = true;
+      render();
+      return;
+    }
     if (e.target.id === 'btn-reset') {
       confirmCard.ask({
         text: 'Erase all progress and start over?',

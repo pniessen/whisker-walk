@@ -239,7 +239,9 @@ export function createScent(scene, area, rng) {
     //
     // Returns the endpoint actually drawn to (handy for tests); null when
     // `to` is null or the cat is already standing on it.
-    trailTo(from, to, { maxDist = 6, steps = 5, life = 4, peak = 0.55, color = 0xf2e04e } = {}) {
+    // `rand` (optional) is the wobble's own source, for a caller that must
+    // not take a number from the walk's stream (the guided walk's trail).
+    trailTo(from, to, { maxDist = 6, steps = 5, life = 4, peak = 0.55, color = 0xf2e04e, rand } = {}) {
       if (!to) return null;
       const dx = to.x - from.x;
       const dz = to.z - from.z;
@@ -247,7 +249,7 @@ export function createScent(scene, area, rng) {
       if (d < 0.4) return null;
       const k = Math.min(1, maxDist / d);
       const end = { x: from.x + dx * k, z: from.z + dz * k };
-      layTrail(from, end, { steps, life, peak, color });
+      layTrail(from, end, rand ? { steps, life, peak, color, rand } : { steps, life, peak, color });
       return end;
     },
     nearestMound(pos, maxDist) {

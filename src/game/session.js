@@ -144,6 +144,7 @@ const FIELDS = [
   ['whiskerNextAt', 'late (interactions.js): when the whisker tingle may fire next'],
   ['prompt', 'the action prompt on screen, or null'],
   ['hints', 'late (tips.js): the hint engine for this walk (src/hints.js), or undefined in the den'],
+  ['lesson', "the guided first walk or the first camp walk on this walk (game/guidewalk.js), or null: { kind, open, … }"],
   ['autoSniffAt', 'late (autosniff.js): the walk time of the last stand-still sniff'],
   ['walkTime', 'late (autosniff.js): seconds this walk has been played'],
   ['lastPromptKind', 'the kind of the last prompt shown, or null'],

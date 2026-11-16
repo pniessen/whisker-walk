@@ -91,7 +91,9 @@ import { GOLD_MICE, createGoldMice } from '../goldmice.js';
 import { crossingOutcome } from '../bordercross.js';
 import { rivalForWalk, placeName, effectiveArea, isClanEdition } from '../edition.js';
 import { picksOf, homeWelcome } from '../clanhomes.js';
-import { newWalkSeed, restoreGoals, restoreTallies, resumeWelcome } from './walkresume.js';
+import { newWalkSeed, newClearSeed, restoreGoals, restoreTallies, resumeWelcome } from './walkresume.js';
+import { lessonFor, buildFirstLesson, placeCampGuide, headingToward, lessonOpen } from './guidewalk.js';
+import { findPath } from '../pathfind.js';
 import { createEnemyWalkLog } from '../enemies.js';
 import { kittenPlan, createKittenEncounter } from '../kitten.js';
 import { raceCourse, createRace } from '../race.js';
@@ -199,21 +201,32 @@ export function cardMode(s) {
 }
 // The card for a session as it stands. Once the walk has begun the welcome
 // line has been read (or toasted) and is left off.
+// A lesson on the walk (game/guidewalk.js) adds two things: while it can
+// still be skipped, a third, quiet button, "Skip the lesson"; and on the
+// guided first walk's Ready? card (a keyboard, before the walk has begun) one
+// line of controls in place of the list, which the pause card keeps.
 export function pauseCardFor(s, touch) {
   const mode = cardMode(s);
-  return pauseCardHtml({ welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode });
+  const L = s.lesson;
+  return pauseCardHtml({
+    welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode,
+    skip: !!L && !L.finished && !L.skipped,
+    oneLine: mode === 'ready' && !touch && L?.kind === 'first' && !L.skipped,
+  });
 }
-export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready' }) {
+export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false }) {
   return `<div class="pause-card"><div class="screen-panel">
     ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
     <div class="screen-body"><h1>${CARD_TITLE[mode] ?? CARD_TITLE.ready}</h1>
     ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
     <div class="screen-actions">
       <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>
-      <button id="btn-end" class="secondary">End walk &amp; head home</button>
+      <button id="btn-end" class="secondary">End walk &amp; head home</button>${skip ? `
+      <button id="${SKIP_LESSON_ID}" class="quiet">${escapeHtml(tutorialLine('guide.skip'))}</button>` : ''}
     </div>
-    <p class="controls-hint">${hintHtml(touch ? TOUCH_HINT : KEYS_HINT)}</p></div></div></div>`;
+    <p class="controls-hint">${hintHtml(oneLine ? [tutorialLine('ready.keys')] : touch ? TOUCH_HINT : KEYS_HINT)}</p></div></div></div>`;
 }
+export const SKIP_LESSON_ID = 'btn-skip-lesson';
 
 // A touch walk starts without the Ready? card, so its first few walks say
 // how to move in one toast (takeStartLines, given by main.js on the engage).
@@ -265,6 +278,8 @@ export function createWalkLifecycle({
   // Mid-walk resume: a walk that ends has nothing left to pick up (main.js
   // forgets walkresume.js's note).
   onWalkEnded = () => {},
+  // ui/buttonwords.js: which touch buttons still show their small word.
+  buttonUses = null,
 }) {
   // ------------------------------------------------------------------
   // v18 Task 2.7 — the in-walk skill-unlock celebration.
@@ -508,7 +523,22 @@ export function createWalkLifecycle({
     // secrets, quest and goals from it. So draw order now matters solo too:
     // a solo draw that depends on the save must not sit on this stream (see
     // soloGiftRng). soloSeed is undefined in a room walk.
-    const soloSeed = roomSeed === undefined ? (resume?.seed ?? newWalkSeed()) : undefined;
+    //
+    // The guided first walk and the first camp walk (game/guidewalk.js): which
+    // lesson this walk has, from the save and the walk's own facts. A guided
+    // first walk is plain daylight: never dusk, and its seed is one whose
+    // weather roll (the stream's first draw, below) says clear, so the walk
+    // is an ordinary walk in every draw and a walk picked up again from the
+    // same seed is clear again.
+    const lessonArea = areaOverride ?? progression.state.area;
+    const lessonPlan = lessonFor(progression.state, {
+      areaId: lessonArea, room: roomSeed !== undefined, resume,
+      clanEdition: isClanEdition(progression.state), hasCamp: !!campLayout(lessonArea),
+    });
+    if (lessonPlan?.kind === 'first') duskMode = false;
+    const soloSeed = roomSeed === undefined
+      ? (resume?.seed ?? (lessonPlan?.kind === 'first' ? newClearSeed((seed) => rollWeather(mulberry32(seed)) === 'clear') : newWalkSeed()))
+      : undefined;
     const walkRng = mulberry32(roomSeed ?? soloSeed);
     const state = progression.state;
     // areaOverride: a joiner who hasn't unlocked the host's area still walks
@@ -1072,6 +1102,27 @@ export function createWalkLifecycle({
     }) : NO_CLAN_CATS;
     // The camp on the corner map (Clan Edition only; Legacy shows no clan layer).
     const campAt = clanCast.length ? campLayout(areaId) : null;
+    // This walk's lesson, now that its cats exist. The guided first walk
+    // moves ONE of the strays above to wait ahead of the start; the first
+    // camp walk moves one of the group's roaming cats onto the way to the
+    // camp (solo only). Neither draws from any stream: the cast, and every
+    // other cat's spot, are exactly what they were. No stray (or no camp)
+    // means no lesson, and an ordinary walk.
+    let lesson = null;
+    if (lessonPlan?.kind === 'first') {
+      lesson = buildFirstLesson(lessonPlan, { strayCats, areaData, goals: null, resume });
+    } else if (lessonPlan?.kind === 'camp' && campAt) {
+      const camp = { x: campAt.cx, z: campAt.cz, r: DISCS[areaId]?.r ?? 6 };
+      const from = resume ? { x: resume.x, z: resume.z } : areaData.spawn;
+      const canStep = ground.flat ? null : (ax, az, bx, bz) => ground.canStep(ax, az, bx, bz);
+      const way = roomSeed === undefined ? findPath(clanWalkable, areaData.bounds, from, camp, { canStep }) : null;
+      lesson = {
+        kind: 'camp', camp, open: false, room: roomSeed !== undefined, walkable: clanWalkable,
+        cat: way ? placeCampGuide(clanCats, way, from) : null,
+        heading: headingToward(areaData.spawn, camp),
+        heldGoals: null, finished: false, skipped: false,
+      };
+    }
     const campMarker = !isDen && campAt && isClanEdition(state)
       ? { x: campAt.cx, z: campAt.cz, color: CLAN_COLOURS[areaId] }
       : null;
@@ -1366,6 +1417,11 @@ export function createWalkLifecycle({
         target: 5, duo: true, progress: 0, done: false,
       };
     }
+    // A lesson holds the goals aside (one instruction at a time): they are
+    // rolled as always, above, and shown when the lesson is over or skipped.
+    // Never in a room, where the goal the two share must stay live.
+    const holdGoals = !!lesson && !lesson.finished && roomSeed === undefined && !!goals;
+    if (holdGoals) lesson.heldGoals = goals;
 
     // The area's own life on this walk (the Gorge: shade by height, wheeling
     // birds, the ambience mix; the caves' dark, warm glow and rain shelter,
@@ -1412,7 +1468,8 @@ export function createWalkLifecycle({
       reducedMotion,
       zoomTrailAccum: 0,
       wasZooming: false,
-      goals,
+      goals: holdGoals ? null : goals,
+      lesson,
       startPoints: state.points,
       discoveryCount: 0,
       catsGreeted: 0,
@@ -1780,7 +1837,7 @@ export function createWalkLifecycle({
       ? kittenPlan(progression.state.kitten.stage, areaId)
       : null;
     session.kittenEnc = kittenPlanResult
-      ? createKittenEncounter(scene, kittenPlanResult, areaData.spawn, { onMew: () => audio.trill(0.7, 1.5), ground })
+      ? createKittenEncounter(scene, kittenPlanResult, areaData.spawn, { onMew: () => { if (!lessonOpen(session)) audio.trill(0.7, 1.5); }, ground })
       : { group: null, update() {}, promptAt: () => null, interact: () => null, dispose() {} };
     // Fixed at walk start, from the SAME kittenPlanResult that built the
     // encounter above — handleInteract's 'kitten' branch dispatches on this,
@@ -1922,7 +1979,9 @@ export function createWalkLifecycle({
     // Only in a room: alone there is nobody to chat to (guided-first-walk
     // design, section 4). roomSeed is what makes this walk a room's.
     session.chatHintPending = earlyWalk && roomSeed !== undefined;
-    touchUI.setLabels?.(earlyWalk);
+    // Each touch button keeps its small word until it has been used twice
+    // (ui/buttonwords.js, counted by main.js), not for a fixed three walks.
+    touchUI.setLabels?.(buttonUses ? buttonUses.words() : earlyWalk);
     // R18: moves the save granted on load (fights she won before moves
     // existed) are toasted once, at the next Clan Edition walk. The lines wait
     // on the session (the Ready? card covers toasts); main.js toasts them on
@@ -2012,6 +2071,12 @@ export function createWalkLifecycle({
       const spot = clearSpot({ x: resume.x, z: resume.z }, areaData.colliders ?? [], areaData.bounds, areaData.waters ?? [], 0.6);
       cat.position.set(spot.x, ground.y(spot.x, spot.z), spot.z);
       player.setViewYaw(resume.yaw);
+    } else if (lesson?.kind === 'camp') {
+      // The first walk on home land: the cat and the camera start facing the camp.
+      cat.rotation.y = lesson.heading;
+      player.setViewYaw(lesson.heading);
+      camera.position.copy(cat.position).add(cameraOffset(lesson.heading, 0.18, startView.dist, startView.height));
+      camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
     }
     session.minimap = isDen ? null : createMinimap(hud.mapHost, {
       areaId,
@@ -2036,7 +2101,8 @@ export function createWalkLifecycle({
     session.arrivalLine = strayCats.strays.some((s) => s.wanderer) && isClanEdition(progression.state) && !state.colony?.cats?.some((c) => c.name === wanderName) ? wanderArrivalLine(wanderName) : null;
     hud.setPoints(state.points);
     hud.setRank(session.rankTitle);
-    hud.setGoals(goals ? goals.goals : null);
+    hud.setGoals(session.goals ? session.goals.goals : null);
+    hud.setLesson?.(lesson?.kind === 'first' && !lesson.finished);
     denShop?.setActive(isDen && roomSeed === undefined); // never in a room walk
     getHomebase().hide();
     session.welcome = welcome;
@@ -2072,7 +2138,8 @@ export function createWalkLifecycle({
     // has begun, and everything it touches exists by now.
     if (getIsTouch() && !resume) {
       const walked = Object.values(state.walks).reduce((n, w) => n + w, 0);
-      session.startLines = [welcome, walked < TOUCH_HINT_WALKS ? TOUCH_START_HINT : null].filter(Boolean);
+      // (Not on the guided first walk: its bubble says how to walk.)
+      session.startLines = [welcome, walked < TOUCH_HINT_WALKS && lesson?.kind !== 'first' ? TOUCH_START_HINT : null].filter(Boolean);
       player.setTouchEngaged(true);
     }
   }
@@ -2099,6 +2166,10 @@ export function createWalkLifecycle({
     // Fight moves and scars: a walk fades her scars (R1); when what her cat
     // shows changed, her brother's screen and the cloud profile follow.
     const scarsBefore = JSON.stringify(progression.catScars(scarKey(progression.state)));
+    // A new child whose very first walk was with someone else had a person to
+    // show them: no guided walk starts by itself after it (the menu's "Play
+    // the first walk again" still does).
+    if (session.net && progression.state.tutorial?.first === null) progression.setTutorialFirst('skipped');
     progression.completeWalk(session.areaId, { dusk: session.duskActive });
     if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();
     // A crossing: this walk counted toward the gate above; now pick the place.
@@ -2160,6 +2231,16 @@ export function createWalkLifecycle({
     }
     // (end of what the cat carried home)
     const crossHtml = crossLines.map((l) => `<div class="best-line">${escapeHtml(l)}</div>`).join('');
+    // The guided first walk's own lines, in place of the goals tile: the walk
+    // had a lesson, not goals. The guide's name goes in as text.
+    const firstLesson = session.lesson?.kind === 'first' && !session.lesson.skipped ? session.lesson : null;
+    const guideName = firstLesson?.stray?.name ?? '';
+    const guideLines = firstLesson ? [
+      tutorialLine('guide.summary-first'),
+      firstLesson.tutorial.did.hello ? tutorialLine('guide.summary-friend', { name: guideName }) : null,
+      firstLesson.gift > 0 ? tutorialLine('guide.summary-gift', { name: guideName }) : null,
+    ].filter(Boolean) : [];
+    const guideHtml = guideLines.map((l) => `<div class="best-line guide-line">${escapeHtml(l)}</div>`).join('');
     // Read before the teardown below, like the numbers above.
     const portrait = session.portrait;
     const reduced = prefersReducedMotion(settings);
@@ -2172,7 +2253,8 @@ export function createWalkLifecycle({
       ${isRecord
         ? '<div class="record-banner">NEW BEST WALK! 🏆</div>'
         : `<div class="best-line">best walk: ${progression.state.bestWalk} ${PAW}</div>`}
-      ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals })}
+      ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals && !firstLesson })}
+      ${guideHtml}
       ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
       ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus ${PAW}</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
@@ -2299,6 +2381,7 @@ export function createWalkLifecycle({
     hud.setObjective(null);
     hud.setCamera(false);
     hud.setGoals(null);
+    hud.setLesson?.(false);
     hud.setRoster(null);
 
     overlay.innerHTML = summaryHtml;
