@@ -21,6 +21,15 @@ Every statement below was checked against the code and the database setup
 files (docs/*.sql) on 2026-11-15, on the commit after 2b8b138. The database
 itself was not contacted for this check. If the game changes what it stores
 or sends, this page has to change with it.
+
+Changed on 2026-11-16 (branch offline-first): the game no longer contacts the
+database for a device that has not been put online. "Put online" means a cat
+name is saved in Play together, or the device is linked to a cloud save
+(src/game/cloudsync.js, onlineAllowed). The short version, the table, "Before
+you have turned anything on", "Deleting your data" and appendix item 1 were
+rewritten to match, and test/offlinefirst.test.js holds the game to it. This
+too was checked against the code and its tests only, not the live database or
+a real device.
 -->
 
 # Whisker Walk privacy policy
@@ -37,7 +46,7 @@ Whisker Walk is a small game about walking a cat. It is run by one person, a par
 - The game has no ads, no tracking and no analytics.
 - Your game is saved on your own device.
 - **Nothing is stored online until you tap Save to cloud or save a cat name in Play together.**
-- **The game does contact its online database before that.** At the start of each walk, and when the Play together screen is opened, it asks the database whether this device has any friends. That question carries the device's random id and secret. Nothing is stored from it. The details are in "What goes online, and when".
+- **Until then the game does not contact its online database at all.** The only other things that reach it are ones you tap yourself: Load from cloud (it sends the code you typed) and Delete my online data. The details are in "What goes online, and when".
 - The only thing you type that other players can see is your cat's name. Please pick a cat name, not your real name.
 - Online data is not removed automatically. You can delete it from inside the game, or ask for it to be deleted.
 
@@ -47,7 +56,7 @@ Whisker Walk is a small game about walking a cat. It is run by one person, a par
 |------|------|-----|---------------------|------------------|
 | Your game, album and settings, on your device | From the first time you play | So the game remembers your progress | Until you remove it | **Start over** in Game settings, clear the site's data in the browser, or delete the app |
 | A random device id and a random secret, on your device | Made the first time the game opens | To tell devices apart without accounts | Until you remove it | Same as above |
-| A "does this device have friends?" question, sent to the database with the device id and secret | At the start of every walk on your own, and when Play together is opened, even if you have never used an online feature | To bring friends' cats into your walk | Not stored by the game. The database provider's own logs record the connection (see "Other services involved") | Nothing to delete in the game's tables |
+| A "does this device have friends?" question, sent to the database with the device id and secret | Only once you have saved a cat name or the device is linked to a cloud save: then at the start of every walk on your own, and when Play together is opened | To bring friends' cats into your walk | Not stored by the game. The database provider's own logs record the connection (see "Other services involved") | Nothing to delete in the game's tables |
 | Cloud save: your save and album, a save code, a secret, your total points, the time of the last upload | After you tap **Save to cloud**; then again after each walk and after some changes at home | So you can move your game to another device | Until you delete it. Never removed automatically | **Delete my online data**, or write to us |
 | Cat profile: cat name, breed, look, what it wears, rank title, the device id and secret, when it was last seen | After you save a cat name; refreshed after walks and when the cat changes | So people you play with can see your cat | Until you delete it. Never removed automatically | **Delete my online data**, or write to us |
 | Friend links: two device ids, how many times they have greeted, the last time | When two players greet on a walk, or one adds the other by friend code | For the Friends list and friends' visits | Until one of the two deletes their online data | **Delete my online data**, or write to us |
@@ -77,14 +86,22 @@ The game's online parts use one database service (see "Other services involved")
 
 ### Before you have turned anything on
 
-A new player who has never tapped **Save to cloud** and never saved a cat name still causes one kind of request:
+A new player who has never tapped **Save to cloud**, never loaded a save from the cloud and never saved a cat name causes no request to the database. The game does not connect to it, in a walk or at home, and it does not make up the device's secret until it is first needed.
+
+Three buttons reach the database before that, and only when they are tapped:
+
+- **Save to cloud** uploads the save (see below). From then on the device counts as online.
+- **Load from cloud** sends the save code you typed. The device counts as online once you confirm the load.
+- **Delete my online data** asks the database to delete whatever is stored for this device, even if nothing is.
+
+The website itself is still fetched from its host like any web page (see "Other services involved"). That is not the database, and it carries nothing from your game.
+
+### Once a cat name is saved or the device is linked to a cloud save
 
 - **At the start of each walk on your own**, the game asks the database for this device's friend links, so that a friend's cat can drop by. The request carries the device's random id and its secret.
 - **When the Play together screen is opened**, the game asks the same question to fill in the Friends list.
 
-For a device that has no online profile, the database finds no match, answers with an empty list, and stores nothing. As with any internet request, the database provider can see the device's IP address and the time.
-
-Nothing else is sent before you turn on one of the features below.
+Nothing is stored from that question. As with any internet request, the database provider can see the device's IP address and the time. A device that uses cloud save but has no cat name sends it too; the database finds no match and answers with an empty list.
 
 ### Cloud save
 
@@ -163,7 +180,7 @@ Parents: you can see what is stored for your child by opening the game on their 
 ## Deleting your data
 
 - **On a device:** use **Start over** in Game settings, or clear the site's data in the browser, or delete the app.
-- **Online, from the game:** open ☰ Menu → Cloud save → **Delete my online data** on the device. It deletes the cloud save and album stored under that device's code, and that device's cat profile, friend links and colony sharing. The game on the device stays, except that the cat name used for playing together is cleared, which also stops a profile being uploaded again until a new name is saved. It cannot be undone. Do it on each device you have used: another device linked to the same save code would upload the save again.
+- **Online, from the game:** open ☰ Menu → Cloud save → **Delete my online data** on the device. It deletes the cloud save and album stored under that device's code, and that device's cat profile, friend links and colony sharing. The game on the device stays, except that the cat name used for playing together is cleared, which also stops a profile being uploaded again until a new name is saved. Once the profile and the cloud save are both gone, the game on that device stops contacting the database, until a cat name is saved or Save to cloud is tapped again. It cannot be undone. Do it on each device you have used: another device linked to the same save code would upload the save again.
 - **If it says the cloud is busy:** the database limits how many wrong attempts it accepts from everybody together, to stop guessing. If that limit has been reached, deleting is paused for up to ten minutes for everyone. Nothing is lost; try again later, or write to us.
 - **What stays after that:** if you shared a colony, your partner keeps it and its cats. Records of who found, fed or tamed those cats, and of finished trades, keep your device's random id, which no longer points to any profile. They go when your partner deletes their online data too.
 - **Online, by request:** if you no longer have the device, write to privacy@whiskerwalk.org with your cloud save code, or your friend code, or both, and the matching records will be deleted by hand.
@@ -186,7 +203,11 @@ Questions about privacy, or a request to see or delete data: the privacy contact
 
 These are the places where the game as built falls short of what a stricter policy, or a lawyer, is likely to ask for. None of them is fixed by this page.
 
-1. **No network call before opt-in.** A new solo player's game calls `friendships_of` with the device id and secret at every walk start (`src/game/walk.js`, `spawnGhosts`, called from `startWalk`), and again when the Play together sheet opens (`src/ui/homebase.js`, `loadPlayerPets`). To be able to say "nothing goes online until you opt in", skip both for a player with no cat name (a device with no profile can have no friend links anyway).
+1. **No network call before opt-in: closed on 2026-11-16, in the code.** A device with no cat name and no cloud-save link now makes no database request and opens no live connection (`src/game/cloudsync.js`: `onlineAllowed`, and `getCloud` is null until it is true; `src/game/rooms.js` opens no room; `src/game/homebasecloud.js` answers the Friends list with an empty list). `test/offlinefirst.test.js` checks it. What is still open here:
+   - **It is not a parent's opt-in.** "Online" starts when anybody saves a cat name or taps Save to cloud, and a child can do both. See item 3.
+   - **Checked in tests only**, with a stand-in for the database library. Nobody has watched a real browser's network panel or a real iPad since the change.
+   - **The iPhone and iPad app's nearby search is not behind this gate.** It uses the local network, not the internet, and starts once Play together has been opened on the device, cat name or not (`src/game/nearby.js`).
+   - **A device that uses cloud save but has no cat name still asks for its friend links** at walk start, as before. It could be skipped (no profile, so no links), but that was left alone so that nothing changes for families already online.
 2. **Automatic clean-up.** No SQL file deletes old rows. `saves`, `profiles`, `friendships` and the colony tables grow until someone deletes by hand. A stated time limit (for example "removed after 12 months without play") needs a scheduled job in the database, and `saves.updated_at` and `profiles.last_seen` are already there to drive it.
 3. **A parent's consent before a child's data is stored online.** There is no consent step and no parent gate: a child can tap Save to cloud or save a cat name. "For grown-ups" is a label, not a lock.
 4. **The public reads are still open.** Until Step B of `docs/supabase-v8-hardening.sql` is run, anyone holding the public key can list every cat name and friend link. This page's "Security" section is silent on that; run Step B before publishing.
