@@ -238,8 +238,9 @@ export const FOLDS = Object.freeze({
   // over the hip stays clear of it (scarmesh.test.js). `seamReach`: its
   // shading flows into the torso's only close to the surface (the default
   // reach flattened the whole thigh into the flank's shading), so it reads
-  // as a rounded mass with a soft crease round it. The fold before this is
-  // kept as `sitIn` for a cat dressed on its body.
+  // as a rounded mass with a soft crease round it. A cat dressed on its body
+  // has the same haunch (2026-11-16): its coat or cape is laid over it
+  // (drape.js); until then it kept a slim thigh inside the cloth.
   sit: Object.freeze({
     crouch: true, drop: 0.065, seamReach: 0.025,
     hind: fold([[0.17, -0.15], [0.115, -0.26], [0.045, -0.3]], [0.11, 0.09, 0.036], [0.0415, -0.33], 0, 0.9),
@@ -263,19 +264,6 @@ export const FOLDS = Object.freeze({
     crouch: true, drop: 0.12, seamReach: 0.025,
     front: fold([[0.14, 0.07], [0.06, 0.07], [0.04, -0.06]], [0.07, 0.05, 0.036], [0.0415, -0.11], 0, 0.7),
     hind: fold([[0.15, -0.02], [0.095, -0.15], [0.045, -0.19]], [0.115, 0.085, 0.036], [0.0415, -0.22], 0, 0.9),
-  }),
-  // A cat that wears something on its body (a cape, a hoodie, a sweater) keeps
-  // its thighs INSIDE the torso, sitting and napping: a haunch standing out of
-  // the side came through the cloth. These are the hind legs it folds then
-  // (SLIM_FOLD; the animator leaves its hips where they are): the sit's as it
-  // was before B11, the loaf's the same line with a slim thigh.
-  sitIn: Object.freeze({
-    crouch: true, drop: 0.065,
-    hind: fold([[0.235, -0.18], [0.13, -0.24], [0.045, -0.22]], [0.08, 0.07, 0.036], [0.0415, -0.25]),
-  }),
-  loafIn: Object.freeze({
-    crouch: true, drop: 0.12,
-    hind: fold([[0.18, -0.02], [0.095, -0.13], [0.045, -0.19]], [0.08, 0.07, 0.036], [0.0415, -0.22]),
   }),
   // Bent low, paws still under the shoulders and hips, ready to go.
   // polish-catlooks Task 6 (2026-11-02): the crouch reads as one low body.
@@ -345,9 +333,6 @@ export const FOLD_BY_STATE = Object.freeze({
   roll: Object.freeze(['ball', 'ball']),
   stretch: Object.freeze(['bow', 'stand']),
 });
-
-// The hind fold a cat dressed on its body takes in place of a haunch (FOLDS.sitIn, loafIn).
-export const SLIM_FOLD = Object.freeze({ sit: 'sitIn', loaf: 'loafIn' });
 
 // One leg's own fold in a state, by leg index (0 front left, 1 front right):
 // grooming raises the front right paw to the mouth.
