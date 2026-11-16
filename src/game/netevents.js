@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { tagState } from '../verbs.js';
 import { voiceFor } from '../catvoice.js';
 import { nowSec, meowVolumeForDistance } from './util.js';
+import { phrase } from '../clanphrases.js';
 import { isStrayName } from '../straynames.js';
 import { shedKittypetCollar } from '../housecats.js';
 import { FLAT_GROUND } from '../ground.js';
@@ -322,7 +323,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       const p = remote.group.position;
       intruders.hold(ev.visit, ev.id, { x: p.x, z: p.z });
       if (s.clanFight?.hideChallengeFor?.(ev.visit)) {
-        hud.toast(`${petNameFor(s, ev.id)} is already facing ${cur.member.name}!`);
+        hud.toast(phrase('fight.alreadyFacing', petNameFor(s, ev.id), cur.member.name));
       }
       return;
     }
@@ -353,7 +354,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       const p = remote.group.position;
       foe.hold(ev.visit, ev.id, { x: p.x, z: p.z });
       if (s.clanFight?.hideChallengeFor?.(ev.visit)) {
-        hud.toast(`${petNameFor(s, ev.id)} is already facing ${cur.member.name}!`);
+        hud.toast(phrase('fight.alreadyFacing', petNameFor(s, ev.id), cur.member.name));
       }
       return;
     }

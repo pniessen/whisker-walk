@@ -54,11 +54,15 @@ describe('fight move catalogue', () => {
     }
   });
 
-  test('imports only CLUES from fight.js', () => {
+  // 2026-11-16 (series switch, phase 1): pin updated. The moves' names moved to the phrase table
+  // (src/clanphrases.js, words only, imports nothing but the word file), so
+  // there are two imports now. Still only CLUES from fight.js.
+  test('imports only CLUES from fight.js, and the phrase table', () => {
     const src = readFileSync(new URL('../src/fightmoves.js', import.meta.url), 'utf8');
     const imports = src.match(/^\s*import\s.*$/gm) || [];
-    expect(imports).toHaveLength(1);
+    expect(imports).toHaveLength(2);
     expect(imports[0]).toMatch(/\{\s*CLUES\s*\}\s*from\s*['"]\.\/fight\.js['"]/);
+    expect(imports[1]).toMatch(/\{\s*phrase\s*\}\s*from\s*['"]\.\/clanphrases\.js['"]/);
   });
 });
 

@@ -18,6 +18,7 @@ import { clanName } from '../clanhomes.js';
 import { escapeHtml } from '../game/util.js';
 import { PAW, pawify } from './pawicon.js';
 import { FIGHT_MOVES, teachFor } from '../fightmoves.js';
+import { phrase } from '../clanphrases.js';
 
 export const FIGHT_TEACH = 'Crouch → Dodge · Paw up → Pounce · Backs up → Swipe';
 export const FIGHT_READ = 'Read its move!';
@@ -30,8 +31,8 @@ const MOVE_LABELS = { pounce: 'Pounce', swipe: 'Swipe', dodge: 'Dodge' };
 
 // `ask` and `off` (the border patrol, 2026-11-04) replace the pill's words;
 // without them it is today's pill exactly.
-export function renderChallengeHtml({ name, clan, ask = 'is on your land!', off = 'Back off' } = {}) {
-  return `<span class="fight-ask-text">${escapeHtml(name)} of ${escapeHtml(clanName(clan))} ${escapeHtml(ask)}</span>`
+export function renderChallengeHtml({ name, clan, ask = phrase('fight.homeAsk'), off = phrase('fight.homeOff') } = {}) {
+  return `<span class="fight-ask-text">${phrase('fight.challenge', escapeHtml(name), escapeHtml(clanName(clan)), escapeHtml(ask))}</span>`
     + '<span class="fight-ask-buttons">'
     + `<button type="button" class="hud-prompt-btn fight-ask-go" data-fight="go">Fight! ${PAW}<span class="fight-key">E</span></button>`
     + `<button type="button" class="hud-prompt-btn fight-ask-off" data-fight="off">${escapeHtml(off)}<span class="fight-key">Q</span></button>`

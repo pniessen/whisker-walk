@@ -91,6 +91,7 @@ import { GOLD_MICE, createGoldMice } from '../goldmice.js';
 import { crossingOutcome } from '../bordercross.js';
 import { rivalForWalk, placeName, effectiveArea, isClanEdition } from '../edition.js';
 import { picksOf, homeWelcome } from '../clanhomes.js';
+import { phrase } from '../clanphrases.js';
 import { newWalkSeed, newClearSeed, restoreGoals, restoreTallies, resumeWelcome } from './walkresume.js';
 import { lessonFor, buildFirstLesson, placeCampGuide, headingToward, lessonOpen } from './guidewalk.js';
 import { findPath } from '../pathfind.js';
@@ -1697,7 +1698,7 @@ export function createWalkLifecycle({
         onChase: (who) => {
           player.halt();
           session.chasing = true; // avatar.js plays the run gait; interactions.js ignores climb/pounce
-          hud.toast(`${who} chased you back over their border! 🐾`);
+          hud.toast(phrase('border.chasedBack', who));
           bus.emit('tip', { id: 'rival' });
         },
         onSettled: () => { player.halt(); session.chasing = false; },

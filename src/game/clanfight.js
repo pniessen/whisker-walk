@@ -47,6 +47,7 @@ import { FIGHT_MOVES } from '../fightmoves.js';
 import { isHostile, CHALLENGE_RANGE, CHALLENGE_KEEP, RECHALLENGE_DELAY } from '../intruders.js';
 import { FIGHT_LINES } from '../ui/fightui.js';
 import { clanName } from '../clanhomes.js';
+import { phrase } from '../clanphrases.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { bus } from '../events.js';
 
@@ -659,9 +660,9 @@ export function createClanFight({
       // The HUD shows an 'intruder' label as it is, with no "You spotted"
       // lead (ui/hud.js); the second toast says where it ran.
       if (award) log.awardOnce(award.type, award.key, award.text);
-      else log.awardOnce('intruder', `intruder-${v}`, `You chased off ${name}! 🛡️`);
+      else log.awardOnce('intruder', `intruder-${v}`, phrase('fight.homeAward', name));
       onWon({ visit: v, castId, site, together: false });
-      hud.toast(wonLine ?? `${name} ran back to ${clanName(clan)}'s land! 🏃`);
+      hud.toast(wonLine ?? phrase('fight.homeWon', name, clanName(clan)));
       sendDone(true);
       endFight();
       // END WON
@@ -673,9 +674,7 @@ export function createClanFight({
     locks.set(v, { away: false, until: now() + RECHALLENGE_DELAY });
     onLost({ site });
     hud.toast(words?.lost ? words.lost(name, actions && scars)
-      : actions && scars
-        ? `${name} shook it off and walked on. That scratch will heal in a few walks!`
-        : `${name} shook it off and walked on. Try again soon!`);
+      : phrase(actions && scars ? 'fight.homeLostScar' : 'fight.homeLost', name));
     sendDone(false);
     endFight();
     // END LOST
@@ -1009,13 +1008,13 @@ export function createClanFight({
     chasedOffTogether(v, petName) {
       if ((mode !== 'walkover' && mode !== 'fight') || visit !== v) return false;
       const { name } = foe;
-      log.awardOnce('intruder', `intruder-${v}`, `You chased off ${name}! 🛡️`);
+      log.awardOnce('intruder', `intruder-${v}`, phrase('fight.homeAward', name));
       // R11: the intruder is scarred where the last round I won hit it, else
       // by a roll's site (its side or hindquarters, by its id).
       const site = !(actions && scars) ? null
         : siteFor(lastWonRound ? actionFor(lastWonRound).kind : 'roll', castId);
       onWon({ visit: v, castId, site, together: true });
-      hud.toast(`You and ${petName} chased ${name} off together! 🏃`);
+      hud.toast(phrase('fight.homeTogether', petName, name));
       sendDone(true);
       endFight();
       return true;

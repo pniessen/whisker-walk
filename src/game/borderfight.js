@@ -16,18 +16,22 @@
 import { createClanFight } from './clanfight.js';
 import { isTrespassing } from '../rivalclans.js';
 import { NOTICE_DIST } from '../rivalcats.js';
+import { phrase } from '../clanphrases.js';
 
 export const BORDER_CHALLENGE_WAIT = 8; // s an unanswered pill waits before the chase (B4)
-export const BORDER_ASK = Object.freeze({ ask: 'blocks your path!', off: 'Run' });
+// Read from the phrase table each time (getters), so the words are never fixed
+// when this module loads.
+export const BORDER_ASK = Object.freeze({
+  get ask() { return phrase('fight.borderAsk'); },
+  get off() { return phrase('fight.borderOff'); },
+});
 export const BORDER_EVENTS = Object.freeze({ fight: 'patrol-fight', done: 'patrol-done' });
 
 export function borderWords(areaId) {
   return {
-    award: (name) => ({ type: 'border', key: `border-${areaId}`, text: `You faced down ${name}! 🛡️` }),
-    won: (name) => `${name} lets you pass. 🐾`,
-    lost: (name, scarred) => (scarred
-      ? `${name} won this time. That scratch will heal in a few walks!`
-      : `${name} won this time. Try again soon!`),
+    award: (name) => ({ type: 'border', key: `border-${areaId}`, text: phrase('fight.borderAward', name) }),
+    won: (name) => phrase('fight.borderWon', name),
+    lost: (name, scarred) => phrase(scarred ? 'fight.borderLostScar' : 'fight.borderLost', name),
   };
 }
 

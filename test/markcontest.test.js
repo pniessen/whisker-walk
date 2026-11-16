@@ -244,7 +244,9 @@ describe('createMarkContest: the rival scents over your marks', () => {
   it('is a leaf: no THREE, no DOM, nothing that stores or sends but what it is handed', () => {
     const src = readFileSync(new URL('../src/markcontest.js', import.meta.url), 'utf8');
     const specs = [...src.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]).sort();
-    expect(specs).toEqual(['./marks.js', './rivalclans.js']);
+    // 2026-11-16 (series switch, phase 1): pin updated. The toast's words come from the phrase
+    // table (src/clanphrases.js: words only, no THREE, no DOM, stores nothing).
+    expect(specs).toEqual(['./clanphrases.js', './marks.js', './rivalclans.js']);
   });
 });
 

@@ -39,6 +39,7 @@ import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
 import { postNear } from '../borderposts.js';
 import { postStatus, promptFor } from '../bordercross.js';
+import { phrase } from '../clanphrases.js';
 import * as THREE from 'three';
 import { villagerPos } from '../critters.js';
 import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js';
@@ -683,7 +684,7 @@ export function createInteractions({
     if (!progression.addMark(s.areaId, full)) return false;
     s.playerMarks?.sync(progression.marksIn(s.areaId));
     // Task 6: a clanmate on patrol with me marks it too. Display only.
-    if (s.clanBuddy) { s.clanCats?.markBeside?.(s.clanBuddy); hud.toast(`${s.clanBuddy.name} marks it too 🐾`); }
+    if (s.clanBuddy) { s.clanCats?.markBeside?.(s.clanBuddy); hud.toast(phrase('mark.buddyToo', s.clanBuddy.name)); }
     return true;
   }
 
@@ -1097,7 +1098,7 @@ export function createInteractions({
       const target = markableToScratch(s, catP);
       if (target) {
         s.prompt = { kind: 'mark', data: target };
-        setPrompt('E — scratch your mark into it');
+        setPrompt(phrase('mark.promptScratch'));
       }
     }
     // v21 3b Task 12 — scent over one of the rival's border marks. Right after
@@ -1109,7 +1110,7 @@ export function createInteractions({
       const target = borderDecalToScent(s, catP);
       if (target) {
         s.prompt = { kind: 'border-mark', data: target };
-        setPrompt('E — scent over their mark');
+        setPrompt(phrase('mark.promptScent'));
       }
     }
     // v21 3b Task 15 — have a drink, a nibble or a nap. Right after the border

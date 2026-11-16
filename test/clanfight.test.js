@@ -1463,7 +1463,9 @@ describe('clanfight.js is pinned', () => {
     // '../events.js' is the bus (an emitter that stores nothing), for the
     // 'fight:hit' a landed blow sends to the haptics.
     for (const s of specs) {
-      expect(['../fight.js', '../fightactions.js', '../fightmoves.js', '../intruders.js', '../ui/fightui.js', '../clanhomes.js', '../rng.js', '../events.js']).toContain(s);
+      expect(['../fight.js', '../fightactions.js', '../fightmoves.js', '../intruders.js', '../ui/fightui.js', '../clanhomes.js', '../rng.js', '../events.js',
+        // 2026-11-16 (series switch, phase 1): pin updated. the toasts' words (a table, stores nothing)
+        '../clanphrases.js']).toContain(s);
     }
     expect(SRC).toMatch(/progression/); // ...and the header says why
   });
@@ -1496,8 +1498,10 @@ describe('clanfight.js is pinned', () => {
     expect(slice).not.toMatch(/progression/i);
     expect(slice).not.toContain('onLost(');
     // the calls in it are those (and clanName in a toast's text), nothing else
+    // 2026-11-16 (series switch, phase 1): pin updated. `phrase` is the word lookup the two toasts'
+    // text now comes from (src/clanphrases.js).
     const called = new Set([...slice.matchAll(/([A-Za-z_$][\w$.]*)\(/g)].map((m) => m[1]));
-    expect([...called].sort()).toEqual(['clanName', 'endFight', 'hud.toast', 'intruders.flee', 'log.awardOnce', 'onWon', 'sendDone']);
+    expect([...called].sort()).toEqual(['clanName', 'endFight', 'hud.toast', 'intruders.flee', 'log.awardOnce', 'onWon', 'phrase', 'sendDone']);
   });
 });
 
