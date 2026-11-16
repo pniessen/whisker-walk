@@ -560,9 +560,14 @@ export function seamNormals(pos, nor, m, scale, reach = SEAM.reach, from = 0, to
 // where it was. `rim`: a point of the built chest left within rim[0] metres
 // of the surface wears the coat painted on the torso under it, easing to its
 // own colour by rim[1], so no pale edge shows where the two meet.
+// `floor`: a point that was outside the surface is left at least this far
+// out of it (or where it was, if nearer). The chest's faces are flat and the
+// torso under them is round, so a face between points lying right on the
+// surface dips under it and the coat shows through as flecks on the bib
+// (worst on a crowd cat's coarser chest): CHEST_BLEND.floor, [full, simple].
 // model.js undersideGeometry (the cat as built) and animator.js sinkChest (the
 // sitting chest, whose own shift moved the rim) both use it; never per frame.
-export const CHEST_BLEND = Object.freeze({ toe: 0.03, rim: Object.freeze([0.006, 0.014]) });
+export const CHEST_BLEND = Object.freeze({ toe: 0.03, rim: Object.freeze([0.006, 0.014]), floor: Object.freeze([0.004, 0.007]) });
 
 // Draw the points [from, to) of `pos` (flat xyz) toward the torso as above.
 // A point p is in the torso mesh's own frame as p * k + o (k, o: xyz; the
@@ -572,7 +577,7 @@ export const CHEST_BLEND = Object.freeze({ toe: 0.03, rim: Object.freeze([0.006,
 // untouched) and the undeformed unit direction of the torso under it.
 const _bd = [0, 0, 0], _bu = [0, 0, 0];
 const ONE3 = Object.freeze([1, 1, 1]), ZERO3 = Object.freeze([0, 0, 0]);
-export function blendIntoTorso(pos, from, to, scale, k = ONE3, o = ZERO3, each = null, toe = CHEST_BLEND.toe) {
+export function blendIntoTorso(pos, from, to, scale, k = ONE3, o = ZERO3, each = null, toe = CHEST_BLEND.toe, floor = 0) {
   for (let i = from; i < to; i++) {
     _bd[0] = (pos[i * 3] * k[0] + o[0]) / TORSO.R;
     _bd[1] = (pos[i * 3 + 1] * k[1] + o[1]) / TORSO.R;
@@ -586,7 +591,7 @@ export function blendIntoTorso(pos, from, to, scale, k = ONE3, o = ZERO3, each =
     let out = (rho - sL) * perRho;
     if (out > 0 && out < toe) {
       const x = out / toe;
-      out *= x * x * (3 - 2 * x);
+      out = Math.max(out * x * x * (3 - 2 * x), Math.min(out, floor));
       const f = (sL + out / perRho) / rho * TORSO.R;
       pos[i * 3] = (_bd[0] * f - o[0]) / k[0];
       pos[i * 3 + 1] = (_bd[1] * f - o[1]) / k[1];

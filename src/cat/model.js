@@ -1028,7 +1028,7 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
     let blend = chestBlends.get(seamKey);
     if (!blend) {
       const pos = geo.attributes.position.array, nor = geo.attributes.normal.array, rim = [];
-      blendIntoTorso(pos, c0, c1, BS, undefined, undefined, (i, out, unit) => { if (out > 0 && out < r1) rim.push(i, out, unit[0], unit[1], unit[2]); });
+      blendIntoTorso(pos, c0, c1, BS, undefined, undefined, (i, out, unit) => { if (out > 0 && out < r1) rim.push(i, out, unit[0], unit[1], unit[2]); }, undefined, CHEST_BLEND.floor[+!!opts.simple]);
       weldedNormals(pos, nor, geo.index.array, c0, c1);
       blend = { pos: pos.slice(c0 * 3, c1 * 3), nor: nor.slice(c0 * 3, c1 * 3), rim };
       chestBlends.set(seamKey, blend);
@@ -1055,6 +1055,7 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
       dir[0] = v.x; dir[1] = v.y; dir[2] = v.z;
       return undersideColourAt(coat, hex, dir, unit, out, front, band);
     };
+    geo.userData.blendFloor = CHEST_BLEND.floor[+!!opts.simple];
     geo.userData.sitColourAt = { chest: at(chestAt, coat.chest, UNDER_FRONT.chest, UNDER_BLEND), belly: at(bellyAt, s.belly, UNDER_FRONT.belly, BELLY_BLEND) };
   }
   // The seams (cat realism A4, torso.js SEAM): the belly's and the chest's

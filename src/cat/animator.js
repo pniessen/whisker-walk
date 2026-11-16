@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG, BOW, NAP, GROOM, NECK, SEAM, blendIntoTorso, weldedNormals, seamNormals } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG, BOW, NAP, GROOM, NECK, SEAM, CHEST_BLEND, blendIntoTorso, weldedNormals, seamNormals } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { HOOD, slideHoodTo } from './backitems.js';
 import { layCapeTie } from './cape.js';
@@ -574,7 +574,7 @@ function dropChest(body, underside) {
 // showed as a pale cap with a ragged edge. The first time a cat sits, the
 // chest and the belly as the sit leaves them are drawn into the sitting torso
 // round their rims (torso.js blendIntoTorso), their normals are made for that
-// shape and flowed into the torso's, and each point (the chest's tufts too)
+// shape and flowed into the torso's, and each point
 // takes the coat painted under where it now lies (sitColourAt). The arrays
 // are kept and written when the cat sits down, the built ones when it gets
 // up. The tufts and the ruff make the plain shift, as before.
@@ -590,7 +590,8 @@ function sinkChest(body, underside, sitting) {
   if (!ud.sit) {
     // every span the sit rewrites: [from, to, sunk (the chest's shift), blended into the torso, coloured by]
     const spans = [[...ranges.chest, true, true, 'chest'], [...ranges.belly, false, true, 'belly']];
-    if (ranges.tufts) spans.push([...ranges.tufts, true, false, 'chest']);
+    // the chest's tufts are drawn in twice as far as the chest they lie on: under its surface, where the sit's plain shift had left them (out of it they show as dark flecks on the bib)
+    if (ranges.tufts) spans.push([...ranges.tufts, true, 'points', null]);
     if (ranges.ruff) spans.push([...ranges.ruff, true, false, null]);
     const cut = (a, [from, to]) => a.array.slice(from * 3, to * 3);
     const rest = spans.map((sp) => ({ pos: cut(pos, sp), nor: cut(nor, sp), col: cut(col, sp) }));
@@ -611,14 +612,14 @@ function sinkChest(body, underside, sitting) {
         P[from * 3 + i + 1] = r[i + 1] + dy;
         P[from * 3 + i + 2] = cz + (r[i + 2] - cz) * SIT.chestFlat + dz;
       }
+      if (blend === 'points') { blendIntoTorso(P, from, to, scale, k, o, null, 2 * CHEST_BLEND.toe); return; }
       const colourAt = paint && ud.sitColourAt?.[paint];
       if (!colourAt) return;
       blendIntoTorso(P, from, to, scale, k, o, (i, out, unit) => {
         const j = (i - from) * 3;
         colourAt(r[j], r[j + 1], r[j + 2], unit, _sinkC);
         col.array[i * 3] = _sinkC.r; col.array[i * 3 + 1] = _sinkC.g; col.array[i * 3 + 2] = _sinkC.b;
-      }, blend ? undefined : 0);
-      if (!blend) return;
+      }, undefined, geo.userData.blendFloor);
       weldedNormals(P, nor.array, geo.index.array, from, to);
       seamNormals(P, nor.array, _sinkM, scale, SEAM.underReach, from, to);
     });
