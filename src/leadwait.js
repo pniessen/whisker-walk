@@ -14,7 +14,10 @@
 //   lead(path, opts)    trot along the path, but never far ahead: more than
 //                       `ahead` metres from the child it stops and looks
 //                       back, and sets off again once the child is within
-//                       `near`
+//                       `near`. "Ahead" is as the crow flies AND by the way
+//                       it has walked: where the path doubles back (a ledge,
+//                       a bank) a child close by across the drop is still a
+//                       long way behind, and it waits
 //   pose(name, secs)    hold a pose where it stands (a pounce, a rub, a jump
 //                       for joy), then carry on with what it was doing
 //
@@ -41,6 +44,32 @@ function turn(from, to, k) {
   if (d > Math.PI) d -= Math.PI * 2;
   if (d < -Math.PI) d += Math.PI * 2;
   return from + d * Math.min(1, k);
+}
+
+// How far along a lead's way the child has come: the nearest spot on the way
+// to the child, looked for only a little behind and some way ahead of where
+// the child was last (so a leg that doubles back close by is not mistaken for
+// progress), and only when the child is beside the way at all.
+const WAY_BACK_M = 3;
+const WAY_FWD_M = 10;
+const WAY_BESIDE_M = 6;
+const WAY_SLACK_M = 1.5;
+function alongWay(o, child) {
+  let best = o.childAt;
+  let bestD = WAY_BESIDE_M;
+  for (let k = 1; k < o.line.length; k++) {
+    if (o.cum[k] < o.childAt - WAY_BACK_M || o.cum[k - 1] > o.childAt + WAY_FWD_M) continue;
+    const a = o.line[k - 1];
+    const b = o.line[k];
+    const len = o.cum[k] - o.cum[k - 1];
+    if (len <= 0) continue;
+    const t = Math.max(0, Math.min(1, ((child.x - a.x) * (b.x - a.x) + (child.z - a.z) * (b.z - a.z)) / (len * len)));
+    const s = Math.max(o.childAt - WAY_BACK_M, Math.min(o.childAt + WAY_FWD_M, o.cum[k - 1] + t * len));
+    const tt = (s - o.cum[k - 1]) / len;
+    const dist = Math.hypot(child.x - (a.x + (b.x - a.x) * tt), child.z - (a.z + (b.z - a.z) * tt));
+    if (dist < bestD) { bestD = dist; best = s; }
+  }
+  return best;
 }
 
 const points = (path) => (Array.isArray(path) ? path : [path])
@@ -121,7 +150,14 @@ export function createLeader({ x = 0, z = 0, yaw = 0, fix = null } = {}) {
       api.approach({ standoff: 1.5, ...opts, budget: Math.max(0, n) * STEP_M });
     },
     lead(path, { speed = TROT_SPEED, ahead = LEAD_AHEAD_M, near = LEAD_NEAR_M, standoff = 0 } = {}) {
-      order = { kind: 'lead', path: points(path), i: 0, speed, ahead, near, standoff };
+      const pts = points(path);
+      // The way as one line from where it stands, with the metres walked to
+      // each point: `at` is how far along it the leader is, `childAt` how far
+      // the child has come.
+      const line = [{ x: pos.x, z: pos.z }, ...pts];
+      const cum = [0];
+      for (let k = 1; k < line.length; k++) cum.push(cum[k - 1] + Math.hypot(line[k].x - line[k - 1].x, line[k].z - line[k - 1].z));
+      order = { kind: 'lead', path: pts, i: 0, speed, ahead, near, standoff, line, cum, at: 0, childAt: 0 };
       arrived = order.path.length === 0;
       waiting = false; stuck = 0;
     },
@@ -154,13 +190,19 @@ export function createLeader({ x = 0, z = 0, yaw = 0, fix = null } = {}) {
       if (o.kind === 'lead') {
         if (arrived) { look(child, d); return { speed: 0, pose: 'requestPet' }; }
         const gap = child ? Math.hypot(child.x - pos.x, child.z - pos.z) : 0;
-        if (waiting ? gap > o.near : gap > o.ahead) {
+        if (child) o.childAt = alongWay(o, child);
+        const behind = o.at - o.childAt; // metres of the way between them
+        if (waiting ? (gap > o.near || behind > o.ahead) : (gap > o.ahead || behind > o.ahead + WAY_SLACK_M)) {
           waiting = true;
           look(child, d);
           return { speed: 0, pose: 'requestPet' };
         }
         waiting = false;
-        if (follow(o, d)) { arrived = true; return { speed: 0, pose: 'requestPet' }; }
+        const bx = pos.x;
+        const bz = pos.z;
+        const done = follow(o, d);
+        o.at += Math.hypot(pos.x - bx, pos.z - bz);
+        if (done) { arrived = true; return { speed: 0, pose: 'requestPet' }; }
         return { speed: o.speed, pose: 'follow' };
       }
       look(child, d);

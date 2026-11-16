@@ -130,3 +130,24 @@ describe('asking the way again and again', () => {
     expect(asked - cost).toBeLessThan(cost / 2); // only the straight-line checks ask again
   });
 });
+
+describe('leading where the way doubles back', () => {
+  it('a child close by as the crow flies but a long way behind by the way is waited for', () => {
+    // The way runs 12 m north, 3 m east, then 12 m back south: its end is 3 m from its start.
+    const l = createLeader({ x: 0, z: 0 });
+    l.lead([{ x: 0, z: -12 }, { x: 3, z: -12 }, { x: 3, z: 0 }], { ahead: 4.2, near: 2.6 });
+    const child = { x: 0, z: 0 };
+    // The child walks with her up the first leg, then stops at its top.
+    for (let i = 0; i < 2000 && l.pos.x < 2.9; i++) { child.z = Math.max(-12, Math.min(0, l.pos.z + 2)); l.step(0.05, child); }
+    child.x = 0; child.z = -12;
+    for (let i = 0; i < 800; i++) l.step(0.05, child);
+    // She has come back down the far leg only a little: never to the end, 12 m of way ahead of the child.
+    expect(l.arrived).toBe(false);
+    expect(l.waiting).toBe(true);
+    expect(l.pos.z).toBeLessThan(-6);
+    // Had it gone by the straight line alone she would be at the end, 3 m from where the child started.
+    child.x = 3; child.z = l.pos.z - 1; // the child comes round to her
+    for (let i = 0; i < 2000 && !l.arrived; i++) { child.z = Math.min(0, l.pos.z - 1.5); l.step(0.05, child); }
+    expect(l.arrived).toBe(true);
+  });
+});
