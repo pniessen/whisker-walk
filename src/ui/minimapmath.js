@@ -99,7 +99,9 @@ export function clearOfBadge(p, badge, clear) {
 export function mapMarkers(frame) {
   const out = [];
   // The clan's camp goes first so every other marker draws over it.
-  if (frame.camp) out.push({ kind: 'camp', x: frame.camp.x, z: frame.camp.z, color: frame.camp.color });
+  // `pulse` ('beat' | 'still') rings the camp on the first camp walk; the key
+  // is only there while it does.
+  if (frame.camp) out.push({ kind: 'camp', x: frame.camp.x, z: frame.camp.z, color: frame.camp.color, ...(frame.camp.pulse ? { pulse: frame.camp.pulse } : {}) });
   // Border posts (Clan Edition only; the frame carries null elsewhere).
   for (const p of frame.posts ?? []) out.push({ kind: 'post', x: p.x, z: p.z, faces: p.faces });
   const race = frame.race;
