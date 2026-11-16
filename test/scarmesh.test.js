@@ -211,7 +211,8 @@ describe('scar mesh', () => {
     for (const c of colours(black)) expect(colourDistance(c, red)).toBeLessThan(1e-6);
     const under = scarsOf(black).userData.under;
     const base = new THREE.Color(coatColor('black'));
-    for (let i = 0; i < under.length; i += 3) expect(colourDistance(new THREE.Color(under[i], under[i + 1], under[i + 2]), base)).toBeLessThan(1e-6);
+    // 2026-11-15 (cat realism A5): the coat's soft darker back line reaches the flank very faintly (about 1e-6 here), so "its base" is within 1e-4.
+    for (let i = 0; i < under.length; i += 3) expect(colourDistance(new THREE.Color(under[i], under[i + 1], under[i + 2]), base)).toBeLessThan(1e-4);
     // polish-catlooks (2026-11-02): ginger was within 0.25 of the old red and
     // got the pale pink; it is 1.0 from the healed pink (0.46 from the fix
     // round's first pink), and no shipped coat is within 0.25 of it (measured:

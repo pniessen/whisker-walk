@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG, BOW, NAP, GROOM } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { HOOD, slideHoodTo } from './backitems.js';
 import { layCapeTie } from './cape.js';
 import { layNeck } from './neck.js';
-import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
+import { FOLDS, FOLD_BY_STATE, FOLD_LEG, applyFold } from './limbs.js';
 import { isHenFightState, poseHen, syncHenRig } from './henfight.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
@@ -81,19 +81,27 @@ const TAIL_SWAY_DAMP = [0, 0.2, 0.6, 0.8, 0.8];
 // any other pose takes the neck's own move, { turn: 1, anchor: 0 }). Measured
 // on every preset with each neck item and the full kit at t 0.4/1.3/2.2:
 // clear of the ground (0.2 mm at the least; the head-locked items went 9 mm
-// in), behind the nose and below the mouth. The stretch's play bow drops the
-// head below the chest (~118°): carried, the ring flipped onto the back of
-// the head, and moved without the turn it sank into the head; there they are
-// worn on the head as built (HEAD_NECKWEAR), which reads as a collar round
-// the lowered head. So they are in the swim, which sinks the shoulders and
-// holds the head up out of the water: carried on the neck, Digit's tag collar
-// dipped under the waterline; on the head it stays up with it.
+// in), behind the nose and below the mouth. In the swim, which sinks the
+// shoulders and holds the head up out of the water, they are worn on the head
+// as built (HEAD_NECKWEAR): carried on the neck, Digit's tag collar dipped
+// under the waterline; on the head it stays up with it.
+// 2026-11-15 (cat realism A7): the stretch left HEAD_NECKWEAR. Its old pose
+// dropped the head below a raised chest (~118°), where a carried ring flipped
+// onto the back of the head; the play bow holds the head forward of and over
+// the lowered chest, a neck again, so the collar and the neck pieces ride it
+// as in any other pose (the longest, the streamer scarf on Digit, ends 5 mm
+// in the ground; every other piece on every cat is clear of it).
 // 2026-11-15 (cat realism B3, head 8% smaller): the nap's share of the turn
 // 0.15 -> 0.10. The smaller head's nose sits 1-2 mm further back, and at 0.15
 // the bell's front edge came out just ahead of it.
-const NECK_FIT = { nap: { turn: 0.10, anchor: -0.35 } };
+// 2026-11-15 (cat realism, the nap's head down on the paws, torso.js NAP):
+// anchor -0.35 -> -0.6. The head now lies 8 cm lower, and carried a third of
+// the way to it the streamers went 1.5 cm into the ground; nearer the chest
+// every piece is clear of it again (1.4 cm at the least), the ring lying
+// between the shoulders and the back of the head.
+export const NECK_FIT = { nap: { turn: 0.10, anchor: -0.6 } };
 const NECK_FIT_DEFAULT = { turn: 1, anchor: 0 };
-const HEAD_NECKWEAR = new Set(['stretch', 'swim']);
+const HEAD_NECKWEAR = new Set(['swim']);
 
 // v20 "Ruffled Fur" — the 'cross' pose.
 //
@@ -245,6 +253,15 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     const root = (sitting ? sitTail(cat) : napTail(cat)).ROOT;
     body.updateMatrix();
     _anchor.set(0, root[0] / sy, root[1] / sz).applyMatrix4(body.matrix);
+    tail.position.y = _anchor.y;
+    tail.position.z = _anchor.z;
+  }
+  // The stretch's tail root rides the pitched rump (cat realism A7): the tail
+  // hangs on the cat, so it is carried by the body's own move from rest.
+  if (state === 'stretch' && cat.userData.parts.legs[0].userData.folds) {
+    const { tail } = cat.userData.parts;
+    carryBody(cat);
+    _anchor.set(0, tail.position.y, tail.position.z).applyMatrix4(_ride);
     tail.position.y = _anchor.y;
     tail.position.z = _anchor.z;
   }
@@ -538,6 +555,44 @@ function dropChest(body, underside) {
   underside.position.add(_c);
 }
 
+// The sitting chest is drawn into the chest line (torso.js SIT.chestSink,
+// chestFlat; cat realism 2026-11-15). The chest ball's own vertices, and the
+// tufts and ruff that lie on it (the underside's ranges; never the belly or
+// the neck), are written SIT.chestSink lower (straight down in the cat's
+// frame, so S⁻¹·Q⁻¹·(0, -sink, 0) in the body's, over the underside's own
+// scale) and SIT.chestFlat as deep about the chest's centre when the cat sits
+// down, and put back exactly (from a copy kept the first time) when it gets
+// up. A write only when the cat sits down or gets up, as a fold's is; no
+// triangle is added. The offset is worked out from the sitting body the first
+// time and kept (the sit's pitch and scale are the same every time).
+function sinkChest(body, underside, sitting) {
+  const ud = underside.userData;
+  ud.sunk = sitting;
+  const { ranges } = ud;
+  if (!ranges?.chest) return;
+  const pos = underside.geometry.attributes.position;
+  const spans = [ranges.chest, ranges.tufts, ranges.ruff].filter(Boolean);
+  if (!ud.chestRest) {
+    ud.chestRest = spans.map(([from, to]) => pos.array.slice(from * 3, to * 3));
+    _c.set(0, -SIT.chestSink, 0).applyQuaternion(_q.copy(body.quaternion).invert()).divide(body.scale).divide(underside.scale);
+    // (not _c.toArray(): growing a fresh array through Vector3.toArray makes that method's store generic for every caller,
+    // and layNeck writes 240 points through it each frame: measured, the whole animator ran twice as slow from then on)
+    ud.chestSink = [_c.x, _c.y, _c.z];
+  }
+  const [dx, dy, dz] = ud.chestSink, cz = ud.chestCentre[2];
+  spans.forEach(([from], s) => {
+    const rest = ud.chestRest[s];
+    if (!sitting) { pos.array.set(rest, from * 3); return; }
+    for (let i = 0; i < rest.length; i += 3) {
+      const k = from * 3 + i;
+      pos.array[k] = rest[i] + dx;
+      pos.array[k + 1] = rest[i + 1] + dy;
+      pos.array[k + 2] = cz + (rest[i + 2] - cz) * SIT.chestFlat + dz;
+    }
+  });
+  pos.needsUpdate = true;
+}
+
 // The collar on the neck, in every pose (accessories polish Task 4; it was
 // only the stalk, the sniff and the pinned pose before). The neck joins the
 // chest (the underside's chestCentre) to the head's centre. Resting, the
@@ -549,8 +604,8 @@ function dropChest(body, underside) {
 // frame, then put back into the head's. At rest (follow, breathing at 0) the
 // carry is the identity. A rig with no underside (Hagrid) has no chest to
 // carry from: his collar is put back where it was built (its rest, remembered
-// the first time it is moved), as always; so is everyone's in the stretch
-// and the swim (HEAD_NECKWEAR). The nap takes a little of the neck's move (NECK_FIT).
+// the first time it is moved), as always; so is everyone's in the swim
+// (HEAD_NECKWEAR). The nap takes a little of the neck's move (NECK_FIT).
 // Deterministic.
 //
 // Fix wave (polish-5): the posed chest is read through the underside
@@ -593,7 +648,7 @@ function fitNeck(cat, state) {
 // has none and leaves at the first check). Its torso end rides the body, its
 // skull end the head, and its middle the neck line exactly as a collar does
 // (the same neckMove, the same NECK_FIT; with the head as built in the
-// stretch and the swim), so whatever is worn round the neck rests on it in
+// swim), so whatever is worn round the neck rests on it in
 // every pose. 60 points, no allocation.
 const _neckM = new THREE.Matrix4();
 function fitNeckSkin(cat, state) {
@@ -612,7 +667,7 @@ function fitNeckSkin(cat, state) {
 
 // The cape's clasp and front bands (cape.js CAPE_TIE, owner 2026-11-04): the
 // clasp rides the neck exactly as the collar does (the same neckMove carry; on
-// the head as built in the stretch and the swim), and each band runs from the
+// the head as built in the swim), and each band runs from the
 // cloth at the shoulder to it, bowed out from the posed chest and head, and
 // kept clear of the skull, the torso and the chest (cape.js). Re-laid
 // every frame, once the head, the body and the chest are where this frame
@@ -761,6 +816,13 @@ function fitLongLegs(cat) {
   }
 }
 
+// The landing's head (cat realism A7): the squash (body y -0.05, scale y
+// 0.78, z 1.05) carries the chest centre 6.3 cm down and 1.7 cm forward and
+// the top of the shoulders 8 cm down. The head goes down `dy` and forward
+// `dz` with them and ducks `tip` (rad, - is nose-down), so the neck is no
+// longer than the standing cat's (test/catrealposes.test.js).
+export const LAND_HEAD = Object.freeze({ dy: -0.075, dz: -0.02, tip: -0.1 });
+
 // The ordinary walk gait's legs, shared by the walk below and the shake (a cat
 // shaking as it walks still walks). Returns the stride frequency.
 function walkGait(legs, t, moveSpeed, freqK = 1, ampK = 1, ampMax = 0.6) {
@@ -863,7 +925,10 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   }
   tail.position.z = tail.userData.rootZ ??= tail.position.z; // the stalk moves it (STALK_TAIL)
   const { underside } = cat.userData.parts;
-  if (underside) { underside.scale.set(1, 1, 1); underside.userData.drop = 0; } // the sit flattens and lowers it (SIT.chestDepth, chestDrop)
+  if (underside) {
+    underside.scale.set(1, 1, 1); underside.userData.drop = 0;
+    if (underside.userData.sunk) sinkChest(body, underside, false); // getting up from a sit: the chest's own vertices go back (SIT.chestSink)
+  } // the sit flattens and lowers it (SIT.chestDepth, chestDrop)
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
   // The folds (body refinement Task 5, R1/R3): each leg takes its state's fold
   // (a write only when the fold changes). A rig with folds no longer squashes a
@@ -871,7 +936,8 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   // swings the crouched legs at STALK_SWING of the walk's stride); a rig
   // without them (Hagrid) keeps today's lines.
   const f = FOLD_BY_STATE[state];
-  legs.forEach((leg, i) => applyFold(leg, f ? f[i < 2 ? 0 : 1] : 'stand'));
+  const own = FOLD_LEG[state];
+  legs.forEach((leg, i) => applyFold(leg, own?.[i] ?? (f ? f[i < 2 ? 0 : 1] : 'stand')));
   const folds = !!legs[0].userData.folds;
 
   // ear twitches: brief, occasional, alternating
@@ -938,8 +1004,13 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   if (state === 'nap') {
     body.position.y = base.bodyY - 0.1;
     body.scale.set(bsx * 1.12, bsy * 0.73, bsz * 0.89);
-    head.position.set(hx + 0.08, hy - 0.24, hz + 0.14);
-    head.rotation.set(0.55, 0.5, 0);
+    if (folds) {
+      head.position.set(hx + NAP.head[0], hy + NAP.head[1], hz + NAP.head[2]);
+      head.rotation.set(NAP.rot[0], NAP.rot[1], NAP.rot[2]);
+    } else {
+      head.position.set(hx + 0.08, hy - 0.24, hz + 0.14);
+      head.rotation.set(0.55, 0.5, 0);
+    }
     if (!folds) for (const leg of legs) leg.scale.y = 0.25;
     if (folds) {
       // polish-pose Task 1: the tail lies flush on the ground and curls round
@@ -964,7 +1035,28 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   }
 
   if (state === 'stretch') {
-    // classic wake-up: front down, butt up
+    if (folds) {
+      // The play bow (torso.js BOW, cat realism A7): rump up on standing hind
+      // legs, the torso pitched nose-down about the hind hips until the front
+      // hips are BOW.shoulder over the ground, the forearms along the ground
+      // (limbs.js FOLDS.bow, already applied above), the head low over the paws.
+      const frontZ = legs[0].userData.hipZ, hindZ = legs[2].userData.hipZ, span = hindZ - frontZ;
+      const p = Math.min(BOW.maxPitch, Math.asin(Math.min(1, (base.hipY - BOW.shoulder) / span)));
+      const cp = Math.cos(p), sp = Math.sin(p);
+      // the hind hip's place in the torso (from its centre) stays where it stands
+      const hy0 = base.hipY - base.bodyY;
+      body.rotation.x = -p;
+      body.position.y = base.hipY - (hy0 * cp + hindZ * sp);
+      body.position.z = hindZ - (-hy0 * sp + hindZ * cp);
+      const shoulderY = base.hipY - span * sp, shoulderZ = hindZ - span * cp;
+      legs[0].position.z = shoulderZ;
+      legs[1].position.z = shoulderZ;
+      head.position.set(hx, shoulderY + BOW.head[0], shoulderZ + BOW.head[1]);
+      head.rotation.x = BOW.headTip;
+      tail.rotation.x = -1.15 + c; // c = 0: a straight tail
+      return;
+    }
+    // Hagrid: front down, butt up
     body.rotation.x = 0.35;
     body.position.y = base.bodyY + 0.04;
     head.position.set(hx, hy - 0.24, hz - 0.06);
@@ -978,9 +1070,16 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   }
 
   if (state === 'groom') {
-    head.rotation.set(0.5, 0.65, 0.1);
-    head.position.y = hy - 0.06 + Math.sin(t * 7) * 0.02; // little licks
-    legs[1].rotation.x = -1.15; // raised front paw
+    if (folds) {
+      // The raised paw is the front right leg's own fold (limbs.js FOLDS.lick,
+      // applied above); the head comes down to it (torso.js GROOM).
+      head.rotation.set(GROOM.rot[0], GROOM.rot[1], GROOM.rot[2]);
+      head.position.set(hx, hy + GROOM.head[0] + Math.sin(t * 7) * GROOM.lick, hz + GROOM.head[1]); // little licks
+    } else {
+      head.rotation.set(0.5, 0.65, 0.1);
+      head.position.y = hy - 0.06 + Math.sin(t * 7) * 0.02; // little licks
+      legs[1].rotation.x = -1.15; // raised front paw
+    }
     tail.rotation.x = -0.35 + c;
     for (const p of tailPivots) p.rotation.y = Math.sin(t * 1.6) * 0.12;
     return;
@@ -1015,6 +1114,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // (1 on every other cat, which is left as it was).
       underside.scale.z = SIT.chestDepth;
       underside.userData.drop = SIT.chestDrop;
+      if (!underside.userData.sunk && folds) sinkChest(body, underside, true); // sitting down (SIT.chestSink, chestFlat)
       const k = bsx / TORSO.SCALE[0];
       if (k !== 1) for (const leg of legs) leg.position.x = leg.userData.hipX * k;
       for (let i = 0; i < 2; i++) {
@@ -1233,6 +1333,14 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     // landing squash: wide and low for a beat
     body.scale.set(bsx * 1.14, bsy * 0.78, bsz * 1.05);
     body.position.y = base.bodyY - 0.05;
+    // Cat realism A7 (2026-11-15): the head comes down with the squashed
+    // shoulders (LAND_HEAD). It stayed where the standing cat holds it, so for
+    // that beat it floated 6-8 cm clear of the body on a stretched neck.
+    // Cats only: Hagrid's neck is built for his still head (hen.js).
+    if (folds) {
+      head.position.set(hx, hy + LAND_HEAD.dy, hz + LAND_HEAD.dz);
+      head.rotation.x = LAND_HEAD.tip;
+    }
     return;
   }
 

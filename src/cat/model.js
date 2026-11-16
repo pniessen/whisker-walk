@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { addCatRim, RIM } from './rimlight.js';
-import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt, undersideColourAt, UNDER_BLEND, BELLY_BLEND, UNDER_FRONT } from './coat.js';
+import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt, undersideColourAt, UNDER_BLEND, BELLY_BLEND, UNDER_FRONT, legBarMix } from './coat.js';
 import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
@@ -1208,7 +1208,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // The coat is painted into the torso's vertex colours (coat.js): tabby
   // bands, the calico's patches, Robbie's bib and flanks, D2's shoulder band.
   // White material, so a painted base is exactly today's material colour.
-  const coat = coatFromStyle(s);
+  // Coat detail (cat realism A5, coat.js COAT_DETAIL): not on the four family
+  // cats, whose markings are drawn from their photos.
+  const coatDetail = !(FAMILY_NOSE.has(breed) && opts.look == null);
+  const coat = coatFromStyle(s, { detail: coatDetail });
   const body = new THREE.Mesh(
     paintCoat(torsoGeometry(BODY_R, ...TORSO.SEG[opts.simple ? 'simple' : 'full']), coat),
     litMaterial(0xffffff, { vertexColors: true }));
@@ -1237,6 +1240,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   underside.userData.ranges = underside.geometry.userData.ranges;
   underside.userData.chestCentre = underside.geometry.userData.chestCentre;
   underside.userData.neck = underside.geometry.userData.neck; // full builds (neck.js)
+  underside.userData.sunk = false; // the sit's chest (animator.js sinkChest); its rest copy is made the first time she sits
+  underside.userData.chestRest = null;
+  underside.userData.chestSink = null;
   body.add(underside);
 
   // head
@@ -1439,6 +1445,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const legs = [];
   const legHex = s.whiteLegs ? s.belly : pointColor;
   const limbTop = [];
+  const legBars = coatDetail && s.stripes && !s.whiteLegs ? s.accent : null; // a striped coat's barred legs
   const legSpots = [
     [-LEGS.FRONT_X, LEGS.FRONT_Z, false], [LEGS.FRONT_X, LEGS.FRONT_Z, false], // front L, R
     [-LEGS.HIND_X, LEGS.HIND_Z, true], [LEGS.HIND_X, LEGS.HIND_Z, true], // back L, R
@@ -1448,7 +1455,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const topColour = coatColourAt(coat, legTopDir(x, z, [fx, fy, fz]));
     limbTop.push(topColour);
     const limb = new THREE.Mesh(
-      paintLimb(limbGeometry(LEGS.LEN, hind, opts.simple), legHex, topColour),
+      paintLimb(limbGeometry(LEGS.LEN, hind, opts.simple), legHex, topColour, legBars, legBarMix),
       litMaterial(0xffffff, { vertexColors: true }));
     leg.add(limb);
     // The foot (body refinement Task 4, limbs.js footGeometry): a soft oval
@@ -1499,6 +1506,20 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // style callers (clan, rival, intruder cats) never pass a family breed.
   const family = FAMILY_NOSE.has(breed) && opts.look == null;
   const ringedTail = !!s.stripes && !opts.simple && !family && !(s.tailPlume ?? (s.tailFluff > 1 || s.fluffy)); // a plume hides rings, and a long-haired tabby sits near the 9,000 cap
+  // The root link's colour at a point of it (link frame, z along the tail):
+  // the coat painted on the rump under that point, the tail carried
+  // TAIL.SEAM_LIFT above level as for the seams below, easing to the tail's
+  // own colour by the link's far end.
+  const rootM = new THREE.Matrix4().compose(
+    new THREE.Vector3(0, TAIL.ROOT_DY, TAIL.ROOT_Z * PROPORTION.body),
+    new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -TAIL.SEAM_LIFT), new THREE.Vector3().setScalar(TAIL.SCALE));
+  const rootV = new THREE.Vector3(), rootU = [0, 0, 0], rootBase = new THREE.Color(s.base);
+  const rootColour = (x, y, z, out) => {
+    rootV.set(x, y, z).applyMatrix4(rootM);
+    coatColourAt(coat, torsoUnitAt([rootV.x / BODY_SCALE[0], rootV.y / BODY_SCALE[1], rootV.z / BODY_SCALE[2]], rootU), out);
+    const k = Math.min(1, Math.max(0, z / TAIL.LINK));
+    return out.lerp(rootBase, k * k * (3 - 2 * k));
+  };
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
@@ -1530,9 +1551,23 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       : ball(tailRad(i / 5)));   // a rounded joint
     if (i === 4) parts.push(ball(tailRad(1)).translate(0, 0, TAIL.LINK)); // the tip
     const geo = mergeGeometries(parts);
-    const seg = new THREE.Mesh(geo, blend || ringed
+    // Cat realism 2026-11-15 (round 1's leftover): from straight behind, the
+    // tail's root showed as a soft disc on the rump, because the root link is
+    // the plain coat colour while the rump under it is painted (shaded low
+    // down, striped or patched). The root link now wears the rump's own
+    // painted colour at its root ball and eases into the tail's colour along
+    // its length (rootColour). Colour only. A pointed cat's tail is the point
+    // colour to the root, as it was; the family cats' tails (drawn from their
+    // photos) and a crowd cat's stay plain too.
+    const rooted = i === 0 && !s.points && !family && !opts.simple;
+    const seg = new THREE.Mesh(geo, blend || ringed || rooted
       ? litMaterial(0xffffff, { vertexColors: true })
       : mat((i >= 3 && darkTip) || s.points ? s.accent : s.base));
+    if (rooted) {
+      const pos = geo.attributes.position, col = new Float32Array(pos.count * 3), c = new THREE.Color();
+      for (let k = 0; k < pos.count; k++) rootColour(pos.getX(k), pos.getY(k), pos.getZ(k), c).toArray(col, k * 3);
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
     if (blend) {
       // Coat at and behind the pivot, the tip colour from a third of the way
       // along the link (u = 2/3 of the whole tail) on.
@@ -1562,6 +1597,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       const from = new THREE.Color(s.base), to = new THREE.Color(s.accent);
       appendTufts(geo, tailTufts(s, tufts.plan, tufts.seed, i, plume, tailRad, (z, c) => {
         if (blend) return c.lerpColors(from, to, Math.min(1, Math.max(0, z / (TAIL.LINK * TIP_FROM))));
+        if (rooted) return rootColour(0, 0, z, c);
         if (!ringed) return c.copy(from);
         const d = Math.abs(z / TAIL.LINK - TAIL_RING.at) - TAIL_RING.half;
         return c.lerpColors(from, to, (1 - Math.min(1, Math.max(0, d / TAIL_RING.soft))) * TAIL_RING.strength);
@@ -2086,7 +2122,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const [limb, ...hung] = child.children;
     limb.geometry.dispose();
     const k = legs.indexOf(child);
-    limb.geometry = paintLimb(limbGeometry(LEGS.LEN * LEG_LEN, k >= 2, opts.simple), legHex, limbTop[k]);
+    limb.geometry = paintLimb(limbGeometry(LEGS.LEN * LEG_LEN, k >= 2, opts.simple), legHex, limbTop[k], legBars, legBarMix);
     for (const part of hung) part.position.y -= dy; // the paw, a cuff, a sneaker stripe
   }
   // The folds (Task 5, R1): each leg gets its baked fold shapes now, with its

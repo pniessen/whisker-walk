@@ -272,6 +272,29 @@ export const FOLDS = Object.freeze({
     front: fold([[0.30, 0], [0.25, -0.02], [0.241, -0.069], [0.20, -0.041]], [0.085, 0.055, 0.045, 0.036], [0.18, -0.07], -0.6),
     hind: fold([[0.30, 0], [0.24, -0.05], [0.203, -0.029], [0.1615, -0.0576]], [0.10, 0.075, 0.05, 0.036], [0.17, -0.07], 0.6),
   }),
+  // The play bow (cat realism A7, 2026-11-15; the stretch): front legs only.
+  // The shoulder is down at BOW.shoulder (torso.js; the animator pitches the
+  // torso nose-down onto it and moves the hip there), the elbow low behind
+  // the paw and the forearm lies along the ground into the heel of a paw
+  // that presses flat on it. `ground`: the points are in the ground frame
+  // like a crouch's (y = g - hipY), but the body is not lowered by legLift
+  // with them: the hind legs stand, the animator alone places the torso.
+  // The raised grooming paw (cat realism 2026-11-15): one front leg only
+  // (FOLD_LEG). It was the standing leg swung back under the belly, a stub
+  // nobody saw. The upper leg comes down to an elbow just ahead of the chest
+  // and the forearm rises forward to a paw held under the chin, its toes
+  // curled back toward the mouth (pawRotX 2.5: the paw's own up axis points
+  // down the forearm, so the limb's last stretch runs into its heel as a
+  // standing leg's does). Not a crouch: the points ride with the hip, so a
+  // long-legged cat lifts its paw as high under its chin as a tabby does.
+  lick: Object.freeze({
+    crouch: false, drop: 0.045,
+    front: fold([[0.255, 0.06], [0.16, -0.03], [0.204, -0.1355], [0.252, -0.1715]], [0.085, 0.06, 0.042, 0.036], [0.27, -0.17], 2.5),
+  }),
+  bow: Object.freeze({
+    crouch: false, ground: true, drop: 0.115,
+    front: fold([[0.185, 0.05], [0.085, 0.01], [0.05, -0.13], [0.04, -0.24]], [0.085, 0.06, 0.042, 0.036], [0.0415, -0.27]),
+  }),
 });
 
 // R3: which states fold, as [front, hind]. Every other state stands (the
@@ -284,7 +307,12 @@ export const FOLD_BY_STATE = Object.freeze({
   requestPet: Object.freeze(['stand', 'sit']),
   perch: Object.freeze(['stand', 'sit']),
   roll: Object.freeze(['ball', 'ball']),
+  stretch: Object.freeze(['bow', 'stand']),
 });
+
+// One leg's own fold in a state, by leg index (0 front left, 1 front right):
+// grooming raises the front right paw to the mouth.
+export const FOLD_LEG = Object.freeze({ groom: Object.freeze({ 1: 'lick' }) });
 
 // A fold's tube keeps the inside of each bend within FOLD_BEND x its radius
 // of curvature (tubeArrays' `bend`), so a tight knee presses in, not over
@@ -299,7 +327,7 @@ function bakedFold(kind, hind, simple, hipY) {
   if (baked) return baked;
   const f = FOLDS[kind];
   const shape = f[hind ? 'hind' : 'front'];
-  const y0 = f.crouch ? hipY : REF_RIG.HIP_Y;
+  const y0 = f.crouch || f.ground ? hipY : REF_RIG.HIP_Y;
   const { pos, nor, t } = tubeArrays(shape.points.map(([g, z]) => [0, g - y0, z]), shape.radii, LIMB_SEG[simple ? 'simple' : 'full'], FOLD_BEND);
   if (shape.flat !== 1) flatten(pos, nor, t, shape.flat, FLAT_SPAN / (shape.points.length - 1));
   baked = Object.freeze({
@@ -430,8 +458,11 @@ export function applyFold(leg, kind) {
 // The limb's vertex colours: `topHex` (a hex or a THREE.Color, the torso's
 // painted colour at the hip) at t 0, easing (smoothstep) into `legHex` by
 // t = LEG_BLEND, `legHex` exactly below that.
-export function paintLimb(geo, legHex, topHex) {
+// `barHex` (cat realism A5; a striped coat's leg bars, coat.js COAT_DETAIL):
+// soft bars of that colour across the leg, `barMix(t)` of the way to it.
+export function paintLimb(geo, legHex, topHex, barHex = null, barMix = null) {
   const leg = new THREE.Color(legHex), top = new THREE.Color(topHex), c = new THREE.Color();
+  const bar = barHex === null ? null : new THREE.Color(barHex);
   const { t } = geo.userData;
   const col = new Float32Array(t.length * 3);
   for (let i = 0; i < t.length; i++) {
@@ -439,6 +470,7 @@ export function paintLimb(geo, legHex, topHex) {
     if (k >= 1) c.copy(leg);
     else if (k <= 0) c.copy(top);
     else c.copy(top).lerp(leg, smooth(k));
+    if (bar) { const m = barMix(t[i]); if (m > 0) c.lerp(bar, m); }
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));

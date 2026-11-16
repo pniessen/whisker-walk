@@ -17,6 +17,7 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { animateCat, refitNeck } from './cat/animator.js';
+import { NAP } from './cat/torso.js';
 import { makeNameTag } from './nametag.js';
 import { DEN_SPOTS, clearsCamera } from './den.js';
 import { strayBreed } from './straynames.js';
@@ -191,9 +192,12 @@ function findPlace(anchor, base, tangent, r, placed, obstacles, fit = {}) {
 // every part this frame.
 function sleepyLoaf(group) {
   const { head, tailPivots } = group.userData.parts;
-  head.position.x -= 0.08;     // undo the nap's sideways shift
-  head.position.y += 0.12;     // chin up off the floor so the face shows
-  head.position.z -= 0.14;     // forward, out of the body's shadow
+  // 2026-11-15 (cat realism): the animator's napping head moved (down on the
+  // forepaws, cat/torso.js NAP). The loaf's head is where it always was: level
+  // with the body's front, 12 cm under where the cat holds it standing.
+  head.position.x -= NAP.head[0];          // undo the nap's sideways shift
+  head.position.y += -0.12 - NAP.head[1];  // chin up off the floor so the face shows
+  head.position.z -= NAP.head[2];          // over the chest, out of the body's shadow
   head.rotation.set(0.28, 0, 0.1);
   for (const p of tailPivots) p.rotation.y = 0.12; // tail alongside, not over the face
   // the collar, neck pieces and a cape's throat clasp follow the moved head

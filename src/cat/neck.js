@@ -91,6 +91,13 @@ const _n = new THREE.Vector3(), _a = new THREE.Vector3(), _l = new THREE.Vector3
 const _U = new THREE.Matrix4(), _Uinv = new THREE.Matrix4();
 const _nb = new THREE.Matrix3(), _nh = new THREE.Matrix3(), _ut = new THREE.Matrix3();
 const _P = new Float32Array(NECK_RINGS * 64 * 3), _Nn = new Float32Array(NECK_RINGS * 64 * 3);
+// A point written into a Float32Array. Not Vector3.toArray: that one method
+// is shared by every caller, and once any of them has grown a plain array
+// through it (building a cape, a backpack or a balloon does) its store turns
+// generic for all. This runs 300 times a frame for every detailed cat, and
+// measured through toArray the whole animator took twice as long from the
+// moment such a cat was built (0.013 -> 0.026 ms a cat, 2026-11-15).
+const put = (arr, k, v) => { arr[k] = v.x; arr[k + 1] = v.y; arr[k + 2] = v.z; };
 export function layNeck(neck, bodyM, headM, carryM, underM, geo) {
   const N = neck.around, R = NECK_RINGS;
   const { b, bn, m, h, hn } = neck.loops;
@@ -107,23 +114,23 @@ export function layNeck(neck, bodyM, headM, carryM, underM, geo) {
       const reach = NECK.NAPE_REACH * _B.distanceTo(_H), off = _M.distanceTo(_c);
       if (off > reach) _M.sub(_c).multiplyScalar(reach / off).add(_c);
     }
-    _B.toArray(_P, j * 3);
+    put(_P, j * 3, _B);
     _P[(N + j) * 3] = 0.375 * _B.x + 0.75 * _M.x - 0.125 * _H.x;
     _P[(N + j) * 3 + 1] = 0.375 * _B.y + 0.75 * _M.y - 0.125 * _H.y;
     _P[(N + j) * 3 + 2] = 0.375 * _B.z + 0.75 * _M.z - 0.125 * _H.z;
-    _M.toArray(_P, (2 * N + j) * 3);
+    put(_P, (2 * N + j) * 3, _M);
     _P[(3 * N + j) * 3] = -0.125 * _B.x + 0.75 * _M.x + 0.375 * _H.x;
     _P[(3 * N + j) * 3 + 1] = -0.125 * _B.y + 0.75 * _M.y + 0.375 * _H.y;
     _P[(3 * N + j) * 3 + 2] = -0.125 * _B.z + 0.75 * _M.z + 0.375 * _H.z;
-    _H.toArray(_P, (4 * N + j) * 3);
+    put(_P, (4 * N + j) * 3, _H);
   }
   // Normals, cat frame. The end rings wear their surfaces' own (the torso's,
   // the skull's); the three between take the skin's, from their neighbours
   // round the ring and along the neck, turned to face out from the ring.
   _nb.getNormalMatrix(bodyM); _nh.getNormalMatrix(headM);
   for (let j = 0; j < N; j++) {
-    _n.fromArray(bn, j * 3).applyMatrix3(_nb).normalize().toArray(_Nn, j * 3);
-    _n.fromArray(hn, j * 3).applyMatrix3(_nh).normalize().toArray(_Nn, (4 * N + j) * 3);
+    put(_Nn, j * 3, _n.fromArray(bn, j * 3).applyMatrix3(_nb).normalize());
+    put(_Nn, (4 * N + j) * 3, _n.fromArray(hn, j * 3).applyMatrix3(_nh).normalize());
   }
   for (let i = 1; i < R - 1; i++) {
     _c.set(0, 0, 0);
@@ -137,7 +144,7 @@ export function layNeck(neck, bodyM, headM, carryM, underM, geo) {
       const out = _n.x * (_P[k] - _c.x) + _n.y * (_P[k + 1] - _c.y) + _n.z * (_P[k + 2] - _c.z);
       const L = _n.length() * (out < 0 ? -1 : 1);
       if (L === 0) _n.set(_P[k] - _c.x, _P[k + 1] - _c.y, _P[k + 2] - _c.z).normalize(); else _n.divideScalar(L);
-      _n.toArray(_Nn, k);
+      put(_Nn, k, _n);
     }
   }
   // Into the underside's own frame: points by the inverse of body x underside,
@@ -147,8 +154,8 @@ export function layNeck(neck, bodyM, headM, carryM, underM, geo) {
   _ut.setFromMatrix4(_U).transpose();
   const pos = geo.attributes.position, nor = geo.attributes.normal, at = neck.start * 3, count = R * N;
   for (let k = 0; k < count; k++) {
-    _B.fromArray(_P, k * 3).applyMatrix4(_Uinv).toArray(pos.array, at + k * 3);
-    _n.fromArray(_Nn, k * 3).applyMatrix3(_ut).normalize().toArray(nor.array, at + k * 3);
+    put(pos.array, at + k * 3, _B.fromArray(_P, k * 3).applyMatrix4(_Uinv));
+    put(nor.array, at + k * 3, _n.fromArray(_Nn, k * 3).applyMatrix3(_ut).normalize());
   }
   pos.clearUpdateRanges(); pos.addUpdateRange(at, count * 3); pos.needsUpdate = true;
   nor.clearUpdateRanges(); nor.addUpdateRange(at, count * 3); nor.needsUpdate = true;
