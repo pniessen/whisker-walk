@@ -773,6 +773,13 @@ function fitLongLegs(cat) {
   }
 }
 
+// The landing's head (cat realism A7): the squash (body y -0.05, scale y
+// 0.78, z 1.05) carries the chest centre 6.3 cm down and 1.7 cm forward and
+// the top of the shoulders 8 cm down. The head goes down `dy` and forward
+// `dz` with them and ducks `tip` (rad, - is nose-down), so the neck is no
+// longer than the standing cat's (test/catrealposes.test.js).
+export const LAND_HEAD = Object.freeze({ dy: -0.075, dz: -0.02, tip: -0.1 });
+
 // The ordinary walk gait's legs, shared by the walk below and the shake (a cat
 // shaking as it walks still walks). Returns the stride frequency.
 function walkGait(legs, t, moveSpeed, freqK = 1, ampK = 1, ampMax = 0.6) {
@@ -1266,6 +1273,14 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     // landing squash: wide and low for a beat
     body.scale.set(bsx * 1.14, bsy * 0.78, bsz * 1.05);
     body.position.y = base.bodyY - 0.05;
+    // Cat realism A7 (2026-11-15): the head comes down with the squashed
+    // shoulders (LAND_HEAD). It stayed where the standing cat holds it, so for
+    // that beat it floated 6-8 cm clear of the body on a stretched neck.
+    // Cats only: Hagrid's neck is built for his still head (hen.js).
+    if (folds) {
+      head.position.set(hx, hy + LAND_HEAD.dy, hz + LAND_HEAD.dz);
+      head.rotation.x = LAND_HEAD.tip;
+    }
     return;
   }
 

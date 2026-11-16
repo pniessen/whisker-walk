@@ -126,3 +126,31 @@ describe('the stretch is a play bow (A7)', () => {
     expect(ha.position.toArray()).toEqual(hb.position.toArray());
   });
 });
+
+// The neck's length: the posed chest centre (read through the underside, as
+// the collar's carry reads it) to the head's centre.
+function neckLength(cat) {
+  const { body, head, underside } = cat.userData.parts;
+  body.updateMatrix(); underside.updateMatrix();
+  return _v.fromArray(underside.userData.chestCentre).applyMatrix4(underside.matrix).applyMatrix4(body.matrix).distanceTo(head.position);
+}
+
+describe('landing, the head comes down with the body (A7)', () => {
+  it('the neck is no longer than the standing cat\'s, and not crushed', () => {
+    for (const [breed, simple] of BUILDS) {
+      const cat = make(breed, simple);
+      const standing = neckLength(pose(cat, 'follow', 0));
+      const landed = neckLength(pose(cat, 'land'));
+      // The old landing left the head where it stood over a body squashed 6 cm
+      // down: the neck was 5.7 cm longer than standing, the head floating.
+      expect(landed, label(breed, simple)).toBeLessThanOrEqual(standing + 0.005);
+      expect(landed, label(breed, simple)).toBeGreaterThanOrEqual(standing - 0.03);
+    }
+  });
+  it('a collar stays on the neck and nothing goes into the ground', () => {
+    for (const breed of PRESETS) {
+      const cat = pose(make(breed, false, { collar: 'bell', neck: 'scarf', head: 'tophat', body: 'cape' }), 'land');
+      expect(span(cat).min, breed).toBeGreaterThanOrEqual(-0.001);
+    }
+  });
+});
