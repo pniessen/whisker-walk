@@ -203,8 +203,8 @@ export const POSE_FIT = Object.freeze({
 //   hindOut (m; cat realism B11, 2026-11-16): sitting, each hind hip stands
 //     this much further out, so the folded thigh (limbs.js FOLDS.sit) shows
 //     as a rounded haunch out of the torso's side, widest low down: from
-//     behind the sitting cat is a pear, where it was a tube on end. Not on a
-//     cat dressed on its body (limbs.js SLIM_FOLD).
+//     behind the sitting cat is a pear, where it was a tube on end. A cat
+//     dressed on its body too (2026-11-16): its cloth lies over the haunch (drape.js).
 //   foreZ (metres, cat frame, - is forward): both front hips move forward by
 //     this: -0.06, the hips at z -0.30, inside the chest; the paws stand 8.3 cm
 //     behind the chest's front (the upper chest, y 0.46-0.48), as a sitting

@@ -503,7 +503,9 @@ describe('the fold table', () => {
     // fold of their own (`bow`: forearms along the ground, the paws pressed on it).
     // The groom's raised paw is a fold too (`lick`, one front leg; limbs.js FOLD_LEG).
     // 2026-11-16 (cat realism B11): the nap has a fold of its own, `loaf` (`tuck` stays the pinned cat's).
-    expect(Object.keys(FOLDS)).toEqual(['stand', 'sit', 'tuck', 'loaf', 'sitIn', 'loafIn', 'crouch', 'ball', 'lick', 'bow']); // sitIn, loafIn: a dressed cat's slim hind folds
+    // 2026-11-16 (clothes over the haunch): `sitIn` and `loafIn`, the slim hind folds a cat dressed on
+    // its body took, are gone: a dressed cat has the haunch and its cloth is laid over it (drape.js).
+    expect(Object.keys(FOLDS)).toEqual(['stand', 'sit', 'tuck', 'loaf', 'crouch', 'ball', 'lick', 'bow']);
     expect(FOLDS.stand.crouch).toBe(false);
     for (const [kind, f] of Object.entries(FOLDS)) {
       if (kind === 'stand') continue;
@@ -513,7 +515,7 @@ describe('the fold table', () => {
         // 2026-11-16 (cat realism B11): the sit's and the loaf's upper legs lie
         // against the body as haunches and shoulders, lower than the lowered
         // hip; every other fold's top is at it, as before.
-        if (kind === 'sit' || kind === 'loaf' || kind === 'loafIn') expect(points[0][0], `${kind} ${which} top`).toBeLessThanOrEqual(REF_RIG.HIP_Y - f.drop + 1e-9);
+        if (kind === 'sit' || kind === 'loaf') expect(points[0][0], `${kind} ${which} top`).toBeLessThanOrEqual(REF_RIG.HIP_Y - f.drop + 1e-9);
         else expect(points[0][0], `${kind} ${which} top`).toBeCloseTo(REF_RIG.HIP_Y - f.drop, 9);
         points.forEach(([g], i) => expect(g, `${kind} ${which} point ${i}`).toBeGreaterThanOrEqual(radii[i] + 0.002 - 1e-9));
         expect(paw.length).toBe(2);
