@@ -435,6 +435,7 @@ function init() {
   const nearby = createNearby({
     bridge: pickBridge(window), storage: window.localStorage, rooms,
     getName: () => progression.state.petName,
+    onlineAllowed,
   });
   window.addEventListener(NEARBY_EVENT, (e) => nearby.receive(e.detail));
   // Put away (another app, the screen locked): nothing is looked for and
