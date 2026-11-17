@@ -9,8 +9,12 @@
 // src/ literals.) That is also why the display words below were each grepped
 // against src/ string literals and found clean; keep them that way.
 //
-// A leaf module, data only: it imports nothing and has no functions, so every
-// later clan task can consume it without a cycle and without pulling in THREE.
+// A leaf module, data only: it imports nothing and has no functions.
+//
+// 2026-11-17: this file is one word SET, the family's ('on'). Only
+// src/wordset.js imports it; every other module asks that file for words()
+// when it needs a word, so a second set can stand in for this one
+// (test/wordset.test.js fails on any other import of this file).
 //
 // Pool size must NEVER be derived from, or feed, CAT_NAMES in straynames.js.
 // That list is the 48 strays and is fixed; clan names are composed here, from
