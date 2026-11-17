@@ -3,14 +3,13 @@
 Checked against the repository on 2026-11-15 (`package.json`,
 `package-lock.json`, `public/`, `src/`, `ios/`, and the git history of each
 asset). Where the repository does not record where something came from, it is
-listed at the end as a question for the owner; nothing here is a guess.
+listed at the end with the owner's answer; nothing here is a guess.
 
-## Licence: not yet chosen
+## Licence: all rights reserved
 
-The project has no licence file yet. Which licence it carries is the owner's
-decision. Until one is added, the code and art are simply "all rights
-reserved" by default: nobody else may copy or reuse them. The third-party
-libraries below keep their own licences whatever is chosen.
+The owner chose this on 2026-11-17; the wording is in `LICENSE`. People may
+play the game, and nobody else may copy or reuse the code or art without
+asking. The third-party libraries below keep their own licences.
 
 ## Libraries that ship inside the game
 
@@ -86,20 +85,15 @@ book series (clan names in that style, "kittypet", "loner", "rogue",
 about what is and is not the project's own. The planned on/off switch for
 these words is the place where it is handled.
 
-## Origin not recorded: needs the owner's answer
+## Origins the repository did not record: the owner's answers (2026-11-17)
 
-1. **`public/places/den.jpg`.** Added in commit `9e263fe` as "den picture".
-   The other place pictures are documented as taken from the game; this one is
-   not mentioned in `docs/VISUAL-PASS.md`. Is it also a picture of the game?
+1. **`public/places/den.jpg`** is a picture of the game itself, like the
+   other place pictures.
 2. **The pictures inside `docs/family/clan-edition.html`** (five small cat
-   portraits and one larger picture, embedded in the page; added in commit
-   `8c0321d`). They look like pictures of the game, but nothing in the
-   repository says how they were made. The page is not part of the website.
-3. **Who drew the icons.** The commits show `public/icon.svg` and
-   `ios/AppIcon.svg` being written for this project, but not whether a person
-   or an AI assistant drew them, or whether they follow someone else's design.
-   The same question applies to the code-built art and code-made sounds if the
-   licence or a store listing ever asks about AI-assisted work.
-4. **Sound and music recipes.** The sounds are made by code, and no outside
-   source is cited in the files. If any melody or sound recipe was adapted
-   from somewhere, it should be named here.
+   portraits and one larger picture) are pictures of the game. The page is
+   not part of the website.
+3. **The icons** (`public/icon.svg`, `ios/AppIcon.svg`) were drawn for this
+   project with an AI assistant and follow nobody else's design. The
+   code-built art and code-made sounds were written the same way.
+4. **Sounds and music** are made by the game's own code and were not adapted
+   from an existing tune or recipe.
