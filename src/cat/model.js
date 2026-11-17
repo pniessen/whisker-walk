@@ -2234,12 +2234,12 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       const key = `${kind}|${shapeKey}`;
       let h = haunches.get(key);
       if (!h) {
-        const pts = [];
+        const pts = []; // one array for each hind leg
         let scale = BODY_SCALE;
         for (const [k, leg] of hind.entries()) {
           const m = seamPose(kind, hips[k], bodyY, hipY, BODY_SCALE, fx);
           scale = m.scale;
-          haunchPoints(leg.userData.folds[kind].pos, leg.children[0].geometry.index.array, leg.children[0].geometry.userData.t, m.matrix, scale, pts);
+          pts.push(haunchPoints(leg.userData.folds[kind].pos, leg.children[0].geometry.index.array, leg.children[0].geometry.userData.t, m.matrix, scale));
         }
         h = { pts, scale, toCat: posedBody(kind, bodyY, hipY, BODY_SCALE).elements };
         haunches.set(key, h);
