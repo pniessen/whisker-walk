@@ -1265,7 +1265,8 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
         // 2026-11-16 (cat realism B11): a crowd cat's root link now wears the rump's painted colour
         // at its root and eases into the tail's (as a full build's has since 2026-11-15;
         // catrealposes.test.js holds it), so link 0 of a non-family cat is not checked here.
-        if (k === 0 && breed !== 'digit') return;
+        // 2026-11-17 (leftovers): a family cat's root link wears it too, so link 0 is checked on no cat here.
+        if (k === 0) return;
         for (let i = 0; i < p.count; i++) {
           const u = (k * L + Math.min(L, Math.max(0, p.getZ(i)))) / (5 * L);
           if (u <= 0.6 + 1e-9) { expect(colourDistance(drawn(m, i), new THREE.Color(base)), `${breed} link ${k} u ${u}`).toBeLessThan(1e-6); nBase++; }
@@ -1318,7 +1319,13 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
       let n = 0;
       links.forEach((m, k) => {
         const p = m.geometry.attributes.position;
-        for (let i = 0; i < p.count; i++) { expect(colourDistance(drawn(m, i), tip), `siamese ${simple} link ${k}`).toBeLessThan(1e-6); n++; }
+        for (let i = 0; i < p.count; i++) {
+          // 2026-11-17 (leftovers): the root link comes out of the pale rump in the rump's own
+          // painted colour (it showed as a dark disc from behind) and is the point colour from
+          // 0.6 of its length on (model.js TAIL_ROOT_EASE; catrealposes.test.js holds the root).
+          if (k === 0 && p.getZ(i) < 0.6 * 0.14 - 1e-9) continue;
+          expect(colourDistance(drawn(m, i), tip), `siamese ${simple} link ${k}`).toBeLessThan(1e-6); n++;
+        }
       });
       expect(n).toBeGreaterThan(150);
     }

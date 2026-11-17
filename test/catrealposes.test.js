@@ -312,7 +312,9 @@ describe('the tail root wears the rump\'s colour (round 1\'s leftover)', () => {
     const { coatColourAt } = await import('../src/cat/coat.js');
     const { torsoUnitAt, TAIL } = await import('../src/cat/torso.js');
     // 2026-11-16 (cat realism B11): crowd cats (the simple tabby and calico) wear it too; they were left plain.
-    for (const [breed, simple] of [['tabby'], ['calico'], ['black'], ['persian'], ['mainecoon'], ['tabby', true], ['calico', true]]) {
+    // 2026-11-17 (leftovers): so do the family cats and the pointed cats, full and simple (they kept a plain root, a disc from behind).
+    for (const [breed, simple] of [['tabby'], ['calico'], ['black'], ['persian'], ['mainecoon'], ['tabby', true], ['calico', true],
+      ['digit'], ['d2'], ['robbie'], ['zeetoo'], ['siamese'], ['digit', true], ['robbie', true], ['siamese', true]]) {
       const cat = make(breed, !!simple);
       const { body, tail, tailPivots } = cat.userData.parts;
       // the tail carried as the root was painted for: TAIL.SEAM_LIFT above level
@@ -334,10 +336,24 @@ describe('the tail root wears the rump\'s colour (round 1\'s leftover)', () => {
       }
       expect(ball, breed).toBeGreaterThan(20);
       expect(worst, breed).toBeLessThan(0.02);
-    }
-    // family cats and pointed cats keep the plain root, full and simple
-    for (const [breed, simple] of [['digit', false], ['d2', false], ['robbie', false], ['zeetoo', false], ['siamese', false], ['digit', true], ['robbie', true], ['siamese', true]]) {
-      expect(make(breed, simple).userData.parts.tailPivots[0].children[0].geometry.attributes.color, breed).toBeUndefined();
+      // by its far end the link is the tail's own colour: the coat's, a pointed cat's point colour
+      // (read off the start of the next link, which is that colour on every cat)
+      const next = tailPivots[1].children[0], own = next.material.color.clone();
+      if (next.material.vertexColors) {
+        const np = next.geometry.attributes.position, nc = next.geometry.attributes.color;
+        let k0 = 0; for (let i = 0; i < np.count; i++) if (Math.abs(np.getZ(i)) < Math.abs(np.getZ(k0))) k0 = i;
+        own.multiply(new THREE.Color().fromBufferAttribute(nc, k0));
+      }
+      let far = 0;
+      for (let i = 0; i < n; i++) {
+        if (p.getZ(i) < TAIL.LINK - 1e-6) continue;
+        far++;
+        got.fromBufferAttribute(col, i);
+        expect(Math.hypot(got.r - own.r, got.g - own.g, got.b - own.b), `${breed} far end`).toBeLessThan(1e-6);
+      }
+      expect(far, breed).toBeGreaterThan(8);
+      // no triangle, no mesh more than the plain root had: the link is still one mesh
+      expect(tailPivots[0].children.filter((o) => o.isMesh).length, breed).toBe(1);
     }
   });
 });
