@@ -203,8 +203,7 @@ one-page map of where things live.
 [CREDITS.md](CREDITS.md) lists the third-party libraries the game is built
 with (Three.js and the Supabase client, both MIT) and where every picture and
 sound comes from: the game draws its art and makes its sounds in code. The
-project's own licence has not been chosen yet, so no licence file is included;
-until one is, all rights are reserved.
+project's own licence is in [LICENSE](LICENSE): all rights reserved.
 
 ## Privacy
 
