@@ -14,6 +14,7 @@
 //   test/fixtures/series-words-on-play.json   serieswords.play.test.js
 //   test/fixtures/series-words-on-home.json   serieswords.home.test.js
 //   test/fixtures/series-words-on-world.json  serieswords.world.test.js
+//   test/fixtures/series-words-on-tutorial.json serieswords.tutorial.test.js
 //   test/fixtures/series-words-on-source.json serieswords.source.test.js
 //
 // A failure lists each string that moved as "path: expected X, received Y".
@@ -26,9 +27,9 @@
 //
 // then read the fixture's diff line by line before committing it.
 //
-// Not here on purpose: the guided first walk's own words (src/tutorialwords.js,
-// src/hints.js, src/game/tips.js, the home screen's "next thing" line). They
-// are written in neutral words and are still being built.
+// The guided first walk's own words (src/tutorialwords.js) and the home
+// screen's "next thing" line are written in neutral words; since 2026-11-17
+// they are recorded too, in series-words-on-tutorial.json.
 import { describe, it, expect } from 'vitest';
 // 2026-11-17: the tables are read through the game's own door, words(), when a
 // string is built (they were imported from clanwords.js). With the 'on' set

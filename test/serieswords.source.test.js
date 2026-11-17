@@ -25,13 +25,13 @@
 // See test/serieswords.test.js for what the snapshot is for and for the
 // re-record switch (UPDATE_SERIES_SNAPSHOT=1 npx vitest run test/serieswords;
 // run it twice when this fixture is being re-recorded, because this file reads
-// the other four).
+// the other five).
 import { describe, it, expect } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import * as words from '../src/clanwords.js';
 import { checkAgainstFixture, readFixture, stringsIn, literalsIn, sorted, uniq, UPDATING } from './helpers/serieswords.js';
 
-const OUTPUT_FIXTURES = ['series-words-on.json', 'series-words-on-play.json', 'series-words-on-home.json', 'series-words-on-world.json'];
+const OUTPUT_FIXTURES = ['series-words-on.json', 'series-words-on-play.json', 'series-words-on-home.json', 'series-words-on-world.json', 'series-words-on-tutorial.json'];
 const SOURCE_FIXTURE = 'series-words-on-source.json';
 
 // Printed straight to the run's output: vitest keeps a passing test's console quiet.
@@ -111,8 +111,10 @@ describe('series words: nothing in the word tables goes unrecorded', () => {
 // ---- 2. lines not reached ---------------------------------------------------
 
 // Files whose words are not part of the switch (the word tables themselves;
-// the guided first walk; a list of field notes that are not shown to anyone).
-const SKIP_FILES = ['src/clanwords.js', 'src/tutorialwords.js', 'src/hints.js', 'src/game/tips.js', 'src/game/session.js'];
+// the hints' and tips' rules, whose words are in tutorialwords.js; a list of
+// field notes that are not shown to anyone). 2026-11-17: tutorialwords.js is
+// no longer skipped: its lines are recorded in series-words-on-tutorial.json.
+const SKIP_FILES = ['src/clanwords.js', 'src/hints.js', 'src/game/tips.js', 'src/game/session.js'];
 // Words that sit beside the series vocabulary in a line.
 const SEARCH = /patrol|\bborders?\b|intruder|trespass|\brivals?\b|\ball(y|ies)\b|\bcamp\b|territor|scent|\bmarks?\b|star name|truce|\bmeeting\b|great oak|sun-warmed|\bland\b|chased|\bfacing\b|faced down|shook it off|ran back|won this time|lets you pass|blocks your path|leading the way/i;
 // Not shown to a player (console and thrown messages, shader code), or about
