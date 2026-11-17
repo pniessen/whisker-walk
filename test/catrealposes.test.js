@@ -269,7 +269,7 @@ describe('napping, the head is down on the paws', () => {
 
 // Leftovers (2026-11-17). Every cat here is posed STANDING first, as a cat in
 // play is, then laid down, then got up again.
-describe('napping, no lump stands behind the head (leftovers)', () => {
+describe('napping, the cat curls toward its tail and no lump stands behind the head (leftovers)', () => {
   const chestTop = (cat) => {
     const { underside } = cat.userData.parts, [c0, c1] = underside.userData.ranges.chest, p = underside.geometry.attributes.position;
     let top = -Infinity;
@@ -287,7 +287,33 @@ describe('napping, no lump stands behind the head (leftovers)', () => {
       const cat = pose(pose(make(breed, simple), 'follow', 0.5), 'nap');
       const at = label(breed, simple);
       expect(shoulders(cat) - chestTop(cat), at).toBeGreaterThanOrEqual(0.05);
+      // and it is behind the head seen from the front: no wider than the skull on the side the head left
+      const { head, underside } = cat.userData.parts, [c0, c1] = underside.userData.ranges.chest, p = underside.geometry.attributes.position;
+      let right = -Infinity;
+      for (let i = c0; i < c1; i++) right = Math.max(right, _v.fromBufferAttribute(p, i).applyMatrix4(underside.matrixWorld).x);
+      expect(right, at).toBeLessThanOrEqual(head.position.x + 0.21);
     }
+  });
+  it('the face is turned more than 60 degrees to the tail and the nose is 10 cm nearer the tail\'s tip than it was', () => {
+    for (const [breed, simple] of BUILDS) {
+      const cat = pose(pose(make(breed, simple), 'follow', 0.5), 'nap');
+      const { head, tailPivots } = cat.userData.parts, at = label(breed, simple);
+      expect(head.rotation.y, at).toBeGreaterThan(1.05);
+      expect(head.position.x, at).toBeLessThanOrEqual(-0.1); // tucked to the cat's left, the tail's side
+      const nose = new THREE.Vector3(0, 0, -0.2).applyMatrix4(head.matrixWorld);
+      const tip = new THREE.Vector3(0, 0, 0.14).applyMatrix4(tailPivots[4].matrixWorld);
+      expect(tip.x, at).toBeLessThan(0);
+      // the old pose, the same cat: head [-0.02, -0.32, -0.08] from standing, turned 0.75
+      const was = new THREE.Vector3(0, 0, -0.2).applyEuler(new THREE.Euler(-0.05, 0.75, 0.18)).multiplyScalar(head.scale.x)
+        .add(new THREE.Vector3(head.position.x + 0.1, head.position.y, head.position.z - 0.05));
+      expect(was.distanceTo(tip) - nose.distanceTo(tip), at).toBeGreaterThanOrEqual(0.10);
+    }
+  });
+  it('the torso is not bent or turned: what lies on the back lies as it did', () => {
+    const cat = pose(pose(make('tabby', false, { body: 'cape', back: 'backpack' }), 'follow', 0.5), 'nap');
+    const { body } = cat.userData.parts;
+    expect(body.rotation.y).toBe(0);
+    expect(body.rotation.z).toBe(0);
   });
   it('nothing is uploaded for it: the chest\'s own points are the standing ones, lying down and getting up', () => {
     for (const [breed, simple] of [['tabby', false], ['digit', false], ['persian', false], ['tabby', true]]) {
