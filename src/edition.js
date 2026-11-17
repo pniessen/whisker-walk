@@ -8,7 +8,7 @@
 // in test/clanwords.test.js flags 'clan' and every PLACE_WORDS value in any
 // src/ string literal. Player-facing words come from clanwords.js.
 
-import { PLACE_WORDS } from './clanwords.js';
+import { words } from './wordset.js';
 import { phrase } from './clanphrases.js';
 import { rivalFor } from './rivalclans.js';
 
@@ -42,7 +42,7 @@ export function areaInEdition(entry, edition) {
 
 // Own-property read so '__proto__' and friends are not areas.
 export function placeName(areaId, edition, catalog) {
-  if (areaId === 'neighborhood' && edition !== 'legacy') return PLACE_WORDS.town;
+  if (areaId === 'neighborhood' && edition !== 'legacy') return words().PLACE_WORDS.town;
   const areas = catalog && catalog.areas;
   if (!areas || !Object.hasOwn(areas, areaId)) return '';
   const name = areas[areaId].name;

@@ -202,7 +202,7 @@ const COLLECTIBLES = [
   { id: 'river-find-3', x: -38, z: -40, label: 'a mussel shell from the riverbank' },
   { id: 'river-find-4', x: 30, z: 30, label: 'a silver fish scale' },
   // on the Sun-warmed Rocks' first rock, so one hop up
-  { id: 'river-find-5', x: 34, z: -26, y: 0.72, label: phrase('landmark.river.warmPebble') },
+  { id: 'river-find-5', x: 34, z: -26, y: 0.72, get label() { return phrase('landmark.river.warmPebble'); } },
 ];
 
 // The two climb chains, two hops each, the shape the Woods use. The Old
@@ -223,7 +223,7 @@ const CHAIN_PERCHES = [
   { x: -14, z: -24.5, y: 0.72, kind: 'stone' },
   { x: OLD_WILLOW.x, z: OLD_WILLOW.z, y: 2.1, kind: 'tree', label: 'old willow lookout', vantage: true },
   { x: 34, z: -26, y: 0.72, kind: 'stone' },
-  { x: WARM_TOP.x, z: WARM_TOP.z, y: WARM_TOP.y, kind: 'stone', label: phrase('landmark.river.warmRocks'), vantage: true },
+  { x: WARM_TOP.x, z: WARM_TOP.z, y: WARM_TOP.y, kind: 'stone', get label() { return phrase('landmark.river.warmRocks'); }, vantage: true },
 ];
 
 // The fallen log in the meadow's south: a seat and a first hop. Three

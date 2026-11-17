@@ -34,10 +34,12 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
 
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
-const { RANK_WORDS, OUTSIDE_WORDS, PLACE_WORDS, CLAN_SUFFIX, PREFIXES, RANK_SUFFIX } = await import('../src/clanwords.js');
+// 2026-11-17: read through words(), as serieswords.test.js does (see there).
+const { words } = await import('../src/wordset.js');
 const { HOMES, clanName } = await import('../src/clanhomes.js');
 const { clanTitleFor } = await import('../src/clannames.js');
 const { checkAgainstFixture, htmlText, seriesFilter } = await import('./helpers/serieswords.js');
+const { withStandInWords, leaksIn, standInCount } = await import('./helpers/standinwords.js');
 
 const FIXTURE = 'series-words-on-home.json';
 const CLANS = Object.keys(HOMES);
@@ -78,12 +80,12 @@ function fakeDocument() {
 
 afterEach(() => { delete globalThis.document; });
 
-const keep = seriesFilter(
-  [...Object.values(RANK_WORDS), ...Object.values(OUTSIDE_WORDS), ...Object.values(PLACE_WORDS), CLAN_SUFFIX],
-  [...CLANS.map(clanName), ...PREFIXES.map((p) => p + CLAN_SUFFIX), ...PREFIXES.map((p) => p + RANK_SUFFIX.leader)],
+const seriesKeep = seriesFilter(
+  [...Object.values(words().RANK_WORDS), ...Object.values(words().OUTSIDE_WORDS), ...Object.values(words().PLACE_WORDS), words().CLAN_SUFFIX],
+  [...CLANS.map(clanName), ...words().PREFIXES.map((p) => p + words().CLAN_SUFFIX), ...words().PREFIXES.map((p) => p + words().RANK_SUFFIX.leader)],
 );
 
-function homeFor(edition, { mine = null } = {}) {
+function homeFor(edition, { mine = null, keep = seriesKeep } = {}) {
   const doc = fakeDocument();
   globalThis.document = doc;
   const progression = createProgression(memStorage());
@@ -107,15 +109,17 @@ function homeFor(edition, { mine = null } = {}) {
   return out;
 }
 
-function snapshot() {
+// `keep` picks the segments of each screen that are recorded: the series
+// ones for the fixture, every one for the stand-in run below.
+function snapshot(keep = seriesKeep) {
   return {
     about: 'The series words on the home screen. Recorded by test/serieswords.home.test.js; see test/serieswords.test.js before re-recording.',
     ownGroupTitleOfThisSave: clanTitleFor(ME),
     clanEdition: {
-      beforeAPick: homeFor('canon'),
-      picked: Object.fromEntries(CLANS.map((id) => [id, homeFor('canon', { mine: id }).colony])),
+      beforeAPick: homeFor('canon', { keep }),
+      picked: Object.fromEntries(CLANS.map((id) => [id, homeFor('canon', { mine: id, keep }).colony])),
     },
-    legacyEdition: homeFor('legacy'),
+    legacyEdition: homeFor('legacy', { keep }),
   };
 }
 
@@ -126,5 +130,17 @@ describe('series words on the home screen, pinned', () => {
 
   it('builds the same snapshot twice in a row', () => {
     expect(JSON.stringify(snapshot())).toBe(JSON.stringify(snapshot()));
+  });
+
+  // 2026-11-17. The whole home screen and its sheets (every segment, not only
+  // the recorded ones), built with a stand-in word set in use
+  // (test/helpers/standinwords.js: nonsense words, NOT the plain game's). Any
+  // word of the family's set still on it was fixed at start-up or was not
+  // read through src/wordset.js.
+  it('with a stand-in word set in use, no word of the "on" set is left on the home screen', () => {
+    const snap = withStandInWords(() => snapshot(() => true));
+    expect(leaksIn(snap)).toEqual([]);
+    expect(standInCount(snap)).toBeGreaterThan(20);
+    checkAgainstFixture(FIXTURE, snapshot());
   });
 });

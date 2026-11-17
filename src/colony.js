@@ -26,7 +26,7 @@
 import { isStrayName, isKittypetName } from './straynames.js';
 import { friendRungs } from './skills.js';
 import { seedFromCode } from './rng.js';
-import { OUTSIDE_WORDS } from './clanwords.js';
+import { words } from './wordset.js';
 import { phrase } from './clanphrases.js';
 // Pure data (no imports of its own), so colony.js stays free of THREE and DOM.
 import { DEN_SPOTS, DEN_HOMES } from './den.js';
@@ -818,6 +818,6 @@ export function outsideTag(colony, name, key, make = (w) => phrase('outside.the'
     if (key === 'grudge') return '';
     if (key === 'met') key = 'house';
   }
-  const word = OUTSIDE_WORDS[key];
+  const word = words().OUTSIDE_WORDS[key];
   return typeof word === 'string' ? make(word) : '';
 }

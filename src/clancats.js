@@ -38,7 +38,7 @@ import { animateCat } from './cat/animator.js';
 import { makeNameTag, NAME_TAG_RANGE, tagBudget, CAMP_TAG_MAX } from './nametag.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { RANK_SCALE, ROAM_SLOTS, CAST_RANKS, tagOptsFor } from './clancast.js';
-import { RANK_KEYS } from './clanwords.js';
+import { RANK_KEYS } from './wordset.js';
 import { isTrespassing } from './rivalclans.js';
 
 // Keeps this derivation apart from the strays' WANDER_SALT and every other

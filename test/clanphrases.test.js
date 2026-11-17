@@ -45,9 +45,11 @@ describe('the phrase table', () => {
     }
   });
 
-  it('imports only the word file, so anything may import it', () => {
+  // 2026-11-17: the one import is now wordset.js (the door to the word files),
+  // no longer clanwords.js itself. Still exactly one import.
+  it('imports only the door to the word files, so anything may import it', () => {
     const specs = [...read('src/clanphrases.js').matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
-    expect(specs).toEqual(['./clanwords.js']);
+    expect(specs).toEqual(['./wordset.js']);
     expect(noComments(read('src/clanphrases.js'))).not.toMatch(/document|window|localStorage|THREE/);
   });
 

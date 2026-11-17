@@ -92,7 +92,8 @@ describe('the edition switch and the save', () => {
     expect(s.walks.park).toBe(5);
     expect(s.golden).toEqual(['gm-park-1']);
     expect(s.marks.park).toHaveLength(2);
-    expect(s.clan).toEqual({ name: 'MossClan', adopted: true });
+    // 2026-11-17: a loaded title also carries the position of its word (Moss is the first).
+    expect(s.clan).toEqual({ name: 'MossClan', word: 0, adopted: true });
   });
   // 2026-11-15, guided-first-walk design (section 8): `tutorial` joins them.
   test('edition, clanPick, customCats, the fight keys, outfits, usage and tutorial are the only new top-level keys', () => {

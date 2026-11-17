@@ -14,14 +14,14 @@
 // The player's points ladder is progression.js's rankFor; this file's
 // clanRankFor is a different thing and the two must never be merged.
 //
-// Pure logic: it imports vocabulary (clanwords.js), the pet-name check
+// Pure logic: it imports the words in use (wordset.js), the pet-name check
 // (validPetName from net.js, which imports only chat.js), the hash (rng.js)
 // and the known-name gate and kit names (straynames.js, which imports
 // nothing). None of those imports this file, so there is no cycle. No DOM, no
 // THREE.
 // It does NOT import colony.js, so TAME_FEEDS is mirrored below and pinned by
 // a test rather than imported.
-import { PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_KEYS } from './clanwords.js';
+import { words, RANK_KEYS } from './wordset.js';
 import { phrase } from './clanphrases.js';
 import { validPetName } from './net.js';
 import { seedFromCode } from './rng.js';
@@ -55,6 +55,7 @@ const hashOf = (name) => seedFromCode(`${name}|${SALT}`);
 // '__proto__' is not a cat); any other string hashes over PREFIXES.
 export function prefixFor(storedName) {
   if (typeof storedName !== 'string' || storedName === '') return null;
+  const { CAT_PREFIXES, PREFIXES } = words();
   if (Object.hasOwn(CAT_PREFIXES, storedName)) return CAT_PREFIXES[storedName];
   return PREFIXES[hashOf(storedName) % PREFIXES.length];
 }
@@ -63,6 +64,7 @@ export function prefixFor(storedName) {
 // the prefix (denMoment's seed / seed >>> 8 idiom), so the two are not tied.
 export function warriorSuffixFor(storedName) {
   const seed = hashOf(typeof storedName === 'string' ? storedName : '');
+  const { WARRIOR_SUFFIXES } = words();
   return WARRIOR_SUFFIXES[(seed >>> 8) % WARRIOR_SUFFIXES.length];
 }
 
@@ -94,14 +96,14 @@ export function colonyRankFor(storedName, progress) {
 export function clanNameOf(storedName, progress, rank = clanRankFor(progress)) {
   if (typeof storedName !== 'string' || storedName === '') return 'Cat';
   if (!isStrayName(storedName)) return storedName;
-  const suffix = rank === RANK_KEYS.warrior ? warriorSuffixFor(storedName) : RANK_SUFFIX[rank];
+  const suffix = rank === RANK_KEYS.warrior ? warriorSuffixFor(storedName) : words().RANK_SUFFIX[rank];
   return prefixFor(storedName) + suffix;
 }
 
 // The title of a player's clan, from a seed (e.g. a player code): MossClan.
 export function clanTitleFor(seed) {
   // An unusable seed still gets a real title, never "nullClan".
-  return phrase('group.name', prefixFor(seed) ?? PREFIXES[0]);
+  return phrase('group.name', prefixFor(seed) ?? words().PREFIXES[0]);
 }
 
 // The names a player may pick for their OWN cat: prefix + the top-rank suffix
@@ -112,6 +114,7 @@ export function clanTitleFor(seed) {
 // is a published character name, until n are found or the pool runs out.
 // A non-string seed is treated as '' (seedFromCode throws on non-strings).
 export function candidateStarNames(seed, n = 3) {
+  const { PREFIXES, RANK_SUFFIX, DENIED_NAMES } = words();
   const start = seedFromCode(typeof seed === 'string' ? seed : '') % PREFIXES.length;
   const want = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
   const out = [];

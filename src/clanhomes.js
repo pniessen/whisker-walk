@@ -24,7 +24,7 @@
 // To add a territory later: edit its HOMES row only if its neighbours change;
 // add its camp disc in rivalclans.js; a truce place needs nothing here except
 // an entry in TRUCE_AREAS.
-import { HOMAGE_PREFIXES } from './clanwords.js';
+import { words, inEachWordSet } from './wordset.js';
 import { phrase } from './clanphrases.js';
 
 const row = (neighbours, pickable) => Object.freeze({ neighbours: Object.freeze(neighbours), pickable });
@@ -49,7 +49,7 @@ export function pickableClans() {
 }
 
 export function clanName(id) {
-  return isClanId(id) ? phrase('group.name', HOMAGE_PREFIXES[id]) : '';
+  return isClanId(id) ? phrase('group.name', words().HOMAGE_PREFIXES[id]) : '';
 }
 
 export function patrolClanFor(areaId, picks) {
@@ -88,11 +88,41 @@ export function picksOf(state) {
   return out;
 }
 
+// ---- the colony's own title, as a save keeps it ----------------------------
+// Before she picks a home, a save's colony has a title made from one of the
+// PREFIXES words (clannames.js clanTitleFor). The save keeps WHICH word, as its
+// position in that list (clan.word), so the title can be shown in whatever
+// words are in use; the list is append-only, so a position never moves. The
+// finished text is kept beside it (clan.name) for builds from before
+// 2026-11-17, which read only the text.
+
+// The title for a stored position, in the words in use; null for anything
+// that is not a position in the list.
+export function clanTitleOfWord(word) {
+  const { PREFIXES } = words();
+  return Number.isInteger(word) && word >= 0 && word < PREFIXES.length ? phrase('group.name', PREFIXES[word]) : null;
+}
+
+// The position a finished title stands for, or null if it is not a title this
+// game could have made. The words in use are tried first, then every other
+// set this build holds, so a save written under other words still loads.
+export function clanWordOfTitle(title) {
+  if (typeof title !== 'string' || title === '') return null;
+  const titles = () => words().PREFIXES.map((p) => phrase('group.name', p));
+  for (const list of [titles(), ...inEachWordSet(titles)]) {
+    const at = list.indexOf(title);
+    if (at >= 0) return at;
+  }
+  return null;
+}
+
 export function ownClanTitle(state) {
   if (!inClanEdition(state)) return '';
   const mine = mineOf(state);
   if (mine) return clanName(mine);
-  return state?.clan?.name ?? '';
+  // The stored position, said in the words in use; a state with only the
+  // finished text (an older save, not yet re-read) shows that text.
+  return clanTitleOfWord(state?.clan?.word) ?? state?.clan?.name ?? '';
 }
 
 export function alliesName(state) {
