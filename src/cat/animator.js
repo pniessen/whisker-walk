@@ -559,6 +559,7 @@ function keepChestUnderHead(body, underside) {
     underside.rotation.y = 0;
     underside.position.copy(_k);
     if (underside.userData.drop) dropChest(body, underside);
+    if (underside.userData.aside) underside.position.x += underside.userData.aside; // the nap's chest follows the tucked head (NAP.chest.aside)
     return;
   }
   underside.rotation.y = -yaw;
@@ -795,6 +796,10 @@ function neckMove(cat, w, a) {
   // the posed neck, the chest read through the underside (T + S·c once yawed)
   body.updateMatrix(); head.updateMatrix(); underside.updateMatrix();
   _c1.set(cx, cy, cz).applyMatrix4(underside.matrix).applyMatrix4(body.matrix);
+  // The nap lowers the chest ball out of sight (NAP.chest.drop); the neck, the
+  // collar and the neck pieces keep the line to where the chest was, so they
+  // lie as high as they did (lowered with it, a necktie went 1 cm into the ground).
+  if (underside.userData.neckUp) _c1.y += underside.userData.neckUp;
   _n0.subVectors(_h0, _c0).normalize();
   _n1.subVectors(head.position, _c1).normalize();
   _turn.setFromUnitVectors(_n0, _n1);
@@ -995,7 +1000,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   tail.position.z = tail.userData.rootZ ??= tail.position.z; // the stalk moves it (STALK_TAIL)
   const { underside } = cat.userData.parts;
   if (underside) {
-    underside.scale.set(1, 1, 1); underside.userData.drop = 0;
+    underside.scale.set(1, 1, 1); underside.userData.drop = 0; underside.userData.aside = 0; underside.userData.neckUp = 0;
     if (underside.userData.sunk) sinkChest(body, underside, false); // getting up from a sit: the chest's own vertices go back (SIT.chestSink)
   } // the sit flattens and lowers it (SIT.chestDepth, chestDrop)
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
@@ -1092,6 +1097,15 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       head.rotation.set(0.55, 0.5, 0);
     }
     if (!folds) for (const leg of legs) leg.scale.y = 0.25;
+    if (folds && underside) {
+      // The chest lies low behind the tucked head (torso.js NAP.chest): at its
+      // standing size it stood up between the head and the shoulders as a
+      // lump. The underside's own scale and place, so nothing is uploaded.
+      underside.scale.set(NAP.chest.scale[0], NAP.chest.scale[1], NAP.chest.scale[2]);
+      underside.userData.drop = NAP.chest.drop;
+      underside.userData.aside = NAP.chest.aside;
+      underside.userData.neckUp = NAP.chest.drop; // the neck line keeps the chest's undropped height (neckMove)
+    }
     if (folds) {
       // polish-pose Task 1: the tail lies flush on the ground and curls round
       // the left haunch, toward the nose (the head above turns it to the

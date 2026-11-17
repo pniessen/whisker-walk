@@ -200,6 +200,12 @@ function sleepyLoaf(group) {
   head.position.z -= NAP.head[2];          // over the chest, out of the body's shadow
   head.rotation.set(0.28, 0, 0.1);
   for (const p of tailPivots) p.rotation.y = 0.12; // tail alongside, not over the face
+  // 2026-11-17 (leftovers): the animator's nap now tucks the head round to the
+  // tail and lays the chest low and aside behind it (NAP.chest). The loaf's
+  // head is held forward over the chest, so its chest is the standing one, as
+  // it always was.
+  const { underside } = group.userData.parts;
+  if (underside) { underside.scale.set(1, 1, 1); underside.userData.drop = 0; underside.userData.aside = 0; underside.userData.neckUp = 0; }
   // the collar, neck pieces and a cape's throat clasp follow the moved head
   refitNeck(group, 'nap');
 }

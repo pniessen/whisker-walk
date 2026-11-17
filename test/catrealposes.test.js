@@ -267,6 +267,141 @@ describe('napping, the head is down on the paws', () => {
   });
 });
 
+// Leftovers (2026-11-17). Every cat here is posed STANDING first, as a cat in
+// play is, then laid down, then got up again.
+describe('napping, the cat curls toward its tail and no lump stands behind the head (leftovers)', () => {
+  const chestTop = (cat) => {
+    const { underside } = cat.userData.parts, [c0, c1] = underside.userData.ranges.chest, p = underside.geometry.attributes.position;
+    let top = -Infinity;
+    for (let i = c0; i < c1; i++) top = Math.max(top, _v.fromBufferAttribute(p, i).applyMatrix4(underside.matrixWorld).y);
+    return top;
+  };
+  const shoulders = (cat) => {
+    const { body } = cat.userData.parts, p = body.geometry.attributes.position;
+    let top = -Infinity;
+    for (let i = 0; i < p.count; i++) { _v.fromBufferAttribute(p, i).applyMatrix4(body.matrixWorld); if (_v.z < -0.2 && _v.z > -0.3) top = Math.max(top, _v.y); }
+    return top;
+  };
+  it('the chest ball lies at least 5 cm under the shoulders (it stood 3.7 cm over them, as high as the back)', () => {
+    for (const [breed, simple] of BUILDS) {
+      const cat = pose(pose(make(breed, simple), 'follow', 0.5), 'nap');
+      const at = label(breed, simple);
+      expect(shoulders(cat) - chestTop(cat), at).toBeGreaterThanOrEqual(0.05);
+      // and it is behind the head seen from the front: no wider than the skull on the side the head left
+      const { head, underside } = cat.userData.parts, [c0, c1] = underside.userData.ranges.chest, p = underside.geometry.attributes.position;
+      let right = -Infinity;
+      for (let i = c0; i < c1; i++) right = Math.max(right, _v.fromBufferAttribute(p, i).applyMatrix4(underside.matrixWorld).x);
+      expect(right, at).toBeLessThanOrEqual(head.position.x + 0.21);
+    }
+  });
+  it('the face is turned more than 60 degrees to the tail and the nose is 10 cm nearer the tail\'s tip than it was', () => {
+    for (const [breed, simple] of BUILDS) {
+      const cat = pose(pose(make(breed, simple), 'follow', 0.5), 'nap');
+      const { head, tailPivots } = cat.userData.parts, at = label(breed, simple);
+      expect(head.rotation.y, at).toBeGreaterThan(1.05);
+      expect(head.position.x, at).toBeLessThanOrEqual(-0.1); // tucked to the cat's left, the tail's side
+      const nose = new THREE.Vector3(0, 0, -0.2).applyMatrix4(head.matrixWorld);
+      const tip = new THREE.Vector3(0, 0, 0.14).applyMatrix4(tailPivots[4].matrixWorld);
+      expect(tip.x, at).toBeLessThan(0);
+      // the old pose, the same cat: head [-0.02, -0.32, -0.08] from standing, turned 0.75
+      const was = new THREE.Vector3(0, 0, -0.2).applyEuler(new THREE.Euler(-0.05, 0.75, 0.18)).multiplyScalar(head.scale.x)
+        .add(new THREE.Vector3(head.position.x + 0.1, head.position.y, head.position.z - 0.05));
+      expect(was.distanceTo(tip) - nose.distanceTo(tip), at).toBeGreaterThanOrEqual(0.10);
+    }
+  });
+  it('the torso is not bent or turned: what lies on the back lies as it did', () => {
+    const cat = pose(pose(make('tabby', false, { body: 'cape', back: 'backpack' }), 'follow', 0.5), 'nap');
+    const { body } = cat.userData.parts;
+    expect(body.rotation.y).toBe(0);
+    expect(body.rotation.z).toBe(0);
+  });
+  it('nothing is uploaded for it: the chest\'s own points are the standing ones, lying down and getting up', () => {
+    for (const [breed, simple] of [['tabby', false], ['digit', false], ['persian', false], ['tabby', true]]) {
+      const cat = pose(make(breed, simple), 'follow', 0.5);
+      const { underside } = cat.userData.parts, [c0, c1] = underside.userData.ranges.chest;
+      const cut = () => Array.from(underside.geometry.attributes.position.array.slice(c0 * 3, c1 * 3));
+      const stood = cut();
+      pose(cat, 'nap');
+      expect(cut(), label(breed, simple)).toEqual(stood);
+      expect(underside.scale.y).toBeLessThan(1);
+      pose(cat, 'follow', 0.5);
+      expect(cut(), label(breed, simple)).toEqual(stood);
+    }
+  });
+  it('getting up puts the head, the chest and the neck back exactly, also by way of the sit', () => {
+    for (const [breed, simple] of BUILDS) {
+      const a = make(breed, simple, { collar: 'bell' }), b = make(breed, simple, { collar: 'bell' });
+      pose(a, 'follow', 0.5); pose(a, 'nap'); pose(a, 'perch'); pose(a, 'nap', 2.1); pose(a, 'follow', 0.5);
+      pose(b, 'follow', 0.5);
+      const at = label(breed, simple);
+      for (const part of ['head', 'body', 'underside', 'tail']) {
+        const pa = a.userData.parts[part], pb = b.userData.parts[part];
+        expect(pa.position.toArray(), `${at} ${part}`).toEqual(pb.position.toArray());
+        expect(pa.rotation.toArray(), `${at} ${part}`).toEqual(pb.rotation.toArray());
+        expect(pa.scale.toArray(), `${at} ${part}`).toEqual(pb.scale.toArray());
+      }
+      expect(Array.from(a.userData.parts.underside.geometry.attributes.position.array), at).toEqual(Array.from(b.userData.parts.underside.geometry.attributes.position.array));
+      const ca = a.userData.parts.head.userData.collar, cb = b.userData.parts.head.userData.collar;
+      expect(ca.position.toArray(), at).toEqual(cb.position.toArray());
+      expect(ca.quaternion.toArray(), at).toEqual(cb.quaternion.toArray());
+    }
+  });
+});
+
+describe('in the bow a tall boot or sock lies back along the forearm (leftovers)', () => {
+  const TALL = ['rainboots', 'socks'];
+  it('standing first, then bowing: each front shell is as low as it is wide, its sole and toe where they were, its shaft back over the wrist; the hind ones stand as built', () => {
+    for (const [breed, simple] of BUILDS) for (const feet of TALL) {
+      const cat = pose(make(breed, simple, { feet }), 'follow', 0.5);
+      const { legs } = cat.userData.parts, at = `${label(breed, simple)} ${feet}`;
+      const built = legs.map((leg) => ({ scale: leg.userData.paw.scale.clone(), box: new THREE.Box3().setFromObject(leg.userData.paw) }));
+      pose(cat, 'stretch');
+      for (let i = 0; i < 4; i++) {
+        const paw = legs[i].userData.paw, box = new THREE.Box3().setFromObject(paw);
+        if (i >= 2) { expect(paw.scale.toArray(), at).toEqual(built[i].scale.toArray()); continue; }
+        expect(paw.scale.y, at).toBe(built[i].scale.x);
+        expect(paw.scale.x, at).toBe(built[i].scale.x);
+        expect(paw.scale.z, at).toBeCloseTo(built[i].scale.z * built[i].scale.y / built[i].scale.x, 12);
+        const tall = box.max.y - box.min.y, was = built[i].box.max.y - built[i].box.min.y;
+        expect(tall, at).toBeLessThan(was - 0.015);          // it stood up off the end of the forearm
+        expect(box.min.y, at).toBeGreaterThanOrEqual(-0.005); // the sole on the ground
+        expect(box.min.y, at).toBeLessThanOrEqual(0.005);
+        // the same shell un-laid would end at the same toe: only its heel end goes back
+        const long = box.max.z - box.min.z, wasLong = built[i].box.max.z - built[i].box.min.z;
+        expect(long, at).toBeGreaterThan(wasLong + 0.02);
+        // (the shell's centre went back by the plain paw's half length, 0.062 x 1.42, times the scale it gained)
+        const centreUnlaid = paw.getWorldPosition(new THREE.Vector3()).z - 0.062 * 1.42 * (paw.scale.z - built[i].scale.z);
+        expect(Math.abs(box.min.z - (centreUnlaid - wasLong / 2)), at).toBeLessThan(0.001); // the toe within 1 mm of where it was
+        // the forearm's end is inside it: the top of the shell is over the limb's last ring
+        expect(box.max.y, at).toBeGreaterThan(0.076);
+      }
+    }
+  });
+  it('a low shell (booties, sneakers, gold booties) and a bare paw are left alone', () => {
+    for (const feet of [null, 'booties', 'sneakers', 'goldbooties']) {
+      const cat = pose(make('tabby', false, { feet }), 'follow', 0.5);
+      const built = cat.userData.parts.legs.map((leg) => leg.userData.paw.scale.toArray());
+      pose(cat, 'stretch');
+      cat.userData.parts.legs.forEach((leg, i) => expect(leg.userData.paw.scale.toArray(), `${feet}`).toEqual(built[i]));
+    }
+  });
+  it('getting up, and going on into any other fold, puts the shell back exactly', () => {
+    for (const feet of TALL) {
+      const a = make('tabby', false, { feet }), b = make('tabby', false, { feet });
+      pose(a, 'follow', 0.5); pose(a, 'stretch'); pose(a, 'follow', 0.5);
+      pose(b, 'follow', 0.5);
+      const same = (why) => a.userData.parts.legs.forEach((leg, i) => {
+        const pa = leg.userData.paw, pb = b.userData.parts.legs[i].userData.paw;
+        expect(pa.scale.toArray(), `${feet} ${why}`).toEqual(pb.scale.toArray());
+        expect(pa.position.toArray(), `${feet} ${why}`).toEqual(pb.position.toArray());
+        expect(pa.rotation.x, `${feet} ${why}`).toBe(pb.rotation.x);
+      });
+      same('standing');
+      for (const state of ['nap', 'perch', 'stalk', 'groom']) { pose(a, 'stretch'); pose(a, state); pose(b, state); same(state); }
+    }
+  });
+});
+
 describe('grooming, the raised paw shows under the chin', () => {
   it('the front right paw is lifted clear of the ground, ahead of the chest and under the lowered head; the other three stand', () => {
     for (const [breed, simple] of BUILDS) {
@@ -312,7 +447,9 @@ describe('the tail root wears the rump\'s colour (round 1\'s leftover)', () => {
     const { coatColourAt } = await import('../src/cat/coat.js');
     const { torsoUnitAt, TAIL } = await import('../src/cat/torso.js');
     // 2026-11-16 (cat realism B11): crowd cats (the simple tabby and calico) wear it too; they were left plain.
-    for (const [breed, simple] of [['tabby'], ['calico'], ['black'], ['persian'], ['mainecoon'], ['tabby', true], ['calico', true]]) {
+    // 2026-11-17 (leftovers): so do the family cats and the pointed cats, full and simple (they kept a plain root, a disc from behind).
+    for (const [breed, simple] of [['tabby'], ['calico'], ['black'], ['persian'], ['mainecoon'], ['tabby', true], ['calico', true],
+      ['digit'], ['d2'], ['robbie'], ['zeetoo'], ['siamese'], ['digit', true], ['robbie', true], ['siamese', true]]) {
       const cat = make(breed, !!simple);
       const { body, tail, tailPivots } = cat.userData.parts;
       // the tail carried as the root was painted for: TAIL.SEAM_LIFT above level
@@ -334,10 +471,24 @@ describe('the tail root wears the rump\'s colour (round 1\'s leftover)', () => {
       }
       expect(ball, breed).toBeGreaterThan(20);
       expect(worst, breed).toBeLessThan(0.02);
-    }
-    // family cats and pointed cats keep the plain root, full and simple
-    for (const [breed, simple] of [['digit', false], ['d2', false], ['robbie', false], ['zeetoo', false], ['siamese', false], ['digit', true], ['robbie', true], ['siamese', true]]) {
-      expect(make(breed, simple).userData.parts.tailPivots[0].children[0].geometry.attributes.color, breed).toBeUndefined();
+      // by its far end the link is the tail's own colour: the coat's, a pointed cat's point colour
+      // (read off the start of the next link, which is that colour on every cat)
+      const next = tailPivots[1].children[0], own = next.material.color.clone();
+      if (next.material.vertexColors) {
+        const np = next.geometry.attributes.position, nc = next.geometry.attributes.color;
+        let k0 = 0; for (let i = 0; i < np.count; i++) if (Math.abs(np.getZ(i)) < Math.abs(np.getZ(k0))) k0 = i;
+        own.multiply(new THREE.Color().fromBufferAttribute(nc, k0));
+      }
+      let far = 0;
+      for (let i = 0; i < n; i++) {
+        if (p.getZ(i) < TAIL.LINK - 1e-6) continue;
+        far++;
+        got.fromBufferAttribute(col, i);
+        expect(Math.hypot(got.r - own.r, got.g - own.g, got.b - own.b), `${breed} far end`).toBeLessThan(1e-6);
+      }
+      expect(far, breed).toBeGreaterThan(8);
+      // no triangle, no mesh more than the plain root had: the link is still one mesh
+      expect(tailPivots[0].children.filter((o) => o.isMesh).length, breed).toBe(1);
     }
   });
 });
