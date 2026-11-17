@@ -305,12 +305,15 @@ export const SIT_TAIL = Object.freeze({
 //     is `scale` of its size about its own centre, `drop` lower (straight
 //     down) and `aside` to the left with the head (the torso's own x), so it
 //     lies under the line from the shoulders to the head and behind the head
-//     from the front. The underside's own scale and place (animator.js), as
+//     from the front. The belly is in the same mesh and moves with it: 0.7
+//     as wide and 0.055 aside keeps its left edge inside the torso's flank
+//     (0.8 and 0.07 put it 3 mm through the fur under a backpack's strap).
+//     The underside's own scale and place (animator.js), as
 //     the sit's chestDepth and chestDrop are: nothing is uploaded, and a
 //     cat that gets up has them back at 1 and 0.
 export const NAP = Object.freeze({ head: Object.freeze([-0.12, -0.32, -0.03]), rot: Object.freeze([-0.05, 1.25, 0.28]),
   drop: 0.12, scale: Object.freeze([1.16, 0.88, 0.87]), pitch: 0.07, hindOut: 0.045,
-  chest: Object.freeze({ scale: Object.freeze([0.8, 0.7, 0.8]), drop: 0.06, aside: -0.07 }) });
+  chest: Object.freeze({ scale: Object.freeze([0.7, 0.7, 0.8]), drop: 0.06, aside: -0.055 }) });
 
 // polish-pose Task 1 (2026-11-02): the napping tail lies flush and curls
 // round the body, nose to tail (animator.js; cats with folds only, Hagrid's
