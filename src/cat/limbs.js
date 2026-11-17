@@ -316,7 +316,7 @@ export const FOLDS = Object.freeze({
     front: fold([[0.255, 0.06], [0.16, -0.03], [0.204, -0.1355], [0.252, -0.1715]], [0.085, 0.06, 0.042, 0.036], [0.27, -0.17], 2.5),
   }),
   bow: Object.freeze({
-    crouch: false, ground: true, drop: 0.115,
+    crouch: false, ground: true, lie: true, drop: 0.115,
     front: fold([[0.185, 0.05], [0.085, 0.01], [0.05, -0.13], [0.04, -0.24]], [0.085, 0.06, 0.042, 0.036], [0.0415, -0.27]),
   }),
 });
@@ -437,7 +437,7 @@ export function attachFolds(leg, { hind, simple, hipY, len, seam = null }) {
   geo.boundingSphere = sphere;
   geo.boundingBox = stand.box.clone();
   leg.userData.folds = folds;
-  leg.userData.rest = { pos: leg.children.map((c) => c.position.clone()), rotX: leg.children.map((c) => c.rotation.x), paw: leg.children.indexOf(leg.userData.paw) };
+  leg.userData.rest = { pos: leg.children.map((c) => c.position.clone()), rotX: leg.children.map((c) => c.rotation.x), paw: leg.children.indexOf(leg.userData.paw), pawScale: leg.userData.paw.scale.clone() };
   leg.userData.fold = 'stand';
 }
 
@@ -479,6 +479,22 @@ export function applyFold(leg, kind) {
   _move.subVectors(f.paw, folds.stand.paw);
   paw.position.copy(rest[at]).add(_move);
   paw.rotation.x = rotX[at] + f.pawRotX;
+  // A tall shell (a rain boot, a sock: paw.scale.y over its x) on a paw that
+  // lies at the end of a forearm along the ground (a fold marked `lie`, the
+  // bow): standing, the leg comes down into the shell's top; here the shell
+  // stood up off the end of the forearm as an egg. Its extra height is laid
+  // back along the forearm instead (the boot's shaft over the wrist): as low
+  // as it is wide, that much longer, the toe and the sole where they were.
+  // Put back exactly (the built scale, kept by attachFolds) in any other fold.
+  const built = ud.rest.pawScale;
+  if (built.y > built.x) {
+    if (FOLDS[k].lie) {
+      const long = built.z * built.y / built.x;
+      paw.scale.set(built.x, built.x, long);
+      paw.position.y -= PAW_HALF * (built.y - built.x);
+      paw.position.z += PAW_LONG * (long - built.z);
+    } else paw.scale.copy(built);
+  }
   for (let i = at + 1; i < leg.children.length; i++) {
     const part = leg.children[i];
     _off.subVectors(rest[i], rest[at]).applyAxisAngle(_X, f.pawRotX);
@@ -683,6 +699,7 @@ export function footGeometry(pawHex, simple = false) {
 
 // R8: today's plain paw (radius 0.062, flattened 0.62, long 1.42; no toes,
 // no claws, no vertex colours), for feet items to sit on exactly as before.
+const PAW_LONG = 0.062 * 1.42; // the plain paw's half length (applyFold lays a tall shell back by it)
 export function plainPawGeometry() {
   const geo = new THREE.SphereGeometry(FOOT.R, 12, 9);
   geo.scale(1.02, 0.62, 1.42);

@@ -348,6 +348,60 @@ describe('napping, the cat curls toward its tail and no lump stands behind the h
   });
 });
 
+describe('in the bow a tall boot or sock lies back along the forearm (leftovers)', () => {
+  const TALL = ['rainboots', 'socks'];
+  it('standing first, then bowing: each front shell is as low as it is wide, its sole and toe where they were, its shaft back over the wrist; the hind ones stand as built', () => {
+    for (const [breed, simple] of BUILDS) for (const feet of TALL) {
+      const cat = pose(make(breed, simple, { feet }), 'follow', 0.5);
+      const { legs } = cat.userData.parts, at = `${label(breed, simple)} ${feet}`;
+      const built = legs.map((leg) => ({ scale: leg.userData.paw.scale.clone(), box: new THREE.Box3().setFromObject(leg.userData.paw) }));
+      pose(cat, 'stretch');
+      for (let i = 0; i < 4; i++) {
+        const paw = legs[i].userData.paw, box = new THREE.Box3().setFromObject(paw);
+        if (i >= 2) { expect(paw.scale.toArray(), at).toEqual(built[i].scale.toArray()); continue; }
+        expect(paw.scale.y, at).toBe(built[i].scale.x);
+        expect(paw.scale.x, at).toBe(built[i].scale.x);
+        expect(paw.scale.z, at).toBeCloseTo(built[i].scale.z * built[i].scale.y / built[i].scale.x, 12);
+        const tall = box.max.y - box.min.y, was = built[i].box.max.y - built[i].box.min.y;
+        expect(tall, at).toBeLessThan(was - 0.015);          // it stood up off the end of the forearm
+        expect(box.min.y, at).toBeGreaterThanOrEqual(-0.005); // the sole on the ground
+        expect(box.min.y, at).toBeLessThanOrEqual(0.005);
+        // the same shell un-laid would end at the same toe: only its heel end goes back
+        const long = box.max.z - box.min.z, wasLong = built[i].box.max.z - built[i].box.min.z;
+        expect(long, at).toBeGreaterThan(wasLong + 0.02);
+        // (the shell's centre went back by the plain paw's half length, 0.062 x 1.42, times the scale it gained)
+        const centreUnlaid = paw.getWorldPosition(new THREE.Vector3()).z - 0.062 * 1.42 * (paw.scale.z - built[i].scale.z);
+        expect(Math.abs(box.min.z - (centreUnlaid - wasLong / 2)), at).toBeLessThan(0.001); // the toe within 1 mm of where it was
+        // the forearm's end is inside it: the top of the shell is over the limb's last ring
+        expect(box.max.y, at).toBeGreaterThan(0.076);
+      }
+    }
+  });
+  it('a low shell (booties, sneakers, gold booties) and a bare paw are left alone', () => {
+    for (const feet of [null, 'booties', 'sneakers', 'goldbooties']) {
+      const cat = pose(make('tabby', false, { feet }), 'follow', 0.5);
+      const built = cat.userData.parts.legs.map((leg) => leg.userData.paw.scale.toArray());
+      pose(cat, 'stretch');
+      cat.userData.parts.legs.forEach((leg, i) => expect(leg.userData.paw.scale.toArray(), `${feet}`).toEqual(built[i]));
+    }
+  });
+  it('getting up, and going on into any other fold, puts the shell back exactly', () => {
+    for (const feet of TALL) {
+      const a = make('tabby', false, { feet }), b = make('tabby', false, { feet });
+      pose(a, 'follow', 0.5); pose(a, 'stretch'); pose(a, 'follow', 0.5);
+      pose(b, 'follow', 0.5);
+      const same = (why) => a.userData.parts.legs.forEach((leg, i) => {
+        const pa = leg.userData.paw, pb = b.userData.parts.legs[i].userData.paw;
+        expect(pa.scale.toArray(), `${feet} ${why}`).toEqual(pb.scale.toArray());
+        expect(pa.position.toArray(), `${feet} ${why}`).toEqual(pb.position.toArray());
+        expect(pa.rotation.x, `${feet} ${why}`).toBe(pb.rotation.x);
+      });
+      same('standing');
+      for (const state of ['nap', 'perch', 'stalk', 'groom']) { pose(a, 'stretch'); pose(a, state); pose(b, state); same(state); }
+    }
+  });
+});
+
 describe('grooming, the raised paw shows under the chin', () => {
   it('the front right paw is lifted clear of the ground, ahead of the chest and under the lowered head; the other three stand', () => {
     for (const [breed, simple] of BUILDS) {
