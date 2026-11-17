@@ -66,7 +66,16 @@ const BUSY_MESSAGE = 'The cloud is busy right now — try again later.';
 // The name test is "any saved name", the same test rooms.pushProfileNow has
 // always used, so no device that publishes a profile today reads as offline.
 export function onlineOptedIn({ petName = null, cloudLinked = false } = {}) {
-  return cloudLinked === true || (typeof petName === 'string' && petName.length > 0);
+  return cloudLinked === true || walkingNameSaved({ petName });
+}
+
+// The narrower question (2026-11-17): is a walking name saved? Everything
+// that is about other players needs one: the friends lookup, cat profiles,
+// greets, friend codes, the colony, rooms. A device that is only linked to a
+// cloud save has no walking name, so it talks to the database about its save
+// and about nothing else. See togetherAllowed in createCloudSync.
+export function walkingNameSaved({ petName = null } = {}) {
+  return typeof petName === 'string' && petName.length > 0;
 }
 
 // makeCloud is injectable for tests; the game always uses createLiveCloud.
@@ -102,23 +111,42 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
     return cloudInstance;
   }
 
-  // The one answer to "may this device talk to the online database, or open
-  // a room, without being asked to right now?" (2026-11-16). See
-  // onlineOptedIn above for the rule. Read from the save and the cloud link
-  // every time, so saving a walking name or linking a save turns it on at
-  // once, and Delete my online data (which clears the name and the link)
-  // turns it off again.
+  // The one answer to "may this device talk to the online database at all,
+  // or look for players nearby, without being asked to right now?"
+  // (2026-11-16). See onlineOptedIn above for the rule. Read from the save
+  // and the cloud link every time, so saving a walking name or linking a save
+  // turns it on at once, and Delete my online data (which clears the name and
+  // the link) turns it off again.
+  function savedName() {
+    try { return progression.state.petName; } catch { return null; }
+  }
   function onlineAllowed() {
     if (!MP) return false;
-    let petName = null;
-    try { petName = progression.state.petName; } catch { petName = null; }
-    return onlineOptedIn({ petName, cloudLinked: readCloudLink() !== null });
+    return onlineOptedIn({ petName: savedName(), cloudLinked: readCloudLink() !== null });
   }
 
-  // The GATED handle every background path uses (the walk-start friends
-  // lookup, the Player pets list, profile pushes, greets, the colony): null,
-  // so no client and no request, until onlineAllowed().
+  // The narrower answer (2026-11-17): "may this device do the things that are
+  // about other players?" Only with a walking name saved; a linked cloud save
+  // alone is not enough. Rooms and the Player pets list ask this directly.
+  function togetherAllowed() {
+    if (!MP) return false;
+    return walkingNameSaved({ petName: savedName() });
+  }
+
+  // The GATED handle every background path outside this file uses (the
+  // walk-start friends lookup, the Player pets list, profile pushes, greets,
+  // friend codes, the colony): null, so no client and no request, until
+  // togetherAllowed(). All of those are about other players, so all of them
+  // wait for a walking name.
   function getCloud() {
+    return togetherAllowed() ? openCloud() : null;
+  }
+
+  // The handle for this device's own cloud save, used only inside this file
+  // (the auto-save after a walk, Sync now, deleting the linked save): there
+  // once the device is online at all. Each caller has already checked the
+  // link, so on a device with no walking name this is reached only with one.
+  function saveCloud() {
     return onlineAllowed() ? openCloud() : null;
   }
 
@@ -162,7 +190,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
   async function runSync() {
     const link = readCloudLink();
     if (!link) return { ok: false, message: 'Not linked to a cloud save.' };
-    const cloud = getCloud();
+    const cloud = saveCloud();
     if (!cloud) return { ok: false, message: 'Cloud sync is not available.' };
     try {
       const payload = composeCloudPayload();
@@ -278,7 +306,7 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
     async deleteCloudSave() {
       const link = readCloudLink();
       if (!link) return 'not-linked';
-      const cloud = getCloud();
+      const cloud = saveCloud();
       if (!cloud) return 'unavailable';
       return cloud.deleteSave(link.code, link.secret);
     },
@@ -290,5 +318,5 @@ export function createCloudSync({ MP, supabaseUrl, supabaseAnonKey, storage, pro
     },
   };
 
-  return { getPsecret, getCloud, openCloud, onlineAllowed, sync };
+  return { getPsecret, getCloud, openCloud, onlineAllowed, togetherAllowed, sync };
 }

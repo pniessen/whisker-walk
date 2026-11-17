@@ -4,15 +4,18 @@
 //
 // A thin adapter over the lazy cloud instance: homebase fetches friendships +
 // profiles for its own async render without knowing about MP/getCloud.
-// getCloud is cloudsync.js's GATED handle, and onlineAllowed its gate.
+// getCloud is cloudsync.js's GATED handle, and onlineAllowed its gate: since
+// 2026-11-17 that is "a walking name is saved" (togetherAllowed), because
+// everything here is about other players.
 
 export function createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed, pushProfileNow, blockList }) {
   return {
     available: MP,
     myId: pid,
     fetchFriendships(id) {
-      // Not put online yet (2026-11-16): a device with no profile has no
-      // friend links, so the list is empty without asking the database.
+      // No walking name yet (2026-11-16, tightened 2026-11-17): a device with
+      // no profile has no friend links, so the list is empty without asking
+      // the database. A linked cloud save alone does not change that.
       if (!onlineAllowed()) return Promise.resolve([]);
       const cloud = getCloud();
       return cloud ? cloud.fetchFriendships(id) : Promise.reject(new Error('cloud unavailable'));

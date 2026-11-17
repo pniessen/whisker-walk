@@ -33,13 +33,16 @@ function setup({ linked = true, petName = 'Mittens', paired = true, answers = {}
     deleteSave: vi.fn(async () => answer(answers.save ?? 'ok', si++)),
     saveToCloud: vi.fn(async () => 'updated'),
   };
-  const { getCloud, getPsecret, sync } = createCloudSync({
+  const { getCloud, openCloud, getPsecret, sync } = createCloudSync({
     MP, supabaseUrl: 'u', supabaseAnonKey: 'k', storage, progression,
     album: { serialize: () => ({ version: 1, photos: [] }) }, cloudToast: () => {},
     makeCloud: () => cloud,
   });
   storage.setItem('whisker-walk-secret', PSECRET);
-  const od = createOnlineDelete({ MP, pid: PID, getCloud, getPsecret, sync, progression });
+  // as main.js wires it: Delete my online data gets the UNGATED handle (pinned
+  // in test/offlinefirst.test.js), so a retry still reaches the database once
+  // the walking name is cleared
+  const od = createOnlineDelete({ MP, pid: PID, getCloud: openCloud, getPsecret, sync, progression });
   return { od, cloud, sync, storage, progression, getCloud, getPsecret };
 }
 const unchanged = (s, { linked = true, petName = 'Mittens' } = {}) => {
