@@ -1939,7 +1939,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       }
       geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     }
-    shell.userData.cloth = { key: 'shell' }; // laid over the haunch, sitting and napping (clothFit)
+    shell.userData.cloth = { key: 'shell' }; // laid over the haunch, sitting and napping (userData.drape, below)
     body.add(shell);
     return shell;
   };

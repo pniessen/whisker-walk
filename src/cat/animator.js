@@ -337,7 +337,7 @@ function lids(cat, state, t, moveSpeed) {
 // (a coat's shell, a cape's cloth, its dots) is laid over the haunch of the
 // fold the hind legs take (`fold`: 'sit', 'loaf' or null). Its points and
 // normals are written only when that changes, as a leg's fold is: the fold's
-// own (model.js clothFit, kept) on the way down, the built ones exactly on
+// own (model.js buildCat, userData.drape; kept) on the way down, the built ones exactly on
 // the way up. Allocates nothing once a fold has been worn.
 function wearClothes(body, sitting, fold) {
   const kids = body.children;

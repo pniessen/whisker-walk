@@ -20,7 +20,7 @@
 //
 // Only points that would lie under the haunch move; every other point is
 // exactly where it was. No vertex is added. Worked out when a cat first sits
-// or naps (model.js clothFit), kept, and written only on the way down and
+// or naps (model.js buildCat, userData.drape), kept, and written only on the way down and
 // the way up (animator.js wearClothes), never per frame.
 export const DRAPE = Object.freeze({ clear: 0.012, flat: 0.03, slope: 1.6, ease: 0.015, upTo: Object.freeze([0.5, 0.8]), sink: 0.08, grid: 3, floor: 0.006 });
 
