@@ -292,8 +292,16 @@ export const SIT_TAIL = Object.freeze({
 // along the flanks as haunches, their hips `hindOut` further apart, and wear
 // the coat (HAUNCH); the forearms are short under the chest, the paws just
 // showing under the chin.
+// Leftovers (2026-11-17), `chest`: the chest ball stood up between the lowered
+// head and the shoulders as a lump (it is built for a head held over it; its
+// top was level with the back's). Napping it is `scale` of its size about its
+// own centre, `drop` lower (straight down) and `aside` along the torso's own
+// x, so it lies under the line from the shoulders to the head. The
+// underside's own scale and place (animator.js), as the sit's chestDepth and
+// chestDrop are: nothing is uploaded, and a cat that gets up has them back.
 export const NAP = Object.freeze({ head: Object.freeze([-0.02, -0.32, -0.08]), rot: Object.freeze([-0.05, 0.75, 0.18]),
-  drop: 0.12, scale: Object.freeze([1.16, 0.88, 0.87]), pitch: 0.07, hindOut: 0.045 });
+  drop: 0.12, scale: Object.freeze([1.16, 0.88, 0.87]), pitch: 0.07, hindOut: 0.045,
+  chest: Object.freeze({ scale: Object.freeze([1, 0.7, 0.8]), drop: 0.06, aside: 0 }) });
 
 // polish-pose Task 1 (2026-11-02): the napping tail lies flush and curls
 // round the body, nose to tail (animator.js; cats with folds only, Hagrid's

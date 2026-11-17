@@ -267,6 +267,61 @@ describe('napping, the head is down on the paws', () => {
   });
 });
 
+// Leftovers (2026-11-17). Every cat here is posed STANDING first, as a cat in
+// play is, then laid down, then got up again.
+describe('napping, no lump stands behind the head (leftovers)', () => {
+  const chestTop = (cat) => {
+    const { underside } = cat.userData.parts, [c0, c1] = underside.userData.ranges.chest, p = underside.geometry.attributes.position;
+    let top = -Infinity;
+    for (let i = c0; i < c1; i++) top = Math.max(top, _v.fromBufferAttribute(p, i).applyMatrix4(underside.matrixWorld).y);
+    return top;
+  };
+  const shoulders = (cat) => {
+    const { body } = cat.userData.parts, p = body.geometry.attributes.position;
+    let top = -Infinity;
+    for (let i = 0; i < p.count; i++) { _v.fromBufferAttribute(p, i).applyMatrix4(body.matrixWorld); if (_v.z < -0.2 && _v.z > -0.3) top = Math.max(top, _v.y); }
+    return top;
+  };
+  it('the chest ball lies at least 5 cm under the shoulders (it stood 3.7 cm over them, as high as the back)', () => {
+    for (const [breed, simple] of BUILDS) {
+      const cat = pose(pose(make(breed, simple), 'follow', 0.5), 'nap');
+      const at = label(breed, simple);
+      expect(shoulders(cat) - chestTop(cat), at).toBeGreaterThanOrEqual(0.05);
+    }
+  });
+  it('nothing is uploaded for it: the chest\'s own points are the standing ones, lying down and getting up', () => {
+    for (const [breed, simple] of [['tabby', false], ['digit', false], ['persian', false], ['tabby', true]]) {
+      const cat = pose(make(breed, simple), 'follow', 0.5);
+      const { underside } = cat.userData.parts, [c0, c1] = underside.userData.ranges.chest;
+      const cut = () => Array.from(underside.geometry.attributes.position.array.slice(c0 * 3, c1 * 3));
+      const stood = cut();
+      pose(cat, 'nap');
+      expect(cut(), label(breed, simple)).toEqual(stood);
+      expect(underside.scale.y).toBeLessThan(1);
+      pose(cat, 'follow', 0.5);
+      expect(cut(), label(breed, simple)).toEqual(stood);
+    }
+  });
+  it('getting up puts the head, the chest and the neck back exactly, also by way of the sit', () => {
+    for (const [breed, simple] of BUILDS) {
+      const a = make(breed, simple, { collar: 'bell' }), b = make(breed, simple, { collar: 'bell' });
+      pose(a, 'follow', 0.5); pose(a, 'nap'); pose(a, 'perch'); pose(a, 'nap', 2.1); pose(a, 'follow', 0.5);
+      pose(b, 'follow', 0.5);
+      const at = label(breed, simple);
+      for (const part of ['head', 'body', 'underside', 'tail']) {
+        const pa = a.userData.parts[part], pb = b.userData.parts[part];
+        expect(pa.position.toArray(), `${at} ${part}`).toEqual(pb.position.toArray());
+        expect(pa.rotation.toArray(), `${at} ${part}`).toEqual(pb.rotation.toArray());
+        expect(pa.scale.toArray(), `${at} ${part}`).toEqual(pb.scale.toArray());
+      }
+      expect(Array.from(a.userData.parts.underside.geometry.attributes.position.array), at).toEqual(Array.from(b.userData.parts.underside.geometry.attributes.position.array));
+      const ca = a.userData.parts.head.userData.collar, cb = b.userData.parts.head.userData.collar;
+      expect(ca.position.toArray(), at).toEqual(cb.position.toArray());
+      expect(ca.quaternion.toArray(), at).toEqual(cb.quaternion.toArray());
+    }
+  });
+});
+
 describe('grooming, the raised paw shows under the chin', () => {
   it('the front right paw is lifted clear of the ground, ahead of the chest and under the lowered head; the other three stand', () => {
     for (const [breed, simple] of BUILDS) {
