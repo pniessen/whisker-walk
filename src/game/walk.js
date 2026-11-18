@@ -79,6 +79,7 @@ import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
 import { clampZoomStep, maxZoomStep, zoomView } from '../camzoom.js';
 import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
+import { createFarmAnimals, NO_FARM } from '../farmanimals.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
@@ -1295,6 +1296,36 @@ export function createWalkLifecycle({
     const rests = createRests(scene, propsFor(areaId).rests, { ground });
     for (const c of rests.colliders) areaData.colliders.push({ ...c });
 
+    // Appletree Farm's animals (farmanimals.js): cows, goats, hens and chicks,
+    // the sheepdog and the ducklings. Built here, after every prop's collider
+    // is in the list (they keep clear of them) and before the caster sweep
+    // (their small parts are flagged not to cast). Each cow's back is a perch
+    // that moves, so it joins the area's perches: the ordinary jump gets the
+    // cat onto her. Per device, like the critters: nothing rides the wire, and
+    // their dice are their own, never walkRng. Pays nothing and saves nothing
+    // itself; meeting one is spotted in updateInteractions.
+    let farmToasted = null;
+    const farm = areaId !== 'farm' ? NO_FARM : createFarmAnimals(scene, areaData, {
+      reducedMotion,
+      isFree: (x, z) => isWalkableAt(areaData, x, z),
+      ducks: () => critters.list.filter((c) => c.type === 'duck').map((c) => c.group.position),
+      onEvent: (e) => {
+        farmToasted ??= new Set();
+        const once = (text) => { if (!farmToasted.has(e.type)) { farmToasted.add(e.type); hud.toast(text); } };
+        if (e.type === 'moo') audio.moo();
+        else if (e.type === 'cluck') audio.cluck(0.35, 1.25);
+        else if (e.type === 'peep') audio.peep();
+        else if (e.type === 'goat-butt') { audio.bleat(); once('The goat wants to play! 🐐'); }
+        else if (e.type === 'goat-copy') once('The goat jumps when you jump! 🐐');
+        else if (e.type === 'dog-hello') once('The sheepdog wants to walk with you 🐶');
+        else if (e.type === 'chick-follow') { audio.peep(); once('The chicks follow you when you walk 🐤'); }
+        else if (e.type === 'ducklings-follow') { audio.peep(); once('The ducklings swim after you! 🐥'); }
+        else if (e.type === 'ride') once('You are riding a cow! 🐄');
+        else if (e.type === 'dismount') session.fx?.burst(cat.position, 0xcbb8a0, 8);
+      },
+    });
+    for (const p of farm.perches) areaData.perches.push(p);
+
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
     // time and VISUAL-PASS.md's Wave 6 note says out loud that a lot of what
@@ -1315,6 +1346,7 @@ export function createWalkLifecycle({
     for (const stray of strayCats.strays) decals.follow(stray.group);
     for (const c of clanCats.list) decals.follow(c.group);
     for (const critter of critters.list) decals.follow(critter.figure ?? critter.group);
+    for (const g of farm.groups) decals.follow(g);
     for (const dc of denCats.list) decals.follow(dc.group);
 
     // The shadow camera used to be nailed to the world origin at +/-70 so it
@@ -1437,6 +1469,7 @@ export function createWalkLifecycle({
     const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: duskActive }) ?? NO_AREA_LIFE;
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
+      farm,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
       campMarker,
@@ -2359,6 +2392,7 @@ export function createWalkLifecycle({
       }
     });
     session.critters.dispose();
+    session.farm?.dispose();
     session.goldMice.dispose();
     session.rival.dispose();
     session.chasing = false;

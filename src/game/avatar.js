@@ -215,7 +215,9 @@ export function createAvatarUpdater({
     if (s.freezeTime > 0) pose = 'scared';
     else if (s.pounceTime > 0) pose = 'pounce';
     else if (s.landTime > 0) pose = 'land';
-    else if (s.perched) pose = 'perch';
+    // On a cow's back (farmanimals.js) she sits, and lying still as long as an
+    // idle nap takes she curls up and naps there as the cow ambles on.
+    else if (s.perched) pose = s.perched.ride && s.idleTime > napAt ? 'nap' : 'perch';
     else if (s.boxTime > 1) pose = 'requestPet';
     else if (s.stretchTime > 0) pose = 'stretch';
     else if (s.sniffTime > 0) pose = 'sniff';

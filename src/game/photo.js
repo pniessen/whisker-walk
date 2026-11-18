@@ -17,6 +17,7 @@ export function createPhotoMode({ renderer, camera, player, album, hud, log, aud
     for (const c of s.critters.list) {
       if (c.spottable && !c.fleeing) candidates.push({ key: `critter-${c.type}`, label: labelFor(c.type), pos: c.group.position });
     }
+    for (const a of s.farm?.spottable ?? []) candidates.push({ key: `critter-${a.type}`, label: labelFor(a.type), pos: a.pos });
     // v21 3b Task 16: the yard dog is the photo subject the critter dog was.
     const dogAt = s.dog?.spotPos;
     if (dogAt) candidates.push({ key: 'critter-dog', label: labelFor('dog'), pos: new THREE.Vector3(dogAt.x, 0, dogAt.z) });

@@ -96,6 +96,7 @@ const FIELDS = [
   ['clanFight', 'late (walk.js): the territory fight / border-patrol fight, or NO_CLAN_FIGHT'],
   ['rival', "late (walk.js): the rival's border and its patrol, or NO_RIVAL"],
   ['dog', 'late (walk.js): the yard dog'],
+  ['farm', "Appletree Farm's animals (farmanimals.js), or NO_FARM anywhere else"],
   ['kittenEnc', 'late (walk.js): the lost-kitten encounter, or null'],
   ['kittenPlanKind', 'late (walk.js): which kitten encounter was planned, or null'],
   ['enemies', "the enemy system's per-walk scratch log (who swatted, who was forgiven)"],

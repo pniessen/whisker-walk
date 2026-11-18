@@ -158,6 +158,7 @@ export function createInteractions({
     // one would be the protocol change the spec's non-goals rule out.
     const farCall = hasSkill(progression.state, 'far-call');
     session.critters.reactToMeow(session.cat.position, { far: farCall });
+    session.farm?.reactToMeow(session.cat.position); // a cow moos back
     if (session.strayCats.reactToMeow(session.cat.position, { far: farCall }) > 0) {
       setTimeout(() => { if (getSession()) audio.meow(); }, 350); // a reply from a friend
     }
@@ -713,6 +714,18 @@ export function createInteractions({
       const to = c.group.position.clone().sub(catP).setY(0);
       if (to.length() < (goat ? GOAT_SPOT : 6) && to.normalize().dot(player.forward()) > 0.5) {
         if (log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type)) > 0) progression.recordSighting(c.type);
+      }
+    }
+    // Appletree Farm's animals: met the same way (6 m, looking at one), the
+    // same critter award and journal page, once a walk for each KIND of
+    // animal, so a yard of hens is one meeting and not five.
+    for (const a of s.farm?.spottable ?? []) {
+      const dx = a.pos.x - catP.x;
+      const dz = a.pos.z - catP.z;
+      const d = Math.hypot(dx, dz);
+      const f = player.forward();
+      if (d < 6 && d > 1e-6 && (dx * f.x + dz * f.z) / d > 0.5) {
+        if (log.awardOnce('critter', `spot-farm-${a.type}`, labelFor(a.type)) > 0) progression.recordSighting(a.type);
       }
     }
     // v21 3b Task 16: the yard dog is spotted like the critter dog it

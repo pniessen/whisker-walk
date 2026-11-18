@@ -1122,6 +1122,9 @@ function init() {
       // v21 3b Task 16: the yard dog, after the rival (they share
       // session.chasing, so only one of them ever moves the cat at a time).
       session.dog.update(dt, session.cat.position, session.cat, { stalking: player.stalking });
+      // Appletree Farm's animals, after player.update: a cat on a cow's back is
+      // carried by her from here (farmanimals.js).
+      session.farm.update(dt, t, { cat: session.cat, player, session });
       // Clan Life Part 2: the clan fight, after everything that can move the
       // cat (player.update, a chase): it writes the fighting cat's spot.
       session.clanFight.update(dt, session);

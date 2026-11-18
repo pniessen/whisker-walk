@@ -4,8 +4,8 @@ import { CRITTER_INFO, renderJournalHtml } from '../src/journal.js';
 import { JOURNAL_TYPES } from '../src/progression.js';
 
 describe('CRITTER_INFO', () => {
-  it('has all 14 journal critter types with kid-friendly entries', () => {
-    expect(CRITTER_INFO).toHaveLength(14);
+  it('has all 20 journal critter types with kid-friendly entries', () => {
+    expect(CRITTER_INFO).toHaveLength(20); // 14, and Appletree Farm's six animals
     for (const entry of CRITTER_INFO) {
       expect(typeof entry.id).toBe('string');
       expect(typeof entry.emoji).toBe('string');

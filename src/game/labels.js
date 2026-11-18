@@ -10,6 +10,8 @@ export function labelFor(type) {
     firefly: 'a glowing firefly', mouse: 'a quick little mouse',
     rat: 'a dockside rat', rabbit: 'a bounding rabbit', frog: 'a croaking frog',
     goat: 'a mountain goat',
+    cow: 'a gentle cow', farmgoat: 'a cheeky goat', hen: 'a pecking hen',
+    chick: 'a fluffy chick', sheepdog: 'the farm’s sheepdog', duckling: 'a little duckling',
   }[type] ?? 'something interesting';
 }
 
