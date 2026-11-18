@@ -66,7 +66,7 @@ import { createNightSky } from './nightsky.js';
 
 // Outdoor areas only: the den is a room and its window does not show sky
 // far enough out to matter.
-export const CLOUD_AREAS = Object.freeze(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge']);
+export const CLOUD_AREAS = Object.freeze(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm']);
 
 // One wind direction for the whole world: grass.js's WIND_DIR (0.8, 0.6).
 export const WIND_DIR = Object.freeze([0.8, 0.6]);
@@ -206,6 +206,7 @@ const BANK_SWING_PERIOD = 900; // seconds
 export const AREA_SKY = Object.freeze({
   moor: Object.freeze({ clouds: 10, banks: 5 }),
   seaside: Object.freeze({ clouds: 10, banks: 5 }),
+  farm: Object.freeze({ clouds: 10, banks: 5 }), // open farmland: a big sky
   river: Object.freeze({ clouds: 10, banks: 5 }),
   park: Object.freeze({ clouds: 10, banks: 4 }),
   neighborhood: Object.freeze({ clouds: 10, banks: 4 }),

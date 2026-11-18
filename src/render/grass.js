@@ -10,6 +10,7 @@ import { woodsGroundTint } from '../world/woods.js';
 import { pinesGroundTint } from '../world/pines.js';
 import { parkLawnTint } from '../world/park.js';
 import { neighborhoodLawnTint } from '../world/neighborhood.js';
+import { farmBare, farmGroundTint } from '../world/farm.js';
 
 // ---------------------------------------------------------------------------
 // GRASS — low swaying tufts on the lawn near the camera (Stream 4 round two,
@@ -415,8 +416,20 @@ const GORGE_FLOOR = Object.freeze({
   color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity, ground: 0, hue: 0.06, flowers: 0,
 });
 
+// Appletree Farm: pasture grass, a little longer and rougher than a mown lawn,
+// thick where it grows and thinner between. None in the wheat field or the
+// vegetable beds (farm.js farmBare).
+export function pastureDensity(x, z) {
+  if (farmBare(x, z)) return 0;
+  return 0.58 + 0.34 * patchNoise(x, z, 4.2, 73);
+}
+const PASTURE = Object.freeze({
+  color: null, hMin: 0.07, hMax: 0.18, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: pastureDensity, ground: 0.8, hue: 0.1, flowers: 0.03,
+});
+
 export const GRASS_STYLES = Object.freeze({
   park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND, river: MARSH, moor: MOOR, pines: PINE_FLOOR, gorge: GORGE_FLOOR,
+  farm: PASTURE,
 });
 
 // ---------------------------------------------------------------------------
@@ -433,6 +446,7 @@ export const GROUND_TINTS = Object.freeze({
   river: riverGroundTint, moor: moorGroundTint, woods: woodsGroundTint, pines: pinesGroundTint,
   // polish-sheen: the lawns' slow warm/cool mottle (park.js lawnMottle)
   park: parkLawnTint, neighborhood: neighborhoodLawnTint,
+  farm: farmGroundTint,
 });
 
 // tintSampler(fn, bounds, cell) — `fn(x, z) -> [r, g, b]` cached at the corners

@@ -284,6 +284,14 @@ export const CATALOG = {
     // "2 walks in Seaside" gate (and this area's own walk count) work —
     // see defaultState below, where forgetting it is a permanent NaN.
     docks: { name: 'The Old Docks', price: 200, requires: { area: 'seaside', walks: 2 } },
+    // Appletree Farm (docs/superpowers/specs/2026-11-18-farm-design.md): the
+    // third street area, opening BESIDE the Seaside after two Park walks, so no
+    // existing save finds a gate closed. No `edition`: it is in both editions.
+    // It comes AFTER the Docks in this list on purpose: the place cards follow
+    // this order, and so does the home line "One more walk here and ... opens!"
+    // (nextthing.js names the first place a walk here opens), which therefore
+    // still says the Seaside for the Park, as it always has.
+    farm: { name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } },
     woods: { name: 'The Woods', price: 0, requires: { area: 'neighborhood', walks: 2 }, edition: 'canon' },
     river: { name: 'The River and Marshes', price: 0, requires: { area: 'woods', walks: 2 }, edition: 'canon' },
     moor: { name: 'The Moor', price: 0, requires: { area: 'woods', walks: 2 }, edition: 'canon' },
@@ -390,7 +398,8 @@ function defaultState() {
     // The Woods joins them for the same reason: the first Woods walk on a save
     // with no 'woods' key would pin state.walks.woods at NaN forever. So does
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0 },
+    // And the Farm: a save from before it loads with farm: 0.
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },

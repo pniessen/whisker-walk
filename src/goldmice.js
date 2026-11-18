@@ -3,7 +3,7 @@ import { litMaterial } from './render/materials.js';
 import { areaInEdition } from './edition.js';
 import { FLAT_GROUND } from './ground.js';
 
-// Thirty hidden golden mice: three in each of nine areas, and three more on
+// Thirty-three hidden golden mice: three in each of ten areas, and three more on
 // the island in the Pines' lake, which is part of the Pines walk. Placed at parkour
 // destinations using the perch coordinates that actually ship in
 // src/world/*.js (see task-4.2-report.md for the chain math) rather than the v11 spec's
@@ -138,10 +138,21 @@ export const GOLD_MICE = {
     // in the Lookout den, beside the Lookout Ledge (ground 4)
     { id: 'gm-gorge-3', x: 4.6, z: -9.6, y: 0 },
   ],
+  // Appletree Farm (src/world/farm.js), the same shape as the street areas: two
+  // on the tops of perch chains, at the perches' own numbers, and one hidden
+  // on the ground. None is in the pond.
+  farm: [
+    // in the hayloft, four hops up the hay bales and in at the hay door
+    { id: 'gm-farm-1', x: 0.3, z: -12.8, y: 3.0 },
+    // on the goats' jumping stand in the paddock: rock 0.72 -> stand 1.5
+    { id: 'gm-farm-2', x: -30.5, z: -27, y: 1.5 },
+    // hidden at ground level between the two vegetable beds
+    { id: 'gm-farm-3', x: -24.4, z: 18.9, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 30 (nine areas x three, and the island's three)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 33 (ten areas x three, and the island's three)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

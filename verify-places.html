@@ -33,8 +33,9 @@
   import * as moor from '/src/world/moor.js';
   import * as pines from '/src/world/pines.js';
   import * as gorge from '/src/world/gorge.js';
+  import * as farm from '/src/world/farm.js';
 
-  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge };
+  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge, farm };
   const id = new URLSearchParams(location.search).get('area') || 'neighborhood';
   // ?size=WxH renders bigger than the card pictures (for looking, not shipping).
   const [W, H] = (new URLSearchParams(location.search).get('size') || '640x360').split('x').map(Number);
@@ -182,6 +183,10 @@
     // first view, from the clifftop's lip '3,13.8,-26,-8,2,20', was half bare
     // rock
     gorge: '-3,15,-40,-6,0,0',
+    // from the yard's east side: the red barn with its hay bales and open hay
+    // door, the hen coop and the goat paddock to the left, the wheat and the
+    // scarecrow to the right (the card picture)
+    farm: '9.5,2.2,6,0.5,2.4,-12',
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();
