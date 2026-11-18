@@ -7,6 +7,14 @@ import { readFileSync } from 'node:fs';
 // "Put online" is cloudsync.js's onlineAllowed(): a walking name is saved, or
 // the device is linked to a cloud save.
 //
+// 2026-11-17, two things on top of that:
+//   * the app's nearby search (game/nearby.js, the local network) waits for
+//     the same gate, so a fresh device neither looks nor is findable;
+//   * everything about other players (friends, profiles, greets, friend
+//     codes, the colony, rooms) needs a walking name: togetherAllowed(). A
+//     device that is only linked to a cloud save asks the database about its
+//     save and about nothing else.
+//
 // What is real here: the progression, createCloudSync with its LIVE cloud
 // (createLiveCloud -> net.js's getSupabaseClient), createRooms with its LIVE
 // transport, createColonySync, createOnlineDelete, the home base's cloud
@@ -67,7 +75,8 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
   },
 }));
 
-const { createCloudSync, onlineOptedIn } = await import('../src/game/cloudsync.js');
+const { createCloudSync, onlineOptedIn, walkingNameSaved } = await import('../src/game/cloudsync.js');
+const { createNearby, NEARBY_OPTED_KEY } = await import('../src/game/nearby.js');
 const { createRooms } = await import('../src/game/rooms.js');
 const { createColonySync } = await import('../src/game/colonysync.js');
 const { createOnlineDelete } = await import('../src/game/onlinedelete.js');
@@ -144,14 +153,17 @@ const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolu
 
 // main.js's wiring of the online side, with the same factories in the same
 // order. `petName` and `linked` are the two things that put a device online.
-function boot({ petName = null, linked = false, MP = true } = {}) {
+// The nearby search is the real module over a bridge that only records what
+// the app would have been told (g.nearbySent); `nearbyOpted` is the flag an
+// earlier visit to Play together leaves on the device.
+function boot({ petName = null, linked = false, MP = true, nearbyOpted = false } = {}) {
   const storage = memStorage();
   if (linked) { storage.setItem(CODE_KEY, 'PLUM-OTTER-CROW-42'); storage.setItem(CODE_SECRET_KEY, 'row-secret-1'); }
   const progression = createProgression(memStorage());
   if (petName) progression.setPetName(petName);
   // a url of its own, so net.js's per-url client cache never hides a create
   const url = `https://test-${++seq}.invalid`;
-  const { getPsecret, getCloud, openCloud, onlineAllowed, sync } = createCloudSync({
+  const { getPsecret, getCloud, openCloud, onlineAllowed, togetherAllowed, sync } = createCloudSync({
     MP, supabaseUrl: url, supabaseAnonKey: 'anon', storage, progression,
     album: { serialize: () => ({ version: 1, photos: [] }), replaceFromPayload() {}, photos: [] }, cloudToast: () => {},
   });
@@ -163,18 +175,26 @@ function boot({ petName = null, linked = false, MP = true } = {}) {
   let session = null;
   const made = createRooms({
     MP, pid: PID, supabaseUrl: url, supabaseAnonKey: 'anon',
-    progression, getCloud, getPsecret, colonySync, onlineAllowed,
+    progression, getCloud, getPsecret, colonySync, onlineAllowed: togetherAllowed,
     getSession: () => session, startWalk: () => { session = {}; }, toast: () => {},
   });
   pushProfileNow = made.pushProfileNow;
+  const nearbySent = [];
+  const nearbyStorage = memStorage();
+  if (nearbyOpted) nearbyStorage.setItem(NEARBY_OPTED_KEY, '1');
+  const nearby = createNearby({
+    bridge: { postMessage: (m) => nearbySent.push(m) }, storage: nearbyStorage, rooms: made.rooms,
+    getName: () => progression.state.petName,
+    onlineAllowed,
+  });
   const blockList = createBlockList(memStorage());
-  const homebaseCloud = createHomebaseCloud({ MP, pid: PID, getCloud, getPsecret, onlineAllowed, pushProfileNow, blockList });
+  const homebaseCloud = createHomebaseCloud({ MP, pid: PID, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   const onlineDelete = createOnlineDelete({ MP, pid: PID, getCloud: openCloud, getPsecret, sync, progression });
   const homebase = createHomeBase({
     progression, album: { photos: [] }, onStartWalk: () => {}, rooms: made.rooms, sync, onlineDelete, cloud: homebaseCloud,
-    settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: PID, toast: () => {},
+    settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: PID, toast: () => {}, nearby,
   });
-  return { storage, progression, getPsecret, getCloud, openCloud, onlineAllowed, sync, colonySync, rooms: made.rooms, pushProfileNow, homebaseCloud, onlineDelete, homebase, made };
+  return { nearby, nearbySent, togetherAllowed, storage, progression, getPsecret, getCloud, openCloud, onlineAllowed, sync, colonySync, rooms: made.rooms, pushProfileNow, homebaseCloud, onlineDelete, homebase, made };
 }
 const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); await new Promise((r) => setTimeout(r, 0)); };
 const openSheet = (id) => dressingMock.opts.onOpenSheet(id);
@@ -186,6 +206,8 @@ function expectSilent(g) {
   expect(spy.channels).toEqual([]);
   expect(fetchSpy).not.toHaveBeenCalled();
   expect(sockets).toEqual([]);
+  // and nothing went on the local network: the app was told nothing
+  if (g) expect(g.nearbySent).toEqual([]);
   // no secret was made up for a device that never went online
   if (g) expect(g.storage.getItem(SECRET_KEY)).toBe(null);
 }
@@ -215,8 +237,21 @@ describe('the rule: what counts as put online', () => {
     expect(onlineOptedIn({ petName: 'Mittens', cloudLinked: false })).toBe(true);
     expect(onlineOptedIn({ petName: null, cloudLinked: true })).toBe(true);
   });
+  it('the narrower rule, for everything about other players: a saved walking name and nothing else', () => {
+    expect(walkingNameSaved()).toBe(false);
+    expect(walkingNameSaved({ petName: null })).toBe(false);
+    expect(walkingNameSaved({ petName: '' })).toBe(false);
+    expect(walkingNameSaved({ petName: 42 })).toBe(false);
+    expect(walkingNameSaved({ petName: 'Mittens' })).toBe(true);
+    expect(walkingNameSaved({ petName: null, cloudLinked: true })).toBe(false); // a linked save is not a name
+    expect(boot().togetherAllowed()).toBe(false);
+    expect(boot({ linked: true }).togetherAllowed()).toBe(false);
+    expect(boot({ petName: 'Mittens' }).togetherAllowed()).toBe(true);
+    expect(boot({ petName: 'Mittens', linked: true }).togetherAllowed()).toBe(true);
+  });
   it('a build without the database is never online, whatever the save says', () => {
     const g = boot({ petName: 'Mittens', linked: true, MP: false });
+    expect(g.togetherAllowed()).toBe(false);
     expect(g.onlineAllowed()).toBe(false);
     expect(g.getCloud()).toBe(null);
     expect(g.openCloud()).toBe(null);
@@ -225,7 +260,7 @@ describe('the rule: what counts as put online', () => {
 
 describe('a fresh device: launch, home, a walk, home again', () => {
   it('makes no request, opens no connection and creates no client', async () => {
-    const g = boot();
+    const g = boot({ nearbyOpted: true }); // even with Play together opened on an earlier day
     expect(g.onlineAllowed()).toBe(false);
     await g.colonySync.pull();           // main.js at launch
     g.homebase.show();
@@ -273,6 +308,11 @@ describe('going online is a tap, and the tap still works', () => {
     expect(res.ok).toBe(true);
     expect(rpcNames()).toEqual(['upsert_save']);
     expect(g.onlineAllowed()).toBe(true);
+    // 2026-11-17: online for its save only. With no walking name the handle
+    // for everything about other players stays shut.
+    expect(g.togetherAllowed()).toBe(false);
+    expect(g.getCloud()).toBe(null);
+    g.progression.setPetName('Mittens');
     expect(g.getCloud()).not.toBe(null);
   });
   it('a refused Save to cloud leaves the device offline', async () => {
@@ -295,6 +335,7 @@ describe('going online is a tap, and the tap still works', () => {
     const g = boot();
     g.progression.setPetName('Mittens');
     expect(g.onlineAllowed()).toBe(true);
+    expect(g.togetherAllowed()).toBe(true);
     await g.pushProfileNow();
     expect(rpcNames()).toEqual(['upsert_profile']);
   });
@@ -355,15 +396,142 @@ describe('a device already online behaves as before', () => {
     expect(rpcNames()).toContain('upsert_profile');
     await g.rooms.leave();
   });
-  it('with only a linked cloud save: the walk still looks up friends and auto-saves, and publishes no profile', async () => {
+  it('with only a linked cloud save: the walk auto-saves, and that is all (no friends lookup, no profile, no colony)', async () => {
     const g = boot({ linked: true });
     spy.answers.friendships_of = [];
     spy.answers.upsert_save = 'updated';
     await walkOnce(g);
+    expect(rpcNames()).toEqual(['upsert_save']);
+    expect(spy.selects).toEqual([]);
+    expect(spy.channels).toEqual([]);
+  });
+});
+
+// 2026-11-17: the friends lookup, and everything else about other players,
+// needs a walking name. Each call below is made the way its screen or the
+// walk makes it, on a device whose only step online is a linked cloud save.
+describe('a device with a linked cloud save and no walking name: its save, and nothing else', () => {
+  const OTHER = 'bbbbbbbb-2222-4000-8000-000000000002';
+  const linkedOnly = () => {
+    const g = boot({ linked: true, nearbyOpted: true });
+    expect(g.onlineAllowed()).toBe(true);
+    expect(g.togetherAllowed()).toBe(false);
+    return g;
+  };
+  it('launch, every screen, two walks: the only request is the save going up after each walk', async () => {
+    const g = linkedOnly();
+    spy.answers.upsert_save = 'updated';
+    await g.colonySync.pull();           // main.js at launch
+    g.homebase.show();
+    await settle();
+    for (const id of ['menu', 'together', 'colony', 'sync', 'settings', 'friends', 'journal', 'album', 'menu']) {
+      openSheet(id);
+      await settle();
+    }
+    await walkOnce(g);
+    g.homebase.show();
+    openSheet('together');
+    await settle();
+    await walkOnce(g);
+    expect(rpcNames()).toEqual(['upsert_save', 'upsert_save']);
+    expect(spy.selects).toEqual([]);     // no profile was read
+    expect(spy.channels).toEqual([]);    // no room, no live connection
+    expect(g.storage.getItem(SECRET_KEY)).toBe(null); // and no player secret was made up
+  });
+  it('the walk-start friends lookup does not run', async () => {
+    const g = linkedOnly();
+    expect(g.getCloud()).toBe(null);     // walk.js spawnGhosts stops here
+    expectSilent(g);
+  });
+  it('the Player pets list is empty without asking, and profiles and friend codes are refused', async () => {
+    const g = linkedOnly();
+    await expect(g.homebaseCloud.fetchFriendships(PID)).resolves.toEqual([]);
+    await expect(g.homebaseCloud.fetchProfiles([OTHER])).rejects.toThrow('cloud unavailable');
+    await expect(g.homebaseCloud.findByFriendCode('3fa85f64')).rejects.toThrow('cloud unavailable');
+    await expect(g.homebaseCloud.addFriendByCode(OTHER)).rejects.toThrow('cloud unavailable');
+    expectSilent(g);
+  });
+  it('no profile is published', async () => {
+    const g = linkedOnly();
+    await g.pushProfileNow();
+    expectSilent(g);
+  });
+  it('the colony is not asked: no catch-up, no feeding, no pairing', async () => {
+    const g = linkedOnly();
+    await g.colonySync.pull();
+    g.colonySync.pushFeed({ cat: 'Biscuit', walk: 'w1' });
+    await g.colonySync.pairing.open();
+    await g.colonySync.pairing.join('ABCDEF');
+    await settle();
+    expectSilent(g);
+  });
+  it('no room is hosted or joined, whatever calls it', async () => {
+    const g = linkedOnly();
+    expect(await g.rooms.host()).toEqual({ ok: false });
+    expect(await g.rooms.join('ABCD')).toEqual({ ok: false });
+    expect(await g.rooms.walkWithPartner()).toEqual({ ok: false });
+    expectSilent(g);
+  });
+  it('its own save still works both ways: Sync now, and deleting the linked save', async () => {
+    const g = linkedOnly();
+    spy.answers.upsert_save = 'updated';
+    spy.answers.delete_save = 'ok';
+    expect(await g.sync.syncNow()).toEqual({ ok: true, message: 'Synced ✓' });
+    await g.sync.deleteCloudSave();
+    expect(rpcNames()).toEqual(['upsert_save', 'delete_save']);
+  });
+  it('saving a walking name opens the rest at once: the next walk looks up friends', async () => {
+    const g = linkedOnly();
+    spy.answers.friendships_of = [];
+    spy.answers.upsert_save = 'updated';
+    spy.answers.colony_sync = { status: 'unpaired' };
+    g.progression.setPetName('Mittens');
+    await walkOnce(g);
     expect(rpcNames()).toContain('friendships_of');
+    expect(rpcNames()).toContain('upsert_profile');
     expect(rpcNames()).toContain('upsert_save');
-    expect(rpcNames()).not.toContain('upsert_profile');
-    expect(rpcNames()).not.toContain('colony_sync');
+  });
+});
+
+// 2026-11-17: the iPhone and iPad app's nearby search waits for the gate.
+describe('the nearby search (the app, the local network) waits for the gate', () => {
+  it('a fresh device that opens Play together tells the app nothing', async () => {
+    const g = boot();
+    g.homebase.show();
+    openSheet('together');
+    await settle();
+    openSheet(null);
+    await settle();
+    expect(g.nearbySent).toEqual([]);
+    expectSilent(g);
+  });
+  it('saving a walking name there starts the search', async () => {
+    const g = boot();
+    spy.answers.friendships_of = [];
+    g.homebase.show();
+    openSheet('together');
+    expect(g.nearbySent).toEqual([]);
+    g.progression.setPetName('Mittens');
+    openSheet('together');                // the home base draws again, as it does after Save
+    expect(g.nearbySent).toEqual([{ op: 'browse' }]);
+  });
+  it('a device online from an earlier day looks from the cat\'s screen, as before', () => {
+    const g = boot({ petName: 'Mittens', nearbyOpted: true });
+    g.homebase.show();
+    expect(g.nearbySent).toEqual([{ op: 'browse' }]);
+  });
+  it('after Delete my online data the search stops and does not start again', async () => {
+    const g = boot({ petName: 'Mittens', linked: true, nearbyOpted: true });
+    spy.answers.delete_player = 'ok';
+    spy.answers.delete_save = 'ok';
+    g.homebase.show();
+    expect(g.nearbySent).toEqual([{ op: 'browse' }]);
+    expect((await g.onlineDelete.run()).outcome).toBe('done');
+    openSheet('sync');                    // the sheet draws again once the delete is done
+    expect(g.nearbySent).toEqual([{ op: 'browse' }, { op: 'stopBrowsing' }]);
+    openSheet('together');
+    openSheet(null);
+    expect(g.nearbySent).toHaveLength(2);
   });
 });
 
@@ -383,9 +551,14 @@ describe('where the network can start', () => {
   it('main.js hands the ungated handle to Delete my online data and to nothing else', () => {
     const main = read('main.js');
     expect(main.match(/openCloud/g)).toHaveLength(3); // a comment, the destructure, and onlineDelete
+    expect(main).toContain('const { getPsecret, getCloud, openCloud, onlineAllowed, togetherAllowed, sync } = createCloudSync({');
     expect(main).toContain('createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression })');
-    expect(main).toContain('progression, getCloud, getPsecret, colonySync, onlineAllowed,'); // createRooms
-    expect(main).toContain('createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed, pushProfileNow, blockList })');
+    // 2026-11-17: rooms and the Player pets list get the walking-name gate
+    expect(main).toContain('progression, getCloud, getPsecret, colonySync, onlineAllowed: togetherAllowed,'); // createRooms
+    expect(main).toContain('createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList })');
+    // the wide gate (a name or a linked save) goes to the nearby search and nowhere else
+    expect(main.match(/\bonlineAllowed\b/g)).toHaveLength(5); // a comment, the destructure, rooms, the nearby search, the pets list
+    expect(main).toContain("getName: () => progression.state.petName,\n    onlineAllowed,\n  });");
     expect(main).toContain('sync.autoSync(); // fire-and-forget; no-op when unlinked/offline');
     expect(main).not.toMatch(/fetch\(|createClient|getSupabaseClient|new WebSocket/);
   });
@@ -397,6 +570,51 @@ describe('where the network can start', () => {
     }
     expect(read('cloud.js')).not.toContain("import('@supabase/supabase-js')");
     expect(read('net.js').match(/import\('@supabase\/supabase-js'\)/g)).toHaveLength(1);
+  });
+  it('outside cloudsync.js the gated handle needs a walking name; the save has a handle of its own', () => {
+    const cs = read('game/cloudsync.js');
+    expect(cs).toContain('function getCloud() {\n    return togetherAllowed() ? openCloud() : null;\n  }');
+    expect(cs).toContain('function saveCloud() {\n    return onlineAllowed() ? openCloud() : null;\n  }');
+    // inside the file: getCloud is defined and returned and never called;
+    // the save's handle is called twice (Sync, deleting the linked save),
+    // each straight after the link is read
+    expect(cs.match(/getCloud\(\)/g)).toHaveLength(1 + (cs.match(/\/\/.*getCloud\(\)/g) ?? []).length);
+    expect(cs.match(/= saveCloud\(\);/g)).toHaveLength(2);
+    expect(cs).toContain("if (!link) return { ok: false, message: 'Not linked to a cloud save.' };\n    const cloud = saveCloud();");
+    expect(cs).toContain("if (!link) return 'not-linked';\n      const cloud = saveCloud();");
+    expect(cs).toContain('return { getPsecret, getCloud, openCloud, onlineAllowed, togetherAllowed, sync };');
+    expect(cs.match(/openCloud\(\); \/\/ /g)).toHaveLength(2); // Save to cloud and Load from cloud, the two taps
+  });
+  it('the nearby search asks the gate before it tells the app anything', () => {
+    const mod = read('game/nearby.js');
+    expect(mod).toContain('if (!available || !visible || !opted() || !online()) return { advertise: null, browse: false };');
+    expect(mod).toContain('onlineAllowed = () => false,'); // forgotten, the answer is no
+    // every message to the app goes through post(), and post() is called only from refresh()
+    expect(mod.match(/bridge\.postMessage\(/g)).toHaveLength(1);
+    const refresh = mod.slice(mod.indexOf('  function refresh() {'), mod.indexOf('  // A room made, joined, started or left'));
+    expect(mod.match(/\bpost\(/g)).toHaveLength(1 + refresh.match(/\bpost\(/g).length); // its own definition, and refresh's
+    expect(refresh.match(/\bpost\(/g)).toHaveLength(3);
+    expect(refresh).toContain('const want = wants();');
+  });
+  it('the app starts nothing on the local network by itself: only the page\'s messages do', () => {
+    const ios = (f) => readFileSync(new URL(`../ios/WhiskerWalk/${f}`, import.meta.url), 'utf8');
+    const swift = ios('Nearby.swift');
+    // one place starts a search and one starts being findable; each is reached only from the plan
+    expect(swift.match(/startBrowsingForPeers\(\)/g)).toHaveLength(1);
+    expect(swift.match(/startAdvertisingPeer\(\)/g)).toHaveLength(1);
+    expect(swift).toContain('private lazy var peer = MCPeerID(displayName: Self.peerName)'); // not made until first used
+    expect(swift.match(/radio\.(advertise|browse)\(/g)).toHaveLength(2); // both in sync()
+    expect(swift).toContain('private func sync() {\n        radio.advertise(plan.advertising)\n        radio.browse(plan.browsing)');
+    // a plan starts empty, so sync() with no message from the page starts nothing
+    expect(swift).toContain('private(set) var room: NearbyRoom?\n    private(set) var wantsBrowsing = false');
+    // the view controller only registers the handler and resets it
+    const vc = ios('GameViewController.swift');
+    expect(vc.match(/\bnearby\b\.[a-zA-Z]+/g)).toEqual(['nearby.reset']);
+    expect(vc).toContain('config.userContentController.add(nearby, name: NearbyBridge.handlerName)');
+    // nothing else in the app uses the local network or the internet by itself
+    for (const f of ['AppDelegate.swift', 'SceneDelegate.swift', 'GameViewController.swift', 'Haptics.swift', 'CrashRecovery.swift', 'ExpiryWarning.swift', 'DeviceProfile.swift', 'WebRoot.swift', 'AppScheme.swift', 'BundleSchemeHandler.swift', 'NavigationRule.swift']) {
+      expect(ios(f), f).not.toMatch(/MultipeerConnectivity|MCNearby|NWBrowser|NWListener|NetService|URLSession|import Network/);
+    }
   });
   it('every room is opened behind the gate', () => {
     const rooms = read('game/rooms.js');

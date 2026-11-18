@@ -29,14 +29,17 @@ function fakeRooms() {
 }
 const HOSTED = { code: 'ABCD', roster: [], isHost: true, pair: false, starting: false, hosted: true };
 
-function setup({ opted = true, name = 'Mittens', bridge, storage } = {}) {
+// online: the device has been put online by choice (cloudsync.js's
+// onlineAllowed), which every test above the "put online" block assumes.
+function setup({ opted = true, name = 'Mittens', bridge, storage, online = true } = {}) {
   const sent = [];
   const b = bridge === undefined ? { postMessage: (m) => sent.push(m) } : bridge;
   const store = storage ?? memStorage(opted ? { [NEARBY_OPTED_KEY]: '1' } : {});
   const rooms = fakeRooms();
   let petName = name;
-  const nearby = createNearby({ bridge: b, storage: store, rooms, getName: () => petName });
-  return { nearby, sent, rooms, store, setName: (n) => { petName = n; } };
+  let isOnline = online;
+  const nearby = createNearby({ bridge: b, storage: store, rooms, getName: () => petName, onlineAllowed: () => isOnline });
+  return { nearby, sent, rooms, store, setName: (n) => { petName = n; }, setOnline: (v) => { isOnline = v; } };
 }
 const ops = (sent) => sent.map((m) => m.op);
 const found = (...list) => ({ rooms: list.map(([code, name]) => ({ code, name })) });
@@ -444,6 +447,100 @@ describe('the home card and "Not now"', () => {
   });
 });
 
+// 2026-11-17: the nearby search waits for the device to be put online by
+// choice (a walking name saved, or a cloud save linked), as the database
+// does. Opening Play together is no longer enough by itself.
+describe('nothing on the local network until the device is online by choice', () => {
+  it('a fresh device that has opened Play together sends the app nothing', () => {
+    const { nearby, sent, rooms } = setup({ opted: false, name: null, online: false });
+    nearby.setScreen('home');
+    nearby.setScreen('together');
+    nearby.noteOptIn();
+    nearby.setScreen('home');
+    nearby.setVisible(false);
+    nearby.setVisible(true);
+    rooms.set(null);
+    nearby.refresh();
+    expect(sent).toEqual([]);
+    expect(nearby.browsing()).toBe(false);
+    expect(nearby.advertising()).toBe(false);
+  });
+  it('the flag from an earlier launch does not start a search either', () => {
+    const { nearby, sent } = setup({ opted: true, name: null, online: false });
+    nearby.setScreen('home');
+    nearby.setScreen('together');
+    expect(sent).toEqual([]);
+  });
+  it('is never findable: even a hosted room is not announced', () => {
+    const { nearby, sent, rooms } = setup({ online: false });
+    nearby.setScreen('together');
+    rooms.set(HOSTED);
+    expect(sent).toEqual([]);
+    expect(nearby.advertising()).toBe(false);
+  });
+  it('a report that arrives anyway is not believed', () => {
+    const { nearby, sent } = setup({ online: false });
+    const heard = vi.fn();
+    nearby.onChange(heard);
+    nearby.setScreen('home');
+    nearby.receive(found(['WXYZ', 'Robin']));
+    expect(nearby.rooms()).toEqual([]);
+    expect(nearby.cardRoom()).toBe(null);
+    expect(heard).not.toHaveBeenCalled();
+    expect(sent).toEqual([]);
+  });
+  it('the search starts when she goes online, with no change of screen', () => {
+    const { nearby, sent, setOnline } = setup({ opted: false, name: null, online: false });
+    nearby.setScreen('together');
+    nearby.noteOptIn();
+    expect(sent).toEqual([]);
+    setOnline(true); // she saved a walking name; the home base renders and asks again
+    nearby.refresh();
+    expect(ops(sent)).toEqual(['browse']);
+    nearby.refresh();
+    expect(ops(sent)).toEqual(['browse']); // asked once
+  });
+  it('going online alone is not enough: Play together or Host must have been opened too', () => {
+    const { nearby, sent } = setup({ opted: false, online: true });
+    nearby.setScreen('home');
+    nearby.refresh();
+    expect(sent).toEqual([]);
+  });
+  it('Delete my online data stops the search and forgets what was found', () => {
+    const { nearby, sent, setOnline } = setup();
+    nearby.setScreen('home');
+    nearby.receive(found(['WXYZ', 'Robin']));
+    expect(nearby.rooms()).toHaveLength(1);
+    setOnline(false);
+    nearby.refresh();
+    expect(ops(sent)).toEqual(['browse', 'stopBrowsing']);
+    expect(nearby.rooms()).toEqual([]);
+    expect(nearby.cardRoom()).toBe(null);
+  });
+  it('and stops a hosted room being findable', () => {
+    const { nearby, sent, rooms, setOnline } = setup();
+    nearby.setScreen('together');
+    rooms.set(HOSTED);
+    expect(ops(sent)).toEqual(['browse', 'stopBrowsing', 'advertise']);
+    setOnline(false);
+    nearby.refresh();
+    expect(ops(sent).at(-1)).toBe('stopAdvertising');
+    expect(nearby.advertising()).toBe(false);
+  });
+  it('a caller that hands in no gate, or one that throws, gets silence', () => {
+    for (const onlineAllowed of [undefined, () => { throw new Error('boom'); }, () => 'yes', () => 1]) {
+      const sent = [];
+      const nearby = createNearby({
+        bridge: { postMessage: (m) => sent.push(m) }, storage: memStorage({ [NEARBY_OPTED_KEY]: '1' }),
+        rooms: fakeRooms(), getName: () => 'Mittens', ...(onlineAllowed ? { onlineAllowed } : {}),
+      });
+      nearby.setScreen('home');
+      nearby.noteOptIn();
+      expect(sent).toEqual([]);
+    }
+  });
+});
+
 // main.js boots the whole game and cannot run headless, so its wiring is
 // pinned by its text, as the haptics' is.
 describe('main.js wiring', async () => {
@@ -455,6 +552,9 @@ describe('main.js wiring', async () => {
     expect(made).toBeGreaterThan(main.indexOf('} = createRooms({'));
     expect(made).toBeLessThan(main.indexOf('const homebase = createHomeBase('));
     expect(main).toContain('bridge: pickBridge(window), storage: window.localStorage, rooms,');
+    // and it is handed the "online by choice" gate (the wide one: a walking
+    // name or a linked cloud save), straight from createCloudSync
+    expect(main.slice(made, made + 200)).toContain("getName: () => progression.state.petName,\n    onlineAllowed,\n  });");
     expect(main).toContain('haptics: haptics.available, nearby });');
   });
   it('hears the shell\'s event and follows the page being hidden', () => {

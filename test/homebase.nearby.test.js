@@ -105,7 +105,9 @@ function fakeRooms({ joinOk = true } = {}) {
 
 // app: in the app (a bridge) or not. opted: Play together was opened on an
 // earlier launch. name: the cat's online name, or none.
-function setup({ app = true, opted = true, name = 'Mittens', joinOk = true, greeted = true, state, colonySync = null } = {}) {
+// online: put online by choice (cloudsync.js's onlineAllowed). Left out, it is
+// the real rule's name half: online exactly when a walking name is saved.
+function setup({ app = true, opted = true, name = 'Mittens', joinOk = true, greeted = true, state, colonySync = null, online } = {}) {
   const progression = createProgression(memStorage());
   if (name) progression.state.petName = name;
   if (state) state(progression.state);
@@ -115,6 +117,7 @@ function setup({ app = true, opted = true, name = 'Mittens', joinOk = true, gree
   const nearby = createNearby({
     bridge: app ? { postMessage: (m) => sent.push(m) } : null,
     storage, rooms, getName: () => progression.state.petName,
+    onlineAllowed: () => online ?? (typeof progression.state.petName === 'string' && progression.state.petName.length > 0),
   });
   const toasts = [];
   const onCardsClosed = vi.fn();
@@ -218,6 +221,57 @@ describe('the first-use gate, from the home base', () => {
   });
 });
 
+// 2026-11-17: the search also waits for the device to be put online by
+// choice. With no walking name and no linked cloud save, opening Play
+// together shows the name box and nothing goes on the local network.
+describe('a fresh device: not online yet, so no search', () => {
+  it('opening Play together sends the app nothing, and she reads the usual first line', () => {
+    const { hb, sent } = setup({ opted: false, name: null });
+    openSheet('together');
+    expect(sent).toEqual([]);
+    expect(html()).toContain('First, pick your walking name:');
+    expect(html()).not.toContain('wt-nearby-row');
+    openSheet(null);
+    openSheet('menu');
+    hb.hide();
+    hb.show();
+    openSheet('together');
+    expect(sent).toEqual([]);
+  });
+  it('a report that arrives anyway draws no row and no card', () => {
+    const { nearby, sent } = setup({ name: null });
+    nearby.receive(found(['WXYZ', 'Robin']));
+    expect(card()).toBeUndefined();
+    openSheet('together');
+    expect(html()).not.toContain('data-nearby-code');
+    expect(sent).toEqual([]);
+  });
+  it('Host with no name leads to the name box with the words there already are, and still sends nothing', async () => {
+    const { sent, rooms } = setup({ opted: false, name: null });
+    openSheet('together');
+    await tap({ id: 'wt-host' });
+    expect(rooms.host).not.toHaveBeenCalled();
+    expect(html()).toContain('You need a walking name before you can join a walk. Type one here and tap Save:');
+    expect(sent).toEqual([]);
+  });
+  it('saving a walking name on Play together is what starts the search', async () => {
+    const { sent, progression } = setup({ opted: false, name: null });
+    openSheet('together');
+    expect(sent).toEqual([]);
+    doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? { value: 'Mittens' } : null);
+    await tap({ id: 'wt-petname-save' });
+    expect(progression.state.petName).toBe('Mittens');
+    expect(sent).toEqual([{ op: 'browse' }]);
+  });
+  it('and when the name is gone again (Delete my online data) the search stops at the next render', () => {
+    const { sent, progression } = setup();
+    expect(sent).toEqual([{ op: 'browse' }]);
+    progression.state.petName = null;
+    openSheet('together');
+    expect(sent).toEqual([{ op: 'browse' }, { op: 'stopBrowsing' }]);
+  });
+});
+
 describe('the rows in Play together', () => {
   it('none found: no row, and no "searching" either', () => {
     setup();
@@ -276,7 +330,8 @@ describe('the rows in Play together', () => {
     expect(html()).not.toContain('wt-nearby-row');
   });
   it('Join with no name does not join: it says a name is needed and puts her in the name box', async () => {
-    const { nearby, rooms } = setup({ name: null });
+    // no walking name, yet online by choice: a device with a linked cloud save
+    const { nearby, rooms } = setup({ name: null, online: true });
     nearby.receive(found(['WXYZ', 'Robin']));
     openSheet('together');
     expect(html()).toContain('data-nearby-code="WXYZ">Join</button>'); // not disabled: it has somewhere to take her
@@ -290,7 +345,7 @@ describe('the rows in Play together', () => {
     expect(html()).toContain('wt-nearby-row'); // the row waits for her
   });
   it('once she has a name the line is gone and Join joins', async () => {
-    const { nearby, rooms, progression } = setup({ name: null });
+    const { nearby, rooms, progression } = setup({ name: null, online: true });
     nearby.receive(found(['WXYZ', 'Robin']));
     openSheet('together');
     await tap({ dataset: { nearbyCode: 'WXYZ' } });
@@ -421,7 +476,8 @@ describe('the card over home', () => {
     expect(rooms.join).toHaveBeenCalledTimes(1);
   });
   it('Join with no name: no join, Play together opens with the line and the name box', async () => {
-    const { nearby, rooms } = setup({ name: null });
+    // no walking name, yet online by choice: a device with a linked cloud save
+    const { nearby, rooms } = setup({ name: null, online: true });
     nearby.receive(found(['WXYZ', 'Robin']));
     const nameBox = { focus: vi.fn() };
     doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? nameBox : null);

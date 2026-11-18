@@ -42,7 +42,9 @@ export function createRooms({
   toast,
   createTransport = () => createSupabaseTransport(supabaseUrl, supabaseAnonKey),
   // cloudsync.js's gate (2026-11-16): no room is opened, so no live
-  // connection is made, on a device that has not been put online. main.js
+  // connection is made, on a device that has not been put online. Since
+  // 2026-11-17 main.js passes the walking-name gate (togetherAllowed): a room
+  // is about other players, so a linked cloud save alone opens none. main.js
   // always passes it; the default is for tests that build rooms on their own.
   onlineAllowed = () => true,
 }) {

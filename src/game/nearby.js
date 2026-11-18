@@ -27,6 +27,13 @@
 // it, so nothing is sent until she has opened Play together or tapped Host
 // once on this device (noteOptIn; one localStorage flag, never the save).
 //
+// And nothing is sent until the device has been put online by choice
+// (2026-11-17): a walking name is saved, or a cloud save is linked. That is
+// cloudsync.js's onlineAllowed, handed in; it is asked every time, so a fresh
+// device neither looks nor is findable, the search starts once a name is
+// saved, and it stops again after Delete my online data. The shell starts
+// nothing by itself (ios/WhiskerWalk/Nearby.swift), so this is the whole gate.
+//
 // What is advertised is the room code and the cat's name, and nothing else:
 // no player id, nothing from the save. That is also why a host on this
 // device's block list cannot be dropped here: the block list is keyed by
@@ -100,18 +107,22 @@ export function sanitizeNearby(raw, { ownCode = null, validName = validPetName, 
   return out;
 }
 
-// createNearby({ bridge, storage, rooms, getName }) → the object main.js and
-// the home base use.
+// createNearby({ bridge, storage, rooms, getName, onlineAllowed }) → the
+// object main.js and the home base use.
 //   bridge   pickBridge(window): the app's handler, or null outside the app
 //   storage  localStorage-shaped, for the one first-use flag
 //   rooms    game/rooms.js's `rooms` (getState, onChange)
 //   getName  () => this device's cat name (progression.state.petName)
+//   onlineAllowed  () => has this device been put online by choice
+//            (cloudsync.js). main.js always passes it; left out, the answer
+//            is no, so a caller that forgets it gets silence, not a search.
 export function createNearby({
   bridge = null,
   storage = null,
   rooms = null,
   getName = () => null,
   validName = validPetName,
+  onlineAllowed = () => false,
 } = {}) {
   const available = !!bridge && typeof bridge.postMessage === 'function';
   let screen = 'hidden';
@@ -142,16 +153,22 @@ export function createNearby({
     try { return rooms?.getState?.() ?? null; } catch { return null; }
   }
 
+  // A gate that throws reads as "not online".
+  function online() {
+    try { return onlineAllowed() === true; } catch { return false; }
+  }
+
   // The whole rule, in one place.
   //   advertise: this child tapped Host, the room is an ordinary code room
   //     that is still waiting (not starting, no walk: home is showing), and
   //     the cat has a name fit to show.
   //   browse: the cat's screen or Play together is showing and there is no
   //     room at all.
-  // Neither before the first-use gate, neither while the page is hidden, and
-  // never both at once (one needs a room, the other needs none).
+  // Neither before the first-use gate, neither before the device has been
+  // put online by choice, neither while the page is hidden, and never both
+  // at once (one needs a room, the other needs none).
   function wants() {
-    if (!available || !visible || !opted()) return { advertise: null, browse: false };
+    if (!available || !visible || !opted() || !online()) return { advertise: null, browse: false };
     const room = roomState();
     if (!room) return { advertise: null, browse: LOOKING_SCREENS.includes(screen) };
     let name = null;
@@ -219,7 +236,7 @@ export function createNearby({
     },
     // The shell's 'whisker-nearby' event detail.
     receive(detail) {
-      if (!available || !browsingNow) return;
+      if (!available || !browsingNow || !online()) return;
       const next = sanitizeNearby(detail, { ownCode: roomState()?.code ?? null, validName });
       const same = next.length === found.length && next.every((r, i) => r.code === found[i].code && r.name === found[i].name);
       if (same) return;

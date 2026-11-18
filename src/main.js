@@ -207,9 +207,10 @@ function init() {
   // Cloud save wiring (lazy capability handles + the home base's Sync ☁️
   // panel) lives in src/game/cloudsync.js — created here, alongside the other
   // system factories, so every later call site sees it already built.
-  // getCloud is null until the device has been put online (onlineAllowed);
-  // openCloud is the ungated one, for Delete my online data only.
-  const { getPsecret, getCloud, openCloud, onlineAllowed, sync } = createCloudSync({
+  // getCloud is null until a walking name is saved (togetherAllowed);
+  // onlineAllowed is the wider "a name or a linked cloud save", which the
+  // nearby search waits for; openCloud, for Delete my online data only.
+  const { getPsecret, getCloud, openCloud, onlineAllowed, togetherAllowed, sync } = createCloudSync({
     MP,
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -422,7 +423,7 @@ function init() {
     MP, pid,
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    progression, getCloud, getPsecret, colonySync, onlineAllowed,
+    progression, getCloud, getPsecret, colonySync, onlineAllowed: togetherAllowed,
     getSession: () => session,
     startWalk: (opts) => startWalk(opts),
     toast: cloudToast,
@@ -435,6 +436,7 @@ function init() {
   const nearby = createNearby({
     bridge: pickBridge(window), storage: window.localStorage, rooms,
     getName: () => progression.state.petName,
+    onlineAllowed,
   });
   window.addEventListener(NEARBY_EVENT, (e) => nearby.receive(e.detail));
   // Put away (another app, the screen locked): nothing is looked for and
@@ -491,7 +493,7 @@ function init() {
 
   // Player pets 🐾🐾 roster, friend codes and the hide list: the home base's
   // adapter over the gated cloud handle (src/game/homebasecloud.js).
-  const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed, pushProfileNow, blockList });
+  const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
   const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby });

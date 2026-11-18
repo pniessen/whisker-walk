@@ -998,6 +998,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const visible = homeVisible();
     if (visible && openSheet === 'together') nearby.noteOptIn();
     nearby.setScreen(!visible ? 'hidden' : !openSheet ? 'home' : openSheet === 'together' ? 'together' : 'other');
+    // Whether the device is online by choice can change with no change of
+    // screen (a walking name saved, a cloud save linked, online data
+    // deleted): game/nearby.js asks again here. It only tells the app when
+    // the answer is different.
+    nearby.refresh();
     syncNearbyCard();
   }
 
