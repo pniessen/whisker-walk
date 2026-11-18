@@ -8,7 +8,8 @@ import { createColonySync, FEED_PUSH_MAX, PICK_FETCH_MS } from '../src/game/colo
 import { createProgression } from '../src/progression.js';
 import { isShy, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
-import { clanTitleFor } from '../src/clannames.js';
+import { clanTitleFor, prefixFor } from '../src/clannames.js';
+import { PREFIXES } from '../src/clanwords.js';
 
 const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
 const COLONY = 'c0ffee00c0ffee00';
@@ -1011,12 +1012,16 @@ describe('createColonySync — the clan name at pairing (R23)', () => {
     members: [{ player_id: pid, pet_name: 'Mittens', wardrobe: [] }, { player_id: other, pet_name: 'Robin', wardrobe: [] }],
     ...extra }) } });
   const minId = (a, b) => (a < b ? a : b);
+  // 2026-11-17: a stored title also carries the position of its word in PREFIXES
+  // (clan.word). Worked out here from the word list itself, not by the code
+  // under test.
+  const wordFor = (seed) => PREFIXES.indexOf(prefixFor(seed));
 
   it.each([[ME, SIB], [SIB, ME]])('both devices end on the same name, whichever id is smaller (%s first)', async (a, b) => {
     const A = device(a, b), B = device(b, a);
     await A.cs.pull();
     await B.cs.pull();
-    expect(A.progression.state.clan).toEqual({ name: clanTitleFor(minId(a, b)), adopted: true });
+    expect(A.progression.state.clan).toEqual({ name: clanTitleFor(minId(a, b)), word: wordFor(minId(a, b)), adopted: true });
     expect(B.progression.state.clan).toEqual(A.progression.state.clan);
   });
   it('the device with the smaller id keeps its own minted name, now adopted', async () => {
@@ -1024,7 +1029,7 @@ describe('createColonySync — the clan name at pairing (R23)', () => {
     small.progression.ensureClanName(ME);
     await small.cs.pull();
     expect(ME < SIB).toBe(true);
-    expect(small.progression.state.clan).toEqual({ name: clanTitleFor(ME), adopted: true });
+    expect(small.progression.state.clan).toEqual({ name: clanTitleFor(ME), word: wordFor(ME), adopted: true });
   });
   it('an already-paired cold start (each name minted at boot) converges', async () => {
     const A = device(ME, SIB), B = device(SIB, ME);
@@ -1033,8 +1038,8 @@ describe('createColonySync — the clan name at pairing (R23)', () => {
     expect(A.progression.state.clan.name).not.toBe(B.progression.state.clan.name);
     await B.cs.pull();
     await A.cs.pull();
-    expect(A.progression.state.clan).toEqual({ name: clanTitleFor(ME), adopted: true });
-    expect(B.progression.state.clan).toEqual({ name: clanTitleFor(ME), adopted: true });
+    expect(A.progression.state.clan).toEqual({ name: clanTitleFor(ME), word: wordFor(ME), adopted: true });
+    expect(B.progression.state.clan).toEqual({ name: clanTitleFor(ME), word: wordFor(ME), adopted: true });
   });
   it('a second paired pull changes nothing', async () => {
     const { cs, progression } = device(SIB, ME);
@@ -1048,7 +1053,7 @@ describe('createColonySync — the clan name at pairing (R23)', () => {
     const { cs, progression } = setup({ pid: SIB, script: { colonySync: () => pairedSnap({ members: [{ player_id: SIB, pet_name: 'Robin', wardrobe: [] }] }) } });
     progression.ensureClanName(SIB);
     await cs.pull();
-    expect(progression.state.clan).toEqual({ name: clanTitleFor(SIB), adopted: false });
+    expect(progression.state.clan).toEqual({ name: clanTitleFor(SIB), word: wordFor(SIB), adopted: false });
   });
   it('a failed or unpaired pull adopts nothing', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -1057,7 +1062,7 @@ describe('createColonySync — the clan name at pairing (R23)', () => {
     progression.ensureClanName(SIB);
     await cs.pull();
     await cs.pull();
-    expect(progression.state.clan).toEqual({ name: clanTitleFor(SIB), adopted: false });
+    expect(progression.state.clan).toEqual({ name: clanTitleFor(SIB), word: wordFor(SIB), adopted: false });
   });
   it('a stale clanJoining key in a saved JSON is ignored', () => {
     const storage = fakeStorage();

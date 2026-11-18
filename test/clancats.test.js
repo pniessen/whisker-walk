@@ -472,10 +472,11 @@ describe('createClanCats', () => {
     const src = readFileSync('src/clancats.js', 'utf8');
     const specs = [...src.matchAll(/^\s*import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(specs.length).toBeGreaterThan(0);
-    // clanwords.js is a leaf of words (RANK_KEYS, for comparing ranks).
+    // wordset.js is a leaf: the door to the word file (RANK_KEYS, for comparing
+    // ranks). 2026-11-17: it takes the place of './clanwords.js' on this list.
     // rivalclans.js is a leaf too (the camp disc, for a patrol's end).
     const allowed = [
-      'three', './cat/model.js', './cat/animator.js', './nametag.js', './rng.js', './clancast.js', './clanwords.js',
+      'three', './cat/model.js', './cat/animator.js', './nametag.js', './rng.js', './clancast.js', './wordset.js',
       './rivalclans.js',
     ];
     for (const s of specs) expect(allowed).toContain(s);

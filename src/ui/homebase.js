@@ -521,7 +521,6 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   // The edition is not a look: say what switching does, so a grown-up does
   // not flip it like a colour (the save keeps everything either way).
-  const EDITION_NOTE = phrase('edition.note');
   function renderSettings() {
     if (!settings) return '';
     const s = settings.all();
@@ -533,10 +532,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             <span class="settings-label">Game edition</span>
             <select id="set-edition">
               <option value="canon" ${edition === 'canon' ? 'selected' : ''}>${editionTitle('canon')}</option>
-              <option value="legacy" ${edition === 'legacy' ? 'selected' : ''}>Legacy Edition</option>
+              <option value="legacy" ${edition === 'legacy' ? 'selected' : ''}>${editionTitle('legacy')}</option>
             </select>
           </label>
-          <p class="settings-note" id="set-edition-note">${EDITION_NOTE}</p>
+          <p class="settings-note" id="set-edition-note">${phrase('edition.note')}</p>
           ${settingsSwitchHtml('set-show-tips', s.showTips !== false, tutorialLine('settings.tips'))}
         </div>
         <h3 class="settings-group">Advanced</h3>

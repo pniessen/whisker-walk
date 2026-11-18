@@ -14,6 +14,7 @@
 //   test/fixtures/series-words-on-play.json   serieswords.play.test.js
 //   test/fixtures/series-words-on-home.json   serieswords.home.test.js
 //   test/fixtures/series-words-on-world.json  serieswords.world.test.js
+//   test/fixtures/series-words-on-tutorial.json serieswords.tutorial.test.js
 //   test/fixtures/series-words-on-source.json serieswords.source.test.js
 //
 // A failure lists each string that moved as "path: expected X, received Y".
@@ -26,14 +27,15 @@
 //
 // then read the fixture's diff line by line before committing it.
 //
-// Not here on purpose: the guided first walk's own words (src/tutorialwords.js,
-// src/hints.js, src/game/tips.js, the home screen's "next thing" line). They
-// are written in neutral words and are still being built.
+// The guided first walk's own words (src/tutorialwords.js) and the home
+// screen's "next thing" line are written in neutral words; since 2026-11-17
+// they are recorded too, in series-words-on-tutorial.json.
 import { describe, it, expect } from 'vitest';
-import {
-  PREFIXES, CAT_PREFIXES, RIVAL_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, RANK_KEYS, RANK_WORDS,
-  OUTSIDE_WORDS, PLACE_WORDS, HOME_LINES,
-} from '../src/clanwords.js';
+// 2026-11-17: the tables are read through the game's own door, words(), when a
+// string is built (they were imported from clanwords.js). With the 'on' set
+// that is the same tables, and the fixture did not move; it lets the last
+// test below build this same snapshot with a stand-in set in use.
+import { words, RANK_KEYS } from '../src/wordset.js';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, KITTYPET_NAMES, isKittypetName } from '../src/straynames.js';
 import { prefixFor, warriorSuffixFor, clanRankFor, colonyRankFor, clanNameOf, clanTitleFor, candidateStarNames } from '../src/clannames.js';
 import { HOMES, TRUCE_AREAS, clanName, pickableClans, patrolClanFor, ownClanTitle, alliesName, homeWelcome } from '../src/clanhomes.js';
@@ -60,7 +62,7 @@ import { celebrationHtml } from '../src/ui/visitcelebration.js';
 import { FIGHT_TEACH, FIGHT_READ, FIGHT_LINES, renderChallengeHtml, renderFightHtml } from '../src/ui/fightui.js';
 import { renderFightMovesHtml, renderStarNamePicker } from '../src/ui/hometabs.js';
 import {
-  CAMP_SOON_LINE, clanPickerModel, renderClanPickerHtml, renderClanMomentHtml, clanLineHtml, clanMomentDue,
+  campSoonLine, clanPickerModel, renderClanPickerHtml, renderClanMomentHtml, clanLineHtml, clanMomentDue,
 } from '../src/ui/clanpicker.js';
 import { renderColonyHtml } from '../src/ui/colonypanel.js';
 import { ISLAND_WHERE, renderTerritoryMapHtml } from '../src/ui/territorymap.js';
@@ -69,11 +71,12 @@ import { PHRASES } from '../src/chat.js';
 import { PERSONALITY_KEYS, replyFor } from '../src/catreplies.js';
 import { PHRASE_IDS, phrase } from '../src/clanphrases.js';
 import { checkAgainstFixture, htmlText, sorted, uniq, sortKeys, seriesFilter } from './helpers/serieswords.js';
+import { withStandInWords, leaksIn, standInCount } from './helpers/standinwords.js';
 
 const FIXTURE = 'series-words-on.json';
 
 const CLANS = Object.keys(HOMES);
-const OLD_AREAS = Object.keys(RIVAL_PREFIXES);
+const OLD_AREAS = Object.keys(words().RIVAL_PREFIXES);
 const AREAS = Object.keys(CATALOG.areas);
 const STORED = [...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES];
 const ME = 'player-me-000001';
@@ -159,22 +162,22 @@ function vocabulary() {
   // name word, found through the game's own seed function.
   const titleBySeed = {};
   const seen = new Set();
-  for (let i = 0; seen.size < PREFIXES.length && i < 5000; i++) {
+  for (let i = 0; seen.size < words().PREFIXES.length && i < 5000; i++) {
     const seed = `player-${i}`;
     const title = clanTitleFor(seed);
     if (!seen.has(title)) { seen.add(title); titleBySeed[seed] = title; }
   }
   return {
     edition: { title: editionTitle('canon'), page: gameTitle('canon'), unknownEditionReadsAs: editionTitle('nonsense') },
-    groupSuffix: CLAN_SUFFIX,
+    groupSuffix: words().CLAN_SUFFIX,
     groupNames: Object.fromEntries(CLANS.map((id) => [id, clanName(id)])),
-    homeLines: { ...HOME_LINES },
+    homeLines: { ...words().HOME_LINES },
     rivalGroupNames: Object.fromEntries(OLD_AREAS.map((id) => [id, rivalFor(id).name])),
-    rankWords: { ...RANK_WORDS },
-    rankEndings: { ...RANK_SUFFIX },
-    grownEndings: [...WARRIOR_SUFFIXES],
-    outsideWords: { ...OUTSIDE_WORDS },
-    placeWords: { ...PLACE_WORDS },
+    rankWords: { ...words().RANK_WORDS },
+    rankEndings: { ...words().RANK_SUFFIX },
+    grownEndings: [...words().WARRIOR_SUFFIXES],
+    outsideWords: { ...words().OUTSIDE_WORDS },
+    placeWords: { ...words().PLACE_WORDS },
     placeNames: Object.fromEntries(AREAS.map((id) => [id, placeName(id, 'canon', CATALOG)])),
     mapNames: { ...Object.fromEntries(TERRITORIES.map((t) => [t.id, t.name])), island: ISLAND.name, islandWhere: ISLAND_WHERE },
     ownGroupTitles: {
@@ -186,7 +189,7 @@ function vocabulary() {
       savedTitleDropped: [clanName('woods'), 'MossBand', 'Moss'].map((t) => `${t} -> ${sanitizeClan({ name: t }).name}`),
     },
     prizeNames: Object.fromEntries(Object.keys(CATALOG.accessories)
-      .filter((id) => CATALOG.accessories[id].legacyName || CATALOG.accessories[id].name.includes(CLAN_SUFFIX))
+      .filter((id) => CATALOG.accessories[id].legacyName || CATALOG.accessories[id].name.includes(words().CLAN_SUFFIX))
       .map((id) => [id, accessoryName(CATALOG.accessories[id], 'canon')])),
     fightMoves: Object.fromEntries(FIGHT_MOVES.map((m) => [m.id, {
       name: m.name, short: m.short, hint: m.hint, when: m.when, learned: unlockToast(m.id),
@@ -208,10 +211,10 @@ function storedNames() {
     for (let have = 0; have <= TAME_FEEDS; have++) {
       const p = { have, tamed: false };
       // the bar's own reading, then the Colony tab's (there a fed kit is never a kit: colonyRankFor)
-      ladder[`fed ${have} of ${TAME_FEEDS}`] = `${clanNameOf(name, p)} (${RANK_WORDS[clanRankFor(p)]})`
-        + ` | Colony tab: ${clanNameOf(name, p, colonyRankFor(name, p))} (${RANK_WORDS[colonyRankFor(name, p)]})`;
+      ladder[`fed ${have} of ${TAME_FEEDS}`] = `${clanNameOf(name, p)} (${words().RANK_WORDS[clanRankFor(p)]})`
+        + ` | Colony tab: ${clanNameOf(name, p, colonyRankFor(name, p))} (${words().RANK_WORDS[colonyRankFor(name, p)]})`;
     }
-    ladder.tamed = `${clanNameOf(name, { have: TAME_FEEDS, tamed: true })} (${RANK_WORDS[roleFor(name)]})`;
+    ladder.tamed = `${clanNameOf(name, { have: TAME_FEEDS, tamed: true })} (${words().RANK_WORDS[roleFor(name)]})`;
     const row = {
       kind,
       firstHalf: prefixFor(name),
@@ -223,7 +226,7 @@ function storedNames() {
       },
       grownEnding: warriorSuffixFor(name),
       ladder,
-      denRole: RANK_WORDS[roleFor(name)],
+      denRole: words().RANK_WORDS[roleFor(name)],
       // what a walk's toast adds after the stored name, before she is in the colony
       whenMet: outsideTag(null, name, 'met'),
       whenCross: outsideTag(null, name, 'grudge', (w) => ` a ${w} now!`),
@@ -247,7 +250,7 @@ function casts() {
     out[clan] = clanCast(clan).map((m) => {
       const tag = tagOf(m);
       return {
-        seat: m.slot, rank: m.rank, rankWord: RANK_WORDS[m.rank], name: m.name,
+        seat: m.slot, rank: m.rank, rankWord: words().RANK_WORDS[m.rank], name: m.name,
         tag: `${tag.name} / ${tag.line}`, tagOnTop: tag.top,
         shownOnLow: m.slot < CAST_CORE, roams: ROAM_SLOTS.includes(m.slot), raider: RAIDER_SLOTS.includes(m.slot),
       };
@@ -312,12 +315,12 @@ function intruders() {
 function starNames() {
   const windows = {};
   const seen = new Set();
-  for (let i = 0; seen.size < PREFIXES.length && i < 5000; i++) {
+  for (let i = 0; seen.size < words().PREFIXES.length && i < 5000; i++) {
     const three = candidateStarNames(`player-${i}`);
     if (!seen.has(three[0])) { seen.add(three[0]); windows[`player-${i}`] = three; }
   }
   return {
-    everyNameOffered: sorted(candidateStarNames(ME, PREFIXES.length)),
+    everyNameOffered: sorted(candidateStarNames(ME, words().PREFIXES.length)),
     offeredTo: windows,
     picker: htmlText(renderStarNamePicker(candidateStarNames(ME), '')),
     pickerWithOneChosen: htmlText(renderStarNamePicker(candidateStarNames(ME), candidateStarNames(ME)[1])),
@@ -328,7 +331,7 @@ function starNames() {
 // composes it, and which of them the tag code puts on top.
 function tagLines() {
   const out = {};
-  for (const rank of Object.keys(RANK_WORDS)) {
+  for (const rank of Object.keys(words().RANK_WORDS)) {
     out[rank] = {};
     for (const clan of CLANS) {
       const tag = tagOf({ name: 'Name', rank, clan });
@@ -421,7 +424,7 @@ function screens() {
   const second = CLANS[1];
   const pick = {
     cards: htmlText(renderClanPickerHtml(picker(save()), PARTNER_NAME)),
-    campSoonLine: CAMP_SOON_LINE,
+    campSoonLine: campSoonLine(), // 2026-11-17: read when asked (it was a constant, CAMP_SOON_LINE)
     cardsWhenACampIsNotReady: htmlText(renderClanPickerHtml(clanPickerModel(save(), TERRITORIES, { ...HOMES, [first]: { ...HOMES[first], pickable: false } }), PARTNER_NAME)),
     cardsWhenATerritoryIsNotBuilt: htmlText(renderClanPickerHtml(clanPickerModel(save(), TERRITORIES.map((t) => (t.id === first ? { ...t, status: 'soon' } : t))), PARTNER_NAME)),
     moment: htmlText(renderClanMomentHtml(picker(save()), PARTNER_NAME)),
@@ -506,7 +509,7 @@ function screens() {
   const map = {
     firstDay: mapText(save()),
     everythingOpenHomeAndAlly: mapText(save({ open: true, mine: CLANS[0], partner: CLANS[2], area: CLANS[0] })),
-    campMarks: Object.fromEntries(CLANS.map((id) => [id, mapText(save({ open: true, mine: id })).filter((t) => t.includes(CLAN_SUFFIX))])),
+    campMarks: Object.fromEntries(CLANS.map((id) => [id, mapText(save({ open: true, mine: id })).filter((t) => t.includes(words().CLAN_SUFFIX))])),
   };
 
   const placesOf = (s) => {
@@ -530,7 +533,7 @@ function screens() {
 // today. Any that does, or that carries a word written beside them, is listed.
 function chat() {
   const keep = seriesFilter(
-    [...Object.values(RANK_WORDS), ...Object.values(OUTSIDE_WORDS), ...Object.values(PLACE_WORDS), CLAN_SUFFIX],
+    [...Object.values(words().RANK_WORDS), ...Object.values(words().OUTSIDE_WORDS), ...Object.values(words().PLACE_WORDS), words().CLAN_SUFFIX],
     [...CLANS.map(clanName), ...OLD_AREAS.map((id) => rivalFor(id).name)],
   );
   const replies = new Set();
@@ -577,7 +580,7 @@ function legacyEdition() {
     edition: { title: editionTitle(L), page: gameTitle(L), isClanEdition: isClanEdition(s) },
     placeNames: Object.fromEntries(AREAS.map((id) => [id, placeName(id, L, CATALOG)])),
     prizeNames: Object.fromEntries(Object.keys(CATALOG.accessories)
-      .filter((id) => CATALOG.accessories[id].legacyName || CATALOG.accessories[id].name.includes(CLAN_SUFFIX))
+      .filter((id) => CATALOG.accessories[id].legacyName || CATALOG.accessories[id].name.includes(words().CLAN_SUFFIX))
       .map((id) => [id, accessoryName(CATALOG.accessories[id], L)])),
     // 2026-11-16: the card is handed the name the save's edition uses, as
     // progression.recordVisit now does (it used to hand the catalog's own name,
@@ -617,10 +620,10 @@ function phraseSamples() {
   const mate = clanCast('woods')[4].name;
   const foe = clanCast('moor')[RAIDER_SLOTS[0]].name;
   return {
-    'group.name': [PREFIXES[0]],
-    'tag.rankOfGroup': [RANK_WORDS[RANK_KEYS.leader], group],
-    'outside.the': [OUTSIDE_WORDS.met],
-    'outside.crossNow': [OUTSIDE_WORDS.grudge],
+    'group.name': [words().PREFIXES[0]],
+    'tag.rankOfGroup': [words().RANK_WORDS[RANK_KEYS.leader], group],
+    'outside.the': [words().OUTSIDE_WORDS.met],
+    'outside.crossNow': [words().OUTSIDE_WORDS.grudge],
     'edition.game': [editionTitle('canon')],
     'pick.headingMine': [group],
     'pick.both': [group],
@@ -633,8 +636,8 @@ function phraseSamples() {
     'patrol.endGood': [mate],
     'patrol.endShort': [mate],
     'patrol.award': [mate],
-    'house.arrival': [PET, OUTSIDE_WORDS.house, PLACE_WORDS.town],
-    'house.joined': [PET, PLACE_WORDS.town],
+    'house.arrival': [PET, words().OUTSIDE_WORDS.house, words().PLACE_WORDS.town],
+    'house.joined': [PET, words().PLACE_WORDS.town],
     'border.chasedBack': [foe],
     'cross.leading': [PARTNER_NAME, 'the Moor'],
     'mark.buddyToo': [mate],
@@ -658,6 +661,14 @@ function phrases() {
   return Object.fromEntries(PHRASE_IDS.map((id) => [id, phrase(id, ...(samples[id] ?? []))]));
 }
 
+// Strings in the snapshot that this file writes itself, not the game: they
+// stay as they are whatever word set is in use.
+const WRITTEN_BY_THIS_TEST = [
+  /^clanEdition\.names\.stored\.[^.]+\.kind$/,        // 'kit' | 'stray' | 'legendary': which list the name is on
+  /^clanEdition\.names\.camps\.[a-z]+\[\d+\]\.rank$/, // the rank ID of a seat (the word is in rankWord, beside it)
+  /^clanEdition\.vocabulary\.fightWords\.ask$/,       // typed out in vocabulary() above
+];
+
 function snapshot() {
   return {
     about: 'Every series-derived string today\'s game shows. Recorded by test/serieswords.test.js; see its header before re-recording.',
@@ -679,7 +690,7 @@ describe('series words: today\'s game, pinned', () => {
   it('covers every stored name, every seat of every camp and every pickable group', () => {
     const snap = snapshot().clanEdition;
     expect(Object.keys(snap.names.stored).length).toBe(STORED.length);
-    expect(sorted(Object.keys(snap.names.stored))).toEqual(sorted(Object.keys(CAT_PREFIXES)));
+    expect(sorted(Object.keys(snap.names.stored))).toEqual(sorted(Object.keys(words().CAT_PREFIXES)));
     for (const clan of CLANS) {
       expect(snap.names.camps[clan].length).toBe(CAST_RANKS.length);
       expect(castFor(clan).length).toBe(CAST_RANKS.length);
@@ -701,5 +712,17 @@ describe('series words: today\'s game, pinned', () => {
     }
     // a sample is for an id the table has
     for (const id of Object.keys(phraseSamples())) expect(PHRASE_IDS, id).toContain(id);
+  });
+
+  // 2026-11-17. The same snapshot, built with a stand-in word set in use
+  // (test/helpers/standinwords.js: nonsense words, NOT the plain game's). Any
+  // word of the family's set still in it was fixed at start-up or was not
+  // read through src/wordset.js.
+  it('with a stand-in word set in use, no word of the "on" set is left anywhere in it', () => {
+    const snap = withStandInWords(() => snapshot());
+    expect(leaksIn(snap, WRITTEN_BY_THIS_TEST)).toEqual([]);
+    expect(standInCount(snap)).toBeGreaterThan(2000);
+    // and the family's words are back afterwards
+    checkAgainstFixture(FIXTURE, snapshot());
   });
 });

@@ -1,7 +1,8 @@
 import { describe, it, test, expect, beforeEach, vi } from 'vitest';
 import { createProgression, ROSA_FAREWELL, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES, sanitizeClanRoles, sanitizeClan, sanitizeClanPick } from '../src/progression.js';
 import { isClanId, homeWelcome } from '../src/clanhomes.js';
-import { clanTitleFor } from '../src/clannames.js';
+import { clanTitleFor, prefixFor } from '../src/clannames.js';
+import { PREFIXES as TITLE_WORDS } from '../src/clanwords.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
 import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
 import { STARTER_ACCESSORIES } from '../src/progression.js';
@@ -3036,6 +3037,10 @@ describe('the clan name', () => {
   const ME = 'aaaaaaaa-1111', PARTNER = 'bbbbbbbb-2222';
   let p;
   beforeEach(() => { p = createProgression(fakeStorage()); });
+  // 2026-11-17: a stored title also carries the position of its word in PREFIXES
+  // (clan.word). Worked out here from the word list itself, not by the code
+  // under test.
+  const wordFor = (seed) => TITLE_WORDS.indexOf(prefixFor(seed));
 
   it('starts with no clan name', () => {
     expect(p.state.clan).toEqual({ name: null, adopted: false });
@@ -3055,14 +3060,14 @@ describe('the clan name', () => {
   it("adopts the pair's shared name once, and a re-pair cannot change it again", () => {
     p.ensureClanName(ME);
     p.adoptClanName(clanTitleFor(PARTNER));
-    expect(p.state.clan).toEqual({ name: clanTitleFor(PARTNER), adopted: true });
+    expect(p.state.clan).toEqual({ name: clanTitleFor(PARTNER), word: wordFor(PARTNER), adopted: true });
     p.adoptClanName(clanTitleFor('player-cccccccc'));
     expect(p.state.clan.name).toBe(clanTitleFor(PARTNER));
   });
   it('ignores an adopted name that is not a real clan title', () => {
     p.ensureClanName(ME);
     p.adoptClanName('NotAClanName');
-    expect(p.state.clan).toEqual({ name: clanTitleFor(ME), adopted: false });
+    expect(p.state.clan).toEqual({ name: clanTitleFor(ME), word: wordFor(ME), adopted: false });
   });
   test.each([null, undefined, 42, 'x', [], { name: 42 }, { name: 'NotAClanName' },
     { name: 'x'.repeat(200) }, Object.create({ name: 'MossClan' })])(
@@ -3080,7 +3085,7 @@ describe('the clan name', () => {
     expect(p.state.clan.name).toBeNull();
   });
   it('keeps a valid saved name and a strict adopted boolean', () => {
-    expect(sanitizeClan({ name: clanTitleFor(ME), adopted: true })).toEqual({ name: clanTitleFor(ME), adopted: true });
+    expect(sanitizeClan({ name: clanTitleFor(ME), adopted: true })).toEqual({ name: clanTitleFor(ME), word: wordFor(ME), adopted: true });
     expect(sanitizeClan({ name: clanTitleFor(ME), adopted: 'yes' }).adopted).toBe(false);
   });
   it('loads a version-4 save that predates clan, and stays version 4', () => {

@@ -30,7 +30,7 @@ import { CATALOG } from '../progression.js';
 import { isClanEdition, placeName } from '../edition.js';
 import { isKittypetName } from '../straynames.js';
 import { wanderStayLine, kittypetTamedLine, shedKittypetCollar } from '../housecats.js';
-import { RANK_KEYS } from '../clanwords.js';
+import { RANK_KEYS } from '../wordset.js';
 import { PATROL_MIN } from '../clancats.js';
 import { nowSec } from './util.js';
 // Renamed on import: doYarn already has a local `drop` (where the yarn lands).

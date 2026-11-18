@@ -7,7 +7,7 @@
 // entry). Every territory listed is built now; the model and the map still
 // know 'soon' (drawn, not walkable yet) and 'later' (unexplored) for the next
 // one drawn before it is walkable.
-import { PLACE_WORDS } from './clanwords.js';
+import { words } from './wordset.js';
 import { placeName, isClanEdition } from './edition.js';
 import { castFor, CLAN_COLOURS } from './clancast.js';
 import { picksOf, isClanId } from './clanhomes.js';
@@ -22,9 +22,10 @@ export const BOARD = Object.freeze({ w: 1000, h: 700 });
 const freezeAll = (list) => Object.freeze(list.map((t) => Object.freeze(t)));
 
 // Twolegplace is the Neighborhood under its Clan Edition name; the name is
-// read from clanwords.js so the borrowed word lives only there.
+// read from the word set in use (wordset.js) each time it is asked for, so
+// the borrowed word lives only in the word file and follows the set.
 export const TERRITORIES = freezeAll([
-  { id: 'town', areaId: 'neighborhood', name: PLACE_WORDS.town, x: 843, y: 566, r: 110, status: 'built' },
+  { id: 'town', areaId: 'neighborhood', get name() { return words().PLACE_WORDS.town; }, x: 843, y: 566, r: 110, status: 'built' },
   { id: 'woods', areaId: 'woods', name: 'The Woods', x: 565, y: 500, r: 170, status: 'built' },
   { id: 'moor', areaId: 'moor', name: 'The Moor', x: 620, y: 161, r: 165, status: 'built' },
   { id: 'river', areaId: 'river', name: 'The River and Marshes', x: 232, y: 488, r: 160, status: 'built' },

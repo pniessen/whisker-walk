@@ -3,13 +3,15 @@
 // handles the tap). The word for a clan is composed from CLAN_SUFFIX, never
 // spelled out, so the borrowed-word scan stays clean.
 import { HOMES, clanName, picksOf, isClanId } from '../clanhomes.js';
-import { HOME_LINES, CLAN_SUFFIX } from '../clanwords.js';
+import { words, GROUP_KEY } from '../wordset.js';
 import { TERRITORIES } from '../territories.js';
 import { escapeHtml } from '../escapehtml.js';
 import { phrase } from '../clanphrases.js';
 
-const clanWord = CLAN_SUFFIX.toLowerCase();
-// Names that would spell the word as a hyphen-bounded literal are composed.
+// The page's own names (attributes, the storage key) are built with a fixed
+// id, GROUP_KEY: it never follows the words in use. Names that would spell it
+// as a hyphen-bounded literal are composed.
+const clanWord = GROUP_KEY;
 export const PICK_ATTR = `data-${clanWord}-pick`;
 export const PICK_SELECT_ID = `set-${clanWord}-pick`;
 
@@ -35,11 +37,12 @@ export const CLAN_EMBLEMS = Object.freeze({
 });
 
 // The line on a clan's card that can't be picked yet (G10): its territory is
-// walkable, but its camp comes later.
-export const CAMP_SOON_LINE = phrase('pick.campSoon');
+// walkable, but its camp comes later. Read when it is needed, so it follows
+// the words in use.
+export const campSoonLine = () => phrase('pick.campSoon');
 
 // Every HOMES clan gets a card. A pickable one is a pick button; one that isn't
-// shows greyed, with CAMP_SOON_LINE. `territories` and `homes` are parameters
+// shows greyed, with campSoonLine(). `territories` and `homes` are parameters
 // so the "territory coming soon" and "camp coming soon" branches can be pinned
 // with stubs.
 export function clanPickerModel(state, territories = TERRITORIES, homes = HOMES) {
@@ -53,7 +56,7 @@ export function clanPickerModel(state, territories = TERRITORIES, homes = HOMES)
     return {
       id,
       name: clanName(id),
-      line: pickable ? HOME_LINES[id] ?? '' : phrase('pick.campSoon'),
+      line: pickable ? words().HOME_LINES[id] ?? '' : campSoonLine(),
       place: t ? t.name : '',
       soon: !pickable || (!!t && t.status !== 'built'),
       pickable,

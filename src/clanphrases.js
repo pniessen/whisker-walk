@@ -11,7 +11,7 @@
 // HOW IT IS READ. phrase(id, ...args) is a plain synchronous lookup. An entry
 // is a string, or a function of the caller's values that returns one. The
 // caller passes finished text (a cat's shown name, a group's name), never an
-// id to resolve, so this file imports only clanwords.js and can be imported
+// id to resolve, so this file imports only wordset.js and can be imported
 // from anywhere without a cycle and without THREE. A caller that builds HTML
 // escapes exactly as it did before: either the values it hands in, or the
 // phrase it gets back.
@@ -27,20 +27,24 @@
 //     words will be keyed by. Ids are our own words: none spells a word from
 //     clanwords.js (the scan in test/clanwords.test.js reads this file too).
 //   - No borrowed word is typed here either. A phrase that needs one takes it
-//     from clanwords.js, at the moment it is read.
+//     from the word set in use (wordset.js), at the moment it is read.
 //   - Every entry is recorded, with its output, in the series-words snapshot
 //     (test/serieswords.test.js, "phrases"). Changing an entry's text changes
 //     the family's game: see that file's header first.
-//   - A function entry reads clanwords.js when it is CALLED, never when this
+//   - A function entry reads the word set when it is CALLED, never when this
 //     module loads, so nothing here is fixed at start-up.
-import { CLAN_SUFFIX } from './clanwords.js';
+//   - A word set may carry its own PHRASES, keyed by these ids (wordset.js).
+//     phrase() uses the set's entry where it has one and this table's
+//     otherwise. The 'on' set has none, so today every line is this table's.
+import { words } from './wordset.js';
 
-const groupWord = () => CLAN_SUFFIX.toLowerCase();
+const suffix = () => words().CLAN_SUFFIX;
+const groupWord = () => suffix().toLowerCase();
 
 const TABLE = Object.freeze({
   // ---- the pieces a group's name and a cat's tag are built from -------------
   // prefix -> the group's name (Moss -> MossClan)
-  'group.name': (prefix) => prefix + CLAN_SUFFIX,
+  'group.name': (prefix) => prefix + suffix(),
   // the second line of a tag: "<rank word> of <group>"
   'tag.rankOfGroup': (rankWord, group) => `${rankWord} of ${group}`,
   // what follows a cat's name when it is not in the colony: " the <word>"
@@ -49,11 +53,11 @@ const TABLE = Object.freeze({
   'outside.crossNow': (word) => ` a ${word} now!`,
 
   // ---- editions --------------------------------------------------------------
-  'edition.title.canon': () => `${CLAN_SUFFIX} Edition`,
+  'edition.title.canon': () => `${suffix()} Edition`,
   'edition.title.legacy': 'Legacy Edition',
   'edition.game': (editionTitle) => `Whisker Walk 2: ${editionTitle}`,
   'edition.note': () => `Switching renames the places and shows or hides the ${groupWord()} territories. Nothing is lost.`,
-  'prize.warpaint.canon': () => `${CLAN_SUFFIX} War Paint`,
+  'prize.warpaint.canon': () => `${suffix()} War Paint`,
   'prize.warpaint.legacy': 'War Paint',
 
   // ---- picking a home group --------------------------------------------------
@@ -152,6 +156,7 @@ export function hasPhrase(id) {
 // this is a typo caught by the tests, never something a walk can reach.
 export function phrase(id, ...args) {
   if (!hasPhrase(id)) throw new Error(`Whisker Walk: no phrase "${id}"`);
-  const entry = TABLE[id];
+  const own = words().PHRASES;
+  const entry = own && Object.hasOwn(own, id) ? own[id] : TABLE[id];
   return typeof entry === 'function' ? entry(...args) : entry;
 }

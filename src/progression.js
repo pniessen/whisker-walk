@@ -16,7 +16,7 @@ import { bearsGrudge, isGrudgeName } from './enemies.js';
 // no DOM; its imports are straynames/skills/rng/net, none of which imports
 // this module), so the edge is cycle-free like the two above. Every colony
 // write still happens here — colony.js computes, this module saves.
-import { isClanId, pickableClans } from './clanhomes.js';
+import { isClanId, pickableClans, clanTitleOfWord, clanWordOfTitle } from './clanhomes.js';
 // Fight moves and scars (pure leaves): the move catalogue and the scar rules.
 import { FIGHT_MOVE_IDS, moveById, earnedMoves } from './fightmoves.js';
 import { SCAR_SITES, addScar, fadeScars, sanitizeScarList, isCastId, sanitizeScarredIntruders,
@@ -29,7 +29,7 @@ import { isStrayName } from './straynames.js';
 // one place the borrowed vocabulary's keys are spelled, so no literal is typed
 // here.
 import { medicineOrder, deputyOrder } from './clanroles.js';
-import { RANK_KEYS, PREFIXES, CLAN_SUFFIX } from './clanwords.js';
+import { RANK_KEYS } from './wordset.js';
 import { clanTitleFor } from './clannames.js';
 import { phrase } from './clanphrases.js';
 import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEdition, accessoryName } from './edition.js';
@@ -617,8 +617,9 @@ export function sanitizeClanPick(v) {
 // A clan name is acceptable only if it is a title clanTitleFor could have
 // produced (a PREFIXES entry + CLAN_SUFFIX), so no cloud payload can inject
 // an arbitrary string into a displayed name.
-const ACCEPTED_CLAN_NAMES = new Set(PREFIXES.map((x) => x + CLAN_SUFFIX));
-const acceptedClanName = (n) => typeof n === 'string' && ACCEPTED_CLAN_NAMES.has(n);
+// clanWordOfTitle (clanhomes.js) is that check. It works the titles out when
+// it is asked, from the words in use and any other set this build holds,
+// never once at start-up.
 
 // Total over any payload; own-property reads only, so a prototype cannot leak
 // a name in.
@@ -632,7 +633,16 @@ export function sanitizeClan(v) {
   const out = { name: null, adopted: false };
   if (!isPlainObject(v)) return out;
   const has = (k) => Object.prototype.hasOwnProperty.call(v, k);
-  if (has('name') && acceptedClanName(v.name)) out.name = v.name;
+  // The position of the title's word (clan.word, see clanhomes.js) is what a
+  // save keeps since 2026-11-17; the finished text is read where there is no
+  // position (every older save). Either way the title is then said in the
+  // words in use, and a save with no usable title keeps the old two-key shape.
+  let word = has('word') && clanTitleOfWord(v.word) !== null ? v.word : null;
+  if (word === null && has('name')) word = clanWordOfTitle(v.name);
+  if (word !== null) {
+    out.name = clanTitleOfWord(word);
+    out.word = word;
+  }
   // adopted only means something next to a real name.
   if (out.name !== null && has('adopted') && v.adopted === true) out.adopted = true;
   return out;
@@ -2188,9 +2198,9 @@ export function createProgression(storage) {
       // clanTitleFor falls back to a default title for an unusable seed; here
       // that would mint a name from nothing, so refuse non-string/empty ids.
       if (typeof playerId !== 'string' || playerId === '') return;
-      const name = clanTitleFor(playerId);
-      if (!acceptedClanName(name)) return;
-      state.clan = { name, adopted: state.clan.adopted };
+      const word = clanWordOfTitle(clanTitleFor(playerId));
+      if (word === null) return;
+      state.clan = { name: clanTitleOfWord(word), word, adopted: state.clan.adopted };
       save();
     },
 
@@ -2199,8 +2209,9 @@ export function createProgression(storage) {
     // successful paired sync; the device whose own id is smaller adopts its
     // own name. Invalid names are ignored, and it is a no-op once adopted.
     adoptClanName(name) {
-      if (state.clan.adopted || !acceptedClanName(name)) return;
-      state.clan = { name, adopted: true };
+      const word = clanWordOfTitle(name);
+      if (state.clan.adopted || word === null) return;
+      state.clan = { name: clanTitleOfWord(word), word, adopted: true };
       save();
     },
 

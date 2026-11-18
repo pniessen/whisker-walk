@@ -19,7 +19,7 @@
 // THREE, and never walkRng/Math.random, so it draws nothing from the walk's
 // random stream. Every export is total: hostile input yields the plain answer
 // (warrior / null), never a throw.
-import { RANK_KEYS } from './clanwords.js';
+import { RANK_KEYS } from './wordset.js';
 import { seedFromCode } from './rng.js';
 import { isStrayName, CAT_NAMES, KIT_NAMES } from './straynames.js';
 

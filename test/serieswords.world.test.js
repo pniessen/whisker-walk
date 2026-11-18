@@ -38,6 +38,7 @@ const { GORGE_CAVES } = await import('../src/world/gorgeshape.js');
 const { ISLAND_SCENICS, ISLAND_COLLECTIBLES, ISLAND_PERCHES, ISLAND_MOMENTS } = await import('../src/world/island.js');
 const { HOMES } = await import('../src/clanhomes.js');
 const { checkAgainstFixture, sorted } = await import('./helpers/serieswords.js');
+const { withStandInWords, leaksIn, standInCount } = await import('./helpers/standinwords.js');
 
 const FIXTURE = 'series-words-on-world.json';
 
@@ -77,5 +78,15 @@ describe('series words on the maps, pinned', () => {
     for (const flagged of ['the great oak', 'sun-warmed rocks', 'the meeting ring under the old ash', 'a meeting stone']) {
       expect(all).toContain(flagged);
     }
+  });
+
+  // 2026-11-17. The same maps, built with a stand-in word set in use
+  // (test/helpers/standinwords.js: nonsense words, NOT the plain game's): the
+  // seven labels that are in the phrase table follow it.
+  it('with a stand-in word set in use, the labels from the phrase table follow it', () => {
+    const snap = withStandInWords(() => snapshot());
+    expect(leaksIn(snap)).toEqual([]);
+    expect(standInCount(snap)).toBeGreaterThanOrEqual(7); // seven labels; two of them are on a map twice
+    checkAgainstFixture(FIXTURE, snapshot());
   });
 });

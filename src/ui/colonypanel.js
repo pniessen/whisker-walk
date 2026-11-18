@@ -14,7 +14,7 @@
 import { tamingProgress, COLONY_MAX, colonyCap } from '../colony.js';
 import { strayBreed } from '../straynames.js';
 import { clanNameOf, colonyRankFor } from '../clannames.js';
-import { RANK_WORDS, RANK_KEYS } from '../clanwords.js';
+import { words, RANK_KEYS } from '../wordset.js';
 import { phrase } from '../clanphrases.js';
 import { roleFor } from '../clanroles.js';
 import { isTradeableAccessory } from '../progression.js';
@@ -80,11 +80,11 @@ function knewLine(catName, p, { me, partner, partnerName, feeds }) {
 // verdictsOf), and a verdict naming a cat that isn't on this card simply never
 // matches, so a stale or hostile one changes nothing.
 function descriptorFor(cat, p, verdicts) {
-  if (!p.tamed) return RANK_WORDS[colonyRankFor(cat.name, p)];
+  if (!p.tamed) return words().RANK_WORDS[colonyRankFor(cat.name, p)];
   const held = [];
-  if (verdicts.medicine === cat.name) held.push(RANK_WORDS[RANK_KEYS.medicine]);
-  if (verdicts.deputy === cat.name) held.push(RANK_WORDS[RANK_KEYS.deputy]);
-  return held.length ? held.join(' · ') : RANK_WORDS[roleFor(cat.name)];
+  if (verdicts.medicine === cat.name) held.push(words().RANK_WORDS[RANK_KEYS.medicine]);
+  if (verdicts.deputy === cat.name) held.push(words().RANK_WORDS[RANK_KEYS.deputy]);
+  return held.length ? held.join(' · ') : words().RANK_WORDS[roleFor(cat.name)];
 }
 
 // The stored verdicts, read defensively: a missing, non-object or malformed

@@ -12,7 +12,7 @@
 // discoveries, enemies or net, so a clan cat can never be fed, tamed or grudged.
 import { isClanId, clanName, TRUCE_AREAS } from './clanhomes.js';
 import { DISCS } from './rivalclans.js';
-import { CLAN_CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, RANK_KEYS, RANK_WORDS, DENIED_NAMES } from './clanwords.js';
+import { words, RANK_KEYS } from './wordset.js';
 import { seedFromCode, mulberry32 } from './rng.js';
 import { phrase } from './clanphrases.js';
 
@@ -88,11 +88,12 @@ export const CLAN_COATS = Object.freeze({
   ),
 });
 
-const hasCast = (id) => isClanId(id) && Object.hasOwn(CLAN_CAT_PREFIXES, id) && Object.hasOwn(CLAN_COATS, id);
+const hasCast = (id) => isClanId(id) && Object.hasOwn(words().CLAN_CAT_PREFIXES, id) && Object.hasOwn(CLAN_COATS, id);
 
 // A warrior-rung name: the suffix is hashed, then stepped past a doubled letter
 // at the join (Peat + tail) or a book name (Mint + fur).
 function warriorName(prefix, clanId, slot) {
+  const { WARRIOR_SUFFIXES, DENIED_NAMES } = words();
   const n = WARRIOR_SUFFIXES.length;
   let i = seedFromCode(`${clanId}|cast|${slot}`) % n;
   for (let tries = 0; tries < n; tries++, i = (i + 1) % n) {
@@ -105,6 +106,7 @@ function warriorName(prefix, clanId, slot) {
 }
 
 function nameFor(clanId, slot, rank) {
+  const { CLAN_CAT_PREFIXES, RANK_SUFFIX } = words();
   const prefix = CLAN_CAT_PREFIXES[clanId][slot];
   if (rank === K.kit) return prefix + RANK_SUFFIX.kit;
   if (rank === K.apprentice) return prefix + RANK_SUFFIX.apprentice;
@@ -112,12 +114,21 @@ function nameFor(clanId, slot, rank) {
   return warriorName(prefix, clanId, slot);
 }
 
-const CAST_CACHE = new Map();
+// One cast per group PER WORD SET: the names are built from the set's words,
+// so a cast made under one set is never handed out under another.
+const CAST_CACHES = new WeakMap();
+function castCache() {
+  const set = words();
+  let cache = CAST_CACHES.get(set);
+  if (!cache) CAST_CACHES.set(set, cache = new Map());
+  return cache;
+}
 const NONE = Object.freeze([]);
 
 export function clanCast(clanId) {
   if (!hasCast(clanId)) return NONE;
-  let cast = CAST_CACHE.get(clanId);
+  const cache = castCache();
+  let cast = cache.get(clanId);
   if (!cast) {
     const palette = CLAN_COATS[clanId];
     cast = Object.freeze(CAST_RANKS.map((rank, slot) => {
@@ -125,7 +136,7 @@ export function clanCast(clanId) {
       const name = nameFor(clanId, slot, rank); // never a stray's name (a test pins it)
       return Object.freeze({ id: `${clanId}-${slot}`, clan: clanId, slot, rank, name, breed: style.eyes, style });
     }));
-    CAST_CACHE.set(clanId, cast);
+    cache.set(clanId, cast);
   }
   return cast;
 }
@@ -169,7 +180,7 @@ export function clanHomeFor(areaId, edition, picks) {
 }
 
 export function tagSubFor(member) {
-  return phrase('tag.rankOfGroup', RANK_WORDS[member.rank], clanName(member.clan));
+  return phrase('tag.rankOfGroup', words().RANK_WORDS[member.rank], clanName(member.clan));
 }
 
 // The options makeNameTag takes for a cast cat: the second line, and whether

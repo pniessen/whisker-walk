@@ -1,4 +1,4 @@
-import { RIVAL_PREFIXES } from './clanwords.js';
+import { words } from './wordset.js';
 import { phrase } from './clanphrases.js';
 import { seedFromCode } from './rng.js';
 import { patrolClanFor, clanName } from './clanhomes.js';
@@ -104,8 +104,9 @@ const discOf = (areaId) => (
 export function rivalFor(areaId, picks = []) {
   const d = discOf(areaId);
   if (!d) return null;
-  if (typeof RIVAL_PREFIXES[areaId] === 'string') {
-    return { name: phrase('group.name', RIVAL_PREFIXES[areaId]), clan: null, cx: d.cx, cz: d.cz, r: d.r };
+  const rivals = words().RIVAL_PREFIXES;
+  if (typeof rivals[areaId] === 'string') {
+    return { name: phrase('group.name', rivals[areaId]), clan: null, cx: d.cx, cz: d.cz, r: d.r };
   }
   const clan = patrolClanFor(areaId, picks);
   if (!clan) return null;

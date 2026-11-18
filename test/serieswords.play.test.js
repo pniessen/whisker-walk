@@ -20,6 +20,7 @@ import { PATROL_MIN } from '../src/clancats.js';
 import { CAT_NAMES, KITTYPET_NAMES, LEGENDARY_NAMES, isKittypetName } from '../src/straynames.js';
 import { discoveryText } from '../src/ui/hud.js';
 import { checkAgainstFixture } from './helpers/serieswords.js';
+import { withStandInWords, leaksIn, standInCount } from './helpers/standinwords.js';
 
 const FIXTURE = 'series-words-on-play.json';
 const CLANS = Object.keys(HOMES);
@@ -207,5 +208,14 @@ describe('series words on a walk, pinned', () => {
 
   it('builds the same snapshot twice in a row', () => {
     expect(JSON.stringify(snapshot())).toBe(JSON.stringify(snapshot()));
+  });
+
+  // 2026-11-17. The same walk, with a stand-in word set in use
+  // (test/helpers/standinwords.js: nonsense words, NOT the plain game's).
+  it('with a stand-in word set in use, no word of the "on" set is left in a prompt or a toast', () => {
+    const snap = withStandInWords(() => snapshot());
+    expect(leaksIn(snap)).toEqual([]);
+    expect(standInCount(snap)).toBeGreaterThan(20);
+    checkAgainstFixture(FIXTURE, snapshot());
   });
 });

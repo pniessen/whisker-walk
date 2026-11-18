@@ -6,7 +6,7 @@ import { isClanEdition } from './edition.js';
 import { isKittypetName, KITTYPET_NAMES, CAT_NAMES } from './straynames.js';
 import { seedFromCode, mulberry32 } from './rng.js';
 import { TERRITORY_AREAS } from './colony.js';
-import { OUTSIDE_WORDS, PLACE_WORDS } from './clanwords.js';
+import { words } from './wordset.js';
 import { phrase } from './clanphrases.js';
 
 // The wander roll is per UTC day and territory (spec section 3 builder note):
@@ -104,7 +104,7 @@ export function wanderSpotFor(start, isWalkable, camp) {
 // The toast when the day's wanderer is in this walk. Clan Edition only (the
 // caller checks), so there is no Legacy wording.
 export function wanderArrivalLine(name) {
-  return phrase('house.arrival', name, OUTSIDE_WORDS.house, PLACE_WORDS.town);
+  return phrase('house.arrival', name, words().OUTSIDE_WORDS.house, words().PLACE_WORDS.town);
 }
 
 // The arrival line waits on the session (walk.js sets session.arrivalLine)
@@ -140,5 +140,5 @@ export function wanderStayLine(name, placeLabel) {
 
 // The tamed-now toast for a kittypet in Clan Edition.
 export function kittypetTamedLine(name) {
-  return phrase('house.joined', name, PLACE_WORDS.town);
+  return phrase('house.joined', name, words().PLACE_WORDS.town);
 }
