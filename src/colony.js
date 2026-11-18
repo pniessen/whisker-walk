@@ -818,6 +818,7 @@ export function outsideTag(colony, name, key, make = (w) => phrase('outside.the'
     if (key === 'grudge') return '';
     if (key === 'met') key = 'house';
   }
+  // A set may leave a word empty (its player's cat has no label): no word, no phrase.
   const word = words().OUTSIDE_WORDS[key];
-  return typeof word === 'string' ? make(word) : '';
+  return typeof word === 'string' && word !== '' ? make(word) : '';
 }

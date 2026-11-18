@@ -21,7 +21,7 @@
 // THREE.
 // It does NOT import colony.js, so TAME_FEEDS is mirrored below and pinned by
 // a test rather than imported.
-import { words, RANK_KEYS } from './wordset.js';
+import { words, wordRule, RANK_KEYS } from './wordset.js';
 import { phrase } from './clanphrases.js';
 import { validPetName } from './net.js';
 import { seedFromCode } from './rng.js';
@@ -96,6 +96,9 @@ export function colonyRankFor(storedName, progress) {
 export function clanNameOf(storedName, progress, rank = clanRankFor(progress)) {
   if (typeof storedName !== 'string' || storedName === '') return 'Cat';
   if (!isStrayName(storedName)) return storedName;
+  // A set whose cats keep their own names: the rank is a title beside the
+  // name (the Colony card, a tag's second line), never part of it.
+  if (wordRule('storedNames')) return storedName;
   const suffix = rank === RANK_KEYS.warrior ? warriorSuffixFor(storedName) : words().RANK_SUFFIX[rank];
   return prefixFor(storedName) + suffix;
 }
@@ -114,6 +117,7 @@ export function clanTitleFor(seed) {
 // is a published character name, until n are found or the pool runs out.
 // A non-string seed is treated as '' (seedFromCode throws on non-strings).
 export function candidateStarNames(seed, n = 3) {
+  if (wordRule('noStarNames')) return []; // nothing is offered; a name already chosen stays the pet's name
   const { PREFIXES, RANK_SUFFIX, DENIED_NAMES } = words();
   const start = seedFromCode(typeof seed === 'string' ? seed : '') % PREFIXES.length;
   const want = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;

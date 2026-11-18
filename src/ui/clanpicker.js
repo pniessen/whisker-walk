@@ -67,6 +67,16 @@ export function clanPickerModel(state, territories = TERRITORIES, homes = HOMES)
   return { mine, both: !!mine && mine === partner, cards };
 }
 
+// The badge of a group, as a pick card and the line in Change place show it.
+// The drawings above belong to the family's words. A set that has badge WORDS
+// of its own (BADGE_WORDS) has no drawings yet: it shows no emblem, and its
+// cards name the badge in a line of text instead.
+const badgeWordOf = (id) => {
+  const badges = words().BADGE_WORDS;
+  return badges && Object.hasOwn(badges, id) ? badges[id] : null;
+};
+const emblemOf = (id) => (words().BADGE_WORDS ? '' : CLAN_EMBLEMS[id] ?? '');
+
 export function renderClanPickerHtml(model, partnerName) {
   const mineCard = model.cards.find((c) => c.mine);
   const heading = model.mine === null ? phrase('pick.heading') : phrase('pick.headingMine', mineCard ? mineCard.name : clanName(model.mine));
@@ -77,10 +87,11 @@ export function renderClanPickerHtml(model, partnerName) {
     : '<button class="dr-home dr-home-off" type="button" aria-disabled="true">');
   const buttons = model.cards.map((c) => open(c)
     + (c.pickable
-      ? `<span class="dr-home-name">${CLAN_EMBLEMS[c.id] ? `<span class="dr-home-emblem">${CLAN_EMBLEMS[c.id]}</span>` : ''}${escapeHtml(c.name)}</span>`
+      ? `<span class="dr-home-name">${emblemOf(c.id) ? `<span class="dr-home-emblem">${emblemOf(c.id)}</span>` : ''}${escapeHtml(c.name)}</span>`
       : `<span class="dr-home-name">${escapeHtml(c.name)}</span>`)
     + `<small>of ${escapeHtml(c.place)}</small>`
     + `<small>${escapeHtml(c.line)}</small>`
+    + (c.pickable && badgeWordOf(c.id) ? `<small class="dr-home-badge">${escapeHtml(phrase('pick.badge', badgeWordOf(c.id)))}</small>` : '')
     + (c.soon && c.pickable ? `<small class="dr-home-soon">${phrase('pick.territorySoon')}</small>` : '')
     + (c.mine ? '<small class="dr-home-tag">✓ yours</small>' : '')
     + (c.partner ? `<small class="dr-home-tag">🤝 ${escapeHtml(partnerName)}'s</small>` : '')
@@ -143,7 +154,7 @@ export function clanLineHtml(model, partnerName, { canChoose = false } = {}) {
   if (model.mine) {
     const mine = model.cards.find((c) => c.mine);
     const name = mine ? mine.name : clanName(model.mine);
-    const emblem = CLAN_EMBLEMS[model.mine] ? `<span class="dr-home-emblem">${CLAN_EMBLEMS[model.mine]}</span>` : '';
+    const emblem = emblemOf(model.mine) ? `<span class="dr-home-emblem">${emblemOf(model.mine)}</span>` : '';
     const partner = model.cards.find((c) => c.partner && !c.mine);
     const extra = model.both ? phrase('pick.lineBoth', escapeHtml(name))
       : partner ? ` · ${escapeHtml(partnerName)} is ${escapeHtml(partner.name)}` : '';
