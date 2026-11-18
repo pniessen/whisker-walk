@@ -73,6 +73,7 @@
     "park": "City Park",
     "seaside": "Seaside",
     "docks": "The Old Docks",
+    "farm": "Appletree Farm",
     "woods": "The Woods",
     "river": "The River and Marshes",
     "moor": "The Moor",
@@ -3414,6 +3415,7 @@
     "park": "",
     "seaside": "",
     "docks": "",
+    "farm": "",
     "woods": "StormClan land",
     "river": "BrookClan land",
     "moor": "GaleClan land",
@@ -3479,6 +3481,7 @@
     "park": "Marmalade will wait for you here in City Park 🐾",
     "seaside": "Marmalade will wait for you here in Seaside 🐾",
     "docks": "Marmalade will wait for you here in The Old Docks 🐾",
+    "farm": "Marmalade will wait for you here in Appletree Farm 🐾",
     "woods": "Marmalade will wait for you here in The Woods 🐾",
     "river": "Marmalade will wait for you here in The River and Marshes 🐾",
     "moor": "Marmalade will wait for you here in The Moor 🐾",
@@ -3489,6 +3492,7 @@
     "park": "opens after 2 walks in Twolegplace · 1/2 so far",
     "seaside": "opens after 2 walks in City Park · 1/2 so far",
     "docks": "opens after 2 walks in Seaside · 1/2 so far",
+    "farm": "opens after 2 walks in City Park · 1/2 so far",
     "woods": "opens after 2 walks in Twolegplace · 1/2 so far",
     "river": "opens after 2 walks in The Woods · 1/2 so far",
     "moor": "opens after 2 walks in The Woods · 1/2 so far",
@@ -3500,6 +3504,7 @@
     "park": "opens after 2 walks in Twolegplace · 0/2 so far",
     "seaside": "opens after 2 walks in City Park · 0/2 so far",
     "docks": "opens after 2 walks in Seaside · 0/2 so far",
+    "farm": "opens after 2 walks in City Park · 0/2 so far",
     "woods": "opens after 2 walks in Twolegplace · 0/2 so far",
     "river": "opens after 2 walks in The Woods · 0/2 so far",
     "moor": "opens after 2 walks in The Woods · 0/2 so far",
@@ -5532,6 +5537,7 @@
       "City Park · opens after 2 walks in Twolegplace · 0/2 so far",
       "Seaside · opens after 2 walks in City Park · 0/2 so far",
       "The Old Docks · opens after 2 walks in Seaside · 0/2 so far",
+      "Appletree Farm · opens after 2 walks in City Park · 0/2 so far",
       "The Woods · opens after 2 walks in Twolegplace · 0/2 so far",
       "The River and Marshes · opens after 2 walks in The Woods · 0/2 so far",
       "The Moor · opens after 2 walks in The Woods · 0/2 so far",
@@ -5592,7 +5598,9 @@
       "Seaside",
       "opens after 2 walks in City Park · 0/2 so far",
       "The Old Docks",
-      "opens after 2 walks in Seaside · 0/2 so far"
+      "opens after 2 walks in Seaside · 0/2 so far",
+      "Appletree Farm",
+      "opens after 2 walks in City Park · 0/2 so far"
      ]
     },
     "everythingOpenAtHome": {
@@ -5602,6 +5610,7 @@
       "City Park",
       "Seaside",
       "The Old Docks",
+      "Appletree Farm",
       "The Woods",
       "The River and Marshes",
       "The Moor",
@@ -5654,6 +5663,8 @@
       "Seaside",
       "tap to walk here",
       "The Old Docks",
+      "tap to walk here",
+      "Appletree Farm",
       "tap to walk here"
      ]
     },
@@ -5674,6 +5685,7 @@
    "park": "City Park",
    "seaside": "Seaside",
    "docks": "The Old Docks",
+   "farm": "Appletree Farm",
    "woods": "The Woods",
    "river": "The River and Marshes",
    "moor": "The Moor",
@@ -5708,6 +5720,7 @@
    "park": "opens after 2 walks in Cozy Neighborhood · 1/2 so far",
    "seaside": "opens after 2 walks in City Park · 1/2 so far",
    "docks": "opens after 2 walks in Seaside · 1/2 so far",
+   "farm": "opens after 2 walks in City Park · 1/2 so far",
    "woods": "opens after 2 walks in Cozy Neighborhood · 1/2 so far",
    "river": "opens after 2 walks in The Woods · 1/2 so far",
    "moor": "opens after 2 walks in The Woods · 1/2 so far",
@@ -5760,7 +5773,8 @@
     "Cozy Neighborhood",
     "City Park",
     "Seaside",
-    "The Old Docks"
+    "The Old Docks",
+    "Appletree Farm"
    ],
    "hasTerritoryMap": false,
    "sheet": [
@@ -5771,6 +5785,8 @@
     "Seaside",
     "tap to walk here",
     "The Old Docks",
+    "tap to walk here",
+    "Appletree Farm",
     "tap to walk here"
    ]
   },
