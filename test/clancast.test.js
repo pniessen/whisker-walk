@@ -203,7 +203,9 @@ test('clancast.js stays pure', () => {
   expect(specs.length).toBeGreaterThan(0);
   // 2026-11-16 (series switch, phase 1): pin updated. './clanphrases.js' is the
   // phrase table the tag's second line now comes from (words only, no THREE).
-  const allowed = ['./clanhomes.js', './clanwords.js', './clanphrases.js', './rivalclans.js', './rng.js', './straynames.js'];
+  // 2026-11-17: './wordset.js' (the door to the word file) takes the place of
+  // './clanwords.js', which only that door may import now.
+  const allowed = ['./clanhomes.js', './wordset.js', './clanphrases.js', './rivalclans.js', './rng.js', './straynames.js'];
   for (const s of specs) expect(allowed, s).toContain(s);
 });
 
