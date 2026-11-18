@@ -144,3 +144,35 @@ describe('series words on the home screen, pinned', () => {
     checkAgainstFixture(FIXTURE, snapshot());
   });
 });
+
+// ---- the everyday words ('off'), added 2026-11-18 ------------------------------
+// The same snapshot, built by the same code, with the everyday word set in
+// use (src/offclanwords.js), recorded in its own fixture. Those words are the
+// older playtester's picks; re-record with
+//   UPDATE_OFF_SNAPSHOT=1 npx vitest run test/serieswords
+// when she or the owner changes one, and read the diff line by line.
+const { withOffWords, bannedLeaks, offWordCount } = await import('./helpers/offwords.js');
+const { UPDATING_OFF } = await import('./helpers/serieswords.js');
+
+const OFF_FIXTURE = 'series-words-off-home.json';
+// The whole home screen and every sheet is recorded here, not only the
+// segments with a series word: there is no list of everyday words to pick by.
+const OFF_IGNORE = [
+  'Dusk walks brighten — atmospheric instead of squint-inducing.', // a skill's own line: the evening, not a group
+];
+describe('everyday words: the home screen and its sheets', () => {
+  it('shows exactly the recorded everyday words', () => {
+    checkAgainstFixture(OFF_FIXTURE, withOffWords(() => snapshot(() => true)), UPDATING_OFF);
+  });
+
+  it('shows no word of the family\'s set, and plenty of the everyday ones', () => {
+    const snap = withOffWords(() => snapshot(() => true));
+    expect(bannedLeaks(snap, OFF_IGNORE)).toEqual([]);
+    expect(offWordCount(snap)).toBeGreaterThan(10);
+  });
+
+  it('and the family\'s words are back afterwards', () => {
+    withOffWords(() => snapshot(() => true));
+    checkAgainstFixture(FIXTURE, snapshot());
+  });
+});

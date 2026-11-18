@@ -1,0 +1,642 @@
+{
+ "about": "The guided first walk, the hints, the goals' how lines and the home line. Recorded by test/serieswords.tutorial.test.js; see test/serieswords.test.js before re-recording.",
+ "table": {
+  "start.touch": {
+   "touch": "Push the circle to walk. Drag to look around.",
+   "keys": "Push the circle to walk. Drag to look around."
+  },
+  "hint.look": {
+   "touch": "Drag here to look around.",
+   "keys": "Move the mouse to look around."
+  },
+  "hint.creep": {
+   "touch": "{name} is shy. Push the circle gently to creep.",
+   "keys": "{name} is shy. Hold Shift to creep."
+  },
+  "hint.jump": {
+   "touch": "Tap the paw to jump up.",
+   "keys": "Press Space to jump up."
+  },
+  "hint.hop": {
+   "touch": "Tap the paw again to hop down.",
+   "keys": "Press Space again to hop down."
+  },
+  "hint.photo": {
+   "touch": "Tap 📷 to take a photo.",
+   "keys": "Press C to take a photo."
+  },
+  "hint.frame": {
+   "touch": "Point at an animal. Tap the screen.",
+   "keys": "Point at an animal. Click."
+  },
+  "hint.yarn": {
+   "touch": "Tap 🧶 to play with your yarn.",
+   "keys": "Press T to play with your yarn."
+  },
+  "hint.bat": {
+   "touch": "Run into the ball to bat it.",
+   "keys": "Run into the ball to bat it."
+  },
+  "hint.call": {
+   "touch": "Tap 😺 to call a cat over.",
+   "keys": "Press V to call a cat over."
+  },
+  "hint.sniff": {
+   "touch": "You smell something! Follow the paw prints.",
+   "keys": "You smell something! Follow the paw prints."
+  },
+  "hint.box": {
+   "touch": "Walk into the box and stop.",
+   "keys": "Walk into the box and stop."
+  },
+  "hint.help": {
+   "touch": "Someone needs help. Walk up and tap the button.",
+   "keys": "Someone needs help. Walk up and press E."
+  },
+  "hint.hiss": {
+   "touch": "{name} is cross today. Try again on another walk.",
+   "keys": "{name} is cross today. Try again on another walk."
+  },
+  "hint.dog": {
+   "touch": "That is the dog's garden. Walk round it.",
+   "keys": "That is the dog's garden. Walk round it."
+  },
+  "hint.swim": {
+   "touch": "You can swim! Walk to the bank to climb out.",
+   "keys": "You can swim! Walk to the bank to climb out."
+  },
+  "hint.carry": {
+   "touch": "You can carry it home. Or put it down.",
+   "keys": "You can carry it home. Or put it down."
+  },
+  "hint.home": {
+   "touch": "Tap ⏸ when you want to go home.",
+   "keys": "Press Esc when you want to go home."
+  },
+  "hint.chat": {
+   "touch": "Tap 💬 to say something.",
+   "keys": "Press Enter to say something."
+  },
+  "hint.rival": {
+   "touch": "This land is theirs. You can come back another way.",
+   "keys": "This land is theirs. You can come back another way."
+  },
+  "hint.stranger": {
+   "touch": "A stranger is on your land. You choose: chase or leave.",
+   "keys": "A stranger is on your land. You choose: chase or leave."
+  },
+  "how.spot-critters": {
+   "touch": "Walk near a bird, a mouse or a squirrel.",
+   "keys": "Walk near a bird, a mouse or a squirrel."
+  },
+  "how.collect": {
+   "touch": "Find something shiny. Tap the button.",
+   "keys": "Find something shiny. Press E."
+  },
+  "how.tip-things": {
+   "touch": "Walk up to a pot or a bin. Tap the button.",
+   "keys": "Walk up to a pot or a bin. Press E."
+  },
+  "how.greet-cats": {
+   "touch": "Walk up to a cat. Tap the button.",
+   "keys": "Walk up to a cat. Press E."
+  },
+  "how.take-photos": {
+   "touch": "Tap 📷. Point at an animal. Tap the screen.",
+   "keys": "Press C. Point at an animal. Click."
+  },
+  "how.get-scratches": {
+   "touch": "Find a person. Tap the button.",
+   "keys": "Find a person. Press E."
+  },
+  "how.yarn-play": {
+   "touch": "Tap 🧶. Run into the ball 4 times.",
+   "keys": "Press T. Run into the ball 4 times."
+  },
+  "how.dig-treasure": {
+   "touch": "Stand still to sniff. Follow the paw prints. Dig!",
+   "keys": "Stand still to sniff. Follow the paw prints. Dig!"
+  },
+  "how.box-sit": {
+   "touch": "Walk into a cardboard box and stop.",
+   "keys": "Walk into a cardboard box and stop."
+  },
+  "how.scenic-spots": {
+   "touch": "Go to a ☆ on the map.",
+   "keys": "Go to a ☆ on the map."
+  },
+  "how.pounce-play": {
+   "touch": "Creep close. Then tap the paw.",
+   "keys": "Hold Shift to creep close. Then press Space."
+  },
+  "home.present": {
+   "touch": "Tap the present! 🎁",
+   "keys": "Tap the present! 🎁"
+  },
+  "home.first": {
+   "touch": "A friend is waiting outside. Tap Start!",
+   "keys": "A friend is waiting outside. Tap Start!"
+  },
+  "home.part": {
+   "touch": "{name} has more to show you. Tap Start!",
+   "keys": "{name} has more to show you. Tap Start!"
+  },
+  "home.pick": {
+   "touch": "The wild cats have seen you. Pick your home!",
+   "keys": "The wild cats have seen you. Pick your home!"
+  },
+  "home.camp": {
+   "touch": "Your new home is {place}. Go and see your camp!",
+   "keys": "Your new home is {place}. Go and see your camp!"
+  },
+  "home.way": {
+   "touch": "The way to your home starts in {place}.",
+   "keys": "The way to your home starts in {place}."
+  },
+  "home.opens": {
+   "touch": "One more walk here and {place} opens!",
+   "keys": "One more walk here and {place} opens!"
+  },
+  "home.wear": {
+   "touch": "You have enough for the {thing}. Tap Dress up!",
+   "keys": "You have enough for the {thing}. Tap Dress up!"
+  },
+  "home.feed": {
+   "touch": "Feed {name} again: {n} of 6.",
+   "keys": "Feed {name} again: {n} of 6."
+  },
+  "home.nearly": {
+   "touch": "{n} more 🐾 and the {thing} is yours.",
+   "keys": "{n} more 🐾 and the {thing} is yours."
+  },
+  "home.den": {
+   "touch": "{name} is waiting in your den.",
+   "keys": "{name} is waiting in your den."
+  },
+  "home.rank": {
+   "touch": "{n} 🐾 more to become a {rank}.",
+   "keys": "{n} 🐾 more to become a {rank}."
+  },
+  "home.top": {
+   "touch": "Your cat is ready for a walk.",
+   "keys": "Your cat is ready for a walk."
+  },
+  "home.part-friend": {
+   "touch": "Your friend has more to show you. Tap Start!",
+   "keys": "Your friend has more to show you. Tap Start!"
+  },
+  "guide.walk": {
+   "touch": "Push the circle to walk.",
+   "keys": "Press the arrow keys to walk."
+  },
+  "guide.walk-more": {
+   "touch": "Put your thumb on the circle. Slide it up.",
+   "keys": "The arrow keys are next to the letters."
+  },
+  "guide.go": {
+   "touch": "Walk to {name}.",
+   "keys": "Walk to {name}."
+  },
+  "guide.hello": {
+   "touch": "Tap the button to say hello.",
+   "keys": "Press E to say hello."
+  },
+  "guide.hello-other": {
+   "touch": "Nice! Now say hello to {name}.",
+   "keys": "Nice! Now say hello to {name}."
+  },
+  "guide.fish": {
+   "touch": "{name} is hungry. Tap the button again.",
+   "keys": "{name} is hungry. Press E again."
+  },
+  "guide.follow": {
+   "touch": "Follow {name}!",
+   "keys": "Follow {name}!"
+  },
+  "guide.pick-up": {
+   "touch": "Tap the button to pick it up.",
+   "keys": "Press E to pick it up."
+  },
+  "guide.pounce": {
+   "touch": "Tap the paw to pounce!",
+   "keys": "Press Space to pounce!"
+  },
+  "guide.done": {
+   "touch": "You did it! {name} is your friend now.",
+   "keys": "You did it! {name} is your friend now."
+  },
+  "guide.home": {
+   "touch": "Tap ⏸ when you want to go home.",
+   "keys": "Press Esc when you want to go home."
+  },
+  "guide.summary-first": {
+   "touch": "Your first walk! ⭐",
+   "keys": "Your first walk! ⭐"
+  },
+  "guide.summary-friend": {
+   "touch": "New friend: {name} ♡",
+   "keys": "New friend: {name} ♡"
+  },
+  "guide.summary-gift": {
+   "touch": "A gift from {name}: +20 🐾",
+   "keys": "A gift from {name}: +20 🐾"
+  },
+  "guide.skip": {
+   "touch": "Skip the lesson",
+   "keys": "Skip the lesson"
+  },
+  "guide.replay": {
+   "touch": "Play the first walk again",
+   "keys": "Play the first walk again"
+  },
+  "guide.replay-set": {
+   "touch": "Your next street walk is the first walk.",
+   "keys": "Your next street walk is the first walk."
+  },
+  "ready.keys": {
+   "touch": "Arrow keys to walk",
+   "keys": "Arrow keys to walk"
+  },
+  "camp.follow": {
+   "touch": "Follow {name} to your camp.",
+   "keys": "Follow {name} to your camp."
+  },
+  "camp.here": {
+   "touch": "This is your camp. Say hello to everyone!",
+   "keys": "This is your camp. Say hello to everyone!"
+  },
+  "camp.trail": {
+   "touch": "Follow the paw prints to your camp.",
+   "keys": "Follow the paw prints to your camp."
+  },
+  "camp.pill": {
+   "touch": "Your camp 🏡",
+   "keys": "Your camp 🏡"
+  },
+  "settings.tips": {
+   "touch": "Show tips",
+   "keys": "Show tips"
+  }
+ },
+ "slotsFilledWith": {
+  "name": "Conker",
+  "place": "Peopleville",
+  "thing": "War Paint",
+  "n": 3,
+  "rank": "Yard Prowler"
+ },
+ "filled": {
+  "start.touch": {
+   "touch": "Push the circle to walk. Drag to look around.",
+   "keys": "Push the circle to walk. Drag to look around."
+  },
+  "hint.look": {
+   "touch": "Drag here to look around.",
+   "keys": "Move the mouse to look around."
+  },
+  "hint.creep": {
+   "touch": "Conker is shy. Push the circle gently to creep.",
+   "keys": "Conker is shy. Hold Shift to creep."
+  },
+  "hint.jump": {
+   "touch": "Tap the paw to jump up.",
+   "keys": "Press Space to jump up."
+  },
+  "hint.hop": {
+   "touch": "Tap the paw again to hop down.",
+   "keys": "Press Space again to hop down."
+  },
+  "hint.photo": {
+   "touch": "Tap 📷 to take a photo.",
+   "keys": "Press C to take a photo."
+  },
+  "hint.frame": {
+   "touch": "Point at an animal. Tap the screen.",
+   "keys": "Point at an animal. Click."
+  },
+  "hint.yarn": {
+   "touch": "Tap 🧶 to play with your yarn.",
+   "keys": "Press T to play with your yarn."
+  },
+  "hint.bat": {
+   "touch": "Run into the ball to bat it.",
+   "keys": "Run into the ball to bat it."
+  },
+  "hint.call": {
+   "touch": "Tap 😺 to call a cat over.",
+   "keys": "Press V to call a cat over."
+  },
+  "hint.sniff": {
+   "touch": "You smell something! Follow the paw prints.",
+   "keys": "You smell something! Follow the paw prints."
+  },
+  "hint.box": {
+   "touch": "Walk into the box and stop.",
+   "keys": "Walk into the box and stop."
+  },
+  "hint.help": {
+   "touch": "Someone needs help. Walk up and tap the button.",
+   "keys": "Someone needs help. Walk up and press E."
+  },
+  "hint.hiss": {
+   "touch": "Conker is cross today. Try again on another walk.",
+   "keys": "Conker is cross today. Try again on another walk."
+  },
+  "hint.dog": {
+   "touch": "That is the dog's garden. Walk round it.",
+   "keys": "That is the dog's garden. Walk round it."
+  },
+  "hint.swim": {
+   "touch": "You can swim! Walk to the bank to climb out.",
+   "keys": "You can swim! Walk to the bank to climb out."
+  },
+  "hint.carry": {
+   "touch": "You can carry it home. Or put it down.",
+   "keys": "You can carry it home. Or put it down."
+  },
+  "hint.home": {
+   "touch": "Tap ⏸ when you want to go home.",
+   "keys": "Press Esc when you want to go home."
+  },
+  "hint.chat": {
+   "touch": "Tap 💬 to say something.",
+   "keys": "Press Enter to say something."
+  },
+  "hint.rival": {
+   "touch": "This land is theirs. You can come back another way.",
+   "keys": "This land is theirs. You can come back another way."
+  },
+  "hint.stranger": {
+   "touch": "An outsider has come onto your land. You choose: chase or leave.",
+   "keys": "An outsider has come onto your land. You choose: chase or leave."
+  },
+  "how.spot-critters": {
+   "touch": "Walk near a bird, a mouse or a squirrel.",
+   "keys": "Walk near a bird, a mouse or a squirrel."
+  },
+  "how.collect": {
+   "touch": "Find something shiny. Tap the button.",
+   "keys": "Find something shiny. Press E."
+  },
+  "how.tip-things": {
+   "touch": "Walk up to a pot or a bin. Tap the button.",
+   "keys": "Walk up to a pot or a bin. Press E."
+  },
+  "how.greet-cats": {
+   "touch": "Walk up to a cat. Tap the button.",
+   "keys": "Walk up to a cat. Press E."
+  },
+  "how.take-photos": {
+   "touch": "Tap 📷. Point at an animal. Tap the screen.",
+   "keys": "Press C. Point at an animal. Click."
+  },
+  "how.get-scratches": {
+   "touch": "Find a person. Tap the button.",
+   "keys": "Find a person. Press E."
+  },
+  "how.yarn-play": {
+   "touch": "Tap 🧶. Run into the ball 4 times.",
+   "keys": "Press T. Run into the ball 4 times."
+  },
+  "how.dig-treasure": {
+   "touch": "Stand still to sniff. Follow the paw prints. Dig!",
+   "keys": "Stand still to sniff. Follow the paw prints. Dig!"
+  },
+  "how.box-sit": {
+   "touch": "Walk into a cardboard box and stop.",
+   "keys": "Walk into a cardboard box and stop."
+  },
+  "how.scenic-spots": {
+   "touch": "Go to a ☆ on the map.",
+   "keys": "Go to a ☆ on the map."
+  },
+  "how.pounce-play": {
+   "touch": "Creep close. Then tap the paw.",
+   "keys": "Hold Shift to creep close. Then press Space."
+  },
+  "home.present": {
+   "touch": "Tap the present! 🎁",
+   "keys": "Tap the present! 🎁"
+  },
+  "home.first": {
+   "touch": "A friend is waiting outside. Tap Start!",
+   "keys": "A friend is waiting outside. Tap Start!"
+  },
+  "home.part": {
+   "touch": "Conker has more to show you. Tap Start!",
+   "keys": "Conker has more to show you. Tap Start!"
+  },
+  "home.pick": {
+   "touch": "It is time to pick your home!",
+   "keys": "It is time to pick your home!"
+  },
+  "home.camp": {
+   "touch": "Your new home is Peopleville. Go and see your home base!",
+   "keys": "Your new home is Peopleville. Go and see your home base!"
+  },
+  "home.way": {
+   "touch": "The way to your home starts in Peopleville.",
+   "keys": "The way to your home starts in Peopleville."
+  },
+  "home.opens": {
+   "touch": "One more walk here and Peopleville opens!",
+   "keys": "One more walk here and Peopleville opens!"
+  },
+  "home.wear": {
+   "touch": "You have enough for the War Paint. Tap Dress up!",
+   "keys": "You have enough for the War Paint. Tap Dress up!"
+  },
+  "home.feed": {
+   "touch": "Feed Conker again: 3 of 6.",
+   "keys": "Feed Conker again: 3 of 6."
+  },
+  "home.nearly": {
+   "touch": "3 more 🐾 and the War Paint is yours.",
+   "keys": "3 more 🐾 and the War Paint is yours."
+  },
+  "home.den": {
+   "touch": "Conker is waiting in your den.",
+   "keys": "Conker is waiting in your den."
+  },
+  "home.rank": {
+   "touch": "3 🐾 more to become a Yard Prowler.",
+   "keys": "3 🐾 more to become a Yard Prowler."
+  },
+  "home.top": {
+   "touch": "Your cat is ready for a walk.",
+   "keys": "Your cat is ready for a walk."
+  },
+  "home.part-friend": {
+   "touch": "Your friend has more to show you. Tap Start!",
+   "keys": "Your friend has more to show you. Tap Start!"
+  },
+  "guide.walk": {
+   "touch": "Push the circle to walk.",
+   "keys": "Press the arrow keys to walk."
+  },
+  "guide.walk-more": {
+   "touch": "Put your thumb on the circle. Slide it up.",
+   "keys": "The arrow keys are next to the letters."
+  },
+  "guide.go": {
+   "touch": "Walk to Conker.",
+   "keys": "Walk to Conker."
+  },
+  "guide.hello": {
+   "touch": "Tap the button to say hello.",
+   "keys": "Press E to say hello."
+  },
+  "guide.hello-other": {
+   "touch": "Nice! Now say hello to Conker.",
+   "keys": "Nice! Now say hello to Conker."
+  },
+  "guide.fish": {
+   "touch": "Conker is hungry. Tap the button again.",
+   "keys": "Conker is hungry. Press E again."
+  },
+  "guide.follow": {
+   "touch": "Follow Conker!",
+   "keys": "Follow Conker!"
+  },
+  "guide.pick-up": {
+   "touch": "Tap the button to pick it up.",
+   "keys": "Press E to pick it up."
+  },
+  "guide.pounce": {
+   "touch": "Tap the paw to pounce!",
+   "keys": "Press Space to pounce!"
+  },
+  "guide.done": {
+   "touch": "You did it! Conker is your friend now.",
+   "keys": "You did it! Conker is your friend now."
+  },
+  "guide.home": {
+   "touch": "Tap ⏸ when you want to go home.",
+   "keys": "Press Esc when you want to go home."
+  },
+  "guide.summary-first": {
+   "touch": "Your first walk! ⭐",
+   "keys": "Your first walk! ⭐"
+  },
+  "guide.summary-friend": {
+   "touch": "New friend: Conker ♡",
+   "keys": "New friend: Conker ♡"
+  },
+  "guide.summary-gift": {
+   "touch": "A gift from Conker: +20 🐾",
+   "keys": "A gift from Conker: +20 🐾"
+  },
+  "guide.skip": {
+   "touch": "Skip the lesson",
+   "keys": "Skip the lesson"
+  },
+  "guide.replay": {
+   "touch": "Play the first walk again",
+   "keys": "Play the first walk again"
+  },
+  "guide.replay-set": {
+   "touch": "Your next street walk is the first walk.",
+   "keys": "Your next street walk is the first walk."
+  },
+  "ready.keys": {
+   "touch": "Arrow keys to walk",
+   "keys": "Arrow keys to walk"
+  },
+  "camp.follow": {
+   "touch": "Follow Conker to your home base.",
+   "keys": "Follow Conker to your home base."
+  },
+  "camp.here": {
+   "touch": "This is your home base. Say hello to everyone!",
+   "keys": "This is your home base. Say hello to everyone!"
+  },
+  "camp.trail": {
+   "touch": "Follow the paw prints to your home base.",
+   "keys": "Follow the paw prints to your home base."
+  },
+  "camp.pill": {
+   "touch": "Your home base 🏡",
+   "keys": "Your home base 🏡"
+  },
+  "settings.tips": {
+   "touch": "Show tips",
+   "keys": "Show tips"
+  }
+ },
+ "nextThing": {
+  "clanEdition": {
+   "presentWaiting": "rule 1: Tap the present! 🎁",
+   "noWalkYet": "rule 2: A friend is waiting outside. Tap Start!",
+   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Start!",
+   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Start!",
+   "pickIsReady": "rule 4: It is time to pick your home!",
+   "newHome": {
+    "woods": "rule 5: Your new home is the Woods. Go and see your home base!",
+    "river": "rule 5: Your new home is the River and Marshes. Go and see your home base!",
+    "moor": "rule 5: Your new home is the Moor. Go and see your home base!",
+    "pines": "rule 5: Your new home is the Pines and Swamp. Go and see your home base!",
+    "gorge": "rule 5: Your new home is the Gorge. Go and see your home base!"
+   },
+   "wayHome": {
+    "woods": "rule 5: Your new home is the Woods. Go and see your home base!",
+    "river": "rule 6: The way to your home starts in the Woods.",
+    "moor": "rule 6: The way to your home starts in the Woods.",
+    "pines": "rule 6: The way to your home starts in the Woods.",
+    "gorge": "rule 6: The way to your home starts in the Woods."
+   },
+   "opensNext": {
+    "park": "rule 7: One more walk here and City Park opens!",
+    "seaside": "rule 7: One more walk here and Seaside opens!",
+    "docks": "rule 7: One more walk here and the Old Docks opens!",
+    "woods": "rule 7: One more walk here and City Park opens!",
+    "river": "rule 7: One more walk here and the River and Marshes opens!",
+    "moor": "rule 7: One more walk here and the River and Marshes opens!",
+    "pines": "rule 7: One more walk here and the Pines and Swamp opens!",
+    "gorge": "rule 7: One more walk here and the Gorge opens!"
+   },
+   "canBuy": "rule 8: You have enough for the Cozy Beanie. Tap Dress up!",
+   "feedAgain": "rule 9: Feed Pickles again: 3 of 6.",
+   "nearlyEnough": "rule 10: 12 more 🐾 and the Cozy Beanie is yours.",
+   "waitingInTheDen": "rule 11: Pickles is waiting in your den.",
+   "nextRank": "rule 12: 50 🐾 more to become a Yard Prowler.",
+   "lastRank": "rule 12: Your cat is ready for a walk."
+  },
+  "legacyEdition": {
+   "presentWaiting": "rule 1: Tap the present! 🎁",
+   "noWalkYet": "rule 2: A friend is waiting outside. Tap Start!",
+   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Start!",
+   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Start!",
+   "pickIsReady": "rule 12: 150 🐾 more to become a Yard Prowler.",
+   "newHome": {
+    "woods": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "river": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "moor": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "pines": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "gorge": "rule 12: 150 🐾 more to become a Yard Prowler."
+   },
+   "wayHome": {
+    "woods": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "river": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "moor": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "pines": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "gorge": "rule 12: 150 🐾 more to become a Yard Prowler."
+   },
+   "opensNext": {
+    "park": "rule 7: One more walk here and City Park opens!",
+    "seaside": "rule 7: One more walk here and Seaside opens!",
+    "docks": "rule 7: One more walk here and the Old Docks opens!",
+    "woods": "rule 7: One more walk here and City Park opens!",
+    "river": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "moor": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "pines": "rule 12: 150 🐾 more to become a Yard Prowler.",
+    "gorge": "rule 12: 150 🐾 more to become a Yard Prowler."
+   },
+   "canBuy": "rule 8: You have enough for the Cozy Beanie. Tap Dress up!",
+   "feedAgain": "rule 9: Feed Pickles again: 3 of 6.",
+   "nearlyEnough": "rule 10: 12 more 🐾 and the Cozy Beanie is yours.",
+   "waitingInTheDen": "rule 11: Pickles is waiting in your den.",
+   "nextRank": "rule 12: 50 🐾 more to become a Yard Prowler.",
+   "lastRank": "rule 12: Your cat is ready for a walk."
+  }
+ }
+}

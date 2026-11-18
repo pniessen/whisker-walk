@@ -1,0 +1,5920 @@
+{
+ "about": "Every series-derived string today's game shows. Recorded by test/serieswords.test.js; see its header before re-recording.",
+ "clanEdition": {
+  "vocabulary": {
+   "edition": {
+    "title": "Crew Edition",
+    "page": "Whisker Walk 2",
+    "unknownEditionReadsAs": "Crew Edition"
+   },
+   "groupSuffix": "Crew",
+   "groupNames": {
+    "woods": "Forest Crew",
+    "river": "River Crew",
+    "moor": "Moor Crew",
+    "pines": "Pines Crew",
+    "gorge": "Gorge Crew"
+   },
+   "homeLines": {
+    "woods": "oak woods, ferns and sunny clearings",
+    "moor": "open heather, big skies and wind",
+    "river": "reeds, the riverbank and the pond",
+    "pines": "tall pines and the swamp",
+    "gorge": "rocks, cliff dens and tall pines"
+   },
+   "rivalGroupNames": {
+    "neighborhood": "Garden Crew",
+    "park": "Park Crew",
+    "seaside": "Beach Crew",
+    "docks": "Dock Crew"
+   },
+   "rankWords": {
+    "kit": "kitten",
+    "apprentice": "scout",
+    "warrior": "ranger",
+    "elder": "wise cat",
+    "queen": "ranger",
+    "medicine": "doc",
+    "deputy": "ranger",
+    "leader": "first cat"
+   },
+   "rankEndings": {
+    "kit": "",
+    "apprentice": "",
+    "leader": ""
+   },
+   "grownEndings": [
+    ""
+   ],
+   "outsideWords": {
+    "met": "roamer",
+    "grudge": "loner",
+    "player": "",
+    "house": "house cat",
+    "people": "townspeople"
+   },
+   "placeWords": {
+    "town": "Peopleville",
+    "island": "The Still Island",
+    "seat": "High Stone"
+   },
+   "placeNames": {
+    "neighborhood": "Peopleville",
+    "park": "City Park",
+    "seaside": "Seaside",
+    "docks": "The Old Docks",
+    "woods": "The Woods",
+    "river": "The River and Marshes",
+    "moor": "The Moor",
+    "pines": "The Pines and Swamp",
+    "gorge": "The Gorge"
+   },
+   "mapNames": {
+    "town": "Peopleville",
+    "woods": "The Woods",
+    "moor": "The Moor",
+    "river": "The River and Marshes",
+    "pines": "The Pines and Swamp",
+    "gorge": "The Gorge",
+    "island": "The Still Island",
+    "islandWhere": "in the Pines and Swamp"
+   },
+   "ownGroupTitles": {
+    "all": [
+     "Blackberry Crew",
+     "Buttercup Crew",
+     "Chipmunk Crew",
+     "Dragonfly Crew",
+     "Driftwood Crew",
+     "Firefly Crew",
+     "Hedgehog Crew",
+     "Hilltop Crew",
+     "Honeybee Crew",
+     "Ladybug Crew",
+     "Moonbeam Crew",
+     "Mushroom Crew",
+     "Orchard Crew",
+     "Rainbow Crew",
+     "Raindrop Crew",
+     "Seashell Crew",
+     "Snowflake Crew",
+     "Sunbeam Crew",
+     "Sunflower Crew",
+     "Tadpole Crew",
+     "Treetop Crew",
+     "Wildflower Crew"
+    ],
+    "bySeed": {
+     "player-0": "Hilltop Crew",
+     "player-1": "Driftwood Crew",
+     "player-2": "Dragonfly Crew",
+     "player-3": "Orchard Crew",
+     "player-4": "Ladybug Crew",
+     "player-5": "Seashell Crew",
+     "player-6": "Rainbow Crew",
+     "player-7": "Moonbeam Crew",
+     "player-8": "Honeybee Crew",
+     "player-9": "Tadpole Crew",
+     "player-10": "Blackberry Crew",
+     "player-12": "Sunflower Crew",
+     "player-13": "Mushroom Crew",
+     "player-16": "Treetop Crew",
+     "player-21": "Hedgehog Crew",
+     "player-22": "Buttercup Crew",
+     "player-25": "Firefly Crew",
+     "player-31": "Chipmunk Crew",
+     "player-32": "Snowflake Crew",
+     "player-44": "Sunbeam Crew",
+     "player-53": "Raindrop Crew",
+     "player-73": "Wildflower Crew"
+    },
+    "unusableSeed": [
+     "Sunbeam Crew",
+     "Sunbeam Crew"
+    ],
+    "savedTitleKept": [
+     "Blackberry Crew",
+     "Buttercup Crew",
+     "Chipmunk Crew",
+     "Dragonfly Crew",
+     "Driftwood Crew",
+     "Firefly Crew",
+     "Hedgehog Crew",
+     "Hilltop Crew",
+     "Honeybee Crew",
+     "Ladybug Crew",
+     "Moonbeam Crew",
+     "Mushroom Crew",
+     "Orchard Crew",
+     "Rainbow Crew",
+     "Raindrop Crew",
+     "Seashell Crew",
+     "Snowflake Crew",
+     "Sunbeam Crew",
+     "Sunflower Crew",
+     "Tadpole Crew",
+     "Treetop Crew",
+     "Wildflower Crew"
+    ],
+    "savedTitleDropped": [
+     "Forest Crew -> null",
+     "MossBand -> null",
+     "Moss -> null"
+    ]
+   },
+   "prizeNames": {
+    "warpaint": "War Paint"
+   },
+   "fightMoves": {
+    "rearUpSwat": {
+     "name": "Swat",
+     "short": "Swat",
+     "hint": "Paw up",
+     "when": "they raise a paw",
+     "learned": "New move: Swat! Use it when they raise a paw."
+    },
+    "leapScratch": {
+     "name": "Leap",
+     "short": "Leap",
+     "hint": "Backs up",
+     "when": "they back up",
+     "learned": "New move: Leap! Use it when they back up."
+    },
+    "pin": {
+     "name": "Pin",
+     "short": "Pin",
+     "hint": "Crouch",
+     "when": "they crouch",
+     "learned": "New move: Pin! Use it when they crouch."
+    },
+    "rollingTumble": {
+     "name": "Tumble",
+     "short": "Tumble",
+     "hint": "Any move",
+     "when": null,
+     "learned": "New move: Tumble! Use it on any move."
+    }
+   },
+   "fightWords": {
+    "teach": "Crouch → Dodge · Paw up → Pounce · Backs up → Swipe",
+    "teachWithAllMoves": "Crouch → Dodge · Paw up → Pounce · Backs up → Swipe · 🐾 → Swat · ↩️ → Leap · ⬇️ → Pin · any → Tumble",
+    "read": "Read its move!",
+    "lines": {
+     "won": "Nice one! 🐾",
+     "lost": "It got that one!",
+     "secondLook": "Steady… look again 👀"
+    },
+    "clues": {
+     "pounce": "It crouches low…",
+     "swipe": "It raises a paw…",
+     "charge": "It backs up…"
+    },
+    "ask": "is on your land!",
+    "borderAsk": {
+     "ask": "blocks your path!",
+     "off": "Run"
+    }
+   }
+  },
+  "names": {
+   "stored": {
+    "Pickles": {
+     "kind": "stray",
+     "firstHalf": "Pickles",
+     "forms": {
+      "kit": "Pickles",
+      "apprentice": "Pickles",
+      "warrior": "Pickles",
+      "leader": "Pickles"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Pickles (kitten) | Colony tab: Pickles (kitten)",
+      "fed 1 of 6": "Pickles (kitten) | Colony tab: Pickles (kitten)",
+      "fed 2 of 6": "Pickles (scout) | Colony tab: Pickles (scout)",
+      "fed 3 of 6": "Pickles (scout) | Colony tab: Pickles (scout)",
+      "fed 4 of 6": "Pickles (scout) | Colony tab: Pickles (scout)",
+      "fed 5 of 6": "Pickles (scout) | Colony tab: Pickles (scout)",
+      "fed 6 of 6": "Pickles (ranger) | Colony tab: Pickles (ranger)",
+      "tamed": "Pickles (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Marmalade": {
+     "kind": "stray",
+     "firstHalf": "Marmalade",
+     "forms": {
+      "kit": "Marmalade",
+      "apprentice": "Marmalade",
+      "warrior": "Marmalade",
+      "leader": "Marmalade"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Marmalade (kitten) | Colony tab: Marmalade (kitten)",
+      "fed 1 of 6": "Marmalade (kitten) | Colony tab: Marmalade (kitten)",
+      "fed 2 of 6": "Marmalade (scout) | Colony tab: Marmalade (scout)",
+      "fed 3 of 6": "Marmalade (scout) | Colony tab: Marmalade (scout)",
+      "fed 4 of 6": "Marmalade (scout) | Colony tab: Marmalade (scout)",
+      "fed 5 of 6": "Marmalade (scout) | Colony tab: Marmalade (scout)",
+      "fed 6 of 6": "Marmalade (ranger) | Colony tab: Marmalade (ranger)",
+      "tamed": "Marmalade (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Marmalade the house cat has wandered in from Peopleville 🔔",
+     "joins": "Marmalade left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Baron von Fluff": {
+     "kind": "stray",
+     "firstHalf": "Baron von Fluff",
+     "forms": {
+      "kit": "Baron von Fluff",
+      "apprentice": "Baron von Fluff",
+      "warrior": "Baron von Fluff",
+      "leader": "Baron von Fluff"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Baron von Fluff (kitten) | Colony tab: Baron von Fluff (kitten)",
+      "fed 1 of 6": "Baron von Fluff (kitten) | Colony tab: Baron von Fluff (kitten)",
+      "fed 2 of 6": "Baron von Fluff (scout) | Colony tab: Baron von Fluff (scout)",
+      "fed 3 of 6": "Baron von Fluff (scout) | Colony tab: Baron von Fluff (scout)",
+      "fed 4 of 6": "Baron von Fluff (scout) | Colony tab: Baron von Fluff (scout)",
+      "fed 5 of 6": "Baron von Fluff (scout) | Colony tab: Baron von Fluff (scout)",
+      "fed 6 of 6": "Baron von Fluff (ranger) | Colony tab: Baron von Fluff (ranger)",
+      "tamed": "Baron von Fluff (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Baron von Fluff the house cat has wandered in from Peopleville 🔔",
+     "joins": "Baron von Fluff left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Mochi": {
+     "kind": "stray",
+     "firstHalf": "Mochi",
+     "forms": {
+      "kit": "Mochi",
+      "apprentice": "Mochi",
+      "warrior": "Mochi",
+      "leader": "Mochi"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Mochi (kitten) | Colony tab: Mochi (kitten)",
+      "fed 1 of 6": "Mochi (kitten) | Colony tab: Mochi (kitten)",
+      "fed 2 of 6": "Mochi (scout) | Colony tab: Mochi (scout)",
+      "fed 3 of 6": "Mochi (scout) | Colony tab: Mochi (scout)",
+      "fed 4 of 6": "Mochi (scout) | Colony tab: Mochi (scout)",
+      "fed 5 of 6": "Mochi (scout) | Colony tab: Mochi (scout)",
+      "fed 6 of 6": "Mochi (ranger) | Colony tab: Mochi (ranger)",
+      "tamed": "Mochi (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Mochi the house cat has wandered in from Peopleville 🔔",
+     "joins": "Mochi left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Biscuit": {
+     "kind": "stray",
+     "firstHalf": "Biscuit",
+     "forms": {
+      "kit": "Biscuit",
+      "apprentice": "Biscuit",
+      "warrior": "Biscuit",
+      "leader": "Biscuit"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Biscuit (kitten) | Colony tab: Biscuit (kitten)",
+      "fed 1 of 6": "Biscuit (kitten) | Colony tab: Biscuit (kitten)",
+      "fed 2 of 6": "Biscuit (scout) | Colony tab: Biscuit (scout)",
+      "fed 3 of 6": "Biscuit (scout) | Colony tab: Biscuit (scout)",
+      "fed 4 of 6": "Biscuit (scout) | Colony tab: Biscuit (scout)",
+      "fed 5 of 6": "Biscuit (scout) | Colony tab: Biscuit (scout)",
+      "fed 6 of 6": "Biscuit (ranger) | Colony tab: Biscuit (ranger)",
+      "tamed": "Biscuit (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Biscuit the house cat has wandered in from Peopleville 🔔",
+     "joins": "Biscuit left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Clementine": {
+     "kind": "stray",
+     "firstHalf": "Clementine",
+     "forms": {
+      "kit": "Clementine",
+      "apprentice": "Clementine",
+      "warrior": "Clementine",
+      "leader": "Clementine"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Clementine (kitten) | Colony tab: Clementine (kitten)",
+      "fed 1 of 6": "Clementine (kitten) | Colony tab: Clementine (kitten)",
+      "fed 2 of 6": "Clementine (scout) | Colony tab: Clementine (scout)",
+      "fed 3 of 6": "Clementine (scout) | Colony tab: Clementine (scout)",
+      "fed 4 of 6": "Clementine (scout) | Colony tab: Clementine (scout)",
+      "fed 5 of 6": "Clementine (scout) | Colony tab: Clementine (scout)",
+      "fed 6 of 6": "Clementine (ranger) | Colony tab: Clementine (ranger)",
+      "tamed": "Clementine (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Clementine the house cat has wandered in from Peopleville 🔔",
+     "joins": "Clementine left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell",
+     "kits": [
+      "Bramble",
+      "Pebble"
+     ]
+    },
+    "Noodle": {
+     "kind": "stray",
+     "firstHalf": "Noodle",
+     "forms": {
+      "kit": "Noodle",
+      "apprentice": "Noodle",
+      "warrior": "Noodle",
+      "leader": "Noodle"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Noodle (kitten) | Colony tab: Noodle (kitten)",
+      "fed 1 of 6": "Noodle (kitten) | Colony tab: Noodle (kitten)",
+      "fed 2 of 6": "Noodle (scout) | Colony tab: Noodle (scout)",
+      "fed 3 of 6": "Noodle (scout) | Colony tab: Noodle (scout)",
+      "fed 4 of 6": "Noodle (scout) | Colony tab: Noodle (scout)",
+      "fed 5 of 6": "Noodle (scout) | Colony tab: Noodle (scout)",
+      "fed 6 of 6": "Noodle (ranger) | Colony tab: Noodle (ranger)",
+      "tamed": "Noodle (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Pumpkin": {
+     "kind": "stray",
+     "firstHalf": "Pumpkin",
+     "forms": {
+      "kit": "Pumpkin",
+      "apprentice": "Pumpkin",
+      "warrior": "Pumpkin",
+      "leader": "Pumpkin"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Pumpkin (kitten) | Colony tab: Pumpkin (kitten)",
+      "fed 1 of 6": "Pumpkin (kitten) | Colony tab: Pumpkin (kitten)",
+      "fed 2 of 6": "Pumpkin (scout) | Colony tab: Pumpkin (scout)",
+      "fed 3 of 6": "Pumpkin (scout) | Colony tab: Pumpkin (scout)",
+      "fed 4 of 6": "Pumpkin (scout) | Colony tab: Pumpkin (scout)",
+      "fed 5 of 6": "Pumpkin (scout) | Colony tab: Pumpkin (scout)",
+      "fed 6 of 6": "Pumpkin (ranger) | Colony tab: Pumpkin (ranger)",
+      "tamed": "Pumpkin (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Sardine": {
+     "kind": "stray",
+     "firstHalf": "Sardine",
+     "forms": {
+      "kit": "Sardine",
+      "apprentice": "Sardine",
+      "warrior": "Sardine",
+      "leader": "Sardine"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Sardine (kitten) | Colony tab: Sardine (kitten)",
+      "fed 1 of 6": "Sardine (kitten) | Colony tab: Sardine (kitten)",
+      "fed 2 of 6": "Sardine (scout) | Colony tab: Sardine (scout)",
+      "fed 3 of 6": "Sardine (scout) | Colony tab: Sardine (scout)",
+      "fed 4 of 6": "Sardine (scout) | Colony tab: Sardine (scout)",
+      "fed 5 of 6": "Sardine (scout) | Colony tab: Sardine (scout)",
+      "fed 6 of 6": "Sardine (ranger) | Colony tab: Sardine (ranger)",
+      "tamed": "Sardine (wise cat)"
+     },
+     "denRole": "wise cat",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Waffles": {
+     "kind": "stray",
+     "firstHalf": "Waffles",
+     "forms": {
+      "kit": "Waffles",
+      "apprentice": "Waffles",
+      "warrior": "Waffles",
+      "leader": "Waffles"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Waffles (kitten) | Colony tab: Waffles (kitten)",
+      "fed 1 of 6": "Waffles (kitten) | Colony tab: Waffles (kitten)",
+      "fed 2 of 6": "Waffles (scout) | Colony tab: Waffles (scout)",
+      "fed 3 of 6": "Waffles (scout) | Colony tab: Waffles (scout)",
+      "fed 4 of 6": "Waffles (scout) | Colony tab: Waffles (scout)",
+      "fed 5 of 6": "Waffles (scout) | Colony tab: Waffles (scout)",
+      "fed 6 of 6": "Waffles (ranger) | Colony tab: Waffles (ranger)",
+      "tamed": "Waffles (wise cat)"
+     },
+     "denRole": "wise cat",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Waffles the house cat has wandered in from Peopleville 🔔",
+     "joins": "Waffles left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Miso": {
+     "kind": "stray",
+     "firstHalf": "Miso",
+     "forms": {
+      "kit": "Miso",
+      "apprentice": "Miso",
+      "warrior": "Miso",
+      "leader": "Miso"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Miso (kitten) | Colony tab: Miso (kitten)",
+      "fed 1 of 6": "Miso (kitten) | Colony tab: Miso (kitten)",
+      "fed 2 of 6": "Miso (scout) | Colony tab: Miso (scout)",
+      "fed 3 of 6": "Miso (scout) | Colony tab: Miso (scout)",
+      "fed 4 of 6": "Miso (scout) | Colony tab: Miso (scout)",
+      "fed 5 of 6": "Miso (scout) | Colony tab: Miso (scout)",
+      "fed 6 of 6": "Miso (ranger) | Colony tab: Miso (ranger)",
+      "tamed": "Miso (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Turnip": {
+     "kind": "stray",
+     "firstHalf": "Turnip",
+     "forms": {
+      "kit": "Turnip",
+      "apprentice": "Turnip",
+      "warrior": "Turnip",
+      "leader": "Turnip"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Turnip (kitten) | Colony tab: Turnip (kitten)",
+      "fed 1 of 6": "Turnip (kitten) | Colony tab: Turnip (kitten)",
+      "fed 2 of 6": "Turnip (scout) | Colony tab: Turnip (scout)",
+      "fed 3 of 6": "Turnip (scout) | Colony tab: Turnip (scout)",
+      "fed 4 of 6": "Turnip (scout) | Colony tab: Turnip (scout)",
+      "fed 5 of 6": "Turnip (scout) | Colony tab: Turnip (scout)",
+      "fed 6 of 6": "Turnip (ranger) | Colony tab: Turnip (ranger)",
+      "tamed": "Turnip (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Gadget": {
+     "kind": "stray",
+     "firstHalf": "Gadget",
+     "forms": {
+      "kit": "Gadget",
+      "apprentice": "Gadget",
+      "warrior": "Gadget",
+      "leader": "Gadget"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Gadget (kitten) | Colony tab: Gadget (kitten)",
+      "fed 1 of 6": "Gadget (kitten) | Colony tab: Gadget (kitten)",
+      "fed 2 of 6": "Gadget (scout) | Colony tab: Gadget (scout)",
+      "fed 3 of 6": "Gadget (scout) | Colony tab: Gadget (scout)",
+      "fed 4 of 6": "Gadget (scout) | Colony tab: Gadget (scout)",
+      "fed 5 of 6": "Gadget (scout) | Colony tab: Gadget (scout)",
+      "fed 6 of 6": "Gadget (ranger) | Colony tab: Gadget (ranger)",
+      "tamed": "Gadget (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Petunia": {
+     "kind": "stray",
+     "firstHalf": "Petunia",
+     "forms": {
+      "kit": "Petunia",
+      "apprentice": "Petunia",
+      "warrior": "Petunia",
+      "leader": "Petunia"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Petunia (kitten) | Colony tab: Petunia (kitten)",
+      "fed 1 of 6": "Petunia (kitten) | Colony tab: Petunia (kitten)",
+      "fed 2 of 6": "Petunia (scout) | Colony tab: Petunia (scout)",
+      "fed 3 of 6": "Petunia (scout) | Colony tab: Petunia (scout)",
+      "fed 4 of 6": "Petunia (scout) | Colony tab: Petunia (scout)",
+      "fed 5 of 6": "Petunia (scout) | Colony tab: Petunia (scout)",
+      "fed 6 of 6": "Petunia (ranger) | Colony tab: Petunia (ranger)",
+      "tamed": "Petunia (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Petunia the house cat has wandered in from Peopleville 🔔",
+     "joins": "Petunia left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Sir Pounce": {
+     "kind": "stray",
+     "firstHalf": "Sir Pounce",
+     "forms": {
+      "kit": "Sir Pounce",
+      "apprentice": "Sir Pounce",
+      "warrior": "Sir Pounce",
+      "leader": "Sir Pounce"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Sir Pounce (kitten) | Colony tab: Sir Pounce (kitten)",
+      "fed 1 of 6": "Sir Pounce (kitten) | Colony tab: Sir Pounce (kitten)",
+      "fed 2 of 6": "Sir Pounce (scout) | Colony tab: Sir Pounce (scout)",
+      "fed 3 of 6": "Sir Pounce (scout) | Colony tab: Sir Pounce (scout)",
+      "fed 4 of 6": "Sir Pounce (scout) | Colony tab: Sir Pounce (scout)",
+      "fed 5 of 6": "Sir Pounce (scout) | Colony tab: Sir Pounce (scout)",
+      "fed 6 of 6": "Sir Pounce (ranger) | Colony tab: Sir Pounce (ranger)",
+      "tamed": "Sir Pounce (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Sir Pounce the house cat has wandered in from Peopleville 🔔",
+     "joins": "Sir Pounce left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell",
+     "kits": [
+      "Peanut",
+      "Cupcake"
+     ]
+    },
+    "Dumpling": {
+     "kind": "stray",
+     "firstHalf": "Dumpling",
+     "forms": {
+      "kit": "Dumpling",
+      "apprentice": "Dumpling",
+      "warrior": "Dumpling",
+      "leader": "Dumpling"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Dumpling (kitten) | Colony tab: Dumpling (kitten)",
+      "fed 1 of 6": "Dumpling (kitten) | Colony tab: Dumpling (kitten)",
+      "fed 2 of 6": "Dumpling (scout) | Colony tab: Dumpling (scout)",
+      "fed 3 of 6": "Dumpling (scout) | Colony tab: Dumpling (scout)",
+      "fed 4 of 6": "Dumpling (scout) | Colony tab: Dumpling (scout)",
+      "fed 5 of 6": "Dumpling (scout) | Colony tab: Dumpling (scout)",
+      "fed 6 of 6": "Dumpling (ranger) | Colony tab: Dumpling (ranger)",
+      "tamed": "Dumpling (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Olive": {
+     "kind": "stray",
+     "firstHalf": "Olive",
+     "forms": {
+      "kit": "Olive",
+      "apprentice": "Olive",
+      "warrior": "Olive",
+      "leader": "Olive"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Olive (kitten) | Colony tab: Olive (kitten)",
+      "fed 1 of 6": "Olive (kitten) | Colony tab: Olive (kitten)",
+      "fed 2 of 6": "Olive (scout) | Colony tab: Olive (scout)",
+      "fed 3 of 6": "Olive (scout) | Colony tab: Olive (scout)",
+      "fed 4 of 6": "Olive (scout) | Colony tab: Olive (scout)",
+      "fed 5 of 6": "Olive (scout) | Colony tab: Olive (scout)",
+      "fed 6 of 6": "Olive (ranger) | Colony tab: Olive (ranger)",
+      "tamed": "Olive (wise cat)"
+     },
+     "denRole": "wise cat",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Paprika": {
+     "kind": "stray",
+     "firstHalf": "Paprika",
+     "forms": {
+      "kit": "Paprika",
+      "apprentice": "Paprika",
+      "warrior": "Paprika",
+      "leader": "Paprika"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Paprika (kitten) | Colony tab: Paprika (kitten)",
+      "fed 1 of 6": "Paprika (kitten) | Colony tab: Paprika (kitten)",
+      "fed 2 of 6": "Paprika (scout) | Colony tab: Paprika (scout)",
+      "fed 3 of 6": "Paprika (scout) | Colony tab: Paprika (scout)",
+      "fed 4 of 6": "Paprika (scout) | Colony tab: Paprika (scout)",
+      "fed 5 of 6": "Paprika (scout) | Colony tab: Paprika (scout)",
+      "fed 6 of 6": "Paprika (ranger) | Colony tab: Paprika (ranger)",
+      "tamed": "Paprika (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Crumpet": {
+     "kind": "stray",
+     "firstHalf": "Crumpet",
+     "forms": {
+      "kit": "Crumpet",
+      "apprentice": "Crumpet",
+      "warrior": "Crumpet",
+      "leader": "Crumpet"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Crumpet (kitten) | Colony tab: Crumpet (kitten)",
+      "fed 1 of 6": "Crumpet (kitten) | Colony tab: Crumpet (kitten)",
+      "fed 2 of 6": "Crumpet (scout) | Colony tab: Crumpet (scout)",
+      "fed 3 of 6": "Crumpet (scout) | Colony tab: Crumpet (scout)",
+      "fed 4 of 6": "Crumpet (scout) | Colony tab: Crumpet (scout)",
+      "fed 5 of 6": "Crumpet (scout) | Colony tab: Crumpet (scout)",
+      "fed 6 of 6": "Crumpet (ranger) | Colony tab: Crumpet (ranger)",
+      "tamed": "Crumpet (wise cat)"
+     },
+     "denRole": "wise cat",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Zucchini": {
+     "kind": "stray",
+     "firstHalf": "Zucchini",
+     "forms": {
+      "kit": "Zucchini",
+      "apprentice": "Zucchini",
+      "warrior": "Zucchini",
+      "leader": "Zucchini"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Zucchini (kitten) | Colony tab: Zucchini (kitten)",
+      "fed 1 of 6": "Zucchini (kitten) | Colony tab: Zucchini (kitten)",
+      "fed 2 of 6": "Zucchini (scout) | Colony tab: Zucchini (scout)",
+      "fed 3 of 6": "Zucchini (scout) | Colony tab: Zucchini (scout)",
+      "fed 4 of 6": "Zucchini (scout) | Colony tab: Zucchini (scout)",
+      "fed 5 of 6": "Zucchini (scout) | Colony tab: Zucchini (scout)",
+      "fed 6 of 6": "Zucchini (ranger) | Colony tab: Zucchini (ranger)",
+      "tamed": "Zucchini (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Maple": {
+     "kind": "stray",
+     "firstHalf": "Maple",
+     "forms": {
+      "kit": "Maple",
+      "apprentice": "Maple",
+      "warrior": "Maple",
+      "leader": "Maple"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Maple (kitten) | Colony tab: Maple (kitten)",
+      "fed 1 of 6": "Maple (kitten) | Colony tab: Maple (kitten)",
+      "fed 2 of 6": "Maple (scout) | Colony tab: Maple (scout)",
+      "fed 3 of 6": "Maple (scout) | Colony tab: Maple (scout)",
+      "fed 4 of 6": "Maple (scout) | Colony tab: Maple (scout)",
+      "fed 5 of 6": "Maple (scout) | Colony tab: Maple (scout)",
+      "fed 6 of 6": "Maple (ranger) | Colony tab: Maple (ranger)",
+      "tamed": "Maple (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Tofu": {
+     "kind": "stray",
+     "firstHalf": "Tofu",
+     "forms": {
+      "kit": "Tofu",
+      "apprentice": "Tofu",
+      "warrior": "Tofu",
+      "leader": "Tofu"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Tofu (kitten) | Colony tab: Tofu (kitten)",
+      "fed 1 of 6": "Tofu (kitten) | Colony tab: Tofu (kitten)",
+      "fed 2 of 6": "Tofu (scout) | Colony tab: Tofu (scout)",
+      "fed 3 of 6": "Tofu (scout) | Colony tab: Tofu (scout)",
+      "fed 4 of 6": "Tofu (scout) | Colony tab: Tofu (scout)",
+      "fed 5 of 6": "Tofu (scout) | Colony tab: Tofu (scout)",
+      "fed 6 of 6": "Tofu (ranger) | Colony tab: Tofu (ranger)",
+      "tamed": "Tofu (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Wasabi": {
+     "kind": "stray",
+     "firstHalf": "Wasabi",
+     "forms": {
+      "kit": "Wasabi",
+      "apprentice": "Wasabi",
+      "warrior": "Wasabi",
+      "leader": "Wasabi"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Wasabi (kitten) | Colony tab: Wasabi (kitten)",
+      "fed 1 of 6": "Wasabi (kitten) | Colony tab: Wasabi (kitten)",
+      "fed 2 of 6": "Wasabi (scout) | Colony tab: Wasabi (scout)",
+      "fed 3 of 6": "Wasabi (scout) | Colony tab: Wasabi (scout)",
+      "fed 4 of 6": "Wasabi (scout) | Colony tab: Wasabi (scout)",
+      "fed 5 of 6": "Wasabi (scout) | Colony tab: Wasabi (scout)",
+      "fed 6 of 6": "Wasabi (ranger) | Colony tab: Wasabi (ranger)",
+      "tamed": "Wasabi (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Pretzel": {
+     "kind": "stray",
+     "firstHalf": "Pretzel",
+     "forms": {
+      "kit": "Pretzel",
+      "apprentice": "Pretzel",
+      "warrior": "Pretzel",
+      "leader": "Pretzel"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Pretzel (kitten) | Colony tab: Pretzel (kitten)",
+      "fed 1 of 6": "Pretzel (kitten) | Colony tab: Pretzel (kitten)",
+      "fed 2 of 6": "Pretzel (scout) | Colony tab: Pretzel (scout)",
+      "fed 3 of 6": "Pretzel (scout) | Colony tab: Pretzel (scout)",
+      "fed 4 of 6": "Pretzel (scout) | Colony tab: Pretzel (scout)",
+      "fed 5 of 6": "Pretzel (scout) | Colony tab: Pretzel (scout)",
+      "fed 6 of 6": "Pretzel (ranger) | Colony tab: Pretzel (ranger)",
+      "tamed": "Pretzel (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Nimbus": {
+     "kind": "stray",
+     "firstHalf": "Nimbus",
+     "forms": {
+      "kit": "Nimbus",
+      "apprentice": "Nimbus",
+      "warrior": "Nimbus",
+      "leader": "Nimbus"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Nimbus (kitten) | Colony tab: Nimbus (kitten)",
+      "fed 1 of 6": "Nimbus (kitten) | Colony tab: Nimbus (kitten)",
+      "fed 2 of 6": "Nimbus (scout) | Colony tab: Nimbus (scout)",
+      "fed 3 of 6": "Nimbus (scout) | Colony tab: Nimbus (scout)",
+      "fed 4 of 6": "Nimbus (scout) | Colony tab: Nimbus (scout)",
+      "fed 5 of 6": "Nimbus (scout) | Colony tab: Nimbus (scout)",
+      "fed 6 of 6": "Nimbus (ranger) | Colony tab: Nimbus (ranger)",
+      "tamed": "Nimbus (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Pepper": {
+     "kind": "stray",
+     "firstHalf": "Pepper",
+     "forms": {
+      "kit": "Pepper",
+      "apprentice": "Pepper",
+      "warrior": "Pepper",
+      "leader": "Pepper"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Pepper (kitten) | Colony tab: Pepper (kitten)",
+      "fed 1 of 6": "Pepper (kitten) | Colony tab: Pepper (kitten)",
+      "fed 2 of 6": "Pepper (scout) | Colony tab: Pepper (scout)",
+      "fed 3 of 6": "Pepper (scout) | Colony tab: Pepper (scout)",
+      "fed 4 of 6": "Pepper (scout) | Colony tab: Pepper (scout)",
+      "fed 5 of 6": "Pepper (scout) | Colony tab: Pepper (scout)",
+      "fed 6 of 6": "Pepper (ranger) | Colony tab: Pepper (ranger)",
+      "tamed": "Pepper (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Butterscotch": {
+     "kind": "stray",
+     "firstHalf": "Butterscotch",
+     "forms": {
+      "kit": "Butterscotch",
+      "apprentice": "Butterscotch",
+      "warrior": "Butterscotch",
+      "leader": "Butterscotch"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Butterscotch (kitten) | Colony tab: Butterscotch (kitten)",
+      "fed 1 of 6": "Butterscotch (kitten) | Colony tab: Butterscotch (kitten)",
+      "fed 2 of 6": "Butterscotch (scout) | Colony tab: Butterscotch (scout)",
+      "fed 3 of 6": "Butterscotch (scout) | Colony tab: Butterscotch (scout)",
+      "fed 4 of 6": "Butterscotch (scout) | Colony tab: Butterscotch (scout)",
+      "fed 5 of 6": "Butterscotch (scout) | Colony tab: Butterscotch (scout)",
+      "fed 6 of 6": "Butterscotch (ranger) | Colony tab: Butterscotch (ranger)",
+      "tamed": "Butterscotch (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Butterscotch the house cat has wandered in from Peopleville 🔔",
+     "joins": "Butterscotch left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Fig": {
+     "kind": "stray",
+     "firstHalf": "Fig",
+     "forms": {
+      "kit": "Fig",
+      "apprentice": "Fig",
+      "warrior": "Fig",
+      "leader": "Fig"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Fig (kitten) | Colony tab: Fig (kitten)",
+      "fed 1 of 6": "Fig (kitten) | Colony tab: Fig (kitten)",
+      "fed 2 of 6": "Fig (scout) | Colony tab: Fig (scout)",
+      "fed 3 of 6": "Fig (scout) | Colony tab: Fig (scout)",
+      "fed 4 of 6": "Fig (scout) | Colony tab: Fig (scout)",
+      "fed 5 of 6": "Fig (scout) | Colony tab: Fig (scout)",
+      "fed 6 of 6": "Fig (ranger) | Colony tab: Fig (ranger)",
+      "tamed": "Fig (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Tangerine": {
+     "kind": "stray",
+     "firstHalf": "Tangerine",
+     "forms": {
+      "kit": "Tangerine",
+      "apprentice": "Tangerine",
+      "warrior": "Tangerine",
+      "leader": "Tangerine"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Tangerine (kitten) | Colony tab: Tangerine (kitten)",
+      "fed 1 of 6": "Tangerine (kitten) | Colony tab: Tangerine (kitten)",
+      "fed 2 of 6": "Tangerine (scout) | Colony tab: Tangerine (scout)",
+      "fed 3 of 6": "Tangerine (scout) | Colony tab: Tangerine (scout)",
+      "fed 4 of 6": "Tangerine (scout) | Colony tab: Tangerine (scout)",
+      "fed 5 of 6": "Tangerine (scout) | Colony tab: Tangerine (scout)",
+      "fed 6 of 6": "Tangerine (ranger) | Colony tab: Tangerine (ranger)",
+      "tamed": "Tangerine (wise cat)"
+     },
+     "denRole": "wise cat",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Cocoa": {
+     "kind": "stray",
+     "firstHalf": "Cocoa",
+     "forms": {
+      "kit": "Cocoa",
+      "apprentice": "Cocoa",
+      "warrior": "Cocoa",
+      "leader": "Cocoa"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Cocoa (kitten) | Colony tab: Cocoa (kitten)",
+      "fed 1 of 6": "Cocoa (kitten) | Colony tab: Cocoa (kitten)",
+      "fed 2 of 6": "Cocoa (scout) | Colony tab: Cocoa (scout)",
+      "fed 3 of 6": "Cocoa (scout) | Colony tab: Cocoa (scout)",
+      "fed 4 of 6": "Cocoa (scout) | Colony tab: Cocoa (scout)",
+      "fed 5 of 6": "Cocoa (scout) | Colony tab: Cocoa (scout)",
+      "fed 6 of 6": "Cocoa (ranger) | Colony tab: Cocoa (ranger)",
+      "tamed": "Cocoa (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Sprout": {
+     "kind": "stray",
+     "firstHalf": "Sprout",
+     "forms": {
+      "kit": "Sprout",
+      "apprentice": "Sprout",
+      "warrior": "Sprout",
+      "leader": "Sprout"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Sprout (kitten) | Colony tab: Sprout (kitten)",
+      "fed 1 of 6": "Sprout (kitten) | Colony tab: Sprout (kitten)",
+      "fed 2 of 6": "Sprout (scout) | Colony tab: Sprout (scout)",
+      "fed 3 of 6": "Sprout (scout) | Colony tab: Sprout (scout)",
+      "fed 4 of 6": "Sprout (scout) | Colony tab: Sprout (scout)",
+      "fed 5 of 6": "Sprout (scout) | Colony tab: Sprout (scout)",
+      "fed 6 of 6": "Sprout (ranger) | Colony tab: Sprout (ranger)",
+      "tamed": "Sprout (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Juniper": {
+     "kind": "stray",
+     "firstHalf": "Juniper",
+     "forms": {
+      "kit": "Juniper",
+      "apprentice": "Juniper",
+      "warrior": "Juniper",
+      "leader": "Juniper"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Juniper (kitten) | Colony tab: Juniper (kitten)",
+      "fed 1 of 6": "Juniper (kitten) | Colony tab: Juniper (kitten)",
+      "fed 2 of 6": "Juniper (scout) | Colony tab: Juniper (scout)",
+      "fed 3 of 6": "Juniper (scout) | Colony tab: Juniper (scout)",
+      "fed 4 of 6": "Juniper (scout) | Colony tab: Juniper (scout)",
+      "fed 5 of 6": "Juniper (scout) | Colony tab: Juniper (scout)",
+      "fed 6 of 6": "Juniper (ranger) | Colony tab: Juniper (ranger)",
+      "tamed": "Juniper (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Meatball": {
+     "kind": "stray",
+     "firstHalf": "Meatball",
+     "forms": {
+      "kit": "Meatball",
+      "apprentice": "Meatball",
+      "warrior": "Meatball",
+      "leader": "Meatball"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Meatball (kitten) | Colony tab: Meatball (kitten)",
+      "fed 1 of 6": "Meatball (kitten) | Colony tab: Meatball (kitten)",
+      "fed 2 of 6": "Meatball (scout) | Colony tab: Meatball (scout)",
+      "fed 3 of 6": "Meatball (scout) | Colony tab: Meatball (scout)",
+      "fed 4 of 6": "Meatball (scout) | Colony tab: Meatball (scout)",
+      "fed 5 of 6": "Meatball (scout) | Colony tab: Meatball (scout)",
+      "fed 6 of 6": "Meatball (ranger) | Colony tab: Meatball (ranger)",
+      "tamed": "Meatball (wise cat)"
+     },
+     "denRole": "wise cat",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Parsnip": {
+     "kind": "stray",
+     "firstHalf": "Parsnip",
+     "forms": {
+      "kit": "Parsnip",
+      "apprentice": "Parsnip",
+      "warrior": "Parsnip",
+      "leader": "Parsnip"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Parsnip (kitten) | Colony tab: Parsnip (kitten)",
+      "fed 1 of 6": "Parsnip (kitten) | Colony tab: Parsnip (kitten)",
+      "fed 2 of 6": "Parsnip (scout) | Colony tab: Parsnip (scout)",
+      "fed 3 of 6": "Parsnip (scout) | Colony tab: Parsnip (scout)",
+      "fed 4 of 6": "Parsnip (scout) | Colony tab: Parsnip (scout)",
+      "fed 5 of 6": "Parsnip (scout) | Colony tab: Parsnip (scout)",
+      "fed 6 of 6": "Parsnip (ranger) | Colony tab: Parsnip (ranger)",
+      "tamed": "Parsnip (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Ziggy": {
+     "kind": "stray",
+     "firstHalf": "Ziggy",
+     "forms": {
+      "kit": "Ziggy",
+      "apprentice": "Ziggy",
+      "warrior": "Ziggy",
+      "leader": "Ziggy"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Ziggy (kitten) | Colony tab: Ziggy (kitten)",
+      "fed 1 of 6": "Ziggy (kitten) | Colony tab: Ziggy (kitten)",
+      "fed 2 of 6": "Ziggy (scout) | Colony tab: Ziggy (scout)",
+      "fed 3 of 6": "Ziggy (scout) | Colony tab: Ziggy (scout)",
+      "fed 4 of 6": "Ziggy (scout) | Colony tab: Ziggy (scout)",
+      "fed 5 of 6": "Ziggy (scout) | Colony tab: Ziggy (scout)",
+      "fed 6 of 6": "Ziggy (ranger) | Colony tab: Ziggy (ranger)",
+      "tamed": "Ziggy (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": "",
+     "kits": [
+      "Peanut",
+      "Cupcake"
+     ]
+    },
+    "Bean": {
+     "kind": "stray",
+     "firstHalf": "Bean",
+     "forms": {
+      "kit": "Bean",
+      "apprentice": "Bean",
+      "warrior": "Bean",
+      "leader": "Bean"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Bean (kitten) | Colony tab: Bean (kitten)",
+      "fed 1 of 6": "Bean (kitten) | Colony tab: Bean (kitten)",
+      "fed 2 of 6": "Bean (scout) | Colony tab: Bean (scout)",
+      "fed 3 of 6": "Bean (scout) | Colony tab: Bean (scout)",
+      "fed 4 of 6": "Bean (scout) | Colony tab: Bean (scout)",
+      "fed 5 of 6": "Bean (scout) | Colony tab: Bean (scout)",
+      "fed 6 of 6": "Bean (ranger) | Colony tab: Bean (ranger)",
+      "tamed": "Bean (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Churro": {
+     "kind": "stray",
+     "firstHalf": "Churro",
+     "forms": {
+      "kit": "Churro",
+      "apprentice": "Churro",
+      "warrior": "Churro",
+      "leader": "Churro"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Churro (kitten) | Colony tab: Churro (kitten)",
+      "fed 1 of 6": "Churro (kitten) | Colony tab: Churro (kitten)",
+      "fed 2 of 6": "Churro (scout) | Colony tab: Churro (scout)",
+      "fed 3 of 6": "Churro (scout) | Colony tab: Churro (scout)",
+      "fed 4 of 6": "Churro (scout) | Colony tab: Churro (scout)",
+      "fed 5 of 6": "Churro (scout) | Colony tab: Churro (scout)",
+      "fed 6 of 6": "Churro (ranger) | Colony tab: Churro (ranger)",
+      "tamed": "Churro (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": "",
+     "kits": [
+      "Pip"
+     ]
+    },
+    "Anchovy": {
+     "kind": "stray",
+     "firstHalf": "Anchovy",
+     "forms": {
+      "kit": "Anchovy",
+      "apprentice": "Anchovy",
+      "warrior": "Anchovy",
+      "leader": "Anchovy"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Anchovy (kitten) | Colony tab: Anchovy (kitten)",
+      "fed 1 of 6": "Anchovy (kitten) | Colony tab: Anchovy (kitten)",
+      "fed 2 of 6": "Anchovy (scout) | Colony tab: Anchovy (scout)",
+      "fed 3 of 6": "Anchovy (scout) | Colony tab: Anchovy (scout)",
+      "fed 4 of 6": "Anchovy (scout) | Colony tab: Anchovy (scout)",
+      "fed 5 of 6": "Anchovy (scout) | Colony tab: Anchovy (scout)",
+      "fed 6 of 6": "Anchovy (ranger) | Colony tab: Anchovy (ranger)",
+      "tamed": "Anchovy (wise cat)"
+     },
+     "denRole": "wise cat",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Popcorn": {
+     "kind": "stray",
+     "firstHalf": "Popcorn",
+     "forms": {
+      "kit": "Popcorn",
+      "apprentice": "Popcorn",
+      "warrior": "Popcorn",
+      "leader": "Popcorn"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Popcorn (kitten) | Colony tab: Popcorn (kitten)",
+      "fed 1 of 6": "Popcorn (kitten) | Colony tab: Popcorn (kitten)",
+      "fed 2 of 6": "Popcorn (scout) | Colony tab: Popcorn (scout)",
+      "fed 3 of 6": "Popcorn (scout) | Colony tab: Popcorn (scout)",
+      "fed 4 of 6": "Popcorn (scout) | Colony tab: Popcorn (scout)",
+      "fed 5 of 6": "Popcorn (scout) | Colony tab: Popcorn (scout)",
+      "fed 6 of 6": "Popcorn (ranger) | Colony tab: Popcorn (ranger)",
+      "tamed": "Popcorn (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": "",
+     "kits": [
+      "Pebble",
+      "Wiggle"
+     ]
+    },
+    "Gnocchi": {
+     "kind": "stray",
+     "firstHalf": "Gnocchi",
+     "forms": {
+      "kit": "Gnocchi",
+      "apprentice": "Gnocchi",
+      "warrior": "Gnocchi",
+      "leader": "Gnocchi"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Gnocchi (kitten) | Colony tab: Gnocchi (kitten)",
+      "fed 1 of 6": "Gnocchi (kitten) | Colony tab: Gnocchi (kitten)",
+      "fed 2 of 6": "Gnocchi (scout) | Colony tab: Gnocchi (scout)",
+      "fed 3 of 6": "Gnocchi (scout) | Colony tab: Gnocchi (scout)",
+      "fed 4 of 6": "Gnocchi (scout) | Colony tab: Gnocchi (scout)",
+      "fed 5 of 6": "Gnocchi (scout) | Colony tab: Gnocchi (scout)",
+      "fed 6 of 6": "Gnocchi (ranger) | Colony tab: Gnocchi (ranger)",
+      "tamed": "Gnocchi (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Beignet": {
+     "kind": "stray",
+     "firstHalf": "Beignet",
+     "forms": {
+      "kit": "Beignet",
+      "apprentice": "Beignet",
+      "warrior": "Beignet",
+      "leader": "Beignet"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Beignet (kitten) | Colony tab: Beignet (kitten)",
+      "fed 1 of 6": "Beignet (kitten) | Colony tab: Beignet (kitten)",
+      "fed 2 of 6": "Beignet (scout) | Colony tab: Beignet (scout)",
+      "fed 3 of 6": "Beignet (scout) | Colony tab: Beignet (scout)",
+      "fed 4 of 6": "Beignet (scout) | Colony tab: Beignet (scout)",
+      "fed 5 of 6": "Beignet (scout) | Colony tab: Beignet (scout)",
+      "fed 6 of 6": "Beignet (ranger) | Colony tab: Beignet (ranger)",
+      "tamed": "Beignet (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Truffle": {
+     "kind": "stray",
+     "firstHalf": "Truffle",
+     "forms": {
+      "kit": "Truffle",
+      "apprentice": "Truffle",
+      "warrior": "Truffle",
+      "leader": "Truffle"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Truffle (kitten) | Colony tab: Truffle (kitten)",
+      "fed 1 of 6": "Truffle (kitten) | Colony tab: Truffle (kitten)",
+      "fed 2 of 6": "Truffle (scout) | Colony tab: Truffle (scout)",
+      "fed 3 of 6": "Truffle (scout) | Colony tab: Truffle (scout)",
+      "fed 4 of 6": "Truffle (scout) | Colony tab: Truffle (scout)",
+      "fed 5 of 6": "Truffle (scout) | Colony tab: Truffle (scout)",
+      "fed 6 of 6": "Truffle (ranger) | Colony tab: Truffle (ranger)",
+      "tamed": "Truffle (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Truffle the house cat has wandered in from Peopleville 🔔",
+     "joins": "Truffle left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Ramen": {
+     "kind": "stray",
+     "firstHalf": "Ramen",
+     "forms": {
+      "kit": "Ramen",
+      "apprentice": "Ramen",
+      "warrior": "Ramen",
+      "leader": "Ramen"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Ramen (kitten) | Colony tab: Ramen (kitten)",
+      "fed 1 of 6": "Ramen (kitten) | Colony tab: Ramen (kitten)",
+      "fed 2 of 6": "Ramen (scout) | Colony tab: Ramen (scout)",
+      "fed 3 of 6": "Ramen (scout) | Colony tab: Ramen (scout)",
+      "fed 4 of 6": "Ramen (scout) | Colony tab: Ramen (scout)",
+      "fed 5 of 6": "Ramen (scout) | Colony tab: Ramen (scout)",
+      "fed 6 of 6": "Ramen (ranger) | Colony tab: Ramen (ranger)",
+      "tamed": "Ramen (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Custard": {
+     "kind": "stray",
+     "firstHalf": "Custard",
+     "forms": {
+      "kit": "Custard",
+      "apprentice": "Custard",
+      "warrior": "Custard",
+      "leader": "Custard"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Custard (kitten) | Colony tab: Custard (kitten)",
+      "fed 1 of 6": "Custard (kitten) | Colony tab: Custard (kitten)",
+      "fed 2 of 6": "Custard (scout) | Colony tab: Custard (scout)",
+      "fed 3 of 6": "Custard (scout) | Colony tab: Custard (scout)",
+      "fed 4 of 6": "Custard (scout) | Colony tab: Custard (scout)",
+      "fed 5 of 6": "Custard (scout) | Colony tab: Custard (scout)",
+      "fed 6 of 6": "Custard (ranger) | Colony tab: Custard (ranger)",
+      "tamed": "Custard (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Custard the house cat has wandered in from Peopleville 🔔",
+     "joins": "Custard left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Peaches": {
+     "kind": "stray",
+     "firstHalf": "Peaches",
+     "forms": {
+      "kit": "Peaches",
+      "apprentice": "Peaches",
+      "warrior": "Peaches",
+      "leader": "Peaches"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Peaches (kitten) | Colony tab: Peaches (kitten)",
+      "fed 1 of 6": "Peaches (kitten) | Colony tab: Peaches (kitten)",
+      "fed 2 of 6": "Peaches (scout) | Colony tab: Peaches (scout)",
+      "fed 3 of 6": "Peaches (scout) | Colony tab: Peaches (scout)",
+      "fed 4 of 6": "Peaches (scout) | Colony tab: Peaches (scout)",
+      "fed 5 of 6": "Peaches (scout) | Colony tab: Peaches (scout)",
+      "fed 6 of 6": "Peaches (ranger) | Colony tab: Peaches (ranger)",
+      "tamed": "Peaches (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Peaches the house cat has wandered in from Peopleville 🔔",
+     "joins": "Peaches left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "bell"
+    },
+    "Static": {
+     "kind": "stray",
+     "firstHalf": "Static",
+     "forms": {
+      "kit": "Static",
+      "apprentice": "Static",
+      "warrior": "Static",
+      "leader": "Static"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Static (kitten) | Colony tab: Static (kitten)",
+      "fed 1 of 6": "Static (kitten) | Colony tab: Static (kitten)",
+      "fed 2 of 6": "Static (scout) | Colony tab: Static (scout)",
+      "fed 3 of 6": "Static (scout) | Colony tab: Static (scout)",
+      "fed 4 of 6": "Static (scout) | Colony tab: Static (scout)",
+      "fed 5 of 6": "Static (scout) | Colony tab: Static (scout)",
+      "fed 6 of 6": "Static (ranger) | Colony tab: Static (ranger)",
+      "tamed": "Static (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Doppler": {
+     "kind": "stray",
+     "firstHalf": "Doppler",
+     "forms": {
+      "kit": "Doppler",
+      "apprentice": "Doppler",
+      "warrior": "Doppler",
+      "leader": "Doppler"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Doppler (kitten) | Colony tab: Doppler (kitten)",
+      "fed 1 of 6": "Doppler (kitten) | Colony tab: Doppler (kitten)",
+      "fed 2 of 6": "Doppler (scout) | Colony tab: Doppler (scout)",
+      "fed 3 of 6": "Doppler (scout) | Colony tab: Doppler (scout)",
+      "fed 4 of 6": "Doppler (scout) | Colony tab: Doppler (scout)",
+      "fed 5 of 6": "Doppler (scout) | Colony tab: Doppler (scout)",
+      "fed 6 of 6": "Doppler (ranger) | Colony tab: Doppler (ranger)",
+      "tamed": "Doppler (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Comet": {
+     "kind": "stray",
+     "firstHalf": "Comet",
+     "forms": {
+      "kit": "Comet",
+      "apprentice": "Comet",
+      "warrior": "Comet",
+      "leader": "Comet"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Comet (kitten) | Colony tab: Comet (kitten)",
+      "fed 1 of 6": "Comet (kitten) | Colony tab: Comet (kitten)",
+      "fed 2 of 6": "Comet (scout) | Colony tab: Comet (scout)",
+      "fed 3 of 6": "Comet (scout) | Colony tab: Comet (scout)",
+      "fed 4 of 6": "Comet (scout) | Colony tab: Comet (scout)",
+      "fed 5 of 6": "Comet (scout) | Colony tab: Comet (scout)",
+      "fed 6 of 6": "Comet (ranger) | Colony tab: Comet (ranger)",
+      "tamed": "Comet (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Bramble": {
+     "kind": "kit",
+     "firstHalf": "Bramble",
+     "forms": {
+      "kit": "Bramble",
+      "apprentice": "Bramble",
+      "warrior": "Bramble",
+      "leader": "Bramble"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Bramble (kitten) | Colony tab: Bramble (scout)",
+      "fed 1 of 6": "Bramble (kitten) | Colony tab: Bramble (scout)",
+      "fed 2 of 6": "Bramble (scout) | Colony tab: Bramble (scout)",
+      "fed 3 of 6": "Bramble (scout) | Colony tab: Bramble (scout)",
+      "fed 4 of 6": "Bramble (scout) | Colony tab: Bramble (scout)",
+      "fed 5 of 6": "Bramble (scout) | Colony tab: Bramble (scout)",
+      "fed 6 of 6": "Bramble (ranger) | Colony tab: Bramble (ranger)",
+      "tamed": "Bramble (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Pebble": {
+     "kind": "kit",
+     "firstHalf": "Pebble",
+     "forms": {
+      "kit": "Pebble",
+      "apprentice": "Pebble",
+      "warrior": "Pebble",
+      "leader": "Pebble"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Pebble (kitten) | Colony tab: Pebble (scout)",
+      "fed 1 of 6": "Pebble (kitten) | Colony tab: Pebble (scout)",
+      "fed 2 of 6": "Pebble (scout) | Colony tab: Pebble (scout)",
+      "fed 3 of 6": "Pebble (scout) | Colony tab: Pebble (scout)",
+      "fed 4 of 6": "Pebble (scout) | Colony tab: Pebble (scout)",
+      "fed 5 of 6": "Pebble (scout) | Colony tab: Pebble (scout)",
+      "fed 6 of 6": "Pebble (ranger) | Colony tab: Pebble (ranger)",
+      "tamed": "Pebble (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Wiggle": {
+     "kind": "kit",
+     "firstHalf": "Wiggle",
+     "forms": {
+      "kit": "Wiggle",
+      "apprentice": "Wiggle",
+      "warrior": "Wiggle",
+      "leader": "Wiggle"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Wiggle (kitten) | Colony tab: Wiggle (scout)",
+      "fed 1 of 6": "Wiggle (kitten) | Colony tab: Wiggle (scout)",
+      "fed 2 of 6": "Wiggle (scout) | Colony tab: Wiggle (scout)",
+      "fed 3 of 6": "Wiggle (scout) | Colony tab: Wiggle (scout)",
+      "fed 4 of 6": "Wiggle (scout) | Colony tab: Wiggle (scout)",
+      "fed 5 of 6": "Wiggle (scout) | Colony tab: Wiggle (scout)",
+      "fed 6 of 6": "Wiggle (ranger) | Colony tab: Wiggle (ranger)",
+      "tamed": "Wiggle (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Fennel": {
+     "kind": "kit",
+     "firstHalf": "Fennel",
+     "forms": {
+      "kit": "Fennel",
+      "apprentice": "Fennel",
+      "warrior": "Fennel",
+      "leader": "Fennel"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Fennel (kitten) | Colony tab: Fennel (scout)",
+      "fed 1 of 6": "Fennel (kitten) | Colony tab: Fennel (scout)",
+      "fed 2 of 6": "Fennel (scout) | Colony tab: Fennel (scout)",
+      "fed 3 of 6": "Fennel (scout) | Colony tab: Fennel (scout)",
+      "fed 4 of 6": "Fennel (scout) | Colony tab: Fennel (scout)",
+      "fed 5 of 6": "Fennel (scout) | Colony tab: Fennel (scout)",
+      "fed 6 of 6": "Fennel (ranger) | Colony tab: Fennel (ranger)",
+      "tamed": "Fennel (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Bumble": {
+     "kind": "kit",
+     "firstHalf": "Bumble",
+     "forms": {
+      "kit": "Bumble",
+      "apprentice": "Bumble",
+      "warrior": "Bumble",
+      "leader": "Bumble"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Bumble (kitten) | Colony tab: Bumble (scout)",
+      "fed 1 of 6": "Bumble (kitten) | Colony tab: Bumble (scout)",
+      "fed 2 of 6": "Bumble (scout) | Colony tab: Bumble (scout)",
+      "fed 3 of 6": "Bumble (scout) | Colony tab: Bumble (scout)",
+      "fed 4 of 6": "Bumble (scout) | Colony tab: Bumble (scout)",
+      "fed 5 of 6": "Bumble (scout) | Colony tab: Bumble (scout)",
+      "fed 6 of 6": "Bumble (ranger) | Colony tab: Bumble (ranger)",
+      "tamed": "Bumble (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Pip": {
+     "kind": "kit",
+     "firstHalf": "Pip",
+     "forms": {
+      "kit": "Pip",
+      "apprentice": "Pip",
+      "warrior": "Pip",
+      "leader": "Pip"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Pip (kitten) | Colony tab: Pip (scout)",
+      "fed 1 of 6": "Pip (kitten) | Colony tab: Pip (scout)",
+      "fed 2 of 6": "Pip (scout) | Colony tab: Pip (scout)",
+      "fed 3 of 6": "Pip (scout) | Colony tab: Pip (scout)",
+      "fed 4 of 6": "Pip (scout) | Colony tab: Pip (scout)",
+      "fed 5 of 6": "Pip (scout) | Colony tab: Pip (scout)",
+      "fed 6 of 6": "Pip (ranger) | Colony tab: Pip (ranger)",
+      "tamed": "Pip (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Peanut": {
+     "kind": "kit",
+     "firstHalf": "Peanut",
+     "forms": {
+      "kit": "Peanut",
+      "apprentice": "Peanut",
+      "warrior": "Peanut",
+      "leader": "Peanut"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Peanut (kitten) | Colony tab: Peanut (scout)",
+      "fed 1 of 6": "Peanut (kitten) | Colony tab: Peanut (scout)",
+      "fed 2 of 6": "Peanut (scout) | Colony tab: Peanut (scout)",
+      "fed 3 of 6": "Peanut (scout) | Colony tab: Peanut (scout)",
+      "fed 4 of 6": "Peanut (scout) | Colony tab: Peanut (scout)",
+      "fed 5 of 6": "Peanut (scout) | Colony tab: Peanut (scout)",
+      "fed 6 of 6": "Peanut (ranger) | Colony tab: Peanut (ranger)",
+      "tamed": "Peanut (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Cupcake": {
+     "kind": "kit",
+     "firstHalf": "Cupcake",
+     "forms": {
+      "kit": "Cupcake",
+      "apprentice": "Cupcake",
+      "warrior": "Cupcake",
+      "leader": "Cupcake"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Cupcake (kitten) | Colony tab: Cupcake (scout)",
+      "fed 1 of 6": "Cupcake (kitten) | Colony tab: Cupcake (scout)",
+      "fed 2 of 6": "Cupcake (scout) | Colony tab: Cupcake (scout)",
+      "fed 3 of 6": "Cupcake (scout) | Colony tab: Cupcake (scout)",
+      "fed 4 of 6": "Cupcake (scout) | Colony tab: Cupcake (scout)",
+      "fed 5 of 6": "Cupcake (scout) | Colony tab: Cupcake (scout)",
+      "fed 6 of 6": "Cupcake (ranger) | Colony tab: Cupcake (ranger)",
+      "tamed": "Cupcake (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Puddle": {
+     "kind": "kit",
+     "firstHalf": "Puddle",
+     "forms": {
+      "kit": "Puddle",
+      "apprentice": "Puddle",
+      "warrior": "Puddle",
+      "leader": "Puddle"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Puddle (kitten) | Colony tab: Puddle (scout)",
+      "fed 1 of 6": "Puddle (kitten) | Colony tab: Puddle (scout)",
+      "fed 2 of 6": "Puddle (scout) | Colony tab: Puddle (scout)",
+      "fed 3 of 6": "Puddle (scout) | Colony tab: Puddle (scout)",
+      "fed 4 of 6": "Puddle (scout) | Colony tab: Puddle (scout)",
+      "fed 5 of 6": "Puddle (scout) | Colony tab: Puddle (scout)",
+      "fed 6 of 6": "Puddle (ranger) | Colony tab: Puddle (ranger)",
+      "tamed": "Puddle (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Tumble": {
+     "kind": "kit",
+     "firstHalf": "Tumble",
+     "forms": {
+      "kit": "Tumble",
+      "apprentice": "Tumble",
+      "warrior": "Tumble",
+      "leader": "Tumble"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Tumble (kitten) | Colony tab: Tumble (scout)",
+      "fed 1 of 6": "Tumble (kitten) | Colony tab: Tumble (scout)",
+      "fed 2 of 6": "Tumble (scout) | Colony tab: Tumble (scout)",
+      "fed 3 of 6": "Tumble (scout) | Colony tab: Tumble (scout)",
+      "fed 4 of 6": "Tumble (scout) | Colony tab: Tumble (scout)",
+      "fed 5 of 6": "Tumble (scout) | Colony tab: Tumble (scout)",
+      "fed 6 of 6": "Tumble (ranger) | Colony tab: Tumble (ranger)",
+      "tamed": "Tumble (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Toffee": {
+     "kind": "kit",
+     "firstHalf": "Toffee",
+     "forms": {
+      "kit": "Toffee",
+      "apprentice": "Toffee",
+      "warrior": "Toffee",
+      "leader": "Toffee"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Toffee (kitten) | Colony tab: Toffee (scout)",
+      "fed 1 of 6": "Toffee (kitten) | Colony tab: Toffee (scout)",
+      "fed 2 of 6": "Toffee (scout) | Colony tab: Toffee (scout)",
+      "fed 3 of 6": "Toffee (scout) | Colony tab: Toffee (scout)",
+      "fed 4 of 6": "Toffee (scout) | Colony tab: Toffee (scout)",
+      "fed 5 of 6": "Toffee (scout) | Colony tab: Toffee (scout)",
+      "fed 6 of 6": "Toffee (ranger) | Colony tab: Toffee (ranger)",
+      "tamed": "Toffee (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Ember": {
+     "kind": "kit",
+     "firstHalf": "Ember",
+     "forms": {
+      "kit": "Ember",
+      "apprentice": "Ember",
+      "warrior": "Ember",
+      "leader": "Ember"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Ember (kitten) | Colony tab: Ember (scout)",
+      "fed 1 of 6": "Ember (kitten) | Colony tab: Ember (scout)",
+      "fed 2 of 6": "Ember (scout) | Colony tab: Ember (scout)",
+      "fed 3 of 6": "Ember (scout) | Colony tab: Ember (scout)",
+      "fed 4 of 6": "Ember (scout) | Colony tab: Ember (scout)",
+      "fed 5 of 6": "Ember (scout) | Colony tab: Ember (scout)",
+      "fed 6 of 6": "Ember (ranger) | Colony tab: Ember (ranger)",
+      "tamed": "Ember (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Duchess": {
+     "kind": "legendary",
+     "firstHalf": "Duchess",
+     "forms": {
+      "kit": "Duchess",
+      "apprentice": "Duchess",
+      "warrior": "Duchess",
+      "leader": "Duchess"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Duchess (kitten) | Colony tab: Duchess (kitten)",
+      "fed 1 of 6": "Duchess (kitten) | Colony tab: Duchess (kitten)",
+      "fed 2 of 6": "Duchess (scout) | Colony tab: Duchess (scout)",
+      "fed 3 of 6": "Duchess (scout) | Colony tab: Duchess (scout)",
+      "fed 4 of 6": "Duchess (scout) | Colony tab: Duchess (scout)",
+      "fed 5 of 6": "Duchess (scout) | Colony tab: Duchess (scout)",
+      "fed 6 of 6": "Duchess (ranger) | Colony tab: Duchess (ranger)",
+      "tamed": "Duchess (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the house cat",
+     "whenCross": "",
+     "inColony": "",
+     "wandersIn": "Duchess the house cat has wandered in from Peopleville 🔔",
+     "joins": "Duchess left Peopleville to join you! She'll be waiting in the den 🏠",
+     "collar": "heart"
+    },
+    "Professor Whiskers": {
+     "kind": "legendary",
+     "firstHalf": "Professor Whiskers",
+     "forms": {
+      "kit": "Professor Whiskers",
+      "apprentice": "Professor Whiskers",
+      "warrior": "Professor Whiskers",
+      "leader": "Professor Whiskers"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Professor Whiskers (kitten) | Colony tab: Professor Whiskers (kitten)",
+      "fed 1 of 6": "Professor Whiskers (kitten) | Colony tab: Professor Whiskers (kitten)",
+      "fed 2 of 6": "Professor Whiskers (scout) | Colony tab: Professor Whiskers (scout)",
+      "fed 3 of 6": "Professor Whiskers (scout) | Colony tab: Professor Whiskers (scout)",
+      "fed 4 of 6": "Professor Whiskers (scout) | Colony tab: Professor Whiskers (scout)",
+      "fed 5 of 6": "Professor Whiskers (scout) | Colony tab: Professor Whiskers (scout)",
+      "fed 6 of 6": "Professor Whiskers (ranger) | Colony tab: Professor Whiskers (ranger)",
+      "tamed": "Professor Whiskers (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Captain Barnacle": {
+     "kind": "legendary",
+     "firstHalf": "Captain Barnacle",
+     "forms": {
+      "kit": "Captain Barnacle",
+      "apprentice": "Captain Barnacle",
+      "warrior": "Captain Barnacle",
+      "leader": "Captain Barnacle"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Captain Barnacle (kitten) | Colony tab: Captain Barnacle (kitten)",
+      "fed 1 of 6": "Captain Barnacle (kitten) | Colony tab: Captain Barnacle (kitten)",
+      "fed 2 of 6": "Captain Barnacle (scout) | Colony tab: Captain Barnacle (scout)",
+      "fed 3 of 6": "Captain Barnacle (scout) | Colony tab: Captain Barnacle (scout)",
+      "fed 4 of 6": "Captain Barnacle (scout) | Colony tab: Captain Barnacle (scout)",
+      "fed 5 of 6": "Captain Barnacle (scout) | Colony tab: Captain Barnacle (scout)",
+      "fed 6 of 6": "Captain Barnacle (ranger) | Colony tab: Captain Barnacle (ranger)",
+      "tamed": "Captain Barnacle (wise cat)"
+     },
+     "denRole": "wise cat",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    },
+    "Lord Lantern": {
+     "kind": "legendary",
+     "firstHalf": "Lord Lantern",
+     "forms": {
+      "kit": "Lord Lantern",
+      "apprentice": "Lord Lantern",
+      "warrior": "Lord Lantern",
+      "leader": "Lord Lantern"
+     },
+     "grownEnding": "",
+     "ladder": {
+      "fed 0 of 6": "Lord Lantern (kitten) | Colony tab: Lord Lantern (kitten)",
+      "fed 1 of 6": "Lord Lantern (kitten) | Colony tab: Lord Lantern (kitten)",
+      "fed 2 of 6": "Lord Lantern (scout) | Colony tab: Lord Lantern (scout)",
+      "fed 3 of 6": "Lord Lantern (scout) | Colony tab: Lord Lantern (scout)",
+      "fed 4 of 6": "Lord Lantern (scout) | Colony tab: Lord Lantern (scout)",
+      "fed 5 of 6": "Lord Lantern (scout) | Colony tab: Lord Lantern (scout)",
+      "fed 6 of 6": "Lord Lantern (ranger) | Colony tab: Lord Lantern (ranger)",
+      "tamed": "Lord Lantern (ranger)"
+     },
+     "denRole": "ranger",
+     "whenMet": " the roamer",
+     "whenCross": " a loner now!",
+     "inColony": ""
+    }
+   },
+   "camps": {
+    "woods": [
+     {
+      "seat": 0,
+      "rank": "leader",
+      "rankWord": "first cat",
+      "name": "Badger",
+      "tag": "Badger / first cat of Forest Crew",
+      "tagOnTop": true,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 1,
+      "rank": "elder",
+      "rankWord": "wise cat",
+      "name": "Bark",
+      "tag": "Bark / wise cat of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 2,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Bluejay",
+      "tag": "Bluejay / kitten of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 3,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Burr",
+      "tag": "Burr / kitten of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 4,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Conker",
+      "tag": "Conker / ranger of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 5,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Fawn",
+      "tag": "Fawn / ranger of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 6,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Root",
+      "tag": "Root / ranger of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 7,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Glade",
+      "tag": "Glade / scout of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 8,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Bryony",
+      "tag": "Bryony / scout of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 9,
+      "rank": "deputy",
+      "rankWord": "ranger",
+      "name": "Thrush",
+      "tag": "Thrush / ranger of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 10,
+      "rank": "elder",
+      "rankWord": "wise cat",
+      "name": "Hollow",
+      "tag": "Hollow / wise cat of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 11,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Nutmeg",
+      "tag": "Nutmeg / kitten of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 12,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Loam",
+      "tag": "Loam / kitten of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 13,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Rook",
+      "tag": "Rook / ranger of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 14,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Dormouse",
+      "tag": "Dormouse / ranger of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 15,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Spindle",
+      "tag": "Spindle / scout of Forest Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     }
+    ],
+    "river": [
+     {
+      "seat": 0,
+      "rank": "leader",
+      "rankWord": "first cat",
+      "name": "Minnow",
+      "tag": "Minnow / first cat of River Crew",
+      "tagOnTop": true,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 1,
+      "rank": "elder",
+      "rankWord": "wise cat",
+      "name": "Pike",
+      "tag": "Pike / wise cat of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 2,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Shingle",
+      "tag": "Shingle / kitten of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 3,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Newt",
+      "tag": "Newt / kitten of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 4,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Vole",
+      "tag": "Vole / ranger of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 5,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Trout",
+      "tag": "Trout / ranger of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 6,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Mint",
+      "tag": "Mint / ranger of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 7,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Dipper",
+      "tag": "Dipper / scout of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 8,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Teal",
+      "tag": "Teal / scout of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 9,
+      "rank": "deputy",
+      "rankWord": "ranger",
+      "name": "Caddis",
+      "tag": "Caddis / ranger of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 10,
+      "rank": "elder",
+      "rankWord": "wise cat",
+      "name": "Gudgeon",
+      "tag": "Gudgeon / wise cat of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 11,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Mayfly",
+      "tag": "Mayfly / kitten of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 12,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Silt",
+      "tag": "Silt / kitten of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 13,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Roach",
+      "tag": "Roach / ranger of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 14,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Wader",
+      "tag": "Wader / ranger of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 15,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Marigold",
+      "tag": "Marigold / scout of River Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     }
+    ],
+    "moor": [
+     {
+      "seat": 0,
+      "rank": "leader",
+      "rankWord": "first cat",
+      "name": "Curlew",
+      "tag": "Curlew / first cat of Moor Crew",
+      "tagOnTop": true,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 1,
+      "rank": "elder",
+      "rankWord": "wise cat",
+      "name": "Lapwing",
+      "tag": "Lapwing / wise cat of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 2,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Peat",
+      "tag": "Peat / kitten of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 3,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Grouse",
+      "tag": "Grouse / kitten of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 4,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Cotton",
+      "tag": "Cotton / ranger of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 5,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Tor",
+      "tag": "Tor / ranger of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 6,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Bilberry",
+      "tag": "Bilberry / ranger of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 7,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Stoat",
+      "tag": "Stoat / scout of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 8,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Pipit",
+      "tag": "Pipit / scout of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 9,
+      "rank": "deputy",
+      "rankWord": "ranger",
+      "name": "Cairn",
+      "tag": "Cairn / ranger of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 10,
+      "rank": "elder",
+      "rankWord": "wise cat",
+      "name": "Ling",
+      "tag": "Ling / wise cat of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 11,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Wisp",
+      "tag": "Wisp / kitten of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 12,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Snipe",
+      "tag": "Snipe / kitten of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 13,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Quill",
+      "tag": "Quill / ranger of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 14,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Ridge",
+      "tag": "Ridge / ranger of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 15,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Whin",
+      "tag": "Whin / scout of Moor Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     }
+    ],
+    "pines": [
+     {
+      "seat": 0,
+      "rank": "leader",
+      "rankWord": "first cat",
+      "name": "Cone",
+      "tag": "Cone / first cat of Pines Crew",
+      "tagOnTop": true,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 1,
+      "rank": "elder",
+      "rankWord": "wise cat",
+      "name": "Bog",
+      "tag": "Bog / wise cat of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 2,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Slate",
+      "tag": "Slate / kitten of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 3,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Resin",
+      "tag": "Resin / kitten of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 4,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Needle",
+      "tag": "Needle / ranger of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 5,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Beetle",
+      "tag": "Beetle / ranger of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 6,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Toad",
+      "tag": "Toad / ranger of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 7,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Frog",
+      "tag": "Frog / scout of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 8,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Adder",
+      "tag": "Adder / scout of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 9,
+      "rank": "deputy",
+      "rankWord": "ranger",
+      "name": "Sable",
+      "tag": "Sable / ranger of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 10,
+      "rank": "elder",
+      "rankWord": "wise cat",
+      "name": "Mire",
+      "tag": "Mire / wise cat of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 11,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Gnat",
+      "tag": "Gnat / kitten of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 12,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Sloe",
+      "tag": "Sloe / kitten of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 13,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Fungus",
+      "tag": "Fungus / ranger of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 14,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Soot",
+      "tag": "Soot / ranger of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 15,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Bat",
+      "tag": "Bat / scout of Pines Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     }
+    ],
+    "gorge": [
+     {
+      "seat": 0,
+      "rank": "leader",
+      "rankWord": "first cat",
+      "name": "Crag",
+      "tag": "Crag / first cat of Gorge Crew",
+      "tagOnTop": true,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 1,
+      "rank": "elder",
+      "rankWord": "wise cat",
+      "name": "Granite",
+      "tag": "Granite / wise cat of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 2,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Scree",
+      "tag": "Scree / kitten of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 3,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Sprig",
+      "tag": "Sprig / kitten of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 4,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Flint",
+      "tag": "Flint / ranger of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 5,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Merlin",
+      "tag": "Merlin / ranger of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 6,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Shale",
+      "tag": "Shale / ranger of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": true
+     },
+     {
+      "seat": 7,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Pika",
+      "tag": "Pika / scout of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 8,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Gully",
+      "tag": "Gully / scout of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": true,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 9,
+      "rank": "deputy",
+      "rankWord": "ranger",
+      "name": "Bluff",
+      "tag": "Bluff / ranger of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 10,
+      "rank": "elder",
+      "rankWord": "wise cat",
+      "name": "Tarn",
+      "tag": "Tarn / wise cat of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 11,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Puff",
+      "tag": "Puff / kitten of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 12,
+      "rank": "kit",
+      "rankWord": "kitten",
+      "name": "Nimble",
+      "tag": "Nimble / kitten of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": false,
+      "raider": false
+     },
+     {
+      "seat": 13,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Stonecrop",
+      "tag": "Stonecrop / ranger of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 14,
+      "rank": "warrior",
+      "rankWord": "ranger",
+      "name": "Thrift",
+      "tag": "Thrift / ranger of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     },
+     {
+      "seat": 15,
+      "rank": "apprentice",
+      "rankWord": "scout",
+      "name": "Crest",
+      "tag": "Crest / scout of Gorge Crew",
+      "tagOnTop": false,
+      "shownOnLow": false,
+      "roams": true,
+      "raider": false
+     }
+    ]
+   },
+   "patrols": {
+    "neighborhood": {
+     "Garden Crew": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    },
+    "park": {
+     "Park Crew": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    },
+    "seaside": {
+     "Beach Crew": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    },
+    "docks": {
+     "Dock Crew": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    },
+    "woods": {
+     "Forest Crew": [
+      "nobody picked",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ],
+     "Moor Crew": [
+      "picked woods",
+      "picked woods + river",
+      "picked woods + pines",
+      "picked woods + gorge"
+     ],
+     "River Crew": [
+      "picked woods + moor"
+     ]
+    },
+    "river": {
+     "River Crew": [
+      "nobody picked",
+      "picked woods",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ],
+     "Pines Crew": [
+      "picked river",
+      "picked woods + river",
+      "picked river + moor",
+      "picked river + gorge"
+     ],
+     "Forest Crew": [
+      "picked river + pines"
+     ]
+    },
+    "moor": {
+     "Moor Crew": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked pines + gorge"
+     ],
+     "Forest Crew": [
+      "picked moor",
+      "picked river + moor",
+      "picked moor + pines",
+      "picked moor + gorge"
+     ],
+     "Pines Crew": [
+      "picked woods + moor"
+     ]
+    },
+    "pines": {
+     "Pines Crew": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + gorge",
+      "picked moor + gorge"
+     ],
+     "River Crew": [
+      "picked pines",
+      "picked woods + pines",
+      "picked moor + pines",
+      "picked pines + gorge"
+     ],
+     "Moor Crew": [
+      "picked river + pines"
+     ]
+    },
+    "gorge": {
+     "Gorge Crew": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked river + moor",
+      "picked river + pines",
+      "picked moor + pines"
+     ],
+     "Moor Crew": [
+      "picked gorge",
+      "picked woods + gorge",
+      "picked river + gorge",
+      "picked pines + gorge"
+     ],
+     "(no patrol)": [
+      "picked moor + gorge"
+     ]
+    },
+    "island": {
+     "(no patrol)": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    },
+    "den": {
+     "(no patrol)": [
+      "nobody picked",
+      "picked woods",
+      "picked river",
+      "picked moor",
+      "picked pines",
+      "picked gorge",
+      "picked woods + river",
+      "picked woods + moor",
+      "picked woods + pines",
+      "picked woods + gorge",
+      "picked river + moor",
+      "picked river + pines",
+      "picked river + gorge",
+      "picked moor + pines",
+      "picked moor + gorge",
+      "picked pines + gorge"
+     ]
+    }
+   },
+   "borderPatrolCats": {
+    "woods": [
+     "Conker",
+     "Fawn",
+     "Root"
+    ],
+    "river": [
+     "Mint",
+     "Trout",
+     "Vole"
+    ],
+    "moor": [
+     "Bilberry",
+     "Cotton",
+     "Tor"
+    ],
+    "pines": [
+     "Beetle",
+     "Needle",
+     "Toad"
+    ],
+    "gorge": [
+     "Flint",
+     "Merlin",
+     "Shale"
+    ]
+   },
+   "intruders": {
+    "woods": {
+     "canVisit": [
+      "Bilberry of Moor Crew",
+      "Cotton of Moor Crew",
+      "Mint of River Crew",
+      "Tor of Moor Crew",
+      "Trout of River Crew",
+      "Vole of River Crew"
+     ],
+     "firstTwelveVisits": [
+      "(nobody)",
+      "Tor of Moor Crew",
+      "Vole of River Crew",
+      "Cotton of Moor Crew",
+      "(nobody)",
+      "Trout of River Crew",
+      "Cotton of Moor Crew",
+      "Mint of River Crew",
+      "(nobody)",
+      "Bilberry of Moor Crew",
+      "Bilberry of Moor Crew",
+      "Mint of River Crew"
+     ]
+    },
+    "river": {
+     "canVisit": [
+      "Beetle of Pines Crew",
+      "Conker of Forest Crew",
+      "Fawn of Forest Crew",
+      "Needle of Pines Crew",
+      "Root of Forest Crew",
+      "Toad of Pines Crew"
+     ],
+     "firstTwelveVisits": [
+      "(nobody)",
+      "Toad of Pines Crew",
+      "Fawn of Forest Crew",
+      "Beetle of Pines Crew",
+      "(nobody)",
+      "Root of Forest Crew",
+      "Beetle of Pines Crew",
+      "Conker of Forest Crew",
+      "(nobody)",
+      "Needle of Pines Crew",
+      "Beetle of Pines Crew",
+      "Fawn of Forest Crew"
+     ]
+    },
+    "moor": {
+     "canVisit": [
+      "Beetle of Pines Crew",
+      "Conker of Forest Crew",
+      "Fawn of Forest Crew",
+      "Flint of Gorge Crew",
+      "Merlin of Gorge Crew",
+      "Needle of Pines Crew",
+      "Root of Forest Crew",
+      "Shale of Gorge Crew",
+      "Toad of Pines Crew"
+     ],
+     "firstTwelveVisits": [
+      "Fawn of Forest Crew",
+      "(nobody)",
+      "Conker of Forest Crew",
+      "Conker of Forest Crew",
+      "Merlin of Gorge Crew",
+      "(nobody)",
+      "Shale of Gorge Crew",
+      "Flint of Gorge Crew",
+      "Shale of Gorge Crew",
+      "(nobody)",
+      "(nobody)",
+      "Flint of Gorge Crew"
+     ]
+    },
+    "pines": {
+     "canVisit": [
+      "Bilberry of Moor Crew",
+      "Cotton of Moor Crew",
+      "Mint of River Crew",
+      "Tor of Moor Crew",
+      "Trout of River Crew",
+      "Vole of River Crew"
+     ],
+     "firstTwelveVisits": [
+      "Tor of Moor Crew",
+      "(nobody)",
+      "Bilberry of Moor Crew",
+      "Vole of River Crew",
+      "Trout of River Crew",
+      "(nobody)",
+      "Vole of River Crew",
+      "Cotton of Moor Crew",
+      "Tor of Moor Crew",
+      "(nobody)",
+      "(nobody)",
+      "Bilberry of Moor Crew"
+     ]
+    },
+    "gorge": {
+     "canVisit": [
+      "Bilberry of Moor Crew",
+      "Cotton of Moor Crew",
+      "Tor of Moor Crew"
+     ],
+     "firstTwelveVisits": [
+      "Cotton of Moor Crew",
+      "Bilberry of Moor Crew",
+      "(nobody)",
+      "Cotton of Moor Crew",
+      "Cotton of Moor Crew",
+      "Bilberry of Moor Crew",
+      "(nobody)",
+      "Tor of Moor Crew",
+      "Bilberry of Moor Crew",
+      "Tor of Moor Crew",
+      "Cotton of Moor Crew",
+      "(nobody)"
+     ]
+    }
+   },
+   "starNames": {
+    "everyNameOffered": [],
+    "offeredTo": {
+     "player-0": []
+    },
+    "picker": [],
+    "pickerWithOneChosen": []
+   }
+  },
+  "tags": {
+   "secondLine": {
+    "kit": {
+     "woods": "kitten of Forest Crew",
+     "river": "kitten of River Crew",
+     "moor": "kitten of Moor Crew",
+     "pines": "kitten of Pines Crew",
+     "gorge": "kitten of Gorge Crew"
+    },
+    "apprentice": {
+     "woods": "scout of Forest Crew",
+     "river": "scout of River Crew",
+     "moor": "scout of Moor Crew",
+     "pines": "scout of Pines Crew",
+     "gorge": "scout of Gorge Crew"
+    },
+    "warrior": {
+     "woods": "ranger of Forest Crew",
+     "river": "ranger of River Crew",
+     "moor": "ranger of Moor Crew",
+     "pines": "ranger of Pines Crew",
+     "gorge": "ranger of Gorge Crew"
+    },
+    "elder": {
+     "woods": "wise cat of Forest Crew",
+     "river": "wise cat of River Crew",
+     "moor": "wise cat of Moor Crew",
+     "pines": "wise cat of Pines Crew",
+     "gorge": "wise cat of Gorge Crew"
+    },
+    "queen": {
+     "woods": "ranger of Forest Crew",
+     "river": "ranger of River Crew",
+     "moor": "ranger of Moor Crew",
+     "pines": "ranger of Pines Crew",
+     "gorge": "ranger of Gorge Crew"
+    },
+    "medicine": {
+     "woods": "doc of Forest Crew",
+     "river": "doc of River Crew",
+     "moor": "doc of Moor Crew",
+     "pines": "doc of Pines Crew",
+     "gorge": "doc of Gorge Crew"
+    },
+    "deputy": {
+     "woods": "ranger of Forest Crew",
+     "river": "ranger of River Crew",
+     "moor": "ranger of Moor Crew",
+     "pines": "ranger of Pines Crew",
+     "gorge": "ranger of Gorge Crew"
+    },
+    "leader": {
+     "woods": "first cat of Forest Crew (on top)",
+     "river": "first cat of River Crew (on top)",
+     "moor": "first cat of Moor Crew (on top)",
+     "pines": "first cat of Pines Crew (on top)",
+     "gorge": "first cat of Gorge Crew (on top)"
+    }
+   },
+   "outsideCats": {
+    "Pickles": {
+     "met": " the roamer",
+     "cross": " a loner now!",
+     "house": " the house cat",
+     "player": "",
+     "unknownKey": "",
+     "inColony": ""
+    },
+    "Marmalade": {
+     "met": " the house cat",
+     "cross": "",
+     "house": " the house cat",
+     "player": "",
+     "unknownKey": "",
+     "inColony": ""
+    },
+    "notAName": ""
+   }
+  },
+  "lines": {
+   "homeWelcome": {
+    "woods": "Home to Forest Crew's land 🏡",
+    "river": "Home to River Crew's land 🏡",
+    "moor": "Home to Moor Crew's land 🏡",
+    "pines": "Home to Pines Crew's land 🏡",
+    "gorge": "Home to Gorge Crew's land 🏡"
+   },
+   "homeWelcomeElsewhere": null,
+   "landOfTodaysWalk": {
+    "neighborhood": "",
+    "park": "",
+    "seaside": "",
+    "docks": "",
+    "woods": "Forest Crew land",
+    "river": "River Crew land",
+    "moor": "Moor Crew land",
+    "pines": "Pines Crew land",
+    "gorge": "Gorge Crew land"
+   },
+   "campOnTheMap": {
+    "woods": "Forest Crew camp",
+    "river": "River Crew camp",
+    "moor": "Moor Crew camp",
+    "pines": "Pines Crew camp",
+    "gorge": "Gorge Crew camp"
+   },
+   "scentedOverYourMark": {
+    "Forest Crew": {
+     "scratch": "Forest Crew scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "Forest Crew scented over your mark! 🐾",
+     "drop": "Forest Crew scented over your mark! 🐾"
+    },
+    "River Crew": {
+     "scratch": "River Crew scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "River Crew scented over your mark! 🐾",
+     "drop": "River Crew scented over your mark! 🐾"
+    },
+    "Moor Crew": {
+     "scratch": "Moor Crew scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "Moor Crew scented over your mark! 🐾",
+     "drop": "Moor Crew scented over your mark! 🐾"
+    },
+    "Pines Crew": {
+     "scratch": "Pines Crew scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "Pines Crew scented over your mark! 🐾",
+     "drop": "Pines Crew scented over your mark! 🐾"
+    },
+    "Gorge Crew": {
+     "scratch": "Gorge Crew scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "Gorge Crew scented over your mark! 🐾",
+     "drop": "Gorge Crew scented over your mark! 🐾"
+    },
+    "Garden Crew": {
+     "scratch": "Garden Crew scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "Garden Crew scented over your mark! 🐾",
+     "drop": "Garden Crew scented over your mark! 🐾"
+    },
+    "Park Crew": {
+     "scratch": "Park Crew scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "Park Crew scented over your mark! 🐾",
+     "drop": "Park Crew scented over your mark! 🐾"
+    },
+    "Beach Crew": {
+     "scratch": "Beach Crew scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "Beach Crew scented over your mark! 🐾",
+     "drop": "Beach Crew scented over your mark! 🐾"
+    },
+    "Dock Crew": {
+     "scratch": "Dock Crew scented over your mark! Scratch it again to take it back. 🐾",
+     "dig": "Dock Crew scented over your mark! 🐾",
+     "drop": "Dock Crew scented over your mark! 🐾"
+    }
+   },
+   "wandererStays": {
+    "neighborhood": "Marmalade will wait for you here in Peopleville 🐾",
+    "park": "Marmalade will wait for you here in City Park 🐾",
+    "seaside": "Marmalade will wait for you here in Seaside 🐾",
+    "docks": "Marmalade will wait for you here in The Old Docks 🐾",
+    "woods": "Marmalade will wait for you here in The Woods 🐾",
+    "river": "Marmalade will wait for you here in The River and Marshes 🐾",
+    "moor": "Marmalade will wait for you here in The Moor 🐾",
+    "pines": "Marmalade will wait for you here in The Pines and Swamp 🐾",
+    "gorge": "Marmalade will wait for you here in The Gorge 🐾"
+   },
+   "opensAfter": {
+    "park": "opens after 2 walks in Peopleville · 1/2 so far",
+    "seaside": "opens after 2 walks in City Park · 1/2 so far",
+    "docks": "opens after 2 walks in Seaside · 1/2 so far",
+    "woods": "opens after 2 walks in Peopleville · 1/2 so far",
+    "river": "opens after 2 walks in The Woods · 1/2 so far",
+    "moor": "opens after 2 walks in The Woods · 1/2 so far",
+    "pines": "opens after 2 walks in The River and Marshes · 1/2 so far",
+    "gorge": "opens after 2 walks in The Moor · 1/2 so far"
+   },
+   "whyAPlaceIsShut": {
+    "neighborhood": null,
+    "park": "opens after 2 walks in Peopleville · 0/2 so far",
+    "seaside": "opens after 2 walks in City Park · 0/2 so far",
+    "docks": "opens after 2 walks in Seaside · 0/2 so far",
+    "woods": "opens after 2 walks in Peopleville · 0/2 so far",
+    "river": "opens after 2 walks in The Woods · 0/2 so far",
+    "moor": "opens after 2 walks in The Woods · 0/2 so far",
+    "pines": "opens after 2 walks in The River and Marshes · 0/2 so far",
+    "gorge": "opens after 2 walks in The Moor · 0/2 so far"
+   },
+   "borderPosts": {
+    "town-woods": {
+     "to": "The Woods",
+     "beforeItOpens": "🔒 The Woods opens after 2 walks in Peopleville · 1/2 so far",
+     "open": "E — Head to the Woods?",
+     "openForAGuest": "The Woods is this way 🧭",
+     "card": [
+      "Head to the Woods?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Woods! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Woods! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "town-moor": {
+     "to": "The Moor",
+     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 0/2 so far",
+     "open": "E — Head to the Moor?",
+     "openForAGuest": "The Moor is this way 🧭",
+     "card": [
+      "Head to the Moor?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Moor! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Moor! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "town-river": {
+     "to": "The River and Marshes",
+     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 0/2 so far",
+     "open": "E — Head to the River and Marshes?",
+     "openForAGuest": "The River and Marshes is this way 🧭",
+     "card": [
+      "Head to the River and Marshes?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the River and Marshes! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the River and Marshes! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-town-short": {
+     "to": "Peopleville",
+     "beforeItOpens": "E — Head to Peopleville?",
+     "open": "E — Head to Peopleville?",
+     "openForAGuest": "Peopleville is this way 🧭",
+     "card": [
+      "Head to Peopleville?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: Peopleville! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to Peopleville! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-town-long": {
+     "to": "Peopleville",
+     "beforeItOpens": "E — Head to Peopleville?",
+     "open": "E — Head to Peopleville?",
+     "openForAGuest": "Peopleville is this way 🧭",
+     "card": [
+      "Head to Peopleville?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: Peopleville! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to Peopleville! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-river-long": {
+     "to": "The River and Marshes",
+     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 1/2 so far",
+     "open": "E — Head to the River and Marshes?",
+     "openForAGuest": "The River and Marshes is this way 🧭",
+     "card": [
+      "Head to the River and Marshes?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the River and Marshes! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the River and Marshes! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-river-pond": {
+     "to": "The River and Marshes",
+     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 1/2 so far",
+     "open": "E — Head to the River and Marshes?",
+     "openForAGuest": "The River and Marshes is this way 🧭",
+     "card": [
+      "Head to the River and Marshes?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the River and Marshes! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the River and Marshes! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-moor-path": {
+     "to": "The Moor",
+     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 1/2 so far",
+     "open": "E — Head to the Moor?",
+     "openForAGuest": "The Moor is this way 🧭",
+     "card": [
+      "Head to the Moor?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Moor! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Moor! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "woods-moor-river": {
+     "to": "The Moor",
+     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 1/2 so far",
+     "open": "E — Head to the Moor?",
+     "openForAGuest": "The Moor is this way 🧭",
+     "card": [
+      "Head to the Moor?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Moor! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Moor! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "river-woods-long": {
+     "to": "The Woods",
+     "beforeItOpens": "🔒 The Woods opens after 2 walks in Peopleville · 0/2 so far",
+     "open": "E — Head to the Woods?",
+     "openForAGuest": "The Woods is this way 🧭",
+     "card": [
+      "Head to the Woods?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Woods! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Woods! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "river-town-long": {
+     "to": "Peopleville",
+     "beforeItOpens": "E — Head to Peopleville?",
+     "open": "E — Head to Peopleville?",
+     "openForAGuest": "Peopleville is this way 🧭",
+     "card": [
+      "Head to Peopleville?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: Peopleville! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to Peopleville! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "river-woods-pond": {
+     "to": "The Woods",
+     "beforeItOpens": "🔒 The Woods opens after 2 walks in Peopleville · 0/2 so far",
+     "open": "E — Head to the Woods?",
+     "openForAGuest": "The Woods is this way 🧭",
+     "card": [
+      "Head to the Woods?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Woods! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Woods! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "river-pines-path": {
+     "to": "The Pines and Swamp",
+     "beforeItOpens": "🔒 The Pines and Swamp opens after 2 walks in The River and Marshes · 1/2 so far",
+     "open": "E — Head to the Pines and Swamp?",
+     "openForAGuest": "The Pines and Swamp is this way 🧭",
+     "card": [
+      "Head to the Pines and Swamp?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Pines and Swamp! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Pines and Swamp! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "moor-woods-path": {
+     "to": "The Woods",
+     "beforeItOpens": "🔒 The Woods opens after 2 walks in Peopleville · 0/2 so far",
+     "open": "E — Head to the Woods?",
+     "openForAGuest": "The Woods is this way 🧭",
+     "card": [
+      "Head to the Woods?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Woods! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Woods! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "moor-woods-river": {
+     "to": "The Woods",
+     "beforeItOpens": "🔒 The Woods opens after 2 walks in Peopleville · 0/2 so far",
+     "open": "E — Head to the Woods?",
+     "openForAGuest": "The Woods is this way 🧭",
+     "card": [
+      "Head to the Woods?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Woods! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Woods! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "moor-gorge": {
+     "to": "The Gorge",
+     "beforeItOpens": "🔒 The Gorge opens after 2 walks in The Moor · 1/2 so far",
+     "open": "E — Head to the Gorge?",
+     "openForAGuest": "The Gorge is this way 🧭",
+     "card": [
+      "Head to the Gorge?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Gorge! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Gorge! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "moor-pines-trail": {
+     "to": "The Pines and Swamp",
+     "beforeItOpens": "🔒 The Pines and Swamp opens after 2 walks in The River and Marshes · 0/2 so far",
+     "open": "E — Head to the Pines and Swamp?",
+     "openForAGuest": "The Pines and Swamp is this way 🧭",
+     "card": [
+      "Head to the Pines and Swamp?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Pines and Swamp! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Pines and Swamp! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "pines-river-path": {
+     "to": "The River and Marshes",
+     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 0/2 so far",
+     "open": "E — Head to the River and Marshes?",
+     "openForAGuest": "The River and Marshes is this way 🧭",
+     "card": [
+      "Head to the River and Marshes?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the River and Marshes! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the River and Marshes! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "pines-moor-trail": {
+     "to": "The Moor",
+     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 0/2 so far",
+     "open": "E — Head to the Moor?",
+     "openForAGuest": "The Moor is this way 🧭",
+     "card": [
+      "Head to the Moor?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Moor! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Moor! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "gorge-moor": {
+     "to": "The Moor",
+     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 0/2 so far",
+     "open": "E — Head to the Moor?",
+     "openForAGuest": "The Moor is this way 🧭",
+     "card": [
+      "Head to the Moor?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: the Moor! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to the Moor! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    },
+    "gorge-town": {
+     "to": "Peopleville",
+     "beforeItOpens": "E — Head to Peopleville?",
+     "open": "E — Head to Peopleville?",
+     "openForAGuest": "Peopleville is this way 🧭",
+     "card": [
+      "Head to Peopleville?",
+      "This walk ends here, and you keep everything you found.",
+      "Yes, let's go!",
+      "Keep exploring"
+     ],
+     "after": [
+      "Next stop: Peopleville! 🧭",
+      "It's picked on your map."
+     ],
+     "afterLed": [
+      "Robin led the way to Peopleville! 🧭",
+      "Ask Robin to press Start on the home screen to head there together."
+     ]
+    }
+   },
+   "crossingWithABuddy": [
+    "Your race stops here.",
+    "Your quest stops here.",
+    "The feather comes home to your den.",
+    "Conker walks home.",
+    "Robin comes too."
+   ],
+   "fights": {
+    "Conker": {
+     "atHome": [
+      "Conker of Forest Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Conker of Forest Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Conker! 🛡️",
+     "letsYouPass": "Conker lets you pass. 🐾",
+     "wonThisTime": [
+      "Conker won this time. That scratch will heal in a few walks!",
+      "Conker won this time. Try again soon!"
+     ]
+    },
+    "Fawn": {
+     "atHome": [
+      "Fawn of Forest Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Fawn of Forest Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Fawn! 🛡️",
+     "letsYouPass": "Fawn lets you pass. 🐾",
+     "wonThisTime": [
+      "Fawn won this time. That scratch will heal in a few walks!",
+      "Fawn won this time. Try again soon!"
+     ]
+    },
+    "Root": {
+     "atHome": [
+      "Root of Forest Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Root of Forest Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Root! 🛡️",
+     "letsYouPass": "Root lets you pass. 🐾",
+     "wonThisTime": [
+      "Root won this time. That scratch will heal in a few walks!",
+      "Root won this time. Try again soon!"
+     ]
+    },
+    "Vole": {
+     "atHome": [
+      "Vole of River Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Vole of River Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Vole! 🛡️",
+     "letsYouPass": "Vole lets you pass. 🐾",
+     "wonThisTime": [
+      "Vole won this time. That scratch will heal in a few walks!",
+      "Vole won this time. Try again soon!"
+     ]
+    },
+    "Trout": {
+     "atHome": [
+      "Trout of River Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Trout of River Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Trout! 🛡️",
+     "letsYouPass": "Trout lets you pass. 🐾",
+     "wonThisTime": [
+      "Trout won this time. That scratch will heal in a few walks!",
+      "Trout won this time. Try again soon!"
+     ]
+    },
+    "Mint": {
+     "atHome": [
+      "Mint of River Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Mint of River Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Mint! 🛡️",
+     "letsYouPass": "Mint lets you pass. 🐾",
+     "wonThisTime": [
+      "Mint won this time. That scratch will heal in a few walks!",
+      "Mint won this time. Try again soon!"
+     ]
+    },
+    "Cotton": {
+     "atHome": [
+      "Cotton of Moor Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Cotton of Moor Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Cotton! 🛡️",
+     "letsYouPass": "Cotton lets you pass. 🐾",
+     "wonThisTime": [
+      "Cotton won this time. That scratch will heal in a few walks!",
+      "Cotton won this time. Try again soon!"
+     ]
+    },
+    "Tor": {
+     "atHome": [
+      "Tor of Moor Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Tor of Moor Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Tor! 🛡️",
+     "letsYouPass": "Tor lets you pass. 🐾",
+     "wonThisTime": [
+      "Tor won this time. That scratch will heal in a few walks!",
+      "Tor won this time. Try again soon!"
+     ]
+    },
+    "Bilberry": {
+     "atHome": [
+      "Bilberry of Moor Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Bilberry of Moor Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Bilberry! 🛡️",
+     "letsYouPass": "Bilberry lets you pass. 🐾",
+     "wonThisTime": [
+      "Bilberry won this time. That scratch will heal in a few walks!",
+      "Bilberry won this time. Try again soon!"
+     ]
+    },
+    "Needle": {
+     "atHome": [
+      "Needle of Pines Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Needle of Pines Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Needle! 🛡️",
+     "letsYouPass": "Needle lets you pass. 🐾",
+     "wonThisTime": [
+      "Needle won this time. That scratch will heal in a few walks!",
+      "Needle won this time. Try again soon!"
+     ]
+    },
+    "Beetle": {
+     "atHome": [
+      "Beetle of Pines Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Beetle of Pines Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Beetle! 🛡️",
+     "letsYouPass": "Beetle lets you pass. 🐾",
+     "wonThisTime": [
+      "Beetle won this time. That scratch will heal in a few walks!",
+      "Beetle won this time. Try again soon!"
+     ]
+    },
+    "Toad": {
+     "atHome": [
+      "Toad of Pines Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Toad of Pines Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Toad! 🛡️",
+     "letsYouPass": "Toad lets you pass. 🐾",
+     "wonThisTime": [
+      "Toad won this time. That scratch will heal in a few walks!",
+      "Toad won this time. Try again soon!"
+     ]
+    },
+    "Flint": {
+     "atHome": [
+      "Flint of Gorge Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Flint of Gorge Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Flint! 🛡️",
+     "letsYouPass": "Flint lets you pass. 🐾",
+     "wonThisTime": [
+      "Flint won this time. That scratch will heal in a few walks!",
+      "Flint won this time. Try again soon!"
+     ]
+    },
+    "Merlin": {
+     "atHome": [
+      "Merlin of Gorge Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Merlin of Gorge Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Merlin! 🛡️",
+     "letsYouPass": "Merlin lets you pass. 🐾",
+     "wonThisTime": [
+      "Merlin won this time. That scratch will heal in a few walks!",
+      "Merlin won this time. Try again soon!"
+     ]
+    },
+    "Shale": {
+     "atHome": [
+      "Shale of Gorge Crew is on your land!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Back off",
+      "Q"
+     ],
+     "atTheirBorder": [
+      "Shale of Gorge Crew blocks your path!",
+      "Fight!",
+      "🐾",
+      "E",
+      "Run",
+      "Q"
+     ],
+     "facedDown": "You faced down Shale! 🛡️",
+     "letsYouPass": "Shale lets you pass. 🐾",
+     "wonThisTime": [
+      "Shale won this time. That scratch will heal in a few walks!",
+      "Shale won this time. Try again soon!"
+     ]
+    }
+   },
+   "journalFooter": [
+    "🛡️ Outsiders chased away: 4"
+   ],
+   "warPaintPrize": {
+    "visit": 50,
+    "styleInTheSchedule": "C",
+    "present": [
+     "Visit #50!",
+     "It's a War Paint!",
+     "War Paint",
+     "Yay!"
+    ],
+    "alreadyOn": [
+     "Visit 50!",
+     "Mittens got a War Paint. It's already on!"
+    ],
+    "catGivesIt": [
+     "It's a War Paint!"
+    ],
+    "again": [
+     "Visit 50!",
+     "Remember your War Paint? You looked great in it!",
+     "Wear it"
+    ]
+   }
+  },
+  "chat": {
+   "phrasesRead": 16,
+   "phrasesWithASeriesWord": [
+    "Hi! 👋",
+    "Follow me!",
+    "Nice cat! 😻",
+    "Wanna play?",
+    "Over here!",
+    "Good walk!",
+    "Brb 🐟",
+    "Boop? 👉👈",
+    "Zoomies!!",
+    "Bye! 👋"
+   ],
+   "repliesRead": 159,
+   "repliesWithASeriesWord": [
+    "*yawn* …hi.",
+    "A game? Sure, at my pace.",
+    "AAAH hi hi hi!",
+    "Adventure? Yes!",
+    "Ah, a fellow adventurer. Hi!",
+    "Alright, let's have some fun.",
+    "Aw, shucks 😽",
+    "Aw, you noticed my patches!",
+    "Aww shucks, I know 😏",
+    "Aww, pet me some more?",
+    "Aww. That's very kind.",
+    "BUTTERFLY! Gotta pounce!",
+    "BWAK BWAK BWAK!",
+    "Bok bok!",
+    "Bok! Chase time!",
+    "Bok. (bye)",
+    "Bok? Bwak 😳",
+    "Bold hello!",
+    "Brave AND handsome, I know.",
+    "Bwaaak~",
+    "Bwaaawk, thank you!",
+    "Bwak bwak, hello!",
+    "Bwak!",
+    "Bwak?! 🐔",
+    "Bye bye! Come back soon!",
+    "Bye bye, playful one!",
+    "Bye!",
+    "Bye! Off to pounce more things!",
+    "Bye. I'll save you a sunny spot.",
+    "Byeee — more chaos elsewhere!",
+    "Bye… zzz.",
+    "Byyye byyye byyye!",
+    "CHAOS!",
+    "CHASE ME CHASE ME!",
+    "Catch you on the trail!",
+    "Chase! Chase! Can we chase?!",
+    "Cluck cluck, farewell!",
+    "Cluck ♥",
+    "Fear nothing. Bye!",
+    "Five more minutes 😴",
+    "Flap flap!",
+    "Follow my nose — let's play!",
+    "GO GO GO GO!",
+    "Good to see you, friend.",
+    "Gotta go knock something over. Bye!",
+    "HEY HEY HEY!",
+    "HI HI HI! 😻",
+    "HIYA!! Chaos time!",
+    "Ha! Told ya I'm the best!",
+    "Ha, thanks — I try.",
+    "Hello!! Everything is SO cool!",
+    "Hello, friend. No fear here.",
+    "Hey there.",
+    "Hey! Good to see you.",
+    "Hi hi hi! Who are YOU?",
+    "Hi hi! Look at all these colors!",
+    "Hi!",
+    "Hi! Wanna see something cool?",
+    "Hi, friend. No rush.",
+    "High praise, well earned.",
+    "I AM the champion, thank you!",
+    "I KNOW RIGHT?!",
+    "I can sniff out the best games.",
+    "I found that treasure myself!",
+    "I know. Thank you.",
+    "I move big but I'm in.",
+    "I try to be extra colorful.",
+    "I'll play. Big paws, gentle taps.",
+    "Kind of you to say.",
+    "Later!",
+    "Later! Stay chaotic!",
+    "Leave a scent trail!",
+    "Legend says hello.",
+    "Legendary zoomies incoming!",
+    "Let's go dig around!",
+    "Let's go — nothing scares me!",
+    "Let's knock stuff over!!",
+    "Let's play! I'll be super fast!",
+    "Let's play... nice and slow.",
+    "Loudest thank you ever!! 📣",
+    "MEOW!",
+    "Mew!",
+    "Mm, off you go.",
+    "Mm. Hello.",
+    "Mrrp?",
+    "Much obliged.",
+    "My nose thanks you.",
+    "NO WAIT COME BACK— ok bye!",
+    "Naturally.",
+    "Off exploring? Bye!",
+    "Off on another legendary sniff. Bye!",
+    "Off to explore. Later!",
+    "Oh! Hello there 🐾",
+    "Oh, hello there. Nice to see you.",
+    "Oh. It's you. Hi.",
+    "One more zoomie first! ...ok bye!",
+    "Ooh, a friend!",
+    "Ooh, a new friend!",
+    "Ooh, hello!",
+    "Ooh, is that a string?!",
+    "Ooh, what did you find?",
+    "POUNCE CHAMPION incoming!!",
+    "Play is exhausting to think about.",
+    "Play!",
+    "Play? Always ready.",
+    "Play?? OBVIOUSLY YES!",
+    "Pounce time!! 🦋",
+    "Pounce!",
+    "Purr 😽",
+    "Purrrr...",
+    "Purrrr…",
+    "Race you across the yard!",
+    "Really?! Thank you!!",
+    "See ya — butterflies await!",
+    "See ya! I'll find something new!",
+    "See you around.",
+    "See you soon, friend.",
+    "Sniff sniff — hi!",
+    "Sniff sniff!",
+    "Sniff... legendary.",
+    "Squirrel! No wait — YOU! Play!",
+    "Stay bold. Bye!",
+    "Steady as ever.",
+    "Steady on. Bye.",
+    "Sure, I'll play. Slowly.",
+    "Tag — you're it!",
+    "Take care. Bye.",
+    "Take your time. Bye now.",
+    "Tell me MORE!",
+    "Thank you, friend. Purrr.",
+    "Thank youuu 😸",
+    "Thanks!",
+    "Thanks. I'm a big deal.",
+    "That makes my ears go up!",
+    "The legend appreciates that.",
+    "The nose knows — hi!",
+    "The trail calls. Bye!",
+    "Unbothered.",
+    "Until next time, friend.",
+    "Wait — okay, bye!!",
+    "Wake me never.",
+    "Well, hello.",
+    "Well, hello. Come sit a while.",
+    "Wow, me? Yay!",
+    "YOU'RE HERE!! Let's GO!",
+    "Yo!! Let's CAUSE something!",
+    "You have a good nose too!",
+    "You make a big cat happy.",
+    "You're pretty great yourself.",
+    "…maybe after a nap."
+   ]
+  },
+  "screens": {
+   "pickYourGroup": {
+    "cards": [
+     "Pick your home crew",
+     "Forest Crew",
+     "of The Woods",
+     "oak woods, ferns and sunny clearings",
+     "badge: oak leaf",
+     "River Crew",
+     "of The River and Marshes",
+     "reeds, the riverbank and the pond",
+     "badge: reed",
+     "Moor Crew",
+     "of The Moor",
+     "open heather, big skies and wind",
+     "badge: heather sprig",
+     "Pines Crew",
+     "of The Pines and Swamp",
+     "tall pines and the swamp",
+     "badge: pine cone",
+     "Gorge Crew",
+     "of The Gorge",
+     "rocks, cliff dens and tall pines",
+     "badge: crag"
+    ],
+    "campSoonLine": "home base coming soon",
+    "cardsWhenACampIsNotReady": [
+     "Pick your home crew",
+     "Forest Crew",
+     "of The Woods",
+     "home base coming soon",
+     "River Crew",
+     "of The River and Marshes",
+     "reeds, the riverbank and the pond",
+     "badge: reed",
+     "Moor Crew",
+     "of The Moor",
+     "open heather, big skies and wind",
+     "badge: heather sprig",
+     "Pines Crew",
+     "of The Pines and Swamp",
+     "tall pines and the swamp",
+     "badge: pine cone",
+     "Gorge Crew",
+     "of The Gorge",
+     "rocks, cliff dens and tall pines",
+     "badge: crag"
+    ],
+    "cardsWhenATerritoryIsNotBuilt": [
+     "Pick your home crew",
+     "Forest Crew",
+     "of The Woods",
+     "oak woods, ferns and sunny clearings",
+     "badge: oak leaf",
+     "territory coming soon",
+     "River Crew",
+     "of The River and Marshes",
+     "reeds, the riverbank and the pond",
+     "badge: reed",
+     "Moor Crew",
+     "of The Moor",
+     "open heather, big skies and wind",
+     "badge: heather sprig",
+     "Pines Crew",
+     "of The Pines and Swamp",
+     "tall pines and the swamp",
+     "badge: pine cone",
+     "Gorge Crew",
+     "of The Gorge",
+     "rocks, cliff dens and tall pines",
+     "badge: crag"
+    ],
+    "moment": [
+     "🐾 🐾 🐾",
+     "Time to pick a home!",
+     "Which crew will be your home?",
+     "Pick your home crew",
+     "Forest Crew",
+     "of The Woods",
+     "oak woods, ferns and sunny clearings",
+     "badge: oak leaf",
+     "River Crew",
+     "of The River and Marshes",
+     "reeds, the riverbank and the pond",
+     "badge: reed",
+     "Moor Crew",
+     "of The Moor",
+     "open heather, big skies and wind",
+     "badge: heather sprig",
+     "Pines Crew",
+     "of The Pines and Swamp",
+     "tall pines and the swamp",
+     "badge: pine cone",
+     "Gorge Crew",
+     "of The Gorge",
+     "rocks, cliff dens and tall pines",
+     "badge: crag",
+     "Not yet",
+     "You can change it later in 🗺️ Change place."
+    ],
+    "momentIsDue": [
+     true,
+     false
+    ],
+    "lineBeforeAPick": [
+     "Time to pick a home!",
+     "Choose your crew ›"
+    ],
+    "lineBeforeTheWoodsOpen": [],
+    "picked": {
+     "woods": {
+      "heading": "Your crew: Forest Crew",
+      "change": [
+       "🐾 🐾 🐾",
+       "Change your crew?",
+       "Tap a crew to make it your home."
+      ],
+      "line": [
+       "You’re",
+       "Forest Crew",
+       "Change ›"
+      ],
+      "lineWithASibling": [
+       "You’re",
+       "Forest Crew",
+       "· Robin is River Crew",
+       "Change ›"
+      ],
+      "cardsWithASibling": [
+       "Your crew: Forest Crew",
+       "Forest Crew",
+       "of The Woods",
+       "oak woods, ferns and sunny clearings",
+       "badge: oak leaf",
+       "✓ yours",
+       "River Crew",
+       "of The River and Marshes",
+       "reeds, the riverbank and the pond",
+       "badge: reed",
+       "🤝 Robin's",
+       "Moor Crew",
+       "of The Moor",
+       "open heather, big skies and wind",
+       "badge: heather sprig",
+       "Pines Crew",
+       "of The Pines and Swamp",
+       "tall pines and the swamp",
+       "badge: pine cone",
+       "Gorge Crew",
+       "of The Gorge",
+       "rocks, cliff dens and tall pines",
+       "badge: crag"
+      ]
+     },
+     "river": {
+      "heading": "Your crew: River Crew",
+      "change": [
+       "🐾 🐾 🐾",
+       "Change your crew?",
+       "Tap a crew to make it your home."
+      ],
+      "line": [
+       "You’re",
+       "River Crew",
+       "Change ›"
+      ],
+      "lineWithASibling": [
+       "You’re",
+       "River Crew",
+       "· Robin is Moor Crew",
+       "Change ›"
+      ],
+      "cardsWithASibling": [
+       "Your crew: River Crew",
+       "Forest Crew",
+       "of The Woods",
+       "oak woods, ferns and sunny clearings",
+       "badge: oak leaf",
+       "River Crew",
+       "of The River and Marshes",
+       "reeds, the riverbank and the pond",
+       "badge: reed",
+       "✓ yours",
+       "Moor Crew",
+       "of The Moor",
+       "open heather, big skies and wind",
+       "badge: heather sprig",
+       "🤝 Robin's",
+       "Pines Crew",
+       "of The Pines and Swamp",
+       "tall pines and the swamp",
+       "badge: pine cone",
+       "Gorge Crew",
+       "of The Gorge",
+       "rocks, cliff dens and tall pines",
+       "badge: crag"
+      ]
+     },
+     "moor": {
+      "heading": "Your crew: Moor Crew",
+      "change": [
+       "🐾 🐾 🐾",
+       "Change your crew?",
+       "Tap a crew to make it your home."
+      ],
+      "line": [
+       "You’re",
+       "Moor Crew",
+       "Change ›"
+      ],
+      "lineWithASibling": [
+       "You’re",
+       "Moor Crew",
+       "· Robin is Pines Crew",
+       "Change ›"
+      ],
+      "cardsWithASibling": [
+       "Your crew: Moor Crew",
+       "Forest Crew",
+       "of The Woods",
+       "oak woods, ferns and sunny clearings",
+       "badge: oak leaf",
+       "River Crew",
+       "of The River and Marshes",
+       "reeds, the riverbank and the pond",
+       "badge: reed",
+       "Moor Crew",
+       "of The Moor",
+       "open heather, big skies and wind",
+       "badge: heather sprig",
+       "✓ yours",
+       "Pines Crew",
+       "of The Pines and Swamp",
+       "tall pines and the swamp",
+       "badge: pine cone",
+       "🤝 Robin's",
+       "Gorge Crew",
+       "of The Gorge",
+       "rocks, cliff dens and tall pines",
+       "badge: crag"
+      ]
+     },
+     "pines": {
+      "heading": "Your crew: Pines Crew",
+      "change": [
+       "🐾 🐾 🐾",
+       "Change your crew?",
+       "Tap a crew to make it your home."
+      ],
+      "line": [
+       "You’re",
+       "Pines Crew",
+       "Change ›"
+      ],
+      "lineWithASibling": [
+       "You’re",
+       "Pines Crew",
+       "· Robin is Gorge Crew",
+       "Change ›"
+      ],
+      "cardsWithASibling": [
+       "Your crew: Pines Crew",
+       "Forest Crew",
+       "of The Woods",
+       "oak woods, ferns and sunny clearings",
+       "badge: oak leaf",
+       "River Crew",
+       "of The River and Marshes",
+       "reeds, the riverbank and the pond",
+       "badge: reed",
+       "Moor Crew",
+       "of The Moor",
+       "open heather, big skies and wind",
+       "badge: heather sprig",
+       "Pines Crew",
+       "of The Pines and Swamp",
+       "tall pines and the swamp",
+       "badge: pine cone",
+       "✓ yours",
+       "Gorge Crew",
+       "of The Gorge",
+       "rocks, cliff dens and tall pines",
+       "badge: crag",
+       "🤝 Robin's"
+      ]
+     },
+     "gorge": {
+      "heading": "Your crew: Gorge Crew",
+      "change": [
+       "🐾 🐾 🐾",
+       "Change your crew?",
+       "Tap a crew to make it your home."
+      ],
+      "line": [
+       "You’re",
+       "Gorge Crew",
+       "Change ›"
+      ],
+      "lineWithASibling": [
+       "You’re",
+       "Gorge Crew",
+       "· Robin is Forest Crew",
+       "Change ›"
+      ],
+      "cardsWithASibling": [
+       "Your crew: Gorge Crew",
+       "Forest Crew",
+       "of The Woods",
+       "oak woods, ferns and sunny clearings",
+       "badge: oak leaf",
+       "🤝 Robin's",
+       "River Crew",
+       "of The River and Marshes",
+       "reeds, the riverbank and the pond",
+       "badge: reed",
+       "Moor Crew",
+       "of The Moor",
+       "open heather, big skies and wind",
+       "badge: heather sprig",
+       "Pines Crew",
+       "of The Pines and Swamp",
+       "tall pines and the swamp",
+       "badge: pine cone",
+       "Gorge Crew",
+       "of The Gorge",
+       "rocks, cliff dens and tall pines",
+       "badge: crag",
+       "✓ yours"
+      ]
+     }
+    },
+    "partnerOnly": [
+     "Pick your home crew",
+     "Forest Crew",
+     "of The Woods",
+     "oak woods, ferns and sunny clearings",
+     "badge: oak leaf",
+     "River Crew",
+     "of The River and Marshes",
+     "reeds, the riverbank and the pond",
+     "badge: reed",
+     "🤝 Robin's",
+     "Moor Crew",
+     "of The Moor",
+     "open heather, big skies and wind",
+     "badge: heather sprig",
+     "Pines Crew",
+     "of The Pines and Swamp",
+     "tall pines and the swamp",
+     "badge: pine cone",
+     "Gorge Crew",
+     "of The Gorge",
+     "rocks, cliff dens and tall pines",
+     "badge: crag"
+    ],
+    "both": {
+     "cards": [
+      "Your crew: Forest Crew",
+      "Forest Crew",
+      "of The Woods",
+      "oak woods, ferns and sunny clearings",
+      "badge: oak leaf",
+      "✓ yours",
+      "🤝 Robin's",
+      "River Crew",
+      "of The River and Marshes",
+      "reeds, the riverbank and the pond",
+      "badge: reed",
+      "Moor Crew",
+      "of The Moor",
+      "open heather, big skies and wind",
+      "badge: heather sprig",
+      "Pines Crew",
+      "of The Pines and Swamp",
+      "tall pines and the swamp",
+      "badge: pine cone",
+      "Gorge Crew",
+      "of The Gorge",
+      "rocks, cliff dens and tall pines",
+      "badge: crag",
+      "You're both Forest Crew!"
+     ],
+     "line": [
+      "You’re",
+      "Forest Crew",
+      "— you’re both Forest Crew!",
+      "Change ›"
+     ]
+    }
+   },
+   "colony": {
+    "leadByFeeds": {
+     "fed 0": [
+      "Anchovy | the kitten",
+      "Baron von Fluff | the kitten",
+      "Bean | the kitten",
+      "Beignet | the kitten",
+      "Biscuit | the kitten",
+      "Bramble | the scout",
+      "Bumble | the scout",
+      "Butterscotch | the kitten",
+      "Captain Barnacle | the kitten",
+      "Churro | the kitten",
+      "Clementine | the kitten",
+      "Cocoa | the kitten",
+      "Comet | the kitten",
+      "Crumpet | the kitten",
+      "Cupcake | the scout",
+      "Custard | the kitten",
+      "Doppler | the kitten",
+      "Duchess | the kitten",
+      "Dumpling | the kitten",
+      "Ember | the scout",
+      "Fennel | the scout",
+      "Fig | the kitten",
+      "Gadget | the kitten",
+      "Gnocchi | the kitten",
+      "Juniper | the kitten",
+      "Lord Lantern | the kitten",
+      "Maple | the kitten",
+      "Marmalade | the kitten",
+      "Meatball | the kitten",
+      "Miso | the kitten",
+      "Mochi | the kitten",
+      "Nimbus | the kitten",
+      "Noodle | the kitten",
+      "Olive | the kitten",
+      "Paprika | the kitten",
+      "Parsnip | the kitten",
+      "Peaches | the kitten",
+      "Peanut | the scout",
+      "Pebble | the scout",
+      "Pepper | the kitten",
+      "Petunia | the kitten",
+      "Pickles | the kitten",
+      "Pip | the scout",
+      "Popcorn | the kitten",
+      "Pretzel | the kitten",
+      "Professor Whiskers | the kitten",
+      "Puddle | the scout",
+      "Pumpkin | the kitten",
+      "Ramen | the kitten",
+      "Sardine | the kitten",
+      "Sir Pounce | the kitten",
+      "Sprout | the kitten",
+      "Static | the kitten",
+      "Tangerine | the kitten",
+      "Toffee | the scout",
+      "Tofu | the kitten",
+      "Truffle | the kitten",
+      "Tumble | the scout",
+      "Turnip | the kitten",
+      "Waffles | the kitten",
+      "Wasabi | the kitten",
+      "Wiggle | the scout",
+      "Ziggy | the kitten",
+      "Zucchini | the kitten"
+     ],
+     "fed 1": [
+      "Anchovy | the kitten",
+      "Baron von Fluff | the kitten",
+      "Bean | the kitten",
+      "Beignet | the kitten",
+      "Biscuit | the kitten",
+      "Bramble | the scout",
+      "Bumble | the scout",
+      "Butterscotch | the kitten",
+      "Captain Barnacle | the kitten",
+      "Churro | the kitten",
+      "Clementine | the kitten",
+      "Cocoa | the kitten",
+      "Comet | the kitten",
+      "Crumpet | the kitten",
+      "Cupcake | the scout",
+      "Custard | the kitten",
+      "Doppler | the kitten",
+      "Duchess | the kitten",
+      "Dumpling | the kitten",
+      "Ember | the scout",
+      "Fennel | the scout",
+      "Fig | the kitten",
+      "Gadget | the kitten",
+      "Gnocchi | the kitten",
+      "Juniper | the kitten",
+      "Lord Lantern | the kitten",
+      "Maple | the kitten",
+      "Marmalade | the kitten",
+      "Meatball | the kitten",
+      "Miso | the kitten",
+      "Mochi | the kitten",
+      "Nimbus | the kitten",
+      "Noodle | the kitten",
+      "Olive | the kitten",
+      "Paprika | the kitten",
+      "Parsnip | the kitten",
+      "Peaches | the kitten",
+      "Peanut | the scout",
+      "Pebble | the scout",
+      "Pepper | the kitten",
+      "Petunia | the kitten",
+      "Pickles | the kitten",
+      "Pip | the scout",
+      "Popcorn | the kitten",
+      "Pretzel | the kitten",
+      "Professor Whiskers | the kitten",
+      "Puddle | the scout",
+      "Pumpkin | the kitten",
+      "Ramen | the kitten",
+      "Sardine | the kitten",
+      "Sir Pounce | the kitten",
+      "Sprout | the kitten",
+      "Static | the kitten",
+      "Tangerine | the kitten",
+      "Toffee | the scout",
+      "Tofu | the kitten",
+      "Truffle | the kitten",
+      "Tumble | the scout",
+      "Turnip | the kitten",
+      "Waffles | the kitten",
+      "Wasabi | the kitten",
+      "Wiggle | the scout",
+      "Ziggy | the kitten",
+      "Zucchini | the kitten"
+     ],
+     "fed 2": [
+      "Anchovy | the scout",
+      "Baron von Fluff | the scout",
+      "Bean | the scout",
+      "Beignet | the scout",
+      "Biscuit | the scout",
+      "Bramble | the scout",
+      "Bumble | the scout",
+      "Butterscotch | the scout",
+      "Captain Barnacle | the scout",
+      "Churro | the scout",
+      "Clementine | the scout",
+      "Cocoa | the scout",
+      "Comet | the scout",
+      "Crumpet | the scout",
+      "Cupcake | the scout",
+      "Custard | the scout",
+      "Doppler | the scout",
+      "Duchess | the scout",
+      "Dumpling | the scout",
+      "Ember | the scout",
+      "Fennel | the scout",
+      "Fig | the scout",
+      "Gadget | the scout",
+      "Gnocchi | the scout",
+      "Juniper | the scout",
+      "Lord Lantern | the scout",
+      "Maple | the scout",
+      "Marmalade | the scout",
+      "Meatball | the scout",
+      "Miso | the scout",
+      "Mochi | the scout",
+      "Nimbus | the scout",
+      "Noodle | the scout",
+      "Olive | the scout",
+      "Paprika | the scout",
+      "Parsnip | the scout",
+      "Peaches | the scout",
+      "Peanut | the scout",
+      "Pebble | the scout",
+      "Pepper | the scout",
+      "Petunia | the scout",
+      "Pickles | the scout",
+      "Pip | the scout",
+      "Popcorn | the scout",
+      "Pretzel | the scout",
+      "Professor Whiskers | the scout",
+      "Puddle | the scout",
+      "Pumpkin | the scout",
+      "Ramen | the scout",
+      "Sardine | the scout",
+      "Sir Pounce | the scout",
+      "Sprout | the scout",
+      "Static | the scout",
+      "Tangerine | the scout",
+      "Toffee | the scout",
+      "Tofu | the scout",
+      "Truffle | the scout",
+      "Tumble | the scout",
+      "Turnip | the scout",
+      "Waffles | the scout",
+      "Wasabi | the scout",
+      "Wiggle | the scout",
+      "Ziggy | the scout",
+      "Zucchini | the scout"
+     ],
+     "fed 3": [
+      "Anchovy | the scout",
+      "Baron von Fluff | the scout",
+      "Bean | the scout",
+      "Beignet | the scout",
+      "Biscuit | the scout",
+      "Bramble | the scout",
+      "Bumble | the scout",
+      "Butterscotch | the scout",
+      "Captain Barnacle | the scout",
+      "Churro | the scout",
+      "Clementine | the scout",
+      "Cocoa | the scout",
+      "Comet | the scout",
+      "Crumpet | the scout",
+      "Cupcake | the scout",
+      "Custard | the scout",
+      "Doppler | the scout",
+      "Duchess | the scout",
+      "Dumpling | the scout",
+      "Ember | the scout",
+      "Fennel | the scout",
+      "Fig | the scout",
+      "Gadget | the scout",
+      "Gnocchi | the scout",
+      "Juniper | the scout",
+      "Lord Lantern | the scout",
+      "Maple | the scout",
+      "Marmalade | the scout",
+      "Meatball | the scout",
+      "Miso | the scout",
+      "Mochi | the scout",
+      "Nimbus | the scout",
+      "Noodle | the scout",
+      "Olive | the scout",
+      "Paprika | the scout",
+      "Parsnip | the scout",
+      "Peaches | the scout",
+      "Peanut | the scout",
+      "Pebble | the scout",
+      "Pepper | the scout",
+      "Petunia | the scout",
+      "Pickles | the scout",
+      "Pip | the scout",
+      "Popcorn | the scout",
+      "Pretzel | the scout",
+      "Professor Whiskers | the scout",
+      "Puddle | the scout",
+      "Pumpkin | the scout",
+      "Ramen | the scout",
+      "Sardine | the scout",
+      "Sir Pounce | the scout",
+      "Sprout | the scout",
+      "Static | the scout",
+      "Tangerine | the scout",
+      "Toffee | the scout",
+      "Tofu | the scout",
+      "Truffle | the scout",
+      "Tumble | the scout",
+      "Turnip | the scout",
+      "Waffles | the scout",
+      "Wasabi | the scout",
+      "Wiggle | the scout",
+      "Ziggy | the scout",
+      "Zucchini | the scout"
+     ],
+     "fed 4": [
+      "Anchovy | the scout",
+      "Baron von Fluff | the scout",
+      "Bean | the scout",
+      "Beignet | the scout",
+      "Biscuit | the scout",
+      "Bramble | the scout",
+      "Bumble | the scout",
+      "Butterscotch | the scout",
+      "Captain Barnacle | the scout",
+      "Churro | the scout",
+      "Clementine | the scout",
+      "Cocoa | the scout",
+      "Comet | the scout",
+      "Crumpet | the scout",
+      "Cupcake | the scout",
+      "Custard | the scout",
+      "Doppler | the scout",
+      "Duchess | the scout",
+      "Dumpling | the scout",
+      "Ember | the scout",
+      "Fennel | the scout",
+      "Fig | the scout",
+      "Gadget | the scout",
+      "Gnocchi | the scout",
+      "Juniper | the scout",
+      "Lord Lantern | the scout",
+      "Maple | the scout",
+      "Marmalade | the scout",
+      "Meatball | the scout",
+      "Miso | the scout",
+      "Mochi | the scout",
+      "Nimbus | the scout",
+      "Noodle | the scout",
+      "Olive | the scout",
+      "Paprika | the scout",
+      "Parsnip | the scout",
+      "Peaches | the scout",
+      "Peanut | the scout",
+      "Pebble | the scout",
+      "Pepper | the scout",
+      "Petunia | the scout",
+      "Pickles | the scout",
+      "Pip | the scout",
+      "Popcorn | the scout",
+      "Pretzel | the scout",
+      "Professor Whiskers | the scout",
+      "Puddle | the scout",
+      "Pumpkin | the scout",
+      "Ramen | the scout",
+      "Sardine | the scout",
+      "Sir Pounce | the scout",
+      "Sprout | the scout",
+      "Static | the scout",
+      "Tangerine | the scout",
+      "Toffee | the scout",
+      "Tofu | the scout",
+      "Truffle | the scout",
+      "Tumble | the scout",
+      "Turnip | the scout",
+      "Waffles | the scout",
+      "Wasabi | the scout",
+      "Wiggle | the scout",
+      "Ziggy | the scout",
+      "Zucchini | the scout"
+     ],
+     "fed 5": [
+      "Anchovy | the scout",
+      "Baron von Fluff | the scout",
+      "Bean | the scout",
+      "Beignet | the scout",
+      "Biscuit | the scout",
+      "Bramble | the scout",
+      "Bumble | the scout",
+      "Butterscotch | the scout",
+      "Captain Barnacle | the scout",
+      "Churro | the scout",
+      "Clementine | the scout",
+      "Cocoa | the scout",
+      "Comet | the scout",
+      "Crumpet | the scout",
+      "Cupcake | the scout",
+      "Custard | the scout",
+      "Doppler | the scout",
+      "Duchess | the scout",
+      "Dumpling | the scout",
+      "Ember | the scout",
+      "Fennel | the scout",
+      "Fig | the scout",
+      "Gadget | the scout",
+      "Gnocchi | the scout",
+      "Juniper | the scout",
+      "Lord Lantern | the scout",
+      "Maple | the scout",
+      "Marmalade | the scout",
+      "Meatball | the scout",
+      "Miso | the scout",
+      "Mochi | the scout",
+      "Nimbus | the scout",
+      "Noodle | the scout",
+      "Olive | the scout",
+      "Paprika | the scout",
+      "Parsnip | the scout",
+      "Peaches | the scout",
+      "Peanut | the scout",
+      "Pebble | the scout",
+      "Pepper | the scout",
+      "Petunia | the scout",
+      "Pickles | the scout",
+      "Pip | the scout",
+      "Popcorn | the scout",
+      "Pretzel | the scout",
+      "Professor Whiskers | the scout",
+      "Puddle | the scout",
+      "Pumpkin | the scout",
+      "Ramen | the scout",
+      "Sardine | the scout",
+      "Sir Pounce | the scout",
+      "Sprout | the scout",
+      "Static | the scout",
+      "Tangerine | the scout",
+      "Toffee | the scout",
+      "Tofu | the scout",
+      "Truffle | the scout",
+      "Tumble | the scout",
+      "Turnip | the scout",
+      "Waffles | the scout",
+      "Wasabi | the scout",
+      "Wiggle | the scout",
+      "Ziggy | the scout",
+      "Zucchini | the scout"
+     ],
+     "fed 6": [
+      "Anchovy | the ranger",
+      "Baron von Fluff | the ranger",
+      "Bean | the ranger",
+      "Beignet | the ranger",
+      "Biscuit | the ranger",
+      "Bramble | the ranger",
+      "Bumble | the ranger",
+      "Butterscotch | the ranger",
+      "Captain Barnacle | the ranger",
+      "Churro | the ranger",
+      "Clementine | the ranger",
+      "Cocoa | the ranger",
+      "Comet | the ranger",
+      "Crumpet | the ranger",
+      "Cupcake | the ranger",
+      "Custard | the ranger",
+      "Doppler | the ranger",
+      "Duchess | the ranger",
+      "Dumpling | the ranger",
+      "Ember | the ranger",
+      "Fennel | the ranger",
+      "Fig | the ranger",
+      "Gadget | the ranger",
+      "Gnocchi | the ranger",
+      "Juniper | the ranger",
+      "Lord Lantern | the ranger",
+      "Maple | the ranger",
+      "Marmalade | the ranger",
+      "Meatball | the ranger",
+      "Miso | the ranger",
+      "Mochi | the ranger",
+      "Nimbus | the ranger",
+      "Noodle | the ranger",
+      "Olive | the ranger",
+      "Paprika | the ranger",
+      "Parsnip | the ranger",
+      "Peaches | the ranger",
+      "Peanut | the ranger",
+      "Pebble | the ranger",
+      "Pepper | the ranger",
+      "Petunia | the ranger",
+      "Pickles | the ranger",
+      "Pip | the ranger",
+      "Popcorn | the ranger",
+      "Pretzel | the ranger",
+      "Professor Whiskers | the ranger",
+      "Puddle | the ranger",
+      "Pumpkin | the ranger",
+      "Ramen | the ranger",
+      "Sardine | the ranger",
+      "Sir Pounce | the ranger",
+      "Sprout | the ranger",
+      "Static | the ranger",
+      "Tangerine | the ranger",
+      "Toffee | the ranger",
+      "Tofu | the ranger",
+      "Truffle | the ranger",
+      "Tumble | the ranger",
+      "Turnip | the ranger",
+      "Waffles | the ranger",
+      "Wasabi | the ranger",
+      "Wiggle | the ranger",
+      "Ziggy | the ranger",
+      "Zucchini | the ranger"
+     ]
+    },
+    "banner": {
+     "woods": {
+      "own": "Forest Crew",
+      "withAllies": "Forest Crew & River Crew · allies"
+     },
+     "river": {
+      "own": "River Crew",
+      "withAllies": "River Crew & Moor Crew · allies"
+     },
+     "moor": {
+      "own": "Moor Crew",
+      "withAllies": "Moor Crew & Pines Crew · allies"
+     },
+     "pines": {
+      "own": "Pines Crew",
+      "withAllies": "Pines Crew & Gorge Crew · allies"
+     },
+     "gorge": {
+      "own": "Gorge Crew",
+      "withAllies": "Gorge Crew & Forest Crew · allies"
+     },
+     "beforeAPick": "Buttercup Crew",
+     "siblingsInOneGroup": ""
+    },
+    "leadTamed": [
+     "Anchovy | the wise cat",
+     "Baron von Fluff | the ranger",
+     "Bean | the ranger",
+     "Beignet | the ranger",
+     "Biscuit | the ranger",
+     "Bramble | the ranger",
+     "Bumble | the ranger",
+     "Butterscotch | the ranger",
+     "Captain Barnacle | the wise cat",
+     "Churro | the ranger",
+     "Clementine | the ranger",
+     "Cocoa | the ranger",
+     "Comet | the ranger",
+     "Crumpet | the wise cat",
+     "Cupcake | the ranger",
+     "Custard | the ranger",
+     "Doppler | the ranger",
+     "Duchess | the ranger",
+     "Dumpling | the ranger",
+     "Ember | the ranger",
+     "Fennel | the ranger",
+     "Fig | the ranger",
+     "Gadget | the ranger",
+     "Gnocchi | the ranger",
+     "Juniper | the ranger",
+     "Lord Lantern | the ranger",
+     "Maple | the ranger",
+     "Marmalade | the ranger",
+     "Meatball | the wise cat",
+     "Miso | the ranger",
+     "Mochi | the ranger",
+     "Nimbus | the ranger",
+     "Noodle | the ranger",
+     "Olive | the wise cat",
+     "Paprika | the ranger",
+     "Parsnip | the ranger",
+     "Peaches | the ranger",
+     "Peanut | the ranger",
+     "Pebble | the ranger",
+     "Pepper | the ranger",
+     "Petunia | the ranger",
+     "Pickles | the ranger",
+     "Pip | the ranger",
+     "Popcorn | the ranger",
+     "Pretzel | the ranger",
+     "Professor Whiskers | the ranger",
+     "Puddle | the ranger",
+     "Pumpkin | the ranger",
+     "Ramen | the ranger",
+     "Sardine | the wise cat",
+     "Sir Pounce | the ranger",
+     "Sprout | the ranger",
+     "Static | the ranger",
+     "Tangerine | the wise cat",
+     "Toffee | the ranger",
+     "Tofu | the ranger",
+     "Truffle | the ranger",
+     "Tumble | the ranger",
+     "Turnip | the ranger",
+     "Waffles | the wise cat",
+     "Wasabi | the ranger",
+     "Wiggle | the ranger",
+     "Ziggy | the ranger",
+     "Zucchini | the ranger"
+    ],
+    "heldRoles": {
+     "medicine": [
+      "Noodle | the ranger",
+      "Pickles | the doc",
+      "Pumpkin | the ranger"
+     ],
+     "deputy": [
+      "Noodle | the ranger",
+      "Pickles | the ranger",
+      "Pumpkin | the ranger"
+     ],
+     "bothOnOneCat": [
+      "Noodle | the ranger",
+      "Pickles | the ranger",
+      "Pumpkin | the doc"
+     ],
+     "oneEach": [
+      "Noodle | the ranger",
+      "Pickles | the doc",
+      "Pumpkin | the ranger"
+     ]
+    },
+    "wholeTab": [
+     "Forest Crew & Moor Crew · allies",
+     "Shared with Robin",
+     "🐾",
+     "Swap accessories 🔄",
+     "Make a swap",
+     "Unlock some accessories to trade 🎩",
+     "Swaps are forever — no take-backs!",
+     "Marmalade",
+     "the doc",
+     "mainecoon",
+     "[aria-label] Marmalade's trust",
+     "6 of 6 feeds · tamed ✅",
+     "you fed 6 · Robin fed 0",
+     "lives in your den 🏠",
+     "found by you",
+     "Dress Marmalade",
+     "[aria-label] Dress Marmalade",
+     "nothing",
+     "Bell Collar",
+     "War Paint",
+     "Noodle",
+     "the scout",
+     "tabby",
+     "[aria-label] Noodle's trust",
+     "5 of 6 feeds",
+     "You already knew Noodle ♥",
+     "you fed 3 · Robin fed 0",
+     "in The Woods",
+     "found by you",
+     "Dress Noodle",
+     "[aria-label] Dress Noodle",
+     "nothing",
+     "Bell Collar",
+     "War Paint",
+     "Pumpkin",
+     "the scout",
+     "siamese",
+     "[aria-label] Pumpkin's trust",
+     "2 of 6 feeds",
+     "you fed 0 · Robin fed 2",
+     "in City Park",
+     "found by Robin",
+     "Bramble",
+     "the scout",
+     "persian",
+     "[aria-label] Bramble's trust",
+     "1 of 6 feeds",
+     "you fed 1 · Robin fed 0",
+     "in Peopleville",
+     "found by you",
+     "Dress Bramble",
+     "[aria-label] Dress Bramble",
+     "nothing",
+     "Bell Collar",
+     "War Paint",
+     "Pickles",
+     "the kitten",
+     "tabby",
+     "[aria-label] Pickles's trust",
+     "1 of 6 feeds",
+     "you fed 1 · Robin fed 0",
+     "in Peopleville",
+     "found by you",
+     "Dress Pickles",
+     "[aria-label] Dress Pickles",
+     "nothing",
+     "Bell Collar",
+     "War Paint"
+    ]
+   },
+   "fight": {
+    "sheetReading": [
+     "[aria-label] You: 1 of 2",
+     "You",
+     "[aria-label] It: 0 of 2",
+     "It",
+     "⬇️",
+     "It crouches low…",
+     "Pounce",
+     "1",
+     "Swipe",
+     "2",
+     "Dodge",
+     "3",
+     "Crouch → Dodge · Paw up → Pounce · Backs up → Swipe"
+    ],
+    "sheetWithEveryMove": [
+     "[aria-label] You: 0 of 2",
+     "You",
+     "[aria-label] It: 1 of 2",
+     "It",
+     "It got that one!",
+     "🐾",
+     "Swat",
+     "Swat",
+     "4",
+     "↩️",
+     "Leap",
+     "Leap",
+     "5",
+     "⬇️",
+     "Pin",
+     "Pin",
+     "6",
+     "✨",
+     "Tumble",
+     "Tumble",
+     "7",
+     "Pounce",
+     "1",
+     "Swipe",
+     "2",
+     "Dodge",
+     "3",
+     "Crouch → Dodge · Paw up → Pounce · Backs up → Swipe · 🐾 → Swat · ↩️ → Leap · ⬇️ → Pin · any → Tumble"
+    ],
+    "movesToLearn": [
+     "Fighting moves 🐾",
+     "Win fights to learn moves. Two can be learned early with paw points.",
+     "Swat",
+     "Use it when they raise a paw.",
+     "Win 1 more fight to learn it",
+     "Learn now — 300 🐾",
+     "Leap",
+     "Use it when they back up.",
+     "Win 4 more fights to learn it",
+     "Learn now — 600 🐾",
+     "Pin",
+     "Use it when they crouch.",
+     "Win 8 more fights to learn it",
+     "Tumble",
+     "Use it on any move.",
+     "Win 18 more fights to learn it"
+    ],
+    "movesLearned": [
+     "Fighting moves 🐾",
+     "Win fights to learn moves. Two can be learned early with paw points.",
+     "Swat",
+     "Use it when they raise a paw.",
+     "✓",
+     "Leap",
+     "Use it when they back up.",
+     "✓",
+     "Pin",
+     "Use it when they crouch.",
+     "✓",
+     "Tumble",
+     "Use it on any move.",
+     "✓"
+    ]
+   },
+   "map": {
+    "firstDay": [
+     "[aria-label] Territory map",
+     "Peopleville · today’s walk",
+     "🏠",
+     "Peopleville",
+     "today’s walk",
+     "The Woods · opens after 2 walks in Peopleville · 0/2 so far",
+     "🌳",
+     "🔒 The Woods",
+     "opens after 2 walks in",
+     "Peopleville",
+     "0/2 so far",
+     "Forest Crew home base",
+     "The Moor · opens after 2 walks in The Woods · 0/2 so far",
+     "🌾",
+     "🔒 The Moor",
+     "opens after 2 walks in",
+     "The Woods",
+     "0/2 so far",
+     "Moor Crew home base",
+     "The River and Marshes · opens after 2 walks in The Woods · 0/2 so far",
+     "🌿",
+     "🔒 The River",
+     "and Marshes",
+     "opens after 2 walks in",
+     "The Woods",
+     "0/2 so far",
+     "River Crew home base",
+     "The Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+     "🌲",
+     "🔒 The Pines",
+     "and Swamp",
+     "opens after 2 walks in",
+     "The River and Marshes",
+     "0/2 so far",
+     "Pines Crew home base",
+     "The Gorge · opens after 2 walks in The Moor · 0/2 so far",
+     "⛰️",
+     "🔒 The Gorge",
+     "opens after 2 walks in",
+     "The Moor",
+     "0/2 so far",
+     "Gorge Crew home base",
+     "The Still Island, in the Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+     "The Still Island",
+     "in the Pines and Swamp"
+    ],
+    "everythingOpenHomeAndAlly": [
+     "[aria-label] Territory map",
+     "Peopleville · tap to walk here",
+     "🏠",
+     "Peopleville",
+     "tap to walk here",
+     "The Woods · today’s walk",
+     "🌳",
+     "The Woods",
+     "today’s walk",
+     "Forest Crew home base",
+     "The Moor · tap to walk here",
+     "🌾",
+     "The Moor",
+     "tap to walk here",
+     "Moor Crew home base",
+     "The River and Marshes · tap to walk here",
+     "🌿",
+     "The River and",
+     "Marshes",
+     "tap to walk here",
+     "River Crew home base",
+     "The Pines and Swamp · tap to walk here",
+     "🌲",
+     "The Pines and",
+     "Swamp",
+     "tap to walk here",
+     "Pines Crew home base",
+     "The Gorge · tap to walk here",
+     "⛰️",
+     "The Gorge",
+     "tap to walk here",
+     "Gorge Crew home base",
+     "The Still Island, in the Pines and Swamp · tap to walk here",
+     "The Still Island",
+     "in the Pines and Swamp"
+    ],
+    "campMarks": {
+     "woods": [
+      "Forest Crew home base",
+      "Moor Crew home base",
+      "River Crew home base",
+      "Pines Crew home base",
+      "Gorge Crew home base"
+     ],
+     "river": [
+      "Forest Crew home base",
+      "Moor Crew home base",
+      "River Crew home base",
+      "Pines Crew home base",
+      "Gorge Crew home base"
+     ],
+     "moor": [
+      "Forest Crew home base",
+      "Moor Crew home base",
+      "River Crew home base",
+      "Pines Crew home base",
+      "Gorge Crew home base"
+     ],
+     "pines": [
+      "Forest Crew home base",
+      "Moor Crew home base",
+      "River Crew home base",
+      "Pines Crew home base",
+      "Gorge Crew home base"
+     ],
+     "gorge": [
+      "Forest Crew home base",
+      "Moor Crew home base",
+      "River Crew home base",
+      "Pines Crew home base",
+      "Gorge Crew home base"
+     ]
+    }
+   },
+   "places": {
+    "firstDay": {
+     "today": "Peopleville",
+     "places": [
+      "Peopleville",
+      "City Park · opens after 2 walks in Peopleville · 0/2 so far",
+      "Seaside · opens after 2 walks in City Park · 0/2 so far",
+      "The Old Docks · opens after 2 walks in Seaside · 0/2 so far",
+      "The Woods · opens after 2 walks in Peopleville · 0/2 so far",
+      "The River and Marshes · opens after 2 walks in The Woods · 0/2 so far",
+      "The Moor · opens after 2 walks in The Woods · 0/2 so far",
+      "The Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+      "The Gorge · opens after 2 walks in The Moor · 0/2 so far"
+     ],
+     "sheet": [
+      "Time to pick a home!",
+      "Choose your crew ›",
+      "[aria-label] Territory map",
+      "Peopleville · today’s walk",
+      "🏠",
+      "Peopleville",
+      "today’s walk",
+      "The Woods · opens after 2 walks in Peopleville · 0/2 so far",
+      "🌳",
+      "🔒 The Woods",
+      "opens after 2 walks in",
+      "Peopleville",
+      "0/2 so far",
+      "Forest Crew home base",
+      "The Moor · opens after 2 walks in The Woods · 0/2 so far",
+      "🌾",
+      "🔒 The Moor",
+      "opens after 2 walks in",
+      "The Woods",
+      "0/2 so far",
+      "Moor Crew home base",
+      "The River and Marshes · opens after 2 walks in The Woods · 0/2 so far",
+      "🌿",
+      "🔒 The River",
+      "and Marshes",
+      "opens after 2 walks in",
+      "The Woods",
+      "0/2 so far",
+      "River Crew home base",
+      "The Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+      "🌲",
+      "🔒 The Pines",
+      "and Swamp",
+      "opens after 2 walks in",
+      "The River and Marshes",
+      "0/2 so far",
+      "Pines Crew home base",
+      "The Gorge · opens after 2 walks in The Moor · 0/2 so far",
+      "⛰️",
+      "🔒 The Gorge",
+      "opens after 2 walks in",
+      "The Moor",
+      "0/2 so far",
+      "Gorge Crew home base",
+      "The Still Island, in the Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+      "The Still Island",
+      "in the Pines and Swamp",
+      "More places",
+      "City Park",
+      "opens after 2 walks in Peopleville · 0/2 so far",
+      "Seaside",
+      "opens after 2 walks in City Park · 0/2 so far",
+      "The Old Docks",
+      "opens after 2 walks in Seaside · 0/2 so far"
+     ]
+    },
+    "everythingOpenAtHome": {
+     "today": "The Woods · Forest Crew land",
+     "places": [
+      "Peopleville",
+      "City Park",
+      "Seaside",
+      "The Old Docks",
+      "The Woods",
+      "The River and Marshes",
+      "The Moor",
+      "The Pines and Swamp",
+      "The Gorge"
+     ],
+     "sheet": [
+      "You’re",
+      "Forest Crew",
+      "· Robin is Moor Crew",
+      "Change ›",
+      "[aria-label] Territory map",
+      "Peopleville · tap to walk here",
+      "🏠",
+      "Peopleville",
+      "tap to walk here",
+      "The Woods · today’s walk",
+      "🌳",
+      "The Woods",
+      "today’s walk",
+      "Forest Crew home base",
+      "The Moor · tap to walk here",
+      "🌾",
+      "The Moor",
+      "tap to walk here",
+      "Moor Crew home base",
+      "The River and Marshes · tap to walk here",
+      "🌿",
+      "The River and",
+      "Marshes",
+      "tap to walk here",
+      "River Crew home base",
+      "The Pines and Swamp · tap to walk here",
+      "🌲",
+      "The Pines and",
+      "Swamp",
+      "tap to walk here",
+      "Pines Crew home base",
+      "The Gorge · tap to walk here",
+      "⛰️",
+      "The Gorge",
+      "tap to walk here",
+      "Gorge Crew home base",
+      "The Still Island, in the Pines and Swamp · tap to walk here",
+      "The Still Island",
+      "in the Pines and Swamp",
+      "More places",
+      "City Park",
+      "tap to walk here",
+      "Seaside",
+      "tap to walk here",
+      "The Old Docks",
+      "tap to walk here"
+     ]
+    },
+    "worn": [
+     "War Paint"
+    ]
+   }
+  }
+ },
+ "legacyEdition": {
+  "edition": {
+   "title": "Legacy Edition",
+   "page": "Whisker Walk 2: Legacy Edition",
+   "isClanEdition": false
+  },
+  "placeNames": {
+   "neighborhood": "Cozy Neighborhood",
+   "park": "City Park",
+   "seaside": "Seaside",
+   "docks": "The Old Docks",
+   "woods": "The Woods",
+   "river": "The River and Marshes",
+   "moor": "The Moor",
+   "pines": "The Pines and Swamp",
+   "gorge": "The Gorge"
+  },
+  "prizeNames": {
+   "warpaint": "War Paint"
+  },
+  "warPaintPrizeCard": [
+   "Visit 50!",
+   "Mittens got a War Paint. It's already on!"
+  ],
+  "ownGroupTitle": "",
+  "alliesName": "",
+  "homeWelcome": null,
+  "patrols": {
+   "neighborhood": "(no patrol)",
+   "park": "(no patrol)",
+   "seaside": "(no patrol)",
+   "docks": "(no patrol)",
+   "woods": "(no patrol)",
+   "river": "(no patrol)",
+   "moor": "(no patrol)",
+   "pines": "(no patrol)",
+   "gorge": "(no patrol)"
+  },
+  "atHome": false,
+  "momentIsDue": false,
+  "collar": null,
+  "opensAfter": {
+   "park": "opens after 2 walks in Cozy Neighborhood · 1/2 so far",
+   "seaside": "opens after 2 walks in City Park · 1/2 so far",
+   "docks": "opens after 2 walks in Seaside · 1/2 so far",
+   "woods": "opens after 2 walks in Cozy Neighborhood · 1/2 so far",
+   "river": "opens after 2 walks in The Woods · 1/2 so far",
+   "moor": "opens after 2 walks in The Woods · 1/2 so far",
+   "pines": "opens after 2 walks in The River and Marshes · 1/2 so far",
+   "gorge": "opens after 2 walks in The Moor · 1/2 so far"
+  },
+  "borderPostToTown": "E — Head to Cozy Neighborhood?",
+  "colonyTab": [
+   "Just you for now",
+   "Noodle",
+   "tabby",
+   "[aria-label] Noodle's trust",
+   "6 of 6 feeds · tamed ✅",
+   "you fed 6",
+   "lives in your den 🏠",
+   "found by you",
+   "Dress Noodle",
+   "[aria-label] Dress Noodle",
+   "nothing",
+   "Bell Collar",
+   "War Paint",
+   "Marmalade",
+   "mainecoon",
+   "[aria-label] Marmalade's trust",
+   "3 of 6 feeds",
+   "you fed 3",
+   "in Cozy Neighborhood",
+   "found by you",
+   "Dress Marmalade",
+   "[aria-label] Dress Marmalade",
+   "nothing",
+   "Bell Collar",
+   "War Paint",
+   "Pickles",
+   "tabby",
+   "[aria-label] Pickles's trust",
+   "1 of 6 feeds",
+   "you fed 1",
+   "in Cozy Neighborhood",
+   "found by you",
+   "Dress Pickles",
+   "[aria-label] Dress Pickles",
+   "nothing",
+   "Bell Collar",
+   "War Paint"
+  ],
+  "places": {
+   "today": "Cozy Neighborhood",
+   "places": [
+    "Cozy Neighborhood",
+    "City Park",
+    "Seaside",
+    "The Old Docks"
+   ],
+   "hasTerritoryMap": false,
+   "sheet": [
+    "Cozy Neighborhood",
+    "today’s walk",
+    "City Park",
+    "tap to walk here",
+    "Seaside",
+    "tap to walk here",
+    "The Old Docks",
+    "tap to walk here"
+   ]
+  },
+  "mapModelCamps": [
+   "Cozy Neighborhood: no camp",
+   "The Woods: no camp",
+   "The Moor: no camp",
+   "The River and Marshes: no camp",
+   "The Pines and Swamp: no camp",
+   "The Gorge: no camp"
+  ],
+  "journalFooter": [
+   "🥇 Golden mice: 0/12"
+  ]
+ },
+ "phrases": {
+  "group.name": "Sunbeam Crew",
+  "tag.rankOfGroup": "first cat of Forest Crew",
+  "outside.the": " the roamer",
+  "outside.crossNow": " a loner now!",
+  "edition.title.canon": "Crew Edition",
+  "edition.title.legacy": "Legacy Edition",
+  "edition.game": "Whisker Walk 2",
+  "edition.note": "Switching renames the places and shows or hides the crew territories. Nothing is lost.",
+  "prize.warpaint.canon": "War Paint",
+  "prize.warpaint.legacy": "War Paint",
+  "pick.heading": "Pick your home crew",
+  "pick.headingMine": "Your crew: Forest Crew",
+  "pick.campSoon": "home base coming soon",
+  "pick.territorySoon": "territory coming soon",
+  "pick.both": "You're both Forest Crew!",
+  "pick.lineBoth": " — you’re both Forest Crew!",
+  "pick.momentTitle": "Time to pick a home!",
+  "pick.momentAsk": "Which crew will be your home?",
+  "pick.changeTitle": "Change your crew?",
+  "pick.changeAsk": "Tap a crew to make it your home.",
+  "pick.keep": "Keep my crew",
+  "pick.choose": "Choose your crew ›",
+  "home.welcome": "Home to Forest Crew's land 🏡",
+  "colony.allies": "allies",
+  "map.camp": "Forest Crew home base",
+  "place.groupLand": "Forest Crew land",
+  "star.pick": "",
+  "patrol.prompt": "E — walk the bounds with Conker",
+  "patrol.start": "Conker walks the bounds with you 🐾",
+  "patrol.endGood": "Conker heads back to home base. Good walk!",
+  "patrol.endShort": "Conker heads back to home base. A longer walk next time!",
+  "patrol.award": "a walk round the bounds with Conker",
+  "house.arrival": "Marmalade the house cat has wandered in from Peopleville 🔔",
+  "house.joined": "Marmalade left Peopleville to join you! She'll be waiting in the den 🏠",
+  "border.chasedBack": "Cotton chased you back over their border! 🐾",
+  "cross.leading": "Robin is leading the way to the Moor! 🧭",
+  "mark.promptScratch": "E — scratch your mark into it",
+  "mark.promptScent": "E — scent over their mark",
+  "mark.buddyToo": "Conker marks it too 🐾",
+  "mark.scentedOver": "Moor Crew scented over your mark! 🐾",
+  "mark.scentedOverRetake": "Moor Crew scented over your mark! Scratch it again to take it back. 🐾",
+  "fight.challenge": "Cotton of Moor Crew is on your land!",
+  "fight.homeAsk": "is on your land!",
+  "fight.homeOff": "Back off",
+  "fight.borderAsk": "blocks your path!",
+  "fight.borderOff": "Run",
+  "fight.homeAward": "You chased off Cotton! 🛡️",
+  "fight.homeWon": "Cotton ran back to Moor Crew's land! 🏃",
+  "fight.homeLostScar": "Cotton shook it off and walked on. That scratch will heal in a few walks!",
+  "fight.homeLost": "Cotton shook it off and walked on. Try again soon!",
+  "fight.homeTogether": "You and Robin chased Cotton off together! 🏃",
+  "fight.borderAward": "You faced down Cotton! 🛡️",
+  "fight.borderWon": "Cotton lets you pass. 🐾",
+  "fight.borderLostScar": "Cotton won this time. That scratch will heal in a few walks!",
+  "fight.borderLost": "Cotton won this time. Try again soon!",
+  "fight.alreadyFacing": "Robin is already facing Cotton!",
+  "journal.chasedOff": "Outsiders chased away",
+  "move.rearUpSwat.name": "Swat",
+  "move.rearUpSwat.short": "Swat",
+  "move.leapScratch.name": "Leap",
+  "move.leapScratch.short": "Leap",
+  "move.pin.name": "Pin",
+  "move.pin.short": "Pin",
+  "move.rollingTumble.name": "Tumble",
+  "move.rollingTumble.short": "Tumble",
+  "landmark.woods.oak": "the grandfather oak",
+  "landmark.woods.oakLookout": "grandfather oak lookout",
+  "landmark.woods.oakSquirrels": "two squirrels racing up the grandfather oak",
+  "landmark.river.warmRocks": "heron rocks",
+  "landmark.river.warmPebble": "a warm pebble on the low rock",
+  "landmark.island.ring": "the stone ring under the old ash",
+  "landmark.island.stoneFind": "a bright beetle wing on a flat stone"
+ }
+}

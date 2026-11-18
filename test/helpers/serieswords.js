@@ -10,6 +10,12 @@ import { expect } from 'vitest';
 //   UPDATE_SERIES_SNAPSHOT=1 npx vitest run test/serieswords
 export const UPDATING = process.env.UPDATE_SERIES_SNAPSHOT === '1';
 
+// The re-record switch of the everyday ('off') set's fixtures, and of the
+// fixture for the lines added after the first snapshot. Those words are the
+// older playtester's picks: re-record when she or the owner changes one.
+//   UPDATE_OFF_SNAPSHOT=1 npx vitest run test/serieswords
+export const UPDATING_OFF = process.env.UPDATE_OFF_SNAPSHOT === '1';
+
 // Code-unit order, the same on every machine (never localeCompare).
 export const byCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 export const sorted = (list) => [...list].sort(byCode);
@@ -92,9 +98,14 @@ export function readFixture(name) {
 // Compares `snapshot` with the committed fixture, or writes it when the
 // re-record switch is set. A JSON round trip first, so what is compared is
 // exactly what a fixture can hold.
-export function checkAgainstFixture(name, snapshot) {
+//
+// `updating` is the re-record switch for THIS fixture. It is the family's
+// switch unless the caller names another: the everyday set's fixtures
+// (series-words-off*.json) have their own, UPDATING_OFF, so recording one set
+// never touches the other's files.
+export function checkAgainstFixture(name, snapshot, updating = UPDATING) {
   const received = JSON.parse(JSON.stringify(snapshot));
-  if (UPDATING) {
+  if (updating) {
     writeFileSync(fixtureUrl(name), `${JSON.stringify(received, null, 1)}\n`);
     return;
   }
