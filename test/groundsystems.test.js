@@ -1407,6 +1407,7 @@ describe('the whole branch stands on the ground', () => {
     'goldmice.js': [['nose', 'tail'], 'golden mouse parts; the mouse group sits at worldY'],
     'tippables.js': [['pot', 'plant', 'bloom', 'canBody', 'spout', 'bin', 'lid'], 'tippable parts; the group sits at gy'],
     'yarddog.js': [['head', 'tail', 'leg'], 'dog parts; the dog group is placed on ground.y'],
+    'farmmodels.js': [['head', 'leg', 'tail', 'mouth'], 'parts of a farm animal; its group is placed on ground.y (farmanimals.js)'],
     'straycats.js': [['glow'], 'the legendary glow, a child decal under the stray group'],
     'render/playermarks.js': [['d'], 'flatDisc: a disc inside a mark group whose origin is placed on ground.y'],
     'knockables.js': [['group'], 'liftFor measures a pose with the group at the origin, before it joins the scene'],

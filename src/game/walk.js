@@ -1307,6 +1307,7 @@ export function createWalkLifecycle({
     let farmToasted = null;
     const farm = areaId !== 'farm' ? NO_FARM : createFarmAnimals(scene, areaData, {
       reducedMotion,
+      ground,
       isFree: (x, z) => isWalkableAt(areaData, x, z),
       ducks: () => critters.list.filter((c) => c.type === 'duck').map((c) => c.group.position),
       onEvent: (e) => {

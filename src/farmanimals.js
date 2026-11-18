@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { createFarmSim, dismountSpot, FARM_ANIMAL_TYPES, COW } from './farmsim.js';
 import { buildCow, buildGoat, buildSheepdog, buildHen, chickGeometry, ducklingGeometry, farmAnimalMaterial, HEN_COLORS } from './farmmodels.js';
 import { withLocalUuids } from './world/localuuids.js';
+import { FLAT_GROUND } from './ground.js';
 
 export { FARM_ANIMAL_TYPES };
 
@@ -51,7 +52,8 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 //   opts.isFree(x, z)    whether the cat may stand there (for the goat's nudge)
 //   opts.ducks()         the pond's ducks, [{ x, z }] (critters.js's), for the ducklings to follow
 //   opts.seed            the animals' own dice
-export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent = () => {}, isFree = () => true, ducks = () => [], seed } = {}) {
+//   opts.ground          the walk's ground (src/ground.js); the Farm's is flat
+export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent = () => {}, isFree = () => true, ducks = () => [], seed, ground = FLAT_GROUND } = {}) {
   const sim = createFarmSim(area, seed === undefined ? {} : { seed });
   const views = [];
   const material = withLocalUuids('farm-animal-material', () => farmAnimalMaterial());
@@ -60,7 +62,7 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
   withLocalUuids('farm-animals', () => {
     const add = (a, built) => {
       built.group.name = a.id;
-      built.group.position.set(a.x, 0, a.z);
+      built.group.position.set(a.x, ground.y(a.x, a.z), a.z);
       built.group.rotation.y = a.yaw;
       const size = (a.scale ?? 1) * (SIZE[a.type] ?? 1);
       if (size !== 1) built.group.scale.setScalar(size);
@@ -98,6 +100,7 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     const { a, group, parts, k } = v;
     group.position.x = a.x;
     group.position.z = a.z;
+    if (!ground.flat) group.position.y = ground.y(a.x, a.z);
     group.rotation.y = a.yaw;
     const still = reducedMotion;
     const stride = a.moving ? 1 : 0;
@@ -129,11 +132,12 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     } else if (a.type === 'sheepdog') {
       const lying = a.mode === 'lie' ? 1 : 0;
       k.lie = ease(k.lie ?? lying, lying, dt * 4);
-      parts.body.position.y = -0.2 * k.lie;
+      parts.body.position.y = -0.3 * k.lie; // belly on the grass
       const swing = Math.sin(a.walked * 10) * 0.55 * k.stride;
-      parts.legs[0].rotation.x = swing - 1.35 * k.lie; parts.legs[1].rotation.x = -swing - 1.35 * k.lie; // front paws out ahead
-      parts.legs[2].rotation.x = -swing - 1.25 * k.lie; parts.legs[3].rotation.x = swing - 1.25 * k.lie; // hind legs tucked forward
+      parts.legs[0].rotation.x = swing - 1.5 * k.lie; parts.legs[1].rotation.x = -swing - 1.5 * k.lie; // front paws out ahead
+      parts.legs[2].rotation.x = -swing - 1.45 * k.lie; parts.legs[3].rotation.x = swing - 1.45 * k.lie; // hind legs tucked forward
       parts.head.rotation.x = 0.25 * k.lie * (a.wag ? 0 : 1); // chin down when dozing, up for a visitor
+      parts.tail.rotation.x = -0.65 * k.lie; // out on the grass behind him
       parts.tail.rotation.z = a.wag ? Math.sin(t * (still ? 5 : 13)) * (still ? 0.25 : 0.6) : 0;
     } else if (a.type === 'hen') {
       parts.body.position.y = a.y;
