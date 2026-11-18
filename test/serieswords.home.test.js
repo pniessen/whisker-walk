@@ -157,22 +157,24 @@ const { UPDATING_OFF } = await import('./helpers/serieswords.js');
 const OFF_FIXTURE = 'series-words-off-home.json';
 // The whole home screen and every sheet is recorded here, not only the
 // segments with a series word: there is no list of everyday words to pick by.
+// All of it but the build stamp in Settings (the commit and the day: not words).
+const everything = (text) => !/^Build /.test(text);
 const OFF_IGNORE = [
   'Dusk walks brighten — atmospheric instead of squint-inducing.', // a skill's own line: the evening, not a group
 ];
 describe('everyday words: the home screen and its sheets', () => {
   it('shows exactly the recorded everyday words', () => {
-    checkAgainstFixture(OFF_FIXTURE, withOffWords(() => snapshot(() => true)), UPDATING_OFF);
+    checkAgainstFixture(OFF_FIXTURE, withOffWords(() => snapshot(everything)), UPDATING_OFF);
   });
 
   it('shows no word of the family\'s set, and plenty of the everyday ones', () => {
-    const snap = withOffWords(() => snapshot(() => true));
+    const snap = withOffWords(() => snapshot(everything));
     expect(bannedLeaks(snap, OFF_IGNORE)).toEqual([]);
     expect(offWordCount(snap)).toBeGreaterThan(10);
   });
 
   it('and the family\'s words are back afterwards', () => {
-    withOffWords(() => snapshot(() => true));
+    withOffWords(() => snapshot(everything));
     checkAgainstFixture(FIXTURE, snapshot());
   });
 });
