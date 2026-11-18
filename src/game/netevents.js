@@ -235,6 +235,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
         samples.play(ev.breed, { rate: 0.95 + Math.random() * 0.1, volume: vol });
       } else if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol, 1, voiceFor(ev.breed));
       s.critters.reactToMeow(pos);
+      s.farm?.reactToMeow(pos);
       // duet: a reply meow (V) within the next 3s, from us, harmonizes with this one
       if (dist <= 8) s.duetWindow = { withId: ev.id, until: nowSec() + 3 };
     } else if (ev.type === 'boop-request') {

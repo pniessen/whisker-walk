@@ -34,6 +34,7 @@ const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
 const { build: buildGorge } = await import('../src/world/gorge.js');
+const { build: buildFarm } = await import('../src/world/farm.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
@@ -422,6 +423,13 @@ const AREAS = [
   ['moor', buildMoor, 450, 380, 70000],
   ['pines', buildPines, 450, 380, 70000],
   ['gorge', buildGorge, 450, 380, 70000],
+  // Appletree Farm (2026-11-18), measured 243 / 176 / 53,419: the barn and the
+  // four small buildings are three vertex-coloured meshes each (walls, roof,
+  // window panes), the fences are one mesh, the wheat one (9,750 triangles,
+  // noCast), the vegetable rows one; 21 trees and a willow, 15 of the trees
+  // with an apple mesh (noCast); eight flower patches are 96 of the meshes.
+  // Ceilings at the usual headroom over that, well under the territories'.
+  ['farm', buildFarm, 280, 210, 62000],
 ];
 
 // ---------------------------------------------------------------------------
@@ -464,6 +472,7 @@ const MERGED_AREAS = [
   ['moor', buildMoor, 260, 205],
   ['pines', buildPines, 260, 205],
   ['gorge', buildGorge, 260, 205],
+  ['farm', buildFarm, 200, 135], // measured 176 / 119
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

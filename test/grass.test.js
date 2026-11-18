@@ -723,7 +723,8 @@ describe('ground tint under tufts', () => {
     // polish-sheen: the Park and Neighbourhood lawns' slow mottle
     expect(GROUND_TINTS.park).toBe(parkLawnTint);
     expect(GROUND_TINTS.neighborhood).toBe(neighborhoodLawnTint);
-    expect(Object.keys(GROUND_TINTS).sort()).toEqual(['moor', 'neighborhood', 'park', 'pines', 'river', 'woods']);
+    // ...and Appletree Farm's ground (mottle, wheat stubble, bed soil; test/farm.test.js)
+    expect(Object.keys(GROUND_TINTS).sort()).toEqual(['farm', 'moor', 'neighborhood', 'park', 'pines', 'river', 'woods']);
     expect(GRASS_STYLES.river.ground).toBe(0.9);
     expect(GRASS_STYLES.moor.ground).toBe(0.9);
     expect(GRASS_STYLES.woods.ground).toBe(0.8);
@@ -901,7 +902,8 @@ describe('lawn flowers (white and yellow tips)', () => {
         }
       }
       const flowers = white + yellow;
-      if (style === LAWN_STYLE) {
+      // the lawns, and the Farm's pasture (daisies and buttercups there too)
+      if (style === LAWN_STYLE || name === 'farm') {
         expect(flowers / grown).toBeGreaterThanOrEqual(0.02);
         expect(flowers / grown).toBeLessThanOrEqual(0.04);
         expect(white / flowers).toBeGreaterThanOrEqual(0.35);

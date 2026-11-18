@@ -28,6 +28,7 @@ const { buildCat } = await import('../src/cat/model.js');
 const { litMaterial } = await import('../src/render/materials.js');
 
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
+const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
@@ -67,6 +68,8 @@ const AREAS = [
   // two posts) is a new low prop on the sand and takes its own decal.
   ['seaside', buildSeaside, 27, false],
   ['den', buildDen, 20, true],
+  // Appletree Farm: its buildings, bales, trees and small props.
+  ['farm', buildFarm, 51, false],
 ];
 
 function buildArea(builder, isDen) {

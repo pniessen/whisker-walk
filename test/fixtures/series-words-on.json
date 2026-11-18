@@ -71,6 +71,7 @@
    "placeNames": {
     "neighborhood": "Twolegplace",
     "park": "City Park",
+    "farm": "Appletree Farm",
     "seaside": "Seaside",
     "docks": "The Old Docks",
     "woods": "The Woods",
@@ -3412,6 +3413,7 @@
    "landOfTodaysWalk": {
     "neighborhood": "",
     "park": "",
+    "farm": "",
     "seaside": "",
     "docks": "",
     "woods": "StormClan land",
@@ -3477,6 +3479,7 @@
    "wandererStays": {
     "neighborhood": "Marmalade will wait for you here in Twolegplace 🐾",
     "park": "Marmalade will wait for you here in City Park 🐾",
+    "farm": "Marmalade will wait for you here in Appletree Farm 🐾",
     "seaside": "Marmalade will wait for you here in Seaside 🐾",
     "docks": "Marmalade will wait for you here in The Old Docks 🐾",
     "woods": "Marmalade will wait for you here in The Woods 🐾",
@@ -3487,6 +3490,7 @@
    },
    "opensAfter": {
     "park": "opens after 2 walks in Twolegplace · 1/2 so far",
+    "farm": "opens after 2 walks in City Park · 1/2 so far",
     "seaside": "opens after 2 walks in City Park · 1/2 so far",
     "docks": "opens after 2 walks in Seaside · 1/2 so far",
     "woods": "opens after 2 walks in Twolegplace · 1/2 so far",
@@ -3498,6 +3502,7 @@
    "whyAPlaceIsShut": {
     "neighborhood": null,
     "park": "opens after 2 walks in Twolegplace · 0/2 so far",
+    "farm": "opens after 2 walks in City Park · 0/2 so far",
     "seaside": "opens after 2 walks in City Park · 0/2 so far",
     "docks": "opens after 2 walks in Seaside · 0/2 so far",
     "woods": "opens after 2 walks in Twolegplace · 0/2 so far",
@@ -5530,6 +5535,7 @@
      "places": [
       "Twolegplace",
       "City Park · opens after 2 walks in Twolegplace · 0/2 so far",
+      "Appletree Farm · opens after 2 walks in City Park · 0/2 so far",
       "Seaside · opens after 2 walks in City Park · 0/2 so far",
       "The Old Docks · opens after 2 walks in Seaside · 0/2 so far",
       "The Woods · opens after 2 walks in Twolegplace · 0/2 so far",
@@ -5589,6 +5595,8 @@
       "More places",
       "City Park",
       "opens after 2 walks in Twolegplace · 0/2 so far",
+      "Appletree Farm",
+      "opens after 2 walks in City Park · 0/2 so far",
       "Seaside",
       "opens after 2 walks in City Park · 0/2 so far",
       "The Old Docks",
@@ -5600,6 +5608,7 @@
      "places": [
       "Twolegplace",
       "City Park",
+      "Appletree Farm",
       "Seaside",
       "The Old Docks",
       "The Woods",
@@ -5651,6 +5660,8 @@
       "More places",
       "City Park",
       "tap to walk here",
+      "Appletree Farm",
+      "tap to walk here",
       "Seaside",
       "tap to walk here",
       "The Old Docks",
@@ -5672,6 +5683,7 @@
   "placeNames": {
    "neighborhood": "Cozy Neighborhood",
    "park": "City Park",
+   "farm": "Appletree Farm",
    "seaside": "Seaside",
    "docks": "The Old Docks",
    "woods": "The Woods",
@@ -5706,6 +5718,7 @@
   "collar": null,
   "opensAfter": {
    "park": "opens after 2 walks in Cozy Neighborhood · 1/2 so far",
+   "farm": "opens after 2 walks in City Park · 1/2 so far",
    "seaside": "opens after 2 walks in City Park · 1/2 so far",
    "docks": "opens after 2 walks in Seaside · 1/2 so far",
    "woods": "opens after 2 walks in Cozy Neighborhood · 1/2 so far",
@@ -5759,6 +5772,7 @@
    "places": [
     "Cozy Neighborhood",
     "City Park",
+    "Appletree Farm",
     "Seaside",
     "The Old Docks"
    ],
@@ -5767,6 +5781,8 @@
     "Cozy Neighborhood",
     "today’s walk",
     "City Park",
+    "tap to walk here",
+    "Appletree Farm",
     "tap to walk here",
     "Seaside",
     "tap to walk here",

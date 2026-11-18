@@ -43,6 +43,14 @@ export const CRITTER_INFO = [
   { id: 'rabbit', emoji: '🐇', name: 'Moor Rabbit', hint: 'Watch it bolt for its burrow!' },
   { id: 'frog', emoji: '🐸', name: 'Bog Frog', hint: 'Creep up softly, or it plops into the bog!' },
   { id: 'goat', emoji: '🐐', name: 'Mountain Goat', hint: 'It never lets you close — watch it leap along the rim!' },
+  // Appletree Farm's animals (src/farmsim.js). None can be chased or caught:
+  // each page is filled the first time the cat walks up and looks at one.
+  { id: 'cow', emoji: '🐄', name: 'Gentle Cow', hint: 'Look in the big field at the farm.' },
+  { id: 'farmgoat', emoji: '🐐', name: 'Cheeky Goat', hint: 'It plays on the rocks at the farm.' },
+  { id: 'hen', emoji: '🐔', name: 'Pecking Hen', hint: 'Look around the farmyard.' },
+  { id: 'chick', emoji: '🐤', name: 'Fluffy Chick', hint: 'Walk slowly up to a hen.' },
+  { id: 'sheepdog', emoji: '🐶', name: 'Farm Sheepdog', hint: 'He waits by his kennel at the farm.' },
+  { id: 'duckling', emoji: '🐥', name: 'Little Duckling', hint: 'Wade into the pond at the farm.' },
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.

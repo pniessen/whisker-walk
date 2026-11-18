@@ -51,7 +51,7 @@ import { fishSpots } from './fishjump.js';
 // and stones from `waterdress-<area>-<water id>`.
 // ---------------------------------------------------------------------------
 
-export const DRESSED_AREAS = Object.freeze(['woods', 'river', 'moor', 'pines', 'seaside', 'park', 'gorge']);
+export const DRESSED_AREAS = Object.freeze(['woods', 'river', 'moor', 'pines', 'seaside', 'park', 'gorge', 'farm']);
 
 // How far outside the area's walkable bounds a bank is still drawn. Past it
 // the edge is the far horizon (the lake's west shore, the river's far reach).
@@ -103,6 +103,8 @@ const BANK_COLORS = Object.freeze({
   gorge: { wet: 0x625440, damp: 0x8a7c5e },
   // The Park's lawn is a brighter, greener grass than the wild areas'.
   park: { wet: 0x5a5a30, damp: 0x5f8c42 },
+  // The Farm's duck pond: the Park's wet earth, for the same bright grass.
+  farm: { wet: 0x5a5a30, damp: 0x5f8c42 },
 });
 // A bog is already dark and sits in dark ground, so its ring is drawn a
 // little fainter (`alpha` scales the band's strength): a full-strength ring

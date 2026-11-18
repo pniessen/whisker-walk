@@ -245,6 +245,50 @@ const SETS = {
     keepSlots: [],
   },
 
+  // Appletree Farm (src/world/farm.js). The same counts as the other street
+  // areas, with two differences, both the design's: there is NO DOG YARD (the
+  // Farm's dog is a friend and never chases; it is built in a later step) and
+  // NO markable is `nearBorder`, because the Farm has no rival border.
+  farm: {
+    carryables: [
+      { id: 'farm-glove-1', kind: 'glove', x: 12.4, z: -8.4 },   // a work glove dropped by the tractor shed
+      { id: 'farm-rope-1', kind: 'rope', x: -8.4, z: -12.5 },    // a coil of rope by the barn's west wall
+      { id: 'farm-stick-1', kind: 'stick', x: 28.5, z: 26.4 },   // under an apple tree
+      { id: 'farm-ribbon-1', kind: 'ribbon', x: -20, z: -16.5 }, // caught in the grass by the goat paddock
+    ],
+    // Left on the bench by the farmhouse door, along its seat (top y 0.54): a
+    // milk pail at one end, a cup and a book at the other, the middle clear
+    // for the perched cat. The backrest is on the house side, so all three
+    // fall forward (+x) onto the grass.
+    knockables: [
+      { id: 'farm-bucket-1', kind: 'bucket', x: -16.05, z: 3.1, y: 0.54, fallTo: { x: -15.05, z: 3.0 } },
+      { id: 'farm-cup-1', kind: 'cup', x: -16.08, z: 4.0, y: 0.54, fallTo: { x: -15.1, z: 3.9 } },
+      { id: 'farm-book-1', kind: 'book', x: -15.95, z: 4.19, y: 0.54, fallTo: { x: -15.05, z: 4.45 } },
+    ],
+    markables: [
+      { id: 'farm-post-1', kind: 'post', x: 2.6, z: 45, nearBorder: false, mesh: false },   // the farm gate's east post
+      { id: 'farm-tree-1', kind: 'tree', x: 34.65, z: -14, nearBorder: false, mesh: false }, // the pasture's shade tree, west face
+      { id: 'farm-post-2', kind: 'post', x: 26, z: 9.4, nearBorder: false, mesh: false },   // the pasture gate's hinge post
+    ],
+    flaps: [
+      // The goat paddock's gate, across its gateway. The fences have no
+      // colliders, so the flap is the proper way in and never the only one.
+      { id: 'farm-flap-1', kind: 'flap', x: -23, z: -22.5, rotY: QUARTER, width: 1.0 },
+      // A hedge across the track down to the pond.
+      { id: 'farm-gap-1', kind: 'gap', x: -10, z: 31.5, rotY: QUARTER, width: 1.2 },
+    ],
+    rests: [
+      { id: 'farm-drink-1', kind: 'drink', x: -12.2, z: 15.4, mesh: true }, // a water bowl out past the kennel
+      { id: 'farm-eat-1', kind: 'eat', x: 11.6, z: 11.2, mesh: true },      // a dish by the milking shed door
+      { id: 'farm-nap-1', kind: 'nap', x: -7.5, z: -8.6, mesh: true },      // a cushion in the sun by the barn
+    ],
+    // The mouth of the goats' shelter, behind the hay bales by the barn, and
+    // under the bush at the orchard's corner (farm.js FARM_HIDES).
+    hides: [{ x: -36, z: -30.6 }, { x: 7.5, z: -9.0 }, { x: 6.5, z: 21.5 }],
+    dogYard: null,
+    keepSlots: [],
+  },
+
   // The Moor: only its hides for now, three of the rabbit warren's burrows
   // (src/world/moor.js's WARREN_BURROWS 0, 2 and 4), the holes a fleeing
   // rabbit dives into. The rest of a Moor prop set is deferred: nothing to

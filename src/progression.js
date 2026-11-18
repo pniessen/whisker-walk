@@ -57,7 +57,9 @@ const SAVE_VERSION = 4;
 // re-showing critters the player already knows. Purely additive: a save
 // written before v18 simply has no 'rat' key and sanitizeJournal defaults it
 // to 0, exactly as it does for every other unseen type.
-export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse', 'rat', 'rabbit', 'frog', 'goat'];
+export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse', 'rat', 'rabbit', 'frog', 'goat',
+  // Appletree Farm's animals (src/farmsim.js), appended so every older id keeps its place.
+  'cow', 'farmgoat', 'hen', 'chick', 'sheepdog', 'duckling'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -276,6 +278,13 @@ export const CATALOG = {
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },
+    // Appletree Farm (docs/superpowers/specs/2026-11-18-farm-design.md): the
+    // third street area (owner, 2026-11-18: Neighborhood, Park, Farm). It opens
+    // BESIDE the Seaside after two Park walks, so no existing save finds a gate
+    // closed. No `edition`: it is in both editions. The place cards follow this
+    // list's order, and the home line for the Park names both places a Park
+    // walk opens (nextthing.js, rule 7).
+    farm: { name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } },
     seaside: { name: 'Seaside', price: 100, requires: { area: 'park', walks: 2 } },
     // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
     // area has to be registered for the home-base picker: homebase.js renders
@@ -390,7 +399,8 @@ function defaultState() {
     // The Woods joins them for the same reason: the first Woods walk on a save
     // with no 'woods' key would pin state.walks.woods at NaN forever. So does
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0 },
+    // And the Farm: a save from before it loads with farm: 0.
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },
