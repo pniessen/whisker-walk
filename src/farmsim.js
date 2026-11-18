@@ -43,10 +43,11 @@ const CAT_RADIUS = 0.35;
 export const COW = Object.freeze({
   AMBLE: 0.55,        // m/s
   TURN: 0.8,          // rad/s
-  BACK_Y: 1.36,       // the top of a grown cow's back: where the cat sits
-  HALF_WIDTH: 0.36,
-  HALF_LENGTH: 0.95,
-  CLEAR: 0.95,        // a cow's middle stays this far from every solid thing
+  SIZE: 1.1,          // how big the model is drawn (farmmodels.js builds her 1.36 m to the back)
+  BACK_Y: 1.5,        // the top of a grown cow's back: where the cat sits (one hop: climbing.js allows 1.6)
+  HALF_WIDTH: 0.46,
+  HALF_LENGTH: 1.05,
+  CLEAR: 1.05,        // a cow's middle stays this far from every solid thing
   APART: 2.3,         // and cows keep this far from each other's spots
   MOO_RANGE: 10,
   LOOK_TIME: 2.6,
@@ -62,7 +63,7 @@ export const GOAT = Object.freeze({
   HOP_TIME: 0.55,
   GREET_RANGE: 6,
   GREET_LOST: 9,
-  BUTT_REACH: 0.95,
+  BUTT_REACH: 1.25,
   BUTT_TIME: 0.8,
   NUDGE: 0.22,        // metres: all a head-butt ever moves the cat
   GREET_REST: 14,     // seconds before the next hello
@@ -103,7 +104,7 @@ export const DOG = Object.freeze({
   HEEL_RANGE: 2.5,    // beside her: within this he keeps her pace
   NOTICE: 7,
   WAG: 9,
-  SIDE: 0.9,          // he walks this far to her side, never in front
+  SIDE: 1.0,          // he walks this far to her side, never in front
   WALK_TIME: 20,
   LOST: 9,
   LEASH: 24,          // metres from the kennel

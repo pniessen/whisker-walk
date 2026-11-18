@@ -25,18 +25,33 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from './render/materials.js';
-import { COW } from './farmsim.js';
 
 const _c = new THREE.Color();
+const _d = new THREE.Color();
 
 // One piece: a primitive, moved into place, then coloured per face. `color`
 // is a hex, or a function of the face's middle (x, y, z) that gives one.
-function piece(geo, color, { scale, pre, rot, at } = {}) {
+function piece(geo, color, { scale, pre, rot, at, soft = false } = {}) {
   let g = geo;
   if (scale) g.scale(...scale);
   if (pre) g.translate(...pre); // a move before the turn (a limb's own length, so it turns about its end)
   if (rot) { if (rot[0]) g.rotateX(rot[0]); if (rot[1]) g.rotateY(rot[1]); if (rot[2]) g.rotateZ(rot[2]); }
   if (at) g.translate(...at);
+  // soft: coloured per corner instead, so a patch's edge is a soft line and
+  // not a row of saw teeth (a cow's coat)
+  if (soft) {
+    const p = g.getAttribute('position');
+    const c = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) {
+      // the function gives a hex, or [hexA, hexB, k]: k of the way from A to B
+      const got = color(p.getX(i), p.getY(i), p.getZ(i));
+      if (Array.isArray(got)) _c.setHex(got[0]).lerp(_d.setHex(got[1]), got[2]);
+      else _c.setHex(got);
+      c[i * 3] = _c.r; c[i * 3 + 1] = _c.g; c[i * 3 + 2] = _c.b;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    return g.index ? g.toNonIndexed() : g;
+  }
   if (g.index) g = g.toNonIndexed();
   const pos = g.getAttribute('position');
   const col = new Float32Array(pos.count * 3);
@@ -57,8 +72,8 @@ const cone = (r, len, sides = 6) => new THREE.ConeGeometry(r, len, sides);
 
 // A barrel lying along z: a capsule, its back a little flat and its belly a
 // little full.
-function barrel(r, len, { radial = 12, cap = 5 } = {}) {
-  const g = new THREE.CapsuleGeometry(r, len, cap, radial);
+function barrel(r, len, { radial = 12, cap = 5, rings = 6 } = {}) {
+  const g = new THREE.CapsuleGeometry(r, len, cap, radial, rings);
   g.rotateX(Math.PI / 2);
   const pos = g.getAttribute('position');
   for (let i = 0; i < pos.count; i++) {
@@ -94,37 +109,52 @@ export const COW_LOOKS = Object.freeze({
   calf: { coat: 0xc9a070, patch: 0xc9a070, belly: 0xeedfc2, face: 0xc9a070, blaze: 0xf6ecd8, leg: 0xc9a070, ear: 0xb88a5a, tuft: 0x8a6a48, horns: false },
 });
 // The black-and-white cow's patches, as blobs in her body's own frame.
+// Few and big, so each has a clean edge: over the shoulders, a saddle to one
+// side, and the rump.
 const PATCHES = [
-  [0.3, 1.2, 0.55, 0.42], [-0.34, 1.05, 0.2, 0.36], [0.2, 1.25, -0.35, 0.4], [-0.25, 1.0, -0.7, 0.34],
-  [0.36, 0.85, -0.05, 0.26], [-0.1, 1.36, -0.05, 0.22], [-0.3, 0.8, 0.7, 0.24],
+  [0.1, 1.2, 0.62, 0.55], [0.0, 1.15, -0.72, 0.56], [-0.44, 1.05, -0.05, 0.3],
 ];
-const inPatch = (x, y, z) => PATCHES.some(([px, py, pz, r]) => Math.hypot(x - px, y - py, z - pz) < r);
+// How far inside a patch (x, y, z) is: 0 outside, 1 well inside, a soft step between.
+const PATCH_EDGE = 0.07;
+function patchK(x, y, z) {
+  let k = 0;
+  for (const [px, py, pz, r] of PATCHES) {
+    const t = Math.min(1, Math.max(0, (r + PATCH_EDGE - Math.hypot(x - px, y - py, z - pz)) / (2 * PATCH_EDGE)));
+    k = Math.max(k, t * t * (3 - 2 * t));
+  }
+  return k;
+}
 
 // buildCow(look, material) → { group, parts: { body, head, legs[4], tail } }
-// Her back's top is at COW.BACK_Y (the perch a cat sits on); her belly clears
-// 0.6 m, so a cat walks under her.
+// Modelled 1.36 m to the top of her back and drawn COW.SIZE times that
+// (farmanimals.js), which puts her back at COW.BACK_Y, the perch a cat sits
+// on. Her belly clears 0.55 m, so a cat walks under her.
 export function buildCow(lookName, material) {
   const look = COW_LOOKS[lookName] ?? COW_LOOKS.patches;
   const coat = (x, y, z) => {
     if (look.belly && y < 0.86) return look.belly;
-    return lookName === 'patches' && inPatch(x, y, z) ? look.patch : look.coat;
+    return lookName === 'patches' ? [look.coat, look.patch, patchK(x, y, z)] : look.coat;
   };
   const group = new THREE.Group();
   const body = new THREE.Group();
   group.add(body);
 
+  // The patched coat needs a fine mesh for its patches' soft edges; a plain
+  // coat does with a third of the triangles.
+  const fine = lookName === 'patches';
+  const [bw, bh] = fine ? [18, 12] : [12, 8];
   const torso = merged([
-    piece(barrel(0.36, 0.95), coat, { at: [0, 1.03, 0] }),
-    piece(ball(0.35, 10, 7), coat, { scale: [1.02, 1.0, 0.95], at: [0, 1.0, 0.5] }),      // shoulders and chest
-    piece(ball(0.36, 10, 7), coat, { scale: [1.0, 0.98, 0.9], at: [0, 1.01, -0.52] }),    // the rump
-    piece(ball(0.15, 8, 6), PINK, { scale: [1, 0.75, 1.1], at: [0, 0.65, -0.4] }),         // the udder
+    piece(barrel(0.42, 0.9, fine ? { radial: 24, cap: 7, rings: 12 } : { radial: 14, cap: 5, rings: 3 }), coat, { at: [0, 0.974, 0], soft: true }),
+    piece(ball(0.4, bw, bh), coat, { scale: [1.02, 1.0, 0.95], at: [0, 0.94, 0.48], soft: true }),  // shoulders and chest
+    piece(ball(0.41, bw, bh), coat, { scale: [1.0, 0.98, 0.9], at: [0, 0.95, -0.5], soft: true }),  // the rump
+    piece(ball(0.16, 8, 6), PINK, { scale: [1, 0.7, 1.1], at: [0, 0.55, -0.38] }),         // the udder
   ]);
   const torsoMesh = mesh(torso, material, { cast: true });
   body.add(torsoMesh);
 
   // Head and neck, hinged at the shoulder: down to graze, up to look.
   const head = new THREE.Group();
-  head.position.set(0, 1.1, 0.68);
+  head.position.set(0, 1.08, 0.7);
   const headAt = [0, 0.36, 0.56];
   const face = (x, y, z) => (Math.abs(x) < 0.06 && z > headAt[2] - 0.06 ? look.blaze : look.face);
   const skull = [
@@ -140,18 +170,18 @@ export function buildCow(lookName, material) {
   const headGeo = merged(skull);
   headGeo.rotateX(0.55); // her nose a little down
   headGeo.translate(...headAt);
-  const neck = piece(tube(0.17, 0.25, 0.62, 9), (x, y, z) => coat(x, y + 1.1, z + 0.68), { pre: [0, 0.31, 0], rot: [1.0, 0, 0] });
+  const neck = piece(new THREE.CylinderGeometry(0.18, 0.3, 0.62, 12, 4), (x, y, z) => coat(x, y + 1.08, z + 0.7), { pre: [0, 0.31, 0], rot: [1.0, 0, 0], soft: true });
   const headMesh = mesh(merged([neck, headGeo]), material, { cast: true });
   head.add(headMesh);
   body.add(head);
 
   // Four legs, hinged at the hip.
   const legGeo = merged([
-    piece(tube(0.085, 0.062, 0.66), look.leg, { at: [0, -0.33, 0] }),
-    piece(tube(0.07, 0.076, 0.1), HOOF, { at: [0, -0.69, 0] }),
+    piece(tube(0.11, 0.075, 0.66, 8), look.leg, { at: [0, -0.33, 0] }),
+    piece(tube(0.082, 0.09, 0.1, 8), HOOF, { at: [0, -0.69, 0] }),
   ]);
   const legs = [];
-  for (const [lx, lz] of [[-0.2, 0.5], [0.2, 0.5], [-0.2, -0.54], [0.2, -0.54]]) {
+  for (const [lx, lz] of [[-0.23, 0.5], [0.23, 0.5], [-0.23, -0.54], [0.23, -0.54]]) {
     const leg = mesh(legGeo, material);
     leg.position.set(lx, 0.74, lz);
     body.add(leg);
@@ -166,7 +196,7 @@ export function buildCow(lookName, material) {
   tail.rotation.x = 0.12;
   body.add(tail);
 
-  return { group, parts: { body, head, legs, tail }, backY: COW.BACK_Y };
+  return { group, parts: { body, head, legs, tail } };
 }
 
 // ---- the goat ------------------------------------------------------------------------------
@@ -174,7 +204,8 @@ export const GOAT_LOOKS = Object.freeze({
   white: { coat: 0xefeae0, leg: 0xd9d2c4, face: 0xefeae0, ear: 0xd0c6b6, beard: 0xd9d2c4 },
   tan: { coat: 0xc79f72, leg: 0x6a4a34, face: 0xd8b88c, ear: 0x6a4a34, beard: 0xf0e6d2 },
 });
-// About 0.85 m to the top of its back, 1.15 to the horn tips.
+// Modelled 0.85 m to the top of its back and drawn SIZE.farmgoat times that
+// (farmanimals.js): a little taller than the cat.
 export function buildGoat(lookName, material) {
   const look = GOAT_LOOKS[lookName] ?? GOAT_LOOKS.white;
   const group = new THREE.Group();
@@ -226,7 +257,8 @@ export function buildGoat(lookName, material) {
 }
 
 // ---- the sheepdog --------------------------------------------------------------------------
-// A black-and-white collie, about 0.55 m at the shoulder.
+// A black-and-white collie, modelled 0.6 m at the shoulder and drawn
+// SIZE.sheepdog times that (farmanimals.js): a big dog beside a cat.
 export function buildSheepdog(material) {
   const BLACK = 0x2b2a2e;
   const WHITE = 0xf2efe8;

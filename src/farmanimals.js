@@ -17,7 +17,7 @@
 // collider at all: a cat walks round her and under her and is never shoved.
 // =============================================================================
 import * as THREE from 'three';
-import { createFarmSim, dismountSpot, FARM_ANIMAL_TYPES } from './farmsim.js';
+import { createFarmSim, dismountSpot, FARM_ANIMAL_TYPES, COW } from './farmsim.js';
 import { buildCow, buildGoat, buildSheepdog, buildHen, chickGeometry, ducklingGeometry, farmAnimalMaterial, HEN_COLORS } from './farmmodels.js';
 import { withLocalUuids } from './world/localuuids.js';
 
@@ -34,6 +34,10 @@ export const NO_FARM = Object.freeze({
   reactToMeow() { return null; },
   dispose() {},
 });
+
+// How big each model is drawn (the game's cat is a big cat: a collie drawn at
+// its modelled size would be no taller than she is).
+export const SIZE = Object.freeze({ cow: COW.SIZE, farmgoat: 1.25, sheepdog: 1.45 });
 
 const ease = (from, to, k) => from + (to - from) * Math.min(1, k);
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -58,7 +62,8 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
       built.group.name = a.id;
       built.group.position.set(a.x, 0, a.z);
       built.group.rotation.y = a.yaw;
-      if (a.scale && a.scale !== 1) built.group.scale.setScalar(a.scale);
+      const size = (a.scale ?? 1) * (SIZE[a.type] ?? 1);
+      if (size !== 1) built.group.scale.setScalar(size);
       scene.add(built.group);
       views.push({ a, group: built.group, parts: built.parts, phase: views.length * 1.7, k: {} });
     };
@@ -102,7 +107,7 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
       parts.legs[0].rotation.x = swing; parts.legs[3].rotation.x = swing;
       parts.legs[1].rotation.x = -swing; parts.legs[2].rotation.x = -swing;
       const looking = a.mode === 'look' || (a.follow && !a.moving && a.lookAt);
-      const down = a.headDown ? 1.12 : looking ? -0.12 : 0.08;
+      const down = a.headDown ? 1.3 : looking ? -0.12 : 0.08;
       k.head = ease(k.head ?? down, down, dt * 2.2);
       parts.head.rotation.x = k.head + (a.headDown && !still ? Math.sin(t * 5 + v.phase) * 0.035 : 0); // chewing
       let turn = 0;
@@ -114,7 +119,7 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
       parts.tail.rotation.z = still ? 0 : Math.sin(t * 1.6 + v.phase) * 0.28;
       parts.body.position.y = still ? 0 : Math.abs(Math.sin(a.walked * 4.4 / a.scale)) * 0.012 * k.stride;
     } else if (a.type === 'farmgoat') {
-      parts.body.position.y = a.y;
+      parts.body.position.y = a.y / SIZE.farmgoat; // the group is drawn bigger; its height is in metres
       const air = a.hop ? 1 : 0;
       const swing = Math.sin(a.walked * 9) * 0.5 * k.stride;
       parts.legs[0].rotation.x = air ? -0.7 : swing; parts.legs[3].rotation.x = air ? 0.7 : swing;
@@ -127,7 +132,7 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
       parts.body.position.y = -0.2 * k.lie;
       const swing = Math.sin(a.walked * 10) * 0.55 * k.stride;
       parts.legs[0].rotation.x = swing - 1.35 * k.lie; parts.legs[1].rotation.x = -swing - 1.35 * k.lie; // front paws out ahead
-      parts.legs[2].rotation.x = -swing + 1.35 * k.lie; parts.legs[3].rotation.x = swing + 1.35 * k.lie;
+      parts.legs[2].rotation.x = -swing - 1.25 * k.lie; parts.legs[3].rotation.x = swing - 1.25 * k.lie; // hind legs tucked forward
       parts.head.rotation.x = 0.25 * k.lie * (a.wag ? 0 : 1); // chin down when dozing, up for a visitor
       parts.tail.rotation.z = a.wag ? Math.sin(t * (still ? 5 : 13)) * (still ? 0.25 : 0.6) : 0;
     } else if (a.type === 'hen') {
