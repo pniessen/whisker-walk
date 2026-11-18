@@ -465,9 +465,6 @@ export function build(scene, { water = {}, wind } = {}) {
       { type: 'bird', x: -24.5, z: 6.5 },
       { type: 'butterfly', x: -20, z: 18.8 }, { type: 'butterfly', x: 22, z: 34.5 }, { type: 'butterfly', x: -16.8, z: 0.6 },
       { type: 'squirrel', x: 12.2, z: 33.5, x2: 22, z2: 26.5 },
-      // A stand-in until step 2 builds the farm's own goat: the small goat
-      // that exists today, in the paddock.
-      { type: 'goat', x: -36, z: -22, x2: -27, z2: -23.5 },
     ],
     moments: [
       { id: 'apple-thief', type: 'squirrel', label: 'a squirrel running off with an apple!', x: 12, z: 27.5, from: { x: 28.5, z: 34.5 } },

@@ -225,7 +225,10 @@ describe('Appletree Farm: the area record', () => {
   it('spawns only creatures the journal knows, and none that the design keeps for step 2', () => {
     const types = new Set(area.critterSpawns.map((c) => c.type));
     for (const t of types) expect(JOURNAL_TYPES).toContain(t);
-    for (const t of ['duck', 'mouse', 'bird', 'butterfly', 'goat']) expect(types.has(t), t).toBe(true);
+    for (const t of ['duck', 'mouse', 'bird', 'butterfly']) expect(types.has(t), t).toBe(true);
+    // The bolting mountain goat is gone (step 2): it hid for the whole walk.
+    // The Farm's goats are its own animals (src/farmanimals.js).
+    expect(types.has('goat')).toBe(false);
     // no dog (the Farm's dog is a friend, built later), no villager (no farmer yet)
     expect(types.has('dog')).toBe(false);
     expect(types.has('villager')).toBe(false);
@@ -246,16 +249,7 @@ describe('Appletree Farm: the area record', () => {
     }
   });
 
-  it('keeps the goat stand-in inside the paddock, with its shelter as cover', () => {
-    const goat = area.critterSpawns.find((c) => c.type === 'goat');
-    for (const p of [{ x: goat.x, z: goat.z }, { x: goat.x2, z: goat.z2 }]) {
-      expect(p.x).toBeGreaterThan(GOAT_PADDOCK.minX);
-      expect(p.x).toBeLessThan(GOAT_PADDOCK.maxX);
-      expect(p.z).toBeGreaterThan(GOAT_PADDOCK.minZ);
-      expect(p.z).toBeLessThan(GOAT_PADDOCK.maxZ);
-      // its cover is in reach of the critter's 15 m search, inside the paddock
-      expect(dist(p, FARM_HIDES[0])).toBeLessThan(15);
-    }
+  it('keeps the goats\' shelter inside the paddock', () => {
     expect(FARM_HIDES[0].x).toBeGreaterThan(GOAT_PADDOCK.minX);
     expect(FARM_HIDES[0].z).toBeGreaterThan(GOAT_PADDOCK.minZ);
   });

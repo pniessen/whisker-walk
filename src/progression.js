@@ -276,6 +276,13 @@ export const CATALOG = {
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },
+    // Appletree Farm (docs/superpowers/specs/2026-11-18-farm-design.md): the
+    // third street area (owner, 2026-11-18: Neighborhood, Park, Farm). It opens
+    // BESIDE the Seaside after two Park walks, so no existing save finds a gate
+    // closed. No `edition`: it is in both editions. The place cards follow this
+    // list's order, and the home line for the Park names both places a Park
+    // walk opens (nextthing.js, rule 7).
+    farm: { name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } },
     seaside: { name: 'Seaside', price: 100, requires: { area: 'park', walks: 2 } },
     // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
     // area has to be registered for the home-base picker: homebase.js renders
@@ -284,14 +291,6 @@ export const CATALOG = {
     // "2 walks in Seaside" gate (and this area's own walk count) work —
     // see defaultState below, where forgetting it is a permanent NaN.
     docks: { name: 'The Old Docks', price: 200, requires: { area: 'seaside', walks: 2 } },
-    // Appletree Farm (docs/superpowers/specs/2026-11-18-farm-design.md): the
-    // third street area, opening BESIDE the Seaside after two Park walks, so no
-    // existing save finds a gate closed. No `edition`: it is in both editions.
-    // It comes AFTER the Docks in this list on purpose: the place cards follow
-    // this order, and so does the home line "One more walk here and ... opens!"
-    // (nextthing.js names the first place a walk here opens), which therefore
-    // still says the Seaside for the Park, as it always has.
-    farm: { name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } },
     woods: { name: 'The Woods', price: 0, requires: { area: 'neighborhood', walks: 2 }, edition: 'canon' },
     river: { name: 'The River and Marshes', price: 0, requires: { area: 'woods', walks: 2 }, edition: 'canon' },
     moor: { name: 'The Moor', price: 0, requires: { area: 'woods', walks: 2 }, edition: 'canon' },
