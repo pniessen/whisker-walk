@@ -201,6 +201,20 @@ export function createTrail(spacing = 0.2, max = 80) {
   };
 }
 
+// A follower's place in the line: `need` metres back along its leader's trail.
+// When the trail is shorter than that (the leader has stopped, or turned on
+// the spot), the follower keeps the distance anyway, out on its own side, so
+// a line never piles up under a cat who stands still.
+export function lineSpot(trail, head, need, self) {
+  const t = trail.behind(head.x, head.z, need);
+  if (Math.hypot(t.x - head.x, t.z - head.z) >= need - 0.15) return t;
+  const sx = self.x - head.x;
+  const sz = self.z - head.z;
+  const sd = Math.hypot(sx, sz);
+  if (sd < 1e-3) return { x: head.x + need, z: head.z };
+  return { x: head.x + (sx / sd) * need, z: head.z + (sz / sd) * need };
+}
+
 // ---- a polyline, for the job cow's walk to the milking shed ------------------------------
 export function polyline(points) {
   const cum = [0];
@@ -741,7 +755,7 @@ export function createFarmSim(area, { seed = 'farm-animals' } = {}) {
         c.following = false; c.mode = 'home'; c.tired = CHICK.TIRED;
         return;
       }
-      const t = catTrail.behind(cat.x, cat.z, CHICK.FIRST + CHICK.GAP * Math.max(0, c.order));
+      const t = lineSpot(catTrail, cat, CHICK.FIRST + CHICK.GAP * Math.max(0, c.order), c);
       if (inWater(waters, t.x, t.z, 0.2)) return;
       if (Math.hypot(t.x - c.x, t.z - c.z) > 0.06) moveChick(c, t.x, t.z, CHICK.SPEED, dt);
       return;
@@ -841,7 +855,7 @@ export function createFarmSim(area, { seed = 'farm-animals' } = {}) {
     const trail = ducklingsWithCat ? catTrail : duckTrail;
     const head = ducklingsWithCat ? cat : lead;
     ducklings.forEach((k, i) => {
-      const t = trail.behind(head.x, head.z, DUCKLING.FIRST + DUCKLING.GAP * i);
+      const t = lineSpot(trail, head, DUCKLING.FIRST + DUCKLING.GAP * i, k);
       const before = { x: k.x, z: k.z };
       if (Math.hypot(t.x - k.x, t.z - k.z) > 0.05) stepToward(k, t.x, t.z, DUCKLING.SPEED * dt);
       // on the water, off the jetty

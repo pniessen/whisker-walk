@@ -20,7 +20,7 @@ vi.stubGlobal('document', {
 const { build, PASTURE, GOAT_PADDOCK, POND, JETTY } = await import('../src/world/farm.js');
 const sim$ = await import('../src/farmsim.js');
 const {
-  createFarmSim, ridePose, dismountSpot, clearance, createTrail, polyline,
+  createFarmSim, ridePose, dismountSpot, clearance, createTrail, polyline, lineSpot,
   FARM_ANIMAL_TYPES, CAT_WALK, COW, GOAT, HEN, CHICK, DOG, DOG_MODES, DUCKLING,
 } = sim$;
 const { bestPerch, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
@@ -96,21 +96,23 @@ describe('cows', () => {
     let walked = 0;
     let closest = Infinity;
     const last = sim.cows.map((c) => ({ x: c.x, z: c.z }));
-    run(sim, 1800, awayCat(), (s) => {
+    // (checked every step of 54,000; what went wrong is collected and looked at once)
+    const wrong = [];
+    run(sim, 1800, awayCat(), (s, t) => {
       s.cows.forEach((cow, i) => {
-        expect(inRect(A.pasture, cow, 1e-9)).toBe(true);
-        expect(inRect(PASTURE, cow, -0.9)).toBe(true); // a body's width inside the fence
-        expect(clearance(area.colliders, cow.x, cow.z)).toBeGreaterThanOrEqual(COW.CLEAR * cow.scale - 1e-6);
+        if (!inRect(A.pasture, cow, 1e-9)) wrong.push(`${cow.id} out of the pasture at ${t}`);
+        if (!inRect(PASTURE, cow, -0.9)) wrong.push(`${cow.id} at the fence at ${t}`); // a body's width inside the fence
+        if (clearance(area.colliders, cow.x, cow.z) < COW.CLEAR * cow.scale - 1e-6) wrong.push(`${cow.id} too near something solid at ${t}`);
         const step = dist(cow, last[i]);
-        expect(step).toBeLessThanOrEqual(COW.AMBLE * DT + 1e-6); // never startled, never hurried
+        if (step > COW.AMBLE * DT + 1e-6) wrong.push(`${cow.id} hurried at ${t}`); // never startled, never hurried
         walked += step;
         last[i].x = cow.x; last[i].z = cow.z;
         // the perch is on her back, wherever she is
-        expect(cow.perch.x).toBe(cow.x);
-        expect(cow.perch.z).toBe(cow.z);
+        if (cow.perch.x !== cow.x || cow.perch.z !== cow.z) wrong.push(`${cow.id}'s perch left her at ${t}`);
       });
       closest = Math.min(closest, dist(s.cows[0], s.cows[1]));
     });
+    expect(wrong.slice(0, 5)).toEqual([]);
     expect(walked).toBeGreaterThan(100); // they really do wander
     expect(closest).toBeGreaterThan(1.2);
   });
@@ -172,18 +174,17 @@ describe('riding a cow', () => {
     const cow = sim.cows[0];
     let carried = 0;
     let prev = ridePose(cow);
-    run(sim, 600, () => ({ ...awayCat(), ...ridePose(cow), perched: true, riding: cow.id }), () => {
+    const wrong = [];
+    run(sim, 600, () => ({ ...awayCat(), ...ridePose(cow), perched: true, riding: cow.id }), (s, t) => {
       const pose = ridePose(cow);
-      expect(pose.x).toBe(cow.x);
-      expect(pose.z).toBe(cow.z);
-      expect(pose.y).toBe(cow.perch.y);
-      expect(cow.ridden).toBe(true);
-      expect(inRect(area.bounds, pose, -0.5)).toBe(true);
-      expect(inRect(A.pasture, pose, 1e-9)).toBe(true);
-      expect(clearance(area.colliders, pose.x, pose.z)).toBeGreaterThan(CAT_RADIUS + 0.3);
+      if (pose.x !== cow.x || pose.z !== cow.z || pose.y !== cow.perch.y) wrong.push(`off her back at ${t}`);
+      if (!cow.ridden) wrong.push(`not ridden at ${t}`);
+      if (!inRect(area.bounds, pose, -0.5) || !inRect(A.pasture, pose, 1e-9)) wrong.push(`carried out at ${t}`);
+      if (clearance(area.colliders, pose.x, pose.z) <= CAT_RADIUS + 0.3) wrong.push(`carried into something at ${t}`);
       carried += dist(pose, prev);
       prev = pose;
     });
+    expect(wrong.slice(0, 5)).toEqual([]);
     expect(carried).toBeGreaterThan(40); // a ride, not a seat: she walks more with a cat aboard
     expect(sim.cows[1].ridden).toBe(false);
   });
@@ -343,21 +344,21 @@ describe('goats', () => {
     const sim = createFarmSim(area);
     const on = { stand: 0, rock: 0 };
     let hops = 0;
-    run(sim, 900, awayCat(), (s) => {
+    const wrong = [];
+    run(sim, 900, awayCat(), (s, t) => {
       for (const g of s.goats) {
-        expect(inRect(GOAT_PADDOCK, g, 1e-9)).toBe(true);
-        expect(g.y).toBeGreaterThanOrEqual(0);
-        expect(g.y).toBeLessThan(A.goatStand.y + 1.2);
+        if (!inRect(GOAT_PADDOCK, g, 1e-9)) wrong.push(`${g.id} out of the paddock at ${t}`);
+        if (!(g.y >= 0 && g.y < A.goatStand.y + 1.2)) wrong.push(`${g.id} at height ${g.y} at ${t}`);
         if (g.hop) hops++;
         if (!g.hop && g.spot) {
-          expect(g.y).toBeCloseTo(g.spot.y, 6);
-          expect(dist(g, g.spot)).toBeLessThan(1e-6);
+          if (Math.abs(g.y - g.spot.y) > 1e-6 || dist(g, g.spot) > 1e-6) wrong.push(`${g.id} not on its ${g.spot.name} at ${t}`);
           on[g.spot.name]++;
         }
       }
       const [a, b] = s.goats;
-      if (a.spot && b.spot && !a.hop && !b.hop) expect(a.spot).not.toBe(b.spot);
+      if (a.spot && b.spot && !a.hop && !b.hop && a.spot === b.spot) wrong.push(`both goats on the ${a.spot.name} at ${t}`);
     });
+    expect(wrong.slice(0, 5)).toEqual([]);
     expect(on.stand).toBeGreaterThan(100);
     expect(on.rock).toBeGreaterThan(100);
     expect(hops).toBeGreaterThan(100);
@@ -499,13 +500,15 @@ describe('hens', () => {
   it('stay near home for half an hour, the run\'s hens inside the run, run past or not', () => {
     for (const cat of [awayCat(), pass(6.5, true)]) {
       const sim = createFarmSim(area);
-      run(sim, 1800, cat, (s) => {
+      const wrong = [];
+      run(sim, 1800, cat, (s, t) => {
         for (const h of s.hens) {
-          expect(dist(h, h.home), h.id).toBeLessThan(HEN.HOME_R + 3 * HEN.FLUTTER_MAX + 1);
-          if (h.zone === A.henRun) expect(inRect(A.henRun, h, 1e-9), h.id).toBe(true);
-          expect(clearance(area.colliders, h.x, h.z), h.id).toBeGreaterThan(0.1);
+          if (dist(h, h.home) >= HEN.HOME_R + 3 * HEN.FLUTTER_MAX + 1) wrong.push(`${h.id} far from home at ${t}`);
+          if (h.zone === A.henRun && !inRect(A.henRun, h, 1e-9)) wrong.push(`${h.id} out of the run at ${t}`);
+          if (clearance(area.colliders, h.x, h.z) <= 0.1) wrong.push(`${h.id} in something solid at ${t}`);
         }
       });
+      expect(wrong.slice(0, 5)).toEqual([]);
     }
   });
 });
@@ -536,6 +539,24 @@ describe('chicks', () => {
       if (i) expect(dist(c, cat)).toBeGreaterThan(dist(line[i - 1], cat));
     });
     expect(sim.chicks.every((c) => clearance(area.colliders, c.x, c.z) > 0.1)).toBe(true);
+  });
+
+  it('gather round a cat who stands still, each at its own distance, never under her', () => {
+    const sim = createFarmSim(area);
+    const h = hen(sim);
+    const cat = catAt(h.x + 1, h.z + 1);
+    run(sim, 12, cat);
+    expect(sim.chicks.every((c) => c.following)).toBe(true);
+    for (const c of sim.chicks) {
+      expect(dist(c, cat), c.id).toBeGreaterThan(CHICK.FIRST - 0.2);
+      expect(dist(c, cat), c.id).toBeCloseTo(CHICK.FIRST + CHICK.GAP * c.order, 0);
+    }
+    // the same rule, on its own
+    const trail = createTrail();
+    trail.push(5, 5);
+    const spot = lineSpot(trail, { x: 5, z: 5 }, 1.2, { x: 5, z: 7 });
+    expect(spot.x).toBeCloseTo(5, 9);
+    expect(spot.z).toBeCloseTo(6.2, 9);
   });
 
   it('never follow a runner: they scatter a short way, stop, and regroup when she is calm', () => {
