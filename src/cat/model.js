@@ -5,6 +5,7 @@ import { litMaterial } from '../render/materials.js';
 import { addCatRim, RIM } from './rimlight.js';
 import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt, undersideColourAt, UNDER_BLEND, BELLY_BLEND, UNDER_FRONT, legBarMix } from './coat.js';
 import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds, paintFold } from './limbs.js';
+import { haunchPoints, drapeOver } from './drape.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { henFightState, HEN_POSE_TOP } from './henfight.js';
@@ -944,6 +945,9 @@ export const CAT_LOOK_Y = HEAD.POS[1] + 0.04;
 const underSeams = new Map();
 const chestBlends = new Map();
 const haunchUnits = new Map();
+// The haunch as cloth sees it and each garment's cloth laid over it (buildCat, drape.js): by body shape, hips, build and fold.
+const haunches = new Map();
+const clothFits = new Map();
 const tailSeams = new Map();
 const IDENTITY16 = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
@@ -1112,6 +1116,9 @@ export function coatColor(breed, look = null) {
 // red, a ginger's salmon pink, a blue's blue-grey; white, cream, silver and
 // calico cats keep the pink, and so does a black (dark-faced) cat. The family
 // cats keep the pink they were drawn with from their photos (FAMILY_NOSE).
+// How far along the first tail link a pointed cat's root has eased from the
+// rump's colour into the point colour (a share of the link; any other coat: 1).
+export const TAIL_ROOT_EASE = Object.freeze({ points: 0.6 });
 const FAMILY_NOSE = new Set(['zeetoo', 'robbie', 'd2', 'digit']);
 // realism 3/A2 (2026-11-15): pointMix 0.7 -> 0.42 and pointRough: a seal
 // point's nose was nearly the colour of its mask and did not show.
@@ -1188,8 +1195,6 @@ const SEAM_POSES = Object.freeze({
   sit: Object.freeze({ dy: -0.02 + SIT.bodyDY + POSE_FIT.requestPet.body, z: SIT.bodyZ, pitch: SIT.pitch, lift: true, hipsIn: true, hipsOut: SIT.hindOut }),
   tuck: Object.freeze({ dy: -0.1, scale: Object.freeze([1.12, 0.73, 0.89]), lift: true }),
   loaf: Object.freeze({ dy: -NAP.drop, scale: NAP.scale, pitch: NAP.pitch, lift: true, hipsOut: NAP.hindOut }),
-  sitIn: Object.freeze({ dy: -0.02 + SIT.bodyDY + POSE_FIT.requestPet.body, z: SIT.bodyZ, pitch: SIT.pitch, lift: true, hipsIn: true }),
-  loafIn: Object.freeze({ dy: -NAP.drop, scale: NAP.scale, pitch: NAP.pitch, lift: true }),
   crouch: Object.freeze({ dy: -0.1, lift: true, hipsIn: true }),
   ball: Object.freeze({ scale: Object.freeze([1.05, 1.05, 0.9]) }),
 });
@@ -1562,13 +1567,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const rootM = new THREE.Matrix4().compose(
     new THREE.Vector3(0, TAIL.ROOT_DY, TAIL.ROOT_Z * PROPORTION.body),
     new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -TAIL.SEAM_LIFT), new THREE.Vector3().setScalar(TAIL.SCALE));
-  const rootV = new THREE.Vector3(), rootU = [0, 0, 0], rootBase = new THREE.Color(s.base);
+  const rootV = new THREE.Vector3(), rootU = [0, 0, 0], rootBase = new THREE.Color(s.points ? s.accent : s.base);
   const rootColour = (x, y, z, out) => {
     rootV.set(x, y, z).applyMatrix4(rootM);
     coatColourAt(coat, torsoUnitAt([rootV.x / BODY_SCALE[0], rootV.y / BODY_SCALE[1], rootV.z / BODY_SCALE[2]], rootU), out);
-    const k = Math.min(1, Math.max(0, z / TAIL.LINK));
+    const k = Math.min(1, Math.max(0, z / (TAIL.LINK * ROOT_EASE)));
     return out.lerp(rootBase, k * k * (3 - 2 * k));
   };
+  const ROOT_EASE = s.points ? TAIL_ROOT_EASE.points : 1;
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
@@ -1605,13 +1611,19 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // the plain coat colour while the rump under it is painted (shaded low
     // down, striped or patched). The root link now wears the rump's own
     // painted colour at its root ball and eases into the tail's colour along
-    // its length (rootColour). Colour only. A pointed cat's tail is the point
-    // colour to the root, as it was (its rump is painted the point colour
-    // round the root, so there the disc is the marking itself); the family
-    // cats' tails (drawn from their photos) stay plain too.
+    // its length (rootColour). Colour only. (Pointed and family cats kept a
+    // plain root until 2026-11-17, below.)
     // 2026-11-16 (cat realism B11): a crowd cat's root link takes it as well
     // (it was left plain).
-    const rooted = i === 0 && !s.points && !family;
+    // 2026-11-17 (leftovers): so do the pointed cats and the family cats. A
+    // pointed cat's rump is pale right up to the root (the earlier note had it
+    // painted the point colour there; it is not), so its plain dark root ball
+    // was the clearest disc of all: it now leaves the rump in the rump's
+    // colour and is the point colour from TAIL_ROOT_EASE.points of the first
+    // link on. A family cat's root eases over the whole link, as any coat's;
+    // its tail's own colour and its markings are untouched. The link was one
+    // mesh and is one mesh: no triangle and no draw call more.
+    const rooted = i === 0;
     const seg = new THREE.Mesh(geo, blend || ringed || rooted
       ? litMaterial(0xffffff, { vertexColors: true })
       : mat((i >= 3 && darkTip) || s.points ? s.accent : s.base));
@@ -1937,6 +1949,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       }
       geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     }
+    shell.userData.cloth = { key: 'shell' }; // laid over the haunch, sitting and napping (userData.drape, below)
     body.add(shell);
     return shell;
   };
@@ -1991,6 +2004,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const cape = new THREE.Mesh(geo.stand, material);
     cape.userData.cape = true;
     cape.userData.capeGeo = geo;
+    cape.userData.cloth = { key: 'cape' };
     body.add(cape);
     // the throat: the collar's seat + its charm's hang, head frame
     const throat = [COLLAR_CHARM[0], -0.14 + neckY + COLLAR_CHARM[1], 0.1 + neckZ + COLLAR_CHARM[2]];
@@ -2018,6 +2032,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const dots = new THREE.Mesh(geo.stand, litMaterial(0xffffff, { vertexColors: true }));
     dots.userData.capeDots = true;
     dots.userData.capeGeo = geo;
+    dots.userData.cloth = { key: 'dots', pieces: geo.stand.attributes.position.count / CAPE_DOTS.length, lift: 0.004 };
     body.add(dots);
   };
   if (accessories.body === 'hoodie') {
@@ -2214,6 +2229,68 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       paintFold(leg, kind, (i, out) => { hu[0] = units[i * 3]; hu[1] = units[i * 3 + 1]; hu[2] = units[i * 3 + 2]; return coatColourAt(coat, hu, out); }, HAUNCH.coatFrom, HAUNCH.coatTo);
     }
   }
+  // The clothes over the haunch (drape.js, 2026-11-16): a coat's shell, a
+  // cape's cloth and its dots are laid over the sitting and the loafing
+  // haunch. Each piece gets userData.drape: fit(kind) gives the arrays that
+  // fold wears and the ones it had (or null, when nothing of it moves); the
+  // animator writes one or the other when the cat sits down, lies down or
+  // gets up (animator.js wearClothes). Worked out the first time a cat of
+  // this body shape, build and garment takes the fold, then shared.
+  {
+    const hind = legs.slice(2);
+    const hips = hind.map((leg) => leg.position.clone()); // as built: the animator moves them, and this is worked out later
+    const shapeKey = `${fx},${fy},${fz}|${hind.map((leg) => `${leg.position.x},${leg.position.z}`).join('|')}|${hipY}|${+!!opts.simple}`;
+    const haunch = (kind) => {
+      const key = `${kind}|${shapeKey}`;
+      let h = haunches.get(key);
+      if (!h) {
+        const pts = []; // one array for each hind leg
+        let scale = BODY_SCALE;
+        for (const [k, leg] of hind.entries()) {
+          const m = seamPose(kind, hips[k], bodyY, hipY, BODY_SCALE, fx);
+          scale = m.scale;
+          pts.push(haunchPoints(leg.userData.folds[kind].pos, leg.children[0].geometry.index.array, leg.children[0].geometry.userData.t, m.matrix, scale));
+        }
+        h = { pts, scale, toCat: posedBody(kind, bodyY, hipY, BODY_SCALE).elements };
+        haunches.set(key, h);
+      }
+      return h;
+    };
+    for (const piece of body.children) {
+      const { cloth, capeGeo } = piece.userData;
+      if (!cloth) continue;
+      const own = {};
+      piece.userData.drape = {
+        worn: null,
+        fit(kind) {
+          if (kind in own) return own[kind];
+          const geo = capeGeo ? (kind === 'sit' ? capeGeo.sit : capeGeo.stand) : piece.geometry;
+          const key = `${cloth.key}|${kind}|${shapeKey}`;
+          let fit = clothFits.get(key);
+          if (fit === undefined) {
+            const { pts, scale, toCat } = haunch(kind);
+            const rest = geo.attributes.position.array;
+            const pos = drapeOver(rest, scale, pts, toCat, cloth);
+            if (!pos) fit = null;
+            else {
+              let nor = geo.attributes.normal.array.slice(), reach = 0;
+              if (!cloth.pieces) nor = weldedNormals(pos, nor, geo.index.array, 0, pos.length / 3);
+              for (let i = 0; i < pos.length; i += 3) reach = Math.max(reach, Math.hypot(pos[i] - rest[i], pos[i + 1] - rest[i + 1], pos[i + 2] - rest[i + 2]));
+              fit = Object.freeze({ pos, nor, rest: Object.freeze({ pos: rest.slice(), nor: geo.attributes.normal.array.slice() }), reach });
+            }
+            clothFits.set(key, fit);
+          }
+          if (fit && !geo.userData.draped) {
+            // never culled for the cloth that now lies further out
+            geo.userData.draped = true;
+            if (!geo.boundingSphere) geo.computeBoundingSphere();
+            geo.boundingSphere.radius += fit.reach;
+          }
+          return (own[kind] = fit && { geo, pos: fit.pos, nor: fit.nor, rest: fit.rest });
+        },
+      };
+    }
+  }
   const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, head.position.z];
 
   // The cape's clasp and front bands, laid once for the resting cat (the
@@ -2261,7 +2338,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // fitLongLegs; poseFit is the per-state correction applyPoseFit adds after it.
   g.userData.base = {
     bodyY, bodyScale: [...BODY_SCALE], headPos, tailRotX: TAIL.ROOT_TILT, tailCurl: TAIL.CURL,
-    hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT, slimHaunch: !!accessories.body,
+    hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT,
     // polish-tails: a plumed tail lies along its own sit and nap curves, and
     // stalking droops its fuller first link (animator.js STALK_CARRIAGE).
     ...(plume > 0 && { tailPlume: plume, sitTail: lyingTail(SIT_TAIL, SIT_TAIL_PLUME, plume), napTail: lyingTail(NAP_TAIL, NAP_TAIL_PLUME, plume) }),

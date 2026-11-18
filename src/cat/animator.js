@@ -4,7 +4,7 @@ import { fitScars } from './scarmesh.js';
 import { HOOD, slideHoodTo } from './backitems.js';
 import { layCapeTie } from './cape.js';
 import { layNeck } from './neck.js';
-import { FOLDS, FOLD_BY_STATE, FOLD_LEG, SLIM_FOLD, applyFold } from './limbs.js';
+import { FOLDS, FOLD_BY_STATE, FOLD_LEG, applyFold } from './limbs.js';
 import { isHenFightState, poseHen, syncHenRig } from './henfight.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
@@ -231,7 +231,6 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     if (!item.userData.float) continue;
     item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone(), scale: item.scale.clone() };
   }
-  wearCape(cat.userData.parts.body, sitting);
   flutterWings(cat.userData.parts.body, t, reducedMotion, sitting);
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
@@ -251,6 +250,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   // rump). Only y and z are written (x stays 0); fitLongLegs and pose() put
   // both back next frame. Cats with folds only, as the sit's.
   const napping = state === 'nap' && cat.userData.parts.legs[0].userData.folds;
+  wearClothes(cat.userData.parts.body, sitting, sitting ? 'sit' : napping ? 'loaf' : null);
   if (sitting || napping) {
     const { tail, body } = cat.userData.parts;
     const [, sy, sz] = cat.userData.base.bodyScale;
@@ -332,13 +332,32 @@ function lids(cat, state, t, moveSpeed) {
 // A cape (and the confetti cape's dots) wears its sit cloth in the sit and
 // its standing cloth in every other pose (model.js CAPE_SIT, userData.capeGeo:
 // both built with the cat, so this only points at one). In the sit the
-// standing hem lay over the tail curled round the haunch. Allocates nothing.
-function wearCape(body, sitting) {
+// standing hem lay over the tail curled round the haunch.
+// Clothes over the haunch (2026-11-16, drape.js): a piece with userData.drape
+// (a coat's shell, a cape's cloth, its dots) is laid over the haunch of the
+// fold the hind legs take (`fold`: 'sit', 'loaf' or null). Its points and
+// normals are written only when that changes, as a leg's fold is: the fold's
+// own (model.js buildCat, userData.drape; kept) on the way down, the built ones exactly on
+// the way up. Allocates nothing once a fold has been worn.
+function wearClothes(body, sitting, fold) {
   const kids = body.children;
   for (let i = 0; i < kids.length; i++) {
-    const geo = kids[i].userData.capeGeo;
+    const ud = kids[i].userData;
+    const geo = ud.capeGeo;
     if (geo) kids[i].geometry = sitting ? geo.sit : geo.stand;
+    const d = ud.drape;
+    if (d && d.worn !== fold) {
+      if (d.worn) layCloth(d.fit(d.worn), true);
+      if (fold) layCloth(d.fit(fold), false);
+      d.worn = fold;
+    }
   }
+}
+function layCloth(fit, back) {
+  if (!fit) return;
+  const { position, normal } = fit.geo.attributes;
+  position.array.set(back ? fit.rest.pos : fit.pos); position.needsUpdate = true;
+  normal.array.set(back ? fit.rest.nor : fit.nor); normal.needsUpdate = true;
 }
 
 // The hood (backitems.js buildHood) slides back along the back when the head
@@ -540,6 +559,7 @@ function keepChestUnderHead(body, underside) {
     underside.rotation.y = 0;
     underside.position.copy(_k);
     if (underside.userData.drop) dropChest(body, underside);
+    if (underside.userData.aside) underside.position.x += underside.userData.aside; // the nap's chest follows the tucked head (NAP.chest.aside)
     return;
   }
   underside.rotation.y = -yaw;
@@ -776,6 +796,10 @@ function neckMove(cat, w, a) {
   // the posed neck, the chest read through the underside (T + S·c once yawed)
   body.updateMatrix(); head.updateMatrix(); underside.updateMatrix();
   _c1.set(cx, cy, cz).applyMatrix4(underside.matrix).applyMatrix4(body.matrix);
+  // The nap lowers the chest ball out of sight (NAP.chest.drop); the neck, the
+  // collar and the neck pieces keep the line to where the chest was, so they
+  // lie as high as they did (lowered with it, a necktie went 1 cm into the ground).
+  if (underside.userData.neckUp) _c1.y += underside.userData.neckUp;
   _n0.subVectors(_h0, _c0).normalize();
   _n1.subVectors(head.position, _c1).normalize();
   _turn.setFromUnitVectors(_n0, _n1);
@@ -976,7 +1000,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   tail.position.z = tail.userData.rootZ ??= tail.position.z; // the stalk moves it (STALK_TAIL)
   const { underside } = cat.userData.parts;
   if (underside) {
-    underside.scale.set(1, 1, 1); underside.userData.drop = 0;
+    underside.scale.set(1, 1, 1); underside.userData.drop = 0; underside.userData.aside = 0; underside.userData.neckUp = 0;
     if (underside.userData.sunk) sinkChest(body, underside, false); // getting up from a sit: the chest's own vertices go back (SIT.chestSink)
   } // the sit flattens and lowers it (SIT.chestDepth, chestDrop)
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
@@ -987,9 +1011,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   // without them (Hagrid) keeps today's lines.
   const f = FOLD_BY_STATE[state];
   const own = FOLD_LEG[state];
-  // A cat dressed on its body keeps its thighs inside the cloth (limbs.js SLIM_FOLD, base.slimHaunch).
-  const slim = base.slimHaunch === true;
-  const ff = f ? f[0] : 'stand', fh = f ? (slim ? SLIM_FOLD[f[1]] ?? f[1] : f[1]) : 'stand';
+  const ff = f ? f[0] : 'stand', fh = f ? f[1] : 'stand';
   if (own) legs.forEach((leg, i) => applyFold(leg, own[i] ?? (i < 2 ? ff : fh)));
   else { applyFold(legs[0], ff); applyFold(legs[1], ff); applyFold(legs[2], fh); applyFold(legs[3], fh); }
   const folds = !!legs[0].userData.folds;
@@ -1062,7 +1084,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       body.position.y = base.bodyY - NAP.drop;
       body.scale.set(bsx * NAP.scale[0], bsy * NAP.scale[1], bsz * NAP.scale[2]);
       body.rotation.x = NAP.pitch;
-      if (!slim) for (let i = 2; i < 4; i++) legs[i].position.x += Math.sign(legs[i].userData.hipX) * NAP.hindOut;
+      for (let i = 2; i < 4; i++) legs[i].position.x += Math.sign(legs[i].userData.hipX) * NAP.hindOut;
     } else {
       body.position.y = base.bodyY - 0.1;
       body.scale.set(bsx * 1.12, bsy * 0.73, bsz * 0.89);
@@ -1075,6 +1097,15 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       head.rotation.set(0.55, 0.5, 0);
     }
     if (!folds) for (const leg of legs) leg.scale.y = 0.25;
+    if (folds && underside) {
+      // The chest lies low behind the tucked head (torso.js NAP.chest): at its
+      // standing size it stood up between the head and the shoulders as a
+      // lump. The underside's own scale and place, so nothing is uploaded.
+      underside.scale.set(NAP.chest.scale[0], NAP.chest.scale[1], NAP.chest.scale[2]);
+      underside.userData.drop = NAP.chest.drop;
+      underside.userData.aside = NAP.chest.aside;
+      underside.userData.neckUp = NAP.chest.drop; // the neck line keeps the chest's undropped height (neckMove)
+    }
     if (folds) {
       // polish-pose Task 1: the tail lies flush on the ground and curls round
       // the left haunch, toward the nose (the head above turns it to the
@@ -1180,7 +1211,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       if (!underside.userData.sunk && folds) sinkChest(body, underside, true); // sitting down (SIT.chestSink, chestFlat)
       const k = bsx / TORSO.SCALE[0];
       if (k !== 1) for (const leg of legs) leg.position.x = leg.userData.hipX * k;
-      if (folds && !slim) for (let i = 2; i < 4; i++) legs[i].position.x += Math.sign(legs[i].userData.hipX) * SIT.hindOut; // the haunches stand out of the sides (SIT.hindOut)
+      if (folds) for (let i = 2; i < 4; i++) legs[i].position.x += Math.sign(legs[i].userData.hipX) * SIT.hindOut; // the haunches stand out of the sides (SIT.hindOut)
       for (let i = 0; i < 2; i++) {
         const leg = legs[i];
         leg.position.z = leg.userData.hipZ + SIT.foreZ;

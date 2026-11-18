@@ -798,12 +798,23 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
       if (!ring.back || v.z > ring.back.z) ring.back = v.clone();
       ring.out = Math.max(ring.out, (chest - v.z) / k);
     });
-    return { nose: noseBox(cat), front, out, ring, k };
+    // How far the items' foremost point lies behind the nose's tip, measured along the way the
+    // face points over the ground (the head's own forward, levelled). With the head straight
+    // ahead that is the z measure exactly; the napping head is turned 72 degrees to the tail
+    // (2026-11-17, torso.js NAP), where "in front of the nose" is no longer -z.
+    const nose = noseBox(cat);
+    const f = new THREE.Vector3(0, 0, -1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion())).setY(0).normalize();
+    let tip = -Infinity;
+    for (const x of [nose.min.x, nose.max.x]) for (const z of [nose.min.z, nose.max.z]) tip = Math.max(tip, x * f.x + z * f.z);
+    let behind = Infinity;
+    vertsOf(meshes, (v) => { behind = Math.min(behind, tip - (v.x * f.x + v.z * f.z)); });
+    return { nose, front, out, ring, k, behind };
   };
   it.each(['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => NECK_IDS.map((id) => [b, id])))('%s: the %s stays round the neck in every pose: behind the nose, below the mouth, nothing poking forward', (breed, id) => {
     for (const [state, t, speed] of NECK_STATES) {
       const at = `${state} t ${t} speed ${speed}`, r = neckReading(breed, id, state, t, speed);
-      expect(r.front.z, `${at}: behind the nose`).toBeGreaterThan(r.nose.min.z);
+      if (state === 'nap') expect(r.behind, `${at}: behind the nose`).toBeGreaterThan(0);
+      else expect(r.front.z, `${at}: behind the nose`).toBeGreaterThan(r.nose.min.z);
       // 2026-11-15 (cat realism, the nap): the napping head now lies on the
       // forepaws, its mouth 2-4 cm over the ground, so nothing worn round the
       // neck can be both under the mouth and out of the ground. There the
@@ -811,7 +822,8 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
       // every one at least 10 cm behind the nose's tip (it was 0.4 cm), which
       // keeps what "below the mouth" was for (nothing held out in front like
       // a stick in the mouth); out of the ground is test/catrealposes.test.js.
-      if (state === 'nap') expect((r.front.z - r.nose.min.z) / r.k, `${at}: well behind the nose`).toBeGreaterThanOrEqual(0.10);
+      // 2026-11-17 (leftovers): measured along the way the turned face points (neckReading), still 10 cm.
+      if (state === 'nap') expect(r.behind / r.k, `${at}: well behind the nose`).toBeGreaterThanOrEqual(0.10);
       else expect(r.front.y, `${at}: below the mouth`).toBeLessThan(r.nose.min.y);
       expect(r.out, `${at}: nothing more than 10 cm out in front of the chest`).toBeLessThanOrEqual(0.10);
       if (!r.ring) continue;
@@ -1265,7 +1277,8 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
         // 2026-11-16 (cat realism B11): a crowd cat's root link now wears the rump's painted colour
         // at its root and eases into the tail's (as a full build's has since 2026-11-15;
         // catrealposes.test.js holds it), so link 0 of a non-family cat is not checked here.
-        if (k === 0 && breed !== 'digit') return;
+        // 2026-11-17 (leftovers): a family cat's root link wears it too, so link 0 is checked on no cat here.
+        if (k === 0) return;
         for (let i = 0; i < p.count; i++) {
           const u = (k * L + Math.min(L, Math.max(0, p.getZ(i)))) / (5 * L);
           if (u <= 0.6 + 1e-9) { expect(colourDistance(drawn(m, i), new THREE.Color(base)), `${breed} link ${k} u ${u}`).toBeLessThan(1e-6); nBase++; }
@@ -1318,7 +1331,13 @@ describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
       let n = 0;
       links.forEach((m, k) => {
         const p = m.geometry.attributes.position;
-        for (let i = 0; i < p.count; i++) { expect(colourDistance(drawn(m, i), tip), `siamese ${simple} link ${k}`).toBeLessThan(1e-6); n++; }
+        for (let i = 0; i < p.count; i++) {
+          // 2026-11-17 (leftovers): the root link comes out of the pale rump in the rump's own
+          // painted colour (it showed as a dark disc from behind) and is the point colour from
+          // 0.6 of its length on (model.js TAIL_ROOT_EASE; catrealposes.test.js holds the root).
+          if (k === 0 && p.getZ(i) < 0.6 * 0.14 - 1e-9) continue;
+          expect(colourDistance(drawn(m, i), tip), `siamese ${simple} link ${k}`).toBeLessThan(1e-6); n++;
+        }
       });
       expect(n).toBeGreaterThan(150);
     }

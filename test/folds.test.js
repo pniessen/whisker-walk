@@ -134,9 +134,7 @@ const INVERTED_MAX = {
   sit: { front: [0, 0], hind: [0, 0] },
   tuck: { front: [0, 0], hind: [0, 0] },
   loaf: { front: [0, 0], hind: [0, 0] }, // 2026-11-16 (cat realism B11): the nap's loaf fold
-  // a cat dressed on its body: the hind thighs inside the cloth (a front leg asked for either stands)
-  sitIn: { front: [0, 0], hind: [0, 0] },
-  loafIn: { front: [0, 0], hind: [0, 0] },
+  // 2026-11-16 (clothes over the haunch): sitIn and loafIn (a dressed cat's slim hind folds) are gone with the folds.
   crouch: { front: [0, 0], hind: [0, 0] },
   ball: { front: [0, 0], hind: [0, 0] },
   // 2026-11-15 (cat realism A7): the stretch's play bow, front legs only (a

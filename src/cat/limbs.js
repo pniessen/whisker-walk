@@ -238,8 +238,9 @@ export const FOLDS = Object.freeze({
   // over the hip stays clear of it (scarmesh.test.js). `seamReach`: its
   // shading flows into the torso's only close to the surface (the default
   // reach flattened the whole thigh into the flank's shading), so it reads
-  // as a rounded mass with a soft crease round it. The fold before this is
-  // kept as `sitIn` for a cat dressed on its body.
+  // as a rounded mass with a soft crease round it. A cat dressed on its body
+  // has the same haunch (2026-11-16): its coat or cape is laid over it
+  // (drape.js); until then it kept a slim thigh inside the cloth.
   sit: Object.freeze({
     crouch: true, drop: 0.065, seamReach: 0.025,
     hind: fold([[0.17, -0.15], [0.115, -0.26], [0.045, -0.3]], [0.11, 0.09, 0.036], [0.0415, -0.33], 0, 0.9),
@@ -263,19 +264,6 @@ export const FOLDS = Object.freeze({
     crouch: true, drop: 0.12, seamReach: 0.025,
     front: fold([[0.14, 0.07], [0.06, 0.07], [0.04, -0.06]], [0.07, 0.05, 0.036], [0.0415, -0.11], 0, 0.7),
     hind: fold([[0.15, -0.02], [0.095, -0.15], [0.045, -0.19]], [0.115, 0.085, 0.036], [0.0415, -0.22], 0, 0.9),
-  }),
-  // A cat that wears something on its body (a cape, a hoodie, a sweater) keeps
-  // its thighs INSIDE the torso, sitting and napping: a haunch standing out of
-  // the side came through the cloth. These are the hind legs it folds then
-  // (SLIM_FOLD; the animator leaves its hips where they are): the sit's as it
-  // was before B11, the loaf's the same line with a slim thigh.
-  sitIn: Object.freeze({
-    crouch: true, drop: 0.065,
-    hind: fold([[0.235, -0.18], [0.13, -0.24], [0.045, -0.22]], [0.08, 0.07, 0.036], [0.0415, -0.25]),
-  }),
-  loafIn: Object.freeze({
-    crouch: true, drop: 0.12,
-    hind: fold([[0.18, -0.02], [0.095, -0.13], [0.045, -0.19]], [0.08, 0.07, 0.036], [0.0415, -0.22]),
   }),
   // Bent low, paws still under the shoulders and hips, ready to go.
   // polish-catlooks Task 6 (2026-11-02): the crouch reads as one low body.
@@ -328,7 +316,7 @@ export const FOLDS = Object.freeze({
     front: fold([[0.255, 0.06], [0.16, -0.03], [0.204, -0.1355], [0.252, -0.1715]], [0.085, 0.06, 0.042, 0.036], [0.27, -0.17], 2.5),
   }),
   bow: Object.freeze({
-    crouch: false, ground: true, drop: 0.115,
+    crouch: false, ground: true, lie: true, drop: 0.115,
     front: fold([[0.185, 0.05], [0.085, 0.01], [0.05, -0.13], [0.04, -0.24]], [0.085, 0.06, 0.042, 0.036], [0.0415, -0.27]),
   }),
 });
@@ -345,9 +333,6 @@ export const FOLD_BY_STATE = Object.freeze({
   roll: Object.freeze(['ball', 'ball']),
   stretch: Object.freeze(['bow', 'stand']),
 });
-
-// The hind fold a cat dressed on its body takes in place of a haunch (FOLDS.sitIn, loafIn).
-export const SLIM_FOLD = Object.freeze({ sit: 'sitIn', loaf: 'loafIn' });
 
 // One leg's own fold in a state, by leg index (0 front left, 1 front right):
 // grooming raises the front right paw to the mouth.
@@ -452,7 +437,7 @@ export function attachFolds(leg, { hind, simple, hipY, len, seam = null }) {
   geo.boundingSphere = sphere;
   geo.boundingBox = stand.box.clone();
   leg.userData.folds = folds;
-  leg.userData.rest = { pos: leg.children.map((c) => c.position.clone()), rotX: leg.children.map((c) => c.rotation.x), paw: leg.children.indexOf(leg.userData.paw) };
+  leg.userData.rest = { pos: leg.children.map((c) => c.position.clone()), rotX: leg.children.map((c) => c.rotation.x), paw: leg.children.indexOf(leg.userData.paw), pawScale: leg.userData.paw.scale.clone() };
   leg.userData.fold = 'stand';
 }
 
@@ -494,6 +479,22 @@ export function applyFold(leg, kind) {
   _move.subVectors(f.paw, folds.stand.paw);
   paw.position.copy(rest[at]).add(_move);
   paw.rotation.x = rotX[at] + f.pawRotX;
+  // A tall shell (a rain boot, a sock: paw.scale.y over its x) on a paw that
+  // lies at the end of a forearm along the ground (a fold marked `lie`, the
+  // bow): standing, the leg comes down into the shell's top; here the shell
+  // stood up off the end of the forearm as an egg. Its extra height is laid
+  // back along the forearm instead (the boot's shaft over the wrist): as low
+  // as it is wide, that much longer, the toe and the sole where they were.
+  // Put back exactly (the built scale, kept by attachFolds) in any other fold.
+  const built = ud.rest.pawScale;
+  if (built.y > built.x) {
+    if (FOLDS[k].lie) {
+      const long = built.z * built.y / built.x;
+      paw.scale.set(built.x, built.x, long);
+      paw.position.y -= PAW_HALF * (built.y - built.x);
+      paw.position.z += PAW_LONG * (long - built.z);
+    } else paw.scale.copy(built);
+  }
   for (let i = at + 1; i < leg.children.length; i++) {
     const part = leg.children[i];
     _off.subVectors(rest[i], rest[at]).applyAxisAngle(_X, f.pawRotX);
@@ -698,6 +699,7 @@ export function footGeometry(pawHex, simple = false) {
 
 // R8: today's plain paw (radius 0.062, flattened 0.62, long 1.42; no toes,
 // no claws, no vertex colours), for feet items to sit on exactly as before.
+const PAW_LONG = 0.062 * 1.42; // the plain paw's half length (applyFold lays a tall shell back by it)
 export function plainPawGeometry() {
   const geo = new THREE.SphereGeometry(FOOT.R, 12, 9);
   geo.scale(1.02, 0.62, 1.42);
