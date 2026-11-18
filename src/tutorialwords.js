@@ -2,7 +2,8 @@
 // and the home screen's "next thing" line, in one table. Nothing else holds
 // tutorial text (design: .claude/plans/guided-first-walk-design.md, 2026-11-15).
 //
-// Pure: no DOM, no THREE, no imports. Each line has a touch form and a
+// Pure: no DOM, no THREE; its one import is the door to the word sets
+// (wordset.js, a leaf), since 2026-11-18. Each line has a touch form and a
 // keyboard form (the same words where the design gives only one), and may
 // carry {slots} the caller fills. The words are neutral: they read the same
 // whether or not the book-series wording is on, so none of them names a
@@ -12,6 +13,7 @@
 // line() gives PLAIN TEXT. A slot may hold a name a player typed, so a caller
 // sets the result as text (textContent) or escapes it (escapeHtml), never as
 // HTML.
+import { words } from './wordset.js';
 
 const same = (s) => Object.freeze({ touch: s, keys: s });
 const two = (touch, keys) => Object.freeze({ touch, keys });
@@ -121,9 +123,15 @@ export function hasLine(id) {
 // line(id, { touch, name, place, … }) -> the sentence as plain text, or ''
 // for an id the table does not hold. A slot the caller did not fill is left
 // out (the test pins that every caller fills its slots).
+//
+// A word set may carry lines of its own (LINES in wordset.js, keyed by these
+// ids, each with a touch and a keys form): that set's line is said in place of
+// this table's. The family's set has none, so every line is this table's.
 export function line(id, { touch = false, ...slots } = {}) {
   if (!hasLine(id)) return '';
-  const form = touch ? WORDS[id].touch : WORDS[id].keys;
+  const own = words().LINES;
+  const entry = own && Object.hasOwn(own, id) ? own[id] : WORDS[id];
+  const form = touch ? entry.touch : entry.keys;
   return form.replace(/\{(\w+)\}/g, (_, k) => (Object.hasOwn(slots, k) && slots[k] != null ? String(slots[k]) : ''));
 }
 

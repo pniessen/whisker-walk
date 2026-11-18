@@ -133,3 +133,33 @@ describe('series words in the guided walk, the hints and the home line, pinned',
     checkAgainstFixture(FIXTURE, snapshot());
   });
 });
+
+// ---- the everyday words ('off'), added 2026-11-18 ------------------------------
+// The same snapshot, built by the same code, with the everyday word set in
+// use (src/offclanwords.js), recorded in its own fixture. Those words are the
+// older playtester's picks; re-record with
+//   UPDATE_OFF_SNAPSHOT=1 npx vitest run test/serieswords
+// when she or the owner changes one, and read the diff line by line.
+import { withOffWords, bannedLeaks, offWordCount } from './helpers/offwords.js';
+import { UPDATING_OFF } from './helpers/serieswords.js';
+
+const OFF_FIXTURE = 'series-words-off-tutorial.json';
+// `table` is the table as it is WRITTEN (the family's lines, never drawn as
+// they stand); `filled` is what is said, through line().
+const OFF_IGNORE = [/^table\./];
+describe('everyday words: the guided walk, the hints and the home line', () => {
+  it('shows exactly the recorded everyday words', () => {
+    checkAgainstFixture(OFF_FIXTURE, withOffWords(() => snapshot()), UPDATING_OFF);
+  });
+
+  it('shows no word of the family\'s set, and plenty of the everyday ones', () => {
+    const snap = withOffWords(() => snapshot());
+    expect(bannedLeaks(snap, OFF_IGNORE)).toEqual([]);
+    expect(offWordCount(snap)).toBeGreaterThan(20);
+  });
+
+  it('and the family\'s words are back afterwards', () => {
+    withOffWords(() => snapshot());
+    checkAgainstFixture(FIXTURE, snapshot());
+  });
+});

@@ -1,0 +1,184 @@
+{
+ "about": "What a walk says about group cats and strays. Recorded by test/serieswords.play.test.js; see test/serieswords.test.js before re-recording.",
+ "clanEdition": {
+  "clanmateAtHome": {
+   "leader": [
+    "prompt: E — touch noses with Badger",
+    "award: You spotted a nose touch with Badger",
+    "prompt: E — boop Badger 💕",
+    "toast: 💕 boop with Badger!",
+    "award: You spotted a nose boop with Badger 💕"
+   ],
+   "elder": [
+    "prompt: E — touch noses with Bark",
+    "award: You spotted a nose touch with Bark",
+    "prompt: E — boop Bark 💕",
+    "toast: 💕 boop with Bark!",
+    "award: You spotted a nose boop with Bark 💕"
+   ],
+   "kit": [
+    "prompt: E — touch noses with Bluejay",
+    "award: You spotted a nose touch with Bluejay",
+    "prompt: E — boop Bluejay 💕",
+    "toast: 💕 boop with Bluejay!",
+    "award: You spotted a nose boop with Bluejay 💕"
+   ],
+   "warrior": [
+    "prompt: E — touch noses with Conker",
+    "award: You spotted a nose touch with Conker",
+    "prompt: E — boop Conker 💕",
+    "toast: 💕 boop with Conker!",
+    "award: You spotted a nose boop with Conker 💕",
+    "prompt: E — walk the bounds with Conker",
+    "toast: Conker walks the bounds with you 🐾",
+    "prompt: E — say goodbye to Conker",
+    "toast: Conker heads back to home base. Good walk!",
+    "award: You spotted a walk round the bounds with Conker"
+   ],
+   "apprentice": [
+    "prompt: E — touch noses with Glade",
+    "award: You spotted a nose touch with Glade",
+    "prompt: E — boop Glade 💕",
+    "toast: 💕 boop with Glade!",
+    "award: You spotted a nose boop with Glade 💕",
+    "prompt: E — walk the bounds with Glade",
+    "toast: Glade walks the bounds with you 🐾",
+    "prompt: E — say goodbye to Glade",
+    "toast: Glade heads back to home base. Good walk!",
+    "award: You spotted a walk round the bounds with Glade"
+   ],
+   "deputy": [
+    "prompt: E — touch noses with Thrush",
+    "award: You spotted a nose touch with Thrush",
+    "prompt: E — boop Thrush 💕",
+    "toast: 💕 boop with Thrush!",
+    "award: You spotted a nose boop with Thrush 💕"
+   ]
+  },
+  "patrolWith": {
+   "woods": [
+    "prompt: E — touch noses with Conker",
+    "award: You spotted a nose touch with Conker",
+    "prompt: E — boop Conker 💕",
+    "toast: 💕 boop with Conker!",
+    "award: You spotted a nose boop with Conker 💕",
+    "prompt: E — walk the bounds with Conker",
+    "toast: Conker walks the bounds with you 🐾",
+    "prompt: E — say goodbye to Conker",
+    "toast: Conker heads back to home base. Good walk!",
+    "award: You spotted a walk round the bounds with Conker"
+   ],
+   "river": [
+    "prompt: E — touch noses with Vole",
+    "award: You spotted a nose touch with Vole",
+    "prompt: E — boop Vole 💕",
+    "toast: 💕 boop with Vole!",
+    "award: You spotted a nose boop with Vole 💕",
+    "prompt: E — walk the bounds with Vole",
+    "toast: Vole walks the bounds with you 🐾",
+    "prompt: E — say goodbye to Vole",
+    "toast: Vole heads back to home base. Good walk!",
+    "award: You spotted a walk round the bounds with Vole"
+   ],
+   "moor": [
+    "prompt: E — touch noses with Cotton",
+    "award: You spotted a nose touch with Cotton",
+    "prompt: E — boop Cotton 💕",
+    "toast: 💕 boop with Cotton!",
+    "award: You spotted a nose boop with Cotton 💕",
+    "prompt: E — walk the bounds with Cotton",
+    "toast: Cotton walks the bounds with you 🐾",
+    "prompt: E — say goodbye to Cotton",
+    "toast: Cotton heads back to home base. Good walk!",
+    "award: You spotted a walk round the bounds with Cotton"
+   ],
+   "pines": [
+    "prompt: E — touch noses with Needle",
+    "award: You spotted a nose touch with Needle",
+    "prompt: E — boop Needle 💕",
+    "toast: 💕 boop with Needle!",
+    "award: You spotted a nose boop with Needle 💕",
+    "prompt: E — walk the bounds with Needle",
+    "toast: Needle walks the bounds with you 🐾",
+    "prompt: E — say goodbye to Needle",
+    "toast: Needle heads back to home base. Good walk!",
+    "award: You spotted a walk round the bounds with Needle"
+   ],
+   "gorge": [
+    "prompt: E — touch noses with Flint",
+    "award: You spotted a nose touch with Flint",
+    "prompt: E — boop Flint 💕",
+    "toast: 💕 boop with Flint!",
+    "award: You spotted a nose boop with Flint 💕",
+    "prompt: E — walk the bounds with Flint",
+    "toast: Flint walks the bounds with you 🐾",
+    "prompt: E — say goodbye to Flint",
+    "toast: Flint heads back to home base. Good walk!",
+    "award: You spotted a walk round the bounds with Flint"
+   ]
+  },
+  "patrolEnds": {
+   "tooShort": [
+    "toast: Conker heads back to home base. A longer walk next time!"
+   ],
+   "longEnough": [
+    "toast: Conker heads back to home base. Good walk!",
+    "award: You spotted a walk round the bounds with Conker"
+   ],
+   "outran": [
+    "toast: Conker couldn't keep up!",
+    "award: You spotted a walk round the bounds with Conker"
+   ]
+  },
+  "clanmateAwayFromHome": [
+   "prompt: E — touch noses with Conker",
+   "award: You spotted a nose touch with Conker"
+  ],
+  "stray": {
+   "Pickles": [
+    "toast: You met Pickles the roamer! ♡",
+    "toast: Pickles the roamer is now your friend! ♥",
+    "toast: Pickles the roamer is your BEST friend! 💕"
+   ],
+   "Marmalade": [
+    "toast: You met Marmalade the house cat! ♡",
+    "toast: Marmalade the house cat is now your friend! ♥",
+    "toast: Marmalade the house cat is your BEST friend! 💕"
+   ],
+   "Professor Whiskers": [
+    "award: You spotted a legendary cat — Professor Whiskers! ✨",
+    "toast: You met Professor Whiskers the roamer! ♡",
+    "toast: Professor Whiskers the roamer is now your friend! ♥",
+    "toast: Professor Whiskers the roamer is your BEST friend! 💕"
+   ]
+  },
+  "strayTurnsCross": {
+   "Pickles": [
+    "toast: Pickles hisses and backs away… a loner now! 😾"
+   ],
+   "Marmalade": [
+    "toast: Marmalade hisses and backs away… 😾"
+   ]
+  }
+ },
+ "legacyEdition": {
+  "clanmateAtHome": [],
+  "stray": {
+   "Pickles": [
+    "toast: You met Pickles! ♡",
+    "toast: Pickles is now your friend! ♥",
+    "toast: Pickles is your BEST friend! 💕"
+   ],
+   "Marmalade": [
+    "toast: You met Marmalade! ♡",
+    "toast: Marmalade is now your friend! ♥",
+    "toast: Marmalade is your BEST friend! 💕"
+   ]
+  },
+  "strayTurnsCross": {
+   "Pickles": [
+    "toast: Pickles hisses and backs away… 😾"
+   ]
+  }
+ }
+}

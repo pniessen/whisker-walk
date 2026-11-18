@@ -1,0 +1,147 @@
+{
+ "about": "Every label on the five territories' maps. Recorded by test/serieswords.world.test.js; see test/serieswords.test.js before re-recording.",
+ "areas": {
+  "woods": {
+   "collectibles": [
+    "woods-find-1: a glossy acorn",
+    "woods-find-2: a jay feather",
+    "woods-find-3: a snail shell by the river",
+    "woods-find-4: a dry oak leaf, just right for a nest",
+    "woods-find-5: a ball of moss on the lookout rock"
+   ],
+   "moments": [
+    "squirrel-dash: two squirrels racing up the grandfather oak"
+   ],
+   "perches": [
+    "stone: lookout rocks",
+    "tree: grandfather oak lookout"
+   ],
+   "scenics": [
+    "great-oak: the grandfather oak",
+    "lake-view: the lakeshore",
+    "woods-pond: the pond on the border"
+   ]
+  },
+  "river": {
+   "collectibles": [
+    "river-find-1: a smooth pebble by the pool",
+    "river-find-2: a kingfisher feather",
+    "river-find-3: a mussel shell from the riverbank",
+    "river-find-4: a silver fish scale",
+    "river-find-5: a warm pebble on the low rock"
+   ],
+   "moments": [
+    "duck-parade: a duck leading her ducklings out of the pond",
+    "mouse-dash: a harvest mouse dashing through the reeds"
+   ],
+   "perches": [
+    "stone: heron rocks",
+    "tree: old willow lookout"
+   ],
+   "scenics": [
+    "lake-island: the lake and the island",
+    "old-willow: under the old willow",
+    "river-pond: the pond on the border"
+   ]
+  },
+  "moor": {
+   "collectibles": [
+    "moor-find-1: a tuft of rabbit fur",
+    "moor-find-2: a skylark feather",
+    "moor-find-3: a smooth pebble from the lakeshore",
+    "moor-find-4: a sprig of white heather",
+    "moor-find-5: a gorse flower on the low rock"
+   ],
+   "moments": [
+    "rabbit-bolt: a rabbit bolting for its burrow"
+   ],
+   "perches": [
+    "stone: high tor",
+    "tree: old hawthorn lookout"
+   ],
+   "scenics": [
+    "moor-lake: the lake and the island",
+    "river-bend: where the river turns west",
+    "warren: the rabbit warren"
+   ]
+  },
+  "pines": {
+   "collectibles": [
+    "pines-find-10: a bright beetle wing on a flat stone",
+    "pines-find-1: a fat pine cone",
+    "pines-find-2: an owl feather",
+    "pines-find-3: a tuft of bog cotton",
+    "pines-find-4: a shiny beetle shell",
+    "pines-find-5: a mossy pebble on the low stone",
+    "pines-find-6: a smooth white pebble",
+    "pines-find-7: a grey goose feather",
+    "pines-find-8: a snail shell at the water's edge",
+    "pines-find-9: a pine cone dropped on the planks"
+   ],
+   "moments": [
+    "duck-ring: ducks paddling past the island",
+    "frog-plop: a frog hopping for the bog"
+   ],
+   "perches": [
+    "stone: frog stones",
+    "stone: lightning stump",
+    "stone: watch rock",
+    "tree: old ash lookout"
+   ],
+   "scenics": [
+    "black-mire: the black mire",
+    "bridge-landing: the end of the bridge",
+    "island-bridge: the bridge to the island",
+    "lake-view: the lake, looking over to the Woods",
+    "meeting-ring: the stone ring under the old ash",
+    "swamp-heart: the heart of the swamp"
+   ]
+  },
+  "gorge": {
+   "collectibles": [
+    "gorge-find-1: a smooth white pebble",
+    "gorge-find-2: a tuft of soft grey fur",
+    "gorge-find-3: a gold-flecked stone",
+    "gorge-find-4: a curly fern frond",
+    "gorge-find-5: a hawk feather"
+   ],
+   "moments": [
+    "goat-leap: a goat leaping over the rocks"
+   ],
+   "perches": [
+    "stone: summit rock"
+   ],
+   "scenics": [
+    "echo-mouth: the mouth of the Echo Cave",
+    "gorge-view: the view down the gorge",
+    "lookout-ledge: the gorge from the Lookout Ledge"
+   ]
+  }
+ },
+ "island": {
+  "scenics": [
+   "bridge-landing: the end of the bridge",
+   "lake-view: the lake, looking over to the Woods",
+   "meeting-ring: the stone ring under the old ash"
+  ],
+  "collectibles": [
+   "pines-find-10: a bright beetle wing on a flat stone",
+   "pines-find-6: a smooth white pebble",
+   "pines-find-7: a grey goose feather",
+   "pines-find-8: a snail shell at the water's edge",
+   "pines-find-9: a pine cone dropped on the planks"
+  ],
+  "perches": [
+   "stone: watch rock",
+   "tree: old ash lookout"
+  ],
+  "moments": [
+   "duck-ring: ducks paddling past the island"
+  ]
+ },
+ "gorgeCaves": [
+  "echo: the Echo Cave",
+  "snug: the Snug Cave",
+  "glitter: the Glitter Cave"
+ ]
+}

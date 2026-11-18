@@ -23,6 +23,16 @@
 //     clanphrases.js ids, which then take the place of that file's own.
 //   - A set's PREFIXES list has the same length in every set: a save stores
 //     its colony's title as a position in that list (progression.js).
+//   - A set may also carry what it does DIFFERENTLY, as data (2026-11-18). The
+//     'on' set carries none of these, so the family's game is what it was:
+//       RULES       switches read with wordRule(): storedNames (a cat is shown
+//                   under the name it is stored with, never a composed one),
+//                   noStarNames (no top-rank names are offered)
+//       RANK_AS     rank id -> the rank id it is shown as, for a set with
+//                   fewer ranks (rankShown, rankWord)
+//       LINES       guided-walk lines of its own, keyed as tutorialwords.js is
+//       BADGE_WORDS a word for each group's badge on the pick cards
+//     Code asks these questions of the set; it never asks which set is in use.
 //
 // A leaf like clanwords.js: it imports that file only, so anything may import
 // it without a cycle and without THREE.
@@ -62,6 +72,25 @@ export function seriesModes() {
 // The tables of the set in use.
 export function words() {
   return SETS.get(mode);
+}
+
+// Whether the set in use carries this switch (see RULES in the header). A set
+// without the table, the 'on' set among them, answers no to everything.
+export function wordRule(name) {
+  const rules = words().RULES;
+  return !!rules && Object.hasOwn(rules, name) && rules[name] === true;
+}
+
+// The rank a rank id is SHOWN as. Every set has the same rank ids; a set with
+// fewer ranks names the id that stands in for one it does not have.
+export function rankShown(key) {
+  const as = words().RANK_AS;
+  return as && Object.hasOwn(as, key) ? as[key] : key;
+}
+
+// The word a player reads for a rank id.
+export function rankWord(key) {
+  return words().RANK_WORDS[rankShown(key)];
 }
 
 const keysOf = (v) => (v && typeof v === 'object' && !(v instanceof Set) ? Object.keys(v) : []);

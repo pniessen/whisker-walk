@@ -12,7 +12,7 @@
 // discoveries, enemies or net, so a clan cat can never be fed, tamed or grudged.
 import { isClanId, clanName, TRUCE_AREAS } from './clanhomes.js';
 import { DISCS } from './rivalclans.js';
-import { words, RANK_KEYS } from './wordset.js';
+import { words, wordRule, rankWord, RANK_KEYS } from './wordset.js';
 import { seedFromCode, mulberry32 } from './rng.js';
 import { phrase } from './clanphrases.js';
 
@@ -108,6 +108,8 @@ function warriorName(prefix, clanId, slot) {
 function nameFor(clanId, slot, rank) {
   const { CLAN_CAT_PREFIXES, RANK_SUFFIX } = words();
   const prefix = CLAN_CAT_PREFIXES[clanId][slot];
+  // A set whose cats keep one name for life: the seat's word IS the name.
+  if (wordRule('storedNames')) return prefix;
   if (rank === K.kit) return prefix + RANK_SUFFIX.kit;
   if (rank === K.apprentice) return prefix + RANK_SUFFIX.apprentice;
   if (rank === K.leader) return prefix + RANK_SUFFIX.leader;
@@ -180,7 +182,7 @@ export function clanHomeFor(areaId, edition, picks) {
 }
 
 export function tagSubFor(member) {
-  return phrase('tag.rankOfGroup', words().RANK_WORDS[member.rank], clanName(member.clan));
+  return phrase('tag.rankOfGroup', rankWord(member.rank), clanName(member.clan));
 }
 
 // The options makeNameTag takes for a cast cat: the second line, and whether

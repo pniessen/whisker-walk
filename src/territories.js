@@ -53,8 +53,10 @@ const pts = (list) => Object.freeze(list.map((p) => Object.freeze(p)));
 export const LAKE = pts([[397, 370], [402, 281], [405, 241], [416, 220], [431, 209], [452, 207], [472, 209], [495, 220], [507, 237], [522, 327], [517, 352], [469, 415], [450, 426], [429, 425], [400, 408]]);
 // The island is walked as part of the Pines (owner's decision 1), so its star
 // is the Pines' way in and takes the Pines' state.
+// Its name is the set's own place word where the set has one (as the town's
+// is, above), and 'The island' otherwise.
 export const ISLAND = Object.freeze({
-  id: 'island', areaId: 'pines', name: 'The island', status: 'built',
+  id: 'island', areaId: 'pines', get name() { return words().PLACE_WORDS.island ?? 'The island'; }, status: 'built',
   outline: pts([[437, 307], [444, 297], [456, 291], [476, 289], [485, 309], [478, 321], [464, 329], [449, 329], [440, 320]]),
 });
 export const STAR = Object.freeze({ x: 455, y: 314 });

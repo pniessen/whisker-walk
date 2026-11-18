@@ -14,7 +14,7 @@
 import { tamingProgress, COLONY_MAX, colonyCap } from '../colony.js';
 import { strayBreed } from '../straynames.js';
 import { clanNameOf, colonyRankFor } from '../clannames.js';
-import { words, RANK_KEYS } from '../wordset.js';
+import { rankWord, rankShown, RANK_KEYS } from '../wordset.js';
 import { phrase } from '../clanphrases.js';
 import { roleFor } from '../clanroles.js';
 import { isTradeableAccessory } from '../progression.js';
@@ -80,11 +80,13 @@ function knewLine(catName, p, { me, partner, partnerName, feeds }) {
 // verdictsOf), and a verdict naming a cat that isn't on this card simply never
 // matches, so a stale or hostile one changes nothing.
 function descriptorFor(cat, p, verdicts) {
-  if (!p.tamed) return words().RANK_WORDS[colonyRankFor(cat.name, p)];
+  if (!p.tamed) return rankWord(colonyRankFor(cat.name, p));
   const held = [];
-  if (verdicts.medicine === cat.name) held.push(words().RANK_WORDS[RANK_KEYS.medicine]);
-  if (verdicts.deputy === cat.name) held.push(words().RANK_WORDS[RANK_KEYS.deputy]);
-  return held.length ? held.join(' · ') : words().RANK_WORDS[roleFor(cat.name)];
+  if (verdicts.medicine === cat.name) held.push(rankWord(RANK_KEYS.medicine));
+  // A set with no second-in-command shows that rank as another one
+  // (rankShown): the stored verdict is then left unread, never removed.
+  if (verdicts.deputy === cat.name && rankShown(RANK_KEYS.deputy) === RANK_KEYS.deputy) held.push(rankWord(RANK_KEYS.deputy));
+  return held.length ? held.join(' · ') : rankWord(roleFor(cat.name));
 }
 
 // The stored verdicts, read defensively: a missing, non-object or malformed
@@ -106,7 +108,7 @@ function catCard(cat, p, ctx) {
   // RANK_WORDS so no borrowed vocabulary is typed outside clanwords.js.
   // Legacy hides the clan layer: the headline is the stored name, with no rank.
   const headline = legacy ? name : escapeHtml(clanNameOf(cat.name, p, colonyRankFor(cat.name, p)));
-  const rank = legacy ? '' : ` <span class="colony-rank">${escapeHtml(descriptorFor(cat, p, ctx.verdicts))}</span>`;
+  const rank = legacy ? '' : ` <span class="colony-rank">${escapeHtml(phrase('colony.rankAfterName', descriptorFor(cat, p, ctx.verdicts)))}</span>`;
   const mine = p.byPlayer.find((b) => b.by === me)?.n ?? 0;
   const theirs = partner ? (p.byPlayer.find((b) => b.by === partner.playerId)?.n ?? 0) : 0;
   const fed = partner ? `you fed ${mine} · ${partnerName} fed ${theirs}` : `you fed ${mine}`;

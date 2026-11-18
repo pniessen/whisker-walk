@@ -144,11 +144,27 @@ const TABLE = Object.freeze({
   'landmark.island.stoneFind': 'a bright beetle wing on a meeting stone',
 });
 
-// Every id, in table order.
+// ---- lines added on 2026-11-18, for a set that says them differently ---------
+// With the family's words each of these says exactly what its caller wrote
+// before (or nothing at all), so nothing moved on screen. They are a table of
+// their own because PHRASE_IDS is the list the first snapshot recorded
+// (series-words-on.json, "phrases") and that fixture is not re-recorded;
+// these are recorded in series-words-on-later.json instead
+// (test/serieswords.off.test.js). Same rules as above.
+const LATER = Object.freeze({
+  // what follows a cat's name on its Colony card: the rank words as they are
+  'colony.rankAfterName': (rankWords) => rankWords,
+  // a pick card's line for the group's badge, for a set that has badge words
+  'pick.badge': (badgeWord) => `badge: ${badgeWord}`,
+});
+
+// Every id of the first table, in table order.
 export const PHRASE_IDS = Object.freeze(Object.keys(TABLE));
+// Every id added later, in table order.
+export const LATER_PHRASE_IDS = Object.freeze(Object.keys(LATER));
 
 export function hasPhrase(id) {
-  return typeof id === 'string' && Object.hasOwn(TABLE, id);
+  return typeof id === 'string' && (Object.hasOwn(TABLE, id) || Object.hasOwn(LATER, id));
 }
 
 // phrase(id, ...args) → the text. An unknown id throws: every id is a literal
@@ -157,6 +173,6 @@ export function hasPhrase(id) {
 export function phrase(id, ...args) {
   if (!hasPhrase(id)) throw new Error(`Whisker Walk: no phrase "${id}"`);
   const own = words().PHRASES;
-  const entry = own && Object.hasOwn(own, id) ? own[id] : TABLE[id];
+  const entry = own && Object.hasOwn(own, id) ? own[id] : Object.hasOwn(TABLE, id) ? TABLE[id] : LATER[id];
   return typeof entry === 'function' ? entry(...args) : entry;
 }

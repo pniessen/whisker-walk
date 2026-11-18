@@ -90,3 +90,35 @@ describe('series words on the maps, pinned', () => {
     checkAgainstFixture(FIXTURE, snapshot());
   });
 });
+
+// ---- the everyday words ('off'), added 2026-11-18 ------------------------------
+// The same snapshot, built by the same code, with the everyday word set in
+// use (src/offclanwords.js), recorded in its own fixture. Those words are the
+// older playtester's picks; re-record with
+//   UPDATE_OFF_SNAPSHOT=1 npx vitest run test/serieswords
+// when she or the owner changes one, and read the diff line by line.
+const { withOffWords, bannedLeaks, offWordCount } = await import('./helpers/offwords.js');
+const { UPDATING_OFF } = await import('./helpers/serieswords.js');
+
+const OFF_FIXTURE = 'series-words-off-world.json';
+const OFF_IGNORE = [];
+describe('everyday words: the maps', () => {
+  it('shows exactly the recorded everyday words', () => {
+    checkAgainstFixture(OFF_FIXTURE, withOffWords(() => snapshot()), UPDATING_OFF);
+  });
+
+  it('shows no word of the family\'s set, and plenty of the everyday ones', () => {
+    const snap = withOffWords(() => snapshot());
+    // each entry is "id: label"; the id is the code's own and is never drawn
+    const labels = JSON.parse(JSON.stringify(snap), (_k, v) => (typeof v === 'string' ? v.replace(/^[a-z0-9-]+: /, '') : v));
+    expect(bannedLeaks(labels, OFF_IGNORE)).toEqual([]);
+    expect(offWordCount(snap)).toBe(0); // no label on a map names a group or a rank
+    const all = JSON.stringify(snap);
+    for (const hers of ['the grandfather oak', 'heron rocks', 'the stone ring under the old ash']) expect(all).toContain(hers);
+  });
+
+  it('and the family\'s words are back afterwards', () => {
+    withOffWords(() => snapshot());
+    checkAgainstFixture(FIXTURE, snapshot());
+  });
+});
