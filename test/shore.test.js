@@ -290,7 +290,7 @@ describe('deckDistance', () => {
 });
 
 // Every shipped area with water, built once.
-const WATERED = ['park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines'];
+const WATERED = ['park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'farm'];
 const builtAreas = async () => {
   const out = {};
   for (const n of WATERED) out[n] = (await import(`../src/world/${n}.js`)).build(new THREE.Scene());

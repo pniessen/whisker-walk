@@ -350,29 +350,29 @@ describe('sheets and pictures', () => {
 });
 
 describe('dressing-room places by edition', () => {
-  it('Legacy lists today\'s four places and never the Woods', () => {
+  it('Legacy lists today\'s five places and never the Woods', () => {
     const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'farm']);
   });
-  it('Legacy lists today\'s four places and never the River', () => {
+  it('Legacy lists today\'s five places and never the River', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
     s.walks.woods = 5;
     const m = buildDressingModel(s, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'farm']);
     expect(m.places.map((p) => p.id)).not.toContain('river');
   });
-  it('Legacy lists today\'s four places and never the Moor', () => {
+  it('Legacy lists today\'s five places and never the Moor', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
     s.walks.woods = 5;
     const m = buildDressingModel(s, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'farm']);
     expect(m.places.map((p) => p.id)).not.toContain('moor');
   });
-  it('dressingroom: Legacy lists today\'s four places and never the Pines', () => {
+  it('dressingroom: Legacy lists today\'s five places and never the Pines', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
     s.walks.river = 5;
     const m = buildDressingModel(s, CATALOG);
-    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'farm']);
     expect(m.places.map((p) => p.id)).not.toContain('pines');
   });
   it('Clan lists the Woods, locked behind two Twolegplace walks', () => {
@@ -385,18 +385,18 @@ describe('dressing-room places by edition', () => {
 });
 
 describe('the territory map in the dressing room', () => {
-  it('dressingroom: Clan shows the map and the Park, Seaside and Docks under More places', () => {
+  it('dressingroom: Clan shows the map and the Park, Seaside, Docks and Farm under More places', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     const m = buildDressingModel(s, CATALOG);
     expect(m.territoryMap.regions.map((r) => r.id)).toEqual(['town', 'woods', 'moor', 'river', 'pines', 'gorge']);
-    expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'seaside', 'docks']);
+    expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'seaside', 'docks', 'farm']);
     expect(m.otherPlaces.find((p) => p.id === 'park').lockLine).toBe('opens after 2 walks in Twolegplace · 0/2 so far');
     const where = renderPlacesSheetHtml(m);
     expect(where).toContain('class="territory-map"');
     expect(where.indexOf('class="territory-map"')).toBeLessThan(where.indexOf('More places'));
     expect(where).toContain('<p class="dr-label">More places</p>');
     expect(where).not.toContain('Other places');
-    for (const id of ['park', 'seaside', 'docks']) expect(where).toMatch(new RegExp(`<button class="dr-place[^"]*" data-dr-place="${id}"`));
+    for (const id of ['park', 'seaside', 'docks', 'farm']) expect(where).toMatch(new RegExp(`<button class="dr-place[^"]*" data-dr-place="${id}"`));
     expect(where).not.toMatch(/<button class="dr-place[^"]*" data-dr-place="(neighborhood|woods)"/);
     expect(where).not.toContain('Cozy Neighborhood');
     expect(where).toContain('Twolegplace');
@@ -410,7 +410,7 @@ describe('the territory map in the dressing room', () => {
     expect(html).not.toContain('territory-map');
     expect(html).not.toContain('More places');
     expect(html).toMatch(/data-dr-place="neighborhood">[\s\S]*?Cozy Neighborhood/);
-    expect(count(html, /data-dr-place=/g)).toBe(4);
+    expect(count(html, /data-dr-place=/g)).toBe(5);
   });
 });
 

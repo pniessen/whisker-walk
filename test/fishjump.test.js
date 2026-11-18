@@ -43,6 +43,7 @@ const WORLDS = {
   pines: await import('../src/world/pines.js'),
   seaside: await import('../src/world/seaside.js'),
   neighborhood: await import('../src/world/neighborhood.js'),
+  farm: await import('../src/world/farm.js'),
 };
 
 const DT = 1 / 60;
