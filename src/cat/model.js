@@ -1116,6 +1116,9 @@ export function coatColor(breed, look = null) {
 // red, a ginger's salmon pink, a blue's blue-grey; white, cream, silver and
 // calico cats keep the pink, and so does a black (dark-faced) cat. The family
 // cats keep the pink they were drawn with from their photos (FAMILY_NOSE).
+// How far along the first tail link a pointed cat's root has eased from the
+// rump's colour into the point colour (a share of the link; any other coat: 1).
+export const TAIL_ROOT_EASE = Object.freeze({ points: 0.6 });
 const FAMILY_NOSE = new Set(['zeetoo', 'robbie', 'd2', 'digit']);
 // realism 3/A2 (2026-11-15): pointMix 0.7 -> 0.42 and pointRough: a seal
 // point's nose was nearly the colour of its mask and did not show.
@@ -1564,13 +1567,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const rootM = new THREE.Matrix4().compose(
     new THREE.Vector3(0, TAIL.ROOT_DY, TAIL.ROOT_Z * PROPORTION.body),
     new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -TAIL.SEAM_LIFT), new THREE.Vector3().setScalar(TAIL.SCALE));
-  const rootV = new THREE.Vector3(), rootU = [0, 0, 0], rootBase = new THREE.Color(s.base);
+  const rootV = new THREE.Vector3(), rootU = [0, 0, 0], rootBase = new THREE.Color(s.points ? s.accent : s.base);
   const rootColour = (x, y, z, out) => {
     rootV.set(x, y, z).applyMatrix4(rootM);
     coatColourAt(coat, torsoUnitAt([rootV.x / BODY_SCALE[0], rootV.y / BODY_SCALE[1], rootV.z / BODY_SCALE[2]], rootU), out);
-    const k = Math.min(1, Math.max(0, z / TAIL.LINK));
+    const k = Math.min(1, Math.max(0, z / (TAIL.LINK * ROOT_EASE)));
     return out.lerp(rootBase, k * k * (3 - 2 * k));
   };
+  const ROOT_EASE = s.points ? TAIL_ROOT_EASE.points : 1;
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
@@ -1607,13 +1611,19 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // the plain coat colour while the rump under it is painted (shaded low
     // down, striped or patched). The root link now wears the rump's own
     // painted colour at its root ball and eases into the tail's colour along
-    // its length (rootColour). Colour only. A pointed cat's tail is the point
-    // colour to the root, as it was (its rump is painted the point colour
-    // round the root, so there the disc is the marking itself); the family
-    // cats' tails (drawn from their photos) stay plain too.
+    // its length (rootColour). Colour only. (Pointed and family cats kept a
+    // plain root until 2026-11-17, below.)
     // 2026-11-16 (cat realism B11): a crowd cat's root link takes it as well
     // (it was left plain).
-    const rooted = i === 0 && !s.points && !family;
+    // 2026-11-17 (leftovers): so do the pointed cats and the family cats. A
+    // pointed cat's rump is pale right up to the root (the earlier note had it
+    // painted the point colour there; it is not), so its plain dark root ball
+    // was the clearest disc of all: it now leaves the rump in the rump's
+    // colour and is the point colour from TAIL_ROOT_EASE.points of the first
+    // link on. A family cat's root eases over the whole link, as any coat's;
+    // its tail's own colour and its markings are untouched. The link was one
+    // mesh and is one mesh: no triangle and no draw call more.
+    const rooted = i === 0;
     const seg = new THREE.Mesh(geo, blend || ringed || rooted
       ? litMaterial(0xffffff, { vertexColors: true })
       : mat((i >= 3 && darkTip) || s.points ? s.accent : s.base));

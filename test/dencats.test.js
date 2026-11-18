@@ -30,6 +30,17 @@ describe('createDenCats', () => {
     expect(dc.list[0].name).toBe('Pickles');
     expect(scene.added.has(dc.list[0].group)).toBe(true);
   });
+  it('a napping den cat keeps its loaf: head forward and unturned, the chest as it stands (the walk\'s nap tucks both, 2026-11-17)', () => {
+    const dc = createDenCats(makeScene(), [cat('Pickles', { x: 6, z: -6 }, 'nap')], {});
+    for (const t of [0, 0.4, 1.3]) {
+      dc.update(0.016, t, null);
+      const { head, underside } = dc.list[0].group.userData.parts;
+      expect(head.rotation.y).toBe(0);
+      expect(head.position.x).toBeCloseTo(0, 12);
+      expect(underside.scale.toArray()).toEqual([1, 1, 1]);
+      expect(underside.position.toArray()).toEqual([0, 0, 0]);
+    }
+  });
   it('a cat on the centre spot still stands off it, and stays inside the room', () => {
     const dc = createDenCats(makeScene(), [cat('Pickles', { x: 0, z: 0 }, 'nap')], {});
     const p = dc.list[0].group.position;
