@@ -205,3 +205,39 @@ describe('hats sit on the head (accessories polish Task 1)', () => {
     expect(lift).toBeGreaterThanOrEqual(want);
   });
 });
+
+describe('the Acorn Cap (found outfits step 1)', () => {
+  it('is in HAT_IDS, so every hat sweep above covers it', () => {
+    expect(HAT_IDS.at(-1)).toBe('acorncap');
+  });
+  it('its stalk is the top, near the middle of the crown, under the old top hat', () => {
+    for (const simple of [false, true]) {
+      const V = verts(buildHat('acorncap', { simple }));
+      const top = V.reduce((a, b) => (b.y > a.y ? b : a));
+      expect(Math.hypot(top.x, top.z)).toBeLessThan(0.06);
+      expect(top.y).toBeGreaterThan(0.22);
+      expect(top.y).toBeLessThan(OLD_TOPHAT_TOP);
+    }
+  });
+  it('is browns: the cup and its darker scales', () => {
+    const c = buildHat('acorncap').geometry.attributes.color;
+    const hexes = new Set();
+    for (let i = 0; i < c.count; i++) hexes.add(new THREE.Color(c.getX(i), c.getY(i), c.getZ(i)).getHex());
+    expect(hexes.size).toBeGreaterThanOrEqual(2);
+    for (const h of hexes) { const col = new THREE.Color(h); expect(col.r).toBeGreaterThan(col.g); expect(col.g).toBeGreaterThan(col.b); }
+  });
+  it('sits on the crown, clear of the eyes on every cat', () => {
+    const breeds = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
+    for (const breed of breeds) {
+      const cat = buildCat(breed, { head: 'acorncap' });
+      const { head } = cat.userData.parts;
+      const eyes = head.children.filter((m) => m.isMesh && m.userData.eye);
+      expect(eyes, breed).toHaveLength(2);
+      const eyeTop = Math.max(...eyes.map((e) => { e.updateMatrix(); return new THREE.Box3().setFromBufferAttribute(e.geometry.attributes.position).applyMatrix4(e.matrix).max.y; }));
+      const [hat] = hatOf(cat);
+      // the brow side (z < -0.1, where the eyes are): the cap's front rim (0.11, lip edge ~0.092) leaves ~2 cm over the eye lens; +0.04 is not reachable with the specified rim values (see the task-1 report)
+      const lowBrow = Math.min(...verts(hat).filter((v) => v.z < -0.1).map((v) => v.y));
+      expect(lowBrow, breed).toBeGreaterThan(eyeTop + 0.015);
+    }
+  });
+});
