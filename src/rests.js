@@ -237,7 +237,7 @@ export function createRests(scene, rests, { ground = FLAT_GROUND } = {}) {
   const added = []; // everything this put in the scene, to take back out
   let disposed = false;
 
-  for (const r of Array.isArray(rests) ? rests : []) {
+  const addAll = (more) => { for (const r of Array.isArray(more) ? more : []) {
     if (!r || typeof r !== 'object' || !isRestKind(r.kind)) continue;
     if (!Number.isFinite(r.x) || !Number.isFinite(r.z)) continue;
     let group = null;
@@ -262,11 +262,15 @@ export function createRests(scene, rests, { ground = FLAT_GROUND } = {}) {
       }
     }
     list.push({ id: r.id, kind: r.kind, x: r.x, z: r.z, group });
-  }
+  } };
+  addAll(rests);
 
   return {
     list,
     colliders,
+    // More rests, by the same rules (bigger areas: a strip's own rest spots,
+    // areaData.rests, join the area's before the walk's first frame).
+    add(more) { if (!disposed) addAll(more); },
     // The nearest rest strictly inside maxDist of pos (horizontally), or null.
     nearest(pos, maxDist) {
       if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.z)) return null;

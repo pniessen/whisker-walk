@@ -1295,8 +1295,9 @@ export function createWalkLifecycle({
     // (as the flaps' do). Nothing animates, created after mergeStaticProps
     // (nothing merged). Pays nothing, saves nothing, sends nothing;
     // session.rest is the one in progress.
+    const rests = createRests(scene, propsFor(areaId).rests, { ground });
     // Bigger areas: a strip's own rest spots (areaData.rests) join the area's.
-    const rests = createRests(scene, [...propsFor(areaId).rests, ...(areaData.rests ?? [])], { ground });
+    rests.add(areaData.rests);
     for (const c of rests.colliders) areaData.colliders.push({ ...c });
 
     // Appletree Farm's animals (farmanimals.js): cows, goats, hens and chicks,

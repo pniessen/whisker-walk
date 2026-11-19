@@ -36,6 +36,7 @@ const { buildGrassMask } = await import('../src/render/grass.js');
 const { buildMapLayer } = await import('../src/ui/minimap.js');
 const { mulberry32 } = await import('../src/rng.js');
 const { segDist } = await import('../src/segdist.js');
+const { createRests } = await import('../src/rests.js');
 
 // The first build of a process makes the shared surface textures (and draws
 // their uuids); every later one does not. Throw one away so the counts compare.
@@ -461,6 +462,15 @@ describe('something to find', () => {
     }
     const drink = ON.area.rests[1];
     expect(b.waterClearance(ON.area.waters, drink.x, drink.z)).toBeLessThan(1);
+    // the walk joins them to the area's own rests (rests.add), with no mesh of their own
+    const scene = new THREE.Scene();
+    const rests = createRests(scene, []);
+    rests.add(ON.area.rests);
+    expect(scene.children.length).toBe(0);
+    expect(rests.colliders).toEqual([]);
+    expect(rests.nearest({ x: drink.x + 0.5, z: drink.z }, 1.2)).toMatchObject({ id: 'river-drink-1', kind: 'drink' });
+    expect(rests.nearest({ x: ON.area.rests[0].x, z: ON.area.rests[0].z + 0.4 }, 1.2)).toMatchObject({ id: 'river-nap-1', kind: 'nap' });
+    expect(rests.nearest({ x: -80, z: 40 }, 1.2)).toBeNull();
   });
 
   it('the fallen willow is one mesh that casts, and the still pool is water like the core\'s pools', () => {
