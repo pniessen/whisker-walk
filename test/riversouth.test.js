@@ -478,7 +478,7 @@ describe('something to find', () => {
 //   the River today (switch off)       170      133     63,778
 //   step 2, core + west, (-35, 0)      205      147     68,745
 //   step 3, core + west + south,
-//     at its worst spot, (-35, 0)      212      148     69,5xx
+//     at its worst spot, (-35, 0)      212      148     69,598
 //
 // The worst spot is still by the reedbed. The south strip's share there is
 // what is always drawn (its ground, pool, paint, trail and sand bank: 7 meshes

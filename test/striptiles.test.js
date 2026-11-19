@@ -391,13 +391,13 @@ describe('with nearer ranges, walking away alone brings the scene back', () => {
 // is built with it:
 //
 //   step 3, core + west + south,
-//     at its worst spot, (-35, 0)   212      148     69,592   (4,027 of them
+//     at its worst spot, (-35, 0)   212      148     69,598   (4,027 of them
 //                                                              stand-ins)
 //
-// Everything at once is now 84,011: step 2's 79,307, less 1,058 for the west
+// Everything at once is now 84,017: step 2's 79,307, less 1,058 for the west
 // strip's ground on a 5 m grid, 918 for its fewer, bigger tussocks and 474
 // for the hills drawn a little coarser, plus 36 more mist over the longer
-// river, plus the south strip's 7,118 (1,438 always drawn: its ground, pool,
+// river, plus the south strip's 7,124 (1,444 always drawn: its ground, pool,
 // paint, trail and sand bank; 2,212 of trees and 3,468 of small things that
 // stream). test/riversouth.test.js pins the same worst spot.
 // ---------------------------------------------------------------------------
@@ -415,7 +415,7 @@ describe('the budget, switch on: the most the River puts on screen at once', () 
 
   it('everything there is, drawn at once, is what it is with nothing streamed: nothing lost, nothing twice', () => {
     if (process.env.BUDGET_LOG) console.log('stream budget', JSON.stringify({ fixed: m.fixed, always: m.always, all, worst }));
-    expect(m.fixed.triangles + m.always + all).toBe(84011);
+    expect(m.fixed.triangles + m.always + all).toBe(84017);
     // and it is the whole scene's own count, every tile built, but for the stand-ins
     expect(m.fixed.triangles + m.always + all).toBe(budgetOf(built.scene.children.filter((c) => c !== tiles.standIns.mesh), rig).triangles);
   });

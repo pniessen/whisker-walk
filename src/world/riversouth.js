@@ -78,12 +78,18 @@ const BANK = Object.freeze({
   ramp: 60 * DEG, // how far in from an end the crest takes to reach full height
 });
 const CREST = BANK.face + 0.5; // the crest line, where the perches are
-// The crest's height `a` radians round from the east end.
+// The crest's height at angle `a`: from nothing at either end to full height
+// `ramp` in from it.
 export function bankHeight(a) {
   const d = Math.min(a - BANK.from, BANK.to - a);
   if (d < 0) return 0;
-  return 0.2 + (BANK.height - 0.2) * Math.sin(Math.min(1, d / BANK.ramp) * Math.PI / 2);
+  return 0.05 + (BANK.height - 0.05) * Math.sin(Math.min(1, d / BANK.ramp) * Math.PI / 2);
 }
+// And how wide it is there, as a share of its full width about the crest
+// line: the ends narrow as they sink, so the bank runs out into the meadow
+// rather than stopping square.
+const bankWidth = (a) => 0.3 + 0.7 * smoothstep(0, 30 * DEG, Math.min(a - BANK.from, BANK.to - a));
+const across = (a, off) => CREST + off * bankWidth(a);
 const polar = (a, r) => ({ x: r2(SAND_POOL.x + Math.cos(a) * r), z: r2(SAND_POOL.z + Math.sin(a) * r) });
 // How far back the grassy slope runs behind the crest: further where it is high.
 const backOf = (h) => 0.35 + 0.75 * h;
@@ -102,15 +108,17 @@ export const SOUTH_PERCHES = Object.freeze(CLIMB.map((a, i) => {
 }));
 // The bank's solid block: a row of circles under the crest, and a second row
 // under the back slope where it is high enough to stand out of the grass.
+// Where it is lower than a cat's shoulder at its two ends, a cat walks over it.
 const BANK_COLLIDERS = [];
 for (let a = BANK.from + 2 * DEG; a <= BANK.to - 2 * DEG + 1e-9; a += 1.0 / CREST) {
   const h = bankHeight(a);
-  BANK_COLLIDERS.push(Object.freeze({ ...polar(a, CREST - 0.1), r: r2(0.55 + 0.25 * Math.min(1, h)) }));
+  if (h < 0.3) continue;
+  BANK_COLLIDERS.push(Object.freeze({ ...polar(a, across(a, -0.1)), r: r2((0.55 + 0.25 * Math.min(1, h)) * Math.min(1, 0.4 + bankWidth(a))) }));
 }
 for (let a = BANK.from + 14 * DEG; a <= BANK.to - 14 * DEG + 1e-9; a += 1.2 / (CREST + 1.2)) {
   const h = bankHeight(a);
   if (h < 0.9) continue;
-  BANK_COLLIDERS.push(Object.freeze({ ...polar(a, CREST + 0.25 + 0.5 * backOf(h)), r: r2(0.3 + 0.2 * h) }));
+  BANK_COLLIDERS.push(Object.freeze({ ...polar(a, across(a, 0.25 + 0.5 * backOf(h))), r: r2(0.3 + 0.2 * h) }));
 }
 export const SOUTH_COLLIDERS = Object.freeze(BANK_COLLIDERS);
 
@@ -188,6 +196,7 @@ const inStrip = (x, z) => x >= SOUTH.minX && x <= SOUTH.maxX && z >= SOUTH.minZ 
 const rimward = (z) => clamp01((z - SOUTH.minZ) / (SOUTH.maxZ - SOUTH.minZ));
 // The open meadow between the old edge and the bank, and the damp hollow
 // west of it: no trees, so the pale bank is seen from the old edge across it.
+// (The hollow's reeds and cattails stand in it all the same.)
 const OPEN_MEADOW = Object.freeze({ minX: -90, maxX: 12, minZ: 50, maxZ: 70 });
 const inOpenMeadow = (x, z) => x >= OPEN_MEADOW.minX && x <= OPEN_MEADOW.maxX && z >= OPEN_MEADOW.minZ && z <= OPEN_MEADOW.maxZ;
 // The damp hollow in the south-west corner, where reeds stand.
@@ -204,9 +213,10 @@ function lowFits(x, z, { water = 0.3, trail = 1.3, find = 1.6, bank = 0.3 } = {}
 }
 
 // The trees: a 3 x 3 jittered grid a tile, each candidate kept with a chance
-// that falls from 0.3 at the old edge to 0.1 at the rim (a third of that on
-// the open meadow). A willow within 10 m of the pool, an alder on the drier
-// meadow. Candidates stay 2 m inside their tile and 4 m apart, so two tiles'
+// that falls from 0.3 at the old edge to 0.1 at the rim (none on the open
+// meadow, which also keeps every strip tree out of the trees layer's range of
+// the reedbed, the River's busiest place). A willow within 10 m of the pool,
+// an alder on the drier meadow. Candidates stay 2 m inside their tile and 4 m apart, so two tiles'
 // trees never crowd and no tile needs to know its neighbour's. Every
 // candidate draws its numbers whether or not it is kept.
 const POOL_WILLOW = Object.freeze({ kind: 'willow', ...polar(205 * DEG, SAND_POOL.r + 3.2), scale: 1.45, r: r2(0.5 * 1.45) });
@@ -422,11 +432,11 @@ function bankGeometry() {
     const h = bankHeight(a);
     const wob = 0.12 * (b.hash01(Math.round(a / DEG), 1, 2401) - 0.5);
     const back = backOf(h);
-    const f = BANK.face + wob;
+    const f = BANK.face + wob - CREST; // from the crest line, narrowed at the ends
     return [
       [f - 0.35, -0.02], [f, 0.18 * h], [f + 0.1, 0.62 * h], [f + 0.22, 0.93 * h],
-      [f + 0.45, h], [CREST + 0.25, 0.96 * h], [CREST + 0.25 + 0.5 * back, 0.5 * h], [CREST + 0.25 + back, -0.02],
-    ];
+      [f + 0.45, h], [0.25, 0.96 * h], [0.25 + 0.5 * back, 0.5 * h], [0.25 + back, -0.02],
+    ].map(([r, y]) => [across(a, r), y]);
   };
   // Colour by where on the section a vertex is: sand on the face, banded by
   // height (the old river's layers), turf over the crest and down the back.
@@ -495,16 +505,25 @@ function bankGeometry() {
     g.translate(SAND_POOL.x + Math.cos(a) * r, 0.06, SAND_POOL.z + Math.sin(a) * r);
     add(g, (x, y, z) => scale3(SAND, 0.88 + 0.2 * b.hash01(Math.round(x * 7), Math.round(z * 7), 2541)));
   }
+  // tufts of grass along the crest: five blades each, as a tussock's
+  const blades = new Tris();
   for (let k = 0; k < 9; k++) {
     const a = (24 + 132 * (k + b.hash01(k, 7, 2555)) / 9) * DEG;
     const h = bankHeight(a);
-    const g = new THREE.ConeGeometry(0.16, 0.32, 4, 1, true);
     const r = CREST + 0.05 * (b.hash01(k, 8, 2569) - 0.5);
     const tx = SAND_POOL.x + Math.cos(a) * r, tz = SAND_POOL.z + Math.sin(a) * r;
-    if (SOUTH_PERCHES.some((p) => Math.hypot(p.x - tx, p.z - tz) < 0.8)) { g.dispose(); continue; } // a cat sits there
-    g.translate(SAND_POOL.x + Math.cos(a) * r, h + 0.13, SAND_POOL.z + Math.sin(a) * r);
-    add(g, (x, y) => scale3(lerp3(TURF, TURF_DRY, clamp01((y - h) / 0.3)), 0.95));
+    if (SOUTH_PERCHES.some((p) => Math.hypot(p.x - tx, p.z - tz) < 0.8)) continue; // a cat sits there
+    for (let j = 0; j < 5; j++) {
+      const ba = ((j + b.hash01(k, j, 2571) * 0.7) / 5) * Math.PI * 2;
+      const dx = Math.cos(ba), dz = Math.sin(ba);
+      const w = 0.06, lean = 0.18 + 0.12 * b.hash01(j, k, 2573), up = 0.3 + 0.15 * b.hash01(k + j, 1, 2575);
+      const n = unit(dx * 0.5, 1, dz * 0.5);
+      blades.v(tx - dz * w, h - 0.03, tz + dx * w, n, scale3(TURF, 0.85));
+      blades.v(tx + dz * w, h - 0.03, tz - dx * w, n, scale3(TURF, 0.85));
+      blades.v(tx + dx * lean, h + up, tz + dz * lean, n, TURF_DRY);
+    }
   }
+  parts.push(blades.geometry());
   // the warm sandy hollow to nap in
   const bed = new THREE.CylinderGeometry(0.6, 0.72, 0.05, 9);
   bed.translate(NAP.x, 0.02, NAP.z);
