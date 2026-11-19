@@ -24,7 +24,7 @@ describe('walk.js: who is drawn and named', () => {
   });
   it('a cat arriving mid-walk is toasted by its sanitized name, but not the ones there at the start', () => {
     const r = rosterBlock();
-    expect(r).toContain("if (!firstSync) hud.toast(`${entry.petName} joined the walk 🐾`);");
+    expect(r).toContain("if (!firstSync) hud.toast(`${entry.petName} joined in 🐾`);");
   });
   it('ghosts come only from players this device met', () => {
     expect(src()).toContain('const otherIds = metOnly(deviceMetPlayers(), allIds);');

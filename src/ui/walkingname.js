@@ -24,7 +24,7 @@ export const WALKING_NAME_RULE = 'A walking name is 2–16 letters, spaces, or h
 // when she was sent here ('walk', 'colony'), or falsy when she just opened it.
 export function walkingNameIntro(why) {
   if (why === 'colony') return 'You need a walking name before you can share your colony. Type one here and tap Save:';
-  if (why) return 'You need a walking name before you can join a walk. Type one here and tap Save:';
+  if (why) return 'You need a walking name before you can play together. Type one here and tap Save:';
   return 'First, pick your walking name:';
 }
 

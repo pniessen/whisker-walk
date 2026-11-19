@@ -24,10 +24,10 @@ export function swallowsCanvasClick(s) {
 
 export function createCrossing({
   getSession, overlay, hud, releaseControl, resumeWalk, endWalk, getIsTouch, getEdition,
-  catalog = CATALOG, setTimeout = globalThis.setTimeout,
+  getSound = () => null, catalog = CATALOG, setTimeout = globalThis.setTimeout,
 }) {
   function restoreCard(s) {
-    overlay.innerHTML = pauseCardFor(s, getIsTouch());
+    overlay.innerHTML = pauseCardFor(s, getIsTouch(), getSound());
     s.crossing = null;
   }
 

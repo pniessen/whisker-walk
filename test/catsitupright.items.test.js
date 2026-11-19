@@ -4,6 +4,7 @@ import { buildCat } from '../src/cat/model.js';
 import { animateCat, refitNeck } from '../src/cat/animator.js';
 import { SIT } from '../src/cat/torso.js';
 import { PRESETS, colourDistance } from './helpers/catfingerprint.js';
+import { ready, firstHitRaycaster } from './helpers/bvh.js';
 
 // The upright sit's back items, chest drop and bib (polish-sit Task 3), split
 // out of catsitupright.test.js so the two halves run in parallel; the cases
@@ -57,10 +58,12 @@ describe('the back items ride the upright sit (polish-sit Task 3, accessories po
     }
   });
 
-  // Out of the fur in the sit (swept over the flutter), over a cape too.
-  const ray = new THREE.Raycaster();
+  // Out of the fur in the sit (swept over the flutter), over a cape too. The
+  // ray goes through a BVH (test/helpers/bvh.js: three's own answers, sooner).
+  const ray = firstHitRaycaster();
   const outside = (cat, Pw) => {
     const { body, underside } = cat.userData.parts;
+    ready(body); ready(underside);
     const C = body.getWorldPosition(new THREE.Vector3());
     const dir = Pw.clone().sub(C).normalize(), F = Pw.clone().addScaledVector(dir, 1);
     ray.set(F, dir.clone().negate());
@@ -89,7 +92,7 @@ describe('the back items ride the upright sit (polish-sit Task 3, accessories po
         }
       }
     }
-  }, 120_000);
+  }, 30_000);
 
   it.each(CASES)('%s (simple %s) %s: the backpack sits on the fur, within 3 cm of it', (b, simple, state) => {
     const cat = kitCat(b, { back: 'backpack' }, simple);

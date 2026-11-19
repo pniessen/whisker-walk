@@ -36,7 +36,7 @@ import { disposeHenRig } from '../cat/henfight.js';
 import { setCatRimLight } from '../cat/rimlight.js';
 import { activeCat, scarKey } from '../customcats.js';
 import { herCatPortrait } from '../thumbnails.js';
-import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion } from '../ui/screencards.js';
+import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion, settingsSwitchHtml } from '../ui/screencards.js';
 import { PAW } from '../ui/pawicon.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
@@ -147,6 +147,22 @@ const GRASS_ITEM_CLEAR = 0.3;
 // hunt for; Seaside's dune grass reaches 0.3m, so each keeps a bare patch.
 const GRASS_FIND_CLEAR = 0.5;
 import { mulberry32, seedFromCode } from '../rng.js';
+
+// Review S2 (2026-11-19): the moving systems' own streams. Each is seeded from
+// the walk's seed (roomSeed, or the solo walk's soloSeed) XOR its own salt, and
+// none is walkRng: these systems draw lazily and per device (a phase for every
+// critter that spawns, a wander roll whenever a ghost's timer runs out, a push
+// whenever the ball is batted), the exact kind of consumer walkRng's warning
+// in startWalk forbids. They used to be bare Math.random(). Nothing they shape
+// rides the wire or has to agree between co-walkers: a room walk's partners
+// now start their critters on the same phases where they spawn in the same
+// order, and otherwise differ as they always did. Ghosts and gold mice are
+// personal; the ball is this device's own.
+const CRITTER_MOTION_SALT = 0xc417e125;
+const GOLD_PHASE_SALT = 0x901d3c3e;
+const TOY_BAT_SALT = 0x7a4ba775;
+const GHOST_WANDER_SALT = 0x6405757a;
+const ownStream = (seed, salt) => mulberry32(((seed >>> 0) ^ salt) >>> 0);
 import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
 import { bus } from '../events.js';
 import { createUnlockCelebration } from './celebrate.js';
@@ -203,7 +219,7 @@ const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 const CARD_TITLE = { ready: 'Ready?', back: 'Welcome back!', paused: 'Paused' };
 export function resumeLabel(mode, touch) {
   if (mode === 'ready') return touch ? 'Tap to explore' : 'Start exploring (click)';
-  return touch ? 'Keep walking' : 'Keep walking (click)';
+  return touch ? 'Keep exploring' : 'Keep exploring (click)';
 }
 // Which moment a session is in. `started` is set by main.js on the first
 // engage; `resumed` by startWalk for a walk picked up again.
@@ -216,23 +232,41 @@ export function cardMode(s) {
 // still be skipped, a third, quiet button, "Skip the lesson"; and on the
 // guided first walk's Ready? card (a keyboard, before the walk has begun) one
 // line of controls in place of the list, which the pause card keeps.
-export function pauseCardFor(s, touch) {
+// `sound` ({ sound, music }: each on or off, from settings; pauseSoundOf
+// below) adds the Sound and Music switches under the resume button, so a
+// child on a touch screen can turn the sound down without ending the walk.
+// Not on the Ready? card: nothing has been heard yet.
+export function pauseCardFor(s, touch, sound = null) {
   const mode = cardMode(s);
   const L = s.lesson;
   return pauseCardHtml({
     welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode,
     skip: !!L && !L.finished && !L.skipped,
     oneLine: mode === 'ready' && !touch && L?.kind === 'first' && !L.skipped,
+    sound,
   });
 }
-export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false }) {
+// The switches' state from settings: Sound is "Mute all sound" turned round,
+// Music is on while the music volume is above 0.
+// null (no switches) without a settings store.
+export function pauseSoundOf(settings) {
+  if (typeof settings?.get !== 'function') return null;
+  return { sound: !settings.get('muted'), music: settings.get('musicVolume') > 0 };
+}
+export const PAUSE_SOUND_ID = 'pause-sound';
+export const PAUSE_MUSIC_ID = 'pause-music';
+function pauseSoundHtml(sound) {
+  return `
+      <div class="pause-sound">${settingsSwitchHtml(PAUSE_SOUND_ID, !!sound.sound, '🔊 Sound')}${settingsSwitchHtml(PAUSE_MUSIC_ID, !!sound.music, '🎵 Music')}</div>`;
+}
+export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null }) {
   return `<div class="pause-card"><div class="screen-panel">
     ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
     <div class="screen-body"><h1>${CARD_TITLE[mode] ?? CARD_TITLE.ready}</h1>
     ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
     <div class="screen-actions">
-      <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>
-      <button id="btn-end" class="secondary">End walk &amp; head home</button>${skip ? `
+      <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound) : ''}
+      <button id="btn-end" class="secondary">Head home</button>${skip ? `
       <button id="${SKIP_LESSON_ID}" class="quiet">${escapeHtml(tutorialLine('guide.skip'))}</button>` : ''}
     </div>
     <p class="controls-hint">${hintHtml(oneLine ? [tutorialLine('ready.keys')] : touch ? TOUCH_HINT : KEYS_HINT)}</p></div></div></div>`;
@@ -421,7 +455,15 @@ export function createWalkLifecycle({
           greets: f.greets,
         })),
         Math.random,
-        { gift: handover, ground: mySession.ground }
+        {
+          gift: handover,
+          ground: mySession.ground,
+          // Review S2: the wander rolls on a stream of the ghosts' own. Ghosts
+          // visit solo walks only, so soloSeed is set; Math.random otherwise.
+          wanderRng: mySession.soloSeed !== undefined
+            ? ownStream(mySession.soloSeed, GHOST_WANDER_SALT)
+            : Math.random,
+        }
       );
       // Ghosts are the one mover class that arrives asynchronously, so they
       // cannot be registered in the startWalk pass with the cat, the strays
@@ -823,6 +865,9 @@ export function createWalkLifecycle({
       // used a bare Math.random(), which put two co-walkers on the same
       // room seed in visibly different firefly fields.
       rng: walkRng,
+      // Review S2: each critter's idle phase, from the critters' own stream
+      // (never walkRng: see CRITTER_MOTION_SALT at the top of this file).
+      motionRng: ownStream(roomSeed ?? soloSeed, CRITTER_MOTION_SALT),
       // v21 3b Task 13: a mouse, rat or squirrel that notices the cat bolts
       // for this cover and stays hidden for the walk (the den has none). Local
       // to this device like every critter position; nothing rides the wire.
@@ -1211,7 +1256,7 @@ export function createWalkLifecycle({
         if (finder) finder.foundGift = found;
       }
     }
-    const toy = createToy(scene, { ground });
+    const toy = createToy(scene, { ground, rng: ownStream(roomSeed ?? soloSeed, TOY_BAT_SALT) });
     // yarn-rally ghost ball: a single shared marker rendered wherever a
     // REMOTE player's state message currently reports an active toy
     // position (session.remoteToy, kept in sync by net.onState below) — it's
@@ -1670,7 +1715,9 @@ export function createWalkLifecycle({
     // all. areas without an entry in GOLD_MICE (none currently, but future
     // areas like the den) get an inert stub instead of a lookup throw.
     session.goldMice = areaId in GOLD_MICE
-      ? createGoldMice(scene, areaId, new Set(progression.state.golden), { ground })
+      ? createGoldMice(scene, areaId, new Set(progression.state.golden), {
+        ground, rng: ownStream(roomSeed ?? soloSeed, GOLD_PHASE_SALT),
+      })
       : NO_GOLD_MICE;
 
     // v21 3b Task 12 — the rival border marks I scented over on earlier walks,
@@ -2184,7 +2231,7 @@ export function createWalkLifecycle({
           const entry = remotes.upsert(p, nowSec());
           if (!rosterSeen.has(p.playerId)) {
             rosterSeen.add(p.playerId);
-            if (!firstSync) hud.toast(`${entry.petName} joined the walk 🐾`); // sanitized by remotecats
+            if (!firstSync) hud.toast(`${entry.petName} joined in 🐾`); // sanitized by remotecats
           }
         }
         hud.setRoster(remotes.list.map((r) => r.petName));
@@ -2288,7 +2335,7 @@ export function createWalkLifecycle({
     // A walk picked up again opens on its "Welcome back!" card, paused.
     session.resumed = !!resume;
     session.started = false;
-    overlay.innerHTML = pauseCardFor(session, getIsTouch());
+    overlay.innerHTML = pauseCardFor(session, getIsTouch(), pauseSoundOf(settings));
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());
@@ -2424,14 +2471,14 @@ export function createWalkLifecycle({
       ${isRecord ? bestWalkConfetti(earned, { reduced }) : ''}
       <div class="screen-panel summary-panel">
       ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
-      <h1>Walk complete!</h1>
+      <h1>Home again!</h1>
       <div class="summary-cheer">${escapeHtml(summaryCheer(earned, discoveries))}</div>
       ${isRecord
-        ? '<div class="record-banner">NEW BEST WALK! 🏆</div>'
-        : `<div class="best-line">best walk: ${progression.state.bestWalk} ${PAW}</div>`}
+        ? '<div class="record-banner">NEW BEST! 🏆</div>'
+        : `<div class="best-line">your best: ${progression.state.bestWalk} ${PAW}</div>`}
       ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals && !firstLesson })}
       ${guideHtml}
-      ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
+      ${walkedWith.length ? `<div class="best-line">explored with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
       ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus ${PAW}</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now.&nbsp;🏠</div>` : ''}

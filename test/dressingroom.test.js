@@ -31,7 +31,7 @@ describe('previewing a locked cat or trying something on', () => {
   });
   it('under the locked cat\'s name: just looking, not her rank', () => {
     const h = renderDressingRoomHtml({ model: buildDressingModel(defaultishState(), CATALOG, { previewCat: 'hagrid' }), rankTitle: 'House Cat', ui: {} });
-    expect(h).toContain('<div class="dr-hero-rank dr-hero-looking">Just looking. Unlock to walk with this cat.</div>');
+    expect(h).toContain('<div class="dr-hero-rank dr-hero-looking">Just looking. Unlock to play as this cat.</div>');
     expect(h).not.toContain('House Cat');
     const own = renderDressingRoomHtml({ model: buildDressingModel(defaultishState(), CATALOG), rankTitle: 'House Cat', ui: {} });
     expect(own).toContain('<div class="dr-hero-rank">House Cat</div>');
@@ -93,14 +93,14 @@ describe('dressing-room model', () => {
   });
   it('a gated area says how to open it', () => {
     const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
-    expect(m.places.find((p) => p.id === 'seaside').lockLine).toContain('opens after 2 walks in City Park');
-    expect(m.places.find((p) => p.id === 'park').lockLine).toBe('opens after 2 walks in Cozy Neighborhood · 0/2 so far');
+    expect(m.places.find((p) => p.id === 'seaside').lockLine).toContain('opens after you explore City Park');
+    expect(m.places.find((p) => p.id === 'park').lockLine).toBe('opens after you explore Cozy Neighborhood 2 times · 0/2');
   });
   it('an unlocked-by-gate but unbought area shows its price', () => {
     const s = defaultishState(); s.walks.neighborhood = 2;
     const park = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'park');
     const price = CATALOG.areas.park.price;
-    expect(park.lockLine).toBe(`${price} 🐾 — keep walking!`);
+    expect(park.lockLine).toBe(`${price} 🐾 — keep exploring!`);
     expect(park.canBuy).toBe(false);
     s.points = price;
     const afford = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'park');
@@ -247,7 +247,7 @@ describe('dressing-room renderer', () => {
     const sheet = (st) => renderPlacesSheetHtml(buildDressingModel(st, CATALOG));
     const card = (html) => html.match(/<button class="dr-place[^"]*" data-dr-place="park">[\s\S]*?<\/button>/)[0];
     const poor = card(sheet(s));
-    expect(poor).toContain(`${price} 🐾 — keep walking!`);
+    expect(poor).toContain(`${price} 🐾 — keep exploring!`);
     expect(poor).toMatch(/class="dr-place [^"]*\bcant\b/);
     s.points = price;
     // One she can buy: the picture is not a button and carries no
@@ -259,7 +259,7 @@ describe('dressing-room renderer', () => {
     expect(rich).toContain(CATALOG.areas.park.name);
     expect(rich).not.toMatch(/\bcant\b/);
     const gated = card(sheet({ ...defaultishState(), edition: 'legacy' }));
-    expect(gated).toContain('opens after 2 walks');
+    expect(gated).toContain('opens after you explore');
     expect(gated).not.toMatch(/\bcant\b/);
   });
   it('the cats-more and Dress up controls are toggle buttons, not a tablist', () => {
@@ -380,7 +380,7 @@ describe('dressing-room places by edition', () => {
     s.walks.neighborhood = 1;
     const woods = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'woods');
     expect(woods).toMatchObject({ name: 'The Woods', locked: true, price: 0 });
-    expect(woods.lockLine).toBe('opens after 2 walks in Twolegplace · 1/2 so far');
+    expect(woods.lockLine).toBe('opens after you explore Twolegplace 2 times · 1/2');
   });
 });
 
@@ -390,7 +390,7 @@ describe('the territory map in the dressing room', () => {
     const m = buildDressingModel(s, CATALOG);
     expect(m.territoryMap.regions.map((r) => r.id)).toEqual(['town', 'woods', 'moor', 'river', 'pines', 'gorge']);
     expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'farm', 'fair', 'seaside', 'docks']);
-    expect(m.otherPlaces.find((p) => p.id === 'park').lockLine).toBe('opens after 2 walks in Twolegplace · 0/2 so far');
+    expect(m.otherPlaces.find((p) => p.id === 'park').lockLine).toBe('opens after you explore Twolegplace 2 times · 0/2');
     const where = renderPlacesSheetHtml(m);
     expect(where).toContain('class="territory-map"');
     expect(where.indexOf('class="territory-map"')).toBeLessThan(where.indexOf('More places'));
@@ -400,7 +400,7 @@ describe('the territory map in the dressing room', () => {
     expect(where).not.toMatch(/<button class="dr-place[^"]*" data-dr-place="(neighborhood|woods)"/);
     expect(where).not.toContain('Cozy Neighborhood');
     expect(where).toContain('Twolegplace');
-    expect(renderDressingRoomHtml({ model: m })).toContain('Walking in <b>Twolegplace</b>');
+    expect(renderDressingRoomHtml({ model: m })).toContain('Going to <b>Twolegplace</b>');
   });
   it('Legacy keeps the picture cards and no map', () => {
     const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
@@ -460,8 +460,8 @@ describe('the dressing room in each edition', () => {
     const m = buildDressingModel(s, CATALOG);
     expect(m.currentPlace).toMatchObject({ id: 'neighborhood', name: 'Cozy Neighborhood', clan: null, line: '' });
     const html = renderDressingRoomHtml({ model: m });
-    expect(html).toContain('Walking in <b>Cozy Neighborhood</b>');
-    expect(html).toContain('Today’s walk: Cozy Neighborhood. Change place');
+    expect(html).toContain('Going to <b>Cozy Neighborhood</b>');
+    expect(html).toContain('Going to: Cozy Neighborhood. Change place');
     expect(html).not.toContain('The Woods');
     expect(s.area).toBe('woods');
   });
@@ -473,7 +473,7 @@ describe('the dressing room in each edition', () => {
     s.edition = 'legacy';
     const m = buildDressingModel(s, CATALOG);
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
-    expect(renderPlacesSheetHtml(m)).toContain('today’s walk');
+    expect(renderPlacesSheetHtml(m)).toContain('you’re going here');
     expect(s.area).toBe('woods');
   });
 
@@ -484,7 +484,7 @@ describe('the dressing room in each edition', () => {
     s.edition = 'legacy';
     const m = buildDressingModel(s, CATALOG);
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
-    expect(renderPlacesSheetHtml(m)).toContain('today’s walk');
+    expect(renderPlacesSheetHtml(m)).toContain('you’re going here');
     expect(s.area).toBe('moor');
   });
 
@@ -495,7 +495,7 @@ describe('the dressing room in each edition', () => {
     s.edition = 'legacy';
     const m = buildDressingModel(s, CATALOG);
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
-    expect(renderPlacesSheetHtml(m)).toContain('today’s walk');
+    expect(renderPlacesSheetHtml(m)).toContain('you’re going here');
     expect(s.area).toBe('pines');
   });
 
@@ -506,7 +506,7 @@ describe('the dressing room in each edition', () => {
     s.edition = 'legacy';
     const m = buildDressingModel(s, CATALOG);
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
-    expect(renderPlacesSheetHtml(m)).toContain('today’s walk');
+    expect(renderPlacesSheetHtml(m)).toContain('you’re going here');
     expect(s.area).toBe('river');
   });
 });
@@ -667,7 +667,7 @@ describe('Launch A: the home screen (cat, place, go)', () => {
       expect(h).not.toContain('Today’s walk');
       expect(h).not.toMatch(/data-dr-wardrobe(?![-\w])/);
       // the dock (the place line and Start) is still there
-      expect(h).toContain('Walking in <b>');
+      expect(h).toContain('Going to <b>');
       expect(h).toContain('id="start"');
     });
     it('an empty slot says "＋ add", never "nothing yet", and no count label appears', () => {
@@ -689,7 +689,7 @@ describe('Launch A: the home screen (cat, place, go)', () => {
       const h = home({ ...defaultishState(), edition: 'legacy' });
       const t = section(h, 'dr-today');
       expect(t).toContain('data-dr-sheet="places"');
-      expect(t).toContain('Today’s walk');
+      expect(t).toContain('Today’s place');
       expect(t).toContain('Cozy Neighborhood');
       expect(t).toContain(PLACE_PICTURE('neighborhood'));
       expect(t).toContain('Change place');
@@ -784,7 +784,7 @@ describe('Launch A: the home screen (cat, place, go)', () => {
 describe('placeWhyLine', () => {
   const base = (over = {}) => ({ points: 0, walks: { neighborhood: 0, park: 0, seaside: 0 }, unlocked: { areas: ['neighborhood'] }, edition: 'canon', ...over });
   it('a gated place says how many walks it waits for', () => {
-    expect(placeWhyLine(base({ walks: { neighborhood: 1 }, edition: 'legacy' }), CATALOG, 'park')).toBe('opens after 2 walks in Cozy Neighborhood · 1/2 so far');
+    expect(placeWhyLine(base({ walks: { neighborhood: 1 }, edition: 'legacy' }), CATALOG, 'park')).toBe('opens after you explore Cozy Neighborhood 2 times · 1/2');
   });
   it('an open place she cannot afford says how many paws to go', () => {
     expect(placeWhyLine(base({ points: 21, walks: { neighborhood: 2 } }), CATALOG, 'park')).toBe('29 more 🐾 to go');

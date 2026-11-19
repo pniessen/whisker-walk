@@ -59,7 +59,7 @@ export function prizeVisit(id) {
 const WELCOME_LINES = [
   (n) => `Welcome back! Visit ${n} 🐾`,
   (n) => `Visit ${n}. Your cat missed you.`,
-  (n) => `Visit ${n}, and the walk is waiting!`,
+  (n) => `Visit ${n}! Ready to explore?`,
   (n) => `So good to see you. Visit ${n} 🐱`,
   (n) => `Visit ${n}! Let's go for a stroll.`,
 ];

@@ -74,7 +74,7 @@ export function claimAutoReload(storage, now, gapMs = RELOAD_GAP_MS) {
 }
 
 // What the child sees. Kept here so the words are in one place.
-export const WALK_ENDED_LINE = 'Oops! Something went wrong on that walk, so it stopped early. Everything you found is saved. 🐾';
+export const WALK_ENDED_LINE = 'Oops! Something went wrong on that trip, so it stopped early. Everything you found is saved. 🐾';
 export const RELOAD_BUTTON_ID = 'btn-reload';
 
 // The last resort, when the game cannot carry on in this page: the loop is

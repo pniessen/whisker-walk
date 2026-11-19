@@ -32,8 +32,8 @@ on the home screen.
 
 ## Where you can walk
 
-- **Town places:** the Neighbourhood (Twolegplace), the Park, the Seaside and
-  the Docks, plus your den at home base.
+- **Town places:** the Neighbourhood (Twolegplace), the Park, the Seaside,
+  the Docks, Appletree Farm and the Fairground, plus your den at home base.
 - **The five clan territories**, each home to its own clan:
 
   | Territory | Clan |
@@ -140,7 +140,7 @@ duet, rally a yarn ball, nap in a pile and patrol together.
 1. Name your pet on the home screen.
 2. Choose **Host a walk** to get a 4-character room code, or **Join** with a
    code a friend sent you.
-3. Anyone in the room can press **Start the walk together**. The walk starts
+3. Anyone in the room can press **Explore together**. The walk starts
    for everyone, in the area of whoever pressed it.
 
 Partners who share a colony get a **Walk with …** button instead, so there's no
@@ -165,9 +165,14 @@ the repo's GitHub Actions secrets.
 
 ## Develop
 
-    npm test          # unit tests (Vitest); about 300 files, so run one file while working
-    npm run build     # production build in dist/
+    npm test                     # every unit test (Vitest); takes minutes
+    npm run test:quick           # leaves out the slowest files (test/heavy.js), for a check while working
+    npx vitest run test/x.test.js   # one file
+    npm run build                # production build in dist/
     npm run preview   # serve the production build
+
+No counts in docs: the number of test files and tests changes every week, so
+leave it out.
 
 **Built with:** Three.js 0.185, Vite 8 and Vitest 4. There is no server of our
 own: the optional online parts (cloud save, friends, the shared colony and

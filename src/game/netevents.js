@@ -110,9 +110,9 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
           const name = petNameFor(s, otherId);
           cloud.recordGreet(s.playerId, getPsecret(), otherId, s.walkStamp)
             .then((greets) => {
-              if (greets === 1) hud.toast(`You met ${name} across walks! ♡`);
-              else if (greets === 3) hud.toast(`${name} is now your friend across walks! ♥`);
-              else if (greets === 6) hud.toast(`${name} is now your BEST friend across walks! 💕`);
+              if (greets === 1) hud.toast(`You've met ${name} before! ♡`);
+              else if (greets === 3) hud.toast(`${name} is now your friend! ♥`);
+              else if (greets === 6) hud.toast(`${name} is now your BEST friend! 💕`);
             })
             .catch((err) => { console.warn('Whisker Walk: recordGreet failed', err); note('cloud', err); });
         }

@@ -160,7 +160,7 @@ describe('the border patrol fight', () => {
     l.fight.startFight();
     l.run(30 * 40);
     expect(l.chases).toEqual([member.name]);
-    expect(l.toasts[0]).toMatch(/heal in a few walks/);
+    expect(l.toasts[0]).toMatch(/will heal soon!/);
   });
 
   test('the words are short and warm', () => {
