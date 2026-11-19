@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import { PRESETS, STATES } from './helpers/catfingerprint.js';
+import { ready, firstHitRaycaster } from './helpers/bvh.js';
 
 // polish-pose Task 3 (2026-11-02, ruling P3): balloons float upright in every
 // pose. Sitting, the single balloon and the bunch rode the tipped torso and
@@ -49,16 +50,19 @@ const localVerts = (m) => {
 
 // How far a cat-frame point lies outside a part's surface, along the ray from
 // the part's centre through it (negative: inside). Points outside the part's
-// box (grown 1 cm) are outside without a ray.
-const ray = new THREE.Raycaster();
-function inside(cat, part, P) {
+// box (grown 1 cm) are outside without a ray. The ray goes through a BVH
+// (test/helpers/bvh.js: three's own answers, sooner). The box is the posed
+// part's (boxOf), worked out once a pose, not once a point: that was most of
+// this file's time.
+const ray = firstHitRaycaster();
+const boxOf = (cat, part) => new THREE.Box3().setFromObject(part, true).expandByScalar(0.01 * cat.scale.x);
+function inside(cat, part, P, box = boxOf(cat, part)) {
   const Pw = P.clone().applyMatrix4(cat.matrixWorld);
-  const box = new THREE.Box3().setFromObject(part, true).expandByScalar(0.01 * cat.scale.x);
   if (!box.containsPoint(Pw)) return false;
   const C = part.getWorldPosition(new THREE.Vector3());
   const dir = Pw.clone().sub(C).normalize(), F = Pw.clone().addScaledVector(dir, 1);
   ray.set(F, dir.clone().negate());
-  const hit = ray.intersectObject(part, true)[0];
+  const hit = ray.intersectObject(ready(part), true)[0];
   return hit ? hit.distance < F.distanceTo(Pw) : false;
 }
 
@@ -94,6 +98,7 @@ describe('balloons float upright in every pose (polish-pose Task 3)', () => {
         animateCat(cat, state, t, 0, false);
         cat.updateMatrixWorld(true);
         const at = `${state} t ${t}`;
+        const box = new Map([body, underside, head].map((part) => [part, boxOf(cat, part)]));
         pieces(cat).forEach((p, i) => {
           const tie = carriedTie(cat, p.userData.float.tie);
           if (p.userData.span) {
@@ -116,14 +121,14 @@ describe('balloons float upright in every pose (polish-pose Task 3)', () => {
           expect(built, `balloon ${i}: built clearance`).toBeGreaterThanOrEqual(0.069);
           expect(low - tie.y, `${at}: balloon ${i} over its tie`).toBeGreaterThanOrEqual(Math.min(0.1, built) - 0.005);
           for (const q of verts) {
-            expect(inside(cat, body, q) || inside(cat, underside, q), `${at}: balloon ${i} out of the torso`).toBe(false);
-            expect(inside(cat, head, q), `${at}: balloon ${i} out of the head`).toBe(false);
+            expect(inside(cat, body, q, box.get(body)) || inside(cat, underside, q, box.get(underside)), `${at}: balloon ${i} out of the torso`).toBe(false);
+            expect(inside(cat, head, q, box.get(head)), `${at}: balloon ${i} out of the head`).toBe(false);
           }
         });
         expect(pieces(cat).filter(isKnot).length).toBe({ balloon: 1, balloonbunch: 0, tailballoon: 1 }[back]);
       }
     }
-  }, 120_000);
+  }, 30_000);
 
   // Walking (follow and stalk at speed 1.5): the walk bobs and rolls the
   // body, and the tie rides it, so every balloon and knot still stands as
