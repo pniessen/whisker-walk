@@ -44,7 +44,9 @@ export function rollWeather(rng) {
 // Each spot carries `y`, the ground under it (0 on every flat map), so the
 // puddle is drawn on the clifftop or a ledge when it lands there.
 export function rainPuddleSpots(area, rng, count = 3) {
-  const b = area.bounds;
+  // Bigger areas: the formula below is for bounds centred on the origin, and
+  // the spots are shared (the walk's stream), so they stay on the frozen core.
+  const b = area.core ?? area.bounds;
   const ground = groundOf(area);
   const spots = [];
   for (let i = 0; i < count; i++) {

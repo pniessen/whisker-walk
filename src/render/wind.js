@@ -257,5 +257,26 @@ export function createWind({ reducedMotion = false } = {}) {
     entries.length = 0;
   }
 
-  return { add, update, dispose };
+  // remove(object3d) — stop swaying ONE object and put it back as add() found
+  // it (bigger areas: a strip tile's trees come and go during a walk). Nothing
+  // happens for an object that was never added.
+  function remove(object3d) {
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      if (e.object3d !== object3d) continue;
+      e.target.rotation.x = e.baseRotX;
+      e.target.rotation.z = e.baseRotZ;
+      if (e.pivotInfo) {
+        const { parent, originalPosition } = e.pivotInfo;
+        parent.add(e.object3d);
+        e.object3d.position.copy(originalPosition);
+        parent.remove(e.target);
+      }
+      entries.splice(i, 1);
+      return true;
+    }
+    return false;
+  }
+
+  return { add, update, dispose, remove };
 }

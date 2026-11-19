@@ -234,7 +234,8 @@ function circleCount(ok, x, z, rad, n) {
 export function roamHomes(areaId, area, isWalkable) {
   if (castFor(areaId).length === 0) return [];
   const { cx, cz, r } = DISCS[areaId];
-  const b = area?.bounds ?? { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
+  // Bigger areas: the roam homes stay on the frozen core, where they were.
+  const b = area?.core ?? area?.bounds ?? { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
   const mx = (b.minX + b.maxX) / 2, hx = ((b.maxX - b.minX) / 2) * ROAM_SPREAD;
   const mz = (b.minZ + b.maxZ) / 2, hz = ((b.maxZ - b.minZ) / 2) * ROAM_SPREAD;
   const rng = mulberry32(seedFromCode(`${areaId}|roam`));

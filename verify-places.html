@@ -17,6 +17,7 @@
   import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
   import { createWind } from '/src/render/wind.js';
   import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createStripTiles } from '/src/render/striptiles.js';
   import { createShadowFit } from '/src/render/shadowfit.js';
   import { createGrass } from '/src/render/grass.js';
   import { createPawPrints } from '/src/render/pawprints.js';
@@ -99,6 +100,20 @@
   const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
   sun.shadow.bias = SUN_BIAS;
   assignShadowCasters(scene);
+  // Bigger areas: with ?grow=1 an area that has strips builds with them
+  // (src/grow.js reads the address). ?strips=all draws every tile at once,
+  // ?strips=x,z the tiles a cat at (x, z) would have; window.__strips(x, z)
+  // moves that cat. ?nofog takes the haze away (an overview from high up).
+  const stripsAt = new URLSearchParams(location.search).get('strips');
+  const stripTiles = area.strips && stripsAt ? createStripTiles(scene, {
+    strips: stripsAt === 'all'
+      ? area.strips.map((st) => ({ ...st, layers: [{ id: 'small', show: 1e9, hide: 2e9 }, { id: 'trees', show: 1e9, hide: 2e9 }] }))
+      : area.strips,
+    wind, reducedMotion: true,
+  }) : null;
+  window.__strips = (x, z) => { stripTiles?.settle(x, z); render(); return stripTiles ? JSON.stringify(stripTiles.stats) : 'no strips'; };
+  if (stripTiles) stripTiles.settle(...(stripsAt === 'all' ? [0, 0] : stripsAt.split(',').map(Number)));
+  if (new URLSearchParams(location.search).has('nofog')) scene.fog = null;
   // ?grass[=low] adds walk.js's lawn tufts (render/grass.js), after the caster
   // sweep exactly as walk.js does. Off by default so the shipped place
   // pictures stay reproducible.

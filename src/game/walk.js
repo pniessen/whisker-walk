@@ -129,6 +129,7 @@ import { createFightUi } from '../ui/fightui.js';
 import { createShadowFit, createNoShadows } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
+import { createStripTiles } from '../render/striptiles.js';
 import { createGrass, groundFinds } from '../render/grass.js';
 import { createPawPrints } from '../render/pawprints.js';
 import { createSplash } from '../render/splash.js';
@@ -1304,6 +1305,8 @@ export function createWalkLifecycle({
     // (nothing merged). Pays nothing, saves nothing, sends nothing;
     // session.rest is the one in progress.
     const rests = createRests(scene, propsFor(areaId).rests, { ground });
+    // Bigger areas: a strip's own rest spots (areaData.rests) join the area's.
+    rests.add(areaData.rests);
     for (const c of rests.colliders) areaData.colliders.push({ ...c });
 
     // Appletree Farm's animals (farmanimals.js): cows, goats, hens and chicks,
@@ -1428,7 +1431,7 @@ export function createWalkLifecycle({
     // around the acorn, or over a fish.
     const grassProps = isDen ? null : propsFor(areaId);
     const grassKeepOut = grassProps ? [
-      ...(grassProps.rests ?? []).map((r) => ({ x: r.x, z: r.z, r: GRASS_REST_CLEAR })),
+      ...[...(grassProps.rests ?? []), ...(areaData.rests ?? [])].map((r) => ({ x: r.x, z: r.z, r: GRASS_REST_CLEAR })),
       ...(grassProps.carryables ?? []).flatMap((c) => [
         { x: c.x, z: c.z, r: GRASS_ITEM_CLEAR },
         ...(c.fallTo ? [{ x: c.fallTo.x, z: c.fallTo.z, r: GRASS_ITEM_CLEAR }] : []),
@@ -1734,6 +1737,19 @@ export function createWalkLifecycle({
     session.treeFade = createTreeFade(isDen ? [] : [...occluders, ...findFadeOccluders(scene)], { reducedMotion });
     // Compile the faded trees' shaders now, not at the first fade mid-walk.
     if (typeof renderer?.compile === 'function') session.treeFade.prewarm(() => renderer.compile(scene, camera));
+    // Bigger areas: an area's strips (areaData.strips, only with the switch on)
+    // are drawn tile by tile near the cat (render/striptiles.js). Here, after
+    // the caster sweep, the contact-shadow scan, the prop merge and the tree
+    // fade, each of which a streamed tree joins on its own when it is built.
+    // No strips: the no-op of the same shape.
+    session.stripTiles = createStripTiles(scene, {
+      strips: isDen ? [] : areaData.strips ?? [],
+      wind, decals, occluders, reducedMotion,
+      treeFade: () => session.treeFade,
+      tier: () => session.tier,
+      now: () => performance.now(),
+      compile: typeof renderer?.compile === 'function' ? () => renderer.compile(scene, camera) : null,
+    });
     // Plants that lean away from the cat as it walks through (render/rustle.js):
     // the Moor's heather. Visual only; none in most areas.
     session.rustle = createRustle(scene, { reducedMotion });
@@ -2440,6 +2456,8 @@ export function createWalkLifecycle({
     session.clanFight.abort();
     session.fightCam?.dispose();
     // Puts every tree's own material back before the traversal below frees them.
+    // Before the tree fade goes: a strip tree leaving takes its fade entry out.
+    session.stripTiles?.dispose();
     session.treeFade?.dispose();
 
     if (session.net) {

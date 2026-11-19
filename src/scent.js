@@ -70,7 +70,9 @@ const SHORE_MARGIN = 0.6;
 function keepReachable(tr, area, poi) {
   const colliders = area.colliders ?? [];
   const waters = area.waters ?? [];
-  const bounds = area.bounds;
+  // Bigger areas: the treats are shared (the walk's stream), so they are held
+  // inside the frozen core, where a device without the strip holds them too.
+  const bounds = area.core ?? area.bounds;
   // Three relaxation passes, the same shape spots.js's clearSpot uses: a push
   // out of the water can land inside a collider, a push out of a collider can
   // land back in the water, and the bounds clamp near a map edge can do
