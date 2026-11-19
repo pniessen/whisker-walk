@@ -182,7 +182,9 @@ export function createAvatarUpdater({
     // A rival's chase moves the cat itself (player.halt() zeroes player.speed),
     // so feed the gait the scamper's pace and never let a long sit go to sleep.
     // A fight's walk-over runs at the fight's own gait (s.fightGait).
-    const speed = s.chasing ? CHASE_GAIT_SPEED : s.fight ? (s.fightGait ?? 0) : player.speed;
+    // On a crossing or in a hop (traversallive.js) she is held (player.speed
+    // is 0) and the moves say her pace.
+    const speed = s.chasing ? CHASE_GAIT_SPEED : s.fight ? (s.fightGait ?? 0) : s.traversal?.busy ? s.traversal.speed : player.speed;
     // Swimming: no groom, sit or nap in the water, so the idle clock holds.
     // Nor in a fight.
     if (speed > 0.3 || player.inWater || s.fight) s.idleTime = 0;
@@ -228,6 +230,9 @@ export function createAvatarUpdater({
     const wasNapping = s.pose === 'nap';
     let pose = 'follow';
     if (s.freezeTime > 0) pose = 'scared';
+    // The moves (traversallive.js) say their own: stalk on a crossing and in
+    // a hop's crouch, pounce in the air, land, follow while she looks across.
+    else if (s.traversal?.pose) pose = s.traversal.pose;
     else if (s.pounceTime > 0) pose = 'pounce';
     else if (s.landTime > 0) pose = 'land';
     // On a cow's back (farmanimals.js) she sits, and lying still as long as an

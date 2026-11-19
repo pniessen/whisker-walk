@@ -106,6 +106,7 @@ export const NO_TRAVERSAL = Object.freeze({
   groundSpot() { return null; },
   update() {},
   jump() { return false; },
+  pressKind() { return null; },
   late() {},
   dispose() {},
 });
@@ -189,6 +190,16 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     latX = 0;
     latZ = 0;
     over = 0;
+  }
+
+  // The spot the jump button would use where she stands, into `spot`; false
+  // when there is none, or when the press is the game's own (on a perch or a
+  // ride, in a fight or a chase).
+  function spotHere(cat, player, session) {
+    if (session.perched || player.perchY !== 0 || session.fight || session.chasing) return false;
+    const p = cat.position;
+    const ry = cat.rotation.y;
+    return spotFor(trav, p.x, p.z, ground.y(p.x, p.z), -Math.sin(ry), -Math.cos(ry), abilities(), spot);
   }
 
   function letGo() {
@@ -409,10 +420,9 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     // when it is not its business and the game's own pounce should have it.
     jump({ cat, player, session }) {
       if (crossing || hop) return true;
-      if (session.perched || player.perchY !== 0 || session.fight || session.chasing) return false;
+      if (!spotHere(cat, player, session)) return false;
       const p = cat.position;
       const ry = cat.rotation.y;
-      if (!spotFor(trav, p.x, p.z, ground.y(p.x, p.z), -Math.sin(ry), -Math.cos(ry), abilities(), spot)) return false;
       const h = spot.hop;
       const yaw = h.dist > 0 ? facingYaw(h.x1 - h.x0, h.z1 - h.z0) : ry;
       player.halt();
@@ -436,6 +446,17 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
       at.phase = 'crouch';
       at.s = 0;
       return true;
+    },
+    // What the jump button would do here, without doing it: 'busy' on a
+    // crossing or in a hop (the press is taken and does nothing), a hop's
+    // kind ('leap', 'climb', 'drop'), 'look' at one she cannot take yet, or
+    // null when the press is not this runtime's. Reads only (it writes the
+    // spot scratch, which jump() fills afresh). For the paw's climb badge
+    // (game/tips.js), so it never claims a climb the moves take instead.
+    pressKind({ cat, player, session }) {
+      if (crossing || hop) return 'busy';
+      if (!spotHere(cat, player, session)) return null;
+      return spot.look ? 'look' : spot.hop.kind;
     },
     // How she looks doing it: cosmetic touches on the pose game/avatar.js has
     // just set. Writes nothing when she is not on a move.

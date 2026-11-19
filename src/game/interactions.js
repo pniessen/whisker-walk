@@ -212,6 +212,11 @@ export function createInteractions({
       bus.emit('guide:did', { what: 'pounce' });
       return;
     }
+    // Then the moves (src/traversallive.js): a leap, a drop or a climb-up at
+    // a spot the area places, a look across one she cannot take yet, or
+    // anything at all while she is on a crossing or in a hop. NO_TRAVERSAL
+    // (every shipped area) is false, and the ordinary jump runs.
+    if (session.traversal?.jump({ cat: session.cat, player, session })) { bus.emit('guide:did', { what: 'pounce' }); return; }
     // Look for a NEW perch reachable from wherever the cat is right now —
     // canReach uses player.perchY, which still holds the current perch's
     // height while perched (it's only zeroed by the hop-down branch below),
@@ -789,6 +794,8 @@ export function createInteractions({
       s.lastPromptKind = null;
       return;
     }
+    // no prompts on a plank or in the air: what is near her in x, z is a floor below
+    if (s.traversal?.busy) { setPrompt(null); s.lastPromptKind = null; return; }
     // Gorge part 1 (R10): the perched-collectible and knock checks compare
     // world heights; on flat ground these are the relative heights as shipped.
     const g = s.ground ?? FLAT_GROUND;
