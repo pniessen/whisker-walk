@@ -111,9 +111,10 @@ west along the south strip, up the west strip, through the reedbed, back),
 every frame rendered: rendered triangles at most 119,325 (in the reedbed;
 101,353 in the south strip), draw calls at most 235 (169 in the south strip).
 The same route with the switch off: 124,424 and 261. Stream update at most
-3 to 7 ms in one frame over four runs, mean 0.03 ms; the machine's load
-average was 40 at the time (five agents), so these timings are noisy; step 2
-measured 2.5 ms on a quieter machine.
+2.9 to 3.8 ms in one frame in five runs of six (6.9 in one), mean 0.02 to
+0.03 ms, the most one build step took 1.3 to 2.1 ms (5 in the slow run). The
+machine's load average was 34 to 56 throughout (five agents), so these
+timings are noisy; step 2 measured 2.5 ms on a quieter machine.
 
 ## For the owner
 
