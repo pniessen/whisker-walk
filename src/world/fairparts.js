@@ -36,6 +36,44 @@ export const FAIR_PAINT = Object.freeze({
 });
 const C = FAIR_PAINT;
 
+// A rounded lump from an octahedron cut once (detail 1: 32 triangles, smooth
+// normals) or not at all (detail 0: 8), where the kit's `ball` is an
+// icosahedron (80 at detail 1). Same options as the kit's pieces: yaw, pitch,
+// roll, sx/sy/sz, shade. Painted and non-indexed, ready for a kit list.
+function blob(P, r, x, y, z, hex, o = {}) {
+  let g = new THREE.OctahedronGeometry(r, o.detail ?? 1);
+  if (g.index) { const n = g.toNonIndexed(); g.dispose(); g = n; }
+  if (g.attributes.uv) g.deleteAttribute('uv');
+  g.applyMatrix4(new THREE.Matrix4().compose(
+    new THREE.Vector3(x, y, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(o.pitch ?? 0, o.yaw ?? 0, o.roll ?? 0, 'YXZ')),
+    new THREE.Vector3(o.sx ?? 1, o.sy ?? 1, o.sz ?? 1)));
+  const n = g.attributes.position.count;
+  const col = new Float32Array(n * 3);
+  const c = new THREE.Color(hex);
+  const k = o.shade ?? 1;
+  for (let i = 0; i < n; i++) { col[i * 3] = c.r * k; col[i * 3 + 1] = c.g * k; col[i * 3 + 2] = c.b * k; }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  P.push(g);
+  return g;
+}
+
+// A flat painted polygon facing `face` (an outward direction): the points are
+// wound the right way round whichever order they were given in. For the
+// stalls' paint, which only needs showing from outside (one face, no depth).
+function plate(P, pts, hex, face, shade = 1) {
+  const a = pts[0];
+  const u = [pts[1][0] - a[0], pts[1][1] - a[1], pts[1][2] - a[2]];
+  const v = [pts[2][0] - a[0], pts[2][1] - a[1], pts[2][2] - a[2]];
+  const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  const flip = n[0] * face[0] + n[1] * face[1] + n[2] * face[2] < 0;
+  return sheet(P, flip ? pts.slice().reverse() : pts, hex, { shade });
+}
+// A rectangle (x0..x1, y0..y1) in the plane z = zz facing +z or -z; and the
+// same in the plane x = xx facing +x or -x, with z0..z1 along the stall.
+const rectZ = (P, x0, x1, y0, y1, zz, dir, hex, shade) => plate(P, [[x0, y0, zz], [x1, y0, zz], [x1, y1, zz], [x0, y1, zz]], hex, [0, 0, dir], shade);
+const rectX = (P, z0, z1, y0, y1, xx, dir, hex, shade) => plate(P, [[xx, y0, z0], [xx, y0, z1], [xx, y1, z1], [xx, y1, z0]], hex, [dir, 0, 0], shade);
+
 const LISTS = ['solid', 'canvas', 'flags', 'bulbs', 'balloons', 'fence'];
 export function lists() {
   return { solid: [], canvas: [], flags: [], bulbs: [], balloons: [], fence: [] };
@@ -59,7 +97,7 @@ export function balloonBunch(K, x, y, z, n = 5, salt = 0) {
     const up = 1.0 + 0.5 * hash01(salt, i, 7) + (i === 0 ? 0.35 : 0);
     const bx = x + Math.cos(a) * lean;
     const bz = z + Math.sin(a) * lean;
-    ball(K.balloons, 0.22, bx, y + up, bz, BALLOON_COLORS[(i + salt) % BALLOON_COLORS.length], { detail: 1, sy: 1.2 });
+    blob(K.balloons, 0.22, bx, y + up, bz, BALLOON_COLORS[(i + salt) % BALLOON_COLORS.length], { detail: 1, sy: 1.25 });
     sheet(K.flags, [[x - 0.008, y, z], [x + 0.008, y, z], [bx + 0.008, y + up - 0.26, bz], [bx - 0.008, y + up - 0.26, bz]], 0xe8e2d6);
   }
 }
@@ -76,18 +114,36 @@ export function gateArch(x, z, halfSpan, glow, title = 'The Fairground') {
     stripes(P, 0.3, 0, 0.26, GATE.postH, [C.red, C.cream], s * halfSpan, 0, 0, { sides: 10 });
     cyl(P, 0.42, 0.46, 0.3, s * halfSpan, 0, 0, C.blue, { sides: 10 });
     cyl(P, 0.36, 0.3, 0.16, s * halfSpan, GATE.postH, 0, C.gold, { sides: 10 });
-    ball(P, 0.24, s * halfSpan, GATE.postH + 0.34, 0, C.gold, { detail: 1 });
+    blob(P, 0.24, s * halfSpan, GATE.postH + 0.34, 0, C.gold);
   }
-  // the arch: a rainbow of short boards from post to post
-  const N = 14;
+  // the arch: one smooth bent band from post to post, painted in a rainbow of
+  // lengths, with four faces each (front, back, top, underside)
+  const N = 20;
   const rise = GATE.archY - GATE.postH;
   const bow = (t) => [halfSpan * Math.cos(Math.PI * t) * -1, GATE.postH + 0.1 + rise * Math.sin(Math.PI * t)];
   const ARCH = [C.red, C.orange, C.yellow, C.green, C.sky, C.purple];
+  const HW = 0.17; // half the band's width, across the arch
+  const HT = 0.08; // half its thickness, front to back
+  const ring = (i) => {
+    const t = i / N;
+    const [cx, cy] = bow(t);
+    const tx = halfSpan * Math.PI * Math.sin(Math.PI * t);
+    const ty = rise * Math.PI * Math.cos(Math.PI * t);
+    const l = Math.hypot(tx, ty);
+    const nx = -ty / l; // out of the arch's curve
+    const ny = tx / l;
+    const at = (u, v) => [cx + nx * v, cy + ny * v, u];
+    return { n: [nx, ny, 0], fo: at(HT, HW), fi: at(HT, -HW), bo: at(-HT, HW), bi: at(-HT, -HW) };
+  };
+  let r0 = ring(0);
   for (let i = 0; i < N; i++) {
-    const [x0, y0] = bow(i / N);
-    const [x1, y1] = bow((i + 1) / N);
-    const len = Math.hypot(x1 - x0, y1 - y0) + 0.06;
-    box(P, len, 0.34, 0.16, (x0 + x1) / 2, (y0 + y1) / 2, 0, ARCH[i % ARCH.length], { c: true, roll: Math.atan2(y1 - y0, x1 - x0) });
+    const r1 = ring(i + 1);
+    const hex = ARCH[i % ARCH.length];
+    plate(P, [r0.fi, r1.fi, r1.fo, r0.fo], hex, [0, 0, 1]);
+    plate(P, [r0.bi, r1.bi, r1.bo, r0.bo], hex, [0, 0, -1]);
+    plate(P, [r0.fo, r1.fo, r1.bo, r0.bo], hex, r0.n, 1.06);
+    plate(P, [r0.fi, r1.fi, r1.bi, r0.bi], hex, [-r0.n[0], -r0.n[1], 0], 0.8);
+    r0 = r1;
   }
   // the sign board, hung under the arch
   box(P, 4.3, 0.96, 0.1, 0, GATE.signY - 0.48, 0, C.gold, { shade: 0.95 });
@@ -117,8 +173,9 @@ export function gateArch(x, z, halfSpan, glow, title = 'The Fairground') {
     g.add(panel);
   }
   const L = [];
-  for (let i = 0; i <= N; i++) {
-    const [bx, by] = bow(i / N);
+  const NB = 14; // bulbs along the top, as many as before
+  for (let i = 0; i <= NB; i++) {
+    const [bx, by] = bow(i / NB);
     bulb(L, bx, by + 0.22, 0.1, BULB_COLORS[i % 2], 0.09);
     bulb(L, bx, by + 0.22, -0.1, BULB_COLORS[i % 2], 0.09);
   }
@@ -132,6 +189,8 @@ export function gateArch(x, z, halfSpan, glow, title = 'The Fairground') {
 // White pickets with coloured caps, along the fair's south side. No collider:
 // a cat slips between the pickets.
 export const FENCE = Object.freeze({ top: 0.9, step: 2.0 });
+// Whitewash gone soft in the sun, not paper white.
+const FENCE_PAINT = 0xeee3c8;
 export function fence(K, runs) {
   for (const r of runs) {
     const [x1, z1] = r.a;
@@ -142,14 +201,20 @@ export function fence(K, runs) {
     for (let i = 0; i <= n; i++) {
       const px = x1 + ((x2 - x1) * i) / n;
       const pz = z1 + ((z2 - z1) * i) / n;
-      box(K.fence, 0.12, 1.0, 0.12, px, 0, pz, C.white, { yaw });
+      box(K.fence, 0.12, 1.0, 0.12, px, 0, pz, FENCE_PAINT, { yaw });
       // a painted top: one flat square (the fence is drawn on both faces)
       const cap = BUNTING_COLORS[i % BUNTING_COLORS.length];
       sheet(K.fence, [[px - 0.09, 1.001, pz - 0.09], [px + 0.09, 1.001, pz - 0.09], [px + 0.09, 1.001, pz + 0.09], [px - 0.09, 1.001, pz + 0.09]], cap);
       sheet(K.fence, [[px - 0.07, 0.9, pz + 0.062], [px + 0.07, 0.9, pz + 0.062], [px + 0.07, 1.0, pz + 0.062], [px - 0.07, 1.0, pz + 0.062]], cap);
       sheet(K.fence, [[px - 0.07, 0.9, pz - 0.062], [px + 0.07, 0.9, pz - 0.062], [px + 0.07, 1.0, pz - 0.062], [px - 0.07, 1.0, pz - 0.062]], cap);
     }
-    for (const ry of [0.4, 0.78]) box(K.fence, 0.05, 0.1, len, (x1 + x2) / 2, ry, (z1 + z2) / 2, C.white, { c: true, yaw });
+    // each run ends in a stout striped post with a gold knob, where the hedge
+    // (or the gate's post) takes over from the pickets
+    for (const [ex, ez] of [r.a, r.b]) {
+      stripes(K.fence, 0.1, 0, 0.1, 1.14, [C.red, C.cream], ex, 0, ez, { sides: 6 });
+      blob(K.fence, 0.09, ex, 1.19, ez, C.gold, { detail: 0 });
+    }
+    for (const ry of [0.4, 0.78]) box(K.fence, 0.05, 0.1, len, (x1 + x2) / 2, ry, (z1 + z2) / 2, FENCE_PAINT, { c: true, yaw });
     const m = Math.max(2, Math.round(len / 0.42));
     for (let i = 0; i < m; i++) {
       const t = (i + 0.5) / m;
@@ -158,7 +223,7 @@ export function fence(K, runs) {
       const ux = ((x2 - x1) / len) * 0.05;
       const uz = ((z2 - z1) / len) * 0.05;
       // a flat board with a pointed top (the fence is drawn on both faces)
-      sheet(K.fence, [[px - ux, 0.1, pz - uz], [px + ux, 0.1, pz + uz], [px + ux, 0.84, pz + uz], [px, 0.93, pz], [px - ux, 0.84, pz - uz]], C.white);
+      sheet(K.fence, [[px - ux, 0.1, pz - uz], [px + ux, 0.1, pz + uz], [px + ux, 0.84, pz + uz], [px, 0.93, pz], [px - ux, 0.84, pz - uz]], FENCE_PAINT);
     }
   }
 }
@@ -177,14 +242,18 @@ export const STALL_SIGN = Object.freeze({
   tent: Object.freeze({ y: 1.8, z: 1.29, w: 1.6, h: 0.3 }),
 });
 
+// A teddy bear sitting facing +z, `y` the bottom of its feet.
 function teddy(P, x, y, z, hex) {
-  ball(P, 0.16, x, y + 0.15, z, hex, { detail: 1, sy: 1.05 });
-  ball(P, 0.115, x, y + 0.38, z + 0.02, hex);
+  blob(P, 0.15, x, y + 0.15, z, hex, { sy: 1.05 });
+  blob(P, 0.115, x, y + 0.38, z + 0.01, hex);
   for (const s of [-1, 1]) {
-    box(P, 0.07, 0.07, 0.04, x + s * 0.09, y + 0.45, z, hex);
-    box(P, 0.09, 0.09, 0.14, x + s * 0.15, y + 0.14, z + 0.06, hex, { pitch: -0.5 });
+    blob(P, 0.05, x + s * 0.085, y + 0.47, z, hex, { detail: 0 });
+    blob(P, 0.055, x + s * 0.155, y + 0.2, z + 0.04, hex, { detail: 0, sy: 1.3, roll: -s * 0.4 });
+    blob(P, 0.06, x + s * 0.085, y + 0.045, z + 0.1, hex, { detail: 0, sz: 1.4, sy: 0.8 });
+    blob(P, 0.018, x + s * 0.045, y + 0.41, z + 0.115, 0x2a2228, { detail: 0 });
   }
-  box(P, 0.08, 0.06, 0.04, x, y + 0.33, z + 0.1, 0xf3e3c8);
+  blob(P, 0.05, x, y + 0.35, z + 0.105, 0xf3e3c8, { detail: 0, sz: 0.8 });
+  blob(P, 0.02, x, y + 0.365, z + 0.15, 0x2a2228, { detail: 0 });
 }
 
 export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'plain', salt = 0 } = {}) {
@@ -200,9 +269,39 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
     box(P, 0.08, 2.1, 1.3, s * (hw - 0.04), 0, -hd + 0.65, a, { shade: 0.92 });
     for (const pz of [-hd + 0.05, hd - 0.05]) box(P, 0.1, 2.2, 0.1, s * (hw - 0.05), 0, pz, C.white);
   }
-  // the counter: a white front with panels, a board top
+  // the outside: a skirt board at the foot, a trim along the top edge, and on
+  // the back and each side a painted panel (flat paint, a hair proud of the wood)
+  const bz = -hd - 0.012;
+  const bx = hw - 0.1;
+  rectZ(P, -bx, bx, 0, 0.34, bz, -1, b, 0.92);
+  rectZ(P, -bx, bx, 0.34, 0.39, bz, -1, a, 0.6);
+  rectZ(P, -0.95, 0.95, 0.62, 1.62, bz, -1, b);
+  rectZ(P, -0.88, 0.88, 0.69, 1.55, bz - 0.007, -1, a, 1.04);
+  plate(P, [[0, 0.88, bz - 0.014], [0.34, 1.12, bz - 0.014], [0, 1.36, bz - 0.014], [-0.34, 1.12, bz - 0.014]], C.gold, [0, 0, -1]);
+  for (const s of [-1, 1]) plate(P, [[s * 0.62, 1.0, bz - 0.014], [s * 0.72, 1.12, bz - 0.014], [s * 0.62, 1.24, bz - 0.014], [s * 0.52, 1.12, bz - 0.014]], b, [0, 0, -1]);
+  box(P, w + 0.06, 0.12, 0.15, 0, 2.02, -hd + 0.03, b);
+  for (const s of [-1, 1]) {
+    const sx = s * (hw + 0.012);
+    rectX(P, -hd + 0.1, 0.1, 0, 0.34, sx, s, b, 0.92);
+    rectX(P, -hd + 0.1, 0.1, 0.34, 0.39, sx, s, a, 0.6);
+    rectX(P, -0.88, 0.02, 0.62, 1.52, sx, s, b);
+    rectX(P, -0.81, -0.05, 0.69, 1.45, sx + s * 0.007, s, a, 1.04);
+    plate(P, [[sx + s * 0.014, 0.92, -0.43], [sx + s * 0.014, 1.07, -0.28], [sx + s * 0.014, 1.22, -0.43], [sx + s * 0.014, 1.07, -0.58]], C.gold, [s, 0, 0]);
+    box(P, 0.12, 0.12, 1.34, s * hw, 2.02, -hd + 0.65, b);
+  }
+  // the counter: a white front with two-tone panels and a painted band under its top, a board top
   box(P, w, counterY - 0.06, 0.5, 0, 0, counterZ, C.white);
-  for (let i = 0; i < 4; i++) box(P, 0.46, counterY - 0.3, 0.03, -hw + 0.4 + i * ((w - 0.8) / 3), 0.12, counterZ + 0.25, i % 2 ? b : a);
+  const cf = counterZ + 0.25 + 0.006;
+  rectZ(P, -hw + 0.04, hw - 0.04, 0, 0.1, cf, 1, b, 0.92);
+  rectZ(P, -hw + 0.04, hw - 0.04, 0.74, 0.83, cf + 0.004, 1, a);
+  for (let i = 0; i < 4; i++) {
+    const cx = -hw + 0.4 + i * ((w - 0.8) / 3);
+    const outer = i % 2 ? a : b;
+    const inner = i % 2 ? b : a;
+    const cut = (hx, y0, y1, dz, hex) => plate(P, [[cx - hx, y0, cf + dz], [cx + hx, y0, cf + dz], [cx + hx, y1 - 0.1, cf + dz], [cx + hx - 0.1, y1, cf + dz], [cx - hx + 0.1, y1, cf + dz], [cx - hx, y1 - 0.1, cf + dz]], hex, [0, 0, 1]);
+    cut(0.25, 0.16, 0.7, 0, outer);
+    cut(0.19, 0.22, 0.64, 0.007, inner);
+  }
   box(P, w + 0.1, 0.06, 0.62, 0, counterY - 0.06, counterZ, C.wood);
   // the back shelf
   box(P, w - 0.3, 0.05, 0.36, 0, STALL.shelfY - 0.05, -hd + 0.28, C.wood);
@@ -217,15 +316,15 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
       const x1 = x0 + (w + 0.5) / n;
       sheet(K.canvas, [[x0, roofY - 0.12, fz], [x1, roofY - 0.12, fz], [(x0 + x1) / 2, roofY - 0.44, fz]], i % 2 ? a : b);
     }
-    box(P, 1.9, 0.5, 0.08, 0, roofY, hd + 0.2, C.gold);
+    box(K.bulbs, 1.9, 0.5, 0.08, 0, roofY, hd + 0.2, C.gold, { shade: 0.74 }); // on the glow list: it lights at dusk
     box(P, 1.6, 0.3, 0.1, 0, roofY + 0.1, hd + 0.2, a);
     for (let i = 0; i < 8; i++) bulb(K.bulbs, -hw + 0.1 + i * ((w - 0.2) / 7), roofY - 0.2, fz + 0.06, BULB_COLORS[(i + salt) % BULB_COLORS.length]);
   } else {
     stripes(K.canvas, 2.35, 2.2, 0, STALL.tentY, [a, b], 0, 0, 0, { sides: 12 });
     stripes(K.canvas, 2.36, 2.2, 2.36, 2.2, [b, a], 0, 0, 0, { sides: 12, scallop: 0.3 });
-    ball(P, 0.14, 0, STALL.tentY + 0.06, 0, C.gold, { detail: 1 });
+    blob(P, 0.14, 0, STALL.tentY + 0.06, 0, C.gold);
     // a sign board hung under the canopy, over the counter's front
-    box(P, STALL_SIGN.tent.w + 0.12, STALL_SIGN.tent.h + 0.1, 0.06, 0, STALL_SIGN.tent.y - STALL_SIGN.tent.h / 2 - 0.05, STALL_SIGN.tent.z - 0.036, C.gold);
+    box(K.bulbs, STALL_SIGN.tent.w + 0.12, STALL_SIGN.tent.h + 0.1, 0.06, 0, STALL_SIGN.tent.y - STALL_SIGN.tent.h / 2 - 0.05, STALL_SIGN.tent.z - 0.036, C.gold, { shade: 0.74 });
     for (const s of [-1, 1]) box(P, 0.03, 2.3 - STALL_SIGN.tent.y - STALL_SIGN.tent.h / 2, 0.03, s * 0.7, STALL_SIGN.tent.y + STALL_SIGN.tent.h / 2, STALL_SIGN.tent.z - 0.036, C.dark);
     for (let i = 0; i < 7; i++) {
       const t = Math.PI / 2 - 0.9 + (i / 6) * 1.8;
@@ -239,13 +338,21 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
   if (goods === 'floss') {
     // the spinning pan with a big pink cloud in it, and sticks of floss in a rack
     cyl(P, 0.46, 0.4, 0.26, -0.75, cy, counterZ - 0.02, C.steel, { sides: 14 });
-    ball(P, 0.34, -0.75, cy + 0.42, counterZ - 0.02, C.pink, { detail: 1, sy: 0.8 });
+    // a cloud of lumps, not one blob: a big heart and a ring of puffs round it
+    blob(P, 0.28, -0.75, cy + 0.44, counterZ - 0.02, C.pink, { sy: 0.85 });
+    for (let i = 0; i < 6; i++) {
+      const t = (i / 6) * Math.PI * 2 + 0.4;
+      blob(P, 0.15 + 0.03 * hash01(i, salt, 71), -0.75 + Math.cos(t) * 0.24, cy + 0.36 + 0.12 * hash01(i, 4, 72), counterZ - 0.02 + Math.sin(t) * 0.24,
+        i % 2 ? 0xfdb0d2 : C.pink, { shade: 1 + 0.05 * (i % 3) });
+    }
     box(P, 1.1, 0.1, 0.24, 0.75, cy, counterZ, C.wood);
     for (let i = 0; i < 4; i++) {
       cyl(P, 0.015, 0.015, 0.34, 0.33 + i * 0.28, cy + 0.1, counterZ, C.cream, { sides: 4 });
-      ball(P, 0.15, 0.33 + i * 0.28, cy + 0.54, counterZ, i % 2 ? 0x9fd8ff : C.pink, { sy: 1.15 });
+      const fc = i % 2 ? 0x9fd8ff : C.pink;
+      blob(P, 0.13, 0.33 + i * 0.28, cy + 0.52, counterZ, fc, { sy: 1.15 });
+      blob(P, 0.085, 0.33 + i * 0.28 + 0.07, cy + 0.6, counterZ + 0.03, fc, { detail: 0, shade: 1.08 });
     }
-    for (let i = 0; i < 3; i++) ball(P, 0.17, -0.8 + i * 0.8, sy + 0.2, sz, i % 2 ? C.pink : 0x9fd8ff);
+    for (let i = 0; i < 3; i++) blob(P, 0.17, -0.8 + i * 0.8, sy + 0.2, sz, i % 2 ? C.pink : 0x9fd8ff);
   } else if (goods === 'apples') {
     box(P, 1.6, 0.05, 0.36, 0.5, cy, counterZ, C.steel);
     for (let i = 0; i < 6; i++) {
@@ -258,11 +365,13 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
     // a glass-sided popper heaped with popcorn, and striped boxes of it
     box(P, 0.8, 0.7, 0.42, -0.8, cy, counterZ, 0xcfeaf4);
     box(P, 0.86, 0.08, 0.48, -0.8, cy + 0.7, counterZ, C.red);
-    ball(P, 0.3, -0.8, cy + 0.2, counterZ + 0.02, 0xfff0b0, { detail: 1, sy: 0.7 });
+    blob(P, 0.24, -0.8, cy + 0.2, counterZ + 0.02, 0xfff0b0, { sy: 0.75 });
+    for (let i = 0; i < 5; i++) blob(P, 0.1, -0.8 + (hash01(i, 9, 81) - 0.5) * 0.46, cy + 0.2 + 0.08 * hash01(i, 8, 82), counterZ + (hash01(i, 7, 83) - 0.5) * 0.24, i % 3 ? 0xffe9a0 : 0xfff8d8, { detail: 0 });
     for (let i = 0; i < 4; i++) {
       const px = 0.3 + i * 0.3;
       box(P, 0.2, 0.28, 0.16, px, cy, counterZ, i % 2 ? C.red : C.white);
-      ball(P, 0.12, px, cy + 0.3, counterZ, 0xfff0b0, { sy: 0.7 });
+      blob(P, 0.09, px - 0.04, cy + 0.3, counterZ, 0xfff0b0, { detail: 0 });
+      blob(P, 0.08, px + 0.05, cy + 0.31, counterZ + 0.02, 0xffe9a0, { detail: 0 });
     }
     for (let i = 0; i < 3; i++) cyl(P, 0.08, 0.1, 0.34, -0.7 + i * 0.7, sy, sz, [C.yellow, C.pink, C.sky][i], { sides: 8 });
   } else if (goods === 'prizes') {
@@ -276,7 +385,16 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
       cyl(P, 0.03, 0.03, 0.3, px, cy, counterZ, C.wood, { sides: 6 });
       cyl(P, 0.14, 0.14, 0.03, px, cy + (i % 2 ? 0.02 : 0.14), counterZ, BUNTING_COLORS[i], { sides: 10 });
     }
-    for (let i = 0; i < 4; i++) ball(P, 0.14, -0.9 + i * 0.6, sy + 0.14, sz, BUNTING_COLORS[(i + 2) % 6]);
+    // toys on the back shelf, to win: a drum, a block with a stripe, a striped ball, a rocket
+    const hx = (i) => -0.9 + i * 0.6;
+    cyl(P, 0.1, 0.1, 0.15, hx(0), sy, sz, C.cream, { sides: 7 });
+    cyl(P, 0.103, 0.103, 0.05, hx(0), sy + 0.05, sz, C.red, { sides: 7 });
+    box(P, 0.17, 0.17, 0.17, hx(1), sy, sz, C.sky);
+    rectZ(P, hx(1) - 0.085, hx(1) + 0.085, sy + 0.05, sy + 0.1, sz + 0.09, 1, C.yellow);
+    blob(P, 0.1, hx(2), sy + 0.1, sz, C.green);
+    blob(P, 0.1, hx(2), sy + 0.1, sz, C.cream, { detail: 0, sy: 0.22, sx: 1.06, sz: 1.06 });
+    cyl(P, 0.07, 0.07, 0.18, hx(3), sy, sz, C.purple, { sides: 6 });
+    cyl(P, 0.0, 0.07, 0.14, hx(3), sy + 0.18, sz, C.red, { sides: 6 });
   } else if (goods === 'drinks') {
     for (let i = 0; i < 5; i++) {
       cyl(P, 0.07, 0.06, 0.26, -0.9 + i * 0.4, cy, counterZ, [0xf9d648, 0xf59ac0, 0xf58a2e, 0x8fe0c0, 0xf9d648][i], { sides: 8 });
@@ -349,7 +467,7 @@ export function rubberDucks(spots) {
   g.userData.noMerge = true;
   spots.forEach((s, i) => {
     const P = [];
-    ball(P, 0.14, 0, 0.07, 0, C.yellow, { detail: 1, sy: 0.78, sz: 1.25 });
+    blob(P, 0.14, 0, 0.07, 0, C.yellow, { sy: 0.78, sz: 1.25 });
     ball(P, 0.09, 0, 0.21, 0.11, C.yellow);
     box(P, 0.07, 0.03, 0.08, 0, 0.19, 0.21, C.orange, { c: true });
     box(P, 0.05, 0.07, 0.05, 0, 0.12, -0.17, C.yellow, { c: true, pitch: 0.6 });
@@ -448,7 +566,7 @@ export function fortuneTent(x, z, yaw, glow) {
   }
   g.add(canvasOf(T, 'fortuneTentCanvas'));
   const S = [];
-  ball(S, 0.2, 0, apexY + 0.12, 0, C.gold, { detail: 1 });
+  blob(S, 0.2, 0, apexY + 0.12, 0, C.gold);
   // a crescent moon on a stalk
   cyl(S, 0.03, 0.03, 0.5, 0, apexY + 0.2, 0, C.gold, { sides: 5 });
   cyl(S, 0.26, 0.26, 0.05, 0, apexY + 0.9, 0, C.gold, { c: true, pitch: Math.PI / 2, sides: 14 });
@@ -457,6 +575,13 @@ export function fortuneTent(x, z, yaw, glow) {
   for (let i = 0; i < 7; i++) {
     const a = front - doorHalf - 0.25 + (i / 6) * (2 * doorHalf + 0.5);
     bulb(L, Math.cos(a) * (r + 0.3), wallH - 0.06, Math.sin(a) * (r + 0.3), BULB_COLORS[i % BULB_COLORS.length]);
+  }
+  // a ring of small lamps round the crystal ball's stand (the ball is a mesh of its
+  // own, in fortuneTable, set at the same spot and turn), so at dusk it sits in a
+  // violet-and-gold glow and a second ring lights its underside
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    bulb(L, FORTUNE.tableX + Math.cos(a) * 0.3, FORTUNE.tableY + 0.07, FORTUNE.tableZ + Math.sin(a) * 0.3, i % 2 ? 0xd8b8ff : 0xffe49a, 0.05);
   }
   g.add(glowMesh(L, 'fortuneBulbs', glow));
   g.position.set(x, 0, z);
@@ -480,11 +605,11 @@ export function fortuneTable(x, z, yaw) {
   cyl(P, 0.52, 0.52, 0.03, tableX, tableY - 0.03, tableZ, C.gold, { sides: 14 });
   cyl(P, 0.16, 0.2, 0.08, tableX, tableY, tableZ, C.gold, { sides: 10 });
   // a cushion for the visitor, and a deck of cards
-  ball(P, 0.4, FORTUNE.seatX, 0.06, FORTUNE.seatZ, C.pink, { detail: 1, sy: 0.3 });
+  blob(P, 0.4, FORTUNE.seatX, 0.06, FORTUNE.seatZ, C.pink, { sy: 0.3 });
   box(P, 0.12, 0.03, 0.18, tableX + 0.32, tableY, tableZ + 0.1, C.cream, { yaw: 0.4 });
   g.add(meshOf(P, 'fortuneTableBody', { roughness: 0.7 }));
   const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(FORTUNE.ballR, 2),
-    new THREE.MeshStandardMaterial({ color: 0xbfe8ff, roughness: 0.08, metalness: 0, emissive: 0x6fb8ff, emissiveIntensity: 0.25 }));
+    new THREE.MeshStandardMaterial({ color: 0xbfe8ff, roughness: 0.08, metalness: 0, emissive: 0x6fb8ff, emissiveIntensity: 0.4 }));
   orb.name = 'crystalBall';
   orb.position.set(tableX, tableY + 0.08 + FORTUNE.ballR - 0.03, tableZ);
   orb.userData.noCast = true;
@@ -526,7 +651,7 @@ export function jugglerSpot(K) {
     ball(P, 0.05, cx - Math.cos(yw) * 0.23, 0.07, cz + Math.sin(yw) * 0.23, C.gold);
   }
   const balls = [[0.6, 0.09, -0.1, C.red], [0.85, 0.09, 0.3, C.green], [-0.9, 0.09, 0.5, C.yellow], [0.2, 0.09, -0.5, C.sky], [-1.25, 0.65, -0.5, C.orange]];
-  for (const [bx, by, bz, hex] of balls) ball(P, 0.09, bx, by, bz, hex, { detail: 1 });
+  for (const [bx, by, bz, hex] of balls) ball(P, 0.09, bx, by, bz, hex);
   // three rings leaning on the trunk
   for (let i = 0; i < 3; i++) cyl(P, 0.24, 0.24, 0.03, -0.62 + i * 0.05, 0.24, -0.3 + i * 0.05, [C.orange, C.purple, C.green][i], { c: true, roll: Math.PI / 2 - 0.3, yaw: 0.3, sides: 12, open: false });
 }
@@ -607,7 +732,7 @@ export function bandstandRoof(x, z, yaw, glow) {
   stripes(T, roofR + 0.01, roofY, roofR + 0.01, roofY, [C.cream], 0, 0, 0, { sides: 32, from: turn, to: turn + Math.PI * 2, scallop: 0.26 });
   g.add(canvasOf(T, 'bandstandRoofCanvas'));
   const S = [];
-  ball(S, 0.2, 0, apexY + 0.1, 0, C.gold, { detail: 1 });
+  blob(S, 0.2, 0, apexY + 0.1, 0, C.gold);
   cyl(S, 0.03, 0.03, 0.8, 0, apexY + 0.2, 0, C.gold, { sides: 5 });
   box(S, 0.5, 0.26, 0.02, 0.27, apexY + 0.72, 0, C.red);
   g.add(meshOf(S, 'bandstandFinial', { roughness: 0.5 }));
@@ -678,7 +803,10 @@ export function wagon(K, colors = [C.red, C.gold]) {
   box(P, w + 0.04, 0.1, d + 0.04, 0, floor, 0, t);
   box(P, w + 0.04, 0.1, d + 0.04, 0, floor + wall - 0.14, 0, t);
   for (const sx of [-1, 1]) {
-    box(P, 0.7, 0.6, 0.05, sx * 1.05, floor + 0.75, d / 2 + 0.01, 0xbfe6f4);
+    // the pane is on the glow list, a lamp-lit curtain colour: it lights at dusk
+    box(K.bulbs, 0.7, 0.6, 0.05, sx * 1.05, floor + 0.75, d / 2 + 0.01, 0xffe4a8);
+    rectZ(P, sx * 1.05 - 0.016, sx * 1.05 + 0.016, floor + 0.75, floor + 1.35, d / 2 + 0.04, 1, t);
+    rectZ(P, sx * 1.05 - 0.35, sx * 1.05 + 0.35, floor + 1.035, floor + 1.065, d / 2 + 0.041, 1, t);
     for (const s2 of [-1, 1]) box(P, 0.2, 0.66, 0.06, sx * 1.05 + s2 * 0.46, floor + 0.72, d / 2 + 0.02, t);
     box(P, 0.9, 0.12, 0.2, sx * 1.05, floor + 0.6, d / 2 + 0.1, C.green);
     for (let i = 0; i < 3; i++) ball(P, 0.08, sx * 1.05 - 0.26 + i * 0.26, floor + 0.78, d / 2 + 0.12, [C.pink, C.yellow, C.white][i]);
