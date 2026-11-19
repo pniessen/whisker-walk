@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CATALOG, createProgression, isPrizeAccessory, isTradeableAccessory } from '../src/progression.js';
+import { CATALOG, BASE_ACCESSORY_IDS, accessoriesWithFound, createProgression, isPrizeAccessory, isTradeableAccessory } from '../src/progression.js';
 import { HEAD_WEAR } from '../src/foundwear/head.js';
 import { FACE_WEAR } from '../src/foundwear/face.js';
 import { NECK_WEAR } from '../src/foundwear/neck.js';
@@ -21,9 +21,30 @@ function fakeStorage() {
 
 describe('found outfits: the records', () => {
   it('the registry passes its own checks', () => {
-    const takenIds = Object.keys(CATALOG.accessories).filter((id) => !CATALOG.accessories[id].find);
+    // the hand-written ids, not the catalog's: a found id that clashed with
+    // one would have been skipped there and so never be seen as taken
     expect(validateFoundWear({ head: HEAD_WEAR, face: FACE_WEAR, neck: NECK_WEAR, body: BODY_WEAR, feet: FEET_WEAR },
-      { areaIds: Object.keys(CATALOG.areas), takenIds })).toEqual([]);
+      { areaIds: Object.keys(CATALOG.areas), takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
+  });
+  it('a found record may not take a shop or prize id, and never replaces one', () => {
+    const heart = { id: 'heart', slot: 'collar', find: 'park', emoji: '💖', name: () => 'Heart' };
+    const problems = validateFoundWear({ head: [], face: [], neck: [heart], body: [], feet: [] },
+      { areaIds: Object.keys(CATALOG.areas), takenIds: BASE_ACCESSORY_IDS });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatch(/heart/);
+    // the catalog keeps the shop's Heart Charm Collar, whatever the found records say
+    const shopHeart = { name: 'Heart Charm Collar', slot: 'collar', price: 25 };
+    expect(CATALOG.accessories.heart).toEqual(shopHeart);
+    const clash = { heart: { name: 'Heart', slot: 'collar', price: 0, prize: true, find: 'park', emoji: '💖' } };
+    const merged = accessoriesWithFound({ heart: shopHeart, bell: { name: 'Bell' } }, { ...clash, mosscap: { name: 'Moss Cap' } });
+    expect(Object.keys(merged)).toEqual(['heart', 'bell', 'mosscap']);
+    expect(merged.heart).toBe(shopHeart);
+    // every hand-written id comes first, then the found ones
+    expect(Object.keys(CATALOG.accessories).slice(0, BASE_ACCESSORY_IDS.length)).toEqual([...BASE_ACCESSORY_IDS]);
+  });
+  it('a name that throws is reported, not a crash', () => {
+    const bad = { id: 'mosscap', slot: 'head', find: 'woods', emoji: '🌿', name: () => { throw new Error('no'); } };
+    expect(validateFoundWear({ head: [bad], face: [], neck: [], body: [], feet: [] }, { areaIds: ['woods'], takenIds: [] })).toHaveLength(1);
   });
   it('the checks catch each kind of mistake', () => {
     const ok = { id: 'mosscap', slot: 'head', find: 'woods', emoji: '🌿', name: () => 'Moss Cap' };

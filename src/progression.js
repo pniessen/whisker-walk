@@ -231,6 +231,74 @@ const RETIRED_CATS = { rosa: { name: 'Rosa', price: 40 } };
 export const ROSA_FAREWELL = (catName) =>
   `We'll always love Rosa. 💛 Your 40 points are back, and ${catName} is ready to play today.`;
 
+// The hand-written accessories: the shop's, the visit prizes and the
+// Fairground's, in catalog order. Kept as their own object so the found
+// outfits (src/foundwear/) can never overwrite one of them.
+const BASE_ACCESSORIES = {
+  bell: { name: 'Bell Collar', slot: 'collar', price: 20 },
+  glow: { name: 'Glow Collar', slot: 'collar', price: 40 },
+  bandana: { name: 'Bandana', slot: 'neck', price: 20 },
+  booties: { name: 'Rain Booties', slot: 'feet', price: 25 },
+  backpack: { name: 'Tiny Backpack', slot: 'back', price: 35 },
+  crown: { name: 'Flower Crown', slot: 'head', price: 35 },
+  tophat: { name: 'Top Hat', slot: 'head', price: 30 },
+  beanie: { name: 'Cozy Beanie', slot: 'head', price: 20 },
+  glasses: { name: 'Round Glasses', slot: 'face', price: 25 },
+  sunglasses: { name: 'Cool Sunglasses', slot: 'face', price: 25 },
+  necktie: { name: 'Necktie', slot: 'neck', price: 25 },
+  bowtie: { name: 'Bow Tie', slot: 'neck', price: 25 },
+  scarf: { name: 'Cozy Scarf', slot: 'neck', price: 30 },
+  hoodie: { name: 'Purple Hoodie', slot: 'body', price: 35 },
+  cape: { name: 'Superhero Cape', slot: 'body', price: 40 },
+  wings: { name: 'Butterfly Wings', slot: 'back', price: 45 },
+  sneakers: { name: 'Sporty Sneakers', slot: 'feet', price: 25 },
+  rainboots: { name: 'Rain Boots', slot: 'feet', price: 25 },
+  heart: { name: 'Heart Charm Collar', slot: 'collar', price: 25 },
+  studded: { name: 'Studded Collar', slot: 'collar', price: 30 },
+  wizard: { name: 'Wizard Hat', slot: 'head', price: 35 },
+  monocle: { name: 'Fancy Monocle', slot: 'face', price: 30 },
+  eyepatch: { name: 'Pirate Eyepatch', slot: 'face', price: 25 },
+  raincoat: { name: 'Yellow Raincoat', slot: 'body', price: 35 },
+  sweater: { name: 'Striped Sweater', slot: 'body', price: 30 },
+  jetpack: { name: 'Toy Jetpack', slot: 'back', price: 45 },
+  balloon: { name: 'Party Balloon', slot: 'back', price: 30 },
+  socks: { name: 'Mismatched Socks', slot: 'feet', price: 20 },
+  // Visit prizes (src/visits.js has the schedule). Won by visiting, never
+  // bought: canBuy refuses them and redeemCode skips them. sanitizeState
+  // rebuilds the ones visitPrizesSeen has won on every load.
+  partycrown: { name: 'Party Crown', slot: 'head', price: 0, prize: true },
+  confetticape: { name: 'Confetti Cape', slot: 'body', price: 0, prize: true },
+  starshades: { name: 'Star Sunglasses', slot: 'face', price: 0, prize: true },
+  leafcrown: { name: 'Leaf Crown', slot: 'head', price: 0, prize: true },
+  balloonbunch: { name: 'Balloon Bunch', slot: 'back', price: 0, prize: true },
+  sparklecollar: { name: 'Sparkle Collar', slot: 'collar', price: 0, prize: true },
+  // "Clan War Paint": the borrowed word comes from clanwords.js, like every other.
+  warpaint: { get name() { return phrase('prize.warpaint.canon'); }, get legacyName() { return phrase('prize.warpaint.legacy'); }, slot: 'face', price: 0, prize: true },
+  candlehat: { name: 'Birthday-Candle Hat', slot: 'head', price: 0, prize: true },
+  streamerscarf: { name: 'Streamer Scarf', slot: 'neck', price: 0, prize: true },
+  goldbooties: { name: 'Golden Paw Booties', slot: 'feet', price: 0, prize: true },
+  // The Fairground's prizes (src/fairprizes.js): the first win at each of
+  // its three games gives one. `prize` keeps them out of the shop, trades
+  // and codes exactly as it keeps the visit prizes out; `fair` names the
+  // game. sanitizeState rebuilds the ones the journal's game pages have won.
+  papercrown: { name: 'Paper Crown', slot: 'head', price: 0, prize: true, fair: 'cans' },
+  prizerosette: { name: 'Prize Rosette', slot: 'neck', price: 0, prize: true, fair: 'ducks' },
+  tailballoon: { name: 'Tail Balloon', slot: 'back', price: 0, prize: true, fair: 'bell' },
+};
+// Their ids: every id a found outfit must not take (test/foundwear.test.js).
+export const BASE_ACCESSORY_IDS = Object.freeze(Object.keys(BASE_ACCESSORIES));
+
+// base's entries, then each found entry whose id base does not already
+// have. A clashing found record is skipped, never allowed to replace a shop
+// or prize item, and never thrown on: a mistake must not stop the game.
+// validateFoundWear reports it, so the test fails instead. Shallow: each
+// entry object, a getter name and all, is kept as made.
+export function accessoriesWithFound(base, found) {
+  const out = { ...base };
+  for (const [id, entry] of Object.entries(found)) if (!Object.hasOwn(base, id)) out[id] = entry;
+  return out;
+}
+
 export const CATALOG = {
   cats: {
     tabby: { name: 'Tabby', price: 0 },
@@ -245,63 +313,12 @@ export const CATALOG = {
     digit: { name: 'Digit', price: 40 },
     hagrid: { name: 'Hagrid', price: 60 },
   },
-  accessories: {
-    bell: { name: 'Bell Collar', slot: 'collar', price: 20 },
-    glow: { name: 'Glow Collar', slot: 'collar', price: 40 },
-    bandana: { name: 'Bandana', slot: 'neck', price: 20 },
-    booties: { name: 'Rain Booties', slot: 'feet', price: 25 },
-    backpack: { name: 'Tiny Backpack', slot: 'back', price: 35 },
-    crown: { name: 'Flower Crown', slot: 'head', price: 35 },
-    tophat: { name: 'Top Hat', slot: 'head', price: 30 },
-    beanie: { name: 'Cozy Beanie', slot: 'head', price: 20 },
-    glasses: { name: 'Round Glasses', slot: 'face', price: 25 },
-    sunglasses: { name: 'Cool Sunglasses', slot: 'face', price: 25 },
-    necktie: { name: 'Necktie', slot: 'neck', price: 25 },
-    bowtie: { name: 'Bow Tie', slot: 'neck', price: 25 },
-    scarf: { name: 'Cozy Scarf', slot: 'neck', price: 30 },
-    hoodie: { name: 'Purple Hoodie', slot: 'body', price: 35 },
-    cape: { name: 'Superhero Cape', slot: 'body', price: 40 },
-    wings: { name: 'Butterfly Wings', slot: 'back', price: 45 },
-    sneakers: { name: 'Sporty Sneakers', slot: 'feet', price: 25 },
-    rainboots: { name: 'Rain Boots', slot: 'feet', price: 25 },
-    heart: { name: 'Heart Charm Collar', slot: 'collar', price: 25 },
-    studded: { name: 'Studded Collar', slot: 'collar', price: 30 },
-    wizard: { name: 'Wizard Hat', slot: 'head', price: 35 },
-    monocle: { name: 'Fancy Monocle', slot: 'face', price: 30 },
-    eyepatch: { name: 'Pirate Eyepatch', slot: 'face', price: 25 },
-    raincoat: { name: 'Yellow Raincoat', slot: 'body', price: 35 },
-    sweater: { name: 'Striped Sweater', slot: 'body', price: 30 },
-    jetpack: { name: 'Toy Jetpack', slot: 'back', price: 45 },
-    balloon: { name: 'Party Balloon', slot: 'back', price: 30 },
-    socks: { name: 'Mismatched Socks', slot: 'feet', price: 20 },
-    // Visit prizes (src/visits.js has the schedule). Won by visiting, never
-    // bought: canBuy refuses them and redeemCode skips them. sanitizeState
-    // rebuilds the ones visitPrizesSeen has won on every load.
-    partycrown: { name: 'Party Crown', slot: 'head', price: 0, prize: true },
-    confetticape: { name: 'Confetti Cape', slot: 'body', price: 0, prize: true },
-    starshades: { name: 'Star Sunglasses', slot: 'face', price: 0, prize: true },
-    leafcrown: { name: 'Leaf Crown', slot: 'head', price: 0, prize: true },
-    balloonbunch: { name: 'Balloon Bunch', slot: 'back', price: 0, prize: true },
-    sparklecollar: { name: 'Sparkle Collar', slot: 'collar', price: 0, prize: true },
-    // "Clan War Paint": the borrowed word comes from clanwords.js, like every other.
-    warpaint: { get name() { return phrase('prize.warpaint.canon'); }, get legacyName() { return phrase('prize.warpaint.legacy'); }, slot: 'face', price: 0, prize: true },
-    candlehat: { name: 'Birthday-Candle Hat', slot: 'head', price: 0, prize: true },
-    streamerscarf: { name: 'Streamer Scarf', slot: 'neck', price: 0, prize: true },
-    goldbooties: { name: 'Golden Paw Booties', slot: 'feet', price: 0, prize: true },
-    // The Fairground's prizes (src/fairprizes.js): the first win at each of
-    // its three games gives one. `prize` keeps them out of the shop, trades
-    // and codes exactly as it keeps the visit prizes out; `fair` names the
-    // game. sanitizeState rebuilds the ones the journal's game pages have won.
-    papercrown: { name: 'Paper Crown', slot: 'head', price: 0, prize: true, fair: 'cans' },
-    prizerosette: { name: 'Prize Rosette', slot: 'neck', price: 0, prize: true, fair: 'ducks' },
-    tailballoon: { name: 'Tail Balloon', slot: 'back', price: 0, prize: true, fair: 'bell' },
-    // Found outfits (src/foundwear/): one hidden on every walk, found, never
-    // bought. `prize` keeps them out of the shop, trades and codes as it keeps
-    // the visit and fair prizes out; `find` names the place it is hidden in.
-    // The name is a getter that reads the phrase table when shown. The spread
-    // is shallow: each entry object, getter and all, is kept as made.
-    ...FOUND_CATALOG,
-  },
+  // The hand-written ones (BASE_ACCESSORIES above), then the found outfits
+  // (src/foundwear/): one hidden on every walk, found, never bought. `prize`
+  // keeps them out of the shop, trades and codes as it keeps the visit and
+  // fair prizes out; `find` names the place it is hidden in. The name is a
+  // getter that reads the phrase table when shown.
+  accessories: accessoriesWithFound(BASE_ACCESSORIES, FOUND_CATALOG),
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },

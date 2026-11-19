@@ -9,7 +9,9 @@
 //
 // ADDING ONE (the seam later outfits come through):
 //   1. a record at the end of its slot group's file, with its id, slot, place,
-//      emoji and name;
+//      emoji and name. Its id must be new: one a shop or prize item already
+//      has (BASE_ACCESSORY_IDS, src/progression.js) is skipped by the catalog,
+//      so the hand-written item stays, and the test reports it;
 //   2. its name, 'wear.<id>.name', in the later table of src/clanphrases.js,
 //      then re-record test/fixtures/series-words-on-later.json
 //      (UPDATE_OFF_SNAPSHOT=1 npx vitest run test/offwords.test.js; the diff
@@ -90,7 +92,8 @@ export function validateFoundWear(groups, { areaIds = [], takenIds = [] } = {}) 
       if (typeof r.find !== 'string' || !areas.has(r.find)) problems.push(`${label}: ${JSON.stringify(r.find)} is not a place`);
       else perArea.set(r.find, (perArea.get(r.find) ?? 0) + 1);
       if (typeof r.emoji !== 'string' || r.emoji.length === 0) problems.push(`${label}: no emoji`);
-      const name = typeof r.name === 'function' ? r.name() : undefined;
+      let name;
+      try { name = typeof r.name === 'function' ? r.name() : undefined; } catch { name = undefined; }
       if (typeof name !== 'string' || name.length === 0) problems.push(`${label}: name() does not give a name`);
     });
   }
