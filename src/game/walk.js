@@ -82,6 +82,8 @@ import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
 import { createFarmAnimals, NO_FARM } from '../farmanimals.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
+import { createFairLive, NO_FAIR } from '../fairlive.js';
+import { handleFairEvent } from './fairplay.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
@@ -1328,6 +1330,20 @@ export function createWalkLifecycle({
     // until the goat drops it.
     if (farm.jobs) addFarmHat(carry, areaData);
 
+    // The Fairground's rides (fairlive.js): the models world/fair.js built,
+    // moved by a clock, and the cat's ride on them. Nothing is added to the
+    // scene and nothing rides the wire: the rides are a pure function of the
+    // time of day, so every device in the walk sees them alike. A ride's seat
+    // is a perch that moves, but it is NOT in the area's perches: the jump
+    // button asks the rides first (game/interactions.js). What each event says
+    // and sounds like is game/fairplay.js.
+    const fairLive = areaId !== 'fair' ? NO_FAIR : createFairLive(scene, areaData, {
+      camera,
+      reducedMotion,
+      ground,
+      onEvent: (e) => handleFairEvent(e, { hud, audio, log, progression, session }),
+    });
+
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
     // time and VISUAL-PASS.md's Wave 6 note says out loud that a lot of what
@@ -1472,6 +1488,7 @@ export function createWalkLifecycle({
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,
+      fair: fairLive,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
       campMarker,
@@ -2397,6 +2414,7 @@ export function createWalkLifecycle({
     });
     session.critters.dispose();
     session.farm?.dispose();
+    session.fair?.dispose();
     session.goldMice.dispose();
     session.rival.dispose();
     session.chasing = false;

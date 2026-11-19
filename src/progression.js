@@ -64,7 +64,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // test/farmjobs.test.js holds the two lists equal). A job's count is how
   // many times it has been finished; a find's, on how many walks it was found.
   'jobchicks', 'jobcow', 'jobgoat', 'jobmice',
-  'findloftcats', 'findeggs', 'findowl', 'findscarecrow', 'findapples', 'findducklings'];
+  'findloftcats', 'findeggs', 'findowl', 'findscarecrow', 'findapples', 'findducklings',
+  // The Fairground's five rides (src/fairwords.js RIDE_PAGE): the walks she has ridden each on.
+  'ridemgr', 'ridewheel', 'ridecups', 'rideslide', 'ridecoaster'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but

@@ -217,6 +217,9 @@ export function createAvatarUpdater({
     else if (s.landTime > 0) pose = 'land';
     // On a cow's back (farmanimals.js) she sits, and lying still as long as an
     // idle nap takes she curls up and naps there as the cow ambles on.
+    // A seat of the Fairground's rides (fairsim.js) may say its own pose: she
+    // stands on the merry-go-round's platform.
+    else if (s.perched?.pose) pose = s.perched.pose;
     else if (s.perched) pose = s.perched.ride && s.idleTime > napAt ? 'nap' : 'perch';
     else if (s.boxTime > 1) pose = 'requestPet';
     else if (s.stretchTime > 0) pose = 'stretch';

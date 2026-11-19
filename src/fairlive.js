@@ -1,0 +1,297 @@
+// =============================================================================
+// The Fairground's rides in the walk: the simulation (src/fairsim.js) drawn
+// on the models world/fair.js built, and the cat's ride on them.
+//
+// game/walk.js builds one for a Fairground walk (session.fair; every other
+// place has NO_FAIR). main.js calls update() once a frame after the player
+// has moved, and late() after the cat has been posed. game/interactions.js
+// asks jump() first whenever the jump button is pressed.
+//
+// THE CLOCK is the time of day (seconds; `now`, which a test or a picture
+// replaces). The rides are a pure function of it (fairsim.js), so they run
+// whether anyone is on them or not, they are where they should be after a
+// pause, and two devices in the same walk see the same horse at the same
+// place with nothing sent between them. Nothing here uses the network.
+//
+// THE RIDE. A seat is a perch record that fairsim.js moves. Getting on is
+// jump() (the jump key, or the paw button on touch): it puts the session's
+// `perched` on the seat, exactly as game/interactions.js does for a roof.
+// From then on update() carries her. Getting off is what it is for any
+// perch: jump again, or push the stick (game/avatar.js clears `perched`);
+// late() sees that the same frame and brings her down to free ground beside
+// the ride (fairsim.js dismountSpot) in a short hop, never a drop.
+//
+// THE COST. Moving a ride is setting the rotation of Groups that step 1 built
+// to turn; nothing is added to the scene, no draw call, and update() and
+// late() allocate nothing.
+// =============================================================================
+import * as THREE from 'three';
+import { createFairSim, RIDE } from './fairsim.js';
+import { waterClearance } from './world/builder.js';
+import { CAT_LOOK_Y } from './cat/model.js';
+import { FLAT_GROUND } from './ground.js';
+
+// What a walk that is not at the Fairground has.
+export const NO_FAIR = Object.freeze({
+  sim: null,
+  riding: null,
+  wobble: 0,
+  update() {},
+  late() {},
+  jump() { return false; },
+  canBoard() { return false; },
+  dispose() {},
+});
+
+// The time of day in seconds, to the sub-millisecond (Date.now() alone steps
+// in whole milliseconds, which shows as a shimmer on a fast ride).
+export function wallClock() {
+  const p = globalThis.performance;
+  return p && Number.isFinite(p.timeOrigin) ? (p.timeOrigin + p.now()) / 1000 : Date.now() / 1000;
+}
+
+// poseRides(rides, sim): the models, where the simulation says they are.
+// Only ever sets the position or rotation of the Groups step 1 built to move.
+export function poseRides(rides, sim) {
+  const A = sim.angles;
+  const m = rides.merryGoRound;
+  m.turn.rotation.y = A.mgr;
+  for (let i = 0; i < m.horses.length; i++) m.horses[i].position.y = sim.mgr.deckY + A.mgrBob[i];
+  m.musicBoxDrum.rotation.x = A.mgrDrum;
+}
+
+// How long the hop down from a seat `h` metres up takes: quick from a horse,
+// under a second from the top of the big wheel.
+export const hopDownTime = (h) => Math.min(0.9, 0.28 + 0.05 * Math.max(0, h));
+
+// The music box's tune: a little waltz, one note every NOTE seconds, 0 a rest.
+// Frequencies in Hz (C major, up an octave: a music box is small and bright).
+export const TUNE = Object.freeze({
+  NOTE: 0.26,
+  HEAR: 17, // metres from the merry-go-round at which it can no longer be heard
+  notes: Object.freeze([
+    1047, 0, 1319, 1568, 0, 1319, 1175, 0, 1397, 1760, 0, 1397,
+    1319, 0, 1568, 2093, 0, 1568, 1760, 1568, 1397, 1319, 1175, 0,
+    1047, 0, 1319, 1568, 0, 1319, 1175, 0, 1397, 1760, 0, 1397,
+    1568, 1760, 1568, 1397, 1319, 1175, 1047, 0, 1568, 1047, 0, 0,
+  ]),
+});
+
+// The camera while she rides, by ride: how it is placed is cameraFor below.
+const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and lets go
+
+// createFairLive(scene, area, opts) → the Fairground's rides for one walk.
+//   area               world/fair.js's record (rides, anchors, colliders, bounds, waters)
+//   opts.camera        the game's camera (the rides place it while she is on one)
+//   opts.reducedMotion no wobble after the teacups
+//   opts.ground        the walk's ground (src/ground.js); the Fairground's is flat
+//   opts.now()         the clock, in seconds
+//   opts.onEvent(e)    { type: 'ride', ride } the first frame on a ride's seat, { type: 'hop' },
+//                      { type: 'dismount' } when she is down, { type: 'note', freq, volume } the tune
+export function createFairLive(scene, area, { camera = null, reducedMotion = false, now = wallClock, onEvent = () => {}, ground = FLAT_GROUND } = {}) {
+  const sim = createFairSim(area);
+  const rides = area.rides;
+  const musicBox = rides.merryGoRound.musicBoxDrum.parent.position; // the music box stands behind the merry-go-round
+  const env = {
+    colliders: area.colliders,
+    bounds: area.bounds,
+    wet: (x, z, margin) => waterClearance(area.waters, x, z) < margin,
+  };
+
+  let riding = null;   // the seat she is on
+  let lastSeat = null; // the seat she last hopped from
+  let rodeRide = null; // the ride whose 'ride' event has been raised for this go
+  // the hop down: from (x0, z0) at height h0 to (x1, z1) on the ground
+  const hop = { on: false, u: 0, dur: 0.3, x0: 0, z0: 0, x1: 0, z1: 0, h0: 0 };
+  let wobble = 0;
+  let noteAt = -1;
+
+  // the ride's camera: w is how much of it is in the picture (0: the game's own)
+  let camW = 0;
+  const camPos = new THREE.Vector3();
+  const camLook = new THREE.Vector3();
+  const look = new THREE.Vector3();
+  const before = new THREE.Vector3();
+  const off = new THREE.Vector3();
+  const push = { x: 0, z: 0 };
+  const paws = { x: 0, y: 0, z: 0 };
+
+  // A seat's height, and the hop's, are metres above the ground under them.
+  const gy = (x, z) => (ground.flat ? 0 : ground.y(x, z));
+  const catAt = (cat, player) => { paws.x = cat.position.x; paws.z = cat.position.z; paws.y = player.perchY ?? 0; return paws; };
+
+  // Where the ride's own camera would be for `seat`, into camPos / camLook.
+  // Returns how much of it to use (0: the game's follow camera, carried).
+  function cameraFor(seat, cat) {
+    if (seat.rideId === 'mgr') {
+      // From outside the ride, level with the horses and in line with her: she
+      // is always on the near side, under the canopy's rim, and the camera is
+      // never inside the ride. It goes round with her, as slowly as she does.
+      const dx = seat.x - sim.mgr.cx;
+      const dz = seat.z - sim.mgr.cz;
+      const d = Math.hypot(dx, dz) || 1;
+      const out = sim.mgr.baseR + 3.8;
+      // ...and it lifts as it passes behind the music box, to look over its pipes
+      const toBox = Math.atan2(musicBox.x - sim.mgr.cx, musicBox.z - sim.mgr.cz) - Math.atan2(dx, dz);
+      const near = Math.abs(Math.atan2(Math.sin(toBox), Math.cos(toBox))) / 0.7;
+      const lift = near < 1 ? (1 - near * near) ** 2 : 0;
+      camPos.set(sim.mgr.cx + (dx / d) * out, 2.3 + lift, sim.mgr.cz + (dz / d) * out);
+      camLook.set(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+      return 1;
+    }
+    return 0;
+  }
+
+  function seatCat(seat, cat, player, session) {
+    session.perched = seat;
+    player.perchY = seat.y;
+    cat.position.set(seat.x, gy(seat.x, seat.z) + seat.y, seat.z);
+    cat.rotation.y = seat.yaw;
+    player.halt?.();
+  }
+
+  function startHopDown(seat, cat, player) {
+    // the way she pushed the stick (a one-off question, as she gets off), or
+    // straight off the seat when she pressed jump
+    const d = player.inputActive ? player.inputDirection?.() ?? null : null;
+    push.x = d ? d.x : 0;
+    push.z = d ? d.z : 0;
+    const to = sim.dismountSpot(seat, push, env);
+    hop.on = true;
+    hop.u = 0;
+    hop.x0 = seat.x; hop.z0 = seat.z; hop.h0 = seat.y;
+    hop.x1 = to.x; hop.z1 = to.z;
+    hop.dur = hopDownTime(seat.y);
+    player.perchY = seat.y;
+    cat.position.set(seat.x, gy(seat.x, seat.z) + seat.y, seat.z);
+    if (seat.seatKind === 'cup') wobble = RIDE.WOBBLE_TIME ?? 0;
+    riding = null;
+    lastSeat = null;
+    rodeRide = null;
+  }
+
+  const api = {
+    sim,
+    get riding() { return riding; },
+    get wobble() { return wobble; },
+    get hopping() { return hop.on; },
+    get cameraWeight() { return camW; },
+
+    // canBoard(cat, player, session): would the jump button put her on a ride
+    // now? (For the jump hint: game/tips.js.)
+    canBoard(cat, player, session) {
+      if (hop.on || riding) return false;
+      return sim.jumpTarget(catAt(cat, player), session.perched ?? null, null)?.type === 'board';
+    },
+
+    // jump({ cat, player, session }) → true when a ride took the jump.
+    jump({ cat, player, session }) {
+      if (hop.on) return true; // in the air on the way down: nothing to do
+      const from = session.perched ?? null;
+      const t = sim.jumpTarget(catAt(cat, player), from, lastSeat);
+      if (!t) return false;
+      if (t.type === 'board' || t.type === 'hop') {
+        lastSeat = t.type === 'hop' ? riding : null;
+        riding = t.seat;
+        seatCat(t.seat, cat, player, session);
+        onEvent({ type: 'hop', ride: t.seat.rideId });
+        return true;
+      }
+      if (t.type === 'off' && riding) {
+        const seat = riding;
+        session.perched = null;
+        startHopDown(seat, cat, player);
+        return true;
+      }
+      return false;
+    },
+
+    // update(dt, t, { cat, player, session }): once a frame, after player.update.
+    update(dt, t, { cat, player, session }) {
+      const T = now();
+      sim.setTime(T);
+      poseRides(rides, sim);
+
+      // the music box: one note at a time, quieter with distance, silent far away
+      const n = Math.floor(T / TUNE.NOTE);
+      if (n !== noteAt) {
+        noteAt = n;
+        const freq = TUNE.notes[((n % TUNE.notes.length) + TUNE.notes.length) % TUNE.notes.length];
+        const d = Math.hypot(cat.position.x - sim.mgr.cx, cat.position.z - sim.mgr.cz);
+        if (freq > 0 && d < TUNE.HEAR) onEvent({ type: 'note', freq, volume: 1 - d / TUNE.HEAR });
+      }
+
+      before.copy(cat.position);
+      const perch = session.perched ?? null;
+      const seat = perch && perch.fair ? perch : null;
+      if (seat) {
+        // carried: on the seat, at its height, facing the way it faces
+        riding = seat;
+        if (rodeRide !== seat.rideId) { rodeRide = seat.rideId; onEvent({ type: 'ride', ride: seat.rideId }); }
+        player.perchY = seat.y;
+        cat.position.set(seat.x, gy(seat.x, seat.z) + seat.y, seat.z);
+        cat.rotation.y = seat.yaw;
+      } else if (hop.on) {
+        // the hop down: across in a straight line, down in an arc
+        hop.u = Math.min(1, hop.u + dt / hop.dur);
+        const k = hop.u * hop.u * (3 - 2 * hop.u);
+        const y = hop.h0 * (1 - hop.u * hop.u);
+        const hx = hop.x0 + (hop.x1 - hop.x0) * k;
+        const hz = hop.z0 + (hop.z1 - hop.z0) * k;
+        cat.position.set(hx, gy(hx, hz) + y, hz);
+        player.perchY = y;
+        if (hop.u >= 1) {
+          hop.on = false;
+          player.perchY = 0;
+          player.halt?.();
+          onEvent({ type: 'dismount' });
+        }
+      }
+      if (wobble > 0) wobble = Math.max(0, wobble - dt);
+
+      // The camera. player.update placed it for where the cat WAS; carry it by
+      // however far she has just been moved, then lean it to the ride's own.
+      if (camera && (seat || hop.on || camW > 0)) {
+        off.copy(cat.position).sub(before);
+        camera.position.add(off);
+        look.set(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+        const want = seat ? cameraFor(seat, cat) : 0;
+        camW += (want - camW) * Math.min(1, dt * CAM_EASE);
+        if (camW < 0.002 && want === 0) camW = 0;
+        if (camW > 0) {
+          camera.position.lerp(camPos, camW);
+          if (!seat) camLook.copy(look); // getting off: the ride's camera keeps looking at her
+          look.lerp(camLook, camW);
+          // her own view turns to match, so the picture does not swing when the ride lets go
+          if (seat && camW > 0.5) player.setViewYaw?.(Math.atan2(camera.position.x - cat.position.x, camera.position.z - cat.position.z));
+        }
+        camera.lookAt(look);
+      }
+    },
+
+    // late(dt, t, { cat, player, session }): once a frame, after the cat is
+    // posed (game/avatar.js), which is where a pushed stick takes her off a
+    // perch. If she has just left a seat, the hop down starts here, in the
+    // same frame, so she is never drawn on the ground under the ride.
+    late(dt, t, { cat, player, session }) {
+      if (riding && session.perched !== riding) {
+        if (!session.perched) startHopDown(riding, cat, player);
+        else { riding = null; lastSeat = null; rodeRide = null; } // onto an ordinary perch: it has placed her
+      }
+      // after the teacups: a sway in her walk for a few steps, and nothing else
+      if (wobble > 0 && !reducedMotion && !session.perched && !hop.on) {
+        const k = wobble / (RIDE.WOBBLE_TIME || 1);
+        cat.rotation.z += Math.sin(t * 7.5) * 0.2 * k;
+      }
+    },
+
+    dispose() {
+      riding = null;
+      lastSeat = null;
+      hop.on = false;
+      camW = 0;
+      wobble = 0;
+    },
+  };
+  return api;
+}

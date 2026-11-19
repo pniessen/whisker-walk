@@ -547,6 +547,14 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(2600, 0.06, { gain: 0.03 * volume, slideTo: 3300 });
       tone(2800, 0.06, { gain: 0.025 * volume, slideTo: 3500, delay: 0.11 });
     },
+    // The Fairground's music box (fairlive.js): one small bright note, with a
+    // softer octave above it. Quiet: it plays for as long as she is near.
+    musicBoxNote(freq, volume = 1) {
+      const v = Math.max(0, Math.min(1, volume));
+      if (v <= 0) return;
+      tone(freq, 0.5, { type: 'triangle', gain: 0.028 * v, attack: 0.004 });
+      tone(freq * 2, 0.22, { gain: 0.008 * v, attack: 0.004 });
+    },
     bark() {
       tone(230, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 140 });
       tone(210, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 120, delay: 0.18 });

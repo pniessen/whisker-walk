@@ -106,7 +106,7 @@ describe('the table of jobs: no clock, no way to fail, only ever forwards', () =
     expect(FARM_FIND_IDS).toEqual(['loftcats', 'eggs', 'owl', 'scarecrow', 'apples', 'ducklings']);
     expect(FARM_JOURNAL_TYPES).toEqual([...FARM_JOB_IDS.map(jobJournalId), ...FARM_FIND_IDS.map(findJournalId)]);
     // the save's journal vocabulary is this list, appended after the animals
-    expect(JOURNAL_TYPES.slice(-10)).toEqual([...FARM_JOURNAL_TYPES]);
+    expect(JOURNAL_TYPES.slice(20, 30)).toEqual([...FARM_JOURNAL_TYPES]); // (the Fairground's five rides come after)
     for (const id of FARM_JOURNAL_TYPES) {
       const page = CRITTER_INFO.find((c) => c.id === id);
       expect(page, id).toBeTruthy();
