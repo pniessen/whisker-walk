@@ -328,6 +328,22 @@ const LATER = Object.freeze({
   'river.west.snail': 'a snail shell in the tall reeds',
   'river.west.wing': 'a blue dragonfly wing by the river',
   'river.west.pebble': 'a round white pebble at the far bank',
+  // ---- found outfits (2026-11-19) ----
+  // One find-only outfit hidden on every walk (src/foundwear/): each one's
+  // name, the card when one is found, a partner's share, the coin pouch when
+  // it is already owned, and its line in the dress-up and the Journal.
+  'wear.acorncap.name': 'Acorn Cap',
+  'wear.card.title': 'You found something to wear! ✨',
+  'wear.card.kept': 'It’s in the dress-up at home now, for good.',
+  'wear.card.wear': 'Wear it',
+  'wear.card.later': 'Later',
+  'wear.card.henNo': (catName) => `${catName} can’t wear this one, but your other cats can.`,
+  'wear.partner.found': (partnerName, thing) => `${partnerName} found it, and there was one for you too: ${thing}! It’s in the dress-up at home. 🎁`,
+  'wear.pouch.found': 'You found a little pouch of 🐾!',
+  'wear.pouch.partner': (partnerName) => `${partnerName} found it, and there was a little pouch of 🐾 for you too!`,
+  'wear.foundIn': (place) => `Found in ${place}`,
+  'wear.notYet': 'Not found yet',
+  'wear.journal.title': 'Things to wear',
 });
 
 // Every id of the first table, in table order.

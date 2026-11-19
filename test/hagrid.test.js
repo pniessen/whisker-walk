@@ -25,6 +25,8 @@ const DELTA = {
   streamerscarf: 6, goldbooties: 0,
   // the Fairground's prizes: the paper crown's band and six points, the rosette's four pieces; no balloon (as the others)
   papercrown: 7, prizerosette: 4, tailballoon: 0,
+  // the found outfits: the Acorn Cap's cup and stalk
+  acorncap: 2,
 };
 
 const hen = (acc = BARE) => {
@@ -387,6 +389,17 @@ describe('Hagrid rebuilt (Task 8)', () => {
         const brim = c.userData.parts.head.children.find((o) => o.geometry?.type === 'CylinderGeometry' && o.geometry.parameters.height === 0.015);
         expect(boxOf(pointsIn(brim, c.userData.parts.head)).min.y).toBeGreaterThanOrEqual(top + 0.003);
       }
+    });
+
+    it('the Acorn Cap sits on his head round the comb', () => {
+      const top = Math.max(...comb().pts.map((v) => v.y));
+      const c = hen({ ...BARE, head: 'acorncap' });
+      const { head } = c.userData.parts;
+      const cap = head.children.filter((o) => o.isMesh && [0x8a5a2b, 0x5a3a1c].includes(hex(o)));
+      expect(cap).toHaveLength(2);
+      const b = boxOf(cap.flatMap((m) => pointsIn(m, head)));
+      expect(b.min.y).toBeLessThanOrEqual(top);
+      expect(b.max.y).toBeLessThanOrEqual(top + 0.13);
     });
 
     it('the beanie covers the comb', () => {

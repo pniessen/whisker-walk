@@ -35,6 +35,7 @@ import { phrase } from './clanphrases.js';
 import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEdition, accessoryName } from './edition.js';
 import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
 import { FAIR_GAME_IDS, FAIR_PRIZES, gameJournalId, fairPrizesWonBy } from './fairprizes.js';
+import { FOUND_CATALOG } from './foundwear/index.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
 // write still happens here: marks.js computes, this module saves.
@@ -294,6 +295,12 @@ export const CATALOG = {
     papercrown: { name: 'Paper Crown', slot: 'head', price: 0, prize: true, fair: 'cans' },
     prizerosette: { name: 'Prize Rosette', slot: 'neck', price: 0, prize: true, fair: 'ducks' },
     tailballoon: { name: 'Tail Balloon', slot: 'back', price: 0, prize: true, fair: 'bell' },
+    // Found outfits (src/foundwear/): one hidden on every walk, found, never
+    // bought. `prize` keeps them out of the shop, trades and codes as it keeps
+    // the visit and fair prizes out; `find` names the place it is hidden in.
+    // The name is a getter that reads the phrase table when shown. The spread
+    // is shallow: each entry object, getter and all, is kept as made.
+    ...FOUND_CATALOG,
   },
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
