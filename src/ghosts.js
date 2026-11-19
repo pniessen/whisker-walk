@@ -75,6 +75,13 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
   // opposite directions of the same gesture (hasGift is a best friend
   // bringing YOU something) and conflating them would have made one award
   // path fire for both.
+  // Review S2 (2026-11-19): the wander FSM's rolls in update() (how long to
+  // idle, where to wander, sniff or follow) come from a stream of the ghosts'
+  // own, opts.wanderRng, drawn only by update(). A walk passes a per-walk
+  // stream (game/walk.js); a caller that passes none gets Math.random, which
+  // is what these rolls used to be. Ghosts visit solo walks only, so there is
+  // no co-walker to agree with.
+  const wanderRng = typeof opts?.wanderRng === 'function' ? opts.wanderRng : Math.random;
   const gift = opts?.gift && Number.isFinite(opts.gift.x) && Number.isFinite(opts.gift.z)
     ? opts.gift
     : null;
@@ -184,7 +191,7 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
           if (g.timer <= 0) {
             g.state = 'idle';
             g.pose = 'follow';
-            g.timer = 2 + Math.random() * 3;
+            g.timer = 2 + wanderRng() * 3;
           }
           continue;
         }
@@ -195,8 +202,8 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
         if (g.timer <= 0) {
           if (g.state === 'idle') {
             g.state = 'wander';
-            const a = Math.random() * Math.PI * 2;
-            const r = 4 + Math.random() * 8;
+            const a = wanderRng() * Math.PI * 2;
+            const r = 4 + wanderRng() * 8;
             g.target = g.home.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
             g.target.x = THREE.MathUtils.clamp(g.target.x, b.minX + 2, b.maxX - 2);
             g.target.z = THREE.MathUtils.clamp(g.target.z, b.minZ + 2, b.maxZ - 2);
@@ -206,8 +213,8 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
             g.timer = 12; // give up on unreachable targets eventually
           } else {
             g.state = 'idle';
-            g.pose = Math.random() < 0.4 ? 'sniff' : 'follow';
-            g.timer = 2 + Math.random() * 4;
+            g.pose = wanderRng() < 0.4 ? 'sniff' : 'follow';
+            g.timer = 2 + wanderRng() * 4;
           }
         }
 
@@ -216,8 +223,8 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
           const dir = g.target.clone().sub(g.group.position).setY(0);
           if (dir.length() < 0.4) {
             g.state = 'idle';
-            g.pose = Math.random() < 0.4 ? 'sniff' : 'follow';
-            g.timer = 2 + Math.random() * 4;
+            g.pose = wanderRng() < 0.4 ? 'sniff' : 'follow';
+            g.timer = 2 + wanderRng() * 4;
           } else {
             dir.normalize().multiplyScalar(WANDER_SPEED);
             g.group.position.addScaledVector(dir, dt);

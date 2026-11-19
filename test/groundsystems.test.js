@@ -334,7 +334,8 @@ describe('perches and finds sit on the ground under them', () => {
     // the collectible orb and the find check read the ground in the walk
     const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(walkSrc).toContain('m.position.set(c.x, ground.y(c.x, c.z) + (c.y ?? 0) + 0.2, c.z);');
-    expect(walkSrc).toMatch(/createGoldMice\(scene, areaId, new Set\(progression\.state\.golden\), \{ ground \}\)/);
+    // (review S2 added the mice's own phase stream beside the ground)
+    expect(walkSrc).toMatch(/createGoldMice\(scene, areaId, new Set\(progression\.state\.golden\), \{\s*ground, rng: /);
     const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
     expect(mainSrc).toMatch(/session\.goldMice\.checkFind\(session\.cat\.position, pawsY\)/);
   });

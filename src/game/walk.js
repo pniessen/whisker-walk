@@ -147,6 +147,22 @@ const GRASS_ITEM_CLEAR = 0.3;
 // hunt for; Seaside's dune grass reaches 0.3m, so each keeps a bare patch.
 const GRASS_FIND_CLEAR = 0.5;
 import { mulberry32, seedFromCode } from '../rng.js';
+
+// Review S2 (2026-11-19): the moving systems' own streams. Each is seeded from
+// the walk's seed (roomSeed, or the solo walk's soloSeed) XOR its own salt, and
+// none is walkRng: these systems draw lazily and per device (a phase for every
+// critter that spawns, a wander roll whenever a ghost's timer runs out, a push
+// whenever the ball is batted), the exact kind of consumer walkRng's warning
+// in startWalk forbids. They used to be bare Math.random(). Nothing they shape
+// rides the wire or has to agree between co-walkers: a room walk's partners
+// now start their critters on the same phases where they spawn in the same
+// order, and otherwise differ as they always did. Ghosts and gold mice are
+// personal; the ball is this device's own.
+const CRITTER_MOTION_SALT = 0xc417e125;
+const GOLD_PHASE_SALT = 0x901d3c3e;
+const TOY_BAT_SALT = 0x7a4ba775;
+const GHOST_WANDER_SALT = 0x6405757a;
+const ownStream = (seed, salt) => mulberry32(((seed >>> 0) ^ salt) >>> 0);
 import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
 import { bus } from '../events.js';
 import { createUnlockCelebration } from './celebrate.js';
@@ -421,7 +437,15 @@ export function createWalkLifecycle({
           greets: f.greets,
         })),
         Math.random,
-        { gift: handover, ground: mySession.ground }
+        {
+          gift: handover,
+          ground: mySession.ground,
+          // Review S2: the wander rolls on a stream of the ghosts' own. Ghosts
+          // visit solo walks only, so soloSeed is set; Math.random otherwise.
+          wanderRng: mySession.soloSeed !== undefined
+            ? ownStream(mySession.soloSeed, GHOST_WANDER_SALT)
+            : Math.random,
+        }
       );
       // Ghosts are the one mover class that arrives asynchronously, so they
       // cannot be registered in the startWalk pass with the cat, the strays
@@ -823,6 +847,9 @@ export function createWalkLifecycle({
       // used a bare Math.random(), which put two co-walkers on the same
       // room seed in visibly different firefly fields.
       rng: walkRng,
+      // Review S2: each critter's idle phase, from the critters' own stream
+      // (never walkRng: see CRITTER_MOTION_SALT at the top of this file).
+      motionRng: ownStream(roomSeed ?? soloSeed, CRITTER_MOTION_SALT),
       // v21 3b Task 13: a mouse, rat or squirrel that notices the cat bolts
       // for this cover and stays hidden for the walk (the den has none). Local
       // to this device like every critter position; nothing rides the wire.
@@ -1211,7 +1238,7 @@ export function createWalkLifecycle({
         if (finder) finder.foundGift = found;
       }
     }
-    const toy = createToy(scene, { ground });
+    const toy = createToy(scene, { ground, rng: ownStream(roomSeed ?? soloSeed, TOY_BAT_SALT) });
     // yarn-rally ghost ball: a single shared marker rendered wherever a
     // REMOTE player's state message currently reports an active toy
     // position (session.remoteToy, kept in sync by net.onState below) — it's
@@ -1670,7 +1697,9 @@ export function createWalkLifecycle({
     // all. areas without an entry in GOLD_MICE (none currently, but future
     // areas like the den) get an inert stub instead of a lookup throw.
     session.goldMice = areaId in GOLD_MICE
-      ? createGoldMice(scene, areaId, new Set(progression.state.golden), { ground })
+      ? createGoldMice(scene, areaId, new Set(progression.state.golden), {
+        ground, rng: ownStream(roomSeed ?? soloSeed, GOLD_PHASE_SALT),
+      })
       : NO_GOLD_MICE;
 
     // v21 3b Task 12 — the rival border marks I scented over on earlier walks,
