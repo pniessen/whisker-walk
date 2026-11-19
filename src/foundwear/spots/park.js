@@ -2,12 +2,12 @@
 // park's own records: its bushes, benches, pond, lamp posts and flowers. The
 // three raised ones sit on shipped perches (one hop up, no skill); the rest
 // are on the grass or in the pond's wading band. None is within 15 m of the
-// spawn or 3 m of either yarn-ball spot (src/propsets.js). test/foundspots.test.js
+// spawn, 3 m of either yarn-ball spot (src/propsets.js) or 2 m of a golden
+// mouse (src/goldmice.js; the oak bench is gm-park-1's, so no find is on it). test/foundspots.test.js
 // proves each one against the built park.
 export const PARK_SPOTS = Object.freeze([
-  // on the oak bench, the first step of the oak chain: the seat's west end
-  // (the golden mouse gm-park-1 has its middle)
-  { id: 'fw-park-1', x: 2.52, z: 25.74, y: 0.58, look: 'perch' },
+  // on the fountain-walk bench at (-4, 14), the seat's east end
+  { id: 'fw-park-1', x: -3.45, z: 13.55, y: 0.58, look: 'perch' },
   // on the fountain's rim, at the fountain-edge lookout perch
   { id: 'fw-park-2', x: 2.8, z: 22.2, y: 0.75, look: 'perch' },
   // on the bench by the south-west lawn walk, at its own perch

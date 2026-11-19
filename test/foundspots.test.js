@@ -25,18 +25,11 @@ const { floodFrom } = await import('./helpers/flood.js');
 const { perchHops } = await import('./helpers/findreach.js');
 const { SPAWN_CLEAR, PICKUP } = await import('../src/foundwear/rules.js');
 const { FIND_LOOKS, SPOT_ID, FIND_SPOTS, spotsIn, findSpotsKey, FIND_KEY } = await import('../src/foundwear/spots/index.js');
-const propsets = await import('../src/propsets.js');
+const { yarnSpotsFor } = await import('../src/propsets.js');
+const { GOLD_MICE } = await import('../src/goldmice.js');
 
-// The yarn ball's two spots per area (src/propsets.js yarnSpotsFor, on main
-// since 2026-11-19). This branch was cut before them, so until it is merged
-// the test reads main's numbers from this copy; once yarnSpotsFor is here it
-// reads the real ones.
-const YARN_COPY = {
-  park: [{ x: -6, z: 15.5 }, { x: 6.4, z: 33 }],
-  woods: [{ x: -2.5, z: 18 }, { x: 8.4, z: 23.4 }],
-};
-const yarnSpots = (areaId) => (typeof propsets.yarnSpotsFor === 'function' ? propsets.yarnSpotsFor(areaId) : YARN_COPY[areaId]);
 const YARN_CLEAR = 3;
+const THING_CLEAR = 2;
 
 const BUILDERS = { park: '../src/world/park.js', woods: '../src/world/woods.js' };
 describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
@@ -74,8 +67,22 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
   it('at least a third need no climbing', () => {
     expect(spots().filter((s) => s.y === 0).length).toBeGreaterThanOrEqual(Math.ceil(spots().length / 3));
   });
+  // Two things in one pick-up window would be taken at once: two chimes, two
+  // cards, two nose targets. So no find within 2 m of a golden mouse (at any
+  // height) or of a collectible at its own height.
+  it('never beside a golden mouse or a collectible: 2 m clear', () => {
+    const mice = GOLD_MICE[areaId] ?? [];
+    expect(mice.length).toBeGreaterThan(0);
+    for (const s of spots()) {
+      for (const m of mice) expect(Math.hypot(s.x - m.x, s.z - m.z), `${s.id} by ${m.id}`).toBeGreaterThanOrEqual(THING_CLEAR);
+      for (const c of area.collectibles) {
+        if (Math.abs((c.y ?? 0) - s.y) >= PICKUP.dy) continue;
+        expect(Math.hypot(s.x - c.x, s.z - c.z), `${s.id} by ${c.id}`).toBeGreaterThanOrEqual(THING_CLEAR);
+      }
+    }
+  });
   it('never beside the yarn ball: 3 m from both its spots', () => {
-    const yarn = yarnSpots(areaId);
+    const yarn = yarnSpotsFor(areaId);
     expect(yarn.length).toBe(2);
     for (const s of spots()) {
       for (const y of yarn) expect(Math.hypot(s.x - y.x, s.z - y.z), s.id).toBeGreaterThanOrEqual(YARN_CLEAR);
