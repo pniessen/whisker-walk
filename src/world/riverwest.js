@@ -415,24 +415,46 @@ function fallenWillowGeometry() {
   const parts = [tris.geometry()];
   const add = (g, color) => parts.push(colorParts(g, color));
 
-  // the root plate: a slab of earth and roots standing where the tree tore out
-  const plate = new THREE.DodecahedronGeometry(1.5, 1);
-  plate.scale(1, 0.92, 0.3);
-  plate.rotateY(Math.atan2(DIR.x, DIR.z));
-  plate.translate(along(-0.55).x, 0.95, along(-0.55).z);
-  add(plate, (x, y, z) => scale3(lerp3(EARTH, BARK, clamp01(y / 2.2) * 0.6), 0.8 + 0.4 * b.hash01(Math.round(x * 4), Math.round(z * 4 + y * 4), 1243)));
-  // roots reaching out of it
+  // the root plate: a ragged disc of earth and roots standing where the tree
+  // tore out of the ground, its face square to the trunk
+  const plateAt = along(-0.55);
+  const faceYaw = Math.atan2(-DIR.z, DIR.x); // turns a local +x onto the trunk's line
+  const plate = new THREE.CylinderGeometry(1.4, 1.15, 0.7, 15, 2);
+  {
+    const p = plate.attributes.position;
+    for (let v = 0; v < p.count; v++) {
+      const x = p.getX(v), y = p.getY(v), z = p.getZ(v);
+      const rad = Math.hypot(x, z);
+      if (rad < 1e-6) { p.setY(v, y * 1.5); continue; } // the faces bulge: a mound of earth, not a lid
+      const bin = Math.round((Math.atan2(z, x) / (Math.PI * 2)) * 15);
+      const k = 0.74 + 0.42 * b.hash01(bin, 3, 1243);
+      p.setXYZ(v, x * k, y + (b.hash01(bin, Math.round(y * 4), 1250) - 0.5) * 0.22, z * k);
+    }
+  }
+  plate.rotateZ(Math.PI / 2 + 0.22); // the disc's axis onto local x, leaning back off the trunk
+  plate.rotateY(faceYaw);
+  plate.translate(plateAt.x, 0.78, plateAt.z);
+  const EARTH_PALE = lin(0x6e5a40);
+  add(plate, (x, y, z) => {
+    const clod = b.hash01(Math.round(x * 3), Math.round(z * 3 + y * 3), 1243);
+    return scale3(lerp3(EARTH, EARTH_PALE, clod * 0.8), 0.8 + 0.3 * clamp01(y / 2));
+  });
+  // torn roots on its far face: short, thick at the base, most of them drooping
+  const up = new THREE.Vector3(0, 1, 0);
+  const dirV = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
   for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * Math.PI * 2 + 0.3;
-    const len = 0.7 + 0.6 * b.hash01(k, 1, 1257);
-    const g = new THREE.CylinderGeometry(0.03, 0.11, len, 5);
+    const a = (k / 7) * Math.PI * 2 + 0.5 * b.hash01(k, 1, 1257);
+    const len = 0.45 + 0.5 * b.hash01(k, 2, 1271);
+    const g = new THREE.CylinderGeometry(0.03, 0.13, len, 5);
     g.translate(0, len / 2, 0);
-    g.rotateZ(0.5 + 0.5 * b.hash01(k, 2, 1271));
-    g.rotateX(a);
-    g.rotateY(Math.atan2(DIR.x, DIR.z) - Math.PI / 2);
-    const px = along(-0.85), up = 0.95 + Math.sin(a) * 0.9;
-    g.translate(px.x + side.x * Math.cos(a) * 0.9, Math.max(0.25, up), px.z + side.z * Math.cos(a) * 0.9);
-    add(g, scale3(BARK, 0.75 + 0.3 * b.hash01(k, 3, 1285)));
+    // mostly straight out of the face (away from the trunk), fanned a little, sagging
+    dirV.set(-DIR.x + side.x * Math.cos(a) * 0.55, Math.sin(a) * 0.45 - 0.25, -DIR.z + side.z * Math.cos(a) * 0.55).normalize();
+    g.applyQuaternion(quat.setFromUnitVectors(up, dirV));
+    const base = along(-0.8);
+    const rr = 0.35 + 0.55 * b.hash01(k, 4, 1278);
+    g.translate(base.x + side.x * Math.cos(a) * rr, Math.max(0.2, 0.85 + Math.sin(a) * rr), base.z + side.z * Math.cos(a) * rr);
+    add(g, scale3(lerp3(BARK, EARTH_PALE, 0.4), 0.75 + 0.3 * b.hash01(k, 3, 1285)));
   }
   // broken boughs at the crown end, two of them down in the water
   const bough = (s, lean, yaw, len, r) => {

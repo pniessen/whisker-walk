@@ -1696,6 +1696,7 @@ export function createWalkLifecycle({
       treeFade: () => session.treeFade,
       tier: () => session.tier,
       now: () => performance.now(),
+      compile: typeof renderer?.compile === 'function' ? () => renderer.compile(scene, camera) : null,
     });
     // Plants that lean away from the cat as it walks through (render/rustle.js):
     // the Moor's heather. Visual only; none in most areas.

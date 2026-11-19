@@ -260,13 +260,14 @@ function triangleCount(obj) {
  *   tier         () => the quality tier now (its shadowMinPart trims a tree's
  *                small parts as the walk's own trim does)
  *   now          a millisecond clock for the per-frame time budget (optional)
+ *   compile      () => compile the scene's shaders now (optional; see below)
  *
  * Returns { update(dt, x, z), settle(x, z), dispose(), stats, counts() }.
  * With no strips it is a no-op of the same shape.
  */
 export function createStripTiles(scene, {
   strips = [], wind = null, treeFade = () => null, decals = null, occluders = null,
-  tier = () => null, reducedMotion = false, now = null, frameTriangles, frameMs,
+  tier = () => null, reducedMotion = false, now = null, frameTriangles, frameMs, compile = null,
 } = {}) {
   if (!strips.length) return NO_STRIP_TILES;
 
@@ -279,6 +280,20 @@ export function createStripTiles(scene, {
   const material = withLocalUuids('strip-tiles-material', () => bothSidesLit(
     new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));
   const mergeRoot = { children: [], updateMatrixWorld() {} };
+  // Walk start: the small layer's material would otherwise compile its shader
+  // on the frame the first tile appears (a stutter on a phone). One hidden
+  // triangle wears it for `compile` (walk.js: renderer.compile) and is gone.
+  // The trees need no such thing: their materials are the core trees' kinds.
+  if (compile) {
+    withLocalUuids('strip-tiles-warm', () => {
+      const geo = new THREE.BufferGeometry();
+      for (const name of ['position', 'normal', 'color']) geo.setAttribute(name, new THREE.BufferAttribute(new Float32Array(9), 3));
+      const warm = new THREE.Mesh(geo, material);
+      warm.frustumCulled = false;
+      scene.add(warm);
+      try { compile(); } finally { scene.remove(warm); geo.dispose(); }
+    });
+  }
 
   // What is in the scene now, by slot key, and what is still growing in.
   const live = new Map();
