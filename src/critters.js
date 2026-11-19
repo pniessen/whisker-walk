@@ -383,6 +383,15 @@ export function createCritters(scene, spawns, opts = {}) {
   // Math.random so a caller that passes no rng (and a solo walk, whose
   // walkRng *is* Math.random) behaves precisely as before.
   const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
+  // Review S2 (2026-11-19): each critter's idle phase (where in its hop, bob,
+  // circle or shuffle it starts) comes from a stream of the critters' OWN,
+  // never from `rng` above: rng is walkRng in a walk, and a phase is drawn for
+  // every spawn, the crown's trailing butterflies included (only the wearer's
+  // device spawns those); a draw there would shift every walkRng draw after
+  // it. A walk passes a per-walk stream (game/walk.js); a caller
+  // that passes none gets Math.random, which is what every phase used to be.
+  // A phase only shapes this device's idle motion; nothing rides the wire.
+  const motionRng = typeof opts.motionRng === 'function' ? opts.motionRng : Math.random;
   // Gorge part 1 (R9): the walk's ground. Critters stand, hop and float above
   // it; one that flees or runs for cover slides along a rim and never crosses
   // it; cover on another level is not its cover. Flat: today's lines.
@@ -423,7 +432,7 @@ export function createCritters(scene, spawns, opts = {}) {
       figure: group.userData.figure, // villagers only
       spottable: true,
       fleeing: false,
-      phase: Math.random() * Math.PI * 2,
+      phase: motionRng() * Math.PI * 2,
       cooldown: 0,
       waved: false,
       meowWaveT: 0,
