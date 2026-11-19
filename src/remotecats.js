@@ -101,7 +101,10 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
     const existing = remotes.get(profile.playerId);
     if (existing) {
       if (profileUnchanged(existing, profile)) return existing;
-      remove(profile.playerId); // rejoined with a different pet — drop the stale mesh and rebuild
+      // a new look (a find put on mid-walk) or a rejoin with a different pet:
+      // drop the stale mesh and rebuild. `existing` is kept to start the new
+      // cat where the old one stood (below).
+      remove(profile.playerId);
     }
 
     // Fight moves and scars (R7): her scars ride accessories.scars, repaired
@@ -135,6 +138,23 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       water: { ...createWaterState(), placed: false },
       tilt: null, // its eased lean into a slope (R7), made on its first frame on raised ground
     };
+    // Found outfits step 1: a rebuilt cat carries on from the old one's
+    // stride: where it stood, which way it faced, the move it was making and
+    // its water state (still placed, so it never slides in from the origin).
+    // Its lean is made again from its first frame on raised ground.
+    if (existing) {
+      group.position.copy(existing.group.position);
+      group.rotation.y = existing.group.rotation.y;
+      entry.fromPos.copy(existing.fromPos);
+      entry.toPos.copy(existing.toPos);
+      entry.fromYaw = existing.fromYaw;
+      entry.toYaw = existing.toYaw;
+      entry.pose = existing.pose;
+      entry.speed = existing.speed;
+      entry.stateAt = existing.stateAt;
+      entry.lastSeenAt = existing.lastSeenAt;
+      entry.water = existing.water;
+    }
     remotes.set(profile.playerId, entry);
     listCache = null;
     return entry;

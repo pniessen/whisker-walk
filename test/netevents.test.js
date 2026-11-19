@@ -403,6 +403,57 @@ describe('applyRemoteEvent: carry-pick and carry-drop', () => {
     expect(h.item(LEAF.id).mesh.visible).toBe(true);
   });
 
+  // Found outfits step 1, Task 7: she puts on a find mid-walk, so her profile
+  // changes and her cat is rebuilt on my screen. What was in her mouth stays there.
+  it('a rebuilt partner keeps what he was carrying', () => {
+    const h = carryHarness();
+    const sibGroup = h.partnerGroup();
+    h.items.hold(STICK.id, sibGroup);
+    const out = h.remotes.upsert({ ...ROBIN, accessories: { head: 'acorncap' } }, 1);
+    const fresh = h.partnerGroup();
+    expect(out.group).toBe(fresh);
+    expect(fresh).not.toBe(sibGroup);
+    const stick = h.item(STICK.id);
+    expect(stick.holder).toBe(fresh);
+    expect(stick.gone).toBeFalsy();
+    expect(stick.onGround).toBe(false);
+    expect(stick.mesh.visible).toBe(true);
+    // and it rides at the new cat's mouth, where she stood
+    h.frame();
+    const herMouth = fresh.userData.parts.head.localToWorld(MOUTH.clone());
+    expect(stick.mesh.position.distanceTo(herMouth)).toBeLessThan(1e-6);
+    expect(Math.hypot(stick.mesh.position.x - 10, stick.mesh.position.z - 10)).toBeLessThan(1);
+  });
+
+  it('a rebuild hands over only what the old cat held: mine stays mine, the ground stays the ground', () => {
+    const h = carryHarness();
+    h.s.carry.mouth.held = { id: LEAF.id, kind: 'leaf' };
+    h.items.hold(LEAF.id, h.s.cat);
+    h.items.hold(STICK.id, h.partnerGroup());
+    h.remotes.upsert({ ...ROBIN, accessories: { head: 'acorncap' } }, 1);
+    expect(h.item(LEAF.id).holder).toBe(h.s.cat);
+    expect(h.item(STICK.id).holder).toBe(h.partnerGroup());
+  });
+
+  it('a rejoin as a different breed is still a leaving: the item goes with the old cat', () => {
+    const h = carryHarness();
+    h.items.hold(STICK.id, h.partnerGroup());
+    h.remotes.upsert({ ...ROBIN, breed: 'siamese' }, 1);
+    expect(h.item(STICK.id).holder).toBe(null);
+    expect(h.item(STICK.id).gone).toBe(true);
+  });
+
+  it('an unchanged profile, or a brand-new player, moves nothing', () => {
+    const h = carryHarness();
+    const sibGroup = h.partnerGroup();
+    h.items.hold(STICK.id, sibGroup);
+    h.remotes.upsert(ROBIN, 1);
+    expect(h.item(STICK.id).holder).toBe(sibGroup);
+    h.remotes.upsert({ playerId: STRANGER, petName: 'Pip', breed: 'siamese', accessories: {} }, 1);
+    expect(h.item(STICK.id).holder).toBe(sibGroup);
+    expect(h.item(LEAF.id).onGround).toBe(true);
+  });
+
   it('no carry event pays points or writes the save', () => {
     const h = carryHarness();
     h.apply(pickEv());
