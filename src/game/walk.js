@@ -46,7 +46,7 @@ import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes, borderWarriorFor } from '../clancast.js';
 import { campLayout, campDiscs } from '../world/camp.js';
 import { clanWalkableFor } from '../world/clanground.js';
-import { DISCS } from '../rivalclans.js';
+import { DISCS, isTrespassing } from '../rivalclans.js';
 import { createRemoteCats } from '../remotecats.js';
 import { takeHeldItemsWithRemotes } from './netevents.js';
 import { rollGhosts, createGhosts } from '../ghosts.js';
@@ -114,6 +114,8 @@ import { createSun, createFill, SUN_BIAS, assignShadowCasters, assignShadowCaste
 import { createIntruders, isHostile, NO_INTRUDERS, INTRUDER_DECAL_RADIUS } from '../intruders.js';
 import { createClanFight, NO_CLAN_FIGHT } from './clanfight.js';
 import { createBorderFight } from './borderfight.js';
+import { createAwayFoes, createAwayFight, joinFights } from './awayfight.js';
+import { awayAllowed, createAwayLedger } from '../awayfights.js';
 import { createFightRecord } from './fightrecord.js';
 import { unlockToast } from '../fightmoves.js';
 import { createFightCam, findOccluders } from '../fightcam.js';
@@ -1706,6 +1708,10 @@ export function createWalkLifecycle({
     // The border patrol fight: the patrol asks this before it chases (set to
     // the border fight's pill below, once that exists).
     let borderIntercept = () => false;
+    // Away fights (2026-11-19): while one of the camp's roaming cats is
+    // squaring up to her or chasing her off, the patrol neither chases nor
+    // squares up (set below, with the away fight).
+    let awayBusy = () => false;
     if (isDen || clanHome || !rivalForWalk(areaId, progression.state.edition, picks)) {
       session.rival = NO_RIVAL;
     } else {
@@ -1726,7 +1732,7 @@ export function createWalkLifecycle({
         reducedMotion,
         isWalkable,
         ground,
-        canChase: () => chaseAllowed(player, session),
+        canChase: () => chaseAllowed(player, session) && !awayBusy(),
         onChase: (who) => {
           player.halt();
           session.chasing = true; // avatar.js plays the run gait; interactions.js ignores climb/pounce
@@ -1792,22 +1798,98 @@ export function createWalkLifecycle({
         setIntruderScars: (visit, scars) => session.rival.foe.setScars(visit, scars),
         onScarsChanged,
       });
-      session.clanFight = createBorderFight({
-        patrol: session.rival,
-        ui: createFightUi(document.getElementById('hud'), {
-          onFight: () => session.clanFight.startFight(),
-          onBackOff: () => session.clanFight.backOff(),
-          onMove: (m) => session.clanFight.answer(m),
-        }),
+      // Away fights (2026-11-19, game/awayfight.js): a cat with a clan, in
+      // another clan's territory (never her co-walker's: `picks`), can be
+      // challenged by that clan's roaming cats too. The walk's book of them
+      // (who decided what, her wins, the waits) is on the session for the
+      // resume note; it holds no progression.
+      const awayOn = clanCats !== NO_CLAN_CATS && awayAllowed({
+        areaId, mine: picks[0] === state.clanPick?.mine ? picks[0] : null, picks, edition: progression.state.edition,
+      });
+      const awayLedger = awayOn ? createAwayLedger({ seed: roomSeed ?? soloSeed, restore: resume?.away }) : null;
+      session.awayFights = awayLedger;
+      // One pill and one sheet for both fights: only one is ever up.
+      const fightUi = createFightUi(document.getElementById('hud'), {
+        onFight: () => session.clanFight.startFight(),
+        onBackOff: () => session.clanFight.backOff(),
+        onMove: (m) => session.clanFight.answer(m),
+      });
+      const fightOpts = {
+        ui: fightUi,
         audio, fx: session.fx, hud, log, areaId, walkStamp, playerId: pid,
         playerSpecial: PERSONALITIES[cat.userData.breed]?.special,
         reducedMotion, isGround: clanWalkable, player, runSpeed: pace, picks,
-        sendEvent: (ev) => session.net?.sendEvent(ev),
         terrain: ground,
-        actions: true, scars: active.breed !== 'hagrid', ownedMoves: ownedMovesNow, ...borderRecord,
+        actions: true, scars: active.breed !== 'hagrid', ownedMoves: ownedMovesNow,
         measureCat: catDims,
+      };
+      const borderFight = createBorderFight({
+        ...fightOpts,
+        patrol: session.rival,
+        sendEvent: (ev) => session.net?.sendEvent(ev),
+        ...borderRecord,
+        // A win over the patrol counts toward the roaming cats' reluctance.
+        onWon: (r) => { borderRecord.onWon(r); awayLedger?.addWin(); },
       });
-      borderIntercept = () => session.clanFight.uiShowing !== null || session.clanFight.wouldChallenge(session);
+      session.clanFight = borderFight;
+      borderIntercept = () => borderFight.uiShowing !== null || (!awayBusy() && borderFight.wouldChallenge(session));
+      if (awayLedger) {
+        let awayFight = NO_CLAN_FIGHT;
+        const foes = createAwayFoes({
+          clanCats, ledger: awayLedger, terrain: ground, reducedMotion,
+          // A cat notices or challenges her only on the clan's own ground
+          // outside the camp ring (the ring is the patrol's), with nothing
+          // else going on: everything the patrol's chase waits for, and no
+          // patrol offer up.
+          canStart: (s) => chaseAllowed(player, s) && !player.inWater && !s.perched && !s.crossing
+            && borderFight.uiShowing === null
+            && !isTrespassing(areaId, s.cat.position.x, s.cat.position.z)
+            && clanWalkable(s.cat.position.x, s.cat.position.z) === true,
+          canChase: (s) => chaseAllowed(player, s),
+          engaged: () => awayFight.uiShowing !== null,
+          // The chase-off sets her down only where she could have walked:
+          // every half metre of the way is walkable, outside the camp ring,
+          // and (raised ground) no rim is crossed.
+          landingOk: (from, x, z) => {
+            if (isTrespassing(areaId, x, z)) return false;
+            const n = Math.max(1, Math.ceil(Math.hypot(x - from.x, z - from.z) / 0.5));
+            for (let i = 1; i <= n; i++) {
+              if (!isWalkableAt(areaData, from.x + ((x - from.x) * i) / n, from.z + ((z - from.z) * i) / n)) return false;
+            }
+            return ground.flat || ground.canStep(from.x, from.z, x, z);
+          },
+          onDecide: (c, decision, wins) => {
+            if (decision === 'pass') hud.toast(phrase(wins > 0 ? 'away.wary' : 'away.pass', c.name));
+          },
+          onChase: (who) => {
+            player.halt();
+            session.chasing = true;
+            hud.toast(phrase('away.chasedOff', who));
+          },
+          onSettled: () => { player.halt(); session.chasing = false; },
+          // The cat as it stands at rest, for the fight's reach (as the patrol's).
+          measure: (g) => {
+            const pos = g.position.clone();
+            const rot = g.rotation.clone();
+            g.position.set(0, 0, 0);
+            g.rotation.set(0, 0, 0);
+            const d = catDims(g);
+            g.position.copy(pos);
+            g.rotation.copy(rot);
+            return d;
+          },
+          setScars: (g, scars) => setCatScars(g, scars),
+        });
+        const awayRecord = createFightRecord({
+          progression, hud, scarKey: myScarKey,
+          setMyScars: (scars) => setCatScars(cat, scars),
+          setIntruderScars: (visit, scars) => foes.foe.setScars(visit, scars),
+          onScarsChanged,
+        });
+        awayFight = createAwayFight({ ...fightOpts, foes, ...awayRecord });
+        awayBusy = () => foes.busy;
+        session.clanFight = joinFights(borderFight, awayFight, foes);
+      }
     }
     // The fight camera (src/fightcam.js): no tree hides either cat in a fight.
     // Null where no fight can happen (built after the border fight, so it is
