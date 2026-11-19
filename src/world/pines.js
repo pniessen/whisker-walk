@@ -19,6 +19,11 @@ import { DISCS } from '../rivalclans.js';
 import { tintGround, once } from './dressing.js';
 import { forestFloorMesh, pinesFloorTint, pinesMossField, canopyShade } from './forestfloor.js';
 import { standingStoneData, lightningStumpData, frogStoneData, fillGeometry } from './pineslandmarks.js';
+import { growOn } from '../grow.js';
+import { coreStreams, streamTree, streamSmall } from './streamcore.js';
+import * as grow from './pinesstrips.js';
+import * as north from './pinesnorth.js';
+import * as west from './pineswest.js';
 
 // =============================================================================
 // The Pines and Swamp.
@@ -708,11 +713,14 @@ export function pinesFloor() {
 // last 8 m. Built once; the ground is tinted with it and grass.js's tufts
 // read it (GROUND_TINTS).
 const ISLAND_PLAIN = Object.freeze({ x: ISLAND_LAND.x, z: ISLAND_LAND.z, r: ISLAND_LAND.r + 1 });
+export const PINES_ISLAND_PLAIN = ISLAND_PLAIN;
 const pinesTint = once(() => {
   const { near, stand } = pinesTrees();
   return pinesFloorTint([...near, ...stand], { edge: 60, plain: [ISLAND_PLAIN] });
 });
-export const pinesGroundTint = (x, z) => pinesTint()(x, z);
+// Bigger areas: with the switch on, the grown ground's tint (pinesstrips.js):
+// the strips' pines in it too, and plain only by the grown ground's edge.
+export const pinesGroundTint = (x, z) => (growOn() ? grow.grownGroundTint(x, z) : pinesTint()(x, z));
 
 // Reeds, a clump every 2 m, half a metre out round each bog, along both banks
 // of the mire, and along the bay's and the lake's shores on this side. None
@@ -816,14 +824,64 @@ function mossyBoulder(x, z, material) {
   return m;
 }
 
+// Bigger areas (src/grow.js; off by default). With the switch on the Pines
+// gains its north and west strips and the corner between them
+// (pinesstrips.js): the walkable bounds become x -90..50, z -90..50, the two
+// reaches of the Black Mire run on under hills that have moved 40 m out, and
+// the strips' own things are added after everything here. Nothing of the
+// core changes: the lists below are the core's with the strips' put after
+// them. Worked out on first use, never at import.
+let grown = null;
+function grownPines() {
+  if (!grown) {
+    const waters = grow.grownWaters();
+    const byId = (id) => waters.find((w) => w.id === id);
+    grown = Object.freeze({
+      bounds: grow.GROWN,
+      waters,
+      horizon: Object.freeze({
+        ...PINES_HORIZON,
+        rect: grow.BAND_RECT,
+        // two sides 40 m longer each: more cells round it, each a little
+        // longer and with a ring fewer out, so the hills cost what they did
+        around: 180,
+        outSegs: 10,
+        avoid: Object.freeze([LAKE, byId('mire-north'), byId('mire-west'), MOOR_RIVER, MOOR_MOUTH]),
+        edge: Object.freeze({ ...PINES_HORIZON.edge, avoid: waters }),
+      }),
+    });
+  }
+  return grown;
+}
+
+// What the core's merged scatter stands on, for cutting it per tile
+// (render/tilesplit.js): each thing's centre and how far its parts reach. The
+// reeds' list leaves out the island's own ring, so those are drawn whole (the
+// island is seen across the water).
+export function pinesFloorItems() {
+  const f = pinesFloor();
+  return [
+    ...f.needles.map((p) => ({ x: p.x, z: p.z, r: 0.12 })),
+    ...f.cones.map((p) => ({ x: p.x, z: p.z, r: 0.06 })),
+    ...f.moss.map((p) => ({ x: p.x, z: p.z, r: r2(0.36 * p.s) })),
+    ...f.blueberries.map((p) => ({ x: p.x, z: p.z, r: 0.35 })),
+  ];
+}
+export function pinesReedItems() {
+  const all = pinesReeds();
+  return all.slice(0, all.length - islandReeds().length).map(({ x, z }) => ({ x, z, r: 0 }));
+}
+
 export function build(scene, { water = {}, wind } = {}) {
+  const G = growOn() ? grownPines() : null;
+  const waters = G ? G.waters : PINES_WATERS;
   b.applySky(scene, 0x9fb4c0, 0xc8d0c4);
   // The ground, a rust-brown needle bed under the pines and mossy between
   // them (forestfloor.js pinesFloorTint), plain at its edge
   const groundMesh = b.ground(120, 0x56603e, { surface: 'grass' });
   tintGround(groundMesh, pinesGroundTint);
   scene.add(groundMesh);
-  scene.add(b.horizonBand(PINES_HORIZON));
+  scene.add(b.horizonBand(G ? G.horizon : PINES_HORIZON));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
@@ -832,13 +890,14 @@ export function build(scene, { water = {}, wind } = {}) {
   // --- the water --------------------------------------------------------------
   // Each mesh is built from its footprint record and added to the scene root
   // directly (test/water.test.js matches against scene.children).
-  const waterFx = PINES_WATERS.map((w) => {
-    const fx = createWater(w, {
+  // (With the switch on the two mires are the same waters run on out.)
+  const waterFx = PINES_WATERS.map((w, i) => {
+    const fx = createWater(G ? waters[i] : w, {
       color: WATER_COLOR,
       ...WATER_LOOK[w.id],
       quality: water.quality ?? 'high',
       reducedMotion: water.reducedMotion ?? false,
-      waters: PINES_WATERS,
+      waters,
     });
     scene.add(fx.mesh);
     return fx;
@@ -920,8 +979,17 @@ export function build(scene, { water = {}, wind } = {}) {
   // stand, so the still stand is as solid as the swaying pines. No fork perch:
   // a pine has no low fork. Each near pine stands at the scene root at its
   // own (x, z) (test/pines.test.js looks them up there).
+  // Bigger areas: with the switch on, each swaying pine is tagged to be drawn
+  // only near the cat (world/streamcore.js); built, placed and collided all
+  // the same. The still stand is drawn whole: its fade reads its index in
+  // tree order, which drawing it in runs would shuffle.
   const { near, stand } = pinesTrees();
-  for (const { x, z, scale } of near) scene.add(b.pine(x, z, scale, { wind }));
+  const nearPines = [];
+  for (const { x, z, scale } of near) {
+    const g = b.pine(x, z, scale, { wind });
+    scene.add(g);
+    nearPines.push(g);
+  }
   const standMesh = b.pineStand(stand, seedFromCode('pines-stand'));
   standMesh.name = 'pineStand';
   scene.add(standMesh);
@@ -943,7 +1011,8 @@ export function build(scene, { water = {}, wind } = {}) {
   }
   // the needle-and-moss floor (forestfloor.js), its Three objects' uuids
   // local so the shared draws stay as they were
-  scene.add(withLocalUuids('pines-floor-uuids', () => forestFloorMesh(pinesFloor())));
+  const floorMesh = withLocalUuids('pines-floor-uuids', () => forestFloorMesh(pinesFloor()));
+  scene.add(floorMesh);
 
   // --- the hidden mouse's bushes, and the puddles -----------------------------
   for (const [x, z] of GOLD_BUSHES) scene.add(b.bush(x, z, { wind }));
@@ -968,10 +1037,43 @@ export function build(scene, { water = {}, wind } = {}) {
   // the picks, and Legacy draws it too.
   addCamp(scene, { colliders }, 'pines');
 
+  // --- the strips (bigger areas) ----------------------------------------------
+  // After everything of the core, so the core's objects, colliders and
+  // perches keep their order; wholly under local uuids, so the build's
+  // Math.random draws are the same with the switch on.
+  let standFade = null;
+  if (G) {
+    // The core's scatter, tagged to stream (world/streamcore.js): the swaying
+    // pines, the ferns and the reeds (the fine layer: a fern is 91 triangles,
+    // the costliest thing in the Pines) and the forest floor. The
+    // still stand, the toadstools (two meshes in a Group), the lily pads, the
+    // island's beds and everything gameplay reads stay whole. Tags only:
+    // nothing is built, moved or drawn differently here.
+    for (const g of nearPines) streamTree(g);
+    const bed = (name) => beds.find(([n]) => n === name)[1];
+    streamSmall(bed('ferns'), ferns.map(({ x, z }) => ({ x, z, r: 0 })), { layer: 'fine' });
+    streamSmall(bed('reeds'), pinesReedItems(), { layer: 'fine', reach: 0.6 });
+    streamSmall(floorMesh, pinesFloorItems(), { reach: 0.6 });
+    const strips = grow.addPinesStrips(scene, { groundMesh, water, wind });
+    waterFx.push(...strips.waterFx);
+    standFade = strips.stand;
+    for (const c of [...grow.stripPineColliders(), ...north.NORTH_COLLIDERS, ...west.WEST_COLLIDERS]) addC(c.x, c.z, c.r);
+    perches.push(...north.NORTH_PERCHES, ...west.WEST_PERCHES);
+  }
+
   return {
     name: 'The Pines and Swamp',
     colliders,
-    bounds: { ...BOUNDS },
+    bounds: { ...(G ? G.bounds : BOUNDS) },
+    // Bigger areas: the frozen core, for whatever must not follow the bounds
+    // out (the strays' and the clan's homes, the walk's seeded spots), the
+    // streams (the core's stream covers the grown rectangle: the strips'
+    // scatter streams through it, pinesstrips.js) and the strips' rest spots.
+    ...(G ? {
+      core: { ...BOUNDS },
+      strips: [...coreStreams({ areaId: 'pines', rect: G.bounds })],
+      rests: [...north.NORTH_RESTS, ...west.WEST_RESTS].map((r) => ({ ...r })),
+    } : {}),
     spawn: { x: SPAWN.x, z: SPAWN.z },
     // Nothing Twoleg-made in the Pines.
     boxes: [],
@@ -979,15 +1081,17 @@ export function build(scene, { water = {}, wind } = {}) {
     // the island's lists after the Pines' own, so secrets.js's indices into
     // the first nine POIs don't move
     pois: [...POIS, ...ISLAND_POIS].map((p) => ({ ...p })),
-    collectibles: [...COLLECTIBLES, ...ISLAND_COLLECTIBLES].map((c) => ({ ...c })),
-    scenics: [...SCENICS, ...ISLAND_SCENICS].map((c) => ({ ...c })),
+    collectibles: [...[...COLLECTIBLES, ...ISLAND_COLLECTIBLES].map((c) => ({ ...c })),
+      ...(G ? [...north.northCollectibles(), ...west.westCollectibles()] : [])],
+    scenics: [...[...SCENICS, ...ISLAND_SCENICS].map((c) => ({ ...c })),
+      ...(G ? [...north.northScenics(), ...west.westScenics()] : [])],
     critterSpawns: [...critterSpawns(), ...ISLAND_CRITTERS.map((c) => ({ ...c }))],
     moments: [
       { id: 'frog-plop', type: 'frog', label: 'a frog hopping for the bog', x: FROG_HIDES[0].x, z: FROG_HIDES[0].z, from: { x: -30, z: 22 } },
       ...ISLAND_MOMENTS.map((m) => ({ ...m, from: { ...m.from } })),
     ],
     puddles: [...PUDDLES, ...ISLAND_PUDDLES].map((p) => ({ ...p })),
-    waters: PINES_WATERS,
+    waters,
     waterFx,
     groundBounce: 0x56603e,
     skyDusk: { top: 0x22304a, horizon: 0x5e5a6e },
@@ -995,5 +1099,8 @@ export function build(scene, { water = {}, wind } = {}) {
     // no cat stands on the lake, the island, the bridge, the mire or a bog
     // (src/keepout.js)
     keepOut: PINES_KEEP_OUT,
+    // Bigger areas: the strips' still stand fades tree by tree as the core's
+    // does (pinesstrips.js createStandFade), run by walk.js once a walk.
+    ...(standFade ? { life: (ctx) => grow.createStandFade(scene, standFade, { reducedMotion: ctx?.reducedMotion }) } : {}),
   };
 }
