@@ -1220,7 +1220,8 @@ describe('The Fairground: what the shared tables will need (FAIR_REGISTRATION)',
       for (const ns of Object.values(byKind)) expect([...ns].sort((x, y) => x - y)).toEqual(ns.map((_, i) => i + 1));
     }
     // (once the rows are copied into propsets.js these are the same ids; until then none may clash)
-    for (const id of mine) if (!taken.has(id)) expect(taken.has(id)).toBe(false);
+    const fairTaken = [...taken].filter((id) => id.startsWith('fair-'));
+    if (fairTaken.length) expect(new Set(fairTaken)).toEqual(mine);
     expect(mine.size).toBe(15);
   });
 
