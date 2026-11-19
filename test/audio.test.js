@@ -556,6 +556,29 @@ describe('v18 cues', () => {
     audio.whiskerPing(0.5);
     expect(ctx.created.oscs).toHaveLength(0);
   });
+
+  // Found outfits: the soft chime when she comes within about 6 m of a find.
+  it('findChime is three soft notes, rising, quieter than chime', () => {
+    const ctx = fakeCtx();
+    createAudio({ contextFactory: () => ctx }).findChime();
+    const f = freqsOf(ctx);
+    expect(f).toHaveLength(3);
+    expect(f[1]).toBeGreaterThan(f[0]);
+    expect(f[2]).toBeGreaterThan(f[1]);
+    // each note's own gain, not the bus
+    const peak = (c) => Math.max(...c.created.oscs.map((o) => o.connections[0].gain.scheduled[0]));
+    const b = fakeCtx();
+    createAudio({ contextFactory: () => b }).chime();
+    expect(peak(ctx)).toBeLessThan(peak(b));
+  });
+
+  it('findChime is silent when muted', () => {
+    const ctx = fakeCtx();
+    const audio = createAudio({ contextFactory: () => ctx });
+    audio.setMuted(true);
+    audio.findChime();
+    expect(ctx.created.oscs).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------

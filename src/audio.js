@@ -755,6 +755,14 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(1500 * k, 0.06, { type: 'sine', gain: 0.035 });
       tone(2200 * k, 0.09, { type: 'sine', gain: 0.028, delay: 0.06 });
     },
+    // Found outfits: "a soft chime when she is within about 6 m" of the walk's
+    // find (src/foundwear/live.js). Three rising sines (G6, B6, D7), each
+    // 0.16 s and 0.09 s apart, at 0.03: under chime()'s 0.07, a hint, never
+    // an alarm. It rings once on coming near and again only after she has
+    // walked well away (rules.js createChime).
+    findChime() {
+      [1568, 1976, 2349].forEach((f, i) => tone(f, 0.16, { type: 'sine', gain: 0.03, delay: i * 0.09 }));
+    },
     startAmbient(areaKey, { dusk = false, rain = false } = {}) {
       api.stopAmbient();
       if (muted) return;
