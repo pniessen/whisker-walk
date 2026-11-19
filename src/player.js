@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { bus } from './events.js';
 import { CAT_LOOK_Y } from './cat/model.js';
-import { cameraOffset, moveDirection, viewForward, moveKeyHeld, isLetterMoveKey } from './catcam.js';
+import { cameraOffset, moveDirection, moveVector, viewForward, moveKeyHeld, isLetterMoveKey } from './catcam.js';
 import { isStalkMag } from './touchinput.js';
 import { hasSkill } from './skills.js';
 import { waterClearance, nearestDry, shallowExcess, nearestShallow } from './world/builder.js';
@@ -687,6 +687,16 @@ export function createPlayer(camera, canvas) {
     // which side of a ride to get off: src/fairlive.js. Not for every frame.)
     inputDirection() {
       return touchMove ? touchDirection(touchMove, yaw) : moveDirection(keys, yaw);
+    },
+    // The stick or keys in screen space, before the camera turn, written into `out` (no allocation).
+    // For the balance walk (src/traversallive.js), which turns the stick by its own held yaw.
+    stickInput(out) {
+      if (touchMove) {
+        out.x = touchMove.x;
+        out.z = touchMove.z;
+        return out;
+      }
+      return moveVector(keys, out);
     },
     get stalking() {
       return keys.has('ShiftLeft') || keys.has('ShiftRight') ||
