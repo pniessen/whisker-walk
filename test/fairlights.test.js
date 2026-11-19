@@ -134,12 +134,20 @@ describe('the glow', () => {
       const a = m.geometry.attributes;
       expect(a.fairChase, m.name).toBeTruthy();
       expect(a.fairBulbR, m.name).toBeTruthy();
+      let bulbs = 0;
       for (let i = 0; i < a.fairBulbR.count; i++) {
+        if (a.fairBulbR.array[i] === 0) {
+          // not a bulb (a stall's sign board, a wagon's window pane): it glows steady
+          expect(a.fairChase.array[i]).toBe(-1);
+          continue;
+        }
         // every bulb chases, and is the size of a bulb
+        bulbs++;
         expect(a.fairChase.array[i]).toBeGreaterThan(-0.5);
         expect(a.fairBulbR.array[i]).toBeGreaterThan(0.04);
         expect(a.fairBulbR.array[i]).toBeLessThan(0.1);
       }
+      expect(bulbs, m.name).toBeGreaterThan(0);
     }
   });
 
