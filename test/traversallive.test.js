@@ -376,36 +376,54 @@ describe('the leap and the drop', () => {
     expect(w.jump()).toBe(true);
     w.run(0.2);
     expect(w.live.phase).toBe('look');
+    expect([w.cat.position.x, w.cat.position.z]).toEqual([14, 3.2]); // put
     w.push(-1, 0);
     w.frame();
     expect(w.live.phase).toBeNull();
     expect(w.live.looking).toBeNull();
+    expect(w.cat.position.x).toBeLessThan(14); // and off she walks, that frame
+    w.run(0.5);
+    expect(w.cat.position.x).toBeLessThan(13);
   });
 
   it('a stick already held at the press does not end the look; only a fresh push does', () => {
     // (a) pushing toward the too-wide gap, held through the press: the look lasts its full LOOK_TIME
     const w = yardWalk({ at: [14, 3.2], face: [0, 1] });
-    w.push(0, 1);
+    w.push(-1, 0); // walking along the roof's edge, and still pushing at the press
     w.frame();
     expect(w.jump()).toBe(true);
-    w.run(LOOK_TIME - 0.1);
-    expect(w.live.phase).toBe('look');
+    const held = [w.cat.position.x, w.cat.position.y, w.cat.position.z];
+    const yaw = facingYaw(0, 1); // she faces the far roof
+    expect(w.cat.rotation.y).toBe(yaw);
+    for (let i = 0; i < Math.round((LOOK_TIME - 0.1) * 60); i++) {
+      w.frame();
+      expect(w.live.phase).toBe('look');
+      expect([w.cat.position.x, w.cat.position.y, w.cat.position.z]).toEqual(held);
+      expect(w.cat.rotation.y).toBe(yaw);
+    }
     expect(w.live.looking?.id).toBe('gap-3');
     w.run(0.1);
     expect(w.live.phase).toBeNull();
+    w.run(0.5); // the look over, the held stick walks her on
+    expect(w.cat.position.x).toBeLessThan(held[0] - 0.5);
     // (b) held at the press, let go after it, then pushed again: the look ends on that frame
     const r = yardWalk({ at: [14, 3.2], face: [0, 1] });
     r.push(0, 1);
     r.frame();
     expect(r.jump()).toBe(true);
+    const put = [r.cat.position.x, r.cat.position.z];
     r.run(0.2);
     r.release();
     r.frame();
     expect(r.live.phase).toBe('look');
+    expect([r.cat.position.x, r.cat.position.z]).toEqual(put); // held still before the fresh push
     r.push(-1, 0);
     r.frame();
     expect(r.live.phase).toBeNull();
     expect(r.live.looking).toBeNull();
+    expect(r.cat.position.x).toBeLessThan(put[0]); // and walks after it
+    r.run(0.5);
+    expect(r.cat.position.x).toBeLessThan(put[0] - 0.5);
     expect(r.events).toEqual([{ type: 'look', id: 'gap-3' }]);
   });
 

@@ -48,7 +48,7 @@ import {
 
 const EPS = 1e-9;
 const LAND_DUST = 0xcbb8a0;
-const LAND_EVENT = Object.freeze({ water: false });
+const LAND_EVENT = Object.freeze({ water: false }); // one shared frozen payload for every 'pounce:land' listener
 
 // What a traversal event does in the game: the whoosh as she springs, and at
 // touchdown the dust, the thump and the 'pounce:land' that src/haptics.js taps
@@ -145,6 +145,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
   let looking = null;
   let lookTime = 0;
   let lookArmed = false;
+  let lookYaw = 0;
 
   function clearHop() {
     hop = null;
@@ -354,7 +355,19 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
           pushed = Math.hypot(stick.x, stick.z) >= ALONG_DEAD;
         }
         if (!pushed) lookArmed = true;
-        if ((pushed && lookArmed) || lookTime >= LOOK_TIME - EPS) looking = null;
+        if ((pushed && lookArmed) || lookTime >= LOOK_TIME - EPS) {
+          // Over: fall through, and this frame's player.update walks her
+          // (speedFactor is what game/avatar.js last wrote, not ours).
+          looking = null;
+        } else {
+          // Still looking: held exactly as in a hop, facing the far side.
+          // Not busy, so jump() still answers a press.
+          cat.rotation.y = lookYaw;
+          player.halt();
+          player.speedFactor = 0;
+          session.idleTime = 0;
+          return;
+        }
       }
       if (!crossing && !tryMount(cat, player, session)) return;
       walk(dt, cat, player, session);
@@ -375,6 +388,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
         looking = h;
         lookTime = 0;
         lookArmed = false;
+        lookYaw = yaw;
         cat.rotation.y = yaw;
         onEvent(lookEvents.get(h));
         return true;
