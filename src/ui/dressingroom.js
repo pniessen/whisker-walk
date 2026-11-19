@@ -419,7 +419,8 @@ function todayHtml(m, extrasHtml = '') {
 
 // headerHtml / startHtml / extrasHtml are pre-rendered, already escaped HTML
 // from the owner (homebase), inserted verbatim, once each. rankTitle is plain
-// text (a phone shows it under the cat's name).
+// text, in the page but not shown (every screen shows the cat's personality
+// under its name; the rank is in the Menu).
 export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '', extrasHtml = '', rankTitle = '', ui = {}, thumbs } = {}) {
   const m = model;
   const h = m.hero;

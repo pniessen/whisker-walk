@@ -45,7 +45,7 @@ import { createGuideWalk } from './game/guidewalk.js';
 import { createGuideBubble } from './ui/guidebubble.js';
 import { createButtonUses } from './ui/buttonwords.js';
 import { tickAutoSniff } from './game/autosniff.js';
-import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode, SKIP_LESSON_ID } from './game/walk.js';
+import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode, SKIP_LESSON_ID, PAUSE_SOUND_ID, PAUSE_MUSIC_ID, pauseSoundOf } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
@@ -290,6 +290,18 @@ function init() {
     haptics.setEnabled(settings.get('haptics'));
   }
   applySettings();
+  // The pause card's Sound and Music switches (walk.js pauseCardFor) change
+  // the same settings as the Sound & controls sheet: Sound is "Mute all
+  // sound" turned round, Music is the music volume at 0 or not. Music back on
+  // returns the volume it had before it was turned off.
+  const MUSIC_BACK_ON = 0.5;
+  let musicBefore = settings.get('musicVolume') > 0 ? settings.get('musicVolume') : MUSIC_BACK_ON;
+  const pauseSound = () => pauseSoundOf(settings);
+  function setPauseMusic(on) {
+    const now = settings.get('musicVolume');
+    if (!on && now > 0) musicBefore = now;
+    settings.set('musicVolume', on ? (musicBefore > 0 ? musicBefore : MUSIC_BACK_ON) : 0);
+  }
   // The hints on a walk (src/game/tips.js): one line the first time something
   // comes up. Begun on the walk's first engage, ended with the walk.
   // The guided first walk and the first camp walk (src/game/guidewalk.js) use
@@ -302,7 +314,7 @@ function init() {
     // canFeedStray is interactions.js's, made further down; only called on a walk.
     canFeedStray: (s, stray) => canFeedStray(s, stray),
     // A lesson that ends or is skipped changes the pause card under it.
-    onLessonChange: (s) => { if (s === session && overlay.querySelector('#btn-resume')) overlay.innerHTML = pauseCardFor(s, isTouch); },
+    onLessonChange: (s) => { if (s === session && overlay.querySelector('#btn-resume')) overlay.innerHTML = pauseCardFor(s, isTouch, pauseSound()); },
   });
   const tips = createTips({ player, progression, settings, hud, getIsTouch: () => isTouch, bubble, coach: guideWalk });
   // routed through handleTouchAction('interact') rather than calling
@@ -493,6 +505,7 @@ function init() {
     resumeWalk, endWalk,
     getIsTouch: () => isTouch,
     getEdition: () => progression.state.edition,
+    getSound: pauseSound,
   });
 
   // Player pets 🐾🐾 roster, friend codes and the hide list: the home base's
@@ -646,7 +659,7 @@ function init() {
     if (session && locked && !session.started) {
       session.started = true;
       tips.begin(session);
-      overlay.innerHTML = pauseCardFor(session, isTouch);
+      overlay.innerHTML = pauseCardFor(session, isTouch, pauseSound());
       for (const line of takeStartLines(session)) hud.toast(line);
     }
     crossing?.onLockChange(locked);
@@ -688,6 +701,17 @@ function init() {
       // She found the way home by herself: that hint is never needed.
       if (session) progression.knowHint('home');
       endWalk();
+    }
+    // Sound and Music on the pause card: the switch has already flipped.
+    if (e.target.id === PAUSE_SOUND_ID) {
+      settings.set('muted', !e.target.checked);
+      applySettings();
+      homebase.refresh();
+    }
+    if (e.target.id === PAUSE_MUSIC_ID) {
+      setPauseMusic(e.target.checked);
+      applySettings();
+      homebase.refresh();
     }
     // "Skip the lesson": one tap, nothing asked; the card is redrawn without it.
     if (e.target.id === SKIP_LESSON_ID && session) guideWalk.skip(session);
@@ -782,6 +806,8 @@ function init() {
       settings.set('muted', next);
       applySettings();
       homebase.refresh();
+      const sw = overlay.querySelector(`#${PAUSE_SOUND_ID}`);
+      if (sw) sw.checked = !next; // the pause card's Sound switch, if it is up
       hud.toast(next ? 'Sound off 🔇' : 'Sound on 🔊');
     }
     if (e.code === 'KeyT' && session && player.engaged) {

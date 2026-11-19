@@ -36,7 +36,7 @@ import { disposeHenRig } from '../cat/henfight.js';
 import { setCatRimLight } from '../cat/rimlight.js';
 import { activeCat, scarKey } from '../customcats.js';
 import { herCatPortrait } from '../thumbnails.js';
-import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion } from '../ui/screencards.js';
+import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion, settingsSwitchHtml } from '../ui/screencards.js';
 import { PAW } from '../ui/pawicon.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
@@ -216,22 +216,40 @@ export function cardMode(s) {
 // still be skipped, a third, quiet button, "Skip the lesson"; and on the
 // guided first walk's Ready? card (a keyboard, before the walk has begun) one
 // line of controls in place of the list, which the pause card keeps.
-export function pauseCardFor(s, touch) {
+// `sound` ({ sound, music }: each on or off, from settings; pauseSoundOf
+// below) adds the Sound and Music switches under the resume button, so a
+// child on a touch screen can turn the sound down without ending the walk.
+// Not on the Ready? card: nothing has been heard yet.
+export function pauseCardFor(s, touch, sound = null) {
   const mode = cardMode(s);
   const L = s.lesson;
   return pauseCardHtml({
     welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode,
     skip: !!L && !L.finished && !L.skipped,
     oneLine: mode === 'ready' && !touch && L?.kind === 'first' && !L.skipped,
+    sound,
   });
 }
-export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false }) {
+// The switches' state from settings: Sound is "Mute all sound" turned round,
+// Music is on while the music volume is above 0.
+// null (no switches) without a settings store.
+export function pauseSoundOf(settings) {
+  if (typeof settings?.get !== 'function') return null;
+  return { sound: !settings.get('muted'), music: settings.get('musicVolume') > 0 };
+}
+export const PAUSE_SOUND_ID = 'pause-sound';
+export const PAUSE_MUSIC_ID = 'pause-music';
+function pauseSoundHtml(sound) {
+  return `
+      <div class="pause-sound">${settingsSwitchHtml(PAUSE_SOUND_ID, !!sound.sound, '🔊 Sound')}${settingsSwitchHtml(PAUSE_MUSIC_ID, !!sound.music, '🎵 Music')}</div>`;
+}
+export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null }) {
   return `<div class="pause-card"><div class="screen-panel">
     ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
     <div class="screen-body"><h1>${CARD_TITLE[mode] ?? CARD_TITLE.ready}</h1>
     ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
     <div class="screen-actions">
-      <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>
+      <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound) : ''}
       <button id="btn-end" class="secondary">Head home</button>${skip ? `
       <button id="${SKIP_LESSON_ID}" class="quiet">${escapeHtml(tutorialLine('guide.skip'))}</button>` : ''}
     </div>
@@ -2288,7 +2306,7 @@ export function createWalkLifecycle({
     // A walk picked up again opens on its "Welcome back!" card, paused.
     session.resumed = !!resume;
     session.started = false;
-    overlay.innerHTML = pauseCardFor(session, getIsTouch());
+    overlay.innerHTML = pauseCardFor(session, getIsTouch(), pauseSoundOf(settings));
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());

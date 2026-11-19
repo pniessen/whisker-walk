@@ -773,6 +773,8 @@ describe('walk together with your partner (Task 12)', () => {
     const html = renderPartnerWalkHtml({ status: paired, colony: colonyOf({ partner: PAIR }), room: null });
     expect(html).toContain(`${PAW} Explore with Robin`);
     expect(html).toMatch(/<button[^>]*id="wt-pair-walk"/);
+    // the quiet style: the one bright button is Start (menu review 2026-11-19)
+    expect(html).not.toContain('primary');
     expect(html).not.toMatch(/<input/);
   });
 

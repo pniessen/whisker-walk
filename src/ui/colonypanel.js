@@ -499,11 +499,12 @@ export function renderStartButtonHtml(room, { as = null } = {}) {
 }
 
 // One button, no code to type: only while paired (status.mode is 'local'
-// whenever multiplayer is off) and not already in a room.
+// whenever multiplayer is off) and not already in a room. The quiet outlined
+// style, not .primary: the one bright button on home is Start (Explore).
 export function renderPartnerWalkHtml({ status, colony, room } = {}) {
   const partner = partnerOf(colony);
   if (!status || status.mode !== 'paired' || !partner || room) return '';
-  return `<button id="wt-pair-walk" class="primary">${PAW} Explore with ${escapeHtml(partnerNameOf(partner))}</button>`;
+  return `<button id="wt-pair-walk">${PAW} Explore with ${escapeHtml(partnerNameOf(partner))}</button>`;
 }
 
 // The room panel's heading. A pair room's code is the colony id, which is
