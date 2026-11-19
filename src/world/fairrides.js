@@ -233,7 +233,7 @@ function horse(i, poleTop) {
     at(0.4, 0.97, 0.57, 0.17, { nt: 2.2, pinch: 0.1 }),   // the withers and the shoulder
     at(0.56, 0.92, 0.62, 0.14),                             // the chest
   ], {
-    around: 8, level: true, tipStart: 0.04, tipEnd: 0.05,
+    around: 10, level: true, tipStart: 0.04, tipEnd: 0.05,
     paint: (x, y, z, u, v) => {
       const onBack = v > 0.24 && v < 0.76;
       if (!onBack) return coat;
@@ -324,7 +324,7 @@ function horse(i, poleTop) {
   }
   // the pole, through the withers
   cyl(P, 0.035, 0.035, poleTop + 0.25, 0, -0.25, 0.14, PAINT.gold, { sides: 6, open: true });
-  return meshOf(P, 'mgrHorseBody', { roughness: 0.62 });
+  return meshOf(P, 'mgrHorseBody', { roughness: 0.7 });
 }
 
 export function merryGoRound(x, z, glow) {
@@ -336,7 +336,7 @@ export function merryGoRound(x, z, glow) {
   // the part that stays put: a low painted plinth
   const B = [];
   stripes(B, MGR.baseR, 0, MGR.baseR - 0.06, 0.22, [PAINT.red, PAINT.cream], 0, 0, 0, { sides: 32 });
-  cyl(B, MGR.baseR - 0.06, MGR.baseR - 0.06, 0.02, 0, 0.2, 0, PAINT.gold, { sides: 32 });
+  lathe(B, [[MGR.baseR - 0.06, 0.2], [MGR.baseR - 0.06, 0.22], [0, 0.22]], 32, PAINT.gold, 0, 0, 0); // (no underside: it lies on the plinth)
   g.add(meshOf(B, 'mgrBase', { roughness: 0.7 }));
 
   const turn = new THREE.Group();
@@ -345,7 +345,7 @@ export function merryGoRound(x, z, glow) {
 
   const P = [];
   // the deck: boards, with a painted ring
-  cyl(P, MGR.r, MGR.r, MGR.deckY - 0.22, 0, 0.22, 0, PAINT.wood, { sides: 32 });
+  lathe(P, [[MGR.r, 0.22], [MGR.r, MGR.deckY], [0, MGR.deckY]], 32, PAINT.wood, 0, 0, 0);
   stripes(P, MGR.r - 0.05, MGR.deckY + 0.004, MGR.r - 0.5, MGR.deckY + 0.004, [PAINT.red, PAINT.gold], 0, 0, 0, { sides: 32 });
   stripes(P, 1.9, MGR.deckY + 0.004, 1.25, MGR.deckY + 0.004, [PAINT.sky, PAINT.cream], 0, 0, 0, { sides: 16 });
   // the drum in the middle: painted panels with a gold frame and little mirrors
@@ -382,7 +382,7 @@ export function merryGoRound(x, z, glow) {
   const places = [];
   ring(MGR.outer, (a, i) => places.push({ a, r: MGR.outerR, i }));
   ring(MGR.inner, (a, i) => places.push({ a, r: MGR.innerR, i: MGR.outer + i }), Math.PI / 4);
-  for (const h of places) cyl(P, 0.06, 0.07, 0.42, Math.cos(h.a) * h.r + 0.14 * -Math.sin(h.a), MGR.deckY, Math.sin(h.a) * h.r + 0.14 * Math.cos(h.a), PAINT.red, { sides: 6 });
+  for (const h of places) lathe(P, [[0.07, 0], [0.06, 0.42], [0, 0.42]], 6, PAINT.red, Math.cos(h.a) * h.r + 0.14 * -Math.sin(h.a), MGR.deckY, Math.sin(h.a) * h.r + 0.14 * Math.cos(h.a));
   // the finial: a turned gold onion dome and a pennant pole
   lathe(P, [[0, -0.04], [0.2, 0.02], [0.27, 0.16], [0.17, 0.34], [0.06, 0.48], [0, 0.56]], 10, PAINT.gold, 0, MGR.apexY - 0.06, 0);
   cyl(P, 0.03, 0.03, 0.8, 0, MGR.apexY + 0.46, 0, PAINT.cream, { sides: 5 });
@@ -662,7 +662,7 @@ export function teacups(x, z, glow, yaw = 0) {
   turn.name = 'teacupsTurn';
   g.add(turn);
   const P = [];
-  cyl(P, r, r, deckY - 0.12, 0, 0.12, 0, PAINT.cream, { sides: 32 });
+  lathe(P, [[r, 0.12], [r, deckY], [0, deckY]], 32, PAINT.cream, 0, 0, 0);
   // the floor, painted like a tablecloth in wedges
   stripes(P, r - 0.04, deckY + 0.004, 0, deckY + 0.004, [PAINT.pink, PAINT.cream, PAINT.mint, PAINT.cream], 0, 0, 0, { sides: 24 });
   // the big teapot in the middle
@@ -942,10 +942,10 @@ export function setOnTrack(group, track, s) {
 }
 
 // The points the rails are DRAWN through: every point of the track where it
-// bends, every second or third where it runs nearly straight (the middle
+// bends, up to every fourth where it runs nearly straight (the middle
 // point of a skipped pair is never more than `tol` off the straight line).
 // The train still runs on every point; only the drawing is thinner.
-export function railPoints(pts, { tol = 0.012, most = 3 } = {}) {
+export function railPoints(pts, { tol = 0.02, most = 4 } = {}) {
   const n = pts.length;
   const off = (a, b, p) => {
     const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
