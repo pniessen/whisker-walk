@@ -225,11 +225,13 @@ function lowFits(x, z, { trail = 1.3, wall = 0.9, tor = 0.4, tarn = 0.6, ring = 
 }
 
 // The trees: a 3 x 3 jittered grid a tile, each candidate kept with a chance
-// that falls from 0.1 at the old edge to 0.04 at the rim; a thorn on the open
-// moor, a pine where the Pines reach over the west border (x under -40, kept
-// more often, as the core's border pines are). Candidates stay 2 m inside
-// their tile and 6 m apart (a moor's thorns stand alone), so no tile needs
-// its neighbour. Every candidate draws its numbers whether or not it is kept.
+// that falls from 0.14 at the old edge to 0.06 at the rim: a thorn on the
+// open moor, a pine where the Pines reach over the west border (x under
+// -42), as in the core. Candidates stay 2 m inside their tile and 6 m apart
+// (a moor's thorns stand alone), so no tile needs its neighbour. Every
+// candidate draws its numbers whether or not it is kept. Four trees on the
+// strip's 4,000 square metres (the core has 15 on 10,000), three of them in
+// its near half.
 const TREE_INSET = 2;
 const TREE_GRID = 3;
 const TREE_JITTER = 1.4;
@@ -248,7 +250,7 @@ function tileTrees(tile) {
       const roll = rng();
       const size = rng();
       const pine = x < -42;
-      if (roll >= (pine ? 0.45 : 0.18 - 0.1 * rimward(z))) continue;
+      if (roll >= (pine ? 0.12 : 0.14 - 0.08 * rimward(z))) continue;
       const kind = pine ? 'pine' : 'thorn';
       const scale = r2(pine ? 1.1 + 0.4 * size : 0.8 + 0.35 * size);
       const reach = (pine ? PINE_REACH : THORN_REACH) * scale;
@@ -280,7 +282,7 @@ function tileLow(tile, trees) {
   };
   const tussocks = [];
   grid(3.4, 4501, (cx, cz, roll) => {
-    if (roll > 0.34 - 0.18 * rimward(cz)) return;
+    if (roll > 0.36 - 0.3 * rimward(cz)) return;
     const n = 1 + Math.floor(b.hash01(cx, cz, 4515) * 3);
     for (let k = 0; k < n; k++) {
       const a = b.hash01(cx + k, cz, 4529) * Math.PI * 2;
@@ -396,7 +398,7 @@ function tileBeds(tile) {
     for (let gx = tile.minX + HEATHER.cell / 2; gx < tile.maxX; gx += HEATHER.cell) {
       const x = r2(gx + (rng() * 2 - 1) * HEATHER.jitter);
       const z = r2(gz + (rng() * 2 - 1) * HEATHER.jitter);
-      const keep = rng() < 0.27 - 0.17 * rimward(z);
+      const keep = rng() < 0.28 - 0.22 * rimward(z);
       if (!keep || x < tile.minX || x >= tile.maxX || z < tile.minZ || z >= tile.maxZ) continue;
       if (!lowFits(x, z, { trail: 2.0, wall: 1.1, tor: 0.6, tarn: 1.0, find: 2.4 })) continue;
       heather.push(Object.freeze({ x, z }));
@@ -460,8 +462,8 @@ function northBeds() {
 // One mesh, one draw: everything of granite the strip stands up, which casts
 // (as the core's tors do).
 const GRANITE = [lin(0x8e8c88), lin(0x9a968e), lin(0x7f7d78)];
-const WALL_GREYS = [lin(0x7f7b73), lin(0x938f86), lin(0x726f69)];
-const CAP = lin(0xaba79c);
+const WALL_GREYS = [lin(0x6f6b64), lin(0x7d7970), lin(0x64615b)];
+const CAPS = [lin(0x7a766d), lin(0x716e66)];
 const LICHEN = lin(0xb8b48a);
 const MOSS = lin(0x5f7a32);
 const MOSS_LIGHT = lin(0x86a046);
@@ -489,8 +491,8 @@ function rock(x, z, r, h, salt, { buried = 0.5, y0 = 0 } = {}) {
 
 // A box with its corners nudged (a quarried stone), its foot at y 0, turned
 // by `yaw` and leaning by `lean`, coloured from the foot up.
-function slab(x, z, w, d, h, yaw, lean, salt, { foot = 0, colours = GRANITE, top = null } = {}) {
-  const g = new THREE.BoxGeometry(w, h, d);
+function slab(x, z, w, d, h, yaw, lean, salt, { foot = 0, colours = GRANITE, top = null, segs = [1, 1] } = {}) {
+  const g = new THREE.BoxGeometry(w, h, d, segs[0], segs[1], 1);
   g.translate(0, h / 2 + foot, 0);
   const p = g.attributes.position;
   for (let v = 0; v < p.count; v++) {
@@ -498,7 +500,8 @@ function slab(x, z, w, d, h, yaw, lean, salt, { foot = 0, colours = GRANITE, top
     const key = [Math.round(px * 100), Math.round(py * 100), Math.round(pz * 100)];
     const j = 0.88 + 0.24 * b.hash01(key[0] + key[1], key[2], salt);
     const taper = py > foot + h * 0.5 ? 0.86 : 1;
-    p.setXYZ(v, px * j * taper, py, pz * (0.9 + 0.2 * b.hash01(key[2], key[0] + key[1], salt + 1)) * taper);
+    const dy = py > foot + h - 1e-6 ? (b.hash01(key[0], key[2], salt + 7) - 0.5) * 0.12 * Math.min(1, h * 2) : 0;
+    p.setXYZ(v, px * j * taper, py + dy, pz * (0.9 + 0.2 * b.hash01(key[2], key[0] + key[1], salt + 1)) * taper);
   }
   g.rotateZ(lean);
   g.rotateY(yaw);
@@ -512,6 +515,69 @@ function slab(x, z, w, d, h, yaw, lean, salt, { foot = 0, colours = GRANITE, top
     if (lichen && up > 0.5 && b.hash01(Math.round(vx * 30), Math.round(vz * 30 + vy * 30), salt + 5) < 0.4) c = lerp3(c, LICHEN, 0.6);
     return c;
   });
+}
+
+// A weathered standing stone: a seven-sided column, wider at the foot, its
+// sides nudged in and out (keyed on the corner, so it stays closed) and its
+// top pulled in and rounded, flat-shaded, each facet its own tone of grey.
+// `w` x `d` is its foot, `h` its height above `foot`.
+function roughStone(x, z, w, d, h, yaw, lean, salt, { foot = 0, sides = 7, rings = 3, roundTop = 0.35, colours = GRANITE } = {}) {
+  const pts = [];
+  for (let j = 0; j <= rings; j++) {
+    const t = j / rings;
+    const y = foot + h * t;
+    const shrink = (1 - 0.22 * t) * (j === rings ? 1 - roundTop : 1);
+    const ring = [];
+    for (let i = 0; i < sides; i++) {
+      const a = (i / sides) * Math.PI * 2 + 0.3 * b.hash01(i, 0, salt);
+      const k = shrink * (0.86 + 0.28 * b.hash01(i, j, salt + 1));
+      ring.push([Math.cos(a) * (w / 2) * k, y + (j === rings ? -h * 0.06 * b.hash01(i, j, salt + 2) : 0), Math.sin(a) * (d / 2) * k]);
+    }
+    pts.push(ring);
+  }
+  const top = [0, foot + h * (1 + 0.02 * b.hash01(salt, 1, salt + 3)), 0];
+  const tris = [];
+  for (let j = 0; j < rings; j++) {
+    for (let i = 0; i < sides; i++) {
+      const i2 = (i + 1) % sides;
+      const A = pts[j][i], B = pts[j][i2], C = pts[j + 1][i2], D = pts[j + 1][i];
+      tris.push([A, C, B], [A, D, C]);
+    }
+  }
+  for (let i = 0; i < sides; i++) tris.push([pts[rings][i], top, pts[rings][(i + 1) % sides]]);
+  const pos = new Float32Array(tris.length * 9);
+  tris.forEach((t, f) => t.forEach((v, k) => pos.set(v, f * 9 + k * 3)));
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  g.rotateZ(lean);
+  g.rotateY(yaw);
+  g.translate(x, 0, z);
+  return patchwork(colorParts(g, stoneTone(x, z, h + foot, salt, colours)), salt);
+}
+
+// The colour of granite at a point: the stone's grey, darker at the foot,
+// with lichen on the upper half of about half the stones.
+function stoneTone(x, z, h, salt, colours) {
+  const grey = colours[Math.floor(b.hash01(x, z, salt + 4) * colours.length)];
+  const lichen = b.hash01(z, x, salt + 5) < 0.5;
+  return (vx, vy, vz) => {
+    const up = clamp01(vy / Math.max(0.3, h));
+    let c = scale3(grey, 0.7 + 0.36 * up);
+    if (lichen && up > 0.45 && b.hash01(Math.round(vx * 9), Math.round(vz * 9 + vy * 9), salt + 6) < 0.35) c = lerp3(c, LICHEN, 0.55);
+    return c;
+  };
+}
+
+// Each triangle a little lighter or darker than the next, so a flat-shaded
+// stone reads as worked, weathered granite rather than one smooth grey.
+function patchwork(g, salt, amount = 0.16) {
+  const c = g.attributes.color;
+  for (let f = 0; f < c.count; f += 3) {
+    const k = 1 - amount / 2 + amount * b.hash01(f, salt, 5501);
+    for (let v = f; v < f + 3; v++) c.setXYZ(v, c.getX(v) * k, c.getY(v) * k, c.getZ(v) * k);
+  }
+  return g;
 }
 
 // A box's two downward faces are never seen (it stands on the ground or on
@@ -555,9 +621,10 @@ function wallParts() {
         const gap = Math.min(...WALL_GAPS.map((g) => Math.hypot(g.x - x, g.z - z)));
         const h = gap < 3.2 ? h0 * 0.55 : gap < 5 ? h0 * 0.8 : h0;
         const L = len / n + 0.18;
-        const body = slab(x, z, L, WALL_THICK, h * 0.86, yaw + (b.hash01(k, ri, 4911) - 0.5) * 0.04, 0, 4921 + ri * 31 + k, { colours: WALL_GREYS });
-        const cap = slab(x, z, L * 0.96, WALL_THICK * 0.74, h * 0.14, yaw, 0, 4945 + ri * 31 + k, { foot: h * 0.86, colours: [CAP] });
-        parts.push(dropBottom(body), dropBottom(cap));
+        const body = slab(x, z, L, WALL_THICK, h * 0.86, yaw + (b.hash01(k, ri, 4911) - 0.5) * 0.04, 0, 4921 + ri * 31 + k,
+          { colours: WALL_GREYS, segs: [2, 2] });
+        const cap = slab(x, z, L * 0.96, WALL_THICK * 0.74, h * 0.14, yaw, 0, 4945 + ri * 31 + k, { foot: h * 0.86, colours: CAPS });
+        parts.push(patchwork(dropBottom(body), 4931 + ri * 31 + k, 0.42), patchwork(dropBottom(cap), 4957 + ri * 31 + k, 0.24));
       }
     }
   });
@@ -579,16 +646,18 @@ function stoneRingParts() {
   for (const s of RING_STONES) {
     // broadside to the centre, as a ring's stones stand
     const yaw = -(s.a + Math.PI / 2);
-    parts.push(slab(s.x, s.z, s.w, s.d, s.h, yaw, s.lean, 5101 + s.k * 13));
+    parts.push(roughStone(s.x, s.z, s.w * 1.15, s.d * 1.3, s.h, yaw, s.lean, 5101 + s.k * 13));
   }
   // the stone table: two uprights east and west, the capstone over them, its
   // top TABLE.top, a little tilted
   const T = TABLE;
-  const capH = 0.34;
-  for (const side of [-1, 1]) parts.push(slab(T.x + side * 0.72, T.z, 0.5, 1.15, T.top - capH + 0.05, 0.15 * side, 0, 5201 + side));
-  parts.push(slab(T.x, T.z, 2.7, 1.7, capH, 0.12, 0.03, 5221, { foot: T.top - capH }));
+  const capH = 0.36;
+  for (const side of [-1, 1]) {
+    parts.push(roughStone(T.x + side * 0.72, T.z, 0.6, 1.25, T.top - capH + 0.08, 0.15 * side, 0, 5201 + side, { roundTop: 0.1 }));
+  }
+  parts.push(roughStone(T.x, T.z, 2.8, 1.8, capH, 0.12, 0.03, 5221, { foot: T.top - capH, sides: 9, rings: 1, roundTop: 0.12 }));
   // the fallen slab, the step up: long, low, half sunk
-  parts.push(slab(STEP_STONE.x, STEP_STONE.z, 1.5, 0.95, STEP_STONE.top + 0.05, 0.4, 0, 5241, { foot: -0.05 }));
+  parts.push(roughStone(STEP_STONE.x, STEP_STONE.z, 1.6, 1.05, STEP_STONE.top + 0.05, 0.4, 0, 5241, { foot: -0.05, sides: 8, rings: 1, roundTop: 0.15 }));
   // the mossy hollow to nap in, and the flat stone at the tarn to drink from
   const bed = new THREE.CylinderGeometry(0.6, 0.7, 0.07, 9);
   bed.translate(NAP.x, 0.035, NAP.z);
@@ -597,7 +666,7 @@ function stoneRingParts() {
   flat.scale(1.1, 0.16, 0.8);
   flat.rotateY(0.9);
   flat.translate(DRINK.x - 0.15, 0.03, DRINK.z);
-  parts.push(colorParts(flat, (x, y, z) => scale3(GRANITE[1], 0.85 + 0.25 * b.hash01(Math.round(x * 5), Math.round(z * 5), 5275))));
+  parts.push(patchwork(colorParts(flat, (x, y, z) => scale3(GRANITE[2], 0.62 + 0.2 * b.hash01(Math.round(x * 5), Math.round(z * 5), 5275))), 5281));
   return parts;
 }
 
@@ -635,7 +704,7 @@ const WET = [0.88, 0.98, 0.86];
 const WORN = [1.08, 1.06, 0.9];
 export function northGroundTint(x, z) {
   let m = moorGroundTint(x, z);
-  const wet = smoothstep(0, 1, 1 - tarnDist(x, z) / 5);
+  const wet = smoothstep(0, 1, 1 - tarnDist(x, z) / 3);
   if (wet > 0) m = lerp3(m, WET, wet);
   const worn = 1 - smoothstep(RING_R - 1.5, RING_R + 1.5, stonesDist(x, z));
   if (worn > 0) m = lerp3(m, WORN, worn * 0.7);
