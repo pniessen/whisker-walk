@@ -382,6 +382,33 @@ describe('the leap and the drop', () => {
     expect(w.live.looking).toBeNull();
   });
 
+  it('a stick already held at the press does not end the look; only a fresh push does', () => {
+    // (a) pushing toward the too-wide gap, held through the press: the look lasts its full LOOK_TIME
+    const w = yardWalk({ at: [14, 3.2], face: [0, 1] });
+    w.push(0, 1);
+    w.frame();
+    expect(w.jump()).toBe(true);
+    w.run(LOOK_TIME - 0.1);
+    expect(w.live.phase).toBe('look');
+    expect(w.live.looking?.id).toBe('gap-3');
+    w.run(0.1);
+    expect(w.live.phase).toBeNull();
+    // (b) held at the press, let go after it, then pushed again: the look ends on that frame
+    const r = yardWalk({ at: [14, 3.2], face: [0, 1] });
+    r.push(0, 1);
+    r.frame();
+    expect(r.jump()).toBe(true);
+    r.run(0.2);
+    r.release();
+    r.frame();
+    expect(r.live.phase).toBe('look');
+    r.push(-1, 0);
+    r.frame();
+    expect(r.live.phase).toBeNull();
+    expect(r.live.looking).toBeNull();
+    expect(r.events).toEqual([{ type: 'look', id: 'gap-3' }]);
+  });
+
   it('at the gap too wide for her she looks across; with Long Leap she leaps it', () => {
     const w = yardWalk({ at: [14, 3.2], face: [0, 1] });
     expect(w.jump()).toBe(true);

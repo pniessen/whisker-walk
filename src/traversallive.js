@@ -33,7 +33,7 @@
 // and whatever the frame times she ends exactly on the landing. "It always
 // lands." A spot she cannot use yet (a gap needing Long Leap, a climb above
 // her budget) is a look: she stops and faces the far side for LOOK_TIME, until
-// the stick is pushed.
+// a fresh push of the stick (a stick still held at the press does not count).
 //
 // DETERMINISTIC: every motion is a function of the data, the stick and dt.
 // ALLOCATION: update(), jump() and late() allocate nothing; the scratch
@@ -138,9 +138,13 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
   let hopYaw = 0;
   let sprung = false;
   let landed = false;
-  // The look: the hop she is looking along, and for how long so far.
+  // The look: the hop she is looking along, and for how long so far. A stick
+  // already pushed at the press does not end it (she was walking up to the
+  // gap); only a push after the stick has once been let go (or dropped under
+  // ALONG_DEAD) does. lookArmed is that "once let go".
   let looking = null;
   let lookTime = 0;
+  let lookArmed = false;
 
   function clearHop() {
     hop = null;
@@ -180,6 +184,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     if (!crossingToMount(trav, p.x, p.z, ground.y(p.x, p.z), world.x, world.z, found)) return false;
     if (heldYaw !== null && found.crossing === heldCrossing && found.end === heldEnd) return false;
     letGo();
+    looking = null;
     crossing = found.crossing;
     mountEnd = found.end;
     outSign = mountEnd === 0 ? -1 : 1;
@@ -340,10 +345,16 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
         hopStep(dt, cat, player, session);
         return;
       }
-      // The stick ends a look at once; so does the timer.
+      // A fresh push ends a look at once; so does the timer.
       if (looking) {
         lookTime += dt > 0 ? dt : 0;
-        if (player.inputActive || lookTime >= LOOK_TIME - EPS) looking = null;
+        let pushed = false;
+        if (player.inputActive) {
+          player.stickInput(stick);
+          pushed = Math.hypot(stick.x, stick.z) >= ALONG_DEAD;
+        }
+        if (!pushed) lookArmed = true;
+        if ((pushed && lookArmed) || lookTime >= LOOK_TIME - EPS) looking = null;
       }
       if (!crossing && !tryMount(cat, player, session)) return;
       walk(dt, cat, player, session);
@@ -363,6 +374,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
       if (spot.look) {
         looking = h;
         lookTime = 0;
+        lookArmed = false;
         cat.rotation.y = yaw;
         onEvent(lookEvents.get(h));
         return true;
