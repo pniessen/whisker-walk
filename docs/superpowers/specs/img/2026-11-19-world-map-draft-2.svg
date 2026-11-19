@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1020" font-family="Georgia, 'Times New Roman', serif">
+  <defs>
+    <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="14"/></filter>
+    <pattern id="waves" width="40" height="16" patternUnits="userSpaceOnUse"><path d="M0 8 q10 -6 20 0 t20 0" fill="none" stroke="#7fb3c9" stroke-width="2" opacity="0.6"/></pattern>
+  </defs>
+  <rect width="1500" height="1020" fill="#f3e6c8"/>
+  <text x="700" y="44" text-anchor="middle" font-size="32" fill="#5b4630" font-style="italic">The world of Whisker Walk — draft 2</text>
+  <text x="700" y="70" text-anchor="middle" font-size="15" fill="#7a6248">Turned so every gateway sits where each place really opens: the Park, Farm and Fairground are entered from the south, the Seaside's sea is to its east</text>
+
+  <g transform="translate(0 95)">
+  <!-- the sea along the east, bending round the south-east -->
+  <path d="M1340 0 C1320 160 1360 300 1335 430 C1315 540 1350 640 1310 730 C1280 800 1180 860 1000 880 L1500 880 L1500 0 Z" fill="#a9d3e3"/>
+  <path d="M1340 0 C1320 160 1360 300 1335 430 C1315 540 1350 640 1310 730 C1280 800 1180 860 1000 880 L1500 880 L1500 0 Z" fill="url(#waves)"/>
+
+  <!-- the wild places: her board, unchanged -->
+  <g filter="url(#rough)" opacity="0.95">
+    <circle cx="308" cy="199" r="150" fill="#6e9d78"/>
+    <circle cx="620" cy="161" r="165" fill="#c9a9c6"/>
+    <circle cx="232" cy="488" r="160" fill="#a8cf9c"/>
+    <circle cx="565" cy="500" r="170" fill="#8fbf74"/>
+    <circle cx="815" cy="353" r="80" fill="#b5a48d"/>
+  </g>
+  <path d="M397 370 L402 281 L405 241 L416 220 L431 209 L452 207 L472 209 L495 220 L507 237 L522 327 L517 352 L469 415 L450 426 L429 425 L400 408 Z" fill="#a9d3e3" stroke="#7fb3c9" stroke-width="2"/>
+  <path d="M437 307 L444 297 L456 291 L476 289 L485 309 L478 321 L464 329 L449 329 L440 320 Z" fill="#6e9d78"/>
+  <path d="M143 376 L183 374 L195 394 L295 393 L275 451 L320 453 L339 437 L362 447 L402 462 L425 442 L446 442 L461 430 L544 424 L559 435 L579 434 L598 410 L623 406 L636 384 L630 374 L644 338 L642 304 L614 280 L634 226 L631 206 L614 199 L555 205 L504 178 L455 196" fill="none" stroke="#7fb3c9" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="380" cy="463" r="22" fill="#a9d3e3"/>
+  <!-- her paths and the bridge -->
+  <g fill="none" stroke="#a07a52" stroke-width="4" stroke-linecap="round" stroke-dasharray="10 6">
+    <path d="M737 551 L716 538 L712 512"/>
+    <path d="M717 518 L730 440 L721 366 L737 322 L747 236 L771 178"/>
+    <path d="M738 554 L720 560 L667 624 L529 663 L377 639 L322 614"/>
+  </g>
+  <path d="M395 232 L444 297" stroke="#8a5a32" stroke-width="7" stroke-linecap="round"/>
+  <g font-size="20" fill="#2f3a2a" text-anchor="middle">
+    <text x="290" y="140">The Pines and Swamp</text>
+    <text x="660" y="100">The Moor</text>
+    <text x="190" y="560">The River and Marshes</text>
+    <text x="590" y="590">The Woods</text>
+    <text x="815" y="358">The Gorge</text>
+  </g>
+
+  <!-- the town (where she drew it) and its neighbours -->
+  <g filter="url(#rough)">
+    <circle cx="843" cy="566" r="110" fill="#d9a57e"/>
+    <circle cx="1080" cy="470" r="90" fill="#b9dc8f"/>
+    <circle cx="1060" cy="230" r="85" fill="#e9b7c9"/>
+    <circle cx="1235" cy="320" r="85" fill="#e3cf7e"/>
+    <circle cx="900" cy="770" r="80" fill="#b7b9bf"/>
+    <circle cx="1185" cy="680" r="90" fill="#ecdca8"/>
+  </g>
+  <rect x="846" y="496" width="74" height="34" rx="6" fill="#8c5a4a" opacity="0.85"/>
+  <text x="883" y="518" text-anchor="middle" font-size="13" fill="#fff">Rooftops ↑</text>
+  <rect x="770" y="590" width="58" height="30" rx="6" fill="#a8745c" opacity="0.85"/>
+  <text x="799" y="610" text-anchor="middle" font-size="13" fill="#fff">House</text>
+  <g font-size="20" fill="#3a2b1d" text-anchor="middle">
+    <text x="843" y="576">The Neighborhood</text>
+    <text x="1080" y="478">The Park</text>
+    <text x="1060" y="236">The Fairground</text>
+    <text x="1235" y="326">Appletree Farm</text>
+    <text x="900" y="778">The Docks</text>
+    <text x="1170" y="688">The Seaside</text>
+  </g>
+
+  <!-- gateway roads (the lanes curve to each place's real entrance) -->
+  <g fill="none" stroke="#b04a2e" stroke-width="4" stroke-linecap="round" stroke-dasharray="3 9">
+    <path d="M952 570 C1000 580 1060 590 1080 560"/>            <!-- town east edge -> Park's south gate -->
+    <path d="M1080 380 C1080 350 1060 340 1060 315"/>           <!-- Park north edge -> Fair's south gate -->
+    <path d="M1168 450 C1210 440 1240 430 1235 405"/>           <!-- Park east edge -> Farm's south gate -->
+    <path d="M860 676 C870 700 885 700 892 690"/>               <!-- town south edge -> Docks -->
+    <path d="M980 780 C1040 790 1110 790 1140 765"/>            <!-- Docks east edge -> Seaside's south beach end -->
+  </g>
+  <g fill="#b04a2e">
+    <circle cx="1080" cy="560" r="8"/><circle cx="1060" cy="315" r="8"/><circle cx="1235" cy="405" r="8"/>
+    <circle cx="892" cy="690" r="8"/><circle cx="1140" cy="765" r="8"/>
+  </g>
+  <!-- today's border posts -->
+  <g stroke="#5b4630" stroke-width="3" fill="none" stroke-dasharray="1 7" stroke-linecap="round" opacity="0.8">
+    <path d="M733 560 L719 552"/> <path d="M820 456 L812 436"/> <path d="M735 610 L723 630"/>
+  </g>
+
+  <g transform="translate(40 790)" font-size="15" fill="#3a2b1d">
+    <rect x="-14" y="-28" width="330" height="120" rx="10" fill="#fbf3df" stroke="#c9b48c"/>
+    <circle cx="6" cy="0" r="7" fill="#b04a2e"/><text x="22" y="5">a gateway, at the place's real entrance</text>
+    <path d="M0 30 L14 30" stroke="#5b4630" stroke-width="3" stroke-dasharray="1 7" stroke-linecap="round"/><text x="22" y="35">a border post (as today)</text>
+    <path d="M0 60 L14 60" stroke="#a07a52" stroke-width="4" stroke-dasharray="10 6"/><text x="22" y="65">her paths (as she drew them)</text>
+  </g>
+  </g>
+</svg>
