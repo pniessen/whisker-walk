@@ -1,8 +1,11 @@
 import { PHRASES } from '../chat.js';
 
 // The in-walk chat control: a 💬 button that toggles a tray of curated
-// phrase/emote buttons plus a per-player mute list. Co-walk-only — main.js
+// phrase/emote buttons plus a per-player mute list. Co-walk-only — walk.js
 // calls setVisible(true) when in a room and setVisible(false) otherwise.
+// The tray opens above the walk's buttons (style.css) and closes the moment
+// any other button is pressed (the paw, meow, photo, pause, the prompt), so
+// it never sits over a control (controls review, 2026-11-19).
 // A mute row's accessible label. Its visible text is only an emoji and a
 // name. The label stays "Mute <name>" and aria-pressed carries whether that
 // is on, the usual toggle-button pattern (a flipping label as well would be
@@ -57,11 +60,18 @@ export function createChatWheel(root, { onPick, getPlayers, isMuted, toggleMute 
   toggle.addEventListener('click', () => {
     if (tray.classList.contains('hidden')) openTray(); else closeTray();
   });
+  // Any other button closes it (pointerdown: before that button's own click).
+  const onOtherButton = (e) => {
+    if (tray.classList.contains('hidden')) return;
+    const btn = e.target?.closest?.('button');
+    if (btn && !wrap.contains(btn)) closeTray();
+  };
+  document.addEventListener('pointerdown', onOtherButton, true);
 
   return {
     setVisible(v) { wrap.classList.toggle('hidden', !v); if (!v) closeTray(); },
     refresh() { if (!tray.classList.contains('hidden')) renderMutes(); },
-    destroy() { wrap.remove(); },
+    destroy() { document.removeEventListener('pointerdown', onOtherButton, true); wrap.remove(); },
     // Keyboard-driven open/close (Task 3): Enter opens the tray and releases
     // pointer lock so the cursor comes back to click a phrase; Escape closes
     // it. Kept separate from the toggle-button click handler above so mouse

@@ -22,6 +22,7 @@ describe('createSettings', () => {
       cameraZoom: 1,
       haptics: true,
       showTips: true, // 2026-11-15, guided-first-walk design: the "Show tips" switch, on by default
+      zoomButtons: false, // 2026-11-19, controls review: the + and − pair on screen, off by default
     });
     expect(settings.get('volume')).toBe(0.8);
   });
@@ -55,6 +56,7 @@ describe('createSettings', () => {
       cameraZoom: 1,
       haptics: true,
       showTips: true, // 2026-11-15, guided-first-walk design: the "Show tips" switch, on by default
+      zoomButtons: false, // 2026-11-19, controls review: the + and − pair on screen, off by default
     });
   });
 
@@ -74,6 +76,7 @@ describe('createSettings', () => {
       cameraZoom: 1,
       haptics: true,
       showTips: true, // 2026-11-15, guided-first-walk design: the "Show tips" switch, on by default
+      zoomButtons: false, // 2026-11-19, controls review: the + and − pair on screen, off by default
     });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();

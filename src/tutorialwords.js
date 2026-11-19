@@ -33,8 +33,13 @@ export const WORDS = Object.freeze({
   'hint.hop': two('Tap the paw again to hop down.', 'Press Space again to hop down.'),
   'hint.photo': two('Tap 📷 to take a photo.', 'Press C to take a photo.'),
   'hint.frame': two('Point at an animal. Tap the screen.', 'Point at an animal. Click.'),
-  'hint.yarn': two('Tap 🧶 to play with your yarn.', 'Press T to play with your yarn.'),
+  // The found yarn ball (controls review, 2026-11-19): no button, no key.
+  'hint.yarn': same('A yarn ball! Run into it to bat it.'),
   'hint.bat': same('Run into the ball to bat it.'),
+  'hint.yarn-carry': same('Put it down to play.'),
+  // T used to throw the yarn; a keyboard player's first few presses after
+  // the change get this as a toast (main.js), never as a bubble.
+  'hint.tkey': same('Yarn balls lie around now. Find one! 🧶'),
   'hint.call': two('Tap 😺 to call a cat over.', 'Press V to call a cat over.'),
   'hint.sniff': same('You smell something! Follow the paw prints.'),
   'hint.box': same('Walk into the box and stop.'),
@@ -55,7 +60,7 @@ export const WORDS = Object.freeze({
   'how.greet-cats': two('Walk up to a cat. Tap the button.', 'Walk up to a cat. Press E.'),
   'how.take-photos': two('Tap 📷. Point at an animal. Tap the screen.', 'Press C. Point at an animal. Click.'),
   'how.get-scratches': two('Find a person. Tap the button.', 'Find a person. Press E.'),
-  'how.yarn-play': two('Tap 🧶. Run into the ball 4 times.', 'Press T. Run into the ball 4 times.'),
+  'how.yarn-play': same('The yarn ball is {place}. Bat it 4 times.'),
   'how.dig-treasure': same('Stand still to sniff. Follow the paw prints. Dig!'),
   'how.box-sit': same('Walk into a cardboard box and stop.'),
   'how.scenic-spots': same('Go to a ☆ on the map.'),

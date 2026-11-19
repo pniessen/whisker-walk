@@ -25,6 +25,7 @@ import { tickRest, NAP_PURR_LEN } from '../rests.js';
 import { validPetName } from '../net.js';
 import { groundTilt, easeTilt } from '../ground.js';
 import { bus } from '../events.js';
+import { isWalkableAt } from '../player.js';
 
 // The y the local cat is drawn at, before the water look: the ground under
 // it (Gorge part 1, R4), then perchY + hopY (where player.js drew it) and a
@@ -65,6 +66,20 @@ export function pounceCatchLine(cat) {
   const u = cat.userData;
   if (!u.custom) return 'a Calico masterclass';
   return validPetName(u.customName) ? `${u.customName}'s masterclass` : "a pouncer's masterclass";
+}
+
+// The yarn ball's roll home (tickYarnHome).
+const YARN_HOME_S = 25;
+const YARN_CHECK_S = 0.5;
+const YARN_REACH = 0.45; // a cat this close bats it (the bat's own reach is 0.5)
+// Can a cat stand within batting reach of a ball at (x, z)?
+function reachable(area, x, z) {
+  if (isWalkableAt(area, x, z)) return true;
+  for (let k = 0; k < 8; k++) {
+    const t = (k * Math.PI) / 4;
+    if (isWalkableAt(area, x + Math.cos(t) * YARN_REACH, z + Math.sin(t) * YARN_REACH)) return true;
+  }
+  return false;
 }
 
 export function createAvatarUpdater({
@@ -337,21 +352,21 @@ export function createAvatarUpdater({
       s.boxTime = 0;
     }
 
-    // yarn play: run into your ball to bat it; a good play session earns points
-    if (s.toy.active) {
+    // yarn play: run into the ball to bat it, resting or rolling, even with
+    // something in the mouth; four bats in a walk (they count for the whole
+    // walk) are a good play session. Not a ball in this cat's own mouth.
+    if (s.toy.active && !s.toy.held) {
       const dist = paws.distanceTo(s.toy.mesh.position);
       if (dist < 0.5 && s.batReady) {
         s.toy.bat(cat.position);
         s.batCount += 1;
         s.batReady = false;
+        bus.emit('tip:did', { id: 'yarn' });
         if (s.batCount === 4) log.awardOnce('play', 'play', 'a very good play session');
       } else if (dist > 1.1) {
         s.batReady = true;
       }
-      if (s.toy.idleTime > 25) {
-        s.toy.retrieve();
-        hud.toast('Your yarn ball rolled back to your pocket 🧶');
-      }
+      tickYarnHome(s, dt);
     } else if (s.toyGhost.visible) {
       // yarn rally: batting a REMOTE-owned ghost ball requests authority
       // over it — the actual handoff happens once the owner's client
@@ -386,6 +401,29 @@ export function createAvatarUpdater({
         if (hunted.wasStalked) { s.slowmoTime = 0.8; audio.fanfare(); }
       }
     }
+  }
+
+  // The yarn ball is never lost (controls review, 2026-11-19): left anywhere,
+  // it stays there; only after YARN_HOME_S seconds somewhere no cat can get
+  // within batting reach of it (past a fence, in a footprint, off walkable
+  // ground) does it roll back to its spot. Checked twice a second. It stays
+  // this device's if it was (a co-walker keeps seeing it as the ghost ball).
+  function tickYarnHome(s, dt) {
+    const toy = s.toy;
+    if (!toy.spot || !s.areaData) return;
+    s.yarnCheck = (s.yarnCheck ?? 0) + dt;
+    if (s.yarnCheck < YARN_CHECK_S) return;
+    const step = s.yarnCheck;
+    s.yarnCheck = 0;
+    const p = toy.mesh.position;
+    s.yarnStuck = reachable(s.areaData, p.x, p.z) ? 0 : (s.yarnStuck ?? 0) + step;
+    if (s.yarnStuck < YARN_HOME_S) return;
+    s.yarnStuck = 0;
+    const wasMine = toy.claimed;
+    toy.placeAt(toy.spot);
+    toy.claimed = wasMine;
+    const where = s.yarnSpot?.where;
+    hud.toast(where ? `The yarn ball rolled back ${where} 🧶` : 'The yarn ball rolled back 🧶');
   }
 
   function updateMoments(s, dt) {

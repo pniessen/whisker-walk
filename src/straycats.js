@@ -1016,8 +1016,10 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           }
         }
 
-        // playful strays run to bat an active toy within range
-        if (s.personality === 'playful' && opts.toy?.active) {
+        // playful strays run to bat an active toy within range: one somebody
+        // is already playing with (toy.js `claimed`), never a ball still lying
+        // where it was found (that one waits for the child) or one in a mouth
+        if (s.personality === 'playful' && opts.toy?.active && opts.toy.claimed !== false && !opts.toy.held) {
           const dToy = s.group.position.distanceTo(opts.toy.mesh.position);
           if (dToy < 8) {
             s.state = 'wander';

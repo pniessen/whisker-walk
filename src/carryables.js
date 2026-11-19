@@ -133,6 +133,22 @@ function collect(root, geos, mats) {
 // createCarryables(scene, list) — list is [{ id, kind, x, z }] (propsFor's
 // carryables). Items start on the ground at their home.
 // Gorge part 1: items rest on `ground` (FLAT_GROUND: y 0), at home and put down.
+// placeInMouth(mesh, holder): puts `mesh` at the holder's mouth (its head's
+// MOUTH point, turned with the head), or just above a headless holder. The
+// found yarn ball (game/avatar.js) is held the same way.
+export function placeInMouth(mesh, holder) {
+  const head = holder.userData?.parts?.head;
+  if (head) {
+    head.updateWorldMatrix(true, false);
+    head.localToWorld(mesh.position.copy(MOUTH));
+    head.getWorldQuaternion(mesh.quaternion);
+  } else {
+    holder.updateWorldMatrix(true, false);
+    holder.getWorldPosition(_tmp);
+    mesh.position.set(_tmp.x, _tmp.y + HEADLESS_LIFT, _tmp.z);
+  }
+}
+
 export function createCarryables(scene, list, { ground = FLAT_GROUND } = {}) {
   const items = [];
   const byId = new Map();
@@ -223,16 +239,7 @@ export function createCarryables(scene, list, { ground = FLAT_GROUND } = {}) {
           continue;
         }
         it.mesh.visible = true;
-        const head = h.userData?.parts?.head;
-        if (head) {
-          head.updateWorldMatrix(true, false);
-          head.localToWorld(it.mesh.position.copy(MOUTH));
-          head.getWorldQuaternion(it.mesh.quaternion);
-        } else {
-          h.updateWorldMatrix(true, false);
-          h.getWorldPosition(_tmp);
-          it.mesh.position.set(_tmp.x, _tmp.y + HEADLESS_LIFT, _tmp.z);
-        }
+        placeInMouth(it.mesh, h);
       }
     },
     dispose() {

@@ -1,6 +1,6 @@
 import { describe, it, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createHud, discoveryText, goalHowHtml, MAX_TOASTS, MIN_SHOWN_MS, MAX_QUEUED_TOASTS } from '../src/ui/hud.js';
+import { createHud, discoveryText, goalHowHtml, MAX_TOASTS, MIN_SHOWN_MS, MAX_QUEUED_TOASTS, KEY_STRIP } from '../src/ui/hud.js';
 import { createGoals, GOAL_POOL } from '../src/goals.js';
 import { toastLifeMs } from '../src/ui/toastlife.js';
 import { bus } from '../src/events.js';
@@ -611,6 +611,49 @@ describe('HUD layout (style.css)', () => {
     });
   });
 
+  // Controls review, 2026-11-19.
+  describe('the lighter walk controls', () => {
+    const block = (head) => {
+      const at = css.indexOf(head);
+      return at < 0 ? '' : css.slice(at, css.indexOf('\n}\n', at));
+    };
+    test('the photo button keeps its cell with the yarn button gone; the zoom pair is opt-in', () => {
+      expect(rule('.tui-btn[data-action="camera"]')).toContain('grid-column: 2');
+      expect(rule('body:not(.zoom-buttons) .tui-zoom')).toContain('display: none');
+    });
+    test('without the zoom pair the chat button sits under the cluster, clear of the move ring', () => {
+      expect(rule('body.touch-mode:not(.zoom-buttons) .chat-wheel')).toContain('right: max(88px, calc(72px + env(safe-area-inset-right)))');
+      expect(rule('body.left-handed.touch-mode:not(.zoom-buttons) .chat-wheel')).toContain('left: max(88px, calc(72px + env(safe-area-inset-left)))');
+    });
+    test('the chat tray opens above the cluster and the prompt, and beside the cluster on a phone on its side', () => {
+      const trays = [...css.matchAll(/body\.touch-mode \.chat-tray \{([^}]*)\}/g)].map((m) => m[1]);
+      expect(trays.some((t) => t.includes('bottom: calc(292px + env(safe-area-inset-bottom))'))).toBe(true);
+      const side = block('@media (max-height: 500px) {\n  body.touch-mode .chat-tray');
+      expect(side).toContain('right: calc(max(16px, env(safe-area-inset-right)) + 138px)');
+      expect(side).toContain('bottom: calc(164px + env(safe-area-inset-bottom))');
+    });
+    test('the photo pill stands above the cluster on a phone held upright', () => {
+      const phone = block('@media (max-width: 600px) and (min-height: 501px) {\n  body.touch-mode .hud-viewfinder span');
+      expect(phone).toContain('bottom: calc(292px + env(safe-area-inset-bottom))');
+    });
+    test('320 px: the rank folds into the points pill, one goal shows, the toasts start lower', () => {
+      const narrow = block('@media (max-width: 340px) {\n  .hud-top');
+      expect(narrow).toMatch(/\.hud-top \{[^}]*background: rgba\(20,26,38,0\.55\)/);
+      expect(narrow).toMatch(/\.hud-rank \.rank-cup \{ display: none; \}/);
+      expect(narrow).toContain('.hud-goals:has(.goal.next) .goal:not(.next) { display: none; }');
+      expect(narrow).toContain('var(--map-size) + 124px');
+    });
+    test('the key strip stays up during a hint; the hint and the prompt step up over it', () => {
+      expect(css).not.toMatch(/#hud\.hinting \.hud-controls[^{]*\{ visibility: hidden/);
+      expect(css).toContain('#hud.lesson-on .hud-controls { visibility: hidden; }');
+      expect(css).toContain('body:not(.touch-mode) #hud.hinting:not(.lesson-on) .hud-hint { bottom: 54px; }');
+    });
+    test('the paw\'s climb badge shows only with a climb to say', () => {
+      expect(rule('.tui-badge')).toContain('display: none');
+      expect(css).toContain('.tui-btn[data-climb="up"] .tui-badge, .tui-btn[data-climb="down"] .tui-badge { display: block; }');
+    });
+  });
+
   describe('desktop toasts', () => {
     test('toasts sit above the prompt pill, and above the fight pill when it is up', () => {
       expect(rule('.hud-toasts')).toContain('bottom: 146px');
@@ -736,6 +779,18 @@ describe('the goals\' how line', () => {
   it('the goals a walk rolls carry their how key', () => {
     const g = createGoals(() => 0.1).goals;
     for (const goal of g) expect(goalHowHtml(goal)).toContain('class="goal-how"');
+  });
+
+  // Controls review, 2026-11-19: the yarn goal says where today's ball lies.
+  it('a goal\'s own slots fill its how line', () => {
+    const yarn = { ...GOAL_POOL.find((g) => g.id === 'yarn-play'), howSlots: { place: 'by the playground bench' } };
+    expect(goalHowHtml(yarn)).toBe('<div class="goal-how">The yarn ball is by the playground bench. Bat it 4 times.</div>');
+  });
+});
+
+describe('the desktop key strip (controls review, 2026-11-19)', () => {
+  it('is the six things a walk needs, and no yarn', () => {
+    expect(KEY_STRIP).toBe('←↑↓→/WASD move · Space jump · E do it · V meow · C photo · Esc pause');
   });
 });
 

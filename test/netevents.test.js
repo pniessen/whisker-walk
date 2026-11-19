@@ -9,6 +9,7 @@ import { createMouth, walkEndMarks } from '../src/carry.js';
 import { onAnyDeck } from '../src/world/builder.js';
 import { createRemoteCats } from '../src/remotecats.js';
 import { createKnockables } from '../src/knockables.js';
+import { createToy } from '../src/toy.js';
 
 // v21 Stream 2, Task 12 — the receiving side of the live 'colony-feed' event
 // (game/interactions.js's feedStray sends it). netevents.js imports THREE but
@@ -933,5 +934,52 @@ describe('applyRemoteEvent: patrol-fight and patrol-done', () => {
     const none = patrolHarness({ foe: false });
     expect(() => none.apply(none.ev('patrol-fight'))).not.toThrow();
     expect(none.calls).toEqual([]);
+  });
+});
+
+// Controls review, 2026-11-19: one found yarn ball between co-walkers, on the
+// rally's own events. A bat at my ghost asks me for the ball; I hand it over
+// only if it is mine and not in my mouth.
+describe('applyRemoteEvent: bat and the found yarn ball', () => {
+  const setUp = () => {
+    const h = harness();
+    const sent = [];
+    h.s.net = { sendEvent: (e) => sent.push(e) };
+    h.s.toy = createToy({ add() {}, remove() {} });
+    h.s.toy.placeAt({ x: 2, z: 3 });
+    h.s.rally = null;
+    return { ...h, sent };
+  };
+  const bat = { v: 1, id: PARTNER, type: 'bat' };
+
+  it('my ball, on the ground: handed over where it lies', () => {
+    const h = setUp();
+    h.s.toy.bat(new THREE.Vector3(2, 0, 2));
+    h.applyRemoteEvent(h.s, bat);
+    expect(h.sent).toEqual([{ v: 1, id: ME, type: 'yarn-authority', toId: PARTNER, pos: [expect.any(Number), expect.any(Number)] }]);
+    expect(h.s.toy.active).toBe(false);
+  });
+  it('in my mouth: no snatching', () => {
+    const h = setUp();
+    h.s.toy.hold();
+    h.applyRemoteEvent(h.s, bat);
+    expect(h.sent).toEqual([]);
+    expect(h.s.toy.held).toBe(true);
+  });
+  it('still lying where it was found (nobody\'s): nothing to hand over', () => {
+    const h = setUp();
+    h.applyRemoteEvent(h.s, bat);
+    expect(h.sent).toEqual([]);
+    expect(h.s.toy.active).toBe(true);
+  });
+  it('handed to me: mine at once, her last report forgotten, a short grace against a stale tie', () => {
+    const h = setUp();
+    h.s.toy.retrieve();
+    h.s.remoteToy = { ownerId: PARTNER, pos: [1, 1], at: 0 };
+    h.applyRemoteEvent(h.s, { v: 1, id: PARTNER, type: 'yarn-authority', toId: ME, pos: [6, 7] });
+    expect(h.s.toy.active && h.s.toy.claimed).toBe(true);
+    expect([h.s.toy.mesh.position.x, h.s.toy.mesh.position.z]).toEqual([6, 7]);
+    expect(h.s.remoteToy).toBeNull();
+    expect(h.s.yarnGrace).toBeGreaterThan(0);
   });
 });
