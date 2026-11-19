@@ -25,7 +25,7 @@ inside seeded generation, thread the injected RNG (`src/rng.js`) through.
 | Task | Command |
 |------|---------|
 | Dev server | `npm run dev` (Vite; `.claude/launch.json` pins ports 5174 and 5175 with `--strictPort`) |
-| Tests | `npm test` (`vitest run`). The suite is about 300 files and 9,000+ tests and takes minutes; run single files while working, for example `npx vitest run test/redeem.test.js`. |
+| Tests | `npm test` (`vitest run`) runs every test and takes minutes. `npm run test:quick` leaves out the slowest files (listed in `test/heavy.js`). While working, run single files, for example `npx vitest run test/redeem.test.js`. No counts in docs: the number of files and tests drifts. |
 | Production build | `npm run build` (output in `dist/`) |
 | iOS web bundle | `npm run build:ios` (Vite `ios` mode, output in `ios/web/`) |
 | Refresh iPhone/iPad installs | `npm run ios:refresh`; `npm run ios:schedule` turns on the nightly 7 pm run (see `ios/README.md`) |
@@ -50,9 +50,9 @@ Linux in CI, so float fixtures should compare with a tolerance.
   reaches the devices).
 - A worktree has no `node_modules` of its own; resolution walks up to the
   parent checkout's. Do not run `npm install` in a worktree.
-- Worktrees nested inside the checkout (`.claude/worktrees/`) are picked up by a
-  bare `vitest run` in the main checkout, which multiplies the suite. Run the
-  suite from inside the worktree you are working in.
+- Vitest only collects tests from `test/` (`test.dir` in `vite.config.js`), so
+  worktrees nested inside the checkout (`.claude/worktrees/`) are not picked
+  up. Run the suite from inside the worktree you are working in.
 - Larger changes go spec, then plan, then build, in `docs/superpowers/specs/`
   and `docs/superpowers/plans/`.
 
@@ -66,13 +66,13 @@ Linux in CI, so float fixtures should compare with a tolerance.
 | `src/progression.js` | The save: state shape, `sanitizeState` (hostile-payload hardening), ranks. Saves are additive where possible |
 | `src/cat/` | Procedural cat model, coat, limbs, accessories, animation |
 | `src/render/` | Renderer rig, quality ladder and adaptive Auto, materials, sky, water, shadows, performance readout |
-| `src/world/` | The areas (neighbourhood, park, seaside, docks, woods, moor, river, pines and island, gorge) and the builder that assembles them |
+| `src/world/` | The areas (neighbourhood, park, seaside, docks, farm, fairground, woods, moor, river, pines and island, gorge) and the builder that assembles them |
 | `src/cloud.js`, `src/net.js` | Supabase client: save/profile/friend RPCs and the realtime transport |
 | `docs/*.sql` | The live Supabase contract: `supabase-setup.sql`, `supabase-colony.sql`, `supabase-v8-hardening.sql`, `supabase-v9-delete.sql` ("Delete my online data"; `supabase-v7-secret-fix.sql` is history; don't run it). The owner runs these in the Supabase SQL editor; do not change one without telling the owner to re-run it. `docs/COLONY-SETUP.md` explains it |
 | `ios/` | The iPhone/iPad app (a WKWebView shell around the bundled web build, Xcode project, Swift tests) and the Node refresh scripts. `ios/README.md` is the guide |
-| `test/` | Vitest suites, about 300 files; `test/fixtures/` holds pinned recordings (re-record only after finding out why one moved) |
+| `test/` | Vitest suites; `test/fixtures/` holds pinned recordings (re-record only after finding out why one moved) |
 | `docs/PRIVACY.md` | The draft privacy policy (not yet reviewed by a lawyer). It must stay true of the code: if a change alters what the game stores or sends, change this page with it. Its appendix lists the gaps the owner still has to decide on |
-| `CREDITS.md` | Third-party libraries and where every asset comes from. Add a row when a library or an asset file is added. There is no LICENSE file on purpose: the owner has not chosen one |
+| `CREDITS.md` | Third-party libraries and where every asset comes from. Add a row when a library or an asset file is added. The project's own licence is all rights reserved: see `LICENSE` |
 | `docs/family/` | Family keepsakes that are not part of the website (the old Clan Edition announcement page, without its gift codes). Nothing here is built or deployed; keep gift codes and personal details out of `public/` |
 | `docs/VISUAL-PASS.md` | Running log of visual and performance passes |
 | `docs/superpowers/` | Specs, plans and handoffs for every wave |

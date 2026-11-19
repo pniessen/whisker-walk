@@ -22,8 +22,8 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
 const { createHomeBase } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 
-const ALBUM_LINE = 'No photos yet. Snap one on your next walk! 📸';
-const FRIENDS_LINE = 'No cat friends yet. Go touch noses on a walk! 🐾';
+const ALBUM_LINE = 'No photos yet. Snap one next time you explore! 📸';
+const FRIENDS_LINE = 'No cat friends yet. Go exploring and touch noses! 🐾';
 
 describe('emptyStateHtml', () => {
   it('album: a decorative svg picture and the exact line', () => {

@@ -1818,9 +1818,9 @@ export function createInteractions({
           cloud.recordGreet(pid, getPsecret(), ghost.playerId, s.walkStamp)
             .then((greets) => {
               // same 1/3/6 ladder wording as Task 3's completeBoop toasts
-              if (greets === 1) hud.toast(`You met ${name} across walks! ♡`);
-              else if (greets === 3) hud.toast(`${name} is now your friend across walks! ♥`);
-              else if (greets === 6) hud.toast(`${name} is now your BEST friend across walks! 💕`);
+              if (greets === 1) hud.toast(`You've met ${name} before! ♡`);
+              else if (greets === 3) hud.toast(`${name} is now your friend! ♥`);
+              else if (greets === 6) hud.toast(`${name} is now your BEST friend! 💕`);
             })
             .catch((err) => { console.warn('Whisker Walk: ghost recordGreet failed', err); note('cloud', err); });
         }
@@ -1832,7 +1832,7 @@ export function createInteractions({
       // session.kittenPlanKind above for why.
       if (s.kittenPlanKind === 'trail') {
         progression.setKittenStage(1);
-        hud.toast('A tiny mew… but nothing here. Maybe next walk. 🐾');
+        hud.toast('A tiny mew… but nothing here. Maybe next time. 🐾');
         log.award('quest', 'kitten-trail', 'you followed the tiny paw prints');
       } else if (s.kittenPlanKind === 'meet') {
         progression.setKittenStage(2);

@@ -108,7 +108,7 @@ describe('the eleven lines that were built inside closures say what they said', 
   it('a fight at home', () => {
     expect(phrase('fight.homeAward', 'Stoatfur')).toBe('You chased off Stoatfur! 🛡️');
     expect(phrase('fight.homeWon', 'Stoatfur', 'GaleClan')).toBe("Stoatfur ran back to GaleClan's land! 🏃");
-    expect(phrase('fight.homeLostScar', 'Stoatfur')).toBe('Stoatfur shook it off and walked on. That scratch will heal in a few walks!');
+    expect(phrase('fight.homeLostScar', 'Stoatfur')).toBe('Stoatfur shook it off and walked on. That scratch will heal soon!');
     expect(phrase('fight.homeLost', 'Stoatfur')).toBe('Stoatfur shook it off and walked on. Try again soon!');
     expect(phrase('fight.homeTogether', 'Robin', 'Stoatfur')).toBe('You and Robin chased Stoatfur off together! 🏃');
     expect(phrase('fight.alreadyFacing', 'Robin', 'Stoatfur')).toBe('Robin is already facing Stoatfur!');
@@ -130,7 +130,7 @@ describe('the eleven lines that were built inside closures say what they said', 
     const w = borderWords('moor');
     expect(w.award('Stoatfur')).toEqual({ type: 'border', key: 'border-moor', text: 'You faced down Stoatfur! 🛡️' });
     expect(w.won('Stoatfur')).toBe('Stoatfur lets you pass. 🐾');
-    expect(w.lost('Stoatfur', true)).toBe('Stoatfur won this time. That scratch will heal in a few walks!');
+    expect(w.lost('Stoatfur', true)).toBe('Stoatfur won this time. That scratch will heal soon!');
     expect(w.lost('Stoatfur', false)).toBe('Stoatfur won this time. Try again soon!');
     expect(FIGHT_MOVES.map((m) => `${m.name} / ${m.short}`)).toEqual(['Rear-up Swat / Swat', 'Leap and Scratch / Leap', 'Pin / Pin', 'Rolling Tumble / Tumble']);
   });

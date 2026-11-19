@@ -72,10 +72,13 @@ export const BRIDGE = pts([[395, 232], [444, 297]]);
 const has = (obj, k) => !!obj && typeof obj === 'object' && Object.prototype.hasOwnProperty.call(obj, k);
 const count = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
 
-// The one wording for a place that opens after walks somewhere else. The
+// The one wording for a place that opens after walks somewhere else
+// ("opens after you explore The Woods 2 times · 1/2"; a border post puts
+// "🔒 The River and Marshes" in front of it). The
 // dressing room's place card uses it too, so the map and the card agree.
 export function opensAfterLine(req, have, edition, catalog) {
-  return `opens after ${req.walks} walks in ${placeName(req.area, edition, catalog) || req.area} · ${have}/${req.walks} so far`;
+  const times = req.walks === 1 ? 'once' : `${req.walks} times`;
+  return `opens after you explore ${placeName(req.area, edition, catalog) || req.area} ${times} · ${have}/${req.walks}`;
 }
 
 const SOON_LINE = { soon: 'coming soon', later: 'unexplored' };
@@ -105,8 +108,8 @@ export function territoryMapModel(state, catalog) {
     const locked = !owned && !!req && have < req.walks;
     const canOpen = !owned && !locked && points >= count(a.price);
     let line;
-    if (selected) line = 'today’s walk';
-    else if (owned) line = 'tap to walk here';
+    if (selected) line = 'you’re going here';
+    else if (owned) line = 'tap to go here';
     else if (locked) line = opensAfterLine(req, have, edition, catalog);
     else line = 'Tap to explore'; // every built territory costs 0 paws, so open means free to take
     return { owned, selected, locked, canOpen, line };

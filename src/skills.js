@@ -237,7 +237,7 @@ export const SKILLS = [
     family: 'traversal',
     name: 'Sea Legs',
     effect: 'Every cat can paddle in the shallows. Sea Legs lets you swim out into deep water — across ponds, rivers, canals and the sea.',
-    feat: 'Complete 5 seaside walks',
+    feat: 'Explore the Seaside 5 times',
     // ---------------------------------------------------------------------
     // REINSTATED in v20. This is the spec's twelfth ability, descoped by v18's
     // CF-12 and brought back once the ruling's premise stopped being true.
@@ -323,8 +323,8 @@ export const SKILLS = [
     id: 'night-eyes',
     family: 'senses',
     name: 'Night Eyes',
-    effect: 'Dusk walks brighten — atmospheric instead of squint-inducing.',
-    feat: 'Complete 5 dusk walks',
+    effect: 'Dusk gets brighter, so you can see more.',
+    feat: 'Explore at dusk 5 times',
     // Exact match to the spec, via the additive state.duskWalks save field
     // (Task 1.4). It could not be derived from anything already persisted:
     // completeWalk only counts state.walks[area], which is time-of-day

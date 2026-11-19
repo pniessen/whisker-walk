@@ -108,7 +108,7 @@ describe('createTips', () => {
     expect(r.progression.state.tutorial.hints.hiss).toBeUndefined();
     r.play(s, 48);
     bus.emit('tip', { id: 'hiss', name: 'Pepper' });
-    expect(r.up().text).toBe('Pepper is cross today. Try again on another walk.');
+    expect(r.up().text).toBe('Pepper is cross today. Try again next time.');
   });
 
   it('a pause is not play: the card being up does not use up a hint\'s time', () => {

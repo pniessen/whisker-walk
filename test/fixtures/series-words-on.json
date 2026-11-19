@@ -3492,39 +3492,39 @@
     "gorge": "Marmalade will wait for you here in The Gorge 🐾"
    },
    "opensAfter": {
-    "park": "opens after 2 walks in Twolegplace · 1/2 so far",
-    "farm": "opens after 2 walks in City Park · 1/2 so far",
-    "fair": "opens after 2 walks in City Park · 1/2 so far",
-    "seaside": "opens after 2 walks in City Park · 1/2 so far",
-    "docks": "opens after 2 walks in Seaside · 1/2 so far",
-    "woods": "opens after 2 walks in Twolegplace · 1/2 so far",
-    "river": "opens after 2 walks in The Woods · 1/2 so far",
-    "moor": "opens after 2 walks in The Woods · 1/2 so far",
-    "pines": "opens after 2 walks in The River and Marshes · 1/2 so far",
-    "gorge": "opens after 2 walks in The Moor · 1/2 so far"
+    "park": "opens after you explore Twolegplace 2 times · 1/2",
+    "farm": "opens after you explore City Park 2 times · 1/2",
+    "fair": "opens after you explore City Park 2 times · 1/2",
+    "seaside": "opens after you explore City Park 2 times · 1/2",
+    "docks": "opens after you explore Seaside 2 times · 1/2",
+    "woods": "opens after you explore Twolegplace 2 times · 1/2",
+    "river": "opens after you explore The Woods 2 times · 1/2",
+    "moor": "opens after you explore The Woods 2 times · 1/2",
+    "pines": "opens after you explore The River and Marshes 2 times · 1/2",
+    "gorge": "opens after you explore The Moor 2 times · 1/2"
    },
    "whyAPlaceIsShut": {
     "neighborhood": null,
-    "park": "opens after 2 walks in Twolegplace · 0/2 so far",
-    "farm": "opens after 2 walks in City Park · 0/2 so far",
-    "fair": "opens after 2 walks in City Park · 0/2 so far",
-    "seaside": "opens after 2 walks in City Park · 0/2 so far",
-    "docks": "opens after 2 walks in Seaside · 0/2 so far",
-    "woods": "opens after 2 walks in Twolegplace · 0/2 so far",
-    "river": "opens after 2 walks in The Woods · 0/2 so far",
-    "moor": "opens after 2 walks in The Woods · 0/2 so far",
-    "pines": "opens after 2 walks in The River and Marshes · 0/2 so far",
-    "gorge": "opens after 2 walks in The Moor · 0/2 so far"
+    "park": "opens after you explore Twolegplace 2 times · 0/2",
+    "farm": "opens after you explore City Park 2 times · 0/2",
+    "fair": "opens after you explore City Park 2 times · 0/2",
+    "seaside": "opens after you explore City Park 2 times · 0/2",
+    "docks": "opens after you explore Seaside 2 times · 0/2",
+    "woods": "opens after you explore Twolegplace 2 times · 0/2",
+    "river": "opens after you explore The Woods 2 times · 0/2",
+    "moor": "opens after you explore The Woods 2 times · 0/2",
+    "pines": "opens after you explore The River and Marshes 2 times · 0/2",
+    "gorge": "opens after you explore The Moor 2 times · 0/2"
    },
    "borderPosts": {
     "town-woods": {
      "to": "The Woods",
-     "beforeItOpens": "🔒 The Woods opens after 2 walks in Twolegplace · 1/2 so far",
+     "beforeItOpens": "🔒 The Woods opens after you explore Twolegplace 2 times · 1/2",
      "open": "E — Head to the Woods?",
      "openForAGuest": "The Woods is this way 🧭",
      "card": [
       "Head to the Woods?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3534,17 +3534,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "town-moor": {
      "to": "The Moor",
-     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 0/2 so far",
+     "beforeItOpens": "🔒 The Moor opens after you explore The Woods 2 times · 0/2",
      "open": "E — Head to the Moor?",
      "openForAGuest": "The Moor is this way 🧭",
      "card": [
       "Head to the Moor?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3554,17 +3554,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "town-river": {
      "to": "The River and Marshes",
-     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 0/2 so far",
+     "beforeItOpens": "🔒 The River and Marshes opens after you explore The Woods 2 times · 0/2",
      "open": "E — Head to the River and Marshes?",
      "openForAGuest": "The River and Marshes is this way 🧭",
      "card": [
       "Head to the River and Marshes?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3574,7 +3574,7 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "woods-town-short": {
@@ -3584,7 +3584,7 @@
      "openForAGuest": "Twolegplace is this way 🧭",
      "card": [
       "Head to Twolegplace?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3594,7 +3594,7 @@
      ],
      "afterLed": [
       "Robin led the way to Twolegplace! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "woods-town-long": {
@@ -3604,7 +3604,7 @@
      "openForAGuest": "Twolegplace is this way 🧭",
      "card": [
       "Head to Twolegplace?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3614,17 +3614,17 @@
      ],
      "afterLed": [
       "Robin led the way to Twolegplace! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "woods-river-long": {
      "to": "The River and Marshes",
-     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 1/2 so far",
+     "beforeItOpens": "🔒 The River and Marshes opens after you explore The Woods 2 times · 1/2",
      "open": "E — Head to the River and Marshes?",
      "openForAGuest": "The River and Marshes is this way 🧭",
      "card": [
       "Head to the River and Marshes?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3634,17 +3634,17 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "woods-river-pond": {
      "to": "The River and Marshes",
-     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 1/2 so far",
+     "beforeItOpens": "🔒 The River and Marshes opens after you explore The Woods 2 times · 1/2",
      "open": "E — Head to the River and Marshes?",
      "openForAGuest": "The River and Marshes is this way 🧭",
      "card": [
       "Head to the River and Marshes?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3654,17 +3654,17 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "woods-moor-path": {
      "to": "The Moor",
-     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 1/2 so far",
+     "beforeItOpens": "🔒 The Moor opens after you explore The Woods 2 times · 1/2",
      "open": "E — Head to the Moor?",
      "openForAGuest": "The Moor is this way 🧭",
      "card": [
       "Head to the Moor?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3674,17 +3674,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "woods-moor-river": {
      "to": "The Moor",
-     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 1/2 so far",
+     "beforeItOpens": "🔒 The Moor opens after you explore The Woods 2 times · 1/2",
      "open": "E — Head to the Moor?",
      "openForAGuest": "The Moor is this way 🧭",
      "card": [
       "Head to the Moor?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3694,17 +3694,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "river-woods-long": {
      "to": "The Woods",
-     "beforeItOpens": "🔒 The Woods opens after 2 walks in Twolegplace · 0/2 so far",
+     "beforeItOpens": "🔒 The Woods opens after you explore Twolegplace 2 times · 0/2",
      "open": "E — Head to the Woods?",
      "openForAGuest": "The Woods is this way 🧭",
      "card": [
       "Head to the Woods?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3714,7 +3714,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "river-town-long": {
@@ -3724,7 +3724,7 @@
      "openForAGuest": "Twolegplace is this way 🧭",
      "card": [
       "Head to Twolegplace?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3734,17 +3734,17 @@
      ],
      "afterLed": [
       "Robin led the way to Twolegplace! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "river-woods-pond": {
      "to": "The Woods",
-     "beforeItOpens": "🔒 The Woods opens after 2 walks in Twolegplace · 0/2 so far",
+     "beforeItOpens": "🔒 The Woods opens after you explore Twolegplace 2 times · 0/2",
      "open": "E — Head to the Woods?",
      "openForAGuest": "The Woods is this way 🧭",
      "card": [
       "Head to the Woods?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3754,17 +3754,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "river-pines-path": {
      "to": "The Pines and Swamp",
-     "beforeItOpens": "🔒 The Pines and Swamp opens after 2 walks in The River and Marshes · 1/2 so far",
+     "beforeItOpens": "🔒 The Pines and Swamp opens after you explore The River and Marshes 2 times · 1/2",
      "open": "E — Head to the Pines and Swamp?",
      "openForAGuest": "The Pines and Swamp is this way 🧭",
      "card": [
       "Head to the Pines and Swamp?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3774,17 +3774,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Pines and Swamp! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "moor-woods-path": {
      "to": "The Woods",
-     "beforeItOpens": "🔒 The Woods opens after 2 walks in Twolegplace · 0/2 so far",
+     "beforeItOpens": "🔒 The Woods opens after you explore Twolegplace 2 times · 0/2",
      "open": "E — Head to the Woods?",
      "openForAGuest": "The Woods is this way 🧭",
      "card": [
       "Head to the Woods?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3794,17 +3794,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "moor-woods-river": {
      "to": "The Woods",
-     "beforeItOpens": "🔒 The Woods opens after 2 walks in Twolegplace · 0/2 so far",
+     "beforeItOpens": "🔒 The Woods opens after you explore Twolegplace 2 times · 0/2",
      "open": "E — Head to the Woods?",
      "openForAGuest": "The Woods is this way 🧭",
      "card": [
       "Head to the Woods?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3814,17 +3814,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "moor-gorge": {
      "to": "The Gorge",
-     "beforeItOpens": "🔒 The Gorge opens after 2 walks in The Moor · 1/2 so far",
+     "beforeItOpens": "🔒 The Gorge opens after you explore The Moor 2 times · 1/2",
      "open": "E — Head to the Gorge?",
      "openForAGuest": "The Gorge is this way 🧭",
      "card": [
       "Head to the Gorge?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3834,17 +3834,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Gorge! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "moor-pines-trail": {
      "to": "The Pines and Swamp",
-     "beforeItOpens": "🔒 The Pines and Swamp opens after 2 walks in The River and Marshes · 0/2 so far",
+     "beforeItOpens": "🔒 The Pines and Swamp opens after you explore The River and Marshes 2 times · 0/2",
      "open": "E — Head to the Pines and Swamp?",
      "openForAGuest": "The Pines and Swamp is this way 🧭",
      "card": [
       "Head to the Pines and Swamp?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3854,17 +3854,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Pines and Swamp! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "pines-river-path": {
      "to": "The River and Marshes",
-     "beforeItOpens": "🔒 The River and Marshes opens after 2 walks in The Woods · 0/2 so far",
+     "beforeItOpens": "🔒 The River and Marshes opens after you explore The Woods 2 times · 0/2",
      "open": "E — Head to the River and Marshes?",
      "openForAGuest": "The River and Marshes is this way 🧭",
      "card": [
       "Head to the River and Marshes?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3874,17 +3874,17 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "pines-moor-trail": {
      "to": "The Moor",
-     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 0/2 so far",
+     "beforeItOpens": "🔒 The Moor opens after you explore The Woods 2 times · 0/2",
      "open": "E — Head to the Moor?",
      "openForAGuest": "The Moor is this way 🧭",
      "card": [
       "Head to the Moor?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3894,17 +3894,17 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "gorge-moor": {
      "to": "The Moor",
-     "beforeItOpens": "🔒 The Moor opens after 2 walks in The Woods · 0/2 so far",
+     "beforeItOpens": "🔒 The Moor opens after you explore The Woods 2 times · 0/2",
      "open": "E — Head to the Moor?",
      "openForAGuest": "The Moor is this way 🧭",
      "card": [
       "Head to the Moor?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3914,7 +3914,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     },
     "gorge-town": {
@@ -3924,7 +3924,7 @@
      "openForAGuest": "Twolegplace is this way 🧭",
      "card": [
       "Head to Twolegplace?",
-      "This walk ends here, and you keep everything you found.",
+      "Your trip ends here, and you keep everything you found.",
       "Yes, let's go!",
       "Keep exploring"
      ],
@@ -3934,7 +3934,7 @@
      ],
      "afterLed": [
       "Robin led the way to Twolegplace! 🧭",
-      "Ask Robin to press Start on the home screen to head there together."
+      "Ask Robin to tap Explore on the home screen to head there together."
      ]
     }
    },
@@ -3966,7 +3966,7 @@
      "facedDown": "You faced down Conkerbelly! 🛡️",
      "letsYouPass": "Conkerbelly lets you pass. 🐾",
      "wonThisTime": [
-      "Conkerbelly won this time. That scratch will heal in a few walks!",
+      "Conkerbelly won this time. That scratch will heal soon!",
       "Conkerbelly won this time. Try again soon!"
      ]
     },
@@ -3990,7 +3990,7 @@
      "facedDown": "You faced down Fawnheart! 🛡️",
      "letsYouPass": "Fawnheart lets you pass. 🐾",
      "wonThisTime": [
-      "Fawnheart won this time. That scratch will heal in a few walks!",
+      "Fawnheart won this time. That scratch will heal soon!",
       "Fawnheart won this time. Try again soon!"
      ]
     },
@@ -4014,7 +4014,7 @@
      "facedDown": "You faced down Rootfang! 🛡️",
      "letsYouPass": "Rootfang lets you pass. 🐾",
      "wonThisTime": [
-      "Rootfang won this time. That scratch will heal in a few walks!",
+      "Rootfang won this time. That scratch will heal soon!",
       "Rootfang won this time. Try again soon!"
      ]
     },
@@ -4038,7 +4038,7 @@
      "facedDown": "You faced down Volefur! 🛡️",
      "letsYouPass": "Volefur lets you pass. 🐾",
      "wonThisTime": [
-      "Volefur won this time. That scratch will heal in a few walks!",
+      "Volefur won this time. That scratch will heal soon!",
       "Volefur won this time. Try again soon!"
      ]
     },
@@ -4062,7 +4062,7 @@
      "facedDown": "You faced down Troutstripe! 🛡️",
      "letsYouPass": "Troutstripe lets you pass. 🐾",
      "wonThisTime": [
-      "Troutstripe won this time. That scratch will heal in a few walks!",
+      "Troutstripe won this time. That scratch will heal soon!",
       "Troutstripe won this time. Try again soon!"
      ]
     },
@@ -4086,7 +4086,7 @@
      "facedDown": "You faced down Mintshade! 🛡️",
      "letsYouPass": "Mintshade lets you pass. 🐾",
      "wonThisTime": [
-      "Mintshade won this time. That scratch will heal in a few walks!",
+      "Mintshade won this time. That scratch will heal soon!",
       "Mintshade won this time. Try again soon!"
      ]
     },
@@ -4110,7 +4110,7 @@
      "facedDown": "You faced down Cottontail! 🛡️",
      "letsYouPass": "Cottontail lets you pass. 🐾",
      "wonThisTime": [
-      "Cottontail won this time. That scratch will heal in a few walks!",
+      "Cottontail won this time. That scratch will heal soon!",
       "Cottontail won this time. Try again soon!"
      ]
     },
@@ -4134,7 +4134,7 @@
      "facedDown": "You faced down Torshade! 🛡️",
      "letsYouPass": "Torshade lets you pass. 🐾",
      "wonThisTime": [
-      "Torshade won this time. That scratch will heal in a few walks!",
+      "Torshade won this time. That scratch will heal soon!",
       "Torshade won this time. Try again soon!"
      ]
     },
@@ -4158,7 +4158,7 @@
      "facedDown": "You faced down Bilberryear! 🛡️",
      "letsYouPass": "Bilberryear lets you pass. 🐾",
      "wonThisTime": [
-      "Bilberryear won this time. That scratch will heal in a few walks!",
+      "Bilberryear won this time. That scratch will heal soon!",
       "Bilberryear won this time. Try again soon!"
      ]
     },
@@ -4182,7 +4182,7 @@
      "facedDown": "You faced down Needlestripe! 🛡️",
      "letsYouPass": "Needlestripe lets you pass. 🐾",
      "wonThisTime": [
-      "Needlestripe won this time. That scratch will heal in a few walks!",
+      "Needlestripe won this time. That scratch will heal soon!",
       "Needlestripe won this time. Try again soon!"
      ]
     },
@@ -4206,7 +4206,7 @@
      "facedDown": "You faced down Beetlefur! 🛡️",
      "letsYouPass": "Beetlefur lets you pass. 🐾",
      "wonThisTime": [
-      "Beetlefur won this time. That scratch will heal in a few walks!",
+      "Beetlefur won this time. That scratch will heal soon!",
       "Beetlefur won this time. Try again soon!"
      ]
     },
@@ -4230,7 +4230,7 @@
      "facedDown": "You faced down Toadtail! 🛡️",
      "letsYouPass": "Toadtail lets you pass. 🐾",
      "wonThisTime": [
-      "Toadtail won this time. That scratch will heal in a few walks!",
+      "Toadtail won this time. That scratch will heal soon!",
       "Toadtail won this time. Try again soon!"
      ]
     },
@@ -4254,7 +4254,7 @@
      "facedDown": "You faced down Flintbelly! 🛡️",
      "letsYouPass": "Flintbelly lets you pass. 🐾",
      "wonThisTime": [
-      "Flintbelly won this time. That scratch will heal in a few walks!",
+      "Flintbelly won this time. That scratch will heal soon!",
       "Flintbelly won this time. Try again soon!"
      ]
     },
@@ -4278,7 +4278,7 @@
      "facedDown": "You faced down Merlinheart! 🛡️",
      "letsYouPass": "Merlinheart lets you pass. 🐾",
      "wonThisTime": [
-      "Merlinheart won this time. That scratch will heal in a few walks!",
+      "Merlinheart won this time. That scratch will heal soon!",
       "Merlinheart won this time. Try again soon!"
      ]
     },
@@ -4302,7 +4302,7 @@
      "facedDown": "You faced down Shalewhisker! 🛡️",
      "letsYouPass": "Shalewhisker lets you pass. 🐾",
      "wonThisTime": [
-      "Shalewhisker won this time. That scratch will heal in a few walks!",
+      "Shalewhisker won this time. That scratch will heal soon!",
       "Shalewhisker won this time. Try again soon!"
      ]
     }
@@ -5414,85 +5414,90 @@
    "map": {
     "firstDay": [
      "[aria-label] Territory map",
-     "Twolegplace · today’s walk",
+     "Twolegplace · you’re going here",
      "🏠",
      "Twolegplace",
-     "today’s walk",
-     "The Woods · opens after 2 walks in Twolegplace · 0/2 so far",
+     "you’re going here",
+     "The Woods · opens after you explore Twolegplace 2 times · 0/2",
      "🌳",
      "🔒 The Woods",
-     "opens after 2 walks in",
-     "Twolegplace",
-     "0/2 so far",
+     "opens after you",
+     "explore Twolegplace 2",
+     "times",
+     "0/2",
      "StormClan camp",
-     "The Moor · opens after 2 walks in The Woods · 0/2 so far",
+     "The Moor · opens after you explore The Woods 2 times · 0/2",
      "🌾",
      "🔒 The Moor",
-     "opens after 2 walks in",
-     "The Woods",
-     "0/2 so far",
+     "opens after you",
+     "explore The Woods 2",
+     "times",
+     "0/2",
      "GaleClan camp",
-     "The River and Marshes · opens after 2 walks in The Woods · 0/2 so far",
+     "The River and Marshes · opens after you explore The Woods 2 times · 0/2",
      "🌿",
      "🔒 The River",
      "and Marshes",
-     "opens after 2 walks in",
-     "The Woods",
-     "0/2 so far",
+     "opens after you",
+     "explore The Woods 2",
+     "times",
+     "0/2",
      "BrookClan camp",
-     "The Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+     "The Pines and Swamp · opens after you explore The River and Marshes 2 times · 0/2",
      "🌲",
      "🔒 The Pines",
      "and Swamp",
-     "opens after 2 walks in",
-     "The River and Marshes",
-     "0/2 so far",
+     "opens after you",
+     "explore The River and",
+     "Marshes 2 times",
+     "0/2",
      "DuskClan camp",
-     "The Gorge · opens after 2 walks in The Moor · 0/2 so far",
+     "The Gorge · opens after you explore The Moor 2 times · 0/2",
      "⛰️",
      "🔒 The Gorge",
-     "opens after 2 walks in",
-     "The Moor",
-     "0/2 so far",
+     "opens after you",
+     "explore The Moor 2",
+     "times",
+     "0/2",
      "CliffClan camp",
-     "The island, in the Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+     "The island, in the Pines and Swamp · opens after you explore The River and Marshes 2 times · 0/2",
      "The island",
      "in the Pines and Swamp"
     ],
     "everythingOpenHomeAndAlly": [
      "[aria-label] Territory map",
-     "Twolegplace · tap to walk here",
+     "Twolegplace · tap to go here",
      "🏠",
      "Twolegplace",
-     "tap to walk here",
-     "The Woods · today’s walk",
+     "tap to go here",
+     "The Woods · you’re going here",
      "🌳",
      "The Woods",
-     "today’s walk",
+     "you’re going here",
      "StormClan camp",
-     "The Moor · tap to walk here",
+     "The Moor · tap to go here",
      "🌾",
      "The Moor",
-     "tap to walk here",
+     "tap to go here",
      "GaleClan camp",
-     "The River and Marshes · tap to walk here",
+     "The River and Marshes · tap to go here",
      "🌿",
      "The River and",
      "Marshes",
-     "tap to walk here",
+     "tap to go here",
      "BrookClan camp",
-     "The Pines and Swamp · tap to walk here",
+     "The Pines and Swamp · tap to go here",
      "🌲",
      "The Pines and",
      "Swamp",
-     "tap to walk here",
+     "tap to go here",
      "DuskClan camp",
-     "The Gorge · tap to walk here",
+     "The Gorge · tap to go here",
      "⛰️",
      "The Gorge",
-     "tap to walk here",
+     "tap to go here",
      "CliffClan camp",
-     "The island, in the Pines and Swamp · tap to walk here",
+     "The island, in the Pines and Swamp · tap to go here",
      "The island",
      "in the Pines and Swamp"
     ],
@@ -5539,76 +5544,81 @@
      "today": "Twolegplace",
      "places": [
       "Twolegplace",
-      "City Park · opens after 2 walks in Twolegplace · 0/2 so far",
-      "Appletree Farm · opens after 2 walks in City Park · 0/2 so far",
-      "The Fairground · opens after 2 walks in City Park · 0/2 so far",
-      "Seaside · opens after 2 walks in City Park · 0/2 so far",
-      "The Old Docks · opens after 2 walks in Seaside · 0/2 so far",
-      "The Woods · opens after 2 walks in Twolegplace · 0/2 so far",
-      "The River and Marshes · opens after 2 walks in The Woods · 0/2 so far",
-      "The Moor · opens after 2 walks in The Woods · 0/2 so far",
-      "The Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
-      "The Gorge · opens after 2 walks in The Moor · 0/2 so far"
+      "City Park · opens after you explore Twolegplace 2 times · 0/2",
+      "Appletree Farm · opens after you explore City Park 2 times · 0/2",
+      "The Fairground · opens after you explore City Park 2 times · 0/2",
+      "Seaside · opens after you explore City Park 2 times · 0/2",
+      "The Old Docks · opens after you explore Seaside 2 times · 0/2",
+      "The Woods · opens after you explore Twolegplace 2 times · 0/2",
+      "The River and Marshes · opens after you explore The Woods 2 times · 0/2",
+      "The Moor · opens after you explore The Woods 2 times · 0/2",
+      "The Pines and Swamp · opens after you explore The River and Marshes 2 times · 0/2",
+      "The Gorge · opens after you explore The Moor 2 times · 0/2"
      ],
      "sheet": [
       "The clans have noticed you!",
       "Choose your clan ›",
       "[aria-label] Territory map",
-      "Twolegplace · today’s walk",
+      "Twolegplace · you’re going here",
       "🏠",
       "Twolegplace",
-      "today’s walk",
-      "The Woods · opens after 2 walks in Twolegplace · 0/2 so far",
+      "you’re going here",
+      "The Woods · opens after you explore Twolegplace 2 times · 0/2",
       "🌳",
       "🔒 The Woods",
-      "opens after 2 walks in",
-      "Twolegplace",
-      "0/2 so far",
+      "opens after you",
+      "explore Twolegplace 2",
+      "times",
+      "0/2",
       "StormClan camp",
-      "The Moor · opens after 2 walks in The Woods · 0/2 so far",
+      "The Moor · opens after you explore The Woods 2 times · 0/2",
       "🌾",
       "🔒 The Moor",
-      "opens after 2 walks in",
-      "The Woods",
-      "0/2 so far",
+      "opens after you",
+      "explore The Woods 2",
+      "times",
+      "0/2",
       "GaleClan camp",
-      "The River and Marshes · opens after 2 walks in The Woods · 0/2 so far",
+      "The River and Marshes · opens after you explore The Woods 2 times · 0/2",
       "🌿",
       "🔒 The River",
       "and Marshes",
-      "opens after 2 walks in",
-      "The Woods",
-      "0/2 so far",
+      "opens after you",
+      "explore The Woods 2",
+      "times",
+      "0/2",
       "BrookClan camp",
-      "The Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+      "The Pines and Swamp · opens after you explore The River and Marshes 2 times · 0/2",
       "🌲",
       "🔒 The Pines",
       "and Swamp",
-      "opens after 2 walks in",
-      "The River and Marshes",
-      "0/2 so far",
+      "opens after you",
+      "explore The River and",
+      "Marshes 2 times",
+      "0/2",
       "DuskClan camp",
-      "The Gorge · opens after 2 walks in The Moor · 0/2 so far",
+      "The Gorge · opens after you explore The Moor 2 times · 0/2",
       "⛰️",
       "🔒 The Gorge",
-      "opens after 2 walks in",
-      "The Moor",
-      "0/2 so far",
+      "opens after you",
+      "explore The Moor 2",
+      "times",
+      "0/2",
       "CliffClan camp",
-      "The island, in the Pines and Swamp · opens after 2 walks in The River and Marshes · 0/2 so far",
+      "The island, in the Pines and Swamp · opens after you explore The River and Marshes 2 times · 0/2",
       "The island",
       "in the Pines and Swamp",
       "More places",
       "City Park",
-      "opens after 2 walks in Twolegplace · 0/2 so far",
+      "opens after you explore Twolegplace 2 times · 0/2",
       "Appletree Farm",
-      "opens after 2 walks in City Park · 0/2 so far",
+      "opens after you explore City Park 2 times · 0/2",
       "The Fairground",
-      "opens after 2 walks in City Park · 0/2 so far",
+      "opens after you explore City Park 2 times · 0/2",
       "Seaside",
-      "opens after 2 walks in City Park · 0/2 so far",
+      "opens after you explore City Park 2 times · 0/2",
       "The Old Docks",
-      "opens after 2 walks in Seaside · 0/2 so far"
+      "opens after you explore Seaside 2 times · 0/2"
      ]
     },
     "everythingOpenAtHome": {
@@ -5632,51 +5642,51 @@
       "· Robin is GaleClan",
       "Change ›",
       "[aria-label] Territory map",
-      "Twolegplace · tap to walk here",
+      "Twolegplace · tap to go here",
       "🏠",
       "Twolegplace",
-      "tap to walk here",
-      "The Woods · today’s walk",
+      "tap to go here",
+      "The Woods · you’re going here",
       "🌳",
       "The Woods",
-      "today’s walk",
+      "you’re going here",
       "StormClan camp",
-      "The Moor · tap to walk here",
+      "The Moor · tap to go here",
       "🌾",
       "The Moor",
-      "tap to walk here",
+      "tap to go here",
       "GaleClan camp",
-      "The River and Marshes · tap to walk here",
+      "The River and Marshes · tap to go here",
       "🌿",
       "The River and",
       "Marshes",
-      "tap to walk here",
+      "tap to go here",
       "BrookClan camp",
-      "The Pines and Swamp · tap to walk here",
+      "The Pines and Swamp · tap to go here",
       "🌲",
       "The Pines and",
       "Swamp",
-      "tap to walk here",
+      "tap to go here",
       "DuskClan camp",
-      "The Gorge · tap to walk here",
+      "The Gorge · tap to go here",
       "⛰️",
       "The Gorge",
-      "tap to walk here",
+      "tap to go here",
       "CliffClan camp",
-      "The island, in the Pines and Swamp · tap to walk here",
+      "The island, in the Pines and Swamp · tap to go here",
       "The island",
       "in the Pines and Swamp",
       "More places",
       "City Park",
-      "tap to walk here",
+      "tap to go here",
       "Appletree Farm",
-      "tap to walk here",
+      "tap to go here",
       "The Fairground",
-      "tap to walk here",
+      "tap to go here",
       "Seaside",
-      "tap to walk here",
+      "tap to go here",
       "The Old Docks",
-      "tap to walk here"
+      "tap to go here"
      ]
     },
     "worn": [
@@ -5729,16 +5739,16 @@
   "momentIsDue": false,
   "collar": null,
   "opensAfter": {
-   "park": "opens after 2 walks in Cozy Neighborhood · 1/2 so far",
-   "farm": "opens after 2 walks in City Park · 1/2 so far",
-   "fair": "opens after 2 walks in City Park · 1/2 so far",
-   "seaside": "opens after 2 walks in City Park · 1/2 so far",
-   "docks": "opens after 2 walks in Seaside · 1/2 so far",
-   "woods": "opens after 2 walks in Cozy Neighborhood · 1/2 so far",
-   "river": "opens after 2 walks in The Woods · 1/2 so far",
-   "moor": "opens after 2 walks in The Woods · 1/2 so far",
-   "pines": "opens after 2 walks in The River and Marshes · 1/2 so far",
-   "gorge": "opens after 2 walks in The Moor · 1/2 so far"
+   "park": "opens after you explore Cozy Neighborhood 2 times · 1/2",
+   "farm": "opens after you explore City Park 2 times · 1/2",
+   "fair": "opens after you explore City Park 2 times · 1/2",
+   "seaside": "opens after you explore City Park 2 times · 1/2",
+   "docks": "opens after you explore Seaside 2 times · 1/2",
+   "woods": "opens after you explore Cozy Neighborhood 2 times · 1/2",
+   "river": "opens after you explore The Woods 2 times · 1/2",
+   "moor": "opens after you explore The Woods 2 times · 1/2",
+   "pines": "opens after you explore The River and Marshes 2 times · 1/2",
+   "gorge": "opens after you explore The Moor 2 times · 1/2"
   },
   "borderPostToTown": "E — Head to Cozy Neighborhood?",
   "colonyTab": [
@@ -5793,17 +5803,17 @@
    "hasTerritoryMap": false,
    "sheet": [
     "Cozy Neighborhood",
-    "today’s walk",
+    "you’re going here",
     "City Park",
-    "tap to walk here",
+    "tap to go here",
     "Appletree Farm",
-    "tap to walk here",
+    "tap to go here",
     "The Fairground",
-    "tap to walk here",
+    "tap to go here",
     "Seaside",
-    "tap to walk here",
+    "tap to go here",
     "The Old Docks",
-    "tap to walk here"
+    "tap to go here"
    ]
   },
   "mapModelCamps": [
@@ -5867,12 +5877,12 @@
   "fight.borderOff": "Run",
   "fight.homeAward": "You chased off Cottontail! 🛡️",
   "fight.homeWon": "Cottontail ran back to GaleClan's land! 🏃",
-  "fight.homeLostScar": "Cottontail shook it off and walked on. That scratch will heal in a few walks!",
+  "fight.homeLostScar": "Cottontail shook it off and walked on. That scratch will heal soon!",
   "fight.homeLost": "Cottontail shook it off and walked on. Try again soon!",
   "fight.homeTogether": "You and Robin chased Cottontail off together! 🏃",
   "fight.borderAward": "You faced down Cottontail! 🛡️",
   "fight.borderWon": "Cottontail lets you pass. 🐾",
-  "fight.borderLostScar": "Cottontail won this time. That scratch will heal in a few walks!",
+  "fight.borderLostScar": "Cottontail won this time. That scratch will heal soon!",
   "fight.borderLost": "Cottontail won this time. Try again soon!",
   "fight.alreadyFacing": "Robin is already facing Cottontail!",
   "journal.chasedOff": "Intruders chased off",

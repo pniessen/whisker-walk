@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   pauseCardHtml, pauseCardFor, cardMode, resumeLabel, takeStartLines, TOUCH_START_HINT, TOUCH_HINT_WALKS,
+  pauseSoundOf, PAUSE_SOUND_ID, PAUSE_MUSIC_ID,
 } from '../src/game/walk.js';
 import { createCrossing } from '../src/game/crossing.js';
 import { CATALOG } from '../src/progression.js';
@@ -16,17 +17,17 @@ describe('the card behind a walk says what state the walk is in', () => {
   it('once the walk has begun it says Paused and offers Keep walking', () => {
     const html = pauseCardHtml({ welcome: null, touch: true, mode: 'paused' });
     expect(html).toContain('<h1>Paused</h1>');
-    expect(html).toContain('>Keep walking</button>');
+    expect(html).toContain('>Keep exploring</button>');
     expect(html).toContain('id="btn-end"');
     expect(html).not.toContain('Ready?');
-    expect(pauseCardHtml({ welcome: null, touch: false, mode: 'paused' })).toContain('>Keep walking (click)</button>');
+    expect(pauseCardHtml({ welcome: null, touch: false, mode: 'paused' })).toContain('>Keep exploring (click)</button>');
   });
 
   it('a walk picked up again says Welcome back! and Keep walking', () => {
     const html = pauseCardHtml({ welcome: 'Your walk is right where you left it.', touch: true, mode: 'back' });
     expect(html).toContain('<h1>Welcome back!</h1>');
     expect(html).toContain('Your walk is right where you left it.');
-    expect(html).toContain('>Keep walking</button>');
+    expect(html).toContain('>Keep exploring</button>');
   });
 
   it('the buttons still hold plain text only (main.js routes clicks by id)', () => {
@@ -86,7 +87,7 @@ describe('the crossing card puts the right card back', () => {
     s.crossing = { to: 'moor', name: 'The Moor' };
     crossing.cancel();
     expect(overlay.innerHTML).toContain('<h1>Paused</h1>');
-    expect(overlay.innerHTML).toContain('>Keep walking</button>');
+    expect(overlay.innerHTML).toContain('>Keep exploring</button>');
     expect(s.crossing).toBe(null);
   });
 });
@@ -130,5 +131,42 @@ describe('a lesson on the card', () => {
     expect(hint(paused).match(/hint-seg/g)).toHaveLength(8);
     // an ordinary walk's Ready? card keeps its list
     expect(hint(pauseCardFor({ started: false, welcome: null, portrait: null, lesson: null }, false)).match(/hint-seg/g)).toHaveLength(8);
+  });
+});
+
+// Menu review 2026-11-19, change 1: on a touch screen the sound could only be
+// turned down by ending the walk. The pause card carries Sound and Music.
+describe('Sound and Music on the pause card', () => {
+  const on = { sound: true, music: true };
+  const sw = (html, id) => html.match(new RegExp(`<input type="checkbox" role="switch" id="${id}" (checked )?/>`));
+  it('sit between Keep exploring and Head home, once the walk has begun', () => {
+    const html = pauseCardHtml({ welcome: null, touch: true, mode: 'paused', sound: on });
+    const at = (x) => html.indexOf(x);
+    expect(at('id="btn-resume"')).toBeLessThan(at(`id="${PAUSE_SOUND_ID}"`));
+    expect(at(`id="${PAUSE_SOUND_ID}"`)).toBeLessThan(at(`id="${PAUSE_MUSIC_ID}"`));
+    expect(at(`id="${PAUSE_MUSIC_ID}"`)).toBeLessThan(at('id="btn-end"'));
+    expect(html).toContain('🔊 Sound');
+    expect(html).toContain('🎵 Music');
+    expect(sw(html, PAUSE_SOUND_ID)[1]).toBe('checked ');
+    expect(sw(html, PAUSE_MUSIC_ID)[1]).toBe('checked ');
+  });
+  it('show each switch as it stands', () => {
+    const html = pauseCardHtml({ welcome: null, touch: false, mode: 'back', sound: { sound: false, music: true } });
+    expect(sw(html, PAUSE_SOUND_ID)[1]).toBeUndefined();
+    expect(sw(html, PAUSE_MUSIC_ID)[1]).toBe('checked ');
+  });
+  it('are not on the Ready? card, nor without a sound state', () => {
+    expect(pauseCardHtml({ welcome: 'Hi', touch: false, mode: 'ready', sound: on })).not.toContain(PAUSE_SOUND_ID);
+    expect(pauseCardHtml({ welcome: null, touch: true, mode: 'paused' })).not.toContain(PAUSE_SOUND_ID);
+  });
+  it('pauseCardFor passes the sound state through', () => {
+    expect(pauseCardFor({ started: true, welcome: null, portrait: null, lesson: null }, true, on))
+      .toBe(pauseCardHtml({ welcome: null, touch: true, mode: 'paused', sound: on }));
+  });
+  it('read the same settings as Sound & controls: Sound is mute turned round, Music is a volume above 0', () => {
+    const settings = (v) => ({ get: (k) => v[k] });
+    expect(pauseSoundOf(settings({ muted: false, musicVolume: 0.5 }))).toEqual({ sound: true, music: true });
+    expect(pauseSoundOf(settings({ muted: true, musicVolume: 0 }))).toEqual({ sound: false, music: false });
+    expect(pauseSoundOf(null)).toBe(null);
   });
 });

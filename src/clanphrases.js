@@ -112,13 +112,13 @@ const TABLE = Object.freeze({
   // at home, against an intruder
   'fight.homeAward': (name) => `You chased off ${name}! 🛡️`,
   'fight.homeWon': (name, group) => `${name} ran back to ${group}'s land! 🏃`,
-  'fight.homeLostScar': (name) => `${name} shook it off and walked on. That scratch will heal in a few walks!`,
+  'fight.homeLostScar': (name) => `${name} shook it off and walked on. That scratch will heal soon!`,
   'fight.homeLost': (name) => `${name} shook it off and walked on. Try again soon!`,
   'fight.homeTogether': (petName, name) => `You and ${petName} chased ${name} off together! 🏃`,
   // at another group's border, against its patrol
   'fight.borderAward': (name) => `You faced down ${name}! 🛡️`,
   'fight.borderWon': (name) => `${name} lets you pass. 🐾`,
-  'fight.borderLostScar': (name) => `${name} won this time. That scratch will heal in a few walks!`,
+  'fight.borderLostScar': (name) => `${name} won this time. That scratch will heal soon!`,
   'fight.borderLost': (name) => `${name} won this time. Try again soon!`,
   // a co-walker got there first
   'fight.alreadyFacing': (petName, name) => `${petName} is already facing ${name}!`,
@@ -208,7 +208,7 @@ const LATER = Object.freeze({
   'farm.find.owl.peek': 'The owl opens one eye… and goes back to sleep. 🦉',
   'farm.find.scarecrow.first': 'You found a hat to try on: the scarecrow’s! 👒',
   'farm.find.scarecrow.prompt': 'E — try on the scarecrow’s hat',
-  'farm.find.scarecrow.on': 'You are wearing the scarecrow’s hat! You can keep it on for this walk. 👒',
+  'farm.find.scarecrow.on': 'You are wearing the scarecrow’s hat! You can keep it on until you go home. 👒',
   'farm.find.scarecrow.backPrompt': 'E — give the scarecrow his hat back',
   'farm.find.scarecrow.off': 'The scarecrow has his hat back. 👒',
   'farm.find.apples.first': 'You found out how to make apples drop: climb the tree! 🍎',

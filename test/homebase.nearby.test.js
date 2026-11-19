@@ -251,7 +251,7 @@ describe('a fresh device: not online yet, so no search', () => {
     openSheet('together');
     await tap({ id: 'wt-host' });
     expect(rooms.host).not.toHaveBeenCalled();
-    expect(html()).toContain('You need a walking name before you can join a walk. Type one here and tap Save:');
+    expect(html()).toContain('You need a walking name before you can play together. Type one here and tap Save:');
     expect(sent).toEqual([]);
   });
   it('saving a walking name on Play together is what starts the search', async () => {
@@ -287,8 +287,8 @@ describe('the rows in Play together', () => {
     openSheet('together');
     const h = html();
     expect(h.match(/class="wt-nearby-row"/g)).toHaveLength(2);
-    expect(h).toContain('<b>Robin</b> is starting a walk nearby');
-    expect(h).toContain('<b>Tiger Lily</b> is starting a walk nearby');
+    expect(h).toContain('<b>Robin</b> is exploring nearby');
+    expect(h).toContain('<b>Tiger Lily</b> is exploring nearby');
     // a name on the air can be anyone's: the code is there to check against the host's screen
     expect(h).toContain('<span class="wt-nearby-code">Room WXYZ: check it&#39;s the code on their screen</span>');
     expect(h).toContain('<span class="wt-nearby-code">Room QRST: check it&#39;s the code on their screen</span>');
@@ -304,7 +304,7 @@ describe('the rows in Play together', () => {
     const slot = { innerHTML: '' };
     doc.root.querySelector = (sel) => (sel === '#wt-nearby' ? slot : null);
     nearby.receive(found(['WXYZ', 'Robin']));
-    expect(slot.innerHTML).toContain('<b>Robin</b> is starting a walk nearby');
+    expect(slot.innerHTML).toContain('<b>Robin</b> is exploring nearby');
     expect(html()).toBe(before); // the sheet itself was not redrawn
     nearby.receive(found());
     expect(slot.innerHTML).toBe('');
@@ -315,7 +315,7 @@ describe('the rows in Play together', () => {
     openSheet('together');
     expect(html()).not.toContain('<img src=x');
     expect(html()).not.toContain('&lt;img src=x');
-    expect(html()).toContain('<b>Mystery Cat</b> is starting a walk nearby');
+    expect(html()).toContain('<b>Mystery Cat</b> is exploring nearby');
   });
   it('Join with a name set calls the existing join with that code, and the room shows', async () => {
     const { nearby, rooms } = setup();
@@ -339,7 +339,7 @@ describe('the rows in Play together', () => {
     doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? nameBox : null);
     await tap({ dataset: { nearbyCode: 'WXYZ' } });
     expect(rooms.join).not.toHaveBeenCalled();
-    expect(html()).toContain('You need a walking name before you can join a walk');
+    expect(html()).toContain('You need a walking name before you can play together');
     expect(html().indexOf('You need a walking name')).toBeLessThan(html().indexOf('id="wt-petname-input"'));
     expect(nameBox.focus).toHaveBeenCalled();
     expect(html()).toContain('wt-nearby-row'); // the row waits for her
@@ -361,7 +361,7 @@ describe('the rows in Play together', () => {
     nearby.receive(found(['WXYZ', 'Robin']));
     openSheet('together');
     await tap({ dataset: { nearbyCode: 'WXYZ' } });
-    expect(html()).toContain('Could not join that walk');
+    expect(html()).toContain('Could not join that room');
     expect(html()).toContain('id="wt-join-code"');
   });
   it('the typed code still works beside the rows', async () => {
@@ -414,7 +414,7 @@ describe('the card over home', () => {
     expect(card()).toBeUndefined();
     nearby.receive(found(['WXYZ', 'Robin']));
     expect(card()).toBeTruthy();
-    expect(cardLine()).toBe('Robin is starting a walk nearby. Join?');
+    expect(cardLine()).toBe('Robin is exploring nearby. Join?');
     expect(cardCode()).toBe("Room WXYZ: check it's the code on their screen");
     expect(cardJoin().textContent).toBe('Join');
     expect(cardLater().textContent).toBe('Not now');
@@ -424,7 +424,7 @@ describe('the card over home', () => {
     nearby.cardRoom = () => ({ code: 'WXYZ', name: '<b>x</b>' });
     nearby.receive(found(['WXYZ', 'Robin']));
     expect(card().innerHTML).toBe('');
-    expect(cardLine()).toBe('Mystery Cat is starting a walk nearby. Join?');
+    expect(cardLine()).toBe('Mystery Cat is exploring nearby. Join?');
   });
   it('only one, however many rooms there are', () => {
     const { nearby } = setup();
@@ -448,7 +448,7 @@ describe('the card over home', () => {
     nearby.receive(found(['WXYZ', 'Robin']));
     expect(card()).toBeUndefined();
     nearby.receive(found(['WXYZ', 'Robin'], ['QRST', 'Robin']));
-    expect(cardLine()).toBe('Robin is starting a walk nearby. Join?');
+    expect(cardLine()).toBe('Robin is exploring nearby. Join?');
   });
   it('Escape is "Not now"', () => {
     const { nearby } = setup();
@@ -485,7 +485,7 @@ describe('the card over home', () => {
     expect(rooms.join).not.toHaveBeenCalled();
     expect(card()).toBeUndefined();
     expect(html()).toContain('data-sheet="together"');
-    expect(html()).toContain('You need a walking name before you can join a walk');
+    expect(html()).toContain('You need a walking name before you can play together');
     expect(html()).toContain('data-nearby-code="WXYZ"');
     expect(nameBox.focus).toHaveBeenCalled();
   });
@@ -494,7 +494,7 @@ describe('the card over home', () => {
     nearby.receive(found(['WXYZ', 'Robin']));
     await cardJoin().listeners.click();
     expect(html()).toContain('data-sheet="together"');
-    expect(html()).toContain('Could not join that walk');
+    expect(html()).toContain('Could not join that room');
     openSheet(null);
     expect(card()).toBeUndefined();
   });
