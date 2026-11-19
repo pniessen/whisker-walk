@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { buildCat } from '../../src/cat/model.js';
 import { animateCat } from '../../src/cat/animator.js';
 import { BACK_ITEM_IDS, STRAP_GREY } from '../../src/cat/backitems.js';
+import { useBVH, firstHitRaycaster } from './bvh.js';
 
 // Shared by test/catbackitems.test.js and catbackitems.<item>.test.js. The
 // sweep below raycasts every item vertex against the fur and the cover in
@@ -10,11 +11,13 @@ import { BACK_ITEM_IDS, STRAP_GREY } from '../../src/cat/backitems.js';
 // item from its own file, so vitest runs the three side by side. The
 // assertions are exactly as they were in catbackitems.test.js.
 //
-// Every measure is in the cat's own frame (world / cat.scale.x).
+// Every measure is in the cat's own frame (world / cat.scale.x). Every ray is
+// cast through a BVH (test/helpers/bvh.js: the same answers as three's own
+// raycast): kitCat's cats are set up for it. The sweep is ~6 s with it (~150 s before).
 
 export const DESCRIBE = 'back items are shaped things on the back (accessories polish Task 2)';
 export const BARE = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
-export const kitCat = (breed, back, body = null, simple = false) => buildCat(breed, { ...BARE, back, body }, { simple });
+export const kitCat = (breed, back, body = null, simple = false) => useBVH(buildCat(breed, { ...BARE, back, body }, { simple }));
 export const itemsOf = (cat) => {
   const out = [];
   cat.traverse((o) => { if (o.isMesh && o.userData.backItem) out.push(o); });
@@ -40,7 +43,7 @@ const coverOf = (cat, body) => {
   if (body) return kids.sort((a, b) => b.geometry.attributes.position.count - a.geometry.attributes.position.count)[0];
   return null;
 };
-const ray = new THREE.Raycaster();
+const ray = firstHitRaycaster();
 const v = new THREE.Vector3(), C = new THREE.Vector3(), dir = new THREE.Vector3(), F = new THREE.Vector3();
 // full builds on every breed; simple builds (strays, clan cats) on two
 export const CASES = [
@@ -79,5 +82,5 @@ export function coverSweep(item) {
         expect(nearest, `${state} t ${t} v ${speed}: resting on it`).toBeLessThanOrEqual(0.02);
       }
     }
-  }, 120_000);
+  }, 30_000);
 }
