@@ -113,6 +113,8 @@ const WILLOW_AT = pt(-37.8, 25.2);
 // the hayloft. [x, z, bottom y, yaw].
 const BARN_FRONT = BARN_AT.z + BARN.d / 2; // z -10.5
 const BALE_Z = BARN_FRONT + 0.55;
+const BALE_STEP = 0.4; // how far toward the yard the first bale's standing spot is from its middle
+const BALE_SOLID = 0.55; // a ground bale's solid circle (the bale is 1.3 by 1.0)
 export const BARN_BALES = Object.freeze([
   Object.freeze({ x: 4.6, z: BALE_Z, y: 0, yaw: 0 }),
   Object.freeze({ x: 3.2, z: BALE_Z, y: 0, yaw: 0 }),
@@ -252,7 +254,12 @@ const world = (at, yaw, lx, lz) => ({
 });
 
 // ---- the perches, as data (the chains are described at `perches` below) ---------------
-const HAY_BALE_1 = Object.freeze({ x: BARN_BALES[0].x, z: BARN_BALES[0].z, y: BALE.h, kind: 'crate' });
+// The first bale is a low perch (y 0.9), and a low perch is reached from only
+// 1.2 m away (climbing.js reachLow, meant for a spot at a prop's edge). With the
+// spot at the bale's middle and the bale solid to 1.0 m from there, the place to
+// jump from was a ring 0.2 m deep, and the owner could not get up (2026-11-19).
+// So the spot is at the bale's FRONT edge, where a cat coming from the yard is.
+const HAY_BALE_1 = Object.freeze({ x: BARN_BALES[0].x, z: BARN_BALES[0].z + BALE_STEP, y: BALE.h, kind: 'crate' });
 const HAY_BALE_2 = Object.freeze({ x: BARN_BALES[2].x, z: BARN_BALES[2].z, y: BALE.h * 2, kind: 'crate' });
 const HAY_DOOR = Object.freeze({ x: 1.2, z: BARN_FRONT - 0.3, y: BARN.loft, kind: 'roof' });
 const HAYLOFT = Object.freeze({ x: 0.3, z: -12.8, y: BARN.loft, kind: 'roof', label: 'the hayloft', vantage: true });
@@ -343,7 +350,7 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // The barn: solid at ground level (its hayloft is reached over the bales).
   blockRect(addC, BARN_AT.x - BARN.w / 2, BARN_AT.x + BARN.w / 2, BARN_AT.z - BARN.d / 2, BARN_FRONT);
-  for (const bale of BARN_BALES) if (!bale.y) addC(bale.x, bale.z, 0.65);
+  for (const bale of BARN_BALES) if (!bale.y) addC(bale.x, bale.z, BALE_SOLID);
   for (const bale of ROUND_BALES) addC(bale.x, bale.z, 0.8);
   // The tractor shed is open to the yard: three thin walls, and the tractor inside.
   wallLine(addC, shedFront + 0.5, -9.5, 20.5, -9.5);

@@ -528,6 +528,24 @@ describe('treefade buildings and fade shapes', () => {
     }
   });
 
+  it('a cat pressed against a wall (her middle a hand inside the box) does not fade the building she faces', () => {
+    const { h, camera, entries } = bworld();
+    const b = entries[0].box;
+    const midX = (b.minX + b.maxX) / 2;
+    // the cat at the front wall, 0.15 m inside the box; the camera behind her, outside
+    const fade = createTreeFade(entries);
+    camera.position.set(midX, 2.6, b.maxZ + 4.5);
+    fade.update(1, camera, { x: midX, y: 0.35, z: b.maxZ - 0.15 });
+    expect(fade.faded().has(h)).toBe(false);
+    fade.dispose();
+    // well inside (a loft, a doorway): the walls between her and the camera do fade
+    const f2 = createTreeFade(entries);
+    camera.position.set(midX, 2.6, b.maxZ + 4.5);
+    f2.update(1, camera, { x: midX, y: 0.35, z: b.maxZ - 1.2 });
+    expect(f2.faded().has(h)).toBe(true);
+    f2.dispose();
+  });
+
   it('fades a house on the camera line, not one 3 m beyond the look point', () => {
     const { h, camera, entries } = bworld();
     const fade = createTreeFade(entries);
