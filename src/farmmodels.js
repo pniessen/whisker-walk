@@ -87,25 +87,28 @@ export function buildCow(lookName, material) {
   const body = new THREE.Group();
   group.add(body);
 
-  // A calf is all legs: a slimmer barrel, tucked up higher.
+  // A calf is all legs: a shorter, slimmer barrel, tucked up higher.
   const slim = calf ? 0.86 : 1;
   const tuck = calf ? 0.09 : 0;
+  const short = calf ? 0.86 : 1;
   const B = COW_BACK;
-  const belly = (y) => (look.belly ? mix(look.coat, look.belly, smooth(0.9, 0.7, y)) : look.coat);
+  // paler underneath: the edge runs along the skin's own lines (v, the way
+  // round), so it is a clean line and not a row of saw teeth
+  const belly = (v) => (look.belly ? mix(look.coat, look.belly, smooth(0.27, 0.37, Math.abs(v - 0.5))) : look.coat);
   const torso = [
     loft([
-      at(-0.95, B - 0.07, 0.98, 0.16 * slim, { nt: 2.6 }),
-      at(-0.9, B - 0.012, 0.8 + tuck, 0.3 * slim, { nt: 2.8 }),                    // her pin bones, either side of the tail
-      at(-0.73, B, 0.66 + tuck, 0.375 * slim, { mid: 1.04, nt: 3.0 }),            // square across her hip bones
-      at(-0.46, B, 0.57 + tuck, 0.41 * slim, { mid: 0.99, nt: 2.5, pinch: 0.1 }),
-      at(-0.1, B, 0.52 + tuck, 0.445 * slim, { mid: 0.93, nt: 2.4, pinch: 0.16 }), // her belly, low and wide
-      at(0.24, B, 0.53 + tuck, 0.43 * slim, { mid: 0.94, nt: 2.4, pinch: 0.14 }),
-      at(0.52, B, 0.57 + tuck, 0.37 * slim, { mid: 0.99, nt: 2.5, pinch: 0.06 }),  // narrower at the shoulder
-      at(0.73, B - 0.035, 0.65 + tuck, 0.29 * slim, { mid: 1.0 }),
-      at(0.85, B - 0.13, 0.76 + tuck, 0.16 * slim),
+      at(-0.95 * short, B - 0.07, 0.98, 0.16 * slim, { nt: 2.6 }),
+      at(-0.9 * short, B - 0.012, 0.8 + tuck, 0.3 * slim, { nt: 2.8 }),                    // her pin bones, either side of the tail
+      at(-0.73 * short, B, 0.66 + tuck, 0.375 * slim, { mid: 1.04, nt: 3.0 }),            // square across her hip bones
+      at(-0.46 * short, B, 0.57 + tuck, 0.41 * slim, { mid: 0.99, nt: 2.5, pinch: 0.1 }),
+      at(-0.1 * short, B, 0.52 + tuck, 0.445 * slim, { mid: 0.93, nt: 2.4, pinch: 0.16 }), // her belly, low and wide
+      at(0.24 * short, B, 0.53 + tuck, 0.43 * slim, { mid: 0.94, nt: 2.4, pinch: 0.14 }),
+      at(0.52 * short, B, 0.57 + tuck, 0.37 * slim, { mid: 0.99, nt: 2.5, pinch: 0.06 }),  // narrower at the shoulder
+      at(0.73 * short, B - 0.035, 0.65 + tuck, 0.29 * slim, { mid: 1.0 }),
+      at(0.85 * short, B - 0.13, 0.76 + tuck, 0.16 * slim),
     ], {
       around: 20, along: 17, level: true, tipStart: 0.03, tipEnd: 0.04,
-      color: patched ? look.coat : (x, y) => belly(y),
+      color: patched ? look.coat : (x, y, z, u, v) => belly(v),
       uv: patched ? (x, y, z, u, v) => coatUV(z, v) : null,
     }),
   ];
@@ -121,7 +124,7 @@ export function buildCow(lookName, material) {
   // neck's root is a ball about the hinge, deep in her chest, so no gap opens
   // above or below it as it turns; under it hangs her dewlap, a keel.
   const head = new THREE.Group();
-  head.position.set(0, 1.08, 0.7);
+  head.position.set(0, 1.08, 0.7 * short);
   const hs = calf ? 1.3 : 1.15;
   const neckCoat = patched ? look.patch : null;
   const neck = loft([
@@ -131,7 +134,7 @@ export function buildCow(lookName, material) {
     { y: 0.23, z: 0.42, w: 0.15, up: 0.17, down: 0.25 - tuck / 2, nb: 1.4 },
     { y: 0.295, z: 0.54, w: 0.13, up: 0.15, down: 0.16, nb: 1.8 },
     { y: 0.33, z: 0.62, w: 0.1, up: 0.11, down: 0.11 },
-  ], { around: 10, along: 7, color: neckCoat ?? ((x, y) => belly(y + 1.02)) });
+  ], { around: 10, along: 7, color: neckCoat ?? ((x, y, z, u, v) => belly(v)) });
 
   // The skull, nose at +z: a broad flat forehead, the long bridge of her
   // nose, and a wide soft muzzle.
@@ -203,7 +206,7 @@ export function buildCow(lookName, material) {
   const legs = [];
   for (const [lx, lz, geo] of [[-0.23, 0.5, fore], [0.23, 0.5, fore], [-0.23, -0.54, hind], [0.23, -0.54, hind]]) {
     const leg = mesh(geo, material);
-    leg.position.set(lx * slim, 0.74, lz);
+    leg.position.set(lx * slim, 0.74, lz * short);
     body.add(leg);
     legs.push(leg);
   }
@@ -217,7 +220,7 @@ export function buildCow(lookName, material) {
     ], { around: 6, along: 7, color: (x, y) => mix(look.patch, tailCoat, smooth(-0.1, -0.22, y)) }),
     put(ball(0.062, { around: 6, rings: 4, color: look.tuft }), { scale: [1, 1, 2.1], rot: [Math.PI / 2, 0, 0], at: [0, -0.7, 0] }),
   ]), material);
-  tail.position.set(0, 1.3, -0.9);
+  tail.position.set(0, 1.3, -0.9 * short);
   tail.rotation.x = 0.12;
   body.add(tail);
 
