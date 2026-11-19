@@ -71,6 +71,12 @@
  "farm.page.apples.hint": "What happens up an apple tree?",
  "farm.page.ducklings.name": "Duckling Parade",
  "farm.page.ducklings.hint": "Go for a swim in the farm pond.",
+ "river.west.lookout": "fallen willow lookout",
+ "river.west.scenic": "the fallen willow by the still pool",
+ "river.west.feather": "a grey heron feather on the fallen willow",
+ "river.west.snail": "a snail shell in the tall reeds",
+ "river.west.wing": "a blue dragonfly wing by the river",
+ "river.west.pebble": "a round white pebble at the far bank",
  "colony.rankAfterName for every rank word": [
   "kit",
   "apprentice",

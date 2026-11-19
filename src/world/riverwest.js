@@ -10,19 +10,7 @@ import { withLocalUuids } from './localuuids.js';
 import { colorParts, paintMesh, ribbon, Tris, lin, scale3, unit, lerp3, smoothstep, clamp01, r2 } from './dressing.js';
 import { cutTiles, tileSeed, TILE_SIZE } from './strips.js';
 import { riverGroundTint } from './riverdress.js';
-
-// The strip's on-screen lines, for a 9-year-old, no series words: the same in
-// both word sets.
-const WORDS = Object.freeze({
-  'river.west.lookout': 'fallen willow lookout',
-  'river.west.scenic': 'the fallen willow by the still pool',
-  'river.west.feather': 'a grey heron feather on the fallen willow',
-  'river.west.snail': 'a snail shell in the tall reeds',
-  'river.west.wing': 'a blue dragonfly wing by the river',
-  'river.west.pebble': 'a round white pebble at the far bank',
-});
-export const WEST_WORD_IDS = Object.freeze(Object.keys(WORDS));
-const phrase = (id) => WORDS[id];
+import { phrase } from '../clanphrases.js';
 
 // =============================================================================
 // The River's west strip (bigger areas, step 1: the trial).
@@ -121,21 +109,21 @@ export const WEST_RESTS = Object.freeze([
 
 // The things to find. Labels go through the phrase table (both word sets).
 const LOOKOUT = WEST_PERCHES[WEST_PERCHES.length - 1];
-const find = (id, x, z, phraseId, y) => {
+const find = (id, x, z, say, y) => {
   const c = { id, x, z, ...(y === undefined ? {} : { y }) };
-  Object.defineProperty(c, 'label', { enumerable: true, get() { return phrase(phraseId); } });
+  Object.defineProperty(c, 'label', { enumerable: true, get: say });
   return c;
 };
 export function westCollectibles() {
   return [
-    find('river-find-6', LOOKOUT.x, LOOKOUT.z, 'river.west.feather', LOOKOUT.y),
-    find('river-find-7', -58, -6, 'river.west.snail'),
-    find('river-find-8', -72, -42, 'river.west.wing'),
-    find('river-find-9', -86.5, 5, 'river.west.pebble'),
+    find('river-find-6', LOOKOUT.x, LOOKOUT.z, () => phrase('river.west.feather'), LOOKOUT.y),
+    find('river-find-7', -58, -6, () => phrase('river.west.snail')),
+    find('river-find-8', -72, -42, () => phrase('river.west.wing')),
+    find('river-find-9', -86.5, 5, () => phrase('river.west.pebble')),
   ];
 }
 export function westScenics() {
-  return [find('river-fallen-willow', -65.5, 9.5, 'river.west.scenic')];
+  return [find('river-fallen-willow', -65.5, 9.5, () => phrase('river.west.scenic'))];
 }
 const FINDS = Object.freeze([[-58, -6], [-72, -42], [-86.5, 5], [-65.5, 9.5], [NAP.x, NAP.z], [DRINK.x, DRINK.z]]);
 
