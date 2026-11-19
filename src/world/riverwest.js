@@ -11,6 +11,7 @@ import { colorParts, paintMesh, ribbon, Tris, lin, scale3, unit, lerp3, smoothst
 import { cutTiles, tileSeed, TILE_SIZE } from './strips.js';
 import { riverGroundTint } from './riverdress.js';
 import { phrase } from '../clanphrases.js';
+import { coarseGround } from './riversouth.js';
 
 // =============================================================================
 // The River's west strip (bigger areas, step 1: the trial).
@@ -39,9 +40,9 @@ import { phrase } from '../clanphrases.js';
 export const WEST = Object.freeze({ id: 'west', minX: -90, maxX: -50, minZ: -50, maxZ: 50 });
 export const WEST_TILES = cutTiles(WEST, TILE_SIZE);
 // The ground and the horizon reach as far past the new edge as they did past
-// the old one (10 m of ground, the band's inner rim 6 m out).
+// the old one (10 m of ground, the band's inner rim 6 m out; the band rings
+// both strips, riversouth.js GROWN_BAND_RECT).
 export const WEST_GROUND = Object.freeze({ minX: -100, maxX: -60, minZ: -60, maxZ: 60 });
-export const WEST_BAND_RECT = Object.freeze({ cx: -20, cz: 0, ex: 20, ez: 0 });
 // The river's water must run on under the hills as far as it did.
 export const WEST_RIVER_MINX = -160;
 
@@ -245,15 +246,15 @@ function tileLow(tile, trees) {
     }
   };
   const tussocks = [];
-  grid(3.6, 901, (cx, cz, roll) => {
+  grid(4.2, 901, (cx, cz, roll) => {
     if (roll > 0.8 - 0.35 * rimward(cx)) return;
-    const n = 1 + Math.floor(b.hash01(cx, cz, 915) * 3);
+    const n = 1 + Math.floor(b.hash01(cx, cz, 915) * 2);
     for (let k = 0; k < n; k++) {
       const a = b.hash01(cx + k, cz, 929) * Math.PI * 2;
       const d = k === 0 ? 0 : 0.45 + 0.5 * b.hash01(cx, cz + k, 943);
       const x = r2(cx + Math.cos(a) * d), z = r2(cz + Math.sin(a) * d);
       if (!inTile(x, z) || !lowFits(x, z, { trail: 1.1 }) || !offTrunk(x, z)) continue;
-      tussocks.push(Object.freeze({ x, z, h: r2(0.25 + 0.2 * b.hash01(x, z, 957)), s: r2(0.8 + 0.4 * b.hash01(z, x, 971)) }));
+      tussocks.push(Object.freeze({ x, z, h: r2(0.28 + 0.22 * b.hash01(x, z, 957)), s: r2(0.95 + 0.45 * b.hash01(z, x, 971)) }));
     }
   });
   // marsh marigolds: yellow, in the damp ground within 9 m of water
@@ -551,6 +552,9 @@ export function addWestStrip(scene, { groundMesh, water = {}, waters, waterColor
       const m = westGroundTint(patch.position.x + pos.getX(i), patch.position.z - pos.getY(i));
       attr.setXYZ(i, attr.getX(i) * m[0], attr.getY(i) * m[1], attr.getZ(i) * m[2]);
     }
+    // on a 5 m grid (riversouth.js says why); its east edge meets the core's
+    // plane and its south end the south strip's patch
+    coarseGround(patch.geometry, { maxX: true, maxZ: true });
     patch.name = 'stripGround';
     scene.add(tag(patch));
 

@@ -150,6 +150,12 @@
  "river.west.snail": "a snail shell in the tall reeds",
  "river.west.wing": "a blue dragonfly wing by the river",
  "river.west.pebble": "a round white pebble at the far bank",
+ "river.south.lookout": "sand bank lookout",
+ "river.south.scenic": "the sandy bank where the martins nest",
+ "river.south.eggshell": "a tiny white eggshell on the sand bank",
+ "river.south.feather": "a soft owl feather in the far corner",
+ "river.south.clock": "a fluffy dandelion clock in the meadow",
+ "river.south.pebble": "a striped pebble on the sandy shore",
  "colony.rankAfterName for every rank word": [
   "kit",
   "apprentice",

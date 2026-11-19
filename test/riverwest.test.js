@@ -16,12 +16,19 @@ import { bannedIn, withOffWords } from './helpers/offwords.js';
 //     the strip (the hills, the river-west water, the mist);
 //   * the strip itself is sound: the same on every device, dry, reachable,
 //     with a collider under every trunk and something to find.
+//
+// Step 3 (2026-11-19) added the south strip (riversouth.js, held in
+// test/riversouth.test.js). The River here is built with both, so the
+// first two proofs now hold with the south strip there too; where a check
+// reads what "the strip" added, it reads the west strip's share of each list
+// (the west's things come before the south's).
 
 vi.stubGlobal('document', canvasStub);
 
 const river = await import('../src/world/river.js');
 const dress = await import('../src/world/riverdress.js');
 const west = await import('../src/world/riverwest.js');
+const south = await import('../src/world/riversouth.js');
 const b = await import('../src/world/builder.js');
 const { setGrow, growOn } = await import('../src/grow.js');
 const rig = await import('../src/render/rig.js');
@@ -44,10 +51,11 @@ buildRiver(river, setGrow, false);
 const OFF = buildRiver(river, setGrow, false);
 const ON = buildRiver(river, setGrow, true);
 const CORE = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
-const GROWN = { minX: -90, maxX: 50, minZ: -50, maxZ: 50 };
+// step 3: the south strip took the bounds on to z 90
+const GROWN = { minX: -90, maxX: 50, minZ: -50, maxZ: 90 };
 const isStrip = (o) => o.userData.strip !== undefined;
 const coreKids = ON.scene.children.filter((c) => !isStrip(c));
-const stripKids = ON.scene.children.filter(isStrip);
+const stripKids = ON.scene.children.filter((o) => o.userData.strip === 'west');
 // The three core objects that are meant to reach the strip.
 const REACHING = ['horizonBand', 'water:river-west', 'marshMist'];
 
@@ -80,11 +88,11 @@ describe('the switch', () => {
     expect(OFF.scene.children.some(isStrip)).toBe(false);
   });
 
-  it('on: the walkable bounds are the core and the west strip, x -90..50', () => {
+  it('on: the walkable bounds are the core and the west strip, x -90..50 (and the south strip, to z 90)', () => {
     expect(ON.area.bounds).toEqual(GROWN);
     expect(ON.area.core).toEqual(CORE);
-    // step 2: the core streams too, first (world/streamcore.js)
-    expect(ON.area.strips.map((s) => s.id)).toEqual(['core', 'core-fine', 'west']);
+    // step 2: the core streams too, first (world/streamcore.js); step 3: the south strip last
+    expect(ON.area.strips.map((s) => s.id)).toEqual(['core', 'core-fine', 'west', 'south']);
     expect(ON.area.strips[2]).toBe(west.WEST_STRIP);
     expect(west.WEST).toMatchObject({ minX: -90, maxX: -50, minZ: -50, maxZ: 50 });
   });
@@ -256,11 +264,13 @@ describe('the ground, the river and the hills reach the new edge', () => {
     const box = new THREE.Box3().setFromBufferAttribute(pos);
     expect(box.min.x).toBeCloseTo(-156, 5);
     expect(box.max.x).toBeCloseTo(116, 5);
+    expect(box.max.z).toBeCloseTo(156, 5); // step 3: the south strip's 40 m
     expect(box.max.y).toBeGreaterThan(2);
   });
 
   it('the edge\'s reeds and trees moved out with it: none is left standing where the old edge was', () => {
-    const { horizon } = { horizon: { ...river.RIVER_HORIZON, rect: west.WEST_BAND_RECT } };
+    // step 3: the band rings both strips
+    const { horizon } = { horizon: { ...river.RIVER_HORIZON, rect: south.GROWN_BAND_RECT } };
     const spots = b.edgeSpots({ ...horizon.edge, rect: horizon.rect, avoid: ON.area.waters }, horizon.salt, ON.area.waters);
     expect(spots.length).toBeGreaterThan(120);
     expect(b.edgeSpots({ ...horizon.edge, rect: horizon.rect }, horizon.salt, ON.area.waters)).toEqual(spots);
@@ -353,13 +363,15 @@ describe('the strip\'s scatter', () => {
     for (const kind of ['reed', 'tussock', 'cattail', 'marigold', 'stone']) {
       expect(all.reduce((n, c) => n + c.small[kind].length, 0), kind).toBeGreaterThan(8);
     }
-    // no stretch is bare: every tile has low things on it
-    for (const c of all) expect(Object.values(c.small).flat().length).toBeGreaterThanOrEqual(20);
+    // no stretch is bare: every tile has low things on it (step 3 made the
+    // tussocks fewer and bigger, for the budget with the south strip: 15, was 20)
+    for (const c of all) expect(Object.values(c.small).flat().length).toBeGreaterThanOrEqual(15);
   });
 
   it('every tree has its collider and its Sure Claws fork from the start of a walk', () => {
     const tail = ON.area.colliders.slice(OFF.area.colliders.length);
-    expect(tail.length).toBe(trees.length + west.WEST_COLLIDERS.length);
+    // the west strip's first, then the south strip's (step 3)
+    expect(tail.length).toBe(trees.length + west.WEST_COLLIDERS.length + south.southTrees().length + south.SOUTH_COLLIDERS.length);
     trees.forEach((t, i) => {
       expect(tail[i]).toEqual({ x: t.x, z: t.z, r: t.r });
       expect(t.r).toBe(Math.round(0.5 * t.scale * 100) / 100); // the core's rule for a willow and an alder
@@ -372,7 +384,13 @@ describe('the strip\'s scatter', () => {
 describe('something to find', () => {
   const walkable = (x, z) => isWalkableAt(ON.area, x, z);
   const flood = floodFrom(ON.area, ON.area.spawn, walkable);
-  const added = (key) => ON.area[key].slice(OFF.area[key].length);
+  // what the west strip added: its share comes first, before the south strip's (step 3)
+  const westShare = {
+    collectibles: west.westCollectibles().length, scenics: west.westScenics().length,
+    perches: west.westTreePerches().length + west.WEST_PERCHES.length,
+  };
+  const added = (key) => ON.area[key].slice(OFF.area[key].length, OFF.area[key].length + westShare[key]);
+  const westRests = ON.area.rests.slice(0, west.WEST_RESTS.length);
 
   it('every spot of the strip a cat can stand on is reached from the spawn on foot', () => {
     let standable = 0;
@@ -389,7 +407,7 @@ describe('something to find', () => {
 
   it('the path finder finds its way from the core to each find, each rest and every tile', () => {
     const targets = [
-      ...added('collectibles').filter((c) => c.y === undefined), ...added('scenics'), ...ON.area.rests,
+      ...added('collectibles').filter((c) => c.y === undefined), ...added('scenics'), ...westRests,
       ...west.WEST_TILES.map((t) => ({ x: (t.minX + t.maxX) / 2, z: (t.minZ + t.maxZ) / 2 })),
     ];
     expect(targets.length).toBe(3 + 1 + 2 + 10);
@@ -402,7 +420,7 @@ describe('something to find', () => {
   });
 
   it('nothing to find or to stand on is under water', () => {
-    const spots = [...added('collectibles'), ...added('scenics'), ...ON.area.rests, ...added('perches'), ...west.westTrees()];
+    const spots = [...added('collectibles'), ...added('scenics'), ...westRests, ...added('perches'), ...west.westTrees()];
     for (const p of spots) expect(b.waterClearance(ON.area.waters, p.x, p.z), `${p.x},${p.z}`).toBeGreaterThanOrEqual(CAT_RADIUS);
     for (const [x1, z1, x2, z2] of west.WEST_TRAIL) {
       for (let k = 0; k <= 20; k++) {
@@ -457,12 +475,12 @@ describe('something to find', () => {
   });
 
   it('two spots to rest: a hollow to nap in and a stone to drink from, both on dry ground a cat can reach', () => {
-    expect(ON.area.rests.map((r) => `${r.id}:${r.kind}:${r.mesh}`)).toEqual(['river-nap-1:nap:false', 'river-drink-1:drink:false']);
-    for (const r of ON.area.rests) {
+    expect(westRests.map((r) => `${r.id}:${r.kind}:${r.mesh}`)).toEqual(['river-nap-1:nap:false', 'river-drink-1:drink:false']);
+    for (const r of westRests) {
       expect(walkable(r.x, r.z), r.id).toBe(true);
       expect(flood.reaches(Math.round(r.x * 2) / 2, Math.round(r.z * 2) / 2) || flood.reachesWithin(r.x, r.z, 0.8), r.id).toBe(true);
     }
-    const drink = ON.area.rests[1];
+    const drink = westRests[1];
     expect(b.waterClearance(ON.area.waters, drink.x, drink.z)).toBeLessThan(1);
     // the walk joins them to the area's own rests (rests.add), with no mesh of their own
     const scene = new THREE.Scene();
@@ -471,7 +489,7 @@ describe('something to find', () => {
     expect(scene.children.length).toBe(0);
     expect(rests.colliders).toEqual([]);
     expect(rests.nearest({ x: drink.x + 0.5, z: drink.z }, 1.2)).toMatchObject({ id: 'river-drink-1', kind: 'drink' });
-    expect(rests.nearest({ x: ON.area.rests[0].x, z: ON.area.rests[0].z + 0.4 }, 1.2)).toMatchObject({ id: 'river-nap-1', kind: 'nap' });
+    expect(rests.nearest({ x: westRests[0].x, z: westRests[0].z + 0.4 }, 1.2)).toMatchObject({ id: 'river-nap-1', kind: 'nap' });
     expect(rests.nearest({ x: -80, z: 40 }, 1.2)).toBeNull();
   });
 
@@ -485,10 +503,11 @@ describe('something to find', () => {
     expect(box.min.y).toBeLessThan(0.05); // it lies on the ground, nothing floats
     expect(box.max.y).toBeGreaterThan(1.8);
     expect(box.max.y).toBeLessThan(3.6);
-    const pool = ON.area.waters[ON.area.waters.length - 1];
+    // the west strip's pool, then the south strip's (step 3)
+    const pool = ON.area.waters[ON.area.waters.length - 2];
     expect(pool).toBe(west.STILL_POOL);
     expect(pool.shallow).toBe(1.0);
-    expect(ON.area.waterFx.length).toBe(OFF.area.waterFx.length + 1);
+    expect(ON.area.waterFx.length).toBe(OFF.area.waterFx.length + 2);
     expect(stripKids.some((c) => c.name === 'water:pool-west')).toBe(true);
   });
 
