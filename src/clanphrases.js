@@ -320,6 +320,14 @@ const LATER = Object.freeze({
   'fair.page.balloon.hint': 'Something bobs about in the open field at the fair.',
   'fair.page.lookout.name': 'Top of the Big Wheel',
   'fair.page.lookout.hint': 'Ride the big wheel to the very top, then jump.',
+  // ---- the River's west strip (bigger areas, 2026-11-19; only seen with the
+  // ?grow=1 switch on): its own words, the same in every set ------------------
+  'river.west.lookout': 'fallen willow lookout',
+  'river.west.scenic': 'the fallen willow by the still pool',
+  'river.west.feather': 'a grey heron feather on the fallen willow',
+  'river.west.snail': 'a snail shell in the tall reeds',
+  'river.west.wing': 'a blue dragonfly wing by the river',
+  'river.west.pebble': 'a round white pebble at the far bank',
 });
 
 // Every id of the first table, in table order.
