@@ -103,7 +103,7 @@ describe('hats sit on the head (accessories polish Task 1)', () => {
   });
 
   it('the crowns show their band from the side', () => {
-    for (const id of ['crown', 'partycrown', 'leafcrown']) {
+    for (const id of ['crown', 'partycrown', 'leafcrown', 'papercrown']) {
       for (const simple of [false, true]) {
         const V = verts(buildHat(id, { simple }));
         const near = V.filter((v) => Math.abs(rho(v) - 1) * 0.2 <= 0.03).length;

@@ -148,7 +148,7 @@ describe(DESCRIBE, () => {
   // front edges meet under that piece; a plain ring (studded, glow) keeps it.
   const THROAT = [['collar', 'bell', false], ['collar', 'heart', false], ['collar', 'tag', false], ['collar', 'sparklecollar', false],
     ['collar', 'studded', true], ['collar', 'glow', true],
-    ...['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf'].map((n) => ['neck', n, false])];
+    ...['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'prizerosette'].map((n) => ['neck', n, false])];
   it.each(THROAT)('%s %s: the clasp shows %s', (slot, item, shows) => {
     for (const b of ['tabby', 'mainecoon']) {
       const cat = buildCat(b, { ...BARE, body: 'cape', [slot]: item });

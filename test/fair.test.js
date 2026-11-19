@@ -32,10 +32,10 @@ vi.stubGlobal('document', {
 const fair = await import('../src/world/fair.js');
 const {
   build, SPAWN, FAIR_BOUNDS, FAIR_REGISTRATION: REG, DUCK_POOL, COASTER_TRACK, COASTER_STATION_S, HELTER_SLIDE, HELTER_STAIRS, HELTER_TOP,
-  STATION_DECK, TRACK_X, STALLS, FIELD, FAIR_HIDES, setFairGlow, fairBare, fairGroundTint,
+  STATION_DECK, TRACK_X, STALLS, FIELD, FAIR_HIDES, SIGN_POSTS, setFairGlow, fairBare, fairGroundTint,
 } = fair;
-const { MGR, FERRIS, TEACUPS, HELTER, COASTER, trackPose, coasterTrackPoints } = await import('../src/world/fairrides.js');
-const { TINS, BELL, FORTUNE, STALL, PICNIC } = await import('../src/world/fairparts.js');
+const { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, trackPose, coasterTrackPoints } = await import('../src/world/fairrides.js');
+const { TINS, BELL, FORTUNE, STALL, PICNIC, BANDSTAND, STALL_SIGN, SIGN_POST } = await import('../src/world/fairparts.js');
 const { GLOW_MAX } = await import('../src/world/fairkit.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { isWalkableAt, isWadeableAt, CAT_RADIUS } = await import('../src/player.js');
@@ -403,8 +403,110 @@ describe('The Fairground: the layout the owner approved', () => {
     }
     // the helter-skelter's stairs are outside the tower's Group: they stay solid when it fades
     expect(scene.getObjectByName('helterStairs').parent).toBe(scene);
+    // Step 3's fix: the slide winds round the tower just where the follow
+    // camera sits for a cat on the stairs, so it (and its brackets) fade too:
+    // a shape as wide as the slide's lowest coil, from above a cat's head on
+    // the grass to the gallery
+    for (const name of ['helterSlide', 'helterBrackets']) {
+      const o = occ.find((e) => e.obj.name === name);
+      expect(o, name).toBeTruthy();
+      expect(Math.hypot(o.x - a.helterSkelter.x, o.z - a.helterSkelter.z)).toBeLessThan(0.01);
+      const reach = Math.max(...HELTER_SLIDE.map((p) => Math.hypot(p.x - a.helterSkelter.x, p.z - a.helterSkelter.z) * (p.y > 0.9 ? 1 : 0)));
+      expect(o.R).toBeGreaterThan(reach + HELTER.slide.half);
+      expect(o.R).toBeLessThan(reach + HELTER.slide.half + 0.6);
+      expect(o.shapes[0].y0).toBeGreaterThan(0.6);
+      expect(o.shapes[0].y1).toBeCloseTo(HELTER.towerH, 5);
+    }
     // and so do the fortune teller's table and crystal ball
     expect(scene.getObjectByName('fortuneTable').parent).toBe(scene);
+  });
+});
+
+describe('The Fairground: words on the stalls’ boards', () => {
+  const signs = scene.getObjectByName('fairSigns');
+  const WORDS = {
+    candyfloss: 'Candyfloss', tinCans: 'Tin Can Alley', prizes: 'Prizes', toffeeApples: 'Toffee Apples',
+    popcorn: 'Popcorn', hoopla: 'Hoopla', lemonade: 'Lemonade', teddies: 'Teddy Bears',
+    hookADuck: 'Hook a Duck', ringTheBell: 'Ring the Bell', fortunes: 'Fortunes',
+  };
+
+  it('names every stall and each of the three games and tents without a booth, in plain words', () => {
+    const named = Object.fromEntries([...STALLS, ...SIGN_POSTS].map((s) => [s.id, s.sign]));
+    expect(named).toEqual(WORDS);
+    for (const text of Object.values(WORDS)) {
+      expect(text).toMatch(/^[A-Z][A-Za-z ]{3,13}$/);
+      expect(/clan|warrior|twoleg|kittypet|prey|starclan/i.test(text)).toBe(false);
+    }
+  });
+
+  it('draws them all as one mesh on one texture, a row a sign, casting nothing', () => {
+    expect(signs.isMesh).toBe(true);
+    expect(signs.parent).toBe(scene);
+    expect(signs.userData.noCast).toBe(true);
+    expect(signs.material.map).toBeTruthy();
+    // 8 stalls, and both faces of 3 posts: two triangles each
+    const panels = STALLS.length + 2 * SIGN_POSTS.length;
+    expect(signs.geometry.attributes.position.count).toBe(panels * 6);
+    // every panel reads from one whole row of the texture, left to right, the right way up
+    const uv = signs.geometry.attributes.uv;
+    const rows = Object.keys(WORDS).length;
+    const used = new Set();
+    for (let i = 0; i < panels; i++) {
+      const us = [];
+      const vs = [];
+      for (let k = 0; k < 6; k++) { us.push(uv.getX(i * 6 + k)); vs.push(uv.getY(i * 6 + k)); }
+      expect(Math.min(...us)).toBe(0);
+      expect(Math.max(...us)).toBe(1);
+      const row = Math.round((1 - Math.max(...vs)) * rows);
+      expect(Math.max(...vs) - Math.min(...vs)).toBeCloseTo(1 / rows, 6);
+      expect(1 - Math.max(...vs)).toBeCloseTo(row / rows, 6);
+      used.add(row);
+      // BL, BR, TR: u rises along the panel's own right, v rises upwards
+      expect(uv.getX(i * 6 + 1)).toBeGreaterThan(uv.getX(i * 6));
+      expect(uv.getY(i * 6 + 2)).toBeGreaterThan(uv.getY(i * 6 + 1));
+      expect(signs.geometry.attributes.position.getY(i * 6 + 2)).toBeGreaterThan(signs.geometry.attributes.position.getY(i * 6 + 1));
+    }
+    expect(used.size).toBe(rows);
+  });
+
+  it('hangs each panel on a board, facing the way its stall faces, where a walker on the midway reads it', () => {
+    const pos = signs.geometry.attributes.position;
+    const nrm = signs.geometry.attributes.normal;
+    const centre = (i) => {
+      const c = new THREE.Vector3();
+      for (const k of [0, 1, 2, 5]) c.add(new THREE.Vector3().fromBufferAttribute(pos, i * 6 + k));
+      return c.multiplyScalar(0.25);
+    };
+    STALLS.forEach((s, i) => {
+      const c = centre(i);
+      const n = new THREE.Vector3().fromBufferAttribute(nrm, i * 6);
+      // it faces the midway (x = 0), and is on the stall's midway side
+      expect(Math.sign(n.x)).toBe(-Math.sign(s.x));
+      expect(Math.abs(n.x)).toBeGreaterThan(0.99);
+      expect(Math.abs(c.x)).toBeLessThan(Math.abs(s.x));
+      expect(c.z).toBeCloseTo(s.z, 1);
+      expect(c.y).toBeCloseTo(STALL_SIGN[s.top === 'flat' ? 'flat' : 'tent'].y, 5);
+      // there is a board right behind it: a ray back along its normal meets one within 5 cm
+      rc.set(c.clone().addScaledVector(n, 0.001), n.clone().negate());
+      rc.far = 0.05;
+      const hit = rc.intersectObjects(allMeshes.filter((m) => m !== signs), false)[0];
+      expect(hit, `${s.id}: no board behind its words`).toBeTruthy();
+    });
+    SIGN_POSTS.forEach((p, k) => {
+      for (const j of [0, 1]) {
+        const c = centre(STALLS.length + k * 2 + j);
+        expect(Math.hypot(c.x - p.x, c.z - p.z)).toBeLessThan(0.06);
+        expect(c.y).toBeCloseTo(SIGN_POST.y, 5);
+      }
+      // the post is thin and has no collider: it is on ground a cat can stand on, clear of every anchor she is sent to
+      expect(standable(p.x, p.z)).toBe(true);
+      expect(waterClearance(area.waters, p.x, p.z)).toBeGreaterThan(0.5);
+    });
+    // the posts stand by what they name
+    const post = (id) => SIGN_POSTS.find((p) => p.id === id);
+    expect(dist(post('hookADuck'), area.anchors.duckPool)).toBeLessThan(3.5);
+    expect(dist(post('ringTheBell'), area.anchors.bellPole)).toBeLessThan(1.5);
+    expect(dist(post('fortunes'), area.anchors.fortuneDoor)).toBeLessThan(2);
   });
 });
 
@@ -625,7 +727,53 @@ describe('The Fairground: perches', () => {
   it('reaches every ungated perch on the baseline budget', () => {
     const h = hops(base, free);
     for (const p of free) expect(h.has(p), `perch y${p.y} at ${p.x},${p.z}`).toBe(true);
-    expect(free).toHaveLength(21);
+    expect(free).toHaveLength(24); // 21, and a perch on the steps of each of the three decks
+  });
+
+  // Step 3's fix. A first jump at the coaster's steps from a metre and a half
+  // out was a pounce at nothing: the platform's perch is in the middle of a
+  // solid deck, which leaves a ring of ground a hand wide to jump from. Every
+  // perch a cat can reach from the ground must have room to be jumped at: a
+  // square metre of ground in reach, half a metre deep; or be the next hop
+  // from a lower perch that has.
+  it('gives every first hop room to be made from: a square metre of ground in reach, half a metre deep', () => {
+    const room = (p) => {
+      const reach = p.y > 1 ? base.reachHigh : base.reachLow;
+      const S = 0.05;
+      let cells = 0;
+      for (let x = p.x - reach; x <= p.x + reach; x += S) {
+        for (let z = p.z - reach; z <= p.z + reach; z += S) if (Math.hypot(x - p.x, z - p.z) < reach && standable(x, z)) cells++;
+      }
+      let deep = 0;
+      for (let t = 0; t < 72; t++) {
+        const th = (t / 72) * Math.PI * 2;
+        let run = 0;
+        for (let r = 0; r < reach; r += 0.02) if (standable(p.x + Math.cos(th) * r, p.z + Math.sin(th) * r)) run += 0.02;
+        deep = Math.max(deep, run);
+      }
+      return { area: cells * S * S, deep };
+    };
+    const low = free.filter((p) => p.y <= base.climb && standableWithin(p.x, p.z, (p.y > 1 ? base.reachHigh : base.reachLow) - 0.05));
+    const roomy = low.filter((p) => { const r = room(p); return r.area >= 1 && r.deep >= 0.5; });
+    const cramped = low.filter((p) => !roomy.includes(p));
+    // the three decks are the cramped ones, and each has its top step below it, one hop away
+    expect(cramped.map((p) => p.y).sort()).toEqual([FERRIS.deckY, BANDSTAND.deckY, STATION.deckY]);
+    for (const p of cramped) {
+      const step = roomy.find((q) => q.y < p.y && canReach(p, q, q.y, base));
+      expect(step, `no step below the perch y${p.y} at ${p.x},${p.z}`).toBeTruthy();
+      expect(dist(step, p)).toBeLessThan(1.0);
+    }
+    // the report's own jump: from the foot of the coaster's steps the first hop is onto the steps
+    const from = { x: 20.3, z: 0 };
+    expect(standable(from.x, from.z)).toBe(true);
+    const got = free.filter((p) => canReach(p, from, 0, base));
+    expect(got).toHaveLength(1);
+    expect(got[0].y).toBeCloseTo(STATION.deckY * 0.66, 2);
+    expect(canReach(free.find((p) => p.label === 'the coaster platform'), got[0], got[0].y, base)).toBe(true);
+    // and from a metre and a half out, where the report's jump was a pounce
+    expect(free.some((p) => canReach(p, { x: 19.7, z: 0 }, 0, base))).toBe(true);
+    // the counters are jumped at from the midway: their perch is at the counter's front edge
+    for (const p of free.filter((q) => q.kind === 'crate')) expect(room(p).area).toBeGreaterThan(1.2);
   });
 
   it('has four vantage perches, each with a name', () => {
@@ -1379,8 +1527,10 @@ describe('The Fairground: the drawing budget', () => {
     // Measured 2026-11-18. The rides are the densest things in the game, and
     // their moving parts cannot be merged: 12 horses, 8 gondolas, 6 cups and
     // 4 coaster cars are a mesh each, as are the 6 tins and 7 ducks.
-    expect(built).toEqual({ meshes: 221, casters: 157, triangles: 69452 });
-    expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 178, casters: 124 });
+    // Step 3: the stalls' words are one more mesh (28 triangles), their boards
+    // and the three sign posts 312 more triangles in the props' mesh.
+    expect(built).toEqual({ meshes: 222, casters: 157, triangles: 69792 });
+    expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 179, casters: 124 });
   });
 
   it('is inside the territories’ budget built, and inside their merged budget', () => {

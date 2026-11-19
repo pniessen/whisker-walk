@@ -34,6 +34,7 @@ import { clanTitleFor } from './clannames.js';
 import { phrase } from './clanphrases.js';
 import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEdition, accessoryName } from './edition.js';
 import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
+import { FAIR_GAME_IDS, FAIR_PRIZES, gameJournalId, fairPrizesWonBy } from './fairprizes.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
 // write still happens here: marks.js computes, this module saves.
@@ -66,7 +67,12 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   'jobchicks', 'jobcow', 'jobgoat', 'jobmice',
   'findloftcats', 'findeggs', 'findowl', 'findscarecrow', 'findapples', 'findducklings',
   // The Fairground's five rides (src/fairwords.js RIDE_PAGE): the walks she has ridden each on.
-  'ridemgr', 'ridewheel', 'ridecups', 'rideslide', 'ridecoaster'];
+  'ridemgr', 'ridewheel', 'ridecups', 'rideslide', 'ridecoaster',
+  // The Fairground's three games and six finds (src/fairprizes.js FAIR_JOURNAL_TYPES;
+  // test/fairgames.test.js holds the two lists equal). A game's count is how
+  // many times it has been won; a find's, on how many walks it was found.
+  'gamecans', 'gameducks', 'gamebell',
+  'fairfortune', 'fairmusicbox', 'faircandyfloss', 'fairjuggler', 'fairballoon', 'fairlookout'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -281,6 +287,13 @@ export const CATALOG = {
     candlehat: { name: 'Birthday-Candle Hat', slot: 'head', price: 0, prize: true },
     streamerscarf: { name: 'Streamer Scarf', slot: 'neck', price: 0, prize: true },
     goldbooties: { name: 'Golden Paw Booties', slot: 'feet', price: 0, prize: true },
+    // The Fairground's prizes (src/fairprizes.js): the first win at each of
+    // its three games gives one. `prize` keeps them out of the shop, trades
+    // and codes exactly as it keeps the visit prizes out; `fair` names the
+    // game. sanitizeState rebuilds the ones the journal's game pages have won.
+    papercrown: { name: 'Paper Crown', slot: 'head', price: 0, prize: true, fair: 'cans' },
+    prizerosette: { name: 'Prize Rosette', slot: 'neck', price: 0, prize: true, fair: 'ducks' },
+    tailballoon: { name: 'Tail Balloon', slot: 'back', price: 0, prize: true, fair: 'bell' },
   },
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
@@ -984,6 +997,8 @@ function sanitizeState(parsed) {
   const visits = Math.min(VISITS_MAX, asFiniteNonNegInt(parsed.visits, 0));
   const visitPrizesSeen = Math.min(VISITS_MAX, asFiniteNonNegInt(parsed.visitPrizesSeen, 0));
   for (const id of prizesWonBy(visitPrizesSeen)) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
+  // The Fairground's prizes likewise: every game the journal says was won has its prize owned.
+  for (const id of fairPrizesWonBy(sanitizeJournal(parsed.journal))) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
 
   const equippedCat = typeof parsed.equipped?.cat === 'string' && unlockedCats.includes(parsed.equipped.cat)
     ? parsed.equipped.cat : d.equipped.cat;
@@ -1868,6 +1883,27 @@ export function createProgression(storage) {
       if (!JOURNAL_TYPES.includes(type)) return;
       state.journal[type] = (state.journal[type] ?? 0) + 1;
       save();
+    },
+    // winFairGame(game) — one of the Fairground's three games won (src/fairgames.js).
+    // Its journal page counts one more; the FIRST win ever gives its prize:
+    // owned from now on (rebuilt from the page on every load), and put on if
+    // she wears nothing in that slot. Returns { first, prize, worn }: `prize`
+    // is the accessory id on a first win, else null.
+    winFairGame(game) {
+      if (!FAIR_GAME_IDS.includes(game)) return { first: false, prize: null, worn: false };
+      const page = gameJournalId(game);
+      const before = state.journal[page];
+      const first = !(Number.isFinite(before) && before > 0);
+      state.journal[page] = (first ? 0 : before) + 1;
+      const id = FAIR_PRIZES[game];
+      let worn = false;
+      if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
+      if (first) {
+        const { slot } = CATALOG.accessories[id];
+        if (state.equipped[slot] == null) { state.equipped[slot] = id; worn = true; }
+      }
+      save();
+      return { first, prize: first ? id : null, worn };
     },
     // recordFeat(type) — v18. Bumps the lifetime tally for one discovery
     // type by one. Its PRIMARY caller is pay() in discoveries.js, the single

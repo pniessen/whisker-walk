@@ -544,6 +544,15 @@ export function helterSkelter(x, z, glow, yaw = 0) {
   const prev = path[path.length - 4];
   box(BR, 1.3, 0.1, 1.5, end.x + (end.x - prev.x) * 0.9, 0, end.z + (end.z - prev.z) * 0.9, PAINT.green, { yaw: Math.atan2(end.x - prev.x, end.z - prev.z) });
   const brackets = set(meshOf(BR, 'helterBrackets', { roughness: 0.7 }));
+  // The slide winds round the tower just where the follow camera sits when
+  // she is on the stairs inside, so it fades too: for a camera in among its
+  // coils, or looking through them at her. (While she is ON the slide
+  // src/fairlive.js holds it solid: `fadeHold`, src/treefade.js.)
+  const coil = [{ t: 'cyl', r: baseR + HELTER.slide.out + HELTER.slide.half + 0.2, y0: 0.9, y1: towerH }];
+  slide.userData.fadeOccluder = coil;
+  slide.userData.noMerge = true;
+  brackets.userData.fadeOccluder = coil;
+  brackets.userData.noMerge = true;
 
   const L = [];
   ring(12, (a, i) => bulb(L, Math.cos(a) * 2.02, roofY + 0.04, Math.sin(a) * 2.02, BULB_COLORS[i % 2]));

@@ -41,6 +41,12 @@ export const NO_FAIR = Object.freeze({
   late() {},
   jump() { return false; },
   canBoard() { return false; },
+  // step 3 (src/fairshow.js): no games, no finds, no visitors anywhere else
+  games: null,
+  show: null,
+  actionFor() { return null; },
+  act() { return false; },
+  meow() { return 0; },
   dispose() {},
 });
 
@@ -92,6 +98,18 @@ export const TUNE = Object.freeze({
     1568, 1760, 1568, 1397, 1319, 1175, 1047, 0, 1568, 1047, 0, 0,
   ]),
 });
+
+// The big wheel's camera (cameraFor below). In front of the wheel while her
+// gondola is below LOW, behind and above it over HIGH, and round the outside
+// of the wheel in between (ROUND metres further out at the middle of the way).
+export const WHEEL_CAM = Object.freeze({
+  LOW: 0.75, HIGH: 10.0,
+  FRONT_X: 2.2, FRONT_UP: 2.0, FRONT_Z: 3.8,
+  BACK_X: 2.6, BACK_UP: 2.5, BACK_Z: -6.2,
+  ROUND: 1.8,
+  SIDE_FROM: 0.4, SIDE_OVER: 5.6, // west of the hub by this much and more, the camera is on the west side
+});
+const smooth01 = (v) => { const k = Math.min(1, Math.max(0, v)); return k * k * (3 - 2 * k); };
 
 // The camera while she rides, by ride: how it is placed is cameraFor below.
 const EARS_BACK = 0.8; // radians: an ear laid back (the animator's upright ear is 0.22)
@@ -167,10 +185,22 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       return 1;
     }
     if (seat.rideId === 'wheel') {
-      // Behind her and above, a little to one side (clear of the lookout's
-      // mast): over her shoulder, the fair falls away below as she goes up.
-      camPos.set(seat.x + 2.6, seat.y + 2.5, seat.z - 6.2);
-      camLook.set(seat.x - 0.3, seat.y + CAT_LOOK_Y - 0.2, seat.z + 1.5);
+      // Up in the air: behind her and above, a little to one side (clear of
+      // the lookout's mast): over her shoulder, the fair falls away below.
+      // Down at the bottom that spot is behind the wheel's rear frame and the
+      // mast, so there the camera is in FRONT of the wheel, on the plaza
+      // side, close, looking in at her over the boarding deck. Between the
+      // two it goes round the OUTSIDE of the wheel (never through it), on
+      // whichever side she is: up the east side, down the west.
+      const up = smooth01((seat.y - WHEEL_CAM.LOW) / (WHEEL_CAM.HIGH - WHEEL_CAM.LOW));
+      const side = 1 - 2 * smooth01((sim.wheel.cx - seat.x - WHEEL_CAM.SIDE_FROM) / WHEEL_CAM.SIDE_OVER);
+      const out = WHEEL_CAM.FRONT_X + (WHEEL_CAM.BACK_X - WHEEL_CAM.FRONT_X) * up + WHEEL_CAM.ROUND * Math.sin(Math.PI * up);
+      camPos.set(
+        seat.x + side * out,
+        seat.y + WHEEL_CAM.FRONT_UP + (WHEEL_CAM.BACK_UP - WHEEL_CAM.FRONT_UP) * up,
+        seat.z + WHEEL_CAM.FRONT_Z + (WHEEL_CAM.BACK_Z - WHEEL_CAM.FRONT_Z) * up,
+      );
+      camLook.set(seat.x - 0.3 * side * up, seat.y + CAT_LOOK_Y - 0.2 * up, seat.z + 1.5 * up);
       return 1;
     }
     if (seat.rideId === 'cups') {
@@ -228,8 +258,18 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     rodeRide = null;
   }
 
+  // Step 3: the games, the finds and the visitors (src/fairshow.js), attached
+  // by the walk once it has made them. Run here, after the rides have moved her.
+  let show = null;
+
   const api = {
     sim,
+    get show() { return show; },
+    get games() { return show ? show.games : null; },
+    attach(s) { show = s ?? null; return api; },
+    actionFor() { return show && !riding && !hop.on ? show.actionFor() : null; },
+    act(action) { return show ? show.act(action) : false; },
+    meow(pos) { return show ? show.meow(pos) : 0; },
     get riding() { return riding; },
     get wobble() { return wobble; },
     get hopping() { return hop.on; },
@@ -313,6 +353,12 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       }
 
       before.copy(cat.position);
+      // The slide does not fade from under her while she is on it (src/treefade.js).
+      {
+        const hold = riding === sim.slide.chute;
+        const coils = rides.helterSkelter.slideMeshes;
+        if (coils) for (let i = 0; i < coils.length; i++) coils[i].userData.fadeHold = hold;
+      }
       // The slide: she is on it until it ends (a pushed stick does not take
       // her off half way down), and it leaves her sitting on the mat.
       if (riding === sim.slide.chute) {
@@ -375,6 +421,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         }
         camera.lookAt(look);
       }
+      if (show) show.update(dt, t, { cat, player, session });
     },
 
     // late(dt, t, { cat, player, session }): once a frame, after the cat is
@@ -406,6 +453,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     },
 
     dispose() {
+      if (show) { show.dispose(); show = null; }
       sim.endSlide();
       sim.resetChase();
       riding = null;

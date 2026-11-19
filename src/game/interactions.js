@@ -36,6 +36,7 @@ import { nowSec } from './util.js';
 // Renamed on import: doYarn already has a local `drop` (where the yarn lands).
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
 import { farmPromptText, farmObjective, hatAtDoor } from './farmplay.js';
+import { fairPromptText } from './fairplay.js';
 import { JOB_WORDS } from '../farmwords.js';
 import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
@@ -161,6 +162,7 @@ export function createInteractions({
     const farCall = hasSkill(progression.state, 'far-call');
     session.critters.reactToMeow(session.cat.position, { far: farCall });
     session.farm?.reactToMeow(session.cat.position); // a cow moos back
+    session.fair?.meow?.(session.cat.position); // a visitor at the fair says hello
     if (session.strayCats.reactToMeow(session.cat.position, { far: farCall }) > 0) {
       setTimeout(() => { if (getSession()) audio.meow(); }, 350); // a reply from a friend
     }
@@ -871,6 +873,17 @@ export function createInteractions({
       const text = farmPromptText(action);
       if (text) {
         s.prompt = { kind: 'farm', data: action };
+        setPrompt(text);
+      }
+    }
+    // The Fairground's three games (fairgames.js): a game offered at its spot,
+    // the tins to bat from the counter, a duck to pick up in the pool. NO_FAIR
+    // (every other place, and a stand-in session without one) offers nothing.
+    if (!s.prompt && s.fair?.games) {
+      const action = s.fair.actionFor();
+      const text = fairPromptText(action);
+      if (text) {
+        s.prompt = { kind: 'fair', data: action };
         setPrompt(text);
       }
     }
@@ -1677,6 +1690,14 @@ export function createInteractions({
           s.rest = startRest('drink');
         }
         else if (action.kind === 'deliver') hatAtDoor(s.carry, s.areaData);
+      }
+    } else if (s.prompt.kind === 'fair') {
+      // A Fairground game taken on, the tins batted, a duck picked up. What it
+      // pays and says comes with the events (game/fairplay.js).
+      if (s.fair.act(s.prompt.data) && s.prompt.data.kind === 'bat') {
+        // she turns to the shelf to bat at the tins
+        const tin = s.areaData?.anchors?.tinCans?.[1];
+        if (tin) s.cat.rotation.y = Math.atan2(-(tin.x - s.cat.position.x), -(tin.z - s.cat.position.z));
       }
     } else if (s.prompt.kind === 'quest-accept') {
       s.quest.accept();

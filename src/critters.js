@@ -195,6 +195,41 @@ function twolegArm(look) {
   ];
 }
 
+// The Twoleg's figure: a Group of three meshes (body, head, and the arm that
+// waves, on its shoulder pivot). critters.js stands one at each villager
+// spawn; the Fairground's visitors and its juggler are the same figure
+// (src/fairshow.js). Returns { figure, arm }.
+export function buildTwolegFigure(def) {
+    // A Twoleg: legs, shoes, a coat, hands, a hat or hair. Still the peg's
+    // three meshes (body, head, arm), each one merged vertex-coloured geometry
+    // whose parts are made inside withLocalUuids, so the draw calls and the
+    // real Math.random draws are exactly the peg's. The look comes from the
+    // spawn's position, never a roll. Faces -z, like the other critters.
+    const look = twolegLook(def);
+    // The figure Group holds body, head and arm so a spawn can ask the Twoleg
+    // to stand off its spawn point (def.standOff, metres, group frame). The
+    // group itself never moves: critter positions are recorded in the flat
+    // trace. Ranges (wave, dismay, scratch, quest) measure from the figure's
+    // world spot instead, via villagerPos().
+    const figure = withLocalUuids('twoleg-figure', () => new THREE.Group());
+    figure.position.x = def.standOff?.x ?? 0;
+    figure.position.z = def.standOff?.z ?? 0;
+    const body = new THREE.Mesh(mergeGeometries(withLocalUuids('twoleg-body', () => twolegBody(look)), false), twolegMat());
+    figure.add(body);
+    const head = new THREE.Mesh(mergeGeometries(withLocalUuids('twoleg-head', () => twolegHead(look)), false), twolegMat());
+    figure.add(head);
+    // The arm hangs DOWN from its shoulder pivot. Baked 0.2 rad inward, so
+    // update()'s rest pose (rotation.z 0.4) holds it a little out from the
+    // coat and its wave (2.6 +/- 0.3) swings the hand up and out.
+    const armGeo = mergeGeometries(withLocalUuids('twoleg-arm', () => twolegArm(look)), false);
+    armGeo.rotateZ(-0.2);
+    const arm = new THREE.Mesh(armGeo, twolegMat());
+    arm.position.set(0.27, 1.3, 0);
+    arm.rotation.z = 0.4;
+    figure.add(arm);
+    return { figure, arm };
+}
+
 function buildCritter(type, def = {}) {
   const g = new THREE.Group();
   if (type === 'bird' || type === 'seagull') {
@@ -320,35 +355,9 @@ function buildCritter(type, def = {}) {
       g.add(claw);
     }
   } else if (type === 'villager') {
-    // A Twoleg: legs, shoes, a coat, hands, a hat or hair. Still the peg's
-    // three meshes (body, head, arm), each one merged vertex-coloured geometry
-    // whose parts are made inside withLocalUuids, so the draw calls and the
-    // real Math.random draws are exactly the peg's. The look comes from the
-    // spawn's position, never a roll. Faces -z, like the other critters.
-    const look = twolegLook(def);
-    // The figure Group holds body, head and arm so a spawn can ask the Twoleg
-    // to stand off its spawn point (def.standOff, metres, group frame). The
-    // group itself never moves: critter positions are recorded in the flat
-    // trace. Ranges (wave, dismay, scratch, quest) measure from the figure's
-    // world spot instead, via villagerPos().
-    const figure = withLocalUuids('twoleg-figure', () => new THREE.Group());
-    figure.position.x = def.standOff?.x ?? 0;
-    figure.position.z = def.standOff?.z ?? 0;
+    const { figure, arm } = buildTwolegFigure(def);
     g.add(figure);
     g.userData.figure = figure;
-    const body = new THREE.Mesh(mergeGeometries(withLocalUuids('twoleg-body', () => twolegBody(look)), false), twolegMat());
-    figure.add(body);
-    const head = new THREE.Mesh(mergeGeometries(withLocalUuids('twoleg-head', () => twolegHead(look)), false), twolegMat());
-    figure.add(head);
-    // The arm hangs DOWN from its shoulder pivot. Baked 0.2 rad inward, so
-    // update()'s rest pose (rotation.z 0.4) holds it a little out from the
-    // coat and its wave (2.6 +/- 0.3) swings the hand up and out.
-    const armGeo = mergeGeometries(withLocalUuids('twoleg-arm', () => twolegArm(look)), false);
-    armGeo.rotateZ(-0.2);
-    const arm = new THREE.Mesh(armGeo, twolegMat());
-    arm.position.set(0.27, 1.3, 0);
-    arm.rotation.z = 0.4;
-    figure.add(arm);
     g.userData.arm = arm;
   }
   return g;

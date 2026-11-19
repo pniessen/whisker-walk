@@ -158,6 +158,13 @@ const PRIZE_FROSTING = 0xfff4e0;
 const PRIZE_FLAME = 0xffb02e;
 const PRIZE_BALLOONS = [0xf25c8a, 0x4ec9d4, 0xf2c14e];
 const PRIZE_STREAMERS = [0xe0405a, 0xf2c14e, 0x4ec9d4, 0x8a6cf2];
+// The Fairground's prizes (src/fairprizes.js): a cracker's paper crown, a
+// first-prize rosette, and a balloon tied on at the root of the tail.
+const FAIR_PAPER = [0xe2433a, 0xf7c93b, 0x2f6fc0, 0x4eb86a, 0xf08a2c, 0x9a5cc8];
+const FAIR_ROSETTE = 0x2f6fc0;
+const FAIR_ROSETTE_PALE = 0x6fa6e6;
+const FAIR_BALLOON = 0xf7c93b;
+const FAIR_BALLOON_BAND = 0xe2433a;
 const SOCK_COLORS = [0xf27ab0, 0x7ec9b8, 0xf2c14e, 0xf5f5f5]; // mismatched on purpose
 
 // The cape's cloth lives in cape.js (a leaf module, so backitems.js can read
@@ -535,6 +542,22 @@ function addPrizeHead(head, id, { k, y, rx, rz, ringY = y }) {
       jewel.position.set(Math.cos(a) * rx * 0.95, y + 0.1 * k, Math.sin(a) * rz * 0.95);
       head.add(jewel);
     }
+  } else if (id === 'papercrown') {
+    // the Fairground's paper crown: a thin band and six flat paper points, each its own colour
+    y = ringY;
+    const band = new THREE.Mesh(new THREE.TorusGeometry(rx * 0.95, 0.008 * k, 4, 12), mat(FAIR_PAPER[1]));
+    band.rotation.x = Math.PI / 2;
+    band.scale.set(1, rz / rx, 1);
+    band.position.set(0, y - 0.005, 0);
+    head.add(band);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const point = new THREE.Mesh(new THREE.ConeGeometry(0.034 * k, 0.085 * k, 3), mat(FAIR_PAPER[i % FAIR_PAPER.length]));
+      point.position.set(Math.cos(a) * rx * 0.95, y + 0.038 * k, Math.sin(a) * rz * 0.95);
+      point.scale.z = 0.35;
+      point.rotation.y = -a + Math.PI / 2;
+      head.add(point);
+    }
   } else if (id === 'leafcrown') {
     // a ring of green leaves, each tipped outward
     y = ringY;
@@ -612,6 +635,23 @@ function addPrizeFace(head, id, { k, x, y, z, starZ, skull }) {
 }
 
 function addPrizeNeck(head, id, { k, y, z, ringR, ringBack = 0 }) {
+  if (id === 'prizerosette') {
+    // The Fairground's prize rosette (src/fairprizes.js): pinned at the throat
+    // just under where a bow tie's knot sits. A blue disc with a gold button,
+    // and two ribbon tails hanging down the chest. No ring round the neck.
+    const disc = ball(0.058 * k, FAIR_ROSETTE, 1, 1, 0.3, 10, 6);
+    disc.position.set(0, y - 0.075 * k, z - 0.058 * k);
+    head.add(disc);
+    const button = ball(0.026 * k, PRIZE_GOLD, 1, 1, 0.5, 6, 5);
+    button.position.set(0, y - 0.075 * k, z - 0.074 * k);
+    head.add(button);
+    for (const side of [-1, 1]) {
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.034 * k, 0.11 * k, 0.012 * k), mat(side < 0 ? FAIR_ROSETTE : FAIR_ROSETTE_PALE));
+      tail.position.set(side * 0.024 * k, y - 0.155 * k, z - 0.058 * k);
+      tail.rotation.set(-0.3, 0, side * 0.22);
+      head.add(tail);
+    }
+  }
   if (id === 'streamerscarf') {
     // a fat red wrap with a gold stripe, and four fanned streamers hanging at the front
     const band = new THREE.Mesh(new THREE.TorusGeometry(ringR, 0.05 * k, 6, 12), mat(PRIZE_STREAMERS[0]));
@@ -2082,6 +2122,23 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       balloon.position.set(bx, by + 0.09, bz);
       floatOn(balloon, tie);
     });
+  } else if (accessories.back === 'tailballoon') {
+    // The Fairground's balloon (src/fairprizes.js). There is no slot for the
+    // tail, so it is a back item like the other balloons, and its string is
+    // tied on at the very back of the rump, where the tail begins: it floats
+    // up behind her, over the tail. A fat yellow balloon with a red band,
+    // nothing like the pink Party Balloon over the shoulders.
+    const foot = new THREE.Vector3(...onBack(0, 0.5, 0.31)), top = new THREE.Vector3(0, 0.84, 0.4);
+    floatString(foot, top, 0.004);
+    const knot = ball(0.015, FAIR_BALLOON_BAND, 1, 1, 1, 5, 4);
+    knot.position.set(0, 0.86, 0.4);
+    floatOn(knot, foot);
+    const balloon = ball(0.095, FAIR_BALLOON, 1, 1.12, 1, 10, 8);
+    balloon.position.set(0, 0.95, 0.4);
+    floatOn(balloon, foot);
+    const band = ball(0.0975, FAIR_BALLOON_BAND, 1, 0.34, 1, 10, 4);
+    band.position.set(0, 0.95, 0.4);
+    floatOn(band, foot);
   } else if (accessories.back === 'balloon') {
     // hovers just over the tail — low enough to stay inside the shop
     // thumbnail's whole-cat framing (~y 1.1 at this plane). The string's foot
