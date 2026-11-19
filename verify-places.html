@@ -33,8 +33,12 @@
   import * as moor from '/src/world/moor.js';
   import * as pines from '/src/world/pines.js';
   import * as gorge from '/src/world/gorge.js';
+  import * as farm from '/src/world/farm.js';
+  import { createFarmAnimals } from '/src/farmanimals.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
 
-  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge };
+  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge, farm };
   const id = new URLSearchParams(location.search).get('area') || 'neighborhood';
   // ?size=WxH renders bigger than the card pictures (for looking, not shipping).
   const [W, H] = (new URLSearchParams(location.search).get('size') || '640x360').split('x').map(Number);
@@ -59,6 +63,35 @@
   const area = AREAS[id].build(scene, { water: { quality: tier, reducedMotion: true }, wind });
   scene.add(createFill(area.groundBounce));
 
+  // ?animals (the Farm only) adds its animals (src/farmanimals.js) and a cat,
+  // before the caster sweep as walk.js does. window.__farmStep(seconds, cat)
+  // runs them on; cat = { x, z, running, inWater, on: 'cow-1', pose, yaw }
+  // puts the cat somewhere (on: a cow's back) in a pose. window.__farm is the
+  // animals, to move one by hand.
+  const farmAnimals = id === 'farm' && new URLSearchParams(location.search).has('animals')
+    ? createFarmAnimals(scene, area, { reducedMotion: false }) : null;
+  const farmCat = farmAnimals ? buildCat(new URLSearchParams(location.search).get('breed') || 'tabby') : null;
+  if (farmCat) { farmCat.position.set(0, 0, 46); scene.add(farmCat); }
+  window.__farm = farmAnimals;
+  window.__farmCat = farmCat;
+  let farmT = 0;
+  window.__farmStep = (seconds = 0, spec = {}) => {
+    const cow = spec.on ? farmAnimals.sim.cows.find((c) => c.id === spec.on) : null;
+    const session = { perched: cow ? cow.perch : spec.perched ? {} : null, pounceTime: 0 };
+    const player = { speed: spec.speed ?? 0, zooming: !!spec.running, inWater: !!spec.inWater };
+    if (spec.x !== undefined) farmCat.position.set(spec.x, 0, spec.z);
+    if (spec.yaw !== undefined) farmCat.rotation.y = spec.yaw;
+    const vx = spec.vx ?? 0, vz = spec.vz ?? 0;
+    for (let s = 0; s <= seconds; s += 1 / 30) {
+      farmT += 1 / 30;
+      farmCat.position.x += vx / 30; farmCat.position.z += vz / 30;
+      farmAnimals.update(1 / 30, farmT, { cat: farmCat, player, session });
+    }
+    farmCat.position.y = cow ? cow.perch.y : spec.inWater ? -0.18 : 0;
+    animateCat(farmCat, spec.pose ?? (cow ? 'perch' : 'follow'), farmT, player.speed, false);
+    render();
+    return farmAnimals.sim.all.map((a) => `${a.id} ${a.x.toFixed(1)},${a.z.toFixed(1)} ${a.mode ?? ''}`).join(' | ');
+  };
   const camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 300);
   const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
   sun.shadow.bias = SUN_BIAS;
@@ -182,6 +215,10 @@
     // first view, from the clifftop's lip '3,13.8,-26,-8,2,20', was half bare
     // rock
     gorge: '-3,15,-40,-6,0,0',
+    // from the yard's east side: the red barn with its hay bales and open hay
+    // door, the hen coop and the goat paddock to the left, the wheat and the
+    // scarecrow to the right (the card picture)
+    farm: '9.5,2.2,6,0.5,2.4,-12',
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();

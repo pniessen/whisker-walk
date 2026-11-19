@@ -157,6 +157,10 @@
    "touch": "One more walk here and {place} opens!",
    "keys": "One more walk here and {place} opens!"
   },
+  "home.opens-two": {
+   "touch": "One more walk here opens {place} and {place2}!",
+   "keys": "One more walk here opens {place} and {place2}!"
+  },
   "home.wear": {
    "touch": "You have enough for the {thing}. Tap Dress up!",
    "keys": "You have enough for the {thing}. Tap Dress up!"
@@ -281,6 +285,7 @@
  "slotsFilledWith": {
   "name": "Conker",
   "place": "Peopleville",
+  "place2": "City Park",
   "thing": "War Paint",
   "n": 3,
   "rank": "Yard Prowler"
@@ -442,6 +447,10 @@
    "touch": "One more walk here and Peopleville opens!",
    "keys": "One more walk here and Peopleville opens!"
   },
+  "home.opens-two": {
+   "touch": "One more walk here opens Peopleville and City Park!",
+   "keys": "One more walk here opens Peopleville and City Park!"
+  },
   "home.wear": {
    "touch": "You have enough for the War Paint. Tap Dress up!",
    "keys": "You have enough for the War Paint. Tap Dress up!"
@@ -586,7 +595,8 @@
    },
    "opensNext": {
     "park": "rule 7: One more walk here and City Park opens!",
-    "seaside": "rule 7: One more walk here and Seaside opens!",
+    "farm": "rule 7: One more walk here opens Appletree Farm and Seaside!",
+    "seaside": "rule 7: One more walk here opens Appletree Farm and Seaside!",
     "docks": "rule 7: One more walk here and the Old Docks opens!",
     "woods": "rule 7: One more walk here and City Park opens!",
     "river": "rule 7: One more walk here and the River and Marshes opens!",
@@ -623,7 +633,8 @@
    },
    "opensNext": {
     "park": "rule 7: One more walk here and City Park opens!",
-    "seaside": "rule 7: One more walk here and Seaside opens!",
+    "farm": "rule 7: One more walk here opens Appletree Farm and Seaside!",
+    "seaside": "rule 7: One more walk here opens Appletree Farm and Seaside!",
     "docks": "rule 7: One more walk here and the Old Docks opens!",
     "woods": "rule 7: One more walk here and City Park opens!",
     "river": "rule 12: 150 🐾 more to become a Yard Prowler.",

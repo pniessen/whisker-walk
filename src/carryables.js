@@ -105,6 +105,15 @@ export function buildCarryMesh(kind) {
       g.add(mesh(new THREE.SphereGeometry(0.02, 6, 6), m));
       break;
     }
+    case 'strawhat': {
+      // The farmer's straw hat (Appletree Farm's goat job, src/farmjobs.js):
+      // the scarecrow's hat, at the size a cat can carry by the brim.
+      const k = 0.44;
+      g.add(mesh(new THREE.CylinderGeometry(0.5 * k, 0.5 * k, 0.04 * k, 12), lit(0xb9963f), 0, 0.02 * k, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.2 * k, 0.27 * k, 0.18 * k, 12), lit(0xdcbb5c), 0, 0.13 * k, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.275 * k, 0.28 * k, 0.05 * k, 12), lit(0xc2463a), 0, 0.065 * k, 0));
+      break;
+    }
     default:
       g.add(mesh(new THREE.SphereGeometry(0.05, 8, 6), lit(0x9a9a9a)));
   }
@@ -129,7 +138,7 @@ export function createCarryables(scene, list, { ground = FLAT_GROUND } = {}) {
   const byId = new Map();
   let disposed = false;
 
-  for (const c of list ?? []) {
+  function make(c) {
     const obj = buildCarryMesh(c.kind);
     // Rest the mesh on the ground: lift by however far it extends below its origin.
     const box = new THREE.Box3().setFromObject(obj);
@@ -139,7 +148,9 @@ export function createCarryables(scene, list, { ground = FLAT_GROUND } = {}) {
     scene.add(obj);
     items.push(item);
     byId.set(c.id, item);
+    return item;
   }
+  for (const c of list ?? []) make(c);
 
   function place(item, x, z) {
     item.onGround = true;
@@ -151,6 +162,25 @@ export function createCarryables(scene, list, { ground = FLAT_GROUND } = {}) {
 
   return {
     list: items,
+    // One more thing, made after the walk began and out of sight until it is
+    // put somewhere (placeAt): a job's own item (the Farm's straw hat). `job`
+    // marks it as this device's alone: it is never sent to a co-walker and
+    // never becomes a mark (carry.js walkEndMarks).
+    addHidden(c) {
+      if (disposed || byId.has(c.id)) return byId.get(c.id) ?? null;
+      const item = make(c);
+      item.job = true;
+      item.onGround = false;
+      item.mesh.visible = false;
+      return item;
+    },
+    // Shown where it is put, and no longer something to pick up.
+    showAt(id, x, z) {
+      const it = byId.get(id);
+      if (!it) return;
+      place(it, x, z);
+      it.onGround = false;
+    },
     // The nearest item lying on the ground within maxDist (horizontal), or null.
     nearest(pos, maxDist) {
       let best = null;

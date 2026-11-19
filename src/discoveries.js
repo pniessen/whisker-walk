@@ -18,6 +18,11 @@ export const AWARDS = {
   // faced down on its own land (once a walk, wins only). Its own feat tally,
   // so the journal's "chased off" count stays intruders only.
   border: 12,
+  // Appletree Farm (2026-11-18): a job finished (once a walk for each of the
+  // four; what a neighbour's quest pays), and one of its six finds, paid the
+  // first time ever. Their feat tallies are the lifetime counts of both.
+  farmjob: 25,
+  farmfind: 12,
 };
 
 export function createDiscoveryLog(progression) {
@@ -57,6 +62,11 @@ export function createDiscoveryLog(progression) {
     },
     count(key) {
       return seen.get(key) || 0;
+    },
+    // Seen on this walk, and paid nothing (the Farm's finds after the first
+    // time ever: game/farmplay.js). A later awardOnce for the key pays nothing.
+    mark(key) {
+      if (!seen.has(key)) seen.set(key, 1);
     },
     award(type, key, label) {
       const n = seen.get(key) || 0;

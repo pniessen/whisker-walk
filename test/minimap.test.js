@@ -79,6 +79,7 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
+const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor, TORS, MOOR_PATHS, MOOR_TRAIL, MOOR_GORGE_TRAIL } = await import('../src/world/moor.js');
@@ -91,7 +92,7 @@ const { campLayout } = await import('../src/world/camp.js');
 // the leader's rock (r 0.6) is under it.
 const denBlock = (a) => { const { x, z, r } = campLayout(a).den; return { x, z, r }; };
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, farm: buildFarm };
 
 function built(areaId) {
   const scene = new THREE.Scene();
@@ -343,7 +344,7 @@ describe('buildMapLayer', () => {
     expect(flatFootprints(scene).filter(onLedge)).toHaveLength(0);
   });
 
-  for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines']) {
+  for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'farm']) {
     it(`buildMapLayer on ${areaId} has no rock, the flat paths, and paints exactly as before`, () => {
       const { scene, areaData } = built(areaId);
       const layer = buildMapLayer(areaData, scene);
@@ -363,7 +364,7 @@ describe('buildMapLayer', () => {
     });
   }
 
-  for (const areaId of ['park', 'neighborhood', 'seaside', 'docks']) {
+  for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'farm']) {
     it(`buildMapLayer on ${areaId} returns blocks with r >= 1`, () => {
       const { scene, areaData } = built(areaId);
       const layer = buildMapLayer(areaData, scene);

@@ -341,6 +341,10 @@ function init() {
   const clock = new THREE.Clock();
 
   let session = null;
+  // Development server only (import.meta.env.DEV is false in every build, so
+  // this line is not in one): a handle for checking a walk by script from the
+  // browser's console. Nothing in the game reads it.
+  if (import.meta.env.DEV) window.__ww = { get session() { return session; }, player, progression };
 
   // The border-post crossing card (src/game/crossing.js), made after the walk
   // lifecycle below; declared here so the interactions' post slot (and the
@@ -1122,6 +1126,9 @@ function init() {
       // v21 3b Task 16: the yard dog, after the rival (they share
       // session.chasing, so only one of them ever moves the cat at a time).
       session.dog.update(dt, session.cat.position, session.cat, { stalking: player.stalking });
+      // Appletree Farm's animals, after player.update: a cat on a cow's back is
+      // carried by her from here (farmanimals.js).
+      session.farm.update(dt, t, { cat: session.cat, player, session });
       // Clan Life Part 2: the clan fight, after everything that can move the
       // cat (player.update, a chase): it writes the fighting cat's spot.
       session.clanFight.update(dt, session);

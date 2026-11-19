@@ -533,6 +533,20 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(880, 0.12, { gain: 0.07 });
       tone(1320, 0.18, { gain: 0.07, delay: 0.1 });
     },
+    // Appletree Farm (farmanimals.js). A cow's moo: one long low voice that
+    // rises a little and sags, soft at both ends. Friendly, never sudden.
+    moo(volume = 1) {
+      vocal({ f0: 118, f1: 152, f2: 104, filt0: 420, filt1: 300, dur: 1.15, gain: 0.13 * volume, vibrato: 4 });
+    },
+    // A goat's short nasal "meh".
+    bleat(volume = 1) {
+      vocal({ f0: 430, f1: 470, f2: 390, filt0: 1300, filt1: 1000, dur: 0.38, gain: 0.07 * volume, vibrato: 16 });
+    },
+    // A chick's or a duckling's peep: two tiny rising notes.
+    peep(volume = 1) {
+      tone(2600, 0.06, { gain: 0.03 * volume, slideTo: 3300 });
+      tone(2800, 0.06, { gain: 0.025 * volume, slideTo: 3500, delay: 0.11 });
+    },
     bark() {
       tone(230, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 140 });
       tone(210, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 120, delay: 0.18 });

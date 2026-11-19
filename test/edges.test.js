@@ -39,6 +39,7 @@ const AREAS = {
   woods: 'WOODS_HORIZON',
   moor: 'MOOR_HORIZON',
   pines: 'PINES_HORIZON',
+  farm: 'FARM_HORIZON',
 };
 const EXPECTED = {
   // polish-sheen: the lawns went deeper (NEIGHBORHOOD_LAWN, PARK_LAWN, RIVER_GROUND)
@@ -48,6 +49,7 @@ const EXPECTED = {
   woods: { nearColor: 0x547f3e, style: 'scrub' },
   moor: { nearColor: 0x6f8044, style: 'wall' },
   pines: { nearColor: 0x56603e, style: 'pinescrub' },
+  farm: { nearColor: 0x62a24e, style: 'hedge' }, // FARM_GRASS
 };
 
 // How far (x, z) lies outside a bounds box, Chebyshev: 0 or less is inside.

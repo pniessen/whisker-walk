@@ -91,6 +91,12 @@ export function nextThing(state, { catalog = CATALOG, present = false, toldNow =
     return !owned.includes(id) && areaInEdition(a, edition) && !!a.requires && a.requires.area === here
       && count(walks[here]) === a.requires.walks - 1;
   }).sort((a, b) => (count(areas[a].price) > 0) - (count(areas[b].price) > 0));
+  // Two places that both cost coins are a choice, so the line names both
+  // (the Park opens the Farm and the Seaside). A free place opens by itself
+  // and is named alone, as it always was.
+  if (soon.length >= 2 && count(areas[soon[0]].price) > 0 && count(areas[soon[1]].price) > 0) {
+    return say(7, 'home.opens-two', '🗺️', { place: nameOf(soon[0]), place2: nameOf(soon[1]) });
+  }
   if (soon.length) return say(7, 'home.opens', '🗺️', { place: nameOf(soon[0]) });
 
   // Things to wear she does not own and could buy, cheapest first (the

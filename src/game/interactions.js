@@ -35,6 +35,8 @@ import { PATROL_MIN } from '../clancats.js';
 import { nowSec } from './util.js';
 // Renamed on import: doYarn already has a local `drop` (where the yarn lands).
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
+import { farmPromptText, farmObjective, hatAtDoor } from './farmplay.js';
+import { JOB_WORDS } from '../farmwords.js';
 import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
 import { postNear } from '../borderposts.js';
@@ -158,6 +160,7 @@ export function createInteractions({
     // one would be the protocol change the spec's non-goals rule out.
     const farCall = hasSkill(progression.state, 'far-call');
     session.critters.reactToMeow(session.cat.position, { far: farCall });
+    session.farm?.reactToMeow(session.cat.position); // a cow moos back
     if (session.strayCats.reactToMeow(session.cat.position, { far: farCall }) > 0) {
       setTimeout(() => { if (getSession()) audio.meow(); }, 350); // a reply from a friend
     }
@@ -715,6 +718,18 @@ export function createInteractions({
         if (log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type)) > 0) progression.recordSighting(c.type);
       }
     }
+    // Appletree Farm's animals: met the same way (6 m, looking at one), the
+    // same critter award and journal page, once a walk for each KIND of
+    // animal, so a yard of hens is one meeting and not five.
+    for (const a of s.farm?.spottable ?? []) {
+      const dx = a.pos.x - catP.x;
+      const dz = a.pos.z - catP.z;
+      const d = Math.hypot(dx, dz);
+      const f = player.forward();
+      if (d < 6 && d > 1e-6 && (dx * f.x + dz * f.z) / d > 0.5) {
+        if (log.awardOnce('critter', `spot-farm-${a.type}`, labelFor(a.type)) > 0) progression.recordSighting(a.type);
+      }
+    }
     // v21 3b Task 16: the yard dog is spotted like the critter dog it
     // replaced — the same distance and facing test, the same critter award
     // and the same journal sighting, once a walk.
@@ -836,6 +851,19 @@ export function createInteractions({
           g.sameLevel(catP.x, catP.z, s.quest.target.x, s.quest.target.z)) {
         s.prompt = { kind: 'quest-complete' };
         setPrompt(s.quest.texts.prompt);
+      }
+    }
+    // Appletree Farm's jobs and finds (farmjobs.js): a job offered beside its
+    // giver, the saucer of milk, the farmhouse door for the hat, the
+    // scarecrow's hat. Right after the neighbour's quest, the other job a walk
+    // has: what the cat walked over to do. From the ground only; NO_FARM (every
+    // other place, and a stand-in session without one) never offers anything.
+    if (!s.prompt && s.farm?.jobs) {
+      const action = s.farm.actionFor();
+      const text = farmPromptText(action);
+      if (text) {
+        s.prompt = { kind: 'farm', data: action };
+        setPrompt(text);
       }
     }
     if (!s.prompt) {
@@ -1084,7 +1112,7 @@ export function createInteractions({
       const item = carry.items.nearest(catP, CARRY_REACH);
       if (item) {
         s.prompt = { kind: 'carry', data: item };
-        setPrompt(`E — pick up the ${carryLabel(item.kind)}`);
+        setPrompt(item.job ? JOB_WORDS.goat.pickPrompt() : `E — pick up the ${carryLabel(item.kind)}`);
       }
     }
     // v21 3b Task 11 — scratch your mark into a post, trunk or bollard. After
@@ -1156,7 +1184,7 @@ export function createInteractions({
     // under the boards, where it cannot be seen. The cat just keeps holding it.
     if (!s.prompt && carry?.mouth.held && !s.perched && !player.inWater && !overDeck(s)) {
       s.prompt = { kind: 'drop' };
-      setPrompt(`E — put the ${carryLabel(carry.mouth.held.kind)} down`);
+      setPrompt(carry.mouth.held.job ? JOB_WORDS.goat.putPrompt() : `E — put the ${carryLabel(carry.mouth.held.kind)} down`);
     }
     if (!s.prompt) setPrompt(null);
 
@@ -1175,6 +1203,18 @@ export function createInteractions({
         s.quest.texts.objective,
         Math.hypot(s.quest.target.x - catP.x, s.quest.target.z - catP.z),
       );
+    } else if (s.farm?.jobs) {
+      // A Farm job under way has the same line, when the neighbour's quest and
+      // the race are not using it. It goes when the job is done.
+      const racing = s.race?.state && s.race.state !== 'idle' && s.race.state !== 'done';
+      const line = racing ? null : farmObjective(s.farm, catP);
+      if (line) {
+        hud.setObjective(line.text, line.meters);
+        s.farmObjective = true;
+      } else if (s.farmObjective) {
+        if (!racing) hud.setObjective(null);
+        s.farmObjective = false;
+      }
     }
 
     for (const sc of s.areaData.scenics) {
@@ -1489,7 +1529,8 @@ export function createInteractions({
     if (!item?.onGround) return false;
     if (!pickUp(s.carry.mouth, item)) return false;
     s.carry.items.hold(item.id, s.cat);
-    if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'carry-pick', itemId: item.id });
+    // (a job's own item is this device's alone: farmjobs.js)
+    if (s.net && !item.job) s.net.sendEvent({ v: 1, id: s.playerId, type: 'carry-pick', itemId: item.id });
     return true;
   }
 
@@ -1517,7 +1558,7 @@ export function createInteractions({
     const released = putDown(s.carry.mouth, x, z, item ? { x: item.homeX, z: item.homeZ } : null);
     if (released) {
       s.carry.items.placeAt(released.id, x, z);
-      if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'carry-drop', itemId: released.id, pos: [x, z] });
+      if (s.net && !released.job) s.net.sendEvent({ v: 1, id: s.playerId, type: 'carry-drop', itemId: released.id, pos: [x, z] });
     }
     return released;
   }
@@ -1538,7 +1579,7 @@ export function createInteractions({
     const raining = s.weather?.isRaining?.() === true;
     if (!tickRain(carry.mouth, dt, raining)) return;
     const released = putDownCarried(s);
-    if (released) hud.toast(`Slippery paws! You dropped the ${carryLabel(released.kind)}. 💧`);
+    if (released) hud.toast(`Slippery paws! You dropped the ${released.job ? JOB_WORDS.goat.hat() : carryLabel(released.kind)}. 💧`);
   }
 
   function handleInteract(s) {
@@ -1613,6 +1654,22 @@ export function createInteractions({
       gnome.group.userData.tipped = true;
       log.awardOnce('mischief', 'tip-gnome', 'a gnome bowled over 🧙');
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'tip-gnome' });
+    } else if (s.prompt.kind === 'farm') {
+      // A Farm job taken on, its saucer lapped, its hat handed in, or the
+      // scarecrow's hat tried on. What it pays and says comes with the events
+      // (game/farmplay.js); here only what the cat herself does.
+      const action = s.prompt.data;
+      if (s.farm.act(action)) {
+        if (action.kind === 'milk') {
+          // head down to the saucer, facing it
+          const dish = s.farm.jobs.saucer;
+          const dx = dish.x - s.cat.position.x;
+          const dz = dish.z - s.cat.position.z;
+          if (Math.hypot(dx, dz) > 0.15) s.cat.rotation.y = Math.atan2(-dx, -dz);
+          s.rest = startRest('drink');
+        }
+        else if (action.kind === 'deliver') hatAtDoor(s.carry, s.areaData);
+      }
     } else if (s.prompt.kind === 'quest-accept') {
       s.quest.accept();
       hud.toast(s.quest.texts.offer);

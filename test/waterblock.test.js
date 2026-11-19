@@ -49,11 +49,13 @@ vi.stubGlobal('document', {
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
+const { build: buildFarm } = await import('../src/world/farm.js');
 
 const AREAS = {
   park: buildPark(new THREE.Scene()),
   seaside: buildSeaside(new THREE.Scene()),
   docks: buildDocks(new THREE.Scene()),
+  farm: buildFarm(new THREE.Scene()),
 };
 
 const CAT_RADIUS = 0.35;

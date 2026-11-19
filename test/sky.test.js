@@ -104,6 +104,7 @@ describe('the visible band stays at least as rich as the flat colour it replaces
     park: [0xaee0d0, 0xd8f0e0],
     seaside: [0x88bce6, 0xe8e0d0],
     docks: [0x5e7290, 0x8e9aae],
+    farm: [0x9ad0ee, 0xdcefe4],
     'sunset (weather.js)': [0xf0a060, 0xf8c890],
     'rain (weather.js)': [0x7a8a98, 0x8a9aa8],
   };

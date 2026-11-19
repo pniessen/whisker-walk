@@ -44,6 +44,7 @@ const WORLDS = {
   moor: await import('../src/world/moor.js'),
   pines: await import('../src/world/pines.js'),
   seaside: await import('../src/world/seaside.js'),
+  farm: await import('../src/world/farm.js'),
 };
 
 const built = new Map();
@@ -127,8 +128,8 @@ function topY(mesh) {
 }
 
 describe('water dressing', () => {
-  it('dresses exactly the seven water areas', () => {
-    expect(DRESSED_AREAS).toEqual(['woods', 'river', 'moor', 'pines', 'seaside', 'park', 'gorge']);
+  it('dresses exactly the eight water areas', () => {
+    expect(DRESSED_AREAS).toEqual(['woods', 'river', 'moor', 'pines', 'seaside', 'park', 'gorge', 'farm']);
   });
 
   it('is a no-op stub on the docks', () => {

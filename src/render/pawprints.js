@@ -104,6 +104,8 @@ export const AREA_RULES = Object.freeze({
   pines: Object.freeze({ ground: null, path: 'wetSand', strip: null }),
   // The Gorge's floor paths are worn earth; the rock and the ledges take none.
   gorge: Object.freeze({ ground: null, path: 'sand', strip: null }),
+  // The Farm's lane, yard and tracks are packed earth; the grass takes none.
+  farm: Object.freeze({ ground: null, path: 'gravel', strip: null }),
 });
 
 // Where the Seaside's wet band takes over from dry sand: wetness() is 0 on

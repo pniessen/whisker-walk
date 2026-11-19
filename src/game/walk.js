@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import * as neighborhood from '../world/neighborhood.js';
 import * as park from '../world/park.js';
 import * as seaside from '../world/seaside.js';
+import * as farm from '../world/farm.js';
 import * as den from '../world/den.js';
 import * as docks from '../world/docks.js';
 import * as woods from '../world/woods.js';
@@ -78,6 +79,8 @@ import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
 import { clampZoomStep, maxZoomStep, zoomView } from '../camzoom.js';
 import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
+import { createFarmAnimals, NO_FARM } from '../farmanimals.js';
+import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
@@ -150,7 +153,7 @@ import { createSession } from './session.js';
 // home-base card, a price and an unlock gate), and this map, which is what
 // startWalk indexes with state.area. An area missing from here is a fully
 // built world nothing can ever call.
-const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines, gorge };
+const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines, gorge, farm };
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
@@ -1294,6 +1297,33 @@ export function createWalkLifecycle({
     const rests = createRests(scene, propsFor(areaId).rests, { ground });
     for (const c of rests.colliders) areaData.colliders.push({ ...c });
 
+    // Appletree Farm's animals (farmanimals.js): cows, goats, hens and chicks,
+    // the sheepdog and the ducklings. Built here, after every prop's collider
+    // is in the list (they keep clear of them) and before the caster sweep
+    // (their small parts are flagged not to cast). Each cow's back is a perch
+    // that moves, so it joins the area's perches: the ordinary jump gets the
+    // cat onto her. Per device, like the critters: nothing rides the wire, and
+    // their dice are their own, never walkRng. Pays nothing and saves nothing
+    // itself; meeting one is spotted in updateInteractions.
+    let farmToasted = null;
+    const farm = areaId !== 'farm' ? NO_FARM : createFarmAnimals(scene, areaData, {
+      reducedMotion,
+      ground,
+      isFree: (x, z) => isWalkableAt(areaData, x, z),
+      ducks: () => critters.list.filter((c) => c.type === 'duck').map((c) => c.group.position),
+      // What each event pays, says and sounds like is game/farmplay.js (the
+      // lines themselves are in the phrase table, by way of src/farmwords.js).
+      onEvent: (e) => {
+        farmToasted ??= new Set();
+        const once = (key, text) => { if (!farmToasted.has(key)) { farmToasted.add(key); hud.toast(text); } };
+        handleFarmEvent(e, { hud, audio, log, progression, session, once });
+      },
+    });
+    for (const p of farm.perches) areaData.perches.push(p);
+    // The farmer's straw hat (the goat job): a thing to carry, out of sight
+    // until the goat drops it.
+    if (farm.jobs) addFarmHat(carry, areaData);
+
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
     // time and VISUAL-PASS.md's Wave 6 note says out loud that a lot of what
@@ -1314,6 +1344,7 @@ export function createWalkLifecycle({
     for (const stray of strayCats.strays) decals.follow(stray.group);
     for (const c of clanCats.list) decals.follow(c.group);
     for (const critter of critters.list) decals.follow(critter.figure ?? critter.group);
+    for (const g of farm.groups) decals.follow(g);
     for (const dc of denCats.list) decals.follow(dc.group);
 
     // The shadow camera used to be nailed to the world origin at +/-70 so it
@@ -1436,6 +1467,7 @@ export function createWalkLifecycle({
     const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: duskActive }) ?? NO_AREA_LIFE;
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
+      farm,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
       campMarker,
@@ -2095,6 +2127,8 @@ export function createWalkLifecycle({
     log.startWalk();
     // A walk picked up again has already paid for what it paid for.
     if (resume) log.restore(resume.paid);
+    // ...and a Farm job it had finished is finished (its hat is at the door).
+    if (resume) restoreFarmJobs(farm, { log, carry, area: areaData });
     hud.show();
     hud.setArea(placeName(areaId, progression.state.edition, CATALOG) || areaData.name);
     // Kittypets: the arrival line waits for the walk to start (the Ready? card
@@ -2358,6 +2392,7 @@ export function createWalkLifecycle({
       }
     });
     session.critters.dispose();
+    session.farm?.dispose();
     session.goldMice.dispose();
     session.rival.dispose();
     session.chasing = false;
