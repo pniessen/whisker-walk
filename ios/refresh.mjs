@@ -21,7 +21,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, r
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { loadEnv } from 'vite';
-import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory, cloudProblem } from './refresh-lib.mjs';
+import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory, cloudProblem, ciPassed, CI_WORKFLOW } from './refresh-lib.mjs';
 import {
   planNight, isGameRunning, nightNotice, notifyScript, latestResults, stillPending,
   takeLock as takeLockFile, dropLock as dropLockFile,
@@ -47,7 +47,7 @@ const PROFILE_DIRS = [
 // A step that hangs (a keychain prompt, a stuck test) fails instead of
 // blocking every later night.
 const MINUTE = 60_000;
-const TIMEOUT = { tests: 15 * MINUTE, buildIos: 10 * MINUTE, xcodebuild: 30 * MINUTE, git: 2 * MINUTE, devicectl: 2 * MINUTE };
+const TIMEOUT = { tests: 15 * MINUTE, buildIos: 10 * MINUTE, xcodebuild: 30 * MINUTE, git: 2 * MINUTE, devicectl: 2 * MINUTE, gh: MINUTE };
 
 const dev = process.argv.includes('--dev');
 const auto = process.argv.includes('--auto');
@@ -254,12 +254,23 @@ function freshBuild() {
   if (!dev) checkMain();
   checkCloud();
   const commit = git('rev-parse', 'HEAD'); // what is tested and built
-  // The same tests the website deploy runs. Only the repo's own test/
-  // folder: in the main checkout, a bare `npm test` would also collect the
-  // tests inside every other worktree (.worktrees/, .claude/worktrees/),
-  // whose unfinished work can fail and would block the family's refresh.
-  step('Running the tests');
-  logged('tests', 'npx', ['vitest', 'run', '--dir', 'test'], { reason: 'the tests failed on main', timeout: TIMEOUT.tests });
+  // The same tests the website deploy runs, so if GitHub's CI already passed
+  // them for this exact commit they are not run again here (a test can flake
+  // on a busy Mac and leave the children on an old build). With --dev the
+  // tree may not be the commit, so the tests always run.
+  const ci = dev ? { passed: false, why: '--dev' } : ciPassed(run('gh', [
+    'run', 'list', '--commit', commit, '--workflow', CI_WORKFLOW, '--json', 'conclusion,status',
+  ], { timeout: TIMEOUT.gh }));
+  if (ci.passed) {
+    step(`CI passed for ${commit}; tests skipped`);
+  } else {
+    // Only the repo's own test/ folder: in the main checkout, a bare `npm
+    // test` would also collect the tests inside every other worktree
+    // (.worktrees/, .claude/worktrees/), whose unfinished work can fail and
+    // would block the family's refresh.
+    step(`Running the tests (${ci.why})`);
+    logged('tests', 'npx', ['vitest', 'run', '--dir', 'test'], { reason: 'the tests failed on main', timeout: TIMEOUT.tests });
+  }
   step('Building the game for the app');
   logged('build-ios', 'npm', ['run', 'build:ios'], { reason: 'the game build failed', timeout: TIMEOUT.buildIos });
   checkCloud('ios/web');
