@@ -1,7 +1,9 @@
 // =============================================================================
 // TRAVERSAL IN THE WALK (Rooftops step 1, part 2). The runtime for an area
 // that returns `traversal` (src/traversal.js): the balance walk along its
-// crossings, and the camera that eases round behind her on one.
+// crossings, the camera that eases round behind her on one, and the hops at
+// the placed spots (a leap across a gap, a climb-up, a drop), with the look
+// across a gap she cannot leap yet.
 //
 // THE FRAME ORDER. main.js calls update() right BEFORE player.update. While
 // she is on a crossing, update() places her itself (on the rail, with
@@ -24,14 +26,49 @@
 // game/avatar.js and the rest can call it without asking first (the NO_FAIR
 // pattern of src/fairlive.js).
 //
+// THE JUMP BUTTON at a spot (jump()) starts a hop: a crouch that glides her to
+// the take-off, the arc, the landing. Every frame of it is hopAt(plan, time):
+// where she is follows from the plan and the time alone, never from where she
+// was, so whatever else moves her mid-air she is back on the arc next frame,
+// and whatever the frame times she ends exactly on the landing. "It always
+// lands." A spot she cannot use yet (a gap needing Long Leap, a climb above
+// her budget) is a look: she stops and faces the far side for LOOK_TIME, until
+// the stick is pushed.
+//
 // DETERMINISTIC: every motion is a function of the data, the stick and dt.
-// ALLOCATION: update() and late() allocate nothing; the scratch objects and
-// the events (one frozen pair per crossing) are made here, once.
+// ALLOCATION: update(), jump() and late() allocate nothing; the scratch
+// objects and the events (one frozen pair per crossing, one frozen set per
+// hop) are made here, once.
 // =============================================================================
 import {
-  BASE_ABILITIES, ALONG_DEAD, SNAP_EASE, TURN_RATE, CAM_FOLLOW_RATE, CAM_TURN_MAX,
-  crossingPoint, crossingToMount, balanceStep, stickToWorld, facingYaw, behindYaw, easeYawToward,
+  BASE_ABILITIES, ALONG_DEAD, SNAP_EASE, TURN_RATE, CAM_FOLLOW_RATE, CAM_TURN_MAX, LOOK_TIME,
+  crossingPoint, crossingToMount, balanceStep, spotFor, planHop, hopAt,
+  stickToWorld, facingYaw, behindYaw, easeYawToward,
 } from './traversal.js';
+
+const EPS = 1e-9;
+const LAND_DUST = 0xcbb8a0;
+const LAND_EVENT = Object.freeze({ water: false });
+
+// What a traversal event does in the game: the whoosh as she springs, and at
+// touchdown the dust, the thump and the 'pounce:land' that src/haptics.js taps
+// for. fx and audio may be missing (a stand-in, a headless walk).
+export function traversalEventEffects(e, { audio, fx, cat, bus } = {}) {
+  switch (e?.type) {
+    case 'leap':
+    case 'climb':
+    case 'drop':
+      audio?.pounceWhoosh?.();
+      break;
+    case 'land':
+      fx?.burst?.(cat.position, LAND_DUST, 8);
+      audio?.landThump?.();
+      bus?.emit('pounce:land', LAND_EVENT);
+      break;
+    default:
+      break;
+  }
+}
 
 export const NO_TRAVERSAL = Object.freeze({
   busy: false,
@@ -55,6 +92,14 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
   for (const c of trav.crossings) {
     mountEvents.set(c, Object.freeze({ type: 'mount', id: c.id }));
     crossEvents.set(c, Object.freeze({ type: 'cross', id: c.id }));
+  }
+  const springEvents = new Map();
+  const landEvents = new Map();
+  const lookEvents = new Map();
+  for (const h of trav.hops) {
+    springEvents.set(h, Object.freeze({ type: h.kind, id: h.id }));
+    landEvents.set(h, Object.freeze({ type: 'land', kind: h.kind, id: h.id }));
+    lookEvents.set(h, Object.freeze({ type: 'look', id: h.id }));
   }
 
   const stick = { x: 0, z: 0 };
@@ -82,6 +127,28 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
   let heldCrossing = null;
   let heldEnd = 0;
   let heldPlayer = null;
+
+  // The hop: its plan, the time into it, where hopAt puts her, the way she
+  // faces for it, and whether the spring and the touchdown have been told.
+  const spot = { hop: null, look: false };
+  const plan = { hop: null, sx: 0, sz: 0, crouch: 0, land: 0, hang: 0, air: 0, total: 0 };
+  const at = { x: 0, y: 0, z: 0, phase: null, s: 0, onGround: true, tau: 0 };
+  let hop = null;
+  let elapsed = 0;
+  let hopYaw = 0;
+  let sprung = false;
+  let landed = false;
+  // The look: the hop she is looking along, and for how long so far.
+  let looking = null;
+  let lookTime = 0;
+
+  function clearHop() {
+    hop = null;
+    plan.hop = null;
+    elapsed = 0;
+    at.phase = null;
+    at.s = 0;
+  }
 
   function clear() {
     crossing = null;
@@ -205,33 +272,125 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     session.idleTime = 0;
   }
 
+  // One frame of a hop. Like a crossing, it runs before player.update and
+  // holds the player, so player.update leaves her where she is put.
+  function hopStep(dt, cat, player, session) {
+    const h = hop;
+    const d = dt > 0 ? dt : 0;
+    elapsed += d;
+    hopAt(plan, elapsed, at);
+    // 1. Place her: on the ground in the crouch and from touchdown on, else
+    //    on the arc, perchY the height above the ground under her.
+    if (at.onGround) {
+      player.perchY = 0;
+    } else {
+      player.perchY = Math.max(0, at.y - ground.y(at.x, at.z));
+    }
+    cat.position.set(at.x, at.y, at.z);
+    // 2. Face the landing: turning to it in the crouch, exactly on it after.
+    if (at.phase === 'crouch') cat.rotation.y = easeYawToward(cat.rotation.y, hopYaw, d, TURN_RATE, TURN_RATE);
+    else cat.rotation.y = hopYaw;
+    // 3. Tell the spring and the touchdown, once each and in order, even if
+    //    one long frame went past a whole phase.
+    if (!sprung && at.phase !== 'crouch') {
+      sprung = true;
+      onEvent(springEvents.get(h));
+    }
+    if (!landed && (at.phase === 'land' || at.phase === 'done')) {
+      landed = true;
+      onEvent(landEvents.get(h));
+    }
+    // 4. Hold the player.
+    player.halt();
+    player.speedFactor = 0;
+    session.idleTime = 0;
+    // 5. Done: exactly on the landing (hopAt's 'done' is the landing spot).
+    if (at.phase === 'done') clearHop();
+  }
+
   return {
-    get busy() { return crossing !== null; },
+    get busy() { return crossing !== null || hop !== null; },
     get crossing() { return crossing; },
-    get hop() { return null; },
-    get looking() { return null; },
-    get phase() { return crossing ? 'crossing' : null; },
-    get progress() { return crossing ? st.u / crossing.length : 0; },
-    get pose() { return crossing ? 'stalk' : null; },
-    get speed() { return crossing ? Math.abs(st.v) : null; },
+    get hop() { return hop; },
+    get looking() { return looking; },
+    get phase() {
+      if (crossing) return 'crossing';
+      if (hop) return at.phase;
+      return looking ? 'look' : null;
+    },
+    get progress() {
+      if (crossing) return st.u / crossing.length;
+      return hop ? at.s : 0;
+    },
+    get pose() {
+      if (crossing) return 'stalk';
+      if (hop) return at.phase === 'crouch' ? 'stalk' : at.phase === 'air' ? 'pounce' : 'land';
+      return looking ? 'follow' : null;
+    },
+    get speed() {
+      if (crossing) return Math.abs(st.v);
+      return hop || looking ? 0 : null;
+    },
     update(dt, t, { cat, player, session }) {
       if (!crossing && heldYaw !== null) {
         player.stickInput(stick);
         if (!player.inputActive || Math.hypot(stick.x, stick.z) < ALONG_DEAD) letGo();
       }
+      if (hop) {
+        hopStep(dt, cat, player, session);
+        return;
+      }
+      // The stick ends a look at once; so does the timer.
+      if (looking) {
+        lookTime += dt > 0 ? dt : 0;
+        if (player.inputActive || lookTime >= LOOK_TIME - EPS) looking = null;
+      }
       if (!crossing && !tryMount(cat, player, session)) return;
       walk(dt, cat, player, session);
     },
-    jump() { return false; },
+    // The jump button. True when it was this runtime's press (a hop, a look,
+    // or anything while busy, so the button does nothing else then); false
+    // when it is not its business and the game's own pounce should have it.
+    jump({ cat, player, session }) {
+      if (crossing || hop) return true;
+      if (session.perched || player.perchY !== 0 || session.fight || session.chasing) return false;
+      const p = cat.position;
+      const ry = cat.rotation.y;
+      if (!spotFor(trav, p.x, p.z, ground.y(p.x, p.z), -Math.sin(ry), -Math.cos(ry), abilities(), spot)) return false;
+      const h = spot.hop;
+      const yaw = h.dist > 0 ? facingYaw(h.x1 - h.x0, h.z1 - h.z0) : ry;
+      player.halt();
+      if (spot.look) {
+        looking = h;
+        lookTime = 0;
+        cat.rotation.y = yaw;
+        onEvent(lookEvents.get(h));
+        return true;
+      }
+      looking = null;
+      hop = h;
+      hopYaw = yaw;
+      planHop(h, p.x, p.z, reducedMotion, plan);
+      elapsed = 0;
+      sprung = false;
+      landed = false;
+      at.phase = 'crouch';
+      at.s = 0;
+      return true;
+    },
     late() {},
-    // Free ground to put her on if the walk stops here: the nearer end.
+    // Free ground to put her on if the walk stops here: the nearer end of a
+    // crossing, the landing of a hop.
     groundSpot() {
+      if (hop) return { x: hop.x1, z: hop.z1 };
       if (!crossing) return null;
       const e = crossing.ends[st.u < crossing.length / 2 ? 0 : 1];
       return { x: e.x, z: e.z };
     },
     dispose() {
       clear();
+      clearHop();
+      looking = null;
       letGo();
     },
   };

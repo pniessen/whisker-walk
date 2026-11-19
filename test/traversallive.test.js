@@ -277,3 +277,302 @@ describe('the balance walk', () => {
     expect(() => { NO_TRAVERSAL.update(1 / 60, 0, {}); NO_TRAVERSAL.late(1 / 60, 0, {}); NO_TRAVERSAL.dispose(); }).not.toThrow();
   });
 });
+
+const { traversalEventEffects } = await import('../src/traversallive.js');
+const { BASE_ABILITIES, LOOK_TIME, arcPoint } = await import('../src/traversal.js');
+
+const hopById = (w, id) => w.area.traversal.hops.find((h) => h.id === id);
+
+// Steers her (a fresh push each frame, toward the target) until she is within `near` of it, then lets
+// go and lets her come to rest.
+function walkTo(w, x, z, near = 0.3) {
+  for (let i = 0; i < 1200; i++) {
+    const dx = x - w.cat.position.x;
+    const dz = z - w.cat.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d < near) break;
+    w.push(dx / d, dz / d);
+    w.frame();
+  }
+  w.release();
+  w.run(0.5);
+}
+
+// Frames until the hop is over; returns the phases seen, checking she is never under the ground.
+function ride(w, dt = 1 / 60) {
+  const phases = [];
+  for (let i = 0; i < 1000 && w.live.busy; i++) {
+    w.frame(dt);
+    phases.push(w.live.phase);
+    expect(w.cat.position.y).toBeGreaterThanOrEqual(w.area.ground.y(w.cat.position.x, w.cat.position.z) - 1e-9);
+  }
+  expect(w.live.busy).toBe(false);
+  return phases;
+}
+
+describe('the leap and the drop', () => {
+  it('leaps the level gap: crouch, air, land, and ends exactly on the far roof', () => {
+    const w = yardWalk({ at: [3, -7.0], face: [0, 1] });
+    expect(w.jump()).toBe(true);
+    expect(w.live.busy).toBe(true);
+    expect(w.live.hop?.id).toBe('gap-1');
+    const phases = [];
+    const poses = new Set();
+    for (let i = 0; i < 1000 && w.live.busy; i++) {
+      w.frame(); phases.push(w.live.phase); poses.add(w.live.pose);
+      if (w.live.busy) expect(w.live.speed).toBe(0);
+      expect(w.cat.position.y).toBeGreaterThanOrEqual(w.area.ground.y(w.cat.position.x, w.cat.position.z) - 1e-9);
+    }
+    expect([...new Set(phases)]).toEqual(['crouch', 'air', 'land', null]);
+    expect([...poses]).toEqual(['stalk', 'pounce', 'land', null]);
+    const hop = hopById(w, 'gap-1');
+    expect(w.cat.position.x).toBe(hop.x1); expect(w.cat.position.z).toBe(hop.z1);
+    expect(w.cat.position.y).toBe(3.5);
+    expect(w.player.perchY).toBe(0);
+    expect(w.events.map((e) => e.type)).toEqual(['leap', 'land']);
+    expect(w.events[1]).toEqual({ type: 'land', kind: 'leap', id: 'gap-1' });
+    expect(w.live.hop).toBeNull();
+    expect(w.live.groundSpot()).toBeNull();
+  });
+
+  it('leaps down gap-2 onto the lower roof', () => {
+    const w = yardWalk({ at: [7.0, 0], face: [1, 0] });
+    expect(w.jump()).toBe(true);
+    ride(w);
+    expect(w.cat.position.x).toBe(10.4); expect(w.cat.position.z).toBe(0);
+    expect(w.area.ground.y(w.cat.position.x, w.cat.position.z)).toBe(1.5);
+    expect(w.cat.position.y).toBe(1.5);
+    expect(w.events.map((e) => `${e.type}:${e.id}`)).toEqual(['leap:gap-2', 'land:gap-2']);
+  });
+
+  it('climbs onto the shed at climb-1, and a climb above her budget is a look', () => {
+    const w = yardWalk({ at: [-12, 9.4], face: [0, -1] });
+    expect(w.jump()).toBe(true);
+    ride(w);
+    expect(w.cat.position.x).toBe(-12); expect(w.cat.position.z).toBe(7.4);
+    expect(w.cat.position.y).toBe(1.5);
+    expect(w.events).toEqual([{ type: 'climb', id: 'climb-1' }, { type: 'land', kind: 'climb', id: 'climb-1' }]);
+
+    const r = yardWalk({ at: [-12, 9.4], face: [1, 0], abilities: () => ({ ...BASE_ABILITIES, climb: 1.0 }) });
+    const [x, y, z] = [r.cat.position.x, r.cat.position.y, r.cat.position.z];
+    expect(r.jump()).toBe(true);
+    expect(r.live.busy).toBe(false);
+    expect(r.live.looking?.id).toBe('climb-1');
+    expect(r.live.phase).toBe('look');
+    expect(r.live.pose).toBe('follow');
+    expect(r.live.speed).toBe(0);
+    expect(Math.abs(angleDiff(r.cat.rotation.y, facingYaw(0, -1)))).toBeLessThan(1e-9); // she faces the shed
+    r.run(LOOK_TIME - 0.1);
+    expect(r.live.phase).toBe('look');
+    expect([r.cat.position.x, r.cat.position.y, r.cat.position.z]).toEqual([x, y, z]);
+    r.run(0.1);
+    expect(r.live.phase).toBeNull();
+    expect(r.live.looking).toBeNull();
+    expect(r.events).toEqual([{ type: 'look', id: 'climb-1' }]);
+  });
+
+  it('the stick ends a look at once', () => {
+    const w = yardWalk({ at: [14, 3.2], face: [0, 1] });
+    expect(w.jump()).toBe(true);
+    w.run(0.2);
+    expect(w.live.phase).toBe('look');
+    w.push(-1, 0);
+    w.frame();
+    expect(w.live.phase).toBeNull();
+    expect(w.live.looking).toBeNull();
+  });
+
+  it('at the gap too wide for her she looks across; with Long Leap she leaps it', () => {
+    const w = yardWalk({ at: [14, 3.2], face: [0, 1] });
+    expect(w.jump()).toBe(true);
+    expect(w.live.phase).toBe('look');
+    expect(w.live.looking?.id).toBe('gap-3');
+    w.run(0.5);
+    expect([w.cat.position.x, w.cat.position.z]).toEqual([14, 3.2]);
+    expect(w.events).toEqual([{ type: 'look', id: 'gap-3' }]);
+
+    const l = yardWalk({ at: [14, 3.2], face: [0, 1], abilities: () => ({ ...BASE_ABILITIES, longLeap: true }) });
+    expect(l.jump()).toBe(true);
+    expect(l.live.hop?.id).toBe('gap-3');
+    ride(l);
+    expect(l.cat.position.x).toBe(14); expect(l.cat.position.z).toBe(8.0);
+    expect(l.cat.position.y).toBe(1.5);
+    expect(l.events.map((e) => `${e.type}:${e.id}`)).toEqual(['leap:gap-3', 'land:gap-3']);
+  });
+
+  it('drops in steps from the west roof to the shed, and from the shed to the yard', () => {
+    const w = yardWalk({ at: [-12, -6.9], face: [0, 1] });
+    for (const id of ['drop-1', 'drop-4']) {
+      const hop = hopById(w, id);
+      if (id === 'drop-4') walkTo(w, hop.x0, hop.z0);
+      w.events.length = 0;
+      expect(w.jump()).toBe(true);
+      expect(w.live.hop?.id).toBe(id);
+      let first = true;
+      for (let i = 0; i < 1000 && w.live.busy; i++) {
+        w.frame();
+        if (first && w.live.phase === 'air') {
+          first = false;
+          expect(w.cat.position.y).toBeGreaterThanOrEqual(hop.y0 - 1e-9); // a hop out, not a fall
+        }
+        expect(w.cat.position.y).toBeGreaterThanOrEqual(w.area.ground.y(w.cat.position.x, w.cat.position.z) - 1e-9);
+      }
+      expect(first).toBe(false);
+      expect(w.cat.position.x).toBe(hop.x1); expect(w.cat.position.z).toBe(hop.z1);
+      expect(w.cat.position.y).toBe(hop.y1);
+      expect(w.events.map((e) => `${e.type}:${e.id}`)).toEqual([`drop:${id}`, `land:${id}`]);
+    }
+    expect(w.cat.position.y).toBe(0); // in the yard
+  });
+
+  it('away from every spot the jump is not its business', () => {
+    expect(yardWalk({ at: [0, 14], face: [0, -1] }).jump()).toBe(false); // the spawn
+    expect(yardWalk({ at: [-12, -9.5], face: [0, 1] }).jump()).toBe(false); // the west roof, 3.1 m from drop-1
+    const cases = [
+      (w) => { w.session.perched = { id: 'a perch' }; w.player.perchY = 0.6; },
+      (w) => { w.player.perchY = 0.6; },
+      (w) => { w.session.fight = { id: 'a fight' }; },
+      (w) => { w.session.chasing = true; },
+    ];
+    for (const set of cases) {
+      const w = yardWalk({ at: [3, -7.0], face: [0, 1] });
+      set(w);
+      expect(w.jump()).toBe(false);
+      w.frame();
+      expect(w.live.busy).toBe(false);
+      expect(w.events).toEqual([]);
+    }
+  });
+
+  it('a jump on a crossing does nothing and says it is busy', () => {
+    const w = onPlank1(1);
+    const x = w.cat.position.x;
+    expect(w.jump()).toBe(true);
+    expect(w.live.phase).toBe('crossing');
+    expect(w.live.hop).toBeNull();
+    expect(w.cat.position.x).toBe(x);
+    expect(w.events.map((e) => e.type)).toEqual(['mount']);
+  });
+
+  it('lands on the same spot whatever the frame times', () => {
+    const land = (dts, reducedMotion = false) => {
+      const w = yardWalk({ at: [3, -7.0], face: [0, 1], reducedMotion });
+      w.jump();
+      let i = 0;
+      while (w.live.busy && i < 10000) w.frame(dts[i++ % dts.length]);
+      return [w.cat.position.x, w.cat.position.z];
+    };
+    const a = land([1 / 60]);
+    expect(land([0.05])).toEqual(a);
+    expect(land([1 / 60, 0, 0, 1 / 30])).toEqual(a);
+    expect(land([1 / 60], true)).toEqual(a); // reduced motion: the same landing
+  });
+
+  it('reduced motion shortens the crouch and the landing, and nothing else', () => {
+    const times = (reducedMotion) => {
+      const w = yardWalk({ at: [3, -7.0], face: [0, 1], reducedMotion });
+      w.jump();
+      const n = { crouch: 0, air: 0, land: 0 };
+      for (let i = 0; i < 1000 && w.live.busy; i++) { w.frame(); if (w.live.phase) n[w.live.phase]++; }
+      return n;
+    };
+    const a = times(false);
+    const r = times(true);
+    expect(r.crouch).toBeLessThan(a.crouch);
+    expect(r.land).toBeLessThan(a.land);
+    expect(Math.abs(r.air - a.air)).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps her on the arc when something else moves her mid-air', () => {
+    const w = yardWalk({ at: [3, -7.0], face: [0, 1] });
+    const hop = hopById(w, 'gap-1');
+    w.jump();
+    for (let i = 0; i < 600 && w.live.phase !== 'air'; i++) w.frame();
+    w.cat.position.set(0, 0, 10);
+    w.frame();
+    expect(w.live.phase).toBe('air');
+    const p = arcPoint(hop, hop.apex, w.live.progress, { x: 0, y: 0, z: 0 });
+    expect(Math.hypot(w.cat.position.x - p.x, w.cat.position.y - p.y, w.cat.position.z - p.z)).toBeLessThan(0.2);
+    expect(w.live.groundSpot()).toEqual({ x: hop.x1, z: hop.z1 });
+    ride(w);
+    expect(w.cat.position.x).toBe(hop.x1); expect(w.cat.position.z).toBe(hop.z1);
+  });
+
+  it('one leap per press however the button is mashed', () => {
+    const w = yardWalk({ at: [3, -7.0], face: [0, 1] });
+    for (let i = 0; i < 150; i++) { w.jump(); w.frame(); }
+    expect(w.live.busy).toBe(false);
+    expect(w.events.filter((e) => e.type === 'leap')).toHaveLength(1);
+    expect(w.events.map((e) => e.type)).toEqual(['leap', 'land']);
+    const hop = hopById(w, 'gap-1');
+    expect([w.cat.position.x, w.cat.position.z]).toEqual([hop.x1, hop.z1]); // on east2, no spot near
+    expect(w.jump()).toBe(false);
+  });
+
+  it('is the same on two devices, and draws on no dice', () => {
+    // The walks are built first: THREE draws each object's uuid with Math.random. The run itself draws nothing.
+    const scriptedRun = (w) => {
+      w.push(1, 0);
+      for (let i = 0; i < 900 && !w.events.some((e) => e.type === 'cross'); i++) w.frame();
+      w.release();
+      w.frame();
+      walkTo(w, 3, -6.6);
+      expect(w.jump()).toBe(true);
+      ride(w);
+      expect(w.events.map((e) => `${e.type}:${e.id}`)).toEqual(['mount:plank-1', 'cross:plank-1', 'leap:gap-1', 'land:gap-1']);
+      return w.trace;
+    };
+    const real = Math.random;
+    const walks = [yardWalk({ at: [-9.0, -13], face: [1, 0] }), yardWalk({ at: [-9.0, -13], face: [1, 0] })];
+    Math.random = () => { throw new Error('Math.random'); };
+    let a;
+    let b;
+    try { a = scriptedRun(walks[0]); b = scriptedRun(walks[1]); } finally { Math.random = real; }
+    expect(a.length).toBeGreaterThan(200);
+    expect(b).toEqual(a);
+  });
+
+  it('dispose clears a hop and a look', () => {
+    const w = yardWalk({ at: [3, -7.0], face: [0, 1] });
+    w.jump();
+    w.run(0.3);
+    expect(w.live.groundSpot()).toEqual({ x: 3, z: -3.1 });
+    w.live.dispose();
+    expect(w.live.busy).toBe(false);
+    expect(w.live.hop).toBeNull();
+    expect(w.live.phase).toBeNull();
+    expect(w.live.groundSpot()).toBeNull();
+    const l = yardWalk({ at: [14, 3.2], face: [0, 1] });
+    l.jump();
+    l.live.dispose();
+    expect(l.live.looking).toBeNull();
+    expect(l.live.phase).toBeNull();
+  });
+
+  it('traversalEventEffects', () => {
+    const calls = [];
+    const cat = new THREE.Group();
+    cat.position.set(3, 3.5, -3.1);
+    const audio = { pounceWhoosh: () => calls.push('whoosh'), landThump: () => calls.push('thump') };
+    const fx = { burst: (pos, color, n) => calls.push(['burst', pos, color, n]) };
+    const bus = { emit: (name, data) => calls.push(['emit', name, data]) };
+    const deps = { audio, fx, cat, bus };
+    traversalEventEffects({ type: 'land', kind: 'leap', id: 'gap-1' }, deps);
+    expect(calls).toEqual([['burst', cat.position, 0xcbb8a0, 8], 'thump', ['emit', 'pounce:land', { water: false }]]);
+    expect(calls[0][1]).toBe(cat.position);
+    for (const type of ['leap', 'drop', 'climb']) {
+      calls.length = 0;
+      traversalEventEffects({ type, id: 'x' }, deps);
+      expect(calls).toEqual(['whoosh']);
+    }
+    calls.length = 0;
+    for (const type of ['mount', 'cross', 'look']) traversalEventEffects({ type, id: 'x' }, deps);
+    expect(calls).toEqual([]);
+    // a stand-in may leave out fx and audio
+    expect(() => {
+      traversalEventEffects({ type: 'land', kind: 'drop', id: 'x' }, { cat, bus });
+      traversalEventEffects({ type: 'leap', id: 'x' }, { cat, bus });
+    }).not.toThrow();
+    expect(calls).toEqual([['emit', 'pounce:land', { water: false }]]);
+  });
+});
