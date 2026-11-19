@@ -141,7 +141,11 @@ export function at(z, top, bottom, w, { mid = (top + bottom) / 2, ...rest } = {}
 //   opts.uv       (x, y, z, u, v) => [U, V]; everything else sits on WHITE_UV
 //   opts.tipStart, opts.tipEnd   how far past its first and last section the
 //                 skin is closed, to a point (0: closed flat)
-export function loft(keys, { around = 10, along = keys.length, level = false, color = 0xffffff, uv = null, tipStart = 0, tipEnd = 0 } = {}) {
+//   opts.bulge    (x, y, z) => metres: pushes the skin out (or, below 0, in)
+//                 where it lies, square to the spine: the bones that show under
+//                 a hide (a cow's hip bones, her shoulder blades, the hollow in
+//                 front of her hips) for no more corners than the skin has
+export function loft(keys, { around = 10, along = keys.length, level = false, color = 0xffffff, uv = null, tipStart = 0, tipEnd = 0, bulge = null } = {}) {
   const ks = keys.map(ring);
   const last = ks.length - 1;
   const rings = [];
@@ -188,8 +192,13 @@ export function loft(keys, { around = 10, along = keys.length, level = false, co
       const s = Math.sin(th), c = Math.cos(th);
       const e = 2 / (c >= 0 ? r.nt : r.nb);
       const cc = Math.sign(c) * Math.abs(c) ** e;
-      const lx = j === 0 || j === around ? 0 : Math.sign(s) * Math.abs(s) ** e * r.w * (1 - r.pinch * cc);
-      const ly = cc * (c >= 0 ? r.top - r.y : r.y - r.bottom);
+      let lx = j === 0 || j === around ? 0 : Math.sign(s) * Math.abs(s) ** e * r.w * (1 - r.pinch * cc);
+      let ly = cc * (c >= 0 ? r.top - r.y : r.y - r.bottom);
+      if (bulge) {
+        const d = bulge(lx, r.y + uy * ly, r.z + uz * ly);
+        const len = Math.hypot(lx, ly);
+        if (d && len > 1e-6) { lx += (lx / len) * d; ly += (ly / len) * d; }
+      }
       paint(i * cols + j, lx, r.y + uy * ly, r.z + uz * ly, along === 1 ? 0 : i / (along - 1), j / around);
     }
   }

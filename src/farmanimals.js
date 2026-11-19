@@ -255,7 +255,13 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
   // walk, a head that goes down to graze or turns to look, a wag) and drops
   // every idle movement: breath, blink, sway, flicks, chewing, the head-bob.
   const still = reducedMotion;
-  const lidsTo = (lids, shut) => { lids.scale.y = LID_OPEN + (1 - LID_OPEN) * Math.min(1, Math.max(0, shut)); };
+  // A lid is drawn only while it is coming down: open, it is folded away under
+  // the brow (a lid squashed flat over an open eye read as a frowning brow).
+  const lidsTo = (lids, shut) => {
+    const k = Math.min(1, Math.max(0, shut));
+    lids.visible = k > 0.08;
+    lids.scale.y = LID_OPEN + (1 - LID_OPEN) * k;
+  };
 
   function poseCow(v, t, dt) {
     const { a, parts, k, seed } = v;
@@ -285,8 +291,8 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
 
     // her head: down to graze, up to look, nodding as she walks
     const looking = a.mode === 'look' || (a.follow && !a.moving && a.lookAt);
-    let neckX = a.headDown ? (calf ? 1.26 : 1.15) : looking ? -0.2 : a.moving ? 0.1 : 0.04;
-    let skullX = a.headDown ? -0.45 : looking ? -0.12 : 0;
+    let neckX = a.headDown ? (calf ? 1.26 : 1.15) : looking ? -0.1 : a.moving ? 0.1 : 0.04;
+    let skullX = a.headDown ? -0.45 : looking ? -0.04 : 0;
     let want = 0;
     if (looking && a.lookAt && Math.hypot(a.lookAt.x - a.x, a.lookAt.z - a.z) > 0.6) {
       want = Math.max(-1.0, Math.min(1.0, wrap(Math.atan2(a.lookAt.x - a.x, a.lookAt.z - a.z) - a.yaw)));
@@ -319,18 +325,20 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     parts.skull.rotation.z = -k.turn * 0.12;
     // her jaw goes round as she chews; it drops for a moo
     if (still) {
-      parts.jaw.rotation.x = 0.03 + 0.45 * m; parts.jaw.position.x = 0;
+      parts.jaw.rotation.x = 0.3 * m; parts.jaw.rotation.y = 0; parts.jaw.position.x = 0;
       parts.ears.rotation.y = 0; parts.ears.rotation.z = 0;
-      lidsTo(parts.lids, 0.12);
+      lidsTo(parts.lids, 0.06);
       parts.tail.rotation.z = 0; parts.tail.rotation.x = 0.06;
     } else {
       const c = chew(t, seed);
-      parts.jaw.rotation.x = 0.03 + 0.11 * c.open + 0.45 * m;
-      parts.jaw.position.x = 0.012 * c.side * (1 - m);
+      // chewing the cud: the jaw goes round, mostly from side to side, the lips barely parting
+      parts.jaw.rotation.x = 0.035 * c.open * (1 - m) + 0.3 * m;
+      parts.jaw.rotation.y = 0.06 * c.side * (1 - m);
+      parts.jaw.position.x = 0.006 * c.side * (1 - m);
       parts.ears.rotation.y = 0.5 * flick(t, seed);
       parts.ears.rotation.z = 0.16 * flick(t, seed + 50, 5.3);
       parts.ears.rotation.x = -0.3 * Math.min(1, Math.abs(k.turn) + (looking ? 1 : 0)); // turned to listen
-      lidsTo(parts.lids, 0.12 + slowBlink(t, seed));
+      lidsTo(parts.lids, 0.06 + slowBlink(t, seed));
       const sw = swish(t, seed);
       parts.tail.rotation.z = 0.5 * sw.z + 0.1 * beat * k.stride;
       parts.tail.rotation.x = 0.06 + 0.3 * sw.x;
