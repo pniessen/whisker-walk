@@ -341,6 +341,10 @@ function init() {
   const clock = new THREE.Clock();
 
   let session = null;
+  // Development server only (import.meta.env.DEV is false in every build, so
+  // this line is not in one): a handle for checking a walk by script from the
+  // browser's console. Nothing in the game reads it.
+  if (import.meta.env.DEV) window.__ww = { get session() { return session; }, player, progression };
 
   // The border-post crossing card (src/game/crossing.js), made after the walk
   // lifecycle below; declared here so the interactions' post slot (and the

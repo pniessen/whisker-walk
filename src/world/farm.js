@@ -327,6 +327,7 @@ export function build(scene, { water = {}, wind } = {}) {
     fences: parts.fences(FENCE_RUNS, GATES),
     gate: parts.gateArch(GATE_AT.x, GATE_AT.z, 2.6),
     scarecrow: parts.scarecrow(SCARECROW_AT.x, SCARECROW_AT.z, 0.5),
+    scarecrowHat: parts.scarecrowHat(SCARECROW_AT.x, SCARECROW_AT.z, 0.5),
     structures: parts.structures({
       jetty: JETTY,
       trough: { ...TROUGH_AT, yaw: Math.PI / 2 },

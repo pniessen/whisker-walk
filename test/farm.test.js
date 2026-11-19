@@ -1044,7 +1044,7 @@ describe('Appletree Farm: the drawing budget', () => {
 
   it('stays near the territories’ budget, well inside the Docks’', () => {
     const s = stats(scene);
-    // test/budget.test.js's own ceilings for the Farm (measured 243 / 176 / 53,419)
+    // test/budget.test.js's own ceilings for the Farm (measured 244 / 176 / 53,419)
     expect(s.meshes).toBeLessThanOrEqual(280);
     expect(s.casters).toBeLessThanOrEqual(210);
     expect(s.triangles).toBeLessThanOrEqual(62000);

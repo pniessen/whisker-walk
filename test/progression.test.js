@@ -1185,7 +1185,10 @@ describe('v15 journal/golden/streak/kitten save fields', () => {
     expect(JOURNAL_TYPES[13]).toBe('goat'); // appended, so every older id keeps its place
     // Appletree Farm's six are appended after it in turn
     expect(JOURNAL_TYPES.slice(0, 14)).toEqual(['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse', 'rat', 'rabbit', 'frog', 'goat']);
-    expect(JOURNAL_TYPES.slice(14)).toEqual(['cow', 'farmgoat', 'hen', 'chick', 'sheepdog', 'duckling']);
+    expect(JOURNAL_TYPES.slice(14, 20)).toEqual(['cow', 'farmgoat', 'hen', 'chick', 'sheepdog', 'duckling']);
+    // and the Farm's four jobs and six finds after those
+    expect(JOURNAL_TYPES.slice(20)).toEqual(['jobchicks', 'jobcow', 'jobgoat', 'jobmice',
+      'findloftcats', 'findeggs', 'findowl', 'findscarecrow', 'findapples', 'findducklings']);
     expect(p.state.journal.goat).toBe(2);
     expect(createProgression(storage).state.journal.goat).toBe(2);
   });

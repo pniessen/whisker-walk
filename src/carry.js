@@ -26,7 +26,9 @@ export function createMouth() {
 export function pick(mouth, item) {
   if (mouth.held) return false;
   if (!item || typeof item.id !== 'string') return false;
-  mouth.held = { id: item.id, kind: item.kind };
+  // `job`: a job's own item (the Farm's straw hat). It is carried like any
+  // other and leaves no mark: not in the den, not where it was put down.
+  mouth.held = item.job ? { id: item.id, kind: item.kind, job: true } : { id: item.id, kind: item.kind };
   mouth.grip = 0;
   mouth.dropped.delete(item.id);
   return true;
@@ -38,6 +40,11 @@ export function pick(mouth, item) {
 export function drop(mouth, x, z, home) {
   const item = mouth.held;
   if (!item) return null;
+  if (item.job) {
+    mouth.held = null;
+    mouth.grip = 0;
+    return { id: item.id, kind: item.kind, job: true };
+  }
   const homeX = Number.isFinite(home?.x) ? home.x : x;
   const homeZ = Number.isFinite(home?.z) ? home.z : z;
   mouth.dropped.set(item.id, { kind: item.kind, x, z, homeX, homeZ });
@@ -61,7 +68,7 @@ export function tickRain(mouth, dt, raining) {
 // moved at least MOVED_MIN from its home becomes a 'drop' mark in `area`.
 export function walkEndMarks(mouth, area, now) {
   const out = [];
-  if (mouth.held) {
+  if (mouth.held && !mouth.held.job) {
     out.push({
       area: 'den',
       mark: { kind: 'den', id: mouth.held.id, x: 0, z: 0, at: now, contested: false, item: mouth.held.kind },

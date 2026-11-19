@@ -587,9 +587,18 @@ export function scarecrow(x, z, yaw = 0) {
   ball(P, 0.26, 0, 1.92, 0, 0xd9c79a, { detail: 1 });
   for (const s of [-1, 1]) box(P, 0.05, 0.05, 0.02, s * 0.09, 1.96, 0.24, 0x2a2018);
   box(P, 0.16, 0.03, 0.02, 0, 1.84, 0.24, 0x2a2018);
+  const g = meshOf(P, 'scarecrow');
+  g.position.set(x, 0, z);
+  g.rotation.y = yaw;
+  return g;
+}
+// His straw hat, a mesh of its own: it comes off when the cat tries it on
+// (src/farmanimals.js hides it for as long as she wears it).
+export function scarecrowHat(x, z, yaw = 0) {
+  const P = [];
   cyl(P, 0.5, 0.5, 0.04, 0, 2.06, 0, C.strawDark, { sides: 12 });
   cyl(P, 0.2, 0.27, 0.18, 0, 2.08, 0, C.straw, { sides: 12 });
-  const g = meshOf(P, 'scarecrow');
+  const g = meshOf(P, 'scarecrowHat', { noCast: true });
   g.position.set(x, 0, z);
   g.rotation.y = yaw;
   return g;

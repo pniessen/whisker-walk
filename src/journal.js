@@ -1,6 +1,7 @@
 // v15 Collector's Journal — static catalog + Album-tab renderer for the 12
 // JOURNAL_TYPES ids tracked in progression.js's state.journal.
 import { phrase } from './clanphrases.js';
+import { PAGE_WORDS } from './farmwords.js';
 
 // All content here is a fixed, static catalog (ids/emoji/names/hints are
 // never user- or network-supplied), so none of it needs HTML-escaping.
@@ -51,6 +52,11 @@ export const CRITTER_INFO = [
   { id: 'chick', emoji: '🐤', name: 'Fluffy Chick', hint: 'Walk slowly up to a hen.' },
   { id: 'sheepdog', emoji: '🐶', name: 'Farm Sheepdog', hint: 'He waits by his kennel at the farm.' },
   { id: 'duckling', emoji: '🐥', name: 'Little Duckling', hint: 'Wade into the pond at the farm.' },
+  // The Farm's four jobs and six finds (src/farmjobs.js). Their words are in
+  // the phrase table (src/farmwords.js) and are read when a page is drawn.
+  ...[['jobchicks', '🐣'], ['jobcow', '🥛'], ['jobgoat', '👒'], ['jobmice', '🌽'],
+    ['findloftcats', '🐈'], ['findeggs', '🥚'], ['findowl', '🦉'], ['findscarecrow', '🌾'], ['findapples', '🍎'], ['findducklings', '🌊']]
+    .map(([id, emoji]) => ({ id, emoji, get name() { return PAGE_WORDS[id].name(); }, get hint() { return PAGE_WORDS[id].hint(); } })),
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.
