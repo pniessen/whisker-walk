@@ -91,7 +91,8 @@ Use this for a new device, after a nightly alert, or any time.
    After the device lines, "New installs expire …" gives the date for every
    device marked `✓ installed`, and the day to refresh by.
 
-It takes a few minutes: it runs the game's tests, builds the game and the app,
+It takes a few minutes: it runs the game's tests (unless GitHub already
+passed them for this commit), builds the game and the app,
 and asks Apple for a fresh 7-day signing permit.
 
 **Never delete the app to "fix" it.** Deleting the app deletes that device's
@@ -268,7 +269,11 @@ What to know:
   (on the simulator: `xcrun simctl launch booted com.pniessen.WhiskerWalk -rung 4 -perf YES`).
 - Debug builds preview the expiry banner on the simulator:
   `xcrun simctl launch booted com.pniessen.WhiskerWalk -PreviewExpiryWarning YES`.
-- The refresh runs `npx vitest run --dir test`, not `npm test`: in the main
-  checkout a bare `npm test` also collects the tests of every other worktree
+- The refresh first asks GitHub (`gh run list`) whether the website's deploy
+  run passed for the same commit. If it did, it logs "CI passed for <sha>;
+  tests skipped" and does not run them again. Otherwise (gh fails, GitHub is
+  out of reach, the run is missing, still going or failed) it runs
+  `npx vitest run --dir test` itself, not `npm test`: in the main checkout a
+  bare `npm test` also collects the tests of every other worktree
   (`.worktrees/`, `.claude/worktrees/`).
 - Debug builds can be inspected from Safari on the Mac (Develop menu).

@@ -136,3 +136,30 @@ export function cloudProblem(env, bundle) {
   }
   return null;
 }
+
+/** The website's deploy workflow, which runs every test before it deploys. */
+export const CI_WORKFLOW = 'deploy.yml';
+
+/**
+ * Whether GitHub's CI already passed the tests for the commit being built, so
+ * the refresh can skip running them here (where a test can flake under load).
+ * `gh` is the result of `gh run list --commit <sha> --workflow deploy.yml
+ * --json conclusion,status`: `{ ok, out }`. Any run of that workflow that
+ * finished with success counts. Anything else (gh missing or not signed in,
+ * GitHub out of reach, no run for this commit, a run still going or one that
+ * failed) gives `{ passed: false, why }` and the tests run here as before.
+ */
+export function ciPassed(gh) {
+  if (!gh?.ok) return { passed: false, why: "couldn't ask GitHub" };
+  let runs;
+  try {
+    runs = JSON.parse(gh.out);
+  } catch {
+    return { passed: false, why: "couldn't read GitHub's answer" };
+  }
+  if (!Array.isArray(runs)) return { passed: false, why: "couldn't read GitHub's answer" };
+  if (runs.length === 0) return { passed: false, why: 'CI has no run for this commit' };
+  if (runs.some((r) => r?.status === 'completed' && r?.conclusion === 'success')) return { passed: true };
+  if (runs.some((r) => r?.status !== 'completed')) return { passed: false, why: 'CI is still running' };
+  return { passed: false, why: `CI did not pass (${runs[0]?.conclusion || 'no result'})` };
+}
