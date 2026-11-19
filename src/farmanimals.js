@@ -499,7 +499,11 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
   function poseDuckling(v, t) {
     const { a, parts, seed } = v;
     const m = parts.body;
-    if (still) { m.position.y = 0; m.rotation.x = 0; m.rotation.y = 0; m.rotation.z = 0; return; }
+    if (still) {
+      m.position.y = 0;
+      m.rotation.set(0, 0, 0);
+      return;
+    }
     // bobbing on the water; paddling, its tail goes from side to side; now and then it dabbles
     const paddle = a.moving ? 1 : 0;
     const dab = a.moving ? 0 : hold(nowAndThen(t, 6.1, 1.3, seed * 7 + 18), 0.3);
