@@ -1867,17 +1867,9 @@ export function createWalkLifecycle({
             hud.toast(phrase('away.chasedOff', who));
           },
           onSettled: () => { player.halt(); session.chasing = false; },
-          // The cat as it stands at rest, for the fight's reach (as the patrol's).
-          measure: (g) => {
-            const pos = g.position.clone();
-            const rot = g.rotation.clone();
-            g.position.set(0, 0, 0);
-            g.rotation.set(0, 0, 0);
-            const d = catDims(g);
-            g.position.copy(pos);
-            g.rotation.copy(rot);
-            return d;
-          },
+          // The challenger's fight dims, read as my own cat's are (catDims
+          // measures in the cat's own frame, wherever it stands).
+          measure: (g) => catDims(g),
           setScars: (g, scars) => setCatScars(g, scars),
         });
         const awayRecord = createFightRecord({
