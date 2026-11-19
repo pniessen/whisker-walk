@@ -745,20 +745,20 @@ describe('walk together with your partner (Task 12)', () => {
   it('every room member gets the same Start; nobody waits for the host', () => {
     for (const isHost of [true, false]) {
       const html = renderStartButtonHtml(room({ isHost }));
-      expect(html).toContain(`Start the walk together ${PAW}`);
+      expect(html).toContain(`Explore together ${PAW}`);
       expect(html).not.toContain('disabled');
       expect(html).not.toMatch(/Waiting for host/);
     }
-    expect(renderStartButtonHtml(null)).toContain(`Start the walk ${PAW}`);
+    expect(renderStartButtonHtml(null)).toContain(`Explore ${PAW}`);
     expect(renderStartButtonHtml(null)).not.toContain('together');
     expect(renderStartButtonHtml(null)).toMatch(/id="btn-start"/);
   });
 
   it('while a locked cat or try-on is on show, Start says which cat it walks', () => {
-    expect(renderStartButtonHtml(null, { as: 'Tabby' })).toBe(`<button id="btn-start" class="primary">Start as Tabby ${PAW}</button>`);
-    expect(renderStartButtonHtml(room(), { as: 'Tabby' })).toContain(`Start together as Tabby ${PAW}`);
-    expect(renderStartButtonHtml(null, { as: '<b>' })).toContain('Start as &lt;b&gt;');
-    expect(renderStartButtonHtml(null, { as: null })).toContain(`Start the walk ${PAW}`);
+    expect(renderStartButtonHtml(null, { as: 'Tabby' })).toBe(`<button id="btn-start" class="primary">Explore as Tabby ${PAW}</button>`);
+    expect(renderStartButtonHtml(room(), { as: 'Tabby' })).toContain(`Explore together as Tabby ${PAW}`);
+    expect(renderStartButtonHtml(null, { as: '<b>' })).toContain('Explore as &lt;b&gt;');
+    expect(renderStartButtonHtml(null, { as: null })).toContain(`Explore ${PAW}`);
     expect(renderStartButtonHtml(room({ starting: true }), { as: 'Tabby' })).toContain('Starting…');
   });
 

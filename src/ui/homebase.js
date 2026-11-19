@@ -1491,7 +1491,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const duskBadge = glowReady && duskWanted ? '<span class="dr-dusk-badge" role="img" aria-label="Dusk walk">🌙</span>' : '';
     if (openSheet) {
       // Ruling 10: every sheet keeps Start pinned at the bottom (the host-a-
-      // room flow presses "Start the walk together" from 👫 Play together). The room
+      // room flow presses "Explore together" from 👫 Play together). The room
       // isn't rendered here, so this is still the only #btn-start.
       const chosen = Object.prototype.hasOwnProperty.call(CATALOG.areas, s.area) ? s.area : Object.keys(CATALOG.areas)[0];
       // Where the walk actually happens: Legacy walks the Neighborhood in place
@@ -1500,7 +1500,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // Menu and Change place are doors, not screens of their own: no dock.
       const door = openSheet === 'menu' || openSheet === 'places';
       // The dock by sheet: none on the doors or the grown-ups' sheets (no
-      // "Start the walk" under "Start over"); the whole dock (Start and Play
+      // "Explore" under "Start over"); the whole dock (Start and Play
       // together) on Play together, whose room starts from it; on the other
       // sheets only where and Start. Dusk is chosen in Change place only; a
       // Start from any dock reads that choice (duskWanted).

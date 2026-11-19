@@ -272,12 +272,12 @@ describe('Start while a locked cat or a try-on is on show', () => {
     hb.show();
     dressingMock.walkingAs = 'Tabby';
     dressingMock.opts.onChange();
-    expect(doc.root.innerHTML).toContain('<button id="btn-start" class="primary">Start as Tabby');
+    expect(doc.root.innerHTML).toContain('<button id="btn-start" class="primary">Explore as Tabby');
     dressingMock.opts.onOpenSheet('journal');
-    expect(doc.root.innerHTML).toContain('Start as Tabby');
+    expect(doc.root.innerHTML).toContain('Explore as Tabby');
     dressingMock.walkingAs = null;
     dressingMock.opts.onOpenSheet(null);
-    expect(doc.root.innerHTML).toContain('<button id="btn-start" class="primary">Start the walk');
+    expect(doc.root.innerHTML).toContain('<button id="btn-start" class="primary">Explore <');
   });
 });
 

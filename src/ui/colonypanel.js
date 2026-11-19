@@ -488,12 +488,14 @@ const partnerNameOf = (partner) => (partner && partner.petName ? String(partner.
 // nobody is told to wait. While that ask is out it reads "Starting…" and is
 // disabled, so a second press can't send a second ask.
 // as: the owned cat's name while a locked cat or a try-on is on show, so
-// Start says which cat it really walks ("Start as Tabby 🐾").
+// Start says which cat it really is ("Explore as Tabby 🐾"). The words were
+// "Start the walk" until 2026-11-19, a leftover from the first version where a
+// person took a cat for a walk; the owner asked for "Explore".
 export function renderStartButtonHtml(room, { as = null } = {}) {
   const who = typeof as === 'string' && as ? escapeHtml(as) : null;
-  if (!room) return `<button id="btn-start" class="primary">${who ? `Start as ${who}` : 'Start the walk'} ${PAW}</button>`;
+  if (!room) return `<button id="btn-start" class="primary">${who ? `Explore as ${who}` : 'Explore'} ${PAW}</button>`;
   if (room.starting) return '<button id="btn-start" class="primary" disabled>Starting…</button>';
-  return `<button id="btn-start" class="primary">${who ? `Start together as ${who}` : 'Start the walk together'} ${PAW}</button>`;
+  return `<button id="btn-start" class="primary">${who ? `Explore together as ${who}` : 'Explore together'} ${PAW}</button>`;
 }
 
 // One button, no code to type: only while paired (status.mode is 'local'

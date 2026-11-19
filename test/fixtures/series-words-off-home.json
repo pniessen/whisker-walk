@@ -94,7 +94,7 @@
     "Join",
     "Walking in",
     "Peopleville",
-    "Start the walk",
+    "Explore",
     "🐾"
    ],
    "colony": [
@@ -105,7 +105,7 @@
     "No colony cats yet — touch noses with a stray, then feed it 🐟",
     "Walking in",
     "Peopleville",
-    "Start the walk",
+    "Explore",
     "🐾"
    ],
    "skills": [
@@ -171,7 +171,7 @@
     "Win 20 more fights to learn it",
     "Walking in",
     "Peopleville",
-    "Start the walk",
+    "Explore",
     "🐾"
    ],
    "journal": [
@@ -314,7 +314,7 @@
     "No cat friends yet. Go touch noses on a walk! 🐾",
     "Walking in",
     "Peopleville",
-    "Start the walk",
+    "Explore",
     "🐾"
    ]
   },
@@ -327,7 +327,7 @@
     "No colony cats yet — touch noses with a stray, then feed it 🐟",
     "Walking in",
     "Peopleville",
-    "Start the walk",
+    "Explore",
     "🐾"
    ],
    "river": [
@@ -338,7 +338,7 @@
     "No colony cats yet — touch noses with a stray, then feed it 🐟",
     "Walking in",
     "Peopleville",
-    "Start the walk",
+    "Explore",
     "🐾"
    ],
    "moor": [
@@ -349,7 +349,7 @@
     "No colony cats yet — touch noses with a stray, then feed it 🐟",
     "Walking in",
     "Peopleville",
-    "Start the walk",
+    "Explore",
     "🐾"
    ],
    "pines": [
@@ -360,7 +360,7 @@
     "No colony cats yet — touch noses with a stray, then feed it 🐟",
     "Walking in",
     "Peopleville",
-    "Start the walk",
+    "Explore",
     "🐾"
    ],
    "gorge": [
@@ -371,7 +371,7 @@
     "No colony cats yet — touch noses with a stray, then feed it 🐟",
     "Walking in",
     "Peopleville",
-    "Start the walk",
+    "Explore",
     "🐾"
    ]
   }
@@ -468,7 +468,7 @@
    "Join",
    "Walking in",
    "Cozy Neighborhood",
-   "Start the walk",
+   "Explore",
    "🐾"
   ],
   "colony": [
@@ -478,7 +478,7 @@
    "No colony cats yet — touch noses with a stray, then feed it 🐟",
    "Walking in",
    "Cozy Neighborhood",
-   "Start the walk",
+   "Explore",
    "🐾"
   ],
   "skills": [
@@ -528,7 +528,7 @@
    "🐾 Abilities earned: 0/12",
    "Walking in",
    "Cozy Neighborhood",
-   "Start the walk",
+   "Explore",
    "🐾"
   ],
   "journal": [
@@ -670,7 +670,7 @@
    "No cat friends yet. Go touch noses on a walk! 🐾",
    "Walking in",
    "Cozy Neighborhood",
-   "Start the walk",
+   "Explore",
    "🐾"
   ]
  }
