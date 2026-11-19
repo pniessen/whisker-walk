@@ -98,6 +98,9 @@ export const REST_LOOKS = Object.freeze({
   'farm-drink-1': { look: 'bowl' },
   'farm-eat-1': { look: 'dish' },
   'farm-nap-1': { look: 'cushion' },
+  'fair-drink-1': { look: 'bowl' },
+  'fair-eat-1': { look: 'dish' },
+  'fair-nap-1': { look: 'cushion' },
 });
 for (const v of Object.values(REST_LOOKS)) Object.freeze(v);
 const DEFAULT_LOOK = Object.freeze({ drink: 'bowl', eat: 'dish', nap: 'cushion' });

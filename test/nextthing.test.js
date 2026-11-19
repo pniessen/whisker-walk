@@ -162,13 +162,19 @@ describe('nextThing: the order', () => {
 });
 
 describe('nextThing: Legacy Edition never shows rules 4 to 6', () => {
-  it('7. two places that both cost coins are both named: the Park opens the Farm and the Seaside', () => {
+  it('7. places that all cost coins are all named: the Park opens the Farm, the Fairground and the Seaside', () => {
     for (const edition of ['canon', 'legacy']) {
       const s = save({ edition, walks: { neighborhood: 3, woods: 1, park: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'park'] }, area: 'park', clanPick: { mine: 'woods' } });
-      expect(nextThing(s), edition).toMatchObject({ rule: 7, id: 'home.opens-two', text: 'One more walk here opens Appletree Farm and Seaside!', action: null });
-      // with the Farm hers already, the Seaside alone, in the old words
+      expect(nextThing(s), edition).toMatchObject({ rule: 7, id: 'home.opens-three', text: 'One more walk here opens Appletree Farm, the Fairground and Seaside!', action: null });
+      // with the Farm hers already, the other two, in the two-place words
       const hasFarm = save({ edition, walks: { neighborhood: 3, woods: 1, park: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'park', 'farm'] }, area: 'park', clanPick: { mine: 'woods' } });
-      expect(nextThing(hasFarm), edition).toMatchObject({ rule: 7, id: 'home.opens', text: 'One more walk here and Seaside opens!' });
+      expect(nextThing(hasFarm), edition).toMatchObject({ rule: 7, id: 'home.opens-two', text: 'One more walk here opens the Fairground and Seaside!' });
+      // with the Fairground hers already, the Farm and the Seaside as before
+      const hasFair = save({ edition, walks: { neighborhood: 3, woods: 1, park: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'park', 'fair'] }, area: 'park', clanPick: { mine: 'woods' } });
+      expect(nextThing(hasFair), edition).toMatchObject({ rule: 7, id: 'home.opens-two', text: 'One more walk here opens Appletree Farm and Seaside!' });
+      // with both hers, the Seaside alone, in the old words
+      const hasBoth = save({ edition, walks: { neighborhood: 3, woods: 1, park: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'park', 'farm', 'fair'] }, area: 'park', clanPick: { mine: 'woods' } });
+      expect(nextThing(hasBoth), edition).toMatchObject({ rule: 7, id: 'home.opens', text: 'One more walk here and Seaside opens!' });
     }
   });
 

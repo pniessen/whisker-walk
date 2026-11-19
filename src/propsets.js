@@ -289,6 +289,47 @@ const SETS = {
     keepSlots: [],
   },
 
+  // The Fairground (src/world/fair.js FAIR_REGISTRATION.propSet; test/fair.test.js
+  // holds the two equal). The street areas' counts; like the Farm, NO DOG YARD
+  // and NO markable is `nearBorder`: nothing at the Fairground chases the cat.
+  fair: {
+    carryables: [
+      { id: 'fair-ribbon-1', kind: 'ribbon', x: 3.6, z: -13.5 },    // blown off a prize, by the path to the big wheel
+      { id: 'fair-cap-1', kind: 'cap', x: 18.4, z: 7.4 },            // dropped by the coaster's steps
+      { id: 'fair-toymouse-1', kind: 'toymouse', x: -9.6, z: 23.6 }, // a prize, behind the prize stall
+      { id: 'fair-stick-1', kind: 'stick', x: -9.4, z: 42.2 },       // a candyfloss stick behind the candyfloss stall
+    ],
+    // On the first picnic table (top y 0.75): a drinks can at one end, a cup
+    // and a book at the other, the middle clear for the perched cat. The can
+    // and the cup fall off the north side past the bench, the book off the south.
+    knockables: [
+      { id: 'fair-can-1', kind: 'can', x: -21.5, z: 14.5, y: 0.75, fallTo: { x: -21.5, z: 13.25 } },
+      { id: 'fair-cup-1', kind: 'cup', x: -20.62, z: 14.38, y: 0.75, fallTo: { x: -20.6, z: 13.2 } },
+      { id: 'fair-book-1', kind: 'book', x: -20.48, z: 14.7, y: 0.75, fallTo: { x: -20.45, z: 15.85 } },
+    ],
+    markables: [
+      { id: 'fair-post-1', kind: 'post', x: 3.3, z: 45, nearBorder: false, mesh: false },       // the gate's east post
+      { id: 'fair-tree-1', kind: 'tree', x: -37.65, z: 9, nearBorder: false, mesh: false },     // the tree by the picnic lawn, east face
+      { id: 'fair-post-2', kind: 'post', x: -10.62, z: -4.4, nearBorder: false, mesh: false },  // a bunting pole on the plaza's west side
+    ],
+    flaps: [
+      // A little gate across the path to the bandstand.
+      { id: 'fair-flap-1', kind: 'flap', x: -11.5, z: 30.5, rotY: QUARTER, width: 1.0 },
+      // A hedge across the path up to the helter-skelter.
+      { id: 'fair-gap-1', kind: 'gap', x: -27.2, z: -16.7, rotY: 0.2834, width: 1.2 },
+    ],
+    rests: [
+      { id: 'fair-drink-1', kind: 'drink', x: -16.4, z: 9.6, mesh: true },  // a water bowl by the picnic lawn
+      { id: 'fair-eat-1', kind: 'eat', x: 9.6, z: 36.6, mesh: true },       // a dish behind the popcorn stall
+      { id: 'fair-nap-1', kind: 'nap', x: -30.4, z: 31.6, mesh: true },     // a cushion in the sun by the bandstand
+    ],
+    // Under the bush behind the bandstand, the bush behind the tents, and the
+    // bush at the field's far corner (fair.js FAIR_HIDES).
+    hides: [{ x: -29.5, z: 39.5 }, { x: 15, z: 13.6 }, { x: -36, z: -10.5 }],
+    dogYard: null,
+    keepSlots: [],
+  },
+
   // The Moor: only its hides for now, three of the rabbit warren's burrows
   // (src/world/moor.js's WARREN_BURROWS 0, 2 and 4), the holes a fleeing
   // rabbit dives into. The rest of a Moor prop set is deferred: nothing to

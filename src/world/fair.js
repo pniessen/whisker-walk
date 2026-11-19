@@ -46,11 +46,10 @@ import { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, MUSIC_BOX } from './fai
 // THE DUCK POOL is real water, in `waters`, and all of it is shallow: every
 // cat can wade right across it, and nobody can swim in it.
 //
-// NOT REGISTERED YET. This step adds files only. The Fairground is in no
-// shared per-area table (the catalog, walk.js, prop sets, golden mice, grass,
-// clouds...), so it cannot be walked in the game until the coordinator copies
-// FAIR_REGISTRATION's rows into those tables. test/fair.test.js checks each
-// row against the built area.
+// REGISTERED (step 2). FAIR_REGISTRATION's rows are copied into the shared
+// per-area tables (the catalog, walk.js, prop sets, golden mice, grass,
+// clouds...). test/fair.test.js checks each row against the built area AND
+// against the table it was copied into, so the two cannot drift.
 // =============================================================================
 
 export const FAIR_GRASS = 0x62ac50;
@@ -280,9 +279,9 @@ const VISITOR_WATCH = Object.freeze([
 ]);
 
 // -----------------------------------------------------------------------------
-// WHAT THE SHARED TABLES WILL NEED. Plain data in the shapes those tables use,
-// for the coordinator to copy across when the Fairground is registered. Every
-// row is checked against the built area in test/fair.test.js.
+// WHAT THE SHARED TABLES HOLD. Plain data in the shapes those tables use; each
+// row is copied into its table, and test/fair.test.js checks every row against
+// the built area and against that table.
 // -----------------------------------------------------------------------------
 const QUARTER = Math.PI / 2;
 export const FAIR_REGISTRATION = Object.freeze({
@@ -350,10 +349,14 @@ export const FAIR_REGISTRATION = Object.freeze({
   // not a colony area, no legendary cat, no rival disc, no dog
   colony: false,
   legendary: false,
-  // test/budget.test.js ceilings: [meshes, casters, triangles] built, [meshes, casters] merged
+  // step 1's proposed ceilings: [meshes, casters, triangles] built, [meshes, casters] merged
+  // (test/budget.test.js holds the real ones: tighter on meshes and casters, 75,000 triangles)
   budget: Object.freeze({ built: Object.freeze([260, 185, 70000]), merged: Object.freeze([210, 150]) }),
-  // verify-places.html VIEWS.fair, and the card picture public/places/fair.jpg
-  view: '0,2.6,43,0,2.6,0',
+  // verify-places.html VIEWS.fair, and the card picture public/places/fair.jpg:
+  // from the top of the midway, the last stalls either side, the merry-go-round
+  // under the bunting and the big wheel behind it (step 1's view, from the gate,
+  // was '0,2.6,43,0,2.6,0': the rides were specks at the far end)
+  view: '1.6,2.4,24,0,4.6,-8',
 });
 
 // setFairGlow(area, t): t 0 (day) to 1 (dusk). Every bulb at the fair shares

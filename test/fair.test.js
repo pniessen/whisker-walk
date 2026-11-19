@@ -2,12 +2,13 @@ import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { climbBudget, canReach, SURE_CLAWS_ID } from '../src/climbing.js';
-import { JOURNAL_TYPES } from '../src/progression.js';
+import { JOURNAL_TYPES, CATALOG, createProgression } from '../src/progression.js';
+import { areaInEdition } from '../src/edition.js';
 
-// The Fairground, step 1: the place (docs/superpowers/specs/2026-11-18-fairground-design.md).
-// The area is FILES ONLY for now: it is in no shared per-area table, so every
-// check here is against src/world/fair.js itself. What those tables will need
-// is FAIR_REGISTRATION, and its rows are checked against the built area below.
+// The Fairground: the place (docs/superpowers/specs/2026-11-18-fairground-design.md).
+// Step 1 built it as files only; step 2 copied FAIR_REGISTRATION's rows into
+// the shared per-area tables. Its rows are checked against the built area
+// below, and (last describe) against the tables they were copied into.
 
 // Same headless stub every world test uses: the only DOM the builders touch
 // is document.createElement('canvas') (the gate's sign, the surface tiles).
@@ -1457,5 +1458,173 @@ describe('The Fairground: the drawing budget', () => {
     expect(meshesIn(scene.getObjectByName('ferrisWheel'))).toBe(1 + 2 + 8);   // frame; rim, bulbs; gondolas
     expect(meshesIn(scene.getObjectByName('teacups'))).toBe(1 + 2 + 6);       // kerb; floor, bulbs; cups
     expect(meshesIn(scene.getObjectByName('coasterTrain'))).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Step 2, Part A: the Fairground is in every table a street area is in, and
+// each table holds exactly FAIR_REGISTRATION's row.
+// ---------------------------------------------------------------------------
+describe('The Fairground: registered everywhere a street area is', async () => {
+  const { GOLD_TOTAL, goldForEdition } = await import('../src/goldmice.js');
+  const { propsFor } = await import('../src/propsets.js');
+  const { MARK_AREAS, emptyMarks } = await import('../src/marks.js');
+  const { CLOUD_AREAS, AREA_SKY } = await import('../src/render/clouds.js');
+  const { ambientKind } = await import('../src/render/ambient.js');
+  const { GRASS_STYLES, GROUND_TINTS, tuftAt } = await import('../src/render/grass.js');
+  const { COLONY_AREAS, feedsHere } = await import('../src/colony.js');
+  const { LEGENDARY_BY_AREA } = await import('../src/legendary.js');
+  const { DRESSED_AREAS } = await import('../src/render/waterdress.js');
+  const { nextThing } = await import('../src/ui/nextthing.js');
+  const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+  const plain = (v) => JSON.parse(JSON.stringify(v));
+  function fakeStorage(initial = {}) {
+    const map = new Map(Object.entries(initial));
+    return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
+  }
+
+  it('is in the catalog as its row says: 75 coins after two Park walks, in both editions', () => {
+    expect(CATALOG.areas.fair).toEqual(plain(REG.catalog));
+    expect(Object.hasOwn(CATALOG.areas.fair, 'edition')).toBe(false);
+    expect(areaInEdition(CATALOG.areas.fair, 'canon')).toBe(true);
+    expect(areaInEdition(CATALOG.areas.fair, 'legacy')).toBe(true);
+    expect(area.name).toBe(CATALOG.areas.fair.name);
+  });
+
+  it('is the fourth place, after the Farm and before the Seaside', () => {
+    const ids = Object.keys(CATALOG.areas);
+    expect(ids.slice(0, 5)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside']);
+    // and nothing else about the others moved
+    expect(CATALOG.areas.farm).toEqual({ name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } });
+    expect(CATALOG.areas.seaside).toEqual({ name: 'Seaside', price: 100, requires: { area: 'park', walks: 2 } });
+    expect(CATALOG.areas.docks.requires).toEqual({ area: 'seaside', walks: 2 });
+  });
+
+  it('cannot be bought on coins alone, or on walks alone', () => {
+    const p = createProgression(fakeStorage());
+    p.addPoints(9999);
+    expect(p.canBuy('areas', 'fair')).toBe(false);
+    p.completeWalk('park');
+    expect(p.canBuy('areas', 'fair')).toBe(false);
+    p.completeWalk('park');
+    expect(p.canBuy('areas', 'fair')).toBe(true);
+    const q = createProgression(fakeStorage());
+    q.completeWalk('park');
+    q.completeWalk('park');
+    q.addPoints(74 - q.state.points);
+    expect(q.canBuy('areas', 'fair')).toBe(false);
+    q.addPoints(1);
+    expect(q.buy('areas', 'fair')).toBe(true);
+    expect(q.isUnlocked('areas', 'fair')).toBe(true);
+  });
+
+  it('can be chosen as the place to walk, in both editions, and that is saved', () => {
+    for (const edition of ['canon', 'legacy']) {
+      const storage = fakeStorage();
+      const p = createProgression(storage);
+      p.setEdition(edition);
+      p.addPoints(500);
+      p.completeWalk('park');
+      p.completeWalk('park');
+      expect(p.buy('areas', 'fair'), edition).toBe(true);
+      p.setArea('fair');
+      expect(p.state.area).toBe('fair');
+      expect(createProgression(storage).state.area).toBe('fair');
+    }
+  });
+
+  it('loads a save from before the Fairground with fair: 0, nothing lost and no gate closed', () => {
+    const storage = fakeStorage({
+      'whisker-walk-save': JSON.stringify({
+        version: 4, points: 120,
+        walks: { neighborhood: 5, park: 3, seaside: 2, den: 1, docks: 1, farm: 2 },
+        unlocked: { cats: ['tabby'], accessories: ['bell'], areas: ['neighborhood', 'park', 'farm', 'seaside', 'docks'] },
+        area: 'farm',
+        marks: { park: [] },
+      }),
+    });
+    const p = createProgression(storage);
+    expect(p.state.walks.fair).toBe(0);
+    expect(p.state.walks).toMatchObject({ neighborhood: 5, park: 3, seaside: 2, den: 1, docks: 1, farm: 2 });
+    for (const id of ['neighborhood', 'park', 'farm', 'seaside', 'docks']) expect(p.isUnlocked('areas', id), id).toBe(true);
+    expect(p.state.area).toBe('farm');
+    expect(p.isUnlocked('areas', 'fair')).toBe(false);
+    expect(p.canBuy('areas', 'fair')).toBe(true); // already past the Park: ready to buy
+    p.completeWalk('fair');
+    expect(p.state.walks.fair).toBe(1);
+    expect(MARK_AREAS).toContain('fair');
+    expect(emptyMarks().fair).toEqual([]);
+    expect(p.state.marks.fair).toEqual([]);
+  });
+
+  it('is in walk.js’s AREAS map, and its bulbs are lit by the walk’s dusk and by nothing else', () => {
+    expect(walkSrc).toMatch(/import \* as fair from '\.\.\/world\/fair\.js';/);
+    expect(walkSrc.match(/const AREAS = \{([^}]*)\}/)[1]).toContain('fair');
+    expect(walkSrc).toMatch(/if \(areaId === 'fair'\) fair\.setFairGlow\(areaData, duskLookNow \? 1 : 0\);/);
+  });
+
+  it('holds the golden mice, the prop set and the rest looks exactly as its rows say', () => {
+    expect(GOLD_MICE.fair).toEqual(plain(REG.goldMice));
+    expect(GOLD_TOTAL).toBe(36);
+    expect(goldForEdition('canon', CATALOG).size).toBe(36);
+    expect(goldForEdition('legacy', CATALOG).size).toBe(18);
+    const live = propsFor('fair');
+    for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'hides', 'keepSlots']) expect(plain(live[k]), k).toEqual(plain(set[k]));
+    expect(live.dogYard).toBeNull();
+    for (const [id, look] of Object.entries(REG.restLooks)) expect(REST_LOOKS[id], id).toEqual(plain(look));
+  });
+
+  it('has the Park’s sky, drifting seed down, paw prints on its trodden paths and the Park’s lawn', () => {
+    expect(CLOUD_AREAS).toContain('fair');
+    expect(AREA_SKY.fair).toEqual(plain(REG.sky));
+    expect(ambientKind('fair')).toBe(REG.ambient);
+    expect(ambientKind('fair', { dusk: true })).toBe(REG.ambient);
+    expect(AREA_RULES.fair).toEqual(plain(REG.pawprints));
+    expect(GROUND_TINTS.fair).toBe(fair[REG.grass.groundTint]);
+    expect(GRASS_STYLES.fair.bare).toBe(fair[REG.grass.bare]);
+    // the Park's lawn in every other number
+    const { bare, ...rest } = GRASS_STYLES.fair;
+    expect(rest).toEqual({ ...GRASS_STYLES.park });
+  });
+
+  it('grows the Park’s lawn tuft for tuft, and none where the fair is bare', () => {
+    let grown = 0;
+    let onBare = 0;
+    const s = 0.3;
+    for (let i = -150; i < 150; i++) {
+      for (let j = -150; j < 150; j++) {
+        const t = tuftAt(i, j, s, GRASS_STYLES.fair);
+        const lawn = tuftAt(i, j, s, GRASS_STYLES.park);
+        if (!t) { if (lawn) expect(fairBare(lawn.x, lawn.z)).toBe(true); continue; }
+        expect(t).toEqual(lawn);
+        grown++;
+        if (fairBare(t.x, t.z)) onBare++;
+      }
+    }
+    expect(onBare).toBe(0);
+    expect(grown).toBeGreaterThan(3000);
+  });
+
+  it('has no colony feeding, no legendary cat, no dog and no dressed bank round its tub of a pool', () => {
+    expect(COLONY_AREAS).not.toContain('fair');
+    expect(feedsHere('fair')).toBe(false);
+    expect(Object.hasOwn(LEGENDARY_BY_AREA, 'fair')).toBe(false);
+    expect(propsFor('fair').dogYard).toBeNull();
+    expect(DRESSED_AREAS).not.toContain('fair');
+  });
+
+  it('is named with the Farm and the Seaside on the Park’s home line, in words a nine-year-old can read', () => {
+    const state = createProgression(fakeStorage()).state;
+    const s = { ...state, walks: { ...state.walks, neighborhood: 3, park: 1 }, unlocked: { ...state.unlocked, areas: ['neighborhood', 'park'] }, area: 'park', edition: 'legacy' };
+    const line = nextThing(s);
+    expect(line).toMatchObject({ rule: 7, id: 'home.opens-three' });
+    expect(line.text).toBe('One more walk here opens Appletree Farm, the Fairground and Seaside!');
+  });
+
+  it('has a card picture for the home screen', () => {
+    const jpg = readFileSync(new URL('../public/places/fair.jpg', import.meta.url));
+    expect(jpg[0]).toBe(0xff);
+    expect(jpg[1]).toBe(0xd8);
+    expect(jpg.length).toBeGreaterThan(5000);
   });
 });

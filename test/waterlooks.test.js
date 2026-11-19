@@ -41,6 +41,7 @@ const WORLDS = {
   docks: await import('../src/world/docks.js'),
   gorge: await import('../src/world/gorge.js'),
   farm: await import('../src/world/farm.js'),
+  fair: await import('../src/world/fair.js'),
 };
 const { mulberry32 } = await import('../src/rng.js');
 const { buildCat } = await import('../src/cat/model.js');
@@ -56,7 +57,7 @@ const { createContactShadows } = await import('../src/render/contactshadows.js')
 // with one mesh per cave built under the cave room's withLocalUuids. The Gorge is not in the flat trace,
 // so nothing else moved.
 // polish-gorge7 builds the scree bed under local uuids, so its stones no longer draw (4488 → 2020).
-const BUILD_DRAWS = { neighborhood: 4408, park: 2252, seaside: 860, docks: 6916, woods: 11344, river: 15484, moor: 7944, pines: 11580, gorge: 2020, farm: 3164 };
+const BUILD_DRAWS = { neighborhood: 4408, park: 2252, seaside: 860, docks: 6916, woods: 11344, river: 15484, moor: 7944, pines: 11580, gorge: 2020, farm: 3164, fair: 1752 };
 
 function drawsOf(world) {
   // The flat trace builds a cat and the contact shadows around every area, and

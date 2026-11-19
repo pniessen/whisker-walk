@@ -18,6 +18,7 @@ import * as neighborhood from '../world/neighborhood.js';
 import * as park from '../world/park.js';
 import * as seaside from '../world/seaside.js';
 import * as farm from '../world/farm.js';
+import * as fair from '../world/fair.js';
 import * as den from '../world/den.js';
 import * as docks from '../world/docks.js';
 import * as woods from '../world/woods.js';
@@ -153,7 +154,7 @@ import { createSession } from './session.js';
 // home-base card, a price and an unlock gate), and this map, which is what
 // startWalk indexes with state.area. An area missing from here is a fully
 // built world nothing can ever call.
-const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines, gorge, farm };
+const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines, gorge, farm, fair };
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
@@ -730,6 +731,9 @@ export function createWalkLifecycle({
     // Warm low sun, cool sky fill, window glow: render/dusk.js.
     const duskLookNow = duskActive ? applyDusk({ scene, sun, fill, areaData }) : null;
     setCatRimLight({ dusk: !!duskLookNow }); // polish-catlight: dusk rim weaker, cooler
+    // The Fairground's bulbs (world/fair.js): every one shares one material,
+    // lit in a dusk walk and plain coloured glass by day. No real lights.
+    if (areaId === 'fair') fair.setFairGlow(areaData, duskLookNow ? 1 : 0);
 
     // v18 Night Eyes ('night-eyes', Task 2.3): dusk walks brighten. This has
     // to run AFTER duskActive is resolved above (a solo dusk walk only counts

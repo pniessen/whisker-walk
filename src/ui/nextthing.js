@@ -94,6 +94,11 @@ export function nextThing(state, { catalog = CATALOG, present = false, toldNow =
   // Two places that both cost coins are a choice, so the line names both
   // (the Park opens the Farm and the Seaside). A free place opens by itself
   // and is named alone, as it always was.
+  // Three that all cost coins are named all three (the Park opens the Farm,
+  // the Fairground and the Seaside), in the catalog's order.
+  if (soon.length >= 3 && soon.slice(0, 3).every((id) => count(areas[id].price) > 0)) {
+    return say(7, 'home.opens-three', '🗺️', { place: nameOf(soon[0]), place2: nameOf(soon[1]), place3: nameOf(soon[2]) });
+  }
   if (soon.length >= 2 && count(areas[soon[0]].price) > 0 && count(areas[soon[1]].price) > 0) {
     return say(7, 'home.opens-two', '🗺️', { place: nameOf(soon[0]), place2: nameOf(soon[1]) });
   }

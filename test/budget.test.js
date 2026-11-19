@@ -35,6 +35,7 @@ const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
 const { build: buildGorge } = await import('../src/world/gorge.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
+const { build: buildFair } = await import('../src/world/fair.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
@@ -431,6 +432,15 @@ const AREAS = [
   // with an apple mesh (noCast); eight flower patches are 96 of the meshes.
   // Ceilings at the usual headroom over that, well under the territories'.
   ['farm', buildFarm, 280, 210, 62000],
+  // The Fairground (2026-11-18), the static place as step 1 built it: measured
+  // 221 / 157 / 69,452 (test/fair.test.js pins the exact numbers). The rides
+  // are the densest things in the game and their moving parts cannot be
+  // merged: 12 horses, 8 gondolas, 6 cups and 4 coaster cars are a mesh each.
+  // Meshes and casters at a small headroom over that. The triangle ceiling,
+  // 75,000, is PROVISIONAL: the owner approved 75,000 for the Farm (place,
+  // animals and jobs); for the Fairground it is the coordinator's call,
+  // flagged to the owner and his to change.
+  ['fair', buildFair, 250, 180, 75000],
 ];
 
 // ---------------------------------------------------------------------------
@@ -474,6 +484,7 @@ const MERGED_AREAS = [
   ['pines', buildPines, 260, 205],
   ['gorge', buildGorge, 260, 205],
   ['farm', buildFarm, 200, 135], // measured 176 / 119
+  ['fair', buildFair, 200, 140], // measured 178 / 124
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

@@ -197,7 +197,7 @@ describe('nothing in the everyday set is a word of the family\'s set', () => {
 
   it('no line of the guided walk, the hints or the home line says one', () => {
     withOffWords(() => {
-      const slots = { name: clanCast('woods')[4].name, place: placeName('neighborhood', 'canon', CATALOG), place2: placeName('park', 'canon', CATALOG), thing: accessoryName(CATALOG.accessories.warpaint, 'canon'), n: 3, rank: 'Yard Prowler' };
+      const slots = { name: clanCast('woods')[4].name, place: placeName('neighborhood', 'canon', CATALOG), place2: placeName('park', 'canon', CATALOG), place3: placeName('seaside', 'canon', CATALOG), thing: accessoryName(CATALOG.accessories.warpaint, 'canon'), n: 3, rank: 'Yard Prowler' };
       const said = {};
       for (const id of Object.keys(TUTORIAL)) for (const touch of [true, false]) said[`${id}.${touch ? 'touch' : 'keys'}`] = tutorialLine(id, { ...slots, touch });
       expect(bannedLeaks(said)).toEqual([]);
