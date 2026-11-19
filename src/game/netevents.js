@@ -17,6 +17,7 @@ import { FLAT_GROUND } from '../ground.js';
 import { safeRemoteName } from '../net.js';
 import { deviceMetPlayers } from '../metplayers.js';
 import { note } from '../diagnostics.js';
+import { HANDOFF_GRACE_S } from './yarnshare.js';
 
 // Gorge part 1 (R13): the receiver's own ground under a streamed [x, z].
 const groundY = (s, x, z) => (s.ground ?? FLAT_GROUND).y(x, z);
@@ -259,8 +260,11 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       }
     } else if (ev.type === 'bat') {
       noteBat(s, ev.id);
-      if (s.toy.active) {
-        // we currently own the yarn ball — hand authority to whoever just batted our ghost
+      // we currently own the yarn ball — hand authority to whoever just
+      // batted our ghost. Not one still lying where it was found (that is
+      // nobody's, and never shown as a ghost), and never one in our mouth: no
+      // snatching from a mouth (game/yarnshare.js).
+      if (s.toy.active && s.toy.claimed !== false && !s.toy.held) {
         if (s.net) {
           s.net.sendEvent({
             v: 1,
@@ -270,12 +274,15 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
             pos: [s.toy.mesh.position.x, s.toy.mesh.position.z],
           });
         }
-        s.toy.retrieve(); // silently — this isn't the player's own T-key retrieve
+        s.toy.retrieve(); // silently: she has it now
       }
     } else if (ev.type === 'yarn-authority') {
       if (ev.toId === s.playerId && Array.isArray(ev.pos) && ev.pos.length === 2) {
         s.toy.setPosition(new THREE.Vector3(ev.pos[0], groundY(s, ev.pos[0], ev.pos[1]) + 0.13, ev.pos[1]));
         s.batReady = true; // freshly acquired — ready to bat right away
+        // her last report of it may still be on its way: it is mine now
+        s.remoteToy = null;
+        s.yarnGrace = nowSec() + HANDOFF_GRACE_S;
       }
     } else if (ev.type === 'pounce-tag') {
       if (ev.toId !== s.playerId) return;

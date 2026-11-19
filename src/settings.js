@@ -22,6 +22,10 @@ const DEFAULTS = {
   // "Show tips" (src/hints.js): the hint lines on a walk. On by default; off
   // hides them all (never the home screen's line).
   showTips: true,
+  // "Zoom buttons on screen" (controls review, 2026-11-19): the + and − pair
+  // left the walk screen for the pause card's View chips; this brings it back
+  // for a child who cannot pinch. Off by default.
+  zoomButtons: false,
 };
 
 // Resolved into a render tier by src/render/quality.js (resolveQuality) —
@@ -70,6 +74,7 @@ function sanitize(raw) {
     cameraZoom: zoomStep(raw.cameraZoom, DEFAULTS.cameraZoom),
     haptics: typeof raw.haptics === 'boolean' ? raw.haptics : DEFAULTS.haptics,
     showTips: typeof raw.showTips === 'boolean' ? raw.showTips : DEFAULTS.showTips,
+    zoomButtons: typeof raw.zoomButtons === 'boolean' ? raw.zoomButtons : DEFAULTS.zoomButtons,
   };
 }
 

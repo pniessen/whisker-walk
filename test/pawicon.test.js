@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { PAW } from '../src/ui/pawicon.js';
 import { visitBadgeHtml } from '../src/ui/homebase.js';
+import { CLIMB_LABEL } from '../src/ui/touchui.js';
 
 describe('paw icon', () => {
   test('is a decorative span that keeps the emoji as its fallback text', () => {
@@ -11,7 +12,9 @@ describe('paw icon', () => {
   });
   test('the pounce button keeps its accessible name; the visit chip keeps its words', () => {
     const src = readFileSync(new URL('../src/ui/touchui.js', import.meta.url), 'utf8');
-    expect(src).toContain('aria-label="Pounce or climb">${PAW}<span class="tui-label">pounce</span></button>');
+    // ...which says "Climb up" / "Hop down" while the climb badge shows (controls review, 2026-11-19)
+    expect(src).toContain('data-action="pounce" aria-label="${CLIMB_LABEL[null]}">${PAW}<span class="tui-badge" aria-hidden="true"></span><span class="tui-label">pounce</span></button>');
+    expect(CLIMB_LABEL).toEqual({ up: 'Climb up', down: 'Hop down', null: 'Pounce or climb' });
     expect(visitBadgeHtml(3)).toMatch(/class="paw"[^>]*>🐾<\/span> Visit 3/);
   });
   test('style.css draws it with a mask and keeps an emoji halo fallback', () => {

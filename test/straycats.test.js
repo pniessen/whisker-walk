@@ -1787,6 +1787,22 @@ describe('createStrayCats — homes (Gorge part 3, C8)', () => {
     expect(toward).toBeGreaterThan(1.5); // it did run for the toy, to near the end of its roam
   });
 
+  // Controls review, 2026-11-19: a yarn ball still lying where it was found
+  // waits for the child, and one in a mouth is hers.
+  it('a playful stray leaves a found ball alone until someone plays with it, and never takes one from a mouth', () => {
+    for (const [claimed, held, runs] of [[false, false, false], [true, true, false], [true, false, true]]) {
+      const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME] });
+      const [s] = cats.strays;
+      const toy = { active: true, claimed, held, mesh: { position: new THREE.Vector3(HOME.x + 5, 0, HOME.z) }, bat() {} };
+      let toward = 0;
+      for (let f = 0; f < 300; f++) {
+        cats.update(1 / 30, f / 30, FAR, { ...NO_OPTS, toy });
+        toward = Math.max(toward, s.group.position.x - HOME.x);
+      }
+      expect(toward > 1.5, `claimed ${claimed}, held ${held}`).toBe(runs);
+    }
+  });
+
   it('a homed stray\'s recoil never pushes it past its roam', () => {
     const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME] });
     const [s] = cats.strays;
