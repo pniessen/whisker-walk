@@ -175,7 +175,7 @@ describe('the animals as farmanimals.js poses them', () => {
           expect(Math.abs(p.head.rotation.y)).toBeLessThanOrEqual(DOG_LOOK + 1e-9);
           worst.dogYaw = Math.max(worst.dogYaw, Math.abs(p.head.rotation.y));
           expect(p.jaw.rotation.x).toBeGreaterThanOrEqual(0);
-          expect(p.jaw.rotation.x).toBeLessThanOrEqual(0.16 + 1e-9);
+          expect(p.jaw.rotation.x).toBeLessThanOrEqual(0.075 + 1e-9);
           for (const e of p.ears) { expect(e.rotation.x).toBeGreaterThanOrEqual(-0.1 - 1e-9); expect(e.rotation.x).toBeLessThanOrEqual(0.6 + 1e-9); }
         } else if (v.a.type === 'hen') {
           expect(p.head.rotation.x).toBeGreaterThanOrEqual(-0.16);

@@ -616,38 +616,47 @@ export function buildSheepdog(material) {
   head.rotation.order = 'YXZ';
   head.position.set(0, 0.6, 0.38);
   const inner = frame(head, DOG_FACE);
-  // a blaze up between the eyes, a white muzzle, black cheeks and crown
+  // A collie's soft wedge: a rounded crown, a clear stop, and a muzzle that
+  // tapers from it to a small round nose. Black over his crown, ears and round
+  // his eyes; a white blaze up the middle between them, a white muzzle and chin.
   const face = (x, y, z, u, v) => {
-    const blaze = smooth(0.012, -0.012, Math.abs(x) - (0.014 + 0.2 * Math.max(0, z - 0.04))) * (Math.abs(v - 0.5) < 0.25 ? 1 : 0);
-    return mix(BLACK, WHITE, Math.max(blaze, smooth(0.1, 0.125, z), smooth(-0.05, -0.08, y) * smooth(-0.02, 0.05, z)));
+    const top = Math.abs(v - 0.5) < 0.27 ? 1 : 0;
+    const blaze = top * smooth(0.008, -0.008, Math.abs(x) - (0.011 + 0.16 * Math.max(0, z - 0.02)));
+    const muzzle = smooth(0.092, 0.112, z);
+    const chin = smooth(-0.04, -0.06, y) * smooth(0.03, 0.08, z);
+    return mix(BLACK, WHITE, Math.max(blaze, muzzle, chin));
   };
-  const ex = 0.06, ey = 0.04, ez = 0.08, er = 0.022;
+  const ex = 0.05, ey = 0.046, ez = 0.07, er = 0.024;
   const skullParts = [
     loft([
       at(-0.11, 0.045, -0.04, 0.05),
-      at(-0.07, 0.098, -0.085, 0.102, { nt: 2.2 }),
-      at(0.0, 0.108, -0.098, 0.118, { nt: 2.2 }),    // a round crown, full cheeks
-      at(0.06, 0.09, -0.07, 0.094, { nt: 2.3 }),     // the brow
-      at(0.096, 0.044, -0.046, 0.06, { nt: 2.3 }),  // the stop: down to a tapered muzzle
-      at(0.142, 0.033, -0.038, 0.05, { nt: 2.3 }),
-      at(0.18, 0.024, -0.032, 0.042, { nt: 2.4 }),
-      at(0.202, 0.01, -0.024, 0.03),
+      at(-0.07, 0.094, -0.078, 0.092),
+      at(0.0, 0.103, -0.088, 0.102),                // a round crown, soft cheeks
+      at(0.05, 0.093, -0.07, 0.086),                // a light brow
+      at(0.085, 0.062, -0.058, 0.062),              // the stop
+      at(0.12, 0.048, -0.052, 0.05),                // and a muzzle tapering from it
+      at(0.155, 0.04, -0.045, 0.04),
+      at(0.185, 0.03, -0.036, 0.03),
+      at(0.2, 0.018, -0.026, 0.02),
     ], { around: 12, along: 12, level: true, color: face, tipStart: 0.02, tipEnd: 0.008 }),
-    put(ball(0.024, { around: 6, rings: 3, color: EYE }), { scale: [1.15, 0.85, 0.85], at: [0, 0.01, 0.202] }),                // nose
-    // soft dark brown eyes, a glint in each: no pale ring round them to look like a glare
-    ...eye(er, ex, ey, ez, { color: 0x3a2412 }),
+    put(ball(0.016, { around: 7, rings: 3, color: EYE }), { scale: [1.25, 0.85, 0.8], at: [0, 0.014, 0.198] }), // a small round nose
+    // soft dark brown eyes set forward, the catchlight up and toward you
+    ...pair(put(ball(er, { around: 8, rings: 3, color: 0x4a2c16 }), { scale: [0.9, 1, 1], at: [ex, ey, ez] })),
+    ...pair(put(ball(er * 0.32, { around: 4, rings: 1, color: GLINT }), { at: [ex + er * 0.42, ey + er * 0.4, ez + er * 0.78] })),
   ];
   inner.add(mesh(merged(skullParts), material));
-  // his lower jaw, and his tongue lying on it
+  // His lower jaw: slim, widest where his muzzle's underside lies inside it,
+  // so closed it is the bottom of his muzzle and only his lips show a line.
+  // His tongue lies in it, its tip at his lip: it shows when he pants.
   const jaw = mesh(merged([
     loft([
-      at(-0.01, 0.03, -0.045, 0.07),
-      at(0.07, 0.016, -0.04, 0.046),
-      at(0.13, 0.012, -0.028, 0.036),
-      at(0.17, 0.01, -0.02, 0.03),
-    ], { around: 7, along: 5, level: true, color: (x, y, z) => mix(BLACK, WHITE, smooth(0.03, 0.07, z)), tipStart: 0.012, tipEnd: 0.008 }),
-    // his tongue: in his mouth, its tip just over his lower teeth, curling down
-    put(ball(0.026, { around: 6, rings: 2, color: 0xd96a78 }), { scale: [0.72, 0.28, 1.0], rot: [0.12, 0, 0], at: [0, 0.006, 0.124] }),
+      at(-0.02, 0.02, -0.052, 0.05, { mid: -0.036 }),   // tucked up under his cheeks
+      at(0.05, 0.02, -0.032, 0.05, { mid: -0.014 }),
+      at(0.1, 0.018, -0.022, 0.042, { mid: -0.004 }),
+      at(0.14, 0.018, -0.014, 0.034, { mid: 0.004 }),
+      at(0.168, 0.02, -0.006, 0.025, { mid: 0.012 }),
+    ], { around: 7, level: true, color: (x, y, z) => face(x, y - 0.042, z + 0.02, 0, 0), tipStart: 0.012, tipEnd: 0.006 }),
+    put(ball(0.026, { around: 6, rings: 2, color: 0xd96a78 }), { scale: [0.8, 0.3, 1.4], rot: [0.08, 0, 0], at: [0, 0.016, 0.142] }),
   ]), material);
   jaw.position.set(0, -0.042, 0.02);
   inner.add(jaw);
