@@ -362,6 +362,74 @@ describe('a walk across the whole grown area and back', () => {
   });
 });
 
+describe('the strips\' still stand fades tree by tree, as the core\'s does', () => {
+  const w = walkScene();
+  const life = w.area.life({ reducedMotion: false });
+  const stand = grow.stripPines().filter((p) => !p.near);
+  const meshes = ['stripStandTrunks', 'stripStandFoliage'].map((n) => w.scene.children.find((c) => c.name === n));
+  const before = meshes.map((m) => fnv(m.geometry.attributes.position.array));
+  // a pine of the stand with open ground east of it
+  const p = stand.find((q) => isWalkableAt(w.area, q.x + 4, q.z));
+  const i = stand.indexOf(p);
+  const camera = new THREE.PerspectiveCamera();
+  const run = (frames, cat, camAt) => {
+    camera.position.set(...camAt);
+    for (let k = 0; k < frames; k++) life.update(1 / 60, 0, cat, camera);
+  };
+
+  it('is the area\'s own life, only with the switch on', () => {
+    expect(OFF.area.life).toBeUndefined();
+    expect(typeof w.area.life).toBe('function');
+    expect(p).toBeTruthy();
+  });
+
+  it('a pine the camera is in folds away in the stand, and its own see-through copy stands in its place', () => {
+    run(30, { x: p.x + 4, y: 0, z: p.z }, [p.x + 0.8, 2.1, p.z]);
+    expect(life.faded()).toBe(1);
+    for (const m of meshes) {
+      const pos = m.geometry.attributes.position;
+      const span = pos.count / stand.length;
+      for (let v = i * span; v < (i + 1) * span; v++) {
+        expect(pos.getX(v)).toBeCloseTo(p.x, 5);
+        expect(pos.getY(v)).toBe(0);
+        expect(pos.getZ(v)).toBeCloseTo(p.z, 5);
+      }
+      // and no other pine moved
+      expect(pos.getX(((i + 1) % stand.length) * span)).not.toBeCloseTo(p.x, 3);
+    }
+    const copy = w.scene.children.filter((c) => c.name === 'stripStandFade');
+    expect(copy.length).toBe(1);
+    expect(copy[0].visible).toBe(true);
+    expect(copy[0].position.x).toBe(p.x);
+    expect(copy[0].scale.x).toBe(p.scale);
+    const ops = [];
+    copy[0].traverse((o) => { if (o.isMesh) ops.push([o.material.transparent, o.material.opacity]); });
+    // the camera is close: the boughs clear away, the trunk keeps a ghost
+    expect(ops).toEqual([[true, 0.05], [true, 0]]);
+  });
+
+  it('when the camera moves off, the pine eases back and the stand is as it was, byte for byte', () => {
+    run(60, { x: p.x + 4, y: 0, z: p.z }, [p.x + 9, 2.1, p.z]);
+    expect(life.faded()).toBe(0);
+    expect(meshes.map((m) => fnv(m.geometry.attributes.position.array))).toEqual(before);
+    expect(w.scene.children.find((c) => c.name === 'stripStandFade').visible).toBe(false);
+  });
+
+  it('a pine between the camera and the cat fades too; one beside the line does not', () => {
+    run(30, { x: p.x + 3.5, y: 0, z: p.z }, [p.x - 3.5, 2.1, p.z]);
+    expect(life.faded()).toBe(1);
+    run(60, { x: p.x + 3.5, y: 0, z: p.z + 9 }, [p.x - 3.5, 2.1, p.z + 9]);
+    expect(life.faded()).toBe(0);
+  });
+
+  it('gives everything back at the end of the walk', () => {
+    run(30, { x: p.x + 4, y: 0, z: p.z }, [p.x + 0.8, 2.1, p.z]);
+    life.dispose();
+    expect(meshes.map((m) => fnv(m.geometry.attributes.position.array))).toEqual(before);
+    expect(w.scene.children.some((c) => c.name === 'stripStandFade')).toBe(false);
+  });
+});
+
 describe('what a walk reads from the bounds', () => {
   it('the walk\'s seeded spots stay on the core: rain puddles and the clan\'s roam homes are today\'s', () => {
     expect(rainPuddleSpots(ON.area, mulberry32(5))).toEqual(rainPuddleSpots(OFF.area, mulberry32(5)));
@@ -741,12 +809,23 @@ describe('something to find in each strip', () => {
 //
 //                                     meshes  casters  triangles
 //   the Pines today (switch off)        119       69     67,403
-//   grown, worst spot                    see below
+//   grown, the worst spot for
+//     triangles, (-20, -35) by the
+//     mire's east bank                  145       76     67,597   (2,087 of them stand-ins)
+//   grown, the most meshes and
+//     casters, (-25, -10)               147       80     64,466
+//   grown, at the spawn                 125       58     58,593
 //
-// Ceilings about 5% over the measure, the triangles under 70,000.
+// Ceilings about 5% over the measure, the triangles at the territories'
+// 70,000. The 26 meshes over today at the worst spot are the strips' own:
+// the ground (2), three waters, the two landmarks (3), the trail and its
+// eight hidden data strips (9), the lily pads, the two trail-side pines (4),
+// seven merged scatter meshes drawn in runs, and one for all the stand-ins,
+// less the core's swaying pines out of range.
 // ---------------------------------------------------------------------------
 describe('the budget, switch on: the most the Pines puts on screen at once', () => {
-  const CEILING = { meshes: 150, casters: 79, triangles: 69900 };
+  const CEILING = { meshes: 152, casters: 80, triangles: 70000 };
+  const MOST = { meshes: 154, casters: 84 };
   const built = build(true);
   mergeStaticProps(built.scene);
   rig.assignShadowCasters(built.scene);
@@ -769,11 +848,30 @@ describe('the budget, switch on: the most the Pines puts on screen at once', () 
     expect(worst.casters - 69).toBeLessThanOrEqual(35);
   });
 
+  it(`wherever a cat stands, no more than ${MOST.meshes} meshes and ${MOST.casters} casters`, () => {
+    let meshes = 0, casters = 0;
+    for (let x = GROWN.minX; x <= GROWN.maxX; x += 5) {
+      for (let z = GROWN.minZ; z <= GROWN.maxZ; z += 5) {
+        const s = m.at(x, z, LAYERS);
+        meshes = Math.max(meshes, s.meshes); casters = Math.max(casters, s.casters);
+      }
+    }
+    expect(meshes).toBeLessThanOrEqual(MOST.meshes);
+    expect(casters).toBeLessThanOrEqual(MOST.casters);
+    expect(meshes).toBeGreaterThan(MOST.meshes * 0.92);
+    expect(casters).toBeGreaterThan(MOST.casters * 0.92);
+  });
+
   it('everything there is, drawn at once, is the core\'s and the strips\' things once each', () => {
     const fresh = build(true);
     mergeStaticProps(fresh.scene);
     const full = budgetOf(fresh.scene.children, rig);
     expect(m.fixed.triangles + m.always + all).toBe(full.triangles);
+  });
+
+  it('from the spawn the Pines costs less than today', () => {
+    const here = m.at(pines.SPAWN.x, pines.SPAWN.z, LAYERS);
+    expect(here.triangles).toBeLessThan(67403);
   });
 
   it('out in each strip the Pines costs no more than today', () => {

@@ -123,7 +123,6 @@ const BARK_DARK = lin(0x4a3422);
 const MOSS = lin(0x5f7a32);
 const MOSS_LIGHT = lin(0x86a046);
 const STONE = lin(0x8f8a80);
-const NEEDLES = lin(0x8a5a30);
 
 // One root: a ridge of `n` rings from the trunk outward, each ring a half
 // round arch of SIDES points from one flank to the other through the top,
@@ -211,24 +210,6 @@ function greatPineRootsGeometry() {
   slab.rotateY(0.3);
   slab.translate(DRINK.x, 0.03, DRINK.z - 0.12);
   add(slab, (x, y, z) => scale3(STONE, 0.85 + 0.25 * b.hash01(Math.round(x * 5), Math.round(z * 5), 2355)));
-  // a deep drift of old needles round the foot
-  const drift = new THREE.CircleGeometry(5.2, 18);
-  drift.rotateX(-Math.PI / 2);
-  {
-    const p = drift.attributes.position;
-    for (let v = 0; v < p.count; v++) {
-      const x = p.getX(v), z = p.getZ(v);
-      const rad = Math.hypot(x, z);
-      if (rad < 1e-6) continue;
-      const k = 0.82 + 0.3 * b.hash01(Math.round(Math.atan2(z, x) * 3), 1, 2369);
-      p.setXYZ(v, x * k, 0.012, z * k);
-    }
-  }
-  drift.translate(GREAT_PINE.x, 0, GREAT_PINE.z);
-  add(drift, (x, y, z) => {
-    const fade = smoothstep(5.4, 2.0, Math.hypot(x - GREAT_PINE.x, z - GREAT_PINE.z));
-    return lerp3(lin(0x56603e), scale3(NEEDLES, 0.85 + 0.25 * b.hash01(Math.round(x * 2), Math.round(z * 2), 2383)), 0.25 + 0.75 * fade);
-  });
   const geo = mergeGeometries(parts, false);
   for (const p of parts) p.dispose();
   return geo;

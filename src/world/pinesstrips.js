@@ -365,7 +365,9 @@ let tintOnce = null;
 export function grownGroundTint(x, z) {
   if (!tintOnce) {
     const island = pines.PINES_ISLAND_PLAIN;
-    tintOnce = pinesFloorTint([...coreTrees(), ...stripPines()], { plain: [island] });
+    // the Great Pine's needle bed is as wide as its boughs
+    const great = { x: north.GREAT_PINE.x, z: north.GREAT_PINE.z, scale: north.GREAT_PINE.scale };
+    tintOnce = pinesFloorTint([...coreTrees(), ...stripPines(), great], { plain: [island] });
   }
   let m = tintOnce(x, z);
   const wet = wetHollow(x, z);

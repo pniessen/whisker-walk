@@ -720,7 +720,10 @@ const pinesTint = once(() => {
 });
 // Bigger areas: with the switch on, the grown ground's tint (pinesstrips.js):
 // the strips' pines in it too, and plain only by the grown ground's edge.
-export const pinesGroundTint = (x, z) => (growOn() ? grow.grownGroundTint(x, z) : pinesTint()(x, z));
+// Which one is the last build's (grass.js reads this during that walk), so
+// the switch is not read again for every sample.
+let tintGrown = false;
+export const pinesGroundTint = (x, z) => (tintGrown ? grow.grownGroundTint(x, z) : pinesTint()(x, z));
 
 // Reeds, a clump every 2 m, half a metre out round each bog, along both banks
 // of the mire, and along the bay's and the lake's shores on this side. None
@@ -874,6 +877,7 @@ export function pinesReedItems() {
 
 export function build(scene, { water = {}, wind } = {}) {
   const G = growOn() ? grownPines() : null;
+  tintGrown = !!G;
   const waters = G ? G.waters : PINES_WATERS;
   b.applySky(scene, 0x9fb4c0, 0xc8d0c4);
   // The ground, a rust-brown needle bed under the pines and mossy between
