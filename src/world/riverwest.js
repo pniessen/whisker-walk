@@ -163,8 +163,9 @@ function lowFits(x, z, { water = 0.3, trail = 1.3, find = 1.6 } = {}) {
 }
 
 // The trees: a 3 x 3 jittered grid a tile, each candidate kept with a chance
-// that falls from 0.36 at the old edge to 0.16 at the rim (about half the
-// core's trees to the square metre near it, a third at the rim). A willow
+// that falls from 0.32 at the old edge to 0.12 at the rim: 13 trees on the
+// strip's 4,000 square metres, nine of them in its near half (the core has
+// 47 on 10,000). A willow
 // within 10 m of water, an alder on drier ground. Candidates stay 2 m inside
 // their tile and at least 4 m apart, so two tiles' trees never crowd and no
 // tile needs to know its neighbour's. Every candidate draws its numbers
@@ -183,7 +184,7 @@ function tileTrees(tile) {
       const z = r2(tile.minZ + TREE_INSET + (j + 0.5) * cell + (rng() * 2 - 1) * TREE_JITTER);
       const roll = rng();
       const size = rng();
-      if (roll >= 0.36 - 0.2 * rimward(x)) continue;
+      if (roll >= 0.32 - 0.2 * rimward(x)) continue;
       const wd = waterDist(x, z);
       const kind = wd < 10 ? 'willow' : 'alder';
       const scale = r2(kind === 'willow' ? 1.1 + 0.4 * size : 0.9 + 0.4 * size);

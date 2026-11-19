@@ -39,8 +39,8 @@ export const CHUNK = 800; // triangles of small things written in one step
 export const RISE = 0.7; // seconds a new tile's things take to grow in
 
 // What one tree costs in triangles, for the frame budget (measured: a willow
-// is 532, the core's round trees 348 to 860 by canopy kind).
-const TREE_COST = Object.freeze({ willow: 532, alder: 860 });
+// is 356, builder.tree 172 to 220 by canopy kind).
+export const TREE_COST = Object.freeze({ willow: 356, alder: 220 });
 
 // --- the small things -------------------------------------------------------------
 // Each kind: how many triangles one item is, and how to write it. `w` is the
