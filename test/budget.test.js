@@ -433,7 +433,8 @@ const AREAS = [
   // Ceilings at the usual headroom over that, well under the territories'.
   ['farm', buildFarm, 280, 210, 62000],
   // The Fairground (2026-11-18), the static place as step 1 built it: measured
-  // 221 / 157 / 69,452 (test/fair.test.js pins the exact numbers). The rides
+  // 221 / 157 / 69,452; after the polish pass (2026-11-19) 174 / 109 / 66,692
+  // (test/fair.test.js pins the exact numbers). The rides
   // are the densest things in the game and their moving parts cannot be
   // merged: 12 horses, 8 gondolas, 6 cups and 4 coaster cars are a mesh each.
   // Meshes and casters at a small headroom over that. The triangle ceiling,
