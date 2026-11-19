@@ -3,8 +3,8 @@
 // Rooftops area needs: a balance walk on a placed crossing (plank, ridge,
 // gutter, line, pipe), a leap across a marked gap, and a marked drop or
 // climb-up between two levels. Pure and THREE-free, so tests and the build
-// check run it headless. This part is the DATA and its RULES; the motion
-// maths joins it later in this same file.
+// check run it headless. It holds the DATA, its RULES, and the motion maths
+// (mounting, the balance step, take-off spots, the hop and its timing).
 //
 // Why a crossing is a RAIL and not ground: a plank laid over an alley as a
 // ground strip would make the alley a wall under it, because ground.js allows
@@ -295,4 +295,176 @@ export function moveAbilities(state) {
   const climb = climbBudget(state).climb;
   if (!steady && !longLeap && climb === BASE_ABILITIES.climb) return BASE_ABILITIES;
   return Object.freeze({ steady, longLeap, climb });
+}
+
+// ---------------------------------------------------------------------------
+// Motions
+
+// The end of a crossing the cat is pushing onto, if any: nearest of the ends
+// that are close, level, and in the direction of the push. `out` is
+// { crossing, end, u }, with u the cat's place along that end's own segment.
+export function crossingToMount(trav, x, z, groundY, dirX, dirZ, out) {
+  const dl = Math.hypot(dirX, dirZ);
+  if (dl < 0.2) return null;
+  let best = Infinity;
+  let found = false;
+  for (let i = 0; i < trav.crossings.length; i++) {
+    const c = trav.crossings[i];
+    for (let k = 0; k < 2; k++) {
+      const e = c.ends[k];
+      const d = Math.hypot(x - e.x, z - e.z);
+      if (d > MOUNT_R || d >= best) continue;
+      if (Math.abs(groundY - e.y) > LEVEL_TOL) continue;
+      if (dirX * e.inX + dirZ * e.inZ < MOUNT_DOT * dl) continue;
+      best = d;
+      found = true;
+      out.crossing = c;
+      out.end = k;
+    }
+  }
+  if (!found) return null;
+  const c = out.crossing;
+  const s = out.end === 0 ? c.segs[0] : c.segs[c.segs.length - 1];
+  const p = Math.min(Math.max((x - s.x0) * s.tx + (z - s.z0) * s.tz, 0), s.len);
+  out.u = s.u0 + p;
+  return out;
+}
+
+// One frame of walking a crossing. st = { u, v } is changed in place. Returns
+// 0 or 1 when she is pushed out past that end (step off), else null.
+export function balanceStep(st, crossing, along, dt, steady) {
+  const max = steady ? TIGHTROPE_SPEED : BALANCE_SPEED;
+  const target = Math.abs(along) < ALONG_DEAD ? 0 : along * max;
+  st.v += (target - st.v) * (1 - Math.exp(-BALANCE_EASE * dt));
+  st.u += st.v * dt;
+  if (st.u <= 0) {
+    st.u = 0;
+    if (target < 0) return 0;
+    st.v = 0;
+  } else if (st.u >= crossing.length) {
+    st.u = crossing.length;
+    if (target > 0) return 1;
+    st.v = 0;
+  }
+  return null;
+}
+
+// The hop she would take from here, if any: { hop, look }. A look is a spot
+// she cannot use yet (gated gap, climb too high); it only shows her the view.
+export function spotFor(trav, x, z, groundY, faceX, faceZ, abilities, out) {
+  let best = Infinity;
+  let found = false;
+  for (let i = 0; i < trav.hops.length; i++) {
+    const h = trav.hops[i];
+    const d = Math.hypot(x - h.x0, z - h.z0);
+    if (d > SPOT_R || Math.abs(groundY - h.y0) > LEVEL_TOL) continue;
+    const look = (h.kind === 'leap' && h.requires === LONG_LEAP_ID && !abilities.longLeap)
+      || (h.kind === 'climb' && h.dy > abilities.climb);
+    let facing = 0;
+    if (h.dist > 0) facing = Math.max(0, (faceX * (h.x1 - h.x0) + faceZ * (h.z1 - h.z0)) / h.dist);
+    const score = d - SPOT_FACE_BONUS * facing + (look ? SPOT_R : 0);
+    if (score < best) {
+      best = score;
+      found = true;
+      out.hop = h;
+      out.look = look;
+    }
+  }
+  return found ? out : null;
+}
+
+// The timing of one hop, from where she was pressed to the landing.
+export function planHop(hop, startX, startZ, reducedMotion, out) {
+  const k = HOP[hop.kind];
+  out.hop = hop;
+  out.sx = startX;
+  out.sz = startZ;
+  out.crouch = reducedMotion ? k.crouchRM : k.crouch;
+  out.land = reducedMotion ? k.landRM : k.land;
+  out.hang = reducedMotion ? 0 : k.hang;
+  out.air = k.air + k.airPerM * (hop.kind === 'leap' ? hop.dist : Math.abs(hop.dy));
+  out.total = out.crouch + out.air + out.land;
+  return out;
+}
+
+// Where she is `elapsed` seconds into a plan. Phase: crouch (glide to the
+// take-off), air (the arc, slow at the top), land, then done (exactly on the
+// landing spot).
+export function hopAt(plan, elapsed, out) {
+  const hop = plan.hop;
+  const e = elapsed < 0 ? 0 : elapsed;
+  if (e < plan.crouch) {
+    const t = e / plan.crouch;
+    const m = t * t * (3 - 2 * t);
+    out.x = plan.sx + (hop.x0 - plan.sx) * m;
+    out.z = plan.sz + (hop.z0 - plan.sz) * m;
+    out.y = hop.y0;
+    out.phase = 'crouch';
+    out.s = 0;
+    out.onGround = true;
+    out.tau = t;
+  } else if (e < plan.crouch + plan.air) {
+    const w = (e - plan.crouch) / plan.air;
+    const s = w + (plan.hang / (2 * Math.PI)) * Math.sin(2 * Math.PI * w);
+    arcPoint(hop, hop.apex, s, out);
+    out.phase = 'air';
+    out.s = s;
+    out.onGround = false;
+    out.tau = w;
+  } else if (e < plan.total) {
+    out.x = hop.x1;
+    out.y = hop.y1;
+    out.z = hop.z1;
+    out.phase = 'land';
+    out.s = 1;
+    out.onGround = true;
+    out.tau = (e - plan.crouch - plan.air) / plan.land;
+  } else {
+    out.x = hop.x1;
+    out.y = hop.y1;
+    out.z = hop.z1;
+    out.phase = 'done';
+    out.s = 1;
+    out.onGround = true;
+    out.tau = 1;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Yaw and stick helpers
+
+// A stick (sx right, sz back as the pad reports it) turned by the camera yaw:
+// three's Vector3(sx, 0, sz).applyAxisAngle(+y, yaw), without three.
+export function stickToWorld(sx, sz, yaw, out) {
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  out.x = sx * c + sz * s;
+  out.z = -sx * s + sz * c;
+  return out;
+}
+
+// player.js's rotation.y for a cat heading (fx, fz).
+export function facingYaw(fx, fz) {
+  return Math.atan2(fx, fz) + Math.PI;
+}
+
+// The camera yaw that puts the follow camera behind a cat heading (fx, fz).
+// (0 - x, not -x, so a heading of 0 gives +0 and not -0.)
+export function behindYaw(fx, fz) {
+  return Math.atan2(0 - fx, 0 - fz);
+}
+
+// Turn `cur` toward `target` the short way: a share of the gap, at most
+// max rad/s.
+export function easeYawToward(cur, target, dt, rate, max) {
+  const TWO_PI = Math.PI * 2;
+  let d = (target - cur) % TWO_PI;
+  if (d > Math.PI) d -= TWO_PI;
+  else if (d < -Math.PI) d += TWO_PI;
+  let step = d * (1 - Math.exp(-rate * dt));
+  const cap = max * dt;
+  if (step > cap) step = cap;
+  else if (step < -cap) step = -cap;
+  return cur + step;
 }
