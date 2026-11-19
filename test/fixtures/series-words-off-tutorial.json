@@ -154,16 +154,16 @@
    "keys": "The way to your home starts in {place}."
   },
   "home.opens": {
-   "touch": "Explore here once more and {place} opens!",
-   "keys": "Explore here once more and {place} opens!"
+   "touch": "Explore here again and {place} opens!",
+   "keys": "Explore here again and {place} opens!"
   },
   "home.opens-two": {
-   "touch": "Explore here once more to open {place} and {place2}!",
-   "keys": "Explore here once more to open {place} and {place2}!"
+   "touch": "Explore here again to open {place} and {place2}!",
+   "keys": "Explore here again to open {place} and {place2}!"
   },
   "home.opens-three": {
-   "touch": "Explore here once more to open {place}, {place2} and {place3}!",
-   "keys": "Explore here once more to open {place}, {place2} and {place3}!"
+   "touch": "Explore here again to open {place}, {place2} and {place3}!",
+   "keys": "Explore here again to open {place}, {place2} and {place3}!"
   },
   "home.wear": {
    "touch": "You have enough for the {thing}. Tap Dress up!",
@@ -258,8 +258,8 @@
    "keys": "Do the first lesson again"
   },
   "guide.replay-set": {
-   "touch": "The first lesson comes next time you explore the street.",
-   "keys": "The first lesson comes next time you explore the street."
+   "touch": "The first lesson comes on your next street trip.",
+   "keys": "The first lesson comes on your next street trip."
   },
   "ready.keys": {
    "touch": "Arrow keys to walk",
@@ -449,16 +449,16 @@
    "keys": "The way to your home starts in Peopleville."
   },
   "home.opens": {
-   "touch": "Explore here once more and Peopleville opens!",
-   "keys": "Explore here once more and Peopleville opens!"
+   "touch": "Explore here again and Peopleville opens!",
+   "keys": "Explore here again and Peopleville opens!"
   },
   "home.opens-two": {
-   "touch": "Explore here once more to open Peopleville and City Park!",
-   "keys": "Explore here once more to open Peopleville and City Park!"
+   "touch": "Explore here again to open Peopleville and City Park!",
+   "keys": "Explore here again to open Peopleville and City Park!"
   },
   "home.opens-three": {
-   "touch": "Explore here once more to open Peopleville, City Park and Seaside!",
-   "keys": "Explore here once more to open Peopleville, City Park and Seaside!"
+   "touch": "Explore here again to open Peopleville, City Park and Seaside!",
+   "keys": "Explore here again to open Peopleville, City Park and Seaside!"
   },
   "home.wear": {
    "touch": "You have enough for the War Paint. Tap Dress up!",
@@ -553,8 +553,8 @@
    "keys": "Do the first lesson again"
   },
   "guide.replay-set": {
-   "touch": "The first lesson comes next time you explore the street.",
-   "keys": "The first lesson comes next time you explore the street."
+   "touch": "The first lesson comes on your next street trip.",
+   "keys": "The first lesson comes on your next street trip."
   },
   "ready.keys": {
    "touch": "Arrow keys to walk",
@@ -603,16 +603,16 @@
     "gorge": "rule 6: The way to your home starts in the Woods."
    },
    "opensNext": {
-    "park": "rule 7: Explore here once more and City Park opens!",
-    "farm": "rule 7: Explore here once more to open Appletree Farm, the Fairground and Seaside!",
-    "fair": "rule 7: Explore here once more to open Appletree Farm, the Fairground and Seaside!",
-    "seaside": "rule 7: Explore here once more to open Appletree Farm, the Fairground and Seaside!",
-    "docks": "rule 7: Explore here once more and the Old Docks opens!",
-    "woods": "rule 7: Explore here once more and City Park opens!",
-    "river": "rule 7: Explore here once more and the River and Marshes opens!",
-    "moor": "rule 7: Explore here once more and the River and Marshes opens!",
-    "pines": "rule 7: Explore here once more and the Pines and Swamp opens!",
-    "gorge": "rule 7: Explore here once more and the Gorge opens!"
+    "park": "rule 7: Explore here again and City Park opens!",
+    "farm": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "seaside": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "docks": "rule 7: Explore here again and the Old Docks opens!",
+    "woods": "rule 7: Explore here again and City Park opens!",
+    "river": "rule 7: Explore here again and the River and Marshes opens!",
+    "moor": "rule 7: Explore here again and the River and Marshes opens!",
+    "pines": "rule 7: Explore here again and the Pines and Swamp opens!",
+    "gorge": "rule 7: Explore here again and the Gorge opens!"
    },
    "canBuy": "rule 8: You have enough for the Cozy Beanie. Tap Dress up!",
    "feedAgain": "rule 9: Feed Pickles again: 3 of 6.",
@@ -642,12 +642,12 @@
     "gorge": "rule 12: 150 🐾 more to become a Yard Prowler."
    },
    "opensNext": {
-    "park": "rule 7: Explore here once more and City Park opens!",
-    "farm": "rule 7: Explore here once more to open Appletree Farm, the Fairground and Seaside!",
-    "fair": "rule 7: Explore here once more to open Appletree Farm, the Fairground and Seaside!",
-    "seaside": "rule 7: Explore here once more to open Appletree Farm, the Fairground and Seaside!",
-    "docks": "rule 7: Explore here once more and the Old Docks opens!",
-    "woods": "rule 7: Explore here once more and City Park opens!",
+    "park": "rule 7: Explore here again and City Park opens!",
+    "farm": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "seaside": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "docks": "rule 7: Explore here again and the Old Docks opens!",
+    "woods": "rule 7: Explore here again and City Park opens!",
     "river": "rule 12: 150 🐾 more to become a Yard Prowler.",
     "moor": "rule 12: 150 🐾 more to become a Yard Prowler.",
     "pines": "rule 12: 150 🐾 more to become a Yard Prowler.",

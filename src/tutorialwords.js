@@ -69,9 +69,9 @@ export const WORDS = Object.freeze({
   'home.pick': same('The wild cats have seen you. Pick your home!'),            // 4
   'home.camp': same('Your new home is {place}. Go and see your camp!'),         // 5
   'home.way': same('The way to your home starts in {place}.'),                  // 6
-  'home.opens': same('Explore here once more and {place} opens!'),                  // 7
-  'home.opens-two': same('Explore here once more to open {place} and {place2}!'),         // 7, two to buy
-  'home.opens-three': same('Explore here once more to open {place}, {place2} and {place3}!'), // 7, three to buy
+  'home.opens': same('Explore here again and {place} opens!'),                  // 7
+  'home.opens-two': same('Explore here again to open {place} and {place2}!'),         // 7, two to buy
+  'home.opens-three': same('Explore here again to open {place}, {place2} and {place3}!'), // 7, three to buy
   'home.wear': same('You have enough for the {thing}. Tap Dress up!'),          // 8
   'home.feed': same('Feed {name} again: {n} of 6.'),                            // 9
   'home.nearly': same('{n} more 🐾 and the {thing} is yours.'),                 // 10
@@ -101,7 +101,7 @@ export const WORDS = Object.freeze({
   'guide.summary-gift': same('A gift from {name}: +20 🐾'),
   'guide.skip': same('Skip the lesson'),
   'guide.replay': same('Do the first lesson again'),
-  'guide.replay-set': same('The first lesson comes next time you explore the street.'),
+  'guide.replay-set': same('The first lesson comes on your next street trip.'),
   // The "Ready?" card on a keyboard player's very first walk: one line, not
   // the whole list (the pause card keeps the list).
   'ready.keys': same('Arrow keys to walk'),
