@@ -141,7 +141,7 @@ describe(DESCRIBE, () => {
       // on the paws under the chin, 16 cm from the ring's own throat spot.
       expect(atOf(cat).distanceTo(want), `${state} t ${t} speed ${speed}`).toBeLessThanOrEqual(state === 'nap' ? 0.17 : 0.05);
     }
-  }, 120_000);
+  }, 30_000);
 
   // With the throat already taken (a collar's charm: bell, heart, tag,
   // sparkle star; or any neck-slot item) the gold clasp is left off and the
@@ -196,7 +196,7 @@ describe(DESCRIBE, () => {
       }
       expect(near, `${state} t ${t}: the cloth's nearest to the tail`).toBeGreaterThanOrEqual(0.01);
     }
-  }, 180_000);
+  }, 30_000);
 
   it.each(CAPES)('%s: the sit cloth is worn only in the sit', (id) => {
     const cat = kitCat('tabby', id, false);

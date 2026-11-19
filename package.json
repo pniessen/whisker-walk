@@ -21,6 +21,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "three-mesh-bvh": "^0.9.18",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"
   },

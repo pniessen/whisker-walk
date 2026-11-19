@@ -77,13 +77,13 @@ const COLONY_PIC = svg(
 );
 
 const EMPTY = {
-  album: { pic: ALBUM_PIC, line: 'No photos yet. Snap one on your next walk! 📸' },
+  album: { pic: ALBUM_PIC, line: 'No photos yet. Snap one next time you explore! 📸' },
   colony: {
     pic: COLONY_PIC,
     line: 'No colony cats yet — touch noses with a stray, then feed it 🐟',
     extra: ' colony-empty',
   },
-  friends: { pic: FRIENDS_PIC, line: 'No cat friends yet. Go touch noses on a walk! 🐾' },
+  friends: { pic: FRIENDS_PIC, line: 'No cat friends yet. Go exploring and touch noses! 🐾' },
 };
 
 export function emptyStateHtml(kind) {

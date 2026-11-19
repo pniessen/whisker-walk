@@ -46,6 +46,11 @@ Supabase and links to their licences would settle that.
 |------|---------|---------|------|
 | vite | 8.2.0 | MIT | https://vite.dev |
 | vitest | 4.1.10 | MIT | https://vitest.dev |
+| three-mesh-bvh | 0.9.18 | MIT | https://github.com/gkjohnson/three-mesh-bvh |
+
+`three-mesh-bvh` (added 2026-11-19) speeds up the tests' raycasts
+(`test/helpers/bvh.js`). It is a dev dependency with no dependencies of its
+own, imported only from `test/`, and is not in the built game.
 
 Their own dependencies (85 packages in the lockfile in all) are MIT except:
 `lightningcss` 1.33.0 and its platform builds (MPL-2.0), `detect-libc` 2.1.2

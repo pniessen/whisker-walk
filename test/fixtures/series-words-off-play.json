@@ -32,7 +32,7 @@
     "prompt: E — walk the bounds with Conker",
     "toast: Conker walks the bounds with you 🐾",
     "prompt: E — say goodbye to Conker",
-    "toast: Conker heads back to home base. Good walk!",
+    "toast: Conker heads back to home base. Well done!",
     "award: You spotted a walk round the bounds with Conker"
    ],
    "apprentice": [
@@ -44,7 +44,7 @@
     "prompt: E — walk the bounds with Glade",
     "toast: Glade walks the bounds with you 🐾",
     "prompt: E — say goodbye to Glade",
-    "toast: Glade heads back to home base. Good walk!",
+    "toast: Glade heads back to home base. Well done!",
     "award: You spotted a walk round the bounds with Glade"
    ],
    "deputy": [
@@ -65,7 +65,7 @@
     "prompt: E — walk the bounds with Conker",
     "toast: Conker walks the bounds with you 🐾",
     "prompt: E — say goodbye to Conker",
-    "toast: Conker heads back to home base. Good walk!",
+    "toast: Conker heads back to home base. Well done!",
     "award: You spotted a walk round the bounds with Conker"
    ],
    "river": [
@@ -77,7 +77,7 @@
     "prompt: E — walk the bounds with Vole",
     "toast: Vole walks the bounds with you 🐾",
     "prompt: E — say goodbye to Vole",
-    "toast: Vole heads back to home base. Good walk!",
+    "toast: Vole heads back to home base. Well done!",
     "award: You spotted a walk round the bounds with Vole"
    ],
    "moor": [
@@ -89,7 +89,7 @@
     "prompt: E — walk the bounds with Cotton",
     "toast: Cotton walks the bounds with you 🐾",
     "prompt: E — say goodbye to Cotton",
-    "toast: Cotton heads back to home base. Good walk!",
+    "toast: Cotton heads back to home base. Well done!",
     "award: You spotted a walk round the bounds with Cotton"
    ],
    "pines": [
@@ -101,7 +101,7 @@
     "prompt: E — walk the bounds with Needle",
     "toast: Needle walks the bounds with you 🐾",
     "prompt: E — say goodbye to Needle",
-    "toast: Needle heads back to home base. Good walk!",
+    "toast: Needle heads back to home base. Well done!",
     "award: You spotted a walk round the bounds with Needle"
    ],
    "gorge": [
@@ -113,16 +113,16 @@
     "prompt: E — walk the bounds with Flint",
     "toast: Flint walks the bounds with you 🐾",
     "prompt: E — say goodbye to Flint",
-    "toast: Flint heads back to home base. Good walk!",
+    "toast: Flint heads back to home base. Well done!",
     "award: You spotted a walk round the bounds with Flint"
    ]
   },
   "patrolEnds": {
    "tooShort": [
-    "toast: Conker heads back to home base. A longer walk next time!"
+    "toast: Conker heads back to home base. Go further next time!"
    ],
    "longEnough": [
-    "toast: Conker heads back to home base. Good walk!",
+    "toast: Conker heads back to home base. Well done!",
     "award: You spotted a walk round the bounds with Conker"
    ],
    "outran": [

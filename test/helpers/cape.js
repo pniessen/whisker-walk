@@ -4,6 +4,7 @@ import { buildCat } from '../../src/cat/model.js';
 import { SKULL } from '../../src/cat/torso.js';
 import { animateCat } from '../../src/cat/animator.js';
 import { PRESETS, STATES } from './catfingerprint.js';
+import { useBVH, ready, firstHitRaycaster } from './bvh.js';
 
 // Shared by test/catcape.test.js and its sweep files (catcape.<sweep>.<cape>.test.js).
 //
@@ -15,6 +16,12 @@ import { PRESETS, STATES } from './catfingerprint.js';
 //
 // Every measure is in the cat's own frame (world / cat.scale.x), so Digit
 // (scale 0.82) is judged by her own size.
+//
+// Every ray is cast through a BVH (test/helpers/bvh.js: the same answers as
+// three's own raycast): kitCat's cats are set up for it, and outside /
+// outsideFur set up any other cat they are handed. The eight sweep files
+// took ~610 s between them with three's raycast and ~25 s with the BVH
+// (2026-11-19), a sweep case well under a second.
 
 export const DESCRIBE = 'a cape is a cloak on the torso (polish-pose Task 2)';
 export const BREEDS = PRESETS.filter((b) => b !== 'hagrid');
@@ -23,7 +30,7 @@ export const CASES = BREEDS.flatMap((b) => CAPES.flatMap((id) => [false, true].m
 // One cape's cases, in the order CASES lists them.
 export const casesOf = (cape) => CASES.filter(([, id]) => id === cape);
 export const BARE = { collar: null, head: null, face: null, neck: null, feet: null, back: null };
-export const kitCat = (b, id, simple) => buildCat(b, { ...BARE, body: id }, { simple });
+export const kitCat = (b, id, simple) => useBVH(buildCat(b, { ...BARE, body: id }, { simple }));
 export const capeOf = (cat) => cat.userData.parts.body.children.find((c) => c.userData.cape);
 export const claspOf = (cat) => cat.userData.parts.body.children.find((c) => c.userData.capeClasp);
 export const verts = (m, s) => {
@@ -40,9 +47,10 @@ export const world = (o, s) => o.getWorldPosition(new THREE.Vector3()).divideSca
 
 // How far a cat-frame point lies outside the torso's fur, along the ray from
 // the body centre through it (negative: inside).
-const ray = new THREE.Raycaster();
+const ray = firstHitRaycaster();
 export const outside = (cat, P) => {
   const { body } = cat.userData.parts, s = cat.scale.x;
+  ready(body);
   const C = body.getWorldPosition(new THREE.Vector3());
   const Pw = P.clone().multiplyScalar(s);
   const dir = Pw.clone().sub(C).normalize(), F = Pw.clone().addScaledVector(dir, 1);
@@ -55,6 +63,7 @@ export const outside = (cat, P) => {
 // which counter-yaws under the turned torso in the cross and drops in the sit).
 export const outsideFur = (cat, P) => {
   const { body, underside } = cat.userData.parts, s = cat.scale.x;
+  ready(body); ready(underside);
   const C = body.getWorldPosition(new THREE.Vector3());
   const Pw = P.clone().multiplyScalar(s);
   const dir = Pw.clone().sub(C).normalize(), F = Pw.clone().addScaledVector(dir, 1);
@@ -113,7 +122,7 @@ export function tieSweep(capeId) {
       const c = atOf(cat), hc = world(cat.userData.parts.head, s);
       expect(c.distanceTo(hc), `${label}: clasp near the head`).toBeLessThanOrEqual(0.32);
     }
-  }, 180_000);
+  }, 30_000);
 }
 
 export function furSweep(capeId) {
@@ -133,14 +142,14 @@ export function furSweep(capeId) {
       expect(worst, `${label}: out of the fur`).toBeGreaterThanOrEqual(0.002);
       expect(low, `${label}: out of the ground`).toBeGreaterThanOrEqual(-0.005);
     }
-  }, 180_000);
+  }, 30_000);
 }
 
 export function tailSweep(capeId) {
   it.each(casesOf(capeId))('%s %s (simple %s): in every state the tail is never covered', (b, id, simple) => {
     const cat = kitCat(b, id, simple);
     const cape = capeOf(cat);
-    const cast = new THREE.Raycaster();
+    const cast = firstHitRaycaster();
     for (const [state, t, speed] of SWEEP) {
       animateCat(cat, state, t, speed, false);
       cat.updateMatrixWorld(true);
@@ -167,7 +176,7 @@ export function tailSweep(capeId) {
       for (const P of verts(cape, s)) near = Math.min(near, P.distanceTo(root));
       expect(near, `${label}: the tail root clear of the cape`).toBeGreaterThanOrEqual(0.04);
     }
-  }, 180_000);
+  }, 30_000);
 }
 
 // Of the tail vertices that the body, chest and legs do not hide, at most 3%
@@ -175,7 +184,7 @@ export function tailSweep(capeId) {
 export function sitSweep(capeId) {
   it.each(casesOf(capeId))('%s %s (simple %s): sitting, the whole tail curl shows from behind', (b, id, simple) => {
     const cat = kitCat(b, id, simple);
-    const cast = new THREE.Raycaster(), d = new THREE.Vector3(), E = new THREE.Vector3();
+    const cast = firstHitRaycaster(), d = new THREE.Vector3(), E = new THREE.Vector3();
     for (const [state, t] of SITS) {
       animateCat(cat, state, t, 0, false);
       cat.updateMatrixWorld(true);
@@ -196,5 +205,5 @@ export function sitSweep(capeId) {
         expect(under / seen, `${state} t ${t} ${eye}: ${under}/${seen} under the cape`).toBeLessThanOrEqual(0.03);
       }
     }
-  }, 180_000);
+  }, 30_000);
 }

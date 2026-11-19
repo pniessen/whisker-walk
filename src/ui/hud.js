@@ -72,7 +72,7 @@ export function createHud() {
     <div class="hud-hint hidden" id="hud-hint" role="status" aria-live="polite"><span id="hud-hint-pic" class="hud-hint-pic" aria-hidden="true"></span><span id="hud-hint-text" class="hud-hint-text"></span></div>
     <div class="hud-toasts" id="hud-toasts" role="status" aria-live="polite"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
-    <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · +/− zoom · M mute · Esc menu</div>
+    <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · +/− zoom · M mute · Esc pause</div>
     <div class="hud-crosshair hidden" id="hud-crosshair">·</div>
     <div class="hud-viewfinder hidden" id="hud-viewfinder">
       <span class="vf-hint-desktop">📷 click to snap · C to lower</span>

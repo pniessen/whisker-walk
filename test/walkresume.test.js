@@ -272,9 +272,9 @@ describe('small pieces', () => {
   });
 
   it('the welcome back line names the place', () => {
-    expect(resumeWelcome('The Woods')).toBe('Welcome back! Your walk in the Woods is right where you left it.');
-    expect(resumeWelcome('Seaside')).toBe('Welcome back! Your walk in Seaside is right where you left it.');
-    expect(resumeWelcome('')).toBe('Welcome back! Your walk is right where you left it.');
+    expect(resumeWelcome('The Woods')).toBe('Welcome back! Your trip in the Woods is right where you left it.');
+    expect(resumeWelcome('Seaside')).toBe('Welcome back! Your trip in Seaside is right where you left it.');
+    expect(resumeWelcome('')).toBe('Welcome back! Your trip is right where you left it.');
   });
 });
 

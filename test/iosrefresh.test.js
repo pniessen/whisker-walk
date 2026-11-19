@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory, cloudProblem } from '../ios/refresh-lib.mjs';
+import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory, cloudProblem, ciPassed, CI_WORKFLOW } from '../ios/refresh-lib.mjs';
 
 // The refresh (ios/refresh.mjs) reinstalls the iOS app on every family
 // device. These are its decisions: what may be built, which devices count,
@@ -217,5 +217,46 @@ describe('cloudProblem: never ship a game without cloud saves', () => {
   });
   it('refuses a built game that left the cloud address out', () => {
     expect(cloudProblem(env, 'const u=void 0;')).toMatch(/left out cloud saves/);
+  });
+});
+
+// The refresh skips its own test run only when GitHub's CI passed the same
+// commit; any doubt and the tests run here as before.
+describe('ciPassed: trust CI only for a finished, passing run', () => {
+  const gh = (runs) => ({ ok: true, out: JSON.stringify(runs) });
+  it('asks about the deploy workflow, which runs every test', () => {
+    expect(readFileSync(new URL(`../.github/workflows/${CI_WORKFLOW}`, import.meta.url), 'utf8')).toMatch(/vitest run/);
+  });
+  it('trusts a run that completed with success', () => {
+    expect(ciPassed(gh([{ status: 'completed', conclusion: 'success' }]))).toEqual({ passed: true });
+  });
+  it('trusts a re-run that passed after one that failed', () => {
+    expect(ciPassed(gh([
+      { status: 'completed', conclusion: 'success' },
+      { status: 'completed', conclusion: 'failure' },
+    ])).passed).toBe(true);
+  });
+  it('runs the tests when CI failed', () => {
+    expect(ciPassed(gh([{ status: 'completed', conclusion: 'failure' }]))).toEqual({ passed: false, why: 'CI did not pass (failure)' });
+  });
+  it('runs the tests when CI was cancelled', () => {
+    expect(ciPassed(gh([{ status: 'completed', conclusion: 'cancelled' }])).passed).toBe(false);
+  });
+  it('runs the tests when CI is still going', () => {
+    for (const status of ['in_progress', 'queued', 'waiting']) {
+      expect(ciPassed(gh([{ status, conclusion: '' }]))).toEqual({ passed: false, why: 'CI is still running' });
+    }
+  });
+  it('runs the tests when CI has no run for the commit (not pushed yet)', () => {
+    expect(ciPassed(gh([]))).toEqual({ passed: false, why: 'CI has no run for this commit' });
+  });
+  it('runs the tests when gh fails, is missing or GitHub is out of reach', () => {
+    expect(ciPassed({ ok: false, out: '', err: 'error connecting to api.github.com' }).passed).toBe(false);
+    expect(ciPassed(undefined).passed).toBe(false);
+  });
+  it('runs the tests when the answer is not what gh prints', () => {
+    expect(ciPassed({ ok: true, out: 'not json' }).passed).toBe(false);
+    expect(ciPassed({ ok: true, out: '{"message":"x"}' }).passed).toBe(false);
+    expect(ciPassed({ ok: true, out: '[null]' }).passed).toBe(false);
   });
 });

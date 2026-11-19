@@ -1097,7 +1097,7 @@ describe('the fight plays the actions', () => {
     expect(lost.h.onLost).toHaveBeenCalledTimes(1);
     const lastMove = lost.h.moves.at(-1);
     expect(lost.h.onLost).toHaveBeenCalledWith({ site: siteFor(actionFor({ move: lastMove, won: false }).kind, null) });
-    expect(lost.h.hud.toast).toHaveBeenLastCalledWith('Mossjaw shook it off and walked on. That scratch will heal in a few walks!');
+    expect(lost.h.hud.toast).toHaveBeenLastCalledWith('Mossjaw shook it off and walked on. That scratch will heal soon!');
     for (const stamp of ['walk-1', 'walk-2', 'walk-5']) {
       const won = play({ answers: 'right', walkStamp: stamp });
       expect(won.h.onLost).not.toHaveBeenCalled();
@@ -1150,7 +1150,7 @@ describe('the fight plays the actions', () => {
     const scarred = harness({ actions: true, answers: 'wrong' });
     scarred.challenge(); scarred.fight(); scarred.runToEnd();
     expect(scarred.onLost.mock.calls[0][0].site).not.toBeNull();
-    expect(scarred.hud.toast).toHaveBeenLastCalledWith('Mossjaw shook it off and walked on. That scratch will heal in a few walks!');
+    expect(scarred.hud.toast).toHaveBeenLastCalledWith('Mossjaw shook it off and walked on. That scratch will heal soon!');
   });
 
   test('Hagrid (actions:false) reports site null and plays today\'s tumble', () => {

@@ -154,7 +154,7 @@ describe('nothing in the everyday set is a word of the family\'s set', () => {
       'Or pick a star name', 'the great oak', 'sun-warmed rocks', 'the meeting ring', 'Clan Edition', 'clan']) {
       expect(bannedIn(leak), leak).not.toBeNull();
     }
-    for (const fine of ['Pickles the loner', 'a loner now!', 'a kitten', 'paw prints', 'Tap the paw to jump up.', 'Your first walk! ⭐', 'Star Sunglasses', 'Forest Crew', 'first cat of Moor Crew',
+    for (const fine of ['Pickles the loner', 'a loner now!', 'a kitten', 'paw prints', 'Tap the paw to jump up.', 'Your first trip! ⭐', 'Star Sunglasses', 'Forest Crew', 'first cat of Moor Crew',
       'rocks, cliff dens and tall pines', 'is leading the way', 'Badger', 'home base', 'storm clouds', 'at dusk', 'wise cat', 'Start the walk']) {
       expect(bannedIn(fine), fine).toBeNull();
     }
