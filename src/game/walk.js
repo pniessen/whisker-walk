@@ -1784,8 +1784,9 @@ export function createWalkLifecycle({
     session.treeFade = createTreeFade(isDen ? [] : [...occluders, ...findFadeOccluders(scene)], { reducedMotion });
     // Compile the faded trees' shaders now, not at the first fade mid-walk.
     if (typeof renderer?.compile === 'function') session.treeFade.prewarm(() => renderer.compile(scene, camera));
-    // Bigger areas: an area's strips (areaData.strips, only with the switch on)
-    // are drawn tile by tile near the cat (render/striptiles.js). Here, after
+    // Bigger areas: an area's strips (areaData.strips, only with the switch on),
+    // and its core's scatter, are drawn tile by tile near the cat
+    // (render/striptiles.js, world/streamcore.js). Here, after
     // the caster sweep, the contact-shadow scan, the prop merge and the tree
     // fade, each of which a streamed tree joins on its own when it is built.
     // No strips: the no-op of the same shape.
@@ -1797,6 +1798,9 @@ export function createWalkLifecycle({
       now: () => performance.now(),
       compile: typeof renderer?.compile === 'function' ? () => renderer.compile(scene, camera) : null,
     });
+    // Step 2 ("the 65 m approach"): the core's scatter is streamed too, so the
+    // walk starts with what is round the cat already drawn, not growing in.
+    session.stripTiles.settle(cat.position.x, cat.position.z);
     // Plants that lean away from the cat as it walks through (render/rustle.js):
     // the Moor's heather. Visual only; none in most areas.
     session.rustle = createRustle(scene, { reducedMotion });

@@ -9,11 +9,17 @@ import {
 
 const RECT = { minX: -90, maxX: -50, minZ: -50, maxZ: 50 };
 
+// The streamer's arithmetic is tested on step 1's two layers (step 2 tuned
+// the real ranges, world/strips.js LAYERS, held below and in
+// test/striptiles.test.js); the state machine is the same for any.
+const STEP1 = Object.freeze([{ id: 'small', show: 45, hide: 58 }, { id: 'trees', show: 90, hide: 105 }]);
+
 // A streamer whose jobs take `steps` steps of `cost` triangles each.
 function fake({ steps = 3, cost = 500, tiles = cutTiles(RECT), ...opts } = {}) {
   const log = { begun: [], dropped: [], cancelled: [], frameCosts: [] };
   const s = createStreamer({
     tiles,
+    layers: STEP1,
     begin(tile, layer) {
       log.begun.push(`${layer.id}:${tile.index}`);
       let left = steps;
@@ -72,16 +78,16 @@ describe('cutting a strip into tiles', () => {
 });
 
 describe('the ranges', () => {
-  it('small things show nearer than trees, both past the fog\'s near plane, each with room to pace', () => {
-    const [small, trees] = LAYERS;
-    expect(small.id).toBe('small');
-    expect(trees.id).toBe('trees');
-    for (const l of LAYERS) {
-      expect(l.show).toBeGreaterThanOrEqual(40); // builder.applySky: the haze starts at 40 m
-      expect(l.hide - l.show).toBeGreaterThanOrEqual(10);
-    }
+  it('step 2: the reedbed nearest, then small things, then trees within about 65 m, each with room to pace', () => {
+    expect(LAYERS.map((l) => l.id)).toEqual(['fine', 'small', 'trees']);
+    const [fine, small, trees] = LAYERS;
+    for (const l of LAYERS) expect(l.hide - l.show).toBeGreaterThanOrEqual(6);
+    expect(small.show).toBeGreaterThan(fine.hide);
     expect(trees.show).toBeGreaterThan(small.hide);
-    expect(trees.hide).toBeLessThan(130); // and gone before the haze is solid
+    // the trees stay in full past the haze's start (40 m), and go about 65 m out
+    expect(trees.show).toBeGreaterThan(40);
+    expect(trees.hide).toBeGreaterThanOrEqual(60);
+    expect(trees.hide).toBeLessThanOrEqual(70);
   });
 });
 
@@ -129,7 +135,7 @@ describe('the streamer', () => {
 
   it('drops a built tile only past its hide range, so pacing a boundary builds once and drops nothing', () => {
     const { s, log } = fake({ steps: 1, cost: 100 });
-    const small = LAYERS[0];
+    const small = STEP1[0];
     // tile 5's near edge is x -50; pace back and forth across the show line
     const xAt = (d) => -50 + d;
     for (let f = 0; f < 60 * 30; f++) {

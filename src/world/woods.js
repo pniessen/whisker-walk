@@ -15,6 +15,9 @@ import { DISCS } from '../rivalclans.js';
 import { tintGround, once } from './dressing.js';
 import { forestFloorMesh, woodsFloorTint } from './forestfloor.js';
 import { phrase } from '../clanphrases.js';
+import { growOn } from '../grow.js';
+import { coreStreams, streamTree, streamSmall } from './streamcore.js';
+import * as south from './woodssouth.js';
 
 // =============================================================================
 // The Woods.
@@ -637,9 +640,85 @@ function lookoutRockGeometry() {
 // ground's edge. Built once; the ground is tinted with it and grass.js's
 // tufts read it (GROUND_TINTS).
 const woodsTint = once(() => woodsFloorTint(woodsTreeSpots(), CLEARING, { edge: 60 }));
-export const woodsGroundTint = (x, z) => woodsTint()(x, z);
+// Bigger areas: with the switch on, past the old south edge the ground (and
+// the grass, which reads this too) wears the strip's own floor
+// (woodssouth.js southGroundTint); inside the old edge it is the core's, bit
+// for bit. Set by build(), which runs before the walk's grass reads it.
+const southTint = once(() => south.southGroundTint(woodsTreeSpots(), CLEARING, woodsTint()));
+let grownTint = null;
+export const woodsGroundTint = (x, z) => (grownTint !== null && z > BOUNDS.maxZ ? grownTint(x, z) : woodsTint()(x, z));
+
+// Bigger areas (src/grow.js; off by default). With the switch on the Woods
+// gains its south strip (woodssouth.js): the walkable bounds become z
+// -50..90, the hills move 40 m south and the spring joins the waters. The
+// lists here are the core's with the strip's put after them. Worked out on
+// first use, never at import.
+let grown = null;
+function grownWoods() {
+  if (!grown) {
+    const waters = Object.freeze([...WOODS_WATERS, south.SPRING]);
+    grown = Object.freeze({
+      bounds: south.GROWN,
+      waters,
+      // the hills round the grown rectangle (builder.horizonBand's `rect`,
+      // plain hills only: the cottages are carried over from the square band,
+      // see grownBand), the long sides 40 m longer, as many cells to the metre
+      horizon: Object.freeze({
+        ...WOODS_HORIZON, rooftops: null, rect: south.SOUTH_BAND_RECT, around: 184,
+        edge: Object.freeze({ ...WOODS_HORIZON.edge, avoid: waters }),
+      }),
+    });
+  }
+  return grown;
+}
+
+// The grown band, made in the switch-off band's own mesh. The square band is
+// built first, exactly as with the switch off (its throwaway skyline blocks
+// draw the Woods' pinned Math.random numbers, builder.horizonBand), so the
+// build's draws do not move. Its ring is then swapped for the one round the
+// grown rectangle and its edge dressing for the grown one, under local
+// uuids; its cottages and their lit windows are kept. The cottages stand on
+// the east side, where the two rings are one height field (a point's height
+// is a function of where it is and how far out past the east bound, which
+// the rectangle does not change), so they stand on the new ring as they did.
+const SQUARE_RING_VERTS = 152 * (12 + 1); // horizonBand's default around x (outSegs + 1): the ring's, first in the merge
+function grownBand(band, G) {
+  withLocalUuids('woods-grown-band', () => {
+    const rectBand = b.horizonBand(G.horizon);
+    const sq = band.geometry;
+    const idx = sq.index.array;
+    const houseIdx = [];
+    for (let t = 0; t < idx.length; t += 3) {
+      if (idx[t] < SQUARE_RING_VERTS && idx[t + 1] < SQUARE_RING_VERTS && idx[t + 2] < SQUARE_RING_VERTS) continue;
+      houseIdx.push(idx[t] - SQUARE_RING_VERTS, idx[t + 1] - SQUARE_RING_VERTS, idx[t + 2] - SQUARE_RING_VERTS);
+    }
+    const houses = new THREE.BufferGeometry();
+    for (const [name, attr] of Object.entries(sq.attributes)) {
+      houses.setAttribute(name, new THREE.BufferAttribute(attr.array.slice(SQUARE_RING_VERTS * attr.itemSize), attr.itemSize));
+    }
+    houses.setIndex(houseIdx);
+    const merged = mergeGeometries([rectBand.geometry, houses], false);
+    merged.computeBoundingSphere();
+    houses.dispose();
+    rectBand.geometry.dispose();
+    rectBand.material.dispose();
+    sq.dispose();
+    band.geometry = merged;
+    const oldEdge = band.children.find((c) => c.name === 'horizonEdge');
+    const newEdge = rectBand.children.find((c) => c.name === 'horizonEdge');
+    if (oldEdge) {
+      band.remove(oldEdge);
+      oldEdge.geometry.dispose();
+      oldEdge.material.dispose();
+    }
+    if (newEdge) band.add(newEdge);
+  });
+  return band;
+}
 
 export function build(scene, { water = {}, wind } = {}) {
+  const G = growOn() ? grownWoods() : null;
+  grownTint = G ? southTint() : null;
   b.applySky(scene, 0xa8d8c0, 0xd0ead8);
   // The ground, shaded under the trees, with leaf litter and moss patches
   // (forestfloor.js); the clearing stays sunny. A shade deeper and less blue
@@ -656,7 +735,8 @@ export function build(scene, { water = {}, wind } = {}) {
   // rooftops over the fence on the south-east stretch. At the lake the hills
   // come down to the water and rise again further out (builder.horizonBand's
   // `shore`), but never over the island or its bridge (`keepLow`).
-  scene.add(b.horizonBand(WOODS_HORIZON));
+  const band = b.horizonBand(WOODS_HORIZON);
+  scene.add(G ? grownBand(band, G) : band);
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
@@ -689,7 +769,9 @@ export function build(scene, { water = {}, wind } = {}) {
   addTrails(scene, [{ segs: WOODS_PATHS, w: PATH_W }], PATH_STYLE, 'woods', { decks: WOODS_WATERS.flatMap((w) => w.decks ?? []), waters: WOODS_WATERS });
 
   // --- reeds --------------------------------------------------------------------
-  scene.add(b.reedBed(reedSpots(), seedFromCode('woods-reeds')));
+  const reeds = reedSpots();
+  const reedMesh = b.reedBed(reeds, seedFromCode('woods-reeds'));
+  scene.add(reedMesh);
 
   // --- the undergrowth ----------------------------------------------------------
   const { ferns, brambles } = woodsUndergrowth();
@@ -701,16 +783,23 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(brambleMesh);
   // The forest floor: leaves, moss, mushrooms, bluebells, foxgloves, one
   // non-casting mesh made on its own uuid stream (the pinned draw count).
-  scene.add(withLocalUuids('woods-floor-uuids', () => forestFloorMesh(woodsFloor())));
+  const floor = woodsFloor();
+  const floorMesh = withLocalUuids('woods-floor-uuids', () => forestFloorMesh(floor));
+  scene.add(floorMesh);
 
   // --- the trees ----------------------------------------------------------------
   // A collider a little wider than the trunk, growing with it, and a Sure
   // Claws fork on every one (climbing.js caps the fork at 1.9, so no scenery
   // tree out-tops the Great Oak's branch).
+  // Bigger areas: with the switch on, each is tagged to be drawn only near
+  // the cat (world/streamcore.js); built, placed and collided all the same.
   const treeSpots = woodsTreeSpots();
   const oldOaks = woodsOldOaks(treeSpots);
+  const scatterTrees = [];
   for (const [i, { x, z, scale }] of treeSpots.entries()) {
-    scene.add(b.tree(x, z, scale, oldOaks.has(i) ? { wind, kind: 'old' } : { wind }));
+    const t = b.tree(x, z, scale, oldOaks.has(i) ? { wind, kind: 'old' } : { wind });
+    scene.add(t);
+    scatterTrees.push(t);
     addC(x, z, r2(0.5 * scale));
     perches.push(sureClawsTreePerch(x, z, scale));
   }
@@ -784,23 +873,54 @@ export function build(scene, { water = {}, wind } = {}) {
   // device draws it, Legacy too, whatever the picks.
   addCamp(scene, { colliders }, 'woods');
 
+  // --- the south strip (bigger areas) -----------------------------------------------
+  // After everything of the core, so the core's objects, colliders and
+  // perches keep their order; wholly under local uuids, so the build's
+  // Math.random draws are the same with the switch on.
+  let strip = null;
+  if (G) {
+    // The core's scatter, tagged to stream (world/streamcore.js): the scatter
+    // trees, the reeds (the fine layer, as the River's), the ferns, the
+    // brambles and the forest floor. Tags only: nothing is built, moved or
+    // drawn differently here.
+    for (const t of scatterTrees) streamTree(t);
+    streamSmall(reedMesh, reeds, { layer: 'fine' });
+    streamSmall(fernMesh, south.fernItems(ferns));
+    streamSmall(brambleMesh, south.brambleItems(brambles));
+    streamSmall(floorMesh, south.floorItems(floor));
+    strip = south.addSouthStrip(scene, { groundMesh, groundTint: woodsGroundTint, water, waters: G.waters, waterColor: WATER_COLOR });
+    waterFx.push(strip.waterFx);
+    for (const c of [...south.southTreeColliders(), ...south.SOUTH_COLLIDERS]) addC(c.x, c.z, c.r);
+    perches.push(...south.southTreePerches(), ...south.SOUTH_PERCHES);
+  }
+
   return {
     name: 'The Woods',
     colliders,
-    bounds: { ...BOUNDS },
+    bounds: { ...(G ? G.bounds : BOUNDS) },
+    // Bigger areas: the frozen core, for whatever must not follow the bounds
+    // out (the strays' and the clan's homes, the walk's seeded spots), the
+    // streams (render/striptiles.js) and the strip's rest spots. The core's
+    // stream covers the grown rectangle: the strip's own ferns, brambles and
+    // forest floor ride it (woodssouth.js).
+    ...(G ? {
+      core: { ...BOUNDS },
+      strips: [...coreStreams({ areaId: 'woods', rect: south.GROWN }), south.SOUTH_STRIP],
+      rests: south.SOUTH_RESTS.map((r) => ({ ...r })),
+    } : {}),
     spawn: { x: SPAWN.x, z: SPAWN.z },
     // Nothing Twoleg-made in the Woods.
     boxes: [],
     tippables: [],
     pois: POIS.map((p) => ({ ...p })),
-    collectibles: COLLECTIBLES.map((c) => ({ ...c })),
-    scenics: SCENICS.map((c) => ({ ...c })),
+    collectibles: [...COLLECTIBLES.map((c) => ({ ...c })), ...(G ? south.southCollectibles() : [])],
+    scenics: [...SCENICS.map((c) => ({ ...c })), ...(G ? south.southScenics() : [])],
     critterSpawns: critterSpawns(),
     moments: [
       { id: 'squirrel-dash', label: phrase('landmark.woods.oakSquirrels'), x: 9, z: 24, from: { x: 20, z: 30 } },
     ],
     puddles: PUDDLES.map((p) => ({ ...p })),
-    waters: WOODS_WATERS,
+    waters: G ? G.waters : WOODS_WATERS,
     waterFx,
     groundBounce: 0x5f9a4a,
     skyDusk: { top: 0x26344f, horizon: 0x5f5a72 },

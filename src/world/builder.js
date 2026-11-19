@@ -1970,7 +1970,7 @@ export function edgeSpots({ half, style, gaps = [], props = [], rect = null }, s
   const spots = [];
   const inGap = (x, z) => gaps.some((g) => Math.hypot(x - g.x, z - g.z) < g.r);
   const dry = (x, z) => waterClearance(avoid, x, z) >= EDGE_DRY;
-  if (rect) return edgeSpotsRect({ half, rect }, S, st, dry);
+  if (rect) return edgeSpotsRect({ half, style, rect }, S, st, dry);
   const s0 = half + EDGE_OUT;
   const perSide = Math.max(1, Math.round((2 * s0) / (S.step ?? EDGE_STEP)));
   const n = 4 * perSide;
@@ -2023,11 +2023,11 @@ export function edgeSpots({ half, style, gaps = [], props = [], rect = null }, s
 // Bigger areas: edgeSpots round a rectangle (`rect`, see rectAt). Each side
 // gets its own count, so the pieces keep the style's spacing on a long side.
 // Each spot carries (ox, oz), the way out of the ground, since "whichever axis
-// it is furthest along" no longer says. Reeds-style edges only so far: no
-// gaps, gates, props or arcs (the River has none); a style with `arcs` throws
-// rather than draw the wrong thing.
+// it is furthest along" no longer says. No gaps, gates, props or arcs so far
+// (the River, the Pines and the Moor have none); a style with `arcs` throws
+// rather than draw the wrong thing. The wall keeps its gorse, as the square's.
 const SIDE_OUT = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-function edgeSpotsRect({ half, rect }, S, st, dry) {
+function edgeSpotsRect({ half, style, rect }, S, st, dry) {
   if (S.arcs || Array.isArray(S.trees)) throw new Error('horizonBand edge: a rect edge does not support arcs yet');
   const spots = [];
   const sideLen = (i, s) => 2 * (s + (i % 2 === 0 ? rect.ez : rect.ex));
@@ -2043,7 +2043,12 @@ function edgeSpotsRect({ half, rect }, S, st, dry) {
       if (!dry(x, z)) continue;
       const yaw = sideYaw(u) + (hash01(k, 2, st) - 0.5) * 0.1;
       const [ox, oz] = SIDE_OUT[side];
-      spots.push({ x, z, yaw, kind: j === 0 ? 'corner' : 'piece', u, ox, oz });
+      // as the square edge: a corner first, then the wall's gorse every
+      // third piece (k counts all the way round, as the square's does)
+      let kind = 'piece';
+      if (j === 0) kind = 'corner';
+      else if (style === 'wall' && k % 3 === 0) kind = 'gorse';
+      spots.push({ x, z, yaw, kind, u, ox, oz });
     }
   });
   if (S.trees === false) return spots;
