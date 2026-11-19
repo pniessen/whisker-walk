@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { box, cyl, ball, sheet, stripes, stripedSlab, sweep, placed, bulb, meshOf, canvasOf, glowMesh, recentre, BULB_COLORS } from './fairkit.js';
+import { loft, at, mix } from '../farmshapes.js';
 
 // =============================================================================
 // THE FAIRGROUND'S FIVE RIDES (docs/superpowers/specs/2026-11-18-fairground-design.md).
@@ -43,38 +44,287 @@ export const MGR = Object.freeze({
   baseR: 4.75, r: 4.5, deckY: 0.38, drumR: 1.0, canopyR: 5.0, canopyY: 3.7, apexY: 5.5,
   outerR: 3.45, innerR: 2.05, outer: 8, inner: 4, seatY: 1.0, bob: 0.18,
 });
-const COATS = Object.freeze([0xf6f1e6, 0xe9cf9a, 0xc4c9d2, 0xdcae62, 0xb9744a, 0xf6f1e6, 0x8d8a96, 0xf3dcc0]);
+const COATS = Object.freeze([0xf1e9dc, 0xe9cf9a, 0xc4c9d2, 0xdcae62, 0xb9744a, 0xf1e9dc, 0x8d8a96, 0xf3dcc0]);
 const TACK = Object.freeze([PAINT.red, PAINT.sky, PAINT.green, PAINT.purple, PAINT.orange, PAINT.pink, PAINT.blue, PAINT.gold]);
 
+// ---- carving ---------------------------------------------------------------------------
+// A skin over a row of cross-sections (src/farmshapes.js `loft`, the way the
+// farm's animals are made), turned into one of the kit's painted pieces: no
+// index and no uv, and every face ONE colour, `paint(x, y, z, u, v)` read at
+// the face's middle (u the way along, v the way round, 0.5 over the top). A
+// painted edge then runs along the carving's own lines, crisp, the way a
+// carousel horse's saddle cloth and bridle are painted, not smeared from one
+// corner's colour to the next. `open` leaves off an end that is buried in
+// another part ('start', 'end' or 'both'); `x` sets the piece off to one side.
+function carve(P, keys, { around = 8, along = keys.length, level = false, tipStart = 0, tipEnd = 0, open = '', paint = 0xffffff, x = 0 } = {}) {
+  const g = loft(keys, { around, along, level, tipStart, tipEnd });
+  const idx = g.getIndex().array;
+  const pos = g.getAttribute('position').array;
+  const nor = g.getAttribute('normal').array;
+  const P3 = [];
+  const N3 = [];
+  const C3 = [];
+  const c = new THREE.Color();
+  const face = (from, count, u, v) => {
+    let cx = 0, cy = 0, cz = 0;
+    for (let k = from; k < from + count; k++) { cx += pos[idx[k] * 3]; cy += pos[idx[k] * 3 + 1]; cz += pos[idx[k] * 3 + 2]; }
+    c.set(typeof paint === 'function' ? paint(cx / count, cy / count, cz / count, u, v) : paint);
+    for (let k = from; k < from + count; k++) {
+      const n = idx[k] * 3;
+      P3.push(pos[n] + x, pos[n + 1], pos[n + 2]);
+      N3.push(nor[n], nor[n + 1], nor[n + 2]);
+      C3.push(c.r, c.g, c.b);
+    }
+  };
+  const quads = (along - 1) * around;
+  for (let q = 0; q < quads; q++) face(q * 6, 6, (Math.floor(q / around) + 0.5) / (along - 1), ((q % around) + 0.5) / around);
+  for (let j = 0; j < around; j++) {
+    if (open !== 'start' && open !== 'both') face(quads * 6 + j * 6, 3, 0, (j + 0.5) / around);
+    if (open !== 'end' && open !== 'both') face(quads * 6 + j * 6 + 3, 3, 1, (j + 0.5) / around);
+  }
+  g.dispose();
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(P3, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(N3, 3));
+  out.setAttribute('color', new THREE.Float32BufferAttribute(C3, 3));
+  P.push(out);
+  return out;
+}
+
+// A flat painted shape lying on a surface: `n` corners round `at`, `rx` along
+// `ax` and `ry` along `ay` (unit vectors in its plane), facing out along their
+// cross product. A painted eye, a spot on a cup.
+function decal(P, at, ax, ay, rx, ry, hex, n = 6, turn = 0) {
+  const pts = [];
+  for (let k = 0; k < n; k++) {
+    const t = turn + (k / n) * Math.PI * 2;
+    const a = Math.cos(t) * rx;
+    const b = Math.sin(t) * ry;
+    pts.push([at[0] + ax[0] * a + ay[0] * b, at[1] + ax[1] * a + ay[1] * b, at[2] + ax[2] * a + ay[2] * b]);
+  }
+  return sheet(P, pts, hex);
+}
+
+// A painted spot on facet `k` of a turned or upright round surface of
+// `sides` facets (a cyl or lathe from this file, facet 0 starting at +z and
+// running towards +x) between radius r0 at y0 and r1 at y1, its middle at
+// height y, flat on the facet so it never floats off it.
+function spot(P, sides, k, [r0, y0], [r1, y1], y, rx, ry, hex, { n = 8, at: [ox, oy, oz] = [0, 0, 0] } = {}) {
+  const th = ((k + 0.5) / sides) * Math.PI * 2;
+  const cosH = Math.cos(Math.PI / sides);
+  const sx = Math.sin(th), sz = Math.cos(th);
+  const slope = ((r1 - r0) / (y1 - y0)) * cosH;
+  const d = (r0 + ((r1 - r0) * (y - y0)) / (y1 - y0)) * cosH + 0.004;
+  const ul = Math.hypot(slope, 1);
+  const up = [(sx * slope) / ul, 1 / ul, (sz * slope) / ul];
+  const nr = [sx / ul, -slope / ul, sz / ul];
+  const ax = [up[1] * nr[2] - up[2] * nr[1], up[2] * nr[0] - up[0] * nr[2], up[0] * nr[1] - up[1] * nr[0]];
+  return decal(P, [ox + sx * d, oy + y, oz + sz * d], ax, up, rx, ry, hex, n);
+}
+
+// A box (fairkit's `box`, same arguments after `drop`) without the faces
+// listed in `drop` ('+x', '-x', '+y', '-y', '+z', '-z', in its own frame):
+// for ends buried in the next piece and undersides nobody sees.
+const BOX_FACES = ['+x', '-x', '+y', '-y', '+z', '-z'];
+function bar(P, drop, ...args) {
+  const g = box(P, ...args);
+  P.pop();
+  const keep = [];
+  BOX_FACES.forEach((f, k) => { if (!drop.includes(f)) keep.push(k); });
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'color']) {
+    const a = g.getAttribute(name).array;
+    const b = new Float32Array(keep.length * 18);
+    keep.forEach((k, i) => b.set(a.subarray(k * 18, k * 18 + 18), i * 18));
+    out.setAttribute(name, new THREE.BufferAttribute(b, 3));
+  }
+  g.dispose();
+  P.push(out);
+  return out;
+}
+
+// A turned shape: `profile` [[radius, y], ...] bottom to top, turned round
+// the y axis in `sides` steps and set at (x, y, z). `inside` turns it inside
+// out (the inside of a tub). Smooth-shaded, one colour.
+function lathe(P, profile, sides, hex, x, y, z, { inside = false, shade = 1 } = {}) {
+  let g = new THREE.LatheGeometry(profile.map(([r, h]) => new THREE.Vector2(r, h)), sides);
+  const nonIndexed = g.toNonIndexed();
+  g.dispose();
+  g = nonIndexed;
+  g.deleteAttribute('uv');
+  const pos = g.getAttribute('position').array;
+  const nor = g.getAttribute('normal').array;
+  // LatheGeometry winds its faces to look outward from the axis when the
+  // profile climbs; drop the triangles that collapsed to nothing at the axis
+  const keep = [];
+  for (let t = 0; t < pos.length / 9; t++) {
+    const a = t * 9;
+    const ux = pos[a + 3] - pos[a], uy = pos[a + 4] - pos[a + 1], uz = pos[a + 5] - pos[a + 2];
+    const vx = pos[a + 6] - pos[a], vy = pos[a + 7] - pos[a + 1], vz = pos[a + 8] - pos[a + 2];
+    if (Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) > 1e-9) keep.push(t);
+  }
+  const P3 = new Float32Array(keep.length * 9);
+  const N3 = new Float32Array(keep.length * 9);
+  keep.forEach((t, i) => {
+    for (let k = 0; k < 3; k++) {
+      // inside out: swap the second and third corners and turn the normals in
+      const src = t * 9 + (inside && k > 0 ? (3 - k) * 3 : k * 3);
+      for (let q = 0; q < 3; q++) {
+        P3[i * 9 + k * 3 + q] = pos[src + q] + [x, y, z][q];
+        N3[i * 9 + k * 3 + q] = inside ? -nor[src + q] : nor[src + q];
+      }
+    }
+  });
+  g.dispose();
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(P3, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(N3, 3));
+  const col = new Float32Array(keep.length * 9);
+  const c = new THREE.Color(hex);
+  for (let i = 0; i < col.length; i += 3) { col[i] = c.r * shade; col[i + 1] = c.g * shade; col[i + 2] = c.b * shade; }
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  P.push(out);
+  return out;
+}
+
+// A pointed cone from `base` to `tip`, `n` faces and no base: an ear.
+function spike(P, base, tip, r, n, hex) {
+  const ax = new THREE.Vector3(tip[0] - base[0], tip[1] - base[1], tip[2] - base[2]).normalize();
+  const u = new THREE.Vector3(1, 0, 0).cross(ax);
+  if (u.lengthSq() < 1e-6) u.set(0, 0, 1).cross(ax);
+  u.normalize();
+  const w = new THREE.Vector3().crossVectors(ax, u);
+  const ringAt = (k) => {
+    const t = (k / n) * Math.PI * 2;
+    return [base[0] + (u.x * Math.cos(t) + w.x * Math.sin(t)) * r, base[1] + (u.y * Math.cos(t) + w.y * Math.sin(t)) * r, base[2] + (u.z * Math.cos(t) + w.z * Math.sin(t)) * r];
+  };
+  for (let k = 0; k < n; k++) sheet(P, [ringAt(k), ringAt(k + 1), tip], hex);
+}
+
+// ---- the horses --------------------------------------------------------------------------
+// Carved and painted the way a fairground galloper is: a deep-chested body,
+// an arched neck with the head held high and tucked, a carved mane falling on
+// the side the crowd sees (local +x, out from the middle of the ride), front
+// legs folded at the knee and hind legs stretched out behind, a flowing tail,
+// a carved saddle on a painted cloth, a bridle and a big painted eye. Every
+// hoof clears the deck at the bottom of the bob. Nose on +z; the top of the
+// saddle at (0, MGR.seatY, 0) is the seat.
+const HOOF = 0x3a3440;
+const SADDLE = Object.freeze([PAINT.red, PAINT.blue, PAINT.purple, PAINT.green, PAINT.red, PAINT.blue, PAINT.purple, PAINT.orange]);
 function horse(i, poleTop) {
   const P = [];
   const coat = COATS[i % COATS.length];
   const tack = TACK[i % TACK.length];
-  const mane = i % 3 === 0 ? 0xf2c230 : i % 3 === 1 ? 0x6b4a34 : 0xf7f4ec;
-  // body, neck, head
-  ball(P, 0.34, 0, 0.66, 0, coat, { detail: 1, sx: 0.86, sy: 0.84, sz: 1.62 });
-  box(P, 0.22, 0.5, 0.3, 0, 0.96, 0.45, coat, { c: true, pitch: 0.7 });
-  box(P, 0.2, 0.26, 0.46, 0, 1.2, 0.72, coat, { c: true, pitch: 0.75 });
-  box(P, 0.21, 0.06, 0.14, 0, 1.1, 0.84, tack, { c: true, pitch: 0.5 });       // noseband
+  const saddle = SADDLE[i % SADDLE.length] === tack ? PAINT.gold : SADDLE[i % SADDLE.length];
+  const mane = i % 3 === 0 ? PAINT.gold : i % 3 === 1 ? 0x6b4a34 : 0xf7f4ec;
+  const maneDark = mix(mane, 0x2a2228, 0.22);
+  const flip = i % 2 ? 1 : -1; // which foreleg is the higher
+
+  // the body: rump to chest, the saddle cloth painted on its back with a gold
+  // hem at each end
+  const CLOTH = [-0.3, 0.16];
+  carve(P, [
+    at(-0.62, 0.84, 0.64, 0.1),
+    at(-0.5, 0.94, 0.56, 0.18, { nt: 2.3 }),
+    at(-0.34, 0.95, 0.55, 0.2, { nt: 2.4 }),             // the croup
+    at(CLOTH[0], 0.945, 0.545, 0.2, { nt: 2.4 }),
+    at(CLOTH[1], 0.93, 0.52, 0.2, { nt: 2.4, pinch: 0.06 }), // the girth, deep
+    at(CLOTH[1] + 0.05, 0.93, 0.52, 0.198, { nt: 2.4, pinch: 0.06 }),
+    at(0.4, 0.97, 0.57, 0.17, { nt: 2.2, pinch: 0.1 }),   // the withers and the shoulder
+    at(0.56, 0.92, 0.62, 0.14),                             // the chest
+  ], {
+    around: 10, level: true, tipStart: 0.04, tipEnd: 0.05,
+    paint: (x, y, z, u, v) => {
+      const onBack = v > 0.24 && v < 0.76;
+      if (!onBack) return coat;
+      if (z > CLOTH[0] - 0.05 && z < CLOTH[0] + 0.01) return PAINT.gold;
+      if (z > CLOTH[1] - 0.01 && z < CLOTH[1] + 0.06) return PAINT.gold;
+      return z > CLOTH[0] && z < CLOTH[1] ? tack : coat;
+    },
+  });
+  // the carved saddle: a high cantle behind, a pommel in front, the seat between
+  carve(P, [
+    at(-0.24, 1.08, 0.9, 0.1, { nt: 2.6 }),
+    at(-0.14, 1.025, 0.86, 0.19, { nt: 3 }),
+    at(0.08, 1.0, 0.86, 0.2, { nt: 3.2 }),
+    at(0.22, 1.06, 0.88, 0.09, { nt: 2.6 }),
+  ], { around: 6, level: true, tipStart: 0.015, tipEnd: 0.015, paint: (x, y, z, u, v) => (u < 0.2 || u > 0.8 ? PAINT.gold : saddle) });
+
+  // the neck, arched, from deep in the chest up to the head; its first band is
+  // the breast collar
+  carve(P, [
+    { y: 0.8, z: 0.38, w: 0.15, up: 0.2, down: 0.2 },
+    { y: 0.98, z: 0.56, w: 0.135, up: 0.17, down: 0.17, nb: 1.8 },
+    { y: 1.13, z: 0.68, w: 0.115, up: 0.14, down: 0.12, nb: 1.8 },
+    { y: 1.26, z: 0.76, w: 0.1, up: 0.11, down: 0.1 },
+  ], { around: 8, open: 'both', paint: (x, y, z, u) => (u < 0.34 ? tack : coat) });
+  // the head, held high and tucked: the poll, the broad cheek with the eye,
+  // the long face, a noseband, the muzzle
+  const H = [
+    { y: 1.36, z: 0.74, w: 0.09, up: 0.08, down: 0.12 },
+    { y: 1.29, z: 0.85, w: 0.105, up: 0.075, down: 0.155, nb: 1.6 },  // the round jaw
+    { y: 1.16, z: 0.98, w: 0.072, up: 0.058, down: 0.075 },
+    { y: 1.1, z: 1.035, w: 0.078, up: 0.064, down: 0.08 },
+    { y: 1.05, z: 1.08, w: 0.08, up: 0.07, down: 0.075 },
+  ];
+  carve(P, H, { around: 8, open: 'start', tipEnd: 0.03, paint: (x, y, z, u) => (u > 0.5 && u < 0.75 ? tack : coat) });
+  // ears, pricked forward
+  for (const s of [-1, 1]) spike(P, [s * 0.05, 1.42, 0.72], [s * 0.07, 1.51, 0.765], 0.035, 4, coat);
+  // the painted eye: a white almond with a dark iris, on each cheek
+  const ed = Math.hypot(H[2].y - H[1].y, H[2].z - H[1].z);
+  const fwd = [0, (H[2].y - H[1].y) / ed, (H[2].z - H[1].z) / ed];
+  const upv = [0, -fwd[2], fwd[1]].map((q) => -q);
   for (const s of [-1, 1]) {
-    box(P, 0.05, 0.12, 0.05, s * 0.07, 1.38, 0.6, coat, { c: true });           // ears
-    box(P, 0.03, 0.04, 0.03, s * 0.105, 1.26, 0.7, 0x2a2228, { c: true });        // eyes
-    // legs: the front pair reaching forward, the hind pair kicked back
-    box(P, 0.13, 0.52, 0.13, s * 0.14, 0.3, 0.42, coat, { c: true, pitch: -0.55 });
-    box(P, 0.13, 0.52, 0.13, s * 0.14, 0.28, -0.44, coat, { c: true, pitch: 0.5 });
-    box(P, 0.14, 0.08, 0.15, s * 0.14, 0.07, 0.56, 0x3a3440, { c: true, pitch: -0.55 });
-    box(P, 0.14, 0.08, 0.15, s * 0.14, 0.05, -0.56, 0x3a3440, { c: true, pitch: 0.5 });
+    const ex = s * 0.097;
+    const ax = s < 0 ? fwd : fwd.map((q) => -q); // wound to face out of the cheek
+    decal(P, [ex, 1.315, 0.86], ax, upv, 0.042, 0.026, 0xfbf6ec, 6);
+    decal(P, [ex + s * 0.003, 1.315, 0.865], ax, upv, 0.018, 0.02, 0x2a2228, 4, Math.PI / 4);
   }
-  box(P, 0.07, 0.5, 0.2, 0, 1.04, 0.3, mane, { c: true, pitch: 0.7 });          // mane
-  box(P, 0.12, 0.5, 0.14, 0, 0.58, -0.64, mane, { c: true, pitch: -0.5 });       // tail
-  // saddle and its cloth: the top of the saddle is the seat
-  box(P, 0.5, 0.04, 0.6, 0, 0.9, -0.02, tack);
-  box(P, 0.34, 0.06, 0.4, 0, 0.94, -0.02, 0x7a4a30);
-  box(P, 0.34, 0.1, 0.06, 0, 0.97, -0.24, 0x7a4a30);
+  // nostrils, dark, on each side of the muzzle
+  const mz = Math.hypot(H[4].y - H[3].y, H[4].z - H[3].z);
+  const nf = [0, (H[4].y - H[3].y) / mz, (H[4].z - H[3].z) / mz];
+  for (const s of [-1, 1]) decal(P, [s * 0.07, H[4].y + 0.01, H[4].z + 0.005], s < 0 ? nf : nf.map((q) => -q), [0, -nf[2], nf[1]].map((q) => -q), 0.022, 0.014, 0x5a3a3a, 4);
+  // the carved mane, falling in locks on the crowd's side
+  carve(P, [
+    { y: 1.42, z: 0.69, w: 0.035, up: 0.045, down: 0.03 },
+    { y: 1.29, z: 0.63, w: 0.07, up: 0.085, down: 0.04 },
+    { y: 1.14, z: 0.52, w: 0.075, up: 0.09, down: 0.04 },
+    { y: 0.98, z: 0.37, w: 0.05, up: 0.06, down: 0.03 },
+  ], { around: 4, x: 0.04, tipStart: 0.03, tipEnd: 0.04, paint: (x, y, z, u, v) => ((Math.floor(u * 3) + Math.floor(v * 4)) % 2 ? mane : maneDark) });
+  // the tail, flowing back and down
+  carve(P, [
+    { y: 0.84, z: -0.56, w: 0.05, up: 0.05, down: 0.05 },
+    { y: 0.76, z: -0.74, w: 0.065, up: 0.075, down: 0.06 },
+    { y: 0.58, z: -0.84, w: 0.06, up: 0.07, down: 0.05 },
+    { y: 0.38, z: -0.8, w: 0.03, up: 0.04, down: 0.03 },
+  ], { around: 5, open: 'start', tipEnd: 0.06, paint: (x, y, z, u) => (u > 0.4 && u < 0.7 ? maneDark : mane) });
+
+  // legs: the forelegs folded at the knee, one higher than the other; the
+  // hind legs stretched out behind. Each a tapering skin down to a dark hoof.
+  const leg = (sx, keys) => carve(P, keys, { around: 5, open: 'start', x: sx, tipEnd: 0.02, paint: (x, y, z, u) => (u > 0.67 ? HOOF : coat) });
+  for (const s of [-1, 1]) {
+    const hi = s === flip;
+    leg(s * 0.1, hi ? [
+      { y: 0.7, z: 0.34, w: 0.07, up: 0.09, down: 0.09 },
+      { y: 0.5, z: 0.58, w: 0.05, up: 0.055, down: 0.055 },  // the knee, up and forward
+      { y: 0.34, z: 0.5, w: 0.035, up: 0.038, down: 0.038 },
+      { y: 0.29, z: 0.46, w: 0.045, up: 0.045, down: 0.05 },
+    ] : [
+      { y: 0.7, z: 0.32, w: 0.07, up: 0.09, down: 0.09 },
+      { y: 0.42, z: 0.5, w: 0.05, up: 0.055, down: 0.055 },
+      { y: 0.28, z: 0.42, w: 0.035, up: 0.038, down: 0.038 },
+      { y: 0.23, z: 0.38, w: 0.045, up: 0.045, down: 0.05 },
+    ]);
+    leg(s * 0.1, [
+      { y: 0.72, z: -0.36, w: 0.09, up: 0.13, down: 0.11 },  // the thigh
+      { y: 0.44, z: hi ? -0.6 : -0.56, w: 0.05, up: 0.055, down: 0.05 }, // the hock
+      { y: hi ? 0.3 : 0.26, z: hi ? -0.78 : -0.7, w: 0.035, up: 0.038, down: 0.038 },
+      { y: hi ? 0.27 : 0.22, z: hi ? -0.85 : -0.76, w: 0.045, up: 0.045, down: 0.05 },
+    ]);
+  }
   // the pole, through the withers
-  cyl(P, 0.035, 0.035, poleTop + 0.25, 0, -0.25, 0.14, PAINT.gold, { sides: 6 });
-  const m = meshOf(P, 'mgrHorseBody', { roughness: 0.55 });
-  return m;
+  cyl(P, 0.035, 0.035, poleTop + 0.25, 0, -0.25, 0.14, PAINT.gold, { sides: 6, open: true });
+  return meshOf(P, 'mgrHorseBody', { roughness: 0.7 });
 }
 
 export function merryGoRound(x, z, glow) {
@@ -86,7 +336,7 @@ export function merryGoRound(x, z, glow) {
   // the part that stays put: a low painted plinth
   const B = [];
   stripes(B, MGR.baseR, 0, MGR.baseR - 0.06, 0.22, [PAINT.red, PAINT.cream], 0, 0, 0, { sides: 32 });
-  cyl(B, MGR.baseR - 0.06, MGR.baseR - 0.06, 0.02, 0, 0.2, 0, PAINT.gold, { sides: 32 });
+  lathe(B, [[MGR.baseR - 0.06, 0.2], [MGR.baseR - 0.06, 0.22], [0, 0.22]], 32, PAINT.gold, 0, 0, 0); // (no underside: it lies on the plinth)
   g.add(meshOf(B, 'mgrBase', { roughness: 0.7 }));
 
   const turn = new THREE.Group();
@@ -95,7 +345,7 @@ export function merryGoRound(x, z, glow) {
 
   const P = [];
   // the deck: boards, with a painted ring
-  cyl(P, MGR.r, MGR.r, MGR.deckY - 0.22, 0, 0.22, 0, PAINT.wood, { sides: 32 });
+  lathe(P, [[MGR.r, 0.22], [MGR.r, MGR.deckY], [0, MGR.deckY]], 32, PAINT.wood, 0, 0, 0);
   stripes(P, MGR.r - 0.05, MGR.deckY + 0.004, MGR.r - 0.5, MGR.deckY + 0.004, [PAINT.red, PAINT.gold], 0, 0, 0, { sides: 32 });
   stripes(P, 1.9, MGR.deckY + 0.004, 1.25, MGR.deckY + 0.004, [PAINT.sky, PAINT.cream], 0, 0, 0, { sides: 16 });
   // the drum in the middle: painted panels with a gold frame and little mirrors
@@ -103,23 +353,40 @@ export function merryGoRound(x, z, glow) {
   cyl(P, MGR.drumR + 0.12, MGR.drumR + 0.12, 0.18, 0, MGR.deckY, 0, PAINT.gold, { sides: 12 });
   cyl(P, MGR.drumR + 0.1, MGR.drumR + 0.1, 0.12, 0, 2.5, 0, PAINT.gold, { sides: 12 });
   cyl(P, MGR.drumR + 0.3, MGR.drumR + 0.08, 0.34, 0, MGR.canopyY - 0.44, 0, PAINT.red, { sides: 12 });
+  // an oval mirror in a gold frame on each of the drum's panels
+  const out = (a, r, y) => [Math.cos(a) * r, y, Math.sin(a) * r];
+  const along = (a) => [Math.sin(a), 0, -Math.cos(a)]; // across a panel facing out at angle a
   ring(12, (a) => {
-    box(P, 0.26, 0.5, 0.04, Math.cos(a) * (MGR.drumR - 0.01), 1.55, Math.sin(a) * (MGR.drumR - 0.01), 0xbfe6f4, { c: true, yaw: Math.PI / 2 - a });
+    const r = MGR.drumR * Math.cos(Math.PI / 12);
+    decal(P, out(a, r + 0.004, 1.6), along(a), [0, 1, 0], 0.17, 0.3, PAINT.gold, 8);
+    decal(P, out(a, r + 0.008, 1.6), along(a), [0, 1, 0], 0.125, 0.25, 0xbfe6f4, 8);
   }, Math.PI / 12);
-  // the canopy's ribs and its rim board
-  ring(8, (a) => {
-    box(P, MGR.canopyR - MGR.drumR, 0.08, 0.1, Math.cos(a) * (MGR.canopyR + MGR.drumR) / 2, MGR.canopyY - 0.08, Math.sin(a) * (MGR.canopyR + MGR.drumR) / 2, PAINT.cream, { c: true, yaw: -a });
+  // the canopy's ribs, seen from under it
+  ring(16, (a, i) => {
+    box(P, MGR.canopyR - MGR.drumR, 0.08, 0.1, Math.cos(a) * (MGR.canopyR + MGR.drumR) / 2, MGR.canopyY - 0.08, Math.sin(a) * (MGR.canopyR + MGR.drumR) / 2, i % 2 ? PAINT.gold : PAINT.cream, { c: true, yaw: -a });
   });
-  stripes(P, MGR.canopyR + 0.02, MGR.canopyY - 0.42, MGR.canopyR + 0.02, MGR.canopyY + 0.02, [PAINT.gold, PAINT.red], 0, 0, 0, { sides: 32 });
+  // The rounding board round the canopy's edge: sixteen cream panels between
+  // gold pilasters, each panel with a painted oval in a gold frame, and its
+  // plain back seen from under the canopy.
+  const board = [];
+  const BOARD = 48;
+  stripes(board, MGR.canopyR + 0.02, MGR.canopyY - 0.42, MGR.canopyR + 0.02, MGR.canopyY + 0.02, [PAINT.cream, PAINT.cream, PAINT.gold], 0, 0, 0, { sides: BOARD });
+  P.push(board[0], flipped(board[0]));
+  const OVALS = [PAINT.red, PAINT.sky, PAINT.green, PAINT.purple];
+  for (let j = 0; j < BOARD / 3; j++) {
+    const a = ((3 * j + 1) / BOARD) * Math.PI * 2;
+    decal(P, out(a, MGR.canopyR + 0.026, MGR.canopyY - 0.2), along(a), [0, 1, 0], 0.24, 0.15, PAINT.gold, 8);
+    decal(P, out(a, MGR.canopyR + 0.03, MGR.canopyY - 0.2), along(a), [0, 1, 0], 0.19, 0.11, OVALS[j % OVALS.length], 8);
+  }
   // sleeves where the poles come up through the deck
   const places = [];
   ring(MGR.outer, (a, i) => places.push({ a, r: MGR.outerR, i }));
   ring(MGR.inner, (a, i) => places.push({ a, r: MGR.innerR, i: MGR.outer + i }), Math.PI / 4);
-  for (const h of places) cyl(P, 0.06, 0.07, 0.42, Math.cos(h.a) * h.r + 0.14 * -Math.sin(h.a), MGR.deckY, Math.sin(h.a) * h.r + 0.14 * Math.cos(h.a), PAINT.red, { sides: 6 });
-  // the finial: a gold ball and a pennant pole
-  ball(P, 0.26, 0, MGR.apexY + 0.1, 0, PAINT.gold, { detail: 1 });
-  cyl(P, 0.03, 0.03, 0.9, 0, MGR.apexY + 0.3, 0, PAINT.cream, { sides: 5 });
-  box(P, 0.5, 0.26, 0.02, 0.27, MGR.apexY + 0.9, 0, PAINT.red);
+  for (const h of places) lathe(P, [[0.07, 0], [0.06, 0.42], [0, 0.42]], 6, PAINT.red, Math.cos(h.a) * h.r + 0.14 * -Math.sin(h.a), MGR.deckY, Math.sin(h.a) * h.r + 0.14 * Math.cos(h.a));
+  // the finial: a turned gold onion dome and a pennant pole
+  lathe(P, [[0, -0.04], [0.2, 0.02], [0.27, 0.16], [0.17, 0.34], [0.06, 0.48], [0, 0.56]], 10, PAINT.gold, 0, MGR.apexY - 0.06, 0);
+  cyl(P, 0.03, 0.03, 0.8, 0, MGR.apexY + 0.46, 0, PAINT.cream, { sides: 5 });
+  box(P, 0.5, 0.26, 0.02, 0.27, MGR.apexY + 0.98, 0, PAINT.red);
   turn.add(meshOf(P, 'mgrDeck', { roughness: 0.6 }));
 
   // the canopy: striped canvas, scalloped at the rim
@@ -129,7 +396,12 @@ export function merryGoRound(x, z, glow) {
   turn.add(canvasOf(C, 'mgrCanopy'));
 
   const L = [];
-  ring(32, (a, i) => bulb(L, Math.cos(a) * (MGR.canopyR + 0.1), MGR.canopyY - 0.2, Math.sin(a) * (MGR.canopyR + 0.1), BULB_COLORS[i % 2]));
+  // a row of bulbs along the top of the rounding board, and one on each pilaster
+  ring(32, (a, i) => bulb(L, Math.cos(a) * (MGR.canopyR + 0.09), MGR.canopyY - 0.03, Math.sin(a) * (MGR.canopyR + 0.09), BULB_COLORS[i % 2]));
+  for (let j = 0; j < 16; j++) {
+    const a = ((3 * j + 2.5) / 48) * Math.PI * 2;
+    bulb(L, Math.cos(a) * (MGR.canopyR + 0.09), MGR.canopyY - 0.2, Math.sin(a) * (MGR.canopyR + 0.09), BULB_COLORS[(j % 3) + 1]);
+  }
   ring(12, (a, i) => bulb(L, Math.cos(a) * (MGR.drumR + 0.2), 2.66, Math.sin(a) * (MGR.drumR + 0.2), BULB_COLORS[i % BULB_COLORS.length]));
   turn.add(glowMesh(L, 'mgrBulbs', glow));
 
@@ -202,19 +474,36 @@ function gondola(i) {
   const P = [];
   const c = GONDOLA_COLORS[i % GONDOLA_COLORS.length];
   const floor = -FERRIS.seatDrop;
-  // the tub: a floor and four low sides, open above them so the cat is seen
-  box(P, 1.2, 0.06, 1.2, 0, floor - 0.06, 0, 0x6b5a4a);
-  for (const s of [-1, 1]) {
-    box(P, 0.06, 0.4, 1.2, s * 0.6, floor - 0.06, 0, c);
-    box(P, 1.26, 0.4, 0.06, 0, floor - 0.06, s * 0.6, c, { shade: 0.92 });
-    box(P, 1.3, 0.05, 0.08, 0, floor + 0.34, s * 0.6, PAINT.cream);
-    // the hangers, from the tub's ends up to the bar
-    box(P, 0.05, FERRIS.seatDrop - 0.32, 0.05, 0, floor + 0.34, s * 0.62, PAINT.cream);
-  }
-  // a little round roof
-  cyl(P, 0.12, 0.86, 0.26, 0, -0.42, 0, c, { sides: 10 });
-  ball(P, 0.07, 0, -0.14, 0, PAINT.gold);
+  // the tub: round-bellied and open above so the cat is seen, with a gold lip
+  // and a cream inside; its floor is the seat
+  lathe(P, [[0, -0.14], [0.45, -0.11], [0.63, 0.04], [0.65, 0.26]], 10, c, 0, floor, 0);
+  lathe(P, [[0.65, 0.26], [0.61, 0.4], [0.555, 0.35]], 10, PAINT.gold, 0, floor, 0);
+  lathe(P, [[0.555, 0.35], [0.5, 0.04], [0, 0]], 10, PAINT.cream, 0, floor, 0);
+  // the hangers, from the tub's lip up to the bar
+  for (const s of [-1, 1]) box(P, 0.05, FERRIS.seatDrop - 0.38, 0.05, 0, floor + 0.38, s * 0.6, PAINT.cream);
+  // a little striped canopy with a scalloped edge, seen from inside too
+  const roof = [];
+  stripes(roof, 0.82, -0.44, 0, -0.14, [c, PAINT.cream], 0, 0, 0, { sides: 10, scallop: 0.1 });
+  const top = roof[0];
+  P.push(top, flipped(top));
+  bulb(P, 0, -0.1, 0, PAINT.gold, 0.07);
   return meshOf(P, 'gondolaBody', { roughness: 0.55 });
+}
+
+// The same faces seen from the other side (a canopy's underside).
+function flipped(g) {
+  const pos = g.getAttribute('position').array.slice();
+  const nor = g.getAttribute('normal').array.slice();
+  const col = g.getAttribute('color').array.slice();
+  for (let t = 0; t < pos.length; t += 9) {
+    for (const a of [pos, nor, col]) for (let q = 0; q < 3; q++) { const k = a[t + 3 + q]; a[t + 3 + q] = a[t + 6 + q]; a[t + 6 + q] = k; }
+  }
+  for (let k = 0; k < nor.length; k++) nor[k] = -nor[k];
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return out;
 }
 
 export function ferrisWheel(x, z, glow, yaw = 0) {
@@ -277,15 +566,17 @@ export function ferrisWheel(x, z, glow, yaw = 0) {
   const chord = 2 * R * Math.sin(Math.PI / SEG) + 0.05;
   for (const sz of [-1, 1]) {
     ring(SEG, (a) => {
-      box(W, 0.2, chord, 0.14, Math.cos(a) * R * Math.cos(Math.PI / SEG), Math.sin(a) * R * Math.cos(Math.PI / SEG), sz * half, PAINT.blue, { c: true, roll: a });
+      bar(W, ['+y', '-y'], 0.2, chord, 0.14, Math.cos(a) * R * Math.cos(Math.PI / SEG), Math.sin(a) * R * Math.cos(Math.PI / SEG), sz * half, PAINT.blue, { c: true, roll: a });
     }, Math.PI / SEG);
+    // (the rim's segments overlap end to end, and the spokes' ends are
+    // buried in the hub and the rim, so none of those ends is drawn)
     ring(16, (a, i) => {
-      box(W, R - 0.3, 0.09, 0.07, Math.cos(a) * (R + 0.3) / 2, Math.sin(a) * (R + 0.3) / 2, sz * (half - 0.04), i % 2 ? PAINT.yellow : PAINT.red, { c: true, roll: a });
+      bar(W, ['+x', '-x'], R - 0.3, 0.09, 0.07, Math.cos(a) * (R + 0.3) / 2, Math.sin(a) * (R + 0.3) / 2, sz * (half - 0.04), i % 2 ? PAINT.yellow : PAINT.red, { c: true, roll: a });
     });
     // an inner ring, so the wheel reads as a wheel and not a star
     ring(16, (a) => {
       const r2 = R * 0.52;
-      box(W, 0.1, 2 * r2 * Math.sin(Math.PI / 16) + 0.03, 0.07, Math.cos(a) * r2 * Math.cos(Math.PI / 16), Math.sin(a) * r2 * Math.cos(Math.PI / 16), sz * (half - 0.04), PAINT.red, { c: true, roll: a });
+      bar(W, ['+y', '-y'], 0.1, 2 * r2 * Math.sin(Math.PI / 16) + 0.03, 0.07, Math.cos(a) * r2 * Math.cos(Math.PI / 16), Math.sin(a) * r2 * Math.cos(Math.PI / 16), sz * (half - 0.04), PAINT.red, { c: true, roll: a });
     }, Math.PI / 16);
   }
   cyl(W, 0.62, 0.62, half * 2 + 0.3, 0, 0, 0, PAINT.red, { c: true, pitch: Math.PI / 2, sides: 14 });
@@ -321,19 +612,24 @@ const CUP_COLORS = Object.freeze([PAINT.pink, PAINT.mint, PAINT.yellow, PAINT.sk
 function teacup(i) {
   const P = [];
   const c = CUP_COLORS[i % CUP_COLORS.length];
-  cyl(P, 1.12, 1.0, 0.07, 0, 0, 0, PAINT.white, { sides: 16 });                       // saucer
-  cyl(P, 1.12, 1.12, 0.012, 0, 0.07, 0, c, { sides: 16 });
+  // the saucer: a white rim, its top painted the cup's colour (the cup hides the middle)
+  lathe(P, [[1.0, 0], [1.12, 0.07]], 16, PAINT.white, 0, 0, 0);
+  lathe(P, [[1.12, 0.07], [0.58, 0.07]], 16, c, 0, 0, 0);
   cyl(P, 0.96, 0.6, 0.85, 0, 0.07, 0, c, { sides: 14, open: true });                   // the cup
   cyl(P, 0.93, 0.6, 0.82, 0, 0.1, 0, PAINT.white, { sides: 14, open: true, inside: true }); // and its inside
   cyl(P, 0.985, 0.965, 0.05, 0, 0.88, 0, PAINT.gold, { sides: 14, open: true });       // a gold rim
-  cyl(P, 0.72, 0.72, 0.03, 0, TEACUPS.seatY - 0.03, 0, 0xe9d8c0, { sides: 14 });       // the seat
-  // spots round the cup
-  ring(5, (a) => ball(P, 0.12, Math.cos(a) * 0.79, 0.56, Math.sin(a) * 0.79, PAINT.white, { sy: 1.1 }), i * 0.4);
-  // the handle
-  box(P, 0.36, 0.08, 0.1, 1.08, 0.72, 0, c, { c: true });
-  box(P, 0.08, 0.4, 0.1, 1.24, 0.52, 0, c, { c: true });
-  box(P, 0.4, 0.08, 0.1, 0.98, 0.3, 0, c, { c: true });
-  return meshOf(P, 'teacupBody', { roughness: 0.4 });
+  decal(P, [0, TEACUPS.seatY, 0], [1, 0, 0], [0, 0, -1], 0.72, 0.72, 0xe9d8c0, 14);     // the seat
+  // painted spots round the cup, on every other facet, none on the handle
+  for (const k of [1, 5, 7, 9, 11, 13]) spot(P, 14, k, [0.6, 0.07], [0.96, 0.92], 0.56, 0.12, 0.13, PAINT.white);
+  // the handle: a loop out from the cup's side (made along z, turned to +x)
+  carve(P, [
+    { y: 0.76, z: 0.82, w: 0.05, r: 0.045 },
+    { y: 0.8, z: 1.08, w: 0.05, r: 0.045 },
+    { y: 0.64, z: 1.26, w: 0.05, r: 0.045 },
+    { y: 0.42, z: 1.2, w: 0.05, r: 0.045 },
+    { y: 0.3, z: 0.86, w: 0.05, r: 0.045 },
+  ], { around: 5, along: 6, open: 'both', paint: c }).rotateY(Math.PI / 2);
+  return meshOf(P, 'teacupBody', { roughness: 0.72 });
 }
 
 export function teacups(x, z, glow, yaw = 0) {
@@ -350,14 +646,14 @@ export function teacups(x, z, glow, yaw = 0) {
   const POSTS = 18;
   for (let i = 0; i < POSTS; i++) {
     const a = Math.PI / 2 + 0.34 + (i / (POSTS - 1)) * (Math.PI * 2 - 0.68);
-    box(B, 0.08, 0.72, 0.08, Math.cos(a) * (baseR - 0.1), 0.14, Math.sin(a) * (baseR - 0.1), i % 2 ? PAINT.pink : PAINT.cream);
+    bar(B, ['-y', '+y'], 0.08, 0.72, 0.08, Math.cos(a) * (baseR - 0.1), 0.14, Math.sin(a) * (baseR - 0.1), i % 2 ? PAINT.pink : PAINT.cream);
     box(B, 0.13, 0.1, 0.13, Math.cos(a) * (baseR - 0.1), 0.86, Math.sin(a) * (baseR - 0.1), PAINT.gold);
     if (i < POSTS - 1) {
       const b = a + (Math.PI * 2 - 0.68) / (POSTS - 1);
       const mx = (Math.cos(a) + Math.cos(b)) / 2 * (baseR - 0.1);
       const mz = (Math.sin(a) + Math.sin(b)) / 2 * (baseR - 0.1);
       const len = Math.hypot(Math.cos(b) - Math.cos(a), Math.sin(b) - Math.sin(a)) * (baseR - 0.1);
-      box(B, len, 0.06, 0.05, mx, 0.74, mz, PAINT.cream, { c: true, yaw: -Math.atan2(Math.sin(b) - Math.sin(a), Math.cos(b) - Math.cos(a)) });
+      bar(B, ['+x', '-x'], len, 0.06, 0.05, mx, 0.74, mz, PAINT.cream, { c: true, yaw: -Math.atan2(Math.sin(b) - Math.sin(a), Math.cos(b) - Math.cos(a)) });
     }
   }
   g.add(meshOf(B, 'teacupsBase', { roughness: 0.6 }));
@@ -366,22 +662,34 @@ export function teacups(x, z, glow, yaw = 0) {
   turn.name = 'teacupsTurn';
   g.add(turn);
   const P = [];
-  cyl(P, r, r, deckY - 0.12, 0, 0.12, 0, PAINT.cream, { sides: 32 });
+  lathe(P, [[r, 0.12], [r, deckY], [0, deckY]], 32, PAINT.cream, 0, 0, 0);
   // the floor, painted like a tablecloth in wedges
   stripes(P, r - 0.04, deckY + 0.004, 0, deckY + 0.004, [PAINT.pink, PAINT.cream, PAINT.mint, PAINT.cream], 0, 0, 0, { sides: 24 });
   // the big teapot in the middle
   cyl(P, 1.0, 1.1, 0.14, 0, deckY, 0, PAINT.gold, { sides: 16 });
-  ball(P, 1.0, 0, deckY + 0.95, 0, PAINT.white, { detail: 2, sy: 0.86 });
-  cyl(P, 1.02, 1.02, 0.16, 0, deckY + 0.86, 0, PAINT.sky, { sides: 20, open: true });
-  ring(8, (a) => ball(P, 0.11, Math.cos(a) * 0.93, deckY + 1.3, Math.sin(a) * 0.93, PAINT.pink, { sy: 0.6 }));
+  const POT = [[0.72, 0.1], [0.95, 0.35], [1.02, 0.7], [0.98, 1.0], [0.82, 1.35], [0.6, 1.62], [0.5, 1.76]];
+  lathe(P, POT, 14, PAINT.white, 0, deckY, 0);
+  cyl(P, 1.045, 1.045, 0.16, 0, deckY + 0.86, 0, PAINT.sky, { sides: 20, open: true });
+  // painted pink spots round its shoulder
+  for (let k = 0; k < 14; k += 2) spot(P, 14, k, [0.98, 1.0], [0.82, 1.35], 1.2, 0.1, 0.09, PAINT.pink, { at: [0, deckY, 0] });
+  // the lid and its knob
   cyl(P, 0.5, 0.56, 0.1, 0, deckY + 1.74, 0, PAINT.sky, { sides: 14 });
-  ball(P, 0.16, 0, deckY + 1.96, 0, PAINT.gold, { detail: 1 });
-  box(P, 0.26, 0.26, 0.9, 0, deckY + 1.1, 1.15, PAINT.white, { c: true, pitch: -0.6 });      // spout
-  box(P, 0.3, 0.3, 0.14, 0, deckY + 1.38, 1.56, PAINT.sky, { c: true, pitch: -0.6 });
-  box(P, 0.14, 0.14, 0.5, 0, deckY + 1.34, -1.1, PAINT.white, { c: true });                  // handle
-  box(P, 0.14, 0.7, 0.14, 0, deckY + 0.98, -1.34, PAINT.white, { c: true });
-  box(P, 0.14, 0.14, 0.5, 0, deckY + 0.62, -1.1, PAINT.white, { c: true });
-  turn.add(meshOf(P, 'teacupsDeck', { roughness: 0.45 }));
+  lathe(P, [[0, 0], [0.13, 0.03], [0.17, 0.12], [0.09, 0.22], [0, 0.27]], 10, PAINT.gold, 0, deckY + 1.83, 0);
+  // the spout, curving up from the front, and the handle at the back
+  carve(P, [
+    { y: 0.95, z: 0.82, r: 0.16 },
+    { y: 1.12, z: 1.2, r: 0.12 },
+    { y: 1.4, z: 1.44, r: 0.09 },
+    { y: 1.6, z: 1.62, r: 0.1 },
+  ].map((k) => ({ ...k, y: k.y + deckY })), { around: 6, open: 'start', paint: (x, y, z, u) => (u > 0.75 ? PAINT.sky : PAINT.white) });
+  carve(P, [
+    { y: 1.38, z: -0.86, w: 0.07, r: 0.06 },
+    { y: 1.44, z: -1.16, w: 0.07, r: 0.06 },
+    { y: 1.22, z: -1.38, w: 0.07, r: 0.06 },
+    { y: 0.94, z: -1.32, w: 0.07, r: 0.06 },
+    { y: 0.72, z: -0.98, w: 0.07, r: 0.06 },
+  ].map((k) => ({ ...k, y: k.y + deckY })), { around: 5, along: 7, open: 'both', paint: PAINT.white });
+  turn.add(meshOf(P, 'teacupsDeck', { roughness: 0.75 }));
   const L = [];
   ring(16, (a, i) => bulb(L, Math.cos(a) * 1.16, deckY + 0.2, Math.sin(a) * 1.16, BULB_COLORS[i % BULB_COLORS.length]));
   ring(24, (a, i) => bulb(L, Math.cos(a) * (r - 0.12), deckY + 0.06, Math.sin(a) * (r - 0.12), BULB_COLORS[i % 2]));
@@ -633,15 +941,46 @@ export function setOnTrack(group, track, s) {
   return p;
 }
 
+// The points the rails are DRAWN through: every point of the track where it
+// bends, up to every fourth where it runs nearly straight (the middle
+// point of a skipped pair is never more than `tol` off the straight line).
+// The train still runs on every point; only the drawing is thinner.
+export function railPoints(pts, { tol = 0.02, most = 4 } = {}) {
+  const n = pts.length;
+  const off = (a, b, p) => {
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    const l2 = dx * dx + dy * dy + dz * dz || 1;
+    const t = ((p.x - a.x) * dx + (p.y - a.y) * dy + (p.z - a.z) * dz) / l2;
+    return Math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y, a.z + dz * t - p.z);
+  };
+  const out = [];
+  let i = 0;
+  while (i < n) {
+    out.push(pts[i]);
+    let j = i + 1;
+    // reach as far as `most` steps while every point between stays on the chord
+    for (let k = 2; k <= most && i + k <= n; k++) {
+      const end = pts[(i + k) % n];
+      let ok = true;
+      for (let m = 1; m < k; m++) if (off(pts[i], end, pts[(i + m) % n]) > tol) { ok = false; break; }
+      if (!ok) break;
+      j = i + k;
+    }
+    i = j;
+  }
+  return out;
+}
+
 export function coasterTrack(track, { skip = () => false } = {}) {
   const pts = track.points;
   const P = [];
   const g = COASTER.gauge;
   // two rails and a spine under them
   const rail = (c) => [[c - 0.05, -0.09], [c - 0.05, 0], [c + 0.05, 0], [c + 0.05, -0.09]];
-  sweep(P, pts, rail(-g), PAINT.red, { closed: true });
-  sweep(P, pts, rail(g), PAINT.red, { closed: true });
-  sweep(P, pts, [[-0.1, -0.16], [-0.1, -0.36], [0.1, -0.36], [0.1, -0.16]], PAINT.yellow, { closed: true });
+  const drawn = railPoints(pts);
+  sweep(P, drawn, rail(-g), PAINT.red, { closed: true });
+  sweep(P, drawn, rail(g), PAINT.red, { closed: true });
+  sweep(P, drawn, [[-0.1, -0.16], [-0.1, -0.36], [0.1, -0.36], [0.1, -0.16]], PAINT.yellow, { closed: true });
   const S = [];
   const n = pts.length;
   for (let i = 0; i < n; i++) {
@@ -679,7 +1018,7 @@ function coasterCar(i, n) {
   const green = i % 2 ? 0x8fd64a : 0x5fbf4c;
   const head = i === 0;
   // wheels and a chassis
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(P, 0.13, 0.13, 0.08, sx * COASTER.gauge, 0.13, sz * 0.4, PAINT.dark, { c: true, roll: Math.PI / 2, sides: 8 });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(P, 0.13, 0.13, 0.08, sx * COASTER.gauge, 0.13, sz * 0.4, PAINT.dark, { c: true, roll: Math.PI / 2, sides: 6 });
   box(P, 0.7, 0.1, 1.2, 0, 0.16, 0, PAINT.dark);
   // the body: a fat round segment with a seat scooped out of its top
   ball(P, 0.66, 0, 0.52, 0, green, { detail: 1, sx: 0.92, sy: 0.62, sz: 1.06 });

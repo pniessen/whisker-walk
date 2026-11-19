@@ -1529,8 +1529,11 @@ describe('The Fairground: the drawing budget', () => {
     // 4 coaster cars are a mesh each, as are the 6 tins and 7 ducks.
     // Step 3: the stalls' words are one more mesh (28 triangles), their boards
     // and the three sign posts 312 more triangles in the props' mesh.
-    expect(built).toEqual({ meshes: 222, casters: 157, triangles: 69792 });
-    expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 179, casters: 124 });
+    // Polish pass (2026-11-19): carved horses, stall trims, glow and a cull of
+    // the faces lying on the ground; the four builder flower patches (48
+    // meshes, 48 casters) became flower tubs in the props' mesh.
+    expect(built).toEqual({ meshes: 174, casters: 109, triangles: 66692 });
+    expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 159, casters: 104 });
   });
 
   it('is inside the territories’ budget built, and inside their merged budget', () => {

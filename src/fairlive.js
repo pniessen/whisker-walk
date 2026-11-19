@@ -23,13 +23,15 @@
 //
 // THE COST. Moving a ride is setting the rotation of Groups that step 1 built
 // to turn; nothing is added to the scene, no draw call, and update() and
-// late() allocate nothing.
+// late() allocate nothing. The bulbs' chase and the bunting's flutter are
+// five shared shader numbers (world/fairkit.js setFairClock), set here.
 // =============================================================================
 import * as THREE from 'three';
 import { createFairSim, RIDE } from './fairsim.js';
 import { waterClearance } from './world/builder.js';
 import { CAT_LOOK_Y } from './cat/model.js';
 import { FLAT_GROUND } from './ground.js';
+import { setFairClock } from './world/fairkit.js';
 
 // What a walk that is not at the Fairground has.
 export const NO_FAIR = Object.freeze({
@@ -342,6 +344,8 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       const T = now();
       sim.setTime(T);
       poseRides(rides, sim);
+      // the bulbs' chase and the bunting's flutter run on the same clock (none with reduced motion)
+      setFairClock(T, reducedMotion);
 
       // the music box: one note at a time, quieter with distance, silent far away
       const n = Math.floor(T / TUNE.NOTE);
