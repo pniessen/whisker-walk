@@ -386,9 +386,10 @@ export const NORTH_STRIP = Object.freeze({
 // exactly as they draw the core's merged reeds and dressing. The heather's
 // flowers keep their rustle (render/rustle.js finds them in the scene).
 //
-// Heather at about half the core's cushions to the square metre at the old
-// edge, thinning to a third of that at the rim; gorse in a few clumps, most
-// of them against the wall's north face, where it grows out of the wind.
+// Heather at about half the core's cushions to the square metre over the
+// strip, kept with a chance that falls from 0.28 at the old edge to 0.06 at
+// the rim; gorse in a few clumps, most of them against the wall's north face,
+// where it grows out of the wind.
 const HEATHER = Object.freeze({ cell: 2.6, jitter: 0.9 });
 const GORSE = Object.freeze({ cell: 11, jitter: 3 });
 function tileBeds(tile) {
