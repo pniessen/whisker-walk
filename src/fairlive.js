@@ -58,6 +58,10 @@ export function poseRides(rides, sim) {
   m.turn.rotation.y = A.mgr;
   for (let i = 0; i < m.horses.length; i++) m.horses[i].position.y = sim.mgr.deckY + A.mgrBob[i];
   m.musicBoxDrum.rotation.x = A.mgrDrum;
+  // the wheel turns about its hub; each gondola turns back by as much, and so hangs upright
+  const w = rides.wheel;
+  w.turn.rotation.z = A.wheel;
+  for (let i = 0; i < w.gondolas.length; i++) w.gondolas[i].rotation.z = -A.wheel;
 }
 
 // How long the hop down from a seat `h` metres up takes: quick from a horse,
@@ -87,7 +91,8 @@ const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and l
 //   opts.ground        the walk's ground (src/ground.js); the Fairground's is flat
 //   opts.now()         the clock, in seconds
 //   opts.onEvent(e)    { type: 'ride', ride } the first frame on a ride's seat, { type: 'hop' },
-//                      { type: 'dismount' } when she is down, { type: 'note', freq, volume } the tune
+//                      { type: 'dismount' } when she is down, { type: 'note', freq, volume } the tune,
+//                      { type: 'lookout' } onto the lookout at the top of the big wheel
 export function createFairLive(scene, area, { camera = null, reducedMotion = false, now = wallClock, onEvent = () => {}, ground = FLAT_GROUND } = {}) {
   const sim = createFairSim(area);
   const rides = area.rides;
@@ -115,7 +120,6 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   const off = new THREE.Vector3();
   const push = { x: 0, z: 0 };
   const paws = { x: 0, y: 0, z: 0 };
-
   // A seat's height, and the hop's, are metres above the ground under them.
   const gy = (x, z) => (ground.flat ? 0 : ground.y(x, z));
   const catAt = (cat, player) => { paws.x = cat.position.x; paws.z = cat.position.z; paws.y = player.perchY ?? 0; return paws; };
@@ -137,6 +141,13 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       const lift = near < 1 ? (1 - near * near) ** 2 : 0;
       camPos.set(sim.mgr.cx + (dx / d) * out, 2.3 + lift, sim.mgr.cz + (dz / d) * out);
       camLook.set(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+      return 1;
+    }
+    if (seat.rideId === 'wheel') {
+      // Behind her and above, a little to one side (clear of the lookout's
+      // mast): over her shoulder, the fair falls away below as she goes up.
+      camPos.set(seat.x + 2.6, seat.y + 2.5, seat.z - 6.2);
+      camLook.set(seat.x - 0.3, seat.y + CAT_LOOK_Y - 0.2, seat.z + 1.5);
       return 1;
     }
     return 0;
@@ -195,6 +206,19 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         riding = t.seat;
         seatCat(t.seat, cat, player, session);
         onEvent({ type: 'hop', ride: t.seat.rideId });
+        // (a hook for step 3: the lookout at the top of the big wheel is discovery F)
+        if (t.seat.seatKind === 'lookout') onEvent({ type: 'lookout' });
+        return true;
+      }
+      if (t.type === 'stay') return true; // waiting where she is for the next seat to come by
+      if (t.type === 'static' && riding) {
+        // off a seat onto one of the area's own perches (the boarding deck)
+        riding = null; lastSeat = null; rodeRide = null;
+        session.perched = t.perch;
+        player.perchY = t.perch.y;
+        cat.position.set(t.perch.x, gy(t.perch.x, t.perch.z) + t.perch.y, t.perch.z);
+        player.halt?.();
+        onEvent({ type: 'hop', ride: null });
         return true;
       }
       if (t.type === 'off' && riding) {
@@ -258,6 +282,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         const want = seat ? cameraFor(seat, cat) : 0;
         camW += (want - camW) * Math.min(1, dt * CAM_EASE);
         if (camW < 0.002 && want === 0) camW = 0;
+        else if (camW > 0.995 && want === 1) camW = 1; // all the ride's: a still camera is exactly still
         if (camW > 0) {
           camera.position.lerp(camPos, camW);
           if (!seat) camLook.copy(look); // getting off: the ride's camera keeps looking at her

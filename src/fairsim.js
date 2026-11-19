@@ -28,7 +28,7 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // player.js's CAT_RADIUS (not imported: player.js loads THREE).
 export const CAT_RADIUS = 0.35;
 
-export const RIDE_IDS = Object.freeze(['mgr']);
+export const RIDE_IDS = Object.freeze(['mgr', 'wheel']);
 
 export const RIDE = Object.freeze({
   // ---- the merry-go-round ----
@@ -44,16 +44,26 @@ export const RIDE = Object.freeze({
   // A hop to a seat ahead (the way the ride turns) is preferred by this much,
   // so hopping again and again works round the ride instead of to and fro.
   AHEAD: 0.6,
+  // ---- the big wheel ----
+  WHEEL_TURN: 56,      // seconds for one turn: slow enough to hop in as a gondola comes by
+  // From the boarding deck (or the ground beside it) into the gondola passing
+  // the bottom, and between the gondola at the top and the lookout: straight-
+  // line distances, so a gondola is in reach only while it is passing.
+  REACH_GONDOLA: 2.3,
+  REACH_LOOKOUT: 3.0,
+  GONDOLA_STEP_UP: 1.3, // a gondola higher above her than this has gone by
   // ---- getting off ----
   LAND_MARGIN: 0.1,    // clear of every collider by the cat's radius and this
   BOUNDS_MARGIN: 0.5,
   WATER_MARGIN: 0.4,
 });
 
-// A seat is a perch record: x, z, y are where the cat's paws are; `ride` is
-// what game/avatar.js reads to let her nap on it; `fair` marks it ours.
+// A seat is a perch record: x, z, y are where the cat's paws are; `fair`
+// marks it ours; `pose` is how she is drawn on it (game/avatar.js): sitting
+// up, however long she stays (on a cow's back she would curl up and nap; on a
+// ride she is wide awake).
 function makeSeat(id, rideId, seatKind, index, more) {
-  return { id, rideId, seatKind, index, x: 0, y: 0, z: 0, yaw: 0, kind: 'prop', ride: 'fair', fair: true, ...more };
+  return { id, rideId, seatKind, index, x: 0, y: 0, z: 0, yaw: 0, kind: 'prop', ride: 'fair', fair: true, pose: 'perch', ...more };
 }
 
 // The angles of the search for a landing spot: straight on first, then
@@ -63,6 +73,7 @@ const FAN = (() => {
   for (let k = 1; k <= 8; k++) { out.push((k * TAU) / 16); if (k < 8) out.push((-k * TAU) / 16); }
   return Object.freeze(out);
 })();
+const FAN_AHEAD = 7; // the first seven: straight on, and up to 67.5 degrees either side
 
 // createFairSim(area) → the rides of one walk.
 //   area   src/world/fair.js's record: rides, anchors, colliders, bounds, waters, perches.
@@ -71,7 +82,9 @@ const FAN = (() => {
 export function createFairSim(area) {
   const R = area.rides;
   const seats = [];
-  const angles = { mgr: 0, mgrDrum: 0, mgrBob: new Float64Array(R.merryGoRound.horses.length) };
+  const angles = { mgr: 0, mgrDrum: 0, mgrBob: new Float64Array(R.merryGoRound.horses.length), wheel: 0 };
+  // One of the area's own perches, by where it is (the boarding deck, the coaster's platform).
+  const areaPerch = (at) => (area.perches ?? []).find((p) => Math.abs(p.x - at.x) < 1e-6 && Math.abs(p.z - at.z) < 1e-6 && Math.abs(p.y - at.y) < 1e-6) ?? null;
 
   // ---- the merry-go-round ---------------------------------------------------------
   const mgr = (() => {
@@ -115,16 +128,60 @@ export function createFairSim(area) {
     }
   }
 
+  // ---- the big wheel ----------------------------------------------------------------
+  // The wheel stands in the plane z = cz and turns about its hub. A gondola
+  // hangs from the rim and stays upright, so its seat is always `drop` below
+  // the rim. The LOOKOUT behind the top is a seat that does not move; the
+  // boarding deck in front of the bottom is one of the area's own perches.
+  const wheel = (() => {
+    const g = R.wheel;
+    const cx = g.group.position.x;
+    const cz = g.group.position.z;
+    const A = area.anchors;
+    const gondolas = g.gondolas.map((gg, i) => makeSeat(`wheel-gondola-${i}`, 'wheel', 'gondola', i, {
+      a: gg.userData.place.angle, drop: -gg.userData.seat.y,
+    }));
+    // She looks out over the fair from both: south, towards the plaza.
+    for (const s of gondolas) { s.z = cz; s.yaw = Math.PI; }
+    const lookout = makeSeat('wheel-lookout', 'wheel', 'lookout', 0, { still: true });
+    lookout.x = A.wheelTopPlatform.x; lookout.y = A.wheelTopPlatform.y; lookout.z = A.wheelTopPlatform.z; lookout.yaw = Math.PI;
+    return { cx, cz, hubY: g.hubY, radius: g.radius, gondolas, lookout, step: areaPerch(A.wheelStep), sweepX: g.radius + 0.9, sweepZ: 1.3 };
+  })();
+  seats.push(...wheel.gondolas, wheel.lookout);
+
+  function setWheel(T) {
+    const psi = TAU * frac(T / RIDE.WHEEL_TURN);
+    angles.wheel = psi;
+    for (let i = 0; i < wheel.gondolas.length; i++) {
+      const s = wheel.gondolas[i];
+      s.x = wheel.cx + Math.cos(s.a + psi) * wheel.radius;
+      s.y = wheel.hubY + Math.sin(s.a + psi) * wheel.radius - s.drop;
+    }
+  }
+
   let now = 0;
   function setTime(T) {
     now = Number.isFinite(T) ? T : 0;
     setMgr(now);
+    setWheel(now);
   }
 
   // ---- what a jump reaches -------------------------------------------------------
   const hit = { type: null, seat: null, perch: null };
   const answer = (type, seat = null, perch = null) => { hit.type = type; hit.seat = seat; hit.perch = perch; return hit; };
   const flat = (s, cat) => Math.hypot(s.x - cat.x, s.z - cat.z);
+  const apart = (s, o) => Math.hypot(s.x - o.x, s.y - (o.y ?? 0), s.z - o.z);
+
+  // The gondola nearest `at` that is within `reach` of it, or null.
+  function gondolaNear(at, reach) {
+    let best = null;
+    let bestD = reach;
+    for (let i = 0; i < wheel.gondolas.length; i++) {
+      const d = apart(wheel.gondolas[i], at);
+      if (d < bestD) { best = wheel.gondolas[i]; bestD = d; }
+    }
+    return best;
+  }
 
   // From one of the merry-go-round's seats: the best horse to hop to, or null.
   // `last` is the seat she hopped here from, which is not hopped straight back to.
@@ -151,12 +208,25 @@ export function createFairSim(area) {
   // The answer is ONE reused object: { type, seat, perch }.
   //   'board'   from the ground or an ordinary perch onto `seat`
   //   'hop'     from one seat to `seat`
+  //   'static'  from a seat onto `perch`, one of the area's own perches
+  //   'stay'    nothing in reach just now, and she stays where she is (waiting
+  //             on the boarding deck or the lookout for the next gondola)
   //   'off'     off the ride, to the ground
   function jumpTarget(cat, from, last = null) {
     if (from && from.fair) {
       if (from.rideId === 'mgr') {
         const h = nextHorse(from, last);
         return h ? answer('hop', h) : answer('off');
+      }
+      if (from.seatKind === 'gondola') {
+        // at the top, across to the lookout; at the bottom, out onto the boarding deck
+        if (apart(from, wheel.lookout) < RIDE.REACH_LOOKOUT) return answer('hop', wheel.lookout);
+        if (wheel.step && apart(from, wheel.step) < RIDE.REACH_GONDOLA) return answer('static', null, wheel.step);
+        return answer('off');
+      }
+      if (from.seatKind === 'lookout') {
+        const g = gondolaNear(from, RIDE.REACH_LOOKOUT);
+        return g ? answer('hop', g) : answer('stay');
       }
       return answer('off');
     }
@@ -169,14 +239,28 @@ export function createFairSim(area) {
         if (d < RIDE.REACH_DECK && d < bestD) { best = mgr.deck[i]; bestD = d; }
       }
     }
-    return best ? answer('board', best) : null;
+    {
+      const g = gondolaNear(cat, RIDE.REACH_GONDOLA);
+      if (g && g.y - (cat.y ?? 0) <= RIDE.GONDOLA_STEP_UP) {
+        const d = apart(g, cat);
+        if (d < bestD) { best = g; bestD = d; }
+      }
+    }
+    if (best) return answer('board', best);
+    // On the boarding deck with no gondola in reach: she waits for the next
+    // one (the stick still takes her off the deck, as off any perch).
+    if (from && from === wheel.step) return answer('stay');
+    return null;
   }
 
   // ---- getting off ---------------------------------------------------------------
   // Whether (x, z) is under or in something a ride moves through: the
-  // platform of the merry-go-round (its collider covers the same disc).
+  // platform of the merry-go-round (its collider covers the same disc), the
+  // strip under the big wheel.
   function swept(x, z) {
     if (Math.hypot(x - mgr.cx, z - mgr.cz) < mgr.baseR + CAT_RADIUS) return true;
+    // the strip the big wheel and its gondolas turn over
+    if (Math.abs(x - wheel.cx) < wheel.sweepX + CAT_RADIUS && Math.abs(z - wheel.cz) < wheel.sweepZ + CAT_RADIUS) return true;
     return false;
   }
 
@@ -208,20 +292,26 @@ export function createFairSim(area) {
   const spot = { x: 0, z: 0, ok: false };
   const away = { x: 0, z: 0 };
   // dismountSpot(seat, toward, env) → { x, z, ok }: the nearest free ground to
-  // the seat, looking first the way she pushed (`toward`, or outwards from the
-  // ride). ONE reused object. `ok` is false only if nothing within 14 m is
+  // the seat the way she pushed (`toward`, or outwards from the ride), or
+  // failing that the nearest anywhere. ONE reused object. `ok` is false only if nothing within 14 m is
   // free, which no seat of this fair can produce (test/fairsim.test.js).
   function dismountSpot(seat, toward, env = {}) {
     let tx = toward ? toward.x : 0;
     let tz = toward ? toward.z : 0;
     if (Math.hypot(tx, tz) < 1e-3) { awayFrom(seat, away); tx = away.x; tz = away.z; }
     const base = Math.atan2(tx, tz);
-    for (let r = 0.6; r <= 14; r += 0.3) {
-      for (let k = 0; k < FAN.length; k++) {
-        const a = base + FAN[k];
-        const x = seat.x + Math.sin(a) * r;
-        const z = seat.z + Math.cos(a) * r;
-        if (free(x, z, env)) { spot.x = x; spot.z = z; spot.ok = true; return spot; }
+    // First the way she pushed, and up to a quarter turn either side of it,
+    // as far as a few steps; only then anywhere at all, nearest first.
+    for (let pass = 0; pass < 2; pass++) {
+      const fan = pass === 0 ? FAN_AHEAD : FAN.length;
+      const far = pass === 0 ? 6 : 14;
+      for (let r = 0.6; r <= far; r += 0.3) {
+        for (let k = 0; k < fan; k++) {
+          const a = base + FAN[k];
+          const x = seat.x + Math.sin(a) * r;
+          const z = seat.z + Math.cos(a) * r;
+          if (free(x, z, env)) { spot.x = x; spot.z = z; spot.ok = true; return spot; }
+        }
       }
     }
     spot.x = seat.x; spot.z = seat.z; spot.ok = false;
@@ -233,6 +323,7 @@ export function createFairSim(area) {
     seats,
     angles,
     mgr,
+    wheel,
     get time() { return now; },
     setTime,
     jumpTarget,

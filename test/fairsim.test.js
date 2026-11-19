@@ -117,7 +117,7 @@ describe('the rides’ clock', () => {
     for (const s of sim.seats) {
       expect(RIDE_IDS).toContain(s.rideId);
       expect(s.fair).toBe(true);
-      expect(s.ride).toBeTruthy(); // game/avatar.js: she may nap on it
+      expect(['perch', 'follow']).toContain(s.pose); // sitting up or standing: game/avatar.js draws what the seat says
       expect(s.kind).toBe('prop');
     }
     // and none of them is among the area's own perches (fair.js's promise)
@@ -149,7 +149,7 @@ describe('the merry-go-round', () => {
     expect(horses).toHaveLength(12);
     expect(deck).toHaveLength(RIDE.MGR_DECK_SPOTS);
     for (const d of deck) expect(d.pose).toBe('follow'); // she stands there
-    for (const h of horses) expect(h.pose).toBeUndefined(); // she sits on a horse
+    for (const h of horses) expect(h.pose).toBe('perch'); // she sits on a horse, and does not nod off
   });
 
   it('puts every horse’s seat where the model’s seat is, as the horse rises and falls', () => {
@@ -208,6 +208,141 @@ describe('the merry-go-round', () => {
     const speed = (2 * Math.PI * 3.45) / RIDE.MGR_TURN;
     expect(speed).toBeLessThan(2.2);
     expect((2 * Math.PI * area.rides.merryGoRound.bob) / RIDE.MGR_BOB).toBeLessThan(0.5); // the bob, at its quickest
+  });
+});
+
+describe('the big wheel', () => {
+  const gondolas = seatsOf('wheel', 'gondola');
+  const lookout = seatsOf('wheel', 'lookout')[0];
+  const W = area.rides.wheel;
+
+  it('turns once in 50 to 60 seconds, and comes back exactly', () => {
+    expect(RIDE.WHEEL_TURN).toBeGreaterThanOrEqual(50);
+    expect(RIDE.WHEEL_TURN).toBeLessThanOrEqual(60);
+    sim.setTime(33.3);
+    const a = gondolas.map((g) => [g.x, g.y, g.z]);
+    sim.setTime(33.3 + RIDE.WHEEL_TURN);
+    gondolas.forEach((g, i) => { expect(g.x).toBeCloseTo(a[i][0], 9); expect(g.y).toBeCloseTo(a[i][1], 9); });
+    // an eighth of a turn on, each gondola is where the next one was
+    sim.setTime(33.3 + RIDE.WHEEL_TURN / 8);
+    gondolas.forEach((g, i) => { const n = a[(i + 1) % 8]; expect(g.x).toBeCloseTo(n[0], 6); expect(g.y).toBeCloseTo(n[1], 6); });
+    // a gondola on the rim goes at a slow walk
+    expect((2 * Math.PI * W.radius) / RIDE.WHEEL_TURN).toBeLessThan(0.8);
+  });
+
+  it('puts every gondola’s seat where the model’s is, all the way round', () => {
+    expect(W.group.rotation.y).toBe(0); // the wheel stands in the plane fairsim.js takes it to
+    expect(gondolas).toHaveLength(8);
+    for (const T of SAMPLES) {
+      posed(T);
+      for (const g of gondolas) expect(dist3(g, modelSeat(W.gondolas[g.index])), `${g.id} at ${T}`).toBeLessThan(1e-6);
+    }
+  });
+
+  it('keeps every gondola upright: its floor is level whatever the wheel’s angle', () => {
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3();
+    for (const T of SAMPLES) {
+      posed(T);
+      for (const gg of W.gondolas) {
+        gg.getWorldQuaternion(q);
+        up.set(0, 1, 0).applyQuaternion(q);
+        expect(up.y, `${gg.name} at ${T}`).toBeGreaterThan(1 - 1e-9);
+      }
+      expect(W.turn.rotation.z).toBe(sim.angles.wheel);
+    }
+    // and the wheel really does turn under them
+    posed(10); const a = W.turn.rotation.z; posed(17); expect(W.turn.rotation.z).not.toBe(a);
+  });
+
+  it('has a lookout that does not move, level with the floor of the gondola at the top', () => {
+    const A = area.anchors.wheelTopPlatform;
+    for (const T of [0, 13, 29.5]) { sim.setTime(T); expect([lookout.x, lookout.y, lookout.z]).toEqual([A.x, A.y, A.z]); }
+    const top = W.hubY + W.radius - gondolas[0].drop;
+    expect(Math.abs(lookout.y - top)).toBeLessThan(0.1);
+    expect(sim.wheel.step).toBe(area.perches.find((p) => p.x === area.anchors.wheelStep.x && p.z === area.anchors.wheelStep.z));
+    expect(sim.wheel.step).toBeTruthy();
+  });
+
+  it('is boarded from the boarding deck only as a gondola passes the bottom, and she waits there otherwise', () => {
+    const step = sim.wheel.step;
+    let on = 0;
+    const N = 560;
+    for (let i = 0; i < N; i++) {
+      sim.setTime(700 + (i * RIDE.WHEEL_TURN) / N);
+      const t = sim.jumpTarget(step, step);
+      if (t.type === 'board') {
+        on++;
+        expect(t.seat.seatKind).toBe('gondola');
+        expect(dist3(t.seat, step)).toBeLessThan(RIDE.REACH_GONDOLA);
+        expect(t.seat.y).toBeLessThan(1.0); // it is the one at the bottom
+        expect(Math.abs(t.seat.x - sim.wheel.cx)).toBeLessThan(1.7);
+      } else {
+        expect(t.type).toBe('stay'); // not a hop down off the deck: she waits for the next one
+        for (const g of gondolas) expect(dist3(g, step)).toBeGreaterThanOrEqual(RIDE.REACH_GONDOLA);
+      }
+    }
+    // in reach for most of the time between one gondola and the next, and not all of it
+    expect(on / N).toBeGreaterThan(0.5);
+    expect(on / N).toBeLessThan(0.85);
+  });
+
+  it('is not boarded from the path in front, nor by a gondola that has gone up', () => {
+    for (let i = 0; i < 80; i++) {
+      sim.setTime(900 + i * 0.7);
+      expect(sim.jumpTarget({ x: 0, y: 0, z: -26.8 }, null)).toBeNull();
+      expect(sim.jumpTarget({ x: 6, y: 0, z: -28 }, null)).toBeNull();
+      // right under a gondola two metres up: it has gone by
+      const high = gondolas.find((g) => g.y > 1.8 && g.y < 2.6);
+      if (high) expect(sim.jumpTarget({ x: high.x, y: 0, z: high.z + 1.7 }, null)?.seat ?? null).not.toBe(high);
+    }
+  });
+
+  it('lets her across to the lookout only from the gondola at the top, out onto the deck only at the bottom, and off anywhere', () => {
+    const seen = { hop: 0, static: 0, off: 0 };
+    for (let i = 0; i < 560; i++) {
+      sim.setTime(1200 + (i * RIDE.WHEEL_TURN) / 560);
+      for (const g of gondolas) {
+        const t = sim.jumpTarget(g, g);
+        seen[t.type]++;
+        if (t.type === 'hop') {
+          expect(t.seat).toBe(lookout);
+          expect(g.y).toBeGreaterThan(lookout.y - 0.5);
+          expect(dist3(g, lookout)).toBeLessThan(RIDE.REACH_LOOKOUT);
+        } else if (t.type === 'static') {
+          expect(t.perch).toBe(sim.wheel.step);
+          expect(g.y).toBeLessThan(1.0);
+        } else {
+          expect(t.type).toBe('off');
+        }
+      }
+    }
+    expect(seen.hop).toBeGreaterThan(0);
+    expect(seen.static).toBeGreaterThan(0);
+    expect(seen.off).toBeGreaterThan(seen.hop + seen.static); // most of the way round it is simply "off"
+  });
+
+  it('takes her off the lookout into the next gondola, and has her wait there when none is near', () => {
+    let hops = 0;
+    const N = 560;
+    for (let i = 0; i < N; i++) {
+      sim.setTime(50 + (i * RIDE.WHEEL_TURN) / N);
+      const t = sim.jumpTarget(lookout, lookout);
+      if (t.type === 'hop') { hops++; expect(t.seat.seatKind).toBe('gondola'); expect(dist3(t.seat, lookout)).toBeLessThan(RIDE.REACH_LOOKOUT); }
+      else expect(t.type).toBe('stay'); // never a leap off a thirteen-metre platform by the jump button
+    }
+    expect(hops / N).toBeGreaterThan(0.6);
+  });
+
+  it('counts the whole strip under the wheel as swept: nobody lands under a gondola', () => {
+    for (let x = -8; x <= 8; x += 0.5) {
+      expect(sim.swept(sim.wheel.cx + x, sim.wheel.cz)).toBe(Math.abs(x) < W.radius + 0.9 + CAT_RADIUS);
+    }
+    expect(sim.swept(sim.wheel.cx, sim.wheel.cz + 2)).toBe(false);
+    for (const T of SAMPLES.slice(0, 30)) {
+      sim.setTime(T);
+      for (const g of gondolas) expect(sim.swept(g.x, g.z)).toBe(true);
+    }
   });
 });
 
@@ -301,29 +436,33 @@ describe('getting off: at any moment, from any seat, onto free ground', () => {
   const PUSHES = [null, { x: 1, z: 0 }, { x: -1, z: 0 }, { x: 0, z: 1 }, { x: 0, z: -1 }, { x: 0.7, z: -0.7 }];
 
   it('finds free ground beside the ride from every seat at every sampled time, whichever way she pushes', () => {
+    // (plain checks gathered into one list: this runs a hundred thousand landings)
+    const wrong = [];
     let n = 0;
+    const b = area.bounds;
     for (const T of SAMPLES) {
       sim.setTime(T);
       for (const s of sim.seats) {
         for (const push of PUSHES) {
           const to = sim.dismountSpot(s, push, env);
-          const where = `${s.id} at ${T} pushed ${push ? `${push.x},${push.z}` : 'nowhere'} -> ${to.x.toFixed(2)},${to.z.toFixed(2)}`;
-          expect(to.ok, where).toBe(true);
-          // the game's own test: inside the bounds, out of every collider, dry
-          expect(isWalkableAt(area, to.x, to.z), where).toBe(true);
-          // with room to spare
-          for (const c of area.colliders) expect(Math.hypot(to.x - c.x, to.z - c.z), where).toBeGreaterThanOrEqual(c.r + CAT_RADIUS + RIDE.LAND_MARGIN - 1e-9);
-          expect(to.x).toBeGreaterThanOrEqual(area.bounds.minX + RIDE.BOUNDS_MARGIN);
-          expect(to.x).toBeLessThanOrEqual(area.bounds.maxX - RIDE.BOUNDS_MARGIN);
-          expect(to.z).toBeGreaterThanOrEqual(area.bounds.minZ + RIDE.BOUNDS_MARGIN);
-          expect(to.z).toBeLessThanOrEqual(area.bounds.maxZ - RIDE.BOUNDS_MARGIN);
-          expect(waterClearance(area.waters, to.x, to.z), where).toBeGreaterThanOrEqual(RIDE.WATER_MARGIN);
-          // and not under anything a ride moves through
-          expect(sim.swept(to.x, to.z), where).toBe(false);
           n++;
+          let why = null;
+          if (!to.ok) why = 'nothing free';
+          // the game's own test: inside the bounds, out of every collider, dry
+          else if (!isWalkableAt(area, to.x, to.z)) why = 'not walkable';
+          // with room to spare
+          else if (area.colliders.some((c) => Math.hypot(to.x - c.x, to.z - c.z) < c.r + CAT_RADIUS + RIDE.LAND_MARGIN - 1e-9)) why = 'too near a collider';
+          else if (to.x < b.minX + RIDE.BOUNDS_MARGIN || to.x > b.maxX - RIDE.BOUNDS_MARGIN || to.z < b.minZ + RIDE.BOUNDS_MARGIN || to.z > b.maxZ - RIDE.BOUNDS_MARGIN) why = 'at the edge';
+          else if (waterClearance(area.waters, to.x, to.z) < RIDE.WATER_MARGIN) why = 'wet';
+          // and not under anything a ride moves through
+          else if (sim.swept(to.x, to.z)) why = 'under a ride';
+          // beside the ride: a few steps from where the seat is over the ground
+          else if (flat(to, s) > 9) why = 'far away';
+          if (why) wrong.push(`${s.id} at ${T} pushed ${push ? `${push.x},${push.z}` : 'nowhere'} -> ${to.x.toFixed(2)},${to.z.toFixed(2)}: ${why}`);
         }
       }
     }
+    expect(wrong.slice(0, 20)).toEqual([]);
     expect(n).toBe(SAMPLES.length * sim.seats.length * PUSHES.length);
   });
 
@@ -364,8 +503,11 @@ describe('getting off: at any moment, from any seat, onto free ground', () => {
 // ---------------------------------------------------------------------------
 // THE WALK: fairlive.js with a stand-in for the game's cat, player and session
 // ---------------------------------------------------------------------------
+// (One built fair for every walk here: a ride's models are wholly set by the
+// clock each frame, so one walk leaves nothing behind for the next.)
+const walkFair = builtFair();
 function walk({ at = { x: 0, z: 8 }, clock = { T: 2000 }, reducedMotion = false } = {}) {
-  const made = builtFair();
+  const made = walkFair;
   const events = [];
   const camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.1, 300);
   const live = createFairLive(made.scene, made.area, { camera, reducedMotion, now: () => clock.T, onEvent: (e) => events.push({ ...e }) });
@@ -589,6 +731,119 @@ describe('the walk: a cat on the merry-go-round', () => {
       expect(grounded(again)).toBe(true);
       expect(again.live.riding).toBeNull();
     }
+  });
+});
+
+describe('the walk: a cat on the big wheel', () => {
+  // Stand her on the boarding deck, as the ordinary jump does (it is one of the area's own perches).
+  function onTheDeck(clock) {
+    const w = walk({ at: { x: 0, z: -27 }, clock });
+    const step = w.live.sim.wheel.step;
+    w.session.perched = step;
+    w.player.perchY = step.y;
+    w.cat.position.set(step.x, step.y, step.z);
+    return { ...w, step };
+  }
+  const noRoll = (camera) => Math.abs(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).y);
+
+  it('takes her from the deck into a gondola, up and over, across to the lookout, into the next gondola and back out onto the deck', () => {
+    const w = onTheDeck({ T: 7000 });
+    expect(w.live.canBoard(w.cat, w.player, w.session) || w.live.sim.jumpTarget(w.step, w.step).type === 'stay').toBe(true);
+    expect(w.jumpWhenInReach()).toBe(true);
+    // (the button may have been taken as "wait": press until she is aboard)
+    for (let i = 0; i < 300 && !w.live.riding; i++) { w.frame(); w.live.jump(w.ctx); }
+    const first = w.session.perched;
+    expect(first.seatKind).toBe('gondola');
+    w.frame();
+    expect(w.events.filter((e) => e.type === 'ride').at(-1)).toEqual({ type: 'ride', ride: 'wheel' });
+    // carried up: higher every second for half a turn, always on the seat
+    const prev = new THREE.Vector3();
+    let maxCam = 0;
+    let topY = 0;
+    for (let i = 0; i < 30 * (RIDE.WHEEL_TURN / 2 - 3); i++) {
+      prev.copy(w.camera.position);
+      w.frame();
+      expect(w.cat.position.y).toBe(first.y);
+      expect(w.cat.position.x).toBe(first.x);
+      if (i > 60) maxCam = Math.max(maxCam, prev.distanceTo(w.camera.position));
+      expect(noRoll(w.camera)).toBeLessThan(1e-6);
+      topY = Math.max(topY, w.cat.position.y);
+    }
+    expect(topY).toBeGreaterThan(12);
+    expect(maxCam).toBeLessThan(0.06); // the camera goes up as gently as she does
+    // behind her and above: she looks out over the fair, and so does the picture
+    expect(w.camera.position.z).toBeLessThan(w.cat.position.z - 4);
+    expect(w.camera.position.y).toBeGreaterThan(w.cat.position.y + 1.5);
+    // across to the lookout as she comes over the top
+    for (let i = 0; i < 400 && w.session.perched === first; i++) { if (w.live.sim.jumpTarget(first, first).type === 'hop') w.live.jump(w.ctx); else w.frame(); }
+    expect(w.session.perched.seatKind).toBe('lookout');
+    expect(w.events.some((e) => e.type === 'lookout')).toBe(true);
+    const lookoutY = w.cat.position.y;
+    w.run(2);
+    expect(w.cat.position.y).toBe(lookoutY); // it does not move
+    expect(w.live.riding.seatKind).toBe('lookout');
+    // the jump button waits for a gondola, then takes the next one
+    for (let i = 0; i < 400 && w.session.perched.seatKind === 'lookout'; i++) { expect(w.live.jump(w.ctx)).toBe(true); w.frame(); }
+    const second = w.session.perched;
+    expect(second.seatKind).toBe('gondola');
+    // down the other side, and out onto the deck at the bottom
+    for (let i = 0; i < 30 * RIDE.WHEEL_TURN && w.session.perched === second; i++) {
+      if (w.live.sim.jumpTarget(second, second).type === 'static') w.live.jump(w.ctx); else w.frame();
+    }
+    expect(w.session.perched).toBe(w.step);
+    expect(w.live.riding).toBeNull();
+    expect(w.player.perchY).toBe(w.step.y);
+    expect([w.cat.position.x, w.cat.position.y, w.cat.position.z]).toEqual([w.step.x, w.step.y, w.step.z]);
+    w.run(1);
+    expect(w.session.perched).toBe(w.step); // and the rides leave her be
+    expect(w.live.hopping).toBe(false);
+    // one go on the wheel: its line once, however many seats she used
+    expect(w.events.filter((e) => e.type === 'ride' && e.ride === 'wheel')).toHaveLength(1);
+  });
+
+  it('lets her off at any height with the stick: a hop down of under a second onto free ground clear of the wheel', () => {
+    for (const ride of [2, 9, 17, 27, 38, 49]) {
+      const w = onTheDeck({ T: 8000 + ride });
+      for (let i = 0; i < 400 && !w.live.riding; i++) { w.live.jump(w.ctx); w.frame(); }
+      const seat = w.session.perched;
+      w.run(ride);
+      const h = seat.y;
+      w.pushStick(0, 1);
+      w.frame();
+      expect(w.live.hopping).toBe(true);
+      expect(w.cat.position.y).toBeCloseTo(seat.y, 6); // not one frame on the ground under the wheel
+      const prev = new THREE.Vector3();
+      let frames = 0;
+      let lastY = w.cat.position.y;
+      while (w.live.hopping) {
+        prev.copy(w.camera.position);
+        w.frame();
+        expect(w.cat.position.y).toBeLessThanOrEqual(lastY + 1e-9);
+        lastY = w.cat.position.y;
+        expect(prev.distanceTo(w.camera.position)).toBeLessThan(1.6); // the picture comes down with her, it does not jump
+        expect(++frames).toBeLessThanOrEqual(28);
+      }
+      w.pushStick(0, 0);
+      expect(grounded(w), `after ${ride}s at ${h.toFixed(1)}m`).toBe(true);
+      expect(w.live.sim.swept(w.cat.position.x, w.cat.position.z)).toBe(false);
+      expect(w.cat.position.z).toBeGreaterThan(-30); // she pushed south and is south of the wheel
+    }
+  });
+
+  it('lets her off the lookout with the stick too, down to the ground behind the wheel', () => {
+    const w = walk({ at: { x: 0, z: -34 } });
+    const lookout = w.live.sim.wheel.lookout;
+    w.session.perched = lookout;
+    w.player.perchY = lookout.y;
+    w.frame();
+    expect(w.live.riding).toBe(lookout);
+    w.pushStick(0, -1);
+    w.frame();
+    expect(w.live.hopping).toBe(true);
+    w.pushStick(0, 0);
+    w.run(1.2);
+    expect(grounded(w)).toBe(true);
+    expect(w.live.sim.swept(w.cat.position.x, w.cat.position.z)).toBe(false);
   });
 });
 
