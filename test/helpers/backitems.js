@@ -13,7 +13,7 @@ import { useBVH, firstHitRaycaster } from './bvh.js';
 //
 // Every measure is in the cat's own frame (world / cat.scale.x). Every ray is
 // cast through a BVH (test/helpers/bvh.js: the same answers as three's own
-// raycast): kitCat's cats are set up for it. The sweep is ~12 s with it.
+// raycast): kitCat's cats are set up for it. The sweep is ~6 s with it (~150 s before).
 
 export const DESCRIBE = 'back items are shaped things on the back (accessories polish Task 2)';
 export const BARE = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };

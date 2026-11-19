@@ -20,7 +20,7 @@ import { useBVH, ready, firstHitRaycaster } from './bvh.js';
 // Every ray is cast through a BVH (test/helpers/bvh.js: the same answers as
 // three's own raycast): kitCat's cats are set up for it, and outside /
 // outsideFur set up any other cat they are handed. The eight sweep files
-// took ~610 s between them with three's raycast and ~40 s with the BVH
+// took ~610 s between them with three's raycast and ~25 s with the BVH
 // (2026-11-19), a sweep case well under a second.
 
 export const DESCRIBE = 'a cape is a cloak on the torso (polish-pose Task 2)';
