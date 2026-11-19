@@ -280,7 +280,7 @@ describe('the core and the strip on a walk, round the Woods and out to the south
 // growbudget.js). Today's Woods is 182 meshes, 152 casters, 68,810 triangles
 // (switch off; test/woodssouth.test.js holds that). The Woods with its south
 // strip, at its worst spot, the middle of the core where nearly all of it is
-// in range: 217 meshes, 177 casters, 67,626 triangles. The 35 meshes over
+// in range: 217 meshes, 177 casters, 67,654 triangles. The 35 meshes over
 // today are the strip's: its trees in range (two meshes each), its ground,
 // spring, sand, paint, trail (four hidden data strips and the ribbon) and
 // hollow, its three undergrowth meshes, and one for all the stand-ins.

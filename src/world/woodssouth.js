@@ -680,6 +680,7 @@ function sandFloor() {
   m.scale.set(HOLLOW.rx, HOLLOW.rz, 1);
   m.position.set(HOLLOW.x, PAINT_Y + 0.002, HOLLOW.z);
   m.name = 'hollowSand';
+  m.userData.duskTint = true; // dims and cools at dusk with the ground (render/dusk.js tintDuskLawn)
   m.castShadow = false;
   m.receiveShadow = true;
   m.userData.noCast = true;
@@ -774,7 +775,9 @@ export function addSouthStrip(scene, { groundMesh, groundTint, water = {}, water
     scene.add(tag(fx.mesh));
 
     // the sand, the worn gaps and the damp round the spring
-    scene.add(tag(paintMesh(hollowPaintParts(), { name: 'stripPaint' })));
+    const paint = paintMesh(hollowPaintParts(), { name: 'stripPaint' });
+    paint.userData.duskTint = true;
+    scene.add(tag(paint));
     scene.add(tag(sandFloor()));
 
     // the faint trail
