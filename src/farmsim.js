@@ -96,6 +96,7 @@ export const CHICK = Object.freeze({
   SCATTER_DIST: 1.2,
   SCATTER_TIME: 0.4,
   COOP_R: 1.6,
+  COOP_HOP: 0.5,      // seconds: the hop up the ramp and in
 });
 
 export const DOG = Object.freeze({
@@ -144,7 +145,7 @@ export function pushOut(p, colliders, margin) {
   }
   return p;
 }
-function segClear(colliders, ax, az, bx, bz, margin) {
+export function segClear(colliders, ax, az, bx, bz, margin) {
   const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.4));
   for (let i = 0; i <= n; i++) {
     if (clearance(colliders, ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n) < margin) return false;
@@ -416,7 +417,7 @@ export function createFarmSim(area, { seed = 'farm-animals' } = {}) {
     if (f.arrived) return;
     const sCat = f.line.project(cat.x, cat.z);
     const want = Math.min(f.line.length, sCat - COW.FOLLOW_GAP);
-    const near = dist(cat, cow) <= COW.FOLLOW_SEE && !cow.ridden;
+    const near = dist(cat, cow) <= f.see && !cow.ridden;
     if (near && want > f.s + 0.02) {
       f.s = Math.min(want, f.s + COW.FOLLOW_SPEED * dt);
       const p = f.line.at(f.s);
@@ -681,6 +682,8 @@ export function createFarmSim(area, { seed = 'farm-animals' } = {}) {
 
   const catTrail = createTrail();
   const coop = { x: A.coopDoor.x, z: A.coopDoor.z };
+  // The coop's own doorway, at the top of the ramp (step 3: a chick hops in).
+  const coopIn = { x: A.coop.x + (A.coopDoor.x - A.coop.x) * 0.45, z: A.coop.z + (A.coopDoor.z - A.coop.z) * 0.45, y: 0.5 };
   function makeChick(i, hen) {
     const a = (i / 4) * Math.PI * 2;
     return {
@@ -688,6 +691,8 @@ export function createFarmSim(area, { seed = 'farm-animals' } = {}) {
       x: hen.x + Math.sin(a) * 0.6, z: hen.z + Math.cos(a) * 0.6, y: 0, yaw: a,
       mode: 'home', following: false, order: -1, tired: 0, waitT: 0, slot: { a, r: 0.6, t: between(2, 5) },
       placed: null,   // step 3: { x, z } where a lost chick waits to be found
+      coop: null,     // step 3: the hop up the ramp and in at the coop's door
+      hidden: false,  // step 3: inside the coop
       scatter: null, walked: 0, moving: false,
     };
   }
@@ -705,6 +710,20 @@ export function createFarmSim(area, { seed = 'farm-animals' } = {}) {
   }
   function stepChick(c, dt, cat) {
     c.moving = false;
+    if (c.hidden) return;
+    if (c.coop) {
+      // up the ramp and in at the door
+      const h = c.coop;
+      h.t += dt / CHICK.COOP_HOP;
+      const u = Math.min(1, h.t);
+      c.x = h.x0 + (coopIn.x - h.x0) * u;
+      c.z = h.z0 + (coopIn.z - h.z0) * u;
+      c.y = coopIn.y * u + 4 * 0.12 * u * (1 - u);
+      c.yaw = heading(coopIn.x - h.x0, coopIn.z - h.z0);
+      c.moving = true;
+      if (u >= 1) { c.coop = null; c.hidden = true; c.y = 0; }
+      return;
+    }
     if (c.tired > 0) c.tired -= dt;
     const d = dist(cat, c);
     const calm = !cat.running && !cat.inWater && !cat.perched;
@@ -922,7 +941,9 @@ export function createFarmSim(area, { seed = 'farm-animals' } = {}) {
     // The job cow follows the cat to the milking shed. She walks only while
     // the cat is ahead of her and near; `cow.follow.arrived` (and a
     // 'cow-arrived' event) say she is at the door. Nothing times it.
-    startCowFollow(cow = jobCow, route = cowRoute) {
+    // `see` is how near the cat must be for her to come (step 3's job asks for
+    // more than FOLLOW_SEE, so she sets off for a cat waiting at the gate).
+    startCowFollow(cow = jobCow, route = cowRoute, { see = COW.FOLLOW_SEE } = {}) {
       if (cow.follow) return cow.follow;
       const points = [{ x: cow.x, z: cow.z }];
       // Across the field to the gate's approach: straight if nothing is in the
@@ -937,7 +958,7 @@ export function createFarmSim(area, { seed = 'farm-animals' } = {}) {
         if (via) points.push(via);
       }
       points.push(...route);
-      cow.follow = { line: polyline(points), s: 0, arrived: false, back: false };
+      cow.follow = { line: polyline(points), s: 0, arrived: false, back: false, see };
       cow.mode = 'follow';
       cow.target = null;
       return cow.follow;
@@ -962,9 +983,40 @@ export function createFarmSim(area, { seed = 'farm-animals' } = {}) {
     },
     homeChick(id) {
       const c = chicks.find((k) => k.id === id);
-      if (c) { c.placed = null; c.following = false; c.wasFollowing = false; c.mode = 'home'; c.tired = CHICK.TIRED; }
+      if (!c) return;
+      // out of the coop again, at the foot of the ramp
+      if (c.hidden || c.coop) { c.x = coop.x; c.z = coop.z; c.y = 0; }
+      c.hidden = false; c.coop = null;
+      c.placed = null; c.following = false; c.wasFollowing = false; c.mode = 'home'; c.tired = CHICK.TIRED;
+    },
+    // Step 3: a chick at the coop hops up the ramp and in, and is out of sight
+    // until homeChick. The line behind the cat closes up.
+    coopChick(id) {
+      const c = chicks.find((k) => k.id === id);
+      if (!c || c.hidden || c.coop) return false;
+      for (const o of chicks) if (o !== c && o.following && o.order > c.order) o.order -= 1;
+      c.following = false; c.wasFollowing = false; c.mode = 'home'; c.scatter = null; c.order = -1;
+      c.coop = { x0: c.x, z0: c.z, t: 0 };
+      return true;
     },
     coop,
+    coopIn,
+    // Step 3: asks a goat to stop what it is doing and stand on the grass
+    // (the goat with the hat, when its job is taken on). True once it is on
+    // the ground and free; until then it finishes its hop or its head-butt.
+    callGoat(g, toward = null) {
+      if (g.hop || g.mode === 'butt') return false;
+      if (greeter === g) greeter = null;
+      g.plan = []; g.goal = null; g.mode = 'idle'; g.timer = 999; g.copyIn = -1;
+      if (g.y > 0.05) {
+        const t = toward ?? { x: (paddock.minX + paddock.maxX) / 2, z: (paddock.minZ + paddock.maxZ) / 2 };
+        startHop(g, groundToward(g, t.x, t.z));
+        g.spot = null;
+        return false;
+      }
+      g.spot = null;
+      return true;
+    },
   };
   return sim;
 }
