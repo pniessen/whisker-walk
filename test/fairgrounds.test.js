@@ -24,11 +24,11 @@ vi.stubGlobal('document', {
 const fair = await import('../src/world/fair.js');
 const {
   build, STALLS, DUCK_POOL, FIELD, FAIR_REGISTRATION: REG, FAIR_TRAILS, POLE_H, LAMP_POOLS, FLOWER_TUBS, FAIR_PUDDLES,
-  GROUND_CULL, cullGroundFaces, fairWear, fairBare, fairGroundTint,
+  GROUND_CULL, cullGroundFaces, fairWear, fairBare, fairGroundTint, CORNER_FLAGS, FAIR_BINS, QUEUE_RAILS, BALE_SEATS, BALE_STACKS,
 } = fair;
 const { TEACUPS, HELTER } = await import('../src/world/fairrides.js');
 const { STALL, BANDSTAND } = await import('../src/world/fairparts.js');
-const { TUB, BALE } = await import('../src/world/fairedge.js');
+const { TUB, BALE, BIN, CORNER_FLAG, QUEUE_RAIL } = await import('../src/world/fairedge.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 const { frameColliders } = await import('../src/propsets.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -287,5 +287,84 @@ describe('flower tubs, puddles and the squeeze gap', () => {
     const nz = Math.cos(gap.rotY);
     expect(reached(gap.x + nx * 1.5, gap.z + nz * 1.5)).toBe(true);
     expect(reached(gap.x - nx * 1.5, gap.z - nz * 1.5)).toBe(true);
+  });
+});
+
+// The distance from (x, z) to the nearest path's edge (negative: on the path).
+const pathEdge = (x, z) => {
+  let best = Infinity;
+  for (const g of FAIR_TRAILS) for (const [x1, z1, x2, z2] of g.segs) {
+    const L2 = (x2 - x1) ** 2 + (z2 - z1) ** 2;
+    const k = Math.max(0, Math.min(1, ((x - x1) * (x2 - x1) + (z - z1) * (z2 - z1)) / L2));
+    best = Math.min(best, Math.hypot(x - x1 - (x2 - x1) * k, z - z1 - (z2 - z1) * k) - g.w / 2);
+  }
+  return best;
+};
+const solidAt = (p, r) => area.colliders.some((c) => dist(c, p) < 1e-6 && c.r >= r);
+
+describe('the edges', () => {
+  const b = area.bounds;
+  it('flies a tall flag near each corner of the field, each pole solid', () => {
+    expect(CORNER_FLAGS).toHaveLength(4);
+    const corners = [[b.minX, b.minZ], [b.maxX, b.minZ], [b.minX, 45], [b.maxX, 45]];
+    for (const [cx, cz] of corners) expect(CORNER_FLAGS.some((f) => Math.hypot(f.x - cx, f.z - cz) < 10), `${cx},${cz}`).toBe(true);
+    expect(CORNER_FLAG.h).toBeGreaterThan(7);
+    for (const f of CORNER_FLAGS) {
+      expect(solidAt(f, 0.15)).toBe(true);
+      for (const [dx, dz] of f.lines) expect(Math.abs(f.x + dx) <= b.maxX && f.z + dz >= b.minZ && f.z + dz <= 45, `${f.x},${f.z} peg`).toBe(true);
+    }
+  });
+
+  it('stands a bin beside a path, not on it, each one solid', () => {
+    expect(FAIR_BINS.length).toBeGreaterThanOrEqual(4);
+    for (const t of FAIR_BINS) {
+      expect(pathEdge(t.x, t.z), `${t.x},${t.z}`).toBeGreaterThan(BIN.r + 0.2);
+      expect(pathEdge(t.x, t.z), `${t.x},${t.z}`).toBeLessThan(1.5);
+      expect(solidAt(t, BIN.r)).toBe(true);
+    }
+  });
+
+  it('runs a queue rail either side of the big wheel’s and the teacups’ paths, off the path, with the path open between', () => {
+    expect(QUEUE_RAILS).toHaveLength(4);
+    for (const [x, z, yaw, len] of QUEUE_RAILS) {
+      const ax = Math.cos(yaw);
+      const az = -Math.sin(yaw);
+      for (const u of [-len / 2, 0, len / 2]) {
+        const e = pathEdge(x + ax * u, z + az * u);
+        expect(e, `${x},${z}`).toBeGreaterThan(0);
+        expect(e, `${x},${z}`).toBeLessThan(0.6);
+      }
+      // no collider: a cat walks under it
+      for (const c of area.colliders) expect(dist(c, { x, z }) - c.r).toBeGreaterThan(0.2);
+    }
+    expect(QUEUE_RAIL.h).toBeGreaterThan(0.6); // a sitting cat is about 0.4 m
+    // the paths themselves stay open between the rails
+    expect(standable(0, -24.4)).toBe(true);
+    expect(standable(-17.6, 1.43)).toBe(true);
+  });
+
+  it('puts hay-bale seats facing the bandstand and the teacups, and every bale is solid', () => {
+    expect(BALE_SEATS.length).toBeGreaterThanOrEqual(4);
+    // each seat is a bale's length side on to what it watches, held by two circles
+    for (const t of BALE_SEATS) {
+      expect(area.colliders.filter((c) => dist(c, t) < 0.4 && c.r >= 0.3).length, `${t.x},${t.z}`).toBeGreaterThanOrEqual(2);
+      const target = t.x < -30 ? { x: -26, z: 2 } : { x: -25, z: 35 }; // the teacups, or the bandstand
+      const along = Math.abs(Math.cos(t.yaw) * (target.x - t.x) - Math.sin(t.yaw) * (target.z - t.z)) / dist(t, target);
+      expect(along, `${t.x},${t.z}`).toBeLessThan(0.5);
+    }
+    for (const t of BALE_STACKS) expect(area.colliders.filter((c) => dist(c, t) < 1.2).length).toBeGreaterThanOrEqual(4);
+    expect(BALE.h).toBeLessThan(0.5);
+  });
+
+  it('pens nothing: every spot a cat can stand on is reachable from the gate', () => {
+    let stand = 0;
+    let unreached = 0;
+    for (let j = 0; j < grid.H; j++) for (let i = 0; i < grid.W; i++) {
+      if (!walk(...grid.at(i, j))) continue;
+      stand++;
+      if (!grid.seen[j * grid.W + i]) unreached++;
+    }
+    expect(stand).toBeGreaterThan(30000);
+    expect(unreached).toBe(0);
   });
 });

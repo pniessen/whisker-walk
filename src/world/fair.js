@@ -478,10 +478,10 @@ export const CORNER_FLAGS = Object.freeze([
   Object.freeze({ x: -35.5, z: 43.3, colors: [C.green, C.white], lines: [[-5.5, 0], [5.5, 0]] }),
   Object.freeze({ x: 42.6, z: 43.2, colors: [C.purple, C.yellow], lines: [[-5.5, 0]] }),
 ]);
-export const FAIR_BINS = Object.freeze([pt(2.2, -19.5), pt(-13.5, 3.3), pt(14.5, 1.9), pt(-21.8, -4.6)]);
+export const FAIR_BINS = Object.freeze([pt(2.2, -19.5), pt(-13.5, 3.3), pt(14.5, 1.9), pt(-21.5, -4.4)]);
 // queue rails: [x, z, yaw, length], each beside the last few metres of a ride's path
 const teacupsPathYaw = Math.atan2(0.6, 10.6);
-const alongTeacupsPath = (off) => world(pt(-18.3, 1.47), teacupsPathYaw, 0, off);
+const alongTeacupsPath = (off) => world(pt(-17.6, 1.43), teacupsPathYaw, 0, off);
 export const QUEUE_RAILS = Object.freeze([
   Object.freeze([-1.65, -24.4, EAST, 4]), Object.freeze([1.65, -24.4, EAST, 4]),
   Object.freeze([alongTeacupsPath(1.45).x, alongTeacupsPath(1.45).z, teacupsPathYaw, 4]),
