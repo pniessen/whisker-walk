@@ -30,7 +30,7 @@
 // =============================================================================
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
-import { loft, at, ball, solid, put, pair, merged, mix, smooth, coatTexture, coatUV } from './farmshapes.js';
+import { loft, at, ball, solid, put, pair, merged, mix, smooth, coatTexture, coatUV, WHITE_UV } from './farmshapes.js';
 
 const DARK = 0x2a2624;
 const HOOF = 0x3a322c;
@@ -559,6 +559,54 @@ export function ducklingGeometry() {
   return merged(g);
 }
 
+// -----------------------------------------------------------------------------
+// The first models' primitive helpers, kept for the small things below (hats,
+// eggs, mice, kittens, the owl): a primitive, moved into place and coloured per
+// face. Every corner points at the coat picture's one white texel (WHITE_UV),
+// so the cow's patches never show on them.
+// -----------------------------------------------------------------------------
+const _pc = new THREE.Color();
+function piece(geo, color, { scale, pre, rot, at: to } = {}) {
+  let g = geo;
+  if (scale) g.scale(...scale);
+  if (pre) g.translate(...pre); // a move before the turn (a limb's own length, so it turns about its end)
+  if (rot) { if (rot[0]) g.rotateX(rot[0]); if (rot[1]) g.rotateY(rot[1]); if (rot[2]) g.rotateZ(rot[2]); }
+  if (to) g.translate(...to);
+  if (g.index) g = g.toNonIndexed();
+  const pos = g.getAttribute('position');
+  const col = new Float32Array(pos.count * 3);
+  const tex = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i += 3) {
+    const x = (pos.getX(i) + pos.getX(i + 1) + pos.getX(i + 2)) / 3;
+    const y = (pos.getY(i) + pos.getY(i + 1) + pos.getY(i + 2)) / 3;
+    const z = (pos.getZ(i) + pos.getZ(i + 1) + pos.getZ(i + 2)) / 3;
+    _pc.setHex(typeof color === 'function' ? color(x, y, z) : color);
+    for (let k = 0; k < 3; k++) {
+      col[(i + k) * 3] = _pc.r; col[(i + k) * 3 + 1] = _pc.g; col[(i + k) * 3 + 2] = _pc.b;
+      tex[(i + k) * 2] = WHITE_UV[0]; tex[(i + k) * 2 + 1] = WHITE_UV[1];
+    }
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(tex, 2));
+  return g;
+}
+const orb = (r, w = 8, h = 6) => new THREE.SphereGeometry(r, w, h);
+const tube = (rTop, rBottom, len, sides = 7) => new THREE.CylinderGeometry(rTop, rBottom, len, sides);
+const cone = (r, len, sides = 6) => new THREE.ConeGeometry(r, len, sides);
+// A barrel lying along z: a capsule, its back a little flat and its belly a
+// little full.
+function barrel(r, len, { radial = 12, cap = 5, rings = 6 } = {}) {
+  const g = new THREE.CapsuleGeometry(r, len, cap, radial, rings);
+  g.rotateX(Math.PI / 2);
+  const pos = g.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    pos.setY(i, y > 0 ? y * 0.92 : y * 1.08);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 // =============================================================================
 // Step 3: the small things of the jobs and the discoveries. Each is ONE merged
 // geometry on the animals' shared material (the owl and the barn cat have one
@@ -586,7 +634,7 @@ export function eggNestGeometry() {
     piece(tube(0.2, 0.18, 0.04, 10), STRAW_DARK, { at: [0, 0.03, 0] }),
   ];
   const eggs = [[-0.07, 0.03, 0xf4ead8], [0.07, 0.05, 0xe9d2b0], [0.0, -0.08, 0xf6f0e4], [0.02, 0.0, 0xd9b890]];
-  eggs.forEach(([x, z, hex], i) => g.push(piece(ball(0.05, 6, 4), hex, { scale: [0.85, 1.15, 0.85], rot: [0.5, i * 1.3, 0], at: [x, i === 3 ? 0.14 : 0.1, z] })));
+  eggs.forEach(([x, z, hex], i) => g.push(piece(orb(0.05, 6, 4), hex, { scale: [0.85, 1.15, 0.85], rot: [0.5, i * 1.3, 0], at: [x, i === 3 ? 0.14 : 0.1, z] })));
   return merged(g);
 }
 
@@ -599,13 +647,13 @@ export function buildOwl(material) {
   const DARKB = 0x5c4630;
   const group = new THREE.Group();
   const g = [
-    piece(ball(0.15, 8, 6), (x, y, z) => (z > 0.07 && y < 0.3 ? PALE : BROWN), { scale: [0.95, 1.25, 0.9], at: [0, 0.19, 0] }),
-    piece(ball(0.13, 8, 6), (x, y, z) => (z > 0.06 ? PALE : BROWN), { scale: [1.05, 0.9, 0.95], at: [0, 0.34, 0.01] }),
+    piece(orb(0.15, 8, 6), (x, y, z) => (z > 0.07 && y < 0.3 ? PALE : BROWN), { scale: [0.95, 1.25, 0.9], at: [0, 0.19, 0] }),
+    piece(orb(0.13, 8, 6), (x, y, z) => (z > 0.06 ? PALE : BROWN), { scale: [1.05, 0.9, 0.95], at: [0, 0.34, 0.01] }),
     piece(cone(0.02, 0.05, 4), 0xe0a23a, { rot: [Math.PI * 0.6, 0, 0], at: [0, 0.32, 0.13] }),
   ];
   for (const s of [-1, 1]) {
     g.push(piece(cone(0.035, 0.09, 4), DARKB, { rot: [0, 0, -s * 0.35], at: [s * 0.085, 0.455, 0] }));              // ear tufts
-    g.push(piece(ball(0.1, 5, 4), DARKB, { scale: [0.3, 1.0, 0.75], at: [s * 0.14, 0.19, -0.01] }));                 // folded wings
+    g.push(piece(orb(0.1, 5, 4), DARKB, { scale: [0.3, 1.0, 0.75], at: [s * 0.14, 0.19, -0.01] }));                 // folded wings
     g.push(piece(new THREE.BoxGeometry(0.06, 0.012, 0.012), 0x2a2018, { rot: [0, 0, s * 0.15], at: [s * 0.055, 0.36, 0.122] })); // a shut eye
     g.push(piece(tube(0.014, 0.014, 0.03, 4), 0xe0a23a, { at: [s * 0.045, 0.015, 0.04] }));                          // feet
   }
@@ -630,7 +678,7 @@ export function buildBarnCat(material) {
   const group = new THREE.Group();
   const g = [
     piece(barrel(0.13, 0.36, { radial: 8, cap: 3, rings: 3 }), coat, { scale: [1.15, 0.8, 1], at: [0, 0.11, -0.05] }),
-    piece(ball(0.12, 7, 5), coat, { scale: [1.2, 0.85, 1], at: [0.02, 0.11, -0.3] }),                       // haunch
+    piece(orb(0.12, 7, 5), coat, { scale: [1.2, 0.85, 1], at: [0.02, 0.11, -0.3] }),                       // haunch
     piece(tube(0.03, 0.022, 0.42, 6), STRIPE, { rot: [Math.PI / 2, 0, 1.1], at: [0.17, 0.04, -0.3] }),      // tail, curled round
     piece(tube(0.035, 0.03, 0.2, 6), WHITEC, { rot: [Math.PI / 2, 0, 0.5], at: [0.1, 0.035, 0.2] }),        // front paws, out ahead
     piece(tube(0.035, 0.03, 0.2, 6), WHITEC, { rot: [Math.PI / 2, 0, 0.2], at: [0.03, 0.035, 0.26] }),
@@ -639,13 +687,13 @@ export function buildBarnCat(material) {
   const head = new THREE.Group();
   head.position.set(-0.02, 0.2, 0.2);
   const h = [
-    piece(ball(0.1, 8, 6), (x, y, z) => (z > 0.05 && y < 0.02 ? WHITEC : GREY), { scale: [1.05, 0.92, 0.95], at: [0, 0.06, 0.04] }),
-    piece(ball(0.014, 5, 4), 0xd98a8a, { at: [0, 0.035, 0.135] }),
+    piece(orb(0.1, 8, 6), (x, y, z) => (z > 0.05 && y < 0.02 ? WHITEC : GREY), { scale: [1.05, 0.92, 0.95], at: [0, 0.06, 0.04] }),
+    piece(orb(0.014, 5, 4), 0xd98a8a, { at: [0, 0.035, 0.135] }),
   ];
   for (const s of [-1, 1]) {
     h.push(piece(cone(0.04, 0.08, 4), GREY, { rot: [0, 0, -s * 0.25], at: [s * 0.062, 0.165, 0.02] }));
-    h.push(piece(ball(0.016, 5, 3), 0x9ac26a, { scale: [1, 1, 0.5], at: [s * 0.042, 0.075, 0.125] }));
-    h.push(piece(ball(0.008, 4, 3), 0x14100c, { at: [s * 0.042, 0.075, 0.136] }));
+    h.push(piece(orb(0.016, 5, 3), 0x9ac26a, { scale: [1, 1, 0.5], at: [s * 0.042, 0.075, 0.125] }));
+    h.push(piece(orb(0.008, 4, 3), 0x14100c, { at: [s * 0.042, 0.075, 0.136] }));
   }
   head.add(mesh(merged(h), material));
   group.add(head);
@@ -657,13 +705,13 @@ export function buildBarnCat(material) {
 export function kittenGeometry(hex) {
   const dark = new THREE.Color(hex).multiplyScalar(0.7).getHex();
   const g = [
-    piece(ball(0.075, 7, 5), hex, { scale: [1.1, 0.75, 1.3], at: [0, 0.055, -0.03] }),
-    piece(ball(0.058, 7, 5), hex, { at: [0, 0.115, 0.075] }),
+    piece(orb(0.075, 7, 5), hex, { scale: [1.1, 0.75, 1.3], at: [0, 0.055, -0.03] }),
+    piece(orb(0.058, 7, 5), hex, { at: [0, 0.115, 0.075] }),
     piece(tube(0.016, 0.012, 0.16, 4), dark, { rot: [Math.PI / 2, 0, 1.2], at: [0.07, 0.025, -0.07] }),
   ];
   for (const s of [-1, 1]) {
     g.push(piece(cone(0.024, 0.045, 4), dark, { at: [s * 0.035, 0.175, 0.065] }));
-    g.push(piece(ball(0.009, 4, 3), 0x14100c, { at: [s * 0.024, 0.125, 0.125] }));
+    g.push(piece(orb(0.009, 4, 3), 0x14100c, { at: [s * 0.024, 0.125, 0.125] }));
   }
   return merged(g);
 }
@@ -679,7 +727,7 @@ export function saucerGeometry() {
 // A windfall apple, its middle at y 0.
 export function appleGeometry() {
   return merged([
-    piece(ball(0.09, 7, 5), (x) => (x > 0.03 ? 0xd9c13a : 0xd23a2e), { scale: [1, 0.9, 1] }),
+    piece(orb(0.09, 7, 5), (x) => (x > 0.03 ? 0xd9c13a : 0xd23a2e), { scale: [1, 0.9, 1] }),
     piece(tube(0.006, 0.006, 0.05, 4), 0x5a3e24, { at: [0, 0.09, 0] }),
   ]);
 }
@@ -688,13 +736,13 @@ export function appleGeometry() {
 export function mouseGeometry() {
   const FUR = 0xb3a79c;
   const g = [
-    piece(ball(0.05, 6, 4), FUR, { scale: [0.85, 0.8, 1.3], at: [0, 0.04, 0] }),
+    piece(orb(0.05, 6, 4), FUR, { scale: [0.85, 0.8, 1.3], at: [0, 0.04, 0] }),
     piece(cone(0.03, 0.06, 4), FUR, { rot: [Math.PI / 2, 0, 0], at: [0, 0.04, 0.085] }),
     piece(tube(0.005, 0.004, 0.14, 3), 0xd9a09a, { rot: [Math.PI / 2, 0, 0], at: [0, 0.02, -0.13] }),
   ];
   for (const s of [-1, 1]) {
-    g.push(piece(ball(0.02, 4, 3), 0xc9aaa0, { scale: [1, 1, 0.4], at: [s * 0.03, 0.075, 0.04] }));
-    g.push(piece(ball(0.007, 3, 2), 0x14100c, { at: [s * 0.02, 0.055, 0.085] }));
+    g.push(piece(orb(0.02, 4, 3), 0xc9aaa0, { scale: [1, 1, 0.4], at: [s * 0.03, 0.075, 0.04] }));
+    g.push(piece(orb(0.007, 3, 2), 0x14100c, { at: [s * 0.02, 0.055, 0.085] }));
   }
   return merged(g);
 }
