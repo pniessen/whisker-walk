@@ -41,9 +41,9 @@ export const whichTime = (t, every) => Math.floor(t / every);
 
 // 0 → 1 → 0, smoothly; -1 (not now) is 0.
 export const bump = (x) => (x < 0 ? 0 : Math.sin(Math.PI * x) ** 2);
-// 0 → 1, held, → 0: in and out over `edge` of the time each.
+// 0 → 1, held, → 0: in and out over `edge` of the time each (0 before and after).
 export function hold(x, edge = 0.2) {
-  if (x < 0) return 0;
+  if (x < 0 || x >= 1) return 0;
   const k = Math.min(1, x / edge, (1 - x) / edge);
   return k * k * (3 - 2 * k);
 }
