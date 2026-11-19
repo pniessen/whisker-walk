@@ -137,4 +137,20 @@ describe('the ring', () => {
     const b = ringBox({ left: 100, top: 300, width: 200, height: 40 }, null, 7);
     expect(b).toMatchObject({ left: 93, top: 293, width: 214, height: 54, radius: 27 });
   });
+
+  // Controls review, 2026-11-19: the 📷 ring's arrow stood on the "meow" word
+  // hanging under the button above it.
+  it('ringBox: the arrow never sits on a neighbouring button or its word', () => {
+    const page = { width: 390, height: 844 };
+    const photo = { left: 318, top: 690, width: 56, height: 56 };      // bottom right of the cluster
+    const meow = { left: 318, right: 374, top: 624, bottom: 694 };      // above it, with its word (680 + 14)
+    expect(ringBox(photo, page, 7, [meow]).arrow).toBe('bottom');
+    const below = { left: 318, right: 374, top: 760, bottom: 820 };
+    expect(ringBox(photo, page, 7, [meow, below]).arrow).toBe('left');
+    // nothing in the way: above, as always
+    expect(ringBox(photo, page, 7, [{ left: 0, right: 40, top: 0, bottom: 40 }]).arrow).toBe('top');
+  });
+  it('RING_TARGETS has no yarn: the yarn hint points at nothing', () => {
+    expect(Object.keys(RING_TARGETS)).toEqual(['move', 'prompt', 'pounce', 'meow', 'camera', 'pause', 'chat']);
+  });
 });

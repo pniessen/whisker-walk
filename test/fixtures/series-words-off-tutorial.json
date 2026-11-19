@@ -30,12 +30,20 @@
    "keys": "Point at an animal. Click."
   },
   "hint.yarn": {
-   "touch": "Tap 🧶 to play with your yarn.",
-   "keys": "Press T to play with your yarn."
+   "touch": "A yarn ball! Run into it to bat it.",
+   "keys": "A yarn ball! Run into it to bat it."
   },
   "hint.bat": {
    "touch": "Run into the ball to bat it.",
    "keys": "Run into the ball to bat it."
+  },
+  "hint.yarn-carry": {
+   "touch": "Put it down to play.",
+   "keys": "Put it down to play."
+  },
+  "hint.tkey": {
+   "touch": "Yarn balls lie around now. Find one! 🧶",
+   "keys": "Yarn balls lie around now. Find one! 🧶"
   },
   "hint.call": {
    "touch": "Tap 😺 to call a cat over.",
@@ -54,8 +62,8 @@
    "keys": "Someone needs help. Walk up and press E."
   },
   "hint.hiss": {
-   "touch": "{name} is cross today. Try again on another walk.",
-   "keys": "{name} is cross today. Try again on another walk."
+   "touch": "{name} is cross today. Try again next time.",
+   "keys": "{name} is cross today. Try again next time."
   },
   "hint.dog": {
    "touch": "That is the dog's garden. Walk round it.",
@@ -110,8 +118,8 @@
    "keys": "Find a person. Press E."
   },
   "how.yarn-play": {
-   "touch": "Tap 🧶. Run into the ball 4 times.",
-   "keys": "Press T. Run into the ball 4 times."
+   "touch": "The yarn ball is {place}. Bat it 4 times.",
+   "keys": "The yarn ball is {place}. Bat it 4 times."
   },
   "how.dig-treasure": {
    "touch": "Stand still to sniff. Follow the paw prints. Dig!",
@@ -134,12 +142,12 @@
    "keys": "Tap the present! 🎁"
   },
   "home.first": {
-   "touch": "A friend is waiting outside. Tap Start!",
-   "keys": "A friend is waiting outside. Tap Start!"
+   "touch": "A friend is waiting outside. Tap Explore!",
+   "keys": "A friend is waiting outside. Tap Explore!"
   },
   "home.part": {
-   "touch": "{name} has more to show you. Tap Start!",
-   "keys": "{name} has more to show you. Tap Start!"
+   "touch": "{name} has more to show you. Tap Explore!",
+   "keys": "{name} has more to show you. Tap Explore!"
   },
   "home.pick": {
    "touch": "The wild cats have seen you. Pick your home!",
@@ -154,16 +162,16 @@
    "keys": "The way to your home starts in {place}."
   },
   "home.opens": {
-   "touch": "One more walk here and {place} opens!",
-   "keys": "One more walk here and {place} opens!"
+   "touch": "Explore here again and {place} opens!",
+   "keys": "Explore here again and {place} opens!"
   },
   "home.opens-two": {
-   "touch": "One more walk here opens {place} and {place2}!",
-   "keys": "One more walk here opens {place} and {place2}!"
+   "touch": "Explore here again to open {place} and {place2}!",
+   "keys": "Explore here again to open {place} and {place2}!"
   },
   "home.opens-three": {
-   "touch": "One more walk here opens {place}, {place2} and {place3}!",
-   "keys": "One more walk here opens {place}, {place2} and {place3}!"
+   "touch": "Explore here again to open {place}, {place2} and {place3}!",
+   "keys": "Explore here again to open {place}, {place2} and {place3}!"
   },
   "home.wear": {
    "touch": "You have enough for the {thing}. Tap Dress up!",
@@ -186,12 +194,12 @@
    "keys": "{n} 🐾 more to become a {rank}."
   },
   "home.top": {
-   "touch": "Your cat is ready for a walk.",
-   "keys": "Your cat is ready for a walk."
+   "touch": "Your cat is ready to explore.",
+   "keys": "Your cat is ready to explore."
   },
   "home.part-friend": {
-   "touch": "Your friend has more to show you. Tap Start!",
-   "keys": "Your friend has more to show you. Tap Start!"
+   "touch": "Your friend has more to show you. Tap Explore!",
+   "keys": "Your friend has more to show you. Tap Explore!"
   },
   "guide.walk": {
    "touch": "Push the circle to walk.",
@@ -238,8 +246,8 @@
    "keys": "Press Esc when you want to go home."
   },
   "guide.summary-first": {
-   "touch": "Your first walk! ⭐",
-   "keys": "Your first walk! ⭐"
+   "touch": "Your first trip! ⭐",
+   "keys": "Your first trip! ⭐"
   },
   "guide.summary-friend": {
    "touch": "New friend: {name} ♡",
@@ -254,12 +262,12 @@
    "keys": "Skip the lesson"
   },
   "guide.replay": {
-   "touch": "Play the first walk again",
-   "keys": "Play the first walk again"
+   "touch": "Do the first lesson again",
+   "keys": "Do the first lesson again"
   },
   "guide.replay-set": {
-   "touch": "Your next street walk is the first walk.",
-   "keys": "Your next street walk is the first walk."
+   "touch": "The first lesson comes on your next street trip.",
+   "keys": "The first lesson comes on your next street trip."
   },
   "ready.keys": {
    "touch": "Arrow keys to walk",
@@ -325,12 +333,20 @@
    "keys": "Point at an animal. Click."
   },
   "hint.yarn": {
-   "touch": "Tap 🧶 to play with your yarn.",
-   "keys": "Press T to play with your yarn."
+   "touch": "A yarn ball! Run into it to bat it.",
+   "keys": "A yarn ball! Run into it to bat it."
   },
   "hint.bat": {
    "touch": "Run into the ball to bat it.",
    "keys": "Run into the ball to bat it."
+  },
+  "hint.yarn-carry": {
+   "touch": "Put it down to play.",
+   "keys": "Put it down to play."
+  },
+  "hint.tkey": {
+   "touch": "Yarn balls lie around now. Find one! 🧶",
+   "keys": "Yarn balls lie around now. Find one! 🧶"
   },
   "hint.call": {
    "touch": "Tap 😺 to call a cat over.",
@@ -349,8 +365,8 @@
    "keys": "Someone needs help. Walk up and press E."
   },
   "hint.hiss": {
-   "touch": "Conker is cross today. Try again on another walk.",
-   "keys": "Conker is cross today. Try again on another walk."
+   "touch": "Conker is cross today. Try again next time.",
+   "keys": "Conker is cross today. Try again next time."
   },
   "hint.dog": {
    "touch": "That is the dog's garden. Walk round it.",
@@ -405,8 +421,8 @@
    "keys": "Find a person. Press E."
   },
   "how.yarn-play": {
-   "touch": "Tap 🧶. Run into the ball 4 times.",
-   "keys": "Press T. Run into the ball 4 times."
+   "touch": "The yarn ball is Peopleville. Bat it 4 times.",
+   "keys": "The yarn ball is Peopleville. Bat it 4 times."
   },
   "how.dig-treasure": {
    "touch": "Stand still to sniff. Follow the paw prints. Dig!",
@@ -429,12 +445,12 @@
    "keys": "Tap the present! 🎁"
   },
   "home.first": {
-   "touch": "A friend is waiting outside. Tap Start!",
-   "keys": "A friend is waiting outside. Tap Start!"
+   "touch": "A friend is waiting outside. Tap Explore!",
+   "keys": "A friend is waiting outside. Tap Explore!"
   },
   "home.part": {
-   "touch": "Conker has more to show you. Tap Start!",
-   "keys": "Conker has more to show you. Tap Start!"
+   "touch": "Conker has more to show you. Tap Explore!",
+   "keys": "Conker has more to show you. Tap Explore!"
   },
   "home.pick": {
    "touch": "It is time to pick your home!",
@@ -449,16 +465,16 @@
    "keys": "The way to your home starts in Peopleville."
   },
   "home.opens": {
-   "touch": "One more walk here and Peopleville opens!",
-   "keys": "One more walk here and Peopleville opens!"
+   "touch": "Explore here again and Peopleville opens!",
+   "keys": "Explore here again and Peopleville opens!"
   },
   "home.opens-two": {
-   "touch": "One more walk here opens Peopleville and City Park!",
-   "keys": "One more walk here opens Peopleville and City Park!"
+   "touch": "Explore here again to open Peopleville and City Park!",
+   "keys": "Explore here again to open Peopleville and City Park!"
   },
   "home.opens-three": {
-   "touch": "One more walk here opens Peopleville, City Park and Seaside!",
-   "keys": "One more walk here opens Peopleville, City Park and Seaside!"
+   "touch": "Explore here again to open Peopleville, City Park and Seaside!",
+   "keys": "Explore here again to open Peopleville, City Park and Seaside!"
   },
   "home.wear": {
    "touch": "You have enough for the War Paint. Tap Dress up!",
@@ -481,12 +497,12 @@
    "keys": "3 🐾 more to become a Yard Prowler."
   },
   "home.top": {
-   "touch": "Your cat is ready for a walk.",
-   "keys": "Your cat is ready for a walk."
+   "touch": "Your cat is ready to explore.",
+   "keys": "Your cat is ready to explore."
   },
   "home.part-friend": {
-   "touch": "Your friend has more to show you. Tap Start!",
-   "keys": "Your friend has more to show you. Tap Start!"
+   "touch": "Your friend has more to show you. Tap Explore!",
+   "keys": "Your friend has more to show you. Tap Explore!"
   },
   "guide.walk": {
    "touch": "Push the circle to walk.",
@@ -533,8 +549,8 @@
    "keys": "Press Esc when you want to go home."
   },
   "guide.summary-first": {
-   "touch": "Your first walk! ⭐",
-   "keys": "Your first walk! ⭐"
+   "touch": "Your first trip! ⭐",
+   "keys": "Your first trip! ⭐"
   },
   "guide.summary-friend": {
    "touch": "New friend: Conker ♡",
@@ -549,12 +565,12 @@
    "keys": "Skip the lesson"
   },
   "guide.replay": {
-   "touch": "Play the first walk again",
-   "keys": "Play the first walk again"
+   "touch": "Do the first lesson again",
+   "keys": "Do the first lesson again"
   },
   "guide.replay-set": {
-   "touch": "Your next street walk is the first walk.",
-   "keys": "Your next street walk is the first walk."
+   "touch": "The first lesson comes on your next street trip.",
+   "keys": "The first lesson comes on your next street trip."
   },
   "ready.keys": {
    "touch": "Arrow keys to walk",
@@ -584,9 +600,9 @@
  "nextThing": {
   "clanEdition": {
    "presentWaiting": "rule 1: Tap the present! 🎁",
-   "noWalkYet": "rule 2: A friend is waiting outside. Tap Start!",
-   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Start!",
-   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Start!",
+   "noWalkYet": "rule 2: A friend is waiting outside. Tap Explore!",
+   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Explore!",
+   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Explore!",
    "pickIsReady": "rule 4: It is time to pick your home!",
    "newHome": {
     "woods": "rule 5: Your new home is the Woods. Go and see your home base!",
@@ -603,29 +619,29 @@
     "gorge": "rule 6: The way to your home starts in the Woods."
    },
    "opensNext": {
-    "park": "rule 7: One more walk here and City Park opens!",
-    "farm": "rule 7: One more walk here opens Appletree Farm, the Fairground and Seaside!",
-    "fair": "rule 7: One more walk here opens Appletree Farm, the Fairground and Seaside!",
-    "seaside": "rule 7: One more walk here opens Appletree Farm, the Fairground and Seaside!",
-    "docks": "rule 7: One more walk here and the Old Docks opens!",
-    "woods": "rule 7: One more walk here and City Park opens!",
-    "river": "rule 7: One more walk here and the River and Marshes opens!",
-    "moor": "rule 7: One more walk here and the River and Marshes opens!",
-    "pines": "rule 7: One more walk here and the Pines and Swamp opens!",
-    "gorge": "rule 7: One more walk here and the Gorge opens!"
+    "park": "rule 7: Explore here again and City Park opens!",
+    "farm": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "seaside": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "docks": "rule 7: Explore here again and the Old Docks opens!",
+    "woods": "rule 7: Explore here again and City Park opens!",
+    "river": "rule 7: Explore here again and the River and Marshes opens!",
+    "moor": "rule 7: Explore here again and the River and Marshes opens!",
+    "pines": "rule 7: Explore here again and the Pines and Swamp opens!",
+    "gorge": "rule 7: Explore here again and the Gorge opens!"
    },
    "canBuy": "rule 8: You have enough for the Cozy Beanie. Tap Dress up!",
    "feedAgain": "rule 9: Feed Pickles again: 3 of 6.",
    "nearlyEnough": "rule 10: 12 more 🐾 and the Cozy Beanie is yours.",
    "waitingInTheDen": "rule 11: Pickles is waiting in your den.",
    "nextRank": "rule 12: 50 🐾 more to become a Yard Prowler.",
-   "lastRank": "rule 12: Your cat is ready for a walk."
+   "lastRank": "rule 12: Your cat is ready to explore."
   },
   "legacyEdition": {
    "presentWaiting": "rule 1: Tap the present! 🎁",
-   "noWalkYet": "rule 2: A friend is waiting outside. Tap Start!",
-   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Start!",
-   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Start!",
+   "noWalkYet": "rule 2: A friend is waiting outside. Tap Explore!",
+   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Explore!",
+   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Explore!",
    "pickIsReady": "rule 12: 150 🐾 more to become a Yard Prowler.",
    "newHome": {
     "woods": "rule 12: 150 🐾 more to become a Yard Prowler.",
@@ -642,12 +658,12 @@
     "gorge": "rule 12: 150 🐾 more to become a Yard Prowler."
    },
    "opensNext": {
-    "park": "rule 7: One more walk here and City Park opens!",
-    "farm": "rule 7: One more walk here opens Appletree Farm, the Fairground and Seaside!",
-    "fair": "rule 7: One more walk here opens Appletree Farm, the Fairground and Seaside!",
-    "seaside": "rule 7: One more walk here opens Appletree Farm, the Fairground and Seaside!",
-    "docks": "rule 7: One more walk here and the Old Docks opens!",
-    "woods": "rule 7: One more walk here and City Park opens!",
+    "park": "rule 7: Explore here again and City Park opens!",
+    "farm": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "seaside": "rule 7: Explore here again to open Appletree Farm, the Fairground and Seaside!",
+    "docks": "rule 7: Explore here again and the Old Docks opens!",
+    "woods": "rule 7: Explore here again and City Park opens!",
     "river": "rule 12: 150 🐾 more to become a Yard Prowler.",
     "moor": "rule 12: 150 🐾 more to become a Yard Prowler.",
     "pines": "rule 12: 150 🐾 more to become a Yard Prowler.",
@@ -658,7 +674,7 @@
    "nearlyEnough": "rule 10: 12 more 🐾 and the Cozy Beanie is yours.",
    "waitingInTheDen": "rule 11: Pickles is waiting in your den.",
    "nextRank": "rule 12: 50 🐾 more to become a Yard Prowler.",
-   "lastRank": "rule 12: Your cat is ready for a walk."
+   "lastRank": "rule 12: Your cat is ready to explore."
   }
  }
 }

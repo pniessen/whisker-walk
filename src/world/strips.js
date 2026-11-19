@@ -20,14 +20,23 @@
 
 export const TILE_SIZE = 20;
 
-// The two layers. Small things (reeds, tussocks, flowers, stones) are worth
-// drawing only near; trees are seen from far. Both `show` distances are past
-// the fog's near plane (40 m, builder.applySky), measured from the cat to the
-// tile's nearest point, so nothing on a tile is nearer than `show` when it
-// appears.
+// The layers, measured from the cat to the tile's nearest point. Past a
+// layer's range its things are not gone: each has a far stand-in
+// (render/standins.js), so nothing pops out of the view, it only gets
+// simpler where it is small on the screen.
+//   fine    a dense, costly stand (the River's reedbed: forty triangles a
+//           clump) is drawn in full only near; past 20 m, five a clump.
+//   small   reeds, tussocks, flowers and stones.
+//   trees   within about 65 m (step 2, "the 65 m approach"), where the haze
+//           is a fifth of the way in (the fog runs 40 to 130 m,
+//           builder.applySky); past it, a stand-in of about 40 triangles.
+// Step 1 had only small (45/58) and trees (90/105), with nothing past them.
+// Chosen so the River, core and west strip, stays under 70,000 triangles at
+// the worst place a cat can stand (test/striptiles.test.js).
 export const LAYERS = Object.freeze([
-  Object.freeze({ id: 'small', show: 45, hide: 58 }),
-  Object.freeze({ id: 'trees', show: 90, hide: 105 }),
+  Object.freeze({ id: 'fine', show: 14, hide: 20 }),
+  Object.freeze({ id: 'small', show: 30, hide: 38 }),
+  Object.freeze({ id: 'trees', show: 55, hide: 65 }),
 ]);
 
 // How often the ranges are looked at (seconds), and how much building one

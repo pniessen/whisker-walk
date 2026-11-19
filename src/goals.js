@@ -10,7 +10,7 @@ export const GOAL_POOL = [
   { id: 'greet-cats', text: 'Say hello to 3 cats', how: 'how.greet-cats', type: 'friend', target: 3 },
   { id: 'take-photos', text: 'Take 2 photos', how: 'how.take-photos', type: 'photo', target: 2 },
   { id: 'get-scratches', text: 'Get a head scratch', how: 'how.get-scratches', type: 'pet', target: 1 },
-  { id: 'yarn-play', text: 'Play with your yarn', how: 'how.yarn-play', type: 'play', target: 1 },
+  { id: 'yarn-play', text: 'Play with a yarn ball', how: 'how.yarn-play', type: 'play', target: 1 },
   { id: 'dig-treasure', text: 'Dig up a treasure', how: 'how.dig-treasure', type: 'treasure', target: 1 },
   { id: 'box-sit', text: 'Sit in a box', how: 'how.box-sit', type: 'sits', target: 1 },
   { id: 'scenic-spots', text: 'Visit 2 special places', how: 'how.scenic-spots', type: 'scenic', target: 2 },

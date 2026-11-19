@@ -11,7 +11,12 @@ import { addIslandView, fromWoodsDisc, islandKeepLow } from './lake.js';
 import { addCamp } from './camp.js';
 import { tintGround } from './dressing.js';
 import { withLocalUuids } from './localuuids.js';
-import { addMoorDressing, moorGroundTint } from './moordress.js';
+import {
+  addMoorDressing, moorGroundTint, moorGrass, moorClitter, moorBoulders, moorShoreStones,
+} from './moordress.js';
+import { growOn } from '../grow.js';
+import * as north from './moornorth.js';
+import { coreStreams, streamTree, streamSmall } from './streamcore.js';
 
 // =============================================================================
 // The Moor.
@@ -526,14 +531,55 @@ function greyBoulder(x, z, material) {
   return m;
 }
 
+// Bigger areas (src/grow.js; off by default). With the switch on the Moor
+// gains its north strip (moornorth.js): the walkable bounds become z -90..50,
+// the hills and the ground's edge move 40 m north, and the strip's own things
+// are added after everything here. Nothing of the core changes: the lists
+// below are the core's with the strip's put after them. Worked out on first
+// use, never at import (moornorth.js reads moordress.js, which reads this
+// file, so their bindings may not be ready when this module is read).
+let grown = null;
+function grownMoor() {
+  if (!grown) {
+    const waters = Object.freeze([...MOOR_WATERS, north.TARN]);
+    grown = Object.freeze({
+      bounds: Object.freeze({ ...north.GROWN }),
+      waters,
+      horizon: Object.freeze({
+        ...MOOR_HORIZON,
+        rect: north.NORTH_BAND_RECT,
+        // the long sides are 40 m longer: as many cells to the metre as before
+        around: 184,
+      }),
+    });
+  }
+  return grown;
+}
+
+// What the moor dressing's scatter stands on, for cutting it per tile
+// (render/tilesplit.js): each thing's centre and how far its parts reach. The
+// far tors are no scatter (they are the skyline, and with the switch on three
+// of them stand in the strip): they stay whole.
+export function moorDressItems() {
+  return [
+    ...moorGrass().map((g) => ({ x: g.x, z: g.z, r: 0.35 })),
+    ...moorClitter().map((c) => ({ x: c.x, z: c.z, r: c.r })),
+    ...moorBoulders().map((o) => ({ x: o.x, z: o.z, r: o.r })),
+    ...moorShoreStones().map((o) => ({ x: o.x, z: o.z, r: o.r })),
+  ];
+}
+
 export function build(scene, { water = {}, wind } = {}) {
+  const G = growOn() ? grownMoor() : null;
+  const waters = G ? G.waters : MOOR_WATERS;
+  const bounds = G ? G.bounds : BOUNDS;
   b.applySky(scene, 0x9cc4e4, 0xe4e6d8);
   // The ground, tinted so the moor rolls: pale crests, darker hollows,
   // bracken patches, greener by the water (moordress.js).
   const groundMesh = b.ground(120, MOOR_TURF, { surface: 'grass' });
   tintGround(groundMesh, moorGroundTint);
   scene.add(groundMesh);
-  scene.add(b.horizonBand(MOOR_HORIZON));
+  scene.add(b.horizonBand(G ? G.horizon : MOOR_HORIZON));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
@@ -625,24 +671,29 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // --- the trees ----------------------------------------------------------------
   // A thorn has a low fork (Sure Claws); a pine has none.
+  // Bigger areas: with the switch on, each is tagged to be drawn only near
+  // the cat (world/streamcore.js); built, placed and collided all the same.
   const { thorns, pines } = moorTrees();
+  const scatterTrees = [];
+  const plantTree = (g) => { scene.add(g); scatterTrees.push(g); };
   for (const { x, z, scale } of thorns) {
-    scene.add(b.tree(x, z, scale, { wind }));
+    plantTree(b.tree(x, z, scale, { wind }));
     addC(x, z, r2(0.5 * scale));
     perches.push(sureClawsTreePerch(x, z, scale));
   }
   for (const { x, z, scale } of pines) {
-    scene.add(b.pine(x, z, scale, { wind }));
+    plantTree(b.pine(x, z, scale, { wind }));
     addC(x, z, r2(0.4 * scale));
   }
 
   // --- the beds -----------------------------------------------------------------
   // Each one merged mesh (or two, for two colours) out of the shadow pass, and
   // no colliders: a cat pushes through.
+  const reedSpots = moorReeds();
   const beds = [
     ['heather', b.heatherBed(moorHeather(), seedFromCode('moor-heather'))],
     ['gorse', b.gorseBed(moorGorse(), seedFromCode('moor-gorse'))],
-    ['reeds', b.reedBed(moorReeds(), seedFromCode('moor-reeds'))],
+    ['reeds', b.reedBed(reedSpots, seedFromCode('moor-reeds'))],
     ['burrows', b.burrows(WARREN_BURROWS, seedFromCode('moor-warren'))],
   ];
   for (const [name, bed] of beds) {
@@ -668,25 +719,60 @@ export function build(scene, { water = {}, wind } = {}) {
   // Looks only, last: the rolling tint's sheep paths and shingle (groundPaint),
   // and the clitter, boulders, shore stones, moor grass and far tors
   // (dressing). Every Three object in it draws its uuid from a local stream.
-  withLocalUuids('moor-dressing', () => addMoorDressing(scene));
+  const dress = withLocalUuids('moor-dressing', () => addMoorDressing(scene));
+
+  // --- the north strip (bigger areas) -----------------------------------------------
+  // After everything of the core, so the core's objects, colliders and
+  // perches keep their order; wholly under local uuids, so the build's
+  // Math.random draws are the same with the switch on.
+  let strip = null;
+  if (G) {
+    // The core's scatter, tagged to stream (world/streamcore.js): the scatter
+    // thorns and pines, the reeds and the dressing's moor grass, clitter,
+    // boulders and shore stones (its far tors stay whole). The heather and
+    // the gorse are Groups of two meshes, which render/striptiles.js draws
+    // whole, so they are not tagged. Tags only: nothing is built, moved or
+    // drawn differently here.
+    for (const t of scatterTrees) streamTree(t);
+    const reeds = beds.find(([name]) => name === 'reeds')[1];
+    streamSmall(reeds, reedSpots, { layer: 'fine' });
+    streamSmall(dress.dressing, moorDressItems());
+    strip = north.addNorthStrip(scene, { groundMesh, water, waters, waterColor: WATER_COLOR });
+    waterFx.push(strip.waterFx);
+    for (const c of north.northColliders()) addC(c.x, c.z, c.r);
+    perches.push(...north.northTreePerches(), ...north.NORTH_PERCHES);
+  }
 
   return {
     name: 'The Moor',
     colliders,
-    bounds: { ...BOUNDS },
+    bounds: { ...bounds },
+    // Bigger areas: the frozen core, for whatever must not follow the bounds
+    // out (the strays' and the clan's homes, the walk's seeded spots), the
+    // streams (render/striptiles.js) and the strip's rest spots. The core's
+    // streams are cut over the grown Moor, not the core alone: the strip's
+    // heather and gorse are merged meshes like the core's reeds, drawn by
+    // those streams, and each must fall on a tile of its own (a thing past a
+    // stream's rectangle goes to its nearest tile, world/strips.js). The
+    // core's own things land on the same 10 m tiles either way.
+    ...(G ? {
+      core: { ...BOUNDS },
+      strips: [...coreStreams({ areaId: 'moor', rect: north.GROWN }), north.NORTH_STRIP],
+      rests: north.NORTH_RESTS.map((r) => ({ ...r })),
+    } : {}),
     spawn: { x: SPAWN.x, z: SPAWN.z },
     // Nothing Twoleg-made on the Moor.
     boxes: [],
     tippables: [],
     pois: POIS.map((p) => ({ ...p })),
-    collectibles: COLLECTIBLES.map((c) => ({ ...c })),
-    scenics: SCENICS.map((c) => ({ ...c })),
+    collectibles: [...COLLECTIBLES.map((c) => ({ ...c })), ...(G ? north.northCollectibles() : [])],
+    scenics: [...SCENICS.map((c) => ({ ...c })), ...(G ? north.northScenics() : [])],
     critterSpawns: critterSpawns(),
     moments: [
       { id: 'rabbit-bolt', type: 'rabbit', label: 'a rabbit bolting for its burrow', x: 34, z: -32, from: { x: 26, z: -22 } },
     ],
     puddles: PUDDLES.map((p) => ({ ...p })),
-    waters: MOOR_WATERS,
+    waters,
     waterFx,
     groundBounce: MOOR_TURF,
     skyDusk: { top: 0x2a3554, horizon: 0x70647a },

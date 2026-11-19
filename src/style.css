@@ -120,7 +120,12 @@ body.touch-mode .goal-how .how-touch { display: inline; }
 }
 .hud-hint-pic { font-size: 22px; flex: none; }
 .hud-hint-pic:empty { display: none; }
-#hud.hinting .hud-controls, #hud.lesson-on .hud-controls { visibility: hidden; }
+/* The key strip stays up while a hint shows (controls review, 2026-11-19);
+   only the guided first walk puts it away. On a keyboard the hint sits just
+   above it, and the yellow prompt steps up over the hint. */
+#hud.lesson-on .hud-controls { visibility: hidden; }
+body:not(.touch-mode) #hud.hinting:not(.lesson-on) .hud-hint { bottom: 54px; }
+body:not(.touch-mode) #hud.hinting:not(.lesson-on):not(.fight-asking) .hud-prompt { bottom: 128px; }
 /* Touch, wide (a tablet, a phone on its side): centred in the band left of
    the corner map, under the top row; a quest or race line pushes it down. */
 body.touch-mode .hud-hint {
@@ -209,6 +214,12 @@ body.touch-mode .hud-hint.chip { margin: 0; width: fit-content; max-width: calc(
 .guide-ring[data-arrow="bottom"] .guide-ring-arrow {
   bottom: auto; top: calc(100% + 7px); border-top: 0; border-bottom: 16px solid #ffe27a;
 }
+/* ...or at its left, pointing right, when above and below are taken by other
+   buttons and their words (guidebubble.js ringBox). */
+.guide-ring[data-arrow="left"] .guide-ring-arrow {
+  bottom: auto; left: auto; top: 50%; right: calc(100% + 7px); margin: -11px 0 0 0;
+  border: 0; border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-left: 16px solid #ffe27a;
+}
 @keyframes guide-arrow-bob { 0%, 100% { transform: translateY(-4px); } 50% { transform: translateY(2px); } }
 .guide-ring.still { animation: none; border-style: dashed; border-width: 6px; }
 .guide-ring.still .guide-ring-arrow { animation: none; }
@@ -235,6 +246,7 @@ body.touch-mode .hud-hint.chip { margin: 0; width: fit-content; max-width: calc(
 /* A keyboard, while the bubble is up: the ring round the yellow button has
    its arrow above it, so the toasts start above that arrow. */
 body:not(.touch-mode) #hud.hinting:not(.fight-asking):not(.fighting) .hud-toasts { bottom: 184px; }
+body:not(.touch-mode) #hud.hinting:not(.lesson-on):not(.fight-asking):not(.fighting) .hud-toasts { bottom: 214px; }
 /* A toast fades in 0.35 s with a small rise (hud.js removes it right after).
    The fade is short so the white text never outlives its dark pill, which
    left "ghost text" over the cat when the old 0.8 s fade overlapped a busy
@@ -264,7 +276,7 @@ body:not(.touch-mode) #hud.hinting:not(.fight-asking):not(.fighting) .hud-toasts
 }
 .hud-controls {
   position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
-  background: rgba(20,26,38,0.5); font-size: 0.8rem; border-radius: 999px;
+  background: rgba(20,26,38,0.55); font-size: 0.9rem; border-radius: 999px;
   padding: 6px 18px; white-space: nowrap;
 }
 @media (pointer: coarse) {
@@ -405,6 +417,15 @@ body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-ar
 .hud-viewfinder .vf-hint-touch { display: none; }
 body.touch-mode .hud-viewfinder .vf-hint-desktop { display: none; }
 body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
+/* A phone held upright: the viewfinder's bottom edge runs through the move
+   ring and the buttons, so its pill stands above them (and above the yellow
+   prompt), in the clear middle of the screen. */
+@media (max-width: 600px) and (min-height: 501px) {
+  body.touch-mode .hud-viewfinder span {
+    position: fixed; bottom: calc(292px + env(safe-area-inset-bottom));
+    max-width: calc(100vw - 32px); white-space: nowrap;
+  }
+}
 
 /* --- Touch controls: joystick, orbit-drag capture, action cluster, pause ---
    All touch handling is captured by .touch-ui itself (touchstart on it picks
@@ -458,6 +479,19 @@ body.left-handed .tui-joystick-rest {
   display: grid; place-items: center; touch-action: none; cursor: pointer;
 }
 .tui-btn:active { background: rgba(20,26,38,0.8); }
+/* The yarn button went (controls review, 2026-11-19): the photo button keeps
+   the cell it always had, bottom right of the 2x2, so nothing the children
+   know moves. */
+.tui-btn[data-action="camera"] { grid-column: 2; }
+/* The paw's climb badge: ⬆ a climb in reach, ⬇ hop down (touchui.js
+   setClimb). A shape and a colour, at the paw's top corner, never a target. */
+.tui-badge {
+  display: none; position: absolute; top: -6px; right: -6px; width: 24px; height: 24px;
+  border-radius: 50%; background: #f2c14e; color: #2a2100; border: 2px solid #fff4dc;
+  font-size: 13px; line-height: 20px; font-weight: 800; text-align: center; pointer-events: none;
+}
+.tui-btn[data-climb="up"] .tui-badge, .tui-btn[data-climb="down"] .tui-badge { display: block; }
+body.left-handed .tui-badge { right: auto; left: -6px; }
 /* A word under each action button on a player's first walks (setLabels). It
    hangs below the circle (absolute), so the tap target stays 56px; the 10px
    row gap holds it. */
@@ -507,6 +541,9 @@ body.left-handed .tui-joystick-rest {
   display: grid; place-items: center; touch-action: none; cursor: pointer;
 }
 .tui-zoom-btn:active { background: rgba(20,26,38,0.8); }
+/* Off unless "Zoom buttons on screen" is on (settings.zoomButtons, controls
+   review 2026-11-19): pinch, the wheel and the pause card's View chips zoom. */
+body:not(.zoom-buttons) .tui-zoom { display: none; }
 body.left-handed .tui-zoom {
   right: auto;
   left: max(28px, calc(12px + env(safe-area-inset-left)));
@@ -608,7 +645,7 @@ body.touch-mode:not(.left-handed) .hud-top {
 }
 /* Play together, Friends and Save (Launch A, review fix 5): the game's pill
    buttons in place of the old square blue ones. A main action (.primary:
-   Walk with…, Confirm) is gold; the rest are cream outlines. */
+   Confirm) is gold; the rest are cream outlines. */
 .walk-together button, .friend-code-block button {
   min-height: 44px; padding: 8px 18px; border: 1.5px solid #8c9bb4; border-radius: 999px; cursor: pointer;
   background: #2c3d58; color: #f1e0c2; font: inherit; font-size: 15px; font-weight: 700;
@@ -845,6 +882,23 @@ body.touch-mode:not(.left-handed) .hud-top {
   font: inherit; font-weight: 700; font-size: 1.05rem; cursor: pointer;
 }
 .pause-card .primary { background: #e7a9a0; color: #1c2431; border: 0; }
+/* Sound and Music on the pause card: two small switches side by side, each a
+   cream-outlined pill (the switch's checkbox lies over the whole pill). */
+.pause-sound { display: flex; gap: 10px; justify-content: center; width: min(100%, 320px); }
+.pause-sound .settings-row { flex: 1 1 0; min-height: 44px; padding: 4px 10px 4px 14px; gap: 8px;
+  border: 1px solid #8c9bb4; border-radius: 999px; font-weight: 700; }
+.pause-sound .settings-row:last-child { border-bottom: 1px solid #8c9bb4; }
+.pause-sound .settings-label { white-space: nowrap; text-align: left; }
+/* The View chips (controls review, 2026-11-19): the camera's four steps,
+   under the Sound and Music switches. The chosen one is filled. */
+.pause-view { display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(100%, 320px); }
+.pause-view-label { font-size: 0.9rem; color: #f1e0c2; }
+.pause-view-chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; width: 100%; }
+.pause-view-chip { min-height: 44px; padding: 4px 6px; border-radius: 999px; border: 1px solid #8c9bb4;
+  background: transparent; color: #f1e0c2; font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.pause-view-chip[aria-pressed="true"] { background: #f1e0c2; color: #1c2431; border-color: #f1e0c2; }
+.pause-view-chip:disabled { opacity: 0.4; cursor: default; }
+.pause-view-chip:focus-visible { outline: 3px solid #ffe27a; outline-offset: 2px; }
 .pause-card .secondary { background: transparent; color: #f1e0c2; border: 1px solid #8c9bb4;
   font-size: 0.95rem; }
 .pause-card .primary:hover { filter: brightness(1.08); }
@@ -987,6 +1041,7 @@ body.left-handed .chat-tray { left: 0; right: auto; }
     right: max(148px, calc(132px + env(safe-area-inset-right)));
     bottom: max(24px, calc(24px + env(safe-area-inset-bottom)));
   }
+  body:not(.zoom-buttons) .chat-wheel { right: max(88px, calc(72px + env(safe-area-inset-right))); }
   .chat-toggle {
     width: 44px; height: 44px;
     border: 2px solid rgba(255,255,255,0.5); background: rgba(20,26,38,0.55);
@@ -1003,12 +1058,17 @@ body.left-handed .chat-tray { left: 0; right: auto; }
     right: auto;
     left: max(148px, calc(132px + env(safe-area-inset-left)));
   }
+  body.left-handed:not(.zoom-buttons) .chat-wheel { left: max(88px, calc(72px + env(safe-area-inset-left))); }
   body.left-handed .chat-tray { right: auto; left: max(16px, env(safe-area-inset-left)); }
 }
 body.touch-mode .chat-wheel {
   right: max(148px, calc(132px + env(safe-area-inset-right)));
   bottom: max(24px, calc(24px + env(safe-area-inset-bottom)));
 }
+/* Without the zoom pair (the usual case since the controls review) the chat
+   button sits under the cluster's left column, clear of the move ring on the
+   narrowest phones too. */
+body.touch-mode:not(.zoom-buttons) .chat-wheel { right: max(88px, calc(72px + env(safe-area-inset-right))); }
 body.touch-mode .chat-toggle {
   width: 44px; height: 44px;
   border: 2px solid rgba(255,255,255,0.5); background: rgba(20,26,38,0.55);
@@ -1025,7 +1085,52 @@ body.left-handed.touch-mode .chat-wheel {
   right: auto;
   left: max(148px, calc(132px + env(safe-area-inset-left)));
 }
+body.left-handed.touch-mode:not(.zoom-buttons) .chat-wheel { left: max(88px, calc(72px + env(safe-area-inset-left))); }
 body.left-handed.touch-mode .chat-tray { right: auto; left: max(16px, env(safe-area-inset-left)); }
+/* The tray opens ABOVE the action cluster and the yellow prompt (controls
+   review, 2026-11-19: it used to cover all of them), and any other button
+   closes it (chatwheel.js). 292px is where the touch toasts start: the
+   cluster tops out at 210px, the prompt at about 282px. It stops under the
+   top row (the pause button and the points, 44px), scrolling if it must. */
+@media (pointer: coarse) {
+  .chat-tray {
+    bottom: calc(292px + env(safe-area-inset-bottom));
+    max-height: calc(100vh - 292px - env(safe-area-inset-bottom) - max(16px, env(safe-area-inset-top)) - 52px);
+  }
+}
+body.touch-mode .chat-tray {
+  bottom: calc(292px + env(safe-area-inset-bottom));
+  max-height: calc(100vh - 292px - env(safe-area-inset-bottom) - max(16px, env(safe-area-inset-top)) - 52px);
+}
+/* A tablet has room to spare: the tray stands left of the cluster's column,
+   still above the prompt, clear of the corner map and the roster under it. */
+@media (pointer: coarse) and (min-width: 700px) {
+  .chat-tray { right: calc(max(16px, env(safe-area-inset-right)) + 138px); }
+  body.left-handed .chat-tray { right: auto; left: calc(max(16px, env(safe-area-inset-left)) + 138px); }
+}
+@media (min-width: 700px) {
+  body.touch-mode .chat-tray { right: calc(max(16px, env(safe-area-inset-right)) + 138px); }
+  body.left-handed.touch-mode .chat-tray { right: auto; left: calc(max(16px, env(safe-area-inset-left)) + 138px); }
+}
+/* A phone on its side has no room above the cluster: the tray stands beside
+   it instead (the cluster is 122px wide at the edge), above the prompt's
+   line, scrolling if it must. */
+@media (pointer: coarse) and (max-height: 500px) {
+  .chat-tray {
+    right: calc(max(16px, env(safe-area-inset-right)) + 138px);
+    bottom: calc(164px + env(safe-area-inset-bottom));
+    max-height: calc(100vh - 180px);
+  }
+  body.left-handed .chat-tray { left: calc(max(16px, env(safe-area-inset-left)) + 138px); }
+}
+@media (max-height: 500px) {
+  body.touch-mode .chat-tray {
+    right: calc(max(16px, env(safe-area-inset-right)) + 138px);
+    bottom: calc(164px + env(safe-area-inset-bottom));
+    max-height: calc(100vh - 180px);
+  }
+  body.left-handed.touch-mode .chat-tray { right: auto; left: calc(max(16px, env(safe-area-inset-left)) + 138px); }
+}
 
 /* Boot splash (A2 mascot) — shown on load, fades into the game */
 #splash { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center;
@@ -1507,9 +1612,15 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .dr .dr-dock #btn-start:disabled, .dr .dr-dock .primary:disabled { background: var(--btn-off-bg); color: var(--btn-off-fg); box-shadow: none; }
 .dr-start-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
 .dr-start-row #btn-start { order: -1; flex: 1 1 100%; min-width: 0; }
+/* home's dock, every size: Play together is the round 👫 beside Start (as on
+   a phone), not a second full-width button under it; its words are its label */
+.dr .dr-dock .dr-start-row { flex-wrap: nowrap; }
+.dr .dr-dock .dr-start-row #btn-start { order: 0; flex: 1 1 auto; }
 .dr .dr-together, .hb-sheet-dock .dr-together { flex: 1 1 auto; min-height: 48px; padding: 8px 16px; border: 1.5px solid #5b6c88;
   border-radius: 999px; background: transparent; color: var(--cream, #f1e0c2); font: inherit; font-size: 15px; font-weight: 700;
   white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.dr .dr-dock .dr-together { flex: 0 0 64px; width: 64px; padding: 0; border-radius: 50%; font-size: 24px; }
+.dr-dock .dr-together-words { display: none; }
 .dr-dock .dusk { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px;
   padding: 6px 14px; border: 1.5px solid #5b6c88; border-radius: 999px; font-size: 14px; cursor: pointer; color: #c8b8f0; }
 .wt-first { margin: 0 0 6px; font-weight: 700; }
@@ -1679,8 +1790,9 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .hb-menu-word { display: none; }
   .dr-stage { min-height: 200px; }
   .dr-hero-name { font-size: 20px; }
-  .dr-hero-blurb { display: none; }
-  .dr-hero-rank { display: block; }
+  /* under the name, the cat's personality, as on an iPad (the rank read like
+     a breed there: "Calico · Mythical Feline"); the rank is in the Menu */
+  .dr-hero-blurb { font-size: 13px; }
   .dr .dr-portrait { width: 46px; height: 46px; }
   .dr-make-more { display: none; } /* "＋ Make": the strip keeps "🔒 N more" in view */
   .dr-strip { margin-top: 8px; }
@@ -2509,6 +2621,27 @@ body.touch-mode .fight-key { display: none; }
   .screen-panel:has(.screen-cat) { grid-template-columns: minmax(0, 1fr); }
   .screen-cat { width: 64px; height: 64px; }
   .pause-card .primary, .pause-card .secondary { min-width: 0; width: 100%; }
+}
+
+/* --- The walk on the narrowest phones (320px: a small phone with Display
+   Zoom). Controls review, 2026-11-19: the rank was cut ("Mythical F…"), the
+   goals ran to three or four lines each and the toasts landed on them. The
+   rank folds into the points pill (no cup, wrapping if it must), only the
+   goal being worked on shows, and the toasts start lower. --- */
+@media (max-width: 340px) {
+  .hud-top { gap: 1px; width: fit-content; padding: 5px 10px; border-radius: 14px; background: rgba(20,26,38,0.55); }
+  .hud-top .hud-points, .hud-top .hud-rank { background: none; padding: 0; border-radius: 0; }
+  .hud-top .hud-rank { white-space: normal; overflow: visible; font-size: 0.72rem; line-height: 1.15; opacity: 0.92; }
+  .hud-rank .rank-cup { display: none; }
+  .hud-goals:has(.goal.next) .goal:not(.next) { display: none; }
+  body.touch-mode #hud-toasts,
+  body.touch-mode #hud.fight-asking #hud-toasts,
+  body.touch-mode #hud.fighting #hud-toasts { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 124px); }
+  /* ...and are a size smaller, so two of them end above the yellow prompt */
+  body.touch-mode #hud-toasts .toast { font-size: 0.86rem; padding: 6px 12px; line-height: 1.25; }
+  /* with the zoom pair switched on, the chat button takes the cluster's empty cell */
+  body.touch-mode.zoom-buttons .chat-wheel { right: max(88px, calc(72px + env(safe-area-inset-right))); bottom: max(94px, calc(94px + env(safe-area-inset-bottom))); }
+  body.touch-mode.zoom-buttons.left-handed .chat-wheel { right: auto; left: max(22px, calc(6px + env(safe-area-inset-left))); }
 }
 
 /* --- C. narrow (a small phone with Display Zoom is 320px wide): Dress up and

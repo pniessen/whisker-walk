@@ -290,7 +290,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       ${nearby?.available ? `<div id="wt-nearby" class="wt-nearby">${nearbyRowsHtml()}</div>` : ''}
       <div class="wt-actions">
-        <button id="wt-host">Host a walk</button>
+        <button id="wt-host">Start a room</button>
         <div class="code-field">
           <label class="code-label" for="wt-join-code">Room code</label>
           <div class="wt-join-row">
@@ -311,7 +311,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   const nearbyCodeLine = (code) => `Room ${code}: check it's the code on their screen`;
   function nearbyRowsHtml() {
     return nearby.rooms().map((r) => `<div class="wt-nearby-row">`
-      + `<span class="wt-nearby-who">${PAW} <b>${escapeHtml(safeRemoteName(r.name))}</b> is starting a walk nearby</span>`
+      + `<span class="wt-nearby-who">${PAW} <b>${escapeHtml(safeRemoteName(r.name))}</b> is exploring nearby</span>`
       + `<span class="wt-nearby-code">${escapeHtml(nearbyCodeLine(r.code))}</span>`
       + `<button class="primary wt-nearby-join" data-nearby-code="${escapeHtml(r.code)}">Join</button></div>`).join('');
   }
@@ -320,7 +320,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (!sync || !sync.available) return '';
     let body;
     if (cloudPreview) {
-      const fmt = (s) => `${s.rank} · ${s.points} 🐾 (lifetime ${s.lifetimePoints}) · best walk ${s.bestWalk}`;
+      const fmt = (s) => `${s.rank} · ${s.points} 🐾 (lifetime ${s.lifetimePoints}) · best ever ${s.bestWalk}`;
       // Defense in depth: main.js's summarizeSaveForPreview already coerces
       // every numeric field of a cloud-loaded (untrusted) save, so `s.rank`
       // is always one of RANKS' own titles and the numbers are always plain
@@ -351,7 +351,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       } else {
         body = `
           <div class="sync-linked">
-            <div class="tag on">☁️ synced as ${escapeHtml(code)} · after every walk</div>
+            <div class="tag on">☁️ synced as ${escapeHtml(code)} · after every trip</div>
             ${cloudStatus ? `<div class="tag">${escapeHtml(cloudStatus)}</div>` : ''}
             <div class="sync-actions">
               <button id="sync-now" ${cloudBusy ? 'disabled' : ''}>${cloudBusy ? 'Syncing…' : 'Sync now'}</button>
@@ -386,7 +386,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // and the pairing poll would put the cat name straight back, so the button
   // waits, and says why, until she has left the room or the pairing is over.
   function onlineDeleteBlocked() {
-    if (rooms?.getState?.()) return 'Leave the walk room first, then you can delete.';
+    if (rooms?.getState?.()) return 'Leave the room first, then you can delete.';
     const st = colonySync ? colonySync.status() : null;
     const expires = st?.invite && typeof st.invite.expiresAt === 'string' ? Date.parse(st.invite.expiresAt) : NaN;
     if (pairBusy || st?.joining || (Number.isFinite(expires) && expires > Date.now())) {
@@ -502,6 +502,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           ${canBuzz ? settingsSwitchHtml('set-haptics', s.haptics !== false, 'Vibration') : ''}
           ${settingsSwitchHtml('set-left-handed', !!s.leftHanded, 'Left-handed touch controls')}
           ${settingsSwitchHtml('set-invert-y', !!s.invertY, 'Invert look (Y axis)')}
+          ${settingsSwitchHtml('set-zoom-buttons', !!s.zoomButtons, 'Zoom buttons on screen')}
           <label class="settings-row settings-quality">
             <span class="settings-label">Map</span>
             <select id="set-map-mode">
@@ -542,7 +543,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         <div class="settings-grid settings-advanced">
           ${settingsSwitchHtml('set-perf-readout', !!s.perfReadout, 'Performance readout (fps counter)')}
           <label class="settings-row settings-quality">
-            <span class="settings-label">Graphics quality (applies next walk)</span>
+            <span class="settings-label">Graphics quality (changes next time you explore)</span>
             <select id="set-quality">
               <option value="auto" ${s.quality === 'auto' ? 'selected' : ''}>Auto</option>
               <option value="high" ${s.quality === 'high' ? 'selected' : ''}>High detail</option>
@@ -660,7 +661,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         .join('');
       el.outerHTML = rowsHtml
         ? `<div id="player-pets-roster" class="friends-list">${rowsHtml}</div>`
-        : `<div id="player-pets-roster" class="tag">No player pets yet — walk together and touch noses!</div>`;
+        : `<div id="player-pets-roster" class="tag">No player pets yet — explore together and touch noses!</div>`;
       // The cats she hid, each with a way back. Only ids are kept on this
       // device: a name shows only when that cat came back in this fetch
       // (a cat she met); otherwise "A hidden cat". Nobody is looked up.
@@ -914,11 +915,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const card = document.createElement('div');
     card.className = 'colony-news-card';
     card.setAttribute('role', 'dialog');
-    card.setAttribute('aria-label', 'A walk nearby');
+    card.setAttribute('aria-label', 'A friend exploring nearby');
     card.setAttribute('tabindex', '-1');
     const line = document.createElement('p');
     line.className = 'colony-notice-line';
-    line.textContent = `${safeRemoteName(due.name)} is starting a walk nearby. Join?`; // text, never markup
+    line.textContent = `${safeRemoteName(due.name)} is exploring nearby. Join?`; // text, never markup
     const codeLine = document.createElement('p');
     codeLine.className = 'nearby-card-code';
     codeLine.textContent = nearbyCodeLine(due.code);
@@ -980,7 +981,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     let res;
     try { res = await rooms.join(code); } catch { res = { ok: false }; } finally { nearbyBusy = false; }
     if (!res || !res.ok) {
-      joinError = 'Could not join that walk — try again, or type the room code.';
+      joinError = 'Could not join that room — try again, or type the room code.';
       if (fromCard) nearby.dismiss(code); // the card does not ask again; the row stays
     }
     if (!homeVisible()) return; // a walk began meanwhile
@@ -1315,7 +1316,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     return [
       `<span>🏆 ${escapeHtml(rank.title)} · ${nextLine}</span>`,
       streakCount >= 2 ? `<span>🔥 ${streakCount} days in a row</span>` : '',
-      `<span>Best walk ${asFiniteNonNeg(s.bestWalk, 0)} ${PAW}</span>`,
+      `<span>Best ever ${asFiniteNonNeg(s.bestWalk, 0)} ${PAW}</span>`,
       renderGoldenTallyHtml(goldenFound(s.golden, gold), gold.size),
       raceBestMs != null ? `<span>Today’s race best: ${(raceBestMs / 1000).toFixed(1)}s 🏁</span>` : '',
       s.kitten?.stage === 3 ? '<span>🐱 Mochi lives with you now</span>' : '',
@@ -1369,7 +1370,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   function duskChoiceHtml(s) {
     const glow = s.equipped.collar === 'glow';
     return `<div class="hb-dusk${glow ? '' : ' off'}">
-      <label class="hb-dusk-switch"><input type="checkbox" id="dusk-toggle" role="switch" aria-label="Dusk walk"${glow ? '' : ' aria-describedby="dusk-why" disabled'} ${glow && duskWanted ? 'checked' : ''} /><span class="hb-dusk-day">☀️ Day</span><span class="hb-dusk-night">🌙 Dusk</span></label>
+      <label class="hb-dusk-switch"><input type="checkbox" id="dusk-toggle" role="switch" aria-label="Explore at dusk"${glow ? '' : ' aria-describedby="dusk-why" disabled'} ${glow && duskWanted ? 'checked' : ''} /><span class="hb-dusk-day">☀️ Day</span><span class="hb-dusk-night">🌙 Dusk</span></label>
       ${glow ? '' : '<small class="hb-dusk-why" id="dusk-why">wear the Glow Collar</small>'}
     </div>`;
   }
@@ -1488,10 +1489,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const roomState = rooms && rooms.available ? rooms.getState() : null;
     // Home's Today's walk card says when dusk is chosen: a small moon, status
     // only (the choice itself is in Change place).
-    const duskBadge = glowReady && duskWanted ? '<span class="dr-dusk-badge" role="img" aria-label="Dusk walk">🌙</span>' : '';
+    const duskBadge = glowReady && duskWanted ? '<span class="dr-dusk-badge" role="img" aria-label="Explore at dusk">🌙</span>' : '';
     if (openSheet) {
       // Ruling 10: every sheet keeps Start pinned at the bottom (the host-a-
-      // room flow presses "Start the walk together" from 👫 Play together). The room
+      // room flow presses "Explore together" from 👫 Play together). The room
       // isn't rendered here, so this is still the only #btn-start.
       const chosen = Object.prototype.hasOwnProperty.call(CATALOG.areas, s.area) ? s.area : Object.keys(CATALOG.areas)[0];
       // Where the walk actually happens: Legacy walks the Neighborhood in place
@@ -1500,7 +1501,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // Menu and Change place are doors, not screens of their own: no dock.
       const door = openSheet === 'menu' || openSheet === 'places';
       // The dock by sheet: none on the doors or the grown-ups' sheets (no
-      // "Start the walk" under "Start over"); the whole dock (Start and Play
+      // "Explore" under "Start over"); the whole dock (Start and Play
       // together) on Play together, whose room starts from it; on the other
       // sheets only where and Start. Dusk is chosen in Change place only; a
       // Start from any dock reads that choice (duskWanted).
@@ -1515,7 +1516,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         <div class="hb-sheet-head"><button id="hb-back" class="hb-back">${back}</button>${home}</div>
         ${renderSheetBody(openSheet, s, colonyStatus, roomState)}
         ${dock === 'none' ? '' : `<footer class="hb-sheet-dock">
-          <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
+          <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Going to <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
           ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState, { as: startAs() })}</div>`}
         </footer>`}
       </div>`;
@@ -1890,7 +1891,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       joinError = null;
       e.target.disabled = true;
       const res = await rooms.walkWithPartner();
-      if (!res.ok) joinError = 'Could not start your walk together — try again.';
+      if (!res.ok) joinError = 'Could not start exploring together — try again.';
       render();
       return;
     }
@@ -2116,6 +2117,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     if (e.target.id === 'set-invert-y') {
       settings.set('invertY', e.target.checked);
+      onSettingsChange?.();
+      render();
+      return;
+    }
+    if (e.target.id === 'set-zoom-buttons') {
+      settings.set('zoomButtons', e.target.checked);
       onSettingsChange?.();
       render();
       return;

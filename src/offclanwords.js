@@ -185,8 +185,8 @@ export const PHRASES = Object.freeze({
   // walking the bounds with a cat of your crew
   'patrol.prompt': (name) => `E — walk the bounds with ${name}`,
   'patrol.start': (name) => `${name} walks the bounds with you 🐾`,
-  'patrol.endGood': (name) => `${name} heads back to home base. Good walk!`,
-  'patrol.endShort': (name) => `${name} heads back to home base. A longer walk next time!`,
+  'patrol.endGood': (name) => `${name} heads back to home base. Well done!`,
+  'patrol.endShort': (name) => `${name} heads back to home base. Go further next time!`,
   'patrol.award': (name) => `a walk round the bounds with ${name}`,
 
   'journal.chasedOff': 'Outsiders chased away',
@@ -205,6 +205,10 @@ export const PHRASES = Object.freeze({
   'landmark.river.warmPebble': 'a warm pebble on the low rock',
   'landmark.island.ring': 'the stone ring under the old ash',
   'landmark.island.stoneFind': 'a bright beetle wing on a flat stone',
+
+  // ---- the Woods' south strip (bigger areas, 2026-11-19; only seen with the
+  // ?grow=1 switch on); builder's pick
+  'woods.south.scenic': 'the sandy hollow',
 });
 
 // Entries for tutorialwords.js ids (the guided walk, the hints, the home

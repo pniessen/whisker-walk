@@ -290,7 +290,7 @@ describe('hoods lie on the neck behind the head (accessories polish Task 3)', ()
         expect(worst, `${state} t ${t} v ${speed}`).toBeGreaterThanOrEqual(0.01);
       }
     }
-  }, 120_000);
+  }, 30_000);
 
   // It lies on the neck, it is not ears. (The brief asked for its top at or
   // below the head's centre; the coat's own top at the withers is already
@@ -356,7 +356,7 @@ describe('hoods lie on the neck behind the head (accessories polish Task 3)', ()
         expect(nearest, where).toBeLessThanOrEqual(0.015);
       }
     }
-  }, 120_000);
+  }, 30_000);
 
   it('the hood keeps its spot over HOOD.dir; disposing one cat leaves another intact', () => {
     const at = backAnchor(HOOD.dir, { bodyScale: TORSO.SCALE, cover: 'shell' }).at;

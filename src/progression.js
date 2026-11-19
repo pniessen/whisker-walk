@@ -228,7 +228,7 @@ const RETIRED_CATS = { rosa: { name: 'Rosa', price: 40 } };
 // DRAFT wording, the owner signs it off. Kept in this one place so the line can
 // change without touching the logic; catName is the cat who takes over.
 export const ROSA_FAREWELL = (catName) =>
-  `We'll always love Rosa. 💛 Your 40 points are back, and ${catName} will walk with you today.`;
+  `We'll always love Rosa. 💛 Your 40 points are back, and ${catName} is ready to play today.`;
 
 export const CATALOG = {
   cats: {

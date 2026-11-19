@@ -36,7 +36,7 @@ import { disposeHenRig } from '../cat/henfight.js';
 import { setCatRimLight } from '../cat/rimlight.js';
 import { activeCat, scarKey } from '../customcats.js';
 import { herCatPortrait } from '../thumbnails.js';
-import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion } from '../ui/screencards.js';
+import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion, settingsSwitchHtml } from '../ui/screencards.js';
 import { PAW } from '../ui/pawicon.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
@@ -61,9 +61,9 @@ import { createPlayerMarks } from '../render/playermarks.js';
 import { borderMarkId } from '../marks.js';
 import { createMarkContest } from '../markcontest.js';
 import { createMouth, walkEndMarks, carryLabel } from '../carry.js';
-import { propsFor } from '../propsets.js';
+import { propsFor, yarnSpotFor } from '../propsets.js';
 import { createScent } from '../scent.js';
-import { createToy } from '../toy.js';
+import { createToy, buildYarnBall } from '../toy.js';
 import { createQuest } from '../quests.js';
 import { QUEST_TRAIL_COLOR } from '../questscent.js';
 import { createGoals, GOAL_POOL } from '../goals.js';
@@ -147,6 +147,22 @@ const GRASS_ITEM_CLEAR = 0.3;
 // hunt for; Seaside's dune grass reaches 0.3m, so each keeps a bare patch.
 const GRASS_FIND_CLEAR = 0.5;
 import { mulberry32, seedFromCode } from '../rng.js';
+
+// Review S2 (2026-11-19): the moving systems' own streams. Each is seeded from
+// the walk's seed (roomSeed, or the solo walk's soloSeed) XOR its own salt, and
+// none is walkRng: these systems draw lazily and per device (a phase for every
+// critter that spawns, a wander roll whenever a ghost's timer runs out, a push
+// whenever the ball is batted), the exact kind of consumer walkRng's warning
+// in startWalk forbids. They used to be bare Math.random(). Nothing they shape
+// rides the wire or has to agree between co-walkers: a room walk's partners
+// now start their critters on the same phases where they spawn in the same
+// order, and otherwise differ as they always did. Ghosts and gold mice are
+// personal; the ball is this device's own.
+const CRITTER_MOTION_SALT = 0xc417e125;
+const GOLD_PHASE_SALT = 0x901d3c3e;
+const TOY_BAT_SALT = 0x7a4ba775;
+const GHOST_WANDER_SALT = 0x6405757a;
+const ownStream = (seed, salt) => mulberry32(((seed >>> 0) ^ salt) >>> 0);
 import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
 import { bus } from '../events.js';
 import { createUnlockCelebration } from './celebrate.js';
@@ -203,7 +219,7 @@ const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 const CARD_TITLE = { ready: 'Ready?', back: 'Welcome back!', paused: 'Paused' };
 export function resumeLabel(mode, touch) {
   if (mode === 'ready') return touch ? 'Tap to explore' : 'Start exploring (click)';
-  return touch ? 'Keep walking' : 'Keep walking (click)';
+  return touch ? 'Keep exploring' : 'Keep exploring (click)';
 }
 // Which moment a session is in. `started` is set by main.js on the first
 // engage; `resumed` by startWalk for a walk picked up again.
@@ -216,26 +232,59 @@ export function cardMode(s) {
 // still be skipped, a third, quiet button, "Skip the lesson"; and on the
 // guided first walk's Ready? card (a keyboard, before the walk has begun) one
 // line of controls in place of the list, which the pause card keeps.
-export function pauseCardFor(s, touch) {
+// `sound` ({ sound, music }: each on or off, from settings; pauseSoundOf
+// below) adds the Sound and Music switches under the resume button, so a
+// child on a touch screen can turn the sound down without ending the walk.
+// Not on the Ready? card: nothing has been heard yet.
+// With them (controls review, 2026-11-19) the camera's four View steps, as
+// chips: the + and − buttons left the walk screen (pinch and the wheel stay),
+// and this is where the view is picked now. The den stops at Middle
+// (camzoom.js), so Far and Farther are greyed there. In a walk together the
+// key list adds the chat keys.
+export function pauseCardFor(s, touch, sound = null) {
   const mode = cardMode(s);
   const L = s.lesson;
+  const max = maxZoomStep(s.areaId === 'den');
+  const view = sound && Number.isInteger(sound.zoom) ? { step: clampZoomStep(sound.zoom, max), max } : null;
   return pauseCardHtml({
     welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode,
     skip: !!L && !L.finished && !L.skipped,
     oneLine: mode === 'ready' && !touch && L?.kind === 'first' && !L.skipped,
+    sound, view, room: !!s.net,
   });
 }
-export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false }) {
+// The switches' state from settings: Sound is "Mute all sound" turned round,
+// Music is on while the music volume is above 0; `zoom` is the camera's step.
+// null (no switches) without a settings store.
+export function pauseSoundOf(settings) {
+  if (typeof settings?.get !== 'function') return null;
+  return { sound: !settings.get('muted'), music: settings.get('musicVolume') > 0, zoom: settings.get('cameraZoom') };
+}
+export const PAUSE_SOUND_ID = 'pause-sound';
+export const PAUSE_MUSIC_ID = 'pause-music';
+// The View chips: one button a step, close to far (camzoom.js ZOOM_STEPS).
+export const VIEW_WORDS = Object.freeze(['Close', 'Middle', 'Far', 'Farther']);
+export const PAUSE_VIEW_CLASS = 'pause-view-chip';
+function pauseSoundHtml(sound, view) {
+  return `
+      <div class="pause-sound">${settingsSwitchHtml(PAUSE_SOUND_ID, !!sound.sound, '🔊 Sound')}${settingsSwitchHtml(PAUSE_MUSIC_ID, !!sound.music, '🎵 Music')}</div>${view ? pauseViewHtml(view) : ''}`;
+}
+function pauseViewHtml({ step, max }) {
+  const chips = VIEW_WORDS.map((w, i) => `<button type="button" class="${PAUSE_VIEW_CLASS}" data-view-step="${i}" aria-pressed="${i === step}"${i > max ? ' disabled' : ''}>${w}</button>`).join('');
+  return `
+      <div class="pause-view" role="group" aria-label="View"><span class="pause-view-label">👀 View</span><div class="pause-view-chips">${chips}</div></div>`;
+}
+export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null, view = null, room = false }) {
   return `<div class="pause-card"><div class="screen-panel">
     ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
     <div class="screen-body"><h1>${CARD_TITLE[mode] ?? CARD_TITLE.ready}</h1>
     ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
     <div class="screen-actions">
-      <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>
-      <button id="btn-end" class="secondary">End walk &amp; head home</button>${skip ? `
+      <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound, view) : ''}
+      <button id="btn-end" class="secondary">Head home</button>${skip ? `
       <button id="${SKIP_LESSON_ID}" class="quiet">${escapeHtml(tutorialLine('guide.skip'))}</button>` : ''}
     </div>
-    <p class="controls-hint">${hintHtml(oneLine ? [tutorialLine('ready.keys')] : touch ? TOUCH_HINT : KEYS_HINT)}</p></div></div></div>`;
+    <p class="controls-hint">${hintHtml(oneLine ? [tutorialLine('ready.keys')] : touch ? TOUCH_HINT : room ? [...KEYS_HINT, ...ROOM_KEYS_HINT] : KEYS_HINT)}</p></div></div></div>`;
 }
 export const SKIP_LESSON_ID = 'btn-skip-lesson';
 
@@ -253,8 +302,11 @@ export function takeStartLines(session) {
 
 // The controls hint, one unbreakable piece per control: a line wraps only
 // between the dots, never inside "E interact/sniff".
-const TOUCH_HINT = ['Joystick to move', 'drag to look', 'buttons to pounce/meow/yarn/camera', '+ − or pinch to zoom', 'tap the prompt to interact'];
-const KEYS_HINT = ['Arrows move', 'Shift stalk', 'Space pounce/climb', 'E interact/sniff', 'V meow', 'T yarn', 'C camera', '+/− or wheel zoom'];
+// The full key list (controls review, 2026-11-19); the walk's own strip
+// (hud.js KEY_STRIP) has only six. Yarn has no key: the balls lie around.
+const TOUCH_HINT = ['Joystick to move', 'drag to look', 'buttons to pounce/meow/photo', 'pinch to zoom', 'tap the prompt to interact'];
+const KEYS_HINT = ['Arrows/WASD move', 'Shift creep', 'Space jump/climb/pounce', 'E do it/sniff', 'V meow', 'C photo', '+/− or wheel zoom', 'M sound', 'Esc pause'];
+const ROOM_KEYS_HINT = ['Enter chat', '1–9 say a line'];
 // The walk's chat hint. Phones have no number keys, so they're pointed at
 // the 💬 button (in the zoom row) instead.
 export function chatHintLine(touch) {
@@ -421,7 +473,15 @@ export function createWalkLifecycle({
           greets: f.greets,
         })),
         Math.random,
-        { gift: handover, ground: mySession.ground }
+        {
+          gift: handover,
+          ground: mySession.ground,
+          // Review S2: the wander rolls on a stream of the ghosts' own. Ghosts
+          // visit solo walks only, so soloSeed is set; Math.random otherwise.
+          wanderRng: mySession.soloSeed !== undefined
+            ? ownStream(mySession.soloSeed, GHOST_WANDER_SALT)
+            : Math.random,
+        }
       );
       // Ghosts are the one mover class that arrives asynchronously, so they
       // cannot be registered in the startWalk pass with the cat, the strays
@@ -823,6 +883,9 @@ export function createWalkLifecycle({
       // used a bare Math.random(), which put two co-walkers on the same
       // room seed in visibly different firefly fields.
       rng: walkRng,
+      // Review S2: each critter's idle phase, from the critters' own stream
+      // (never walkRng: see CRITTER_MOTION_SALT at the top of this file).
+      motionRng: ownStream(roomSeed ?? soloSeed, CRITTER_MOTION_SALT),
       // v21 3b Task 13: a mouse, rat or squirrel that notices the cat bolts
       // for this cover and stays hidden for the walk (the den has none). Local
       // to this device like every critter position; nothing rides the wire.
@@ -1211,16 +1274,22 @@ export function createWalkLifecycle({
         if (finder) finder.foundGift = found;
       }
     }
-    const toy = createToy(scene, { ground });
+    const toy = createToy(scene, { ground, rng: ownStream(roomSeed ?? soloSeed, TOY_BAT_SALT) });
+    // The yarn ball lies at one of the area's two spots (controls review,
+    // 2026-11-19): picked by the day on a walk alone, by the room's seed on a
+    // walk together, so both players find it in the same place. A hash, never
+    // walkRng. It is nobody's until someone touches it (toy.js `claimed`).
+    const yarnSpot = yarnSpotFor(areaId, roomSeed ?? new Date().toISOString().slice(0, 10));
+    if (yarnSpot) {
+      toy.spot = { x: yarnSpot.x, z: yarnSpot.z };
+      toy.placeAt(yarnSpot);
+    }
     // yarn-rally ghost ball: a single shared marker rendered wherever a
     // REMOTE player's state message currently reports an active toy
     // position (session.remoteToy, kept in sync by net.onState below) — it's
     // not a real toy.js instance, just a visual + hit-test target for
-    // "bat the ghost to request authority".
-    const toyGhost = new THREE.Mesh(
-      new THREE.SphereGeometry(0.13, 8, 8),
-      litMaterial(0xf25c9a)
-    );
+    // "bat the ghost to request authority". The same yarn ball to look at.
+    const toyGhost = buildYarnBall();
     toyGhost.visible = false;
     scene.add(toyGhost);
     // v18 CF-1: without this getter Big Swat never activated in the running
@@ -1437,6 +1506,8 @@ export function createWalkLifecycle({
         ...(c.fallTo ? [{ x: c.fallTo.x, z: c.fallTo.z, r: GRASS_ITEM_CLEAR }] : []),
       ]),
       ...groundFinds(areaData, GOLD_MICE[areaId]).map((p) => ({ x: p.x, z: p.z, r: GRASS_FIND_CLEAR })),
+      // the yarn ball's spot: it should be seen from a little way off
+      ...(yarnSpot ? [{ x: yarnSpot.x, z: yarnSpot.z, r: GRASS_FIND_CLEAR }] : []),
     ] : [];
     const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
     // The blades dominate a lawn's look, so a rainy walk darkens them too.
@@ -1501,6 +1572,10 @@ export function createWalkLifecycle({
         id: 'duo-greet', text: 'Together: greet 5 cats', type: 'friend',
         target: 5, duo: true, progress: 0, done: false,
       };
+    }
+    // The yarn goal's how-line says where today's ball lies (its {place}).
+    for (const g of goals?.goals ?? []) {
+      if (g.id === 'yarn-play' && yarnSpot) g.howSlots = { place: yarnSpot.where };
     }
     // A lesson holds the goals aside (one instruction at a time): they are
     // rolled as always, above, and shown when the lesson is over or skipped.
@@ -1643,7 +1718,9 @@ export function createWalkLifecycle({
       prompt: null,
       lastPromptKind: null,
       balkedPuddles: new Set(),
-      toy, batCount: 0, batReady: true,
+      toy, batCount: 0, batReady: true, yarnSpot,
+      // seconds the yarn ball has been somewhere no cat can reach (avatar.js)
+      yarnStuck: 0,
       toyGhost, remoteToy: null,
       pendingBoop: null, incomingBoop: null,
       tagChain: null, groomTimers: new Map(),
@@ -1670,7 +1747,9 @@ export function createWalkLifecycle({
     // all. areas without an entry in GOLD_MICE (none currently, but future
     // areas like the den) get an inert stub instead of a lookup throw.
     session.goldMice = areaId in GOLD_MICE
-      ? createGoldMice(scene, areaId, new Set(progression.state.golden), { ground })
+      ? createGoldMice(scene, areaId, new Set(progression.state.golden), {
+        ground, rng: ownStream(roomSeed ?? soloSeed, GOLD_PHASE_SALT),
+      })
       : NO_GOLD_MICE;
 
     // v21 3b Task 12 — the rival border marks I scented over on earlier walks,
@@ -1737,8 +1816,9 @@ export function createWalkLifecycle({
     session.treeFade = createTreeFade(isDen ? [] : [...occluders, ...findFadeOccluders(scene)], { reducedMotion });
     // Compile the faded trees' shaders now, not at the first fade mid-walk.
     if (typeof renderer?.compile === 'function') session.treeFade.prewarm(() => renderer.compile(scene, camera));
-    // Bigger areas: an area's strips (areaData.strips, only with the switch on)
-    // are drawn tile by tile near the cat (render/striptiles.js). Here, after
+    // Bigger areas: an area's strips (areaData.strips, only with the switch on),
+    // and its core's scatter, are drawn tile by tile near the cat
+    // (render/striptiles.js, world/streamcore.js). Here, after
     // the caster sweep, the contact-shadow scan, the prop merge and the tree
     // fade, each of which a streamed tree joins on its own when it is built.
     // No strips: the no-op of the same shape.
@@ -1750,6 +1830,9 @@ export function createWalkLifecycle({
       now: () => performance.now(),
       compile: typeof renderer?.compile === 'function' ? () => renderer.compile(scene, camera) : null,
     });
+    // Step 2 ("the 65 m approach"): the core's scatter is streamed too, so the
+    // walk starts with what is round the cat already drawn, not growing in.
+    session.stripTiles.settle(cat.position.x, cat.position.z);
     // Plants that lean away from the cat as it walks through (render/rustle.js):
     // the Moor's heather. Visual only; none in most areas.
     session.rustle = createRustle(scene, { reducedMotion });
@@ -2141,7 +2224,9 @@ export function createWalkLifecycle({
       toggleMute: (id) => { if (mutedIds.has(id)) mutedIds.delete(id); else mutedIds.add(id); },
     });
     session.chatWheel = chatWheel;
-    chatWheel.setVisible(true);
+    // Only in a walk together (controls review, 2026-11-19): alone there is
+    // nobody to talk to, and the button was one more thing on a small screen.
+    chatWheel.setVisible(!!session.net);
     // The chat hint, once per walk (startWalk runs once per walk). It waits
     // on the session like the arrival line: under the Ready? card a toast is
     // never seen. main.js toasts chatHintLine on the first engage. Only on a
@@ -2184,7 +2269,7 @@ export function createWalkLifecycle({
           const entry = remotes.upsert(p, nowSec());
           if (!rosterSeen.has(p.playerId)) {
             rosterSeen.add(p.playerId);
-            if (!firstSync) hud.toast(`${entry.petName} joined the walk 🐾`); // sanitized by remotecats
+            if (!firstSync) hud.toast(`${entry.petName} joined in 🐾`); // sanitized by remotecats
           }
         }
         hud.setRoster(remotes.list.map((r) => r.petName));
@@ -2288,7 +2373,7 @@ export function createWalkLifecycle({
     // A walk picked up again opens on its "Welcome back!" card, paused.
     session.resumed = !!resume;
     session.started = false;
-    overlay.innerHTML = pauseCardFor(session, getIsTouch());
+    overlay.innerHTML = pauseCardFor(session, getIsTouch(), pauseSoundOf(settings));
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());
@@ -2424,14 +2509,14 @@ export function createWalkLifecycle({
       ${isRecord ? bestWalkConfetti(earned, { reduced }) : ''}
       <div class="screen-panel summary-panel">
       ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
-      <h1>Walk complete!</h1>
+      <h1>Home again!</h1>
       <div class="summary-cheer">${escapeHtml(summaryCheer(earned, discoveries))}</div>
       ${isRecord
-        ? '<div class="record-banner">NEW BEST WALK! 🏆</div>'
-        : `<div class="best-line">best walk: ${progression.state.bestWalk} ${PAW}</div>`}
+        ? '<div class="record-banner">NEW BEST! 🏆</div>'
+        : `<div class="best-line">your best: ${progression.state.bestWalk} ${PAW}</div>`}
       ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals && !firstLesson })}
       ${guideHtml}
-      ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
+      ${walkedWith.length ? `<div class="best-line">explored with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
       ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus ${PAW}</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now.&nbsp;🏠</div>` : ''}

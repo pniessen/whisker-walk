@@ -72,7 +72,7 @@ export function crossCardHtml({ name, extras = [] }) {
   const lines = (Array.isArray(extras) ? extras : []).map((e) => `<p>${escapeHtml(e)}</p>`).join('');
   return `<div class="pause-card cross-card">
       <h2>${escapeHtml(headTo(name))}</h2>
-      <p>This walk ends here, and you keep everything you found.</p>
+      <p>Your trip ends here, and you keep everything you found.</p>
       ${lines}
       <button id="btn-cross-yes" class="btn" type="button">Yes, let's go!</button>
       <button id="btn-cross-no" class="btn" type="button">Keep exploring</button>
@@ -106,8 +106,8 @@ export function crossingOutcome({ crossTo, ledBy, together, clan, pickPlace, cat
   const mates = Array.isArray(together) ? together : [];
   if (clan && mates.length) {
     lines.push(ledBy && !picked
-      ? `Ask ${ledBy} to press Start on the home screen to head there together.`
-      : `Walk together again from the home screen to head there with ${joinNames(mates)}.`);
+      ? `Ask ${ledBy} to tap Explore on the home screen to head there together.`
+      : `Explore together again from the home screen to head there with ${joinNames(mates)}.`);
   }
   return { picked, lines };
 }

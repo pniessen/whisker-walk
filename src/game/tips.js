@@ -23,7 +23,7 @@ import { villagerPos } from '../critters.js';
 
 // The small picture beside each line: things the game already draws.
 export const HINT_PICS = Object.freeze({
-  look: '👀', creep: '🐾', jump: '🐾', hop: '🐾', photo: '📷', frame: '📷', yarn: '🧶', bat: '🧶',
+  look: '👀', creep: '🐾', jump: '🐾', hop: '🐾', photo: '📷', frame: '📷', yarn: '🧶', bat: '🧶', 'yarn-carry': '🧶', tkey: '🧶',
   call: '😺', sniff: '👃', box: '📦', help: '❗', hiss: '😾', dog: '🐶', swim: '💧', carry: '🐾',
   home: '🏠', chat: '💬', rival: '🐾', stranger: '🐾',
 });
@@ -36,6 +36,7 @@ const HELP_NEAR_M = 14;
 const STRAY_REACH_M = 6;       // closer than this, a cat is as good as in reach
 const STRAY_FAR_MIN_M = 10;
 const STRAY_FAR_MAX_M = 18;
+const YARN_NEAR_M = 8;
 
 const helpAt = new THREE.Vector3();
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -46,6 +47,29 @@ function ahead(from, fwd, to) {
   const dz = to.z - from.z;
   const d = Math.hypot(dx, dz);
   return d < 0.5 || (dx * fwd.x + dz * fwd.z) / d > 0.35;
+}
+
+// climbInReach(session, player, state) -> true when the paw would climb:
+// a perch in reach from where the cat is (a higher one, when perched), or a
+// seat of one of the Fairground's rides (src/fairlive.js).
+export function climbInReach(session, player, state) {
+  if (player.swimming || session.chasing) return false;
+  const ground = session.ground ?? FLAT_GROUND;
+  const next = bestPerch(session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched, climbBudget(state),
+    { fenceRun: fenceRunning(state), state, ground });
+  // From a perch, bestPerch also offers drops; only a higher perch is a climb.
+  if (next && (!session.perched || next.y > player.perchY + 0.05)) return true;
+  return !session.perched && !!session.fair?.canBoard(session.cat, player, session);
+}
+
+// climbBadge(session, player, state) -> 'up' (a climb in reach), 'down' (on a
+// perch with nothing higher in reach: the paw hops down) or null. The paw
+// button wears it (ui/touchui.js setClimb, controls review 2026-11-19), from
+// the facts the hints use; main.js asks a few times a second.
+export function climbBadge(session, player, state) {
+  if (!session?.cat || !session.areaData || session.fight) return null;
+  if (climbInReach(session, player, state)) return 'up';
+  return session.perched ? 'down' : null;
 }
 
 // walkFacts(session, { player, state, camera }) -> the facts for src/hints.js,
@@ -59,22 +83,24 @@ export function walkFacts(session, { player, state }, f = {}) {
   f.perched = !!session.perched;
   f.camera = !!session.cameraMode;
   f.inWater = !!player.inWater;
-  f.carrying = !!session.carry?.mouth?.held;
-  f.toy = !!session.toy?.active;
+  const held = session.carry?.mouth?.held;
+  f.carrying = !!held && !held.toy; // the yarn ball has a line of its own
+  f.yarnHeld = !!session.toy?.held;
+  // the yarn ball she has touched (a ball still lying where it was found is
+  // nobody's yet, toy.js)
+  f.toy = !!session.toy?.active && session.toy.claimed !== false;
+  f.yarnNear = false;
+  if (session.toy?.active && !session.toy.held && session.toy.mesh) {
+    const p = session.toy.mesh.position;
+    f.yarnNear = dist(p, cat) < YARN_NEAR_M && ahead(cat, fwd, p);
+  }
   f.bats = session.batCount ?? 0;
   f.inBox = (session.boxTime ?? 0) > 0;
   const busy = !!session.prompt || f.perched || f.inWater || !!session.rest || !!session.fight || f.camera;
   f.idleOpen = busy ? 0 : session.idleTime ?? 0;
   f.challenge = session.clanFight?.uiShowing === 'challenge' && !!state.clanPick?.mine && session.areaId === state.clanPick.mine;
 
-  f.canJump = false;
-  if (!f.perched && !player.swimming && !session.chasing) {
-    const ground = session.ground ?? FLAT_GROUND;
-    f.canJump = !!bestPerch(session.areaData.perches ?? [], cat, player.perchY, session.perched, climbBudget(state),
-      { fenceRun: fenceRunning(state), state, ground })
-      // or a seat of one of the Fairground's rides (src/fairlive.js)
-      || !!session.fair?.canBoard(session.cat, player, session);
-  }
+  f.canJump = !f.perched && climbInReach(session, player, state);
 
   f.critterNear = false;
   for (const c of session.critters?.list ?? []) {

@@ -33,13 +33,18 @@ export const WORDS = Object.freeze({
   'hint.hop': two('Tap the paw again to hop down.', 'Press Space again to hop down.'),
   'hint.photo': two('Tap 📷 to take a photo.', 'Press C to take a photo.'),
   'hint.frame': two('Point at an animal. Tap the screen.', 'Point at an animal. Click.'),
-  'hint.yarn': two('Tap 🧶 to play with your yarn.', 'Press T to play with your yarn.'),
+  // The found yarn ball (controls review, 2026-11-19): no button, no key.
+  'hint.yarn': same('A yarn ball! Run into it to bat it.'),
   'hint.bat': same('Run into the ball to bat it.'),
+  'hint.yarn-carry': same('Put it down to play.'),
+  // T used to throw the yarn; a keyboard player's first few presses after
+  // the change get this as a toast (main.js), never as a bubble.
+  'hint.tkey': same('Yarn balls lie around now. Find one! 🧶'),
   'hint.call': two('Tap 😺 to call a cat over.', 'Press V to call a cat over.'),
   'hint.sniff': same('You smell something! Follow the paw prints.'),
   'hint.box': same('Walk into the box and stop.'),
   'hint.help': two('Someone needs help. Walk up and tap the button.', 'Someone needs help. Walk up and press E.'),
-  'hint.hiss': same('{name} is cross today. Try again on another walk.'),
+  'hint.hiss': same('{name} is cross today. Try again next time.'),
   'hint.dog': same('That is the dog\'s garden. Walk round it.'),
   'hint.swim': same('You can swim! Walk to the bank to climb out.'),
   'hint.carry': same('You can carry it home. Or put it down.'),
@@ -55,7 +60,7 @@ export const WORDS = Object.freeze({
   'how.greet-cats': two('Walk up to a cat. Tap the button.', 'Walk up to a cat. Press E.'),
   'how.take-photos': two('Tap 📷. Point at an animal. Tap the screen.', 'Press C. Point at an animal. Click.'),
   'how.get-scratches': two('Find a person. Tap the button.', 'Find a person. Press E.'),
-  'how.yarn-play': two('Tap 🧶. Run into the ball 4 times.', 'Press T. Run into the ball 4 times.'),
+  'how.yarn-play': same('The yarn ball is {place}. Bat it 4 times.'),
   'how.dig-treasure': same('Stand still to sniff. Follow the paw prints. Dig!'),
   'how.box-sit': same('Walk into a cardboard box and stop.'),
   'how.scenic-spots': same('Go to a ☆ on the map.'),
@@ -64,14 +69,14 @@ export const WORDS = Object.freeze({
   // ---- The home screen's "next thing" line (design section 6) --------------
   // src/ui/nextthing.js has the rules; the number is the rule's.
   'home.present': same('Tap the present! 🎁'),                                   // 1
-  'home.first': same('A friend is waiting outside. Tap Start!'),                // 2
-  'home.part': same('{name} has more to show you. Tap Start!'),                 // 3
+  'home.first': same('A friend is waiting outside. Tap Explore!'),                // 2
+  'home.part': same('{name} has more to show you. Tap Explore!'),                 // 3
   'home.pick': same('The wild cats have seen you. Pick your home!'),            // 4
   'home.camp': same('Your new home is {place}. Go and see your camp!'),         // 5
   'home.way': same('The way to your home starts in {place}.'),                  // 6
-  'home.opens': same('One more walk here and {place} opens!'),                  // 7
-  'home.opens-two': same('One more walk here opens {place} and {place2}!'),         // 7, two to buy
-  'home.opens-three': same('One more walk here opens {place}, {place2} and {place3}!'), // 7, three to buy
+  'home.opens': same('Explore here again and {place} opens!'),                  // 7
+  'home.opens-two': same('Explore here again to open {place} and {place2}!'),         // 7, two to buy
+  'home.opens-three': same('Explore here again to open {place}, {place2} and {place3}!'), // 7, three to buy
   'home.wear': same('You have enough for the {thing}. Tap Dress up!'),          // 8
   'home.feed': same('Feed {name} again: {n} of 6.'),                            // 9
   'home.nearly': same('{n} more 🐾 and the {thing} is yours.'),                 // 10
@@ -79,9 +84,9 @@ export const WORDS = Object.freeze({
   'home.rank': same('{n} 🐾 more to become a {rank}.'),                         // 12
   // Not in the design: rule 12 has nothing to count once the last rank is
   // reached, and the line is "always exactly one".
-  'home.top': same('Your cat is ready for a walk.'),
+  'home.top': same('Your cat is ready to explore.'),
   // Rule 3 before the guide's name is known.
-  'home.part-friend': same('Your friend has more to show you. Tap Start!'),
+  'home.part-friend': same('Your friend has more to show you. Tap Explore!'),
 
   // ---- The guided first walk (design section 3). Step 3 of the build shows
   // these; they are here so the walk holds no text of its own. --------------
@@ -96,12 +101,12 @@ export const WORDS = Object.freeze({
   'guide.pounce': two('Tap the paw to pounce!', 'Press Space to pounce!'),
   'guide.done': same('You did it! {name} is your friend now.'),
   'guide.home': two('Tap ⏸ when you want to go home.', 'Press Esc when you want to go home.'),
-  'guide.summary-first': same('Your first walk! ⭐'),
+  'guide.summary-first': same('Your first trip! ⭐'),
   'guide.summary-friend': same('New friend: {name} ♡'),
   'guide.summary-gift': same('A gift from {name}: +20 🐾'),
   'guide.skip': same('Skip the lesson'),
-  'guide.replay': same('Play the first walk again'),
-  'guide.replay-set': same('Your next street walk is the first walk.'),
+  'guide.replay': same('Do the first lesson again'),
+  'guide.replay-set': same('The first lesson comes on your next street trip.'),
   // The "Ready?" card on a keyboard player's very first walk: one line, not
   // the whole list (the pause card keeps the list).
   'ready.keys': same('Arrow keys to walk'),

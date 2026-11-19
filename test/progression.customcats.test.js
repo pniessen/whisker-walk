@@ -76,7 +76,7 @@ describe('malformed saves', () => {
     const raw = { ...createProgression(fakeStorage()).state, retired: [], unlocked: { cats: ['tabby', 'rosa'], accessories: [], areas: ['neighborhood'] },
       equipped: { cat: 'rosa', custom: 'mine1' }, customCats: [{ id: 'mine1', name: 'Ember', personality: 'chaser', look }] };
     const p = createProgression(fakeStorage({ [SAVE_KEY]: JSON.stringify(raw) }));
-    expect(p.takeFarewell()).toContain('Tabby will walk with you');
+    expect(p.takeFarewell()).toContain('Tabby is ready to play today');
     expect(p.state.equipped.custom).toBe(null);
     expect(p.state.customCats).toHaveLength(1);
   });

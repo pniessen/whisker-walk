@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import { PRESETS, poseMeasure } from './helpers/catfingerprint.js';
+import { ready, firstHitRaycaster } from './helpers/bvh.js';
 
 // polish-sit Task 1 (2026-11-02): the sit (requestPet, perch) reads as the
 // classic Warrior Cats sit. The torso pitches NOSE-UP (three.js: + rotation.x
@@ -164,10 +165,12 @@ describe('the sitting tail lies round the paws (polish-sit Task 2)', () => {
   // How far a cat-frame point P lies outside (+) or inside (-) the torso
   // (body + underside), along the line from the torso's centre through P: a
   // ray cast from 1 m out back toward the centre meets the outer surface first
-  // (the faces are one-sided, so a ray from inside would see none).
-  const ray = new THREE.Raycaster();
+  // (the faces are one-sided, so a ray from inside would see none). The ray
+  // goes through a BVH (test/helpers/bvh.js: three's own answers, sooner).
+  const ray = firstHitRaycaster();
   const outside = (cat, P) => {
     const { body, underside } = cat.userData.parts, s = cat.scale.x;
+    ready(body); ready(underside);
     const C = body.getWorldPosition(new THREE.Vector3());
     const Pw = P.clone().multiplyScalar(s), dir = Pw.clone().sub(C).normalize();
     const F = Pw.clone().addScaledVector(dir, 1);
@@ -202,7 +205,7 @@ describe('the sitting tail lies round the paws (polish-sit Task 2)', () => {
       expect(tip.z, `t ${t}: the tip comes round ahead of the hind hips`).toBeLessThan(hipZ);
       expect(Math.abs(tip.x), `t ${t}: the tip beside the cat, not under it`).toBeGreaterThanOrEqual(0.08);
     }
-  }, 120_000);
+  }, 30_000);
 
   it.each(CASES)('%s (simple %s) %s: past the root, no tail goes through the torso', (b, simple, state) => {
     const cat = buildCat(b, undefined, { simple });
@@ -216,7 +219,7 @@ describe('the sitting tail lies round the paws (polish-sit Task 2)', () => {
         expect(worst, `t ${t}: link ${i} outside the torso`).toBeGreaterThanOrEqual(0);
       }
     }
-  }, 120_000);
+  }, 30_000);
 
   // Ruling R1: Hagrid's fan rides his body (rideTail) and keeps the old sit
   // tail. Read from the tree before this change (5a04fb3).

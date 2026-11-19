@@ -64,6 +64,16 @@ describe('tutorialwords', () => {
     expect(bothForms('how.collect')).toEqual({ touch: 'Find something shiny. Tap the button.', keys: 'Find something shiny. Press E.' });
   });
 
+  it('the yarn lines (controls review, 2026-11-19) name no button and no key', () => {
+    expect(line('how.yarn-play', { touch: true, place: 'by the playground bench' })).toBe('The yarn ball is by the playground bench. Bat it 4 times.');
+    expect(line('hint.yarn', { touch: true })).toBe('A yarn ball! Run into it to bat it.');
+    expect(line('hint.yarn-carry', { touch: false })).toBe('Put it down to play.');
+    expect(line('hint.tkey', { touch: false })).toBe('Yarn balls lie around now. Find one! 🧶');
+    for (const id of ['how.yarn-play', 'hint.yarn', 'hint.bat', 'hint.yarn-carry', 'hint.tkey']) {
+      for (const touch of [true, false]) expect(line(id, { touch })).not.toMatch(/🧶\.|Tap 🧶|Press T/);
+    }
+  });
+
   it('the start hint is the design\'s and says no side', () => {
     expect(line('start.touch', { touch: true })).toBe('Push the circle to walk. Drag to look around.');
   });
@@ -85,7 +95,8 @@ describe('tutorialwords', () => {
       'greet-cats': ['Say hello to 3 cats', 'Walk up to a cat. Tap the button.', 'Walk up to a cat. Press E.'],
       'take-photos': ['Take 2 photos', 'Tap 📷. Point at an animal. Tap the screen.', 'Press C. Point at an animal. Click.'],
       'get-scratches': ['Get a head scratch', 'Find a person. Tap the button.', 'Find a person. Press E.'],
-      'yarn-play': ['Play with your yarn', 'Tap 🧶. Run into the ball 4 times.', 'Press T. Run into the ball 4 times.'],
+      // controls review, 2026-11-19: the yarn lies around to find; {place} is the day's spot
+      'yarn-play': ['Play with a yarn ball', 'The yarn ball is . Bat it 4 times.', 'The yarn ball is . Bat it 4 times.'],
       'dig-treasure': ['Dig up a treasure', 'Stand still to sniff. Follow the paw prints. Dig!', 'Stand still to sniff. Follow the paw prints. Dig!'],
       'box-sit': ['Sit in a box', 'Walk into a cardboard box and stop.', 'Walk into a cardboard box and stop.'],
       'scenic-spots': ['Visit 2 special places', 'Go to a ☆ on the map.', 'Go to a ☆ on the map.'],

@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { createInteractions, TREAT_COST, GOAT_SPOT } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
-import { createCarryables } from '../src/carryables.js';
+import { createCarryables, placeInMouth } from '../src/carryables.js';
+import { createToy } from '../src/toy.js';
 import { createKnockables } from '../src/knockables.js';
 import { createRests } from '../src/rests.js';
 import { createAvatarUpdater } from '../src/game/avatar.js';
@@ -411,7 +412,8 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
   // and where the patrol is).
   // Task 15: `rests` gives the session its drink / eat / nap spots, and
   // `player` swaps in a real player (the nap's wake-up reads inputActive).
-  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false, rival = null, rests = null, player: realPlayer = null, askCrossing } = {}) {
+  // Controls review (2026-11-19): `yarn` lays the found yarn ball at {x, z}.
+  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false, rival = null, rests = null, player: realPlayer = null, askCrossing, yarn = null } = {}) {
     const progression = createProgression(fakeStorage());
     progression.replaceFromPayload({ version: 4, skills, feats });
     const log = createDiscoveryLog(progression);
@@ -460,6 +462,13 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       prompt: null,
       lastPromptKind: null,
     };
+    if (yarn) {
+      session.toy = createToy(scene);
+      session.toy.spot = { x: yarn.x, z: yarn.z };
+      session.toy.placeAt(yarn);
+      session.toy.update(1 / 60, null); // settled: slow and on the ground
+      session.batReady = false;
+    }
     const { updateInteractions, handleInteract, tickCarryRain } = createInteractions({
       MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
       getSession: () => session, getIsTouch: () => false,
@@ -472,7 +481,11 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     });
     // A frame, in main.js's order: the carried item follows the mouth, then the
     // prompt scan.
-    const frame = () => { session.carry.items.update(0); updateInteractions(session); };
+    const frame = () => {
+      session.carry.items.update(0);
+      if (session.toy?.held) placeInMouth(session.toy.mesh, session.cat);
+      updateInteractions(session);
+    };
     const walkTo = (x, z) => { session.cat.position.set(x, 0, z); frame(); };
     const press = () => { frame(); handleInteract(session); };
     return { session, prompts, toasts, walkTo, press, frame, progression, player, tickCarryRain, handleInteract, log, purrs };
@@ -508,6 +521,84 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
   // mark, the rest and gift-leave; 'drop' is the very last prompt, so holding
   // something never shadows anything else.
   // -------------------------------------------------------------------------
+  // Controls review, 2026-11-19: the yarn ball lies around to find. It goes
+  // in the same mouth through the same yellow prompt; put down, it gets the
+  // little forward kick the 🧶 button used to give; nothing is saved.
+  describe('the found yarn ball: pick up, put down', () => {
+    const yarnHarness = (opts = {}) => promptHarness({ stray: null, yarn: { x: 5, z: 0 }, ...opts });
+
+    it('lying within reach and slow: "E — pick up the yarn ball"; rolling, no prompt', () => {
+      const h = yarnHarness();
+      h.walkTo(5, 1.0);
+      expect(h.session.prompt.kind).toBe('yarn-pick');
+      expect(h.prompts.at(-1)).toBe('E — pick up the yarn ball');
+      h.walkTo(5, 1.3); // past the 1.2 m reach
+      expect(h.session.prompt).toBe(null);
+      h.session.toy.bat(new THREE.Vector3(5, 0, -1)); // rolling now
+      h.walkTo(5, 1.0);
+      expect(h.session.prompt?.kind).not.toBe('yarn-pick');
+    });
+
+    it('in the mouth it is held, hers, and sends no carry event; nothing is kept at the walk\'s end', () => {
+      const sent = [];
+      const h = yarnHarness();
+      h.session.net = { sendEvent: (e) => sent.push(e) };
+      h.session.playerId = 'me';
+      h.walkTo(5, 0.6);
+      h.press();
+      expect(h.session.carry.mouth.held).toEqual({ id: 'yarn', kind: 'yarn', toy: true });
+      expect(h.session.toy.held).toBe(true);
+      expect(h.session.toy.claimed).toBe(true);
+      expect(sent).toEqual([]);
+      h.frame();
+      const m = h.session.toy.mesh.position;
+      expect(Math.hypot(m.x - 5, m.z - 0.6)).toBeLessThan(0.6); // at the mouth, by the cat
+      expect(h.session.carry.mouth.dropped.size).toBe(0);
+    });
+
+    it('"E — put the yarn ball down" kicks it a little way forward', () => {
+      const h = yarnHarness();
+      h.walkTo(5, 0.6);
+      h.press();
+      h.walkTo(10, 10);
+      expect(h.session.prompt.kind).toBe('drop');
+      expect(h.prompts.at(-1)).toBe('E — put the yarn ball down');
+      h.press();
+      const toy = h.session.toy;
+      expect(h.session.carry.mouth.held).toBe(null);
+      expect(toy.held).toBe(false);
+      expect(toy.active).toBe(true);
+      const z0 = toy.mesh.position.z;
+      for (let i = 0; i < 20; i++) toy.update(1 / 60, null);
+      expect(toy.mesh.position.z).toBeGreaterThan(z0 + 0.3); // the harness cat faces +z
+      expect(h.session.carry.mouth.dropped.size).toBe(0); // no drop mark: a toy, not a keepsake
+    });
+
+    it('a rain slip lets it fall where the mouth was, without the kick', () => {
+      const h = yarnHarness();
+      h.session.weather = { isRaining: () => true };
+      h.walkTo(5, 0.6);
+      h.press();
+      h.walkTo(10, 10);
+      const at = h.session.toy.mesh.position.clone();
+      h.tickCarryRain(h.session, RAIN_GRIP + 0.1);
+      expect(h.session.carry.mouth.held).toBe(null);
+      expect(h.toasts.at(-1)).toBe('Slippery paws! You dropped the yarn ball. 💧');
+      for (let i = 0; i < 20; i++) h.session.toy.update(1 / 60, null);
+      expect(Math.hypot(h.session.toy.mesh.position.x - at.x, h.session.toy.mesh.position.z - at.z)).toBeLessThan(0.05);
+    });
+
+    it('a stick lying beside it is offered first; a ball is never picked up from a perch', () => {
+      const h = yarnHarness({ carryables: [{ id: 'park-stick-1', kind: 'stick', x: 5.4, z: 0 }] });
+      h.walkTo(5.2, 0.8);
+      expect(h.session.prompt.kind).toBe('carry');
+      const p = yarnHarness();
+      p.session.perched = { x: 5, z: 1, y: 0.5 };
+      p.walkTo(5, 1.0);
+      expect(p.session.prompt?.kind).not.toBe('yarn-pick');
+    });
+  });
+
   describe('carry: pick up, put down', () => {
     // The harness crate stands at (0, 2); the stick is well clear of it.
     const STICK = { id: 'park-stick-1', kind: 'stick', x: 5, z: 0 };
@@ -1714,7 +1805,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       const h = promptHarness({ stray: null, areaId: 'moor', askCrossing: () => { throw new Error('no'); } });
       h.walkTo(47.5, -13);
       expect(h.session.prompt.kind).toBe('border-info');
-      expect(h.prompts.at(-1)).toBe('🔒 The Gorge opens after 2 walks in The Moor · 1/2 so far');
+      expect(h.prompts.at(-1)).toBe('🔒 The Gorge opens after you explore The Moor 2 times · 1/2');
       expect(() => h.press()).not.toThrow();
     });
 

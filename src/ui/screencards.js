@@ -8,7 +8,7 @@ import { PAW } from './pawicon.js';
 import { confettiHtml } from './visitcelebration.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 
-const CHEERS = ['What a walk!', 'Great exploring!', 'Happy paws!', 'You did it!', 'Lovely walk!'];
+const CHEERS = ['What a trip!', 'Great exploring!', 'Happy paws!', 'You did it!', 'What fun!'];
 
 // Same walk, same cheer: a fixed pick, never a random one.
 export function summaryCheer(earned, discoveries) {

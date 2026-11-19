@@ -50,13 +50,19 @@ export function discoveryText({ type, label, repeat }) {
 // A goal's "how" line, in both forms: the page's touch mode shows one (CSS,
 // like the viewfinder's two hints), so a device that turns out to be touch
 // mid-walk reads the right words without a redraw.
+// A goal may carry the slots its line needs (`howSlots`: the yarn goal's
+// {place}, set by walk.js).
 export function goalHowHtml(goal) {
   if (!goal || !hasLine(goal.how)) return '';
-  const { touch, keys } = bothForms(goal.how);
+  const { touch, keys } = bothForms(goal.how, goal.howSlots ?? {});
   const body = touch === keys ? escapeHtml(touch)
     : `<span class="how-keys">${escapeHtml(keys)}</span><span class="how-touch">${escapeHtml(touch)}</span>`;
   return `<div class="goal-how">${body}</div>`;
 }
+
+// The desktop key strip (controls review, 2026-11-19): six things, the ones
+// a walk needs every minute. The full list is on the Paused card (walk.js).
+export const KEY_STRIP = '←↑↓→/WASD move · Space jump · E do it · V meow · C photo · Esc pause';
 
 export function createHud() {
   const root = document.getElementById('hud');
@@ -72,7 +78,7 @@ export function createHud() {
     <div class="hud-hint hidden" id="hud-hint" role="status" aria-live="polite"><span id="hud-hint-pic" class="hud-hint-pic" aria-hidden="true"></span><span id="hud-hint-text" class="hud-hint-text"></span></div>
     <div class="hud-toasts" id="hud-toasts" role="status" aria-live="polite"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
-    <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · +/− zoom · M mute · Esc menu</div>
+    <div class="hud-controls" id="hud-controls">${KEY_STRIP}</div>
     <div class="hud-crosshair hidden" id="hud-crosshair">·</div>
     <div class="hud-viewfinder hidden" id="hud-viewfinder">
       <span class="vf-hint-desktop">📷 click to snap · C to lower</span>
@@ -150,7 +156,18 @@ export function createHud() {
     setArea(name) { areaEl.textContent = name; },
     // Where the corner map's canvas goes (createMinimap's host).
     get mapHost() { return mapEl; },
-    setRank(title) { rankEl.textContent = `🏆 ${title}`; },
+    // The cup and the title in spans of their own: on the narrowest phones
+    // the rank folds into the points pill without its cup (style.css).
+    setRank(title) {
+      rankEl.textContent = '';
+      const cup = document.createElement('span');
+      cup.className = 'rank-cup';
+      cup.textContent = '🏆 ';
+      const name = document.createElement('span');
+      name.className = 'rank-title';
+      name.textContent = title;
+      rankEl.append(cup, name);
+    },
     // tappable: on touch devices there's no E key, so the prompt pill itself
     // becomes a button — strip the "E — " keyboard-hint prefix for display
     // and fire onPromptTap handlers when it's tapped. Desktop keeps the
@@ -276,8 +293,10 @@ export function createHud() {
       el.classList.toggle('hidden', !goals);
       if (goals) {
         const next = goals.find((g) => !g.done);
+        // `next` marks the first unfinished goal: the narrowest phones show
+        // only that one (style.css).
         el.innerHTML = goals.map((g) =>
-          `<div class="goal ${g.done ? 'done' : ''}">${g.done ? '✓' : '○'} ${g.text}` +
+          `<div class="goal ${g.done ? 'done' : ''}${g === next ? ' next' : ''}">${g.done ? '✓' : '○'} ${g.text}` +
           (g.target > 1 ? ` — ${Math.min(g.progress, g.target)}/${g.target}` : '') + `</div>` +
           (g === next ? goalHowHtml(g) : '')
         ).join('');
