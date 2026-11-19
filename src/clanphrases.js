@@ -359,6 +359,14 @@ const LATER = Object.freeze({
   'pines.west.myrtle': 'a sprig of sweet-smelling bog myrtle',
   'pines.west.pebble': 'a frog-green pebble by the far bog',
   'pines.west.wren': 'a soft brown wren feather',
+  // ---- the Moor's north strip (bigger areas, 2026-11-19; only seen with the
+  // ?grow=1 switch on): its own words, the same in every set ------------------
+  'moor.north.lookout': 'stone table lookout',
+  'moor.north.scenic': 'the standing stones on the moor top',
+  'moor.north.wool': 'a tuft of sheep\'s wool on the stone table',
+  'moor.north.beetle': 'a shiny green beetle by the tarn',
+  'moor.north.bilberry': 'a sprig of bilberries by the far wall',
+  'moor.north.feather': 'a speckled grouse feather in the heather',
 });
 
 // Every id of the first table, in table order.
