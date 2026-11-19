@@ -146,7 +146,7 @@ together takes one tap and no code:
    device, even on an earlier day, that device also shows the offer as a card
    over the cat's screen: **"Mittens is starting a walk nearby. Join?"**
    **Not now** puts the card away for that room.)
-3. Both cats are in the room. Either player taps **Start the walk together**.
+3. Both cats are in the room. Either player taps **Explore together**.
 
 What to know:
 

@@ -36,7 +36,7 @@ import { disposeHenRig } from '../cat/henfight.js';
 import { setCatRimLight } from '../cat/rimlight.js';
 import { activeCat, scarKey } from '../customcats.js';
 import { herCatPortrait } from '../thumbnails.js';
-import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion } from '../ui/screencards.js';
+import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion, settingsSwitchHtml } from '../ui/screencards.js';
 import { PAW } from '../ui/pawicon.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
@@ -203,7 +203,7 @@ const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 const CARD_TITLE = { ready: 'Ready?', back: 'Welcome back!', paused: 'Paused' };
 export function resumeLabel(mode, touch) {
   if (mode === 'ready') return touch ? 'Tap to explore' : 'Start exploring (click)';
-  return touch ? 'Keep walking' : 'Keep walking (click)';
+  return touch ? 'Keep exploring' : 'Keep exploring (click)';
 }
 // Which moment a session is in. `started` is set by main.js on the first
 // engage; `resumed` by startWalk for a walk picked up again.
@@ -216,23 +216,41 @@ export function cardMode(s) {
 // still be skipped, a third, quiet button, "Skip the lesson"; and on the
 // guided first walk's Ready? card (a keyboard, before the walk has begun) one
 // line of controls in place of the list, which the pause card keeps.
-export function pauseCardFor(s, touch) {
+// `sound` ({ sound, music }: each on or off, from settings; pauseSoundOf
+// below) adds the Sound and Music switches under the resume button, so a
+// child on a touch screen can turn the sound down without ending the walk.
+// Not on the Ready? card: nothing has been heard yet.
+export function pauseCardFor(s, touch, sound = null) {
   const mode = cardMode(s);
   const L = s.lesson;
   return pauseCardHtml({
     welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode,
     skip: !!L && !L.finished && !L.skipped,
     oneLine: mode === 'ready' && !touch && L?.kind === 'first' && !L.skipped,
+    sound,
   });
 }
-export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false }) {
+// The switches' state from settings: Sound is "Mute all sound" turned round,
+// Music is on while the music volume is above 0.
+// null (no switches) without a settings store.
+export function pauseSoundOf(settings) {
+  if (typeof settings?.get !== 'function') return null;
+  return { sound: !settings.get('muted'), music: settings.get('musicVolume') > 0 };
+}
+export const PAUSE_SOUND_ID = 'pause-sound';
+export const PAUSE_MUSIC_ID = 'pause-music';
+function pauseSoundHtml(sound) {
+  return `
+      <div class="pause-sound">${settingsSwitchHtml(PAUSE_SOUND_ID, !!sound.sound, '🔊 Sound')}${settingsSwitchHtml(PAUSE_MUSIC_ID, !!sound.music, '🎵 Music')}</div>`;
+}
+export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null }) {
   return `<div class="pause-card"><div class="screen-panel">
     ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
     <div class="screen-body"><h1>${CARD_TITLE[mode] ?? CARD_TITLE.ready}</h1>
     ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
     <div class="screen-actions">
-      <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>
-      <button id="btn-end" class="secondary">End walk &amp; head home</button>${skip ? `
+      <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound) : ''}
+      <button id="btn-end" class="secondary">Head home</button>${skip ? `
       <button id="${SKIP_LESSON_ID}" class="quiet">${escapeHtml(tutorialLine('guide.skip'))}</button>` : ''}
     </div>
     <p class="controls-hint">${hintHtml(oneLine ? [tutorialLine('ready.keys')] : touch ? TOUCH_HINT : KEYS_HINT)}</p></div></div></div>`;
@@ -2184,7 +2202,7 @@ export function createWalkLifecycle({
           const entry = remotes.upsert(p, nowSec());
           if (!rosterSeen.has(p.playerId)) {
             rosterSeen.add(p.playerId);
-            if (!firstSync) hud.toast(`${entry.petName} joined the walk 🐾`); // sanitized by remotecats
+            if (!firstSync) hud.toast(`${entry.petName} joined in 🐾`); // sanitized by remotecats
           }
         }
         hud.setRoster(remotes.list.map((r) => r.petName));
@@ -2288,7 +2306,7 @@ export function createWalkLifecycle({
     // A walk picked up again opens on its "Welcome back!" card, paused.
     session.resumed = !!resume;
     session.started = false;
-    overlay.innerHTML = pauseCardFor(session, getIsTouch());
+    overlay.innerHTML = pauseCardFor(session, getIsTouch(), pauseSoundOf(settings));
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());
@@ -2424,14 +2442,14 @@ export function createWalkLifecycle({
       ${isRecord ? bestWalkConfetti(earned, { reduced }) : ''}
       <div class="screen-panel summary-panel">
       ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
-      <h1>Walk complete!</h1>
+      <h1>Home again!</h1>
       <div class="summary-cheer">${escapeHtml(summaryCheer(earned, discoveries))}</div>
       ${isRecord
-        ? '<div class="record-banner">NEW BEST WALK! 🏆</div>'
-        : `<div class="best-line">best walk: ${progression.state.bestWalk} ${PAW}</div>`}
+        ? '<div class="record-banner">NEW BEST! 🏆</div>'
+        : `<div class="best-line">your best: ${progression.state.bestWalk} ${PAW}</div>`}
       ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals && !firstLesson })}
       ${guideHtml}
-      ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
+      ${walkedWith.length ? `<div class="best-line">explored with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
       ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus ${PAW}</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now.&nbsp;🏠</div>` : ''}

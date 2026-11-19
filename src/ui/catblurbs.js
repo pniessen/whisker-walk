@@ -16,7 +16,7 @@ export const CAT_BLURBS = {
 };
 export const ACC_BLURBS = {
   bell: 'Birds come closer',
-  glow: 'Unlocks dusk walks with fireflies',
+  glow: 'Lets you explore at dusk, with fireflies',
   bandana: 'Neighbors wave back (+points)',
   booties: 'Puddles become splash discoveries',
   backpack: 'Carry one extra collectible',

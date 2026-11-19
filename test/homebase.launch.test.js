@@ -313,7 +313,7 @@ describe('Change place (the places sheet)', () => {
     // a gated one says what it waits for
     progression.state.walks.neighborhood = 0;
     dressingMock.opts.onPlaced('park', false);
-    expect(toast).toHaveBeenLastCalledWith(expect.stringMatching(/^opens after 2 walks in .+ · 0\/2 so far$/));
+    expect(toast).toHaveBeenLastCalledWith(expect.stringMatching(/^opens after you explore .+ · 0\/2$/));
   });
   it('no wobble when she asked for reduced motion (the line still comes)', () => {
     const toast = vi.fn();
@@ -653,7 +653,7 @@ describe('Settings: Advanced', () => {
     openSheet('journal');
     const h = html();
     expect(h).toContain('hb-sheet-dock');
-    expect(h).toContain('Walking in <b>');
+    expect(h).toContain('Going to <b>');
     expect(h).toContain('id="btn-start"');
     expect(h).not.toContain('id="dusk-toggle"');
   });
@@ -782,7 +782,7 @@ describe('Play together holds the friends (Friends folded in)', () => {
     openSheet('together');
     const h = html();
     expect(h).toContain('id="wt-pair-walk"');
-    expect(h).toContain('Walk with Robin');
+    expect(h).toContain('Explore with Robin');
     expect(h.indexOf('wt-pair')).toBeGreaterThan(h.indexOf('id="wt-petname-input"'));
     expect(h.indexOf('wt-pair')).toBeLessThan(h.indexOf('id="wt-host"'));
   });
@@ -829,7 +829,7 @@ describe('Day / Dusk in Change place', () => {
     openSheet('places');
     const h = html();
     expect(h).toContain('<span class="hb-dusk-day">☀️ Day</span><span class="hb-dusk-night">🌙 Dusk</span>');
-    expect(h).toMatch(/<input type="checkbox" id="dusk-toggle" role="switch" aria-label="Dusk walk"\s*\/>/);
+    expect(h).toMatch(/<input type="checkbox" id="dusk-toggle" role="switch" aria-label="Explore at dusk"\s*\/>/);
     expect(h.indexOf('class="hb-dusk"')).toBeLessThan(h.indexOf('class="dr-where"'));
     expect(h).not.toContain('Glow Collar');
   });
@@ -847,7 +847,7 @@ describe('Day / Dusk in Change place', () => {
     openSheet('places');
     chooseDusk(true);
     openSheet(null);
-    expect(html()).toContain('<span class="dr-dusk-badge" role="img" aria-label="Dusk walk">🌙</span>');
+    expect(html()).toContain('<span class="dr-dusk-badge" role="img" aria-label="Explore at dusk">🌙</span>');
     expect(html()).not.toContain('id="dusk-toggle"'); // status, not a control
     pressStart();
     expect(onStartWalk).toHaveBeenLastCalledWith({ duskMode: true });
@@ -1011,7 +1011,7 @@ describe('the next-thing line and the first pick', () => {
   it('a brand-new save reads "A friend is waiting outside", just above Start', () => {
     setup();
     expect(rule()).toBe(2);
-    expect(html()).toContain('A friend is waiting outside. Tap Start!');
+    expect(html()).toContain('A friend is waiting outside. Tap Explore!');
     expect(html().indexOf('class="hb-next"')).toBeLessThan(html().indexOf('id="btn-start"'));
     expect(html().match(/class="hb-next"/g)).toHaveLength(1); // always exactly one
   });
@@ -1021,7 +1021,7 @@ describe('the next-thing line and the first pick', () => {
     progression.addPoints(55);
     progression.completeWalk('neighborhood');
     hb.refresh();
-    expect(rule()).toBe(7); // "One more walk here and the Woods opens!" (the free place first)
+    expect(rule()).toBe(7); // "Explore here again and the Woods opens!" (the free place first)
     progression.completeWalk('neighborhood');
     hb.refresh();
     expect(rule()).toBe(4);

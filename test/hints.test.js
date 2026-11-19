@@ -45,7 +45,7 @@ describe('the hint table', () => {
     expect(line('hint.home', { touch: true })).toBe('Tap ⏸ when you want to go home.');
     expect(line('hint.home', { touch: false })).toBe('Press Esc when you want to go home.');
     expect(line('hint.help', { touch: false })).toBe('Someone needs help. Walk up and press E.');
-    expect(line('hint.hiss', { name: 'Pepper' })).toBe('Pepper is cross today. Try again on another walk.');
+    expect(line('hint.hiss', { name: 'Pepper' })).toBe('Pepper is cross today. Try again next time.');
   });
 });
 

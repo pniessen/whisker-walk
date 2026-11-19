@@ -389,7 +389,7 @@ describe('the name box', () => {
   it('a cat already named with one of those words can still Host and Join', () => {
     setup({ name: 'Pisstopher' });
     openSheet('together');
-    expect(html()).toContain('<button id="wt-host">Host a walk</button>');
+    expect(html()).toContain('<button id="wt-host">Start a room</button>');
   });
 });
 
@@ -403,7 +403,7 @@ describe('Host and Join with no cat name yet', () => {
       const focused = [];
       doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? { value: '', focus: () => focused.push(sel) } : sel === '#wt-join-code' ? { value: 'ABCD' } : null);
       await tap({ id });
-      expect(html()).toContain('You need a walking name before you can join a walk. Type one here and tap Save:');
+      expect(html()).toContain('You need a walking name before you can play together. Type one here and tap Save:');
       expect(focused).toEqual(['#wt-petname-input']);
       expect(rooms.host).not.toHaveBeenCalled();
       expect(rooms.join).not.toHaveBeenCalled();

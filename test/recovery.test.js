@@ -103,7 +103,7 @@ describe('the reload-loop guard', () => {
 
 describe('what the child sees', () => {
   it('the walk-ended line is gentle and says nothing was lost', () => {
-    expect(WALK_ENDED_LINE).toMatch(/^Oops! Something went wrong on that walk/);
+    expect(WALK_ENDED_LINE).toMatch(/^Oops! Something went wrong on that trip/);
     expect(WALK_ENDED_LINE).toContain('Everything you found is saved');
   });
 

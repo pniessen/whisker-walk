@@ -159,7 +159,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     if (gated) {
       lockLine = opensAfterLine(req, have, state?.edition, catalog);
     } else if (!owned) {
-      lockLine = points >= price ? `Unlock — ${price} 🐾` : `${price} 🐾 — keep walking!`;
+      lockLine = points >= price ? `Unlock — ${price} 🐾` : `${price} 🐾 — keep exploring!`;
     }
     return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === walkArea, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
   });
@@ -289,7 +289,7 @@ function placeHtml(p) {
       + `<img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">`
       + `<span class="cap">${escapeHtml(p.name)}<button type="button" class="dr-place-buy" data-dr-place-buy="${escapeHtml(p.id)}">${escapeHtml(p.lockLine)}</button></span></div>`;
   }
-  const sub = p.selected ? 'today’s walk' : p.owned ? 'tap to walk here' : p.lockLine;
+  const sub = p.selected ? 'you’re going here' : p.owned ? 'tap to go here' : p.lockLine;
   const cant = !p.owned && !p.locked && !p.canBuy;
   return `<button class="dr-place ${p.selected ? 'sel' : ''} ${p.locked ? 'locked' : ''} ${cant ? 'cant' : ''}" data-dr-place="${escapeHtml(p.id)}">`
     + `<img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">`
@@ -403,9 +403,9 @@ function wearingHtml(m, ui, thumbs) {
 function todayHtml(m, extrasHtml = '') {
   const p = m.currentPlace;
   const emblem = p.clan && CLAN_EMBLEMS[p.clan] ? `<span class="dr-today-emblem">${CLAN_EMBLEMS[p.clan]}</span>` : '';
-  const label = `Today’s walk: ${p.name}. Change place`;
+  const label = `Going to: ${p.name}. Change place`;
   return `<section class="dr-today">
-    <p class="dr-label">Today’s walk</p>
+    <p class="dr-label">Today’s place</p>
     <div class="dr-today-frame">
     <button class="dr-today-card" data-dr-sheet="places" aria-label="${escapeHtml(label)}">
       <img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">
@@ -419,7 +419,8 @@ function todayHtml(m, extrasHtml = '') {
 
 // headerHtml / startHtml / extrasHtml are pre-rendered, already escaped HTML
 // from the owner (homebase), inserted verbatim, once each. rankTitle is plain
-// text (a phone shows it under the cat's name).
+// text, in the page but not shown (every screen shows the cat's personality
+// under its name; the rank is in the Menu).
 export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '', extrasHtml = '', rankTitle = '', ui = {}, thumbs } = {}) {
   const m = model;
   const h = m.hero;
@@ -441,7 +442,7 @@ export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '',
   // Under a locked cat on show: that it is only a look, not her rank (which
   // read as the cat's).
   const rank = building ? ''
-    : h.looking ? '<div class="dr-hero-rank dr-hero-looking">Just looking. Unlock to walk with this cat.</div>'
+    : h.looking ? '<div class="dr-hero-rank dr-hero-looking">Just looking. Unlock to play as this cat.</div>'
     : rankTitle ? `<div class="dr-hero-rank">${escapeHtml(rankTitle)}</div>` : '';
   const heroHtml = `<section class="dr-hero">
     <div class="dr-stage" id="dr-stage">
@@ -470,7 +471,7 @@ export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '',
   ${wearingHtml(m, ui, thumbs)}
   ${ui.wardrobe ? '' : todayHtml(m, extrasHtml)}
   <footer class="dr-dock">
-    <div class="where"><img src="${escapeHtml(PLACE_PICTURE(m.currentPlace.id))}" alt="" onerror="this.style.display='none'">Walking in <b>${escapeHtml(m.currentPlace.name)}</b></div>
+    <div class="where"><img src="${escapeHtml(PLACE_PICTURE(m.currentPlace.id))}" alt="" onerror="this.style.display='none'">Going to <b>${escapeHtml(m.currentPlace.name)}</b></div>
     ${ui.wardrobe ? extrasHtml : ''}
     ${startHtml}
   </footer>

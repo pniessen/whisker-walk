@@ -54,6 +54,20 @@ describe('the crossing card', () => {
     expect(s.crossing).toBe(null);
   });
 
+  it('the pause card it puts back keeps the Sound and Music switches', () => {
+    const overlay = { innerHTML: '' };
+    const s = { welcome: null, started: true, race: null, quest: null, carry: { mouth: { held: null } } };
+    const sound = { sound: false, music: true };
+    const crossing = createCrossing({
+      getSession: () => s, overlay, hud: { toast() {} }, releaseControl() {}, resumeWalk() {}, endWalk() {},
+      getIsTouch: () => true, getEdition: () => 'canon', getSound: () => sound, catalog: CATALOG, setTimeout: (fn) => { fn(); return 0; },
+    });
+    crossing.ask(s, goData());
+    crossing.cancel();
+    expect(overlay.innerHTML).toBe(pauseCardHtml({ welcome: null, touch: true, mode: 'paused', sound }));
+    expect(overlay.innerHTML).toContain('id="pause-sound"');
+  });
+
   it('re-engaging without answering drops the card', () => {
     const { crossing, overlay, s, calls } = setup({ touch: true });
     crossing.ask(s, goData());

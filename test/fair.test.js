@@ -1771,7 +1771,7 @@ describe('The Fairground: registered everywhere a street area is', async () => {
     const s = { ...state, walks: { ...state.walks, neighborhood: 3, park: 1 }, unlocked: { ...state.unlocked, areas: ['neighborhood', 'park'] }, area: 'park', edition: 'legacy' };
     const line = nextThing(s);
     expect(line).toMatchObject({ rule: 7, id: 'home.opens-three' });
-    expect(line.text).toBe('One more walk here opens Appletree Farm, the Fairground and Seaside!');
+    expect(line.text).toBe('Explore here again to open Appletree Farm, the Fairground and Seaside!');
   });
 
   it('has a card picture for the home screen', () => {

@@ -314,7 +314,7 @@ describe('a guided first walk, played', () => {
   it('a replay is guided again and gives no second gift', () => {
     const h = harness({ first: 'done', gift: true });
     expect(lessonFor(h.progression.state, { areaId: 'neighborhood' })).toBe(null);
-    h.progression.setTutorialFirst(null); // "Play the first walk again"
+    h.progression.setTutorialFirst(null); // "Do the first lesson again"
     const again = harness({ first: null, gift: true });
     again.guideWalk.begin(again.session);
     const before = again.progression.state.points;

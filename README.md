@@ -140,7 +140,7 @@ duet, rally a yarn ball, nap in a pile and patrol together.
 1. Name your pet on the home screen.
 2. Choose **Host a walk** to get a 4-character room code, or **Join** with a
    code a friend sent you.
-3. Anyone in the room can press **Start the walk together**. The walk starts
+3. Anyone in the room can press **Explore together**. The walk starts
    for everyone, in the area of whoever pressed it.
 
 Partners who share a colony get a **Walk with …** button instead, so there's no

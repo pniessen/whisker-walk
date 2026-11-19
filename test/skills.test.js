@@ -127,7 +127,7 @@ describe('feat predicates at their boundaries', () => {
     // the counter and the threshold were re-examined at the v20
     // reinstatement and deliberately kept at the spec's originals.
     expect(skillProgress({}, 'sea-legs')).toEqual({ have: 0, need: 5 });
-    expect(SKILLS.find((s) => s.id === 'sea-legs').feat).toBe('Complete 5 seaside walks');
+    expect(SKILLS.find((s) => s.id === 'sea-legs').feat).toBe('Explore the Seaside 5 times');
   });
 
   // The feat is SEASIDE walks, not "walks in an area that has water" —

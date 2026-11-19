@@ -488,25 +488,28 @@ const partnerNameOf = (partner) => (partner && partner.petName ? String(partner.
 // nobody is told to wait. While that ask is out it reads "Starting…" and is
 // disabled, so a second press can't send a second ask.
 // as: the owned cat's name while a locked cat or a try-on is on show, so
-// Start says which cat it really walks ("Start as Tabby 🐾").
+// Start says which cat it really is ("Explore as Tabby 🐾"). The words were
+// "Start the walk" until 2026-11-19, a leftover from the first version where a
+// person took a cat for a walk; the owner asked for "Explore".
 export function renderStartButtonHtml(room, { as = null } = {}) {
   const who = typeof as === 'string' && as ? escapeHtml(as) : null;
-  if (!room) return `<button id="btn-start" class="primary">${who ? `Start as ${who}` : 'Start the walk'} ${PAW}</button>`;
+  if (!room) return `<button id="btn-start" class="primary">${who ? `Explore as ${who}` : 'Explore'} ${PAW}</button>`;
   if (room.starting) return '<button id="btn-start" class="primary" disabled>Starting…</button>';
-  return `<button id="btn-start" class="primary">${who ? `Start together as ${who}` : 'Start the walk together'} ${PAW}</button>`;
+  return `<button id="btn-start" class="primary">${who ? `Explore together as ${who}` : 'Explore together'} ${PAW}</button>`;
 }
 
 // One button, no code to type: only while paired (status.mode is 'local'
-// whenever multiplayer is off) and not already in a room.
+// whenever multiplayer is off) and not already in a room. The quiet outlined
+// style, not .primary: the one bright button on home is Start (Explore).
 export function renderPartnerWalkHtml({ status, colony, room } = {}) {
   const partner = partnerOf(colony);
   if (!status || status.mode !== 'paired' || !partner || room) return '';
-  return `<button id="wt-pair-walk" class="primary">${PAW} Walk with ${escapeHtml(partnerNameOf(partner))}</button>`;
+  return `<button id="wt-pair-walk">${PAW} Explore with ${escapeHtml(partnerNameOf(partner))}</button>`;
 }
 
 // The room panel's heading. A pair room's code is the colony id, which is
 // never shown: it reads as who you're walking with instead.
 export function renderRoomTitleHtml(room, colony) {
-  if (room && room.pair) return `Walking with ${escapeHtml(partnerNameOf(partnerOf(colony)))}`;
+  if (room && room.pair) return `Exploring with ${escapeHtml(partnerNameOf(partnerOf(colony)))}`;
   return `Room ${escapeHtml(room && room.code)} — share this code!`;
 }
