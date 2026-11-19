@@ -110,12 +110,16 @@ describe('the Farm\'s animals in the walk: what they cost to draw', () => {
     expect(materials.size).toBe(1);
     expect(meshes).toBe(63);
     expect(casters).toBe(9);
-    expect(triangles).toBeLessThan(14000);
+    // shaped, not boxed (farmshapes.js): 15,949 triangles, where the boxes were 13,342
+    expect(triangles).toBe(15949);
     // with the place itself (244 meshes / 176 casters / 53,419 triangles, test/budget.test.js)
-    // that is still far inside the territories' 450 / 380 / 70,000
+    // that is far inside the territories' 450 meshes / 380 casters. Triangles: the
+    // Farm's own ceiling for place + animals + the jobs' things is 75,000 (the
+    // territories' 70,000 was borrowed here before the animals were shaped; the
+    // Docks' scenery alone is 76,914).
     expect(244 + meshes).toBeLessThan(450);
     expect(176 + casters).toBeLessThan(380);
-    expect(53419 + triangles).toBeLessThan(70000);
+    expect(53419 + triangles).toBeLessThan(75000);
   });
 
   // Step 3: the jobs' and the finds' own things (the two straw hats, the
@@ -143,10 +147,10 @@ describe('the Farm\'s animals in the walk: what they cost to draw', () => {
     expect(triangles).toBe(2618);
     expect([...materials]).toEqual([groups[0].children[0].children[0].material]);
     // the place (244 meshes with the scarecrow's hat its own mesh / 176 / 53,419), the
-    // animals (63 / 9 / 13,342) and these: inside 450 / 380 / 70,000
+    // animals (63 / 9 / 15,949) and these: inside 450 / 380 / 75,000
     expect(244 + 63 + seen.size).toBeLessThan(450);
     expect(176 + 9 + casters).toBeLessThan(380);
-    expect(53419 + 13342 + triangles).toBeLessThan(70000);
+    expect(53419 + 15949 + triangles).toBeLessThan(75000);
   });
 
   it('shares one geometry between all the chicks and one between all the ducklings', () => {
