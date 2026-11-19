@@ -18,6 +18,7 @@ import * as neighborhood from '../world/neighborhood.js';
 import * as park from '../world/park.js';
 import * as seaside from '../world/seaside.js';
 import * as farm from '../world/farm.js';
+import * as fair from '../world/fair.js';
 import * as den from '../world/den.js';
 import * as docks from '../world/docks.js';
 import * as woods from '../world/woods.js';
@@ -81,6 +82,8 @@ import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
 import { createFarmAnimals, NO_FARM } from '../farmanimals.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
+import { createFairLive, NO_FAIR } from '../fairlive.js';
+import { handleFairEvent } from './fairplay.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
@@ -155,7 +158,7 @@ import { createSession } from './session.js';
 // home-base card, a price and an unlock gate), and this map, which is what
 // startWalk indexes with state.area. An area missing from here is a fully
 // built world nothing can ever call.
-const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines, gorge, farm };
+const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines, gorge, farm, fair };
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
@@ -732,6 +735,9 @@ export function createWalkLifecycle({
     // Warm low sun, cool sky fill, window glow: render/dusk.js.
     const duskLookNow = duskActive ? applyDusk({ scene, sun, fill, areaData }) : null;
     setCatRimLight({ dusk: !!duskLookNow }); // polish-catlight: dusk rim weaker, cooler
+    // The Fairground's bulbs (world/fair.js): every one shares one material,
+    // lit in a dusk walk and plain coloured glass by day. No real lights.
+    if (areaId === 'fair') fair.setFairGlow(areaData, duskLookNow ? 1 : 0);
 
     // v18 Night Eyes ('night-eyes', Task 2.3): dusk walks brighten. This has
     // to run AFTER duskActive is resolved above (a solo dusk walk only counts
@@ -1326,6 +1332,20 @@ export function createWalkLifecycle({
     // until the goat drops it.
     if (farm.jobs) addFarmHat(carry, areaData);
 
+    // The Fairground's rides (fairlive.js): the models world/fair.js built,
+    // moved by a clock, and the cat's ride on them. Nothing is added to the
+    // scene and nothing rides the wire: the rides are a pure function of the
+    // time of day, so every device in the walk sees them alike. A ride's seat
+    // is a perch that moves, but it is NOT in the area's perches: the jump
+    // button asks the rides first (game/interactions.js). What each event says
+    // and sounds like is game/fairplay.js.
+    const fairLive = areaId !== 'fair' ? NO_FAIR : createFairLive(scene, areaData, {
+      camera,
+      reducedMotion,
+      ground,
+      onEvent: (e) => handleFairEvent(e, { hud, audio, log, progression, session }),
+    });
+
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
     // time and VISUAL-PASS.md's Wave 6 note says out loud that a lot of what
@@ -1470,6 +1490,7 @@ export function createWalkLifecycle({
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,
+      fair: fairLive,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
       campMarker,
@@ -2467,6 +2488,7 @@ export function createWalkLifecycle({
     });
     session.critters.dispose();
     session.farm?.dispose();
+    session.fair?.dispose();
     session.goldMice.dispose();
     session.rival.dispose();
     session.chasing = false;

@@ -1129,6 +1129,9 @@ function init() {
       // Appletree Farm's animals, after player.update: a cat on a cow's back is
       // carried by her from here (farmanimals.js).
       session.farm.update(dt, t, { cat: session.cat, player, session });
+      // The Fairground's rides, likewise: they turn, and a cat on a seat is
+      // carried by it from here (fairlive.js). They also place the camera.
+      session.fair.update(dt, t, { cat: session.cat, player, session });
       // Clan Life Part 2: the clan fight, after everything that can move the
       // cat (player.update, a chase): it writes the fighting cat's spot.
       session.clanFight.update(dt, session);
@@ -1340,6 +1343,9 @@ function init() {
         }
       }
       updateAvatar(session, dt, t);
+      // After the cat is posed: a cat that has just left a ride's seat starts
+      // her hop down in this same frame (fairlive.js).
+      session.fair.late(dt, t, { cat: session.cat, player, session });
       updateInteractions(session);
       updateMoments(session, dt);
       if (session.questGiver?.marker?.visible) {

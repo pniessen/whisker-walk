@@ -16,6 +16,7 @@ import { groundOf } from '../ground.js';
 //                 view; by day, a handful of sunlit motes over the canal
 //   neighborhood  a few dandelion seeds riding the breeze
 //   farm          the same seed down, over the fields
+//   fair          the same seed down, over the fairground
 //   den           nothing
 //
 // THE BUDGET. One THREE.Points per walk with one soft sprite drawn on a
@@ -122,6 +123,7 @@ export function ambientKind(areaId, { dusk = false } = {}) {
     case 'docks': return dusk ? 'moths' : 'motes';
     case 'neighborhood': return 'fluff';
     case 'farm': return 'fluff'; // dandelion and thistle down over the fields, day and dusk
+    case 'fair': return 'fluff'; // the same drifting seed down as the Park, day and dusk
     case 'pines': return dusk ? null : 'fluff'; // pollen by day; motes would hang over the far lake and moths need lamps
     case 'moor': return 'fluff'; // seed down on the wind, day and dusk
     case 'river': return dusk ? 'moths' : 'fluff'; // reed seed by day, moths over the water at dusk

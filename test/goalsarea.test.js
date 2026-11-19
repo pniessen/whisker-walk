@@ -24,7 +24,7 @@ const { createGoals, GOAL_POOL } = await import('../src/goals.js');
 const { mulberry32 } = await import('../src/rng.js');
 
 const AREAS = {};
-for (const id of ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm']) {
+for (const id of ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair']) {
   const { build } = await import(`../src/world/${id}.js`);
   AREAS[id] = build(new THREE.Scene());
 }

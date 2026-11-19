@@ -63,6 +63,7 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
+const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor, moorTrees } = await import('../src/world/moor.js');
@@ -538,6 +539,7 @@ const AREAS = {
   pines: buildPines(new THREE.Scene()),
   gorge: buildGorge(new THREE.Scene()),
   farm: buildFarm(new THREE.Scene()),
+  fair: buildFair(new THREE.Scene()),
 };
 // Every ELEVATED collectible in the game (y > 0), each named explicitly.
 //
@@ -559,6 +561,7 @@ const ELEVATED = [
   ['pines-find-5', 'pines'], // the mossy pebble on the Frog Stones' low stone
   ['pines-find-10', 'pines'], // the beetle wing on the island's meeting stone, 0.4
   ['farm-5', 'farm'], // the key on the tractor's cab roof
+  ['fair-5', 'fair'], // the silver whistle on the bandstand's deck
 ].map(([id, area]) => {
   const c = AREAS[area].collectibles.find((x) => x.id === id);
   if (!c) throw new Error(`no collectible ${id} in ${area}`); // renamed or removed
@@ -649,6 +652,11 @@ const SHIPPED_HOPS = {
   'gm-farm-2': 1, // the goats' jumping stand, 1.5: one hop off the grass (or over the rock)
   'gm-farm-3': 0, // hidden at ground level between the vegetable beds
   'farm-5': 2,    // the tractor's cab roof: ground -> bonnet 1.15 -> roof 2.3
+  // The Fairground. The helter-skelter is a six-hop climb up the stairs inside.
+  'gm-fair-1': 6, // the helter-skelter's gallery, 7.0: five landings 1.2 apart, then the gallery
+  'gm-fair-2': 2, // the toffee apple stall's roof: counter 0.9 -> awning 2.32
+  'gm-fair-3': 0, // hidden at ground level between the two tents
+  'fair-5': 1,    // the bandstand's deck, 0.6: one hop from its steps
 };
 
 describe('shipped golden mice and rooftop collectible — no skills', () => {
@@ -669,7 +677,7 @@ describe('shipped golden mice and rooftop collectible — no skills', () => {
   it('no mouse is reachable without a perch except the three deliberately-hidden ground ones', () => {
     const table = hopTable(STATES.none);
     const ground = Object.entries(table).filter(([, hops]) => hops === 0).map(([id]) => id);
-    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
     for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
   });
 });
@@ -743,6 +751,8 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
       'gm-gorge-2': 1,
       // the Farm's hayloft: the two stacked bales (1.8) come into ground reach
       'gm-farm-1': 3,
+      // the helter-skelter's stairs: one hop fewer with the higher jump (the landings are 1.2 apart)
+      'gm-fair-1': 5,
     });
     expect(hopTable(BOTH)).toEqual(hopTable(SPRING));
   });
@@ -910,7 +920,7 @@ describe('Fence Runner — the shipped-content pin', () => {
     for (const state of Object.values(STATES)) {
       const table = hopTable(state, true);
       const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
       for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
     }
   });
@@ -1023,6 +1033,8 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(GATED.gorge).toEqual([]);
     // Farm: 15 apple trees, 6 other trees and 3 fence tops.
     expect(GATED.farm).toHaveLength(24);
+    // Fairground: its fourteen trees.
+    expect(GATED.fair).toHaveLength(14);
   });
 
   it('gates every one of them on Sure Claws and nothing else', () => {
@@ -1055,6 +1067,10 @@ describe('CF-9b — the gated perches themselves', () => {
     // the hayloft's four steps, the tractor's two, the goats' rock and stand,
     // the farmhouse bench and a round hay bale
     expect(UNGATED.farm).toHaveLength(10);
+    // the helter-skelter's five landings and its gallery, three stalls' counters and
+    // roofs, the bandstand, the coaster's platform, the big wheel's boarding deck,
+    // three picnic tables and three benches
+    expect(UNGATED.fair).toHaveLength(21);
     for (const [area, mice] of Object.entries(GOLD_MICE)) {
       for (const m of mice.filter((x) => x.y > 0)) {
         const stand = UNGATED[area].find(
@@ -1221,7 +1237,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
       for (const fenceRun of [false, true]) {
         const table = hopTable(state, fenceRun);
         const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-fair-3', 'gm-farm-3', 'gm-gorge-1', 'gm-gorge-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
         for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
       }
     }

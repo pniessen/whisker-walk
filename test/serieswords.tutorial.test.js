@@ -51,6 +51,7 @@ function slotValues() {
     name: clanCast(CLANS[0])[4].name,                           // a cat of the camp, by its shown name
     place: placeName('neighborhood', 'canon', CATALOG),         // the street, under its Clan Edition name
     place2: placeName('park', 'canon', CATALOG),                // a second place, for the line that names two
+    place3: placeName('seaside', 'canon', CATALOG),             // and a third, for the line that names three
     thing: accessoryName(CATALOG.accessories.warpaint, 'canon'), // the prize whose name carries the group word
     n: 3,
     rank: rankFor(0).next.title,                                // the player's points ladder (not a group rank)

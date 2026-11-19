@@ -18,7 +18,7 @@ describe('golden mice per edition', () => {
     const set = goldForEdition('canon', CATALOG);
     expect([...set].sort()).toEqual([...KNOWN_GOLD].sort());
     expect(set.size).toBe(GOLD_TOTAL);
-    expect(set.size).toBe(33);
+    expect(set.size).toBe(36);
   });
 
   it('a missing edition is Clan Edition', () => {
@@ -28,7 +28,7 @@ describe('golden mice per edition', () => {
   it('Legacy counts only the mice in the places Legacy shows', () => {
     const set = goldForEdition('legacy', CATALOG);
     expect([...set].sort()).toEqual(idsIn(legacyAreas).sort());
-    expect(set.size).toBe(15); // the four street areas' twelve, and the Farm's three
+    expect(set.size).toBe(18); // the four street areas' twelve, the Farm's three and the Fairground's three
     expect(set.size).toBeLessThan(GOLD_TOTAL);
     for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) {
       for (const m of GOLD_MICE[a]) expect(set.has(m.id)).toBe(false);

@@ -44,7 +44,8 @@ const {
 const BUILD = { neighborhood: buildNeigh, park: buildPark, seaside: buildSea, docks: buildDocks };
 // The four street areas with a yard dog and a rival border. Appletree Farm has
 // a prop set too, but no dog and no rival, so its placement rules are checked
-// in test/farm.test.js; here it only joins the id lists.
+// in test/farm.test.js; here it only joins the id lists. The Fairground
+// likewise (test/fair.test.js).
 const AREAS = Object.keys(BUILD);
 const scenes = Object.fromEntries(AREAS.map((a) => [a, new THREE.Scene()]));
 const built = Object.fromEntries(AREAS.map((a) => [a, BUILD[a](scenes[a])]));
@@ -183,7 +184,7 @@ test.each(AREAS)('%s: every id is unique, well-formed and namespaced by area', (
     }
   }
   // No repeats anywhere: across lists, areas and the den.
-  const everywhere = [...AREAS, 'farm', 'gorge', 'den'].flatMap((x) => idsOf(propsFor(x)));
+  const everywhere = [...AREAS, 'farm', 'fair', 'gorge', 'den'].flatMap((x) => idsOf(propsFor(x)));
   expect(new Set(everywhere).size).toBe(everywhere.length);
   expect([...all].sort()).toEqual([...everywhere].sort());
 });
@@ -455,7 +456,7 @@ test('the Moor: three warren burrows as hides, and nothing else yet', () => {
   expect(s.dogYard).toBeNull();
   // the Moor adds no prop with an id: allPropIds is exactly the ids of the
   // other sets
-  const others = ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'gorge', 'den'].flatMap((a) => idsOf(propsFor(a)));
+  const others = ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair', 'gorge', 'den'].flatMap((a) => idsOf(propsFor(a)));
   expect(new Set(others).size).toBe(others.length);
   expect([...allPropIds()].sort()).toEqual([...others].sort());
 });
@@ -467,7 +468,7 @@ test('the Pines: three frog hides, and nothing else yet', () => {
   for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'keepSlots']) expect(s[k], k).toEqual([]);
   expect(s.dogYard).toBeNull();
   // the Pines adds no prop with an id
-  const others = ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'gorge', 'den'].flatMap((a) => idsOf(propsFor(a)));
+  const others = ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair', 'gorge', 'den'].flatMap((a) => idsOf(propsFor(a)));
   expect([...allPropIds()].sort()).toEqual([...others].sort());
 });
 

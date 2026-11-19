@@ -682,6 +682,12 @@ export function createPlayer(camera, canvas) {
     get inputActive() {
       return moveKeyHeld(keys) || (!!touchMove && touchMove.mag > 0);
     },
+    // The way the keys or the stick push right now, in the world: a new
+    // Vector3, zero when nothing is held. (For a one-off question, such as
+    // which side of a ride to get off: src/fairlive.js. Not for every frame.)
+    inputDirection() {
+      return touchMove ? touchDirection(touchMove, yaw) : moveDirection(keys, yaw);
+    },
     get stalking() {
       return keys.has('ShiftLeft') || keys.has('ShiftRight') ||
         (!!touchMove && isStalkMag(touchMove.mag));

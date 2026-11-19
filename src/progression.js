@@ -64,7 +64,9 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   // test/farmjobs.test.js holds the two lists equal). A job's count is how
   // many times it has been finished; a find's, on how many walks it was found.
   'jobchicks', 'jobcow', 'jobgoat', 'jobmice',
-  'findloftcats', 'findeggs', 'findowl', 'findscarecrow', 'findapples', 'findducklings'];
+  'findloftcats', 'findeggs', 'findowl', 'findscarecrow', 'findapples', 'findducklings',
+  // The Fairground's five rides (src/fairwords.js RIDE_PAGE): the walks she has ridden each on.
+  'ridemgr', 'ridewheel', 'ridecups', 'rideslide', 'ridecoaster'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -290,6 +292,11 @@ export const CATALOG = {
     // list's order, and the home line for the Park names both places a Park
     // walk opens (nextthing.js, rule 7).
     farm: { name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } },
+    // The Fairground (docs/superpowers/specs/2026-11-18-fairground-design.md):
+    // the fourth street area, after the Farm and before the Seaside. It opens
+    // with them after two Park walks, at the Farm's price, in both editions
+    // (no `edition`). The Park's home line names all three (nextthing.js, rule 7).
+    fair: { name: 'The Fairground', price: 75, requires: { area: 'park', walks: 2 } },
     seaside: { name: 'Seaside', price: 100, requires: { area: 'park', walks: 2 } },
     // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
     // area has to be registered for the home-base picker: homebase.js renders
@@ -404,8 +411,8 @@ function defaultState() {
     // The Woods joins them for the same reason: the first Woods walk on a save
     // with no 'woods' key would pin state.walks.woods at NaN forever. So does
     // the River: a save with no 'river' key would pin state.walks.river at NaN. And the Moor, the Pines and the Gorge: no 'moor', 'pines' or 'gorge' key, same NaN.
-    // And the Farm: a save from before it loads with farm: 0.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0 },
+    // And the Farm: a save from before it loads with farm: 0. And the Fairground: fair: 0.
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0, gorge: 0, farm: 0, fair: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },

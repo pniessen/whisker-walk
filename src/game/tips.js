@@ -71,7 +71,9 @@ export function walkFacts(session, { player, state }, f = {}) {
   if (!f.perched && !player.swimming && !session.chasing) {
     const ground = session.ground ?? FLAT_GROUND;
     f.canJump = !!bestPerch(session.areaData.perches ?? [], cat, player.perchY, session.perched, climbBudget(state),
-      { fenceRun: fenceRunning(state), state, ground });
+      { fenceRun: fenceRunning(state), state, ground })
+      // or a seat of one of the Fairground's rides (src/fairlive.js)
+      || !!session.fair?.canBoard(session.cat, player, session);
   }
 
   f.critterNear = false;

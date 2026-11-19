@@ -2,6 +2,7 @@
 // JOURNAL_TYPES ids tracked in progression.js's state.journal.
 import { phrase } from './clanphrases.js';
 import { PAGE_WORDS } from './farmwords.js';
+import { RIDE_PAGE_WORDS } from './fairwords.js';
 
 // All content here is a fixed, static catalog (ids/emoji/names/hints are
 // never user- or network-supplied), so none of it needs HTML-escaping.
@@ -57,6 +58,10 @@ export const CRITTER_INFO = [
   ...[['jobchicks', '🐣'], ['jobcow', '🥛'], ['jobgoat', '👒'], ['jobmice', '🌽'],
     ['findloftcats', '🐈'], ['findeggs', '🥚'], ['findowl', '🦉'], ['findscarecrow', '🌾'], ['findapples', '🍎'], ['findducklings', '🌊']]
     .map(([id, emoji]) => ({ id, emoji, get name() { return PAGE_WORDS[id].name(); }, get hint() { return PAGE_WORDS[id].hint(); } })),
+  // The Fairground's five rides (src/fairsim.js): a page each, filled the
+  // first time she rides it. Words in the phrase table (src/fairwords.js).
+  ...[['ridemgr', '🎠'], ['ridewheel', '🎡'], ['ridecups', '☕'], ['rideslide', '🌀'], ['ridecoaster', '🎢']]
+    .map(([id, emoji]) => ({ id, emoji, get name() { return RIDE_PAGE_WORDS[id].name(); }, get hint() { return RIDE_PAGE_WORDS[id].hint(); } })),
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.
