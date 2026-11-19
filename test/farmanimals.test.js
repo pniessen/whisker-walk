@@ -107,7 +107,8 @@ describe('the Farm\'s animals in the walk: what they cost to draw', () => {
     expect(materials.size).toBe(1);
     expect(meshes).toBe(63);
     expect(casters).toBe(9);
-    expect(triangles).toBeLessThan(14000);
+    // shaped, not boxed (farmshapes.js): 15,949 triangles, where the boxes were 13,342
+    expect(triangles).toBe(15949);
     // with the place itself (243 meshes / 176 casters / 53,419 triangles, test/budget.test.js)
     // that is still far inside the territories' 450 / 380 / 70,000
     expect(243 + meshes).toBeLessThan(450);
