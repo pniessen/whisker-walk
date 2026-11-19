@@ -11,6 +11,7 @@ import { pinesGroundTint } from '../world/pines.js';
 import { parkLawnTint } from '../world/park.js';
 import { neighborhoodLawnTint } from '../world/neighborhood.js';
 import { farmBare, farmGroundTint } from '../world/farm.js';
+import { fairBare, fairGroundTint } from '../world/fair.js';
 
 // ---------------------------------------------------------------------------
 // GRASS — low swaying tufts on the lawn near the camera (Stream 4 round two,
@@ -427,9 +428,15 @@ const PASTURE = Object.freeze({
   color: null, hMin: 0.07, hMax: 0.18, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: pastureDensity, ground: 0.8, hue: 0.1, flowers: 0.03,
 });
 
+// The Fairground: the Park's mown lawn, and none under the rides' decks, in
+// the booths and tents or in the duck pool (fair.js fairBare).
+// `bare(x, z)` is a style's own "nothing grows here": tuftAt asks it first, and
+// everywhere else the lawn is the Park's lawn exactly, tuft for tuft.
+const FAIR_LAWN = Object.freeze({ ...LAWN, bare: fairBare });
+
 export const GRASS_STYLES = Object.freeze({
   park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND, river: MARSH, moor: MOOR, pines: PINE_FLOOR, gorge: GORGE_FLOOR,
-  farm: PASTURE,
+  farm: PASTURE, fair: FAIR_LAWN,
 });
 
 // ---------------------------------------------------------------------------
@@ -446,7 +453,7 @@ export const GROUND_TINTS = Object.freeze({
   river: riverGroundTint, moor: moorGroundTint, woods: woodsGroundTint, pines: pinesGroundTint,
   // polish-sheen: the lawns' slow warm/cool mottle (park.js lawnMottle)
   park: parkLawnTint, neighborhood: neighborhoodLawnTint,
-  farm: farmGroundTint,
+  farm: farmGroundTint, fair: fairGroundTint,
 });
 
 // tintSampler(fn, bounds, cell) — `fn(x, z) -> [r, g, b]` cached at the corners
@@ -511,6 +518,7 @@ const LUM = [0.2126, 0.7152, 0.0722];
 export function tuftAt(ix, iz, spacing, style = LAWN) {
   const x = (ix + 0.5 + (hashCell(ix, iz, 2) - 0.5) * 0.8) * spacing;
   const z = (iz + 0.5 + (hashCell(ix, iz, 3) - 0.5) * 0.8) * spacing;
+  if (style.bare && style.bare(x, z)) return null;
   const presence = style.density ? style.density(x, z) : PRESENCE;
   if (hashCell(ix, iz, 1) >= presence) return null;
   // Lawn: patchy heights. Dune: the clump's own strength, so each clump is

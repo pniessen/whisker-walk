@@ -46,6 +46,7 @@ const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
 const { build: buildGorge } = await import('../src/world/gorge.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
+const { build: buildFair } = await import('../src/world/fair.js');
 const { createScent } = await import('../src/scent.js');
 
 // ---------------------------------------------------------------------------
@@ -170,6 +171,7 @@ const WATERED = {
   pines: buildWith(buildPines),
   gorge: buildWith(buildGorge),
   farm: buildWith(buildFarm),
+  fair: buildWith(buildFair),
 };
 
 // The proximity gate each kind of content is actually consumed through, so a

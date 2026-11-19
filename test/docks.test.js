@@ -314,9 +314,9 @@ describe('The Old Docks — perch chains', () => {
 });
 
 describe('The Old Docks — golden mice', () => {
-  it('adds three, keeping the three-per-area shape (the total is 33 since the Farm)', () => {
+  it('adds three, keeping the three-per-area shape (the total is 36 since the Fairground)', () => {
     expect(GOLD_MICE.docks).toHaveLength(3);
-    expect(GOLD_TOTAL).toBe(33); // 30 until Appletree Farm added its three
+    expect(GOLD_TOTAL).toBe(36); // 30 until Appletree Farm added its three, 33 until the Fairground added its
   });
 
   it('sits two on real shipped perch coordinates and hides one at ground level', () => {
@@ -417,8 +417,8 @@ describe('The Old Docks — catalog, unlock gating and walk counting', () => {
 describe('The Old Docks — the eleventh journal critter', () => {
   it('adds rat to the journal vocabulary and the catalog together', () => {
     expect(JOURNAL_TYPES).toContain('rat');
-    expect(JOURNAL_TYPES).toHaveLength(30); // 14, Appletree Farm's six animals, and its four jobs and six finds
-    expect(CRITTER_INFO).toHaveLength(30);
+    expect(JOURNAL_TYPES).toHaveLength(35); // 14, Appletree Farm's six animals, its four jobs and six finds, and the Fairground's five rides
+    expect(CRITTER_INFO).toHaveLength(35);
     const rat = CRITTER_INFO.find((c) => c.id === 'rat');
     expect(rat).toBeTruthy();
     expect(rat.emoji).toBeTruthy();

@@ -35,13 +35,14 @@ const { build: buildPines } = await import('../src/world/pines.js');
 const { build: buildGorge } = await import('../src/world/gorge.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
+const { build: buildFair } = await import('../src/world/fair.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 
 const BUILDS = {
-  park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen, farm: buildFarm,
+  park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen, farm: buildFarm, fair: buildFair,
 };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN ambient.
@@ -74,6 +75,7 @@ const VIEW = {
   pines: [-26, 44], // the spawn clearing
   gorge: [-44, -11], // the spawn in the Narrows
   farm: [0, 30], // on the lane, looking up to the yard
+  fair: [0, 30], // on the midway, looking up to the merry-go-round
   den: [0, 0],
 };
 
@@ -122,7 +124,7 @@ describe('ambient kinds', () => {
   });
 
   it('builds one Points mesh per outdoor area, with no shadow draws', () => {
-    for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm']) {
+    for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'fair']) {
       const { scene, ambient } = make(areaId);
       const found = meshesNamed(scene, 'ambient');
       expect(found, areaId).toHaveLength(1);

@@ -82,6 +82,10 @@ function sanitizeGuide(g) {
 export function snapshotWalk(session, { yaw, now, paid = [] }) {
   if (!session || session.net || session.areaId === 'den' || session.soloSeed === undefined) return null;
   const meshes = session.collectibleMeshes;
+  // On one of the Fairground's rides (src/fairlive.js) she is over a ride, not
+  // on the ground: the note holds where she would be put down beside it, so a
+  // walk picked up again starts her on free ground.
+  const down = session.fair?.groundSpot?.() ?? null;
   return {
     v: VERSION,
     at: now,
@@ -91,8 +95,8 @@ export function snapshotWalk(session, { yaw, now, paid = [] }) {
     stamp: session.walkStamp,
     dusk: !!session.duskMode,
     duskActive: !!session.duskActive,
-    x: session.cat.position.x,
-    z: session.cat.position.z,
+    x: down ? down.x : session.cat.position.x,
+    z: down ? down.z : session.cat.position.z,
     yaw,
     startPoints: session.startPoints,
     discoveries: session.discoveryCount,

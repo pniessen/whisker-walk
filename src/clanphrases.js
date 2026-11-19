@@ -243,6 +243,24 @@ const LATER = Object.freeze({
   'away.pass': (name) => `${name} looks at you, then lets you walk on. 🐾`,
   'away.wary': (name) => `${name} backs away from you. 🐾`,
   'away.chasedOff': (who) => `${who} chased you off! 🐾`,
+  // ---- The Fairground (2026-11-18): its own words, the same in every set -----
+  // The first time ever on each ride (game/fairplay.js).
+  'fair.toast.mgr': 'You are on the merry-go-round! Jump again to hop up onto a horse. 🎠',
+  'fair.toast.wheel': 'Up you go on the big wheel! 🎡',
+  'fair.toast.cups': 'Whee! You are spinning in a teacup! ☕',
+  'fair.toast.slide': 'Wheee! Down the helter-skelter you go! 🌀',
+  'fair.toast.coaster': 'All aboard the caterpillar coaster! 🐛',
+  // The journal's pages for the five rides.
+  'fair.page.mgr.name': 'Merry-Go-Round Rider',
+  'fair.page.mgr.hint': 'Hop onto the merry-go-round at the fair.',
+  'fair.page.wheel.name': 'Big Wheel Rider',
+  'fair.page.wheel.hint': 'Hop into a seat on the big wheel at the fair.',
+  'fair.page.cups.name': 'Teacup Spinner',
+  'fair.page.cups.hint': 'Hop into a teacup at the fair.',
+  'fair.page.slide.name': 'Helter-Skelter Slider',
+  'fair.page.slide.hint': 'Climb the stripy tower at the fair, then jump!',
+  'fair.page.coaster.name': 'Coaster Rider',
+  'fair.page.coaster.hint': 'Hop into the caterpillar train at the fair.',
 });
 
 // Every id of the first table, in table order.

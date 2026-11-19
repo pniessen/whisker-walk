@@ -34,11 +34,12 @@
   import * as pines from '/src/world/pines.js';
   import * as gorge from '/src/world/gorge.js';
   import * as farm from '/src/world/farm.js';
+  import * as fair from '/src/world/fair.js';
   import { createFarmAnimals } from '/src/farmanimals.js';
   import { buildCat } from '/src/cat/model.js';
   import { animateCat } from '/src/cat/animator.js';
 
-  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge, farm };
+  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge, farm, fair };
   const id = new URLSearchParams(location.search).get('area') || 'neighborhood';
   // ?size=WxH renders bigger than the card pictures (for looking, not shipping).
   const [W, H] = (new URLSearchParams(location.search).get('size') || '640x360').split('x').map(Number);
@@ -62,6 +63,8 @@
   const wind = createWind({ reducedMotion: true });
   const area = AREAS[id].build(scene, { water: { quality: tier, reducedMotion: true }, wind });
   scene.add(createFill(area.groundBounce));
+  if (id === 'fair') fair.setFairGlow(area, Number(new URLSearchParams(location.search).get('glow') || 0)); // &glow=1 lights the bulbs
+  if (new URLSearchParams(location.search).has('nofog')) scene.fog = null; // for a picture from high above
 
   // ?animals (the Farm only) adds its animals (src/farmanimals.js) and a cat,
   // before the caster sweep as walk.js does. window.__farmStep(seconds, cat)
@@ -219,6 +222,7 @@
     // door, the hen coop and the goat paddock to the left, the wheat and the
     // scarecrow to the right (the card picture)
     farm: '9.5,2.2,6,0.5,2.4,-12',
+    fair: fair.FAIR_REGISTRATION.view,
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();

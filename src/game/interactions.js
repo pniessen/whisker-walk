@@ -215,6 +215,14 @@ export function createInteractions({
     // or pounce pressed mid-scamper would be overwritten (and could strand the
     // cat at perch height outside the border).
     if (session.chasing) return;
+    // The Fairground's rides (src/fairlive.js) answer first: a seat in reach,
+    // a hop from seat to seat, or getting off. Everywhere else, and beside a
+    // ride with no seat in reach, this is false and the ordinary jump runs.
+    if (session.fair?.jump({ cat: session.cat, player, session })) {
+      catVoice();
+      bus.emit('guide:did', { what: 'pounce' });
+      return;
+    }
     // Look for a NEW perch reachable from wherever the cat is right now —
     // canReach uses player.perchY, which still holds the current perch's
     // height while perched (it's only zeroed by the hop-down branch below),

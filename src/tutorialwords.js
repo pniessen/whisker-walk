@@ -20,7 +20,7 @@ const two = (touch, keys) => Object.freeze({ touch, keys });
 
 // The slots the code fills. tutorialwords.test.js checks every {slot} in the
 // table is one of these.
-export const SLOTS = Object.freeze(['name', 'place', 'place2', 'thing', 'n', 'rank']);
+export const SLOTS = Object.freeze(['name', 'place', 'place2', 'place3', 'thing', 'n', 'rank']);
 
 export const WORDS = Object.freeze({
   // ---- The start of a touch walk (walk.js TOUCH_START_HINT) ----------------
@@ -71,6 +71,7 @@ export const WORDS = Object.freeze({
   'home.way': same('The way to your home starts in {place}.'),                  // 6
   'home.opens': same('One more walk here and {place} opens!'),                  // 7
   'home.opens-two': same('One more walk here opens {place} and {place2}!'),         // 7, two to buy
+  'home.opens-three': same('One more walk here opens {place}, {place2} and {place3}!'), // 7, three to buy
   'home.wear': same('You have enough for the {thing}. Tap Dress up!'),          // 8
   'home.feed': same('Feed {name} again: {n} of 6.'),                            // 9
   'home.nearly': same('{n} more 🐾 and the {thing} is yours.'),                 // 10
