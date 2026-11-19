@@ -67,6 +67,13 @@ export function poseRides(rides, sim) {
   const c = rides.teacups;
   c.turn.rotation.y = A.cups;
   for (let i = 0; i < c.cups.length; i++) c.cups[i].rotation.y = sim.cups.list[i].spin0 + A.cupSpin;
+  // the caterpillar: each car on the rails where the train is, nose along the track
+  const t = rides.coaster;
+  for (let i = 0; i < t.cars.length; i++) {
+    const s = sim.coaster.cars[i];
+    t.cars[i].position.set(s.px, s.py, s.pz);
+    t.cars[i].rotation.set(-s.pitch, Math.atan2(s.tx, s.tz), 0, 'YXZ');
+  }
 }
 
 // How long the hop down from a seat `h` metres up takes: quick from a horse,
@@ -142,7 +149,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
 
   // Where the ride's own camera would be for `seat`, into camPos / camLook.
   // Returns how much of it to use (0: the game's follow camera, carried).
-  function cameraFor(seat, cat) {
+  function cameraFor(seat, cat, dt) {
     if (seat.rideId === 'mgr') {
       // From outside the ride, level with the horses and in line with her: she
       // is always on the near side, under the canopy's rim, and the camera is
@@ -173,6 +180,13 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       // neither spins with the cup nor swings round with the floor.
       camPos.set(sim.cups.cx + board.x * 8.8, 5.0, sim.cups.cz + board.z * 8.8);
       camLook.set(sim.cups.cx + (seat.x - sim.cups.cx) * 0.28, 0.9, sim.cups.cz + (seat.z - sim.cups.cz) * 0.28);
+      return 1;
+    }
+    if (seat.seatKind === 'car') {
+      // behind the train and above it, eased (fairsim.js chase)
+      const c = sim.chase(seat, dt);
+      camPos.set(c.x, c.y, c.z);
+      camLook.set(c.lx, c.ly, c.lz);
       return 1;
     }
     if (seat.seatKind === 'chute') {
@@ -337,6 +351,9 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         }
       }
       if (wobble > 0) wobble = Math.max(0, wobble - dt);
+      // A ride is not a rest: she does not get off one and curl straight up
+      // for a nap (game/avatar.js counts how long she has been still).
+      if (seat || hop.on) session.idleTime = 0;
 
       // The camera. player.update placed it for where the cat WAS; carry it by
       // however far she has just been moved, then lean it to the ride's own.
@@ -344,7 +361,8 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         off.copy(cat.position).sub(before);
         camera.position.add(off);
         look.set(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
-        const want = seat ? cameraFor(seat, cat) : 0;
+        const want = seat ? cameraFor(seat, cat, dt) : 0;
+        if (!seat || seat.seatKind !== 'car') sim.resetChase();
         camW += (want - camW) * Math.min(1, dt * CAM_EASE);
         if (camW < 0.002 && want === 0) camW = 0;
         else if (camW > 0.995 && want === 1) camW = 1; // all the ride's: a still camera is exactly still
@@ -389,6 +407,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
 
     dispose() {
       sim.endSlide();
+      sim.resetChase();
       riding = null;
       lastSeat = null;
       hop.on = false;

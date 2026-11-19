@@ -28,7 +28,7 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // player.js's CAT_RADIUS (not imported: player.js loads THREE).
 export const CAT_RADIUS = 0.35;
 
-export const RIDE_IDS = Object.freeze(['mgr', 'wheel', 'cups', 'slide']);
+export const RIDE_IDS = Object.freeze(['mgr', 'wheel', 'cups', 'slide', 'coaster']);
 
 export const RIDE = Object.freeze({
   // ---- the merry-go-round ----
@@ -62,6 +62,22 @@ export const RIDE = Object.freeze({
   MAT_AHEAD: 0.78,     // the mat's middle, this far beyond the end of the chute (world/fairrides.js lays it there)
   MAT_Y: 0.1,          // the mat's top
   SLIDE_SWEEP: 0.9,    // nobody lands this near the low end of the chute
+  // ---- the caterpillar coaster ----
+  COASTER_LAP: 46,     // seconds from leaving the station to leaving it again
+  COASTER_WAIT: 6,     // of which the train stands in the station this long
+  COASTER_LIFT: 2.3,   // m/s up the hill, clanking
+  COASTER_G: 3.4,      // how much of the hill's height comes back as speed (a real coaster's is 9.8)
+  COASTER_TOP: 7.0,    // m/s, the fastest it is ever asked to go: about a cat's own run and a bit
+  COASTER_PUSH: 2.0,   // m/s2, the most it speeds up...
+  COASTER_BRAKE: 2.0,  // ...and the most it slows down
+  REACH_CAR: 2.9,      // from the platform, or the ground beside the track, into a car
+  REACH_PLATFORM: 4.5, // from any car of the standing train out onto the platform (the head car is furthest)
+  CAR_STEP_UP: 1.6,
+  BOARD_SPEED: 3.0,    // she can hop in while the train stands or goes slower than this
+  PLATFORM_SPEED: 0.6, // and out onto the platform only while it is as good as stopped
+  TRACK_SWEEP: 1.3,    // nobody lands this near the track's centre line
+  // the camera that follows the train: behind and above, eased
+  CHASE_BACK: 5.4, CHASE_UP: 2.7, CHASE_TURN: 0.7, CHASE_MOVE: 0.3, CHASE_LOOK: 0.15,
   // ---- getting off ----
   LAND_MARGIN: 0.1,    // clear of every collider by the cat's radius and this
   BOUNDS_MARGIN: 0.5,
@@ -93,6 +109,7 @@ export function createFairSim(area) {
   const R = area.rides;
   const seats = [];
   const angles = { mgr: 0, mgrDrum: 0, mgrBob: new Float64Array(R.merryGoRound.horses.length), wheel: 0, cups: 0, cupSpin: 0 };
+  const pose = { x: 0, y: 0, z: 0, tx: 0, ty: 0, tz: 1 };
   // One of the area's own perches, by where it is (the boarding deck, the coaster's platform).
   const areaPerch = (at) => (area.perches ?? []).find((p) => Math.abs(p.x - at.x) < 1e-6 && Math.abs(p.z - at.z) < 1e-6 && Math.abs(p.y - at.y) < 1e-6) ?? null;
 
@@ -276,6 +293,132 @@ export function createFairSim(area) {
   // She is on the mat (or the walk is over): the chute is back at the top.
   function endSlide() { slide.t0 = null; setSlide(now); }
 
+  // ---- the caterpillar coaster --------------------------------------------------------
+  // The train's place is a pure function of the time: every lap it stands in
+  // the station for COASTER_WAIT, then runs the track once. HOW FAST it goes
+  // at each point is worked out once, here: a slow steady climb up the hill,
+  // then what the drop gives back (gently: COASTER_G), never over COASTER_TOP,
+  // never speeding up or slowing down harder than a push, and stopping exactly
+  // in the station. The whole profile is then scaled so a lap takes exactly
+  // COASTER_LAP. A car's seat is `seatY` up the car's own up-axis, so on the
+  // hill it leans back with the car.
+  function poseOnTrack(tr, s, out) {
+    const n = tr.points.length;
+    const u = (((s % tr.length) + tr.length) % tr.length) / tr.step;
+    const i = Math.floor(u) % n;
+    const t = u - Math.floor(u);
+    const a = tr.points[i];
+    const b = tr.points[(i + 1) % n];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const dz = b.z - a.z;
+    const l = Math.hypot(dx, dy, dz) || 1;
+    out.x = a.x + dx * t; out.y = a.y + dy * t; out.z = a.z + dz * t;
+    out.tx = dx / l; out.ty = dy / l; out.tz = dz / l;
+    return out;
+  }
+  const coaster = (() => {
+    const g = R.coaster;
+    const tr = g.track;
+    const L = tr.length;
+    const cars = g.cars.map((c, i) => makeSeat(`coaster-car-${i}`, 'coaster', 'car', i, {
+      behind: c.userData.behind ?? i * g.carGap, seatY: c.userData.seat.y, s: 0, px: 0, py: 0, pz: 0, tx: 0, ty: 0, tz: 1, pitch: 0, ears: false,
+    }));
+    const N = Math.ceil(L / 0.1);
+    const ds = L / N;
+    const yAt = (i) => poseOnTrack(tr, g.stationS + i * ds, pose).y;
+    let top = 0;
+    let topY = -Infinity;
+    for (let i = 0; i <= N; i++) { const y = yAt(i); if (y > topY) { topY = y; top = i; } }
+    const v = new Float64Array(N + 1);
+    for (let i = 0; i <= N; i++) {
+      v[i] = i <= top ? RIDE.COASTER_LIFT
+        : Math.min(RIDE.COASTER_TOP, Math.sqrt(RIDE.COASTER_LIFT ** 2 + 2 * RIDE.COASTER_G * Math.max(0, topY - yAt(i))));
+    }
+    v[0] = 0;
+    v[N] = 0;
+    for (let i = 0; i < N; i++) v[i + 1] = Math.min(v[i + 1], Math.sqrt(v[i] * v[i] + 2 * RIDE.COASTER_PUSH * ds));
+    for (let i = N - 1; i >= 0; i--) v[i] = Math.min(v[i], Math.sqrt(v[i + 1] * v[i + 1] + 2 * RIDE.COASTER_BRAKE * ds));
+    const at = new Float64Array(N + 1); // seconds after leaving at which the head car is i * ds along
+    for (let i = 0; i < N; i++) at[i + 1] = at[i] + (2 * ds) / (v[i] + v[i + 1]);
+    const k = at[N] / (RIDE.COASTER_LAP - RIDE.COASTER_WAIT);
+    for (let i = 0; i <= N; i++) { v[i] *= k; at[i] /= k; }
+    let fastest = 0;
+    for (let i = 0; i <= N; i++) fastest = Math.max(fastest, v[i]);
+    return {
+      track: tr, length: L, stationS: g.stationS, cars, N, ds, v, at, scale: k, fastest, hillTop: top * ds,
+      platform: areaPerch(area.anchors.coasterPlatform), s: g.stationS, d: 0, speed: 0, waiting: true,
+    };
+  })();
+  seats.push(...coaster.cars);
+
+  function setCoaster(T) {
+    const tau = ((T % RIDE.COASTER_LAP) + RIDE.COASTER_LAP) % RIDE.COASTER_LAP - RIDE.COASTER_WAIT;
+    let d = 0;
+    let speed = 0;
+    if (tau > 0) {
+      let lo = 0;
+      let hi = coaster.N;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (coaster.at[mid] <= tau) lo = mid; else hi = mid;
+      }
+      const span = coaster.at[hi] - coaster.at[lo] || 1;
+      const f = Math.min(1, Math.max(0, (tau - coaster.at[lo]) / span));
+      d = (lo + f) * coaster.ds;
+      speed = coaster.v[lo] + (coaster.v[hi] - coaster.v[lo]) * f;
+    }
+    coaster.waiting = tau <= 0;
+    coaster.d = d;
+    coaster.speed = speed;
+    coaster.s = coaster.stationS + d;
+    for (let i = 0; i < coaster.cars.length; i++) {
+      const c = coaster.cars[i];
+      c.s = coaster.s - c.behind;
+      poseOnTrack(coaster.track, c.s, pose);
+      c.px = pose.x; c.py = pose.y; c.pz = pose.z;
+      c.tx = pose.tx; c.ty = pose.ty; c.tz = pose.tz;
+      const hl = Math.hypot(pose.tx, pose.tz) || 1;
+      // the seat, `seatY` along the car's own up (it leans with the car on a slope)
+      c.x = pose.x - (pose.ty * pose.tx / hl) * c.seatY;
+      c.y = pose.y + hl * c.seatY;
+      c.z = pose.z - (pose.ty * pose.tz / hl) * c.seatY;
+      c.yaw = Math.atan2(pose.tx, pose.tz) + Math.PI;
+      c.pitch = Math.asin(Math.max(-1, Math.min(1, pose.ty)));
+      c.ears = speed > 3.5; // ears back when it gets going
+    }
+  }
+
+  // The camera that follows the train (numbers only; fairlive.js places the
+  // real one). Behind the seat and above it, looking a little ahead of her.
+  // Its direction, its place and what it looks at are each eased, so a bend
+  // in the track swings the picture slowly and nothing in it ever jumps; it
+  // never rolls, and it tips only as far as looking down at her from above.
+  const chaseCam = { on: false, x: 0, y: 0, z: 0, lx: 0, ly: 0, lz: 0, dx: 0, dz: -1 };
+  function chase(seat, dt) {
+    const hl = Math.hypot(seat.tx, seat.tz) || 1;
+    const tx = seat.tx / hl;
+    const tz = seat.tz / hl;
+    const c = chaseCam;
+    const ease = (tau) => (c.on ? 1 - Math.exp(-Math.max(0, dt) / tau) : 1);
+    const kd = ease(RIDE.CHASE_TURN);
+    c.dx += (tx - c.dx) * kd;
+    c.dz += (tz - c.dz) * kd;
+    const dl = Math.hypot(c.dx, c.dz);
+    if (dl > 1e-6) { c.dx /= dl; c.dz /= dl; } else { c.dx = tx; c.dz = tz; }
+    const kp = ease(RIDE.CHASE_MOVE);
+    c.x += (seat.x - c.dx * RIDE.CHASE_BACK - c.x) * kp;
+    c.y += (seat.y + RIDE.CHASE_UP - c.y) * kp;
+    c.z += (seat.z - c.dz * RIDE.CHASE_BACK - c.z) * kp;
+    const kl = ease(RIDE.CHASE_LOOK);
+    c.lx += (seat.x + c.dx * 1.2 - c.lx) * kl;
+    c.ly += (seat.y + 0.45 - c.ly) * kl;
+    c.lz += (seat.z + c.dz * 1.2 - c.lz) * kl;
+    c.on = true;
+    return c;
+  }
+  function resetChase() { chaseCam.on = false; }
+
   let now = 0;
   function setTime(T) {
     now = Number.isFinite(T) ? T : 0;
@@ -283,6 +426,7 @@ export function createFairSim(area) {
     setWheel(now);
     setCups(now);
     setSlide(now);
+    setCoaster(now);
   }
 
   // ---- what a jump reaches -------------------------------------------------------
@@ -344,6 +488,13 @@ export function createFairSim(area) {
         if (wheel.step && apart(from, wheel.step) < RIDE.REACH_GONDOLA) return answer('static', null, wheel.step);
         return answer('off');
       }
+      if (from.seatKind === 'car') {
+        // in the station: out onto the platform. Anywhere else: off, beside the track.
+        if (coaster.platform && coaster.speed < RIDE.PLATFORM_SPEED && flat(from, coaster.platform) < RIDE.REACH_PLATFORM) {
+          return answer('static', null, coaster.platform);
+        }
+        return answer('off');
+      }
       // on the slide there is nothing to do but slide; on the mat, a jump is a step off it
       if (from.seatKind === 'chute') return slide.sliding ? answer('stay') : answer('off');
       if (from.seatKind === 'lookout') {
@@ -376,21 +527,37 @@ export function createFairSim(area) {
         if (d < bestD) { best = g; bestD = d; }
       }
     }
+    if (coaster.speed <= RIDE.BOARD_SPEED) {
+      for (let i = 0; i < coaster.cars.length; i++) {
+        const c = coaster.cars[i];
+        const d = apart(c, cat);
+        if (d < RIDE.REACH_CAR && c.y - (cat.y ?? 0) <= RIDE.CAR_STEP_UP && d < bestD) { best = c; bestD = d; }
+      }
+    }
     if (best) return answer('board', best);
-    // On the boarding deck with no gondola in reach: she waits for the next
-    // one (the stick still takes her off the deck, as off any perch).
-    if (from && from === wheel.step) return answer('stay');
+    // On the boarding deck with no gondola in reach, or the coaster's platform
+    // with the train away: she waits for the next one (the stick still takes
+    // her off, as off any perch).
+    if (from && (from === wheel.step || from === coaster.platform)) return answer('stay');
     return null;
   }
 
   // ---- getting off ---------------------------------------------------------------
   // Whether (x, z) is under or in something a ride moves through: the
   // platform of the merry-go-round (its collider covers the same disc), the
-  // strip under the big wheel.
+  // strip under the big wheel, the coaster's track.
   function swept(x, z) {
     if (Math.hypot(x - mgr.cx, z - mgr.cz) < mgr.baseR + CAT_RADIUS) return true;
     // the teacups' floor (its collider covers the same disc)
     if (Math.hypot(x - cups.cx, z - cups.cz) < cups.baseR + CAT_RADIUS) return true;
+    // the coaster's track, all the way round
+    {
+      const pts = coaster.track.points;
+      const need = RIDE.TRACK_SWEEP + CAT_RADIUS;
+      for (let i = 0; i < pts.length; i++) {
+        if (Math.abs(x - pts[i].x) < need && Math.abs(z - pts[i].z) < need && Math.hypot(x - pts[i].x, z - pts[i].z) < need) return true;
+      }
+    }
     // the low end of the helter-skelter's chute, where a sliding cat comes through
     for (let i = 0; i < slide.low.length; i++) {
       if (Math.hypot(x - slide.low[i].x, z - slide.low[i].z) < RIDE.SLIDE_SWEEP + CAT_RADIUS) return true;
@@ -423,6 +590,7 @@ export function createFairSim(area) {
     if (seat.rideId === 'mgr') { out.x = seat.x - mgr.cx; out.z = seat.z - mgr.cz; }
     else if (seat.rideId === 'cups') { out.x = seat.x - cups.cx; out.z = seat.z - cups.cz; }
     else if (seat.rideId === 'slide') { out.x = seat.x - slide.cx; out.z = seat.z - slide.cz; }
+    else if (seat.rideId === 'coaster') { out.x = -1; out.z = 0; } // the plaza's side
     else { out.x = 0; out.z = 1; }
     return out;
   }
@@ -466,6 +634,11 @@ export function createFairSim(area) {
     slide,
     startSlide,
     endSlide,
+    coaster,
+    chaseCam,
+    chase,
+    resetChase,
+    poseOnTrack,
     get time() { return now; },
     setTime,
     jumpTarget,

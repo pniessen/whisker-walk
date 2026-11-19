@@ -25,6 +25,7 @@ vi.stubGlobal('document', {
 });
 
 const { build } = await import('../src/world/fair.js');
+const { trackPose } = await import('../src/world/fairrides.js');
 const { createFairSim, RIDE, RIDE_IDS, CAT_RADIUS: SIM_CAT_RADIUS } = await import('../src/fairsim.js');
 const { createFairLive, poseRides, NO_FAIR, TUNE, hopDownTime, wallClock } = await import('../src/fairlive.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
@@ -533,6 +534,176 @@ describe('the helter-skelter', () => {
   });
 });
 
+describe('the caterpillar coaster', () => {
+  const C = area.rides.coaster;
+  const cars = seatsOf('coaster', 'car');
+  const K = sim.coaster;
+  const DT = 1 / 30;
+  const LAP = RIDE.COASTER_LAP;
+  // the head car's place and the train's speed, frame by frame over one lap from leaving the station
+  const lap = [];
+  for (let i = 0; i < Math.round(LAP * 30); i++) {
+    sim.setTime(i * DT);
+    lap.push({ t: i * DT, d: K.d, speed: K.speed, waiting: K.waiting, x: cars[0].x, y: cars[0].y, z: cars[0].z, py: cars[0].py });
+  }
+
+  it('takes 40 to 50 seconds a lap, a few of them standing in the station, and comes back exactly', () => {
+    expect(LAP).toBeGreaterThanOrEqual(40);
+    expect(LAP).toBeLessThanOrEqual(50);
+    expect(RIDE.COASTER_WAIT).toBeGreaterThanOrEqual(4);
+    expect(RIDE.COASTER_WAIT).toBeLessThanOrEqual(8);
+    sim.setTime(123.4);
+    const a = cars.map((c) => [c.x, c.y, c.z, c.yaw]);
+    sim.setTime(123.4 + LAP);
+    cars.forEach((c, i) => { for (let k = 0; k < 4; k++) expect([c.x, c.y, c.z, c.yaw][k]).toBeCloseTo(a[i][k], 6); });
+    // once round the whole track each lap, and never backwards
+    for (let i = 1; i < lap.length; i++) expect(lap[i].d).toBeGreaterThanOrEqual(lap[i - 1].d - 1e-9);
+    sim.setTime(LAP - 1e-4);
+    expect(K.d).toBeCloseTo(C.track.length, 2);
+  });
+
+  it('stands in the station where the model was built standing, for the whole wait', () => {
+    for (const t of [0, 1, 3, RIDE.COASTER_WAIT - 0.01, LAP, LAP * 7 + 2]) {
+      sim.setTime(t);
+      expect(K.waiting).toBe(true);
+      expect(K.speed).toBe(0);
+      expect(K.s).toBe(C.stationS);
+      cars.forEach((c, i) => {
+        const at = trackPose(C.track, C.stationS - i * C.carGap);
+        expect(Math.hypot(c.px - at.x, c.py - at.y, c.pz - at.z)).toBeLessThan(1e-9);
+      });
+    }
+    sim.setTime(RIDE.COASTER_WAIT + 0.5);
+    expect(K.waiting).toBe(false);
+    expect(K.speed).toBeGreaterThan(0);
+  });
+
+  it('follows the track exactly as the model’s own rule does', () => {
+    const out = {};
+    for (let s = -20; s < C.track.length + 20; s += 3.37) {
+      const a = trackPose(C.track, s);
+      const b = sim.poseOnTrack(C.track, s, out);
+      for (const k of ['x', 'y', 'z', 'tx', 'ty', 'tz']) expect(b[k]).toBeCloseTo(a[k], 12);
+    }
+  });
+
+  it('puts every car’s seat where the model’s is, all the way round', () => {
+    for (const T of SAMPLES) {
+      posed(T);
+      for (const c of cars) expect(dist3(c, modelSeat(C.cars[c.index])), `${c.id} at ${T}`).toBeLessThan(1e-6);
+    }
+    // the cars keep their gap, measured along the track
+    sim.setTime(20);
+    for (let i = 1; i < cars.length; i++) expect(cars[i - 1].s - cars[i].s).toBeCloseTo(C.carGap, 9);
+  });
+
+  it('is gentle: a slow clank up the hill, a swoop no faster than about twice her run, and never a jolt', () => {
+    const RUN = 3.8 * 1.55; // a tabby's zoomies, m/s (game/walk.js pace, player.js zoom)
+    let fastest = 0;
+    let hardest = 0;
+    let climbFast = 0;
+    for (let i = 1; i < lap.length; i++) {
+      const moved = Math.hypot(lap[i].x - lap[i - 1].x, lap[i].y - lap[i - 1].y, lap[i].z - lap[i - 1].z) / DT;
+      fastest = Math.max(fastest, lap[i].speed, moved);
+      hardest = Math.max(hardest, Math.abs(lap[i].speed - lap[i - 1].speed) / DT);
+      if (!lap[i].waiting && lap[i].d < K.hillTop - 3 && lap[i].d > 3) climbFast = Math.max(climbFast, lap[i].speed);
+    }
+    expect(fastest).toBeLessThanOrEqual(2 * RUN);
+    expect(fastest).toBeLessThan(8.5);
+    expect(fastest).toBeGreaterThan(5); // and it IS a swoop
+    expect(K.fastest).toBeCloseTo(Math.max(...lap.map((f) => f.speed)), 0);
+    expect(climbFast).toBeLessThan(3.2); // the climb is a clank
+    expect(climbFast).toBeGreaterThan(1.5);
+    expect(hardest).toBeLessThan(3.2); // m/s2: under a third of what gravity would do
+    // the profile was barely stretched to fit the lap: the speeds are the ones written down
+    expect(K.scale).toBeGreaterThan(0.8);
+    expect(K.scale).toBeLessThan(1.25);
+    // it is at its fastest low down, after the hill
+    const top = lap.reduce((a, f) => (f.speed > a.speed ? f : a));
+    expect(top.d).toBeGreaterThan(K.hillTop);
+  });
+
+  it('is boarded from the platform while it stands, and not as it rushes by', () => {
+    const plat = K.platform;
+    expect(plat).toBe(area.perches.find((p) => p.x === area.anchors.coasterPlatform.x && p.z === area.anchors.coasterPlatform.z));
+    sim.setTime(2);
+    const t = sim.jumpTarget(plat, plat);
+    expect(t.type).toBe('board');
+    expect(t.seat.seatKind).toBe('car');
+    expect(dist3(t.seat, plat)).toBeLessThan(RIDE.REACH_CAR);
+    // from the grass on the far side of the track too
+    const east = { x: t.seat.x + 1.3, y: 0, z: t.seat.z };
+    expect(sim.jumpTarget(east, null).type).toBe('board');
+    // the train away: she waits on the platform
+    sim.setTime(RIDE.COASTER_WAIT + 15);
+    expect(sim.jumpTarget(plat, plat).type).toBe('stay');
+    // never into a car going faster than a slow roll, however near
+    let refused = 0;
+    for (const f of lap) {
+      sim.setTime(f.t);
+      for (const c of cars) {
+        const beside = { x: c.x, y: Math.max(0, c.y - 1), z: c.z + 0.8 };
+        const got = sim.jumpTarget(beside, null);
+        if (K.speed > RIDE.BOARD_SPEED) { if (got?.seat?.rideId === 'coaster') throw new Error(`boarded at ${K.speed.toFixed(1)} m/s`); refused++; }
+        else if (got?.seat?.rideId === 'coaster') expect(dist3(got.seat, beside)).toBeLessThan(RIDE.REACH_CAR);
+      }
+    }
+    expect(refused).toBeGreaterThan(100);
+  });
+
+  it('lets her out onto the platform in the station, and off beside the track anywhere else', () => {
+    sim.setTime(1);
+    for (const c of cars) { const t = sim.jumpTarget(c, c); expect(t.type).toBe('static'); expect(t.perch).toBe(K.platform); }
+    for (const f of lap) {
+      if (f.waiting || f.speed < RIDE.PLATFORM_SPEED) continue;
+      sim.setTime(f.t);
+      for (const c of cars) expect(sim.jumpTarget(c, c).type).toBe('off');
+    }
+  });
+
+  it('counts the whole track as swept: nobody lands on it or under it', () => {
+    for (const p of C.track.points) {
+      expect(sim.swept(p.x, p.z)).toBe(true);
+      expect(sim.swept(p.x + 0.9, p.z + 0.9)).toBe(true);
+    }
+    expect(sim.swept(31, 0)).toBe(false); // the grass inside the loop
+  });
+
+  it('follows the train with a camera that eases round bends, never jumps, never rolls and only looks down a little', () => {
+    sim.resetChase();
+    const seat = cars[1];
+    let prev = null;
+    let prevDir = null;
+    let maxStep = 0;
+    let maxTurn = 0;
+    for (let i = 0; i <= Math.round(LAP * 2 * 30); i++) {
+      sim.setTime(i * DT);
+      const c = sim.chase(seat, DT);
+      for (const k of ['x', 'y', 'z', 'lx', 'ly', 'lz']) expect(Number.isFinite(c[k])).toBe(true);
+      const dir = { x: c.lx - c.x, y: c.ly - c.y, z: c.lz - c.z };
+      const dl = Math.hypot(dir.x, dir.y, dir.z);
+      // behind and above her, looking down at her by a modest angle
+      expect(c.y - seat.y).toBeGreaterThan(1.2);
+      expect(c.y - seat.y).toBeLessThan(4.5);
+      const down = Math.asin(-dir.y / dl);
+      expect(down).toBeGreaterThan(0.05);
+      expect(down).toBeLessThan(0.75);
+      expect(Math.hypot(c.x - seat.x, c.z - seat.z)).toBeGreaterThan(2.5);
+      expect(Math.hypot(c.x - seat.x, c.z - seat.z)).toBeLessThan(9);
+      if (prev) {
+        maxStep = Math.max(maxStep, Math.hypot(c.x - prev.x, c.y - prev.y, c.z - prev.z));
+        const dot = (dir.x * prevDir.x + dir.y * prevDir.y + dir.z * prevDir.z) / (dl * prevDir.l);
+        maxTurn = Math.max(maxTurn, Math.acos(Math.min(1, dot)));
+      }
+      prev = { x: c.x, y: c.y, z: c.z };
+      prevDir = { ...dir, l: dl };
+    }
+    expect(maxStep).toBeLessThan(0.33); // metres a frame at 30 fps: no faster than the train itself
+    expect(maxTurn).toBeLessThan(0.06); // radians a frame: about three degrees, on the tightest bend
+    sim.resetChase();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // GETTING ON
 // ---------------------------------------------------------------------------
@@ -794,6 +965,10 @@ describe('the walk: a cat on the merry-go-round', () => {
     expect(w.session.perched).not.toBe(third);
     // still one ride: its line is said once
     expect(w.events.filter((e) => e.type === 'ride')).toHaveLength(1);
+    // however long she rides, she has not been "lying still": no nap the moment she is down
+    w.session.idleTime = 99;
+    w.frame();
+    expect(w.session.idleTime).toBe(0);
   });
 
   it('lets her off at any moment by pushing the stick: a short hop down to free ground, never a frame on the ground under the ride', () => {
@@ -1262,6 +1437,120 @@ describe('the walk: a cat on the helter-skelter', () => {
     expect(src).toMatch(/const down = session\.fair\?\.groundSpot\?\.\(\) \?\? null;/);
     expect(src).toMatch(/x: down \? down\.x : session\.cat\.position\.x,/);
     expect(src).toMatch(/z: down \? down\.z : session\.cat\.position\.z,/);
+  });
+});
+
+describe('the walk: a cat on the caterpillar coaster', () => {
+  function onThePlatform(clock) {
+    const w = walk({ at: { x: 19.6, z: 0 }, clock });
+    const plat = w.live.sim.coaster.platform;
+    w.session.perched = plat;
+    w.player.perchY = plat.y;
+    w.cat.position.set(plat.x, plat.y, plat.z);
+    return { ...w, plat };
+  }
+  const LAP = RIDE.COASTER_LAP;
+
+  it('takes her round a whole lap from the platform and back to it, the camera easing along behind', () => {
+    const w = onThePlatform({ T: LAP * 400 + 1 }); // the train is standing in the station
+    w.frame();
+    expect(w.live.canBoard(w.cat, w.player, w.session)).toBe(true);
+    expect(w.live.jump(w.ctx)).toBe(true);
+    const car = w.session.perched;
+    expect(car.seatKind).toBe('car');
+    w.frame();
+    expect(w.events.filter((e) => e.type === 'ride')).toEqual([{ type: 'ride', ride: 'coaster' }]);
+    const prev = new THREE.Vector3();
+    const dir = new THREE.Vector3();
+    const prevDir = new THREE.Vector3();
+    let maxStep = 0;
+    let maxTurn = 0;
+    let top = 0;
+    let moved = false;
+    let earsBack = 0;
+    const ears = { earL: { rotation: { z: 0.22 } }, earR: { rotation: { z: -0.22 } } };
+    w.cat.userData.parts = ears;
+    for (let i = 0; i < 30 * LAP; i++) {
+      prev.copy(w.camera.position);
+      w.camera.getWorldDirection(prevDir);
+      ears.earL.rotation.z = 0.22;
+      w.frame();
+      expect(w.session.perched).toBe(car); // nothing puts her off: she is carried the whole way
+      expect([w.cat.position.x, w.cat.position.y, w.cat.position.z]).toEqual([car.x, car.y, car.z]);
+      expect(w.player.perchY).toBe(car.y);
+      top = Math.max(top, car.y);
+      if (w.live.sim.coaster.speed > 1) moved = true;
+      if (ears.earL.rotation.z > 0.6) earsBack++;
+      if (i > 45) {
+        maxStep = Math.max(maxStep, prev.distanceTo(w.camera.position));
+        w.camera.getWorldDirection(dir);
+        maxTurn = Math.max(maxTurn, dir.angleTo(prevDir));
+      }
+      expect(Math.abs(new THREE.Vector3(1, 0, 0).applyQuaternion(w.camera.quaternion).y)).toBeLessThan(1e-6); // never rolls
+      expect(w.camera.position.y).toBeGreaterThan(w.cat.position.y + 1); // above her
+    }
+    expect(moved).toBe(true);
+    expect(top).toBeGreaterThan(6.5); // over the hill
+    expect(earsBack).toBeGreaterThan(30 * 5); // ears back for the swoop
+    expect(earsBack).toBeLessThan(30 * 30); // and up again on the climb and in the station
+    expect(maxStep).toBeLessThan(0.4);
+    expect(maxTurn).toBeLessThan(0.07);
+    // back in the station: the jump button puts her out on the platform
+    expect(w.live.sim.coaster.waiting).toBe(true);
+    expect(w.live.jump(w.ctx)).toBe(true);
+    expect(w.session.perched).toBe(w.plat);
+    expect(w.live.riding).toBeNull();
+    expect([w.cat.position.x, w.cat.position.y, w.cat.position.z]).toEqual([w.plat.x, w.plat.y, w.plat.z]);
+    // and if she had stayed in, it would simply have gone round again
+  });
+
+  it('lets her hop out anywhere on the lap: down in under a second onto free ground beside the track, never on it', () => {
+    for (const after of [0.5, 7, 12, 17, 21, 26, 31, 36, 41, 44]) {
+      const w = onThePlatform({ T: LAP * 500 + 1 });
+      w.frame();
+      expect(w.live.jump(w.ctx)).toBe(true);
+      const car = w.session.perched;
+      w.run(after);
+      const from = { x: car.x, z: car.z, y: car.y };
+      const how = after % 2 < 1 ? 'jump' : 'stick';
+      const inStation = w.live.sim.coaster.speed < RIDE.PLATFORM_SPEED;
+      if (how === 'jump' && !inStation) expect(w.live.jump(w.ctx)).toBe(true);
+      else { w.pushStick(-1, 0); w.frame(); }
+      expect(w.session.perched).toBeNull();
+      expect(w.live.hopping).toBe(true);
+      const prev = new THREE.Vector3();
+      let frames = 0;
+      while (w.live.hopping) {
+        prev.copy(w.camera.position);
+        w.frame();
+        expect(prev.distanceTo(w.camera.position)).toBeLessThan(1.2);
+        expect(++frames).toBeLessThanOrEqual(28);
+      }
+      w.pushStick(0, 0);
+      expect(grounded(w), `after ${after}s`).toBe(true);
+      expect(w.live.sim.swept(w.cat.position.x, w.cat.position.z), `after ${after}s`).toBe(false);
+      expect(Math.hypot(w.cat.position.x - from.x, w.cat.position.z - from.z), `after ${after}s`).toBeLessThan(7); // beside where she got off
+      // the train goes on without her, and she is left alone
+      w.run(1);
+      expect(grounded(w)).toBe(true);
+      expect(w.live.riding).toBeNull();
+    }
+  });
+
+  it('leaves her on the ground when the walk ends, or is picked up again, while she is on the hill', () => {
+    const w = onThePlatform({ T: LAP * 600 + 1 });
+    w.frame();
+    w.live.jump(w.ctx);
+    w.run(16);
+    expect(w.cat.position.y).toBeGreaterThan(3);
+    const at = { x: w.cat.position.x, z: w.cat.position.z };
+    expect(() => w.live.dispose()).not.toThrow();
+    expect(w.live.riding).toBeNull();
+    const spot = clearSpot(at, w.area.colliders, w.area.bounds, w.area.waters, 0.6);
+    expect(isWalkableAt(w.area, spot.x, spot.z)).toBe(true);
+    const again = walk({ at: spot, clock: { T: LAP * 601 } });
+    again.run(0.5);
+    expect(grounded(again)).toBe(true);
   });
 });
 
