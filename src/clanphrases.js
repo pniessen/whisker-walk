@@ -345,6 +345,20 @@ const LATER = Object.freeze({
   'woods.south.pebble': 'a speckled pebble from the spring',
   'woods.south.fur': 'a soft tuft of rabbit fur in the bluebells',
   'woods.south.nut': 'a hazelnut a squirrel forgot',
+  // ---- the Pines' north and west strips (bigger areas, 2026-11-19; only seen
+  // with the ?grow=1 switch on): their own words, the same in every set -------
+  'pines.north.lookout': 'great pine roots',
+  'pines.north.scenic': 'the great pine, oldest in the forest',
+  'pines.north.jay': "a blue jay feather in the great pine's roots",
+  'pines.north.nuts': "a squirrel's hidden pile of pine nuts",
+  'pines.north.woodpecker': "a woodpecker's red-tipped feather",
+  'pines.north.stone': 'a smooth black stone from the mire',
+  'pines.west.stump': 'old mossy stump',
+  'pines.west.scenic': 'the toadstool ring by the bog pool',
+  'pines.west.snail': 'a tiny snail shell inside the toadstool ring',
+  'pines.west.myrtle': 'a sprig of sweet-smelling bog myrtle',
+  'pines.west.pebble': 'a frog-green pebble by the far bog',
+  'pines.west.wren': 'a soft brown wren feather',
 });
 
 // Every id of the first table, in table order.
