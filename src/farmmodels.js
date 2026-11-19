@@ -621,7 +621,7 @@ export function buildSheepdog(material) {
     const blaze = smooth(0.012, -0.012, Math.abs(x) - (0.014 + 0.2 * Math.max(0, z - 0.04))) * (Math.abs(v - 0.5) < 0.25 ? 1 : 0);
     return mix(BLACK, WHITE, Math.max(blaze, smooth(0.1, 0.125, z), smooth(-0.05, -0.08, y) * smooth(-0.02, 0.05, z)));
   };
-  const ex = 0.056, ey = 0.04, ez = 0.08, er = 0.025;
+  const ex = 0.06, ey = 0.04, ez = 0.08, er = 0.022;
   const skullParts = [
     loft([
       at(-0.11, 0.045, -0.04, 0.05),
@@ -634,10 +634,8 @@ export function buildSheepdog(material) {
       at(0.202, 0.01, -0.024, 0.03),
     ], { around: 12, along: 12, level: true, color: face, tipStart: 0.02, tipEnd: 0.008 }),
     put(ball(0.024, { around: 6, rings: 3, color: EYE }), { scale: [1.15, 0.85, 0.85], at: [0, 0.01, 0.202] }),                // nose
-    // brown eyes, a dark middle to each
-    ...pair(put(ball(er, { around: 9, rings: 3, color: 0x7a4a22 }), { at: [ex, ey, ez] })),
-    ...pair(put(ball(er * 0.56, { around: 7, rings: 2, color: EYE }), { scale: [1, 1, 0.6], at: [ex + er * 0.28, ey, ez + er * 0.64] })),
-    ...pair(put(ball(er * 0.3, { around: 4, rings: 1, color: GLINT }), { at: [ex + er * 0.48, ey + er * 0.42, ez + er * 0.8] })),
+    // soft dark brown eyes, a glint in each: no pale ring round them to look like a glare
+    ...eye(er, ex, ey, ez, { color: 0x3a2412 }),
   ];
   inner.add(mesh(merged(skullParts), material));
   // his lower jaw, and his tongue lying on it
@@ -649,7 +647,7 @@ export function buildSheepdog(material) {
       at(0.17, 0.01, -0.02, 0.03),
     ], { around: 7, along: 5, level: true, color: (x, y, z) => mix(BLACK, WHITE, smooth(0.03, 0.07, z)), tipStart: 0.012, tipEnd: 0.008 }),
     // his tongue: in his mouth, its tip just over his lower teeth, curling down
-    put(ball(0.026, { around: 6, rings: 2, color: 0xd96a78 }), { scale: [0.72, 0.28, 1.3], rot: [0.12, 0, 0], at: [0, 0.006, 0.128] }),
+    put(ball(0.026, { around: 6, rings: 2, color: 0xd96a78 }), { scale: [0.72, 0.28, 1.0], rot: [0.12, 0, 0], at: [0, 0.006, 0.124] }),
   ]), material);
   jaw.position.set(0, -0.042, 0.02);
   inner.add(jaw);
