@@ -72,7 +72,8 @@ const AREAS = [
   // Appletree Farm: its buildings, bales, trees and small props.
   ['farm', buildFarm, 51, false],
   // The Fairground: its stalls, tents, rides' bases, trees and small props.
-  ['fair', buildFair, 41, false],
+  // (41 -> 37 in the polish pass: the four flower patches became tubs in the props' mesh)
+  ['fair', buildFair, 37, false],
 ];
 
 function buildArea(builder, isDen) {
