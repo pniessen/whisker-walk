@@ -404,9 +404,9 @@ export function buildCow(lookName, material) {
 // ---- the goat ------------------------------------------------------------------------------
 export const GOAT_LOOKS = Object.freeze({
   // a white dairy goat (a Saanen): cream, pink where the skin shows, an udder
-  white: { coat: 0xf1ece2, back: 0xe6dfd0, under: 0xf6f2ea, leg: 0xe2dbcc, knee: 0xcfc6b4, face: 0xf1ece2, mark: 0xf1ece2, ear: 0xe0d6c6, beard: 0xdcd5c6, muzzle: 0xe3b9ae, iris: 0xc9a23a, lid: 0xd9cfc0, udder: true },
+  white: { coat: 0xf1ece2, back: 0xe6dfd0, under: 0xf6f2ea, leg: 0xe2dbcc, knee: 0xcfc6b4, face: 0xf1ece2, mark: 0xf1ece2, ear: 0xe0d6c6, beard: 0xdcd5c6, muzzle: 0xe3b9ae, iris: 0xb08a3a, lid: 0xd9cfc0, udder: true },
   // a tan one with a black stripe down the spine, black shins, belly and face stripes (a chamoisee Alpine)
-  tan: { coat: 0xc69a6a, back: 0x3a2c22, under: 0x4a372a, leg: 0x8a6444, knee: 0x3a2c22, face: 0xd2ac7c, mark: 0x3a2c22, ear: 0x5a4030, beard: 0x3a2c22, muzzle: 0x4a3a34, iris: 0xd6a83c, lid: 0x7a5a40, udder: false },
+  tan: { coat: 0xc69a6a, back: 0x3a2c22, under: 0x4a372a, leg: 0x8a6444, knee: 0x3a2c22, face: 0xd2ac7c, mark: 0x3a2c22, ear: 0x5a4030, beard: 0x3a2c22, muzzle: 0x4a3a34, iris: 0xc0902e, lid: 0x7a5a40, udder: false },
 });
 const GOAT_HORN = 0x6a5e50;
 // Where the face sits on the goat's neck (the head group's own frame).
@@ -475,17 +475,17 @@ export function buildGoat(lookName, material) {
       at(-0.06, 0.078, -0.07, 0.08, { nt: 2.4 }),
       at(0.0, 0.082, -0.08, 0.088, { nt: 2.5 }),
       at(0.07, 0.066, -0.05, 0.07, { nt: 2.4 }),
-      at(0.14, 0.05, -0.034, 0.05, { nt: 2.3 }),    // a straight profile
-      at(0.2, 0.036, -0.028, 0.044, { nt: 2.4 }),
-      at(0.232, 0.018, -0.02, 0.034),
+      at(0.14, 0.05, -0.042, 0.05, { nt: 2.3 }),    // a straight profile
+      at(0.2, 0.036, -0.036, 0.045, { nt: 2.4 }),
+      at(0.232, 0.018, -0.026, 0.035),
     ], { around: 10, along: 9, level: true, color: face, tipStart: 0.015, tipEnd: 0.008 }),
     // horns, sweeping back
     ...pair(put(loft([
       { y: 0, z: 0, r: 0.028 }, { y: 0.075, z: -0.025, r: 0.024 }, { y: 0.135, z: -0.085, r: 0.018 }, { y: 0.16, z: -0.165, r: 0.009 },
     ], { around: 5, color: (x, y, z, u) => mix(GOAT_HORN, 0x3e362e, smooth(0.5, 1, u)), tipEnd: 0.015 }), { rot: [0, 0, -0.28], at: [0.04, 0.065, -0.055] })),
     // amber eyes with a dark bar across them
-    ...pair(put(ball(er, { around: 8, rings: 3, color: look.iris }), { at: [ex, ey, ez] })),
-    ...pair(put(ball(er, { around: 6, rings: 2, color: EYE }), { scale: [0.5, 0.3, 0.78], at: [ex + er * 0.62, ey, ez] })),
+    ...pair(put(ball(er, { around: 8, rings: 3, color: look.iris }), { scale: [0.72, 1, 1], at: [ex - er * 0.12, ey, ez] })),
+    ...pair(put(ball(er, { around: 6, rings: 2, color: EYE }), { scale: [0.4, 0.3, 0.74], at: [ex + er * 0.46, ey, ez] })),
     ...pair(put(ball(0.008, { around: 4, rings: 1, color: 0x2a2220 }), { scale: [1, 0.7, 0.5], at: [0.018, 0.012, 0.236] })), // nostrils
   ];
   const headGeo = put(merged(skullParts), { scale: [GOAT_FACE.scale, GOAT_FACE.scale, GOAT_FACE.scale], rot: [GOAT_FACE.rot, 0, 0], at: GOAT_FACE.at });
@@ -497,8 +497,8 @@ export function buildGoat(lookName, material) {
       // widest where the skull's underside lies inside it: one cheek, a line only at the lips
       at(-0.01, 0.03, -0.048, 0.064, { mid: -0.028 }),
       at(0.07, 0.024, -0.05, 0.056, { mid: 0.002 }),
-      at(0.15, 0.022, -0.034, 0.044, { mid: 0.014 }),
-      at(0.195, 0.026, -0.026, 0.034, { mid: 0.02 }),
+      at(0.15, 0.022, -0.03, 0.044, { mid: 0.012 }),
+      at(0.185, 0.024, -0.022, 0.034, { mid: 0.016 }),
     ], { around: 7, along: 5, level: true, color: (x, y, z) => mix(look.face, look.muzzle, smooth(0.165, 0.185, z)), tipStart: 0.012, tipEnd: 0.01 }),
     // the beard
     loft([
@@ -621,7 +621,7 @@ export function buildSheepdog(material) {
     const blaze = smooth(0.012, -0.012, Math.abs(x) - (0.014 + 0.2 * Math.max(0, z - 0.04))) * (Math.abs(v - 0.5) < 0.25 ? 1 : 0);
     return mix(BLACK, WHITE, Math.max(blaze, smooth(0.1, 0.125, z), smooth(-0.05, -0.08, y) * smooth(-0.02, 0.05, z)));
   };
-  const ex = 0.057, ey = 0.036, ez = 0.083, er = 0.024;
+  const ex = 0.056, ey = 0.04, ez = 0.08, er = 0.025;
   const skullParts = [
     loft([
       at(-0.11, 0.045, -0.04, 0.05),
@@ -635,9 +635,9 @@ export function buildSheepdog(material) {
     ], { around: 12, along: 12, level: true, color: face, tipStart: 0.02, tipEnd: 0.008 }),
     put(ball(0.024, { around: 6, rings: 3, color: EYE }), { scale: [1.15, 0.85, 0.85], at: [0, 0.01, 0.202] }),                // nose
     // brown eyes, a dark middle to each
-    ...pair(put(ball(er, { around: 9, rings: 3, color: 0x5e3618 }), { scale: [0.8, 1, 1], at: [ex, ey, ez] })),
-    ...pair(put(ball(er * 0.62, { around: 7, rings: 2, color: EYE }), { scale: [1, 1, 0.6], at: [ex + er * 0.28, ey, ez + er * 0.62] })),
-    ...pair(put(ball(er * 0.24, { around: 4, rings: 1, color: GLINT }), { at: [ex + er * 0.5, ey + er * 0.42, ez + er * 0.82] })),
+    ...pair(put(ball(er, { around: 9, rings: 3, color: 0x7a4a22 }), { at: [ex, ey, ez] })),
+    ...pair(put(ball(er * 0.56, { around: 7, rings: 2, color: EYE }), { scale: [1, 1, 0.6], at: [ex + er * 0.28, ey, ez + er * 0.64] })),
+    ...pair(put(ball(er * 0.3, { around: 4, rings: 1, color: GLINT }), { at: [ex + er * 0.48, ey + er * 0.42, ez + er * 0.8] })),
   ];
   inner.add(mesh(merged(skullParts), material));
   // his lower jaw, and his tongue lying on it
@@ -649,7 +649,7 @@ export function buildSheepdog(material) {
       at(0.17, 0.01, -0.02, 0.03),
     ], { around: 7, along: 5, level: true, color: (x, y, z) => mix(BLACK, WHITE, smooth(0.03, 0.07, z)), tipStart: 0.012, tipEnd: 0.008 }),
     // his tongue: in his mouth, its tip just over his lower teeth, curling down
-    put(ball(0.026, { around: 6, rings: 2, color: 0xe07a86 }), { scale: [0.85, 0.3, 1.35], rot: [0.12, 0, 0], at: [0, 0.008, 0.132] }),
+    put(ball(0.026, { around: 6, rings: 2, color: 0xd96a78 }), { scale: [0.72, 0.28, 1.3], rot: [0.12, 0, 0], at: [0, 0.006, 0.128] }),
   ]), material);
   jaw.position.set(0, -0.042, 0.02);
   inner.add(jaw);

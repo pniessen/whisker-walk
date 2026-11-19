@@ -375,14 +375,14 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     const hat = a.carry === 'hat';
     if (still) {
       parts.head.rotation.z = 0;
-      parts.jaw.rotation.x = 0.02; parts.jaw.position.x = 0;
+      parts.jaw.rotation.x = 0; parts.jaw.position.x = 0;
       parts.ears.rotation.y = 0; parts.ears.rotation.z = 0;
       lidsTo(parts.lids, 0);
       parts.tail.rotation.z = 0; parts.tail.rotation.x = 0;
     } else {
       parts.head.rotation.z = 0.2 * tilt(t, seed) * idle * (1 - a.head);
       const c = chew(t, seed, 7.5);
-      parts.jaw.rotation.x = hat ? 0.1 : 0.03 + 0.14 * c.open * idle; // it does not chew the farmer's hat
+      parts.jaw.rotation.x = hat ? 0.1 : 0.05 * c.open * idle; // it does not chew the farmer's hat; chewing, its lips barely part
       parts.jaw.position.x = hat ? 0 : 0.005 * c.side * idle;
       parts.ears.rotation.y = 0.55 * flick(t, seed, 2.9);
       parts.ears.rotation.z = 0.2 * flick(t, seed + 50, 4.1);
@@ -432,11 +432,11 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     const happy = a.wag || a.moving ? 1 : 0;
     k.pant = ease(k.pant ?? 0, happy, dt * 3);
     if (still) {
-      parts.jaw.rotation.x = 0.03 + 0.14 * k.pant;
+      parts.jaw.rotation.x = 0.02 + 0.08 * k.pant;
       parts.ears[0].rotation.x = parts.ears[1].rotation.x = 0.3 - 0.4 * k.alert;
       lidsTo(parts.lids, 0.1 + 0.8 * k.doze);
     } else {
-      parts.jaw.rotation.x = 0.03 + (0.12 + 0.14 * pant(t)) * k.pant;
+      parts.jaw.rotation.x = 0.02 + (0.05 + 0.09 * pant(t)) * k.pant;
       // ears back and easy; pricked toward her when she is near; a flick now and then
       parts.ears[0].rotation.x = 0.3 - 0.4 * k.alert + 0.3 * Math.abs(flick(t, seed, 3.1));
       parts.ears[1].rotation.x = 0.3 - 0.4 * k.alert + 0.3 * Math.abs(flick(t, seed + 9, 4.3));
