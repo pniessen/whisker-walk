@@ -328,6 +328,15 @@ const LATER = Object.freeze({
   'river.west.snail': 'a snail shell in the tall reeds',
   'river.west.wing': 'a blue dragonfly wing by the river',
   'river.west.pebble': 'a round white pebble at the far bank',
+  // ---- the Woods' south strip (bigger areas, 2026-11-19; only seen with the
+  // ?grow=1 switch on). The everyday set says the hollow its own way
+  // (offclanwords.js, its Woods south block); the rest is the same in every set
+  'woods.south.lookout': 'old stump lookout',
+  'woods.south.scenic': 'the training hollow',
+  'woods.south.seed': 'a sycamore seed with paper wings',
+  'woods.south.pebble': 'a speckled pebble from the spring',
+  'woods.south.fur': 'a soft tuft of rabbit fur in the bluebells',
+  'woods.south.nut': 'a hazelnut a squirrel forgot',
 });
 
 // Every id of the first table, in table order.
