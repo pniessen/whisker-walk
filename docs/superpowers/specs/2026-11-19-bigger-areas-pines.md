@@ -121,6 +121,11 @@ machine was heavily loaded (load average 20-40) during the run.
   mesh's tree items the six-way outline.
 - The swamp strips are open, as the core's swamp is: wet hollows, reeds, dead
   pines and bog cotton, no undergrowth. More could go in.
+- Two existing tests had to grow, as the River's step did: the later-lines
+  fixture (`test/fixtures/series-words-on-later.json`) gains the twelve new
+  rows (no row changes), and `test/gorgelife.test.js`'s list of areas with a
+  `life` names the Pines. Other area agents adding lines or a life will touch
+  the same two places.
 - No seam file was changed. The core stream's rectangle is the grown one, not
   the core's (`world/streamcore.js` says `rect: BOUNDS`): it is how the strips'
   merged scatter streams with no change to `render/striptiles.js`. A walk's
@@ -129,6 +134,7 @@ machine was heavily loaded (load average 20-40) during the run.
   treats them as it treats the River's west strip.
 
 Pictures (in the session's scratchpad, `grow-pines/`): `sheet-day-1-edges.jpg`,
-`sheet-day-2-strips.jpg`, `sheet-dusk-1.jpg`, `sheet-dusk-2.jpg`; single
+`sheet-day-2-strips.jpg`, `sheet-dusk-1.jpg`, `sheet-dusk-2.jpg`, and the two
+landmarks close up in `sheet-landmarks-close.jpg`; single
 frames in `before-day/`, `after-day/`, `before-dusk/`, `after-dusk/`; the walk
 in `walk-on.txt` and `walk-off.txt`.
