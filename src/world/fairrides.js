@@ -44,7 +44,7 @@ export const MGR = Object.freeze({
   baseR: 4.75, r: 4.5, deckY: 0.38, drumR: 1.0, canopyR: 5.0, canopyY: 3.7, apexY: 5.5,
   outerR: 3.45, innerR: 2.05, outer: 8, inner: 4, seatY: 1.0, bob: 0.18,
 });
-const COATS = Object.freeze([0xf6f1e6, 0xe9cf9a, 0xc4c9d2, 0xdcae62, 0xb9744a, 0xf6f1e6, 0x8d8a96, 0xf3dcc0]);
+const COATS = Object.freeze([0xf1e9dc, 0xe9cf9a, 0xc4c9d2, 0xdcae62, 0xb9744a, 0xf1e9dc, 0x8d8a96, 0xf3dcc0]);
 const TACK = Object.freeze([PAINT.red, PAINT.sky, PAINT.green, PAINT.purple, PAINT.orange, PAINT.pink, PAINT.blue, PAINT.gold]);
 
 // ---- carving ---------------------------------------------------------------------------
@@ -689,7 +689,7 @@ export function teacups(x, z, glow, yaw = 0) {
     { y: 0.94, z: -1.32, w: 0.07, r: 0.06 },
     { y: 0.72, z: -0.98, w: 0.07, r: 0.06 },
   ].map((k) => ({ ...k, y: k.y + deckY })), { around: 5, along: 7, open: 'both', paint: PAINT.white });
-  turn.add(meshOf(P, 'teacupsDeck', { roughness: 0.65 }));
+  turn.add(meshOf(P, 'teacupsDeck', { roughness: 0.75 }));
   const L = [];
   ring(16, (a, i) => bulb(L, Math.cos(a) * 1.16, deckY + 0.2, Math.sin(a) * 1.16, BULB_COLORS[i % BULB_COLORS.length]));
   ring(24, (a, i) => bulb(L, Math.cos(a) * (r - 0.12), deckY + 0.06, Math.sin(a) * (r - 0.12), BULB_COLORS[i % 2]));
