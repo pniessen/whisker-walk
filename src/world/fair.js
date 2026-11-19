@@ -1,13 +1,15 @@
+import * as THREE from 'three';
 import * as b from './builder.js';
 import { createWater, PARK_POND_LOOK } from '../render/water.js';
 import { addTrails } from './pathribbon.js';
 import { sureClawsTreePerch } from '../climbing.js';
-import { tintGround, rectDist } from './dressing.js';
+import { tintGround, rectDist, smoothField, smoothstep, lerp3, lin } from './dressing.js';
 import { lawnMottle } from './park.js';
 import { withLocalUuids } from './localuuids.js';
 import { glowMaterial, GLOW_MAX } from './fairkit.js';
 import * as parts from './fairparts.js';
 import * as rides from './fairrides.js';
+import * as edge from './fairedge.js';
 import { STALL, STALL_SIGN, SIGN_POST, TINS, BELL, FORTUNE, BANDSTAND, PICNIC, RIDGE_TENT, FAIR_PAINT, POOL } from './fairparts.js';
 import { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, MUSIC_BOX } from './fairrides.js';
 
@@ -132,6 +134,10 @@ const TREES = Object.freeze([
 // The showmen's wagons, parked north-east of the plaza: [x, z, yaw].
 const WAGONS = Object.freeze([pt(13, -18.5, { yaw: 0.55 }), pt(18.5, -12, { yaw: -0.85 })]);
 const PICNIC_RUGS = Object.freeze([pt(-25, 14.6, { yaw: 0.5 }), pt(-17.6, 20.6, { yaw: -0.3 })]);
+// The flower tubs: one beside each of the butterflies' corners (the lawns'
+// flower patches stood on those very spots), and one by the picnic lawn.
+export const FLOWER_TUBS = Object.freeze([pt(-16.4, 30.0), pt(31.9, -6.3), pt(10.5, -12.8), pt(-36, 20)]);
+export const FAIR_PUDDLES = Object.freeze([pt(-39.5, -30.5, { r: 0.8 }), pt(27, -40.5, { r: 0.9 })]);
 export const FAIR_HIDES = Object.freeze([
   pt(-29.5, 39.5), // under the bush behind the bandstand
   pt(15, 13.6),    // under the bush behind the tents
@@ -146,7 +152,12 @@ const PLAZA_POLES = Object.freeze(Array.from({ length: 8 }, (_, i) => {
   const a = Math.PI / 8 + (i * Math.PI) / 4;
   return pt(r2(Math.sin(a) * 11.5), r2(Math.cos(a) * 11.5));
 }));
-const POLE_H = 4.2;
+// Polish: the strings hang from 5.1 m and their pennants' tips sag no lower
+// than about 4.2, so the chase camera's zoom step 2 (3.8 m up) passes under
+// them instead of through a curtain of pennants and bulbs. (Tried at 5.6: no
+// better at zoom 2, and at zoom 3 (6.5 m up) the strings came close enough
+// under the camera to cross the whole picture.)
+export const POLE_H = 5.2;
 
 // The coaster's track: [x, y, z] the top of the rails. It leaves the station
 // northwards, climbs the hill, turns at the north end, swoops down the east
@@ -210,13 +221,80 @@ const BARE_DISCS = Object.freeze([
 ]);
 const stallRect = (s) => rect(s.x - STALL.d / 2, s.x + STALL.d / 2, s.z - STALL.w / 2, s.z + STALL.w / 2);
 const tentRect = (t) => rect(t.x - RIDGE_TENT.d / 2, t.x + RIDGE_TENT.d / 2, t.z - RIDGE_TENT.w / 2, t.z + RIDGE_TENT.w / 2);
+// The ground in front of a stall's counter, from its front edge `from` to
+// `to` metres out (the stalls face east or west, so this is a plain rectangle).
+const stallFront = (s, from, to, wider = 0) => {
+  const a = world(s, s.yaw, -STALL.w / 2 - wider, STALL.d / 2 + from);
+  const c = world(s, s.yaw, STALL.w / 2 + wider, STALL.d / 2 + to);
+  return rect(Math.min(a.x, c.x), Math.max(a.x, c.x), Math.min(a.z, c.z), Math.max(a.z, c.z));
+};
 const BARE_RECTS = Object.freeze([...STALLS.map(stallRect), ...RIDGE_TENTS.map(tentRect), STATION_DECK]);
+// Trodden bare (polish): a thin strip of earth along every counter, where
+// the queue stands, and a ring round the rides' and the bandstand's rims.
+const TRODDEN_RECTS = Object.freeze(STALLS.map((s) => stallFront(s, 0, 0.45)));
+const TRODDEN_RINGS = Object.freeze([
+  { ...TEACUPS_AT, r: TEACUPS.baseR + 0.4 }, { ...HELTER_AT, r: HELTER.baseR + 0.45 },
+  { ...BANDSTAND_AT, r: BANDSTAND.r + 0.35 }, { x: DUCK_POOL.x, z: DUCK_POOL.z, r: DUCK_POOL.r + 0.6 },
+]);
 export function fairBare(x, z) {
   for (const d of BARE_DISCS) if (Math.hypot(x - d.x, z - d.z) < d.r) return true;
+  for (const d of TRODDEN_RINGS) if (Math.hypot(x - d.x, z - d.z) < d.r) return true;
+  if (TRODDEN_RECTS.some((q) => rectDist(q, x, z) < 0.05)) return true;
   return BARE_RECTS.some((q) => rectDist(q, x, z) < 0.1);
 }
-// The ground's colour, as a multiplier on the grass: the lawns' slow mottle.
-export const fairGroundTint = lawnMottle(733);
+
+// GROUND WEAR (polish). Where people stand and queue, the grass is trodden
+// thin and browner: a ring round each ride's base and the bandstand, the
+// grass between every counter and the midway, round the games, under the
+// picnic tables. A multiplier towards WORN, `k` of the way at the base and
+// fading out by `r1` (rings) or `pad` metres (rectangles), broken up by a
+// slow field so it never reads as a drawn circle. Painted into the lawn's
+// vertex colours and the tufts' tint: no triangles.
+// trodden grass going to earth, as a multiplier on the lawn (the Farm's way)
+const WORN = Object.freeze(((g, t) => [t[0] / g[0], t[1] / g[1], t[2] / g[2]])(lin(FAIR_GRASS), lin(0x9a8a52)));
+// (a ring with `rin` is worn only from rin outwards: the plaza's sand covers the rest)
+const wearRing = (p, r0, r1, k, rin = -1) => Object.freeze({ x: p.x, z: p.z, r0, r1, k, rin });
+const WEAR_RINGS = Object.freeze([
+  wearRing(PLAZA, PLAZA.r - 0.6, PLAZA.r + 2.2, 0.7, PLAZA.r - 2.5),           // where the plaza's sand meets the grass
+  wearRing(TEACUPS_AT, TEACUPS.baseR - 0.2, TEACUPS.baseR + 2.8, 0.9),
+  wearRing(HELTER_AT, HELTER.baseR - 0.2, HELTER.baseR + 2.8, 0.9),
+  wearRing(pt(FERRIS_AT.x, FERRIS_AT.z + 0.6), 2.6, 6.2, 0.75),
+  wearRing(BANDSTAND_AT, BANDSTAND.r - 0.2, BANDSTAND.r + 2.4, 0.8),
+  wearRing(FORTUNE_AT, FORTUNE.r - 0.2, FORTUNE.r + 1.6, 0.6),
+  wearRing(DUCK_POOL, DUCK_POOL.r + 0.2, DUCK_POOL.r + 2.6, 0.9),
+  wearRing(world(BELL_AT, WEST, 0, BELL.padZ), 0, 1.9, 0.8),
+  wearRing(JUGGLER_AT, 0, 2.4, 0.65),
+  wearRing(BALLOON_CART_AT, 0.4, 2.4, 0.55),
+  ...PICNIC_TABLES.map((t) => wearRing(t, 0, 1.6, 0.5)),
+]);
+const wearRect = (q, pad, k) => Object.freeze({ q, pad, k });
+const WEAR_RECTS = Object.freeze([
+  ...STALLS.map((s) => wearRect(stallFront(s, 0, 1.0, 0.2), 1.0, 0.95)),       // the queue at every counter
+  wearRect(rect(17.4, STATION_DECK.minX, -2.4, 2.4), 1.2, 0.75),                 // the foot of the coaster's steps
+  wearRect(rect(-1.8, 1.8, FERRIS_AT.z + FERRIS.deckZ + FERRIS.deckD / 2, FERRIS_AT.z + FERRIS.deckZ + 1.6), 1.0, 0.8), // the big wheel's queue
+  ...RIDGE_TENTS.map((t) => wearRect(rect(t.x + RIDGE_TENT.d / 2, t.x + RIDGE_TENT.d / 2 + 0.8, t.z - 0.8, t.z + 0.8), 1.0, 0.55)), // the tents' doors
+]);
+export function fairWear(x, z) {
+  let w = 0;
+  for (const r of WEAR_RINGS) {
+    const d = Math.hypot(x - r.x, z - r.z);
+    if (d < r.r1 && d > r.rin) w = Math.max(w, r.k * (1 - smoothstep(r.r0, r.r1, d)) * (r.rin < 0 ? 1 : smoothstep(r.rin, r.r0, d)));
+  }
+  for (const r of WEAR_RECTS) {
+    const d = rectDist(r.q, x, z);
+    if (d < r.pad) w = Math.max(w, r.k * (1 - smoothstep(0, r.pad, d)));
+  }
+  if (w <= 0) return 0;
+  return w * (0.78 + 0.22 * smoothField(x, z, 911, 3.2));
+}
+// The ground's colour, as a multiplier on the grass: the lawns' slow mottle,
+// worn browner where the fair is trodden.
+const fairMottle = lawnMottle(733);
+export function fairGroundTint(x, z) {
+  const m = fairMottle(x, z);
+  const w = fairWear(x, z);
+  return w > 0 ? lerp3(m, WORN, w) : m;
+}
 
 // A building is a rectangle and the collision system is circles: a row of
 // circles as wide as the short side, and a smaller one tucked into each corner.
@@ -387,6 +465,56 @@ export function setFairGlow(area, t) {
   return k;
 }
 
+// THE FACES NOBODY SEES (polish). Every box, post and drum the fair stands
+// on the ground has a bottom face lying flat on the grass, facing down: no
+// camera can ever look at it. Once everything is built, these are dropped
+// from the fair's own static meshes, named here. Nothing under a ride's
+// turning group, the coaster's train or the games' moving pieces is named.
+export const GROUND_CULL = Object.freeze([
+  'fairProps', 'fairFence', 'coasterSupports', 'coasterStation', 'fortuneTableBody', 'bellBoard', 'fairGateFrame',
+  'ferrisFrame', 'musicBoxBody', 'helterStairs', 'helterTrim', 'helterBrackets',
+]);
+const UNDER_Y = 0.03;
+// Drops each triangle of the named meshes whose three corners lie below
+// UNDER_Y in the world and whose face points down. Returns how many went.
+export function cullGroundFaces(scene, names) {
+  scene.updateMatrixWorld(true);
+  const a = new THREE.Vector3();
+  const b2 = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const u = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  let dropped = 0;
+  for (const name of names) {
+    const mesh = scene.getObjectByName(name);
+    const g = mesh?.isMesh ? mesh.geometry : null;
+    if (!g || g.index || g.groups.length) continue; // the kit's meshes are plain triangle soups
+    const pos = g.attributes.position;
+    const tris = pos.count / 3;
+    const keep = [];
+    for (let t = 0; t < tris; t++) {
+      a.fromBufferAttribute(pos, t * 3).applyMatrix4(mesh.matrixWorld);
+      b2.fromBufferAttribute(pos, t * 3 + 1).applyMatrix4(mesh.matrixWorld);
+      c.fromBufferAttribute(pos, t * 3 + 2).applyMatrix4(mesh.matrixWorld);
+      n.subVectors(b2, a).cross(u.subVectors(c, a)).normalize();
+      if (Math.max(a.y, b2.y, c.y) < UNDER_Y && n.y < -0.9) continue;
+      keep.push(t);
+    }
+    if (keep.length === tris) continue;
+    for (const key of Object.keys(g.attributes)) {
+      const at = g.attributes[key];
+      const k = at.itemSize * 3;
+      const out = new at.array.constructor(keep.length * k);
+      keep.forEach((t, i) => out.set(at.array.subarray(t * k, t * k + k), i * k));
+      g.setAttribute(key, new THREE.BufferAttribute(out, at.itemSize, at.normalized));
+    }
+    g.computeBoundingBox();
+    g.computeBoundingSphere();
+    dropped += tris - keep.length;
+  }
+  return dropped;
+}
+
 export function build(scene, { water = {}, wind } = {}) {
   // A bright fair day: a clear blue over a pale horizon.
   b.applySky(scene, 0x8fcbf0, 0xe4f1e2);
@@ -463,11 +591,23 @@ export function build(scene, { water = {}, wind } = {}) {
       parts.bulbString(K.bulbs, K.flags, [MIDWAY_POLE_X, top + 0.1, z0], [-MIDWAY_POLE_X, top + 0.1, z1], { sag: 0.5, salt: i + 3 });
     }
     for (const s of [-1, 1]) parts.bunting(K.flags, [s * GATE_HALF, 4.0, GATE_AT.z], [s * MIDWAY_POLE_X, top, MIDWAY_POLE_Z[0]], { sag: 0.15, salt: 2 });
+    // At dusk each pole top lights a soft warm pool on the ground under it
+    // (render/dusk.js createLampPools finds anything tagged lampGlobeY). The
+    // anchors are empty: no mesh, no triangle, nothing to merge.
+    const lamps = new THREE.Group();
+    lamps.name = 'fairLampAnchors';
+    for (const [x, z] of [...MIDWAY_POLE_Z.flatMap((z) => [[-MIDWAY_POLE_X, z], [MIDWAY_POLE_X, z]]), ...PLAZA_POLES.map((p) => [p.x, p.z])]) {
+      const a = new THREE.Object3D();
+      a.position.set(x, 0, z);
+      a.userData.lampGlobeY = POLE_H;
+      lamps.add(a);
+    }
+    out.push(lamps);
     PLAZA_POLES.forEach((p, i) => {
       const q = PLAZA_POLES[(i + 1) % PLAZA_POLES.length];
       parts.pole(K, p.x, p.z, POLE_H);
-      parts.bunting(K.flags, [p.x, top, p.z], [q.x, top, q.z], { sag: 0.7, salt: i });
-      parts.bulbString(K.bulbs, K.flags, [p.x, top - 0.35, p.z], [q.x, top - 0.35, q.z], { sag: 0.75, salt: i, every: 0.8 });
+      parts.bunting(K.flags, [p.x, top, p.z], [q.x, top, q.z], { sag: 0.55, salt: i });
+      parts.bulbString(K.bulbs, K.flags, [p.x, top - 0.35, p.z], [q.x, top - 0.35, q.z], { sag: 0.55, salt: i, every: 0.8 });
     });
 
     // the three games
@@ -508,6 +648,9 @@ export function build(scene, { water = {}, wind } = {}) {
     out.push(mgr.group, music.group, wheel.group, cups.group, helter.tower, helter.roof, helter.stairs, helter.slide, helter.brackets,
       helter.bulbs, track.rails, track.supports, station.deck, station.roof, station.bulbs, train.group);
     parts.balloonBunch(K, STATION_DECK.minX + 0.06, STATION.deckY + 0.8, STATION_DECK.minZ + 0.1, 4, 31);
+
+    // a half barrel of flowers beside each of the butterflies' corners
+    FLOWER_TUBS.forEach((t, i) => parts.into(K, t.x, t.z, 0, (L) => edge.flowerTub(L, i * 1.7)));
 
     out.push(...parts.meshesOf(K, glow));
     return { out, glow, mgr, music, wheel, cups, helter, train, tins, ducks, bell, fortune };
@@ -551,6 +694,7 @@ export function build(scene, { water = {}, wind } = {}) {
   addC(BANDSTAND_AT.x, BANDSTAND_AT.z, BANDSTAND.r + 0.05);
   addC(BELL_AT.x, BELL_AT.z, 0.4);
   for (const t of WAGONS) for (const lx of [-0.9, 0.9]) { const c = world(t, t.yaw, lx, 0); addC(c.x, c.z, 1.05); }
+  for (const t of FLOWER_TUBS) addC(t.x, t.z, edge.TUB.r + 0.03);
   {
     const c = world(BALLOON_CART_AT, 0.5, 0, 0);
     addC(c.x, c.z, 0.8);
@@ -566,13 +710,16 @@ export function build(scene, { water = {}, wind } = {}) {
   for (const [x, z] of [...FAIR_HIDES.map((h) => [h.x, h.z]), [40, -8], [-41, 24], [8, -41.5], [29.5, 14.5], [-9, 44], [36, 36]]) {
     scene.add(b.bush(x, z, { wind }));
   }
-  for (const [x, z] of [[-16.5, 31.5], [31, -6], [9.6, -12.4], [-36, 20]]) scene.add(b.flowerPatch(x, z, { wind }));
   for (const [x, z] of [[41, 20], [-40, -37]]) scene.add(b.rock(x, z));
 
-  const puddles = [{ x: 1.9, z: 23.6, r: 0.8 }, { x: -15, z: 4.6, r: 0.9 }];
+  // Two puddles out on the lawn's edges, where the grass is longest and the
+  // ground lowest; none on the midway or the plaza on a fair day.
+  const puddles = FAIR_PUDDLES.map((p) => ({ ...p }));
   for (const p of puddles) scene.add(b.puddle(p.x, p.z, p.r));
   const boxes = [{ x: 9.4, z: 41.6 }, { x: -9.4, z: 27.4 }];
   for (const bx of boxes) scene.add(b.cardboardBox(bx.x, bx.z));
+
+  cullGroundFaces(scene, GROUND_CULL);
 
   const fortuneBall = world(FORTUNE_AT, WEST, FORTUNE.tableX, FORTUNE.tableZ);
   const candy = stallById('candyfloss');
