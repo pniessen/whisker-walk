@@ -77,9 +77,22 @@ export function hayBale(P, x, y, z, yaw = 0, salt = 0) {
   // a point `u` along the bale, in the world
   const at = (u) => [x + u * ca, z - u * sa];
   box(P, l, h, w, x, y, z, hex, { yaw, shade });
+  // each string: a strip over the top and down both long sides (6 triangles)
+  const e = 0.006;
   for (const u of [-0.25, 0.25]) {
     const [bx, bz] = at(u * l);
-    box(P, 0.035, h + 0.012, w + 0.012, bx, y - 0.003, bz, 0x9a7a3a, { yaw, shade });
+    const corner = (du, side, up) => {
+      const [cx, cz] = [bx + du * ca, bz - du * sa];
+      // `side` across the bale (local z), `up` 0 at its foot, 1 at its top
+      return [cx + side * sa, y + up * (h + e), cz + side * ca];
+    };
+    const s = w / 2 + e;
+    const d = 0.018;
+    for (const [a, b2, c2, d2] of [
+      [corner(-d, -s, 1), corner(-d, s, 1), corner(d, s, 1), corner(d, -s, 1)],   // over the top
+      [corner(-d, s, 0), corner(d, s, 0), corner(d, s, 1), corner(-d, s, 1)],     // down the +z side
+      [corner(d, -s, 0), corner(-d, -s, 0), corner(-d, -s, 1), corner(d, -s, 1)], // down the -z side
+    ]) sheet(P, [a, b2, c2, d2], 0x9a7a3a, { shade });
   }
 }
 // A stack: `n` bales end to end along x (centred), and n - 1 on top of them.
@@ -123,15 +136,11 @@ export function litterBin(K) {
 
 // A low queue rail beside a ride's path: brass posts and a red rail along x,
 // `len` metres long. Low enough for a cat to walk under (no collider).
-export const QUEUE_RAIL = Object.freeze({ h: 0.82, every: 1.4 });
+export const QUEUE_RAIL = Object.freeze({ h: 0.82, every: 2.0 });
 export function queueRail(K, len) {
   const P = K.solid;
   const { h, every } = QUEUE_RAIL;
   const n = Math.max(1, Math.round(len / every));
-  for (let i = 0; i <= n; i++) {
-    const x = -len / 2 + (len * i) / n;
-    box(P, 0.06, h, 0.06, x, 0, 0, C.gold);
-    box(P, 0.16, 0.03, 0.16, x, 0, 0, C.gold, { shade: 0.8 });
-  }
+  for (let i = 0; i <= n; i++) box(P, 0.06, h, 0.06, -len / 2 + (len * i) / n, 0, 0, C.gold);
   box(P, len + 0.06, 0.06, 0.05, 0, h - 0.1, 0, C.red);
 }
