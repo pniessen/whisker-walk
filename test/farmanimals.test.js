@@ -85,11 +85,14 @@ describe('the Farm\'s animals in the walk: what they cost to draw', () => {
     let triangles = 0;
     const materials = new Set();
     const per = {};
+    // (step 3: the farmer's hat in one goat's mouth is counted with the jobs' things, below)
+    const jobThings = new Set();
+    for (const x of w.farm.extras) x.traverse((o) => { if (o.isMesh) jobThings.add(o); });
     for (const g of groups) {
       let own = 0;
       let ownCast = 0;
       g.traverse((o) => {
-        if (!o.isMesh) return;
+        if (!o.isMesh || jobThings.has(o)) return;
         meshes++; own++;
         if (o.castShadow) { casters++; ownCast++; }
         materials.add(o.material);
@@ -113,6 +116,37 @@ describe('the Farm\'s animals in the walk: what they cost to draw', () => {
     expect(243 + meshes).toBeLessThan(450);
     expect(176 + casters).toBeLessThan(380);
     expect(53419 + triangles).toBeLessThan(70000);
+  });
+
+  // Step 3: the jobs' and the finds' own things (the two straw hats, the
+  // saucer, five mice, the barn cat and three kittens, the eggs, the owl, two
+  // windfall apples). Measured 18 meshes, 0 casters, 2,618 triangles.
+  it('the jobs and the finds add a few small meshes on the same material, and none casts', () => {
+    assignShadowCasters(w.scene);
+    const seen = new Set();
+    let casters = 0;
+    let triangles = 0;
+    const materials = new Set();
+    for (const x of w.farm.extras) {
+      x.traverse((o) => {
+        if (!o.isMesh || seen.has(o)) return;
+        seen.add(o);
+        if (o.castShadow) casters++;
+        materials.add(o.material);
+        const geo = o.geometry;
+        triangles += (geo.index ? geo.index.count : geo.getAttribute('position').count) / 3;
+      });
+    }
+    // the cat's try-on hat is made with them and is in no scene until she wears it
+    expect(seen.size).toBe(18);
+    expect(casters).toBe(0);
+    expect(triangles).toBe(2618);
+    expect([...materials]).toEqual([groups[0].children[0].children[0].material]);
+    // the place (244 meshes with the scarecrow's hat its own mesh / 176 / 53,419), the
+    // animals (63 / 9 / 13,342) and these: inside 450 / 380 / 70,000
+    expect(244 + 63 + seen.size).toBeLessThan(450);
+    expect(176 + 9 + casters).toBeLessThan(380);
+    expect(53419 + 13342 + triangles).toBeLessThan(70000);
   });
 
   it('shares one geometry between all the chicks and one between all the ducklings', () => {
@@ -262,8 +296,11 @@ describe('riding a cow, as the game drives it', () => {
     w.jump();
     w.run(2);
     const n = w.scene.children.length;
+    // (step 3: the jobs' and finds' things that stand in the scene go with them)
+    const things = w.farm.extras.filter((o) => o.parent === w.scene).length;
+    expect(things).toBeGreaterThan(10);
     expect(() => w.farm.dispose()).not.toThrow();
-    expect(w.scene.children.length).toBe(n - w.farm.sim.all.length);
+    expect(w.scene.children.length).toBe(n - w.farm.sim.all.length - things);
     expect(w.farm.riding).toBe(null);
     expect(() => w.farm.dispose()).not.toThrow();
   });

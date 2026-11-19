@@ -80,6 +80,7 @@ import { clampZoomStep, maxZoomStep, zoomView } from '../camzoom.js';
 import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
 import { createFarmAnimals, NO_FARM } from '../farmanimals.js';
+import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
@@ -1310,22 +1311,18 @@ export function createWalkLifecycle({
       ground,
       isFree: (x, z) => isWalkableAt(areaData, x, z),
       ducks: () => critters.list.filter((c) => c.type === 'duck').map((c) => c.group.position),
+      // What each event pays, says and sounds like is game/farmplay.js (the
+      // lines themselves are in the phrase table, by way of src/farmwords.js).
       onEvent: (e) => {
         farmToasted ??= new Set();
-        const once = (text) => { if (!farmToasted.has(e.type)) { farmToasted.add(e.type); hud.toast(text); } };
-        if (e.type === 'moo') audio.moo();
-        else if (e.type === 'cluck') audio.cluck(0.35, 1.25);
-        else if (e.type === 'peep') audio.peep();
-        else if (e.type === 'goat-butt') { audio.bleat(); once('The goat wants to play! 🐐'); }
-        else if (e.type === 'goat-copy') once('The goat jumps when you jump! 🐐');
-        else if (e.type === 'dog-hello') once('The sheepdog wants to walk with you 🐶');
-        else if (e.type === 'chick-follow') { audio.peep(); once('The chicks follow you when you walk 🐤'); }
-        else if (e.type === 'ducklings-follow') { audio.peep(); once('The ducklings swim after you! 🐥'); }
-        else if (e.type === 'ride') once('You are riding a cow! 🐄');
-        else if (e.type === 'dismount') session.fx?.burst(cat.position, 0xcbb8a0, 8);
+        const once = (key, text) => { if (!farmToasted.has(key)) { farmToasted.add(key); hud.toast(text); } };
+        handleFarmEvent(e, { hud, audio, log, progression, session, once });
       },
     });
     for (const p of farm.perches) areaData.perches.push(p);
+    // The farmer's straw hat (the goat job): a thing to carry, out of sight
+    // until the goat drops it.
+    if (farm.jobs) addFarmHat(carry, areaData);
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
@@ -2130,6 +2127,8 @@ export function createWalkLifecycle({
     log.startWalk();
     // A walk picked up again has already paid for what it paid for.
     if (resume) log.restore(resume.paid);
+    // ...and a Farm job it had finished is finished (its hat is at the door).
+    if (resume) restoreFarmJobs(farm, { log, carry, area: areaData });
     hud.show();
     hud.setArea(placeName(areaId, progression.state.edition, CATALOG) || areaData.name);
     // Kittypets: the arrival line waits for the walk to start (the Ready? card

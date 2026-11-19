@@ -59,7 +59,12 @@ const SAVE_VERSION = 4;
 // to 0, exactly as it does for every other unseen type.
 export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse', 'rat', 'rabbit', 'frog', 'goat',
   // Appletree Farm's animals (src/farmsim.js), appended so every older id keeps its place.
-  'cow', 'farmgoat', 'hen', 'chick', 'sheepdog', 'duckling'];
+  'cow', 'farmgoat', 'hen', 'chick', 'sheepdog', 'duckling',
+  // The Farm's four jobs and six finds (src/farmjobs.js FARM_JOURNAL_TYPES;
+  // test/farmjobs.test.js holds the two lists equal). A job's count is how
+  // many times it has been finished; a find's, on how many walks it was found.
+  'jobchicks', 'jobcow', 'jobgoat', 'jobmice',
+  'findloftcats', 'findeggs', 'findowl', 'findscarecrow', 'findapples', 'findducklings'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
