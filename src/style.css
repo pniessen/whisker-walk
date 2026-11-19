@@ -1102,6 +1102,16 @@ body.touch-mode .chat-tray {
   bottom: calc(292px + env(safe-area-inset-bottom));
   max-height: calc(100vh - 292px - env(safe-area-inset-bottom) - max(16px, env(safe-area-inset-top)) - 52px);
 }
+/* A tablet has room to spare: the tray stands left of the cluster's column,
+   still above the prompt, clear of the corner map and the roster under it. */
+@media (pointer: coarse) and (min-width: 700px) {
+  .chat-tray { right: calc(max(16px, env(safe-area-inset-right)) + 138px); }
+  body.left-handed .chat-tray { right: auto; left: calc(max(16px, env(safe-area-inset-left)) + 138px); }
+}
+@media (min-width: 700px) {
+  body.touch-mode .chat-tray { right: calc(max(16px, env(safe-area-inset-right)) + 138px); }
+  body.left-handed.touch-mode .chat-tray { right: auto; left: calc(max(16px, env(safe-area-inset-left)) + 138px); }
+}
 /* A phone on its side has no room above the cluster: the tray stands beside
    it instead (the cluster is 122px wide at the edge), above the prompt's
    line, scrolling if it must. */
@@ -2627,6 +2637,8 @@ body.touch-mode .fight-key { display: none; }
   body.touch-mode #hud-toasts,
   body.touch-mode #hud.fight-asking #hud-toasts,
   body.touch-mode #hud.fighting #hud-toasts { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 124px); }
+  /* ...and are a size smaller, so two of them end above the yellow prompt */
+  body.touch-mode #hud-toasts .toast { font-size: 0.86rem; padding: 6px 12px; line-height: 1.25; }
   /* with the zoom pair switched on, the chat button takes the cluster's empty cell */
   body.touch-mode.zoom-buttons .chat-wheel { right: max(88px, calc(72px + env(safe-area-inset-right))); bottom: max(94px, calc(94px + env(safe-area-inset-bottom))); }
   body.touch-mode.zoom-buttons.left-handed .chat-wheel { right: auto; left: max(22px, calc(6px + env(safe-area-inset-left))); }
