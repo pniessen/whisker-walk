@@ -83,7 +83,9 @@ describe('the switch', () => {
   it('on: the walkable bounds are the core and the west strip, x -90..50', () => {
     expect(ON.area.bounds).toEqual(GROWN);
     expect(ON.area.core).toEqual(CORE);
-    expect(ON.area.strips).toEqual([west.WEST_STRIP]);
+    // step 2: the core streams too, first (world/streamcore.js)
+    expect(ON.area.strips.map((s) => s.id)).toEqual(['core', 'core-fine', 'west']);
+    expect(ON.area.strips[2]).toBe(west.WEST_STRIP);
     expect(west.WEST).toMatchObject({ minX: -90, maxX: -50, minZ: -50, maxZ: 50 });
   });
 });

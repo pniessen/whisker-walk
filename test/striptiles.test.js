@@ -15,6 +15,9 @@ const rig = await import('../src/render/rig.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { createStripTiles, NO_STRIP_TILES, SMALL_KINDS, smallTriangles, smallGeometry, CHUNK, TREE_COST } = await import('../src/render/striptiles.js');
 const { LAYERS, FRAME_TRIANGLES, CHECK_EVERY, tileDistance, BUILT, ABSENT } = await import('../src/world/strips.js');
+const { measureStreams, worstSpot, ALL_LAYERS } = await import('./helpers/growbudget.js');
+const TREES = LAYERS.find((l) => l.id === 'trees');
+const SMALL = LAYERS.find((l) => l.id === 'small');
 const { createWind } = await import('../src/render/wind.js');
 const { createTreeFade } = await import('../src/treefade.js');
 const { findOccluders } = await import('../src/fightcam.js');
@@ -226,7 +229,11 @@ describe('a walk out to the west rim and back, at the zoomies', () => {
   const w = walkScene();
   const base = resources(w.scene);
   const baseKids = w.scene.children.length;
-  const streamer = w.tiles.streamers[0];
+  const streamer = w.tiles.streamers[w.area.strips.findIndex((s) => s.id === 'west')];
+  // every slot of every stream: drawn in full, or its stand-ins are (step 2)
+  const allSlots = w.tiles.streamers.flatMap((st, i) => st.slots.map((sl) => ({ sl, key: `${w.area.strips[i].id}|${sl.tile.index}|${sl.layer.id}` })))
+    .filter(({ key }) => w.tiles.standIns.has(key));
+  let gap = null;
   const made = new Set();
   let freed = 0;
   let worstUnbuilt = 0;
@@ -252,6 +259,10 @@ describe('a walk out to the west rim and back, at the zoomies', () => {
       // past `hide` it is gone by the next look
       if (d > s.layer.hide + ZOOMIES * (CHECK_EVERY + DT) && s.state !== ABSENT) wrongState = `${s.layer.id}:${s.tile.index} at ${x.toFixed(1)},${z.toFixed(1)}`;
     }
+    for (const { sl, key } of allSlots) {
+      if (sl.state !== BUILT && !w.tiles.standIns.shown(key) && !gap) gap = `${key} at ${x.toFixed(1)},${z.toFixed(1)}`;
+      if (sl.state === BUILT && w.tiles.standIns.shown(key) && !gap) gap = `${key} doubled at ${x.toFixed(1)},${z.toFixed(1)}`;
+    }
     const now = w.scene.children.filter(isTile);
     for (const o of now) {
       o.traverse((m) => {
@@ -267,7 +278,7 @@ describe('a walk out to the west rim and back, at the zoomies', () => {
 
   it('starts with nothing drawn, draws the whole strip on the way, and drops the near things again', () => {
     expect(startTiles).toBe(0);
-    // at the rim every tile is within 45 m but the two far corners' (north-east and south-east)
+    // at the rim every tile is within the small layer's 38 m but a far corner's or two
     expect(rimSmall).toBeGreaterThanOrEqual(8);
     expect(peak.trees).toBe(west.westTrees().length);
     // back at the start (100 m from the strip): no small layer is left, and the
@@ -275,8 +286,13 @@ describe('a walk out to the west rim and back, at the zoomies', () => {
     const left = w.scene.children.filter(isTile);
     expect(left.filter((o) => o.name === 'stripSmall')).toEqual([]);
     const [x, z] = ROUTE[0];
-    for (const o of left) expect(tileDistance(west.WEST_TILES[o.userData.stripTile], x, z)).toBeLessThanOrEqual(LAYERS[1].hide);
+    for (const o of left) expect(tileDistance(west.WEST_TILES[o.userData.stripTile], x, z)).toBeLessThanOrEqual(TREES.hide);
     expect(wrongState).toBeNull();
+  });
+
+  it('never leaves a gap: every slot, core or strip, is drawn in full or by its stand-ins, never both, every frame', () => {
+    expect(allSlots.length).toBeGreaterThan(100);
+    expect(gap).toBeNull();
   });
 
   it('never builds more in one frame than the budget', () => {
@@ -289,8 +305,9 @@ describe('a walk out to the west rim and back, at the zoomies', () => {
   it(`never leaves a tile in range undrawn for longer than ${MAX_UNBUILT} s`, () => {
     expect(worstUnbuilt).toBeGreaterThan(0);
     expect(worstUnbuilt).toBeLessThanOrEqual(MAX_UNBUILT);
-    // so at the zoomies a thing is still past the haze's start when it appears
-    expect(LAYERS[0].show - ZOOMIES * MAX_UNBUILT).toBeGreaterThanOrEqual(40);
+    // and at the zoomies a strip's small things are still well out when they
+    // take over from their stand-ins
+    expect(SMALL.show - ZOOMIES * MAX_UNBUILT).toBeGreaterThanOrEqual(25);
   });
 
   it('frees what it drops: every geometry made on the walk is disposed once the strip tiles are', () => {
@@ -304,11 +321,14 @@ describe('a walk out to the west rim and back, at the zoomies', () => {
     w.tiles.dispose();
     expect(freed).toBe(made.size);
     expect(matsFreed).toBe([...mats].filter((m) => m !== w.tiles.material).length);
-    // the scene is what it was before the walk
+    // the scene is what it was before the walk, but for the stand-ins' one
+    // mesh, which goes with the strip tiles (the core's things stay for the
+    // walk's own teardown)
     const after = resources(w.scene);
-    expect(w.scene.children.length).toBe(baseKids);
-    expect(after.geos.size).toBe(base.geos.size);
-    expect(after.mats.size).toBe(base.mats.size);
+    expect(w.scene.children.length).toBe(baseKids - 1);
+    expect(after.geos.size).toBe(base.geos.size - 1);
+    expect(after.mats.size).toBe(base.mats.size - 1);
+    expect(w.scene.children.includes(w.tiles.standIns.mesh)).toBe(false);
     // (the contact shadows remake their one static mesh when a decal comes or goes)
     w.scene.traverse((o) => { if (o.isMesh && !o.userData.contactDecal) expect(base.geos.has(o.geometry)).toBe(true); });
     expect(w.tiles.stats).toMatchObject({ geometries: 0, materials: 0, meshes: 0, triangles: 0, casters: 0, trees: 0, smallTiles: 0 });
@@ -329,87 +349,57 @@ describe('with nearer ranges, walking away alone brings the scene back', () => {
     const after = resources(w.scene);
     expect(after.geos.size).toBe(base.geos.size);
     expect(after.mats.size).toBe(base.mats.size);
-    expect(w.tiles.streamers[0].stats.dropped).toBe(w.tiles.streamers[0].stats.built);
+    const ws = w.tiles.streamers[w.area.strips.findIndex((s) => s.id === 'west')];
+    expect(ws.stats.dropped).toBe(ws.stats.built);
   });
 });
 
 // ---------------------------------------------------------------------------
-// The strip's budget. test/budget.test.js holds the River's whole-scene
-// ceilings as they are (the build with the switch off). A strip is held to a
-// different measure: at the worst place a cat can stand, the core plus the
-// strip's standing things plus EVERY tile that can be drawn from there (out
-// to each layer's `hide` range, the most the hysteresis allows).
+// The budget with the switch on. test/budget.test.js holds the River's
+// whole-scene ceilings as they are (the build with the switch off). With the
+// switch on, the scatter of the core and of the strip is drawn only near the
+// cat (world/streamcore.js), so the River is held to a different measure: at
+// the worst place a cat can stand, everything that is always drawn, plus
+// every slot within its layer's `hide` range (the most the hysteresis
+// allows) in full, plus the stand-ins of everything further
+// (test/helpers/growbudget.js). Counted as test/budget.test.js counts (every
+// mesh a draw, hidden data strips included; a caster by the walk's rule),
+// merged.
 //
-// Measured 2026-11-19, counted as test/budget.test.js counts (every mesh a
-// draw, hidden data strips included; a caster by the walk's rule), merged:
+//                                meshes  casters  triangles
+//   the River today (switch off)    170      133     63,778
+//   step 1 (west strip, 40 m), at
+//     its worst spot                225      166     79,307   (everything: no
+//                                                              range saved any)
+//   step 2 (this), at its worst
+//     spot, (-35, 0) by the reedbed 205      147     68,745   (2,414 of them
+//                                                              stand-ins)
 //
-//                          meshes  casters  triangles
-//   the River today           170      133     63,778
-//   the core, switch on       170      133     65,128   (longer hills, edge and mist)
-//   + the strip's standing     13        1      2,967   (ground, pool, bank paint, trail and
-//     things                                             its 8 hidden strips, the fallen willow)
-//   + every tile in range      42       32     11,212   (10 small meshes of 7,672
-//                                                        triangles, 13 trees of 3,540)
-//   = at the worst spot       225      166     79,307
-//
-// The worst spot is anywhere on the strip: every tile is within 58 m of most
-// of it. Against today that is 55 more meshes (8 of them hidden data strips
-// that are never drawn), 33 more casters (the 13 trees and the fallen willow)
-// and 15,529 more triangles. Ceilings: about 5% over the measure.
+// Step 2 drew 79,307 triangles' worth of things in all, exactly step 1's
+// (the first test below holds that); what it saves is what is out of range.
+// Its 35 meshes over today are the strip's: 13 trees (32 meshes) and its
+// standing things (13, 8 of them hidden data strips never drawn), less the
+// core's trees out of range, plus one for all the stand-ins. Ceilings: the
+// triangles at the territories' 70,000, the rest about 5% over the measure.
 // ---------------------------------------------------------------------------
-describe('the strip budget: the core and every tile in range, at the worst spot', () => {
-  const CEILING = { meshes: 238, casters: 176, triangles: 83500 };
+describe('the budget, switch on: the most the River puts on screen at once', () => {
+  const CEILING = { meshes: 215, casters: 155, triangles: 70000 };
   // the built and merged scene alone, as test/budget.test.js measures (no decals)
   const built = buildRiver(river, setGrow, true);
   mergeStaticProps(built.scene);
   rig.assignShadowCasters(built.scene);
-  const w = { scene: built.scene, tiles: createStripTiles(built.scene, { strips: built.area.strips.map((s) => ({ ...s, layers: ALL })) }) };
-  const coreKids = w.scene.children.filter((c) => c.userData.strip === undefined);
-  const standing = w.scene.children.filter((c) => c.userData.strip !== undefined);
-  const core = budgetOf(coreKids, rig);
-  const fixed = budgetOf(standing, rig);
-  w.tiles.settle(0, 0);
-  // what each tile's layer costs when drawn
-  const cost = new Map();
-  for (const o of w.scene.children.filter(isTile)) {
-    const key = `${o.name === 'stripSmall' ? 'small' : 'trees'}:${o.userData.stripTile}`;
-    const c = cost.get(key) ?? { meshes: 0, casters: 0, triangles: 0 };
-    o.traverse((m) => { if (m.isMesh) { c.meshes++; if (m.castShadow) c.casters++; } });
-    c.triangles += trianglesOf(o);
-    cost.set(key, c);
-  }
-  const at = (x, z) => {
-    const sum = { meshes: core.meshes + fixed.meshes, casters: core.casters + fixed.casters, triangles: core.triangles + fixed.triangles };
-    for (const layer of LAYERS) {
-      for (const t of west.WEST_TILES) {
-        if (tileDistance(t, x, z) > layer.hide) continue;
-        const c = cost.get(`${layer.id}:${t.index}`);
-        if (c) { sum.meshes += c.meshes; sum.casters += c.casters; sum.triangles += c.triangles; }
-      }
-    }
-    return sum;
-  };
-  let worst = null;
-  for (let x = -90; x <= 50; x += 5) {
-    for (let z = -50; z <= 50; z += 5) {
-      const s = at(x, z);
-      if (!worst || s.triangles > worst.triangles) worst = { ...s, x, z };
-    }
-  }
+  const tiles = createStripTiles(built.scene, { strips: built.area.strips.map((s) => ({ ...s, layers: ALL_LAYERS })) });
+  tiles.settle(0, 0);
+  const m = measureStreams(built.scene, tiles, built.area.strips, rig);
+  const worst = worstSpot(m, LAYERS, built.area.bounds, 5);
+  const all = [...m.cost.values()].reduce((n, c) => n + c.triangles, 0);
 
-  it('the core is today\'s River but for its longer hills and mist', () => {
-    expect(core.meshes).toBe(170);
-    expect(core.casters).toBe(133);
-    expect(core.triangles).toBeLessThanOrEqual(63778 + 1500);
+  it('everything there is, drawn at once, is what step 1 drew: nothing lost, nothing twice', () => {
+    if (process.env.BUDGET_LOG) console.log('stream budget', JSON.stringify({ fixed: m.fixed, always: m.always, all, worst }));
+    expect(m.fixed.triangles + m.always + all).toBe(79307);
   });
 
-  it('the worst spot is on the strip, with every tile drawn', () => {
-    if (process.env.BUDGET_LOG) console.log('strip budget', JSON.stringify({ core, fixed, worst, all: w.tiles.stats }));
-    expect(worst.x).toBeLessThanOrEqual(-50);
-    expect(worst.triangles).toBe(core.triangles + fixed.triangles + w.tiles.stats.triangles);
-  });
-
-  it(`stays under ${CEILING.meshes} meshes, ${CEILING.casters} casters and ${CEILING.triangles} triangles`, () => {
+  it(`at the worst spot stays under ${CEILING.meshes} meshes, ${CEILING.casters} casters and ${CEILING.triangles} triangles`, () => {
     expect(worst.meshes).toBeLessThanOrEqual(CEILING.meshes);
     expect(worst.casters).toBeLessThanOrEqual(CEILING.casters);
     expect(worst.triangles).toBeLessThanOrEqual(CEILING.triangles);
@@ -417,17 +407,22 @@ describe('the strip budget: the core and every tile in range, at the worst spot'
     expect(worst.meshes).toBeGreaterThan(CEILING.meshes * 0.92);
     expect(worst.casters).toBeGreaterThan(CEILING.casters * 0.92);
     expect(worst.triangles).toBeGreaterThan(CEILING.triangles * 0.92);
+    // and it is by the reedbed, the River's densest stand
+    expect(worst.x).toBeLessThanOrEqual(-20);
   });
 
-  it('from the core\'s east half the strip costs its standing things and far trees only: no small layer', () => {
-    const treesOnly = [...cost].filter(([k]) => k.startsWith('trees:')).reduce((n, [, c]) => n + c.triangles, 0);
-    for (const [x, z] of [[river.SPAWN.x, river.SPAWN.z], [40, -20], [10, 30], [12, -45]]) {
-      const here = at(x, z);
-      expect(here.triangles - core.triangles - fixed.triangles, `${x},${z}`).toBeLessThanOrEqual(treesOnly);
-      for (const t of west.WEST_TILES) expect(tileDistance(t, x, z)).toBeGreaterThan(LAYERS[0].hide);
-    }
-    // and from the far east edge, nothing streams at all until the cat sets out
-    const edge = at(50, 45);
-    expect(edge.triangles - core.triangles - fixed.triangles).toBeLessThanOrEqual(treesOnly / 2);
+  it('the stand-ins are cheap: all of them, every tree and small thing at once, are a fifth of what they stand in for, and the trees a quarter', () => {
+    const standIns = [...m.standIn.values()].reduce((n, c) => n + c, 0);
+    expect(standIns).toBeGreaterThan(5000);
+    expect(standIns).toBeLessThan(0.21 * all);
+    const trees = [...m.standIn].filter(([k]) => k.endsWith('|trees')).reduce((n, [, c]) => n + c, 0);
+    const treesFull = [...m.cost].filter(([k]) => k.endsWith('|trees')).reduce((n, [, c]) => n + c.triangles, 0);
+    expect(trees).toBeLessThan(0.25 * treesFull);
+  });
+
+  it('from the spawn, in the east, the River costs less than today', () => {
+    const here = m.at(river.SPAWN.x, river.SPAWN.z, LAYERS);
+    expect(here.triangles).toBeLessThan(63778);
+    expect(here.meshes).toBeLessThan(170);
   });
 });

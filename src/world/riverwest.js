@@ -28,7 +28,8 @@ import { phrase } from '../clanphrases.js';
 // west, the still pool, the trail, the fallen willow (the thing to find) and
 // every tree's collider and Sure Claws fork. What streams in near the cat
 // (render/striptiles.js): each tile's trees, and its reeds, tussocks,
-// cattails, marsh marigolds and stones.
+// cattails, marsh marigolds and stones; past their range (step 2, the
+// layers of world/strips.js) each is drawn as a far stand-in.
 //
 // river.js imports this module and this module must not read river.js at its
 // top level, so what it needs of the River (the river-west footprint) is
