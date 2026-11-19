@@ -423,7 +423,8 @@ const AREAS = [
   ['moor', buildMoor, 450, 380, 70000],
   ['pines', buildPines, 450, 380, 70000],
   ['gorge', buildGorge, 450, 380, 70000],
-  // Appletree Farm (2026-11-18), measured 243 / 176 / 53,419: the barn and the
+  // Appletree Farm (2026-11-18), measured 244 / 176 / 53,419 (243 until the
+  // scarecrow's hat became a mesh of its own, noCast, for step 3): the barn and the
   // four small buildings are three vertex-coloured meshes each (walls, roof,
   // window panes), the fences are one mesh, the wheat one (9,750 triangles,
   // noCast), the vegetable rows one; 21 trees and a willow, 15 of the trees

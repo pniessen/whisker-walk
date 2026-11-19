@@ -111,9 +111,9 @@ describe('the Farm\'s animals in the walk: what they cost to draw', () => {
     expect(meshes).toBe(63);
     expect(casters).toBe(9);
     expect(triangles).toBeLessThan(14000);
-    // with the place itself (243 meshes / 176 casters / 53,419 triangles, test/budget.test.js)
+    // with the place itself (244 meshes / 176 casters / 53,419 triangles, test/budget.test.js)
     // that is still far inside the territories' 450 / 380 / 70,000
-    expect(243 + meshes).toBeLessThan(450);
+    expect(244 + meshes).toBeLessThan(450);
     expect(176 + casters).toBeLessThan(380);
     expect(53419 + triangles).toBeLessThan(70000);
   });
