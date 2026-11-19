@@ -346,6 +346,84 @@ describe('the big wheel', () => {
   });
 });
 
+describe('the teacups', () => {
+  const cups = seatsOf('cups', 'cup');
+  const C = area.rides.teacups;
+
+  it('turns the floor one way and spins every cup the other, and comes back exactly', () => {
+    expect(cups).toHaveLength(6);
+    posed(20);
+    const a = cups.map((c) => [c.x, c.z, Math.sin(c.yaw), Math.cos(c.yaw)]);
+    posed(20 + RIDE.CUPS_TURN); // 18 s: the floor is round once, a cup has spun four times on it
+    cups.forEach((c, i) => { expect(c.x).toBeCloseTo(a[i][0], 9); expect(c.z).toBeCloseTo(a[i][1], 9); expect(Math.sin(c.yaw)).toBeCloseTo(a[i][2], 9); expect(Math.cos(c.yaw)).toBeCloseTo(a[i][3], 9); });
+    expect(RIDE.CUPS_TURN / RIDE.CUPS_SPIN).toBe(4);
+    // the floor's turn and a cup's own spin have opposite signs
+    posed(1); const f0 = C.turn.rotation.y; const s0 = C.cups[0].rotation.y;
+    posed(1.5);
+    expect((C.turn.rotation.y - f0) * (C.cups[0].rotation.y - s0)).toBeLessThan(0);
+    // and seen from the ground a cup turns the other way from the floor, gently: a turn in six seconds
+    const net = 1 / RIDE.CUPS_TURN - 1 / RIDE.CUPS_SPIN;
+    expect(net).toBeLessThan(0);
+    expect(1 / Math.abs(net)).toBeCloseTo(6, 6);
+  });
+
+  it('puts every cup’s seat where the model’s is, in the middle of the cup, and faces her as the cup faces', () => {
+    const q = new THREE.Quaternion();
+    for (const T of SAMPLES) {
+      posed(T);
+      for (const c of cups) {
+        const g = C.cups[c.index];
+        expect(dist3(c, modelSeat(g)), `${c.id} at ${T}`).toBeLessThan(1e-6);
+        // her back is to the cup's +z, whatever the floor and the cup have turned
+        const front = v.set(0, 0, 1).applyQuaternion(g.getWorldQuaternion(q));
+        expect(-Math.sin(c.yaw)).toBeCloseTo(front.x, 6);
+        expect(-Math.cos(c.yaw)).toBeCloseTo(front.z, 6);
+        // in the middle of the cup: the spin turns her, it does not swing her about
+        expect(g.userData.seat.x).toBe(0);
+        expect(g.userData.seat.z).toBe(0);
+      }
+    }
+  });
+
+  it('carries her round no faster than a walk', () => {
+    expect((2 * Math.PI * cups[0].r) / RIDE.CUPS_TURN).toBeLessThan(1.2);
+  });
+
+  it('is boarded from the ground beside the ride as a cup passes the edge, and from nowhere else', () => {
+    let on = 0;
+    let tried = 0;
+    for (let i = 0; i < 180; i++) {
+      sim.setTime(400 + i * 0.1);
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        const r = sim.cups.baseR + CAT_RADIUS + 0.05;
+        const cat = { x: sim.cups.cx + Math.cos(a) * r, y: 0, z: sim.cups.cz + Math.sin(a) * r };
+        const t = sim.jumpTarget(cat, null);
+        tried++;
+        if (!t) continue;
+        on++;
+        expect(t.type).toBe('board');
+        expect(t.seat.seatKind).toBe('cup');
+        expect(flat(t.seat, cat)).toBeLessThan(RIDE.REACH_CUP);
+        // two steps back there is nothing in reach
+        expect(sim.jumpTarget({ x: sim.cups.cx + Math.cos(a) * (r + 2), y: 0, z: sim.cups.cz + Math.sin(a) * (r + 2) }, null)).toBeNull();
+      }
+    }
+    expect(on / tried).toBeGreaterThan(0.45);
+    expect(on / tried).toBeLessThan(0.9);
+    // from a cup the jump button gets her out: there is no cup-to-cup hop
+    sim.setTime(77);
+    for (const c of cups) expect(sim.jumpTarget(c, c).type).toBe('off');
+  });
+
+  it('never lands her on the floor of the ride', () => {
+    for (let x = -6; x <= 6; x += 0.5) for (let z = -6; z <= 6; z += 0.5) {
+      if (Math.hypot(x, z) < sim.cups.baseR + CAT_RADIUS) expect(sim.swept(sim.cups.cx + x, sim.cups.cz + z)).toBe(true);
+    }
+    expect(sim.cups.baseR).toBe(4.95);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // GETTING ON
 // ---------------------------------------------------------------------------
@@ -844,6 +922,104 @@ describe('the walk: a cat on the big wheel', () => {
     w.run(1.2);
     expect(grounded(w)).toBe(true);
     expect(w.live.sim.swept(w.cat.position.x, w.cat.position.z)).toBe(false);
+  });
+});
+
+describe('the walk: a cat in a teacup', () => {
+  it('hops her into a passing cup, turns her with it, and keeps the camera still and calm', () => {
+    const w = walk({ at: { x: -26 + 5.35, z: 2 }, clock: { T: 9000 } });
+    w.player.yaw = Math.PI / 2; // her own camera is east of her, looking west at the ride
+    w.frame();
+    expect(w.jumpWhenInReach()).toBe(true);
+    const cup = w.session.perched;
+    expect(cup.seatKind).toBe('cup');
+    w.frame();
+    expect(w.events.filter((e) => e.type === 'ride')).toEqual([{ type: 'ride', ride: 'cups' }]);
+    w.run(2.5); // the ride's camera has taken over
+    expect(w.live.cameraWeight).toBeGreaterThan(0.99);
+    const cam0 = w.camera.position.clone();
+    const dir0 = new THREE.Vector3(); w.camera.getWorldDirection(dir0);
+    const dir = new THREE.Vector3();
+    const prev = new THREE.Vector3();
+    let turned = 0;
+    let lastYaw = w.cat.rotation.y;
+    let maxSwing = 0;
+    for (let i = 0; i < 30 * RIDE.CUPS_TURN; i++) {
+      prev.copy(w.camera.position);
+      w.frame();
+      expect(w.cat.position.x).toBe(cup.x);
+      expect(w.cat.position.z).toBe(cup.z);
+      turned += Math.abs(Math.atan2(Math.sin(w.cat.rotation.y - lastYaw), Math.cos(w.cat.rotation.y - lastYaw)));
+      lastYaw = w.cat.rotation.y;
+      // the camera does not move at all while she rides...
+      expect(prev.distanceTo(w.camera.position)).toBeLessThan(1e-9);
+      // ...and what it looks at only drifts: under two degrees a frame, never the cup's spin
+      w.camera.getWorldDirection(dir);
+      maxSwing = Math.max(maxSwing, dir.angleTo(dir0));
+      expect(Math.abs(new THREE.Vector3(1, 0, 0).applyQuaternion(w.camera.quaternion).y)).toBeLessThan(1e-6);
+    }
+    expect(turned).toBeGreaterThan(Math.PI * 4); // she herself spins: about three turns in the floor's one
+    expect(maxSwing).toBeLessThan(0.2); // the picture leans a few degrees towards her cup, no more
+    expect(w.camera.position.distanceTo(cam0)).toBeLessThan(1e-9);
+    // outside the ride and above it, on the side her own camera was
+    expect(Math.hypot(w.camera.position.x - sim.cups.cx, w.camera.position.z - sim.cups.cz)).toBeGreaterThan(sim.cups.baseR + 3);
+    expect(w.camera.position.x).toBeGreaterThan(sim.cups.cx);
+    expect(w.camera.position.y).toBeGreaterThan(4);
+  });
+
+  it('gets her out with the jump button or the stick, onto free ground outside the ride, wobbling for a few steps and no more', () => {
+    for (const how of ['jump', 'stick']) {
+      const w = walk({ at: { x: -26, z: 2 + 5.35 }, clock: { T: 9500 } });
+      expect(w.jumpWhenInReach()).toBe(true);
+      w.run(3.7);
+      expect(w.live.wobble).toBe(0);
+      if (how === 'jump') expect(w.live.jump(w.ctx)).toBe(true);
+      else { w.pushStick(1, 0); w.frame(); }
+      expect(w.session.perched).toBeNull();
+      expect(w.live.hopping).toBe(true);
+      w.pushStick(0, 0);
+      while (w.live.hopping) w.frame();
+      expect(grounded(w), how).toBe(true);
+      expect(Math.hypot(w.cat.position.x - sim.cups.cx, w.cat.position.z - sim.cups.cz)).toBeGreaterThan(sim.cups.baseR + CAT_RADIUS);
+      // the wobble: a sway from side to side, fading to nothing in three seconds
+      expect(w.live.wobble).toBeGreaterThan(RIDE.WOBBLE_TIME - 1);
+      const at = { x: w.cat.position.x, z: w.cat.position.z };
+      let most = 0;
+      let early = 0;
+      let late = 0;
+      for (let i = 0; i < 30 * RIDE.WOBBLE_TIME; i++) {
+        w.frame();
+        const lean = Math.abs(w.cat.rotation.z);
+        most = Math.max(most, lean);
+        if (i < 30) early = Math.max(early, lean); else if (i > 60) late = Math.max(late, lean);
+        // never loss of control: the rides do not move her, and nothing but her own stick does
+        expect(w.cat.position.x).toBe(at.x);
+        expect(w.cat.position.z).toBe(at.z);
+        expect(w.player.perchY).toBe(0);
+      }
+      expect(most).toBeGreaterThan(0.08);
+      expect(most).toBeLessThan(0.21); // about eleven degrees at the very most
+      expect(late).toBeLessThan(early);
+      w.run(0.2);
+      expect(w.live.wobble).toBe(0);
+      w.frame();
+      expect(w.cat.rotation.z).toBe(0);
+    }
+  });
+
+  it('does not wobble her with reduced motion on, nor after any other ride', () => {
+    const w = walk({ at: { x: -26, z: 2 + 5.35 }, clock: { T: 9500 }, reducedMotion: true });
+    expect(w.jumpWhenInReach()).toBe(true);
+    w.run(1);
+    w.live.jump(w.ctx);
+    while (w.live.hopping) w.frame();
+    for (let i = 0; i < 60; i++) { w.frame(); expect(w.cat.rotation.z).toBe(0); }
+    const m = walk({ at: { x: 0, z: 5.15 } });
+    expect(m.jumpWhenInReach()).toBe(true);
+    m.run(1);
+    m.pushStick(0, 1); m.frame(); m.pushStick(0, 0);
+    while (m.live.hopping) m.frame();
+    expect(m.live.wobble).toBe(0);
   });
 });
 

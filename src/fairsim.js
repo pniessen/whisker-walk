@@ -28,7 +28,7 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // player.js's CAT_RADIUS (not imported: player.js loads THREE).
 export const CAT_RADIUS = 0.35;
 
-export const RIDE_IDS = Object.freeze(['mgr', 'wheel']);
+export const RIDE_IDS = Object.freeze(['mgr', 'wheel', 'cups']);
 
 export const RIDE = Object.freeze({
   // ---- the merry-go-round ----
@@ -52,6 +52,11 @@ export const RIDE = Object.freeze({
   REACH_GONDOLA: 2.3,
   REACH_LOOKOUT: 3.0,
   GONDOLA_STEP_UP: 1.3, // a gondola higher above her than this has gone by
+  // ---- the teacups ----
+  CUPS_TURN: 18,       // seconds for one turn of the floor
+  CUPS_SPIN: 4.5,      // seconds for one turn of a cup ON the floor, the other way (so 6 s a turn as the world sees it)
+  REACH_CUP: 2.6,      // from the ground beside the ride into a cup passing the edge
+  WOBBLE_TIME: 3,      // seconds of a sway in her walk after she gets out
   // ---- getting off ----
   LAND_MARGIN: 0.1,    // clear of every collider by the cat's radius and this
   BOUNDS_MARGIN: 0.5,
@@ -82,7 +87,7 @@ const FAN_AHEAD = 7; // the first seven: straight on, and up to 67.5 degrees eit
 export function createFairSim(area) {
   const R = area.rides;
   const seats = [];
-  const angles = { mgr: 0, mgrDrum: 0, mgrBob: new Float64Array(R.merryGoRound.horses.length), wheel: 0 };
+  const angles = { mgr: 0, mgrDrum: 0, mgrBob: new Float64Array(R.merryGoRound.horses.length), wheel: 0, cups: 0, cupSpin: 0 };
   // One of the area's own perches, by where it is (the boarding deck, the coaster's platform).
   const areaPerch = (at) => (area.perches ?? []).find((p) => Math.abs(p.x - at.x) < 1e-6 && Math.abs(p.z - at.z) < 1e-6 && Math.abs(p.y - at.y) < 1e-6) ?? null;
 
@@ -159,11 +164,44 @@ export function createFairSim(area) {
     }
   }
 
+  // ---- the teacups ------------------------------------------------------------------
+  // The floor turns one way and every cup, on it, spins the other. She sits
+  // in the middle of a cup, so the floor carries her round and the cup only
+  // turns her on the spot.
+  const cups = (() => {
+    const g = R.teacups;
+    const cx = g.group.position.x;
+    const cz = g.group.position.z;
+    const yaw0 = g.group.rotation.y;
+    const list = g.cups.map((c, i) => makeSeat(`cups-cup-${i}`, 'cups', 'cup', i, {
+      a: c.userData.place.angle, r: c.userData.place.radius, spin0: c.rotation.y, baseY: c.position.y + c.userData.seat.y,
+    }));
+    for (const s of list) s.y = s.baseY;
+    const baseR = Math.max(...area.colliders.filter((c) => c.x === cx && c.z === cz).map((c) => c.r), list[0].r + 1.2);
+    return { cx, cz, yaw0, list, baseR };
+  })();
+  seats.push(...cups.list);
+
+  function setCups(T) {
+    const alpha = TAU * frac(T / RIDE.CUPS_TURN);
+    const spin = -TAU * frac(T / RIDE.CUPS_SPIN);
+    angles.cups = alpha;
+    angles.cupSpin = spin;
+    for (let i = 0; i < cups.list.length; i++) {
+      const s = cups.list[i];
+      const at = s.a - cups.yaw0 - alpha;
+      s.x = cups.cx + Math.cos(at) * s.r;
+      s.z = cups.cz + Math.sin(at) * s.r;
+      s.yaw = cups.yaw0 + alpha + s.spin0 + spin + Math.PI;
+    }
+  }
+
   let now = 0;
   function setTime(T) {
     now = Number.isFinite(T) ? T : 0;
     setMgr(now);
     setWheel(now);
+    setCups(now);
   }
 
   // ---- what a jump reaches -------------------------------------------------------
@@ -239,6 +277,12 @@ export function createFairSim(area) {
         if (d < RIDE.REACH_DECK && d < bestD) { best = mgr.deck[i]; bestD = d; }
       }
     }
+    if ((cat.y ?? 0) < 0.6) {
+      for (let i = 0; i < cups.list.length; i++) {
+        const d = flat(cups.list[i], cat);
+        if (d < RIDE.REACH_CUP && d < bestD) { best = cups.list[i]; bestD = d; }
+      }
+    }
     {
       const g = gondolaNear(cat, RIDE.REACH_GONDOLA);
       if (g && g.y - (cat.y ?? 0) <= RIDE.GONDOLA_STEP_UP) {
@@ -259,6 +303,8 @@ export function createFairSim(area) {
   // strip under the big wheel.
   function swept(x, z) {
     if (Math.hypot(x - mgr.cx, z - mgr.cz) < mgr.baseR + CAT_RADIUS) return true;
+    // the teacups' floor (its collider covers the same disc)
+    if (Math.hypot(x - cups.cx, z - cups.cz) < cups.baseR + CAT_RADIUS) return true;
     // the strip the big wheel and its gondolas turn over
     if (Math.abs(x - wheel.cx) < wheel.sweepX + CAT_RADIUS && Math.abs(z - wheel.cz) < wheel.sweepZ + CAT_RADIUS) return true;
     return false;
@@ -285,6 +331,7 @@ export function createFairSim(area) {
   // The way off a seat when she has pushed no way herself: outwards.
   function awayFrom(seat, out) {
     if (seat.rideId === 'mgr') { out.x = seat.x - mgr.cx; out.z = seat.z - mgr.cz; }
+    else if (seat.rideId === 'cups') { out.x = seat.x - cups.cx; out.z = seat.z - cups.cz; }
     else { out.x = 0; out.z = 1; }
     return out;
   }
@@ -324,6 +371,7 @@ export function createFairSim(area) {
     angles,
     mgr,
     wheel,
+    cups,
     get time() { return now; },
     setTime,
     jumpTarget,

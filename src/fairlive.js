@@ -62,6 +62,10 @@ export function poseRides(rides, sim) {
   const w = rides.wheel;
   w.turn.rotation.z = A.wheel;
   for (let i = 0; i < w.gondolas.length; i++) w.gondolas[i].rotation.z = -A.wheel;
+  // the teacups' floor turns one way, each cup on it the other
+  const c = rides.teacups;
+  c.turn.rotation.y = A.cups;
+  for (let i = 0; i < c.cups.length; i++) c.cups[i].rotation.y = sim.cups.list[i].spin0 + A.cupSpin;
 }
 
 // How long the hop down from a seat `h` metres up takes: quick from a horse,
@@ -119,7 +123,16 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   const before = new THREE.Vector3();
   const off = new THREE.Vector3();
   const push = { x: 0, z: 0 };
+  // which side of a ride the camera was on when she got on (a unit vector on the ground)
+  const board = { x: 0, z: 1 };
+  function noteBoardSide(cx, cz) {
+    const dx = camera ? camera.position.x - cx : 0;
+    const dz = camera ? camera.position.z - cz : 1;
+    const d = Math.hypot(dx, dz);
+    if (d > 0.5) { board.x = dx / d; board.z = dz / d; } else { board.x = 0; board.z = 1; }
+  }
   const paws = { x: 0, y: 0, z: 0 };
+
   // A seat's height, and the hop's, are metres above the ground under them.
   const gy = (x, z) => (ground.flat ? 0 : ground.y(x, z));
   const catAt = (cat, player) => { paws.x = cat.position.x; paws.z = cat.position.z; paws.y = player.perchY ?? 0; return paws; };
@@ -150,6 +163,15 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       camLook.set(seat.x - 0.3, seat.y + CAT_LOOK_Y - 0.2, seat.z + 1.5);
       return 1;
     }
+    if (seat.rideId === 'cups') {
+      // Still, outside the ride and above it, where the camera already was
+      // when she hopped in: the floor turns in front of it. It looks at the
+      // middle of the ride and only leans towards her cup, so the picture
+      // neither spins with the cup nor swings round with the floor.
+      camPos.set(sim.cups.cx + board.x * 8.8, 5.0, sim.cups.cz + board.z * 8.8);
+      camLook.set(sim.cups.cx + (seat.x - sim.cups.cx) * 0.28, 0.9, sim.cups.cz + (seat.z - sim.cups.cz) * 0.28);
+      return 1;
+    }
     return 0;
   }
 
@@ -175,7 +197,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     hop.dur = hopDownTime(seat.y);
     player.perchY = seat.y;
     cat.position.set(seat.x, gy(seat.x, seat.z) + seat.y, seat.z);
-    if (seat.seatKind === 'cup') wobble = RIDE.WOBBLE_TIME ?? 0;
+    if (seat.seatKind === 'cup') wobble = RIDE.WOBBLE_TIME; // out of a teacup: a few wobbly steps
     riding = null;
     lastSeat = null;
     rodeRide = null;
@@ -203,6 +225,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       if (!t) return false;
       if (t.type === 'board' || t.type === 'hop') {
         lastSeat = t.type === 'hop' ? riding : null;
+        if (t.seat.rideId === 'cups') noteBoardSide(sim.cups.cx, sim.cups.cz);
         riding = t.seat;
         seatCat(t.seat, cat, player, session);
         onEvent({ type: 'hop', ride: t.seat.rideId });
@@ -305,7 +328,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       }
       // after the teacups: a sway in her walk for a few steps, and nothing else
       if (wobble > 0 && !reducedMotion && !session.perched && !hop.on) {
-        const k = wobble / (RIDE.WOBBLE_TIME || 1);
+        const k = wobble / RIDE.WOBBLE_TIME;
         cat.rotation.z += Math.sin(t * 7.5) * 0.2 * k;
       }
     },
