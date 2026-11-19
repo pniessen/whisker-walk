@@ -103,7 +103,7 @@ describe('the stretch is a play bow (A7)', () => {
   });
 
   it('nothing worn is in the ground', () => {
-    const worn = [{ collar: 'bell' }, { collar: 'heart' }, { neck: 'scarf' }, { neck: 'necktie' }, { neck: 'bowtie' }, { neck: 'bandana' }, { neck: 'streamerscarf' },
+    const worn = [{ collar: 'bell' }, { collar: 'heart' }, { neck: 'scarf' }, { neck: 'necktie' }, { neck: 'bowtie' }, { neck: 'bandana' }, { neck: 'streamerscarf' }, { neck: 'prizerosette' },
       { body: 'cape' }, { body: 'sweater' }, { body: 'hoodie' }, { back: 'backpack' }, { head: 'tophat' }];
     for (const breed of PRESETS) {
       for (const acc of worn) {
@@ -252,7 +252,7 @@ describe('napping, the head is down on the paws', () => {
     }
   });
   it('nothing worn is in the ground, and the tail still lies wrapped round the cat\'s left', () => {
-    const worn = [{}, { collar: 'bell' }, { collar: 'studded' }, { neck: 'scarf' }, { neck: 'necktie' }, { neck: 'bowtie' }, { neck: 'bandana' }, { neck: 'streamerscarf' },
+    const worn = [{}, { collar: 'bell' }, { collar: 'studded' }, { neck: 'scarf' }, { neck: 'necktie' }, { neck: 'bowtie' }, { neck: 'bandana' }, { neck: 'streamerscarf' }, { neck: 'prizerosette' },
       { body: 'cape' }, { body: 'hoodie' }, { back: 'backpack' }, { head: 'tophat', face: 'glasses' }];
     for (const breed of PRESETS) {
       for (const acc of worn) {

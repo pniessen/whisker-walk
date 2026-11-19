@@ -14,6 +14,8 @@ import { withLocalUuids } from './localuuids.js';
 import { addRiverDressing, riverGroundTint } from './riverdress.js';
 import { marshMist, dragonflies, riverDragonflyHomes, createMarshLife } from './marshlife.js';
 import { phrase } from '../clanphrases.js';
+import { growOn } from '../grow.js';
+import * as west from './riverwest.js';
 
 // =============================================================================
 // The River and Marshes.
@@ -507,7 +509,39 @@ function mossyBoulder(x, z, material) {
   return m;
 }
 
+// Bigger areas (src/grow.js; off by default). With the switch on the River
+// gains its west strip (riverwest.js): the walkable bounds become x -90..50,
+// the river runs on under hills that have moved 40 m west, and the strip's
+// own things are added after everything here. Nothing of the core changes:
+// the lists below are the core's with the strip's put after them.
+// Worked out on first use, never at import (riverwest.js imports this file's
+// neighbours, so its bindings may not be ready when this module is read).
+let grown = null;
+function grownRiver() {
+  if (!grown) {
+    const riverWest = Object.freeze({ ...RIVER_WEST, minX: west.WEST_RIVER_MINX });
+    const waters = Object.freeze([...RIVER_WATERS.map((w) => (w === RIVER_WEST ? riverWest : w)), west.STILL_POOL]);
+    grown = Object.freeze({
+      bounds: Object.freeze({ ...BOUNDS, minX: west.WEST.minX }),
+      riverWest,
+      waters,
+      horizon: Object.freeze({
+        ...RIVER_HORIZON,
+        rect: west.WEST_BAND_RECT,
+        // the long sides are 40 m longer: as many cells to the metre as before
+        around: 184,
+        avoid: Object.freeze([LAKE, LAKE_FAR, riverWest, RIVER_EAST]),
+        edge: Object.freeze({ ...RIVER_HORIZON.edge, avoid: waters }),
+      }),
+    });
+  }
+  return grown;
+}
+
 export function build(scene, { water = {}, wind } = {}) {
+  const G = growOn() ? grownRiver() : null;
+  const waters = G ? G.waters : RIVER_WATERS;
+  const bounds = G ? G.bounds : BOUNDS;
   b.applySky(scene, 0xa9d4e0, 0xdde8dc);
   // The ground, tinted where the marsh is wet, peaty or dry (riverdress.js).
   const groundMesh = b.ground(120, RIVER_GROUND, { surface: 'grass' });
@@ -520,7 +554,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // and the river leave the map the hills come down to the water and rise
   // again further out (builder.horizonBand's `shore`), but never over the
   // island or its bridge (`keepLow`).
-  scene.add(b.horizonBand(RIVER_HORIZON));
+  scene.add(b.horizonBand(G ? G.horizon : RIVER_HORIZON));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
@@ -530,12 +564,12 @@ export function build(scene, { water = {}, wind } = {}) {
   // Each mesh is built from its footprint record and added to the scene root
   // directly (test/water.test.js matches against scene.children).
   const waterFx = RIVER_WATERS.map((w) => {
-    const fx = createWater(w, {
+    const fx = createWater(G && w === RIVER_WEST ? G.riverWest : w, {
       color: WATER_COLOR,
       ...WATER_LOOK[w.id],
       quality: water.quality ?? 'high',
       reducedMotion: water.reducedMotion ?? false,
-      waters: RIVER_WATERS,
+      waters,
     });
     scene.add(fx.mesh);
     return fx;
@@ -649,30 +683,50 @@ export function build(scene, { water = {}, wind } = {}) {
   // over it by day (marshlife.js): two noCast meshes, driven by the walk's
   // life hook. Their uuids come from a local stream too.
   const life = withLocalUuids('river-life', () => {
-    const mist = marshMist(RIVER_WATERS, BOUNDS);
+    const mist = marshMist(waters, bounds);
     const flies = dragonflies(riverDragonflyHomes());
     scene.add(mist, flies);
     return { mist, flies };
   });
 
+  // --- the west strip (bigger areas) ----------------------------------------------
+  // After everything of the core, so the core's objects, colliders and
+  // perches keep their order; wholly under local uuids, so the build's
+  // Math.random draws are the same with the switch on.
+  let strip = null;
+  if (G) {
+    strip = west.addWestStrip(scene, { groundMesh, water, waters, waterColor: WATER_COLOR });
+    waterFx.push(strip.waterFx);
+    for (const c of [...west.westTreeColliders(), ...west.WEST_COLLIDERS]) addC(c.x, c.z, c.r);
+    perches.push(...west.westTreePerches(), ...west.WEST_PERCHES);
+  }
+
   return {
     name: 'The River and Marshes',
     colliders,
-    bounds: { ...BOUNDS },
+    bounds: { ...bounds },
+    // Bigger areas: the frozen core, for whatever must not follow the bounds
+    // out (the strays' and the clan's homes, the walk's seeded spots), the
+    // strips that stream (render/striptiles.js) and the strip's rest spots.
+    ...(G ? {
+      core: { ...BOUNDS },
+      strips: [west.WEST_STRIP],
+      rests: west.WEST_RESTS.map((r) => ({ ...r })),
+    } : {}),
     spawn: { x: SPAWN.x, z: SPAWN.z },
     // Nothing Twoleg-made in the River.
     boxes: [],
     tippables: [],
     pois: POIS.map((p) => ({ ...p })),
-    collectibles: COLLECTIBLES.map((c) => ({ ...c })),
-    scenics: SCENICS.map((c) => ({ ...c })),
+    collectibles: [...COLLECTIBLES.map((c) => ({ ...c })), ...(G ? west.westCollectibles() : [])],
+    scenics: [...SCENICS.map((c) => ({ ...c })), ...(G ? west.westScenics() : [])],
     critterSpawns: critterSpawns(),
     moments: [
       { id: 'duck-parade', type: 'duck', label: 'a duck leading her ducklings out of the pond', x: 36, z: 4, from: { x: 44, z: -6 } },
       { id: 'mouse-dash', type: 'mouse', label: 'a harvest mouse dashing through the reeds', x: -28, z: -6, from: { x: -44, z: 2 } },
     ],
     puddles: PUDDLES.map((p) => ({ ...p })),
-    waters: RIVER_WATERS,
+    waters,
     waterFx,
     groundBounce: RIVER_GROUND,
     skyDusk: { top: 0x283652, horizon: 0x6a6478 },

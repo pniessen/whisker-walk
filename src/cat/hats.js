@@ -18,7 +18,7 @@ import { SKULL } from './torso.js';
 // Hagrid still wears the old prize head items (model.js addPrizeHead); only
 // the cat's head slot builds these.
 
-export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat'];
+export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -553,6 +553,36 @@ function partycrown(simple) {
   return finish('partycrown', parts);
 }
 
+// Paper Crown (the Fairground's tin-can alley prize, src/fairprizes.js): the
+// crown out of a party cracker. One band of thin paper, its bottom edge on
+// the skull ring, cut along the top into six points and standing nearly
+// straight (paper does not flare like the gold Party Crown); each point a
+// different bright colour, a paler fold line round the band. No jewels.
+const PAPER = { y: 0.14, tip: 0.07, valley: 0.03, flare: 0.08, points: 6 };
+const PAPER_COLORS = [0xe2433a, 0xf7c93b, 0x2f6fc0, 0x4eb86a, 0xf08a2c, 0x9a5cc8];
+function papercrown(simple) {
+  const per = simple ? 2 : 4, cols = PAPER.points * per;
+  const rowsV = simple ? [0, 0.4, 1] : [0, 0.12, 0.4, 0.7, 1];
+  const topH = (i) => {
+    const f = (i % per) / per; // 0 at a point, 0.5 at a valley
+    return PAPER.valley + (PAPER.tip - PAPER.valley) * Math.abs(1 - 2 * f);
+  };
+  // the colour changes at each valley, so every point is one colour
+  const paperAt = (i) => PAPER_COLORS[Math.floor(((i + per / 2) % cols) / per) % PAPER_COLORS.length];
+  const bandAt = (i, h) => {
+    const phi = (i / cols) * Math.PI * 2;
+    const p = ringPoint(phi, PAPER.y), n = skullNormal(p);
+    const radial = new THREE.Vector3(Math.sin(phi), 0, -Math.cos(phi));
+    return { p: p.addScaledVector(n, 0.003).addScaledVector(radial, PAPER.flare * h).add(new THREE.Vector3(0, h, 0)), radial };
+  };
+  const outer = grid(cols, rowsV.length, { wrapU: true }, (i, j) => {
+    const h = rowsV[j] * topH(i), { p, radial } = bandAt(i, h);
+    const paper = paperAt(i);
+    return { p, c: j === 1 && !simple ? mix(paper, 0xffffff, 0.35) : rgb(paper), out: radial };
+  });
+  return finish('papercrown', [outer, backFace(outer)]);
+}
+
 // Leaf Crown: laurel. A brown twig round the wreath on top of the head, and
 // twenty pointed leaves lying on it in two overlapping rows, ten a side, each
 // leaf's stem on the twig and the leaf running back from it toward the nape.
@@ -657,7 +687,7 @@ function candlehat(simple) {
   return finish('candlehat', parts);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat };
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown };
 
 export function buildHat(id, { simple = false } = {}) {
   const make = Object.hasOwn(BUILD, id ?? '') ? BUILD[id] : null;
@@ -665,4 +695,4 @@ export function buildHat(id, { simple = false } = {}) {
 }
 
 // for tests / tuning
-export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH });
+export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH, PAPER });

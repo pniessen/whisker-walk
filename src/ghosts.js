@@ -59,7 +59,8 @@ function sanitizeGhostProfile(raw) {
  * they're atmosphere until you walk up and greet them).
  */
 export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}) {
-  const b = area.bounds;
+  // Bigger areas: ghosts are placed and wander on the frozen core.
+  const b = area.core ?? area.bounds;
   const ghosts = [];
   // Gorge part 1 (R9): ghosts stand on the walk's ground and stop at rims.
   const ground = opts?.ground ?? groundOf(area);

@@ -196,8 +196,9 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   const trees = [];
   const stands = new Map(); // stand Group → its state (see prepareStand)
   const standTrees = [];
+  const treeEntry = (occ) => ({ occ, obj: occ.obj, tree: !occ.box && occ.near === undefined && !!occ.obj.userData?.occluder, op: 1, swapped: false, meshes: null, originals: null, clones: null, base: null, trunk: null, cache: null, windows: null, winHidden: false });
   for (const occ of occluders) {
-    if (occ.obj) trees.push({ occ, obj: occ.obj, tree: !occ.box && occ.near === undefined && !!occ.obj.userData?.occluder, op: 1, swapped: false, meshes: null, originals: null, clones: null, base: null, trunk: null, cache: null, windows: null, winHidden: false });
+    if (occ.obj) trees.push(treeEntry(occ));
     else if (occ.stand && Number.isInteger(occ.index)) {
       let st = stands.get(occ.stand);
       if (!st) {
@@ -377,6 +378,9 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         || segmentBlocked(cam, far, o, LINE_PAD);
       close = want && t.tree && dCam < o.R + NEAR_FOLIAGE && cam.y < o.top + 1;
     }
+    // A tagged shape its owner is holding solid for now (the Fairground's
+    // slide while the cat is on it: src/fairlive.js).
+    if (want && o.near !== undefined && o.obj?.userData.fadeHold) want = false;
     if (!want && t.op >= 1) return false;
     const target = close ? FOLIAGE_NEAR_OPACITY : want ? FADE_OPACITY : 1;
     // A tree the fight camera hid (fightcam.js) snaps: it reappears already
@@ -457,6 +461,24 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         // back to what the walk had shown
         for (const st of warm) { st.shown = null; syncStand(st); }
       }
+    },
+    // Bigger areas: a strip tile's trees join and leave during a walk. add()
+    // takes one findOccluders entry (a Group tree, never a stand's); remove()
+    // puts the tree's own materials back and frees its clones.
+    add(occ) {
+      if (disposed || !occ?.obj) return;
+      trees.push(treeEntry(occ));
+    },
+    remove(obj) {
+      for (let i = 0; i < trees.length; i++) {
+        const t = trees[i];
+        if (t.obj !== obj) continue;
+        if (t.swapped) swapOut(t);
+        if (t.cache) for (const c of t.cache.values()) c.dispose();
+        trees.splice(i, 1);
+        return true;
+      }
+      return false;
     },
     // The tree Groups currently below full opacity (live; read-only).
     faded() { return faded; },

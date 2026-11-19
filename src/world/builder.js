@@ -553,6 +553,37 @@ export function ground(size, color, { surface } = {}) {
   return m;
 }
 
+// Bigger areas: more of the SAME ground, for a strip outside the square plane
+// (`main`, what ground() returned, already tinted or not). A flat rectangle
+// `rect` ({ minX, maxX, minZ, maxZ }, its edges on the main plane's vertex
+// grid), sharing the main plane's material so the texture, the rain's wet
+// look and the dusk tint carry straight on; its uvs continue the main
+// plane's, and its macro patches are the same field (the main plane's own
+// wavelength), so the join cannot be seen. The caller wraps this in
+// withLocalUuids and tints it as it tinted the main plane.
+export function groundPatch(main, rect, { surface } = {}) {
+  const size = main.geometry.parameters.width;
+  const step = size / segsFor(size);
+  const w = rect.maxX - rect.minX;
+  const d = rect.maxZ - rect.minZ;
+  const geo = new THREE.PlaneGeometry(w, d, Math.max(1, Math.round(w / step)), Math.max(1, Math.round(d / step)));
+  const cx = (rect.minX + rect.maxX) / 2;
+  const cz = (rect.minZ + rect.maxZ) / 2;
+  const pos = geo.attributes.position;
+  const uv = geo.attributes.uv;
+  // local (x, y) -> world (cx + x, cz - y) once laid flat; the main plane's
+  // uv at world (X, Z) is (X / size + 0.5, 0.5 - Z / size)
+  for (let i = 0; i < pos.count; i++) {
+    uv.setXY(i, (cx + pos.getX(i)) / size + 0.5, 0.5 - (cz - pos.getY(i)) / size);
+  }
+  const m = new THREE.Mesh(geo, main.material);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(cx, 0, cz);
+  m.userData.ground = true;
+  applyMacroVariation(m, surface, size);
+  return m;
+}
+
 // `surface` is opt-in for the same reason ground()'s and platform()'s are: a
 // park's winding path is gravel ('sand' is the fine-speckle tile and is what a
 // gravel walk actually looks like), a neighbourhood's is packed earth, and the
@@ -1518,6 +1549,21 @@ function smoothstep(a, b, x) {
   return t * t * (3 - 2 * t);
 }
 
+// Bigger areas: the ring round a RECTANGLE instead of the square. `rect` is
+// { cx, cz, ex, ez }: the rectangle's centre and how much longer than the
+// square each half-side is. A point `s` out along squarePoint (px, pz) lands
+// at (cx + px * (s + ex), cz + pz * (s + ez)), so the corners stay mitred and
+// the long sides are stretched evenly. With no rect every caller keeps its
+// own px * s arithmetic, untouched.
+const rectAt = (rect, px, pz, s) => [rect.cx + px * (s + rect.ex), rect.cz + pz * (s + rect.ez)];
+// How far out (x, z) is, in the square's own measure (the `s` above).
+const rectOut = (rect, x, z) => Math.max(Math.abs(x - rect.cx) - rect.ex, Math.abs(z - rect.cz) - rect.ez);
+// The same point as the square ring would have it, for the side tints.
+function rectSquare(rect, x, z) {
+  const s = Math.max(rectOut(rect, x, z), 1e-6);
+  return [((x - rect.cx) / (s + rect.ex)) * s, ((z - rect.cz) / (s + rect.ez)) * s];
+}
+
 // Distance from (x, z) to a capsule's spine: the segment (x1, z1)-(x2, z2),
 // or the point (x1, z1) when x2/z2 are left out.
 function segmentDist(x, z, { x1, z1, x2 = x1, z2 = z1 }) {
@@ -1918,12 +1964,13 @@ const onArcs = (arcs, u) => !arcs || arcs.some(([a, b]) => u >= a && u <= b);
  * placement without a mesh. A spot within EDGE_DRY of water in `avoid`, inside
  * a gap disc or off the style's arcs is left out (a gate is the gap's own).
  */
-export function edgeSpots({ half, style, gaps = [], props = [] }, salt = 0, avoid = []) {
+export function edgeSpots({ half, style, gaps = [], props = [], rect = null }, salt = 0, avoid = []) {
   const S = edgeStyle(style);
   const st = salt + EDGE_SALT;
   const spots = [];
   const inGap = (x, z) => gaps.some((g) => Math.hypot(x - g.x, z - g.z) < g.r);
   const dry = (x, z) => waterClearance(avoid, x, z) >= EDGE_DRY;
+  if (rect) return edgeSpotsRect({ half, rect }, S, st, dry);
   const s0 = half + EDGE_OUT;
   const perSide = Math.max(1, Math.round((2 * s0) / (S.step ?? EDGE_STEP)));
   const n = 4 * perSide;
@@ -1970,6 +2017,49 @@ export function edgeSpots({ half, style, gaps = [], props = [] }, salt = 0, avoi
     if (!dry(x, z) || inGap(x, z)) continue;
     spots.push({ x, z, yaw: hash01(k, 6, st) * Math.PI * 2, kind: 'tree', u });
   }
+  return spots;
+}
+
+// Bigger areas: edgeSpots round a rectangle (`rect`, see rectAt). Each side
+// gets its own count, so the pieces keep the style's spacing on a long side.
+// Each spot carries (ox, oz), the way out of the ground, since "whichever axis
+// it is furthest along" no longer says. Reeds-style edges only so far: no
+// gaps, gates, props or arcs (the River has none); a style with `arcs` throws
+// rather than draw the wrong thing.
+const SIDE_OUT = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+function edgeSpotsRect({ half, rect }, S, st, dry) {
+  if (S.arcs || Array.isArray(S.trees)) throw new Error('horizonBand edge: a rect edge does not support arcs yet');
+  const spots = [];
+  const sideLen = (i, s) => 2 * (s + (i % 2 === 0 ? rect.ez : rect.ex));
+  const ring = (s, step) => [0, 1, 2, 3].map((i) => Math.max(1, Math.round(sideLen(i, s) / step)));
+  const s0 = half + EDGE_OUT;
+  const jitter = S.jitter ?? EDGE_JITTER;
+  let k = 0;
+  ring(s0, S.step ?? EDGE_STEP).forEach((count, side) => {
+    for (let j = 0; j < count; j++, k++) {
+      const u = (side + j / count) / 4;
+      const [px, pz] = squarePoint(u);
+      const [x, z] = rectAt(rect, px, pz, s0 + (hash01(k, 1, st) * 2 - 1) * jitter);
+      if (!dry(x, z)) continue;
+      const yaw = sideYaw(u) + (hash01(k, 2, st) - 0.5) * 0.1;
+      const [ox, oz] = SIDE_OUT[side];
+      spots.push({ x, z, yaw, kind: j === 0 ? 'corner' : 'piece', u, ox, oz });
+    }
+  });
+  if (S.trees === false) return spots;
+  const tMid = half + (TREE_FROM + TREE_TO) / 2;
+  k = 0;
+  ring(tMid, TREE_STEP).forEach((count, side) => {
+    for (let j = 0; j < count; j++, k++) {
+      if (hash01(k, 3, st) < (S.treeSkip ?? TREE_SKIP)) continue;
+      const u = (side + (j + 0.2 + 0.6 * hash01(k, 4, st)) / count) / 4;
+      const [px, pz] = squarePoint(u);
+      const [x, z] = rectAt(rect, px, pz, half + TREE_FROM + (TREE_TO - TREE_FROM) * hash01(k, 5, st));
+      if (!dry(x, z)) continue;
+      const [ox, oz] = SIDE_OUT[side];
+      spots.push({ x, z, yaw: hash01(k, 6, st) * Math.PI * 2, kind: 'tree', u, ox, oz });
+    }
+  });
   return spots;
 }
 
@@ -2347,8 +2437,8 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
     // The tangent along the ground's edge and the outward normal, in world xz.
     const tx = Math.cos(yaw);
     const tz = -Math.sin(yaw);
-    const ox = Math.abs(x) >= Math.abs(z) ? Math.sign(x) : 0;
-    const oz = Math.abs(x) >= Math.abs(z) ? 0 : Math.sign(z);
+    const ox = sp.ox ?? (Math.abs(x) >= Math.abs(z) ? Math.sign(x) : 0);
+    const oz = sp.oz ?? (Math.abs(x) >= Math.abs(z) ? 0 : Math.sign(z));
     const at = (t, nOut) => [x + tx * t + ox * nOut, z + tz * t + oz * nOut];
 
     if (kind === 'tree') {
@@ -2766,7 +2856,16 @@ export function horizonBand({
   nearColor = null,
   edge = null,
   shoreLip = null,
+  rect = null,
 } = {}) {
+  // Bigger areas: `rect` ({ cx, cz, ex, ez }, see rectAt) rings a rectangle
+  // instead of the square. Hills only so far (the River's): a skyline or
+  // rooftops would need their blocks placed the same way.
+  if (rect && (kind === 'skyline' || rooftops || headland)) throw new Error('horizonBand: rect supports plain hills only');
+  const outOf = rect ? (x, z) => rectOut(rect, x, z) : (x, z) => Math.max(Math.abs(x), Math.abs(z));
+  const tintOf = rect
+    ? (x, z, tints) => { const q = rectSquare(rect, x, z); return sideTintColor(q[0], q[1], tints); }
+    : sideTintColor;
   const span = outer - inner;
   // The vertical profile, as a pure function of how far out a point is. See
   // the FLAT/TAPER paragraphs above for why each of the two terms is here.
@@ -2848,8 +2947,8 @@ export function horizonBand({
     for (let j = 0; j <= outSegs; j++) {
       const t = j / outSegs;
       const s = inner + t * span;
-      const x = px * s;
-      const z = pz * s;
+      const x = rect ? rect.cx + px * (s + rect.ex) : px * s;
+      const z = rect ? rect.cz + pz * (s + rect.ez) : pz * s;
       pos.push(x, heightAt(x, z, t * span), z);
       // A plain planar uv so this geometry can be merged with the skyline's
       // BoxGeometries (mergeGeometries requires matching attribute sets) and
@@ -2866,7 +2965,7 @@ export function horizonBand({
       // the waterline rather than a fringe of half-cells.
       const [cx, cz] = squarePoint((i + 0.5) / around);
       const cs = inner + ((j + 0.5) / outSegs) * span;
-      if (wet(cx * cs, cz * cs)
+      if ((rect ? wet(...rectAt(rect, cx, cz, cs)) : wet(cx * cs, cz * cs))
         && [at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1)].every((v) => pos[v * 3 + 1] <= DROP_AT)) continue;
       // Winding derived once and then trusted: on side 0 of the square,
       // increasing i moves +z and increasing j moves +x, and z-hat cross x-hat
@@ -2978,9 +3077,9 @@ export function horizonBand({
       const c = new Float32Array(n * 3);
       for (let v = 0; v < n; v++) {
         // The ring takes its tint per vertex; a block takes one for the lot.
-        let t = i === 0 && sideTints ? sideTintColor(pp.getX(v), pp.getZ(v), sideTints) : (bases[i] ?? plain);
+        let t = i === 0 && sideTints ? tintOf(pp.getX(v), pp.getZ(v), sideTints) : (bases[i] ?? plain);
         if (i === 0 && near) {
-          const d = Math.max(Math.abs(pp.getX(v)), Math.abs(pp.getZ(v))) - inner;
+          const d = outOf(pp.getX(v), pp.getZ(v)) - inner;
           t = nearMix.copy(near).lerp(t, smoothstep(flat, flat + 0.5 * ramp, d));
         }
         if (i === 0 && lipCol) {
@@ -2988,7 +3087,7 @@ export function horizonBand({
           // above it.
           const x = pp.getX(v);
           const z = pp.getZ(v);
-          const d = Math.max(Math.abs(x), Math.abs(z)) - inner;
+          const d = outOf(x, z) - inner;
           const k = lipAt(x, z, d) * (1 - smoothstep(LIP_H - BAND_SINK, LIP_H - BAND_SINK + LIP_FADE, pp.getY(v)));
           if (k > 0) t = lipMix.copy(t).lerp(lipCol, k);
         }
@@ -3025,7 +3124,7 @@ export function horizonBand({
   // a future reader wondering whether it should have been split up.
   m.frustumCulled = false;
   if (houseLightGeos) m.add(houseLightsMesh(houseLightGeos, salt + ROOFTOP_SALT));
-  if (edge) m.add(edgeMesh(edge, salt, edge.avoid ?? avoid, (x, z) => heightAt(x, z, Math.max(Math.abs(x), Math.abs(z)) - inner)));
+  if (edge) m.add(edgeMesh(rect ? { ...edge, rect } : edge, salt, edge.avoid ?? avoid, (x, z) => heightAt(x, z, outOf(x, z) - inner)));
   return m;
 }
 

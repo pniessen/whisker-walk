@@ -30,7 +30,7 @@ import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn, createLampPools } from '../render/dusk.js';
-import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
+import { buildCat, CAT_LOOK_Y, catDims, coatColor } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { disposeHenRig } from '../cat/henfight.js';
 import { setCatRimLight } from '../cat/rimlight.js';
@@ -83,7 +83,8 @@ import { createYardDog } from '../yarddog.js';
 import { createFarmAnimals, NO_FARM } from '../farmanimals.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
 import { createFairLive, NO_FAIR } from '../fairlive.js';
-import { handleFairEvent } from './fairplay.js';
+import { handleFairEvent, addBalloonRibbon, restoreFairGames } from './fairplay.js';
+import { createFairShow } from '../fairshow.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
@@ -128,6 +129,7 @@ import { createFightUi } from '../ui/fightui.js';
 import { createShadowFit, createNoShadows } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
+import { createStripTiles } from '../render/striptiles.js';
 import { createGrass, groundFinds } from '../render/grass.js';
 import { createPawPrints } from '../render/pawprints.js';
 import { createSplash } from '../render/splash.js';
@@ -1303,6 +1305,8 @@ export function createWalkLifecycle({
     // (nothing merged). Pays nothing, saves nothing, sends nothing;
     // session.rest is the one in progress.
     const rests = createRests(scene, propsFor(areaId).rests, { ground });
+    // Bigger areas: a strip's own rest spots (areaData.rests) join the area's.
+    rests.add(areaData.rests);
     for (const c of rests.colliders) areaData.colliders.push({ ...c });
 
     // Appletree Farm's animals (farmanimals.js): cows, goats, hens and chicks,
@@ -1343,8 +1347,34 @@ export function createWalkLifecycle({
       camera,
       reducedMotion,
       ground,
-      onEvent: (e) => handleFairEvent(e, { hud, audio, log, progression, session }),
+      onEvent: (e) => handleFairEvent(e, { hud, audio, log, progression, session, once: fairOnce }),
     });
+    // Step 3: its three games, its six things to find and its visitors
+    // (fairshow.js), run by the rides once a frame. Per device and seeded with
+    // dice of their own, like the Farm's animals: never walkRng, and nothing
+    // rides the wire. How many visitors stroll about is the quality tier's
+    // (tier.strays: 8 on the high tier, 5, 3). The people get a villager's
+    // contact shadow and cast no other. The runaway balloon's ribbon is a
+    // thing to carry, out of sight until she catches the balloon.
+    let fairToasted = null;
+    function fairOnce(key, text) {
+      fairToasted ??= new Set();
+      if (!fairToasted.has(key)) { fairToasted.add(key); hud.toast(text); }
+    }
+    const fairShow = areaId !== 'fair' ? null : createFairShow(scene, areaData, {
+      swept: fairLive.sim.swept,
+      strays: tier.strays,
+      camera,
+      reducedMotion,
+      ground,
+      coat: coatColor(active.breed, active.look),
+      portrait: () => herCatPortrait(progression.state),
+      onEvent: (e) => handleFairEvent(e, { hud, audio, log, progression, session, once: fairOnce }),
+    });
+    if (fairShow) {
+      fairLive.attach(fairShow);
+      addBalloonRibbon(carry, areaData);
+    }
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
@@ -1367,6 +1397,7 @@ export function createWalkLifecycle({
     for (const c of clanCats.list) decals.follow(c.group);
     for (const critter of critters.list) decals.follow(critter.figure ?? critter.group);
     for (const g of farm.groups) decals.follow(g);
+    if (fairShow) for (const g of fairShow.groups) decals.follow(g);
     for (const dc of denCats.list) decals.follow(dc.group);
 
     // The shadow camera used to be nailed to the world origin at +/-70 so it
@@ -1400,7 +1431,7 @@ export function createWalkLifecycle({
     // around the acorn, or over a fish.
     const grassProps = isDen ? null : propsFor(areaId);
     const grassKeepOut = grassProps ? [
-      ...(grassProps.rests ?? []).map((r) => ({ x: r.x, z: r.z, r: GRASS_REST_CLEAR })),
+      ...[...(grassProps.rests ?? []), ...(areaData.rests ?? [])].map((r) => ({ x: r.x, z: r.z, r: GRASS_REST_CLEAR })),
       ...(grassProps.carryables ?? []).flatMap((c) => [
         { x: c.x, z: c.z, r: GRASS_ITEM_CLEAR },
         ...(c.fallTo ? [{ x: c.fallTo.x, z: c.fallTo.z, r: GRASS_ITEM_CLEAR }] : []),
@@ -1706,6 +1737,19 @@ export function createWalkLifecycle({
     session.treeFade = createTreeFade(isDen ? [] : [...occluders, ...findFadeOccluders(scene)], { reducedMotion });
     // Compile the faded trees' shaders now, not at the first fade mid-walk.
     if (typeof renderer?.compile === 'function') session.treeFade.prewarm(() => renderer.compile(scene, camera));
+    // Bigger areas: an area's strips (areaData.strips, only with the switch on)
+    // are drawn tile by tile near the cat (render/striptiles.js). Here, after
+    // the caster sweep, the contact-shadow scan, the prop merge and the tree
+    // fade, each of which a streamed tree joins on its own when it is built.
+    // No strips: the no-op of the same shape.
+    session.stripTiles = createStripTiles(scene, {
+      strips: isDen ? [] : areaData.strips ?? [],
+      wind, decals, occluders, reducedMotion,
+      treeFade: () => session.treeFade,
+      tier: () => session.tier,
+      now: () => performance.now(),
+      compile: typeof renderer?.compile === 'function' ? () => renderer.compile(scene, camera) : null,
+    });
     // Plants that lean away from the cat as it walks through (render/rustle.js):
     // the Moor's heather. Visual only; none in most areas.
     session.rustle = createRustle(scene, { reducedMotion });
@@ -2224,6 +2268,8 @@ export function createWalkLifecycle({
     if (resume) log.restore(resume.paid);
     // ...and a Farm job it had finished is finished (its hat is at the door).
     if (resume) restoreFarmJobs(farm, { log, carry, area: areaData });
+    // ...and a runaway balloon it had caught is not there to catch again.
+    if (resume) restoreFairGames(fairLive, { log });
     hud.show();
     hud.setArea(placeName(areaId, progression.state.edition, CATALOG) || areaData.name);
     // Kittypets: the arrival line waits for the walk to start (the Ready? card
@@ -2410,6 +2456,8 @@ export function createWalkLifecycle({
     session.clanFight.abort();
     session.fightCam?.dispose();
     // Puts every tree's own material back before the traversal below frees them.
+    // Before the tree fade goes: a strip tree leaving takes its fade entry out.
+    session.stripTiles?.dispose();
     session.treeFade?.dispose();
 
     if (session.net) {

@@ -1414,6 +1414,7 @@ describe('the whole branch stands on the ground', () => {
     'intruders.js': [['g'], 'measure() poses the visitor at the origin to read its fight dims (catDims), then puts it back where it stood'],
     'rivalcats.js': [['mesh'], 'the border patrol foe\'s measure() poses the warrior at the origin to read its fight dims (catDims), then puts it back where it stood'],
     'game/walk.js': [['marker', 'questObject'], 'the quest marker is a child of the giver group; the quest object gets ground.y(t) added after its relative y'],
+    'fairshow.js': [['built.wisp'], 'the wisp of candyfloss is a child of her head: an offset in the head\'s own frame'],
     'secrets.js': [['body', 'leg', 'neck', 'head', 'horn', 'tail', 'hat', 'dome', 'ufoState.group'], 'unicorn and gnome parts are local to their group (placed on ground.y); the UFO is a sky object (R14)'],
   };
   const LITERAL_SET = /position\.set\([^,()]+, *-?[0-9.]+(e-?[0-9]+)?, *[^,()]+\)/;
