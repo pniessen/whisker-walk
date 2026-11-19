@@ -32,16 +32,22 @@ const _d = new THREE.Color();
 // The picture is the cow's barrel unrolled: across it, rump to chest (COAT.Z0
 // to COAT.Z1, in the model's metres); up it, once round the barrel from the
 // belly line over the spine and back to the belly line (COAT.GIRTH metres).
-export const COAT = Object.freeze({ Z0: -0.96, Z1: 0.9, GIRTH: 2.6, SIZE: 256 });
+export const COAT = Object.freeze({ Z0: -1.0, Z1: 2.0, GIRTH: 2.6, SIZE: 256 });
 export const WHITE_UV = Object.freeze([0.5, 0.004]);
 // Each patch: [along, round, half-length, half-height, a wobble of its own].
 // Round is metres from the spine, + down her right side and - down her left.
+// Along runs on past her chest (0.9) up her neck to her poll (about 1.6): her
+// neck is drawn from the same picture, so the black of her shoulders runs up
+// it in one piece and its edge is a patch's edge, not a ring where two parts
+// meet. Her legs read it too, where they lie against her.
 const PATCHES = [
-  [0.9, 0.0, 0.5, 0.86, 0.4],     // shoulders and withers, joined to her dark neck
-  [0.05, 0.52, 0.3, 0.4, 2.1],    // a saddle patch on her right side
-  [-0.2, -0.62, 0.36, 0.34, 4.0], // two on her left
-  [0.28, -0.3, 0.2, 0.24, 1.2],
-  [-0.92, 0.06, 0.4, 0.66, 5.3],  // the rump, round the root of her tail
+  [1.42, -0.03, 0.9, 0.8, 0.4],    // neck, withers and shoulders: white under her throat and on her brisket
+  [0.62, 0.42, 0.3, 0.5, 3.3],     // down her right shoulder
+  [0.02, 0.5, 0.27, 0.36, 2.1],    // a saddle patch on her right side
+  [-0.2, -0.62, 0.36, 0.34, 4.0],  // two on her left
+  [0.3, -0.34, 0.2, 0.26, 1.2],
+  [-0.86, 0.05, 0.44, 0.7, 5.3],   // the rump, over her hip bones and round the root of her tail
+  [-0.62, 0.86, 0.2, 0.2, 0.7],    // and a spot on her right thigh
 ];
 // How dark (0 coat, 1 patch) the coat is `s` metres along and `a` round.
 export function patchAt(s, a) {
@@ -135,7 +141,11 @@ export function at(z, top, bottom, w, { mid = (top + bottom) / 2, ...rest } = {}
 //   opts.uv       (x, y, z, u, v) => [U, V]; everything else sits on WHITE_UV
 //   opts.tipStart, opts.tipEnd   how far past its first and last section the
 //                 skin is closed, to a point (0: closed flat)
-export function loft(keys, { around = 10, along = keys.length, level = false, color = 0xffffff, uv = null, tipStart = 0, tipEnd = 0 } = {}) {
+//   opts.bulge    (x, y, z) => metres: pushes the skin out (or, below 0, in)
+//                 where it lies, square to the spine: the bones that show under
+//                 a hide (a cow's hip bones, her shoulder blades, the hollow in
+//                 front of her hips) for no more corners than the skin has
+export function loft(keys, { around = 10, along = keys.length, level = false, color = 0xffffff, uv = null, tipStart = 0, tipEnd = 0, bulge = null } = {}) {
   const ks = keys.map(ring);
   const last = ks.length - 1;
   const rings = [];
@@ -182,8 +192,13 @@ export function loft(keys, { around = 10, along = keys.length, level = false, co
       const s = Math.sin(th), c = Math.cos(th);
       const e = 2 / (c >= 0 ? r.nt : r.nb);
       const cc = Math.sign(c) * Math.abs(c) ** e;
-      const lx = j === 0 || j === around ? 0 : Math.sign(s) * Math.abs(s) ** e * r.w * (1 - r.pinch * cc);
-      const ly = cc * (c >= 0 ? r.top - r.y : r.y - r.bottom);
+      let lx = j === 0 || j === around ? 0 : Math.sign(s) * Math.abs(s) ** e * r.w * (1 - r.pinch * cc);
+      let ly = cc * (c >= 0 ? r.top - r.y : r.y - r.bottom);
+      if (bulge) {
+        const d = bulge(lx, r.y + uy * ly, r.z + uz * ly);
+        const len = Math.hypot(lx, ly);
+        if (d && len > 1e-6) { lx += (lx / len) * d; ly += (ly / len) * d; }
+      }
       paint(i * cols + j, lx, r.y + uy * ly, r.z + uz * ly, along === 1 ? 0 : i / (along - 1), j / around);
     }
   }
@@ -277,6 +292,18 @@ export function mirrored(g) {
 export const pair = (g) => [g, mirrored(g)];
 
 export const merged = (pieces) => mergeGeometries(pieces, false);
+
+// Point every corner of a finished part at the picture: fn(x, y, z) => [U, V],
+// read where the corner now is (a lump on the barrel, a leg lying against it).
+export function rewrap(g, fn) {
+  const pos = g.getAttribute('position');
+  const tex = g.getAttribute('uv');
+  for (let i = 0; i < pos.count; i++) {
+    const st = fn(pos.getX(i), pos.getY(i), pos.getZ(i));
+    tex.setXY(i, st[0], st[1]);
+  }
+  return g;
+}
 
 // A colour part of the way from one to another, and a soft step for where.
 export function mix(a, b, k) {

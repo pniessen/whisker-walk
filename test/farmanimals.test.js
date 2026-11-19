@@ -102,16 +102,20 @@ describe('the Farm\'s animals in the walk: what they cost to draw', () => {
       const type = w.farm.spottable.find((s) => s.pos === g.position).type;
       per[type] = { meshes: own, casters: ownCast };
     }
-    // one cat is about 31 shadow draws; ALL the Farm's animals together are 9
+    // one cat is about 31 shadow draws; ALL the Farm's animals together are 9.
+    // The lifelike pass gave them parts that move (a jaw, ears, lids, a cow's
+    // shins, a tail): 109 meshes where there were 63, inside its ceiling of 110.
     expect(per).toEqual({
-      cow: { meshes: 7, casters: 2 }, farmgoat: { meshes: 6, casters: 1 }, sheepdog: { meshes: 7, casters: 1 },
-      hen: { meshes: 3, casters: 0 }, chick: { meshes: 1, casters: 0 }, duckling: { meshes: 1, casters: 0 },
+      cow: { meshes: 15, casters: 2 }, farmgoat: { meshes: 10, casters: 1 }, sheepdog: { meshes: 11, casters: 1 },
+      hen: { meshes: 5, casters: 0 }, chick: { meshes: 1, casters: 0 }, duckling: { meshes: 1, casters: 0 },
     });
     expect(materials.size).toBe(1);
-    expect(meshes).toBe(63);
+    expect(meshes).toBe(109);
+    expect(meshes).toBeLessThanOrEqual(110);
     expect(casters).toBe(9);
-    // shaped, not boxed (farmshapes.js): 15,949 triangles, where the boxes were 13,342
-    expect(triangles).toBe(15949);
+    // shaped, not boxed (farmshapes.js): 18,858 triangles (15,949 before the
+    // lifelike pass, and the boxes were 13,342)
+    expect(triangles).toBe(18858);
     // with the place itself (244 meshes / 176 casters / 53,419 triangles, test/budget.test.js)
     // that is far inside the territories' 450 meshes / 380 casters. Triangles: the
     // Farm's own ceiling for place + animals + the jobs' things is 75,000 (the
@@ -147,10 +151,10 @@ describe('the Farm\'s animals in the walk: what they cost to draw', () => {
     expect(triangles).toBe(2618);
     expect([...materials]).toEqual([groups[0].children[0].children[0].material]);
     // the place (244 meshes with the scarecrow's hat its own mesh / 176 / 53,419), the
-    // animals (63 / 9 / 15,949) and these: inside 450 / 380 / 75,000
-    expect(244 + 63 + seen.size).toBeLessThan(450);
+    // animals (109 / 9 / 18,858) and these: inside 450 / 380 / 75,000
+    expect(244 + 109 + seen.size).toBeLessThan(450);
     expect(176 + 9 + casters).toBeLessThan(380);
-    expect(53419 + 15949 + triangles).toBeLessThan(75000);
+    expect(53419 + 18858 + triangles).toBeLessThan(75000);
   });
 
   it('shares one geometry between all the chicks and one between all the ducklings', () => {
