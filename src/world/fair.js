@@ -463,6 +463,39 @@ export const FAIR_REGISTRATION = Object.freeze({
 
 // setFairGlow(area, t): t 0 (day) to 1 (dusk). Every bulb at the fair shares
 // one material, so this one number lights them all.
+// THE EDGES (polish). Round its rides and out to its boundary a village fair
+// has the things nobody comes to see: tall flags at the field's corners,
+// bins by the paths, a queue rail at the big wheel and the teacups, hay
+// bales to sit on by the bandstand and the teacups, and bales stacked out
+// of the way behind the big wheel and on the west side. All of it is built
+// by world/fairedge.js into the props' lists (no mesh of its own). Bins,
+// bales and flag poles are solid; the queue rails are low enough for a cat
+// to walk under, and the flags' strings are high overhead but at their pegs.
+const C = FAIR_PAINT;
+export const CORNER_FLAGS = Object.freeze([
+  Object.freeze({ x: -42.5, z: -42.5, colors: [C.red, C.white], lines: [[5.5, 0], [0, 5.5]] }),
+  Object.freeze({ x: 37.5, z: -42.6, colors: [C.blue, C.yellow], lines: [[-5.5, 0]] }),
+  Object.freeze({ x: -35.5, z: 43.3, colors: [C.green, C.white], lines: [[-5.5, 0], [5.5, 0]] }),
+  Object.freeze({ x: 42.6, z: 43.2, colors: [C.purple, C.yellow], lines: [[-5.5, 0]] }),
+]);
+export const FAIR_BINS = Object.freeze([pt(2.2, -19.5), pt(-13.5, 3.3), pt(14.5, 1.9), pt(-21.8, -4.6)]);
+// queue rails: [x, z, yaw, length], each beside the last few metres of a ride's path
+const teacupsPathYaw = Math.atan2(0.6, 10.6);
+const alongTeacupsPath = (off) => world(pt(-18.3, 1.47), teacupsPathYaw, 0, off);
+export const QUEUE_RAILS = Object.freeze([
+  Object.freeze([-1.65, -24.4, EAST, 4]), Object.freeze([1.65, -24.4, EAST, 4]),
+  Object.freeze([alongTeacupsPath(1.45).x, alongTeacupsPath(1.45).z, teacupsPathYaw, 4]),
+  Object.freeze([alongTeacupsPath(-1.45).x, alongTeacupsPath(-1.45).z, teacupsPathYaw, 4]),
+]);
+// hay bales: single seats facing the bandstand and the teacups; stacks put by
+export const BALE_SEATS = Object.freeze([
+  pt(-20.4, 39.3, { yaw: 0.45 }), pt(-23.5, 40.9, { yaw: 0.12 }),
+  pt(-36.6, -0.8, { yaw: EAST }), pt(-36.7, 4.6, { yaw: EAST + 0.12 }),
+]);
+export const BALE_STACKS = Object.freeze([pt(-40.6, -4.5, { yaw: EAST }), pt(10.8, -38.6, { yaw: 0.1 })]);
+// a bale's (or a stack's) colliders: circles along its length
+const baleCircles = (t, us) => us.map((u) => ({ ...world(t, t.yaw, u, 0), r: 0.3 }));
+
 // THE SQUEEZE GAP (propsets' fair-gap-1, a clipped hedge with sprigs over
 // its opening) used to stand alone in the open field. Now a stack of hay
 // bales runs on from each end of its hedge, square to the path, so the cat
@@ -672,6 +705,12 @@ export function build(scene, { water = {}, wind } = {}) {
       helter.bulbs, track.rails, track.supports, station.deck, station.roof, station.bulbs, train.group);
     parts.balloonBunch(K, STATION_DECK.minX + 0.06, STATION.deckY + 0.8, STATION_DECK.minZ + 0.1, 4, 31);
 
+    // the edges: corner flags, bins, queue rails, bales
+    CORNER_FLAGS.forEach((f, i) => parts.into(K, f.x, f.z, 0, (L) => edge.cornerFlag(L, f.colors, f.lines, i * 3)));
+    for (const t of FAIR_BINS) parts.into(K, t.x, t.z, 0, (L) => edge.litterBin(L));
+    for (const [x, z, yaw, len] of QUEUE_RAILS) parts.into(K, x, z, yaw, (L) => edge.queueRail(L, len));
+    BALE_SEATS.forEach((t, i) => edge.hayBale(K.solid, t.x, 0, t.z, t.yaw, 60 + i));
+    BALE_STACKS.forEach((t, i) => parts.into(K, t.x, t.z, t.yaw, (L) => edge.baleStack(L, 2, 70 + i * 4)));
     // the hedge gap on the path to the helter-skelter stands between two
     // stacks of hay bales, so it reads as a way through them
     for (const st of GAP_BALES) parts.into(K, st.x, st.z, st.yaw, (L) => edge.baleStack(L, 2, st.salt));
@@ -722,6 +761,10 @@ export function build(scene, { water = {}, wind } = {}) {
   for (const t of WAGONS) for (const lx of [-0.9, 0.9]) { const c = world(t, t.yaw, lx, 0); addC(c.x, c.z, 1.05); }
   for (const t of FLOWER_TUBS) addC(t.x, t.z, edge.TUB.r + 0.03);
   for (const c of GAP_BALE_COLLIDERS) addC(c.x, c.z, c.r);
+  for (const f of CORNER_FLAGS) addC(f.x, f.z, 0.2);
+  for (const t of FAIR_BINS) addC(t.x, t.z, edge.BIN.r + 0.03);
+  for (const t of BALE_SEATS) for (const c of baleCircles(t, [-0.25, 0.25])) addC(c.x, c.z, c.r);
+  for (const t of BALE_STACKS) for (const c of baleCircles(t, [-0.75, -0.3, 0.3, 0.75])) addC(c.x, c.z, c.r);
   {
     const c = world(BALLOON_CART_AT, 0.5, 0, 0);
     addC(c.x, c.z, 0.8);

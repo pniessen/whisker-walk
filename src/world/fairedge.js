@@ -1,4 +1,4 @@
-import { box, cyl, ball, sheet, hash01 } from './fairkit.js';
+import { box, cyl, ball, sheet, stripes, bunting, hash01 } from './fairkit.js';
 import { FAIR_PAINT } from './fairparts.js';
 
 // =============================================================================
@@ -88,4 +88,50 @@ export function baleStack(K, n = 2, salt = 0) {
   const { l, h } = BALE;
   for (let i = 0; i < n; i++) hayBale(P, (i - (n - 1) / 2) * (l + 0.04), 0, 0, 0, salt + i);
   for (let i = 0; i < n - 1; i++) hayBale(P, (i - (n - 2) / 2) * (l + 0.04), h, 0.02, 0.06 * (hash01(i, salt, 9) - 0.5), salt + 7 + i);
+}
+
+// ---- the edges: what stands round a fair that is nobody's ride ----------------------------
+// A tall flag pole for a corner of the field, seen from anywhere inside: a
+// striped pole, a gold knob, a flag at the top, and strings of bunting from
+// the top down to two pegs in the grass (`lines`: [[dx, dz], ...] where the
+// pegs go, in the pole's frame).
+export const CORNER_FLAG = Object.freeze({ h: 8.2, flagW: 1.9, flagH: 1.1 });
+export function cornerFlag(K, colors = [C.red, C.white], lines = [], salt = 0) {
+  const { h, flagW, flagH } = CORNER_FLAG;
+  stripes(K.solid, 0.11, 0, 0.07, h, colors, 0, 0, 0, { sides: 6 });
+  ball(K.solid, 0.16, 0, h + 0.12, 0, C.gold);
+  // the flag, two colours split on the diagonal, flying east
+  const y1 = h - 0.08;
+  const y0 = y1 - flagH;
+  sheet(K.flags, [[0.06, y1, 0], [0.06 + flagW, y1 - 0.05, 0], [0.06, y0, 0]], colors[0]);
+  sheet(K.flags, [[0.06 + flagW, y1 - 0.05, 0], [0.06 + flagW, y0 + 0.05, 0], [0.06, y0, 0]], colors[1] === C.white ? C.gold : colors[1]);
+  for (const [i, [dx, dz]] of lines.entries()) {
+    bunting(K.flags, [0, h - 0.4, 0], [dx, 0.35, dz], { sag: 0.35, every: 0.75, size: 0.3, salt: salt + i * 2 });
+    box(K.solid, 0.08, 0.32, 0.08, dx, 0, dz, C.woodDark);
+  }
+}
+
+// A litter bin on the grass by a path: green, with a rim and a black bag.
+export const BIN = Object.freeze({ r: 0.27, h: 0.78 });
+export function litterBin(K) {
+  const P = K.solid;
+  const { r, h } = BIN;
+  cyl(P, r, r - 0.04, h, 0, 0, 0, 0x2f7d4a, { sides: 8 });
+  cyl(P, r + 0.025, r + 0.02, 0.07, 0, h - 0.06, 0, 0x24603a, { sides: 8, open: true });
+  lid(P, r - 0.02, h + 0.004, 0x2a2a30, 8);
+}
+
+// A low queue rail beside a ride's path: brass posts and a red rail along x,
+// `len` metres long. Low enough for a cat to walk under (no collider).
+export const QUEUE_RAIL = Object.freeze({ h: 0.82, every: 1.4 });
+export function queueRail(K, len) {
+  const P = K.solid;
+  const { h, every } = QUEUE_RAIL;
+  const n = Math.max(1, Math.round(len / every));
+  for (let i = 0; i <= n; i++) {
+    const x = -len / 2 + (len * i) / n;
+    box(P, 0.06, h, 0.06, x, 0, 0, C.gold);
+    box(P, 0.16, 0.03, 0.16, x, 0, 0, C.gold, { shade: 0.8 });
+  }
+  box(P, len + 0.06, 0.06, 0.05, 0, h - 0.1, 0, C.red);
 }
