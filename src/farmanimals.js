@@ -434,13 +434,13 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     if (still) {
       parts.jaw.rotation.x = 0.005 + 0.02 * k.pant;
       parts.ears[0].rotation.x = parts.ears[1].rotation.x = 0.3 - 0.4 * k.alert;
-      lidsTo(parts.lids, 0.1 + 0.8 * k.doze);
+      lidsTo(parts.lids, 0.85 * k.doze);
     } else {
       parts.jaw.rotation.x = 0.005 + (0.015 + 0.025 * pant(t)) * k.pant; // a gentle pant: his lips part on his tongue
       // ears back and easy; pricked toward her when she is near; a flick now and then
       parts.ears[0].rotation.x = 0.3 - 0.4 * k.alert + 0.3 * Math.abs(flick(t, seed, 3.1));
       parts.ears[1].rotation.x = 0.3 - 0.4 * k.alert + 0.3 * Math.abs(flick(t, seed + 9, 4.3));
-      lidsTo(parts.lids, 0.1 + 0.8 * k.doze + (k.doze > 0.5 ? 0 : slowBlink(t, seed)));
+      lidsTo(parts.lids, 0.85 * k.doze + (k.doze > 0.5 ? 0 : slowBlink(t, seed))); // wide open and soft when awake
     }
   }
 
