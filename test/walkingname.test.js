@@ -40,7 +40,7 @@ describe('the words', () => {
     expect(WALKING_NAME_HELP).toBe('Friends see this name when you play together.');
     expect(PICK_WALKING_NAME).toBe('Pick your walking name');
     expect(walkingNameIntro(false)).toBe('First, pick your walking name:');
-    expect(walkingNameIntro('walk')).toBe('You need a walking name before you can join a walk. Type one here and tap Save:');
+    expect(walkingNameIntro('walk')).toBe('You need a walking name before you can play together. Type one here and tap Save:');
     expect(walkingNameIntro('colony')).toBe('You need a walking name before you can share your colony. Type one here and tap Save:');
   });
   it('no screen still asks her to "give your cat a name" for the online one', () => {

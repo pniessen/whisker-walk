@@ -114,7 +114,7 @@ describe('the button on the Cloud save sheet', () => {
   it('waits, and says why, while a walk room is open or the colony is mid-pairing', async () => {
     const inRoom = setup({ rooms: { available: true, getState: () => ({ code: 'ABCD', roster: [] }), onChange() {} } });
     expect(html()).toContain('<button id="sync-delete-online" class="danger" disabled>Delete my online data</button>');
-    expect(html()).toContain('Leave the walk room first, then you can delete.');
+    expect(html()).toContain('Leave the room first, then you can delete.');
     await click({ id: 'sync-delete-online' });
     expect(card()).toBeUndefined();
     expect(inRoom.od.run).not.toHaveBeenCalled();

@@ -258,5 +258,5 @@ export function settleAbandoned(progression, data) {
 // The line on the Ready card of a walk picked up again.
 export function resumeWelcome(place) {
   const where = place ? ` in ${place.replace(/^The /, 'the ')}` : '';
-  return `Welcome back! Your walk${where} is right where you left it.`;
+  return `Welcome back! Your trip${where} is right where you left it.`;
 }

@@ -93,7 +93,7 @@ describe('pauseCardHtml', () => {
 });
 
 describe('summary cards (screencards.js)', () => {
-  const CHEERS = ['What a walk!', 'Great exploring!', 'Happy paws!', 'You did it!', 'Lovely walk!'];
+  const CHEERS = ['What a trip!', 'Great exploring!', 'Happy paws!', 'You did it!', 'What fun!'];
   const node = (count, suffix) => ({ dataset: suffix == null ? { count: String(count) } : { count: String(count), suffix }, textContent: `${count}${suffix ?? ''}` });
   const rootOf = (nodes) => ({ querySelectorAll: (sel) => (sel === '[data-count]' ? nodes : []) });
   const fakeClock = () => {

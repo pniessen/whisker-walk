@@ -503,12 +503,12 @@ export function renderStartButtonHtml(room, { as = null } = {}) {
 export function renderPartnerWalkHtml({ status, colony, room } = {}) {
   const partner = partnerOf(colony);
   if (!status || status.mode !== 'paired' || !partner || room) return '';
-  return `<button id="wt-pair-walk" class="primary">${PAW} Walk with ${escapeHtml(partnerNameOf(partner))}</button>`;
+  return `<button id="wt-pair-walk" class="primary">${PAW} Explore with ${escapeHtml(partnerNameOf(partner))}</button>`;
 }
 
 // The room panel's heading. A pair room's code is the colony id, which is
 // never shown: it reads as who you're walking with instead.
 export function renderRoomTitleHtml(room, colony) {
-  if (room && room.pair) return `Walking with ${escapeHtml(partnerNameOf(partnerOf(colony)))}`;
+  if (room && room.pair) return `Exploring with ${escapeHtml(partnerNameOf(partnerOf(colony)))}`;
   return `Room ${escapeHtml(room && room.code)} — share this code!`;
 }

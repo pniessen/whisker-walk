@@ -16,17 +16,17 @@ describe('the card behind a walk says what state the walk is in', () => {
   it('once the walk has begun it says Paused and offers Keep walking', () => {
     const html = pauseCardHtml({ welcome: null, touch: true, mode: 'paused' });
     expect(html).toContain('<h1>Paused</h1>');
-    expect(html).toContain('>Keep walking</button>');
+    expect(html).toContain('>Keep exploring</button>');
     expect(html).toContain('id="btn-end"');
     expect(html).not.toContain('Ready?');
-    expect(pauseCardHtml({ welcome: null, touch: false, mode: 'paused' })).toContain('>Keep walking (click)</button>');
+    expect(pauseCardHtml({ welcome: null, touch: false, mode: 'paused' })).toContain('>Keep exploring (click)</button>');
   });
 
   it('a walk picked up again says Welcome back! and Keep walking', () => {
     const html = pauseCardHtml({ welcome: 'Your walk is right where you left it.', touch: true, mode: 'back' });
     expect(html).toContain('<h1>Welcome back!</h1>');
     expect(html).toContain('Your walk is right where you left it.');
-    expect(html).toContain('>Keep walking</button>');
+    expect(html).toContain('>Keep exploring</button>');
   });
 
   it('the buttons still hold plain text only (main.js routes clicks by id)', () => {
@@ -86,7 +86,7 @@ describe('the crossing card puts the right card back', () => {
     s.crossing = { to: 'moor', name: 'The Moor' };
     crossing.cancel();
     expect(overlay.innerHTML).toContain('<h1>Paused</h1>');
-    expect(overlay.innerHTML).toContain('>Keep walking</button>');
+    expect(overlay.innerHTML).toContain('>Keep exploring</button>');
     expect(s.crossing).toBe(null);
   });
 });

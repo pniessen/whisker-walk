@@ -16,15 +16,15 @@ describe('postStatus', () => {
     expect(postStatus(p, save({ woods: 1 }), CATALOG, 'woods').kind).toBe('go');
     const s = postStatus(p, save({ woods: 0 }), CATALOG, 'woods');
     expect(s.kind).toBe('locked');
-    expect(s.line).toBe('🔒 The River and Marshes opens after 2 walks in The Woods · 1/2 so far');
+    expect(s.line).toBe('🔒 The River and Marshes opens after you explore The Woods 2 times · 1/2');
     expect(postStatus(p, save(undefined), CATALOG, 'woods').kind).toBe('locked');
-    expect(postStatus(p, { unlocked: { areas: [] } }, CATALOG, 'woods').line).toMatch(/· 1\/2 so far$/);
+    expect(postStatus(p, { unlocked: { areas: [] } }, CATALOG, 'woods').line).toMatch(/· 1\/2$/);
   });
   it('an owned target is go; the Gorge opens after 2 Moor walks', () => {
     expect(postStatus(post('woods-river-long'), save({}, ['river']), CATALOG, 'woods').kind).toBe('go');
     const g = postStatus(post('moor-gorge'), save({}), CATALOG, 'moor');
     expect(g).toMatchObject({ kind: 'locked', name: 'The Gorge' });
-    expect(promptFor(g, {}).text).toBe('🔒 The Gorge opens after 2 walks in The Moor · 1/2 so far');
+    expect(promptFor(g, {}).text).toBe('🔒 The Gorge opens after you explore The Moor 2 times · 1/2');
     expect(promptFor(g, {}).kind).toBe('border-info');
     expect(postStatus(post('moor-gorge'), save({ moor: 1 }), CATALOG, 'moor').kind).toBe('go');
     expect(postStatus(post('moor-gorge'), save({}, ['gorge']), CATALOG, 'moor').kind).toBe('go');
@@ -37,7 +37,7 @@ describe('postStatus', () => {
   it('first Neighborhood walk is still locked for the Woods', () => {
     const s = postStatus(post('town-woods'), { walks: {}, unlocked: { areas: ['neighborhood'] }, points: 0 }, CATALOG, 'neighborhood');
     expect(s.kind).toBe('locked');
-    expect(s.line.endsWith('· 1/2 so far')).toBe(true);
+    expect(s.line.endsWith('· 1/2')).toBe(true);
   });
   it('a price shortfall locks', () => {
     const cat = { areas: { x: { name: 'The X', price: 5 } } };
@@ -96,11 +96,11 @@ describe('crossingOutcome', () => {
   });
   it('host with a friend', () => {
     const r = crossingOutcome({ ...base, clan: true, together: ['Pip'], pickPlace: () => 'set' });
-    expect(r.lines[2]).toBe('Walk together again from the home screen to head there with Pip.');
+    expect(r.lines[2]).toBe('Explore together again from the home screen to head there with Pip.');
   });
   it('guest who could not pick', () => {
     const r = crossingOutcome({ ...base, clan: true, ledBy: 'Pip', together: ['Pip'], pickPlace: () => false });
-    expect(r).toEqual({ picked: false, lines: ['Pip led the way to the Moor! 🧭', 'Ask Pip to press Start on the home screen to head there together.'] });
+    expect(r).toEqual({ picked: false, lines: ['Pip led the way to the Moor! 🧭', 'Ask Pip to tap Explore on the home screen to head there together.'] });
   });
   it('legacy never picks', () => {
     const pickPlace = vi.fn();

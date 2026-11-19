@@ -771,7 +771,7 @@ describe('walk together with your partner (Task 12)', () => {
 
   it('paired: one button, the partner named, nothing to type', () => {
     const html = renderPartnerWalkHtml({ status: paired, colony: colonyOf({ partner: PAIR }), room: null });
-    expect(html).toContain(`${PAW} Walk with Robin`);
+    expect(html).toContain(`${PAW} Explore with Robin`);
     expect(html).toMatch(/<button[^>]*id="wt-pair-walk"/);
     expect(html).not.toMatch(/<input/);
   });
@@ -787,10 +787,10 @@ describe('walk together with your partner (Task 12)', () => {
 
   it("a pair room reads 'Walking with …' instead of a code to share", () => {
     const html = renderRoomTitleHtml(room({ pair: true, code: 'P0123456789abcdef' }), colonyOf({ partner: PAIR }));
-    expect(html).toBe('Walking with Robin');
+    expect(html).toBe('Exploring with Robin');
     expect(html).not.toContain('0123456789abcdef');
     expect(renderRoomTitleHtml(room({ code: 'ABCD' }), colonyOf({ partner: PAIR }))).toBe('Room ABCD — share this code!');
-    expect(renderRoomTitleHtml(room({ pair: true }), colonyOf())).toBe('Walking with your partner');
+    expect(renderRoomTitleHtml(room({ pair: true }), colonyOf())).toBe('Exploring with your partner');
   });
 
   it("escapes the partner's name everywhere it appears", () => {

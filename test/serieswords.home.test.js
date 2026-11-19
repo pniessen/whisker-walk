@@ -160,7 +160,7 @@ const OFF_FIXTURE = 'series-words-off-home.json';
 // All of it but the build stamp in Settings (the commit and the day: not words).
 const everything = (text) => !/^Build /.test(text);
 const OFF_IGNORE = [
-  'Dusk walks brighten — atmospheric instead of squint-inducing.', // a skill's own line: the evening, not a group
+  'Dusk gets brighter, so you can see more.', // a skill's own line: the evening, not a group
 ];
 describe('everyday words: the home screen and its sheets', () => {
   it('shows exactly the recorded everyday words', () => {

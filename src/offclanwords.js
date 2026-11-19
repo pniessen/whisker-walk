@@ -185,8 +185,8 @@ export const PHRASES = Object.freeze({
   // walking the bounds with a cat of your crew
   'patrol.prompt': (name) => `E — walk the bounds with ${name}`,
   'patrol.start': (name) => `${name} walks the bounds with you 🐾`,
-  'patrol.endGood': (name) => `${name} heads back to home base. Good walk!`,
-  'patrol.endShort': (name) => `${name} heads back to home base. A longer walk next time!`,
+  'patrol.endGood': (name) => `${name} heads back to home base. Well done!`,
+  'patrol.endShort': (name) => `${name} heads back to home base. Go further next time!`,
   'patrol.award': (name) => `a walk round the bounds with ${name}`,
 
   'journal.chasedOff': 'Outsiders chased away',

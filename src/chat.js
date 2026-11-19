@@ -8,7 +8,7 @@ export const PHRASES = [
   { id: 'nice_cat', text: 'Nice cat! 😻', kind: 'phrase' },
   { id: 'play', text: 'Wanna play?', kind: 'phrase' },
   { id: 'here', text: 'Over here!', kind: 'phrase' },
-  { id: 'good_walk', text: 'Good walk!', kind: 'phrase' },
+  { id: 'good_walk', text: 'That was fun!', kind: 'phrase' },
   { id: 'brb', text: 'Brb 🐟', kind: 'phrase' },
   { id: 'boop', text: 'Boop? 👉👈', kind: 'phrase' },
   { id: 'zoomies', text: 'Zoomies!!', kind: 'phrase' },
