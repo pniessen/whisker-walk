@@ -57,6 +57,7 @@ const FIELDS = [
   ['decals', 'contact-shadow decals, updated once per frame after everything that owns one moved'],
   ['skyLife', 'sky birds on their own rng stream (no-op stub in the den)'],
   ['treeFade', 'late (walk.js): fades trees that hide the cat from the camera'],
+  ['stripTiles', 'late (walk.js): bigger areas, the strip tiles drawn near the cat (render/striptiles.js)'],
   ['rustle', 'late (walk.js): bush rustles as the cat brushes past'],
   ['fightCam', 'late (walk.js): the fight camera, or null where no fight can happen'],
   ['minimap', 'late (walk.js): the corner map, or null in the den'],

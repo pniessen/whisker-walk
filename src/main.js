@@ -1144,6 +1144,9 @@ function init() {
       treeFadeLook.x = session.cat.position.x;
       treeFadeLook.y = session.cat.position.y + CAT_LOOK_Y;
       treeFadeLook.z = session.cat.position.z;
+      // Bigger areas: build and drop strip tiles round the cat, before the
+      // fade so a tree built this frame is already known to it.
+      session.stripTiles?.update(dt, session.cat.position.x, session.cat.position.z);
       session.treeFade?.update(dt, camera, treeFadeLook);
       session.rustle?.update(dt, session.cat.position);
       // Gorge part 1: the paws' world height, the ground under the cat plus perchY.

@@ -332,7 +332,7 @@ function spreadOffShore(area, rx, rz, p) {
   const d = Math.hypot(dx, dz);
   if (d < SPREAD_MIN) return p;
   const k = Math.min(d, SPREAD_MAX) / d;
-  const b = area.bounds;
+  const b = area.core ?? area.bounds;
   return dryGroundPoint(area,
     THREE.MathUtils.clamp(p.x + dx * k, b.minX + 1, b.maxX - 1),
     THREE.MathUtils.clamp(p.z + dz * k, b.minZ + 1, b.maxZ - 1));
@@ -508,6 +508,11 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   const glows = [];
   let glowClock = 0;
   const b = area.bounds;
+  // Bigger areas: where strays are rolled, where a colony cat's stored spot is
+  // held and where a wander ends all stay on the frozen core (the same on a
+  // device without the strip); a stray that follows or is called may go as
+  // far as the cat can.
+  const core = area.core ?? b;
   const names = shuffled(CAT_NAMES, rng);
   const crossNames = new Set(Array.isArray(grudges) ? grudges : []);
   const wanderBase = (roomSeed ?? (Math.random() * 2 ** 31)) >>> 0;
@@ -575,8 +580,8 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     // A colony cat takes all four of these draws too and discards the two
     // position values (see the header: the draw count must not depend on the
     // colony).
-    const rolledX = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, rng());
-    const rolledZ = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, rng());
+    const rolledX = THREE.MathUtils.lerp(core.minX * 0.7, core.maxX * 0.7, rng());
+    const rolledZ = THREE.MathUtils.lerp(core.minZ * 0.7, core.maxZ * 0.7, rng());
     // Both the rolled spot and a colony cat's stored one go through the
     // area's keep-out (keepout.js), which draws nothing, so the stream's
     // count is the same either way.
@@ -586,8 +591,8 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     const spot = homed ?? fixed;
     const { x, z } = spot
       ? dryGroundPoint(stand,
-        THREE.MathUtils.clamp(spot.x, b.minX + 0.5, b.maxX - 0.5),
-        THREE.MathUtils.clamp(spot.z, b.minZ + 0.5, b.maxZ - 0.5))
+        THREE.MathUtils.clamp(spot.x, core.minX + 0.5, core.maxX - 0.5),
+        THREE.MathUtils.clamp(spot.z, core.minZ + 0.5, core.maxZ - 0.5))
       : spreadOffShore(area, rolledX, rolledZ, dryGroundPoint(area, rolledX, rolledZ));
     group.position.set(x, ground.y(x, z), z);
     group.rotation.y = rng() * Math.PI * 2;
@@ -670,12 +675,12 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     // Both position draws are taken either way, so an extra with a spot (the
     // wanderer's, from walk.js) costs its rng the same five draws; the spot
     // is clamped into bounds like a colony cat's.
-    const rolledX = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, ex.rng());
-    const rolledZ = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, ex.rng());
+    const rolledX = THREE.MathUtils.lerp(core.minX * 0.7, core.maxX * 0.7, ex.rng());
+    const rolledZ = THREE.MathUtils.lerp(core.minZ * 0.7, core.maxZ * 0.7, ex.rng());
     const spot = ex.spot && Number.isFinite(ex.spot.x) && Number.isFinite(ex.spot.z) ? ex.spot : null;
     const { x, z } = dryGroundPoint(area,
-      spot ? THREE.MathUtils.clamp(spot.x, b.minX + 0.5, b.maxX - 0.5) : rolledX,
-      spot ? THREE.MathUtils.clamp(spot.z, b.minZ + 0.5, b.maxZ - 0.5) : rolledZ);
+      spot ? THREE.MathUtils.clamp(spot.x, core.minX + 0.5, core.maxX - 0.5) : rolledX,
+      spot ? THREE.MathUtils.clamp(spot.z, core.minZ + 0.5, core.maxZ - 0.5) : rolledZ);
     group.position.set(x, ground.y(x, z), z);
     group.rotation.y = ex.rng() * Math.PI * 2;
     const roll = ex.rng();
@@ -1058,8 +1063,8 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             const r = s.roam === null ? 4 + s.wanderRng() * 8 : s.wanderRng() * s.roam;
             s.target = s.home.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
             s.stuck = 0;
-            s.target.x = THREE.MathUtils.clamp(s.target.x, b.minX + 2, b.maxX - 2);
-            s.target.z = THREE.MathUtils.clamp(s.target.z, b.minZ + 2, b.maxZ - 2);
+            s.target.x = THREE.MathUtils.clamp(s.target.x, core.minX + 2, core.maxX - 2);
+            s.target.z = THREE.MathUtils.clamp(s.target.z, core.minZ + 2, core.maxZ - 2);
             keepOut(s, s.target);
             s.timer = 12; // give up on unreachable targets eventually
           } else {
