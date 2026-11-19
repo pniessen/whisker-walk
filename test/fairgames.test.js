@@ -1462,7 +1462,7 @@ describe('in the walk: the real pieces, the real prompt and E, a real save', () 
     expect(walkSrc).toMatch(/for \(const g of fairShow\.groups\) decals\.follow\(g\)/);
     const inter = code('game/interactions.js');
     expect(inter).toMatch(/s\.prompt = \{ kind: 'fair', data: action \}/);
-    expect(inter).toMatch(/s\.prompt\.kind === 'fair'[\s\S]{0,200}s\.fair\.act\(s\.prompt\.data\)/);
+    expect(inter).toMatch(/s\.prompt\.kind === 'fair'[\s\S]{0,300}s\.fair\.act\(s\.prompt\.data\)/);
     expect(inter).toMatch(/session\.fair\?\.meow\?\.\(session\.cat\.position\)/);
     expect(typeof createInteractions).toBe('function');
     // the show's dice are its own: never the walk's

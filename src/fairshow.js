@@ -126,7 +126,7 @@ export function createFairShow(scene, area, {
     place(noCast(balloon));
 
     // ---- the wisp of candyfloss: a pink puff, hung on her head when it sticks ----
-    const wisp = new THREE.Mesh(tinted(new THREE.IcosahedronGeometry(0.045, 0).scale(1.5, 0.8, 0.9), 0xf9a8cf), mat);
+    const wisp = new THREE.Mesh(tinted(new THREE.IcosahedronGeometry(0.04, 1).scale(1.5, 0.8, 0.9), 0xf9a8cf), mat);
     wisp.name = 'fair-candyfloss-wisp';
     wisp.visible = false;
     noCast(wisp);
@@ -136,7 +136,7 @@ export function createFairShow(scene, area, {
     disposable.push(faceMat);
     const face = new THREE.Sprite(faceMat);
     face.name = 'fair-crystal-face';
-    face.scale.setScalar(0.34);
+    face.scale.setScalar(0.42);
     face.visible = false;
     place(face);
 

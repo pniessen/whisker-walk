@@ -637,17 +637,17 @@ function addPrizeFace(head, id, { k, x, y, z, starZ, skull }) {
 function addPrizeNeck(head, id, { k, y, z, ringR, ringBack = 0 }) {
   if (id === 'prizerosette') {
     // The Fairground's prize rosette (src/fairprizes.js): pinned at the throat
-    // where a bow tie's knot sits. A pleated blue disc with a gold button,
+    // just under where a bow tie's knot sits. A blue disc with a gold button,
     // and two ribbon tails hanging down the chest. No ring round the neck.
-    const disc = ball(0.05 * k, FAIR_ROSETTE, 1, 1, 0.32, 10, 6);
-    disc.position.set(0, y - 0.03 * k, z - 0.04 * k);
+    const disc = ball(0.058 * k, FAIR_ROSETTE, 1, 1, 0.3, 10, 6);
+    disc.position.set(0, y - 0.075 * k, z - 0.058 * k);
     head.add(disc);
-    const button = ball(0.022 * k, PRIZE_GOLD, 1, 1, 0.5, 6, 5);
-    button.position.set(0, y - 0.03 * k, z - 0.056 * k);
+    const button = ball(0.026 * k, PRIZE_GOLD, 1, 1, 0.5, 6, 5);
+    button.position.set(0, y - 0.075 * k, z - 0.074 * k);
     head.add(button);
     for (const side of [-1, 1]) {
-      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.032 * k, 0.11 * k, 0.012 * k), mat(side < 0 ? FAIR_ROSETTE : FAIR_ROSETTE_PALE));
-      tail.position.set(side * 0.022 * k, y - 0.105 * k, z - 0.04 * k);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.034 * k, 0.11 * k, 0.012 * k), mat(side < 0 ? FAIR_ROSETTE : FAIR_ROSETTE_PALE));
+      tail.position.set(side * 0.024 * k, y - 0.155 * k, z - 0.058 * k);
       tail.rotation.set(-0.3, 0, side * 0.22);
       head.add(tail);
     }
@@ -2136,7 +2136,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const balloon = ball(0.095, FAIR_BALLOON, 1, 1.12, 1, 10, 8);
     balloon.position.set(0, 0.95, 0.4);
     floatOn(balloon, foot);
-    const band = ball(0.097, FAIR_BALLOON_BAND, 1, 0.22, 1, 10, 4);
+    const band = ball(0.0975, FAIR_BALLOON_BAND, 1, 0.34, 1, 10, 4);
     band.position.set(0, 0.95, 0.4);
     floatOn(band, foot);
   } else if (accessories.back === 'balloon') {

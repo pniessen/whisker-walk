@@ -1694,7 +1694,11 @@ export function createInteractions({
     } else if (s.prompt.kind === 'fair') {
       // A Fairground game taken on, the tins batted, a duck picked up. What it
       // pays and says comes with the events (game/fairplay.js).
-      s.fair.act(s.prompt.data);
+      if (s.fair.act(s.prompt.data) && s.prompt.data.kind === 'bat') {
+        // she turns to the shelf to bat at the tins
+        const tin = s.areaData?.anchors?.tinCans?.[1];
+        if (tin) s.cat.rotation.y = Math.atan2(-(tin.x - s.cat.position.x), -(tin.z - s.cat.position.z));
+      }
     } else if (s.prompt.kind === 'quest-accept') {
       s.quest.accept();
       hud.toast(s.quest.texts.offer);
