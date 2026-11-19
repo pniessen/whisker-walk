@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
 
 // The Fairground, step 2: the rides move and carry the cat
 // (docs/superpowers/specs/2026-11-18-fairground-design.md, "The rides").
@@ -421,6 +422,114 @@ describe('the teacups', () => {
       if (Math.hypot(x, z) < sim.cups.baseR + CAT_RADIUS) expect(sim.swept(sim.cups.cx + x, sim.cups.cz + z)).toBe(true);
     }
     expect(sim.cups.baseR).toBe(4.95);
+  });
+});
+
+describe('the helter-skelter', () => {
+  const H = area.rides.helterSkelter;
+  const chute = seatsOf('slide', 'chute')[0];
+  const mat = seatsOf('slide', 'mat')[0];
+  // a simulation of its own: the slide is the one thing here that is started
+  const own = createFairSim(area);
+  const oChute = own.seats.find((s) => s.seatKind === 'chute');
+  const oMat = own.seats.find((s) => s.seatKind === 'mat');
+
+  it('starts on a jump from the gallery, and from nowhere else', () => {
+    expect(own.slide.top).toBe(area.perches.find((p) => p.x === H.top.x && p.z === H.top.z && p.y === H.top.y));
+    expect(own.slide.top).toBeTruthy();
+    const t = own.jumpTarget(own.slide.top, own.slide.top);
+    expect(t.type).toBe('slide');
+    expect(t.seat).toBe(oChute);
+    // the landings inside are the ordinary jump's business
+    for (const p of area.perches.filter((q) => q !== own.slide.top)) expect(own.jumpTarget(p, p)?.type ?? null).not.toBe('slide');
+    expect(own.jumpTarget({ x: H.top.x, y: 0, z: H.top.z + 4 }, null)).toBeNull();
+  });
+
+  it('runs her down the slide’s own centre line in four to five seconds, always downwards, and stops on the mat', () => {
+    expect(RIDE.SLIDE_TIME).toBeGreaterThanOrEqual(4);
+    expect(RIDE.SLIDE_TIME).toBeLessThanOrEqual(5);
+    own.setTime(100);
+    expect(own.slide.sliding).toBe(false);
+    // waiting at the top of the slide
+    expect(dist3(oChute, H.slide[0])).toBeLessThan(1e-9);
+    own.startSlide();
+    expect(own.slide.sliding).toBe(true);
+    let last = { x: oChute.x, y: oChute.y, z: oChute.z };
+    let fastest = 0;
+    let turned = 0;
+    let lastA = Math.atan2(oChute.z - own.slide.cz, oChute.x - own.slide.cx);
+    const DT = 1 / 30;
+    for (let t = DT; t < RIDE.SLIDE_TIME - 1e-6; t += DT) {
+      own.setTime(100 + t);
+      expect(own.slide.sliding).toBe(true);
+      expect(oChute.y).toBeLessThanOrEqual(last.y + 1e-9);
+      // on the chute: never further from its centre line than the gap between two of its points
+      let near = Infinity;
+      for (const q of own.slide.path) near = Math.min(near, dist3(oChute, q));
+      expect(near).toBeLessThan(0.45);
+      fastest = Math.max(fastest, dist3(oChute, last) / DT);
+      const a = Math.atan2(oChute.z - own.slide.cz, oChute.x - own.slide.cx);
+      turned += Math.abs(Math.atan2(Math.sin(a - lastA), Math.cos(a - lastA)));
+      lastA = a;
+      expect(oChute.pitch).toBeLessThanOrEqual(1e-9); // nose down or level, never up
+      expect(oChute.pitch).toBeGreaterThan(-0.6);
+      last = { x: oChute.x, y: oChute.y, z: oChute.z };
+    }
+    expect(turned).toBeGreaterThan(Math.PI * 4); // more than twice round the tower
+    expect(fastest).toBeLessThan(14); // quick, as a slide is
+    own.setTime(100 + RIDE.SLIDE_TIME + 0.01);
+    expect(own.slide.sliding).toBe(false);
+    expect(own.slide.done).toBe(true);
+    expect(dist3(oChute, oMat)).toBeLessThan(1e-9);
+    // she arrives slowly: the last tenth of a second covers a few centimetres
+    own.setTime(100 + RIDE.SLIDE_TIME - 0.1);
+    expect(dist3(oChute, oMat)).toBeLessThan(0.12);
+    own.endSlide();
+    expect(own.slide.done).toBe(false);
+    expect(dist3(oChute, H.slide[0])).toBeLessThan(1e-9);
+  });
+
+  it('ends on the mat the model lays at the foot of the slide', () => {
+    // the mat is part of the brackets' mesh: the green slab, 1.3 by 1.5, its top at 0.1
+    const brackets = scene.getObjectByName('helterBrackets');
+    const pos = brackets.geometry.attributes.position;
+    const col = brackets.geometry.attributes.color;
+    const box = new THREE.Box3();
+    const q = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      if (!(col.getY(i) > col.getX(i) * 1.5 && col.getY(i) > col.getZ(i) * 1.5)) continue; // the green of the mat
+      box.expandByPoint(brackets.localToWorld(q.fromBufferAttribute(pos, i)));
+    }
+    expect(box.isEmpty()).toBe(false);
+    expect(box.max.y).toBeCloseTo(RIDE.MAT_Y, 2);
+    expect(mat.y).toBe(RIDE.MAT_Y);
+    // the seat is on the mat, well inside its edges
+    expect(mat.x).toBeGreaterThan(box.min.x + 0.3);
+    expect(mat.x).toBeLessThan(box.max.x - 0.3);
+    expect(mat.z).toBeGreaterThan(box.min.z + 0.3);
+    expect(mat.z).toBeLessThan(box.max.z - 0.3);
+    const c = box.getCenter(new THREE.Vector3());
+    expect(Math.hypot(mat.x - c.x, mat.z - c.z)).toBeLessThan(0.1);
+    // and the slide's own last point is at the mat's near edge
+    const end = H.slide[H.slide.length - 1];
+    expect(Math.hypot(end.x - mat.x, end.z - mat.z)).toBeCloseTo(RIDE.MAT_AHEAD, 6);
+  });
+
+  it('holds her only while she slides: nothing to do on the chute, a step off the mat', () => {
+    own.setTime(300);
+    own.startSlide();
+    own.setTime(301);
+    expect(own.jumpTarget(oChute, oChute).type).toBe('stay');
+    own.setTime(300 + RIDE.SLIDE_TIME + 1);
+    own.endSlide();
+    expect(own.jumpTarget(oMat, oMat).type).toBe('off');
+    const to = own.dismountSpot(oMat, null, env);
+    expect(to.ok).toBe(true);
+    expect(isWalkableAt(area, to.x, to.z)).toBe(true);
+    expect(flat(to, oMat)).toBeLessThan(3);
+    // nobody lands in the path of the next cat down
+    for (const q of H.slide.filter((p) => p.y < 2.2)) expect(sim.swept(q.x, q.z)).toBe(true);
+    expect(chute.ears).toBe(true);
   });
 });
 
@@ -1020,6 +1129,139 @@ describe('the walk: a cat in a teacup', () => {
     m.pushStick(0, 1); m.frame(); m.pushStick(0, 0);
     while (m.live.hopping) m.frame();
     expect(m.live.wobble).toBe(0);
+  });
+});
+
+describe('the walk: a cat on the helter-skelter', () => {
+  function onTheGallery(clock) {
+    const w = walk({ at: { x: -30, z: -30 }, clock });
+    const top = w.live.sim.slide.top;
+    w.session.perched = top;
+    w.player.perchY = top.y;
+    w.cat.position.set(top.x, top.y, top.z);
+    return { ...w, top };
+  }
+
+  it('sends her down the slide on a jump at the top, ears back, and leaves her sitting on the mat', () => {
+    const w = onTheGallery({ T: 12000 });
+    const ears = { earL: { rotation: { z: 0.22 } }, earR: { rotation: { z: -0.22 } } };
+    w.cat.userData.parts = ears;
+    w.frame();
+    expect(w.live.riding).toBeNull(); // the gallery is an ordinary perch
+    expect(w.live.jump(w.ctx)).toBe(true);
+    const chute = w.session.perched;
+    expect(chute.seatKind).toBe('chute');
+    expect(w.events.some((e) => e.type === 'slide')).toBe(true);
+    const prev = new THREE.Vector3();
+    let frames = 0;
+    let lastY = w.cat.position.y;
+    let maxCam = 0;
+    while (w.session.perched === chute) {
+      prev.copy(w.camera.position);
+      // (the animator would stand her ears up again every frame)
+      ears.earL.rotation.z = 0.22; ears.earR.rotation.z = -0.22;
+      w.frame();
+      if (w.session.perched !== chute) break;
+      frames++;
+      expect(w.cat.position.y).toBeLessThanOrEqual(lastY + 1e-9);
+      lastY = w.cat.position.y;
+      expect(w.cat.position.x).toBe(chute.x);
+      expect(ears.earL.rotation.z).toBeGreaterThan(0.6); // ears back
+      expect(ears.earR.rotation.z).toBeLessThan(-0.6);
+      expect(w.cat.rotation.x).toBeLessThanOrEqual(0); // nose down the chute
+      if (frames > 3) maxCam = Math.max(maxCam, prev.distanceTo(w.camera.position));
+      expect(Math.abs(new THREE.Vector3(1, 0, 0).applyQuaternion(w.camera.quaternion).y)).toBeLessThan(1e-6);
+      expect(frames).toBeLessThan(30 * 5);
+    }
+    expect(frames / 30).toBeGreaterThan(4);
+    expect(maxCam).toBeLessThan(0.6); // the picture comes down with her, it does not whirl round the tower
+    const mat = w.session.perched;
+    expect(mat.seatKind).toBe('mat');
+    expect(w.live.riding).toBe(mat);
+    expect(w.events.filter((e) => e.type === 'slide-end')).toHaveLength(1);
+    expect(w.events.filter((e) => e.type === 'ride')).toEqual([{ type: 'ride', ride: 'slide' }]);
+    w.run(1);
+    expect(w.session.perched).toBe(mat); // sitting on the mat until she chooses to go
+    expect([w.cat.position.x, w.cat.position.y, w.cat.position.z]).toEqual([mat.x, mat.y, mat.z]);
+    // a jump or the stick: a step off the mat onto the grass
+    expect(w.live.jump(w.ctx)).toBe(true);
+    w.run(0.6);
+    expect(grounded(w)).toBe(true);
+    expect(w.live.sim.slide.sliding).toBe(false);
+    // and the chute is ready for the next go
+    const again = onTheGallery({ T: w.clock.T });
+    again.frame();
+    expect(again.live.jump(again.ctx)).toBe(true);
+    expect(again.session.perched.seatKind).toBe('chute');
+  });
+
+  it('keeps her on the slide whatever she presses, for the few seconds it lasts, and no longer', () => {
+    const w = onTheGallery({ T: 12500 });
+    w.frame();
+    w.live.jump(w.ctx);
+    const chute = w.session.perched;
+    w.pushStick(1, 0); // the stick held hard over all the way down
+    let frames = 0;
+    while (w.live.riding === chute) {
+      w.frame();
+      if (w.live.riding !== chute) break;
+      expect(w.session.perched).toBe(chute);
+      expect(w.player.perchY).toBe(chute.y);
+      expect(w.cat.position.y).toBe(chute.y);
+      expect(w.live.jump(w.ctx)).toBe(true); // and the jump button does nothing
+      expect(w.live.hopping).toBe(false);
+      expect(++frames).toBeLessThan(30 * 5);
+    }
+    expect(frames).toBeGreaterThan(30 * 4);
+    // at the bottom the held stick takes her straight off the mat, as off any perch
+    w.run(1.2);
+    w.pushStick(0, 0);
+    w.run(0.3);
+    expect(grounded(w)).toBe(true);
+  });
+
+  it('leaves nothing sliding when the walk ends half way down', () => {
+    const w = onTheGallery({ T: 13000 });
+    w.frame();
+    w.live.jump(w.ctx);
+    w.run(2);
+    expect(() => w.live.dispose()).not.toThrow();
+    expect(w.live.riding).toBeNull();
+    expect(w.live.sim.slide.sliding).toBe(false);
+  });
+
+  it('notes where she would be put down, not where the ride has her, for a walk picked up again', () => {
+    // half way down the slide, on a horse, in a gondola: the note is free ground every time
+    const w = onTheGallery({ T: 13100 });
+    w.frame();
+    expect(w.live.groundSpot()).toBeNull(); // on an ordinary perch the note is her own place
+    w.live.jump(w.ctx);
+    for (let i = 0; i < 30 * 4; i++) {
+      w.frame();
+      const g = w.live.groundSpot();
+      expect(isWalkableAt(w.area, g.x, g.z)).toBe(true);
+      expect(w.live.sim.swept(g.x, g.z)).toBe(false);
+    }
+    const m = walk({ at: { x: 0, z: 5.15 } });
+    expect(m.live.groundSpot()).toBeNull();
+    expect(m.jumpWhenInReach()).toBe(true);
+    m.live.jump(m.ctx);
+    m.run(1);
+    const g = m.live.groundSpot();
+    expect(isWalkableAt(m.area, g.x, g.z)).toBe(true);
+    m.pushStick(0, 1); m.frame(); m.pushStick(0, 0);
+    expect(m.live.hopping).toBe(true);
+    const landing = m.live.groundSpot();
+    while (m.live.hopping) m.frame();
+    expect(landing.x).toBeCloseTo(m.cat.position.x, 9);
+    expect(landing.z).toBeCloseTo(m.cat.position.z, 9);
+    expect(m.live.groundSpot()).toBeNull();
+    expect(NO_FAIR.groundSpot()).toBeNull();
+    // and the note itself takes it (game/walkresume.js)
+    const src = readFileSync(new URL('../src/game/walkresume.js', import.meta.url), 'utf8');
+    expect(src).toMatch(/const down = session\.fair\?\.groundSpot\?\.\(\) \?\? null;/);
+    expect(src).toMatch(/x: down \? down\.x : session\.cat\.position\.x,/);
+    expect(src).toMatch(/z: down \? down\.z : session\.cat\.position\.z,/);
   });
 });
 

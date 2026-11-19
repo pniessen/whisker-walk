@@ -34,6 +34,8 @@ export function handleFairEvent(e, ctx) {
   switch (e.type) {
     case 'note': audio.musicBoxNote?.(e.freq, e.volume); break;
     case 'ride': noteRide(e.ride, ctx); break;
+    case 'slide': audio.pounceWhoosh?.(); break;
+    case 'slide-end': audio.landThump?.(); break;
     case 'dismount': session?.fx?.burst(session.cat.position, 0xcbb8a0, 8); break;
     default: break;
   }

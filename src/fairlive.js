@@ -36,6 +36,7 @@ export const NO_FAIR = Object.freeze({
   sim: null,
   riding: null,
   wobble: 0,
+  groundSpot() { return null; },
   update() {},
   late() {},
   jump() { return false; },
@@ -86,6 +87,7 @@ export const TUNE = Object.freeze({
 });
 
 // The camera while she rides, by ride: how it is placed is cameraFor below.
+const EARS_BACK = 0.8; // radians: an ear laid back (the animator's upright ear is 0.22)
 const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and lets go
 
 // createFairLive(scene, area, opts) → the Fairground's rides for one walk.
@@ -96,7 +98,8 @@ const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and l
 //   opts.now()         the clock, in seconds
 //   opts.onEvent(e)    { type: 'ride', ride } the first frame on a ride's seat, { type: 'hop' },
 //                      { type: 'dismount' } when she is down, { type: 'note', freq, volume } the tune,
-//                      { type: 'lookout' } onto the lookout at the top of the big wheel
+//                      { type: 'lookout' } onto the lookout at the top of the big wheel,
+//                      { type: 'slide' } off down the helter-skelter, { type: 'slide-end' } onto its mat
 export function createFairLive(scene, area, { camera = null, reducedMotion = false, now = wallClock, onEvent = () => {}, ground = FLAT_GROUND } = {}) {
   const sim = createFairSim(area);
   const rides = area.rides;
@@ -172,6 +175,14 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       camLook.set(sim.cups.cx + (seat.x - sim.cups.cx) * 0.28, 0.9, sim.cups.cz + (seat.z - sim.cups.cz) * 0.28);
       return 1;
     }
+    if (seat.seatKind === 'chute') {
+      // Still and well back, on the side the camera already was, coming down
+      // as she comes down: she goes round the tower in the picture; the
+      // picture does not go round with her.
+      camPos.set(sim.slide.cx + board.x * 9, seat.y + 2.8, sim.slide.cz + board.z * 9);
+      camLook.set(sim.slide.cx + (seat.x - sim.slide.cx) * 0.5, seat.y + 0.6, sim.slide.cz + (seat.z - sim.slide.cz) * 0.5);
+      return 1;
+    }
     return 0;
   }
 
@@ -210,6 +221,15 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     get hopping() { return hop.on; },
     get cameraWeight() { return camW; },
 
+    // groundSpot() → { x, z } where she would be put down right now, or null
+    // when she is on the ground already. (For the mid-walk note: game/walkresume.js.)
+    groundSpot() {
+      if (hop.on) return { x: hop.x1, z: hop.z1 };
+      if (!riding) return null;
+      const to = sim.dismountSpot(riding, null, env);
+      return { x: to.x, z: to.z };
+    },
+
     // canBoard(cat, player, session): would the jump button put her on a ride
     // now? (For the jump hint: game/tips.js.)
     canBoard(cat, player, session) {
@@ -234,6 +254,16 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         return true;
       }
       if (t.type === 'stay') return true; // waiting where she is for the next seat to come by
+      if (t.type === 'slide') {
+        // off the gallery and down the helter-skelter
+        sim.startSlide();
+        lastSeat = null;
+        noteBoardSide(sim.slide.cx, sim.slide.cz);
+        riding = t.seat;
+        seatCat(t.seat, cat, player, session);
+        onEvent({ type: 'slide' });
+        return true;
+      }
       if (t.type === 'static' && riding) {
         // off a seat onto one of the area's own perches (the boarding deck)
         riding = null; lastSeat = null; rodeRide = null;
@@ -269,6 +299,18 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
       }
 
       before.copy(cat.position);
+      // The slide: she is on it until it ends (a pushed stick does not take
+      // her off half way down), and it leaves her sitting on the mat.
+      if (riding === sim.slide.chute) {
+        if (sim.slide.done) {
+          sim.endSlide();
+          riding = sim.slide.mat;
+          session.perched = riding;
+          onEvent({ type: 'slide-end' });
+        } else if (session.perched !== riding) {
+          session.perched = riding;
+        }
+      }
       const perch = session.perched ?? null;
       const seat = perch && perch.fair ? perch : null;
       if (seat) {
@@ -322,10 +364,22 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     // perch. If she has just left a seat, the hop down starts here, in the
     // same frame, so she is never drawn on the ground under the ride.
     late(dt, t, { cat, player, session }) {
-      if (riding && session.perched !== riding) {
+      if (riding === sim.slide.chute && sim.slide.sliding && session.perched !== riding) {
+        // still sliding: the stick does not take her off the chute
+        session.perched = riding;
+        player.perchY = riding.y;
+        cat.position.y = gy(riding.x, riding.z) + riding.y;
+      } else if (riding && session.perched !== riding) {
         if (!session.perched) startHopDown(riding, cat, player);
         else { riding = null; lastSeat = null; rodeRide = null; } // onto an ordinary perch: it has placed her
       }
+      // going fast: ears back, and nose down the slope she is on (a cat enjoying it)
+      const on = session.perched === riding ? riding : null;
+      if (on && on.ears && !reducedMotion) {
+        const parts = cat.userData?.parts;
+        if (parts?.earL && parts?.earR && cat.userData.breed !== 'hagrid') { parts.earL.rotation.z = EARS_BACK; parts.earR.rotation.z = -EARS_BACK; }
+      }
+      if (on && on.pitch) { cat.rotation.order = 'YXZ'; cat.rotation.x = on.pitch * 0.7; }
       // after the teacups: a sway in her walk for a few steps, and nothing else
       if (wobble > 0 && !reducedMotion && !session.perched && !hop.on) {
         const k = wobble / RIDE.WOBBLE_TIME;
@@ -334,6 +388,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     },
 
     dispose() {
+      sim.endSlide();
       riding = null;
       lastSeat = null;
       hop.on = false;

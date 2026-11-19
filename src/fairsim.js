@@ -28,7 +28,7 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // player.js's CAT_RADIUS (not imported: player.js loads THREE).
 export const CAT_RADIUS = 0.35;
 
-export const RIDE_IDS = Object.freeze(['mgr', 'wheel', 'cups']);
+export const RIDE_IDS = Object.freeze(['mgr', 'wheel', 'cups', 'slide']);
 
 export const RIDE = Object.freeze({
   // ---- the merry-go-round ----
@@ -57,6 +57,11 @@ export const RIDE = Object.freeze({
   CUPS_SPIN: 4.5,      // seconds for one turn of a cup ON the floor, the other way (so 6 s a turn as the world sees it)
   REACH_CUP: 2.6,      // from the ground beside the ride into a cup passing the edge
   WOBBLE_TIME: 3,      // seconds of a sway in her walk after she gets out
+  // ---- the helter-skelter ----
+  SLIDE_TIME: 4.6,     // seconds from the gallery to the mat
+  MAT_AHEAD: 0.78,     // the mat's middle, this far beyond the end of the chute (world/fairrides.js lays it there)
+  MAT_Y: 0.1,          // the mat's top
+  SLIDE_SWEEP: 0.9,    // nobody lands this near the low end of the chute
   // ---- getting off ----
   LAND_MARGIN: 0.1,    // clear of every collider by the cat's radius and this
   BOUNDS_MARGIN: 0.5,
@@ -196,12 +201,88 @@ export function createFairSim(area) {
     }
   }
 
+  // ---- the helter-skelter ------------------------------------------------------------
+  // The stairs inside and the gallery at the top are the area's own perches:
+  // she climbs them with the ordinary jump. A jump on the gallery starts the
+  // slide (startSlide), and from then the CHUTE seat runs down the slide's
+  // centre line, quick in the middle and easing onto the MAT, where it leaves
+  // her sitting. The slide cannot be left half way: it is over in SLIDE_TIME.
+  const slide = (() => {
+    const g = R.helterSkelter;
+    const pts = g.slide;
+    const e = pts[pts.length - 1];
+    const p = pts[pts.length - 3];
+    const dl = Math.hypot(e.x - p.x, e.z - p.z) || 1;
+    const dx = (e.x - p.x) / dl;
+    const dz = (e.z - p.z) / dl;
+    const path = [...pts, { x: e.x + dx * RIDE.MAT_AHEAD, y: RIDE.MAT_Y, z: e.z + dz * RIDE.MAT_AHEAD }];
+    const len = new Float64Array(path.length);
+    for (let i = 1; i < path.length; i++) {
+      len[i] = len[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y, path[i].z - path[i - 1].z);
+    }
+    const chute = makeSeat('slide-chute', 'slide', 'chute', 0, { ears: true, pitch: 0 });
+    const mat = makeSeat('slide-mat', 'slide', 'mat', 0, { still: true });
+    const end = path[path.length - 1];
+    mat.x = end.x; mat.y = end.y; mat.z = end.z; mat.yaw = Math.atan2(dx, dz) + Math.PI;
+    const low = pts.filter((q) => q.y < 2.2);
+    const A = area.anchors.helterSkelter;
+    return { path, len, length: len[len.length - 1], chute, mat, low, top: areaPerch(g.top), cx: A.x, cz: A.z, t0: null, sliding: false, done: false };
+  })();
+  seats.push(slide.chute, slide.mat);
+
+  // How far down the slide she is, 0 to 1, `u` of the way through its time: a
+  // push off, a steady run, and a gentle stop on the mat.
+  function slideProfile(u) {
+    const a = 0.18;
+    const d = 0.14;
+    const v = 1 / (1 - a / 2 - d / 2);
+    if (u <= 0) return 0;
+    if (u >= 1) return 1;
+    if (u < a) return (v * u * u) / (2 * a);
+    if (u > 1 - d) return 1 - (v * (1 - u) * (1 - u)) / (2 * d);
+    return v * (u - a / 2);
+  }
+
+  function setSlide(T) {
+    const on = slide.t0 !== null;
+    const u = on ? Math.max(0, (T - slide.t0) / RIDE.SLIDE_TIME) : 0;
+    slide.sliding = on && u < 1;
+    slide.done = on && u >= 1;
+    const at = slideProfile(u) * slide.length;
+    // the stretch of the path she is on
+    let lo = 0;
+    let hi = slide.len.length - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (slide.len[mid] <= at) lo = mid; else hi = mid;
+    }
+    const a = slide.path[lo];
+    const b = slide.path[hi];
+    const span = slide.len[hi] - slide.len[lo] || 1;
+    const k = Math.min(1, Math.max(0, (at - slide.len[lo]) / span));
+    const s = slide.chute;
+    s.x = a.x + (b.x - a.x) * k;
+    s.y = a.y + (b.y - a.y) * k;
+    s.z = a.z + (b.z - a.z) * k;
+    const tx = b.x - a.x;
+    const ty = b.y - a.y;
+    const tz = b.z - a.z;
+    const tl = Math.hypot(tx, ty, tz) || 1;
+    s.yaw = Math.atan2(tx, tz) + Math.PI; // head first
+    s.pitch = Math.asin(Math.max(-1, Math.min(1, ty / tl))); // nose down as the chute goes down
+  }
+  // A jump on the gallery: the slide starts now.
+  function startSlide() { slide.t0 = now; setSlide(now); return slide.chute; }
+  // She is on the mat (or the walk is over): the chute is back at the top.
+  function endSlide() { slide.t0 = null; setSlide(now); }
+
   let now = 0;
   function setTime(T) {
     now = Number.isFinite(T) ? T : 0;
     setMgr(now);
     setWheel(now);
     setCups(now);
+    setSlide(now);
   }
 
   // ---- what a jump reaches -------------------------------------------------------
@@ -249,6 +330,7 @@ export function createFairSim(area) {
   //   'static'  from a seat onto `perch`, one of the area's own perches
   //   'stay'    nothing in reach just now, and she stays where she is (waiting
   //             on the boarding deck or the lookout for the next gondola)
+  //   'slide'   from the helter-skelter's gallery onto `seat`, the chute: the slide starts
   //   'off'     off the ride, to the ground
   function jumpTarget(cat, from, last = null) {
     if (from && from.fair) {
@@ -262,12 +344,16 @@ export function createFairSim(area) {
         if (wheel.step && apart(from, wheel.step) < RIDE.REACH_GONDOLA) return answer('static', null, wheel.step);
         return answer('off');
       }
+      // on the slide there is nothing to do but slide; on the mat, a jump is a step off it
+      if (from.seatKind === 'chute') return slide.sliding ? answer('stay') : answer('off');
       if (from.seatKind === 'lookout') {
         const g = gondolaNear(from, RIDE.REACH_LOOKOUT);
         return g ? answer('hop', g) : answer('stay');
       }
       return answer('off');
     }
+    // on the helter-skelter's gallery: down the slide
+    if (from && slide.top && from === slide.top) return answer('slide', slide.chute);
     // not on a ride: the nearest seat that can be boarded from here
     let best = null;
     let bestD = Infinity;
@@ -305,6 +391,10 @@ export function createFairSim(area) {
     if (Math.hypot(x - mgr.cx, z - mgr.cz) < mgr.baseR + CAT_RADIUS) return true;
     // the teacups' floor (its collider covers the same disc)
     if (Math.hypot(x - cups.cx, z - cups.cz) < cups.baseR + CAT_RADIUS) return true;
+    // the low end of the helter-skelter's chute, where a sliding cat comes through
+    for (let i = 0; i < slide.low.length; i++) {
+      if (Math.hypot(x - slide.low[i].x, z - slide.low[i].z) < RIDE.SLIDE_SWEEP + CAT_RADIUS) return true;
+    }
     // the strip the big wheel and its gondolas turn over
     if (Math.abs(x - wheel.cx) < wheel.sweepX + CAT_RADIUS && Math.abs(z - wheel.cz) < wheel.sweepZ + CAT_RADIUS) return true;
     return false;
@@ -332,6 +422,7 @@ export function createFairSim(area) {
   function awayFrom(seat, out) {
     if (seat.rideId === 'mgr') { out.x = seat.x - mgr.cx; out.z = seat.z - mgr.cz; }
     else if (seat.rideId === 'cups') { out.x = seat.x - cups.cx; out.z = seat.z - cups.cz; }
+    else if (seat.rideId === 'slide') { out.x = seat.x - slide.cx; out.z = seat.z - slide.cz; }
     else { out.x = 0; out.z = 1; }
     return out;
   }
@@ -372,6 +463,9 @@ export function createFairSim(area) {
     mgr,
     wheel,
     cups,
+    slide,
+    startSlide,
+    endSlide,
     get time() { return now; },
     setTime,
     jumpTarget,
