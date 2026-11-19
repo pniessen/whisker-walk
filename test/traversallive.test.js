@@ -118,7 +118,9 @@ describe('the balance walk', () => {
     w.push(0, 1);
     w.run(1);
     expect(w.live.busy).toBe(true);
-    expect(w.cat.position.x).toBeCloseTo(x, 4); // only the last of the slowing down (1e-4 m/s and falling)
+    // toBeCloseTo, not toBe: balanceStep's ease is exponential, so 1.5 s after letting go she still
+    // creeps at about 1e-4 m/s (about 2.5e-5 m over this second); the sideways push adds nothing to it.
+    expect(w.cat.position.x).toBeCloseTo(x, 4);
     expect(w.cat.position.z).toBeCloseTo(-13, 9);
     w.push(-1, 0);
     w.run(1);
@@ -138,7 +140,8 @@ describe('the balance walk', () => {
   });
 
   it('her height follows the washing line’s sag', () => {
-    // line-1: (-2, 3.5) to (-5, 3.2) to (-8, 3.5) along z = -9, from the east roof
+    // line-1: (-2, 3.5) to (-5, 3.2) to (-8, 3.5) along z = -9, from the east roof. Checked on every frame
+    // against the sag at her x, since no frame lands exactly on x = -5; the frame nearest -5 is near 3.2.
     const sag = (x) => (x >= -5 ? 3.5 + 0.1 * (2 + x) : 3.2 - 0.1 * (5 + x));
     const w = yardWalk({ at: [-1.0, -9], face: [-1, 0] });
     w.push(-1, 0);
@@ -176,6 +179,50 @@ describe('the balance walk', () => {
     expect(w.events.map((e) => e.type)).toEqual(['mount', 'cross']);
     expect(w.area.ground.y(w.cat.position.x, w.cat.position.z)).toBe(3.5); // off on the west roof
     expect(Math.abs(angleDiff(w.player.viewYaw(), behindYaw(-1, 0)))).toBeLessThan(0.3); // and the camera came round
+  });
+
+  it('holding the stick through the whole crossing steps off once at the far end and stays off', () => {
+    // the held-stick case above: pushed toward the camera, which swings round behind her on the plank
+    const w = yardWalk({ at: [-1.0, -13], face: [-1, 0], viewYaw: behindYaw(1, 0) });
+    w.push(-1, 0); // pushed once and held throughout
+    for (let i = 0; i < 900 && !w.events.some((e) => e.type === 'cross'); i++) w.frame();
+    expect(w.events.map((e) => e.type)).toEqual(['mount', 'cross']);
+    const yaw = w.player.viewYaw();
+    let x = w.cat.position.x;
+    for (let i = 0; i < 200; i++) { // over 3 s: she keeps going the way she was, off the plank
+      w.frame();
+      expect(w.live.busy).toBe(false);
+      expect(w.cat.position.x).toBeLessThanOrEqual(x + 1e-9);
+      x = w.cat.position.x;
+    }
+    expect(w.events.map((e) => e.type)).toEqual(['mount', 'cross']);
+    expect(w.player.viewYaw()).toBe(yaw); // the camera's turn stopped at the step-off
+    expect(w.cat.position.x).toBeLessThan(-12);
+    expect(w.area.ground.y(w.cat.position.x, w.cat.position.z)).toBe(3.5);
+    // dispose gives the stick back to the camera
+    w.live.dispose();
+    const st = w.player.stickInput({ x: 0, z: 0 });
+    const want = stickToWorld(st.x, st.z, w.player.viewYaw(), { x: 0, z: 0 });
+    const d = w.player.inputDirection();
+    expect(d.x).toBeCloseTo(want.x, 12);
+    expect(d.z).toBeCloseTo(want.z, 12);
+  });
+
+  it('after stepping off, she gets back on only with a fresh push', () => {
+    const w = yardWalk({ at: [-1.0, -13], face: [-1, 0], viewYaw: behindYaw(1, 0) });
+    w.push(-1, 0);
+    for (let i = 0; i < 900 && !w.events.some((e) => e.type === 'cross'); i++) w.frame();
+    // still holding, the thumb swings round to point back onto the plank (in the held stick's frame): no remount
+    const s = stickToWorld(1, 0, -behindYaw(1, 0), { x: 0, z: 0 });
+    w.player.setTouchMove({ x: s.x, z: s.z, mag: 1 });
+    for (let i = 0; i < 60; i++) { w.frame(); expect(w.live.busy).toBe(false); }
+    // let go, push toward the plank again: on she gets
+    w.release();
+    w.frame();
+    w.push(1, 0);
+    for (let i = 0; i < 30 && !w.live.busy; i++) w.frame();
+    expect(w.live.crossing?.id).toBe('plank-1');
+    expect(w.events.map((e) => e.type)).toEqual(['mount', 'cross', 'mount']);
   });
 
   it('does not mount when perched, in a fight or chased, or from the yard under the plank', () => {

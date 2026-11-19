@@ -13,6 +13,13 @@
 // update() overrides it again before the next one. late() runs after the cat
 // has been posed (a no-op until her balancing look is added).
 //
+// A HELD STICK keeps its world direction from the moment it is pushed until
+// it is let go: on the crossing (step 1 below) and after she steps off it, so
+// the camera having swung round behind her can never turn her back. Off the
+// crossing the hold is the player's input yaw (player.setInputYaw), and while
+// it lasts she cannot get straight back on the end she stepped off; a fresh
+// push after letting go can. The camera's turn stops at the step-off.
+//
 // NO_TRAVERSAL is what every walk in an area without traversal has, so main.js,
 // game/avatar.js and the rest can call it without asking first (the NO_FAIR
 // pattern of src/fairlive.js).
@@ -22,7 +29,7 @@
 // the events (one frozen pair per crossing) are made here, once.
 // =============================================================================
 import {
-  BASE_ABILITIES, SNAP_EASE, TURN_RATE, CAM_FOLLOW_RATE, CAM_TURN_MAX,
+  BASE_ABILITIES, ALONG_DEAD, SNAP_EASE, TURN_RATE, CAM_FOLLOW_RATE, CAM_TURN_MAX,
   crossingPoint, crossingToMount, balanceStep, stickToWorld, facingYaw, behindYaw, easeYawToward,
 } from './traversal.js';
 
@@ -69,6 +76,12 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
   let over = 0;
   let faceX = 0;
   let faceZ = 0;
+  // The held stick after a step-off: its yaw, the end it left, and the player
+  // it was handed to (so dispose() can take it back).
+  let heldYaw = null;
+  let heldCrossing = null;
+  let heldEnd = 0;
+  let heldPlayer = null;
 
   function clear() {
     crossing = null;
@@ -80,6 +93,13 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     over = 0;
   }
 
+  function letGo() {
+    if (heldPlayer) heldPlayer.setInputYaw(null);
+    heldYaw = null;
+    heldCrossing = null;
+    heldPlayer = null;
+  }
+
   // Her x, z for the rail point in `pt`.
   function placeX() { return pt.x + over * outSign * pt.tx + latX; }
   function placeZ() { return pt.z + over * outSign * pt.tz + latZ; }
@@ -87,15 +107,18 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
   function tryMount(cat, player, session) {
     if (session.perched || player.perchY !== 0 || session.fight || session.chasing || !player.inputActive) return false;
     const p = cat.position;
+    const yaw = heldYaw ?? player.viewYaw();
     player.stickInput(stick);
-    stickToWorld(stick.x, stick.z, player.viewYaw(), world);
+    stickToWorld(stick.x, stick.z, yaw, world);
     if (!crossingToMount(trav, p.x, p.z, ground.y(p.x, p.z), world.x, world.z, found)) return false;
+    if (heldYaw !== null && found.crossing === heldCrossing && found.end === heldEnd) return false;
+    letGo();
     crossing = found.crossing;
     mountEnd = found.end;
     outSign = mountEnd === 0 ? -1 : 1;
     st.u = found.u;
     st.v = 0;
-    controlYaw = player.viewYaw();
+    controlYaw = yaw;
     steady = !!abilities().steady;
     crossingPoint(crossing, st.u, pt);
     const dx = p.x - pt.x;
@@ -140,11 +163,17 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
       }
     }
     // 3. Off at an end: on that end, on the ground, still facing the way she
-    //    was. The tally counts only a crossing made end to end.
+    //    was, the held stick still held. The tally counts only a crossing
+    //    made end to end.
     if (end !== null) {
       crossingPoint(c, st.u, pt);
       cat.position.set(placeX(), pt.y, placeZ());
       player.perchY = 0;
+      heldYaw = controlYaw;
+      heldCrossing = c;
+      heldEnd = end;
+      heldPlayer = player;
+      player.setInputYaw(heldYaw);
       clear();
       if (end !== mountEnd) onEvent(crossEvents.get(c));
       return;
@@ -186,6 +215,10 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     get pose() { return crossing ? 'stalk' : null; },
     get speed() { return crossing ? Math.abs(st.v) : null; },
     update(dt, t, { cat, player, session }) {
+      if (!crossing && heldYaw !== null) {
+        player.stickInput(stick);
+        if (!player.inputActive || Math.hypot(stick.x, stick.z) < ALONG_DEAD) letGo();
+      }
       if (!crossing && !tryMount(cat, player, session)) return;
       walk(dt, cat, player, session);
     },
@@ -197,6 +230,9 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
       const e = crossing.ends[st.u < crossing.length / 2 ? 0 : 1];
       return { x: e.x, z: e.z };
     },
-    dispose() { clear(); },
+    dispose() {
+      clear();
+      letGo();
+    },
   };
 }
