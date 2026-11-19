@@ -787,6 +787,8 @@ describe('createProgression', () => {
         // 2026-11-15, guided-first-walk design (section 8): a bare save is a new player.
         tutorial: { first: null, camp: false, hints: {}, told: { thing: null, visits: 0 } },
         fightsWon: 0, fightMoves: [], scars: {}, scarredIntruders: [],
+        // 2026-11-19, found outfits: a bare save has found none.
+        foundWear: [],
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -2395,10 +2397,11 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, outfits, usage, fightsWon, fightMoves, scars, scarredIntruders, tutorial, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, outfits, usage, fightsWon, fightMoves, scars, scarredIntruders, tutorial, foundWear, ...rest } = p.state;
     // 2026-11-15, guided-first-walk design (section 8): this save has points, so it is an existing player's.
     expect(tutorial).toEqual({ first: 'old', camp: false, hints: {}, told: { thing: null, visits: 0 } });
     expect([fightsWon, fightMoves, scars, scarredIntruders]).toEqual([0, [], {}, []]);
+    expect(foundWear).toEqual([]);
     expect(edition).toBe('canon');
     expect(customCats).toEqual([]);
     expect(outfits).toEqual([]);

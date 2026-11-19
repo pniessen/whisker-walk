@@ -426,6 +426,17 @@ function sanitizeRedeemed(v) {
   return ok.slice(-REDEEMED_MAX);
 }
 
+// Found outfits (src/foundwear/): a ceiling on state.foundWear for a hostile
+// payload. There are 48 outfits at most once the Rooftops has its four.
+export const FOUND_WEAR_MAX = 96;
+// Strings that name a find-only accessory (an own CATALOG key with `find`),
+// once each, oldest first, the first FOUND_WEAR_MAX.
+function sanitizeFoundWear(v) {
+  if (!Array.isArray(v)) return [];
+  const ok = v.filter((id) => typeof id === 'string' && Object.hasOwn(CATALOG.accessories, id) && !!CATALOG.accessories[id].find);
+  return [...new Set(ok)].slice(0, FOUND_WEAR_MAX);
+}
+
 function defaultState() {
   return {
     version: SAVE_VERSION,
@@ -611,6 +622,11 @@ function defaultState() {
     //   told   the thing to wear the home line last pointed at, and on how
     //          many visits (ui/nextthing.js rule 8)
     tutorial: emptyTutorial(),
+    // Found outfits: every find-only outfit ever found, oldest first. The
+    // durable record: each one is rebuilt into unlocked.accessories on every
+    // load, so a found outfit is never lost. Additive, so SAVE_VERSION stays
+    // 4: an older save starts with none.
+    foundWear: [],
   };
 }
 
@@ -1023,6 +1039,9 @@ function sanitizeState(parsed) {
   for (const id of prizesWonBy(visitPrizesSeen)) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
   // The Fairground's prizes likewise: every game the journal says was won has its prize owned.
   for (const id of fairPrizesWonBy(sanitizeJournal(parsed.journal))) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
+  // And every found outfit: foundWear is the record, so it is owned.
+  const foundWear = sanitizeFoundWear(parsed.foundWear);
+  for (const id of foundWear) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
 
   const equippedCat = typeof parsed.equipped?.cat === 'string' && unlockedCats.includes(parsed.equipped.cat)
     ? parsed.equipped.cat : d.equipped.cat;
@@ -1105,6 +1124,7 @@ function sanitizeState(parsed) {
     fightMoves: fm.moves,
     scars: sanitizeScars(parsed.scars, customCats),
     scarredIntruders: sanitizeScarredIntruders(parsed.scarredIntruders),
+    foundWear,
   };
   if (fm.added.length > 0) ADDED_MOVES.set(result, fm.added);
   return result;
@@ -1929,6 +1949,21 @@ export function createProgression(storage) {
       save();
       return { first, prize: first ? id : null, worn };
     },
+    // recordFoundWear(id) — a found outfit picked up on a walk (src/foundwear/).
+    // Owned from now on: kept in foundWear (rebuilt into owned on every load)
+    // and in unlocked.accessories, in one save(). Never put on. True when she
+    // did not own it before; a shop or prize id, or junk, is false and writes
+    // nothing.
+    recordFoundWear(id) {
+      if (typeof id !== 'string' || !Object.hasOwn(CATALOG.accessories, id) || !CATALOG.accessories[id].find) return false;
+      const isNew = !state.unlocked.accessories.includes(id);
+      const inRecord = state.foundWear.includes(id);
+      if (!isNew && inRecord) return false;
+      if (!inRecord) state.foundWear.push(id);
+      if (isNew) state.unlocked.accessories.push(id);
+      save();
+      return isNew;
+    },
     // recordFeat(type) — v18. Bumps the lifetime tally for one discovery
     // type by one. Its PRIMARY caller is pay() in discoveries.js, the single
     // funnel every award() / awardOnce() in the game already passes through.
@@ -2471,7 +2506,11 @@ export function createProgression(storage) {
     // keep the larger of local and loaded, so an older cloud save never makes
     // the count go down, and every prize the kept visitPrizesSeen has won is
     // owned again (sanitizeState rebuilt only the loaded value's).
+    //
+    // Found outfits are the same: foundWear keeps every outfit either side
+    // found, this device's first, and each is owned again.
     replaceFromPayload(rawSaveObject) {
+      const localFound = state.foundWear;
       const localVisits = state.visits;
       const localSeen = state.visitPrizesSeen;
       const localCustomCats = state.customCats;
@@ -2501,6 +2540,10 @@ export function createProgression(storage) {
       // Usage counts never go down: the larger of this device's and the save's.
       state.usage = mergeUsage(localUsage, state.usage);
       for (const id of prizesWonBy(state.visitPrizesSeen)) {
+        if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
+      }
+      state.foundWear = sanitizeFoundWear([...localFound, ...state.foundWear]);
+      for (const id of state.foundWear) {
         if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
       }
       // R3: fights won never go down and moves are never taken away.
