@@ -7,7 +7,7 @@ import { sureClawsTreePerch } from '../climbing.js';
 import { createWater } from '../render/water.js';
 import { addTrails } from './pathribbon.js';
 import { withLocalUuids } from './localuuids.js';
-import { colorParts, Tris, lin, scale3, unit, lerp3, smoothstep, clamp01, r2 } from './dressing.js';
+import { colorParts, paintMesh, ribbon, Tris, lin, scale3, unit, lerp3, smoothstep, clamp01, r2 } from './dressing.js';
 import { cutTiles, tileSeed, TILE_SIZE } from './strips.js';
 import { riverGroundTint } from './riverdress.js';
 
@@ -512,6 +512,36 @@ function fallenWillowGeometry() {
   return geo;
 }
 
+// The core paints peaty mud along the river's banks and round its pools
+// (riverdress.js's groundPaint). The same, carried on: a ribbon 0.7 m out along
+// both banks from the old edge to the new, and a ring round the still pool.
+const PEAT_DARK = lin(0x655a3a);
+const PEAT_LIGHT = lin(0x7a7448);
+const PEAT_EDGE = lin(0x8a8a56);
+const peat = (x, y, z) => {
+  const c = lerp3(PEAT_DARK, PEAT_LIGHT, b.hash01(Math.round(x * 1.5), Math.round(z * 1.5), 829));
+  return lerp3(c, PEAT_EDGE, smoothstep(0.5, 1.3, waterDist(x, z)));
+};
+function westPaintParts() {
+  const parts = [];
+  const bank = (z) => {
+    const pts = [];
+    // a little into the core's own ribbon, so the two overlap rather than meet
+    for (let x = WEST.maxX + 0.5; x >= WEST.minX; x -= 0.5) pts.push([x, z]);
+    return pts;
+  };
+  parts.push(colorParts(ribbon(bank(RIVER_Z.minZ - 0.7), 0.6, { salt: 1601, wobble: 0.35, step: 0.8 }), peat));
+  parts.push(colorParts(ribbon(bank(RIVER_Z.maxZ + 0.7), 0.6, { salt: 1602, wobble: 0.35, step: 0.8 }), peat));
+  const ring = [];
+  const n = Math.round((Math.PI * 2 * STILL_POOL.r) / 0.5);
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    ring.push([STILL_POOL.x + Math.cos(a) * (STILL_POOL.r + 0.7), STILL_POOL.z + Math.sin(a) * (STILL_POOL.r + 0.7)]);
+  }
+  parts.push(colorParts(ribbon(ring, 0.6, { salt: 1603, wobble: 0.35, step: 0.8 }), peat));
+  return parts;
+}
+
 /**
  * addWestStrip(scene, { groundMesh, water, riverWest, waters, wind })
  *
@@ -541,6 +571,10 @@ export function addWestStrip(scene, { groundMesh, water = {}, waters, waterColor
       quality: water.quality ?? 'high', reducedMotion: water.reducedMotion ?? false, waters,
     });
     scene.add(tag(fx.mesh));
+
+    // the peaty banks, as the core paints its own
+    const paint = paintMesh(westPaintParts(), { name: 'stripPaint' });
+    scene.add(tag(paint));
 
     // the faint trail
     const { mesh: trail } = addTrails(scene, [{ segs: WEST_TRAIL, w: WEST_TRAIL_W }], TRAIL_STYLE, 'river-west',

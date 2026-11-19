@@ -346,16 +346,16 @@ describe('with nearer ranges, walking away alone brings the scene back', () => {
 //                          meshes  casters  triangles
 //   the River today           170      133     63,778
 //   the core, switch on       170      133     65,128   (longer hills, edge and mist)
-//   + the strip's standing     12        1      2,597   (ground, pool, trail and its 8
-//     things                                             hidden strips, the fallen willow)
+//   + the strip's standing     13        1      2,967   (ground, pool, bank paint, trail and
+//     things                                             its 8 hidden strips, the fallen willow)
 //   + every tile in range      42       32     11,212   (10 small meshes of 7,672
 //                                                        triangles, 13 trees of 3,540)
-//   = at the worst spot       224      166     78,937
+//   = at the worst spot       225      166     79,307
 //
 // The worst spot is anywhere on the strip: every tile is within 58 m of most
-// of it. Against today that is 54 more meshes (8 of them hidden data strips
+// of it. Against today that is 55 more meshes (8 of them hidden data strips
 // that are never drawn), 33 more casters (the 13 trees and the fallen willow)
-// and 15,159 more triangles. Ceilings: about 6% over the measure.
+// and 15,529 more triangles. Ceilings: about 5% over the measure.
 // ---------------------------------------------------------------------------
 describe('the strip budget: the core and every tile in range, at the worst spot', () => {
   const CEILING = { meshes: 238, casters: 176, triangles: 83500 };
