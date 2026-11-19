@@ -13,7 +13,7 @@
 // turn from velocity) and places the camera for this frame's spot with this
 // frame's yaw. game/avatar.js writes speedFactor after player.update, and
 // update() overrides it again before the next one. late() runs after the cat
-// has been posed (a no-op until her balancing look is added).
+// has been posed (see HOW SHE LOOKS below).
 //
 // A HELD STICK keeps its world direction from the moment it is pushed until
 // it is let go: on the crossing (step 1 below) and after she steps off it, so
@@ -35,6 +35,20 @@
 // her budget) is a look: she stops and faces the far side for LOOK_TIME, until
 // a fresh push of the stick (a stick still held at the press does not count).
 //
+// HOW SHE LOOKS DOING IT: late() runs after game/avatar.js has posed her
+// (animateCat and applyWaterLook set rotation.x and rotation.z outright every
+// frame), so it may write rotation.x, add to rotation.z and add to rotation.y.
+// On a crossing her tail is held out and swaying, she pitches to the rail and
+// now and then wobbles (less with Tightrope Tail); in a crouch her rump
+// wiggles; through a leap she leans nose-up then nose-down; at a landing she
+// bounces; looking across, her ears prick and her head lifts. No new pose: the
+// stalk, pounce and land poses carry the moves. Under reduced motion there is
+// no wobble, sway, wiggle, leap pitch or bounce (the tail held out, the pitch
+// to the rail and the look's ears are poses, and stay). Hagrid's parts and
+// any missing part are left alone. Gameplay never reads what late() writes:
+// a hop's crouch turn runs on its own yaw (crouchYaw), and every other move
+// sets her position and yaw outright before the next late().
+//
 // DETERMINISTIC: every motion is a function of the data, the stick and dt.
 // ALLOCATION: update(), jump() and late() allocate nothing; the scratch
 // objects and the events (one frozen pair per crossing, one frozen set per
@@ -47,6 +61,16 @@ import {
 } from './traversal.js';
 
 const EPS = 1e-9;
+
+// How she looks (late()). First guesses, to tune from the recording.
+export const WOBBLE = Object.freeze({ every: 3.2, len: 0.7, amp: 0.07, rate: 9, steady: 0.4 }); // s, s, rad, rad/s, x amp with Tightrope Tail
+export const TAIL_OUT = Object.freeze({ rootX: -0.25, sway: 0.2, rate: 8.8 }); // rad, rad, rad/s
+export const WIGGLE = Object.freeze({ from: 0.55, yaw: 0.07, rate: 22 }); // share of the crouch, rad, rad/s
+export const LEAP_PITCH = 0.22; // rad, nose up at take-off, down at touchdown
+export const LAND_BOUNCE = 0.05; // m
+export const EARS_UP = 0.05; // rad, earL.rotation.z (earR the negative) while she looks across
+export const HEAD_UP = 0.15; // rad, head.rotation.x = -HEAD_UP while she looks across
+const RAIL_PITCH_MAX = 0.35; // rad
 const LAND_DUST = 0xcbb8a0;
 const LAND_EVENT = Object.freeze({ water: false }); // one shared frozen payload for every 'pounce:land' listener
 
@@ -112,6 +136,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
   let mountEnd = 0;
   let outSign = 0; // -1 at end 0, +1 at end 1: the tangent times this points off the end she got on by
   let steady = false;
+  let onTime = 0; // seconds on this crossing, for the wobble and the tail's sway
   let controlYaw = null;
   let latX = 0; // her offset from the rail, glided away at SNAP_EASE
   let latZ = 0;
@@ -136,6 +161,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
   let hop = null;
   let elapsed = 0;
   let hopYaw = 0;
+  let crouchYaw = 0; // her yaw turning to hopYaw in the crouch, kept apart from late()'s wiggle
   let sprung = false;
   let landed = false;
   // The look: the hop she is looking along, and for how long so far. A stick
@@ -193,6 +219,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     st.v = 0;
     controlYaw = yaw;
     steady = !!abilities().steady;
+    onTime = 0;
     crossingPoint(crossing, st.u, pt);
     const dx = p.x - pt.x;
     const dz = p.z - pt.z;
@@ -209,6 +236,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
 
   function walk(dt, cat, player, session) {
     const c = crossing;
+    onTime += dt > 0 ? dt : 0;
     // 1. Hold the yaw. The stick is turned by the yaw it was first pushed
     //    under, not the live one, so a held stick keeps its world direction
     //    while the camera swings round behind her.
@@ -294,8 +322,12 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     }
     cat.position.set(at.x, at.y, at.z);
     // 2. Face the landing: turning to it in the crouch, exactly on it after.
-    if (at.phase === 'crouch') cat.rotation.y = easeYawToward(cat.rotation.y, hopYaw, d, TURN_RATE, TURN_RATE);
-    else cat.rotation.y = hopYaw;
+    if (at.phase === 'crouch') {
+      crouchYaw = easeYawToward(crouchYaw, hopYaw, d, TURN_RATE, TURN_RATE);
+      cat.rotation.y = crouchYaw;
+    } else {
+      cat.rotation.y = hopYaw;
+    }
     // 3. Tell the spring and the touchdown, once each and in order, even if
     //    one long frame went past a whole phase.
     if (!sprung && at.phase !== 'crouch') {
@@ -396,6 +428,7 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
       looking = null;
       hop = h;
       hopYaw = yaw;
+      crouchYaw = ry;
       planHop(h, p.x, p.z, reducedMotion, plan);
       elapsed = 0;
       sprung = false;
@@ -404,7 +437,61 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
       at.s = 0;
       return true;
     },
-    late() {},
+    // How she looks doing it: cosmetic touches on the pose game/avatar.js has
+    // just set. Writes nothing when she is not on a move.
+    late(dt, t, ctx) {
+      const cat = ctx?.cat;
+      if (!cat || (!crossing && !hop && !looking)) return;
+      const parts = cat.userData?.parts;
+      const own = parts && cat.userData.breed !== 'hagrid' ? parts : null;
+      if (crossing) {
+        // The tail held out, swaying.
+        if (own?.tail) own.tail.rotation.x = TAIL_OUT.rootX;
+        const pivots = own?.tailPivots;
+        if (pivots) {
+          for (let i = 0; i < pivots.length; i++) {
+            pivots[i].rotation.y = reducedMotion ? 0 : TAIL_OUT.sway * Math.sin(TAIL_OUT.rate * onTime + i * 0.6);
+          }
+        }
+        // Pitched to the rail: the grade along her nose (local -z).
+        crossingPoint(crossing, st.u, pt);
+        const ry = cat.rotation.y;
+        const along = -Math.sin(ry) * pt.tx - Math.cos(ry) * pt.tz;
+        const pitch = Math.atan(pt.grade * along);
+        cat.rotation.order = 'YXZ';
+        cat.rotation.x = pitch > RAIL_PITCH_MAX ? RAIL_PITCH_MAX : pitch < -RAIL_PITCH_MAX ? -RAIL_PITCH_MAX : pitch;
+        // Now and then, a careful wobble.
+        if (!reducedMotion) {
+          const p = onTime % WOBBLE.every;
+          if (p < WOBBLE.len) {
+            const k = steady ? WOBBLE.steady : 1;
+            cat.rotation.z += WOBBLE.amp * k * Math.sin((Math.PI * p) / WOBBLE.len) * Math.sin(WOBBLE.rate * onTime);
+          }
+        }
+        return;
+      }
+      if (hop) {
+        if (at.phase === 'crouch') {
+          // The rump wiggle, late in the crouch (elapsed is the time into it).
+          if (!reducedMotion && elapsed / plan.crouch >= WIGGLE.from) {
+            cat.rotation.y += WIGGLE.yaw * Math.sin(WIGGLE.rate * elapsed);
+          }
+        } else if (at.phase === 'air') {
+          if (hop.kind === 'leap') {
+            cat.rotation.order = 'YXZ';
+            cat.rotation.x = reducedMotion ? 0 : LEAP_PITCH * (1 - 2 * at.s);
+          }
+        } else if (at.phase === 'land') {
+          if (!reducedMotion) cat.position.y += LAND_BOUNCE * Math.sin(Math.PI * at.tau);
+        }
+        return;
+      }
+      // Looking across: ears pricked, head up. A pose, so under reduced
+      // motion too.
+      if (own?.earL) own.earL.rotation.z = EARS_UP;
+      if (own?.earR) own.earR.rotation.z = -EARS_UP;
+      if (own?.head) own.head.rotation.x = -HEAD_UP;
+    },
     // Free ground to put her on if the walk stops here: the nearer end of a
     // crossing, the landing of a hop.
     groundSpot() {

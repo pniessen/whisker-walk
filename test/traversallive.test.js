@@ -621,3 +621,186 @@ describe('the leap and the drop', () => {
     expect(calls).toEqual([['emit', 'pounce:land', { water: false }]]);
   });
 });
+
+const { buildCat } = await import('../src/cat/model.js');
+const { WOBBLE, TAIL_OUT, WIGGLE, LEAP_PITCH, LAND_BOUNCE, EARS_UP, HEAD_UP } = await import('../src/traversallive.js');
+const { HOP } = await import('../src/traversal.js');
+
+// Every transform late() may touch: hers, and each part's rotation.
+function poseSnapshot(cat) {
+  const r = (o) => [o.rotation.x, o.rotation.y, o.rotation.z];
+  const p = cat.userData.parts;
+  return {
+    position: [cat.position.x, cat.position.y, cat.position.z],
+    rotation: r(cat),
+    parts: [p.body, p.head, p.tail, p.earL, p.earR, ...p.tailPivots, ...p.legs].map(r),
+  };
+}
+
+describe('how she looks', () => {
+  it('holds her tail out and sways it on a crossing; still under reduced motion', () => {
+    const sway = (reducedMotion) => {
+      const w = onPlank1(0, { cat: buildCat('tabby'), reducedMotion });
+      const { tail, tailPivots } = w.cat.userData.parts;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = 0; i < 120 && w.live.crossing; i++) {
+        w.frame();
+        expect(tail.rotation.x).toBe(TAIL_OUT.rootX);
+        for (const p of tailPivots) { lo = Math.min(lo, p.rotation.y); hi = Math.max(hi, p.rotation.y); }
+      }
+      return [lo, hi];
+    };
+    const [lo, hi] = sway(false);
+    expect(hi).toBeGreaterThan(TAIL_OUT.sway * 0.8);
+    expect(lo).toBeLessThan(-TAIL_OUT.sway * 0.8);
+    expect(hi).toBeLessThanOrEqual(TAIL_OUT.sway + 1e-9);
+    expect(sway(true)).toEqual([0, 0]);
+  });
+
+  it('wobbles now and then, less with Tightrope Tail, never under reduced motion', () => {
+    const maxRoll = (opts) => { const w = yardWalk({ ...opts, at: [-9.0, -13], face: [1, 0], cat: buildCat('tabby') }); w.push(1, 0); let m = 0; for (let i = 0; i < 300; i++) { w.frame(); if (w.live.crossing) m = Math.max(m, Math.abs(w.cat.rotation.z)); } return m; };
+    expect(maxRoll({})).toBeGreaterThan(WOBBLE.amp * 0.5);
+    expect(maxRoll({ abilities: () => ({ ...BASE_ABILITIES, steady: true }) })).toBeLessThanOrEqual(WOBBLE.amp * WOBBLE.steady + 1e-9);
+    expect(maxRoll({ reducedMotion: true })).toBe(0);
+    // now and then: still between the wobbles
+    const w = onPlank1(0, { cat: buildCat('tabby') });
+    const rolls = [];
+    for (let i = 0; i < 240 && w.live.crossing; i++) { w.frame(); rolls.push(w.cat.rotation.z); }
+    const still = rolls.filter((r) => r === 0).length;
+    expect(still).toBeGreaterThan(rolls.length / 2);
+  });
+
+  it('leans nose-up walking up the leaning plank', () => {
+    const w = yardWalk({ at: [-2.2, 6], face: [-1, 0], cat: buildCat('tabby') });
+    w.push(-1, 0);
+    for (let i = 0; i < 30 && !w.live.busy; i++) w.frame();
+    expect(w.live.crossing?.id).toBe('plank-2');
+    for (let i = 0; i < 900 && w.live.busy && w.live.progress < 0.5; i++) w.frame();
+    expect(w.live.progress).toBeGreaterThanOrEqual(0.5);
+    expect(w.cat.rotation.x).toBeGreaterThan(0.2);
+    expect(w.cat.rotation.x).toBeLessThanOrEqual(0.35);
+    // and level on the level plank
+    const l = onPlank1(1, { cat: buildCat('tabby') });
+    expect(l.cat.rotation.x).toBe(0);
+  });
+
+  it('wiggles before the leap, pitches through it, bounces on landing; none of it with reduced motion', () => {
+    const look = (reducedMotion) => {
+      const w = yardWalk({ at: [3, -7.0], face: [0, 1], cat: buildCat('tabby'), reducedMotion });
+      const yaw = facingYaw(0, 1); // she already faces the far roof, so the crouch's own turn is none
+      const crouch = reducedMotion ? HOP.leap.crouchRM : HOP.leap.crouch;
+      expect(w.jump()).toBe(true);
+      const seen = { early: 0, wiggle: 0, airFirst: null, airLast: null, bounce: 0, landY: [] };
+      let n = 0;
+      for (let i = 0; i < 1000 && w.live.busy; i++) {
+        w.frame();
+        n++;
+        if (w.live.phase === 'crouch') {
+          const d = Math.abs(angleDiff(w.cat.rotation.y, yaw));
+          if ((n / 60) / crouch < WIGGLE.from - 0.02) seen.early = Math.max(seen.early, d);
+          else seen.wiggle = Math.max(seen.wiggle, d);
+        } else if (w.live.phase === 'air') {
+          expect(w.cat.rotation.x).toBeCloseTo(reducedMotion ? 0 : LEAP_PITCH * (1 - 2 * w.live.progress), 12);
+          if (seen.airFirst === null) seen.airFirst = w.cat.rotation.x;
+          seen.airLast = w.cat.rotation.x;
+          expect(w.cat.rotation.y).toBe(yaw);
+        } else if (w.live.phase === 'land') {
+          seen.bounce = Math.max(seen.bounce, w.cat.position.y - 3.5);
+          seen.landY.push(w.cat.position.y);
+        }
+      }
+      expect(w.cat.position.y).toBe(3.5); // and exactly on the roof once it is over
+      return seen;
+    };
+    const a = look(false);
+    expect(a.early).toBe(0);
+    expect(a.wiggle).toBeGreaterThan(WIGGLE.yaw * 0.5);
+    expect(a.wiggle).toBeLessThanOrEqual(WIGGLE.yaw + 1e-9);
+    expect(a.airFirst).toBeGreaterThan(0.15); // nose up off the edge
+    expect(a.airLast).toBeLessThan(-0.15); // nose down to the landing
+    expect(a.bounce).toBeGreaterThan(LAND_BOUNCE * 0.5);
+    expect(a.bounce).toBeLessThanOrEqual(LAND_BOUNCE + 1e-9);
+    const r = look(true);
+    expect(r.wiggle).toBe(0);
+    expect(r.airFirst).toBe(0);
+    expect(r.airLast).toBe(0);
+    expect(r.bounce).toBe(0);
+    expect(r.landY.every((y) => y === 3.5)).toBe(true);
+  });
+
+  it('pricks her ears looking across; Hagrid’s parts are left alone', () => {
+    for (const reducedMotion of [false, true]) {
+      const w = yardWalk({ at: [14, 3.2], face: [0, 1], cat: buildCat('tabby'), reducedMotion });
+      expect(w.jump()).toBe(true);
+      w.frame();
+      expect(w.live.phase).toBe('look');
+      const { earL, earR, head } = w.cat.userData.parts;
+      expect(earL.rotation.z).toBe(EARS_UP);
+      expect(earR.rotation.z).toBe(-EARS_UP);
+      expect(head.rotation.x).toBe(-HEAD_UP);
+    }
+    const sentinel = (parts) => {
+      for (const p of [parts.head, parts.tail, parts.earL, parts.earR, ...parts.tailPivots]) p.rotation.set(0.123, 0.456, 0.789);
+    };
+    const untouched = (parts) => {
+      for (const p of [parts.head, parts.tail, parts.earL, parts.earR, ...parts.tailPivots]) expect([p.rotation.x, p.rotation.y, p.rotation.z]).toEqual([0.123, 0.456, 0.789]);
+    };
+    // Hagrid looking across, and on a crossing
+    const h = yardWalk({ at: [14, 3.2], face: [0, 1], cat: buildCat('hagrid') });
+    expect(h.jump()).toBe(true);
+    h.frame();
+    expect(h.live.phase).toBe('look');
+    sentinel(h.cat.userData.parts);
+    expect(() => h.live.late(1 / 60, 1, h.ctx)).not.toThrow();
+    untouched(h.cat.userData.parts);
+    const c = onPlank1(1, { cat: buildCat('hagrid') });
+    sentinel(c.cat.userData.parts);
+    c.live.late(1 / 60, 1, c.ctx);
+    untouched(c.cat.userData.parts);
+    // a cat missing her parts, or some of them
+    const bare = new THREE.Group();
+    bare.userData.parts = { tail: new THREE.Group() };
+    expect(() => onPlank1(1, { cat: bare })).not.toThrow();
+    expect(bare.userData.parts.tail.rotation.x).toBe(TAIL_OUT.rootX);
+    const none = yardWalk({ at: [14, 3.2], face: [0, 1] });
+    none.jump();
+    expect(() => none.run(0.2)).not.toThrow();
+  });
+
+  it('writes nothing when she is on the ground away from every move', () => {
+    const w = yardWalk({ at: [0, 14], face: [0, -1], cat: buildCat('tabby') });
+    w.push(0, -1);
+    w.run(0.5);
+    for (const step of [() => {}, () => w.release(), () => w.run(1)]) {
+      step();
+      w.frame();
+      expect(w.live.phase).toBeNull();
+      const before = poseSnapshot(w.cat);
+      w.live.late(1 / 60, 5, w.ctx);
+      expect(poseSnapshot(w.cat)).toEqual(before);
+    }
+  });
+
+  it('changes nothing she does: the same walk, hop and events with and without it', () => {
+    const run = (withLate) => {
+      const w = yardWalk({ at: [-9.0, -13], face: [1, 0], cat: buildCat('tabby') });
+      if (!withLate) w.live.late = () => {};
+      const out = [];
+      const note = () => out.push([w.cat.position.x, w.cat.position.z, w.live.phase, w.live.progress, w.player.viewYaw()].toString());
+      w.push(1, 0);
+      for (let i = 0; i < 900 && !w.events.some((e) => e.type === 'cross'); i++) { w.frame(); note(); }
+      w.release();
+      w.frame();
+      walkTo(w, 3, -6.6);
+      w.jump();
+      for (let i = 0; i < 1000 && w.live.busy; i++) { w.frame(); note(); }
+      out.push(w.events.map((e) => `${e.type}:${e.id}`).join());
+      out.push([w.cat.position.x, w.cat.position.y, w.cat.position.z, w.cat.rotation.y].toString());
+      return out;
+    };
+    const a = run(true);
+    expect(a.at(-2)).toBe('mount:plank-1,cross:plank-1,leap:gap-1,land:gap-1');
+    expect(run(false)).toEqual(a);
+  });
+});
