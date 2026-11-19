@@ -20,6 +20,8 @@
 //
 // Points need none of this: they are saved as they are earned.
 
+import { sanitizeAway } from '../awayfights.js';
+
 export const RESUME_KEY = 'whisker-walk-resume';
 // A walk waits this long. Past it the walk is settled instead (it counts as a
 // finished walk) and the game opens at home as usual.
@@ -105,6 +107,9 @@ export function snapshotWalk(session, { yaw, now, paid = [] }) {
     enemies: session.enemies?.snapshot?.() ?? { scuffled: [], forgiven: [] },
     // The guided first walk's step (the key is only there on such a walk).
     ...(guideNote(session) ? { guide: guideNote(session) } : {}),
+    // Away fights (awayfights.js): which roaming cats have decided what, and
+    // her wins (the key is only there in another clan's territory).
+    ...(session.awayFights ? { away: session.awayFights.snapshot() } : {}),
   };
 }
 
@@ -152,6 +157,7 @@ function sanitize(raw, areaIds) {
     paid: paidEntries(raw.paid),
     enemies: { scuffled: strings(raw.enemies?.scuffled), forgiven: strings(raw.enemies?.forgiven) },
     ...(sanitizeGuide(raw.guide) ? { guide: sanitizeGuide(raw.guide) } : {}),
+    ...(sanitizeAway(raw.away) ? { away: sanitizeAway(raw.away) } : {}),
   };
 }
 

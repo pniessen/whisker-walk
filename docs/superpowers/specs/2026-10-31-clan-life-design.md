@@ -365,6 +365,61 @@ another clan's territory" as follows; everything else stands.
 
 Plan: `docs/superpowers/plans/2026-11-04-border-patrol-fight.md`.
 
+## Amendment (2026-11-19): away fights with the roaming cats, per cat, 50%
+
+Playtester request (the 11-year-old): "When a clan cat is not in its home
+territory, there should be a 50% chance that another clan cat wants to fight
+it. Example: if I'm in ShadowClan, when walking in RiverClan's territory there
+should be a fight." The owner chose **per cat, a 50% fight chance**: each cat
+of the home clan that she meets flips its own coin, not one flip per visit.
+The same day she added: "the 50% fight chance should decline if you win (other
+cats are more reluctant to pick a fight)". This widens the 2026-11-04
+amendment; the border patrol itself is unchanged and is not part of the coin
+flips. Code: `src/awayfights.js` (the rules, pure), `src/game/awayfight.js`.
+
+- **When.** Only while her cat belongs to a clan and walks in another clan's
+  territory (the five clan territories). Never on her own land, in her
+  co-walker's clan's land (the allies rule: both kids' picks), the old street
+  areas, the Farm, the den, the island, or in Legacy.
+- **Who.** The home clan's roaming cats: its warriors and apprentices. The
+  leader, the deputy, the elders and the kits keep the camp and never
+  challenge. (The cast has no medicine cat and no nursing mother.) The warrior
+  out on border patrol is not roaming, as before.
+- **The coin.** The first time on a walk that she comes within notice distance
+  (4.5 m, the patrol's `NOTICE_DIST`) of such a cat, that cat decides once for
+  the walk. Each cat has one seeded number r in [0, 1) for the walk (walk seed
+  + cat id, its own stream: `awayRoll`); it wants to fight if r is below the
+  chance at that moment, else it lets her be for the whole walk: it looks at
+  her and turns away, with one line.
+- **The chance falls as she wins** (`AWAY_CHANCES`): 50% with no away fight
+  won on this walk, then 30%, 18%, 10%, and 10% from then on (never zero).
+  Wins over the border patrol count. Losing or running does not change it. A
+  cat that has already decided keeps its decision; a new walk starts at 50%.
+  After a win, a cat that lets her pass flinches and steps back.
+- **The challenge.** The cat walks up to her and the border patrol's offer
+  appears: "<Name> of <Clan> blocks your path!", **Fight!** or **Run**, 8 s.
+  The fight is the same fight, through the same code.
+  - **Win:** it backs down and leaves her alone for the rest of the walk, it
+    wears her scar, and the `border` award (12 points) is paid once a walk,
+    across the patrol and the roaming cats together (one key).
+  - **Lose, Run or no answer:** she is chased off. A roaming cat meets her out
+    on the land, where there is no camp ring to be chased over, so its chase
+    is the patrol's scamper to a spot 6 m away from the cat
+    (`AWAY_CHASE_DIST`), on ground she could have walked. Nothing is taken.
+    Walking far away from the offer ends it with no chase.
+- **Not a gauntlet.** After any challenge ends no cat challenges for 25 s
+  (`AWAY_COOLDOWN`); the cat she ran from or lost to waits 60 s (`AWAY_RETRY`);
+  a cat she has beaten never challenges again that walk. No cat notices or
+  challenges her while she is in a challenge, a fight or a chase, on a perch,
+  in the water, in photo mode, in the guided walk's steps, at a crossing card,
+  off the clan's ground, or inside the camp ring (that is the patrol's).
+- **Run is always there** and costs only the chase-off.
+- **A walk picked up again** keeps every decision, the beaten cats and the win
+  count (the resume note's `away` part). The patrol's own "it let me pass"
+  is not kept, as before: the patrol can square up again after a resume.
+- **Two players.** Each kid's coins, wins and fights are her own. Nothing new
+  goes on the wire: a co-walker's screen is not told of a roaming cat's fight.
+
 ## Goals
 
 - A territory reads as a clan's home at a glance: names, ranks, a marked

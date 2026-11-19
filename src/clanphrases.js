@@ -236,6 +236,13 @@ const LATER = Object.freeze({
   'farm.page.apples.hint': 'What happens up an apple tree?',
   'farm.page.ducklings.name': 'Duckling Parade',
   'farm.page.ducklings.hint': 'Go for a swim in the farm pond.',
+
+  // ---- away fights with a group's roaming cats (2026-11-19) -------------------
+  // The same in every set. The offer, the win and the loss say the border
+  // patrol's lines ('fight.border...').
+  'away.pass': (name) => `${name} looks at you, then lets you walk on. 🐾`,
+  'away.wary': (name) => `${name} backs away from you. 🐾`,
+  'away.chasedOff': (who) => `${who} chased you off! 🐾`,
 });
 
 // Every id of the first table, in table order.

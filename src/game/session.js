@@ -94,6 +94,7 @@ const FIELDS = [
   ['clanBuddy', 'the clanmate on patrol with me, or null (interactions.js)'],
   ['intruders', 'late (walk.js): a neighbouring territory\'s cat crossing this one, or NO_INTRUDERS'],
   ['clanFight', 'late (walk.js): the territory fight / border-patrol fight, or NO_CLAN_FIGHT'],
+  ['awayFights', "late (walk.js): the walk's book of away fights with the roaming cats (awayfights.js), or null"],
   ['rival', "late (walk.js): the rival's border and its patrol, or NO_RIVAL"],
   ['dog', 'late (walk.js): the yard dog'],
   ['farm', "Appletree Farm's animals (farmanimals.js), or NO_FARM anywhere else"],

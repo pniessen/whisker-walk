@@ -705,7 +705,14 @@ export function createClanCats(scene, area, cast, {
         // its stream.
         if (c.lead) {
           const r = c.lead(c, dt, catPos, holdStep);
-          if (G) c.group.position.y = G.y(c.group.position.x, c.group.position.z);
+          // An away fight's challenger (game/awayfight.js) is staged by the
+          // fight: `lift` metres above the ground, and `staged` keeps the
+          // fight's own pitch and roll (no lean into the slope below). The
+          // camp guide gives neither, and stands exactly as before.
+          const lift = Number.isFinite(r?.lift) ? r.lift : null;
+          c.staged = r?.staged === true;
+          if (G) c.group.position.y = G.y(c.group.position.x, c.group.position.z) + (lift ?? 0);
+          else if (lift !== null) c.group.position.y = c.home.y + lift;
           animateCat(c.group, r?.pose ?? 'follow', t, r?.speed ?? 0);
           continue;
         }
@@ -741,7 +748,7 @@ export function createClanCats(scene, area, cast, {
       }
       // Gorge part 1 (R7): each clan cat leans to the slope under it, once its
       // spot and heading are final. Only on raised ground (G).
-      if (G) for (const c of list) lean(c.group);
+      if (G) for (const c of list) if (!(c.lead && c.staged)) lean(c.group);
     },
     dispose() {
       for (const c of list) scene.remove(c.group);

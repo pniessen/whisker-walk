@@ -71,6 +71,9 @@
  "farm.page.apples.hint": "What happens up an apple tree?",
  "farm.page.ducklings.name": "Duckling Parade",
  "farm.page.ducklings.hint": "Go for a swim in the farm pond.",
+ "away.pass": "A looks at you, then lets you walk on. 🐾",
+ "away.wary": "A backs away from you. 🐾",
+ "away.chasedOff": "A chased you off! 🐾",
  "colony.rankAfterName for every rank word": [
   "kit",
   "apprentice",
