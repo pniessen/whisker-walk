@@ -163,7 +163,9 @@ describe('with the switch on, the core did not move', () => {
     expect(on.casters).toBe(off.casters);
     const reach = (scene) => scene.children.filter((c) => REACHING.includes(c.name)).reduce((n, c) => n + trianglesOf(c), 0);
     expect(on.triangles - off.triangles).toBe(reach(onScene) - reach(offScene));
-    expect(on.triangles - off.triangles).toBeLessThanOrEqual(1000);
+    // the hills and the ground's edge, 40 m longer each way with the wall's
+    // gorse all round it (67 mounds to today's 55): 1,518 more triangles
+    expect(on.triangles - off.triangles).toBeLessThanOrEqual(1600);
   });
 });
 
@@ -652,9 +654,13 @@ describe('something to find', () => {
 //                                         meshes  casters  triangles
 //   the Moor today (switch off)               87       47     64,120
 //   step 3, at its worst spot (-10, -65),
-//     by the standing stones                 113       52     68,505
+//     by the standing stones                 113       52     69,309
 //   the most meshes anywhere ((0, -55),
-//     just past the wall behind the camp)    119       56     68,026
+//     just past the wall behind the camp)    119       56     68,830
+//
+// (804 of those triangles everywhere are the ground-edge wall's gorse,
+// restored on the grown edge when the branches were combined: builder.js
+// edgeSpotsRect had made none.)
 //
 // The core's heather and gorse (23,100 and 3,596 triangles) are Groups of two
 // meshes, which render/striptiles.js draws whole, so they are always drawn:

@@ -87,8 +87,8 @@ stand with every slot at its layer's `hide` range
 | | meshes | casters | triangles |
 |---|---|---|---|
 | the Moor today (switch off) | 87 | 47 | 64,120 |
-| grown, worst spot (-10, -65), by the stones | 113 | 52 | 68,505 |
-| grown, most meshes anywhere ((0, -55), past the wall) | 119 | 56 | 68,026 |
+| grown, worst spot (-10, -65), by the stones | 113 | 52 | 69,309 |
+| grown, most meshes anywhere ((0, -55), past the wall) | 119 | 56 | 68,830 |
 | grown, at the spawn | under 87 | | under 64,120 |
 
 Ceilings 119 / 55 / 70,000 at the worst spot; nowhere over 125 / 59 / 70,000.
@@ -114,10 +114,14 @@ today, not less as the River does, because its heather cannot stream.
    meshes (each child cut per tile, as a mesh is), so the core's heather and
    gorse can stream. It would save up to about 20,000 triangles at the
    Moor's worst spot and bring its core under today's count.
-2. `world/builder.js` `edgeSpotsRect`: a rect `wall` edge has no gorse
+2. `world/builder.js` `edgeSpotsRect`: a rect `wall` edge had no gorse
    mounds (the square one has one every third piece), so with the switch on
-   the Moor's ground-edge wall loses its gorse all round. One line
-   (`style === 'wall' && k % 3 === 0 → 'gorse'`) would put them back.
+   the Moor's ground-edge wall lost its gorse all round. **Done when the
+   grow branches were combined (grow-all)**: the rect edge now makes
+   `style === 'wall' && k % 3 === 0 → 'gorse'` as the square one does, 67
+   mounds round the grown edge (today's square edge: 55, unchanged). They
+   cost 804 triangles everywhere; the table above is re-measured with them
+   (the harness frame-walk numbers above were taken before it).
 
 ## For the owner to decide
 
