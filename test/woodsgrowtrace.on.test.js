@@ -8,7 +8,7 @@ import { woodsTraceAsRecorded, recordedWoods } from './helpers/woodstrace.js';
 // (the player, the critters, the strays, the clan, an intruder, the toy, the
 // golden mice, paw prints, a remote cat, a ghost, the contact shadows), on
 // the Woods built WITH its south strip and its core tagged to stream, held to
-// the same never-re-recorded fixture: with the strip there, nothing in the
+// the same frozen gameplay fixture: with the strip there, nothing in the
 // core moves, stands or is rolled differently.
 describe('the Woods\' recorded walk, switch on', () => {
   it('is the recorded Woods, frame for frame', () => {
