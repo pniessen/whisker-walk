@@ -1011,7 +1011,7 @@ describe('the next-thing line and the first pick', () => {
   it('a brand-new save reads "A friend is waiting outside", just above Start', () => {
     setup();
     expect(rule()).toBe(2);
-    expect(html()).toContain('A friend is waiting outside. Tap Start!');
+    expect(html()).toContain('A friend is waiting outside. Tap Explore!');
     expect(html().indexOf('class="hb-next"')).toBeLessThan(html().indexOf('id="btn-start"'));
     expect(html().match(/class="hb-next"/g)).toHaveLength(1); // always exactly one
   });

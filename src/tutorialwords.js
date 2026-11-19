@@ -64,8 +64,8 @@ export const WORDS = Object.freeze({
   // ---- The home screen's "next thing" line (design section 6) --------------
   // src/ui/nextthing.js has the rules; the number is the rule's.
   'home.present': same('Tap the present! 🎁'),                                   // 1
-  'home.first': same('A friend is waiting outside. Tap Start!'),                // 2
-  'home.part': same('{name} has more to show you. Tap Start!'),                 // 3
+  'home.first': same('A friend is waiting outside. Tap Explore!'),                // 2
+  'home.part': same('{name} has more to show you. Tap Explore!'),                 // 3
   'home.pick': same('The wild cats have seen you. Pick your home!'),            // 4
   'home.camp': same('Your new home is {place}. Go and see your camp!'),         // 5
   'home.way': same('The way to your home starts in {place}.'),                  // 6
@@ -81,7 +81,7 @@ export const WORDS = Object.freeze({
   // reached, and the line is "always exactly one".
   'home.top': same('Your cat is ready for a walk.'),
   // Rule 3 before the guide's name is known.
-  'home.part-friend': same('Your friend has more to show you. Tap Start!'),
+  'home.part-friend': same('Your friend has more to show you. Tap Explore!'),
 
   // ---- The guided first walk (design section 3). Step 3 of the build shows
   // these; they are here so the walk holds no text of its own. --------------

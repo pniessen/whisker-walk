@@ -134,12 +134,12 @@
    "keys": "Tap the present! 🎁"
   },
   "home.first": {
-   "touch": "A friend is waiting outside. Tap Start!",
-   "keys": "A friend is waiting outside. Tap Start!"
+   "touch": "A friend is waiting outside. Tap Explore!",
+   "keys": "A friend is waiting outside. Tap Explore!"
   },
   "home.part": {
-   "touch": "{name} has more to show you. Tap Start!",
-   "keys": "{name} has more to show you. Tap Start!"
+   "touch": "{name} has more to show you. Tap Explore!",
+   "keys": "{name} has more to show you. Tap Explore!"
   },
   "home.pick": {
    "touch": "The wild cats have seen you. Pick your home!",
@@ -190,8 +190,8 @@
    "keys": "Your cat is ready for a walk."
   },
   "home.part-friend": {
-   "touch": "Your friend has more to show you. Tap Start!",
-   "keys": "Your friend has more to show you. Tap Start!"
+   "touch": "Your friend has more to show you. Tap Explore!",
+   "keys": "Your friend has more to show you. Tap Explore!"
   },
   "guide.walk": {
    "touch": "Push the circle to walk.",
@@ -429,12 +429,12 @@
    "keys": "Tap the present! 🎁"
   },
   "home.first": {
-   "touch": "A friend is waiting outside. Tap Start!",
-   "keys": "A friend is waiting outside. Tap Start!"
+   "touch": "A friend is waiting outside. Tap Explore!",
+   "keys": "A friend is waiting outside. Tap Explore!"
   },
   "home.part": {
-   "touch": "Conker has more to show you. Tap Start!",
-   "keys": "Conker has more to show you. Tap Start!"
+   "touch": "Conker has more to show you. Tap Explore!",
+   "keys": "Conker has more to show you. Tap Explore!"
   },
   "home.pick": {
    "touch": "It is time to pick your home!",
@@ -485,8 +485,8 @@
    "keys": "Your cat is ready for a walk."
   },
   "home.part-friend": {
-   "touch": "Your friend has more to show you. Tap Start!",
-   "keys": "Your friend has more to show you. Tap Start!"
+   "touch": "Your friend has more to show you. Tap Explore!",
+   "keys": "Your friend has more to show you. Tap Explore!"
   },
   "guide.walk": {
    "touch": "Push the circle to walk.",
@@ -584,9 +584,9 @@
  "nextThing": {
   "clanEdition": {
    "presentWaiting": "rule 1: Tap the present! 🎁",
-   "noWalkYet": "rule 2: A friend is waiting outside. Tap Start!",
-   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Start!",
-   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Start!",
+   "noWalkYet": "rule 2: A friend is waiting outside. Tap Explore!",
+   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Explore!",
+   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Explore!",
    "pickIsReady": "rule 4: It is time to pick your home!",
    "newHome": {
     "woods": "rule 5: Your new home is the Woods. Go and see your home base!",
@@ -623,9 +623,9 @@
   },
   "legacyEdition": {
    "presentWaiting": "rule 1: Tap the present! 🎁",
-   "noWalkYet": "rule 2: A friend is waiting outside. Tap Start!",
-   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Start!",
-   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Start!",
+   "noWalkYet": "rule 2: A friend is waiting outside. Tap Explore!",
+   "firstWalkHalfDone": "rule 3: Pickles has more to show you. Tap Explore!",
+   "firstWalkHalfDoneNoName": "rule 3: Your friend has more to show you. Tap Explore!",
    "pickIsReady": "rule 12: 150 🐾 more to become a Yard Prowler.",
    "newHome": {
     "woods": "rule 12: 150 🐾 more to become a Yard Prowler.",

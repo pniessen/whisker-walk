@@ -31,13 +31,13 @@ describe('nextThing: one test per rule', () => {
 
   it('2. no walk has ever been finished', () => {
     const t = nextThing(save());
-    expect([t.rule, t.text, t.action]).toEqual([2, 'A friend is waiting outside. Tap Start!', 'start']);
+    expect([t.rule, t.text, t.action]).toEqual([2, 'A friend is waiting outside. Tap Explore!', 'start']);
   });
 
   it('3. the guided walk was left half done', () => {
     const s = save({ ...walked(), tutorial: { first: 'part' } });
-    expect(nextThing(s, { guideName: 'Biscuit' })).toMatchObject({ rule: 3, text: 'Biscuit has more to show you. Tap Start!', action: 'start' });
-    expect(nextThing(s)).toMatchObject({ rule: 3, text: 'Your friend has more to show you. Tap Start!', action: 'start' });
+    expect(nextThing(s, { guideName: 'Biscuit' })).toMatchObject({ rule: 3, text: 'Biscuit has more to show you. Tap Explore!', action: 'start' });
+    expect(nextThing(s)).toMatchObject({ rule: 3, text: 'Your friend has more to show you. Tap Explore!', action: 'start' });
   });
 
   it('4. the pick is ready and not made', () => {
