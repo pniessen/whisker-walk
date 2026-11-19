@@ -74,7 +74,21 @@ const FADE_UP_S = 0.4; // FADE_OPACITY → full
 const LINE_PAD = 0.15;
 export const NEAR_POLE = 1.5; // m: a tagged pole this close to the camera (horizontally) fades even off the line
 export const WINDOW_HIDE = 0.3; // opacity below which a faded building's window panes are hidden
+const _ray = new THREE.Raycaster();
+const _from = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+const _hits = [];
 export const BUILDING_PAD = 0.4; // m: a camera this close to a building's box counts as inside it
+// A building's line test stops this far short of the cat. A building's solid
+// block is made of circles, so a cat pressed against a wall can have her middle
+// a hand's width inside the building's box; the line from the camera then ended
+// inside the box and the whole building she was looking at went see-through
+// (the Farm's barn at its big doors, owner's report 2026-11-19). The wall she
+// touches is not between her and the camera. A cat well inside (a loft, an open
+// shed) is more than this deep, so the walls in front of her still fade. 0.9:
+// a building's box also takes in what stands against its wall (the grain
+// store's sacks and awning reach 0.9 m out), and she can stand among those.
+export const SHY_OF_CAT = 0.9;
 export const FOLIAGE_NEAR_OPACITY = 0; // a close tree's foliage (trunk keeps FADE_OPACITY)
 export const NEAR_FOLIAGE = 2.5; // m beyond a tree's R within which the camera counts as close
 
@@ -199,6 +213,7 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   const moved = new Set(); // stands with a tree that eased this frame (reused)
   const cam = { x: 0, y: 0, z: 0 }; // reused every frame
   const far = { x: 0, y: 0, z: 0 }; // the fade line's end, PAST_LOOK beyond the look point (reused)
+  const shy = { x: 0, y: 0, z: 0 }; // a building's line end, SHY_OF_CAT short of the look point (reused)
   let disposed = false;
 
   // First fade of a tree: find its meshes, remember their materials, clone.
@@ -322,6 +337,25 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
   // Eases the tree toward faded (in the way: FADE_OPACITY, or
   // FOLIAGE_NEAR_OPACITY for a close tree) or full; false when it is full and
   // clear, so there is nothing to do.
+  // Whether a mesh of this building really stands on the line from the camera
+  // to SHY_OF_CAT short of the cat. The box says "perhaps": a cat who has walked
+  // in through an open shed's front, the camera looking in after her, has
+  // nothing between them, and the shed stays solid (owner's report 2026-11-19:
+  // "all structures disappear when I enter"). Only asked once the line has met
+  // the box, so it costs nothing for buildings that are not near the line.
+  function wallInTheWay(obj) {
+    if (!obj) return true;
+    _from.set(cam.x, cam.y, cam.z);
+    _dir.set(shy.x - cam.x, shy.y - cam.y, shy.z - cam.z);
+    const len = _dir.length();
+    if (len < 1e-3) return false;
+    _ray.set(_from, _dir.divideScalar(len));
+    _ray.far = len;
+    _hits.length = 0;
+    _ray.intersectObject(obj, true, _hits);
+    return _hits.length > 0;
+  }
+
   function step(t, dt, look, camDist, hidden) {
     const o = t.occ;
     let want = false, close = false;
@@ -332,7 +366,7 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         want = (cam.x >= b.minX - BUILDING_PAD && cam.x <= b.maxX + BUILDING_PAD
           && cam.y >= b.minY - BUILDING_PAD && cam.y <= b.maxY
           && cam.z >= b.minZ - BUILDING_PAD && cam.z <= b.maxZ + BUILDING_PAD)
-          || segmentHitsBox(cam, look, b);
+          || (camDist > SHY_OF_CAT && segmentHitsBox(cam, shy, b) && wallInTheWay(o.obj));
       }
     } else if (Math.hypot(o.x - look.x, o.z - look.z) <= camDist + Math.max(o.R, o.near || 0) + PAST_LOOK) {
       // quick reject passed: a tree farther from the cat than the fade line can reach is skipped
@@ -366,6 +400,11 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         far.z = look.z + ((look.z - cam.z) / h) * PAST_LOOK;
       } else { far.x = look.x; far.z = look.z; }
       far.y = look.y;
+      // the building line's end: SHY_OF_CAT back from the cat toward the camera
+      if (camDist > SHY_OF_CAT) {
+        const k = 1 - SHY_OF_CAT / camDist;
+        shy.x = cam.x + (look.x - cam.x) * k; shy.y = cam.y + (look.y - cam.y) * k; shy.z = cam.z + (look.z - cam.z) * k;
+      }
       for (let i = 0; i < standTrees.length; i++) {
         const t = standTrees[i];
         const st = t.st;
