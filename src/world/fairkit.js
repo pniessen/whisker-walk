@@ -118,7 +118,11 @@ export function stripes(P, r0, y0, r1, y1, colors, x, y, z, o = {}) {
   const tri = (p, q, r, hex, shade) => {
     a3.set(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
     b3.set(r[0] - p[0], r[1] - p[1], r[2] - p[2]);
-    n3.crossVectors(a3, b3).normalize();
+    n3.crossVectors(a3, b3);
+    // A triangle with no area draws nothing: a valance's flat ring (r0 = r1,
+    // y0 = y1) leaves only its scallops, and a cone from r0 = 0 its sides.
+    if (n3.lengthSq() < 1e-14) return;
+    n3.normalize();
     c.set(hex);
     for (const v of [p, q, r]) { pos.push(...v); nrm.push(n3.x, n3.y, n3.z); col.push(c.r * shade, c.g * shade, c.b * shade); }
   };
@@ -183,18 +187,57 @@ export function bunting(P, a, b, { sag = 0.5, every = 0.55, size = 0.34, salt = 
     const p1 = [p[0] + (q[0] - p[0]) * g, p[1] + (q[1] - p[1]) * g, p[2] + (q[2] - p[2]) * g];
     const q1 = [q[0] + (p[0] - q[0]) * g, q[1] + (p[1] - q[1]) * g, q[2] + (p[2] - q[2]) * g];
     const tip = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2 - size, (p[2] + q[2]) / 2];
-    sheet(P, [p1, q1, tip], BUNTING_COLORS[(i + salt) % BUNTING_COLORS.length]);
+    // the pennant's tip flutters (canvasOf's shader); its top edge is held by the wire
+    swayOf(sheet(P, [p1, q1, tip], BUNTING_COLORS[(i + salt) % BUNTING_COLORS.length]), [0, 0, 1]);
   }
   return pts;
+}
+
+// ---- the breeze and the chase: per-vertex numbers the fair's shaders read --------------
+// `fairSway` (canvas): how far a vertex may flutter, 0 where the cloth is held,
+// 1 at a free tip. `fairChase` (glow): where a bulb is along its string or ring,
+// in waves of the chase; below 0, a light that does not chase (a window).
+// A list that mixes pieces with and without one is filled in at the merge.
+const SWAY = 'fairSway';
+const CHASE = 'fairChase';
+const BULB_R = 'fairBulbR'; // a bulb's radius (0: not a bulb), so the shader can find its centre
+const FILL = Object.freeze({ [SWAY]: 0, [CHASE]: -1, [BULB_R]: 0 });
+function setFloat(g, name, values) {
+  g.setAttribute(name, new THREE.BufferAttribute(values instanceof Float32Array ? values : new Float32Array(values), 1));
+  return g;
+}
+function swayOf(g, w) {
+  return setFloat(g, SWAY, w);
+}
+function chaseOf(g, c) {
+  return setFloat(g, CHASE, new Float32Array(g.attributes.position.count).fill(c));
+}
+function fillMissing(P) {
+  for (const name of Object.keys(FILL)) {
+    if (!P.some((g) => g.attributes[name])) continue;
+    for (const g of P) if (!g.attributes[name]) setFloat(g, name, new Float32Array(g.attributes.position.count).fill(FILL[name]));
+  }
 }
 
 // A light bulb: eight triangles. Its colour is also the colour it glows.
 export const BULB_COLORS = Object.freeze([0xfff0b8, 0xffd75a, 0xff8f6a, 0x8fd8ff, 0xfff0b8, 0xa8f0a0]);
 export function bulb(P, x, y, z, hex = BULB_COLORS[0], r = 0.06) {
   const g = new THREE.OctahedronGeometry(r, 0);
-  return finish(P, g, hex, matrixOf(x, y, z, {}));
+  // normals pointing straight out from the centre: the same eight triangles
+  // shade like a round bead, not a cut gem
+  const n = g.attributes.normal;
+  const v = g.attributes.position;
+  for (let i = 0; i < n.count; i++) {
+    const l = Math.hypot(v.getX(i), v.getY(i), v.getZ(i)) || 1;
+    n.setXYZ(i, v.getX(i) / l, v.getY(i) / l, v.getZ(i) / l);
+  }
+  const out = finish(P, g, hex, matrixOf(x, y, z, {}));
+  // a bulb chases at dusk; glowMesh works out where it is in its ring or row
+  out.userData.fairBulb = true;
+  return out;
 }
-// Bulbs strung along the line a -> b, with its wire.
+// Bulbs strung along the line a -> b, with its wire. At dusk the chase runs
+// along the string from a to b.
 export function bulbString(P, W, a, b, { sag = 0.4, every = 0.7, salt = 0, wire = 0x4a4038, colors = BULB_COLORS } = {}) {
   const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
   const n = Math.max(2, Math.round(len / every));
@@ -203,8 +246,58 @@ export function bulbString(P, W, a, b, { sag = 0.4, every = 0.7, salt = 0, wire 
     const p = pts[i];
     const q = pts[i + 1];
     if (W) sheet(W, [[p[0], p[1] + 0.012, p[2]], [q[0], q[1] + 0.012, q[2]], [q[0], q[1] - 0.012, q[2]], [p[0], p[1] - 0.012, p[2]]], wire);
-    if (i > 0) bulb(P, p[0], p[1] - 0.06, p[2], colors[(i + salt) % colors.length]);
+    if (i > 0) chaseOf(bulb(P, p[0], p[1] - 0.06, p[2], colors[(i + salt) % colors.length]), (i * len) / n / GLOW_LOOK.wave);
   }
+}
+
+// Where each bulb of a glow mesh is in the chase, for the bulbs that were not
+// strung (bulbString says for its own). The bulbs of one ride lie in a ring
+// (the canopy's rim, the wheel's), so the chase goes round it, a whole number
+// of waves to a ring; bulbs in a row (the coaster station's eaves) chase along
+// it; and the fair's own list, bulbs from one end of the field to the other,
+// chases along one slanting direction through the world (up the bell's board,
+// along a stall's front). Anything that is not a bulb (a window) stays steady.
+function chaseBulbs(P) {
+  for (const g of P) {
+    if (!g.userData.fairBulb || g.attributes[BULB_R]) continue;
+    g.computeBoundingBox();
+    const s = g.boundingBox.getSize(new THREE.Vector3());
+    setFloat(g, BULB_R, new Float32Array(g.attributes.position.count).fill(Math.max(s.x, s.y, s.z) / 2));
+  }
+  const list = P.filter((g) => g.userData.fairBulb && !g.attributes[CHASE]);
+  if (!list.length) return;
+  const box3 = new THREE.Box3();
+  const c = new THREE.Vector3();
+  const at = list.map((g) => { g.computeBoundingBox(); return g.boundingBox.getCenter(new THREE.Vector3()); });
+  box3.setFromPoints(at);
+  box3.getCenter(c);
+  const size = box3.getSize(new THREE.Vector3());
+  const W = GLOW_LOOK.wave;
+  // the chase is never below 0 (below 0 means steady): shift a list by whole waves
+  const put = (vals) => {
+    const lo = Math.floor(Math.min(...vals));
+    list.forEach((g, i) => chaseOf(g, vals[i] - lo));
+  };
+  const [dx, dy, dz] = GLOW_LOOK.slant;
+  const slant = () => put(at.map((p) => (p.x * dx + p.y * dy + p.z * dz) / W));
+  if (Math.max(size.x, size.y, size.z) > GLOW_LOOK.wide) { slant(); return; }
+  const v = [0, 0, 0];
+  for (const p of at) { v[0] += (p.x - c.x) ** 2; v[1] += (p.y - c.y) ** 2; v[2] += (p.z - c.z) ** 2; }
+  const axes = [0, 1, 2].sort((i, j) => v[i] - v[j]); // least spread first: a ring's axis
+  const k = (p, a) => (a === 0 ? p.x - c.x : a === 1 ? p.y - c.y : p.z - c.z);
+  if (v[axes[1]] < 0.04 * v[axes[2]]) {
+    put(at.map((p) => k(p, axes[2]) / W)); // a row
+    return;
+  }
+  // not flat enough to be a ring (the helter-skelter's coil of bulbs): the slant
+  if (v[axes[0]] > 0.25 * v[axes[1]]) { slant(); return; }
+  const [u, w] = [axes[1], axes[2]].sort();
+  put(at.map((p) => {
+    const a = Math.atan2(k(p, w), k(p, u));
+    const r = Math.hypot(k(p, u), k(p, w));
+    const waves = Math.max(1, Math.round((2 * Math.PI * r) / W));
+    return (a / (2 * Math.PI) + 0.5) * waves;
+  }));
 }
 
 // A strip swept along 3D points: at each point a cross-section `profile`
@@ -246,6 +339,7 @@ export function placed(P, x, y, z, yaw, fn, o = {}) {
 }
 
 function merged(P) {
+  fillMissing(P);
   const geo = P.length === 1 ? P[0] : mergeGeometries(P, false);
   if (P.length > 1) for (const g of P) g.dispose();
   geo.computeBoundingBox();
@@ -274,34 +368,166 @@ export function recentre(mesh, x, z) {
   return mesh;
 }
 
+// ---- the fair's clock ---------------------------------------------------------------------
+// What the fair's two shaders need from the time of day, set once a frame by
+// src/fairlive.js (setFairClock). Plain numbers, shared by every canvas and
+// glow material: one write moves them all, and nothing is uploaded per mesh.
+// Until a walk sets it (or with reduced motion), nothing chases or flutters.
+export const FAIR_CLOCK = Object.freeze({
+  chase: { value: 0 },     // the chase's phase, in waves (0..1)
+  chaseOn: { value: 0 },   // 1: the bulbs chase; 0: steady
+  flutterA: { value: 0 },  // the bunting's two flutters, as angles (0..2pi)
+  flutterB: { value: 0 },
+  flutterOn: { value: 0 }, // 1: the pennants flutter; 0: still
+});
+// The bunting's flutter: a slow swing and a quicker shiver (periods in
+// seconds), the tip moving at most `amp` metres across the line.
+export const FLUTTER = Object.freeze({ amp: 0.09, periodA: 1.7, periodB: 0.63 });
+
+const frac = (x) => x - Math.floor(x);
+// setFairClock(T, reducedMotion): T the time of day in seconds (fairlive's clock).
+export function setFairClock(T, reducedMotion = false) {
+  const on = reducedMotion ? 0 : 1;
+  FAIR_CLOCK.chaseOn.value = on;
+  FAIR_CLOCK.flutterOn.value = on;
+  if (!Number.isFinite(T)) return;
+  FAIR_CLOCK.chase.value = frac(T * GLOW_LOOK.speed);
+  FAIR_CLOCK.flutterA.value = frac(T / FLUTTER.periodA) * Math.PI * 2;
+  FAIR_CLOCK.flutterB.value = frac(T / FLUTTER.periodB) * Math.PI * 2;
+}
+
+// GLSL float literals for the shaders below.
+const glsl = (x) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
+
 // Canvas: seen from both sides (a cat looks up into a tent roof), and lit by
 // the outward normal on both, so the underside of an awning is not black.
+// A pennant flutters (bunting() marks its tip): it swings across its own line,
+// along its face's normal, held still at the wire. Everything else on canvas
+// has a sway of 0 and stands still; every canvas mesh carries the attribute,
+// so they all still merge with one another (render/mergeprops.js keys on it).
+// The swing is drawn only: no collider or perch reads a pennant.
 export function canvasOf(P, name, { noCast = false } = {}) {
+  for (const g of P) if (!g.attributes[SWAY]) setFloat(g, SWAY, new Float32Array(g.attributes.position.count));
   const m = meshOf(P, name, { roughness: 0.95, noCast, side: THREE.DoubleSide });
+  m.material.onBeforeCompile = flutterShader;
+  m.material.customProgramCacheKey = () => 'fair-canvas-v1';
   return m;
+}
+function flutterShader(shader) {
+  shader.uniforms.fairFlutterA = FAIR_CLOCK.flutterA;
+  shader.uniforms.fairFlutterB = FAIR_CLOCK.flutterB;
+  shader.uniforms.fairFlutterOn = FAIR_CLOCK.flutterOn;
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>
+attribute float fairSway;
+uniform float fairFlutterA;
+uniform float fairFlutterB;
+uniform float fairFlutterOn;`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>
+if (fairSway > 0.0 && fairFlutterOn > 0.0) {
+  vec3 fairAcross = vec3(objectNormal.x, 0.0, objectNormal.z);
+  float fairLen = length(fairAcross);
+  if (fairLen > 0.001) {
+    float fairPh = position.x * 0.83 + position.z * 0.61;
+    float fairW = 0.7 * sin(fairFlutterA + fairPh) + 0.3 * sin(fairFlutterB + fairPh * 1.9);
+    transformed += fairAcross / fairLen * (fairSway * ${glsl(FLUTTER.amp)} * fairW * fairFlutterOn);
+    transformed.y += fairSway * ${glsl(FLUTTER.amp * 0.25)} * fairW * fairW * fairFlutterOn;
+  }
+}`);
 }
 
 // ---- the glow ------------------------------------------------------------------------
 // Every bulb at the fair is drawn with ONE material. By day a bulb is a bead
 // of coloured glass; setting the material's emissiveIntensity lights them all
-// at once, each in its own colour (the emissive term is multiplied by the
-// vertex colour). No real lights.
-export const GLOW_MAX = 1.6;
+// at once, each in its own colour. No real lights.
+//
+// What a lit bulb gives off (all in the vertex shader, so a phone's fragment
+// precision never matters):
+//  - its own colour, made deeper (`sat`) and brought to one brightness, so a
+//    cream bulb glows amber and a blue one blue: the old glow was the pale
+//    paint colour times white, which bloom and tone mapping turned white;
+//  - dimmer near the camera, by distance and nothing else, so wherever the
+//    strings hang, a bulb beside the camera is a bead, never a white square
+//    (the street lamps' globes do the same: builder.js dimNearGlobe);
+//  - anything on this material that is not a bulb (a lit window, a sign
+//    board: no fairChase) glows in its own paint colour, softer (`pane`), so
+//    words on it still read and nothing chases;
+//  - a bulb right by the camera is drawn smaller (`shrink`), a bead;
+//  - the chase: brightness running along each string and round each ride,
+//    in waves `wave` metres long, `speed` waves a second, down to `low` between.
+export const GLOW_MAX = 2.0;
+export const GLOW_LOOK = Object.freeze({
+  sat: 1.7, cap: 2.6,
+  near: 1.2, far: 5.0, nearScale: 0.06,
+  shrinkNear: 0.7, shrinkFar: 2.4, shrink: 0.4,
+  pane: 0.55,
+  wave: 2.8, speed: 0.45, low: 0.4,
+  wide: 20, slant: Object.freeze([0.62, 0.55, 0.56]),
+});
+// The near-camera dimming as a number (the shader's smoothstep), for tests.
+export function glowNearScale(d, L = GLOW_LOOK) {
+  const t = Math.min(1, Math.max(0, (d - L.near) / (L.far - L.near)));
+  return L.nearScale + (1 - L.nearScale) * t * t * (3 - 2 * t);
+}
 export function glowMaterial() {
   const m = new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: 0.35, metalness: 0, emissive: 0xffffff, emissiveIntensity: 0,
+    // rough enough that a sign board or a window pane on this material shows no sun glint by day
+    vertexColors: true, roughness: 0.7, metalness: 0, emissive: 0xffffff, emissiveIntensity: 0,
   });
-  m.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <emissivemap_fragment>',
-      '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb;',
-    );
-  };
-  m.customProgramCacheKey = () => 'fair-glow-v1';
+  m.onBeforeCompile = glowShader;
+  m.customProgramCacheKey = () => 'fair-glow-v2';
   m.name = 'fairGlow';
   return m;
 }
+function glowShader(shader) {
+  const L = GLOW_LOOK;
+  shader.uniforms.fairChasePhase = FAIR_CLOCK.chase;
+  shader.uniforms.fairChaseOn = FAIR_CLOCK.chaseOn;
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>
+attribute float fairChase;
+attribute float fairBulbR;
+uniform float fairChasePhase;
+uniform float fairChaseOn;
+varying vec3 vFairGlow;`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>
+if (fairBulbR > 0.0) {
+  // a bulb right by the camera draws smaller: a bead, never a pane filling the view
+  vec3 fairOut = normalize(objectNormal) * fairBulbR;
+  vec3 fairMid = transformed - fairOut;
+  float fairDm = distance((modelMatrix * vec4(fairMid, 1.0)).xyz, cameraPosition);
+  transformed = fairMid + fairOut * mix(${glsl(L.shrink)}, 1.0, smoothstep(${glsl(L.shrinkNear)}, ${glsl(L.shrinkFar)}, fairDm));
+}`)
+    .replace('#include <project_vertex>', `#include <project_vertex>
+{
+  const vec3 fairLuma = vec3(0.2126, 0.7152, 0.0722);
+  vec3 fairC = vColor.rgb;
+  if (fairChase > -0.5) {
+    fairC = max(mix(vec3(dot(fairC, fairLuma)), fairC, ${glsl(L.sat)}), 0.0);
+    fairC /= max(dot(fairC, fairLuma), 0.05);
+    fairC *= min(1.0, ${glsl(L.cap)} / max(fairC.r, max(fairC.g, fairC.b)));
+  } else {
+    fairC *= ${glsl(L.pane)};
+  }
+  vec4 fairAt = modelMatrix * vec4(transformed, 1.0);
+  float fairNear = mix(${glsl(L.nearScale)}, 1.0, smoothstep(${glsl(L.near)}, ${glsl(L.far)}, distance(fairAt.xyz, cameraPosition)));
+  float fairRun = 1.0;
+  if (fairChase > -0.5) {
+    float fairS = 0.5 + 0.5 * cos(6.2831853 * (fairChase - fairChasePhase));
+    fairRun = mix(1.0, mix(${glsl(L.low)}, 1.0, fairS * fairS), fairChaseOn);
+  }
+  vFairGlow = fairC * (fairNear * fairRun);
+}`);
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vFairGlow;')
+    .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vFairGlow;');
+}
 export function glowMesh(P, name, material) {
+  chaseBulbs(P);
+  // every piece carries both, so a list with no bulb at all still reads as steady panes
+  for (const g of P) {
+    for (const k of [CHASE, BULB_R]) if (!g.attributes[k]) setFloat(g, k, new Float32Array(g.attributes.position.count).fill(FILL[k]));
+  }
   const m = new THREE.Mesh(merged(P), material);
   m.name = name;
   m.castShadow = false;
