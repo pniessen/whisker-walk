@@ -328,6 +328,14 @@ const LATER = Object.freeze({
   'river.west.snail': 'a snail shell in the tall reeds',
   'river.west.wing': 'a blue dragonfly wing by the river',
   'river.west.pebble': 'a round white pebble at the far bank',
+  // ---- the River's south strip (bigger areas, 2026-11-19; only seen with the
+  // ?grow=1 switch on): its own words, the same in every set ------------------
+  'river.south.lookout': 'sand bank lookout',
+  'river.south.scenic': 'the sandy bank where the martins nest',
+  'river.south.eggshell': 'a tiny white eggshell on the sand bank',
+  'river.south.feather': 'a soft owl feather in the far corner',
+  'river.south.clock': 'a fluffy dandelion clock in the meadow',
+  'river.south.pebble': 'a striped pebble on the sandy shore',
 });
 
 // Every id of the first table, in table order.

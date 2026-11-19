@@ -36,7 +36,10 @@ const isTile = (o) => o.userData.stripTile !== undefined;
 const ALL = [{ id: 'small', show: 1e9, hide: 2e9 }, { id: 'trees', show: 1e9, hide: 2e9 }];
 
 // A walk's scene as walk.js has it when the strip tiles are made: built,
-// decals scanned, props merged, casters swept, tree fade made.
+// decals scanned, props merged, casters swept, tree fade made. These tests
+// are the machinery on the west strip, so the south strip (step 3,
+// riversouth.js) is built but not streamed here; test/riversouth.test.js
+// walks it. The budget below counts both.
 function walkScene({ layers } = {}) {
   const wind = createWind({});
   const { scene, area } = buildRiver(river, setGrow, true, { wind });
@@ -45,7 +48,9 @@ function walkScene({ layers } = {}) {
   rig.assignShadowCasters(scene);
   const occluders = findOccluders(scene);
   const fade = createTreeFade([...occluders]);
-  const strips = layers ? area.strips.map((s) => ({ ...s, layers })) : area.strips;
+  const streamed = area.strips.filter((s) => s.id !== 'south');
+  area.strips = streamed;
+  const strips = layers ? streamed.map((s) => ({ ...s, layers })) : streamed;
   const tiles = createStripTiles(scene, { strips, wind, decals, occluders, treeFade: () => fade });
   return { scene, area, wind, decals, occluders, fade, tiles };
 }
@@ -376,14 +381,28 @@ describe('with nearer ranges, walking away alone brings the scene back', () => {
 //                                                              stand-ins)
 //
 // Step 2 drew 79,307 triangles' worth of things in all, exactly step 1's
-// (the first test below holds that); what it saves is what is out of range.
+// (the first test below held that); what it saves is what is out of range.
 // Its 35 meshes over today are the strip's: 13 trees (32 meshes) and its
 // standing things (13, 8 of them hidden data strips never drawn), less the
 // core's trees out of range, plus one for all the stand-ins. Ceilings: the
 // triangles at the territories' 70,000, the rest about 5% over the measure.
+//
+// Step 3 (the south strip, riversouth.js) is counted here too, as the River
+// is built with it:
+//
+//   step 3, core + west + south,
+//     at its worst spot, (-35, 0)   212      148     69,598   (4,027 of them
+//                                                              stand-ins)
+//
+// Everything at once is now 84,017: step 2's 79,307, less 1,058 for the west
+// strip's ground on a 5 m grid, 918 for its fewer, bigger tussocks and 474
+// for the hills drawn a little coarser, plus 36 more mist over the longer
+// river, plus the south strip's 7,124 (1,444 always drawn: its ground, pool,
+// paint, trail and sand bank; 2,212 of trees and 3,468 of small things that
+// stream). test/riversouth.test.js pins the same worst spot.
 // ---------------------------------------------------------------------------
 describe('the budget, switch on: the most the River puts on screen at once', () => {
-  const CEILING = { meshes: 215, casters: 155, triangles: 70000 };
+  const CEILING = { meshes: 222, casters: 155, triangles: 70000 };
   // the built and merged scene alone, as test/budget.test.js measures (no decals)
   const built = buildRiver(river, setGrow, true);
   mergeStaticProps(built.scene);
@@ -394,9 +413,11 @@ describe('the budget, switch on: the most the River puts on screen at once', () 
   const worst = worstSpot(m, LAYERS, built.area.bounds, 5);
   const all = [...m.cost.values()].reduce((n, c) => n + c.triangles, 0);
 
-  it('everything there is, drawn at once, is what step 1 drew: nothing lost, nothing twice', () => {
+  it('everything there is, drawn at once, is what it is with nothing streamed: nothing lost, nothing twice', () => {
     if (process.env.BUDGET_LOG) console.log('stream budget', JSON.stringify({ fixed: m.fixed, always: m.always, all, worst }));
-    expect(m.fixed.triangles + m.always + all).toBe(79307);
+    expect(m.fixed.triangles + m.always + all).toBe(84017);
+    // and it is the whole scene's own count, every tile built, but for the stand-ins
+    expect(m.fixed.triangles + m.always + all).toBe(budgetOf(built.scene.children.filter((c) => c !== tiles.standIns.mesh), rig).triangles);
   });
 
   it(`at the worst spot stays under ${CEILING.meshes} meshes, ${CEILING.casters} casters and ${CEILING.triangles} triangles`, () => {
