@@ -41,6 +41,12 @@ export const NO_FAIR = Object.freeze({
   late() {},
   jump() { return false; },
   canBoard() { return false; },
+  // step 3 (src/fairshow.js): no games, no finds, no visitors anywhere else
+  games: null,
+  show: null,
+  actionFor() { return null; },
+  act() { return false; },
+  meow() { return 0; },
   dispose() {},
 });
 
@@ -252,8 +258,18 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     rodeRide = null;
   }
 
+  // Step 3: the games, the finds and the visitors (src/fairshow.js), attached
+  // by the walk once it has made them. Run here, after the rides have moved her.
+  let show = null;
+
   const api = {
     sim,
+    get show() { return show; },
+    get games() { return show ? show.games : null; },
+    attach(s) { show = s ?? null; return api; },
+    actionFor() { return show && !riding && !hop.on ? show.actionFor() : null; },
+    act(action) { return show ? show.act(action) : false; },
+    meow(pos) { return show ? show.meow(pos) : 0; },
     get riding() { return riding; },
     get wobble() { return wobble; },
     get hopping() { return hop.on; },
@@ -405,6 +421,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         }
         camera.lookAt(look);
       }
+      if (show) show.update(dt, t, { cat, player, session });
     },
 
     // late(dt, t, { cat, player, session }): once a frame, after the cat is
@@ -436,6 +453,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
     },
 
     dispose() {
+      if (show) { show.dispose(); show = null; }
       sim.endSlide();
       sim.resetChase();
       riding = null;

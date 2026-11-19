@@ -30,7 +30,7 @@ import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn, createLampPools } from '../render/dusk.js';
-import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
+import { buildCat, CAT_LOOK_Y, catDims, coatColor } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { disposeHenRig } from '../cat/henfight.js';
 import { setCatRimLight } from '../cat/rimlight.js';
@@ -83,7 +83,8 @@ import { createYardDog } from '../yarddog.js';
 import { createFarmAnimals, NO_FARM } from '../farmanimals.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
 import { createFairLive, NO_FAIR } from '../fairlive.js';
-import { handleFairEvent } from './fairplay.js';
+import { handleFairEvent, addBalloonRibbon, restoreFairGames } from './fairplay.js';
+import { createFairShow } from '../fairshow.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
@@ -1343,8 +1344,34 @@ export function createWalkLifecycle({
       camera,
       reducedMotion,
       ground,
-      onEvent: (e) => handleFairEvent(e, { hud, audio, log, progression, session }),
+      onEvent: (e) => handleFairEvent(e, { hud, audio, log, progression, session, once: fairOnce }),
     });
+    // Step 3: its three games, its six things to find and its visitors
+    // (fairshow.js), run by the rides once a frame. Per device and seeded with
+    // dice of their own, like the Farm's animals: never walkRng, and nothing
+    // rides the wire. How many visitors stroll about is the quality tier's
+    // (tier.strays: 8 on the high tier, 5, 3). The people get a villager's
+    // contact shadow and cast no other. The runaway balloon's ribbon is a
+    // thing to carry, out of sight until she catches the balloon.
+    let fairToasted = null;
+    function fairOnce(key, text) {
+      fairToasted ??= new Set();
+      if (!fairToasted.has(key)) { fairToasted.add(key); hud.toast(text); }
+    }
+    const fairShow = areaId !== 'fair' ? null : createFairShow(scene, areaData, {
+      swept: fairLive.sim.swept,
+      strays: tier.strays,
+      camera,
+      reducedMotion,
+      ground,
+      coat: coatColor(active.breed, active.look),
+      portrait: () => herCatPortrait(progression.state),
+      onEvent: (e) => handleFairEvent(e, { hud, audio, log, progression, session, once: fairOnce }),
+    });
+    if (fairShow) {
+      fairLive.attach(fairShow);
+      addBalloonRibbon(carry, areaData);
+    }
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
@@ -1367,6 +1394,7 @@ export function createWalkLifecycle({
     for (const c of clanCats.list) decals.follow(c.group);
     for (const critter of critters.list) decals.follow(critter.figure ?? critter.group);
     for (const g of farm.groups) decals.follow(g);
+    if (fairShow) for (const g of fairShow.groups) decals.follow(g);
     for (const dc of denCats.list) decals.follow(dc.group);
 
     // The shadow camera used to be nailed to the world origin at +/-70 so it
@@ -2224,6 +2252,8 @@ export function createWalkLifecycle({
     if (resume) log.restore(resume.paid);
     // ...and a Farm job it had finished is finished (its hat is at the door).
     if (resume) restoreFarmJobs(farm, { log, carry, area: areaData });
+    // ...and a runaway balloon it had caught is not there to catch again.
+    if (resume) restoreFairGames(fairLive, { log });
     hud.show();
     hud.setArea(placeName(areaId, progression.state.edition, CATALOG) || areaData.name);
     // Kittypets: the arrival line waits for the walk to start (the Ready? card
