@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { box, cyl, ball, sheet, stripes, stripedSlab, sweep, placed, bulb, meshOf, canvasOf, glowMesh, recentre, BULB_COLORS } from './fairkit.js';
+import { loft, at, mix } from '../farmshapes.js';
 
 // =============================================================================
 // THE FAIRGROUND'S FIVE RIDES (docs/superpowers/specs/2026-11-18-fairground-design.md).
@@ -46,35 +47,198 @@ export const MGR = Object.freeze({
 const COATS = Object.freeze([0xf6f1e6, 0xe9cf9a, 0xc4c9d2, 0xdcae62, 0xb9744a, 0xf6f1e6, 0x8d8a96, 0xf3dcc0]);
 const TACK = Object.freeze([PAINT.red, PAINT.sky, PAINT.green, PAINT.purple, PAINT.orange, PAINT.pink, PAINT.blue, PAINT.gold]);
 
+// ---- carving ---------------------------------------------------------------------------
+// A skin over a row of cross-sections (src/farmshapes.js `loft`, the way the
+// farm's animals are made), turned into one of the kit's painted pieces: no
+// index and no uv, and every face ONE colour, `paint(x, y, z, u, v)` read at
+// the face's middle (u the way along, v the way round, 0.5 over the top). A
+// painted edge then runs along the carving's own lines, crisp, the way a
+// carousel horse's saddle cloth and bridle are painted, not smeared from one
+// corner's colour to the next. `open` leaves off an end that is buried in
+// another part ('start', 'end' or 'both'); `x` sets the piece off to one side.
+function carve(P, keys, { around = 8, along = keys.length, level = false, tipStart = 0, tipEnd = 0, open = '', paint = 0xffffff, x = 0 } = {}) {
+  const g = loft(keys, { around, along, level, tipStart, tipEnd });
+  const idx = g.getIndex().array;
+  const pos = g.getAttribute('position').array;
+  const nor = g.getAttribute('normal').array;
+  const P3 = [];
+  const N3 = [];
+  const C3 = [];
+  const c = new THREE.Color();
+  const face = (from, count, u, v) => {
+    let cx = 0, cy = 0, cz = 0;
+    for (let k = from; k < from + count; k++) { cx += pos[idx[k] * 3]; cy += pos[idx[k] * 3 + 1]; cz += pos[idx[k] * 3 + 2]; }
+    c.set(typeof paint === 'function' ? paint(cx / count, cy / count, cz / count, u, v) : paint);
+    for (let k = from; k < from + count; k++) {
+      const n = idx[k] * 3;
+      P3.push(pos[n] + x, pos[n + 1], pos[n + 2]);
+      N3.push(nor[n], nor[n + 1], nor[n + 2]);
+      C3.push(c.r, c.g, c.b);
+    }
+  };
+  const quads = (along - 1) * around;
+  for (let q = 0; q < quads; q++) face(q * 6, 6, (Math.floor(q / around) + 0.5) / (along - 1), ((q % around) + 0.5) / around);
+  for (let j = 0; j < around; j++) {
+    if (open !== 'start' && open !== 'both') face(quads * 6 + j * 6, 3, 0, (j + 0.5) / around);
+    if (open !== 'end' && open !== 'both') face(quads * 6 + j * 6 + 3, 3, 1, (j + 0.5) / around);
+  }
+  g.dispose();
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(P3, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(N3, 3));
+  out.setAttribute('color', new THREE.Float32BufferAttribute(C3, 3));
+  P.push(out);
+  return out;
+}
+
+// A flat painted shape lying on a surface: `n` corners round `at`, `rx` along
+// `ax` and `ry` along `ay` (unit vectors in its plane), facing out along their
+// cross product. A painted eye, a spot on a cup.
+function decal(P, at, ax, ay, rx, ry, hex, n = 6, turn = 0) {
+  const pts = [];
+  for (let k = 0; k < n; k++) {
+    const t = turn + (k / n) * Math.PI * 2;
+    const a = Math.cos(t) * rx;
+    const b = Math.sin(t) * ry;
+    pts.push([at[0] + ax[0] * a + ay[0] * b, at[1] + ax[1] * a + ay[1] * b, at[2] + ax[2] * a + ay[2] * b]);
+  }
+  return sheet(P, pts, hex);
+}
+
+// A pointed cone from `base` to `tip`, `n` faces and no base: an ear.
+function spike(P, base, tip, r, n, hex) {
+  const ax = new THREE.Vector3(tip[0] - base[0], tip[1] - base[1], tip[2] - base[2]).normalize();
+  const u = new THREE.Vector3(1, 0, 0).cross(ax);
+  if (u.lengthSq() < 1e-6) u.set(0, 0, 1).cross(ax);
+  u.normalize();
+  const w = new THREE.Vector3().crossVectors(ax, u);
+  const ringAt = (k) => {
+    const t = (k / n) * Math.PI * 2;
+    return [base[0] + (u.x * Math.cos(t) + w.x * Math.sin(t)) * r, base[1] + (u.y * Math.cos(t) + w.y * Math.sin(t)) * r, base[2] + (u.z * Math.cos(t) + w.z * Math.sin(t)) * r];
+  };
+  for (let k = 0; k < n; k++) sheet(P, [ringAt(k), ringAt(k + 1), tip], hex);
+}
+
+// ---- the horses --------------------------------------------------------------------------
+// Carved and painted the way a fairground galloper is: a deep-chested body,
+// an arched neck with the head held high and tucked, a carved mane falling on
+// the side the crowd sees (local +x, out from the middle of the ride), front
+// legs folded at the knee and hind legs stretched out behind, a flowing tail,
+// a carved saddle on a painted cloth, a bridle and a big painted eye. Every
+// hoof clears the deck at the bottom of the bob. Nose on +z; the top of the
+// saddle at (0, MGR.seatY, 0) is the seat.
+const HOOF = 0x3a3440;
+const SADDLE = Object.freeze([PAINT.red, PAINT.blue, PAINT.purple, PAINT.green, PAINT.red, PAINT.blue, PAINT.purple, PAINT.orange]);
 function horse(i, poleTop) {
   const P = [];
   const coat = COATS[i % COATS.length];
   const tack = TACK[i % TACK.length];
-  const mane = i % 3 === 0 ? 0xf2c230 : i % 3 === 1 ? 0x6b4a34 : 0xf7f4ec;
-  // body, neck, head
-  ball(P, 0.34, 0, 0.66, 0, coat, { detail: 1, sx: 0.86, sy: 0.84, sz: 1.62 });
-  box(P, 0.22, 0.5, 0.3, 0, 0.96, 0.45, coat, { c: true, pitch: 0.7 });
-  box(P, 0.2, 0.26, 0.46, 0, 1.2, 0.72, coat, { c: true, pitch: 0.75 });
-  box(P, 0.21, 0.06, 0.14, 0, 1.1, 0.84, tack, { c: true, pitch: 0.5 });       // noseband
+  const saddle = SADDLE[i % SADDLE.length] === tack ? PAINT.gold : SADDLE[i % SADDLE.length];
+  const mane = i % 3 === 0 ? PAINT.gold : i % 3 === 1 ? 0x6b4a34 : 0xf7f4ec;
+  const maneDark = mix(mane, 0x2a2228, 0.22);
+  const flip = i % 2 ? 1 : -1; // which foreleg is the higher
+
+  // the body: rump to chest, the saddle cloth painted on its back with a gold
+  // hem at each end
+  const CLOTH = [-0.3, 0.16];
+  carve(P, [
+    at(-0.62, 0.84, 0.64, 0.1),
+    at(-0.5, 0.94, 0.56, 0.18, { nt: 2.3 }),
+    at(-0.34, 0.95, 0.55, 0.2, { nt: 2.4 }),             // the croup
+    at(CLOTH[0], 0.945, 0.545, 0.2, { nt: 2.4 }),
+    at(CLOTH[1], 0.93, 0.52, 0.2, { nt: 2.4, pinch: 0.06 }), // the girth, deep
+    at(CLOTH[1] + 0.05, 0.93, 0.52, 0.198, { nt: 2.4, pinch: 0.06 }),
+    at(0.4, 0.97, 0.57, 0.17, { nt: 2.2, pinch: 0.1 }),   // the withers and the shoulder
+    at(0.56, 0.92, 0.62, 0.14),                             // the chest
+  ], {
+    around: 8, level: true, tipStart: 0.04, tipEnd: 0.05,
+    paint: (x, y, z, u, v) => {
+      const onBack = v > 0.24 && v < 0.76;
+      if (!onBack) return coat;
+      if (z > CLOTH[0] - 0.05 && z < CLOTH[0] + 0.01) return PAINT.gold;
+      if (z > CLOTH[1] - 0.01 && z < CLOTH[1] + 0.06) return PAINT.gold;
+      return z > CLOTH[0] && z < CLOTH[1] ? tack : coat;
+    },
+  });
+  // the carved saddle: a high cantle behind, a pommel in front, the seat between
+  carve(P, [
+    at(-0.24, 1.08, 0.9, 0.1, { nt: 2.6 }),
+    at(-0.14, 1.025, 0.86, 0.19, { nt: 3 }),
+    at(0.08, 1.0, 0.86, 0.2, { nt: 3.2 }),
+    at(0.22, 1.06, 0.88, 0.09, { nt: 2.6 }),
+  ], { around: 6, level: true, tipStart: 0.015, tipEnd: 0.015, paint: (x, y, z, u, v) => (u < 0.2 || u > 0.8 ? PAINT.gold : saddle) });
+
+  // the neck, arched, from deep in the chest up to the head; its first band is
+  // the breast collar
+  carve(P, [
+    { y: 0.82, z: 0.38, w: 0.15, up: 0.2, down: 0.2 },
+    { y: 1.0, z: 0.54, w: 0.13, up: 0.17, down: 0.17, nb: 1.8 },
+    { y: 1.18, z: 0.65, w: 0.11, up: 0.14, down: 0.12, nb: 1.8 },
+    { y: 1.34, z: 0.71, w: 0.095, up: 0.11, down: 0.1 },
+  ], { around: 6, open: 'both', paint: (x, y, z, u) => (u < 0.34 ? tack : coat) });
+  // the head, held high and tucked: the poll, the broad cheek with the eye,
+  // the long face, a noseband, the muzzle
+  const H = [
+    { y: 1.43, z: 0.7, w: 0.09, up: 0.08, down: 0.11 },
+    { y: 1.36, z: 0.8, w: 0.1, up: 0.075, down: 0.13, nb: 1.7 },
+    { y: 1.24, z: 0.94, w: 0.08, up: 0.06, down: 0.085 },
+    { y: 1.18, z: 0.995, w: 0.082, up: 0.065, down: 0.085 },
+    { y: 1.13, z: 1.045, w: 0.08, up: 0.07, down: 0.075 },
+  ];
+  carve(P, H, { around: 8, open: 'start', tipEnd: 0.03, paint: (x, y, z, u) => (u > 0.5 && u < 0.75 ? tack : coat) });
+  // ears, pricked forward
+  for (const s of [-1, 1]) spike(P, [s * 0.05, 1.48, 0.69], [s * 0.07, 1.565, 0.735], 0.035, 4, coat);
+  // the painted eye: a white almond with a dark iris, on each cheek
+  const ed = Math.hypot(H[2].y - H[1].y, H[2].z - H[1].z);
+  const fwd = [0, (H[2].y - H[1].y) / ed, (H[2].z - H[1].z) / ed];
+  const upv = [0, -fwd[2], fwd[1]].map((q) => -q);
   for (const s of [-1, 1]) {
-    box(P, 0.05, 0.12, 0.05, s * 0.07, 1.38, 0.6, coat, { c: true });           // ears
-    box(P, 0.03, 0.04, 0.03, s * 0.105, 1.26, 0.7, 0x2a2228, { c: true });        // eyes
-    // legs: the front pair reaching forward, the hind pair kicked back
-    box(P, 0.13, 0.52, 0.13, s * 0.14, 0.3, 0.42, coat, { c: true, pitch: -0.55 });
-    box(P, 0.13, 0.52, 0.13, s * 0.14, 0.28, -0.44, coat, { c: true, pitch: 0.5 });
-    box(P, 0.14, 0.08, 0.15, s * 0.14, 0.07, 0.56, 0x3a3440, { c: true, pitch: -0.55 });
-    box(P, 0.14, 0.08, 0.15, s * 0.14, 0.05, -0.56, 0x3a3440, { c: true, pitch: 0.5 });
+    const ex = s * 0.098;
+    const ax = s < 0 ? fwd : fwd.map((q) => -q); // wound to face out of the cheek
+    decal(P, [ex, 1.36, 0.81], ax, upv, 0.042, 0.026, 0xfbf6ec, 6);
+    decal(P, [ex + s * 0.003, 1.36, 0.815], ax, upv, 0.018, 0.02, 0x2a2228, 4, Math.PI / 4);
   }
-  box(P, 0.07, 0.5, 0.2, 0, 1.04, 0.3, mane, { c: true, pitch: 0.7 });          // mane
-  box(P, 0.12, 0.5, 0.14, 0, 0.58, -0.64, mane, { c: true, pitch: -0.5 });       // tail
-  // saddle and its cloth: the top of the saddle is the seat
-  box(P, 0.5, 0.04, 0.6, 0, 0.9, -0.02, tack);
-  box(P, 0.34, 0.06, 0.4, 0, 0.94, -0.02, 0x7a4a30);
-  box(P, 0.34, 0.1, 0.06, 0, 0.97, -0.24, 0x7a4a30);
+  // the carved mane, falling in locks on the crowd's side
+  carve(P, [
+    { y: 1.47, z: 0.64, w: 0.035, up: 0.045, down: 0.03 },
+    { y: 1.33, z: 0.56, w: 0.07, up: 0.085, down: 0.04 },
+    { y: 1.13, z: 0.44, w: 0.075, up: 0.09, down: 0.04 },
+    { y: 0.97, z: 0.3, w: 0.05, up: 0.06, down: 0.03 },
+  ], { around: 4, x: 0.04, tipStart: 0.03, tipEnd: 0.04, paint: (x, y, z, u, v) => ((Math.floor(u * 3) + Math.floor(v * 4)) % 2 ? mane : maneDark) });
+  // the tail, flowing back and down
+  carve(P, [
+    { y: 0.84, z: -0.56, w: 0.05, up: 0.05, down: 0.05 },
+    { y: 0.76, z: -0.74, w: 0.065, up: 0.075, down: 0.06 },
+    { y: 0.58, z: -0.84, w: 0.06, up: 0.07, down: 0.05 },
+    { y: 0.38, z: -0.8, w: 0.03, up: 0.04, down: 0.03 },
+  ], { around: 5, open: 'start', tipEnd: 0.06, paint: (x, y, z, u) => (u > 0.4 && u < 0.7 ? maneDark : mane) });
+
+  // legs: the forelegs folded at the knee, one higher than the other; the
+  // hind legs stretched out behind. Each a tapering skin down to a dark hoof.
+  const leg = (sx, keys) => carve(P, keys, { around: 5, open: 'start', x: sx, tipEnd: 0.02, paint: (x, y, z, u) => (u > 0.67 ? HOOF : coat) });
+  for (const s of [-1, 1]) {
+    const hi = s === flip;
+    leg(s * 0.1, hi ? [
+      { y: 0.7, z: 0.34, w: 0.07, up: 0.09, down: 0.09 },
+      { y: 0.5, z: 0.58, w: 0.05, up: 0.055, down: 0.055 },  // the knee, up and forward
+      { y: 0.34, z: 0.5, w: 0.035, up: 0.038, down: 0.038 },
+      { y: 0.29, z: 0.46, w: 0.045, up: 0.045, down: 0.05 },
+    ] : [
+      { y: 0.7, z: 0.32, w: 0.07, up: 0.09, down: 0.09 },
+      { y: 0.42, z: 0.5, w: 0.05, up: 0.055, down: 0.055 },
+      { y: 0.28, z: 0.42, w: 0.035, up: 0.038, down: 0.038 },
+      { y: 0.23, z: 0.38, w: 0.045, up: 0.045, down: 0.05 },
+    ]);
+    leg(s * 0.1, [
+      { y: 0.72, z: -0.36, w: 0.09, up: 0.13, down: 0.11 },  // the thigh
+      { y: 0.44, z: hi ? -0.6 : -0.56, w: 0.05, up: 0.055, down: 0.05 }, // the hock
+      { y: hi ? 0.3 : 0.26, z: hi ? -0.78 : -0.7, w: 0.035, up: 0.038, down: 0.038 },
+      { y: hi ? 0.27 : 0.22, z: hi ? -0.85 : -0.76, w: 0.045, up: 0.045, down: 0.05 },
+    ]);
+  }
   // the pole, through the withers
-  cyl(P, 0.035, 0.035, poleTop + 0.25, 0, -0.25, 0.14, PAINT.gold, { sides: 6 });
-  const m = meshOf(P, 'mgrHorseBody', { roughness: 0.55 });
-  return m;
+  cyl(P, 0.035, 0.035, poleTop + 0.25, 0, -0.25, 0.14, PAINT.gold, { sides: 6, open: true });
+  return meshOf(P, 'mgrHorseBody', { roughness: 0.62 });
 }
 
 export function merryGoRound(x, z, glow) {
