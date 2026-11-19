@@ -1,0 +1,42 @@
+// Found outfits: the hiding spots, one file per area. Each walk in an area
+// picks one of its spots (Task 5's planFind); an area has finds when it has
+// spots. Each record is { id, x, z, y, look }: `y` is metres above the ground
+// under the spot (as the golden mice), `look` says how the outfit sits there.
+//
+// ADDING AN AREA: its own file `<area>.js` exporting `<AREA>_SPOTS`, one
+// import and one key below, and its area id in the describe.each list of
+// test/foundspots.test.js, whose tests (with test/helpers/findreach.js) are
+// the gate. Adding or moving any spot changes FIND_KEY. That is intended:
+// builds with different spots never share finds.
+import { seedFromCode } from '../../rng.js';
+import { PARK_SPOTS } from './park.js';
+import { WOODS_SPOTS } from './woods.js';
+
+// How a find sits in its nook: on a post, hung on a branch, in grass, at the
+// water's edge, on a perch.
+export const FIND_LOOKS = Object.freeze(['post', 'branch', 'grass', 'water', 'perch']);
+export const SPOT_ID = /^fw-[a-z]{2,12}-\d{1,2}$/;
+
+export const FIND_SPOTS = Object.freeze({ park: PARK_SPOTS, woods: WOODS_SPOTS });
+
+// spotsIn(areaId) -> that area's spots, or [] (own keys only).
+const NONE = Object.freeze([]);
+export function spotsIn(areaId) {
+  return typeof areaId === 'string' && Object.hasOwn(FIND_SPOTS, areaId) ? FIND_SPOTS[areaId] : NONE;
+}
+
+// The rules' version, folded into the key: bump it when the way a spot is
+// picked changes, so two builds that pick differently never share a find.
+export const FIND_RULES = 1;
+
+// findSpotsKey(spots, rules) -> a uint32 naming every spot's place. Two
+// devices on one walk compare it (the room profile's `finds`). `look` is left
+// out: it changes how the find looks, not where it is.
+export function findSpotsKey(spots = FIND_SPOTS, rules = FIND_RULES) {
+  const text = Object.keys(spots).sort()
+    .map((area) => `${area}:${spots[area].map((s) => `${s.id},${s.x},${s.z},${s.y}`).join(';')}`)
+    .join('|');
+  return (seedFromCode(text) ^ rules) >>> 0;
+}
+
+export const FIND_KEY = findSpotsKey();
