@@ -148,13 +148,18 @@ export function graze(t, seed) {
   GRAZE.reach = Math.sin(t * 0.43 + seed * 1.3);
   return GRAZE;
 }
-// With a cat on her back she turns right round to look at her now and then:
-// 0..1, and `side` (-1 or 1) is which way round.
+// With a cat on her back she turns right round to look at her: just after
+// she comes to a stop (most stops: `stops` counts them, `still` is how long
+// she has stood), and now and then while she stands. 0..1, and `side` (-1 or
+// 1) is which way round.
 const BACK = { k: 0, side: 1 };
-export function lookBack(t, seed) {
+export const LOOK_BACK_TIME = 2.6;
+export function lookBack(t, seed, still = -1, stops = 0) {
   const every = 9;
-  BACK.k = hold(nowAndThen(t, every, 3.2, seed * 7 + 8), 0.25);
-  BACK.side = hash01(whichTime(t, every), seed * 7 + 9) < 0.5 ? -1 : 1;
+  const later = hold(nowAndThen(t, every, 3.2, seed * 7 + 8), 0.25);
+  const turn = hash01(stops, seed * 7 + 19) < 0.7 && still >= 0 ? hold((still - 0.35) / LOOK_BACK_TIME, 0.25) : 0;
+  BACK.k = Math.max(later, turn);
+  BACK.side = (turn > later ? hash01(stops, seed * 7 + 20) : hash01(whichTime(t, every), seed * 7 + 9)) < 0.5 ? -1 : 1;
   return BACK;
 }
 // A moo, `s` seconds after it began: her neck stretches and her mouth opens. 0..1.

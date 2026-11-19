@@ -621,7 +621,7 @@ export function buildSheepdog(material) {
     const blaze = smooth(0.012, -0.012, Math.abs(x) - (0.014 + 0.2 * Math.max(0, z - 0.04))) * (Math.abs(v - 0.5) < 0.25 ? 1 : 0);
     return mix(BLACK, WHITE, Math.max(blaze, smooth(0.1, 0.125, z), smooth(-0.05, -0.08, y) * smooth(-0.02, 0.05, z)));
   };
-  const ex = 0.058, ey = 0.042, ez = 0.078, er = 0.024;
+  const ex = 0.057, ey = 0.036, ez = 0.083, er = 0.024;
   const skullParts = [
     loft([
       at(-0.11, 0.045, -0.04, 0.05),
@@ -635,8 +635,8 @@ export function buildSheepdog(material) {
     ], { around: 12, along: 12, level: true, color: face, tipStart: 0.02, tipEnd: 0.008 }),
     put(ball(0.024, { around: 6, rings: 3, color: EYE }), { scale: [1.15, 0.85, 0.85], at: [0, 0.01, 0.202] }),                // nose
     // brown eyes, a dark middle to each
-    ...pair(put(ball(er, { around: 9, rings: 3, color: 0x9a6430 }), { scale: [0.8, 1, 1], at: [ex, ey, ez] })),
-    ...pair(put(ball(er * 0.5, { around: 6, rings: 2, color: EYE }), { scale: [1, 1, 0.6], at: [ex + er * 0.3, ey, ez + er * 0.66] })),
+    ...pair(put(ball(er, { around: 9, rings: 3, color: 0x5e3618 }), { scale: [0.8, 1, 1], at: [ex, ey, ez] })),
+    ...pair(put(ball(er * 0.62, { around: 7, rings: 2, color: EYE }), { scale: [1, 1, 0.6], at: [ex + er * 0.28, ey, ez + er * 0.62] })),
     ...pair(put(ball(er * 0.24, { around: 4, rings: 1, color: GLINT }), { at: [ex + er * 0.5, ey + er * 0.42, ez + er * 0.82] })),
   ];
   inner.add(mesh(merged(skullParts), material));
@@ -871,9 +871,9 @@ export function chickGeometry() {
 // stripe through the eye, a flat bill wider at its end, wing stubs.
 export function ducklingGeometry() {
   const Y = 0xf2d55e;
-  const BROWN = 0x8a6a3a;
-  // brown on the back, yellow face and breast
-  const coat = (x, y, z) => mix(Y, BROWN, smooth(0.075, 0.105, y + 0.25 * Math.max(0, -z)) * smooth(0.06, 0.0, z));
+  const BROWN = 0x5e4220;
+  // a mallard's duckling: dark brown on the back, yellow face, breast and sides
+  const coat = (x, y, z) => mix(Y, BROWN, smooth(0.06, 0.09, y + 0.3 * Math.max(0, -z)) * smooth(0.07, 0.02, z));
   const g = [
     loft([
       at(-0.1, 0.098, 0.066, 0.012),                    // the tail, tipped up
@@ -889,7 +889,7 @@ export function ducklingGeometry() {
       { y: 0.114, z: 0.14, w: 0.021, up: 0.006, down: 0.005 },
     ], { around: 4, color: (x, y, z) => mix(0xe8963a, 0xc9782e, smooth(0.0, -0.004, y - 0.116)), tipEnd: 0.006 }),
     ...bead(0.0085, 0.037, 0.142, 0.088),
-    ...pair(put(ball(0.03, { around: 5, rings: 2, color: mix(Y, BROWN, 0.6) }), { scale: [0.3, 0.55, 1.25], rot: [-0.2, 0, 0], at: [0.056, 0.086, -0.012] })), // wing stubs
+    ...pair(put(ball(0.03, { around: 6, rings: 2, color: (x, y) => mix(Y, BROWN, smooth(-0.01, 0.012, y)) }), { scale: [0.42, 0.5, 1.15], rot: [-0.25, 0, 0], at: [0.05, 0.078, -0.016] })), // wing stubs
   ];
   return merged(g);
 }

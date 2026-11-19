@@ -270,6 +270,9 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     // her walk: four beats, each foot down for two thirds of its stride and
     // planted while it is; knees and hocks fold as a foot comes forward
     const ph = a.walked / (COW_STRIDE * a.scale);
+    // when she came to a stop, and how many stops: she looks back at a rider after most
+    if (a.moving) k.stoppedAt = Infinity;
+    else if (k.stoppedAt === Infinity || k.stoppedAt === undefined) { k.stoppedAt = t; k.stops = (k.stops ?? 0) + 1; }
     const lean = still ? 0 : sway(t, seed);
     for (let i = 0; i < 4; i++) {
       const s = step(ph + WALK.phase[i], WALK.duty);
@@ -301,7 +304,7 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     }
     // a cat on her back: now and then she turns right round to look at her
     if (a.ridden && !a.moving && !still) {
-      const back = lookBack(t, seed);
+      const back = lookBack(t, seed, t - k.stoppedAt, k.stops);
       neckX += (-0.02 - neckX) * back.k;
       skullX += (-0.3 - skullX) * back.k;
       want += (back.side * COW_LOOK_BACK - want) * back.k;
@@ -461,7 +464,8 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     k.bend = ease(k.bend ?? bend, bend, dt * 9);
     parts.trunk.rotation.x = 1.0 * k.bend;
     parts.trunk.rotation.z = 0.05 * feet + 0.07 * Math.sin(t * 31) * fluff;
-    parts.trunk.scale.setScalar(1 + 0.07 * fluff);
+    const puff = 1 + 0.07 * fluff;
+    parts.trunk.scale.set(puff + (still ? 0 : 0.014 * breath(t, seed, 2.4)), puff, puff); // a quick bird's breath
     parts.head.rotation.x = 0.6 * k.bend + 1.0 * peck - 0.15 * fluttering;
     parts.head.rotation.y = 0.65 * gaze;
     parts.head.rotation.z = 0.22 * gaze;
