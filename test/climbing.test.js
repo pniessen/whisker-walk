@@ -1069,8 +1069,9 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(UNGATED.farm).toHaveLength(10);
     // the helter-skelter's five landings and its gallery, three stalls' counters and
     // roofs, the bandstand, the coaster's platform, the big wheel's boarding deck,
-    // three picnic tables and three benches
-    expect(UNGATED.fair).toHaveLength(21);
+    // three picnic tables and three benches; and (step 3) the top step of each
+    // of the three decks, to hop onto first
+    expect(UNGATED.fair).toHaveLength(24);
     for (const [area, mice] of Object.entries(GOLD_MICE)) {
       for (const m of mice.filter((x) => x.y > 0)) {
         const stand = UNGATED[area].find(
