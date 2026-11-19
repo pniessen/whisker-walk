@@ -25,7 +25,6 @@ export const RING_TARGETS = Object.freeze({
   prompt: '#hud-prompt',
   pounce: '.tui-btn[data-action="pounce"]',
   meow: '.tui-btn[data-action="meow"]',
-  yarn: '.tui-btn[data-action="yarn"]',
   camera: '.tui-btn[data-action="camera"]',
   pause: '#tui-pause',
   chat: '.chat-toggle',
@@ -46,7 +45,15 @@ function shown(el) {
 // Where the ring goes for a control at `rect` on a page `page` wide and high:
 // the box, and which side the arrow sits on ('top' above the control, pointing
 // down at it; 'bottom' when there is no room above).
-export function ringBox(rect, page, pad = RING_PAD) {
+//
+// `others` (controls review, 2026-11-19): the boxes of the controls around it
+// (each with the small word that hangs under it). The arrow never sits on one
+// of them: the 📷 ring's arrow used to stand on the "meow" word above it.
+// Above if that is clear, else below, else to the left.
+const ARROW_REACH = 30; // the arrow's 7px gap, its 16px height and its bob
+const ARROW_HALF = 13;
+const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+export function ringBox(rect, page, pad = RING_PAD, others = []) {
   const box = {
     left: rect.left - pad,
     top: rect.top - pad,
@@ -56,8 +63,26 @@ export function ringBox(rect, page, pad = RING_PAD) {
   box.radius = Math.min(box.width, box.height) / 2;
   box.arrow = box.top >= 40 ? 'top' : 'bottom';
   if (page && box.arrow === 'bottom' && box.top + box.height + 40 > page.height) box.arrow = 'top';
+  if (others.length) {
+    const cx = box.left + box.width / 2;
+    const cy = box.top + box.height / 2;
+    const zone = {
+      top: { left: cx - ARROW_HALF, right: cx + ARROW_HALF, top: box.top - ARROW_REACH, bottom: box.top },
+      bottom: { left: cx - ARROW_HALF, right: cx + ARROW_HALF, top: box.top + box.height, bottom: box.top + box.height + ARROW_REACH },
+      left: { left: box.left - ARROW_REACH, right: box.left, top: cy - ARROW_HALF, bottom: cy + ARROW_HALF },
+    };
+    const fits = (side) => (side !== 'top' || zone.top.top >= 0)
+      && (side !== 'bottom' || !page || zone.bottom.bottom <= page.height)
+      && (side !== 'left' || zone.left.left >= 0)
+      && !others.some((o) => meets(zone[side], o));
+    if (!fits(box.arrow)) box.arrow = ['top', 'bottom', 'left'].find(fits) ?? box.arrow;
+  }
   return box;
 }
+
+// The controls a ring's arrow must leave clear, each with its hanging word.
+const NEIGHBOURS = '.tui-btn, .tui-pause, .tui-zoom-btn, .chat-toggle';
+const WORD_BELOW = 14;
 
 export function createGuideBubble({ hud, root = document.getElementById('hud'), doc = document, getIsTouch = () => false, getReduced = () => false } = {}) {
   const hintEl = root.querySelector('#hud-hint');
@@ -126,7 +151,13 @@ export function createGuideBubble({ hud, root = document.getElementById('hud'), 
       return;
     }
     const r = target.getBoundingClientRect();
-    const box = ringBox(r, { width: doc.documentElement?.clientWidth ?? 0, height: doc.documentElement?.clientHeight ?? 0 }, RING_PAD + (v.grow ? RING_GROW : 0));
+    const others = [];
+    for (const el of doc.querySelectorAll?.(NEIGHBOURS) ?? []) {
+      if (el === target || !shown(el)) continue;
+      const o = el.getBoundingClientRect();
+      others.push({ left: o.left, right: o.left + o.width, top: o.top, bottom: o.top + o.height + WORD_BELOW });
+    }
+    const box = ringBox(r, { width: doc.documentElement?.clientWidth ?? 0, height: doc.documentElement?.clientHeight ?? 0 }, RING_PAD + (v.grow ? RING_GROW : 0), others);
     const still = !!getReduced();
     const key = [name, Math.round(box.left), Math.round(box.top), Math.round(box.width), Math.round(box.height), box.arrow, still, v.grow, v.thumb].join('|');
     if (key === ringKey) return;

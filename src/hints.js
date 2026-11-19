@@ -37,8 +37,12 @@ export const HINTS = Object.freeze([
   { id: 'hop', max: 1, ring: 'pounce', when: (f) => f.perched, until: (f) => !f.perched },
   { id: 'photo', max: 2, ring: 'camera', when: (f) => later(f) && f.critterNear && !f.camera, until: (f) => f.camera },
   { id: 'frame', max: 2, ring: null, when: (f) => f.camera, until: (f) => !f.camera },
-  { id: 'yarn', max: 1, ring: 'yarn', when: (f) => later(f) && f.idleOpen >= 5 && !f.toy, until: (f) => f.toy },
-  { id: 'bat', max: 1, ring: null, when: (f) => f.toy && f.bats === 0, until: (f) => !f.toy || f.bats > 0 },
+  // The found yarn ball (controls review, 2026-11-19): the first time one is
+  // close and in view, no ring (there is no button to point at). `bat` is for
+  // a ball she picked up and put down without batting it yet.
+  { id: 'yarn', max: 1, ring: null, when: (f) => f.yarnNear && f.bats === 0, until: (f) => f.bats > 0 || f.yarnHeld },
+  { id: 'bat', max: 1, ring: null, when: (f) => f.toy && !f.yarnHeld && f.bats === 0, until: (f) => !f.toy || f.bats > 0 },
+  { id: 'yarn-carry', max: 1, ring: null, when: (f) => f.yarnHeld, until: (f) => !f.yarnHeld },
   { id: 'call', max: 1, ring: 'meow', when: (f) => later(f) && f.strayFar },
   { id: 'sniff', max: 2, ring: null },
   { id: 'box', max: 1, ring: null, when: (f) => f.nearBox && !f.inBox, until: (f) => f.inBox },
@@ -51,6 +55,9 @@ export const HINTS = Object.freeze([
   { id: 'chat', max: 1, ring: 'chat', when: (f) => f.room && f.t >= 20 },
   { id: 'rival', max: 1, ring: null },
   { id: 'stranger', max: 1, ring: null, when: (f) => f.challenge, until: (f) => !f.challenge },
+  // Never offered here: main.js toasts it when T is pressed, and counts it on
+  // the save through this table so a few walks are enough.
+  { id: 'tkey', max: 3, ring: null },
 ].map((h) => Object.freeze(h)));
 
 export const HINT_IDS = Object.freeze(HINTS.map((h) => h.id));

@@ -1,7 +1,7 @@
 // Player interactions and prompts, lifted out of main.js's init() closure.
 //
 // Two related layers live here:
-//   * the action helpers (doMeow/doYarn/doPounceOrClimb/doCameraToggle) plus
+//   * the action helpers (doMeow/doPounceOrClimb/doCameraToggle) plus
 //     the touch dispatch that shares them with the keydown handler, and
 //   * the per-frame prompt scan (updateInteractions/setPrompt) and the E-press
 //     handler it feeds (handleInteract), together with the one shared stray
@@ -33,7 +33,7 @@ import { wanderStayLine, kittypetTamedLine, shedKittypetCollar } from '../housec
 import { RANK_KEYS } from '../wordset.js';
 import { PATROL_MIN } from '../clancats.js';
 import { nowSec } from './util.js';
-// Renamed on import: doYarn already has a local `drop` (where the yarn lands).
+// Renamed on import: `drop` reads better as putDown beside pickUp.
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
 import { farmPromptText, farmObjective, hatAtDoor } from './farmplay.js';
 import { fairPromptText } from './fairplay.js';
@@ -120,11 +120,24 @@ function overDeck(s) {
   const c = s.cat?.position;
   if (c && onDeck(c.x, c.z)) return true;
   const held = s.carry.mouth?.held;
-  const at = held ? s.carry.items?.list.find((it) => it.id === held.id)?.mesh?.position : null;
+  const at = !held ? null
+    : held.toy ? s.toy?.mesh?.position
+      : s.carry.items?.list.find((it) => it.id === held.id)?.mesh?.position;
   return !!at && Number.isFinite(at.x) && Number.isFinite(at.z) && onDeck(at.x, at.z);
 }
 
 const _vpos = new THREE.Vector3(); // scratch for villagerPos
+const _yarnFrom = new THREE.Vector3(); // where a put-down yarn ball leaves the mouth
+
+// Is this device's yarn ball lying within carry reach, slow enough to pick up
+// (toy.js idleTime: slow and on the ground)? Not one in a mouth, not one that
+// is a co-walker's (inactive here).
+export function yarnInReach(s, catP) {
+  const toy = s?.toy;
+  if (!toy?.active || toy.held || !(toy.idleTime > 0)) return false;
+  const p = toy.mesh.position;
+  return Math.hypot(p.x - catP.x, p.z - catP.z) <= CARRY_REACH;
+}
 
 export function createInteractions({
   // getIsTouch, not a captured boolean: a hybrid device upgrades into touch
@@ -182,32 +195,6 @@ export function createInteractions({
       log.awardOnce('duet', `duet-${withId}`, `a harmonized duet with ${petNameFor(session, withId)} 🎶`);
       catVoice(1.26); // layered on top of the normal-pitch meow just played above
       if (session.net) session.net.sendEvent({ v: 1, id: session.playerId, type: 'duet', withId });
-    }
-  }
-
-  function doYarn() {
-    const session = getSession();
-    if (!session.toy.active) {
-      // one shared yarn ball per co-walk: don't spawn a second one while a
-      // remote player's ball is in play (fresh within the same 1s
-      // staleness window the ghost render/bat logic uses)
-      if (session.remoteToy && nowSec() - session.remoteToy.at < 1) {
-        hud.toast('A yarn ball is already in play! 🧶');
-        return;
-      }
-      // drop the yarn ball just ahead and give it a little kick to chase
-      const g = session.ground ?? FLAT_GROUND;
-      const drop = session.cat.position.clone()
-        .add(player.forward().multiplyScalar(0.8))
-        .setY(g.flat ? 0.8 : g.y(session.cat.position.x, session.cat.position.z) + 0.8);
-      session.toy.throwFrom(drop, player.forward(), 2.5);
-      session.batCount = 0;
-      session.batReady = true;
-    } else if (session.toy.mesh.position.distanceTo(session.cat.position) < 1.4) {
-      session.toy.retrieve();
-      hud.toast('Yarn ball pocketed 🧶');
-    } else {
-      hud.toast('Go grab your yarn ball first!');
     }
   }
 
@@ -375,8 +362,6 @@ export function createInteractions({
       if (!session.cameraMode && session.freezeTime <= 0) doPounceOrClimb();
     } else if (name === 'meow') {
       doMeow();
-    } else if (name === 'yarn') {
-      doYarn();
     } else if (name === 'camera') {
       doCameraToggle();
     } else if (name === 'interact') {
@@ -1136,6 +1121,14 @@ export function createInteractions({
         setPrompt(item.job ? JOB_WORDS.goat.pickPrompt() : `E — pick up the ${carryLabel(item.kind)}`);
       }
     }
+    // The found yarn ball (controls review, 2026-11-19): picked up through the
+    // same mouth, once it has slowed down, never from a perch or swimming. A
+    // ball that is a co-walker's (shown as the ghost ball) is not this
+    // device's to pick up: her toy is inactive here.
+    if (!s.prompt && carry && !carry.mouth.held && !s.perched && !player.swimming && yarnInReach(s, catP)) {
+      s.prompt = { kind: 'yarn-pick' };
+      setPrompt(`E — pick up the ${carryLabel('yarn')}`);
+    }
     // v21 3b Task 11 — scratch your mark into a post, trunk or bollard. After
     // the head scratches AND the boop (ruling R23): a person, or a sister's
     // cat, you walked up to always wins over a post that happens to be there.
@@ -1546,6 +1539,19 @@ export function createInteractions({
   // is a frame old by then. In a co-walk each half tells the others (Task 8;
   // netevents.js's applyRemoteCarry), so they see it in my mouth or where I
   // left it — world state only, never a mark or a point on their side.
+  // The yarn ball (controls review, 2026-11-19) goes in the mouth like a
+  // carryable, but it is the walk's toy, not a 3b prop: no carry-pick event
+  // (a co-walker sees it in the state message's toy position instead), no
+  // mark, nothing saved. Picking it up makes it this device's (claimed).
+  function pickUpYarn(s) {
+    const toy = s.toy;
+    if (!toy?.active || toy.held || !yarnInReach(s, s.cat.position)) return false;
+    if (!pickUp(s.carry.mouth, { id: 'yarn', kind: 'yarn', toy: true })) return false;
+    toy.hold();
+    s.yarnStuck = 0;
+    return true;
+  }
+
   function pickUpCarryable(s, item) {
     if (!item?.onGround) return false;
     if (!pickUp(s.carry.mouth, item)) return false;
@@ -1564,8 +1570,9 @@ export function createInteractions({
   // slip reaches co-walkers too. Never over a raised deck (R42): the prompt
   // and the rain both hold off there already, and this refuses too, so an E
   // pressed on the frame the cat steps onto the pier keeps the thing held.
-  function putDownCarried(s) {
+  function putDownCarried(s, { kick = true } = {}) {
     if (overDeck(s)) return null;
+    if (s.carry.mouth.held?.toy) return putDownYarn(s, kick);
     const item = s.carry.items.list.find((it) => it.id === s.carry.mouth.held?.id);
     const at = item?.mesh?.position;
     const fromMouth = Number.isFinite(at?.x) && Number.isFinite(at?.z);
@@ -1584,6 +1591,33 @@ export function createInteractions({
     return released;
   }
 
+  // The yarn ball leaves the mouth with the little forward kick the old 🧶
+  // button gave it (a ball to chase), from the mouth, kept in the bounds. A
+  // rain slip just lets it fall where the mouth was.
+  function putDownYarn(s, kick) {
+    const toy = s.toy;
+    const released = putDown(s.carry.mouth, 0, 0, null);
+    if (!released || !toy) return released;
+    const at = toy.mesh.position;
+    const g = s.ground ?? FLAT_GROUND;
+    const b = s.areaData?.bounds;
+    let x = Number.isFinite(at.x) ? at.x : s.cat.position.x;
+    let z = Number.isFinite(at.z) ? at.z : s.cat.position.z;
+    if (b) {
+      x = Math.min(b.maxX, Math.max(b.minX, x));
+      z = Math.min(b.maxZ, Math.max(b.minZ, z));
+    }
+    const floor = g.flat ? 0 : g.y(x, z);
+    if (kick) {
+      _yarnFrom.set(x, Math.max(floor + 0.3, Number.isFinite(at.y) ? at.y : floor + 0.3), z);
+      toy.throwFrom(_yarnFrom, player.forward(), 2.5);
+    } else {
+      toy.setPosition(_yarnFrom.set(x, floor, z));
+    }
+    s.batReady = true;
+    return released;
+  }
+
   // Falling rain loosens the grip (carry.js's tickRain). When the grip gives
   // out the item goes through the same putDownCarried the player's E uses, so
   // the carry-drop event goes out to co-walkers and the walk-end 'drop' mark
@@ -1599,7 +1633,7 @@ export function createInteractions({
     if (s.perched || player.inWater || overDeck(s)) return;
     const raining = s.weather?.isRaining?.() === true;
     if (!tickRain(carry.mouth, dt, raining)) return;
-    const released = putDownCarried(s);
+    const released = putDownCarried(s, { kick: false });
     if (released) hud.toast(`Slippery paws! You dropped the ${released.job ? JOB_WORDS.goat.hat() : carryLabel(released.kind)}. 💧`);
   }
 
@@ -1612,6 +1646,8 @@ export function createInteractions({
     if (s.rest && s.prompt.kind !== 'rest') s.rest = null;
     if (s.prompt.kind === 'carry') {
       pickUpCarryable(s, s.prompt.data);
+    } else if (s.prompt.kind === 'yarn-pick') {
+      pickUpYarn(s);
     } else if (s.prompt.kind === 'drop') {
       putDownCarried(s);
     } else if (s.prompt.kind === 'collect' && s.walk.carried < s.walk.carryCap) {
@@ -1937,7 +1973,7 @@ export function createInteractions({
   }
 
   return {
-    doMeow, doYarn, doPounceOrClimb, doCameraToggle, handleTouchAction,
+    doMeow, doPounceOrClimb, doCameraToggle, handleTouchAction,
     setPrompt, updateInteractions, awardStrayGreet, handleInteract, tickCarryRain,
     // Task 6: walk.js's onClanBuddyEnd calls it (patrol together).
     endClanPatrol,

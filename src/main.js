@@ -15,7 +15,7 @@ import { createHomeBase } from './ui/homebase.js';
 import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { attachBackStack, walkBackAction } from './ui/backstack.js';
-import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir } from './camzoom.js';
+import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir, clampZoomStep, maxZoomStep } from './camzoom.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
 import { createSamples } from './samples.js';
@@ -40,14 +40,18 @@ import { parseForcedRung } from './render/quality.js';
 import { readDeviceProfile, DEVICE_EVENT } from './render/deviceprofile.js';
 import { releaseThumbnails } from './thumbnails.js';
 import { createHaptics, hapticForDiscovery } from './haptics.js';
-import { createTips } from './game/tips.js';
+import { createTips, climbBadge } from './game/tips.js';
 import { createGuideWalk } from './game/guidewalk.js';
 import { createGuideBubble } from './ui/guidebubble.js';
 import { createButtonUses } from './ui/buttonwords.js';
 import { tickAutoSniff } from './game/autosniff.js';
-import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode, SKIP_LESSON_ID, PAUSE_SOUND_ID, PAUSE_MUSIC_ID, pauseSoundOf } from './game/walk.js';
+import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode, SKIP_LESSON_ID, PAUSE_SOUND_ID, PAUSE_MUSIC_ID, PAUSE_VIEW_CLASS, pauseSoundOf } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
+import { shareYarn, toyForState } from './game/yarnshare.js';
+import { placeInMouth } from './carryables.js';
+import { hintMax } from './hints.js';
+import { line as tutorialLine } from './tutorialwords.js';
 import { setTextureAnisotropy } from './render/textures.js';
 import { waterClearance, nearestDry } from './world/builder.js';
 import { takeArrivalLine } from './housecats.js';
@@ -285,6 +289,7 @@ function init() {
     music.setMuted(settings.get('muted'));
     player.setInvertY(settings.get('invertY'));
     touchUI.setLeftHanded(settings.get('leftHanded'));
+    touchUI.setZoomButtons(settings.get('zoomButtons'));
     // With ?perf the readout stays on even if the Settings box is unchecked, by design.
     perfHud.setEnabled(settings.get('perfReadout') || perfFlag);
     haptics.setEnabled(settings.get('haptics'));
@@ -412,7 +417,7 @@ function init() {
 
   // Interactions/prompts + the shared action helpers (src/game/interactions.js).
   const {
-    doMeow, doYarn, doPounceOrClimb, doCameraToggle, handleTouchAction,
+    doMeow, doPounceOrClimb, doCameraToggle, handleTouchAction,
     updateInteractions, awardStrayGreet, handleInteract, tickCarryRain, endClanPatrol, canFeedStray,
   } = createInteractions({
     MP, pid, getCloud, getPsecret,
@@ -662,6 +667,12 @@ function init() {
       overlay.innerHTML = pauseCardFor(session, isTouch, pauseSound());
       for (const line of takeStartLines(session)) hud.toast(line);
     }
+    // Paused again: the card is drawn afresh, so its switches and View chips
+    // show what a pinch, the wheel or M changed during the walk. Only the
+    // pause card itself (a crossing card keeps its place).
+    if (session && !locked && session.started && overlay.querySelector('#btn-resume')) {
+      overlay.innerHTML = pauseCardFor(session, isTouch, pauseSound());
+    }
     crossing?.onLockChange(locked);
     if (session && !locked) { session.cameraMode = false; hud.setCamera(false); }
     // Kittypets: a wanderer's arrival line, kept by walk.js until the walk
@@ -712,6 +723,20 @@ function init() {
       setPauseMusic(e.target.checked);
       applySettings();
       homebase.refresh();
+    }
+    // The View chips on the pause card (controls review, 2026-11-19): the
+    // camera's step, remembered like a pinch or the wheel would (settings).
+    // The card is drawn again so the chosen chip shows.
+    const viewChip = e.target.closest?.(`.${PAUSE_VIEW_CLASS}`);
+    if (viewChip && session && !viewChip.disabled) {
+      const step = Number(viewChip.dataset.viewStep);
+      if (Number.isInteger(step)) {
+        const next = clampZoomStep(step, maxZoomStep(session.areaId === 'den'));
+        settings.set('cameraZoom', next);
+        player.setCameraZoom(next);
+        overlay.innerHTML = pauseCardFor(session, isTouch, pauseSound());
+        overlay.querySelector(`.${PAUSE_VIEW_CLASS}[data-view-step="${next}"]`)?.focus();
+      }
     }
     // "Skip the lesson": one tap, nothing asked; the card is redrawn without it.
     if (e.target.id === SKIP_LESSON_ID && session) guideWalk.skip(session);
@@ -810,8 +835,15 @@ function init() {
       if (sw) sw.checked = !next; // the pause card's Sound switch, if it is up
       hud.toast(next ? 'Sound off 🔇' : 'Sound on 🔊');
     }
-    if (e.code === 'KeyT' && session && player.engaged) {
-      doYarn();
+    // T threw the yarn ball until the controls review (2026-11-19); yarn balls
+    // lie around to find now. For her first few walks after, T says so,
+    // kindly, once a walk (counted on the save like a hint, 'tkey').
+    if (e.code === 'KeyT' && session && player.engaged && !e.repeat && !typing && !session.tKeyTold) {
+      session.tKeyTold = true;
+      if ((progression.state.tutorial.hints.tkey ?? 0) < hintMax('tkey')) {
+        progression.countHint('tkey');
+        hud.toast(tutorialLine('hint.tkey'));
+      }
     }
     if (e.code === 'Space' && session && player.engaged && !e.repeat &&
         !session.cameraMode && session.freezeTime <= 0) {
@@ -831,8 +863,9 @@ function init() {
     // (guards home-base pet-name/friend-code/room-code inputs).
     if (session && player.engaged && !typing) {
       const digitPhrase = phraseIdForDigit(e.code);
-      if (digitPhrase) { session.sendPhrase(digitPhrase); return; }
-      if (e.code === 'Enter') { session.chatWheel?.openFromKeyboard?.(); return; }
+      // A walk together only: alone there is no chat (controls review).
+      if (digitPhrase && session.net) { session.sendPhrase(digitPhrase); return; }
+      if (e.code === 'Enter' && session.net) { session.chatWheel?.openFromKeyboard?.(); return; }
       if (e.code === 'Escape') { session.chatWheel?.closeFromKeyboard?.(); return; }
     }
   });
@@ -1104,14 +1137,12 @@ function init() {
       //
       // The toy is bounds-only (deliberately: it is not the player, and giving
       // it a collider pass would change how it bounces off everything). Once
-      // water blocks, a ball thrown into the pond is unreachable to a cat that
-      // cannot swim, and unreachable here is a soft-lock rather than a
-      // nuisance: interactions.js's doYarn refuses to throw a second ball
-      // while one is active ("Go grab your yarn ball first!"), so the player
-      // has no yarn at all until avatar.js's 25-second idle auto-retrieve
-      // fires. Clamping the throw out of the water instead would break the
-      // thing that makes the Docks fun, which is hurling the ball over the
-      // canal. So the ball floats ashore.
+      // water blocks, a ball batted or kicked into the pond is unreachable to
+      // a cat that cannot swim: there is one ball a walk (it lies around to
+      // find since the controls review, 2026-11-19), and the roll home
+      // (avatar.js) waits 25 s. Clamping it out of the water instead would
+      // break the thing that makes the Docks fun, which is sending the ball
+      // over the canal. So the ball floats ashore.
       //
       // Only while it is ON the surface: toy.js rests it at its own 0.13
       // radius, so anything above 0.2 is still in flight and a ball sailing
@@ -1244,6 +1275,7 @@ function init() {
       session.tippables.update(dt);
       session.knockables.update(dt); // v21 3b: a knocked thing's fall off its ledge
       session.carry.items.update(dt); // v21 3b: a held thing follows its holder's mouth
+      if (session.toy.held) placeInMouth(session.toy.mesh, session.cat); // ...and so does the yarn ball
       tickCarryRain(session, dt); // v21 3b: falling rain loosens the grip; the item slips
       session.scent.update(dt);
       // The stand-still sniff, then the hints (both this device's own).
@@ -1340,10 +1372,11 @@ function init() {
       // rather than beside session.shadows.update(). Only the mover mesh is
       // touched; the static props' matrices were written once at build.
       session.decals.update();
-      // ghost ball is only shown (and batable) while I don't already have my
-      // own active toy out, and its last report is fresh — a remote who went
-      // quiet (despawned, dropped) shouldn't leave a phantom ball behind.
-      if (session.remoteToy && !session.toy.active && nowSec() - session.remoteToy.at < 1) {
+      // ghost ball is only shown (and batable) while I don't have the ball
+      // here, and its last report is fresh — a remote who went quiet
+      // (despawned, dropped) shouldn't leave a phantom ball behind; the ball
+      // comes back to this screen where she last had it (game/yarnshare.js).
+      if (session.net && shareYarn(session, nowSec(), dt)) {
         session.toyGhost.visible = true;
         const [rx, rz] = session.remoteToy.pos;
         session.toyGhost.position.set(rx, session.ground.y(rx, rz) + 0.13, rz);
@@ -1361,7 +1394,7 @@ function init() {
             yaw: session.cat.rotation.y,
             pose: session.pose,
             speed: player.speed,
-            toy: session.toy.active ? [session.toy.mesh.position.x, session.toy.mesh.position.z] : null,
+            toy: toyForState(session.toy),
           });
         }
       }
@@ -1376,6 +1409,13 @@ function init() {
       // her hop down in this same frame (fairlive.js).
       session.fair.late(dt, t, { cat: session.cat, player, session });
       updateInteractions(session);
+      // The paw's climb badge (touch only; the keyboard has no paw), a few
+      // times a second from the same facts the hints use.
+      session.climbAccum = (session.climbAccum ?? 0) + dt;
+      if (session.climbAccum >= 0.25) {
+        session.climbAccum = 0;
+        touchUI.setClimb(isTouch ? climbBadge(session, player, progression.state) : null);
+      }
       updateMoments(session, dt);
       if (session.questGiver?.marker?.visible) {
         session.questGiver.marker.position.y = 2.1 + Math.sin(t * 3) * 0.12;

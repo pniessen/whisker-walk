@@ -30,12 +30,20 @@
    "keys": "Point at an animal. Click."
   },
   "hint.yarn": {
-   "touch": "Tap 🧶 to play with your yarn.",
-   "keys": "Press T to play with your yarn."
+   "touch": "A yarn ball! Run into it to bat it.",
+   "keys": "A yarn ball! Run into it to bat it."
   },
   "hint.bat": {
    "touch": "Run into the ball to bat it.",
    "keys": "Run into the ball to bat it."
+  },
+  "hint.yarn-carry": {
+   "touch": "Put it down to play.",
+   "keys": "Put it down to play."
+  },
+  "hint.tkey": {
+   "touch": "Yarn balls lie around now. Find one! 🧶",
+   "keys": "Yarn balls lie around now. Find one! 🧶"
   },
   "hint.call": {
    "touch": "Tap 😺 to call a cat over.",
@@ -110,8 +118,8 @@
    "keys": "Find a person. Press E."
   },
   "how.yarn-play": {
-   "touch": "Tap 🧶. Run into the ball 4 times.",
-   "keys": "Press T. Run into the ball 4 times."
+   "touch": "The yarn ball is {place}. Bat it 4 times.",
+   "keys": "The yarn ball is {place}. Bat it 4 times."
   },
   "how.dig-treasure": {
    "touch": "Stand still to sniff. Follow the paw prints. Dig!",
@@ -325,12 +333,20 @@
    "keys": "Point at an animal. Click."
   },
   "hint.yarn": {
-   "touch": "Tap 🧶 to play with your yarn.",
-   "keys": "Press T to play with your yarn."
+   "touch": "A yarn ball! Run into it to bat it.",
+   "keys": "A yarn ball! Run into it to bat it."
   },
   "hint.bat": {
    "touch": "Run into the ball to bat it.",
    "keys": "Run into the ball to bat it."
+  },
+  "hint.yarn-carry": {
+   "touch": "Put it down to play.",
+   "keys": "Put it down to play."
+  },
+  "hint.tkey": {
+   "touch": "Yarn balls lie around now. Find one! 🧶",
+   "keys": "Yarn balls lie around now. Find one! 🧶"
   },
   "hint.call": {
    "touch": "Tap 😺 to call a cat over.",
@@ -405,8 +421,8 @@
    "keys": "Find a person. Press E."
   },
   "how.yarn-play": {
-   "touch": "Tap 🧶. Run into the ball 4 times.",
-   "keys": "Press T. Run into the ball 4 times."
+   "touch": "The yarn ball is Twolegplace. Bat it 4 times.",
+   "keys": "The yarn ball is Twolegplace. Bat it 4 times."
   },
   "how.dig-treasure": {
    "touch": "Stand still to sniff. Follow the paw prints. Dig!",

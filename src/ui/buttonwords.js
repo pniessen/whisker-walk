@@ -1,4 +1,4 @@
-// The small word under each touch button (pounce, meow, yarn, photo) stays
+// The small word under each touch button (pounce, meow, photo) stays
 // until that button has been used twice, not for a fixed number of walks
 // (guided-first-walk design, section 4). The counts are the device's own, in
 // a small localStorage key of their own (the buttons are the device's, not
@@ -6,7 +6,9 @@
 
 export const BUTTON_USES_KEY = 'whisker-walk-buttons';
 
-export const WORD_BUTTONS = Object.freeze(['pounce', 'meow', 'yarn', 'camera']);
+// (The yarn button went in the controls review, 2026-11-19; a stored count
+// for it is dropped as any unknown name is.)
+export const WORD_BUTTONS = Object.freeze(['pounce', 'meow', 'camera']);
 export const USES_TO_KNOW = 2;
 
 // The counts, cleaned: each button 0..USES_TO_KNOW, anything else dropped.
@@ -20,7 +22,7 @@ export function sanitizeButtonUses(v) {
   return out;
 }
 
-// buttonWords(uses) -> { pounce, meow, yarn, camera }: true while that
+// buttonWords(uses) -> { pounce, meow, camera }: true while that
 // button still shows its word (touchui.js setLabels takes this).
 export function buttonWords(uses) {
   const u = sanitizeButtonUses(uses);
@@ -30,7 +32,7 @@ export function buttonWords(uses) {
 }
 
 // One more use of `name`. Returns the new counts, or null when nothing
-// changed (not one of the four, or already known).
+// changed (not one of the three, or already known).
 export function countButtonUse(uses, name) {
   if (!WORD_BUTTONS.includes(name)) return null;
   const u = sanitizeButtonUses(uses);
