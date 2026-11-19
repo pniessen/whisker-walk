@@ -23,6 +23,8 @@ const DELTA = {
   wizard: 3, monocle: 3, eyepatch: 2, raincoat: 0, sweater: 0, jetpack: 0, balloon: 0, socks: 0, partycrown: 11,
   confetticape: 0, starshades: 5, leafcrown: 9, balloonbunch: 0, sparklecollar: 12, warpaint: 6, candlehat: 4,
   streamerscarf: 6, goldbooties: 0,
+  // the Fairground's prizes: the paper crown's band and six points, the rosette's four pieces; no balloon (as the others)
+  papercrown: 7, prizerosette: 4, tailballoon: 0,
 };
 
 const hen = (acc = BARE) => {

@@ -389,7 +389,7 @@ describe('B6, the shell ears', () => {
     }
   });
 
-  it.each(['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat'])('%s still sits between the ears: the shell ear tips stand clear of it on each side', (hat) => {
+  it.each(['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown'])('%s still sits between the ears: the shell ear tips stand clear of it on each side', (hat) => {
     pick({ ears: 'shell' });
     for (const breed of ['tabby', 'persian']) {
       const bare = buildCat(breed), cat = buildCat(breed, { head: hat }); cat.updateMatrixWorld(true); bare.updateMatrixWorld(true);

@@ -1190,7 +1190,9 @@ describe('v15 journal/golden/streak/kitten save fields', () => {
     expect(JOURNAL_TYPES.slice(20, 30)).toEqual(['jobchicks', 'jobcow', 'jobgoat', 'jobmice',
       'findloftcats', 'findeggs', 'findowl', 'findscarecrow', 'findapples', 'findducklings']);
     // and the Fairground's five rides after those
-    expect(JOURNAL_TYPES.slice(30)).toEqual(['ridemgr', 'ridewheel', 'ridecups', 'rideslide', 'ridecoaster']);
+    expect(JOURNAL_TYPES.slice(30, 35)).toEqual(['ridemgr', 'ridewheel', 'ridecups', 'rideslide', 'ridecoaster']);
+    // and its three games and six finds after those
+    expect(JOURNAL_TYPES.slice(35)).toEqual(['gamecans', 'gameducks', 'gamebell', 'fairfortune', 'fairmusicbox', 'faircandyfloss', 'fairjuggler', 'fairballoon', 'fairlookout']);
     expect(p.state.journal.goat).toBe(2);
     expect(createProgression(storage).state.journal.goat).toBe(2);
   });

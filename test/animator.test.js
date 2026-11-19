@@ -518,7 +518,7 @@ describe("animateCat: Digit's tag collar follows the neck in the stalk (polish 1
 // excepted, where they are worn on the head as built), not only the stalk,
 // the sniff and the pinned pose; standing at rest they are exactly as built.
 describe('animateCat: neckwear rides the neck with the collar (fix wave I3)', () => {
-  const PIECES = { bandana: 1, necktie: 2, bowtie: 3, scarf: 2, streamerscarf: 6 };
+  const PIECES = { bandana: 1, necktie: 2, bowtie: 3, scarf: 2, streamerscarf: 6, prizerosette: 4 };
   // an item's move from where it was built, in the head's frame: posed · built⁻¹
   const moveOf = (item, built) => {
     item.updateMatrix(); built.updateMatrix();

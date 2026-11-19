@@ -23,6 +23,11 @@ export const AWARDS = {
   // first time ever. Their feat tallies are the lifetime counts of both.
   farmjob: 25,
   farmfind: 12,
+  // The Fairground (2026-11-18): one of its three games won on a later walk
+  // than its first win ever (that one gives a prize to wear instead), once a
+  // walk for each game; and one of its six finds, paid the first time ever.
+  fairgame: 15,
+  fairfind: 12,
 };
 
 export function createDiscoveryLog(progression) {

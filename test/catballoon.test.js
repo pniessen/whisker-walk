@@ -16,7 +16,9 @@ import { PRESETS, STATES } from './helpers/catfingerprint.js';
 // Digit (scale 0.82) is judged by her own size.
 
 const BREEDS = PRESETS.filter((b) => b !== 'hagrid');
-const KITS = ['balloon', 'balloonbunch'];
+const KITS = ['balloon', 'balloonbunch', 'tailballoon']; // tailballoon: the Fairground's prize, tied on at the root of the tail
+const PIECES = { balloon: 3, balloonbunch: 6, tailballoon: 4 };
+const STRINGS = { balloon: 1, balloonbunch: 3, tailballoon: 1 };
 const CASES = BREEDS.flatMap((b) => [false, true].flatMap((simple) => KITS.map((k) => [b, simple, k])));
 const BARE = { collar: null, head: null, face: null, neck: null, feet: null, body: null };
 const kitCat = (b, simple, back) => buildCat(b, { ...BARE, back }, { simple });
@@ -66,11 +68,11 @@ describe('balloons float upright in every pose (polish-pose Task 3)', () => {
     const bare = buildCat(b, { ...BARE, back: null }, { simple });
     const ps = pieces(cat);
     expect(ps.length, 'every piece the back slot added floats').toBe(cat.children.length - bare.children.length);
-    expect(ps.length).toBe(back === 'balloon' ? 3 : 6);
+    expect(ps.length).toBe(PIECES[back]);
     for (const p of ps) {
       expect(p.userData.float.tie).toHaveLength(3);
     }
-    expect(ps.filter((p) => p.userData.span)).toHaveLength(back === 'balloon' ? 1 : 3);
+    expect(ps.filter((p) => p.userData.span)).toHaveLength(STRINGS[back]);
   });
 
   it.each(CASES)('%s (simple %s) %s: standing still, every piece is exactly as built', (b, simple, back) => {
@@ -118,7 +120,7 @@ describe('balloons float upright in every pose (polish-pose Task 3)', () => {
             expect(inside(cat, head, q), `${at}: balloon ${i} out of the head`).toBe(false);
           }
         });
-        expect(pieces(cat).filter(isKnot).length).toBe(back === 'balloon' ? 1 : 0);
+        expect(pieces(cat).filter(isKnot).length).toBe({ balloon: 1, balloonbunch: 0, tailballoon: 1 }[back]);
       }
     }
   }, 120_000);

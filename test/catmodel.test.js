@@ -393,7 +393,7 @@ describe('visit prize placement', () => {
   // points rise over the skull's top but start on it, and stay under the top
   // hat's top. The laurel is a wreath on top of the head (polish-crown), its
   // leaves curled up a little over the skull's top.
-  it.each([['partycrown', true], ['leafcrown', true], ['candlehat', true]])('%s is one hat mesh, seated, under the top hat (rises over the skull: %s)', (id, rises) => {
+  it.each([['partycrown', true], ['leafcrown', true], ['candlehat', true], ['papercrown', true]])('%s is one hat mesh, seated, under the top hat (rises over the skull: %s)', (id, rises) => {
     const cat = buildCat('tabby', { ...bareSet, head: id });
     cat.updateMatrixWorld(true);
     const { head } = cat.userData.parts;
@@ -634,6 +634,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     cape: [0xd8303c, 0xf2c14e], confetticape: [0x5b3fa8, 0xf5c518],
     bandana: [0x3a6ea5], necktie: [0x7a2436], bowtie: [0x2c3e6b], scarf: [0xd6602f], streamerscarf: [0xe0405a, 0xf2c14e, 0x4ec9d4, 0x8a6cf2],
     bell: [0xf2c14e], heart: [0xe0447a],
+    prizerosette: [0x2f6fc0, 0x6fa6e6, 0xf5c518], // the Fairground's rosette: its disc and tails, and its gold button
   };
   const itemMeshes = (cat, hexes) => { const out = []; cat.traverse((o) => { if (o.isMesh && !o.material.vertexColors && hexes.includes(o.material.color.getHex())) out.push(o); }); return out; };
   const posed = (acc, breed = 'tabby') => { const c = buildCat(breed, acc); animateCat(c, 'follow', 0, 0, false); c.updateMatrixWorld(true); return c; };
@@ -698,7 +699,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   };
   // Tabby, and the fluffy cats (NECK_FLUFFY).
   const CHEST_BREEDS = ['tabby', 'persian', 'mainecoon', 'd2'];
-  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart'].map((id) => [b, id])))('%s: %s lies on the chest, not inside it', (breed, id) => {
+  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'prizerosette'].map((id) => [b, id])))('%s: %s lies on the chest, not inside it', (breed, id) => {
     const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id }, breed);
     onChest(cat, itemMeshes(cat, COLOURS[id]));
   });
@@ -744,7 +745,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
       expect(b.min.z).toBeGreaterThan(nose.min.z);    // behind the nose tip (front is -z)
     }
   };
-  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar'].map((id) => [b, id])))('%s: %s stays under the chin, below the mouth and behind the nose', (breed, id) => {
+  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar', 'prizerosette'].map((id) => [b, id])))('%s: %s stays under the chin, below the mouth and behind the nose', (breed, id) => {
     const bare = posed({}, breed), cat = posed({ [CATALOG.accessories[id].slot]: id }, breed);
     underChin(bare, addedToHead(cat, bare));
   });
@@ -779,7 +780,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   // tails) rest on the chest and are deeper than 6 cm themselves (the bell
   // alone is 7.6 cm across), so nothing of any item is more than 10 cm out.
   const NECK_STATES = [['follow', 0.4, 1.5], ['follow', 1.3, 1.5], ['follow', 2.2, 1.5], ['requestPet', 1.3, 0], ['perch', 1.3, 0], ['nap', 1.3, 0], ['groom', 1.3, 0], ['cross', 1.3, 0], ['swipe', 1.3, 0], ['scared', 1.3, 0], ['roll', 1.3, 0]];
-  const NECK_IDS = ['bell', 'sparklecollar', 'studded', 'scarf', 'streamerscarf', 'bandana', 'necktie', 'bowtie'];
+  const NECK_IDS = ['bell', 'sparklecollar', 'studded', 'scarf', 'streamerscarf', 'bandana', 'necktie', 'bowtie', 'prizerosette'];
   const _v = new THREE.Vector3();
   const vertsOf = (meshes, fn) => { for (const m of meshes) { const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i++) fn(m.getVertexPosition(i, _v).applyMatrix4(m.matrixWorld), m); } };
   const neckReading = (breed, id, state, t, speed) => {
@@ -856,7 +857,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     expect(out.length).toBeGreaterThan(0);
     return out;
   };
-  const NECK_ITEMS = ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar'];
+  const NECK_ITEMS = ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar', 'prizerosette'];
   const itemHexes = (id) => (id === 'sparklecollar' ? [0xf5c518] : COLOURS[id]);
   const dressed = (breed, id, o = {}) => { const c = buildCat(breed, { [CATALOG.accessories[id].slot]: id }, o); animateCat(c, 'follow', 0, 0, false); c.updateMatrixWorld(true); return c; };
   const FLUFFY_NECK = [['persian'], ['mainecoon'], ['d2'], ['custom fluffy', { look: { ...DEFAULT_LOOK, fur: 'fluffy' } }]];

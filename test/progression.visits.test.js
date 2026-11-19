@@ -35,7 +35,8 @@ describe('the prize catalog', () => {
       const legacy = id === 'warpaint' ? { legacyName: 'War Paint' } : {};
       expect(CATALOG.accessories[id]).toEqual({ name, ...legacy, slot, price: 0, prize: true });
     }
-    const prizes = Object.keys(CATALOG.accessories).filter((id) => CATALOG.accessories[id].prize);
+    // (the Fairground's three prizes are flagged `prize` too, and `fair`: test/fairgames.test.js)
+    const prizes = Object.keys(CATALOG.accessories).filter((id) => CATALOG.accessories[id].prize && !CATALOG.accessories[id].fair);
     expect(prizes.sort()).toEqual([...VISIT_PRIZES].sort());
   });
 
