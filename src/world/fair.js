@@ -152,6 +152,11 @@ const PLAZA_POLES = Object.freeze(Array.from({ length: 8 }, (_, i) => {
   const a = Math.PI / 8 + (i * Math.PI) / 4;
   return pt(r2(Math.sin(a) * 11.5), r2(Math.cos(a) * 11.5));
 }));
+// Where the dusk pools of light fall: [x, z] under a pole top.
+export const LAMP_POOLS = Object.freeze([
+  ...MIDWAY_POLE_Z.map((z, i) => Object.freeze([(i % 2 ? 1 : -1) * MIDWAY_POLE_X, z])),
+  ...PLAZA_POLES.map((p) => Object.freeze([p.x, p.z])),
+]);
 // Polish: the strings hang from 5.1 m and their pennants' tips sag no lower
 // than about 4.2, so the chase camera's zoom step 2 (3.8 m up) passes under
 // them instead of through a curtain of pennants and bulbs. (Tried at 5.6: no
@@ -458,6 +463,22 @@ export const FAIR_REGISTRATION = Object.freeze({
 
 // setFairGlow(area, t): t 0 (day) to 1 (dusk). Every bulb at the fair shares
 // one material, so this one number lights them all.
+// THE SQUEEZE GAP (propsets' fair-gap-1, a clipped hedge with sprigs over
+// its opening) used to stand alone in the open field. Now a stack of hay
+// bales runs on from each end of its hedge, square to the path, so the cat
+// squeezes through a gap in a row of bales. Each stack starts just past the
+// hedge's last frame circle (propsets.js frameColliders: 2.1 m out from the
+// middle) and is held by a row of circles along it.
+const GAP = FAIR_REGISTRATION.propSet.flaps.find((f) => f.id === 'fair-gap-1');
+const GAP_STACK_FROM = 2.15;
+const GAP_STACK_LEN = 2 * edge.BALE.l + 0.04;
+const gapAlong = (s) => ({ x: r2(GAP.x + Math.cos(GAP.rotY) * s), z: r2(GAP.z - Math.sin(GAP.rotY) * s) });
+const GAP_BALES = Object.freeze([-1, 1].map((side, i) => Object.freeze({
+  ...gapAlong(side * (GAP_STACK_FROM + GAP_STACK_LEN / 2)), yaw: GAP.rotY, salt: 41 + i * 5,
+})));
+const GAP_BALE_COLLIDERS = Object.freeze([-1, 1].flatMap((side) => [0.3, 0.75, 1.2, 1.65]
+  .map((u) => Object.freeze({ ...gapAlong(side * (GAP_STACK_FROM + u)), r: 0.3 }))));
+
 export function setFairGlow(area, t) {
   const k = Math.min(1, Math.max(0, Number.isFinite(t) ? t : 0));
   if (area?.glow?.material) area.glow.material.emissiveIntensity = GLOW_MAX * k;
@@ -591,12 +612,14 @@ export function build(scene, { water = {}, wind } = {}) {
       parts.bulbString(K.bulbs, K.flags, [MIDWAY_POLE_X, top + 0.1, z0], [-MIDWAY_POLE_X, top + 0.1, z1], { sag: 0.5, salt: i + 3 });
     }
     for (const s of [-1, 1]) parts.bunting(K.flags, [s * GATE_HALF, 4.0, GATE_AT.z], [s * MIDWAY_POLE_X, top, MIDWAY_POLE_Z[0]], { sag: 0.15, salt: 2 });
-    // At dusk each pole top lights a soft warm pool on the ground under it
-    // (render/dusk.js createLampPools finds anything tagged lampGlobeY). The
-    // anchors are empty: no mesh, no triangle, nothing to merge.
+    // At dusk the pole tops light soft warm pools on the ground under them
+    // (render/dusk.js createLampPools finds anything tagged lampGlobeY): every
+    // pole round the plaza, and one of each pair down the midway, side to
+    // side in turn (both of a pair flood the midway). The anchors are empty:
+    // no mesh, no triangle, nothing to merge.
     const lamps = new THREE.Group();
     lamps.name = 'fairLampAnchors';
-    for (const [x, z] of [...MIDWAY_POLE_Z.flatMap((z) => [[-MIDWAY_POLE_X, z], [MIDWAY_POLE_X, z]]), ...PLAZA_POLES.map((p) => [p.x, p.z])]) {
+    for (const [x, z] of LAMP_POOLS) {
       const a = new THREE.Object3D();
       a.position.set(x, 0, z);
       a.userData.lampGlobeY = POLE_H;
@@ -649,6 +672,9 @@ export function build(scene, { water = {}, wind } = {}) {
       helter.bulbs, track.rails, track.supports, station.deck, station.roof, station.bulbs, train.group);
     parts.balloonBunch(K, STATION_DECK.minX + 0.06, STATION.deckY + 0.8, STATION_DECK.minZ + 0.1, 4, 31);
 
+    // the hedge gap on the path to the helter-skelter stands between two
+    // stacks of hay bales, so it reads as a way through them
+    for (const st of GAP_BALES) parts.into(K, st.x, st.z, st.yaw, (L) => edge.baleStack(L, 2, st.salt));
     // a half barrel of flowers beside each of the butterflies' corners
     FLOWER_TUBS.forEach((t, i) => parts.into(K, t.x, t.z, 0, (L) => edge.flowerTub(L, i * 1.7)));
 
@@ -695,6 +721,7 @@ export function build(scene, { water = {}, wind } = {}) {
   addC(BELL_AT.x, BELL_AT.z, 0.4);
   for (const t of WAGONS) for (const lx of [-0.9, 0.9]) { const c = world(t, t.yaw, lx, 0); addC(c.x, c.z, 1.05); }
   for (const t of FLOWER_TUBS) addC(t.x, t.z, edge.TUB.r + 0.03);
+  for (const c of GAP_BALE_COLLIDERS) addC(c.x, c.z, c.r);
   {
     const c = world(BALLOON_CART_AT, 0.5, 0, 0);
     addC(c.x, c.z, 0.8);

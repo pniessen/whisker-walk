@@ -62,3 +62,30 @@ export function flowerTub(K, salt = 0) {
     lid(P, 0.028, y + 0.008, hex === C.yellow ? C.orange : C.yellow, 3, x + Math.sin(tilt) * Math.cos(a) * 0.008, z + Math.sin(tilt) * Math.sin(a) * 0.008, a, tilt, a);
   }
 }
+
+// ---- hay bales -------------------------------------------------------------------------
+// A small square bale of straw, its long side along x, two strings round it.
+// About 36 triangles (the bottom faces go in fair.js's ground pass).
+export const BALE = Object.freeze({ l: 1.0, h: 0.45, w: 0.5 });
+const STRAW = Object.freeze([0xdcb862, 0xd2ac55, 0xe3c372]);
+export function hayBale(P, x, y, z, yaw = 0, salt = 0) {
+  const { l, h, w } = BALE;
+  const hex = STRAW[Math.floor(hash01(x, z, salt) * STRAW.length) % STRAW.length];
+  const shade = 0.92 + 0.1 * hash01(z, x, salt + 1);
+  const ca = Math.cos(yaw);
+  const sa = Math.sin(yaw);
+  // a point `u` along the bale, in the world
+  const at = (u) => [x + u * ca, z - u * sa];
+  box(P, l, h, w, x, y, z, hex, { yaw, shade });
+  for (const u of [-0.25, 0.25]) {
+    const [bx, bz] = at(u * l);
+    box(P, 0.035, h + 0.012, w + 0.012, bx, y - 0.003, bz, 0x9a7a3a, { yaw, shade });
+  }
+}
+// A stack: `n` bales end to end along x (centred), and n - 1 on top of them.
+export function baleStack(K, n = 2, salt = 0) {
+  const P = K.solid;
+  const { l, h } = BALE;
+  for (let i = 0; i < n; i++) hayBale(P, (i - (n - 1) / 2) * (l + 0.04), 0, 0, 0, salt + i);
+  for (let i = 0; i < n - 1; i++) hayBale(P, (i - (n - 2) / 2) * (l + 0.04), h, 0.02, 0.06 * (hash01(i, salt, 9) - 0.5), salt + 7 + i);
+}
