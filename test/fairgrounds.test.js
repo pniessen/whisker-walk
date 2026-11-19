@@ -368,3 +368,23 @@ describe('the edges', () => {
     expect(unreached).toBe(0);
   });
 });
+
+describe('the back of the fair', () => {
+  const { LORRY_AT, VAN_AT, GENERATOR_AT } = fair;
+  it('parks the showmen’s lorry and living van and the generator behind the big wheel, solid, off every path', async () => {
+    const { LORRY, VAN } = await import('../src/world/fairedge.js');
+    for (const [t, half] of [[LORRY_AT, LORRY.l / 2], [VAN_AT, VAN.l / 2], [GENERATOR_AT, 0.7]]) {
+      expect(t.z).toBeLessThan(-35);
+      expect(standable(t.x, t.z)).toBe(false);
+      for (const u of [-half + 0.2, half - 0.2]) {
+        const x = t.x + Math.cos(t.yaw) * u;
+        const z = t.z - Math.sin(t.yaw) * u;
+        expect(standable(x, z), `${t.x},${t.z} at ${u}`).toBe(false);
+        expect(pathEdge(x, z)).toBeGreaterThan(1.5);
+      }
+    }
+    // the vehicles are drawn in the props' one mesh: no mesh and no caster of their own
+    expect(scene.getObjectByName('fairProps').isMesh).toBe(true);
+  });
+});
+

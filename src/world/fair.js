@@ -493,6 +493,13 @@ export const BALE_SEATS = Object.freeze([
   pt(-36.6, -0.8, { yaw: EAST }), pt(-36.7, 4.6, { yaw: EAST + 0.12 }),
 ]);
 export const BALE_STACKS = Object.freeze([pt(-40.6, -4.5, { yaw: EAST }), pt(10.8, -38.6, { yaw: 0.1 })]);
+// THE BACK OF THE FAIR: behind the big wheel, out of the way, the showmen's
+// box lorry and living van, and the generator that runs the rides with its
+// cable over the grass to the wheel's west foot.
+export const LORRY_AT = pt(3.6, -40.6, { yaw: -0.08 });
+export const VAN_AT = pt(-8.2, -40.0, { yaw: 0.15 });
+export const GENERATOR_AT = pt(-4.6, -36.6, { yaw: 0.35 });
+
 // a bale's (or a stack's) colliders: circles along its length
 const baleCircles = (t, us) => us.map((u) => ({ ...world(t, t.yaw, u, 0), r: 0.3 }));
 
@@ -711,6 +718,17 @@ export function build(scene, { water = {}, wind } = {}) {
     for (const [x, z, yaw, len] of QUEUE_RAILS) parts.into(K, x, z, yaw, (L) => edge.queueRail(L, len));
     BALE_SEATS.forEach((t, i) => edge.hayBale(K.solid, t.x, 0, t.z, t.yaw, 60 + i));
     BALE_STACKS.forEach((t, i) => parts.into(K, t.x, t.z, t.yaw, (L) => edge.baleStack(L, 2, 70 + i * 4)));
+    parts.into(K, LORRY_AT.x, LORRY_AT.z, LORRY_AT.yaw, (L) => edge.showLorry(L, [FAIR_PAINT.blue, FAIR_PAINT.gold]));
+    parts.into(K, VAN_AT.x, VAN_AT.z, VAN_AT.yaw, (L) => edge.livingVan(L, [FAIR_PAINT.red, FAIR_PAINT.cream]));
+    {
+      // the cable runs to the big wheel's west foot, in the generator's frame
+      const foot = { x: FERRIS_AT.x - FERRIS.legX + 0.5, z: FERRIS_AT.z - FERRIS.frameZ - 0.6 };
+      const dx = foot.x - GENERATOR_AT.x;
+      const dz = foot.z - GENERATOR_AT.z;
+      const c = Math.cos(GENERATOR_AT.yaw);
+      const s = Math.sin(GENERATOR_AT.yaw);
+      parts.into(K, GENERATOR_AT.x, GENERATOR_AT.z, GENERATOR_AT.yaw, (L) => edge.generator(L, [dx * c - dz * s, dx * s + dz * c]));
+    }
     // the hedge gap on the path to the helter-skelter stands between two
     // stacks of hay bales, so it reads as a way through them
     for (const st of GAP_BALES) parts.into(K, st.x, st.z, st.yaw, (L) => edge.baleStack(L, 2, st.salt));
@@ -765,6 +783,9 @@ export function build(scene, { water = {}, wind } = {}) {
   for (const t of FAIR_BINS) addC(t.x, t.z, edge.BIN.r + 0.03);
   for (const t of BALE_SEATS) for (const c of baleCircles(t, [-0.25, 0.25])) addC(c.x, c.z, c.r);
   for (const t of BALE_STACKS) for (const c of baleCircles(t, [-0.75, -0.3, 0.3, 0.75])) addC(c.x, c.z, c.r);
+  for (const u of [-1.55, 0, 1.55]) { const c = world(LORRY_AT, LORRY_AT.yaw, u, 0); addC(c.x, c.z, edge.LORRY.w / 2 + 0.05); }
+  for (const u of [-0.75, 0.75]) { const c = world(VAN_AT, VAN_AT.yaw, u, 0); addC(c.x, c.z, edge.VAN.w / 2 + 0.05); }
+  for (const u of [-0.3, 0.3]) { const c = world(GENERATOR_AT, GENERATOR_AT.yaw, u, 0); addC(c.x, c.z, 0.5); }
   {
     const c = world(BALLOON_CART_AT, 0.5, 0, 0);
     addC(c.x, c.z, 0.8);

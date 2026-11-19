@@ -144,3 +144,97 @@ export function queueRail(K, len) {
   for (let i = 0; i <= n; i++) box(P, 0.06, h, 0.06, -len / 2 + (len * i) / n, 0, 0, C.gold);
   box(P, len + 0.06, 0.06, 0.05, 0, h - 0.1, 0, C.red);
 }
+
+// ---- the back of the fair: the showmen's vehicles and the generator -------------------------
+// Each is built along x (its front at +x), standing on the ground, in its
+// own frame; fair.js sets it down and owns its colliders (LORRY, VAN and
+// GENERATOR give their footprints).
+
+// A side panel on a box face: a flat quad a hair proud of the face at local
+// z = ±side, from x0..x1 and y0..y1, facing out.
+function panel(P, x0, x1, y0, y1, zFace, hex, o = {}) {
+  const z = zFace + Math.sign(zFace) * 0.006;
+  const pts = zFace > 0
+    ? [[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]]
+    : [[x1, y0, z], [x0, y0, z], [x0, y1, z], [x1, y1, z]];
+  sheet(P, pts, hex, o);
+}
+// A wheel: a short closed drum with its axle along z.
+function wheel(P, r, x, z, hex = 0x2e2c30) {
+  cyl(P, r, r, 0.24, x, r, z, hex, { c: true, pitch: Math.PI / 2, sides: 6 });
+}
+
+// A showman's box lorry: a painted box body, a cab, four wheels.
+export const LORRY = Object.freeze({ l: 5.2, w: 2.0, h: 2.75 });
+export function showLorry(K, colors = [C.blue, C.gold]) {
+  const P = K.solid;
+  const [a, t] = colors;
+  const { w } = LORRY;
+  box(P, 4.9, 0.22, 1.7, 0, 0.5, 0, 0x3a3440);                         // the chassis
+  box(P, 3.5, 2.0, w, -0.75, 0.72, 0, a);                              // the box body
+  box(P, 1.35, 1.55, w - 0.06, 1.85, 0.72, 0, C.cream);                // the cab
+  box(P, 0.2, 0.28, w - 0.1, 2.58, 0.55, 0, 0x8f8a96);                 // the bumper
+  // the windscreen and the cab's side windows
+  sheet(P, [[2.53, 1.55, 0.85], [2.53, 1.55, -0.85], [2.53, 2.15, -0.85], [2.53, 2.15, 0.85]], 0x3e5466);
+  for (const s of [-1, 1]) {
+    panel(P, 1.5, 2.3, 1.55, 2.12, s * (w - 0.06) / 2, 0x3e5466);
+    panel(P, -2.4, 0.9, 1.0, 1.14, s * w / 2, t);                       // a gold band along each side
+    panel(P, -2.1, 0.6, 1.35, 2.35, s * w / 2, C.cream, { shade: 0.98 }); // and a cream board above it
+    for (const x of [-1.7, 1.75]) wheel(P, 0.42, x, s * (w / 2 - 0.08));
+  }
+}
+
+// A living van: the showman's home on two wheels, its door on +z.
+export const VAN = Object.freeze({ l: 3.3, w: 1.8, h: 2.45 });
+export function livingVan(K, colors = [C.green, C.cream]) {
+  const P = K.solid;
+  const [a, b2] = colors;
+  const { l, w } = VAN;
+  box(P, l, 0.7, w, 0, 0.55, 0, a);                                    // the lower body
+  box(P, l, 1.05, w, 0, 1.25, 0, b2);                                  // the upper body
+  box(P, l + 0.12, 0.12, w + 0.12, 0, 2.3, 0, a, { shade: 0.9 });      // the roof
+  box(P, 0.9, 0.1, 0.12, l / 2 + 0.45, 0.42, 0, 0x3a3440);             // the drawbar
+  cyl(P, 0.06, 0.06, 0.45, -1.1, 2.42, -0.4, 0x3a3440, { sides: 5, open: true }); // the stove's chimney
+  for (const s of [-1, 1]) {
+    wheel(P, 0.4, -0.2, s * (w / 2 + 0.02), 0x2e2c30);
+    panel(P, -1.35, -0.55, 1.45, 1.95, s * w / 2, 0xbfe6f4);          // a window each end of each side
+    panel(P, 0.55, 1.35, 1.45, 1.95, s * w / 2, 0xbfe6f4);
+  }
+  panel(P, -0.3, 0.35, 0.6, 2.05, w / 2, a, { shade: 0.8 });           // the door
+}
+
+// The generator that runs the rides: a yellow box on skids, an exhaust, and
+// a cable along the grass to `to` ([x, z] in its frame) over a little ramp.
+export const GENERATOR = Object.freeze({ l: 1.4, w: 0.9, h: 1.05 });
+export function generator(K, to = [3, 0]) {
+  const P = K.solid;
+  const { l, w } = GENERATOR;
+  box(P, l, 0.12, w, 0, 0, 0, 0x3a3440);
+  box(P, l - 0.1, 0.82, w - 0.06, 0, 0.12, 0, C.yellow);
+  for (const s of [-1, 1]) panel(P, -0.5, 0.1, 0.35, 0.75, s * (w - 0.06) / 2, 0x3a3440, { shade: 1.2 }); // the vents
+  cyl(P, 0.05, 0.05, 0.42, 0.45, 0.94, -0.2, 0x5a5560, { sides: 5, open: true });
+  // the cable: a dark strip on the grass, in four gentle bends
+  const [tx, tz] = to;
+  const pts = [];
+  for (let i = 0; i <= 4; i++) {
+    const k = i / 4;
+    pts.push([l / 2 + (tx - l / 2) * k, tz * k + 0.35 * Math.sin(k * Math.PI)]);
+  }
+  for (let i = 0; i < 4; i++) {
+    const [x0, z0] = pts[i];
+    const [x1, z1] = pts[i + 1];
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    const nx = -(z1 - z0) / len * 0.03;
+    const nz = (x1 - x0) / len * 0.03;
+    sheet(P, [[x0 + nx, 0.012, z0 + nz], [x1 + nx, 0.012, z1 + nz], [x1 - nx, 0.012, z1 - nz], [x0 - nx, 0.012, z0 - nz]], 0x2a2a30, { up: true });
+  }
+  // the ramp over it, halfway: yellow, with two black stripes
+  const [mx, mz] = pts[2];
+  const yaw = Math.atan2(-(pts[3][1] - pts[1][1]), pts[3][0] - pts[1][0]);
+  box(P, 0.5, 0.07, 0.9, mx, 0, mz, C.yellow, { yaw: yaw });
+  for (const s of [-0.22, 0.22]) {
+    const cx = mx + s * Math.sin(yaw);
+    const cz = mz + s * Math.cos(yaw);
+    box(P, 0.5, 0.004, 0.1, cx, 0.07, cz, 0x2a2a30, { yaw });
+  }
+}
