@@ -53,38 +53,53 @@ describe('farmlife.js: pure, bounded, the same on every device', () => {
   for (let t = 0; t < 400; t += 0.037) ts.push(t);
   const within = (v, lo, hi) => Number.isFinite(v) && v >= lo - 1e-9 && v <= hi + 1e-9;
 
+  // About 130,000 samples: each is checked by hand and only failures are kept,
+  // so the test runs in a second (an expect per check took 31 s on CI's Linux).
   it('every output stays inside its stated range, and never NaN', () => {
-    for (let seed = 1; seed <= 12; seed++) {
-      for (const t of ts) {
-        expect(within(L.blink(t, seed), 0, 1)).toBe(true);
-        expect(within(L.slowBlink(t, seed), 0, 1)).toBe(true);
-        expect(within(L.breath(t, seed), -1, 1)).toBe(true);
-        expect(within(L.sway(t, seed), -1, 1)).toBe(true);
-        expect(within(L.flick(t, seed), -1, 1)).toBe(true);
+    const bad = [];
+    let seed = 0;
+    let t = 0;
+    const ok = (name, v, lo, hi) => {
+      if (!within(v, lo, hi) && bad.length < 10) bad.push(`${name}(t=${t}, seed=${seed}) = ${v}`);
+    };
+    for (seed = 1; seed <= 12; seed++) {
+      for (t of ts) {
+        ok('blink', L.blink(t, seed), 0, 1);
+        ok('slowBlink', L.slowBlink(t, seed), 0, 1);
+        ok('breath', L.breath(t, seed), -1, 1);
+        ok('sway', L.sway(t, seed), -1, 1);
+        ok('flick', L.flick(t, seed), -1, 1);
         const c = L.chew(t, seed);
-        expect(within(c.open, 0, 1) && within(c.side, -1, 1)).toBe(true);
+        ok('chew.open', c.open, 0, 1);
+        ok('chew.side', c.side, -1, 1);
         const sw = L.swish(t, seed);
-        expect(within(sw.z, -1, 1) && within(sw.x, 0, 1)).toBe(true);
+        ok('swish.z', sw.z, -1, 1);
+        ok('swish.x', sw.x, 0, 1);
         const g = L.graze(t, seed);
-        expect(within(g.tug, 0, 1) && within(g.reach, -1, 1)).toBe(true);
+        ok('graze.tug', g.tug, 0, 1);
+        ok('graze.reach', g.reach, -1, 1);
         const b = L.lookBack(t, seed, t % 7, Math.floor(t / 7));
-        expect(within(b.k, 0, 1)).toBe(true);
-        expect(Math.abs(b.side)).toBe(1);
-        expect(within(L.moo(t % 3 - 0.5), 0, 1)).toBe(true);
+        ok('lookBack.k', b.k, 0, 1);
+        if (Math.abs(b.side) !== 1 && bad.length < 10) bad.push(`lookBack.side(t=${t}, seed=${seed}) = ${b.side}`);
+        ok('moo', L.moo(t % 3 - 0.5), 0, 1);
         const h = L.henIdle(t, seed);
-        for (const [k, lo] of [['scratch', -1], ['bend', 0], ['peck', 0], ['gaze', -1], ['fluff', 0], ['stretch', 0]]) expect(within(h[k], lo, 1), k).toBe(true);
-        expect(within(L.pant(t), 0.1, 1)).toBe(true);
-        expect(within(L.wag(t), -1, 1)).toBe(true);
-        expect(within(L.playBow(t, seed), 0, 1)).toBe(true);
-        expect(within(L.rearUp(t % 1), 0, 1)).toBe(true);
-        expect(within(L.tailFlick(t, seed), -1, 1)).toBe(true);
-        expect(within(L.tilt(t, seed), -1, 1)).toBe(true);
+        for (const [k, lo] of [['scratch', -1], ['bend', 0], ['peck', 0], ['gaze', -1], ['fluff', 0], ['stretch', 0]]) ok(`henIdle.${k}`, h[k], lo, 1);
+        ok('pant', L.pant(t), 0.1, 1);
+        ok('wag', L.wag(t), -1, 1);
+        ok('playBow', L.playBow(t, seed), 0, 1);
+        ok('rearUp', L.rearUp(t % 1), 0, 1);
+        ok('tailFlick', L.tailFlick(t, seed), -1, 1);
+        ok('tilt', L.tilt(t, seed), -1, 1);
         const s = L.step(t * 0.7, 0.65);
-        expect(within(s.swing, -1, 1) && within(s.lift, 0, 1)).toBe(true);
+        ok('step.swing', s.swing, -1, 1);
+        ok('step.lift', s.lift, 0, 1);
         const hw = L.henWalk(t * 0.3);
-        expect(within(hw.head, -1, 1) && within(hw.feet, -1, 1) && within(hw.lift, -1, 1)).toBe(true);
+        ok('henWalk.head', hw.head, -1, 1);
+        ok('henWalk.feet', hw.feet, -1, 1);
+        ok('henWalk.lift', hw.lift, -1, 1);
       }
     }
+    expect(bad).toEqual([]);
   });
 
   it('gives the same answer to the same question, and makes nothing new to give it', () => {
