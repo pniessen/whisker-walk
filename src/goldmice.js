@@ -221,7 +221,11 @@ function disposeMouse(mo) {
 // Gorge part 1: `ground` (FLAT_GROUND by default). A mouse's y is metres above
 // the ground at its own x, z, so it rests at worldY = ground.y(x, z) + y; on
 // flat ground worldY is y itself.
-export function createGoldMice(scene, areaId, foundIds, { ground = FLAT_GROUND } = {}) {
+//
+// Review S2: `rng` draws each mouse's bob phase (Math.random by default). A
+// walk passes a per-walk stream of the gold mice's own (game/walk.js), never
+// walkRng; the bob is personal and local, so co-walkers need not agree on it.
+export function createGoldMice(scene, areaId, foundIds, { ground = FLAT_GROUND, rng = Math.random } = {}) {
   const list = [];
   for (const m of GOLD_MICE[areaId] ?? []) {
     if (foundIds.has(m.id)) continue;
@@ -229,7 +233,7 @@ export function createGoldMice(scene, areaId, foundIds, { ground = FLAT_GROUND }
     const worldY = ground.flat ? m.y : ground.y(m.x, m.z) + m.y;
     group.position.set(m.x, worldY, m.z);
     scene.add(group);
-    list.push({ id: m.id, x: m.x, y: m.y, z: m.z, worldY, group, material, phase: Math.random() * Math.PI * 2 });
+    list.push({ id: m.id, x: m.x, y: m.y, z: m.z, worldY, group, material, phase: rng() * Math.PI * 2 });
   }
 
   // remove(id) — despawns one mouse: pulls it out of the scene, disposes

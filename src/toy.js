@@ -11,7 +11,12 @@ const RIM_BOUNCE = 0.5; // a rim turns the ball back at half speed (R12)
 // Gorge part 1 (R12): the ball's floor is ground.y + RADIUS, and a rim
 // bounces it back, so it never rolls off a clifftop. On FLAT_GROUND every
 // line runs exactly as before.
-export function createToy(scene, { ground = FLAT_GROUND } = {}) {
+// Review S2: `rng` draws the extra push a bat gives the ball (Math.random by
+// default). A walk passes a stream of the toy's own (game/walk.js), never
+// walkRng: a bat happens whenever a cat or a stray swipes it, which differs
+// per device, and the ball is this device's own (a partner sees it as the
+// ghost ball drawn from this device's state messages).
+export function createToy(scene, { ground = FLAT_GROUND, rng = Math.random } = {}) {
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(RADIUS, 8, 8),
     litMaterial(0xe05c8a)
@@ -42,7 +47,7 @@ export function createToy(scene, { ground = FLAT_GROUND } = {}) {
     bat(fromPos) {
       const dir = mesh.position.clone().sub(fromPos).setY(0);
       if (dir.lengthSq() < 0.0001) dir.set(1, 0, 0);
-      velocity.add(dir.normalize().multiplyScalar(3 + Math.random() * 2));
+      velocity.add(dir.normalize().multiplyScalar(3 + rng() * 2));
       velocity.y = Math.max(velocity.y, 2);
       api.idleTime = 0;
     },
