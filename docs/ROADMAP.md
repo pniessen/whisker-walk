@@ -10,8 +10,10 @@
 > **Status: SHIPPED (2026-08-14).** All seven waves (v11–v17) were implemented,
 > reviewed, and deployed to the live site via the master plan
 > (`docs/superpowers/plans/2026-08-13-whisker-walk-v11-v17-master.md`). This
-> document is retained as the design rationale; see `docs/SESSION-HANDOFF.md`
-> §3 for what actually shipped per wave and §7 for the remaining backlog.
+> document is retained as the design rationale. What each wave shipped is in
+> its spec and plan in `docs/superpowers/`. The old per-wave record and
+> backlog was in the long `docs/SESSION-HANDOFF.md` (2026-08-27), now in git
+> history.
 
 ## The through-line
 
