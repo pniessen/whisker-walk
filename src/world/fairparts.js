@@ -169,6 +169,14 @@ export function fence(K, runs) {
 // what is on the counter and the back shelf.
 export const STALL = Object.freeze({ w: 3.2, d: 2.2, counterY: 0.9, counterZ: 0.85, roofY: 2.32, tentY: 3.5, shelfY: 1.3 });
 
+// Where a stall's words go, in the stall's own frame (the middle of the
+// board's face): on the board over a flat awning, or on the board hung under
+// a tent top. fair.js writes them (signWriter below).
+export const STALL_SIGN = Object.freeze({
+  flat: Object.freeze({ y: STALL.roofY + 0.25, z: STALL.d / 2 + 0.256, w: 1.56, h: 0.27 }),
+  tent: Object.freeze({ y: 1.8, z: 1.29, w: 1.6, h: 0.3 }),
+});
+
 function teddy(P, x, y, z, hex) {
   ball(P, 0.16, x, y + 0.15, z, hex, { detail: 1, sy: 1.05 });
   ball(P, 0.115, x, y + 0.38, z + 0.02, hex);
@@ -216,6 +224,9 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
     stripes(K.canvas, 2.35, 2.2, 0, STALL.tentY, [a, b], 0, 0, 0, { sides: 12 });
     stripes(K.canvas, 2.36, 2.2, 2.36, 2.2, [b, a], 0, 0, 0, { sides: 12, scallop: 0.3 });
     ball(P, 0.14, 0, STALL.tentY + 0.06, 0, C.gold, { detail: 1 });
+    // a sign board hung under the canopy, over the counter's front
+    box(P, STALL_SIGN.tent.w + 0.12, STALL_SIGN.tent.h + 0.1, 0.06, 0, STALL_SIGN.tent.y - STALL_SIGN.tent.h / 2 - 0.05, STALL_SIGN.tent.z - 0.036, C.gold);
+    for (const s of [-1, 1]) box(P, 0.03, 2.3 - STALL_SIGN.tent.y - STALL_SIGN.tent.h / 2, 0.03, s * 0.7, STALL_SIGN.tent.y + STALL_SIGN.tent.h / 2, STALL_SIGN.tent.z - 0.036, C.dark);
     for (let i = 0; i < 7; i++) {
       const t = Math.PI / 2 - 0.9 + (i / 6) * 1.8;
       bulb(K.bulbs, Math.cos(t) * 2.4, 2.14, Math.sin(t) * 2.4, BULB_COLORS[(i + salt) % BULB_COLORS.length]);
@@ -696,6 +707,80 @@ export function picnicRug(K, colors = [C.red, C.white]) {
 }
 
 // ---- strings overhead ---------------------------------------------------------------------------------------------------
+// ---- the signs' words ---------------------------------------------------------------------------------------------
+// Every painted word at the fair but the gate's is on ONE texture (a row a
+// sign) and ONE mesh (a flat panel a sign), so all of them cost one draw call.
+// add() takes the middle of a panel in the world and the way it faces (a yaw
+// of 0 faces +z).
+export const SIGN_ROW = Object.freeze({ w: 512, h: 96 });
+export function signWriter() {
+  const rows = [];
+  const panels = [];
+  return {
+    get texts() { return rows.slice(); },
+    get count() { return panels.length; },
+    add(text, x, y, z, yaw, w, h) {
+      let row = rows.indexOf(text);
+      if (row < 0) { rows.push(text); row = rows.length - 1; }
+      panels.push({ row, x, y, z, yaw, w, h });
+    },
+    mesh(name = 'fairSigns') {
+      const n = Math.max(1, rows.length);
+      const canvas = document.createElement('canvas');
+      canvas.width = SIGN_ROW.w;
+      canvas.height = SIGN_ROW.h * n;
+      const ctx = canvas.getContext('2d');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      rows.forEach((text, i) => {
+        const y0 = i * SIGN_ROW.h;
+        ctx.fillStyle = '#fff6dc';
+        ctx.fillRect(0, y0, SIGN_ROW.w, SIGN_ROW.h);
+        ctx.strokeStyle = '#e2433a';
+        ctx.lineWidth = 8;
+        ctx.strokeRect(6, y0 + 6, SIGN_ROW.w - 12, SIGN_ROW.h - 12);
+        ctx.fillStyle = '#2f6fc0';
+        ctx.font = 'bold 60px Avenir, Trebuchet MS, sans-serif';
+        ctx.fillText(text, SIGN_ROW.w / 2, y0 + SIGN_ROW.h / 2 + 3, SIGN_ROW.w - 44);
+      });
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const pos = [];
+      const uv = [];
+      for (const p of panels) {
+        const rx = Math.cos(p.yaw) * p.w / 2;
+        const rz = -Math.sin(p.yaw) * p.w / 2;
+        const v1 = 1 - p.row / n;
+        const v0 = 1 - (p.row + 1) / n;
+        const BL = [p.x - rx, p.y - p.h / 2, p.z - rz, 0, v0];
+        const BR = [p.x + rx, p.y - p.h / 2, p.z + rz, 1, v0];
+        const TR = [p.x + rx, p.y + p.h / 2, p.z + rz, 1, v1];
+        const TL = [p.x - rx, p.y + p.h / 2, p.z - rz, 0, v1];
+        for (const v of [BL, BR, TR, BL, TR, TL]) { pos.push(v[0], v[1], v[2]); uv.push(v[3], v[4]); }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      g.computeVertexNormals();
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: texture }));
+      m.name = name;
+      m.userData.noCast = true;
+      m.userData.noMerge = true;
+      m.castShadow = false;
+      return m;
+    },
+  };
+}
+// A little sign on a post, its board facing +z and -z: for a game that has no
+// booth to hang its name on. Too thin to need a collider.
+export const SIGN_POST = Object.freeze({ y: 1.3, w: 1.3, h: 0.3 });
+export function signPost(K) {
+  const P = K.solid;
+  box(P, 0.07, SIGN_POST.y + SIGN_POST.h / 2 + 0.12, 0.07, 0, 0, 0, C.white);
+  box(P, SIGN_POST.w + 0.1, SIGN_POST.h + 0.08, 0.06, 0, SIGN_POST.y - SIGN_POST.h / 2 - 0.04, 0, C.gold);
+  ball(P, 0.07, 0, SIGN_POST.y + SIGN_POST.h / 2 + 0.16, 0, C.red);
+}
+
 export { bunting, bulbString };
 
 // ---- turning the lists into meshes -------------------------------------------------------------------------------------------

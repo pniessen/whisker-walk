@@ -27,7 +27,9 @@ vi.stubGlobal('document', {
 const { build } = await import('../src/world/fair.js');
 const { trackPose } = await import('../src/world/fairrides.js');
 const { createFairSim, RIDE, RIDE_IDS, CAT_RADIUS: SIM_CAT_RADIUS } = await import('../src/fairsim.js');
-const { createFairLive, poseRides, NO_FAIR, TUNE, hopDownTime, wallClock } = await import('../src/fairlive.js');
+const { createFairLive, poseRides, NO_FAIR, TUNE, hopDownTime, wallClock, WHEEL_CAM } = await import('../src/fairlive.js');
+const { FERRIS } = await import('../src/world/fairrides.js');
+const { createTreeFade, findFadeOccluders } = await import('../src/treefade.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 const { waterClearance } = await import('../src/world/builder.js');
 const { clearSpot } = await import('../src/world/spots.js');
@@ -1163,6 +1165,78 @@ describe('the walk: a cat on the big wheel', () => {
     expect(w.events.filter((e) => e.type === 'ride' && e.ride === 'wheel')).toHaveLength(1);
   });
 
+  // Step 3's fix. Down at the bottom the camera used to sit behind the wheel,
+  // looking at her through the rear frame with the lookout's mast beside her.
+  it('looks at her from the front at the bottom, close, with nothing of the wheel’s frame in the way', () => {
+    const w = onTheDeck({ T: 7000 });
+    for (let i = 0; i < 600 && !w.live.riding; i++) { w.live.jump(w.ctx); w.frame(); }
+    const seat = w.session.perched;
+    const frameMesh = w.scene.getObjectByName('ferrisFrame');
+    const rc = new THREE.Raycaster();
+    const look = new THREE.Vector3();
+    const dir = new THREE.Vector3();
+    const cz = w.live.sim.wheel.cz;
+    // carried right round and back to the bottom: the camera has settled, and she is passing the deck
+    w.run(RIDE.WHEEL_TURN - 6);
+    let seen = 0;
+    for (let i = 0; i < 30 * 10; i++) {
+      w.frame();
+      if (seat.y > WHEEL_CAM.LOW || Math.abs(seat.x - w.live.sim.wheel.cx) > 2.2) continue;
+      seen++;
+      w.scene.updateMatrixWorld(true);
+      // in front of the wheel and of its front frame, on the plaza side
+      expect(w.camera.position.z).toBeGreaterThan(cz + FERRIS.frameZ + 1.5);
+      // close: nearer than the old 7.1 m, about the follow camera's own distance
+      look.set(w.cat.position.x, w.cat.position.y + 0.35, w.cat.position.z);
+      const d = w.camera.position.distanceTo(look);
+      expect(d).toBeGreaterThan(3.5);
+      expect(d).toBeLessThan(5.2);
+      // above her, looking down a little, over the deck's posts
+      expect(w.camera.position.y - w.cat.position.y).toBeGreaterThan(1.6);
+      // and nothing of the frame (legs, ties, the deck's posts, the mast) is between them
+      dir.copy(look).sub(w.camera.position).normalize();
+      rc.set(w.camera.position, dir);
+      rc.far = d - 0.4;
+      expect(rc.intersectObject(frameMesh, false)).toHaveLength(0);
+    }
+    expect(seen).toBeGreaterThan(60);
+  });
+
+  it('goes round the outside of the wheel between the front and the back, never through it, and never fast', () => {
+    const w = onTheDeck({ T: 7000 });
+    for (let i = 0; i < 600 && !w.live.riding; i++) { w.live.jump(w.ctx); w.frame(); }
+    const seat = w.session.perched;
+    const { cx, cz, hubY, radius } = w.live.sim.wheel;
+    const prev = new THREE.Vector3();
+    let maxStep = 0;
+    let front = 0;
+    let back = 0;
+    w.run(3); // the ride's camera has taken over
+    for (let i = 0; i < 30 * RIDE.WHEEL_TURN; i++) {
+      prev.copy(w.camera.position);
+      w.frame();
+      const c = w.camera.position;
+      maxStep = Math.max(maxStep, prev.distanceTo(c));
+      // while it is level with the wheel's own thickness (and a camera's elbow room), it is outside the rim
+      if (Math.abs(c.z - cz) < FERRIS.half + 1.0) {
+        expect(Math.hypot(c.x - cx, c.y - hubY)).toBeGreaterThan(radius + 1.5);
+        // on her side of the wheel
+        expect(Math.sign(c.x - cx)).toBe(Math.sign(seat.x - cx));
+      }
+      // never under the ground, never inside the mast
+      expect(c.y).toBeGreaterThan(1.5);
+      expect(Math.hypot(c.x - cx, c.z - (cz + FERRIS.mastZ))).toBeGreaterThan(1.0);
+      expect(noRoll(w.camera)).toBeLessThan(1e-6);
+      if (c.z > cz + 3) front++;
+      if (c.z < cz - 5) back++;
+    }
+    expect(maxStep).toBeLessThan(0.06); // as gently as the old camera rose
+    expect(front).toBeGreaterThan(30 * 8);  // in front for the bottom of the turn
+    expect(back).toBeGreaterThan(30 * 15);  // behind and above for the top of it
+    // at the very top it is where step 2 put it: behind, above, a little to the east
+    expect([WHEEL_CAM.BACK_X, WHEEL_CAM.BACK_UP, WHEEL_CAM.BACK_Z]).toEqual([2.6, 2.5, -6.2]);
+  });
+
   it('lets her off at any height with the stick: a hop down of under a second onto free ground clear of the wheel', () => {
     for (const ride of [2, 9, 17, 27, 38, 49]) {
       const w = onTheDeck({ T: 8000 + ride });
@@ -1368,6 +1442,55 @@ describe('the walk: a cat on the helter-skelter', () => {
     again.frame();
     expect(again.live.jump(again.ctx)).toBe(true);
     expect(again.session.perched.seatKind).toBe('chute');
+  });
+
+  // Step 3's fix: the slide fades for a camera in among its coils (a cat on
+  // the stairs inside), and is held solid while she is on it.
+  it('fades the slide round a cat on the stairs inside, and never from under a cat who is sliding', () => {
+    const w = onTheGallery({ T: 12000 });
+    const fade = createTreeFade(findFadeOccluders(w.scene).filter((e) => e.obj.name === 'helterSlide' || e.obj.name === 'helterBrackets'), { reducedMotion: true });
+    const slide = w.scene.getObjectByName('helterSlide');
+    const solid = slide.material;
+    const look = new THREE.Vector3();
+    const see = () => { look.set(w.cat.position.x, w.cat.position.y + 0.35, w.cat.position.z); fade.update(w.DT, w.camera, look); };
+    // on the third landing inside, the follow camera 4.5 m behind her: the slide is in the way, and fades
+    const landing = w.area.rides.helterSkelter.stairs[2];
+    w.session.perched = w.area.perches.find((p) => p.x === landing.x && p.z === landing.z && p.y === landing.y);
+    w.player.perchY = landing.y;
+    w.cat.position.set(landing.x, landing.y, landing.z);
+    for (const yaw of [0, 1.3, 2.6, 3.9, 5.2]) {
+      w.player.yaw = yaw;
+      w.frame();
+      w.camera.position.set(landing.x + Math.sin(yaw) * 4.5, landing.y + 2.4, landing.z + Math.cos(yaw) * 4.5);
+      see();
+      expect(slide.material, `yaw ${yaw}`).not.toBe(solid);
+      expect(slide.material.opacity).toBeLessThan(0.1);
+    }
+    // up on the gallery and off down the slide: solid for every frame of it
+    w.session.perched = w.top;
+    w.player.perchY = w.top.y;
+    w.cat.position.set(w.top.x, w.top.y, w.top.z);
+    w.frame();
+    expect(w.live.jump(w.ctx)).toBe(true);
+    const chute = w.session.perched;
+    let frames = 0;
+    while (w.session.perched === chute && frames < 400) {
+      w.frame();
+      see();
+      if (w.session.perched !== chute) break;
+      frames++;
+      expect(slide.userData.fadeHold).toBe(true);
+      expect(slide.material).toBe(solid);
+    }
+    expect(frames).toBeGreaterThan(60);
+    // off the mat and away: the hold is let go
+    w.run(0.5);
+    w.pushStick(0.7, 0.7);
+    w.run(1);
+    w.pushStick(0, 0);
+    expect(slide.userData.fadeHold).toBe(false);
+    fade.dispose();
+    expect(slide.material).toBe(solid);
   });
 
   it('keeps her on the slide whatever she presses, for the few seconds it lasts, and no longer', () => {

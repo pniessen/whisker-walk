@@ -8,7 +8,7 @@ import { withLocalUuids } from './localuuids.js';
 import { glowMaterial, GLOW_MAX } from './fairkit.js';
 import * as parts from './fairparts.js';
 import * as rides from './fairrides.js';
-import { STALL, TINS, BELL, FORTUNE, BANDSTAND, PICNIC, RIDGE_TENT, FAIR_PAINT, POOL } from './fairparts.js';
+import { STALL, STALL_SIGN, SIGN_POST, TINS, BELL, FORTUNE, BANDSTAND, PICNIC, RIDGE_TENT, FAIR_PAINT, POOL } from './fairparts.js';
 import { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, MUSIC_BOX } from './fairrides.js';
 
 // =============================================================================
@@ -97,16 +97,24 @@ export const PICNIC_LAWN = rect(-34, -16, 11, 28);
 
 // The stalls down the midway: west side facing east, east side facing west.
 export const STALLS = Object.freeze([
-  { id: 'candyfloss', x: -5.7, z: 40, yaw: EAST, top: 'tent', colors: [FAIR_PAINT.pink, FAIR_PAINT.cream], goods: 'floss' },
-  { id: 'tinCans', x: -5.7, z: 34, yaw: EAST, top: 'flat', colors: [FAIR_PAINT.red, FAIR_PAINT.cream], goods: 'tins' },
-  { id: 'prizes', x: -5.7, z: 26, yaw: EAST, top: 'tent', colors: [FAIR_PAINT.sky, FAIR_PAINT.cream], goods: 'prizes' },
-  { id: 'toffeeApples', x: -5.7, z: 15.5, yaw: EAST, top: 'flat', colors: [FAIR_PAINT.green, FAIR_PAINT.cream], goods: 'apples' },
-  { id: 'popcorn', x: 5.7, z: 40, yaw: WEST, top: 'flat', colors: [FAIR_PAINT.orange, FAIR_PAINT.cream], goods: 'popcorn' },
-  { id: 'hoopla', x: 5.7, z: 34.5, yaw: WEST, top: 'tent', colors: [FAIR_PAINT.red, FAIR_PAINT.yellow], goods: 'hoops' },
-  { id: 'lemonade', x: 5.7, z: 26.5, yaw: WEST, top: 'tent', colors: [FAIR_PAINT.purple, FAIR_PAINT.cream], goods: 'drinks' },
-  { id: 'teddies', x: 5.7, z: 16.5, yaw: WEST, top: 'tent', colors: [FAIR_PAINT.green, FAIR_PAINT.yellow], goods: 'prizes' },
+  { id: 'candyfloss', sign: 'Candyfloss', x: -5.7, z: 40, yaw: EAST, top: 'tent', colors: [FAIR_PAINT.pink, FAIR_PAINT.cream], goods: 'floss' },
+  { id: 'tinCans', sign: 'Tin Can Alley', x: -5.7, z: 34, yaw: EAST, top: 'flat', colors: [FAIR_PAINT.red, FAIR_PAINT.cream], goods: 'tins' },
+  { id: 'prizes', sign: 'Prizes', x: -5.7, z: 26, yaw: EAST, top: 'tent', colors: [FAIR_PAINT.sky, FAIR_PAINT.cream], goods: 'prizes' },
+  { id: 'toffeeApples', sign: 'Toffee Apples', x: -5.7, z: 15.5, yaw: EAST, top: 'flat', colors: [FAIR_PAINT.green, FAIR_PAINT.cream], goods: 'apples' },
+  { id: 'popcorn', sign: 'Popcorn', x: 5.7, z: 40, yaw: WEST, top: 'flat', colors: [FAIR_PAINT.orange, FAIR_PAINT.cream], goods: 'popcorn' },
+  { id: 'hoopla', sign: 'Hoopla', x: 5.7, z: 34.5, yaw: WEST, top: 'tent', colors: [FAIR_PAINT.red, FAIR_PAINT.yellow], goods: 'hoops' },
+  { id: 'lemonade', sign: 'Lemonade', x: 5.7, z: 26.5, yaw: WEST, top: 'tent', colors: [FAIR_PAINT.purple, FAIR_PAINT.cream], goods: 'drinks' },
+  { id: 'teddies', sign: 'Teddy Bears', x: 5.7, z: 16.5, yaw: WEST, top: 'tent', colors: [FAIR_PAINT.green, FAIR_PAINT.yellow], goods: 'prizes' },
 ].map((s) => Object.freeze({ ...s, colors: Object.freeze(s.colors) })));
 const stallById = (id) => STALLS.find((s) => s.id === id);
+// The three things on the midway that have no booth to hang a name on: a
+// little sign on a post beside each, its board read from both sides.
+// (Painted words, the same in every set of words, like the gate's.)
+export const SIGN_POSTS = Object.freeze([
+  Object.freeze({ id: 'hookADuck', sign: 'Hook a Duck', x: -10.2, z: 17.6, yaw: Math.PI / 2 }),
+  Object.freeze({ id: 'ringTheBell', sign: 'Ring the Bell', x: 5.8, z: 22.6, yaw: -Math.PI / 2 }),
+  Object.freeze({ id: 'fortunes', sign: 'Fortunes', x: 14.2, z: 33.2, yaw: -Math.PI / 2 }),
+]);
 
 // The two plain tents behind the east stalls, their doors facing east.
 const RIDGE_TENTS = Object.freeze([pt(11.2, 22.9), pt(11.2, 17.5)]);
@@ -229,10 +237,18 @@ function blockRect(addC, minX, maxX, minZ, maxZ) {
 }
 
 // ---- perches, as data (the chains are described at `perches` below) -----------------------
+// A FIRST HOP NEEDS ROOM TO BE MADE FROM. A low perch is reached from 1.2 m,
+// and a solid prop keeps the cat its own radius off: a perch in the middle of
+// a deck leaves only a thin ring of ground to jump from, and a jump from
+// anywhere else is a pounce at nothing. So a counter's perch is at its front
+// edge, and each deck with steps has a perch ON its steps (the cat walks in
+// among them), from which the deck is one more hop. test/fair.test.js
+// measures the standing room of every one.
+const COUNTER_PERCH_Z = 1.0; // the counter's top runs from 0.54 to 1.16
 const stallPerches = (id, counterX, label) => {
   const s = stallById(id);
   return [
-    Object.freeze({ ...world(s, s.yaw, counterX, STALL.counterZ), y: STALL.counterY, kind: 'crate' }),
+    Object.freeze({ ...world(s, s.yaw, counterX, COUNTER_PERCH_Z), y: STALL.counterY, kind: 'crate' }),
     Object.freeze({ x: s.x, z: s.z, y: STALL.roofY, kind: 'roof', ...(label ? { label, vantage: true } : {}) }),
   ];
 };
@@ -242,8 +258,11 @@ const POPCORN_STALL = stallPerches('popcorn', -0.1);
 const BANDSTAND_YAW = EAST;
 // The bandstand's deck, at the top of its steps.
 const BANDSTAND_DECK = Object.freeze({ ...world(BANDSTAND_AT, BANDSTAND_YAW, 0, 2.4), y: BANDSTAND.deckY, kind: 'roof', label: 'the bandstand', vantage: true });
+const BANDSTAND_STEP = Object.freeze({ ...world(BANDSTAND_AT, BANDSTAND_YAW, 0, r2(BANDSTAND.r * Math.cos(Math.PI / 8) + 0.2)), y: r2(BANDSTAND.deckY * 0.66), kind: 'roof' });
 const WHEEL_STEP = Object.freeze({ x: FERRIS_AT.x, z: FERRIS_AT.z + FERRIS.deckZ, y: FERRIS.deckY, kind: 'roof' });
+const WHEEL_FOOT_STEP = Object.freeze({ x: FERRIS_AT.x, z: r2(FERRIS_AT.z + FERRIS.deckZ + FERRIS.deckD / 2 + 0.22), y: 0.2, kind: 'roof' });
 const COASTER_PLATFORM = Object.freeze({ x: 21.6, z: 0, y: STATION.deckY, kind: 'roof', label: 'the coaster platform', vantage: true });
+const COASTER_STEP = Object.freeze({ x: r2(STATION_DECK.minX - 0.25), z: 0, y: r2(STATION.deckY * 0.66), kind: 'roof' });
 const HELTER_PERCHES = Object.freeze([
   ...HELTER_STAIRS.map((p) => Object.freeze({ ...p, kind: 'roof' })),
   Object.freeze({ ...HELTER_TOP, kind: 'roof', label: 'the top of the helter-skelter', vantage: true }),
@@ -413,6 +432,21 @@ export function build(scene, { water = {}, wind } = {}) {
       parts.stall(L, { top: s.top, colors: s.colors, goods: s.goods, salt: i });
       if (s.id === 'tinCans') parts.tinCanShelf(L);
     }));
+    // every painted word but the gate's: one texture, one mesh
+    const signs = parts.signWriter();
+    for (const s of STALLS) {
+      const q = STALL_SIGN[s.top === 'flat' ? 'flat' : 'tent'];
+      const at = world(s, s.yaw, 0, q.z);
+      signs.add(s.sign, at.x, q.y, at.z, s.yaw, q.w, q.h);
+    }
+    for (const p of SIGN_POSTS) {
+      parts.into(K, p.x, p.z, p.yaw, (L) => parts.signPost(L));
+      for (const side of [1, -1]) {
+        const at = world(p, p.yaw, 0, side * 0.04);
+        signs.add(p.sign, at.x, SIGN_POST.y, at.z, p.yaw + (side > 0 ? 0 : Math.PI), SIGN_POST.w, SIGN_POST.h);
+      }
+    }
+    out.push(signs.mesh());
     const tins = parts.tinCans(TIN_SPOTS);
     out.push(tins);
     parts.balloonBunch(K, -4.3, 2.2, 41.5, 4, 11);
@@ -614,7 +648,9 @@ export function build(scene, { water = {}, wind } = {}) {
     // B — THREE STALL ROOFS (tin-can alley, toffee apples, popcorn): the
     //   counter 0.9, then the flat striped awning 2.32.
     // C — single hops: the bandstand's deck 0.6, the coaster's platform 0.85, the big wheel's boarding
-    //   deck 0.4, three picnic tables 0.75, three benches 0.54.
+    //   deck 0.4, three picnic tables 0.75, three benches 0.54. Each of the
+    //   three decks also has a perch on its top step (0.4, 0.56, 0.2): a jump
+    //   from in among the steps lands there, and the deck is the next hop.
     //
     // The rides' own seats (a horse, a gondola, a cup, a coaster car) and the
     // lookout at the top of the big wheel are NOT here: they are reached by
@@ -623,8 +659,8 @@ export function build(scene, { water = {}, wind } = {}) {
     perches: [
       ...HELTER_PERCHES,
       ...TIN_STALL, ...APPLE_STALL, ...POPCORN_STALL,
-      BANDSTAND_DECK,
-      COASTER_PLATFORM, WHEEL_STEP,
+      BANDSTAND_STEP, BANDSTAND_DECK,
+      COASTER_STEP, COASTER_PLATFORM, WHEEL_FOOT_STEP, WHEEL_STEP,
       ...TABLE_PERCHES, ...BENCH_PERCHES,
       // Sure Claws only: ten trees.
       ...clawPerches,
@@ -700,7 +736,7 @@ export function build(scene, { water = {}, wind } = {}) {
       merryGoRound: { group: made.mgr.group, turn: made.mgr.turn, axis: 'y', horses: made.mgr.horses, bob: MGR.bob, musicBoxDrum: made.music.drum },
       wheel: { group: made.wheel.group, turn: made.wheel.turn, axis: 'z', gondolas: made.wheel.gondolas, hubY: FERRIS.hubY, radius: FERRIS.R },
       teacups: { group: made.cups.group, turn: made.cups.turn, axis: 'y', cups: made.cups.cups },
-      helterSkelter: { tower: made.helter.tower, stairs: HELTER_STAIRS, top: HELTER_TOP, slide: HELTER_SLIDE },
+      helterSkelter: { tower: made.helter.tower, stairs: HELTER_STAIRS, top: HELTER_TOP, slide: HELTER_SLIDE, slideMeshes: [made.helter.slide, made.helter.brackets] },
       coaster: { train: made.train.group, cars: made.train.cars, track: COASTER_TRACK, stationS: COASTER_STATION_S, carGap: COASTER.carGap },
       tinCans: made.tins.children.slice(),
       ducks: made.ducks.children.slice(),

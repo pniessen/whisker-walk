@@ -377,6 +377,9 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         || segmentBlocked(cam, far, o, LINE_PAD);
       close = want && t.tree && dCam < o.R + NEAR_FOLIAGE && cam.y < o.top + 1;
     }
+    // A tagged shape its owner is holding solid for now (the Fairground's
+    // slide while the cat is on it: src/fairlive.js).
+    if (want && o.near !== undefined && o.obj?.userData.fadeHold) want = false;
     if (!want && t.op >= 1) return false;
     const target = close ? FOLIAGE_NEAR_OPACITY : want ? FADE_OPACITY : 1;
     // A tree the fight camera hid (fightcam.js) snaps: it reappears already
