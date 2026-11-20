@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -871,7 +871,90 @@ function paperboycap(simple) {
   return finish('paperboycap', [shell, lip, peak, button]);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater };
+// --- clips (found outfits step 2, lane H, Task 3) -----------------------------
+//
+// Neither is a hat: each is a small thing clipped on the skull, still one
+// vertex-coloured mesh in head space.
+
+// Starfish Clip: five tapered arms lying on the skull (tube()s lifted 3 mm with
+// drape) round a centre at the skull direction `dir` (right of the crown, in
+// front of the ear's middle), a pale dot or two along each arm's ridge.
+const STARFISH = { dir: [0.55, 0.8, -0.1], reach: 0.036, radius: 0.0078, lift: 0.003, turn: 0.2 };
+const STARFISH_ORANGE = 0xf28a3c, STARFISH_DOT = 0xf7c08a;
+function starfishclip(simple) {
+  const dir = new THREE.Vector3(...STARFISH.dir).normalize();
+  const c0 = new THREE.Vector3(dir.x * SA, dir.y * SB, dir.z * SC);
+  const [centre, n0] = drape(c0, 0);
+  const up = upSkull(centre, n0);
+  const right = new THREE.Vector3().crossVectors(up, n0).normalize();
+  const steps = simple ? 3 : 5, sides = simple ? 4 : 6;
+  const parts = [];
+  for (let k = 0; k < 5; k++) {
+    const a = STARFISH.turn + (k / 5) * Math.PI * 2;
+    const along = up.clone().multiplyScalar(Math.cos(a)).addScaledVector(right, Math.sin(a));
+    const centres = [], normals = [];
+    for (let i = 0; i < steps; i++) {
+      const t = i / (steps - 1);
+      const [p, n] = drape(centre.clone().addScaledVector(along, STARFISH.reach * t), STARFISH.lift);
+      centres.push(p); normals.push(n);
+    }
+    parts.push(tube(centres, normals, {
+      sides,
+      radius: (i) => STARFISH.radius * (1 - 0.8 * (i / (steps - 1)) ** 1.3),
+      colour: (i, ang) => (i > 0 && i < steps - 1 && i % 2 === 1 && Math.cos(ang) > 0.55 ? STARFISH_DOT : STARFISH_ORANGE),
+    }));
+  }
+  const [hub, hubN] = drape(centre, STARFISH.lift + 0.002);
+  parts.push(blob(0.0095, simple ? 5 : 6, simple ? 3 : 4, hub.addScaledVector(hubN, 0.001), [1, 1, 1], STARFISH_DOT));
+  return finish('starfishclip', parts);
+}
+
+// Feather Plume: a russet feather tucked behind the left ear. A 2 cm band on
+// the skull at `dir` holds the quill, which rises along the skull's normal and
+// curves back (toward +z) by `bend` radians over `len` metres; the vane is a
+// tapered strip beside it, coloured from `vane[0]` at the root to `vane[1]` at
+// the tip.
+const FEATHER = { dir: [-0.45, 0.85, 0.3], len: 0.16, bend: 0.5, band: 0.02, bandR: 0.011, vaneW: 0.019, vaneFrom: 0.14 };
+const FEATHER_VANE = [0xa0522d, 0x3b2a20], FEATHER_QUILL = 0xf2e6c8, FEATHER_BAND = 0x5a3a1c;
+function featherplume(simple) {
+  const dir = new THREE.Vector3(...FEATHER.dir).normalize();
+  const [base, n0] = drape(new THREE.Vector3(dir.x * SA, dir.y * SB, dir.z * SC), 0);
+  // the way the feather leans: up the skull's normal, bending toward +z
+  const back = new THREE.Vector3(0, 0, 1).addScaledVector(n0, -n0.z).normalize();
+  const side = new THREE.Vector3().crossVectors(n0, back).normalize();
+  const steps = simple ? 5 : 9;
+  const spine = [];
+  const p = base.clone().addScaledVector(n0, -0.002);
+  for (let i = 0; i < steps; i++) {
+    spine.push(p.clone());
+    const t = (i + 0.5) / (steps - 1), ang = FEATHER.bend * t;
+    p.addScaledVector(n0.clone().multiplyScalar(Math.cos(ang)).addScaledVector(back, Math.sin(ang)), FEATHER.len / (steps - 1));
+  }
+  const quillN = spine.map(() => side.clone());
+  const quill = tube(spine, quillN, { sides: simple ? 3 : 4, radius: (i) => 0.0032 * (1 - 0.5 * (i / (steps - 1))), colour: () => FEATHER_QUILL });
+  // the vane: from vaneFrom up the spine, widest a third of the way up, to a point
+  const i0 = Math.max(1, Math.min(steps - 4, Math.round(FEATHER.vaneFrom / FEATHER.len * (steps - 1))));
+  const vn = steps - i0;
+  const tipHex = rgb(FEATHER_VANE[1]);
+  const vane = grid(vn, 3, {}, (i, j) => {
+    const t = i / (vn - 1);
+    const w = FEATHER.vaneW * Math.sin(Math.PI * Math.min(1, 0.3 + 0.7 * t) ** 0.85) * (1 - t ** 3);
+    const edge = (j - 1);
+    const pt = spine[i0 + i].clone().addScaledVector(side, edge * w).addScaledVector(n0, edge ? -Math.abs(edge) * w * 0.15 : 0.0015);
+    return { p: pt, c: mix(FEATHER_VANE[0], tipHex, t), out: back.clone().cross(side).multiplyScalar(1) };
+  });
+  // a little band round the quill's foot, resting on the skull
+  const segs = simple ? 6 : 8;
+  const band = grid(segs, 2, { wrapU: true }, (i, j) => {
+    const a = (i / segs) * Math.PI * 2;
+    const q = base.clone().addScaledVector(side, Math.cos(a) * FEATHER.bandR).addScaledVector(back, Math.sin(a) * FEATHER.bandR);
+    const [pp, n] = drape(q, 0.002);
+    return { p: j ? pp.clone().addScaledVector(n0, FEATHER.band) : pp, c: FEATHER_BAND, out: q.clone().sub(base) };
+  });
+  return finish('featherplume', [quill, vane, backFace(vane), band]);
+}
+
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume };
 
 export function buildHat(id, { simple = false } = {}) {
   const make = Object.hasOwn(BUILD, id ?? '') ? BUILD[id] : null;
@@ -879,4 +962,4 @@ export function buildHat(id, { simple = false } = {}) {
 }
 
 // for tests / tuning
-export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH, PAPER, ACORN, PAPERBOY, BRIM_HATS });
+export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH, PAPER, ACORN, PAPERBOY, BRIM_HATS, STARFISH, FEATHER });

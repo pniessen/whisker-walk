@@ -29,6 +29,8 @@ const DELTA = {
   acorncap: 2,
   // lane H: the brimmed hats' pieces (crown/dome, brim or peak, band, button or badge)
   paperboycap: 3, buckethat: 3, sailorcap: 4, strawhat: 3, stripedboater: 4,
+  // lane H, Task 3: the star and its dot; the quill and the vane
+  starfishclip: 2, featherplume: 2,
 };
 
 const hen = (acc = BARE) => {
@@ -413,6 +415,16 @@ describe('Hagrid rebuilt (Task 8)', () => {
       const b = boxOf(pieces.flatMap((m) => pointsIn(m, head)));
       expect(b.min.y).toBeGreaterThan(0.137);
       expect(b.max.y).toBeLessThanOrEqual(top + 0.15);
+    });
+
+    it.each([['starfishclip', 1], ['featherplume', -1]])('the %s lies on his skull, on the side of its ear (x sign %i)', (id, sign) => {
+      const c = hen({ ...BARE, head: id });
+      const { head } = c.userData.parts;
+      const pieces = head.children.filter((o) => o.isMesh && o.userData.foundWear === id);
+      expect(pieces.length).toBe(DELTA[id]);
+      const b = boxOf(pieces.flatMap((m) => pointsIn(m, head)));
+      expect(b.min.x * sign).toBeGreaterThan(0);
+      expect(b.min.y).toBeGreaterThan(0.05);
     });
 
     it('the beanie covers the comb', () => {

@@ -50,6 +50,25 @@ const cyl = (rTop, rBot, h, sides = 10) => new THREE.CylinderGeometry(rTop, rBot
 const dome = (r, sx, sy, sz) => { const g = new THREE.SphereGeometry(r, 8, 6); g.scale(sx, sy, sz); return g; };
 const ring = (r, tube) => { const g = new THREE.TorusGeometry(r, tube, 4, 12); g.rotateX(Math.PI / 2); return g; };
 
+// A flat five-armed star lying on the skull at `at`, facing out along `n`.
+const flatStar = (outer, inner, depth) => {
+  const sh = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? inner : outer, a = (i / 10) * Math.PI * 2;
+    if (i) sh.lineTo(Math.sin(a) * r, Math.cos(a) * r); else sh.moveTo(0, r);
+  }
+  sh.closePath();
+  return new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false });
+};
+const HEN_SKULL_R = [0.13, 0.1365, 0.13]; // src/cat/hen.js HEN_SKULL
+const onSkull = (m, dir, lift) => {
+  const u = new THREE.Vector3(...dir).normalize();
+  const n = new THREE.Vector3(u.x / HEN_SKULL_R[0], u.y / HEN_SKULL_R[1], u.z / HEN_SKULL_R[2]).normalize();
+  m.position.set(u.x * HEN_SKULL_R[0], u.y * HEN_SKULL_R[1], u.z * HEN_SKULL_R[2]).addScaledVector(n, lift);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+  return m;
+};
+
 export const FOUND_HEN_HEADS = Object.freeze({
   // the beanie's puffed crown leaning forward, a short stiff peak, a button
   paperboycap: (head, { k, y }) => {
@@ -75,6 +94,28 @@ export const FOUND_HEN_HEADS = Object.freeze({
     head.add(piece(cyl(0.16 * k, 0.16 * k, 0.01, 12), 0xe3c26b, 0, y - 0.015, 0));
     head.add(piece(cyl(0.075 * k, 0.085 * k, 0.07), 0xcfa94e, 0, y + 0.022, 0));
     head.add(piece(cyl(0.087 * k, 0.088 * k, 0.016), 0xc0392b, 0, y - 0.002, 0));
+  },
+  // a small orange star lying on the right of his head, a pale dot in its middle
+  starfishclip: (head, { k }) => {
+    const star = onSkull(piece(flatStar(0.036 * k, 0.015 * k, 0.006), 0xf28a3c, 0, 0, 0), [0.55, 0.8, -0.1], -0.001);
+    head.add(star);
+    head.add(onSkull(piece(dome(0.01 * k, 1, 1, 0.5), 0xf7c08a, 0, 0, 0), [0.55, 0.8, -0.1], 0.005));
+  },
+  // a russet feather standing up on the left of his head, leaning back, a pale quill
+  featherplume: (head, { k }) => {
+    // pivot at the skull, axis up the skull's normal, then leant back (+z) 0.3 rad
+    const lean = (m, dir) => {
+      onSkull(m, dir, 0);
+      const n = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quaternion);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n)
+        .premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.3));
+      return m;
+    };
+    const quill = new THREE.CylinderGeometry(0.003, 0.004, 0.13 * k, 4);
+    quill.translate(0, 0.065 * k, 0);
+    head.add(lean(piece(quill, 0xf2e6c8, 0, 0, 0), [-0.45, 0.85, 0.3]));
+    const vane = dome(0.022 * k, 0.45, 3.2, 0.12); vane.translate(0, 0.085 * k, 0);
+    head.add(lean(piece(vane, 0xa0522d, 0, 0, 0), [-0.45, 0.85, 0.3]));
   },
   // a flat top, straight sides, a flat brim, a red band with a white stripe
   stripedboater: (head, { k, y }) => {

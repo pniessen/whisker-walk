@@ -276,3 +276,52 @@ describe('found hats with brims (found outfits step 2)', () => {
     for (const v of peak) expect(Math.abs(Math.atan2(v.x, -v.z))).toBeLessThan(0.95);
   });
 });
+
+// Found outfits step 2, lane H, Task 3: two clips, not hats. The sweeps above
+// (seat, triangles, ear tips, thumbnail top) already run over them.
+describe('the Starfish Clip and the Feather Plume (found outfits step 2)', () => {
+  const breeds = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
+  it.each(['starfishclip', 'featherplume'])('%s is in HAT_IDS', (id) => {
+    expect(HAT_IDS).toContain(id);
+  });
+  it('the starfish lies on the right of the crown, clear of the right ear\'s tip', () => {
+    for (const simple of [false, true]) {
+      for (const v of verts(buildHat('starfishclip', { simple }))) expect(v.x).toBeGreaterThan(0);
+    }
+    for (const breed of breeds) {
+      const cat = buildCat(breed, { head: 'starfishclip' });
+      const ear = cat.userData.parts.head.userData.earR;
+      ear.updateMatrix();
+      // the tip: the ear's highest point in head space; the clip keeps 3 cm from it
+      const tip = verts(ear).map((v) => v.applyMatrix4(ear.matrix)).reduce((m, v) => (v.y > m.y ? v : m));
+      for (const v of verts(hatOf(cat)[0])) expect(v.distanceTo(tip), breed).toBeGreaterThan(0.03);
+    }
+  });
+  it('the starfish is orange with paler dots', () => {
+    const c = buildHat('starfishclip').geometry.attributes.color;
+    const hexes = new Set();
+    for (let i = 0; i < c.count; i++) hexes.add(new THREE.Color(c.getX(i), c.getY(i), c.getZ(i)).getHex());
+    expect(hexes.has(0xf28a3c)).toBe(true);
+    expect(hexes.has(0xf7c08a)).toBe(true);
+  });
+  it('the feather stands behind the left ear and is the hat\'s top', () => {
+    for (const simple of [false, true]) {
+      const top = verts(buildHat('featherplume', { simple })).reduce((a, b) => (b.y > a.y ? b : a));
+      expect(top.x).toBeLessThan(0);
+      expect(top.z).toBeGreaterThan(0);
+      expect(top.y).toBeLessThan(OLD_TOPHAT_TOP);
+      expect(top.y).toBeGreaterThan(0.26);
+    }
+  });
+  it('the feather\'s vane runs from russet to dark brown', () => {
+    const c = buildHat('featherplume').geometry.attributes.color;
+    const reds = [];
+    for (let i = 0; i < c.count; i++) {
+      const col = new THREE.Color(c.getX(i), c.getY(i), c.getZ(i)).getHex();
+      if (col !== 0xf2e6c8 && col !== 0x5a3a1c) reds.push(c.getX(i)); // not the quill or the band
+    }
+    // linear red: 0xa0522d is about 0.35, 0x3b2a20 about 0.04
+    expect(Math.max(...reds)).toBeGreaterThan(0.25);
+    expect(Math.min(...reds)).toBeLessThan(0.09);
+  });
+});

@@ -28,4 +28,6 @@ export const HEAD_WEAR = Object.freeze([
   Object.freeze({ id: 'sailorcap', slot: 'head', find: 'docks', emoji: '⛵', name: () => phrase('wear.sailorcap.name') }),
   Object.freeze({ id: 'strawhat', slot: 'head', find: 'farm', emoji: '👒', name: () => phrase('wear.strawhat.name') }),
   Object.freeze({ id: 'stripedboater', slot: 'head', find: 'fair', emoji: '🎪', name: () => phrase('wear.stripedboater.name') }),
+  Object.freeze({ id: 'starfishclip', slot: 'head', find: 'seaside', emoji: '⭐', name: () => phrase('wear.starfishclip.name') }),
+  Object.freeze({ id: 'featherplume', slot: 'head', find: 'farm', emoji: '🪶', name: () => phrase('wear.featherplume.name') }),
 ]);
