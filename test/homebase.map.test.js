@@ -25,7 +25,7 @@ const stub = {
   ui: { mapCard: null },
   html: ({ headerHtml }) => `<header>${headerHtml}</header>`,
   afterRender() {}, handleClick() { return false; }, clearPreview() {},
-  placesHtml: (o) => { placesCalls.push(o); return `<div class="dr-where">${o?.clanLineHtml ?? ''}${o?.denHtml ?? ''}</div>`; },
+  placesHtml: (o) => { placesCalls.push(o); return `<div class="dr-where">${o?.clanLineHtml ?? ''}${o?.hintHtml ?? ''}${o?.denHtml ?? ''}</div>`; },
   closeWardrobe() {},
   handleInput() { return false; }, captureFocus() { return null; }, startAllowed() { return true; },
   back: vi.fn(() => { stub.ui.mapCard = null; return true; }),
@@ -346,5 +346,95 @@ describe('Change place: the world map on the home screen', () => {
     openSheet('places');
     expect(doc.root.innerHTML).toContain('data-sheet="places"');
     expect(attaches).toHaveLength(n);
+  });
+});
+
+describe('Change place: the first-time hint on the world map', () => {
+  function make({ tips = true, touch = true, edition } = {}) {
+    const progression = createProgression(memStorage());
+    if (edition) progression.state.edition = edition;
+    const settings = { get: (k) => (k === 'showTips' ? tips : null), set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto', showTips: tips }) };
+    const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {}, getIsTouch: () => touch });
+    hb.show();
+    return { hb, progression };
+  }
+  const hintsOf = (p) => p.state.tutorial.hints.map;
+
+  it('the first open shows the touch words once and counts it once, not once per render', () => {
+    const { progression } = make();
+    expect(hintsOf(progression)).toBeUndefined();
+    openSheet('places');
+    expect(doc.root.innerHTML).toContain('<p class="wm-hint">🗺️ Tap a place to see it. Pinch to zoom.</p>');
+    expect(hintsOf(progression)).toBe(1);
+    openSheet('places'); // a re-render with the sheet staying open
+    expect(doc.root.innerHTML).toContain('class="wm-hint"');
+    expect(hintsOf(progression)).toBe(1);
+  });
+
+  it('a keys device reads the click-and-scroll words', () => {
+    make({ touch: false });
+    openSheet('places');
+    expect(doc.root.innerHTML).toContain('Click a place to see it. Scroll to zoom.');
+  });
+
+  it('closing and opening again shows no line', () => {
+    const { hb } = make();
+    openSheet('places');
+    expect(doc.root.innerHTML).toContain('class="wm-hint"');
+    openSheet(null);
+    expect(doc.root.innerHTML).not.toContain('class="wm-hint"');
+    openSheet('places');
+    expect(doc.root.innerHTML).not.toContain('class="wm-hint"');
+    hb.hide();
+    hb.show({ sheet: 'places' });
+    expect(doc.root.innerHTML).not.toContain('class="wm-hint"');
+  });
+
+  it("show({ sheet: 'places' }) counts and shows it too", () => {
+    const { hb, progression } = make();
+    hb.hide();
+    hb.show({ sheet: 'places' });
+    expect(doc.root.innerHTML).toContain('class="wm-hint"');
+    expect(hintsOf(progression)).toBe(1);
+  });
+
+  it('the home place card (the Change place door on the cat screen) reaches it', () => {
+    const { progression } = make();
+    // the home place card's door calls the dressing room's onOpenSheet
+    drOpts.onOpenSheet('places');
+    expect(doc.root.innerHTML).toContain('class="wm-hint"');
+    expect(hintsOf(progression)).toBe(1);
+  });
+
+  it('tips off: no line and no count', () => {
+    const { progression } = make({ tips: false });
+    openSheet('places');
+    expect(doc.root.innerHTML).not.toContain('class="wm-hint"');
+    expect(hintsOf(progression)).toBeUndefined();
+  });
+
+  it('Legacy Edition (picture cards, no map): no line and no count', () => {
+    const { progression } = make({ edition: 'legacy' });
+    openSheet('places');
+    expect(doc.root.innerHTML).not.toContain('class="wm-hint"');
+    expect(hintsOf(progression)).toBeUndefined();
+  });
+
+  it('a save that has already had it shows nothing', () => {
+    const progression = createProgression(memStorage());
+    progression.countHint('map');
+    const settings = { get: () => true, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
+    const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
+    hb.show();
+    openSheet('places');
+    expect(doc.root.innerHTML).not.toContain('class="wm-hint"');
+    expect(progression.state.tutorial.hints.map).toBe(1);
+  });
+
+  it('the line is escaped like the rest of the sheet', () => {
+    make();
+    openSheet('places');
+    const call = placesCalls.at(-1);
+    expect(call.hintHtml).not.toMatch(/<(?!\/?p\b)/);
   });
 });

@@ -538,7 +538,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby });
+  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the

@@ -529,13 +529,14 @@ export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '',
 // its own Menu tile, so denHtml is not drawn here. Legacy keeps the picture
 // cards and the den after them, exactly as before.
 // clanLineHtml (the clan in one line) and denHtml are the owner's, verbatim.
-export function renderPlacesSheetHtml(model, { clanLineHtml = '', denHtml = '' } = {}) {
+// hintHtml (the map's first-time line) shows above the map frame only.
+export function renderPlacesSheetHtml(model, { clanLineHtml = '', denHtml = '', hintHtml = '' } = {}) {
   const m = model;
   if (m.worldMap) {
     const card = m.placeCard ? renderPlaceCardHtml(m.placeCard, { picture: PLACE_PICTURE(m.placeCard.id) }) : '';
     const zoom = '<div class="wm-zoom"><button type="button" class="wm-zoom-in" data-wm-zoom="in" aria-label="Zoom in">＋</button>'
       + '<button type="button" class="wm-zoom-out" data-wm-zoom="out" aria-label="Zoom out">－</button></div>';
-    return `<div class="dr-where">${clanLineHtml}<div class="wm-frame">${renderWorldMapHtml(m.worldMap)}${zoom}${card}</div></div>`;
+    return `<div class="dr-where">${clanLineHtml}${hintHtml}<div class="wm-frame">${renderWorldMapHtml(m.worldMap)}${zoom}${card}</div></div>`;
   }
   const body = `<div class="dr-places">${[...m.places.filter((p) => !p.locked), ...m.places.filter((p) => p.locked)].map(placeHtml).join('')}${denHtml}</div>`;
   return `<div class="dr-where">${clanLineHtml}${body}</div>`;

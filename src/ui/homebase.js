@@ -43,6 +43,7 @@ import { createConfirmCard, spendAsk } from './confirmcard.js';
 import { moveById } from '../fightmoves.js';
 import { note } from '../diagnostics.js';
 import { line as tutorialLine } from '../tutorialwords.js';
+import { hintMax } from '../hints.js';
 import { nextThing, nextThingHtml, NEXT_ATTR } from './nextthing.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
@@ -145,7 +146,7 @@ export function showEditionTitle(doc, edition) {
 //   nearby: game/nearby.js, the rooms the app found on the local network.
 //     Absent, or not available (Safari, desktop), nothing of it is drawn
 //   metPlayers: src/metplayers.js (the device's own list when absent)
-export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null }) {
+export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -1521,6 +1522,26 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     </div>`;
   }
 
+  // The world map's first-time line (hints.js 'map', once). Decided when the
+  // sheet comes up, whichever door she came through (the home card, the Menu,
+  // show({ sheet })), kept for that sheet's life, forgotten when it closes.
+  // Picture-card Legacy has no map, so no line and no count; tips off, none.
+  // 🗺️ is the same picture game/tips.js has for 'map' (not imported: that
+  // module pulls in three.js).
+  let mapHintOn = false;
+  function syncMapHint() {
+    if (openSheet !== 'places') { mapHintOn = false; return; }
+    if (mapHintOn || !shown) return;
+    const s = progression.state;
+    if (!isClanEdition(s) || settings?.get?.('showTips') === false) return;
+    if ((s.tutorial?.hints?.map ?? 0) >= hintMax('map')) return;
+    mapHintOn = true;
+    progression.countHint('map');
+  }
+  function mapHintHtml() {
+    return mapHintOn ? `<p class="wm-hint">🗺️ ${escapeHtml(tutorialLine('hint.map', { touch: !!getIsTouch() }))}</p>` : '';
+  }
+
   function renderPlaces(s, roomState) {
     const d = ensureDressing();
     let line = '';
@@ -1530,7 +1551,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     return `<section class="hb-places" aria-labelledby="hb-places-title"><h2 id="hb-places-title">Change place</h2>
       ${duskChoiceHtml(s)}
-      ${d.placesHtml({ clanLineHtml: line })}
+      ${d.placesHtml({ clanLineHtml: line, hintHtml: mapHintHtml() })}
     </section>`;
   }
 
@@ -1641,6 +1662,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const colonyStatus = colonySync ? colonySync.status() : { mode: 'local' };
     noteColonyPairing(colonyStatus);
     if (openSheet && !availableSheets().includes(openSheet)) openSheet = null;
+    syncMapHint();
     const glowReady = s.equipped.collar === 'glow';
     const roomState = rooms && rooms.available ? rooms.getState() : null;
     // Home's Today's walk card says when dusk is chosen: a small moon, status
@@ -2574,6 +2596,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       editingName = false;
       joinCodeDraft = '';
       mapView = null; // the world map opens afresh, round today's place
+      mapHintOn = false; // and its first-time line is decided afresh
       if (sheet && availableSheets().includes(sheet)) openSheet = sheet;
       if (openSheet === 'colony') wantPlayerPets();
       render(); // also turns the hero stage back on
