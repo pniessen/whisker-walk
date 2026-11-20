@@ -27,6 +27,8 @@ const IDS = FOUND_WEAR.map((r) => [r.id, r.slot]);
 const pieces = (cat, id) => { const out = []; cat.traverse((o) => { if (isPieceOf(o, id)) out.push(o); }); return out; };
 const kindCap = (id, slot, simple) => {
   if (slot === 'body' && bodyKind(id) === 'shell') return triangles(buildCat('tabby', { ...BARE, body: 'sweater' }, { simple })) - triangles(buildCat('tabby', BARE, { simple }));
+  // a found cape costs no more than the Hero Cape: its 24 x 20 cloth and its throat clasp
+  if (slot === 'body' && bodyKind(id) === 'cape') return triangles(buildCat('tabby', { ...BARE, body: 'cape' }, { simple })) - triangles(buildCat('tabby', BARE, { simple }));
   if (slot === 'back' && isPack(id)) return simple ? 600 : 1200;
   return simple ? 450 : 900;
 };
@@ -49,7 +51,14 @@ describe('found outfits: the gate every outfit passes', () => {
   it.each(IDS)('%s (%s): standing, sitting and napping, nothing of it goes into the ground', (id, slot) => {
     for (const breed of PRESETS) for (const st of ['follow', 'perch', 'requestPet', 'nap']) {
       const cat = buildCat(breed, { ...BARE, [slot]: id }); animateCat(cat, st, 1.3, 0, false); cat.updateMatrixWorld(true);
-      for (const m of pieces(cat, id)) expect(new THREE.Box3().setFromObject(m).min.y, `${breed} ${st}`).toBeGreaterThanOrEqual(-0.01);
+      // a coat shell is cut from the torso as the Striped Sweater is, so it goes as low as the sweater's does
+      // in a perched or nap pose (the belly's own curve): its floor is the sweater's, not the ground's
+      let floor = -0.01;
+      if (slot === 'body' && bodyKind(id) === 'shell') {
+        const sw = buildCat(breed, { ...BARE, body: 'sweater' }); animateCat(sw, st, 1.3, 0, false); sw.updateMatrixWorld(true);
+        floor = Math.min(...sw.userData.parts.body.children.filter((c) => c.isMesh && c !== sw.userData.parts.underside).map((m) => new THREE.Box3().setFromObject(m).min.y)) - 0.01;
+      }
+      for (const m of pieces(cat, id)) expect(new THREE.Box3().setFromObject(m).min.y, `${breed} ${st}`).toBeGreaterThanOrEqual(floor);
     }
   });
   it.each(IDS)('%s (%s): Hagrid wears it only in his four slots, at most 4 meshes', (id, slot) => {

@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildHat } from '../cat/hats.js';
 import { buildCat } from '../cat/model.js';
+import { buildFoldedJumper } from '../cat/foundbody.js';
 import { animateCat } from '../cat/animator.js';
 import { litMaterial } from '../render/materials.js';
 import { foundRecord } from './index.js';
@@ -81,7 +82,9 @@ export const DISPLAY_BY_SLOT = Object.freeze({
 // One outfit's own ground look, in place of its slot's (its id: (id) ->
 // THREE.Object3D): for a thing that lies on the ground otherwise than it is
 // worn (a jumper folded). buildFindDisplay looks here first.
-export const DISPLAY_BY_ID = Object.freeze({});
+export const DISPLAY_BY_ID = Object.freeze({
+  fishermansjumper: buildFoldedJumper,
+});
 
 function noShadow(obj) {
   obj.traverse((o) => { if (o.isMesh) o.castShadow = false; });

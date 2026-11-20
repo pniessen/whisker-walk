@@ -49,5 +49,67 @@
 // record's in src/foundwear/, and never changes once shipped. An unknown id,
 // or anything that is not a string, adds nothing.
 
-export const FOUND_BODY = Object.freeze({});
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { litMaterial } from '../render/materials.js';
+
+// The Doormat Cape: coir, a dark border down the flanks (|a| > 0.85) and at
+// the hem (s > 0.88), and a bristle fleck on every third grid vertex, 15 %
+// darker. The fleck is counted in the full grid's steps (24 across, 20 along),
+// so the simple cloth, which has every other vertex, is flecked as the same
+// cloth. Counting from a and s keeps it the same on the stand and sit cloths.
+const COIR = 0xb8864a, COIR_BORDER = 0x6b4a2a;
+const COIR_FLECK = new THREE.Color(COIR).multiplyScalar(0.85).getHex();
+function doormatPaint(a, s) {
+  if (Math.abs(a) > 0.85 || s > 0.88) return COIR_BORDER;
+  return (Math.round((a + 1) * 12) + 2 * Math.round(s * 20)) % 3 === 0 ? COIR_FLECK : COIR;
+}
+
+// The Beach-towel Cape: broad stripes along s, three colours, six bands.
+const TOWEL_STRIPES = [0xf28a3c, 0xf7e7c6, 0x2fa6a0];
+const towelPaint = (a, s) => TOWEL_STRIPES[Math.floor(s * 6) % 3];
+
+// The Fisherman's Jumper: a cream coat with a darker centre cable and two
+// side cables along the back, and ribbing at the two ends of the torso.
+const JUMPER = 0xece3cf, JUMPER_KNIT = 0xd6cbb2;
+function jumperPaint(ux, uy, uz) {
+  const cable = Math.abs(ux) < 0.12 || Math.abs(Math.abs(ux) - 0.4) < 0.08;
+  const ribbing = uz > 0.85 || uz < -0.75;
+  return cable || ribbing ? JUMPER_KNIT : JUMPER;
+}
+
+export const FOUND_BODY = Object.freeze({
+  doormatcape: Object.freeze({ kind: 'cape', colour: COIR, accent: COIR_BORDER, paint: doormatPaint }),
+  beachtowelcape: Object.freeze({ kind: 'cape', colour: 0xf28a3c, accent: 0xf2c14e, paint: towelPaint }),
+  fishermansjumper: Object.freeze({ kind: 'shell', colour: JUMPER, paint: jumperPaint }),
+});
 export const FOUND_FLOATS = Object.freeze({});
+
+function paintedGeo(geo, hexOf) {
+  const p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
+  for (let i = 0; i < p.count; i++) c.setHex(hexOf(p.getX(i), p.getY(i), p.getZ(i))).toArray(col, i * 3);
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+}
+
+// buildFoldedJumper() -> one vertex-coloured mesh named 'wear:fishermansjumper',
+// the jumper's ground look: a folded square about 24 x 5 x 18 cm (its cables
+// along the length, its ribbing along one edge) with two sleeves folded
+// across the top, 224 triangles, painted as the coat is (jumperPaint). Built
+// about its own centre; seatDisplay stands it on the ground.
+export function buildFoldedJumper() {
+  const W = 0.24, H = 0.05, D = 0.18;
+  const fold = new THREE.BoxGeometry(W, H, D, 8, 1, 4); // 176
+  paintedGeo(fold, (x, y, z) => jumperPaint(x / (W / 2) * 0.5, y, z / (D / 2)));
+  const parts = [fold];
+  for (const z of [-0.035, 0.035]) {
+    const sleeve = new THREE.CylinderGeometry(0.018, 0.018, 0.2, 6, 1); // 24
+    sleeve.rotateZ(Math.PI / 2);
+    sleeve.translate(0, H / 2 + 0.014, z);
+    paintedGeo(sleeve, (x) => jumperPaint(0.5, 0, x / 0.1));
+    parts.push(sleeve);
+  }
+  const mesh = new THREE.Mesh(mergeGeometries(parts), litMaterial(0xffffff, { vertexColors: true }));
+  mesh.name = 'wear:fishermansjumper';
+  return mesh;
+}

@@ -27,10 +27,15 @@ describe('found outfits: how a find sits (display.js)', () => {
     });
     expect(DISPLAY_BY_SLOT.head('acorncap').name).toBe('hat:acorncap');
   });
-  it('every slot has a ground builder; no outfit has one of its own yet', () => {
+  it('every slot has a ground builder; one outfit has its own', () => {
     expect(Object.keys(DISPLAY_BY_SLOT)).toEqual(['head', 'face', 'neck', 'collar', 'body', 'back', 'feet']);
     expect(Object.isFrozen(DISPLAY_BY_ID)).toBe(true);
-    expect(DISPLAY_BY_ID).toEqual({});
+    expect(Object.keys(DISPLAY_BY_ID)).toContain('fishermansjumper');
+  });
+  it('the jumper lies folded on the ground', () => {
+    const d = buildFindDisplay({ kind: 'wear', id: 'fishermansjumper' });
+    expect(d.name).toBe('wear:fishermansjumper');
+    expect(trisIn(d)).toBeLessThan(300);
   });
   // The seam step 2 comes through (index.js, ADDING ONE, step 5): every
   // record shows as itself on the ground, never as the pouch, and small.

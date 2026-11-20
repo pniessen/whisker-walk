@@ -216,7 +216,7 @@ describe(DESCRIBE, () => {
   it.each(CAPES)('%s: the sit cloth is worn only in the sit', (id) => {
     const cat = kitCat('tabby', id, false);
     const cloth = capePieces(cat).filter((m) => m.userData.capeGeo);
-    expect(cloth).toHaveLength(id === 'cape' ? 1 : 2);
+    expect(cloth).toHaveLength(id === 'confetticape' ? 2 : 1);
     for (const state of [...STATES, 'follow']) {
       animateCat(cat, state, 1.3, 0, false);
       const sit = state === 'requestPet' || state === 'perch';
@@ -258,7 +258,7 @@ describe(DESCRIBE, () => {
   it.each(CAPES)('%s: the confetti dots are one vertex-coloured mesh on the cape', (id) => {
     const cat = kitCat('tabby', id, false);
     const dots = cat.userData.parts.body.children.filter((c) => c.userData.capeDots);
-    if (id === 'cape') { expect(dots).toHaveLength(0); return; }
+    if (id !== 'confetticape') { expect(dots).toHaveLength(0); return; }
     expect(dots).toHaveLength(1);
     expect(dots[0].material.vertexColors).toBe(true);
     // every dot lies on the cape: out of the fur, and its centre within 1 cm

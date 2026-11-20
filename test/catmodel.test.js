@@ -600,7 +600,7 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
 
 describe('cat model: shells take the new torso shape (Task 7)', () => {
   const shellOf = (cat, hex) => cat.userData.parts.body.children.find((m) => m !== cat.userData.parts.underside && (m.material.color.getHex() === hex || m.material.vertexColors));
-  const SHELLS = [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e], ['sweater', null]];
+  const SHELLS = [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e], ['sweater', null], ['fishermansjumper', null]];
   it.each(PRESETS.flatMap((b) => SHELLS.map((s) => [b, ...s])))('%s %s hugs the new torso: 5 mm-4 cm outside the fur (belly side: not inside)', (breed, id, hex) => {
     const cat = buildCat(breed, { body: id }); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
     const { body } = cat.userData.parts, shell = shellOf(cat, hex), c = body.getWorldPosition(new THREE.Vector3());
