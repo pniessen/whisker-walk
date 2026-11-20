@@ -12,7 +12,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
     return {
       html: ({ headerHtml }) => `<header>${headerHtml}</header>`,
       afterRender() {}, handleClick() { return false; }, clearPreview() {},
-    handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
+      handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
     };
   },
 }));
@@ -63,8 +63,6 @@ beforeEach(() => {
 afterEach(() => {
   delete globalThis.document;
 });
-
-
 
 // A storage whose setItem can be made to throw, as a full device does.
 function flakyStorage() {

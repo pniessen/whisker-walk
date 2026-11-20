@@ -18,12 +18,12 @@ function fakeNav({ persisted, persist, query } = {}) {
 }
 
 describe('askToKeepSaves', () => {
-  let errors;
+  let consoleSpies;
   beforeEach(() => {
-    errors = [vi.spyOn(console, 'warn').mockImplementation(() => {}), vi.spyOn(console, 'error').mockImplementation(() => {}), vi.spyOn(console, 'log').mockImplementation(() => {})];
+    consoleSpies = [vi.spyOn(console, 'warn').mockImplementation(() => {}), vi.spyOn(console, 'error').mockImplementation(() => {}), vi.spyOn(console, 'log').mockImplementation(() => {})];
   });
 
-  it('resolves null and calls nothing when the API is absent', async () => {
+  it('resolves null when the API is absent or not a function', async () => {
     const ask = await load();
     expect(await ask(undefined)).toBeNull();
     const ask2 = await load();
@@ -77,7 +77,7 @@ describe('askToKeepSaves', () => {
       const ask = await load();
       expect(await ask(fakeNav({ persist }))).toBeNull();
     }
-    for (const spy of errors) expect(spy).not.toHaveBeenCalled();
+    for (const spy of consoleSpies) expect(spy).not.toHaveBeenCalled();
   });
 
   it('asks at most once per page load', async () => {

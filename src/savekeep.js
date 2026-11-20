@@ -13,8 +13,10 @@ async function ask(nav) {
   if (!storage || typeof storage.persist !== 'function') return null;
   if (typeof storage.persisted === 'function' && (await storage.persisted()) === true) return true;
   // Firefox answers persist() with a permission prompt, which a child should
-  // not meet out of nowhere; Chrome decides silently either way. Safari does
-  // not know the permission name and throws, so it goes straight to persist().
+  // not meet out of nowhere. Chromium also answers 'prompt' until it has
+  // granted the permission, so Chrome and Edge are skipped too, by choice, to
+  // stay quiet. Safari does not know the permission name and throws, so it
+  // goes straight to persist().
   if (typeof nav.permissions?.query === 'function') {
     let state = null;
     try {

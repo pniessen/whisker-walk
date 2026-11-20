@@ -605,9 +605,8 @@ describe('The Old Docks — the canal is a water surface', () => {
 // ---------------------------------------------------------------------------
 // ...and the same "a fully-built thing that nothing calls" guard the block
 // above applies to the area itself, applied to the four render modules this
-// wave wired in. walk.js and main.js cannot be imported here (they pull in the
-// whole render stack), so it is asserted against the source text — the same
-// technique, for the same reason.
+// wave wired in. walk.js is asserted against its source text here; main.js's
+// frame wiring is tested by behaviour in test/frameorder.test.js.
 // ---------------------------------------------------------------------------
 describe('the surface wave is actually wired up', () => {
   const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');

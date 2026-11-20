@@ -141,6 +141,11 @@ function walkOnce(w, getSession) {
   w.startWalk({ duskMode: false });
   const session = getSession();
   expect(session?.areaId).toBe('neighborhood');
+  // Headless there is no GL, so the thumbnail pass notes one 'gl' failure (a
+  // missing capabilities object, no source file). Any other note is a real
+  // failure the walk made.
+  const noted = diagnostics.entries().filter((e) => !(e.kind === 'gl' && e.source === '' && /precision/.test(e.message)));
+  expect(noted.map((e) => `${e.kind}: ${e.message} (${e.source})`)).toEqual([]);
   const tracked = track(session.scene);
   w.endWalk();
   expect(getSession()).toBe(null);

@@ -310,10 +310,8 @@ describe('createShadowFit', () => {
 // A fully-built rig that nothing calls is this wave's characteristic failure,
 // and the shadow fit is exactly the shape that fails that way: the game would
 // still render, still cast shadows, and simply keep them nailed to the world
-// origin for the whole walk. game/walk.js and main.js cannot be imported here
-// (they pull in the entire render stack), so the wiring is asserted against the
-// source text — the same technique test/docks.test.js uses for the AREAS map,
-// for the same reason.
+// origin for the whole walk. game/walk.js is asserted against its source text
+// here; main.js's frame wiring is tested by behaviour in test/frameorder.test.js.
 // ---------------------------------------------------------------------------
 describe('the shadow fit and the hemisphere fill are actually wired up', () => {
   const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');

@@ -9,9 +9,9 @@ import { WALK_ENDED_LINE, stuckNoticeHtml } from '../src/game/recovery.js';
 // What main.js's boot reaches is stubbed: three's renderer (no GL here), the
 // walk lifecycle (which hands back the session), the player, and every other
 // module main.js imports, as inert stand-ins, so nothing draws, plays a sound,
-// touches real storage or reaches the network. Real: three itself, the event bus, the frame
-// guard (game/recovery.js) and game/util.js. A new frame-order rule belongs
-// here, as a test of this list, never as a pin on main.js's text.
+// touches real storage or reaches the network. Real: three itself, the event
+// bus, the frame guard (game/recovery.js) and game/util.js. A new frame-order
+// rule belongs here, as a test of this list, never as a pin on main.js's text.
 
 const h = vi.hoisted(() => {
   const log = [];
@@ -56,7 +56,8 @@ const h = vi.hoisted(() => {
     get: (t, k) => (k in t || k === 'then' || typeof k === 'symbol' ? t[k] : (t[k] = inert())),
   });
   const player = withFallback({});
-  return { log, notes, ctl, rec, inert, stubModule, withFallback, player, loop: null, deps: null };
+  const progState = withFallback({ walks: {} });
+  return { log, progState, notes, ctl, rec, inert, stubModule, withFallback, player, loop: null, deps: null };
 });
 
 vi.mock('three', async (importOriginal) => {
@@ -117,6 +118,8 @@ vi.mock('../src/game/tips.js', () => h.stubModule({
   createTips: () => h.withFallback({ update: h.rec('tips.update') }),
 }));
 vi.mock('../src/game/autosniff.js', () => h.stubModule({ tickAutoSniff: h.rec('tickAutoSniff') }));
+// A known state object, so the test can see which one the frame hands on.
+vi.mock('../src/progression.js', () => h.stubModule({ createProgression: () => h.withFallback({ state: h.progState }) }));
 vi.mock('../src/foundwear/live.js', () => h.stubModule({ tickFindNose: h.rec('tickFindNose') }));
 vi.mock('../src/foundwear/play.js', () => h.stubModule({ findBusy: () => h.ctl.busy, handleFindArrival: h.rec('handleFindArrival') }));
 vi.mock('../src/diagnostics.js', () => h.stubModule({ note: (kind, err) => h.notes.push({ kind, err }) }));
@@ -130,7 +133,7 @@ vi.mock('../src/game/colonysync.js', () => h.stubModule({
 // Everything else main.js imports, inert. The cloud and room modules are
 // among them, so nothing here can reach Supabase.
 for (const m of [
-  'cat/brain', 'progression', 'colony', 'ui/colonypanel', 'render/materials', 'discoveries', 'ui/hud',
+  'cat/brain', 'colony', 'ui/colonypanel', 'render/materials', 'discoveries', 'ui/hud',
   'buildstamp', 'ui/homebase', 'visitboot', 'ui/touchui', 'ui/backstack', 'camzoom', 'audio', 'music',
   'samples', 'catvoice', 'album', 'savekeep', 'settings', 'blocklist', 'chatkeys', 'game/cloudsync',
   'game/onlinedelete', 'game/netevents', 'game/photo', 'game/rooms', 'game/nearby', 'game/homebasecloud',
@@ -450,6 +453,46 @@ describe('what the frame hands its systems', () => {
   });
 });
 
+describe('what the frame hands the fight, the dog and the find\'s nose', () => {
+  it('the dog is told whether she is stalking', () => {
+    h.player.stalking = true;
+    frame(1020);
+    const [dt, at, cat, opts] = argsOf('dog.update');
+    expect(dt).toBeCloseTo(0.02, 12);
+    expect(at).toBe(session.cat.position);
+    expect(cat).toBe(session.cat);
+    expect(opts).toEqual({ stalking: true });
+    h.player.stalking = false;
+    h.log.length = 0;
+    frame(1040);
+    expect(argsOf('dog.update')[3]).toEqual({ stalking: false });
+  });
+
+  it('the find\'s nose gets the session and the progression\'s own state', () => {
+    frame(1020);
+    const [handed, dt, state] = argsOf('tickFindNose');
+    expect(handed).toBe(session);
+    expect(dt).toBeCloseTo(0.02, 12);
+    expect(state).toBe(h.progState);
+  });
+
+  it('the fight, the rival and the avatar are handed the session, the spot and the time', () => {
+    frame(1020);
+    const [fightDt, fightSession] = argsOf('clanFight.update');
+    expect(fightDt).toBeCloseTo(0.02, 12);
+    expect(fightSession).toBe(session);
+    const [rivalDt, rivalT, rivalAt, rivalCat] = argsOf('rival.update');
+    expect(rivalDt).toBeCloseTo(0.02, 12);
+    expect(rivalT).toBeGreaterThan(0);
+    expect(rivalAt).toBe(session.cat.position);
+    expect(rivalCat).toBe(session.cat);
+    const [avatarSession, avatarDt, avatarT] = argsOf('updateAvatar');
+    expect(avatarSession).toBe(session);
+    expect(avatarDt).toBeCloseTo(0.02, 12);
+    expect(avatarT).toBe(rivalT);
+  });
+});
+
 describe('the 30 fps cap and the clock', () => {
   it('a refresh the cap skips only asks; it does not read the clock, so the next frame\'s dt covers both', () => {
     h.ctl.render = false;
@@ -459,6 +502,13 @@ describe('the 30 fps cap and the clock', () => {
     h.log.length = 0;
     frame(1030);
     expect(argsOf('water.update')[0]).toBeCloseTo(0.03, 12);
+  });
+
+  it('the home screen has no session, so the frame never asks the cap', () => {
+    h.deps.setSession(null);
+    h.log.length = 0;
+    frame(1020);
+    expect(calls()).not.toContain('qualityAdapter.shouldRender');
   });
 
   it('a long gap is clamped to a 50 ms step of game time', () => {
