@@ -1089,11 +1089,36 @@ describe("the world map's card", () => {
     t.dr.handleClick({ target: { closest: () => close } });
     t.dr.restoreFocus(root);
     expect(asked[1]).toBe('[data-dr-map-place="park"]');
-    // a finger's tap moves no focus
-    asked.length = 0;
+  });
+
+  // A finger's tap or VoiceOver's double-tap opens the card too: focus goes
+  // to it, or the screen reader's cursor falls back to the top of the page
+  // when the render replaces the map. (A focus a script moves after a tap
+  // draws no ring.)
+  it('a touch or screen-reader open puts focus on the card as well; other taps move none', () => {
+    const asked = [];
+    const root = { querySelector: (s) => { asked.push(s); return { focus: vi.fn() }; } };
     t.dr.handleClick(click({ drMapPlace: 'park' }));
     t.dr.restoreFocus(root);
+    expect(asked).toEqual(['.wm-card-go, .wm-card-buy, .wm-card-close']);
+    asked.length = 0;
+    t.dr.handleClick(click({ drMapClose: 'park' }));
+    t.dr.restoreFocus(root);
     expect(asked).toEqual([]);
+  });
+
+  // Holding Enter (or Space): the first press opens the card; its repeats
+  // open nothing and (Space) never scroll the sheet.
+  it('a held Enter or Space on a place opens its card once', () => {
+    const first = key('Enter', { drMapPlace: 'woods' });
+    expect(first.handled).toBe(true);
+    t.dr.handleClick(click({ drMapClose: 'woods' }));
+    for (const k of ['Enter', ' ']) {
+      const e = { key: k, repeat: true, preventDefault: vi.fn(), target: { closest: () => ({ dataset: { drMapPlace: 'woods' } }) } };
+      expect(t.dr.handleKeydown(e)).toBe(true);
+      expect(e.preventDefault).toHaveBeenCalled();
+      expect(t.dr.ui.mapCard).toBeNull();
+    }
   });
 
   it('Back closes the card first; clearPreview closes it too', () => {

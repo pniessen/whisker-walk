@@ -1,6 +1,6 @@
 // World map step 2: Change place is the world map only, and a tap on a place
 // opens its pop-up card (src/ui/placecard.js): its picture, name, a line and
-// one button. Legacy Edition keeps its picture cards, byte for byte.
+// one button. Legacy Edition keeps its picture cards and never gets a card.
 import { describe, it, expect } from 'vitest';
 import { CATALOG } from '../src/progression.js';
 import { worldMapModel } from '../src/worldmap.js';
@@ -45,8 +45,13 @@ describe('the place card', () => {
   it('a free wild place that is open: Go here', () => expect(cardOn(woodsOpen, 'woods')).toMatchObject({ action: 'go', line: 'Tap to explore' }));
   it('a street place she can open: Open for 50 🐾, and how many she has', () =>
     expect(cardOn(park60, 'park')).toMatchObject({ action: 'open', label: 'Open for 50 🐾', line: 'You have 60 🐾' }));
-  it('a street place she cannot afford: no button, the paws it costs', () =>
-    expect(cardOn(park10, 'park')).toMatchObject({ action: null, label: null, line: '50 🐾 — keep exploring!' }));
+  // The card says how many paws she still needs, in main's own words (the
+  // Legacy cards' "N more 🐾 to go"); the map's own label stays short.
+  it('a street place she cannot afford: no button, the paws it costs and the paws still to find', () => {
+    expect(cardOn(park10, 'park')).toMatchObject({ action: null, label: null, line: '50 🐾 · 40 more 🐾 to go' });
+    expect(cardOn({ ...park10, points: 0 }, 'park')).toMatchObject({ action: null, line: '50 🐾 · 50 more 🐾 to go' });
+    expect(worldMapModel(park10, CATALOG).regions.find((r) => r.id === 'park').line).toBe('50 🐾 — keep exploring!');
+  });
   // The owner's wording fix (2026-11-19): a name that starts with "The" reads
   // "the" mid-line.
   it('a locked place: no button, the lock line', () =>
@@ -119,7 +124,7 @@ describe('the Clan sheet: the world map only', () => {
     expect(buildDressingModel(park60, CATALOG).placeCard).toBeNull();
     expect(buildDressingModel(park60, CATALOG, { mapCard: 'den' }).placeCard).toBeNull();
   });
-  it('Legacy keeps its picture cards, byte for byte, and never gets a card', () => {
+  it('Legacy keeps its picture cards, never gets a card, and an open card id changes nothing', () => {
     const s = { ...park60, edition: 'legacy' };
     expect(buildDressingModel(s, CATALOG, { mapCard: 'park' }).placeCard).toBeNull();
     expect(buildDressingModel(s, CATALOG)).not.toHaveProperty('worldMap');

@@ -147,6 +147,12 @@ export const WORLD_VIEW = Object.freeze({ x: 0, y: -20, w: 1500, h: 900 });
 
 const pt = ([x, y]) => `${n(x)} ${n(y)}`;
 const SMALL_R = 140;
+// How far the paper and the sea run past the world on every side. The pan
+// fits the whole world in its box (contain), so a box whose shape is not the
+// world's shows more map round it: plain paper, and the sea carrying on along
+// its side. 6000 units outruns the widest box the sheet can have (a 1200 px
+// map 260 px tall shows about 4200 units across).
+const BEYOND = 6000;
 
 // The world map (Change place): her board exactly as the territory map draws
 // it, with draft 2's street places, coast, sea and gateway roads around it,
@@ -156,14 +162,18 @@ const SMALL_R = 140;
 // hide each label. The island's star is a second way into the Pines.
 //
 // Layers, bottom to top: paper, sea, lands, water, her paths and bridge, the
-// gateway roads and a mark at each road's end, one group per place, the
-// island's group, then the frame.
+// gateway roads and a mark at each road's end, one group per place, then the
+// island's group. No frame: the paper and the sea run on past the world's
+// edge (BEYOND), so the map never ends in a line or the page behind it.
 export function renderWorldMapHtml(model) {
   const m = model;
+  const { w, h } = m.world;
   const [c0, ...cs] = m.coast;
-  let coast = `M${pt(c0)}`;
+  // her coast, from straight up off the top of the world, curving on under
+  // the Docks below its bottom edge and then straight down
+  let coast = `M${n(c0[0])} ${-BEYOND} L${pt(c0)}`;
   for (let i = 0; i + 2 < cs.length; i += 3) coast += ` C${pt(cs[i])} ${pt(cs[i + 1])} ${pt(cs[i + 2])}`;
-  const sea = `<path class="tm-sea" d="${coast} L${m.world.w} ${m.world.h} L${m.world.w} 0 Z"/>`;
+  const sea = `<path class="tm-sea" d="${coast} C820 900 760 960 750 1100 L750 ${h + BEYOND} L${w + BEYOND} ${h + BEYOND} L${w + BEYOND} ${-BEYOND} Z"/>`;
 
   const landClass = (r) => `tm-land ${r.kind === 'street' ? 'street ' : ''}${stateClasses(r)}`;
   const fillOf = (r) => (r.kind === 'street' ? STREET_LAND[r.id] : LAND[r.id]) ?? '#c8b98f';
@@ -193,11 +203,9 @@ export function renderWorldMapHtml(model) {
     + `<circle class="tm-hit" cx="${m.star.x}" cy="${m.star.y}" r="${ISLAND_HIT_R}"/></g>`;
 
   const v = WORLD_VIEW;
-  const { w, h } = m.world;
   return `<svg viewBox="${v.x} ${v.y} ${v.w} ${v.h}" class="territory-map world-map" role="group" aria-label="Map of the world" xmlns="http://www.w3.org/2000/svg">`
-    + `<rect class="tm-paper" x="0" y="0" width="${w}" height="${h}"/>${sea}`
+    + `<rect class="tm-paper" x="${-BEYOND}" y="${-BEYOND}" width="${w + 2 * BEYOND}" height="${h + 2 * BEYOND}"/>${sea}`
     + `<g class="tm-lands">${land}</g><g class="tm-water">${water}</g><g class="tm-paths">${paths}${bridge}</g>`
     + `<g class="wm-roads">${roads}</g>${places}${island}`
-    + `<rect class="tm-frame" x="3" y="3" width="${w - 6}" height="${h - 6}"/>`
     + '</svg>';
 }

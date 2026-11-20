@@ -7,7 +7,8 @@
 // today's place, or a free place that is open) is the dressing room's usual
 // place button; Open for N 🐾 is its usual buy button, so it goes through the
 // "Get it?" card as before. A locked place, or one she cannot afford yet, has
-// no button, only its line: the walks it waits for, or the paws it costs.
+// no button, only its line: the walks it waits for, or the paws it costs and
+// how many more she needs.
 // Go here is only ever for a place she can walk: a locked place (an odd old
 // save whose today's place is still locked) or one not built yet gets its
 // line and no button.
@@ -24,7 +25,14 @@ export function placeCardFor(worldModel, areaId, points) {
   if (walkable && (r.owned || r.selected || (open && r.price === 0))) action = 'go';
   else if (r.canOpen) action = 'open';
   const label = action === 'go' ? 'Go here' : action === 'open' ? `Open for ${r.price} 🐾` : null;
-  const line = action === 'open' ? `You have ${points} 🐾` : r.line;
+  let line = r.line;
+  if (action === 'open') line = `You have ${points} 🐾`;
+  // one she cannot afford yet: the paws still to find, in main's words (the
+  // map's own label stays short)
+  else if (action === null && !r.locked && !r.owned && r.price > 0) {
+    const have = Number.isFinite(Number(points)) ? Math.max(0, Math.floor(Number(points))) : 0;
+    if (r.price > have) line = `${r.price} 🐾 · ${r.price - have} more 🐾 to go`;
+  }
   return { id: r.areaId, name: r.name, line, locked: !!r.locked, action, label };
 }
 

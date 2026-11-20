@@ -426,6 +426,42 @@ describe('attachMapPan', () => {
       expect(observers[0].live).toBe(false);
     });
 
+    // A turned phone or iPad keeps her zoom: how far in from the floor she
+    // was, not the old view's width (which zoomed a turned phone in about
+    // 2x, and cut the top and bottom of the world off a turned iPad).
+    it('a turned screen keeps her zoom, so a map at its floor stays at the new floor', () => {
+      const observers = [];
+      vi.stubGlobal('ResizeObserver', class {
+        constructor(fn) { this.fn = fn; observers.push(this); }
+        observe() {}
+        disconnect() {}
+      });
+      const floor = (b) => Math.max(Math.min(b.width / WORLD_VIEW.w, b.height / WORLD_VIEW.h), k);
+      // an iPad: the whole world, then turned on its side, still the whole world
+      const ipad = attached({ box: { width: 728, height: 739 } });
+      expect(728 / ipad.pan.view.w).toBeCloseTo(floor({ width: 728, height: 739 }), 9);
+      ipad.svg.size = { width: 922, height: 483 };
+      observers.at(-1).fn([]);
+      expect(922 / ipad.pan.view.w).toBeCloseTo(floor({ width: 922, height: 483 }), 9);
+      expect(ipad.pan.view.h).toBeCloseTo(WORLD_VIEW.h, 6);
+      expect(ipad.pan.view.w / ipad.pan.view.h).toBeCloseTo(922 / 483, 9);
+      // a phone at its floor (44 px targets), turned: still at the floor
+      const phone = attached({ box: { width: 347, height: 539 } });
+      phone.svg.size = { width: 772, height: 260 };
+      observers.at(-1).fn([]);
+      expect(772 / phone.pan.view.w).toBeCloseTo(k, 9);
+      // zoomed in twice past the floor, turned: twice past the new floor
+      const zoomed = attached({ box: { width: 347, height: 539 } });
+      zoomed.frame.fire('click', ev({ target: zoomBtn('in') }));
+      zoomed.frame.fire('click', ev({ target: zoomBtn('in') }));
+      const z = (347 / zoomed.pan.view.w) / k;
+      expect(z).toBeGreaterThan(1.5);
+      zoomed.svg.size = { width: 772, height: 260 };
+      observers.at(-1).fn([]);
+      expect((772 / zoomed.pan.view.w) / k).toBeCloseTo(z, 9);
+      expect(zoomed.pan.view.w / zoomed.pan.view.h).toBeCloseTo(772 / 260, 9);
+    });
+
     it("through the window's resize event when there is no ResizeObserver, removed by detach", () => {
       vi.stubGlobal('ResizeObserver', undefined);
       const win = listenerBag();

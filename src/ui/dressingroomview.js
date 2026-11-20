@@ -96,8 +96,9 @@ const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-place-buy],[data
   + '[data-dr-wardrobe-done],[data-dr-more-cats],[data-dr-outfit],[data-dr-outfit-save],[data-dr-outfit-del],[data-dr-outfit-yes],[data-dr-outfit-keep],'
   + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay],'
   + '[data-dr-map-place],[data-dr-map-close]';
-// A keyboard open of the world map's card lands on its one button (or ✕ when
-// it has none); a keyboard close goes back to the place on the map.
+// Opening the world map's card lands focus on its one button (or ✕ when it
+// has none), by keyboard or touch; a keyboard close goes back to the place on
+// the map.
 const MAP_CARD_FOCUS = '.wm-card-go, .wm-card-buy, .wm-card-close';
 const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is empty
 const BLUR_RENDER_MS = 250; // a skipped render runs this long after the name box loses focus
@@ -566,6 +567,11 @@ export function createDressingRoom({
     // Dress up <-> Done) after the render this tap causes.
     const active = t.ownerDocument?.activeElement;
     focusAfter = active === t ? focusTwin(d) : null;
+    // A map place's card takes focus however it was opened: a finger's tap
+    // or VoiceOver's double-tap too, or the screen reader's cursor falls to
+    // the top of the page when the render replaces the map. (A focus moved
+    // by a script after a tap draws no ring.)
+    if (d.drMapPlace !== undefined) focusAfter = MAP_CARD_FOCUS;
     if (d.drBuyCat !== undefined) onBuyCat(d.drBuyCat);
     else if (d.drCat !== undefined) onCat(d.drCat);
     else if (d.drAcc !== undefined) onAcc(d.drAcc, d.drAct);
@@ -602,13 +608,15 @@ export function createDressingRoom({
   }
 
   // The world map's places are <g role="button">s, not <button>s, so Enter
-  // and Space do what a tap does (Space without scrolling the sheet). true =
-  // it was a map place.
+  // and Space do what a tap does (Space without scrolling the sheet). A held
+  // key's repeats do nothing: the first press opened the card. true = it was
+  // a map place.
   function handleKeydown(e) {
     if (e?.key !== 'Enter' && e?.key !== ' ') return false;
     const t = e.target?.closest?.('[data-dr-map-place]');
     if (t?.dataset?.drMapPlace === undefined) return false;
     e.preventDefault?.();
+    if (e.repeat) return true;
     handleClick({ target: { closest: () => t } });
     return true;
   }

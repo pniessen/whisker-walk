@@ -15,6 +15,11 @@
 //
 // Not on the map: the den (home, a Menu tile), the Rooftops and the House
 // (not built yet), and today's border posts.
+//
+// One thing moves on the world map only: the Moor's camp (WORLD_CAMP_AT).
+// The world map's bigger words leave no room for it on the Moor's north edge
+// beside the name, so it sits in the bend of her river instead. Her board's
+// CAMP_AT is kept.
 import { placeName } from './edition.js';
 import { STAR, territoryMapModel, placeState } from './territories.js';
 
@@ -52,6 +57,15 @@ export const GATEWAYS = Object.freeze([
   { id: 'docks-seaside', from: 'docks', to: 'seaside', road: [[980, 780], [1040, 790], [1110, 790], [1140, 765]] },
 ].map((g) => Object.freeze({ ...g, road: pts(g.road) })));
 
+// A camp the world map draws somewhere other than CAMP_AT. The Moor's: on
+// the Moor's north edge its badge touched the Moor's name, and on a save
+// where the Moor is locked it sat on the lock line; no spot on that edge
+// clears every label (measured in a browser, every save state). In the bend
+// her river makes through the Moor's south side the badge clears every label
+// by about 27 units and the river, the lake and the Moor's edge by about 22;
+// the gold ring (her own clan's camp) still clears them.
+export const WORLD_CAMP_AT = Object.freeze({ moor: Object.freeze([565, 260]) });
+
 // The island's star is a tap target of its own, 92 across: the smallest on
 // the map, and still at least 44 px at the map's least zoom.
 export const ISLAND_HIT_R = 46;
@@ -63,7 +77,10 @@ export function worldMapModel(state, catalog) {
   const board = territoryMapModel(state, catalog);
   const edition = state?.edition;
   const regions = [
-    ...board.regions.map((r) => ({ ...r, kind: 'board' })),
+    ...board.regions.map((r) => {
+      const at = r.camp && WORLD_CAMP_AT[r.id];
+      return { ...r, kind: 'board', ...(at ? { camp: { ...r.camp, x: at[0], y: at[1] } } : {}) };
+    }),
     ...STREET_PLACES.map((p) => ({
       id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
       // (a street place the catalog does not have yet is not built)

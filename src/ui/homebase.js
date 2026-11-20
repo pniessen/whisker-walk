@@ -1221,6 +1221,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // is left on a map that is gone.
   let mapPan = null;
   let mapView = null;
+  let shownCard = null; // the place card the last render drew (scrolled into view when new)
   function dropMapPan() {
     const pan = mapPan;
     mapPan = null;
@@ -1241,6 +1242,21 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       console.warn('Whisker Walk: the world map could not pan', err);
       note('ui', err);
     }
+  }
+  // A backstop where the map's 260 px floor wins (a short screen, a zoomed
+  // browser, a long lock line): a card that has just opened is scrolled into
+  // view, the least that shows it. Never smoothly under reduced motion (the
+  // game's switch or the system's).
+  function revealMapCard() {
+    const id = openSheet === 'places' ? dressing?.ui?.mapCard ?? null : null;
+    const fresh = !!id && id !== shownCard;
+    shownCard = id;
+    if (!fresh) return;
+    try {
+      const reduce = !!settings?.all?.()?.reducedMotion
+        || !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      root.querySelector?.('.wm-card')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+    } catch { /* a nicety */ }
   }
   function ensureDressing() {
     if (dressing) return dressing;
@@ -1550,8 +1566,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // row's right goes straight there.
       const home = backTo === 'menu'
         ? '<button id="hb-home" class="hb-home" type="button" aria-label="Back to my cat"><span aria-hidden="true">🐱</span></button>' : '';
+      // Clan Edition's Change place is the world map, which takes the height
+      // left on the screen (style.css, .hb-sheet-map).
+      const worldMap = openSheet === 'places' && isClanEdition(s);
       root.innerHTML = `
-      <div class="homebase-scroll hb-sheet${door ? ' hb-door' : ''}" data-sheet="${escapeHtml(openSheet)}">
+      <div class="homebase-scroll hb-sheet${door ? ' hb-door' : ''}${worldMap ? ' hb-sheet-map' : ''}" data-sheet="${escapeHtml(openSheet)}">
         <div class="hb-sheet-head"><button id="hb-back" class="hb-back">${back}</button>${home}</div>
         ${renderSheetBody(openSheet, s, colonyStatus, roomState)}
         ${dock === 'none' ? '' : `<footer class="hb-sheet-dock">
@@ -1561,10 +1580,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       </div>`;
       if (openSheet === 'places') {
         attachWorldMap(s);
-        // A keyboard tap on the map (a place, its card's ✕) puts focus back
-        // on its twin in the fresh map.
+        // A tap on the map (a place, its card's ✕) puts focus back on its
+        // twin in the fresh map.
         dressing?.restoreFocus?.(root, null);
       }
+      revealMapCard();
       refocus(fid);
       // The wobble: the card (or map region) she tapped, in the fresh DOM.
       // Skipped when she asked for reduced motion (the CSS also skips it for
@@ -1683,7 +1703,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   // The world map's places are <g role="button">s, not <button>s: Enter and
   // Space on one go to the dressing room, which does what a tap does.
-  root.addEventListener('keydown', (e) => { dressing?.handleKeydown?.(e); });
+  // Holding Enter on a place: the first press opens its card and puts focus
+  // on Go here, where the key's repeats would press it (a button acts on
+  // Enter's keydown). They are swallowed.
+  root.addEventListener('keydown', (e) => {
+    if (e.repeat && e.key === 'Enter' && e.target?.closest?.('.wm-card')) { e.preventDefault?.(); return; }
+    dressing?.handleKeydown?.(e);
+  });
 
   root.addEventListener('click', async (e) => {
     // The dressing room's own controls (portraits, slots, picker, places,

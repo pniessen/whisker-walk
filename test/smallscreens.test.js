@@ -77,17 +77,38 @@ describe('small screens: the section at the end of style.css', () => {
     expect(rules).toMatch(/\.dr-building \.dr-stage \{[^}]*100dvh/);
   });
 
-  it("a phone on its side: Change place's world map fits the screen's height, Go here on screen, the zoom buttons clear", () => {
-    for (const screen of [...SIDEWAYS, { w: 852, h: 393 }]) {
-      const rules = at(screen);
-      // the map is the screen's height at most (not the 768px rule's 1500:880 of its width)
-      expect(rules).toMatch(/\.territory-map\.world-map \{[^}]*height: calc\(100dvh - 24px[^}]*aspect-ratio: auto;/);
-      // the card's picture is small, so its button fits under the zoom buttons
-      expect(rules).toMatch(/\.wm-card-pic \{ max-height: 64px; \}/);
-    }
+  // Every size: the world map fills the height left under the sheet's header
+  // (a class homebase.js puts on Change place's sheet when the world map is
+  // drawn), never below a 260 px floor (then the page scrolls). The pan fits
+  // the view to whatever box this gives (test/mappan.test.js).
+  it("Change place's world map takes the height left on every screen, with a 260 px floor", () => {
+    expect(css).toMatch(/\.homebase-scroll\.hb-sheet-map \{ height: 100%; \}/);
+    expect(css).toMatch(/\.hb-sheet-map \.hb-places, \.hb-sheet-map \.hb-places > \.dr-where \{ display: flex; flex-direction: column; flex: 1 1 auto; \}/);
+    expect(css).toMatch(/\.hb-sheet-map \.wm-frame \{ flex: 1 1 auto; min-height: 260px;/);
+    expect(css).toMatch(/\.territory-map\.world-map \{[^}]*position: absolute; inset: 0; width: 100%; height: 100%;/);
+    // the old fixed heights are gone: 62vh/440, the 768px aspect-ratio and the sideways calc
+    expect(css).not.toMatch(/min\(62vh, 440px\)/);
+    expect(css).not.toMatch(/world-map \{ height: auto; aspect-ratio: 1500 \/ 880; \}/);
+    expect(section).not.toMatch(/\.territory-map\.world-map \{/);
     // the card never reaches up to the zoom buttons (they end 104px down)
     expect(css).toMatch(/\.wm-card \{[^}]*max-height: calc\(100% - 120px\)/);
     expect(css).toMatch(/\.wm-zoom \{ position: absolute; top: 8px; right: 8px;/);
+  });
+
+  it("a phone on its side: Change place's header in one row, the card at the map's left, top to bottom", () => {
+    for (const screen of [...SIDEWAYS, { w: 852, h: 393 }, { w: 812, h: 375 }]) {
+      const rules = at(screen);
+      // the title is for screen readers only (clipped, never display:none)
+      expect(rules).toMatch(/\.hb-sheet-map #hb-places-title \{[^}]*position: absolute;[^}]*clip-path: inset\(50%\)/);
+      expect(rules).not.toMatch(/#hb-places-title \{[^}]*display: none/);
+      // Day / Dusk and the clan line in one row, the map under them
+      expect(rules).toMatch(/\.hb-sheet-map \.hb-places \{ display: grid; grid-template-columns: auto minmax\(0, 1fr\); grid-template-rows: auto minmax\(0, 1fr\);/);
+      expect(rules).toMatch(/\.hb-sheet-map \.hb-places > \.dr-where \{ display: contents; \}/);
+      expect(rules).toMatch(/\.hb-sheet-map \.wm-frame \{ grid-column: 1 \/ -1; \}/);
+      // the card stands at the map's left, clear of the zoom buttons at its right
+      expect(rules).toMatch(/\.wm-card \{ top: 8px; bottom: 8px; left: 8px; right: auto; width: min\(320px, 55%\); max-height: none; \}/);
+      expect(rules).toMatch(/\.wm-card-pic \{ max-height: 64px; \}/);
+    }
   });
 
   it('a card over a short screen scrolls inside itself (its row is the screen, not the card)', () => {

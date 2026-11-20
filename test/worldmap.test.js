@@ -4,10 +4,10 @@
 import { describe, it, expect } from 'vitest';
 import { CATALOG } from '../src/progression.js';
 import {
-  BOARD, TERRITORIES, LAKE, POND, RIVER, PATHS, BRIDGE, STAR, placeState,
+  BOARD, TERRITORIES, LAKE, POND, RIVER, PATHS, BRIDGE, STAR, CAMP_AT, placeState, territoryMapModel,
 } from '../src/territories.js';
 import {
-  WORLD, STREET_PLACES, STREET_LAND, COAST, GATEWAYS, ISLAND_HIT_R, worldMapModel, tapTargets, focusOf,
+  WORLD, STREET_PLACES, STREET_LAND, COAST, GATEWAYS, ISLAND_HIT_R, WORLD_CAMP_AT, worldMapModel, tapTargets, focusOf,
 } from '../src/worldmap.js';
 import { LAND } from '../src/territories.js';
 import { renderWorldMapHtml, ISLAND_WHERE } from '../src/ui/territorymap.js';
@@ -171,8 +171,12 @@ describe('drawing the world', () => {
 
   it('one SVG, labelled, the whole world', () => {
     expect(html.startsWith('<svg viewBox="0 -20 1500 900" class="territory-map world-map" role="group" aria-label="Map of the world"')).toBe(true);
-    expect(html).toContain('<rect class="tm-paper" x="0" y="0" width="1500" height="880"/>');
-    expect(html).toContain('<path class="tm-sea" d="M1340 0 C1320 160 1360 300 1335 430 C1315 540 1350 640 1310 730 C1280 800 1180 860 1000 880 L1500 880 L1500 0 Z"/>');
+    // the paper and the sea run far past the world (6000 units each way), so
+    // a screen whose shape is not the world's shows more map round it, never
+    // the page behind: the sea carries on up, right and down from her coast
+    expect(html).toContain('<rect class="tm-paper" x="-6000" y="-6000" width="13500" height="12880"/>');
+    expect(html).toContain('<path class="tm-sea" d="M1340 -6000 L1340 0 C1320 160 1360 300 1335 430 C1315 540 1350 640 1310 730 C1280 800 1180 860 1000 880'
+      + ' C820 900 760 960 750 1100 L750 6880 L7500 6880 L7500 -6000 Z"/>');
     expect(html.endsWith('</svg>')).toBe(true);
     expect(html).not.toContain('role="img"');
   });
@@ -186,11 +190,13 @@ describe('drawing the world', () => {
     expect(Math.min(...ys) - 10 / 2).toBeGreaterThan(y);
   });
 
-  it('layers, bottom to top: paper, sea, lands, water, paths, roads, places, island, frame', () => {
-    const order = ['tm-paper', 'tm-sea', 'tm-lands', 'tm-water', 'tm-paths', 'wm-roads', 'data-region="town"', 'data-region="seaside"', 'data-region="island"', 'tm-frame']
+  it('layers, bottom to top: paper, sea, lands, water, paths, roads, places, island', () => {
+    const order = ['tm-paper', 'tm-sea', 'tm-lands', 'tm-water', 'tm-paths', 'wm-roads', 'data-region="town"', 'data-region="seaside"', 'data-region="island"']
       .map((c) => html.indexOf(c));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // no frame round the world: the paper carries on past its edge
+    expect(html).not.toContain('tm-frame');
   });
 
   it('every place is a labelled keyboard button that opens its card', () => {
@@ -252,6 +258,34 @@ describe('drawing the world', () => {
     expect(regionHtml(h, 'woods')).toMatch(/<title>[^<]+ camp<\/title>/);
     for (const id of ['park', 'fair', 'farm', 'docks', 'seaside', 'town', 'island']) expect(regionHtml(h, id), id).not.toContain('tm-camp');
     expect(draw({ ...pick('woods'), edition: 'legacy' })).not.toContain('tm-camp');
+  });
+
+  // The Moor's camp badge touched the Moor's name on the world map (and sat
+  // on its lock line when the Moor is locked). On the world map only it sits
+  // in the bend of her river, below every line of the Moor's words.
+  it("the Moor's camp sits in the bend of her river, clear of the Moor's words; her board's spot is kept", () => {
+    expect(CAMP_AT.moor).toEqual([540, 95]);
+    expect(Object.keys(WORLD_CAMP_AT)).toEqual(['moor']);
+    for (const s of [pick('moor'), { ...pick('moor'), walks: { ...fresh().walks, woods: 3 } }, pick('woods', 'moor')]) {
+      const camp = regionOf(worldMapModel(s, CATALOG), 'moor').camp;
+      expect(camp).toMatchObject({ x: 565, y: 260 });
+      expect(regionOf(territoryMapModel(s, CATALOG), 'moor').camp).toMatchObject({ x: 540, y: 95 });
+      // the other camps are where her board puts them
+      for (const id of ['woods', 'river', 'pines', 'gorge']) {
+        const c = regionOf(worldMapModel(s, CATALOG), id).camp;
+        if (c) expect([c.x, c.y], id).toEqual([...CAMP_AT[id]]);
+      }
+      // inside the Moor, the gold ring (r 36, a 10 wide dark edge) included (a
+      // browser measured it clear of her hand-drawn edge, the river and the lake)
+      const moor = TERRITORIES.find((t) => t.id === 'moor');
+      expect(Math.hypot(camp.x - moor.x, camp.y - moor.y) + 42).toBeLessThan(moor.r);
+      // below the last line of the Moor's words (its baseline, plus room for the ring)
+      const label = tagAt(regionHtml(draw(s), 'moor'), 'class="tm-label"');
+      const text = regionHtml(draw(s), 'moor').match(/<text class="tm-label"[^>]*>(.*?)<\/text>/)[1];
+      const top = Number(label.match(/ y="([-\d.]+)"/)[1]);
+      const last = top + [...text.matchAll(/dy="([\d.]+)"/g)].reduce((sum, [, dy]) => sum + Number(dy), 0);
+      expect(camp.y - 42, JSON.stringify(s.clanPick)).toBeGreaterThan(last + 10);
+    }
   });
 
   it('every place is there in the everyday words, the camp a home base', () => {

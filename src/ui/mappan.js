@@ -91,12 +91,18 @@ export function viewBoxAttr(view) {
 
 // A view kept from an earlier render, made to fit this box: kept as it is
 // when it already has the box's shape and a scale within the limits, else
-// refitted round its centre.
-function refit(view, box, world, minScale) {
+// refitted round its centre. `from` is the box the view was shaped for, when
+// known (a turned phone or iPad): then her zoom is kept, how far in from the
+// floor she was, so a map at its floor (an iPad's whole world) stays at the
+// new box's floor. Without it the scale is the view's width in this box.
+const shapedFor = (view, box) => Math.abs(view.w * box.h - view.h * box.w) <= 1e-6 * view.w * box.h;
+function refit(view, box, world, minScale, from = null) {
   const lo = floorScale(world, box, minScale);
-  const scale = box.w / view.w;
-  const shaped = Math.abs(view.w * box.h - view.h * box.w) <= 1e-6 * view.w * box.h;
-  if (shaped && scale >= lo - 1e-9 && scale <= MAX_ZOOM * lo + 1e-9) return clampView(view, world);
+  let scale = box.w / view.w;
+  if (shapedFor(view, box) && scale >= lo - 1e-9 && scale <= MAX_ZOOM * lo + 1e-9) return clampView(view, world);
+  if (from && from.w > 0 && from.h > 0 && shapedFor(view, from)) {
+    scale = lo * ((from.w / view.w) / floorScale(world, from, minScale));
+  }
   const s = clamp(scale, lo, MAX_ZOOM * lo);
   const w = box.w / s;
   const h = box.h / s;
@@ -155,9 +161,10 @@ export function attachMapPan(frame, { world = WORLD_VIEW, targets = [], focus = 
     if (pointers.size === 0) {
       dragging = false;
       swallow = false;
+      const was = box;
       box = readBox() ?? box;
       // the box may have changed shape since the last gesture (rotation)
-      change(refit(api.view, box, world, minScale));
+      change(refit(api.view, box, world, minScale, was));
     }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 1) start = { x: e.clientX, y: e.clientY };
@@ -266,12 +273,14 @@ export function attachMapPan(frame, { world = WORLD_VIEW, targets = [], focus = 
   for (const [el, type, fn, opts] of listeners) el.addEventListener?.(type, fn, opts);
 
   // A rotated phone or iPad: refit the view to the new box, so the floor
-  // (44 px targets) and the pan math hold before the next render.
+  // (44 px targets) and the pan math hold before the next render, at the
+  // zoom she had.
   function onResize() {
     const b = readBox();
     if (!b || (b.w === box.w && b.h === box.h)) return;
+    const was = box;
     box = { ...b };
-    change(refit(api.view, b, world, minScale));
+    change(refit(api.view, b, world, minScale, was));
   }
   let observer = null;
   let win = null;

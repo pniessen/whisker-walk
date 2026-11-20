@@ -261,6 +261,84 @@ describe('Change place: the world map on the home screen', () => {
     expect(attaches.at(-1).view).toBeNull();
   });
 
+  it('hiding the screen (a walk starting) detaches the pan', () => {
+    const { hb } = make();
+    openSheet('places');
+    const pan = pans.at(-1);
+    expect(pan.detach).not.toHaveBeenCalled();
+    hb.hide();
+    expect(pan.detach).toHaveBeenCalled();
+  });
+
+  // The map takes the height left on the screen: a class on the sheet, which
+  // the CSS makes a full-height column (test/smallscreens.test.js).
+  it('Change place with the world map marks its sheet hb-sheet-map; Legacy and other sheets do not', () => {
+    const { progression } = make();
+    openSheet('places');
+    expect(doc.root.innerHTML).toMatch(/class="homebase-scroll hb-sheet hb-door hb-sheet-map" data-sheet="places"/);
+    openSheet('settings');
+    expect(doc.root.innerHTML).not.toContain('hb-sheet-map');
+    progression.setEdition('legacy');
+    openSheet('places');
+    expect(doc.root.innerHTML).toContain('data-sheet="places"');
+    expect(doc.root.innerHTML).not.toContain('hb-sheet-map');
+  });
+
+  // A backstop where the map's floor wins (a short screen, a zoomed browser):
+  // a card that opens is scrolled into view, once, and never smoothly under
+  // reduced motion.
+  function withCard(reducedMotion = false) {
+    const progression = createProgression(memStorage());
+    const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto', reducedMotion }) };
+    const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
+    hb.show();
+    const card = { scrollIntoView: vi.fn() };
+    doc.root.querySelector = (sel) => (sel === '.wm-card' && stub.ui.mapCard ? card : null);
+    openSheet('places');
+    return { hb, card };
+  }
+  it('a card that opens is scrolled into view (nearest), once', () => {
+    const { card } = withCard();
+    expect(card.scrollIntoView).not.toHaveBeenCalled();
+    stub.ui.mapCard = 'park';
+    drOpts.onChange();
+    expect(card.scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(card.scrollIntoView.mock.calls[0][0]).toMatchObject({ block: 'nearest', behavior: 'smooth' });
+    drOpts.onChange(); // the same card, drawn again (a colony poll): no scroll
+    expect(card.scrollIntoView).toHaveBeenCalledTimes(1);
+    stub.ui.mapCard = 'fair';
+    drOpts.onChange();
+    expect(card.scrollIntoView).toHaveBeenCalledTimes(2);
+    stub.ui.mapCard = null;
+    drOpts.onChange();
+    stub.ui.mapCard = 'fair';
+    drOpts.onChange();
+    expect(card.scrollIntoView).toHaveBeenCalledTimes(3);
+  });
+  it('under reduced motion the scroll is never smooth', () => {
+    const { card } = withCard(true);
+    stub.ui.mapCard = 'park';
+    drOpts.onChange();
+    expect(card.scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(card.scrollIntoView.mock.calls[0][0]).toMatchObject({ block: 'nearest', behavior: 'auto' });
+  });
+
+  // Holding Enter on a place: the first press opens the card and puts focus
+  // on Go here; the key's repeats must not press it.
+  it("a held Enter's repeats never press the card's button", () => {
+    make();
+    openSheet('places');
+    const inCard = { closest: (sel) => (sel === '.wm-card' ? {} : null) };
+    const held = { key: 'Enter', repeat: true, target: inCard, preventDefault: vi.fn() };
+    doc.root.listeners.keydown(held);
+    expect(held.preventDefault).toHaveBeenCalled();
+    expect(stub.handleKeydown).not.toHaveBeenCalled();
+    const press = { key: 'Enter', repeat: false, target: inCard, preventDefault: vi.fn() };
+    doc.root.listeners.keydown(press);
+    expect(press.preventDefault).not.toHaveBeenCalled();
+    expect(stub.handleKeydown).toHaveBeenCalledWith(press);
+  });
+
   it('Legacy attaches no pan', () => {
     const { progression } = make();
     progression.setEdition('legacy');
