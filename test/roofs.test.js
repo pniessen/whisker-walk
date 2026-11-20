@@ -485,8 +485,8 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect(Object.hasOwn(GROUND_TINTS, 'roofs')).toBe(false);
   });
 
-  it('holds the catalog and the view back (R1, Task 11, Task 13)', () => {
-    expect(REG.catalog).toBeNull();
+  it('holds its row out of the catalog, and the view back until Task 13 (R1)', () => {
+    expect(REG.catalog).toEqual({ name: 'The Rooftops', price: 100, requires: { area: 'fair', walks: 2 } });
     expect(REG.view).toBeNull();
     expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false);
     expect(REG.marks).toBe(true);
