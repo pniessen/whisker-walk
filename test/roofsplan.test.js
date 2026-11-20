@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as R from '../src/world/roofsplan.js';
 import { validateGround, STEP_MAX } from '../src/ground.js';
+import { CAT_RADIUS } from '../src/player.js';
 import { validateTraversal, LONG_LEAP_ID, BASE_ABILITIES } from '../src/traversal.js';
 import { floodTraversal, TRAVERSAL_FLOOD_STEP } from './helpers/traversalflood.js';
 
@@ -214,8 +214,67 @@ describe('the plan of the Rooftops', () => {
     expect(R.STREETS).toEqual(rects('street'));
   });
 
-  it('the plan is pure: no THREE, no randomness, no clock', () => {
-    const src = readFileSync(new URL('../src/world/roofsplan.js', import.meta.url), 'utf8');
-    expect(/from 'three'|Math\.random|Date\.now|performance\.now/.test(src)).toBe(false);
+  it('no dead-end slot narrower than the cat: no strip of ground under 0.7 m wide, walled higher on both sides, for more than 1 m', () => {
+    // Scanned along x and along z every 0.1 m: a run of ground she can walk
+    // (no step over STEP_MAX inside it), narrower than her (2 x CAT_RADIUS),
+    // with ground higher than a step at both of its ends. The street and the
+    // pitched roofs' VOID are never reached (above), so they are left out.
+    // A pinch shorter than 1 m (between the shed and its bin) is a gap she
+    // walks round, not a slot she walks into.
+    const g = a.ground;
+    const B = R.ROOFS_BOUNDS;
+    const d = 0.05;
+    const narrow = [];
+    const scan = (dir, fixed, lo, hi, at) => {
+      let start = lo, prev = at(lo), before = null;
+      for (let t = lo + d; t <= hi + EPS; t += d) {
+        const y = at(t);
+        if (Math.abs(y - prev) > STEP_MAX) {
+          const open = prev !== R.LEVELS.STREET && prev !== R.LEVELS.VOID;
+          if (open && before !== null && t - start < 2 * CAT_RADIUS && before > prev + STEP_MAX && y > prev + STEP_MAX) narrow.push({ dir, fixed, start, y: prev });
+          before = prev;
+          start = t;
+        }
+        prev = y;
+      }
+    };
+    for (let z = B.minZ; z <= B.maxZ + EPS; z += 0.1) scan('x', z, B.minX, B.maxX, (x) => g.y(x, z));
+    for (let x = B.minX; x <= B.maxX + EPS; x += 0.1) scan('z', x, B.minZ, B.maxZ, (z) => g.y(x, z));
+    const slots = narrow.filter((p) => narrow.filter((q) => q.dir === p.dir && q.y === p.y && Math.abs(q.fixed - p.fixed) <= 1 && Math.abs(q.start - p.start) < 0.3).length > 10);
+    expect(slots.map((p) => `along ${p.dir} at ${p.fixed.toFixed(1)}, from ${p.start.toFixed(2)}, ground ${p.y}`)).toEqual([]);
+  });
+
+  it('the alley stair runs up against the garages', () => {
+    const F = R.BLOCKS.find((b) => b.id === 'alleyStair').flights[0];
+    const garages = R.BLOCKS.find((b) => b.id === 'garages');
+    expect(F.x1).toBe(garages.x0);
+    // just west of the garages, between the stair's foot and its top, she is on the stair
+    for (const z of [30, 32, 33.9]) expect([z, a.ground.y(garages.x0 - 0.2, z) > R.LEVELS.GROUND]).toEqual([z, true]);
+  });
+});
+
+// The plan is pure data (no THREE, no randomness, no clock): imported afresh,
+// with three.js refused and Math.random, Date.now and performance.now
+// counted, building and reading the whole plan touches none of them.
+describe('the plan is pure', () => {
+  afterEach(() => {
+    vi.doUnmock('three');
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  it('imports no three.js, and draws no random number and reads no clock, at import or in roofsArea()', async () => {
+    vi.resetModules();
+    vi.doMock('three', () => { throw new Error('the Rooftops plan imported three.js'); });
+    const random = vi.spyOn(Math, 'random');
+    const now = vi.spyOn(Date, 'now');
+    const perf = vi.spyOn(performance, 'now');
+    const plan = await import('../src/world/roofsplan.js');
+    const area = plan.roofsArea();
+    // read every part of it: the ground everywhere, the skyline, the moves
+    for (let x = -46; x <= 46; x += 2) for (let z = -50; z <= 46; z += 2) { area.ground.y(x, z); plan.skylineY(x, z); }
+    expect(area.traversal.hops.length).toBeGreaterThan(0);
+    expect(JSON.stringify(plan.ROOFS_TOURS)).toBe(JSON.stringify(R.ROOFS_TOURS));
+    expect([random.mock.calls.length, now.mock.calls.length, perf.mock.calls.length]).toEqual([0, 0, 0]);
   });
 });

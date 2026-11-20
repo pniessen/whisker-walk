@@ -74,6 +74,10 @@
 //     4.28 m (3.6-4.5).
 //   * the warehouse stair's flights run z -44.5..-31.5, with their landings
 //     inside the block's z -46..-30.
+//   * the alley stair's flight moved 0.4 m east to x -31.6..-30 (its width
+//     kept), so it runs up against the garages: before, a 0.4 m slot of
+//     ground at 0 lay between its east edge and the garages, z 29.6..34, a
+//     dead end she could walk into clipping the stringer.
 // =============================================================================
 
 import { createGround } from '../ground.js';
@@ -131,7 +135,9 @@ const TERRACE = Object.freeze({ x0: -30, x1: 30, z0: 3, z1: 12 }); // eaves at z
 
 const ALLEY_STAIR = Object.freeze({
   id: 'alleyStair', kind: 'stair', y0: L.GROUND, y1: L.GARAGE,
-  flights: Object.freeze([flight(-32, -30.4, 38.6, 29.6, L.GROUND, L.GARAGE)]),
+  // x -31.6..-30, 0.4 m east of the table's, so its east edge meets the
+  // garages: no 0.4 m slot of alley ground between the two (header: SHIFTS).
+  flights: Object.freeze([flight(-31.6, -30, 38.6, 29.6, L.GROUND, L.GARAGE)]),
   landings: Object.freeze([landing(-32, -30, 28, 29.6, L.GARAGE)]),
 });
 

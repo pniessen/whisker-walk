@@ -416,16 +416,23 @@ describe('the Rooftops drawn', () => {
     const stats = budgetStats(scene);
     const s2 = new THREE.Scene(); // its own uuid, before the count starts
     const real = Math.random;
+    const [realNow, realPerf] = [Date.now, performance.now];
     let draws = 0;
+    let clocks = 0;
     Math.random = () => { draws++; return real(); };
+    Date.now = () => { clocks++; return realNow(); };
+    performance.now = () => { clocks++; return realPerf.call(performance); };
     let again;
     try {
       build(s2);
       again = budgetStats(s2);
     } finally {
       Math.random = real;
+      Date.now = realNow;
+      performance.now = realPerf;
     }
     expect(draws).toBe(MEASURED_DRAWS);
+    expect(clocks).toBe(0); // the bus and the evening are functions of walk time, never the clock
     expect(again).toEqual(stats);
   });
 });
