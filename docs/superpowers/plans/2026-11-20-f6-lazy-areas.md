@@ -465,3 +465,8 @@ The recipe (write it in both places, in the project's words):
 - Spec coverage: blank-walk and error paths (Tasks 4-6), co-walk (Task 6), trace determinism (fixture diff each task; same-walk test in Task 5; import-draws-nothing test in Task 3), word tables (Task 4), 900 kB ceiling kept and made honest plus per-place check (Task 7), offline-first and iOS (Tasks 7-8), Rooftops (Task 0, roofs in the registry in Task 3, the `roofsOn()` branch in Task 5, recipe in Task 9), tests that must stay synchronous (fast path in Task 5; `ensureAll` in `beforeAll`).
 - Names used across tasks: `createAreaLoader`, `loaded`, `ensure`, `prefetch`, `ensureAll`, `AREA_LOADERS`, `AREA_ENTRY_MODULES`, `AreaPack.{id, world, life}`, `startWalkWhenReady`, `setGettingReady`, `homeToast`, `prefetchArea`, `GRASS_HOOKS`, `grassStyle`, `startupFiles`, `areaDownloads`, `lazyProblems`, `areaSizeProblems`, `AREA_GZIP_CEILING_KB`, `precacheManifest`, `KEEP_BUILDS`, `buildsToDrop`, `assetsToPrune`, `precacheUrls`, `precacheProblems`.
 - Left alone on purpose: splitting `startWalk`; the saves; `traversallive.js` (shared by the yard and the Rooftops); the per-area data tables in the main graph (prop sets, gold mice, marks, clouds, find spots), which are small.
+
+## Owner's answers (2026-11-20)
+
+- **Restart after two failed loads online:** yes, as planned (`RELOAD_AFTER_FAILURES = 2`, the `start.notReadyReload` line).
+- **Ceiling:** lower the start-up ceiling to **700 kB** once lazy loading lands (`MAIN_GZIP_CEILING_KB = 700`), with **100 kB** per place (`AREA_GZIP_CEILING_KB = 100`). This overrides "Keep the 900 kB ceiling" above.
