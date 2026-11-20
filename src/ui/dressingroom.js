@@ -165,7 +165,8 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
   });
 
   // Clan Edition draws her territory map for the places on it; the rest
-  // (the Park, Seaside, the Docks) stay picture cards under "Other places".
+  // (the Park, the Farm, the Fairground and the Docks it opens, and the
+  // Seaside after the Docks) stay picture cards under "Other places".
   const clanPlaces = isClanEdition(state) ? {
     territoryMap: territoryMapModel(state, catalog),
     clanPicker: clanPickerModel(state),

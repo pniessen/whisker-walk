@@ -93,7 +93,7 @@ describe('dressing-room model', () => {
   });
   it('a gated area says how to open it', () => {
     const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
-    expect(m.places.find((p) => p.id === 'seaside').lockLine).toContain('opens after you explore City Park');
+    expect(m.places.find((p) => p.id === 'seaside').lockLine).toContain('opens after you explore The Old Docks');
     expect(m.places.find((p) => p.id === 'park').lockLine).toBe('opens after you explore Cozy Neighborhood 2 times · 0/2');
   });
   it('an unlocked-by-gate but unbought area shows its price', () => {

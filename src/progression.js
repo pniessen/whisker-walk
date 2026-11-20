@@ -300,24 +300,32 @@ export const CATALOG = {
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },
     // Appletree Farm (docs/superpowers/specs/2026-11-18-farm-design.md): the
     // third street area (owner, 2026-11-18: Neighborhood, Park, Farm). It opens
-    // BESIDE the Seaside after two Park walks, so no existing save finds a gate
-    // closed. No `edition`: it is in both editions. The place cards follow this
-    // list's order, and the home line for the Park names both places a Park
-    // walk opens (nextthing.js, rule 7).
+    // after two Park walks, beside the Fairground and the Docks (the world map,
+    // docs/superpowers/specs/2026-11-19-world-map-design.md). No `edition`: it
+    // is in both editions. The place cards follow this list's order, and the
+    // home line for the Park names the places a Park walk opens (nextthing.js,
+    // rule 7).
     farm: { name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } },
     // The Fairground (docs/superpowers/specs/2026-11-18-fairground-design.md):
-    // the fourth street area, after the Farm and before the Seaside. It opens
-    // with them after two Park walks, at the Farm's price, in both editions
-    // (no `edition`). The Park's home line names all three (nextthing.js, rule 7).
+    // the fourth street area, after the Farm in this list. It opens with the
+    // Farm and the Docks after two Park walks, at the Farm's price, in both
+    // editions (no `edition`). The Park's home line names all three
+    // (nextthing.js, rule 7).
     fair: { name: 'The Fairground', price: 75, requires: { area: 'park', walks: 2 } },
-    seaside: { name: 'Seaside', price: 100, requires: { area: 'park', walks: 2 } },
+    // The world map (docs/superpowers/specs/2026-11-19-world-map-design.md,
+    // decision 5): the Seaside follows the Docks on the map, so it opens after
+    // two Docks walks. It keeps its place in this list (the place cards'
+    // order); only its gate and price moved.
+    seaside: { name: 'Seaside', price: 200, requires: { area: 'docks', walks: 2 } },
     // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
     // area has to be registered for the home-base picker: homebase.js renders
     // a card per CATALOG.areas entry, canBuy reads price + requires, and
     // setArea equips it. The matching state.walks key is what makes the
-    // "2 walks in Seaside" gate (and this area's own walk count) work —
-    // see defaultState below, where forgetting it is a permanent NaN.
-    docks: { name: 'The Old Docks', price: 200, requires: { area: 'seaside', walks: 2 } },
+    // "2 walks in the Docks" gate the Seaside reads (and this area's own walk
+    // count) work — see defaultState below, where forgetting it is a
+    // permanent NaN. On the world map the Docks follow the Park, so they open
+    // after two Park walks, beside the Farm and the Fairground.
+    docks: { name: 'The Old Docks', price: 100, requires: { area: 'park', walks: 2 } },
     woods: { name: 'The Woods', price: 0, requires: { area: 'neighborhood', walks: 2 }, edition: 'canon' },
     river: { name: 'The River and Marshes', price: 0, requires: { area: 'woods', walks: 2 }, edition: 'canon' },
     moor: { name: 'The Moor', price: 0, requires: { area: 'woods', walks: 2 }, edition: 'canon' },

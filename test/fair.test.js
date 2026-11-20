@@ -1649,8 +1649,8 @@ describe('The Fairground: registered everywhere a street area is', async () => {
     expect(ids.slice(0, 5)).toEqual(['neighborhood', 'park', 'farm', 'fair', 'seaside']);
     // and nothing else about the others moved
     expect(CATALOG.areas.farm).toEqual({ name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } });
-    expect(CATALOG.areas.seaside).toEqual({ name: 'Seaside', price: 100, requires: { area: 'park', walks: 2 } });
-    expect(CATALOG.areas.docks.requires).toEqual({ area: 'seaside', walks: 2 });
+    expect(CATALOG.areas.seaside).toEqual({ name: 'Seaside', price: 200, requires: { area: 'docks', walks: 2 } });
+    expect(CATALOG.areas.docks.requires).toEqual({ area: 'park', walks: 2 });
   });
 
   it('cannot be bought on coins alone, or on walks alone', () => {
@@ -1766,12 +1766,12 @@ describe('The Fairground: registered everywhere a street area is', async () => {
     expect(DRESSED_AREAS).not.toContain('fair');
   });
 
-  it('is named with the Farm and the Seaside on the Park’s home line, in words a nine-year-old can read', () => {
+  it('is named with the Farm and the Docks on the Park’s home line, in words a nine-year-old can read', () => {
     const state = createProgression(fakeStorage()).state;
     const s = { ...state, walks: { ...state.walks, neighborhood: 3, park: 1 }, unlocked: { ...state.unlocked, areas: ['neighborhood', 'park'] }, area: 'park', edition: 'legacy' };
     const line = nextThing(s);
     expect(line).toMatchObject({ rule: 7, id: 'home.opens-three' });
-    expect(line.text).toBe('Explore here again to open Appletree Farm, the Fairground and Seaside!');
+    expect(line.text).toBe('Explore here again to open Appletree Farm, the Fairground and the Old Docks!');
   });
 
   it('has a card picture for the home screen', () => {

@@ -92,10 +92,11 @@ export function nextThing(state, { catalog = CATALOG, present = false, toldNow =
       && count(walks[here]) === a.requires.walks - 1;
   }).sort((a, b) => (count(areas[a].price) > 0) - (count(areas[b].price) > 0));
   // Two places that both cost coins are a choice, so the line names both
-  // (the Park opens the Farm and the Seaside). A free place opens by itself
-  // and is named alone, as it always was.
+  // (the Park opens the Farm and the Docks, once the Fairground is hers). A
+  // free place opens by itself and is named alone, as it always was.
   // Three that all cost coins are named all three (the Park opens the Farm,
-  // the Fairground and the Seaside), in the catalog's order.
+  // the Fairground and the Docks), in the catalog's order. The Docks then
+  // open the Seaside alone.
   if (soon.length >= 3 && soon.slice(0, 3).every((id) => count(areas[id].price) > 0)) {
     return say(7, 'home.opens-three', '🗺️', { place: nameOf(soon[0]), place2: nameOf(soon[1]), place3: nameOf(soon[2]) });
   }
