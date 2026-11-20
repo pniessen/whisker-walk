@@ -11,9 +11,17 @@
 // into one entry with a count, so a throw every frame cannot push everything
 // else out. Every call is wrapped: noting a failure must never be a second
 // failure.
+//
+// Beside the failures it keeps the renderer's memory counts read at each walk
+// end (geometries, textures, shader programs: numbers only), in a small ring
+// of their own so a reading can never push a failure out. They stay in
+// memory like everything else here: never stored, never sent.
 
 export const DIAG_CAPACITY = 30;
 export const DIAG_MESSAGE_MAX = 140;
+export const DIAG_MEMORY_CAPACITY = 5;
+
+const count = (n) => (Number.isFinite(n) ? n : 0);
 
 // A one-line, bounded description of anything that can be thrown. Never
 // throws itself: an object with a throwing getter or a circular object still
@@ -56,8 +64,10 @@ function fileOf(source) {
 
 export function createDiagnostics({ capacity = DIAG_CAPACITY, now = () => Date.now() } = {}) {
   const entries = []; // oldest first; the newest (or newest repeat) is last
+  const readings = []; // memory counts, oldest first
   let total = 0;
-  // Bumped on every note, so a reader can skip a redraw when nothing changed.
+  // Bumped on every note and every reading, so a reader can skip a redraw
+  // when nothing changed.
   let version = 0;
 
   // kind: a short word ('frame', 'error', 'rejection', 'gl', 'save', 'room',
@@ -91,14 +101,36 @@ export function createDiagnostics({ capacity = DIAG_CAPACITY, now = () => Date.n
     }
   }
 
+  // info: a renderer's `info` ({ memory: { geometries, textures }, programs }).
+  // A reading is not a failure: it moves the version, never the total.
+  function noteMemory(info) {
+    try {
+      const time = now();
+      const programs = info?.programs?.length ?? 0;
+      readings.push({
+        time,
+        geometries: count(info?.memory?.geometries),
+        textures: count(info?.memory?.textures),
+        programs: count(programs),
+      });
+      if (readings.length > DIAG_MEMORY_CAPACITY) readings.splice(0, readings.length - DIAG_MEMORY_CAPACITY);
+      version += 1;
+    } catch {
+      // a reading that cannot be taken is simply not kept
+    }
+  }
+
   return {
     note,
+    noteMemory,
     // A copy, newest last.
     entries: () => entries.slice(),
+    // The memory readings: a copy, newest last.
+    memory: () => readings.slice(),
     // Every failure noted, repeats included.
     get total() { return total; },
     get version() { return version; },
-    clear() { entries.length = 0; total = 0; version += 1; },
+    clear() { entries.length = 0; readings.length = 0; total = 0; version += 1; },
   };
 }
 
@@ -107,6 +139,10 @@ export const diagnostics = createDiagnostics();
 
 export function note(kind, err, where) {
   return diagnostics.note(kind, err, where);
+}
+
+export function noteMemory(info) {
+  diagnostics.noteMemory(info);
 }
 
 // window 'error' and 'unhandledrejection', recorded but not swallowed: no
