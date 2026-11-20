@@ -337,7 +337,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // is offered as a button. A tap saves it; nothing saves it for her.
     const offered = offeredWalkingName(progression.state);
     return `
-      ${hasValidPetName ? '' : `<p class="wt-first${nameNeeded ? ' wt-name-needed' : ''}">${escapeHtml(walkingNameIntro(nameNeeded))}</p>`}
+      ${hasValidPetName ? '' : `<p class="wt-first${nameNeeded ? ' wt-name-needed' : ''}">${escapeHtml(walkingNameIntro(nameNeeded, { touch: !!getIsTouch() }))}</p>`}
       <div class="wt-petname">
         ${hasValidPetName ? `<label class="wt-name-label" for="wt-petname-input">${escapeHtml(WALKING_NAME)}</label>` : ''}
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Type a name" aria-label="${escapeHtml(WALKING_NAME)}" value="${escapeHtml(name)}" />
@@ -498,9 +498,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (outcome === 'busy') return `The cloud is busy right now — try again later. ${NOTHING}`;
     if (outcome === 'partial') {
       const playerGone = player === 'ok' || player === 'none';
+      const again = `${getIsTouch() ? 'Tap' : 'Click'} Delete my online data again to finish.`;
       return playerGone
-        ? 'The cat profile, friends and colony sharing are deleted, but the cloud save isn’t yet. Tap Delete my online data again to finish.'
-        : 'The cloud save is deleted and this device is unlinked, but the cat profile, friends and colony sharing aren’t yet. Tap Delete my online data again to finish.';
+        ? `The cat profile, friends and colony sharing are deleted, but the cloud save isn’t yet. ${again}`
+        : `The cloud save is deleted and this device is unlinked, but the cat profile, friends and colony sharing aren’t yet. ${again}`;
     }
     return `Could not reach the cloud — check your connection and try again. ${NOTHING}`;
   }
@@ -1130,7 +1131,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     momentEl = document.createElement('div');
     momentEl.id = 'clan-moment';
     momentEl.className = 'colony-news join-moment';
-    momentEl.innerHTML = renderClanMomentHtml(clanPickerModel(s), typeof partner === 'string' && partner ? partner : 'your partner');
+    momentEl.innerHTML = renderClanMomentHtml(clanPickerModel(s), typeof partner === 'string' && partner ? partner : 'your partner', { touch: !!getIsTouch() });
     momentEl.addEventListener('click', (e) => {
       const card = e.target.closest?.(`[${PICK_ATTR}]`);
       if (card) {
@@ -1340,7 +1341,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     fillFoundThumbs(thumbs, progression.state.unlocked.accessories);
     stage = createCatStage({ buildCat, thumbs });
     dressing = createDressingRoom({
-      progression, catalog: CATALOG, stage, sync, thumbs,
+      progression, catalog: CATALOG, stage, sync, thumbs, getIsTouch,
       onChange: render,
       onOpenSheet: (id) => setSheet(id),
       onProfileChange: () => rooms?.retrackProfile?.(),
@@ -1779,7 +1780,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (roomState || dressing?.ui?.wardrobe) return '';
     let thing = null;
     try {
-      const ctx = () => ({ catalog: CATALOG, present: celebration.hasPresent(), toldNow, denVisitedToday: denVisitedToday(), guideName: s.tutorial?.guide ?? null });
+      const ctx = () => ({ catalog: CATALOG, present: celebration.hasPresent(), toldNow, denVisitedToday: denVisitedToday(), guideName: s.tutorial?.guide ?? null, touch: !!getIsTouch() });
       thing = nextThing(s, ctx());
       // Rule 8 counts the visits it has pointed at a thing, once a visit.
       if (thing?.rule === 8 && thing.thing && toldNow !== thing.thing) {

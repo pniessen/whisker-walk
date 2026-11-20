@@ -193,6 +193,7 @@ export const PHRASES = Object.freeze({
   'pick.momentTitle': 'Time to pick a home!',
   'pick.momentAsk': 'Which crew will be your home?',
   'pick.changeAsk': 'Tap a crew to make it your home.',
+  'pick.changeAskClick': 'Click a crew to make it your home.',
   'map.camp': (group) => `${group} home base`,
 
   // not offered in this set (RULES.noStarNames), so there is nothing to say

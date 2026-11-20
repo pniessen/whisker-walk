@@ -430,6 +430,8 @@ const LATER = Object.freeze({
   'mycats.newsSub': "What's new in your colony",
   'mycats.full': (cap) => `The colony is full — ${cap} cats call it home 🏠`,
   'mycats.fullRoom': (max) => ` Share it with your brother or sister to make room for ${max}.`,
+  // the change card's ask on a desktop; a touch screen keeps 'pick.changeAsk'
+  'pick.changeAskClick': () => `Click a ${groupWord()} to join it.`,
 });
 
 // Every id of the first table, in table order.

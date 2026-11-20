@@ -40,9 +40,9 @@ const midSave = base({
 const cardOn = (state, id) => placeCardFor(worldMapModel(state, CATALOG), id, state.points);
 
 describe('the place card', () => {
-  it('an owned place: Go here', () => expect(cardOn(owned, 'woods')).toMatchObject({ action: 'go', label: 'Go here', line: 'tap to go here', locked: false }));
+  it('an owned place: Go here', () => expect(cardOn(owned, 'woods')).toMatchObject({ action: 'go', label: 'Go here', line: 'click to go here', locked: false }));
   it("today's place: Go here, and says so", () => expect(cardOn(today, 'park')).toMatchObject({ action: 'go', line: 'you’re going here' }));
-  it('a free wild place that is open: Go here', () => expect(cardOn(woodsOpen, 'woods')).toMatchObject({ action: 'go', line: 'Tap to explore' }));
+  it('a free wild place that is open: Go here', () => expect(cardOn(woodsOpen, 'woods')).toMatchObject({ action: 'go', line: 'Click to explore' }));
   it('a street place she can open: Open for 50 🐾, and how many she has', () =>
     expect(cardOn(park60, 'park')).toMatchObject({ action: 'open', label: 'Open for 50 🐾', line: 'You have 60 🐾' }));
   // The card says how many paws she still needs, in main's own words (the
@@ -86,7 +86,7 @@ describe('the place card', () => {
     const html = renderPlaceCardHtml(cardOn(owned, 'woods'), { picture: 'x' });
     expect(html).toContain('<button type="button" class="wm-card-go" data-dr-place="woods">Go here</button>');
     expect(html).toContain('<h3 id="wm-card-name">The Woods</h3>');
-    expect(html).toContain('<p class="wm-card-line">tap to go here</p>');
+    expect(html).toContain('<p class="wm-card-line">click to go here</p>');
   });
   it('everything is escaped', () => {
     const html = renderPlaceCardHtml({ id: 'a"b', name: '<b>', line: '<i>', locked: false, action: 'go', label: 'Go here' }, { picture: '"><script>' });

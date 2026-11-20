@@ -26,18 +26,18 @@ const settled = (fields = {}) => ({ ...walked({ park: 5 }), unlocked: { accessor
 describe('nextThing: one test per rule', () => {
   it('1. a present is waiting', () => {
     const t = nextThing(save(), { present: true });
-    expect([t.rule, t.text, t.action]).toEqual([1, 'Tap the present! 🎁', 'present']);
+    expect([t.rule, t.text, t.action]).toEqual([1, 'Click the present! 🎁', 'present']);
   });
 
   it('2. no walk has ever been finished', () => {
     const t = nextThing(save());
-    expect([t.rule, t.text, t.action]).toEqual([2, 'A friend is waiting outside. Tap Explore!', 'start']);
+    expect([t.rule, t.text, t.action]).toEqual([2, 'A friend is waiting outside. Click Explore!', 'start']);
   });
 
   it('3. the guided walk was left half done', () => {
     const s = save({ ...walked(), tutorial: { first: 'part' } });
-    expect(nextThing(s, { guideName: 'Biscuit' })).toMatchObject({ rule: 3, text: 'Biscuit has more to show you. Tap Explore!', action: 'start' });
-    expect(nextThing(s)).toMatchObject({ rule: 3, text: 'Your friend has more to show you. Tap Explore!', action: 'start' });
+    expect(nextThing(s, { guideName: 'Biscuit' })).toMatchObject({ rule: 3, text: 'Biscuit has more to show you. Click Explore!', action: 'start' });
+    expect(nextThing(s)).toMatchObject({ rule: 3, text: 'Your friend has more to show you. Click Explore!', action: 'start' });
   });
 
   it('4. the pick is ready and not made', () => {
@@ -80,7 +80,7 @@ describe('nextThing: one test per rule', () => {
 
   it('8. she can pay for something to wear she does not own, cheapest first', () => {
     const s = save({ ...walked(), points: 55 });
-    expect(nextThing(s)).toMatchObject({ rule: 8, text: 'You have enough for the Cozy Beanie. Tap Dress up!', action: 'dressup', thing: 'beanie' });
+    expect(nextThing(s)).toMatchObject({ rule: 8, text: 'You have enough for the Cozy Beanie. Click Dress up!', action: 'dressup', thing: 'beanie' });
     // owning the beanie: the next cheapest
     const owns = save({ ...walked(), points: 55, unlocked: { accessories: ['bell', 'bandana', 'beanie'] } });
     expect(nextThing(owns)).toMatchObject({ rule: 8, thing: 'socks' });

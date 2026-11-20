@@ -251,7 +251,7 @@ describe('a fresh device: not online yet, so no search', () => {
     openSheet('together');
     await tap({ id: 'wt-host' });
     expect(rooms.host).not.toHaveBeenCalled();
-    expect(html()).toContain('You need a friend name before you can play together. Type one here and tap Save:');
+    expect(html()).toContain('You need a friend name before you can play together. Type one here and click Save:');
     expect(sent).toEqual([]);
   });
   it('saving a walking name on Play together is what starts the search', async () => {

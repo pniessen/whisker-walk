@@ -90,11 +90,11 @@ const cloudStub = () => ({
   available: true, myId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
   fetchFriendships: vi.fn(() => Promise.resolve([])), fetchProfiles: vi.fn(() => Promise.resolve([])),
 });
-function setup({ name = null, cloud = null } = {}) {
+function setup({ name = null, cloud = null, getIsTouch } = {}) {
   const progression = createProgression(memStorage());
   if (name) progression.state.petName = name;
   const rooms = fakeRooms();
-  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync: null, cloud, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync: null, cloud, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {}, getIsTouch });
   hb.show();
   return { progression, hb, rooms };
 }
@@ -262,9 +262,16 @@ describe('Start a room or Join with no name: still the name box', () => {
     openSheet('together');
     const focused = boxes({ '#wt-petname-input': '' });
     await tap({ id: 'wt-host' });
-    expect(html()).toContain('<p class="wt-first wt-name-needed">You need a friend name before you can play together. Type one here and tap Save:</p>');
+    expect(html()).toContain('<p class="wt-first wt-name-needed">You need a friend name before you can play together. Type one here and click Save:</p>');
     expect(focused).toEqual(['#wt-petname-input']);
     expect(rooms.host).not.toHaveBeenCalled();
+  });
+  it('on a touch screen the reason says tap Save', async () => {
+    setup({ getIsTouch: () => true });
+    openSheet('together');
+    boxes({ '#wt-petname-input': '' });
+    await tap({ id: 'wt-host' });
+    expect(html()).toContain('You need a friend name before you can play together. Type one here and tap Save:');
   });
   it('Join a room, then Join: the same', async () => {
     const { rooms } = setup();
@@ -272,7 +279,7 @@ describe('Start a room or Join with no name: still the name box', () => {
     await tap({ id: 'wt-join-open' });
     const focused = boxes({ '#wt-petname-input': '', '#wt-join-code': 'ABCD' });
     await tap({ id: 'wt-join' });
-    expect(html()).toContain('You need a friend name before you can play together. Type one here and tap Save:');
+    expect(html()).toContain('You need a friend name before you can play together. Type one here and click Save:');
     expect(focused).toEqual(['#wt-petname-input']);
     expect(rooms.join).not.toHaveBeenCalled();
   });

@@ -98,12 +98,19 @@ export function shortLockLine(req, have, edition, catalog) {
 
 const SOON_LINE = { soon: 'coming soon', later: 'unexplored' };
 
+// The line of a place she can go to, and of a free one that is open: a
+// touch screen says tap, a desktop click. Exported for Legacy's picture cards.
+export const goHereLine = (touch) => (touch ? 'tap to go here' : 'click to go here');
+const exploreLine = (touch) => (touch ? 'Tap to explore' : 'Click to explore');
+
 // What one place shows for this save, from its areaId: owned, selected
 // (today's place), locked, canOpen, price and the line under its name. Gate
 // and price are the save's offer (areaoffer.js), so a kept Seaside reads as
 // the card says. Ownership mirrors progression.isUnlocked/canBuy, read from
 // the save only. An area the catalog does not have is 'coming soon'.
-export function placeState(state, catalog, areaId) {
+// touch: the device is a touch screen (the caller's to know; this stays
+// device-free), for the words "tap" or "click".
+export function placeState(state, catalog, areaId, { touch = false } = {}) {
   const offer = areaOffer(state, catalog, areaId);
   if (!offer) return { owned: false, selected: false, locked: false, canOpen: false, price: 0, line: SOON_LINE.soon, mapLine: SOON_LINE.soon };
   const areas = catalog.areas;
@@ -124,15 +131,16 @@ export function placeState(state, catalog, areaId) {
   let mapLine;
   if (locked) { line = opensAfterLine(req, have, state?.edition, catalog); mapLine = shortLockLine(req, have, state?.edition, catalog); }
   else if (selected) line = 'you’re going here';
-  else if (owned) line = 'tap to go here';
-  else if (price === 0) line = 'Tap to explore';
+  else if (owned) line = goHereLine(touch);
+  else if (price === 0) line = exploreLine(touch);
   else if (canOpen) line = `Open for ${price} 🐾`;
   else line = `${price} 🐾 — keep exploring!`;
   return { owned, selected, locked, canOpen, price, line, mapLine: mapLine ?? line };
 }
 
 // What the map shows for this save.
-export function territoryMapModel(state, catalog) {
+// touch: as placeState's.
+export function territoryMapModel(state, catalog, { touch = false } = {}) {
   const edition = state?.edition;
   const areas = catalog.areas;
 
@@ -142,7 +150,7 @@ export function territoryMapModel(state, catalog) {
     if (t.status !== 'built' || !has(areas, t.areaId)) {
       return { owned: false, selected: false, locked: false, canOpen: false, price: 0, line: SOON_LINE[t.status] ?? SOON_LINE.soon, mapLine: SOON_LINE[t.status] ?? SOON_LINE.soon };
     }
-    return placeState(state, catalog, t.areaId);
+    return placeState(state, catalog, t.areaId, { touch });
   };
 
   // The camp mark, Clan Edition only, for a region whose territory has a clan.

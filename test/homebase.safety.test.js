@@ -407,7 +407,7 @@ describe('Host and Join with no cat name yet', () => {
       const focused = [];
       doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? { value: '', focus: () => focused.push(sel) } : sel === '#wt-join-code' ? { value: 'ABCD' } : null);
       await tap({ id });
-      expect(html()).toContain('You need a friend name before you can play together. Type one here and tap Save:');
+      expect(html()).toContain('You need a friend name before you can play together. Type one here and click Save:');
       expect(focused).toEqual(['#wt-petname-input']);
       expect(rooms.host).not.toHaveBeenCalled();
       expect(rooms.join).not.toHaveBeenCalled();
@@ -492,7 +492,7 @@ describe('Colony with no walking name yet', () => {
     doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? { value: '', focus: () => focused.push(sel) } : null);
     await tap({ id: 'colony-pair-name' });
     expect(html()).toContain('<h2>Play together 👫</h2>');
-    expect(html()).toContain('<p class="wt-first wt-name-needed">You need a friend name before you can share your colony. Type one here and tap Save:</p>');
+    expect(html()).toContain('<p class="wt-first wt-name-needed">You need a friend name before you can share your colony. Type one here and click Save:</p>');
     expect(html().indexOf('wt-name-needed')).toBeLessThan(html().indexOf('id="wt-petname-input"'));
     expect(focused).toEqual(['#wt-petname-input']);
     expect(progression.state.petName).toBe(null);

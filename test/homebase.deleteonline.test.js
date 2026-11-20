@@ -73,7 +73,7 @@ const card = () => doc.body.children.find((c) => c.id === 'confirm-card');
 const click = (target) => doc.root.listeners.click({ target: { closest: () => null, dataset: {}, ...target }, detail: 1 });
 const html = () => doc.root.innerHTML;
 
-function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'ok' }, rooms = null, colonySync = null, onlineDelete } = {}) {
+function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'ok' }, rooms = null, colonySync = null, onlineDelete, getIsTouch } = {}) {
   let linked = code;
   const sync = { available: true, getCode: () => linked, unlink: () => { linked = null; } };
   let release;
@@ -84,7 +84,7 @@ function setup({ code = null, result = { outcome: 'done', player: 'ok', save: 'o
   const progression = createProgression(memStorage());
   progression.setPetName('Mittens');
   const settings = { get: () => null, set() {}, all: () => ({}) };
-  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, onlineDelete: od, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: () => {} });
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, onlineDelete: od, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: () => {}, getIsTouch });
   hb.show();
   dressingMock.opts.onOpenSheet('sync');
   return { od, sync, progression, hb, release: () => release() };
@@ -184,8 +184,8 @@ describe('the line after each answer', () => {
     [{ outcome: 'offline', player: 'offline', save: 'offline' }, 'Could not reach the cloud — check your connection and try again. Nothing was deleted.'],
     [{ outcome: 'denied', player: 'denied', save: 'ok' }, 'The cloud wouldn’t let this device delete it. Nothing was deleted.'],
     [{ outcome: 'busy', player: 'busy', save: 'busy' }, 'The cloud is busy right now — try again later. Nothing was deleted.'],
-    [{ outcome: 'partial', player: 'ok', save: 'offline' }, 'The cat profile, friends and colony sharing are deleted, but the cloud save isn’t yet. Tap Delete my online data again to finish.'],
-    [{ outcome: 'partial', player: 'offline', save: 'ok' }, 'The cloud save is deleted and this device is unlinked, but the cat profile, friends and colony sharing aren’t yet. Tap Delete my online data again to finish.'],
+    [{ outcome: 'partial', player: 'ok', save: 'offline' }, 'The cat profile, friends and colony sharing are deleted, but the cloud save isn’t yet. Click Delete my online data again to finish.'],
+    [{ outcome: 'partial', player: 'offline', save: 'ok' }, 'The cloud save is deleted and this device is unlinked, but the cat profile, friends and colony sharing aren’t yet. Click Delete my online data again to finish.'],
   ];
   for (const [result, line] of LINES) {
     it(`${result.outcome} (${result.player}/${result.save})`, async () => {
@@ -196,4 +196,10 @@ describe('the line after each answer', () => {
       expect(html()).toContain(BUTTON); // and it can be tried again
     });
   }
+  it('on a touch screen the half-done line says Tap', async () => {
+    const s = setup({ code: CODE, result: { outcome: 'partial', player: 'ok', save: 'offline' }, getIsTouch: () => true });
+    await confirmYes();
+    s.release();
+    await vi.waitFor(() => expect(html()).toContain('isn’t yet. Tap Delete my online data again to finish.'));
+  });
 });

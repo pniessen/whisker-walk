@@ -6,7 +6,7 @@
 import { phrase } from '../clanphrases.js';
 import { asFiniteNonNeg } from '../progression.js';
 import { areaInEdition, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
-import { opensAfterLine, lower } from '../territories.js';
+import { opensAfterLine, lower, goHereLine } from '../territories.js';
 import { worldMapModel } from '../worldmap.js';
 import { renderWorldMapHtml } from './territorymap.js';
 import { placeCardFor, renderPlaceCardHtml } from './placecard.js';
@@ -123,7 +123,8 @@ function townNoteFor(areaId, state) {
   return v <= TOWN_NOTE_VISITS ? phrase('place.townNote') : '';
 }
 
-export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard } = {}) {
+// touch: a touch screen (the home screen's getIsTouch), for "tap" or "click".
+export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard, touch = false } = {}) {
   const points = num(state?.points);
   const equippedCat = plain(state?.equipped).cat;
   const ownedCats = ownedList(state, 'cats');
@@ -189,7 +190,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard 
     } else if (!owned) {
       lockLine = points >= price ? `Unlock — ${price} 🐾` : `${price} 🐾 — keep exploring!`;
     }
-    return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === walkArea, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
+    return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === walkArea, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine, goLine: goHereLine(touch) };
   });
 
   // Clan Edition draws the world map, every place on it (her board and the
@@ -197,7 +198,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard 
   // (mapCard, an areaId) when one is open. Legacy keeps its picture cards.
   let clanPlaces = { placeCard: null };
   if (isClanEdition(state)) {
-    const worldMap = worldMapModel(state, catalog);
+    const worldMap = worldMapModel(state, catalog, { touch });
     clanPlaces = {
       worldMap,
       placeCard: typeof mapCard === 'string' ? withTownNote(placeCardFor(worldMap, mapCard, points), state) : null,
@@ -334,7 +335,7 @@ function placeHtml(p) {
       + `<img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">`
       + `<span class="cap">${escapeHtml(p.name)}<button type="button" class="dr-place-buy" data-dr-place-buy="${escapeHtml(p.id)}">${escapeHtml(p.lockLine)}</button></span></div>`;
   }
-  const sub = p.selected ? 'you’re going here' : p.owned ? 'tap to go here' : p.lockLine;
+  const sub = p.selected ? 'you’re going here' : p.owned ? p.goLine : p.lockLine;
   const cant = !p.owned && !p.locked && !p.canBuy;
   return `<button class="dr-place ${p.selected ? 'sel' : ''} ${p.locked ? 'locked' : ''} ${cant ? 'cant' : ''}" data-dr-place="${escapeHtml(p.id)}">`
     + `<img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">`

@@ -132,7 +132,7 @@ describe('world map: the world as data', () => {
     s.points = 50;
     expect(park(s)).toMatchObject({ canOpen: true, line: 'Open for 50 🐾' });
     s.unlocked.areas.push('park');
-    expect(park(s)).toMatchObject({ owned: true, line: 'tap to go here' });
+    expect(park(s)).toMatchObject({ owned: true, line: 'click to go here' });
     s.area = 'park';
     expect(park(s)).toMatchObject({ owned: true, selected: true, line: 'you’re going here' });
 
@@ -144,7 +144,7 @@ describe('world map: the world as data', () => {
     expect(placeState(fresh(), CATALOG, 'rooftops')).toEqual({ owned: false, selected: false, locked: false, canOpen: false, price: 0, line: 'coming soon', mapLine: 'coming soon' });
     // Her board's places carry their price too, and stay free to take.
     const woods = regionOf(worldMapModel({ ...fresh(), walks: { neighborhood: 2 } }, CATALOG), 'woods');
-    expect(woods).toMatchObject({ kind: 'board', price: 0, locked: false, canOpen: true, line: 'Tap to explore' });
+    expect(woods).toMatchObject({ kind: 'board', price: 0, locked: false, canOpen: true, line: 'Click to explore' });
   });
 
   it('a locked place says it in one short line on the map, the full line with its counter elsewhere', () => {

@@ -91,10 +91,10 @@ const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolu
 const OPEN_ROOMS = { available: true, getState: () => null, onChange() {} };
 const IN_ROOM = { available: true, getState: () => ({ roster: [{ id: 'a' }, { id: 'b' }] }), onChange() {} };
 
-function setup({ rooms = null, sync = null, colonySync = null, onVisitDen = () => {}, state } = {}) {
+function setup({ rooms = null, sync = null, colonySync = null, onVisitDen = () => {}, state, getIsTouch } = {}) {
   const progression = createProgression(memStorage());
   if (state) state(progression.state);
-  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, cloud: null, settings, onSettingsChange: () => {}, onVisitDen, colonySync, myId: 'me', toast: () => {} });
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms, sync, cloud: null, settings, onSettingsChange: () => {}, onVisitDen, colonySync, myId: 'me', toast: () => {}, getIsTouch });
   hb.show();
   return { progression, hb };
 }
@@ -476,6 +476,18 @@ describe('the clan moment', () => {
     expect(store.has(MOMENT_SEEN_KEY)).toBe(false);
     hb.show(); // back from the walk: the greeting already ran
     expect(moment()).toBeTruthy();
+  });
+  it('changing her clan: the card says Tap on a touch screen, Click on a desktop; the dressing room gets the same getIsTouch', () => {
+    for (const [touch, words] of [[true, 'Tap a clan to join it.'], [false, 'Click a clan to join it.']]) {
+      doc = fakeDocument(); globalThis.document = doc;
+      const isTouch = () => touch;
+      setup({ getIsTouch: isTouch, state: (st) => { st.clanPick = { mine: 'river', partner: null, partnerId: null }; } });
+      expect(dressingMock.opts.getIsTouch).toBe(isTouch);
+      store.set(MOMENT_SEEN_KEY, '1');
+      openSheet('places');
+      clickRoot({ [`[${MOMENT_ATTR}]`]: {} });
+      expect(moment().innerHTML).toContain(words);
+    }
   });
   it('Change place\'s Choose button brings it back after Not yet', () => {
     const { hb } = setup({ state: woodsOpened });
@@ -1010,7 +1022,7 @@ describe('the next-thing line and the first pick', () => {
   it('a brand-new save reads "A friend is waiting outside", just above Start', () => {
     setup();
     expect(rule()).toBe(2);
-    expect(html()).toContain('A friend is waiting outside. Tap Explore!');
+    expect(html()).toContain('A friend is waiting outside. Click Explore!');
     expect(html().indexOf('class="hb-next"')).toBeLessThan(html().indexOf('id="btn-start"'));
     expect(html().match(/class="hb-next"/g)).toHaveLength(1); // always exactly one
   });
@@ -1103,13 +1115,21 @@ describe('the next-thing line and the first pick', () => {
     hb.show();
     expect(hb.showVisit(visit)).toBe(true);
     expect(rule()).toBe(1);
-    expect(html()).toContain('Tap the present! 🎁');
+    expect(html()).toContain('Click the present! 🎁');
     expect(progression.state.equipped.head).not.toBe('partycrown');
     tapNext('present');
     expect(progression.state.equipped.head).toBe('partycrown'); // opened, as its own button does
     expect(rule()).toBe(2);
     tapNext('present'); // nothing left to open
     expect(rule()).toBe(2);
+  });
+
+  it('on a touch screen the line says Tap, on a desktop Click', () => {
+    setup({ getIsTouch: () => true });
+    expect(html()).toContain('A friend is waiting outside. Tap Explore!');
+    doc = fakeDocument(); globalThis.document = doc;
+    setup({ getIsTouch: () => false });
+    expect(html()).toContain('A friend is waiting outside. Click Explore!');
   });
 
   it('the den line goes to the den and is not shown again today', () => {

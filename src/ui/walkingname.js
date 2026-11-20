@@ -23,9 +23,11 @@ export const WALKING_NAME_RULE = 'A friend name is 2–16 letters, spaces, or hy
 
 // Above the name box while none is saved. `why` is what she was trying to do
 // when she was sent here ('walk', 'colony'), or falsy when she just opened it.
-export function walkingNameIntro(why) {
-  if (why === 'colony') return 'You need a friend name before you can share your colony. Type one here and tap Save:';
-  if (why) return 'You need a friend name before you can play together. Type one here and tap Save:';
+// touch: a touch screen says "tap Save", a desktop "click Save".
+export function walkingNameIntro(why, { touch = false } = {}) {
+  const save = touch ? 'tap Save' : 'click Save';
+  if (why === 'colony') return `You need a friend name before you can share your colony. Type one here and ${save}:`;
+  if (why) return `You need a friend name before you can play together. Type one here and ${save}:`;
   return 'First, pick your friend name:';
 }
 
