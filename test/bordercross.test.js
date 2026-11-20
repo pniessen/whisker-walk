@@ -16,7 +16,7 @@ describe('postStatus', () => {
     expect(postStatus(p, save({ woods: 1 }), CATALOG, 'woods').kind).toBe('go');
     const s = postStatus(p, save({ woods: 0 }), CATALOG, 'woods');
     expect(s.kind).toBe('locked');
-    expect(s.line).toBe('🔒 The River and Marshes opens after you explore The Woods 2 times · 1/2');
+    expect(s.line).toBe('🔒 The River and Marshes opens after you explore the Woods 2 times · 1/2');
     expect(postStatus(p, save(undefined), CATALOG, 'woods').kind).toBe('locked');
     expect(postStatus(p, { unlocked: { areas: [] } }, CATALOG, 'woods').line).toMatch(/· 1\/2$/);
   });
@@ -24,7 +24,7 @@ describe('postStatus', () => {
     expect(postStatus(post('woods-river-long'), save({}, ['river']), CATALOG, 'woods').kind).toBe('go');
     const g = postStatus(post('moor-gorge'), save({}), CATALOG, 'moor');
     expect(g).toMatchObject({ kind: 'locked', name: 'The Gorge' });
-    expect(promptFor(g, {}).text).toBe('🔒 The Gorge opens after you explore The Moor 2 times · 1/2');
+    expect(promptFor(g, {}).text).toBe('🔒 The Gorge opens after you explore the Moor 2 times · 1/2');
     expect(promptFor(g, {}).kind).toBe('border-info');
     expect(postStatus(post('moor-gorge'), save({ moor: 1 }), CATALOG, 'moor').kind).toBe('go');
     expect(postStatus(post('moor-gorge'), save({}, ['gorge']), CATALOG, 'moor').kind).toBe('go');

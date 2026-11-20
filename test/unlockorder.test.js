@@ -70,10 +70,10 @@ describe('the new unlock order (world map decision 5)', () => {
     }
   });
   it("the Docks' home line names the Seaside", () => {
-    expect(nextThing(docksSave('canon'))).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again and Seaside opens!' });
+    expect(nextThing(docksSave('canon'))).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again to open Seaside!' });
   });
   it('a locked Seaside says it waits for the Docks', () => {
-    expect(placeWhyLine(freshPlain('legacy'), CATALOG, 'seaside')).toBe('opens after you explore The Old Docks 2 times · 0/2');
+    expect(placeWhyLine(freshPlain('legacy'), CATALOG, 'seaside')).toBe('opens after you explore the Old Docks 2 times · 0/2');
     expect(placeWhyLine(freshPlain('legacy'), CATALOG, 'docks')).toBe('opens after you explore City Park 2 times · 0/2');
   });
 });
@@ -194,7 +194,7 @@ describe('a kept Seaside reads the same on every screen', () => {
     const plain = load({ ...keptFields(40), keptOffers: [] }).state;
     expect(plain.keptOffers).toEqual([]);
     expect(buildDressingModel(plain, CATALOG).places.find((p) => p.id === 'seaside')).toMatchObject({ locked: true, price: 200 });
-    expect(placeWhyLine(plain, CATALOG, 'seaside')).toBe('opens after you explore The Old Docks 2 times · 1/2');
+    expect(placeWhyLine(plain, CATALOG, 'seaside')).toBe('opens after you explore the Old Docks 2 times · 1/2');
     expect(postStatus({ to: 'seaside' }, plain, CATALOG, 'docks')).toMatchObject({ kind: 'locked', line: '🔒 Seaside needs 200 🐾' });
   });
 });

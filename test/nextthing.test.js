@@ -72,7 +72,7 @@ describe('nextThing: one test per rule', () => {
 
   it('7. a new place opens after one more walk here', () => {
     const s = save({ walks: { neighborhood: 1 }, unlocked: { accessories: allWear } });
-    expect(nextThing(s)).toMatchObject({ rule: 7, text: 'Explore here again and the Woods opens!', action: null });
+    expect(nextThing(s)).toMatchObject({ rule: 7, text: 'Explore here again to open the Woods!', action: null });
     // not when today's walk is somewhere else
     const elsewhere = save({ walks: { neighborhood: 1, park: 0 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'park'] }, area: 'park' });
     expect(nextThing(elsewhere).rule).not.toBe(7);
@@ -174,7 +174,7 @@ describe('nextThing: Legacy Edition never shows rules 4 to 6', () => {
       expect(nextThing(hasFair), edition).toMatchObject({ rule: 7, id: 'home.opens-two', text: 'Explore here again to open Appletree Farm and the Old Docks!' });
       // with both hers, the Docks alone, in the one-place words
       const hasBoth = save({ edition, walks: { neighborhood: 3, woods: 1, park: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'park', 'farm', 'fair'] }, area: 'park', clanPick: { mine: 'woods' } });
-      expect(nextThing(hasBoth), edition).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again and the Old Docks opens!' });
+      expect(nextThing(hasBoth), edition).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again to open the Old Docks!' });
     }
   });
 
@@ -187,7 +187,7 @@ describe('nextThing: Legacy Edition never shows rules 4 to 6', () => {
     expect(nextThing(locked).rule).toBeGreaterThan(6);
     // and rule 7 names a Legacy place by its Legacy name, never a hidden one
     const one = save({ walks: { neighborhood: 1 }, edition: 'legacy', unlocked: { accessories: allWear } });
-    expect(nextThing(one)).toMatchObject({ rule: 7, text: 'Explore here again and City Park opens!' });
+    expect(nextThing(one)).toMatchObject({ rule: 7, text: 'Explore here again to open City Park!' });
   });
 
   it('the place names follow the edition', () => {

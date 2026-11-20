@@ -93,7 +93,7 @@ describe('dressing-room model', () => {
   });
   it('a gated area says how to open it', () => {
     const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
-    expect(m.places.find((p) => p.id === 'seaside').lockLine).toContain('opens after you explore The Old Docks');
+    expect(m.places.find((p) => p.id === 'seaside').lockLine).toContain('opens after you explore the Old Docks');
     expect(m.places.find((p) => p.id === 'park').lockLine).toBe('opens after you explore Cozy Neighborhood 2 times · 0/2');
   });
   it('an unlocked-by-gate but unbought area shows its price', () => {
@@ -403,26 +403,28 @@ describe('dressing-room places by edition', () => {
   });
 });
 
-describe('the territory map in the dressing room', () => {
-  it('dressingroom: Clan shows the map and the Park, Seaside, Docks, Farm and Fairground under More places', () => {
+describe('the world map in the dressing room', () => {
+  it('dressingroom: Clan shows every place on the world map, and no picture cards', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     const m = buildDressingModel(s, CATALOG);
-    expect(m.territoryMap.regions.map((r) => r.id)).toEqual(['town', 'woods', 'moor', 'river', 'pines', 'gorge']);
-    expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'farm', 'fair', 'seaside', 'docks']);
-    expect(m.otherPlaces.find((p) => p.id === 'park').lockLine).toBe('opens after you explore Twolegplace 2 times · 0/2');
+    expect(m.worldMap.regions.map((r) => r.areaId)).toEqual(['neighborhood', 'woods', 'moor', 'river', 'pines', 'gorge', 'park', 'fair', 'farm', 'docks', 'seaside']);
+    expect(m).not.toHaveProperty('otherPlaces');
+    expect(m).not.toHaveProperty('territoryMap');
+    expect(m.worldMap.regions.find((r) => r.id === 'park').line).toBe('opens after you explore Twolegplace 2 times · 0/2');
     const where = renderPlacesSheetHtml(m);
-    expect(where).toContain('class="territory-map"');
-    expect(where.indexOf('class="territory-map"')).toBeLessThan(where.indexOf('More places'));
-    expect(where).toContain('<p class="dr-label">More places</p>');
+    expect(where).toContain('world-map');
+    expect(where).not.toContain('More places');
     expect(where).not.toContain('Other places');
-    for (const id of ['park', 'seaside', 'docks', 'farm', 'fair']) expect(where).toMatch(new RegExp(`<button class="dr-place[^"]*" data-dr-place="${id}"`));
-    expect(where).not.toMatch(/<button class="dr-place[^"]*" data-dr-place="(neighborhood|woods)"/);
+    expect(where).not.toContain('dr-place');
+    expect(where).not.toContain('data-dr-place=');
+    for (const id of ['park', 'seaside', 'docks', 'farm', 'fair', 'neighborhood', 'woods']) expect(where).toContain(`data-dr-map-place="${id}"`);
     expect(where).not.toContain('Cozy Neighborhood');
     expect(where).toContain('Twolegplace');
     expect(renderDressingRoomHtml({ model: m })).toContain('Going to <b>Twolegplace</b>');
   });
   it('Legacy keeps the picture cards and no map', () => {
     const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
+    expect(m.worldMap).toBeUndefined();
     expect(m.territoryMap).toBeUndefined();
     expect(m.otherPlaces).toBeUndefined();
     const html = renderPlacesSheetHtml(m);
@@ -762,26 +764,32 @@ describe('Launch A: the home screen (cat, place, go)', () => {
   });
 
   describe('the places sheet body', () => {
-    it('includes denHtml and clanLineHtml verbatim, once each, clan line first', () => {
+    it('includes clanLineHtml verbatim, once, first; Legacy has denHtml once, after it', () => {
       for (const edition of ['canon', 'legacy']) {
         const m = buildDressingModel({ ...defaultishState(), edition }, CATALOG);
         const html = renderPlacesSheetHtml(m, { clanLineHtml: '<p id="CLANLINE">x</p>', denHtml: '<button id="DEN">den</button>' });
         expect(count(html, /<p id="CLANLINE">x<\/p>/g)).toBe(1);
-        expect(count(html, /<button id="DEN">den<\/button>/g)).toBe(1);
-        expect(html.startsWith('<div class="dr-where">')).toBe(true);
-        expect(html.indexOf('CLANLINE')).toBeLessThan(html.indexOf('DEN'));
+        expect(html.startsWith('<div class="dr-where"><p id="CLANLINE">x</p>')).toBe(true);
+        if (edition === 'legacy') {
+          expect(count(html, /<button id="DEN">den<\/button>/g)).toBe(1);
+          expect(html.indexOf('CLANLINE')).toBeLessThan(html.indexOf('DEN'));
+        }
       }
     });
     it('defaults to no clan line and no den', () => {
-      const html = renderPlacesSheetHtml(buildDressingModel(defaultishState(), CATALOG));
-      expect(html).not.toContain('undefined');
-      expect(html).toContain('class="dr-places"');
+      for (const edition of ['canon', 'legacy']) {
+        const html = renderPlacesSheetHtml(buildDressingModel({ ...defaultishState(), edition }, CATALOG));
+        expect(html).not.toContain('undefined');
+        expect(html).toContain(edition === 'legacy' ? 'class="dr-places"' : 'class="wm-frame"');
+      }
     });
-    it('Clan puts the den inside More places, after the other place cards', () => {
-      const m = buildDressingModel({ ...defaultishState(), edition: 'canon' }, CATALOG);
-      const html = renderPlacesSheetHtml(m, { denHtml: '<button id="DEN"></button>' });
-      expect(html.indexOf('More places')).toBeLessThan(html.indexOf('data-dr-place="park"'));
-      expect(html.indexOf('data-dr-place="docks"')).toBeLessThan(html.indexOf('id="DEN"'));
+    it("Clan's sheet has no den: the den is a Menu tile", () => {
+      const den = '<button id="DEN"></button>';
+      const clan = renderPlacesSheetHtml(buildDressingModel({ ...defaultishState(), edition: 'canon' }, CATALOG), { denHtml: den });
+      expect(clan).not.toContain('id="DEN"');
+      expect(clan).not.toContain('More places');
+      const legacy = renderPlacesSheetHtml(buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG), { denHtml: den });
+      expect(legacy.indexOf('data-dr-place="docks"')).toBeLessThan(legacy.indexOf('id="DEN"'));
     });
   });
 

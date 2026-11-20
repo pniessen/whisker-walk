@@ -1021,7 +1021,7 @@ describe('the next-thing line and the first pick', () => {
     progression.addPoints(55);
     progression.completeWalk('neighborhood');
     hb.refresh();
-    expect(rule()).toBe(7); // "Explore here again and the Woods opens!" (the free place first)
+    expect(rule()).toBe(7); // "Explore here again to open the Woods!" (the free place first)
     progression.completeWalk('neighborhood');
     hb.refresh();
     expect(rule()).toBe(4);

@@ -74,7 +74,7 @@ export const WORDS = Object.freeze({
   'home.pick': same('The wild cats have seen you. Pick your home!'),            // 4
   'home.camp': same('Your new home is {place}. Go and see your camp!'),         // 5
   'home.way': same('The way to your home starts in {place}.'),                  // 6
-  'home.opens': same('Explore here again and {place} opens!'),                  // 7
+  'home.opens': same('Explore here again to open {place}!'),                     // 7
   'home.opens-two': same('Explore here again to open {place} and {place2}!'),         // 7, two to buy
   'home.opens-three': same('Explore here again to open {place}, {place2} and {place3}!'), // 7, three to buy
   'home.wear': same('You have enough for the {thing}. Tap Dress up!'),          // 8
