@@ -41,6 +41,9 @@ import { FAIR_GAME_IDS, FAIR_PRIZES, gameJournalId, fairPrizesWonBy } from './fa
 import { emptyMarks, sanitizeMarks, addMark as addMarkTo, contestMark as contestMarkIn, MARK_AREAS } from './marks.js';
 
 import { HINT_IDS, HINT_COUNT_MAX } from './hints.js';
+// World map step 1: the offer a place makes this save (a pure leaf; the
+// catalog is passed in, so the edge is cycle-free).
+import { areaOffer, keptOffersOnLoad } from './areaoffer.js';
 const SAVE_KEY = 'whisker-walk-save';
 // v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
 // are ADDITIVE fields sanitized independently with a default, exactly like
@@ -586,6 +589,10 @@ function defaultState() {
     // partner's player id so a new partner resets it. Additive, so
     // SAVE_VERSION stays 4: an older save starts with no pick.
     clanPick: { mine: null, partner: null, partnerId: null },
+    // Old offers this save keeps (src/areaoffer.js KEPT_OFFERS): a save whose
+    // Seaside was open-to-buy before the world map keeps it after the Park,
+    // for 100. A new save keeps none. Additive, so SAVE_VERSION stays 4.
+    keptOffers: [],
     // The guided first walk and the hints (design: .claude/plans/
     // guided-first-walk-design.md, section 8). Additive, so SAVE_VERSION stays
     // 4: a save without the field is read by sanitizeTutorial below.
@@ -1080,6 +1087,7 @@ function sanitizeState(parsed) {
     mapMode: parsed.mapMode === 'turn' ? 'turn' : 'north',
     edition: sanitizeEdition(parsed.edition),
     clanPick,
+    keptOffers: keptOffersOnLoad(parsed.keptOffers, { walks, owned: unlockedAreas }),
     tutorial: sanitizeTutorial(parsed.tutorial, {
       walked: Object.values(walks).some((n) => n > 0),
       earned: asFiniteNonNeg(parsed.lifetimePoints, 0) > 0 || asFiniteNonNeg(parsed.points, 0) > 0,
@@ -1405,15 +1413,18 @@ export function createProgression(storage) {
     },
     canBuy(kind, id) {
       const item = CATALOG[kind][id];
-      if (!item || item.prize || api.isUnlocked(kind, id) || state.points < item.price) return false;
-      if (item.requires && state.walks[item.requires.area] < item.requires.walks) return false;
+      if (!item || item.prize || api.isUnlocked(kind, id)) return false;
+      // A place asks areaOffer, which knows a kept offer; cats and wear their catalog entry.
+      const offer = kind === 'areas' ? areaOffer(state, CATALOG, id) : item;
+      if (!offer || state.points < offer.price) return false;
+      if (offer.requires && state.walks[offer.requires.area] < offer.requires.walks) return false;
       // Legacy hides a Clan-only place; the hidden card is not the only guard.
       if (kind === 'areas' && !areaInEdition(item, state.edition)) return false;
       return true;
     },
     buy(kind, id) {
       if (!api.canBuy(kind, id)) return false;
-      state.points -= CATALOG[kind][id].price;
+      state.points -= kind === 'areas' ? areaOffer(state, CATALOG, id).price : CATALOG[kind][id].price;
       state.unlocked[kind].push(id);
       save();
       return true;
