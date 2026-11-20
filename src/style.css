@@ -2029,6 +2029,11 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   border: 0; background: transparent; color: #f1e0c2; font: inherit; font-size: 12px; font-weight: 700;
   letter-spacing: .09em; text-transform: uppercase; opacity: .75; cursor: pointer; }
 .hb-grownups-door:hover, .hb-grownups-door:focus-visible { opacity: 1; }
+/* the Journal's quiet pointer to My clan, in the same quiet style */
+.hb-journal-friends { display: inline-flex; align-items: center; min-height: 44px; margin-top: 16px; padding: 6px 4px;
+  border: 0; background: transparent; color: #f1e0c2; font: inherit; font-size: 13px; font-weight: 700;
+  opacity: .75; cursor: pointer; text-align: left; }
+.hb-journal-friends:hover, .hb-journal-friends:focus-visible { opacity: 1; }
 .hb-grownups-door .hb-row-icon { font-size: 14px; }
 .hb-grownups-door .hb-row-name { flex: none; }
 /* the For grown-ups sheet: its rows, Do the first lesson again last */

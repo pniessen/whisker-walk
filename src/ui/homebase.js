@@ -1402,11 +1402,15 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // back where it came from (grownupsBackTo); the Menu and Change place go home.
   let backTo = null;
   let grownupsBackTo = null;
+  let journalBackTo = null; // where the Journal's own Back goes while My clan (opened from it) is on top
   function backTargetFor(next, prev) {
     if (!next || next === 'menu' || next === 'places') return null;
     if (prev === 'grownups' && GROWNUP_SHEETS.includes(next)) return 'grownups';
     // back to For grown-ups from one of its sheets: it keeps its own way back
     if (next === 'grownups' && backTo === 'grownups') return grownupsBackTo;
+    // My clan opened from the Journal's line goes back to the Journal, which keeps its own way back
+    if (prev === 'journal' && next === 'colony') return 'journal';
+    if (next === 'journal' && backTo === 'journal') return journalBackTo;
     return prev === 'menu' ? 'menu' : null;
   }
   function setSheet(id) {
@@ -1416,7 +1420,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // Play together's open room-code box and name box close with the sheet.
     if (prev === 'together' && next !== 'together') { joinOpen = false; editingName = false; joinCodeDraft = ''; }
     // Back to the sheet under this one is not an open of it (for the counts).
-    const returning = !!prev && !!next && (next === 'menu' || (next === 'grownups' && backTo === 'grownups'));
+    const returning = !!prev && !!next && (next === 'menu' || (next === 'grownups' && backTo === 'grownups') || (next === 'journal' && backTo === 'journal'));
+    if (next === 'colony' && prev === 'journal') journalBackTo = backTo; // the Journal's own way back, before it changes
     backTo = backTargetFor(next, prev);
     if (next === 'grownups') grownupsBackTo = backTo;
     if (next === 'colony' && prev !== 'colony') wantPlayerPets();
@@ -1435,7 +1440,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // Keyboard and screen-reader users land on the new screen's first control,
     // or, going back, on the door they came through (the Menu, a tile, the card).
     try {
-      const back = (next === null || next === 'menu' || next === 'grownups') && prev ? root.querySelector(`[data-dr-sheet="${prev}"]`) : null;
+      const back = (next === null || next === 'menu' || next === 'grownups' || next === 'journal') && prev ? root.querySelector(`[data-dr-sheet="${prev}"]`) : null;
       (back ?? (next ? root.querySelector('#hb-back') : null))?.focus?.({ preventScroll: true });
     } catch { /* a nicety */ }
   }
@@ -1609,6 +1614,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, gold), gold.size,
     isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {})}
           ${renderThingsToWearHtml(s, CATALOG)}
+          <button type="button" class="hb-journal-friends" data-dr-sheet="colony">${escapeHtml(phrase('journal.friendsMoved'))}</button>
         </section>`;
       }
       case 'album': return `
@@ -1684,7 +1690,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // sheets only where and Start. Dusk is chosen in Change place only; a
       // Start from any dock reads that choice (duskWanted).
       const dock = door || openSheet === 'grownups' || GROWNUP_SHEETS.includes(openSheet) ? 'none' : openSheet === 'together' ? 'full' : 'slim';
-      const back = backTo === 'menu' ? '← Back to the menu' : backTo === 'grownups' ? '← Back' : '← Back to my cat';
+      const back = backTo === 'menu' ? '← Back to the menu' : backTo === 'grownups' ? '← Back' : backTo === 'journal' ? '← Back to the journal' : '← Back to my cat';
       // From a sheet the Menu (or For grown-ups) opened, home is two Backs or
       // more: a cat face at the row's right goes straight there.
       const home = backTo
@@ -2549,6 +2555,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   function sheetLayers(to) {
     if (to === 'menu') return 2;
     if (to === 'grownups') return 1 + sheetLayers(grownupsBackTo);
+    if (to === 'journal') return 1 + sheetLayers(journalBackTo);
     return 1;
   }
   function depth() {

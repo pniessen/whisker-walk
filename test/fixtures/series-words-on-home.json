@@ -42,6 +42,7 @@
     "Found in Twolegplace",
     "Found in Twolegplace",
     "Found in Twolegplace",
+    "Your cat friends are in My clan now ›",
     "Twolegplace"
    ]
   },
@@ -96,6 +97,8 @@
   "skills": [
    "A scent trail drifts toward the nearest collectible you have not picked up yet."
   ],
-  "journal": []
+  "journal": [
+   "Your cat friends are in My clan now ›"
+  ]
  }
 }

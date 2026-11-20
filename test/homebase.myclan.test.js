@@ -283,3 +283,61 @@ describe('the pairing toast and the news line (follow-up)', () => {
     expect(renderNewsHtml({ lines: ['x'], any: true })).toContain("<p class=\"colony-news-sub\">What's new in your colony</p>");
   });
 });
+
+describe('the Journal points to My clan', () => {
+  const lineHtml = () => (html().match(/<button type="button" class="hb-journal-friends"[^>]*>[\s\S]*?<\/button>/) ?? [])[0];
+  it('a quiet line, not a primary button, in the clan words and in the everyday words', () => {
+    setup();
+    openSheet('journal');
+    const line = lineHtml();
+    expect(line).toContain('data-dr-sheet="colony"');
+    expect(line).toContain('Your cat friends are in My clan now ›');
+    expect(line).not.toContain('primary');
+    expect(html()).not.toContain('Stray cats');
+    withOffWords(() => {
+      setup();
+      openSheet('journal');
+      expect(lineHtml()).toContain('Your cat friends are in My cats now ›');
+    });
+  });
+  it('shows offline too (no cloud)', () => {
+    setup({ cloud: null });
+    openSheet('journal');
+    expect(lineHtml()).toContain('My clan');
+  });
+  it('opens My clan, and Back goes to the Journal, then where the Journal came from; depth agrees', () => {
+    const { hb } = setup();
+    openSheet('menu');
+    openSheet('journal');
+    expect(hb.depth()).toBe(2);
+    openSheet('colony'); // what the line's data-dr-sheet does
+    expect(html()).toContain('data-sheet="colony"');
+    expect(hb.depth()).toBe(3);
+    expect(html()).toContain('← Back to the journal');
+    expect(hb.back()).toBe(true);
+    expect(html()).toContain('data-sheet="journal"');
+    expect(hb.depth()).toBe(2);
+    expect(hb.back()).toBe(true);
+    expect(html()).toContain('data-sheet="menu"');
+    expect(hb.depth()).toBe(1);
+  });
+  it('from a Journal opened off the home screen, My clan is two layers and Back returns to the Journal, then home', () => {
+    const { hb } = setup();
+    openSheet('journal');
+    expect(hb.depth()).toBe(1);
+    openSheet('colony');
+    expect(hb.depth()).toBe(2);
+    expect(hb.back()).toBe(true);
+    expect(html()).toContain('data-sheet="journal"');
+    expect(hb.depth()).toBe(1);
+    expect(hb.back()).toBe(true);
+    expect(hb.depth()).toBe(0);
+  });
+  it('My clan opened from the Menu still goes back to the Menu', () => {
+    const { hb } = setup();
+    openSheet('menu');
+    openSheet('colony');
+    expect(hb.depth()).toBe(2);
+    expect(html()).toContain('← Back to the menu');
+  });
+});
