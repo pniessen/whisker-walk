@@ -119,6 +119,16 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
       }
     }
   });
+  // A find is a nook of its own: 1.5 m (sideways, any height) from every point
+  // of interest's centre, scenic and labelled perch (a lookout, "king of the
+  // roof"), where she stops for something else.
+  it('never at a point of interest: 1.5 m from every POI, scenic and labelled perch', () => {
+    const marks = [...(area.pois ?? []), ...(area.scenics ?? []), ...(area.perches ?? []).filter((p) => p.label)];
+    expect(marks.length).toBeGreaterThan(0);
+    for (const s of spots()) {
+      for (const m of marks) expect(Math.hypot(s.x - m.x, s.z - m.z), `${s.id} by ${m.label ?? m.id ?? `(${m.x}, ${m.z})`}`).toBeGreaterThanOrEqual(1.5);
+    }
+  });
   it('never beside the yarn ball: 3 m from both its spots', () => {
     const yarn = yarnSpotsFor(areaId);
     expect(yarn.length).toBe(2);
