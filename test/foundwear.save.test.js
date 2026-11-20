@@ -44,6 +44,38 @@ describe('found outfits: the record in the save', () => {
     s.setItem('whisker-walk-save', JSON.stringify({ version: 4, foundWear: ['acorncap', 'acorncap', 'bell', 'x', 3, null, ...Array(200).fill('acorncap')] }));
     expect(createProgression(s).state.foundWear).toEqual(['acorncap']);
   });
+  it('a foundWear that is not a list grants nothing: an object, a string, a __proto__ object', () => {
+    const raws = [
+      '{"version":4,"foundWear":{"0":"acorncap","length":1}}',
+      '{"version":4,"foundWear":"acorncap"}',
+      '{"version":4,"foundWear":{"__proto__":["acorncap"]}}',
+      '{"version":4,"foundWear":{"__proto__":{"0":"acorncap","length":1}}}',
+    ];
+    for (const raw of raws) {
+      const s = fakeStorage();
+      s.setItem('whisker-walk-save', raw);
+      const p = createProgression(s);
+      expect(p.state.foundWear, raw).toEqual([]);
+      expect(p.state.unlocked.accessories, raw).not.toContain('acorncap');
+      // and the same through Load from cloud
+      const q = createProgression(fakeStorage());
+      q.replaceFromPayload(JSON.parse(raw));
+      expect(q.state.foundWear, raw).toEqual([]);
+      expect(q.state.unlocked.accessories, raw).not.toContain('acorncap');
+    }
+  });
+  it("'__proto__' and other inherited keys inside the saved list grant nothing", () => {
+    const raw = '{"version":4,"foundWear":["__proto__","constructor","toString","hasOwnProperty"]}';
+    const s = fakeStorage();
+    s.setItem('whisker-walk-save', raw);
+    const p = createProgression(s);
+    expect(p.state.foundWear).toEqual([]);
+    for (const k of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) expect(p.state.unlocked.accessories).not.toContain(k);
+    const q = createProgression(fakeStorage());
+    q.replaceFromPayload(JSON.parse(raw));
+    expect(q.state.foundWear).toEqual([]);
+    expect(Object.getPrototypeOf(q.state.foundWear)).toBe(Array.prototype);
+  });
   it('Load from cloud keeps every outfit either side found', () => {
     const p = createProgression(fakeStorage()); p.recordFoundWear('acorncap');
     p.replaceFromPayload({ version: 4, points: 1 });             // an older build's payload: no foundWear

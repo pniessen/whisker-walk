@@ -59,6 +59,8 @@ describe('found outfits: the wiring', () => {
     expect(m).toMatch(/createFindCard\(\{[\s\S]*?getSound: pauseSound/);
     expect(m).toContain('findCard: !!session?.findCard');
     expect(m).toContain('handleFindArrival(session, arrival, { progression, log, hud, audio, card: findCard })');
+    // a find taken is noted into the resume note at once, so a resumed walk never gives a second one
+    expect(m).toContain('if (arrival && handleFindArrival(session, arrival, { progression, log, hud, audio, card: findCard })) noteWalk();');
     // one frame object, made once in init(), not per frame
     expect(m.match(/const findFrame = /g)).toHaveLength(1);
   });

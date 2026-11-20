@@ -108,6 +108,26 @@ describe('found outfits: giving the find', () => {
     }
   });
 
+  it('a find taken, noted at once and picked up again after the page is closed, gives nothing more', () => {
+    // main.js notes the walk (log.entries() into the resume note) right after
+    // a non-null handleFindArrival; the resumed walk restores those entries
+    // and restoreFind takes the new find off the ground.
+    const s = { cat: { position: { x: 0, y: 0, z: 0 } }, fx: { burst: vi.fn() }, find: findOf({ kind: 'pouch' }) };
+    const deps = { progression, log, hud: { toast: vi.fn() }, audio: {}, card: { show: vi.fn() } };
+    expect(handleFindArrival(s, { by: 'me' }, deps)).not.toBe(null);
+    const note = log.entries();
+    expect(note).toContainEqual([FIND_LOG_KEY, 1]);
+    const resumed = createDiscoveryLog(progression);
+    resumed.startWalk();
+    resumed.restore(note);
+    const again = findOf({ kind: 'pouch' });
+    restoreFind(again, { log: resumed });
+    expect(again.taken).toBe(true);
+    const points = progression.state.points;
+    expect(handleFindArrival({ ...s, find: again }, { by: 'me' }, { ...deps, log: resumed })).toBe(null);
+    expect(progression.state.points).toBe(points);
+  });
+
   it('handleFindArrival: her outfit opens the card, a partner\'s gives a toast', () => {
     const s = { cat: { position: { x: 1, y: 0, z: 2 } }, fx: { burst: vi.fn() }, find: findOf({ kind: 'wear', id: 'acorncap' }) };
     const hud = { toast: vi.fn() };

@@ -1254,7 +1254,10 @@ function init() {
       findFrame.remotes = session.remotes.list;
       findFrame.busy = findBusy(session);
       const arrival = session.find.update(dt, t, findFrame);
-      if (arrival) handleFindArrival(session, arrival, { progression, log, hud, audio, card: findCard });
+      // A find taken is written into the walk's note at once (not at the next
+      // few-second note): a walk picked up after the page is closed knows it
+      // is taken and never gives a second one (restoreFind).
+      if (arrival && handleFindArrival(session, arrival, { progression, log, hud, audio, card: findCard })) noteWalk();
       session.kittenEnc.update(dt, session.cat.position);
       // Daily zoomies race: advance the ring timer/crossing checks, then
       // reflect it in the HUD objective (throttled to actual ring changes)
