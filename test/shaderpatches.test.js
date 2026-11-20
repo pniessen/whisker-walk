@@ -13,12 +13,20 @@ import { canvasStub } from './helpers/growriver.js';
 // so the patches get assigned, and each captured patch is then run against the
 // real three.js shader source for its material type while `String#replace`
 // and `replaceAll` are watched for a shader-sized string coming back unchanged.
+//
+// Some patches cut a line out of one of three.js's own chunks first, at import
+// or at build time (`THREE.ShaderChunk.x.replace(...)`), and inline the result
+// over the `#include`. Inlining any chunk changes the shader, so the per-patch
+// check cannot see that cut matching nothing. So the same watch runs over the
+// whole exercise below, imports included, for a replace on a chunk's own text,
+// and the chunks themselves must come out of it as three.js shipped them.
 
 vi.stubGlobal('document', canvasStub);
 
-// Raise this when a patch is added. A drop means a patch is no longer
-// exercised here (or was removed), which is worth a look either way.
+// Raise these when a patch or a chunk edit is added. A drop means one is no
+// longer exercised here (or was removed), which is worth a look either way.
 const PATCH_SITE_FLOOR = 24;
+const CHUNK_EDIT_FLOOR = 2;
 
 const original = Object.getOwnPropertyDescriptor(THREE.Material.prototype, 'onBeforeCompile');
 const noop = original.value;
@@ -26,7 +34,7 @@ const captured = []; // { material, fn, site }
 const seenFns = new Set();
 
 // The first stack frame that is neither this file nor three.js (or any other
-// package): file and line of the assignment.
+// package): file and line of the assignment or the call.
 function siteOfAssignment() {
   const lines = new Error().stack.split('\n').slice(1);
   for (const line of lines) {
@@ -107,6 +115,35 @@ function runPatch(material, fn, site) {
   return { noops, changed };
 }
 
+// Every replace / replaceAll whose receiver is one of three.js's chunks, while
+// watched: where it was made, what it searched for, whether it changed the text.
+const CHUNK_TEXTS = new Set(Object.values(THREE.ShaderChunk));
+function watchChunkEdits(sink) {
+  const realReplace = String.prototype.replace;
+  const realReplaceAll = String.prototype.replaceAll;
+  const watch = (real, name) => function watched(search, replacement) {
+    const out = real.call(this, search, replacement);
+    const input = String(this);
+    if (CHUNK_TEXTS.has(input)) {
+      sink.push({ site: siteOfAssignment(), call: `${name}(${String(search).slice(0, 80)})`, changed: out !== input });
+    }
+    return out;
+  };
+  String.prototype.replace = watch(realReplace, 'replace');
+  String.prototype.replaceAll = watch(realReplaceAll, 'replaceAll');
+  return () => {
+    String.prototype.replace = realReplace;
+    String.prototype.replaceAll = realReplaceAll;
+  };
+}
+
+// Three.js's chunks and library shaders as shipped, to check nothing wrote over them.
+const shippedShaders = () => ({
+  chunks: { ...THREE.ShaderChunk },
+  lib: Object.fromEntries(Object.entries(THREE.ShaderLib).map(([k, v]) => [k, [v.vertexShader, v.fragmentShader]])),
+});
+const SHIPPED = shippedShaders();
+
 const FAKE_RENDERER = {
   capabilities: { isWebGL2: true },
   extensions: { has: () => true, get: () => null },
@@ -153,15 +190,45 @@ describe('the capture and the no-op detector', () => {
   it('leaves an unpatched material on three.js\'s own no-op', () => {
     expect(new THREE.MeshStandardMaterial().onBeforeCompile).toBe(noop);
   });
+
+  it('reports a chunk edit made at import that cuts text the chunk does not have', async () => {
+    const sink = [];
+    const stop = watchChunkEdits(sink);
+    try {
+      await import('./helpers/chunknoop.js');
+    } finally {
+      stop();
+    }
+    expect(sink).toEqual([{
+      site: expect.stringMatching(/chunknoop\.js:\d+$/),
+      call: 'replace(no such line in the chunk;)',
+      changed: false,
+    }]);
+  });
+
+  it('passes a chunk edit that cuts a line the chunk has', () => {
+    const sink = [];
+    const stop = watchChunkEdits(sink);
+    try {
+      THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', '');
+    } finally {
+      stop();
+    }
+    expect(sink).toEqual([expect.objectContaining({ call: 'replace(normal *= faceDirection;)', changed: true })]);
+  });
 });
 
 // ---- exercise every patch site the game has --------------------------------
 
 const BUILDS = {};
 let sitesFromGame;
+const chunkEdits = [];
 
 // Top-level await: the sites must be known when the per-site tests are listed.
-await (async () => {
+// The chunk watch is on from before the first game module is imported, since
+// a module may cut its chunk at import (world/dressing.js does).
+const stopChunkWatch = watchChunkEdits(chunkEdits);
+try { await (async () => {
   const mods = {
     neighborhood: await import('../src/world/neighborhood.js'),
     park: await import('../src/world/park.js'),
@@ -239,7 +306,14 @@ await (async () => {
   for (const breed of ['tabby', 'black', 'siamese', 'zeetoo', 'hagrid']) buildCat(breed);
 
   sitesFromGame = sitesOf(captured);
-})();
+})(); } finally {
+  stopChunkWatch();
+}
+const chunkSites = new Map();
+for (const e of chunkEdits) {
+  if (!chunkSites.has(e.site)) chunkSites.set(e.site, []);
+  chunkSites.get(e.site).push(e);
+}
 
 afterAll(() => {
   Object.defineProperty(THREE.Material.prototype, 'onBeforeCompile', original);
@@ -257,5 +331,25 @@ describe('every shader patch in the game', () => {
 
   it('exercises at least as many patch sites as it did when written', () => {
     expect(sitesFromGame.size).toBeGreaterThanOrEqual(PATCH_SITE_FLOOR);
+  });
+});
+
+describe('every edit the game makes to a three.js chunk', () => {
+  it.each([...chunkSites.keys()].sort())('%s finds the text it cuts in three.js\'s chunk', (site) => {
+    const missed = chunkSites.get(site).filter((e) => !e.changed).map((e) => e.call);
+    expect(missed, `${site}: a replace matched nothing in three.js's chunk: ${missed.join(', ')}`).toEqual([]);
+  });
+
+  it('exercises at least as many chunk edits as it did when written', () => {
+    expect(chunkSites.size).toBeGreaterThanOrEqual(CHUNK_EDIT_FLOOR);
+  });
+
+  it('leaves three.js\'s chunks and library shaders as shipped', () => {
+    const now = shippedShaders();
+    const changed = [
+      ...Object.keys({ ...SHIPPED.chunks, ...now.chunks }).filter((k) => SHIPPED.chunks[k] !== now.chunks[k]),
+      ...Object.keys({ ...SHIPPED.lib, ...now.lib }).filter((k) => String(SHIPPED.lib[k]) !== String(now.lib[k])).map((k) => `ShaderLib.${k}`),
+    ];
+    expect(changed).toEqual([]);
   });
 });
