@@ -161,7 +161,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   let joinOpen = false;
   let editingName = false;
   // The room code she has typed, kept as pairCode is: a re-render (the name
-  // box she is sent to, a saved name) must not lose it. Cleared with joinOpen.
+  // box she is sent to, a saved name, closing and opening the box again) must
+  // not lose it. Cleared when the sheet closes.
   let joinCodeDraft = '';
   // v21 Stream 5: the home screen is the dressing room (openSheet null) or
   // one sheet from HOME_SHEETS.
@@ -212,6 +213,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // instead of writing fetched-for-the-old-DOM data into the new one.
   let playerPetsToken = 0;
   const playerPetNames = new Map(); // playerId -> safe name, from the last roster fetch
+  // Fix wave #7: the roster is fetched once per open of My clan (two cloud
+  // reads), not on every render while it is open. playerPetsDue is set on the
+  // way into the sheet and spent by the next render that can fetch;
+  // playerPetsShown keeps what the last fetch drew ({ roster, hidden } HTML,
+  // or 'failed'), so a re-render redraws it with no "loading…" flicker.
+  let playerPetsDue = false;
+  let playerPetsShown = null;
 
   // Friend codes (Task 4) section state — mirrors the wt-*/joinError
   // pattern above: busy flag, an error string, and (once a code resolves
@@ -645,12 +653,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
 
   function renderPlayerPets() {
-    if (!cloud || !cloud.available) return '';
+    if (!cloud || !cloud.available || playerPetsShown === 'failed') return '';
     return `
       <div id="player-pets-section" class="player-pets">
         <h3>Player pets</h3>
-        <div id="player-pets-roster" class="tag">loading…</div>
-        <div id="player-pets-hidden"></div>
+        ${playerPetsShown ? playerPetsShown.roster : '<div id="player-pets-roster" class="tag">loading…</div>'}
+        <div id="player-pets-hidden">${playerPetsShown ? playerPetsShown.hidden : ''}</div>
       </div>`;
   }
 
@@ -676,6 +684,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // placeholder has to already exist in the DOM). Errors omit the whole
   // subsection quietly rather than leaving a stuck "loading…" — profiles
   // of players you've walked with are a nice-to-have, not core UI.
+  // On the way into My clan: the next render fetches the roster afresh (the
+  // last visit's rows show meanwhile, so nothing flickers).
+  function wantPlayerPets() {
+    playerPetsDue = true;
+    if (playerPetsShown === 'failed') playerPetsShown = null;
+  }
   async function loadPlayerPets() {
     const token = ++playerPetsToken;
     try {
@@ -685,9 +699,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       const shown = new Set(metOnly(met(), [...new Set(rows.map((r) => (r.a_id === cloud.myId ? r.b_id : r.a_id)))]));
       const otherIds = [...shown];
       const profiles = otherIds.length ? await cloud.fetchProfiles(otherIds) : [];
-      if (token !== playerPetsToken) return; // a newer render()/loadPlayerPets() superseded this fetch
-      const el = root.querySelector('#player-pets-roster');
-      if (!el) return; // section isn't in the current DOM (re-rendered away, e.g. cloud went unavailable)
+      if (token !== playerPetsToken) return; // a newer loadPlayerPets() superseded this fetch
       const profileById = new Map(profiles.map((p) => [p.player_id, p]));
       playerPetNames.clear();
       for (const p of profiles) playerPetNames.set(p.player_id, safeRemoteName(p.pet_name));
@@ -713,27 +725,30 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         })
         .filter(Boolean)
         .join('');
-      el.outerHTML = rowsHtml
+      const roster = rowsHtml
         ? `<div id="player-pets-roster" class="friends-list">${rowsHtml}</div>`
         : `<div id="player-pets-roster" class="tag">No player pets yet — explore together and touch noses!</div>`;
       // The cats she hid, each with a way back. Only ids are kept on this
       // device: a name shows only when that cat came back in this fetch
       // (a cat she met); otherwise "A hidden cat". Nobody is looked up.
       const hidden = cloud.blockedPlayers?.() ?? [];
+      const hiddenHtml = hidden.length
+        ? `<p class="player-pets-hidden-count">Hidden cats: ${hidden.length}</p>`
+          + hidden.map((id) => {
+            const name = playerPetNames.get(id);
+            return `<div class="friend-row friend-row-hidden"><span class="friend-name">${name ? escapeHtml(name) : 'A hidden cat'}</span>`
+              + `<button class="friend-hide" data-action="unhide-player" data-player-id="${escapeHtml(id)}"${name ? ` aria-label="Show ${escapeHtml(name)} again"` : ''}>Show again</button></div>`;
+          }).join('')
+        : '';
+      playerPetsShown = { roster, hidden: hiddenHtml }; // kept for the renders until the sheet is opened again
+      const el = root.querySelector('#player-pets-roster');
+      if (el) el.outerHTML = roster; // not there when the sheet was re-rendered away (or cloud went unavailable)
       const hiddenEl = root.querySelector('#player-pets-hidden');
-      if (hiddenEl) {
-        hiddenEl.innerHTML = hidden.length
-          ? `<p class="player-pets-hidden-count">Hidden cats: ${hidden.length}</p>`
-            + hidden.map((id) => {
-              const name = playerPetNames.get(id);
-              return `<div class="friend-row friend-row-hidden"><span class="friend-name">${name ? escapeHtml(name) : 'A hidden cat'}</span>`
-                + `<button class="friend-hide" data-action="unhide-player" data-player-id="${escapeHtml(id)}"${name ? ` aria-label="Show ${escapeHtml(name)} again"` : ''}>Show again</button></div>`;
-            }).join('')
-          : '';
-      }
+      if (hiddenEl) hiddenEl.innerHTML = hiddenHtml;
     } catch (err) {
       note('cloud', err);
       if (token !== playerPetsToken) return;
+      playerPetsShown = 'failed';
       root.querySelector('#player-pets-section')?.remove();
     }
   }
@@ -1403,6 +1418,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const returning = !!prev && !!next && (next === 'menu' || (next === 'grownups' && backTo === 'grownups'));
     backTo = backTargetFor(next, prev);
     if (next === 'grownups') grownupsBackTo = backTo;
+    if (next === 'colony' && prev !== 'colony') wantPlayerPets();
     openSheet = next;
     // The world map opens afresh, round today's place, from any other screen.
     if (next === 'places' && prev !== 'places') mapView = null;
@@ -1687,7 +1703,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       syncCelebration();
       syncPairingPoll();
       syncNearby();
-      if (cloud && cloud.available && openSheet === 'colony') loadPlayerPets();
+      // Player pets: fetched once per open of My clan (see playerPetsDue).
+      if (cloud && cloud.available && openSheet === 'colony' && playerPetsDue) { playerPetsDue = false; loadPlayerPets(); }
       return;
     }
     const rank = rankFor(s.lifetimePoints);
@@ -2023,8 +2040,17 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       return;
     }
     // Join a room: the room-code box opens under the two choices, and she is
-    // put in it. With no name yet its Join leads to the name box (below).
+    // put in it. With no name yet its Join leads to the name box (below). A
+    // second tap closes it again; what she typed is kept for this visit.
     if (e.target.id === 'wt-join-open') {
+      if (joinOpen) {
+        const typed = root.querySelector('#wt-join-code')?.value;
+        if (typeof typed === 'string') joinCodeDraft = typed.slice(0, 4);
+        joinOpen = false;
+        joinError = null; // the line was about the closed box
+        render();
+        return;
+      }
       joinOpen = true;
       render();
       try { root.querySelector('#wt-join-code')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
@@ -2549,6 +2575,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       joinCodeDraft = '';
       mapView = null; // the world map opens afresh, round today's place
       if (sheet && availableSheets().includes(sheet)) openSheet = sheet;
+      if (openSheet === 'colony') wantPlayerPets();
       render(); // also turns the hero stage back on
       root.classList.remove('hidden');
       // The map had no size while the screen was hidden: wire its pan now.

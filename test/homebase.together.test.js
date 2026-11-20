@@ -151,6 +151,28 @@ describe('Play now: two big choices first', () => {
     openSheet('together');
     expect(html()).not.toContain('id="wt-join-code"');
   });
+  it('a second tap on Join a room closes the box, aria-expanded follows, and what she typed is kept', async () => {
+    setup({ name: 'Mittens' });
+    openSheet('together');
+    const expanded = () => html().match(/id="wt-join-open"[^>]*aria-expanded="(\w+)"/)[1];
+    expect(expanded()).toBe('false');
+    await tap({ id: 'wt-join-open' });
+    expect(expanded()).toBe('true');
+    doc.root.listeners.input({ target: { id: 'wt-join-code', value: 'QR' } });
+    boxes({ '#wt-join-code': 'QRS' });
+    await tap({ id: 'wt-join-open' });
+    expect(expanded()).toBe('false');
+    expect(html()).not.toContain('id="wt-join-code"');
+    expect(html()).not.toContain('id="wt-join"');
+    await tap({ id: 'wt-join-open' });
+    expect(expanded()).toBe('true');
+    expect(html()).toMatch(/id="wt-join-code"[^>]*value="QRS"/);
+    // a new visit to the sheet starts empty
+    openSheet('menu');
+    openSheet('together');
+    await tap({ id: 'wt-join-open' });
+    expect(html()).toMatch(/id="wt-join-code"[^>]*value=""/);
+  });
   it('a join that fails still says so under the box', async () => {
     const { rooms } = setup({ name: 'Mittens' });
     openSheet('together');

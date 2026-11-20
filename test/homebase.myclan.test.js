@@ -164,3 +164,50 @@ describe('the cat friends live in My clan', () => {
     expect(h).not.toContain('Player pets');
   });
 });
+
+describe('Legacy Edition', () => {
+  it('renders My clan with the colony cards and the Stray cats', () => {
+    const { progression } = setup({ state: (st) => { st.edition = 'legacy'; } });
+    progression.state.friends.Smudge = { breed: 'tabby', greets: 2 };
+    openSheet('menu');
+    expect(tileName(html())).toBe('My clan');
+    expect(() => openSheet('colony')).not.toThrow();
+    const h = html();
+    expect(h).toContain('data-sheet="colony"');
+    expect(h).toContain('<h2>My clan 🐈</h2>');
+    expect(h).toContain('class="colony-section"');
+    expect(h).toContain('class="friends-section"');
+    expect(h).toContain('<h3>Stray cats</h3>');
+    expect(h).toContain('Smudge');
+    expect(h.indexOf('class="colony-section"')).toBeLessThan(h.indexOf('<h3>Stray cats</h3>'));
+  });
+});
+
+describe('Player pets load once per open of My clan', () => {
+  const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
+  it('a render while the sheet is open does not fetch again or show "loading…"; reopening fetches afresh', async () => {
+    const cloud = cloudStub();
+    setup({ cloud });
+    openSheet('colony');
+    expect(cloud.fetchFriendships).toHaveBeenCalledTimes(1);
+    await flush();
+    dressingMock.opts.onChange(); // any render while open (a buy, a room change)
+    dressingMock.opts.onChange();
+    await flush();
+    expect(cloud.fetchFriendships).toHaveBeenCalledTimes(1);
+    expect(html()).toContain('<h3>Player pets</h3>');
+    expect(html()).not.toContain('loading…');
+    expect(html()).toContain('No player pets yet');
+    openSheet('menu');
+    openSheet('colony');
+    expect(cloud.fetchFriendships).toHaveBeenCalledTimes(2);
+  });
+  it('opening it from show({ sheet }) fetches too, once', async () => {
+    const cloud = cloudStub();
+    const { hb } = setup({ cloud });
+    hb.show({ sheet: 'colony' });
+    expect(cloud.fetchFriendships).toHaveBeenCalledTimes(1);
+    dressingMock.opts.onChange();
+    expect(cloud.fetchFriendships).toHaveBeenCalledTimes(1);
+  });
+});
