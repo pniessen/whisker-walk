@@ -21,6 +21,7 @@
 // moving any spot changes FIND_KEY. That is intended: builds with different
 // spots never share finds.
 import { seedFromCode } from '../../rng.js';
+import { DOCKS_SPOTS } from './docks.js';
 import { NEIGHBORHOOD_SPOTS } from './neighborhood.js';
 import { PARK_SPOTS } from './park.js';
 import { SEASIDE_SPOTS } from './seaside.js';
@@ -31,7 +32,7 @@ import { WOODS_SPOTS } from './woods.js';
 export const FIND_LOOKS = Object.freeze(['post', 'branch', 'grass', 'water', 'perch']);
 export const SPOT_ID = /^fw-[a-z]{2,12}-\d{1,2}$/;
 
-export const FIND_SPOTS = Object.freeze({ neighborhood: NEIGHBORHOOD_SPOTS, park: PARK_SPOTS, seaside: SEASIDE_SPOTS, woods: WOODS_SPOTS });
+export const FIND_SPOTS = Object.freeze({ docks: DOCKS_SPOTS, neighborhood: NEIGHBORHOOD_SPOTS, park: PARK_SPOTS, seaside: SEASIDE_SPOTS, woods: WOODS_SPOTS });
 
 // spotsIn(areaId) -> that area's spots, or [] (own keys only).
 const NONE = Object.freeze([]);

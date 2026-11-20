@@ -33,7 +33,7 @@ describe('found outfits: the rules', () => {
     expect(planFind({ areaId: 'den', isDen: true, seed: 1 })).toBe(null);
     expect(planFind({ areaId: 'park', lessonKind: 'first', seed: 1 })).toBe(null);
     expect(planFind({ areaId: 'park', lessonKind: 'camp', seed: 1 })).not.toBe(null); // the first camp walk is an ordinary walk
-    expect(planFind({ areaId: 'docks', seed: 1 })).toBe(null);
+    expect(planFind({ areaId: 'not-an-area', seed: 1 })).toBe(null);
     for (const seed of [undefined, NaN, '7']) expect(planFind({ areaId: 'park', seed })).toBe(null);
   });
   it('a room walk has a find only when every member carries the same key', () => {

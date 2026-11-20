@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { CATALOG } from '../src/progression.js';
 import { renderThingsToWearHtml } from '../src/foundwear/journal.js';
 import { foundWearIn } from '../src/foundwear/index.js';
+import { FIND_SPOTS } from '../src/foundwear/spots/index.js';
 
 // A stand-in catalog with a Clan-only place's outfit beside the Park's cap.
 const withMoss = {
@@ -21,7 +22,7 @@ describe('Things to wear in the Journal', () => {
   });
   it('found, it shows its name', () => {
     // every outfit hidden in the Park and the Neighborhood is found, so no card in either stays a silhouette
-    const found = [...foundWearIn('park'), ...foundWearIn('neighborhood'), ...foundWearIn('seaside')].map((r) => r.id);
+    const found = Object.keys(FIND_SPOTS).flatMap(foundWearIn).map((r) => r.id);
     const html = renderThingsToWearHtml({ unlocked: { accessories: found } }, CATALOG);
     expect(html).toContain('journal-card spotted'); expect(html).toContain('Acorn Cap'); expect(html).toContain('🌰');
     expect(html).not.toContain('journal-card unspotted');
