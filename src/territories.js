@@ -11,6 +11,7 @@ import { words } from './wordset.js';
 import { placeName, isClanEdition } from './edition.js';
 import { castFor, CLAN_COLOURS } from './clancast.js';
 import { picksOf, isClanId } from './clanhomes.js';
+import { areaOffer } from './areaoffer.js';
 
 // Land colours, one per territory: Twolegplace's rooftops, the Woods' green,
 // heather on the Moor, marsh, dark pines, grey rock for the Gorge. The home-screen
@@ -83,36 +84,48 @@ export function opensAfterLine(req, have, edition, catalog) {
 
 const SOON_LINE = { soon: 'coming soon', later: 'unexplored' };
 
-// What the map shows for this save. Ownership and gates mirror
-// progression.isUnlocked/canBuy, read from the save only.
-export function territoryMapModel(state, catalog) {
-  const edition = state?.edition;
+// What one place shows for this save, from its areaId: owned, selected
+// (today's place), locked, canOpen, price and the line under its name. Gate
+// and price are the save's offer (areaoffer.js), so a kept Seaside reads as
+// the card says. Ownership mirrors progression.isUnlocked/canBuy, read from
+// the save only. An area the catalog does not have is 'coming soon'.
+export function placeState(state, catalog, areaId) {
+  const offer = areaOffer(state, catalog, areaId);
+  if (!offer) return { owned: false, selected: false, locked: false, canOpen: false, price: 0, line: SOON_LINE.soon };
   const areas = catalog.areas;
   const unlocked = state?.unlocked && typeof state.unlocked === 'object' ? state.unlocked : {};
   const ownedAreas = Array.isArray(unlocked.areas) ? unlocked.areas : [];
   const walks = state?.walks && typeof state.walks === 'object' ? state.walks : {};
   const area = typeof state?.area === 'string' && has(areas, state.area) ? state.area : Object.keys(areas)[0];
   const points = count(state?.points);
+  const { requires: req, price } = offer;
+  const owned = ownedAreas.includes(areaId);
+  const selected = area === areaId;
+  const have = req ? count(walks[req.area]) : 0;
+  const locked = !owned && !!req && have < req.walks;
+  const canOpen = !owned && !locked && points >= price;
+  let line;
+  if (selected) line = 'you’re going here';
+  else if (owned) line = 'tap to go here';
+  else if (locked) line = opensAfterLine(req, have, state?.edition, catalog);
+  else if (price === 0) line = 'Tap to explore';
+  else if (canOpen) line = `Open for ${price} 🐾`;
+  else line = `${price} 🐾 — keep exploring!`;
+  return { owned, selected, locked, canOpen, price, line };
+}
 
-  // owned, selected, locked, canOpen and line for one place, from its areaId.
-  // The island asks through its areaId, so it carries the Pines' state.
+// What the map shows for this save.
+export function territoryMapModel(state, catalog) {
+  const edition = state?.edition;
+  const areas = catalog.areas;
+
+  // A place's state, from its areaId. The island asks through its areaId, so
+  // it carries the Pines' state.
   const stateOf = (t) => {
     if (t.status !== 'built' || !has(areas, t.areaId)) {
-      return { owned: false, selected: false, locked: false, canOpen: false, line: SOON_LINE[t.status] ?? SOON_LINE.soon };
+      return { owned: false, selected: false, locked: false, canOpen: false, price: 0, line: SOON_LINE[t.status] ?? SOON_LINE.soon };
     }
-    const a = areas[t.areaId];
-    const owned = ownedAreas.includes(t.areaId);
-    const selected = area === t.areaId;
-    const req = a.requires;
-    const have = req ? count(walks[req.area]) : 0;
-    const locked = !owned && !!req && have < req.walks;
-    const canOpen = !owned && !locked && points >= count(a.price);
-    let line;
-    if (selected) line = 'you’re going here';
-    else if (owned) line = 'tap to go here';
-    else if (locked) line = opensAfterLine(req, have, edition, catalog);
-    else line = 'Tap to explore'; // every built territory costs 0 paws, so open means free to take
-    return { owned, selected, locked, canOpen, line };
+    return placeState(state, catalog, t.areaId);
   };
 
   // The camp mark, Clan Edition only, for a region whose territory has a clan.
