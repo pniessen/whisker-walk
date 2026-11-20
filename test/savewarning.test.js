@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // stage and the dressing-room controller. The controller stub keeps the
 // onOpenSheet callback so a test can open the Settings sheet.
 let openSheet = null;
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 vi.mock('../src/ui/dressingroomview.js', () => ({
   createDressingRoom: (opts) => {
