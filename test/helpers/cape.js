@@ -25,7 +25,7 @@ import { useBVH, ready, firstHitRaycaster } from './bvh.js';
 
 export const DESCRIBE = 'a cape is a cloak on the torso (polish-pose Task 2)';
 export const BREEDS = PRESETS.filter((b) => b !== 'hagrid');
-export const CAPES = ['cape', 'confetticape'];
+export const CAPES = ['cape', 'confetticape', 'doormatcape', 'beachtowelcape'];
 export const CASES = BREEDS.flatMap((b) => CAPES.flatMap((id) => [false, true].map((simple) => [b, id, simple])));
 // One cape's cases, in the order CASES lists them.
 export const casesOf = (cape) => CASES.filter(([, id]) => id === cape);

@@ -4,6 +4,7 @@ import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import { buildBackItem, backAnchor, placeOnBack, BACK_ITEM_IDS, buildHood, slideHoodTo, HOOD, DRAWSTRING_WHITE } from '../src/cat/backitems.js';
 import { TORSO } from '../src/cat/torso.js';
+import { accessoryFraming } from '../src/thumbnails.js';
 import { DESCRIBE, BARE, kitCat, itemsOf, tris, meshTris, BREEDS, COVERS, coverSweep } from './helpers/backitems.js';
 
 // Accessories polish, Task 2 (2026-11-03): the owner said "the back
@@ -33,8 +34,9 @@ describe(DESCRIBE, () => {
     for (const c of cat.children) expect(c.userData.backItem).toBeUndefined();
   });
 
-  it('mesh counts: backpack 1, jetpack 1, wings 2', () => {
+  it('mesh counts: backpack 1, hay-bale pack 1, jetpack 1, wings 2', () => {
     expect(itemsOf(kitCat('tabby', 'backpack'))).toHaveLength(1);
+    expect(itemsOf(kitCat('tabby', 'haybalepack'))).toHaveLength(1);
     expect(itemsOf(kitCat('tabby', 'jetpack'))).toHaveLength(1);
     const wings = itemsOf(kitCat('tabby', 'wings'));
     expect(wings).toHaveLength(2);
@@ -47,7 +49,7 @@ describe(DESCRIBE, () => {
   });
 
   it('triangle budget: backpack <= 1200, jetpack <= 1400, wings <= 900 (simple half or less)', () => {
-    const BUDGET = { backpack: 1200, jetpack: 1400, wings: 900 };
+    const BUDGET = { backpack: 1200, jetpack: 1400, wings: 900, haybalepack: 1000 };
     for (const id of BACK_ITEM_IDS) {
       for (const cover of ['fur', 'shell', 'cape']) {
         const full = meshTris(buildBackItem(id, { bodyScale: TORSO.SCALE, cover }));
@@ -57,6 +59,11 @@ describe(DESCRIBE, () => {
         expect(simple, `${id} ${cover} simple vs full`).toBeLessThanOrEqual(full / 2 + 1);
       }
     }
+  });
+
+  it('a found pack is shown from the rear quarter, as the shop packs are; the wings keep the front', () => {
+    expect(accessoryFraming('haybalepack').rotY).toBe(-2.4);
+    expect(accessoryFraming('wings').rotY).toBe(-0.45);
   });
 
   it('backAnchor: on the surface, its normal out of it, fwd toward the head; placeOnBack counter-scales', () => {

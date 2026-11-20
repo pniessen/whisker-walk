@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // answer's line, the busy state, and the times it waits. Same no-DOM
 // stand-in as test/confirmcard.test.js; the delete itself is a fake (its own
 // tests are test/onlinedelete.test.js).
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 const dressingMock = vi.hoisted(() => ({ opts: null }));
 vi.mock('../src/ui/dressingroomview.js', () => ({

@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // the clan moment, Enter-to-start and the Settings Advanced group, driven
 // through createHomeBase over a no-DOM stand-in. The WebGL pieces and the
 // dressing-room controller are stubbed (its own tests live elsewhere).
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 const dressingMock = vi.hoisted(() => ({ opts: null, ui: { builder: null }, placesArgs: [], closeWardrobe: null }));
 vi.mock('../src/ui/dressingroomview.js', () => ({

@@ -20,6 +20,7 @@ import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT
 import { escapeHtml } from '../escapehtml.js';
 import { areaOffer } from '../areaoffer.js';
 import { phrase } from '../clanphrases.js';
+import { spotsIn } from '../foundwear/spots/index.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
@@ -248,6 +249,8 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     // a place her edition hides keeps its outfits out of sight until found.
     if (a.find && !owned) {
       if (!areaInEdition(catalog.areas?.[a.find], state?.edition)) return '';
+      // Nothing is hidden in a place with no find spots: no silhouette to hunt for.
+      if (spotsIn(a.find).length === 0) return '';
       const where = phrase('wear.foundIn', lower(placeName(a.find, state?.edition, catalog)));
       return `<div class="dr-pick locked found-silhouette" role="group" aria-label="${escapeHtml(phrase('wear.notYet'))}">`
         + `<span class="found-shape" aria-hidden="true">${escapeHtml(a.emoji ?? '')}</span><span>${escapeHtml(where)}</span></div>`;

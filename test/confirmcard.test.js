@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 
 // The home base's WebGL pieces can't run in node (as in homebase.visits.test.js).
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 const dressingMock = vi.hoisted(() => ({ opts: null }));
 vi.mock('../src/ui/dressingroomview.js', () => ({

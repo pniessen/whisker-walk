@@ -19,7 +19,7 @@ vi.mock('../src/ui/mappan.js', () => ({
     return pan;
   }),
 }));
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 const stub = {
   ui: { mapCard: null },

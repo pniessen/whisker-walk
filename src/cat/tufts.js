@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { TORSO, CHEST, SKULL, TAIL, deformTorso, torsoNormalAt, torsoUnitAt } from './torso.js';
 import { coatColourAt, undersideColourAt } from './coat.js';
+import { bodyKind, isPack } from './wearkind.js';
 
 // FUR TUFTS (cat realism round 2, B7; 2026-11-15). Fur you can see in the
 // cat's outline, made of solid geometry. Most of it is BANDS (addBand): a
@@ -88,9 +89,9 @@ export function tuftSeed(s) {
 // Which regions grow fur, for style row `s` wearing `acc` (see the block
 // comment). `cheekShort`: the cheek ruff ends above a collar.
 export function tuftPlan(s, acc = {}, { simple = false, kitten = false } = {}) {
-  const shell = acc.body === 'hoodie' || acc.body === 'raincoat' || acc.body === 'sweater';
-  const cape = acc.body === 'cape' || acc.body === 'confetticape';
-  const pack = acc.back === 'backpack' || acc.back === 'jetpack' || acc.back === 'wings';
+  const shell = bodyKind(acc.body) === 'shell';
+  const cape = bodyKind(acc.body) === 'cape';
+  const pack = isPack(acc.back);
   const neckwear = !!acc.neck || !!acc.collar || !!s.tagCollar;
   return {
     kind: furKind(s, kitten), simple,

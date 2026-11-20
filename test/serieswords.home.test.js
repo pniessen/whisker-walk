@@ -19,7 +19,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 // hero stage and the dressing-room controller (its sheets are recorded from
 // the pure builders in serieswords.test.js). The stub keeps onOpenSheet.
 let openSheet = null;
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 vi.mock('../src/ui/dressingroomview.js', () => ({
   createDressingRoom: (opts) => {

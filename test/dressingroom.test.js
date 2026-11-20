@@ -5,6 +5,8 @@ import { CLAN_SUFFIX } from '../src/clanwords.js';
 import { CAT_BLURBS, ACC_BLURBS } from '../src/ui/catblurbs.js';
 import { PAW } from '../src/ui/pawicon.js';
 import { clanName } from '../src/clanhomes.js';
+import { spotsIn } from '../src/foundwear/spots/index.js';
+import { areaInEdition } from '../src/edition.js';
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
   MENU_TILES, GROWNUP_SHEETS,
@@ -114,8 +116,14 @@ describe('dressing-room model', () => {
 
 describe('slot picker', () => {
   it('lists every accessory in the slot', () => {
-    const want = Object.values(CATALOG.accessories).filter((a) => a.slot === 'head').length;
-    const html = renderSlotPickerHtml(defaultishState(), CATALOG, 'head', null);
+    // The rule: a find-only outfit not found yet shows only where it can be
+    // found (its area is in her edition and has find spots); the rest show.
+    const state = defaultishState();
+    const owned = state.unlocked.accessories;
+    const want = Object.entries(CATALOG.accessories).filter(([id, a]) => a.slot === 'head'
+      && (!a.find || owned.includes(id)
+        || (areaInEdition(CATALOG.areas?.[a.find], state.edition) && spotsIn(a.find).length > 0))).length;
+    const html = renderSlotPickerHtml(state, CATALOG, 'head', null);
     expect(count(html, /class="dr-pick[ "]/g)).toBe(want);
   });
   it('an unfound outfit is a silhouette saying where it is found, never a price', () => {
@@ -136,6 +144,23 @@ describe('slot picker', () => {
     expect(renderSlotPickerHtml({ ...s, edition: 'canon' }, cat, 'head', null)).toContain('Found in the Woods');
     s.unlocked.accessories.push('mosscap');
     expect(renderSlotPickerHtml(s, cat, 'head', null)).toContain('data-dr-acc="mosscap"');
+  });
+  it('a find-only outfit from a place with no find spots stays out of sight until found', () => {
+    const hats = { ...CATALOG, accessories: {
+      parkhat: { name: 'Park Hat', slot: 'head', price: 0, prize: true, find: 'park', emoji: '🌰' },
+      riverhat: { name: 'River Hat', slot: 'head', price: 0, prize: true, find: 'river', emoji: '🐟' },
+    } };
+    const s = { ...defaultishState(), edition: 'canon' };
+    const html = renderSlotPickerHtml(s, hats, 'head', null);
+    expect(html).toContain('Found in City Park');
+    expect(html).not.toContain('River'); expect(html).not.toContain('🐟');
+  });
+  it('once owned it shows, spots or not', () => {
+    const hats = { ...CATALOG, accessories: {
+      riverhat: { name: 'River Hat', slot: 'head', price: 0, prize: true, find: 'river', emoji: '🐟' },
+    } };
+    const s = { ...defaultishState(), edition: 'canon' }; s.unlocked.accessories.push('riverhat');
+    expect(renderSlotPickerHtml(s, hats, 'head', null)).toContain('data-dr-acc="riverhat" data-dr-act="wear"');
   });
   it('an unwon prize is a wrapped surprise: no price, no try-on, not buyable', () => {
     const slot = CATALOG.accessories.leafcrown.slot;

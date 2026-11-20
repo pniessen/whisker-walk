@@ -6,7 +6,7 @@ import { emptyStateHtml } from '../src/ui/emptystates.js';
 // and one warm line when empty. The home base's WebGL pieces can't run in
 // node, so they are stubbed (same pattern as homebase.edition.test.js).
 let openSheet = null;
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 vi.mock('../src/ui/dressingroomview.js', () => ({
   createDressingRoom: (opts) => {
