@@ -20,6 +20,7 @@ import { bestPerch, climbBudget, fenceRunning } from '../climbing.js';
 import { FLAT_GROUND } from '../ground.js';
 import * as THREE from 'three';
 import { villagerPos } from '../critters.js';
+import { TWINKLE_RANGE } from '../foundwear/rules.js';
 
 // The small picture beside each line: things the game already draws.
 export const HINT_PICS = Object.freeze({
@@ -88,7 +89,10 @@ export function walkFacts(session, { player, state }, f = {}) {
   const cat = session.cat.position;
   const fwd = player.forward();
   f.place = session.areaId;
-  f.findNear = false; // the walk's find fills this (found outfits)
+  // The walk's find (foundwear/live.js; NO_FIND is taken): twinkling and ahead.
+  const find = session.find;
+  f.findNear = !!find && !find.taken && !!find.spot
+    && dist(find.spot, cat) < TWINKLE_RANGE && ahead(cat, fwd, find.spot);
   f.room = !!session.net && (session.remotes?.list?.length ?? 0) > 0;
   f.stalking = !!player.stalking && player.speed > 0.3;
   f.perched = !!session.perched;

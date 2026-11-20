@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+import { bus } from '../src/events.js';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { createProgression } from '../src/progression.js';
@@ -43,6 +44,35 @@ function setup({ catalog, own = ['acorncap'], equipCat = null, touch = false } =
   });
   return { card, overlay, s, calls, progression, redress, portrait };
 }
+
+describe('the find card and the find-kept hint', () => {
+  const tips = [];
+  const off = bus.on('tip', (e) => tips.push(e));
+  beforeEach(() => { tips.length = 0; });
+  afterAll(() => off());
+
+  it('Wear it, Later and Back (Later) each say find-kept once, after the walk resumes', () => {
+    for (const answer of ['wear', 'later']) {
+      const { card, s, calls } = setup();
+      card.show(s, 'acorncap');
+      expect(tips).toEqual([]);
+      let resumedWhenSaid = null;
+      const stop = bus.on('tip', () => { resumedWhenSaid = calls.resume; });
+      card[answer]();
+      stop();
+      expect(tips).toEqual([{ id: 'find-kept' }]);
+      expect(resumedWhenSaid).toBe(1);
+      tips.length = 0;
+    }
+  });
+
+  it('says nothing when no card is up, and a card closed by the walk ending says nothing', () => {
+    const { card, s } = setup();
+    card.later();
+    card.wear();
+    expect(tips).toEqual([]);
+  });
+});
 
 describe('the find card', () => {
   it('show pauses the walk with the card; Later puts the pause card back and walks on, not worn', () => {

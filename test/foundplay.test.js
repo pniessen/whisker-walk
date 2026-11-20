@@ -155,6 +155,23 @@ describe('found outfits: giving the find', () => {
     expect(p2.state.equipped.head).toBe(null);
   });
 
+  it('handleFindArrival: picking a find up herself marks the find hint known; a partner\'s pick-up does not', () => {
+    const p1 = createProgression(fakeStorage());
+    const log1 = createDiscoveryLog(p1);
+    log1.startWalk();
+    const s = { cat: { position: { x: 0, y: 0, z: 0 } }, fx: { burst: vi.fn() }, find: findOf({ kind: 'wear', id: 'acorncap' }) };
+    const deps = { progression: p1, log: log1, hud: { toast: vi.fn() }, audio: { fanfare: vi.fn() }, card: { show: vi.fn() } };
+    expect(p1.state.tutorial.hints.find ?? 0).toBe(0);
+    handleFindArrival(s, { by: 'me' }, deps);
+    expect(p1.state.tutorial.hints.find).toBeGreaterThanOrEqual(1);
+    const p2 = createProgression(fakeStorage());
+    const log2 = createDiscoveryLog(p2);
+    log2.startWalk();
+    s.find = findOf({ kind: 'wear', id: 'acorncap' });
+    handleFindArrival(s, { by: 'partner', petName: 'Robin' }, { ...deps, progression: p2, log: log2 });
+    expect(p2.state.tutorial.hints.find ?? 0).toBe(0);
+  });
+
   it('handleFindArrival reads the walk\'s own find, and does nothing once it has been given', () => {
     const find = findOf({ kind: 'pouch' });
     const s = { cat: { position: { x: 0, y: 0, z: 0 } }, fx: { burst: vi.fn() }, find };

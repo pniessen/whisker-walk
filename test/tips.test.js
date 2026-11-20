@@ -4,6 +4,7 @@ import { createTips, walkFacts, climbBadge, HINT_PICS } from '../src/game/tips.j
 import { HINT_IDS } from '../src/hints.js';
 import { createProgression } from '../src/progression.js';
 import { bus } from '../src/events.js';
+import { NO_FIND } from '../src/foundwear/live.js';
 
 function memStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -58,6 +59,21 @@ describe('walkFacts', () => {
   it('sets place to the session\'s area id and findNear to false', () => {
     const f = facts({ areaId: 'river' });
     expect(f.place).toBe('river');
+    expect(f.findNear).toBe(false);
+  });
+
+  it('findNear: a find within the twinkle range and ahead, not taken', () => {
+    const find = (x, z, extra = {}) => ({ spot: { id: 's', x, z }, item: { kind: 'wear', id: 'acorncap' }, taken: false, ...extra });
+    expect(facts({ find: find(0, -10) }).findNear).toBe(true);
+    expect(facts({ find: find(0, 10) }).findNear).toBe(false); // behind the view
+    expect(facts({ find: find(0, -30) }).findNear).toBe(false); // too far
+    expect(facts({ find: find(0, -10, { taken: true }) }).findNear).toBe(false);
+    expect(facts({ find: NO_FIND }).findNear).toBe(false);
+    expect(facts({}).findNear).toBe(false); // no find on the session
+    const f = {};
+    walkFacts(walk({ find: find(0, -10) }), { player, state }, f);
+    expect(f.findNear).toBe(true);
+    walkFacts(walk({ find: find(0, -10, { taken: true }) }), { player, state }, f); // the same object is reused
     expect(f.findNear).toBe(false);
   });
 

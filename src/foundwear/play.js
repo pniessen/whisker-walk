@@ -63,6 +63,8 @@ export function handleFindArrival(s, arrival, { progression, log, hud, audio, ca
   const grant = grantFind(s.find, arrival, { progression, log });
   if (!grant) return null;
   s.fx?.burst(s.cat.position, 0xf2c14e, 14);
+  // She found it herself: the hint that says "go and see" is never needed.
+  if (grant.by === 'me') progression.knowHint('find');
   if (grant.kind === 'wear') {
     audio.fanfare?.();
     if (grant.by === 'me') card.show(s, grant.id);
