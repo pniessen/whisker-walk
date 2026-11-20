@@ -697,3 +697,4 @@ it('draws one number a stall from its own stream and never touches Math.random',
 
 - **Names:** fishmonger, baker, cheese stall, milk cart and café stay for now (he and his daughter may rename them from the pictures), but the button word is **"grab"**, not "snaffle" ("E — grab the fish head").
 - **Pay:** 6 🐾 a treat and 6 🐾 for teamwork, as in M9.
+- **Strays:** allowed in the square, as elsewhere. This overrides M10's `strays: false`; keep them away from the counters' zones so the rhythm stays readable (builder's call how).
