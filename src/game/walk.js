@@ -97,6 +97,10 @@ import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather, rainPuddleSpots } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
+import { planFind, pickFindItem, findsAgreed, roomFindRoster } from '../foundwear/rules.js';
+import { createFind, NO_FIND } from '../foundwear/live.js';
+import { restoreFind } from '../foundwear/play.js';
+import { foundWearIn } from '../foundwear/index.js';
 import { crossingOutcome } from '../bordercross.js';
 import { rivalForWalk, placeName, effectiveArea, isClanEdition } from '../edition.js';
 import { picksOf, homeWelcome } from '../clanhomes.js';
@@ -1323,7 +1327,8 @@ export function createWalkLifecycle({
     // Task 8 — in a co-walk, a remote cat that leaves or goes quiet takes what
     // she was holding with her (netevents.js). Harmless solo: no remote ever
     // holds anything there.
-    takeHeldItemsWithRemotes(remotes, carry.items, cat);
+    // Found outfits: a partner rebuilt for a new look keeps her clan escort.
+    takeHeldItemsWithRemotes(remotes, carry.items, cat, { getClanCats: () => clanCats });
     // v21 3b Task 10 — the cups, pots and books a perched cat can knock off a
     // ledge. A knocked one stays down for the rest of this walk and nothing is
     // saved. Created after mergeStaticProps, so nothing here is merged; the
@@ -1762,6 +1767,26 @@ export function createWalkLifecycle({
         ground, rng: ownStream(roomSeed ?? soloSeed, GOLD_PHASE_SALT),
       })
       : NO_GOLD_MICE;
+
+    // Found outfits: this walk's one find (foundwear/), planned off its own
+    // salted stream from the walk's seed, never walkRng: the room seed on a
+    // co-walk, so both devices put it on the same spot in the same place
+    // (areaId is the room's, a Legacy child's areaOverride into the Woods
+    // included), against the room as it is now with her own key in it. None
+    // in the den, on the guided first walk, in a place with no spots, or in a
+    // room whose members do not all carry the same key. Built after the
+    // shadow sweep, so it is never a caster. The chime plays from onNear.
+    const findPlan = planFind({
+      areaId, isDen, lessonKind: lessonPlan?.kind ?? null, seed: roomSeed ?? soloSeed,
+      roster: roomSeed !== undefined ? roomFindRoster(roomAtStart?.roster ?? [], pid) : null,
+    });
+    session.find = findPlan
+      ? createFind(scene, {
+        plan: findPlan,
+        item: pickFindItem(foundWearIn(areaId), progression.state.unlocked.accessories, findPlan.roll),
+        ground, reducedMotion, onNear: () => audio.findChime?.(),
+      })
+      : NO_FIND;
 
     // v21 3b Task 12 — the rival border marks I scented over on earlier walks,
     // by saved id (`<area>-border-<ring>`), read here, BEFORE the rival slice
@@ -2272,6 +2297,13 @@ export function createWalkLifecycle({
           if (!liveIds.has(r.playerId)) { remotes.remove(r.playerId); session.intruders.dropHolder(r.playerId); }
           if (!liveIds.has(r.playerId)) session.rival.foe?.dropHolder(r.playerId);
         }
+        // Found outfits: a member who does not carry this build's key (an
+        // older build joining mid-walk) ends the find for the rest of the
+        // walk: finds never show for one child only.
+        if (!session.find.taken && !findsAgreed(roomFindRoster(roster, session.playerId))) {
+          session.find.dispose();
+          session.find = NO_FIND;
+        }
         const firstSync = rosterSeen === null;
         rosterSeen ??= new Set();
         for (const p of roster) {
@@ -2366,6 +2398,8 @@ export function createWalkLifecycle({
     if (resume) restoreFarmJobs(farm, { log, carry, area: areaData });
     // ...and a runaway balloon it had caught is not there to catch again.
     if (resume) restoreFairGames(fairLive, { log });
+    // ...and the find it had found is not on the ground.
+    if (resume) restoreFind(session.find, { log });
     hud.show();
     hud.setArea(placeName(areaId, progression.state.edition, CATALOG) || areaData.name);
     // Kittypets: the arrival line waits for the walk to start (the Ready? card
@@ -2635,6 +2669,7 @@ export function createWalkLifecycle({
     session.fair?.dispose();
     session.traversal?.dispose();
     session.goldMice.dispose();
+    session.find.dispose();
     session.rival.dispose();
     session.chasing = false;
     session.kittenEnc.dispose();

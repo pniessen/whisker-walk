@@ -18,6 +18,7 @@ import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT
 import { escapeHtml } from '../escapehtml.js';
 import { areaOffer } from '../areaoffer.js';
 import { phrase } from '../clanphrases.js';
+import { lower } from '../bordercross.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
@@ -237,6 +238,15 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     const pic = img(thumbs?.accessories?.[id], '');
     const name = escapeHtml(accessoryName(a, state?.edition));
     const attrs = (act) => `data-dr-acc="${escapeHtml(id)}" data-dr-act="${act}"`;
+    // A find-only outfit not found yet: its shape and where it is found. No
+    // data-dr-acc (the controller ignores it), no price, no try-on. In Legacy
+    // a place her edition hides keeps its outfits out of sight until found.
+    if (a.find && !owned) {
+      if (!areaInEdition(catalog.areas?.[a.find], state?.edition)) return '';
+      const where = phrase('wear.foundIn', lower(placeName(a.find, state?.edition, catalog)));
+      return `<div class="dr-pick locked found-silhouette" role="group" aria-label="${escapeHtml(phrase('wear.notYet'))}">`
+        + `<span class="found-shape" aria-hidden="true">${escapeHtml(a.emoji ?? '')}</span><span>${escapeHtml(where)}</span></div>`;
+    }
     // An unwon prize stays a surprise: no data-dr-acc (the controller ignores
     // it), no price, no try-on.
     if (a.prize && !owned) {

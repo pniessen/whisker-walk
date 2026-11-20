@@ -3,6 +3,7 @@ import { createRooms } from '../src/game/rooms.js';
 import { START_GATHER_MS, MEMBER_GATHER_MS, WALKING_FRESH_MS } from '../src/game/lobby.js';
 import { createFakeHub, createNet } from '../src/net.js';
 import { createProgression } from '../src/progression.js';
+import { FIND_KEY } from '../src/foundwear/spots/index.js';
 
 // v21 Stream 2, Task 12 — pair walks. Two siblings in a colony start a walk
 // together with no room code. Anyone in a room can press Start: it proposes a
@@ -451,7 +452,7 @@ describe('her cat\'s scars on the wire', () => {
 
   it('an unscarred profile is byte-identical to today', async () => {
     const { cloud, made } = pushing();
-    expect(JSON.stringify(made.roomProfile())).toBe(`{"playerId":"${HOST}","petName":"Mittens","breed":"tabby","accessories":{${SLOTS}}}`);
+    expect(JSON.stringify(made.roomProfile())).toBe(`{"playerId":"${HOST}","petName":"Mittens","breed":"tabby","accessories":{${SLOTS}},"finds":${FIND_KEY}}`);
     await made.pushProfileNow();
     expect(JSON.stringify(cloud.pushProfile.mock.calls[0][0])).toBe(
       `{"playerId":"${HOST}","secret":"sec","petName":"Mittens","breed":"tabby","accessories":{${SLOTS},"home":null},"rankTitle":${JSON.stringify(cloud.pushProfile.mock.calls[0][0].rankTitle)}}`);

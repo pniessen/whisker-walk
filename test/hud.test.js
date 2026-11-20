@@ -852,3 +852,11 @@ describe('one toast at a time while a guided step is open', () => {
     expect(shown()).toBe(MAX_TOASTS);
   });
 });
+
+describe('found outfits: the pouch toast', () => {
+  it('the pouch says its own whole line', () => {
+    expect(discoveryText({ type: 'pouch', label: 'You found a little pouch of 🐾!' })).toBe('You found a little pouch of 🐾!');
+    expect(discoveryText({ type: 'pouch', label: 'Robin found it, and there was a little pouch of 🐾 for you too!', repeat: false }))
+      .toBe('Robin found it, and there was a little pouch of 🐾 for you too!');
+  });
+});

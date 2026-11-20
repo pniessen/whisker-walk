@@ -614,6 +614,40 @@ describe('patrol together (the buddy)', () => {
     expect(ends).toEqual([]);
   });
 
+  // Found outfits step 1: a co-walker who puts on a find mid-walk is rebuilt
+  // on my screen (remotecats upsert: a new group). The escort walking beside
+  // her is re-pointed to the new cat (netevents.js takeHeldItemsWithRemotes)
+  // and carries on; it does not let go as it would for a cat that left.
+  it("a co-walker's buddy stays with her when her cat is rebuilt for a new look", async () => {
+    const { createRemoteCats } = await import('../src/remotecats.js');
+    const { takeHeldItemsWithRemotes } = await import('../src/game/netevents.js');
+    const { cats, cat, ends } = buddyWorld();
+    const scene = new THREE.Scene();
+    const remotes = createRemoteCats(scene);
+    takeHeldItemsWithRemotes(remotes, { list: [], take() {}, hold() {} }, new THREE.Group(), { getClanCats: () => cats });
+    const robin = { playerId: 'sib-0001', petName: 'Robin', breed: 'tabby', accessories: {} };
+    remotes.upsert(robin, 0);
+    remotes.applyState({ v: 1, id: 'sib-0001', pos: [-20, 10], yaw: 0, pose: 'follow', speed: 0 }, 0);
+    const before = remotes.list[0].group;
+    cat.group.position.set(-19, 0, 10);
+    expect(cats.startBuddy(cat, before, { remote: true })).toBe(true);
+    let t = step(cats, before, 1);
+    remotes.upsert({ ...robin, accessories: { head: 'acorncap' } }, 1);
+    const after = remotes.list[0].group;
+    expect(after).not.toBe(before);
+    expect(before.parent).toBe(null);
+    t = step(cats, after, 2 * DT, () => {}, () => {}, t);
+    expect(cat.buddy).not.toBe(null);
+    expect(cat.buddy.target).toBe(after);
+    expect(cat.state).toBe('buddy');
+    // and it walks beside the new cat as she moves on
+    t = step(cats, after, 4, (tt) => after.position.set(-20 + (tt - t) * 1, 0, 10), () => {}, t);
+    expect(cat.buddy?.target).toBe(after);
+    expect(Math.hypot(cat.group.position.x - after.position.x, cat.group.position.z - after.position.z)).toBeLessThan(3);
+    expect(ends).toEqual([]);
+    remotes.dispose?.();
+  });
+
   it('a second patrol started on the way home keeps the first trail: the walk home never crosses water', () => {
     // A pond at (-20, -20) r 4. Home (-30, -30). Patrol 1 goes east then north,
     // round the pond; patrol 2 starts on the way back. The straight line from

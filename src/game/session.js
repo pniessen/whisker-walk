@@ -119,6 +119,9 @@ const FIELDS = [
   // ── Things in the world ─────────────────────────────────────────────────
   ['collectibleMeshes', 'collectible id → mesh'],
   ['goldMice', 'late (walk.js): golden mice, or the inert NO_GOLD_MICE stub'],
+  ['find', "late (walk.js): this walk's find (foundwear/live.js), or NO_FIND"],
+  ['findCard', 'late (findcard.js): the find card being shown { id }, or null'],
+  ['findNoseAt', 'late (foundwear/live.js): walkTime of the last Twitchy Nose trail to the find, or of the last skill check it failed'],
   ['secrets', 'secret spots to find'],
   ['tippables', 'things the cat can tip over'],
   ['knockables', 'things the cat can knock off a ledge'],

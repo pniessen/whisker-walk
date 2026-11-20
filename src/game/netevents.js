@@ -25,16 +25,23 @@ const groundY = (s, x, z) => (s.ground ?? FLAT_GROUND).y(x, z);
 // v21 3b Task 8 — a co-walker who disappears takes what she was carrying with
 // her. takeHeldItemsWithRemotes(remotes, items, localCat) wraps the walk's
 // remote cats (remotecats.js) so that after anything that can remove one — a
-// roster drop (remove), a silent despawn (update, after DESPAWN_AFTER), a
-// rejoin with a different pet (upsert, which removes the old mesh) — every
+// roster drop (remove), a silent despawn (update, after DESPAWN_AFTER) — every
 // item held by a cat that is neither mine nor a remote still in the walk is
 // taken: off the ground, held by nobody, hidden, and flagged `gone`. So
 // carryables.update never follows a disposed group. It stays hidden until a
 // co-walker's later carry-pick or carry-drop for it says where it is (she may
 // only have gone quiet for a few seconds, and on her screen she still has it).
-// The local cat's item is never touched. Call once per walk, right after both
-// exist.
-export function takeHeldItemsWithRemotes(remotes, items, localCat) {
+// The local cat's item is never touched. A rebuild for a new look (upsert
+// with the same player, pet name and breed, and changed accessories: a find
+// put on mid-walk) is not a leaving: what the old cat held is handed to the
+// new one first. A rejoin with a different pet (a new name or breed) still is.
+// The same rebuild re-points every clan cat walking beside the old cat (her
+// patrol escort, clancats.js buddy.target) to the new one, so the escort
+// carries on beside her instead of letting go because its target left the
+// scene. `getClanCats` -> the walk's clan cats ({ list }), read at the
+// rebuild (they may be made after this is called); null or omitted: none.
+// Call once per walk, right after both exist.
+export function takeHeldItemsWithRemotes(remotes, items, localCat, { getClanCats = () => null } = {}) {
   function release() {
     let live = null;
     for (const it of items.list) {
@@ -47,13 +54,40 @@ export function takeHeldItemsWithRemotes(remotes, items, localCat) {
       }
     }
   }
+  // Found outfits step 1: a co-walker who puts on a find mid-walk is rebuilt
+  // (upsert with new accessories: a new group for the same pet). What the old
+  // cat held is handed to the new one before release() runs, so it stays in
+  // her mouth and is never taken as gone.
+  function handOver(oldGroup, newGroup) {
+    for (const it of items.list) if (it.holder === oldGroup) items.hold(it.id, newGroup);
+    const clan = getClanCats();
+    const list = Array.isArray(clan?.list) ? clan.list : [];
+    for (const c of list) {
+      const b = c?.buddy;
+      if (b && b.target === oldGroup) {
+        b.target = newGroup;
+        b.attached = !!newGroup.parent;
+      }
+    }
+  }
   for (const name of ['upsert', 'remove', 'update']) {
     const inner = remotes[name];
-    remotes[name] = (...args) => {
-      const out = inner(...args);
-      release();
-      return out;
-    };
+    remotes[name] = name === 'upsert'
+      ? (profile, ...rest) => {
+        const id = profile?.playerId;
+        const was = remotes.list.find((r) => r.playerId === id) ?? null;
+        const before = was?.group ?? null;
+        const out = inner(profile, ...rest);
+        if (before && out && out.playerId === id && out.group && out.group !== before
+            && out.petName === was.petName && out.breed === was.breed) handOver(before, out.group);
+        release();
+        return out;
+      }
+      : (...args) => {
+        const out = inner(...args);
+        release();
+        return out;
+      };
   }
 }
 
