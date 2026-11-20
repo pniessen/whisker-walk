@@ -274,6 +274,15 @@ describe('cat model: D2 and Digit, from the photos', () => {
     expect(count(buildCat('digit', { collar: 'bell' }))).toBe(1);
     expect(count(buildCat('d2'))).toBe(0);
   });
+
+  it("Digit's built-in tag gives way to a found collar", () => {
+    const rings = (cat) => { const out = []; cat.traverse((o) => { if (o.name === 'collarRing') out.push(o); }); return out; };
+    for (const id of ['bottletopcollar', 'ropecollar', 'anchorcharm']) {
+      const cat = buildCat('digit', { collar: id });
+      expect(rings(cat), id).toHaveLength(1);
+      expect(rings(cat)[0].userData.foundWear, id).toBe(id);
+    }
+  });
 });
 
 describe('cat model: the cat stands on the ground', () => {
@@ -639,6 +648,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     prizerosette: [0x2f6fc0, 0x6fa6e6, 0xf5c518], // the Fairground's rosette: its disc and tails, and its gold button
     // the found neck pieces: their ring's (or knot's) plain colour; what is vertex-coloured is found by isPieceOf
     daisychain: [0x5a9a3c], gardenglovescarf: [0x6a9a4a], shellnecklace: [0x8a6a4a], neckerchief: [0xd8403a], ticketgarland: [0xf5f5f5],
+    anchorcharm: [0xc8ccd4], // the Anchor Charm's silver anchor, found by isPieceOf with its id
   };
   // (a found piece is found by isPieceOf when given its id: much of it is vertex-coloured, and the
   // colours list names only its first plain material; with no colours it falls back to isPieceOf too)
@@ -710,7 +720,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   // Tabby, and the fluffy cats (NECK_FLUFFY).
   const FOUND_NECK_IDS = ['daisychain', 'gardenglovescarf', 'shellnecklace', 'neckerchief', 'ticketgarland'];
   const CHEST_BREEDS = ['tabby', 'persian', 'mainecoon', 'd2'];
-  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'prizerosette', ...FOUND_NECK_IDS].map((id) => [b, id])))('%s: %s lies on the chest, not inside it', (breed, id) => {
+  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'prizerosette', ...FOUND_NECK_IDS, 'anchorcharm'].map((id) => [b, id])))('%s: %s lies on the chest, not inside it', (breed, id) => {
     const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id }, breed);
     onChest(cat, itemMeshes(cat, COLOURS[id], id));
   });
@@ -756,7 +766,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
       expect(b.min.z).toBeGreaterThan(nose.min.z);    // behind the nose tip (front is -z)
     }
   };
-  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar', 'prizerosette', ...FOUND_NECK_IDS].map((id) => [b, id])))('%s: %s stays under the chin, below the mouth and behind the nose', (breed, id) => {
+  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar', 'prizerosette', ...FOUND_NECK_IDS, 'anchorcharm'].map((id) => [b, id])))('%s: %s stays under the chin, below the mouth and behind the nose', (breed, id) => {
     const bare = posed({}, breed), cat = posed({ [CATALOG.accessories[id].slot]: id }, breed);
     underChin(bare, addedToHead(cat, bare));
   });

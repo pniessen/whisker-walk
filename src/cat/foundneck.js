@@ -252,7 +252,59 @@ export const FOUND_NECKS = Object.freeze({
   neckerchief: addNeckerchief,
   ticketgarland: addTicketGarland,
 });
-export const FOUND_COLLARS = Object.freeze({});
+// ---- Collars --------------------------------------------------------------
+
+// Bottle-top Collar: a dark band with eight crimped caps all round it, in the
+// ring's plane as the studs are. Each cap is a short fluted disc (eight
+// sides), its top out, silver and red in turn; the caps are one mesh.
+function dressBottleTops(group, ring, { ringR, tubeR }) {
+  const caps = [], h = tubeR * 0.5, r = tubeR * 1.15;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const cap = colour(new THREE.CylinderGeometry(r, r * 0.82, h, 8, 1), i % 2 ? 0xd84040 : 0xc8ccd4);
+    cap.rotateZ(a - Math.PI / 2);
+    cap.translate(Math.cos(a) * (ringR + tubeR * 0.75 + h / 2), Math.sin(a) * (ringR + tubeR * 0.75 + h / 2), 0);
+    caps.push(cap);
+  }
+  ring.add(new THREE.Mesh(mergeGeometries(caps), painted()));
+}
+
+// Rope Collar: a darker spiral painted on the ring, as vertex colours on a
+// second torus 1 mm proud (the strands wind once round the tube every four
+// segments); the knot at the throat is one small ball of the ring's colour.
+function dressRope(group, ring, { ringR, tubeR, charmPos }) {
+  const geo = new THREE.TorusGeometry(ringR, tubeR + 0.001, 6, 16);
+  const n = geo.attributes.position.count, cols = new Float32Array(n * 3), w = geo.parameters.tubularSegments + 1;
+  const light = new THREE.Color(0xc8a46a), dark = new THREE.Color(0x9a7a48);
+  for (let v = 0; v < n; v++) (((v % w) + 2 * Math.floor(v / w)) % 4 < 2 ? light : dark).toArray(cols, v * 3);
+  geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  ring.add(new THREE.Mesh(geo, painted()));
+  const knot = new THREE.Mesh(new THREE.SphereGeometry(tubeR * 1.3, 6, 4), plain(0xc8a46a));
+  knot.position.copy(charmPos);
+  group.add(knot);
+}
+
+// Anchor Charm: a small silver anchor at the throat, facing -z, one mesh:
+// shank, stock across the top, a ring above it and two flukes curving up from
+// the foot.
+function dressAnchor(group, ring, { tubeR, charmPos }) {
+  const u = tubeR, SILVER = 0xc8ccd4;
+  const bar = (w, h, x, y, rot = 0) => colour(new THREE.BoxGeometry(w * u, h * u, 0.3 * u).rotateZ(rot).translate(x * u, y * u, 0), SILVER);
+  const parts = [
+    bar(0.3, 2.2, 0, 0), bar(1.4, 0.26, 0, 0.7),
+    bar(1.0, 0.26, -0.5, -0.95, 0.5), bar(1.0, 0.26, 0.5, -0.95, -0.5),
+    colour(new THREE.TorusGeometry(0.3 * u, 0.09 * u, 4, 8).translate(0, 1.4 * u, 0), SILVER),
+  ];
+  const anchor = new THREE.Mesh(mergeGeometries(parts), plain(SILVER));
+  anchor.position.copy(charmPos);
+  group.add(anchor);
+}
+
+export const FOUND_COLLARS = Object.freeze({
+  bottletopcollar: Object.freeze({ ring: 0x3a3a42, charmed: false, dress: dressBottleTops }),
+  ropecollar: Object.freeze({ ring: 0xc8a46a, charmed: false, dress: dressRope }),
+  anchorcharm: Object.freeze({ ring: 0x24365c, charmed: true, dress: dressAnchor }),
+});
 
 // The found neck piece, if `id` is one; nothing otherwise.
 export function addFoundNeck(head, id, { k, y, z, ringR, ringBack = 0, tilt }) {

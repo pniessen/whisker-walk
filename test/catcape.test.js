@@ -157,6 +157,21 @@ describe(DESCRIBE, () => {
       expect(tie.userData.tie.bands).toHaveLength(2);
     }
   });
+  // A found collar: the Anchor Charm hangs at the throat, so the clasp gives
+  // way (read through the clasp geometry's own flag); the Rope Collar's knot and
+  // the Bottle-top Collar's caps leave the throat to the clasp.
+  it.each([['anchorcharm', false], ['ropecollar', true], ['bottletopcollar', true]])('a cape over the %s: the clasp shows %s', (item, shows) => {
+    for (const b of ['tabby', 'mainecoon']) {
+      const tie = tieOf(buildCat(b, { ...BARE, body: 'cape', collar: item }));
+      expect(!!tie.userData.tie.clasp, b).toBe(shows);
+      expect(tie.userData.tie.bands).toHaveLength(2);
+    }
+  });
+  it('a cape over the Anchor Charm hides its clasp; over the Rope Collar it keeps it', () => {
+    const clasp = (item) => !!tieOf(buildCat('tabby', { ...BARE, body: 'cape', collar: item })).userData.tie.clasp;
+    expect(clasp('anchorcharm')).toBe(false);
+    expect(clasp('ropecollar')).toBe(true);
+  });
   it('Digit wears her own tag: her cape is pinned under it', () => {
     expect(tieOf(kitCat('digit', 'cape', false)).userData.tie.clasp).toBeNull();
   });

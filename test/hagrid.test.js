@@ -35,6 +35,8 @@ const DELTA = {
   heartglasses: 2,
   // lane N: the found neck pieces' ring, and what rides it or hangs in front
   daisychain: 2, gardenglovescarf: 3, shellnecklace: 2, neckerchief: 2, ticketgarland: 2,
+  // lane N, Task 6: the collars: ring + caps; ring + rope + knot; ring + anchor
+  bottletopcollar: 2, ropecollar: 3, anchorcharm: 2,
 };
 
 const hen = (acc = BARE) => {

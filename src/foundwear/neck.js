@@ -27,4 +27,8 @@ export const NECK_WEAR = Object.freeze([
   Object.freeze({ id: 'shellnecklace', slot: 'neck', find: 'seaside', emoji: '🐚', name: () => phrase('wear.shellnecklace.name') }),
   Object.freeze({ id: 'neckerchief', slot: 'neck', find: 'farm', emoji: '🧣', name: () => phrase('wear.neckerchief.name') }),
   Object.freeze({ id: 'ticketgarland', slot: 'neck', find: 'fair', emoji: '🎟️', name: () => phrase('wear.ticketgarland.name') }),
+  // the collars: ring-borne pieces and a charm, built in src/cat/foundneck.js (FOUND_COLLARS)
+  Object.freeze({ id: 'bottletopcollar', slot: 'collar', find: 'neighborhood', emoji: '🔘', name: () => phrase('wear.bottletopcollar.name') }),
+  Object.freeze({ id: 'ropecollar', slot: 'collar', find: 'docks', emoji: '🪢', name: () => phrase('wear.ropecollar.name') }),
+  Object.freeze({ id: 'anchorcharm', slot: 'collar', find: 'docks', emoji: '⚓', name: () => phrase('wear.anchorcharm.name') }),
 ]);
