@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // without a cat name, the host's line, and nothing at all outside the app.
 // Driven through createHomeBase over a no-DOM stand-in, with the real
 // game/nearby.js between a fake app bridge and a fake `rooms`.
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 const dressingMock = vi.hoisted(() => ({ opts: null, ui: { builder: null } }));
 vi.mock('../src/ui/dressingroomview.js', () => ({

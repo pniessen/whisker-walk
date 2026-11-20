@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // players this device met; a hidden visitor is not in the room list; a new cat
 // in the room is announced; and the name box says not to use a real name.
 // Same no-DOM stand-in as test/homebase.nearby.test.js.
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: {} }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 const dressingMock = vi.hoisted(() => ({ opts: null }));
 vi.mock('../src/ui/dressingroomview.js', () => ({

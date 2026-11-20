@@ -3,7 +3,7 @@ import { PAW } from '../src/ui/pawicon.js';
 
 // The home base's WebGL pieces can't run in node: stub the thumbnails, the hero
 // stage and the dressing-room controller so createHomeBase can be driven.
-vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: { partycrown: 'crown.png' } }) }));
+vi.mock('../src/thumbnails.js', () => ({ fillFoundThumbs: () => {}, menuThumbnails: () => ({ cats: {}, accessories: { partycrown: 'crown.png' } }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
 // The last dressing room made: its options (onChange, onOpenSheet) and its ui,
 // so a test can open the builder or a sheet the way the real controller does.
