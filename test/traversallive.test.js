@@ -872,4 +872,24 @@ describe('crossings that share an end', () => {
     w.run(20);
     expect(w.events.filter((e) => e.type === 'mount').map((e) => e.id)).toEqual(['A', 'B']);
   });
+  // A runs north to (0, 0); B leaves (-0.3, -0.05) 100 degrees round from A's way back, so a push 50 degrees
+  // off both qualifies for both ends; B's end lies behind her as she walks on, so A's end stays the nearer.
+  function bentRidges() {
+    const ground = createGround({ strips: [{ x0: 0, z0: 12, x1: 0, z1: -12, width: 14, y0: 3 }] });
+    const b = [Math.sin(Math.PI * 100 / 180), Math.cos(Math.PI * 100 / 180)];
+    const traversal = createTraversal({ crossings: [
+      { id: 'A', kind: 'ridge', points: [{ x: 0, z: 9, y: 3 }, { x: 0, z: 0, y: 3 }] },
+      { id: 'B', kind: 'ridge', points: [{ x: -0.3, z: -0.05, y: 3 }, { x: -0.3 + b[0] * 5, z: -0.05 + b[1] * 5, y: 3 }] },
+    ] }, ground);
+    return { name: 'bent-ridges', bounds: { minX: -20, maxX: 20, minZ: -20, maxZ: 20 }, colliders: [], waters: [], perches: [], ground, traversal };
+  }
+  it('stepping off A with the thumb swung round onto B, she walks on to B and does not stall at A\u2019s nearer end', () => {
+    const w = yardWalk({ area: bentRidges(), at: [0, 9.6], face: [0, -1] });
+    w.push(0, -1);
+    for (let i = 0; i < 1800 && !w.events.some((e) => e.type === 'cross'); i++) w.frame();
+    expect(w.events.map((e) => e.type)).toEqual(['mount', 'cross']);
+    w.push(Math.sin(Math.PI * 50 / 180), Math.cos(Math.PI * 50 / 180));
+    w.run(10);
+    expect(w.events.filter((e) => e.type === 'mount').map((e) => e.id)).toEqual(['A', 'B']);
+  });
 });

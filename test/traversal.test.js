@@ -372,10 +372,30 @@ describe('crossings that share an end', () => {
     expect(T.crossingToMount(t, 0, 0, 3, 0, -1, out, A, 0).crossing.id).toBe('B');
     expect(T.crossingToMount(t, 0, 0, 3, -1, 0, out, A, 0)).toBeNull();
   });
-  it('a nearer end still wins when the push is no better aligned than the bonus is worth', () => {
-    expect(T.MOUNT_ALIGN_BONUS).toBe(0.4);
-    // stood 0.45 m back along B's own line, pushing north: B (aligned, 0.45 m) beats A (not onto it at all)
-    expect(T.crossingToMount(t, 0, 0.45, 3, 0, -1, out).crossing.id).toBe('B');
+  it('the alignment bonus is 0.4 m', () => expect(T.MOUNT_ALIGN_BONUS).toBe(0.4));
+  it('when two ends both qualify the better-aligned wins, even if slightly farther', () => {
+    // P leaves (0, 0) east; Q leaves (0, -0.1) 50 degrees north of east. Pushing exactly along Q: P still passes
+    // MOUNT_DOT (cos 50 = 0.64) and is nearer (0 vs 0.1 m), but Q scores 0.1 - 0.4 = -0.30 against P's -0.26.
+    const q = [Math.cos(Math.PI * 50 / 180), -Math.sin(Math.PI * 50 / 180)];
+    const two = T.createTraversal({ crossings: [
+      { id: 'P', kind: 'ridge', points: [{ x: 0, z: 0, y: 3 }, { x: 5, z: 0, y: 3 }] },
+      { id: 'Q', kind: 'ridge', points: [{ x: 0, z: -0.1, y: 3 }, { x: 0 + q[0] * 5, z: -0.1 + q[1] * 5, y: 3 }] },
+    ] }, roof);
+    expect(T.crossingToMount(two, 0, 0, 3, q[0], q[1], out).crossing.id).toBe('Q');
+    // pushed along P, P is both nearer and better aligned
+    expect(T.crossingToMount(two, 0, 0, 3, 1, 0, out).crossing.id).toBe('P');
+  });
+  it('a skipped end that is strictly nearer is never chosen, and the farther end takes the push', () => {
+    // A ends at (0, 0) (inward: south); B leaves (0.3, -0.05) 100 degrees round from that, east. The bisector push
+    // (50 degrees from each) passes MOUNT_DOT for both, and A's end is the nearer one.
+    const b = [Math.sin(Math.PI * 100 / 180), Math.cos(Math.PI * 100 / 180)];
+    const bent = T.createTraversal({ crossings: [
+      { id: 'A', kind: 'ridge', points: [{ x: 0, z: 2.5, y: 3 }, { x: 0, z: 0, y: 3 }] },
+      { id: 'B', kind: 'ridge', points: [{ x: 0.3, z: -0.05, y: 3 }, { x: 0.3 + b[0] * 5, z: -0.05 + b[1] * 5, y: 3 }] },
+    ] }, roof);
+    const push = [Math.sin(Math.PI * 50 / 180), Math.cos(Math.PI * 50 / 180)];
+    expect(T.crossingToMount(bent, 0, 0, 3, push[0], push[1], out).crossing.id).toBe('A');
+    expect(T.crossingToMount(bent, 0, 0, 3, push[0], push[1], out, bent.crossings[0], 1).crossing.id).toBe('B');
   });
   it('two crossings may share an end', () => expect(T.validateTraversal(sharedSpec, { ground: roof, bounds: { minX: -10, maxX: 10, minZ: -10, maxZ: 10 } })).toEqual([]));
 });
