@@ -12,6 +12,7 @@ import { clanMomentDue } from './clanpicker.js';
 import { tamingProgress, denResidents, TAME_FEEDS } from '../colony.js';
 import { line } from '../tutorialwords.js';
 import { escapeHtml } from '../escapehtml.js';
+import { areaOffer } from '../areaoffer.js';
 
 // How close "nearly enough" is (rule 10), and how many visits a thing to wear
 // is pointed at before the line moves on (rule 8).
@@ -47,6 +48,8 @@ export function nextThing(state, { catalog = CATALOG, present = false, toldNow =
   const points = count(s.points);
   const say = (rule, id, pic, slots, action = null, extra = {}) => ({ rule, id, pic, text: line(id, slots), action, ...extra });
   const nameOf = (areaId) => inSentence(placeName(areaId, edition, catalog) || areaId);
+  // A place's gate and price, from areaOffer, which knows a kept offer.
+  const offer = (id) => areaOffer(s, catalog, id);
 
   // 1. A present is waiting to be opened.
   if (present) return say(1, 'home.present', '🎁', {}, 'present');
@@ -68,17 +71,17 @@ export function nextThing(state, { catalog = CATALOG, present = false, toldNow =
     const home = isClanId(s.clanPick?.mine) && own(areas, s.clanPick.mine) ? s.clanPick.mine : null;
     if (home) {
       const gate = (id) => {
-        const req = areas[id].requires;
+        const req = offer(id).requires;
         return !req || count(walks[req.area]) >= req.walks;
       };
-      const open = (id) => owned.includes(id) || (gate(id) && points >= count(areas[id].price));
+      const open = (id) => owned.includes(id) || (gate(id) && points >= count(offer(id).price));
       // 5. Her land is open and she has never walked there.
       if (open(home)) {
         if (count(walks[home]) === 0) return say(5, 'home.camp', '🏡', { place: nameOf(home) }, 'place', { place: home });
       } else {
         // 6. Her land is still locked: the nearest open land on the way.
-        let via = areas[home].requires?.area;
-        for (let i = 0; i < 8 && own(areas, via) && !open(via) && areas[via].requires; i++) via = areas[via].requires.area;
+        let via = offer(home).requires?.area;
+        for (let i = 0; i < 8 && own(areas, via) && !open(via) && offer(via).requires; i++) via = offer(via).requires.area;
         if (own(areas, via) && open(via)) return say(6, 'home.way', '🧭', { place: nameOf(via) }, 'place', { place: via });
       }
     }
@@ -87,19 +90,20 @@ export function nextThing(state, { catalog = CATALOG, present = false, toldNow =
   // 7. A new place opens after one more walk here. A free one first.
   const here = own(areas, s.area) ? effectiveArea({ area: s.area, edition }, catalog) : null;
   const soon = Object.keys(areas).filter((id) => {
-    const a = areas[id];
-    return !owned.includes(id) && areaInEdition(a, edition) && !!a.requires && a.requires.area === here
-      && count(walks[here]) === a.requires.walks - 1;
-  }).sort((a, b) => (count(areas[a].price) > 0) - (count(areas[b].price) > 0));
+    const req = offer(id).requires;
+    return !owned.includes(id) && areaInEdition(areas[id], edition) && !!req && req.area === here
+      && count(walks[here]) === req.walks - 1;
+  }).sort((a, b) => (count(offer(a).price) > 0) - (count(offer(b).price) > 0));
   // Two places that both cost coins are a choice, so the line names both
-  // (the Park opens the Farm and the Seaside). A free place opens by itself
-  // and is named alone, as it always was.
+  // (the Park opens the Farm and the Docks, once the Fairground is hers). A
+  // free place opens by itself and is named alone, as it always was.
   // Three that all cost coins are named all three (the Park opens the Farm,
-  // the Fairground and the Seaside), in the catalog's order.
-  if (soon.length >= 3 && soon.slice(0, 3).every((id) => count(areas[id].price) > 0)) {
+  // the Fairground and the Docks), in the catalog's order. The Docks then
+  // open the Seaside alone.
+  if (soon.length >= 3 && soon.slice(0, 3).every((id) => count(offer(id).price) > 0)) {
     return say(7, 'home.opens-three', '🗺️', { place: nameOf(soon[0]), place2: nameOf(soon[1]), place3: nameOf(soon[2]) });
   }
-  if (soon.length >= 2 && count(areas[soon[0]].price) > 0 && count(areas[soon[1]].price) > 0) {
+  if (soon.length >= 2 && count(offer(soon[0]).price) > 0 && count(offer(soon[1]).price) > 0) {
     return say(7, 'home.opens-two', '🗺️', { place: nameOf(soon[0]), place2: nameOf(soon[1]) });
   }
   if (soon.length) return say(7, 'home.opens', '🗺️', { place: nameOf(soon[0]) });

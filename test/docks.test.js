@@ -343,27 +343,27 @@ describe('The Old Docks — golden mice', () => {
 });
 
 describe('The Old Docks — catalog, unlock gating and walk counting', () => {
-  it('is priced at 200 and gated behind 2 seaside walks', () => {
+  it('is priced at 100 and gated behind 2 Park explores', () => {
     expect(CATALOG.areas.docks).toEqual({
-      name: 'The Old Docks', price: 200, requires: { area: 'seaside', walks: 2 },
+      name: 'The Old Docks', price: 100, requires: { area: 'park', walks: 2 },
     });
   });
 
-  it('cannot be bought with the points alone — the seaside walks are required', () => {
+  it('cannot be bought with the points alone — the Park walks are required', () => {
     const p = createProgression(fakeStorage());
     p.addPoints(9999);
     expect(p.canBuy('areas', 'docks')).toBe(false);
-    p.completeWalk('seaside');
+    p.completeWalk('park');
     expect(p.canBuy('areas', 'docks')).toBe(false); // one walk is not two
-    p.completeWalk('seaside');
+    p.completeWalk('park');
     expect(p.canBuy('areas', 'docks')).toBe(true);
   });
 
   it('cannot be bought without the points either', () => {
     const p = createProgression(fakeStorage());
-    p.completeWalk('seaside');
-    p.completeWalk('seaside');
-    p.addPoints(199);
+    p.completeWalk('park');
+    p.completeWalk('park');
+    p.addPoints(99);
     expect(p.canBuy('areas', 'docks')).toBe(false);
     p.addPoints(1);
     expect(p.canBuy('areas', 'docks')).toBe(true);
@@ -375,9 +375,9 @@ describe('The Old Docks — catalog, unlock gating and walk counting', () => {
   it('can then be equipped as the walk area and persists', () => {
     const storage = fakeStorage();
     const p = createProgression(storage);
-    p.addPoints(200);
-    p.completeWalk('seaside');
-    p.completeWalk('seaside');
+    p.addPoints(100);
+    p.completeWalk('park');
+    p.completeWalk('park');
     p.buy('areas', 'docks');
     p.setArea('docks');
     expect(p.state.area).toBe('docks');

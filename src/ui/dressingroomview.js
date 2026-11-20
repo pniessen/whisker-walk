@@ -8,6 +8,7 @@
 import { CATALOG } from '../progression.js';
 import { areaInEdition, accessoryName, placeName } from '../edition.js';
 import { spendAsk } from './confirmcard.js';
+import { areaOffer } from '../areaoffer.js';
 import { menuThumbnails, customThumbnails, accessoryFraming } from '../thumbnails.js';
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { CUSTOM_MAX, lookKey } from '../customcats.js';
@@ -477,7 +478,8 @@ export function createDressingRoom({
     // Legacy hides Clan-only places; a stray click on one buys and sets nothing.
     if (!areaInEdition(catalog.areas[id], progression.state?.edition)) return;
     // A place that costs paws is bought only through the card's Yes, whatever was tapped.
-    const price = Number(catalog.areas[id].price) || 0;
+    // Its price asks areaOffer, which knows a kept offer, as canBuy and buy do.
+    const price = areaOffer(progression.state, catalog, id).price;
     if (price > 0 && progression.canBuy('areas', id)) {
       const name = placeName(id, progression.state?.edition, catalog) || catalog.areas[id].name;
       askSpend('place', name, price, sel('data-dr-place-buy', id), null, () => pick(id));

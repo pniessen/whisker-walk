@@ -889,9 +889,9 @@ describe('Appletree Farm: catalog, unlocking and old saves', () => {
     expect(areaInEdition(CATALOG.areas.farm, 'legacy')).toBe(true);
   });
 
-  it('leaves the Seaside opening after the Park, beside it', () => {
-    expect(CATALOG.areas.seaside).toEqual({ name: 'Seaside', price: 100, requires: { area: 'park', walks: 2 } });
-    expect(CATALOG.areas.docks.requires).toEqual({ area: 'seaside', walks: 2 });
+  it('the Docks open beside it after the Park, and the Seaside after the Docks', () => {
+    expect(CATALOG.areas.docks).toEqual({ name: 'The Old Docks', price: 100, requires: { area: 'park', walks: 2 } });
+    expect(CATALOG.areas.seaside).toEqual({ name: 'Seaside', price: 200, requires: { area: 'docks', walks: 2 } });
   });
 
   it('cannot be bought on coins alone, or on walks alone', () => {

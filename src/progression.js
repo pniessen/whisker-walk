@@ -42,6 +42,9 @@ import { FOUND_CATALOG } from './foundwear/index.js';
 import { emptyMarks, sanitizeMarks, addMark as addMarkTo, contestMark as contestMarkIn, MARK_AREAS } from './marks.js';
 
 import { HINT_IDS, HINT_COUNT_MAX } from './hints.js';
+// World map step 1: the offer a place makes this save (a pure leaf; the
+// catalog is passed in, so the edge is cycle-free).
+import { areaOffer, keptOffersOnLoad } from './areaoffer.js';
 const SAVE_KEY = 'whisker-walk-save';
 // v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
 // are ADDITIVE fields sanitized independently with a default, exactly like
@@ -324,24 +327,32 @@ export const CATALOG = {
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },
     // Appletree Farm (docs/superpowers/specs/2026-11-18-farm-design.md): the
     // third street area (owner, 2026-11-18: Neighborhood, Park, Farm). It opens
-    // BESIDE the Seaside after two Park walks, so no existing save finds a gate
-    // closed. No `edition`: it is in both editions. The place cards follow this
-    // list's order, and the home line for the Park names both places a Park
-    // walk opens (nextthing.js, rule 7).
+    // after two Park walks, beside the Fairground and the Docks (the world map,
+    // docs/superpowers/specs/2026-11-19-world-map-design.md). No `edition`: it
+    // is in both editions. The place cards follow this list's order, and the
+    // home line for the Park names the places a Park walk opens (nextthing.js,
+    // rule 7).
     farm: { name: 'Appletree Farm', price: 75, requires: { area: 'park', walks: 2 } },
     // The Fairground (docs/superpowers/specs/2026-11-18-fairground-design.md):
-    // the fourth street area, after the Farm and before the Seaside. It opens
-    // with them after two Park walks, at the Farm's price, in both editions
-    // (no `edition`). The Park's home line names all three (nextthing.js, rule 7).
+    // the fourth street area, after the Farm in this list. It opens with the
+    // Farm and the Docks after two Park walks, at the Farm's price, in both
+    // editions (no `edition`). The Park's home line names all three
+    // (nextthing.js, rule 7).
     fair: { name: 'The Fairground', price: 75, requires: { area: 'park', walks: 2 } },
-    seaside: { name: 'Seaside', price: 100, requires: { area: 'park', walks: 2 } },
+    // The world map (docs/superpowers/specs/2026-11-19-world-map-design.md,
+    // decision 5): the Seaside follows the Docks on the map, so it opens after
+    // two Docks walks. It keeps its place in this list (the place cards'
+    // order); only its gate and price moved.
+    seaside: { name: 'Seaside', price: 200, requires: { area: 'docks', walks: 2 } },
     // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
     // area has to be registered for the home-base picker: homebase.js renders
     // a card per CATALOG.areas entry, canBuy reads price + requires, and
     // setArea equips it. The matching state.walks key is what makes the
-    // "2 walks in Seaside" gate (and this area's own walk count) work —
-    // see defaultState below, where forgetting it is a permanent NaN.
-    docks: { name: 'The Old Docks', price: 200, requires: { area: 'seaside', walks: 2 } },
+    // "2 walks in the Docks" gate the Seaside reads (and this area's own walk
+    // count) work — see defaultState below, where forgetting it is a
+    // permanent NaN. On the world map the Docks follow the Park, so they open
+    // after two Park walks, beside the Farm and the Fairground.
+    docks: { name: 'The Old Docks', price: 100, requires: { area: 'park', walks: 2 } },
     woods: { name: 'The Woods', price: 0, requires: { area: 'neighborhood', walks: 2 }, edition: 'canon' },
     river: { name: 'The River and Marshes', price: 0, requires: { area: 'woods', walks: 2 }, edition: 'canon' },
     moor: { name: 'The Moor', price: 0, requires: { area: 'woods', walks: 2 }, edition: 'canon' },
@@ -613,6 +624,10 @@ function defaultState() {
     // partner's player id so a new partner resets it. Additive, so
     // SAVE_VERSION stays 4: an older save starts with no pick.
     clanPick: { mine: null, partner: null, partnerId: null },
+    // Old offers this save keeps (src/areaoffer.js KEPT_OFFERS): a save whose
+    // Seaside was open-to-buy before the world map keeps it after the Park,
+    // for 100. A new save keeps none. Additive, so SAVE_VERSION stays 4.
+    keptOffers: [],
     // The guided first walk and the hints (design: .claude/plans/
     // guided-first-walk-design.md, section 8). Additive, so SAVE_VERSION stays
     // 4: a save without the field is read by sanitizeTutorial below.
@@ -1115,6 +1130,7 @@ function sanitizeState(parsed) {
     mapMode: parsed.mapMode === 'turn' ? 'turn' : 'north',
     edition: sanitizeEdition(parsed.edition),
     clanPick,
+    keptOffers: keptOffersOnLoad(parsed.keptOffers, { walks, owned: unlockedAreas }),
     tutorial: sanitizeTutorial(parsed.tutorial, {
       walked: Object.values(walks).some((n) => n > 0),
       earned: asFiniteNonNeg(parsed.lifetimePoints, 0) > 0 || asFiniteNonNeg(parsed.points, 0) > 0,
@@ -1441,16 +1457,21 @@ export function createProgression(storage) {
     },
     canBuy(kind, id) {
       const item = CATALOG[kind][id];
-      if (!item || item.prize || api.isUnlocked(kind, id) || state.points < item.price) return false;
-      if (item.requires && state.walks[item.requires.area] < item.requires.walks) return false;
+      if (!item || item.prize || api.isUnlocked(kind, id)) return false;
+      // A place asks areaOffer, which knows a kept offer; cats and wear their catalog entry.
+      const offer = kind === 'areas' ? areaOffer(state, CATALOG, id) : item;
+      if (!offer || state.points < offer.price) return false;
+      if (offer.requires && state.walks[offer.requires.area] < offer.requires.walks) return false;
       // Legacy hides a Clan-only place; the hidden card is not the only guard.
       if (kind === 'areas' && !areaInEdition(item, state.edition)) return false;
       return true;
     },
     buy(kind, id) {
       if (!api.canBuy(kind, id)) return false;
-      state.points -= CATALOG[kind][id].price;
+      state.points -= kind === 'areas' ? areaOffer(state, CATALOG, id).price : CATALOG[kind][id].price;
       state.unlocked[kind].push(id);
+      // A bought place needs no kept offer: drop its mark so none goes stale.
+      if (kind === 'areas') state.keptOffers = state.keptOffers.filter((k) => k !== id);
       save();
       return true;
     },

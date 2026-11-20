@@ -162,19 +162,19 @@ describe('nextThing: the order', () => {
 });
 
 describe('nextThing: Legacy Edition never shows rules 4 to 6', () => {
-  it('7. places that all cost coins are all named: the Park opens the Farm, the Fairground and the Seaside', () => {
+  it('7. places that all cost coins are all named: the Park opens the Farm, the Fairground and the Docks', () => {
     for (const edition of ['canon', 'legacy']) {
       const s = save({ edition, walks: { neighborhood: 3, woods: 1, park: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'park'] }, area: 'park', clanPick: { mine: 'woods' } });
-      expect(nextThing(s), edition).toMatchObject({ rule: 7, id: 'home.opens-three', text: 'Explore here again to open Appletree Farm, the Fairground and Seaside!', action: null });
+      expect(nextThing(s), edition).toMatchObject({ rule: 7, id: 'home.opens-three', text: 'Explore here again to open Appletree Farm, the Fairground and the Old Docks!', action: null });
       // with the Farm hers already, the other two, in the two-place words
       const hasFarm = save({ edition, walks: { neighborhood: 3, woods: 1, park: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'park', 'farm'] }, area: 'park', clanPick: { mine: 'woods' } });
-      expect(nextThing(hasFarm), edition).toMatchObject({ rule: 7, id: 'home.opens-two', text: 'Explore here again to open the Fairground and Seaside!' });
-      // with the Fairground hers already, the Farm and the Seaside as before
+      expect(nextThing(hasFarm), edition).toMatchObject({ rule: 7, id: 'home.opens-two', text: 'Explore here again to open the Fairground and the Old Docks!' });
+      // with the Fairground hers already, the Farm and the Docks
       const hasFair = save({ edition, walks: { neighborhood: 3, woods: 1, park: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'park', 'fair'] }, area: 'park', clanPick: { mine: 'woods' } });
-      expect(nextThing(hasFair), edition).toMatchObject({ rule: 7, id: 'home.opens-two', text: 'Explore here again to open Appletree Farm and Seaside!' });
-      // with both hers, the Seaside alone, in the old words
+      expect(nextThing(hasFair), edition).toMatchObject({ rule: 7, id: 'home.opens-two', text: 'Explore here again to open Appletree Farm and the Old Docks!' });
+      // with both hers, the Docks alone, in the one-place words
       const hasBoth = save({ edition, walks: { neighborhood: 3, woods: 1, park: 1 }, unlocked: { accessories: allWear, areas: ['neighborhood', 'woods', 'park', 'farm', 'fair'] }, area: 'park', clanPick: { mine: 'woods' } });
-      expect(nextThing(hasBoth), edition).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again and Seaside opens!' });
+      expect(nextThing(hasBoth), edition).toMatchObject({ rule: 7, id: 'home.opens', text: 'Explore here again and the Old Docks opens!' });
     }
   });
 
