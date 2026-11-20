@@ -1,5 +1,6 @@
 import { DEFAULT_ZOOM_STEP, MAX_ZOOM_STEP } from './camzoom.js';
 import { note } from './diagnostics.js';
+import { isPlainObject } from './plainobject.js';
 
 const KEY = 'whisker-walk-settings';
 
@@ -42,9 +43,6 @@ function zoomStep(v, fallback) {
   return Number.isInteger(v) && v >= 0 && v <= MAX_ZOOM_STEP ? v : fallback;
 }
 
-function isPlainObject(v) {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
 
 function clampVolume(v, fallback) {
   return typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback;

@@ -1,11 +1,9 @@
 import { note } from './diagnostics.js';
+import { isPlainObject } from './plainobject.js';
 
 const KEY = 'whisker-walk-album';
 const ALBUM_VERSION = 1;
 
-function isPlainObject(v) {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
 
 // Matches progression.js's YMD_PATTERN — a plain YYYY-MM-DD calendar-date
 // string, the exact shape main.js's snapPhoto stamps onto every new photo

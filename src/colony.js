@@ -24,6 +24,7 @@
 // with the server's snapshot, trades and the cosmetic rewards. progression.js
 // is still the only thing that writes the save; it calls these.
 import { isStrayName, isKittypetName } from './straynames.js';
+import { isPlainObject } from './plainobject.js';
 import { friendRungs } from './skills.js';
 import { seedFromCode } from './rng.js';
 import { words } from './wordset.js';
@@ -351,7 +352,6 @@ export const COLONY_REWARDS = [
 ];
 const REWARD_IDS = new Set(COLONY_REWARDS.map((r) => r.id));
 
-const isPlainObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const asArray = (v) => (Array.isArray(v) ? v : []);
 const isTradeId = (v) => Number.isSafeInteger(v) && v > 0;
 const isFeedKey = (v) => {
