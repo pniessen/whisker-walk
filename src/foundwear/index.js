@@ -21,7 +21,18 @@
 //      (that is FOUND_WEAR's order: head, face, neck, body, feet);
 //   4. for a head, face, neck or collar one, Hagrid the hen's version
 //      (src/cat/model.js) and its count in test/hagrid.test.js DELTA. He wears
-//      no body, back or feet item.
+//      no body, back or feet item;
+//   5. its look on the ground where it is found: a builder for its slot in
+//      DISPLAY_BY_SLOT (src/foundwear/display.js), (id) -> a fresh mesh or
+//      group, as the cat wears it (simple: the find is small and far). The
+//      first record of a new slot adds the slot's builder there; later ones
+//      need only that their slot's builder knows their id. seatDisplay sets
+//      it on the ground whatever it returns: one mesh has its geometry moved;
+//      a group, or anything built off its own origin (a collar round the neck,
+//      a cape on the back), is moved inside a holder group, so it rests on the
+//      spot and turns about its own middle. test/foundlive.test.js builds every
+//      record's ground look and fails if one shows as the pouch or passes 600
+//      triangles.
 // test/foundwear.test.js runs validateFoundWear over all of it.
 import { HEAD_WEAR } from './head.js';
 import { FACE_WEAR } from './face.js';
@@ -84,6 +95,7 @@ export function validateFoundWear(groups, { areaIds = [], takenIds = [] } = {}) 
       const at = `${group}[${i}]`;
       if (!r || typeof r !== 'object') { problems.push(`${at}: not a record`); return; }
       const label = `${at} ${JSON.stringify(r.id)}`;
+      if (!Object.isFrozen(r)) problems.push(`${label}: the record is not frozen (Object.freeze it)`);
       if (typeof r.id !== 'string' || !WEAR_ID.test(r.id)) problems.push(`${label}: the id is not 3 to 20 lowercase letters`);
       else if (seen.has(r.id)) problems.push(`${label}: the id is used twice`);
       else if (taken.has(r.id)) problems.push(`${label}: the id is already another accessory's`);

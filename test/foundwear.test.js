@@ -27,7 +27,7 @@ describe('found outfits: the records', () => {
       { areaIds: Object.keys(CATALOG.areas), takenIds: BASE_ACCESSORY_IDS })).toEqual([]);
   });
   it('a found record may not take a shop or prize id, and never replaces one', () => {
-    const heart = { id: 'heart', slot: 'collar', find: 'park', emoji: '💖', name: () => 'Heart' };
+    const heart = Object.freeze({ id: 'heart', slot: 'collar', find: 'park', emoji: '💖', name: () => 'Heart' });
     const problems = validateFoundWear({ head: [], face: [], neck: [heart], body: [], feet: [] },
       { areaIds: Object.keys(CATALOG.areas), takenIds: BASE_ACCESSORY_IDS });
     expect(problems).toHaveLength(1);
@@ -43,12 +43,13 @@ describe('found outfits: the records', () => {
     expect(Object.keys(CATALOG.accessories).slice(0, BASE_ACCESSORY_IDS.length)).toEqual([...BASE_ACCESSORY_IDS]);
   });
   it('a name that throws is reported, not a crash', () => {
-    const bad = { id: 'mosscap', slot: 'head', find: 'woods', emoji: '🌿', name: () => { throw new Error('no'); } };
+    const bad = Object.freeze({ id: 'mosscap', slot: 'head', find: 'woods', emoji: '🌿', name: () => { throw new Error('no'); } });
     expect(validateFoundWear({ head: [bad], face: [], neck: [], body: [], feet: [] }, { areaIds: ['woods'], takenIds: [] })).toHaveLength(1);
   });
   it('the checks catch each kind of mistake', () => {
     const ok = { id: 'mosscap', slot: 'head', find: 'woods', emoji: '🌿', name: () => 'Moss Cap' };
-    const run = (head) => validateFoundWear({ head, face: [], neck: [], body: [], feet: [] }, { areaIds: ['park', 'woods'], takenIds: ['bell'] });
+    // each record frozen, as the files make them (the frozen rule has its own test)
+    const run = (head) => validateFoundWear({ head: head.map((r) => Object.freeze({ ...r })), face: [], neck: [], body: [], feet: [] }, { areaIds: ['park', 'woods'], takenIds: ['bell'] });
     expect(run([ok])).toEqual([]);
     expect(run([{ ...ok, id: 'Bad-Id' }])).toHaveLength(1);
     expect(run([ok, ok])).toHaveLength(1);                           // duplicate
@@ -58,6 +59,16 @@ describe('found outfits: the records', () => {
     expect(run([{ ...ok, emoji: '' }])).toHaveLength(1);
     expect(run([{ ...ok, name: () => '' }])).toHaveLength(1);
     expect(run(['a', 'b', 'c', 'd', 'e'].map((c) => ({ ...ok, id: `moss${c}aa` })))).toHaveLength(1); // five in the Woods
+  });
+  it('a record must be frozen, as every record file says', () => {
+    const ok = { id: 'mosscap', slot: 'head', find: 'woods', emoji: '🌿', name: () => 'Moss Cap' };
+    const run = (head) => validateFoundWear({ head, face: [], neck: [], body: [], feet: [] }, { areaIds: ['woods'], takenIds: [] });
+    expect(run([Object.freeze({ ...ok })])).toEqual([]);
+    const problems = run([{ ...ok }]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatch(/frozen/);
+    // the shipped records are frozen
+    for (const r of [...HEAD_WEAR, ...FACE_WEAR, ...NECK_WEAR, ...BODY_WEAR, ...FEET_WEAR]) expect(Object.isFrozen(r), r.id).toBe(true);
   });
   it('the Acorn Cap is a find-only prize from the Park', () => {
     const a = CATALOG.accessories.acorncap;

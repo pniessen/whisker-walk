@@ -252,7 +252,7 @@
     find.update(0, PEAK_T, { x: camera.position.x, z: camera.position.z, pawsY: -99, camera, remotes: null, busy: true });
     showGl(); render();
     return out(`${areaId} ${s.id} (${s.look}, y ${s.y}) at ${dist} m · ${item.kind === 'pouch' ? 'pouch' : item.id}`
-      + ` · twinkle ${find.group.children[1].visible ? 'on' : 'off'}${reducedMotion ? ' (reduced motion: steady)' : ''}`
+      + ` · twinkle ${find.group.getObjectByName('find:twinkle').visible ? 'on' : 'off'}${reducedMotion ? ' (reduced motion: steady)' : ''}`
       + (blocked ? ` · ${blocked} thing(s) in the line` : ''));
   }
   // The find next to the yarn ball and a treasure orb, on open lawn.

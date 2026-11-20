@@ -1,13 +1,13 @@
 // Found outfits: how a find looks where it lies (src/foundwear/live.js puts
 // it there). The outfit itself, tipped by its spot's `look`, or the coin
 // pouch when everything in the place is already hers; and over it a small
-// pale-gold twinkle, the only part that glows.
+// warm-gold twinkle, the only bright part.
 //
 // It must never read as anything else lying about the walk. The found yarn
 // ball (toy.js) is matte cornflower blue and never glows; the treasures
 // (walk.js) are glowing pink spheres; a golden mouse is a gold mouse. A find
 // is a small brown or tan thing with no glow of its own, under an upright
-// four-point star in additive pale gold, which none of those has.
+// four-point star in flat warm gold, which none of those has.
 //
 // Every mesh here casts no shadow (a tiny thing on the ground gains nothing
 // from one, and it would cost a draw). Nothing is random or reads the clock.
@@ -29,9 +29,11 @@ export const LOOK_POSE = Object.freeze({
   perch: Object.freeze({ tilt: 0.1, lift: 0 }),
 });
 
-// The builder for each slot's outfits on the ground: (id) -> THREE.Object3D,
-// or null for an id it does not know. Step 2 adds the other slots; until a
-// slot has one, its finds show as the pouch.
+// The builder for each slot's outfits on the ground: (id) -> THREE.Object3D
+// (one mesh or a group of them, built where the cat wears it), or null for an
+// id it does not know. Step 2 adds the other slots (index.js, ADDING ONE,
+// step 5); until a slot has one, its finds show as the pouch, and
+// test/foundlive.test.js fails for any record whose slot has none.
 export const DISPLAY_BY_SLOT = Object.freeze({
   head: (id) => buildHat(id, { simple: true }),
 });
@@ -41,26 +43,50 @@ function noShadow(obj) {
   return obj;
 }
 
-// An outfit is built where the cat wears it: a hat round the head's centre,
-// its rim some centimetres above its origin. On the ground its lowest point
-// goes to its origin, so it rests on the spot and tips about its rim. The
-// geometry is this find's own (the builders make a fresh one each call).
-function seat(obj) {
-  if (!obj.isMesh) return obj;
-  obj.geometry.computeBoundingBox();
-  obj.geometry.translate(0, -obj.geometry.boundingBox.min.y, 0);
-  obj.geometry.computeBoundingBox();
-  return obj;
+// seatDisplay(obj) -> obj on the ground. An outfit is built where the cat
+// wears it: a hat round the head's centre, a collar round the neck, a cape on
+// the back, often well off its own origin. On the ground the middle of its
+// footprint goes over its origin and its lowest point to it, so it rests on
+// the spot and tips and turns (live.js sets rotation.z and .y) about its own
+// middle, never swinging round some far-off point.
+//   * one mesh at its own origin, unturned and unscaled: its geometry (this
+//     find's own: the builders make a fresh one each call) is moved, and the
+//     mesh itself is returned;
+//   * anything else (a group, a mesh with children, a mesh placed, turned or
+//     scaled where the cat wears it): it is moved inside a new holder group
+//     named as it is, and the holder is returned, so the turn and tilt go on
+//     the holder and its own placing stays inside.
+const atOrigin = (o) => o.position.lengthSq() === 0 && o.rotation.x === 0 && o.rotation.y === 0 && o.rotation.z === 0
+  && o.scale.x === 1 && o.scale.y === 1 && o.scale.z === 1;
+export function seatDisplay(obj) {
+  const box = new THREE.Box3();
+  if (obj.isMesh && obj.children.length === 0 && atOrigin(obj)) {
+    obj.geometry.computeBoundingBox();
+    box.copy(obj.geometry.boundingBox);
+    obj.geometry.translate(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2);
+    obj.geometry.computeBoundingBox();
+    return obj;
+  }
+  obj.updateMatrixWorld(true);
+  box.setFromObject(obj);
+  if (box.isEmpty()) return obj;
+  obj.position.x -= (box.min.x + box.max.x) / 2;
+  obj.position.y -= box.min.y;
+  obj.position.z -= (box.min.z + box.max.z) / 2;
+  const holder = new THREE.Group();
+  holder.name = obj.name;
+  holder.add(obj);
+  return holder;
 }
 
-// buildFindDisplay(item) -> the outfit's own mesh for a wear item whose slot
-// has a builder, its lowest point at its origin; the pouch otherwise (the
-// pouch itself, an unknown id, a slot with no builder yet).
+// buildFindDisplay(item) -> the outfit's own look for a wear item whose slot
+// has a builder, seated (seatDisplay); the pouch otherwise (the pouch itself,
+// an unknown id, a slot with no builder yet).
 export function buildFindDisplay(item) {
   const rec = item?.kind === 'wear' ? foundRecord(item.id) : null;
   const make = rec && Object.hasOwn(DISPLAY_BY_SLOT, rec.slot) ? DISPLAY_BY_SLOT[rec.slot] : null;
   const obj = make ? make(rec.id) : null;
-  return noShadow(obj ? seat(obj) : buildPouch());
+  return noShadow(obj ? seatDisplay(obj) : buildPouch());
 }
 
 const POUCH_CLOTH = 0xc9a46a, POUCH_TIE = 0x8a5a2b, POUCH_COIN = 0xf2c14e;
@@ -102,10 +128,17 @@ export function buildPouch() {
 // The twinkle's star: long points TWINKLE_R out, the waist TWINKLE_WAIST.
 const TWINKLE_R = 0.16, TWINKLE_WAIST = 0.04;
 
+// The twinkle's colour: a warm gold, deeper than the old pale one so it
+// stands out against a bright sky or sunlit grass (additive pale gold all but
+// vanished there).
+export const TWINKLE_GOLD = 0xffb53d;
+
 // buildTwinkle() -> a flat four-point star in the z = 0 plane, facing +z
-// (live.js turns it to the camera), 8 triangles round its centre. Additive
-// pale gold that writes no depth, so it adds light and never cuts a hole in
-// what is behind it.
+// (live.js turns it to the camera), 8 triangles round its centre. Ordinary
+// (normal) blending in warm gold, so it shows on a light sky as well as a dark
+// wood. It writes no depth, so it never cuts a hole in what is behind it, but
+// it is depth-tested: a wall or a trunk in front still hides it (it is a
+// glint in the world, not a marker drawn over everything).
 export function buildTwinkle() {
   const pos = [0, 0, 0];
   for (let k = 0; k < 8; k++) {
@@ -119,7 +152,7 @@ export function buildTwinkle() {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setIndex(index);
   const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-    color: 0xfff2a0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    color: TWINKLE_GOLD, transparent: true, depthWrite: false, depthTest: true, blending: THREE.NormalBlending,
   }));
   mesh.name = 'find:twinkle';
   mesh.castShadow = false;

@@ -1,5 +1,6 @@
 // Found outfits: the walk's one find, out on the ground. The outfit (or the
-// coin pouch) at its spot, a twinkle seen from about 20 m, a soft chime when
+// coin pouch) at its spot, a warm-gold twinkle a metre above it seen from
+// about 20 m (it keeps its size on the screen out there), a soft chime when
 // she comes within about 6 m, and the pick-up at the golden mouse's distance
 // (rules.js). "No marker on the map, no arrow, no prompt": nothing here
 // touches the minimap, the HUD or the prompt; the caller plays the chime from
@@ -18,10 +19,19 @@ import { AUTO_SNIFF_STILL_S, AUTO_SNIFF_EVERY_S } from '../game/autosniff.js';
 import { LOOK_POSE, buildFindDisplay, buildTwinkle } from './display.js';
 import { TWINKLE_RANGE, NOSE_RANGE, catReaches, partnerReaches, createChime } from './rules.js';
 
-// The twinkle hangs this far above the find.
-const TWINKLE_LIFT = 0.3;
-// Under reduced motion the twinkle holds still at these.
-const STEADY_SCALE = 0.8, STEADY_OPACITY = 0.7;
+// The twinkle hangs this far above the find: clear of the Park's bushes, whose
+// finds sit low in their branches, so a leaf never hides it.
+export const TWINKLE_LIFT = 1.0;
+// Out to this many metres from the camera the twinkle is its built size (32 cm
+// point to point); further off it grows with the distance, so it stays the
+// same size on the screen and still reads as a glint at 20 m (decision 7,
+// "twinkles from about 20 m"). It never shrinks below its built size.
+export const TWINKLE_FULL_AT = 12.5;
+// Its pulse: the size between these times the floor above, the opacity between
+// these. Under reduced motion it holds still at the floor, at STEADY_OPACITY.
+export const TWINKLE_PULSE = Object.freeze({ min: 0.85, max: 1.0 });
+export const TWINKLE_OPACITY = Object.freeze({ min: 0.6, max: 0.95 });
+const STEADY_OPACITY = 0.85;
 // The Twitchy Nose trail runs this far toward the find, as the collectibles'.
 const NOSE_TRAIL_M = 6;
 
@@ -63,6 +73,8 @@ export function createFind(scene, { plan, item, ground = FLAT_GROUND, reducedMot
   twinkle.visible = false;
   group.add(twinkle);
   const glow = twinkle.material;
+  // The twinkle's world height (the group is never moved after this).
+  const twinkleY = group.position.y + TWINKLE_LIFT;
   scene.add(group);
 
   const chime = createChime();
@@ -80,14 +92,24 @@ export function createFind(scene, { plan, item, ground = FLAT_GROUND, reducedMot
     const dist = Math.hypot(frame.x - spot.x, frame.z - spot.z);
     if (dist < TWINKLE_RANGE) {
       twinkle.visible = true;
-      if (frame.camera) twinkle.quaternion.copy(frame.camera.quaternion);
+      // Its size floor from the camera's distance, in scalars (no vector made).
+      let floor = 1;
+      const cam = frame.camera;
+      if (cam) {
+        twinkle.quaternion.copy(cam.quaternion);
+        const cp = cam.position;
+        if (cp) {
+          const camDist = Math.hypot(cp.x - spot.x, cp.y - twinkleY, cp.z - spot.z);
+          floor = Math.max(1, camDist / TWINKLE_FULL_AT);
+        }
+      }
       if (reducedMotion) {
-        twinkle.scale.setScalar(STEADY_SCALE);
+        twinkle.scale.setScalar(floor);
         glow.opacity = STEADY_OPACITY;
       } else {
         const s = 0.5 + 0.5 * Math.sin(3.1 * t);
-        twinkle.scale.setScalar(0.6 + 0.4 * s);
-        glow.opacity = 0.4 + 0.5 * s;
+        twinkle.scale.setScalar(floor * (TWINKLE_PULSE.min + (TWINKLE_PULSE.max - TWINKLE_PULSE.min) * s));
+        glow.opacity = TWINKLE_OPACITY.min + (TWINKLE_OPACITY.max - TWINKLE_OPACITY.min) * s;
       }
     } else {
       twinkle.visible = false;
@@ -140,9 +162,12 @@ export function fixedWobble() {
 // (game/autosniff.js), toward the find, at most once every
 // AUTO_SNIFF_EVERY_S, never on the frame a treasure was sniffed, and not
 // while the cat is busy. Run it after tickAutoSniff, which advances
-// session.walkTime. The cheap gates come first and hasSkill last. Only a
-// frame that lays a trail allocates (its options and wobble; the trail's own
-// prints are new meshes in any case).
+// session.walkTime. The cheap gates come first and hasSkill last. hasSkill
+// builds lists, so a check it fails counts as a try (findNoseAt is set): it
+// is asked again only AUTO_SNIFF_EVERY_S later, never every frame, and a cat
+// who learns the skill mid-walk gets her trail within that. Only a frame that
+// asks hasSkill or lays a trail allocates (its options and wobble; the
+// trail's own prints are new meshes in any case).
 export function tickFindNose(session, dt, state) {
   const find = session.find;
   if (!find || find.taken || !find.spot) return false;
@@ -155,7 +180,10 @@ export function tickFindNose(session, dt, state) {
     || session.chasing || session.freezeTime > 0) return false;
   const pos = session.cat?.position;
   if (!pos || Math.hypot(pos.x - find.spot.x, pos.z - find.spot.z) >= NOSE_RANGE) return false;
-  if (!hasSkill(state, 'twitchy-nose')) return false;
+  if (!hasSkill(state, 'twitchy-nose')) {
+    session.findNoseAt = now;
+    return false;
+  }
   session.scent.trailTo(pos, find.spot, { maxDist: NOSE_TRAIL_M, rand: fixedWobble() });
   session.sniffTime = 1; // the nose goes down (avatar.js plays the pose)
   session.findNoseAt = now;

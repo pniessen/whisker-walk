@@ -4,8 +4,9 @@
 // trail. "No marker on the map, no arrow, no prompt."
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { LOOK_POSE, DISPLAY_BY_SLOT, buildFindDisplay, buildPouch, buildTwinkle } from '../src/foundwear/display.js';
-import { NO_FIND, createFind, fixedWobble, tickFindNose } from '../src/foundwear/live.js';
+import { LOOK_POSE, DISPLAY_BY_SLOT, TWINKLE_GOLD, buildFindDisplay, buildPouch, buildTwinkle, seatDisplay } from '../src/foundwear/display.js';
+import { NO_FIND, TWINKLE_LIFT, TWINKLE_FULL_AT, TWINKLE_PULSE, TWINKLE_OPACITY, createFind, fixedWobble, tickFindNose } from '../src/foundwear/live.js';
+import { FOUND_WEAR } from '../src/foundwear/index.js';
 import { AUTO_SNIFF_STILL_S, AUTO_SNIFF_EVERY_S } from '../src/game/autosniff.js';
 import { seedFromCode } from '../src/rng.js';
 
@@ -14,6 +15,7 @@ const remote = (x, z) => ({ playerId: 'sib', petName: 'Robin', toPos: new THREE.
 const plan = { areaId: 'park', spot: { id: 'fw-park-1', x: 10, z: 0, y: 0, look: 'grass' }, roll: 0 };
 const planAt = (spot) => ({ areaId: 'park', spot: { id: 'fw-park-1', x: 10, z: 0, y: 0, look: 'grass', ...spot }, roll: 0 });
 const tris = (mesh) => (mesh.geometry.index ? mesh.geometry.index.count : mesh.geometry.attributes.position.count) / 3;
+const trisIn = (obj) => { let n = 0; obj.traverse((o) => { if (o.isMesh) n += tris(o); }); return n; };
 const twinkleOf = (f) => f.group.getObjectByName('find:twinkle');
 const frameAt = (x, z = 0, extra = {}) => ({ x, z, pawsY: 0, camera, remotes: [], busy: false, ...extra });
 
@@ -23,8 +25,58 @@ describe('found outfits: how a find sits (display.js)', () => {
       post: { tilt: 0, lift: 0 }, branch: { tilt: 0.45, lift: 0 }, grass: { tilt: 0.3, lift: -0.02 },
       water: { tilt: 0.15, lift: 0 }, perch: { tilt: 0.1, lift: 0 },
     });
-    expect(Object.keys(DISPLAY_BY_SLOT)).toEqual(['head']);
     expect(DISPLAY_BY_SLOT.head('acorncap').name).toBe('hat:acorncap');
+  });
+  // The seam step 2 comes through (index.js, ADDING ONE, step 5): every
+  // record shows as itself on the ground, never as the pouch, and small.
+  it.each(FOUND_WEAR.map((r) => [r.id, r.slot]))('%s (%s) has its own ground look: not the pouch, under 600 triangles, seated', (id) => {
+    const d = buildFindDisplay({ kind: 'wear', id });
+    expect(d.name).not.toBe('find:pouch');
+    expect(trisIn(d)).toBeGreaterThan(0);
+    expect(trisIn(d)).toBeLessThan(600);
+    d.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(d);
+    expect(box.min.y).toBeCloseTo(0, 6);
+    expect((box.min.x + box.max.x) / 2).toBeCloseTo(0, 6);
+    expect((box.min.z + box.max.z) / 2).toBeCloseTo(0, 6);
+  });
+  it('seatDisplay: a group built off its origin rests on the spot and turns about its own middle', () => {
+    // a stand-in for a step-2 builder: a collar-like group 0.3 m forward and 0.25 m up
+    const g = new THREE.Group();
+    g.name = 'collar:test';
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.02, 4, 8), new THREE.MeshBasicMaterial());
+    ring.position.set(0.05, 0.25, -0.3);
+    g.add(ring);
+    const held = seatDisplay(g);
+    expect(held).not.toBe(g);
+    expect(held.isGroup).toBe(true);
+    expect(held.name).toBe('collar:test');
+    expect(held.children).toEqual([g]);
+    const at = () => { held.updateMatrixWorld(true); return new THREE.Box3().setFromObject(held); };
+    let box = at();
+    expect(box.min.y).toBeCloseTo(0, 6);
+    expect((box.min.x + box.max.x) / 2).toBeCloseTo(0, 6);
+    expect((box.min.z + box.max.z) / 2).toBeCloseTo(0, 6);
+    // turned as live.js turns it, it stays over the spot
+    held.rotation.y = 1.3;
+    box = at();
+    expect(Math.hypot((box.min.x + box.max.x) / 2, (box.min.z + box.max.z) / 2)).toBeLessThan(0.02);
+    // and one mesh off its origin is moved in its geometry, the mesh returned
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1).translate(0.2, 0.4, -0.1), new THREE.MeshBasicMaterial());
+    expect(seatDisplay(m)).toBe(m);
+    m.geometry.computeBoundingBox();
+    expect(m.geometry.boundingBox.min.toArray().map((v) => +v.toFixed(6))).toEqual([-0.05, 0, -0.05]);
+    // a mesh placed where the cat wears it (its own position) goes in a holder
+    const placed = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshBasicMaterial());
+    placed.name = 'hat:placed';
+    placed.position.set(0, 0.4, -0.3);
+    const ph = seatDisplay(placed);
+    expect(ph).not.toBe(placed);
+    expect(ph.name).toBe('hat:placed');
+    ph.updateMatrixWorld(true);
+    const pb = new THREE.Box3().setFromObject(ph);
+    expect(pb.min.y).toBeCloseTo(0, 6);
+    expect((pb.min.z + pb.max.z) / 2).toBeCloseTo(0, 6);
   });
   it('the pouch: one vertex-coloured mesh, small, in its three colours', () => {
     const p = buildPouch();
@@ -40,15 +92,17 @@ describe('found outfits: how a find sits (display.js)', () => {
     for (let i = 0; i < col.count; i++) seen.add(c.fromBufferAttribute(col, i).getHex());
     for (const hex of [0xc9a46a, 0x8a5a2b, 0xf2c14e]) expect(seen.has(new THREE.Color(hex).getHex())).toBe(true);
   });
-  it('the twinkle: a flat four-point star, additive, pale gold', () => {
+  it('the twinkle: a flat four-point star in warm gold, normal blending, hidden by a wall', () => {
     const t = buildTwinkle();
     expect(t.name).toBe('find:twinkle');
     expect(tris(t)).toBeLessThanOrEqual(16);
     expect(t.material).toBeInstanceOf(THREE.MeshBasicMaterial);
-    expect(t.material.color.getHex()).toBe(0xfff2a0);
+    expect(TWINKLE_GOLD).toBe(0xffb53d);
+    expect(t.material.color.getHex()).toBe(0xffb53d);
     expect(t.material.transparent).toBe(true);
     expect(t.material.depthWrite).toBe(false);
-    expect(t.material.blending).toBe(THREE.AdditiveBlending);
+    expect(t.material.depthTest).toBe(true); // a wall still hides it: it is not a marker
+    expect(t.material.blending).toBe(THREE.NormalBlending);
     expect(t.castShadow).toBe(false);
     // flat: every point in the z = 0 plane
     const pos = t.geometry.attributes.position;
@@ -92,7 +146,8 @@ describe('found outfits: the find on the ground (live.js)', () => {
     const d = f.group.getObjectByName('hat:acorncap');
     expect(d.rotation.z).toBe(LOOK_POSE.grass.tilt);
     expect(d.rotation.y).toBeCloseTo((seedFromCode('fw-park-1') / 2 ** 32) * 2 * Math.PI, 12);
-    expect(twinkleOf(f).position.y).toBeCloseTo(0.3, 12);
+    expect(TWINKLE_LIFT).toBe(1.0);
+    expect(twinkleOf(f).position.y).toBeCloseTo(1.0, 12);
     // two meshes at most: the outfit and its twinkle
     let meshes = 0;
     f.group.traverse((o) => { if (o.isMesh) meshes++; });
@@ -122,11 +177,18 @@ describe('found outfits: the find on the ground (live.js)', () => {
     f.update(0.016, 0.1, frameAt(25));
     expect(tw.visible).toBe(true);
     const a = tw.scale.x;
+    expect([TWINKLE_PULSE.min, TWINKLE_PULSE.max]).toEqual([0.85, 1.0]);
     const s = 0.5 + 0.5 * Math.sin(3.1 * 0.1);
-    expect(a).toBeCloseTo(0.6 + 0.4 * s, 12);
-    expect(tw.material.opacity).toBeCloseTo(0.4 + 0.5 * s, 12);
+    // no camera position here: the floor is 1, its built size
+    expect(a).toBeCloseTo(0.85 + 0.15 * s, 12);
+    expect(tw.material.opacity).toBeCloseTo(TWINKLE_OPACITY.min + (TWINKLE_OPACITY.max - TWINKLE_OPACITY.min) * s, 12);
     f.update(0.016, 0.6, frameAt(25));
     expect(tw.scale.x).not.toBeCloseTo(a, 3);
+    for (let t = 0; t < 3; t += 0.05) {
+      f.update(0.016, t, frameAt(15));
+      expect(tw.scale.x).toBeGreaterThanOrEqual(0.85 - 1e-12);
+      expect(tw.scale.x).toBeLessThanOrEqual(1 + 1e-12);
+    }
 
     const r = createFind(new THREE.Scene(), { plan, item: { kind: 'pouch' }, reducedMotion: true });
     const rt = twinkleOf(r);
@@ -134,12 +196,35 @@ describe('found outfits: the find on the ground (live.js)', () => {
     for (const t of [0.1, 0.6]) {
       r.update(0.016, t, frameAt(25));
       expect(rt.visible).toBe(true);
-      expect(rt.material.opacity).toBe(0.7);
+      expect(rt.material.opacity).toBe(0.85);
       scales.add(rt.scale.x);
     }
-    expect([...scales]).toEqual([0.8]);
+    expect([...scales]).toEqual([1]);
     r.update(0.016, 1, frameAt(35));
     expect(rt.visible).toBe(false); // the same range
+  });
+
+  it('the twinkle keeps its size on the screen past 12.5 m: the floor grows with the camera distance', () => {
+    expect(TWINKLE_FULL_AT).toBe(12.5);
+    const at = (reducedMotion, camDist, t = 0.1) => {
+      const f = createFind(new THREE.Scene(), { plan, item: { kind: 'pouch' }, reducedMotion });
+      // the camera straight out along +x from the twinkle, at its height
+      const cam = { quaternion: new THREE.Quaternion(), position: new THREE.Vector3(10 + camDist, TWINKLE_LIFT + LOOK_POSE.grass.lift, 0) };
+      f.update(0.016, t, frameAt(10 + Math.min(camDist, 19), 0, { camera: cam }));
+      return twinkleOf(f).scale.x;
+    };
+    // reduced motion: exactly the floor, steady
+    expect(at(true, 3)).toBe(1);
+    expect(at(true, 12.5)).toBeCloseTo(1, 12);
+    expect(at(true, 20)).toBeCloseTo(20 / 12.5, 12);
+    expect(at(true, 25)).toBeCloseTo(25 / 12.5, 12);
+    expect(at(true, 25, 0.1)).toBe(at(true, 25, 0.9));
+    // in motion: the floor times the pulse
+    const s = 0.5 + 0.5 * Math.sin(3.1 * 0.1);
+    expect(at(false, 20)).toBeCloseTo((20 / 12.5) * (0.85 + 0.15 * s), 12);
+    expect(at(false, 5)).toBeCloseTo(0.85 + 0.15 * s, 12);
+    // so its size over the distance (what the screen shows) holds steady out there
+    expect(at(true, 25) / 25).toBeCloseTo(at(true, 15) / 15, 12);
   });
 
   it('the twinkle faces the camera', () => {
@@ -219,17 +304,25 @@ describe('found outfits: the find on the ground (live.js)', () => {
   it('allocates nothing over 60 s of updates', () => {
     const scene = new THREE.Scene();
     const f = createFind(scene, { plan, item: { kind: 'wear', id: 'acorncap' } });
-    const frame = { x: 30, z: 0, pawsY: 0, camera, remotes: [remote(40, 0)], busy: false };
+    // a camera with a position, so the screen-size floor runs every frame
+    const cam = { quaternion: new THREE.Quaternion(), position: new THREE.Vector3(40, 2, 3) };
+    const frame = { x: 30, z: 0, pawsY: 0, camera: cam, remotes: [remote(40, 0)], busy: false };
+    const tw = twinkleOf(f);
+    const scaleRef = tw.scale, quatRef = tw.quaternion, posRef = cam.position;
     const n = scene.children.length;
     const kids = f.group.children.slice();
     const mats = kids.map((k) => k.material);
     let first = null;
     for (let i = 0; i < 3600; i++) {
       frame.x = 30 - i * 0.0055;
+      cam.position.x = frame.x + 8;
       const a = f.update(1 / 60, i / 60, frame);
       if (a) { first ??= a; expect(a).toBe(first); }
     }
     expect(first).not.toBe(null);
+    expect(tw.scale).toBe(scaleRef);
+    expect(tw.quaternion).toBe(quatRef);
+    expect(cam.position).toBe(posRef);
     expect(scene.children.length).toBe(n);
     expect(f.group.children).toEqual(kids);
     expect(f.group.children.map((k) => k.material)).toEqual(mats);
@@ -317,5 +410,27 @@ describe('found outfits: the nose (Twitchy Nose)', () => {
     expect(tickFindNose(sessionNear(NO_FIND), 0.016, nose)).toBe(false);
     expect(tickFindNose(sessionNear(null), 0.016, nose)).toBe(false);
     expect(tickFindNose(sessionNear(find(), { scent: null }), 0.016, nose)).toBe(false);
+  });
+
+  it('without the skill it asks hasSkill once and then waits 20 s, not every frame; a skill learned mid-walk works then', () => {
+    // Count every read of the state: hasSkill reads it (and builds lists), the cheap gates never do.
+    let reads = 0;
+    const skills = [];
+    const state = new Proxy({ skills }, { get: (o, k) => { reads += 1; return o[k]; } });
+    const s = sessionNear(find());
+    expect(tickFindNose(s, 0.016, state)).toBe(false);
+    expect(reads).toBeGreaterThan(0);
+    expect(s.findNoseAt).toBe(30);
+    reads = 0;
+    for (let i = 1; i < 600; i++) { // ten seconds of frames
+      s.walkTime = 30 + i / 60;
+      expect(tickFindNose(s, 1 / 60, state)).toBe(false);
+    }
+    expect(reads).toBe(0);
+    expect(s.scent.trailTo).not.toHaveBeenCalled();
+    skills.push('twitchy-nose');
+    s.walkTime = 50;
+    expect(tickFindNose(s, 1 / 60, state)).toBe(true);
+    expect(s.scent.trailTo).toHaveBeenCalledTimes(1);
   });
 });
