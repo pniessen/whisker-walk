@@ -99,13 +99,10 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
   function upsert(rawProfile, now = defaultNow()) {
     const profile = sanitizeProfile(rawProfile);
     const existing = remotes.get(profile.playerId);
-    if (existing) {
-      if (profileUnchanged(existing, profile)) return existing;
-      // a new look (a find put on mid-walk) or a rejoin with a different pet:
-      // drop the stale mesh and rebuild. `existing` is kept to start the new
-      // cat where the old one stood (below).
-      remove(profile.playerId);
-    }
+    if (existing && profileUnchanged(existing, profile)) return existing;
+    // a new look (a find put on mid-walk) or a rejoin with a different pet:
+    // the stale mesh is dropped (below, once the new one is built) and the cat
+    // rebuilt. `existing` is kept to start the new cat where the old one stood.
 
     // Fight moves and scars (R7): her scars ride accessories.scars, repaired
     // here; a changed scars key rebuilds through profileUnchanged above.
@@ -143,6 +140,14 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
     // its water state (still placed, so it never slides in from the origin).
     // Its lean is made again from its first frame on raised ground.
     if (existing) {
+      // Every sprite the walk hung on the old cat that is not its own name tag
+      // (a chat bubble, chatbubble.js) moves to the new one before the old is
+      // dropped, as cat/redress.js keeps them on her own cat: a line she had
+      // just said stays over her head for the rest of its time.
+      for (const child of [...existing.group.children]) {
+        if (child.isSprite && child !== existing.tag) group.add(child); // add() takes it off the old group
+      }
+      remove(profile.playerId);
       group.position.copy(existing.group.position);
       group.rotation.y = existing.group.rotation.y;
       entry.fromPos.copy(existing.fromPos);

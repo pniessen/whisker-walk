@@ -497,6 +497,40 @@ describe('a co-walker rebuilt for a new look stays where it stood', () => {
     expect(next.group.position.x).toBeGreaterThan(snap.pos[0]);
   });
 
+  it('her chat bubble moves to the new cat and lives out its time there; the old name tag does not', async () => {
+    const { createChatBubbles, LIFETIME_MS } = await import('../src/chatbubble.js');
+    const scene = new THREE.Scene();
+    const rc = createRemoteCats(scene);
+    rc.upsert(PROFILE, 0);
+    const old = rc.list[0];
+    // a stand-in name tag on the old cat (headless makeNameTag gives none)
+    const oldTag = new THREE.Sprite(new THREE.SpriteMaterial());
+    old.group.add(oldTag);
+    old.tag = oldTag;
+    const bubbles = createChatBubbles(scene, { makeSprite: () => new THREE.Sprite(new THREE.SpriteMaterial()) });
+    bubbles.show(old.group, 'hi!', 0);
+    const bubble = old.group.children.find((c) => c.isSprite && c !== oldTag);
+    expect(bubble).toBeTruthy();
+    const next = rc.upsert({ ...PROFILE, accessories: { head: 'acorncap' } }, 0.1);
+    expect(bubble.parent).toBe(next.group);
+    expect(next.group.children.filter((c) => c === oldTag)).toHaveLength(0);
+    expect(bubble.material.opacity).toBe(1);
+    // it fades and is taken off the new cat when its time is up
+    bubbles.update(LIFETIME_MS + 1);
+    expect(bubble.parent).toBe(null);
+    expect(bubbles.activeCount).toBe(0);
+    // a new line on the new cat replaces a carried-over one: one bubble at a time
+    rc.upsert(PROFILE, 0.2);
+    bubbles.show(rc.list[0].group, 'one', 0);
+    const carried = rc.list[0].group.children.find((c) => c.isSprite);
+    const third = rc.upsert({ ...PROFILE, accessories: { head: 'acorncap' } }, 0.3);
+    expect(carried.parent).toBe(third.group);
+    bubbles.show(third.group, 'two', 10);
+    expect(carried.parent).toBe(null);
+    expect(third.group.children.filter((c) => c.isSprite)).toHaveLength(1);
+    expect(bubbles.activeCount).toBe(1);
+  });
+
   it('a co-walker rebuilt before its first state still waits to be placed', () => {
     const rc = createRemoteCats(fakeScene());
     rc.upsert(PROFILE, 0);

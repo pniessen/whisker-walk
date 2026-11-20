@@ -35,8 +35,13 @@ const groundY = (s, x, z) => (s.ground ?? FLAT_GROUND).y(x, z);
 // with the same player, pet name and breed, and changed accessories: a find
 // put on mid-walk) is not a leaving: what the old cat held is handed to the
 // new one first. A rejoin with a different pet (a new name or breed) still is.
+// The same rebuild re-points every clan cat walking beside the old cat (her
+// patrol escort, clancats.js buddy.target) to the new one, so the escort
+// carries on beside her instead of letting go because its target left the
+// scene. `getClanCats` -> the walk's clan cats ({ list }), read at the
+// rebuild (they may be made after this is called); null or omitted: none.
 // Call once per walk, right after both exist.
-export function takeHeldItemsWithRemotes(remotes, items, localCat) {
+export function takeHeldItemsWithRemotes(remotes, items, localCat, { getClanCats = () => null } = {}) {
   function release() {
     let live = null;
     for (const it of items.list) {
@@ -55,6 +60,15 @@ export function takeHeldItemsWithRemotes(remotes, items, localCat) {
   // her mouth and is never taken as gone.
   function handOver(oldGroup, newGroup) {
     for (const it of items.list) if (it.holder === oldGroup) items.hold(it.id, newGroup);
+    const clan = getClanCats();
+    const list = Array.isArray(clan?.list) ? clan.list : [];
+    for (const c of list) {
+      const b = c?.buddy;
+      if (b && b.target === oldGroup) {
+        b.target = newGroup;
+        b.attached = !!newGroup.parent;
+      }
+    }
   }
   for (const name of ['upsert', 'remove', 'update']) {
     const inner = remotes[name];

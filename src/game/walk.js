@@ -1325,7 +1325,8 @@ export function createWalkLifecycle({
     // Task 8 — in a co-walk, a remote cat that leaves or goes quiet takes what
     // she was holding with her (netevents.js). Harmless solo: no remote ever
     // holds anything there.
-    takeHeldItemsWithRemotes(remotes, carry.items, cat);
+    // Found outfits: a partner rebuilt for a new look keeps her clan escort.
+    takeHeldItemsWithRemotes(remotes, carry.items, cat, { getClanCats: () => clanCats });
     // v21 3b Task 10 — the cups, pots and books a perched cat can knock off a
     // ledge. A knocked one stays down for the rest of this walk and nothing is
     // saved. Created after mergeStaticProps, so nothing here is merged; the
