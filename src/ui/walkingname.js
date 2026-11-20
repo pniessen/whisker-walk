@@ -14,6 +14,7 @@
 
 import { activeCat, FALLBACK_NAME } from '../customcats.js';
 import { validPetName, goodNewPetName } from '../net.js';
+import { phrase } from '../clanphrases.js';
 
 export const WALKING_NAME = 'Your friend name';
 export const WALKING_NAME_HELP = 'Friends see this name when you play together.';
@@ -26,7 +27,7 @@ export const WALKING_NAME_RULE = 'A friend name is 2–16 letters, spaces, or hy
 // touch: a touch screen says "tap Save", a desktop "click Save".
 export function walkingNameIntro(why, { touch = false } = {}) {
   const save = touch ? 'tap Save' : 'click Save';
-  if (why === 'colony') return `You need a friend name before you can share your colony. Type one here and ${save}:`;
+  if (why === 'colony') return phrase('mycats.nameIntro', save); // the word table's: the everyday words say "your cats"
   if (why) return `You need a friend name before you can play together. Type one here and ${save}:`;
   return 'First, pick your friend name:';
 }

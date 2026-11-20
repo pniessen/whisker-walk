@@ -239,7 +239,7 @@ describe('plain words on My cats (everyday set)', () => {
   it('says the new words', () => {
     withOffWords(() => {
       expect(sheetText(saves['no colony cats'])).toContain('No cats here yet — touch noses with a stray, then feed it 🐟');
-      expect(sheetText(saves.offline)).toContain("Can't reach your cats' list right now — your cats are safe on this device");
+      expect(sheetText(saves.offline)).toContain("Can't reach the internet right now — your cats are safe on this device");
       expect(sheetText(saves['not set up'])).toContain("Sharing your cats isn't switched on yet");
       expect(sheetText(saves['needs a friend name'])).toContain('To share your cats, you need a friend name first.');
       expect(sheetText(saves['someone wants to share'])).toContain('Mia wants to share your cats. Is that them?');

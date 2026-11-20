@@ -4,6 +4,7 @@ import { offeredWalkingName, walkingNameIntro, WALKING_NAME, WALKING_NAME_HELP, 
 import { FALLBACK_NAME } from '../src/customcats.js';
 import { buildDressingModel } from '../src/ui/dressingroom.js';
 import { CATALOG, createProgression } from '../src/progression.js';
+import { withOffWords } from './helpers/offwords.js';
 
 const mine = (name) => ({ id: 'mine1', name, personality: 'keenNose', look: {} });
 const walking = (name, petName = null) => ({ petName, customCats: [mine(name)], equipped: { cat: 'tabby', custom: 'mine1' } });
@@ -43,6 +44,15 @@ describe('the words', () => {
     expect(walkingNameIntro(false)).toBe('First, pick your friend name:');
     expect(walkingNameIntro('walk')).toBe('You need a friend name before you can play together. Type one here and click Save:');
     expect(walkingNameIntro('colony')).toBe('You need a friend name before you can share your colony. Type one here and click Save:');
+  });
+  it('from My cats, the everyday words say share your cats; the Clan Edition keeps its colony line', () => {
+    expect(walkingNameIntro('colony', { touch: true })).toBe('You need a friend name before you can share your colony. Type one here and tap Save:');
+    withOffWords(() => {
+      expect(walkingNameIntro('colony')).toBe('You need a friend name before you can share your cats. Type one here and click Save:');
+      expect(walkingNameIntro('colony', { touch: true })).toBe('You need a friend name before you can share your cats. Type one here and tap Save:');
+      for (const t of [true, false]) expect(walkingNameIntro('colony', { touch: t })).not.toMatch(/colony/);
+      expect(walkingNameIntro('walk')).toBe('You need a friend name before you can play together. Type one here and click Save:');
+    });
   });
   it('no screen still asks her to "give your cat a name" for the online one', () => {
     const files = [];

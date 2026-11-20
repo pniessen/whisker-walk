@@ -432,6 +432,9 @@ const LATER = Object.freeze({
   'mycats.fullRoom': (max) => ` Share it with your brother or sister to make room for ${max}.`,
   // the change card's ask on a desktop; a touch screen keeps 'pick.changeAsk'
   'pick.changeAskClick': () => `Click a ${groupWord()} to join it.`,
+  // above the friend-name box when My cats sent her there; save is
+  // "tap Save" or "click Save" (walkingname.js picks it by the touch flag)
+  'mycats.nameIntro': (save) => `You need a friend name before you can share your colony. Type one here and ${save}:`,
 });
 
 // Every id of the first table, in table order.

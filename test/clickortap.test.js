@@ -144,5 +144,10 @@ describe('the friend-name box (Play together)', () => {
     expect(walkingNameIntro('colony', { touch: true })).toBe('You need a friend name before you can share your colony. Type one here and tap Save:');
     expect(walkingNameIntro('colony')).toBe('You need a friend name before you can share your colony. Type one here and click Save:');
     expect(walkingNameIntro(false, { touch: true })).toBe('First, pick your friend name:');
+    withOffWords(() => {
+      expect(walkingNameIntro('colony', { touch: true })).toBe('You need a friend name before you can share your cats. Type one here and tap Save:');
+      expect(walkingNameIntro('colony')).toBe('You need a friend name before you can share your cats. Type one here and click Save:');
+      expect(walkingNameIntro('walk', { touch: true })).toBe('You need a friend name before you can play together. Type one here and tap Save:');
+    });
   });
 });

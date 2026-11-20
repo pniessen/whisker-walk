@@ -170,9 +170,10 @@ export const PHRASES = Object.freeze({
   // the My cats sheet: "cats", never a word for the group
   'mycats.empty': 'No cats here yet — touch noses with a stray, then feed it 🐟',
   'mycats.notSetUp': "Sharing your cats isn't switched on yet",
-  'mycats.offline': "Can't reach your cats' list right now — your cats are safe on this device",
+  'mycats.offline': "Can't reach the internet right now — your cats are safe on this device",
   'mycats.alreadyPaired': 'This player is already sharing their cats.',
   'mycats.needsName': 'To share your cats, you need a friend name first.',
+  'mycats.nameIntro': (save) => `You need a friend name before you can share your cats. Type one here and ${save}:`,
   'mycats.wantsToShare': 'wants to share your cats. Is that them?',
   'mycats.offer': '🐈 Share your cats with your brother or sister',
   'mycats.nowSharing': (name) => `You're sharing your cats with ${name}! 🐾`,
