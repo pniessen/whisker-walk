@@ -20,8 +20,9 @@ describe('Things to wear in the Journal', () => {
     expect(html).not.toMatch(/\d+\s*(of|\/)\s*\d+/);
   });
   it('found, it shows its name', () => {
-    // every outfit hidden in the Park is found, so no card there stays a silhouette
-    const html = renderThingsToWearHtml({ unlocked: { accessories: foundWearIn('park').map((r) => r.id) } }, CATALOG);
+    // every outfit hidden in the Park and the Neighborhood is found, so no card in either stays a silhouette
+    const found = [...foundWearIn('park'), ...foundWearIn('neighborhood')].map((r) => r.id);
+    const html = renderThingsToWearHtml({ unlocked: { accessories: found } }, CATALOG);
     expect(html).toContain('journal-card spotted'); expect(html).toContain('Acorn Cap'); expect(html).toContain('🌰');
     expect(html).not.toContain('journal-card unspotted');
     expect(html).not.toContain('silhouette');
@@ -29,7 +30,8 @@ describe('Things to wear in the Journal', () => {
   it('each area its own group, in CATALOG.areas order', () => {
     const html = renderThingsToWearHtml({ unlocked: { accessories: [] } }, withMoss);
     const heads = [...html.matchAll(/<h4>([^<]*)<\/h4>/g)].map((m) => m[1]);
-    expect(heads).toEqual(['City Park', 'The Woods']);
+    // the street areas have their groups too as their spots land; the Park comes before the Woods
+    expect(heads.filter((h) => h === 'City Park' || h === 'The Woods')).toEqual(['City Park', 'The Woods']);
     expect(html).toContain('Found in the Woods');
   });
   it('Legacy leaves out a Clan-only place unless she found something there', () => {
