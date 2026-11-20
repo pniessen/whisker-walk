@@ -48,8 +48,14 @@ export const FOUND_FEET = Object.freeze({
       const paw = plainPaw(leg);
       paw.material = mat(0xf5c842);
       paw.scale.set(1.15, 1.5, 1.15);
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.012, 8), red);
-      band.position.set(0, PAW_Y - 0.03, 0);
+      // The band is sized from the paw's own box: the ellipse the scaled paw
+      // makes at the band's top edge, 2 mm out, so the red shows all round it.
+      paw.geometry.computeBoundingBox();
+      const hb = paw.geometry.boundingBox.max, sc = paw.scale, drop = 0.03 - 0.006;
+      const level = Math.sqrt(Math.max(0, 1 - (drop / sc.y / hb.y) ** 2));
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.012, 8), red);
+      band.scale.set(hb.x * sc.x * level + 0.002, 1, hb.z * sc.z * level + 0.002);
+      band.position.set(paw.position.x, PAW_Y - 0.03, paw.position.z);
       leg.add(band);
     }
   },

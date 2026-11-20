@@ -102,3 +102,29 @@ describe('found outfits: the seam (wearkind.js, display.js)', () => {
     expect(wornPieces('nosuchthing')).toBe(null);
   });
 });
+
+describe('found outfits: the Puddle Wellies show red', () => {
+  // Each red band is sized from the paw's own box, so it stands out of the
+  // yellow paw (in the paw's own frame) instead of lying buried in it.
+  it.each(['tabby', 'mainecoon', 'digit', 'siamese', 'persian'])('%s: most of each band lies outside its paw', (breed) => {
+    const cat = buildCat(breed, { ...BARE, feet: 'puddlewellies' });
+    cat.updateMatrixWorld(true);
+    const bands = [];
+    cat.traverse((o) => { if (o.isMesh && o.material.color && o.material.color.getHex() === 0xd8403a && o.userData.foundWear === 'puddlewellies') bands.push(o); });
+    expect(bands).toHaveLength(4);
+    for (const band of bands) {
+      const paw = band.parent.userData.paw;
+      paw.geometry.computeBoundingBox();
+      const h = paw.geometry.boundingBox.max, inv = paw.matrix.clone().invert().multiply(band.matrix);
+      const p = band.geometry.attributes.position, v = new THREE.Vector3();
+      let out = 0, rim = 0;
+      for (let i = 0; i < p.count; i++) {
+        if (p.getX(i) === 0 && p.getZ(i) === 0) continue; // a cap's centre points
+        rim++;
+        v.fromBufferAttribute(p, i).applyMatrix4(inv);
+        if ((v.x / h.x) ** 2 + (v.y / h.y) ** 2 + (v.z / h.z) ** 2 > 1) out++;
+      }
+      expect(out / rim, breed).toBeGreaterThan(0.9);
+    }
+  });
+});
