@@ -37,6 +37,7 @@ export const DOCKS_SPOTS = Object.freeze([
   { id: 'fw-docks-13', x: 21.5, z: 24, y: 0, look: 'post' },
   // behind the container pair at (-15.6, 30) and (-12.4, 30), up the north alley
   { id: 'fw-docks-14', x: -14, z: 32.2, y: 0, look: 'post' },
-  // on the first crate step at (16.2, 9.2), at the foot of the warehouse chain
-  { id: 'fw-docks-15', x: 16.2, z: 9.2, y: 1.15, look: 'perch' },
+  // on the crate step at (-19.6, -16.6), the foot of the crane chain (its top is bare;
+  // the warehouse chain's first step at (16.2, 9.2) has the second crate sitting on it)
+  { id: 'fw-docks-15', x: -19.6, z: -16.6, y: 1.3, look: 'perch' },
 ].map((s) => Object.freeze(s)));
