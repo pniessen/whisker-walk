@@ -870,7 +870,6 @@ describe('crossings that share an end', () => {
     const w = yardWalk({ area: twoRidges(), at: [0, 9.6], face: [0, -1] });
     w.push(0, -1);
     w.run(20);
-    console.log(JSON.stringify(w.events), w.cat.position.z);
     expect(w.events.filter((e) => e.type === 'mount').map((e) => e.id)).toEqual(['A', 'B']);
   });
 });
