@@ -35,4 +35,22 @@
 // record's in src/foundwear/, and never changes once shipped. An unknown id,
 // or anything that is not a string, adds nothing.
 
-export const FOUND_FEET = Object.freeze({});
+import * as THREE from 'three';
+
+// The Puddle Wellies (the Park's): tall yellow paws, taller than the Rain
+// Boots (1.5 against 1.4), each with a red band at the sole. The plain paw
+// replaces the toed foot, so the paw adds no mesh: the four bands are the
+// outfit's four meshes.
+export const FOUND_FEET = Object.freeze({
+  puddlewellies(legs, { plainPaw, mat, PAW_Y }) {
+    const red = mat(0xd8403a);
+    for (const leg of legs) {
+      const paw = plainPaw(leg);
+      paw.material = mat(0xf5c842);
+      paw.scale.set(1.15, 1.5, 1.15);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.012, 8), red);
+      band.position.set(0, PAW_Y - 0.03, 0);
+      leg.add(band);
+    }
+  },
+});

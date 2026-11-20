@@ -41,6 +41,8 @@ const DELTA = {
   doormatcape: 0, beachtowelcape: 0, fishermansjumper: 0,
   // lane B, Task 8: the bale pack and the two floats (Hagrid wears no back item)
   kitetailribbon: 0, haybalepack: 0, candyflosspuff: 0,
+  // lane P: the wellies (Hagrid wears no feet item)
+  puddlewellies: 0,
 };
 
 const hen = (acc = BARE) => {

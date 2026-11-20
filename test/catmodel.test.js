@@ -25,7 +25,7 @@ import { WHISKERS } from '../src/cat/face.js';
 
 const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
 const ALL = [...BREEDS, 'hagrid'];
-const FEET = ['booties', 'sneakers', 'rainboots', 'socks'];
+const FEET = ['booties', 'sneakers', 'rainboots', 'socks', 'puddlewellies'];
 const STATES = ['follow', 'nap', 'stretch', 'groom', 'requestPet', 'perch', 'sniff', 'stalk', 'pounce', 'scared', 'cross', 'land'];
 
 // The published shape of the cat rig: buildCat's radius and the scale it puts
@@ -497,7 +497,7 @@ describe('cat model: the Version 2 proportions', () => {
   });
   // R2 binds dressed cats too: no point of a cat more than 1 cm below y = 0, in every pose.
   it.each(['tabby', 'digit', 'mainecoon'])('%s: every feet item stays on the ground in every pose', (breed) => {
-    for (const feet of ['booties', 'goldbooties', 'sneakers', 'rainboots', 'socks']) {
+    for (const feet of ['booties', 'goldbooties', 'sneakers', 'rainboots', 'socks', 'puddlewellies']) {
       for (const state of STATES) {
         const cat = buildCat(breed, { feet }); animateCat(cat, state, 1.3, 0, false);
         cat.updateMatrixWorld(true);
