@@ -451,6 +451,7 @@ function init() {
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
     progression, getCloud, getPsecret, colonySync, onlineAllowed: togetherAllowed,
+    getIsTouch: () => isTouch,
     getSession: () => session,
     startWalk: (opts) => startWalk(opts),
     toast: cloudToast,
@@ -1007,7 +1008,7 @@ function init() {
       session = null;
     }
     try { player.disable(); } catch { /* the notice matters more */ }
-    overlay.innerHTML = stuckNoticeHtml(kind);
+    overlay.innerHTML = stuckNoticeHtml(kind, { touch: isTouch });
     overlay.classList.remove('hidden');
     perfHud.showDiagnostics();
   }

@@ -146,7 +146,9 @@ function markersKey(markers) {
   return s;
 }
 
-export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle } = {}) {
+// getIsTouch: the walk's touch flag, read each time the label is set (a
+// touch screen's label says Tap, a desktop's Click).
+export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle, getIsTouch = () => false } = {}) {
   // The layer is fixed for the map's life: whether it has islands, once.
   const hasIslands = !!layer?.water?.some((w) => w.islands?.length);
   // Markers slid out from under the badge this paint (a few, reused).
@@ -159,9 +161,10 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
   // only, with no focus or key to press, so announcing a button would promise
   // something a keyboard cannot do.
   canvas.setAttribute('role', 'img');
-  const label = (m) => (m === 'turn'
-    ? 'Map, turns with you. Tap to keep north up.'
-    : 'Map, north up. Tap to make it turn with you.');
+  const label = (m) => {
+    const tap = getIsTouch() ? 'Tap' : 'Click';
+    return m === 'turn' ? `Map, turns with you. ${tap} to keep north up.` : `Map, north up. ${tap} to make it turn with you.`;
+  };
   canvas.setAttribute('aria-label', label(mode === 'turn' ? 'turn' : 'north'));
   // #hud is pointer-events: none; the map opts back in so it can be tapped.
   canvas.style.pointerEvents = 'auto';

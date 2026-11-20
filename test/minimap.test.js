@@ -382,19 +382,31 @@ describe('createMinimap', () => {
     expect(host.children.filter((c) => c.tagName === 'CANVAS')).toHaveLength(1);
     // A picture whose label says what a tap on it does.
     expect(canvas.getAttribute('role')).toBe('img');
-    expect(canvas.getAttribute('aria-label')).toBe('Map, north up. Tap to make it turn with you.');
+    expect(canvas.getAttribute('aria-label')).toBe('Map, north up. Click to make it turn with you.');
     expect(canvas.style.pointerEvents).toBe('auto');
     map.dispose();
     expect(host.children.filter((c) => c.tagName === 'CANVAS')).toHaveLength(0);
   });
 
-  it("the label follows the map's mode, so it always says what the next tap does", () => {
-    const { map, canvas } = makeMap({ mode: 'turn' });
-    expect(canvas.getAttribute('aria-label')).toBe('Map, turns with you. Tap to keep north up.');
-    map.setMode('north');
+  it('on a touch screen the label says Tap, and it reads the walk\'s touch flag each time it changes', () => {
+    let touch = true;
+    const { map, canvas } = makeMap({ getIsTouch: () => touch });
     expect(canvas.getAttribute('aria-label')).toBe('Map, north up. Tap to make it turn with you.');
     map.setMode('turn');
     expect(canvas.getAttribute('aria-label')).toBe('Map, turns with you. Tap to keep north up.');
+    touch = false;
+    map.setMode('north');
+    expect(canvas.getAttribute('aria-label')).toBe('Map, north up. Click to make it turn with you.');
+    map.dispose();
+  });
+
+  it("the label follows the map's mode, so it always says what the next tap does", () => {
+    const { map, canvas } = makeMap({ mode: 'turn' });
+    expect(canvas.getAttribute('aria-label')).toBe('Map, turns with you. Click to keep north up.');
+    map.setMode('north');
+    expect(canvas.getAttribute('aria-label')).toBe('Map, north up. Click to make it turn with you.');
+    map.setMode('turn');
+    expect(canvas.getAttribute('aria-label')).toBe('Map, turns with you. Click to keep north up.');
     map.dispose();
   });
 

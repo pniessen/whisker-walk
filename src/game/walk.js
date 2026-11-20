@@ -2382,6 +2382,7 @@ export function createWalkLifecycle({
       areaId,
       layer: buildMapLayer(areaData, scene),
       mode: progression.state.mapMode,
+      getIsTouch,
       onToggle: () => {
         const m = session.minimap.mode === 'north' ? 'turn' : 'north';
         progression.setMapMode(m);
@@ -2483,7 +2484,7 @@ export function createWalkLifecycle({
     lastCrossing = null;
     if (crossTo) {
       const clan = isClanEdition(progression.state);
-      const out = crossingOutcome({ crossTo, ledBy, together: together ?? walkedWithNames, clan, pickPlace: (id) => progression.pickPlace(id), catalog: CATALOG, edition: progression.state.edition });
+      const out = crossingOutcome({ crossTo, ledBy, together: together ?? walkedWithNames, clan, pickPlace: (id) => progression.pickPlace(id), catalog: CATALOG, edition: progression.state.edition, touch: !!getIsTouch() });
       crossLines = out.lines;
       lastCrossing = { to: crossTo, picked: out.picked, clan };
     }

@@ -3382,7 +3382,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "town-moor": {
@@ -3402,7 +3402,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "town-river": {
@@ -3422,7 +3422,7 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-town-short": {
@@ -3442,7 +3442,7 @@
      ],
      "afterLed": [
       "Robin led the way to Peopleville! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-town-long": {
@@ -3462,7 +3462,7 @@
      ],
      "afterLed": [
       "Robin led the way to Peopleville! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-river-long": {
@@ -3482,7 +3482,7 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-river-pond": {
@@ -3502,7 +3502,7 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-moor-path": {
@@ -3522,7 +3522,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-moor-river": {
@@ -3542,7 +3542,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "river-woods-long": {
@@ -3562,7 +3562,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "river-town-long": {
@@ -3582,7 +3582,7 @@
      ],
      "afterLed": [
       "Robin led the way to Peopleville! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "river-woods-pond": {
@@ -3602,7 +3602,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "river-pines-path": {
@@ -3622,7 +3622,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Pines and Swamp! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "moor-woods-path": {
@@ -3642,7 +3642,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "moor-woods-river": {
@@ -3662,7 +3662,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "moor-gorge": {
@@ -3682,7 +3682,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Gorge! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "moor-pines-trail": {
@@ -3702,7 +3702,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Pines and Swamp! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "pines-river-path": {
@@ -3722,7 +3722,7 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "pines-moor-trail": {
@@ -3742,7 +3742,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "gorge-moor": {
@@ -3762,7 +3762,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "gorge-town": {
@@ -3782,7 +3782,7 @@
      ],
      "afterLed": [
       "Robin led the way to Peopleville! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     }
    },
