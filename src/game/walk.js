@@ -643,8 +643,8 @@ export function createWalkLifecycle({
     const scene = new THREE.Scene();
     scene.environment = envMap;
     // scene.environmentIntensity is set a little further down, by
-    // composerRig.applyLighting — it depends on duskActive, which is not
-    // resolved until after the dusk block below.
+    // composerRig.applyLighting — it depends on eveningLook (walkDusk), which
+    // is not resolved until after the dusk block below.
     if (tier.postFx) {
       composerRig.ensure(tier.msaaSamples);
       composerRig.attachScene(scene); // point the composer's RenderPass at this walk's scene
@@ -824,10 +824,10 @@ export function createWalkLifecycle({
     if (areaId === 'fair') fair.setFairGlow(areaData, duskLookNow ? 1 : 0);
 
     // v18 Night Eyes ('night-eyes', Task 2.3): dusk walks brighten. This has
-    // to run AFTER duskActive is resolved above (a solo dusk walk only counts
-    // as dusk with the glow collar on) and after the dusk block has finished
-    // recolouring the sky, because it is the frame's EXPOSURE that changes,
-    // not the scene.
+    // to run AFTER walkDusk above (a solo dusk walk only counts as dusk with
+    // the glow collar on; its eveningLook is what lights it) and after the
+    // dusk block has finished recolouring the sky, because it is the frame's
+    // EXPOSURE that changes, not the scene.
     //
     // Called unconditionally on every walk, skill or no skill:
     // renderer.toneMappingExposure is global renderer state, so a walk that
@@ -1642,9 +1642,11 @@ export function createWalkLifecycle({
       // Task 6: the clanmate on patrol with me, or null (interactions.js).
       clanBuddy: null,
       // v18 Task 1.4: the walk was ACTUALLY dusk (duskMode gated on the glow
-      // collar for solo walks — see where duskActive is computed above).
-      // endWalk needs it for the duskWalks tally that Night Eyes reads;
-      // duskMode alone would credit a dusk walk the player never got.
+      // collar for solo walks — see where walkDusk is called above).
+      // countsDusk is what endWalk credits to the duskWalks tally that Night
+      // Eyes reads (on the Rooftops, always evening, only with the Glow
+      // Collar on); duskMode alone would credit a dusk walk the player never
+      // got.
       duskActive,
       countsDusk,
       useComposer: tier.postFx,
@@ -2373,8 +2375,11 @@ export function createWalkLifecycle({
     // live remote pets rendered via `remotes`, and ghosts/rooms don't mix
     // (see the plan's "ghosts solo-only" note). Fetching friendships +
     // profiles is unavoidably async, so ghosts pop in a moment after the
-    // walk starts; that's fine.
-    if (roomSeed === undefined && MP) spawnGhosts(session);
+    // walk starts; that's fine. Not in an area with no strays (the
+    // Rooftops, R8): ghosts.js stands a ghost anywhere over the area's middle
+    // at ground level, and there that is inside a pitched roof, the street
+    // below or a yard wall.
+    if (roomSeed === undefined && MP && areaData.strays !== false) spawnGhosts(session);
 
     // The corner map, outdoors only: the den is one small room and has no
     // map, so session.minimap is null there and every use guards for it.

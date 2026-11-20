@@ -22,3 +22,10 @@ export function roofsOn() {
 export function setRoofs(value) {
   forced = value === null || value === undefined ? null : !!value;
 }
+
+// The places a walk note may name (main.js hands this to readResume): every
+// place in the save's walks, the Rooftops only while the switch is on, so a
+// Rooftops walk left without it is dropped rather than picked up.
+export function resumableAreaIds(walks) {
+  return Object.keys(walks).filter((id) => id !== 'roofs' || roofsOn());
+}

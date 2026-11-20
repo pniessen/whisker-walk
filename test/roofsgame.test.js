@@ -1,12 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createSession, walkDusk } from '../src/game/session.js';
 import { snapshotWalk, settleAbandoned } from '../src/game/walkresume.js';
 import { createProgression, CATALOG } from '../src/progression.js';
-import { roofsOn, setRoofs } from '../src/roofsflag.js';
+import { roofsOn, setRoofs, resumableAreaIds } from '../src/roofsflag.js';
 import { readResume, RESUME_KEY } from '../src/game/walkresume.js';
 import { createStrayCats } from '../src/straycats.js';
-import { decideLobbyEvent } from '../src/game/lobby.js';
+import { decideLobbyEvent, MEMBER_GATHER_MS } from '../src/game/lobby.js';
+import { createRooms } from '../src/game/rooms.js';
+import { createFakeHub, createNet } from '../src/net.js';
 import { words } from '../src/wordset.js';
 import * as onWords from '../src/clanwords.js';
 import * as offWords from '../src/offclanwords.js';
@@ -17,10 +18,11 @@ import { withStandInWords } from './helpers/standinwords.js';
 // =============================================================================
 // The Rooftops in the game (Rooftops step 2). Task 8: the evening look, and a
 // Rooftops walk counting as a dusk walk only with the Glow Collar (Review
-// Focus item 5). Tasks 9, 11 and 12 add to this file.
+// Focus item 5). Tasks 9, 11 and 12 add to this file. What walk.js itself
+// does with the place (the evening look, no weather, the ?roofs=1 start, no
+// strays, no ghosts) is tested on real walks in test/roofswalk.test.js.
 // =============================================================================
 
-const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
 const ROOFS = { evening: true };
 const WOODS = {};
 
@@ -84,37 +86,10 @@ describe('the Rooftops’ evening in the walk', () => {
     // a room trusts the host's choice, as before
     expect(walkDusk({ duskMode: true, room: true, collar: null, evening: undefined })).toEqual({ duskActive: true, eveningLook: true, countsDusk: true });
     expect(start({ duskMode: false, collar: 'glow', area: WOODS }).countsDusk).toBe(false);
-
-    // walk.js: the one place it is worked out, and what each half drives
-    expect(walkSrc).toContain('const { duskActive, eveningLook, countsDusk } = walkDusk({ duskMode, room: roomSeed !== undefined, collar: equipped.collar, evening: areaData.evening });');
-    expect(walkSrc).toContain('const duskLookNow = eveningLook ? applyDusk({ scene, sun, fill, areaData }) : null;');
-    expect(walkSrc).toMatch(/composerRig\.applyLighting\(scene, \{\s*dusk: eveningLook,/);
-    expect(walkSrc).toMatch(/createAmbient\(scene, \{\s*areaId, areaData, tier, camera, dusk: eveningLook,/);
-    expect(walkSrc).toMatch(/createClouds\(scene, \{\s*areaId, tier, camera, reducedMotion, dusk: eveningLook,/);
-    expect(walkSrc).toContain("audio.startAmbient(areaId, { dusk: eveningLook, rain: weather.condition === 'rain' });");
-    expect(walkSrc).toContain("const musicMood = eveningLook ? 'dusk' :");
-    expect(walkSrc).toContain('progression.completeWalk(session.areaId, { dusk: session.countsDusk });');
-    expect(walkSrc).toMatch(/\n\s+duskActive,\n\s+countsDusk,\n/); // both into the session
-    // duskActive keeps the rest: the secrets' roll and the fireflies
-    expect(walkSrc).toContain("rollSecrets(walkRng, { eveningLight: duskActive || weather.condition === 'sunset' })");
-    expect(walkSrc).toContain('spawnFireflies: duskActive,');
-    const resume = readFileSync(new URL('../src/game/walkresume.js', import.meta.url), 'utf8');
-    expect(resume).toContain('duskActive: !!session.countsDusk,');
-  });
-
-  it('no weather on the roofs', () => {
-    expect(walkSrc).toContain('if (!duskActive && !isDen && areaData.evening !== true) {');
-    // the gate is the only place a walk's weather is made, just inside it
-    expect(walkSrc.match(/createWeather\(/g)).toHaveLength(1);
-    const at = walkSrc.indexOf('if (!duskActive && !isDen && areaData.evening !== true) {');
-    expect(walkSrc.indexOf('createWeather(')).toBeGreaterThan(at);
-    expect(walkSrc.indexOf('createWeather(') - at).toBeLessThan(600);
   });
 });
 
 // ---- Task 9: into the game, behind ?roofs=1 --------------------------------
-const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-const roomsSrc = readFileSync(new URL('../src/game/rooms.js', import.meta.url), 'utf8');
 
 describe('the Rooftops behind ?roofs=1', () => {
   it('the catalog does not have the Rooftops until step 4', () => {
@@ -124,7 +99,9 @@ describe('the Rooftops behind ?roofs=1', () => {
     expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false);
   });
 
-  it('the flag starts a solo Rooftops walk, never in a room', () => {
+  // Explore with the flag on starts a solo Rooftops walk, never in a room:
+  // test/roofswalk.test.js, on the real beginWalkFromHomebase.
+  it('the flag is off by default, and a test can force it either way', () => {
     try {
       setRoofs(null);
       expect(roofsOn()).toBe(false);
@@ -133,30 +110,28 @@ describe('the Rooftops behind ?roofs=1', () => {
       setRoofs(false);
       expect(roofsOn()).toBe(false);
     } finally { setRoofs(null); }
-    expect(walkSrc).toContain("import * as roofs from '../world/roofs.js';");
-    expect(walkSrc).toContain("import { roofsOn } from '../roofsflag.js';");
-    expect(walkSrc).toMatch(/const AREAS = \{[^}]*\broofs\b[^}]*\};/);
-    const at = walkSrc.indexOf('function beginWalkFromHomebase({ duskMode }) {');
-    const body = walkSrc.slice(at, walkSrc.indexOf('startRoomTogether({ area, dusk', at));
-    const branch = "if (roofsOn() && !getPendingRoom()) {\n      startWalk({ duskMode, areaOverride: 'roofs' });\n      return;\n    }";
-    expect(body).toContain(branch);
-    expect(body.indexOf(branch)).toBeLessThan(body.indexOf('if (!getPendingRoom()) {'));
   });
 
   it('a Rooftops walk note is dropped without the flag', () => {
     const now = Date.UTC(2026, 10, 20, 12);
     const note = { v: 1, at: now - 60_000, tries: 0, areaId: 'roofs', seed: 7, stamp: 'walk-1', x: 4, z: 41, yaw: 0, startPoints: 0 };
-    // the real game's ids: the keys of a fresh save's walks, as main.js reads them
+    // the real game's ids: a fresh save's walks, through the helper main.js
+    // hands readResume
     const walks = createProgression(memStorage()).state.walks;
-    const ids = (on) => Object.keys(walks).filter((id) => id !== 'roofs' || on);
-    expect(mainSrc).toContain("areaIds: Object.keys(progression.state.walks).filter((id) => id !== 'roofs' || roofsOn())");
     const read = (on) => {
       const storage = memStorage();
       storage.setItem(RESUME_KEY, JSON.stringify(note));
-      return { got: readResume(storage, { now, areaIds: ids(on) }), left: storage.getItem(RESUME_KEY) };
+      try {
+        setRoofs(on);
+        return { got: readResume(storage, { now, areaIds: resumableAreaIds(walks) }), left: storage.getItem(RESUME_KEY) };
+      } finally { setRoofs(null); }
     };
     expect(read(false)).toEqual({ got: null, left: null });          // dropped, and the note cleared
     expect(read(true).got?.kind).toBe('resume');                      // the flag on: picked up
+    // every other place's note is kept either way
+    const park = memStorage();
+    park.setItem(RESUME_KEY, JSON.stringify({ ...note, areaId: 'park' }));
+    expect(readResume(park, { now, areaIds: resumableAreaIds(walks) })?.kind).toBe('resume');
   });
 
   it('an old save with no walks.roofs loads with 0, and a Rooftops walk counts', () => {
@@ -172,8 +147,45 @@ describe('the Rooftops behind ?roofs=1', () => {
     expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false); // R1 still holds
   });
 
-  it('a room never walks the Rooftops', () => {
-    expect(roomsSrc).toContain('knownAreas: Object.keys(CATALOG.areas),');
+  describe('a room never walks the Rooftops', () => {
+    afterEach(() => { vi.useRealTimers(); });
+
+    // Two players in a code room on net.js's in-memory hub (as
+    // test/rooms.test.js), and a third who proposes walks by hand.
+    function memberIn(hub, pid) {
+      const progression = createProgression(memStorage());
+      progression.setPetName(pid);
+      const walks = [];
+      let session = null;
+      const { rooms } = createRooms({
+        MP: 1, pid, supabaseUrl: 'x', supabaseAnonKey: 'y',
+        progression, getCloud: () => null, getPsecret: () => null,
+        getSession: () => session, startWalk: (o) => { walks.push(o); session = { o }; },
+        colonySync: { status: () => ({ mode: 'unpaired' }), pull() {} },
+        createTransport: () => hub.transport(),
+      });
+      return { rooms, walks };
+    }
+
+    it('a proposal that names the Rooftops starts no walk; one that names the Park does', async () => {
+      vi.useFakeTimers();
+      const hub = createFakeHub();
+      const a = memberIn(hub, 'aaaa-host-0001');
+      const b = memberIn(hub, 'bbbb-kid-00002');
+      await a.rooms.join('ABCD');
+      await b.rooms.join('ABCD');
+      const proposer = createNet(hub.transport());
+      await proposer.join('ABCD', { playerId: '0000-first-01', petName: 'Pip' });
+      proposer.sendEvent({ v: 1, id: '0000-first-01', type: 'walk-config', area: 'roofs', dusk: false, seed: 5 });
+      vi.advanceTimersByTime(MEMBER_GATHER_MS * 3);
+      expect([a.walks, b.walks]).toEqual([[], []]);
+      proposer.sendEvent({ v: 1, id: '0000-first-01', type: 'walk-config', area: 'park', dusk: false, seed: 5 });
+      vi.advanceTimersByTime(MEMBER_GATHER_MS * 3);
+      for (const m of [a, b]) expect(m.walks).toEqual([{ duskMode: false, roomSeed: 5, areaOverride: 'park' }]);
+    });
+  });
+
+  it('the lobby\'s rule: a walk config or request naming the Rooftops is ignored', () => {
     const ctx = { roster: [{ playerId: 'host' }, { playerId: 'kid' }], selfId: 'host', inWalk: false, knownAreas: Object.keys(CATALOG.areas), unlockedAreas: [] };
     expect(decideLobbyEvent({ type: 'walk-config', id: 'kid', area: 'roofs', seed: 1 }, ctx)).toBeNull();
     expect(decideLobbyEvent({ type: 'walk-request', id: 'kid', area: 'roofs' }, ctx)).toBeNull();
@@ -181,12 +193,9 @@ describe('the Rooftops behind ?roofs=1', () => {
   });
 
   it('no strays, no wanderer on the Rooftops', () => {
-    expect(walkSrc).toContain('const noStrays = areaData.strays === false;');
-    expect(walkSrc).toContain('const wanderName = noStrays ? null : walkWanderer(state, areaId, { ymd: wanderToday, colonyWalk, isDen });');
-    // the count and the cast are zeroed where the cats are made (the existing
-    // walk.js pins on `loners` stay as they were)
-    const strayCats = readFileSync(new URL('../src/straycats.js', import.meta.url), 'utf8');
-    expect(strayCats).toContain('if (area.strays === false) { count = 0; colonyCats = []; extras = []; }');
+    // where the cats are made: an area record with strays: false gets none,
+    // not the count asked for and not the wanderer (on a real walk:
+    // test/roofswalk.test.js)
     const made = createStrayCats({ add() {}, remove() {} }, { strays: false, bounds: { minX: -9, maxX: 9, minZ: -9, maxZ: 9 }, colliders: [], spawn: { x: 0, z: 0 } }, 8, () => 0.5, { extras: [{ name: 'Biscuit', wanderer: true, spot: { x: 1, z: 1 }, rng: () => 0.5 }] });
     expect(made.strays).toHaveLength(0);
   });

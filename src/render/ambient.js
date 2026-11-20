@@ -322,8 +322,9 @@ const NO_AMBIENT = Object.freeze({
 // none of them sees the points.
 //
 // `cat` (optional) is the player's cat Group; its position is read each frame
-// to keep particles off it. `dusk` is walk.js's duskActive. `keepOut` is a
-// list of { x, z, r } ground circles no leaf may rest in (see KEEP_OUT_PAD).
+// to keep particles off it. `dusk` is walk.js's eveningLook (the dusk look,
+// every walk on the Rooftops). `keepOut` is a list of { x, z, r } ground
+// circles no leaf may rest in (see KEEP_OUT_PAD).
 // `weather` (optional) is weather.js's api: its `condition` ('clear', 'rain'
 // or 'sunset') and, for rain, `isRaining()`, read every frame.
 //

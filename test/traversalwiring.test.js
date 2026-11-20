@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 // Headless document stub (test/traversallive.test.js's): createPlayer listens on it.
 vi.stubGlobal('document', {
@@ -55,12 +55,21 @@ it('walk.js builds it only for an area that places moves, and disposes it', () =
   expect(walk.indexOf('session.traversal?.dispose();')).toBeGreaterThan(walk.indexOf('session.fair?.dispose();'));
 });
 
-it('only the Rooftops places moves', () => {
-  const files = readdirSync(new URL('../src/world/', import.meta.url)).filter((n) => n.endsWith('.js') && n !== 'traversalyard.js');
-  expect(files.length).toBeGreaterThan(10);
-  // roofs.js's record, and the plan's roofsArea() that it is built from
-  const naming = files.filter((f) => /\btraversal\s*:/.test(read(`world/${f}`)));
-  expect(naming.sort()).toEqual(['roofs.js', 'roofsplan.js']);
+it('only the Rooftops places moves', async () => {
+  // Every place a walk can go (a fresh save's walks, the den included), each
+  // built as walk.js builds it: only the Rooftops' record has `traversal`.
+  const ids = Object.keys(createProgression({ getItem: () => null, setItem() {} }).state.walks);
+  expect(ids.length).toBeGreaterThan(10);
+  const withMoves = [];
+  for (const id of ids) {
+    const { build } = await import(`../src/world/${id}.js`);
+    const record = build(new THREE.Scene());
+    if (record.traversal !== undefined) withMoves.push(id);
+  }
+  expect(withMoves).toEqual(['roofs']);
+  // the plan's roofsArea(), that roofs.js builds from, places them too
+  const { roofsArea } = await import('../src/world/roofsplan.js');
+  expect(roofsArea().traversal.hops.length).toBeGreaterThan(0);
 });
 
 // ---------------------------------------------------------------------------
