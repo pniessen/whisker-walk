@@ -659,13 +659,12 @@ body.touch-mode:not(.left-handed) .hud-top {
   background: #2c3d58; color: #f1e0c2; font: inherit; font-size: 15px; font-weight: 700;
 }
 .walk-together button:hover, .friend-code-block button:hover { background: #34486a; }
-.walk-together button.primary, .friend-code-block button.primary, .walk-together #wt-host {
+.walk-together button.primary, .friend-code-block button.primary {
   background: #f2c14e; color: #3a2a10; border-color: #f2c14e;
 }
-.walk-together button.primary:hover, .friend-code-block button.primary:hover, .walk-together #wt-host:hover { filter: brightness(1.06); background: #f2c14e; }
+.walk-together button.primary:hover, .friend-code-block button.primary:hover { filter: brightness(1.06); background: #f2c14e; }
 .walk-together button.danger { background: transparent; color: #e98a8a; border-color: #e98a8a; }
-/* #wt-host is gold by id, so its disabled look needs the id too. */
-.walk-together button:disabled, .friend-code-block button:disabled, .walk-together #wt-host:disabled {
+.walk-together button:disabled, .friend-code-block button:disabled {
   background: #2a3346; color: #8896b0; border-color: #3a4560; cursor: default; filter: none;
 }
 .walk-together button:focus-visible, .friend-code-block button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
@@ -1636,6 +1635,20 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .dr-dock .dusk { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px;
   padding: 6px 14px; border: 1.5px solid #5b6c88; border-radius: 999px; font-size: 14px; cursor: pointer; color: #c8b8f0; }
 .wt-first { margin: 0 0 6px; font-weight: 700; }
+/* Play together (menu review #8): small headings over Play now and Friends,
+   like the other sheets' section headings. */
+.walk-together .wt-heading { font-size: 0.9rem; color: #a8c0e0; margin: 0 0 8px; font-weight: 700; }
+.walk-together .wt-heading ~ .wt-heading { margin-top: 18px; }
+/* Start a room and Join a room: two big quiet choices side by side, even on a
+   phone (pink is only on Start). */
+.wt-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.walk-together .wt-choice { min-height: 64px; padding: 10px 12px; border-radius: 18px; font-size: 1.1rem; }
+.wt-choices + .wt-actions { margin-bottom: 12px; }
+.wt-join-error { margin-bottom: 12px; }
+/* Her friend name, saved: one quiet row with a pencil to change it. */
+.wt-name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.wt-name-saved { overflow-wrap: anywhere; }
+.walk-together .wt-name-edit { min-width: 44px; padding: 8px 12px; }
 /* Nearby one-tap joining: a room the app found on the local network, one row
    each, in Play together above the code box. The box is empty (and takes no
    room) when nothing is found. */
@@ -1651,7 +1664,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 /* The room code under the name: a name on the air can be anyone's. */
 .wt-nearby-code, .nearby-card-code { flex-basis: 100%; font-size: 0.95rem; opacity: 0.85; letter-spacing: 0.02em; }
 .wt-name-hint { margin-top: 6px; flex-basis: 100%; }
-/* "Your walking name" over the box, on a line of its own */
+/* "Your friend name" over the box, on a line of its own */
 .wt-name-label { flex-basis: 100%; font-weight: 700; }
 /* "Use {her cat's name}": an offer under the box; a long name may wrap */
 .wt-name-use { overflow-wrap: anywhere; }

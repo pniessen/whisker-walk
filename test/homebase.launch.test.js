@@ -767,17 +767,17 @@ describe('Play together holds the friends (Friends folded in)', () => {
     hb.show();
     return { progression, cloud };
   }
-  it('in order: the cat\'s name, start or join a room, then the friend code', () => {
+  it('in order: start or join a room, then her friend name, then the friend code', () => {
     setupCloud({ state: (st) => { st.petName = 'Mittens'; } });
     openSheet('together');
     const h = html();
-    const order = ['id="wt-petname-input"', 'id="wt-host"', 'id="wt-join"', 'Your friend code:', 'id="friend-code-add"'].map((x) => h.indexOf(x));
+    const order = ['id="wt-host"', 'id="wt-join-open"', '>Friends</h3>', 'id="wt-name-edit"', 'Your friend code:', 'id="friend-code-add"'].map((x) => h.indexOf(x));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(h).not.toContain('Stray cats');
     expect(h).not.toContain('Player pets');
   });
-  it('the walk with her sibling comes after the name and before the room buttons', () => {
+  it('the walk with her sibling comes after the room buttons and before her friend name', () => {
     const colony = { id: 'c1', partner: { playerId: 'p2', petName: 'Robin' } };
     const colonySync = { status: () => ({ mode: 'paired' }), pull() {} };
     setupCloud({ colonySync, state: (st) => { st.petName = 'Mittens'; st.colony = { ...st.colony, ...colony }; } });
@@ -785,8 +785,8 @@ describe('Play together holds the friends (Friends folded in)', () => {
     const h = html();
     expect(h).toContain('id="wt-pair-walk"');
     expect(h).toContain('Explore with Robin');
-    expect(h.indexOf('wt-pair')).toBeGreaterThan(h.indexOf('id="wt-petname-input"'));
-    expect(h.indexOf('wt-pair')).toBeLessThan(h.indexOf('id="wt-host"'));
+    expect(h.indexOf('wt-pair')).toBeGreaterThan(h.indexOf('id="wt-join-open"'));
+    expect(h.indexOf('wt-pair')).toBeLessThan(h.indexOf('id="wt-name-edit"'));
   });
   it('opening Play together does not load the Player pets (they live in My clan)', () => {
     const { cloud } = setupCloud();
@@ -801,7 +801,7 @@ describe('Play together holds the friends (Friends folded in)', () => {
   it('with no name yet, the friend code points up at the name box', () => {
     setupCloud();
     openSheet('together');
-    expect(html()).toContain('Pick your walking name at the top to add friends by code.');
+    expect(html()).toContain('Pick your friend name above to add friends by code.');
   });
   it('the stray cats are no longer in the Journal (they moved to My clan)', () => {
     const { progression } = setupCloud();

@@ -150,10 +150,16 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
-  // She was sent to the name box with no walking name: Play together says
+  // She was sent to the name box with no friend name: Play together says
   // why above it until she has one. 'walk' (Host, Join, a nearby Join) or
   // 'colony' (the Colony sheet's button); false when she just opened it.
   let nameNeeded = false;
+  // Play together's two view flags (menu review #8), both back to false when
+  // the sheet closes: Join a room was tapped, so the room-code box shows under
+  // the two choices; the ✏️ on her saved friend name was tapped, so the name
+  // box shows again with it filled in.
+  let joinOpen = false;
+  let editingName = false;
   // v21 Stream 5: the home screen is the dressing room (openSheet null) or
   // one sheet from HOME_SHEETS.
   let openSheet = null;
@@ -271,15 +277,53 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // silently fail — Join is gated the same as Host, not just Host. Both
     // stay tappable: with no name a tap leads to the name box (needName).
     const hasValidPetName = validPetName(name);
-    // Walking a cat she made and named, with no walking name yet: that name
-    // is offered as a button. A tap saves it; nothing saves it for her.
-    const offered = offeredWalkingName(progression.state);
     // Paired siblings get their own room with nothing to type (Task 12).
     const pairWalk = renderPartnerWalkHtml({ status: colonySync ? colonySync.status() : null, colony, room: st });
-    // In order: the name (it unlocks everything under it), the walk with her
-    // sibling, then a room of her own to start or join.
-    // The line above the name box names it until a name is saved; after that
-    // its label does.
+    // Menu review #8, from the top. Play now: the two big choices (quiet, side
+    // by side; pink is only on Start), the room-code box once Join a room is
+    // tapped, the rooms found nearby, the walk with her sibling. Friends: her
+    // friend name (the box until one is saved, then one row with a pencil),
+    // the star names (Clan Edition), her friend code.
+    return `
+      <h3 class="wt-heading">Play now</h3>
+      <div class="wt-choices">
+        <button id="wt-host" class="wt-choice">Start a room</button>
+        <button id="wt-join-open" class="wt-choice" aria-expanded="${joinOpen ? 'true' : 'false'}">Join a room</button>
+      </div>
+      ${joinOpen ? `<div class="wt-actions">
+        <div class="code-field">
+          <label class="code-label" for="wt-join-code">Room code</label>
+          <div class="wt-join-row">
+            <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
+            <button id="wt-join">Join</button>
+          </div>
+        </div>
+      </div>` : ''}
+      ${joinError ? `<div class="tag error wt-join-error">${escapeHtml(joinError)}</div>` : ''}
+      ${nearby?.available ? `<div id="wt-nearby" class="wt-nearby">${nearbyRowsHtml()}</div>` : ''}
+      ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
+      <h3 class="wt-heading">Friends</h3>
+      ${hasValidPetName && !editingName ? renderSavedName(name) : renderNameBox(name, hasValidPetName)}
+      ${isClanEdition(progression.state) ? renderStarNamePicker(candidateStarNames(myId), name) : ''}
+      ${cloud && cloud.available ? renderFriendCode() : ''}`;
+  }
+
+  // Her friend name, saved: one quiet row, and the ✏️ opens the box again.
+  function renderSavedName(name) {
+    return `
+      <div class="wt-name-row">
+        <span class="wt-name-saved">${escapeHtml(WALKING_NAME)}: <strong>${escapeHtml(name)}</strong></span>
+        <button type="button" id="wt-name-edit" class="wt-name-edit" aria-label="Change your friend name">✏️</button>
+      </div>
+      ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}`;
+  }
+
+  // The name box. The line above it names it until a name is saved; after
+  // that (the pencil reopened it) its label does.
+  function renderNameBox(name, hasValidPetName) {
+    // Walking a cat she made and named, with no friend name yet: that name
+    // is offered as a button. A tap saves it; nothing saves it for her.
+    const offered = offeredWalkingName(progression.state);
     return `
       ${hasValidPetName ? '' : `<p class="wt-first${nameNeeded ? ' wt-name-needed' : ''}">${escapeHtml(walkingNameIntro(nameNeeded))}</p>`}
       <div class="wt-petname">
@@ -289,20 +333,6 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         ${offered ? `<button type="button" id="wt-petname-use" class="wt-name-use">Use “${escapeHtml(offered)}”</button>` : ''}
         <div class="tag wt-name-hint">${escapeHtml(WALKING_NAME_HELP)} ${escapeHtml(WALKING_NAME_SAFETY)}</div>
         ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
-      </div>
-      ${isClanEdition(progression.state) ? renderStarNamePicker(candidateStarNames(myId), name) : ''}
-      ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
-      ${nearby?.available ? `<div id="wt-nearby" class="wt-nearby">${nearbyRowsHtml()}</div>` : ''}
-      <div class="wt-actions">
-        <button id="wt-host">Start a room</button>
-        <div class="code-field">
-          <label class="code-label" for="wt-join-code">Room code</label>
-          <div class="wt-join-row">
-            <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
-            <button id="wt-join">Join</button>
-          </div>
-        </div>
-        ${joinError ? `<div class="tag error">${escapeHtml(joinError)}</div>` : ''}
       </div>`;
   }
 
@@ -437,7 +467,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
 
   // "Delete my online data": the confirm card, and the line for each answer.
-  const KEEPS = 'The game on this device stays as it is, except that your walking name is cleared. This can’t be undone.';
+  const KEEPS = 'The game on this device stays as it is, except that your friend name is cleared. This can’t be undone.';
   function onlineDeleteAsk(code) {
     return {
       text: 'Delete this device’s online data?',
@@ -450,7 +480,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
   const NOTHING = 'Nothing was deleted.';
   function onlineDeleteMessage({ outcome, player, save }) {
-    if (outcome === 'done') return 'Done. Your online data is deleted. To play together again, pick a walking name in Play together.';
+    if (outcome === 'done') return 'Done. Your online data is deleted. To play together again, pick a friend name in Play together.';
     if (outcome === 'unavailable') return `Deleting isn’t switched on yet. ${NOTHING}`;
     if (outcome === 'denied') return `The cloud wouldn’t let this device delete it. ${NOTHING}`;
     if (outcome === 'busy') return `The cloud is busy right now — try again later. ${NOTHING}`;
@@ -596,7 +626,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
           </div>
         </div>
-        ${!hasValidPetName ? '<div class="tag">Pick your walking name at the top to add friends by code.</div>' : ''}
+        ${!hasValidPetName ? '<div class="tag">Pick your friend name above to add friends by code.</div>' : ''}
         ${friendCodeError ? `<div class="tag error">${escapeHtml(friendCodeError)}</div>` : ''}
         ${friendCodeSuccess ? `<div class="tag on">${escapeHtml(friendCodeSuccess)}</div>` : ''}
         ${friendCodeCandidate ? `
@@ -979,7 +1009,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // (btn null). The join itself is the typed code's: rooms.join(code), which
   // checks the code's shape again. Without a cat name there is nobody to
   // join as, so she is taken to the name box and told why.
-  // No walking name yet: Play together says so above the name box (why:
+  // No friend name yet: Play together says so above the name box (why:
   // 'walk' or 'colony'), and the box takes focus.
   function needName(why = 'walk') {
     nameNeeded = why;
@@ -1003,6 +1033,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     try { res = await rooms.join(code); } catch { res = { ok: false }; } finally { nearbyBusy = false; }
     if (!res || !res.ok) {
       joinError = 'Could not join that room — try again, or type the room code.';
+      joinOpen = true; // the room-code box is open, for the code the line asks for
       if (fromCard) nearby.dismiss(code); // the card does not ask again; the row stays
     }
     if (!homeVisible()) return; // a walk began meanwhile
@@ -1354,6 +1385,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const want = resolveSheet(id);
     const next = want && availableSheets().includes(want) ? want : null;
     const prev = openSheet;
+    // Play together's open room-code box and name box close with the sheet.
+    if (prev === 'together' && next !== 'together') { joinOpen = false; editingName = false; }
     // Back to the sheet under this one is not an open of it (for the counts).
     const returning = !!prev && !!next && (next === 'menu' || (next === 'grownups' && backTo === 'grownups'));
     backTo = backTargetFor(next, prev);
@@ -1506,14 +1539,19 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           ${renderPlayerPets()}
         </section>`;
       // Play together holds every code a child meets: the room's, then (from
-      // the old Friends sheet) the friends she walked with and her friend code.
-      case 'together': return `
+      // the old Friends sheet) her friend code. Outside a room the friend code
+      // sits in its Friends part (renderWalkTogether); in a room it stays
+      // under the room, as it always was.
+      case 'together': {
+        const choosing = !!rooms?.available && !rooms.getState();
+        return `
         <section class="walk-together"><h2>Play together 👫</h2>
           ${renderWalkTogether()}
         </section>
-        ${cloud && cloud.available ? `<section class="friends-section">
+        ${cloud && cloud.available && !choosing ? `<section class="friends-section">
           ${renderFriendCode()}
         </section>` : ''}`;
+      }
       case 'journal': {
         // Only the mice this edition can reach (Legacy hides four territories).
         const gold = goldForEdition(s.edition, CATALOG);
@@ -1933,6 +1971,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       if (goodNewPetName(starPick)) {
         progression.setPetName(starPick);
         petNameError = null;
+        editingName = false;
       } else {
         petNameError = WALKING_NAME_RULE;
       }
@@ -1956,10 +1995,27 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       if (goodNewPetName(name)) {
         progression.setPetName(name);
         petNameError = null;
+        editingName = false;
       } else {
         petNameError = validPetName(name) ? 'Please pick a different name.' : WALKING_NAME_RULE;
       }
       render();
+      return;
+    }
+    // The ✏️ on her saved friend name: the box again, her name in it.
+    if (e.target.id === 'wt-name-edit') {
+      editingName = true;
+      petNameError = null;
+      render();
+      try { root.querySelector('#wt-petname-input')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+      return;
+    }
+    // Join a room: the room-code box opens under the two choices, and she is
+    // put in it. With no name yet its Join leads to the name box (below).
+    if (e.target.id === 'wt-join-open') {
+      joinOpen = true;
+      render();
+      try { root.querySelector('#wt-join-code')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
       return;
     }
     // Host or Join with no cat name yet: say so above the name box and go
@@ -2093,7 +2149,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           friendCodeError = null;
         } else if (result?.status === 'failed') {
           friendCodeSuccess = null;
-          friendCodeError = "Couldn't add friend — pick your walking name first";
+          friendCodeError = "Couldn't add friend — pick your friend name first";
         } else {
           friendCodeSuccess = null;
           friendCodeError = null;
@@ -2467,6 +2523,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // started from (the Journal's dock, say), unless a sheet is asked for.
       openSheet = null;
       backTo = null;
+      joinOpen = false; // Play together opens on its two choices again
+      editingName = false;
       mapView = null; // the world map opens afresh, round today's place
       if (sheet && availableSheets().includes(sheet)) openSheet = sheet;
       render(); // also turns the hero stage back on

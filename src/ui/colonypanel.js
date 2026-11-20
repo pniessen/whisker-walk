@@ -227,7 +227,7 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
 
   if (mode === 'needs-name') {
     return `<div class="colony-pair" data-pair="needs-name">
-      <p class="colony-pair-text">To share your colony, you need a walking name first.</p>
+      <p class="colony-pair-text">To share your colony, you need a friend name first.</p>
       <div class="colony-pair-row">
         <button type="button" id="colony-pair-name" class="colony-pair-btn">${escapeHtml(PICK_WALKING_NAME)} →</button>
       </div>
