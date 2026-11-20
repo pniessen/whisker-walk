@@ -18,4 +18,13 @@
 // validateFoundWear (index.js; test/foundwear.test.js runs it) checks all of it.
 // What else a new outfit needs, outside this file: see index.js, "ADDING ONE".
 
-export const NECK_WEAR = Object.freeze([]);
+import { phrase } from '../clanphrases.js';
+
+export const NECK_WEAR = Object.freeze([
+  // the pieces are built in src/cat/foundneck.js
+  Object.freeze({ id: 'daisychain', slot: 'neck', find: 'park', emoji: '🌼', name: () => phrase('wear.daisychain.name') }),
+  Object.freeze({ id: 'gardenglovescarf', slot: 'neck', find: 'neighborhood', emoji: '🧤', name: () => phrase('wear.gardenglovescarf.name') }),
+  Object.freeze({ id: 'shellnecklace', slot: 'neck', find: 'seaside', emoji: '🐚', name: () => phrase('wear.shellnecklace.name') }),
+  Object.freeze({ id: 'neckerchief', slot: 'neck', find: 'farm', emoji: '🧣', name: () => phrase('wear.neckerchief.name') }),
+  Object.freeze({ id: 'ticketgarland', slot: 'neck', find: 'fair', emoji: '🎟️', name: () => phrase('wear.ticketgarland.name') }),
+]);

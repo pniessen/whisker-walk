@@ -33,6 +33,8 @@ const DELTA = {
   starfishclip: 2, featherplume: 2,
   // lane F: the heart glasses' frames and lenses
   heartglasses: 2,
+  // lane N: the found neck pieces' ring, and what rides it or hangs in front
+  daisychain: 2, gardenglovescarf: 3, shellnecklace: 2, neckerchief: 2, ticketgarland: 2,
 };
 
 const hen = (acc = BARE) => {
@@ -498,6 +500,19 @@ describe('Hagrid rebuilt (Task 8)', () => {
       }
       expect(neckR).toBeGreaterThan(0.05);
       expect(ring.geometry.parameters.radius).toBeGreaterThan(neckR + 0.01);
+    });
+
+    it('the found neck pieces ring his neck', () => {
+      const NECKS = ['daisychain', 'gardenglovescarf', 'shellnecklace', 'neckerchief', 'ticketgarland'];
+      const { P0, P1, P2 } = hen().userData.parts.head.children[0].geometry.userData.neck;
+      const curve = new THREE.QuadraticBezierCurve3(...[P0, P1, P2].map((a) => new THREE.Vector3().fromArray(a)));
+      const line = curve.getPoint(0.45); // HEN_SCARF_U (model.js), where the streamer scarf's band rings the neck
+      for (const id of NECKS) {
+        const { head } = hen({ ...BARE, neck: id }).userData.parts;
+        const rings = head.children.filter((o) => o.isMesh && o.userData.foundWear === id && o.geometry.type === 'TorusGeometry');
+        expect(rings, id).toHaveLength(1);
+        expect([id, rings[0].position.distanceTo(line) <= 0.015]).toEqual([id, true]);
+      }
     });
 
     it.each(['bandana', 'necktie', 'bowtie', 'scarf'])('%s sits on the neck, outside it', (id) => {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CATALOG } from '../src/progression.js';
 import { renderThingsToWearHtml } from '../src/foundwear/journal.js';
+import { foundWearIn } from '../src/foundwear/index.js';
 
 // A stand-in catalog with a Clan-only place's outfit beside the Park's cap.
 const withMoss = {
@@ -19,7 +20,8 @@ describe('Things to wear in the Journal', () => {
     expect(html).not.toMatch(/\d+\s*(of|\/)\s*\d+/);
   });
   it('found, it shows its name', () => {
-    const html = renderThingsToWearHtml({ unlocked: { accessories: ['acorncap'] } }, CATALOG);
+    // every outfit hidden in the Park is found, so no card there stays a silhouette
+    const html = renderThingsToWearHtml({ unlocked: { accessories: foundWearIn('park').map((r) => r.id) } }, CATALOG);
     expect(html).toContain('journal-card spotted'); expect(html).toContain('Acorn Cap'); expect(html).toContain('🌰');
     expect(html).not.toContain('journal-card unspotted');
     expect(html).not.toContain('silhouette');
