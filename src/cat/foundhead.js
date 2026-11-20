@@ -33,9 +33,57 @@
 // An id is 3 to 16 lowercase letters (the colony server's check), the
 // record's in src/foundwear/, and never changes once shipped. An unknown id,
 // or anything that is not a string, adds nothing.
+import * as THREE from 'three';
+import { litMaterial } from '../render/materials.js';
 import { hasEntry } from './wearkind.js';
 
-export const FOUND_HEN_HEADS = Object.freeze({});
+// Hagrid's brimmed hats are the simple versions of src/cat/hats.js's, built
+// as addPrizeHead's hats are (round primitives at his anchors: a brim at about
+// y - 0.01, the crown above it, round his comb). 3 or 4 meshes each.
+const piece = (geo, hex, x, y, z, rx = 0) => {
+  const m = new THREE.Mesh(geo, litMaterial(hex));
+  m.position.set(x, y, z);
+  m.rotation.x = rx;
+  return m;
+};
+const cyl = (rTop, rBot, h, sides = 10) => new THREE.CylinderGeometry(rTop, rBot, h, sides);
+const dome = (r, sx, sy, sz) => { const g = new THREE.SphereGeometry(r, 8, 6); g.scale(sx, sy, sz); return g; };
+const ring = (r, tube) => { const g = new THREE.TorusGeometry(r, tube, 4, 12); g.rotateX(Math.PI / 2); return g; };
+
+export const FOUND_HEN_HEADS = Object.freeze({
+  // the beanie's puffed crown leaning forward, a short stiff peak, a button
+  paperboycap: (head, { k, y }) => {
+    head.add(piece(dome(0.1 * k, 1, 0.62, 1.1), 0x7d6b58, 0, y - 0.012, -0.004));
+    head.add(piece(new THREE.BoxGeometry(0.1 * k, 0.008, 0.05 * k), 0x4e4136, 0, y - 0.03, -0.1 * k, 0.25));
+    head.add(piece(dome(0.012 * k, 1, 0.8, 1), 0x4e4136, 0, y + 0.045 * k, -0.01));
+  },
+  // a round soft crown, a sloping brim all round, one stitched ring on it
+  buckethat: (head, { k, y }) => {
+    head.add(piece(cyl(0.08 * k, 0.1 * k, 0.075), 0xe9c46a, 0, y + 0.025, 0));
+    head.add(piece(cyl(0.1 * k, 0.15 * k, 0.02), 0xe9c46a, 0, y - 0.015, 0));
+    head.add(piece(ring(0.125 * k, 0.004), 0xc89b3c, 0, y - 0.003, 0));
+  },
+  // a flat white top, a navy band, a short black peak, a gold badge
+  sailorcap: (head, { k, y }) => {
+    head.add(piece(cyl(0.09 * k, 0.088 * k, 0.05), 0xf2f2ee, 0, y + 0.03, 0));
+    head.add(piece(cyl(0.094 * k, 0.096 * k, 0.026), 0x24365c, 0, y - 0.002, 0));
+    head.add(piece(new THREE.BoxGeometry(0.07 * k, 0.006, 0.04 * k), 0x1c1c22, 0, y - 0.012, -0.1 * k, 0.2));
+    head.add(piece(dome(0.009 * k, 1, 1, 0.5), 0xf2c14e, 0, y - 0.002, -0.098 * k));
+  },
+  // a wide straw brim, a round crown, a red band
+  strawhat: (head, { k, y }) => {
+    head.add(piece(cyl(0.16 * k, 0.16 * k, 0.01, 12), 0xe3c26b, 0, y - 0.015, 0));
+    head.add(piece(cyl(0.075 * k, 0.085 * k, 0.07), 0xcfa94e, 0, y + 0.022, 0));
+    head.add(piece(cyl(0.087 * k, 0.088 * k, 0.016), 0xc0392b, 0, y - 0.002, 0));
+  },
+  // a flat top, straight sides, a flat brim, a red band with a white stripe
+  stripedboater: (head, { k, y }) => {
+    head.add(piece(cyl(0.125 * k, 0.125 * k, 0.01, 12), 0xe8cf86, 0, y - 0.015, 0));
+    head.add(piece(cyl(0.08 * k, 0.08 * k, 0.07), 0xe8cf86, 0, y + 0.022, 0));
+    head.add(piece(cyl(0.083 * k, 0.083 * k, 0.02), 0xe2433a, 0, y - 0.002, 0));
+    head.add(piece(cyl(0.0835 * k, 0.0835 * k, 0.006), 0xf5f5f5, 0, y - 0.002, 0));
+  },
+});
 
 // Hagrid's found hat, if `id` is one; nothing otherwise.
 export function addFoundHenHead(head, id, { k, y, rx, rz, ringY = y }) {

@@ -18,7 +18,8 @@ import { SKULL } from './torso.js';
 // Hagrid still wears the old prize head items (model.js addPrizeHead); only
 // the cat's head slot builds these.
 
-export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap'];
+export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -216,7 +217,7 @@ function drapedBrim(cx, cz, profile, segs, wave = () => 0) {
     const f = (row.r - profile[0].r) / (profile[profile.length - 1].r - profile[0].r || 1);
     const x = cx + Math.sin(th) * row.r, z = cz - Math.cos(th) * row.r;
     const [p, n] = drape(new THREE.Vector3(x, skullY(x, z), z), row.d + wave(th, Math.max(0, Math.min(1, f))));
-    return { p, c: row.c, out: row.out ? n : null };
+    return { p, c: typeof row.c === 'function' ? row.c(i, j) : row.c, out: row.out ? n : null };
   });
 }
 
@@ -720,7 +721,157 @@ function acorncap(simple) {
   return finish('acorncap', [shell, lip, stalk]);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap };
+// --- found hats with brims (found outfits step 2, lane H) -------------------
+//
+// Five hats in the beanie's and the top hat's manner: the crown's bottom ring
+// is DRAPED on the skull (3 mm off it), so the lowest rim lies on the head
+// all the way round, and a brim is draped from that same ring, so it follows
+// the head's curve down to the ears (which poke through, as ear holes). A
+// wide brim keeps off the eyes by sitting back on the head (cz > 0): its
+// front edge is high on the forehead (the test: lowBrow > eyeTop + 0.015).
+
+// A front-only peak: for th within +-span of the front, a stiff flap that runs
+// out from the rim point baseAt(th) along the way the head faces, dropping
+// `slope` per unit out, shorter toward its ends. Two faces and an edge.
+function frontPeak(baseAt, span, len, slope, hex, n) {
+  const dirAt = (th) => new THREE.Vector3(Math.sin(th), 0, -Math.cos(th));
+  const rows = [[0, -0.002, -1], [1, -0.002, -1], [1.02, 0.0015, 0], [1, 0.005, 1], [0, 0.008, 1]];
+  return grid(n, rows.length, {}, (i, j) => {
+    const th = -span + (2 * span * i) / (n - 1);
+    const [w, lift, up] = rows[j];
+    const reach = len * Math.max(0, Math.cos((th / span) * Math.PI / 2)) ** 0.6 * w;
+    const p = baseAt(th).clone().addScaledVector(dirAt(th), reach).add(new THREE.Vector3(0, lift - slope * reach, 0));
+    return { p, c: hex, out: up ? new THREE.Vector3(0, up, 0) : dirAt(th) };
+  });
+}
+
+// The round hats (Bucket Hat, Sailor Cap, Straw Hat, Striped Boater). `spec`:
+//   at [cx, cz]   the crown's centre on the head (xz); cz > 0 sits it back
+//   crownR        the crown's radius where it meets the skull
+//   taper         its radius at the top, as a share of crownR
+//   crownH        how far its top stands above the skull's top
+//   crownTop      'round' (a soft dome) or 'flat' (a disc)
+//   brimW         the brim's width past the crown (0: none)
+//   brimDroop     how much thinner the brim's outer edge is than its inner
+//                 (a soft brim hangs; a stiff one is 0)
+//   band          { h, colours: [...] } a band round the crown's foot, stripes
+//                 by column when there is more than one colour
+//   crown, brim   colours (a function (column, row) -> hex paints a weave)
+//   stitch        { c, at: [share of the brim's width, ...] } stitched rings
+//   peak          { len, slope, span, c } a front peak on the crown's foot
+const BRIM_HATS = {
+  buckethat: { at: [0, 0.02], crownR: 0.12, taper: 0.88, crownH: 0.05, crownTop: 'round', brimW: 0.055, brimDroop: 0.007, crown: 0xe9c46a, brim: 0xe9c46a, stitch: { c: 0xc89b3c, at: [0.45, 0.8] } },
+  sailorcap: { at: [0, 0.03], crownR: 0.14, taper: 1, crownH: 0.045, crownTop: 'flat', brimW: 0, brimDroop: 0, crown: 0xf2f2ee, band: { h: 0.026, colours: [0x24365c] }, peak: { len: 0.045, slope: 0.3, span: 0.9, c: 0x1c1c22 }, badge: 0xf2c14e },
+  strawhat: { at: [0, 0.02], crownR: 0.105, taper: 0.93, crownH: 0.055, crownTop: 'round', brimW: 0.075, brimDroop: 0.003, crown: (i, j) => ((i + j) % 2 ? 0xcfa94e : 0xe3c26b), brim: (i, j) => ((i + j) % 2 ? 0xcfa94e : 0xe3c26b), band: { h: 0.022, colours: [0xc0392b] } },
+  stripedboater: { at: [0, 0.01], crownR: 0.105, taper: 1, crownH: 0.06, crownTop: 'flat', brimW: 0.05, brimDroop: 0, crown: 0xe8cf86, brim: 0xe8cf86, band: { h: 0.026, colours: [0xe2433a, 0xf5f5f5] } },
+};
+function brimHat(id, spec, simple) {
+  const segs = simple ? 12 : 24;
+  const [cx, cz] = spec.at, r0 = spec.crownR, R = r0 + spec.brimW;
+  const dome = spec.crownTop === 'round' ? spec.crownH * 0.55 : 0;
+  const top = SB + spec.crownH, wallTop = top - dome;
+  const paint = (c, i, j) => (typeof c === 'function' ? c(i, j) : c);
+  // the crown's foot: the draped ring, one point per column
+  const foot = [];
+  for (let i = 0; i < segs; i++) {
+    const th = (i / segs) * Math.PI * 2;
+    const x = cx + Math.sin(th) * r0, z = cz - Math.cos(th) * r0;
+    foot.push(drape(new THREE.Vector3(x, skullY(x, z), z), 0.003)[0]);
+  }
+  const band = spec.band, bandC = (i) => band.colours[i % band.colours.length];
+  // a band hugs the head: its top edge is the skull's own surface band.h above the foot
+  const lo = band ? foot.map((f) => drape(f.clone().add(new THREE.Vector3(0, band.h, 0)), 0.006)[0]) : foot;
+  // wall rows, from `lo` up: [share of the way to the wall top | cap row, colour]
+  const crownC = (i, j) => paint(spec.crown, i, j);
+  const wall = [{ f: 0, c: crownC }, { f: 0.5, c: crownC }, { f: 1, c: crownC }];
+  const capRows = [];
+  if (dome) for (let k = 1; k <= (simple ? 2 : 3); k++) { const a = (k / (simple ? 2 : 3)) * Math.PI / 2; capRows.push({ r: Math.cos(a), y: wallTop + dome * Math.sin(a) }); }
+  else capRows.push({ r: 0.97, y: top + 0.0015 }, { r: 0.001, y: top + 0.0015 });
+  const nBand = band ? 2 : 0, rows = nBand + wall.length + capRows.length;
+  const crown = grid(segs, rows, { wrapU: true }, (i, j) => {
+    const th = (i / segs) * Math.PI * 2, f0 = foot[i], l0 = lo[i];
+    const dir = new THREE.Vector3(Math.sin(th), 0, -Math.cos(th));
+    const topXZ = [cx + dir.x * r0 * spec.taper, cz + dir.z * r0 * spec.taper];
+    let p, c;
+    if (j < nBand) {
+      p = j ? l0.clone() : f0.clone().addScaledVector(dir, 0.003);
+      c = bandC(i);
+    } else if (j < nBand + wall.length) {
+      const w = wall[j - nBand];
+      p = new THREE.Vector3(l0.x + (topXZ[0] - l0.x) * w.f, l0.y + (wallTop - l0.y) * w.f, l0.z + (topXZ[1] - l0.z) * w.f);
+      c = w.c(i, j);
+    } else {
+      const cr = capRows[j - nBand - wall.length];
+      p = new THREE.Vector3(cx + dir.x * r0 * spec.taper * cr.r, cr.y, cz + dir.z * r0 * spec.taper * cr.r);
+      c = crownC(i, j);
+    }
+    return { p, c, out: p.clone().sub(new THREE.Vector3(cx, 0.05, cz)) };
+  });
+  const parts = [crown];
+  if (spec.brimW > 0) {
+    const dTop = Math.max(0.005, 0.010 - spec.brimDroop);
+    const dAt = (rr) => 0.010 + (dTop - 0.010) * ((rr - r0) / spec.brimW);
+    const top1 = (rr, c, out = 1) => ({ r: rr, d: dAt(rr), c, out });
+    const bc = (i, j) => paint(spec.brim, i, j);
+    const profile = [{ r: r0, d: 0.003, c: bc }, { r: R, d: 0.003, c: bc }, { r: R + 0.004, d: (0.003 + dTop) / 2, c: bc, out: 1 }, top1(R, bc)];
+    for (const q of spec.stitch?.at ?? []) {
+      const rs = r0 + q * spec.brimW;
+      profile.push(top1(rs + 0.0015, bc), top1(rs, spec.stitch.c), top1(rs - 0.0015, bc));
+    }
+    profile.push({ r: r0, d: 0.010, c: bc, out: 1 });
+    parts.push(drapedBrim(cx, cz, profile, segs, undefined));
+  }
+  if (spec.peak) {
+    const { len, slope, span, c } = spec.peak, n = simple ? 7 : 11;
+    parts.push(frontPeak((th) => {
+      const x = cx + Math.sin(th) * r0, z = cz - Math.cos(th) * r0;
+      return drape(new THREE.Vector3(x, skullY(x, z), z), 0.004)[0];
+    }, span, len, slope, c, n));
+  }
+  if (spec.badge) {
+    // a gold dot on the front of the band
+    const f0 = foot[0], r = 0.009;
+    parts.push(blob(r, simple ? 5 : 6, simple ? 3 : 4, new THREE.Vector3(f0.x, f0.y + band.h * 0.5, f0.z - 0.004), [1, 1, 0.5], spec.badge));
+  }
+  return finish(id, parts);
+}
+const buckethat = (simple) => brimHat('buckethat', BRIM_HATS.buckethat, simple);
+const sailorcap = (simple) => brimHat('sailorcap', BRIM_HATS.sailorcap, simple);
+const strawhat = (simple) => brimHat('strawhat', BRIM_HATS.strawhat, simple);
+const stripedboater = (simple) => brimHat('stripedboater', BRIM_HATS.stripedboater, simple);
+
+// Paperboy Cap: the beanie's crown (a shell on the skull's radii x 1.05, down
+// to a rim high on the brow and low at the back, a lip draped under it), its
+// front puffed forward 15 %, in eight panels, a button on top, and a short
+// stiff peak across the front only (within 0.9 rad of straight ahead).
+const PAPERBOY = { shell: 1.05, rimFront: 0.125, rimBack: 0.045, lipH: 0.016, puff: 0.15, peakLen: 0.05, peakSlope: 0.3, span: 0.9, button: 0.011 };
+const PAPERBOY_PANEL = [0x7d6b58, 0x6b5a48], PAPERBOY_PEAK = 0x4e4136;
+const paperboyRim = (phi) => (PAPERBOY.rimFront + PAPERBOY.rimBack) / 2 + ((PAPERBOY.rimFront - PAPERBOY.rimBack) / 2) * Math.cos(phi);
+function paperboycap(simple) {
+  const segs = simple ? 16 : 24, rows = simple ? 5 : 7;
+  const panel = (i) => PAPERBOY_PANEL[Math.floor(((i + 0.5) * 8) / segs) % 2];
+  const shell = grid(segs, rows, { wrapU: true }, (i, j) => {
+    const phi = (i / segs) * Math.PI * 2;
+    const thRim = Math.acos(Math.min(1, paperboyRim(phi) / SB));
+    const th = (j / (rows - 1)) * thRim;
+    const u = new THREE.Vector3(Math.sin(th) * Math.sin(phi), Math.cos(th), -Math.sin(th) * Math.cos(phi));
+    const p = new THREE.Vector3(u.x * SA, u.y * SB, u.z * SC).multiplyScalar(PAPERBOY.shell);
+    // puffed forward: the front of the crown bellies out, the rim itself stays
+    p.z *= 1 + PAPERBOY.puff * Math.max(0, -u.z) * Math.sin((Math.PI * j) / (rows - 1));
+    return { p, c: panel(i), out: u };
+  });
+  const lip = grid(segs, 2, { wrapU: true }, (i, j) => {
+    const phi = (i / segs) * Math.PI * 2;
+    const [p, n] = drape(ringPoint(phi, paperboyRim(phi) - j * PAPERBOY.lipH), j ? 0.003 : 0.010);
+    return { p, c: panel(i), out: n };
+  });
+  const peak = frontPeak((th) => drape(ringPoint(th, paperboyRim(th)), 0.010)[0], PAPERBOY.span, PAPERBOY.peakLen, PAPERBOY.peakSlope, PAPERBOY_PEAK, simple ? 7 : 11);
+  const r = PAPERBOY.button;
+  const button = blob(r, simple ? 5 : 6, simple ? 3 : 4, new THREE.Vector3(0, SB * PAPERBOY.shell + r * 0.3, 0), [1, 0.7, 1], PAPERBOY_PEAK);
+  return finish('paperboycap', [shell, lip, peak, button]);
+}
+
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater };
 
 export function buildHat(id, { simple = false } = {}) {
   const make = Object.hasOwn(BUILD, id ?? '') ? BUILD[id] : null;
@@ -728,4 +879,4 @@ export function buildHat(id, { simple = false } = {}) {
 }
 
 // for tests / tuning
-export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH, PAPER, ACORN });
+export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH, PAPER, ACORN, PAPERBOY, BRIM_HATS });

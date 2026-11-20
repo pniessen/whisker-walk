@@ -22,4 +22,10 @@ import { phrase } from '../clanphrases.js';
 export const HEAD_WEAR = Object.freeze([
   // the Park: a little acorn cup and stalk (src/cat/hats.js builds it)
   Object.freeze({ id: 'acorncap', slot: 'head', find: 'park', emoji: '🌰', name: () => phrase('wear.acorncap.name') }),
+  // lane H (src/cat/hats.js builds them; src/cat/foundhead.js is Hagrid's)
+  Object.freeze({ id: 'paperboycap', slot: 'head', find: 'neighborhood', emoji: '🧢', name: () => phrase('wear.paperboycap.name') }),
+  Object.freeze({ id: 'buckethat', slot: 'head', find: 'seaside', emoji: '🪣', name: () => phrase('wear.buckethat.name') }),
+  Object.freeze({ id: 'sailorcap', slot: 'head', find: 'docks', emoji: '⛵', name: () => phrase('wear.sailorcap.name') }),
+  Object.freeze({ id: 'strawhat', slot: 'head', find: 'farm', emoji: '👒', name: () => phrase('wear.strawhat.name') }),
+  Object.freeze({ id: 'stripedboater', slot: 'head', find: 'fair', emoji: '🎪', name: () => phrase('wear.stripedboater.name') }),
 ]);

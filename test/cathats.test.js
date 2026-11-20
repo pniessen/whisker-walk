@@ -208,7 +208,7 @@ describe('hats sit on the head (accessories polish Task 1)', () => {
 
 describe('the Acorn Cap (found outfits step 1)', () => {
   it('is in HAT_IDS, so every hat sweep above covers it', () => {
-    expect(HAT_IDS.at(-1)).toBe('acorncap');
+    expect(HAT_IDS).toContain('acorncap');
   });
   it('its stalk is the top, near the middle of the crown, under the old top hat', () => {
     for (const simple of [false, true]) {
@@ -239,5 +239,40 @@ describe('the Acorn Cap (found outfits step 1)', () => {
       const lowBrow = Math.min(...verts(hat).filter((v) => v.z < -0.1).map((v) => v.y));
       expect(lowBrow, breed).toBeGreaterThan(eyeTop + 0.015);
     }
+  });
+});
+
+// Found outfits step 2, lane H: five hats with brims. The seat, triangle and
+// ear-tip sweeps above already run over them (they are in HAT_IDS).
+describe('found hats with brims (found outfits step 2)', () => {
+  const BRIMMED = [['paperboycap', 0x7d6b58], ['buckethat', 0xe9c46a], ['sailorcap', 0xf2f2ee], ['strawhat', 0xe3c26b], ['stripedboater', 0xe8cf86]];
+  const IDS = BRIMMED.map(([id]) => id);
+  const breeds = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
+  it.each(IDS)('%s is in HAT_IDS', (id) => {
+    expect(HAT_IDS).toContain(id);
+  });
+  it.each(IDS)('%s: the brim or peak clears the eyes on every preset', (id) => {
+    for (const breed of breeds) {
+      const cat = buildCat(breed, { head: id });
+      const { head } = cat.userData.parts;
+      const eyes = head.children.filter((m) => m.isMesh && m.userData.eye);
+      expect(eyes, breed).toHaveLength(2);
+      const eyeTop = Math.max(...eyes.map((e) => { e.updateMatrix(); return new THREE.Box3().setFromBufferAttribute(e.geometry.attributes.position).applyMatrix4(e.matrix).max.y; }));
+      const [hat] = hatOf(cat);
+      const lowBrow = Math.min(...verts(hat).filter((v) => v.z < -0.1).map((v) => v.y));
+      expect(lowBrow, breed).toBeGreaterThan(eyeTop + 0.015);
+    }
+  });
+  it.each(BRIMMED)('%s: its own colours (the vertex colours include %s)', (id, first) => {
+    const c = buildHat(id).geometry.attributes.color;
+    const hexes = new Set();
+    for (let i = 0; i < c.count; i++) hexes.add(new THREE.Color(c.getX(i), c.getY(i), c.getZ(i)).getHex());
+    expect(hexes.has(first)).toBe(true);
+  });
+  it('the paperboy cap\'s peak is at the front only', () => {
+    const V = verts(buildHat('paperboycap'));
+    const peak = V.filter((v) => v.z < -SKULL_R[2] * 1.02);
+    expect(peak.length).toBeGreaterThan(0);
+    for (const v of peak) expect(Math.abs(Math.atan2(v.x, -v.z))).toBeLessThan(0.95);
   });
 });

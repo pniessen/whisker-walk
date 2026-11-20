@@ -27,6 +27,8 @@ const DELTA = {
   papercrown: 7, prizerosette: 4, tailballoon: 0,
   // the found outfits: the Acorn Cap's cup and stalk
   acorncap: 2,
+  // lane H: the brimmed hats' pieces (crown/dome, brim or peak, band, button or badge)
+  paperboycap: 3, buckethat: 3, sailorcap: 4, strawhat: 3, stripedboater: 4,
 };
 
 const hen = (acc = BARE) => {
@@ -400,6 +402,17 @@ describe('Hagrid rebuilt (Task 8)', () => {
       const b = boxOf(cap.flatMap((m) => pointsIn(m, head)));
       expect(b.min.y).toBeLessThanOrEqual(top);
       expect(b.max.y).toBeLessThanOrEqual(top + 0.13);
+    });
+
+    it.each(['paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater'])('the %s sits on his head above his skull and clear of the comb\'s reach', (id) => {
+      const top = Math.max(...comb().pts.map((v) => v.y));
+      const c = hen({ ...BARE, head: id });
+      const { head } = c.userData.parts;
+      const pieces = head.children.filter((o) => o.isMesh && o.userData.foundWear === id);
+      expect(pieces.length).toBe(DELTA[id]);
+      const b = boxOf(pieces.flatMap((m) => pointsIn(m, head)));
+      expect(b.min.y).toBeGreaterThan(0.137);
+      expect(b.max.y).toBeLessThanOrEqual(top + 0.15);
     });
 
     it('the beanie covers the comb', () => {
