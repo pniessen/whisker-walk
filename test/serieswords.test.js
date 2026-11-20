@@ -65,7 +65,8 @@ import {
   campSoonLine, clanPickerModel, renderClanPickerHtml, renderClanMomentHtml, clanLineHtml, clanMomentDue,
 } from '../src/ui/clanpicker.js';
 import { renderColonyHtml } from '../src/ui/colonypanel.js';
-import { ISLAND_WHERE, renderTerritoryMapHtml } from '../src/ui/territorymap.js';
+import { ISLAND_WHERE, renderWorldMapHtml } from '../src/ui/territorymap.js';
+import { worldMapModel } from '../src/worldmap.js';
 import { buildDressingModel, placeWhyLine, renderPlacesSheetHtml } from '../src/ui/dressingroom.js';
 import { PHRASES } from '../src/chat.js';
 import { PERSONALITY_KEYS, replyFor } from '../src/catreplies.js';
@@ -505,7 +506,7 @@ function screens() {
     movesLearned: htmlText(renderFightMovesHtml({ fightsWon: 25 }, { owned: FIGHT_MOVES.map((m) => m.id) })),
   };
 
-  const mapText = (s) => htmlText(renderTerritoryMapHtml(territoryMapModel(s, CATALOG)));
+  const mapText = (s) => htmlText(renderWorldMapHtml(worldMapModel(s, CATALOG)));
   const map = {
     firstDay: mapText(save()),
     everythingOpenHomeAndAlly: mapText(save({ open: true, mine: CLANS[0], partner: CLANS[2], area: CLANS[0] })),
@@ -601,7 +602,7 @@ function legacyEdition() {
     places: {
       today: `${m.currentPlace.name}${m.currentPlace.line ? ` · ${m.currentPlace.line}` : ''}`,
       places: m.places.map((p) => `${p.name}${p.lockLine ? ` · ${p.lockLine}` : ''}`),
-      hasTerritoryMap: !!m.territoryMap,
+      hasTerritoryMap: !!m.worldMap,
       sheet: htmlText(renderPlacesSheetHtml(m)),
     },
     mapModelCamps: territoryMapModel(s, CATALOG).regions.map((r) => `${r.name}: ${r.camp ? 'camp' : 'no camp'}`),

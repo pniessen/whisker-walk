@@ -1,13 +1,14 @@
-// The territory map's SVG (Clan Edition's "Where to?"). A storybook map drawn
-// from her layout: soft hand-drawn land, her lake, island, river, pond, paths
-// and bridge, and a name on every territory. DOM-free: it returns a string the
-// dressing room inserts.
+// The world map's SVG (Clan Edition's Change place). A storybook map: her
+// territory board drawn from her layout (soft hand-drawn land, her lake,
+// island, river, pond, paths and bridge), the town's street places, the coast
+// and the sea around it, and a name on every place. DOM-free: it returns a
+// string the dressing room inserts.
 //
-// Layers, bottom to top: parchment, land, water, paths, then the labels and
-// tap targets. Land sits under the water so her lake and river show through
-// the Woods; each built place gets an invisible copy of its outline on top,
-// inside its <g data-dr-place>, so a tap anywhere in it (even on the lake)
-// reaches the dressing room's existing place handler.
+// Layers, bottom to top: paper, sea, land, water, paths, roads, then one
+// group per place with its name and its tap target. Land sits under the water
+// so her lake and river show through the Woods; each place gets an invisible
+// copy of its outline on top, inside its <g data-dr-map-place>, so a tap
+// anywhere in it (even on the lake) reaches that place.
 
 import { clanName } from '../clanhomes.js';
 import { LAND } from '../territories.js';
@@ -134,49 +135,10 @@ function campHtml(r) {
   return `<g class="${cls}"><title>${escapeHtml(phrase('map.camp', clanName(r.id)))}</title>${ring}${badge}${dome}</g>`;
 }
 
-// Where the island is, said under its name and in its tap title.
+// Where the island is, said under its name and in its screen-reader label.
 export const ISLAND_WHERE = 'in the Pines and Swamp';
 
 const stateClasses = (r) => `${r.status}${r.locked ? ' locked' : ''}${r.selected ? ' sel' : ''}`;
-
-export function renderTerritoryMapHtml(model) {
-  const m = model;
-  const built = m.regions.filter((r) => r.status === 'built' && r.areaId);
-  const unbuilt = m.regions.filter((r) => !built.includes(r));
-
-  const land = m.regions.map((r) => `<path class="tm-land ${stateClasses(r)}" fill="${LAND[r.id] ?? '#c8b98f'}" d="${blobPath(r.id, r.x, r.y, r.r)}"/>`).join('');
-  const water = `<path class="tm-river-bank" d="${smoothPath(m.river, false)}"/><path class="tm-river" d="${smoothPath(m.river, false)}"/>`
-    + `<path class="tm-lake" d="${smoothPath(m.lake, true)}"/>`
-    + `<circle class="tm-pond" cx="${m.pond.x}" cy="${m.pond.y}" r="${m.pond.r}"/>`;
-  const paths = Object.values(m.paths).map((p) => `<path class="tm-path" d="${smoothPath(p, false)}"/>`).join('');
-  const [b0, b1] = m.bridge;
-  const bridge = `<line class="tm-bridge" x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}"/>`
-    + `<line class="tm-bridge-planks" x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}"/>`;
-  // The island is part of the Pines' tap target (territories.js: ISLAND is
-  // always built, walked as part of the Pines): the star leads to the Pines
-  // and says so, drawn over the built places.
-  const isl = m.island;
-  const islandBody = `<path class="tm-island" d="${smoothPath(isl.outline, true)}"/>`
-    + `<polygon class="tm-star" points="${starPoints(m.star.x, m.star.y, 13, 5.5)}"/>`
-    + `<text class="tm-label tm-small" x="461" y="276" text-anchor="middle">${escapeHtml(isl.name)}</text>`;
-  const island = `<g class="tm-region ${stateClasses(isl)}" data-region="island" data-dr-place="${escapeHtml(isl.areaId)}">`
-    + `<title>${escapeHtml(`${isl.name}, ${ISLAND_WHERE} · ${isl.line}`)}</title>`
-    + `<path class="tm-hit" d="${smoothPath(isl.outline, true)}"/>${islandBody}`
-    + `<text class="tm-label tm-small" x="461" y="352" text-anchor="middle">${escapeHtml(ISLAND_WHERE)}</text></g>`;
-  const unbuiltHtml = unbuilt.map((r) => `<g class="tm-region ${stateClasses(r)}" data-region="${escapeHtml(r.id)}">`
-    + `<title>${escapeHtml(`${r.name} · ${r.line}`)}</title>${labelHtml(r)}</g>`).join('');
-  const builtHtml = built.map((r) => `<g class="tm-region ${stateClasses(r)}" data-region="${escapeHtml(r.id)}" data-dr-place="${escapeHtml(r.areaId)}">`
-    + `<title>${escapeHtml(`${r.name} · ${r.line}`)}</title>`
-    + `<path class="tm-hit" d="${blobPath(r.id, r.x, r.y, r.r)}"/>${labelHtml(r)}${campHtml(r)}</g>`).join('');
-
-  return `<svg viewBox="0 0 1000 700" class="territory-map" role="img" aria-label="Territory map" xmlns="http://www.w3.org/2000/svg">`
-    + '<rect class="tm-paper" x="4" y="4" width="992" height="692" rx="34"/>'
-    + `<g class="tm-lands">${land}</g><g class="tm-water">${water}</g><g class="tm-paths">${paths}${bridge}</g>`
-    + `${unbuiltHtml}${builtHtml}${island}`
-    + '<rect class="tm-frame" x="4" y="4" width="992" height="692" rx="34"/>'
-    + '</svg>';
-}
-
 
 // The world map's drawn box: the 1500 x 880 world, with a margin above it so
 // her Moor, whose rough edge reaches about 7 units above the world's top (its

@@ -136,7 +136,7 @@ describe('world map: the world as data', () => {
     s.area = 'park';
     expect(park(s)).toMatchObject({ owned: true, selected: true, line: 'you’re going here' });
 
-    expect(regionOf(worldMapModel(fresh(), CATALOG), 'seaside').line).toBe('opens after you explore The Old Docks 2 times · 0/2');
+    expect(regionOf(worldMapModel(fresh(), CATALOG), 'seaside').line).toBe('opens after you explore the Old Docks 2 times · 0/2');
     s = fresh(); s.keptOffers = ['seaside']; s.walks.park = 2; s.points = 100;
     expect(regionOf(worldMapModel(s, CATALOG), 'seaside')).toMatchObject({ locked: false, canOpen: true, price: 100, line: 'Open for 100 🐾' });
 

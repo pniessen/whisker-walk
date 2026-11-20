@@ -162,8 +162,8 @@
    "keys": "The way to your home starts in {place}."
   },
   "home.opens": {
-   "touch": "Explore here again and {place} opens!",
-   "keys": "Explore here again and {place} opens!"
+   "touch": "Explore here again to open {place}!",
+   "keys": "Explore here again to open {place}!"
   },
   "home.opens-two": {
    "touch": "Explore here again to open {place} and {place2}!",
@@ -465,8 +465,8 @@
    "keys": "The way to your home starts in Twolegplace."
   },
   "home.opens": {
-   "touch": "Explore here again and Twolegplace opens!",
-   "keys": "Explore here again and Twolegplace opens!"
+   "touch": "Explore here again to open Twolegplace!",
+   "keys": "Explore here again to open Twolegplace!"
   },
   "home.opens-two": {
    "touch": "Explore here again to open Twolegplace and City Park!",
@@ -619,16 +619,16 @@
     "gorge": "rule 6: The way to your home starts in the Woods."
    },
    "opensNext": {
-    "park": "rule 7: Explore here again and City Park opens!",
+    "park": "rule 7: Explore here again to open City Park!",
     "farm": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
-    "seaside": "rule 7: Explore here again and Seaside opens!",
+    "seaside": "rule 7: Explore here again to open Seaside!",
     "docks": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
-    "woods": "rule 7: Explore here again and City Park opens!",
-    "river": "rule 7: Explore here again and the River and Marshes opens!",
-    "moor": "rule 7: Explore here again and the River and Marshes opens!",
-    "pines": "rule 7: Explore here again and the Pines and Swamp opens!",
-    "gorge": "rule 7: Explore here again and the Gorge opens!"
+    "woods": "rule 7: Explore here again to open City Park!",
+    "river": "rule 7: Explore here again to open the River and Marshes!",
+    "moor": "rule 7: Explore here again to open the River and Marshes!",
+    "pines": "rule 7: Explore here again to open the Pines and Swamp!",
+    "gorge": "rule 7: Explore here again to open the Gorge!"
    },
    "canBuy": "rule 8: You have enough for the Cozy Beanie. Tap Dress up!",
    "feedAgain": "rule 9: Feed Pickles again: 3 of 6.",
@@ -658,12 +658,12 @@
     "gorge": "rule 12: 150 🐾 more to become a Yard Prowler."
    },
    "opensNext": {
-    "park": "rule 7: Explore here again and City Park opens!",
+    "park": "rule 7: Explore here again to open City Park!",
     "farm": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
-    "seaside": "rule 7: Explore here again and Seaside opens!",
+    "seaside": "rule 7: Explore here again to open Seaside!",
     "docks": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
-    "woods": "rule 7: Explore here again and City Park opens!",
+    "woods": "rule 7: Explore here again to open City Park!",
     "river": "rule 12: 150 🐾 more to become a Yard Prowler.",
     "moor": "rule 12: 150 🐾 more to become a Yard Prowler.",
     "pines": "rule 12: 150 🐾 more to become a Yard Prowler.",

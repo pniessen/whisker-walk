@@ -4,8 +4,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CATALOG, createProgression } from '../src/progression.js';
 import { createDressingRoom } from '../src/ui/dressingroomview.js';
-import { territoryMapModel } from '../src/territories.js';
-import { renderTerritoryMapHtml } from '../src/ui/territorymap.js';
+import { worldMapModel } from '../src/worldmap.js';
+import { renderWorldMapHtml } from '../src/ui/territorymap.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
 import { PAW } from '../src/ui/pawicon.js';
 
@@ -85,7 +85,8 @@ describe('createDressingRoom handleClick', () => {
     expect(t.sync.autoSync).not.toHaveBeenCalled();
   });
 
-  // The territory map's Woods is a <g data-dr-place="woods">; these use a real
+  // The world map's Woods is a <g data-dr-map-place="woods">, its card's Go
+  // here a data-dr-place="woods" button; these use a real
   // progression, so a place tap goes through the real pickPlace and the walk
   // gate is the real canBuy, not a stubbed answer.
   function realSetup() {
@@ -232,9 +233,9 @@ describe('createDressingRoom handleClick', () => {
     t.dr.handleClick(click({ drPlace: 'river' }));
     t.progression.state.walks.river = 1;
     t.progression.state.points = 9999;
-    // the island's <g> carries data-dr-place="pines", so its tap is the Pines' tap
-    const html = renderTerritoryMapHtml(territoryMapModel(t.progression.state, CATALOG));
-    expect(html.match(/data-region="island"[^>]*data-dr-place="(\w+)"/)[1]).toBe('pines');
+    // the island's <g> carries data-dr-map-place="pines", so its tap is the Pines' tap
+    const html = renderWorldMapHtml(worldMapModel(t.progression.state, CATALOG));
+    expect(html.match(/data-region="island"[^>]*data-dr-map-place="(\w+)"/)[1]).toBe('pines');
     const before = JSON.stringify(t.progression.state);
     expect(t.dr.handleClick(click({ drPlace: 'pines' }))).toBe(true);
     expect(JSON.stringify(t.progression.state)).toBe(before);
@@ -956,8 +957,9 @@ describe('createDressingRoom: Launch A (wardrobe, more cats, places)', () => {
     const { dr } = realRoom();
     const html = dr.placesHtml({ clanLineHtml: '<p id="CL"></p>', denHtml: '<i id="DEN"></i>' });
     expect(html).toContain('<p id="CL"></p>');
-    expect(html).toContain('<i id="DEN"></i>');
-    expect(html).toContain('class="territory-map"');
+    // Clan Edition: the world map only; the den is a Menu tile, not on it.
+    expect(html).not.toContain('<i id="DEN"></i>');
+    expect(html).toContain('class="territory-map world-map"');
     expect(dr.placesHtml()).toContain('class="dr-where"');
   });
 
