@@ -294,8 +294,8 @@
    "keys": "Show tips"
   },
   "settings.save-failed": {
-   "touch": "This device could not save the last change. Free up some space, then play again.",
-   "keys": "This device could not save the last change. Free up some space, then play again."
+   "touch": "This device could not save. Free up space, then play again.",
+   "keys": "This device could not save. Free up space, then play again."
   }
  },
  "slotsFilledWith": {
@@ -601,8 +601,8 @@
    "keys": "Show tips"
   },
   "settings.save-failed": {
-   "touch": "This device could not save the last change. Free up some space, then play again.",
-   "keys": "This device could not save the last change. Free up some space, then play again."
+   "touch": "This device could not save. Free up space, then play again.",
+   "keys": "This device could not save. Free up space, then play again."
   }
  },
  "nextThing": {

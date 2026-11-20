@@ -77,7 +77,7 @@ function flakyStorage() {
   return s;
 }
 
-const SAVE_FAILED = 'This device could not save the last change. Free up some space, then play again.';
+const SAVE_FAILED = 'This device could not save. Free up space, then play again.';
 
 describe('saveWriteFailed', () => {
   let warn;
