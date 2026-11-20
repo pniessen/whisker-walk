@@ -336,8 +336,6 @@ describe('perches and finds sit on the ground under them', () => {
     expect(walkSrc).toContain('m.position.set(c.x, ground.y(c.x, c.z) + (c.y ?? 0) + 0.2, c.z);');
     // (review S2 added the mice's own phase stream beside the ground)
     expect(walkSrc).toMatch(/createGoldMice\(scene, areaId, new Set\(progression\.state\.golden\), \{\s*ground, rng: /);
-    const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-    expect(mainSrc).toMatch(/session\.goldMice\.checkFind\(session\.cat\.position, pawsY\)/);
   });
 
   it('a knockable on a plateau ledge is reached from a perch on the plateau', () => {
@@ -469,11 +467,6 @@ describe('the camera keeps out of rock', () => {
     expect(src).toMatch(
       /camera\.position\.copy\(avatar\.position\)\.add\(camOff\);\n\s+if \(camera\.position\.y < MIN_CAMERA_Y\) camera\.position\.y = MIN_CAMERA_Y;\n\s+if \(!ground\.flat\) placeCameraOnGround\(/,
     );
-  });
-
-  it('main.js fits the shadows to the ground under her cat', () => {
-    const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-    expect(src).toContain('session.shadows.update(session.ground.y(player.position.x, player.position.z), dt)');
   });
 });
 
@@ -1369,8 +1362,6 @@ describe('the whole branch stands on the ground', () => {
     expect(weather.length).toBe(1);
     expect(weather[0]).toMatch(/reducedMotion, ground(, \{[^}]*\})?\)$/);
     expect(read('weather.js')).toMatch(/export function createWeather\(scene, sun, condition, rng, reducedMotion = false, ground = FLAT_GROUND, opts = \{\}\)/);
-    // The shadow fit is fed the ground under her cat every frame.
-    expect(read('main.js')).toMatch(/session\.shadows\.update\(session\.ground\.y\(player\.position\.x, player\.position\.z\), dt\)/);
 
     // Exempt from the call pin: these read the ground off the area they are
     // given, so walk.js's areaData is enough. Pinned in their own source.

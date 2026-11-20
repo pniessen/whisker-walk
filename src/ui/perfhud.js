@@ -78,6 +78,14 @@ export function formatDiagHtml(entries, total, open, shown = DIAG_SHOWN) {
   return head + lines.join('');
 }
 
+// The renderer's memory counts read at the last walk end (diagnostics.js
+// noteMemory): one line under the failure line, or nothing before the first
+// walk has ended. A count that creeps up walk after walk is a leak.
+export function formatMemoryLine(r) {
+  if (!r) return '';
+  return `after last walk: ${r.geometries} geometries, ${r.textures} textures, ${r.programs} programs`;
+}
+
 export function createPerfHud({ renderer, settings, coarse, adapter, diagnostics = null, build = '' }) {
   const stats = createFrameStats();
   const counter = createRenderCounter(renderer);
@@ -98,8 +106,9 @@ export function createPerfHud({ renderer, settings, coarse, adapter, diagnostics
   let enabled = false;
   let startedAt = 0;
   let lastRefresh = 0;
-  // The diagnostics line: drawn again only when the record or the open state
-  // changed (diagnostics.version), and only on the 500 ms refresh.
+  // The diagnostics line (and the memory line under it): drawn again only
+  // when the record or the open state changed (diagnostics.version), and only
+  // on the 500 ms refresh.
   let diagEl = null;
   let diagDrawn = -1;
   let diagOpen = false;
@@ -107,7 +116,9 @@ export function createPerfHud({ renderer, settings, coarse, adapter, diagnostics
   function refreshDiag() {
     if (!diagnostics || diagnostics.version === diagDrawn) return;
     diagDrawn = diagnostics.version;
-    const html = formatDiagHtml(diagnostics.entries(), diagnostics.total, diagOpen);
+    const memory = formatMemoryLine(diagnostics.memory().at(-1));
+    const html = formatDiagHtml(diagnostics.entries(), diagnostics.total, diagOpen)
+      + (memory ? `<div class="diag-line">${escapeHtml(memory)}</div>` : '');
     if (!html) { if (diagEl) diagEl.classList.add('hidden'); return; }
     if (!diagEl) {
       diagEl = document.createElement('div');

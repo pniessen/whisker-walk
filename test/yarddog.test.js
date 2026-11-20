@@ -267,18 +267,14 @@ test('the walk.js dog block pays and takes nothing, and leaves the carried item 
   expect(src.slice(r0, r1)).not.toMatch(/dog/i);
 });
 
-test('endWalk frees the dog once, before the scene traversal; the render loop drives it after the rival', () => {
+// The render loop driving it after the rival is test/frameorder.test.js's.
+test('endWalk frees the dog once, before the scene traversal', () => {
   const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
   const end = walk.indexOf('function endWalk');
   const at = walk.indexOf('session.dog.dispose()', end);
   expect(at).toBeGreaterThan(end);
   expect(at).toBeLessThan(walk.indexOf('session.scene.traverse(', end));
   expect(walk.indexOf('session.dog.dispose()', at + 1)).toBe(-1);
-  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  const rival = main.indexOf('session.rival.update(dt, t, session.cat.position, session.cat);');
-  const dog = main.indexOf('session.dog.update(dt, session.cat.position, session.cat, { stalking: player.stalking });');
-  expect(rival).toBeGreaterThan(0);
-  expect(dog).toBeGreaterThan(rival);
 });
 
 test('the journal says how to meet this dog: from outside its lawn', () => {

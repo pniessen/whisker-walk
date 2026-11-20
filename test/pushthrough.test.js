@@ -506,11 +506,10 @@ test.each(AREAS)('%s: a cat walks through every opening, from both sides, straig
 // The walk builds them per walk from the curated set, makes their frames solid
 // after clearSpot has moved the POIs and before the session (and so the first
 // frame) exists, outside the rival slice, frees them before endWalk's scene
-// traversal; the render loop hands them my cat and every remote one, and
-// nothing about a push goes on the wire or pays.
-test('the walk wires push-throughs in: solid frames, every cat a mover, no wire, no points', () => {
+// traversal, and nothing about a push goes on the wire or pays. The render
+// loop handing them my cat and every remote one is test/frameorder.test.js's.
+test('the walk wires push-throughs in: solid frames, no wire, no points', () => {
   const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   const code = walk.replace(/\/\/.*$/gm, '');
   expect(code.match(/createPushThroughs\(scene, propsFor\(areaId\)\.flaps, \{ reducedMotion(, ground)? \}\)/g)).toHaveLength(1);
   const solid = code.indexOf('for (const c of pushThroughs.colliders) areaData.colliders.push(');
@@ -523,9 +522,6 @@ test('the walk wires push-throughs in: solid frames, every cat a mover, no wire,
   const freed = code.indexOf('session.pushThroughs.dispose()');
   expect(freed).toBeGreaterThan(0);
   expect(freed).toBeLessThan(code.indexOf('session.scene.traverse('));
-  expect(main).toMatch(/pushMovers\.push\(session\.cat\.position\)/);
-  expect(main).toMatch(/for \(const r of session\.remotes\.list\) pushMovers\.push\(r\.group\.position\)/);
-  expect(main).toMatch(/session\.pushThroughs\.update\(dt, pushMovers\)/);
   // the module itself never awards, records or sends anything
   const mod = readFileSync(new URL('../src/pushthrough.js', import.meta.url), 'utf8').replace(/\/\/.*$/gm, '');
   expect(mod).not.toMatch(/award|recordFeat|progression|netevents|send\(|Math\.random|walkRng/);

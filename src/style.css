@@ -1377,9 +1377,10 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 @media (max-height: 500px) {
   #perf-readout { font-size: 10px; top: calc(env(safe-area-inset-top) + 8px); transform: none; }
 }
-/* The diagnostics line (perfhud.js): only with the readout on and only once
-   something has gone wrong. Bottom centre, apart from the readout so that
-   never grows; tapping it opens the last few entries upwards. */
+/* The diagnostics line (perfhud.js): only with the readout on, and only once
+   something has gone wrong or a walk has ended (the memory line). Bottom
+   centre, apart from the readout so that never grows; tapping it opens the
+   last few entries upwards. */
 #perf-diag {
   position: fixed;
   left: 50%;
