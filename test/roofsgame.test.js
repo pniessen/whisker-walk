@@ -140,7 +140,8 @@ describe('the Rooftops behind ?roofs=1', () => {
   it('a Rooftops walk note is dropped without the flag', () => {
     const now = Date.UTC(2026, 10, 20, 12);
     const note = { v: 1, at: now - 60_000, tries: 0, areaId: 'roofs', seed: 7, stamp: 'walk-1', x: 4, z: 41, yaw: 0, startPoints: 0 };
-    const walks = { neighborhood: 1, roofs: 0 };
+    // the real game's ids: the keys of a fresh save's walks, as main.js reads them
+    const walks = createProgression(memStorage()).state.walks;
     const ids = (on) => Object.keys(walks).filter((id) => id !== 'roofs' || on);
     expect(mainSrc).toContain("areaIds: Object.keys(progression.state.walks).filter((id) => id !== 'roofs' || roofsOn())");
     const read = (on) => {
@@ -150,6 +151,19 @@ describe('the Rooftops behind ?roofs=1', () => {
     };
     expect(read(false)).toEqual({ got: null, left: null });          // dropped, and the note cleared
     expect(read(true).got?.kind).toBe('resume');                      // the flag on: picked up
+  });
+
+  it('an old save with no walks.roofs loads with 0, and a Rooftops walk counts', () => {
+    const storage = memStorage();
+    const first = createProgression(storage);
+    const old = JSON.parse(JSON.stringify(first.state));
+    delete old.walks.roofs;
+    storage.setItem('whisker-walk-save', JSON.stringify(old));
+    const p = createProgression(storage);
+    expect(p.state.walks.roofs).toBe(0);
+    p.completeWalk('roofs');
+    expect(p.state.walks.roofs).toBe(1);
+    expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false); // R1 still holds
   });
 
   it('a room never walks the Rooftops', () => {
