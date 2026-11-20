@@ -171,7 +171,9 @@ describe('the For grown-ups sheet', () => {
     expect(h).toContain('Game settings');
     expect(h).toContain('Cloud save');
     expect(h).toContain('Gift code');
-    expect(h).toMatch(new RegExp(`id="set-replay-first"[^>]*>${tutorialLine('guide.replay')}</button>`));
+    // the same row as the three above it: an icon, the words, the ›
+    expect(h).toContain(`<button type="button" id="set-replay-first" class="hb-row"><span class="hb-row-icon" aria-hidden="true">🎓</span>`
+      + `<span class="hb-row-name">${tutorialLine('guide.replay')}</span><span class="hb-row-go" aria-hidden="true">›</span></button>`);
     // quiet rows, not pink
     expect(h).not.toContain('primary');
   });
@@ -191,6 +193,10 @@ describe('the For grown-ups sheet', () => {
     openSheet('menu');
     openSheet('grownups');
     doc.root.listeners.click({ target: { id: 'set-replay-first', dataset: {}, closest: () => null } });
+    expect(replay).toHaveBeenCalledWith(null);
+    // a tap on its words (the span inside the row) does the same
+    replay.mockClear();
+    doc.root.listeners.click({ target: { id: '', dataset: {}, closest: (sel) => (sel === '#set-replay-first' ? {} : null) } });
     expect(replay).toHaveBeenCalledWith(null);
     expect(html()).toContain('data-sheet="grownups"');
     expect(html()).toContain(tutorialLine('guide.replay-set'));

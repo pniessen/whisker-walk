@@ -574,7 +574,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       <section class="hb-grownups"><h2>For grown-ups ⚙️</h2>
         <div class="hb-rows">${rows}
           <div class="settings-replay">
-            <button type="button" id="set-replay-first" class="secondary hb-row">${escapeHtml(tutorialLine('guide.replay'))}</button>
+            <button type="button" id="set-replay-first" class="hb-row"><span class="hb-row-icon" aria-hidden="true">🎓</span><span class="hb-row-name">${escapeHtml(tutorialLine('guide.replay'))}</span><span class="hb-row-go" aria-hidden="true">›</span></button>
             ${replayNote ? `<p class="settings-note" id="set-replay-note" role="status">${escapeHtml(tutorialLine('guide.replay-set'))}</p>` : ''}
           </div>
         </div>
@@ -1945,7 +1945,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // save can bring back; the album's photos are not kept.
     // "Play the first walk again": the next solo walk on the street is the
     // guided first walk (no second gift: progression gives it once a save).
-    if (e.target.id === 'set-replay-first') {
+    if (e.target.id === 'set-replay-first' || e.target.closest?.('#set-replay-first')) { // the tap may land on its icon or words
       progression.setTutorialFirst?.(null);
       replayNote = true;
       render();

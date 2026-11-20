@@ -885,8 +885,6 @@ body.touch-mode:not(.left-handed) .hud-top {
 .screen-actions button.quiet:hover, .screen-actions button.quiet:focus-visible { opacity: 1; }
 /* The guided first walk's lines on the summary card. */
 .best-line.guide-line { color: #ffe9b0; font-size: 1.05rem; font-weight: 600; }
-/* "Do the first lesson again", the last row of For grown-ups. */
-.settings-replay button { min-height: 44px; }
 .pause-card .primary, .pause-card .secondary {
   border-radius: 999px; min-height: 48px; min-width: 220px; padding: 12px 30px;
   font: inherit; font-weight: 700; font-size: 1.05rem; cursor: pointer;
@@ -1899,17 +1897,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   /* the wardrobe takes room from the cat, never the other way round */
   .dr-view-wardrobe .dr-hero { overflow: hidden; }
   .dr-view-wardrobe .dr-stage { min-height: 120px; }
-  /* the title is the splash's job on a phone: kept for screen readers only */
-  .dr-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
-    clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
-  .hb-rank { display: none; }
-  .dr .hb-menu-btn { padding: 6px 12px; }
-  .hb-menu-word { display: none; }
   .dr-stage { min-height: 200px; }
-  .dr-hero-name { font-size: 20px; }
-  /* under the name, the cat's personality, as on an iPad (the rank read like
-     a breed there: "Calico · Mythical Feline"); the rank is in the Menu */
-  .dr-hero-blurb { font-size: 13px; }
   .dr .dr-portrait { width: 46px; height: 46px; }
   .dr-make-more { display: none; } /* "＋ Make": the strip keeps "🔒 N more" in view */
   .dr-strip { margin-top: 8px; }
@@ -1930,8 +1918,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .dr-today-name { font-size: 15px; line-height: 1.15; gap: 6px; text-shadow: none; }
   .dr-today-emblem { display: none; }
   .dr-today-card .cap small { font-size: 12px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dr-today-card .cap small:not(.dr-today-change) { display: none; }
-  .dr-today-card .cap .dr-today-change { display: block; }
+  .dr-today-card .cap small:not(.dr-today-change, .dr-town-note) { display: none; }
+  .dr-today-card .cap .dr-today-change, .dr-today-card .cap .dr-town-note { display: block; }
   .dr-change { display: none; }
   /* the day/dusk switch: a round sun or moon at the tile's right end */
   .dr-today-extras { top: 50%; right: 6px; left: auto; transform: translateY(-50%); }
@@ -1955,6 +1943,22 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .dr .dr-dock .dr-together { flex: 0 0 58px; width: 58px; padding: 0; border-radius: 50%; font-size: 22px; }
   .dr-dock .dr-together-words { display: none; }
   .dr-dock .dusk { align-self: flex-start; }
+  .dr-today-card .dr-town-note { text-shadow: none; }
+}
+/* phone only (an iPad in portrait keeps them): the top bar's title, rank pill
+   and Menu word go, so the points and the Menu fit one row; the cat's name
+   and personality a size smaller */
+@media (max-width: 600px) {
+  /* the title is the splash's job on a phone: kept for screen readers only */
+  .dr-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
+  .hb-rank { display: none; }
+  .dr .hb-menu-btn { padding: 6px 12px; }
+  .hb-menu-word { display: none; }
+  .dr-hero-name { font-size: 20px; }
+  /* under the name, the cat's personality, as on an iPad (the rank read like
+     a breed there: "Calico · Mythical Feline"); the rank is in the Menu */
+  .dr-hero-blurb { font-size: 13px; }
 }
 /* very short phones (an SE in a browser): a smaller cat, the same doors */
 @media (max-width: 600px) and (max-height: 640px) {
@@ -2122,7 +2126,7 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
   .hb-sheet[data-sheet="skills"] .cards, .hb-sheet[data-sheet="colony"] .cards { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
   .hb-sheet[data-sheet="journal"] .journal-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
   .hb-sheet[data-sheet="album"] .photos { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
-  .hb-sheet:is([data-sheet="together"], [data-sheet="colony"]) .friends-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+  .hb-sheet[data-sheet="colony"] .friends-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
   .hb-sheet[data-sheet="colony"] .colony-section:has(.empty-state) :is(.colony-banner, .colony-mode) { text-align: center; }
   .hb-sheet[data-sheet="colony"] p.colony-empty, .hb-sheet[data-sheet="colony"] .colony-full,
   .hb-sheet[data-sheet="colony"] .friends-section .empty-state, .hb-sheet[data-sheet="colony"] .empty-state { text-align: center; margin-left: auto; margin-right: auto; }
