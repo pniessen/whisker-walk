@@ -381,7 +381,7 @@ describe('sheets and pictures', () => {
     expect(SHEET_LABEL['den-shop']).toBeUndefined();
   });
   it('labels name the two doors, the Menu tiles, Sound & controls, For grown-ups and its sheets, in that order', () => {
-    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 Colony', '📖 Journal', '📸 Album', '⭐ Skills', '🔊 Sound & controls', '⚙️ For grown-ups', '⚙️ Game settings', '☁️ Cloud save', '🎁 Gift code']);
+    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 My clan', '📖 Journal', '📸 Album', '⭐ Skills', '🔊 Sound & controls', '⚙️ For grown-ups', '⚙️ Game settings', '☁️ Cloud save', '🎁 Gift code']);
   });
   it('Play together is a sheet of its own', () => {
     expect(resolveSheet('together')).toBe('together');

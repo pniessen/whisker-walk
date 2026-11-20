@@ -378,12 +378,12 @@ describe('a device already online behaves as before', () => {
     const f = spy.rpc.find((c) => c.name === 'friendships_of');
     expect(f.args).toEqual({ p_player_id: PID, p_secret: g.getPsecret() });
   });
-  it('with a walking name: Play together fills the friends list from the database', async () => {
+  it('with a walking name: My clan fills the friends list from the database', async () => {
     const g = boot({ petName: 'Mittens' });
     spy.answers.friendships_of = [];
     spy.answers.colony_sync = { status: 'unpaired' };
     g.homebase.show();
-    openSheet('together');
+    openSheet('colony');
     await settle();
     expect(rpcNames()).toContain('friendships_of');
   });

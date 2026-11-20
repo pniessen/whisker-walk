@@ -2107,11 +2107,11 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
   .hb-sheet[data-sheet="skills"] .cards, .hb-sheet[data-sheet="colony"] .cards { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
   .hb-sheet[data-sheet="journal"] .journal-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
   .hb-sheet[data-sheet="album"] .photos { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
-  .hb-sheet:is([data-sheet="together"], [data-sheet="journal"]) .friends-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+  .hb-sheet:is([data-sheet="together"], [data-sheet="colony"]) .friends-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
   .hb-sheet[data-sheet="colony"] .colony-section:has(.empty-state) :is(.colony-banner, .colony-mode) { text-align: center; }
   .hb-sheet[data-sheet="colony"] p.colony-empty, .hb-sheet[data-sheet="colony"] .colony-full,
-  .hb-sheet[data-sheet="journal"] .friends-section .empty-state, .hb-sheet[data-sheet="colony"] .empty-state { text-align: center; margin-left: auto; margin-right: auto; }
-  .hb-sheet:is([data-sheet="colony"], [data-sheet="album"]) .empty-state svg, .hb-sheet[data-sheet="journal"] .friends-section .empty-state svg { width: 160px; }
+  .hb-sheet[data-sheet="colony"] .friends-section .empty-state, .hb-sheet[data-sheet="colony"] .empty-state { text-align: center; margin-left: auto; margin-right: auto; }
+  .hb-sheet:is([data-sheet="colony"], [data-sheet="album"]) .empty-state svg, .hb-sheet[data-sheet="colony"] .friends-section .empty-state svg { width: 160px; }
 }
 
 /* the clan moment: a one-time story card over home (outside #homebase) */

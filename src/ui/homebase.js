@@ -1489,7 +1489,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     : ''}
         </section>`;
       case 'colony': return `
-        <section class="colony-section"><h2>Colony 🐈</h2>
+        <section class="colony-section"><h2>${escapeHtml(SHEET_NAME.colony)} 🐈</h2>
           ${renderColonyHtml({
             colony: s.colony, me: myId, members: progression.colonyMembers(), now: Date.now(),
             status: colonyStatus, clanRoles: s.clanRoles, clanName: ownClanTitle(s), alliesName: alliesName(s), edition: s.edition,
@@ -1500,6 +1500,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             },
             trades: { give: tradeGive, want: tradeWant, confirmId: tradeConfirmId, busy: tradeBusy, error: tradeError },
           })}
+        </section>
+        <section class="friends-section">
+          ${renderStrayFriends()}
+          ${renderPlayerPets()}
         </section>`;
       // Play together holds every code a child meets: the room's, then (from
       // the old Friends sheet) the friends she walked with and her friend code.
@@ -1508,7 +1512,6 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           ${renderWalkTogether()}
         </section>
         ${cloud && cloud.available ? `<section class="friends-section">
-          ${renderPlayerPets()}
           ${renderFriendCode()}
         </section>` : ''}`;
       case 'journal': {
@@ -1519,7 +1522,6 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, gold), gold.size,
     isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {})}
           ${renderThingsToWearHtml(s, CATALOG)}
-          <div class="friends-section">${renderStrayFriends()}</div>
         </section>`;
       }
       case 'album': return `
@@ -1635,7 +1637,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       syncCelebration();
       syncPairingPoll();
       syncNearby();
-      if (cloud && cloud.available && openSheet === 'together') loadPlayerPets();
+      if (cloud && cloud.available && openSheet === 'colony') loadPlayerPets();
       return;
     }
     const rank = rankFor(s.lifetimePoints);

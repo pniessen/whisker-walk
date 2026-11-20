@@ -3,6 +3,7 @@
 // stage goes in #dr-stage, and CSS grid places each region. Every control
 // renders exactly once. Nothing here writes state: ownership and
 // affordability mirror progression.isUnlocked/canBuy, purely from the save.
+import { phrase } from '../clanphrases.js';
 import { asFiniteNonNeg } from '../progression.js';
 import { areaInEdition, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
 import { opensAfterLine, lower } from '../territories.js';
@@ -40,11 +41,13 @@ export const SHEET_ICON = {
   album: '📸', sync: '☁️', settings: '⚙️', code: '🎁', controls: '🔊', grownups: '⚙️',
 };
 export const SHEET_NAME = {
-  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony',
+  menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills',
+  // read when asked, so the word set in use decides it (My clan / My cats)
+  get colony() { return phrase('menu.myCats'); },
   journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Game settings', code: 'Gift code',
   controls: 'Sound & controls', grownups: 'For grown-ups',
 };
-export const SHEET_LABEL = Object.fromEntries(HOME_SHEETS.map((id) => [id, `${SHEET_ICON[id]} ${SHEET_NAME[id]}`]));
+export const SHEET_LABEL = Object.defineProperties({}, Object.fromEntries(HOME_SHEETS.map((id) => [id, { enumerable: true, get: () => `${SHEET_ICON[id]} ${SHEET_NAME[id]}` }])));
 // The den shop is not a home sheet: it lives inside the den (ui/denshopview.js).
 // The old Friends sheet ('social') opens Play together, where its friends
 // list and friend code went, so anything still asking for it lands there.

@@ -165,6 +165,8 @@ export const PHRASES = Object.freeze({
   'group.name': (prefix) => `${prefix} ${CLAN_SUFFIX}`,
   // the Colony card: "Pickles" then "the ranger"
   'colony.rankAfterName': (rankWords) => `the ${rankWords}`,
+  // the Menu's tile and the sheet's heading: no group word in the everyday game
+  'menu.myCats': 'My cats',
 
   // the game is "Whisker Walk 2"; only the older plain edition adds its name
   'edition.title.canon': WILD_EDITION,

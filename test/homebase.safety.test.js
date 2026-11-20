@@ -183,7 +183,7 @@ describe('Player pets', () => {
     });
     setup({ cloud, met });
     const out = catchRoster();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     expect(out.html).toContain('Robin');
     expect(out.html).not.toContain('Free Gems');
@@ -196,7 +196,7 @@ describe('Player pets', () => {
       met.seed(['robin']);
       setup({ cloud: fakeCloud({ rows: [row('robin')], profiles: [profile('robin', bad, bad)] }), met });
       const out = catchRoster();
-      openSheet('together');
+      openSheet('colony');
       await flush();
       expect(out.html).toContain('<span class="friend-name">Mystery Cat</span> — cat,');
       expect(out.html).not.toContain('src=x');
@@ -208,7 +208,7 @@ describe('Player pets', () => {
     const met = createMetPlayers(memStorage());
     setup({ cloud: fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')] }), met });
     const out = catchRoster();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     expect(out.html).toContain('Robin');
     expect(met.seeded()).toBe(true);
@@ -234,7 +234,7 @@ describe('hiding a visitor in Player pets', () => {
   it('each row has a Hide button named for the cat', async () => {
     setup({ cloud: fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')] }), met: met2() });
     const out = catchBoth();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     expect(out.roster).toContain('aria-label="Hide Robin">Hide</button>');
     expect(out.roster).not.toContain('✕');
@@ -244,7 +244,7 @@ describe('hiding a visitor in Player pets', () => {
     const cloud = fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')] });
     setup({ cloud, met: met2() });
     catchBoth();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     await tap({ dataset: { action: 'hide-player', playerId: 'robin' } });
     const h = card().innerHTML;
@@ -260,7 +260,7 @@ describe('hiding a visitor in Player pets', () => {
     const cloud = fakeCloud({ rows: [row('robin'), row('wren')], profiles: [profile('robin', 'Robin'), profile('wren', '<b>x</b>')] });
     setup({ cloud, met: met2() });
     const out = catchBoth();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     await tap({ dataset: { action: 'hide-player', playerId: 'robin' } });
     await new Promise((r) => setTimeout(r, 650)); // the confirm card's double-tap guard (600 ms)
@@ -281,7 +281,7 @@ describe('hiding a visitor in Player pets', () => {
     const cloud = fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')], blocked: ['ghost-id'] });
     setup({ cloud, met: met2() });
     const out = catchBoth();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     expect(out.hidden).toContain('Hidden cats: 1');
     expect(out.hidden).toContain('<span class="friend-name">A hidden cat</span>');
@@ -291,7 +291,7 @@ describe('hiding a visitor in Player pets', () => {
     const cloud = fakeCloud({ rows: [row('robin')], profiles: [profile('robin', '<img src=x>')], blocked: ['robin'] });
     setup({ cloud, met: met2() });
     const out = catchBoth();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     expect(out.hidden).toContain('<span class="friend-name">Mystery Cat</span>');
     expect(out.hidden).not.toContain('src=x');

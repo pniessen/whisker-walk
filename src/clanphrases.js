@@ -406,6 +406,10 @@ const LATER = Object.freeze({
   'wear.foundIn': (place) => `Found in ${place}`,
   'wear.notYet': 'Not found yet',
   'wear.journal.title': 'Things to wear',
+
+  // ---- Menu review #7 (2026-11-20) ----------------------------------------------
+  // the Menu's tile and the sheet's heading for the player's own group of cats
+  'menu.myCats': () => `My ${groupWord()}`,
 });
 
 // Every id of the first table, in table order.

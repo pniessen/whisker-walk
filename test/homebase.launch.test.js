@@ -767,14 +767,15 @@ describe('Play together holds the friends (Friends folded in)', () => {
     hb.show();
     return { progression, cloud };
   }
-  it('in order: the cat\'s name, start or join a room, then Player pets and the friend code', () => {
+  it('in order: the cat\'s name, start or join a room, then the friend code', () => {
     setupCloud({ state: (st) => { st.petName = 'Mittens'; } });
     openSheet('together');
     const h = html();
-    const order = ['id="wt-petname-input"', 'id="wt-host"', 'id="wt-join"', 'id="player-pets-section"', 'Your friend code:', 'id="friend-code-add"'].map((x) => h.indexOf(x));
+    const order = ['id="wt-petname-input"', 'id="wt-host"', 'id="wt-join"', 'Your friend code:', 'id="friend-code-add"'].map((x) => h.indexOf(x));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(h).not.toContain('Stray cats');
+    expect(h).not.toContain('Player pets');
   });
   it('the walk with her sibling comes after the name and before the room buttons', () => {
     const colony = { id: 'c1', partner: { playerId: 'p2', petName: 'Robin' } };
@@ -787,30 +788,26 @@ describe('Play together holds the friends (Friends folded in)', () => {
     expect(h.indexOf('wt-pair')).toBeGreaterThan(h.indexOf('id="wt-petname-input"'));
     expect(h.indexOf('wt-pair')).toBeLessThan(h.indexOf('id="wt-host"'));
   });
-  it('opening Play together loads the Player pets, as opening Friends did', () => {
+  it('opening Play together does not load the Player pets (they live in My clan)', () => {
     const { cloud } = setupCloud();
     openSheet('together');
-    expect(cloud.fetchFriendships).toHaveBeenCalled();
+    expect(cloud.fetchFriendships).not.toHaveBeenCalled();
   });
   it('anything still opening the old Friends sheet lands on Play together', () => {
-    const { cloud } = setupCloud();
+    setupCloud();
     openSheet('social');
     expect(html()).toContain('data-sheet="together"');
-    expect(cloud.fetchFriendships).toHaveBeenCalled();
   });
   it('with no name yet, the friend code points up at the name box', () => {
     setupCloud();
     openSheet('together');
     expect(html()).toContain('Pick your walking name at the top to add friends by code.');
   });
-  it('the stray cats are in the Journal', () => {
+  it('the stray cats are no longer in the Journal (they moved to My clan)', () => {
     const { progression } = setupCloud();
     progression.state.friends.Smudge = { breed: 'tabby', greets: 2 };
     openSheet('journal');
-    const h = html();
-    expect(h).toContain('<h3>Stray cats</h3>');
-    expect(h).toContain('Smudge');
-    expect(h.indexOf('Stray cats')).toBeLessThan(h.indexOf('hb-sheet-dock'));
+    expect(html()).not.toContain('Stray cats');
   });
 });
 
