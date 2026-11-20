@@ -1,4 +1,5 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
+import { isPlainObject } from './plainobject.js';
 import { note } from './diagnostics.js';
 import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_PERSONALITIES } from './customcats.js';
 import { sanitizeOutfits, wornNow, canSaveOutfit, nextOutfitId, OUTFIT_SLOTS } from './outfits.js';
@@ -409,9 +410,6 @@ export function summarizeSaveForPreview(s) {
   return { rank: rankFor(lifetimePoints).title, points, lifetimePoints, bestWalk };
 }
 
-function isPlainObject(v) {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
 // exported so other untrusted-input call sites (e.g. main.js's cloud-preview
 // summarize, before Task-1-final-fix-wave a raw pass-through that let a
 // hostile cloud payload's non-numeric points/lifetimePoints/bestWalk reach
