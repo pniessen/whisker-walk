@@ -879,7 +879,7 @@ function paperboycap(simple) {
 // Starfish Clip: five tapered arms lying on the skull (tube()s lifted 3 mm with
 // drape) round a centre at the skull direction `dir` (right of the crown, in
 // front of the ear's middle), a pale dot or two along each arm's ridge.
-const STARFISH = { dir: [0.55, 0.8, -0.1], reach: 0.036, radius: 0.0078, lift: 0.003, turn: 0.2 };
+const STARFISH = { dir: [0.55, 0.8, -0.25], reach: 0.036, radius: 0.0078, lift: 0.003, turn: 0.2 };
 const STARFISH_ORANGE = 0xf28a3c, STARFISH_DOT = 0xf7c08a;
 function starfishclip(simple) {
   const dir = new THREE.Vector3(...STARFISH.dir).normalize();

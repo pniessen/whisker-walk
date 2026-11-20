@@ -97,9 +97,9 @@ export const FOUND_HEN_HEADS = Object.freeze({
   },
   // a small orange star lying on the right of his head, a pale dot in its middle
   starfishclip: (head, { k }) => {
-    const star = onSkull(piece(flatStar(0.036 * k, 0.015 * k, 0.006), 0xf28a3c, 0, 0, 0), [0.55, 0.8, -0.1], -0.001);
+    const star = onSkull(piece(flatStar(0.036 * k, 0.015 * k, 0.006), 0xf28a3c, 0, 0, 0), [0.55, 0.8, -0.25], -0.001);
     head.add(star);
-    head.add(onSkull(piece(dome(0.01 * k, 1, 1, 0.5), 0xf7c08a, 0, 0, 0), [0.55, 0.8, -0.1], 0.005));
+    head.add(onSkull(piece(dome(0.01 * k, 1, 1, 0.5), 0xf7c08a, 0, 0, 0), [0.55, 0.8, -0.25], 0.005));
   },
   // a russet feather standing up on the left of his head, leaning back, a pale quill
   featherplume: (head, { k }) => {

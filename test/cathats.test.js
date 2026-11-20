@@ -297,6 +297,19 @@ describe('the Starfish Clip and the Feather Plume (found outfits step 2)', () =>
       for (const v of verts(hatOf(cat)[0])) expect(v.distanceTo(tip), breed).toBeGreaterThan(0.03);
     }
   });
+  it('the starfish keeps 5 mm from every vertex of the right ear, on every preset', () => {
+    for (const simple of [false, true]) {
+      for (const breed of breeds) {
+        const cat = buildCat(breed, { head: 'starfishclip' }, { simple });
+        const ear = cat.userData.parts.head.userData.earR;
+        ear.updateMatrix();
+        const E = verts(ear).map((v) => v.applyMatrix4(ear.matrix));
+        let min = Infinity;
+        for (const v of verts(hatOf(cat)[0])) for (const e of E) min = Math.min(min, v.distanceTo(e));
+        expect(min, `${breed} simple ${simple}`).toBeGreaterThan(0.005);
+      }
+    }
+  });
   it('the starfish is orange with paler dots', () => {
     const c = buildHat('starfishclip').geometry.attributes.color;
     const hexes = new Set();
