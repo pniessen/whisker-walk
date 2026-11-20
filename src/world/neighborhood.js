@@ -341,12 +341,14 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
       { x: -8, z: 4 }, { x: 4, z: -35 }, { x: 16, z: 2 }, { x: -12, z: 32 },
       { x: 8, z: 27 }, { x: -6, z: -40 }, { x: 20, z: -8 }, { x: 28, z: 28 },
     ],
+    // Ids kept (saves key on them); the labels said "yarn ball" until the
+    // controls review (2026-11-19) put a real yarn ball in every area to find.
     collectibles: [
-      { id: 'yarn-1', x: -14, z: 33.5, label: 'a red yarn ball' },
-      { id: 'yarn-2', x: 5.5, z: -36.5, label: 'a blue yarn ball' },
-      { id: 'yarn-3', x: 25, z: 21, label: 'a golden yarn ball' },
-      { id: 'yarn-4', x: -21, z: -19, label: 'a green yarn ball' },
-      { id: 'yarn-roof', x: -11.5, z: 15.5, y: 4.1, label: 'a legendary silver yarn ball' },
+      { id: 'yarn-1', x: -14, z: 33.5, label: 'a red marble' },
+      { id: 'yarn-2', x: 5.5, z: -36.5, label: 'a blue button' },
+      { id: 'yarn-3', x: 25, z: 21, label: 'a golden bell' },
+      { id: 'yarn-4', x: -21, z: -19, label: 'a green bottle cap' },
+      { id: 'yarn-roof', x: -11.5, z: 15.5, y: 4.1, label: 'a legendary silver thimble' },
     ],
     scenics: [
       { id: 'playground', x: 30, z: 26, label: 'the little playground' },

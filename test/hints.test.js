@@ -26,13 +26,18 @@ function rig({ on = true, counts = {} } = {}) {
 }
 
 describe('the hint table', () => {
-  it('is the design\'s twenty, in order, with its limits', () => {
+  // The controls review (2026-11-19) added two: the yarn ball in the mouth,
+  // and T's line for a keyboard (a toast, counted here, never polled).
+  it('is the design\'s twenty and the yarn pair, in order, with its limits', () => {
     expect(HINTS.map((h) => [h.id, h.max])).toEqual([
       ['look', 2], ['creep', 2], ['jump', 2], ['hop', 1], ['photo', 2], ['frame', 2], ['yarn', 1], ['bat', 1],
+      ['yarn-carry', 1],
       ['call', 1], ['sniff', 2], ['box', 1], ['help', 1], ['hiss', 1], ['dog', 1], ['swim', 1], ['carry', 1],
-      ['home', 2], ['chat', 1], ['rival', 1], ['stranger', 1],
+      ['home', 2], ['chat', 1], ['rival', 1], ['stranger', 1], ['tkey', 3],
     ]);
-    expect(new Set(HINT_IDS).size).toBe(20);
+    expect(new Set(HINT_IDS).size).toBe(22);
+    expect(HINTS.find((h) => h.id === 'yarn').ring).toBeNull(); // no button to point at
+    expect(HINTS.find((h) => h.id === 'tkey').when).toBeUndefined();
     for (const h of HINTS) expect(h.max).toBeLessThanOrEqual(HINT_COUNT_MAX);
     expect(hintMax('look')).toBe(2);
     expect(hintMax('nope')).toBe(0);
@@ -56,8 +61,9 @@ describe('polled triggers', () => {
     ['hop', { perched: true }, {}],
     ['photo', { critterNear: true }, { critterNear: true, walkNo: 1 }],
     ['frame', { camera: true }, {}],
-    ['yarn', { idleOpen: 5 }, { idleOpen: 4.9 }],
+    ['yarn', { yarnNear: true, bats: 0 }, { yarnNear: true, bats: 1 }],
     ['bat', { toy: true, bats: 0 }, { toy: true, bats: 1 }],
+    ['yarn-carry', { yarnHeld: true }, {}],
     ['call', { strayFar: true }, { strayFar: true, walkNo: 1 }],
     ['box', { nearBox: true }, { nearBox: true, inBox: true }],
     ['help', { helpInView: true }, {}],

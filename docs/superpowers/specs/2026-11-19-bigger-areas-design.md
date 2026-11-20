@@ -91,7 +91,55 @@ the count of triangles and draws in view at the worst spot); the interior's
 fixtures are byte-identical with the flag off AND on; a recorded walk with
 the flag off is identical to today's.
 
-## Constraints
+## Step 2: the 65 m approach (2026-11-19)
+
+The owner's decision: with the switch on, everything scattered, core AND
+strips, is drawn only near the cat, so what is on screen depends on the
+view range, not on the map's size.
+
+What changed (all behind `?grow=1`; switch off is today's game exactly):
+
+- **The core streams too** (`world/streamcore.js`, which also carries the
+  "how to stream an area" note for the area agents). Nothing is rebuilt:
+  the area tags its scatter trees (`streamTree`) and its merged scatter
+  meshes (`streamSmall`, with the items they were built from). The walk
+  shows and hides the trees where they stand, and draws each merged mesh in
+  runs, one per tile, from its own unchanged vertex buffers
+  (`render/runs.js`): one draw a mesh however many tiles are near. The
+  core's build, random draws, colliders, forks, perches and critters are
+  byte for byte the switch-off ones (`test/growcore.test.js`).
+- **Three layers**, each measured to a tile's nearest point
+  (`world/strips.js`): `fine` 14/20 m for the reedbed (forty triangles a
+  clump), `small` 30/38 m, `trees` 55/65 m. The core is cut into 10 m tiles
+  (5 m for `fine`); the strip keeps its 20 m tiles (their seeds hang on
+  them).
+- **Far stand-ins, not fog** (`render/standins.js`): past its range every
+  tree is a six-way outline of its own meshes (about 40 triangles, a
+  willow's curtain a blade a strand) and every reed clump, tussock or osier
+  a few flat blades or a spike, coloured from the thing itself, all in ONE
+  mesh. A slot is always drawn either in full or by its stand-ins, never
+  both and never neither, and swaps in one frame: nothing grows in, so
+  reduced motion needs nothing more. Candidate (a), the fog closing in at
+  30-80 m with no tree stand-ins, was pictured too: it washes out the
+  horizon trees and the hills, so (b) was chosen.
+- The west strip runs on the same layers and stand-ins.
+
+The numbers (`test/striptiles.test.js`, counted as `test/budget.test.js`
+counts, at the worst spot a cat can stand, every slot at its `hide` range):
+
+| | meshes | casters | triangles |
+|---|---|---|---|
+| the River today (switch off) | 170 | 133 | 63,778 |
+| step 1, worst spot | 225 | 166 | 79,307 |
+| step 2, worst spot (-35, 0), by the reedbed | 205 | 147 | 68,745 |
+
+Ceilings 215 / 155 / 70,000. The 35 meshes over today are the strip's 13
+trees and standing things (8 of them hidden data strips), less core trees
+out of range, plus one for all the stand-ins. In the harness, walking the
+whole River east to west at the zoomies: rendered triangles at most 110,826
+(step 1: 134,226; today 125,902, shadows, grass and post included), draw
+calls at most 220 (276; 250), stream update at most 2.5 ms in a frame.
+
 
 - Older iPads matter most. No per-frame allocation in the tile loop.
 - Offline-first; no database changes (colony cats' stored spots stay in the

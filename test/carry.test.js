@@ -105,6 +105,23 @@ describe('carry rules', () => {
   });
 });
 
+// Controls review, 2026-11-19: the found yarn ball goes in the same mouth, a
+// plaything like the Farm's hat: never a keepsake, never a mark.
+describe('the yarn ball in the mouth', () => {
+  it('is held like anything else and leaves no trace at the walk\'s end', () => {
+    const m = createMouth();
+    expect(pick(m, { id: 'yarn', kind: 'yarn', toy: true })).toBe(true);
+    expect(m.held).toEqual({ id: 'yarn', kind: 'yarn', toy: true });
+    expect(walkEndMarks(m, 'park', 1)).toEqual([]);
+    expect(drop(m, 9, 9, { x: 0, z: 0 })).toEqual({ id: 'yarn', kind: 'yarn', toy: true });
+    expect(m.dropped.size).toBe(0);
+    expect(walkEndMarks(m, 'park', 1)).toEqual([]);
+  });
+  it('is called a yarn ball', () => {
+    expect(carryLabel('yarn')).toBe('yarn ball');
+  });
+});
+
 describe('carryLabel', () => {
   it('names every carry kind in plain English', () => {
     expect(CARRY_KINDS.map(carryLabel)).toEqual([

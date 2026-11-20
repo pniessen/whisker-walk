@@ -502,6 +502,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           ${canBuzz ? settingsSwitchHtml('set-haptics', s.haptics !== false, 'Vibration') : ''}
           ${settingsSwitchHtml('set-left-handed', !!s.leftHanded, 'Left-handed touch controls')}
           ${settingsSwitchHtml('set-invert-y', !!s.invertY, 'Invert look (Y axis)')}
+          ${settingsSwitchHtml('set-zoom-buttons', !!s.zoomButtons, 'Zoom buttons on screen')}
           <label class="settings-row settings-quality">
             <span class="settings-label">Map</span>
             <select id="set-map-mode">
@@ -2116,6 +2117,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     if (e.target.id === 'set-invert-y') {
       settings.set('invertY', e.target.checked);
+      onSettingsChange?.();
+      render();
+      return;
+    }
+    if (e.target.id === 'set-zoom-buttons') {
+      settings.set('zoomButtons', e.target.checked);
       onSettingsChange?.();
       render();
       return;

@@ -11,11 +11,15 @@ import { addIslandView, fromWoodsDisc, islandKeepLow } from './lake.js';
 import { addCamp } from './camp.js';
 import { tintGround } from './dressing.js';
 import { withLocalUuids } from './localuuids.js';
-import { addRiverDressing, riverGroundTint } from './riverdress.js';
+import {
+  addRiverDressing, riverGroundTint, riverTussocks, riverCattails, riverShrubs, riverExtraPads, riverFlowers,
+} from './riverdress.js';
 import { marshMist, dragonflies, riverDragonflyHomes, createMarshLife } from './marshlife.js';
 import { phrase } from '../clanphrases.js';
 import { growOn } from '../grow.js';
 import * as west from './riverwest.js';
+import * as south from './riversouth.js';
+import { coreStreams, streamTree, streamSmall } from './streamcore.js';
 
 // =============================================================================
 // The River and Marshes.
@@ -510,32 +514,52 @@ function mossyBoulder(x, z, material) {
 }
 
 // Bigger areas (src/grow.js; off by default). With the switch on the River
-// gains its west strip (riverwest.js): the walkable bounds become x -90..50,
-// the river runs on under hills that have moved 40 m west, and the strip's
-// own things are added after everything here. Nothing of the core changes:
-// the lists below are the core's with the strip's put after them.
+// gains its west strip (riverwest.js) and its south strip (riversouth.js):
+// the walkable bounds become x -90..50, z -50..90 (140 x 140 m), the river
+// runs on under hills that have moved 40 m west, the hills move 40 m south
+// too, and the strips' own things are added after everything here, the west
+// strip's first. Nothing of the core changes: the lists below are the core's
+// with the strips' put after them.
 // Worked out on first use, never at import (riverwest.js imports this file's
 // neighbours, so its bindings may not be ready when this module is read).
 let grown = null;
 function grownRiver() {
   if (!grown) {
     const riverWest = Object.freeze({ ...RIVER_WEST, minX: west.WEST_RIVER_MINX });
-    const waters = Object.freeze([...RIVER_WATERS.map((w) => (w === RIVER_WEST ? riverWest : w)), west.STILL_POOL]);
+    const waters = Object.freeze([
+      ...RIVER_WATERS.map((w) => (w === RIVER_WEST ? riverWest : w)), west.STILL_POOL, south.SAND_POOL,
+    ]);
+    const bounds = Object.freeze({ ...BOUNDS, minX: west.WEST.minX, maxZ: south.SOUTH.maxZ });
     grown = Object.freeze({
-      bounds: Object.freeze({ ...BOUNDS, minX: west.WEST.minX }),
+      bounds,
       riverWest,
       waters,
       horizon: Object.freeze({
         ...RIVER_HORIZON,
-        rect: west.WEST_BAND_RECT,
-        // the long sides are 40 m longer: as many cells to the metre as before
-        around: 184,
+        rect: south.GROWN_BAND_RECT,
+        // every side is 40 m longer now; the band is drawn a little coarser
+        // than today's to fit the budget: 3.6 m cells round its inner rim
+        // (2.9 today) and six metres out (five today), in haze at 56 m and more
+        around: 168,
+        outSegs: 10,
         avoid: Object.freeze([LAKE, LAKE_FAR, riverWest, RIVER_EAST]),
         edge: Object.freeze({ ...RIVER_HORIZON.edge, avoid: waters }),
       }),
     });
   }
   return grown;
+}
+
+// What the marsh dressing's scatter stands on, for cutting it per tile
+// (render/tilesplit.js): each thing's centre and how far its parts reach.
+export function riverDressItems() {
+  return [
+    ...riverTussocks().map((t) => ({ x: t.x, z: t.z, r: r2(0.35 * t.s) })),
+    ...riverCattails().map((c) => ({ x: c.x, z: c.z, r: 0.1 })),
+    ...riverShrubs().map((sh) => ({ x: sh.x, z: sh.z, r: sh.r })),
+    ...riverExtraPads().map((p) => ({ x: p.x, z: p.z, r: p.r })),
+    ...riverFlowers().map((f) => ({ x: f.x, z: f.z, r: 0.1 })),
+  ];
 }
 
 export function build(scene, { water = {}, wind } = {}) {
@@ -587,7 +611,8 @@ export function build(scene, { water = {}, wind } = {}) {
   addTrails(scene, [{ segs: RIVER_PATHS, w: PATH_W }], PATH_STYLE, 'river', { decks: RIVER_WATERS.flatMap((w) => w.decks ?? []), waters: RIVER_WATERS });
 
   // --- the reeds and the lily pads -------------------------------------------------
-  const reeds = b.reedBed(riverReeds(), seedFromCode('river-reeds'));
+  const reedSpots = riverReeds();
+  const reeds = b.reedBed(reedSpots, seedFromCode('river-reeds'));
   reeds.name = 'reeds';
   scene.add(reeds);
   const lilies = b.lilyPads(riverLilyPads(), seedFromCode('river-lilies'));
@@ -598,19 +623,23 @@ export function build(scene, { water = {}, wind } = {}) {
   // A collider a little wider than the trunk, growing with it. A willow and an
   // alder each carry a Sure Claws fork (climbing.js caps it at 1.9, so no
   // scenery tree out-tops the Old Willow's branch); a pine has no low fork.
+  // Bigger areas: with the switch on, each is tagged to be drawn only near
+  // the cat (world/streamcore.js); built, placed and collided all the same.
   const { willows, alders, pines } = riverTrees();
+  const scatterTrees = [];
+  const plantTree = (g) => { scene.add(g); return g; };
   for (const { x, z, scale } of willows) {
-    scene.add(b.willow(x, z, scale, { wind }));
+    scatterTrees.push(plantTree(b.willow(x, z, scale, { wind })));
     addC(x, z, r2(0.5 * scale));
     perches.push(sureClawsTreePerch(x, z, scale));
   }
   for (const { x, z, scale } of alders) {
-    scene.add(b.tree(x, z, scale, { wind }));
+    scatterTrees.push(plantTree(b.tree(x, z, scale, { wind })));
     addC(x, z, r2(0.5 * scale));
     perches.push(sureClawsTreePerch(x, z, scale));
   }
   for (const { x, z, scale } of pines) {
-    scene.add(b.pine(x, z, scale, { wind }));
+    scatterTrees.push(plantTree(b.pine(x, z, scale, { wind })));
     addC(x, z, r2(0.4 * scale));
   }
 
@@ -676,7 +705,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // Mud banks, tussocks, cattails, osiers, flowering lilies, the mossy log and
   // stones: two noCast meshes, looks only. Its uuids come from a local stream
   // so the build's Math.random draws stay what they were.
-  withLocalUuids('river-dressing', () => addRiverDressing(scene, {}));
+  const dress = withLocalUuids('river-dressing', () => addRiverDressing(scene, {}));
 
   // --- the marsh's life -----------------------------------------------------------
   // A soft low mist over the water at dusk and sunset, and dragonflies darting
@@ -695,10 +724,22 @@ export function build(scene, { water = {}, wind } = {}) {
   // Math.random draws are the same with the switch on.
   let strip = null;
   if (G) {
+    // The core's scatter, tagged to stream (world/streamcore.js): the scatter
+    // trees, the reeds and the marsh dressing's tussocks, cattails, osiers,
+    // pads and flowers (its moss on the crossings stays whole). Tags only:
+    // nothing is built, moved or drawn differently here.
+    for (const t of scatterTrees) streamTree(t);
+    streamSmall(reeds, reedSpots, { layer: 'fine' });
+    streamSmall(dress.dressing, riverDressItems());
     strip = west.addWestStrip(scene, { groundMesh, water, waters, waterColor: WATER_COLOR });
     waterFx.push(strip.waterFx);
     for (const c of [...west.westTreeColliders(), ...west.WEST_COLLIDERS]) addC(c.x, c.z, c.r);
     perches.push(...west.westTreePerches(), ...west.WEST_PERCHES);
+    // the south strip, after the west's
+    const southStrip = south.addSouthStrip(scene, { groundMesh, water, waters, waterColor: WATER_COLOR });
+    waterFx.push(southStrip.waterFx);
+    for (const c of [...south.southTreeColliders(), ...south.SOUTH_COLLIDERS]) addC(c.x, c.z, c.r);
+    perches.push(...south.southTreePerches(), ...south.SOUTH_PERCHES);
   }
 
   return {
@@ -710,16 +751,16 @@ export function build(scene, { water = {}, wind } = {}) {
     // strips that stream (render/striptiles.js) and the strip's rest spots.
     ...(G ? {
       core: { ...BOUNDS },
-      strips: [west.WEST_STRIP],
-      rests: west.WEST_RESTS.map((r) => ({ ...r })),
+      strips: [...coreStreams({ areaId: 'river', rect: BOUNDS }), west.WEST_STRIP, south.SOUTH_STRIP],
+      rests: [...west.WEST_RESTS, ...south.SOUTH_RESTS].map((r) => ({ ...r })),
     } : {}),
     spawn: { x: SPAWN.x, z: SPAWN.z },
     // Nothing Twoleg-made in the River.
     boxes: [],
     tippables: [],
     pois: POIS.map((p) => ({ ...p })),
-    collectibles: [...COLLECTIBLES.map((c) => ({ ...c })), ...(G ? west.westCollectibles() : [])],
-    scenics: [...SCENICS.map((c) => ({ ...c })), ...(G ? west.westScenics() : [])],
+    collectibles: [...COLLECTIBLES.map((c) => ({ ...c })), ...(G ? [...west.westCollectibles(), ...south.southCollectibles()] : [])],
+    scenics: [...SCENICS.map((c) => ({ ...c })), ...(G ? [...west.westScenics(), ...south.southScenics()] : [])],
     critterSpawns: critterSpawns(),
     moments: [
       { id: 'duck-parade', type: 'duck', label: 'a duck leading her ducklings out of the pond', x: 36, z: 4, from: { x: 44, z: -6 } },

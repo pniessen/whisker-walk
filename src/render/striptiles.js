@@ -6,13 +6,23 @@ import { createStreamer, tileSeed, LAYERS } from '../world/strips.js';
 import { mergeStaticProps } from './mergeprops.js';
 import { assignShadowCastersFor, trimShadowCasters } from './rig.js';
 import { findOccluders } from '../fightcam.js';
+import { itemOwners, tileOf } from './tilesplit.js';
+import { createRuns } from './runs.js';
+import { standInOf, proxiesOf, createStandIns } from './standins.js';
 
 // =============================================================================
 // Strip tiles, drawn (bigger areas; the arithmetic is world/strips.js).
 //
 // One of these per walk, for an area that has strips (areaData.strips). It
 // builds each tile's two layers when the cat comes near and frees them when
-// it has gone:
+// it has gone. Step 2 ("the 65 m approach", world/streamcore.js) adds the
+// area's frozen CORE as one more stream, `prebuilt`: its things are already in
+// the scene, so a core tile's layer is shown and hidden rather than built and
+// freed (its merged small scatter cut per tile first, render/tilesplit.js),
+// and every tree past the trees layer's range, core or strip, is drawn as a
+// far stand-in (render/standins.js), one mesh for the whole area.
+//
+// A strip's two layers:
 //
 //   small   ONE mesh a tile: its reeds, tussocks, cattails, marigolds and
 //           stones, written straight into typed arrays (no Three geometry per
@@ -25,10 +35,13 @@ import { findOccluders } from '../fightcam.js';
 //           its shape to the fight camera: the same six things a core tree has.
 //
 // Building is spread over frames (strips.js's budgets): a tree is one step,
-// the small layer is cut into chunks of at most CHUNK triangles. Everything is
-// made under a uuid stream named for its tile, so no Math.random draw moves.
-// A new thing rises out of the ground over RISE seconds rather than popping
-// (at once with reduced motion).
+// the small layer is cut into chunks of at most CHUNK triangles, a core tile's
+// layer is one step costing its triangles. Everything is made under a uuid
+// stream named for its tile, so no Math.random draw moves. A tile's small
+// things rise out of the ground over RISE seconds rather than popping (at
+// once with reduced motion); its trees take their stand-ins' place in the
+// frame the last of them is ready (a strip tile's trees are built hidden),
+// so a tree never grows where a stand-in stood.
 //
 // In the steady state update() allocates nothing: the streamer's slots and
 // queue, the scratch arrays and the rise list are made once; arrays and
@@ -251,7 +264,9 @@ function triangleCount(obj) {
 /**
  * createStripTiles(scene, { strips, wind, treeFade, decals, occluders, tier, reducedMotion, now })
  *
- *   strips       areaData.strips: [{ areaId, id, tiles, content(index), buildTree(tree, { wind }) }]
+ *   strips       areaData.strips: [{ areaId, id, tiles, content(index), buildTree(tree, { wind }) }],
+ *                or a core stream ({ areaId, id, tiles, prebuilt: true }, world/streamcore.js)
+ *                whose things are the scene's objects tagged userData.stream
  *   wind         the walk's wind (render/wind.js), or null
  *   treeFade     () => the walk's tree fade, or null (read when a tree is built)
  *   decals       the walk's contact shadows, or null
@@ -274,16 +289,103 @@ export function createStripTiles(scene, {
   // One writer, sized for the fullest tile of any strip.
   let most = 1;
   for (const strip of strips) {
+    if (strip.prebuilt) continue;
     for (const t of strip.tiles) most = Math.max(most, smallTriangles(strip.content(t.index).small));
   }
   const writer = createWriter(most);
   const material = withLocalUuids('strip-tiles-material', () => bothSidesLit(
     new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));
   const mergeRoot = { children: [], updateMatrixWorld() {} };
-  // Walk start: the small layer's material would otherwise compile its shader
-  // on the frame the first tile appears (a stutter on a phone). One hidden
-  // triangle wears it for `compile` (walk.js: renderer.compile) and is gone.
-  // The trees need no such thing: their materials are the core trees' kinds.
+
+  // What is in the scene now, by slot key, and what is still growing in.
+  const live = new Map();
+  const rising = [];
+  const stats = { geometries: 0, materials: 0, meshes: 0, triangles: 0, casters: 0, trees: 0, smallTiles: 0, maxStepMs: 0 };
+  const key = (strip, tile, layer) => `${strip.id}|${tile.index}|${layer.id}`;
+  const runKey = (strip, tile) => `${strip.id}|${tile.index}`;
+
+  // --- the core: what is already in the scene, by slot ------------------------------
+  // core[stripId] = { trees: Map(slotKey -> [Group]), runs: Map(slotKey -> [runs]),
+  // meshes: [{ mesh, runs }], proxies: Map(slotKey -> [part]), triangles:
+  // Map(slotKey -> n) }. A tagged merged mesh keeps its vertices and is drawn in
+  // runs, one per tile (render/runs.js): one draw however many tiles are near.
+  const core = new Map();
+  const coreTree = (strip, tile) => `${strip.id}|${tile}|trees`;
+  const layerIdsOf = (strip) => strip.layerIds ?? (strip.prebuilt ? ['fine', 'small', 'trees'] : ['small', 'trees']);
+  const prebuilt = strips.filter((s) => s.prebuilt);
+  for (const strip of prebuilt) core.set(strip.id, { trees: new Map(), runs: new Map(), meshes: [], proxies: new Map(), triangles: new Map() });
+  // a tagged thing goes to the first core stream that has its layer
+  const streamFor = (layerId) => prebuilt.find((s) => layerIdsOf(s).includes(layerId));
+  const push = (map, k, o) => { let l = map.get(k); if (!l) map.set(k, (l = [])); l.push(o); };
+  for (const o of prebuilt.length ? scene.children.filter((c) => c.userData.stream === 'trees' || c.userData.stream === 'small') : []) {
+    if (o.userData.stream === 'trees') {
+      const strip = streamFor('trees');
+      if (!strip) continue;
+      const rec = core.get(strip.id);
+      const k = coreTree(strip, tileOf(strip.tiles, o.position.x, o.position.z));
+      o.userData.streamSlot = k;
+      push(rec.trees, k, o);
+      rec.triangles.set(k, (rec.triangles.get(k) ?? 0) + triangleCount(o));
+      continue;
+    }
+    const layerId = o.userData.streamLayer ?? 'small';
+    const strip = streamFor(layerId);
+    if (!strip || !o.isMesh || Array.isArray(o.material) || o.geometry.groups.length > 1) continue; // drawn whole, as it was
+    const rec = core.get(strip.id);
+    withLocalUuids(`${strip.areaId}|${strip.id}|runs|${o.name}`, () => {
+      const items = o.userData.streamItems ?? [];
+      const reach = o.userData.streamReach ?? 1.2;
+      o.updateMatrixWorld(true);
+      const identity = o.matrixWorld.equals(IDENTITY);
+      const owners = itemOwners(o.geometry, identity ? null : o.matrixWorld, items, reach);
+      const itemKey = items.map((it) => `${strip.id}|${tileOf(strip.tiles, it.x, it.z)}|${layerId}`);
+      // the far proxies first, from the index as it was built
+      for (const [k, part] of proxiesOf(o, items, { reach, owners, keyOf: (i) => itemKey[i] })) push(rec.proxies, k, part);
+      const runs = createRuns(o, (t) => (owners[t] >= 0 ? itemKey[owners[t]] : null));
+      o.userData.streamRuns = true;
+      rec.meshes.push({ mesh: o, runs });
+      for (const k of runs.keys()) { push(rec.runs, k, runs); rec.triangles.set(k, (rec.triangles.get(k) ?? 0) + runs.triangles(k)); }
+    });
+  }
+
+  // --- the stand-ins: every tree and every small thing of every stream, a run
+  // per slot --------------------------------------------------------------------------
+  const groups = [];
+  for (const strip of strips) {
+    const rec = core.get(strip.id);
+    for (const tile of strip.tiles) {
+      if (rec) {
+        const trees = (rec.trees.get(coreTree(strip, tile.index)) ?? []).map((g) => standInOf(g));
+        if (trees.length) groups.push({ key: coreTree(strip, tile.index), parts: trees });
+        continue;
+      }
+      const trees = strip.content(tile.index).trees.map((t, n) => stripStandIn(strip, tile, t, n)).filter((p) => p.index.length);
+      if (trees.length) groups.push({ key: `${runKey(strip, tile)}|trees`, parts: trees });
+      const small = stripProxies(strip, tile, material);
+      if (small.index.length) groups.push({ key: `${runKey(strip, tile)}|small`, parts: [small] });
+    }
+    if (rec) for (const [k, parts] of rec.proxies) groups.push({ key: k, parts: parts.filter((p) => p.index.length) });
+  }
+  // Their own material: two-sided as usual (a flat blade is lit as the side
+  // the camera sees), where the strip's small things keep both sides lit alike.
+  const standInMaterial = withLocalUuids('strip-tiles-standin-material', () => new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.85, metalness: 0, side: THREE.DoubleSide }));
+  const standIns = withLocalUuids('strip-tiles-standins', () => createStandIns(groups.filter((g) => g.parts.length), standInMaterial));
+  for (const g of groups) standIns.show(g.key, true);
+  scene.add(standIns.mesh);
+
+  // Walk start: the shared material would otherwise compile its shader on the
+  // frame the first tile appears (a stutter on a phone), and so would a core
+  // tree or run mesh never yet drawn. Everything streamed is shown for
+  // `compile` (walk.js: renderer.compile), then hidden again; one hidden
+  // triangle wears the strip material. The strip trees need no such thing:
+  // their materials are the core trees' kinds.
+  const coreTrees = [];
+  for (const rec of core.values()) for (const list of rec.trees.values()) coreTrees.push(...list);
+  const coreRuns = [];
+  for (const rec of core.values()) for (const m of rec.meshes) coreRuns.push(m);
+  for (const g of coreTrees) g.visible = false;
+  for (const { runs } of coreRuns) runs.update();
   if (compile) {
     withLocalUuids('strip-tiles-warm', () => {
       const geo = new THREE.BufferGeometry();
@@ -291,14 +393,19 @@ export function createStripTiles(scene, {
       const warm = new THREE.Mesh(geo, material);
       warm.frustumCulled = false;
       scene.add(warm);
-      try { compile(); } finally { scene.remove(warm); geo.dispose(); }
+      const was = coreRuns.map(({ mesh }) => mesh.visible);
+      const standWas = standIns.mesh.visible;
+      for (const g of coreTrees) g.visible = true;
+      for (const { mesh } of coreRuns) mesh.visible = true;
+      standIns.mesh.visible = true;
+      try { compile(); } finally {
+        for (const g of coreTrees) g.visible = false;
+        coreRuns.forEach(({ mesh }, i) => { mesh.visible = was[i]; });
+        standIns.mesh.visible = standWas;
+        scene.remove(warm); geo.dispose();
+      }
     });
   }
-
-  // What is in the scene now, by slot key, and what is still growing in.
-  const live = new Map();
-  const rising = [];
-  const stats = { geometries: 0, materials: 0, meshes: 0, triangles: 0, casters: 0, trees: 0, smallTiles: 0, maxStepMs: 0 };
 
   const rise = (obj, sx, sy, sz) => {
     if (reducedMotion) return;
@@ -306,7 +413,12 @@ export function createStripTiles(scene, {
     rising.push({ obj, t: 0, sx, sy, sz });
   };
   const stopRising = (obj) => {
-    for (let i = rising.length - 1; i >= 0; i--) if (rising[i].obj === obj) rising.splice(i, 1);
+    for (let i = rising.length - 1; i >= 0; i--) {
+      if (rising[i].obj !== obj) continue;
+      const r = rising[i];
+      r.obj.scale.set(r.sx, r.sy, r.sz);
+      rising.splice(i, 1);
+    }
   };
 
   function addTree(strip, tile, tree, n) {
@@ -314,11 +426,15 @@ export function createStripTiles(scene, {
       const g = strip.buildTree(tree, { wind });
       g.userData.strip = strip.id;
       g.userData.stripTile = tile.index;
+      g.userData.streamSlot = `${strip.id}|${tile.index}|trees`;
       // one mesh per material, exactly as walk.js merges the core's props
       g.updateMatrixWorld(true);
       mergeRoot.children[0] = g;
       mergeStaticProps(mergeRoot);
       mergeRoot.children.length = 0;
+      // hidden until the last tree of its tile is ready (the stand-ins stand
+      // in till then)
+      g.visible = false;
       scene.add(g);
       g.updateMatrixWorld(true);
       const cast = assignShadowCastersFor(g);
@@ -336,7 +452,6 @@ export function createStripTiles(scene, {
       const record = { g, occ, geos, mats, meshes, casters, triangles: triangleCount(g) };
       stats.geometries += geos; stats.materials += mats; stats.meshes += meshes;
       stats.casters += casters; stats.triangles += record.triangles; stats.trees++;
-      rise(g, g.scale.x, g.scale.y, g.scale.z);
       return record;
     });
   }
@@ -350,8 +465,6 @@ export function createStripTiles(scene, {
       const i = occluders ? occluders.indexOf(o) : -1;
       if (i >= 0) occluders.splice(i, 1);
     }
-    // at its full size, so the decal's footprint is found again
-    g.scale.set(rec.sx ?? g.scale.x, rec.sy ?? g.scale.x, rec.sz ?? g.scale.z);
     g.rotation.set(0, 0, 0);
     g.updateMatrixWorld(true);
     decals?.removeStatic(g);
@@ -365,8 +478,6 @@ export function createStripTiles(scene, {
     stats.casters -= rec.casters; stats.triangles -= rec.triangles; stats.trees--;
   }
 
-  const key = (strip, tile, layer) => `${strip.id}|${tile.index}|${layer.id}`;
-
   function treesJob(strip, tile, layer) {
     const trees = strip.content(tile.index).trees;
     const made = [];
@@ -376,13 +487,13 @@ export function createStripTiles(scene, {
       step() {
         if (i < trees.length) {
           const t0 = now ? now() : 0;
-          const rec = addTree(strip, tile, trees[i], i);
-          rec.sx = rec.g.scale.x; rec.sy = trees[i].scale; rec.sz = rec.g.scale.z;
-          made.push(rec);
+          made.push(addTree(strip, tile, trees[i], i));
           if (now) stats.maxStepMs = Math.max(stats.maxStepMs, now() - t0);
           i++;
         }
         if (i < trees.length) return false;
+        for (const rec of made) rec.g.visible = true;
+        standIns.show(key(strip, tile, layer), false);
         live.set(key(strip, tile, layer), { trees: made });
         return true;
       },
@@ -439,15 +550,17 @@ export function createStripTiles(scene, {
             m.userData.noCast = true;
             m.userData.strip = strip.id;
             m.userData.stripTile = tile.index;
+            m.userData.streamSlot = `${strip.id}|${tile.index}|small`;
             return m;
           });
           scene.add(mesh);
-          rise(mesh, 1, 1, 1);
+          if (!standIns.has(key(strip, tile, layer))) rise(mesh, 1, 1, 1);
           live.set(key(strip, tile, layer), { mesh, triangles });
           stats.geometries++; stats.meshes++; stats.triangles += triangles; stats.smallTiles++;
         } else {
           live.set(key(strip, tile, layer), { mesh: null, triangles: 0 });
         }
+        standIns.show(key(strip, tile, layer), false);
         if (now) stats.maxStepMs = Math.max(stats.maxStepMs, now() - t0);
         return true;
       },
@@ -455,12 +568,44 @@ export function createStripTiles(scene, {
     };
   }
 
+  // A core tile's layer: one step, shown. Costs its triangles, so the frame
+  // budget spreads the first sight of many tiles (each a buffer upload) over
+  // a few frames.
+  function coreJob(strip, tile, layer) {
+    const rec = core.get(strip.id);
+    const k = key(strip, tile, layer);
+    const cost = rec.triangles.get(k) ?? 0;
+    let done = false;
+    return {
+      cost: () => (done ? 0 : cost),
+      step() {
+        for (const g of rec.trees.get(k) ?? []) g.visible = true;
+        for (const runs of rec.runs.get(k) ?? []) runs.show(k, true);
+        standIns.show(k, false);
+        done = true;
+        return true;
+      },
+      cancel() {},
+    };
+  }
+  function dropCore(strip, tile, layer) {
+    const rec = core.get(strip.id);
+    const k = key(strip, tile, layer);
+    for (const g of rec.trees.get(k) ?? []) g.visible = false;
+    for (const runs of rec.runs.get(k) ?? []) runs.show(k, false);
+    standIns.show(k, true);
+  }
+
   function dropSlot(strip, tile, layer) {
     const k = key(strip, tile, layer);
     const rec = live.get(k);
     if (!rec) return;
     live.delete(k);
-    if (rec.trees) { for (const t of rec.trees) removeTree(t); return; }
+    standIns.show(k, true);
+    if (rec.trees) {
+      for (const t of rec.trees) removeTree(t);
+      return;
+    }
     if (rec.mesh) {
       stopRising(rec.mesh);
       scene.remove(rec.mesh);
@@ -471,22 +616,30 @@ export function createStripTiles(scene, {
 
   const streamers = strips.map((strip) => createStreamer({
     tiles: strip.tiles,
-    layers: strip.layers ?? LAYERS,
-    begin: (tile, layer) => (layer.id === 'trees' ? treesJob(strip, tile, layer) : smallJob(strip, tile, layer)),
-    drop: (tile, layer) => dropSlot(strip, tile, layer),
+    // each stream's own layers (a strip writes its small things itself, so it
+    // has no `fine` layer)
+    layers: (strip.layers ?? LAYERS).filter((l) => layerIdsOf(strip).includes(l.id)),
+    begin: (tile, layer) => (strip.prebuilt ? coreJob(strip, tile, layer)
+      : layer.id === 'trees' ? treesJob(strip, tile, layer) : smallJob(strip, tile, layer)),
+    drop: (tile, layer) => (strip.prebuilt ? dropCore(strip, tile, layer) : dropSlot(strip, tile, layer)),
     now,
     ...(frameTriangles !== undefined ? { frameTriangles } : {}),
     ...(frameMs !== undefined ? { frameMs } : {}),
   }));
 
   let disposed = false;
+  let started = false; // after the first update or settle: from then on, small things rise in
   return {
     streamers,
     stats,
     material,
+    standIns,
+    standInMaterial,
+    core,
     update(dt, x, z) {
       if (disposed) return;
       for (let i = 0; i < streamers.length; i++) streamers[i].update(x, z, dt);
+      started = true;
       for (let i = rising.length - 1; i >= 0; i--) {
         const r = rising[i];
         r.t += dt;
@@ -495,26 +648,123 @@ export function createStripTiles(scene, {
         r.obj.scale.set(r.sx, r.sy * (0.02 + 0.98 * e), r.sz);
         if (u >= 1) { rising[i] = rising[rising.length - 1]; rising.pop(); }
       }
+      for (let i = 0; i < coreRuns.length; i++) coreRuns[i].runs.update();
+      standIns.update();
     },
-    // Everything in range of (x, z), built at once and at full size: for a
-    // picture or a count, never during a walk.
+    // Everything in range of (x, z), built at once and at full size: for the
+    // start of a walk, a picture or a count, never during a walk.
     settle(x, z) {
       for (const s of streamers) s.settle(x, z);
       for (const r of rising) r.obj.scale.set(r.sx, r.sy, r.sz);
       rising.length = 0;
+      started = true;
+      for (const { runs } of coreRuns) runs.update();
+      standIns.update();
+    },
+    // What the streams draw now: meshes, casters and triangles, the stand-ins
+    // included (a count for the budget test and the harness; it walks the
+    // scene, so not for every frame).
+    counts() {
+      const c = { meshes: 0, casters: 0, triangles: 0, standIns: standIns.drawnTriangles };
+      const add = (o) => o.traverse((m) => {
+        if (!m.isMesh || !m.visible) return;
+        c.meshes++;
+        if (m.castShadow) c.casters++;
+        c.triangles += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
+      });
+      for (const g of coreTrees) if (g.visible) add(g);
+      for (const { mesh, runs } of coreRuns) if (mesh.visible) { c.meshes++; c.triangles += runs.drawnTriangles; }
+      for (const v of live.values()) {
+        if (v.mesh) add(v.mesh);
+        for (const t of v.trees ?? []) if (t.g.visible) add(t.g);
+      }
+      if (standIns.mesh.visible) { c.meshes++; c.triangles += standIns.drawnTriangles; }
+      return c;
+    },
+    // Every streamed thing by slot, for a budget (test/helpers/growbudget.js).
+    inventory() {
+      const slots = new Map();
+      const slot = (k) => { let s = slots.get(k); if (!s) slots.set(k, (s = { objects: [], runs: [] })); return s; };
+      for (const rec of core.values()) {
+        for (const [k, list] of rec.trees) slot(k).objects.push(...list);
+        for (const { mesh, runs } of rec.meshes) for (const k of runs.keys()) slot(k).runs.push({ mesh, triangles: runs.triangles(k) });
+      }
+      for (const [k, v] of live) {
+        if (v.mesh) slot(k).objects.push(v.mesh);
+        for (const t of v.trees ?? []) slot(k).objects.push(t.g);
+      }
+      return { slots, runMeshes: coreRuns.map(({ mesh, runs }) => ({ mesh, always: runs.alwaysTriangles })), standIns };
     },
     dispose() {
       if (disposed) return;
       for (const s of streamers) s.dispose();
       rising.length = 0;
+      // the core's things stay in the scene for the walk's own teardown
+      for (const g of coreTrees) g.visible = true;
+      standIns.dispose();
+      standInMaterial.dispose();
       material.dispose();
       disposed = true;
     },
   };
 }
 
+const IDENTITY = new THREE.Matrix4();
+
+// A strip tree's stand-in: the tree built once, measured and freed, under its
+// own uuid stream (so no Math.random draw), and kept: a tile's content is a
+// pure function of its index, so its stand-ins are the same every walk.
+const STRIP_STAND_INS = new Map();
+function stripStandIn(strip, tile, tree, n) {
+  const k = `${tileSeed(strip.areaId, strip.id, tile.index, `tree-${n}`)}|${tree.kind}|${tree.x}|${tree.z}|${tree.scale}`;
+  let s = STRIP_STAND_INS.get(k);
+  if (!s) {
+    s = withLocalUuids(`${k}|standin`, () => {
+      const g = strip.buildTree(tree, {});
+      const out = standInOf(g);
+      g.traverse((o) => {
+        if (!o.isMesh) return;
+        o.geometry?.dispose();
+        for (const m of [].concat(o.material)) m?.dispose?.();
+      });
+      return out;
+    });
+    STRIP_STAND_INS.set(k, s);
+  }
+  return s;
+}
+
+// A strip tile's small proxies: its small layer written once, measured and
+// freed (a pure function of the tile's content, so kept for later walks).
+const STRIP_PROXIES = new Map();
+function stripProxies(strip, tile, material) {
+  const k = tileSeed(strip.areaId, strip.id, tile.index, 'small-proxies');
+  let p = STRIP_PROXIES.get(k);
+  if (!p) {
+    p = withLocalUuids(`${k}|build`, () => {
+      const small = strip.content(tile.index).small;
+      const geo = smallGeometry(small, SMALL_SEED);
+      const items = [];
+      for (const kind of KIND_ORDER) {
+        for (const it of small[kind] ?? []) items.push({ x: it.x, z: it.z, r: SMALL_REACH[kind](it) });
+      }
+      const mesh = new THREE.Mesh(geo, material);
+      const out = proxiesOf(mesh, items, { reach: 0.6 }).get(null) ?? { pos: [], nor: [], col: [], index: [] };
+      geo.dispose();
+      return out;
+    });
+    STRIP_PROXIES.set(k, p);
+  }
+  return p;
+}
+// How far each small kind's parts reach from its centre.
+const SMALL_REACH = Object.freeze({
+  reed: () => 0.3, tussock: (t) => 0.35 * t.s, cattail: () => 0.15, marigold: (f) => 0.25 * f.s, stone: (st) => st.r,
+});
+
 export const NO_STRIP_TILES = Object.freeze({
   streamers: Object.freeze([]),
   stats: Object.freeze({ geometries: 0, materials: 0, meshes: 0, triangles: 0, casters: 0, trees: 0, smallTiles: 0, maxStepMs: 0 }),
   update() {}, settle() {}, dispose() {},
+  counts: () => ({ meshes: 0, casters: 0, triangles: 0, standIns: 0 }),
 });

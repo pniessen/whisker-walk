@@ -15,6 +15,12 @@ const STILL_PX = 10;
 const MAX_R = 60;
 const DEAD = 0.15;
 
+// The paw's climb badge (controls review, 2026-11-19): ⬆ when a climb is in
+// reach, ⬇ when the cat is up on something and the paw would hop down. The
+// spoken name says the same.
+export const CLIMB_LABEL = Object.freeze({ up: 'Climb up', down: 'Hop down', null: 'Pounce or climb' });
+const CLIMB_MARK = Object.freeze({ up: '⬆', down: '⬇' });
+
 export function detectTouch() {
   try {
     return window.matchMedia('(pointer: coarse)').matches;
@@ -40,9 +46,13 @@ export function onFirstTouch(callback) {
 // up joystick / orbit / action-button touch handling.
 //
 // callbacks = { onMove(vec|null), onOrbit(dx, dy), onAction(name), onZoom(dir) }
-// action names: pounce | meow | yarn | camera | pause | interact | tapWorld |
-// zoomIn | zoomOut (the + / − camera zoom pair). onZoom(dir) is the two-finger
-// pinch on the orbit area: -1 zoom in (fingers apart), +1 zoom out.
+// action names: pounce | meow | camera | pause | interact | tapWorld |
+// zoomIn | zoomOut (the + / − camera zoom pair, on screen only with the
+// "Zoom buttons on screen" switch: setZoomButtons). onZoom(dir) is the
+// two-finger pinch on the orbit area: -1 zoom in (fingers apart), +1 zoom out.
+// The yarn button went in the controls review (2026-11-19): yarn balls lie
+// around to find now. The photo button keeps its place in the 2x2 cluster
+// (style.css), so nothing the children know moves.
 // opts = { leftHanded } — settings.leftHanded at construction time; mirrors
 // the joystick/orbit zone split (see touchstart below) and, via the
 // body.left-handed CSS class, the action cluster / pause button positions
@@ -62,10 +72,9 @@ export function createTouchUI(root, callbacks, opts = {}) {
       <div class="tui-joystick-nub"></div>
     </div>
     <div class="tui-actions" id="tui-actions">
-      <button class="tui-btn" type="button" data-action="pounce" aria-label="Pounce or climb">${PAW}<span class="tui-label">pounce</span></button>
+      <button class="tui-btn" type="button" data-action="pounce" aria-label="${CLIMB_LABEL[null]}">${PAW}<span class="tui-badge" aria-hidden="true"></span><span class="tui-label">pounce</span></button>
       <button class="tui-btn" type="button" data-action="meow" aria-label="Meow">😺<span class="tui-label">meow</span></button>
-      <button class="tui-btn" type="button" data-action="yarn" aria-label="Yarn ball">🧶<span class="tui-label">yarn</span></button>
-      <button class="tui-btn" type="button" data-action="camera" aria-label="Toggle camera">📷<span class="tui-label">photo</span></button>
+      <button class="tui-btn" type="button" data-action="camera" aria-label="Photo">📷<span class="tui-label">photo</span></button>
     </div>
     <button class="tui-pause" type="button" id="tui-pause" aria-label="Pause">⏸</button>
     <div class="tui-zoom" id="tui-zoom">
@@ -75,6 +84,17 @@ export function createTouchUI(root, callbacks, opts = {}) {
   `;
   root.appendChild(wrap);
 
+  const paw = wrap.querySelector('.tui-btn[data-action="pounce"]');
+  const pawBadge = paw.querySelector('.tui-badge');
+  let climb = null;
+  function setClimb(kind) {
+    const next = kind === 'up' || kind === 'down' ? kind : null;
+    if (next === climb) return;
+    climb = next;
+    paw.dataset.climb = next ?? '';
+    pawBadge.textContent = next ? CLIMB_MARK[next] : '';
+    paw.setAttribute('aria-label', CLIMB_LABEL[next]);
+  }
   const joystick = wrap.querySelector('#tui-joystick');
   const rest = wrap.querySelector('#tui-joystick-rest');
   // The resting ring shows the way to move before any touch: from the start
@@ -248,8 +268,9 @@ export function createTouchUI(root, callbacks, opts = {}) {
 
   return {
     setVisible(v) {
-      // Coming back from hidden is a new walk: the ring rests again.
-      if (v && !visible) restOn();
+      // Coming back from hidden is a new walk: the ring rests again, and the
+      // paw has no badge until the walk says so.
+      if (v && !visible) { restOn(); setClimb(null); }
       visible = !!v;
       wrap.classList.toggle('hidden', !v);
       if (!v) {
@@ -259,8 +280,8 @@ export function createTouchUI(root, callbacks, opts = {}) {
         hideJoystick();
       }
     },
-    // The word under each action button. `on` is true / false for all four,
-    // or { pounce, meow, yarn, camera } to say which still show theirs (a
+    // The word under each action button. `on` is true / false for all three,
+    // or { pounce, meow, camera } to say which still show theirs (a
     // button keeps its word until it has been used twice: main.js counts).
     setLabels(on) {
       const each = on && typeof on === 'object';
@@ -280,6 +301,14 @@ export function createTouchUI(root, callbacks, opts = {}) {
     // cluster (bottom-right -> bottom-left) / pause button (top-left ->
     // top-right) positions in style.css. Drops any touch in flight so a
     // mid-drag flip can't leave a joystick anchored on the wrong side.
+    // 'up', 'down' or null: the paw's climb badge and its spoken name.
+    setClimb,
+    // The + / − pair on screen, or not (settings.zoomButtons; off by default
+    // since the controls review: pinch, the wheel and the pause card's View
+    // chips zoom). The body class shows it (style.css).
+    setZoomButtons(v) {
+      document.body.classList.toggle('zoom-buttons', !!v);
+    },
     setLeftHanded(v) {
       leftHanded = !!v;
       document.body.classList.toggle('left-handed', leftHanded);

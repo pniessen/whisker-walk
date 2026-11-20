@@ -409,6 +409,92 @@ const SETS = {
   },
 };
 
+// The yarn ball's two spots in every area, the den too (controls review,
+// 2026-11-19: yarn lies around to find, no button). One ball a walk, at one of
+// the two (yarnSpotFor below). `where` finishes the goal's how-line, "The yarn
+// ball is {where}." Not a 3b prop: no id, nothing saved, never a mark. Placement
+// is checked against the real built areas in test/yarnspots.test.js (walkable,
+// clear of colliders and water, off decks and slopes, a prompt's width from
+// every walk-up prop, clear of the spawn, the finds, the POIs, the rival's
+// land and the dog's yard).
+const YARN_SPOTS = {
+  neighborhood: [
+    { x: 32.1, z: 25.6, where: 'by the playground bench' },
+    { x: 15.2, z: 19.8, where: 'in the lilac garden' },
+  ],
+  park: [
+    { x: -6, z: 15.5, where: 'by the fountain bench' },
+    { x: 6.4, z: 33, where: 'by the cardboard box' },
+  ],
+  seaside: [
+    { x: -26, z: 18.6, where: 'by the big boulder' },
+    { x: 20.4, z: 24.4, where: 'by the cardboard box' },
+  ],
+  docks: [
+    { x: -1, z: 9.6, where: 'by a quay bench' },
+    { x: 10.1, z: -19, where: 'by the cardboard box' },
+  ],
+  farm: [
+    { x: 6.4, z: -5.8, where: 'by the hay bales' },
+    { x: -9.5, z: 13, where: 'by the cardboard box' },
+  ],
+  fair: [
+    { x: -3.6, z: 27.5, where: 'by the prize stall' },
+    { x: -31, z: 13, where: 'on the picnic lawn' },
+  ],
+  woods: [
+    { x: -2.5, z: 18, where: 'by the fallen log' },
+    { x: 8.4, z: 23.4, where: 'by the big rock' },
+  ],
+  river: [
+    { x: 6, z: 22, where: 'by the fallen log' },
+    { x: -15.4, z: -23.3, where: 'by the big rock' },
+  ],
+  moor: [
+    { x: -0.5, z: 36.2, where: 'by the old hawthorn' },
+    { x: -16.4, z: -32.8, where: 'by the High Tor' },
+  ],
+  pines: [
+    { x: 4.5, z: -30.5, where: 'beside the Lightning Stump' },
+    { x: -13.4, z: 40.5, where: 'by the fallen pine' },
+  ],
+  gorge: [
+    { x: -6.4, z: 6, where: 'by the stream' },
+    { x: -11, z: -23.7, where: 'down by the stream' },
+  ],
+  den: [
+    { x: -3.4, z: -5, where: 'by the cardboard box' },
+    { x: 0, z: -6.4, where: 'under the sunny window' },
+  ],
+};
+
+// FNV-1a, the same hash rng.js's seedFromCode uses (this file imports nothing).
+function hashText(text) {
+  let h = 0x811c9dc5;
+  for (const ch of text) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+// yarnSpotsFor(areaId) -> that area's two spots, fresh copies ([] for an
+// unknown area). Own keys only.
+export function yarnSpotsFor(areaId) {
+  const list = typeof areaId === 'string' && Object.hasOwn(YARN_SPOTS, areaId) ? YARN_SPOTS[areaId] : [];
+  return list.map((p) => ({ ...p }));
+}
+
+// yarnSpotFor(areaId, key) -> today's spot, or null. `key` is the day
+// ('2026-11-19') on a walk alone, or the room's seed on a walk together, so
+// two players in one room find it in the same place. A hash, never a draw
+// from the walk's seeded stream (that stream's draw count is shared).
+export function yarnSpotFor(areaId, key) {
+  const spots = yarnSpotsFor(areaId);
+  if (!spots.length) return null;
+  return spots[hashText(`${areaId}|${String(key)}`) % spots.length];
+}
+
 const deepFreeze = (v) => {
   if (v && typeof v === 'object') {
     for (const k of Object.keys(v)) deepFreeze(v[k]);
@@ -417,6 +503,7 @@ const deepFreeze = (v) => {
   return v;
 };
 deepFreeze(SETS);
+deepFreeze(YARN_SPOTS);
 
 const EMPTY = deepFreeze({
   carryables: [], knockables: [], markables: [], flaps: [], rests: [], hides: [], dogYard: null, keepSlots: [],

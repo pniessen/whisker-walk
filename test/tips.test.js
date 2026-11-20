@@ -1,6 +1,6 @@
 // The hints on a walk (src/game/tips.js): the facts, the bus, the real clock.
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { createTips, walkFacts, HINT_PICS } from '../src/game/tips.js';
+import { createTips, walkFacts, climbBadge, HINT_PICS } from '../src/game/tips.js';
 import { HINT_IDS } from '../src/hints.js';
 import { createProgression } from '../src/progression.js';
 import { bus } from '../src/events.js';
@@ -56,6 +56,27 @@ describe('walkFacts', () => {
     expect(facts({ critters: { list: [{ type: 'villager', ...at(1, -6) }] } }).critterNear).toBe(false);
   });
 
+  // Controls review, 2026-11-19: the found yarn ball and the paw's badge.
+  it('the yarn ball: near and in view, touched, held; the ball in the mouth is not "carrying"', () => {
+    const ball = (x, z, extra = {}) => ({ active: true, claimed: false, held: false, mesh: { position: { x, y: 0.13, z } }, ...extra });
+    expect(facts({ toy: ball(1, -6) })).toMatchObject({ yarnNear: true, toy: false, yarnHeld: false });
+    expect(facts({ toy: ball(0, 6) }).yarnNear).toBe(false); // behind the view
+    expect(facts({ toy: ball(0, -12) }).yarnNear).toBe(false); // too far
+    expect(facts({ toy: ball(1, -6, { claimed: true }) }).toy).toBe(true);
+    const held = facts({ toy: ball(0, -0.3, { claimed: true, held: true }), carry: { mouth: { held: { id: 'yarn', kind: 'yarn', toy: true } } } });
+    expect(held).toMatchObject({ yarnHeld: true, yarnNear: false, carrying: false });
+  });
+
+  it('the paw\'s badge: up with a perch in reach, down on a perch with nothing higher, else none', () => {
+    const perch = { x: 0.8, z: 0, y: 0.6, label: 'a bench' };
+    expect(climbBadge(walk({ areaData: { perches: [perch], boxes: [] } }), player, state)).toBe('up');
+    expect(climbBadge(walk({ areaData: { perches: [], boxes: [] } }), player, state)).toBe(null);
+    const up = { ...player, perchY: 0.6 };
+    expect(climbBadge(walk({ areaData: { perches: [perch], boxes: [] }, perched: perch, cat: { position: { x: 0.8, y: 0.6, z: 0 } } }), up, state)).toBe('down');
+    expect(climbBadge(walk({ areaData: { perches: [perch], boxes: [] }, fight: {} }), player, state)).toBe(null);
+    expect(climbBadge(walk({ areaData: { perches: [perch], boxes: [] } }), { ...player, swimming: true }, state)).toBe(null);
+  });
+
   it('a stray 10 to 18 metres off counts only when none is in reach', () => {
     expect(facts({ strayCats: { strays: [at(0, -14)] } }).strayFar).toBe(true);
     expect(facts({ strayCats: { strays: [at(0, -14), at(2, 0)] } }).strayFar).toBe(false);
@@ -68,7 +89,7 @@ describe('walkFacts', () => {
     expect(facts({ idleTime: 6 }).idleOpen).toBe(6);
     expect(facts({ idleTime: 6, prompt: { kind: 'stray' } }).idleOpen).toBe(0); // next to something: not "in the open"
     expect(facts({ boxTime: 1 }).inBox).toBe(true);
-    expect(facts({ toy: { active: true }, batCount: 2 })).toMatchObject({ toy: true, bats: 2 });
+    expect(facts({ toy: { active: true, claimed: true }, batCount: 2 })).toMatchObject({ toy: true, bats: 2 });
     expect(facts({ cameraMode: true }).camera).toBe(true);
     expect(facts({ carry: { mouth: { held: { kind: 'stick' } } } }).carrying).toBe(true);
     expect(facts({}, { ...player, inWater: true }).inWater).toBe(true);

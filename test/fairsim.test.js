@@ -1557,7 +1557,7 @@ describe('the walk: a cat on the helter-skelter', () => {
     expect(NO_FAIR.groundSpot()).toBeNull();
     // and the note itself takes it (game/walkresume.js)
     const src = readFileSync(new URL('../src/game/walkresume.js', import.meta.url), 'utf8');
-    expect(src).toMatch(/const down = session\.fair\?\.groundSpot\?\.\(\) \?\? null;/);
+    expect(src).toMatch(/const down = session\.fair\?\.groundSpot\?\.\(\) \?\? session\.traversal\?\.groundSpot\?\.\(\) \?\? null;/);
     expect(src).toMatch(/x: down \? down\.x : session\.cat\.position\.x,/);
     expect(src).toMatch(/z: down \? down\.z : session\.cat\.position\.z,/);
   });
