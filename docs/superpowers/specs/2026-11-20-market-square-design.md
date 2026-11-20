@@ -1,6 +1,6 @@
 # The Market Square: design
 
-Date: 2026-11-20. Status: drafted from the owner's answers on 2026-11-20, waiting for his approval.
+Date: 2026-11-20. Status: drafted from the owner's answers on 2026-11-20, checked by a builder, waiting for his approval.
 
 ## Intent
 
@@ -56,11 +56,11 @@ The builder may rename stalls or treats. The names go to the owner and his daugh
   - While they're turned away, the bubble stays, and their back faces the cat.
   - As they turn back, the bubble goes.
   - The builder chooses the exact look, but it must read at phone size.
-- **Noticing.** This reuses the dog's rule (`dogNotices` in `src/dogs.js`).
+- **Noticing.** This borrows one idea from the dog's rule (`dogNotices` in `src/dogs.js`): a cat who is stalking is noticed only at half the distance. Everything else is new code: the zone in front of the counter, the facing-front versus turned-away state, and the safe places under a stall and on top of an awning. `dogNotices` knows only distance from a circle's middle.
   - While a stallholder faces front, a walking cat is noticed inside a set distance in front of the counter.
   - A crouched cat is noticed only much closer.
   - While turned away, they notice nothing.
-- **The grab.** She walks up to the treat and takes it with the ordinary action button. The treat goes into her mouth the way carrying works today (`src/carry.js`). She then eats it with a little munch somewhere away from the stall.
+- **The grab.** She walks up to the treat and takes it with the ordinary action button. It shows in her mouth like a carried thing, then a moment later she eats it with a little munch. Treats are their own kind of thing, not ordinary carryables. `src/carry.js` would keep a held item as a den keepsake at walk end, let it slip in rain, and refuse a pick-up when her mouth is full. A treat gets its own flag: it is never kept, never slips, and is eaten within a couple of seconds. If her mouth is full, for example with the yarn ball, she drops what she holds and takes the treat.
 - **Spotted.** "Oi, you rascal!" (the words go through the word tables), the broom waves over the counter, and the cat does a short automatic hop back. The child keeps control right away. The stall's treat stays out, so she can try again.
   - If she already has the treat, she keeps it, and the shoo is just a laugh.
   - Hiding under a stall or a crate is safe: no one notices a cat under a stall.
@@ -70,7 +70,11 @@ The builder may rename stalls or treats. The names go to the owner and his daugh
 
 Both see the same stallholders turn at the same moments. The cycles come from the room seed, on their own salted stream, never `walkRng`.
 
-**The distraction:** when one cat sits in front of a stall and looks up (the existing sit), the stallholder turns to coo at her ("Aww, look at you!") and stays turned toward her for a few seconds. That leaves the back of the stall open for the other cat. It is the square's two-player trick, and a solo child can use it too by sitting at one stall while sneaking at the next.
+**The distraction (my call, after the builder check):** there is no new control. A cat who **stops** in the zone in front of a stall, so that she stands still for about a second, is being cute, not sneaky. The stallholder turns to coo at her ("Aww, look at you!") and keeps facing her for a few seconds. That leaves the back of the stall open for the other cat. A still cat is never shooed. Only a cat who moves toward the treat while watched is shooed. The existing sit is an idle pose that comes after 6 to 10 seconds, too slow for this, so it isn't used. The cat just looks up at the stallholder while being cooed at. A solo child can use the trick too: stop at one stall, then slip to the next.
+
+**Treats on a walk together (my call):** each child has her own treats, kept on her own device as the Farm's job items are, so the two never compete for one fish head and refills never need to stay in step. The partner's cat is still seen carrying and munching. **Teamwork pays both:** when one child eats a treat from a stall while her partner is being cooed at by that stallholder, both children get the paws. The distracting child is rewarded too, so the 9-year-old is never stuck as the one who only waits.
+
+**Keeping two screens in step (my call):** the stall rhythm runs from the time of day and the room seed, the way the Fairground keeps its rides in step (`src/fairlive.js`), with no network message. A coo is started on each device by the partner's cat as that device sees her, so the two screens may differ by a fraction of a second. That is accepted. No new network message is added, so older builds are unaffected.
 
 ## Also here, like every place
 
@@ -96,7 +100,7 @@ Both see the same stallholders turn at the same moments. The cycles come from th
 
 ## Constraints
 
-- **Performance:** the street ceiling of 450 meshes, 380 casters and 70,000 triangles (`test/budget.test.js`). Stalls share geometry and one awning and produce atlas. Stallholders reuse the villager figure from `src/critters.js`.
+- **Performance (my call, after the builder check):** the street places have their own lower ceilings in `test/budget.test.js` (Park 210/170/40,000, Farm 280/210/62,000, Fairground 250/180/75,000 provisional). The Market takes the Farm's: **280 meshes, 210 shadow casters and 62,000 triangles**. Stalls share geometry and one awning and produce atlas. Stallholders reuse the villager figure from `src/critters.js`.
 - **Determinism for two players:** stall cycles and treat placement are data or seeded on their own salted streams. `test/fixtures/flat-trace.gameplay.json` doesn't move.
 - **Offline-first:** nothing contacts the database.
 - **Text** is pitched for a 9-year-old and goes through the word tables for both word sets. No series words go in string literals outside them.
@@ -124,3 +128,11 @@ It is built after the Old House, and after lazy area loading makes room in the d
 1. **Stallholders behind their counters with a clear rhythm.** This is the chosen approach. It is easy for a 9-year-old to read, cheap to draw and fair. It reuses the villager figure and the dog's noticing rule, and it gives two players a natural distraction trick.
 2. **Stallholders walking about between the stalls.** Livelier, but much harder to read, it brings people to cat height (which the Fairground's rules avoid), and it costs more triangles.
 3. **Sight cones drawn on the ground.** Very clear, but it feels like a stealth test rather than a cheeky romp, and it looks out of place in a cozy market.
+
+## Calls I made after the builder check (the owner can change any)
+
+1. **The distraction needs no new control.** A cat who stops in front of a stall is cute, so she gets a coo, never a shoo. Only moving toward the treat while watched gets a shoo.
+2. **Each child has her own treats on a walk together.** When one eats while her partner is distracting that stall, both are paid.
+3. **The stall rhythm stays in step through the time of day,** as the Fairground's rides do. A coo may differ by a fraction of a second between the two screens, and no new network message is added.
+4. **The Farm's ceilings apply:** 280 meshes, 210 casters and 62,000 triangles.
+5. **Treats are their own kind of thing,** never kept as den keepsakes and never slipping in rain. A full mouth drops what it holds.
