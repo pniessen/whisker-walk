@@ -30,11 +30,17 @@ const { groundOf } = await import('../src/ground.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { CHICK_SPOT_SETS, goatRoute } = await import('../src/farmjobs.js');
 const { FARM_HIDES } = await import('../src/world/farm.js');
+const { FAIR_HIDES } = await import('../src/world/fair.js');
 
 // Scripted job points per area: a find never sits where a job's animal or
 // object is placed (PICKUP is 1 m, so a find that close doubles up with it).
 const JOB_CLEAR = 3;
-const JOB_POINTS = { farm: (area) => [...CHICK_SPOT_SETS.flat(), ...goatRoute(area.anchors), ...FARM_HIDES] };
+// The Fair's: its games' and finds' anchors (each a point { x, z }, or a list of them) and its hides.
+const FAIR_JOB_ANCHORS = ['tinCanPlay', 'tinCanCounter', 'tinCans', 'duckPool', 'duckPoolSide', 'bellPad', 'bellPole', 'fortuneDoor', 'fortuneSeat', 'fortuneBall', 'musicBox', 'candyfloss', 'candyflossPan', 'juggler', 'jugglerWatch', 'balloonCart', 'wheelBoard', 'teacupsBoard', 'merryGoRoundBoard', 'helterDoor', 'helterSlideOff', 'coasterBoard'];
+const JOB_POINTS = {
+  farm: (area) => [...CHICK_SPOT_SETS.flat(), ...goatRoute(area.anchors), ...FARM_HIDES],
+  fair: (area) => [...FAIR_JOB_ANCHORS.flatMap((k) => area.anchors[k]), ...FAIR_HIDES],
+};
 
 const YARN_CLEAR = 3;
 const THING_CLEAR = 2;
