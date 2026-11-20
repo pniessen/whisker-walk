@@ -1,16 +1,18 @@
-// The territory map's SVG (Clan Edition's "Where to?"). A storybook map drawn
-// from her layout: soft hand-drawn land, her lake, island, river, pond, paths
-// and bridge, and a name on every territory. DOM-free: it returns a string the
-// dressing room inserts.
+// The world map's SVG (Clan Edition's Change place). A storybook map: her
+// territory board drawn from her layout (soft hand-drawn land, her lake,
+// island, river, pond, paths and bridge), the town's street places, the coast
+// and the sea around it, and a name on every place. DOM-free: it returns a
+// string the dressing room inserts.
 //
-// Layers, bottom to top: parchment, land, water, paths, then the labels and
-// tap targets. Land sits under the water so her lake and river show through
-// the Woods; each built place gets an invisible copy of its outline on top,
-// inside its <g data-dr-place>, so a tap anywhere in it (even on the lake)
-// reaches the dressing room's existing place handler.
+// Layers, bottom to top: paper, sea, land, water, paths, roads, then one
+// group per place with its name and its tap target. Land sits under the water
+// so her lake and river show through the Woods; each place gets an invisible
+// copy of its outline on top, inside its <g data-dr-map-place>, so a tap
+// anywhere in it (even on the lake) reaches that place.
 
 import { clanName } from '../clanhomes.js';
 import { LAND } from '../territories.js';
+import { STREET_LAND, ISLAND_HIT_R } from '../worldmap.js';
 import { escapeHtml } from '../escapehtml.js';
 import { phrase } from '../clanphrases.js';
 
@@ -80,18 +82,26 @@ function wrap(text, max) {
 const ICON = { town: '🏠', woods: '🌳', moor: '🌾', river: '🌿', pines: '🌲', gorge: '⛰️' };
 // Where each name sits, nudged off her water and paths where they cross the centre.
 const LABEL_AT = { town: [862, 572], woods: [556, 540], moor: [655, 92], river: [205, 548], pines: [290, 172], gorge: [815, 300] };
+// The world map's street places: their icons, and where draft 2 puts their names.
+const STREET_ICON = { park: '⛲', fair: '🎡', farm: '🚜', docks: '⚓', seaside: '🏖️' };
+const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326], docks: [900, 778], seaside: [1170, 688] };
 
-function labelHtml(r) {
-  const [lx, ly] = LABEL_AT[r.id] ?? [r.x, r.y];
-  const name = wrap(`${r.locked ? '🔒 ' : ''}${r.name}`, 14);
-  const sub = wrap(r.line, 22);
-  const nameSize = r.status === 'built' ? 44 : 38;
+// A place's name: its icon, the lock, its name and its line, centred on its
+// anchor. A small place (the world map's street places and the Gorge) gets
+// smaller words, wrapped narrower, so they stay nearer its land.
+function labelHtml(r, { small = false } = {}) {
+  const [lx, ly] = LABEL_AT[r.id] ?? STREET_LABEL_AT[r.id] ?? [r.x, r.y];
+  const name = wrap(`${r.locked ? '🔒 ' : ''}${r.name}`, small ? 12 : 14);
+  const sub = wrap(r.line, small ? 20 : 22);
+  const nameSize = small ? 36 : r.status === 'built' ? 44 : 38;
+  const [lineFirst, lineNext] = small ? [32, 26] : [36, 30];
+  const lineClass = small ? 'tm-line tm-line-small' : 'tm-line';
   const lines = [
-    `<tspan class="tm-icon" x="${lx}" dy="0">${ICON[r.id] ?? ''}</tspan>`,
+    `<tspan class="tm-icon" x="${lx}" dy="0">${ICON[r.id] ?? STREET_ICON[r.id] ?? ''}</tspan>`,
     ...name.map((t) => `<tspan class="tm-name" x="${lx}" dy="${nameSize}" font-size="${nameSize}">${escapeHtml(t)}</tspan>`),
-    ...sub.map((t, i) => `<tspan class="tm-line" x="${lx}" dy="${i ? 30 : 36}">${escapeHtml(t)}</tspan>`),
+    ...sub.map((t, i) => `<tspan class="${lineClass}" x="${lx}" dy="${i ? lineNext : lineFirst}">${escapeHtml(t)}</tspan>`),
   ];
-  const tall = 34 + name.length * nameSize + 36 + (sub.length - 1) * 30;
+  const tall = 34 + name.length * nameSize + lineFirst + (sub.length - 1) * lineNext;
   return `<text class="tm-label" x="${lx}" y="${n(ly - tall / 2 + 26)}" text-anchor="middle">${lines.join('')}</text>`;
 }
 
@@ -125,17 +135,49 @@ function campHtml(r) {
   return `<g class="${cls}"><title>${escapeHtml(phrase('map.camp', clanName(r.id)))}</title>${ring}${badge}${dome}</g>`;
 }
 
-// Where the island is, said under its name and in its tap title.
+// Where the island is, said under its name and in its screen-reader label.
 export const ISLAND_WHERE = 'in the Pines and Swamp';
 
 const stateClasses = (r) => `${r.status}${r.locked ? ' locked' : ''}${r.selected ? ' sel' : ''}`;
 
-export function renderTerritoryMapHtml(model) {
-  const m = model;
-  const built = m.regions.filter((r) => r.status === 'built' && r.areaId);
-  const unbuilt = m.regions.filter((r) => !built.includes(r));
+// The world map's drawn box: the 1500 x 880 world, with a margin above it so
+// her Moor, whose rough edge reaches about 7 units above the world's top (its
+// circle 4), is never clipped, its selected ring and focus outline included.
+export const WORLD_VIEW = Object.freeze({ x: 0, y: -20, w: 1500, h: 900 });
 
-  const land = m.regions.map((r) => `<path class="tm-land ${stateClasses(r)}" fill="${LAND[r.id] ?? '#c8b98f'}" d="${blobPath(r.id, r.x, r.y, r.r)}"/>`).join('');
+const pt = ([x, y]) => `${n(x)} ${n(y)}`;
+const SMALL_R = 140;
+// How far the paper and the sea run past the world on every side. The pan
+// fits the whole world in its box (contain), so a box whose shape is not the
+// world's shows more map round it: plain paper, and the sea carrying on along
+// its side. 6000 units outruns the widest box the sheet can have (a 1200 px
+// map 260 px tall shows about 4200 units across).
+const BEYOND = 6000;
+
+// The world map (Change place): her board exactly as the territory map draws
+// it, with draft 2's street places, coast, sea and gateway roads around it,
+// in one SVG drawn once per render (panning and zooming change only its
+// viewBox). Every place is a keyboard button with a screen-reader label
+// (data-dr-map-place), so the map is a group, never role="img", which would
+// hide each label. The island's star is a second way into the Pines.
+//
+// Layers, bottom to top: paper, sea, lands, water, her paths and bridge, the
+// gateway roads and a mark at each road's end, one group per place, then the
+// island's group. No frame: the paper and the sea run on past the world's
+// edge (BEYOND), so the map never ends in a line or the page behind it.
+export function renderWorldMapHtml(model) {
+  const m = model;
+  const { w, h } = m.world;
+  const [c0, ...cs] = m.coast;
+  // her coast, from straight up off the top of the world, curving on under
+  // the Docks below its bottom edge and then straight down
+  let coast = `M${n(c0[0])} ${-BEYOND} L${pt(c0)}`;
+  for (let i = 0; i + 2 < cs.length; i += 3) coast += ` C${pt(cs[i])} ${pt(cs[i + 1])} ${pt(cs[i + 2])}`;
+  const sea = `<path class="tm-sea" d="${coast} C820 900 760 960 750 1100 L750 ${h + BEYOND} L${w + BEYOND} ${h + BEYOND} L${w + BEYOND} ${-BEYOND} Z"/>`;
+
+  const landClass = (r) => `tm-land ${r.kind === 'street' ? 'street ' : ''}${stateClasses(r)}`;
+  const fillOf = (r) => (r.kind === 'street' ? STREET_LAND[r.id] : LAND[r.id]) ?? '#c8b98f';
+  const land = m.regions.map((r) => `<path class="${landClass(r)}" fill="${fillOf(r)}" d="${blobPath(r.id, r.x, r.y, r.r)}"/>`).join('');
   const water = `<path class="tm-river-bank" d="${smoothPath(m.river, false)}"/><path class="tm-river" d="${smoothPath(m.river, false)}"/>`
     + `<path class="tm-lake" d="${smoothPath(m.lake, true)}"/>`
     + `<circle class="tm-pond" cx="${m.pond.x}" cy="${m.pond.y}" r="${m.pond.r}"/>`;
@@ -143,27 +185,27 @@ export function renderTerritoryMapHtml(model) {
   const [b0, b1] = m.bridge;
   const bridge = `<line class="tm-bridge" x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}"/>`
     + `<line class="tm-bridge-planks" x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}"/>`;
-  // The island is part of the Pines' tap target (territories.js: ISLAND is
-  // always built, walked as part of the Pines): the star leads to the Pines
-  // and says so, drawn over the built places.
-  const isl = m.island;
-  const islandBody = `<path class="tm-island" d="${smoothPath(isl.outline, true)}"/>`
-    + `<polygon class="tm-star" points="${starPoints(m.star.x, m.star.y, 13, 5.5)}"/>`
-    + `<text class="tm-label tm-small" x="461" y="276" text-anchor="middle">${escapeHtml(isl.name)}</text>`;
-  const island = `<g class="tm-region ${stateClasses(isl)}" data-region="island" data-dr-place="${escapeHtml(isl.areaId)}">`
-    + `<title>${escapeHtml(`${isl.name}, ${ISLAND_WHERE} · ${isl.line}`)}</title>`
-    + `<path class="tm-hit" d="${smoothPath(isl.outline, true)}"/>${islandBody}`
-    + `<text class="tm-label tm-small" x="461" y="352" text-anchor="middle">${escapeHtml(ISLAND_WHERE)}</text></g>`;
-  const unbuiltHtml = unbuilt.map((r) => `<g class="tm-region ${stateClasses(r)}" data-region="${escapeHtml(r.id)}">`
-    + `<title>${escapeHtml(`${r.name} · ${r.line}`)}</title>${labelHtml(r)}</g>`).join('');
-  const builtHtml = built.map((r) => `<g class="tm-region ${stateClasses(r)}" data-region="${escapeHtml(r.id)}" data-dr-place="${escapeHtml(r.areaId)}">`
-    + `<title>${escapeHtml(`${r.name} · ${r.line}`)}</title>`
-    + `<path class="tm-hit" d="${blobPath(r.id, r.x, r.y, r.r)}"/>${labelHtml(r)}${campHtml(r)}</g>`).join('');
+  // Small marks only: step 3 gives the gateways their gates and states.
+  const roads = m.gateways.map(({ road: [p0, p1, p2, p3] }) => `<path class="wm-road" d="M${pt(p0)} C${pt(p1)} ${pt(p2)} ${pt(p3)}"/>`
+    + `<circle class="wm-gate" cx="${n(p3[0])}" cy="${n(p3[1])}" r="8"/>`).join('');
 
-  return `<svg viewBox="0 0 1000 700" class="territory-map" role="img" aria-label="Territory map" xmlns="http://www.w3.org/2000/svg">`
-    + '<rect class="tm-paper" x="4" y="4" width="992" height="692" rx="34"/>'
+  const button = (r, id, x, y, label) => `<g class="tm-region ${stateClasses(r)}" data-region="${escapeHtml(id)}" data-dr-map-place="${escapeHtml(r.areaId)}"`
+    + ` data-x="${n(x)}" data-y="${n(y)}" role="button" tabindex="0" aria-label="${escapeHtml(label)}">`;
+  const places = m.regions.map((r) => button(r, r.id, r.x, r.y, `${r.name}: ${r.line}`)
+    + `<path class="tm-hit" d="${blobPath(r.id, r.x, r.y, r.r)}"/>${labelHtml(r, { small: r.r < SMALL_R })}${campHtml(r)}</g>`).join('');
+
+  const isl = m.island;
+  const island = button(isl, 'island', m.star.x, m.star.y, `${isl.name}, ${ISLAND_WHERE}: ${isl.line}`)
+    + `<path class="tm-island" d="${smoothPath(isl.outline, true)}"/>`
+    + `<polygon class="tm-star" points="${starPoints(m.star.x, m.star.y, 13, 5.5)}"/>`
+    + `<text class="tm-label tm-small" x="461" y="276" text-anchor="middle">${escapeHtml(isl.name)}</text>`
+    + `<text class="tm-label tm-small" x="461" y="352" text-anchor="middle">${escapeHtml(ISLAND_WHERE)}</text>`
+    + `<circle class="tm-hit" cx="${m.star.x}" cy="${m.star.y}" r="${ISLAND_HIT_R}"/></g>`;
+
+  const v = WORLD_VIEW;
+  return `<svg viewBox="${v.x} ${v.y} ${v.w} ${v.h}" class="territory-map world-map" role="group" aria-label="Map of the world" xmlns="http://www.w3.org/2000/svg">`
+    + `<rect class="tm-paper" x="${-BEYOND}" y="${-BEYOND}" width="${w + 2 * BEYOND}" height="${h + 2 * BEYOND}"/>${sea}`
     + `<g class="tm-lands">${land}</g><g class="tm-water">${water}</g><g class="tm-paths">${paths}${bridge}</g>`
-    + `${unbuiltHtml}${builtHtml}${island}`
-    + '<rect class="tm-frame" x="4" y="4" width="992" height="692" rx="34"/>'
+    + `<g class="wm-roads">${roads}</g>${places}${island}`
     + '</svg>';
 }

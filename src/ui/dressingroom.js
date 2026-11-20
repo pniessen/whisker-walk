@@ -5,8 +5,10 @@
 // affordability mirror progression.isUnlocked/canBuy, purely from the save.
 import { asFiniteNonNeg } from '../progression.js';
 import { areaInEdition, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
-import { TERRITORIES, territoryMapModel, opensAfterLine } from '../territories.js';
-import { renderTerritoryMapHtml } from './territorymap.js';
+import { opensAfterLine, lower } from '../territories.js';
+import { worldMapModel } from '../worldmap.js';
+import { renderWorldMapHtml } from './territorymap.js';
+import { placeCardFor, renderPlaceCardHtml } from './placecard.js';
 import { clanPickerModel, CLAN_EMBLEMS } from './clanpicker.js';
 import { clanName, isClanId } from '../clanhomes.js';
 import { SKILLS, hasSkill } from '../skills.js';
@@ -18,7 +20,6 @@ import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT
 import { escapeHtml } from '../escapehtml.js';
 import { areaOffer } from '../areaoffer.js';
 import { phrase } from '../clanphrases.js';
-import { lower } from '../bordercross.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
@@ -100,7 +101,7 @@ function equippedId(state, catalog, slot) {
   return typeof id === 'string' && has(catalog.accessories, id) && catalog.accessories[id].slot === slot ? id : null;
 }
 
-export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
+export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard } = {}) {
   const points = num(state?.points);
   const equippedCat = plain(state?.equipped).cat;
   const ownedCats = ownedList(state, 'cats');
@@ -169,15 +170,19 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === walkArea, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
   });
 
-  // Clan Edition draws her territory map for the places on it; the rest
-  // (the Park, the Farm, the Fairground and the Docks it opens, and the
-  // Seaside after the Docks) stay picture cards under "Other places".
-  const clanPlaces = isClanEdition(state) ? {
-    territoryMap: territoryMapModel(state, catalog),
-    clanPicker: clanPickerModel(state),
-    clanPartnerName: typeof state?.colony?.partner?.petName === 'string' && state.colony.partner.petName ? state.colony.partner.petName : 'your partner',
-    otherPlaces: places.filter((p) => !TERRITORIES.some((t) => t.areaId === p.id)),
-  } : {};
+  // Clan Edition draws the world map, every place on it (her board and the
+  // street places around it), and the pop-up card of the place she tapped
+  // (mapCard, an areaId) when one is open. Legacy keeps its picture cards.
+  let clanPlaces = { placeCard: null };
+  if (isClanEdition(state)) {
+    const worldMap = worldMapModel(state, catalog);
+    clanPlaces = {
+      worldMap,
+      placeCard: typeof mapCard === 'string' ? placeCardFor(worldMap, mapCard, points) : null,
+      clanPicker: clanPickerModel(state),
+      clanPartnerName: typeof state?.colony?.partner?.petName === 'string' && state.colony.partner.petName ? state.colony.partner.petName : 'your partner',
+    };
+  }
 
   const shopIds = Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].prize);
 
@@ -493,15 +498,20 @@ export function renderDressingRoomHtml({ model, headerHtml = '', startHtml = '',
 </div>`;
 }
 
-// The Change place sheet's body: Clan Edition draws her territory map, then the
-// other places and the den under "More places"; Legacy keeps the picture cards.
+// The Change place sheet's body. Clan Edition: the world map only, every
+// place on it, with its zoom buttons and the pop-up card of the place she
+// tapped. The den is not on it: the den is home, not a place to walk, and has
+// its own Menu tile, so denHtml is not drawn here. Legacy keeps the picture
+// cards and the den after them, exactly as before.
 // clanLineHtml (the clan in one line) and denHtml are the owner's, verbatim.
 export function renderPlacesSheetHtml(model, { clanLineHtml = '', denHtml = '' } = {}) {
   const m = model;
-  const body = m.territoryMap
-    ? `${renderTerritoryMapHtml(m.territoryMap)}
-    <p class="dr-label">More places</p>
-    <div class="dr-places">${m.otherPlaces.map(placeHtml).join('')}${denHtml}</div>`
-    : `<div class="dr-places">${m.places.map(placeHtml).join('')}${denHtml}</div>`;
+  if (m.worldMap) {
+    const card = m.placeCard ? renderPlaceCardHtml(m.placeCard, { picture: PLACE_PICTURE(m.placeCard.id) }) : '';
+    const zoom = '<div class="wm-zoom"><button type="button" class="wm-zoom-in" data-wm-zoom="in" aria-label="Zoom in">＋</button>'
+      + '<button type="button" class="wm-zoom-out" data-wm-zoom="out" aria-label="Zoom out">－</button></div>';
+    return `<div class="dr-where">${clanLineHtml}<div class="wm-frame">${renderWorldMapHtml(m.worldMap)}${zoom}${card}</div></div>`;
+  }
+  const body = `<div class="dr-places">${m.places.map(placeHtml).join('')}${denHtml}</div>`;
   return `<div class="dr-where">${clanLineHtml}${body}</div>`;
 }

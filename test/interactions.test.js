@@ -1829,7 +1829,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       const h = promptHarness({ stray: null, areaId: 'moor', askCrossing: () => { throw new Error('no'); } });
       h.walkTo(47.5, -13);
       expect(h.session.prompt.kind).toBe('border-info');
-      expect(h.prompts.at(-1)).toBe('🔒 The Gorge opens after you explore The Moor 2 times · 1/2');
+      expect(h.prompts.at(-1)).toBe('🔒 The Gorge opens after you explore the Moor 2 times · 1/2');
       expect(() => h.press()).not.toThrow();
     });
 
