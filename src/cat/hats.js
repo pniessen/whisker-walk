@@ -1114,13 +1114,18 @@ function featherplume(simple) {
 const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
-// simple build), turned so its face is up and propped half a radian toward
-// -z, as if dropped against a tuft (quite flat, it would be a sliver from a
-// cat's eye height). Any other id is its hat, as worn.
+// simple build), turned so its face is up and propped toward -z, as if
+// dropped against a tuft (quite flat, it would be a sliver from a cat's eye
+// height): the feather half a radian, the starfish, small and round, nearly
+// on its edge and half again its size, so it can be spotted on the sand.
+// Any other id is its hat, as worn.
 export function lyingClip(id) {
   const hat = buildHat(id, { simple: true });
-  const face = id === 'starfishclip' ? starfishAt()[1] : id === 'featherplume' ? featherAt().back : null;
-  if (hat && face) hat.geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(face, new THREE.Vector3(0, Math.cos(0.5), -Math.sin(0.5))));
+  const [face, prop, k] = id === 'starfishclip' ? [starfishAt()[1], 1.0, 1.5] : id === 'featherplume' ? [featherAt().back, 0.5, 1] : [];
+  if (hat && face) {
+    hat.geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(face, new THREE.Vector3(0, Math.cos(prop), -Math.sin(prop))));
+    hat.geometry.scale(k, k, k);
+  }
   return hat;
 }
 
