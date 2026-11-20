@@ -47,7 +47,7 @@ export const STREET_LAND = Object.freeze({ park: '#b9dc8f', fair: '#e9b7c9', far
 // tables by id (placeName knows only catalog areas), so it shows before the
 // catalog has its row.
 export const TOWN_PLACES = freezeAll([
-  { id: 'roofs', areaId: 'roofs', x: 883, y: 518, r: 46 },
+  { id: 'roofs', areaId: 'roofs', x: 905, y: 458, r: 46 },
 ]);
 
 // A roof-slate land colour for them.

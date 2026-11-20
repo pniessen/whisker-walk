@@ -334,22 +334,35 @@ describe('drawing the world', () => {
 describe('world map: the Rooftops inside the town', () => {
   // the topmost target whose circle holds the point (later targets draw on top)
   const hit = (t, x, y) => [...t].reverse().find((q) => dist(q.x, q.y, x, y) <= q.r);
+  // the topmost target whose circle holds the point (later targets draw on top)
   it('the Rooftops is on the map inside the town, coming soon', () => {
-    expect(TOWN_PLACES).toEqual([{ id: 'roofs', areaId: 'roofs', x: 883, y: 518, r: 46 }]);
+    expect(TOWN_PLACES).toEqual([{ id: 'roofs', areaId: 'roofs', x: 905, y: 458, r: 46 }]);
     expect(Object.isFrozen(TOWN_PLACES) && TOWN_PLACES.every((p) => Object.isFrozen(p))).toBe(true);
     const m = worldMapModel(fresh(), CATALOG);
     const town = regionOf(m, 'town');
     const roofs = regionOf(m, 'roofs');
-    expect(roofs).toMatchObject({ kind: 'town', areaId: 'roofs', name: 'The Rooftops', status: 'soon', x: 883, y: 518, r: 46, camp: null });
-    expect(dist(roofs.x, roofs.y, town.x, town.y) + roofs.r).toBeLessThanOrEqual(town.r);
+    expect(roofs).toMatchObject({ kind: 'town', areaId: 'roofs', name: 'The Rooftops', status: 'soon', x: 905, y: 458, r: 46, camp: null });
+    expect(dist(roofs.x, roofs.y, town.x, town.y)).toBeLessThan(town.r + roofs.r - 20); // on the town's rim, straddling it
     expect(m.regions.at(-1).id).toBe('roofs');
     withOffWords(() => expect(regionOf(worldMapModel(fresh(), CATALOG), 'roofs').name).toBe('The Rooftops'));
   });
   it("a tap on it picks the Rooftops; a tap on the town's centre still picks the town", () => {
     const t = tapTargets(worldMapModel(fresh(), CATALOG));
-    expect(hit(t, 883, 518).areaId).toBe('roofs');
+    expect(hit(t, 905, 458).areaId).toBe('roofs');
     expect(hit(t, 843, 566).areaId).toBe('neighborhood');
     expect(t.at(-1).areaId).toBe('pines');
+  });
+  it("it leaves the town's icon, name and line clear: its circle holds none of their anchor points", () => {
+    const m = worldMapModel(fresh(), CATALOG);
+    const roofs = regionOf(m, 'roofs');
+    const t = tapTargets(m);
+    // the town's label is centred on (862, 572): icon about 70 above, name and line below
+    for (const [x, y] of [[862, 572], [862, 505], [862, 540], [862, 610], [843, 566]]) {
+      expect(dist(roofs.x, roofs.y, x, y), `${x},${y}`).toBeGreaterThan(roofs.r + 10);
+      expect(hit(t, x, y).areaId).toBe('neighborhood');
+    }
+    // and it clears its neighbours' circles
+    for (const id of ['woods', 'park', 'gorge']) expect(dist(roofs.x, roofs.y, regionOf(m, id).x, regionOf(m, id).y)).toBeGreaterThan(regionOf(m, id).r + roofs.r - 30);
   });
   it('its card has no button', () => {
     const m = worldMapModel({ ...fresh(), points: 500 }, CATALOG);

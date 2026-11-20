@@ -91,10 +91,13 @@ const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326
 // smaller words, wrapped narrower, so they stay nearer its land.
 function labelHtml(r, { small = false } = {}) {
   const [lx, ly] = LABEL_AT[r.id] ?? STREET_LABEL_AT[r.id] ?? [r.x, r.y];
-  const name = wrap(`${r.locked ? '🔒 ' : ''}${r.name}`, small ? 12 : 14);
-  const sub = wrap(r.line, small ? 20 : 22);
-  const nameSize = small ? 36 : r.status === 'built' ? 44 : 38;
-  const [lineFirst, lineNext] = small ? [32, 26] : [36, 30];
+  // a place drawn inside the town (the Rooftops) is smaller still, so its
+  // name and line stay clear of the town's own label
+  const tiny = r.kind === 'town';
+  const name = wrap(`${r.locked ? '🔒 ' : ''}${r.name}`, tiny ? 8 : small ? 12 : 14);
+  const sub = wrap(r.line, tiny ? 8 : small ? 20 : 22);
+  const nameSize = tiny ? 28 : small ? 36 : r.status === 'built' ? 44 : 38;
+  const [lineFirst, lineNext] = tiny ? [26, 22] : small ? [32, 26] : [36, 30];
   const lineClass = small ? 'tm-line tm-line-small' : 'tm-line';
   const lines = [
     `<tspan class="tm-icon" x="${lx}" dy="0">${ICON[r.id] ?? STREET_ICON[r.id] ?? ''}</tspan>`,
