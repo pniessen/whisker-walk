@@ -5,6 +5,8 @@ import { CLAN_SUFFIX } from '../src/clanwords.js';
 import { CAT_BLURBS, ACC_BLURBS } from '../src/ui/catblurbs.js';
 import { PAW } from '../src/ui/pawicon.js';
 import { clanName } from '../src/clanhomes.js';
+import { spotsIn } from '../src/foundwear/spots/index.js';
+import { areaInEdition } from '../src/edition.js';
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
   MENU_TILES, GROWNUP_SHEETS,
@@ -114,8 +116,14 @@ describe('dressing-room model', () => {
 
 describe('slot picker', () => {
   it('lists every accessory in the slot', () => {
-    const want = Object.values(CATALOG.accessories).filter((a) => a.slot === 'head').length;
-    const html = renderSlotPickerHtml(defaultishState(), CATALOG, 'head', null);
+    // The rule: a find-only outfit not found yet shows only where it can be
+    // found (its area is in her edition and has find spots); the rest show.
+    const state = defaultishState();
+    const owned = state.unlocked.accessories;
+    const want = Object.entries(CATALOG.accessories).filter(([id, a]) => a.slot === 'head'
+      && (!a.find || owned.includes(id)
+        || (areaInEdition(CATALOG.areas?.[a.find], state.edition) && spotsIn(a.find).length > 0))).length;
+    const html = renderSlotPickerHtml(state, CATALOG, 'head', null);
     expect(count(html, /class="dr-pick[ "]/g)).toBe(want);
   });
   it('an unfound outfit is a silhouette saying where it is found, never a price', () => {
