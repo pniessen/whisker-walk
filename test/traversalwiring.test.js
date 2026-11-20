@@ -86,12 +86,12 @@ it('main.js hands the moves one context object, made once outside the frame', ()
   }
 });
 
-it('no shipped area places moves yet', () => {
+it('only the Rooftops places moves', () => {
   const files = readdirSync(new URL('../src/world/', import.meta.url)).filter((n) => n.endsWith('.js') && n !== 'traversalyard.js');
   expect(files.length).toBeGreaterThan(10);
-  for (const f of files) {
-    expect(read(`world/${f}`), f).not.toMatch(/\btraversal\s*:/);
-  }
+  // roofs.js's record, and the plan's roofsArea() that it is built from
+  const naming = files.filter((f) => /\btraversal\s*:/.test(read(`world/${f}`)));
+  expect(naming.sort()).toEqual(['roofs.js', 'roofsplan.js']);
 });
 
 // ---------------------------------------------------------------------------
