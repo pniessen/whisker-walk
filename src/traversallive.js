@@ -223,8 +223,8 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     const yaw = heldYaw ?? player.viewYaw();
     player.stickInput(stick);
     stickToWorld(stick.x, stick.z, yaw, world);
-    if (!crossingToMount(trav, p.x, p.z, ground.y(p.x, p.z), world.x, world.z, found)) return false;
-    if (heldYaw !== null && found.crossing === heldCrossing && found.end === heldEnd) return false;
+    const held = heldYaw !== null;
+    if (!crossingToMount(trav, p.x, p.z, ground.y(p.x, p.z), world.x, world.z, found, held ? heldCrossing : null, held ? heldEnd : -1)) return false;
     letGo();
     looking = null;
     crossing = found.crossing;

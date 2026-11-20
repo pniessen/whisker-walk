@@ -353,3 +353,29 @@ describe('yaw and stick helpers', () => {
     expect(T.easeYawToward(0, 1, 0.1, 5, 100)).toBeCloseTo(1 - Math.exp(-0.5), 12);
   });
 });
+
+describe('crossings that share an end', () => {
+  // A and B meet at (0, 0) on a roof at y 3: A runs west, B runs north
+  const roof = createGround({ strips: [{ x0: -6, z0: -3, x1: 6, z1: -3, width: 12, y0: 3 }] });
+  const sharedSpec = { crossings: [
+    { id: 'A', kind: 'ridge', points: [{ x: 0, z: 0, y: 3 }, { x: -4, z: 0, y: 3 }] },
+    { id: 'B', kind: 'ridge', points: [{ x: 0, z: 0, y: 3 }, { x: 0, z: -4, y: 3 }] },
+  ] };
+  const t = T.createTraversal(sharedSpec, roof);
+  const A = t.crossings[0];
+  const out = { crossing: null, end: 0, u: 0 };
+  it('at a shared end the push picks the crossing it points along', () => {
+    expect(T.crossingToMount(t, 0, 0, 3, -1, 0, out).crossing.id).toBe('A');
+    expect(T.crossingToMount(t, 0, 0, 3, 0, -1, out).crossing.id).toBe('B');
+  });
+  it('the end she just left is skipped, not the whole spot', () => {
+    expect(T.crossingToMount(t, 0, 0, 3, 0, -1, out, A, 0).crossing.id).toBe('B');
+    expect(T.crossingToMount(t, 0, 0, 3, -1, 0, out, A, 0)).toBeNull();
+  });
+  it('a nearer end still wins when the push is no better aligned than the bonus is worth', () => {
+    expect(T.MOUNT_ALIGN_BONUS).toBe(0.4);
+    // stood 0.45 m back along B's own line, pushing north: B (aligned, 0.45 m) beats A (not onto it at all)
+    expect(T.crossingToMount(t, 0, 0.45, 3, 0, -1, out).crossing.id).toBe('B');
+  });
+  it('two crossings may share an end', () => expect(T.validateTraversal(sharedSpec, { ground: roof, bounds: { minX: -10, maxX: 10, minZ: -10, maxZ: 10 } })).toEqual([]));
+});

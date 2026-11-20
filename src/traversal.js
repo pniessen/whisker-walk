@@ -35,6 +35,7 @@ export const CROSSING_MAX_LEN = 12; // m
 export const END_INSET = 0.35; // m: each end's first stretch of rail lies on its roof
 export const MOUNT_R = 0.5; // m from an end
 export const MOUNT_DOT = 0.5; // stick must point this much onto the crossing
+export const MOUNT_ALIGN_BONUS = 0.4; // m of nearness a perfectly aligned push is worth, to choose between crossings sharing an end
 export const ALONG_DEAD = 0.25; // an along-crossing push smaller than this does nothing
 export const BALANCE_SPEED = 1.2; // m/s, "a careful walk" (her walk is 3.5)
 export const TIGHTROPE_SPEED = 1.7; // m/s, with Tightrope Tail (step 4 earns it)
@@ -302,9 +303,12 @@ export function moveAbilities(state) {
 // Motions
 
 // The end of a crossing the cat is pushing onto, if any: nearest of the ends
-// that are close, level, and in the direction of the push. `out` is
-// { crossing, end, u }, with u the cat's place along that end's own segment.
-export function crossingToMount(trav, x, z, groundY, dirX, dirZ, out) {
+// that are close, level, and in the direction of the push; where several
+// ends qualify (crossings that share one), the lowest d - MOUNT_ALIGN_BONUS *
+// (how well the push points along it) wins. The end (skipCrossing, skipEnd) is
+// never a candidate. `out` is { crossing, end, u }, with u the cat's place
+// along that end's own segment.
+export function crossingToMount(trav, x, z, groundY, dirX, dirZ, out, skipCrossing = null, skipEnd = -1) {
   const dl = Math.hypot(dirX, dirZ);
   if (dl < 0.2) return null;
   let best = Infinity;
@@ -314,10 +318,14 @@ export function crossingToMount(trav, x, z, groundY, dirX, dirZ, out) {
     for (let k = 0; k < 2; k++) {
       const e = c.ends[k];
       const d = Math.hypot(x - e.x, z - e.z);
-      if (d > MOUNT_R || d >= best) continue;
+      if (d > MOUNT_R) continue;
+      if (c === skipCrossing && k === skipEnd) continue;
       if (Math.abs(groundY - e.y) > LEVEL_TOL) continue;
-      if (dirX * e.inX + dirZ * e.inZ < MOUNT_DOT * dl) continue;
-      best = d;
+      const dot = dirX * e.inX + dirZ * e.inZ;
+      if (dot < MOUNT_DOT * dl) continue;
+      const score = d - MOUNT_ALIGN_BONUS * dot / dl;
+      if (score >= best) continue;
+      best = score;
       found = true;
       out.crossing = c;
       out.end = k;

@@ -25,7 +25,8 @@ vi.stubGlobal('document', {
 
 const { createPlayer } = await import('../src/player.js');
 const { moveVector, moveDirection, MOVE_KEYS } = await import('../src/catcam.js');
-const { stickToWorld } = await import('../src/traversal.js');
+const { stickToWorld, createTraversal } = await import('../src/traversal.js');
+const { createGround } = await import('../src/ground.js');
 
 describe('the stick, read without the camera turn', () => {
   it('moveVector is moveDirection at yaw 0, into its out', () => {
@@ -852,5 +853,24 @@ describe('how she looks', () => {
     const a = run(true);
     expect(a.at(-2)).toBe('mount:plank-1,cross:plank-1,leap:gap-1,land:gap-1');
     expect(run(false)).toEqual(a);
+  });
+});
+
+describe('crossings that share an end', () => {
+  // ridge A then ridge B in a straight line north, meeting at (0, 0) on a roof at y 3
+  function twoRidges() {
+    const ground = createGround({ strips: [{ x0: 0, z0: 12, x1: 0, z1: -12, width: 6, y0: 3 }] });
+    const traversal = createTraversal({ crossings: [
+      { id: 'A', kind: 'ridge', points: [{ x: 0, z: 9, y: 3 }, { x: 0, z: 0, y: 3 }] },
+      { id: 'B', kind: 'ridge', points: [{ x: 0, z: 0, y: 3 }, { x: 0, z: -9, y: 3 }] },
+    ] }, ground);
+    return { name: 'two-ridges', bounds: { minX: -20, maxX: 20, minZ: -20, maxZ: 20 }, colliders: [], waters: [], perches: [], ground, traversal };
+  }
+  it('holding forward across a shared end walks onto the next crossing and never back', () => {
+    const w = yardWalk({ area: twoRidges(), at: [0, 9.6], face: [0, -1] });
+    w.push(0, -1);
+    w.run(20);
+    console.log(JSON.stringify(w.events), w.cat.position.z);
+    expect(w.events.filter((e) => e.type === 'mount').map((e) => e.id)).toEqual(['A', 'B']);
   });
 });
