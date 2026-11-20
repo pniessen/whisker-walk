@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Found outfits: picture sheets</title>
+<!-- Found outfits step 2: the owner's and his daughter's picture sheets. Each
+     sheet is one canvas with a 6 x 4 grid of tiles (setScissor/setViewport),
+     labelled in HTML over it (the outfit's name, its slot and its place):
+       cat-<preset>        the 24 outfits in FOUND_WEAR order on one cat, standing;
+       cat-builder-short|fluffy|long   the same on a builder cat (Task 1's looks);
+       cat-hagrid          Hagrid's own (head, face, neck and collar outfits);
+       sit-tabby|digit|mainecoon       the dress-up's sit (defaultPoseCat);
+       ground              every outfit's buildFindDisplay on grass, 1.2 m off,
+                           at cat height, no twinkle;
+       <area>-finds        a street area built, its outfits each at a real spot
+                           (a spread of looks; one raised if it has any), four
+                           views, verify-finds.html's spot() framing.
+     Each cat tile is framed as src/thumbnails.js does for accessoryFraming(id).
+     The page is silent. Contract for scripts/record-page.mjs: window.__ready
+     is true after the first frame; window.__shot(name) returns name once the
+     sheet is drawn. Open it with ?shot=<name> to look at one by hand. -->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1c2431; }
+  #gl { position: fixed; inset: 0; }
+  #gl canvas { display: block; }
+  #labels { position: fixed; inset: 0; pointer-events: none; font: 600 13px/1.25 -apple-system, 'Helvetica Neue', sans-serif; }
+  #labels .tile { position: absolute; box-sizing: border-box; outline: 1px solid rgba(28, 36, 49, .55); }
+  #labels .tag { position: absolute; left: 6px; top: 5px; max-width: calc(100% - 12px); padding: 3px 7px; border-radius: 7px;
+                 background: rgba(20, 28, 44, .78); color: #fff; }
+  #labels .tag small { display: block; font-weight: 500; font-size: 11px; color: #f2d58a; }
+  #title { position: fixed; right: 8px; bottom: 6px; padding: 2px 8px; border-radius: 6px; background: rgba(20, 28, 44, .78);
+           color: #cfe0ff; font: 600 12px sans-serif; }
+</style>
+</head>
+<body>
+<div id="gl"></div>
+<div id="labels"></div>
+<div id="title"></div>
+<script type="module">
+  import '/src/style.css';
+  import * as THREE from 'three';
+  import { CATALOG } from '/src/progression.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { defaultPoseCat } from '/src/ui/catstage.js';
+  import { DEFAULT_LOOK } from '/src/customcats.js';
+  import { buildEnvMap, litMaterial } from '/src/render/materials.js';
+  import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
+  import { createWind } from '/src/render/wind.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { groundOf } from '/src/ground.js';
+  import { FOUND_WEAR, foundWearIn } from '/src/foundwear/index.js';
+  import { HEN_SLOTS } from '/src/foundwear/rules.js';
+  import { spotsIn } from '/src/foundwear/spots/index.js';
+  import { createFind } from '/src/foundwear/live.js';
+  import { buildFindDisplay } from '/src/foundwear/display.js';
+  import { accessoryFraming } from '/src/thumbnails.js';
+  import { build as buildNeighborhood } from '/src/world/neighborhood.js';
+  import { build as buildPark } from '/src/world/park.js';
+  import { build as buildSeaside } from '/src/world/seaside.js';
+  import { build as buildDocks } from '/src/world/docks.js';
+  import { build as buildFarm } from '/src/world/farm.js';
+  import { build as buildFair } from '/src/world/fair.js';
+
+  const PRESETS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
+  const BARE = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
+  // Task 1's SHAPES (test/foundwearfit.test.js): the builder cat at three looks.
+  const BUILDER = {
+    short: { ...DEFAULT_LOOK, fur: 'short', size: 1 },
+    fluffy: { ...DEFAULT_LOOK, fur: 'fluffy', size: 1.15 },
+    long: { ...DEFAULT_LOOK, fur: 'long', size: 0.85 },
+  };
+  const AREA_BUILD = { neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, farm: buildFarm, fair: buildFair };
+
+  const $ = (id) => document.getElementById(id);
+  const W = innerWidth, H = innerHeight;
+  const COLS = 6, ROWS = 4;
+
+  // ---- the game's renderer settings (main.js) ----
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  renderer.setScissorTest(true);
+  setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+  $('gl').appendChild(renderer.domElement);
+  const tier = { name: 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+  const env = buildEnvMap(renderer);
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 400);
+
+  let world = null; // { scene, sun, shadows, area?, ground?, finds }
+  function disposeWorld() {
+    if (!world) return;
+    world.scene.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      const m = o.material;
+      if (Array.isArray(m)) m.forEach((x) => x.dispose()); else m?.dispose?.();
+    });
+    world = null;
+  }
+  function newScene(sky = 0xbfd8ff) {
+    disposeWorld();
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(sky);
+    scene.environment = env;
+    scene.environmentIntensity = tier.envIntensity;
+    const sun = createSun();
+    scene.add(sun);
+    world = { scene, sun, shadows: null, finds: [] };
+    return world;
+  }
+  function finishRig(groundBounce, radius) {
+    world.scene.add(createFill(groundBounce));
+    world.shadows = createShadowFit(world.sun, camera, { radius, mapSize: 2048 });
+    world.sun.shadow.bias = SUN_BIAS;
+    assignShadowCasters(world.scene);
+  }
+
+  // ---- tiles ----
+  function clearLabels() {
+    $('labels').innerHTML = '';
+    // a short sheet (Hagrid's 17 tiles) leaves the rest of the grid plain, not last shot's
+    renderer.setViewport(0, 0, W, H);
+    renderer.setScissor(0, 0, W, H);
+    renderer.setClearColor(0x1c2431, 1);
+    renderer.clear();
+  }
+  function tileBox(i, cols, rows) {
+    const c = i % cols, r = Math.floor(i / cols);
+    return { x: Math.round((c * W) / cols), y: Math.round((r * H) / rows), w: Math.round(((c + 1) * W) / cols) - Math.round((c * W) / cols), h: Math.round(((r + 1) * H) / rows) - Math.round((r * H) / rows) };
+  }
+  function label(box, title, sub) {
+    const d = document.createElement('div');
+    d.className = 'tile';
+    d.style.cssText = `left:${box.x}px;top:${box.y}px;width:${box.w}px;height:${box.h}px`;
+    d.innerHTML = `<div class="tag">${title}<small>${sub}</small></div>`;
+    $('labels').appendChild(d);
+  }
+  function viewport(box) {
+    const y = H - box.y - box.h; // GL counts from the bottom
+    renderer.setViewport(box.x, y, box.w, box.h);
+    renderer.setScissor(box.x, y, box.w, box.h);
+    camera.aspect = box.w / box.h;
+    camera.updateProjectionMatrix();
+  }
+  function renderTile(box) {
+    viewport(box);
+    camera.updateMatrixWorld();
+    world.shadows?.update();
+    renderer.render(world.scene, camera);
+  }
+  const placeOf = (rec) => CATALOG.areas[rec.find]?.name ?? rec.find;
+  const sub = (rec) => `${rec.slot} · ${placeOf(rec)}`;
+
+  // ---- the cat sheets: every outfit on one cat (thumbnails.js framing) ----
+  const HAGRID = (w) => buildCat('hagrid', w);
+  function catSheet(title, recs, makeCat, { sit = false } = {}) {
+    clearLabels();
+    newScene();
+    const lawn = new THREE.Mesh(new THREE.CircleGeometry(2.2, 40), litMaterial(0x6cb058));
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.receiveShadow = true;
+    world.scene.add(lawn);
+    finishRig(0x6cb058, 4);
+    recs.forEach((rec, i) => {
+      const box = tileBox(i, COLS, ROWS);
+      const cat = makeCat({ ...BARE, [rec.slot]: rec.id });
+      if (sit) defaultPoseCat(cat);
+      const { closeUp, rotY } = accessoryFraming(rec.id);
+      cat.rotation.y = rotY;
+      world.scene.add(cat);
+      const k = cat.scale.x;
+      if (cat.userData.breed === 'hagrid' || makeCat === HAGRID) { camera.position.set(0.7 * k, 1.02 * k, -1.2 * k); camera.lookAt(0, 0.8 * k, 0); } // a tall hen: head and hat in the tile
+      else if (closeUp) { camera.position.set(0.85 * k, 0.99 * k, -1.11 * k); camera.lookAt(0, 0.64 * k, -0.21 * k); }
+      else { camera.position.set(1.35 * k, 1.14 * k, -1.7 * k); camera.lookAt(0, 0.44 * k, 0); }
+      renderTile(box);
+      world.scene.remove(cat);
+      cat.traverse((o) => { o.geometry?.dispose?.(); });
+      label(box, rec.name(), sub(rec));
+    });
+    $('title').textContent = title;
+  }
+
+  // ---- the ground sheet: buildFindDisplay on grass ----
+  function groundSheet() {
+    clearLabels();
+    newScene();
+    const lawn = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), litMaterial(0x6cb058));
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.receiveShadow = true;
+    world.scene.add(lawn);
+    finishRig(0x6cb058, 4);
+    FOUND_WEAR.forEach((rec, i) => {
+      const box = tileBox(i, COLS, ROWS);
+      const find = buildFindDisplay({ kind: 'wear', id: rec.id });
+      find.rotation.y = 0.5;
+      world.scene.add(find);
+      // 1.2 m off, at cat height, looking at the thing on the ground
+      camera.position.set(1.2 * Math.sin(-0.4), 0.45, 1.2 * Math.cos(-0.4) * -1);
+      camera.lookAt(0, 0.1, 0);
+      renderTile(box);
+      world.scene.remove(find);
+      find.traverse((o) => { o.geometry?.dispose?.(); });
+      label(box, rec.name(), sub(rec));
+    });
+    $('title').textContent = 'ground (no twinkle)';
+  }
+
+  // ---- the area sheets: the real area, outfits at real spots ----
+  const ray = new THREE.Raycaster();
+  // verify-finds.html's frameSpot: the camera `dist` m off the spot at cat
+  // height, from the direction with the clearest line to it.
+  function frameSpot(spot, find, dist, lift = 0.45) {
+    // 2 m first; a find with a wall or crate hard by is tried from further off
+    let best = null;
+    outer: for (const l of [lift, lift + 1.0]) {
+      for (const d of [dist, dist * 1.6, dist * 2.4]) {
+        const r = frameOnce(spot, find, d, l);
+        // the first clear view wins; among equals (the find's own perch always counts one) the furthest, highest
+        if (!best || r.score <= best.score) best = { ...r, d, l };
+        if (r.score === 0) break outer;
+      }
+    }
+    const r = frameOnce(spot, find, best.d, best.l, true);
+    return r.score;
+  }
+  function frameOnce(spot, find, dist, lift, apply = false) {
+    const target = new THREE.Vector3(spot.x, find.worldY + 0.05, spot.z);
+    let best = null;
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const x = spot.x + Math.cos(a) * dist, z = spot.z + Math.sin(a) * dist;
+      const y = Math.max(world.ground.y(x, z), 0) + Math.max(lift, find.worldY - world.ground.y(x, z) + lift);
+      const from = new THREE.Vector3(x, y, z);
+      const dir = target.clone().sub(from);
+      const len = dir.length();
+      ray.set(from, dir.normalize());
+      ray.far = len - 0.4;
+      const hits = ray.intersectObjects(world.scene.children, true)
+        .filter((h) => h.object.visible && !/grass|water|find/i.test(h.object.name ?? '') && !h.object.isPoints && !h.object.isSprite
+          && !(h.object.material?.transparent));
+      // and no wall or board hard against the lens: 8 short probes round it
+      let near = 0;
+      for (let j = 0; j < 8; j++) {
+        const b = (j / 8) * Math.PI * 2;
+        ray.set(from, new THREE.Vector3(Math.cos(b), 0, Math.sin(b)));
+        ray.far = 0.5;
+        near += ray.intersectObjects(world.scene.children, true).filter((h) => h.object.visible && !/grass|water|find/i.test(h.object.name ?? '') && !h.object.isPoints && !h.object.isSprite && !(h.object.material?.transparent)).length;
+      }
+      const score = hits.length + near;
+      if (!best || score < best.score) best = { score, from };
+      if (score === 0) break;
+    }
+    if (apply) {
+      camera.position.copy(best.from);
+      camera.lookAt(target);
+      camera.updateMatrixWorld();
+    }
+    return best;
+  }
+  // Four spots in the area: one raised if it has any, then a spread of looks.
+  function pickSpots(areaId, n) {
+    const all = [...spotsIn(areaId)];
+    const chosen = [];
+    const raised = all.find((s) => s.y > 0);
+    if (raised) chosen.push(raised);
+    const seen = new Set(chosen.map((s) => s.look));
+    for (const s of all) { if (chosen.length >= n) break; if (!chosen.includes(s) && !seen.has(s.look)) { chosen.push(s); seen.add(s.look); } }
+    // then spread the rest evenly along the list
+    for (let k = 0; chosen.length < n && k < all.length * 2; k++) {
+      const s = all[Math.floor(((k + 0.5) * all.length) / n) % all.length];
+      if (!chosen.includes(s)) chosen.push(s);
+    }
+    return chosen.slice(0, n);
+  }
+  function areaSheet(areaId, { dist = 2 } = {}) {
+    clearLabels();
+    newScene();
+    const wind = createWind({ reducedMotion: false });
+    world.area = AREA_BUILD[areaId](world.scene, { water: { quality: tier, reducedMotion: false }, wind });
+    world.ground = groundOf(world.area);
+    finishRig(world.area.groundBounce, 20);
+    const recs = foundWearIn(areaId);
+    const spots = pickSpots(areaId, recs.length);
+    const finds = recs.map((rec, i) => createFind(world.scene, {
+      plan: { areaId, spot: spots[i], roll: 0 }, item: { kind: 'wear', id: rec.id }, ground: world.ground, reducedMotion: true, onNear: () => {},
+    }));
+    // no update(): the twinkle stays hidden
+    recs.forEach((rec, i) => {
+      const box = tileBox(i, 2, 2);
+      const s = spots[i];
+      camera.fov = 40;
+      const blocked = frameSpot(s, finds[i], dist);
+      renderTile(box);
+      label(box, rec.name(), `${s.id} · ${s.look}${s.y > 0 ? ` · raised ${s.y} m` : ''}${blocked ? ` · ${blocked} thing(s) in the line` : ''}`);
+    });
+    $('title').textContent = `${areaId}-finds`;
+  }
+
+  // ---- the shots ----
+  const hagridRecs = FOUND_WEAR.filter((r) => HEN_SLOTS.includes(r.slot));
+  function shot(name) {
+    let m;
+    if (PRESETS.includes((m = /^cat-(.+)$/.exec(name)?.[1]))) catSheet(name, FOUND_WEAR, (w) => buildCat(m, w));
+    else if (m && Object.hasOwn(BUILDER, m.replace('builder-', '')) && m.startsWith('builder-')) catSheet(name, FOUND_WEAR, (w) => buildCat('tabby', w, { look: BUILDER[m.slice(8)] }));
+    else if (m === 'hagrid') catSheet(name, hagridRecs, HAGRID);
+    else if (/^sit-/.test(name) && ['tabby', 'digit', 'mainecoon'].includes(name.slice(4))) catSheet(name, FOUND_WEAR, (w) => buildCat(name.slice(4), w), { sit: true });
+    else if (name === 'ground') groundSheet();
+    else if (/-finds$/.test(name) && Object.hasOwn(AREA_BUILD, name.slice(0, -6))) areaSheet(name.slice(0, -6));
+    else throw new Error(`no such sheet: ${name}`);
+    return name;
+  }
+
+  window.__shot = (name) => shot(name);
+  window.__ready = false;
+  const first = new URLSearchParams(location.search).get('shot') ?? 'cat-tabby';
+  requestAnimationFrame(() => {
+    shot(first);
+    requestAnimationFrame(() => { window.__ready = true; });
+  });
+</script>
+</body>
+</html>
