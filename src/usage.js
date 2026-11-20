@@ -14,11 +14,11 @@
 // sheets. Walks are not counted here: state.walks already counts them.
 export const USAGE_IDS = Object.freeze([
   'menu', 'places', 'together', 'colony', 'journal', 'album', 'skills', 'controls',
-  'settings', 'sync', 'code', 'dressup', 'builder',
+  'grownups', 'settings', 'sync', 'code', 'dressup', 'builder',
 ]);
 export const USAGE_NAME = Object.freeze({
   menu: 'Menu', places: 'Change place', together: 'Play together', colony: 'Colony', journal: 'Journal',
-  album: 'Album', skills: 'Skills', controls: 'Sound & controls', settings: 'Game settings',
+  album: 'Album', skills: 'Skills', controls: 'Sound & controls', grownups: 'For grown-ups', settings: 'Game settings',
   sync: 'Cloud save', code: 'Gift code', dressup: 'Dress up', builder: 'Cat builder',
 });
 export const USAGE_MAX = 1e6;

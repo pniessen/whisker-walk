@@ -139,7 +139,7 @@ describe('the top bar', () => {
 });
 
 describe('the Menu', () => {
-  it('shows the kid tiles, the stats line and the grown-ups row, with only Menu\'s doors available', () => {
+  it('shows the kid tiles, the stats line, Sound & controls and the For grown-ups door, with only Menu\'s doors available', () => {
     setup({ rooms: OPEN_ROOMS, sync: { available: true } });
     openSheet('menu');
     const h = html();
@@ -147,8 +147,10 @@ describe('the Menu', () => {
     for (const id of MENU_TILES) expect(h).toContain(`<button class="hb-tile" data-dr-sheet="${id}">`);
     expect(h.match(/class="hb-tile"/g)).toHaveLength(MENU_TILES.length);
     expect(h).toContain('class="hb-menu-stats"');
-    expect(h).toContain('For grown-ups');
-    for (const id of ['settings', 'sync', 'code']) expect(h).toContain(`<button class="hb-grownup" data-dr-sheet="${id}">`);
+    expect(h).toContain('<button class="hb-row" data-dr-sheet="controls">');
+    expect(h).toContain('<button class="hb-grownups-door" data-dr-sheet="grownups">');
+    // the grown-ups' sheets are behind that one door (homebase.grownups.test.js)
+    for (const id of ['settings', 'sync', 'code']) expect(h).not.toContain(`data-dr-sheet="${id}"`);
     // Friends folded into Play together and the Journal
     expect(h).not.toContain('data-dr-sheet="social"');
     expect(h).not.toContain('Friends');
@@ -161,20 +163,18 @@ describe('the Menu', () => {
     expect(h).not.toContain('data-dr-sheet="together"');
     expect(h).not.toContain('data-dr-sheet="sync"');
     expect(h.match(/class="hb-tile"/g)).toHaveLength(MENU_TILES.length - 1);
-    for (const id of ['colony', 'journal', 'album', 'skills', 'controls']) expect(h).toContain(`data-dr-sheet="${id}"`);
-    expect(h).toContain('data-dr-sheet="settings"');
-    expect(h).toContain('data-dr-sheet="code"');
+    for (const id of ['colony', 'journal', 'album', 'skills', 'controls', 'grownups']) expect(h).toContain(`data-dr-sheet="${id}"`);
   });
-  it('has a My den tile after Skills that says Visit, and a tap visits the den', () => {
+  it('has a My den tile after Skills that says go now, and a tap visits the den', () => {
     const onVisitDen = vi.fn();
     setup({ rooms: OPEN_ROOMS, onVisitDen });
     openSheet('menu');
     const h = html();
-    const den = '<button class="hb-tile hb-tile-den" id="btn-visit-den" type="button"><span class="hb-tile-icon" aria-hidden="true">🏠</span><span class="hb-tile-name">My den</span><small>Visit</small></button>';
+    const den = '<button class="hb-tile hb-tile-den" id="btn-visit-den" type="button"><span class="hb-tile-icon" aria-hidden="true">🏠</span><span class="hb-tile-name">My den</span><small>go now</small></button>';
     expect(h).toContain(den);
     expect(h.indexOf(den)).toBeGreaterThan(h.indexOf('data-dr-sheet="skills"'));
     expect(h.indexOf(den)).toBeLessThan(h.indexOf('data-dr-sheet="controls"'));
-    expect(h.indexOf(den)).toBeLessThan(h.indexOf('For grown-ups'));
+    expect(h.indexOf(den)).toBeLessThan(h.indexOf('data-dr-sheet="grownups"'));
     clickRoot({ '#btn-visit-den': {} });
     expect(onVisitDen).toHaveBeenCalledTimes(1);
   });
@@ -210,8 +210,8 @@ describe('the Menu', () => {
     expect(h).toContain('hb-sheet-dock');
     clickRoot({ '#hb-back': {} });
     expect(html()).toContain('data-sheet="menu"');
-    // and from the menu again, to the grown-ups sheets as well
-    openSheet('settings');
+    // and from the menu again, to For grown-ups as well
+    openSheet('grownups');
     expect(html()).toContain('← Back to the menu');
   });
   it('a sheet opened from the Menu has a cat-face Home at the right of the Back row, which goes to the cat', () => {
@@ -662,10 +662,10 @@ describe('Settings: Advanced', () => {
 describe('Settings in two halves', () => {
   const KIDS = ['set-volume', 'set-music-volume', 'set-muted', 'set-left-handed', 'set-invert-y', 'set-map-mode', 'set-reduced-motion', 'set-hide-chat'];
   const GROWN = ['set-edition', 'set-quality', 'set-perf-readout', 'btn-reset'];
-  it('Sound & controls is a kid tile holding sound and the controls, in order, with a slim dock', () => {
+  it('Sound & controls is a slim Menu row holding sound and the controls, in order, with a slim dock', () => {
     setup();
     openSheet('menu');
-    expect(html()).toMatch(/<button class="hb-tile" data-dr-sheet="controls"><span class="hb-tile-icon" aria-hidden="true">🔊<\/span><span class="hb-tile-name">Sound &amp; controls<\/span>/);
+    expect(html()).toMatch(/<button class="hb-row" data-dr-sheet="controls"><span class="hb-row-icon" aria-hidden="true">🔊<\/span><span class="hb-row-name">Sound &amp; controls<\/span>/);
     openSheet('controls');
     const h = html();
     expect(h).toContain('data-sheet="controls"');
@@ -681,7 +681,8 @@ describe('Settings in two halves', () => {
   it('Game settings, under For grown-ups, keeps the edition, graphics, the readout, and Start over last', () => {
     setup();
     openSheet('menu');
-    expect(html()).toContain('<button class="hb-grownup" data-dr-sheet="settings"><span aria-hidden="true">⚙️</span> Game settings</button>');
+    openSheet('grownups');
+    expect(html()).toContain('<button class="hb-row" data-dr-sheet="settings"><span class="hb-row-icon" aria-hidden="true">⚙️</span><span class="hb-row-name">Game settings</span>');
     openSheet('settings');
     const h = html();
     expect(h).toContain('<h2>Game settings ⚙️</h2>');
@@ -979,14 +980,15 @@ describe('Back: depth() and back()', () => {
     const { hb, progression } = setup();
     progression.addPoints(40);
     openSheet('menu');
+    openSheet('grownups');
     openSheet('settings');
     doc.root.listeners.click({ target: { id: 'btn-reset', dataset: {}, closest: () => null }, detail: 1 });
-    expect(hb.depth()).toBe(3);
+    expect(hb.depth()).toBe(4);
     expect(hb.back()).toBe(true);
     expect(doc.body.children.find((c) => c.id === 'confirm-card')).toBeUndefined();
     expect(progression.state.points).toBe(40);
     expect(html()).toContain('data-sheet="settings"');
-    expect(hb.depth()).toBe(2);
+    expect(hb.depth()).toBe(3);
   });
   it('during a walk (home hidden) there is no depth and back() does nothing', () => {
     const { hb } = setup();

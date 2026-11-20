@@ -24,22 +24,25 @@ import { spotsIn } from '../foundwear/spots/index.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
 // screen is a sheet behind one of three doors. `menu` and `places` are the
-// doors; the rest open from the Menu (the kid tiles, then the grown-ups row).
-// Sound & controls is the children's half of the old Settings (volume, the
-// touch controls); Game settings keeps the grown-ups' half (edition, quality,
-// Start over). Friends folded into Play together (the friends list and the
-// friend code) and the Journal (the stray cats), so one sheet holds every code.
-export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills', 'controls'];
+// doors; the rest open from the Menu: the kid tiles (My den, not a sheet, is
+// the sixth), then Sound & controls as a slim row, then one quiet For grown-ups
+// door (menu review #6 and #14, 2026-11-20). Sound & controls is the children's
+// half of the old Settings (volume, the touch controls); For grown-ups opens
+// the GROWNUP_SHEETS: Game settings keeps the grown-ups' half (edition,
+// quality, Start over), then Cloud save and Gift code. Friends folded into
+// Play together (the friends list and the friend code) and the Journal (the
+// stray cats), so one sheet holds every code.
+export const MENU_TILES = ['together', 'colony', 'journal', 'album', 'skills'];
 export const GROWNUP_SHEETS = ['settings', 'sync', 'code'];
-export const HOME_SHEETS = ['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS];
+export const HOME_SHEETS = ['menu', 'places', ...MENU_TILES, 'controls', 'grownups', ...GROWNUP_SHEETS];
 export const SHEET_ICON = {
   menu: '☰', places: '🗺️', together: '👫', skills: '⭐', colony: '🐈', journal: '📖',
-  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁', controls: '🔊',
+  album: '📸', sync: '☁️', settings: '⚙️', code: '🎁', controls: '🔊', grownups: '⚙️',
 };
 export const SHEET_NAME = {
   menu: 'Menu', places: 'Change place', together: 'Play together', skills: 'Skills', colony: 'Colony',
   journal: 'Journal', album: 'Album', sync: 'Cloud save', settings: 'Game settings', code: 'Gift code',
-  controls: 'Sound & controls',
+  controls: 'Sound & controls', grownups: 'For grown-ups',
 };
 export const SHEET_LABEL = Object.fromEntries(HOME_SHEETS.map((id) => [id, `${SHEET_ICON[id]} ${SHEET_NAME[id]}`]));
 // The den shop is not a home sheet: it lives inside the den (ui/denshopview.js).

@@ -380,8 +380,8 @@ describe('sheets and pictures', () => {
     expect(HOME_SHEETS).not.toContain('den-shop');
     expect(SHEET_LABEL['den-shop']).toBeUndefined();
   });
-  it('labels name the two doors, the Menu tiles and the grown-ups sheets, in that order', () => {
-    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 Colony', '📖 Journal', '📸 Album', '⭐ Skills', '🔊 Sound & controls', '⚙️ Game settings', '☁️ Cloud save', '🎁 Gift code']);
+  it('labels name the two doors, the Menu tiles, Sound & controls, For grown-ups and its sheets, in that order', () => {
+    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['☰ Menu', '🗺️ Change place', '👫 Play together', '🐈 Colony', '📖 Journal', '📸 Album', '⭐ Skills', '🔊 Sound & controls', '⚙️ For grown-ups', '⚙️ Game settings', '☁️ Cloud save', '🎁 Gift code']);
   });
   it('Play together is a sheet of its own', () => {
     expect(resolveSheet('together')).toBe('together');
@@ -819,10 +819,10 @@ describe('Launch A: the home screen (cat, place, go)', () => {
   });
 
   describe('the sheets', () => {
-    it('the Menu holds the kid tiles then three grown-up sheets; the doors are menu and places', () => {
-      expect(MENU_TILES).toEqual(['together', 'colony', 'journal', 'album', 'skills', 'controls']);
+    it('the Menu holds the kid tiles, Sound & controls and For grown-ups, which opens three sheets; the doors are menu and places', () => {
+      expect(MENU_TILES).toEqual(['together', 'colony', 'journal', 'album', 'skills']);
       expect(GROWNUP_SHEETS).toEqual(['settings', 'sync', 'code']);
-      expect(HOME_SHEETS).toEqual(['menu', 'places', ...MENU_TILES, ...GROWNUP_SHEETS]);
+      expect(HOME_SHEETS).toEqual(['menu', 'places', ...MENU_TILES, 'controls', 'grownups', ...GROWNUP_SHEETS]);
     });
     it('Cloud save is the name for sync; Friends is folded into Play together', () => {
       expect(SHEET_LABEL.social).toBeUndefined();

@@ -516,8 +516,24 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           </label>
           ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
-          <div class="settings-row settings-replay">
-            <button type="button" id="set-replay-first" class="secondary">${escapeHtml(tutorialLine('guide.replay'))}</button>
+        </div>
+      </section>`;
+  }
+
+  // For grown-ups (menu review #6 and #14): one quiet door on the Menu to the
+  // grown-ups' sheets, plus Do the first lesson again (moved here from Sound &
+  // controls). Quiet full-width rows: pink is Start's alone. Cloud save only
+  // where cloud saves are set up.
+  function renderGrownups() {
+    const on = availableSheets();
+    const rows = GROWNUP_SHEETS.filter((id) => on.includes(id))
+      .map((id) => `<button class="hb-row" data-dr-sheet="${id}"><span class="hb-row-icon" aria-hidden="true">${SHEET_ICON[id]}</span>`
+        + `<span class="hb-row-name">${escapeHtml(SHEET_NAME[id])}</span><span class="hb-row-go" aria-hidden="true">›</span></button>`).join('');
+    return `
+      <section class="hb-grownups"><h2>For grown-ups ⚙️</h2>
+        <div class="hb-rows">${rows}
+          <div class="settings-replay">
+            <button type="button" id="set-replay-first" class="secondary hb-row">${escapeHtml(tutorialLine('guide.replay'))}</button>
             ${replayNote ? `<p class="settings-note" id="set-replay-note" role="status">${escapeHtml(tutorialLine('guide.replay-set'))}</p>` : ''}
           </div>
         </div>
@@ -1321,14 +1337,27 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState, { as: startAs() })}</div>`;
   }
 
-  // null (or anything not on offer) = back to the dressing room. A sheet opened
-  // from the Menu goes back to the Menu; the Menu and Change place go home.
+  // null (or anything not on offer) = back to the dressing room. Where a sheet's
+  // Back goes is a small chain: a sheet opened from the Menu goes back to the
+  // Menu; a sheet For grown-ups opened goes back to For grown-ups, which goes
+  // back where it came from (grownupsBackTo); the Menu and Change place go home.
   let backTo = null;
+  let grownupsBackTo = null;
+  function backTargetFor(next, prev) {
+    if (!next || next === 'menu' || next === 'places') return null;
+    if (prev === 'grownups' && GROWNUP_SHEETS.includes(next)) return 'grownups';
+    // back to For grown-ups from one of its sheets: it keeps its own way back
+    if (next === 'grownups' && backTo === 'grownups') return grownupsBackTo;
+    return prev === 'menu' ? 'menu' : null;
+  }
   function setSheet(id) {
     const want = resolveSheet(id);
     const next = want && availableSheets().includes(want) ? want : null;
     const prev = openSheet;
-    backTo = openSheet === 'menu' && next && next !== 'menu' && next !== 'places' ? 'menu' : null;
+    // Back to the sheet under this one is not an open of it (for the counts).
+    const returning = !!prev && !!next && (next === 'menu' || (next === 'grownups' && backTo === 'grownups'));
+    backTo = backTargetFor(next, prev);
+    if (next === 'grownups') grownupsBackTo = backTo;
     openSheet = next;
     // The world map opens afresh, round today's place, from any other screen.
     if (next === 'places' && prev !== 'places') mapView = null;
@@ -1337,14 +1366,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (prev === 'places' && next !== 'places' && dressing?.ui?.mapCard) dressing.back?.();
     backupMsg = null; // a restore's result line is for the sheet it happened on
     // Usage counts: a sheet opened from somewhere else, not a re-open of itself.
-    // (Back from a sheet to the Menu is not an open of the Menu.)
-    if (next && next !== prev && !(next === 'menu' && prev)) { try { progression.noteUse?.(next); } catch { /* a count, never a blocker */ } }
+    // (Back from a sheet to the Menu, or to For grown-ups, is not an open of it.)
+    if (next && next !== prev && !returning) { try { progression.noteUse?.(next); } catch { /* a count, never a blocker */ } }
     render();
     root.scrollTop = 0; // a sheet (or the room) opens at its top
     // Keyboard and screen-reader users land on the new screen's first control,
     // or, going back, on the door they came through (the Menu, a tile, the card).
     try {
-      const back = (next === null || next === 'menu') && prev ? root.querySelector(`[data-dr-sheet="${prev}"]`) : null;
+      const back = (next === null || next === 'menu' || next === 'grownups') && prev ? root.querySelector(`[data-dr-sheet="${prev}"]`) : null;
       (back ?? (next ? root.querySelector('#hb-back') : null))?.focus?.({ preventScroll: true });
     } catch { /* a nicety */ }
   }
@@ -1354,7 +1383,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   // ---- The Menu sheet (Launch A) -------------------------------------------
   // The old header's stats line, the rank's next step in plain words, six big
-  // kid tiles and a quiet grown-ups row.
+  // kid tiles (My den last), a slim Sound & controls row and one quiet For
+  // grown-ups door.
   function menuStatsHtml(s) {
     const rank = rankFor(s.lifetimePoints);
     const life = asFiniteNonNeg(s.lifetimePoints, 0);
@@ -1389,12 +1419,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
 
   // My den is a tile, not a sheet: a tap goes straight there (onVisitDen), as
-  // its old card at the bottom of Change place did. The den never joins a
-  // room walk (main.js starts it on its own), so a room hides it, as before.
+  // its old card at the bottom of Change place did, so it says "go now". The
+  // den never joins a room walk (main.js starts it on its own), so a room
+  // hides it, as before.
   function denTileHtml(roomState) {
     if (roomState) return '';
     return '<button class="hb-tile hb-tile-den" id="btn-visit-den" type="button"><span class="hb-tile-icon" aria-hidden="true">🏠</span>'
-      + '<span class="hb-tile-name">My den</span><small>Visit</small></button>';
+      + '<span class="hb-tile-name">My den</span><small>go now</small></button>';
   }
 
   function renderMenu(s, roomState) {
@@ -1402,16 +1433,15 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const tiles = MENU_TILES.filter((id) => on.includes(id)).map((id) => {
       const sub = menuTileSub(id, s, roomState);
       return `<button class="hb-tile" data-dr-sheet="${id}"><span class="hb-tile-icon" aria-hidden="true">${SHEET_ICON[id]}</span>`
-        + `<span class="hb-tile-name">${escapeHtml(SHEET_NAME[id])}</span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</button>`
-        // the den sits where Friends was, after Skills
-        + (id === 'skills' ? denTileHtml(roomState) : '');
-    }).join('');
-    const grown = GROWNUP_SHEETS.filter((id) => on.includes(id))
-      .map((id) => `<button class="hb-grownup" data-dr-sheet="${id}"><span aria-hidden="true">${SHEET_ICON[id]}</span> ${escapeHtml(SHEET_NAME[id])}</button>`).join('');
+        + `<span class="hb-tile-name">${escapeHtml(SHEET_NAME[id])}</span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</button>`;
+    }).join('') + denTileHtml(roomState); // the den is the sixth tile, after Skills
+    const door = (id, cls) => `<button class="${cls}" data-dr-sheet="${id}"><span class="hb-row-icon" aria-hidden="true">${SHEET_ICON[id]}</span>`
+      + `<span class="hb-row-name">${escapeHtml(SHEET_NAME[id])}</span><span class="hb-row-go" aria-hidden="true">›</span></button>`;
     return `<section class="hb-menu" aria-labelledby="hb-menu-title"><h2 id="hb-menu-title">Menu</h2>
       <p class="hb-menu-stats">${menuStatsHtml(s)}</p>
       <div class="hb-tiles">${tiles}</div>
-      <div class="hb-grownups"><p class="hb-grownups-label">For grown-ups</p><div class="hb-grownups-row">${grown}</div></div>
+      ${door('controls', 'hb-row')}
+      ${door('grownups', 'hb-grownups-door')}
     </section>`;
   }
 
@@ -1447,6 +1477,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   function renderSheetBody(id, s, colonyStatus, roomState) {
     switch (id) {
       case 'menu': return renderMenu(s, roomState);
+      case 'grownups': return renderGrownups();
       case 'places': return renderPlaces(s, roomState);
       case 'skills': return `
         <section class="skills-section"><h2>Skills ⭐</h2>
@@ -1562,11 +1593,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // together) on Play together, whose room starts from it; on the other
       // sheets only where and Start. Dusk is chosen in Change place only; a
       // Start from any dock reads that choice (duskWanted).
-      const dock = door || GROWNUP_SHEETS.includes(openSheet) ? 'none' : openSheet === 'together' ? 'full' : 'slim';
-      const back = backTo === 'menu' ? '← Back to the menu' : '← Back to my cat';
-      // From a sheet the Menu opened, home is two Backs: a cat face at the
-      // row's right goes straight there.
-      const home = backTo === 'menu'
+      const dock = door || openSheet === 'grownups' || GROWNUP_SHEETS.includes(openSheet) ? 'none' : openSheet === 'together' ? 'full' : 'slim';
+      const back = backTo === 'menu' ? '← Back to the menu' : backTo === 'grownups' ? '← Back' : '← Back to my cat';
+      // From a sheet the Menu (or For grown-ups) opened, home is two Backs or
+      // more: a cat face at the row's right goes straight there.
+      const home = backTo
         ? '<button id="hb-home" class="hb-home" type="button" aria-label="Back to my cat"><span aria-hidden="true">🐱</span></button>' : '';
       // Clan Edition's Change place is the world map, which takes the height
       // left on the screen (style.css, .hb-sheet-map).
@@ -2385,14 +2416,20 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   // The browser's Back and Escape (ui/backstack.js, wired in main.js).
   // depth(): how many layers are open over the bare home screen. A sheet the
-  // Menu opened is two (its Back goes to the Menu); the visit celebration and
-  // the welcome line are not layers (they go by themselves).
+  // Menu opened is two (its Back goes to the Menu); a sheet For grown-ups
+  // opened is one more than For grown-ups (three from the Menu); the visit
+  // celebration and the welcome line are not layers (they go by themselves).
+  function sheetLayers(to) {
+    if (to === 'menu') return 2;
+    if (to === 'grownups') return 1 + sheetLayers(grownupsBackTo);
+    return 1;
+  }
   function depth() {
     if (!shown || !homeVisible()) return 0;
     let n = 0;
     if (dressing?.ui?.wardrobe) n += 1;
     if (dressing?.ui?.builder) n += 1;
-    if (openSheet) n += backTo === 'menu' ? 2 : 1;
+    if (openSheet) n += sheetLayers(backTo);
     if (openSheet === 'places' && dressing?.ui?.mapCard) n += 1; // a place's card, over the map
     if (newsEl || noticeEl || momentEl || nearbyEl) n += 1;
     if (confirmCard.isOpen()) n += 1;

@@ -886,8 +886,7 @@ body.touch-mode:not(.left-handed) .hud-top {
 .screen-actions button.quiet:hover, .screen-actions button.quiet:focus-visible { opacity: 1; }
 /* The guided first walk's lines on the summary card. */
 .best-line.guide-line { color: #ffe9b0; font-size: 1.05rem; font-weight: 600; }
-/* "Play the first walk again" in Settings. */
-.settings-row.settings-replay { display: block; }
+/* "Do the first lesson again", the last row of For grown-ups. */
 .settings-replay button { min-height: 44px; }
 .pause-card .primary, .pause-card .secondary {
   border-radius: 999px; min-height: 48px; min-width: 220px; padding: 12px 30px;
@@ -1498,7 +1497,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   white-space: nowrap; }
 
 /* small caps label over a panel */
-.dr-label, .hb-grownups-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; opacity: .65; margin: 0 0 6px; }
+.dr-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; opacity: .65; margin: 0 0 6px; }
 
 /* Wearing: what she has on, and Dress up */
 .dr-wearing { grid-area: wearing; background: var(--frame); border-radius: 16px; padding: 12px 14px; }
@@ -1980,18 +1979,15 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .hb-sheet-dock .dr-together-words { display: none; }
 }
 
-/* the Menu: the stats line, six big kid tiles, a quiet grown-ups row */
-#homebase .hb-menu h2, #homebase .hb-places h2 { font-size: 1.5rem; color: #f1e0c2; margin-bottom: 8px; }
+/* the Menu: the stats line, six big kid tiles (My den last), a slim Sound &
+   controls row, one quiet For grown-ups door */
+#homebase .hb-menu h2, #homebase .hb-places h2, #homebase .hb-grownups h2 { font-size: 1.5rem; color: #f1e0c2; margin-bottom: 8px; }
 .hb-menu-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 16px; font-size: 14px; color: #f1e0c2; opacity: .9; }
 .hb-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 /* six columns so five tiles fill the grid: 2+2+2, then 3+3 (no hole) */
 .hb-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .hb-tile { grid-column: span 2; }
 .hb-tiles > .hb-tile:nth-child(4):nth-last-child(2), .hb-tiles > .hb-tile:nth-child(5):last-child { grid-column: span 3; }
-/* seven tiles (the den and Sound & controls joined): 3, then 2 and 2 */
-@media (min-width: 601px) {
-  .hb-tiles > .hb-tile:first-child:nth-last-child(7) ~ .hb-tile:nth-child(n+4) { grid-column: span 3; }
-}
 .hb-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 120px;
   padding: 14px 10px; border: 0; border-radius: 18px; background: #2c3d58; color: #f1e0c2; font: inherit; cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, .18); }
@@ -1999,12 +1995,26 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .hb-tile-icon { font-size: 34px; line-height: 1.1; }
 .hb-tile-name { font-size: 18px; font-weight: 800; }
 .hb-tile small { font-size: 12px; opacity: .75; text-align: center; }
-.hb-grownups { margin-top: 26px; padding-top: 12px; border-top: 1px solid #33425e; }
-.hb-grownups-label { color: #f1e0c2; }
-.hb-grownups-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.hb-grownup { min-height: 44px; padding: 6px 16px; border: 1.5px solid #5b6c88; border-radius: 999px; background: transparent;
-  color: #f1e0c2; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
-.hb-grownup:hover { background: rgba(255, 255, 255, .06); }
+/* a slim full-width outlined row: Sound & controls under the tiles, and the
+   rows of For grown-ups */
+.hb-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; margin-top: 12px; padding: 8px 16px;
+  border: 1.5px solid #5b6c88; border-radius: 14px; background: transparent; color: #f1e0c2;
+  font: inherit; font-size: 16px; font-weight: 700; text-align: left; cursor: pointer; }
+.hb-row:hover { background: rgba(255, 255, 255, .06); }
+.hb-row-icon { font-size: 20px; line-height: 1; }
+.hb-row-name { flex: 1; min-width: 0; }
+.hb-row-go { opacity: .6; }
+/* For grown-ups: a small quiet door at the Menu's foot, in the old label's style */
+.hb-grownups-door { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 16px; padding: 6px 4px;
+  border: 0; background: transparent; color: #f1e0c2; font: inherit; font-size: 12px; font-weight: 700;
+  letter-spacing: .09em; text-transform: uppercase; opacity: .75; cursor: pointer; }
+.hb-grownups-door:hover, .hb-grownups-door:focus-visible { opacity: 1; }
+.hb-grownups-door .hb-row-icon { font-size: 14px; }
+.hb-grownups-door .hb-row-name { flex: none; }
+/* the For grown-ups sheet: its rows, Do the first lesson again last */
+.hb-grownups { color: #f1e0c2; }
+.hb-rows { display: flex; flex-direction: column; gap: 10px; }
+.hb-rows .hb-row { margin-top: 0; }
 @media (max-width: 600px) {
   .hb-tiles { grid-template-columns: 1fr 1fr; gap: 10px; }
   .hb-tiles > .hb-tile:nth-child(4):nth-last-child(2), .hb-tiles > .hb-tile:nth-child(5):last-child { grid-column: auto; }
@@ -2081,7 +2091,7 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .hb-tiles { gap: 16px; }
   .hb-tile { min-height: 150px; }
-  .homebase-scroll.hb-sheet:is([data-sheet="settings"], [data-sheet="controls"]) { max-width: 760px; }
+  .homebase-scroll.hb-sheet:is([data-sheet="settings"], [data-sheet="controls"], [data-sheet="grownups"]) { max-width: 760px; }
 }
 @media (min-width: 1400px) {
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -2680,13 +2690,14 @@ body.touch-mode .fight-key { display: none; }
     padding: 6px max(20px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
   .hb-sheet-dock .where { flex: 0 1 auto; min-width: 0; }
   .hb-sheet-dock #btn-start { min-height: 48px; padding: 8px 22px; }
-  /* the Menu: four tiles to a row, so the grown-ups row is close */
+  /* the Menu: four tiles to a row, so the Sound & controls row and the grown-ups door are close */
   #homebase .hb-menu h2, #homebase .hb-places h2 { font-size: 1.25rem; margin-bottom: 4px; }
   .hb-menu-stats { margin-bottom: 10px; }
   .hb-tiles { display: flex; flex-wrap: wrap; gap: 10px; }
   .hb-tile { flex: 1 1 22%; min-height: 76px; padding: 8px 10px; gap: 2px; }
   .hb-tile-icon { font-size: 28px; }
-  .hb-grownups { margin-top: 14px; padding-top: 10px; }
+  .hb-row { margin-top: 8px; min-height: 44px; }
+  .hb-grownups-door { margin-top: 4px; }
 
   /* the clan moment: every clan in one row, so "Not yet" is on the card */
   .join-moment .join-moment-card { max-width: 780px; padding: 12px 16px 10px; }
