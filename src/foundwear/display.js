@@ -16,6 +16,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { buildHat } from '../cat/hats.js';
 import { buildCat } from '../cat/model.js';
 import { buildFoldedJumper } from '../cat/foundbody.js';
+import { STRAP_GREY } from '../cat/backitems.js';
 import { animateCat } from '../cat/animator.js';
 import { litMaterial } from '../render/materials.js';
 import { foundRecord } from './index.js';
@@ -82,8 +83,38 @@ export const DISPLAY_BY_SLOT = Object.freeze({
 // One outfit's own ground look, in place of its slot's (its id: (id) ->
 // THREE.Object3D): for a thing that lies on the ground otherwise than it is
 // worn (a jumper folded). buildFindDisplay looks here first.
+// The Hay-bale Backpack lying on the grass: the bale and its twine, without
+// the two straps, which worn arch over a body that is not there and would
+// hold the bale up in the air. The pack's one merged mesh is cut back to the
+// triangles that are not strap-coloured (STRAP_GREY, backitems.js).
+export function buildLyingHayBale(id = 'haybalepack') {
+  const group = wornPieces(id);
+  if (!group) return null;
+  const strap = new THREE.Color(STRAP_GREY);
+  for (const m of group.children) {
+    if (!m.isMesh) continue;
+    const src = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+    const names = Object.keys(src.attributes);
+    const col = src.attributes.color;
+    const keep = [];
+    for (let t = 0; t < col.count; t += 3) {
+      const isStrap = [0, 1, 2].every((k) => Math.abs(col.getX(t + k) - strap.r) + Math.abs(col.getY(t + k) - strap.g) + Math.abs(col.getZ(t + k) - strap.b) < 0.02);
+      if (!isStrap) keep.push(t);
+    }
+    const geo = new THREE.BufferGeometry();
+    for (const n of names) {
+      const a = src.attributes[n], out = new Float32Array(keep.length * 3 * a.itemSize);
+      keep.forEach((t, i) => { for (let k = 0; k < 3; k++) for (let c = 0; c < a.itemSize; c++) out[(i * 3 + k) * a.itemSize + c] = a.array[(t + k) * a.itemSize + c]; });
+      geo.setAttribute(n, new THREE.BufferAttribute(out, a.itemSize));
+    }
+    m.geometry = geo;
+  }
+  return group;
+}
+
 export const DISPLAY_BY_ID = Object.freeze({
   fishermansjumper: buildFoldedJumper,
+  haybalepack: buildLyingHayBale,
 });
 
 function noShadow(obj) {
