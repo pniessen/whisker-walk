@@ -156,6 +156,8 @@ const LATER = Object.freeze({
   'colony.rankAfterName': (rankWords) => rankWords,
   // a pick card's line for the group's badge, for a set that has badge words
   'pick.badge': (badgeWord) => `badge: ${badgeWord}`,
+  // the small line under the Neighborhood's name for her first visits
+  'place.townNote': 'the town',
 
   // ---- Appletree Farm (2026-11-18): its own words, the same in every set -----
   // The animals' one-time lines (they were spelled in game/walk.js).

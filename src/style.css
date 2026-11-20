@@ -1875,6 +1875,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
    room for all 16:10) */
 @media (max-width: 999px), (max-height: 860px) { .wm-card-pic { max-height: min(22vh, 160px); } }
 .wm-card h3 { margin: 10px 56px 4px 14px; font-size: 1.15rem; color: var(--cream, #f1e0c2); }
+.dr-town-note { display: block; margin: -4px 14px 6px; font-size: 13px; font-weight: 600; opacity: .8; }
+.dr-today-card .dr-town-note { margin: 0; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
 .wm-card-line { margin: 0 14px 10px; font-size: 15px; line-height: 1.35; }
 /* its one button: outlined and quiet (pink is Explore's alone) */
 .dr-where .wm-card .wm-card-go, .dr-where .wm-card .wm-card-buy { display: flex; align-items: center; justify-content: center;

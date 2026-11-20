@@ -1259,7 +1259,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       visitClosed = null;
     }
     const n = Math.floor(asFiniteNonNeg(result && result.visits, 0));
-    if (n >= 1) showWelcome(welcomeLine(n));
+    // The cat speaks only on a first or milestone visit (one voice on Home).
+    if (isMilestone(n)) showWelcome(welcomeLine(n));
     showClanMoment();
     syncNearbyCard(); // the greeting has run: a room found meanwhile may ask now
     return false;

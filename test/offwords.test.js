@@ -189,8 +189,8 @@ describe('nothing in the everyday set is a word of the family\'s set', () => {
       for (const [id, text] of Object.entries(said)) {
         expect(typeof text, id).toBe('string');
         expect(text, id).not.toMatch(/undefined|null|NaN|\[object/);
-        // only the line that is never drawn in this set may be empty
-        if (id !== 'star.pick') expect(text.length, id).toBeGreaterThan(0);
+        // only the lines never drawn in this set may be empty
+        if (id !== 'star.pick' && id !== 'place.townNote') expect(text.length, id).toBeGreaterThan(0);
       }
     });
   });

@@ -167,6 +167,8 @@ export const PHRASES = Object.freeze({
   'colony.rankAfterName': (rankWords) => `the ${rankWords}`,
   // the Menu's tile and the sheet's heading: no group word in the everyday game
   'menu.myCats': 'My cats',
+  // no second name for the Neighborhood in the everyday game: no line at all
+  'place.townNote': '',
 
   // the game is "Whisker Walk 2"; only the older plain edition adds its name
   'edition.title.canon': WILD_EDITION,

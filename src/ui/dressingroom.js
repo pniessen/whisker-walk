@@ -108,6 +108,22 @@ function equippedId(state, catalog, slot) {
   return typeof id === 'string' && has(catalog.accessories, id) && catalog.accessories[id].slot === slot ? id : null;
 }
 
+// The first visits that show the small "the town" line under the Neighborhood.
+export const TOWN_NOTE_VISITS = 5;
+
+// The line under the Neighborhood's name while the series name is new to her;
+// '' for every other place, once past the first visits, and in the everyday
+// words (an empty phrase). Legacy keeps the plain name, so no line there.
+function withTownNote(card, state) {
+  return card ? { ...card, townNote: townNoteFor(card.id, state) } : card;
+}
+
+function townNoteFor(areaId, state) {
+  if (areaId !== 'neighborhood' || !isClanEdition(state)) return '';
+  const v = num(state?.visits);
+  return v <= TOWN_NOTE_VISITS ? phrase('place.townNote') : '';
+}
+
 export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard } = {}) {
   const points = num(state?.points);
   const equippedCat = plain(state?.equipped).cat;
@@ -185,7 +201,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard 
     const worldMap = worldMapModel(state, catalog);
     clanPlaces = {
       worldMap,
-      placeCard: typeof mapCard === 'string' ? placeCardFor(worldMap, mapCard, points) : null,
+      placeCard: typeof mapCard === 'string' ? withTownNote(placeCardFor(worldMap, mapCard, points), state) : null,
       clanPicker: clanPickerModel(state),
       clanPartnerName: typeof state?.colony?.partner?.petName === 'string' && state.colony.partner.petName ? state.colony.partner.petName : 'your partner',
     };
@@ -218,6 +234,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn, mapCard 
       // Clan Edition: whose land today's walk is on ("StormClan land").
       clan: isClanEdition(state) && isClanId(walkArea) ? walkArea : null,
       line: isClanEdition(state) && isClanId(walkArea) ? phrase('place.groupLand', clanName(walkArea)) : '',
+      townNote: townNoteFor(walkArea, state),
     },
     // What she has on, for the Wearing summary (display order, prizes included).
     worn: slotIds.map((slot) => ({ slot, id: equippedId(state, catalog, slot) })).filter((w) => w.id)
@@ -439,7 +456,7 @@ function todayHtml(m, extrasHtml = '') {
     <button class="dr-today-card" data-dr-sheet="places" aria-label="${escapeHtml(label)}">
       <img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">
       <span class="dr-change" aria-hidden="true">Change place ›</span>
-      <span class="cap"><span class="dr-today-name">${emblem}${escapeHtml(p.name)}</span>${p.line ? `<small>${escapeHtml(p.line)}</small>` : ''}<small class="dr-today-change" aria-hidden="true">change ›</small></span>
+      <span class="cap"><span class="dr-today-name">${emblem}${escapeHtml(p.name)}</span>${p.townNote ? `<small class="dr-town-note">${escapeHtml(p.townNote)}</small>` : ''}${p.line ? `<small>${escapeHtml(p.line)}</small>` : ''}<small class="dr-today-change" aria-hidden="true">change ›</small></span>
     </button>
     ${extrasHtml ? `<div class="dr-today-extras">${extrasHtml}</div>` : ''}
     </div>
