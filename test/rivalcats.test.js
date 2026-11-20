@@ -1,6 +1,7 @@
 import { test, expect, describe } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
+import { NO_TRAVERSAL } from '../src/traversallive.js';
 import { clanName, patrolClanFor } from '../src/clanhomes.js';
 import { rivalFor, patrolPath, isTrespassing, borderMarks } from '../src/rivalclans.js';
 import {
@@ -336,6 +337,13 @@ describe('createRivalPatrol', () => {
     // Clan Life Part 2: never while my cat is in a fight
     expect(chaseAllowed({ perchY: 0 }, { cameraMode: false, fight: {} })).toBe(false);
     expect(chaseAllowed({ perchY: 0 }, { cameraMode: false, fight: null })).toBe(true);
+  });
+
+  test('no chase while the moves are busy', () => {
+    const player = { perchY: 0 };
+    expect(chaseAllowed(player, { traversal: { busy: true } })).toBe(false);
+    expect(chaseAllowed(player, { traversal: NO_TRAVERSAL })).toBe(true);
+    expect(chaseAllowed(player, {})).toBe(true);
   });
 
   test('photo mode open means no chase', () => {
