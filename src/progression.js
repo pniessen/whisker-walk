@@ -1426,6 +1426,8 @@ export function createProgression(storage) {
       if (!api.canBuy(kind, id)) return false;
       state.points -= kind === 'areas' ? areaOffer(state, CATALOG, id).price : CATALOG[kind][id].price;
       state.unlocked[kind].push(id);
+      // A bought place needs no kept offer: drop its mark so none goes stale.
+      if (kind === 'areas') state.keptOffers = state.keptOffers.filter((k) => k !== id);
       save();
       return true;
     },

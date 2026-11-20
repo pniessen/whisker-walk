@@ -16,6 +16,7 @@ import { sanitizeCustomCats, presetFor, lookKey, COATS, CUSTOM_MAX } from '../cu
 import { PAW } from './pawicon.js';
 import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT_MAX } from '../outfits.js';
 import { escapeHtml } from '../escapehtml.js';
+import { areaOffer } from '../areaoffer.js';
 import { phrase } from '../clanphrases.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
@@ -56,10 +57,12 @@ export const PLACE_PICTURE = (id) => `${import.meta.env.BASE_URL}places/${id}.jp
 export function placeWhyLine(state, catalog, id) {
   const a = typeof id === 'string' && has(catalog.areas, id) ? catalog.areas[id] : null;
   if (!a || !areaInEdition(a, state?.edition) || ownedList(state, 'areas').includes(id)) return null;
-  const req = a.requires;
+  // The gate and price ask areaOffer, which knows a kept offer.
+  const offer = areaOffer(state, catalog, id);
+  const req = offer.requires;
   const have = req ? walksIn(state, req.area) : 0;
   if (req && have < req.walks) return opensAfterLine(req, have, state?.edition, catalog);
-  const short = num(a.price) - num(state?.points);
+  const short = num(offer.price) - num(state?.points);
   return short > 0 ? `${short} more 🐾 to go` : null;
 }
 
@@ -151,8 +154,9 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
   const walkArea = effectiveArea({ area, edition: state?.edition }, catalog);
   const places = Object.entries(catalog.areas).filter(([, a]) => areaInEdition(a, state?.edition)).map(([id, a]) => {
     const owned = ownedAreas.includes(id);
-    const price = num(a.price);
-    const req = a.requires;
+    const offer = areaOffer(state, catalog, id); // knows a kept offer
+    const price = num(offer.price);
+    const req = offer.requires;
     const have = req ? walksIn(state, req.area) : 0;
     const gated = !owned && !!req && have < req.walks;
     let lockLine = '';

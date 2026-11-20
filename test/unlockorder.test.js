@@ -4,7 +4,9 @@
 import { describe, it, expect } from 'vitest';
 import { createProgression, CATALOG } from '../src/progression.js';
 import { nextThing } from '../src/ui/nextthing.js';
-import { placeWhyLine } from '../src/ui/dressingroom.js';
+import { placeWhyLine, buildDressingModel } from '../src/ui/dressingroom.js';
+import { createDressingRoom } from '../src/ui/dressingroomview.js';
+import { postStatus } from '../src/bordercross.js';
 import { areaOffer } from '../src/areaoffer.js';
 
 const KEY = 'whisker-walk-save';
@@ -107,6 +109,19 @@ describe('the kept offer', () => {
     p.buy('areas', 'seaside');
     expect(createProgression(s).state.keptOffers).toEqual([]);
   });
+  it('buying the Seaside drops its kept mark at once, so no stale mark is left in the save', () => {
+    const s = storageWith({ points: 150, walks: { park: 2 }, unlocked: { areas: ['neighborhood', 'park'] } });
+    const p = createProgression(s);
+    expect(p.state.keptOffers).toEqual(['seaside']);
+    expect(p.buy('areas', 'seaside')).toBe(true);
+    expect(p.state.keptOffers).toEqual([]);
+    expect(JSON.parse(s.getItem(KEY)).keptOffers).toEqual([]); // as written, before any reload cleans it
+  });
+  it('buying another place leaves the kept Seaside alone', () => {
+    const p = load({ points: 150, walks: { park: 2 }, unlocked: { areas: ['neighborhood', 'park'] } });
+    expect(p.buy('areas', 'farm')).toBe(true);
+    expect(p.state.keptOffers).toEqual(['seaside']);
+  });
   it('a save that owns the Seaside but not the Docks keeps the Seaside; the Docks open under the new rule', () => {
     const p = load({ points: 100, walks: { park: 3, seaside: 2 }, unlocked: { areas: ['neighborhood', 'park', 'seaside'] }, area: 'seaside' });
     expect(p.isUnlocked('areas', 'seaside')).toBe(true);
@@ -136,5 +151,50 @@ describe('the kept offer', () => {
     expect(areaOffer({}, CATALOG, 'seaside')).toEqual({ requires: { area: 'docks', walks: 2 }, price: 200 });
     expect(areaOffer({ keptOffers: ['farm'] }, CATALOG, 'farm')).toEqual({ requires: { area: 'park', walks: 2 }, price: 75 }); // not a kept id: the catalog's
     expect(areaOffer({}, CATALOG, 'neighborhood')).toEqual({ requires: null, price: 0 });
+  });
+});
+
+// The kept offer is read through areaOffer by every screen that names a
+// place's gate or price, so a kept Seaside says "100, after the Park" alike.
+describe('a kept Seaside reads the same on every screen', () => {
+  const keptFields = (points) => ({
+    points, edition: 'legacy', walks: { neighborhood: 3, park: 2, docks: 1 },
+    unlocked: { accessories: allWear, areas: ['neighborhood', 'park', 'docks'] }, area: 'docks',
+  });
+  const kept = load(keptFields(40)).state;
+  it('the save keeps the old offer, with 40 🐾', () => {
+    expect(kept.keptOffers).toEqual(['seaside']);
+    expect(kept.points).toBe(40);
+  });
+  it('the place card and placeWhyLine: open after the Park, 100, 60 to go', () => {
+    const card = buildDressingModel(kept, CATALOG).places.find((p) => p.id === 'seaside');
+    expect(card).toMatchObject({ locked: false, price: 100, canBuy: false, lockLine: '100 🐾 — keep exploring!' });
+    expect(placeWhyLine(kept, CATALOG, 'seaside')).toBe('60 more 🐾 to go');
+  });
+  it('with 100 🐾 the card can buy it, for 100', () => {
+    const card = buildDressingModel(load(keptFields(100)).state, CATALOG).places.find((p) => p.id === 'seaside');
+    expect(card).toMatchObject({ locked: false, price: 100, canBuy: true, lockLine: 'Unlock — 100 🐾' });
+  });
+  it('the home line at the Docks does not say the Seaside opens after one more explore', () => {
+    expect(nextThing(kept).text).not.toContain('Seaside');
+  });
+  it('a post that names the Seaside reads the kept price, not the new one', () => {
+    // the catalog's gate would count this Docks explore (1 + 1) and ask 200
+    expect(postStatus({ to: 'seaside' }, kept, CATALOG, 'docks')).toMatchObject({ kind: 'locked', line: '🔒 Seaside needs 100 🐾' });
+  });
+  it('the Get it? card asks for the kept price', () => {
+    const progression = load(keptFields(150));
+    const asks = [];
+    const dr = createDressingRoom({ progression, sync: { autoSync() {} }, thumbs: {}, confirmSpend: (o) => { asks.push(o); return true; } });
+    const click = (dataset) => ({ target: { closest: () => ({ dataset }) } });
+    dr.handleClick(click({ drPlaceBuy: 'seaside' }));
+    expect(asks[0]).toMatchObject({ text: 'Open Seaside for 100 🐾?', note: 'You’ll have 50 🐾 left.' });
+  });
+  it('a save without the kept mark still sees the new order on every screen', () => {
+    const plain = load({ ...keptFields(40), keptOffers: [] }).state;
+    expect(plain.keptOffers).toEqual([]);
+    expect(buildDressingModel(plain, CATALOG).places.find((p) => p.id === 'seaside')).toMatchObject({ locked: true, price: 200 });
+    expect(placeWhyLine(plain, CATALOG, 'seaside')).toBe('opens after you explore The Old Docks 2 times · 1/2');
+    expect(postStatus({ to: 'seaside' }, plain, CATALOG, 'docks')).toMatchObject({ kind: 'locked', line: '🔒 Seaside needs 200 🐾' });
   });
 });

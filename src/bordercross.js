@@ -7,6 +7,7 @@ import { placeName, isClanEdition } from './edition.js';
 import { TERRITORIES, opensAfterLine } from './territories.js';
 import { postsFor } from './borderposts.js';
 import { escapeHtml } from './escapehtml.js';
+import { areaOffer } from './areaoffer.js';
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const isObj = (v) => !!v && typeof v === 'object';
@@ -40,10 +41,11 @@ export function postStatus(post, state, catalog, fromArea) {
   if (!to || !isObj(areas) || !Object.hasOwn(areas, to)) {
     return { kind: 'unexplored', to, name, line: `${name}: not explored yet` };
   }
-  const entry = areas[to];
+  // The gate and price ask areaOffer, which knows a kept offer.
+  const offer = areaOffer(state, catalog, to);
   const unlocked = isObj(state) && isObj(state.unlocked) && Array.isArray(state.unlocked.areas) ? state.unlocked.areas : [];
   if (unlocked.includes(to)) return { kind: 'go', to, name, line: '' };
-  const req = entry && entry.requires;
+  const req = offer.requires;
   if (req) {
     const walks = isObj(state) && isObj(state.walks) ? state.walks : {};
     const have = num(Object.hasOwn(walks, req.area) ? walks[req.area] : 0) + (req.area === fromArea ? 1 : 0);
@@ -51,7 +53,7 @@ export function postStatus(post, state, catalog, fromArea) {
       return { kind: 'locked', to, name, line: '🔒 ' + name + ' ' + opensAfterLine(req, have, edition, catalog) };
     }
   }
-  const price = num(entry && entry.price);
+  const price = num(offer.price);
   if (num(isObj(state) ? state.points : 0) < price) {
     return { kind: 'locked', to, name, line: `🔒 ${name} needs ${price} 🐾` };
   }
