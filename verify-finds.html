@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Found outfits harness</title>
+<!-- Found outfits step 1: the owner's pictures. Five views, picked from the bar:
+     1. the Acorn Cap on every cat (every CATALOG.cats breed and one builder
+        cat, standing and sitting; Hagrid wears his own cap), in the game's rig;
+     2. the find at every Park and Woods spot (the real area, createFind at
+        the spot, the camera 6 m off at cat height), at 20 m for the twinkle,
+        up close, the pouch, and next to the yarn ball and a treasure orb;
+     3. the find card (findCardHtml with her portrait) over the pause card's
+        CSS, and Hagrid's card for a back item (a stand-in record);
+     4. the dress-up head picker before and after the find;
+     5. the Journal's "Things to wear" before and after (journal.js and
+        foundwear/journal.js, as homebase.js's Journal sheet calls them).
+     Every save is an in-memory progression (the dressing-room harness's way),
+     and there is no sound. ?rm=1 draws the twinkle as reduced motion does
+     (steady). window.harness drives every view for the picture script. -->
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: #1c2431; }
+  #gl { position: fixed; inset: 0 0 64px 0; }
+  #gl canvas { display: block; }
+  #panel { position: fixed; inset: 0 0 64px 0; overflow: auto; }
+  #panel.hidden, #gl.hidden { display: none; }
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999; padding: 6px 8px; display: flex; flex-wrap: wrap;
+         gap: 5px; align-items: center; background: rgba(12, 18, 30, .92); color: #a8c0e0; font: 12px/1.4 sans-serif;
+         border-top: 1px dashed #33425e; }
+  #bar button { padding: 6px 9px; border-radius: 8px; border: 1px solid #5b6c88; background: #2c3d58; color: #fff; font-size: 12px; }
+  #bar output { flex: 1 0 100%; color: #f2c14e; }
+  #bar.min > :not(#bar-toggle) { display: none; }
+</style>
+</head>
+<body>
+<div id="gl"></div>
+<div id="panel" class="hidden"></div>
+<div id="bar">
+  <button id="bar-toggle" title="Collapse or expand this bar">harness</button>
+  <button id="b-stand">1 Cap: standing</button>
+  <button id="b-sit">sitting</button>
+  <button id="b-park">2 Park spot</button>
+  <button id="b-woods">Woods spot</button>
+  <button id="b-far">at 20 m</button>
+  <button id="b-near">up close</button>
+  <button id="b-pouch">pouch</button>
+  <button id="b-beside">beside yarn + orb</button>
+  <button id="b-card">3 Card</button>
+  <button id="b-hen">Hagrid's card</button>
+  <button id="b-dress0">4 Dress-up before</button>
+  <button id="b-dress1">after</button>
+  <button id="b-jour0">5 Journal before</button>
+  <button id="b-jour1">after</button>
+  <output id="h-out">pick a view</output>
+</div>
+<script type="module">
+  import '/src/style.css';
+  import * as THREE from 'three';
+  import { CATALOG, createProgression } from '/src/progression.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { defaultPoseCat } from '/src/ui/catstage.js';
+  import { buildEnvMap, litMaterial } from '/src/render/materials.js';
+  import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
+  import { createWind } from '/src/render/wind.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { groundOf } from '/src/ground.js';
+  import { build as buildPark } from '/src/world/park.js';
+  import { build as buildWoods } from '/src/world/woods.js';
+  import { FIND_SPOTS } from '/src/foundwear/spots/index.js';
+  import { createFind } from '/src/foundwear/live.js';
+  import { findCardHtml } from '/src/foundwear/play.js';
+  import { canWearNow } from '/src/foundwear/rules.js';
+  import { buildYarnBall } from '/src/toy.js';
+  import { herCatPortrait, menuThumbnails } from '/src/thumbnails.js';
+  import { phrase } from '/src/clanphrases.js';
+  import { createCatStage } from '/src/ui/catstage.js';
+  import { createDressingRoom } from '/src/ui/dressingroomview.js';
+  import { renderJournalHtml } from '/src/journal.js';
+  import { goldForEdition } from '/src/goldmice.js';
+  import { renderThingsToWearHtml } from '/src/foundwear/journal.js';
+
+  const params = new URLSearchParams(location.search);
+  const reducedMotion = params.get('rm') === '1';
+  const $ = (id) => document.getElementById(id);
+  const out = (msg) => { $('h-out').textContent = msg; return msg; };
+  const W = innerWidth, H = innerHeight - 64;
+
+  // ---- the game's renderer settings (main.js), one canvas for the page ----
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+  $('gl').appendChild(renderer.domElement);
+  const tier = { name: 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+  const env = buildEnvMap(renderer);
+  const camera = new THREE.PerspectiveCamera(40, W / H, 0.05, 400);
+
+  // One scene at a time: the cat line-up, the Park or the Woods.
+  let world = null; // { kind, scene, sun, shadows, area?, ground?, finds: [] }
+  function disposeWorld() {
+    if (!world) return;
+    world.scene.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      const m = o.material;
+      if (Array.isArray(m)) m.forEach((x) => x.dispose()); else m?.dispose?.();
+    });
+    world = null;
+  }
+  function newScene(kind) {
+    disposeWorld();
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xbfd8ff);
+    scene.environment = env;
+    scene.environmentIntensity = tier.envIntensity;
+    const sun = createSun();
+    scene.add(sun);
+    world = { kind, scene, sun, shadows: null, finds: [] };
+    return world;
+  }
+  function finishRig(groundBounce) {
+    world.scene.add(createFill(groundBounce));
+    world.shadows = createShadowFit(world.sun, camera, { radius: 20, mapSize: 2048 });
+    world.sun.shadow.bias = SUN_BIAS;
+    assignShadowCasters(world.scene);
+  }
+  function render() {
+    world.shadows?.update();
+    renderer.render(world.scene, camera);
+  }
+  function showGl() { $('gl').classList.remove('hidden'); $('panel').classList.add('hidden'); }
+  function showPanel(html) { $('gl').classList.add('hidden'); const p = $('panel'); p.classList.remove('hidden'); p.innerHTML = html; return p; }
+
+  // ---- view 1: the cap on every cat ----
+  const BUILDER_LOOK = { pattern: 'stripes', fur: 'fluffy', coat: 'ginger', marks: 'chocolate', size: 1 };
+  const WEAR = { collar: null, head: 'acorncap', face: null, neck: null, body: null, back: null, feet: null };
+  function lineUp({ sit = false } = {}) {
+    newScene('cats');
+    const scene = world.scene;
+    const lawn = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), litMaterial(0x6cb058));
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.receiveShadow = true;
+    scene.add(lawn);
+    const list = [...Object.keys(CATALOG.cats).map((id) => ({ id, label: CATALOG.cats[id].name, opts: {} })),
+      { id: 'tabby', label: 'Builder cat', opts: { look: BUILDER_LOOK } }];
+    const cols = Math.ceil(list.length / 2);
+    list.forEach((c, i) => {
+      const cat = buildCat(c.id, WEAR, c.opts);
+      if (sit) defaultPoseCat(cat);
+      const row = Math.floor(i / cols), col = i % cols;
+      cat.position.set(-(col - (cols - 1) / 2) * 1.05, 0, row * 1.25); // left to right as listed
+      cat.rotation.y = -0.6;
+      scene.add(cat);
+    });
+    finishRig(0x6cb058);
+    camera.fov = 30; camera.updateProjectionMatrix();
+    camera.position.set(1.2, 2.4, -7.4);
+    camera.lookAt(0, 0.3, 0.7);
+    showGl(); render();
+    return out(`the Acorn Cap on ${list.length} cats (${list.map((c) => c.label).join(', ')}), ${sit ? 'sitting' : 'standing'}`);
+  }
+  // A close look at a few heads: does the cap sit low over the brow?
+  function heads({ ids = ['tabby', 'siamese', 'mainecoon', 'hagrid'], sit = true, side = false } = {}) {
+    newScene('cats');
+    const scene = world.scene;
+    const lawn = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), litMaterial(0x6cb058));
+    lawn.rotation.x = -Math.PI / 2;
+    scene.add(lawn);
+    ids.forEach((id, i) => {
+      const cat = id === 'builder' ? buildCat('tabby', WEAR, { look: BUILDER_LOOK }) : buildCat(id, WEAR);
+      if (sit) defaultPoseCat(cat);
+      cat.position.set(-(i - (ids.length - 1) / 2) * 0.62, 0, 0); // the camera looks down +z: left to right as listed
+      cat.rotation.y = side ? Math.PI / 2 : 0;
+      scene.add(cat);
+    });
+    finishRig(0x6cb058);
+    camera.fov = 30; camera.updateProjectionMatrix();
+    camera.position.set(0.15, 0.8, -3.7);
+    camera.lookAt(0, sit ? 0.42 : 0.36, 0);
+    showGl(); render();
+    return out(`close heads: ${ids.join(', ')} ${sit ? 'sitting' : 'standing'}${side ? ', from the side' : ''}`);
+  }
+
+  // ---- view 2: the find at its spots ----
+  const BUILDERS = { park: buildPark, woods: buildWoods };
+  function areaScene(areaId) {
+    if (world?.kind === areaId) return world;
+    newScene(areaId);
+    const wind = createWind({ reducedMotion: false });
+    const area = BUILDERS[areaId](world.scene, { water: { quality: tier, reducedMotion: false }, wind });
+    world.area = area;
+    world.ground = groundOf(area);
+    finishRig(area.groundBounce);
+    return world;
+  }
+  const PEAK_T = Math.PI / 6.2; // sin(3.1 t) = 1: the pulse at its fullest
+  const ray = new THREE.Raycaster();
+  // The camera `dist` m off the spot at cat height, from the direction with
+  // the clearest line to it (8 tried; grass, water and the find itself skipped).
+  function frameSpot(spot, find, dist, lift = 0.45) {
+    const target = new THREE.Vector3(spot.x, find.worldY + 0.05, spot.z);
+    let best = null;
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const x = spot.x + Math.cos(a) * dist, z = spot.z + Math.sin(a) * dist;
+      const y = Math.max(world.ground.y(x, z), 0) + Math.max(lift, find.worldY - world.ground.y(x, z) + lift);
+      const from = new THREE.Vector3(x, y, z);
+      const dir = target.clone().sub(from);
+      const len = dir.length();
+      ray.set(from, dir.normalize());
+      ray.far = len - 0.4;
+      const hits = ray.intersectObjects(world.scene.children, true)
+        .filter((h) => h.object.visible && !/grass|water|find/i.test(h.object.name ?? '') && !h.object.isPoints && !h.object.isSprite
+          && !(h.object.material?.transparent));
+      const score = hits.length;
+      if (!best || score < best.score) best = { score, from };
+      if (score === 0) break;
+    }
+    camera.position.copy(best.from);
+    camera.lookAt(target);
+    camera.updateMatrixWorld();
+    return best.score;
+  }
+  function clearFinds() {
+    for (const f of world.finds) f.take();
+    for (const o of world.extras ?? []) world.scene.remove(o);
+    world.finds = [];
+    world.extras = [];
+  }
+  function placeFind(areaId, spot, item) {
+    const find = createFind(world.scene, {
+      plan: { areaId, spot, roll: 0 }, item, ground: world.ground, reducedMotion, onNear: () => {},
+    });
+    world.finds.push(find);
+    return find;
+  }
+  // spot(area, i, { dist, item, fov }) -> one spot drawn; dist 6 by default.
+  function spot(areaId = 'park', i = 0, { dist = 6, item = { kind: 'wear', id: 'acorncap' }, fov = 40, lift } = {}) {
+    areaScene(areaId);
+    clearFinds();
+    const s = FIND_SPOTS[areaId][i];
+    const find = placeFind(areaId, s, item);
+    camera.fov = fov; camera.updateProjectionMatrix();
+    const blocked = frameSpot(s, find, dist, lift);
+    // the twinkle shows from where the cat would be: the camera's spot
+    find.update(0, PEAK_T, { x: camera.position.x, z: camera.position.z, pawsY: -99, camera, remotes: null, busy: true });
+    showGl(); render();
+    return out(`${areaId} ${s.id} (${s.look}, y ${s.y}) at ${dist} m · ${item.kind === 'pouch' ? 'pouch' : item.id}`
+      + ` · twinkle ${find.group.children[1].visible ? 'on' : 'off'}${reducedMotion ? ' (reduced motion: steady)' : ''}`
+      + (blocked ? ` · ${blocked} thing(s) in the line` : ''));
+  }
+  // The find next to the yarn ball and a treasure orb, on open lawn.
+  function beside({ dist = 2.4, areaId = 'park', at = { x: 6, z: 32 } } = {}) {
+    areaScene(areaId);
+    clearFinds();
+    const g = world.ground;
+    const s = { id: 'fw-park-1', x: at.x, z: at.z, y: 0, look: 'grass' };
+    const find = placeFind(areaId, s, { kind: 'wear', id: 'acorncap' });
+    const pouch = placeFind(areaId, { ...s, id: 'fw-park-2', x: at.x - 0.9 }, { kind: 'pouch' });
+    const yarn = buildYarnBall();
+    yarn.position.set(at.x + 0.9, g.y(at.x + 0.9, at.z) + 0.1, at.z);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), litMaterial(0xf25c8a, { emissive: 0x5a1a30 }));
+    orb.position.set(at.x + 1.8, g.y(at.x + 1.8, at.z) + 0.2, at.z);
+    world.scene.add(yarn, orb);
+    world.extras = [yarn, orb];
+    camera.fov = 40; camera.updateProjectionMatrix();
+    camera.position.set(at.x + 0.45, g.y(at.x, at.z - dist) + 0.55, at.z - dist);
+    camera.lookAt(at.x + 0.45, g.y(at.x, at.z) + 0.12, at.z);
+    camera.updateMatrixWorld();
+    const frame = { x: camera.position.x, z: camera.position.z, pawsY: -99, camera, remotes: null, busy: true };
+    find.update(0, PEAK_T, frame); pouch.update(0, PEAK_T, frame);
+    showGl(); render();
+    return out('left to right: a treasure orb, the yarn ball, the Acorn Cap, the pouch');
+  }
+
+  // ---- view 3: the card, over the pause card's CSS ----
+  function memoryStorage() {
+    const m = new Map();
+    return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  }
+  function seeded({ cat = 'calico', found = false, edition = 'canon' } = {}) {
+    const blank = JSON.parse(JSON.stringify(createProgression(memoryStorage()).state));
+    Object.assign(blank, { points: 85, lifetimePoints: 230, petName: 'Mochi', edition, area: 'park' });
+    blank.golden = ['gm-park-1', 'gm-woods-1'];
+    blank.unlocked = { ...blank.unlocked, areas: [...new Set([...(blank.unlocked.areas ?? []), 'park', 'woods'])], cats: [...new Set([...blank.unlocked.cats, 'calico', 'hagrid'])], accessories: ['bell', 'bandana', 'crown', 'beanie'] };
+    blank.equipped = { ...blank.equipped, cat, collar: 'bell', head: null, neck: 'bandana' };
+    blank.journal = { bird: 6, squirrel: 3, butterfly: 9, duck: 2 };
+    const store = memoryStorage();
+    store.setItem('whisker-walk-save', JSON.stringify(blank));
+    const p = createProgression(store);
+    if (found) p.recordFoundWear('acorncap');
+    return p;
+  }
+  function overlayHtml(inner) {
+    // The game's #overlay over a frozen walk (a still of the Park behind it).
+    return `<div id="overlay" style="position:absolute;inset:0">${inner}</div>`;
+  }
+  function parkBackdrop() {
+    areaScene('park');
+    clearFinds();
+    camera.fov = 70; camera.updateProjectionMatrix();
+    camera.position.set(0, 2.2, 26); camera.lookAt(0, 0.8, 20);
+    render();
+    return renderer.domElement.toDataURL('image/jpeg', 0.85);
+  }
+  function card({ hen = false } = {}) {
+    const bg = parkBackdrop();
+    const p = seeded({ cat: hen ? 'hagrid' : 'calico', found: true });
+    const state = p.state;
+    // Hagrid's: a stand-in back item (he wears no back item), so no Wear it.
+    const item = hen ? { name: 'Leaf Cloak', slot: 'back', emoji: '🍃' } : CATALOG.accessories.acorncap;
+    const canWear = canWearNow(state.equipped.cat, item.slot);
+    const portrait = canWear ? herCatPortrait({ ...state, equipped: { ...state.equipped, [item.slot]: 'acorncap' } }) : null;
+    const html = findCardHtml({
+      title: phrase('wear.card.title'), name: item.name, portrait, emoji: item.emoji, canWear,
+      catName: CATALOG.cats[state.equipped.cat]?.name ?? '',
+    });
+    const panel = showPanel(`<div style="position:absolute;inset:0;background:url(${bg}) center/cover"></div>${overlayHtml(html)}`);
+    panel.style.background = '#1c2431';
+    return out(hen ? `Hagrid's card for a back item (stand-in record "${item.name}"): no Wear it` : `her card: ${item.name}, portrait ${portrait ? 'drawn' : 'missing'}`);
+  }
+
+  // ---- view 4: the dress-up head picker ----
+  let stage = null, thumbs = null, dressing = null;
+  function dressUp({ found = false } = {}) {
+    const p = seeded({ found });
+    thumbs ??= menuThumbnails();
+    stage ??= createCatStage({ buildCat, thumbs });
+    const panel = showPanel('<div id="homebase" style="position:relative;inset:auto;min-height:100%"><div id="root"></div></div>');
+    const root = panel.querySelector('#root');
+    dressing = createDressingRoom({ progression: p, catalog: CATALOG, stage, thumbs, sync: { autoSync() {} }, onChange: draw, onOpenSheet: () => {} });
+    function draw() {
+      root.innerHTML = dressing.html({ headerHtml: '<h1 class="dr-title">🐾 Whisker Walk 2</h1>', startHtml: '', extrasHtml: '', rankTitle: '' });
+      dressing.afterRender(root);
+    }
+    root.addEventListener('click', (e) => dressing.handleClick(e));
+    draw();
+    root.querySelector('[data-dr-wardrobe]')?.click();
+    root.querySelector('[data-dr-slot="head"]')?.click();
+    const pick = root.querySelector('.found-silhouette, [data-dr-acc="acorncap"]');
+    pick?.scrollIntoView({ block: 'center' });
+    return out(`dress-up head picker ${found ? 'after' : 'before'} the find: ${pick ? pick.textContent.replace(/\s+/g, ' ').trim() || pick.className : 'no acorn cap entry'}`);
+  }
+
+  // ---- view 5: the Journal ----
+  function journal({ found = false } = {}) {
+    const p = seeded({ found });
+    const s = p.state;
+    const gold = goldForEdition(s.edition, CATALOG); // as homebase.js's Journal
+    const html = `<div id="homebase" style="position:relative;inset:auto;min-height:100%"><div class="homebase-scroll"><div class="sheet journal-sheet" style="max-width:640px;margin:0 auto;padding:16px">
+      <section class="journal-section"><h2>Journal 📖</h2>
+        ${renderJournalHtml(s.journal ?? {}, (s.golden ?? []).filter((id) => gold.has(id)).length, gold.size, {})}
+        ${renderThingsToWearHtml(s, CATALOG)}
+      </section></div></div></div>`;
+    const panel = showPanel(html);
+    panel.querySelector('.wear-section')?.scrollIntoView({ block: 'center' });
+    return out(`the Journal ${found ? 'after' : 'before'} the find`);
+  }
+
+  $('b-stand').onclick = () => lineUp({ sit: false });
+  $('b-sit').onclick = () => lineUp({ sit: true });
+  let parkI = 0, woodsI = 0;
+  $('b-park').onclick = () => { spot('park', parkI); parkI = (parkI + 1) % FIND_SPOTS.park.length; };
+  $('b-woods').onclick = () => { spot('woods', woodsI); woodsI = (woodsI + 1) % FIND_SPOTS.woods.length; };
+  $('b-far').onclick = () => spot('park', 3, { dist: 19.5 });
+  $('b-near').onclick = () => spot('park', 0, { dist: 1.2, lift: 0.3 });
+  $('b-pouch').onclick = () => spot('woods', 2, { dist: 1.5, item: { kind: 'pouch' }, lift: 0.3 });
+  $('b-beside').onclick = () => beside();
+  $('b-card').onclick = () => card();
+  $('b-hen').onclick = () => card({ hen: true });
+  $('b-dress0').onclick = () => dressUp({ found: false });
+  $('b-dress1').onclick = () => dressUp({ found: true });
+  $('b-jour0').onclick = () => journal({ found: false });
+  $('b-jour1').onclick = () => journal({ found: true });
+  $('bar-toggle').onclick = () => $('bar').classList.toggle('min');
+
+  window.harness = { lineUp, heads, spot, beside, card, dressUp, journal, render, camera, get world() { return world; }, FIND_SPOTS, reducedMotion };
+  lineUp({ sit: false });
+</script>
+</body>
+</html>

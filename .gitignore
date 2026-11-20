@@ -21,6 +21,8 @@ verify-*.html
 !verify-places.html
 # This one drives the real home base (and its hero stage) through every visit celebration and prize: the visit milestones' sign-off record.
 !verify-visits.html
+# This one draws the found outfits (the Acorn Cap on every cat, the find at every Park and Woods spot, the card, the dress-up and the Journal): found outfits step 1's sign-off record.
+!verify-finds.html
 
 # Brainstorming visual-companion scratch (mockups, server state)
 .superpowers/
