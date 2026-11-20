@@ -1613,7 +1613,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // edition switch lives in Settings only), the points and rank pills, the
     // quiet visit pill and the Menu door.
     const headerHtml = `<h1 class="dr-title">${PAW} Whisker Walk 2 · <span class="dr-edition">${escapeHtml(editionTitle(s.edition))}</span></h1>`
-      + `<div class="hb-pill hb-points" role="img" aria-label="${points} whisker points">${PAW} ${points}</div>`
+      + `<div class="hb-pill hb-points" role="img" aria-label="${points} paw points">${PAW} ${points}</div>`
       + `<div class="hb-pill hb-rank">🏆 ${escapeHtml(rank.title)}</div>`
       + visitBadgeHtml(s.visits)
       + '<button class="hb-menu-btn" data-dr-sheet="menu" aria-label="Menu"><span aria-hidden="true">☰</span><span class="hb-menu-word"> Menu</span></button>';

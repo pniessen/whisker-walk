@@ -72,7 +72,7 @@ function tile(emoji, value, label, suffix = '') {
 // The stat tiles. A walk with no goals (the den) has no goals tile at all,
 // rather than a "0/3".
 export function summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals }) {
-  return `<div class="summary-stats">${tile('🐾', earned, 'whisker points')}`
+  return `<div class="summary-stats">${tile('🐾', earned, 'paw points')}`
     + `${tile('🔍', discoveries, 'discoveries')}`
     + `${tile('😺', friendsGreeted, 'cats greeted')}`
     + `${hasGoals ? tile('⭐', goalsDone, 'goals done', '/3') : ''}</div>`;

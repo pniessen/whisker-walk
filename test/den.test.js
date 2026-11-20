@@ -70,7 +70,7 @@ describe('DEN_ITEMS', () => {
     }
   });
 
-  it('prices every piece on the shipped ladder (15-60 whisker points)', () => {
+  it('prices every piece on the shipped ladder (15-60 paw points)', () => {
     for (const [id, item] of Object.entries(DEN_ITEMS)) {
       expect(typeof item.name, id).toBe('string');
       expect(item.name.length, id).toBeGreaterThan(0);

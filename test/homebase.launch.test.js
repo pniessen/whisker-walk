@@ -112,7 +112,7 @@ describe('the top bar', () => {
   it('has the points pill, the rank pill, the visit pill and a Menu door, and no edition switch', () => {
     const { progression } = setup({ state: (st) => { st.points = 42; st.visits = 23; } });
     const h = html();
-    expect(h).toMatch(/<div class="hb-pill hb-points" role="img" aria-label="42 whisker points">/);
+    expect(h).toMatch(/<div class="hb-pill hb-points" role="img" aria-label="42 paw points">/);
     expect(h).toContain('class="hb-pill hb-rank"');
     expect(h).toContain('class="hb-pill dr-visit"');
     expect(h).toContain('Visit 23');

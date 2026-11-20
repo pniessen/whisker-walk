@@ -169,6 +169,7 @@ describe('summary cards (screencards.js)', () => {
     for (const e of ['🐾', '🔍', '😺', '⭐']) expect(html).toContain(e);
     expect(html).toContain('data-count="7">7<');
     expect(html).toContain('data-count="2" data-suffix="/3">2/3<');
+    expect(html).toContain('<span class="stat-label">paw points</span>');
     const den = summaryStatsHtml({ earned: 0, discoveries: 0, friendsGreeted: 0, goalsDone: 0, hasGoals: false });
     expect(den.match(/class="stat"/g)).toHaveLength(3);
     expect(den).not.toContain('/3');
