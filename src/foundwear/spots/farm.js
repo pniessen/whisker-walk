@@ -10,8 +10,8 @@
 // or a labelled perch. test/foundspots.test.js proves each one against the
 // built farm.
 export const FARM_SPOTS = Object.freeze([
-  // behind the hay bales by the barn's big doors, on the yard side
-  { id: 'fw-farm-1', x: 8, z: -9.2, y: 0, look: 'grass' },
+  // on the grass east of the barn, clear of the bales' job ground
+  { id: 'fw-farm-1', x: 11, z: -14, y: 0, look: 'grass' },
   // beside the lone rock at the tractor shed's east end
   { id: 'fw-farm-2', x: 22.2, z: -9.9, y: 0, look: 'grass' },
   // behind the round bales at the wheat field's edge
@@ -21,7 +21,7 @@ export const FARM_SPOTS = Object.freeze([
   // by the rock at the north edge, beyond the goat paddock
   { id: 'fw-farm-5', x: -19.6, z: -37.8, y: 0, look: 'grass' },
   // north of the goat paddock's fence, a long way from where the goats graze
-  { id: 'fw-farm-6', x: -30, z: -38.5, y: 0, look: 'post' },
+  { id: 'fw-farm-6', x: -30, z: -38.5, y: 0, look: 'grass' },
   // south of the hen run, by the flower patch
   { id: 'fw-farm-7', x: -14.2, z: 0.2, y: 0, look: 'grass' },
   // behind the well in the yard
@@ -34,6 +34,6 @@ export const FARM_SPOTS = Object.freeze([
   { id: 'fw-farm-11', x: 36.6, z: 34.6, y: 0, look: 'branch' },
   // at the duck pond's south-east rim, in the shallows
   { id: 'fw-farm-12', x: -24.5, z: 37, y: 0, look: 'water' },
-  // on the first hay bale by the barn's doors, one hop up
-  { id: 'fw-farm-13', x: 4.6, z: -9.55, y: 0.9, look: 'perch' },
+  // in the grass west of the orchard's corner bush, a ground nook (no raised spot passes the job-point rule)
+  { id: 'fw-farm-13', x: 3.4, z: 19.6, y: 0, look: 'grass' },
 ]);

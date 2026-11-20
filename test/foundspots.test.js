@@ -28,6 +28,13 @@ const { FIND_LOOKS, SPOT_ID, FIND_SPOTS, spotsIn, findSpotsKey, FIND_KEY } = awa
 const { yarnSpotsFor, propsFor } = await import('../src/propsets.js');
 const { groundOf } = await import('../src/ground.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
+const { CHICK_SPOT_SETS, goatRoute } = await import('../src/farmjobs.js');
+const { FARM_HIDES } = await import('../src/world/farm.js');
+
+// Scripted job points per area: a find never sits where a job's animal or
+// object is placed (PICKUP is 1 m, so a find that close doubles up with it).
+const JOB_CLEAR = 3;
+const JOB_POINTS = { farm: (area) => [...CHICK_SPOT_SETS.flat(), ...goatRoute(area.anchors), ...FARM_HIDES] };
 
 const YARN_CLEAR = 3;
 const THING_CLEAR = 2;
@@ -134,6 +141,10 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
     const yard = propsFor(areaId).dogYard;
     if (!yard) return;
     for (const s of spots()) expect(Math.hypot(s.x - yard.x, s.z - yard.z), s.id).toBeGreaterThanOrEqual(yard.r + 1.5);
+  });
+  it('never on a scripted job point: 3 m from every one the area exposes', () => {
+    const pts = JOB_POINTS[areaId]?.(area) ?? [];
+    for (const s of spots()) for (const p of pts) expect(Math.hypot(s.x - p.x, s.z - p.z), `${s.id} by (${p.x}, ${p.z})`).toBeGreaterThanOrEqual(JOB_CLEAR);
   });
   it('never beside the yarn ball: 3 m from both its spots', () => {
     const yarn = yarnSpotsFor(areaId);
