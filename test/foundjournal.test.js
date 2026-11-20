@@ -21,7 +21,7 @@ describe('Things to wear in the Journal', () => {
   });
   it('found, it shows its name', () => {
     // every outfit hidden in the Park and the Neighborhood is found, so no card in either stays a silhouette
-    const found = [...foundWearIn('park'), ...foundWearIn('neighborhood')].map((r) => r.id);
+    const found = [...foundWearIn('park'), ...foundWearIn('neighborhood'), ...foundWearIn('seaside')].map((r) => r.id);
     const html = renderThingsToWearHtml({ unlocked: { accessories: found } }, CATALOG);
     expect(html).toContain('journal-card spotted'); expect(html).toContain('Acorn Cap'); expect(html).toContain('🌰');
     expect(html).not.toContain('journal-card unspotted');

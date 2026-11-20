@@ -23,6 +23,7 @@
 import { seedFromCode } from '../../rng.js';
 import { NEIGHBORHOOD_SPOTS } from './neighborhood.js';
 import { PARK_SPOTS } from './park.js';
+import { SEASIDE_SPOTS } from './seaside.js';
 import { WOODS_SPOTS } from './woods.js';
 
 // How a find sits in its nook: on a post, hung on a branch, in grass, at the
@@ -30,7 +31,7 @@ import { WOODS_SPOTS } from './woods.js';
 export const FIND_LOOKS = Object.freeze(['post', 'branch', 'grass', 'water', 'perch']);
 export const SPOT_ID = /^fw-[a-z]{2,12}-\d{1,2}$/;
 
-export const FIND_SPOTS = Object.freeze({ neighborhood: NEIGHBORHOOD_SPOTS, park: PARK_SPOTS, woods: WOODS_SPOTS });
+export const FIND_SPOTS = Object.freeze({ neighborhood: NEIGHBORHOOD_SPOTS, park: PARK_SPOTS, seaside: SEASIDE_SPOTS, woods: WOODS_SPOTS });
 
 // spotsIn(areaId) -> that area's spots, or [] (own keys only).
 const NONE = Object.freeze([]);
