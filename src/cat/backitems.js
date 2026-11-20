@@ -24,7 +24,7 @@ import { CAPE, CAPE_SIT } from './cape.js';
 // confetti dots). Straps are drawn straight on the surface, a few mm out. One
 // vertex-coloured mesh per item (two for the wings, which flutter).
 
-export const BACK_ITEM_IDS = ['backpack', 'jetpack', 'wings'];
+export const BACK_ITEM_IDS = ['backpack', 'jetpack', 'wings', 'haybalepack'];
 
 // Palette (the old items' colours, and the brief's new ones).
 export const PACK_BLUE = 0x3a6ea5;
@@ -331,11 +331,8 @@ function strap(from, side, cover, bodyScale, steps) {
 // scales its small parts); a darker flap over the top front half with a yellow
 // buckle; a small pocket on the tail end; two grey straps.
 export const PACK = Object.freeze({ dir: [0, 0.94, 0.18], size: [0.216, 0.115, 0.175], r: 0.04, bend: 0.5, puff: 0.016, belly: 0.07, k: 1.35 });
-function backpack({ bodyScale, cover, simple, fx }) {
-  const h = [PACK.size[0] / 2 * fx, PACK.size[1] / 2, PACK.size[2] / 2], K = PACK.k;
-  const lift = h[1];   // the item frame's origin is on the surface; the pack stands on it
-  const body = roundedBox(h, PACK.r, simple ? [4, 2, 3] : [7, 4, 6], (x, y, z) => (y < -h[1] + 0.012 * K ? shade(PACK_BLUE, 0.85) : PACK_BLUE));
-  body.translate(0, lift, 0);
+// the flap, the buckle and the pocket (the Tiny Backpack's trims)
+function packTrims(h, lift, simple, K) {
   // the flap: over the top's front half and down the front face, 3 mm off it,
   // its edges tucked onto the pack; the tongue longer in the middle
   const [fi, fj] = simple ? [5, 6] : [8, 9];
@@ -357,7 +354,48 @@ function backpack({ bodyScale, cover, simple, fx }) {
   const ph = [Math.min(0.05 * K, h[0] - 0.02 * K), 0.022 * K, 0.014 * K];
   const pocket = roundedBox(ph, 0.01 * K, simple ? [2, 1, 1] : [4, 2, 2], (x, y) => (y > ph[1] - 0.006 * K ? PACK_FLAP : shade(PACK_BLUE, 1.06)));
   pocket.translate(0, lift - 0.01 * K, h[2] + ph[2] - 0.006 * K);
-  const parts = [body, flap, buckle, pocket];
+  return [flap, buckle, pocket];
+}
+
+// The Hay-bale Backpack (found outfits step 2) is this pack with a straw bale
+// for its body: the same rounded box 1.1 times larger, the same bend, seat and
+// straps, no flap, buckle or pocket, two twine bands round it and a few loose
+// strands on top.
+const HAY = Object.freeze({ size: 1.1, straw: 0xd9b75a, dark: 0xb8963e, twine: 0x8a6a3a, bandX: 0.42, bandW: 0.0075, off: 0.003 });
+function hayColour(h) {
+  return (x, y, z) => {
+    if (y < -h[1] + 0.012) return shade(HAY.dark, 0.85);
+    return (Math.round(z * 45) + Math.round(y * 45)) & 1 ? HAY.dark : HAY.straw;
+  };
+}
+// two twine bands round the bale's short way (in y-z), a few loose strands up
+function hayTrims(h, lift, simple) {
+  const around = simple ? 12 : 24;
+  const bands = [-1, 1].map((side) => grid(around, 2, { wrapU: true }, (i, j) => {
+    const th = (2 * Math.PI * i) / around + Math.PI / 4;
+    const dz = Math.cos(th), dy = Math.sin(th);
+    const k = 1 / Math.max(Math.abs(dz) / h[2], Math.abs(dy) / h[1]);
+    const x = side * HAY.bandX * h[0] + (j ? 1 : -1) * HAY.bandW;
+    const [p, n] = rbPoint(new THREE.Vector3(x, dy * k, dz * k), h, PACK.r, HAY.off);
+    return { p: p.add(new THREE.Vector3(0, lift, 0)), c: HAY.twine, out: n };
+  }));
+  const strands = [[-0.04, 0.02, 0.4], [0.03, -0.03, -0.5], [0.07, 0.04, 0.3]].map(([x, z, lean], i) => {
+    const g = paint(new THREE.ConeGeometry(0.0035, 0.034, 3, 1), i % 2 ? HAY.straw : HAY.dark);
+    g.deleteAttribute('uv');
+    g.rotateZ(lean);
+    g.translate(x * (h[0] / 0.1), lift + h[1] + 0.012, z);
+    return g;
+  });
+  return [...bands, ...strands];
+}
+
+function backpack({ bodyScale, cover, simple, fx }, hay = false) {
+  const sz = hay ? HAY.size : 1;
+  const h = [PACK.size[0] / 2 * fx * sz, PACK.size[1] / 2 * sz, PACK.size[2] / 2 * sz], K = PACK.k;
+  const lift = h[1];   // the item frame's origin is on the surface; the pack stands on it
+  const body = roundedBox(h, PACK.r, simple ? [4, 2, 3] : [7, 4, 6], hay ? hayColour(h) : (x, y, z) => (y < -h[1] + 0.012 * K ? shade(PACK_BLUE, 0.85) : PACK_BLUE));
+  body.translate(0, lift, 0);
+  const parts = hay ? [body, ...hayTrims(h, lift, simple)] : [body, ...packTrims(h, lift, simple, K)];
   // soft: the top domes up to PACK.puff in the middle and the sides belly out
   // (x × 1 + PACK.belly at mid-height); then the whole pack bends to the back
   const free = (v, hv) => Math.max(0, 1 - (v / hv) ** 2);
@@ -545,6 +583,7 @@ export function buildBackItem(id, { bodyScale = TORSO.SCALE, cover = 'fur', simp
   const fx = bodyScale[0] / TORSO.SCALE[0];
   const opts = { bodyScale, cover, simple, fx };
   if (id === 'backpack') return backpack(opts).map((g) => mesh(id, g));
+  if (id === 'haybalepack') return backpack(opts, true).map((g) => mesh(id, g));
   if (id === 'jetpack') return jetpack(opts).map((g) => mesh(id, g));
   if (id === 'wings') {
     return [-1, 1].map((side) => {

@@ -399,6 +399,14 @@ describe('visit prize placement', () => {
     expect(worn.max.y).toBeLessThan(1.1);
     expect(worn.max.y).toBeGreaterThan(bare.max.y);
   });
+  it.each(['kitetailribbon', 'candyflosspuff'])('%s stays inside the whole-cat thumbnail framing (top < 1.1)', (back) => {
+    const bare = boxOfMesh(buildCat('tabby', bareSet));
+    const worn = boxOfMesh(buildCat('tabby', { ...bareSet, back }));
+    expect(worn.max.y).toBeLessThan(1.1);
+    // the ribbon's top (0.86) is under the head's (0.95); only the puff rises over the cat
+    if (back === 'candyflosspuff') expect(worn.max.y).toBeGreaterThan(bare.max.y);
+    else expect(worn.max.y).toBeGreaterThanOrEqual(bare.max.y);
+  });
   // Accessories polish Task 1: the head prizes are one hat mesh each, seated
   // on the skull (cathats.test.js has the full sweep). The cake and the crown's
   // points rise over the skull's top but start on it, and stay under the top

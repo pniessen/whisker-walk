@@ -83,7 +83,50 @@ export const FOUND_BODY = Object.freeze({
   beachtowelcape: Object.freeze({ kind: 'cape', colour: 0xf28a3c, accent: 0xf2c14e, paint: towelPaint }),
   fishermansjumper: Object.freeze({ kind: 'shell', colour: JUMPER, paint: jumperPaint }),
 });
-export const FOUND_FLOATS = Object.freeze({});
+// The Kite-tail Ribbon: a white string tied at the root of the tail (as the
+// Tail Balloon's is), floating up and back, with four bows spaced along it. A
+// bow is two flattened cones meeting at a knot on the string; the four are one
+// vertex-coloured mesh, built where they hang (its position stays at the
+// origin, floatOn keeps it over the tie). Under the whole-cat thumbnail's top.
+const KITE_BOWS = Object.freeze([0xe2433a, 0xf7c93b, 0x4eb86a, 0xf08a2c]);
+function kiteTail({ onBack, floatOn, floatString }) {
+  const foot = new THREE.Vector3(...onBack(0, 0.5, 0.31)), top = new THREE.Vector3(0, 0.86, 0.44);
+  floatString(foot, top, 0.003);
+  const parts = [];
+  KITE_BOWS.forEach((hex, i) => {
+    const at = foot.clone().lerp(top, 0.25 + 0.2 * i);
+    for (const side of [-1, 1]) {
+      const wing = new THREE.ConeGeometry(0.02, 0.05, 6, 1);
+      wing.rotateZ(side * Math.PI / 2);          // the point toward the knot, the wide end out
+      wing.scale(1, 1, 0.3);                     // flattened
+      wing.translate(side * 0.025 + at.x, at.y, at.z);
+      wing.deleteAttribute('uv');
+      parts.push(paintedGeo(wing, () => hex));
+    }
+  });
+  floatOn(new THREE.Mesh(mergeGeometries(parts), litMaterial(0xffffff, { vertexColors: true })), foot);
+}
+
+// The Candyfloss Puff: a paper stick on a string from the back up to a pink
+// cloud (four overlapping balls, one vertex-coloured mesh) over the shoulders,
+// as the Party Balloon floats.
+const FLOSS = 0xf7b6d2, FLOSS_LUMP = 0xf2a0c0, FLOSS_STICK = 0xf5f0e0;
+function candyfloss({ onBack, floatOn, floatString }) {
+  const tie = new THREE.Vector3(...onBack(0.05, 0.6, 0.2)), top = new THREE.Vector3(0.05, 0.86, 0.2);
+  floatString(tie, top, 0.0035).material = litMaterial(FLOSS_STICK);
+  const parts = [[0, 0, 0, 0.06, FLOSS], [-0.04, 0.005, 0, 0.05, FLOSS_LUMP], [0.04, 0.005, 0, 0.05, FLOSS_LUMP], [0, -0.045, 0, 0.045, FLOSS_LUMP]]
+    .map(([x, y, z, r, hex]) => {
+      const ball = new THREE.SphereGeometry(r, 8, 6);
+      ball.translate(x, y, z);
+      ball.deleteAttribute('uv');
+      return paintedGeo(ball, () => hex);
+    });
+  const puff = new THREE.Mesh(mergeGeometries(parts), litMaterial(0xffffff, { vertexColors: true }));
+  puff.name = 'candyflosspuff';
+  puff.position.set(0.05, 0.95, 0.2);
+  floatOn(puff, tie);
+}
+export const FOUND_FLOATS = Object.freeze({ kitetailribbon: kiteTail, candyflosspuff: candyfloss });
 
 function paintedGeo(geo, hexOf) {
   const p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();

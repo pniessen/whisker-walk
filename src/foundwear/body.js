@@ -26,4 +26,9 @@ export const BODY_WEAR = Object.freeze([
   Object.freeze({ id: 'beachtowelcape', slot: 'body', find: 'seaside', emoji: '🏖️', name: () => phrase('wear.beachtowelcape.name') }),
   // the jumper lies folded on the ground (display.js DISPLAY_BY_ID)
   Object.freeze({ id: 'fishermansjumper', slot: 'body', find: 'docks', emoji: '🧶', name: () => phrase('wear.fishermansjumper.name') }),
+  // the Park's kite tail and the Farm's and Fairground's back items: the tail and the candyfloss
+  // float (foundbody.js FOUND_FLOATS); the bale is a pack (backitems.js)
+  Object.freeze({ id: 'kitetailribbon', slot: 'back', find: 'park', emoji: '🪁', name: () => phrase('wear.kitetailribbon.name') }),
+  Object.freeze({ id: 'haybalepack', slot: 'back', find: 'farm', emoji: '🌾', name: () => phrase('wear.haybalepack.name') }),
+  Object.freeze({ id: 'candyflosspuff', slot: 'back', find: 'fair', emoji: '🍭', name: () => phrase('wear.candyflosspuff.name') }),
 ]);
