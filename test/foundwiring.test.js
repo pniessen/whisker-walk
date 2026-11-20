@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, globSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createRooms } from '../src/game/rooms.js';
 import { createFakeHub } from '../src/net.js';
 import { createProgression } from '../src/progression.js';
@@ -66,7 +67,10 @@ describe('found outfits: the wiring', () => {
   });
 
   it('nothing in the find code throws its own dice or reads the clock', () => {
-    for (const f of ['src/foundwear/rules.js', 'src/foundwear/live.js', 'src/foundwear/play.js', 'src/foundwear/display.js', 'src/foundwear/spots/index.js', 'src/game/findcard.js']) {
+    // the cat-side found files too (src/cat/foundhead.js ... foundfeet.js)
+    const found = globSync('src/cat/found*.js', { cwd: fileURLToPath(new URL('..', import.meta.url)) }).sort();
+    expect(found).toEqual(expect.arrayContaining(['src/cat/foundhead.js', 'src/cat/foundface.js', 'src/cat/foundneck.js', 'src/cat/foundbody.js', 'src/cat/foundfeet.js']));
+    for (const f of ['src/foundwear/rules.js', 'src/foundwear/live.js', 'src/foundwear/play.js', 'src/foundwear/display.js', 'src/foundwear/spots/index.js', 'src/game/findcard.js', ...found]) {
       expect(noComments(read(f)), f).not.toMatch(/Math\.random|walkRng|Date\.now|performance\.now/);
     }
   });

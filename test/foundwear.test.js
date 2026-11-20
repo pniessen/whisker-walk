@@ -5,7 +5,7 @@ import { FACE_WEAR } from '../src/foundwear/face.js';
 import { NECK_WEAR } from '../src/foundwear/neck.js';
 import { BODY_WEAR } from '../src/foundwear/body.js';
 import { FEET_WEAR } from '../src/foundwear/feet.js';
-import { validateFoundWear, foundWearIn, foundRecord } from '../src/foundwear/index.js';
+import { validateFoundWear, foundWearIn, foundRecord, FOUND_WEAR_IDS } from '../src/foundwear/index.js';
 import { withOffWords } from './helpers/offwords.js';
 
 // Found outfits (step 1): one find-only outfit hidden on every walk. These
@@ -75,7 +75,7 @@ describe('found outfits: the records', () => {
     expect([a.name, a.slot, a.price, a.prize, a.find, a.emoji]).toEqual(['Acorn Cap', 'head', 0, true, 'park', '🌰']);
     expect(isPrizeAccessory('acorncap')).toBe(true);
     expect(isTradeableAccessory('acorncap')).toBe(false);
-    expect(Object.keys(CATALOG.accessories).at(-1)).toBe('acorncap');
+    expect(Object.keys(CATALOG.accessories).slice(-FOUND_WEAR_IDS.length)).toEqual([...FOUND_WEAR_IDS]);
   });
   it('the name is read when asked, through the phrase table', () => {
     expect(Object.getOwnPropertyDescriptor(CATALOG.accessories.acorncap, 'name').get).toBeTypeOf('function');
@@ -87,7 +87,8 @@ describe('found outfits: the records', () => {
     expect(p.buy('accessories', 'acorncap')).toBe(false);
   });
   it('foundWearIn lists an area\'s records in order, and nothing for junk', () => {
-    expect(foundWearIn('park').map((r) => r.id)).toEqual(['acorncap']);
+    expect(foundWearIn('park')[0].id).toBe('acorncap');
+    for (const r of foundWearIn('park')) expect(r.find).toBe('park');
     for (const id of ['woods', 'den', '__proto__', 'toString', null]) expect(foundWearIn(id)).toEqual([]);
     expect(foundRecord('acorncap').find).toBe('park');
     expect(foundRecord('bell')).toBe(null);

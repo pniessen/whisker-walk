@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
+import { isPack } from './cat/wearkind.js';
 import { CATALOG } from './progression.js';
 import { activeCat } from './customcats.js';
 import { mulberry32, seedFromCode } from './rng.js';
@@ -53,12 +54,13 @@ function makeSnapper(renderer, scene, camera, canvas) {
 // they need the whole-cat framing; head/face/neck-worn items (collar,
 // head, face, neck slots) still read best close up. Driven by slot
 // rather than a hardcoded id list so future catalog items frame
-// correctly automatically. backpack and jetpack sit flat on the back so
-// they get a rear-quarter angle; wings/balloon read fine from the front.
+// correctly automatically. A pack (backpack, jetpack, a found pack) sits
+// flat on the back so it gets a rear-quarter angle; wings/balloon read fine
+// from the front.
 const WHOLE_CAT_SLOTS = new Set(['feet', 'back', 'body']);
 export function accessoryFraming(id) {
   const slot = CATALOG.accessories[id]?.slot;
-  return { closeUp: !WHOLE_CAT_SLOTS.has(slot), rotY: id === 'backpack' || id === 'jetpack' ? -2.4 : -0.45 };
+  return { closeUp: !WHOLE_CAT_SLOTS.has(slot), rotY: isPack(id) && id !== 'wings' ? -2.4 : -0.45 };
 }
 
 function renderAll() {

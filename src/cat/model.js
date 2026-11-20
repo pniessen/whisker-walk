@@ -14,6 +14,12 @@ import { ruffGeometry, RUFF } from './ruff.js';
 import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
 import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
 import { buildBackItem, buildHood } from './backitems.js';
+import { hasEntry, bodyKind, isPack, isCharmed } from './wearkind.js';
+import { addFoundHenHead } from './foundhead.js';
+import { addFoundFace } from './foundface.js';
+import { addFoundNeck, FOUND_COLLARS } from './foundneck.js';
+import { FOUND_BODY, FOUND_FLOATS } from './foundbody.js';
+import { FOUND_FEET } from './foundfeet.js';
 import { CAPE, CAPE_SIT, CAPE_TIE, capePoint, capeGeometry, capeTieGeometry, layCapeTie } from './cape.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
 import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailRadius, SIT_TAIL, NAP_TAIL, SIT_TAIL_PLUME, NAP_TAIL_PLUME, lyingTail, torsoUnitAt, SIT, SEAM, seamNormals, keepFacing, PROPORTION, NECK, HAUNCH, NAP, CHEST_BLEND, blendIntoTorso, weldedNormals } from './torso.js';
@@ -108,10 +114,9 @@ const HOODIE_COLOR = 0x6a4c93;     // purple hoodie
 const CAPE_COLOR = 0xd8303c;       // superhero red
 const CAPE_ACCENT = 0xf2c14e;      // gold clasp
 // The clasp is at the throat (owner, 2026-11-04; cape.js CAPE_TIE): where a
-// collar's charm hangs, carried on the neck. A collar charm (CHARMED) or a
-// neck-slot item already sits there: then the gold clasp is left off and the
-// cape's front edges meet under that piece.
-const CHARMED = new Set(['bell', 'heart', 'tag', 'sparklecollar']);
+// collar's charm hangs, carried on the neck. A collar charm (wearkind.js
+// isCharmed) or a neck-slot item already sits there: then the gold clasp is
+// left off and the cape's front edges meet under that piece.
 const CAPE_DOTS = [[-0.5, 0.25], [0.3, 0.2], [0.75, 0.45], [-0.15, 0.45], [-0.8, 0.6], [0.45, 0.65], [0.1, 0.8], [-0.45, 0.85]];
 const SNEAKER_WHITE = 0xf2f2f2;
 const SNEAKER_ACCENT = 0xd8303c;
@@ -143,6 +148,10 @@ const RAINCOAT_COLOR = 0xf2c94e;
 const SWEATER_BASE = 0x2c6e63;
 const SWEATER_STRIPE = 0xf2ead9;
 const SWEATER_STRIPE_Z = [-0.324, 0.093, 0.509]; // the old rings' centres, legacy unit z
+// The Striped Sweater's knit, by a shell vertex's unit direction (coatShell).
+function sweaterStripes(ux, uy, uz) {
+  return SWEATER_STRIPE_Z.some((zi) => Math.abs(uz - zi) < 0.088) ? SWEATER_STRIPE : SWEATER_BASE;
+}
 const BALLOON_COLOR = 0xf25c8a;
 // Visit prizes (src/visits.js): bright and a little magical, so they read as
 // earned rather than bought.
@@ -452,9 +461,12 @@ function dirOn(point, centre, scale) {
 // Collar ring + per-style extras, shared by cat and chicken (which wear the
 // same collars at different sizes). `scale` shrinks the whole thing for the
 // chicken; the ring/charm anchor points are passed in by the caller.
+// A found collar (foundneck.js FOUND_COLLARS) takes its own ring colour and
+// is dressed after the shop's styles; the whole group is tagged as found.
 function buildCollar(style, ringR, tubeR, charmPos) {
+  const found = hasEntry(FOUND_COLLARS, style) ? FOUND_COLLARS[style] : null;
   const group = new THREE.Group();
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, tubeR, 6, 12), mat(COLLAR_COLORS[style] ?? 0xd84040));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, tubeR, 6, 12), mat(COLLAR_COLORS[style] ?? found?.ring ?? 0xd84040));
   ring.rotation.x = Math.PI / 2 - NECK_RING_TILT;
   ring.name = 'collarRing';
   group.add(ring);
@@ -500,7 +512,18 @@ function buildCollar(style, ringR, tubeR, charmPos) {
     charm.position.copy(charmPos);
     group.add(charm);
   }
+  if (found) {
+    found.dress(group, ring, { ringR, tubeR, charmPos });
+    tagFound([group], style);
+  }
   return group;
+}
+
+// Marks every mesh in `objs` (and under them) as found outfit `id`'s, so its
+// ground look can be made from the pieces the cat wears (src/foundwear/
+// display.js wornPieces). The hooks below call it on what they added.
+function tagFound(objs, id) {
+  for (const obj of objs) obj.traverse((o) => { if (o.isMesh) o.userData.foundWear = id; });
 }
 
 // A flat five-point star, extruded a hair so it has a face to catch light.
@@ -944,11 +967,22 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   // The rings sit ON his head (skull top ~0.137, ~0.10-0.12 under the ring),
   // round the comb, which pokes up through the middle like a real crown's.
   addPrizeHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06, ringY: 0.115 });
+  // found outfits (foundhead.js, foundface.js, foundneck.js), at the same anchors
+  let foundFrom = head.children.length;
+  addFoundHenHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06, ringY: 0.115 });
+  tagFound(head.children.slice(foundFrom), accessories.head);
   addPrizeFace(head, accessories.face, { k: 0.75, x: 0.09, y: 0.03, z: -0.1, starZ: -0.112, skull: [0.13, 0.13, 0.13] });
+  foundFrom = head.children.length;
+  addFoundFace(head, accessories.face, { k: 0.75, x: 0.09, y: 0.03, z: -0.1, starZ: -0.112, skull: [0.13, 0.13, 0.13] });
+  tagFound(head.children.slice(foundFrom), accessories.face);
   // the streamer scarf: its band and stripe ring the neck like the scarf; its
-  // streamers hang in front of the breast
+  // streamers hang in front of the breast. A found neck piece goes in with
+  // them, so its tori are re-rung the same way.
   const prizeNeck = new THREE.Group();
   addPrizeNeck(prizeNeck, accessories.neck, { k: 0.67, y: -0.11, z: -0.03, ringR: 0.155 });
+  foundFrom = prizeNeck.children.length;
+  addFoundNeck(prizeNeck, accessories.neck, { k: 0.67, y: -0.11, z: -0.03, ringR: 0.155, tilt: NECK_RING_TILT });
+  tagFound(prizeNeck.children.slice(foundFrom), accessories.neck);
   let rings = 0;
   for (const piece of [...prizeNeck.children]) {
     if (piece.geometry.type === 'TorusGeometry') {
@@ -1939,8 +1973,16 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // visit prizes (collar prizes go through buildCollar above; the head
   // prizes are hats now, built above)
   addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
+  // found outfits (foundface.js, foundneck.js), at the same anchors; the found
+  // neck piece inside the same window, so it is carried as neckwear
+  let foundFrom = head.children.length;
+  addFoundFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
+  tagFound(head.children.slice(foundFrom), accessories.face);
   neckFrom = head.children.length;
   addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15 + neckY, z: 0.08 + neckZ, ringR: 0.15, ringBack: NECK_RING_BACK.streamer });
+  foundFrom = head.children.length;
+  addFoundNeck(head, accessories.neck, { k: 1, y: -0.15 + neckY, z: 0.08 + neckZ, ringR: 0.15, ringBack: NECK_RING_BACK.streamer, tilt: NECK_RING_TILT });
+  tagFound(head.children.slice(foundFrom), accessories.neck);
   neckwear.push(...head.children.slice(neckFrom));
   if (neckwear.length) head.userData.neckwear = neckwear;
 
@@ -1988,13 +2030,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     geo.computeVertexNormals();
     const shell = new THREE.Mesh(geo, paint ? litMaterial(0xffffff, { vertexColors: true }) : mat(color));
     if (paint) {
+      // paint: true is the sweater's knit; a function (a found coat,
+      // foundbody.js) gives each vertex's colour from its unit direction
+      const painter = paint === true ? sweaterStripes : paint;
       const unit = geo.userData.unit, n = geo.attributes.position.count;
-      const base = new THREE.Color(SWEATER_BASE), stripe = new THREE.Color(SWEATER_STRIPE);
-      const col = new Float32Array(n * 3);
+      const col = new Float32Array(n * 3), c = new THREE.Color();
       for (let i = 0; i < n; i++) {
-        const z = unit[i * 3 + 2];
-        const on = SWEATER_STRIPE_Z.some((zi) => Math.abs(z - zi) < 0.088);
-        const c = on ? stripe : base;
+        c.setHex(painter(unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2]));
         col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
       }
       geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -2009,7 +2051,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // buildHood), so it follows every pose with the coat.
   // With a backpack, jetpack or wings on, the hood presses flat as it slides
   // back (tuck), under the pack rather than into it.
-  const tuck = accessories.back === 'backpack' || accessories.back === 'jetpack' || accessories.back === 'wings';
+  const tuck = isPack(accessories.back);
   const hoodOn = (color, drawstrings) => body.add(buildHood(color, { bodyScale: BODY_SCALE, simple: !!opts.simple, drawstrings, tuck }));
   // A cape is a cloak on the body (CAPE): the cloth shell, its two front
   // edges running from the shoulders to ONE gold clasp at the throat (cape.js
@@ -2047,10 +2089,21 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     sit.addEventListener('dispose', both);
     return { stand, sit };
   };
-  const capeOn = (color, accent) => {
-    const material = mat(color);
+  // paint(a, s) -> hex (a found cape, foundbody.js) colours both cloths over
+  // their (a, s) grid; without it the cloth is plain `color`.
+  const paintCape = (geo, paint) => {
+    const [na, ns] = geo.userData.grid, col = new Float32Array(geo.attributes.position.count * 3), c = new THREE.Color();
+    for (let j = 0; j <= ns; j++) {
+      for (let i = 0; i <= na; i++) c.setHex(paint(-1 + (2 * i) / na, j / ns)).toArray(col, (j * (na + 1) + i) * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return geo;
+  };
+  const capeOn = (color, accent, paint = null) => {
+    const material = paint ? litMaterial(0xffffff, { vertexColors: true }) : mat(color);
     material.side = THREE.DoubleSide;
     const geo = sitPair(capeGeometry(opts.simple), capeGeometry(opts.simple, CAPE_SIT));
+    if (paint) { paintCape(geo.stand, paint); paintCape(geo.sit, paint); }
     const cape = new THREE.Mesh(geo.stand, material);
     cape.userData.cape = true;
     cape.userData.capeGeo = geo;
@@ -2058,7 +2111,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     body.add(cape);
     // the throat: the collar's seat + its charm's hang, head frame
     const throat = [COLLAR_CHARM[0], -0.14 + neckY + COLLAR_CHARM[1], 0.1 + neckZ + COLLAR_CHARM[2]];
-    const taken = CHARMED.has(collarStyle) || !!accessories.neck;
+    const taken = isCharmed(collarStyle) || !!accessories.neck;
     const tieMaterial = litMaterial(0xffffff, { vertexColors: true });
     tieMaterial.side = THREE.DoubleSide;
     const shape = { bs: BODY_SCALE, cy: TORSO.CENTRE_Y, chestCentre: underside.userData.chestCentre, balls: underside.geometry.userData.balls };
@@ -2108,15 +2161,21 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
   } else if (accessories.body === 'sweater') {
     coatShell(null, true); // knit stripes are painted: one mesh
+  } else if (hasEntry(FOUND_BODY, accessories.body)) {
+    // a found cape or coat (foundbody.js), built as the shop's are
+    const found = FOUND_BODY[accessories.body], from = body.children.length;
+    if (found.kind === 'cape') capeOn(found.colour, found.accent, found.paint ?? null);
+    else coatShell(found.colour, found.paint);
+    tagFound(body.children.slice(from), accessories.body);
   }
 
   // back: the backpack, jetpack and wings are shaped things built ON the
   // torso and hung on the body (backitems.js, accessories polish Task 2), so
   // they follow every pose; each rests on whatever is outermost on the back —
   // the cape's cloth, a coat shell or the fur. The balloons (below) float.
-  if (accessories.back === 'backpack' || accessories.back === 'jetpack' || accessories.back === 'wings') {
-    const isCape = accessories.body === 'cape' || accessories.body === 'confetticape';
-    const isShell = accessories.body === 'hoodie' || accessories.body === 'raincoat' || accessories.body === 'sweater';
+  if (isPack(accessories.back)) {
+    const isCape = bodyKind(accessories.body) === 'cape';
+    const isShell = bodyKind(accessories.body) === 'shell';
     const cover = isCape ? 'cape' : isShell ? 'shell' : 'fur';
     for (const item of buildBackItem(accessories.back, { bodyScale: BODY_SCALE, cover, simple: !!opts.simple })) body.add(item);
   }
@@ -2161,6 +2220,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const balloon = ball(0.09, BALLOON_COLOR, 1, 1.15, 1, 10, 8);
     balloon.position.set(0.06, 1.0, 0.2);
     floatOn(balloon, foot);
+  } else if (hasEntry(FOUND_FLOATS, accessories.back)) {
+    // a found thing floating on strings (foundbody.js), with the balloons' kit
+    const from = g.children.length;
+    FOUND_FLOATS[accessories.back]({ onBack, floatOn, floatString, ball, mat });
+    tagFound(g.children.slice(from), accessories.back);
   }
 
 
@@ -2210,6 +2274,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       leg.userData.paw.material = mat(SOCK_COLORS[i % SOCK_COLORS.length]);
       leg.userData.paw.scale.set(1.1, 1.3, 1.1);
     });
+  } else if (hasEntry(FOUND_FEET, accessories.feet)) {
+    // found boots (foundfeet.js): each paw, and what is hung on each leg, is tagged
+    const from = legs.map((leg) => leg.children.length);
+    FOUND_FEET[accessories.feet](legs, { plainPaw, mat, PAW_Y });
+    legs.forEach((leg, i) => tagFound([leg.userData.paw, ...leg.children.slice(from[i])], accessories.feet));
   }
 
   // A feet item that makes the paw taller (scale.y > 1) would push its sole
