@@ -1887,8 +1887,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   background: rgba(20, 28, 42, .78); color: #fff; font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
 .wm-card button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
-/* ===== phone: one column, no scrolling ===== */
-@media (max-width: 600px) {
+/* ===== phone and iPad portrait: one column, no scrolling ===== */
+@media (max-width: 600px), (orientation: portrait) and (max-width: 1100px) {
   .dr { column-gap: 10px; row-gap: 10px; padding: max(10px, env(safe-area-inset-top)) 14px 0;
     grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
     grid-template-rows: auto minmax(0, 1fr) auto auto;

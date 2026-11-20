@@ -20,7 +20,6 @@ import { PAW } from './pawicon.js';
 import { sanitizeOutfits, wornNow, sameWear, canSaveOutfit, OUTFIT_SLOTS, OUTFIT_MAX } from '../outfits.js';
 import { escapeHtml } from '../escapehtml.js';
 import { areaOffer } from '../areaoffer.js';
-import { phrase } from '../clanphrases.js';
 import { spotsIn } from '../foundwear/spots/index.js';
 
 // Launch A (2026-11-05): home holds the cat, the place and Start; every other
