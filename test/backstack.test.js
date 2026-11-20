@@ -357,3 +357,12 @@ describe('wiring', () => {
     expect(src).toMatch(/pushState\(\{ \[BACK_KEY\]: pos \+ 1 \}, ''\)/);
   });
 });
+
+describe('found outfits: Back and the find card', () => {
+  it('Back with the card up is Later', () => {
+    expect(walkBackAction({ walking: true, findCard: true, engaged: false })).toBe('find-later');
+    expect(walkBackAction({ walking: true, shop: true, findCard: true })).toBe('shop-done');
+    expect(walkBackAction({ walking: true, findCard: true, crossing: true })).toBe('find-later');
+    expect(walkBackAction({ walking: false, findCard: true })).toBe(null);
+  });
+});
