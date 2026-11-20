@@ -6,11 +6,14 @@
 // woodsUndergrowth), and every one is inside the old core (x and z within
 // 50), so it is the same with the ?grow=1 south strip on or off. None is
 // within 15 m of the spawn, in the camp, within 3 m of either yarn-ball spot
-// (src/propsets.js) or within 2 m of a golden mouse (src/goldmice.js). The bluebell patches are woodsFloor()'s.
+// (src/propsets.js) or within 2 m of a golden mouse at its own height
+// (src/goldmice.js). The bluebell patches are woodsFloor()'s.
 export const WOODS_SPOTS = Object.freeze([
-  // on the mossy boulder, the first step of the Great Oak chain: 0.4 m off its
-  // perch, on the side away from gm-woods-1 on the branch, so 2 m clear of it
-  { id: 'fw-woods-1', x: 7.78, z: 19.66, y: 0.72, look: 'perch' },
+  // on top of the mossy boulder (8, 20), the first step of the Great Oak
+  // chain: on its ridge (the dodecahedron's top edge, 0.767 m), sunk a little
+  // into the moss so it rests on the stone. gm-woods-1 on the branch is 1.6 m
+  // off sideways but 1.36 m higher, so their pick-up windows never meet
+  { id: 'fw-woods-1', x: 8, z: 20, y: 0.74, look: 'perch' },
   // tucked against the fallen log's north end, at the clearing's edge
   { id: 'fw-woods-2', x: -3, z: 12.9, y: 0, look: 'post' },
   // among the bluebells south of the Great Oak

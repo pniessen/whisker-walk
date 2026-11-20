@@ -26,16 +26,34 @@ const { perchHops } = await import('./helpers/findreach.js');
 const { SPAWN_CLEAR, PICKUP } = await import('../src/foundwear/rules.js');
 const { FIND_LOOKS, SPOT_ID, FIND_SPOTS, spotsIn, findSpotsKey, FIND_KEY } = await import('../src/foundwear/spots/index.js');
 const { yarnSpotsFor } = await import('../src/propsets.js');
+const { groundOf } = await import('../src/ground.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 
 const YARN_CLEAR = 3;
 const THING_CLEAR = 2;
 
-const BUILDERS = { park: '../src/world/park.js', woods: '../src/world/woods.js' };
+// Every walk area's builder. The tests below run for each one that has spots
+// (src/foundwear/spots/index.js), so a new area's spots file is all it needs.
+const ALL_BUILDERS = {
+  neighborhood: '../src/world/neighborhood.js', park: '../src/world/park.js', seaside: '../src/world/seaside.js',
+  docks: '../src/world/docks.js', woods: '../src/world/woods.js', river: '../src/world/river.js',
+  moor: '../src/world/moor.js', pines: '../src/world/pines.js', gorge: '../src/world/gorge.js',
+  farm: '../src/world/farm.js', fair: '../src/world/fair.js',
+};
+const BUILDERS = Object.fromEntries(Object.entries(ALL_BUILDERS).filter(([id]) => spotsIn(id).length > 0));
+it('every area with spots has a builder here', () => {
+  for (const id of Object.keys(FIND_SPOTS)) expect(Object.hasOwn(ALL_BUILDERS, id), id).toBe(true);
+  expect(Object.keys(BUILDERS).sort()).toEqual(Object.keys(FIND_SPOTS).filter((id) => spotsIn(id).length > 0).sort());
+});
+// How near the stone, the seat or the rim under a raised spot must be.
+const REST_TOL = 0.05;
 describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
-  let area, flood;
+  let area, flood, scene, ground;
   beforeAll(async () => {
-    area = (await import(BUILDERS[areaId])).build(new THREE.Scene());
+    scene = new THREE.Scene();
+    area = (await import(BUILDERS[areaId])).build(scene);
+    scene.updateMatrixWorld(true);
+    ground = groundOf(area);
     const stand = (x, z) => isWalkableAt(area, x, z) || isWadeableAt(area, x, z);
     flood = floodFrom(area, area.spawn, stand);
   });
@@ -67,14 +85,34 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
   it('at least a third need no climbing', () => {
     expect(spots().filter((s) => s.y === 0).length).toBeGreaterThanOrEqual(Math.ceil(spots().length / 3));
   });
+  // A raised find lies on the boulder, the bench or the rim, never in the air
+  // beside it: straight down from 0.3 m above it the first thing of the area's
+  // own (not grass, water, the sky or a sprite) is within REST_TOL of it.
+  it('every raised spot rests on something', () => {
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    for (const s of spots().filter((t) => t.y > 0)) {
+      const y = ground.y(s.x, s.z) + s.y;
+      ray.set(new THREE.Vector3(s.x, y + 0.3, s.z), down);
+      ray.far = 0.3 + 1;
+      const hit = ray.intersectObjects(scene.children, true).find((h) => h.object.isMesh && h.object.visible !== false
+        && !/grass|water|sky/i.test(h.object.name ?? '') && !h.object.isSprite);
+      expect(hit, `${s.id}: nothing under it`).toBeTruthy();
+      expect(Math.abs(hit.point.y - y), `${s.id}: ${hit.point.y.toFixed(3)} under a find at ${y.toFixed(3)}`).toBeLessThan(REST_TOL);
+    }
+  });
   // Two things in one pick-up window would be taken at once: two chimes, two
-  // cards, two nose targets. So no find within 2 m of a golden mouse (at any
-  // height) or of a collectible at its own height.
+  // cards, two nose targets. So no find within 2 m of a golden mouse or a
+  // collectible at its own height (the pick-up window's rule, PICKUP.dy): a
+  // find on a boulder is not taken with a mouse up the oak above it.
   it('never beside a golden mouse or a collectible: 2 m clear', () => {
     const mice = GOLD_MICE[areaId] ?? [];
     expect(mice.length).toBeGreaterThan(0);
     for (const s of spots()) {
-      for (const m of mice) expect(Math.hypot(s.x - m.x, s.z - m.z), `${s.id} by ${m.id}`).toBeGreaterThanOrEqual(THING_CLEAR);
+      for (const m of mice) {
+        if (Math.abs((m.y ?? 0) - s.y) >= PICKUP.dy) continue;
+        expect(Math.hypot(s.x - m.x, s.z - m.z), `${s.id} by ${m.id}`).toBeGreaterThanOrEqual(THING_CLEAR);
+      }
       for (const c of area.collectibles) {
         if (Math.abs((c.y ?? 0) - s.y) >= PICKUP.dy) continue;
         expect(Math.hypot(s.x - c.x, s.z - c.z), `${s.id} by ${c.id}`).toBeGreaterThanOrEqual(THING_CLEAR);
