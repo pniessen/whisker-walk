@@ -17,6 +17,7 @@ import { buildHat, lyingClip } from '../cat/hats.js';
 import { buildCat } from '../cat/model.js';
 import { buildFoldedJumper } from '../cat/foundbody.js';
 import { STRAP_GREY } from '../cat/backitems.js';
+import { bodyKind } from '../cat/wearkind.js';
 import { animateCat } from '../cat/animator.js';
 import { litMaterial } from '../render/materials.js';
 import { foundRecord } from './index.js';
@@ -77,7 +78,8 @@ export const DISPLAY_BY_SLOT = Object.freeze({
   // tickets, a charm) folds up level with the ring instead of holding it up
   neck: (id) => settled(wornPieces(id)),
   collar: (id) => settled(wornPieces(id)),
-  body: wornPieces,
+  // a cape dropped lies in a low heap of cloth, not standing as an arch
+  body: (id) => (bodyKind(id) === 'cape' ? settled(wornPieces(id), 0.3) : wornPieces(id)),
   back: wornPieces,
   feet: wornPieces,
 });
@@ -122,6 +124,10 @@ export const DISPLAY_BY_ID = Object.freeze({
   featherplume: lyingClip,
   // the glasses rest tipped back on their rims, lenses to the sky
   heartglasses: (id) => tipped(wornPieces(id), 1.0),
+  // the kite and its tail of bows lie along the grass, faces up; the
+  // candyfloss lies on its side, the stick in the grass
+  kitetailribbon: (id) => { const g = tipped(wornPieces(id), -1.4); if (g) { g.rotation.order = 'YXZ'; g.rotation.y = 1.2; } return g; },
+  candyflosspuff: (id) => tipped(wornPieces(id), 0, 1.35),
 });
 
 // A worn group pressed down to `k` of its height, as a soft thing settles.
@@ -130,9 +136,10 @@ function settled(group, k = 0.65) {
   return group;
 }
 
-// A worn group tipped back about x (its front, -z, turned up by `a` radians).
-function tipped(group, a) {
-  if (group) group.rotation.x = a;
+// A worn group tipped back about x (its front, -z, turned up by `a` radians)
+// and rolled `b` radians about z.
+function tipped(group, a, b = 0) {
+  if (group) group.rotation.set(a, 0, b);
   return group;
 }
 

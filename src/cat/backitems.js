@@ -357,18 +357,22 @@ function packTrims(h, lift, simple, K) {
   return [flap, buckle, pocket];
 }
 
-// The Hay-bale Backpack (found outfits step 2) is this pack with a straw bale
-// for its body: the same rounded box 1.1 times larger, the same bend, seat and
-// straps, no flap, buckle or pocket, two twine bands round it and a few loose
-// strands on top.
-const HAY = Object.freeze({ size: 1.1, straw: 0xd9b75a, dark: 0xb8963e, twine: 0x8a6a3a, bandX: 0.42, bandW: 0.0075, off: 0.003 });
+// The Hay-bale Backpack (found outfits step 2; beauty pass) is this pack with
+// a straw bale for its body: the same rounded box 1.2 times larger and finer,
+// the same bend, seat and straps, no flap, buckle or pocket. Its straw runs
+// in streaks along the bale (three straw tones by height and depth, so every
+// vertex along a streak shares one), its two ends are the cut stalks, darker
+// and speckled; two twine bands round it, and loose stalks poke out of its top
+// and ends.
+const HAY = Object.freeze({ size: 1.2, straw: 0xd9b75a, dark: 0xb8963e, light: 0xecd27e, cut: 0xa8852e, twine: 0x8a5a2a, bandX: 0.42, bandW: 0.008, off: 0.003 });
 function hayColour(h) {
   return (x, y, z) => {
     if (y < -h[1] + 0.012) return shade(HAY.dark, 0.85);
-    return (Math.round(z * 45) + Math.round(y * 45)) & 1 ? HAY.dark : HAY.straw;
+    if (Math.abs(x) > h[0] - 0.014) return (Math.round(y * 160) + Math.round(z * 140)) & 1 ? HAY.cut : HAY.dark;
+    return [HAY.straw, HAY.light, HAY.dark][(((Math.round(y * 70) + 2 * Math.round(z * 55)) % 3) + 3) % 3];
   };
 }
-// two twine bands round the bale's short way (in y-z), a few loose strands up
+// two twine bands round the bale's short way (in y-z), loose stalks out of its top and ends
 function hayTrims(h, lift, simple) {
   const around = simple ? 12 : 24;
   const bands = [-1, 1].map((side) => grid(around, 2, { wrapU: true }, (i, j) => {
@@ -379,11 +383,14 @@ function hayTrims(h, lift, simple) {
     const [p, n] = rbPoint(new THREE.Vector3(x, dy * k, dz * k), h, PACK.r, HAY.off);
     return { p: p.add(new THREE.Vector3(0, lift, 0)), c: HAY.twine, out: n };
   }));
-  const strands = [[-0.04, 0.02, 0.4], [0.03, -0.03, -0.5], [0.07, 0.04, 0.3]].map(([x, z, lean], i) => {
-    const g = paint(new THREE.ConeGeometry(0.0035, 0.034, 3, 1), i % 2 ? HAY.straw : HAY.dark);
+  // [x share of the half-length, z, lean about z, lean about x, on an end]
+  const STALKS = [[-0.4, 0.02, 0.4, 0.2], [0.3, -0.03, -0.5, -0.1], [0.7, 0.04, 0.3, 0.3], [-0.75, -0.02, -0.3, -0.25], [0.05, 0.05, 0.15, 0.5],
+    [-1, 0.01, 1.3, 0.2, 1], [1, -0.02, -1.25, -0.1, 1], [1, 0.03, -1.45, 0.3, 1]];
+  const strands = (simple ? STALKS.slice(0, 3) : STALKS).map(([x, z, lean, tip, end], i) => {
+    const g = paint(new THREE.ConeGeometry(0.0035, 0.042, 3, 1), [HAY.light, HAY.straw, HAY.dark][i % 3]);
     g.deleteAttribute('uv');
-    g.rotateZ(lean);
-    g.translate(x * (h[0] / 0.1), lift + h[1] + 0.012, z);
+    g.rotateX(tip).rotateZ(lean);
+    g.translate(x * (h[0] - (end ? 0.004 : 0.03)), lift + (end ? 0.004 : h[1] + 0.012), z);
     return g;
   });
   return [...bands, ...strands];
@@ -393,7 +400,7 @@ function backpack({ bodyScale, cover, simple, fx }, hay = false) {
   const sz = hay ? HAY.size : 1;
   const h = [PACK.size[0] / 2 * fx * sz, PACK.size[1] / 2 * sz, PACK.size[2] / 2 * sz], K = PACK.k;
   const lift = h[1];   // the item frame's origin is on the surface; the pack stands on it
-  const body = roundedBox(h, PACK.r, simple ? [4, 2, 3] : [7, 4, 6], hay ? hayColour(h) : (x, y, z) => (y < -h[1] + 0.012 * K ? shade(PACK_BLUE, 0.85) : PACK_BLUE));
+  const body = roundedBox(h, PACK.r, simple ? (hay ? [5, 2, 4] : [4, 2, 3]) : hay ? [9, 4, 7] : [7, 4, 6], hay ? hayColour(h) : (x, y, z) => (y < -h[1] + 0.012 * K ? shade(PACK_BLUE, 0.85) : PACK_BLUE));
   body.translate(0, lift, 0);
   const parts = hay ? [body, ...hayTrims(h, lift, simple)] : [body, ...packTrims(h, lift, simple, K)];
   // soft: the top domes up to PACK.puff in the middle and the sides belly out
