@@ -185,3 +185,61 @@ describe('the Rooftops behind ?roofs=1', () => {
     expect(made.strays).toHaveLength(0);
   });
 });
+
+// =============================================================================
+// Task 11: the unlock, written and tested on a copy of the catalog, not live.
+// =============================================================================
+describe('the Rooftops unlock (held back from the real catalog, R1)', async () => {
+  const { areaOffer, KEPT_OFFERS } = await import('../src/areaoffer.js');
+  const { nextThing } = await import('../src/ui/nextthing.js');
+  const { placeState } = await import('../src/territories.js');
+  const { withRoofs } = await import('./helpers/withroofs.js');
+  const fresh = () => createProgression(memStorage()).state;
+  const atFair = (fairWalks, extra = {}) => {
+    const s = fresh();
+    return { ...s, walks: { ...s.walks, fair: fairWalks }, unlocked: { ...s.unlocked, areas: [...s.unlocked.areas, 'fair'] }, area: 'fair', edition: 'legacy', ...extra };
+  };
+
+  it('the offer: after 2 Fairground walks, for 100', () => {
+    const cat = withRoofs(CATALOG);
+    const want = { requires: { area: 'fair', walks: 2 }, price: 100 };
+    expect(areaOffer(atFair(0), cat, 'roofs')).toEqual(want);
+    expect(areaOffer({ ...atFair(0), keptOffers: ['roofs'] }, cat, 'roofs')).toEqual(want);
+    expect(KEPT_OFFERS.roofs).toBeUndefined();
+  });
+
+  it('withRoofs puts it after the Fairground and never changes its input', () => {
+    const frozen = JSON.stringify(CATALOG.areas);
+    const ids = Object.keys(withRoofs(CATALOG).areas);
+    expect(ids[ids.indexOf('fair') + 1]).toBe('roofs');
+    expect(JSON.stringify(CATALOG.areas)).toBe(frozen);
+    expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false);
+  });
+
+  it('the Fairground’s home line names it', () => {
+    const s = atFair(1);
+    const line = nextThing(s, { catalog: withRoofs(CATALOG) });
+    expect(line).toMatchObject({ rule: 7, id: 'home.opens' });
+    expect(line.text).toBe('Explore here again to open the Rooftops!');
+  });
+
+  it('locked, then open to buy, then bought', () => {
+    const cat = withRoofs(CATALOG);
+    const rich = (s) => ({ ...s, points: 500 });
+    const locked = placeState(rich(atFair(0)), cat, 'roofs');
+    expect(locked).toMatchObject({ locked: true, canOpen: false, owned: false, price: 100 });
+    const open = placeState(rich(atFair(2)), cat, 'roofs');
+    expect(open).toMatchObject({ locked: false, canOpen: true, owned: false, price: 100 });
+    const s = atFair(2);
+    const bought = placeState({ ...s, points: 500, unlocked: { ...s.unlocked, areas: [...s.unlocked.areas, 'roofs'] } }, cat, 'roofs');
+    expect(bought).toMatchObject({ owned: true, locked: false, canOpen: false });
+  });
+
+  it('nothing in the real catalog offers it', () => {
+    for (const walks of [0, 1, 2, 5]) {
+      const line = nextThing({ ...atFair(walks), points: 9999 }, { catalog: CATALOG });
+      expect(JSON.stringify(line)).not.toMatch(/Rooftops|roofs/);
+    }
+    expect(placeState(atFair(2), CATALOG, 'roofs').line).toBe('coming soon');
+  });
+});

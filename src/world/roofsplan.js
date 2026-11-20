@@ -517,7 +517,7 @@ export const ROOFS_REGISTRATION = Object.freeze({
   id: 'roofs',
   // src/progression.js CATALOG.areas: held back (R1). Task 11 fills it, and
   // step 4 copies it into the catalog once co-walkers can see height.
-  catalog: null,
+  catalog: Object.freeze({ name: 'The Rooftops', price: 100, requires: Object.freeze({ area: 'fair', walks: 2 }) }),
   // src/propsets.js SETS.roofs
   propSet: Object.freeze({
     carryables: Object.freeze([
