@@ -280,6 +280,7 @@ describe('the balance walk', () => {
 
 const { traversalEventEffects } = await import('../src/traversallive.js');
 const { BASE_ABILITIES, LOOK_TIME, arcPoint } = await import('../src/traversal.js');
+const T = await import('../src/traversal.js');
 
 const hopById = (w, id) => w.area.traversal.hops.find((h) => h.id === id);
 
@@ -511,6 +512,55 @@ describe('the leap and the drop', () => {
     expect(land([0.05])).toEqual(a);
     expect(land([1 / 60, 0, 0, 1 / 30])).toEqual(a);
     expect(land([1 / 60], true)).toEqual(a); // reduced motion: the same landing
+  });
+
+  it('turns and glides smoothly into the spring from any approach, with or without reduced motion', () => {
+    const { WALK_SPEED } = T;
+    const deg = Math.PI / 180;
+    const worst = { turn: 0, spring: 0, glide: 0 };
+    const tryHop = (id, offset, angle, reducedMotion) => {
+      const probe = yardWalk({ at: [0, 14] });
+      const hop = hopById(probe, id);
+      const ux = (hop.x1 - hop.x0) / hop.dist;
+      const uz = (hop.z1 - hop.z0) / hop.dist;
+      const at = [hop.x0 + offset[0] * ux - offset[1] * uz, hop.z0 + offset[0] * uz + offset[1] * ux];
+      const c = Math.cos(angle);
+      const sn = Math.sin(angle);
+      const w = yardWalk({ at, face: [ux * c + uz * sn, -ux * sn + uz * c], reducedMotion });
+      const hopYaw = facingYaw(ux, uz);
+      expect(w.jump()).toBe(true);
+      expect(w.live.hop?.id).toBe(id);
+      let yaw = w.cat.rotation.y;
+      let x = w.cat.position.x;
+      let z = w.cat.position.z;
+      let sprung = false;
+      for (let i = 0; i < 1000 && w.live.busy; i++) {
+        const dt = 1 / 60;
+        w.frame(dt);
+        const phase = w.live.phase;
+        worst.turn = Math.max(worst.turn, Math.abs(angleDiff(w.cat.rotation.y, yaw)));
+        if (phase === 'crouch') worst.glide = Math.max(worst.glide, Math.hypot(w.cat.position.x - x, w.cat.position.z - z) / dt);
+        else if (!sprung) {
+          sprung = true;
+          worst.spring = Math.max(worst.spring, Math.abs(angleDiff(w.cat.rotation.y, hopYaw)));
+        }
+        yaw = w.cat.rotation.y;
+        x = w.cat.position.x;
+        z = w.cat.position.z;
+      }
+      expect(sprung).toBe(true);
+      expect(w.live.busy).toBe(false);
+      expect(w.cat.position.x).toBe(hop.x1); expect(w.cat.position.z).toBe(hop.z1); // it always lands
+    };
+    for (const id of ['climb-1', 'drop-1', 'gap-1']) {
+      for (const reducedMotion of [false, true]) {
+        for (const a of [0, 45, -45, 90, -90, 135, -135]) tryHop(id, [-0.6, 0], a * deg, reducedMotion);
+        for (const side of [0.85, -0.85]) tryHop(id, [0, side], 0, reducedMotion); // the longest glide, sideways
+      }
+    }
+    expect(worst.turn).toBeLessThanOrEqual(0.17);
+    expect(worst.spring).toBeLessThan(0.06);
+    expect(worst.glide).toBeLessThanOrEqual(WALK_SPEED + 1e-9);
   });
 
   it('reduced motion shortens the crouch and the landing, and nothing else', () => {

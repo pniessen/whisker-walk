@@ -86,6 +86,26 @@ it('SPOT_BODY is the player’s CAT_RADIUS', async () => {
   expect(src).toContain(`export const CAT_RADIUS = ${T.SPOT_BODY};`);
 });
 
+it('WALK_SPEED is the player’s walk pace', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
+  expect(src).toContain(`let pace = ${T.WALK_SPEED};`);
+});
+
+it('wrapPi gives the shortest signed angle, in (-PI, PI]', () => {
+  expect(T.wrapPi(0)).toBe(0);
+  expect(T.wrapPi(Math.PI)).toBeCloseTo(Math.PI, 12);
+  expect(T.wrapPi(-Math.PI)).toBeCloseTo(Math.PI, 12);
+  expect(T.wrapPi(1.5 * Math.PI)).toBeCloseTo(-0.5 * Math.PI, 12);
+  expect(T.wrapPi(-1.5 * Math.PI)).toBeCloseTo(0.5 * Math.PI, 12);
+  expect(T.wrapPi(7)).toBeCloseTo(7 - 2 * Math.PI, 12);
+  for (let a = -20; a <= 20; a += 0.37) {
+    const d = T.wrapPi(a);
+    expect(d).toBeGreaterThan(-Math.PI);
+    expect(d).toBeLessThanOrEqual(Math.PI);
+    expect(Math.cos(d)).toBeCloseTo(Math.cos(a), 9); expect(Math.sin(d)).toBeCloseTo(Math.sin(a), 9);
+  }
+});
+
 describe('mounting', () => {
   const t = T.createTraversal({ crossings: [plank] }, level);
   const out = { crossing: null, end: 0, u: 0 };
@@ -193,7 +213,28 @@ describe('planHop and hopAt', () => {
     expect(p.air).toBeCloseTo(T.HOP.leap.air + T.HOP.leap.airPerM * leap.dist, 12);
     expect(p.total).toBeCloseTo(p.crouch + p.air + p.land, 12);
     const r = plan(leap, true);
-    expect(r).toMatchObject({ crouch: T.HOP.leap.crouchRM, land: T.HOP.leap.landRM, hang: 0, air: p.air });
+    expect(r).toMatchObject({ land: T.HOP.leap.landRM, hang: 0, air: p.air });
+    // reduced motion's short crouch, but never a glide faster than her walk (0.6 m here)
+    expect(r.crouch).toBeCloseTo(Math.max(T.HOP.leap.crouchRM, (1.5 * 0.6) / T.WALK_SPEED), 12);
+    expect(r.crouch).toBeLessThan(p.crouch);
+  });
+  it('stretches the crouch for a big turn or a long glide, so neither outruns her', () => {
+    const base = plan(); // 0.6 m glide, no turn: the table's crouch
+    expect(base.crouch).toBe(T.HOP.leap.crouch);
+    for (const rm of [false, true]) {
+      const floor = rm ? T.HOP.leap.crouchRM : T.HOP.leap.crouch;
+      const turn = T.planHop(leap, leap.x0 - 0.6, leap.z0, rm, {}, -2.4);
+      expect(turn.crouch).toBeCloseTo(Math.max(floor, (1.5 * 2.4) / T.TURN_RATE), 12);
+      const glide = T.planHop(leap, leap.x0, leap.z0 + 0.9, rm, {});
+      expect(glide.crouch).toBeCloseTo(Math.max(floor, (1.5 * 0.9) / T.WALK_SPEED), 12);
+      expect(turn.total).toBeCloseTo(turn.crouch + turn.air + turn.land, 12);
+    }
+    // a climb's short crouch is the one that stretches
+    const up = createGround({ strips: [{ x0: -4, z0: 0, x1: 0, z1: 0, width: 4, y0: 0 }, { x0: 0, z0: 0, x1: 4, z1: 0, width: 4, y0: 1.5 }] });
+    const climb = T.createTraversal({ climbs: [{ id: 'c', from: { x: -0.8, z: 0 }, to: { x: 0.6, z: 0 } }] }, up).hops[0];
+    const c = T.planHop(climb, climb.x0 - 0.9, climb.z0, false, {}, Math.PI);
+    expect(c.crouch).toBeCloseTo((1.5 * Math.PI) / T.TURN_RATE, 12);
+    expect(c.air).toBe(T.planHop(climb, climb.x0, climb.z0, false, {}).air); // the arc is the same
   });
   it('times a drop by its fall, not its reach', () => {
     const g = createGround({ strips: [{ x0: -6, z0: 0, x1: -2, z1: 0, width: 4, y0: 3 }, { x0: -2, z0: 0, x1: 2, z1: 0, width: 4, y0: 1 }] });

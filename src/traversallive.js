@@ -46,8 +46,9 @@
 // no wobble, sway, wiggle, leap pitch or bounce (the tail held out, the pitch
 // to the rail and the look's ears are poses, and stay). Hagrid's parts and
 // any missing part are left alone. Gameplay never reads what late() writes:
-// a hop's crouch turn runs on its own yaw (crouchYaw), and every other move
-// sets her position and yaw outright before the next late().
+// a hop's crouch turn is a function of the time into it (crouchFrom plus a
+// share of crouchTurn), and every other move sets her position and yaw
+// outright before the next late().
 //
 // DETERMINISTIC: every motion is a function of the data, the stick and dt.
 // ALLOCATION: update(), jump() and late() allocate nothing; the scratch
@@ -57,7 +58,7 @@
 import {
   BASE_ABILITIES, ALONG_DEAD, SNAP_EASE, TURN_RATE, CAM_FOLLOW_RATE, CAM_TURN_MAX, LOOK_TIME,
   crossingPoint, crossingToMount, balanceStep, spotFor, planHop, hopAt,
-  stickToWorld, facingYaw, behindYaw, easeYawToward,
+  stickToWorld, facingYaw, behindYaw, easeYawToward, wrapPi,
 } from './traversal.js';
 
 const EPS = 1e-9;
@@ -162,7 +163,10 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
   let hop = null;
   let elapsed = 0;
   let hopYaw = 0;
-  let crouchYaw = 0; // her yaw turning to hopYaw in the crouch, kept apart from late()'s wiggle
+  // Her yaw at the press and the short turn from it to hopYaw: the crouch
+  // eases through it on hopAt's smoothstep, so late()'s wiggle never carries.
+  let crouchFrom = 0;
+  let crouchTurn = 0;
   let sprung = false;
   let landed = false;
   // The look: the hop she is looking along, and for how long so far. A stick
@@ -334,8 +338,9 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
     cat.position.set(at.x, at.y, at.z);
     // 2. Face the landing: turning to it in the crouch, exactly on it after.
     if (at.phase === 'crouch') {
-      crouchYaw = easeYawToward(crouchYaw, hopYaw, d, TURN_RATE, TURN_RATE);
-      cat.rotation.y = crouchYaw;
+      const tau = at.tau;
+      const m = tau * tau * (3 - 2 * tau); // hopAt's smoothstep for x and z
+      cat.rotation.y = crouchFrom + crouchTurn * m;
     } else {
       cat.rotation.y = hopYaw;
     }
@@ -438,8 +443,9 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
       looking = null;
       hop = h;
       hopYaw = yaw;
-      crouchYaw = ry;
-      planHop(h, p.x, p.z, reducedMotion, plan);
+      crouchFrom = ry;
+      crouchTurn = wrapPi(yaw - ry);
+      planHop(h, p.x, p.z, reducedMotion, plan, crouchTurn);
       elapsed = 0;
       sprung = false;
       landed = false;
@@ -493,9 +499,12 @@ export function createTraversalLive(trav, { ground, reducedMotion = false, abili
       }
       if (hop) {
         if (at.phase === 'crouch') {
-          // The rump wiggle, late in the crouch (elapsed is the time into it).
-          if (!reducedMotion && elapsed / plan.crouch >= WIGGLE.from) {
-            cat.rotation.y += WIGGLE.yaw * Math.sin(WIGGLE.rate * elapsed);
+          // The rump wiggle, late in the crouch (elapsed is the time into
+          // it), under an envelope that starts and ends it at nothing.
+          const tau = elapsed / plan.crouch;
+          if (!reducedMotion && tau >= WIGGLE.from) {
+            const env = Math.sin((Math.PI * (tau - WIGGLE.from)) / (1 - WIGGLE.from));
+            cat.rotation.y += WIGGLE.yaw * env * Math.sin(WIGGLE.rate * elapsed);
           }
         } else if (at.phase === 'air') {
           if (hop.kind === 'leap') {

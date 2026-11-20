@@ -39,7 +39,8 @@ export const ALONG_DEAD = 0.25; // an along-crossing push smaller than this does
 export const BALANCE_SPEED = 1.2; // m/s, "a careful walk" (her walk is 3.5)
 export const TIGHTROPE_SPEED = 1.7; // m/s, with Tightrope Tail (step 4 earns it)
 export const BALANCE_EASE = 6; // 1/s
-export const TURN_RATE = 9; // rad/s, her turn on a crossing
+export const TURN_RATE = 9; // rad/s, her turn on a crossing (and her fastest turn in a hop's crouch)
+export const WALK_SPEED = 3.5; // m/s, = player.js's walk pace (tested); a hop's crouch never glides her faster
 export const SNAP_EASE = 14; // 1/s, the glide onto the rail
 export const CAM_FOLLOW_RATE = 1.6; // 1/s
 export const CAM_TURN_MAX = 1.1; // rad/s, "gently"
@@ -373,13 +374,20 @@ export function spotFor(trav, x, z, groundY, faceX, faceZ, abilities, out) {
   return found ? out : null;
 }
 
-// The timing of one hop, from where she was pressed to the landing.
-export function planHop(hop, startX, startZ, reducedMotion, out) {
+// The timing of one hop, from where she was pressed to the landing. `turn`
+// is the signed turn (rad) from her yaw at the press to the hop's. The crouch
+// eases her yaw and her glide to the take-off on one smoothstep, whose top
+// rate is 1.5 times its mean, so it lasts at least long enough that neither
+// her turn passes TURN_RATE nor her glide her walk: no snap on the spring
+// frame, no slide faster than she walks. Reduced motion shortens only the
+// base crouch; both floors stay.
+export function planHop(hop, startX, startZ, reducedMotion, out, turn = 0) {
   const k = HOP[hop.kind];
   out.hop = hop;
   out.sx = startX;
   out.sz = startZ;
-  out.crouch = reducedMotion ? k.crouchRM : k.crouch;
+  const glide = Math.hypot(hop.x0 - startX, hop.z0 - startZ);
+  out.crouch = Math.max(reducedMotion ? k.crouchRM : k.crouch, (1.5 * Math.abs(turn)) / TURN_RATE, (1.5 * glide) / WALK_SPEED);
   out.land = reducedMotion ? k.landRM : k.land;
   out.hang = reducedMotion ? 0 : k.hang;
   out.air = k.air + k.airPerM * (hop.kind === 'leap' ? hop.dist : Math.abs(hop.dy));
@@ -453,6 +461,15 @@ export function facingYaw(fx, fz) {
 // (0 - x, not -x, so a heading of 0 gives +0 and not -0.)
 export function behindYaw(fx, fz) {
   return Math.atan2(0 - fx, 0 - fz);
+}
+
+// An angle's shortest signed form, in (-PI, PI].
+export function wrapPi(a) {
+  const TWO_PI = Math.PI * 2;
+  let d = a % TWO_PI;
+  if (d > Math.PI) d -= TWO_PI;
+  else if (d <= -Math.PI) d += TWO_PI;
+  return d;
 }
 
 // Turn `cur` toward `target` the short way: a share of the gap, at most
