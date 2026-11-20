@@ -12,7 +12,7 @@
 
 import { clanName } from '../clanhomes.js';
 import { LAND } from '../territories.js';
-import { STREET_LAND, ISLAND_HIT_R } from '../worldmap.js';
+import { STREET_LAND, TOWN_LAND, ISLAND_HIT_R } from '../worldmap.js';
 import { escapeHtml } from '../escapehtml.js';
 import { phrase } from '../clanphrases.js';
 
@@ -175,8 +175,8 @@ export function renderWorldMapHtml(model) {
   for (let i = 0; i + 2 < cs.length; i += 3) coast += ` C${pt(cs[i])} ${pt(cs[i + 1])} ${pt(cs[i + 2])}`;
   const sea = `<path class="tm-sea" d="${coast} C820 900 760 960 750 1100 L750 ${h + BEYOND} L${w + BEYOND} ${h + BEYOND} L${w + BEYOND} ${-BEYOND} Z"/>`;
 
-  const landClass = (r) => `tm-land ${r.kind === 'street' ? 'street ' : ''}${stateClasses(r)}`;
-  const fillOf = (r) => (r.kind === 'street' ? STREET_LAND[r.id] : LAND[r.id]) ?? '#c8b98f';
+  const landClass = (r) => `tm-land ${r.kind === 'street' || r.kind === 'town' ? 'street ' : ''}${stateClasses(r)}`;
+  const fillOf = (r) => (r.kind === 'town' ? TOWN_LAND[r.id] : r.kind === 'street' ? STREET_LAND[r.id] : LAND[r.id]) ?? '#c8b98f';
   const land = m.regions.map((r) => `<path class="${landClass(r)}" fill="${fillOf(r)}" d="${blobPath(r.id, r.x, r.y, r.r)}"/>`).join('');
   const water = `<path class="tm-river-bank" d="${smoothPath(m.river, false)}"/><path class="tm-river" d="${smoothPath(m.river, false)}"/>`
     + `<path class="tm-lake" d="${smoothPath(m.lake, true)}"/>`

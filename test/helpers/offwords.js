@@ -29,12 +29,13 @@ export function withOffWords(fn) {
 // Each entry: [what it is, a pattern]. Read from the family's tables where a
 // table holds the word, so a word added there is banned here the same day.
 // ONE word of the family's set is allowed on purpose: "loner" (the owner's
-// decision, 2026-11-18). "elder" is banned like the rest.
+// decision, 2026-11-18). "elder" is banned like the rest. A place word the
+// everyday set uses too ("The Rooftops", plain in both sets) is no leak.
 const esc = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const ALLOWED = new Set(['loner']);
 const tableWords = [...new Set([
   ...Object.values(on.RANK_WORDS), ...Object.values(on.OUTSIDE_WORDS), ...Object.values(on.PLACE_WORDS),
-])].filter((w) => !ALLOWED.has(w));
+])].filter((w) => !ALLOWED.has(w) && !Object.values(off.PLACE_WORDS).includes(w));
 const onFirstHalves = [...new Set([
   ...on.PREFIXES, ...Object.values(on.CAT_PREFIXES), ...Object.values(on.RIVAL_PREFIXES),
   ...Object.values(on.HOMAGE_PREFIXES), ...Object.values(on.HOMAGE_CHOICES).flat(), ...Object.values(on.CLAN_CAT_PREFIXES).flat(),
