@@ -55,6 +55,12 @@ Linux in CI, so float fixtures should compare with a tolerance.
   up. Run the suite from inside the worktree you are working in.
 - Larger changes go spec, then plan, then build, in `docs/superpowers/specs/`
   and `docs/superpowers/plans/`.
+- **New tests check behaviour; they never read source files as text**: no
+  `readFileSync` of `src/`, no "this line comes before that line" pins, no
+  pins on comments. For the order of the walk's frame, extend
+  `test/frameorder.test.js`, which runs main.js's real frame. The text pins
+  already in the suite are being replaced, so a refactor that breaks one
+  replaces it with a behaviour test rather than editing the text to match.
 
 ## Where the big pieces live
 
