@@ -152,7 +152,10 @@ export function createFindCard({
 
   function onLockChange(locked) {
     const s = getSession();
-    if (locked && s?.findCard) close(s);
+    if (locked && s?.findCard) {
+      close(s);
+      bus.emit('tip', { id: 'find-kept' }); // her own Later: the walk is live once the lock lands
+    }
   }
 
   return { show, wear, later, onLockChange };

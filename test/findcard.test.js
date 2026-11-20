@@ -66,11 +66,23 @@ describe('the find card and the find-kept hint', () => {
     }
   });
 
-  it('says nothing when no card is up, and a card closed by the walk ending says nothing', () => {
+  it('says nothing when no card is up', () => {
     const { card, s } = setup();
     card.later();
     card.wear();
+    card.onLockChange(true);
     expect(tips).toEqual([]);
+  });
+
+  it('taking the pointer again is her own Later and says find-kept once; losing it says nothing', () => {
+    const { card, s } = setup();
+    card.show(s, 'acorncap');
+    card.onLockChange(false);
+    expect(tips).toEqual([]);
+    expect(s.findCard).not.toBe(null);
+    card.onLockChange(true);
+    expect(s.findCard).toBe(null);
+    expect(tips).toEqual([{ id: 'find-kept' }]);
   });
 });
 
