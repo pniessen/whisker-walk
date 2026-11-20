@@ -611,7 +611,6 @@ describe('The Old Docks — the canal is a water surface', () => {
 // ---------------------------------------------------------------------------
 describe('the surface wave is actually wired up', () => {
   const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-  const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 
   it('sets the texture tier before any world geometry is built', () => {
     const setTier = walkSrc.indexOf('setTextureTier(');
@@ -625,17 +624,6 @@ describe('the surface wave is actually wired up', () => {
 
   it('threads the tier and reducedMotion into the area builders', () => {
     expect(walkSrc).toMatch(/build\(scene, \{ water: \{ quality: tier, reducedMotion \}, wind \}\)/);
-  });
-
-  it('drives the water and the wind on REAL time, never the slow-mo clock', () => {
-    // `wdt` slows critters for a pounce beat. Slowing the canal or the trees
-    // with them reads as the whole world lurching, which is why skyLife and
-    // weather sit on real dt too.
-    expect(mainSrc).toContain('session.water.update(dt)');
-    expect(mainSrc).not.toContain('session.water.update(wdt)');
-    // Wind takes ABSOLUTE elapsed time, not a delta, and takes its intensity
-    // as a hint from weather rather than importing weather itself.
-    expect(mainSrc).toMatch(/session\.wind\.update\(t, session\.weather\.condition === 'rain' \? 1\.7 : 1\)/);
   });
 
   it('disposes both alongside the other per-walk systems', () => {

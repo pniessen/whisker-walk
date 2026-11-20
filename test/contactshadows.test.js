@@ -461,12 +461,12 @@ describe('dispose', () => {
   });
 });
 
-// The rig is only correct if the three call sites outside it stay wired. These
+// The rig is only correct if the call sites outside it stay wired. These
 // are source assertions in the same spirit as test/shadowfit.test.js's — they
-// pin the contract, not the implementation.
+// pin the contract, not the implementation. main.js's once-a-frame update is
+// test/frameorder.test.js's.
 describe('wiring', () => {
   const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-  const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   // The cast/receive sweep lives in render/rig.js; walk.js calls it.
   const rigSrc = readFileSync(new URL('../src/render/rig.js', import.meta.url), 'utf8');
 
@@ -485,10 +485,6 @@ describe('wiring', () => {
   it('walk.js hangs it on the session and disposes it in endWalk', () => {
     expect(walkSrc).toMatch(/^\s*decals,\s*$/m);
     expect(walkSrc).toContain('session.decals.dispose()');
-  });
-
-  it('main.js updates it once per frame', () => {
-    expect(mainSrc).toContain('session.decals.update()');
   });
 });
 

@@ -16,7 +16,7 @@ import { WALK_ENDED_LINE, stuckNoticeHtml } from '../src/game/recovery.js';
 const h = vi.hoisted(() => {
   const log = [];
   const notes = [];
-  const ctl = { now: 0, render: true, busy: false, throwIn: new Set() };
+  const ctl = { now: 0, render: true, busy: false, throwIn: new Set(), errorsExpected: false };
   // Records `name` (with its arguments) into the shared list, then throws if
   // the test asked this call to, else answers with `impl`.
   const rec = (name, impl) => (...args) => {
@@ -249,7 +249,7 @@ const ran = (names) => calls().filter((n) => names.includes(n));
 beforeEach(async () => {
   h.log.length = 0;
   h.notes.length = 0;
-  Object.assign(h.ctl, { now: 1000, render: true, busy: false, throwIn: new Set() });
+  Object.assign(h.ctl, { now: 1000, render: true, busy: false, throwIn: new Set(), errorsExpected: false });
   resetPlayer();
   await boot();
   session = makeSession();
@@ -259,6 +259,9 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  // A frame that threw stops short, so an order test would fail on a shorter
+  // list: this says why. Only the frame guard's tests throw on purpose.
+  if (!h.ctl.errorsExpected) expect(h.notes.map((n) => `${n.kind}: ${n.err?.stack ?? n.err}`)).toEqual([]);
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
@@ -412,14 +415,14 @@ describe('what the frame hands its systems', () => {
     expect(camera).toBe(h.deps.camera);
   });
 
-  it('a pounce\'s slow-mo slows the critters and cats only; water, wind, knockables and the rest keep real time', () => {
+  it('a pounce\'s slow-mo slows the critters and cats only; the water, the weather, the birds and the rest keep real time', () => {
     session.slowmoTime = 1;
     frame(1020);
     const dt = 0.02;
     for (const slowed of ['critters.update', 'strayCats.update', 'clanCats.update']) {
       expect(argsOf(slowed)[0], slowed).toBeCloseTo(dt * 0.35, 12);
     }
-    for (const real of ['water.update', 'intruders.update', 'knockables.update', 'paws.update']) {
+    for (const real of ['water.update', 'weather.update', 'skyLife.update', 'intruders.update', 'knockables.update', 'paws.update']) {
       expect(argsOf(real)[0], real).toBeCloseTo(dt, 12);
     }
     // the wind takes the absolute time, and a rain makes it windier
@@ -465,6 +468,7 @@ describe('the 30 fps cap and the clock', () => {
 });
 
 describe('the frame guard', () => {
+  beforeEach(() => { h.ctl.errorsExpected = true; });
   const throwing = (n, from) => {
     for (let i = 0; i < n; i++) frame(from + i * 20);
   };

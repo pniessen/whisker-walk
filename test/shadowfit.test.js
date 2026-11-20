@@ -354,22 +354,10 @@ describe('the shadow fit and the hemisphere fill are actually wired up', () => {
     expect(walkSrc).toMatch(/createShadowFit\(sun, camera, \{\s*radius: tier\.shadowFitRadius,\s*mapSize: tier\.shadowMapSize,\s*\}\)/);
   });
 
-  it('hangs it on the session and drives it once a frame from the render loop', () => {
+  // The render loop driving it once a frame is test/frameorder.test.js's.
+  it('hangs it on the session and disposes it', () => {
     expect(walkSrc).toMatch(/^\s*shadows,$/m);   // the session entry
-    expect(mainSrc).toContain('session.shadows.update(');
     expect(walkSrc).toContain('session.shadows.dispose()');
-  });
-
-  it('re-fits AFTER player.update has moved the camera, and before the frame is drawn', () => {
-    // The rig reads the camera. Called before player.update it would fit the
-    // box to where the player was last frame, which is a whole frame of lag on
-    // the one thing that is supposed to follow the player exactly.
-    const move = mainSrc.indexOf('player.update(dt,');
-    const fit = mainSrc.indexOf('session.shadows.update(');
-    const draw = mainSrc.lastIndexOf('renderFrame();');
-    expect(move).toBeGreaterThan(-1);
-    expect(fit).toBeGreaterThan(move);
-    expect(draw).toBeGreaterThan(fit);
   });
 
   it('replaces the AmbientLight with a HemisphereLight taking the area’s own bounce', () => {

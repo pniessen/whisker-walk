@@ -44,7 +44,6 @@ const { yardWalk } = await import('./helpers/traversalwalk.js');
 
 const read = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 const walk = read('game/walk.js');
-const main = read('main.js');
 
 it('the session has a traversal field', () => expect(SESSION_FIELDS).toContain('traversal'));
 
@@ -54,36 +53,6 @@ it('walk.js builds it only for an area that places moves, and disposes it', () =
   expect(walk).toMatch(/traversal: traversalLive,/);
   expect(walk).toContain('session.traversal?.dispose();');
   expect(walk.indexOf('session.traversal?.dispose();')).toBeGreaterThan(walk.indexOf('session.fair?.dispose();'));
-});
-
-it('main.js runs it before the player moves and touches her up after she is posed', () => {
-  const up = main.indexOf('session.traversal.update(dt, t, moveCtx);');
-  const move = main.indexOf('player.update(dt, session.areaData.colliders');
-  expect(up).toBeGreaterThan(-1);
-  expect(main.indexOf('player.update(dt, session.areaData.colliders', move + 1)).toBe(-1); // the one walk move
-  // inside the engaged block that holds player.update, with nothing closing it in between
-  const engaged = main.lastIndexOf('if (player.engaged) {', move);
-  expect(engaged).toBeGreaterThan(-1);
-  expect(up).toBeGreaterThan(engaged);
-  expect(up).toBeLessThan(move);
-  expect(main.slice(engaged, move)).not.toMatch(/\n {4}\}/);
-  expect(main.indexOf('session.traversal.late(')).toBeGreaterThan(main.indexOf('session.fair.late('));
-  expect(main.indexOf('session.traversal.late(')).toBeLessThan(main.indexOf('updateInteractions(session);'));
-  expect(main).toContain('session.traversal.late(dt, t, moveCtx);');
-});
-
-it('main.js hands the moves one context object, made once outside the frame', () => {
-  const made = main.indexOf('const moveCtx = { cat: null, player, session: null };');
-  expect(made).toBeGreaterThan(-1);
-  expect(made).toBeLessThan(main.indexOf('renderer.setAnimationLoop(() => {'));
-  expect(main.match(/const moveCtx\b/g)).toHaveLength(1);
-  // no fresh object literal at either call
-  expect(main).not.toMatch(/session\.traversal\.(update|late)\([^)]*\{/);
-  // refreshed right before each call
-  for (const call of ['session.traversal.update(dt, t, moveCtx);', 'session.traversal.late(dt, t, moveCtx);']) {
-    const at = main.indexOf(call);
-    expect(main.slice(at - 120, at)).toMatch(/moveCtx\.cat = session\.cat;\s+moveCtx\.session = session;\s+$/);
-  }
 });
 
 it('no shipped area places moves yet', () => {
