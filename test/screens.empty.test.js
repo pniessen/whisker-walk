@@ -119,17 +119,19 @@ describe('home sheets when empty', () => {
     expect(doc.root.innerHTML).toContain(ALBUM_LINE);
   });
 
-  it('the Journal with no stray friends shows the friends empty state (the strays moved there from Friends)', () => {
+  it('My clan with no stray friends shows the friends empty state (the strays live in My clan now), and the Journal does not', () => {
     setup();
-    openSheet('journal');
+    openSheet('colony');
     expect(doc.root.innerHTML).toContain('class="empty-state empty-friends"');
     expect(doc.root.innerHTML).toContain(FRIENDS_LINE);
+    openSheet('journal');
+    expect(doc.root.innerHTML).not.toContain('empty-friends');
   });
 
-  it('with a stray friend, the list shows and the empty state does not', () => {
+  it('with a stray friend, My clan shows the list and not the empty state (the strays live in My clan now)', () => {
     const { progression } = setup();
     progression.state.friends.Smudge = { breed: 'tabby', greets: 2 };
-    openSheet('journal');
+    openSheet('colony');
     expect(doc.root.innerHTML).toContain('Smudge');
     expect(doc.root.innerHTML).not.toContain('empty-friends');
   });
