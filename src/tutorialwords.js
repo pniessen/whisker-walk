@@ -121,6 +121,8 @@ export const WORDS = Object.freeze({
 
   // ---- Settings -------------------------------------------------------------
   'settings.tips': same('Show tips'),
+  // Shown only after a save write has failed; names no group or rank, so both sets share it.
+  'settings.save-failed': same('This device could not save the last change. Free up some space, then play again.'),
 });
 
 export function hasLine(id) {

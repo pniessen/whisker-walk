@@ -1308,12 +1308,17 @@ export function createProgression(storage) {
   // Only an explicit Start over, cloud load or restore writes over it, and
   // each of those keeps its own copy first.
   let keepMain = false;
+  // Whether the last write threw (a full device): Game settings tells a
+  // grown-up. A keepMain skip is not a write and leaves it as it was.
+  let lastWriteFailed = false;
 
   const save = () => {
     if (keepMain) return;
     try {
       storage.setItem(SAVE_KEY, JSON.stringify(state));
+      lastWriteFailed = false;
     } catch (err) {
+      lastWriteFailed = true;
       console.warn('Whisker Walk: could not write save', err);
       note('save', err);
     }
@@ -1376,6 +1381,9 @@ export function createProgression(storage) {
   const api = {
     get state() {
       return state;
+    },
+    get saveWriteFailed() {
+      return lastWriteFailed;
     },
     addPoints(n) {
       state.points += n;

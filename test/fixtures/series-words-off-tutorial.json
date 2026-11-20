@@ -292,6 +292,10 @@
   "settings.tips": {
    "touch": "Show tips",
    "keys": "Show tips"
+  },
+  "settings.save-failed": {
+   "touch": "This device could not save the last change. Free up some space, then play again.",
+   "keys": "This device could not save the last change. Free up some space, then play again."
   }
  },
  "slotsFilledWith": {
@@ -595,6 +599,10 @@
   "settings.tips": {
    "touch": "Show tips",
    "keys": "Show tips"
+  },
+  "settings.save-failed": {
+   "touch": "This device could not save the last change. Free up some space, then play again.",
+   "keys": "This device could not save the last change. Free up some space, then play again."
   }
  },
  "nextThing": {
