@@ -167,6 +167,16 @@ export const PHRASES = Object.freeze({
   'colony.rankAfterName': (rankWords) => `the ${rankWords}`,
   // the Menu's tile and the sheet's heading: no group word in the everyday game
   'menu.myCats': 'My cats',
+  // the My cats sheet: "cats", never a word for the group
+  'mycats.empty': 'No cats here yet — touch noses with a stray, then feed it 🐟',
+  'mycats.notSetUp': "Sharing your cats isn't switched on yet",
+  'mycats.offline': "Can't reach your cats' list right now — your cats are safe on this device",
+  'mycats.alreadyPaired': 'This player is already sharing their cats.',
+  'mycats.needsName': 'To share your cats, you need a friend name first.',
+  'mycats.wantsToShare': 'wants to share your cats. Is that them?',
+  'mycats.offer': '🐈 Share your cats with your brother or sister',
+  'mycats.full': (cap) => `Your cats’ home is full — ${cap} cats live here 🏠`,
+  'mycats.fullRoom': (max) => ` Share your cats with your brother or sister to make room for ${max}.`,
   // no second name for the Neighborhood in the everyday game: no line at all
   'place.townNote': '',
 

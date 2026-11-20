@@ -33,8 +33,8 @@ const own = (obj, key) => !!obj && typeof obj === 'object' && Object.prototype.h
 function modeLine(mode, partnerName) {
   switch (mode) {
     case 'paired': return `Shared with ${partnerName} 🐾`;
-    case 'not-set-up': return "Colony sharing isn't switched on yet";
-    case 'offline': return "Can't reach the colony right now — your cats are safe on this device";
+    case 'not-set-up': return phrase('mycats.notSetUp');
+    case 'offline': return phrase('mycats.offline');
     default: return 'Just you for now';
   }
 }
@@ -195,7 +195,7 @@ export function pairingErrorLine(word) {
   switch (word) {
     case 'ok': case 'pending': case 'paired': case 'declined': return null;
     case 'bad-code': return "That code didn't work — check it and try again.";
-    case 'already-paired': return 'This player is already sharing a colony.';
+    case 'already-paired': return phrase('mycats.alreadyPaired');
     case 'taken': return 'Someone else is already using that code.';
     case 'self': return "That's your own code! Give it to them to type in.";
     case 'no-joiner': return 'Nobody is waiting for a yes right now.';
@@ -227,7 +227,7 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
 
   if (mode === 'needs-name') {
     return `<div class="colony-pair" data-pair="needs-name">
-      <p class="colony-pair-text">To share your colony, you need a friend name first.</p>
+      <p class="colony-pair-text">${escapeHtml(phrase('mycats.needsName'))}</p>
       <div class="colony-pair-row">
         <button type="button" id="colony-pair-name" class="colony-pair-btn">${escapeHtml(PICK_WALKING_NAME)} →</button>
       </div>
@@ -241,7 +241,7 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
   if (invite && invite.joinerPetName) {
     const who = escapeHtml(invite.joinerPetName);
     return `<div class="colony-pair" data-pair="confirm">
-      <p class="colony-pair-text"><strong>${who}</strong> wants to share your colony. Is that them?</p>
+      <p class="colony-pair-text"><strong>${who}</strong> ${escapeHtml(phrase('mycats.wantsToShare'))}</p>
       <div class="colony-pair-row">
         <button type="button" id="colony-pair-yes" class="colony-pair-btn"${off}>Yes, share!</button>
         <button type="button" id="colony-pair-no" class="colony-pair-btn secondary"${off}>No</button>
@@ -261,7 +261,7 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
   }
   const dis = busy || !hasPetName ? ' disabled' : '';
   return `<div class="colony-pair" data-pair="offer">
-    <p class="colony-pair-text">🐈 Share your colony with your brother or sister</p>
+    <p class="colony-pair-text">${escapeHtml(phrase('mycats.offer'))}</p>
     <div class="colony-pair-row">
       <button type="button" id="colony-pair-open" class="colony-pair-btn"${dis}>Get a sharing code</button>
     </div>
@@ -307,9 +307,9 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
     : emptyStateHtml('colony');
   // Full at the same cap canFeed uses: 12 alone, 24 as a pair.
   const cap = colonyCap(members);
-  const roomTogether = cap < COLONY_MAX ? ` Share it with your brother or sister to make room for ${COLONY_MAX}.` : '';
+  const roomTogether = cap < COLONY_MAX ? phrase('mycats.fullRoom', COLONY_MAX) : '';
   const full = cats.length >= cap
-    ? `<p class="colony-full">The colony is full — ${cap} cats call it home 🏠${roomTogether}</p>` : '';
+    ? `<p class="colony-full">${escapeHtml(phrase('mycats.full', cap))}${escapeHtml(roomTogether)}</p>` : '';
 
   const pair = renderPairingHtml(status, pairing || {});
   // Trading is only for a live pair: the offer RPCs need the partner on the server.

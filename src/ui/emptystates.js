@@ -3,6 +3,8 @@
 // only (no user data, nothing to escape); the pictures are decorative, so the
 // line carries the meaning for a screen reader.
 
+import { phrase } from '../clanphrases.js';
+
 const NAVY = '#1c2431';
 const SLATE = '#33425e';
 const CREAM = '#f1e0c2';
@@ -80,7 +82,7 @@ const EMPTY = {
   album: { pic: ALBUM_PIC, line: 'No photos yet. Snap one next time you explore! 📸' },
   colony: {
     pic: COLONY_PIC,
-    line: 'No colony cats yet — touch noses with a stray, then feed it 🐟',
+    line: () => phrase('mycats.empty'),
     extra: ' colony-empty',
   },
   friends: { pic: FRIENDS_PIC, line: 'No cat friends yet. Go exploring and touch noses! 🐾' },
@@ -89,5 +91,5 @@ const EMPTY = {
 export function emptyStateHtml(kind) {
   const e = EMPTY[kind];
   if (!e) return '';
-  return `<div class="empty-state empty-${kind}${e.extra || ''}">${e.pic}<p>${e.line}</p></div>`;
+  return `<div class="empty-state empty-${kind}${e.extra || ''}">${e.pic}<p>${typeof e.line === 'function' ? e.line() : e.line}</p></div>`;
 }

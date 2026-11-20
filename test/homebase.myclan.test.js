@@ -28,6 +28,7 @@ const { SHEET_NAME, SHEET_LABEL } = await import('../src/ui/dressingroom.js');
 const { phrase } = await import('../src/clanphrases.js');
 const { words } = await import('../src/wordset.js');
 const { withOffWords } = await import('./helpers/offwords.js');
+const { renderColonyHtml, renderPairingHtml, pairingErrorLine } = await import('../src/ui/colonypanel.js');
 
 function memStorage() {
   const map = new Map();
@@ -85,10 +86,10 @@ const cloudStub = () => ({
   available: true, myId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
   fetchFriendships: vi.fn(() => Promise.resolve([])), fetchProfiles: vi.fn(() => Promise.resolve([])),
 });
-function setup({ cloud = null, state } = {}) {
+function setup({ cloud = null, state, colonySync = null } = {}) {
   const progression = createProgression(memStorage());
   if (state) state(progression.state);
-  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: OPEN_ROOMS, sync: null, cloud, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: OPEN_ROOMS, sync: null, cloud, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: () => {} });
   hb.show();
   return { progression, hb };
 }
@@ -209,5 +210,54 @@ describe('Player pets load once per open of My clan', () => {
     expect(cloud.fetchFriendships).toHaveBeenCalledTimes(1);
     dressingMock.opts.onChange();
     expect(cloud.fetchFriendships).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Follow-up (owner, 2026-11-20): the everyday words say "cats", never "colony" or "crew".
+describe('plain words on My cats (everyday set)', () => {
+  const sync = (status) => ({ status: () => status, pull() {}, onChange() {} });
+  const cat = (name, tamedBy) => ({ name, finder: 'me', area: 'park', x: 1, z: 1, wear: null, tamedBy, tamedWalk: tamedBy ? 1 : null });
+  const textOf = (h) => h.replace(/<[^>]*>/g, ' ').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+  const sheetText = ({ colonySync, cats = [] }) => {
+    setup({ colonySync, state: (st) => { st.colony.cats = cats; st.colony.feeds = []; } });
+    openSheet('colony');
+    return textOf(html());
+  };
+  const saves = {
+    'no colony cats': { colonySync: sync({ mode: 'local' }) },
+    'some cats, tamed and not': { colonySync: sync({ mode: 'unpaired' }), cats: [cat('Biscuit', 'me'), cat('Pickles', null)] },
+    'offline': { colonySync: sync({ mode: 'offline' }), cats: [cat('Biscuit', 'me')] },
+    'not set up': { colonySync: sync({ mode: 'not-set-up' }) },
+    'needs a friend name': { colonySync: sync({ mode: 'needs-name' }) },
+    'someone wants to share': { colonySync: sync({ mode: 'unpaired', invite: { code: 'ABCDEF', joinerPetName: 'Mia' } }) },
+  };
+  for (const [name, save] of Object.entries(saves)) {
+    it(`the sheet shows no colony or crew word: ${name}`, () => {
+      withOffWords(() => expect(sheetText(save)).not.toMatch(/colony|crew/i));
+    });
+  }
+  it('says the new words', () => {
+    withOffWords(() => {
+      expect(sheetText(saves['no colony cats'])).toContain('No cats here yet — touch noses with a stray, then feed it 🐟');
+      expect(sheetText(saves.offline)).toContain("Can't reach your cats' list right now — your cats are safe on this device");
+      expect(sheetText(saves['not set up'])).toContain("Sharing your cats isn't switched on yet");
+      expect(sheetText(saves['needs a friend name'])).toContain('To share your cats, you need a friend name first.');
+      expect(sheetText(saves['someone wants to share'])).toContain('Mia wants to share your cats. Is that them?');
+      expect(sheetText({ colonySync: sync({ mode: 'unpaired' }) })).toContain('Share your cats with your brother or sister');
+      expect(pairingErrorLine('already-paired')).toBe('This player is already sharing their cats.');
+      const full = renderColonyHtml({ colony: { cats: Array.from({ length: 12 }, (_, i) => cat(`C${i}`, 'me')), feeds: [] }, members: 1, now: 0 });
+      expect(textOf(full)).toContain('Your cats’ home is full — 12 cats live here 🏠 Share your cats with your brother or sister to make room for 24.');
+    });
+  });
+  it('the family words are exactly what they were', () => {
+    expect(sheetText(saves['no colony cats'])).toContain('No colony cats yet — touch noses with a stray, then feed it 🐟');
+    expect(sheetText(saves.offline)).toContain("Can't reach the colony right now — your cats are safe on this device");
+    expect(sheetText(saves['not set up'])).toContain("Colony sharing isn't switched on yet");
+    expect(sheetText(saves['needs a friend name'])).toContain('To share your colony, you need a friend name first.');
+    expect(sheetText(saves['someone wants to share'])).toContain('Mia wants to share your colony. Is that them?');
+    expect(sheetText({ colonySync: sync({ mode: 'unpaired' }) })).toContain('🐈 Share your colony with your brother or sister');
+    expect(pairingErrorLine('already-paired')).toBe('This player is already sharing a colony.');
+    const full = renderColonyHtml({ colony: { cats: Array.from({ length: 12 }, (_, i) => cat(`C${i}`, 'me')), feeds: [] }, members: 1, now: 0 });
+    expect(full).toContain('<p class="colony-full">The colony is full — 12 cats call it home 🏠 Share it with your brother or sister to make room for 24.</p>');
   });
 });

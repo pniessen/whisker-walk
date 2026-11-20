@@ -412,6 +412,19 @@ const LATER = Object.freeze({
   // ---- Menu review #7 (2026-11-20) ----------------------------------------------
   // the Menu's tile and the sheet's heading for the player's own group of cats
   'menu.myCats': () => `My ${groupWord()}`,
+
+  // ---- the My cats sheet, in plain words for the everyday game (follow-up 2026-11-20) ----
+  // Each line's family text is exactly what the sheet always said.
+  'mycats.empty': 'No colony cats yet — touch noses with a stray, then feed it 🐟',
+  'mycats.notSetUp': "Colony sharing isn't switched on yet",
+  'mycats.offline': "Can't reach the colony right now — your cats are safe on this device",
+  'mycats.alreadyPaired': 'This player is already sharing a colony.',
+  'mycats.needsName': 'To share your colony, you need a friend name first.',
+  // follows the friend's name, which the sheet puts in bold before it
+  'mycats.wantsToShare': 'wants to share your colony. Is that them?',
+  'mycats.offer': '🐈 Share your colony with your brother or sister',
+  'mycats.full': (cap) => `The colony is full — ${cap} cats call it home 🏠`,
+  'mycats.fullRoom': (max) => ` Share it with your brother or sister to make room for ${max}.`,
 });
 
 // Every id of the first table, in table order.
