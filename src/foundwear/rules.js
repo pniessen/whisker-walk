@@ -45,6 +45,18 @@ export function findsAgreed(roster, key = FIND_KEY) {
   return true;
 }
 
+// roomFindRoster(roster, selfId, key) -> the room as the find sees it: every
+// other member as the room lists them, then this device's own player with
+// this build's key. Her own entry in the room's list may not have come back
+// to her yet (presence), and her own build is what she plays with in any
+// case. walk.js plans a room walk against this at the start, and ends the
+// walk's find when a later roster no longer agrees (a partner on an older
+// build joining mid-walk), so a find never shows for one child only.
+export function roomFindRoster(roster, selfId, key = FIND_KEY) {
+  const others = Array.isArray(roster) ? roster.filter((m) => m?.playerId !== selfId) : [];
+  return [...others, { playerId: selfId, finds: key }];
+}
+
 // planFind(...) -> { areaId, spot, roll } for this walk, or null when it has
 // no find: in the den, on the guided first walk, in an area with no spots,
 // without a usable seed, or on a room walk whose members do not agree. A walk

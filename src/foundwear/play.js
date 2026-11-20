@@ -26,9 +26,10 @@ import { FIND_LOG_KEY } from './rules.js';
 //   find     live.js's find (or NO_FIND): its `item` and take()
 //   arrival  { by: 'me' | 'partner', petName }
 // Grant: { kind: 'wear', id, by, petName } | { kind: 'pouch', points, by, petName }.
-// null when this walk has already given its find.
+// null when this walk has already given its find, or when there is nothing on
+// the ground to give: NO_FIND, a find already taken, a find with no item.
 export function grantFind(find, arrival, { progression, log }) {
-  if (!find || log.count(FIND_LOG_KEY) > 0) return null;
+  if (!find || find.taken || !find.item || log.count(FIND_LOG_KEY) > 0) return null;
   const by = arrival?.by === 'partner' ? 'partner' : 'me';
   const petName = by === 'partner' ? (arrival?.petName ?? undefined) : undefined;
   const item = find.item;

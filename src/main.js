@@ -57,6 +57,9 @@ import { waterClearance, nearestDry } from './world/builder.js';
 import { takeArrivalLine } from './housecats.js';
 import { takeMoveLines } from './fightmoves.js';
 import { createCrossing, swallowsCanvasClick } from './game/crossing.js';
+import { createFindCard, shadowMinPartNow } from './game/findcard.js';
+import { findBusy, handleFindArrival } from './foundwear/play.js';
+import { tickFindNose } from './foundwear/live.js';
 import { readResume, writeResume, clearResume, markTried, snapshotWalk, settleAbandoned } from './game/walkresume.js';
 import { sheetTopFrom } from './fightcam.js';
 import { diagnostics, note, listenForErrors } from './diagnostics.js';
@@ -512,6 +515,20 @@ function init() {
     getEdition: () => progression.state.edition,
     getSound: pauseSound,
   });
+  // Found outfits: the find card (src/game/findcard.js), Wear it / Later in
+  // the pause overlay. Wear it dresses her cat in place, at the shadow trim
+  // the walk is on now, and shows her new look to the room and the cloud.
+  const findCard = createFindCard({
+    getSession: () => session,
+    overlay,
+    releaseControl: () => handleTouchAction('pause'),
+    resumeWalk,
+    progression,
+    getIsTouch: () => isTouch,
+    onLookChanged: () => { rooms.retrackProfile(); pushProfileNow(); },
+    shadowMinPart: (s) => shadowMinPartNow(s.tier, qualityAdapter.status.rung),
+    getSound: pauseSound,
+  });
 
   // Player pets 🐾🐾 roster, friend codes and the hide list: the home base's
   // adapter over the gated cloud handle (src/game/homebasecloud.js).
@@ -674,6 +691,9 @@ function init() {
       overlay.innerHTML = pauseCardFor(session, isTouch, pauseSound());
     }
     crossing?.onLockChange(locked);
+    // Re-locking with the find card up is Later: the card closes, and the
+    // lock itself is the walk going on (as the crossing card).
+    findCard?.onLockChange(locked);
     if (session && !locked) { session.cameraMode = false; hud.setCamera(false); }
     // Kittypets: a wanderer's arrival line, kept by walk.js until the walk
     // starts (the Ready? card covers the toasts). Pointer lock and the touch
@@ -742,6 +762,8 @@ function init() {
     if (e.target.id === SKIP_LESSON_ID && session) guideWalk.skip(session);
     if (e.target.id === 'btn-cross-yes') crossing.confirm();
     if (e.target.id === 'btn-cross-no') crossing.cancel();
+    if (e.target.id === 'btn-find-wear') findCard.wear();
+    if (e.target.id === 'btn-find-later') findCard.later();
     if (e.target.id === RELOAD_BUTTON_ID) window.location.reload();
     if (e.target.id === 'btn-summary-continue') {
       overlay.classList.add('hidden');
@@ -766,6 +788,7 @@ function init() {
       walking: !!session,
       shopAsk: denShop.isAsking,
       shop: denShop.isOpen,
+      findCard: !!session?.findCard,
       crossing: !!session?.crossing,
       engaged: player.engaged,
       photo: !!session?.cameraMode,
@@ -775,6 +798,7 @@ function init() {
     if (action === 'continue') overlay.querySelector('#btn-summary-continue')?.click();
     else if (action === 'shop-not-now') denShop.notNow();
     else if (action === 'shop-done') denShop.close();
+    else if (action === 'find-later') findCard.later();
     else if (action === 'cross-no') crossing?.cancel();
     else if (action === 'photo-off') doCameraToggle();
     else if (action === 'pause') handleTouchAction('pause');
@@ -919,6 +943,9 @@ function init() {
   // The cat's paws for paws.update, mutated every frame rather than rebuilt
   // (pawprints.js reads the fields and keeps no reference).
   const pawState = { x: 0, z: 0, grounded: false };
+  // The find's inputs (foundwear/live.js update), mutated every frame rather
+  // than rebuilt.
+  const findFrame = { x: 0, z: 0, pawsY: 0, camera, remotes: null, busy: false };
   // The corner map's inputs, mutated every frame rather than rebuilt. The
   // remote dots come from a pool that only grows when a new co-walker joins.
   const mapView = { cx: 0, cz: 0, heading: 0 };
@@ -1219,6 +1246,15 @@ function init() {
         audio.fanfare();
         session.goldMice.remove(gm.id);
       }
+      // Found outfits: the walk's find, at the golden mouse's reach. Hers
+      // waits while she is busy (findBusy); a partner's never does.
+      findFrame.x = session.cat.position.x;
+      findFrame.z = session.cat.position.z;
+      findFrame.pawsY = pawsY;
+      findFrame.remotes = session.remotes.list;
+      findFrame.busy = findBusy(session);
+      const arrival = session.find.update(dt, t, findFrame);
+      if (arrival) handleFindArrival(session, arrival, { progression, log, hud, audio, card: findCard });
       session.kittenEnc.update(dt, session.cat.position);
       // Daily zoomies race: advance the ring timer/crossing checks, then
       // reflect it in the HUD objective (throttled to actual ring changes)
@@ -1280,6 +1316,9 @@ function init() {
       session.scent.update(dt);
       // The stand-still sniff, then the hints (both this device's own).
       tickAutoSniff(session, dt);
+      // ...and with the Twitchy Nose, the trail to the find (after the
+      // treasure sniff, which advances walkTime).
+      tickFindNose(session, dt, progression.state);
       tips.update(session, dt);
       session.fx.update(dt, camera);
       session.skyLife.update(dt);
