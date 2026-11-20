@@ -273,7 +273,7 @@ function dressBottleTops(group, ring, { ringR, tubeR }) {
 // second torus 1 mm proud (the strands wind once round the tube every four
 // segments); the knot at the throat is one small ball of the ring's colour.
 function dressRope(group, ring, { ringR, tubeR, charmPos }) {
-  const geo = new THREE.TorusGeometry(ringR, tubeR + 0.001, 6, 16);
+  const geo = new THREE.TorusGeometry(ringR, tubeR + 0.001, 6, 12);
   const n = geo.attributes.position.count, cols = new Float32Array(n * 3), w = geo.parameters.tubularSegments + 1;
   const light = new THREE.Color(0xc8a46a), dark = new THREE.Color(0x9a7a48);
   for (let v = 0; v < n; v++) (((v % w) + 2 * Math.floor(v / w)) % 4 < 2 ? light : dark).toArray(cols, v * 3);
@@ -302,7 +302,7 @@ function dressAnchor(group, ring, { tubeR, charmPos }) {
 
 export const FOUND_COLLARS = Object.freeze({
   bottletopcollar: Object.freeze({ ring: 0x3a3a42, charmed: false, dress: dressBottleTops }),
-  ropecollar: Object.freeze({ ring: 0xc8a46a, charmed: false, dress: dressRope }),
+  ropecollar: Object.freeze({ ring: 0xc8a46a, charmed: true, dress: dressRope }),
   anchorcharm: Object.freeze({ ring: 0x24365c, charmed: true, dress: dressAnchor }),
 });
 
