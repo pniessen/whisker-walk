@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { coatColor, CAT_LOOK_Y } from './cat/model.js';
-import { resumableAreaIds } from './roofsflag.js';
+import { resumableAreaIds, roofsOn, loadRoofs } from './roofsflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -133,6 +133,11 @@ if (!renderer) {
 }
 
 function init() {
+  // ?roofs=1: fetch the Rooftops' drawing now, its own download, so it has
+  // come by the time Explore is pressed. Without the switch nothing fetches it.
+  // A failure here is quiet: Explore (walk.js) tries again and, failing,
+  // walks her own place.
+  if (roofsOn()) loadRoofs().catch(() => {});
   // coarse-pointer devices (phones/tablets) get a lower pixel-ratio cap here,
   // for the home base only. Walks no longer key off the pointer: each walk's
   // pixel ratio, shadows and stray count come from its quality rung, which
@@ -968,19 +973,32 @@ function init() {
   // it does for any walk). The try is counted BEFORE the build: a walk that
   // cannot be rebuilt is settled on a later launch (RESUME_MAX_TRIES) rather
   // than tried forever.
+  //
+  // A Rooftops walk (only noted with the switch on, resumableAreaIds) waits
+  // for its drawing to come. Home is up meanwhile; a fetch that fails leaves
+  // the note, already counted, for a later launch, and she stays home.
   if (resuming) {
-    const note = markTried(window.localStorage, leftWalk.data);
-    try {
-      startWalk({ duskMode: note.dusk, areaOverride: note.areaId, resume: note });
-    } catch (err) {
-      console.warn('Whisker Walk: could not pick the walk up', err);
-      note('resume', err);
-      // The walk counts as finished and is forgotten. If it got as far as a
-      // half-built session, start the page again clean: with the note gone
-      // that opens at home, once.
-      clearResume(window.localStorage);
-      settleAbandoned(progression, note);
-      if (session) window.location.reload();
+    const left = markTried(window.localStorage, leftWalk.data);
+    const pickUp = () => {
+      try {
+        startWalk({ duskMode: left.dusk, areaOverride: left.areaId, resume: left });
+      } catch (err) {
+        console.warn('Whisker Walk: could not pick the walk up', err);
+        note('resume', err);
+        // The walk counts as finished and is forgotten. If it got as far as a
+        // half-built session, start the page again clean: with the note gone
+        // that opens at home, once.
+        clearResume(window.localStorage);
+        settleAbandoned(progression, left);
+        if (session) window.location.reload();
+      }
+    };
+    if (left.areaId !== 'roofs') pickUp();
+    else {
+      loadRoofs().then(
+        () => { if (!session) pickUp(); },
+        (err) => { console.warn('Whisker Walk: the Rooftops did not load', err); note('roofs', err); },
+      );
     }
   }
   // The frame guard (src/game/recovery.js holds the policy and its numbers).

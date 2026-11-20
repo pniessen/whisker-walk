@@ -29,3 +29,31 @@ export function setRoofs(value) {
 export function resumableAreaIds(walks) {
   return Object.keys(walks).filter((id) => id !== 'roofs' || roofsOn());
 }
+
+// The Rooftops' drawing (world/roofs.js, with roofsplan.js, roofsparts.js and
+// roofslife.js, which only it uses) is its own download, so a child without
+// the switch never fetches it (build fix F2: the main script stays under its
+// ceiling). loadRoofs() fetches it once and keeps it; a second call while it
+// is on its way gets the same promise, and a failed fetch is forgotten so a
+// later call tries again. main.js starts it at boot when the switch is on, and
+// every Rooftops start waits for it: Explore with the switch (walk.js) and a
+// walk picked up again (main.js). loadedRoofs() is the module once it has
+// come, else null.
+let roofsModule = null;
+let roofsLoading = null;
+
+export function loadRoofs() {
+  if (roofsModule) return Promise.resolve(roofsModule);
+  roofsLoading ??= import('./world/roofs.js').then(
+    (m) => (roofsModule = m),
+    (err) => {
+      roofsLoading = null;
+      throw err;
+    },
+  );
+  return roofsLoading;
+}
+
+export function loadedRoofs() {
+  return roofsModule;
+}

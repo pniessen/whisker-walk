@@ -26,8 +26,7 @@ import * as river from '../world/river.js';
 import * as moor from '../world/moor.js';
 import * as pines from '../world/pines.js';
 import * as gorge from '../world/gorge.js';
-import * as roofs from '../world/roofs.js';
-import { roofsOn } from '../roofsflag.js';
+import { roofsOn, loadRoofs, loadedRoofs } from '../roofsflag.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
@@ -188,7 +187,14 @@ import { walkDusk } from './session.js'; // its own line: test/session.test.js p
 // `roofs` is here so a walk can build it, and nowhere a child picks from:
 // AREAS is read only to build (AREAS[areaId], AREAS.den); every list a child
 // sees comes from CATALOG.areas, which has no Rooftops row until step 4.
-const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines, gorge, farm, fair, roofs };
+// Its drawing is a separate download (roofsflag.js's loadRoofs): the entry
+// reads the module once it has come, and every Rooftops start waits for it.
+const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines, gorge, farm, fair, get roofs() { return roofsBuilder(); } };
+function roofsBuilder() {
+  const m = loadedRoofs();
+  if (!m) throw new Error('The Rooftops are not loaded yet (roofsflag.js loadRoofs)');
+  return m;
+}
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
@@ -519,12 +525,33 @@ export function createWalkLifecycle({
   // The walk goes where effectiveArea says: a Legacy kid whose place is the
   // Woods walks the Neighborhood. That is an override, never a setArea, so
   // state.area keeps the Woods for when they flip back.
+  //
+  // ?roofs=1: a solo Rooftops walk, never in a room (ruling R1). Its drawing
+  // is its own download, fetched at boot with the switch on (main.js); a press
+  // before it has come waits for it (home stays up meanwhile) and the promise
+  // it returns settles once the walk has started. A fetch that fails walks her
+  // own place instead, so Explore always goes somewhere.
   function beginWalkFromHomebase({ duskMode }) {
-    // ?roofs=1: a solo Rooftops walk, never in a room (ruling R1).
     if (roofsOn() && !getPendingRoom()) {
-      startWalk({ duskMode, areaOverride: 'roofs' });
-      return;
+      if (loadedRoofs()) {
+        startWalk({ duskMode, areaOverride: 'roofs' });
+        return undefined;
+      }
+      return loadRoofs().then(
+        () => {
+          // a second press, or a walk picked up, may have started one meanwhile
+          if (!getSession()) beginWalkFromHomebase({ duskMode });
+        },
+        (err) => {
+          console.warn('Whisker Walk: the Rooftops did not load', err);
+          note('roofs', err);
+          if (!getSession()) beginOwnPlace({ duskMode });
+        },
+      );
     }
+    return beginOwnPlace({ duskMode });
+  }
+  function beginOwnPlace({ duskMode }) {
     const area = effectiveArea(progression.state, CATALOG);
     if (!getPendingRoom()) {
       startWalk(area === progression.state.area ? { duskMode } : { duskMode, areaOverride: area });

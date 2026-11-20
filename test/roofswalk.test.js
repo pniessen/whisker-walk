@@ -1,12 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as THREE from 'three';
-import { createWalkLifecycle } from '../src/game/walk.js';
-import { createProgression } from '../src/progression.js';
-import { resolveQuality } from '../src/render/quality.js';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { mulberry32 } from '../src/rng.js';
 import { rollWeather } from '../src/weather.js';
-import { setRoofs } from '../src/roofsflag.js';
+import { setRoofs, loadRoofs, loadedRoofs } from '../src/roofsflag.js';
 import { NO_TRAVERSAL } from '../src/traversallive.js';
+import { lifecycle, fakeEl } from './helpers/walklife.js';
 
 // =============================================================================
 // The Rooftops in a real walk (Rooftops step 2). walk.js's createWalkLifecycle
@@ -20,9 +17,17 @@ import { NO_TRAVERSAL } from '../src/traversallive.js';
 // These replace the text pins this branch first put on walk.js: the dusk
 // look and the dusk tally, no weather on the roofs, the ?roofs=1 start, no
 // strays or wanderer, and (the final review's finding 1) no ghosts.
+//
+// The Rooftops' drawing is its own download (roofsflag.js loadRoofs, build
+// fix F2): the first describe below runs before anything here has loaded it,
+// and counts each time world/roofs.js is actually evaluated.
 // =============================================================================
 
-const seen = vi.hoisted(() => ({ ambient: [], clouds: [], secrets: [], critters: [] }));
+const seen = vi.hoisted(() => ({ ambient: [], clouds: [], secrets: [], critters: [], roofsLoads: 0 }));
+vi.mock('../src/world/roofs.js', async (importOriginal) => {
+  seen.roofsLoads++;
+  return importOriginal();
+});
 vi.mock('../src/render/ambient.js', async (importOriginal) => {
   const m = await importOriginal();
   return { ...m, createAmbient: (scene, o) => { seen.ambient.push(o.dusk); return m.createAmbient(scene, o); } };
@@ -45,69 +50,6 @@ vi.mock('../src/housecats.js', async (importOriginal) => {
   return { ...m, walkWanderer: (state, areaId, o) => (o?.isDen ? null : 'Biscuit') };
 });
 
-function memStorage() {
-  const map = new Map();
-  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
-}
-// The headless canvas and DOM the walk needs (as test/walkfreed.test.js).
-function fakeContext() {
-  return new Proxy({}, {
-    get: (_t, key) => {
-      if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
-      if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
-      if (key === 'measureText') return () => ({ width: 0 });
-      return () => {};
-    },
-    set: () => true,
-  });
-}
-function fakeEl() {
-  return {
-    width: 0, height: 0, getContext: fakeContext,
-    classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, style: {},
-    setAttribute() {}, appendChild() {}, insertBefore() {}, addEventListener() {}, removeEventListener() {},
-    remove() {}, contains: () => false, querySelector: () => fakeEl(), querySelectorAll: () => [],
-  };
-}
-const anything = (values = {}) => new Proxy(values, {
-  get: (target, key) => (key in target ? target[key] : () => undefined),
-  set: (target, key, v) => { target[key] = v; return true; },
-});
-
-// A save past the guided first walk, with the Glow Collar bought, and on
-// when `collar` says so.
-function lifecycle({ collar = false } = {}) {
-  let session = null;
-  let pendingRoom = null;
-  const rec = { lighting: [], sound: [], music: [], roomStarts: [], friendFetches: 0 };
-  const progression = createProgression(memStorage());
-  progression.setTutorialFirst('done');
-  progression.addPoints(1000);
-  expect(progression.buy('accessories', 'glow')).toBe(true);
-  if (collar) progression.equipAccessory('glow');
-  const w = createWalkLifecycle({
-    // MP on, so a solo walk asks the cloud for friends who could visit as ghosts
-    MP: true, pid: 'me', coarse: false, envMap: new THREE.Texture(), overlay: anything({ classList: anything() }), blockList: new Set(),
-    renderer: null, camera: new THREE.PerspectiveCamera(),
-    composerRig: anything({ applyLighting: (_scene, o) => rec.lighting.push(o.dusk) }),
-    player: anything(), progression,
-    settings: { get: (k) => (k === 'muted' ? true : null) },
-    hud: anything({ mapHost: fakeEl() }),
-    audio: anything({ startAmbient: (areaId, o) => rec.sound.push({ areaId, ...o }) }),
-    music: anything({ start: (_seed, mood) => rec.music.push(mood) }),
-    log: anything(), touchUI: anything(), catVoice: () => {},
-    getCloud: () => ({ fetchFriendships: async () => { rec.friendFetches++; return []; }, fetchProfiles: async () => [] }),
-    getSession: () => session, setSession: (s) => { session = s; }, getIsTouch: () => false,
-    getHomebase: () => anything(),
-    getPendingRoom: () => pendingRoom, clearPendingRoom: () => { pendingRoom = null; }, pushProfileNow: () => {},
-    startRoomTogether: (o) => rec.roomStarts.push(o),
-    awardStrayGreet: () => {}, applyRemoteEvent: () => {},
-    qualityAdapter: { beginWalk: () => ({ ...resolveQuality({ override: 'high' }), postFx: false }) },
-    denShop: null,
-  });
-  return { w, rec, progression, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
-}
-
 // The first seed whose walk rolls rain (the weather is the first draw off a
 // walk's stream), and the Math.random draw that makes it a solo walk's seed.
 const RAIN = (() => { for (let seed = 1; ; seed++) if (rollWeather(mulberry32(seed)) === 'rain') return seed; })();
@@ -117,7 +59,7 @@ const nextWalkSeed = (seed) => queued.push((seed + 0.5) / 2 ** 31);
 
 // One walk, started and ended; what it was handed, and what it built.
 function walk(life, start) {
-  for (const k of Object.keys(seen)) seen[k].length = 0;
+  for (const k of ['ambient', 'clouds', 'secrets', 'critters']) seen[k].length = 0;
   for (const k of ['lighting', 'sound', 'music']) life.rec[k].length = 0;
   life.rec.friendFetches = 0;
   nextWalkSeed(RAIN);
@@ -160,7 +102,34 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe('the Rooftops\' drawing is its own download', () => {
+  it('without the switch nothing fetches it: a Park walk and Explore in her own place', () => {
+    setRoofs(false);
+    expect(parkWalk(lifecycle()).areaId).toBe('park');
+    expect(walk(lifecycle(), (w) => w.beginWalkFromHomebase({ duskMode: false })).areaId).toBe('neighborhood');
+    expect(seen.roofsLoads).toBe(0);
+    expect(loadedRoofs()).toBe(null);
+  });
+
+  it('with the switch, Explore before it has come waits for it, then walks the Rooftops', async () => {
+    setRoofs(true);
+    const life = lifecycle();
+    const started = life.w.beginWalkFromHomebase({ duskMode: false });
+    expect(life.getSession()).toBe(null); // home stays up while it comes
+    await started;
+    const s = life.getSession();
+    expect(s.areaId).toBe('roofs');
+    expect(s.traversal).not.toBe(NO_TRAVERSAL); // the Rooftops' own build, with its moves
+    expect(seen.roofsLoads).toBe(1);
+    life.w.endWalk();
+    // once it has come, Explore starts straight away, with no second fetch
+    expect(walk(lifecycle(), (w) => w.beginWalkFromHomebase({ duskMode: false })).areaId).toBe('roofs');
+    expect(seen.roofsLoads).toBe(1);
+  });
+});
+
 describe('a walk on the Rooftops', () => {
+  beforeAll(() => loadRoofs());
   const EVENING = { lighting: [true], ambient: [true], clouds: [true], sound: [true], music: ['dusk'] };
 
   it('the Day choice with the Glow Collar on: the evening look everywhere, and it counts as a dusk walk', () => {
@@ -221,6 +190,7 @@ describe('everywhere else, dusk is the Dusk choice and the Glow Collar', () => {
 });
 
 describe('Explore with ?roofs=1', () => {
+  beforeAll(() => loadRoofs());
   it('starts a solo Rooftops walk', () => {
     setRoofs(true);
     const r = walk(lifecycle(), (w) => w.beginWalkFromHomebase({ duskMode: false }));
