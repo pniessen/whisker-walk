@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { coatColor, CAT_LOOK_Y } from './cat/model.js';
+import { roofsOn } from './roofsflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -544,7 +545,7 @@ function init() {
   // closed in the middle of. Read once, here. A walk left too long is settled
   // now, before the home screen draws its numbers; one still fresh is picked
   // up at the end of init (see "Mid-walk resume" above the render loop).
-  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: Object.keys(progression.state.walks) });
+  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: Object.keys(progression.state.walks).filter((id) => id !== 'roofs' || roofsOn()) });
   if (leftWalk?.kind === 'stale') {
     clearResume(window.localStorage);
     settleAbandoned(progression, leftWalk.data);

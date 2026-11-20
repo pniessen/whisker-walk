@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createSession, walkDusk } from '../src/game/session.js';
 import { snapshotWalk, settleAbandoned } from '../src/game/walkresume.js';
-import { createProgression } from '../src/progression.js';
+import { createProgression, CATALOG } from '../src/progression.js';
+import { roofsOn, setRoofs } from '../src/roofsflag.js';
+import { readResume, RESUME_KEY } from '../src/game/walkresume.js';
+import { createStrayCats } from '../src/straycats.js';
+import { decideLobbyEvent } from '../src/game/lobby.js';
 
 // =============================================================================
 // The Rooftops in the game (Rooftops step 2). Task 8: the evening look, and a
@@ -99,5 +103,71 @@ describe('the Rooftops’ evening in the walk', () => {
     const at = walkSrc.indexOf('if (!duskActive && !isDen && areaData.evening !== true) {');
     expect(walkSrc.indexOf('createWeather(')).toBeGreaterThan(at);
     expect(walkSrc.indexOf('createWeather(') - at).toBeLessThan(600);
+  });
+});
+
+// ---- Task 9: into the game, behind ?roofs=1 --------------------------------
+const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+const roomsSrc = readFileSync(new URL('../src/game/rooms.js', import.meta.url), 'utf8');
+
+describe('the Rooftops behind ?roofs=1', () => {
+  it('the catalog does not have the Rooftops until step 4', () => {
+    // Ruling R1: no CATALOG.areas.roofs row. Every card, home line, Get it?,
+    // gift and room reads CATALOG.areas, so a missing row is how nothing can
+    // offer the place before two-player height (step 4 copies the row in).
+    expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false);
+  });
+
+  it('the flag starts a solo Rooftops walk, never in a room', () => {
+    try {
+      setRoofs(null);
+      expect(roofsOn()).toBe(false);
+      setRoofs(true);
+      expect(roofsOn()).toBe(true);
+      setRoofs(false);
+      expect(roofsOn()).toBe(false);
+    } finally { setRoofs(null); }
+    expect(walkSrc).toContain("import * as roofs from '../world/roofs.js';");
+    expect(walkSrc).toContain("import { roofsOn } from '../roofsflag.js';");
+    expect(walkSrc).toMatch(/const AREAS = \{[^}]*\broofs\b[^}]*\};/);
+    const at = walkSrc.indexOf('function beginWalkFromHomebase({ duskMode }) {');
+    const body = walkSrc.slice(at, walkSrc.indexOf('startRoomTogether({ area, dusk', at));
+    const branch = "if (roofsOn() && !getPendingRoom()) {\n      startWalk({ duskMode, areaOverride: 'roofs' });\n      return;\n    }";
+    expect(body).toContain(branch);
+    expect(body.indexOf(branch)).toBeLessThan(body.indexOf('if (!getPendingRoom()) {'));
+  });
+
+  it('a Rooftops walk note is dropped without the flag', () => {
+    const now = Date.UTC(2026, 10, 20, 12);
+    const note = { v: 1, at: now - 60_000, tries: 0, areaId: 'roofs', seed: 7, stamp: 'walk-1', x: 4, z: 41, yaw: 0, startPoints: 0 };
+    const walks = { neighborhood: 1, roofs: 0 };
+    const ids = (on) => Object.keys(walks).filter((id) => id !== 'roofs' || on);
+    expect(mainSrc).toContain("areaIds: Object.keys(progression.state.walks).filter((id) => id !== 'roofs' || roofsOn())");
+    const read = (on) => {
+      const storage = memStorage();
+      storage.setItem(RESUME_KEY, JSON.stringify(note));
+      return { got: readResume(storage, { now, areaIds: ids(on) }), left: storage.getItem(RESUME_KEY) };
+    };
+    expect(read(false)).toEqual({ got: null, left: null });          // dropped, and the note cleared
+    expect(read(true).got?.kind).toBe('resume');                      // the flag on: picked up
+  });
+
+  it('a room never walks the Rooftops', () => {
+    expect(roomsSrc).toContain('knownAreas: Object.keys(CATALOG.areas),');
+    const ctx = { roster: [{ playerId: 'host' }, { playerId: 'kid' }], selfId: 'host', inWalk: false, knownAreas: Object.keys(CATALOG.areas), unlockedAreas: [] };
+    expect(decideLobbyEvent({ type: 'walk-config', id: 'kid', area: 'roofs', seed: 1 }, ctx)).toBeNull();
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'kid', area: 'roofs' }, ctx)).toBeNull();
+    expect(decideLobbyEvent({ type: 'walk-config', id: 'kid', area: 'park', seed: 1 }, ctx)).not.toBeNull();
+  });
+
+  it('no strays, no wanderer on the Rooftops', () => {
+    expect(walkSrc).toContain('const noStrays = areaData.strays === false;');
+    expect(walkSrc).toContain('const wanderName = noStrays ? null : walkWanderer(state, areaId, { ymd: wanderToday, colonyWalk, isDen });');
+    // the count and the cast are zeroed where the cats are made (the existing
+    // walk.js pins on `loners` stay as they were)
+    const strayCats = readFileSync(new URL('../src/straycats.js', import.meta.url), 'utf8');
+    expect(strayCats).toContain('if (area.strays === false) { count = 0; colonyCats = []; extras = []; }');
+    const made = createStrayCats({ add() {}, remove() {} }, { strays: false, bounds: { minX: -9, maxX: 9, minZ: -9, maxZ: 9 }, colliders: [], spawn: { x: 0, z: 0 } }, 8, () => 0.5, { extras: [{ name: 'Biscuit', wanderer: true, spot: { x: 1, z: 1 }, rng: () => 0.5 }] });
+    expect(made.strays).toHaveLength(0);
   });
 });
