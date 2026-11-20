@@ -1,4 +1,5 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
+import { isPlainObject } from './plainobject.js';
 import { note } from './diagnostics.js';
 import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_PERSONALITIES } from './customcats.js';
 import { sanitizeOutfits, wornNow, canSaveOutfit, nextOutfitId, OUTFIT_SLOTS } from './outfits.js';
@@ -409,9 +410,6 @@ export function summarizeSaveForPreview(s) {
   return { rank: rankFor(lifetimePoints).title, points, lifetimePoints, bestWalk };
 }
 
-function isPlainObject(v) {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
 // exported so other untrusted-input call sites (e.g. main.js's cloud-preview
 // summarize, before Task-1-final-fix-wave a raw pass-through that let a
 // hostile cloud payload's non-numeric points/lifetimePoints/bestWalk reach
@@ -1308,12 +1306,17 @@ export function createProgression(storage) {
   // Only an explicit Start over, cloud load or restore writes over it, and
   // each of those keeps its own copy first.
   let keepMain = false;
+  // Whether the last write threw (a full device): Game settings tells a
+  // grown-up. A keepMain skip is not a write and leaves it as it was.
+  let lastWriteFailed = false;
 
   const save = () => {
     if (keepMain) return;
     try {
       storage.setItem(SAVE_KEY, JSON.stringify(state));
+      lastWriteFailed = false;
     } catch (err) {
+      lastWriteFailed = true;
       console.warn('Whisker Walk: could not write save', err);
       note('save', err);
     }
@@ -1376,6 +1379,9 @@ export function createProgression(storage) {
   const api = {
     get state() {
       return state;
+    },
+    get saveWriteFailed() {
+      return lastWriteFailed;
     },
     addPoints(n) {
       state.points += n;

@@ -310,10 +310,8 @@ describe('createShadowFit', () => {
 // A fully-built rig that nothing calls is this wave's characteristic failure,
 // and the shadow fit is exactly the shape that fails that way: the game would
 // still render, still cast shadows, and simply keep them nailed to the world
-// origin for the whole walk. game/walk.js and main.js cannot be imported here
-// (they pull in the entire render stack), so the wiring is asserted against the
-// source text — the same technique test/docks.test.js uses for the AREAS map,
-// for the same reason.
+// origin for the whole walk. game/walk.js is asserted against its source text
+// here; main.js's frame wiring is tested by behaviour in test/frameorder.test.js.
 // ---------------------------------------------------------------------------
 describe('the shadow fit and the hemisphere fill are actually wired up', () => {
   const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
@@ -354,22 +352,10 @@ describe('the shadow fit and the hemisphere fill are actually wired up', () => {
     expect(walkSrc).toMatch(/createShadowFit\(sun, camera, \{\s*radius: tier\.shadowFitRadius,\s*mapSize: tier\.shadowMapSize,\s*\}\)/);
   });
 
-  it('hangs it on the session and drives it once a frame from the render loop', () => {
+  // The render loop driving it once a frame is test/frameorder.test.js's.
+  it('hangs it on the session and disposes it', () => {
     expect(walkSrc).toMatch(/^\s*shadows,$/m);   // the session entry
-    expect(mainSrc).toContain('session.shadows.update(');
     expect(walkSrc).toContain('session.shadows.dispose()');
-  });
-
-  it('re-fits AFTER player.update has moved the camera, and before the frame is drawn', () => {
-    // The rig reads the camera. Called before player.update it would fit the
-    // box to where the player was last frame, which is a whole frame of lag on
-    // the one thing that is supposed to follow the player exactly.
-    const move = mainSrc.indexOf('player.update(dt,');
-    const fit = mainSrc.indexOf('session.shadows.update(');
-    const draw = mainSrc.lastIndexOf('renderFrame();');
-    expect(move).toBeGreaterThan(-1);
-    expect(fit).toBeGreaterThan(move);
-    expect(draw).toBeGreaterThan(fit);
   });
 
   it('replaces the AmbientLight with a HemisphereLight taking the area’s own bounce', () => {

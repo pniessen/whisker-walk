@@ -542,6 +542,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           </label>
           <p class="settings-note" id="set-edition-note">${phrase('edition.note')}</p>
           ${settingsSwitchHtml('set-show-tips', s.showTips !== false, tutorialLine('settings.tips'))}
+          ${progression.saveWriteFailed ? `<p class="settings-note" id="set-save-note" role="status">${escapeHtml(tutorialLine('settings.save-failed'))}</p>` : ''}
         </div>
         <h3 class="settings-group">Advanced</h3>
         <div class="settings-grid settings-advanced">

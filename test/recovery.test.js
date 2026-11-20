@@ -115,29 +115,10 @@ describe('what the child sees', () => {
   });
 });
 
-// main.js wiring the guard in (its init closure cannot be reached from a test).
+// main.js's handling of a lost graphics context, pinned by its text. The
+// frame guard's wiring is tested by running the frame (test/frameorder.test.js).
 describe('main.js (source pins)', () => {
   const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-
-  it('wraps the whole frame in one try/catch, and a capped refresh is not a good frame', () => {
-    expect(src).toContain([
-      '  renderer.setAnimationLoop(() => {',
-      '    try {',
-      '      if (walkFrame() !== false) frameGuard.ok();',
-      '    } catch (err) {',
-      '      onFrameError(err);',
-      '    }',
-      '  });',
-      '  function walkFrame() {',
-    ].join('\n'));
-  });
-
-  it('ends a tripped walk through endWalk, and stops the loop when it cannot', () => {
-    const body = src.slice(src.indexOf('function onFrameError(err) {'), src.indexOf('// The main canvas losing'));
-    expect(body).toContain("if (!session) { stopLoop('error'); return; }");
-    expect(body).toMatch(/try \{\s+endWalk\(\);\s+\} catch \(endErr\) \{[\s\S]*stopLoop\('error'\);/);
-    expect(body).toContain('WALK_ENDED_LINE');
-  });
 
   it('handles the main canvas losing its context with a guarded reload', () => {
     expect(src).toContain("canvas.addEventListener('webglcontextlost', (e) => {");

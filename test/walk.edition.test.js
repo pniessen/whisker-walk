@@ -334,7 +334,6 @@ describe('the clan in the walk (source pins)', () => {
     const literal = w.indexOf('const session = createSession({');
     expect(w.slice(0, literal)).not.toMatch(/session\.campMarker\s*=/);
     expect(w.slice(literal, literal + 4000)).toMatch(/\bcampMarker,/);
-    expect(readFileSync('src/main.js', 'utf8')).toContain('mapFrame.camp = session.campMarker');
   });
 
   it('joins clanCats to the session literal, never assigned before it exists', () => {
@@ -363,14 +362,6 @@ describe('the clan in the walk (source pins)', () => {
     const s = src();
     expect(s).toMatch(/for \(const c of clanCats\.list\) decals\.follow\(c\.group\);/);
     expect(s.indexOf('createClanCats(scene,')).toBeLessThan(s.indexOf('assignShadowCasters(scene);'));
-  });
-
-  it('main.js updates the clan beside the strays', () => {
-    const m = readFileSync('src/main.js', 'utf8');
-    const strays = m.indexOf('session.strayCats.update(');
-    const clan = m.indexOf('session.clanCats.update(wdt, t, session.cat.position)');
-    expect(clan).toBeGreaterThan(strays);
-    expect(strays).toBeGreaterThan(-1);
   });
 
   it('intruders come after the session literal and the clanHome line, named only in Clan Edition', () => {
@@ -431,27 +422,6 @@ describe('the clan in the walk (source pins)', () => {
     expect(clanHomeFor('woods', 'canon', ['woods'])).toBe(true);
   });
 
-  it('main.js updates the clan fight after the rival and the dog', () => {
-    const m = readFileSync('src/main.js', 'utf8');
-    const dog = m.indexOf('session.dog.update(');
-    const cf = m.indexOf('session.clanFight.update(dt, session)');
-    expect(dog).toBeGreaterThan(m.indexOf('session.rival.update('));
-    expect(cf).toBeGreaterThan(dog);
-    expect(cf).toBeLessThan(m.indexOf('updateAvatar(session, dt, t)'));
-  });
-
-  it('main.js runs the fight camera after the fight places the cats and before the shadows read the camera', () => {
-    const m = readFileSync('src/main.js', 'utf8');
-    const cf = m.indexOf('session.clanFight.update(dt, session)');
-    const cam = m.indexOf('session.fightCam?.update(dt, {');
-    expect(cam).toBeGreaterThan(cf);
-    expect(cam).toBeLessThan(m.indexOf('session.shadows.update('));
-    const call = m.slice(cam, m.indexOf('});', cam));
-    expect(call).toContain('subject: session.clanFight.cameraSubject');
-    expect(call).toContain('cameraMode: session.cameraMode');
-    expect(m.split('session.fightCam?.update(')).toHaveLength(2);
-  });
-
   it('walk.js builds the fight camera from the area\'s trees only where a fight can happen, and lets it go at the end', () => {
     const s = readFileSync('src/game/walk.js', 'utf8');
     const at = s.indexOf('session.fightCam = ');
@@ -469,7 +439,9 @@ describe('the clan in the walk (source pins)', () => {
     expect(end).toBeGreaterThan(s.indexOf('session.clanFight.abort()'));
   });
 
-  it('the tree fade shares the trees, runs after the fight camera, and lets go at the end', () => {
+  // Its place in the frame (after the fight camera, before the shadows) is
+  // test/frameorder.test.js's.
+  it('the tree fade shares the trees and lets go at the end', () => {
     const s = readFileSync('src/game/walk.js', 'utf8');
     const fade = s.indexOf('session.treeFade = createTreeFade(isDen ? [] : [...occluders, ...findFadeOccluders(scene)], { reducedMotion });');
     expect(fade).toBeGreaterThan(s.indexOf('const occluders = '));
@@ -477,11 +449,6 @@ describe('the clan in the walk (source pins)', () => {
     expect(end).toBeGreaterThan(s.indexOf('session.fightCam?.dispose()'));
     // before the scene traversal frees the materials
     expect(end).toBeLessThan(s.indexOf('session.skyLife.dispose()', end));
-    const m = readFileSync('src/main.js', 'utf8');
-    const call = m.indexOf('session.treeFade?.update(dt, camera, treeFadeLook);');
-    expect(call).toBeGreaterThan(m.indexOf('session.fightCam?.update(dt, {'));
-    expect(call).toBeLessThan(m.indexOf('session.shadows.update('));
-    expect(m).toContain('treeFadeLook.y = session.cat.position.y + CAT_LOOK_Y;');
   });
 
   it("main.js's keydown hands every key to the fight sheet first", () => {
@@ -511,14 +478,6 @@ describe('the clan in the walk (source pins)', () => {
     const pill = body.indexOf("session?.clanFight?.uiShowing === 'challenge'");
     expect(pill).toBeGreaterThan(gate);
     expect(pill).toBeLessThan(body.indexOf("e.code === 'KeyE' && session"));
-  });
-
-  it('main.js updates the intruders right after the clan', () => {
-    const m = readFileSync('src/main.js', 'utf8');
-    const clan = m.indexOf('session.clanCats.update(wdt, t, session.cat.position)');
-    const intr = m.indexOf('session.intruders.update(dt, session.cat.position)');
-    expect(intr).toBeGreaterThan(clan);
-    expect(m.slice(clan, intr).split('\n')).toHaveLength(2);
   });
 });
 

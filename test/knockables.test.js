@@ -232,11 +232,10 @@ describe('createKnockables', () => {
 });
 
 // The walk builds them per walk from the curated set, outside the rival
-// slice, with no contact decal, frees them before endWalk's scene traversal,
-// and the render loop plays the fall.
+// slice, with no contact decal, and frees them before endWalk's scene
+// traversal. The render loop playing the fall is test/frameorder.test.js's.
 test('the walk wires knockables in, outside the rival slice, with no decal', () => {
   const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   const code = walk.replace(/\/\/.*$/gm, '');
   expect(code.match(/createKnockables\(scene, propsFor\(areaId\)\.knockables(, \{ ground \})?\)/g)).toHaveLength(1);
   expect(code).not.toMatch(/decals\.follow\([^)]*knock/);
@@ -247,5 +246,4 @@ test('the walk wires knockables in, outside the rival slice, with no decal', () 
   const freed = code.indexOf('session.knockables.dispose()');
   expect(freed).toBeGreaterThan(0);
   expect(freed).toBeLessThan(code.indexOf('session.scene.traverse('));
-  expect(main).toMatch(/session\.knockables\.update\(dt\)/);
 });

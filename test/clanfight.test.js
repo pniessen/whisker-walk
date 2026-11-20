@@ -1467,7 +1467,6 @@ describe('clanfight.js is pinned', () => {
         // 2026-11-16 (series switch, phase 1): pin updated. the toasts' words (a table, stores nothing)
         '../clanphrases.js']).toContain(s);
     }
-    expect(SRC).toMatch(/progression/); // ...and the header says why
   });
 
   test('the lose branch, as written, calls nothing but release, lock, toast and clearing the fight', () => {

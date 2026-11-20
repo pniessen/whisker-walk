@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatPerfLines, formatDiagHtml, createPerfHud, DIAG_SHOWN } from '../src/ui/perfhud.js';
+import { formatPerfLines, formatDiagHtml, formatMemoryLine, createPerfHud, DIAG_SHOWN } from '../src/ui/perfhud.js';
 import { createDiagnostics } from '../src/diagnostics.js';
 
 const sample = {
@@ -272,6 +272,15 @@ describe('formatDiagHtml', () => {
   });
 });
 
+describe('formatMemoryLine', () => {
+  it('is one line from the latest reading, and nothing without one', () => {
+    expect(formatMemoryLine({ time: 0, geometries: 412, textures: 96, programs: 31 }))
+      .toBe('after last walk: 412 geometries, 96 textures, 31 programs');
+    expect(formatMemoryLine(undefined)).toBe('');
+    expect(formatMemoryLine(null)).toBe('');
+  });
+});
+
 describe('createPerfHud with diagnostics', () => {
   let made;
   const settings = { get: () => 'auto' };
@@ -362,6 +371,30 @@ describe('createPerfHud with diagnostics', () => {
     diagnostics.note('gl', 'again');
     hud.showDiagnostics();
     expect(diagEl().innerHTML).toBe('<div class="diag-head">⚠ 1 error ▸</div>');
+  });
+
+  const memInfo = { memory: { geometries: 412, textures: 96 }, programs: new Array(31) };
+  const memLine = '<div class="diag-line">after last walk: 412 geometries, 96 textures, 31 programs</div>';
+
+  it('shows the latest memory reading as its own line, with no failure line while nothing has gone wrong', () => {
+    const { diagnostics, hud } = setup();
+    diagnostics.noteMemory({ memory: { geometries: 1, textures: 1 }, programs: [] });
+    diagnostics.noteMemory(memInfo);
+    hud.frameStart(1000, null);
+    hud.frameEnd(null, 1002);
+    expect(diagEl().hidden).toBe(false);
+    expect(diagEl().innerHTML).toBe(memLine);
+  });
+
+  it('puts the memory line under the failure line, which is unchanged', () => {
+    const { diagnostics, hud } = setup();
+    diagnostics.note('frame', new Error('boom'));
+    diagnostics.noteMemory(memInfo);
+    hud.showDiagnostics();
+    expect(diagEl().innerHTML).toBe(`<div class="diag-head">⚠ 1 error ▸</div>${memLine}`);
+    diagnostics.clear();
+    hud.showDiagnostics();
+    expect(diagEl().hidden).toBe(true);
   });
 
   it('hides with the readout', () => {

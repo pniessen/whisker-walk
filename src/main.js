@@ -22,6 +22,7 @@ import { createMusic } from './music.js';
 import { createSamples } from './samples.js';
 import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
+import { askToKeepSaves } from './savekeep.js';
 import { createSettings } from './settings.js';
 import { createBlockList } from './blocklist.js';
 import { phraseIdForDigit } from './chatkeys.js';
@@ -178,6 +179,8 @@ function init() {
   // onFirstTouch upgrade.
   if (isTouch) document.body.classList.add('touch-mode');
   const progression = createProgression(window.localStorage);
+  // Fire and forget: asks the browser not to clear the save under storage pressure.
+  askToKeepSaves();
   const album = createAlbum(window.localStorage);
   const settings = createSettings(window.localStorage);
   // Adaptive Auto quality: every device starts a walk on the high rung and

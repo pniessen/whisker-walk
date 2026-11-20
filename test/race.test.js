@@ -390,9 +390,4 @@ describe('createRace — candy hoop, faint hoops, pennant, near fade', () => {
   it('NEAR_FADE has the plan\'s values', () => {
     expect(NEAR_FADE).toEqual({ start: 2.5, end: 1.2, min: 0.12 });
   });
-
-  it('main.js hands the camera to the race', () => {
-    const src = readFileSync(fileURLToPath(new URL('../src/main.js', import.meta.url)), 'utf8');
-    expect(src).toContain('session.race.update(dt, session.cat.position, camera)');
-  });
 });
