@@ -175,6 +175,7 @@ import { createUnlockCelebration } from './celebrate.js';
 import { nowSec, escapeHtml, hashName } from './util.js';
 import { metOnly, deviceMetPlayers } from '../metplayers.js';
 import { createSession } from './session.js';
+import { walkDusk } from './session.js'; // its own line: test/session.test.js pins the one above
 
 // Every walkable area the game can build. Registering here is the last of
 // the three steps that make an area real: the builder module, the
@@ -798,10 +799,15 @@ export function createWalkLifecycle({
     // on the weather/secrets rolls just below, desyncing the shared walkRng
     // stream for the rest of the walk. Solo walks have no host to trust, so
     // they keep the local collar check.
-    const duskActive = roomSeed !== undefined ? duskMode : duskMode && equipped.collar === 'glow';
+    // Rooftops step 2: an area that is always evening (areaData.evening) has
+    // the dusk look on every walk (eveningLook), and counts as a dusk walk
+    // only with the Glow Collar on (countsDusk). duskActive keeps the rest:
+    // the secrets' roll, the fireflies, room configs, session.duskActive.
+    // session.js's walkDusk holds all three rules.
+    const { duskActive, eveningLook, countsDusk } = walkDusk({ duskMode, room: roomSeed !== undefined, collar: equipped.collar, evening: areaData.evening });
 
     // Warm low sun, cool sky fill, window glow: render/dusk.js.
-    const duskLookNow = duskActive ? applyDusk({ scene, sun, fill, areaData }) : null;
+    const duskLookNow = eveningLook ? applyDusk({ scene, sun, fill, areaData }) : null;
     setCatRimLight({ dusk: !!duskLookNow }); // polish-catlight: dusk rim weaker, cooler
     // The Fairground's bulbs (world/fair.js): every one shares one material,
     // lit in a dusk walk and plain coloured glass by day. No real lights.
@@ -821,7 +827,7 @@ export function createWalkLifecycle({
     // `scene.environmentIntensity = tier.envIntensity` assignment that used
     // to sit up beside scene.environment.
     composerRig.applyLighting(scene, {
-      dusk: duskActive,
+      dusk: eveningLook,
       nightEyes: hasSkill(progression.state, 'night-eyes'),
       envIntensity: tier.envIntensity,
     });
@@ -839,7 +845,8 @@ export function createWalkLifecycle({
     // or they glow pale in a dark scene.
     const duskGround = duskLookNow ? scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint || c.name === 'path' || c.name === 'horizonBand' || c.name === 'steppingStones')) : [];
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, tintWet() {}, dispose() {} };
-    if (!duskActive && !isDen) {
+    // No weather in an area that is always evening (no rain on the roofs).
+    if (!duskActive && !isDen && areaData.evening !== true) {
       // The ground and paths in the scene right now (the area's own, before
       // anything else is added) are what the rain darkens; the fill is dimmed.
       const wet = scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path'));
@@ -1565,7 +1572,7 @@ export function createWalkLifecycle({
     // mouse. weather: read live, so a shower's leaves dim and its fluff hides
     // until the rain stops.
     const ambient = createAmbient(scene, {
-      areaId, areaData, tier, camera, dusk: duskActive, reducedMotion, cat,
+      areaId, areaData, tier, camera, dusk: eveningLook, reducedMotion, cat,
       keepOut: grassKeepOut, weather,
     });
 
@@ -1607,7 +1614,7 @@ export function createWalkLifecycle({
     // shadow of their own (built after the caster sweep); the cave glow is a
     // PointLight with castShadow false, added here so shaders compile with it
     // once. Draws on no rng.
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: duskActive }) ?? NO_AREA_LIFE;
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook }) ?? NO_AREA_LIFE;
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,
@@ -1627,6 +1634,7 @@ export function createWalkLifecycle({
       // endWalk needs it for the duskWalks tally that Night Eyes reads;
       // duskMode alone would credit a dusk walk the player never got.
       duskActive,
+      countsDusk,
       useComposer: tier.postFx,
       tier,
       ghosts: NO_GHOSTS,
@@ -1675,7 +1683,7 @@ export function createWalkLifecycle({
       // walkRng; the den gets the no-op stub. Tints itself from scene.fog,
       // in the sunset palette on a sunset-weather walk.
       clouds: createClouds(scene, {
-        areaId, tier, camera, reducedMotion, dusk: duskActive,
+        areaId, tier, camera, reducedMotion, dusk: eveningLook,
         sunset: weather.condition === 'sunset',
         centre: { x: (areaData.bounds.minX + areaData.bounds.maxX) / 2, z: (areaData.bounds.minZ + areaData.bounds.maxZ) / 2 },
       }),
@@ -2424,7 +2432,7 @@ export function createWalkLifecycle({
     touchUI.setVisible(getIsTouch());
 
     catVoice();
-    audio.startAmbient(areaId, { dusk: duskActive, rain: weather.condition === 'rain' });
+    audio.startAmbient(areaId, { dusk: eveningLook, rain: weather.condition === 'rain' });
     // roomSeed (when present) is shared by every player in the room, so a
     // co-walk hears the identical generated song; solo/den walks fall back
     // to a seed derived from this walk's own stamp. Mood mirrors the same
@@ -2434,7 +2442,7 @@ export function createWalkLifecycle({
     // being muted does NOT skip start(): the scheduler still runs, silenced
     // via music.setMuted()'s gain-zeroing, so unmuting mid-walk resumes
     // instantly instead of waiting for the next walk.
-    const musicMood = duskActive ? 'dusk' : weather.condition === 'rain' ? 'rain' : weather.condition === 'sunset' ? 'sunset' : 'day';
+    const musicMood = eveningLook ? 'dusk' : weather.condition === 'rain' ? 'rain' : weather.condition === 'sunset' ? 'sunset' : 'day';
     music.start(roomSeed ?? seedFromCode(walkStamp), musicMood);
     // On touch a new walk starts walking at once: no "Ready?" tap between
     // Start and the cat (a desktop keeps its card, since the first click is
@@ -2476,7 +2484,7 @@ export function createWalkLifecycle({
     // show them: no guided walk starts by itself after it (the menu's "Play
     // the first walk again" still does).
     if (session.net && progression.state.tutorial?.first === null) progression.setTutorialFirst('skipped');
-    progression.completeWalk(session.areaId, { dusk: session.duskActive });
+    progression.completeWalk(session.areaId, { dusk: session.countsDusk });
     if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();
     // A crossing: this walk counted toward the gate above; now pick the place.
     let crossLines = [];

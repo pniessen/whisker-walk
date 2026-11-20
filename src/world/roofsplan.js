@@ -397,6 +397,93 @@ export function skylineY(x, z) {
 }
 
 // ---------------------------------------------------------------------------
+// The rest of the place's record (Task 8): the POIs, the golden finds, the
+// view spots, the perches, the six things to discover and the street below.
+// Pure data, read by roofsArea() and by roofs.js's build, so the tests flood
+// against exactly what the walk is given.
+
+// Thirteen POIs, every one on ground walked to from the spawn without a hop
+// (R5): the alley, the west garden, the garage roof (up the fire escape), the
+// back yards, the shop yard, the ginnel and the warehouse roof (up its stair).
+// The daily race picks five; the quests walk to them. Each is clear of every
+// collider and the edge by more than the walk's clearSpot asks.
+export const ROOFS_POIS = Object.freeze([
+  { x: -3, z: 41.5 }, // the alley, under its lamp
+  { x: -24, z: 40 }, // the alley's west end, by the fire escape
+  { x: 28, z: 40 }, // the alley's east end
+  { x: -38, z: 18 }, // the west garden
+  { x: -20, z: 31 }, // the garage roof
+  { x: 4, z: 31 }, // the garage roof, its east end
+  { x: -12.5, z: 24 }, // a back yard
+  { x: 7.5, z: 26 }, // another back yard
+  { x: 42, z: 0 }, // the shop yard
+  { x: 42, z: -20 }, // the ginnel, at the warehouse stair's foot
+  { x: -30, z: -24 }, // the warehouse roof, west
+  { x: 0, z: -30 }, // the warehouse roof, the middle
+  { x: 14, z: -32 }, // the warehouse roof, under the clock tower
+].map(Object.freeze));
+
+// Five golden finds, plain words: one in the alley, four on roofs reached
+// without Long Leap (an extension, the dormer, the corner shop, the belfry's
+// ring). No `y`: the walk adds the ground under each.
+export const ROOFS_COLLECTIBLES = Object.freeze([
+  { id: 'roofs-1', x: -12, z: 44.2, label: 'a lost bus ticket' },
+  { id: 'roofs-2', x: -3.25, z: 17, label: 'a wooden clothes peg' },
+  { id: 'roofs-3', x: -7.6, z: 9.6, label: 'a stub of roofer’s pencil' },
+  { id: 'roofs-4', x: 33, z: -5, label: 'a shiny bottle top' },
+  { id: 'roofs-5', x: 23.5, z: -15, label: 'a little brass key' },
+].map(Object.freeze));
+
+// Three view spots, each on the roof it names.
+export const ROOFS_SCENICS = Object.freeze([
+  { id: 'clock-tower', x: 22.5, z: -15, label: 'the clock tower' }, // on its first ring
+  { id: 'warehouse-roof', x: -10, z: -30, label: 'the warehouse roof' },
+  { id: 'terrace-roofs', x: 2.5, z: 4.5, label: 'the terrace roofs' }, // the flat-roofed house
+].map(Object.freeze));
+
+// The rooftop garden on the roof terrace (discovery A): a bench along the
+// back wall, tomato pots along the east side, a watering can.
+export const GARDEN = Object.freeze({
+  bench: Object.freeze({ x: 15.7, z: 8.45, len: 1.4, seat: 0.45 }),
+  pots: Object.freeze([[19.55, 9.6], [19.55, 10.4], [19.55, 11.2]].map(([x, z]) => Object.freeze({ x, z }))),
+  can: Object.freeze({ x: 18.9, z: 11.5 }),
+});
+// The skylight on the flat-roofed house (discovery D), flush with its roof.
+export const SKYLIGHT = Object.freeze({ x: 3.4, z: 5.0, w: 0.9, d: 1.2 });
+// The crate she climbs to look through the telescope (discovery E).
+export const TELESCOPE_CRATE = Object.freeze({ x: 35.85, z: 8.15, s: 0.5, yaw: 0.3 });
+
+// Perches (src/climbing.js; `y` is metres above the ground there): the alley
+// crates, the garden bench and the telescope crate. Each stands on one level.
+export const ROOFS_PERCHES = Object.freeze([
+  ...ALLEY_CRATES.map((c) => ({ x: c.x, z: c.z, y: c.y + c.s, kind: 'crate' })),
+  { x: GARDEN.bench.x, z: GARDEN.bench.z, y: GARDEN.bench.seat, kind: 'furniture' },
+  { x: TELESCOPE_CRATE.x, z: TELESCOPE_CRATE.z, y: TELESCOPE_CRATE.s, kind: 'crate' },
+].map(Object.freeze));
+
+// The six things to discover (spec, "Things to discover"): a spot on each, at
+// its ground's height. Step 4 gives them life.
+export const ROOFS_DISCOVERIES = Object.freeze({
+  garden: Object.freeze({ x: 16.6, z: 9.4, y: L.FLAT }), // A: in front of the bench
+  loft: Object.freeze({ x: -33, z: -45.5, y: L.TANK }), // B: on the pigeon loft
+  vane: Object.freeze({ x: 26, z: -16.5, y: L.TOP }), // C: at the weathervane's foot
+  skylight: Object.freeze({ x: SKYLIGHT.x, z: SKYLIGHT.z, y: L.FLAT }), // D
+  telescope: Object.freeze({ x: 35, z: 8.85, y: L.SHOP }), // E: beside the telescope
+  chimney: Object.freeze({ x: -10, z: STACK_Z, y: L.RIDGE }), // F: on the warm stack
+});
+
+// The street below (R3): its pavements, three lamps, and the bus's route. The
+// bus runs east along the near lane from x0 to x1 every `every` seconds,
+// taking `run` of them, and is seen while any of it is out in the street:
+// from its nose at the arch under the end house (the street's west end) to
+// its tail past the arch under the corner shop (`seen`, its centre's x).
+export const PAVEMENT = 2; // m, along each building front
+export const STREET_LAMPS = Object.freeze([[-24, 2.2], [-2, -12.2], [17, 2.2]].map(([x, z]) => Object.freeze({ x, z })));
+// It stands under 4 m, so past the corner shop it is under the shop yard's
+// ground; the end house is deep enough to hold it before it comes out.
+export const BUS = Object.freeze({ x0: -60, x1: 60, z: -7.4, run: 14, every: 45, len: 9, width: 2.5, height: 3.9, seen: Object.freeze([-50.5, 42.5]) });
+
+// ---------------------------------------------------------------------------
 // The area
 
 export function roofsArea() {
@@ -407,12 +494,16 @@ export function roofsArea() {
     spawn: ROOFS_SPAWN,
     colliders: ROOFS_COLLIDERS,
     waters: [],
-    perches: [],
+    pois: ROOFS_POIS,
+    collectibles: ROOFS_COLLECTIBLES,
+    scenics: ROOFS_SCENICS,
+    perches: ROOFS_PERCHES,
+    anchors: { discoveries: ROOFS_DISCOVERIES },
     ground,
     traversal: createTraversal(ROOFS_TRAVERSAL, ground),
   };
 }
 
 // ---------------------------------------------------------------------------
-// Later tasks add here: ROOFS_REGISTRATION (the per-area rows), the POIs,
-// collectibles, scenics and discovery anchors, ROOFS_SHOTS and ROOFS_TOURS.
+// Later tasks add here: ROOFS_REGISTRATION (the per-area rows), ROOFS_SHOTS
+// and ROOFS_TOURS.

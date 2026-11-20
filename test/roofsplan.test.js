@@ -45,7 +45,8 @@ describe('the plan of the Rooftops', () => {
     expect(a.spawn).toBe(R.ROOFS_SPAWN);
     expect(a.colliders).toBe(R.ROOFS_COLLIDERS);
     expect(a.waters).toEqual([]);
-    expect(a.perches).toEqual([]);
+    expect(a.perches).toBe(R.ROOFS_PERCHES);
+    expect(a.pois).toBe(R.ROOFS_POIS);
     expect(a.traversal.crossings.length).toBe(R.ROOFS_TRAVERSAL.crossings.length);
     expect(a.ground.y(R.ROOFS_SPAWN.x, R.ROOFS_SPAWN.z)).toBe(R.LEVELS.GROUND);
   });
