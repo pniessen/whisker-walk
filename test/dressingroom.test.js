@@ -285,6 +285,19 @@ describe('dressing-room renderer', () => {
       expect(count(html, /<button id="start">GO<\/button>/g)).toBe(1);
     }
   });
+  it("Legacy's picture cards put open places first, each group in catalog order", () => {
+    const s = { ...defaultishState(), edition: 'legacy' };
+    const ids = Object.keys(CATALOG.areas);
+    s.unlocked.areas = ids.filter((id) => id !== 'park');
+    const m = buildDressingModel(s, CATALOG);
+    const order = [...renderPlacesSheetHtml(m).matchAll(/<(?:button|div) class="dr-place[^"]*"(?: data-dr-place="([^"]+)")?/g)].map((x) => x[1]).filter(Boolean);
+    const inCatalog = m.places.map((p) => p.id);
+    const locked = m.places.filter((p) => p.locked).map((p) => p.id);
+    const open = inCatalog.filter((id) => !locked.includes(id));
+    expect(locked).toContain('park');
+    expect(order).toEqual([...open, ...locked]);
+    expect(open.indexOf('neighborhood')).toBe(0);
+  });
   it('a place card in the places sheet says whether it can be unlocked now, and looks not-yet when it cannot', () => {
     const price = CATALOG.areas.park.price;
     const s = { ...defaultishState(), edition: 'legacy' }; s.walks.neighborhood = 2;

@@ -218,7 +218,7 @@ describe('the countryside between the places', () => {
     const one = (extra) => clashes(html, { ...COUNTRYSIDE, fields: [], hedges: [], lanes: [], trees: [], ponds: [], flowers: [[], [], []], ...extra });
     expect(one({})).toEqual([]);
     expect(one({ trees: [[565, 500, 12]] }).length).toBeGreaterThan(0); // the Woods (the tree and its shade)
-    expect(one({ trees: [[1060, 105, 8]] }).length).toBeGreaterThan(0); // just off the Fairground, on its words
+    expect(one({ trees: [[1060, 240, 8]] }).length).toBeGreaterThan(0); // on the Fairground's name
     expect(one({ fields: [{ quad: [[1000, 560], [1100, 560], [1100, 660], [1000, 660]], tone: 0, furrows: [] }] })).toHaveLength(1);
     expect(one({ lanes: [[[1000, 520], [1000, 640]]] })).toHaveLength(1); // across the town-park road
     expect(one({ flowers: [[[455, 314]], [], []] })).toHaveLength(1); // the island's star

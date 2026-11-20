@@ -88,6 +88,14 @@ export function opensAfterLine(req, have, edition, catalog) {
   return `opens after you explore ${lower(placeName(req.area, edition, catalog) || req.area)} ${times} · ${have}/${req.walks}`;
 }
 
+// The same wait in one short line, for a label on the world map
+// ("explore Twolegplace 2 more times"); the pop-up card keeps the full line.
+export function shortLockLine(req, have, edition, catalog) {
+  const k = req.walks - have;
+  const times = k === 1 ? 'once more' : `${k} more times`;
+  return `explore ${lower(placeName(req.area, edition, catalog) || req.area)} ${times}`;
+}
+
 const SOON_LINE = { soon: 'coming soon', later: 'unexplored' };
 
 // What one place shows for this save, from its areaId: owned, selected
@@ -97,7 +105,7 @@ const SOON_LINE = { soon: 'coming soon', later: 'unexplored' };
 // the save only. An area the catalog does not have is 'coming soon'.
 export function placeState(state, catalog, areaId) {
   const offer = areaOffer(state, catalog, areaId);
-  if (!offer) return { owned: false, selected: false, locked: false, canOpen: false, price: 0, line: SOON_LINE.soon };
+  if (!offer) return { owned: false, selected: false, locked: false, canOpen: false, price: 0, line: SOON_LINE.soon, mapLine: SOON_LINE.soon };
   const areas = catalog.areas;
   const unlocked = state?.unlocked && typeof state.unlocked === 'object' ? state.unlocked : {};
   const ownedAreas = Array.isArray(unlocked.areas) ? unlocked.areas : [];
@@ -113,13 +121,14 @@ export function placeState(state, catalog, areaId) {
   // (a locked place says so even as today's place: only an odd old save
   // can have one, and its card offers no Go here)
   let line;
-  if (locked) line = opensAfterLine(req, have, state?.edition, catalog);
+  let mapLine;
+  if (locked) { line = opensAfterLine(req, have, state?.edition, catalog); mapLine = shortLockLine(req, have, state?.edition, catalog); }
   else if (selected) line = 'you’re going here';
   else if (owned) line = 'tap to go here';
   else if (price === 0) line = 'Tap to explore';
   else if (canOpen) line = `Open for ${price} 🐾`;
   else line = `${price} 🐾 — keep exploring!`;
-  return { owned, selected, locked, canOpen, price, line };
+  return { owned, selected, locked, canOpen, price, line, mapLine: mapLine ?? line };
 }
 
 // What the map shows for this save.
@@ -131,7 +140,7 @@ export function territoryMapModel(state, catalog) {
   // it carries the Pines' state.
   const stateOf = (t) => {
     if (t.status !== 'built' || !has(areas, t.areaId)) {
-      return { owned: false, selected: false, locked: false, canOpen: false, price: 0, line: SOON_LINE[t.status] ?? SOON_LINE.soon };
+      return { owned: false, selected: false, locked: false, canOpen: false, price: 0, line: SOON_LINE[t.status] ?? SOON_LINE.soon, mapLine: SOON_LINE[t.status] ?? SOON_LINE.soon };
     }
     return placeState(state, catalog, t.areaId);
   };

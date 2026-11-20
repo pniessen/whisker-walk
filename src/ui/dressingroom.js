@@ -538,6 +538,6 @@ export function renderPlacesSheetHtml(model, { clanLineHtml = '', denHtml = '' }
       + '<button type="button" class="wm-zoom-out" data-wm-zoom="out" aria-label="Zoom out">－</button></div>';
     return `<div class="dr-where">${clanLineHtml}<div class="wm-frame">${renderWorldMapHtml(m.worldMap)}${zoom}${card}</div></div>`;
   }
-  const body = `<div class="dr-places">${m.places.map(placeHtml).join('')}${denHtml}</div>`;
+  const body = `<div class="dr-places">${[...m.places.filter((p) => !p.locked), ...m.places.filter((p) => p.locked)].map(placeHtml).join('')}${denHtml}</div>`;
   return `<div class="dr-where">${clanLineHtml}${body}</div>`;
 }
