@@ -84,6 +84,8 @@ import { createFarmAnimals, NO_FARM } from '../farmanimals.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
 import { createFairLive, NO_FAIR } from '../fairlive.js';
 import { handleFairEvent, addBalloonRibbon, restoreFairGames } from './fairplay.js';
+import { createTraversalLive, NO_TRAVERSAL, traversalEventEffects } from '../traversallive.js';
+import { moveAbilities } from '../traversal.js';
 import { createFairShow } from '../fairshow.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
@@ -1444,6 +1446,14 @@ export function createWalkLifecycle({
       fairLive.attach(fairShow);
       addBalloonRibbon(carry, areaData);
     }
+    // The balance walk, leaps, drops and climb-ups (traversallive.js) of an
+    // area that returns `traversal`; NO_TRAVERSAL everywhere else (today,
+    // every shipped area). Nothing is added to the scene and nothing rides the
+    // wire: every motion is a function of the data, the stick and dt. Built
+    // per walk and disposed in endWalk, so a held stick never outlives it.
+    // The abilities are read live off the save at each use, like the climb
+    // budget. `session.fx` is read when an event fires, after `session` exists.
+    const traversalLive = areaData.traversal ? createTraversalLive(areaData.traversal, { ground, reducedMotion, abilities: () => moveAbilities(progression.state), onEvent: (e) => traversalEventEffects(e, { audio, fx: session.fx, cat, bus }) }) : NO_TRAVERSAL;
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
@@ -1597,6 +1607,7 @@ export function createWalkLifecycle({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,
       fair: fairLive,
+      traversal: traversalLive,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
       campMarker,
@@ -2622,6 +2633,7 @@ export function createWalkLifecycle({
     session.critters.dispose();
     session.farm?.dispose();
     session.fair?.dispose();
+    session.traversal?.dispose();
     session.goldMice.dispose();
     session.rival.dispose();
     session.chasing = false;

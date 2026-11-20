@@ -84,8 +84,9 @@ export function snapshotWalk(session, { yaw, now, paid = [] }) {
   const meshes = session.collectibleMeshes;
   // On one of the Fairground's rides (src/fairlive.js) she is over a ride, not
   // on the ground: the note holds where she would be put down beside it, so a
-  // walk picked up again starts her on free ground.
-  const down = session.fair?.groundSpot?.() ?? null;
+  // walk picked up again starts her on free ground. The same on a crossing or
+  // mid-hop (src/traversallive.js): the nearer end, or the hop's landing.
+  const down = session.fair?.groundSpot?.() ?? session.traversal?.groundSpot?.() ?? null;
   return {
     v: VERSION,
     at: now,

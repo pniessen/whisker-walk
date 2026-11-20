@@ -207,11 +207,18 @@ export function createInteractions({
     // The Fairground's rides (src/fairlive.js) answer first: a seat in reach,
     // a hop from seat to seat, or getting off. Everywhere else, and beside a
     // ride with no seat in reach, this is false and the ordinary jump runs.
-    if (session.fair?.jump({ cat: session.cat, player, session })) {
+    // Never while the moves are busy: a press on a crossing or mid-hop is
+    // theirs, and boards no ride.
+    if (!session.traversal?.busy && session.fair?.jump({ cat: session.cat, player, session })) {
       catVoice();
       bus.emit('guide:did', { what: 'pounce' });
       return;
     }
+    // Then the moves (src/traversallive.js): a leap, a drop or a climb-up at
+    // a spot the area places, a look across one she cannot take yet, or
+    // anything at all while she is on a crossing or in a hop. NO_TRAVERSAL
+    // (every shipped area) is false, and the ordinary jump runs.
+    if (session.traversal?.jump({ cat: session.cat, player, session })) { bus.emit('guide:did', { what: 'pounce' }); return; }
     // Look for a NEW perch reachable from wherever the cat is right now —
     // canReach uses player.perchY, which still holds the current perch's
     // height while perched (it's only zeroed by the hop-down branch below),
@@ -789,6 +796,8 @@ export function createInteractions({
       s.lastPromptKind = null;
       return;
     }
+    // no prompts on a plank or in the air: what is near her in x, z is a floor below
+    if (s.traversal?.busy) { setPrompt(null); s.lastPromptKind = null; return; }
     // Gorge part 1 (R10): the perched-collectible and knock checks compare
     // world heights; on flat ground these are the relative heights as shipped.
     const g = s.ground ?? FLAT_GROUND;
@@ -1625,12 +1634,14 @@ export function createInteractions({
   // While perched, swimming or over a raised deck the grip does not loosen at
   // all (the count simply resumes once the cat is back on solid ground): a
   // slip there could set the item inside a roof or car footprint, on the water
-  // bed, or under the pier's boards (R42). A walk without a weather object
-  // (the den) or with a stub that lacks isRaining is dry.
+  // bed, or under the pier's boards (R42). Nor while the moves
+  // (src/traversallive.js) are busy: on a crossing or mid-hop the floor
+  // below her is an alley or a yard, not where she is. A walk without a
+  // weather object (the den) or with a stub that lacks isRaining is dry.
   function tickCarryRain(s, dt) {
     const carry = s.carry;
     if (!carry?.mouth.held) return;
-    if (s.perched || player.inWater || overDeck(s)) return;
+    if (s.perched || player.inWater || overDeck(s) || s.traversal?.busy) return;
     const raining = s.weather?.isRaining?.() === true;
     if (!tickRain(carry.mouth, dt, raining)) return;
     const released = putDownCarried(s, { kick: false });

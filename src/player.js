@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { bus } from './events.js';
 import { CAT_LOOK_Y } from './cat/model.js';
-import { cameraOffset, moveDirection, viewForward, moveKeyHeld, isLetterMoveKey } from './catcam.js';
+import { cameraOffset, moveDirection, moveVector, viewForward, moveKeyHeld, isLetterMoveKey } from './catcam.js';
 import { isStalkMag } from './touchinput.js';
 import { hasSkill } from './skills.js';
 import { waterClearance, nearestDry, shallowExcess, nearestShallow } from './world/builder.js';
@@ -432,6 +432,10 @@ export function createPlayer(camera, canvas) {
   const keys = new Set();
   const velocity = new THREE.Vector3();
   let touchMove = null; // {x, z, mag} | null — overrides keys when set
+  // The yaw the stick is turned by, when it is not the camera's: the balance
+  // walk (src/traversallive.js) holds it while a stick held off a crossing
+  // keeps its world direction. null (the default) is the camera's yaw.
+  let inputYaw = null;
   let touchEngaged = false;
   let touchMode = false; // set by main when a touch UI is active — gates click-to-lock
   let invertY = false; // settings.invertY — negates the pitch delta in both orbit paths below
@@ -653,6 +657,7 @@ export function createPlayer(camera, canvas) {
       api.perchY = 0;
       touchMove = null;
       touchEngaged = false;
+      inputYaw = null;
       zoom = { charging: false, zooming: false, time: 0 };
       hopArc = null;
       hopTime = 0;
@@ -665,6 +670,11 @@ export function createPlayer(camera, canvas) {
     },
     setViewYaw(v) {
       if (Number.isFinite(v)) yaw = v;
+    },
+    // Turn the stick by `v` instead of the camera's yaw; null (or anything
+    // not finite) gives it back to the camera. setAvatar and disable reset it.
+    setInputYaw(v) {
+      inputYaw = Number.isFinite(v) ? v : null;
     },
     // Gorge part 1: the walk's ground. Call once per walk, after setAvatar.
     setGround(g) {
@@ -686,7 +696,18 @@ export function createPlayer(camera, canvas) {
     // Vector3, zero when nothing is held. (For a one-off question, such as
     // which side of a ride to get off: src/fairlive.js. Not for every frame.)
     inputDirection() {
-      return touchMove ? touchDirection(touchMove, yaw) : moveDirection(keys, yaw);
+      const turn = inputYaw ?? yaw;
+      return touchMove ? touchDirection(touchMove, turn) : moveDirection(keys, turn);
+    },
+    // The stick or keys in screen space, before the camera turn, written into `out` (no allocation).
+    // For the balance walk (src/traversallive.js), which turns the stick by its own held yaw.
+    stickInput(out) {
+      if (touchMove) {
+        out.x = touchMove.x;
+        out.z = touchMove.z;
+        return out;
+      }
+      return moveVector(keys, out);
     },
     get stalking() {
       return keys.has('ShiftLeft') || keys.has('ShiftRight') ||
@@ -800,6 +821,7 @@ export function createPlayer(camera, canvas) {
       enabled = false;
       keys.clear();
       touchMove = null;
+      inputYaw = null;
       api.setTouchEngaged(false);
       zoom = { charging: false, zooming: false, time: 0 };
       hopArc = null;
@@ -845,7 +867,8 @@ export function createPlayer(camera, canvas) {
       // Ruling: zoomies stop in water. The charge is wiped on the frame the
       // cat goes in, and (below) running charges it only while dry.
       if (st.entered) zoom = { charging: false, zooming: false, time: 0 };
-      const dir = touchMove ? touchDirection(touchMove, yaw) : moveDirection(keys, yaw);
+      const turn = inputYaw ?? yaw;
+      const dir = touchMove ? touchDirection(touchMove, turn) : moveDirection(keys, turn);
       // Gorge part 1 (R6): a little slower uphill. The grade is the slope of
       // the shape under the cat along the input direction (a finite
       // difference would read a cliff foot as a climb). Flat maps skip it.

@@ -21,6 +21,8 @@ verify-*.html
 !verify-places.html
 # This one drives the real home base (and its hero stage) through every visit celebration and prize: the visit milestones' sign-off record.
 !verify-visits.html
+# This one draws the traversal test yard (src/world/traversalyard.js) with the real player and moves: the source of the Rooftops step-1 pictures and films (scripts/record-page.mjs).
+!verify-traversal.html
 
 # Brainstorming visual-companion scratch (mockups, server state)
 .superpowers/

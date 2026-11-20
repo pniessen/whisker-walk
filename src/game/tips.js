@@ -51,15 +51,23 @@ function ahead(from, fwd, to) {
 
 // climbInReach(session, player, state) -> true when the paw would climb:
 // a perch in reach from where the cat is (a higher one, when perched), or a
-// seat of one of the Fairground's rides (src/fairlive.js).
+// seat of one of the Fairground's rides (src/fairlive.js). In the press's own
+// order (game/interactions.js doPounceOrClimb): a ride's seat first (never
+// while the moves are busy), then the moves (src/traversallive.js) where they
+// would take the press (true for a climb-up, false for a leap, a drop, a look
+// or a press on a crossing or mid-hop), then the perches. NO_TRAVERSAL (every
+// shipped area) never takes it.
 export function climbInReach(session, player, state) {
   if (player.swimming || session.chasing) return false;
+  if (!session.perched && !session.traversal?.busy && session.fair?.canBoard(session.cat, player, session)) return true;
+  const move = session.traversal?.pressKind?.({ cat: session.cat, player, session }) ?? null;
+  if (move) return move === 'climb';
   const ground = session.ground ?? FLAT_GROUND;
   const next = bestPerch(session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched, climbBudget(state),
     { fenceRun: fenceRunning(state), state, ground });
   // From a perch, bestPerch also offers drops; only a higher perch is a climb.
   if (next && (!session.perched || next.y > player.perchY + 0.05)) return true;
-  return !session.perched && !!session.fair?.canBoard(session.cat, player, session);
+  return false;
 }
 
 // climbBadge(session, player, state) -> 'up' (a climb in reach), 'down' (on a

@@ -39,6 +39,21 @@ export function moveKeyHeld(keys) {
   return held(keys, MOVE_KEYS.up) || held(keys, MOVE_KEYS.down) || held(keys, MOVE_KEYS.left) || held(keys, MOVE_KEYS.right);
 }
 
+// The held keys as a normalised screen-space (x, z), before any yaw, written into `out` (zero when none).
+// For the balance walk (src/traversallive.js), which turns the stick by its own held yaw.
+export function moveVector(keys, out) {
+  let x = 0;
+  let z = 0;
+  if (held(keys, MOVE_KEYS.up)) z -= 1;
+  if (held(keys, MOVE_KEYS.down)) z += 1;
+  if (held(keys, MOVE_KEYS.left)) x -= 1;
+  if (held(keys, MOVE_KEYS.right)) x += 1;
+  const len = Math.hypot(x, z);
+  out.x = len === 0 ? 0 : x / len;
+  out.z = len === 0 ? 0 : z / len;
+  return out;
+}
+
 export function moveDirection(keys, yaw) {
   const dir = new THREE.Vector3();
   if (held(keys, MOVE_KEYS.up)) dir.z -= 1;
