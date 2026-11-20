@@ -11,6 +11,9 @@ import {
 import { renderFightMovesHtml, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
 import { HOME_SHEETS, MENU_TILES, GROWNUP_SHEETS, SHEET_ICON, SHEET_NAME, resolveSheet, PLACE_PICTURE, placeWhyLine } from './dressingroom.js';
 import { createDressingRoom } from './dressingroomview.js';
+import { attachMapPan } from './mappan.js';
+import { WORLD_VIEW } from './territorymap.js';
+import { worldMapModel, tapTargets, focusOf } from '../worldmap.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
@@ -1211,6 +1214,34 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   let dressing = null;
   let nudgePlace = null; // a place she could not open: wobbles once, on the next render
   let thumbs = null; // menuThumbnails(), made once with the dressing room
+  // The world map's pan and pinch (ui/mappan.js), wired to the map each render
+  // of Change place draws (Clan Edition), and the view it shows: kept across
+  // renders (a card opening, a colony poll), forgotten when Change place is
+  // opened afresh. Every render detaches the last one first, so no listener
+  // is left on a map that is gone.
+  let mapPan = null;
+  let mapView = null;
+  function dropMapPan() {
+    const pan = mapPan;
+    mapPan = null;
+    try { pan?.detach?.(); } catch { /* the map is gone anyway */ }
+  }
+  function attachWorldMap(s) {
+    if (openSheet !== 'places' || !isClanEdition(s)) return;
+    try {
+      const model = worldMapModel(s, CATALOG);
+      // The drawn box (WORLD_VIEW), not the bare world: her Moor reaches
+      // above its top edge and is never cut off.
+      mapPan = attachMapPan(root.querySelector?.('.wm-frame'), {
+        world: WORLD_VIEW, targets: tapTargets(model), focus: focusOf(model), view: mapView,
+        onView: (v) => { mapView = v; },
+      });
+      if (mapPan?.view) mapView = mapPan.view;
+    } catch (err) {
+      console.warn('Whisker Walk: the world map could not pan', err);
+      note('ui', err);
+    }
+  }
   function ensureDressing() {
     if (dressing) return dressing;
     thumbs = menuThumbnails();
@@ -1281,6 +1312,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const prev = openSheet;
     backTo = openSheet === 'menu' && next && next !== 'menu' && next !== 'places' ? 'menu' : null;
     openSheet = next;
+    // The world map opens afresh, round today's place, from any other screen.
+    if (next === 'places' && prev !== 'places') mapView = null;
+    // Leaving Change place with a place's card open: the card goes with it,
+    // so the map is bare when she comes back.
+    if (prev === 'places' && next !== 'places' && dressing?.ui?.mapCard) dressing.back?.();
     backupMsg = null; // a restore's result line is for the sheet it happened on
     // Usage counts: a sheet opened from somewhere else, not a re-open of itself.
     // (Back from a sheet to the Menu is not an open of the Menu.)
@@ -1479,6 +1515,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   function render() {
     const fid = focusedId();
+    dropMapPan(); // this render replaces the map (or leaves it)
     // The welcome line belongs to the cat on the home screen: a sheet or the
     // cat builder sends it away at once.
     if (openSheet || dressing?.ui?.builder) closeWelcome();
@@ -1522,6 +1559,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           ${dock === 'full' ? startRowHtml(roomState) : `<div class="dr-start-row">${renderStartButtonHtml(roomState, { as: startAs() })}</div>`}
         </footer>`}
       </div>`;
+      if (openSheet === 'places') {
+        attachWorldMap(s);
+        // A keyboard tap on the map (a place, its card's ✕) puts focus back
+        // on its twin in the fresh map.
+        dressing?.restoreFocus?.(root, null);
+      }
       refocus(fid);
       // The wobble: the card (or map region) she tapped, in the fresh DOM.
       // Skipped when she asked for reduced motion (the CSS also skips it for
@@ -1532,6 +1575,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         try {
           const q = String(nudge).replace(/["\\]/g, '');
           for (const el of root.querySelectorAll?.(`[data-dr-place="${q}"]`) ?? []) el.classList.add('nudge');
+          for (const el of root.querySelectorAll?.(`[data-dr-map-place="${q}"]`) ?? []) el.classList.add('nudge');
         } catch { /* a nicety */ }
       }
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
@@ -1636,6 +1680,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     render();
   }
+
+  // The world map's places are <g role="button">s, not <button>s: Enter and
+  // Space on one go to the dressing room, which does what a tap does.
+  root.addEventListener('keydown', (e) => { dressing?.handleKeydown?.(e); });
 
   root.addEventListener('click', async (e) => {
     // The dressing room's own controls (portraits, slots, picker, places,
@@ -2317,6 +2365,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (dressing?.ui?.wardrobe) n += 1;
     if (dressing?.ui?.builder) n += 1;
     if (openSheet) n += backTo === 'menu' ? 2 : 1;
+    if (openSheet === 'places' && dressing?.ui?.mapCard) n += 1; // a place's card, over the map
     if (newsEl || noticeEl || momentEl || nearbyEl) n += 1;
     if (confirmCard.isOpen()) n += 1;
     return n;
@@ -2330,6 +2379,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (noticeEl) { closeNotice(); return true; }
     if (newsEl) { closeNews(true); return true; }
     if (nearbyEl && nearbyNotNow) { nearbyNotNow(); return true; }
+    // A place's card closes first (its ✕); Change place stays under it.
+    if (openSheet === 'places' && dressing?.ui?.mapCard && dressing.back?.()) return true;
     if (openSheet) { sheetBack(); return true; }
     return !!dressing?.back?.();
   }
@@ -2349,9 +2400,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // started from (the Journal's dock, say), unless a sheet is asked for.
       openSheet = null;
       backTo = null;
+      mapView = null; // the world map opens afresh, round today's place
       if (sheet && availableSheets().includes(sheet)) openSheet = sheet;
       render(); // also turns the hero stage back on
       root.classList.remove('hidden');
+      // The map had no size while the screen was hidden: wire its pan now.
+      if (!mapPan) attachWorldMap(progression.state);
       syncPairingPoll(); // render() ran while still hidden
       syncNearby();
       // Back from a walk: the walk that opened the Woods brings the clan
@@ -2377,6 +2431,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       shown = false;
       // A walk is starting: stop the hero's frames and drop any preview.
       if (stage) stage.setVisible(false);
+      dropMapPan(); // no pan listening on a hidden map
       dressing?.clearPreview();
       dressing?.closeWardrobe?.(); // home again is the cat, not the wardrobe
       root.classList.add('hidden');

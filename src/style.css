@@ -1781,6 +1781,55 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .territory-map .later .tm-label { fill: #8a7a66; font-style: italic; }
 .territory-map .sel .tm-line { fill: #b5524a; font-weight: 700; }
 
+/* Clan Edition: the world map (Change place, ui/territorymap.js
+   renderWorldMapHtml): her board and the street places in one SVG that pans
+   and pinch-zooms by its viewBox (ui/mappan.js), the zoom buttons at its top
+   right and a place's pop-up card over its bottom edge. 440 px is about the
+   world's height at the zoom-out floor, so a phone shows the whole height
+   with no blank paper. */
+.wm-frame { position: relative; margin: 0 0 12px; }
+.territory-map.world-map { width: 100%; max-width: none; height: min(62vh, 440px); margin: 0; border-radius: 12px;
+  /* the finger pans and pinches the map, never the page (else the browser
+     takes the gesture and the map gets a pointercancel) */
+  touch-action: none; -webkit-user-select: none; user-select: none; }
+@media (min-width: 768px) { .territory-map.world-map { height: auto; aspect-ratio: 1500 / 880; } }
+/* (iOS taps: the pointer cursor, as for the territory map above) */
+.world-map [data-dr-map-place] { cursor: pointer; }
+.world-map .tm-region:focus { outline: none; }
+.world-map .tm-region:focus-visible .tm-hit { stroke: #fff; stroke-width: 10; }
+.world-map .tm-sea { fill: #a9d3e3; }
+.world-map .tm-sea, .world-map .wm-roads { pointer-events: none; }
+.world-map .wm-road { fill: none; stroke: #b04a2e; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 3 9; }
+.world-map .wm-gate { fill: #b04a2e; }
+.world-map .tm-land.street.locked { fill: #cbbfa6; stroke-dasharray: 14 9; }
+.world-map .tm-line-small { font-size: 24px; }
+/* Zoom in / Zoom out: two round buttons at the map's top right */
+.wm-zoom { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
+.wm-frame .wm-zoom button { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1.5px solid #5b6c88;
+  background: rgba(28, 36, 49, .82); color: var(--cream, #f1e0c2); font: inherit; font-size: 22px; font-weight: 800; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; }
+.wm-frame .wm-zoom button:hover { background: rgba(28, 36, 49, .95); }
+.wm-frame .wm-zoom button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+/* a place's card: over the map's bottom edge, clear of the zoom buttons (a
+   phone's map is 440 px at most: the card's top stays well under them) */
+.wm-card { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3; max-height: calc(100% - 120px); overflow: auto;
+  border-radius: 14px; background: var(--panel, #2c3d58); color: var(--cream, #f1e0c2); box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
+  padding: 0 0 12px; } /* no slide-in: nothing moves for reduced motion (the game's switch or the system's) */
+@media (min-width: 768px) { .wm-card { left: auto; width: 360px; } }
+.wm-card-pic { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 14px 14px 0 0; }
+/* a phone's or a tablet's map is short: a shorter picture keeps Go here in
+   view without scrolling the card (a desktop's map has room for all 16:10) */
+@media (max-width: 999px) { .wm-card-pic { max-height: min(22vh, 160px); } }
+.wm-card h3 { margin: 10px 56px 4px 14px; font-size: 1.15rem; color: var(--cream, #f1e0c2); }
+.wm-card-line { margin: 0 14px 10px; font-size: 15px; line-height: 1.35; }
+/* its one button: outlined and quiet (pink is Explore's alone) */
+.dr-where .wm-card .wm-card-go, .dr-where .wm-card .wm-card-buy { display: flex; align-items: center; justify-content: center;
+  margin: 0 14px; width: calc(100% - 28px); min-height: 48px; padding: 8px 18px; border: 1.5px solid var(--cream, #f1e0c2);
+  border-radius: 999px; background: transparent; color: var(--cream, #f1e0c2); font-weight: 700; font-size: 16px; }
+.dr-where .wm-card .wm-card-go:hover, .dr-where .wm-card .wm-card-buy:hover { background: rgba(241, 224, 194, .1); }
+.dr-where .wm-card .wm-card-close { position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  background: rgba(20, 28, 42, .78); color: #fff; font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.wm-card button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
 /* ===== phone: one column, no scrolling ===== */
 @media (max-width: 600px) {
@@ -1975,13 +2024,10 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
 .dr-building .hb-menu-btn { display: none; } /* no door out of the builder */
 .join-moment-card:focus { outline: none; }
 .hb-places .dr-label { color: #f1e0c2; }
+/* Clan Edition: one column, the clan line over the world map at full width
+   (the map is every place now: no picture cards beside it) */
+.hb-places .dr-where:has(.wm-frame) { display: block; }
 @media (min-width: 900px) {
-  /* desktop: the map beside the other places, so the sheet fits one screen */
-  .hb-places .dr-where:has(.territory-map) { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr;
-    column-gap: 20px; align-items: start; }
-  .hb-places .dr-where > .dr-label { align-self: end; }
-  .hb-places .dr-where > .hb-pick-line, .hb-places .dr-where > .hb-pick-choose { grid-column: 1 / -1; }
-  .hb-places .dr-where > .territory-map { grid-row: span 2; }
   .hb-places .dr-where > .dr-places { grid-template-columns: 1fr 1fr; }
 }
 
@@ -1990,8 +2036,6 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
    Settings is one centred panel at a readable width, not a column hugging the left */
 @media (min-width: 1000px) {
   .homebase-scroll.hb-sheet[data-sheet="places"], .homebase-scroll.hb-sheet[data-sheet="menu"] { max-width: min(1240px, 94vw); }
-  .hb-places .dr-where:has(.territory-map) { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); column-gap: 28px; }
-  .hb-places .dr-where > .territory-map { max-width: none; }
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .hb-tiles { gap: 16px; }
   .hb-tile { min-height: 150px; }
