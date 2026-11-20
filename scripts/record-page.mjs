@@ -25,6 +25,7 @@ import { pathToFileURL } from 'node:url';
 export const DEFAULT_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 export const FFMPEG = '/opt/homebrew/bin/ffmpeg';
 const USAGE = 'usage: record-page.mjs --url <url> --out <dir> (--shots a,b | --tour <name>) [--size 960x540] [--fps 30] [--max-frames 2700] [--chrome <path>]';
+export const NAME = /^[\w-]+$/; // a shot or tour name
 const READY_TIMEOUT = 60e3; // ms
 const PORT_TIMEOUT = 20e3; // ms
 
@@ -58,6 +59,11 @@ export function parseArgs(argv) {
   if (!opts.url || !opts.out) throw new Error(`--url and --out are both needed\n${USAGE}`);
   if (!opts.shots.length && !opts.tour) throw new Error(`give --shots or --tour\n${USAGE}`);
   if (opts.shots.length && opts.tour) throw new Error(`give --shots or --tour, not both\n${USAGE}`);
+  // Names become paths under --out (<tour>-frames is emptied with rmSync), so
+  // only letters, digits, '_' and '-': never a '/', '..' or a space.
+  for (const name of opts.tour ? [opts.tour] : opts.shots) {
+    if (!NAME.test(name)) throw new Error(`a shot or tour name is letters, digits, _ and - only, not "${name}"`);
+  }
   return opts;
 }
 
@@ -167,6 +173,7 @@ async function main() {
     }
 
     if (opts.tour) {
+      if (!NAME.test(opts.tour)) throw new Error(`bad tour name "${opts.tour}"`); // parseArgs checked; never empty a path it did not
       const framesDir = join(opts.out, `${opts.tour}-frames`);
       rmSync(framesDir, { recursive: true, force: true });
       mkdirSync(framesDir, { recursive: true });

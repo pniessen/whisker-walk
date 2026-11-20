@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseArgs, ffmpegArgs } from '../scripts/record-page.mjs';
+import { parseArgs, ffmpegArgs, NAME } from '../scripts/record-page.mjs';
 
 // scripts/record-page.mjs: the headless recorder for the picture pages
 // (verify-traversal.html). Only its pure parts are tested here; the Chrome
@@ -24,6 +24,18 @@ describe('the page recorder', () => {
     expect(() => parseArgs(['--url', 'u', '--out', 'o', '--tour', 't', '--size', '960'])).toThrow();
     expect(() => parseArgs(['--url', 'u', '--out', 'o', '--tour', 't', '--fps', 'fast'])).toThrow();
     expect(() => parseArgs(['--url', 'u', '--out', 'o', '--tour', 't', '--loud'])).toThrow();
+  });
+
+  it('takes only plain tour and shot names, since they become paths under --out', () => {
+    for (const name of ['climbs', 'leaps-and-drops', 'leap_down', 'plank2']) {
+      expect(parseArgs(['--url', 'u', '--out', 'o', '--tour', name]).tour).toBe(name);
+      expect(parseArgs(['--url', 'u', '--out', 'o', '--shots', `plank,${name}`]).shots).toEqual(['plank', name]);
+    }
+    for (const bad of ['..', '../x', '/tmp', 'a/b', 'a b', 'a.b', '~', '-frames/../..', '']) {
+      if (bad) expect(() => parseArgs(['--url', 'u', '--out', 'o', '--tour', bad]), bad).toThrow(/name/);
+      expect(() => parseArgs(['--url', 'u', '--out', 'o', '--shots', `plank,${bad}x/`]), bad).toThrow(/name/);
+      expect(NAME.test(bad)).toBe(false);
+    }
   });
 
   it('builds the ffmpeg line', () => {

@@ -1045,6 +1045,11 @@ function init() {
     if (!document.hidden && glReloadPending) reloadAfterContextLoss();
   });
 
+  // The moves' context (traversallive.js), made once: walkFrame fills in
+  // its cat and session before each call (and empties them after late), so
+  // an engaged frame allocates nothing for it.
+  const moveCtx = { cat: null, player, session: null };
+
   // One try/catch around the whole frame: nothing allocated, nothing extra
   // read on a good frame, and the frame's own order is untouched. A refresh
   // the 30 fps cap skips (walkFrame gives false) ran nothing, so it does not
@@ -1077,7 +1082,9 @@ function init() {
       // The moves (traversallive.js) first: on a crossing or in a hop they
       // place her and hold the player, so player.update leaves her there and
       // puts the camera on this frame's spot. NO_TRAVERSAL does nothing.
-      session.traversal.update(dt, t, { cat: session.cat, player, session });
+      moveCtx.cat = session.cat;
+      moveCtx.session = session;
+      session.traversal.update(dt, t, moveCtx);
       // `waters` is v20's fourth argument: the area's water footprints, which
       // player.update blocks the cat out of unless Sea Legs is on. The den has
       // none and passes undefined, which the default handles.
@@ -1414,7 +1421,11 @@ function init() {
       session.fair.late(dt, t, { cat: session.cat, player, session });
       // And the moves' touches on the pose: the tail out on a crossing, the
       // rump wiggle, the leap's lean, the landing bounce (traversallive.js).
-      session.traversal.late(dt, t, { cat: session.cat, player, session });
+      moveCtx.cat = session.cat;
+      moveCtx.session = session;
+      session.traversal.late(dt, t, moveCtx);
+      moveCtx.cat = null; // so an ended walk's session is not held past its frame
+      moveCtx.session = null;
       updateInteractions(session);
       // The paw's climb badge (touch only; the keyboard has no paw), a few
       // times a second from the same facts the hints use.

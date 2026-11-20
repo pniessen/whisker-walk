@@ -1123,6 +1123,30 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.toasts).toHaveLength(1);
       });
 
+      it('does not loosen the grip on a crossing or mid-hop; the count resumes once the moves are done', async () => {
+        const { NO_TRAVERSAL } = await import('../src/traversallive.js');
+        const h = holding();
+        const moves = { busy: true };
+        h.session.traversal = moves;
+        rainFor(h, RAIN_GRIP * 3);
+        expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+        expect(h.session.carry.mouth.grip).toBe(0);
+        expect(h.toasts).toEqual([]);
+        moves.busy = false;
+        rainFor(h, RAIN_GRIP - 0.5);
+        expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+        rainFor(h, 0.5);
+        expect(h.session.carry.mouth.held).toBe(null);
+        expect(h.toasts).toHaveLength(1);
+        // every shipped area's NO_TRAVERSAL slips exactly as a walk with none
+        const n = holding();
+        n.session.traversal = NO_TRAVERSAL;
+        rainFor(n, RAIN_GRIP - 0.5);
+        expect(n.session.carry.mouth.held?.id).toBe('park-stick-1');
+        rainFor(n, 0.5);
+        expect(n.session.carry.mouth.held).toBe(null);
+      });
+
       it('no rain slip in the shallows either', () => {
         const h = holding();
         h.player.inWater = true;

@@ -57,12 +57,33 @@ it('walk.js builds it only for an area that places moves, and disposes it', () =
 });
 
 it('main.js runs it before the player moves and touches her up after she is posed', () => {
-  const up = main.indexOf('session.traversal.update(dt, t, { cat: session.cat, player, session });');
+  const up = main.indexOf('session.traversal.update(dt, t, moveCtx);');
   const move = main.indexOf('player.update(dt, session.areaData.colliders');
-  expect(up).toBeGreaterThan(main.indexOf('if (player.engaged) {'));
+  expect(up).toBeGreaterThan(-1);
+  expect(main.indexOf('player.update(dt, session.areaData.colliders', move + 1)).toBe(-1); // the one walk move
+  // inside the engaged block that holds player.update, with nothing closing it in between
+  const engaged = main.lastIndexOf('if (player.engaged) {', move);
+  expect(engaged).toBeGreaterThan(-1);
+  expect(up).toBeGreaterThan(engaged);
   expect(up).toBeLessThan(move);
+  expect(main.slice(engaged, move)).not.toMatch(/\n {4}\}/);
   expect(main.indexOf('session.traversal.late(')).toBeGreaterThan(main.indexOf('session.fair.late('));
   expect(main.indexOf('session.traversal.late(')).toBeLessThan(main.indexOf('updateInteractions(session);'));
+  expect(main).toContain('session.traversal.late(dt, t, moveCtx);');
+});
+
+it('main.js hands the moves one context object, made once outside the frame', () => {
+  const made = main.indexOf('const moveCtx = { cat: null, player, session: null };');
+  expect(made).toBeGreaterThan(-1);
+  expect(made).toBeLessThan(main.indexOf('renderer.setAnimationLoop(() => {'));
+  expect(main.match(/const moveCtx\b/g)).toHaveLength(1);
+  // no fresh object literal at either call
+  expect(main).not.toMatch(/session\.traversal\.(update|late)\([^)]*\{/);
+  // refreshed right before each call
+  for (const call of ['session.traversal.update(dt, t, moveCtx);', 'session.traversal.late(dt, t, moveCtx);']) {
+    const at = main.indexOf(call);
+    expect(main.slice(at - 120, at)).toMatch(/moveCtx\.cat = session\.cat;\s+moveCtx\.session = session;\s+$/);
+  }
 });
 
 it('no shipped area places moves yet', () => {
@@ -231,6 +252,22 @@ describe('the jump button', () => {
     expect(jump).not.toHaveBeenCalled();
     expect(h.session.perched).toBeNull();
   });
+
+  it('a press on a crossing or mid-hop never boards a ride: the moves have it', () => {
+    const jump = vi.fn(() => true);
+    const ride = vi.fn(() => true);
+    const h = climbHarness({ traversal: { busy: true, jump }, fair: { jump: ride } });
+    h.doPounceOrClimb();
+    expect(ride).not.toHaveBeenCalled();
+    expect(jump).toHaveBeenCalledTimes(1);
+    expect(h.session.perched).toBeNull();
+    // with NO_TRAVERSAL (every shipped area) the ride is asked first, as before
+    const seat = vi.fn(() => true);
+    const n = climbHarness({ traversal: NO_TRAVERSAL, fair: { jump: seat } });
+    n.doPounceOrClimb();
+    expect(seat).toHaveBeenCalledTimes(1);
+    expect(n.session.perched).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -360,5 +397,25 @@ describe("the paw's climb badge", () => {
     expect(climbBadge(badgeSession(l, [perch]), l.player, state)).toBeNull(); // the press leaps
     l.jump();
     expect(climbBadge(badgeSession(l, [perch]), l.player, state)).toBeNull(); // mid-hop
+  });
+
+  it('in the press’s own order: a ride’s seat before the moves, never while they are busy', () => {
+    const l = yardWalk({ at: [3, -7.0], face: [0, 1] });
+    const canBoard = vi.fn(() => true);
+    const fair = { canBoard };
+    // the press would board the ride before the moves could leap, so the badge says up
+    expect(l.live.pressKind(l.ctx)).toBe('leap');
+    expect(climbBadge({ ...badgeSession(l), fair }, l.player, state)).toBe('up');
+    expect(canBoard).toHaveBeenCalledWith(l.cat, l.player, expect.objectContaining({ fair }));
+    // mid-hop the press boards nothing, and the badge says nothing; the ride is not asked
+    l.jump();
+    canBoard.mockClear();
+    expect(climbBadge({ ...badgeSession(l), fair }, l.player, state)).toBeNull();
+    expect(canBoard).not.toHaveBeenCalled();
+    // NO_TRAVERSAL (every shipped area): a seat in reach is up, none is nothing, as before
+    const n = { ...badgeSession(l), traversal: NO_TRAVERSAL };
+    expect(climbBadge({ ...n, fair }, l.player, state)).toBe('up');
+    expect(climbBadge({ ...n, fair: { canBoard: () => false } }, l.player, state)).toBeNull();
+    expect(climbBadge({ ...n, perched: { y: 1 }, fair }, l.player, state)).toBe('down'); // a seat is boarded from the ground only
   });
 });
