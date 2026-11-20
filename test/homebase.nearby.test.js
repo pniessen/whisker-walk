@@ -340,7 +340,8 @@ describe('the rows in Play together', () => {
     await tap({ dataset: { nearbyCode: 'WXYZ' } });
     expect(rooms.join).not.toHaveBeenCalled();
     expect(html()).toContain('You need a friend name before you can play together');
-    expect(html().indexOf('You need a walking name')).toBeLessThan(html().indexOf('id="wt-petname-input"'));
+    expect(html().indexOf('You need a friend name')).toBeGreaterThan(-1);
+    expect(html().indexOf('You need a friend name')).toBeLessThan(html().indexOf('id="wt-petname-input"'));
     expect(nameBox.focus).toHaveBeenCalled();
     expect(html()).toContain('wt-nearby-row'); // the row waits for her
   });

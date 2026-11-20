@@ -256,6 +256,56 @@ describe('Start a room or Join with no name: still the name box', () => {
   });
 });
 
+describe('sent to the name box from a typed room code', () => {
+  it('the code she typed is still in the box after she saves a name', async () => {
+    setup();
+    openSheet('together');
+    await tap({ id: 'wt-join-open' });
+    doc.root.listeners.input({ target: { id: 'wt-join-code', value: 'qrst' } });
+    boxes({ '#wt-join-code': 'qrst', '#wt-petname-input': '' });
+    await tap({ id: 'wt-join' });
+    expect(html()).toContain('You need a friend name before you can play together.');
+    expect(html()).toMatch(/id="wt-join-code"[^>]*value="qrst"/);
+    boxes({ '#wt-petname-input': 'Leafpaw' });
+    await tap({ id: 'wt-petname-save' });
+    expect(html()).toMatch(/id="wt-join-code"[^>]*value="qrst"/);
+  });
+  it('the typed code goes when the sheet closes', async () => {
+    setup({ name: 'Leafpaw' });
+    openSheet('together');
+    await tap({ id: 'wt-join-open' });
+    doc.root.listeners.input({ target: { id: 'wt-join-code', value: 'qrst' } });
+    openSheet('menu');
+    openSheet('together');
+    await tap({ id: 'wt-join-open' });
+    expect(html()).toMatch(/id="wt-join-code"[^>]*value=""/);
+  });
+  it('a typed code is drawn escaped', async () => {
+    setup({ name: 'Leafpaw' });
+    openSheet('together');
+    await tap({ id: 'wt-join-open' });
+    doc.root.listeners.input({ target: { id: 'wt-join-code', value: '"><b' } });
+    await tap({ id: 'wt-name-edit' }); // any re-render
+    expect(html()).toContain('value="&quot;&gt;&lt;b"');
+  });
+  it('the reason line and the box are scrolled into view, then she is put in the box', async () => {
+    setup();
+    openSheet('together');
+    const calls = [];
+    doc.root.querySelector = (sel) => ({
+      value: '',
+      scrollIntoView: (o) => calls.push(['scroll', sel, o.block]),
+      focus: () => calls.push(['focus', sel]),
+    });
+    await tap({ id: 'wt-host' });
+    expect(calls).toEqual([
+      ['scroll', '.wt-name-needed', 'nearest'],
+      ['scroll', '#wt-petname-input', 'nearest'],
+      ['focus', '#wt-petname-input'],
+    ]);
+  });
+});
+
 describe('no "walking name" anywhere she reads', () => {
   it('Play together, with and without a name, and with the box open again', async () => {
     setup({ cloud: cloudStub() });

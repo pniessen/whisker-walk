@@ -160,6 +160,9 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // box shows again with it filled in.
   let joinOpen = false;
   let editingName = false;
+  // The room code she has typed, kept as pairCode is: a re-render (the name
+  // box she is sent to, a saved name) must not lose it. Cleared with joinOpen.
+  let joinCodeDraft = '';
   // v21 Stream 5: the home screen is the dressing room (openSheet null) or
   // one sheet from HOME_SHEETS.
   let openSheet = null;
@@ -294,7 +297,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         <div class="code-field">
           <label class="code-label" for="wt-join-code">Room code</label>
           <div class="wt-join-row">
-            <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
+            <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" value="${escapeHtml(joinCodeDraft)}" />
             <button id="wt-join">Join</button>
           </div>
         </div>
@@ -1014,7 +1017,15 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   function needName(why = 'walk') {
     nameNeeded = why;
     if (openSheet === 'together') render(); else setSheet('together');
-    try { root.querySelector('#wt-petname-input')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+    // The box sits under Friends, below the choices, the code box and the
+    // rooms nearby, so it may be off the screen: the reason line and the box
+    // are brought into view, then she is put in the box.
+    try {
+      root.querySelector('.wt-name-needed')?.scrollIntoView?.({ block: 'nearest' });
+      const box = root.querySelector('#wt-petname-input');
+      box?.scrollIntoView?.({ block: 'nearest' });
+      box?.focus?.({ preventScroll: true });
+    } catch { /* a nicety */ }
   }
 
   async function joinNearby(code, btn) {
@@ -1386,7 +1397,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const next = want && availableSheets().includes(want) ? want : null;
     const prev = openSheet;
     // Play together's open room-code box and name box close with the sheet.
-    if (prev === 'together' && next !== 'together') { joinOpen = false; editingName = false; }
+    if (prev === 'together' && next !== 'together') { joinOpen = false; editingName = false; joinCodeDraft = ''; }
     // Back to the sheet under this one is not an open of it (for the counts).
     const returning = !!prev && !!next && (next === 'menu' || (next === 'grownups' && backTo === 'grownups'));
     backTo = backTargetFor(next, prev);
@@ -2021,6 +2032,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // Host or Join with no cat name yet: say so above the name box and go
     // there, as a nearby Join does, instead of a dead button.
     if ((e.target.id === 'wt-host' || e.target.id === 'wt-join') && !validPetName(progression.state.petName ?? '')) {
+      if (e.target.id === 'wt-join') {
+        const typed = root.querySelector('#wt-join-code')?.value; // kept for when she has a name
+        if (typeof typed === 'string') joinCodeDraft = typed.slice(0, 4);
+      }
       needName();
       return;
     }
@@ -2035,6 +2050,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     if (e.target.id === 'wt-join') {
       const input = root.querySelector('#wt-join-code');
+      if (typeof input?.value === 'string') joinCodeDraft = input.value.slice(0, 4);
       const code = (input?.value ?? '').trim().toUpperCase();
       if (code.length !== 4) {
         joinError = 'Enter the 4-character room code.';
@@ -2044,7 +2060,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       e.target.disabled = true;
       const res = await rooms.join(code);
       if (!res.ok) joinError = 'Could not join that room — check the code and try again.';
-      else joinError = null;
+      else { joinError = null; joinCodeDraft = ''; }
       render();
       return;
     }
@@ -2364,6 +2380,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       redeemText = e.target.value;
       return;
     }
+    if (e.target.id === 'wt-join-code') {
+      joinCodeDraft = String(e.target.value ?? '').slice(0, 4);
+      return;
+    }
     // The pairing code box: uppercase, invite characters only, 6 at most. The
     // draft is kept so a re-render does not lose it; the box is only written
     // to when cleaning changed something, to leave the cursor alone otherwise.
@@ -2525,6 +2545,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       backTo = null;
       joinOpen = false; // Play together opens on its two choices again
       editingName = false;
+      joinCodeDraft = '';
       mapView = null; // the world map opens afresh, round today's place
       if (sheet && availableSheets().includes(sheet)) openSheet = sheet;
       render(); // also turns the hero stage back on
