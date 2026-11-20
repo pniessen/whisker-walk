@@ -15,6 +15,7 @@ import { LAND } from '../territories.js';
 import { STREET_LAND, ISLAND_HIT_R } from '../worldmap.js';
 import { escapeHtml } from '../escapehtml.js';
 import { phrase } from '../clanphrases.js';
+import { countrysideHtml, countryFadeDefs } from './countryside.js';
 
 const n = (v) => Math.round(v * 10) / 10;
 const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -154,6 +155,15 @@ const SMALL_R = 140;
 // map 260 px tall shows about 4200 units across).
 const BEYOND = 6000;
 
+// Under every place on the world map: a soft shadow and a paper rim, all
+// places in one path each, so a place stands off the green countryside round
+// it (her Woods, River and the Park are green too) and its own fill reads as
+// it does on the paper. Decoration: aria-hidden, no taps (style.css).
+function placeRimsHtml(regions) {
+  const d = regions.map((r) => blobPath(r.id, r.x, r.y, r.r)).join('');
+  return `<g class="wm-rims" aria-hidden="true"><path class="wm-shadow" transform="translate(4 7)" d="${d}"/><path class="wm-rim" d="${d}"/></g>`;
+}
+
 // The world map (Change place): her board exactly as the territory map draws
 // it, with draft 2's street places, coast, sea and gateway roads around it,
 // in one SVG drawn once per render (panning and zooming change only its
@@ -161,7 +171,8 @@ const BEYOND = 6000;
 // (data-dr-map-place), so the map is a group, never role="img", which would
 // hide each label. The island's star is a second way into the Pines.
 //
-// Layers, bottom to top: paper, sea, lands, water, her paths and bridge, the
+// Layers, bottom to top: paper, the countryside (ui/countryside.js), sea,
+// the places' rims, lands, water, her paths and bridge, the
 // gateway roads and a mark at each road's end, one group per place, then the
 // island's group. No frame: the paper and the sea run on past the world's
 // edge (BEYOND), so the map never ends in a line or the page behind it.
@@ -204,8 +215,9 @@ export function renderWorldMapHtml(model) {
 
   const v = WORLD_VIEW;
   return `<svg viewBox="${v.x} ${v.y} ${v.w} ${v.h}" class="territory-map world-map" role="group" aria-label="Map of the world" xmlns="http://www.w3.org/2000/svg">`
-    + `<rect class="tm-paper" x="${-BEYOND}" y="${-BEYOND}" width="${w + 2 * BEYOND}" height="${h + 2 * BEYOND}"/>${sea}`
-    + `<g class="tm-lands">${land}</g><g class="tm-water">${water}</g><g class="tm-paths">${paths}${bridge}</g>`
+    + `<defs>${countryFadeDefs()}</defs>`
+    + `<rect class="tm-paper" x="${-BEYOND}" y="${-BEYOND}" width="${w + 2 * BEYOND}" height="${h + 2 * BEYOND}"/>${countrysideHtml(undefined, BEYOND)}${sea}`
+    + `${placeRimsHtml(m.regions)}<g class="tm-lands">${land}</g><g class="tm-water">${water}</g><g class="tm-paths">${paths}${bridge}</g>`
     + `<g class="wm-roads">${roads}</g>${places}${island}`
     + '</svg>';
 }

@@ -1797,7 +1797,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .hb-sheet-map .wm-frame { flex: 1 1 auto; min-height: 260px; margin: 0; }
 .wm-frame { position: relative; margin: 0 0 12px; }
 .territory-map.world-map { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; border-radius: 12px;
-  background: #f3e4c4; /* the paper, before the pan first fits the view */
+  background: #d4e3b1; /* the meadow, before the pan first fits the view */
   /* the finger pans and pinches the map, never the page (else the browser
      takes the gesture and the map gets a pointercancel) */
   touch-action: none; -webkit-user-select: none; user-select: none; }
@@ -1817,6 +1817,32 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .world-map .wm-gate { fill: #b04a2e; }
 .world-map .tm-land.street.locked { fill: #cbbfa6; stroke-dasharray: 14 9; }
 .world-map .tm-line-small { font-size: 24px; }
+/* The countryside between the places (ui/countryside.js): meadow green
+   paper, a patchwork of fields with hedgerows and furrows, lanes, ponds,
+   flowers and tree clumps, fading paler toward the frame past the world;
+   a sandy shore where the land meets the sea; a paper rim and a soft shadow
+   under every place so the places stand off the green. All decoration: no
+   taps (a drag still pans), hidden from screen readers. */
+.world-map .tm-paper { fill: #d4e3b1; }
+.world-map .wm-country, .world-map .wm-rims { pointer-events: none; }
+.world-map .wm-field { stroke: none; }
+.world-map .wm-furrows { fill: none; stroke: #8fa45f; stroke-opacity: .32; stroke-width: 2; stroke-linecap: round; }
+.world-map .wm-hedges { fill: none; stroke: #8fb36c; stroke-width: 6; stroke-linecap: round; stroke-dasharray: 0 8; }
+.world-map .wm-lane-edge { fill: none; stroke: #c4b083; stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
+.world-map .wm-lane { fill: none; stroke: #efe3bd; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.world-map .wm-pond { fill: #a9d3e3; stroke: #79a9bb; stroke-width: 3; }
+.world-map .wm-flowers { fill: none; stroke-width: 5.5; stroke-linecap: round; }
+.world-map .wm-flowers-white { stroke: #fffaf0; }
+.world-map .wm-flowers-yellow { stroke: #f2d25c; }
+.world-map .wm-flowers-pink { stroke: #f0b4c8; }
+.world-map .wm-tree-shade { fill: #5f7f45; fill-opacity: .22; }
+.world-map .wm-trees { fill: #8fb86e; stroke: #5e8a4c; stroke-width: 2; }
+.world-map .wm-tree-shine { fill: #b2d290; }
+.world-map .wm-fade-in { stop-color: #e4ecd0; stop-opacity: 0; }
+.world-map .wm-fade-out { stop-color: #e4ecd0; stop-opacity: 1; }
+.world-map .tm-sea { stroke: #ecdcab; stroke-width: 16; stroke-linejoin: round; }
+.world-map .wm-shadow { fill: #b7ca93; stroke: #b7ca93; stroke-width: 16; stroke-linejoin: round; }
+.world-map .wm-rim { fill: #f3e4c4; stroke: #f6ecd2; stroke-width: 16; stroke-linejoin: round; }
 /* Zoom in / Zoom out: two round buttons at the map's top right */
 .wm-zoom { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
 .wm-frame .wm-zoom button { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1.5px solid #5b6c88;
