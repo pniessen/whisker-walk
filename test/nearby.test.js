@@ -555,7 +555,7 @@ describe('main.js wiring', async () => {
     // and it is handed the "online by choice" gate (the wide one: a walking
     // name or a linked cloud save), straight from createCloudSync
     expect(main.slice(made, made + 200)).toContain("getName: () => progression.state.petName,\n    onlineAllowed,\n  });");
-    expect(main).toContain('haptics: haptics.available, nearby });');
+    expect(main).toContain('haptics: haptics.available, nearby, getIsTouch: () => isTouch });');
   });
   it('hears the shell\'s event and follows the page being hidden', () => {
     expect(main).toContain('window.addEventListener(NEARBY_EVENT, (e) => nearby.receive(e.detail));');
