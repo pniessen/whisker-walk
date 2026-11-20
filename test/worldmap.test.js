@@ -9,6 +9,8 @@ import {
 import {
   WORLD, STREET_PLACES, STREET_LAND, COAST, GATEWAYS, ISLAND_HIT_R, worldMapModel, tapTargets, focusOf,
 } from '../src/worldmap.js';
+import { LAND } from '../src/territories.js';
+import { renderWorldMapHtml, ISLAND_WHERE } from '../src/ui/territorymap.js';
 import { withOffWords } from './helpers/offwords.js';
 
 // A plain canon save, as clanState() in test/territories.test.js.
@@ -23,6 +25,20 @@ function fresh() {
   };
 }
 const regionOf = (m, id) => m.regions.find((r) => r.id === id);
+// The markup of one region: from its <g ... data-region="id"> to the next
+// region (as test/territories.test.js).
+function regionHtml(html, id) {
+  const start = html.indexOf(`data-region="${id}"`);
+  expect(start).toBeGreaterThan(-1);
+  const next = html.indexOf('data-region="', start + 1);
+  return html.slice(html.lastIndexOf('<g', start), next === -1 ? undefined : html.lastIndexOf('<g', next));
+}
+// The opening tag of an element, from the first match of `marker`.
+const tagAt = (html, marker) => {
+  const i = html.indexOf(marker);
+  expect(i).toBeGreaterThan(-1);
+  return html.slice(html.lastIndexOf('<', i), html.indexOf('>', i) + 1);
+};
 const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 
 describe('world map: the world as data', () => {
@@ -145,5 +161,134 @@ describe('world map: the world as data', () => {
   it("focusOf is today's place, else the town", () => {
     expect(focusOf(worldMapModel({ ...fresh(), unlocked: { areas: ['neighborhood', 'docks'] }, area: 'docks' }, CATALOG))).toEqual([900, 770]);
     expect(focusOf(worldMapModel(fresh(), CATALOG))).toEqual([843, 566]);
+  });
+});
+
+describe('drawing the world', () => {
+  const draw = (s, catalog = CATALOG) => renderWorldMapHtml(worldMapModel(s, catalog));
+  const html = draw(fresh());
+  const pick = (mine, partner = null) => ({ ...fresh(), clanPick: { mine, partner, partnerId: partner ? 'p1' : null }, colony: { partner: partner ? { playerId: 'p1' } : null } });
+
+  it('one SVG, labelled, the whole world', () => {
+    expect(html.startsWith('<svg viewBox="0 -20 1500 900" class="territory-map world-map" role="group" aria-label="Map of the world"')).toBe(true);
+    expect(html).toContain('<rect class="tm-paper" x="0" y="0" width="1500" height="880"/>');
+    expect(html).toContain('<path class="tm-sea" d="M1340 0 C1320 160 1360 300 1335 430 C1315 540 1350 640 1310 730 C1280 800 1180 860 1000 880 L1500 880 L1500 0 Z"/>');
+    expect(html.endsWith('</svg>')).toBe(true);
+    expect(html).not.toContain('role="img"');
+  });
+
+  it("the drawn view starts above the Moor's top edge, so her Moor is never clipped", () => {
+    const [, y] = html.match(/^<svg viewBox="([-\d.]+) ([-\d.]+)/).slice(1).map(Number);
+    expect(y).toBeLessThanOrEqual(-12);
+    // every point of the Moor's land, its selected ring (9) and focus outline (10) included
+    const d = tagAt(regionHtml(html, 'moor'), 'class="tm-hit"').match(/d="([^"]+)"/)[1];
+    const ys = [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map(([, , py]) => Number(py));
+    expect(Math.min(...ys) - 10 / 2).toBeGreaterThan(y);
+  });
+
+  it('layers, bottom to top: paper, sea, lands, water, paths, roads, places, island, frame', () => {
+    const order = ['tm-paper', 'tm-sea', 'tm-lands', 'tm-water', 'tm-paths', 'wm-roads', 'data-region="town"', 'data-region="seaside"', 'data-region="island"', 'tm-frame']
+      .map((c) => html.indexOf(c));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('every place is a labelled keyboard button that opens its card', () => {
+    const ids = [...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id);
+    expect(new Set(ids).size).toBe(11);
+    expect(ids).toHaveLength(12); // the island is a second way into the Pines
+    expect(new Set(ids)).toEqual(new Set(Object.keys(CATALOG.areas)));
+    expect(html).not.toContain('data-dr-place=');
+    expect(regionHtml(html, 'park')).toMatch(/role="button" tabindex="0" aria-label="City Park: opens after you explore Twolegplace 2 times · 0\/2"/);
+    expect(regionHtml(html, 'park')).toContain('data-x="1080" data-y="470"');
+    expect(regionHtml(html, 'town')).toContain('data-dr-map-place="neighborhood" data-x="843" data-y="566" role="button" tabindex="0" aria-label="Twolegplace: ');
+    expect(regionHtml(html, 'island')).toContain('<circle class="tm-hit" cx="455" cy="314" r="46"/>');
+    expect(regionHtml(html, 'island')).toContain(`data-dr-map-place="pines" data-x="455" data-y="314" role="button" tabindex="0" aria-label="The island, ${ISLAND_WHERE}: `);
+    for (const id of ['town', 'woods', 'moor', 'river', 'pines', 'gorge', 'park', 'fair', 'farm', 'docks', 'seaside', 'island']) {
+      const g = tagAt(html, `data-region="${id}"`);
+      expect(g, id).toMatch(/ role="button" tabindex="0" aria-label="[^"]+"/);
+      expect(regionHtml(html, id), id).toContain('class="tm-hit"');
+    }
+    // no <title> on a place: the label is its aria-label
+    expect(html.match(/<g class="tm-region[^>]*>(?=<title>)/)).toBeNull();
+  });
+
+  it('her paths and bridge, five roads and five gate marks', () => {
+    expect((html.match(/class="tm-path"/g) || []).length).toBe(3);
+    expect(html).toContain('class="tm-bridge"');
+    for (const cls of ['tm-lake', 'tm-island', 'tm-star', 'tm-pond', 'tm-river']) expect(html).toContain(`class="${cls}`);
+    expect((html.match(/class="wm-road"/g) || []).length).toBe(5);
+    expect((html.match(/class="wm-gate"/g) || []).length).toBe(5);
+    expect(html).toContain('<path class="wm-road" d="M952 570 C1000 580 1060 590 1080 560"/>');
+    expect(html).toContain('<circle class="wm-gate" cx="1080" cy="560" r="8"/>');
+    expect(html).toContain('<path class="wm-road" d="M980 780 C1040 790 1110 790 1140 765"/><circle class="wm-gate" cx="1140" cy="765" r="8"/>');
+  });
+
+  it('locked, today and owned look different; street places carry their lock and price', () => {
+    expect(tagAt(html, 'data-region="park"')).toMatch(/class="tm-region [^"]*\blocked\b/);
+    expect(regionHtml(html, 'park')).toContain('>🔒 City Park</tspan>');
+    let s = fresh(); s.walks.neighborhood = 2; s.points = 50;
+    expect(regionHtml(draw(s), 'park')).toContain('>Open for 50 🐾</tspan>');
+    expect(regionHtml(draw(s), 'park')).not.toContain('🔒');
+    s = fresh(); s.unlocked.areas.push('park'); s.area = 'park';
+    const park = tagAt(draw(s), 'data-region="park"');
+    expect(park).toMatch(/class="tm-region [^"]*\bsel\b/);
+    expect(park).not.toMatch(/\blocked\b/);
+    // her board's places are drawn as they were
+    expect(tagAt(html, 'data-region="woods"')).toMatch(/class="tm-region built locked"/);
+    expect(tagAt(html, 'data-region="town"')).toMatch(/class="tm-region built sel"/);
+    // the lands: hers in her colours, the street ones in theirs, marked street
+    for (const [id, fill] of Object.entries(STREET_LAND)) {
+      expect(html, id).toMatch(new RegExp(`<path class="tm-land street built locked" fill="${fill}" d="M`));
+    }
+    expect(html).toContain(`<path class="tm-land built locked" fill="${LAND.woods}" d="M`);
+    expect((html.match(/class="tm-land /g) || []).length).toBe(11);
+  });
+
+  it('camps only on her board, only in Clan Edition', () => {
+    const h = draw(pick('woods'));
+    expect(regionHtml(h, 'woods')).toContain('tm-camp mine');
+    expect(regionHtml(h, 'woods').indexOf('tm-hit')).toBeLessThan(regionHtml(h, 'woods').indexOf('tm-camp'));
+    expect(regionHtml(h, 'woods')).toMatch(/<title>[^<]+ camp<\/title>/);
+    for (const id of ['park', 'fair', 'farm', 'docks', 'seaside', 'town', 'island']) expect(regionHtml(h, id), id).not.toContain('tm-camp');
+    expect(draw({ ...pick('woods'), edition: 'legacy' })).not.toContain('tm-camp');
+  });
+
+  it('every place is there in the everyday words, the camp a home base', () => {
+    withOffWords(() => {
+      const h = draw(pick('woods'));
+      expect(new Set([...h.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id)).size).toBe(11);
+      expect(regionHtml(h, 'town')).toContain('aria-label="Peopleville: ');
+      expect(regionHtml(h, 'woods')).toMatch(/<title>[^<]* home base<\/title>/);
+    });
+  });
+
+  it('small places get smaller words', () => {
+    // r < 140: the street places, the Gorge (80) and the town (110)
+    for (const id of ['park', 'fair', 'farm', 'docks', 'seaside', 'gorge', 'town']) {
+      expect(regionHtml(html, id), id).toContain('font-size="36"');
+      expect(regionHtml(html, id), id).toContain('class="tm-line tm-line-small"');
+    }
+    for (const id of ['woods', 'moor', 'river', 'pines']) {
+      expect(regionHtml(html, id), id).toContain('font-size="44"');
+      expect(regionHtml(html, id), id).not.toContain('tm-line-small');
+    }
+  });
+
+  it('icons and label anchors for the street places', () => {
+    const at = { park: ['⛲', 1080], fair: ['🎡', 1060], farm: ['🚜', 1235], docks: ['⚓', 900], seaside: ['🏖️', 1170] };
+    for (const [id, [icon, x]] of Object.entries(at)) {
+      expect(regionHtml(html, id), id).toContain(`<tspan class="tm-icon" x="${x}" dy="0">${icon}</tspan>`);
+    }
+    expect(regionHtml(html, 'woods')).toContain('<tspan class="tm-icon" x="556" dy="0">🌳</tspan>');
+  });
+
+  it('names are escaped', () => {
+    const catalog = { ...CATALOG, areas: { ...CATALOG.areas, park: { ...CATALOG.areas.park, name: '<b>' }, woods: { ...CATALOG.areas.woods, name: '"x"' } } };
+    const h = draw(fresh(), catalog);
+    expect(h).toContain('&lt;b&gt;');
+    expect(h).not.toContain('<b>');
+    expect(regionHtml(h, 'park')).toContain('aria-label="&lt;b&gt;: ');
+    expect(regionHtml(h, 'woods')).toContain('aria-label="&quot;x&quot;: ');
   });
 });
