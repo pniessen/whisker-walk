@@ -42,10 +42,11 @@ const { build: buildGorge } = await import('../src/world/gorge.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
+const { build: buildRoofs } = await import('../src/world/roofs.js');
 const grassSrc = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/render/grass.js', import.meta.url), 'utf8'));
 
 const BUILDS = {
-  neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen, farm: buildFarm, fair: buildFair,
+  neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen, farm: buildFarm, fair: buildFair, roofs: buildRoofs,
 };
 // main.js's game camera: PerspectiveCamera(70, aspect, 0.1, 300).
 const GAME_FAR = 300;
@@ -204,8 +205,12 @@ describe('cloud drift', () => {
   });
 });
 
+// The Rooftops draw no horizon band: their far edge is the far town (one unlit
+// mesh, `townBand`), tested on its own below.
+const BANDED = CLOUD_AREAS.filter((a) => a !== 'roofs');
+
 describe('cloud placement', () => {
-  for (const areaId of CLOUD_AREAS) {
+  for (const areaId of BANDED) {
     it(`${areaId}: every cloud clears the horizon band and stays inside the far plane`, () => {
       const { scene, centre, camera } = world(areaId);
       const band = scene.getObjectByName('horizonBand');
@@ -236,7 +241,7 @@ describe('cloud placement', () => {
     });
   }
 
-  for (const areaId of CLOUD_AREAS) {
+  for (const areaId of BANDED) {
     it(`${areaId}: every far bank clears the band in its own bearing, and stays inside the far plane`, () => {
       const { scene, centre, camera } = world(areaId);
       const prof = bandProfile(scene, centre);
@@ -268,6 +273,33 @@ describe('cloud placement', () => {
       c.dispose();
     });
   }
+
+  it('roofs: no horizon band to clear; the sky is the dusk sky\'s six clouds and four banks, in the far plane', () => {
+    // The place's far edge is the far town (`townBand`), a low skyline of
+    // houses 50-90 m out: its crest is about 10 degrees from the centre, and
+    // the lowest clouds and banks (BASE_MIN 30 m up, 220 m out, about 8 degrees)
+    // may sit behind its tallest roofs, as a real cloud can behind a roofline.
+    // clouds.js reads no band here (bandElevation is 0), so the base is BASE_MIN.
+    const { scene, centre, camera } = world('roofs');
+    expect(scene.getObjectByName('horizonBand')).toBeUndefined();
+    expect(scene.children.some((o) => o.userData.townBand)).toBe(true);
+    const c = make('roofs');
+    expect(c.banks).toHaveLength(AREA_SKY.roofs.banks);
+    expect(c.clouds.length).toBeGreaterThan(0);
+    expect(c.clouds.length).toBeLessThanOrEqual(AREA_SKY.roofs.clouds);
+    for (const t of [0, 61, 333, 1200, 4000]) {
+      c.update(t);
+      for (const box of puffBoxes(c.mesh)) {
+        const far = Math.hypot(
+          Math.max(Math.abs(box.min.x - centre.x), Math.abs(box.max.x - centre.x)),
+          Math.max(Math.abs(box.min.z - centre.z), Math.abs(box.max.z - centre.z)),
+        );
+        expect(box.min.y).toBeGreaterThanOrEqual(BASE_MIN - 1e-3);
+        expect(Math.hypot(far, box.max.y - camera.position.y)).toBeLessThan(GAME_FAR - 5);
+      }
+    }
+    c.dispose();
+  });
 
   it('far banks: some low enough for the walk camera (~7 degrees up) in the open areas', () => {
     for (const areaId of ['moor', 'seaside', 'river', 'park', 'neighborhood', 'pines']) {

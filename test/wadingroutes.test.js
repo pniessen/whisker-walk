@@ -31,6 +31,7 @@ const mods = {
   pines: await import('../src/world/pines.js'),
   farm: await import('../src/world/farm.js'),
   fair: await import('../src/world/fair.js'),
+  roofs: await import('../src/world/roofs.js'),
 };
 const AREAS = Object.fromEntries(
   Object.entries(mods).map(([n, m]) => [n, m.build(new THREE.Scene())]),

@@ -505,5 +505,84 @@ export function roofsArea() {
 }
 
 // ---------------------------------------------------------------------------
-// Later tasks add here: ROOFS_REGISTRATION (the per-area rows), ROOFS_SHOTS
-// and ROOFS_TOURS.
+// WHAT THE SHARED TABLES HOLD (Task 10). Plain data in the shapes those tables
+// use, as FAIR_REGISTRATION is: each row is copied into its table, and
+// test/roofs.test.js checks every row against the built area and against the
+// table it was copied into. Not a colony area, no strays, no dog (R8). Every
+// prop stands on one level, clear of the colliders, in the region walked from
+// the spawn with no Long Leap.
+const QUARTER = Math.PI / 2;
+const crate = (i) => ALLEY_CRATES[i];
+export const ROOFS_REGISTRATION = Object.freeze({
+  id: 'roofs',
+  // src/progression.js CATALOG.areas: held back (R1). Task 11 fills it, and
+  // step 4 copies it into the catalog once co-walkers can see height.
+  catalog: null,
+  // src/propsets.js SETS.roofs
+  propSet: Object.freeze({
+    carryables: Object.freeze([
+      Object.freeze({ id: 'roofs-sock-1', kind: 'sock', x: -15.9, z: 24.5 }), // a sock off the washing line, in a back yard
+      Object.freeze({ id: 'roofs-cap-1', kind: 'cap', x: -6, z: 30.5 }), // a cap left on the garage roof
+      Object.freeze({ id: 'roofs-glove-1', kind: 'glove', x: -13.25, z: 18 }), // a roofer's glove on a back extension
+      Object.freeze({ id: 'roofs-rope-1', kind: 'rope', x: -10, z: -22 }), // a coil of rope on the warehouse roof
+    ]),
+    // On the alley crates (src/world/roofsplan.js ALLEY_CRATES, the perches):
+    // a can on the top of the stack, a cup on the second crate, a book on the
+    // lone crate by the shed. Each falls south, onto the alley. `y` is metres
+    // above the ground there (the alley is 0).
+    knockables: Object.freeze([
+      Object.freeze({ id: 'roofs-can-1', kind: 'can', x: crate(2).x, z: crate(2).z, y: crate(2).y + crate(2).s, fallTo: Object.freeze({ x: -18.3, z: 36.4 }) }),
+      Object.freeze({ id: 'roofs-cup-1', kind: 'cup', x: -17.75, z: crate(1).z, y: crate(1).y + crate(1).s, fallTo: Object.freeze({ x: -17.4, z: 36.3 }) }),
+      Object.freeze({ id: 'roofs-book-1', kind: 'book', x: crate(3).x, z: crate(3).z, y: crate(3).y + crate(3).s, fallTo: Object.freeze({ x: 9.4, z: 36.4 }) }),
+    ]),
+    markables: Object.freeze([
+      Object.freeze({ id: 'roofs-post-1', kind: 'post', x: ALLEY_LAMP.x, z: ALLEY_LAMP.z, nearBorder: false, mesh: false }), // the alley lamp post
+      Object.freeze({ id: 'roofs-post-2', kind: 'post', x: WASHING_POSTS[1].x, z: WASHING_POSTS[1].z1, nearBorder: false, mesh: false }), // a washing post in a back yard
+      Object.freeze({ id: 'roofs-post-3', kind: 'post', x: WASHING_POSTS[3].x, z: WASHING_POSTS[3].z0, nearBorder: false, mesh: false }), // another, further east
+    ]),
+    flaps: Object.freeze([
+      // A loose fence board at the alley's west end.
+      Object.freeze({ id: 'roofs-flap-1', kind: 'flap', x: -28, z: 42, rotY: QUARTER, width: 1.0 }),
+    ]),
+    rests: Object.freeze([
+      Object.freeze({ id: 'roofs-drink-1', kind: 'drink', x: -8, z: 42, mesh: true }), // a water bowl in the alley
+      Object.freeze({ id: 'roofs-eat-1', kind: 'eat', x: 22, z: 38, mesh: true }), // a dish at the alley's east end
+      Object.freeze({ id: 'roofs-nap-1', kind: 'nap', x: 14.5, z: 31.5, mesh: true }), // a cushion on the shed roof
+    ]),
+    // Behind the bins, on the garage roof by the fire escape, at the tank's foot.
+    hides: Object.freeze([{ x: 14.5, z: 37 }, { x: -24, z: 30.5 }, { x: -26, z: -31.3 }].map((h) => Object.freeze(h))),
+    dogYard: null,
+    keepSlots: Object.freeze([]),
+  }),
+  // src/propsets.js YARN_SPOTS.roofs: one in the alley, one up on the garages
+  yarnSpots: Object.freeze([
+    Object.freeze({ x: -12, z: 37, where: 'in the back alley' }),
+    Object.freeze({ x: -12, z: 31, where: 'on the garage roof' }),
+  ]),
+  // src/rests.js REST_LOOKS
+  restLooks: Object.freeze({
+    'roofs-drink-1': Object.freeze({ look: 'bowl' }),
+    'roofs-eat-1': Object.freeze({ look: 'dish' }),
+    'roofs-nap-1': Object.freeze({ look: 'cushion' }),
+  }),
+  // src/render/clouds.js CLOUD_AREAS and AREA_SKY.roofs: the stars and the moon
+  // come with the dusk sky
+  clouds: Object.freeze({ clouds: 6, banks: 4 }),
+  // src/render/ambient.js ambientKind: the alley lamp is the lamp
+  ambient: 'moths',
+  // src/render/pawprints.js AREA_RULES.roofs: gravel and slate, no grass
+  pawprints: Object.freeze({ ground: null, path: 'gravel', strip: null }),
+  // The measured counts test/budget.test.js and test/roofs.test.js pin:
+  // [meshes, casters, triangles] built, [meshes, casters] merged
+  budget: Object.freeze({ built: Object.freeze([113, 67, 32202]), merged: Object.freeze([57, 30]) }),
+  // verify-places.html VIEWS.roofs and the card picture: Task 13's
+  view: null,
+  // src/marks.js MARK_AREAS and emptyMarks(): add 'roofs'
+  marks: true,
+  // not a colony area, no strays (R8)
+  colony: false,
+  strays: false,
+});
+
+// ---------------------------------------------------------------------------
+// Later tasks add here: ROOFS_SHOTS and ROOFS_TOURS.

@@ -425,3 +425,237 @@ describe('the Rooftops drawn', () => {
     expect(again).toEqual(stats);
   });
 });
+
+// =============================================================================
+// Task 10: every per-area list. ROOFS_REGISTRATION holds each row in its
+// table's own shape (test/fair.test.js is the model). The one row held back is
+// CATALOG.areas.roofs (R1): `catalog` is null until Task 11 and step 4.
+// =============================================================================
+describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () => {
+  const { ROOFS_REGISTRATION: REG } = await import('../src/world/roofsplan.js');
+  const { propsFor, yarnSpotsFor, frameColliders, allPropIds, isPropId, CARRY_KINDS, KNOCK_KINDS, REST_KINDS } = await import('../src/propsets.js');
+  const { MARK_AREAS, emptyMarks } = await import('../src/marks.js');
+  const { REST_LOOKS } = await import('../src/rests.js');
+  const { CLOUD_AREAS, AREA_SKY } = await import('../src/render/clouds.js');
+  const { ambientKind } = await import('../src/render/ambient.js');
+  const { AREA_RULES } = await import('../src/render/pawprints.js');
+  const { GRASS_STYLES, GROUND_TINTS } = await import('../src/render/grass.js');
+  const { COLONY_AREAS, feedsHere } = await import('../src/colony.js');
+  const { LEGENDARY_BY_AREA } = await import('../src/legendary.js');
+  const { CATALOG, createProgression } = await import('../src/progression.js');
+  const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
+  const set = REG.propSet;
+  const plain = (v) => JSON.parse(JSON.stringify(v));
+  const dist = (a, c) => Math.hypot(a.x - c.x, a.z - c.z);
+  const MARGIN = 0.3;
+  const got = () => baseFlood().reachable(baseFlood().regionAt(ROOFS_SPAWN.x, ROOFS_SPAWN.z));
+  // the ground at a point and a small ring round it is one level
+  const oneLevel = (x, z, ring = 0.4) => {
+    const ys = [[0, 0], ...[0, 1, 2, 3, 4, 5, 6, 7].map((k) => [ring * Math.cos(k * Math.PI / 4), ring * Math.sin(k * Math.PI / 4)])]
+      .map(([dx, dz]) => area.ground.y(x + dx, z + dz));
+    return Math.max(...ys) - Math.min(...ys) < 1e-6;
+  };
+  const reachedAt = (x, z) => got().has(baseFlood().regionAt(x, z, area.ground.y(x, z)));
+  const clear = (p, extra = MARGIN) => area.colliders.every((c) => dist(p, c) >= c.r + CAT_RADIUS + extra);
+  // a spot beside a collider-held markable the cat can stand on
+  const standSide = (m) => {
+    for (let k = 0; k < 16; k++) {
+      const p = { x: m.x + Math.cos((k * Math.PI) / 8) * 1.0, z: m.z + Math.sin((k * Math.PI) / 8) * 1.0 };
+      if (isWalkableAt(area, p.x, p.z) && clear(p) && oneLevel(p.x, p.z) && reachedAt(p.x, p.z)) return p;
+    }
+    return null;
+  };
+
+  it('each registration row is in its table', () => {
+    expect(REG.id).toBe('roofs');
+    expect(propsFor('roofs')).toEqual(plain(set));
+    expect(yarnSpotsFor('roofs')).toEqual(plain(REG.yarnSpots));
+    expect(Object.fromEntries(Object.entries(REST_LOOKS).filter(([k]) => k.startsWith('roofs-')))).toEqual(plain(REG.restLooks));
+    expect(CLOUD_AREAS).toContain('roofs');
+    expect(AREA_SKY.roofs).toEqual(plain(REG.clouds));
+    expect(AREA_SKY.roofs).toEqual({ clouds: 6, banks: 4 });
+    expect(ambientKind('roofs')).toBe(REG.ambient);
+    expect(ambientKind('roofs', { dusk: true })).toBe('moths');
+    expect(AREA_RULES.roofs).toEqual(plain(REG.pawprints));
+    expect(AREA_RULES.roofs).toEqual({ ground: null, path: 'gravel', strip: null });
+    expect(MARK_AREAS).toContain('roofs');
+    expect(emptyMarks().roofs).toEqual([]);
+    // no grass, no ground tint
+    expect(Object.hasOwn(GRASS_STYLES, 'roofs')).toBe(false);
+    expect(Object.hasOwn(GROUND_TINTS, 'roofs')).toBe(false);
+  });
+
+  it('holds the catalog and the view back (R1, Task 11, Task 13)', () => {
+    expect(REG.catalog).toBeNull();
+    expect(REG.view).toBeNull();
+    expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false);
+    expect(REG.marks).toBe(true);
+  });
+
+  it('has the street areas’ prop counts, and no dog', () => {
+    expect(Object.keys(set).sort()).toEqual(['carryables', 'dogYard', 'flaps', 'hides', 'keepSlots', 'knockables', 'markables', 'rests']);
+    expect(set.carryables).toHaveLength(4);
+    expect(set.knockables).toHaveLength(3);
+    expect(set.markables).toHaveLength(3);
+    expect(set.flaps.map((f) => f.kind)).toEqual(['flap']);
+    expect(set.rests.map((r) => r.kind).sort()).toEqual([...REST_KINDS].sort());
+    expect(set.rests.every((r) => r.mesh === true)).toBe(true);
+    expect(set.hides).toHaveLength(3);
+    expect(set.dogYard).toBeNull();
+    expect(set.keepSlots).toEqual([]);
+    expect(set.markables.every((m) => m.nearBorder === false)).toBe(true);
+    for (const c of set.carryables) expect(CARRY_KINDS).toContain(c.kind);
+    for (const k of set.knockables) expect(KNOCK_KINDS).toContain(k.kind);
+    for (const m of set.markables) expect(['post', 'tree', 'bollard']).toContain(m.kind);
+    const looks = new Set(Object.values(REST_LOOKS).map((v) => v.look));
+    expect(Object.keys(REG.restLooks).sort()).toEqual(set.rests.map((r) => r.id).sort());
+    for (const v of Object.values(REG.restLooks)) expect(looks.has(v.look), v.look).toBe(true);
+    // ids: well-formed, namespaced by area and kind, none shared with another area
+    const mine = [];
+    for (const list of ['carryables', 'knockables', 'markables', 'flaps', 'rests']) {
+      for (const p of set[list]) {
+        expect(isPropId(p.id), p.id).toBe(true);
+        expect(p.id.startsWith(`roofs-${p.kind}-`), p.id).toBe(true);
+        mine.push(p.id);
+      }
+    }
+    expect(new Set(mine).size).toBe(mine.length);
+    expect(mine).toHaveLength(14);
+    const taken = allPropIds();
+    expect(new Set([...taken].filter((id) => id.startsWith('roofs-')))).toEqual(new Set(mine));
+  });
+
+  it('each prop sits on its own level, clear of colliders, reached without Long Leap', () => {
+    const walkUps = [
+      ...set.carryables.map((p) => ({ what: p.id, p })),
+      ...set.rests.map((p) => ({ what: p.id, p })),
+      ...set.markables.map((m) => ({ what: m.id, m, p: standSide(m) })),
+    ];
+    for (const { what, p, m } of walkUps) {
+      expect(p, `${what} has no side to stand on`).not.toBeNull();
+      expect(isWalkableAt(area, p.x, p.z), `${what} walkable`).toBe(true);
+      expect(clear(p), `${what} clear of colliders`).toBe(true);
+      expect(oneLevel(m ? m.x : p.x, m ? m.z : p.z), `${what} on one level`).toBe(true);
+      expect(oneLevel(p.x, p.z), `${what} stand spot on one level`).toBe(true);
+      expect(reachedAt(p.x, p.z), `${what} reached without Long Leap`).toBe(true);
+    }
+    for (const h of set.hides) {
+      expect(isWalkableAt(area, h.x, h.z), `hide ${h.x},${h.z}`).toBe(true);
+      expect(clear(h), `hide ${h.x},${h.z} clear`).toBe(true);
+      expect(oneLevel(h.x, h.z), `hide ${h.x},${h.z} one level`).toBe(true);
+      expect(reachedAt(h.x, h.z), `hide ${h.x},${h.z} reached`).toBe(true);
+    }
+    // a prompt's width apart
+    for (let i = 0; i < walkUps.length; i++) {
+      for (let j = i + 1; j < walkUps.length; j++) {
+        expect(dist(walkUps[i].p, walkUps[j].p), `${walkUps[i].what} vs ${walkUps[j].what}`).toBeGreaterThanOrEqual(2.5);
+      }
+    }
+    // clear of the spawn, the finds, the view spots and the POIs
+    const anchors = [area.spawn, ...area.collectibles, ...area.scenics, ...area.pois];
+    const points = [...set.carryables, ...set.knockables, ...set.markables, ...set.rests, ...set.hides, ...set.flaps, ...set.flaps.flatMap((f) => frameColliders(f))];
+    for (const p of points) for (const q of anchors) expect(dist(p, q), `${p.id ?? 'prop'} ${p.x},${p.z} vs ${q.x},${q.z}`).toBeGreaterThanOrEqual(2);
+    // the knockables stand on a crate perch and land on the alley, apart
+    for (const k of set.knockables) {
+      const perch = area.perches.find((q) => dist(q, k) <= 0.6 && Math.abs(q.y - k.y) < 0.1);
+      expect(perch, `${k.id} has no perch under it`).toBeDefined();
+      expect(isWalkableAt(area, k.fallTo.x, k.fallTo.z), `${k.id} lands`).toBe(true);
+      expect(area.ground.y(k.fallTo.x, k.fallTo.z), `${k.id} lands on the alley`).toBe(0);
+      expect(area.ground.y(k.x, k.z), `${k.id} stands over the alley`).toBe(0);
+      expect(oneLevel(k.x, k.z, 0.3), k.id).toBe(true);
+      expect(reachedAt(k.fallTo.x, k.fallTo.z), `${k.id} landing reached`).toBe(true);
+      expect(dist(k, k.fallTo)).toBeGreaterThanOrEqual(0.6);
+      expect(dist(k, k.fallTo)).toBeLessThanOrEqual(1.6);
+    }
+    for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) expect(dist(set.knockables[i].fallTo, set.knockables[j].fallTo)).toBeGreaterThanOrEqual(0.5);
+    // the flap: an opening she can walk through, a frame she cannot, all on the alley
+    for (const f of set.flaps) {
+      const frame = frameColliders(f);
+      const withFrame = { ...area, colliders: [...area.colliders, ...frame] };
+      const nx = Math.sin(f.rotY);
+      const nz = Math.cos(f.rotY);
+      for (const side of [-1, 0, 1]) {
+        expect(isWalkableAt(withFrame, f.x + nx * side, f.z + nz * side), `${f.id} side ${side}`).toBe(true);
+        expect(reachedAt(f.x + nx * side, f.z + nz * side), `${f.id} side ${side} reached`).toBe(true);
+      }
+      for (const c of frame) {
+        expect(oneLevel(c.x, c.z, c.r), `${f.id} frame at ${c.x},${c.z} on one level`).toBe(true);
+        for (const o of area.colliders) expect(dist(c, o)).toBeGreaterThanOrEqual(c.r + o.r);
+      }
+      for (const p of [...set.carryables, ...set.rests, ...set.markables, ...set.hides, ...set.knockables.map((k) => k.fallTo)]) {
+        expect(dist(f, p) - 0.3, `${f.id} vs ${p.id ?? 'prop'}`).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  it('has something real to scratch at every markable', () => {
+    const solid = [];
+    scene.traverse((o) => { if (o.isMesh && o.geometry?.type !== 'PlaneGeometry') solid.push(o); });
+    const rc = new THREE.Raycaster();
+    for (const m of set.markables) {
+      expect(m.mesh).toBe(false);
+      const y0 = area.ground.y(m.x, m.z);
+      let found = false;
+      for (const [dx, dz] of [[0, 0], [0.2, 0], [-0.2, 0], [0, 0.2], [0, -0.2]]) {
+        rc.set(new THREE.Vector3(m.x + dx, y0 + 7, m.z + dz), new THREE.Vector3(0, -1, 0));
+        rc.far = 8;
+        if (rc.intersectObjects(solid, false).some((h) => h.point.y > y0 + 0.3)) found = true;
+      }
+      expect(found, m.id).toBe(true);
+    }
+  });
+
+  it('puts the yarn ball in two spots a cat can walk up to, on one level', () => {
+    const spots = yarnSpotsFor('roofs');
+    expect(spots).toHaveLength(2);
+    expect(dist(spots[0], spots[1])).toBeGreaterThan(5);
+    const anchors = [area.spawn, ...area.collectibles, ...area.scenics, ...area.pois];
+    const walkUps = [...set.carryables, ...set.rests, ...set.markables];
+    for (const p of spots) {
+      const at = `${p.x},${p.z}`;
+      expect(p.where.length).toBeGreaterThan(3);
+      expect(p.where).not.toMatch(/[.!]$/);
+      expect(p.where.split(/\s+/).length, p.where).toBeLessThanOrEqual(5);
+      expect(isWalkableAt(area, p.x, p.z), at).toBe(true);
+      expect(clear(p), at).toBe(true);
+      expect(oneLevel(p.x, p.z, 1.5), `${at} is on a slope or a rim`).toBe(true);
+      expect(reachedAt(p.x, p.z), `${at} reached`).toBe(true);
+      for (const q of walkUps) expect(dist(p, q), `${at} vs ${q.id}`).toBeGreaterThanOrEqual(2.5);
+      for (const k of set.knockables) expect(dist(p, k.fallTo), `${at} vs ${k.id} landed`).toBeGreaterThanOrEqual(1.5);
+      for (const f of set.flaps) expect(dist(p, f), `${at} vs ${f.id}`).toBeGreaterThanOrEqual(2.5);
+      for (const q of anchors) expect(dist(p, q), `${at} vs ${q.x},${q.z}`).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('an old save loads with walks.roofs 0 and marks.roofs []', () => {
+    const map = new Map();
+    const storage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    const old = JSON.parse(JSON.stringify(createProgression(storage).state));
+    delete old.walks.roofs;
+    delete old.marks.roofs;
+    map.set('whisker-walk-save', JSON.stringify(old));
+    const p = createProgression(storage);
+    expect(p.state.walks.roofs).toBe(0);
+    expect(p.state.marks.roofs).toEqual([]);
+    expect(p.marksIn('roofs')).toEqual([]);
+    // and a mark left on the Rooftops is kept
+    expect(p.addMark('roofs', { kind: 'scratch', id: 'roofs-post-1', x: -3, z: 44.5, at: 1 })).toBe(true);
+    expect(p.marksIn('roofs')).toHaveLength(1);
+  });
+
+  it('not a colony area, and no legendary cat, dog or strays', () => {
+    expect(REG.colony).toBe(false);
+    expect(REG.strays).toBe(false);
+    expect(COLONY_AREAS).not.toContain('roofs');
+    expect(feedsHere('roofs')).toBe(false);
+    expect(Object.hasOwn(LEGENDARY_BY_AREA, 'roofs')).toBe(false);
+    expect(propsFor('roofs').dogYard).toBeNull();
+    expect(area.critterSpawns).toEqual([]);
+    expect(area.strays).toBe(false);
+  });
+
+  it('the budget row is the measured counts', () => {
+    expect(REG.budget.built).toEqual([MEASURED_BUILT.meshes, MEASURED_BUILT.casters, MEASURED_BUILT.triangles]);
+    expect(REG.budget.merged).toEqual([MEASURED_MERGED.meshes, MEASURED_MERGED.casters]);
+  });
+});
