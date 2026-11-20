@@ -31,6 +31,8 @@ const DELTA = {
   paperboycap: 3, buckethat: 3, sailorcap: 4, strawhat: 3, stripedboater: 4,
   // lane H, Task 3: the star and its dot; the quill and the vane
   starfishclip: 2, featherplume: 2,
+  // lane F: the heart glasses' frames and lenses
+  heartglasses: 2,
 };
 
 const hen = (acc = BARE) => {
