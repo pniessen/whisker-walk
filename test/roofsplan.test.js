@@ -176,6 +176,29 @@ describe('the plan of the Rooftops', () => {
     expect(R.skylineY(R.ROOFS_SPAWN.x, R.ROOFS_SPAWN.z)).toBe(R.LEVELS.GROUND);
   });
 
+  it('the back yards’ walls are ground she cannot walk through, and every yard opens to the alley at a gateway', () => {
+    const base = flood(BASE);
+    const spawnR = spawnOf(base);
+    expect(R.YARD_WALLS).toHaveLength(22);
+    for (const w of R.YARD_WALLS) {
+      const zm = (w.z0 + w.z1) / 2;
+      expect([w.x, zm, a.ground.y(w.x, zm)]).toEqual([w.x, zm, R.YARD.h]);
+      // straight across the wall is no step, at both ends and the middle
+      for (const z of [w.z0 + 0.05, zm, w.z1 - 0.05]) expect([w.x, z, a.ground.canStep(w.x - 0.4, z, w.x + 0.4, z)]).toEqual([w.x, z, false]);
+    }
+    for (const x of R.YARD_WALL_XS) {
+      const zg = (R.YARD.gate0 + R.YARD.gate1) / 2;
+      expect([x, a.ground.canStep(x - 0.4, zg, x + 0.4, zg)]).toEqual([x, true]); // the gateway
+    }
+    // every yard, between its walls, is walked to from the alley
+    for (let k = 1; k <= 12; k++) {
+      for (const z of [21.5, 26.5]) {
+        const x = -30 + 5 * (k - 1) + 2.5;
+        expect([k, z, base.regionAt(x, z, R.LEVELS.GROUND)]).toEqual([k, z, spawnR]);
+      }
+    }
+  });
+
   it('every collider stands on one level', () => {
     for (const c of R.ROOFS_COLLIDERS) {
       const ys = [a.ground.y(c.x, c.z)];

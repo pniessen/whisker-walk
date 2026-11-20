@@ -21,7 +21,8 @@ vi.stubGlobal('document', {
 });
 
 const { build } = await import('../src/world/roofs.js');
-const { BLOCKS, LEVELS, ROOFS_TRAVERSAL, ROOFS_COLLIDERS } = await import('../src/world/roofsplan.js');
+const { BLOCKS, LEVELS, ROOFS_TRAVERSAL, ROOFS_COLLIDERS, YARD } = await import('../src/world/roofsplan.js');
+const { STEP_MAX } = await import('../src/ground.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
@@ -123,25 +124,63 @@ describe('the Rooftops, part one', () => {
   });
 
   it('each hop has its mark within 0.5 m of its take-off', () => {
-    const marks = new Map();
-    scene.traverse((o) => { if (o.userData.mark) marks.set(o.userData.mark.id, o); });
-    const glows = meshes.filter((m) => m.userData.markGlow);
-    expect(glows.length).toBeGreaterThan(0);
-    const glowPts = [];
-    for (const g of glows) {
-      const pos = g.geometry.attributes.position;
-      for (let i = 0; i < pos.count; i++) glowPts.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(g.matrixWorld));
+    // every merged mark mesh says which vertices each hop's mark put in it
+    const marked = meshes.filter((m) => m.userData.markRanges);
+    const glow = marked.find((m) => m.userData.markGlow);
+    expect(glow).toBeTruthy();
+    expect(marked.length).toBeGreaterThan(1);
+    const v = new THREE.Vector3();
+    const pointsOf = (m, r) => Array.from({ length: r.count }, (_, i) => v.fromBufferAttribute(m.geometry.attributes.position, r.start + i).applyMatrix4(m.matrixWorld).clone());
+    const hops = area.traversal.hops;
+    expect(hops).toHaveLength(ROOFS_TRAVERSAL.gaps.length + ROOFS_TRAVERSAL.climbs.length + ROOFS_TRAVERSAL.drops.length);
+    expect(glow.userData.markRanges).toHaveLength(hops.length);
+    for (const h of hops) {
+      // its glow disc: one per hop, centred on the take-off, just above it
+      const g = glow.userData.markRanges.filter((r) => r.id === h.id);
+      expect(g, h.id).toHaveLength(1);
+      expect(g[0].kind, h.id).toBe(h.mark);
+      const disc = pointsOf(glow, g[0]);
+      const c = disc.reduce((t, p) => t.add(p), new THREE.Vector3()).divideScalar(disc.length);
+      expect(Math.hypot(c.x - h.x0, c.z - h.z0), `${h.id} glow centre`).toBeLessThanOrEqual(0.05);
+      expect(Math.abs(c.y - h.y0 - 0.03), `${h.id} glow height`).toBeLessThanOrEqual(0.05);
+      // its pieces: their own vertices, within 0.5 m of the take-off across, standing on it
+      const box = new THREE.Box3();
+      for (const m of marked) {
+        if (m === glow) continue;
+        for (const r of m.userData.markRanges) if (r.id === h.id) for (const p of pointsOf(m, r)) box.expandByPoint(p);
+      }
+      expect(box.isEmpty(), `${h.id} pieces`).toBe(false);
+      const mid = box.getCenter(new THREE.Vector3());
+      expect(Math.hypot(mid.x - h.x0, mid.z - h.z0), `${h.id} pieces across`).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(box.min.y - h.y0), `${h.id} pieces height`).toBeLessThanOrEqual(0.2);
     }
-    expect(area.traversal.hops).toHaveLength(ROOFS_TRAVERSAL.gaps.length + ROOFS_TRAVERSAL.climbs.length + ROOFS_TRAVERSAL.drops.length);
-    for (const h of area.traversal.hops) {
-      const m = marks.get(h.id);
-      expect(m, h.id).toBeTruthy();
-      expect(m.userData.mark.kind, h.id).toBe(h.mark);
-      const at = m.getWorldPosition(new THREE.Vector3());
-      expect(at.distanceTo(new THREE.Vector3(h.x0, h.y0, h.z0)), h.id).toBeLessThanOrEqual(0.5);
-      // and its glow is drawn there, on the take-off's level
-      const near = glowPts.some((p) => Math.hypot(p.x - h.x0, p.z - h.z0) <= 0.75 && Math.abs(p.y - h.y0) <= 0.15);
-      expect(near, `${h.id} glow`).toBe(true);
+  });
+
+  it('no chimney stack and no yard wall is drawn over ground she walks on', () => {
+    // sampled from above: wherever the stack's (or the walls') own mesh is,
+    // the ground there is as high as its top, or the void under the slates
+    const rc = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    const checks = [
+      ...meshes.filter((m) => /^stack-/.test(m.userData.block ?? '')).map((m) => [m, LEVELS.RIDGE]),
+      ...meshes.filter((m) => m.userData.yardWalls).map((m) => [m, YARD.h]),
+    ];
+    expect(checks.length).toBe(8);
+    for (const [m, top] of checks) {
+      const box = boxOf(m);
+      let drawn = 0;
+      const bad = [];
+      for (let x = box.min.x + 0.013; x < box.max.x; x += 0.05) {
+        for (let z = box.min.z + 0.013; z < box.max.z; z += 0.05) {
+          rc.set(new THREE.Vector3(x, box.max.y + 1, z), down);
+          if (!rc.intersectObject(m, false).length) continue;
+          drawn++;
+          const y = area.ground.y(x, z);
+          if (!(y >= top - STEP_MAX || Math.abs(y - LEVELS.VOID) < 1e-6)) bad.push([+x.toFixed(2), +z.toFixed(2), y]);
+        }
+      }
+      expect(drawn, m.name).toBeGreaterThan(50);
+      expect(bad.slice(0, 4), m.name).toEqual([]);
     }
   });
 
@@ -175,8 +214,8 @@ describe('the Rooftops, part one', () => {
     expect(typeof area.ground.y).toBe('function');
     expect(area.ground.y(4, 41)).toBe(0);
     expect(area.traversal.crossings).toHaveLength(ROOFS_TRAVERSAL.crossings.length);
-    // the plan's colliders are all there, each on one level (R6)
-    for (const c of ROOFS_COLLIDERS) expect(area.colliders).toContainEqual(c);
+    // the plan's colliders, and only those (the plan's tests hold them to R6)
+    expect(area.colliders).toEqual(ROOFS_COLLIDERS.map((c) => ({ ...c })));
     for (const c of area.colliders) {
       const ys = [[0, 0], [c.r, 0], [-c.r, 0], [0, c.r], [0, -c.r]].map(([dx, dz]) => area.ground.y(c.x + dx, c.z + dz));
       expect(Math.max(...ys) - Math.min(...ys), `${c.x},${c.z}`).toBeLessThan(0.05);

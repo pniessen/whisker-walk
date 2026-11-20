@@ -60,6 +60,12 @@
 //   z -31.5 +-L4-+---- L2 5.55 ----+ ginnel  |
 //   z -30 11.1                         foot here
 //
+// THE BACK YARDS' WALLS (Task 7's review) are raised ground, not colliders: a
+// strip 0.4 m wide at YARD.h on each party line between two yards, from the
+// extensions' end (z 20) to the garages (z 28), open at a 2 m gateway. Ground
+// holds them exactly (no slot at either end, nothing pushed off a roof's
+// edge), and the flood proves every yard still opens to the alley.
+//
 // SHIFTS from the plan's BLOCKS table (each within the builder's 1 m / 15%):
 //   * out-2, out-5, out-7, out-10 widened 0.35 m (10%) toward their washing
 //     line's other end, so each line is under the 12 m a crossing may run.
@@ -192,10 +198,18 @@ const rectStrip = ({ x0, x1, z0, z1, y }) => ({ x0, z0: (z0 + z1) / 2, x1, z1: (
 // A flight, as a strip along z rising from y0 at z0 to y1 at z1.
 const flightStrip = ({ x0, x1, z0, z1, y0, y1 }) => ({ x0: (x0 + x1) / 2, z0, x1: (x0 + x1) / 2, z1, width: x1 - x0, y0, y1 });
 
+// The back yards' walls (header): two pieces on each party line, either side
+// of a gateway.
+export const YARD = Object.freeze({ z0: EXT_Z.z1, z1: 28, gate0: 23, gate1: 25, h: 1.7, half: 0.2 });
+export const YARD_WALL_XS = Object.freeze(Array.from({ length: 11 }, (_, j) => EXT_X0(j + 2)));
+export const YARD_WALLS = Object.freeze(YARD_WALL_XS.flatMap((x) => [[YARD.z0, YARD.gate0], [YARD.gate1, YARD.z1]]
+  .map(([z0, z1]) => Object.freeze({ x, ...landing(x - YARD.half, x + YARD.half, z0, z1, YARD.h) }))));
+
 export const ROOFS_GROUND = Object.freeze({
   base: L.STREET,
   strips: [
     ...GROUNDS.map(rectStrip),
+    ...YARD_WALLS.map(rectStrip),
     ...BLOCKS.filter((b) => b.kind === 'flat' || b.kind === 'pitched').map(rectStrip),
     ...BLOCKS.filter((b) => b.kind === 'stair').flatMap((b) => [...b.flights.map(flightStrip), ...b.landings.map(rectStrip)]),
   ],
@@ -205,13 +219,25 @@ export const ROOFS_GROUND = Object.freeze({
 // ---------------------------------------------------------------------------
 // Colliders: each stands on one level (R6)
 
-export const ROOFS_COLLIDERS = Object.freeze([
-  { x: -3, z: 44.5, r: 0.25 }, // the alley lamp
-  { x: 13.0, z: 35.6, r: 0.45 }, // bin-2
-  { x: 16.0, z: 35.6, r: 0.45 }, // bin-3
-  { x: 35, z: 8, r: 0.4 }, // the telescope on the corner shop
-  { x: VANE.x, z: VANE.z, r: 0.15 }, // the vane's mast
+export const ALLEY_LAMP = Object.freeze({ x: -3, z: 44.5, r: 0.25 });
+export const BIN_2 = Object.freeze({ x: 13.0, z: 35.6, r: 0.45 }); // a dustbin beside bin-1
+export const BIN_3 = Object.freeze({ x: 16.0, z: 35.6, r: 0.45 }); // a wheelie bin
+export const TELESCOPE = Object.freeze({ x: 35, z: 8, r: 0.4 }); // on the corner shop
+export const VANE_MAST = Object.freeze({ x: VANE.x, z: VANE.z, r: 0.15 });
+// The washing posts in four back yards: two T-posts each, a line between.
+export const WASHING_POSTS = Object.freeze([3, 6, 9, 11].map((k) => Object.freeze({ x: EXT_X0(k) + 2.7, z0: 22.0, z1: 27.0 })));
+// Crates stacked in the alley (Task 8 makes perches of them): { x, z, y, s, yaw }.
+export const ALLEY_CRATES = Object.freeze([
+  { x: -18.6, z: 35.0, y: 0, s: 0.6, yaw: 0.2 },
+  { x: -17.9, z: 35.15, y: 0, s: 0.55, yaw: -0.15 },
+  { x: -18.3, z: 35.05, y: 0.6, s: 0.5, yaw: 0.4 },
+  { x: 9.4, z: 35.0, y: 0, s: 0.6, yaw: -0.3 },
 ].map(Object.freeze));
+
+export const ROOFS_COLLIDERS = Object.freeze([
+  ALLEY_LAMP, BIN_2, BIN_3, TELESCOPE, VANE_MAST,
+  ...WASHING_POSTS.flatMap((p) => [p.z0, p.z1].map((z) => Object.freeze({ x: p.x, z, r: 0.12 }))),
+]);
 
 // ---------------------------------------------------------------------------
 // The moves

@@ -7,7 +7,9 @@ import { hash01 } from './warehouselook.js';
 import { roofsMaterials, addWindowQuads, windowCell, markMesh } from './roofsparts.js';
 import {
   LEVELS as L, BLOCKS, GROUNDS, ROOFS_BOUNDS, ROOFS_SPAWN, ROOFS_COLLIDERS, ROOFS_TRAVERSAL, roofsArea,
+  ALLEY_LAMP, BIN_2, BIN_3, ALLEY_CRATES, YARD, YARD_WALLS, WASHING_POSTS,
 } from './roofsplan.js';
+import { STEP_MAX } from '../ground.js';
 
 // =============================================================================
 // THE ROOFTOPS, DRAWN (Rooftops step 2). Every position comes from
@@ -31,9 +33,10 @@ import {
 //   * every crossing (userData.crossing = its id), one mesh along its rail.
 // render/mergeprops.js folds those into their group's merged meshes at walk
 // time, so they cost draw calls only in the build's own count.
-// The take-off marks (roofsparts.js markMesh) are merged by material too; an
-// empty Object3D stays at each take-off with userData.mark = { id, kind }, the
-// index the tests and pictures read (no mesh, no draw).
+// The take-off marks (roofsparts.js markMesh) are merged by material too; each
+// merged mark mesh keeps userData.markRanges = [{ id, kind, start, count }],
+// the vertices each hop's mark put into it, so a test can find every mark's
+// own geometry.
 //
 // THE PLAN'S ODD CORNERS, drawn on purpose (Task 5's review):
 //   * the dormer and the roof terrace reach 0.7 m past their party walls: the
@@ -50,9 +53,16 @@ import {
 // fadeOccluder. The one lamp is builder.lampPost, so dusk lights its globe and
 // the lamp pools find it.
 //
-// THE BACK YARDS' WALLS stand on the yards' ground (0) only, each with an open
-// gateway, so every yard still opens to the next and on to the alley. Their
-// colliders join ROOFS_COLLIDERS in the record (R6: each on one level).
+// THE BACK YARDS' WALLS are the plan's raised ground (roofsplan.js YARD_WALLS),
+// drawn inside it: one mesh, userData.yardWalls.
+//
+// THE CHIMNEY STACKS are drawn inside what the ground lets them cover: their
+// own disc, the void under the slates, or ground as high as their top. A
+// stack is four quarters, each as long across the ridge as that allows and
+// narrowed to a square inside the disc where a flat roof or the west garden
+// lies beside it (stack-0, stack--10, stack-20, stack--30); a quarter beside
+// ground lower than the eaves goes down to it (stack--30's breast on the
+// gable end).
 // =============================================================================
 
 const BLOCK = Object.fromEntries(BLOCKS.map((k) => [k.id, k]));
@@ -70,7 +80,7 @@ const EAVE_Y = 6.45;
 const EAVE_OVER = 0.15;
 const RIDGE_Z = TERRACE.ridgeZ;
 const PITCH = (L.RIDGE - EAVE_Y) / (TERRACE.z1 - RIDGE_Z); // rise per metre
-const STACK = Object.freeze({ half: 0.85, pot: 0.55 }); // half its length across the ridge; its pots' offset
+const STACK = Object.freeze({ half: 0.85, inner: 0.42, pot: 0.55 }); // half its length across the ridge, a square's half inside the disc (r 0.6), its pots' offset
 const slopeY = (z) => (z >= RIDGE_Z ? EAVE_Y + (TERRACE.z1 - z) * PITCH : EAVE_Y + (z - TERRACE.z0) * PITCH);
 
 export const ROOFS_GROUND_COLOR = 0x7d7873; // the alley's cobbles, for groundBounce
@@ -78,29 +88,7 @@ const PAINTS = Object.freeze([0x2f5d8a, 0x7a2b2b, 0x2f5a3a, 0x2a2a2e, 0xd8c9a0, 
 const CLOTHS = Object.freeze([0xf2efe6, 0xd9534f, 0x5b8fd1, 0xf3c94b, 0x7cc47a, 0xe9a3c4, 0xffffff, 0x9b7fd1]);
 const paint = (x, z, salt) => PAINTS[Math.floor(hash01(x, z, salt) * PAINTS.length) % PAINTS.length];
 
-// Crates stacked in the alley (Task 8 makes perches of them): { x, z, y, s, yaw }.
-export const ALLEY_CRATES = Object.freeze([
-  { x: -18.6, z: 35.0, y: 0, s: 0.6, yaw: 0.2 },
-  { x: -17.9, z: 35.15, y: 0, s: 0.55, yaw: -0.15 },
-  { x: -18.3, z: 35.05, y: 0.6, s: 0.5, yaw: 0.4 },
-  { x: 9.4, z: 35.0, y: 0, s: 0.6, yaw: -0.3 },
-].map(Object.freeze));
-
-// The back yards: a wall on each party line between two yards, from the
-// extensions' end (z 20) to the garages (z 28), open at a gateway.
-const YARD = Object.freeze({ z0: 20, z1: 28, gate0: 23.0, gate1: 25.0, h: 1.7 });
-const YARD_WALL_XS = Object.freeze(Array.from({ length: 11 }, (_, j) => houseX0(j + 2)));
-const WASHING_POSTS = Object.freeze([3, 6, 9, 11].map((k) => Object.freeze({ x: houseX0(k) + 2.7, z0: 22.0, z1: 27.0 })));
-
-function yardColliders() {
-  const out = [];
-  for (const x of YARD_WALL_XS) {
-    for (let z = YARD.z0 + 0.4; z <= YARD.gate0 - 0.15; z += 0.5) out.push({ x, z: Math.round(z * 100) / 100, r: 0.3 });
-    for (let z = YARD.z1 - 0.4; z >= YARD.gate1 + 0.15; z -= 0.5) out.push({ x, z: Math.round(z * 100) / 100, r: 0.3 });
-  }
-  for (const p of WASHING_POSTS) for (const z of [p.z0, p.z1]) out.push({ x: p.x, z, r: 0.12 });
-  return out;
-}
+export { ALLEY_CRATES }; // the plan's, for Task 8's perches
 
 // ---------------------------------------------------------------------------
 // Geometry: every piece is a fresh, non-indexed BufferGeometry in world
@@ -255,15 +243,22 @@ function merged(geos, name) {
 function makeKit(prefix) {
   const buckets = new Map();
   return {
-    put(key, mat, geo, { noCast = false, color = null, tile = 0 } = {}) {
-      let k = buckets.get(key);
-      if (!k) buckets.set(key, (k = { mat, noCast, geos: [] }));
-      k.geos.push(prep(geo, { color, tile }));
+    // `mark`, if given ({ id, kind }), records the vertices this piece adds
+    put(key, mat, geo, { noCast = false, color = null, tile = 0, mark = null } = {}) {
+      const full = noCast ? `${key}` : `${key}:cast`;
+      let k = buckets.get(full);
+      if (!k) buckets.set(full, (k = { key, mat, noCast, geos: [], count: 0, ranges: [] }));
+      const g = prep(geo, { color, tile });
+      const count = g.attributes.position.count;
+      if (mark) k.ranges.push({ ...mark, start: k.count, count });
+      k.count += count;
+      k.geos.push(g);
     },
     meshes() {
-      return [...buckets].map(([key, k]) => {
-        const m = finish(new THREE.Mesh(merged(k.geos, key), k.mat), k.noCast);
-        m.name = `${prefix}:${key}`;
+      return [...buckets.values()].map((k) => {
+        const m = finish(new THREE.Mesh(merged(k.geos, k.key), k.mat), k.noCast);
+        m.name = `${prefix}:${k.key}`;
+        if (k.ranges.length) m.userData.markRanges = k.ranges;
         return m;
       });
     },
@@ -330,7 +325,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     for (const m of AK.meshes()) alley.add(m);
     const terrace = new THREE.Group();
     terrace.name = 'roofsTerrace';
-    drawTerrace(terrace, M, win);
+    drawTerrace(terrace, M, win, ground);
     const moves = new THREE.Group();
     moves.name = 'roofsMoves';
     drawCrossings(moves, M);
@@ -341,14 +336,13 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     panes.name = 'roofsWindows';
     terrace.add(finish(panes, true));
 
-    const [lampAt] = ROOFS_COLLIDERS; // the plan's first collider is the alley lamp
-    const lamp = b.lampPost(lampAt.x, lampAt.z);
+    const lamp = b.lampPost(ALLEY_LAMP.x, ALLEY_LAMP.z);
     lamp.name = 'roofsAlleyLamp';
     scene.add(alley, terrace, moves, lamp);
 
     return {
       name: 'The Rooftops',
-      colliders: [...ROOFS_COLLIDERS.map((c) => ({ ...c })), ...yardColliders()],
+      colliders: ROOFS_COLLIDERS.map((c) => ({ ...c })),
       bounds: { ...ROOFS_BOUNDS },
       spawn: { x: ROOFS_SPAWN.x, z: ROOFS_SPAWN.z },
       boxes: [], // Task 8
@@ -442,7 +436,8 @@ function drawAlley(K, group, M, ground) {
   // The bins: the round one she climbs (bin-1), a dustbin, a wheelie bin.
   const B1 = BLOCK['bin-1'];
   group.add(own('bin-1', M.metal, [post(B1.x, B1.z, 0, B1.y - 0.06, B1.r - 0.05, B1.r - 0.09, 14), post(B1.x, B1.z, B1.y - 0.06, 0.06, B1.r, B1.r, 14)], { noCast: true, tag: { block: 'bin-1' } }));
-  const [, bin2, bin3] = ROOFS_COLLIDERS; // after the lamp: bin-2 and bin-3
+  const bin2 = BIN_2;
+  const bin3 = BIN_3;
   K.put('metal', M.metal, post(bin2.x, bin2.z, 0, 0.8, bin2.r - 0.05, bin2.r - 0.09, 12), { noCast: true });
   K.put('metal', M.metal, post(bin2.x + 0.02, bin2.z, 0.8, 0.05, bin2.r - 0.02, bin2.r - 0.02, 12), { noCast: true });
   painted(turnedBox(bin3.x, bin3.z, 0, 0.58, 0.95, 0.66, 0.1), 0x3b6b3b);
@@ -497,23 +492,24 @@ function drawAlley(K, group, M, ground) {
 
 // --- the back yards: walls with a gateway, washing posts, coal bunkers.
 function drawYards(K, group, M) {
-  const wall = (geo) => K.put('wall', M.wall, geo, { tile: TILE.brick });
   const stone = (geo) => K.put('stone', M.stone, geo);
-  for (const x of YARD_WALL_XS) {
-    for (const [z0, z1] of [[YARD.z0, YARD.gate0], [YARD.gate1, YARD.z1]]) {
-      wall(box(x - 0.11, x + 0.11, 0, YARD.h, z0, z1));
-      stone(box(x - 0.15, x + 0.15, YARD.h, YARD.h + 0.08, z0, z1));
-    }
-    for (const z of [YARD.gate0, YARD.gate1]) { // the gateway's piers
-      wall(box(x - 0.17, x + 0.17, 0, YARD.h + 0.15, z - 0.17, z + 0.17));
-      stone(box(x - 0.2, x + 0.2, YARD.h + 0.15, YARD.h + 0.23, z - 0.2, z + 0.2));
-    }
+  // the walls: brick inside the plan's raised ground, a pier at each side of
+  // the gateway, a stone coping
+  const walls = [];
+  for (const w of YARD_WALLS) {
+    const t = YARD.half - 0.03;
+    walls.push(box(w.x - t, w.x + t, 0, YARD.h, w.z0, w.z1));
+    const z = w.z1 === YARD.gate0 ? w.z1 - 0.36 : w.z0;
+    walls.push(box(w.x0, w.x1, 0, YARD.h + 0.15, z, z + 0.36));
+    stone(box(w.x0, w.x1, YARD.h, YARD.h + 0.08, w.z0, w.z1));
+    stone(box(w.x0, w.x1, YARD.h + 0.15, YARD.h + 0.23, z, z + 0.36));
   }
+  group.add(own('yardWalls', M.wall, walls, { tile: TILE.brick, tag: { yardWalls: true } }));
   const lineGeos = [];
   WASHING_POSTS.forEach((p, i) => {
     for (const z of [p.z0, p.z1]) {
-      K.put('iron', M.iron, post(p.x, z, 0, 2.0, 0.04), { noCast: true });
-      K.put('iron', M.iron, rod({ x: p.x - 0.3, y: 1.95, z }, { x: p.x + 0.3, y: 1.95, z }, 0.025), { noCast: true });
+      K.put('ironSmall', M.iron, post(p.x, z, 0, 2.0, 0.04), { noCast: true });
+      K.put('ironSmall', M.iron, rod({ x: p.x - 0.3, y: 1.95, z }, { x: p.x + 0.3, y: 1.95, z }, 0.025), { noCast: true });
     }
     for (const dx of [-0.25, 0.25]) lineGeos.push(rod({ x: p.x + dx, y: 1.95, z: p.z0 }, { x: p.x + dx, y: 1.9, z: p.z1 }, 0.008, 4));
     // two or three things drying on each
@@ -536,9 +532,50 @@ function drawYards(K, group, M) {
   }
 }
 
+// A stack's four quarters (west/east of its party wall, in front of/behind the
+// ridge). Each runs STACK.half across the ridge where everything under it is
+// its own disc, the void under the slates or ground as high as its top;
+// otherwise as far as that holds (to a flat roof's edge), and where even
+// STACK.inner will not do at full width, a square inside the disc. A quarter
+// with lower ground beside it than the eaves goes down to that ground.
+const STACK_HALF_X = 0.5;
+function stackQuarters(s, ground) {
+  const ok = (x, z) => {
+    const y = ground.y(x, z);
+    return y >= s.y - STEP_MAX || Math.abs(y - L.VOID) < 1e-6;
+  };
+  const clear = (x0, x1, z0, z1) => {
+    for (let x = x0 + 0.01; x <= x1 - 0.01 + 1e-9; x += 0.025) {
+      for (let z = z0 + 0.01; z <= z1 - 0.01 + 1e-9; z += 0.025) if (!ok(x, z)) return false;
+    }
+    return ok(x1 - 0.01, z1 - 0.01) && ok(x0 + 0.01, z1 - 0.01) && ok(x1 - 0.01, z0 + 0.01);
+  };
+  const out = [];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const span = (w, e) => {
+        const xa = sx < 0 ? s.x - w : s.x;
+        const xb = sx < 0 ? s.x : s.x + w;
+        return sz < 0 ? [xa, xb, s.z - e, s.z] : [xa, xb, s.z, s.z + e];
+      };
+      let e = STACK.half;
+      while (e > STACK.inner && !clear(...span(STACK_HALF_X, e))) e = Math.round((e - 0.01) * 100) / 100;
+      const [x0, x1, z0, z1] = clear(...span(STACK_HALF_X, e)) ? span(STACK_HALF_X, Math.max(STACK.inner, e - 0.03)) : span(STACK.inner, STACK.inner);
+      // how low the ground beside it goes (the void is under the slates)
+      let low = EAVE_Y - 0.2;
+      for (const [x, z] of [[x0 - 0.1, (z0 + z1) / 2], [x1 + 0.1, (z0 + z1) / 2], [(x0 + x1) / 2, z0 - 0.1], [(x0 + x1) / 2, z1 + 0.1]]) {
+        const y = ground.y(x, z);
+        if (Math.abs(y - L.VOID) > 1e-6 && y > L.STREET) low = Math.min(low, y);
+      }
+      out.push({ x0, x1, z0, z1, y0: low });
+    }
+  }
+  return out;
+}
+
 // --- the terrace: the houses, their extensions and outriggers, the slates,
 // the flat roofs, the stacks and every window.
-function drawTerrace(group, M, win) {
+function drawTerrace(group, M, win, ground) {
   const K = makeKit('roofsTerrace');
   const wall = (geo) => K.put('wall', M.wall, geo, { tile: TILE.brick });
   const stone = (geo) => K.put('stone', M.stone, geo);
@@ -620,20 +657,21 @@ function drawTerrace(group, M, win) {
   });
   gutterRuns(free, T.z1 + EAVE_OVER - 0.02, T.z1 + EAVE_OVER + 0.14);
 
-  // The chimney stacks on the party walls, across the ridge, with their pots.
-  // A stack's top is the ground (8.1, the ridge's height), so it stands proud
-  // of the slates toward its ends and the pots carry it on the skyline; they
-  // stand either side of the ridge's line, clear of the way a cat walks
-  // across (the ground's disc is r 0.6; the box's corners reach a little
-  // past it onto the flat roofs beside three of them, as a wall's face does).
+  // The chimney stacks on the party walls, across the ridge, with their pots
+  // (the header: four quarters, each inside what the ground lets it cover).
   for (const s of STACKS) {
-    group.add(own(s.id, M.wall, [box(s.x - 0.5, s.x + 0.5, EAVE_Y - 0.2, s.y, s.z - STACK.half, s.z + STACK.half)], { tile: TILE.brick, tag: { block: s.id } }));
-    wall(box(s.x - 0.56, s.x + 0.56, s.y - 0.16, s.y - 0.06, s.z - STACK.half - 0.06, s.z + STACK.half + 0.06)); // the oversailing course
-    for (const dz of [-STACK.pot, STACK.pot]) {
-      const tall = 0.45 + 0.15 * hash01(s.x, dz, 3);
-      const col = hash01(s.x, dz, 9) < 0.7 ? 0xb8613f : 0x8a7f72;
-      pots(post(s.x, s.z + dz, s.y, tall, 0.1, 0.13, 10), col);
-      pots(post(s.x, s.z + dz, s.y + tall - 0.04, 0.05, 0.125, 0.125, 10), col);
+    const quarters = stackQuarters(s, ground);
+    group.add(own(s.id, M.wall, quarters.map((q) => box(q.x0, q.x1, q.y0, s.y, q.z0, q.z1)), { tile: TILE.brick, tag: { block: s.id } }));
+    for (const q of quarters) wall(box(q.x0 - 0.06, q.x1 + 0.06, s.y - 0.16, s.y - 0.06, q.z0 - 0.06, q.z1 + 0.06)); // the oversailing course
+    for (const side of [-1, 1]) {
+      // a pot each side of the ridge's line, on the quarters that reach it
+      const reach = quarters.filter((q) => (side < 0 ? s.z - q.z0 : q.z1 - s.z) >= STACK.pot + 0.13);
+      if (!reach.length) continue;
+      const px = reach.reduce((t, q) => t + (q.x0 + q.x1) / 2, 0) / reach.length;
+      const tall = 0.45 + 0.15 * hash01(s.x, side, 3);
+      const col = hash01(s.x, side, 9) < 0.7 ? 0xb8613f : 0x8a7f72;
+      pots(post(px, s.z + side * STACK.pot, s.y, tall, 0.1, 0.13, 10), col);
+      pots(post(px, s.z + side * STACK.pot, s.y + tall - 0.04, 0.05, 0.125, 0.125, 10), col);
     }
   }
 
@@ -646,7 +684,9 @@ function drawTerrace(group, M, win) {
     const ecx = (e.x0 + e.x1) / 2;
     wall(box(e.x0, e.x1, 0, e.y - 0.1, e.z0, e.z1));
     group.add(own(e.id, M.felt, [box(e.x0, e.x1, e.y - 0.1, e.y, e.z0, e.z1)], { tile: TILE.gravel, tag: { block: e.id } }));
-    zWin(ecx, 1.85, e.z1, 1, 1.0, 1.0); // the kitchen window over the yard
+    // the kitchen window over the yard, its sill clear above a bunker's lid
+    const bunker = BLOCK[`bunker-${k}`];
+    zWin(ecx, bunker ? 2.15 : 1.85, e.z1, 1, 1.0, 1.0);
     win(e.x1, 1.5, 16.5, 1, 0, 0.7, 0.9); // a small one into the side return
     stone(box(e.x1, e.x1 + 0.08, 1.0, 1.05, 16.1, 16.9));
     const ret = (e.x1 + x0 + HOUSE_W) / 2; // the middle of the side return
@@ -756,29 +796,30 @@ function drawCrossings(group, M) {
 }
 
 // --- the take-off marks: every hop's mark (roofsparts.js), merged by
-// material, and an empty anchor at each take-off.
+// material, each mesh with the vertex ranges of every hop's mark in it.
 function drawMarks(group, M, traversal) {
   const K = makeKit('roofsMarks');
   const names = new Map(Object.entries(M).map(([k, v]) => [v, k]));
   const glows = [];
+  const glowRanges = [];
+  let glowCount = 0;
   let glowMat = null;
   for (const hop of traversal.hops) {
     const g = markMesh(hop.mark, hop, M);
     g.updateMatrixWorld(true);
+    const mark = { id: hop.id, kind: hop.mark };
     g.traverse((c) => {
       if (!c.isMesh) return;
       if (c.userData.markGlow) {
-        glows.push(prep(bake(c.geometry, c.matrixWorld)));
+        const geo = prep(bake(c.geometry, c.matrixWorld));
+        glowRanges.push({ ...mark, start: glowCount, count: geo.attributes.position.count });
+        glowCount += geo.attributes.position.count;
+        glows.push(geo);
         glowMat = c.material;
       } else {
-        K.put(`mark-${names.get(c.material) ?? c.material.uuid}`, c.material, bake(c.geometry, c.matrixWorld), { noCast: true });
+        K.put(`mark-${names.get(c.material) ?? c.material.uuid}`, c.material, bake(c.geometry, c.matrixWorld), { noCast: true, mark });
       }
     });
-    const at = new THREE.Object3D();
-    at.name = `mark:${hop.id}`;
-    at.position.set(hop.x0, hop.y0, hop.z0);
-    at.userData.mark = { id: hop.id, kind: hop.mark };
-    group.add(at);
   }
   for (const m of K.meshes()) group.add(m);
   if (glows.length) {
@@ -789,6 +830,7 @@ function drawMarks(group, M, traversal) {
     glow.renderOrder = 2;
     glow.userData.markGlow = true;
     glow.userData.noMerge = true;
+    glow.userData.markRanges = glowRanges;
     group.add(glow);
   }
 }
