@@ -1,9 +1,9 @@
 // createDressingRoom's click handling, with a spy progression and fake DOM
 // targets (no jsdom in this project). Pins the review focus: previewing and
 // trying on never equip, buy, or save anything.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CATALOG, createProgression } from '../src/progression.js';
-import { createDressingRoom } from '../src/ui/dressingroomview.js';
+import { createDressingRoom, reduceDressingUi, INITIAL_DRESSING_UI } from '../src/ui/dressingroomview.js';
 import { worldMapModel } from '../src/worldmap.js';
 import { renderWorldMapHtml } from '../src/ui/territorymap.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
@@ -984,5 +984,145 @@ describe('createDressingRoom: Launch A (wardrobe, more cats, places)', () => {
     progression.state.walks.neighborhood = 2;
     expect(() => dr.handleClick(click({ drPlace: 'woods' }))).not.toThrow();
     expect(progression.state.area).toBe('woods');
+  });
+});
+
+// World map step 2: a tap (or Enter / Space) on a map place opens its pop-up
+// card; ✕ or Back closes it; the card's Go here picks the place, and its
+// Open for N 🐾 only asks through the usual "Get it?" card.
+describe("the world map's card", () => {
+  let t;
+  let buy;
+  let asks;
+  let onPlaced;
+  beforeEach(() => {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    const sync = { autoSync: vi.fn() };
+    asks = [];
+    onPlaced = vi.fn();
+    const dr = createDressingRoom({ progression, sync, thumbs: {}, onChange: () => {}, onPlaced, confirmSpend: (o) => { asks.push(o); return true; } });
+    t = { dr, progression, sync };
+    buy = vi.spyOn(progression, 'buy');
+  });
+  const key = (k, dataset) => {
+    const e = { key: k, preventDefault: vi.fn(), target: { closest: () => ({ dataset }) } };
+    return { e, handled: t.dr.handleKeydown(e) };
+  };
+
+  it('a tap on a place opens its card and changes nothing else', () => {
+    expect(t.dr.handleClick(click({ drMapPlace: 'park' }))).toBe(true);
+    expect(t.dr.ui.mapCard).toBe('park');
+    expect(buy).not.toHaveBeenCalled();
+    expect(t.progression.state.area).toBe('neighborhood');
+    expect(onPlaced).not.toHaveBeenCalled();
+    expect(asks).toEqual([]);
+  });
+
+  it('✕ closes it', () => {
+    t.dr.handleClick(click({ drMapPlace: 'park' }));
+    expect(t.dr.handleClick(click({ drMapClose: 'park' }))).toBe(true);
+    expect(t.dr.ui.mapCard).toBeNull();
+  });
+
+  it("the card's Go here picks the place and closes the card", () => {
+    t.progression.state.unlocked.areas.push('woods');
+    t.dr.handleClick(click({ drMapPlace: 'woods' }));
+    expect(t.dr.ui.mapCard).toBe('woods');
+    let cardAtPick;
+    onPlaced.mockImplementation(() => { cardAtPick = t.dr.ui.mapCard; });
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(t.progression.state.area).toBe('woods');
+    expect(t.dr.ui.mapCard).toBeNull();
+    expect(cardAtPick).toBeNull(); // closed before onPlaced
+    expect(onPlaced).toHaveBeenCalledWith('woods', 'set');
+  });
+
+  it("the card's Open for 50 only asks; Yes opens the Park and closes the card", () => {
+    t.progression.state.walks.neighborhood = 2;
+    t.progression.state.points = 60;
+    t.dr.handleClick(click({ drMapPlace: 'park' }));
+    t.dr.handleClick(click({ drPlaceBuy: 'park' }));
+    expect(asks).toHaveLength(1);
+    expect(asks[0].text).toBe('Open City Park for 50 🐾?');
+    expect(t.progression.state.points).toBe(60);
+    expect(t.progression.isUnlocked('areas', 'park')).toBe(false);
+    expect(t.dr.ui.mapCard).toBe('park'); // still open while she is asked
+    asks[0].onYes();
+    expect(t.progression.isUnlocked('areas', 'park')).toBe(true);
+    expect(t.progression.state.area).toBe('park');
+    expect(t.progression.state.points).toBe(10);
+    expect(t.dr.ui.mapCard).toBeNull();
+    expect(onPlaced).toHaveBeenCalledWith('park', 'bought');
+  });
+
+  it('Enter and Space on a place open its card; other keys do nothing', () => {
+    const enter = key('Enter', { drMapPlace: 'woods' });
+    expect(enter.handled).toBe(true);
+    expect(enter.e.preventDefault).toHaveBeenCalled();
+    expect(t.dr.ui.mapCard).toBe('woods');
+    t.dr.handleClick(click({ drMapClose: 'woods' }));
+    const space = key(' ', { drMapPlace: 'woods' });
+    expect(space.handled).toBe(true);
+    expect(space.e.preventDefault).toHaveBeenCalled();
+    expect(t.dr.ui.mapCard).toBe('woods');
+    t.dr.handleClick(click({ drMapClose: 'woods' }));
+    const a = key('a', { drMapPlace: 'woods' });
+    expect(a.handled).toBe(false);
+    expect(a.e.preventDefault).not.toHaveBeenCalled();
+    expect(t.dr.ui.mapCard).toBeNull();
+    // Enter on something that is not a map place is not the map's
+    expect(key('Enter', { drCat: 'tabby' }).handled).toBe(false);
+    expect(t.dr.handleKeydown({ key: 'Enter', target: { closest: () => null } })).toBe(false);
+    expect(t.dr.handleKeydown(null)).toBe(false);
+  });
+
+  it("a keyboard open puts focus on the card's button, a close puts it back on the place", () => {
+    const focusedEl = (dataset) => { const el = { dataset }; el.ownerDocument = { activeElement: el }; return el; };
+    const asked = [];
+    const root = { querySelector: (s) => { asked.push(s); return { focus: vi.fn() }; } };
+    const place = focusedEl({ drMapPlace: 'park' });
+    t.dr.handleKeydown({ key: 'Enter', preventDefault: vi.fn(), target: { closest: () => place } });
+    t.dr.restoreFocus(root);
+    expect(asked).toEqual(['.wm-card-go, .wm-card-buy, .wm-card-close']);
+    const close = focusedEl({ drMapClose: 'park' });
+    t.dr.handleClick({ target: { closest: () => close } });
+    t.dr.restoreFocus(root);
+    expect(asked[1]).toBe('[data-dr-map-place="park"]');
+    // a finger's tap moves no focus
+    asked.length = 0;
+    t.dr.handleClick(click({ drMapPlace: 'park' }));
+    t.dr.restoreFocus(root);
+    expect(asked).toEqual([]);
+  });
+
+  it('Back closes the card first; clearPreview closes it too', () => {
+    t.dr.handleClick(click({ drMapPlace: 'park' }));
+    expect(t.dr.back()).toBe(true);
+    expect(t.dr.ui.mapCard).toBeNull();
+    expect(t.dr.back()).toBe(false);
+    t.dr.handleClick(click({ drMapPlace: 'park' }));
+    t.dr.clearPreview();
+    expect(t.dr.ui.mapCard).toBeNull();
+  });
+
+  it('the open card is drawn on the sheet', () => {
+    t.progression.state.walks.neighborhood = 2;
+    t.progression.state.points = 60;
+    expect(t.dr.placesHtml()).not.toContain('class="wm-card"');
+    t.dr.handleClick(click({ drMapPlace: 'park' }));
+    expect(t.dr.placesHtml()).toContain('data-wm-card="park"');
+    expect(t.dr.placesHtml()).toContain('data-dr-place-buy="park">Open for 50 🐾</button>');
+  });
+
+  it('reduceDressingUi map-card', () => {
+    expect(INITIAL_DRESSING_UI.mapCard).toBeNull();
+    expect(reduceDressingUi(INITIAL_DRESSING_UI, { type: 'map-card', id: 'park' }).mapCard).toBe('park');
+    const open = { ...INITIAL_DRESSING_UI, mapCard: 'park' };
+    expect(reduceDressingUi(open, { type: 'map-card', id: 'park' })).toBe(open);
+    expect(reduceDressingUi(open, { type: 'map-card', id: null }).mapCard).toBeNull();
+    expect(reduceDressingUi(open, { type: 'map-card' }).mapCard).toBeNull();
+    expect(reduceDressingUi(INITIAL_DRESSING_UI, { type: 'map-card', id: null })).toBe(INITIAL_DRESSING_UI);
+    expect(reduceDressingUi(open, { type: 'clear-preview' }).mapCard).toBeNull();
   });
 });

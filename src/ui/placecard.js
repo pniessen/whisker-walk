@@ -8,6 +8,9 @@
 // place button; Open for N 🐾 is its usual buy button, so it goes through the
 // "Get it?" card as before. A locked place, or one she cannot afford yet, has
 // no button, only its line: the walks it waits for, or the paws it costs.
+// Go here is only ever for a place she can walk: a locked place (an odd old
+// save whose today's place is still locked) or one not built yet gets its
+// line and no button.
 import { escapeHtml } from '../escapehtml.js';
 
 // The card for the region with this areaId (the island leads to the Pines, so
@@ -15,9 +18,10 @@ import { escapeHtml } from '../escapehtml.js';
 export function placeCardFor(worldModel, areaId, points) {
   const r = worldModel?.regions?.find((x) => x.areaId === areaId);
   if (!r) return null;
+  const walkable = r.status === 'built' && !r.locked;
   const open = !r.owned && !r.locked;
   let action = null;
-  if (r.owned || r.selected || (open && r.price === 0)) action = 'go';
+  if (walkable && (r.owned || r.selected || (open && r.price === 0))) action = 'go';
   else if (r.canOpen) action = 'open';
   const label = action === 'go' ? 'Go here' : action === 'open' ? `Open for ${r.price} 🐾` : null;
   const line = action === 'open' ? `You have ${points} 🐾` : r.line;

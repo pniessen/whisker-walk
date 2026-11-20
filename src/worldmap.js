@@ -66,7 +66,8 @@ export function worldMapModel(state, catalog) {
     ...board.regions.map((r) => ({ ...r, kind: 'board' })),
     ...STREET_PLACES.map((p) => ({
       id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
-      kind: 'street', name: placeName(p.areaId, edition, catalog), status: 'built', camp: null,
+      // (a street place the catalog does not have yet is not built)
+      kind: 'street', name: placeName(p.areaId, edition, catalog), status: catalog?.areas?.[p.areaId] ? 'built' : 'soon', camp: null,
       ...placeState(state, catalog, p.areaId),
     })),
   ];

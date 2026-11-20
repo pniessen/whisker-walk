@@ -110,10 +110,12 @@ export function placeState(state, catalog, areaId) {
   const have = req ? count(walks[req.area]) : 0;
   const locked = !owned && !!req && have < req.walks;
   const canOpen = !owned && !locked && points >= price;
+  // (a locked place says so even as today's place: only an odd old save
+  // can have one, and its card offers no Go here)
   let line;
-  if (selected) line = 'you’re going here';
+  if (locked) line = opensAfterLine(req, have, state?.edition, catalog);
+  else if (selected) line = 'you’re going here';
   else if (owned) line = 'tap to go here';
-  else if (locked) line = opensAfterLine(req, have, state?.edition, catalog);
   else if (price === 0) line = 'Tap to explore';
   else if (canOpen) line = `Open for ${price} 🐾`;
   else line = `${price} 🐾 — keep exploring!`;

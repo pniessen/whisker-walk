@@ -51,6 +51,18 @@ describe('the place card', () => {
   // "the" mid-line.
   it('a locked place: no button, the lock line', () =>
     expect(cardOn(fresh, 'seaside')).toMatchObject({ action: null, locked: true, line: 'opens after you explore the Old Docks 2 times · 0/2' }));
+  // The guard: Go here only for a place she can walk. An odd old save whose
+  // today's place is still locked gets the lock line and no button; so does
+  // a place that is not built (a board region coming soon, or a street place
+  // the catalog does not have yet).
+  it("a locked place that is today's place (an odd old save): no Go here, only the lock line", () =>
+    expect(cardOn(base({ area: 'seaside' }), 'seaside')).toMatchObject({ action: null, label: null, locked: true, line: 'opens after you explore the Old Docks 2 times · 0/2' }));
+  it('a place that is not built: no Go here, only its line', () => {
+    const soon = { regions: [{ areaId: 'rooftops', name: 'Rooftops', status: 'soon', owned: false, selected: false, locked: false, canOpen: false, price: 0, line: 'coming soon' }] };
+    expect(placeCardFor(soon, 'rooftops', 0)).toMatchObject({ action: null, label: null, line: 'coming soon' });
+    const noFarm = { ...CATALOG, areas: Object.fromEntries(Object.entries(CATALOG.areas).filter(([id]) => id !== 'farm')) };
+    expect(placeCardFor(worldMapModel(fresh, noFarm), 'farm', 0)).toMatchObject({ action: null, label: null, line: 'coming soon' });
+  });
   it("the island's card is the Pines'", () => expect(cardOn(fresh, 'pines').id).toBe('pines'));
   it('the town\'s card is the Neighborhood\'s, by its area id', () => expect(cardOn(fresh, 'neighborhood')).toMatchObject({ id: 'neighborhood', name: 'Twolegplace', action: 'go' }));
   it('no card for a place not on the map', () => expect(placeCardFor(worldMapModel(fresh, CATALOG), 'den', 0)).toBeNull());
