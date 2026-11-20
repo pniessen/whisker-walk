@@ -15,7 +15,8 @@
     "Game edition",
     "Clan Edition",
     "Legacy Edition",
-    "Switching renames the places and shows or hides the clan territories. Nothing is lost."
+    "Switching renames the places and shows or hides the clan territories. Nothing is lost.",
+    "My clan"
    ],
    "together": [
     "Or pick a star name",
@@ -85,7 +86,8 @@
    "Game edition",
    "Clan Edition",
    "Legacy Edition",
-   "Switching renames the places and shows or hides the clan territories. Nothing is lost."
+   "Switching renames the places and shows or hides the clan territories. Nothing is lost.",
+   "My clan"
   ],
   "together": [],
   "colony": [

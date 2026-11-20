@@ -2,6 +2,7 @@ import { describe, test, expect } from 'vitest';
 import { USAGE_IDS, USAGE_NAME, USAGE_MAX, sanitizeUsage, bumpUsage, mergeUsage, usageRows, usageHtml } from '../src/usage.js';
 import { HOME_SHEETS } from '../src/ui/dressingroom.js';
 import { createProgression } from '../src/progression.js';
+import { withOffWords } from './helpers/offwords.js';
 
 const SAVE = 'whisker-walk-save';
 function fakeStorage(initial = {}) {
@@ -14,6 +15,11 @@ describe('usage counts: the pure helpers', () => {
     expect([...USAGE_IDS].sort()).toEqual([...HOME_SHEETS, 'dressup', 'builder'].sort());
     for (const id of USAGE_IDS) expect(USAGE_NAME[id]).toMatch(/\S/);
     expect(USAGE_NAME.code).toBe('Gift code'); // the id stays 'code'
+  });
+  test('the colony row is called what the Menu door says, read when asked', () => {
+    expect(USAGE_NAME.colony).toBe('My clan');
+    withOffWords(() => expect(USAGE_NAME.colony).toBe('My cats'));
+    expect(USAGE_NAME.colony).toBe('My clan');
   });
   test('a bump adds one and stamps the visit; an unknown id changes nothing', () => {
     const a = bumpUsage({}, 'journal', 7);

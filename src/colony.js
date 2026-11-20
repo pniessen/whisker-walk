@@ -761,7 +761,7 @@ export function colonyNews(colony, { me, ymd, rewards = [], accessories } = {}) 
       }
       for (const t of trades) {
         if (t.status === 'offered' && t.to === me && t.from === pid && !seenTrades.has(t.id)) {
-          add(`${pname} wants to swap — have a look in Colony`, { trades: [t.id] });
+          add(`${pname} wants to swap — have a look in ${phrase('menu.myCats')}`, { trades: [t.id] });
         }
       }
     }
@@ -789,7 +789,8 @@ export function colonyNews(colony, { me, ymd, rewards = [], accessories } = {}) 
       more = entries.length - shown.length;
     }
     const lines = shown.map((e) => e.line);
-    if (more > 0) lines.push(`…and ${more} more — have a look in Colony`);
+    // the Menu door's own name, read now (My clan / My cats)
+    if (more > 0) lines.push(`…and ${more} more — have a look in ${phrase('menu.myCats')}`);
 
     const denDropped = entries.slice(shown.length).some((e) => e.den);
     const seen = {
