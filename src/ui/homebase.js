@@ -27,6 +27,7 @@ import {
   renderStartButtonHtml, renderPartnerWalkHtml, renderRoomTitleHtml,
 } from './colonypanel.js';
 import { renderJournalHtml } from '../journal.js';
+import { renderThingsToWearHtml } from '../foundwear/journal.js';
 import { goldForEdition } from '../goldmice.js';
 import { createRedeemer, renderRedeemHtml } from '../redeem.js';
 import { usageHtml } from '../usage.js';
@@ -1432,6 +1433,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         <section class="journal-section"><h2>Journal 📖</h2>
           ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, gold), gold.size,
     isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {})}
+          ${renderThingsToWearHtml(s, CATALOG)}
           <div class="friends-section">${renderStrayFriends()}</div>
         </section>`;
       }

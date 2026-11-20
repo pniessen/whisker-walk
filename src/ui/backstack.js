@@ -123,15 +123,17 @@ export function createBackStack({ hist, depth, closeTop, later = () => null, can
 //   walking     a walk is on (session)
 //   shopAsk     the den shop's "Get it?" card is up
 //   shop        the den shop is open
+//   findCard    the find card ("You found something to wear!") is up
 //   crossing    the border post's "Cross over?" card is up
 //   engaged     the walk is being played (not paused)
 //   photo       photo mode is on
 //   started     the walk has begun (the card behind it is "Paused", not "Ready?")
 //   touch       a touch walk (a paused one can walk on without a click)
-export function walkBackAction({ summary = false, walking = false, shopAsk = false, shop = false, crossing = false, engaged = false, photo = false, started = false, touch = false } = {}) {
+export function walkBackAction({ summary = false, walking = false, shopAsk = false, shop = false, findCard = false, crossing = false, engaged = false, photo = false, started = false, touch = false } = {}) {
   if (!walking) return summary ? 'continue' : null;
   if (shopAsk) return 'shop-not-now';
   if (shop) return 'shop-done';
+  if (findCard) return 'find-later';
   if (crossing) return 'cross-no';
   if (engaged) return photo ? 'photo-off' : 'pause';
   // Paused: Back walks on, as the card's own button does. Only on touch: a

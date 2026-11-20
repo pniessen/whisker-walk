@@ -403,6 +403,87 @@ describe('applyRemoteEvent: carry-pick and carry-drop', () => {
     expect(h.item(LEAF.id).mesh.visible).toBe(true);
   });
 
+  // Found outfits step 1, Task 7: she puts on a find mid-walk, so her profile
+  // changes and her cat is rebuilt on my screen. What was in her mouth stays there.
+  it('a rebuilt partner keeps what he was carrying', () => {
+    const h = carryHarness();
+    const sibGroup = h.partnerGroup();
+    h.items.hold(STICK.id, sibGroup);
+    const out = h.remotes.upsert({ ...ROBIN, accessories: { head: 'acorncap' } }, 1);
+    const fresh = h.partnerGroup();
+    expect(out.group).toBe(fresh);
+    expect(fresh).not.toBe(sibGroup);
+    const stick = h.item(STICK.id);
+    expect(stick.holder).toBe(fresh);
+    expect(stick.gone).toBeFalsy();
+    expect(stick.onGround).toBe(false);
+    expect(stick.mesh.visible).toBe(true);
+    // and it rides at the new cat's mouth, where she stood
+    h.frame();
+    const herMouth = fresh.userData.parts.head.localToWorld(MOUTH.clone());
+    expect(stick.mesh.position.distanceTo(herMouth)).toBeLessThan(1e-6);
+    expect(Math.hypot(stick.mesh.position.x - 10, stick.mesh.position.z - 10)).toBeLessThan(1);
+  });
+
+  it("a rebuild re-points the clan cats walking beside the old cat, and only those", () => {
+    const scene = new THREE.Scene();
+    const items = createCarryables(scene, [STICK]);
+    const remotes = createRemoteCats(scene);
+    const other = new THREE.Group();
+    scene.add(other);
+    const clan = { list: [] };
+    takeHeldItemsWithRemotes(remotes, items, new THREE.Group(), { getClanCats: () => clan });
+    remotes.upsert(ROBIN, 0);
+    const old = remotes.list[0].group;
+    const escort = { id: 'a', buddy: { target: old, attached: true } };
+    const elsewhere = { id: 'b', buddy: { target: other, attached: true } };
+    const free = { id: 'c', buddy: null };
+    clan.list.push(escort, elsewhere, free);
+    remotes.upsert({ ...ROBIN, accessories: { head: 'acorncap' } }, 1);
+    const fresh = remotes.list[0].group;
+    expect(escort.buddy.target).toBe(fresh);
+    expect(escort.buddy.attached).toBe(true);
+    expect(elsewhere.buddy.target).toBe(other);
+    expect(free.buddy).toBe(null);
+    // a rejoin as another pet is a leaving: the escort is not moved to the stranger
+    remotes.upsert({ ...ROBIN, breed: 'siamese', accessories: { head: 'acorncap' } }, 2);
+    expect(escort.buddy.target).toBe(fresh);
+    // no clan cats (the den, or none given): nothing breaks
+    const r2 = createRemoteCats(new THREE.Scene());
+    takeHeldItemsWithRemotes(r2, createCarryables(new THREE.Scene(), []), new THREE.Group());
+    r2.upsert(ROBIN, 0);
+    expect(() => r2.upsert({ ...ROBIN, accessories: { head: 'acorncap' } }, 1)).not.toThrow();
+  });
+
+  it('a rebuild hands over only what the old cat held: mine stays mine, the ground stays the ground', () => {
+    const h = carryHarness();
+    h.s.carry.mouth.held = { id: LEAF.id, kind: 'leaf' };
+    h.items.hold(LEAF.id, h.s.cat);
+    h.items.hold(STICK.id, h.partnerGroup());
+    h.remotes.upsert({ ...ROBIN, accessories: { head: 'acorncap' } }, 1);
+    expect(h.item(LEAF.id).holder).toBe(h.s.cat);
+    expect(h.item(STICK.id).holder).toBe(h.partnerGroup());
+  });
+
+  it('a rejoin as a different breed is still a leaving: the item goes with the old cat', () => {
+    const h = carryHarness();
+    h.items.hold(STICK.id, h.partnerGroup());
+    h.remotes.upsert({ ...ROBIN, breed: 'siamese' }, 1);
+    expect(h.item(STICK.id).holder).toBe(null);
+    expect(h.item(STICK.id).gone).toBe(true);
+  });
+
+  it('an unchanged profile, or a brand-new player, moves nothing', () => {
+    const h = carryHarness();
+    const sibGroup = h.partnerGroup();
+    h.items.hold(STICK.id, sibGroup);
+    h.remotes.upsert(ROBIN, 1);
+    expect(h.item(STICK.id).holder).toBe(sibGroup);
+    h.remotes.upsert({ playerId: STRANGER, petName: 'Pip', breed: 'siamese', accessories: {} }, 1);
+    expect(h.item(STICK.id).holder).toBe(sibGroup);
+    expect(h.item(LEAF.id).onGround).toBe(true);
+  });
+
   it('no carry event pays points or writes the save', () => {
     const h = carryHarness();
     h.apply(pickEv());
@@ -506,8 +587,9 @@ describe('applyRemoteEvent: carry-pick and carry-drop', () => {
   it('the walk wires the take-it-with-you rule to its remote cats, outside the rival slice', () => {
     const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     const code = src.replace(/\/\/.*$/gm, '');
-    expect(code.match(/takeHeldItemsWithRemotes\(remotes, carry\.items, cat\)/g)).toHaveLength(1);
+    expect(code.match(/takeHeldItemsWithRemotes\(remotes, carry\.items, cat, \{ getClanCats: \(\) => clanCats \}\)/g)).toHaveLength(1);
     const call = code.indexOf('takeHeldItemsWithRemotes(remotes');
+    expect(call).toBeGreaterThan(code.indexOf('const clanCats = '));
     expect(call).toBeGreaterThan(code.indexOf('const carry = {'));
     expect(call).toBeGreaterThan(code.indexOf('const remotes = createRemoteCats('));
     const rivalA = src.indexOf("The rival's border and its patrol");

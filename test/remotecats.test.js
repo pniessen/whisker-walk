@@ -447,3 +447,96 @@ describe('a co-walker wears the scars on its profile', () => {
     expect(scene.objects.size).toBe(1);
   });
 });
+
+// Found outfits step 1, Task 7: a partner who puts on a find mid-walk is
+// rebuilt (a new look is a new profile). The new cat starts where the old one
+// stood, mid-stride, not at the map's origin.
+describe('a co-walker rebuilt for a new look stays where it stood', () => {
+  it('a look change rebuilds the cat where it stood', () => {
+    const rc = createRemoteCats(new THREE.Scene());
+    rc.upsert({ playerId: 'sib', petName: 'Robin', breed: 'tabby', accessories: {} }, 0);
+    rc.applyState({ id: 'sib', pos: [5, -7], yaw: 0.8, pose: 'follow', speed: 0 }, 0); rc.update(0.5, 0.5);
+    const before = rc.list[0].group;
+    const after = rc.upsert({ playerId: 'sib', petName: 'Robin', breed: 'tabby', accessories: { head: 'acorncap' } }, 0.6);
+    expect(after.group).not.toBe(before);
+    // the yaw is the old group's own, to the bit; it eased in through
+    // wrapAngleDelta, whose modulo leaves 0.8 a few ulps off
+    expect([after.group.position.x, after.group.position.z]).toEqual([5, -7]);
+    expect(after.group.rotation.y).toBe(before.rotation.y);
+    expect(after.group.rotation.y).toBeCloseTo(0.8, 12);
+    expect(after.water.placed).toBe(true);
+  });
+
+  it('carries over the whole stride: from, to, yaws, pose, speed, clocks and the water state; the lean starts again', () => {
+    const scene = fakeScene();
+    const rc = createRemoteCats(scene);
+    rc.upsert({ playerId: 'sib', petName: 'Robin', breed: 'tabby', accessories: {} }, 0);
+    rc.applyState({ id: 'sib', pos: [2, 2], yaw: 0.3, pose: 'follow', speed: 1 }, 0);
+    rc.applyState({ id: 'sib', pos: [4, 1], yaw: 1.1, pose: 'sniff', speed: 2 }, 0.2);
+    rc.update(1 / 60, 0.25); // part-way to (4, 1)
+    const old = rc.list[0];
+    old.tilt = { pitch: 0.1, roll: 0 };
+    const snap = {
+      pos: old.group.position.toArray(), rotY: old.group.rotation.y,
+      fromPos: old.fromPos.toArray(), toPos: old.toPos.toArray(), fromYaw: old.fromYaw, toYaw: old.toYaw,
+      pose: old.pose, speed: old.speed, stateAt: old.stateAt, lastSeenAt: old.lastSeenAt,
+    };
+    const water = old.water;
+    const next = rc.upsert({ playerId: 'sib', petName: 'Robin', breed: 'tabby', accessories: { head: 'acorncap' } }, 0.26);
+    expect(next).not.toBe(old);
+    expect({
+      pos: next.group.position.toArray(), rotY: next.group.rotation.y,
+      fromPos: next.fromPos.toArray(), toPos: next.toPos.toArray(), fromYaw: next.fromYaw, toYaw: next.toYaw,
+      pose: next.pose, speed: next.speed, stateAt: next.stateAt, lastSeenAt: next.lastSeenAt,
+    }).toEqual(snap);
+    expect(next.water).toBe(water);
+    expect(next.tilt).toBe(null);
+    expect(scene.objects.size).toBe(1);
+    // the next frame carries on from the same stride
+    rc.update(1 / 60, 0.3);
+    expect(next.group.position.x).toBeGreaterThan(snap.pos[0]);
+  });
+
+  it('her chat bubble moves to the new cat and lives out its time there; the old name tag does not', async () => {
+    const { createChatBubbles, LIFETIME_MS } = await import('../src/chatbubble.js');
+    const scene = new THREE.Scene();
+    const rc = createRemoteCats(scene);
+    rc.upsert(PROFILE, 0);
+    const old = rc.list[0];
+    // a stand-in name tag on the old cat (headless makeNameTag gives none)
+    const oldTag = new THREE.Sprite(new THREE.SpriteMaterial());
+    old.group.add(oldTag);
+    old.tag = oldTag;
+    const bubbles = createChatBubbles(scene, { makeSprite: () => new THREE.Sprite(new THREE.SpriteMaterial()) });
+    bubbles.show(old.group, 'hi!', 0);
+    const bubble = old.group.children.find((c) => c.isSprite && c !== oldTag);
+    expect(bubble).toBeTruthy();
+    const next = rc.upsert({ ...PROFILE, accessories: { head: 'acorncap' } }, 0.1);
+    expect(bubble.parent).toBe(next.group);
+    expect(next.group.children.filter((c) => c === oldTag)).toHaveLength(0);
+    expect(bubble.material.opacity).toBe(1);
+    // it fades and is taken off the new cat when its time is up
+    bubbles.update(LIFETIME_MS + 1);
+    expect(bubble.parent).toBe(null);
+    expect(bubbles.activeCount).toBe(0);
+    // a new line on the new cat replaces a carried-over one: one bubble at a time
+    rc.upsert(PROFILE, 0.2);
+    bubbles.show(rc.list[0].group, 'one', 0);
+    const carried = rc.list[0].group.children.find((c) => c.isSprite);
+    const third = rc.upsert({ ...PROFILE, accessories: { head: 'acorncap' } }, 0.3);
+    expect(carried.parent).toBe(third.group);
+    bubbles.show(third.group, 'two', 10);
+    expect(carried.parent).toBe(null);
+    expect(third.group.children.filter((c) => c.isSprite)).toHaveLength(1);
+    expect(bubbles.activeCount).toBe(1);
+  });
+
+  it('a co-walker rebuilt before its first state still waits to be placed', () => {
+    const rc = createRemoteCats(fakeScene());
+    rc.upsert(PROFILE, 0);
+    const next = rc.upsert({ ...PROFILE, accessories: { head: 'acorncap' } }, 0.1);
+    expect(next.water.placed).toBe(false);
+    rc.applyState({ v: 1, id: 'aaa', pos: [9, 4], yaw: 0, pose: 'follow', speed: 0 }, 0.2);
+    expect([next.group.position.x, next.group.position.z]).toEqual([9, 4]);
+  });
+});

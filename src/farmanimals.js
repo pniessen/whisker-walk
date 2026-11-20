@@ -161,6 +161,8 @@ export function createFarmAnimals(scene, area, { reducedMotion = false, onEvent 
     const catHat = one(hatGeo, 0, 0.115, 0.015, 0.4, 0.58);
     catHat.rotation.z = 0.08;
     catHat.name = 'farm-scarecrow-hat';
+    // not hers: a redress mid-walk (game/findcard.js) lifts it off and puts it back
+    catHat.userData.borrowed = true;
     extras.push(catHat);
     // the saucer of milk
     const saucer = place(one(saucerGeo, jobs.saucer.x, gy(jobs.saucer.x, jobs.saucer.z), jobs.saucer.z, 0, 1.7)); // a big cat's saucer

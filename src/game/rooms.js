@@ -19,6 +19,7 @@ import { note } from '../diagnostics.js';
 import { catProfileFields, scarKey } from '../customcats.js';
 import { roomAreaMove } from '../edition.js';
 import { decideLobbyEvent, pickRoomStart, walkersIn, START_GATHER_MS, MEMBER_GATHER_MS } from './lobby.js';
+import { FIND_KEY } from '../foundwear/spots/index.js';
 
 // v21 Stream 2, Task 12 — pair walks. The two siblings' room is 'P' + their
 // colony id: 16 random hex characters the server mints and never publishes,
@@ -73,7 +74,9 @@ export function createRooms({
 
   function roomProfile() {
     const st = progression.state;
-    return { playerId: pid, petName: st.petName, ...catProfileFields(st, progression.catScars(scarKey(st))) };
+    // finds: this build's find-spots key (foundwear/spots/index.js), a number.
+    // A room walk has finds only when every member carries the same one.
+    return { playerId: pid, petName: st.petName, ...catProfileFields(st, progression.catScars(scarKey(st))), finds: FIND_KEY };
   }
 
   // Re-publish the room profile (a cat or accessory changed while a room is

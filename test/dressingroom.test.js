@@ -118,6 +118,25 @@ describe('slot picker', () => {
     const html = renderSlotPickerHtml(defaultishState(), CATALOG, 'head', null);
     expect(count(html, /class="dr-pick[ "]/g)).toBe(want);
   });
+  it('an unfound outfit is a silhouette saying where it is found, never a price', () => {
+    const html = renderSlotPickerHtml(defaultishState(), CATALOG, 'head', null);
+    const tile = html.match(/<div class="dr-pick locked found-silhouette"[^>]*>.*?<\/div>/)[0];
+    expect(tile).toContain('Found in City Park'); expect(tile).toContain('🌰');
+    for (const no of ['data-dr-acc', '🐾', 'Try on', 'Unlock']) expect(tile).not.toContain(no);
+    expect(html).not.toContain('A surprise at visit null');
+  });
+  it('a found outfit is an ordinary owned tile', () => {
+    const s = defaultishState(); s.unlocked.accessories.push('acorncap');
+    expect(renderSlotPickerHtml(s, CATALOG, 'head', null)).toContain('data-dr-acc="acorncap" data-dr-act="wear"');
+  });
+  it('Legacy hides an unfound outfit of a Clan-only place, and keeps a found one', () => {
+    const cat = { ...CATALOG, accessories: { ...CATALOG.accessories, mosscap: { name: 'Moss Cap', slot: 'head', price: 0, prize: true, find: 'woods', emoji: '🌿' } } };
+    const s = { ...defaultishState(), edition: 'legacy' };
+    expect(renderSlotPickerHtml(s, cat, 'head', null)).not.toContain('🌿');
+    expect(renderSlotPickerHtml({ ...s, edition: 'canon' }, cat, 'head', null)).toContain('Found in the Woods');
+    s.unlocked.accessories.push('mosscap');
+    expect(renderSlotPickerHtml(s, cat, 'head', null)).toContain('data-dr-acc="mosscap"');
+  });
   it('an unwon prize is a wrapped surprise: no price, no try-on, not buyable', () => {
     const slot = CATALOG.accessories.leafcrown.slot;
     const s = defaultishState(); s.points = 9999;

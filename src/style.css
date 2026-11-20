@@ -599,6 +599,14 @@ body.touch-mode:not(.left-handed) .hud-top {
 .journal-card.unspotted { background: #33425e; }
 .journal-emoji { font-size: 1.6rem; }
 .journal-emoji.silhouette { filter: brightness(0); opacity: 0.55; }
+/* A found outfit not found yet, in the dress-up: the same dark shape, and
+   where it is found (ui/dressingroom.js renderSlotPickerHtml). */
+.dr-pick.found-silhouette { justify-content: center; color: var(--cream); cursor: default; }
+.dr-pick.found-silhouette .found-shape { font-size: 30px; filter: brightness(0); opacity: 0.55; }
+/* Found outfits: "Things to wear", a group per place under the critters. */
+.wear-section { margin-top: 18px; }
+.wear-section h3 { font-size: 1rem; color: #a8c0e0; margin: 0 0 8px; font-weight: 700; }
+.wear-area h4 { font-size: 0.85rem; color: #f1e0c2; margin: 10px 0 6px; font-weight: 700; }
 .journal-name { font-size: 0.8rem; font-weight: 700; }
 .journal-count { font-size: 0.75rem; color: #f2c14e; font-weight: 700; }
 .journal-hint { font-size: 0.72rem; color: #a8c0e0; }
@@ -850,6 +858,10 @@ body.touch-mode:not(.left-handed) .hud-top {
 .pause-card { display: grid; place-items: center; align-content: center; gap: 12px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .pause-card h1 { font-size: 2.2rem; }
+/* The find card (game/findcard.js) on the pause card's panel: her cat
+   wearing it, or the outfit's emoji when no portrait could be drawn. */
+.find-card .find-portrait { width: 160px; height: 160px; }
+.find-card .find-emoji { font-size: 64px; line-height: 1; }
 /* The Ready? / pause card (and, from Task 2, the walk summary) sits on the
    home screen's panel: navy gradient, soft line, rounded, her cat on top.
    The scrim stays full screen; the panel scrolls inside itself if a short

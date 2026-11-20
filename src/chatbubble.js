@@ -63,8 +63,10 @@ export function createChatBubbles(scene, { makeSprite = makeBubbleSprite, now } 
     }
   }
 
+  // The sprite is taken off whatever holds it now: a co-walker rebuilt for a
+  // new look (remotecats.js upsert) carries her bubble over to her new cat.
   function removeFor(target, entry) {
-    target.remove(entry.sprite);
+    (entry.sprite.parent ?? target).remove(entry.sprite);
     disposeSprite(entry.sprite);
     active.delete(target);
   }
@@ -73,6 +75,8 @@ export function createChatBubbles(scene, { makeSprite = makeBubbleSprite, now } 
     if (!target) return;
     const existing = active.get(target);
     if (existing) removeFor(target, existing);
+    // a bubble carried over to this target from a cat it replaced
+    for (const [t, e] of active) if (e.sprite.parent === target) removeFor(t, e);
     const sprite = makeSprite(text);
     if (!sprite) return; // headless: nothing to render
     target.add(sprite);

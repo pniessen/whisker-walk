@@ -18,7 +18,7 @@ import { SKULL } from './torso.js';
 // Hagrid still wears the old prize head items (model.js addPrizeHead); only
 // the cat's head slot builds these.
 
-export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown'];
+export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -687,7 +687,40 @@ function candlehat(simple) {
   return finish('candlehat', parts);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown };
+// Acorn Cap (found outfits step 1): an acorn's cup worn as a cap. A shell on
+// the skull's radii x 1.05 from the crown down to a rim high on the brow and
+// lower at the back, checkered cup/scale colours, a narrow lip draped on the
+// skull under the rim (its lower edge lies on the head: the seat sweep), and a
+// short stalk tipped toward +x.
+const ACORN = { shell: 1.05, rimFront: 0.11, rimBack: 0.06, lipH: 0.018, stalkR: 0.011, stalkL: 0.05, tilt: 0.35 };
+const ACORN_CUP = 0x8a5a2b, ACORN_SCALE = 0x6b4220, ACORN_STALK = 0x5a3a1c;
+const acornRim = (phi) => (ACORN.rimFront + ACORN.rimBack) / 2 + ((ACORN.rimFront - ACORN.rimBack) / 2) * Math.cos(phi);
+function acorncap(simple) {
+  const segs = simple ? 12 : 24, rows = simple ? 5 : 7;
+  const shell = grid(segs, rows, { wrapU: true }, (i, j) => {
+    const phi = (i / segs) * Math.PI * 2;
+    const thRim = Math.acos(Math.min(1, acornRim(phi) / SB));
+    const th = (j / (rows - 1)) * thRim;
+    const u = new THREE.Vector3(Math.sin(th) * Math.sin(phi), Math.cos(th), -Math.sin(th) * Math.cos(phi));
+    const p = new THREE.Vector3(u.x * SA, u.y * SB, u.z * SC).multiplyScalar(ACORN.shell);
+    return { p, c: (i + j) % 2 ? ACORN_SCALE : ACORN_CUP, out: u };
+  });
+  // the lip: two rows on the skull; the upper flares out to meet the shell's rim, the lower lies 3 mm off the head
+  const lip = grid(segs, 2, { wrapU: true }, (i, j) => {
+    const phi = (i / segs) * Math.PI * 2;
+    const [p, n] = drape(ringPoint(phi, acornRim(phi) - j * ACORN.lipH), j ? 0.003 : 0.012);
+    return { p, c: ACORN_SCALE, out: n };
+  });
+  // the stalk: from just inside the crown, tipped toward +x
+  const top = SB * ACORN.shell;
+  const dir = new THREE.Vector3(Math.sin(ACORN.tilt), Math.cos(ACORN.tilt), 0);
+  const centres = [0, 0.5, 1].map((k) => new THREE.Vector3(0, top - 0.006, 0).addScaledVector(dir, (ACORN.stalkL + 0.006) * k));
+  const normals = centres.map(() => new THREE.Vector3(0, 0, -1));
+  const stalk = tube(centres, normals, { sides: simple ? 4 : 6, radius: (i) => ACORN.stalkR * (i === 2 ? 0.8 : 1), colour: () => ACORN_STALK });
+  return finish('acorncap', [shell, lip, stalk]);
+}
+
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap };
 
 export function buildHat(id, { simple = false } = {}) {
   const make = Object.hasOwn(BUILD, id ?? '') ? BUILD[id] : null;
@@ -695,4 +728,4 @@ export function buildHat(id, { simple = false } = {}) {
 }
 
 // for tests / tuning
-export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH, PAPER });
+export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH, PAPER, ACORN });

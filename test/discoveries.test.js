@@ -142,3 +142,11 @@ describe('Clan Life Part 2: the intruder award', () => {
     expect(AWARDS.intruder).toBe(12);
   });
 });
+
+describe('found outfits: the pouch', () => {
+  it('the pouch is worth 5 🐾, the spec\'s "5 coins", the same number the find rules use', async () => {
+    const { POUCH_COINS } = await import('../src/foundwear/rules.js');
+    expect(AWARDS.pouch).toBe(5);
+    expect(POUCH_COINS).toBe(AWARDS.pouch);
+  });
+});
