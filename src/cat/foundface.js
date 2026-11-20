@@ -38,8 +38,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { litMaterial } from '../render/materials.js';
 import { hasEntry } from './wearkind.js';
 
-const HEART_FRAME = 0xe2433a;
-const HEART_LENS = 0xffb3c8;
+const HEART_FRAME = 0xe2433a, HEART_RIM_LIGHT = 0xf7867a, HEART_RIM_DARK = 0xa8261f;
+const HEART_LENS = 0xffb3c8, HEART_LENS_DEEP = 0xf27aa0, HEART_SHINE = 0xfffaf6;
 
 // A flat heart, `r` its half-width, centred on its bounding box, the point
 // down: two arcs (the lobes, radius a, centres (+-0.8a, 0)) meeting at the
@@ -59,39 +59,56 @@ function heartShape(r) {
   return shape;
 }
 
-// One heart, extruded a hair (like starGeometry), centred in depth, coloured
-// per vertex, then yawed and set at (px, py, pz). dz moves it along its own
-// facing before the yaw.
-function heartGeo(r, depth, hex, dz, yaw, px, py, pz) {
-  const geo = new THREE.ExtrudeGeometry(heartShape(r), { depth, bevelEnabled: false, curveSegments: 6 });
-  geo.translate(0, 0, -depth / 2 + dz);
-  geo.rotateY(yaw);
-  geo.translate(px, py, pz);
-  return colour(geo, hex);
-}
-
-function colour(geo, hex) {
-  const c = new THREE.Color(hex), n = geo.attributes.position.count, arr = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) arr.set([c.r, c.g, c.b], i * 3);
+// Paints every vertex of a geometry by colourOf(position, normal) -> hex.
+function paint(geo, colourOf) {
+  const p = geo.attributes.position, n = geo.attributes.normal, arr = new Float32Array(p.count * 3), c = new THREE.Color();
+  const v = new THREE.Vector3(), m = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) c.set(colourOf(v.fromBufferAttribute(p, i), m.fromBufferAttribute(n, i))).toArray(arr, i * 3);
   geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  geo.deleteAttribute('uv');
   return geo;
 }
+const lerpHex = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), Math.min(1, Math.max(0, t))).getHex();
 
-// Heart-shaped Glasses: per side a red heart frame with a slightly smaller
-// pink lens in front, yawed to the cheek like the Star Sunglasses; a red bridge
-// between. Lenses are one vertex-coloured mesh, frames and bridge another.
+// Turns a piece built facing -z at the origin to its side's lens: yawed to
+// the cheek and set at (px, py, pz).
+const place = (geo, yaw, px, py, pz) => geo.rotateY(yaw).translate(px, py, pz);
+
+// Heart-shaped Glasses: per side a red heart rim (a heart with a heart-shaped
+// hole, bevelled by its colours: lit across the front and the top, dark
+// round the back and the underside) round an opaque pink lens that deepens
+// toward its point, with a white shine across its upper lobe; a little arched
+// bridge between, yawed to the cheek like the Star Sunglasses. Lenses and
+// shines are one vertex-coloured mesh, rims and bridge another.
 function addHeartGlasses(head, { k, x, y, starZ }) {
-  const frames = [], lenses = [];
+  const frames = [], lenses = [], R = 0.084 * k, W = 0.017 * k, D = 0.012 * k;
   for (const side of [-1, 1]) {
     const yaw = -side * 0.4;
-    frames.push(heartGeo(0.082 * k, 0.012 * k, HEART_FRAME, 0.007 * k, yaw, side * x, y, starZ));
-    lenses.push(heartGeo(0.066 * k, 0.014 * k, HEART_LENS, 0, yaw, side * x, y, starZ));
+    const rim = heartShape(R);
+    rim.holes.push(new THREE.Path(heartShape(R - W).getPoints(4).reverse()));
+    const ring = new THREE.ExtrudeGeometry(rim, { depth: D, bevelEnabled: false, curveSegments: 4 });
+    ring.translate(0, 0, -D / 2 + 0.004 * k).rotateY(Math.PI); // its front face toward -z
+    paint(ring, (v, n) => (n.z < -0.5 ? lerpHex(HEART_FRAME, HEART_RIM_LIGHT, 0.1 + 0.6 * v.y / R) : n.z > 0.5 ? HEART_RIM_DARK : lerpHex(HEART_RIM_DARK, HEART_RIM_LIGHT, 0.5 + 0.5 * n.y)));
+    frames.push(place(ring, yaw, side * x, y, starZ));
+    const lens = new THREE.ShapeGeometry(heartShape(R - W * 0.6), 5);
+    lens.rotateY(Math.PI).translate(0, 0, -0.006 * k);
+    paint(lens, (v) => lerpHex(HEART_LENS_DEEP, HEART_LENS, 0.75 + v.y / R));
+    lenses.push(place(lens, yaw, side * x, y, starZ));
+    // the shine: a slanted lozenge on the upper lobe on the outer side
+    const sh = new THREE.Shape();
+    const sx = -side * 0.032 * k, sy = 0.022 * k;
+    sh.absellipse(0, 0, 0.016 * k, 0.0065 * k, 0, Math.PI * 2, false, 0.6 * side);
+    const shine = new THREE.ShapeGeometry(sh, 3).translate(sx, sy, 0);
+    shine.rotateY(Math.PI).translate(0, 0, -0.007 * k);
+    lenses.push(place(paint(shine, () => HEART_SHINE), yaw, side * x, y, starZ));
   }
-  const bridge = new THREE.BoxGeometry(x * 0.5, 0.01 * k, 0.01 * k).toNonIndexed();
-  bridge.translate(0, y, starZ + 0.004);
-  frames.push(colour(bridge, HEART_FRAME));
-  for (const [list, part] of [[frames, 'frames'], [lenses, 'lenses']]) {
-    const mesh = new THREE.Mesh(mergeGeometries(list), litMaterial(0xffffff, { vertexColors: true }));
+  // the bridge: a short arch over the nose between the two hearts
+  const bridge = new THREE.TorusGeometry(0.017 * k, 0.0055 * k, 4, 6, 2.2).rotateZ((Math.PI - 2.2) / 2);
+  bridge.translate(0, y - 0.006 * k, starZ + 0.003);
+  frames.push(paint(bridge, (v, n) => lerpHex(HEART_RIM_DARK, HEART_RIM_LIGHT, 0.5 + 0.5 * n.y)));
+  // the lenses are glossier, and seen from both sides (dropped, from behind)
+  for (const [list, part, extra] of [[frames, 'frames', { roughness: 0.6 }], [lenses, 'lenses', { roughness: 0.4, side: THREE.DoubleSide }]]) {
+    const mesh = new THREE.Mesh(mergeGeometries(list.map((g) => (g.index ? g.toNonIndexed() : g))), litMaterial(0xffffff, { vertexColors: true, ...extra }));
     mesh.userData.heartPart = part;
     head.add(mesh);
   }

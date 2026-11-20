@@ -118,7 +118,15 @@ export const DISPLAY_BY_ID = Object.freeze({
   // the two clips lie face up, as dropped (a hat stands on its brim)
   starfishclip: lyingClip,
   featherplume: lyingClip,
+  // the glasses rest tipped back on their rims, lenses to the sky
+  heartglasses: (id) => tipped(wornPieces(id), 1.0),
 });
+
+// A worn group tipped back about x (its front, -z, turned up by `a` radians).
+function tipped(group, a) {
+  if (group) group.rotation.x = a;
+  return group;
+}
 
 function noShadow(obj) {
   obj.traverse((o) => { if (o.isMesh) o.castShadow = false; });
