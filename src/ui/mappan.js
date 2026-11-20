@@ -156,6 +156,8 @@ export function attachMapPan(frame, { world = WORLD_VIEW, targets = [], focus = 
       dragging = false;
       swallow = false;
       box = readBox() ?? box;
+      // the box may have changed shape since the last gesture (rotation)
+      change(refit(api.view, box, world, minScale));
     }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 1) start = { x: e.clientX, y: e.clientY };
@@ -227,10 +229,20 @@ export function attachMapPan(frame, { world = WORLD_VIEW, targets = [], focus = 
     change(zoomView(api.view, dir === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP, [b.w / 2, b.h / 2], b, world, minScale));
   }
 
-  // A place reached by keyboard but off-screen: centre the view on it.
+  // :focus-visible where the browser knows it; an older one that throws on
+  // it counts every focus as visible.
+  const focusVisible = (el) => {
+    if (typeof el.matches !== 'function') return true;
+    try { return el.matches(':focus-visible'); } catch { return true; }
+  };
+
+  // A place reached by keyboard but off-screen: centre the view on it. Not
+  // for a press: a mouse focuses the place mid-press, and moving the view
+  // then would slide the place from under the pointer and lose the click.
   function onFocusIn(e) {
+    if (pointers.size > 0) return;
     const el = e.target?.closest?.('[data-dr-map-place]');
-    if (!el) return;
+    if (!el || !focusVisible(el)) return;
     const x = Number(el.dataset?.x ?? el.getAttribute?.('data-x'));
     const y = Number(el.dataset?.y ?? el.getAttribute?.('data-y'));
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
@@ -253,11 +265,34 @@ export function attachMapPan(frame, { world = WORLD_VIEW, targets = [], focus = 
   ];
   for (const [el, type, fn, opts] of listeners) el.addEventListener?.(type, fn, opts);
 
+  // A rotated phone or iPad: refit the view to the new box, so the floor
+  // (44 px targets) and the pan math hold before the next render.
+  function onResize() {
+    const b = readBox();
+    if (!b || (b.w === box.w && b.h === box.h)) return;
+    box = { ...b };
+    change(refit(api.view, b, world, minScale));
+  }
+  let observer = null;
+  let win = null;
+  if (typeof globalThis.ResizeObserver === 'function') {
+    try {
+      observer = new globalThis.ResizeObserver(onResize);
+      observer.observe?.(svg);
+    } catch { observer = null; }
+  }
+  if (!observer) {
+    win = globalThis.window ?? null;
+    win?.addEventListener?.('resize', onResize);
+  }
+
   let attached = true;
   function detach() {
     if (!attached) return;
     attached = false;
     for (const [el, type, fn, opts] of listeners) el.removeEventListener?.(type, fn, opts);
+    observer?.disconnect?.();
+    win?.removeEventListener?.('resize', onResize);
     pointers.clear();
   }
 

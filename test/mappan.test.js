@@ -1,6 +1,6 @@
 // World map step 2: the map pans and pinch-zooms by its viewBox alone, and
 // never zooms out so far that a tap target is under 44 px across.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { CATALOG } from '../src/progression.js';
 import { WORLD, worldMapModel, tapTargets } from '../src/worldmap.js';
 import { WORLD_VIEW } from '../src/ui/territorymap.js';
@@ -156,7 +156,8 @@ function fakeFrame({ width = 343, height = 420, withSvg = true } = {}) {
     ...listenerBag(),
     attrs: {},
     captured: [],
-    getBoundingClientRect: () => ({ left: 0, top: 0, width, height }),
+    size: { width, height },
+    getBoundingClientRect() { return { left: 0, top: 0, ...this.size }; },
     setAttribute(name, value) { this.attrs[name] = value; },
     getAttribute(name) { return this.attrs[name] ?? null; },
     setPointerCapture(id) { this.captured.push(id); },
@@ -177,7 +178,12 @@ function ev(extra = {}) {
     ...extra,
   };
 }
-const place = (x, y) => ({ closest: (sel) => (sel === '[data-dr-map-place]' ? { dataset: { x: String(x), y: String(y) }, getAttribute: (a) => ({ 'data-x': String(x), 'data-y': String(y) })[a] } : null) });
+// A place element at (x, y); `visible` (if given) is its :focus-visible.
+const place = (x, y, visible) => {
+  const el = { dataset: { x: String(x), y: String(y) }, getAttribute: (a) => ({ 'data-x': String(x), 'data-y': String(y) })[a] };
+  if (visible !== undefined) el.matches = (sel) => (sel === ':focus-visible' ? visible : false);
+  return { closest: (sel) => (sel === '[data-dr-map-place]' ? el : null) };
+};
 const zoomBtn = (dir) => ({ closest: (sel) => (sel === '[data-wm-zoom]' ? { dataset: { wmZoom: dir }, getAttribute: () => dir } : null) });
 
 function attached(opts = {}) {
@@ -236,8 +242,9 @@ describe('attachMapPan', () => {
     svg.fire('click', next, true);
     expect(next.preventDefault).not.toHaveBeenCalled();
 
-    // a tap: 3 px of wobble, no pan, the click goes through untouched
+    // a tap: 3 px of wobble, no pan, no capture, the click goes through untouched
     onView.mockClear();
+    svg.captured.length = 0;
     const at = svg.attrs.viewBox;
     svg.fire('pointerdown', ev({ clientX: 100, clientY: 100 }));
     svg.fire('pointermove', ev({ clientX: 103, clientY: 100 }));
@@ -248,6 +255,13 @@ describe('attachMapPan', () => {
     svg.fire('click', tap, true);
     expect(tap.preventDefault).not.toHaveBeenCalled();
     expect(tap.stopPropagation).not.toHaveBeenCalled();
+    expect(svg.captured).toEqual([]); // a tap's click keeps its place as target
+  });
+
+  it('a pointerdown alone captures nothing', () => {
+    const { svg } = attached();
+    svg.fire('pointerdown', ev({ clientX: 100, clientY: 100 }));
+    expect(svg.captured).toEqual([]);
   });
 
   it('a drag cancelled by the browser does not swallow the next tap', () => {
@@ -351,6 +365,80 @@ describe('attachMapPan', () => {
     // focus on something that is not a place: nothing
     frame.fire('focusin', ev());
     expect(onView).toHaveBeenCalledTimes(1);
+  });
+
+  it('a press that focuses an off-screen place does not move the view under it', () => {
+    const { frame, svg, pan, onView } = attached();
+    const v0 = pan.view;
+    // a mouse press: pointerdown on the svg, then the browser focuses the place
+    svg.fire('pointerdown', ev({ clientX: 10, clientY: 200 }));
+    frame.fire('focusin', ev({ target: place(150, 400) }));
+    expect(pan.view).toEqual(v0);
+    expect(onView).not.toHaveBeenCalled();
+    svg.fire('pointerup', ev({ clientX: 10, clientY: 200 }));
+    // focus that is not :focus-visible (a tap's focus, after pointerup): nothing
+    frame.fire('focusin', ev({ target: place(150, 400, false) }));
+    expect(pan.view).toEqual(v0);
+    // Tab (no pointer down, :focus-visible): it recentres
+    frame.fire('focusin', ev({ target: place(150, 400, true) }));
+    expect(onView).toHaveBeenCalledTimes(1);
+    expect(pan.view.x).toBe(0);
+  });
+
+  it('a new box shape refits the view at the next gesture, the floor kept', () => {
+    const { svg, pan } = attached({ attach: { view: { x: 200, y: 100, w: 343 / k, h: 420 / k } } });
+    expect(scaleOf(pan.view, PHONE)).toBeCloseTo(k, 9);
+    svg.size = { width: 420, height: 343 }; // the phone turned
+    svg.fire('pointerdown', ev({ clientX: 100, clientY: 100 }));
+    const v = pan.view;
+    expect(v.w / v.h).toBeCloseTo(420 / 343, 9);
+    expect(92 * (420 / v.w)).toBeGreaterThanOrEqual(44 - 1e-9);
+    expect(parseVB(svg.attrs.viewBox).w).toBeCloseTo(v.w, 1);
+    // and the pan after it uses the new box
+    svg.fire('pointermove', ev({ clientX: 150, clientY: 100 }));
+    expect(pan.view.x).toBeCloseTo(v.x - 50 / (420 / v.w), 6);
+  });
+
+  describe('a resize refits the view', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('through a ResizeObserver, disconnected by detach', () => {
+      const observers = [];
+      vi.stubGlobal('ResizeObserver', class {
+        constructor(fn) { this.fn = fn; this.observed = []; this.live = true; observers.push(this); }
+        observe(el) { this.observed.push(el); }
+        disconnect() { this.live = false; }
+      });
+      const { svg, pan, onView } = attached();
+      expect(observers).toHaveLength(1);
+      expect(observers[0].observed).toEqual([svg]);
+      svg.size = { width: 736, height: 432 }; // to an iPad-sized box
+      observers[0].fn([]);
+      expect(pan.view.w / pan.view.h).toBeCloseTo(736 / 432, 9);
+      expect(736 / pan.view.w).toBeGreaterThanOrEqual(k - 1e-9);
+      expect(onView).toHaveBeenCalledTimes(1);
+      // back to the phone: the floor holds, the island star 44 px or more
+      svg.size = { width: 343, height: 420 };
+      observers[0].fn([]);
+      expect(92 * (343 / pan.view.w)).toBeGreaterThanOrEqual(44 - 1e-9);
+      expect(pan.view.w / pan.view.h).toBeCloseTo(343 / 420, 9);
+      pan.detach();
+      expect(observers[0].live).toBe(false);
+    });
+
+    it("through the window's resize event when there is no ResizeObserver, removed by detach", () => {
+      vi.stubGlobal('ResizeObserver', undefined);
+      const win = listenerBag();
+      vi.stubGlobal('window', win);
+      const { svg, pan } = attached();
+      expect(win.count()).toBe(1);
+      svg.size = { width: 420, height: 343 };
+      win.fire('resize', {});
+      expect(pan.view.w / pan.view.h).toBeCloseTo(420 / 343, 9);
+      expect(92 * (420 / pan.view.w)).toBeGreaterThanOrEqual(44 - 1e-9);
+      pan.detach();
+      expect(win.count()).toBe(0);
+    });
   });
 
   it('nothing to attach to: null; detach removes every listener', () => {
