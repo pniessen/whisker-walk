@@ -257,7 +257,7 @@ function subdivide(geo, levels) {
 // Gingham: three tones, as the weave makes them: red where a red stripe
 // crosses a red one, pink where it crosses white, white where white crosses
 // white.
-const GINGHAM = [0xf7f2ea, 0xeea0a0, 0xd8403a];
+const GINGHAM = [0xf7f2ea, 0xe87a78, 0xd8403a];
 const ginghamAt = (u, v, cell) => GINGHAM[(Math.floor(u / cell) & 1) + (Math.floor(v / cell) & 1)];
 
 // The bandana's cone (three sides, point down), flattened onto the chest and
