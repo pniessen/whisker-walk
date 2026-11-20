@@ -137,6 +137,23 @@ describe('slot picker', () => {
     s.unlocked.accessories.push('mosscap');
     expect(renderSlotPickerHtml(s, cat, 'head', null)).toContain('data-dr-acc="mosscap"');
   });
+  it('a find-only outfit from a place with no find spots stays out of sight until found', () => {
+    const hats = { ...CATALOG, accessories: {
+      parkhat: { name: 'Park Hat', slot: 'head', price: 0, prize: true, find: 'park', emoji: '🌰' },
+      riverhat: { name: 'River Hat', slot: 'head', price: 0, prize: true, find: 'river', emoji: '🐟' },
+    } };
+    const s = { ...defaultishState(), edition: 'canon' };
+    const html = renderSlotPickerHtml(s, hats, 'head', null);
+    expect(html).toContain('Found in City Park');
+    expect(html).not.toContain('River'); expect(html).not.toContain('🐟');
+  });
+  it('once owned it shows, spots or not', () => {
+    const hats = { ...CATALOG, accessories: {
+      riverhat: { name: 'River Hat', slot: 'head', price: 0, prize: true, find: 'river', emoji: '🐟' },
+    } };
+    const s = { ...defaultishState(), edition: 'canon' }; s.unlocked.accessories.push('riverhat');
+    expect(renderSlotPickerHtml(s, hats, 'head', null)).toContain('data-dr-acc="riverhat" data-dr-act="wear"');
+  });
   it('an unwon prize is a wrapped surprise: no price, no try-on, not buyable', () => {
     const slot = CATALOG.accessories.leafcrown.slot;
     const s = defaultishState(); s.points = 9999;
