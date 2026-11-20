@@ -505,6 +505,58 @@ export function roofsArea() {
 }
 
 // ---------------------------------------------------------------------------
+// The tours (src/world/traversalyard.js's YARD_TOURS shape, driven by its
+// createYardPilot on the real player: test/roofs.test.js).
+//   firstRoof  from the spawn, up the bin, the shed and onto the garage roof:
+//              the spec's "A child gets onto the first roof within the first
+//              minute", in seconds.
+export const ROOFS_TOURS = deepFreeze({
+  firstRoof: {
+    start: { x: ROOFS_SPAWN.x, z: ROOFS_SPAWN.z, face: [0, -1] },
+    steps: [
+      { say: 'Up the bin' }, { walk: [14.5, 37.6] }, { walk: [14.5, 36.6] }, { jump: true },
+      { say: 'Onto the shed' }, { jump: true },
+      { say: 'And onto the garage roof' }, { walk: [13.2, 31.5] }, { jump: true },
+    ],
+  },
+  // firstRoof, then on up: the roofers' plank over the back yards, the
+  // drainpipe onto an outrigger and a back window's sill onto the flat roof
+  // (the film for the owner).
+  terrace: {
+    start: { x: ROOFS_SPAWN.x, z: ROOFS_SPAWN.z, face: [0, -1] },
+    steps: [
+      { say: 'Up the bin' }, { walk: [14.5, 37.6] }, { walk: [14.5, 36.6] }, { jump: true },
+      { say: 'Onto the shed' }, { jump: true },
+      { say: 'And onto the garage roof' }, { walk: [13.2, 31.5] }, { jump: true },
+      { say: 'Over the plank' }, { walk: [1.0, 29.3] }, { walk: [1.0, 18.6] },
+      { say: 'Up the drainpipe' }, { walk: [EXT_CX(7), 17.3] }, { jump: true },
+      { say: 'Onto the flat roof' }, { walk: [2.0, 12.8] }, { jump: true }, { walk: [2.5, 8.0] },
+    ],
+  },
+});
+
+// The picture views, 'px,py,pz,lx,ly,lz' (verify-places.html's __shot and
+// __cam; scripts/record-page.mjs --shots). Task 13's pictures for the owner.
+export const ROOFS_SHOTS = Object.freeze({
+  // the spawn view: the alley, the garages, the tower on the skyline
+  alley: '4,2.6,45.5,8,4.5,20',
+  // from out-7, west along the back extensions
+  terraces: '2,6.6,15,-25,3.6,17',
+  // on the ridge, looking along it to the stacks
+  ridge: '-24,9.2,8.5,10,7.6,7',
+  // a marked side-return leap: from above the back yard, into the gap between two extensions
+  gap: '-0.75,6.2,24.5,-0.75,2.6,15',
+  // the warehouse roof from its north-east: the lantern, the tank, the pipe and the loft
+  warehouse: '-8,14.2,-46,-28,11.5,-37',
+  // from the tower top, south over everything
+  tower: '26,18.7,-15.6,8,4,30',
+  // from the corner shop's parapet, west down the street below, and the bus
+  edge: '31.5,11.6,-9,0,-3,-6',
+  // the card picture: from the alley, up at the terrace backs and the tower
+  card: '18,4.2,45,12,6,4',
+});
+
+// ---------------------------------------------------------------------------
 // WHAT THE SHARED TABLES HOLD (Task 10). Plain data in the shapes those tables
 // use, as FAIR_REGISTRATION is: each row is copied into its table, and
 // test/roofs.test.js checks every row against the built area and against the
@@ -575,14 +627,11 @@ export const ROOFS_REGISTRATION = Object.freeze({
   // The measured counts test/budget.test.js and test/roofs.test.js pin:
   // [meshes, casters, triangles] built, [meshes, casters] merged
   budget: Object.freeze({ built: Object.freeze([113, 67, 32202]), merged: Object.freeze([57, 30]) }),
-  // verify-places.html VIEWS.roofs and the card picture: Task 13's
-  view: null,
+  // verify-places.html VIEWS.roofs and the card picture (public/places/roofs.jpg)
+  view: ROOFS_SHOTS.card,
   // src/marks.js MARK_AREAS and emptyMarks(): add 'roofs'
   marks: true,
   // not a colony area, no strays (R8)
   colony: false,
   strays: false,
 });
-
-// ---------------------------------------------------------------------------
-// Later tasks add here: ROOFS_SHOTS and ROOFS_TOURS.

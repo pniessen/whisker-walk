@@ -18,6 +18,10 @@ vi.stubGlobal('document', {
       set: () => true,
     }),
   }),
+  // createPlayer (the first-roof tour, below) listens on it
+  addEventListener() {},
+  pointerLockElement: null,
+  exitPointerLock() {},
 });
 
 const { build } = await import('../src/world/roofs.js');
@@ -485,9 +489,10 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect(Object.hasOwn(GROUND_TINTS, 'roofs')).toBe(false);
   });
 
-  it('holds its row out of the catalog, and the view back until Task 13 (R1)', () => {
+  it('holds its row out of the catalog (R1); its view is the card shot', async () => {
+    const { ROOFS_SHOTS } = await import('../src/world/roofsplan.js');
     expect(REG.catalog).toEqual({ name: 'The Rooftops', price: 100, requires: { area: 'fair', walks: 2 } });
-    expect(REG.view).toBeNull();
+    expect(REG.view).toBe(ROOFS_SHOTS.card);
     expect(Object.hasOwn(CATALOG.areas, 'roofs')).toBe(false);
     expect(REG.marks).toBe(true);
   });
@@ -657,5 +662,65 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
   it('the budget row is the measured counts', () => {
     expect(REG.budget.built).toEqual([MEASURED_BUILT.meshes, MEASURED_BUILT.casters, MEASURED_BUILT.triangles]);
     expect(REG.budget.merged).toEqual([MEASURED_MERGED.meshes, MEASURED_MERGED.casters]);
+  });
+});
+
+// =============================================================================
+// Task 13: the first roof in seconds, on the real player (the spec's goal: "A
+// child gets onto the first roof within the first minute"), and the picture
+// views.
+// =============================================================================
+describe('The Rooftops: the first roof, and the picture views', async () => {
+  const { ROOFS_TOURS, ROOFS_SHOTS, roofsArea } = await import('../src/world/roofsplan.js');
+  const { createYardPilot } = await import('../src/world/traversalyard.js');
+  const { yardWalk } = await import('./helpers/traversalwalk.js');
+
+  it('the first roof in seconds, on the real player', () => {
+    const tour = ROOFS_TOURS.firstRoof;
+    expect([tour.start.x, tour.start.z]).toEqual([ROOFS_SPAWN.x, ROOFS_SPAWN.z]);
+    const w = yardWalk({ area: roofsArea(), at: [ROOFS_SPAWN.x, ROOFS_SPAWN.z], face: [0, -1] });
+    const pilot = createYardPilot(tour);
+    const DT = 1 / 30;
+    let r; let frames = 0;
+    do { r = pilot.step(DT, w); w.frame(DT); frames++; } while (!r.done && frames < 30 * 60);
+    expect(r.done).toBe(true);
+    expect(r.failed ?? null).toBeNull();
+    expect(frames * DT).toBeLessThan(20);
+    const p = w.cat.position;
+    expect(w.area.ground.y(p.x, p.z)).toBe(LEVELS.GARAGE);
+    expect(p.y).toBeCloseTo(LEVELS.GARAGE, 6);
+    const kinds = w.events.map((e) => `${e.type}:${e.id ?? e.kind}`);
+    expect(kinds).toEqual(expect.arrayContaining(['climb:bin-up', 'climb:shed-up', 'climb:garages-up']));
+  });
+
+  it('the terrace tour (the film) runs on from the garages, over plank-2, onto the flat roof, in under 30 s', () => {
+    const tour = ROOFS_TOURS.terrace;
+    const w = yardWalk({ area: roofsArea(), at: [tour.start.x, tour.start.z], face: tour.start.face });
+    const pilot = createYardPilot(tour);
+    const DT = 1 / 30;
+    let r; let frames = 0;
+    do { r = pilot.step(DT, w); w.frame(DT); frames++; } while (!r.done && frames < 30 * 60);
+    expect(r.failed ?? null).toBeNull();
+    expect(frames * DT).toBeLessThan(30);
+    const p = w.cat.position;
+    expect(w.area.ground.y(p.x, p.z)).toBe(LEVELS.FLAT);
+    const kinds = w.events.map((e) => `${e.type}:${e.id ?? e.kind}`);
+    expect(kinds).toEqual(expect.arrayContaining(['climb:garages-up', 'cross:plank-2', 'climb:out-7-up', 'climb:flatHouse-up']));
+  });
+
+  it('has a card picture for the home screen', async () => {
+    const { readFileSync } = await import('node:fs');
+    const jpg = readFileSync(new URL('../public/places/roofs.jpg', import.meta.url));
+    expect(jpg[0]).toBe(0xff);
+    expect(jpg[1]).toBe(0xd8);
+    expect(jpg.length).toBeGreaterThan(5000);
+  });
+
+  it('has its eight picture views, each six numbers', () => {
+    expect(Object.keys(ROOFS_SHOTS)).toEqual(['alley', 'terraces', 'ridge', 'gap', 'warehouse', 'tower', 'edge', 'card']);
+    for (const [name, v] of Object.entries(ROOFS_SHOTS)) {
+      const n = v.split(',').map(Number);
+      expect([name, n.length, n.every(Number.isFinite)]).toEqual([name, 6, true]);
+    }
   });
 });
