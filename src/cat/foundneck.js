@@ -62,31 +62,51 @@ import { henNeckFrontZ } from './hen.js';
 // ---- helpers --------------------------------------------------------------
 
 const plain = (hex) => litMaterial(hex);
-const painted = () => litMaterial(0xffffff, { vertexColors: true });
+const painted = (extra) => litMaterial(0xffffff, { vertexColors: true, ...extra });
 
 // Flat-shaded, uv-less and coloured per vertex, so any pieces can be merged.
+// `hex` is one colour, or a function (x, y, z) -> hex of each vertex.
 function colour(geo, hex) {
   const g = geo.index ? geo.toNonIndexed() : geo;
-  g.deleteAttribute('uv');
+  if (g.attributes.uv) g.deleteAttribute('uv');
   if (!g.attributes.normal) g.computeVertexNormals();
-  const c = new THREE.Color(hex), n = g.attributes.position.count, arr = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) arr.set([c.r, c.g, c.b], i * 3);
+  const p = g.attributes.position, c = new THREE.Color(), arr = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) c.set(typeof hex === 'function' ? hex(p.getX(i), p.getY(i), p.getZ(i)) : hex).toArray(arr, i * 3);
   g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
   return g;
 }
+const mixHex = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), Math.min(1, Math.max(0, t))).getHex();
 
-// A flat fan facing +z: the centre, then the points in order (a star, a disc,
-// a scallop).
-function fan(points, hex, centre = [0, 0]) {
-  const pos = [];
-  for (let i = 0; i + 1 < points.length; i++) pos.push(centre[0], centre[1], 0, ...points[i], 0, ...points[i + 1], 0);
+// A flat fan facing +z: the centre (lifted `dome` toward +z), then the points
+// in order (a star, a disc, a scallop); rim colours rimHex(i) or one hex.
+function fan(points, hex, centre = [0, 0], dome = 0, rimHex = null, centreHex = hex) {
+  const pos = [], col = [], c = new THREE.Color();
+  const put = (x, y, z, h) => { pos.push(x, y, z); c.set(h); col.push(c.r, c.g, c.b); };
+  for (let i = 0; i + 1 < points.length; i++) {
+    put(centre[0], centre[1], dome, centreHex);
+    put(...points[i], 0, rimHex ? rimHex(i) : hex);
+    put(...points[i + 1], 0, rimHex ? rimHex(i + 1) : hex);
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.computeVertexNormals();
-  return colour(g, hex);
+  return g;
 }
 const ringPoints = (n, r, inner = r, from = 0, to = Math.PI * 2) =>
   Array.from({ length: n + 1 }, (_, i) => { const a = from + (to - from) * i / n, rr = i % 2 ? inner : r; return [rr * Math.cos(a), rr * Math.sin(a)]; });
+
+// A torus painted per vertex by paint(u, v): u the angle round the ring, v
+// the angle round its tube (0 its outer equator, pi/2 the +z side).
+function paintedTorus(R, r, radial, tubular, paint, arc = Math.PI * 2) {
+  const g = new THREE.TorusGeometry(R, r, radial, tubular, arc);
+  const n = g.attributes.position.count, cols = new Float32Array(n * 3), c = new THREE.Color();
+  for (let j = 0; j <= radial; j++) for (let i = 0; i <= tubular; i++) {
+    c.set(paint((i / tubular) * arc, (j / radial) * Math.PI * 2)).toArray(cols, (j * (tubular + 1) + i) * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  return g;
+}
 
 // Put a piece built facing +z, hanging toward -y, on the ring's circle at angle
 // `theta`, `r` from its axis and `dz` along it (+z, the way the ring's axis
@@ -101,12 +121,12 @@ function onRing(geo, theta, r, dz = 0) {
 // band is (Hagrid's ringTheNeck then re-rings it round his leaning neck). What
 // is made to go round it is added as its child, in the ring's own frame, so it
 // follows the ring on the cat and on Hagrid alike.
-function neckRing(head, { k, y, z, ringR, ringBack, tilt }, geo, material, children = []) {
+function neckRing(head, { k, y, z, ringR, ringBack, tilt }, geo, material, children = [], childExtra) {
   const ring = new THREE.Mesh(geo, material);
   ring.rotation.x = Math.PI / 2 - tilt;
   ring.position.set(0, y, z + ringBack);
   head.add(ring);
-  if (children.length) ring.add(new THREE.Mesh(mergeGeometries(children), painted()));
+  if (children.length) ring.add(new THREE.Mesh(mergeGeometries(children), painted(childExtra)));
   return ring;
 }
 
@@ -119,65 +139,99 @@ function frontOf({ k, y, z, ringR, ringBack, tilt }) {
 
 // ---- Daisy Chain ----------------------------------------------------------
 
-// Nine daisies on a thin green stem ring: six white petals round a gold
-// centre, each lying against the ring, facing out. One vertex-coloured mesh.
+// Six big daisies on a twisted green stem ring, one at the throat, a leaf
+// between each two: eight rounded white petals tipped pink round a domed gold
+// centre, each lying against the ring, facing out. The stem is two greens
+// wound round each other, darker than any coat's middle tones, so the chain
+// reads on a tabby as on a white cat.
+const DAISY_STEM = [0x3f7a2a, 0x5a9a3c], DAISY_PETAL = 0xfdfdf8, DAISY_TIP = 0xf4b8c8, DAISY_GOLD = 0xf2b62e;
+// a daisy's rim: per petal a notch, a shoulder, the rounded tip, a shoulder
+const DAISY_RIM = (r) => Array.from({ length: 33 }, (_, i) => {
+  const a = ((Math.floor(i / 4) + [-0.5, -0.2, 0, 0.2][i % 4]) / 8) * Math.PI * 2, rr = r * [0.38, 0.86, 1, 0.86][i % 4];
+  return [rr * Math.cos(a), rr * Math.sin(a)];
+});
 function addDaisyChain(head, a) {
-  const { k, ringR } = a, tube = 0.008 * k, daisies = [];
-  for (let i = 0; i < 9; i++) {
-    const theta = (i / 9) * Math.PI * 2 + 0.2;
-    const petals = fan(ringPoints(12, 0.034 * k, 0.014 * k), 0xf8f8f0);
-    const centre = fan(ringPoints(6, 0.011 * k), 0xf2c14e); centre.translate(0, 0, 0.003 * k);
-    daisies.push(onRing(mergeGeometries([petals, centre]), theta, ringR + tube + 0.002 * k));
+  const { k, ringR } = a, tube = 0.0085 * k, parts = [];
+  for (let i = 0; i < 6; i++) {
+    const theta = -Math.PI / 2 + (i / 6) * Math.PI * 2;
+    const petals = fan(DAISY_RIM(0.056 * k), DAISY_PETAL, [0, 0], 0.005 * k, (j) => (j % 4 === 2 ? DAISY_TIP : DAISY_PETAL));
+    const centre = fan(ringPoints(6, 0.016 * k), DAISY_GOLD, [0, 0], 0.009 * k, null, 0xf7d65a);
+    centre.translate(0, 0, 0.005 * k);
+    // tipped to face out and up a little, toward whoever looks down at her
+    parts.push(onRing(mergeGeometries([petals, centre]).rotateZ(i * 0.4).rotateX(-0.55), theta, ringR + tube + 0.006 * k));
+    // a leaf halfway to the next daisy, lying along the stem
+    const leaf = fan([[0.024 * k, 0], [0, 0.008 * k], [-0.024 * k, 0], [0, -0.008 * k], [0.024 * k, 0]], DAISY_STEM[1], [0, 0], 0.002 * k, null, 0x8cc06a);
+    leaf.rotateZ(0.5);
+    parts.push(onRing(leaf, theta + Math.PI / 6, ringR + tube + 0.002 * k));
   }
-  neckRing(head, a, new THREE.TorusGeometry(ringR, tube, 5, 12), plain(0x5a9a3c), daisies);
+  neckRing(head, a, paintedTorus(ringR, tube, 5, 14, (u, v) => DAISY_STEM[(Math.floor(u * 7 / Math.PI + v / Math.PI)) & 1]), painted(), parts);
 }
 
 // ---- Garden Glove Scarf ---------------------------------------------------
 
 // A check scarf: the band's vertices alternate light and dark green, so the
-// quads shade into soft checks; a knot at the front, and a gardening glove
-// tucked in it, cuff up, fingers down the chest, three flowers on its back.
+// quads shade into checks of three greens; a knot at the front, and a canvas gardening
+// glove tucked in it, cuff up, fingers down the chest: a soft palm, four
+// rounded fingers and a thumb, a green-striped cuff, three pink flowers
+// printed on its back.
 function addGardenGloveScarf(head, a) {
-  const { k, ringR } = a, GREEN = 0x6a9a4a, LIGHT = 0x88b868;
-  const band = new THREE.TorusGeometry(ringR, 0.04 * k, 6, 14);
+  const { k, ringR } = a, GREEN = 0x6a9a4a, LIGHT = 0xa6d085, DEEP = 0x4a7a32;
+  const band = new THREE.TorusGeometry(ringR, 0.036 * k, 6, 14);
   const cols = new Float32Array(band.attributes.position.count * 3), w = band.parameters.tubularSegments + 1;
-  for (let v = 0; v < band.attributes.position.count; v++) new THREE.Color(((v % w) + Math.floor(v / w)) % 2 ? LIGHT : GREEN).toArray(cols, v * 3);
+  for (let v = 0; v < band.attributes.position.count; v++) new THREE.Color([GREEN, LIGHT, GREEN, DEEP][((v % w) % 2) + 2 * (Math.floor(v / w) % 2)]).toArray(cols, v * 3);
   band.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   neckRing(head, a, band, painted());
   const f = frontOf(a);
   const knot = new THREE.Mesh(new THREE.SphereGeometry(0.034 * k, 6, 4), plain(GREEN));
   knot.position.set(0, f.y - 0.01 * k, f.z - 0.012 * k);
   head.add(knot);
-  const box = (w2, h, d, x, y, hex) => colour(new THREE.BoxGeometry(w2 * k, h * k, d * k).translate(x * k, y * k, 0), hex);
-  const GLOVE = 0xf2d7a0, FLOWER = 0xe27a9a;
-  const parts = [box(0.056, 0.05, 0.014, 0, -0.03, GLOVE), box(0.062, 0.016, 0.018, 0, -0.005, GLOVE)];
-  for (let i = 0; i < 4; i++) parts.push(box(0.012, 0.036, 0.01, (-1.5 + i) * 0.0135, -0.073, GLOVE));
-  parts.push(box(0.014, 0.03, 0.01, 0.04, -0.045, GLOVE));
-  for (const [x, y] of [[-0.012, -0.022], [0.012, -0.04], [-0.005, -0.056]]) {
-    const flower = fan(ringPoints(6, 0.009 * k), FLOWER); flower.translate(x * k, y * k, -0.0085 * k);
-    parts.push(flower);
+  const GLOVE = 0xf2d7a0, SEAM = 0xd8b880, CUFF = 0x5a9a3c, FLOWER = 0xe27a9a;
+  const glove = (x, y) => (y > -0.012 * k ? (Math.abs(y + 0.004 * k) < 0.003 * k ? 0xf7e6c0 : CUFF) : GLOVE);
+  const palm = colour(new THREE.SphereGeometry(0.031 * k, 7, 4).scale(1, 1.05, 0.32).translate(0, -0.035 * k, 0), (x, y) => (y < -0.06 * k ? SEAM : GLOVE));
+  const cuff = colour(new THREE.CylinderGeometry(0.03 * k, 0.027 * k, 0.02 * k, 8, 1).scale(1, 1, 0.42).translate(0, -0.004 * k, 0), glove);
+  const parts = [palm, cuff];
+  for (let i = 0; i < 4; i++) {
+    const finger = new THREE.CylinderGeometry(0.0068 * k, 0.0058 * k, 0.034 * k, 5, 1).translate(0, -0.017 * k, 0);
+    finger.rotateZ((i - 1.5) * 0.08).translate((-1.5 + i) * 0.0135 * k, -0.062 * k, 0);
+    parts.push(colour(finger, (x, y) => (y < -0.09 * k ? SEAM : GLOVE)));
   }
-  const glove = new THREE.Mesh(mergeGeometries(parts), painted());
-  glove.position.set(0, f.y - 0.022 * k, f.z - 0.03 * k);
-  glove.rotation.x = -0.38;
-  head.add(glove);
+  parts.push(colour(new THREE.CylinderGeometry(0.0075 * k, 0.0065 * k, 0.03 * k, 5, 1).translate(0, -0.015 * k, 0).rotateZ(0.9).translate(0.026 * k, -0.03 * k, 0), GLOVE));
+  for (const [x, y] of [[-0.012, -0.03], [0.011, -0.042], [-0.004, -0.052]]) {
+    // printed on the back of the hand, facing out (-z)
+    parts.push(fan(ringPoints(10, 0.0085 * k, 0.004 * k), FLOWER, [0, 0], 0.001 * k, null, 0xf7d65a).rotateY(Math.PI).translate(x * k, y * k, -0.0105 * k));
+  }
+  const g = new THREE.Mesh(mergeGeometries(parts), painted());
+  g.position.set(0, f.y - 0.024 * k, f.z - 0.032 * k);
+  g.rotation.x = -0.38;
+  g.scale.setScalar(1.25);
+  head.add(g);
 }
 
 // ---- Sailor's Shell Necklace ----------------------------------------------
 
-// A cord with eleven small cone shells hung round it and, at the front, one
-// big scallop (a ridged fan). The shells and the scallop are one mesh.
+// A dark tarred cord with ten plump cowrie shells hung round it, cream
+// blushing to coral at their tips, a pale bead between every other two, and
+// at the front one big scallop: a ridged fan, its ribs coral and cream in
+// turn, its hinge up on the cord. Shells, beads and scallop are one mesh.
+const SHELL_CREAM = 0xfbf1e2, SHELL_CORAL = 0xe86a52, SHELL_CORD = 0x4a3222;
 function addShellNecklace(head, a) {
-  const { k } = a, ringR = a.ringR + 0.012 * k, tube = 0.006 * k, shells = [];
-  for (let i = 0; i < 11; i++) {
-    const theta = (i / 11) * Math.PI * 2 - Math.PI / 2 + 0.3;
-    if (Math.abs(Math.atan2(Math.sin(theta + Math.PI / 2), Math.cos(theta + Math.PI / 2))) < 0.4) continue; // the scallop's place, at the front
-    shells.push(onRing(colour(new THREE.ConeGeometry(0.014 * k, 0.034 * k, 5, 1).rotateX(Math.PI), i % 2 ? 0xf2c6b0 : 0xf6e7d2).translate(0, -0.012 * k, 0), theta, ringR + tube));
+  const { k } = a, ringR = a.ringR + 0.012 * k, tube = 0.0075 * k, shells = [];
+  for (let i = 0; i < 12; i++) {
+    const theta = (i / 12) * Math.PI * 2 - Math.PI / 2 + 0.26;
+    const front = Math.abs(Math.atan2(Math.sin(theta + Math.PI / 2), Math.cos(theta + Math.PI / 2)));
+    if (front < 0.45) continue; // the scallop's place, at the front
+    const r = 0.017 * k;
+    const cowrie = new THREE.SphereGeometry(r, 5, 3).scale(0.85, 1.45, 0.6).translate(0, -r * 1.45 - 0.003 * k, 0);
+    shells.push(onRing(colour(cowrie, (x, y, z) => (z > 0.6 * r * 0.8 ? 0xa86a4a : mixHex(SHELL_CREAM, SHELL_CORAL, (-y / k - 0.01) / 0.04))), theta, ringR + tube + 0.004 * k));
+    if (i % 2) shells.push(onRing(colour(new THREE.OctahedronGeometry(0.0072 * k), (x, y) => (y > 0 ? 0xfff8ee : 0xe8dccb)), theta + Math.PI / 12, ringR + tube + 0.002 * k));
   }
-  const scallop = fan(ringPoints(10, 0.05 * k, 0.043 * k, Math.PI * 1.15, Math.PI * 1.85), 0xf7d9c4, [0, 0.02 * k]);
+  // the scallop: 13 rim points, a scalloped edge, its ribs from a hinge on the cord
+  const rim = ringPoints(12, 0.074 * k, 0.067 * k, Math.PI * 1.12, Math.PI * 1.88);
+  const scallop = fan(rim, SHELL_CREAM, [0, 0.008 * k], 0.01 * k, (j) => (j % 4 < 2 ? SHELL_CORAL : SHELL_CREAM), 0xfff6ea);
+  const ears = fan([[-0.016 * k, 0.012 * k], [0.016 * k, 0.012 * k], [0.012 * k, -0.002 * k], [-0.012 * k, -0.002 * k], [-0.016 * k, 0.012 * k]], SHELL_CORAL, [0, 0.005 * k], 0.004 * k);
   // the scallop hangs from the front of the cord, its hinge up
-  shells.push(onRing(scallop, -Math.PI / 2, ringR + tube + 0.004 * k, 0.012 * k));
-  neckRing(head, a, new THREE.TorusGeometry(ringR, tube, 4, 14), plain(0x8a6a4a), shells);
+  shells.push(onRing(mergeGeometries([scallop, ears]).translate(0, -0.002 * k, 0), -Math.PI / 2, ringR + tube * 0.6, 0.006 * k));
+  neckRing(head, a, paintedTorus(ringR, tube, 4, 16, (u) => (((u * 16 / Math.PI) | 0) % 2 ? SHELL_CORD : 0x6a4a32)), painted(), shells);
 }
 
 // ---- Gingham Neckerchief --------------------------------------------------
@@ -200,14 +254,21 @@ function subdivide(geo, levels) {
   return g;
 }
 
-// The bandana's cone (three sides, point down), cut into small triangles each
-// painted red or white by where its centre falls on a grid of cells: gingham.
+// Gingham: three tones, as the weave makes them: red where a red stripe
+// crosses a red one, pink where it crosses white, white where white crosses
+// white.
+const GINGHAM = [0xf7f2ea, 0xeea0a0, 0xd8403a];
+const ginghamAt = (u, v, cell) => GINGHAM[(Math.floor(u / cell) & 1) + (Math.floor(v / cell) & 1)];
+
+// The bandana's cone (three sides, point down), flattened onto the chest and
+// cut into small triangles, each painted by where its centre falls on the
+// gingham.
 function ginghamCone(radius, height, cell) {
   const g = subdivide(new THREE.ConeGeometry(radius, height, 3, 1).toNonIndexed(), 2);
   const p = g.attributes.position, cols = new Float32Array(p.count * 3), c = new THREE.Color();
   for (let i = 0; i < p.count; i += 3) {
-    const x = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, z = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3;
-    c.set((Math.floor(x / cell) + Math.floor(z / cell)) & 1 ? 0xd8403a : 0xf5f0e8);
+    const x = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, yy = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3;
+    c.set(ginghamAt(x + radius, yy + height, cell));
     for (let j = 0; j < 3; j++) c.toArray(cols, (i + j) * 3);
   }
   g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
@@ -215,12 +276,20 @@ function ginghamCone(radius, height, cell) {
 }
 
 // A gingham triangle tied at the throat by a red band round the neck, its
-// point down the chest, laid like the bandana's.
+// point down the chest, laid like the bandana's and flattened onto it; a knot
+// at the throat and two short tied ends either side of it.
 function addNeckerchief(head, a) {
   const { k, y, z, ringR } = a;
-  neckRing(head, a, new THREE.TorusGeometry(ringR, 0.012 * k, 4, 14), plain(0xd8403a));
-  const cat = k === 1;
-  const tri = new THREE.Mesh(ginghamCone(cat ? 0.14 : 0.12, cat ? 0.17 : 0.15, 0.04 * k), painted());
+  neckRing(head, a, paintedTorus(ringR, 0.012 * k, 4, 14, (u) => (((u * 14 / Math.PI) | 0) % 2 ? 0xd8403a : 0xc0302a)), painted());
+  const cat = k === 1, R = cat ? 0.145 : 0.125, H = cat ? 0.175 : 0.155;
+  const cloth = ginghamCone(R, H, 0.021 * k);
+  cloth.scale(1, 1, 0.85);
+  // the knot and its two ends, at the cone's base (y = -H / 2: the throat, once
+  // turned point down), on its front (-z: the face away from the neck)
+  const knotAt = [0, -H / 2 + 0.006 * k, -R * 0.56];
+  const knot = colour(new THREE.SphereGeometry(0.02 * k, 6, 4).scale(1.2, 0.9, 0.8).translate(...knotAt), (x, yy) => (yy < knotAt[1] ? 0xe85a50 : 0xc0302a));
+  const ends = [-1, 1].map((s) => colour(new THREE.ConeGeometry(0.015 * k, 0.042 * k, 4, 1).rotateZ(s * 0.9).translate(knotAt[0] + s * 0.026 * k, knotAt[1] + 0.012 * k, knotAt[2]), (x) => ginghamAt(x * 4 + 1, 0.5, 0.025)));
+  const tri = new THREE.Mesh(mergeGeometries([cloth, knot, ...ends]), painted());
   if (cat) {
     tri.rotation.set(Math.PI, Math.PI, 0);
     tri.position.set(0, y - 0.03, z - 0.05);
@@ -233,16 +302,38 @@ function addNeckerchief(head, a) {
 
 // ---- Ticket-stub Garland --------------------------------------------------
 
-// Eleven little paper stubs, four colours in turn, hung from a white string
-// round the neck. The stubs are one mesh.
-function addTicketGarland(head, a) {
-  const { k } = a, ringR = a.ringR + 0.012 * k, tube = 0.005 * k, stubs = [], COLOURS = [0xf7c93b, 0xe2433a, 0x4eb86a, 0xf08a2c];
-  for (let i = 0; i < 11; i++) {
-    const stub = colour(new THREE.BoxGeometry(0.04 * k, 0.056 * k, 0.004 * k).translate(0, -0.026 * k, 0), COLOURS[i % 4]);
-    stub.rotateZ(i % 2 ? 0.14 : -0.14);
-    stubs.push(onRing(stub, (i / 11) * Math.PI * 2 + 0.1, ringR + tube + 0.002 * k));
+// A fair ticket: a 4 x 4 grid, its ends cream paper and its middle a band of
+// colour, a notch bitten out of each side halfway down; built facing +z,
+// hanging from its top edge toward -y, seen from both sides.
+function ticket(w, h, hex) {
+  const xs = [-w, -0.55 * w, 0.55 * w, w], ys = [0, -h / 3, -2 * h / 3, -h], P = [], C = [], c = new THREE.Color();
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+    const notch = (j === 1 || j === 2) && (i === 0 || i === 3) ? 0.3 * w * Math.sign(xs[i]) : 0;
+    P.push(xs[i] - notch, ys[j], 0);
+    c.set(i === 0 || i === 3 || j === 0 || j === 3 ? 0xfaf3e0 : hex).toArray(C, C.length);
   }
-  neckRing(head, a, new THREE.TorusGeometry(ringR, tube, 3, 14), plain(0xf5f5f5), stubs);
+  const idx = [];
+  for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) { const q = j * 4 + i; idx.push(q, q + 4, q + 1, q + 1, q + 4, q + 5); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+  g.setIndex(idx);
+  return g.toNonIndexed();
+}
+
+// Eleven paper tickets, four bright colours in turn, hung from a red-and-
+// white twisted string round the neck by one corner each, so they swing at
+// odd angles and twist a little, as if they had just fluttered. The tickets
+// are one mesh.
+function addTicketGarland(head, a) {
+  const { k } = a, ringR = a.ringR + 0.012 * k, tube = 0.0055 * k, stubs = [], COLOURS = [0xf7b52b, 0xe2433a, 0x3fae5e, 0x3f8fd8];
+  for (let i = 0; i < 11; i++) {
+    const stub = ticket(0.025 * k, 0.066 * k, COLOURS[i % 4]);
+    stub.translate(0, -0.003 * k, 0).rotateZ([0.22, -0.16, 0.3, -0.26, 0.12, -0.3, 0.2, -0.1, 0.28, -0.2, 0.15][i]).rotateY([0.3, -0.25, 0.15, -0.35, 0.25, -0.15, 0.35, -0.3, 0.2, -0.2, 0.3][i]);
+    stub.computeVertexNormals();
+    stubs.push(onRing(stub, (i / 11) * Math.PI * 2 + 0.1, ringR + tube + 0.004 * k));
+  }
+  neckRing(head, a, paintedTorus(ringR, tube, 3, 18, (u) => (((u * 18 / Math.PI) | 0) % 2 ? 0xf5f5f5 : 0xe2433a)), painted(), stubs, { side: THREE.DoubleSide });
 }
 
 export const FOUND_NECKS = Object.freeze({
@@ -254,14 +345,39 @@ export const FOUND_NECKS = Object.freeze({
 });
 // ---- Collars --------------------------------------------------------------
 
-// Bottle-top Collar: a dark band with eight crimped caps all round it, in the
-// ring's plane as the studs are. Each cap is a short fluted disc (eight
-// sides), its top out, silver and red in turn; the caps are one mesh.
+// Bottle-top Collar: a dark leather band, a pale stitch line along each edge,
+// with seven crimped bottle caps all round it, in the ring's plane as the
+// studs are. Each cap is a fluted skirt (twelve crimps) and a top whose
+// middle is its label's colour: red with a white middle, silver with red,
+// gold with green, green with white, in turn. The band and caps are one
+// mesh each.
+const CAPS = [[0xd84040, 0xfaf3e0], [0xc8ccd4, 0xd84040], [0xf2c14e, 0x3f9e4d], [0x3f9e4d, 0xfaf3e0]];
+function bottleCap(r, h, [rim, label]) {
+  const P = [], C = [], c = new THREE.Color(), n = 12;
+  const put = (x, y, z, hex) => { P.push(x, y, z); c.set(hex).toArray(C, C.length); };
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
+    const r0 = i % 2 ? r : r * 0.86, r1 = (i + 1) % 2 ? r : r * 0.86, t = r * 0.86;
+    const B0 = [Math.cos(a0) * r0, -h / 2, Math.sin(a0) * r0], B1 = [Math.cos(a1) * r1, -h / 2, Math.sin(a1) * r1];
+    const T0 = [Math.cos(a0) * t, h / 2, Math.sin(a0) * t], T1 = [Math.cos(a1) * t, h / 2, Math.sin(a1) * t];
+    const dark = new THREE.Color(rim).multiplyScalar(0.72).getHex();
+    put(...B0, dark); put(...T0, rim); put(...B1, dark);
+    put(...B1, dark); put(...T0, rim); put(...T1, rim);
+    put(...T0, rim); put(0, h / 2 + 0.15 * h, 0, label); put(...T1, rim);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+  g.computeVertexNormals();
+  return g;
+}
 function dressBottleTops(group, ring, { ringR, tubeR }) {
-  const caps = [], h = tubeR * 0.5, r = tubeR * 1.15;
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const cap = colour(new THREE.CylinderGeometry(r, r * 0.82, h, 8, 1), i % 2 ? 0xd84040 : 0xc8ccd4);
+  ring.geometry = paintedTorus(ringR, tubeR, 6, 12, (u, v) => (Math.abs(Math.cos(v)) < 0.3 ? 0x8a8a92 : 0x3a3a42));
+  ring.material = painted();
+  const caps = [], h = tubeR * 0.6, r = tubeR * 1.25;
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 - Math.PI / 2;
+    const cap = bottleCap(r, h, CAPS[i % 4]);
     cap.rotateZ(a - Math.PI / 2);
     cap.translate(Math.cos(a) * (ringR + tubeR * 0.75 + h / 2), Math.sin(a) * (ringR + tubeR * 0.75 + h / 2), 0);
     caps.push(cap);
@@ -269,33 +385,56 @@ function dressBottleTops(group, ring, { ringR, tubeR }) {
   ring.add(new THREE.Mesh(mergeGeometries(caps), painted()));
 }
 
-// Rope Collar: a darker spiral painted on the ring, as vertex colours on a
-// second torus 1 mm proud (the strands wind once round the tube every four
-// segments); the knot at the throat is one small ball of the ring's colour.
+// Rope Collar: the ring itself twisted into a three-strand rope (its tube
+// swells and narrows with three strands winding round it, each strand lit
+// on its crown and shaded in its groove), and a reef knot at the throat: two
+// small loops locked through each other, two frayed ends hanging from it.
+// The knot is one mesh.
+const ROPE = [0xc89a58, 0x8a6234];
 function dressRope(group, ring, { ringR, tubeR, charmPos }) {
-  const geo = new THREE.TorusGeometry(ringR, tubeR + 0.001, 6, 12);
-  const n = geo.attributes.position.count, cols = new Float32Array(n * 3), w = geo.parameters.tubularSegments + 1;
-  const light = new THREE.Color(0xc8a46a), dark = new THREE.Color(0x9a7a48);
-  for (let v = 0; v < n; v++) (((v % w) + 2 * Math.floor(v / w)) % 4 < 2 ? light : dark).toArray(cols, v * 3);
+  const radial = 6, tubular = 24, geo = new THREE.TorusGeometry(ringR, tubeR, radial, tubular);
+  const p = geo.attributes.position, cols = new Float32Array(p.count * 3), c = new THREE.Color();
+  for (let j = 0; j <= radial; j++) for (let i = 0; i <= tubular; i++) {
+    const u = (i / tubular) * Math.PI * 2, v = (j / radial) * Math.PI * 2, at = j * (tubular + 1) + i;
+    const strand = Math.cos(3 * v - 8 * u);       // three strands winding round the tube, eight turns round the ring
+    const swell = 1 + 0.16 * strand;
+    const cx = Math.cos(u) * ringR, cy = Math.sin(u) * ringR;
+    p.setXYZ(at, cx + (p.getX(at) - cx) * swell, cy + (p.getY(at) - cy) * swell, p.getZ(at) * swell);
+    c.set(ROPE[strand > 0 ? 0 : 1]).toArray(cols, at * 3);
+  }
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-  ring.add(new THREE.Mesh(geo, painted()));
-  const knot = new THREE.Mesh(new THREE.SphereGeometry(tubeR * 1.3, 6, 4), plain(0xc8a46a));
+  geo.computeVertexNormals();
+  ring.geometry = geo;
+  ring.material = painted();
+  const u = tubeR, parts = [];
+  for (const s of [-1, 1]) {
+    parts.push(colour(new THREE.TorusGeometry(u * 0.75, u * 0.42, 3, 8).rotateY(s * 0.6).translate(s * u * 0.45, 0, 0), (x, y) => (y > 0 ? ROPE[0] : ROPE[1])));
+    parts.push(colour(new THREE.CylinderGeometry(u * 0.38, u * 0.5, u * 2.2, 5, 1).translate(0, -u * 1.1, 0).rotateZ(s * 0.3).translate(s * u * 0.5, -u * 0.6, 0),
+      (x, y) => (y < -u * 2.4 ? 0xf0dcae : ROPE[(Math.round(y / u * 3) & 1)])));
+  }
+  const knot = new THREE.Mesh(mergeGeometries(parts), painted());
   knot.position.copy(charmPos);
   group.add(knot);
 }
 
-// Anchor Charm: a small silver anchor at the throat, facing -z, one mesh:
-// shank, stock across the top, a ring above it and two flukes curving up from
-// the foot.
-function dressAnchor(group, ring, { tubeR, charmPos }) {
-  const u = tubeR, SILVER = 0xc8ccd4;
-  const bar = (w, h, x, y, rot = 0) => colour(new THREE.BoxGeometry(w * u, h * u, 0.3 * u).rotateZ(rot).translate(x * u, y * u, 0), SILVER);
+// Anchor Charm: a navy band piped white along both edges, and a gold
+// anchor at the throat, facing -z, one mesh: a ring at the top, a stock
+// across with round ends, the shank, and two curved arms rising to arrow-head
+// flukes.
+const ANCHOR_GOLD = 0xf2c14e, ANCHOR_SHADE = 0xc8952a;
+function dressAnchor(group, ring, { ringR, tubeR, charmPos }) {
+  ring.geometry = paintedTorus(ringR, tubeR, 8, 12, (u, v) => (Math.abs(Math.sin(v)) > 0.9 ? 0xf5f5f0 : 0x24365c));
+  ring.material = painted();
+  const u = tubeR * 1.25, gold = (x, y, z) => (z < -0.1 * u ? ANCHOR_GOLD : ANCHOR_SHADE);
   const parts = [
-    bar(0.3, 2.2, 0, 0), bar(1.4, 0.26, 0, 0.7),
-    bar(1.0, 0.26, -0.5, -0.95, 0.5), bar(1.0, 0.26, 0.5, -0.95, -0.5),
-    colour(new THREE.TorusGeometry(0.3 * u, 0.09 * u, 4, 8).translate(0, 1.4 * u, 0), SILVER),
+    colour(new THREE.TorusGeometry(0.3 * u, 0.1 * u, 4, 8).translate(0, 1.45 * u, 0), gold),
+    colour(new THREE.CylinderGeometry(0.13 * u, 0.13 * u, 2.3 * u, 5, 1).translate(0, 0.05 * u, 0), gold),
+    colour(new THREE.CylinderGeometry(0.1 * u, 0.1 * u, 1.3 * u, 5, 1).rotateZ(Math.PI / 2).translate(0, 0.85 * u, 0), gold),
+    ...[-1, 1].map((s) => colour(new THREE.SphereGeometry(0.14 * u, 5, 3).translate(s * 0.68 * u, 0.85 * u, 0), gold)),
+    colour(new THREE.TorusGeometry(0.85 * u, 0.12 * u, 4, 9, Math.PI * 0.8).rotateZ(Math.PI * 1.1).translate(0, -0.25 * u, 0), gold),
+    ...[-1, 1].map((s) => colour(new THREE.ConeGeometry(0.22 * u, 0.42 * u, 4, 1).rotateZ(s * 0.5).translate(s * 0.8 * u, -0.12 * u, 0), gold)),
   ];
-  const anchor = new THREE.Mesh(mergeGeometries(parts), plain(SILVER));
+  const anchor = new THREE.Mesh(mergeGeometries(parts), painted());
   anchor.position.copy(charmPos);
   group.add(anchor);
 }

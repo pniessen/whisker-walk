@@ -73,8 +73,10 @@ export function wornPieces(id) {
 export const DISPLAY_BY_SLOT = Object.freeze({
   head: (id) => buildHat(id, { simple: true }),
   face: wornPieces,
-  neck: wornPieces,
-  collar: wornPieces,
+  // a necklace or a collar dropped settles: what hung from it (shells,
+  // tickets, a charm) folds up level with the ring instead of holding it up
+  neck: (id) => settled(wornPieces(id)),
+  collar: (id) => settled(wornPieces(id)),
   body: wornPieces,
   back: wornPieces,
   feet: wornPieces,
@@ -121,6 +123,12 @@ export const DISPLAY_BY_ID = Object.freeze({
   // the glasses rest tipped back on their rims, lenses to the sky
   heartglasses: (id) => tipped(wornPieces(id), 1.0),
 });
+
+// A worn group pressed down to `k` of its height, as a soft thing settles.
+function settled(group, k = 0.65) {
+  if (group) group.scale.y = k;
+  return group;
+}
 
 // A worn group tipped back about x (its front, -z, turned up by `a` radians).
 function tipped(group, a) {
