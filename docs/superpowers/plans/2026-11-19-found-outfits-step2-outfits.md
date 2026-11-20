@@ -7,7 +7,7 @@
 **Architecture:**
 - **One seam task first (Task 1), then five slot lanes in parallel.** Task 1 gives every slot group a cat-side file of its own (`src/cat/foundhead.js`, `foundface.js`, `foundneck.js`, `foundbody.js`, `foundfeet.js`) with empty tables, and puts one hook per slot into `src/cat/model.js` (cat and Hagrid). From then on a slot lane touches only its own files. Hats go through `src/cat/hats.js` (as the Acorn Cap did), the hay-bale pack through `src/cat/backitems.js`.
 - **The ground look comes free.** Task 1 makes `wornPieces(id)` in `src/foundwear/display.js`: it dresses a simple tabby, keeps the pieces the hooks tagged `userData.foundWear`, and drops the rest. Every slot uses it, so a lane writes no ground code (one exception: the jumper's folded look).
-- **Only what can be found shows as "not found yet".** An outfit whose place has no find spots yet stays out of sight in the dress-up and the Journal until step 3 gives the place its spots.
+- **Only what can be found shows as "not found yet".** An outfit whose place has no find spots yet stays out of sight in the dress-up and the Journal until the place has spots. After Tasks 14–18 those are only the clan territories without spots.
 
 **Tech Stack:** Plain ES modules, Three.js 0.185, Vite 8, Vitest 4.
 
@@ -15,24 +15,24 @@
 
 ## What this step makes findable
 
-Only the Park and the Woods have find spots. Spots for every other place are step 3.
+Step 1 gave the Park and the Woods their find spots. **Amended 2026-11-19 (owner's decision): this build also gives every other street area its spots** (Tasks 14–18, the spec's step 3 for the street areas), so all 24 street outfits are findable when step 2 merges. The clan territories' spots stay for later (River, Moor, Pines, Gorge have none; the Woods has spots and keeps its pouch).
 
 | | Outfits | Count |
 |---|---|---|
 | **Findable when step 2 merges** | **City Park:** Acorn Cap (built in step 1), Daisy Chain, Kite-tail Ribbon, Puddle Wellies | 4 (3 new) |
-| Built here, findable once step 3 gives the place spots | **Neighborhood:** Paperboy Cap, Garden Glove Scarf, Bottle-top Collar, Doormat Cape. **Seaside:** Bucket Hat, Starfish Clip, Sailor's Shell Necklace, Beach-towel Cape. **Docks:** Sailor Cap, Rope Collar, Anchor Charm, Fisherman's Jumper. **Farm:** Straw Hat, Feather Plume, Gingham Neckerchief, Hay-bale Backpack. **Fairground:** Striped Boater, Heart-shaped Glasses, Ticket-stub Garland, Candyfloss Puff | 20 |
+| **Findable when step 2 merges** (their spots: Tasks 14–18) | **Neighborhood:** Paperboy Cap, Garden Glove Scarf, Bottle-top Collar, Doormat Cape. **Seaside:** Bucket Hat, Starfish Clip, Sailor's Shell Necklace, Beach-towel Cape. **Docks:** Sailor Cap, Rope Collar, Anchor Charm, Fisherman's Jumper. **Farm:** Straw Hat, Feather Plume, Gingham Neckerchief, Hay-bale Backpack. **Fairground:** Striped Boater, Heart-shaped Glasses, Ticket-stub Garland, Candyfloss Puff | 20 |
 | **Held back: they wait for Legacy Edition's retirement** (spec, Build order 0) | **Woods:** Bird's-nest Hat, Moss Mantle, Pinecone Charm, Fern Fan. **River:** Lily-pad Hat, Reed Scarf, Pebble Collar, Kingfisher Feather. **Moor:** Heather Crown, Shepherd's Shawl, Peat-stone Charm, Bog-cotton Tufts. **Pines:** Woolly Bobble Hat, Pine-sprig Scarf, Snow Goggles, Sled Cape. **Gorge:** Climber's Helmet, Rope Harness, Crystal Charm, Eagle Feather | 20, not in this plan |
 
 - **The Woods keeps giving the 5 🐾 pouch on every walk** (the owner's choice), because its four outfits are among those held back.
 - The held-back twenty get their own short plan once Legacy is retired. It reuses this plan's seams unchanged: one record per outfit plus its slot file's entry.
-- **Optional Task 14 (flagged; it needs the owner's yes):** the Neighborhood's find spots, the smallest piece of step 3. Without it, step 2 makes only three new outfits findable. With it, the home place every child starts in hides four more, in both editions.
+- **Tasks 14–18 (owner's yes, 2026-11-19; they replace the old optional Task 14):** the find spots of the Neighborhood, Seaside, Docks, Farm and Fairground, one task and one spots file per area, as step 1 placed and tested the Park's and the Woods'.
 
-## Questions only the owner can answer (none blocks Tasks 1–13)
+## Questions only the owner can answer (none blocks any task)
 
-1. **Names, looks and emoji**, from the sheets, with his daughter. An id is fixed once it ships; a name is one phrase row and can change any time. The draft names that most invite a change: Doormat Cape, Bottle-top Collar, Garden Glove Scarf, Candyfloss Puff.
-2. **Task 14:** add the Neighborhood's spots now, so four more outfits are findable at merge? Or keep step 2 to the Park?
-3. **The twenty territory outfits:** wait for Legacy's retirement as the spec says, or model them now and keep them unregistered until then?
-4. **The Hay-bale Backpack is only a look.** It does not carry 3 as the Tiny Backpack does. Is that right?
+1. **Names, looks and emoji**, from the sheets, with his daughter. An id is fixed once it ships; a name is one phrase row and can change any time. The draft names that most invite a change: Doormat Cape, Bottle-top Collar, Garden Glove Scarf, Candyfloss Puff. Build with the draft names.
+2. ~~Task 14~~ Answered 2026-11-19: every street area gets its spots in this build (Tasks 14–18).
+3. ~~The twenty territory outfits~~ Answered 2026-11-19: they wait for Legacy's retirement. The Woods keeps giving its pouch.
+4. ~~The Hay-bale Backpack~~ Answered 2026-11-19: only a look, carrying nothing extra, is the owner's call.
 
 ## Global Constraints
 
@@ -40,7 +40,7 @@ Only the Park and the Woods have find spots. Spots for every other place are ste
 - **Tests:** `node_modules` is already symlinked. Run single files with `npx vitest run test/<file>`. The full suite (`npx vitest run`) runs once, in Task 13, and only after `uptime` shows a 1-minute load under `sysctl -n hw.ncpu`.
 - **Commits:** `git add <exact paths>`, never `-A` or `.`. Every message ends with exactly `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - **No database, no `.env` files.** Offline-first. `SAVE_VERSION` stays 4. `foundWear` already takes any record with `find`, so the save needs no change.
-- **No room or network change.** `FIND_KEY` stays as it is: records are not in it, only spots. Optional Task 14 changes it on purpose.
+- **No room or network change.** Records are not in `FIND_KEY`, only spots, so Tasks 1–13 leave it as it is. Tasks 14–18 change it on purpose: a build before them and one after never share finds on a co-walk. No test pins its number (every test reads `FIND_KEY`).
 - **Ids:** 3 to **16** lowercase letters. `WEAR_ID` allows 20, but the colony's server check (`docs/supabase-colony.sql`, `colony_dress`: `p_item !~ '^[a-z]{1,16}$'`) refuses anything longer when a child dresses a colony cat. Ids are the table's below, exactly. They never change once shipped.
 - **Names** are `phrase('wear.<id>.name')` rows in the later table of `src/clanphrases.js`. Task 1 adds all 22 new rows at once, so no lane touches the phrase table. They read the same in both word sets. None may use a series word (`test/helpers/offwords.js` `bannedIn` is the judge).
 - **No perks.** A found outfit only looks. The perks keyed on exact shop ids (`'backpack'` carries 3 in `walk.js`, `'booties'` in `avatar.js`, `'bandana'` in `main.js`, the Glow Collar) stay on those ids alone. The Hay-bale Backpack carries 2, like no pack.
@@ -55,7 +55,7 @@ Only the Park and the Woods have find spots. Spots for every other place are ste
 - **Fixtures. Only these change, each in the task named:**
   - `test/fixtures/series-words-on-later.json`: the 22 name rows, once (Task 1). Re-record with `UPDATE_OFF_SNAPSHOT=1 npx vitest run test/offwords.test.js`.
   - `test/fixtures/accessory-mesh-delta.json`: one key per new outfit, in `CATALOG.accessories` order, which is `FOUND_WEAR`'s order (Tasks 2–9).
-  - `test/fixtures/series-words-off-home.json`: the Journal's Park rows, one emoji, one aria-label and one "Found in City Park" per Park outfit (Tasks 5, 8, 9), and the rows Task 10 removes (none today: the Woods has spots and no records). Re-record with `UPDATE_OFF_SNAPSHOT=1 npx vitest run test/serieswords.home.test.js`.
+  - `test/fixtures/series-words-off-home.json`: the Journal's Park rows, one emoji, one aria-label and one "Found in City Park" per Park outfit (Tasks 5, 8, 9), the rows Task 10 removes (none today: the Woods has spots and no records), and each street area's four "Found in …" groups when its spots land (Tasks 14–18). Re-record with `UPDATE_OFF_SNAPSHOT=1 npx vitest run test/serieswords.home.test.js`.
   - After every re-record, read `git diff` on the fixture. Rows are only added, none changed or removed (except where named). If anything else moved, stop and report.
   - `test/fixtures/catgolden.json` and `test/fixtures/catpose-baseline.json` must **not** change. Task 1 is a refactor, and the golden test proves it.
 - **Merging parallel lanes:** `accessory-mesh-delta.json` is the one file every lane adds to.
@@ -79,7 +79,7 @@ Only the Park and the Woods have find spots. Spots for every other place are ste
 4. **Hagrid picks up a body, back or feet outfit,** or a partner's arrival gives him one.
    - Expected: he gets the card's "can't wear this one" line, and his build is unchanged. A head, face, neck or collar outfit sits on him.
    - Tests: Task 1's Hagrid row in `test/foundwearfit.test.js`, and each lane's `DELTA` entries (0 for the slots he skips).
-5. **The dress-up and the Journal before step 3.**
+5. **The dress-up and the Journal for a place with no spots (after this build, the clan territories but the Woods).**
    - Expected: no "Found in the Seaside" for a place with no find spots, so no child hunts for something that is not there. What she owns always shows.
    - Test: Task 10.
 
@@ -510,7 +510,9 @@ it('wornPieces: a hat comes out as one group of its one mesh; an unknown id give
 
 ---
 
-### Task 10: Only what can be found shows as "not found yet" (lane U, any time)
+### Task 10: Only what can be found shows as "not found yet" (lane U, any time; amended 2026-11-19)
+
+**Run order: right after Task 1, before the lanes** (see "Lanes"). Without the guard, Tasks 2–9 would put "Found in the Seaside" (and the other street places) into the home fixture before those places have spots.
 
 **Files:**
 - Modify: `src/ui/dressingroom.js` (`renderSlotPickerHtml`, line 244), `src/foundwear/journal.js` (`renderThingsToWearHtml`)
@@ -518,11 +520,11 @@ it('wornPieces: a hat comes out as one group of its one mesh; an unknown id give
 
 **Interfaces:**
 - Consumes: `spotsIn` (`src/foundwear/spots/index.js`).
-- Produces: an unowned outfit whose `find` place has `spotsIn(place).length === 0` renders `''` in both. One she owns always shows. The Legacy rule stays as it is.
+- Produces: an unowned outfit whose `find` place has `spotsIn(place).length === 0` renders `''` in both. One she owns always shows. The Legacy rule stays as it is. Once Tasks 14–18 give every street area its spots, the places this hides are only the clan territories without spots (River, Moor, Pines, Gorge); the guard reads spots, never a list of places, so it needs no edit when a territory gets its spots later.
 
-- [ ] **Step 1: Write the failing tests**, with a stand-in catalog of two find-only hats, one `find: 'park'` and one `find: 'seaside'`:
-  - `'a find-only outfit from a place with no find spots stays out of sight until found'`: the picker and the Journal show "Found in City Park", and neither shows "Seaside";
-  - `'once owned it shows, spots or not'`: owning the Seaside one shows it as a wearable tile and a Journal card.
+- [ ] **Step 1: Write the failing tests**, with a stand-in catalog of two find-only hats, one `find: 'park'` and one `find: 'river'` (a territory that has no spots, and stays without them in this build), rendered in Clan Edition (`'canon'`, where the River is in the edition, so it is the new guard and not the Legacy rule that hides it):
+  - `'a find-only outfit from a place with no find spots stays out of sight until found'`: the picker and the Journal show "Found in City Park", and neither shows the River's place name;
+  - `'once owned it shows, spots or not'`: owning the River one shows it as a wearable tile and a Journal card.
 - [ ] **Step 2: Run them to verify they fail.** Run: `npx vitest run test/dressingroom.test.js test/foundjournal.test.js`. Expected: FAIL (the Seaside silhouette shows).
 - [ ] **Step 3: Implement** the one guard in each, beside the existing `areaInEdition` guard.
 - [ ] **Step 4: Run** `npx vitest run test/dressingroom.test.js test/foundjournal.test.js test/serieswords.home.test.js`. Expected: PASS, the home fixture unchanged.
@@ -573,10 +575,10 @@ it('wornPieces: a hat comes out as one group of its one mesh; an unknown id give
   - `cat-hagrid`: his 16 tiles (head, face, neck and collar outfits);
   - `sit-tabby`, `sit-digit`, `sit-mainecoon`: `defaultPoseCat`, the dress-up's own sit;
   - `ground`: every outfit's `buildFindDisplay` on a grass plane, 1.2 m off at cat height, with no twinkle;
-  - `park-finds`: the Park built, the Park's four outfits each at one real Park spot, `verify-finds.html`'s `spot()` framing.
+  - `<area>-finds` for each street area (`neighborhood-finds`, `park-finds`, `seaside-finds`, `docks-finds`, `farm-finds`, `fair-finds`; amended 2026-11-19): that area built, its four outfits each at one of its real spots (`spotsIn(area)`, a spread of looks: one raised if it has any), `verify-finds.html`'s `spot()` framing, four views in one sheet.
 
 - [ ] **Step 1: Write `verify-wear.html`.** Check it in the browser at `npx vite --port 5179`, `/verify-wear.html`, with no console error.
-- [ ] **Step 2: Take the sheets.** Run: `node scripts/record-page.mjs --url http://localhost:5179/verify-wear.html --out <scratchpad>/found-outfits-step2 --size 1920x1280 --shots cat-tabby,cat-siamese,cat-persian,cat-black,cat-calico,cat-mainecoon,cat-zeetoo,cat-robbie,cat-d2,cat-digit,cat-builder-short,cat-builder-fluffy,cat-builder-long,cat-hagrid,sit-tabby,sit-digit,sit-mainecoon,ground,park-finds`. Expected: 19 PNGs.
+- [ ] **Step 2: Take the sheets.** Run: `node scripts/record-page.mjs --url http://localhost:5179/verify-wear.html --out <scratchpad>/found-outfits-step2 --size 1920x1280 --shots cat-tabby,cat-siamese,cat-persian,cat-black,cat-calico,cat-mainecoon,cat-zeetoo,cat-robbie,cat-d2,cat-digit,cat-builder-short,cat-builder-fluffy,cat-builder-long,cat-hagrid,sit-tabby,sit-digit,sit-mainecoon,ground,neighborhood-finds,park-finds,seaside-finds,docks-finds,farm-finds,fair-finds`. Expected: 24 PNGs.
 - [ ] **Step 3: Look at every sheet yourself.** Read each PNG. Fix anything that floats, sinks into the fur, hides an eye, clips an ear or reads as the yarn ball or a treasure, in its lane's file. Re-run that lane's Step 4 command, and retake.
 - [ ] **Step 4: Commit** `verify-wear.html .gitignore` with message "Found outfits step 2: the picture sheets (every outfit on every cat, Hagrid's, the sit, and each on the ground)".
 
@@ -602,40 +604,80 @@ it('step 2: every street place has its four, and the places held back have none 
   for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(ids(a)).toEqual([]);   // Legacy's retirement first
   expect(FOUND_WEAR).toHaveLength(24);
 });
+it('step 2: every street place has its find spots, and only the Woods of the territories', () => {
+  for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair']) {
+    expect(spotsIn(a).length, a).toBeGreaterThanOrEqual(10);
+    expect(spotsIn(a).length, a).toBeLessThanOrEqual(15);
+  }
+  for (const a of ['river', 'moor', 'pines', 'gorge']) expect(spotsIn(a), a).toEqual([]);
+  expect(spotsIn('woods').length).toBeGreaterThan(0);   // spots, no records: the pouch
+});
 ```
 
 - [ ] **Step 2: Run it.** Run: `npx vitest run test/foundwear.test.js`. Expected: PASS when every lane is in. If lanes ran apart, merge them first, by the "Merging parallel lanes" rule.
 - [ ] **Step 3: Measure what one more worn outfit adds.** Write a throwaway `test/zz-wearcost.test.js`, never committed and deleted after. It logs one row per outfit: the meshes and triangles it adds to a full tabby and to a simple one (a partner's cat is simple), its ground look's triangles, and the dearest of each column. Run it with `npx vitest run test/zz-wearcost.test.js`, keep the table for the report, then `rm test/zz-wearcost.test.js`.
-- [ ] **Step 4: Run the full suite once.** First `uptime` and `sysctl -n hw.ncpu`; if the 1-minute load is over the core count, wait or report. Run: `npx vitest run`. Expected: PASS, every file. If a test outside this plan fails, read it before touching anything. A changed fixture other than the three named means stop and report.
+- [ ] **Step 4: Run the full suite once.** Never between 18:30 and 19:30. First `ps -ax -o command | grep -c "[v]itest"`: if another suite runs (another worktree shares the machine), wait for it to finish. Then `uptime` and `sysctl -n hw.ncpu`; if the 1-minute load is over the core count, wait or report. Run in the background: `WW_PGLITE=/Users/pniessen/.npm/_npx/90d26507e643fcc0/node_modules/@electric-sql/pglite/dist/index.js npx vitest run`, then `npm run build` (900 KB gzip ceiling). Expected: PASS, every file. If a test outside this plan fails, read it before touching anything. A changed fixture other than the three named means stop and report. The lanes all ran in this one worktree, in order, so there is nothing to merge (Step 2's merge rule is for lanes run apart).
 - [ ] **Step 5: Commit** `test/foundwear.test.js` with message "Found outfits step 2: the catalog pinned: four for every street place, none yet where Legacy's retirement comes first".
 - [ ] **Step 6: Report** to the owner:
   - the sheets' path;
   - the cost table;
-  - that the Park's four are findable now and twenty more wait for step 3's spots;
+  - that all 24 street outfits are findable now (six places, four each), and the territories' twenty wait for Legacy's retirement;
   - the names for his daughter to change.
   Merge and push wait for his yes.
 
 ---
 
-### Task 14 (OPTIONAL, flagged: run only on the owner's yes): the Neighborhood's find spots
+### Tasks 14–18: the street areas' find spots (amended 2026-11-19; replaces the old optional Task 14)
 
-This is the smallest piece of step 3: its seam, applied to one place. With it, the home place every child starts in hides four more outfits, in both editions.
+**Every spot task (14–18) follows the same recipe** (amended 2026-11-19, the owner's decision; the spec's step 3, "The spots for every area, in parallel by area file, with the reachability tests", for the street areas). Read how step 1 placed and tested the Park's and the Woods' spots first: `src/foundwear/spots/index.js` (its header is the rule list), `src/foundwear/spots/park.js`, `src/foundwear/spots/woods.js`, `test/foundspots.test.js` and `test/helpers/findreach.js`.
 
-**Files:**
-- Create: `src/foundwear/spots/neighborhood.js`
-- Modify: `src/foundwear/spots/index.js` (one import, one key)
-- Test: `test/foundspots.test.js` (it already lists the Neighborhood's builder and runs every spot test over any area with spots)
+**Files (per area `<area>`, its constant `<AREA>_SPOTS`):**
+- Create: `src/foundwear/spots/<area>.js`
+- Modify: `src/foundwear/spots/index.js` (one import, one key in `FIND_SPOTS`; the import and the key in the order Neighborhood, Park, Seaside, Docks, Woods, Farm, Fair — any stable order is fine, `findSpotsKey` sorts)
+- Modify: `test/fixtures/series-words-off-home.json` (that area's four "Found in …" groups, re-recorded)
+- Test: `test/foundspots.test.js` (it already lists every area's builder and runs every spot test over any area that has spots: no edit needed, unless the area wants a check of its own as the Woods has, e.g. "not inside a ride's footprint")
 
 **Interfaces:**
-- Produces: `NEIGHBORHOOD_SPOTS = Object.freeze([{ id: 'fw-neighborhood-<n>', x, z, y, look }])`. 10 to 15 spots, read off `src/world/neighborhood.js` (spawn `(0, 45)`): behind a shed, on a low wall, under a hedge, by the bins, on a porch step perch. Each has a one-line comment saying where, as `park.js` has.
-- `FIND_KEY` changes. That is intended: a build before this task and one after never share finds on a co-walk.
+- Produces: `<AREA>_SPOTS = Object.freeze([{ id: 'fw-<area>-<n>', x, z, y, look }].map((s) => Object.freeze(s)))`. 10 to 15 spots, read off `src/world/<area>.js` (its `SPAWN`, its own records), each with a one-line comment saying where, as `park.js` has. `look` is one of `FIND_LOOKS`.
+- Spots are in nooks worth reaching (spec, "The spots"): behind a shed, on a low wall, under a bench, by a fence, on a short perch chain. At least a third on the ground; a few raised, at most 3 hops up, no skill. None within 15 m of the spawn, none in deep water, none inside a collider, 2 m clear of a golden mouse or a collectible, 3 m from both yarn-ball spots, off the points of interest's centres and the race rings, inside the core (so the same with `?grow=1` on or off).
+- The area's world file (`src/world/<area>.js`) is NOT edited: a spot goes where the layout already leaves room, so the area's pinned budgets do not move.
+- `FIND_KEY` changes. That is intended.
 
-- [ ] **Step 1: Write the spots.**
-- [ ] **Step 2: Run** `npx vitest run test/foundspots.test.js test/foundrules.test.js test/foundwiring.test.js test/budget.test.js`. Move a spot rather than loosen a test. Expected: PASS, with the Neighborhood's budget counts unchanged.
-- [ ] **Step 3: Re-record the home fixture** (`UPDATE_OFF_SNAPSHOT=1 npx vitest run test/serieswords.home.test.js`). Expected `git diff`: the Neighborhood's four "Found in …" groups added to the Journal, nothing else. Then re-run `test/dressingroom.test.js test/foundjournal.test.js`.
-- [ ] **Step 4: Add** a `park-finds`-style `neighborhood-finds` shot to `verify-wear.html`, and take it as Task 12 Step 2 does.
-- [ ] **Step 5: Run the full suite once** (Task 13 Step 4's rules).
-- [ ] **Step 6: Commit** `src/foundwear/spots/neighborhood.js src/foundwear/spots/index.js test/fixtures/series-words-off-home.json verify-wear.html` with message "Found outfits step 2 (a piece of step 3): the Neighborhood's find spots, so its four outfits can be found".
+**Steps:**
+- [ ] **Step 1: Write the spots** and the index entry. `npx vitest run test/foundspots.test.js` now runs the area's describe block: it fails until every spot passes. Move a spot rather than loosen a test.
+- [ ] **Step 2: Run** `npx vitest run test/foundspots.test.js test/foundrules.test.js test/foundwiring.test.js test/foundlive.test.js test/budget.test.js test/rooms.test.js`. Expected: PASS, with the area's budget counts unchanged.
+- [ ] **Step 3: Re-record the home fixture** (`UPDATE_OFF_SNAPSHOT=1 npx vitest run test/serieswords.home.test.js`). Expected `git diff`: only this area's four outfits added to the Journal (emoji, aria-label and "Found in …" rows, in both places the Journal appears), nothing else. Then run `npx vitest run test/dressingroom.test.js test/foundjournal.test.js test/serieswords.home.test.js`.
+- [ ] **Step 4: Commit** `src/foundwear/spots/<area>.js src/foundwear/spots/index.js test/fixtures/series-words-off-home.json` (and `test/foundspots.test.js` only if it gained the area's own check) with the task's message.
+
+### Task 14: The Neighborhood's find spots
+
+Follow "Every spot task" above with `<area>` = `neighborhood` and `<AREA>_SPOTS` = `NEIGHBORHOOD_SPOTS`.
+- **Where:** src/world/neighborhood.js, spawn (0, 45). The home street every child starts in: front gardens, low walls, porch steps, the bins, hedges, a shed. The guided first walk is here and has no find (step 1 already turns finds off for it).
+- **Commit message:** "Found outfits step 2 (step 3 for the street areas): the Neighborhood's find spots, so its four outfits can be found".
+
+### Task 15: The Seaside's find spots
+
+Follow "Every spot task" above with `<area>` = `seaside` and `<AREA>_SPOTS` = `SEASIDE_SPOTS`.
+- **Where:** src/world/seaside.js, spawn (18, 42). The beach, the dunes' edge, the huts, the chairs, rock pools (a `water` look in wading depth only: never the open sea).
+- **Commit message:** "Found outfits step 2 (step 3 for the street areas): the Seaside's find spots, so its four outfits can be found".
+
+### Task 16: The Docks' find spots
+
+Follow "Every spot task" above with `<area>` = `docks` and `<AREA>_SPOTS` = `DOCKS_SPOTS`.
+- **Where:** src/world/docks.js, spawn (0, -34). Crates, bollards, the quay's edge, nets, sheds. The harbour water is deep: no spot in it, and none on a quay edge she could only reach by swimming.
+- **Commit message:** "Found outfits step 2 (step 3 for the street areas): the Docks' find spots, so its four outfits can be found".
+
+### Task 17: The Farm's find spots
+
+Follow "Every spot task" above with `<area>` = `farm` and `<AREA>_SPOTS` = `FARM_SPOTS`.
+- **Where:** src/world/farm.js, spawn (0, 47.8), Appletree Farm. Hay bales, the fence rails, the orchard, the barn's door, the duck pond's edge. Keep off the animals' pens' insides and their walking paths so a find never sits under a cow.
+- **Commit message:** "Found outfits step 2 (step 3 for the street areas): the Farm's find spots, so its four outfits can be found".
+
+### Task 18: The Fairground's find spots
+
+Follow "Every spot task" above with `<area>` = `fair` and `<AREA>_SPOTS` = `FAIR_SPOTS`.
+- **Where:** src/world/fair.js, spawn (0, 47.8). The stalls' counters, the hay-bale seats, under the bunting, by the ticket booth. Never inside a ride's footprint or a game's play area (the Fairground's prize games), so a find never sits in a ride's path.
+- **Commit message:** "Found outfits step 2 (step 3 for the street areas): the Fairground's find spots, so its four outfits can be found".
 
 ---
 
@@ -649,8 +691,9 @@ This is the smallest piece of step 3: its seam, applied to one place. With it, t
   - B: Task 7, then Task 8;
   - P: Task 9.
 - **Lane U** (Tasks 10 and 11) needs nothing from Task 1 and can run any time.
-- **Then** Task 12, Task 13 and, on the owner's yes, Task 14.
-- In one session, run them in task order.
+- **Tasks 14–18** (one per street area's spots file) need every record in (Tasks 2–9) and Task 10's guard, and can run side by side.
+- **Then** Task 12 and Task 13.
+- **In one session (amended 2026-11-19), run them in this order:** 1, 10, 11, 2, 3, 4, 5, 6, 7, 8, 9, 14, 15, 16, 17, 18, 12, 13. Task 10 goes before the lanes so the home fixture only ever gains the rows of places that have spots.
 
 ## Self-review (done while writing)
 
