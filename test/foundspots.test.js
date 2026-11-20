@@ -150,7 +150,15 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
   });
   it('never on a scripted job point: 3 m from every one the area exposes', () => {
     const pts = JOB_POINTS[areaId]?.(area) ?? [];
+    if (Object.hasOwn(JOB_POINTS, areaId)) expect(pts.length, areaId).toBeGreaterThan(0);
     for (const s of spots()) for (const p of pts) expect(Math.hypot(s.x - p.x, s.z - p.z), `${s.id} by (${p.x}, ${p.z})`).toBeGreaterThanOrEqual(JOB_CLEAR);
+  });
+  // The rival patrol notices within 4.5 m of its disc and chases; a clan cat
+  // gets a fight. So no find within the disc's radius and 1.5 m more.
+  it("never in a rival patrol's disc: its radius and 1.5 m more", () => {
+    const d = DISCS[areaId];
+    if (!d) return;
+    for (const s of spots()) expect(Math.hypot(s.x - d.cx, s.z - d.cz), s.id).toBeGreaterThanOrEqual(d.r + 1.5);
   });
   it('never beside the yarn ball: 3 m from both its spots', () => {
     const yarn = yarnSpotsFor(areaId);
@@ -160,7 +168,7 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
     }
   });
 });
-it('the Woods spots sit in the open: no trunk within 2 m, no fern or bramble within 1.2 m, none in the camp', async () => {
+it('the Woods spots sit in the open: no trunk within 2 m, no fern or bramble within 1.2 m, none in the camp (the generic disc rule is above)', async () => {
   const { woodsTreeSpots, woodsUndergrowth } = await import('../src/world/woods.js');
   const trees = woodsTreeSpots(); const { ferns, brambles } = woodsUndergrowth(); const camp = DISCS.woods;
   for (const s of spotsIn('woods')) {

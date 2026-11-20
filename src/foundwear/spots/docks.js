@@ -4,7 +4,8 @@
 // crate step and a quay bollard for the two raised ones. All are on the
 // quays or the yards, a good way clear of the canal (none is in the water or
 // on an edge she could only reach by swimming). None is within 15 m of the
-// spawn, 3 m of either yarn-ball spot (src/propsets.js), 2 m of a golden
+// spawn, 3 m of either yarn-ball spot (src/propsets.js), 1.5 m outside the
+// rival patrol's disc (src/rivalclans.js DISCS), 2 m of a golden
 // mouse (src/goldmice.js) or a collectible, or inside a collider; none is at
 // a point of interest's centre or a labelled perch. test/foundspots.test.js
 // proves each one against the built district.
@@ -31,8 +32,8 @@ export const DOCKS_SPOTS = Object.freeze([
   { id: 'fw-docks-10', x: 27.8, z: 9.6, y: 0, look: 'post' },
   // between the net piles at (22.4, -21) and (24.9, -25.5), in the net yard
   { id: 'fw-docks-11', x: 21, z: -23.5, y: 0, look: 'post' },
-  // against the container wall at (-30, -10.6), on the far west quay
-  { id: 'fw-docks-12', x: -32.5, z: -9, y: 0, look: 'post' },
+  // on the far west quay's south end, 8 m clear of the rival patrol's disc
+  { id: 'fw-docks-12', x: -36, z: -15.5, y: 0, look: 'post' },
   // between the crate stacks at (19, 22.4) and (19, 25.6), north of the warehouse
   { id: 'fw-docks-13', x: 21.5, z: 24, y: 0, look: 'post' },
   // behind the container pair at (-15.6, 30) and (-12.4, 30), up the north alley
