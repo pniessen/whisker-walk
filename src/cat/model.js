@@ -615,16 +615,6 @@ function addPrizeHead(head, id, { k, y, rx, rz, ringY = y }) {
     const flame = ball(0.014 * c, PRIZE_FLAME, 0.8, 1.5, 0.8, 5, 4);
     flame.position.set(0, y + 0.16 * c, 0);
     head.add(flame);
-  } else if (id === 'acorncap') {
-    // the found Acorn Cap, in the beanie's manner for a hen: a low brown cup
-    // down over the comb's base, and a dark stalk tipped to one side
-    const cup = ball(0.105 * k, 0x8a5a2b, 1, 0.6, 1, 8, 6);
-    cup.position.set(0, y - 0.01, 0);
-    head.add(cup);
-    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.011 * k, 0.014 * k, 0.05 * k, 6), mat(0x5a3a1c));
-    stalk.position.set(0.012, y + 0.075 * k, 0);
-    stalk.rotation.z = -0.35;
-    head.add(stalk);
   }
 }
 

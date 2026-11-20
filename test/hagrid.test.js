@@ -25,12 +25,9 @@ const DELTA = {
   streamerscarf: 6, goldbooties: 0,
   // the Fairground's prizes: the paper crown's band and six points, the rosette's four pieces; no balloon (as the others)
   papercrown: 7, prizerosette: 4, tailballoon: 0,
-  // the found outfits: the Acorn Cap's cup and stalk
-  acorncap: 2,
-  // lane H: the brimmed hats' pieces (crown/dome, brim or peak, band, button or badge)
-  paperboycap: 3, buckethat: 3, sailorcap: 4, strawhat: 3, stripedboater: 4,
-  // lane H, Task 3: the star and its dot; the quill and the vane
-  starfishclip: 2, featherplume: 2,
+  // the found hats (found outfits beauty pass): each is the cat's own hat, one
+  // vertex-coloured mesh, carried onto his skull (foundhead.js henHat)
+  acorncap: 1, paperboycap: 1, buckethat: 1, sailorcap: 1, strawhat: 1, stripedboater: 1, starfishclip: 1, featherplume: 1,
   // lane F: the heart glasses' frames and lenses
   heartglasses: 2,
   // lane N: the found neck pieces' ring, and what rides it or hangs in front
@@ -407,26 +404,29 @@ describe('Hagrid rebuilt (Task 8)', () => {
       }
     });
 
-    it('the Acorn Cap sits on his head round the comb', () => {
-      const top = Math.max(...comb().pts.map((v) => v.y));
-      const c = hen({ ...BARE, head: 'acorncap' });
-      const { head } = c.userData.parts;
-      const cap = head.children.filter((o) => o.isMesh && [0x8a5a2b, 0x5a3a1c].includes(hex(o)));
-      expect(cap).toHaveLength(2);
-      const b = boxOf(cap.flatMap((m) => pointsIn(m, head)));
-      expect(b.min.y).toBeLessThanOrEqual(top);
-      expect(b.max.y).toBeLessThanOrEqual(top + 0.13);
-    });
-
-    it.each(['paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater'])('the %s sits on his head above his skull and clear of the comb\'s reach', (id) => {
-      const top = Math.max(...comb().pts.map((v) => v.y));
+    // Found outfits beauty pass: a found hat is the cat's own, carried onto
+    // his skull, so it sits ON his head (it used to perch on the comb, in the
+    // air), and the comb is inside it: straight up from every comb point
+    // above his skull there is hat.
+    const HEN_R = [0.13, 0.1365, 0.13];
+    const henRho = (v) => Math.hypot(v.x / HEN_R[0], v.y / HEN_R[1], v.z / HEN_R[2]);
+    it.each(['acorncap', 'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater'])('the %s sits on his head with the comb inside it', (id) => {
+      const { pts: combPts } = comb();
       const c = hen({ ...BARE, head: id });
       const { head } = c.userData.parts;
       const pieces = head.children.filter((o) => o.isMesh && o.userData.foundWear === id);
       expect(pieces.length).toBe(DELTA[id]);
-      const b = boxOf(pieces.flatMap((m) => pointsIn(m, head)));
-      expect(b.min.y).toBeGreaterThan(0.137);
-      expect(b.max.y).toBeLessThanOrEqual(top + 0.15);
+      const V = pieces.flatMap((m) => pointsIn(m, head)).sort((a, b) => a.y - b.y);
+      for (const v of V) expect(henRho(v), id).toBeGreaterThanOrEqual(0.95);
+      // its rim lies on his head: a ring of points within 6 mm of his skull
+      expect(V.filter((v) => Math.abs(henRho(v) - 1) * 0.13 <= 0.006).length, id).toBeGreaterThanOrEqual(8);
+      const hat = new THREE.Mesh(pieces[0].geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+      const ray = new THREE.Raycaster();
+      for (const q of combPts.filter((p) => p.y > HEN_R[1])) {
+        ray.set(q.clone().add(new THREE.Vector3(1e-4, 0, 1e-4)), new THREE.Vector3(0, 1, 0)); // a hair off the middle, where a flat top's fan closes on a point
+        expect(ray.intersectObject(hat).length, `${id} over ${q.toArray()}`).toBeGreaterThan(0);
+      }
+      expect(V[V.length - 1].y).toBeLessThanOrEqual(Math.max(...combPts.map((v) => v.y)) + 0.15);
     });
 
     it.each([['starfishclip', 1], ['featherplume', -1]])('the %s lies on his skull, on the side of its ear (x sign %i)', (id, sign) => {

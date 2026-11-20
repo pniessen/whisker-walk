@@ -13,7 +13,7 @@
 // from one, and it would cost a draw). Nothing is random or reads the clock.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { buildHat } from '../cat/hats.js';
+import { buildHat, lyingClip } from '../cat/hats.js';
 import { buildCat } from '../cat/model.js';
 import { buildFoldedJumper } from '../cat/foundbody.js';
 import { STRAP_GREY } from '../cat/backitems.js';
@@ -115,6 +115,9 @@ export function buildLyingHayBale(id = 'haybalepack') {
 export const DISPLAY_BY_ID = Object.freeze({
   fishermansjumper: buildFoldedJumper,
   haybalepack: buildLyingHayBale,
+  // the two clips lie face up, as dropped (a hat stands on its brim)
+  starfishclip: lyingClip,
+  featherplume: lyingClip,
 });
 
 function noShadow(obj) {
