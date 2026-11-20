@@ -331,7 +331,7 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
 export function renderNewsHtml(news, partnerName) {
   const lines = news && Array.isArray(news.lines) ? news.lines.filter((l) => typeof l === 'string' && l) : [];
   if (lines.length === 0) return '';
-  const sub = partnerName ? `What's new with you and ${escapeHtml(partnerName)}` : "What's new in your colony";
+  const sub = partnerName ? `What's new with you and ${escapeHtml(partnerName)}` : phrase('mycats.newsSub');
   return `<div class="colony-news-card" role="dialog" aria-modal="true" aria-labelledby="colony-news-title">
     <h2 id="colony-news-title">While you were out ${PAW}</h2>
     <p class="colony-news-sub">${sub}</p>

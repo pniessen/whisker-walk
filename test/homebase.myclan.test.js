@@ -28,7 +28,7 @@ const { SHEET_NAME, SHEET_LABEL } = await import('../src/ui/dressingroom.js');
 const { phrase } = await import('../src/clanphrases.js');
 const { words } = await import('../src/wordset.js');
 const { withOffWords } = await import('./helpers/offwords.js');
-const { renderColonyHtml, renderPairingHtml, pairingErrorLine } = await import('../src/ui/colonypanel.js');
+const { renderColonyHtml, renderPairingHtml, pairingErrorLine, renderNewsHtml } = await import('../src/ui/colonypanel.js');
 
 function memStorage() {
   const map = new Map();
@@ -86,10 +86,10 @@ const cloudStub = () => ({
   available: true, myId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
   fetchFriendships: vi.fn(() => Promise.resolve([])), fetchProfiles: vi.fn(() => Promise.resolve([])),
 });
-function setup({ cloud = null, state, colonySync = null } = {}) {
+function setup({ cloud = null, state, colonySync = null, toast = () => {} } = {}) {
   const progression = createProgression(memStorage());
   if (state) state(progression.state);
-  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: OPEN_ROOMS, sync: null, cloud, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast: () => {} });
+  const hb = createHomeBase({ progression, album: { photos: [] }, onStartWalk: () => {}, rooms: OPEN_ROOMS, sync: null, cloud, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync, myId: 'me', toast });
   hb.show();
   return { progression, hb };
 }
@@ -259,5 +259,27 @@ describe('plain words on My cats (everyday set)', () => {
     expect(pairingErrorLine('already-paired')).toBe('This player is already sharing a colony.');
     const full = renderColonyHtml({ colony: { cats: Array.from({ length: 12 }, (_, i) => cat(`C${i}`, 'me')), feeds: [] }, members: 1, now: 0 });
     expect(full).toContain('<p class="colony-full">The colony is full — 12 cats call it home 🏠 Share it with your brother or sister to make room for 24.</p>');
+  });
+});
+
+describe('the pairing toast and the news line (follow-up)', () => {
+  const pairedToast = () => {
+    const toast = vi.fn();
+    let status = { mode: 'unpaired', invite: { code: 'ABCDEF' } };
+    setup({ colonySync: { status: () => status, pull() {}, onChange() {} }, toast, state: (st) => { st.colony.partner = { playerId: 'p2', petName: 'Mia' }; } });
+    openSheet('colony');
+    status = { mode: 'paired' };
+    dressingMock.opts.onChange();
+    return toast;
+  };
+  it('everyday words: your cats', () => {
+    withOffWords(() => {
+      expect(pairedToast()).toHaveBeenCalledWith("You're sharing your cats with Mia! 🐾");
+      expect(renderNewsHtml({ lines: ['x'], any: true })).toContain("What's new with your cats");
+    });
+  });
+  it('family words: exactly as before', () => {
+    expect(pairedToast()).toHaveBeenCalledWith("You're sharing a colony with Mia! 🐾");
+    expect(renderNewsHtml({ lines: ['x'], any: true })).toContain("<p class=\"colony-news-sub\">What's new in your colony</p>");
   });
 });

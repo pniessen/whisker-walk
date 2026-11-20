@@ -175,6 +175,8 @@ export const PHRASES = Object.freeze({
   'mycats.needsName': 'To share your cats, you need a friend name first.',
   'mycats.wantsToShare': 'wants to share your cats. Is that them?',
   'mycats.offer': '🐈 Share your cats with your brother or sister',
+  'mycats.nowSharing': (name) => `You're sharing your cats with ${name}! 🐾`,
+  'mycats.newsSub': "What's new with your cats",
   'mycats.full': (cap) => `Your cats’ home is full — ${cap} cats live here 🏠`,
   'mycats.fullRoom': (max) => ` Share your cats with your brother or sister to make room for ${max}.`,
   // no second name for the Neighborhood in the everyday game: no line at all

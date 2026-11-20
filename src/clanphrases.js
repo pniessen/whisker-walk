@@ -423,6 +423,9 @@ const LATER = Object.freeze({
   // follows the friend's name, which the sheet puts in bold before it
   'mycats.wantsToShare': 'wants to share your colony. Is that them?',
   'mycats.offer': '🐈 Share your colony with your brother or sister',
+  // the toast when a pairing completes, and the news card's line when there is no partner name
+  'mycats.nowSharing': (name) => `You're sharing a colony with ${name}! 🐾`,
+  'mycats.newsSub': "What's new in your colony",
   'mycats.full': (cap) => `The colony is full — ${cap} cats call it home 🏠`,
   'mycats.fullRoom': (max) => ` Share it with your brother or sister to make room for ${max}.`,
 });

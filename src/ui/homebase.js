@@ -793,7 +793,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       pairingWasPending = false;
       const partner = progression.state.colony && progression.state.colony.partner;
       const name = partner && partner.petName ? String(partner.petName) : 'your partner';
-      try { toast?.(`You're sharing a colony with ${name}! 🐾`); } catch { /* a toast is never worth a crash */ }
+      try { toast?.(phrase('mycats.nowSharing', name)); } catch { /* a toast is never worth a crash */ }
       // Deferred one tick: this runs inside render(), which runs inside the
       // in-flight pull's onChange, so a pull() right now is single-flight and
       // would just return the running promise. After the tick the inviter

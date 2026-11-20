@@ -224,6 +224,8 @@
  "mycats.needsName": "To share your colony, you need a friend name first.",
  "mycats.wantsToShare": "wants to share your colony. Is that them?",
  "mycats.offer": "🐈 Share your colony with your brother or sister",
+ "mycats.nowSharing": "You're sharing a colony with A! 🐾",
+ "mycats.newsSub": "What's new in your colony",
  "mycats.full": "The colony is full — A cats call it home 🏠",
  "mycats.fullRoom": " Share it with your brother or sister to make room for A.",
  "colony.rankAfterName for every rank word": [
