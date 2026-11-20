@@ -692,3 +692,8 @@ it('draws one number a stall from its own stream and never touches Math.random',
 - **Type consistency:** `TREAT_STALLS`, `STALLS`, `stallById`, `toStall`/`fromStall` (Task 1) are used by Tasks 8, 9, 11 and 12. `MARKET` and `stallPhase(id, offset, clock, out)` (Task 8) by Tasks 11 and 12. `stallSees(stall, look, cat, hides)` with `look.cooing` (Task 9) by Task 12. `treatItemId` and `treatStallOf` (Task 11) by Tasks 12 and 13. `eatHeld` (Task 7) by Task 12. `TREAT_WORDS` and `MARKET_LINES` (Task 10) by Tasks 12 and 13. `marketRig` (Task 11) by Tasks 12–14. `setMarketDusk` (Task 3) by Task 6.
 - **Proportion:** the code blocks are tests and signatures. The layout table and the constants are the decisions; the stall drawing, the hop's look and the broom's look are the builder's, as the spec's "Left to the builder" says.
 - **Merge-order risk:** F6, the house and map-gateways all rewrite the series-words fixtures. After merging `main`, re-run Task 10's refresh rather than hand-merging JSON.
+
+## Owner's answers (2026-11-20)
+
+- **Names:** fishmonger, baker, cheese stall, milk cart and café stay for now (he and his daughter may rename them from the pictures), but the button word is **"grab"**, not "snaffle" ("E — grab the fish head").
+- **Pay:** 6 🐾 a treat and 6 🐾 for teamwork, as in M9.
