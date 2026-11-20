@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { thumbnailIds, missingFoundThumbs } from '../src/thumbnails.js';
+import { describe, it, expect, vi } from 'vitest';
+import { thumbnailIds, missingFoundThumbs, fillFoundThumbs, foundThumbsTried, releaseThumbnails } from '../src/thumbnails.js';
 import { CATALOG, BASE_ACCESSORY_IDS } from '../src/progression.js';
 
 describe('found-outfit thumbnails', () => {
@@ -19,5 +19,17 @@ describe('found-outfit thumbnails', () => {
   it('missingFoundThumbs skips ids already tried', () => {
     const cat = { accessories: { a: { find: 'park' }, b: { find: 'park' } } };
     expect(missingFoundThumbs({ accessories: {} }, ['a', 'b'], cat, new Set(['a']))).toEqual(['b']);
+  });
+
+  it('releaseThumbnails forgets tried found outfits so they are drawn again', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const thumbs = { accessories: {} };
+    fillFoundThumbs(thumbs, ['acorncap']); // no WebGL here: the draw fails and is remembered
+    warn.mockRestore();
+    expect(foundThumbsTried()).toEqual(['acorncap']);
+    expect(missingFoundThumbs(thumbs, ['acorncap'], CATALOG, new Set(foundThumbsTried()))).toEqual([]);
+    releaseThumbnails();
+    expect(foundThumbsTried()).toEqual([]);
+    expect(missingFoundThumbs(thumbs, ['acorncap'], CATALOG, new Set(foundThumbsTried()))).toEqual(['acorncap']);
   });
 });

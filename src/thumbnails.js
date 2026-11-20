@@ -316,6 +316,9 @@ export function herCatPortrait(state) {
 // rescue: the honest size of what this page can give back cheaply.
 export function releaseThumbnails() {
   cache = null;
+  foundTried.clear(); // the fresh cache lacks the found pictures: draw them again
   customCache.clear();
   portraitCache.clear();
 }
+
+export const foundThumbsTried = () => [...foundTried];
