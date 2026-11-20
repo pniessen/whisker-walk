@@ -79,10 +79,13 @@ export function thumbnailIds(catalog) {
   return Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].find);
 }
 
-// Owned found outfits that have no picture yet.
-export function missingFoundThumbs(thumbs, owned, catalog) {
-  return (owned || []).filter((id) => catalog.accessories[id]?.find && !thumbs?.accessories?.[id]);
+// Owned found outfits that have no picture yet and have not been tried
+// (a failed draw is not retried at every render).
+export function missingFoundThumbs(thumbs, owned, catalog, tried = new Set()) {
+  return (owned || []).filter((id) => catalog.accessories[id]?.find && !thumbs?.accessories?.[id] && !tried.has(id));
 }
+
+const foundTried = new Set();
 
 function makeStudio() {
   const canvas = document.createElement('canvas');
@@ -132,8 +135,9 @@ function renderAllUnsafe() {
 // Draws the owned found outfits the menu cache lacks, in one throwaway
 // renderer, into thumbs.accessories. Does nothing (no renderer) when none are missing.
 export function fillFoundThumbs(thumbs, owned) {
-  const missing = missingFoundThumbs(thumbs, owned, CATALOG);
+  const missing = missingFoundThumbs(thumbs, owned, CATALOG, foundTried);
   if (!missing.length) return;
+  for (const id of missing) foundTried.add(id);
   let studio = null;
   try {
     studio = makeStudio();
