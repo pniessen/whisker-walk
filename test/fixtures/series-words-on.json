@@ -66,7 +66,8 @@
     "house": "kittypet"
    },
    "placeWords": {
-    "town": "Twolegplace"
+    "town": "Twolegplace",
+    "roofs": "The Rooftops"
    },
    "placeNames": {
     "neighborhood": "Twolegplace",

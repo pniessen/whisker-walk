@@ -7,6 +7,12 @@ import { roofsOn, setRoofs } from '../src/roofsflag.js';
 import { readResume, RESUME_KEY } from '../src/game/walkresume.js';
 import { createStrayCats } from '../src/straycats.js';
 import { decideLobbyEvent } from '../src/game/lobby.js';
+import { words } from '../src/wordset.js';
+import * as onWords from '../src/clanwords.js';
+import * as offWords from '../src/offclanwords.js';
+import { ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_REGISTRATION } from '../src/world/roofsplan.js';
+import { seriesFilter } from './helpers/serieswords.js';
+import { withStandInWords } from './helpers/standinwords.js';
 
 // =============================================================================
 // The Rooftops in the game (Rooftops step 2). Task 8: the evening look, and a
@@ -241,5 +247,36 @@ describe('the Rooftops unlock (held back from the real catalog, R1)', async () =
       expect(JSON.stringify(line)).not.toMatch(/Rooftops|roofs/);
     }
     expect(placeState(atFair(2), CATALOG, 'roofs').line).toBe('coming soon');
+  });
+});
+
+describe('the words (Task 12)', () => {
+  it("the place's name is in both word sets", () => {
+    expect(onWords.PLACE_WORDS.roofs).toBe('The Rooftops');
+    expect(offWords.PLACE_WORDS.roofs).toBe('The Rooftops');
+    expect(ROOFS_REGISTRATION.catalog.name).toBe(onWords.PLACE_WORDS.roofs);
+    // The stand-in set words it too, so a place name read at start-up shows.
+    withStandInWords(() => {
+      expect(words().PLACE_WORDS.roofs).toMatch(/^Zzburg/);
+    });
+    expect(words().PLACE_WORDS.roofs).toBe('The Rooftops');
+  });
+
+  it('no Rooftops label holds a word of the series', () => {
+    const { roofs, ...others } = onWords.PLACE_WORDS;
+    const keep = seriesFilter([
+      ...Object.values(onWords.RANK_WORDS), ...Object.values(onWords.OUTSIDE_WORDS),
+      ...Object.values(others), onWords.CLAN_SUFFIX,
+    ]);
+    const labels = [
+      ...ROOFS_COLLECTIBLES.map((c) => c.label),
+      ...ROOFS_SCENICS.map((c) => c.label),
+      ...ROOFS_PERCHES.map((p) => p.label).filter(Boolean),
+      ROOFS_REGISTRATION.catalog.name,
+      onWords.PLACE_WORDS.roofs,
+      offWords.PLACE_WORDS.roofs,
+    ];
+    expect(labels.length).toBeGreaterThan(8);
+    for (const l of labels) expect(keep(l), l).toBe(false);
   });
 });
