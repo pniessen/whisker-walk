@@ -2608,6 +2608,13 @@ body.touch-mode .fight-key { display: none; }
   /* Dress up: the place line would cost the wardrobe a row; home shows the place */
   .dr-view-wardrobe .dr-dock .where { display: none; }
 
+  /* Change place's world map: the screen's height at most (the 768px rule's
+     1500:880 of the width is taller than the screen), so a place's card and
+     its Go here are on screen with the map. The pan fits the view to this
+     box. A small picture keeps the card under the zoom buttons. */
+  .territory-map.world-map { height: calc(100vh - 24px); height: calc(100dvh - 24px - env(safe-area-inset-bottom, 0px)); aspect-ratio: auto; }
+  .wm-card-pic { max-height: 64px; }
+
   /* the cat builder: the cat on the left, its rows on the right (they scroll) */
   .dr.dr-building { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: auto auto;
     grid-template-areas: "header header" "hero cb"; padding-bottom: 0; }

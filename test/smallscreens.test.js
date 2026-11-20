@@ -77,6 +77,19 @@ describe('small screens: the section at the end of style.css', () => {
     expect(rules).toMatch(/\.dr-building \.dr-stage \{[^}]*100dvh/);
   });
 
+  it("a phone on its side: Change place's world map fits the screen's height, Go here on screen, the zoom buttons clear", () => {
+    for (const screen of [...SIDEWAYS, { w: 852, h: 393 }]) {
+      const rules = at(screen);
+      // the map is the screen's height at most (not the 768px rule's 1500:880 of its width)
+      expect(rules).toMatch(/\.territory-map\.world-map \{[^}]*height: calc\(100dvh - 24px[^}]*aspect-ratio: auto;/);
+      // the card's picture is small, so its button fits under the zoom buttons
+      expect(rules).toMatch(/\.wm-card-pic \{ max-height: 64px; \}/);
+    }
+    // the card never reaches up to the zoom buttons (they end 104px down)
+    expect(css).toMatch(/\.wm-card \{[^}]*max-height: calc\(100% - 120px\)/);
+    expect(css).toMatch(/\.wm-zoom \{ position: absolute; top: 8px; right: 8px;/);
+  });
+
   it('a card over a short screen scrolls inside itself (its row is the screen, not the card)', () => {
     for (const screen of [...SIDEWAYS, { w: 320, h: 256 }, { w: 195, h: 422 }]) {
       const rules = at(screen);
