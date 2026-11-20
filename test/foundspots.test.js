@@ -25,7 +25,7 @@ const { floodFrom } = await import('./helpers/flood.js');
 const { perchHops } = await import('./helpers/findreach.js');
 const { SPAWN_CLEAR, PICKUP } = await import('../src/foundwear/rules.js');
 const { FIND_LOOKS, SPOT_ID, FIND_SPOTS, spotsIn, findSpotsKey, FIND_KEY } = await import('../src/foundwear/spots/index.js');
-const { yarnSpotsFor } = await import('../src/propsets.js');
+const { yarnSpotsFor, propsFor } = await import('../src/propsets.js');
 const { groundOf } = await import('../src/ground.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 
@@ -128,6 +128,12 @@ describe.each(Object.keys(BUILDERS))('%s find spots', (areaId) => {
     for (const s of spots()) {
       for (const m of marks) expect(Math.hypot(s.x - m.x, s.z - m.z), `${s.id} by ${m.label ?? m.id ?? `(${m.x}, ${m.z})`}`).toBeGreaterThanOrEqual(1.5);
     }
+  });
+  // The dog's yard is its chase area: a find there is a fetch with a dog on it.
+  it("never in the dog's yard: its radius and 1.5 m more (as the yarn ball's rule)", () => {
+    const yard = propsFor(areaId).dogYard;
+    if (!yard) return;
+    for (const s of spots()) expect(Math.hypot(s.x - yard.x, s.z - yard.z), s.id).toBeGreaterThanOrEqual(yard.r + 1.5);
   });
   it('never beside the yarn ball: 3 m from both its spots', () => {
     const yarn = yarnSpotsFor(areaId);

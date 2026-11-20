@@ -1,7 +1,7 @@
 // The Cozy Neighborhood's find spots (src/world/neighborhood.js, spawn (0, 45)),
 // read off the street's own records: back gardens, bushes, flowerbeds, the lamp
 // posts, the scatter rocks and the two shipped climbs. The two raised ones rest
-// on the dog yard's fence top and the lean-to porch roof (one hop up, no skill);
+// on the lean-to porch roof (one hop up, no skill);
 // the rest are on the lawn. None is within 15 m of the spawn, 3 m of either
 // yarn-ball spot (src/propsets.js), 2 m of a golden mouse (src/goldmice.js) or
 // a collectible, or inside a house, tree or car; none is at a point of
@@ -32,8 +32,8 @@ export const NEIGHBORHOOD_SPOTS = Object.freeze([
   { id: 'fw-neighborhood-11', x: -31.2, z: 21.3, y: 0, look: 'grass' },
   // against the rock at (6, -45), at the far south end of the street
   { id: 'fw-neighborhood-12', x: 7.2, z: -46.2, y: 0, look: 'grass' },
-  // on the dog yard's south fence top at (22, -28), the shipped fence-top perch: one hop up
-  { id: 'fw-neighborhood-13', x: 22, z: -28, y: 1, look: 'perch' },
+  // behind the mailbox at (-8, -13), in the cream house's front garden
+  { id: 'fw-neighborhood-13', x: -7.6, z: -11.6, y: 0, look: 'post' },
   // on the lean-to porch roof at (-9, 17.5), by the fence corner
   { id: 'fw-neighborhood-14', x: -9.4, z: 17, y: 1.3, look: 'perch' },
 ].map((s) => Object.freeze(s)));

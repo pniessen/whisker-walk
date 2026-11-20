@@ -1,6 +1,6 @@
 // The City Park's find spots (src/world/park.js, spawn (0, 45)), read off the
 // park's own records: its bushes, benches, pond, lamp posts and flowers. The
-// three raised ones rest on the stone or the seat at shipped perches (one hop
+// two raised ones rest on the seat at shipped perches (one hop
 // up, no skill); the rest
 // are on the grass or in the pond's wading band. None is within 15 m of the
 // spawn, 3 m of either yarn-ball spot (src/propsets.js) or 2 m of a golden
@@ -10,11 +10,9 @@ export const PARK_SPOTS = Object.freeze([
   // on the fountain-walk bench at (-4, 14), the seat's east end: on the
   // slats (0.54 m), a centimetre under the perch's 0.58 so it lies on them
   { id: 'fw-park-1', x: -3.45, z: 13.55, y: 0.55, look: 'perch' },
-  // on the fountain basin's rounded outer lip (r 2.58 from the fountain's
-  // centre, y 0.69), toward the fountain-edge lookout perch, 0.98 m from it.
-  // The perch itself (2.8, 22.2) is 3.56 m out, off the stone: a find there
-  // hung in the air beside the basin
-  { id: 'fw-park-2', x: 2.03, z: 21.59, y: 0.69, look: 'perch' },
+  // on the paving at the fountain basin's west side, a metre off its rim (the
+  // east side's lookout perch is the lookout's, so no find shares it)
+  { id: 'fw-park-2', x: -3.6, z: 20, y: 0, look: 'post' },
   // on the bench by the south-west lawn walk, at its own perch, on the slats
   { id: 'fw-park-3', x: -10, z: -20, y: 0.55, look: 'perch' },
   // caught in the bush at (-10, 26), west of the fountain walk
