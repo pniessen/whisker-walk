@@ -73,7 +73,18 @@ function renderAll() {
   }
 }
 
-function renderAllUnsafe() {
+// Every accessory id the menu draws at once: the shop's, not the found
+// outfits (a record with `find`), which are drawn once she owns them.
+export function thumbnailIds(catalog) {
+  return Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].find);
+}
+
+// Owned found outfits that have no picture yet.
+export function missingFoundThumbs(thumbs, owned, catalog) {
+  return (owned || []).filter((id) => catalog.accessories[id]?.find && !thumbs?.accessories?.[id]);
+}
+
+function makeStudio() {
   const canvas = document.createElement('canvas');
   canvas.width = SIZE;
   canvas.height = SIZE;
@@ -89,23 +100,51 @@ function renderAllUnsafe() {
   const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
 
   const snap = makeSnapper(renderer, scene, camera, canvas);
+  return { renderer, snap };
+}
 
+function snapAccessory(snap, id) {
+  const slot = CATALOG.accessories[id].slot;
+  const worn = buildCat('tabby', slot === 'collar' ? { collar: id } : { [slot]: id });
+  const { closeUp, rotY } = accessoryFraming(id);
+  return snap(worn, closeUp, rotY);
+}
+
+function releaseStudio(renderer) {
+  renderer.dispose();
+  renderer.forceContextLoss(); // deterministically release the throwaway context
+}
+
+function renderAllUnsafe() {
+  const { renderer, snap } = makeStudio();
   const cats = {};
   for (const breed of Object.keys(CATALOG.cats)) {
     cats[breed] = snap(buildCat(breed), false);
   }
 
   const accessories = {};
-  for (const id of Object.keys(CATALOG.accessories)) {
-    const slot = CATALOG.accessories[id].slot;
-    const worn = buildCat('tabby', slot === 'collar' ? { collar: id } : { [slot]: id });
-    const { closeUp, rotY } = accessoryFraming(id);
-    accessories[id] = snap(worn, closeUp, rotY);
-  }
+  for (const id of thumbnailIds(CATALOG)) accessories[id] = snapAccessory(snap, id);
 
-  renderer.dispose();
-  renderer.forceContextLoss(); // deterministically release the throwaway context
+  releaseStudio(renderer);
   return { cats, accessories };
+}
+
+// Draws the owned found outfits the menu cache lacks, in one throwaway
+// renderer, into thumbs.accessories. Does nothing (no renderer) when none are missing.
+export function fillFoundThumbs(thumbs, owned) {
+  const missing = missingFoundThumbs(thumbs, owned, CATALOG);
+  if (!missing.length) return;
+  let studio = null;
+  try {
+    studio = makeStudio();
+    if (!thumbs.accessories) thumbs.accessories = {};
+    for (const id of missing) thumbs.accessories[id] = snapAccessory(studio.snap, id);
+  } catch (err) {
+    console.warn('Whisker Walk: found-outfit thumbnails unavailable', err);
+    note('gl', err);
+  } finally {
+    if (studio) releaseStudio(studio.renderer);
+  }
 }
 
 export function menuThumbnails() {

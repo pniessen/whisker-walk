@@ -9,7 +9,7 @@ import { CATALOG } from '../progression.js';
 import { areaInEdition, accessoryName, placeName } from '../edition.js';
 import { spendAsk } from './confirmcard.js';
 import { areaOffer } from '../areaoffer.js';
-import { menuThumbnails, customThumbnails, accessoryFraming } from '../thumbnails.js';
+import { menuThumbnails, fillFoundThumbs, customThumbnails, accessoryFraming } from '../thumbnails.js';
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { CUSTOM_MAX, lookKey } from '../customcats.js';
 import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, renderPlacesSheetHtml, resolveSheet } from './dressingroom.js';
@@ -135,6 +135,7 @@ export function createDressingRoom({
   let focusAfter = null; // a keyboard tap's control, found again after the render it caused
   const getThumbs = () => {
     if (!thumbs) thumbs = menuThumbnails();
+    fillFoundThumbs(thumbs, progression.state?.unlocked?.accessories);
     if (!thumbs.mine) thumbs.mine = {};
     if (!thumbs.worn) thumbs.worn = {};
     if (!thumbs.outfits) thumbs.outfits = {};

@@ -1,7 +1,7 @@
 import { BUILD_STAMP } from '../buildstamp.js';
 import { escapeHtml } from '../game/util.js';
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
-import { menuThumbnails } from '../thumbnails.js';
+import { menuThumbnails, fillFoundThumbs } from '../thumbnails.js';
 import { validPetName, goodNewPetName, safeRemoteName, safeRemoteBreed } from '../net.js';
 import { metOnly, deviceMetPlayers } from '../metplayers.js';
 import { activeCat } from '../customcats.js';
@@ -1261,6 +1261,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   function ensureDressing() {
     if (dressing) return dressing;
     thumbs = menuThumbnails();
+    fillFoundThumbs(thumbs, progression.state.unlocked.accessories);
     stage = createCatStage({ buildCat, thumbs });
     dressing = createDressingRoom({
       progression, catalog: CATALOG, stage, sync, thumbs,
