@@ -5,7 +5,8 @@ import { FACE_WEAR } from '../src/foundwear/face.js';
 import { NECK_WEAR } from '../src/foundwear/neck.js';
 import { BODY_WEAR } from '../src/foundwear/body.js';
 import { FEET_WEAR } from '../src/foundwear/feet.js';
-import { validateFoundWear, foundWearIn, foundRecord, FOUND_WEAR_IDS } from '../src/foundwear/index.js';
+import { validateFoundWear, foundWearIn, foundRecord, FOUND_WEAR, FOUND_WEAR_IDS } from '../src/foundwear/index.js';
+import { spotsIn } from '../src/foundwear/spots/index.js';
 import { withOffWords } from './helpers/offwords.js';
 
 // Found outfits (step 1): one find-only outfit hidden on every walk. These
@@ -92,5 +93,27 @@ describe('found outfits: the records', () => {
     for (const id of ['woods', 'den', '__proto__', 'toString', null]) expect(foundWearIn(id)).toEqual([]);
     expect(foundRecord('acorncap').find).toBe('park');
     expect(foundRecord('bell')).toBe(null);
+  });
+});
+
+describe('found outfits: the finished catalog (step 2)', () => {
+  it('step 2: every street place has its four, and the places held back have none yet', () => {
+    const ids = (a) => foundWearIn(a).map((r) => r.id);
+    expect(ids('neighborhood')).toEqual(['paperboycap', 'gardenglovescarf', 'bottletopcollar', 'doormatcape']);
+    expect(ids('park')).toEqual(['acorncap', 'daisychain', 'kitetailribbon', 'puddlewellies']);
+    expect(ids('seaside')).toEqual(['buckethat', 'starfishclip', 'shellnecklace', 'beachtowelcape']);
+    expect(ids('docks')).toEqual(['sailorcap', 'ropecollar', 'anchorcharm', 'fishermansjumper']);
+    expect(ids('farm')).toEqual(['strawhat', 'featherplume', 'neckerchief', 'haybalepack']);
+    expect(ids('fair')).toEqual(['stripedboater', 'heartglasses', 'ticketgarland', 'candyflosspuff']);
+    for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(ids(a)).toEqual([]);   // Legacy's retirement first
+    expect(FOUND_WEAR).toHaveLength(24);
+  });
+  it('step 2: every street place has its find spots, and only the Woods of the territories', () => {
+    for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'farm', 'fair']) {
+      expect(spotsIn(a).length, a).toBeGreaterThanOrEqual(10);
+      expect(spotsIn(a).length, a).toBeLessThanOrEqual(15);
+    }
+    for (const a of ['river', 'moor', 'pines', 'gorge']) expect(spotsIn(a), a).toEqual([]);
+    expect(spotsIn('woods').length).toBeGreaterThan(0);   // spots, no records: the pouch
   });
 });
