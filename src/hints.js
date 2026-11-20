@@ -39,11 +39,16 @@ export const HINT_COUNT_MAX = 3;
 // "Walk two" in the design's table: any walk but the very first.
 const later = (f) => f.walkNo >= 2;
 
+// A hint refused during the 60 s gap is not counted; it comes back later (intended).
 export const HINTS = Object.freeze([
   { id: 'look', max: 2, ring: 'look', when: (f) => later(f) && f.t >= 15 && !f.looked, until: (f) => f.looked },
   { id: 'creep', max: 2, ring: 'move', until: (f) => f.stalking },
   { id: 'jump', max: 2, ring: 'pounce', when: (f) => f.canJump && !f.perched, until: (f) => f.perched },
   { id: 'hop', max: 1, ring: 'pounce', when: (f) => f.perched, until: (f) => !f.perched },
+  // A find twinkling nearby: above `photo` so it wins when both are due at the
+  // same check. `find-kept` follows it right away (soon); `map` is shown by the
+  // home screen, never the walk.
+  { id: 'find', max: 1, ring: null, when: (f) => f.findNear, until: (f) => !f.findNear },
   { id: 'photo', max: 2, ring: 'camera', when: (f) => later(f) && f.critterNear && !f.camera, until: (f) => f.camera },
   { id: 'frame', max: 2, ring: null, when: (f) => f.camera, until: (f) => !f.camera },
   // The found yarn ball (controls review, 2026-11-19): the first time one is
@@ -52,9 +57,6 @@ export const HINTS = Object.freeze([
   { id: 'yarn', max: 1, ring: null, when: (f) => f.yarnNear && f.bats === 0, until: (f) => f.bats > 0 || f.yarnHeld },
   { id: 'bat', max: 1, ring: null, when: (f) => f.toy && !f.yarnHeld && f.bats === 0, until: (f) => !f.toy || f.bats > 0 },
   { id: 'yarn-carry', max: 1, ring: null, when: (f) => f.yarnHeld, until: (f) => !f.yarnHeld },
-  // A find twinkling nearby (Task 2 fills f.findNear); `find-kept` follows
-  // it right away (soon); `map` is shown by the home screen, never the walk.
-  { id: 'find', max: 1, ring: null, when: (f) => f.findNear, until: (f) => !f.findNear },
   { id: 'find-kept', max: 1, ring: null, soon: true },
   { id: 'map', max: 1, ring: null },
   { id: 'call', max: 1, ring: 'meow', when: (f) => later(f) && f.strayFar },

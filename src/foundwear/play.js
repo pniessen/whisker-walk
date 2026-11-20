@@ -21,6 +21,7 @@ import { phrase } from '../clanphrases.js';
 import { CATALOG } from '../progression.js';
 import { escapeHtml } from '../escapehtml.js';
 import { FIND_LOG_KEY } from './rules.js';
+import { bus } from '../events.js';
 
 // grantFind(find, arrival, { progression, log }) -> Grant | null.
 //   find     live.js's find (or NO_FIND): its `item` and take()
@@ -64,7 +65,12 @@ export function handleFindArrival(s, arrival, { progression, log, hud, audio, ca
   if (!grant) return null;
   s.fx?.burst(s.cat.position, 0xf2c14e, 14);
   // She found it herself: the hint that says "go and see" is never needed.
-  if (grant.by === 'me') progression.knowHint('find');
+  if (grant.by === 'me') {
+    progression.knowHint('find');
+    // Take the line down now: the find card pauses the walk in this frame, so
+    // the facts would not, and find-kept would be refused behind it.
+    bus.emit('tip:did', { id: 'find' });
+  }
   if (grant.kind === 'wear') {
     audio.fanfare?.();
     if (grant.by === 'me') card.show(s, grant.id);

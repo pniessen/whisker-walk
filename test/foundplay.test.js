@@ -172,6 +172,27 @@ describe('found outfits: giving the find', () => {
     expect(p2.state.tutorial.hints.find ?? 0).toBe(0);
   });
 
+  it('handleFindArrival: her own pick-up takes the find line down (tip:did find); a partner\'s does not', () => {
+    const seen = [];
+    const off = bus.on('tip:did', (e) => seen.push(e.id));
+    try {
+      const mk = () => {
+        const pr = createProgression(fakeStorage());
+        const lg = createDiscoveryLog(pr);
+        lg.startWalk();
+        return { progression: pr, log: lg, hud: { toast: vi.fn() }, audio: { fanfare: vi.fn() }, card: { show: vi.fn() } };
+      };
+      const s = { cat: { position: { x: 0, y: 0, z: 0 } }, fx: { burst: vi.fn() }, find: findOf({ kind: 'wear', id: 'acorncap' }) };
+      handleFindArrival(s, { by: 'partner', petName: 'Robin' }, mk());
+      expect(seen).toEqual([]);
+      s.find = findOf({ kind: 'wear', id: 'acorncap' });
+      handleFindArrival(s, { by: 'me' }, mk());
+      expect(seen).toEqual(['find']);
+    } finally {
+      if (typeof off === 'function') off();
+    }
+  });
+
   it('handleFindArrival reads the walk\'s own find, and does nothing once it has been given', () => {
     const find = findOf({ kind: 'pouch' });
     const s = { cat: { position: { x: 0, y: 0, z: 0 } }, fx: { burst: vi.fn() }, find };

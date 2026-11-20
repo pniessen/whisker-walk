@@ -109,7 +109,7 @@ describe('tutorialwords', () => {
   });
 
   it('the find, find-kept and map hints say the agreed words', () => {
-    expect(line('hint.find')).toBe('Something is twinkling! Go and see. ✨');
+    expect(line('hint.find')).toBe('Something is twinkling! Go and see.');
     expect(line('hint.find-kept')).toBe('It\'s yours to keep! Change clothes in Dress up.');
     expect(line('hint.map', { touch: true })).toBe('Tap a place to see it. Pinch to zoom.');
     expect(line('hint.map')).toBe('Click a place to see it. Scroll to zoom.');

@@ -146,6 +146,21 @@ describe('createTips', () => {
     expect(k.up().text).toBe('Pepper is shy. Hold Shift to creep.');
   });
 
+  it('following the find hint: taking the find takes the line down, so find-kept can follow', () => {
+    const r = rig({ walks: 0 });
+    const find = { spot: { id: 's', x: 0, z: -10 }, item: { kind: 'wear', id: 'acorncap' }, taken: false };
+    const s = start(r, walk({ find }));
+    r.play(s, 0.5); // the facts are gathered every quarter second
+    expect(r.up().text).toContain('twinkling');
+    find.taken = true; // the card pauses the walk in this frame: the facts do not refresh
+    r.frame(s);
+    bus.emit('tip:did', { id: 'find' }); // what handleFindArrival emits for her own pick-up
+    bus.emit('tip', { id: 'find-kept' });
+    expect(r.up()).not.toBe(null);
+    expect(s.hints.showing).toBe('find-kept');
+    expect(r.progression.state.tutorial.hints['find-kept']).toBe(1);
+  });
+
   it('the twelve seconds and the minute are real time, however slowly the walk runs', () => {
     const r = rig({ walks: 0 }); // walk one: no "walk two" hint takes the slot
     const s = start(r, walk());

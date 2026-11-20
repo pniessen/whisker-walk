@@ -30,8 +30,8 @@ describe('the hint table', () => {
   // and T's line for a keyboard (a toast, counted here, never polled).
   it('is the design\'s twenty and the yarn pair, in order, with its limits', () => {
     expect(HINTS.map((h) => [h.id, h.max])).toEqual([
-      ['look', 2], ['creep', 2], ['jump', 2], ['hop', 1], ['photo', 2], ['frame', 2], ['yarn', 1], ['bat', 1],
-      ['yarn-carry', 1], ['find', 1], ['find-kept', 1], ['map', 1],
+      ['look', 2], ['creep', 2], ['jump', 2], ['hop', 1], ['find', 1], ['photo', 2], ['frame', 2], ['yarn', 1], ['bat', 1],
+      ['yarn-carry', 1], ['find-kept', 1], ['map', 1],
       ['call', 1], ['sniff', 2], ['box', 1], ['help', 1], ['hiss', 1], ['dog', 1], ['swim', 1], ['carry', 1],
       ['home', 2], ['chat', 1], ['rival', 1], ['stranger', 1], ['tkey', 3],
     ]);
@@ -227,12 +227,18 @@ describe('find, find-kept and map', () => {
   it('a soon hint ignores the gap; a plain event hint does not', () => {
     const r = rig();
     expect(r.h.offer('sniff')).toBe(true);
-    r.h.update(HINT_SHOW_S + 0.1, quiet()); // gone
-    r.h.update(5 - HINT_SHOW_S - 0.1 + HINT_SHOW_S, quiet());
+    r.h.update(HINT_SHOW_S + 0.1, quiet()); // sniff has gone
+    r.h.update(5, quiet()); // five more seconds: the soon offer comes 5 s after the first hint went away
     expect(r.up()).toBeNull();
     expect(r.h.offer('box')).toBe(false); // plain: waits the gap
     expect(r.h.offer('find-kept')).toBe(true);
     expect(r.up()).toBe('find-kept');
+  });
+
+  it('a soon hint still waits while the guided walk holds the hints back', () => {
+    const r = rig();
+    r.h.setBlocked(true);
+    expect(r.h.offer('find-kept')).toBe(false);
   });
 
   it('a soon hint still obeys max, tips off and the one-at-a-time rule', () => {

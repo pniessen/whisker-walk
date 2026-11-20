@@ -41,7 +41,7 @@ export const WORDS = Object.freeze({
   // the change get this as a toast (main.js), never as a bubble.
   'hint.tkey': same('Yarn balls lie around now. Find one! 🧶'),
   // A twinkling find (found outfits), the line after keeping it, and the map.
-  'hint.find': same('Something is twinkling! Go and see. ✨'),
+  'hint.find': same('Something is twinkling! Go and see.'),
   'hint.find-kept': same('It\'s yours to keep! Change clothes in Dress up.'),
   'hint.map': two('Tap a place to see it. Pinch to zoom.', 'Click a place to see it. Scroll to zoom.'),
   'hint.call': two('Tap 😺 to call a cat over.', 'Press V to call a cat over.'),

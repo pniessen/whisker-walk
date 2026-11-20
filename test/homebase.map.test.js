@@ -374,7 +374,20 @@ describe('Change place: the first-time hint on the world map', () => {
   it('a keys device reads the click-and-scroll words', () => {
     make({ touch: false });
     openSheet('places');
-    expect(doc.root.innerHTML).toContain('Click a place to see it. Scroll to zoom.');
+    expect(doc.root.innerHTML).toContain('<p class="wm-hint">🗺️ Click a place to see it. Scroll to zoom.</p>');
+  });
+
+  it('tapping a place (its card opens) keeps the line and does not count again', () => {
+    const { progression } = make();
+    openSheet('places');
+    stub.ui.mapCard = 'park'; // she taps a place: the dressing room shows its card
+    drOpts.onChange();
+    expect(doc.root.innerHTML).toContain('class="wm-hint"');
+    expect(hintsOf(progression)).toBe(1);
+    stub.ui.mapCard = null;
+    drOpts.onChange();
+    expect(doc.root.innerHTML).toContain('class="wm-hint"');
+    expect(hintsOf(progression)).toBe(1);
   });
 
   it('closing and opening again shows no line', () => {

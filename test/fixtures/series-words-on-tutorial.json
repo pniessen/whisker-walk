@@ -46,8 +46,8 @@
    "keys": "Yarn balls lie around now. Find one! 🧶"
   },
   "hint.find": {
-   "touch": "Something is twinkling! Go and see. ✨",
-   "keys": "Something is twinkling! Go and see. ✨"
+   "touch": "Something is twinkling! Go and see.",
+   "keys": "Something is twinkling! Go and see."
   },
   "hint.find-kept": {
    "touch": "It's yours to keep! Change clothes in Dress up.",
@@ -365,8 +365,8 @@
    "keys": "Yarn balls lie around now. Find one! 🧶"
   },
   "hint.find": {
-   "touch": "Something is twinkling! Go and see. ✨",
-   "keys": "Something is twinkling! Go and see. ✨"
+   "touch": "Something is twinkling! Go and see.",
+   "keys": "Something is twinkling! Go and see."
   },
   "hint.find-kept": {
    "touch": "It's yours to keep! Change clothes in Dress up.",
