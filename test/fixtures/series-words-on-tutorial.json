@@ -45,6 +45,18 @@
    "touch": "Yarn balls lie around now. Find one! 🧶",
    "keys": "Yarn balls lie around now. Find one! 🧶"
   },
+  "hint.find": {
+   "touch": "Something is twinkling! Go and see. ✨",
+   "keys": "Something is twinkling! Go and see. ✨"
+  },
+  "hint.find-kept": {
+   "touch": "It's yours to keep! Change clothes in Dress up.",
+   "keys": "It's yours to keep! Change clothes in Dress up."
+  },
+  "hint.map": {
+   "touch": "Tap a place to see it. Pinch to zoom.",
+   "keys": "Click a place to see it. Scroll to zoom."
+  },
   "hint.call": {
    "touch": "Tap 😺 to call a cat over.",
    "keys": "Press V to call a cat over."
@@ -351,6 +363,18 @@
   "hint.tkey": {
    "touch": "Yarn balls lie around now. Find one! 🧶",
    "keys": "Yarn balls lie around now. Find one! 🧶"
+  },
+  "hint.find": {
+   "touch": "Something is twinkling! Go and see. ✨",
+   "keys": "Something is twinkling! Go and see. ✨"
+  },
+  "hint.find-kept": {
+   "touch": "It's yours to keep! Change clothes in Dress up.",
+   "keys": "It's yours to keep! Change clothes in Dress up."
+  },
+  "hint.map": {
+   "touch": "Tap a place to see it. Pinch to zoom.",
+   "keys": "Click a place to see it. Scroll to zoom."
   },
   "hint.call": {
    "touch": "Tap 😺 to call a cat over.",

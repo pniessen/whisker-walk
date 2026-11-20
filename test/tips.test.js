@@ -37,6 +37,14 @@ const live = [];
 const start = (r, s) => { r.t.begin(s); live.push(r); return s; };
 afterEach(() => { while (live.length) live.pop().t.end(); });
 
+describe('hint pictures', () => {
+  it('find, find-kept and map have one', () => {
+    expect(HINT_PICS.find).toBe('✨');
+    expect(HINT_PICS['find-kept']).toBe('👕');
+    expect(HINT_PICS.map).toBe('🗺️');
+  });
+});
+
 describe('walkFacts', () => {
   const player = { forward: () => ({ x: 0, y: 0, z: -1 }), stalking: false, speed: 0, inWater: false, swimming: false, perchY: 0 };
   const state = createProgression(memStorage()).state;
@@ -45,6 +53,12 @@ describe('walkFacts', () => {
   it('a quiet walk has nothing to say', () => {
     const f = facts({});
     expect(f).toMatchObject({ room: false, stalking: false, perched: false, camera: false, inWater: false, carrying: false, toy: false, inBox: false, canJump: false, critterNear: false, strayFar: false, nearBox: false, helpInView: false, challenge: false, idleOpen: 0 });
+  });
+
+  it('sets place to the session\'s area id and findNear to false', () => {
+    const f = facts({ areaId: 'river' });
+    expect(f.place).toBe('river');
+    expect(f.findNear).toBe(false);
   });
 
   it('an animal close and ahead is "near"; one behind or far is not', () => {

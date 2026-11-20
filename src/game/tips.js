@@ -26,6 +26,7 @@ export const HINT_PICS = Object.freeze({
   look: '👀', creep: '🐾', jump: '🐾', hop: '🐾', photo: '📷', frame: '📷', yarn: '🧶', bat: '🧶', 'yarn-carry': '🧶', tkey: '🧶',
   call: '😺', sniff: '👃', box: '📦', help: '❗', hiss: '😾', dog: '🐶', swim: '💧', carry: '🐾',
   home: '🏠', chat: '💬', rival: '🐾', stranger: '🐾',
+  find: '✨', 'find-kept': '👕', map: '🗺️',
 });
 
 const FACTS_EVERY_S = 0.25;
@@ -86,6 +87,8 @@ export function climbBadge(session, player, state) {
 export function walkFacts(session, { player, state }, f = {}) {
   const cat = session.cat.position;
   const fwd = player.forward();
+  f.place = session.areaId;
+  f.findNear = false; // the walk's find fills this (found outfits)
   f.room = !!session.net && (session.remotes?.list?.length ?? 0) > 0;
   f.stalking = !!player.stalking && player.speed > 0.3;
   f.perched = !!session.perched;

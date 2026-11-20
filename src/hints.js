@@ -19,6 +19,15 @@
 // child has done the thing, which puts the hint away early. done(id) does the
 // same for a thing that is an event (a meow, a chat line).
 //
+// A hint with `soon: true` follows on from the one before it, so offer()
+// ignores the gap for it (every other rule still applies, and it still
+// starts the gap again for the hints after it).
+//
+// A PLACE'S OWN HINT (Rooftops, later): add a row
+//   { id: '<place>', max: 1, ring: null, when: (f) => f.place === '<area id>' }
+// its `hint.<id>` line in tutorialwords.js, and its picture in game/tips.js
+// HINT_PICS. f.place is the walk's area id.
+//
 // `ring` names the control the line is about, for the guided walk's ring
 // (step 3 of the build); nothing here draws it.
 
@@ -43,6 +52,11 @@ export const HINTS = Object.freeze([
   { id: 'yarn', max: 1, ring: null, when: (f) => f.yarnNear && f.bats === 0, until: (f) => f.bats > 0 || f.yarnHeld },
   { id: 'bat', max: 1, ring: null, when: (f) => f.toy && !f.yarnHeld && f.bats === 0, until: (f) => !f.toy || f.bats > 0 },
   { id: 'yarn-carry', max: 1, ring: null, when: (f) => f.yarnHeld, until: (f) => !f.yarnHeld },
+  // A find twinkling nearby (Task 2 fills f.findNear); `find-kept` follows
+  // it right away (soon); `map` is shown by the home screen, never the walk.
+  { id: 'find', max: 1, ring: null, when: (f) => f.findNear, until: (f) => !f.findNear },
+  { id: 'find-kept', max: 1, ring: null, soon: true },
+  { id: 'map', max: 1, ring: null },
   { id: 'call', max: 1, ring: 'meow', when: (f) => later(f) && f.strayFar },
   { id: 'sniff', max: 2, ring: null },
   { id: 'box', max: 1, ring: null, when: (f) => f.nearBox && !f.inBox, until: (f) => f.inBox },
@@ -83,7 +97,7 @@ export function createHints({ count = () => 0, countUp = () => {}, enabled = () 
     showing = null;
     hide();
   };
-  const mayShow = (hint) => !!hint && !showing && !blocked && enabled() && sinceLast >= HINT_GAP_S && count(hint.id) < hint.max;
+  const mayShow = (hint, gap = HINT_GAP_S) => !!hint && !showing && !blocked && enabled() && sinceLast >= gap && count(hint.id) < hint.max;
   const putUp = (hint, slots) => {
     showing = { hint, left: HINT_SHOW_S };
     sinceLast = 0;
@@ -108,7 +122,7 @@ export function createHints({ count = () => 0, countUp = () => {}, enabled = () 
     // the thing happens it is offered again.
     offer(id, slots) {
       const hint = BY_ID.get(id);
-      if (!mayShow(hint)) return false;
+      if (!mayShow(hint, hint?.soon ? 0 : HINT_GAP_S)) return false;
       putUp(hint, slots);
       return true;
     },
