@@ -4,7 +4,7 @@
 // Place names come from placeName / TERRITORIES, never from literals.
 
 import { placeName, isClanEdition } from './edition.js';
-import { TERRITORIES, opensAfterLine } from './territories.js';
+import { TERRITORIES, opensAfterLine, lower } from './territories.js';
 import { postsFor } from './borderposts.js';
 import { escapeHtml } from './escapehtml.js';
 import { areaOffer } from './areaoffer.js';
@@ -22,10 +22,9 @@ export function targetName(to, edition, catalog) {
   return t ? t.name : '';
 }
 
-// A leading "The " reads lower-case mid-sentence.
-export function lower(name) {
-  return typeof name === 'string' ? name.replace(/^The /, 'the ') : '';
-}
+// A leading "The " reads lower-case mid-sentence: territories.js's, shared
+// with every lock line.
+export { lower };
 
 export function headTo(name) {
   return 'Head to ' + lower(name) + '?';

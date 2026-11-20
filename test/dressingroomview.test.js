@@ -92,7 +92,7 @@ describe('reduceDressingUi', () => {
       { wardrobe: true, moreCats: true, openSlot: 'head', previewCat: 'hagrid', tryOn: { slot: 'head', id: 'tophat' } },
       { type: 'clear-preview' },
     );
-    expect(ui).toEqual({ wardrobe: true, moreCats: true, openSlot: 'head', previewCat: null, tryOn: null, builder: null, outfitAsk: null });
+    expect(ui).toEqual({ wardrobe: true, moreCats: true, openSlot: 'head', previewCat: null, tryOn: null, builder: null, outfitAsk: null, mapCard: null });
   });
 
   it('outfit-ask holds one outfit at a time, and closing, a slot or clear-preview drop it', () => {

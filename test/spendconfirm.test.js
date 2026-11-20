@@ -199,6 +199,60 @@ describe('Change place: the card itself never buys', () => {
   });
 });
 
+// World map step 2: the card's Open for N 🐾 is the dressing room's usual
+// place buy button, so it goes through the real "Get it?" card.
+describe('the map card never buys on the tap', () => {
+  function ready() {
+    const onPlaced = vi.fn();
+    const r = room({ onPlaced });
+    r.progression.state.walks.neighborhood = 2;
+    r.progression.state.points = 60;
+    r.dr.handleClick(click({ drMapPlace: 'park' }));
+    r.dr.handleClick(click({ drPlaceBuy: 'park' }));
+    return { ...r, onPlaced };
+  }
+
+  it('Open on the card mounts one Get it? card and spends nothing', () => {
+    const { dr, progression, card } = ready();
+    expect(card.isOpen()).toBe(true);
+    expect(doc.mounted).toHaveLength(1);
+    expect(text()).toContain('Open City Park for 50 🐾?');
+    expect(progression.state.points).toBe(60);
+    expect(progression.isUnlocked('areas', 'park')).toBe(false);
+    expect(dr.ui.mapCard).toBe('park');
+  });
+
+  it('Not now leaves the place unowned and the map card open', () => {
+    const { dr, progression, card, onPlaced } = ready();
+    t += CONFIRM_DELAY_MS;
+    answer('no');
+    expect(card.isOpen()).toBe(false);
+    expect(progression.isUnlocked('areas', 'park')).toBe(false);
+    expect(progression.state.points).toBe(60);
+    expect(progression.state.area).toBe('neighborhood');
+    expect(dr.ui.mapCard).toBe('park');
+    expect(onPlaced).not.toHaveBeenCalled();
+  });
+
+  it('Yes opens it once, even on a double tap, and closes the map card', () => {
+    const { dr, progression, card, onPlaced, sync } = ready();
+    answer('yes'); // the tail of the tap that opened it: refused
+    answer('yes', 2);
+    expect(progression.isUnlocked('areas', 'park')).toBe(false);
+    t += CONFIRM_DELAY_MS;
+    answer('yes');
+    answer('yes'); // the card is gone: a second tap lands on nothing
+    expect(card.isOpen()).toBe(false);
+    expect(progression.isUnlocked('areas', 'park')).toBe(true);
+    expect(progression.state.area).toBe('park');
+    expect(progression.state.points).toBe(10);
+    expect(sync.autoSync).toHaveBeenCalledTimes(1);
+    expect(onPlaced).toHaveBeenCalledTimes(1);
+    expect(onPlaced).toHaveBeenCalledWith('park', 'bought');
+    expect(dr.ui.mapCard).toBeNull();
+  });
+});
+
 describe('the dress-up tile keeps Try on and Unlock apart', () => {
   it('12px between the two buttons; Unlock and the place Unlock at least 44px tall', async () => {
     const { readFileSync } = await import('node:fs');

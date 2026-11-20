@@ -40,10 +40,12 @@ describe('camp marks on the territory map', () => {
 });
 
 describe('camp mark markup', async () => {
-  const { renderTerritoryMapHtml } = await import('../src/ui/territorymap.js');
+  const { renderWorldMapHtml } = await import('../src/ui/territorymap.js');
+  const { WORLD, COAST } = await import('../src/worldmap.js');
   it('draws ring edge, ring, badge, then the dome, in that order', () => {
     // A hand-built model region is enough: campHtml only reads r.camp.
-    const html = renderTerritoryMapHtml({
+    const html = renderWorldMapHtml({
+      world: WORLD, coast: COAST, gateways: [],
       regions: [{ id: 'pines', x: 300, y: 200, r: 120, status: 'built', areaId: 'pines', name: 'Pines', line: '',
         camp: { x: 300, y: 200, color: CLAN_COLOURS.pines, mine: true, ally: false } }],
       river: [[0, 0], [10, 10], [20, 0]], lake: [[0, 0], [10, 10], [20, 0]], pond: { x: 0, y: 0, r: 1 },

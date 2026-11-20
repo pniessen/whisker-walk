@@ -17,7 +17,7 @@ import { newBuilder, editBuilder, reduceBuilder, isDirty, buildBuilderModel, ren
 
 // Launch A: home is the cat, Wearing and Today's walk; Dress up opens the
 // wardrobe (the slot grid) in place, and "🔒 N more" shows the locked cats.
-export const INITIAL_DRESSING_UI = Object.freeze({ wardrobe: false, moreCats: false, openSlot: null, previewCat: null, tryOn: null, builder: null, outfitAsk: null });
+export const INITIAL_DRESSING_UI = Object.freeze({ wardrobe: false, moreCats: false, openSlot: null, previewCat: null, tryOn: null, builder: null, outfitAsk: null, mapCard: null });
 
 const has = (obj, k) => !!obj && typeof k === 'string' && Object.prototype.hasOwnProperty.call(obj, k);
 
@@ -31,14 +31,16 @@ const has = (obj, k) => !!obj && typeof k === 'string' && Object.prototype.hasOw
 //                                   tried-on slot drops the try-on
 //   {type:'try-on', slot, id}      try an accessory (again = take it off;
 //                                   id null = clear)
-//   {type:'clear-preview'}         drop preview cat and try-on, and close
-//                                   the builder unsaved
+//   {type:'clear-preview'}         drop preview cat and try-on, close
+//                                   the builder unsaved and the map's card
 //   {type:'builder', builder}      open, update or (null) close the builder;
 //                                   opening it drops the preview and try-on
 //   {type:'builder-done'}          the builder saved: close it, into the wardrobe
 //   {type:'outfit-ask', id}        ask "Delete Outfit N?" under that one saved
 //                                   outfit (id null = stop asking); only one
 //                                   row asks at a time, and it is never saved
+//   {type:'map-card', id}          open the world map's pop-up card for that
+//                                   areaId (anything not a string closes it)
 export function reduceDressingUi(ui, action) {
   const cur = ui && typeof ui === 'object' ? ui : INITIAL_DRESSING_UI;
   switch (action && action.type) {
@@ -68,7 +70,12 @@ export function reduceDressingUi(ui, action) {
     }
     case 'clear-preview':
       return cur.previewCat === null && cur.tryOn === null && (cur.builder ?? null) === null && (cur.outfitAsk ?? null) === null
-        ? cur : { ...cur, previewCat: null, tryOn: null, builder: null, outfitAsk: null };
+        && (cur.mapCard ?? null) === null
+        ? cur : { ...cur, previewCat: null, tryOn: null, builder: null, outfitAsk: null, mapCard: null };
+    case 'map-card': {
+      const id = typeof action.id === 'string' ? action.id : null;
+      return id === (cur.mapCard ?? null) ? cur : { ...cur, mapCard: id };
+    }
     case 'outfit-ask': {
       const id = typeof action.id === 'string' ? action.id : null;
       return id === (cur.outfitAsk ?? null) ? cur : { ...cur, outfitAsk: id };
@@ -87,7 +94,12 @@ export function reduceDressingUi(ui, action) {
 
 const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-place-buy],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-wardrobe],'
   + '[data-dr-wardrobe-done],[data-dr-more-cats],[data-dr-outfit],[data-dr-outfit-save],[data-dr-outfit-del],[data-dr-outfit-yes],[data-dr-outfit-keep],'
-  + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay]';
+  + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-dr-pose],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay],'
+  + '[data-dr-map-place],[data-dr-map-close]';
+// Opening the world map's card lands focus on its one button (or ✕ when it
+// has none), by keyboard or touch; a keyboard close goes back to the place on
+// the map.
+const MAP_CARD_FOCUS = '.wm-card-go, .wm-card-buy, .wm-card-close';
 const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is empty
 const BLUR_RENDER_MS = 250; // a skipped render runs this long after the name box loses focus
 // The builder's cat stands by default (legs, pattern and tail in view); her
@@ -487,7 +499,9 @@ export function createDressingRoom({
     }
     pick(id);
   }
+  // A pick (Go here, or Yes on Open) closes the map's card first.
   function pick(id) {
+    dispatch({ type: 'map-card', id: null });
     const outcome = progression.pickPlace(id);
     if (outcome === 'bought') autoSync();
     // 'set' | 'bought' | false: the owner goes home on a place she can walk.
@@ -510,6 +524,8 @@ export function createDressingRoom({
     if (d.drOutfitDel !== undefined) return `[data-dr-outfit-keep="${q(d.drOutfitDel)}"]`;
     if (d.drOutfitKeep !== undefined) return `[data-dr-outfit-del="${q(d.drOutfitKeep)}"]`;
     if (d.drOutfitSave !== undefined || d.drOutfitYes !== undefined) return '[data-dr-outfit-save]';
+    if (d.drMapPlace !== undefined) return MAP_CARD_FOCUS;
+    if (d.drMapClose !== undefined) return `[data-dr-map-place="${q(d.drMapClose)}"]`;
     return null;
   }
 
@@ -519,11 +535,12 @@ export function createDressingRoom({
   const builderStay = () => builderOp({ type: 'stay' });
 
   // The browser's Back and Escape (ui/backstack.js): what the open layer's
-  // own button does. The builder: ✕ Not now (which asks before a changed cat
-  // is lost; Back on that question keeps making the cat). Dress up: Done ✓.
-  // true when there was a layer to close.
+  // own button does. The world map's card: ✕. The builder: ✕ Not now (which
+  // asks before a changed cat is lost; Back on that question keeps making the
+  // cat). Dress up: Done ✓. true when there was a layer to close.
   function back() {
-    if (ui.builder) {
+    if (ui.mapCard) dispatch({ type: 'map-card', id: null });
+    else if (ui.builder) {
       if (ui.builder.confirmLeave) builderStay();
       else onCancel();
     } else if (ui.wardrobe) wardrobeDone();
@@ -550,12 +567,19 @@ export function createDressingRoom({
     // Dress up <-> Done) after the render this tap causes.
     const active = t.ownerDocument?.activeElement;
     focusAfter = active === t ? focusTwin(d) : null;
+    // A map place's card takes focus however it was opened: a finger's tap
+    // or VoiceOver's double-tap too, or the screen reader's cursor falls to
+    // the top of the page when the render replaces the map. (A focus moved
+    // by a script after a tap draws no ring.)
+    if (d.drMapPlace !== undefined) focusAfter = MAP_CARD_FOCUS;
     if (d.drBuyCat !== undefined) onBuyCat(d.drBuyCat);
     else if (d.drCat !== undefined) onCat(d.drCat);
     else if (d.drAcc !== undefined) onAcc(d.drAcc, d.drAct);
     else if (d.drSlot !== undefined) dispatch({ type: 'slot', slot: d.drSlot });
     else if (d.drPlace !== undefined) onPlace(d.drPlace);
     else if (d.drPlaceBuy !== undefined) onPlace(d.drPlaceBuy);
+    else if (d.drMapPlace !== undefined) dispatch({ type: 'map-card', id: d.drMapPlace });
+    else if (d.drMapClose !== undefined) dispatch({ type: 'map-card', id: null });
     else if (d.drWardrobe !== undefined) dispatch({ type: 'wardrobe', open: true });
     else if (d.drWardrobeDone !== undefined) wardrobeDone();
     else if (d.drMoreCats !== undefined) dispatch({ type: 'more-cats' });
@@ -580,6 +604,20 @@ export function createDressingRoom({
     }
     inClick = true;
     try { onChange(); } finally { inClick = false; }
+    return true;
+  }
+
+  // The world map's places are <g role="button">s, not <button>s, so Enter
+  // and Space do what a tap does (Space without scrolling the sheet). A held
+  // key's repeats do nothing: the first press opened the card. true = it was
+  // a map place.
+  function handleKeydown(e) {
+    if (e?.key !== 'Enter' && e?.key !== ' ') return false;
+    const t = e.target?.closest?.('[data-dr-map-place]');
+    if (t?.dataset?.drMapPlace === undefined) return false;
+    e.preventDefault?.();
+    if (e.repeat) return true;
+    handleClick({ target: { closest: () => t } });
     return true;
   }
 
@@ -700,7 +738,7 @@ export function createDressingRoom({
 
   return {
     walkingAs,
-    html, afterRender, handleClick, handleInput, captureFocus, restoreFocus, startAllowed, clearPreview,
+    html, afterRender, handleClick, handleKeydown, handleInput, captureFocus, restoreFocus, startAllowed, clearPreview,
     deferRender, onFocusOut, closeWardrobe, placesHtml, back,
     get ui() { return ui; },
   };

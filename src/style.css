@@ -1781,6 +1781,70 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .territory-map .later .tm-label { fill: #8a7a66; font-style: italic; }
 .territory-map .sel .tm-line { fill: #b5524a; font-weight: 700; }
 
+/* Clan Edition: the world map (Change place, ui/territorymap.js
+   renderWorldMapHtml): her board and the street places in one SVG that pans
+   and pinch-zooms by its viewBox (ui/mappan.js), the zoom buttons at its top
+   right and a place's pop-up card over its bottom edge.
+   The map takes the height left on the screen under the sheet's header, at
+   every size: homebase.js marks the sheet hb-sheet-map, which makes it one
+   screen tall and a column, and the map's frame takes the rest, never less
+   than 260 px (then the page scrolls). The pan fits the whole world in that
+   box (contain); what is left round it is more map (the paper and the sea run
+   on past the world), never the page behind. */
+.homebase-scroll.hb-sheet-map { height: 100%; }
+.hb-sheet-map .hb-places, .hb-sheet-map .hb-places > .dr-where { display: flex; flex-direction: column; flex: 1 1 auto; }
+#homebase .hb-sheet-map .hb-places { margin-bottom: 0; }
+.hb-sheet-map .wm-frame { flex: 1 1 auto; min-height: 260px; margin: 0; }
+.wm-frame { position: relative; margin: 0 0 12px; }
+.territory-map.world-map { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; border-radius: 12px;
+  background: #f3e4c4; /* the paper, before the pan first fits the view */
+  /* the finger pans and pinches the map, never the page (else the browser
+     takes the gesture and the map gets a pointercancel) */
+  touch-action: none; -webkit-user-select: none; user-select: none; }
+/* (iOS taps: the pointer cursor, as for the territory map above) */
+.world-map [data-dr-map-place] { cursor: pointer; }
+/* the focus ring: a white ring round a place reached by keyboard. An older
+   Safari (before 15.4) has no :focus-visible and drops the two :not() rules,
+   so it rings every focus; a newer browser rings none after a tap (today's
+   place keeps its gold ring). */
+.world-map .tm-region:focus { outline: none; }
+.world-map .tm-region:focus .tm-hit { stroke: #fff; stroke-width: 10; }
+.world-map .tm-region:focus:not(:focus-visible) .tm-hit { stroke: none; }
+.world-map .tm-region.sel:focus:not(:focus-visible) .tm-hit { stroke: var(--gold, #f2c14e); stroke-width: 9; }
+.world-map .tm-sea { fill: #a9d3e3; }
+.world-map .tm-sea, .world-map .wm-roads { pointer-events: none; }
+.world-map .wm-road { fill: none; stroke: #b04a2e; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 3 9; }
+.world-map .wm-gate { fill: #b04a2e; }
+.world-map .tm-land.street.locked { fill: #cbbfa6; stroke-dasharray: 14 9; }
+.world-map .tm-line-small { font-size: 24px; }
+/* Zoom in / Zoom out: two round buttons at the map's top right */
+.wm-zoom { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
+.wm-frame .wm-zoom button { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1.5px solid #5b6c88;
+  background: rgba(28, 36, 49, .82); color: var(--cream, #f1e0c2); font: inherit; font-size: 22px; font-weight: 800; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; }
+.wm-frame .wm-zoom button:hover { background: rgba(28, 36, 49, .95); }
+.wm-frame .wm-zoom button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+/* a place's card: over the map's bottom edge, clear of the zoom buttons (its
+   top never reaches up to them: they end 104px down) */
+.wm-card { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3; max-height: calc(100% - 120px); overflow: auto;
+  border-radius: 14px; background: var(--panel, #2c3d58); color: var(--cream, #f1e0c2); box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
+  padding: 0 0 12px; } /* no slide-in: nothing moves for reduced motion (the game's switch or the system's) */
+@media (min-width: 768px) { .wm-card { left: auto; width: 360px; } }
+.wm-card-pic { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 14px 14px 0 0; }
+/* a phone's, a tablet's or a short window's map is short: a shorter picture
+   keeps Go here in view without scrolling the card (a tall desktop's map has
+   room for all 16:10) */
+@media (max-width: 999px), (max-height: 860px) { .wm-card-pic { max-height: min(22vh, 160px); } }
+.wm-card h3 { margin: 10px 56px 4px 14px; font-size: 1.15rem; color: var(--cream, #f1e0c2); }
+.wm-card-line { margin: 0 14px 10px; font-size: 15px; line-height: 1.35; }
+/* its one button: outlined and quiet (pink is Explore's alone) */
+.dr-where .wm-card .wm-card-go, .dr-where .wm-card .wm-card-buy { display: flex; align-items: center; justify-content: center;
+  margin: 0 14px; width: calc(100% - 28px); min-height: 48px; padding: 8px 18px; border: 1.5px solid var(--cream, #f1e0c2);
+  border-radius: 999px; background: transparent; color: var(--cream, #f1e0c2); font-weight: 700; font-size: 16px; }
+.dr-where .wm-card .wm-card-go:hover, .dr-where .wm-card .wm-card-buy:hover { background: rgba(241, 224, 194, .1); }
+.dr-where .wm-card .wm-card-close { position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  background: rgba(20, 28, 42, .78); color: #fff; font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.wm-card button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
 /* ===== phone: one column, no scrolling ===== */
 @media (max-width: 600px) {
@@ -1975,23 +2039,18 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
 .dr-building .hb-menu-btn { display: none; } /* no door out of the builder */
 .join-moment-card:focus { outline: none; }
 .hb-places .dr-label { color: #f1e0c2; }
+/* Clan Edition: one column, the clan line over the world map at full width
+   (the map is every place now: no picture cards beside it), .hb-sheet-map above */
 @media (min-width: 900px) {
-  /* desktop: the map beside the other places, so the sheet fits one screen */
-  .hb-places .dr-where:has(.territory-map) { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr;
-    column-gap: 20px; align-items: start; }
-  .hb-places .dr-where > .dr-label { align-self: end; }
-  .hb-places .dr-where > .hb-pick-line, .hb-places .dr-where > .hb-pick-choose { grid-column: 1 / -1; }
-  .hb-places .dr-where > .territory-map { grid-row: span 2; }
   .hb-places .dr-where > .dr-places { grid-template-columns: 1fr 1fr; }
 }
 
-/* desktop sheets use the page: Change place and Menu run wide (the map big on the
-   left, the place pictures in a grid on the right; the Menu tiles spread), and
-   Settings is one centred panel at a readable width, not a column hugging the left */
+/* desktop sheets use the page: Change place and Menu run wide (Clan Edition's
+   world map across the width, Legacy's place pictures in a wider grid; the Menu
+   tiles spread), and Settings is one centred panel at a readable width, not a
+   column hugging the left */
 @media (min-width: 1000px) {
   .homebase-scroll.hb-sheet[data-sheet="places"], .homebase-scroll.hb-sheet[data-sheet="menu"] { max-width: min(1240px, 94vw); }
-  .hb-places .dr-where:has(.territory-map) { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); column-gap: 28px; }
-  .hb-places .dr-where > .territory-map { max-width: none; }
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .hb-tiles { gap: 16px; }
   .hb-tile { min-height: 150px; }
@@ -2563,6 +2622,21 @@ body.touch-mode .fight-key { display: none; }
   .dr-dock .dr-together-words { display: none; }
   /* Dress up: the place line would cost the wardrobe a row; home shows the place */
   .dr-view-wardrobe .dr-dock .where { display: none; }
+
+  /* Change place's world map: the header in less room, so the map gets more
+     of the screen. The title is for screen readers only; Day / Dusk and the
+     clan line share one row, the map under them. A place's card stands at
+     the map's left, top to bottom (a small picture), clear of the zoom
+     buttons at its right, so its Go here is always on screen. */
+  .hb-sheet-map #hb-places-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
+  .hb-sheet-map .hb-places { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); column-gap: 12px; row-gap: 8px; }
+  .hb-sheet-map .hb-places > .dr-where { display: contents; }
+  .hb-sheet-map .hb-dusk, .hb-sheet-map .hb-pick-line, .hb-sheet-map .hb-pick-choose { margin: 0; }
+  .hb-sheet-map .wm-frame { grid-column: 1 / -1; }
+  .homebase-scroll.hb-sheet-map { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .wm-card { top: 8px; bottom: 8px; left: 8px; right: auto; width: min(320px, 55%); max-height: none; }
+  .wm-card-pic { max-height: 64px; }
 
   /* the cat builder: the cat on the left, its rows on the right (they scroll) */
   .dr.dr-building { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: auto auto;
