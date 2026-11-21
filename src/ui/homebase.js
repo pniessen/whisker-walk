@@ -45,6 +45,8 @@ import { note } from '../diagnostics.js';
 import { line as tutorialLine } from '../tutorialwords.js';
 import { hintMax } from '../hints.js';
 import { nextThing, nextThingHtml, NEXT_ATTR } from './nextthing.js';
+import { createHomeParty, birthdayPartyOn, partyBannerText, partyCatName } from './party.js';
+import { BIRTHDAY_EVENT, localDay } from '../giftevents.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -148,7 +150,7 @@ export function showEditionTitle(doc, edition) {
 //   nearby: game/nearby.js, the rooms the app found on the local network.
 //     Absent, or not available (Safari, desktop), nothing of it is drawn
 //   metPlayers: src/metplayers.js (the device's own list when absent)
-export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false }) {
+export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -186,6 +188,50 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   let redeemText = '';
   let redeemResult = null;
   let redeemBusy = false;
+
+  // The birthday party (ui/party.js) while the birthday is on: the banner and
+  // balloons on the hero stage (put back after every render), a confetti
+  // burst on each open and when a code is opened, and the music-box song once
+  // a day (the day kept on this device only), on the first tap at home: a
+  // browser lets sound start only from a tap.
+  const reducedNow = () => !!settings?.all?.()?.reducedMotion
+    || !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const party = createHomeParty({ reduced: reducedNow });
+  const SONG_DAY_KEY = 'whisker-walk-bday-song';
+  const songStore = () => { try { return globalThis.localStorage ?? null; } catch { return null; } };
+  const songPlayedToday = () => { try { return songStore()?.getItem(SONG_DAY_KEY) === localDay(); } catch { return false; } };
+  const partyOn = () => birthdayPartyOn(progression);
+  // The day is spent only when the song really played (muted, or music at
+  // 0, it waits for a later tap when she is home again).
+  function playBirthdaySong() {
+    let played = 0;
+    try { played = Number(onBirthdaySong?.()) || 0; } catch (err) { console.warn('Whisker Walk: the birthday song failed', err); note('audio', err); }
+    if (played > 0) { try { songStore()?.setItem(SONG_DAY_KEY, localDay()); } catch { /* this visit only */ } }
+  }
+  let songArmed = false;
+  function onSongTap() {
+    document.removeEventListener('pointerdown', onSongTap, true);
+    document.removeEventListener('keydown', onSongTap, true);
+    songArmed = false;
+    try { onAudioWake?.(); } catch { /* the song just stays quiet */ }
+    // After the tap has done its work: a tap on Start leaves home, and the
+    // song waits for the next time she is home (show() arms it again).
+    setTimeout(() => {
+      if (homeVisible() && partyOn() && !songPlayedToday()) playBirthdaySong();
+    }, 0);
+  }
+  function armSong() {
+    if (songArmed || !partyOn() || songPlayedToday()) return;
+    songArmed = true;
+    document.addEventListener('pointerdown', onSongTap, true);
+    document.addEventListener('keydown', onSongTap, true);
+  }
+  function syncParty() {
+    const st = root.querySelector('#dr-stage');
+    if (!st) return;
+    if (partyOn() && !dressing?.ui?.builder) party.mount(st, partyBannerText(partyCatName(progression.state, CATALOG)));
+    else party.unmount(st);
+  }
 
   // Colony pairing (Task 9). The draft code lives here, not in the DOM, because
   // render() rebuilds the panel (a roster change or a poll that found news
@@ -1254,6 +1300,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // Otherwise the welcome line shows, it returns false, and onClosed is not called.
   function showVisit(result, { onClosed } = {}) {
     greeted = true;
+    // The birthday: confetti on every open while it is on, and the song armed.
+    if (partyOn() && homeVisible()) { party.burst(); armSong(); }
     // Hidden: a walk already started (a room partner pressed Start during the
     // splash). Nothing goes up over the walk, but the prize is still worn.
     if (!homeVisible()) {
@@ -1765,6 +1813,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     room.restoreFocus(root, f);
     refocus(fid);
+    syncParty();
     stage.setVisible(shown);
     syncCelebration();
     syncPairingPoll();
@@ -2410,6 +2459,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (!e.target.classList || !e.target.classList.contains('redeem-form')) return;
     e.preventDefault();
     if (redeemBusy) return;
+    // The tap that may open a birthday: sound may start now, not after the hash.
+    try { onAudioWake?.(); } catch { /* the song just stays quiet */ }
     const field = root.querySelector('#redeem-input');
     if (field) redeemText = field.value;
     redeemBusy = true;
@@ -2426,6 +2477,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (res.kind === 'gift' || res.kind === 'used') redeemText = '';
     if (res.kind === 'gift') sync?.autoSync?.();
     render();
+    // The birthday's own code starts the party; the brother's throws confetti.
+    if (res.kind === 'gift' && Array.isArray(res.events) && res.events.includes(BIRTHDAY_EVENT) && partyOn()) {
+      party.burst();
+      playBirthdaySong();
+    } else if (res.kind === 'gift' && res.confetti) {
+      party.burst(phrase('party.time'));
+    }
     if (res.kind !== 'gift') root.querySelector('#redeem-input')?.focus();
   });
 
@@ -2628,6 +2686,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // Back from a walk: the walk that opened the Woods brings the clan
       // moment up now. (The boot's first show() waits for the greeting.)
       if (greeted) showClanMoment();
+      if (greeted) armSong(); // a new day since the last home: the song again
     },
     showNews,
     showNotice,
@@ -2640,6 +2699,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       shown = false;
       celebration.close('walk');
       closeWelcome();
+      party.clearBurst();
       closeNews(false); // a walk is starting: leave the news unread for next time
       closeNotice();
       closeClanMoment(false); // a walk is starting: it comes back next time

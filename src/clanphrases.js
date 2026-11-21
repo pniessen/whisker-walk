@@ -408,6 +408,16 @@ const LATER = Object.freeze({
   'wear.haybalepack.name': 'Hay-bale Backpack',
   'wear.candyflosspuff.name': 'Candyfloss Puff',
   'wear.puddlewellies.name': 'Puddle Wellies',
+  // ---- the birthday (2026-11-21): the gift outfits and the home party ----
+  // The four outfits only a gift code gives (src/foundwear/gifts.js).
+  'wear.partyhat.name': 'Party Hat',
+  'wear.bdayrosette.name': 'Birthday Rosette',
+  'wear.bdayballoon.name': 'Birthday Balloon',
+  'wear.cakecharm.name': 'Cake Charm',
+  // the home screen's banner while the birthday is on; the name is her cat's
+  'party.banner': (catName) => `Happy birthday, ${catName}! 🎂`,
+  // the line with the brother's code's confetti
+  'party.time': 'Party time! 🎉',
   'wear.card.title': 'You found something to wear! ✨',
   'wear.card.kept': 'It’s in the dress-up at home now, for good.',
   'wear.card.wear': 'Wear it',
