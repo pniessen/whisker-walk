@@ -104,6 +104,7 @@ const turn = (yaw, want, maxStep) => {
 };
 
 // A closed loop of points, by distance along it.
+const ROUND_CORNER = 1.0; // metres either side of a corner the rounded way turns over
 function closedLine(points) {
   const n = points.length;
   const cum = [0];
@@ -116,8 +117,12 @@ function closedLine(points) {
   return {
     length,
     cum,
-    // at(s, out) → out { x, z, hx, hz }: the point s metres along, and the way the line runs there
-    at(s, out) {
+    // at(s, out, round) → out { x, z, hx, hz }: the point s metres along, and
+    // the way the line runs there. With `round`, the way turns smoothly
+    // through each corner (over ROUND_CORNER either side of it, half each
+    // way at the corner itself), so that a point to one side of the line
+    // moves on without a jump as s passes the corner.
+    at(s, out, round = false) {
       let t = s % length;
       if (t < 0) t += length;
       let i = 0;
@@ -130,6 +135,23 @@ function closedLine(points) {
       out.z = a.z + (b.z - a.z) * k;
       out.hx = (b.x - a.x) / seg;
       out.hz = (b.z - a.z) / seg;
+      if (round) {
+        const span = Math.min(ROUND_CORNER, seg / 2);
+        const from = t - cum[i];
+        const to = cum[i + 1] - t;
+        const j = from < to ? (i + n - 1) % n : (i + 1) % n; // the segment round the nearer corner
+        const w = 0.5 * Math.max(0, 1 - Math.min(from, to) / span);
+        if (w > 0) {
+          const c = points[j];
+          const e = points[(j + 1) % n];
+          const sl = Math.hypot(e.x - c.x, e.z - c.z) || 1;
+          const hx = out.hx * (1 - w) + ((e.x - c.x) / sl) * w;
+          const hz = out.hz * (1 - w) + ((e.z - c.z) / sl) * w;
+          const hl = Math.hypot(hx, hz) || 1;
+          out.hx = hx / hl;
+          out.hz = hz / hl;
+        }
+      }
       return out;
     },
   };
@@ -142,11 +164,15 @@ function closedLine(points) {
 //   opts.holdHello  true (the lifelike people, src/fairshow.js with the people
 //                 kit; ruling R41): a visitor saying hello holds still, it and
 //                 its child, for the hello and HELLO_RISE after it (the
-//                 kneel's way up), and for as long after that as she is
-//                 within KEEP of it; it turns to face her while the hello
+//                 kneel's way up); it turns to face her while the hello
 //                 lasts, and takes no step aside: her soft bump (drawn by the
-//                 show) keeps her off it, as in town. False (today's figure):
-//                 exactly as ever.
+//                 show) keeps her off it, as in town. If she is still within
+//                 KEEP of it when the hold ends, it walks round her calmly
+//                 (SIDE_SPEED at most, never the step aside's jump, never
+//                 nearer her) and back onto its way; her bump stops her if
+//                 she follows. And every step it takes is a calm one
+//                 (stepCareful): never a jump to catch up with its way. False
+//                 (today's figure): exactly as ever.
 // step(dt, cat): cat { x, z, y, speed }.
 // meow(pos) → how many said hello.
 export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-visitors', swept = () => false, holdHello = false } = {}) {
@@ -213,12 +239,15 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
       moving: false, waiting: false, walked: 0,
       hello: 0, helloKind: i % 2 ? 'crouch' : 'wave',
       holdT: 0,          // with holdHello: seconds it still holds still for its hello
+      away: false,       // with holdHello: walking round her (stepRound)
+      roundWay: 0,       // which way round her (0: not yet chosen)
     };
   });
 
   // Where a visitor's own way has it now (before any step to the side), into `out`.
-  function wayOf(v, out) {
-    if (v.mode === 'stroll') return loop.at(v.s, out);
+  // (`round`: the loop's corners rounded, closedLine.at)
+  function wayOf(v, out, round = false) {
+    if (v.mode === 'stroll') return loop.at(v.s, out, round);
     const e = v.spot.exit;
     const dx = v.spot.x - e.x;
     const dz = v.spot.z - e.z;
@@ -261,9 +290,11 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
   }
 
   // With holdHello, a visitor saying hello (and its child) holds still: it
-  // turns to face her while the hello lasts, and stays where it is until the
-  // hold is over and she is KEEP off it (no step aside: her soft bump keeps
-  // her off it). Returns whether it held.
+  // turns to face her while the hello lasts, and stays where it is for the
+  // hello and HELLO_RISE (no step aside: her soft bump keeps her off it).
+  // When the hold ends with her still within KEEP of it, it steps away from
+  // her calmly (stepRound below; its child steps away by its own rules).
+  // Returns whether it held.
   function holdStill(v, dt, cat, catNear) {
     if (!holdHello || v.holdT <= 0) return false;
     v.moving = false;
@@ -271,11 +302,7 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
     const saying = v.hello > 0;
     if (saying) v.hello = Math.max(0, v.hello - dt);
     v.holdT = Math.max(0, v.holdT - dt);
-    // (it goes on its way only once she is KEEP off it and its child)
-    if (v.holdT <= 0 && catNear) {
-      const d = Math.min(Math.hypot(v.x - cat.x, v.z - cat.z), v.pair ? Math.hypot(v.childX - cat.x, v.childZ - cat.z) : Infinity);
-      if (d < VISITOR.KEEP) v.holdT = Number.MIN_VALUE;
-    }
+    if (v.holdT <= 0 && catNear && Math.hypot(v.x - cat.x, v.z - cat.z) < VISITOR.KEEP) { v.away = true; v.roundWay = 0; }
     if (saying) {
       v.yaw = turn(v.yaw, Math.atan2(cat.x - v.x, cat.z - v.z), 4 * dt);
       if (v.pair) v.childYaw = turn(v.childYaw, Math.atan2(cat.x - v.childX, cat.z - v.childZ), 4 * dt);
@@ -283,10 +310,265 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
     return true;
   }
 
+  // How far the stroller in front of v is along the loop (Infinity: none).
+  function roomAhead(v) {
+    let room = Infinity;
+    for (const o of list) {
+      if (o === v || o.mode !== 'stroll') continue;
+      let gap = o.s - v.s;
+      gap = ((gap % loop.length) + loop.length) % loop.length;
+      if (gap > 0 && gap < room) room = gap;
+    }
+    return room;
+  }
+
+  // A step of stepLen along its own way: on round the loop (not onto the
+  // heels of the stroller in front, and off to a watch spot when it is time),
+  // or out to its spot and back.
+  function advance(v, stepLen) {
+    if (v.mode === 'stroll') {
+      // not onto the heels of the stroller in front
+      if (roomAhead(v) > VISITOR.GAP) {
+        const before = v.s;
+        v.s += stepLen;
+        v.next -= stepLen;
+        v.moving = true;
+        // time to watch a ride: off the loop at the next free spot's turning
+        if (v.next <= 0 && Math.abs(v.side) < 0.05) {
+          for (const spot of spots) {
+            if (spot.taken) continue;
+            let ahead = spot.exit.s - before;
+            ahead = ((ahead % loop.length) + loop.length) % loop.length;
+            if (ahead <= stepLen + 1e-9) {
+              spot.taken = true;
+              v.spot = spot;
+              v.mode = 'out';
+              v.u = 0;
+              v.s = spot.exit.s;
+              break;
+            }
+          }
+        }
+        if (v.s >= loop.length) v.s -= loop.length;
+      } else v.waiting = true;
+    } else {
+      v.moving = true;
+      alongSpot(v, stepLen);
+    }
+  }
+
+  // stepLen out to its watch spot (watching, once there) or back (strolling
+  // on, once at the loop).
+  function alongSpot(v, stepLen) {
+    const len = Math.hypot(v.spot.x - v.spot.exit.x, v.spot.z - v.spot.exit.z) || 1;
+    if (v.mode === 'out') {
+      v.u = Math.min(1, v.u + stepLen / len);
+      if (v.u >= 1) { v.mode = 'watch'; v.until = VISITOR.WATCH_MIN + rng() * (VISITOR.WATCH_MAX - VISITOR.WATCH_MIN); }
+    } else {
+      v.u = Math.max(0, v.u - stepLen / len);
+      if (v.u <= 0) {
+        v.spot.taken = false;
+        v.spot = null;
+        v.mode = 'stroll';
+        v.next = VISITOR.STROLL_MIN + rng() * (VISITOR.STROLL_MAX - VISITOR.STROLL_MIN);
+      }
+    }
+  }
+
+  // Where its way would have it `ds` further along (back the way it came if
+  // negative; only on the loop and out to or back from a spot) and `side` to
+  // one side, into out (the loop's corners rounded); Q is left as the way
+  // there.
+  function wayAhead(v, ds, side, out) {
+    const s0 = v.s;
+    const u0 = v.u;
+    if (ds !== 0) {
+      if (v.mode === 'stroll') v.s = s0 + ds;
+      else if (v.mode === 'out' || v.mode === 'back') {
+        const len = Math.hypot(v.spot.x - v.spot.exit.x, v.spot.z - v.spot.exit.z) || 1;
+        v.u = Math.min(1, Math.max(0, u0 + ((v.mode === 'out' ? 1 : -1) * ds) / len));
+      }
+    }
+    wayOf(v, Q, true);
+    v.s = s0;
+    v.u = u0;
+    out.x = Q.x + Q.hz * side;
+    out.z = Q.z - Q.hx * side;
+    return out;
+  }
+
+  // With holdHello (the lifelike people), every step is a calm one: never
+  // further than its pace along its way and SIDE_SPEED to the side, and
+  // never a step its way has taken that it has not (where it waits, its way
+  // waits with it, so it never catches up in a jump). It goes on along its
+  // way (if it may) with the side step it has just taken (round her, on the
+  // side she is not), or takes the side step alone: the first of the two
+  // that is free ground, never a step towards her within arm's length, and
+  // never into KEEP of her; else it waits where it is. If where its way has
+  // it is further off than one such step (after a step aside), it walks
+  // there at that pace. Stuck in front of her (within arm's length, and it
+  // can neither go on nor take its side step), it walks round her
+  // (stepRound).
+  const T = { x: 0, z: 0 };
+  function stepCareful(v, dt, cat, go, side0) {
+    const px = v.x;
+    const pz = v.z;
+    const gap = cat ? Math.hypot(px - cat.x, pz - cat.z) : Infinity;
+    const side1 = v.side;
+    const len = v.pace * dt;
+    const most = len + VISITOR.SIDE_SPEED * dt;
+    let fwd = 0;
+    if (go) {
+      if (v.mode !== 'stroll' || roomAhead(v) > VISITOR.GAP) fwd = len;
+      else v.waiting = true;
+    }
+    let took = -1; // 0: on with the side step, 1: the side step alone
+    for (let k = fwd > 0 ? 0 : 1; k < 2 && took < 0; k++) {
+      const ds = k === 0 ? fwd : 0;
+      wayAhead(v, ds, side1, T);
+      let dx = T.x - px;
+      let dz = T.z - pz;
+      const d = Math.hypot(dx, dz);
+      if (d > most) { dx *= most / d; dz *= most / d; }
+      const x = px + dx;
+      const z = pz + dz;
+      if (!free(x, z)) continue;
+      if (cat) {
+        const e = Math.hypot(x - cat.x, z - cat.z);
+        if (gap < VISITOR.NEAR && e < gap - 1e-9) continue;
+        if (gap >= VISITOR.KEEP && e < VISITOR.KEEP) continue;
+      }
+      if (ds > 0) advance(v, ds);
+      v.x = x;
+      v.z = z;
+      v.moving = d > 1e-6;
+      took = k;
+    }
+    if (took < 0) v.side = side0;
+    if (took !== 0 && go) v.waiting = true;
+    // stuck in front of her: round her
+    if (cat && gap < VISITOR.NEAR && fwd > 0 && took !== 0 && !(took === 1 && side1 !== side0)) { v.away = true; v.roundWay = 0; }
+    wayAhead(v, 0, v.side, T);
+  }
+
+  // Walking round her (`away`, with holdHello): she was still within KEEP of
+  // it when its hello ended, or it was stuck in front of her. It makes for
+  // the first spot on its way past her that is clear of her (watching a
+  // ride, or none within FAR: a spot straight away from her), at SIDE_SPEED
+  // at most: each step the one of a ring round it that is free ground,
+  // never towards her within arm's length, never into KEEP of her, close by
+  // her only ever the one way round her, and nearest that spot (else it
+  // waits where it is); it turns to the way it steps first. Never aside()'s
+  // jump. Once there (or KEEP and a little more from her, making straight
+  // away), its way goes on from where it stands. If she follows, her soft
+  // bump stops her (src/fairshow.js).
+  const AWAY_CLEAR = 0.1;
+  const PAST = VISITOR.KEEP + 0.6;  // how far past her, along its way, it makes for (at the least)
+  const FAR = 10;                    // and at the most
+  const RING = 16;
+  const TURN_FIRST = 0.5;            // radians: turned this near the way it steps, it walks
+  const G = { x: 0, z: 0 };
+  function stepRound(v, dt, cat) {
+    const px = v.x;
+    const pz = v.z;
+    const gap = Math.hypot(px - cat.x, pz - cat.z);
+    // where it makes for (ahead: how far along its way; -1, straight away from her)
+    let ahead = -1;
+    if (v.mode !== 'watch') {
+      wayOf(v, P, true);
+      for (let a = Math.max(0, (cat.x - P.x) * P.hx + (cat.z - P.z) * P.hz) + PAST; a < FAR; a += 0.25) {
+        wayAhead(v, a, 0, G);
+        if (Math.hypot(G.x - cat.x, G.z - cat.z) >= VISITOR.KEEP + AWAY_CLEAR + 0.2 && free(G.x, G.z)) { ahead = a; break; }
+      }
+    }
+    if (ahead < 0) {
+      const l = gap || 1;
+      G.x = px + ((px - cat.x) / l) * 2;
+      G.z = pz + ((pz - cat.z) / l) * 2;
+    }
+    const r = VISITOR.SIDE_SPEED * dt;
+    const close = gap < VISITOR.NEAR + 0.3;
+    if (!close) v.roundWay = 0;
+    // (a step, if there is one: standing still is never nearer that spot
+    // than going round her is, a step at a time)
+    let best = Infinity;
+    let bx = px;
+    let bz = pz;
+    for (let ri = 2; ri >= 1; ri--) {
+      for (let k = 0; k < RING; k++) {
+        const a = k * (TAU / RING);
+        const x = px + Math.sin(a) * r * (ri / 2);
+        const z = pz + Math.cos(a) * r * (ri / 2);
+        if (!free(x, z)) continue;
+        const e = Math.hypot(x - cat.x, z - cat.z);
+        if (gap < VISITOR.NEAR && e < gap - 1e-9) continue;
+        if (gap >= VISITOR.KEEP && e < VISITOR.KEEP) continue;
+        // (close by her, one way round her, the way it first went, so it never dithers)
+        const turnWay = (x - px) * (pz - cat.z) - (z - pz) * (px - cat.x);
+        if (close && v.roundWay * turnWay < -1e-9) continue;
+        const g = Math.hypot(x - G.x, z - G.z);
+        if (g < best - 1e-9) { best = g; bx = x; bz = z; }
+      }
+    }
+    const step = Math.hypot(bx - px, bz - pz);
+    if (step <= 1e-6) v.roundWay = -v.roundWay; // that way is blocked: the other way round next
+    else if (close && v.roundWay === 0) {
+      const w = (bx - px) * (pz - cat.z) - (bz - pz) * (px - cat.x);
+      if (Math.abs(w) > 1e-9) v.roundWay = Math.sign(w);
+    }
+    // it turns to the way it steps before it walks (it faced her for its
+    // hello: a stride towards her would put a foot in her)
+    const dir = step > 1e-6 ? Math.atan2(bx - px, bz - pz) : v.yaw;
+    const walks = step > 1e-6 && Math.abs(wrap(dir - v.yaw)) <= TURN_FIRST;
+    if (walks) { v.x = bx; v.z = bz; }
+    v.moving = walks;
+    v.waiting = step <= 1e-6;
+    const now = Math.hypot(v.x - cat.x, v.z - cat.z);
+    if (ahead < 0) {
+      if (now >= VISITOR.KEEP + AWAY_CLEAR) { anchor(v, null); v.away = false; }
+    } else if (Math.hypot(v.x - G.x, v.z - G.z) < r && now >= VISITOR.KEEP + AWAY_CLEAR) {
+      anchor(v, ahead);
+      v.away = false;
+    }
+    wayAhead(v, 0, v.side, T); // (Q: its way where it now is)
+    return dir;
+  }
+
+  // Its way goes on from where it stands: `ahead` further along its way
+  // (no turn off to a watch spot on the way there; null: as far along as it
+  // stands), and to the side as it stands from there.
+  function anchor(v, ahead) {
+    if (ahead === null) {
+      wayOf(v, P, true);
+      ahead = Math.max(0, (v.x - P.x) * P.hx + (v.z - P.z) * P.hz);
+    }
+    if (ahead > 0 && v.mode === 'stroll') {
+      v.s += ahead;
+      v.next -= ahead;
+      if (v.s >= loop.length) v.s -= loop.length;
+    } else if (ahead > 0 && v.mode !== 'watch') alongSpot(v, ahead);
+    wayOf(v, Q, true);
+    v.side = Math.max(-VISITOR.ROUND * 2, Math.min(VISITOR.ROUND * 2, (v.x - Q.x) * Q.hz - (v.z - Q.z) * Q.hx));
+  }
+
   function stepOne(v, dt, cat, catNear) {
     if (holdStill(v, dt, cat, catNear)) return;
+    if (v.away && !catNear) { anchor(v, null); v.away = false; }
     const ax0 = v.x;
     const az0 = v.z;
+    if (v.away) {
+      // walking round her (stepRound), it and its child
+      if (v.hello > 0) v.hello = Math.max(0, v.hello - dt);
+      if (v.mode === 'watch') {
+        v.until -= dt;
+        if (v.until <= 0) v.mode = 'back';
+      }
+      const face = stepRound(v, dt, cat);
+      v.walked += Math.hypot(v.x - ax0, v.z - az0);
+      v.yaw = turn(v.yaw, face, 4 * dt);
+      if (v.pair) stepChild(v, dt, cat, ax0, az0, v.yaw, cat);
+      return;
+    }
     v.moving = false;
     v.waiting = false;
     if (v.hello > 0) v.hello = Math.max(0, v.hello - dt);
@@ -324,74 +606,28 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
       }
     }
     // step to the side, or back onto its way
+    const side0 = v.side;
     if (want !== v.side) {
       const d = want - v.side;
       v.side += Math.sign(d) * Math.min(Math.abs(d), VISITOR.SIDE_SPEED * dt);
     }
+    const px = v.x;
+    const pz = v.z;
     if (v.mode === 'watch') {
       v.until -= dt;
       if (v.until <= 0) v.mode = 'back';
-    } else if (go) {
-      const stepLen = v.pace * dt;
-      if (v.mode === 'stroll') {
-        // not onto the heels of the stroller in front
-        let room = Infinity;
-        for (const o of list) {
-          if (o === v || o.mode !== 'stroll') continue;
-          let gap = o.s - v.s;
-          gap = ((gap % loop.length) + loop.length) % loop.length;
-          if (gap > 0 && gap < room) room = gap;
-        }
-        if (room > VISITOR.GAP) {
-          const before = v.s;
-          v.s += stepLen;
-          v.next -= stepLen;
-          v.moving = true;
-          // time to watch a ride: off the loop at the next free spot's turning
-          if (v.next <= 0 && Math.abs(v.side) < 0.05) {
-            for (const spot of spots) {
-              if (spot.taken) continue;
-              let ahead = spot.exit.s - before;
-              ahead = ((ahead % loop.length) + loop.length) % loop.length;
-              if (ahead <= stepLen + 1e-9) {
-                spot.taken = true;
-                v.spot = spot;
-                v.mode = 'out';
-                v.u = 0;
-                v.s = spot.exit.s;
-                break;
-              }
-            }
-          }
-          if (v.s >= loop.length) v.s -= loop.length;
-        } else v.waiting = true;
-      } else {
-        const len = Math.hypot(v.spot.x - v.spot.exit.x, v.spot.z - v.spot.exit.z) || 1;
-        v.moving = true;
-        if (v.mode === 'out') {
-          v.u = Math.min(1, v.u + stepLen / len);
-          if (v.u >= 1) { v.mode = 'watch'; v.until = VISITOR.WATCH_MIN + rng() * (VISITOR.WATCH_MAX - VISITOR.WATCH_MIN); }
-        } else {
-          v.u = Math.max(0, v.u - stepLen / len);
-          if (v.u <= 0) {
-            v.spot.taken = false;
-            v.spot = null;
-            v.mode = 'stroll';
-            v.next = VISITOR.STROLL_MIN + rng() * (VISITOR.STROLL_MAX - VISITOR.STROLL_MIN);
-          }
-        }
-      }
+    } else if (go && !holdHello) advance(v, v.pace * dt);
+    if (holdHello) stepCareful(v, dt, catNear ? cat : null, go && v.mode !== 'watch', side0);
+    else {
+      // where that puts it
+      wayOf(v, Q);
+      const tx = Q.x + Q.hz * v.side;
+      const tz = Q.z - Q.hx * v.side;
+      // (never a step TOWARDS a cat who is within arm's length: it waits where it is)
+      const gap = catNear ? Math.hypot(px - cat.x, pz - cat.z) : Infinity;
+      if (free(tx, tz) && !(gap < VISITOR.NEAR && Math.hypot(tx - cat.x, tz - cat.z) < gap)) { v.x = tx; v.z = tz; }
+      else if (v.moving) { v.moving = false; v.waiting = true; }
     }
-    // where that puts it
-    wayOf(v, Q);
-    const tx = Q.x + Q.hz * v.side;
-    const tz = Q.z - Q.hx * v.side;
-    const px = v.x;
-    const pz = v.z;
-    // (never a step TOWARDS a cat who is within arm's length: it waits where it is)
-    const gap = catNear ? Math.hypot(px - cat.x, pz - cat.z) : Infinity;
-    if (free(tx, tz) && !(gap < VISITOR.NEAR && Math.hypot(tx - cat.x, tz - cat.z) < gap)) { v.x = tx; v.z = tz; }
-    else if (v.moving) { v.moving = false; v.waiting = true; }
     // NEVER where the cat is: if that is nearer her than KEEP, a step aside
     if (catNear && Math.hypot(v.x - cat.x, v.z - cat.z) < VISITOR.KEEP) {
       v.x = px; v.z = pz;

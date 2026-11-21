@@ -1347,6 +1347,63 @@ describe('the visitors', () => {
     expect(v.takeEvents()).toEqual([]);
   });
 
+  // With the lifelike people (holdHello, ruling R41) a visitor saying hello
+  // holds still for the hello and the kneel's way up. If she is still close
+  // then (she sits 0.5 to 0.8 m off, in front of it, beside it, behind it),
+  // it walks round her calmly and on its way: it never froze there for good
+  // (final review: 0 m in a minute, four strollers queued behind it), never
+  // jumps (aside()'s step), and never steps towards her within arm's length.
+  it('with the people, a hello to a cat who then sits by it: it holds, then walks round her and on, calmly', () => {
+    const cases = [[0, 0.8], [0, 0.5], [0.6, 0.7], [Math.PI / 2, 0.7], [-Math.PI / 2, 0.6], [Math.PI, 0.7]];
+    let ran = 0;
+    // (strolling and going out to watch, alone and with a child, and one at a corner of the loop)
+    for (const who of [0, 1, 3, 4, 6]) {
+      for (const [ang, r] of cases) {
+        const v = createFairVisitors(AREA, { count: 8, seed: 'people', swept: SIM.swept, holdHello: true });
+        for (let i = 0; i < 300 + who * 37; i++) v.step(DT, far);
+        const held = v.list[who];
+        const cat = { x: held.x + Math.sin(held.yaw + ang) * r, z: held.z + Math.cos(held.yaw + ang) * r, y: 0, speed: 0 };
+        if (!v.free(cat.x, cat.z)) continue;
+        ran++;
+        const at = `${held.id}, her ${r} m off at ${ang.toFixed(2)} rad`;
+        expect(v.meow(cat), at).toBeGreaterThanOrEqual(1);
+        const w0 = held.walked;
+        const last = v.list.map((p) => ({ x: p.x, z: p.z }));
+        const waited = v.list.map(() => 0);
+        let longest = 0;
+        let jumps = 0;
+        let towards = 0;
+        let movedHolding = 0;
+        const mv = moves(v, cat);
+        for (let i = 0; i < 30 * 60; i++) {
+          const gaps = v.list.map((p) => dist(p, cat));
+          const holding = v.list.map((p) => p.holdT > 0);
+          v.step(DT, cat);
+          mv.check(DT);
+          v.list.forEach((p, k) => {
+            const s = Math.hypot(p.x - last[k].x, p.z - last[k].z);
+            if (s > (p.pace + VISITOR.SIDE_SPEED) * DT + 1e-9) jumps++;
+            if (holding[k] && p.holdT > 0 && s > 0) movedHolding++;
+            if (gaps[k] < VISITOR.NEAR && dist(p, cat) < gaps[k] - 1e-9) towards++;
+            last[k] = { x: p.x, z: p.z };
+            waited[k] = p !== held && p.waiting ? waited[k] + DT : 0;
+            longest = Math.max(longest, waited[k]);
+          });
+          for (const p of pairs(v)) childRules(p, cat, i * DT, AREA, false);
+        }
+        expect(movedHolding, `${at}: still while it holds`).toBe(0);
+        expect(held.walked - w0, `${at}: it walks on`).toBeGreaterThanOrEqual(20);
+        expect(held.walked - w0, `${at}: at a walk (no dithering)`).toBeLessThanOrEqual(held.pace * 60 + 0.5);
+        expect(longest, `${at}: nobody waits long behind it`).toBeLessThanOrEqual(4);
+        expect(jumps, `${at}: no visitor ever jumps`).toBe(0);
+        expect(towards, `${at}: never a step towards her within arm's length`).toBe(0);
+        expect(mv.worst, `${at}: no child hops`).toBeLessThanOrEqual(1e-9);
+        expect(mv.towards, `${at}: no child steps towards her`).toBe(0);
+      }
+    }
+    expect(ran).toBeGreaterThanOrEqual(25);
+  }, 90_000);
+
   it('are not animals: nothing at the fair can stalk, pounce on or spot one, and the file never shoos or follows', () => {
     expect(AREA.critterSpawns.some((c) => c.type === 'villager')).toBe(false);
     const src = code('fairvisitors.js');
