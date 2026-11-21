@@ -30,13 +30,14 @@ vi.stubGlobal('document', {
 });
 
 const fair = await import('../src/world/fair.js');
+const { duskLook } = await import('../src/render/dusk.js');
 const {
   build, SPAWN, FAIR_BOUNDS, FAIR_REGISTRATION: REG, DUCK_POOL, COASTER_TRACK, COASTER_STATION_S, HELTER_SLIDE, HELTER_STAIRS, HELTER_TOP,
   STATION_DECK, TRACK_X, STALLS, FIELD, FAIR_HIDES, SIGN_POSTS, setFairGlow, fairBare, fairGroundTint,
 } = fair;
 const { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, trackPose, coasterTrackPoints } = await import('../src/world/fairrides.js');
 const { TINS, BELL, FORTUNE, STALL, PICNIC, BANDSTAND, STALL_SIGN, SIGN_POST } = await import('../src/world/fairparts.js');
-const { GLOW_MAX } = await import('../src/world/fairkit.js');
+const { GLOW_MAX, GLOW_LOOK } = await import('../src/world/fairkit.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { isWalkableAt, isWadeableAt, CAT_RADIUS } = await import('../src/player.js');
 const { inWater, waterClearance, shallowExcess } = await import('../src/world/builder.js');
@@ -1516,6 +1517,187 @@ describe('The Fairground: what the shared tables will need (FAIR_REGISTRATION)',
   });
 });
 
+// The beauty pass (2026-11-20): what a child sees from the ground.
+describe('The Fairground: the beauty pass', () => {
+  const v = new THREE.Vector3();
+  // the distinct colours of a mesh's vertices that pass `keep` (world positions)
+  const coloursWhere = (mesh, keep) => {
+    mesh.updateWorldMatrix(true, false);
+    const pos = mesh.geometry.getAttribute('position');
+    const col = mesh.geometry.getAttribute('color');
+    const out = new Set();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      if (!keep(v)) continue;
+      // the hue, not the shade: stripes() lights each panel a little differently
+      const top = Math.max(col.getX(i), col.getY(i), col.getZ(i), 1e-6);
+      out.add([col.getX(i), col.getY(i), col.getZ(i)].map((c) => (c / top).toFixed(2)).join());
+    }
+    return out;
+  };
+
+  it('the midway and the plaza are sawdust, not a plain trail', () => {
+    const trail = scene.children.find((o) => o.name === 'pathTrail');
+    expect(trail.userData.trailLook).toBe('sawdust');
+  });
+
+  it('the teacups stand on a painted skirt, not a plain white drum', () => {
+    const deck = scene.getObjectByName('teacupsDeck');
+    const at = scene.getObjectByName('teacups').position;
+    // the skirt's lower corners (the deck's top starts at deckY, the kerb is wider)
+    const skirt = coloursWhere(deck, (p) => Math.abs(Math.hypot(p.x - at.x, p.z - at.z) - TEACUPS.r) < 0.02
+      && Math.abs(p.y - 0.12) < 0.005);
+    expect(skirt.size).toBe(2); // pink and cream
+  });
+
+  it('the coaster platform’s skirt is panelled in two colours', () => {
+    const station = scene.getObjectByName('coasterStation');
+    // the skirt's west face, along its foot, away from the steps up to it
+    const cz = (STATION_DECK.minZ + STATION_DECK.maxZ) / 2;
+    const west = coloursWhere(station, (p) => Math.abs(p.x - STATION_DECK.minX) < 0.01 && Math.abs(p.y) < 0.005
+      && p.z > STATION_DECK.minZ + 0.01 && p.z < STATION_DECK.maxZ - 0.01 && Math.abs(p.z - cz) > STATION.stepW / 2 + 0.05);
+    expect(west.size).toBe(2); // blue and cream
+  });
+
+  it('the carousel’s mirrors and painted ovals are on the bulbs’ material, as steady panes', () => {
+    const bulbs = scene.getObjectByName('mgrBulbs');
+    expect(bulbs.material).toBe(area.glow.material);
+    const r = bulbs.geometry.getAttribute('fairBulbR');
+    let panes = 0;
+    for (let i = 0; i < r.count; i++) if (r.getX(i) === 0) panes++;
+    // 12 mirrors on the drum and 16 ovals on the rounding board, octagons of 6 triangles
+    expect(panes).toBe((12 + 16) * 6 * 3);
+  });
+
+  it('the far hills differ by side: more yellow to the east than behind the big wheel', () => {
+    const band = scene.children.find((o) => o.name === 'horizonBand');
+    const mean = (keep) => {
+      const pos = band.geometry.getAttribute('position');
+      const col = band.geometry.getAttribute('color');
+      let n = 0, rg = 0;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), z = pos.getZ(i);
+        if (keep(x, z) && pos.getY(i) > 2) { n++; rg += col.getX(i) / Math.max(1e-6, col.getZ(i)); }
+      }
+      return rg / n;
+    };
+    const east = mean((x, z) => x > 70 && Math.abs(z) < 30);
+    const north = mean((x, z) => z < -70 && Math.abs(x) < 30);
+    expect(east).toBeGreaterThan(north * 1.3);
+  });
+});
+
+// Beauty round two (2026-11-20): bolder, and mostly for dusk.
+describe('The Fairground: the beauty pass, round two', () => {
+  const paneVerts = (mesh) => {
+    const r = mesh.geometry.getAttribute('fairBulbR');
+    const pos = mesh.geometry.getAttribute('position');
+    const v = new THREE.Vector3();
+    mesh.updateWorldMatrix(true, false);
+    const out = [];
+    for (let i = 0; i < r.count; i++) if (r.getX(i) === 0) out.push(v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).clone());
+    return out;
+  };
+
+  it('the coaster’s whole run is outlined in bulbs that chase round it, on the shared glow, casting nothing', () => {
+    const lights = scene.getObjectByName('coasterLights');
+    expect(lights.material).toBe(area.glow.material);
+    expect(lights.castShadow).toBe(false);
+    const chase = lights.geometry.getAttribute('fairChase');
+    // every one a chasing bulb (eight triangles each), none a steady pane
+    const pos0 = lights.geometry.getAttribute('position');
+    expect(pos0.count % 24).toBe(0);
+    // each beside the track, at a sleeper's end (gauge + 0.16 out), below the rail top
+    const pts = COASTER_TRACK.points;
+    for (let b = 0; b < pos0.count / 24; b++) {
+      let x = 0, y = 0, z = 0;
+      for (let k = 0; k < 24; k++) { x += pos0.getX(b * 24 + k) / 24; y += pos0.getY(b * 24 + k) / 24; z += pos0.getZ(b * 24 + k) / 24; }
+      const near = pts.reduce((m, p) => (Math.hypot(p.x - x, p.z - z) < Math.hypot(m.x - x, m.z - z) ? p : m), pts[0]);
+      expect(Math.hypot(near.x - x, near.z - z)).toBeCloseTo(COASTER.gauge + 0.16, 1);
+      expect(y).toBeLessThan(near.y);
+    }
+    for (let i = 0; i < chase.count; i++) expect(chase.getX(i)).toBeGreaterThanOrEqual(0);
+    // spread along the whole track, both sides
+    const pos = lights.geometry.getAttribute('position');
+    let minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i < pos.count; i++) { minZ = Math.min(minZ, pos.getZ(i)); maxZ = Math.max(maxZ, pos.getZ(i)); }
+    expect(minZ).toBeLessThan(-35);
+    expect(maxZ).toBeGreaterThan(25);
+  });
+
+  it('every stall’s inside back is on the glow (lit at dusk), and the stalls’ glow takes the sun’s shadow by day', () => {
+    const bulbs = scene.getObjectByName('fairBulbs');
+    expect(bulbs.receiveShadow).toBe(true);
+    const panes = paneVerts(bulbs);
+    for (const s of STALLS) {
+      const inside = panes.filter((p) => {
+        const dx = p.x - s.x, dz = p.z - s.z;
+        const lz = dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw);
+        const lx = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw);
+        return Math.abs(lz - (-STALL.d / 2 + 0.1)) < 0.03 && Math.abs(lx) < STALL.w / 2 && p.y > 0.05 && p.y < 2.0;
+      });
+      // the dado and the board over it
+      expect(inside.some((p) => p.y < 1.0), s.id).toBe(true);
+      expect(inside.some((p) => p.y > 1.5), s.id).toBe(true);
+    }
+  });
+
+  it('every stall’s inside is a shaded version of its own paint, never pale: warm at dusk, never white', () => {
+    const bulbs = scene.getObjectByName('fairBulbs');
+    const r = bulbs.geometry.getAttribute('fairBulbR');
+    const pos = bulbs.geometry.getAttribute('position');
+    const col = bulbs.geometry.getAttribute('color');
+    const v = new THREE.Vector3();
+    bulbs.updateWorldMatrix(true, false);
+    const unit = (c) => { const n = Math.hypot(c[0], c[1], c[2]) || 1; return c.map((x) => x / n); };
+    for (const s of STALLS) {
+      const own = new THREE.Color(s.colors[0]);
+      const ownU = unit([own.r, own.g, own.b]);
+      const inside = [];
+      for (let i = 0; i < r.count; i++) {
+        if (r.getX(i) !== 0) continue;
+        v.fromBufferAttribute(pos, i).applyMatrix4(bulbs.matrixWorld);
+        const dx = v.x - s.x, dz = v.z - s.z;
+        const lz = dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw);
+        const lx = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw);
+        if (Math.abs(lz - (-STALL.d / 2 + 0.1)) < 0.03 && Math.abs(lx) < STALL.w / 2 && v.y > 0.05 && v.y < 2.0) {
+          inside.push([col.getX(i), col.getY(i), col.getZ(i)]);
+        }
+      }
+      expect(inside.length, s.id).toBeGreaterThan(0);
+      for (const c of inside) {
+        const top = Math.max(...c);
+        // the stall's own hue (not cream, not grey)
+        const u = unit(c);
+        expect(u[0] * ownU[0] + u[1] * ownU[1] + u[2] * ownU[2], s.id).toBeGreaterThan(0.95);
+        // coloured, not pale: a pale board has its channels close together
+        expect((top - Math.min(...c)) / top, s.id).toBeGreaterThan(0.45);
+        // shaded, and dim enough that its dusk glow (paint x pane x GLOW_MAX)
+        // stays under the bloom's threshold (1.1): warm, never a white box
+        expect(top * GLOW_LOOK.pane * GLOW_MAX, s.id).toBeLessThan(0.9);
+      }
+    }
+  });
+
+  it('the field is deeper at dusk than a street’s lawn, and the sawdust keeps a street’s warm dusk', () => {
+    expect(duskLook(area).lawnTint.dark).toBeLessThan(duskLook({}).lawnTint.dark);
+    const trail = scene.children.find((o) => o.name === 'pathTrail');
+    expect({ ...duskLook(area).lawnTint, ...trail.userData.duskLawnTint }).toEqual(duskLook({}).lawnTint);
+  });
+
+  it('the ground round the rides is worn well out from them', () => {
+    // 3 m out (the old rings ended at 2.8 m)
+    expect(fair.fairWear(fair.TEACUPS_AT.x + TEACUPS.baseR + 3, fair.TEACUPS_AT.z)).toBeGreaterThan(0.05);
+    expect(fair.fairWear(fair.HELTER_AT.x + HELTER.baseR + 3, fair.HELTER_AT.z)).toBeGreaterThan(0.05);
+  });
+
+  it('the empty corners have bales put by, solid to the cat', () => {
+    for (const [x, z] of [[38.6, 38.4], [-40.4, 27.5], [25.2, -42.2]]) {
+      expect(area.colliders.some((c) => Math.hypot(c.x - x, c.z - z) < 1.2), `${x},${z}`).toBe(true);
+    }
+  });
+});
+
 describe('The Fairground: the drawing budget', () => {
   const built = budgetStats(scene);
   const mergedScene = new THREE.Scene();
@@ -1532,8 +1714,12 @@ describe('The Fairground: the drawing budget', () => {
     // Polish pass (2026-11-19): carved horses, stall trims, glow and a cull of
     // the faces lying on the ground; the four builder flower patches (48
     // meshes, 48 casters) became flower tubs in the props' mesh.
-    expect(built).toEqual({ meshes: 174, casters: 109, triangles: 66692 });
-    expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 159, casters: 104 });
+    // Beauty pass (2026-11-20): the teacups' painted skirt, gold edge and
+    // finer kerb stripes and its top, the coaster platform’s panelled skirt: +312.
+    // Round two: the coaster's lights (one mesh, no shadow), the big wheel's
+    // sunbursts, red post caps, the stalls' lit insides, three bale stacks: +1,728.
+    expect(built).toEqual({ meshes: 175, casters: 109, triangles: 68732 });
+    expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 160, casters: 104 });
   });
 
   it('is inside the territories’ budget built, and inside their merged budget', () => {
