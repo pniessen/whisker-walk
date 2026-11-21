@@ -136,12 +136,14 @@ export const OUTSIDE_WORDS = Object.freeze({
   people: 'townspeople',
 });
 
+// roofs: the Rooftops, in plain words in both sets.
 // town: the Neighborhood. island: the island in the lake, a quiet place.
 // seat: the first cat's seat in a home base (no line shows it yet).
 export const PLACE_WORDS = Object.freeze({
   town: 'Peopleville',
   island: 'The Still Island',
   seat: 'High Stone',
+  roofs: 'The Rooftops',
 });
 
 // ---- what this set does differently ---------------------------------------------------

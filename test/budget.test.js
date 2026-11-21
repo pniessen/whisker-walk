@@ -36,6 +36,7 @@ const { build: buildPines } = await import('../src/world/pines.js');
 const { build: buildGorge } = await import('../src/world/gorge.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
+const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
@@ -442,6 +443,11 @@ const AREAS = [
   // animals and jobs); for the Fairground it is the coordinator's call,
   // flagged to the owner and his to change.
   ['fair', buildFair, 250, 180, 75000],
+  // The Rooftops (Rooftops step 2, 2026-11-20), measured 113 / 67 / 32,202
+  // (part one alone was 76 / 42 / 13,284). Held to the territories' ceilings,
+  // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
+  // pins the exact numbers).
+  ['roofs', buildRoofs, 450, 380, 70000],
 ];
 
 // ---------------------------------------------------------------------------
@@ -486,6 +492,7 @@ const MERGED_AREAS = [
   ['gorge', buildGorge, 260, 205],
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
+  ['roofs', buildRoofs, 64, 34], // measured 57 / 30, + 12%
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

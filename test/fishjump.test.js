@@ -45,6 +45,7 @@ const WORLDS = {
   neighborhood: await import('../src/world/neighborhood.js'),
   farm: await import('../src/world/farm.js'),
   fair: await import('../src/world/fair.js'),
+  roofs: await import('../src/world/roofs.js'),
 };
 
 const DT = 1 / 60;

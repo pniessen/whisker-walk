@@ -56,7 +56,8 @@
    "placeWords": {
     "town": "Peopleville",
     "island": "The Still Island",
-    "seat": "High Stone"
+    "seat": "High Stone",
+    "roofs": "The Rooftops"
    },
    "placeNames": {
     "neighborhood": "Peopleville",
@@ -5535,6 +5536,11 @@
      "🔒 Seaside",
      "explore the Old",
      "Docks 2 more times",
+     "[aria-label] The Rooftops: coming soon",
+     "The",
+     "Rooftops",
+     "coming",
+     "soon",
      "[aria-label] The Still Island, in the Pines and Swamp: opens after you explore the River and Marshes 2 times · 0/2",
      "The Still Island",
      "in the Pines and Swamp"
@@ -5595,6 +5601,11 @@
      "🏖️",
      "Seaside",
      "click to go here",
+     "[aria-label] The Rooftops: coming soon",
+     "The",
+     "Rooftops",
+     "coming",
+     "soon",
      "[aria-label] The Still Island, in the Pines and Swamp: click to go here",
      "The Still Island",
      "in the Pines and Swamp"
@@ -5721,6 +5732,11 @@
       "🔒 Seaside",
       "explore the Old",
       "Docks 2 more times",
+      "[aria-label] The Rooftops: coming soon",
+      "The",
+      "Rooftops",
+      "coming",
+      "soon",
       "[aria-label] The Still Island, in the Pines and Swamp: opens after you explore the River and Marshes 2 times · 0/2",
       "The Still Island",
       "in the Pines and Swamp",
@@ -5805,6 +5821,11 @@
       "🏖️",
       "Seaside",
       "click to go here",
+      "[aria-label] The Rooftops: coming soon",
+      "The",
+      "Rooftops",
+      "coming",
+      "soon",
       "[aria-label] The Still Island, in the Pines and Swamp: click to go here",
       "The Still Island",
       "in the Pines and Swamp",

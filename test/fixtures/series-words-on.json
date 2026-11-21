@@ -66,7 +66,8 @@
     "house": "kittypet"
    },
    "placeWords": {
-    "town": "Twolegplace"
+    "town": "Twolegplace",
+    "roofs": "The Rooftops"
    },
    "placeNames": {
     "neighborhood": "Twolegplace",
@@ -5478,6 +5479,11 @@
      "🔒 Seaside",
      "explore the Old",
      "Docks 2 more times",
+     "[aria-label] The Rooftops: coming soon",
+     "The",
+     "Rooftops",
+     "coming",
+     "soon",
      "[aria-label] The island, in the Pines and Swamp: opens after you explore the River and Marshes 2 times · 0/2",
      "The island",
      "in the Pines and Swamp"
@@ -5538,6 +5544,11 @@
      "🏖️",
      "Seaside",
      "click to go here",
+     "[aria-label] The Rooftops: coming soon",
+     "The",
+     "Rooftops",
+     "coming",
+     "soon",
      "[aria-label] The island, in the Pines and Swamp: click to go here",
      "The island",
      "in the Pines and Swamp"
@@ -5664,6 +5675,11 @@
       "🔒 Seaside",
       "explore the Old",
       "Docks 2 more times",
+      "[aria-label] The Rooftops: coming soon",
+      "The",
+      "Rooftops",
+      "coming",
+      "soon",
       "[aria-label] The island, in the Pines and Swamp: opens after you explore the River and Marshes 2 times · 0/2",
       "The island",
       "in the Pines and Swamp",
@@ -5748,6 +5764,11 @@
       "🏖️",
       "Seaside",
       "click to go here",
+      "[aria-label] The Rooftops: coming soon",
+      "The",
+      "Rooftops",
+      "coming",
+      "soon",
       "[aria-label] The island, in the Pines and Swamp: click to go here",
       "The island",
       "in the Pines and Swamp",

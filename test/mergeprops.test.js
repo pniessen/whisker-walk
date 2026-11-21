@@ -30,6 +30,7 @@ const { litMaterial } = await import('../src/render/materials.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildFarm } = await import('../src/world/farm.js');
 const { build: buildFair } = await import('../src/world/fair.js');
+const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
@@ -74,6 +75,8 @@ const AREAS = [
   // The Fairground: its stalls, tents, rides' bases, trees and small props.
   // (41 -> 37 in the polish pass: the four flower patches became tubs in the props' mesh)
   ['fair', buildFair, 37, false],
+  // The Rooftops: the four lamp posts (the alley's and three in the street below).
+  ['roofs', buildRoofs, 4, false],
 ];
 
 function buildArea(builder, isDen) {
