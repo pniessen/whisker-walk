@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
 // place is the Woods walks the Neighborhood, solo or in a room, and keeps the
 // Woods as their place. The area builders are stubbed to record which area a
 // walk builds, then stop it: the area is built before anything else that
-// matters here (walk.js, the AREAS[areaId].build call).
+// matters here (walk.js startWalk's pack.world.build call; every place is
+// loaded first in beforeAll, so a start reaches it in the same tick).
 // vi.mock is hoisted above plain consts, so the shared pieces are hoisted too.
 const { STOP, builtAreas, stubBuild, gorgeWalk } = vi.hoisted(() => {
   const STOP = new Error('stop: area built');

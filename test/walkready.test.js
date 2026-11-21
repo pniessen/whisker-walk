@@ -196,6 +196,66 @@ describe('a place that does not come', () => {
     expect(life.getSession()).toBe(null);
   });
 
+  it('two failures must be in a row: a walk that starts between them clears the count', async () => {
+    const ctl = controlledLoader();
+    await ctl.areas.ensure('den');
+    ctl.hold('park').fail();
+    const life = lifecycle({ areas: ctl.areas });
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'den' })).toBe('started'); // a place already here, same tick
+    end(life);
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed');
+    expect(life.rec.toasts).toEqual([phrase('start.notReady'), phrase('start.notReady')]);
+    expect(await life.w.startWalkWhenReady({ areaOverride: 'park' })).toBe('failed'); // now two in a row
+    expect(life.rec.toasts.at(-1)).toBe(phrase('start.notReadyReload'));
+    expect(life.rec.reloads).toBe(0);
+  });
+
+  it('a place this build does not have never counts toward a fresh start', async () => {
+    const life = lifecycle({ areas: controlledLoader().areas });
+    for (let i = 0; i < 3; i++) expect(await life.w.startWalkWhenReady({ areaOverride: 'nowhere' })).toBe('failed');
+    expect(life.rec.toasts).toEqual([phrase('start.notReady'), phrase('start.notReady'), phrase('start.notReady')]);
+    expect(life.rec.reloads).toBe(0);
+    expect(life.getSession()).toBe(null);
+    // offline it still says the offline line
+    const off = lifecycle({ areas: controlledLoader().areas, online: () => false });
+    expect(await off.w.startWalkWhenReady({ areaOverride: 'nowhere' })).toBe('failed');
+    expect(off.rec.toasts).toEqual([phrase('start.notReadyOffline')]);
+  });
+
+  it('a place changed while hers was coming starts nothing: no walk somewhere else, no throw', async () => {
+    // her place is the Park; Explore (no override) waits for it
+    const inThePark = (life) => {
+      life.progression.completeWalk('neighborhood');
+      life.progression.completeWalk('neighborhood');
+      expect(life.progression.buy('areas', 'park')).toBe(true);
+      life.progression.setArea('park');
+      expect(life.progression.state.area).toBe('park');
+    };
+    // the place she changed to is here already: it must not start instead
+    const ctl = controlledLoader();
+    await ctl.areas.ensure('neighborhood');
+    const park = ctl.hold('park');
+    const life = lifecycle({ areas: ctl.areas });
+    inThePark(life);
+    const p = life.w.startWalkWhenReady({ duskMode: false });
+    life.progression.setArea('neighborhood'); // Change place while the Park comes
+    park.release();
+    expect(await p).toBe('dropped');
+    expect(life.getSession()).toBe(null);
+    // the place she changed to is not here: no 'not loaded' throw either
+    const ctl2 = controlledLoader();
+    const park2 = ctl2.hold('park');
+    const life2 = lifecycle({ areas: ctl2.areas });
+    inThePark(life2);
+    const q = life2.w.startWalkWhenReady({ duskMode: false });
+    life2.progression.setArea('neighborhood');
+    park2.release();
+    expect(await q).toBe('dropped');
+    expect(life2.getSession()).toBe(null);
+    expect(ctl2.calls.neighborhood).toBeUndefined();
+  });
+
   it('a load that lands after she is already walking, or after the room is gone, starts nothing', async () => {
     const ctl = controlledLoader();
     await ctl.areas.ensure('den');

@@ -106,8 +106,10 @@ const FRIEND_CODE_RE = /^[0-9a-f]{6,32}$/;
 // settings apply live, no walk restart or reload required.
 // onVisitDen: the den button's own start callback (Task 7.2) — kept
 // separate from onStartWalk (beginWalkFromHomebase) because the den never
-// joins a room walk; main.js wires it straight to `startWalk({ areaOverride:
-// 'den' })`, bypassing the host/joiner room branch onStartWalk goes through.
+// joins a room walk; main.js wires it to walk.js's beginDenWalk, which starts
+// the den through startWalkWhenReady({ areaOverride: 'den' }) (waiting for the
+// den to load if it has not), bypassing the host/joiner room branch
+// onStartWalk goes through.
 // colonySync (v21 Stream 2, game/colonysync.js) is optional: the Colony tab
 // (Tasks 8-11) reads its status() and calls its actions.
 // myId is the player id (main.js `pid`), passed explicitly because the cloud

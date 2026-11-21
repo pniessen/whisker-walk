@@ -558,11 +558,14 @@ export function createWalkLifecycle({
   //     the Explore button (a quicker one never shows it);
   //   - a second start while one waits is ignored ('busy'): one load, one walk;
   //   - the place came: the walk starts, unless one has started some other
-  //     way meanwhile, or the room it was for has gone ('dropped');
+  //     way meanwhile, the room it was for has gone, or her place changed
+  //     while it came (Change place, a room's start) ('dropped');
   //   - it did not: she stays home with one gentle line ('failed'), and the
-  //     next Explore tries again; after RELOAD_AFTER_FAILURES of them online
-  //     the line says the game will start fresh, and the next Explore reloads
-  //     the page (the files may have changed underneath).
+  //     next Explore tries again; after RELOAD_AFTER_FAILURES of them in a
+  //     row online (any walk that starts clears the count) the line says the
+  //     game will start fresh, and the next Explore reloads the page (the
+  //     files may have changed underneath). A place this build does not have
+  //     at all (AreaLoadError 'unknown') never counts: a reload cannot bring it.
   // Nothing here draws a random number, so a walk that waited is the same
   // walk, draw for draw, as one whose place was already here.
   // Resolves to 'started' | 'busy' | 'failed' | 'dropped'; a build throw on the
@@ -579,6 +582,7 @@ export function createWalkLifecycle({
     }
     if (areas.loaded(areaId)) {
       startWalk(opts);
+      failures = 0;
       return Promise.resolve('started');
     }
     audio?.getContext?.();
@@ -597,13 +601,16 @@ export function createWalkLifecycle({
         const stale = waiting !== token;
         done();
         if (stale || getSession() || (opts.roomSeed !== undefined && !getPendingRoom())) return 'dropped';
-        failures = 0;
+        // startWalk reads her place again when there is no override: a place
+        // changed during the wait would build somewhere other than what came.
+        if ((opts.areaOverride ?? progression.state.area) !== areaId) return 'dropped';
         startWalk(opts);
+        failures = 0;
         return 'started';
       },
       (err) => {
         done();
-        failures += 1;
+        if (err?.kind !== 'unknown') failures += 1;
         note('area', err);
         const online = isOnline();
         const reload = failures >= RELOAD_AFTER_FAILURES && online;
