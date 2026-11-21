@@ -33,24 +33,7 @@ import { CAT_LOOK_Y } from './cat/model.js';
 import { FLAT_GROUND } from './ground.js';
 import { setFairClock } from './world/fairkit.js';
 
-// What a walk that is not at the Fairground has.
-export const NO_FAIR = Object.freeze({
-  sim: null,
-  riding: null,
-  wobble: 0,
-  groundSpot() { return null; },
-  update() {},
-  late() {},
-  jump() { return false; },
-  canBoard() { return false; },
-  // step 3 (src/fairshow.js): no games, no finds, no visitors anywhere else
-  games: null,
-  show: null,
-  actionFor() { return null; },
-  act() { return false; },
-  meow() { return 0; },
-  dispose() {},
-});
+export { NO_FAIR } from './fairnone.js';
 
 // The time of day in seconds, to the sub-millisecond (Date.now() alone steps
 // in whole milliseconds, which shows as a shimmer on a fast ride).
