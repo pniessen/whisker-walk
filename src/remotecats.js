@@ -12,6 +12,31 @@ import { FLAT_GROUND, groundTilt, easeTilt } from './ground.js';
 
 const INTERP_WINDOW = 0.15; // seconds — matches the 8Hz state broadcast cadence
 const DESPAWN_AFTER = 5; // seconds of silence before a remote pet is removed
+// The highest a co-walker is ever drawn above the ground under her (the top of
+// the big wheel is about 12 m): a bigger `h` on the wire is cut to this.
+export const MAX_LIFT = 20;
+const SEAT_ID = /^[a-z]+(-[a-z]+)*(-\d{1,2})?$/; // a ride seat's id: 'mgr-horse-3', 'coaster-car-0', 'wheel-lookout'
+
+// HEIGHT ON THE WIRE (partner-height, 2026-11-20). Two optional fields on the
+// 8 Hz state message, both left out when they say nothing, so a cat on the
+// ground sends exactly what she always did:
+//   h     metres above the ground under her (her perch, roof or seat), to the cm
+//   seat  the id of the ride seat she is on (src/fairsim.js), while she is on one
+// net.js's state check reads only the fields it knows, so a build from before
+// these accepts the message and draws her on the ground, as it always has; a
+// message from such a build has neither, and she is drawn on the ground here.
+// A seat is drawn where THIS device's rides have it (the rides are a pure
+// function of the time, the same on both), so she moves with the horse or the
+// car smoothly every frame instead of jumping between 8 Hz samples. The
+// helter-skelter's chute is not sent: each device runs its own slide.
+export function liftForState(perchY, seat) {
+  const out = {};
+  if (Number.isFinite(perchY) && perchY >= 0.005) out.h = Math.round(Math.min(perchY, MAX_LIFT) * 100) / 100;
+  if (seat && typeof seat.id === 'string' && seat.rideId !== 'slide') out.seat = seat.id;
+  return out;
+}
+const liftOf = (state) => (Number.isFinite(state.h) ? Math.min(Math.max(state.h, 0), MAX_LIFT) : 0);
+const seatOf = (state) => (typeof state.seat === 'string' && state.seat.length <= 24 && SEAT_ID.test(state.seat) ? state.seat : null);
 
 // wrap an angle delta into (-PI, PI] so yaw interpolation always takes the
 // short way around, e.g. from 3.1 to -3.1 goes forward ~0.08 rad, not ~6.2.
@@ -68,7 +93,7 @@ function profileUnchanged(entry, profile) {
 // bob follow THIS viewer's reducedMotion (the ruling), a snapshot taken at
 // the start of the walk.
 // `ground` (Gorge part 1, R13): a co-walker stands at THIS device's ground
-// under its streamed [x, z]; nothing about height rides the wire.
+// under its streamed [x, z], lifted by the `h` she sends (liftForState above).
 export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_GROUND } = {}) {
   const rm = !!reducedMotion;
   const remotes = new Map(); // playerId -> entry
@@ -126,6 +151,13 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       toPos: new THREE.Vector3(0, 0, 0),
       fromYaw: 0,
       toYaw: 0,
+      // her height above the ground (liftForState): drawn, eased from, eased to
+      h: 0,
+      fromH: 0,
+      toH: 0,
+      seatId: null, // the ride seat she is on, drawn where this device's rides have it
+      seatAt: 0, // when she got onto it: from then she is eased onto it once, not at every state
+      seatFrom: { x: 0, z: 0, h: 0, yaw: 0 }, // where she was drawn then
       pose: 'follow',
       speed: 0,
       stateAt: now,
@@ -154,6 +186,12 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       entry.toPos.copy(existing.toPos);
       entry.fromYaw = existing.fromYaw;
       entry.toYaw = existing.toYaw;
+      entry.h = existing.h;
+      entry.fromH = existing.fromH;
+      entry.toH = existing.toH;
+      entry.seatId = existing.seatId;
+      entry.seatAt = existing.seatAt;
+      entry.seatFrom = existing.seatFrom;
       entry.pose = existing.pose;
       entry.speed = existing.speed;
       entry.stateAt = existing.stateAt;
@@ -173,10 +211,21 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
     // The first state puts a new co-walker straight where it is. Sliding it in
     // from the origin would carry it through any water on the way (the Moor's
     // river-west holds the origin), and it would dip there on arrival.
-    if (!entry.water.placed) entry.group.position.copy(entry.toPos);
+    entry.toH = liftOf(state);
+    // ...and at her height: first seen on a roof or a seat, she does not rise out of the ground
+    if (!entry.water.placed) { entry.group.position.copy(entry.toPos); entry.h = entry.toH; }
     entry.fromPos.copy(entry.group.position);
     entry.fromYaw = entry.group.rotation.y;
     entry.toYaw = state.yaw;
+    entry.fromH = entry.h;
+    const seat = seatOf(state);
+    if (seat !== entry.seatId) {
+      // onto a new seat (or off one): eased from where she is drawn now
+      entry.seatId = seat;
+      entry.seatAt = now;
+      const f = entry.seatFrom;
+      f.x = entry.group.position.x; f.z = entry.group.position.z; f.h = entry.h; f.yaw = entry.group.rotation.y;
+    }
     entry.pose = state.pose;
     entry.speed = state.speed;
     entry.stateAt = now;
@@ -199,7 +248,9 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
     listCache = null;
   }
 
-  function update(dt, now, waters = null) {
+  // update(dt, now, waters, rides): `rides` is the walk's Fairground rides
+  // (src/fairlive.js seatById; NO_FAIR elsewhere), for a co-walker on a seat.
+  function update(dt, now, waters = null, rides = null) {
     // The cached snapshot, so a remove() mid-loop is safe and nothing is allocated.
     for (const entry of api.list) {
       if (now - entry.lastSeenAt > DESPAWN_AFTER) {
@@ -208,19 +259,36 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       }
 
       const frac = THREE.MathUtils.clamp((now - entry.stateAt) / INTERP_WINDOW, 0, 1);
-      entry.group.position.lerpVectors(entry.fromPos, entry.toPos, frac);
-      const delta = wrapAngleDelta(entry.toYaw - entry.fromYaw);
-      entry.group.rotation.y = entry.fromYaw + delta * frac;
+      // On a ride's seat: eased onto the seat where this device's ride has it
+      // now, and from then on carried with it every frame.
+      const seat = entry.seatId && rides?.seatById ? rides.seatById(entry.seatId) : null;
+      if (seat) {
+        // eased once, from where she was drawn as she got on (not again at every state: the seat moves on)
+        const k = THREE.MathUtils.clamp((now - entry.seatAt) / INTERP_WINDOW, 0, 1);
+        const f = entry.seatFrom;
+        const p = entry.group.position;
+        p.x = f.x + (seat.x - f.x) * k;
+        p.z = f.z + (seat.z - f.z) * k;
+        entry.h = f.h + (seat.y - f.h) * k;
+        entry.group.rotation.y = f.yaw + wrapAngleDelta(seat.yaw - f.yaw) * k;
+      } else {
+        entry.group.position.lerpVectors(entry.fromPos, entry.toPos, frac);
+        entry.h = entry.fromH + (entry.toH - entry.fromH) * frac;
+        const delta = wrapAngleDelta(entry.toYaw - entry.fromYaw);
+        entry.group.rotation.y = entry.fromYaw + delta * frac;
+      }
       if (!entry.water.placed) {
         animateCat(entry.group, entry.pose, now, entry.speed, rm);
         continue;
       }
       const { x, z } = entry.group.position;
-      stepWaterState(entry.water, waters, x, z, dt);
+      // up on a perch or a seat she is dry, whatever is under her
+      const up = entry.h > 0.05 || !!seat;
+      stepWaterState(entry.water, up ? null : waters, x, z, dt);
       const amount = Math.sin(Math.PI * shakeProgress(entry.water));
       const drawn = waterPose(entry.pose, entry.water, { hagrid: entry.breed === 'hagrid', reducedMotion: rm });
       animateCat(entry.group, drawn, now, entry.speed, rm, amount);
-      applyWaterLook(entry.group, entry.water, now, dt, rm, ground.y(x, z), amount, null, ground.flat ? null : leanOf(entry, x, z, dt));
+      applyWaterLook(entry.group, entry.water, now, dt, rm, ground.y(x, z) + entry.h, amount, null, ground.flat || up ? null : leanOf(entry, x, z, dt));
     }
   }
 

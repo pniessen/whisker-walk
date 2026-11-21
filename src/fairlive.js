@@ -44,6 +44,7 @@ export const NO_FAIR = Object.freeze({
   jump() { return false; },
   canBoard() { return false; },
   pawKind() { return null; },
+  seatById() { return null; },
   // step 3 (src/fairshow.js): no games, no finds, no visitors anywhere else
   games: null,
   show: null,
@@ -267,8 +268,13 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   // by the walk once it has made them. Run here, after the rides have moved her.
   let show = null;
 
+  // A co-walker's seat by its id (src/remotecats.js, partner-height): every
+  // seat but the helter-skelter's, which each device slides on its own clock.
+  const seatIds = new Map(sim.seats.filter((s) => s.rideId !== 'slide').map((s) => [s.id, s]));
+
   const api = {
     sim,
+    seatById(id) { return seatIds.get(id) ?? null; },
     get show() { return show; },
     get games() { return show ? show.games : null; },
     attach(s) { show = s ?? null; return api; },
