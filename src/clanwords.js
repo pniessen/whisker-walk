@@ -201,7 +201,7 @@ export const OUTSIDE_WORDS = Object.freeze({
 
 // Place names borrowed from the books. Keyed by the game's own territory id
 // (never by the word), so no id in src/ has to spell a borrowed word.
-export const PLACE_WORDS = Object.freeze({ town: 'Twolegplace', roofs: 'The Rooftops' });
+export const PLACE_WORDS = Object.freeze({ town: 'Twolegplace', roofs: 'The Rooftops', house: 'The Old Twoleg Nest' });
 
 // Published character names the pools must never be able to compose, so a
 // child who has read the books never meets a real character by accident. The

@@ -67,7 +67,8 @@
    },
    "placeWords": {
     "town": "Twolegplace",
-    "roofs": "The Rooftops"
+    "roofs": "The Rooftops",
+    "house": "The Old Twoleg Nest"
    },
    "placeNames": {
     "neighborhood": "Twolegplace",
