@@ -22,6 +22,9 @@
 // pair town-house / house-town; each adds those two rows and nothing else.
 
 export const GATE_REACH = 1.6; // m, cat centre to gate centre
+// m: nearer than this to a gate she can go through or open, the place beyond
+// starts downloading (once per gate per walk), so a yes rarely waits for it.
+export const GATE_PREFETCH_REACH = 12;
 export const GATE_HALF = 1.4; // m, centre to each gate post along the edge
 export const GATE_POST_R = 0.15;
 export const ARRIVE_IN = GATE_REACH + 2;

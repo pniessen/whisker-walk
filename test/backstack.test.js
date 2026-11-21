@@ -274,6 +274,10 @@ describe('walkBackAction', () => {
   it('the border post\'s card: Back is "not now"', () => {
     expect(walkBackAction({ walking: true, crossing: true, started: true, touch: true })).toBe('cross-no');
   });
+  it('a walk-on waiting for its place: Back neither resumes the walk nor closes the moment', () => {
+    expect(walkBackAction({ walking: true, walkingOn: true, started: true, touch: true })).toBe(null);
+    expect(walkBackAction({ walking: true, walkingOn: true, crossing: true, started: true, touch: true })).toBe(null);
+  });
 });
 
 describe('attachBackStack', () => {

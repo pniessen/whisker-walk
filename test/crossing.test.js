@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createCrossing } from '../src/game/crossing.js';
+import { createCrossing, swallowsCanvasClick } from '../src/game/crossing.js';
 import { pauseCardHtml } from '../src/game/walk.js';
 import { CATALOG } from '../src/progression.js';
 import { postStatus } from '../src/bordercross.js';
@@ -7,12 +7,37 @@ import { placeName } from '../src/edition.js';
 import { PLACE_WORDS } from '../src/clanwords.js';
 import { postsFor } from '../src/borderposts.js';
 import { createClanFight } from '../src/game/clanfight.js';
+import { gateStatus } from '../src/gatecross.js';
+import { endById } from '../src/gateways.js';
+import { CONFIRM_DELAY_MS } from '../src/ui/colonypanel.js';
 
-function setup({ session = {}, touch = false } = {}) {
+// World map step 3 (Task 8): a gate's walk-on (walkOn answers `walkOnSays`),
+// the save a gate buys from (`state`; `buyOk` false refuses the buy), and the
+// clock the buy card's delay reads.
+function setup({ session = {}, touch = false, walkOnSays = 'walked', buyOk = true, state = null } = {}) {
   const overlay = { innerHTML: '' };
-  const s = { welcome: 'Welcome home!', race: null, quest: null, carry: { mouth: { held: null } }, ...session };
-  const calls = { release: 0, resume: 0, endWalk: [], prefetch: [] };
+  const calls = { release: 0, resume: 0, endWalk: [], prefetch: [], walkOn: [], buy: [], setOpen: [] };
+  const s = {
+    welcome: 'Welcome home!', race: null, quest: null, carry: { mouth: { held: null } },
+    gates: { setOpen: (id, open) => calls.setOpen.push([id, open]) },
+    ...session,
+  };
+  const clock = { t: 1000 };
+  const save = state ?? { edition: 'canon', points: 100, walks: { park: 2 }, unlocked: { areas: ['neighborhood', 'park'] }, area: 'park' };
+  const progression = {
+    state: save,
+    buy: (kind, id) => {
+      calls.buy.push([kind, id]);
+      if (!buyOk) return false;
+      save.unlocked.areas.push(id);
+      save.points -= CATALOG.areas[id].price;
+      return true;
+    },
+  };
   const crossing = createCrossing({
+    walkOn: (o) => { calls.walkOn.push(o); return Promise.resolve(walkOnSays); },
+    progression,
+    now: () => clock.t,
     prefetchArea: (id) => calls.prefetch.push(id),
     getSession: () => s,
     overlay,
@@ -24,7 +49,7 @@ function setup({ session = {}, touch = false } = {}) {
     catalog: CATALOG,
     setTimeout: (fn) => { fn(); return 0; },
   });
-  return { crossing, overlay, s, calls };
+  return { crossing, overlay, s, calls, clock, progression };
 }
 const goData = () => {
   const post = postsFor('woods').find((p) => p.to === 'moor');
@@ -331,5 +356,233 @@ describe('Continue after a crossing (main.js source pin)', () => {
     const body = src.slice(at, src.indexOf('pullThenNews();', at));
     expect(body).toContain('const c = takeCrossing();');
     expect(body).toContain("homebase.show(c && c.clan && !c.picked ? { sheet: 'places' } : undefined);");
+  });
+});
+
+// World map step 3, Task 8: at a gate. The crossing card walks her straight
+// on (walkOn), and a shut place opens first through the usual "Get it?" card,
+// which never spends paws by accident.
+const FARM = () => endById('park-farm').end;
+const farmGo = () => {
+  const state = { edition: 'canon', points: 0, walks: { park: 2 }, unlocked: { areas: ['neighborhood', 'park', 'farm'] } };
+  return { end: FARM(), status: gateStatus(FARM(), state, CATALOG) };
+};
+const farmBuy = () => {
+  const state = { edition: 'canon', points: 100, walks: { park: 2 }, unlocked: { areas: ['neighborhood', 'park'] } };
+  return { end: FARM(), status: gateStatus(FARM(), state, CATALOG) };
+};
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+describe('at a gate', () => {
+  it('the statuses the tests use are the real ones', () => {
+    expect(farmGo().status.kind).toBe('go');
+    expect(farmBuy().status).toMatchObject({ kind: 'buy', price: 75, name: 'Appletree Farm' });
+  });
+
+  it('a gate: ask then yes walks on, never ends the walk', () => {
+    const { crossing, overlay, s, calls } = setup();
+    crossing.askGate(s, farmGo());
+    expect(s.crossing).toEqual({ to: 'farm', name: 'Appletree Farm', via: 'park-farm', kind: 'gate' });
+    expect(overlay.innerHTML).toContain('Head to Appletree Farm?');
+    expect(overlay.innerHTML).toContain('You keep everything you found.');
+    expect(calls.release).toBe(1);
+    crossing.confirm();
+    expect(calls.walkOn).toEqual([{ via: 'park-farm' }]);
+    expect(calls.endWalk).toEqual([]);
+  });
+
+  it('the gate card lists what changes, as the post card does', () => {
+    const { crossing, overlay, s } = setup({ session: { quest: { state: 'active' }, carry: { mouth: { held: { kind: 'sock' } } } } });
+    crossing.askGate(s, farmGo());
+    expect(overlay.innerHTML).toContain('Your quest stops here.');
+    expect(overlay.innerHTML).toContain('The sock comes home to your den.');
+  });
+
+  it('asking, buying and a yes fetch the place beyond', () => {
+    const a = setup();
+    a.crossing.askGate(a.s, farmGo());
+    expect(a.calls.prefetch).toEqual(['farm']);
+    a.crossing.confirm();
+    expect(a.calls.prefetch).toEqual(['farm', 'farm']);
+    const b = setup();
+    b.crossing.askGateBuy(b.s, farmBuy());
+    expect(b.calls.prefetch).toEqual(['farm']);
+  });
+
+  it('a second yes walks on once', () => {
+    const { crossing, s, calls } = setup();
+    crossing.askGate(s, farmGo());
+    crossing.confirm();
+    crossing.confirm();
+    expect(calls.walkOn).toHaveLength(1);
+  });
+
+  it('a walk-on that fails leaves walk.js its pause card and clears the crossing', async () => {
+    const { crossing, overlay, s, calls } = setup({ walkOnSays: 'failed' });
+    crossing.askGate(s, farmGo());
+    crossing.confirm();
+    overlay.innerHTML = 'the pause card walk.js put back';
+    await flush();
+    expect(s.crossing).toBe(null);
+    expect(overlay.innerHTML).toBe('the pause card walk.js put back');
+    expect(calls.resume).toBe(0);
+    crossing.askGate(s, farmGo()); // she can ask again
+    expect(s.crossing).toMatchObject({ kind: 'gate', via: 'park-farm' });
+  });
+
+  it('a refused walk-on puts the pause card back', async () => {
+    const { crossing, overlay, s } = setup({ walkOnSays: 'refused' });
+    crossing.askGate(s, farmGo());
+    crossing.confirm();
+    await flush();
+    expect(s.crossing).toBe(null);
+    expect(overlay.innerHTML).toBe(pauseCardHtml({ welcome: 'Welcome home!', touch: false }));
+  });
+
+  it('a walk-on that walked or was dropped leaves everything to walk.js', async () => {
+    for (const says of ['walked', 'dropped']) {
+      const { crossing, overlay, s } = setup({ walkOnSays: says });
+      crossing.askGate(s, farmGo());
+      crossing.confirm();
+      overlay.innerHTML = 'the moment';
+      await flush();
+      expect(overlay.innerHTML).toBe('the moment');
+    }
+  });
+
+  it('only a gate that is open now gets the crossing card', () => {
+    const { crossing, overlay, s } = setup();
+    crossing.askGate(s, farmBuy());
+    expect(s.crossing).toBeUndefined();
+    expect(overlay.innerHTML).toBe('');
+    crossing.askGateBuy(s, farmGo());
+    expect(s.crossing).toBeUndefined();
+  });
+
+  it('buying at the gate asks first, then the crossing card follows', () => {
+    const { crossing, overlay, s, calls, clock } = setup();
+    crossing.askGateBuy(s, farmBuy());
+    expect(overlay.innerHTML).toContain('Open Appletree Farm for 75 🐾?');
+    expect(overlay.innerHTML).toContain('You’ll have 25 🐾 left.');
+    expect(s.crossing).toEqual({ to: 'farm', name: 'Appletree Farm', via: 'park-farm', kind: 'gate', asking: 'buy', shownAt: 1000 });
+    expect(calls.release).toBe(1);
+    crossing.confirm(); // the crossing card's yes is not the buy card's
+    expect(calls.walkOn).toEqual([]);
+    crossing.buyYes({ detail: 1 }); // too soon
+    clock.t += CONFIRM_DELAY_MS;
+    crossing.buyYes({ detail: 2 }); // a double tap
+    expect(calls.buy).toEqual([]);
+    crossing.buyYes({ detail: 1 });
+    expect(calls.buy).toEqual([['areas', 'farm']]);
+    expect(calls.setOpen).toEqual([['park-farm', true]]);
+    expect(overlay.innerHTML).toContain('Head to Appletree Farm?');
+    expect(s.crossing).toEqual({ to: 'farm', name: 'Appletree Farm', via: 'park-farm', kind: 'gate' });
+    crossing.buyYes({ detail: 1 }); // the crossing card is up: nothing more is bought
+    expect(calls.buy).toHaveLength(1);
+    crossing.cancel(); // Keep exploring: still bought, still open
+    expect(calls.resume).toBe(1);
+    expect(calls.walkOn).toEqual([]);
+    expect(s.crossing).toBe(null);
+  });
+
+  it('Not now (or Back) buys nothing; a refused buy puts the pause card back', () => {
+    const a = setup();
+    a.crossing.askGateBuy(a.s, farmBuy());
+    a.clock.t += CONFIRM_DELAY_MS;
+    a.crossing.cancel();
+    expect(a.calls.buy).toEqual([]);
+    expect(a.overlay.innerHTML).toBe(pauseCardHtml({ welcome: 'Welcome home!', touch: false }));
+    expect(a.calls.resume).toBe(1);
+    expect(a.s.crossing).toBe(null);
+    a.crossing.buyYes({ detail: 1 }); // the card is gone
+    expect(a.calls.buy).toEqual([]);
+    const b = setup({ buyOk: false });
+    b.crossing.askGateBuy(b.s, farmBuy());
+    b.clock.t += CONFIRM_DELAY_MS;
+    b.crossing.buyYes({ detail: 1 });
+    expect(b.calls.buy).toEqual([['areas', 'farm']]);
+    expect(b.calls.setOpen).toEqual([]);
+    expect(b.overlay.innerHTML).toBe(pauseCardHtml({ welcome: 'Welcome home!', touch: false }));
+    expect(b.calls.resume).toBe(1);
+    expect(b.s.crossing).toBe(null);
+  });
+
+  it('a lock change drops the buy card without buying', () => {
+    const { crossing, overlay, s, calls, clock } = setup();
+    crossing.askGateBuy(s, farmBuy());
+    clock.t += CONFIRM_DELAY_MS;
+    crossing.onLockChange(true);
+    expect(overlay.innerHTML).toBe(pauseCardHtml({ welcome: 'Welcome home!', touch: false }));
+    crossing.buyYes({ detail: 1 });
+    expect(calls.buy).toEqual([]);
+  });
+
+  it('a guest cannot open a gate card or buy', () => {
+    const { crossing, overlay, s, calls, clock } = setup({ session: { net: { isHost: () => false } } });
+    crossing.askGate(s, farmGo());
+    crossing.askGateBuy(s, farmBuy());
+    expect(s.crossing).toBeUndefined();
+    expect(overlay.innerHTML).toBe('');
+    clock.t += CONFIRM_DELAY_MS;
+    crossing.buyYes({ detail: 1 });
+    crossing.confirm();
+    expect(calls.buy).toEqual([]);
+    expect(calls.walkOn).toEqual([]);
+    expect(calls.release).toBe(0);
+  });
+
+  it("a room host's gate yes does nothing new yet (Task 9 walks the room on)", () => {
+    const sent = [];
+    const { crossing, s, calls } = setup({ session: { net: { isHost: () => true, sendEvent: (e) => sent.push(e) }, remotes: { list: [] } } });
+    crossing.askGate(s, farmGo());
+    expect(s.crossing).toMatchObject({ kind: 'gate' });
+    crossing.confirm();
+    expect(calls.walkOn).toEqual([]);
+    expect(calls.endWalk).toEqual([]);
+    expect(sent).toEqual([]);
+  });
+
+  describe('while a slow walk-on waits for its place', () => {
+    const waiting = () => {
+      const h = setup();
+      h.crossing.askGate(h.s, farmGo());
+      h.crossing.confirm();
+      h.s.walkingOn = true; // walk.js: the moment is up over the paused walk
+      h.overlay.innerHTML = 'Off to Appletree Farm!';
+      return h;
+    };
+
+    it('a canvas click is swallowed', () => {
+      const { s } = waiting();
+      expect(swallowsCanvasClick(s)).toBe(true);
+      expect(swallowsCanvasClick({ walkingOn: true })).toBe(true); // a guest led on has no card
+      expect(swallowsCanvasClick({ walkingOn: false })).toBe(false);
+    });
+
+    it('a re-lock, Keep exploring or Back leave the moment up and the walk paused', () => {
+      const { crossing, overlay, s, calls } = waiting();
+      crossing.onLockChange(true);
+      crossing.cancel();
+      expect(overlay.innerHTML).toBe('Off to Appletree Farm!');
+      expect(calls.resume).toBe(0);
+      expect(s.crossing).toMatchObject({ kind: 'gate', going: true });
+      const g = setup();
+      g.s.walkingOn = true;
+      g.s.crossing = { to: 'farm', name: 'Appletree Farm', via: 'park-farm', kind: 'gate' };
+      g.overlay.innerHTML = 'Off to Appletree Farm!';
+      g.crossing.onLockChange(true);
+      g.crossing.cancel();
+      expect(g.overlay.innerHTML).toBe('Off to Appletree Farm!');
+      expect(g.calls.resume).toBe(0);
+    });
+
+    it('no second gate card goes up over it', () => {
+      const { crossing, overlay, s } = waiting();
+      s.crossing = null;
+      crossing.askGate(s, farmGo());
+      crossing.askGateBuy(s, farmBuy());
+      expect(overlay.innerHTML).toBe('Off to Appletree Farm!');
+      expect(s.crossing).toBe(null);
+    });
   });
 });

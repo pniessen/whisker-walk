@@ -31,6 +31,7 @@ import { chaseAllowed } from '../src/rivalcats.js';
 import { bus } from '../src/events.js';
 import { createClanFight } from '../src/game/clanfight.js';
 import { onAnyDeck } from '../src/world/builder.js';
+import { GATE_REACH, GATE_PREFETCH_REACH } from '../src/gateways.js';
 
 // src/game/* had no test coverage at all before this file — the module carve-
 // out out of main.js was verified by mechanical diff and a browser smoke run.
@@ -413,7 +414,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
   // Task 15: `rests` gives the session its drink / eat / nap spots, and
   // `player` swaps in a real player (the nap's wake-up reads inputActive).
   // Controls review (2026-11-19): `yarn` lays the found yarn ball at {x, z}.
-  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false, rival = null, rests = null, player: realPlayer = null, askCrossing, yarn = null } = {}) {
+  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false, rival = null, rests = null, player: realPlayer = null, askCrossing, askGate, askGateBuy, prefetchArea, yarn = null } = {}) {
     const progression = createProgression(fakeStorage());
     progression.replaceFromPayload({ version: 4, skills, feats });
     const log = createDiscoveryLog(progression);
@@ -477,7 +478,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       hud: { toast: (t) => toasts.push(t), setPrompt: (t) => prompts.push(t) },
       audio: { trill() {}, meow() {}, purr: (d) => purrs.push(d) },
       catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
-      askCrossing,
+      askCrossing, askGate, askGateBuy, prefetchArea,
     });
     // A frame, in main.js's order: the carried item follows the mouth, then the
     // prompt scan.
@@ -488,7 +489,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     };
     const walkTo = (x, z) => { session.cat.position.set(x, 0, z); frame(); };
     const press = () => { frame(); handleInteract(session); };
-    return { session, prompts, toasts, walkTo, press, frame, progression, player, tickCarryRain, handleInteract, log, purrs };
+    return { session, prompts, toasts, walkTo, press, frame, progression, player, tickCarryRain, handleInteract, updateInteractions, log, purrs };
   }
 
   it('offers the stray greet 2.0m from a crate, with and without Big Swat', () => {
@@ -1841,6 +1842,158 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.session.prompt.kind).toBe('border');
         expect(h.prompts.at(-1)).toBe('E — Head to the Gorge?');
       }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // World map step 3, Task 8 — the gate prompt sits just before the border
+  // posts', under the same rules. Clan Edition only.
+  // -------------------------------------------------------------------------
+  describe('the gate prompt', () => {
+    const gateHarness = ({ walks = {}, points = 0, owned = [], ...opts } = {}) => {
+      const asked = [];
+      const bought = [];
+      const prefetched = [];
+      const h = promptHarness({
+        stray: null, areaId: 'park',
+        askGate: (s, d) => asked.push(d), askGateBuy: (s, d) => bought.push(d),
+        prefetchArea: (id) => prefetched.push(id), ...opts,
+      });
+      Object.assign(h.progression.state.walks, walks);
+      h.progression.state.points = points;
+      h.progression.state.unlocked.areas.push(...owned);
+      return { ...h, asked, bought, prefetched };
+    };
+
+    it('the Farm gate: shut, short, open to buy, open', () => {
+      const h = gateHarness({ walks: { park: 1 } });
+      h.walkTo(41, 10);
+      expect(h.session.prompt.kind).toBe('gate-info');
+      expect(h.prompts.at(-1)).toBe('Opens after 2 walks in City Park. 1 to go!');
+      h.press();
+      expect(h.asked).toEqual([]);
+      expect(h.bought).toEqual([]);
+      h.progression.state.walks.park = 2;
+      h.progression.state.points = 40;
+      h.walkTo(41, 10);
+      expect(h.session.prompt.kind).toBe('gate-info');
+      expect(h.prompts.at(-1)).toBe('You need 35 more 🐾. Keep exploring!');
+      h.press();
+      expect(h.bought).toEqual([]);
+      h.progression.state.points = 100;
+      h.walkTo(41, 10);
+      expect(h.session.prompt.kind).toBe('gate-buy');
+      expect(h.prompts.at(-1)).toBe('E — Open Appletree Farm for 75 🐾?');
+      h.press();
+      expect(h.bought).toHaveLength(1);
+      expect(h.bought[0].end.id).toBe('park-farm');
+      expect(h.bought[0].status).toMatchObject({ kind: 'buy', to: 'farm', price: 75 });
+      expect(h.progression.state.points).toBe(100); // the prompt never buys
+      expect(h.asked).toEqual([]);
+      h.progression.state.unlocked.areas.push('farm');
+      h.walkTo(41, 10);
+      expect(h.session.prompt.kind).toBe('gate');
+      expect(h.prompts.at(-1)).toBe('E — Head to Appletree Farm?');
+      h.press();
+      expect(h.asked).toHaveLength(1);
+      expect(h.asked[0].end.id).toBe('park-farm');
+      expect(h.asked[0].status.kind).toBe('go');
+      expect(h.bought).toHaveLength(1);
+    });
+
+    it('a Legacy walk has no gate prompt', () => {
+      const h = gateHarness({ owned: ['farm'] });
+      h.progression.state.edition = 'legacy';
+      h.walkTo(41, 10);
+      expect(h.session.prompt).toBe(null);
+      expect(h.prefetched).toEqual([]);
+    });
+
+    it('perched, swimming or fighting shows none', () => {
+      const h = gateHarness({ owned: ['farm'] });
+      h.session.perched = { x: 41, y: 0.6, z: 10 };
+      h.walkTo(41, 10);
+      expect(h.session.prompt).toBe(null);
+      h.session.perched = null;
+      h.player.swimming = true;
+      h.walkTo(41, 10);
+      expect(h.session.prompt).toBe(null);
+      h.player.swimming = false;
+      h.session.fight = {};
+      h.walkTo(41, 10);
+      expect(h.session.prompt).toBe(null);
+      h.session.fight = null;
+      h.session.clanFight = { uiShowing: true };
+      h.walkTo(41, 10);
+      expect(h.session.prompt).toBe(null);
+      h.session.clanFight = null;
+      h.walkTo(41, 10);
+      expect(h.session.prompt.kind).toBe('gate');
+    });
+
+    it('a room guest reads the sign only; a host may choose', () => {
+      const g = gateHarness({ owned: ['farm'] });
+      g.session.net = { isHost: () => false };
+      g.walkTo(41, 10);
+      expect(g.session.prompt.kind).toBe('gate-info');
+      expect(g.prompts.at(-1)).toBe('Appletree Farm is this way 🧭');
+      g.press();
+      expect(g.asked).toEqual([]);
+      const b = gateHarness({ walks: { park: 2 }, points: 100 });
+      b.session.net = { isHost: () => false };
+      b.walkTo(41, 10);
+      expect(b.session.prompt.kind).toBe('gate-info');
+      b.press();
+      expect(b.bought).toEqual([]);
+      const h = gateHarness({ owned: ['farm'] });
+      h.session.net = { isHost: () => true };
+      h.walkTo(41, 10);
+      expect(h.session.prompt.kind).toBe('gate');
+    });
+
+    it('out of reach there is no prompt', () => {
+      const h = gateHarness({ owned: ['farm'] });
+      h.walkTo(42 - GATE_REACH - 0.2, 10);
+      expect(h.session.prompt).toBe(null);
+    });
+
+    it('nearing a gate she can go through or open fetches the place beyond, once per gate per walk', () => {
+      const h = gateHarness({ walks: { park: 2 }, points: 100 });
+      h.walkTo(42 - GATE_PREFETCH_REACH - 0.5, 10);
+      expect(h.prefetched).toEqual([]);
+      h.walkTo(42 - GATE_PREFETCH_REACH + 0.5, 10);
+      expect(h.prefetched).toEqual(['farm']);
+      h.walkTo(41, 10);
+      h.walkTo(20, 10); // away
+      h.walkTo(41, 10); // and back
+      expect(h.prefetched).toEqual(['farm']);
+      // The next walk (a new session) fetches it again.
+      const next = { ...h.session, prompt: null };
+      h.updateInteractions(next);
+      expect(h.prefetched).toEqual(['farm', 'farm']);
+      h.updateInteractions(next);
+      expect(h.prefetched).toEqual(['farm', 'farm']);
+    });
+
+    it('a shut gate, or one she cannot pay for yet, fetches nothing until it can be opened', () => {
+      const h = gateHarness({ walks: { park: 1 }, points: 100 });
+      h.walkTo(38, 10);
+      expect(h.prefetched).toEqual([]);
+      h.progression.state.walks.park = 2;
+      h.progression.state.points = 40;
+      h.walkTo(38, 10);
+      expect(h.prefetched).toEqual([]);
+      h.progression.state.points = 100;
+      h.walkTo(38, 10);
+      expect(h.prefetched).toEqual(['farm']);
+    });
+
+    it("the Fairground's gate is its own end: nearing it fetches the Fairground once", () => {
+      const h = gateHarness({ walks: { park: 2 }, points: 100, owned: ['farm'] });
+      h.walkTo(38, 10);
+      h.walkTo(0, -40);
+      h.walkTo(0, -44);
+      expect(h.prefetched).toEqual(['farm', 'fair']);
     });
   });
 

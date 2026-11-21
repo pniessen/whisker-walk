@@ -3039,8 +3039,8 @@ export function createWalkLifecycle({
         // (as F6: a start heard from the room never counts), never a guest's
         // and never in a room.
         if (online && err?.kind !== 'unknown' && !guest && !s.net) failures += 1;
-        // Back in her walk: the pause card (no crossing is being asked now).
-        s.crossing = null;
+        // Back in her walk: the pause card. The crossing card's state is
+        // crossing.js's own, cleared there on this answer.
         overlay.innerHTML = pauseCardFor(s, getIsTouch(), pauseSoundOf(settings));
         overlay.classList.remove('hidden');
         hud.toast(phrase(online ? 'start.notReady' : 'start.notReadyOffline'));
