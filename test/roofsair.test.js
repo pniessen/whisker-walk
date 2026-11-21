@@ -283,3 +283,101 @@ describe('the smoke', () => {
     expect(disposed.sort()).toEqual(['geometry', 'material']);
   });
 });
+
+// Rooftops step 5, Task 5 (R6): the warm chimney's smoke ring.
+describe('the smoke ring', () => {
+  const pot = { x: -10, y: 8.72, z: 6.95 };
+  it('the ring rises, grows and fades over 3.2 s', async () => {
+    const { RING, ringAt } = await import('../src/world/roofsair.js');
+    expect(RING).toEqual({ time: 3.2, rise: 1.4, grow: 2.4, opacity: 0.75, drift: 0.5, every: 7 });
+    expect(Object.isFrozen(RING)).toBe(true);
+    const a = ringAt(0);
+    expect(a.y).toBeCloseTo(0, 9);
+    expect(a.scale).toBeCloseTo(1, 9);
+    expect(a.opacity).toBeCloseTo(0.75, 9);
+    expect(a.drift).toBeCloseTo(0, 9);
+    const b = ringAt(1);
+    expect(b.y).toBeCloseTo(1.4, 9);
+    expect(b.scale).toBeCloseTo(2.4, 9);
+    expect(b.opacity).toBeCloseTo(0, 9);
+    expect(b.drift).toBeCloseTo(0.5, 9);
+    let prev = ringAt(0);
+    for (let k = 1; k <= 200; k++) {
+      const r = ringAt(k / 200);
+      expect(r.y).toBeGreaterThanOrEqual(prev.y);
+      expect(r.scale).toBeGreaterThanOrEqual(prev.scale);
+      expect(r.drift).toBeGreaterThanOrEqual(prev.drift);
+      expect(r.opacity).toBeLessThanOrEqual(prev.opacity);
+      prev = r;
+    }
+  });
+
+  it('one mesh, at most 160 triangles, casting nothing, hidden between puffs', async () => {
+    const { createSmokeRing, RING } = await import('../src/world/roofsair.js');
+    const scene = new THREE.Scene();
+    const real = Math.random;
+    let draws = 0;
+    Math.random = () => { draws++; return real(); };
+    let ring;
+    try {
+      ring = createSmokeRing(scene, pot, {});
+    } finally {
+      Math.random = real;
+    }
+    expect(draws).toBe(0);
+    const meshes = [];
+    scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes).toEqual([ring.mesh]);
+    const m = ring.mesh;
+    const g = m.geometry;
+    expect((g.index ? g.index.count : g.attributes.position.count) / 3).toBeLessThanOrEqual(160);
+    expect(m.castShadow).toBe(false);
+    expect(m.receiveShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    expect(m.material.transparent).toBe(true);
+    expect(m.material.depthWrite).toBe(false);
+    // hidden until it puffs, and again once the puff is over
+    expect(m.visible).toBe(false);
+    ring.update(1);
+    expect(m.visible).toBe(false);
+    ring.puff();
+    ring.update(0.1);
+    expect(m.visible).toBe(true);
+    // lying flat over the pot, drifting downwind as it rises
+    const up = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quaternion);
+    expect(Math.abs(up.y)).toBeCloseTo(1, 6);
+    ring.update(1.5);
+    expect(m.position.y).toBeGreaterThan(pot.y);
+    const along = (m.position.x - pot.x) * WX + (m.position.z - pot.z) * WZ;
+    expect(along).toBeGreaterThan(0);
+    expect(m.material.opacity).toBeLessThan(RING.opacity);
+    ring.update(1.7);
+    expect(m.visible).toBe(false);
+    const disposed = [];
+    g.addEventListener('dispose', () => disposed.push('geometry'));
+    m.material.addEventListener('dispose', () => disposed.push('material'));
+    ring.dispose();
+    expect(scene.children).toEqual([]);
+    expect(disposed.sort()).toEqual(['geometry', 'material']);
+  });
+
+  it('half speed under reduced motion', async () => {
+    const { createSmokeRing } = await import('../src/world/roofsair.js');
+    const fast = createSmokeRing(new THREE.Scene(), pot, {});
+    const slow = createSmokeRing(new THREE.Scene(), pot, { reducedMotion: true });
+    fast.puff();
+    slow.puff();
+    for (let k = 0; k < 97; k++) {
+      fast.update(1 / 30);
+      slow.update(1 / 30);
+    }
+    // just past 3.2 s: the quick ring is gone, the slow one half way
+    expect(fast.mesh.visible).toBe(false);
+    expect(slow.mesh.visible).toBe(true);
+    expect(slow.mesh.material.opacity).toBeGreaterThan(0);
+    for (let k = 0; k < 96; k++) slow.update(1 / 30); // just past 6.4 s
+    expect(slow.mesh.visible).toBe(false);
+    fast.dispose();
+    slow.dispose();
+  });
+});

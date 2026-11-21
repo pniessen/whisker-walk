@@ -2573,8 +2573,11 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect(set.knockables).toHaveLength(3);
     expect(set.markables).toHaveLength(3);
     expect(set.flaps.map((f) => f.kind)).toEqual(['flap']);
-    expect(set.rests.map((r) => r.kind).sort()).toEqual([...REST_KINDS].sort());
-    expect(set.rests.every((r) => r.mesh === true)).toBe(true);
+    // one of each drawn, and the warm chimney's nap with no mesh (Rooftops step 5, R6)
+    const drawnRests = set.rests.filter((r) => r.mesh !== false);
+    expect(drawnRests.map((r) => r.kind).sort()).toEqual([...REST_KINDS].sort());
+    expect(drawnRests.every((r) => r.mesh === true)).toBe(true);
+    expect(set.rests.filter((r) => r.mesh === false).map((r) => r.id)).toEqual(['roofs-nap-2']);
     expect(set.hides).toHaveLength(3);
     expect(set.dogYard).toBeNull();
     expect(set.keepSlots).toEqual([]);
@@ -2583,7 +2586,7 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     for (const k of set.knockables) expect(KNOCK_KINDS).toContain(k.kind);
     for (const m of set.markables) expect(['post', 'tree', 'bollard']).toContain(m.kind);
     const looks = new Set(Object.values(REST_LOOKS).map((v) => v.look));
-    expect(Object.keys(REG.restLooks).sort()).toEqual(set.rests.map((r) => r.id).sort());
+    expect(Object.keys(REG.restLooks).sort()).toEqual(drawnRests.map((r) => r.id).sort());
     for (const v of Object.values(REG.restLooks)) expect(looks.has(v.look), v.look).toBe(true);
     // ids: well-formed, namespaced by area and kind, none shared with another area
     const mine = [];
@@ -2595,9 +2598,19 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
       }
     }
     expect(new Set(mine).size).toBe(mine.length);
-    expect(mine).toHaveLength(14);
+    expect(mine).toHaveLength(15);
     const taken = allPropIds();
     expect(new Set([...taken].filter((id) => id.startsWith('roofs-')))).toEqual(new Set(mine));
+  });
+
+  it('the warm chimney is a cosy place to nap: its rest row, on the stack at the anchor, no mesh (Rooftops step 5)', async () => {
+    const { ROOFS_DISCOVERIES } = await import('../src/world/roofsplan.js');
+    const c = ROOFS_DISCOVERIES.chimney;
+    const row = { id: 'roofs-nap-2', kind: 'nap', x: c.x, z: c.z, mesh: false };
+    expect(plain(set.rests.find((r) => r.id === 'roofs-nap-2'))).toEqual(row);
+    expect(propsFor('roofs').rests).toContainEqual(row);
+    // on the stack: her paws there are at the anchor's height
+    expect(area.ground.y(c.x, c.z)).toBeCloseTo(c.y, 6);
   });
 
   it('each prop sits on its own level, clear of colliders, reached without Long Leap', () => {

@@ -66,6 +66,12 @@
 // none, and then nothing is noted), and hands them her spot, the camera and
 // her session every frame, after the flock: update's fifth argument (main.js).
 // An older caller's four arguments still work (no session: no perch).
+//   * Their looks (Task 5): the warm chimney's smoke ring (one mesh, where
+//     the place has its pots), the attic's pane under the skylight (one mesh,
+//     where there is a page: the context's `doc`, else the game's document;
+//     none headless), the moon over the screen from the telescope, and the
+//     view from the vane, which leans the camera player.update placed (so the
+//     moments run after it: main.js calls this after player.update).
 // =============================================================================
 import { skyBackground } from './render/sky.js';
 import { BUS } from './world/roofsplan.js';
@@ -184,8 +190,11 @@ export function createRoofsLife(area) {
       for (let i = 0; i < sleepers.length; i++) sleepers[i].scale.y = 1 + BREATH.amp * Math.sin(BREATH.rate * walk + i);
     }
 
+    // The page the moon and the attic's pane are made on: the context's (a
+    // test's), else the game's own; headless there is none, and no pane.
+    const page = doc !== undefined ? doc : (globalThis.document ?? null);
     const moments = area.anchors?.discoveries
-      ? createRoofsMoments(area, { log, progression, hud, birds, scene, reducedMotion: reducedMotion ?? false, doc })
+      ? createRoofsMoments(area, { log, progression, hud, birds, scene, reducedMotion: reducedMotion ?? false, doc: page })
       : null;
 
     apply(); // the first frame is already sunset

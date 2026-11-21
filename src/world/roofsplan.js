@@ -740,6 +740,8 @@ export const ROOFS_REGISTRATION = Object.freeze({
       Object.freeze({ id: 'roofs-drink-1', kind: 'drink', x: -8, z: 42, mesh: true }), // a water bowl in the alley
       Object.freeze({ id: 'roofs-eat-1', kind: 'eat', x: 22, z: 38, mesh: true }), // a dish at the alley's east end
       Object.freeze({ id: 'roofs-nap-1', kind: 'nap', x: 14.5, z: 31.5, mesh: true }), // a cushion on the shed roof
+      // On the warm chimney stack (Rooftops step 5, R6): the warm bricks are the bed
+      Object.freeze({ id: 'roofs-nap-2', kind: 'nap', x: ROOFS_DISCOVERIES.chimney.x, z: ROOFS_DISCOVERIES.chimney.z, mesh: false }),
     ]),
     // Behind the bins, on the garage roof by the fire escape, at the tank's foot.
     hides: Object.freeze([{ x: 14.5, z: 37 }, { x: -24, z: 30.5 }, { x: -26, z: -31.3 }].map((h) => Object.freeze(h))),

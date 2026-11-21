@@ -258,26 +258,35 @@ describe('the Rooftops’ flock, in the life', () => {
     life2.dispose();
   });
 
-  it('the life adds at most three meshes, no casters, under 1,600 triangles', () => {
+  it('the life adds at most five meshes, no casters, under 1,800 triangles', async () => {
+    // Rooftops step 5, Task 5: the flock and its wings, the smoke, the
+    // chimney's smoke ring and the attic's pane (where there is a page)
+    const { ROOFS_DISCOVERIES, SMOKE_POTS } = await import('../src/world/roofsplan.js');
+    const { fakePage } = await import('./helpers/fakepage.js');
     const { scene, area } = withFlock();
+    const smokePots = [{ id: SMOKE_POTS[0], x: -10, y: 8.72, z: 6.95 }, { id: 'pot:b', x: 10, y: 8.57, z: 8.05 }, { id: 'pot:c', x: -29.75, y: 8.66, z: 8.05 }];
+    Object.assign(area, { smokePots, potTops: Object.fromEntries(smokePots.map((p) => [p.id, p])), anchors: { discoveries: ROOFS_DISCOVERIES } });
     const before = [...scene.children];
-    const life = createRoofsLife(area)({ scene, sun: { intensity: 0.8 }, fill: { intensity: 0.5 }, critters: null, visits: 0, reducedMotion: false });
+    const life = createRoofsLife(area)({ scene, sun: { intensity: 0.8 }, fill: { intensity: 0.5 }, critters: null, visits: 0, reducedMotion: false, doc: fakePage() });
     let meshes = 0;
     let tris = 0;
+    const names = [];
     for (const o of added(scene, before)) {
       o.traverse((m) => {
         if (!m.isMesh) return;
         meshes++;
+        names.push(m.name);
         expect(m.castShadow, m.name).toBe(false);
         expect(m.userData.noCast, m.name).toBe(true);
         const g = m.geometry;
         tris += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (m.isInstancedMesh ? m.count : 1);
       });
     }
-    expect(meshes).toBe(2); // the flock and its wings (Task 5's smoke makes three)
-    expect(meshes).toBeLessThanOrEqual(3);
-    expect(tris).toBeLessThan(1600);
+    expect(names.sort()).toEqual(['roofsAttic', 'roofsFlock', 'roofsFlockWings', 'roofsRing', 'roofsSmoke']);
+    expect(meshes).toBeLessThanOrEqual(5);
+    expect(tris).toBeLessThan(1800);
     life.dispose();
+    expect(scene.children).toEqual(before);
   });
 });
 

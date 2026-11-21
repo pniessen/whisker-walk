@@ -1227,21 +1227,22 @@ it('without critters (the picture pages) no bird is ever flushed', () => {
   f.dispose();
 });
 
-it('the life on the built place stays at or under 1,600 triangles in 3 meshes, casting nothing', async () => {
+it('the life on the built place stays under 1,800 triangles in 5 meshes, casting nothing', async () => {
   const { createRoofsLife } = await import('../src/roofslife.js');
   const scene = new THREE.Scene();
   const life = createRoofsLife(area)({ scene, sun: { intensity: 1 }, fill: { intensity: 1 }, visits: 0, guideStore: memStore() });
   life.update(1 / 30, 0, null, null);
   const meshes = [];
   scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
-  expect(meshes.map((m) => m.name).sort()).toEqual(['roofsFlock', 'roofsFlockWings', 'roofsSmoke']);
+  // Rooftops step 5 adds the warm chimney's ring and the attic's pane (this file's page is a stand-in)
+  expect(meshes.map((m) => m.name).sort()).toEqual(['roofsAttic', 'roofsFlock', 'roofsFlockWings', 'roofsRing', 'roofsSmoke']);
   let tris = 0;
   for (const m of meshes) {
     expect(m.castShadow, m.name).toBe(false);
     expect(m.userData.noCast, m.name).toBe(true);
-    tris += triangles(m.geometry) * m.count;
+    tris += triangles(m.geometry) * (m.isInstancedMesh ? m.count : 1);
   }
-  expect(tris).toBeLessThanOrEqual(1600);
+  expect(tris).toBeLessThan(1800);
   life.dispose();
   expect(scene.children).toEqual([]);
 });
