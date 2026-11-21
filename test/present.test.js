@@ -41,20 +41,22 @@ describe('the present shows', () => {
 });
 
 describe('opening it', () => {
-  it('gives the kitten once, owned and played as, and saved', () => {
+  it('gives the kitten once, owned and saved; she stays on the cat she was playing', () => {
     const storage = mem();
     const p = createProgression(storage);
     expect(p.openPresent(BIRTHDAY_EVENT)).toBe(null); // no birthday: nothing
     p.redeemCode(H, { events: [BIRTHDAY_EVENT] });
+    expect(p.equipCat('siamese')).toBe(true);
+    const before = { ...p.state.equipped };
     expect(p.openPresent(BIRTHDAY_EVENT)).toBe(BIRTHDAY_KITTEN);
     expect(p.isUnlocked('cats', BIRTHDAY_KITTEN)).toBe(true);
-    expect(p.state.equipped.cat).toBe(BIRTHDAY_KITTEN);
-    expect(p.state.equipped.custom).toBe(null);
+    expect(p.state.equipped).toEqual(before);
+    expect(p.equipCat(BIRTHDAY_KITTEN)).toBe(true); // and she can play as it
     expect(p.openPresent(BIRTHDAY_EVENT)).toBe(null); // once per save
     expect(p.openPresent('nope')).toBe(null);
     const again = createProgression(storage);
     expect(again.isUnlocked('cats', BIRTHDAY_KITTEN)).toBe(true);
-    expect(again.state.equipped.cat).toBe(BIRTHDAY_KITTEN);
+    expect(again.state.equipped.cat).toBe(BIRTHDAY_KITTEN);  // the choice she made after
   });
   it('never for sale, and a code gives it only as the present does', () => {
     const p = createProgression(mem());
@@ -97,7 +99,9 @@ describe('the birthday kitten', () => {
     p.redeemCode(H, { events: [BIRTHDAY_EVENT] });
     p.openPresent(BIRTHDAY_EVENT);
     const m = buildDressingModel(p.state, CATALOG);
-    expect(m.cats.find((c) => c.id === BIRTHDAY_KITTEN)).toMatchObject({ owned: true, selected: true });
-    expect(m.hero.name).toBe('Ribbonkit');
+    expect(m.cats.find((c) => c.id === BIRTHDAY_KITTEN)).toMatchObject({ owned: true, selected: false });
+    expect(m.hero.name).toBe('Tabby'); // still her own cat
+    p.equipCat(BIRTHDAY_KITTEN);
+    expect(buildDressingModel(p.state, CATALOG).hero.name).toBe('Ribbonkit');
   });
 });

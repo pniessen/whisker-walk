@@ -228,12 +228,16 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
   // The present (ui/party.js presentDue): one tap opens it with a burst and
   // the fanfare (muted, silent), and the birthday kitten is hers and on show.
-  // The kitten is hers the moment the box is tapped (a Start pressed during
-  // the 0.9 s of unwrapping walks with her); the screen shows her after it.
+  // The kitten is hers the moment the box is tapped; she stays on the cat she
+  // was playing, and the kitten's new tile in the picker glows for a moment
+  // after the 0.9 s of unwrapping (newCatUntil, put back after each render).
+  let newCat = null;
+  let newCatUntil = 0;
   function openPresentNow(box) {
     const cat = progression.openPresent(BIRTHDAY_EVENT);
     if (!cat) { box?.remove?.(); return; }
-    try { rooms?.retrackProfile?.(); } catch { /* her room sees the kitten on the next push */ }
+    newCat = cat;
+    newCatUntil = Date.now() + 900 + 3600;
     party.burst();
     try { onCelebrate?.(); } catch (err) { console.warn('Whisker Walk: the present sound failed', err); note('audio', err); }
     setTimeout(() => {
@@ -243,6 +247,9 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }, reducedNow() ? 0 : 900);
   }
   function syncParty() {
+    if (newCat && Date.now() < newCatUntil) {
+      try { root.querySelector(`[data-dr-cat="${newCat}"]`)?.classList.add('party-new'); } catch { /* a nicety */ }
+    }
     const st = root.querySelector('#dr-stage');
     if (!st) return;
     const present = presentDue(progression) && !dressing?.ui?.wardrobe ? { label: phrase('present.label'), onOpen: openPresentNow } : null;

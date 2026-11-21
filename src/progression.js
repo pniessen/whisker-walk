@@ -1458,13 +1458,12 @@ export function createProgression(storage) {
     },
     // openPresent(eventId) -> the cat id it gave, or null. Event `eventId`'s
     // present, once per save: the save must have the event and not own the
-    // cat yet. She owns the cat from now and plays as it (in one save()).
+    // cat yet. She owns the cat from now; the cat she plays as stays the same
+    // (the owner, 2026-11-21: the kitten joins her cats, nothing is swapped).
     openPresent(eventId) {
       const cat = api.hasEvent(eventId) ? eventPresent(eventId) : null;
       if (!cat || !Object.hasOwn(CATALOG.cats, cat) || state.unlocked.cats.includes(cat)) return null;
       state.unlocked.cats.push(cat);
-      state.equipped.cat = cat;
-      state.equipped.custom = null;
       save();
       return cat;
     },
