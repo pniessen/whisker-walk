@@ -12,7 +12,8 @@
 //                { zoom, hold, caption? } (take that zoom step, then wait
 //                `hold` seconds). Walked by createHousePilot, the real player
 //                with the stick alone.
-//   grand        every room, up and down every stair, zoom out and back.
+//   grand        every room, up and down every stair, and it ends zoomed out
+//                on the whole house (the owner's film).
 //   film         the shorter one, to fit the 30 to 45 s film at real time.
 //
 // Captions are short plain words for a child; no series words.
@@ -62,8 +63,8 @@ const GRAND_STEPS = [
   // the hall, the big stairs, the bedroom, the back stairs, the attic
   t(4, 7), t(0, 6, 'The hall again'), t(0, 3, 'Up the big stairs'), t(0, -6), t(-1, -8, 'The bedroom'),
   t(-5, -9), t(-8, -11, 'Up the back stairs'), t(-14, -11), t(-18, -10, 'The attic'), ...TURN_EAST,
-  // the whole house from far away, then back in close
-  zoom(3, 3, 'The whole house'), zoom(1, 0.5),
+  // the whole house from far away, where the film ends
+  zoom(3, 3, 'The whole house'),
 ];
 
 // The film: one sweep through every room in well under 45 s at real time. It

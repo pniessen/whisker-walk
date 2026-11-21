@@ -69,7 +69,7 @@ function walkTour(name) {
     low = Math.min(low, w.cat.position.y);
     if (w.player.cameraZoomStep === 3) farther = { cam: w.camera.position.clone(), cat: w.cat.position.clone(), room: r };
   }
-  return { result, rooms, stairs, captions, worst, sunk, high, low, up, down, seconds: t, farther };
+  return { result, rooms, stairs, captions, worst, sunk, high, low, up, down, seconds: t, farther, endZoom: w.player.cameraZoomStep };
 }
 
 describe('the shots', () => {
@@ -143,6 +143,8 @@ describe('the tours', () => {
       expect(farther.room).toBe('attic');
       expect(farther.cam.x).toBeLessThan(farther.cat.x - 5); // the camera well west of her ...
       expect(Math.abs(farther.cam.x - farther.cat.x)).toBeGreaterThan(Math.abs(farther.cam.z - farther.cat.z)); // ... mostly west
+      // the owner's film (grand) ends there, on the whole house
+      if (name === 'grand') expect(walkOnce(name).endZoom).toBe(3);
     }, 90_000);
   }
 
