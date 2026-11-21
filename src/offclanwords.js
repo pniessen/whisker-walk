@@ -165,6 +165,23 @@ export const PHRASES = Object.freeze({
   'group.name': (prefix) => `${prefix} ${CLAN_SUFFIX}`,
   // the Colony card: "Pickles" then "the ranger"
   'colony.rankAfterName': (rankWords) => `the ${rankWords}`,
+  // the Menu's tile and the sheet's heading: no group word in the everyday game
+  'menu.myCats': 'My cats',
+  // the My cats sheet: "cats", never a word for the group
+  'mycats.empty': 'No cats here yet — touch noses with a stray, then feed it 🐟',
+  'mycats.notSetUp': "Sharing your cats isn't switched on yet",
+  'mycats.offline': "Can't reach the internet right now — your cats are safe on this device",
+  'mycats.alreadyPaired': 'This player is already sharing their cats.',
+  'mycats.needsName': 'To share your cats, you need a friend name first.',
+  'mycats.nameIntro': (save) => `You need a friend name before you can share your cats. Type one here and ${save}:`,
+  'mycats.wantsToShare': 'wants to share your cats. Is that them?',
+  'mycats.offer': '🐈 Share your cats with your brother or sister',
+  'mycats.nowSharing': (name) => `You're sharing your cats with ${name}! 🐾`,
+  'mycats.newsSub': "What's new with your cats",
+  'mycats.full': (cap) => `Your cats’ home is full — ${cap} cats live here 🏠`,
+  'mycats.fullRoom': (max) => ` Share your cats with your brother or sister to make room for ${max}.`,
+  // no second name for the Neighborhood in the everyday game: no line at all
+  'place.townNote': '',
 
   // the game is "Whisker Walk 2"; only the older plain edition adds its name
   'edition.title.canon': WILD_EDITION,
@@ -177,6 +194,7 @@ export const PHRASES = Object.freeze({
   'pick.momentTitle': 'Time to pick a home!',
   'pick.momentAsk': 'Which crew will be your home?',
   'pick.changeAsk': 'Tap a crew to make it your home.',
+  'pick.changeAskClick': 'Click a crew to make it your home.',
   'map.camp': (group) => `${group} home base`,
 
   // not offered in this set (RULES.noStarNames), so there is nothing to say

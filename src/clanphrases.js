@@ -156,6 +156,8 @@ const LATER = Object.freeze({
   'colony.rankAfterName': (rankWords) => rankWords,
   // a pick card's line for the group's badge, for a set that has badge words
   'pick.badge': (badgeWord) => `badge: ${badgeWord}`,
+  // the small line under the Neighborhood's name for her first visits
+  'place.townNote': 'the town',
 
   // ---- Appletree Farm (2026-11-18): its own words, the same in every set -----
   // The animals' one-time lines (they were spelled in game/walk.js).
@@ -406,6 +408,33 @@ const LATER = Object.freeze({
   'wear.foundIn': (place) => `Found in ${place}`,
   'wear.notYet': 'Not found yet',
   'wear.journal.title': 'Things to wear',
+
+  // ---- Menu review #7 (2026-11-20) ----------------------------------------------
+  // the Menu's tile and the sheet's heading for the player's own group of cats
+  'menu.myCats': () => `My ${groupWord()}`,
+  // the Journal's quiet line where the stray friends used to be; reads the tile's phrase when called
+  'journal.friendsMoved': () => `Your cat friends are in ${phrase('menu.myCats')} now ›`,
+
+  // ---- the My cats sheet, in plain words for the everyday game (follow-up 2026-11-20) ----
+  // Each line's family text is exactly what the sheet always said.
+  'mycats.empty': 'No colony cats yet — touch noses with a stray, then feed it 🐟',
+  'mycats.notSetUp': "Colony sharing isn't switched on yet",
+  'mycats.offline': "Can't reach the colony right now — your cats are safe on this device",
+  'mycats.alreadyPaired': 'This player is already sharing a colony.',
+  'mycats.needsName': 'To share your colony, you need a friend name first.',
+  // follows the friend's name, which the sheet puts in bold before it
+  'mycats.wantsToShare': 'wants to share your colony. Is that them?',
+  'mycats.offer': '🐈 Share your colony with your brother or sister',
+  // the toast when a pairing completes, and the news card's line when there is no partner name
+  'mycats.nowSharing': (name) => `You're sharing a colony with ${name}! 🐾`,
+  'mycats.newsSub': "What's new in your colony",
+  'mycats.full': (cap) => `The colony is full — ${cap} cats call it home 🏠`,
+  'mycats.fullRoom': (max) => ` Share it with your brother or sister to make room for ${max}.`,
+  // the change card's ask on a desktop; a touch screen keeps 'pick.changeAsk'
+  'pick.changeAskClick': () => `Click a ${groupWord()} to join it.`,
+  // above the friend-name box when My cats sent her there; save is
+  // "tap Save" or "click Save" (walkingname.js picks it by the touch flag)
+  'mycats.nameIntro': (save) => `You need a friend name before you can share your colony. Type one here and ${save}:`,
 });
 
 // Every id of the first table, in table order.

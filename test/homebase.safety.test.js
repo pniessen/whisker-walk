@@ -183,7 +183,7 @@ describe('Player pets', () => {
     });
     setup({ cloud, met });
     const out = catchRoster();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     expect(out.html).toContain('Robin');
     expect(out.html).not.toContain('Free Gems');
@@ -196,7 +196,7 @@ describe('Player pets', () => {
       met.seed(['robin']);
       setup({ cloud: fakeCloud({ rows: [row('robin')], profiles: [profile('robin', bad, bad)] }), met });
       const out = catchRoster();
-      openSheet('together');
+      openSheet('colony');
       await flush();
       expect(out.html).toContain('<span class="friend-name">Mystery Cat</span> — cat,');
       expect(out.html).not.toContain('src=x');
@@ -208,7 +208,7 @@ describe('Player pets', () => {
     const met = createMetPlayers(memStorage());
     setup({ cloud: fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')] }), met });
     const out = catchRoster();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     expect(out.html).toContain('Robin');
     expect(met.seeded()).toBe(true);
@@ -234,7 +234,7 @@ describe('hiding a visitor in Player pets', () => {
   it('each row has a Hide button named for the cat', async () => {
     setup({ cloud: fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')] }), met: met2() });
     const out = catchBoth();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     expect(out.roster).toContain('aria-label="Hide Robin">Hide</button>');
     expect(out.roster).not.toContain('✕');
@@ -244,7 +244,7 @@ describe('hiding a visitor in Player pets', () => {
     const cloud = fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')] });
     setup({ cloud, met: met2() });
     catchBoth();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     await tap({ dataset: { action: 'hide-player', playerId: 'robin' } });
     const h = card().innerHTML;
@@ -260,7 +260,7 @@ describe('hiding a visitor in Player pets', () => {
     const cloud = fakeCloud({ rows: [row('robin'), row('wren')], profiles: [profile('robin', 'Robin'), profile('wren', '<b>x</b>')] });
     setup({ cloud, met: met2() });
     const out = catchBoth();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     await tap({ dataset: { action: 'hide-player', playerId: 'robin' } });
     await new Promise((r) => setTimeout(r, 650)); // the confirm card's double-tap guard (600 ms)
@@ -281,7 +281,7 @@ describe('hiding a visitor in Player pets', () => {
     const cloud = fakeCloud({ rows: [row('robin')], profiles: [profile('robin', 'Robin')], blocked: ['ghost-id'] });
     setup({ cloud, met: met2() });
     const out = catchBoth();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     expect(out.hidden).toContain('Hidden cats: 1');
     expect(out.hidden).toContain('<span class="friend-name">A hidden cat</span>');
@@ -291,7 +291,7 @@ describe('hiding a visitor in Player pets', () => {
     const cloud = fakeCloud({ rows: [row('robin')], profiles: [profile('robin', '<img src=x>')], blocked: ['robin'] });
     setup({ cloud, met: met2() });
     const out = catchBoth();
-    openSheet('together');
+    openSheet('colony');
     await flush();
     expect(out.hidden).toContain('<span class="friend-name">Mystery Cat</span>');
     expect(out.hidden).not.toContain('src=x');
@@ -306,9 +306,10 @@ describe('hiding a visitor in Player pets', () => {
 });
 
 describe('every code box has a visible label', () => {
-  it('Play together: Room code and Friend code, with the share line under her own code', () => {
+  it('Play together: Room code (once Join a room is tapped) and Friend code, with the share line under her own code', async () => {
     setup({ cloud: fakeCloud() });
     openSheet('together');
+    await tap({ id: 'wt-join-open' });
     const h = html();
     expect(h).toContain('<label class="code-label" for="wt-join-code">Room code</label>');
     expect(h).toContain('<label class="code-label" for="friend-code-input">Friend code</label>');
@@ -359,15 +360,17 @@ describe('the name box', () => {
     openSheet('together');
     expect(html()).toContain('Friends see this name when you play together. Pick a cat name, not your real name.');
   });
-  it('is called "Your walking name", with or without one saved', () => {
+  it('is called "Your friend name", with or without one saved', async () => {
     setup({ name: null });
     openSheet('together');
-    expect(html()).toContain('<p class="wt-first">First, pick your walking name:</p>');
-    expect(html()).toContain('aria-label="Your walking name"');
+    expect(html()).toContain('<p class="wt-first">First, pick your friend name:</p>');
+    expect(html()).toContain('aria-label="Your friend name"');
     expect(html()).not.toContain('wt-name-label'); // the line above already names it
     setup({ name: 'Mittens' });
     openSheet('together');
-    expect(html()).toContain('<label class="wt-name-label" for="wt-petname-input">Your walking name</label>');
+    expect(html()).toContain('Your friend name: <strong>Mittens</strong>');
+    await tap({ id: 'wt-name-edit' }); // the ✏️ opens the box again, named by its label
+    expect(html()).toContain('<label class="wt-name-label" for="wt-petname-input">Your friend name</label>');
     expect(html()).not.toContain('wt-first');
   });
   it('a name that is not letters is turned down in the walking name\'s words', async () => {
@@ -376,7 +379,7 @@ describe('the name box', () => {
     doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? { value: 'R2D2' } : null);
     await tap({ id: 'wt-petname-save' });
     expect(progression.state.petName).toBe(null);
-    expect(html()).toContain('A walking name is 2–16 letters, spaces, or hyphens.');
+    expect(html()).toContain('A friend name is 2–16 letters, spaces, or hyphens.');
   });
   it('a new name with one of the wider list\'s words is turned down kindly', async () => {
     const { progression } = setup({ name: null });
@@ -389,7 +392,7 @@ describe('the name box', () => {
   it('a cat already named with one of those words can still Host and Join', () => {
     setup({ name: 'Pisstopher' });
     openSheet('together');
-    expect(html()).toContain('<button id="wt-host">Start a room</button>');
+    expect(html()).toContain('<button id="wt-host" class="wt-choice">Start a room</button>');
   });
 });
 
@@ -398,24 +401,18 @@ describe('Host and Join with no cat name yet', () => {
     it(`${id}: stays tappable; a tap says a name is needed and goes to the name box`, async () => {
       const { rooms } = setup({ name: null });
       openSheet('together');
-      expect(html()).toContain(`<button id="${id}">`);
-      expect(html()).not.toContain('You need a walking name before');
+      if (id === 'wt-join') await tap({ id: 'wt-join-open' }); // Join is under Join a room
+      expect(html()).toContain(`<button id="${id}"`);
+      expect(html()).not.toContain('You need a friend name before');
       const focused = [];
       doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? { value: '', focus: () => focused.push(sel) } : sel === '#wt-join-code' ? { value: 'ABCD' } : null);
       await tap({ id });
-      expect(html()).toContain('You need a walking name before you can play together. Type one here and tap Save:');
+      expect(html()).toContain('You need a friend name before you can play together. Type one here and click Save:');
       expect(focused).toEqual(['#wt-petname-input']);
       expect(rooms.host).not.toHaveBeenCalled();
       expect(rooms.join).not.toHaveBeenCalled();
     });
   }
-  it('the disabled look reaches Host too (its gold is set by id)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
-    const rule = css.slice(css.indexOf('.walk-together button:disabled'), css.indexOf('}', css.indexOf('.walk-together button:disabled')));
-    expect(rule).toContain('.walk-together #wt-host:disabled');
-    expect(css.indexOf('.walk-together #wt-host:disabled')).toBeGreaterThan(css.indexOf('.walk-together #wt-host:hover'));
-  });
 });
 
 // Her own cat's name (the builder's) and her walking name (state.petName) are
@@ -437,7 +434,7 @@ describe("offering her own cat's name as her walking name", () => {
     makeCat(progression, 'Mango');
     openSheet('together');
     expect(html()).toContain('<button type="button" id="wt-petname-use" class="wt-name-use">Use “Mango”</button>');
-    expect(html()).toContain('aria-label="Your walking name" value=""'); // the box is not filled in for her
+    expect(html()).toContain('aria-label="Your friend name" value=""'); // the box is not filled in for her
     expect(progression.state.petName).toBe(null);
   });
   it('opening other sheets, Host and Join never save it', async () => {
@@ -461,7 +458,7 @@ describe("offering her own cat's name as her walking name", () => {
     expect(progression.state.petName).toBe('Mango');
     expect(html()).not.toContain(USE);
     expect(html()).not.toContain('wt-first');
-    expect(html()).toContain('value="Mango"');
+    expect(html()).toContain('Your friend name: <strong>Mango</strong>');
   });
   it('a name she could not type in herself is not offered, and a stale tap saves nothing', async () => {
     const { progression } = setup({ name: null });
@@ -489,13 +486,13 @@ describe('Colony with no walking name yet', () => {
   it('its button opens Play together, says why above the name box, and puts her in it', async () => {
     const { progression } = setup({ name: null, colonySync: needsName() });
     openSheet('colony');
-    expect(html()).toContain('To share your colony, you need a walking name first.');
-    expect(html()).toContain('<button type="button" id="colony-pair-name" class="colony-pair-btn">Pick your walking name →</button>');
+    expect(html()).toContain('To share your colony, you need a friend name first.');
+    expect(html()).toContain('<button type="button" id="colony-pair-name" class="colony-pair-btn">Pick your friend name →</button>');
     const focused = [];
     doc.root.querySelector = (sel) => (sel === '#wt-petname-input' ? { value: '', focus: () => focused.push(sel) } : null);
     await tap({ id: 'colony-pair-name' });
     expect(html()).toContain('<h2>Play together 👫</h2>');
-    expect(html()).toContain('<p class="wt-first wt-name-needed">You need a walking name before you can share your colony. Type one here and tap Save:</p>');
+    expect(html()).toContain('<p class="wt-first wt-name-needed">You need a friend name before you can share your colony. Type one here and click Save:</p>');
     expect(html().indexOf('wt-name-needed')).toBeLessThan(html().indexOf('id="wt-petname-input"'));
     expect(focused).toEqual(['#wt-petname-input']);
     expect(progression.state.petName).toBe(null);

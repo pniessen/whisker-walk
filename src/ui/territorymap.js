@@ -93,7 +93,7 @@ const STREET_LABEL_AT = { park: [1080, 478], fair: [1060, 236], farm: [1235, 326
 function labelHtml(r, { small = false } = {}) {
   const [lx, ly] = LABEL_AT[r.id] ?? STREET_LABEL_AT[r.id] ?? [r.x, r.y];
   const name = wrap(`${r.locked ? '🔒 ' : ''}${r.name}`, small ? 12 : 14);
-  const sub = wrap(r.line, small ? 20 : 22);
+  const sub = wrap(r.mapLine ?? r.line, small ? 20 : 22);
   const nameSize = small ? 36 : r.status === 'built' ? 44 : 38;
   const [lineFirst, lineNext] = small ? [32, 26] : [36, 30];
   const lineClass = small ? 'tm-line tm-line-small' : 'tm-line';

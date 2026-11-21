@@ -12,6 +12,9 @@
 // scene object placed at her mouth each frame, never a child of the cat, so
 // neither the redress nor the card's pause and resume drops it.
 //
+// Either of her answers (and Back) says 'find-kept' on the bus once the walk
+// has resumed, so the hint shows over the walk (game/tips.js).
+//
 // Nothing here is random or reads the clock.
 import { CATALOG } from '../progression.js';
 import { activeCat, scarKey } from '../customcats.js';
@@ -23,6 +26,7 @@ import { canWearNow } from '../foundwear/rules.js';
 import { findCardHtml } from '../foundwear/play.js';
 import { phrase } from '../clanphrases.js';
 import { pauseCardFor } from './walk.js';
+import { bus } from '../events.js';
 
 const SLOTS = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
 
@@ -135,6 +139,7 @@ export function createFindCard({
     onLookChanged();
     close(s);
     resumeWalk();
+    bus.emit('tip', { id: 'find-kept' }); // a hint, this device only (game/tips.js)
   }
 
   function later() {
@@ -142,11 +147,15 @@ export function createFindCard({
     if (!s?.findCard) return;
     close(s);
     resumeWalk();
+    bus.emit('tip', { id: 'find-kept' });
   }
 
   function onLockChange(locked) {
     const s = getSession();
-    if (locked && s?.findCard) close(s);
+    if (locked && s?.findCard) {
+      close(s);
+      bus.emit('tip', { id: 'find-kept' }); // her own Later: the walk is live once the lock lands
+    }
   }
 
   return { show, wear, later, onLockChange };

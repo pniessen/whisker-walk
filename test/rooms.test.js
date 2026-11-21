@@ -22,7 +22,7 @@ function fakeStorage() {
   return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
 }
 
-function client(hub, { pid, petName, partner, colonyId = COLONY_ID, mode = 'paired', unlocked = [] }) {
+function client(hub, { pid, petName, partner, colonyId = COLONY_ID, mode = 'paired', unlocked = [], getIsTouch }) {
   const progression = createProgression(fakeStorage());
   progression.setPetName(petName);
   if (partner) progression.setColonyLink({ id: colonyId, partner: { playerId: partner.pid, petName: partner.petName, wardrobe: [] } });
@@ -39,6 +39,7 @@ function client(hub, { pid, petName, partner, colonyId = COLONY_ID, mode = 'pair
     colonySync: { status: () => ({ mode }), pull },
     toast: (text) => toasts.push(text),
     createTransport: () => hub.transport(),
+    getIsTouch,
   });
   return { ...made, progression, walks, toasts, pull, endWalk: () => { session = null; } };
 }
@@ -295,6 +296,16 @@ describe('anyone can press Start, and it starts everyone', () => {
     expect(host.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
   });
 
+  it('on a touch screen the walking-sister toast says Tap', async () => {
+    const kid = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' }, getIsTouch: () => true });
+    const walkingHost = createNet(hub.transport());
+    await walkingHost.join('P' + COLONY_ID, { playerId: HOST, petName: 'Mittens' });
+    await kid.rooms.walkWithPartner();
+    walkingHost.sendState({ v: 1, id: HOST, pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
+    expect(kid.toasts).toEqual(['Mittens is exploring. Tap Explore when they’re back.']);
+  });
+
   it("never starts a second world beside a sister who's already walking", async () => {
     const kid = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' } });
     const walkingHost = createNet(hub.transport());
@@ -302,7 +313,7 @@ describe('anyone can press Start, and it starts everyone', () => {
     await kid.rooms.walkWithPartner();
     walkingHost.sendState({ v: 1, id: HOST, pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
     expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
-    expect(kid.toasts).toEqual(['Mittens is exploring. Tap Explore when they’re back.']);
+    expect(kid.toasts).toEqual(['Mittens is exploring. Click Explore when they’re back.']);
     expect(kid.rooms.getState().starting).toBe(false);
     // Once she has been quiet a while (home again), Start works.
     vi.advanceTimersByTime(WALKING_FRESH_MS);

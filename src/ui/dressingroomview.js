@@ -121,7 +121,7 @@ export function createDressingRoom({
   progression, catalog = CATALOG, stage = null, sync = null, thumbs = null,
   onChange = () => {}, onOpenSheet = null, onProfileChange = () => {}, snapCustom = customThumbnails, now = () => Date.now(),
   onCatSaved = () => {}, later = (fn, ms) => setTimeout(fn, ms), storage = defaultStorage(),
-  onPlaced = () => {}, confirmSpend = null,
+  onPlaced = () => {}, confirmSpend = null, getIsTouch = () => false,
 }) {
   let builderPose = readPose(storage); // 'stand' | 'sit'
   let doneAt = null; // when Done last closed the builder (Start then sits under her finger)
@@ -157,7 +157,7 @@ export function createDressingRoom({
   const builderOp = (action) => { if (ui.builder) dispatch({ type: 'builder', builder: reduceBuilder(ui.builder, action) }); };
 
   function model() {
-    return buildDressingModel(progression.state, catalog, ui);
+    return buildDressingModel(progression.state, catalog, { ...ui, touch: !!getIsTouch() });
   }
 
   // Her cats' portraits: snapped once per key (one throwaway WebGL per batch).

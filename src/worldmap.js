@@ -72,9 +72,10 @@ export const ISLAND_HIT_R = 46;
 
 // What the world map shows for this save: her board's regions (kind 'board',
 // from territoryMapModel), then the street places (kind 'street'), each with
-// its name from the word tables and its state from placeState.
-export function worldMapModel(state, catalog) {
-  const board = territoryMapModel(state, catalog);
+// its name from the word tables and its state from placeState. touch: as
+// placeState's (the home screen's getIsTouch).
+export function worldMapModel(state, catalog, { touch = false } = {}) {
+  const board = territoryMapModel(state, catalog, { touch });
   const edition = state?.edition;
   const regions = [
     ...board.regions.map((r) => {
@@ -85,7 +86,7 @@ export function worldMapModel(state, catalog) {
       id: p.id, areaId: p.areaId, x: p.x, y: p.y, r: p.r,
       // (a street place the catalog does not have yet is not built)
       kind: 'street', name: placeName(p.areaId, edition, catalog), status: catalog?.areas?.[p.areaId] ? 'built' : 'soon', camp: null,
-      ...placeState(state, catalog, p.areaId),
+      ...placeState(state, catalog, p.areaId, { touch }),
     })),
   ];
   return {

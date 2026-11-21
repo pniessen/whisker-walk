@@ -4,6 +4,7 @@ import { createTips, walkFacts, climbBadge, HINT_PICS } from '../src/game/tips.j
 import { HINT_IDS } from '../src/hints.js';
 import { createProgression } from '../src/progression.js';
 import { bus } from '../src/events.js';
+import { NO_FIND } from '../src/foundwear/live.js';
 
 function memStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -37,6 +38,14 @@ const live = [];
 const start = (r, s) => { r.t.begin(s); live.push(r); return s; };
 afterEach(() => { while (live.length) live.pop().t.end(); });
 
+describe('hint pictures', () => {
+  it('find, find-kept and map have one', () => {
+    expect(HINT_PICS.find).toBe('✨');
+    expect(HINT_PICS['find-kept']).toBe('👕');
+    expect(HINT_PICS.map).toBe('🗺️');
+  });
+});
+
 describe('walkFacts', () => {
   const player = { forward: () => ({ x: 0, y: 0, z: -1 }), stalking: false, speed: 0, inWater: false, swimming: false, perchY: 0 };
   const state = createProgression(memStorage()).state;
@@ -45,6 +54,27 @@ describe('walkFacts', () => {
   it('a quiet walk has nothing to say', () => {
     const f = facts({});
     expect(f).toMatchObject({ room: false, stalking: false, perched: false, camera: false, inWater: false, carrying: false, toy: false, inBox: false, canJump: false, critterNear: false, strayFar: false, nearBox: false, helpInView: false, challenge: false, idleOpen: 0 });
+  });
+
+  it('sets place to the session\'s area id and findNear to false', () => {
+    const f = facts({ areaId: 'river' });
+    expect(f.place).toBe('river');
+    expect(f.findNear).toBe(false);
+  });
+
+  it('findNear: a find within the twinkle range and ahead, not taken', () => {
+    const find = (x, z, extra = {}) => ({ spot: { id: 's', x, z }, item: { kind: 'wear', id: 'acorncap' }, taken: false, ...extra });
+    expect(facts({ find: find(0, -10) }).findNear).toBe(true);
+    expect(facts({ find: find(0, 10) }).findNear).toBe(false); // behind the view
+    expect(facts({ find: find(0, -30) }).findNear).toBe(false); // too far
+    expect(facts({ find: find(0, -10, { taken: true }) }).findNear).toBe(false);
+    expect(facts({ find: NO_FIND }).findNear).toBe(false);
+    expect(facts({}).findNear).toBe(false); // no find on the session
+    const f = {};
+    walkFacts(walk({ find: find(0, -10) }), { player, state }, f);
+    expect(f.findNear).toBe(true);
+    walkFacts(walk({ find: find(0, -10, { taken: true }) }), { player, state }, f); // the same object is reused
+    expect(f.findNear).toBe(false);
   });
 
   it('an animal close and ahead is "near"; one behind or far is not', () => {
@@ -114,6 +144,21 @@ describe('createTips', () => {
     start(k, walk());
     bus.emit('tip', { id: 'creep', name: 'Pepper' });
     expect(k.up().text).toBe('Pepper is shy. Hold Shift to creep.');
+  });
+
+  it('following the find hint: taking the find takes the line down, so find-kept can follow', () => {
+    const r = rig({ walks: 0 });
+    const find = { spot: { id: 's', x: 0, z: -10 }, item: { kind: 'wear', id: 'acorncap' }, taken: false };
+    const s = start(r, walk({ find }));
+    r.play(s, 0.5); // the facts are gathered every quarter second
+    expect(r.up().text).toContain('twinkling');
+    find.taken = true; // the card pauses the walk in this frame: the facts do not refresh
+    r.frame(s);
+    bus.emit('tip:did', { id: 'find' }); // what handleFindArrival emits for her own pick-up
+    bus.emit('tip', { id: 'find-kept' });
+    expect(r.up()).not.toBe(null);
+    expect(s.hints.showing).toBe('find-kept');
+    expect(r.progression.state.tutorial.hints['find-kept']).toBe(1);
   });
 
   it('the twelve seconds and the minute are real time, however slowly the walk runs', () => {

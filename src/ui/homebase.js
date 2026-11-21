@@ -43,6 +43,7 @@ import { createConfirmCard, spendAsk } from './confirmcard.js';
 import { moveById } from '../fightmoves.js';
 import { note } from '../diagnostics.js';
 import { line as tutorialLine } from '../tutorialwords.js';
+import { hintMax } from '../hints.js';
 import { nextThing, nextThingHtml, NEXT_ATTR } from './nextthing.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
@@ -145,15 +146,25 @@ export function showEditionTitle(doc, edition) {
 //   nearby: game/nearby.js, the rooms the app found on the local network.
 //     Absent, or not available (Safari, desktop), nothing of it is drawn
 //   metPlayers: src/metplayers.js (the device's own list when absent)
-export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null }) {
+export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
-  // She was sent to the name box with no walking name: Play together says
+  // She was sent to the name box with no friend name: Play together says
   // why above it until she has one. 'walk' (Host, Join, a nearby Join) or
   // 'colony' (the Colony sheet's button); false when she just opened it.
   let nameNeeded = false;
+  // Play together's two view flags (menu review #8), both back to false when
+  // the sheet closes: Join a room was tapped, so the room-code box shows under
+  // the two choices; the ✏️ on her saved friend name was tapped, so the name
+  // box shows again with it filled in.
+  let joinOpen = false;
+  let editingName = false;
+  // The room code she has typed, kept as pairCode is: a re-render (the name
+  // box she is sent to, a saved name, closing and opening the box again) must
+  // not lose it. Cleared when the sheet closes.
+  let joinCodeDraft = '';
   // v21 Stream 5: the home screen is the dressing room (openSheet null) or
   // one sheet from HOME_SHEETS.
   let openSheet = null;
@@ -203,6 +214,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // instead of writing fetched-for-the-old-DOM data into the new one.
   let playerPetsToken = 0;
   const playerPetNames = new Map(); // playerId -> safe name, from the last roster fetch
+  // Fix wave #7: the roster is fetched once per open of My clan (two cloud
+  // reads), not on every render while it is open. playerPetsDue is set on the
+  // way into the sheet and spent by the next render that can fetch;
+  // playerPetsShown keeps what the last fetch drew ({ roster, hidden } HTML,
+  // or 'failed'), so a re-render redraws it with no "loading…" flicker.
+  let playerPetsDue = false;
+  let playerPetsShown = null;
 
   // Friend codes (Task 4) section state — mirrors the wt-*/joinError
   // pattern above: busy flag, an error string, and (once a code resolves
@@ -271,17 +289,55 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // silently fail — Join is gated the same as Host, not just Host. Both
     // stay tappable: with no name a tap leads to the name box (needName).
     const hasValidPetName = validPetName(name);
-    // Walking a cat she made and named, with no walking name yet: that name
-    // is offered as a button. A tap saves it; nothing saves it for her.
-    const offered = offeredWalkingName(progression.state);
     // Paired siblings get their own room with nothing to type (Task 12).
     const pairWalk = renderPartnerWalkHtml({ status: colonySync ? colonySync.status() : null, colony, room: st });
-    // In order: the name (it unlocks everything under it), the walk with her
-    // sibling, then a room of her own to start or join.
-    // The line above the name box names it until a name is saved; after that
-    // its label does.
+    // Menu review #8, from the top. Play now: the two big choices (quiet, side
+    // by side; pink is only on Start), the room-code box once Join a room is
+    // tapped, the rooms found nearby, the walk with her sibling. Friends: her
+    // friend name (the box until one is saved, then one row with a pencil),
+    // the star names (Clan Edition), her friend code.
     return `
-      ${hasValidPetName ? '' : `<p class="wt-first${nameNeeded ? ' wt-name-needed' : ''}">${escapeHtml(walkingNameIntro(nameNeeded))}</p>`}
+      <h3 class="wt-heading">Play now</h3>
+      <div class="wt-choices">
+        <button id="wt-host" class="wt-choice">Start a room</button>
+        <button id="wt-join-open" class="wt-choice" aria-expanded="${joinOpen ? 'true' : 'false'}">Join a room</button>
+      </div>
+      ${joinOpen ? `<div class="wt-actions">
+        <div class="code-field">
+          <label class="code-label" for="wt-join-code">Room code</label>
+          <div class="wt-join-row">
+            <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" value="${escapeHtml(joinCodeDraft)}" />
+            <button id="wt-join">Join</button>
+          </div>
+        </div>
+      </div>` : ''}
+      ${joinError ? `<div class="tag error wt-join-error">${escapeHtml(joinError)}</div>` : ''}
+      ${nearby?.available ? `<div id="wt-nearby" class="wt-nearby">${nearbyRowsHtml()}</div>` : ''}
+      ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
+      <h3 class="wt-heading">Friends</h3>
+      ${hasValidPetName && !editingName ? renderSavedName(name) : renderNameBox(name, hasValidPetName)}
+      ${isClanEdition(progression.state) ? renderStarNamePicker(candidateStarNames(myId), name) : ''}
+      ${cloud && cloud.available ? renderFriendCode() : ''}`;
+  }
+
+  // Her friend name, saved: one quiet row, and the ✏️ opens the box again.
+  function renderSavedName(name) {
+    return `
+      <div class="wt-name-row">
+        <span class="wt-name-saved">${escapeHtml(WALKING_NAME)}: <strong>${escapeHtml(name)}</strong></span>
+        <button type="button" id="wt-name-edit" class="wt-name-edit" aria-label="Change your friend name">✏️</button>
+      </div>
+      ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}`;
+  }
+
+  // The name box. The line above it names it until a name is saved; after
+  // that (the pencil reopened it) its label does.
+  function renderNameBox(name, hasValidPetName) {
+    // Walking a cat she made and named, with no friend name yet: that name
+    // is offered as a button. A tap saves it; nothing saves it for her.
+    const offered = offeredWalkingName(progression.state);
+    return `
+      ${hasValidPetName ? '' : `<p class="wt-first${nameNeeded ? ' wt-name-needed' : ''}">${escapeHtml(walkingNameIntro(nameNeeded, { touch: !!getIsTouch() }))}</p>`}
       <div class="wt-petname">
         ${hasValidPetName ? `<label class="wt-name-label" for="wt-petname-input">${escapeHtml(WALKING_NAME)}</label>` : ''}
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Type a name" aria-label="${escapeHtml(WALKING_NAME)}" value="${escapeHtml(name)}" />
@@ -289,20 +345,6 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         ${offered ? `<button type="button" id="wt-petname-use" class="wt-name-use">Use “${escapeHtml(offered)}”</button>` : ''}
         <div class="tag wt-name-hint">${escapeHtml(WALKING_NAME_HELP)} ${escapeHtml(WALKING_NAME_SAFETY)}</div>
         ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
-      </div>
-      ${isClanEdition(progression.state) ? renderStarNamePicker(candidateStarNames(myId), name) : ''}
-      ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
-      ${nearby?.available ? `<div id="wt-nearby" class="wt-nearby">${nearbyRowsHtml()}</div>` : ''}
-      <div class="wt-actions">
-        <button id="wt-host">Start a room</button>
-        <div class="code-field">
-          <label class="code-label" for="wt-join-code">Room code</label>
-          <div class="wt-join-row">
-            <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
-            <button id="wt-join">Join</button>
-          </div>
-        </div>
-        ${joinError ? `<div class="tag error">${escapeHtml(joinError)}</div>` : ''}
       </div>`;
   }
 
@@ -437,7 +479,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
 
   // "Delete my online data": the confirm card, and the line for each answer.
-  const KEEPS = 'The game on this device stays as it is, except that your walking name is cleared. This can’t be undone.';
+  const KEEPS = 'The game on this device stays as it is, except that your friend name is cleared. This can’t be undone.';
   function onlineDeleteAsk(code) {
     return {
       text: 'Delete this device’s online data?',
@@ -450,15 +492,16 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
   const NOTHING = 'Nothing was deleted.';
   function onlineDeleteMessage({ outcome, player, save }) {
-    if (outcome === 'done') return 'Done. Your online data is deleted. To play together again, pick a walking name in Play together.';
+    if (outcome === 'done') return 'Done. Your online data is deleted. To play together again, pick a friend name in Play together.';
     if (outcome === 'unavailable') return `Deleting isn’t switched on yet. ${NOTHING}`;
     if (outcome === 'denied') return `The cloud wouldn’t let this device delete it. ${NOTHING}`;
     if (outcome === 'busy') return `The cloud is busy right now — try again later. ${NOTHING}`;
     if (outcome === 'partial') {
       const playerGone = player === 'ok' || player === 'none';
+      const again = `${getIsTouch() ? 'Tap' : 'Click'} Delete my online data again to finish.`;
       return playerGone
-        ? 'The cat profile, friends and colony sharing are deleted, but the cloud save isn’t yet. Tap Delete my online data again to finish.'
-        : 'The cloud save is deleted and this device is unlinked, but the cat profile, friends and colony sharing aren’t yet. Tap Delete my online data again to finish.';
+        ? `The cat profile, friends and colony sharing are deleted, but the cloud save isn’t yet. ${again}`
+        : `The cloud save is deleted and this device is unlinked, but the cat profile, friends and colony sharing aren’t yet. ${again}`;
     }
     return `Could not reach the cloud — check your connection and try again. ${NOTHING}`;
   }
@@ -516,8 +559,24 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           </label>
           ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
-          <div class="settings-row settings-replay">
-            <button type="button" id="set-replay-first" class="secondary">${escapeHtml(tutorialLine('guide.replay'))}</button>
+        </div>
+      </section>`;
+  }
+
+  // For grown-ups (menu review #6 and #14): one quiet door on the Menu to the
+  // grown-ups' sheets, plus Do the first lesson again (moved here from Sound &
+  // controls). Quiet full-width rows: pink is Start's alone. Cloud save only
+  // where cloud saves are set up.
+  function renderGrownups() {
+    const on = availableSheets();
+    const rows = GROWNUP_SHEETS.filter((id) => on.includes(id))
+      .map((id) => `<button class="hb-row" data-dr-sheet="${id}"><span class="hb-row-icon" aria-hidden="true">${SHEET_ICON[id]}</span>`
+        + `<span class="hb-row-name">${escapeHtml(SHEET_NAME[id])}</span><span class="hb-row-go" aria-hidden="true">›</span></button>`).join('');
+    return `
+      <section class="hb-grownups"><h2>For grown-ups ⚙️</h2>
+        <div class="hb-rows">${rows}
+          <div class="settings-replay">
+            <button type="button" id="set-replay-first" class="hb-row"><span class="hb-row-icon" aria-hidden="true">🎓</span><span class="hb-row-name">${escapeHtml(tutorialLine('guide.replay'))}</span><span class="hb-row-go" aria-hidden="true">›</span></button>
             ${replayNote ? `<p class="settings-note" id="set-replay-note" role="status">${escapeHtml(tutorialLine('guide.replay-set'))}</p>` : ''}
           </div>
         </div>
@@ -580,7 +639,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
           </div>
         </div>
-        ${!hasValidPetName ? '<div class="tag">Pick your walking name at the top to add friends by code.</div>' : ''}
+        ${!hasValidPetName ? '<div class="tag">Pick your friend name above to add friends by code.</div>' : ''}
         ${friendCodeError ? `<div class="tag error">${escapeHtml(friendCodeError)}</div>` : ''}
         ${friendCodeSuccess ? `<div class="tag on">${escapeHtml(friendCodeSuccess)}</div>` : ''}
         ${friendCodeCandidate ? `
@@ -596,12 +655,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
 
   function renderPlayerPets() {
-    if (!cloud || !cloud.available) return '';
+    if (!cloud || !cloud.available || playerPetsShown === 'failed') return '';
     return `
       <div id="player-pets-section" class="player-pets">
         <h3>Player pets</h3>
-        <div id="player-pets-roster" class="tag">loading…</div>
-        <div id="player-pets-hidden"></div>
+        ${playerPetsShown ? playerPetsShown.roster : '<div id="player-pets-roster" class="tag">loading…</div>'}
+        <div id="player-pets-hidden">${playerPetsShown ? playerPetsShown.hidden : ''}</div>
       </div>`;
   }
 
@@ -627,6 +686,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // placeholder has to already exist in the DOM). Errors omit the whole
   // subsection quietly rather than leaving a stuck "loading…" — profiles
   // of players you've walked with are a nice-to-have, not core UI.
+  // On the way into My clan: the next render fetches the roster afresh (the
+  // last visit's rows show meanwhile, so nothing flickers).
+  function wantPlayerPets() {
+    playerPetsDue = true;
+    if (playerPetsShown === 'failed') playerPetsShown = null;
+  }
   async function loadPlayerPets() {
     const token = ++playerPetsToken;
     try {
@@ -636,9 +701,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       const shown = new Set(metOnly(met(), [...new Set(rows.map((r) => (r.a_id === cloud.myId ? r.b_id : r.a_id)))]));
       const otherIds = [...shown];
       const profiles = otherIds.length ? await cloud.fetchProfiles(otherIds) : [];
-      if (token !== playerPetsToken) return; // a newer render()/loadPlayerPets() superseded this fetch
-      const el = root.querySelector('#player-pets-roster');
-      if (!el) return; // section isn't in the current DOM (re-rendered away, e.g. cloud went unavailable)
+      if (token !== playerPetsToken) return; // a newer loadPlayerPets() superseded this fetch
       const profileById = new Map(profiles.map((p) => [p.player_id, p]));
       playerPetNames.clear();
       for (const p of profiles) playerPetNames.set(p.player_id, safeRemoteName(p.pet_name));
@@ -664,27 +727,30 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         })
         .filter(Boolean)
         .join('');
-      el.outerHTML = rowsHtml
+      const roster = rowsHtml
         ? `<div id="player-pets-roster" class="friends-list">${rowsHtml}</div>`
         : `<div id="player-pets-roster" class="tag">No player pets yet — explore together and touch noses!</div>`;
       // The cats she hid, each with a way back. Only ids are kept on this
       // device: a name shows only when that cat came back in this fetch
       // (a cat she met); otherwise "A hidden cat". Nobody is looked up.
       const hidden = cloud.blockedPlayers?.() ?? [];
+      const hiddenHtml = hidden.length
+        ? `<p class="player-pets-hidden-count">Hidden cats: ${hidden.length}</p>`
+          + hidden.map((id) => {
+            const name = playerPetNames.get(id);
+            return `<div class="friend-row friend-row-hidden"><span class="friend-name">${name ? escapeHtml(name) : 'A hidden cat'}</span>`
+              + `<button class="friend-hide" data-action="unhide-player" data-player-id="${escapeHtml(id)}"${name ? ` aria-label="Show ${escapeHtml(name)} again"` : ''}>Show again</button></div>`;
+          }).join('')
+        : '';
+      playerPetsShown = { roster, hidden: hiddenHtml }; // kept for the renders until the sheet is opened again
+      const el = root.querySelector('#player-pets-roster');
+      if (el) el.outerHTML = roster; // not there when the sheet was re-rendered away (or cloud went unavailable)
       const hiddenEl = root.querySelector('#player-pets-hidden');
-      if (hiddenEl) {
-        hiddenEl.innerHTML = hidden.length
-          ? `<p class="player-pets-hidden-count">Hidden cats: ${hidden.length}</p>`
-            + hidden.map((id) => {
-              const name = playerPetNames.get(id);
-              return `<div class="friend-row friend-row-hidden"><span class="friend-name">${name ? escapeHtml(name) : 'A hidden cat'}</span>`
-                + `<button class="friend-hide" data-action="unhide-player" data-player-id="${escapeHtml(id)}"${name ? ` aria-label="Show ${escapeHtml(name)} again"` : ''}>Show again</button></div>`;
-            }).join('')
-          : '';
-      }
+      if (hiddenEl) hiddenEl.innerHTML = hiddenHtml;
     } catch (err) {
       note('cloud', err);
       if (token !== playerPetsToken) return;
+      playerPetsShown = 'failed';
       root.querySelector('#player-pets-section')?.remove();
     }
   }
@@ -728,7 +794,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       pairingWasPending = false;
       const partner = progression.state.colony && progression.state.colony.partner;
       const name = partner && partner.petName ? String(partner.petName) : 'your partner';
-      try { toast?.(`You're sharing a colony with ${name}! 🐾`); } catch { /* a toast is never worth a crash */ }
+      try { toast?.(phrase('mycats.nowSharing', name)); } catch { /* a toast is never worth a crash */ }
       // Deferred one tick: this runs inside render(), which runs inside the
       // in-flight pull's onChange, so a pull() right now is single-flight and
       // would just return the running promise. After the tick the inviter
@@ -963,12 +1029,20 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // (btn null). The join itself is the typed code's: rooms.join(code), which
   // checks the code's shape again. Without a cat name there is nobody to
   // join as, so she is taken to the name box and told why.
-  // No walking name yet: Play together says so above the name box (why:
+  // No friend name yet: Play together says so above the name box (why:
   // 'walk' or 'colony'), and the box takes focus.
   function needName(why = 'walk') {
     nameNeeded = why;
     if (openSheet === 'together') render(); else setSheet('together');
-    try { root.querySelector('#wt-petname-input')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+    // The box sits under Friends, below the choices, the code box and the
+    // rooms nearby, so it may be off the screen: the reason line and the box
+    // are brought into view, then she is put in the box.
+    try {
+      root.querySelector('.wt-name-needed')?.scrollIntoView?.({ block: 'nearest' });
+      const box = root.querySelector('#wt-petname-input');
+      box?.scrollIntoView?.({ block: 'nearest' });
+      box?.focus?.({ preventScroll: true });
+    } catch { /* a nicety */ }
   }
 
   async function joinNearby(code, btn) {
@@ -987,6 +1061,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     try { res = await rooms.join(code); } catch { res = { ok: false }; } finally { nearbyBusy = false; }
     if (!res || !res.ok) {
       joinError = 'Could not join that room — try again, or type the room code.';
+      joinOpen = true; // the room-code box is open, for the code the line asks for
       if (fromCard) nearby.dismiss(code); // the card does not ask again; the row stays
     }
     if (!homeVisible()) return; // a walk began meanwhile
@@ -1056,7 +1131,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     momentEl = document.createElement('div');
     momentEl.id = 'clan-moment';
     momentEl.className = 'colony-news join-moment';
-    momentEl.innerHTML = renderClanMomentHtml(clanPickerModel(s), typeof partner === 'string' && partner ? partner : 'your partner');
+    momentEl.innerHTML = renderClanMomentHtml(clanPickerModel(s), typeof partner === 'string' && partner ? partner : 'your partner', { touch: !!getIsTouch() });
     momentEl.addEventListener('click', (e) => {
       const card = e.target.closest?.(`[${PICK_ATTR}]`);
       if (card) {
@@ -1201,7 +1276,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       visitClosed = null;
     }
     const n = Math.floor(asFiniteNonNeg(result && result.visits, 0));
-    if (n >= 1) showWelcome(welcomeLine(n));
+    // The cat speaks only on a first or milestone visit (one voice on Home).
+    if (isMilestone(n)) showWelcome(welcomeLine(n));
     showClanMoment();
     syncNearbyCard(); // the greeting has run: a room found meanwhile may ask now
     return false;
@@ -1265,7 +1341,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     fillFoundThumbs(thumbs, progression.state.unlocked.accessories);
     stage = createCatStage({ buildCat, thumbs });
     dressing = createDressingRoom({
-      progression, catalog: CATALOG, stage, sync, thumbs,
+      progression, catalog: CATALOG, stage, sync, thumbs, getIsTouch,
       onChange: render,
       onOpenSheet: (id) => setSheet(id),
       onProfileChange: () => rooms?.retrackProfile?.(),
@@ -1321,14 +1397,35 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState, { as: startAs() })}</div>`;
   }
 
-  // null (or anything not on offer) = back to the dressing room. A sheet opened
-  // from the Menu goes back to the Menu; the Menu and Change place go home.
+  // null (or anything not on offer) = back to the dressing room. Where a sheet's
+  // Back goes is a small chain: a sheet opened from the Menu goes back to the
+  // Menu; a sheet For grown-ups opened goes back to For grown-ups, which goes
+  // back where it came from (grownupsBackTo); the Menu and Change place go home.
   let backTo = null;
+  let grownupsBackTo = null;
+  let journalBackTo = null; // where the Journal's own Back goes while My clan (opened from it) is on top
+  function backTargetFor(next, prev) {
+    if (!next || next === 'menu' || next === 'places') return null;
+    if (prev === 'grownups' && GROWNUP_SHEETS.includes(next)) return 'grownups';
+    // back to For grown-ups from one of its sheets: it keeps its own way back
+    if (next === 'grownups' && backTo === 'grownups') return grownupsBackTo;
+    // My clan opened from the Journal's line goes back to the Journal, which keeps its own way back
+    if (prev === 'journal' && next === 'colony') return 'journal';
+    if (next === 'journal' && backTo === 'journal') return journalBackTo;
+    return prev === 'menu' ? 'menu' : null;
+  }
   function setSheet(id) {
     const want = resolveSheet(id);
     const next = want && availableSheets().includes(want) ? want : null;
     const prev = openSheet;
-    backTo = openSheet === 'menu' && next && next !== 'menu' && next !== 'places' ? 'menu' : null;
+    // Play together's open room-code box and name box close with the sheet.
+    if (prev === 'together' && next !== 'together') { joinOpen = false; editingName = false; joinCodeDraft = ''; }
+    // Back to the sheet under this one is not an open of it (for the counts).
+    const returning = !!prev && !!next && (next === 'menu' || (next === 'grownups' && backTo === 'grownups') || (next === 'journal' && backTo === 'journal'));
+    if (next === 'colony' && prev === 'journal') journalBackTo = backTo; // the Journal's own way back, before it changes
+    backTo = backTargetFor(next, prev);
+    if (next === 'grownups') grownupsBackTo = backTo;
+    if (next === 'colony' && prev !== 'colony') wantPlayerPets();
     openSheet = next;
     // The world map opens afresh, round today's place, from any other screen.
     if (next === 'places' && prev !== 'places') mapView = null;
@@ -1337,14 +1434,14 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (prev === 'places' && next !== 'places' && dressing?.ui?.mapCard) dressing.back?.();
     backupMsg = null; // a restore's result line is for the sheet it happened on
     // Usage counts: a sheet opened from somewhere else, not a re-open of itself.
-    // (Back from a sheet to the Menu is not an open of the Menu.)
-    if (next && next !== prev && !(next === 'menu' && prev)) { try { progression.noteUse?.(next); } catch { /* a count, never a blocker */ } }
+    // (Back from a sheet to the Menu, or to For grown-ups, is not an open of it.)
+    if (next && next !== prev && !returning) { try { progression.noteUse?.(next); } catch { /* a count, never a blocker */ } }
     render();
     root.scrollTop = 0; // a sheet (or the room) opens at its top
     // Keyboard and screen-reader users land on the new screen's first control,
     // or, going back, on the door they came through (the Menu, a tile, the card).
     try {
-      const back = (next === null || next === 'menu') && prev ? root.querySelector(`[data-dr-sheet="${prev}"]`) : null;
+      const back = (next === null || next === 'menu' || next === 'grownups' || next === 'journal') && prev ? root.querySelector(`[data-dr-sheet="${prev}"]`) : null;
       (back ?? (next ? root.querySelector('#hb-back') : null))?.focus?.({ preventScroll: true });
     } catch { /* a nicety */ }
   }
@@ -1354,7 +1451,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   // ---- The Menu sheet (Launch A) -------------------------------------------
   // The old header's stats line, the rank's next step in plain words, six big
-  // kid tiles and a quiet grown-ups row.
+  // kid tiles (My den last), a slim Sound & controls row and one quiet For
+  // grown-ups door.
   function menuStatsHtml(s) {
     const rank = rankFor(s.lifetimePoints);
     const life = asFiniteNonNeg(s.lifetimePoints, 0);
@@ -1389,12 +1487,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
 
   // My den is a tile, not a sheet: a tap goes straight there (onVisitDen), as
-  // its old card at the bottom of Change place did. The den never joins a
-  // room walk (main.js starts it on its own), so a room hides it, as before.
+  // its old card at the bottom of Change place did, so it says "go now". The
+  // den never joins a room walk (main.js starts it on its own), so a room
+  // hides it, as before.
   function denTileHtml(roomState) {
     if (roomState) return '';
     return '<button class="hb-tile hb-tile-den" id="btn-visit-den" type="button"><span class="hb-tile-icon" aria-hidden="true">🏠</span>'
-      + '<span class="hb-tile-name">My den</span><small>Visit</small></button>';
+      + '<span class="hb-tile-name">My den</span><small>go now</small></button>';
   }
 
   function renderMenu(s, roomState) {
@@ -1402,16 +1501,15 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const tiles = MENU_TILES.filter((id) => on.includes(id)).map((id) => {
       const sub = menuTileSub(id, s, roomState);
       return `<button class="hb-tile" data-dr-sheet="${id}"><span class="hb-tile-icon" aria-hidden="true">${SHEET_ICON[id]}</span>`
-        + `<span class="hb-tile-name">${escapeHtml(SHEET_NAME[id])}</span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</button>`
-        // the den sits where Friends was, after Skills
-        + (id === 'skills' ? denTileHtml(roomState) : '');
-    }).join('');
-    const grown = GROWNUP_SHEETS.filter((id) => on.includes(id))
-      .map((id) => `<button class="hb-grownup" data-dr-sheet="${id}"><span aria-hidden="true">${SHEET_ICON[id]}</span> ${escapeHtml(SHEET_NAME[id])}</button>`).join('');
+        + `<span class="hb-tile-name">${escapeHtml(SHEET_NAME[id])}</span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</button>`;
+    }).join('') + denTileHtml(roomState); // the den is the sixth tile, after Skills
+    const door = (id, cls) => `<button class="${cls}" data-dr-sheet="${id}"><span class="hb-row-icon" aria-hidden="true">${SHEET_ICON[id]}</span>`
+      + `<span class="hb-row-name">${escapeHtml(SHEET_NAME[id])}</span><span class="hb-row-go" aria-hidden="true">›</span></button>`;
     return `<section class="hb-menu" aria-labelledby="hb-menu-title"><h2 id="hb-menu-title">Menu</h2>
       <p class="hb-menu-stats">${menuStatsHtml(s)}</p>
       <div class="hb-tiles">${tiles}</div>
-      <div class="hb-grownups"><p class="hb-grownups-label">For grown-ups</p><div class="hb-grownups-row">${grown}</div></div>
+      ${door('controls', 'hb-row')}
+      ${door('grownups', 'hb-grownups-door')}
     </section>`;
   }
 
@@ -1430,6 +1528,26 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     </div>`;
   }
 
+  // The world map's first-time line (hints.js 'map', once). Decided when the
+  // sheet comes up, whichever door she came through (the home card, the Menu,
+  // show({ sheet })), kept for that sheet's life, forgotten when it closes.
+  // Picture-card Legacy has no map, so no line and no count; tips off, none.
+  // 🗺️ is the same picture game/tips.js has for 'map' (not imported: that
+  // module pulls in three.js).
+  let mapHintOn = false;
+  function syncMapHint() {
+    if (openSheet !== 'places') { mapHintOn = false; return; }
+    if (mapHintOn || !shown) return;
+    const s = progression.state;
+    if (!isClanEdition(s) || settings?.get?.('showTips') === false) return;
+    if ((s.tutorial?.hints?.map ?? 0) >= hintMax('map')) return;
+    mapHintOn = true;
+    progression.countHint('map');
+  }
+  function mapHintHtml() {
+    return mapHintOn ? `<p class="wm-hint">🗺️ ${escapeHtml(tutorialLine('hint.map', { touch: !!getIsTouch() }))}</p>` : '';
+  }
+
   function renderPlaces(s, roomState) {
     const d = ensureDressing();
     let line = '';
@@ -1439,7 +1557,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     return `<section class="hb-places" aria-labelledby="hb-places-title"><h2 id="hb-places-title">Change place</h2>
       ${duskChoiceHtml(s)}
-      ${d.placesHtml({ clanLineHtml: line })}
+      ${d.placesHtml({ clanLineHtml: line, hintHtml: mapHintHtml() })}
     </section>`;
   }
 
@@ -1447,6 +1565,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   function renderSheetBody(id, s, colonyStatus, roomState) {
     switch (id) {
       case 'menu': return renderMenu(s, roomState);
+      case 'grownups': return renderGrownups();
       case 'places': return renderPlaces(s, roomState);
       case 'skills': return `
         <section class="skills-section"><h2>Skills ⭐</h2>
@@ -1458,7 +1577,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     : ''}
         </section>`;
       case 'colony': return `
-        <section class="colony-section"><h2>Colony 🐈</h2>
+        <section class="colony-section"><h2>${escapeHtml(SHEET_NAME.colony)} 🐈</h2>
           ${renderColonyHtml({
             colony: s.colony, me: myId, members: progression.colonyMembers(), now: Date.now(),
             status: colonyStatus, clanRoles: s.clanRoles, clanName: ownClanTitle(s), alliesName: alliesName(s), edition: s.edition,
@@ -1469,17 +1588,25 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
             },
             trades: { give: tradeGive, want: tradeWant, confirmId: tradeConfirmId, busy: tradeBusy, error: tradeError },
           })}
+        </section>
+        <section class="friends-section">
+          ${renderStrayFriends()}
+          ${renderPlayerPets()}
         </section>`;
       // Play together holds every code a child meets: the room's, then (from
-      // the old Friends sheet) the friends she walked with and her friend code.
-      case 'together': return `
+      // the old Friends sheet) her friend code. Outside a room the friend code
+      // sits in its Friends part (renderWalkTogether); in a room it stays
+      // under the room, as it always was.
+      case 'together': {
+        const choosing = !!rooms?.available && !rooms.getState();
+        return `
         <section class="walk-together"><h2>Play together 👫</h2>
           ${renderWalkTogether()}
         </section>
-        ${cloud && cloud.available ? `<section class="friends-section">
-          ${renderPlayerPets()}
+        ${cloud && cloud.available && !choosing ? `<section class="friends-section">
           ${renderFriendCode()}
         </section>` : ''}`;
+      }
       case 'journal': {
         // Only the mice this edition can reach (Legacy hides four territories).
         const gold = goldForEdition(s.edition, CATALOG);
@@ -1488,7 +1615,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, gold), gold.size,
     isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {})}
           ${renderThingsToWearHtml(s, CATALOG)}
-          <div class="friends-section">${renderStrayFriends()}</div>
+          <button type="button" class="hb-journal-friends" data-dr-sheet="colony">${escapeHtml(phrase('journal.friendsMoved'))}</button>
         </section>`;
       }
       case 'album': return `
@@ -1542,6 +1669,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     const colonyStatus = colonySync ? colonySync.status() : { mode: 'local' };
     noteColonyPairing(colonyStatus);
     if (openSheet && !availableSheets().includes(openSheet)) openSheet = null;
+    syncMapHint();
     const glowReady = s.equipped.collar === 'glow';
     const roomState = rooms && rooms.available ? rooms.getState() : null;
     // Home's Today's walk card says when dusk is chosen: a small moon, status
@@ -1562,11 +1690,11 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // together) on Play together, whose room starts from it; on the other
       // sheets only where and Start. Dusk is chosen in Change place only; a
       // Start from any dock reads that choice (duskWanted).
-      const dock = door || GROWNUP_SHEETS.includes(openSheet) ? 'none' : openSheet === 'together' ? 'full' : 'slim';
-      const back = backTo === 'menu' ? '← Back to the menu' : '← Back to my cat';
-      // From a sheet the Menu opened, home is two Backs: a cat face at the
-      // row's right goes straight there.
-      const home = backTo === 'menu'
+      const dock = door || openSheet === 'grownups' || GROWNUP_SHEETS.includes(openSheet) ? 'none' : openSheet === 'together' ? 'full' : 'slim';
+      const back = backTo === 'menu' ? '← Back to the menu' : backTo === 'grownups' ? '← Back' : backTo === 'journal' ? '← Back to the journal' : '← Back to my cat';
+      // From a sheet the Menu (or For grown-ups) opened, home is two Backs or
+      // more: a cat face at the row's right goes straight there.
+      const home = backTo
         ? '<button id="hb-home" class="hb-home" type="button" aria-label="Back to my cat"><span aria-hidden="true">🐱</span></button>' : '';
       // Clan Edition's Change place is the world map, which takes the height
       // left on the screen (style.css, .hb-sheet-map).
@@ -1604,7 +1732,8 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       syncCelebration();
       syncPairingPoll();
       syncNearby();
-      if (cloud && cloud.available && openSheet === 'together') loadPlayerPets();
+      // Player pets: fetched once per open of My clan (see playerPetsDue).
+      if (cloud && cloud.available && openSheet === 'colony' && playerPetsDue) { playerPetsDue = false; loadPlayerPets(); }
       return;
     }
     const rank = rankFor(s.lifetimePoints);
@@ -1613,7 +1742,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // edition switch lives in Settings only), the points and rank pills, the
     // quiet visit pill and the Menu door.
     const headerHtml = `<h1 class="dr-title">${PAW} Whisker Walk 2 · <span class="dr-edition">${escapeHtml(editionTitle(s.edition))}</span></h1>`
-      + `<div class="hb-pill hb-points" role="img" aria-label="${points} whisker points">${PAW} ${points}</div>`
+      + `<div class="hb-pill hb-points" role="img" aria-label="${points} paw points">${PAW} ${points}</div>`
       + `<div class="hb-pill hb-rank">🏆 ${escapeHtml(rank.title)}</div>`
       + visitBadgeHtml(s.visits)
       + '<button class="hb-menu-btn" data-dr-sheet="menu" aria-label="Menu"><span aria-hidden="true">☰</span><span class="hb-menu-word"> Menu</span></button>';
@@ -1651,7 +1780,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     if (roomState || dressing?.ui?.wardrobe) return '';
     let thing = null;
     try {
-      const ctx = () => ({ catalog: CATALOG, present: celebration.hasPresent(), toldNow, denVisitedToday: denVisitedToday(), guideName: s.tutorial?.guide ?? null });
+      const ctx = () => ({ catalog: CATALOG, present: celebration.hasPresent(), toldNow, denVisitedToday: denVisitedToday(), guideName: s.tutorial?.guide ?? null, touch: !!getIsTouch() });
       thing = nextThing(s, ctx());
       // Rule 8 counts the visits it has pointed at a thing, once a visit.
       if (thing?.rule === 8 && thing.thing && toldNow !== thing.thing) {
@@ -1845,7 +1974,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     // save can bring back; the album's photos are not kept.
     // "Play the first walk again": the next solo walk on the street is the
     // guided first walk (no second gift: progression gives it once a save).
-    if (e.target.id === 'set-replay-first') {
+    if (e.target.id === 'set-replay-first' || e.target.closest?.('#set-replay-first')) { // the tap may land on its icon or words
       progression.setTutorialFirst?.(null);
       replayNote = true;
       render();
@@ -1900,6 +2029,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       if (goodNewPetName(starPick)) {
         progression.setPetName(starPick);
         petNameError = null;
+        editingName = false;
       } else {
         petNameError = WALKING_NAME_RULE;
       }
@@ -1923,15 +2053,45 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       if (goodNewPetName(name)) {
         progression.setPetName(name);
         petNameError = null;
+        editingName = false;
       } else {
         petNameError = validPetName(name) ? 'Please pick a different name.' : WALKING_NAME_RULE;
       }
       render();
       return;
     }
+    // The ✏️ on her saved friend name: the box again, her name in it.
+    if (e.target.id === 'wt-name-edit') {
+      editingName = true;
+      petNameError = null;
+      render();
+      try { root.querySelector('#wt-petname-input')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+      return;
+    }
+    // Join a room: the room-code box opens under the two choices, and she is
+    // put in it. With no name yet its Join leads to the name box (below). A
+    // second tap closes it again; what she typed is kept for this visit.
+    if (e.target.id === 'wt-join-open') {
+      if (joinOpen) {
+        const typed = root.querySelector('#wt-join-code')?.value;
+        if (typeof typed === 'string') joinCodeDraft = typed.slice(0, 4);
+        joinOpen = false;
+        joinError = null; // the line was about the closed box
+        render();
+        return;
+      }
+      joinOpen = true;
+      render();
+      try { root.querySelector('#wt-join-code')?.focus?.({ preventScroll: true }); } catch { /* a nicety */ }
+      return;
+    }
     // Host or Join with no cat name yet: say so above the name box and go
     // there, as a nearby Join does, instead of a dead button.
     if ((e.target.id === 'wt-host' || e.target.id === 'wt-join') && !validPetName(progression.state.petName ?? '')) {
+      if (e.target.id === 'wt-join') {
+        const typed = root.querySelector('#wt-join-code')?.value; // kept for when she has a name
+        if (typeof typed === 'string') joinCodeDraft = typed.slice(0, 4);
+      }
       needName();
       return;
     }
@@ -1946,6 +2106,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     if (e.target.id === 'wt-join') {
       const input = root.querySelector('#wt-join-code');
+      if (typeof input?.value === 'string') joinCodeDraft = input.value.slice(0, 4);
       const code = (input?.value ?? '').trim().toUpperCase();
       if (code.length !== 4) {
         joinError = 'Enter the 4-character room code.';
@@ -1955,7 +2116,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       e.target.disabled = true;
       const res = await rooms.join(code);
       if (!res.ok) joinError = 'Could not join that room — check the code and try again.';
-      else joinError = null;
+      else { joinError = null; joinCodeDraft = ''; }
       render();
       return;
     }
@@ -2060,7 +2221,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           friendCodeError = null;
         } else if (result?.status === 'failed') {
           friendCodeSuccess = null;
-          friendCodeError = "Couldn't add friend — pick your walking name first";
+          friendCodeError = "Couldn't add friend — pick your friend name first";
         } else {
           friendCodeSuccess = null;
           friendCodeError = null;
@@ -2275,6 +2436,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       redeemText = e.target.value;
       return;
     }
+    if (e.target.id === 'wt-join-code') {
+      joinCodeDraft = String(e.target.value ?? '').slice(0, 4);
+      return;
+    }
     // The pairing code box: uppercase, invite characters only, 6 at most. The
     // draft is kept so a re-render does not lose it; the box is only written
     // to when cleaning changed something, to leave the cursor alone otherwise.
@@ -2385,14 +2550,21 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
 
   // The browser's Back and Escape (ui/backstack.js, wired in main.js).
   // depth(): how many layers are open over the bare home screen. A sheet the
-  // Menu opened is two (its Back goes to the Menu); the visit celebration and
-  // the welcome line are not layers (they go by themselves).
+  // Menu opened is two (its Back goes to the Menu); a sheet For grown-ups
+  // opened is one more than For grown-ups (three from the Menu); the visit
+  // celebration and the welcome line are not layers (they go by themselves).
+  function sheetLayers(to) {
+    if (to === 'menu') return 2;
+    if (to === 'grownups') return 1 + sheetLayers(grownupsBackTo);
+    if (to === 'journal') return 1 + sheetLayers(journalBackTo);
+    return 1;
+  }
   function depth() {
     if (!shown || !homeVisible()) return 0;
     let n = 0;
     if (dressing?.ui?.wardrobe) n += 1;
     if (dressing?.ui?.builder) n += 1;
-    if (openSheet) n += backTo === 'menu' ? 2 : 1;
+    if (openSheet) n += sheetLayers(backTo);
     if (openSheet === 'places' && dressing?.ui?.mapCard) n += 1; // a place's card, over the map
     if (newsEl || noticeEl || momentEl || nearbyEl) n += 1;
     if (confirmCard.isOpen()) n += 1;
@@ -2428,8 +2600,13 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
       // started from (the Journal's dock, say), unless a sheet is asked for.
       openSheet = null;
       backTo = null;
+      joinOpen = false; // Play together opens on its two choices again
+      editingName = false;
+      joinCodeDraft = '';
       mapView = null; // the world map opens afresh, round today's place
+      mapHintOn = false; // and its first-time line is decided afresh
       if (sheet && availableSheets().includes(sheet)) openSheet = sheet;
+      if (openSheet === 'colony') wantPlayerPets();
       render(); // also turns the hero stage back on
       root.classList.remove('hidden');
       // The map had no size while the screen was hidden: wire its pan now.
