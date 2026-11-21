@@ -13,11 +13,12 @@ export const MARKET = Object.freeze({
 });
 
 // Seconds of serving and of being turned away, per stall. Data, so no two
-// stalls move in lockstep whatever the seed.
+// stalls move in lockstep whatever the seed. (Controller ruling: baker away 4.0 and
+// cheese away 4.3 so every pair of periods differs by more than 0.3 s.)
 export const STALL_TIMES = Object.freeze({
   fish: Object.freeze({ serve: 4.5, away: 4.2 }),
-  baker: Object.freeze({ serve: 5.4, away: 3.6 }),
-  cheese: Object.freeze({ serve: 3.8, away: 4.6 }),
+  baker: Object.freeze({ serve: 5.4, away: 4.0 }),
+  cheese: Object.freeze({ serve: 3.8, away: 4.3 }),
   milk: Object.freeze({ serve: 6.0, away: 3.8 }),
 });
 

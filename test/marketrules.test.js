@@ -98,8 +98,7 @@ describe('the stall rhythm', () => {
   it('never in lockstep: no two stalls share a period', () => {
     for (let i = 0; i < TREAT_STALLS.length; i++) {
       for (let j = i + 1; j < TREAT_STALLS.length; j++) {
-        // fish (11.1) and baker (11.4) differ by exactly 0.3 in the spec's own data: >= with a float guard
-        expect(Math.abs(periodOf(TREAT_STALLS[i]) - periodOf(TREAT_STALLS[j]))).toBeGreaterThanOrEqual(0.3 - 1e-9);
+        expect(Math.abs(periodOf(TREAT_STALLS[i]) - periodOf(TREAT_STALLS[j]))).toBeGreaterThan(0.3);
       }
     }
   });
