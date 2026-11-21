@@ -5,6 +5,8 @@ import { litMaterial, surfaceMaterialNoMap, tileMetres } from '../render/materia
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
 import { createMarketParts, marketMaterials, atlasCell, buildTreatMesh, ATLAS_SIZE } from './marketparts.js';
+import { buildAppleCrate } from './marketfruit.js';
+import { createMarketLife } from './marketlife.js';
 import {
   BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, FOUNTAIN_STONE, fountainWaterMaterial, latheGeometry, dressFountain,
 } from './parkfountain.js';
@@ -172,7 +174,7 @@ const FRUIT = stallById('fruit');
 export const MARKET_ANCHORS = Object.freeze({
   // the baker's warm flour sacks, beside the stall on the side away from its hide (step 3's nap)
   flourSacks: Object.freeze({ x: FLOUR_SACKS.x, z: FLOUR_SACKS.z, y: 0.45 }),
-  // the crate of apples at the fruit stall's end (step 3's rolling fruit; drawn here, solid in the plan)
+  // the crate of apples at the fruit stall's end: a tippable (the record's row, drawn by marketfruit.js), solid in the plan
   apples: Object.freeze({ ...fromStall(FRUIT, FRUIT_CRATE.lx, FRUIT_CRATE.lz), y: FRUIT_CRATE.h }),
   // the bench facing the fountain (drawn here, MARKET_CLUTTER; step 3 makes it a perch): its seat
   bench: Object.freeze({ x: BENCH_AT.x, z: BENCH_AT.z, y: BENCH_SEAT_Y }),
@@ -327,12 +329,8 @@ export function setMarketDusk(area, k) {
 }
 
 // The record's `life` (walk.js: areaData.life(ctx), ctx.dusk the walk's
-// evening look): sets the square's dusk once. Nothing per frame.
-const NO_LOOK_UPDATE = () => {};
-export function createMarketLook(area, { dusk } = {}) {
-  setMarketDusk(area, dusk ? 1 : 0);
-  return { update: NO_LOOK_UPDATE, dispose() {} };
-}
+// evening look) is world/marketlife.js's createMarketLife: it sets the
+// square's dusk once, and rolls the apples and scatters the petals (step 3).
 
 // ---------------------------------------------------------------------------
 // The build
@@ -461,7 +459,9 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       puddles: [],
       groundBounce: MARKET_COBBLE,
       skyDusk: { ...MARKET_SKY_DUSK },
-      tippables: [],
+      // V1 (step 3): the fruit stall's apple crate, paw it over and its apples
+      // roll (marketfruit.js, marketlife.js); still solid in MARKET_COLLIDERS
+      tippables: [{ x: MARKET_ANCHORS.apples.x, z: MARKET_ANCHORS.apples.z, kind: 'applecrate', build: buildAppleCrate }],
       perches: [],
       // U5: strays come as anywhere, kept off the counters' zones and the hides
       keepOut: MARKET_KEEPOUT,
@@ -474,7 +474,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       // what setMarketDusk drives
       look: { lantern: M.lantern, windows: winLit, packing, baskets, level: 0 },
     };
-    record.life = (ctx) => createMarketLook(record, ctx);
+    record.life = (ctx) => createMarketLife(record, ctx);
     return record;
   });
 }
@@ -751,12 +751,8 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
       basketAt(basketKit, PARTS, paint, M, disc, toWorld.clone().multiply(m), TRESTLE_GOODS[s.id]);
     }
   }
-  // the apples' crate at the fruit stall's end (step 3 rolls its fruit)
-  if (s.id === 'fruit') {
-    const [x, z] = pl(FRUIT_CRATE.lx, FRUIT_CRATE.lz);
-    box(x, 0, z, FRUIT_CRATE.w, FRUIT_CRATE.h - 0.02, FRUIT_CRATE.d, CRATE);
-    atlas(quad, mat4(x, FRUIT_CRATE.h - 0.01, z, { pitch: -Math.PI / 2, sx: FRUIT_CRATE.w - 0.04, sy: FRUIT_CRATE.d - 0.04 }), 6);
-  }
+  // (the apples' crate at the fruit stall's end is a tippable since step 3:
+  // marketfruit.js's buildAppleCrate, the record's `tippables` row)
 
   // morning-busy: crates stacked at the back corners, a sack on one, inside the
   // plan's r 0.3 corner colliders (a crate's half-diagonal is 0.27)

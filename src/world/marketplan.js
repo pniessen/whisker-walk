@@ -349,14 +349,17 @@ const FLOWERS = stallById('flowers');
 const TRESTLE_TOP = fromStall(FLOWERS, FLOWERS.w / 2 + 1.2, FLOWERS.d / 2 - 0.3); // the flower trestle's middle
 const BUCKET_LANDS = fromStall(FLOWERS, FLOWERS.w / 2 + 1.2, FLOWERS.d / 2 + 1.1);
 const CUP_TABLE = CAFE.tables[2];
+// the bucket stands on the trestle's cloth, whose top is 0.775 (market.js: the
+// cloth's box at 0.765, 0.02 deep, over the plank top at 0.75)
+const BUCKET_Y = 0.775;
 const PROP_ROWS = {
   rests: [
     { id: 'market-drink-1', kind: 'drink', x: 0, z: 3.8, mesh: false },
     { id: 'market-nap-1', kind: 'nap', x: cm(FLOUR_SACKS.x), z: cm(FLOUR_SACKS.z), mesh: false },
   ].map(freeze),
   knockables: [
-    { id: 'market-flowers-bucket-1', kind: 'bucket', x: cm(TRESTLE_TOP.x), z: cm(TRESTLE_TOP.z), y: 0.75, fallTo: freeze({ x: cm(BUCKET_LANDS.x), z: cm(BUCKET_LANDS.z), y: 0.01 }) },
-    { id: 'market-cafe-cup-1', kind: 'cup', x: cm(CUP_TABLE.x + 0.1), z: cm(CUP_TABLE.z + 0.1), y: 0.74, fallTo: freeze({ x: cm(CUP_TABLE.x + 1), z: cm(CUP_TABLE.z - 0.4) }) },
+    { id: 'market-bucket-1', kind: 'bucket', x: cm(TRESTLE_TOP.x), z: cm(TRESTLE_TOP.z), y: BUCKET_Y, fallTo: freeze({ x: cm(BUCKET_LANDS.x), z: cm(BUCKET_LANDS.z), y: 0.01 }) },
+    { id: 'market-cup-1', kind: 'cup', x: cm(CUP_TABLE.x + 0.1), z: cm(CUP_TABLE.z + 0.1), y: 0.74, fallTo: freeze({ x: cm(CUP_TABLE.x + 1), z: cm(CUP_TABLE.z - 0.4) }) },
   ].map(freeze),
   markables: [
     { id: 'market-post-1', kind: 'post', x: -8, z: -4.4, nearBorder: false, mesh: false }, // a lamp post's foot

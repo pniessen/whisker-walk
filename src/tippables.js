@@ -109,7 +109,7 @@ export function createTippables(scene, spots, opts = {}) {
   const ground = opts.ground ?? FLAT_GROUND; // Gorge part 1: props stand on it
   const list = [];
   spots.forEach((spot, i) => {
-    const group = buildTippable(spot.kind);
+    const group = typeof spot.build === 'function' ? spot.build() : buildTippable(spot.kind);
     const gy = ground.y(spot.x, spot.z);
     group.position.set(spot.x, gy, spot.z);
     group.rotation.y = (spot.x * 7 + spot.z * 13) % 6; // stable pseudo-random facing

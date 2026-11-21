@@ -343,8 +343,8 @@ const SETS = {
       { id: 'market-glove-1', kind: 'glove', x: 6.5, z: -2.8 },   // a dropped glove by the east bench
     ],
     knockables: [
-      { id: 'market-flowers-bucket-1', kind: 'bucket', x: 11.5, z: -2.5, y: 0.75, fallTo: { x: 10.1, z: -2.5, y: 0.01 } },
-      { id: 'market-cafe-cup-1', kind: 'cup', x: -6.5, z: 17.3, y: 0.74, fallTo: { x: -5.6, z: 16.8 } },
+      { id: 'market-bucket-1', kind: 'bucket', x: 11.5, z: -2.5, y: 0.775, fallTo: { x: 10.1, z: -2.5, y: 0.01 } },
+      { id: 'market-cup-1', kind: 'cup', x: -6.5, z: 17.3, y: 0.74, fallTo: { x: -5.6, z: 16.8 } },
     ],
     markables: [
       { id: 'market-post-1', kind: 'post', x: -8, z: -4.4, nearBorder: false, mesh: false },   // a lamp post's foot

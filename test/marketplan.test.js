@@ -286,7 +286,7 @@ describe('the plan of the Market Square', () => {
       expect(dist(k, k.fallTo), k.id).toBeLessThan(3);
     }
     const bucket = ps.knockables.find((k) => k.kind === 'bucket');
-    expect(bucket.y).toBe(0.75);
+    expect(bucket.y).toBe(0.775); // on the trestle's cloth (its top 0.775, market.js)
     // the bucket stands on the flower trestle: over the flower stall's hide, falls toward the fountain side
     const f = stallById('flowers');
     expect(dist(bucket, f.hide)).toBeLessThan(0.3);

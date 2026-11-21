@@ -21,7 +21,10 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { build, setMarketDusk, createMarketLook, MARKET_COBBLE } = await import('../src/world/market.js');
+const marketModule = await import('../src/world/market.js');
+const { build, setMarketDusk, MARKET_COBBLE } = marketModule;
+const { createMarketLife } = await import('../src/world/marketlife.js');
+const { buildAppleCrate } = await import('../src/world/marketfruit.js');
 const {
   MARKET_BOUNDS, MARKET_SPAWN, MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, STALLS, TREAT_STALLS, CAFE,
   stallById, toStall, MARKET_LAMPS,
@@ -71,8 +74,10 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // noticeboard, the one caster, its own child; the bicycle inside the bounds.
 // Step 3, Task 1 (2026-11-21): the fruit stall's hide trestle (a trestle, its cloth
 // and two baskets of apples): +1 mesh, +124 triangles; the lamps only moved.
-const MEASURED_BUILT = { meshes: 102, casters: 27, triangles: 38067 };
-const MEASURED_MERGED = { meshes: 99, casters: 24, triangles: 38067 };
+// Step 3, Task 2 (2026-11-21): the apples' crate is a tippable (made by the walk, not
+// the build), so the fruit stall's mesh loses its box and its apples' quad: -14 triangles.
+const MEASURED_BUILT = { meshes: 102, casters: 27, triangles: 38053 };
+const MEASURED_MERGED = { meshes: 99, casters: 24, triangles: 38053 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -335,10 +340,44 @@ describe('the Market Square drawn', () => {
     for (let i = 0; i < 50; i++) dusk.update(0.016);
     expect(scene.children.length).toBe(before);
     dusk.dispose();
-    const again = createMarketLook(area, { dusk: false });
+    // the hook is the market's life now (step 3): the look's own hook is gone
+    expect(marketModule.createMarketLook).toBeUndefined();
+    const again = createMarketLife(area, { scene, dusk: false });
     expect(lantern.material.emissiveIntensity).toBe(0);
     expect(packing.visible).toBe(false);
+    again.update(0.016, 0, null, null, null); // no session yet: nothing to watch, nothing breaks
     again.dispose();
+    const back = createMarketLife(area, { scene, dusk: true });
+    expect(lantern.material.emissiveIntensity).toBeCloseTo(1.6, 9);
+    back.dispose();
+    setMarketDusk(area, 0);
+  });
+
+  it('the apple crate is a tippable, still solid, and no longer in the fruit stall\'s own mesh', () => {
+    expect(area.tippables).toHaveLength(1);
+    const [t] = area.tippables;
+    expect(t.kind).toBe('applecrate');
+    expect(t.x).toBe(area.anchors.apples.x);
+    expect(t.z).toBe(area.anchors.apples.z);
+    expect(t.build).toBe(buildAppleCrate);
+    // still solid where it stands
+    const c = area.colliders.find((q) => Math.hypot(q.x - t.x, q.z - t.z) < 0.05);
+    expect(c?.r).toBeCloseTo(0.3, 9);
+    // the fruit stall draws nothing where the crate stands
+    let n = 0;
+    const v = new THREE.Vector3();
+    scene.traverse((o) => {
+      if (o.userData.stall !== 'fruit') return;
+      o.traverse((m) => {
+        if (!m.isMesh) return;
+        const pos = m.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+          if (Math.hypot(v.x - t.x, v.z - t.z) < 0.22 && v.y > 0.02) n++;
+        }
+      });
+    });
+    expect(n).toBe(0);
   });
 
   it('the shop fronts close the square outside its bounds, with a gap behind the spawn', () => {
@@ -483,7 +522,7 @@ describe('the Market Square drawn', () => {
 describe('The Market: registered in every per-area list', async () => {
   const { MARKET_REGISTRATION: REG } = await import('../src/world/marketplan.js');
   const { MARK_AREAS, emptyMarks } = await import('../src/marks.js');
-  const { propsFor, KNOCK_KINDS, CARRY_KINDS, REST_KINDS } = await import('../src/propsets.js');
+  const { propsFor, isPropId, KNOCK_KINDS, CARRY_KINDS, REST_KINDS } = await import('../src/propsets.js');
   const { ambientKind } = await import('../src/render/ambient.js');
   const { CLOUD_AREAS, AREA_SKY } = await import('../src/render/clouds.js');
   const { AREA_RULES } = await import('../src/render/pawprints.js');
@@ -506,7 +545,8 @@ describe('The Market: registered in every per-area list', async () => {
     const ps = propsFor('market');
     expect(MARKET_HIDES_COUNT).toBe(7);
     expect(ps.rests.map((r) => r.kind).sort()).toEqual(['drink', 'nap']);
-    expect(ps.knockables.map((k) => k.id).sort()).toEqual(['market-cafe-cup-1', 'market-flowers-bucket-1']);
+    expect(ps.knockables.map((k) => k.id).sort()).toEqual(['market-bucket-1', 'market-cup-1']);
+    for (const k of ps.knockables) expect(isPropId(k.id), k.id).toBe(true);
     expect(ps.markables).toHaveLength(2);
     expect(ps.carryables).toHaveLength(2);
     expect(KNOCK_KINDS).toContain('bucket');
