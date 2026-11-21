@@ -9,6 +9,10 @@
    "touch": "Follow the white pigeon up onto the roofs!",
    "keys": "Follow the white pigeon up onto the roofs!"
   },
+  "hint.market": {
+   "touch": "Wait till they turn around…",
+   "keys": "Wait till they turn around…"
+  },
   "hint.look": {
    "touch": "Drag here to look around.",
    "keys": "Move the mouse to look around."
@@ -331,6 +335,10 @@
   "hint.roofs": {
    "touch": "Follow the white pigeon up onto the roofs!",
    "keys": "Follow the white pigeon up onto the roofs!"
+  },
+  "hint.market": {
+   "touch": "Wait till they turn around…",
+   "keys": "Wait till they turn around…"
   },
   "hint.look": {
    "touch": "Drag here to look around.",
