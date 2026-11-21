@@ -352,6 +352,76 @@ describe('dusk lamps', () => {
     expect(mesh.geometry.getAttribute('position').getY(0)).toBeCloseTo(1.5 + LAMP_LOOK.poolLift, 6);
   });
 
+  // The Old House's lamps keep their light in their rooms (owner's fix A): a
+  // lamp with a lampPoolClip has its pool cut to the rectangle, whole inside it
+  // (no hole, no overlap); a street lamp beside it, without one, is the full
+  // disc it always was.
+  it('createLampPools cuts a lamp with a lampPoolClip to its rectangle, and only that lamp', async () => {
+    const b = await loadBuilder();
+    const R = LAMP_LOOK.poolRadius;
+    const clip = { minX: -1, maxX: 4, minZ: -0.8, maxZ: 5 };
+    const tris = (mesh) => {
+      const pos = mesh.geometry.getAttribute('position');
+      const ix = mesh.geometry.index;
+      const out = [];
+      for (let k = 0; k < ix.count; k += 3) {
+        out.push([0, 1, 2].map((j) => [pos.getX(ix.getX(k + j)), pos.getY(ix.getX(k + j)), pos.getZ(ix.getX(k + j))]));
+      }
+      return out;
+    };
+    const street = new THREE.Scene();
+    street.add(b.lampPost(20, 0));
+    const alone = tris(createLampPools(street));
+
+    const scene = new THREE.Scene();
+    const indoor = b.lampPost(0, 0);
+    indoor.userData.lampPoolClip = clip;
+    scene.add(indoor);
+    scene.add(b.lampPost(20, 0));
+    const mesh = createLampPools(scene);
+    const all = tris(mesh);
+    const near = all.filter((t) => t[0][0] > 10);
+    const cut = all.filter((t) => t[0][0] <= 10);
+    // the street lamp: the same triangles as on its own
+    const key = (t) => t.map((p) => p.map((n) => n.toFixed(5)).join(',')).join(';');
+    expect(near.map(key).sort()).toEqual(alone.map(key).sort());
+    // the clipped lamp: every vertex inside the rectangle, every triangle facing up
+    const n = new THREE.Vector3();
+    const tri = new THREE.Triangle();
+    for (const t of cut) {
+      for (const [x, , z] of t) {
+        expect(x).toBeGreaterThanOrEqual(clip.minX - 1e-5);
+        expect(x).toBeLessThanOrEqual(clip.maxX + 1e-5);
+        expect(z).toBeGreaterThanOrEqual(clip.minZ - 1e-5);
+        expect(z).toBeLessThanOrEqual(clip.maxZ + 1e-5);
+      }
+      tri.set(...t.map(([x, y, z]) => new THREE.Vector3(x, y, z))).getNormal(n);
+      expect(n.y).toBeGreaterThan(0.99);
+    }
+    // no hole and no overlap: inside the rectangle and well inside the rim, each spot is under exactly one triangle
+    const p2 = new THREE.Vector3();
+    for (let x = clip.minX + 0.05; x < clip.maxX; x += 0.37) {
+      for (let z = clip.minZ + 0.05; z < clip.maxZ; z += 0.41) {
+        if (Math.hypot(x, z) > R * 0.9) continue;
+        p2.set(x, 0, z);
+        const under = cut.filter((t) => {
+          tri.set(...t.map(([tx, , tz]) => new THREE.Vector3(tx, 0, tz)));
+          return tri.containsPoint(p2);
+        }).length;
+        expect(under, `${x.toFixed(2)}, ${z.toFixed(2)}`).toBe(1);
+      }
+    }
+    // the light under the lamp is as bright as ever, and nothing lands past the cut
+    const col = mesh.geometry.getAttribute('color');
+    const centre = new THREE.Color(LAMP_LOOK.poolColor).multiplyScalar(LAMP_LOOK.poolStrength);
+    const pos = mesh.geometry.getAttribute('position');
+    let found = false;
+    for (let i = 0; i < pos.count; i++) {
+      if (Math.hypot(pos.getX(i), pos.getZ(i)) < 1e-6) { found = true; expect(col.getX(i)).toBeCloseTo(centre.r, 5); }
+    }
+    expect(found).toBe(true);
+  });
+
   it('createLampPools on a scene with no lamps adds nothing and returns null', () => {
     const scene = new THREE.Scene();
     scene.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()));

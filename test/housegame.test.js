@@ -317,7 +317,19 @@ describe('a walk in the house', () => {
   }, 90_000);
 
   it('at dusk the lamps pool their light, no fireflies come in, and it still sounds like the den', () => {
-    const r = houseWalk(lifecycleHere({ collar: true }), true);
+    // the pools the walk lays keep their light in the house's rooms (owner's fix A)
+    let outside = null;
+    const r = houseWalk(lifecycleHere({ collar: true }), true, {
+      keep: (s) => {
+        const pos = s.scene.getObjectByName('lampPools').geometry.getAttribute('position');
+        outside = [];
+        for (let i = 0; i < pos.count; i++) {
+          const [x, z] = [pos.getX(i), pos.getZ(i)];
+          if (!roomAt(x, z)) outside.push(`${x.toFixed(2)}, ${z.toFixed(2)}`);
+        }
+      },
+    });
+    expect(outside).toEqual([]);
     expect(r.pools).toBe(true);
     expect(r.fireflies).toBe(0);
     // a Park dusk walk in the collar has its fireflies

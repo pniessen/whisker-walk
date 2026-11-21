@@ -10,8 +10,8 @@
 // raised rooms are top-level meshes. Window panes are top-level meshes too: the
 // tree fade takes any group holding a window for a building and would fade a whole
 // floor of the house. One lamp per room, two in the cellar, always drawn; at dusk
-// their globes glow (render/dusk.js) and the walk paints a pool under each
-// (houseplan.js HOUSE_LAMPS keeps a raised room's lamp a pool radius off its walls).
+// their globes glow (render/dusk.js) and the walk paints a pool under each, cut to
+// its own room at the walls' inner faces (lampPoolClip): the light stays inside.
 // The furniture: a top-level group per tall piece and per room, and a stand-in per
 // level, all tagged for the level drawing (furnish, below). Outside: the lawn (a hole where the cellar and its stair go down), a hedge ring,
 // three neighbours' houses and four trees, all at least 8 m outside the bounds.
@@ -75,6 +75,11 @@ const LAWN_COLOR = 0x6f9a52;
 const HEDGE_COLOR = 0x4b7536;
 
 const levelY = (id) => HOUSE_LEVELS.find((l) => l.id === id).y;
+// A lamp's dusk pool is cut to its room, inside the walls (render/dusk.js createLampPools).
+export const lampPoolClip = (room) => freeze({
+  minX: room.minX + WALL_T / 2, maxX: room.maxX - WALL_T / 2,
+  minZ: room.minZ + WALL_T / 2, maxZ: room.maxZ - WALL_T / 2,
+});
 // No contact-shadow blob (render/contactshadows.js): a stair's box is a slope, a pane's
 // is a sliver in a wall, a room group's spans the room; none of them is a footprint.
 const noBlob = (o) => {
@@ -318,6 +323,8 @@ export function build(scene, { wind, gateEnds } = {}) {
       const room = HOUSE_ROOMS.find((r) => r.id === l.room);
       const g = lampGroup(l.kind, l.x, levelY(room.level), l.z, material);
       g.name = `houseLamp:${l.room}:${i}`;
+      // its dusk pool stays in its room, cut at the walls' inner faces (render/dusk.js)
+      g.userData.lampPoolClip = lampPoolClip(room);
       scene.add(g);
     });
     furnish(scene, material, START_LEVEL);

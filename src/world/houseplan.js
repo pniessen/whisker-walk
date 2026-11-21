@@ -104,11 +104,9 @@ const roomById = (id) => HOUSE_ROOMS.find((r) => r.id === id);
 
 // One lamp per room, two in the cellar, clear of the doors and stairs. At dusk
 // the walk paints a pool round each on its floor (render/dusk.js createLampPools,
-// LAMP_LOOK.poolRadius 3.4 m, a radius), seen through the walls. On the ground
-// and in the cellar a pool spilling onto the lawn or the next room lies on ground
-// at its own height; a raised room's lamp (the bedroom's, the attic's) stands a
-// whole pool radius in from every wall of its room, so no glow hangs in mid-air
-// over the lawn. house.js draws them; their colliders are in houseColliders.
+// LAMP_LOOK.poolRadius 3.4 m, a radius), cut to its own room at the walls' inner
+// faces (house.js lampPoolClip), so no light spills onto the lawn or the next
+// room. house.js draws them; their colliders are in houseColliders.
 export const HOUSE_LAMPS = frozenAll([
   { room: 'hall', kind: 'table', x: -2.9, z: 10.6 },
   { room: 'library', kind: 'standard', x: -12.4, z: 3.6 },

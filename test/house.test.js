@@ -275,6 +275,61 @@ describe('the light', () => {
     const pools = createLampPools(s2);
     expect(pools?.isMesh).toBe(true);
   });
+
+  // Owner's fix A: "Keep the light inside." Every lamp's dusk pool stays in its
+  // own room, on its own floor, on every level: no glow on the lawn, through a
+  // wall or into the next room.
+  it('keeps every lamp\'s dusk pool inside its own room', () => {
+    const s3 = new THREE.Scene();
+    const a3 = build(s3);
+    applyDusk({ scene: s3, sun: createSun(), fill: createFill(a3.groundBounce), areaData: a3 });
+    const own = new Map(); // lamp group → its pool, built alone
+    s3.updateMatrixWorld(true);
+    s3.traverse((o) => { if (o.userData?.lampGlobeY > 0) own.set(o, null); });
+    expect(own.size).toBe(HOUSE_ROOMS.length + 1);
+    const EPS = 0.03;
+    const covered = new Set();
+    for (const g of own.keys()) {
+      const alone = new THREE.Scene();
+      const copy = g.clone();
+      copy.userData = { ...g.userData };
+      alone.add(copy);
+      const pool = createLampPools(alone);
+      const p = g.getWorldPosition(new THREE.Vector3());
+      const room = HOUSE_ROOMS.find((r) => r.id === roomAt(p.x, p.z));
+      const inner = { minX: room.minX + 0.1, maxX: room.maxX - 0.1, minZ: room.minZ + 0.1, maxZ: room.maxZ - 0.1 };
+      const pos = pool.geometry.getAttribute('position');
+      expect(pos.count, g.name).toBeGreaterThan(0);
+      for (let i = 0; i < pos.count; i++) {
+        const [x, y, z] = [pos.getX(i), pos.getY(i), pos.getZ(i)];
+        const at = `${g.name}: (${x.toFixed(2)}, ${z.toFixed(2)})`;
+        expect(x >= inner.minX - EPS && x <= inner.maxX + EPS && z >= inner.minZ - EPS && z <= inner.maxZ + EPS, at).toBe(true);
+        expect(y, at).toBeCloseTo(levelY(room.level) + 0.035, 3);
+      }
+      covered.add(room.id);
+    }
+    expect([...covered].sort()).toEqual(HOUSE_ROOMS.map((r) => r.id).sort());
+    // the walk's one mesh of every pool: each triangle in a single room, the light still bright under each lamp
+    const pools = createLampPools(s3);
+    const pos = pools.geometry.getAttribute('position');
+    const col = pools.geometry.getAttribute('color');
+    const ix = pools.geometry.index;
+    const v = new THREE.Vector3();
+    for (let k = 0; k < ix.count; k += 3) {
+      const rooms = new Set();
+      for (let j = 0; j < 3; j++) {
+        v.fromBufferAttribute(pos, ix.getX(k + j));
+        const r = HOUSE_ROOMS.find((q) => v.x >= q.minX && v.x <= q.maxX && v.z >= q.minZ && v.z <= q.maxZ
+          && Math.abs(v.y - levelY(q.level) - 0.035) < 1e-3);
+        expect(r, `(${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`).toBeTruthy();
+        rooms.add(r.id);
+      }
+      expect(rooms.size).toBe(1);
+    }
+    let brightest = 0;
+    for (let i = 0; i < col.count; i++) brightest = Math.max(brightest, col.getX(i));
+    expect(brightest).toBeGreaterThan(0.5);
+  });
 });
 
 describe('outside', () => {
