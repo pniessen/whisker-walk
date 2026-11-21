@@ -107,11 +107,11 @@ export function flareProfiles(look) {
 
 // How a flare's point (figure frame, as built) is bound (ruling R32): to
 // the pelvis at the waist and, going down to the hem (hemY), more and more
-// to the thigh on its side; at the front and the sides (not the back) and,
-// at the front's middle, to both thighs alike. So it goes over the kneel's
-// raised knee instead of the thigh going through it, and swings with the
-// stride; standing, the thighs are as built and it is as it was. Into
-// `out`: [pelvis, thighL, thighR] weights (they add to 1).
+// to the left thigh on its left half, at the front and the side (not the
+// back; at the front's middle half way). So it goes over the kneel's raised
+// (left) knee instead of the thigh going through it; standing, the thighs
+// are as built and it is as it was. Into `out`: [pelvis, thighL, thighR]
+// weights (they add to 1; the right thigh's is 0, fix round 1).
 export function drapeWeights(d, hemY, x, y, z, out) {
   const width = d.hipX * 0.6;
   const k = Math.min(1, Math.max(0, (d.waistY - y) / (d.waistY - hemY)));
@@ -119,7 +119,10 @@ export function drapeWeights(d, hemY, x, y, z, out) {
   const t = Math.min(1, Math.max(0, 0.5 + x / (2 * width))); // 0 the left (-x), 1 the right
   const f0 = Math.min(1, Math.max(0, 0.9 - z / (2 * width))); // 1 in front (-z) and at the sides, 0 behind
   const w = down * f0 * f0 * (3 - 2 * f0);
-  out[0] = 1 - w; out[1] = w * (1 - t); out[2] = w * t;
+  // (only the left thigh, the kneel's raised one: the right half stays with
+  // the pelvis, as it was, so a skirt never sweeps forward with the right
+  // foot's lift on the way down: Task 12 fix round 1)
+  out[0] = 1 - w * (1 - t); out[1] = w * (1 - t); out[2] = 0;
   return out;
 }
 

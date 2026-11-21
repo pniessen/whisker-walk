@@ -96,3 +96,39 @@ export function gapsFor(samples, cat) {
   }
   return { head, body };
 }
+
+// The person's body (arms left out) frame by frame through a change of pose
+// and back (Task 12 fix round 1): standing settled, then `mode` for `frames`
+// frames (its 0.7 s blend and a little more), then standing again for as
+// long. One sample array per frame, the skinned vertices, world frame
+// (the figure at the world's middle, facing -z).
+export function bodyPath(def, mode, which = 0, frames = 48) {
+  const { people } = buildSpot(def, { material });
+  const p = people[which];
+  p.setDetail('near');
+  const group = new THREE.Group();
+  group.add(p.figure);
+  group.updateMatrixWorld(true);
+  const geo = p.mesh.geometry;
+  const si = geo.getAttribute('skinIndex');
+  const sw = geo.getAttribute('skinWeight');
+  const n = geo.getAttribute('position').count;
+  const keep = [];
+  for (let i = 0; i < n; i++) {
+    let best = 0; let bw = -1;
+    for (let k = 0; k < 4; k++) if (sw.getComponent(i, k) > bw) { bw = sw.getComponent(i, k); best = si.getComponent(i, k); }
+    if (!ARMS.has(best)) keep.push(i);
+  }
+  let t = 0;
+  const step = (m) => { t += 1 / 60; pose(p, { mode: m, t }); applyPose(p, 1 / 60); };
+  for (let i = 0; i < 120; i++) step('stand');
+  const out = [];
+  const grab = () => {
+    group.updateMatrixWorld(true);
+    p.mesh.skeleton.update();
+    out.push(keep.map((i) => p.mesh.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(p.mesh.matrixWorld)));
+  };
+  for (let i = 0; i < frames; i++) { step(mode); grab(); }
+  for (let i = 0; i < frames; i++) { step('stand'); grab(); }
+  return { frames: out, person: p };
+}

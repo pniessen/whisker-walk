@@ -584,7 +584,7 @@ export function applyPose(person, dt, ease = 0.3) {
   // Getting up is the same backwards.
   if (st.kneelPath && k < 1) {
     const into = st.mode === 'kneel';
-    kneelLegs(cur, from, rot, into ? st.w : 1 - st.w, into, person.look.dims, into ? pelvis[1] : from[R + 1]);
+    kneelLegs(cur, from, rot, into ? st.w : 1 - st.w, into, person.look, into ? pelvis[1] : from[R + 1]);
   }
   const B = person.bones;
   for (let j = 0; j < N; j++) B[JOINTS[j]].rotation.set(cur[j * 3], cur[j * 3 + 1], cur[j * 3 + 2]);
@@ -607,10 +607,54 @@ const KNEEL_R = 0.82;
 const KNEEL_DOWN = 0.82;
 const KNEEL_LIFT_R = 0.25; // rad: the right foot's lift (the hip and the knee bent) at the middle of its step
 const KNEEL_LIFT_L = 0.25; // and the left's
+const KNEEL_SWING = 1; // of the kneel's knee turn: the squat's knee goes out that way
 const KNEEL_UP_FIRST = 0.2; // of its step: the foot comes up before it goes anywhere
 const ss = (x) => { const c = x < 0 ? 0 : x > 1 ? 1 : x; return c * c * (3 - 2 * c); };
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-function kneelLegs(cur, from, rot, s, into, d, kneelHipY) {
+// Which way round from the front the kneel's raised knee stands (rad, + to
+// the person's left), once per look.
+const KNEE_TURN = new WeakMap();
+const _ks = { kneeX: 0, kneeZ: 0, footX: 0, footZ: 0 };
+function kneeTurnOf(look) {
+  let a = KNEE_TURN.get(look);
+  if (a === undefined) {
+    kneelSpots(look, _ks);
+    a = Math.atan2(-_ks.kneeX, -_ks.kneeZ);
+    KNEE_TURN.set(look, a);
+  }
+  return a;
+}
+
+// Bend a leg (thigh, shin, foot, in cur) by `a` about the horizontal axis
+// that swings its knee toward `turn` (rad round from the front, + to the
+// person's left): the thigh forward that way, the knee back twice as far, the
+// foot the same again, so the foot stays under the hip, keeps its pitch and
+// is not turned on the ground. (Fix round 1: the left knee's squat swings out
+// toward where the kneel puts the knee, not straight at her.)
+const _ax = new THREE.Vector3();
+const _qa = new THREE.Quaternion();
+const _qt = new THREE.Quaternion();
+const _qs = new THREE.Quaternion();
+const _qf = new THREE.Quaternion();
+const _ei = new THREE.Euler();
+function bendLeg(cur, S, a, turn) {
+  if (a === 0) return;
+  _ax.set(Math.cos(turn), 0, -Math.sin(turn)); // (cos, 0, -sin) x down = (-sin, 0, -cos): out toward `turn`
+  _qt.setFromEuler(_ei.set(cur[S.thigh], cur[S.thigh + 1], cur[S.thigh + 2], 'XYZ'));
+  _qs.setFromEuler(_ei.set(cur[S.shin], cur[S.shin + 1], cur[S.shin + 2], 'XYZ'));
+  _qf.setFromEuler(_ei.set(cur[S.foot], cur[S.foot + 1], cur[S.foot + 2], 'XYZ'));
+  _qt.premultiply(_qa.setFromAxisAngle(_ax, a));
+  _ax.applyQuaternion(_qa.copy(_qt).invert()); // the axis in the thigh's frame
+  _qs.premultiply(_qa.setFromAxisAngle(_ax, -2 * a));
+  _ax.applyQuaternion(_qa.copy(_qs).invert()); // and in the shin's
+  _qf.premultiply(_qa.setFromAxisAngle(_ax, a));
+  _ei.setFromQuaternion(_qt, 'XYZ'); cur[S.thigh] = _ei.x; cur[S.thigh + 1] = _ei.y; cur[S.thigh + 2] = _ei.z;
+  _ei.setFromQuaternion(_qs, 'XYZ'); cur[S.shin] = _ei.x; cur[S.shin + 1] = _ei.y; cur[S.shin + 2] = _ei.z;
+  _ei.setFromQuaternion(_qf, 'XYZ'); cur[S.foot] = _ei.x; cur[S.foot + 1] = _ei.y; cur[S.foot + 2] = _ei.z;
+}
+
+function kneelLegs(cur, from, rot, s, into, look, kneelHipY) {
+  const d = look.dims;
   const uA = clamp01(s / KNEEL_R);
   const uB = clamp01((s - KNEEL_DOWN) / (1 - KNEEL_DOWN));
   const kR = ss((uA - KNEEL_UP_FIRST) / (1 - 2 * KNEEL_UP_FIRST));
@@ -633,8 +677,9 @@ function kneelLegs(cur, from, rot, s, into, d, kneelHipY) {
       }
     }
   }
-  // a bend: the thigh forward, the knee back twice as far, the foot's pitch kept
-  cur[LEFT.thigh] += bendL; cur[LEFT.shin] -= 2 * bendL; cur[LEFT.foot] += bendL;
+  // a bend: the thigh forward, the knee back twice as far, the foot's pitch
+  // kept; the left knee swings out toward where the kneel puts it
+  bendLeg(cur, LEFT, bendL, KNEEL_SWING * kneeTurnOf(look));
   cur[RIGHT.thigh] += bendR; cur[RIGHT.shin] -= 2 * bendR; cur[RIGHT.foot] += bendR + toeR;
 }
 

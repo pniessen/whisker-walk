@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { canvasStub } from './helpers/growriver.js';
-import { bodySamples, gapsFor, CATS } from './helpers/bodygap.js';
+import { bodySamples, bodyPath, gapsFor, CATS } from './helpers/bodygap.js';
 
 vi.stubGlobal('document', canvasStub);
 
@@ -362,6 +362,47 @@ describe('her head stays out (ruling R28)', () => {
               }
             }
           }
+        }
+      }
+      expect(worst, at).toBeGreaterThanOrEqual(0.005);
+    }, 90000);
+  }
+});
+
+// Fix round 1 (Task 12 review): the way down into the kneel (an older
+// person's bow) and up again, not only the held pose. She is walked at the
+// person (standing) from in front and 45 degrees either side until the bump
+// stops her, and sits there; then they kneel and stand again, and every
+// frame of the way her head and body stay 0.005 m outside them (arms left
+// out: the head scratch keeps those clear by its own rule).
+describe('her head stays out on the way down and up (fix round 1)', () => {
+  for (const [who, def, which, modes] of PEOPLE) {
+    const mode = modes.find((m) => m !== 'stand');
+    if (!mode) continue;
+    it(`${who}: 5 cats, head-on and 45 degrees either side, the whole way ${mode === 'bow' ? 'into the bow' : 'down'} and up`, () => {
+      const { frames, person } = bodyPath(def, mode === 'bow' ? 'kneel' : mode, which);
+      const bumps = circlesAt(person.look);
+      let worst = Infinity;
+      let at = '';
+      for (const breed of CATS) {
+        for (const side of [0, Math.PI / 4, -Math.PI / 4]) {
+          const w = walker(2.5 * Math.sin(side), -2.5 * Math.cos(side), breed);
+          w.player.setTouchMove({ x: -Math.sin(side), z: Math.cos(side), mag: 1 });
+          let most = 0;
+          for (let i = 0; i < 300; i++) {
+            const was = Math.hypot(w.cat.position.x, w.cat.position.z);
+            step(w, bumps);
+            const inBy = was - Math.hypot(w.cat.position.x, w.cat.position.z);
+            most = Math.max(most, inBy);
+            if (2.5 - Math.hypot(w.cat.position.x, w.cat.position.z) > 0.5 && inBy < most / 3) break;
+          }
+          w.player.setTouchMove(null);
+          for (let i = 0; i < 30; i++) step(w, bumps, 'requestPet');
+          frames.forEach((samples, f) => {
+            const g = gapsFor(samples, w.cat);
+            const m = Math.min(g.head, g.body);
+            if (m < worst) { worst = m; at = `${breed} side ${Math.round(side * 180 / Math.PI)} frame ${f}`; }
+          });
         }
       }
       expect(worst, at).toBeGreaterThanOrEqual(0.005);
