@@ -776,3 +776,6 @@ export function build(scene, { water = {}, wind } = {}) {
     life: (ctx) => createMarshLife({ ...ctx, ...life, quality: water.quality ?? 'high' }),
   };
 }
+
+// What the grass asks this area for (render/grass.js grassStyle, createGrass).
+export const GRASS_HOOKS = Object.freeze({ tint: riverGroundTint, bare: null });

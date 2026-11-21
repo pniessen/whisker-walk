@@ -66,7 +66,8 @@
     "house": "kittypet"
    },
    "placeWords": {
-    "town": "Twolegplace"
+    "town": "Twolegplace",
+    "roofs": "The Rooftops"
    },
    "placeNames": {
     "neighborhood": "Twolegplace",
@@ -3534,7 +3535,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "town-moor": {
@@ -3554,7 +3555,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "town-river": {
@@ -3574,7 +3575,7 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-town-short": {
@@ -3594,7 +3595,7 @@
      ],
      "afterLed": [
       "Robin led the way to Twolegplace! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-town-long": {
@@ -3614,7 +3615,7 @@
      ],
      "afterLed": [
       "Robin led the way to Twolegplace! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-river-long": {
@@ -3634,7 +3635,7 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-river-pond": {
@@ -3654,7 +3655,7 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-moor-path": {
@@ -3674,7 +3675,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "woods-moor-river": {
@@ -3694,7 +3695,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "river-woods-long": {
@@ -3714,7 +3715,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "river-town-long": {
@@ -3734,7 +3735,7 @@
      ],
      "afterLed": [
       "Robin led the way to Twolegplace! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "river-woods-pond": {
@@ -3754,7 +3755,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "river-pines-path": {
@@ -3774,7 +3775,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Pines and Swamp! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "moor-woods-path": {
@@ -3794,7 +3795,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "moor-woods-river": {
@@ -3814,7 +3815,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Woods! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "moor-gorge": {
@@ -3834,7 +3835,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Gorge! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "moor-pines-trail": {
@@ -3854,7 +3855,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Pines and Swamp! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "pines-river-path": {
@@ -3874,7 +3875,7 @@
      ],
      "afterLed": [
       "Robin led the way to the River and Marshes! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "pines-moor-trail": {
@@ -3894,7 +3895,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "gorge-moor": {
@@ -3914,7 +3915,7 @@
      ],
      "afterLed": [
       "Robin led the way to the Moor! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     },
     "gorge-town": {
@@ -3934,7 +3935,7 @@
      ],
      "afterLed": [
       "Robin led the way to Twolegplace! 🧭",
-      "Ask Robin to tap Explore on the home screen to head there together."
+      "Ask Robin to click Explore on the home screen to head there together."
      ]
     }
    },
@@ -4437,7 +4438,7 @@
       "change": [
        "🐾 🐾 🐾",
        "Change your clan?",
-       "Tap a clan to join it."
+       "Click a clan to join it."
       ],
       "line": [
        "You’re",
@@ -4476,7 +4477,7 @@
       "change": [
        "🐾 🐾 🐾",
        "Change your clan?",
-       "Tap a clan to join it."
+       "Click a clan to join it."
       ],
       "line": [
        "You’re",
@@ -4515,7 +4516,7 @@
       "change": [
        "🐾 🐾 🐾",
        "Change your clan?",
-       "Tap a clan to join it."
+       "Click a clan to join it."
       ],
       "line": [
        "You’re",
@@ -4554,7 +4555,7 @@
       "change": [
        "🐾 🐾 🐾",
        "Change your clan?",
-       "Tap a clan to join it."
+       "Click a clan to join it."
       ],
       "line": [
        "You’re",
@@ -4593,7 +4594,7 @@
       "change": [
        "🐾 🐾 🐾",
        "Change your clan?",
-       "Tap a clan to join it."
+       "Click a clan to join it."
       ],
       "line": [
        "You’re",
@@ -5421,144 +5422,134 @@
      "[aria-label] The Woods: opens after you explore Twolegplace 2 times · 0/2",
      "🌳",
      "🔒 The Woods",
-     "opens after you",
      "explore Twolegplace 2",
-     "times",
-     "0/2",
+     "more times",
      "StormClan camp",
      "[aria-label] The Moor: opens after you explore the Woods 2 times · 0/2",
      "🌾",
      "🔒 The Moor",
-     "opens after you",
      "explore the Woods 2",
-     "times",
-     "0/2",
+     "more times",
      "GaleClan camp",
      "[aria-label] The River and Marshes: opens after you explore the Woods 2 times · 0/2",
      "🌿",
      "🔒 The River",
      "and Marshes",
-     "opens after you",
      "explore the Woods 2",
-     "times",
-     "0/2",
+     "more times",
      "BrookClan camp",
      "[aria-label] The Pines and Swamp: opens after you explore the River and Marshes 2 times · 0/2",
      "🌲",
      "🔒 The Pines",
      "and Swamp",
-     "opens after you",
      "explore the River and",
-     "Marshes 2 times",
-     "0/2",
+     "Marshes 2 more times",
      "DuskClan camp",
      "[aria-label] The Gorge: opens after you explore the Moor 2 times · 0/2",
      "⛰️",
      "🔒 The Gorge",
-     "opens after you",
      "explore the Moor 2",
-     "times",
-     "0/2",
+     "more times",
      "CliffClan camp",
      "[aria-label] City Park: opens after you explore Twolegplace 2 times · 0/2",
      "⛲",
      "🔒 City Park",
-     "opens after you",
      "explore Twolegplace",
-     "2 times",
-     "0/2",
+     "2 more times",
      "[aria-label] The Fairground: opens after you explore City Park 2 times · 0/2",
      "🎡",
      "🔒 The",
      "Fairground",
-     "opens after you",
      "explore City Park 2",
-     "times",
-     "0/2",
+     "more times",
      "[aria-label] Appletree Farm: opens after you explore City Park 2 times · 0/2",
      "🚜",
      "🔒 Appletree",
      "Farm",
-     "opens after you",
      "explore City Park 2",
-     "times",
-     "0/2",
+     "more times",
      "[aria-label] The Old Docks: opens after you explore City Park 2 times · 0/2",
      "⚓",
      "🔒 The Old",
      "Docks",
-     "opens after you",
      "explore City Park 2",
-     "times",
-     "0/2",
+     "more times",
      "[aria-label] Seaside: opens after you explore the Old Docks 2 times · 0/2",
      "🏖️",
      "🔒 Seaside",
-     "opens after you",
      "explore the Old",
-     "Docks 2 times",
-     "0/2",
+     "Docks 2 more times",
+     "[aria-label] The Rooftops: coming soon",
+     "The",
+     "Rooftops",
+     "coming",
+     "soon",
      "[aria-label] The island, in the Pines and Swamp: opens after you explore the River and Marshes 2 times · 0/2",
      "The island",
      "in the Pines and Swamp"
     ],
     "everythingOpenHomeAndAlly": [
      "[aria-label] Map of the world",
-     "[aria-label] Twolegplace: tap to go here",
+     "[aria-label] Twolegplace: click to go here",
      "🏠",
      "Twolegplace",
-     "tap to go here",
+     "click to go here",
      "[aria-label] The Woods: you’re going here",
      "🌳",
      "The Woods",
      "you’re going here",
      "StormClan camp",
-     "[aria-label] The Moor: tap to go here",
+     "[aria-label] The Moor: click to go here",
      "🌾",
      "The Moor",
-     "tap to go here",
+     "click to go here",
      "GaleClan camp",
-     "[aria-label] The River and Marshes: tap to go here",
+     "[aria-label] The River and Marshes: click to go here",
      "🌿",
      "The River and",
      "Marshes",
-     "tap to go here",
+     "click to go here",
      "BrookClan camp",
-     "[aria-label] The Pines and Swamp: tap to go here",
+     "[aria-label] The Pines and Swamp: click to go here",
      "🌲",
      "The Pines and",
      "Swamp",
-     "tap to go here",
+     "click to go here",
      "DuskClan camp",
-     "[aria-label] The Gorge: tap to go here",
+     "[aria-label] The Gorge: click to go here",
      "⛰️",
      "The Gorge",
-     "tap to go here",
+     "click to go here",
      "CliffClan camp",
-     "[aria-label] City Park: tap to go here",
+     "[aria-label] City Park: click to go here",
      "⛲",
      "City Park",
-     "tap to go here",
-     "[aria-label] The Fairground: tap to go here",
+     "click to go here",
+     "[aria-label] The Fairground: click to go here",
      "🎡",
      "The",
      "Fairground",
-     "tap to go here",
-     "[aria-label] Appletree Farm: tap to go here",
+     "click to go here",
+     "[aria-label] Appletree Farm: click to go here",
      "🚜",
      "Appletree",
      "Farm",
-     "tap to go here",
-     "[aria-label] The Old Docks: tap to go here",
+     "click to go here",
+     "[aria-label] The Old Docks: click to go here",
      "⚓",
      "The Old",
      "Docks",
-     "tap to go here",
-     "[aria-label] Seaside: tap to go here",
+     "click to go here",
+     "[aria-label] Seaside: click to go here",
      "🏖️",
      "Seaside",
-     "tap to go here",
-     "[aria-label] The island, in the Pines and Swamp: tap to go here",
+     "click to go here",
+     "[aria-label] The Rooftops: coming soon",
+     "The",
+     "Rooftops",
+     "coming",
+     "soon",
+     "[aria-label] The island, in the Pines and Swamp: click to go here",
      "The island",
      "in the Pines and Swamp"
     ],
@@ -5627,83 +5618,68 @@
       "[aria-label] The Woods: opens after you explore Twolegplace 2 times · 0/2",
       "🌳",
       "🔒 The Woods",
-      "opens after you",
       "explore Twolegplace 2",
-      "times",
-      "0/2",
+      "more times",
       "StormClan camp",
       "[aria-label] The Moor: opens after you explore the Woods 2 times · 0/2",
       "🌾",
       "🔒 The Moor",
-      "opens after you",
       "explore the Woods 2",
-      "times",
-      "0/2",
+      "more times",
       "GaleClan camp",
       "[aria-label] The River and Marshes: opens after you explore the Woods 2 times · 0/2",
       "🌿",
       "🔒 The River",
       "and Marshes",
-      "opens after you",
       "explore the Woods 2",
-      "times",
-      "0/2",
+      "more times",
       "BrookClan camp",
       "[aria-label] The Pines and Swamp: opens after you explore the River and Marshes 2 times · 0/2",
       "🌲",
       "🔒 The Pines",
       "and Swamp",
-      "opens after you",
       "explore the River and",
-      "Marshes 2 times",
-      "0/2",
+      "Marshes 2 more times",
       "DuskClan camp",
       "[aria-label] The Gorge: opens after you explore the Moor 2 times · 0/2",
       "⛰️",
       "🔒 The Gorge",
-      "opens after you",
       "explore the Moor 2",
-      "times",
-      "0/2",
+      "more times",
       "CliffClan camp",
       "[aria-label] City Park: opens after you explore Twolegplace 2 times · 0/2",
       "⛲",
       "🔒 City Park",
-      "opens after you",
       "explore Twolegplace",
-      "2 times",
-      "0/2",
+      "2 more times",
       "[aria-label] The Fairground: opens after you explore City Park 2 times · 0/2",
       "🎡",
       "🔒 The",
       "Fairground",
-      "opens after you",
       "explore City Park 2",
-      "times",
-      "0/2",
+      "more times",
       "[aria-label] Appletree Farm: opens after you explore City Park 2 times · 0/2",
       "🚜",
       "🔒 Appletree",
       "Farm",
-      "opens after you",
       "explore City Park 2",
-      "times",
-      "0/2",
+      "more times",
       "[aria-label] The Old Docks: opens after you explore City Park 2 times · 0/2",
       "⚓",
       "🔒 The Old",
       "Docks",
-      "opens after you",
       "explore City Park 2",
-      "times",
-      "0/2",
+      "more times",
       "[aria-label] Seaside: opens after you explore the Old Docks 2 times · 0/2",
       "🏖️",
       "🔒 Seaside",
-      "opens after you",
       "explore the Old",
-      "Docks 2 times",
-      "0/2",
+      "Docks 2 more times",
+      "[aria-label] The Rooftops: coming soon",
+      "The",
+      "Rooftops",
+      "coming",
+      "soon",
       "[aria-label] The island, in the Pines and Swamp: opens after you explore the River and Marshes 2 times · 0/2",
       "The island",
       "in the Pines and Swamp",
@@ -5734,61 +5710,66 @@
       "· Robin is GaleClan",
       "Change ›",
       "[aria-label] Map of the world",
-      "[aria-label] Twolegplace: tap to go here",
+      "[aria-label] Twolegplace: click to go here",
       "🏠",
       "Twolegplace",
-      "tap to go here",
+      "click to go here",
       "[aria-label] The Woods: you’re going here",
       "🌳",
       "The Woods",
       "you’re going here",
       "StormClan camp",
-      "[aria-label] The Moor: tap to go here",
+      "[aria-label] The Moor: click to go here",
       "🌾",
       "The Moor",
-      "tap to go here",
+      "click to go here",
       "GaleClan camp",
-      "[aria-label] The River and Marshes: tap to go here",
+      "[aria-label] The River and Marshes: click to go here",
       "🌿",
       "The River and",
       "Marshes",
-      "tap to go here",
+      "click to go here",
       "BrookClan camp",
-      "[aria-label] The Pines and Swamp: tap to go here",
+      "[aria-label] The Pines and Swamp: click to go here",
       "🌲",
       "The Pines and",
       "Swamp",
-      "tap to go here",
+      "click to go here",
       "DuskClan camp",
-      "[aria-label] The Gorge: tap to go here",
+      "[aria-label] The Gorge: click to go here",
       "⛰️",
       "The Gorge",
-      "tap to go here",
+      "click to go here",
       "CliffClan camp",
-      "[aria-label] City Park: tap to go here",
+      "[aria-label] City Park: click to go here",
       "⛲",
       "City Park",
-      "tap to go here",
-      "[aria-label] The Fairground: tap to go here",
+      "click to go here",
+      "[aria-label] The Fairground: click to go here",
       "🎡",
       "The",
       "Fairground",
-      "tap to go here",
-      "[aria-label] Appletree Farm: tap to go here",
+      "click to go here",
+      "[aria-label] Appletree Farm: click to go here",
       "🚜",
       "Appletree",
       "Farm",
-      "tap to go here",
-      "[aria-label] The Old Docks: tap to go here",
+      "click to go here",
+      "[aria-label] The Old Docks: click to go here",
       "⚓",
       "The Old",
       "Docks",
-      "tap to go here",
-      "[aria-label] Seaside: tap to go here",
+      "click to go here",
+      "[aria-label] Seaside: click to go here",
       "🏖️",
       "Seaside",
-      "tap to go here",
-      "[aria-label] The island, in the Pines and Swamp: tap to go here",
+      "click to go here",
+      "[aria-label] The Rooftops: coming soon",
+      "The",
+      "Rooftops",
+      "coming",
+      "soon",
+      "[aria-label] The island, in the Pines and Swamp: click to go here",
       "The island",
       "in the Pines and Swamp",
       "[aria-label] Zoom in",
@@ -5913,15 +5894,15 @@
     "Cozy Neighborhood",
     "you’re going here",
     "City Park",
-    "tap to go here",
+    "click to go here",
     "Appletree Farm",
-    "tap to go here",
+    "click to go here",
     "The Fairground",
-    "tap to go here",
+    "click to go here",
     "Seaside",
-    "tap to go here",
+    "click to go here",
     "The Old Docks",
-    "tap to go here"
+    "click to go here"
    ]
   },
   "mapModelCamps": [

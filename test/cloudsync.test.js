@@ -128,4 +128,18 @@ describe('the home base cloud toast', () => {
       expect(kids[0].cls.has('fade')).toBe(true);
     } finally { done(); }
   });
+  it('the same words shown twice while the first is up make one copy; other words and a later repeat still show', () => {
+    const { toast, kids } = setupToast();
+    try {
+      toast('Same line');
+      toast('Same line');
+      expect(kids.length).toBe(1);
+      toast('Another line');
+      expect(kids.length).toBe(2);
+      vi.advanceTimersByTime(toastLifeMs('Same line') + CLOUD_TOAST_FADE_MS);
+      expect(kids[0].removed).toBe(true);
+      toast('Same line');
+      expect(kids.length).toBe(3);
+    } finally { done(); }
+  });
 });

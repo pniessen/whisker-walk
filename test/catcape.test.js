@@ -157,6 +157,21 @@ describe(DESCRIBE, () => {
       expect(tie.userData.tie.bands).toHaveLength(2);
     }
   });
+  // A found collar: the Anchor Charm hangs at the throat and the Rope Collar's
+  // knot sits there, so the clasp gives way (read through the clasp geometry's
+  // own flag); the Bottle-top Collar's caps leave the throat to the clasp.
+  it.each([['anchorcharm', false], ['ropecollar', false], ['bottletopcollar', true]])('a cape over the %s: the clasp shows %s', (item, shows) => {
+    for (const b of ['tabby', 'mainecoon']) {
+      const tie = tieOf(buildCat(b, { ...BARE, body: 'cape', collar: item }));
+      expect(!!tie.userData.tie.clasp, b).toBe(shows);
+      expect(tie.userData.tie.bands).toHaveLength(2);
+    }
+  });
+  it('a cape over the Anchor Charm or the Rope Collar hides its clasp', () => {
+    const clasp = (item) => !!tieOf(buildCat('tabby', { ...BARE, body: 'cape', collar: item })).userData.tie.clasp;
+    expect(clasp('anchorcharm')).toBe(false);
+    expect(clasp('ropecollar')).toBe(false);
+  });
   it('Digit wears her own tag: her cape is pinned under it', () => {
     expect(tieOf(kitCat('digit', 'cape', false)).userData.tie.clasp).toBeNull();
   });
@@ -201,7 +216,7 @@ describe(DESCRIBE, () => {
   it.each(CAPES)('%s: the sit cloth is worn only in the sit', (id) => {
     const cat = kitCat('tabby', id, false);
     const cloth = capePieces(cat).filter((m) => m.userData.capeGeo);
-    expect(cloth).toHaveLength(id === 'cape' ? 1 : 2);
+    expect(cloth).toHaveLength(id === 'confetticape' ? 2 : 1);
     for (const state of [...STATES, 'follow']) {
       animateCat(cat, state, 1.3, 0, false);
       const sit = state === 'requestPet' || state === 'perch';
@@ -243,7 +258,7 @@ describe(DESCRIBE, () => {
   it.each(CAPES)('%s: the confetti dots are one vertex-coloured mesh on the cape', (id) => {
     const cat = kitCat('tabby', id, false);
     const dots = cat.userData.parts.body.children.filter((c) => c.userData.capeDots);
-    if (id === 'cape') { expect(dots).toHaveLength(0); return; }
+    if (id !== 'confetticape') { expect(dots).toHaveLength(0); return; }
     expect(dots).toHaveLength(1);
     expect(dots[0].material.vertexColors).toBe(true);
     // every dot lies on the cape: out of the fur, and its centre within 1 cm

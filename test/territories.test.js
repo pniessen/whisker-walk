@@ -65,11 +65,11 @@ describe('territories', () => {
     // Even a save that somehow lost the Neighborhood can open it: it's free and ungated.
     s.unlocked.areas = []; s.area = 'park';
     const lost = region(territoryMapModel(s, CATALOG), 'town');
-    expect(lost).toMatchObject({ locked: false, canOpen: true, line: 'Tap to explore' });
+    expect(lost).toMatchObject({ locked: false, canOpen: true, line: 'Click to explore' });
     expect(renderWorldMapHtml(worldMapModel(s, CATALOG))).toContain('data-dr-map-place="neighborhood"');
   });
 
-  it('the Woods is locked until 2 Twolegplace walks, then "Tap to explore", then "tap to walk here" once opened', () => {
+  it('the Woods is locked until 2 Twolegplace walks, then "Click to explore", then "click to go here" once opened', () => {
     const s = clanState();
     s.walks.neighborhood = 1;
     let woods = region(territoryMapModel(s, CATALOG), 'woods');
@@ -81,17 +81,17 @@ describe('territories', () => {
 
     s.walks.neighborhood = 2;
     woods = region(territoryMapModel(s, CATALOG), 'woods');
-    expect(woods).toMatchObject({ locked: false, canOpen: true, line: 'Tap to explore' });
+    expect(woods).toMatchObject({ locked: false, canOpen: true, line: 'Click to explore' });
 
     s.unlocked.areas.push('woods');
     woods = region(territoryMapModel(s, CATALOG), 'woods');
-    expect(woods).toMatchObject({ owned: true, canOpen: false, line: 'tap to go here' });
+    expect(woods).toMatchObject({ owned: true, canOpen: false, line: 'click to go here' });
     html = regionHtml(renderWorldMapHtml(worldMapModel(s, CATALOG)), 'woods');
-    expect(html).toContain('tap to go here');
+    expect(html).toContain('click to go here');
     expect(html).not.toMatch(/\blocked\b/);
   });
 
-  it('the River is locked until 2 Woods walks, then "Tap to explore", then "tap to walk here" once opened', () => {
+  it('the River is locked until 2 Woods walks, then "Click to explore", then "click to go here" once opened', () => {
     const s = clanState();
     s.walks.woods = 1; s.unlocked.areas.push('woods');
     let river = region(territoryMapModel(s, CATALOG), 'river');
@@ -100,9 +100,9 @@ describe('territories', () => {
     expect(regionHtml(renderWorldMapHtml(worldMapModel(s, CATALOG)), 'river')).toContain('data-dr-map-place="river"');
     s.walks.woods = 2;
     river = region(territoryMapModel(s, CATALOG), 'river');
-    expect(river).toMatchObject({ locked: false, canOpen: true, line: 'Tap to explore' });
+    expect(river).toMatchObject({ locked: false, canOpen: true, line: 'Click to explore' });
     s.unlocked.areas.push('river');
-    expect(region(territoryMapModel(s, CATALOG), 'river')).toMatchObject({ owned: true, line: 'tap to go here' });
+    expect(region(territoryMapModel(s, CATALOG), 'river')).toMatchObject({ owned: true, line: 'click to go here' });
   });
 
   it("the selected place says today's walk", () => {
@@ -111,11 +111,11 @@ describe('territories', () => {
     s.unlocked.areas.push('woods'); s.area = 'woods';
     const m = territoryMapModel(s, CATALOG);
     expect(region(m, 'woods')).toMatchObject({ selected: true, line: 'you’re going here' });
-    expect(region(m, 'town')).toMatchObject({ selected: false, line: 'tap to go here' });
+    expect(region(m, 'town')).toMatchObject({ selected: false, line: 'click to go here' });
     expect(regionHtml(renderWorldMapHtml(worldMapModel(s, CATALOG)), 'woods')).toMatch(/class="tm-region[^"]*\bsel\b/);
   });
 
-  it('the Moor is locked until 2 Woods walks, then "Tap to explore", then "tap to walk here" once opened', () => {
+  it('the Moor is locked until 2 Woods walks, then "Click to explore", then "click to go here" once opened', () => {
     const s = clanState();
     s.walks.woods = 1; s.unlocked.areas.push('woods');
     let moor = region(territoryMapModel(s, CATALOG), 'moor');
@@ -124,12 +124,12 @@ describe('territories', () => {
     expect(regionHtml(renderWorldMapHtml(worldMapModel(s, CATALOG)), 'moor')).toContain('data-dr-map-place="moor"');
     s.walks.woods = 2;
     moor = region(territoryMapModel(s, CATALOG), 'moor');
-    expect(moor).toMatchObject({ locked: false, canOpen: true, line: 'Tap to explore' });
+    expect(moor).toMatchObject({ locked: false, canOpen: true, line: 'Click to explore' });
     s.unlocked.areas.push('moor');
-    expect(region(territoryMapModel(s, CATALOG), 'moor')).toMatchObject({ owned: true, line: 'tap to go here' });
+    expect(region(territoryMapModel(s, CATALOG), 'moor')).toMatchObject({ owned: true, line: 'click to go here' });
   });
 
-  it('the Pines is locked until 2 River walks, then "Tap to explore", then "tap to walk here" once opened', () => {
+  it('the Pines is locked until 2 River walks, then "Click to explore", then "click to go here" once opened', () => {
     const s = clanState();
     s.unlocked.areas.push('woods', 'river'); s.walks.river = 1;
     let pines = region(territoryMapModel(s, CATALOG), 'pines');
@@ -137,12 +137,12 @@ describe('territories', () => {
     expect(pines.line).toBe('opens after you explore the River and Marshes 2 times · 1/2');
     s.walks.river = 2;
     pines = region(territoryMapModel(s, CATALOG), 'pines');
-    expect(pines).toMatchObject({ locked: false, canOpen: true, line: 'Tap to explore' });
+    expect(pines).toMatchObject({ locked: false, canOpen: true, line: 'Click to explore' });
     s.unlocked.areas.push('pines');
-    expect(region(territoryMapModel(s, CATALOG), 'pines')).toMatchObject({ owned: true, line: 'tap to go here' });
+    expect(region(territoryMapModel(s, CATALOG), 'pines')).toMatchObject({ owned: true, line: 'click to go here' });
   });
 
-  it('the Gorge is locked until 2 Moor walks, then "Tap to explore", then "tap to walk here"', () => {
+  it('the Gorge is locked until 2 Moor walks, then "Click to explore", then "click to go here"', () => {
     const s = clanState();
     s.unlocked.areas.push('woods', 'moor'); s.walks.moor = 1;
     let gorge = region(territoryMapModel(s, CATALOG), 'gorge');
@@ -151,9 +151,9 @@ describe('territories', () => {
     expect(regionHtml(renderWorldMapHtml(worldMapModel(s, CATALOG)), 'gorge')).toContain('data-dr-map-place="gorge"');
     s.walks.moor = 2;
     gorge = region(territoryMapModel(s, CATALOG), 'gorge');
-    expect(gorge).toMatchObject({ locked: false, canOpen: true, line: 'Tap to explore' });
+    expect(gorge).toMatchObject({ locked: false, canOpen: true, line: 'Click to explore' });
     s.unlocked.areas.push('gorge');
-    expect(region(territoryMapModel(s, CATALOG), 'gorge')).toMatchObject({ owned: true, line: 'tap to go here' });
+    expect(region(territoryMapModel(s, CATALOG), 'gorge')).toMatchObject({ owned: true, line: 'click to go here' });
     expect(CAMP_AT.gorge).toEqual([845, 405]);
     expect(region(territoryMapModel(s, CATALOG), 'gorge').camp).toEqual({ x: 845, y: 405, color: '#9c3b22', mine: false, ally: false });
     s.clanPick = { mine: 'gorge', partner: null, partnerId: null };
@@ -167,12 +167,13 @@ describe('territories', () => {
     expect(m.island).toMatchObject({ status: 'built', areaId: 'pines' });
     const html = renderWorldMapHtml(worldMapModel(clanState(), CATALOG));
     for (const r of m.regions) expect(regionHtml(html, r.id), r.id).toContain(`data-dr-map-place="${r.areaId}"`);
-    // Eleven places: her six (Twolegplace, the Woods, the River, the Moor, the
-    // Pines and the Gorge) and the five street places around them; the island
-    // is a twelfth way in, to the Pines.
+    // Twelve places: her six (Twolegplace, the Woods, the River, the Moor, the
+    // Pines and the Gorge) and the five street places around them, plus the
+    // Rooftops' coming-soon spot in the town; the island is a thirteenth way
+    // in, to the Pines.
     const places = [...html.matchAll(/data-dr-map-place="([a-z]+)"/g)].map(([, id]) => id);
-    expect(new Set(places).size).toBe(11);
-    expect(places).toHaveLength(12);
+    expect(new Set(places).size).toBe(12);
+    expect(places).toHaveLength(13);
   });
 
   it("the island's star is the Pines' way in, locked and opened with it", () => {
@@ -189,8 +190,8 @@ describe('territories', () => {
     expect(regionHtml(html, 'island')).toContain('in the Pines and Swamp');
     expect(regionHtml(html, 'island')).toContain('tm-hit');
     expect(html.lastIndexOf('data-region="island"')).toBeGreaterThan(html.lastIndexOf('data-region="pines"'));
-    // Her six places, the five street places, and the island leading to the Pines
-    expect((html.match(/data-dr-map-place=/g) || []).length).toBe(12);
+    // Her six places, the five street places, the Rooftops' coming-soon spot, and the island leading to the Pines
+    expect((html.match(/data-dr-map-place=/g) || []).length).toBe(13);
   });
 
   it('the island is always built and says where it is, in its title and under its name, from one string (Polish 3)', () => {
@@ -200,7 +201,8 @@ describe('territories', () => {
     const isl = regionHtml(html, 'island');
     expect(isl).toContain(`aria-label="The island, ${ISLAND_WHERE}: `);
     expect(isl).toContain(`>${ISLAND_WHERE}</text>`);
-    expect(html).not.toContain('coming soon');
+    // The island is never 'coming soon' (the Rooftops, elsewhere on the map, are)
+    expect(isl).not.toContain('coming soon');
   });
 
   it('the map has the lake, the island, the pond, the river, three paths and the bridge', () => {

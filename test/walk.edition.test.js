@@ -1,11 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 // Clan Edition Task 8: a Legacy walk goes quiet. A Legacy kid whose chosen
 // place is the Woods walks the Neighborhood, solo or in a room, and keeps the
 // Woods as their place. The area builders are stubbed to record which area a
 // walk builds, then stop it: the area is built before anything else that
-// matters here (walk.js, the AREAS[areaId].build call).
+// matters here (walk.js startWalk's pack.world.build call; every place is
+// loaded first in beforeAll, so a start reaches it in the same tick).
 // vi.mock is hoisted above plain consts, so the shared pieces are hoisted too.
 const { STOP, builtAreas, stubBuild, gorgeWalk } = vi.hoisted(() => {
   const STOP = new Error('stop: area built');
@@ -53,6 +54,13 @@ const { createWalkLifecycle } = await import('../src/game/walk.js');
 const { createProgression } = await import('../src/progression.js');
 const { resolveQuality } = await import('../src/render/quality.js');
 const { goatToday } = await import('../src/critters.js');
+const { createAreaLoader } = await import('../src/game/areaload.js');
+
+// Every place is its own download (F6): the places this file walks are loaded
+// first (through the mocks above: vi.mock reaches a dynamic import too), so a
+// start runs startWalk in the same tick and its STOP comes straight out.
+const areas = createAreaLoader();
+beforeAll(() => areas.ensureAll(['neighborhood', 'woods', 'river', 'moor', 'pines', 'gorge']));
 
 function memStorage() {
   const map = new Map();
@@ -93,6 +101,7 @@ function lifecycle(progression, { pendingRoom = null, startRoomTogether = vi.fn(
     awardStrayGreet: () => {}, applyRemoteEvent: () => {},
     qualityAdapter: { beginWalk: () => ({ ...resolveQuality({ reducedMotion: true, override: 'low' }), postFx: false }) },
     denShop: null,
+    areas,
   });
 }
 
@@ -401,10 +410,10 @@ describe('the clan in the walk (source pins)', () => {
     expect(line).toContain('isGround: clanWalkable');
     expect(line).not.toContain('progression');
     const abort = s.indexOf('session.clanFight.abort()');
-    expect(abort).toBeGreaterThan(s.indexOf('function endWalk('));
+    expect(abort).toBeGreaterThan(s.indexOf('function freeWalk(')); // endWalk's teardown
     expect(abort).toBeLessThan(s.indexOf('session.intruders.dispose()'));
     // its intruder-done goes out while the room is still joined: before leave()
-    const leave = s.indexOf('net.leave()', s.indexOf('function endWalk('));
+    const leave = s.indexOf('net.leave()', s.indexOf('function freeWalk('));
     expect(leave).toBeGreaterThan(-1);
     expect(abort).toBeLessThan(leave);
     expect(s.split('session.clanFight.abort()')).toHaveLength(2);
@@ -530,8 +539,8 @@ describe('a crossing ends the walk the normal way (source pins)', () => {
     expect(s).toMatch(/crossLines\.map\(\(l\) => `<div class="best-line">\$\{escapeHtml\(l\)\}<\/div>`\)/);
     expect(s.indexOf('${crossHtml}')).toBeLessThan(s.indexOf('id="btn-summary-continue"'));
     expect(s).toContain('lastCrossing = { to: crossTo, picked: out.picked, clan }');
-    expect(s).toMatch(/function takeCrossing\(\)/);
-    expect(s).toMatch(/return \{ beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing/);
+    // the lifecycle hands takeCrossing to main.js (no walk has crossed yet)
+    expect(lifecycle(createProgression(memStorage())).takeCrossing()).toBe(null);
   });
 });
 
@@ -588,7 +597,7 @@ describe('fights teach moves and leave scars (source pins)', () => {
 
   it('endWalk re-pushes the profile when the fade changed her rendered scars', () => {
     const s = src();
-    const end = s.indexOf('function endWalk(');
+    const end = s.indexOf('function bankWalk('); // endWalk's first half
     const before = s.indexOf('const scarsBefore = JSON.stringify(progression.catScars(scarKey(progression.state)));', end);
     const done = s.indexOf('progression.completeWalk(', end);
     const after = s.indexOf('if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();', end);

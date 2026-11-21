@@ -40,7 +40,7 @@ const { MARK_AREAS, emptyMarks } = await import('../src/marks.js');
 const { CLOUD_AREAS, AREA_SKY } = await import('../src/render/clouds.js');
 const { ambientKind } = await import('../src/render/ambient.js');
 const { AREA_RULES } = await import('../src/render/pawprints.js');
-const { GRASS_STYLES, GROUND_TINTS, tuftAt, pastureDensity } = await import('../src/render/grass.js');
+const { GRASS_STYLES, grassStyle, tuftAt, pastureDensity } = await import('../src/render/grass.js');
 const { DRESSED_AREAS } = await import('../src/render/waterdress.js');
 const { fishSpots } = await import('../src/render/fishjump.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -969,13 +969,6 @@ describe('Appletree Farm: catalog, unlocking and old saves', () => {
 });
 
 describe('Appletree Farm: registered everywhere a street area is', () => {
-  const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-
-  it('is in walk.js’s AREAS map', () => {
-    expect(walkSrc).toMatch(/import \* as farm from '\.\.\/world\/farm\.js';/);
-    expect(walkSrc.match(/const AREAS = \{([^}]*)\}/)[1]).toContain('farm');
-  });
-
   it('has clouds, drifting seed down, paw prints on its earth paths and pasture grass', () => {
     expect(CLOUD_AREAS).toContain('farm');
     expect(AREA_SKY.farm).toEqual({ clouds: 10, banks: 5 });
@@ -983,7 +976,9 @@ describe('Appletree Farm: registered everywhere a street area is', () => {
     expect(ambientKind('farm', { dusk: true })).toBe('fluff');
     expect(AREA_RULES.farm).toEqual({ ground: null, path: 'gravel', strip: null });
     expect(GRASS_STYLES.farm.density).toBe(pastureDensity);
-    expect(GROUND_TINTS.farm).toBe(farm.farmGroundTint);
+    expect(farm.GRASS_HOOKS.tint).toBe(farm.farmGroundTint);
+    expect(farm.GRASS_HOOKS.bare).toBe(farm.farmBare);
+    expect(GRASS_STYLES.farm.bare).toBeNull();
   });
 
   it('grows no grass tufts in the wheat or the vegetable beds, and plenty in the pasture', () => {
@@ -995,8 +990,10 @@ describe('Appletree Farm: registered everywhere a street area is', () => {
     const s = 0.3;
     for (let i = -150; i < 150; i++) {
       for (let j = -150; j < 150; j++) {
-        const t = tuftAt(i, j, s, GRASS_STYLES.farm);
-        if (!t) continue;
+        const t = tuftAt(i, j, s, grassStyle('farm', farm.GRASS_HOOKS));
+        const plain = tuftAt(i, j, s, GRASS_STYLES.farm);
+        if (!t) { if (plain) expect(farmBare(plain.x, plain.z)).toBe(true); continue; }
+        expect(t).toEqual(plain);
         expect(t.h).toBeLessThanOrEqual(0.38 + 1e-9);
         if (t.x > WHEAT_FIELD.minX && t.x < WHEAT_FIELD.maxX && t.z > WHEAT_FIELD.minZ && t.z < WHEAT_FIELD.maxZ) wheat++;
         if (t.x > PASTURE.minX && t.x < PASTURE.maxX && t.z > PASTURE.minZ && t.z < PASTURE.maxZ) pasture++;

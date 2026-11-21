@@ -24,14 +24,19 @@
 //   - A set's PREFIXES list has the same length in every set: a save stores
 //     its colony's title as a position in that list (progression.js).
 //   - A set may also carry what it does DIFFERENTLY, as data (2026-11-18). The
-//     'on' set carries none of these, so the family's game is what it was:
+//     'on' set carries none of these (except EMBLEMS, below), so the family's
+//     game is what it was:
 //       RULES       switches read with wordRule(): storedNames (a cat is shown
 //                   under the name it is stored with, never a composed one),
-//                   noStarNames (no top-rank names are offered)
+//                   noStarNames (no top-rank names are offered), stoneSeat
+//                   (the camps' leader sits on the High Stone, world/camp.js)
 //       RANK_AS     rank id -> the rank id it is shown as, for a set with
 //                   fewer ranks (rankShown, rankWord)
 //       LINES       guided-walk lines of its own, keyed as tutorialwords.js is
 //       BADGE_WORDS a word for each group's badge on the pick cards
+//     EMBLEMS is its own kind: an optional table any set may carry (territory
+//     id -> a whole <svg> string, the group's badge). Both the family's set and
+//     the everyday set carry one; a set without it shows no emblem.
 //     Code asks these questions of the set; it never asks which set is in use.
 //
 // A leaf like clanwords.js: it imports that file only, so anything may import

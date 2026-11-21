@@ -8,7 +8,7 @@ import { line } from '../src/tutorialwords.js';
 const quiet = (over = {}) => ({
   t: 0, walkNo: 2, room: false, looked: true, stalking: false, canJump: false, perched: false, critterNear: false,
   camera: false, idleOpen: 0, toy: false, bats: 0, strayFar: false, nearBox: false, inBox: false, helpInView: false,
-  inWater: false, carrying: false, challenge: false, ...over,
+  inWater: false, carrying: false, challenge: false, findNear: false, ...over,
 });
 
 function rig({ on = true, counts = {} } = {}) {
@@ -30,12 +30,12 @@ describe('the hint table', () => {
   // and T's line for a keyboard (a toast, counted here, never polled).
   it('is the design\'s twenty and the yarn pair, in order, with its limits', () => {
     expect(HINTS.map((h) => [h.id, h.max])).toEqual([
-      ['look', 2], ['creep', 2], ['jump', 2], ['hop', 1], ['photo', 2], ['frame', 2], ['yarn', 1], ['bat', 1],
-      ['yarn-carry', 1],
+      ['look', 2], ['creep', 2], ['jump', 2], ['hop', 1], ['find', 1], ['photo', 2], ['frame', 2], ['yarn', 1], ['bat', 1],
+      ['yarn-carry', 1], ['find-kept', 1], ['map', 1],
       ['call', 1], ['sniff', 2], ['box', 1], ['help', 1], ['hiss', 1], ['dog', 1], ['swim', 1], ['carry', 1],
       ['home', 2], ['chat', 1], ['rival', 1], ['stranger', 1], ['tkey', 3],
     ]);
-    expect(new Set(HINT_IDS).size).toBe(22);
+    expect(new Set(HINT_IDS).size).toBe(25);
     expect(HINTS.find((h) => h.id === 'yarn').ring).toBeNull(); // no button to point at
     expect(HINTS.find((h) => h.id === 'tkey').when).toBeUndefined();
     for (const h of HINTS) expect(h.max).toBeLessThanOrEqual(HINT_COUNT_MAX);
@@ -210,5 +210,63 @@ describe('the rules', () => {
     a.h.end();
     expect(a.up()).toBe(null);
     expect(a.h.showing).toBe(null);
+  });
+});
+
+describe('find, find-kept and map', () => {
+  it('are in the table once each, and none has a ring', () => {
+    for (const id of ['find', 'find-kept', 'map']) {
+      expect(HINT_IDS).toContain(id);
+      expect(hintMax(id)).toBe(1);
+      expect(HINTS.find((h) => h.id === id).ring).toBeNull();
+    }
+    expect(HINTS.find((h) => h.id === 'find-kept').soon).toBe(true);
+    expect(HINTS.find((h) => h.id === 'map').when).toBeUndefined();
+  });
+
+  it('a soon hint ignores the gap; a plain event hint does not', () => {
+    const r = rig();
+    expect(r.h.offer('sniff')).toBe(true);
+    r.h.update(HINT_SHOW_S + 0.1, quiet()); // sniff has gone
+    r.h.update(5, quiet()); // five more seconds: the soon offer comes 5 s after the first hint went away
+    expect(r.up()).toBeNull();
+    expect(r.h.offer('box')).toBe(false); // plain: waits the gap
+    expect(r.h.offer('find-kept')).toBe(true);
+    expect(r.up()).toBe('find-kept');
+  });
+
+  it('a soon hint still waits while the guided walk holds the hints back', () => {
+    const r = rig();
+    r.h.setBlocked(true);
+    expect(r.h.offer('find-kept')).toBe(false);
+  });
+
+  it('a soon hint still obeys max, tips off and the one-at-a-time rule', () => {
+    const r = rig({ counts: { 'find-kept': 1 } });
+    expect(r.h.offer('find-kept')).toBe(false);
+    const r2 = rig({ on: false });
+    expect(r2.h.offer('find-kept')).toBe(false);
+    const r3 = rig();
+    r3.h.offer('sniff');
+    expect(r3.h.offer('find-kept')).toBe(false);
+  });
+
+  it('after a soon hint the gap starts again for the others', () => {
+    const r = rig();
+    r.h.offer('sniff');
+    r.h.update(HINT_SHOW_S + 0.1, quiet());
+    r.h.offer('find-kept');
+    r.h.update(HINT_SHOW_S + 0.1, quiet());
+    expect(r.h.offer('box')).toBe(false);
+    r.h.update(HINT_GAP_S, quiet());
+    expect(r.h.offer('box')).toBe(true);
+  });
+
+  it('a polled find goes up when findNear is true on walk one, and away when it turns false', () => {
+    const r = rig();
+    r.h.update(0.25, quiet({ walkNo: 1, findNear: true }));
+    expect(r.up()).toBe('find');
+    r.h.update(0.25, quiet({ walkNo: 1, findNear: false }));
+    expect(r.up()).toBeNull();
   });
 });

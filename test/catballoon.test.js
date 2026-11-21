@@ -17,15 +17,16 @@ import { ready, firstHitRaycaster } from './helpers/bvh.js';
 // Digit (scale 0.82) is judged by her own size.
 
 const BREEDS = PRESETS.filter((b) => b !== 'hagrid');
-const KITS = ['balloon', 'balloonbunch', 'tailballoon']; // tailballoon: the Fairground's prize, tied on at the root of the tail
-const PIECES = { balloon: 3, balloonbunch: 6, tailballoon: 4 };
-const STRINGS = { balloon: 1, balloonbunch: 3, tailballoon: 1 };
+const KITS = ['balloon', 'balloonbunch', 'tailballoon', 'kitetailribbon', 'candyflosspuff']; // tailballoon: the Fairground's prize, tied on at the root of the tail
+const PIECES = { balloon: 3, balloonbunch: 6, tailballoon: 4, kitetailribbon: 2, candyflosspuff: 2 };   // the ribbon: string + one mesh of four bows; the puff: stick + cloud
+const STRINGS = { balloon: 1, balloonbunch: 3, tailballoon: 1, kitetailribbon: 1, candyflosspuff: 1 };
 const CASES = BREEDS.flatMap((b) => [false, true].flatMap((simple) => KITS.map((k) => [b, simple, k])));
 const BARE = { collar: null, head: null, face: null, neck: null, feet: null, body: null };
 const kitCat = (b, simple, back) => buildCat(b, { ...BARE, back }, { simple });
 const pieces = (cat) => cat.children.filter((c) => c.userData.float);
-const isBalloon = (m) => !m.userData.span && m.geometry.parameters.radius >= 0.05;
-const isKnot = (m) => !m.userData.span && m.geometry.parameters.radius < 0.05;
+// the Candyfloss Puff's cloud is a merged mesh (no parameters): it floats as a balloon does; the Kite-tail's bows hang on the string and are neither
+const isBalloon = (m) => !m.userData.span && (m.geometry.parameters ? m.geometry.parameters.radius >= 0.05 : m.name === 'candyflosspuff');
+const isKnot = (m) => !m.userData.span && !!m.geometry.parameters && m.geometry.parameters.radius < 0.05;
 const transforms = (cat) => pieces(cat).map((c) => [c.position.toArray(), c.quaternion.toArray(), c.scale.toArray()]);
 const TIMES = [0.4, 1.3, 2.2];
 
@@ -125,7 +126,7 @@ describe('balloons float upright in every pose (polish-pose Task 3)', () => {
             expect(inside(cat, head, q, box.get(head)), `${at}: balloon ${i} out of the head`).toBe(false);
           }
         });
-        expect(pieces(cat).filter(isKnot).length).toBe({ balloon: 1, balloonbunch: 0, tailballoon: 1 }[back]);
+        expect(pieces(cat).filter(isKnot).length).toBe({ balloon: 1, balloonbunch: 0, tailballoon: 1, kitetailribbon: 0, candyflosspuff: 0 }[back]);
       }
     }
   }, 30_000);

@@ -218,7 +218,7 @@ describe('the countryside between the places', () => {
     const one = (extra) => clashes(html, { ...COUNTRYSIDE, fields: [], hedges: [], lanes: [], trees: [], ponds: [], flowers: [[], [], []], ...extra });
     expect(one({})).toEqual([]);
     expect(one({ trees: [[565, 500, 12]] }).length).toBeGreaterThan(0); // the Woods (the tree and its shade)
-    expect(one({ trees: [[1060, 105, 8]] }).length).toBeGreaterThan(0); // just off the Fairground, on its words
+    expect(one({ trees: [[1060, 240, 8]] }).length).toBeGreaterThan(0); // on the Fairground's name
     expect(one({ fields: [{ quad: [[1000, 560], [1100, 560], [1100, 660], [1000, 660]], tone: 0, furrows: [] }] })).toHaveLength(1);
     expect(one({ lanes: [[[1000, 520], [1000, 640]]] })).toHaveLength(1); // across the town-park road
     expect(one({ flowers: [[[455, 314]], [], []] })).toHaveLength(1); // the island's star
@@ -247,8 +247,9 @@ describe('drawing the countryside', () => {
     // it takes no taps (a tap on the meadow reaches no place; a drag still pans)
     const css = fs.readFileSync('src/style.css', 'utf8');
     expect(css).toMatch(/\.world-map \.wm-country, \.world-map \.wm-rims \{ pointer-events: none; \}/);
-    // the tap targets are the places and the island's star, as before
-    expect(tapTargets(worldMapModel(base(), CATALOG))).toHaveLength(12);
+    // the tap targets are the places and the island's star, as before (twelve
+    // places with the Rooftops, coming soon inside the town)
+    expect(tapTargets(worldMapModel(base(), CATALOG))).toHaveLength(13);
   });
 
   it('a handful of paths drawn once: fields by tone, furrows, lanes, hedgerows, ponds, flowers, trees and the fade', () => {
@@ -271,7 +272,17 @@ describe('drawing the countryside', () => {
   it('every place gets a rim and a shadow', () => {
     const [shadow, rim] = [...rims.matchAll(/d="([^"]+)"/g)].map(([, d]) => d);
     expect(shadow).toBe(rim);
-    expect(rim.match(/M/g)).toHaveLength(11);
+    // one per place: eleven, and the Rooftops inside the town
+    const regions = worldMapModel(base(), CATALOG).regions;
+    expect(regions).toHaveLength(12);
+    expect(rim.match(/M/g)).toHaveLength(12);
+    // the Rooftops' own: one of the rim's shapes is drawn round its spot
+    const roofs = regions.find((r) => r.id === 'roofs');
+    const centres = rim.split('M').filter(Boolean).map((part) => {
+      const ps = pairs(part);
+      return [0, 1].map((a) => ps.reduce((t, p) => t + p[a], 0) / ps.length);
+    });
+    expect(centres.some(([x, y]) => Math.hypot(x - roofs.x, y - roofs.y) < roofs.r / 4)).toBe(true);
   });
 
   it("Legacy's picture cards are untouched", () => {

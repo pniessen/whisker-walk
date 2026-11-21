@@ -262,9 +262,17 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
   const hw = w / 2;
   const hd = d / 2;
   const [a, b] = colors;
-  // the back and half-depth sides, in the stall's colour with a pale dado
+  // the back and half-depth sides, in the stall's colour (the inside's dado is below)
   box(P, w, 2.1, 0.08, 0, 0, -hd + 0.04, a, { shade: 0.86 });
-  box(P, w - 0.3, 0.9, 0.03, 0, 0.1, -hd + 0.1, b, { shade: 0.95 });
+  // the inside of the back, a dado and a board over it, is on the glow list
+  // (beauty round two): at dusk the stall's inside is softly lamp-lit, by day
+  // it is paint, shaded by the roof like the rest. Both are the stall's own
+  // colour, a shade darker, a touch warmed: a pane glows in its paint's colour
+  // and as bright as it (fairkit.js GLOW_LOOK.pane), so a pale board burned
+  // white at dusk, and this glows the stall's colour, under the bloom
+  const inside = new THREE.Color(a).lerp(new THREE.Color(0xffa040), 0.12).getHex();
+  box(K.bulbs, w - 0.3, 0.9, 0.03, 0, 0.1, -hd + 0.1, inside, { shade: 0.72 });
+  box(K.bulbs, w - 0.3, 0.86, 0.03, 0, 1.08, -hd + 0.1, inside, { shade: 0.62 });
   for (const s of [-1, 1]) {
     box(P, 0.08, 2.1, 1.3, s * (hw - 0.04), 0, -hd + 0.65, a, { shade: 0.92 });
     for (const pz of [-hd + 0.05, hd - 0.05]) box(P, 0.1, 2.2, 0.1, s * (hw - 0.05), 0, pz, C.white);
@@ -318,7 +326,7 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
     }
     box(K.bulbs, 1.9, 0.5, 0.08, 0, roofY, hd + 0.2, C.gold, { shade: 0.74 }); // on the glow list: it lights at dusk
     box(P, 1.6, 0.3, 0.1, 0, roofY + 0.1, hd + 0.2, a);
-    for (let i = 0; i < 8; i++) bulb(K.bulbs, -hw + 0.1 + i * ((w - 0.2) / 7), roofY - 0.2, fz + 0.06, BULB_COLORS[(i + salt) % BULB_COLORS.length]);
+    for (let i = 0; i < 8; i++) bulb(K.bulbs, -hw + 0.1 + i * ((w - 0.2) / 7), roofY - 0.2, fz + 0.075, BULB_COLORS[(i + salt) % BULB_COLORS.length]);
   } else {
     stripes(K.canvas, 2.35, 2.2, 0, STALL.tentY, [a, b], 0, 0, 0, { sides: 12 });
     stripes(K.canvas, 2.36, 2.2, 2.36, 2.2, [b, a], 0, 0, 0, { sides: 12, scallop: 0.3 });
@@ -917,7 +925,13 @@ export function meshesOf(K, glow, prefix = 'fair') {
   if (K.solid.length) out.push(meshOf(K.solid, prefix + 'Props', { roughness: 0.65 }));
   if (K.canvas.length) out.push(canvasOf(K.canvas, prefix + 'Canvas'));
   if (K.flags.length) out.push(canvasOf(K.flags, prefix + 'Bunting', { noCast: true }));
-  if (K.bulbs.length) out.push(glowMesh(K.bulbs, prefix + 'Bulbs', glow));
+  if (K.bulbs.length) {
+    // receives the sun's shadow: by day the stalls' lit insides and sign
+    // boards are shaded like paint (a shadow never dims the dusk glow)
+    const lit = glowMesh(K.bulbs, prefix + 'Bulbs', glow);
+    lit.receiveShadow = true;
+    out.push(lit);
+  }
   if (K.balloons.length) out.push(meshOf(K.balloons, prefix + 'Balloons', { roughness: 0.25, noCast: true }));
   if (K.fence.length) out.push(canvasOf(K.fence, prefix + 'Fence', { noCast: true }));
   return out;

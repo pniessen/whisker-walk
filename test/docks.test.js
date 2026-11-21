@@ -458,30 +458,9 @@ describe('The Old Docks — the eleventh journal critter', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// This wave's characteristic failure has been a fully-built thing that nothing
-// calls. The catalog entry alone is not enough: startWalk indexes an AREAS map
-// in src/game/walk.js, and an area missing from it throws the moment the
-// player presses Walk. walk.js cannot be imported here (it pulls in the whole
-// render stack), so the registration is asserted against the source text.
-// ---------------------------------------------------------------------------
-describe('The Old Docks — actually registered', () => {
-  const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-
-  it('is imported and present in walk.js’s AREAS map', () => {
-    expect(walkSrc).toMatch(/import \* as docks from '\.\.\/world\/docks\.js';/);
-    const map = walkSrc.match(/const AREAS = \{([^}]*)\}/);
-    expect(map).toBeTruthy();
-    expect(map[1]).toContain('docks');
-  });
-
-  it('has an AREAS entry for every buyable area in the catalog', () => {
-    const map = walkSrc.match(/const AREAS = \{([^}]*)\}/)[1];
-    for (const id of Object.keys(CATALOG.areas)) {
-      expect(map, `area '${id}' is in the catalog but not in walk.js's AREAS`).toContain(id);
-    }
-  });
-});
+// The Old Docks' registration (a catalog place that nothing can build) is
+// test/areas.test.js's: every place a child can walk has a loader, and each
+// loader hands over its own builder.
 
 // ---------------------------------------------------------------------------
 // v20 — the surface/water/wind pilot.
@@ -622,7 +601,7 @@ describe('the surface wave is actually wired up', () => {
   });
 
   it('threads the tier and reducedMotion into the area builders', () => {
-    expect(walkSrc).toMatch(/build\(scene, \{ water: \{ quality: tier, reducedMotion \}, wind \}\)/);
+    expect(walkSrc).toMatch(/build\(scene, \{ water: \{ quality: tier, reducedMotion \}, wind, gateEnds \}\)/);
   });
 
   it('disposes both alongside the other per-walk systems', () => {

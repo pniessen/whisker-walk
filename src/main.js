@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { coatColor, CAT_LOOK_Y } from './cat/model.js';
+import { resumableAreaIds, roofsOn } from './roofsflag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -46,10 +47,13 @@ import { createGuideWalk } from './game/guidewalk.js';
 import { createGuideBubble } from './ui/guidebubble.js';
 import { createButtonUses } from './ui/buttonwords.js';
 import { tickAutoSniff } from './game/autosniff.js';
+import { createAreaLoader } from './game/areaload.js';
+import { effectiveArea } from './edition.js';
 import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode, SKIP_LESSON_ID, PAUSE_SOUND_ID, PAUSE_MUSIC_ID, PAUSE_VIEW_CLASS, pauseSoundOf } from './game/walk.js';
 import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
 import { shareYarn, toyForState } from './game/yarnshare.js';
+import { liftForState } from './remotecats.js';
 import { placeInMouth } from './carryables.js';
 import { hintMax } from './hints.js';
 import { line as tutorialLine } from './tutorialwords.js';
@@ -61,7 +65,7 @@ import { createCrossing, swallowsCanvasClick } from './game/crossing.js';
 import { createFindCard, shadowMinPartNow } from './game/findcard.js';
 import { findBusy, handleFindArrival } from './foundwear/play.js';
 import { tickFindNose } from './foundwear/live.js';
-import { readResume, writeResume, clearResume, markTried, snapshotWalk, settleAbandoned } from './game/walkresume.js';
+import { readResume, writeResume, clearResume, snapshotWalk, settleAbandoned, pickUpWalk } from './game/walkresume.js';
 import { sheetTopFrom } from './fightcam.js';
 import { diagnostics, note, listenForErrors } from './diagnostics.js';
 import { createFrameGuard, claimAutoReload, stuckNoticeHtml, WALK_ENDED_LINE, RELOAD_BUTTON_ID } from './game/recovery.js';
@@ -386,6 +390,10 @@ function init() {
     // v21 Stream 2: who may show a live 'colony-feed' (display only).
     getPartner: () => progression.state.colony?.partner ?? null,
     onBorderCross: (s, ev) => crossing?.onRemote(s, ev),
+    // World map step 3: a room walks on together (src/game/crossing.js).
+    onWalkOn: (s, ev) => crossing?.onRemoteWalkOn(s, ev),
+    onWalkOnAsk: (s, ev) => crossing?.onWalkOnAsk(s, ev),
+    onWalkOnHave: (s, ev) => crossing?.onWalkOnHave(s, ev),
   });
 
   // Photo mode (src/game/photo.js). renderFrame/noteGoal are hoisted
@@ -432,6 +440,11 @@ function init() {
     player, progression, log, hud, audio, catVoice, snapPhoto,
     petNameFor, completeBoop, colonySync,
     askCrossing: (s, d) => crossing?.ask(s, d),
+    // World map step 3: a gate's cards, and the place beyond fetched as she
+    // nears a gate she can go through or open.
+    askGate: (s, d) => crossing?.askGate(s, d),
+    askGateBuy: (s, d) => crossing?.askGateBuy(s, d),
+    prefetchArea: (id) => areas.prefetch(id),
   });
 
   // Per-frame avatar/moment updates (src/game/avatar.js).
@@ -440,10 +453,16 @@ function init() {
     petNameFor, completeTag, noteBat,
   });
 
+  // F6: the place loader (game/areaload.js). Made before the rooms, which
+  // start fetching a gathered start's place (prefetchArea), and the walk
+  // lifecycle below, which waits for it.
+  const areas = createAreaLoader();
   // Co-walk room lobby + profile push (src/game/rooms.js). It owns
   // pendingRoom; the walk lifecycle reads it back through getPendingRoom /
-  // clearPendingRoom below. startWalk is passed as a thunk because it is
-  // declared further down — nothing can reach it before init() returns.
+  // clearPendingRoom below. Its startWalk is the walk's startWalkWhenReady
+  // (a room start waits for its place like any start), passed as a thunk
+  // because it is declared further down — nothing can reach it before init()
+  // returns.
   const {
     rooms, pushProfileNow, getPendingRoom, clearPendingRoom, startRoomTogether,
   } = createRooms({
@@ -451,8 +470,10 @@ function init() {
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
     progression, getCloud, getPsecret, colonySync, onlineAllowed: togetherAllowed,
+    getIsTouch: () => isTouch,
     getSession: () => session,
-    startWalk: (opts) => startWalk(opts),
+    startWalk: (opts) => startWalkWhenReady(opts),
+    prefetchArea: (id) => areas.prefetch(id),
     toast: cloudToast,
   });
   // Nearby one-tap joining (src/game/nearby.js): in the app, the shell finds
@@ -486,8 +507,13 @@ function init() {
   // it — and hands the module accessors for it. getHomebase is a thunk
   // because homebase is created below (it takes beginWalkFromHomebase as its
   // Start handler), and nothing calls back into it before init() returns.
+  //
+  // F6: every place is its own download. `areas` (game/areaload.js, made
+  // above the rooms) fetches and keeps them; every walk start goes through
+  // startWalkWhenReady, which waits for its place with home up, and a place
+  // that does not come is one gentle line on the home screen (cloudToast).
   const {
-    beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing,
+    beginWalkFromHomebase, beginDenWalk, startWalkWhenReady, endWalk, takeCrossing, walkOn,
   } = createWalkLifecycle({
     MP, pid, coarse, envMap, overlay, blockList,
     renderer, camera, composerRig,
@@ -507,6 +533,14 @@ function init() {
     // purr outlive the walk it was in.
     onWalkEnded: () => { clearResume(window.localStorage); haptics.stopPurr(); tips.end(); },
     buttonUses,
+    areas,
+    homeToast: cloudToast,
+    // World map step 3: a walk-on banks the walk without a summary, so what
+    // the summary would have said is toasted in the next walk, and the save
+    // goes up as the summary's Continue would send it. A walk-on that waits
+    // for its place pauses the walk as ⏸ does.
+    onWalkedOn: (lines) => { for (const l of lines) hud.toast(l); sync.autoSync(); },
+    releaseControl: () => handleTouchAction('pause'),
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -517,6 +551,13 @@ function init() {
     getIsTouch: () => isTouch,
     getEdition: () => progression.state.edition,
     getSound: pauseSound,
+    prefetchArea: (id) => areas.prefetch(id),
+    walkOn, progression,
+    // A room walks on together: who is in it (every member's room profile),
+    // its net, and the place load every device waits for before anyone moves.
+    getRoster: () => getPendingRoom()?.roster ?? [],
+    getRoomNet: () => getPendingRoom()?.net ?? null,
+    ensureArea: (id) => areas.ensure(id),
   });
   // Found outfits: the find card (src/game/findcard.js), Wear it / Later in
   // the pause overlay. Wear it dresses her cat in place, at the shadow trim
@@ -538,7 +579,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby });
+  const homebase = createHomeBase({ progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onVisitDen: beginDenWalk, colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the
@@ -547,7 +588,7 @@ function init() {
   // closed in the middle of. Read once, here. A walk left too long is settled
   // now, before the home screen draws its numbers; one still fresh is picked
   // up at the end of init (see "Mid-walk resume" above the render loop).
-  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: Object.keys(progression.state.walks) });
+  const leftWalk = readResume(window.localStorage, { now: Date.now(), areaIds: resumableAreaIds(progression.state.walks) });
   if (leftWalk?.kind === 'stale') {
     clearResume(window.localStorage);
     settleAbandoned(progression, leftWalk.data);
@@ -558,6 +599,13 @@ function init() {
   const resuming = leftWalk?.kind === 'resume';
   const visit = resuming ? { visits: progression.state.visits, milestone: null } : progression.recordVisit();
   homebase.show();
+  // F6: fetch her own place and the den now, so Explore and the den button
+  // usually find them already here. ?roofs=1 fetches the Rooftops too (her
+  // Explore goes there); without the switch nothing fetches it. A failure here
+  // is quiet: the start itself tries again, and says so if it cannot.
+  areas.prefetch(effectiveArea(progression.state, CATALOG));
+  areas.prefetch('den');
+  if (roofsOn()) areas.prefetch('roofs');
   // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
   const showFarewell = () => {
     if (resuming) return; // kept for a launch that opens at home
@@ -677,6 +725,12 @@ function init() {
   bus.on('purr:end', () => haptics.stopPurr());
   bus.on('player:lockchange', ({ locked }) => {
     if (!locked) haptics.stopPurr(); // paused: the purr stops with the walk
+    // A walk-on waiting for its place: the "Off to ..." moment stays up over
+    // the paused walk, and a re-lock gives control straight back.
+    if (locked && session?.walkingOn) {
+      handleTouchAction('pause');
+      return;
+    }
     if (session) overlay.classList.toggle('hidden', locked);
     // The first engage is the walk beginning: from here on the card behind
     // the walk is the "Paused" one (walk.js pauseCardFor), and a touch walk
@@ -717,6 +771,7 @@ function init() {
     }
   });
   function resumeWalk() {
+    if (session?.walkingOn) return; // the "Off to ..." moment: the place is on its way
     if (isTouch) player.setTouchEngaged(true);
     else Promise.resolve(canvas.requestPointerLock()).catch(() => {}); // refused without a click: the pause card stays
   }
@@ -765,6 +820,10 @@ function init() {
     if (e.target.id === SKIP_LESSON_ID && session) guideWalk.skip(session);
     if (e.target.id === 'btn-cross-yes') crossing.confirm();
     if (e.target.id === 'btn-cross-no') crossing.cancel();
+    // A gate's "Get it?" card (gatecross.js gateBuyHtml): Yes only from a
+    // deliberate tap (crossing.buyYes reads the click), Not now buys nothing.
+    if (e.target.id === 'confirm-card-yes') crossing.buyYes(e);
+    if (e.target.id === 'confirm-card-no') crossing.cancel();
     if (e.target.id === 'btn-find-wear') findCard.wear();
     if (e.target.id === 'btn-find-later') findCard.later();
     if (e.target.id === RELOAD_BUTTON_ID) window.location.reload();
@@ -789,6 +848,7 @@ function init() {
     const action = walkBackAction({
       summary: summaryUp(),
       walking: !!session,
+      walkingOn: !!session?.walkingOn,
       shopAsk: denShop.isAsking,
       shop: denShop.isOpen,
       findCard: !!session?.findCard,
@@ -964,23 +1024,16 @@ function init() {
   // Mid-walk resume: pick up the walk the game was closed in. Last in init,
   // when everything a walk touches exists; the boot splash is still up, and
   // startWalk hides the home screen behind it (a visit celebration closes as
-  // it does for any walk). The try is counted BEFORE the build: a walk that
-  // cannot be rebuilt is settled on a later launch (RESUME_MAX_TRIES) rather
-  // than tried forever.
+  // it does for any walk). walkresume.js's pickUpWalk counts the try before
+  // the build, waits for the place like any start (home is up meanwhile; a
+  // place that does not come leaves the note for a later launch), and settles
+  // a build that throws, starting the page again if a session got half-built.
   if (resuming) {
-    const note = markTried(window.localStorage, leftWalk.data);
-    try {
-      startWalk({ duskMode: note.dusk, areaOverride: note.areaId, resume: note });
-    } catch (err) {
-      console.warn('Whisker Walk: could not pick the walk up', err);
-      note('resume', err);
-      // The walk counts as finished and is forgotten. If it got as far as a
-      // half-built session, start the page again clean: with the note gone
-      // that opens at home, once.
-      clearResume(window.localStorage);
-      settleAbandoned(progression, note);
-      if (session) window.location.reload();
-    }
+    pickUpWalk({
+      storage: window.localStorage, data: leftWalk.data, progression,
+      startWalkWhenReady, getSession: () => session,
+      reload: () => window.location.reload(), note,
+    });
   }
   // The frame guard (src/game/recovery.js holds the policy and its numbers).
   // A throw used to repeat on every frame with the game frozen. Now one is
@@ -1007,7 +1060,7 @@ function init() {
       session = null;
     }
     try { player.disable(); } catch { /* the notice matters more */ }
-    overlay.innerHTML = stuckNoticeHtml(kind);
+    overlay.innerHTML = stuckNoticeHtml(kind, { touch: isTouch });
     overlay.classList.remove('hidden');
     perfHud.showDiagnostics();
   }
@@ -1374,7 +1427,7 @@ function init() {
       // Clouds take the same absolute t and follow the camera, so after player.update too.
       session.clouds.update(t);
       session.ambient.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
-      session.remotes.update(dt, nowSec(), session.areaData.waters);
+      session.remotes.update(dt, nowSec(), session.areaData.waters, session.fair);
       // Splashes, ripples and the wake for my cat, then each placed co-walker.
       session.splash.track(player.waterState, session.cat.position.x, session.cat.position.z, session.cat.rotation.y, player.speed, session.cat.scale.y, dt, player.hopY);
       for (const r of session.remotes.list) {
@@ -1388,7 +1441,8 @@ function init() {
       // makes a sound: a flap's soft thunk, a hedge's rustle.
       pushMovers.length = 0;
       pushMovers.push(session.cat.position);
-      for (const r of session.remotes.list) pushMovers.push(r.group.position);
+      // (only cats drawn yet: one still waiting for its first state pushes nothing)
+      for (const r of session.remotes.placed) pushMovers.push(r.group.position);
       for (const push of session.pushThroughs.update(dt, pushMovers)) {
         if (push.by === 0) (push.kind === 'gap' ? audio.zoomWind() : audio.landThump());
       }
@@ -1406,7 +1460,8 @@ function init() {
         mapFrame.camp = session.campMarker;
         mapFrame.posts = session.postMarkers;
         mapRemotes.length = 0;
-        for (const r of session.remotes.list) {
+        // a co-walker's dot from its first state, as its cat is drawn (remotecats.js)
+        for (const r of session.remotes.placed) {
           let dot = mapRemotePool[mapRemotes.length];
           if (!dot) { dot = { x: 0, z: 0, color: 0 }; mapRemotePool.push(dot); }
           dot.x = r.group.position.x;
@@ -1451,6 +1506,10 @@ function init() {
             pose: session.pose,
             speed: player.speed,
             toy: toyForState(session.toy),
+            // her height on a perch or seat, and the seat (remotecats.js liftForState)
+            ...liftForState(player.perchY, session.fair.riding),
+            // the place she is in: a co-walker elsewhere does not draw her
+            area: session.areaId,
           });
         }
       }

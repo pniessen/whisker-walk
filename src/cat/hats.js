@@ -18,7 +18,8 @@ import { SKULL } from './torso.js';
 // Hagrid still wears the old prize head items (model.js addPrizeHead); only
 // the cat's head slot builds these.
 
-export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap'];
+export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -216,7 +217,7 @@ function drapedBrim(cx, cz, profile, segs, wave = () => 0) {
     const f = (row.r - profile[0].r) / (profile[profile.length - 1].r - profile[0].r || 1);
     const x = cx + Math.sin(th) * row.r, z = cz - Math.cos(th) * row.r;
     const [p, n] = drape(new THREE.Vector3(x, skullY(x, z), z), row.d + wave(th, Math.max(0, Math.min(1, f))));
-    return { p, c: row.c, out: row.out ? n : null };
+    return { p, c: typeof row.c === 'function' ? row.c(i, j) : row.c, out: row.out ? n : null };
   });
 }
 
@@ -687,45 +688,454 @@ function candlehat(simple) {
   return finish('candlehat', parts);
 }
 
-// Acorn Cap (found outfits step 1): an acorn's cup worn as a cap. A shell on
-// the skull's radii x 1.05 from the crown down to a rim high on the brow and
-// lower at the back, checkered cup/scale colours, a narrow lip draped on the
-// skull under the rim (its lower edge lies on the head: the seat sweep), and a
-// short stalk tipped toward +x.
-const ACORN = { shell: 1.05, rimFront: 0.11, rimBack: 0.06, lipH: 0.018, stalkR: 0.011, stalkL: 0.05, tilt: 0.35 };
-const ACORN_CUP = 0x8a5a2b, ACORN_SCALE = 0x6b4220, ACORN_STALK = 0x5a3a1c;
+// --- small pieces the found hats share (found outfits beauty pass) -----------
+
+// A flat rosette facing `n` round `at`: `pts` rim points at radius r(a, k)
+// (a from `up`, toward up x n), a domed front centre and a flatter back one,
+// rim k coloured rim(k); the back a shade darker. 2 * pts triangles.
+function rosette(at, n, up, pts, r, rim, centreHex, depth) {
+  const x = new THREE.Vector3().crossVectors(up, n).normalize();
+  const y = new THREE.Vector3().crossVectors(n, x).normalize();
+  const P = [], C = [], idx = [];
+  const push = (v, c) => { P.push(v); C.push(rgb(c)); return P.length - 1; };
+  const f = push(at.clone().addScaledVector(n, depth), centreHex);
+  const b = push(at.clone().addScaledVector(n, -depth * 0.4), shade(centreHex, 0.7));
+  const rf = [], rb = [];
+  for (let k = 0; k < pts; k++) {
+    const a = (k / pts) * Math.PI * 2, rr = r(a, k);
+    const v = at.clone().addScaledVector(y, Math.cos(a) * rr).addScaledVector(x, Math.sin(a) * rr);
+    rf.push(push(v, rim(k))); rb.push(push(v.clone(), shade(rim(k), 0.72)));
+  }
+  for (let k = 0; k < pts; k++) { const j = (k + 1) % pts; idx.push(f, rf[k], rf[j], b, rb[j], rb[k]); }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P.flatMap((v) => [v.x, v.y, v.z])), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(C.flatMap((c) => [c.r, c.g, c.b])), 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return orient(geo, [[f, n]]);
+}
+
+// A ribbon bow at `at` facing out along `n`, `up` its up: two flattened
+// loops either side, a knot, two short tails. Blobs, so it is round from
+// every side; built along the axes, then turned into place.
+function bow(at, n, up, hex, size, simple) {
+  const [w, h] = simple ? [5, 3] : [6, 4];
+  const parts = [-1, 1].map((s) => blob(size, w, h, new THREE.Vector3(size * 0.2, size * 0.15, s * size * 0.95), [0.38, 0.62, 1.05],
+    (uy) => mix(hex, shade(hex, 0.7), Math.max(0, -uy) * 0.8)));
+  parts.push(blob(size * 0.42, w - 1, h - 1, new THREE.Vector3(size * 0.35, 0, 0), [0.7, 0.9, 0.9], shade(hex, 0.85)));
+  if (!simple) for (const s of [-1, 1]) {
+    parts.push(blob(size * 0.5, 4, 3, new THREE.Vector3(size * 0.25, -size * 0.75, s * size * 0.45), [0.3, 1.3, 0.55], shade(hex, 0.92)));
+  }
+  const z = new THREE.Vector3().crossVectors(n, up).normalize(), y = new THREE.Vector3().crossVectors(z, n).normalize();
+  const m = new THREE.Matrix4().makeBasis(n.clone().normalize(), y, z).setPosition(at);
+  for (const g of parts) { g.applyMatrix4(m); g.computeVertexNormals(); }
+  return parts;
+}
+
+// Acorn Cap (found outfits step 1; beauty pass): an acorn's cup worn as a cap.
+// A shell on the skull's radii x 1.05 from the crown down to a rim high on the
+// brow and lower at the back, knobbly with scales (every other vertex pushed
+// out, darker; offset rows of them), paling toward the crown; a rolled lip under the rim (its lower
+// edge lies on the head: the seat sweep), a curved stalk tipped toward +x, and
+// an autumn oak leaf lying on the cap beside it.
+const ACORN = { shell: 1.05, rimFront: 0.113, rimBack: 0.06, lipH: 0.018, stalkR: 0.011, stalkL: 0.05, tilt: 0.35, knob: 0.03 };
+const ACORN_CUP = 0x8a5a2b, ACORN_SCALE = 0x6b4220, ACORN_STALK = 0x5a3a1c, ACORN_TOP = 0xb07a45, ACORN_LEAF = [0xe8902a, 0xc4561c, 0xf6c25a];
 const acornRim = (phi) => (ACORN.rimFront + ACORN.rimBack) / 2 + ((ACORN.rimFront - ACORN.rimBack) / 2) * Math.cos(phi);
 function acorncap(simple) {
-  const segs = simple ? 12 : 24, rows = simple ? 5 : 7;
+  const segs = simple ? 14 : 28, rows = simple ? 6 : 10;
   const shell = grid(segs, rows, { wrapU: true }, (i, j) => {
     const phi = (i / segs) * Math.PI * 2;
     const thRim = Math.acos(Math.min(1, acornRim(phi) / SB));
     const th = (j / (rows - 1)) * thRim;
     const u = new THREE.Vector3(Math.sin(th) * Math.sin(phi), Math.cos(th), -Math.sin(th) * Math.cos(phi));
-    const p = new THREE.Vector3(u.x * SA, u.y * SB, u.z * SC).multiplyScalar(ACORN.shell);
-    return { p, c: (i + j) % 2 ? ACORN_SCALE : ACORN_CUP, out: u };
+    // scales: a bump on every other vertex of every other row, the rows offset
+    const knob = j % 2 === 1 && j < rows - 1 && (i + (j >> 1)) % 2 === 0;
+    const p = new THREE.Vector3(u.x * SA, u.y * SB, u.z * SC).multiplyScalar(ACORN.shell * (knob ? 1 + ACORN.knob : 1));
+    const pale = (1 - j / (rows - 1)) ** 2 * 0.55;
+    return { p, c: knob ? mix(ACORN_SCALE, ACORN_CUP, pale) : j === rows - 1 ? ACORN_CUP : mix(ACORN_CUP, ACORN_TOP, pale), out: u };
   });
-  // the lip: two rows on the skull; the upper flares out to meet the shell's rim, the lower lies 3 mm off the head
-  const lip = grid(segs, 2, { wrapU: true }, (i, j) => {
+  // the lip: rolled, three rows on the skull; the top meets the shell's rim, the middle bulges (catching the light), the lowest lies 3 mm off the head
+  const lip = grid(segs, 3, { wrapU: true }, (i, j) => {
     const phi = (i / segs) * Math.PI * 2;
-    const [p, n] = drape(ringPoint(phi, acornRim(phi) - j * ACORN.lipH), j ? 0.003 : 0.012);
-    return { p, c: ACORN_SCALE, out: n };
+    const [p, n] = drape(ringPoint(phi, acornRim(phi) - j * ACORN.lipH * 0.5), [0.012, 0.0112, 0.003][j]);
+    return { p, c: [ACORN_SCALE, mix(ACORN_CUP, ACORN_TOP, 0.4), shade(ACORN_SCALE, 0.8)][j], out: n };
   });
-  // the stalk: from just inside the crown, tipped toward +x
+  // the stalk: from just inside the crown, tipped toward +x and curling further
   const top = SB * ACORN.shell;
-  const dir = new THREE.Vector3(Math.sin(ACORN.tilt), Math.cos(ACORN.tilt), 0);
-  const centres = [0, 0.5, 1].map((k) => new THREE.Vector3(0, top - 0.006, 0).addScaledVector(dir, (ACORN.stalkL + 0.006) * k));
+  const centres = [0, 0.4, 0.75, 1].map((k) => {
+    const a = ACORN.tilt + 0.5 * k * k;
+    return new THREE.Vector3(Math.sin(a) * (ACORN.stalkL + 0.006) * k, top - 0.006 + Math.cos(ACORN.tilt) * (ACORN.stalkL + 0.006) * k, 0);
+  });
   const normals = centres.map(() => new THREE.Vector3(0, 0, -1));
-  const stalk = tube(centres, normals, { sides: simple ? 4 : 6, radius: (i) => ACORN.stalkR * (i === 2 ? 0.8 : 1), colour: () => ACORN_STALK });
-  return finish('acorncap', [shell, lip, stalk]);
+  const stalk = tube(centres, normals, { sides: simple ? 4 : 6, radius: (i) => ACORN.stalkR * [1, 0.9, 0.85, 0.7][i], colour: (i) => (i === 3 ? mix(ACORN_STALK, ACORN_TOP, 0.5) : ACORN_STALK) });
+  return finish('acorncap', [shell, lip, stalk, oakLeaf(simple)]);
+}
+// An autumn oak leaf lying on the cap, its stem by the stalk, running down
+// toward the front right; lobed, its tip curling up, an orange midrib.
+function oakLeaf(simple) {
+  const nu = simple ? 5 : 9, len = 0.095, width = 0.052;
+  const [c0, n0] = drape(new THREE.Vector3(0.006, SB, -0.012), 0);
+  const dir = new THREE.Vector3(0.5, 0, -0.87).addScaledVector(n0, 0.87 * n0.z - 0.5 * n0.x).normalize();
+  const across = new THREE.Vector3().crossVectors(n0, dir).normalize();
+  return grid(nu, 3, {}, (i, j) => {
+    const u = i / (nu - 1), w = j - 1;
+    const lobes = simple ? 1 : 0.62 + 0.38 * Math.abs(Math.sin(u * Math.PI * 3));
+    const half = (width / 2) * Math.sin(Math.PI * Math.min(1, u * 1.08)) ** 0.7 * lobes;
+    const q = c0.clone().addScaledVector(dir, 0.01 + u * len).addScaledVector(across, w * half);
+    const [p, n] = drape(q, ACORN.shell * SB - SB + 0.007 + (w === 0 ? 0.002 : 0) + 0.016 * u * u);
+    return { p, c: w === 0 ? ACORN_LEAF[2] : ACORN_LEAF[(i + (w > 0 ? 1 : 0)) % 2], out: n };
+  });
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap };
+// --- found hats with brims (found outfits step 2, lane H; beauty pass) -------
+//
+// Five hats in the beanie's and the top hat's manner: the crown's bottom ring
+// is DRAPED on the skull (3 mm off it), so the lowest rim lies on the head
+// all the way round, and a brim is draped from that same ring, so it follows
+// the head's curve down to the ears (which poke through, as ear holes). A
+// wide brim keeps off the eyes by sitting back on the head (cz > 0): its
+// front edge is high on the forehead (the test: lowBrow > eyeTop + 0.015).
 
-export function buildHat(id, { simple = false } = {}) {
+// A front-only peak: for th within +-span of the front, a stiff flap that runs
+// out from the rim point baseAt(th) along the way the head faces, dropping
+// `slope` per unit out, shorter toward its ends. `top` paints the upper face
+// by its share of the way out (a stitch line, a shine), with a row of its own
+// at each share in `marks`; the underside and the edge are a shade darker.
+function frontPeak(baseAt, span, len, slope, hex, n, top = () => hex, marks = []) {
+  const dirAt = (th) => new THREE.Vector3(Math.sin(th), 0, -Math.cos(th));
+  const rows = [[0, -0.002, -1], [1, -0.002, -1], [1.02, 0.0015, 0], [1, 0.005, 1], ...marks.map((w) => [w, 0.008 - 0.003 * w, 1]), [0, 0.008, 1]];
+  return grid(n, rows.length, {}, (i, j) => {
+    const th = -span + (2 * span * i) / (n - 1);
+    const [w, lift, up] = rows[j];
+    const reach = len * Math.max(0, Math.cos((th / span) * Math.PI / 2)) ** 0.6 * w;
+    const p = baseAt(th).clone().addScaledVector(dirAt(th), reach).add(new THREE.Vector3(0, lift - slope * reach, 0));
+    return { p, c: up > 0 ? top(w, j) : shade(hex, up < 0 ? 0.72 : 0.85), out: up ? new THREE.Vector3(0, up, 0) : dirAt(th) };
+  });
+}
+
+// The round hats (Bucket Hat, Sailor Cap, Straw Hat, Striped Boater). `spec`:
+//   at [cx, cz]   the crown's centre on the head (xz); cz > 0 sits it back
+//   crownR        the crown's radius where it meets the skull
+//   taper         its radius at the top, as a share of crownR
+//   flare         [from, to]: the crown widens to `taper` between these shares
+//                 of the wall (default: evenly up it)
+//   crownH        how far its top stands above the skull's top
+//   crownTop      'round' (a soft dome) or 'flat' (a disc)
+//   brimW         the brim's width past the crown (0: none)
+//   brimDroop     how much thinner the brim's outer edge is than its inner
+//   wall          [[share of the wall, colour], ...] bottom to top: a band is
+//                 rows of its colour low on the wall, close rows a crisp edge
+//                 (a null colour is the crown's own); wallSimple, the simple
+//                 build's
+//   cap           [[radius share, colour], ...] a flat top's rings, rim in
+//   segs, domeRows a full build's columns (24) and dome rows (3)
+//   crown, brim   colours (a function (column, row) -> hex paints a weave)
+//   rings         [[share of the brim's width, colour, soft], ...] stitched
+//                 rings (soft: one row, a woven band rather than a line); a
+//                 colour may be a function of the column
+//   edge          the brim's bound edge colour (default: the brim's)
+//   wave(th, f)   lifts the brim (f 0 inner edge .. 1 outer edge)
+//   peak          { len, slope, span, c, shine } a front peak on the crown's foot
+//   extra(parts, kit, simple) adds trims (a badge, a bow, a flower); kit.wallAt(th, f, out)
+//                 is [point, outward] on the wall, th 0 the front, +pi/2 the +x side
+const STRAW = [0xe3c26b, 0xcfa94e], STRAW_DARK = [0xc9a24a, 0xb08a36], STRAW_PALE = [0xeed28a, 0xdcbc68];
+const BRIM_HATS = {
+  buckethat: {
+    at: [0, 0.02], crownR: 0.12, taper: 0.86, crownH: 0.05, crownTop: 'round', brimW: 0.062, brimDroop: 0.006, segs: 20, domeRows: 2,
+    crown: 0xe9c46a, brim: 0xe9c46a,
+    wall: [[0, 0x2fa6a0], [0.36, 0x2fa6a0], [0.4, 0xf7f3e8], [0.44, 0x2fa6a0], [0.52, 0x2fa6a0], [0.56, 0xe9c46a], [0.76, 0xe9c46a], [0.79, 0xc89b3c], [0.82, 0xe9c46a], [1, 0xe9c46a]],
+    wallSimple: [[0, 0x2fa6a0], [0.5, 0x2fa6a0], [0.56, 0xe9c46a], [1, 0xe9c46a]],
+    rings: [[0.38, 0xc89b3c], [0.72, 0xc89b3c]],
+    extra: (parts, { wallAt }, simple) => {
+      // a little pink scallop shell pinned on the band, front left
+      const [p, d] = wallAt(-0.55, 0.3, 0.008), n = d.clone().add(new THREE.Vector3(0, 0.3, 0)).normalize();
+      parts.push(rosette(p, n, new THREE.Vector3(0, 1, 0), simple ? 7 : 11,
+        (a, k) => (Math.cos(a) < -0.8 ? 0.015 : 0.027 * (k % 2 ? 0.86 : 1)), (k) => (k % 2 ? 0xe8735c : 0xf8c0a8), 0xf8c0a8, 0.005));
+    },
+  },
+  sailorcap: {
+    at: [0, 0.03], crownR: 0.14, taper: 1.12, flare: [0.45, 1], crownH: 0.05, crownTop: 'flat', brimW: 0, brimDroop: 0,
+    crown: 0xf2f2ee,
+    wall: [[0, 0x24365c], [0.05, 0x24365c], [0.4, 0x24365c], [0.42, 0xf2c14e], [0.46, 0xf2c14e], [0.48, 0xf2f2ee], [0.85, 0xf2f2ee], [1, 0xe4e4de]],
+    wallSimple: [[0, 0x24365c], [0.05, 0x24365c], [0.42, 0x24365c], [0.46, 0xf2c14e], [0.5, 0xf2f2ee], [1, 0xf2f2ee]],
+    cap: [[1.0, 0xe4e4de], [0.96, 0xf2f2ee], [0.001, 0xfafaf6]],
+    peak: { len: 0.048, slope: 0.2, span: 0.9, c: 0x1c1c22, shine: 0x4a4a58 },
+    extra: (parts, { wallAt }, simple) => {
+      // a gold anchor on the band's front, a gold button at each end of the peak
+      const GOLD = 0xf2c14e;
+      for (const th of [-0.85, 0.85]) parts.push(blob(0.0058, 5, 3, wallAt(th, 0.22, 0.002)[0], [1, 1, 1], GOLD));
+      const [c, cN] = wallAt(0, 0.22, 0.004), X = new THREE.Vector3(1, 0, 0), U = new THREE.Vector3().crossVectors(cN, X).normalize();
+      if (U.y < 0) U.negate();
+      const at = (x, y) => c.clone().addScaledVector(X, x).addScaledVector(U, y);
+      const a = 0.0125, stroke = (pts, r) => tube(pts, pts.map(() => cN), { sides: 4, radius: () => r, colour: (i, ang) => (Math.cos(ang) > 0 ? GOLD : shade(GOLD, 0.8)) });
+      parts.push(stroke([at(0, -a), at(0, a * 0.8)], 0.0024), stroke([at(-a * 0.55, a * 0.42), at(a * 0.55, a * 0.42)], 0.0021));
+      const arc = [], m = simple ? 3 : 6;
+      for (let k = 0; k <= m; k++) { const t = Math.PI * (0.1 + 0.8 * k / m); arc.push(at(-Math.cos(t) * a * 0.8, -a * 0.3 - Math.sin(t) * a * 0.62)); }
+      parts.push(stroke(arc, 0.0021), blob(0.0042, 5, 3, at(0, a * 0.98), [1, 1, 1], GOLD));
+    },
+  },
+  strawhat: {
+    at: [0, 0.02], crownR: 0.105, taper: 0.93, crownH: 0.055, crownTop: 'round', brimW: 0.08, brimDroop: 0.003, segs: 20,
+    crown: (i, j) => STRAW[(i + j) % 2],
+    brim: (i, j) => STRAW[(i + j) % 2],
+    wall: [[0, 0xc0392b], [0.34, 0xc0392b], [0.38, null], [1, null]],
+    wallSimple: [[0, 0xc0392b], [0.4, 0xc0392b], [0.45, null], [1, null]],
+    rings: [0.12, 0.26, 0.4, 0.54, 0.68, 0.82].map((q, k) => [q, (i) => (k % 2 ? STRAW_PALE : STRAW_DARK)[i % 2], 1]),
+    edge: 0xb08a36,
+    wave: (th, f) => 0.006 * f * f * (1 + Math.cos(4 * th + 0.5)) / 2,
+    extra: (parts, { wallAt }, simple) => {
+      // a big white daisy tucked in the band, front left
+      const [at, d] = wallAt(-0.6, 0.42, 0.009), n = d.clone().add(new THREE.Vector3(0, 0.35, 0)).normalize();
+      parts.push(rosette(at, n, new THREE.Vector3(0, 1, 0), simple ? 12 : 20, (a, k) => (k % 2 ? 0.016 : 0.034), (k) => (k % 2 ? 0xe8e4d8 : 0xfdfdf5), 0xf2c14e, 0.003));
+      parts.push(blob(0.012, simple ? 5 : 6, 3, at.clone().addScaledVector(n, 0.004), [1, 1, 0.7], (uy) => (uy > 0.3 ? 0xf7c93b : 0xd89a28)));
+    },
+  },
+  stripedboater: {
+    at: [0, 0.01], crownR: 0.105, taper: 1, crownH: 0.06, crownTop: 'flat', brimW: 0.055, brimDroop: 0, segs: 20,
+    crown: 0xe8cf86, brim: 0xe8cf86, edge: 0xc9a85a,
+    wall: [[0, 0xe2433a], [0.2, 0xe2433a], [0.22, 0xf5f5f5], [0.3, 0xf5f5f5], [0.32, 0xe2433a], [0.42, 0xe2433a], [0.44, 0xe8cf86], [0.72, 0xd8bc70], [1, 0xe8cf86]],
+    wallSimple: [[0, 0xe2433a], [0.22, 0xf5f5f5], [0.32, 0xe2433a], [0.44, 0xe8cf86], [1, 0xe8cf86]],
+    cap: [[1.0, 0xd8bc70], [0.72, 0xe8cf86], [0.45, 0xd8bc70], [0.001, 0xf0dc9a]],
+    rings: [[0.55, 0xd8bc70, 1]],
+    extra: (parts, { wallAt }, simple) => {
+      // a red bow on the band's right side
+      const [at, n] = wallAt(Math.PI / 2, 0.27, 0.003);
+      parts.push(...bow(at, n, new THREE.Vector3(0, 1, 0), 0xe2433a, 0.021, simple));
+    },
+  },
+};
+function brimHat(id, spec, simple) {
+  const segs = simple ? 12 : (spec.segs ?? 24);
+  const [cx, cz] = spec.at, r0 = spec.crownR, R = r0 + spec.brimW;
+  const dome = spec.crownTop === 'round' ? spec.crownH * 0.55 : 0;
+  const top = SB + spec.crownH, wallTop = top - dome;
+  const paint = (c, i, j) => (typeof c === 'function' ? c(i, j) : c);
+  // the crown's foot at angle th: the draped ring
+  const footAt = (th) => {
+    const x = cx + Math.sin(th) * r0, z = cz - Math.cos(th) * r0;
+    return drape(new THREE.Vector3(x, skullY(x, z), z), 0.003)[0];
+  };
+  const [f0, f1] = spec.flare ?? [0, 1];
+  const grow = (f) => { const t = Math.min(1, Math.max(0, (f - f0) / (f1 - f0))); return spec.flare ? t * t * (3 - 2 * t) : t; };
+  // a point on the wall: share f of the way from the foot to the wall's top
+  const wallAt = (th, f, out = 0) => {
+    const l0 = footAt(th), dir = new THREE.Vector3(Math.sin(th), 0, -Math.cos(th)), g = grow(f);
+    const p = new THREE.Vector3(l0.x + (cx + dir.x * r0 * spec.taper - l0.x) * g, l0.y + (wallTop - l0.y) * f, l0.z + (cz + dir.z * r0 * spec.taper - l0.z) * g);
+    return [p.addScaledVector(dir, out), dir];
+  };
+  const wall = (simple ? spec.wallSimple : spec.wall) ?? [[0, null], [0.5, null], [1, null]];
+  const capRows = [];
+  const dn = simple ? 2 : spec.domeRows ?? 3;
+  if (dome) for (let k = 1; k <= dn; k++) { const a = (k / dn) * Math.PI / 2; capRows.push({ r: Math.cos(a), y: wallTop + dome * Math.sin(a) }); }
+  else for (const [r, c] of spec.cap ? (simple ? [spec.cap[0], spec.cap[spec.cap.length - 1]] : spec.cap) : [[0.97], [0.001]]) capRows.push({ r, y: top + 0.0015 + 0.003 * (1 - r) * (1 - r), c });
+  const crown = grid(segs, wall.length + capRows.length, { wrapU: true }, (i, j) => {
+    const th = (i / segs) * Math.PI * 2;
+    const dir = new THREE.Vector3(Math.sin(th), 0, -Math.cos(th));
+    let p, c;
+    if (j < wall.length) {
+      p = wallAt(th, wall[j][0])[0];
+      c = wall[j][1] ?? paint(spec.crown, i, j);
+    } else {
+      const cr = capRows[j - wall.length];
+      p = new THREE.Vector3(cx + dir.x * r0 * spec.taper * cr.r, cr.y, cz + dir.z * r0 * spec.taper * cr.r);
+      c = cr.c ?? paint(spec.crown, i, j);
+    }
+    return { p, c, out: p.clone().sub(new THREE.Vector3(cx, 0.05, cz)) };
+  });
+  const parts = [crown];
+  if (spec.brimW > 0) {
+    const dTop = Math.max(0.005, 0.010 - spec.brimDroop);
+    const dAt = (rr) => 0.010 + (dTop - 0.010) * ((rr - r0) / spec.brimW);
+    const bc = (i, j) => paint(spec.brim, i, j);
+    const under = (i, j) => shade(paint(spec.brim, i, j), 0.8);
+    const edge = spec.edge ?? bc;
+    const profile = [{ r: r0, d: 0.003, c: under }, { r: R, d: 0.003, c: under }, { r: R + 0.004, d: (0.003 + dTop) / 2, c: edge, out: 1 }, { r: R, d: dAt(R), c: edge, out: 1 }];
+    if (spec.edge) profile.push({ r: R - 0.006, d: dAt(R - 0.006), c: bc, out: 1 });
+    const rings = [...(simple ? (spec.rings ?? []).slice(0, 1) : spec.rings ?? [])].sort((a, b) => b[0] - a[0]);
+    for (const [q, rc, soft] of rings) {
+      const rs = r0 + q * spec.brimW, c = (i, j) => paint(rc, i, j);
+      if (soft) { profile.push({ r: rs, d: dAt(rs), c, out: 1 }); continue; }
+      profile.push({ r: rs + 0.0018, d: dAt(rs), c: bc, out: 1 }, { r: rs, d: dAt(rs), c, out: 1 }, { r: rs - 0.0018, d: dAt(rs), c: bc, out: 1 });
+    }
+    profile.push({ r: r0, d: 0.010, c: bc, out: 1 });
+    parts.push(drapedBrim(cx, cz, profile, segs, spec.wave));
+  }
+  if (spec.peak) {
+    const { len, slope, span, c, shine } = spec.peak, n = simple ? 7 : 11;
+    parts.push(frontPeak((th) => drape(footAt(th), 0.001)[0], span, len, slope, c, n, (w) => (Math.abs(w - 0.55) < 0.01 ? shine : c), shine ? [0.55] : []));
+  }
+  spec.extra?.(parts, { wallAt }, simple);
+  return finish(id, parts);
+}
+const buckethat = (simple) => brimHat('buckethat', BRIM_HATS.buckethat, simple);
+const sailorcap = (simple) => brimHat('sailorcap', BRIM_HATS.sailorcap, simple);
+const strawhat = (simple) => brimHat('strawhat', BRIM_HATS.strawhat, simple);
+const stripedboater = (simple) => brimHat('stripedboater', BRIM_HATS.stripedboater, simple);
+
+// Paperboy Cap: the beanie's crown (a shell on the skull's radii x 1.05, down
+// to a rim high on the brow and low at the back, a band draped under it), its
+// front puffed forward over the peak, in eight tweed panels with darker seams
+// running up to a button on top, and a short stiff peak across the front only
+// (within 0.9 rad of straight ahead) with a stitched line near its edge.
+const PAPERBOY = { shell: 1.05, rimFront: 0.125, rimBack: 0.045, lipH: 0.016, puff: 0.2, peakLen: 0.052, peakSlope: 0.3, span: 0.9, button: 0.012 };
+const PAPERBOY_PANEL = [0x7d6b58, 0x6b5a48], PAPERBOY_PEAK = 0x4e4136, PAPERBOY_FLECK = 0x8c7a64, PAPERBOY_STITCH = 0xb8a68a;
+const paperboyRim = (phi) => (PAPERBOY.rimFront + PAPERBOY.rimBack) / 2 + ((PAPERBOY.rimFront - PAPERBOY.rimBack) / 2) * Math.cos(phi);
+function paperboycap(simple) {
+  const segs = simple ? 16 : 32, rows = simple ? 5 : 8, per = segs / 8;
+  const panel = (i, j) => {
+    if (!simple && i % per === 0 && j < rows - 1) return shade(PAPERBOY_PANEL[1], 0.72);  // a seam
+    if (!simple && (i * 7 + j * 3) % 5 === 0) return PAPERBOY_FLECK;                  // tweed fleck
+    return PAPERBOY_PANEL[Math.floor(((i + 0.5) * 8) / segs) % 2];
+  };
+  const shell = grid(segs, rows, { wrapU: true }, (i, j) => {
+    const phi = (i / segs) * Math.PI * 2;
+    const thRim = Math.acos(Math.min(1, paperboyRim(phi) / SB));
+    const th = (j / (rows - 1)) * thRim;
+    const u = new THREE.Vector3(Math.sin(th) * Math.sin(phi), Math.cos(th), -Math.sin(th) * Math.cos(phi));
+    const p = new THREE.Vector3(u.x * SA, u.y * SB, u.z * SC).multiplyScalar(PAPERBOY.shell);
+    // puffed forward: the front of the crown bellies out over the peak, the rim itself stays
+    p.z *= 1 + PAPERBOY.puff * Math.max(0, -u.z) * Math.sin((Math.PI * j) / (rows - 1)) ** 0.8;
+    return { p, c: panel(i, j), out: u };
+  });
+  // the band: three rows, its top tucked under the shell's rim
+  const lip = grid(segs, 3, { wrapU: true }, (i, j) => {
+    const phi = (i / segs) * Math.PI * 2;
+    const [p, n] = drape(ringPoint(phi, paperboyRim(phi) - j * PAPERBOY.lipH * 0.5), [0.010, 0.0085, 0.003][j]);
+    return { p, c: j === 1 ? shade(PAPERBOY_PEAK, 1.12) : PAPERBOY_PEAK, out: n };
+  });
+  const peak = frontPeak((th) => drape(ringPoint(th, paperboyRim(th)), 0.010)[0], PAPERBOY.span, PAPERBOY.peakLen, PAPERBOY.peakSlope, PAPERBOY_PEAK, simple ? 7 : 11,
+    (w) => (Math.abs(w - 0.8) < 0.01 ? PAPERBOY_STITCH : PAPERBOY_PEAK), simple ? [] : [0.84, 0.8, 0.76]);
+  const r = PAPERBOY.button;
+  const button = blob(r, simple ? 5 : 6, simple ? 3 : 4, new THREE.Vector3(0, SB * PAPERBOY.shell + r * 0.3, 0), [1, 0.7, 1], (uy) => (uy > 0.6 ? shade(PAPERBOY_PEAK, 1.3) : PAPERBOY_PEAK));
+  return finish('paperboycap', [shell, lip, peak, button]);
+}
+
+// --- clips (found outfits step 2, lane H, Task 3; beauty pass) ---------------
+//
+// Neither is a hat: each is a small thing clipped on the skull, still one
+// vertex-coloured mesh in head space.
+
+// Starfish Clip: five plump tapered arms lying on the skull (tube()s lifted
+// with drape, their tips curling up a little) round a centre at the skull
+// direction `dir` (right of the crown, in front of the ear's middle): orange
+// on top, deeper coral down the flanks, a row of pale bumps along each arm's
+// ridge and a pale knob in the middle.
+const STARFISH = { dir: [0.55, 0.8, -0.25], reach: 0.046, radius: 0.0098, lift: 0.003, turn: 0.83, curl: 0.003 };
+const STARFISH_ORANGE = 0xf28a3c, STARFISH_DOT = 0xf7c08a, STARFISH_DEEP = 0xd9582b;
+const starfishAt = () => {
+  const dir = new THREE.Vector3(...STARFISH.dir).normalize();
+  return drape(new THREE.Vector3(dir.x * SA, dir.y * SB, dir.z * SC), 0);
+};
+function starfishclip(simple) {
+  const [centre, n0] = starfishAt();
+  const up = upSkull(centre, n0);
+  const right = new THREE.Vector3().crossVectors(up, n0).normalize();
+  const steps = simple ? 3 : 6, sides = simple ? 4 : 6;
+  const parts = [];
+  for (let k = 0; k < 5; k++) {
+    const a = STARFISH.turn + (k / 5) * Math.PI * 2;
+    const along = up.clone().multiplyScalar(Math.cos(a)).addScaledVector(right, Math.sin(a));
+    const centres = [], normals = [];
+    for (let i = 0; i < steps; i++) {
+      const t = i / (steps - 1);
+      const [p, n] = drape(centre.clone().addScaledVector(along, STARFISH.reach * t), STARFISH.lift + STARFISH.curl * t ** 3);
+      centres.push(p); normals.push(n);
+    }
+    parts.push(tube(centres, normals, {
+      sides,
+      radius: (i, ang) => STARFISH.radius * (1 - 0.78 * (i / (steps - 1)) ** 1.2) * (Math.cos(ang) < -0.3 ? 0.75 : 1),
+      colour: (i, ang) => (Math.cos(ang) > 0.55 ? (i > 0 && i < steps - 1 && i % 2 === 1 ? STARFISH_DOT : STARFISH_ORANGE) : Math.cos(ang) > -0.3 ? STARFISH_DEEP : shade(STARFISH_DEEP, 0.8)),
+    }));
+  }
+  const [hub, hubN] = drape(centre, STARFISH.lift + 0.004);
+  parts.push(blob(0.0105, simple ? 5 : 6, simple ? 3 : 4, hub.addScaledVector(hubN, 0.001), [1, 1, 1], (uy) => (uy > 0.2 ? STARFISH_DOT : STARFISH_ORANGE)));
+  return finish('starfishclip', parts);
+}
+
+// Feather Plume: a russet pheasant feather tucked behind the left ear. A 2 cm
+// band on the skull at `dir` (low behind the ear, where it shows beside the
+// head from the front) holds the quill, which rises between the skull's normal
+// and straight up (`upright`) and curves back (toward +z) by `bend` radians over `len` metres; the
+// vane runs from just above the band to the tip, wider on the trailing side,
+// its two halves cupped, barred dark across, russet at the root to dark brown
+// at the tip, with a notch on its leading edge.
+const FEATHER = { dir: [-0.8, 0.45, 0.35], len: 0.23, bend: 0.36, upright: 0.8, band: 0.02, bandR: 0.011, vaneW: 0.03, vaneFrom: 0.02 };
+const FEATHER_VANE = [0xa0522d, 0x3b2a20], FEATHER_QUILL = 0xf2e6c8, FEATHER_BAND = 0x5a3a1c, FEATHER_BAR = 0x5a2e18, FEATHER_EDGE = 0xd9a066;
+// The feather's frame: its foot on the skull, n0 the way it leans (between
+// the skull's normal and straight up), back the way it bends (toward +z),
+// side across its vane.
+function featherAt() {
+  const dir = new THREE.Vector3(...FEATHER.dir).normalize();
+  const [base, sn] = drape(new THREE.Vector3(dir.x * SA, dir.y * SB, dir.z * SC), 0);
+  const n0 = sn.clone().add(new THREE.Vector3(0, FEATHER.upright, 0)).normalize();
+  const back = new THREE.Vector3(0, 0, 1).addScaledVector(n0, -n0.z).normalize();
+  return { base, n0, back, side: new THREE.Vector3().crossVectors(n0, back).normalize() };
+}
+function featherplume(simple) {
+  const { base, n0, back, side } = featherAt();
+  const steps = simple ? 5 : 10;
+  const spine = [];
+  const p = base.clone().addScaledVector(n0, -0.002);
+  for (let i = 0; i < steps; i++) {
+    spine.push(p.clone());
+    const t = (i + 0.5) / (steps - 1), ang = FEATHER.bend * t;
+    p.addScaledVector(n0.clone().multiplyScalar(Math.cos(ang)).addScaledVector(back, Math.sin(ang)), FEATHER.len / (steps - 1));
+  }
+  const quillN = spine.map(() => side.clone());
+  const quill = tube(spine, quillN, { sides: simple ? 3 : 4, radius: (i) => 0.0034 * (1 - 0.6 * (i / (steps - 1))), colour: () => FEATHER_QUILL });
+  // the vane: from vaneFrom up the spine, widest a third of the way up, to a point
+  const i0 = Math.max(1, Math.round(FEATHER.vaneFrom / FEATHER.len * (steps - 1)));
+  const vn = steps - i0, notch = Math.round(vn * 0.55);
+  const tipHex = rgb(FEATHER_VANE[1]);
+  const W = simple ? [-1, 0, 1] : [-1, -0.5, 0, 0.5, 1];
+  const vane = grid(vn, W.length, {}, (i, j) => {
+    const t = i / (vn - 1), e = W[j];
+    let w = FEATHER.vaneW * Math.sin(Math.PI * Math.min(1, 0.22 + 0.78 * t) ** 0.8) * (1 - t ** 4) * (e < 0 ? 0.7 : 1);
+    if (!simple && e === -1 && i === notch) w *= 0.45;
+    const along = spine[Math.min(steps - 1, i0 + i + 1)].clone().sub(spine[i0 + i]).normalize();
+    const pt = spine[i0 + i].clone().addScaledVector(side, e * w).addScaledVector(n0, e ? -Math.abs(e) * w * 0.28 : 0.0016)
+      .addScaledVector(along, Math.abs(e) * w * 0.35);
+    const bar = !simple && e !== 0 && i % 2 === 1 && t < 0.85;
+    const c = Math.abs(e) === 1 && !simple ? mix(FEATHER_EDGE, tipHex, t) : bar ? mix(FEATHER_BAR, tipHex, t) : mix(FEATHER_VANE[0], tipHex, t);
+    return { p: pt, c, out: back.clone().cross(side) };
+  });
+  // a little band round the quill's foot, resting on the skull, a bead on its front
+  const segs = simple ? 6 : 8;
+  const band = grid(segs, 2, { wrapU: true }, (i, j) => {
+    const a = (i / segs) * Math.PI * 2;
+    const q = base.clone().addScaledVector(side, Math.cos(a) * FEATHER.bandR).addScaledVector(back, Math.sin(a) * FEATHER.bandR);
+    const [pp, n] = drape(q, 0.002);
+    return { p: j ? pp.clone().addScaledVector(n0, FEATHER.band) : pp, c: FEATHER_BAND, out: q.clone().sub(base) };
+  });
+  const bead = blob(0.0055, 5, 3, base.clone().addScaledVector(n0, FEATHER.band * 0.55).addScaledVector(back, -FEATHER.bandR - 0.002), [1, 1, 1], 0xf2c14e);
+  return finish('featherplume', [quill, vane, backFace(vane), band, bead]);
+}
+
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume };
+
+// The clips' ground looks (src/foundwear/display.js): the clip as worn (the
+// simple build), turned so its face is up and propped toward -z, as if
+// dropped against a tuft (quite flat, it would be a sliver from a cat's eye
+// height): the feather half a radian, the starfish, small and round, nearly
+// on its edge and half again its size, so it can be spotted on the sand.
+// Any other id is its hat, as worn.
+export function lyingClip(id) {
+  const hat = buildHat(id, { simple: true });
+  const [face, prop, k] = id === 'starfishclip' ? [starfishAt()[1], 1.0, 1.5] : id === 'featherplume' ? [featherAt().back, 0.5, 1] : [];
+  if (hat && face) {
+    hat.geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(face, new THREE.Vector3(0, Math.cos(prop), -Math.sin(prop))));
+    hat.geometry.scale(k, k, k);
+  }
+  return hat;
+}
+
+// centred: a brimmed found hat built round the middle of the head rather than
+// set back off the eyes (Hagrid's, src/cat/foundhead.js).
+export function buildHat(id, { simple = false, centred = false } = {}) {
+  if (centred && Object.hasOwn(BRIM_HATS, id ?? '')) return brimHat(id, { ...BRIM_HATS[id], at: [0, 0] }, simple);
   const make = Object.hasOwn(BUILD, id ?? '') ? BUILD[id] : null;
   return make ? make(simple) : null;
 }
 
 // for tests / tuning
-export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH, PAPER, ACORN });
+export const HAT_SHAPES = Object.freeze({ TOPHAT, WIZARD, BEANIE, PARTY, LAUREL, CAKE, WREATH, PAPER, ACORN, PAPERBOY, BRIM_HATS, STARFISH, FEATHER });

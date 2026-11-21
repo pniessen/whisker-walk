@@ -208,8 +208,9 @@ const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; }, g
 // fighting cat but the fight. Nor during the guided first walk's steps
 // (session.lesson.open, game/guidewalk.js): nothing takes the cat out of a
 // new child's hands (the dog still barks).
+// Nor while she is on a crossing or in a hop: the moves own her position.
 export const chaseAllowed = (player, session) => player.perchY === 0 && !session.cameraMode && session.chasing !== true
-  && session.fight == null && session.lesson?.open !== true;
+  && session.fight == null && session.lesson?.open !== true && session.traversal?.busy !== true;
 
 // createRivalPatrol(scene, areaId, opts) -> { update(dt, catPos, avatar?), dispose(), state, pos }
 //

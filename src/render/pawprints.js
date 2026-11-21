@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { onAnyDeck, waterClearance } from '../world/builder.js';
-import { wetness } from '../world/seaside.js';
+import { wetness } from '../world/seasidewet.js';
 import { FLAT_GROUND, groundOf } from '../ground.js';
 
 // ---------------------------------------------------------------------------
@@ -108,6 +108,8 @@ export const AREA_RULES = Object.freeze({
   farm: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The Fairground's midway, plaza and paths are trodden earth and sawdust; the lawn takes none.
   fair: Object.freeze({ ground: null, path: 'sand', strip: null }),
+  // The Rooftops' alley cobbles, slates and flat roofs take gravel-grey prints; no grass.
+  roofs: Object.freeze({ ground: null, path: 'gravel', strip: null }),
 });
 
 // Where the Seaside's wet band takes over from dry sand: wetness() is 0 on

@@ -1520,9 +1520,9 @@ describe('what it costs to draw', () => {
     expect(all.casters).toBeLessThanOrEqual(180);
     expect(all.triangles).toBeLessThanOrEqual(75000);
     // the place alone (test/fair.test.js pins it) is what is left
-    expect(all.meshes - added.meshes).toBe(174);
+    expect(all.meshes - added.meshes).toBe(175);
     expect(all.casters).toBe(109);
-    expect(all.triangles - added.triangles).toBe(66692);
+    expect(all.triangles - added.triangles).toBe(68572);
   });
 
   it('adds every mesh when the walk begins and none after: a frame of play adds nothing, and the show clears up after itself', () => {

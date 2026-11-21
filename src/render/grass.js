@@ -4,14 +4,6 @@ import { GUST_DEPTH, GUST_FREQUENCY, MAX_INTENSITY } from './wind.js';
 import { waterClearance, deckDistance } from '../world/builder.js';
 import { FLAT_GROUND, groundOf } from '../ground.js';
 import { trailReach } from '../world/pathribbon.js';
-import { riverGroundTint } from '../world/riverdress.js';
-import { moorGroundTint } from '../world/moordress.js';
-import { woodsGroundTint } from '../world/woods.js';
-import { pinesGroundTint } from '../world/pines.js';
-import { parkLawnTint } from '../world/park.js';
-import { neighborhoodLawnTint } from '../world/neighborhood.js';
-import { farmBare, farmGroundTint } from '../world/farm.js';
-import { fairBare, fairGroundTint } from '../world/fair.js';
 
 // ---------------------------------------------------------------------------
 // GRASS — low swaying tufts on the lawn near the camera (Stream 4 round two,
@@ -320,7 +312,7 @@ function patchNoise(x, z, size = PATCH_SIZE, salt = 7) {
 //              sand are seen from further away than turf
 //   density    (x, z) -> chance a lattice cell grows a tuft; null = PRESENCE
 //   ground     0..1, how far a tuft follows the painted ground tint under it
-//              (GROUND_TINTS): 0 = not at all, 1 = the full multiplier
+//              (GRASS_HOOKS.tint): 0 = not at all, 1 = the full multiplier
 //   hue        0..1, strength of the patch-scale hue drift (warm/cool lean
 //              over ~5m patches) every tuft's colour gets
 //   flowers    fraction of tufts with a white or yellow flower on their tips
@@ -419,25 +411,44 @@ const GORGE_FLOOR = Object.freeze({
 
 // Appletree Farm: pasture grass, a little longer and rougher than a mown lawn,
 // thick where it grows and thinner between. None in the wheat field or the
-// vegetable beds (farm.js farmBare).
+// vegetable beds (farm.js farmBare, handed over as GRASS_HOOKS.bare).
 export function pastureDensity(x, z) {
-  if (farmBare(x, z)) return 0;
   return 0.58 + 0.34 * patchNoise(x, z, 4.2, 73);
 }
 const PASTURE = Object.freeze({
-  color: null, hMin: 0.07, hMax: 0.18, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: pastureDensity, ground: 0.8, hue: 0.1, flowers: 0.03,
+  color: null, hMin: 0.07, hMax: 0.18, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: pastureDensity, ground: 0.8, hue: 0.1, flowers: 0.03, bare: null,
 });
 
 // The Fairground: the Park's mown lawn, and none under the rides' decks, in
-// the booths and tents or in the duck pool (fair.js fairBare).
+// the booths and tents or in the duck pool (fair.js fairBare, handed over as
+// GRASS_HOOKS.bare).
 // `bare(x, z)` is a style's own "nothing grows here": tuftAt asks it first, and
 // everywhere else the lawn is the Park's lawn exactly, tuft for tuft.
-const FAIR_LAWN = Object.freeze({ ...LAWN, bare: fairBare });
+const FAIR_LAWN = Object.freeze({ ...LAWN, bare: null });
 
 export const GRASS_STYLES = Object.freeze({
   park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND, river: MARSH, moor: MOOR, pines: PINE_FLOOR, gorge: GORGE_FLOOR,
   farm: PASTURE, fair: FAIR_LAWN,
 });
+
+// What an area hands the grass: its ground tint (or null) and its own "nothing
+// grows here" test (or null). Each area module exports GRASS_HOOKS; the walk
+// passes them to createGrass, so this file imports no area.
+export const NO_GRASS_HOOKS = Object.freeze({ tint: null, bare: null });
+const styleMemo = new WeakMap(); // bare test -> Map(areaId -> style)
+// grassStyle(areaId, hooks) — GRASS_STYLES[areaId] with the area's own bare
+// test, one object per (areaId, bare test) so tuftAt always sees the same style.
+export function grassStyle(areaId, hooks = NO_GRASS_HOOKS) {
+  const style = GRASS_STYLES[areaId];
+  if (!style) return undefined;
+  const bare = hooks.bare ?? style.bare;
+  if (bare === style.bare) return style;
+  let byArea = styleMemo.get(bare);
+  if (!byArea) styleMemo.set(bare, (byArea = new Map()));
+  let made = byArea.get(areaId);
+  if (!made) byArea.set(areaId, (made = Object.freeze({ ...style, bare })));
+  return made;
+}
 
 // ---------------------------------------------------------------------------
 // GROUND TINT (polish-tufttint). The River's and the Moor's ground meshes have
@@ -449,12 +460,6 @@ export const GRASS_STYLES = Object.freeze({
 // a 1 m grid (tintSampler) and reads that bilinearly: a re-lay one chunk over
 // only pays for the strip of cells it has not seen yet.
 // ---------------------------------------------------------------------------
-export const GROUND_TINTS = Object.freeze({
-  river: riverGroundTint, moor: moorGroundTint, woods: woodsGroundTint, pines: pinesGroundTint,
-  // polish-sheen: the lawns' slow warm/cool mottle (park.js lawnMottle)
-  park: parkLawnTint, neighborhood: neighborhoodLawnTint,
-  farm: farmGroundTint, fair: fairGroundTint,
-});
 
 // tintSampler(fn, bounds, cell) — `fn(x, z) -> [r, g, b]` cached at the corners
 // of a `cell`-metre grid over `bounds`, filled on first read. `at(x, z, out)`
@@ -622,7 +627,7 @@ export const TRIANGLES_PER_TUFT = BLADES * 2;
 
 const NO_GRASS = Object.freeze({ mesh: null, count: 0, capacity: 0, update() {}, dispose() {} });
 
-// createGrass(scene, { areaId, areaData, tier, camera, reducedMotion }) — the
+// createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, hooks }) — the
 // per-walk rig, in the session's { update, dispose } shape. Must be called
 // AFTER rig.js's assignShadowCasters and after mergeStaticProps /
 // createContactShadows have scanned the scene, so none of them ever sees it
@@ -632,8 +637,8 @@ const NO_GRASS = Object.freeze({ mesh: null, count: 0, capacity: 0, update() {},
 // clear of tufts: the walk passes its rest spots (a 2cm doormat would have
 // tufts poking through it around a napping cat) and its carryables' start and
 // landing spots (an 8cm acorn would sit hidden in 6-15cm tufts).
-export function createGrass(scene, { areaId, areaData, tier, camera, reducedMotion = false, keepOut = [] }) {
-  const style = GRASS_STYLES[areaId];
+export function createGrass(scene, { areaId, areaData, tier, camera, reducedMotion = false, keepOut = [], hooks = NO_GRASS_HOOKS }) {
+  const style = grassStyle(areaId, hooks);
   const radius = (tier?.grassRadius ?? 0) * (style?.reach ?? 1);
   const spacing = tier?.grassSpacing ?? 0;
   if (!style || !(radius > 0) || !(spacing > 0) || !areaData?.bounds) return NO_GRASS;
@@ -647,7 +652,7 @@ export function createGrass(scene, { areaId, areaData, tier, camera, reducedMoti
   const maskMs = performance.now() - t0;
   const chunk = chunkCellsFor(spacing);
   const groundK = style.ground ?? 0;
-  const tint = GROUND_TINTS[areaId] && groundK > 0 ? tintSampler(GROUND_TINTS[areaId], areaData.bounds) : null;
+  const tint = hooks.tint && groundK > 0 ? tintSampler(hooks.tint, areaData.bounds) : null;
   const g3 = [1, 1, 1];
   const capacity = capacityFor(radius, spacing);
 

@@ -17,6 +17,7 @@ import { groundOf } from '../ground.js';
 //   neighborhood  a few dandelion seeds riding the breeze
 //   farm          the same seed down, over the fields
 //   fair          the same seed down, over the fairground
+//   roofs         moths round the alley lamp (always evening)
 //   den           nothing
 //
 // THE BUDGET. One THREE.Points per walk with one soft sprite drawn on a
@@ -123,6 +124,7 @@ export function ambientKind(areaId, { dusk = false } = {}) {
     case 'docks': return dusk ? 'moths' : 'motes';
     case 'neighborhood': return 'fluff';
     case 'farm': return 'fluff'; // dandelion and thistle down over the fields, day and dusk
+    case 'roofs': return 'moths'; // the alley lamp is the lamp, always evening
     case 'fair': return 'fluff'; // the same drifting seed down as the Park, day and dusk
     case 'pines': return dusk ? null : 'fluff'; // pollen by day; motes would hang over the far lake and moths need lamps
     case 'moor': return 'fluff'; // seed down on the wind, day and dusk
@@ -320,8 +322,9 @@ const NO_AMBIENT = Object.freeze({
 // none of them sees the points.
 //
 // `cat` (optional) is the player's cat Group; its position is read each frame
-// to keep particles off it. `dusk` is walk.js's duskActive. `keepOut` is a
-// list of { x, z, r } ground circles no leaf may rest in (see KEEP_OUT_PAD).
+// to keep particles off it. `dusk` is walk.js's eveningLook (the dusk look,
+// every walk on the Rooftops). `keepOut` is a list of { x, z, r } ground
+// circles no leaf may rest in (see KEEP_OUT_PAD).
 // `weather` (optional) is weather.js's api: its `condition` ('clear', 'rain'
 // or 'sunset') and, for rain, `isRaining()`, read every frame.
 //

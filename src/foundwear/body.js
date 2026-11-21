@@ -18,4 +18,17 @@
 // validateFoundWear (index.js; test/foundwear.test.js runs it) checks all of it.
 // What else a new outfit needs, outside this file: see index.js, "ADDING ONE".
 
-export const BODY_WEAR = Object.freeze([]);
+import { phrase } from '../clanphrases.js';
+
+export const BODY_WEAR = Object.freeze([
+  // the capes and the coat are built in src/cat/foundbody.js (FOUND_BODY)
+  Object.freeze({ id: 'doormatcape', slot: 'body', find: 'neighborhood', emoji: '🏠', name: () => phrase('wear.doormatcape.name') }),
+  Object.freeze({ id: 'beachtowelcape', slot: 'body', find: 'seaside', emoji: '🏖️', name: () => phrase('wear.beachtowelcape.name') }),
+  // the jumper lies folded on the ground (display.js DISPLAY_BY_ID)
+  Object.freeze({ id: 'fishermansjumper', slot: 'body', find: 'docks', emoji: '🧶', name: () => phrase('wear.fishermansjumper.name') }),
+  // the Park's kite tail and the Farm's and Fairground's back items: the tail and the candyfloss
+  // float (foundbody.js FOUND_FLOATS); the bale is a pack (backitems.js)
+  Object.freeze({ id: 'kitetailribbon', slot: 'back', find: 'park', emoji: '🪁', name: () => phrase('wear.kitetailribbon.name') }),
+  Object.freeze({ id: 'haybalepack', slot: 'back', find: 'farm', emoji: '🌾', name: () => phrase('wear.haybalepack.name') }),
+  Object.freeze({ id: 'candyflosspuff', slot: 'back', find: 'fair', emoji: '🍭', name: () => phrase('wear.candyflosspuff.name') }),
+]);

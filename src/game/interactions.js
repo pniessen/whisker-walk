@@ -40,8 +40,10 @@ import { fairPromptText } from './fairplay.js';
 import { JOB_WORDS } from '../farmwords.js';
 import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
-import { postNear } from '../borderposts.js';
+import { postNear, postsFor } from '../borderposts.js';
 import { postStatus, promptFor } from '../bordercross.js';
+import { gatewayNear, liveEndsFor, GATE_PREFETCH_REACH } from '../gateways.js';
+import { gateStatus, gatePrompt } from '../gatecross.js';
 import { phrase } from '../clanphrases.js';
 import * as THREE from 'three';
 import { villagerPos } from '../critters.js';
@@ -151,7 +153,37 @@ export function createInteractions({
   colonySync,
   // Border crossings: the crossing card's opener (game/crossing.js). Optional.
   askCrossing = () => {},
+  // World map step 3: a gate's crossing card and its "Get it?" card
+  // (game/crossing.js askGate / askGateBuy), and the place loader's prefetch
+  // (main.js: areas.prefetch, which never throws). Optional.
+  askGate = () => {},
+  askGateBuy = () => {},
+  prefetchArea = () => {},
 }) {
+  // The gate ends and border posts whose place beyond has been fetched, per
+  // walk (session), by id.
+  const gatesFetched = new WeakMap();
+  // Nearing a gate she can go through or open (gateStatus 'go' or 'buy'), or
+  // a border post she can go through (postStatus 'go', Task 10), the place
+  // beyond starts downloading, once per end or post per walk.
+  function prefetchNearGates(s, catP) {
+    let done = gatesFetched.get(s);
+    const fetch = (id, to) => {
+      if (!done) { done = new Set(); gatesFetched.set(s, done); }
+      done.add(id);
+      prefetchArea(to);
+    };
+    const near = (p) => Math.hypot(p.x - catP.x, p.z - catP.z) <= GATE_PREFETCH_REACH;
+    for (const end of liveEndsFor(s.areaId, CATALOG)) {
+      if (done?.has(end.id) || !near(end)) continue;
+      const kind = gateStatus(end, progression.state, CATALOG).kind;
+      if (kind === 'go' || kind === 'buy') fetch(end.id, end.to);
+    }
+    for (const post of postsFor(s.areaId)) {
+      if (done?.has(post.id) || !near(post)) continue;
+      if (postStatus(post, progression.state, CATALOG, s.areaId).kind === 'go') fetch(post.id, post.to);
+    }
+  }
   // Bodies extracted out of the keydown handlers below (pure move — same
   // logic, no behavior change) so both the keyboard path and the touch
   // action-button path can invoke them. Callers are responsible for the
@@ -271,6 +303,10 @@ export function createInteractions({
         : ground.y(next.x, next.z) - ground.y(session.cat.position.x, session.cat.position.z);
       const ranTheFence = !canReach(next, session.cat.position, player.perchY, budget, dy);
       session.perched = next;
+      // jumped up with the stick still held: it holds her until it is let go (climbing.js stickTakesOff)
+      session.perchHold = player.inputActive ? next : null;
+      // and she stands still on it from this frame (avatar.js sets the same each frame), not a step on
+      if (session.perchHold) player.speedFactor = 0;
       player.perchY = next.y; // relative: metres above the ground under the cat (R4)
       player.halt();
       const from = session.cat.position.clone();
@@ -1175,10 +1211,24 @@ export function createInteractions({
         setPrompt(REST_PROMPTS[spot.kind]);
       }
     }
+    // World map step 3: a gate, just before the posts and on the same terms.
+    // Its sign, or "Head to ...?", or the "Get it?" question for a place she
+    // can open now; a room's guest reads the sign only (gatePrompt).
+    const clanWalk = isClanEdition(progression.state);
+    if (clanWalk) prefetchNearGates(s, catP);
+    if (!s.prompt && clanWalk && !s.perched && !player.swimming && !s.fight && !s.clanFight?.uiShowing) {
+      const end = gatewayNear(s.areaId, catP.x, catP.z, CATALOG);
+      if (end) {
+        const status = gateStatus(end, progression.state, CATALOG);
+        const line = gatePrompt(status, { inRoom: !!s.net, isHost: !!s.net?.isHost?.() });
+        s.prompt = { kind: line.kind, data: { end, status } };
+        setPrompt(line.text);
+      }
+    }
     // Border crossings: a waymark post, Clan Edition only. After the rest (so
     // anything a kid walked up to comes first) and before gift-leave and the
     // drop (so a held thing never hides a post). Never mid-fight.
-    if (!s.prompt && isClanEdition(progression.state) && !s.perched && !player.swimming && !s.fight && !s.clanFight?.uiShowing) {
+    if (!s.prompt && clanWalk && !s.perched && !player.swimming && !s.fight && !s.clanFight?.uiShowing) {
       const post = postNear(s.areaId, catP.x, catP.z);
       if (post) {
         const status = postStatus(post, progression.state, CATALOG, s.areaId);
@@ -1949,6 +1999,12 @@ export function createInteractions({
       askCrossing(s, s.prompt.data);
     } else if (s.prompt.kind === 'border-info') {
       // Says which way; nothing to do.
+    } else if (s.prompt.kind === 'gate') {
+      askGate(s, s.prompt.data);
+    } else if (s.prompt.kind === 'gate-buy') {
+      askGateBuy(s, s.prompt.data);
+    } else if (s.prompt.kind === 'gate-info') {
+      // A gate's sign; nothing to do.
     } else if (s.prompt.kind === 'rest') {
       // v21 3b Task 15 — for nothing but the fun of it: no award, no feat, no
       // goal, no discovery, nothing saved, nothing on the wire (ruling P1).

@@ -15,8 +15,19 @@
        abilities=longleap,steady,spring   any of the three (Long Leap, Tightrope Tail's
                             steadiness, Spring Paws' 2.2 m climb and higher pounce)
        tour=climbs|leaps    play that tour in real time (YARD_TOURS, driven by createYardPilot)
+       area=roofs           the Rooftops (Rooftops step 2) instead of the yard, in its full
+                            evening (applyDusk, its life run on to 240 s and on with the
+                            frames: the bus runs); tour=firstRoof|terrace|birds (ROOFS_TOURS;
+                            birds: after the guide pigeon over plank-3, best with critters=1).
+                            Tours and free play only: the shots are the yard's
+       critters=1           (area=roofs) the walk's real critters (createCritters, the roof
+                            birds among them) handed to the life with visits 0, so the flock
+                            flies: she flushes them, the guide leads. The guide's memory is
+                            in-memory: the page never reads or writes the device's key, and
+                            the guide always starts in the alley
        drive=1              no rAF loop: window.__frame() drives
        size=WxH             the picture's size (default 960x540)
+       tail=s               the film runs on s seconds after a tour ends (default 1)
        bare                 no HUD (the tour's caption still shows)
      With no tour she starts at the yard's spawn: the arrows or W-A-S-D walk
      her, Space jumps (a move at a mark, else the ordinary pounce).
@@ -65,8 +76,16 @@
   import { createTraversalLive, NO_TRAVERSAL } from '/src/traversallive.js';
   import { facingYaw, behindYaw, stickToWorld } from '/src/traversal.js';
   import { buildTraversalYard, YARD_SPAWN, YARD_TOURS, createYardPilot } from '/src/world/traversalyard.js';
+  import { build as buildRoofs } from '/src/world/roofs.js';
+  import { ROOFS_SPAWN, ROOFS_TOURS } from '/src/world/roofsplan.js';
+  import { applyDusk, duskEnv, createLampPools } from '/src/render/dusk.js';
+  import { createCritters } from '/src/critters.js';
+  import { mulberry32 } from '/src/rng.js';
 
   const params = new URLSearchParams(location.search);
+  const ROOFS = params.get('area') === 'roofs';
+  const TOURS = ROOFS ? ROOFS_TOURS : YARD_TOURS;
+  const SPAWN = ROOFS ? ROOFS_SPAWN : YARD_SPAWN;
   const MOVES = params.get('traversal') !== '0';
   const rm = params.get('rm') === '1';
   const asked = new Set((params.get('abilities') || '').split(',').map((s) => s.trim()).filter(Boolean));
@@ -81,7 +100,8 @@
   const CANT = "Today she can't do this";
   const REFUSE_HOLD = 1.2; // s after the ordinary pounce at a press the moves would have taken
   const STUCK = { time: 2.5, dist: 0.1 }; // s, m: a walk that has stopped getting anywhere (traversal=0 only)
-  const TAIL = { done: 1.0, stopped: 3.0 }; // s of film after the tour ends / after a graceful stop
+  // s of film after the tour ends (?tail=s for longer: the life runs on, she stands) / after a graceful stop
+  const TAIL = { done: params.has('tail') ? Number(params.get('tail')) : 1.0, stopped: 3.0 };
 
   // The abilities the moves read (src/traversal.js's BASE_ABILITIES shape).
   const URL_ABILITIES = Object.freeze({
@@ -111,14 +131,34 @@
   scene.fog = new THREE.Fog(SKY.horizon, 40, 120);
   const sun = createSun();
   scene.add(sun);
-  scene.add(createFill(DEFAULT_GROUND_BOUNCE));
-  const area = buildTraversalYard(scene); // once per page load (no dispose(); see the header)
+  const fill = createFill(DEFAULT_GROUND_BOUNCE);
+  scene.add(fill);
+  const area = ROOFS ? buildRoofs(scene) : buildTraversalYard(scene); // once per page load (no dispose(); see the header)
+  if (ROOFS) {
+    // the walk's evening look (game/walk.js's eveningLook), as verify-places.html gives it
+    scene.environmentIntensity = duskEnv(scene.environmentIntensity, applyDusk({ scene, sun, fill, areaData: area }));
+  }
   const cat = buildCat(BREED);
   scene.add(cat);
+  // ?critters=1 (the Rooftops): the walk's critters, before the caster sweep as walk.js makes them
+  const critters = ROOFS && params.get('critters') === '1'
+    ? createCritters(scene, area.critterSpawns, { ground: area.ground, motionRng: mulberry32(7) })
+    : null;
   const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
   const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
   sun.shadow.bias = SUN_BIAS;
   assignShadowCasters(scene);
+  // The Rooftops' life: the evening run on to its full dusk, then on with each
+  // frame. With critters=1 it is handed them and visits 0, and an in-memory
+  // guide store (the guide starts in the alley; nothing on the device changes).
+  const memoryStore = (v = null) => ({ get: () => v, set: (x) => { v = x; } });
+  const life = ROOFS
+    ? area.life(critters ? { scene, sun, fill, critters, visits: 0, guideStore: memoryStore() } : { scene, sun, fill, guideStore: memoryStore() })
+    : null;
+  if (ROOFS) {
+    createLampPools(scene);
+    for (let k = 0; k < 240 * 30; k++) life.update(1 / 30);
+  }
 
   // ---- The walk: the real player and the moves runtime ----
   const player = createPlayer(camera, renderer.domElement);
@@ -180,6 +220,8 @@
     cat.rotation.x = 0;
     cat.rotation.z = 0;
     live.late(dt, t, ctx);
+    critters?.update(dt, t, cat.position, cat.position); // main.js's order: the critters, then the life
+    life?.update(dt, t, cat.position, camera);
     shadows.update(area.ground.y(cat.position.x, cat.position.z), dt);
     render();
   }
@@ -236,6 +278,7 @@
   };
 
   window.__shot = (name) => {
+    if (ROOFS) throw new Error('the shots are the yard\'s: load the page without area=roofs');
     const shot = SHOTS[name];
     if (!shot) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
     if (shot.needs === 'before' && MOVES) console.error(`shot ${name} is a "before": load the page with traversal=0`);
@@ -276,8 +319,8 @@
   }
 
   window.__tour = (name) => {
-    const spec = YARD_TOURS[name];
-    if (!spec) throw new Error(`no tour "${name}"; there are ${Object.keys(YARD_TOURS).join(', ')}`);
+    const spec = TOURS[name];
+    if (!spec) throw new Error(`no tour "${name}"; there are ${Object.keys(TOURS).join(', ')}`);
     reset(spec.start.x, spec.start.z, spec.start.face[0], spec.start.face[1]);
     const pilot = createYardPilot(spec, { setAbilities: (a) => { abilities = { ...URL_ABILITIES, ...a }; } });
     tour = { name, pilot, stopped: null, ended: null, refusedAt: null, anchor: { x: cat.position.x, z: cat.position.z, t } };
@@ -339,7 +382,7 @@
   // ---- Start ----
   const tourName = params.get('tour');
   if (tourName) window.__tour(tourName);
-  else reset(YARD_SPAWN.x, YARD_SPAWN.z, 0, -1);
+  else reset(SPAWN.x, SPAWN.z, 0, -1);
   render();
   window.__ready = true;
 

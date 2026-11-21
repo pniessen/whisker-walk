@@ -9,6 +9,17 @@ import { escapeHtml as esc } from '../escapehtml.js';
 
 export const CONFIRM_ATTR = 'data-confirm';
 
+// A Yes counts only as a deliberate tap: never the tail of a double-tap
+// (`detail` > 1; a keyboard's Enter has detail 0) and never within
+// CONFIRM_DELAY_MS of the card going up. The one rule for every "Get it?"
+// card (this one, and a gate's in game/crossing.js). Fails closed on a
+// missing or odd time.
+export function deliberateTap({ detail, shownAt, now } = {}) {
+  if (typeof detail === 'number' && detail > 1) return false;
+  if (typeof shownAt !== 'number' || typeof now !== 'number' || !Number.isFinite(shownAt) || !Number.isFinite(now)) return false;
+  return now - shownAt >= CONFIRM_DELAY_MS;
+}
+
 // The card's markup. "Not now" comes first and takes focus: the safe answer
 // is the one an Enter or a stray tap reaches.
 export function confirmCardHtml({ text, note = '', yes, no = 'Not now', danger = false } = {}) {
@@ -86,7 +97,7 @@ export function createConfirmCard({ mount, blocked = () => false, onClosed = () 
     if (answer === 'no') finish('no');
     // Yes counts only as a deliberate tap: never the tail of a double-tap on
     // the button that asked (the same rule as the colony's swap).
-    else if (answer === 'yes' && !(typeof e.detail === 'number' && e.detail > 1) && now() - shownAt >= CONFIRM_DELAY_MS) finish('yes');
+    else if (answer === 'yes' && deliberateTap({ detail: e.detail, shownAt, now: now() })) finish('yes');
   }
 
   function onKeydown(e) {

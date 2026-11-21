@@ -78,11 +78,12 @@ export const WALK_ENDED_LINE = 'Oops! Something went wrong on that trip, so it s
 export const RELOAD_BUTTON_ID = 'btn-reload';
 
 // The last resort, when the game cannot carry on in this page: the loop is
-// stopped and only a reload is offered. Plain words, no blame.
-export function stuckNoticeHtml(kind = 'error') {
+// stopped and only a reload is offered. Plain words, no blame. touch: a
+// touch screen says Tap, a desktop Click.
+export function stuckNoticeHtml(kind = 'error', { touch = false } = {}) {
   const line = kind === 'gl'
     ? 'The game’s pictures stopped working.'
     : 'Something went wrong, sorry!';
-  return `<div class="pause-card"><p>${line} Tap the button to start the game again.</p>`
+  return `<div class="pause-card"><p>${line} ${touch ? 'Tap' : 'Click'} the button to start the game again.</p>`
     + `<button id="${RELOAD_BUTTON_ID}" class="primary">Start again</button></div>`;
 }
