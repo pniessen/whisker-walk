@@ -30,6 +30,7 @@ vi.stubGlobal('document', {
 });
 
 const fair = await import('../src/world/fair.js');
+const { duskLook } = await import('../src/render/dusk.js');
 const {
   build, SPAWN, FAIR_BOUNDS, FAIR_REGISTRATION: REG, DUCK_POOL, COASTER_TRACK, COASTER_STATION_S, HELTER_SLIDE, HELTER_STAIRS, HELTER_TOP,
   STATION_DECK, TRACK_X, STALLS, FIELD, FAIR_HIDES, SIGN_POSTS, setFairGlow, fairBare, fairGroundTint,
@@ -1586,6 +1587,66 @@ describe('The Fairground: the beauty pass', () => {
   });
 });
 
+// Beauty round two (2026-11-20): bolder, and mostly for dusk.
+describe('The Fairground: the beauty pass, round two', () => {
+  const paneVerts = (mesh) => {
+    const r = mesh.geometry.getAttribute('fairBulbR');
+    const pos = mesh.geometry.getAttribute('position');
+    const v = new THREE.Vector3();
+    mesh.updateWorldMatrix(true, false);
+    const out = [];
+    for (let i = 0; i < r.count; i++) if (r.getX(i) === 0) out.push(v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).clone());
+    return out;
+  };
+
+  it('the coaster’s whole run is outlined in bulbs that chase round it, on the shared glow, casting nothing', () => {
+    const lights = scene.getObjectByName('coasterLights');
+    expect(lights.material).toBe(area.glow.material);
+    expect(lights.castShadow).toBe(false);
+    const chase = lights.geometry.getAttribute('fairChase');
+    // every one a chasing bulb (eight triangles each), none a steady pane
+    expect(lights.geometry.getAttribute('position').count % 24).toBe(0);
+    for (let i = 0; i < chase.count; i++) expect(chase.getX(i)).toBeGreaterThanOrEqual(0);
+    // spread along the whole track, both sides
+    const pos = lights.geometry.getAttribute('position');
+    let minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i < pos.count; i++) { minZ = Math.min(minZ, pos.getZ(i)); maxZ = Math.max(maxZ, pos.getZ(i)); }
+    expect(minZ).toBeLessThan(-35);
+    expect(maxZ).toBeGreaterThan(25);
+  });
+
+  it('every stall’s inside back is on the glow (lit at dusk), and the stalls’ glow takes the sun’s shadow by day', () => {
+    const bulbs = scene.getObjectByName('fairBulbs');
+    expect(bulbs.receiveShadow).toBe(true);
+    const panes = paneVerts(bulbs);
+    for (const s of STALLS) {
+      const inside = panes.filter((p) => {
+        const dx = p.x - s.x, dz = p.z - s.z;
+        const lz = dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw);
+        const lx = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw);
+        return Math.abs(lz - (-STALL.d / 2 + 0.1)) < 0.03 && Math.abs(lx) < STALL.w / 2 && p.y > 0.05 && p.y < 2.0;
+      });
+      expect(inside.length, s.id).toBeGreaterThan(0);
+    }
+  });
+
+  it('the field is deeper at dusk than a street’s lawn', () => {
+    expect(duskLook(area).lawnTint.dark).toBeLessThan(duskLook({}).lawnTint.dark);
+  });
+
+  it('the ground round the rides is worn well out from them', () => {
+    // 3 m out (the old rings ended at 2.8 m)
+    expect(fair.fairWear(fair.TEACUPS_AT.x + TEACUPS.baseR + 3, fair.TEACUPS_AT.z)).toBeGreaterThan(0.05);
+    expect(fair.fairWear(fair.HELTER_AT.x + HELTER.baseR + 3, fair.HELTER_AT.z)).toBeGreaterThan(0.05);
+  });
+
+  it('the empty corners have bales put by, solid to the cat', () => {
+    for (const [x, z] of [[38.6, 38.4], [-40.4, 27.5], [25.2, -42.2]]) {
+      expect(area.colliders.some((c) => Math.hypot(c.x - x, c.z - z) < 1.2), `${x},${z}`).toBe(true);
+    }
+  });
+});
+
 describe('The Fairground: the drawing budget', () => {
   const built = budgetStats(scene);
   const mergedScene = new THREE.Scene();
@@ -1604,8 +1665,10 @@ describe('The Fairground: the drawing budget', () => {
     // meshes, 48 casters) became flower tubs in the props' mesh.
     // Beauty pass (2026-11-20): the teacups' painted skirt, gold edge and
     // finer kerb stripes and its top, the coaster platform’s panelled skirt: +312.
-    expect(built).toEqual({ meshes: 174, casters: 109, triangles: 67004 });
-    expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 159, casters: 104 });
+    // Round two: the coaster's lights (one mesh, no shadow), the big wheel's
+    // sunbursts, red post caps, the stalls' lit insides, three bale stacks: +1,728.
+    expect(built).toEqual({ meshes: 175, casters: 109, triangles: 68732 });
+    expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 160, casters: 104 });
   });
 
   it('is inside the territories’ budget built, and inside their merged budget', () => {

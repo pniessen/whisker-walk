@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { box, cyl, ball, sheet, stripes, stripedSlab, sweep, placed, bulb, meshOf, canvasOf, glowMesh, recentre, BULB_COLORS } from './fairkit.js';
+import { box, cyl, ball, sheet, stripes, stripedSlab, sweep, placed, bulb, meshOf, canvasOf, glowMesh, recentre, chaseOf, BULB_COLORS, GLOW_LOOK } from './fairkit.js';
 import { loft, at, mix } from '../farmshapes.js';
 
 // =============================================================================
@@ -588,6 +588,17 @@ export function ferrisWheel(x, z, glow, yaw = 0) {
   }
   cyl(W, 0.62, 0.62, half * 2 + 0.3, 0, 0, 0, PAINT.red, { c: true, pitch: Math.PI / 2, sides: 14 });
   cyl(W, 0.3, 0.3, half * 2 + 0.36, 0, 0, 0, PAINT.gold, { c: true, pitch: Math.PI / 2, sides: 10 });
+  // (beauty round two) a painted sunburst round the hub on both faces: red and
+  // yellow rays between the spokes, a gold ring under them
+  for (const sz of [-1, 1]) {
+    const z = sz * (half + 0.17);
+    ring(16, (a, i) => {
+      const da = Math.PI / 16;
+      sheet(W, [[Math.cos(a - da) * 0.6, Math.sin(a - da) * 0.6, z], [Math.cos(a + da) * 0.6, Math.sin(a + da) * 0.6, z],
+        [Math.cos(a) * 1.55, Math.sin(a) * 1.55, z]], i % 2 ? PAINT.yellow : PAINT.red, { both: true });
+    }, Math.PI / 16);
+    cyl(W, 0.72, 0.72, 0.04, 0, 0, sz * (half + 0.17), PAINT.gold, { c: true, pitch: Math.PI / 2, sides: 14 });
+  }
   ring(FERRIS.gondolas, (a) => box(W, 0.07, 0.07, half * 2 + 0.1, Math.cos(a) * R, Math.sin(a) * R, 0, PAINT.steel, { c: true }), -Math.PI / 2);
   turn.add(meshOf(W, 'ferrisRim', { roughness: 0.5 }));
 
@@ -982,7 +993,7 @@ export function railPoints(pts, { tol = 0.02, most = 4 } = {}) {
   return out;
 }
 
-export function coasterTrack(track, { skip = () => false } = {}) {
+export function coasterTrack(track, { skip = () => false, glow = null } = {}) {
   const pts = track.points;
   const P = [];
   const g = COASTER.gauge;
@@ -1004,6 +1015,8 @@ export function coasterTrack(track, { skip = () => false } = {}) {
     if (i % COASTER.postEvery !== 0 || skip(p)) continue;
     const top = p.y - 0.36;
     if (top < 0.25) continue;
+    // (beauty round two) a red cap where each post meets the track
+    box(S, 0.26, 0.14, 0.26, p.x, top - 0.14, p.z, PAINT.red, { yaw });
     if (top > 2.6) {
       // a tall support: two legs spread to a wide foot, with a tie
       placed(S, p.x, 0, p.z, yaw, (Q) => {
@@ -1020,7 +1033,22 @@ export function coasterTrack(track, { skip = () => false } = {}) {
   }
   const rails = canvasOf(P, 'coasterRails');
   rails.material.roughness = 0.5;
-  return { rails, supports: meshOf(S, 'coasterSupports', { roughness: 0.6 }) };
+  // (beauty round two) the track outlined in bulbs at the ends of every
+  // fourth sleeper, chasing round it at dusk: the caterpillar's whole run
+  // drawn in lights. Static (the track does not move); one mesh, no shadow.
+  const L = [];
+  for (let i = 0; i < n; i += 4) {
+    const a = pts[(i - 1 + n) % n];
+    const b = pts[(i + 1) % n];
+    const p = pts[i];
+    const yaw = Math.atan2(b.x - a.x, b.z - a.z);
+    for (const s of [-1, 1]) {
+      const x = p.x + Math.cos(yaw) * s * (g + 0.16);
+      const z = p.z - Math.sin(yaw) * s * (g + 0.16);
+      chaseOf(bulb(L, x, p.y - 0.12, z, BULB_COLORS[(i / 4 + (s > 0 ? 1 : 0)) % BULB_COLORS.length]), (i * track.step) / GLOW_LOOK.wave);
+    }
+  }
+  return { rails, supports: meshOf(S, 'coasterSupports', { roughness: 0.6 }), lights: glow ? glowMesh(L, 'coasterLights', glow) : null };
 }
 
 // One car of the caterpillar. Local frame: the rails' top at y 0, nose on +z.

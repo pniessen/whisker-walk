@@ -54,7 +54,9 @@ import { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, MUSIC_BOX } from './fai
 // against the table it was copied into, so the two cannot drift.
 // =============================================================================
 
-export const FAIR_GRASS = 0x62ac50;
+// (beauty round two) a warmer, deeper summer field than the old mint 0x62ac50,
+// so the rides' reds and yellows stand out on it
+export const FAIR_GRASS = 0x5ea446;
 // The midway, the plaza and the paths: warm trodden earth and sawdust
 // (world/pathribbon.js SAWDUST_LOOK: scuffed patches, a darker trodden
 // margin, sawdust chips and crumbs of earth).
@@ -268,9 +270,10 @@ const WORN = Object.freeze(((g, t) => [t[0] / g[0], t[1] / g[1], t[2] / g[2]])(l
 const wearRing = (p, r0, r1, k, rin = -1) => Object.freeze({ x: p.x, z: p.z, r0, r1, k, rin });
 const WEAR_RINGS = Object.freeze([
   wearRing(PLAZA, PLAZA.r - 0.6, PLAZA.r + 2.2, 0.7, PLAZA.r - 2.5),           // where the plaza's sand meets the grass
-  wearRing(TEACUPS_AT, TEACUPS.baseR - 0.2, TEACUPS.baseR + 2.8, 0.9),
-  wearRing(HELTER_AT, HELTER.baseR - 0.2, HELTER.baseR + 2.8, 0.9),
-  wearRing(pt(FERRIS_AT.x, FERRIS_AT.z + 0.6), 2.6, 6.2, 0.75),
+  // (beauty round two: the rides' rings wider and more worn, a crowd's ground)
+  wearRing(TEACUPS_AT, TEACUPS.baseR - 0.2, TEACUPS.baseR + 4.2, 1.0),
+  wearRing(HELTER_AT, HELTER.baseR - 0.2, HELTER.baseR + 4.0, 1.0),
+  wearRing(pt(FERRIS_AT.x, FERRIS_AT.z + 0.6), 2.6, 7.6, 0.95),
   wearRing(BANDSTAND_AT, BANDSTAND.r - 0.2, BANDSTAND.r + 2.4, 0.8),
   wearRing(FORTUNE_AT, FORTUNE.r - 0.2, FORTUNE.r + 1.6, 0.6),
   wearRing(DUCK_POOL, DUCK_POOL.r + 0.2, DUCK_POOL.r + 2.6, 0.9),
@@ -282,7 +285,7 @@ const WEAR_RINGS = Object.freeze([
 const wearRect = (q, pad, k) => Object.freeze({ q, pad, k });
 const WEAR_RECTS = Object.freeze([
   ...STALLS.map((s) => wearRect(stallFront(s, 0, 1.0, 0.2), 1.0, 0.95)),       // the queue at every counter
-  wearRect(rect(17.4, STATION_DECK.minX, -2.4, 2.4), 1.2, 0.75),                 // the foot of the coaster's steps
+  wearRect(rect(17.4, STATION_DECK.minX, -5.2, 5.2), 2.0, 0.95),                 // the foot of the coaster's steps
   wearRect(rect(-1.8, 1.8, FERRIS_AT.z + FERRIS.deckZ + FERRIS.deckD / 2, FERRIS_AT.z + FERRIS.deckZ + 1.6), 1.0, 0.8), // the big wheel's queue
   ...RIDGE_TENTS.map((t) => wearRect(rect(t.x + RIDGE_TENT.d / 2, t.x + RIDGE_TENT.d / 2 + 0.8, t.z - 0.8, t.z + 0.8), 1.0, 0.55)), // the tents' doors
 ]);
@@ -499,7 +502,9 @@ export const BALE_SEATS = Object.freeze([
   pt(-20.4, 39.3, { yaw: 0.45 }), pt(-23.5, 40.9, { yaw: 0.12 }),
   pt(-36.6, -0.8, { yaw: EAST }), pt(-36.7, 4.6, { yaw: EAST + 0.12 }),
 ]);
-export const BALE_STACKS = Object.freeze([pt(-40.6, -4.5, { yaw: EAST }), pt(10.8, -38.6, { yaw: 0.1 })]);
+// (beauty round two: three more out in the empty corners, put by for later)
+export const BALE_STACKS = Object.freeze([pt(-40.6, -4.5, { yaw: EAST }), pt(10.8, -38.6, { yaw: 0.1 }),
+  pt(38.6, 38.4, { yaw: 0.7 }), pt(-40.4, 27.5, { yaw: EAST - 0.2 }), pt(25.2, -42.2, { yaw: -0.15 })]);
 // THE BACK OF THE FAIR: behind the big wheel, out of the way, the showmen's
 // box lorry and living van, and the generator that runs the rides with its
 // cable over the grass to the wheel's west foot.
@@ -712,11 +717,11 @@ export function build(scene, { water = {}, wind } = {}) {
     const wheel = rides.ferrisWheel(FERRIS_AT.x, FERRIS_AT.z, glow, 0);
     const cups = rides.teacups(TEACUPS_AT.x, TEACUPS_AT.z, glow, EAST);
     const helter = rides.helterSkelter(HELTER_AT.x, HELTER_AT.z, glow, HELTER_YAW);
-    const track = rides.coasterTrack(COASTER_TRACK);
+    const track = rides.coasterTrack(COASTER_TRACK, { glow });
     const station = rides.coasterStation(STATION_DECK, TRACK_X, glow);
     const train = rides.coasterTrain(COASTER_TRACK, COASTER_STATION_S);
     out.push(mgr.group, music.group, wheel.group, cups.group, helter.tower, helter.roof, helter.stairs, helter.slide, helter.brackets,
-      helter.bulbs, track.rails, track.supports, station.deck, station.roof, station.bulbs, train.group);
+      helter.bulbs, track.rails, track.supports, track.lights, station.deck, station.roof, station.bulbs, train.group);
     parts.balloonBunch(K, STATION_DECK.minX + 0.06, STATION.deckY + 0.8, STATION_DECK.minZ + 0.1, 4, 31);
 
     // the edges: corner flags, bins, queue rails, bales
@@ -877,6 +882,9 @@ export function build(scene, { water = {}, wind } = {}) {
     puddles,
     groundBounce: FAIR_GRASS,
     skyDusk: { top: 0x2b3560, horizon: 0x9a6a78 },
+    // (beauty round two) at dusk the field goes deeper and bluer than a
+    // street's lawn, so the fair's lights stand out on it
+    duskLight: { lawnTint: { dark: 0.6, desat: 0.3 } },
     tippables: [
       { x: 3.5, z: 31.2, kind: 'bin' }, { x: -3.5, z: 12.4, kind: 'bin' }, { x: 9.6, z: 9.4, kind: 'bin' },
       { x: -18.6, z: 17, kind: 'can' }, { x: -21.4, z: 31.6, kind: 'pot' }, { x: 19.2, z: -3.4, kind: 'can' },

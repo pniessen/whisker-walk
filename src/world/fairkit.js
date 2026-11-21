@@ -210,7 +210,7 @@ function setFloat(g, name, values) {
 function swayOf(g, w) {
   return setFloat(g, SWAY, w);
 }
-function chaseOf(g, c) {
+export function chaseOf(g, c) {
   return setFloat(g, CHASE, new Float32Array(g.attributes.position.count).fill(c));
 }
 function fillMissing(P) {
@@ -222,7 +222,7 @@ function fillMissing(P) {
 
 // A light bulb: eight triangles. Its colour is also the colour it glows.
 export const BULB_COLORS = Object.freeze([0xfff0b8, 0xffd75a, 0xff8f6a, 0x8fd8ff, 0xfff0b8, 0xa8f0a0]);
-export function bulb(P, x, y, z, hex = BULB_COLORS[0], r = 0.06) {
+export function bulb(P, x, y, z, hex = BULB_COLORS[0], r = 0.072) {
   const g = new THREE.OctahedronGeometry(r, 0);
   // normals pointing straight out from the centre: the same eight triangles
   // shade like a round bead, not a cut gem
