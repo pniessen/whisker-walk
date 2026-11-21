@@ -92,7 +92,7 @@
   import { createWeather } from '/src/weather.js';
   import { createComposerRig } from '/src/game/composer.js';
   import * as market from '/src/world/market.js';
-  import { MARKET_SHOTS, MARKET_SPAWN, FOUNTAIN, TREAT_STALLS, stallById, fromStall } from '/src/world/marketplan.js';
+  import { MARKET_SHOTS, MARKET_MOMENT_SHOTS, MARKET_REGISTRATION, MARKET_SPAWN, FOUNTAIN, TREAT_STALLS, stallById, fromStall } from '/src/world/marketplan.js';
   import { createMarketPilot, MARKET_TOURS } from '/src/world/marketpilot.js';
   import { createMarketLive } from '/src/marketlive.js';
   import { createPeopleKit } from '/src/people/index.js';
@@ -110,6 +110,11 @@
   import { animateCat } from '/src/cat/animator.js';
   import { aimHead } from '/src/cat/headaim.js';
   import { FLAT_GROUND } from '/src/ground.js';
+  import { createTippables } from '/src/tippables.js';
+  import { createKnockables } from '/src/knockables.js';
+  import { createCritters } from '/src/critters.js';
+  import { createGoldMice, GOLD_MICE } from '/src/goldmice.js';
+  import { mulberry32 } from '/src/rng.js';
 
   const params = new URLSearchParams(location.search);
   if (params.has('summary')) summaryPage();
@@ -228,10 +233,125 @@
     return name;
   };
   const plainShot = (name) => {
+    if (name.startsWith('moment-')) return momentShot(name.slice(7));
+    takeDownMoment(); // a moment shot's props and life go, and her cat is at the spawn again
+    if (CAT_SHOTS.has(name)) {
+      cat.position.set(MARKET_SPAWN.x, 0, MARKET_SPAWN.z);
+      cat.rotation.set(0, Math.atan2(-(FOUNTAIN.x - MARKET_SPAWN.x), -(FOUNTAIN.z - MARKET_SPAWN.z)), 0);
+      animateCat(cat, 'follow', 1, 0, false);
+    }
     const v = name === 'view' ? params.get('cam') : MARKET_SHOTS[name];
     if (!v) throw new Error(`no shot "${name}"; there are ${Object.keys(MARKET_SHOTS).join(', ')}${params.has('cam') ? ', view' : ''}`);
     return frame(name, v);
   };
+  // ---- the step 3 moments (__shot('moment-<name>'), MARKET_MOMENT_SHOTS) ----
+  // Each call builds the moment afresh (the crate standing, the bucket on its
+  // trestle, the life, the pigeons), puts her cat at its spot, runs the game's
+  // own modules (tippables, knockables, the square's life, the critters) on
+  // walk seconds to the moment's `t`, and frames its view. Page only.
+  const MOMENT_CAT = { // where her cat stands, which way she faces (a point), her pose
+    fruit: { at: [-0.7, 0, -15.3], face: [-1.95, -16.7], pose: 'follow' },
+    apples: { at: [-0.7, 0, -15.3], face: [-1.95, -16.7], pose: 'follow' },
+    flowers: { at: [12.1, 0.775, -2.5], face: [10, -2.5], pose: 'perch' },
+    petals: { at: [12.1, 0.775, -2.5], face: [10, -2.5], pose: 'perch' },
+    awning: { at: [7.83, 2.34, -9.95], face: [4, -6], pose: 'perch' },
+    mice: { at: [8.62, 0.95, -9.42], face: [7.29, -10.31], pose: 'follow' },
+    fountain: { at: [0, 0, 3.9], face: [0, 0], pose: 'sniff' },
+    sacks: { at: [-5.53, 0, -12.08], face: [-5.5, -9], pose: 'nap' },
+    musician: { at: [0.4, 0, 5.7], face: [1.9, 3.3], pose: 'follow' },
+    basket: { at: [9.62, 0.87, 22.76], face: [9.6, 18], pose: 'perch' },
+    pigeons: { at: [-2.8, 0, 9.3], face: [-2.8, 5.3], pose: 'follow' },
+  };
+  let moment = null; // what the last moment shot built, to take down
+  function takeDownMoment() {
+    if (!moment) return;
+    moment.life?.dispose();
+    for (const g of moment.groups) { g.parent?.remove(g); }
+    moment.knock?.list.forEach((k) => { k.group.parent?.remove(k.group); k.decal?.parent?.remove(k.decal); });
+    moment.mice?.dispose();
+    moment.crit?.list.forEach((c) => c.group.parent?.remove(c.group));
+    moment = null;
+  }
+  function momentShot(name) {
+    const m = MARKET_MOMENT_SHOTS[name];
+    if (!m) throw new Error(`no moment "${name}"; there are ${Object.keys(MARKET_MOMENT_SHOTS).join(', ')}`);
+    takeDownMoment();
+    const v = m.view.split(',').map(Number);
+    const c = MOMENT_CAT[name];
+    const frameIt = (showCat) => {
+      cat.visible = showCat;
+      if (partnerCat) partnerCat.visible = false;
+      camera.fov = 60;
+      camera.updateProjectionMatrix();
+      camera.position.set(v[0], v[1], v[2]);
+      camera.lookAt(v[3], v[4], v[5]);
+      render();
+      const hud = document.getElementById('hud');
+      if (hud) hud.textContent = `${DUSK ? 'dusk' : 'day'} · moment-${name} · ${m.view} · t ${m.t}`;
+      return `moment-${name}`;
+    };
+    if (name === 'lookup') {
+      if (!LIVE) throw new Error('moment-lookup needs ?live=1');
+      window.__shot('lookup-cheese');
+      return 'moment-lookup';
+    }
+    if (!c) return frameIt(false); // cafe, tubs, cobbles: the square as it stands
+    const before = new Set(scene.children);
+    const session = { tippables: null, knockables: null, perched: null, rest: null, cat, player: { speed: 0 }, remotes: { list: [] } };
+    const tip = createTippables(scene, area.tippables);
+    session.tippables = tip;
+    const knock = createKnockables(scene, MARKET_REGISTRATION.propSet.knockables);
+    session.knockables = knock;
+    const hasPigeons = name === 'pigeons';
+    const crit = hasPigeons
+      ? createCritters(scene, area.critterSpawns.filter((d) => d.labelAs === 'pigeon'), { ground: FLAT_GROUND, area, rng: mulberry32(7), motionRng: mulberry32(11) })
+      : null;
+    const life = area.life({ scene, dusk: DUSK, reducedMotion: false, people: createPeopleKit, ground: FLAT_GROUND, critters: crit ?? { list: [] } });
+    const mice = name === 'mice' ? createGoldMice(scene, 'market', new Set(), { rng: () => 0.25 }) : null;
+    assignShadowCasters(scene);
+    moment = { life, groups: [], knock, mice, crit };
+    // her cat
+    const [cx, cy, cz] = c.at;
+    cat.position.set(cx, cy, cz);
+    cat.rotation.set(0, Math.atan2(-(c.face[0] - cx), -(c.face[1] - cz)), 0);
+    if (c.pose === 'perch') session.perched = { x: cx, z: cz };
+    const pose = (t, speed = 0) => animateCat(cat, c.pose, t, speed, false);
+    let t = 0;
+    const step = (dt) => {
+      t += dt;
+      life.update(dt, t, cat.position, camera, session);
+      tip.update(dt);
+      knock.update?.(dt);
+      mice?.update(t);
+      pose(t);
+    };
+    const run = (secs) => { for (let k = 0; k < Math.round(secs / DT); k++) step(DT); };
+    run(0.2); // the life finds the crate and the bucket standing
+    if (name === 'apples') { tip.tip(tip.list[0]); run(m.t); }
+    else if (name === 'petals') { knock.knock(knock.list.find((k) => k.id === 'market-bucket-1')); run(m.t + 1.3); }
+    else if (name === 'pigeons') {
+      // she walks in at the patch till one takes off, then `t` more
+      let up = null;
+      let tt = 0;
+      for (let k = 0; k < Math.round(8 / DT) && up === null; k++) {
+        tt += DT;
+        cat.position.z -= 2.6 * DT;
+        crit.update(DT, tt, cat.position, cat.position, cat);
+        life.update(DT, tt, cat.position, camera, session);
+        pose(tt, 2.6);
+        if (crit.list.some((p) => p.fleeing)) up = tt;
+      }
+      for (let k = 0; k < Math.round(m.t / DT); k++) {
+        tt += DT;
+        crit.update(DT, tt, cat.position, cat.position, cat);
+        life.update(DT, tt, cat.position, camera, session);
+        pose(tt, 0);
+      }
+      window.__moment = { took: up };
+    } else run(m.t);
+    for (const o of scene.children) if (!before.has(o)) moment.groups.push(o);
+    return frameIt(true);
+  }
   window.__shot = plainShot;
   window.__cam = (...c) => frame('view', c.join(','));
 

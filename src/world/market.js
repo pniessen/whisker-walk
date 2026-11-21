@@ -811,6 +811,14 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
     wood(PARTS.bulb, mat4(x1, 0.28 + 0.21, z1, { yaw: 0.4, sx: 0.32, sy: 0.44, sz: 0.26 }), 0xc9b48a);
   }
 
+  // the baker's flour sacks, where the nap is (marketplan.js FLOUR_SACKS, MARKET_ANCHORS.flourSacks):
+  // two low sacks side by side on the cobbles, a cat's bed (the nap rests at the ground)
+  if (s.id === 'baker') {
+    const [x, z] = pl(-(W / 2 + 0.6), -D / 2 + 0.5);
+    wood(PARTS.bulb, mat4(x - 0.17, 0.07, z + 0.03, { yaw: 0.25, sx: 0.5, sy: 0.14, sz: 0.34 }), 0xc9b48a);
+    wood(PARTS.bulb, mat4(x + 0.2, 0.07, z - 0.06, { yaw: -0.35, sx: 0.5, sy: 0.14, sz: 0.34 }), 0xbfa77a);
+  }
+
   // packing up (dusk): cloths over two displays, crates stacked behind two counters
   if (CLOTHED.includes(s.id)) {
     packKit.put('cloth', M.cloth, PARTS.box, toWorld.clone().multiply(mat4(0, top + 0.17, cz, { sx: W + 0.1, sy: 0.34, sz: cd + 0.1 })), { noCast: true });

@@ -100,8 +100,10 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // invisible contact-shadow box (+1 mesh, 12 triangles never drawn), the seven flower tubs'
 // stems and blooms (a lighter clump of leaves, -60 in all, and 5-7 flowers a tub, +628):
 // +2 meshes, no caster, +1,006 triangles; merged 108 / 24.
-const MEASURED_BUILT = { meshes: 111, casters: 27, triangles: 39335 };
-const MEASURED_MERGED = { meshes: 108, casters: 24, triangles: 39335 };
+// Step 3, Task 9 (2026-11-21, picture pass): the baker's two low flour sacks where the nap is
+// (the nap had nothing drawn at its spot), in the stall's own kit: +160 triangles.
+const MEASURED_BUILT = { meshes: 111, casters: 27, triangles: 39495 };
+const MEASURED_MERGED = { meshes: 108, casters: 24, triangles: 39495 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -862,6 +864,22 @@ describe('The Market: its picture views', async () => {
       expect([id, py <= 0.8]).toEqual([id, true]);
       const at = toStall(s, lx, lz);
       expect([id, Math.abs(at.lx) < 0.05, at.lz <= s.d / 2 + 0.05]).toEqual([id, true, true]);
+    }
+  });
+
+  it('has its moment views, each six numbers and a walk second, inside the square', async () => {
+    const { MARKET_MOMENT_SHOTS } = await import('../src/world/marketplan.js');
+    expect(Object.isFrozen(MARKET_MOMENT_SHOTS)).toBe(true);
+    expect(Object.keys(MARKET_MOMENT_SHOTS)).toEqual(['lookup', 'cafe', 'tubs', 'cobbles', 'fruit', 'apples', 'flowers', 'petals', 'awning', 'fountain', 'pigeons', 'sacks', 'musician', 'basket', 'mice']);
+    for (const [name, m] of Object.entries(MARKET_MOMENT_SHOTS)) {
+      const n = m.view.split(',').map(Number);
+      expect([name, n.length, n.every(Number.isFinite)]).toEqual([name, 6, true]);
+      const [px, py, pz, lx, ly, lz] = n;
+      expect([name, 'eye', inside(px, pz, 15)]).toEqual([name, 'eye', true]);
+      expect([name, 'eye height', py >= 0.3 && py <= 30]).toEqual([name, 'eye height', true]);
+      expect([name, 'look', inside(lx, lz)]).toEqual([name, 'look', true]);
+      expect([name, 'looks somewhere', Math.hypot(lx - px, ly - py, lz - pz) > 1]).toEqual([name, 'looks somewhere', true]);
+      expect([name, 'a walk second', Number.isFinite(m.t) && m.t >= 0 && m.t <= 10]).toEqual([name, 'a walk second', true]);
     }
   });
 

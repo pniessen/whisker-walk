@@ -412,6 +412,29 @@ export const MARKET_SHOTS = Object.freeze({
   card: '-4,3.2,17,5,1.5,2',
 });
 
+// Step 3's moment views (verify-market.html's __shot('moment-<name>')): each a
+// view and `t`, the walk seconds the page runs after the moment's own start (the
+// crate going over, the bucket landing, the pigeons taking off, her landing on
+// the awning; for the rest the life's own clock). The page puts a stand-in cat
+// at the moment's spot. Test and picture data only: nothing in the game reads it.
+export const MARKET_MOMENT_SHOTS = Object.freeze({
+  lookup: Object.freeze({ view: '6,0.95,-4.9,7,0.95,-9.3', t: 1 }),
+  cafe: Object.freeze({ view: '-4,1.2,14.5,-8,1.4,19.5', t: 0 }),
+  tubs: Object.freeze({ view: '-6,0.9,19,-2.5,0.4,21.9', t: 0 }),
+  cobbles: Object.freeze({ view: '1.5,0.7,15,0,0,18', t: 0 }),
+  fruit: Object.freeze({ view: '-5.2,1,-13,-1.9,0.2,-15.6', t: 0 }),
+  apples: Object.freeze({ view: '-5.2,1,-13,-1.9,0.2,-15.6', t: 2 }),
+  flowers: Object.freeze({ view: '8.4,0.9,-0.9,10.9,0.3,-2.6', t: 0 }),
+  petals: Object.freeze({ view: '8.4,0.9,-0.9,10.9,0.3,-2.6', t: 1 }),
+  awning: Object.freeze({ view: '4,3,-6.3,8,1.9,-9.8', t: 1 }),
+  fountain: Object.freeze({ view: '-3,1.2,7.5,0,0.7,3.2', t: 1.5 }),
+  pigeons: Object.freeze({ view: '-0.6,1.3,9.6,-2.8,1.1,5.8', t: 0.35 }),
+  sacks: Object.freeze({ view: '-3.4,0.9,-14.6,-5.5,0.15,-12.1', t: 1 }),
+  musician: Object.freeze({ view: '4.6,1.3,6.5,1.9,1.1,3.3', t: 1.3 }),
+  basket: Object.freeze({ view: '11.5,1.3,19.3,9.6,0.9,22.7', t: 1 }),
+  mice: Object.freeze({ view: '9.4,3.3,-8.4,7.3,2.35,-10.3', t: 0 }),
+});
+
 // Step 3's props (V2, V4): numbers to the centimetre, so SETS.market's literals
 // equal them exactly. A drink at the fountain's south rim, a nap on the flour
 // sacks (neither drawn: mesh false), a bucket of flowers on the flower trestle's
