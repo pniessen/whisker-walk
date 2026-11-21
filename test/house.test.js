@@ -8,8 +8,11 @@ vi.stubGlobal('document', canvasStub);
 const { build, HOUSE_SKY_DUSK, HOUSE_DUSK_LIGHT, HOUSE_GROUND_BOUNCE } = await import('../src/world/house.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const {
-  HOUSE_BOUNDS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_LEVELS, HOUSE_FRONT_DOOR, LAWN_Y, roomAt, houseSections,
+  HOUSE_BOUNDS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_LEVELS, HOUSE_FRONT_DOOR, HOUSE_FURNITURE, TALL_H, LAWN_Y, roomAt, houseSections,
+  houseColliders,
 } = await import('../src/world/houseplan.js');
+const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+const { createLevelDrawing } = await import('../src/houselevels.js');
 const { HOUSE_ATLAS_CELLS, createHouseAtlas } = await import('../src/world/houseparts.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
 const { applyDusk, duskLook, createLampPools, DUSK } = await import('../src/render/dusk.js');
@@ -294,11 +297,101 @@ describe('outside', () => {
   });
 
   it('stays within the budget for the whole shell (logged for the report)', () => {
-    let meshes = 0, casters = 0;
-    scene.traverse((o) => { if (o.isMesh) { meshes++; if (!o.userData.noCast) casters++; } });
-    const triangles = Math.round(trianglesOf(scene));
+    // the shell: everything but the levels' furniture and stand-ins (test/housebudget.test.js measures those)
+    let meshes = 0, casters = 0, triangles = 0;
+    for (const c of scene.children) {
+      if (c.userData?.houseDetail || c.userData?.houseSimple) continue;
+      c.traverse((o) => { if (o.isMesh) { meshes++; if (!o.userData.noCast) casters++; } });
+      triangles += trianglesOf(c);
+    }
+    triangles = Math.round(triangles);
     if (process.env.BUDGET_LOG) console.log('house shell', JSON.stringify({ meshes, casters, triangles }));
     expect(meshes).toBeLessThanOrEqual(300);
+    expect(casters).toBeLessThanOrEqual(200);
     expect(triangles).toBeLessThanOrEqual(55000);
+  });
+});
+
+describe('the furniture', () => {
+  const levelIds = HOUSE_LEVELS.map((l) => l.id);
+  const tall = HOUSE_FURNITURE.filter((f) => f.h >= TALL_H);
+
+  it('makes every tall piece a fade occluder, and tags every detail object with a level', () => {
+    const shapes = findFadeOccluders(scene).filter((e) => !e.box);
+    expect(shapes.length).toBe(tall.length);
+    for (const f of tall) {
+      const e = shapes.find((q) => Math.abs(q.x - f.x) < 1e-6 && Math.abs(q.z - f.z) < 1e-6);
+      expect(e, f.id).toBeTruthy();
+      expect(e.obj.parent).toBe(scene);
+      expect(e.obj.userData.houseDetail).toBe(true);
+      expect(e.obj.userData.houseLevel).toBe(f.level);
+      const [cyl] = e.obj.userData.fadeOccluder;
+      expect(cyl).toEqual({ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h });
+      expect(e.shapes[0].y0).toBeCloseTo(levelY(f.level), 6);
+    }
+    // every houseDetail object is top-level and has a level; one top-level furniture group per room
+    let nested = 0;
+    for (const c of scene.children) c.traverse((o) => { if (o !== c && (o.userData?.houseDetail || o.userData?.houseSimple)) nested++; });
+    expect(nested).toBe(0);
+    const details = scene.children.filter((c) => c.userData?.houseDetail);
+    for (const d of details) expect(levelIds, d.name).toContain(d.userData.houseLevel);
+    const rooms = details.filter((d) => d.userData.houseRoom);
+    expect(rooms.map((d) => d.userData.houseRoom).sort()).toEqual(HOUSE_ROOMS.map((r) => r.id).sort());
+    for (const d of rooms) expect(d.userData.houseLevel).toBe(HOUSE_ROOMS.find((r) => r.id === d.userData.houseRoom).level);
+    // exactly one stand-in mesh per level, cast-free
+    const simples = scene.children.filter((c) => c.userData?.houseSimple);
+    expect(simples.map((c) => c.userData.houseSimple).sort()).toEqual([...levelIds].sort());
+    for (const s of simples) {
+      expect(s.isMesh, s.name).toBe(true);
+      expect(s.userData.noCast).toBe(true);
+      expect(s.castShadow).toBe(false);
+    }
+  });
+
+  it('keeps its tags, its levels and its cast-free flat pieces through the prop merge', () => {
+    const s = new THREE.Scene();
+    build(s);
+    const before = s.children.length;
+    mergeStaticProps(s);
+    expect(s.children.length).toBe(before);
+    const tagged = s.children.filter((c) => c.userData?.houseDetail);
+    expect(tagged.length).toBe(tall.length + HOUSE_ROOMS.length);
+    for (const c of tagged) {
+      expect(levelIds).toContain(c.userData.houseLevel);
+      let meshes = 0;
+      c.traverse((o) => { if (o.isMesh) meshes++; });
+      expect(meshes, c.name).toBeGreaterThanOrEqual(1);
+    }
+    // the rugs, the runner and the cobwebs stay their own meshes, cast-free
+    for (const c of tagged.filter((q) => q.userData.houseRoom)) {
+      const flats = [];
+      c.traverse((o) => { if (o.isMesh && o.userData.houseFlat) flats.push(o); });
+      const want = HOUSE_FURNITURE.some((f) => f.room === c.userData.houseRoom && f.r === 0);
+      expect(flats.length, c.name).toBe(want ? 1 : 0);
+      for (const m of flats) expect(m.userData.noCast).toBe(true);
+    }
+    // and the level drawing finds them: on the ground, the attic is its stand-in
+    const drawing = createLevelDrawing(s, { levels: HOUSE_LEVELS, links: area.house.links, start: 'ground' });
+    expect([...drawing.full].sort()).toEqual(['cellar', 'ground', 'upstairs']);
+    for (const c of s.children) {
+      if (c.userData?.houseDetail) expect(c.visible, c.name).toBe(c.userData.houseLevel !== 'attic');
+      if (c.userData?.houseSimple) expect(c.visible, c.name).toBe(c.userData.houseSimple === 'attic');
+    }
+  });
+
+  it('draws each stand-in as a box per solid piece at its footprint, 0.9 of its height', () => {
+    for (const l of HOUSE_LEVELS) {
+      const m = scene.children.find((c) => c.userData?.houseSimple === l.id);
+      m.geometry.computeBoundingBox();
+      const pieces = HOUSE_FURNITURE.filter((f) => f.level === l.id && f.r > 0);
+      const top = Math.max(...pieces.map((f) => f.h));
+      expect(m.geometry.boundingBox.max.y + m.position.y, l.id).toBeCloseTo(levelY(l.id) + 0.9 * top, 3);
+      expect(m.geometry.boundingBox.min.y + m.position.y, l.id).toBeCloseTo(levelY(l.id), 3);
+      expect(m.geometry.attributes.color, l.id).toBeTruthy();
+    }
+  });
+
+  it('hands the walk the plan\'s colliders, the furniture and the lamps among them', () => {
+    expect(area.colliders).toEqual(houseColliders());
   });
 });

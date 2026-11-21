@@ -93,11 +93,119 @@ export const HOUSE_FRONT_DOOR = freeze({
 });
 export const HOUSE_SPAWN = freeze({ x: HOUSE_FRONT_DOOR.arrive.x, z: HOUSE_FRONT_DOOR.arrive.z });
 
-// Task 5 fills this: { x, z, r, level, ... }.
-export const HOUSE_FURNITURE = freeze([]);
-
 const levelY = (id) => HOUSE_LEVELS.find((l) => l.id === id).y;
 const roomById = (id) => HOUSE_ROOMS.find((r) => r.id === id);
+
+// ---- lamps ----
+
+// One lamp per room, two in the cellar, clear of the doors and stairs. At dusk
+// the walk paints a pool round each on its floor (render/dusk.js createLampPools,
+// LAMP_LOOK.poolRadius 3.4 m, a radius), seen through the walls. On the ground
+// and in the cellar a pool spilling onto the lawn or the next room lies on ground
+// at its own height; a raised room's lamp (the bedroom's, the attic's) stands a
+// whole pool radius in from every wall of its room, so no glow hangs in mid-air
+// over the lawn. house.js draws them; their colliders are in houseColliders.
+export const HOUSE_LAMPS = frozenAll([
+  { room: 'hall', kind: 'table', x: -2.9, z: 10.6 },
+  { room: 'library', kind: 'standard', x: -12.4, z: 3.6 },
+  { room: 'parlour', kind: 'standard', x: 12.4, z: 10.4 },
+  { room: 'kitchen', kind: 'table', x: 5.6, z: 0.4 },
+  { room: 'bedroom', kind: 'standard', x: -1.5, z: -10.0 },
+  { room: 'attic', kind: 'lantern', x: -18.0, z: -9.6 },
+  { room: 'cellar', kind: 'lantern', x: 21.6, z: -1.6 },
+  { room: 'cellar', kind: 'lantern', x: 28.4, z: -8.4 },
+]);
+export const LAMP_R = 0.22; // a lamp's collider
+
+// ---- furniture ----
+
+// Warm, old, cosy furniture (house.js draws it from houseparts.js). Each piece:
+// its room and level, its kind, the centre of its footprint (x, z), rotY (its
+// front is local +z turned by rotY: 0 faces south, PI north, PI/2 east, -PI/2
+// west), the footprint w (across its front) by d (deep), its height h, and r, the
+// radius of its colliders (a row of them down its long side), or 0 for anything
+// walked over (rugs, the runner, cobwebs). A piece TALL_H or taller stands with
+// its back to a wall, never in front of a window, and fades (ruling H8).
+// Footprints keep clear of every doorway, stair mouth and the front door's
+// arrival spot (houseplan.test.js walks them).
+const FACE_S = 0; // faces south: back to a north wall
+const FACE_N = Math.PI; // faces north: back to a south wall
+const FACE_E = Math.PI / 2; // faces east: back to a west wall
+const FACE_W = -Math.PI / 2; // faces west: back to an east wall
+const piece = (id, room, kind, x, z, rotY, w, d, h, r, look = null) => ({ id, room, level: roomById(room).level, kind, x, z, rotY, w, d, h, r, look });
+const WEB = 0.55; // a cobweb's arms along each wall from its corner
+export const HOUSE_FURNITURE = frozenAll([
+  // the hall: a grandfather clock by the stair, a console table, a settle, umbrellas by the door, a runner
+  piece('hall-clock', 'hall', 'clock', -2.9, 2.27, FACE_S, 0.56, 0.34, 2.1, 0.3),
+  piece('hall-console', 'hall', 'console', -3.71, 4.2, FACE_E, 1.2, 0.38, 0.8, 0.19),
+  piece('hall-bench', 'hall', 'bench', 3.69, 9.6, FACE_W, 1.4, 0.42, 0.9, 0.21),
+  piece('hall-umbrellas', 'hall', 'umbrellas', 1.0, 11.75, FACE_N, 0.3, 0.3, 0.85, 0.15),
+  piece('hall-runner', 'hall', 'runner', 0, 6.9, FACE_S, 1.1, 8.6, 0.012, 0, 'rugBlue'),
+  // the library: three bookcases, a rolling ladder at one, a wing chair, a desk, a globe, a rug
+  piece('library-books-w', 'library', 'bookcase', -13.69, 7.0, FACE_E, 2.2, 0.42, 2.25, 0.21),
+  piece('library-books-n1', 'library', 'bookcase', -12.4, 2.31, FACE_S, 2.2, 0.42, 2.25, 0.21),
+  piece('library-books-n2', 'library', 'bookcase', -9.3, 2.31, FACE_S, 2.2, 0.42, 2.25, 0.21),
+  piece('library-ladder', 'library', 'ladder', -8.8, 2.77, FACE_S, 0.5, 0.5, 2.05, 0.15),
+  piece('library-chair', 'library', 'armchair', -11.6, 5.0, 0.92, 0.85, 0.85, 1.05, 0.42, 'library'),
+  piece('library-desk', 'library', 'desk', -9.0, 11.55, FACE_N, 1.4, 0.7, 0.8, 0.35),
+  piece('library-globe', 'library', 'globe', -5.2, 10.9, 0.4, 0.55, 0.55, 1.0, 0.26),
+  piece('library-rug', 'library', 'rug', -9.2, 7.2, FACE_S, 3.6, 2.6, 0.012, 0, 'rugRed'),
+  // the kitchen: counters, a sink and a range on the north wall, a plate dresser, a table and two chairs
+  piece('kitchen-sink', 'kitchen', 'sink', 5.7, -7.6, FACE_S, 1.1, 0.6, 1.05, 0.3),
+  piece('kitchen-counter-a', 'kitchen', 'counter', 7.45, -7.6, FACE_S, 2.4, 0.6, 0.92, 0.3, 'a'),
+  piece('kitchen-range', 'kitchen', 'range', 9.25, -7.6, FACE_S, 1.2, 0.6, 1.0, 0.3),
+  piece('kitchen-counter-b', 'kitchen', 'counter', 10.9, -7.6, FACE_S, 2.1, 0.6, 0.92, 0.3, 'b'),
+  piece('kitchen-dresser', 'kitchen', 'dresser', 4.33, -3.2, FACE_E, 1.6, 0.46, 2.05, 0.23),
+  piece('kitchen-table', 'kitchen', 'table', 9.0, -3.2, FACE_S, 1.5, 0.9, 0.76, 0.45),
+  piece('kitchen-chair-a', 'kitchen', 'chair', 8.6, -4.0, FACE_S, 0.45, 0.45, 0.95, 0.23),
+  piece('kitchen-chair-b', 'kitchen', 'chair', 9.4, -2.4, FACE_N, 0.45, 0.45, 0.95, 0.23),
+  // the parlour: the fireplace on the east wall, two armchairs at it, a side table, the piano, a rug
+  piece('parlour-fire', 'parlour', 'fireplace', 13.5, 7.0, FACE_W, 1.9, 0.8, 1.3, 0.28),
+  piece('parlour-chair-a', 'parlour', 'armchair', 11.0, 5.5, 1.03, 0.85, 0.85, 1.05, 0.42, 'parlour'),
+  piece('parlour-chair-b', 'parlour', 'armchair', 11.0, 8.5, 2.11, 0.85, 0.85, 1.05, 0.42, 'parlour'),
+  piece('parlour-sidetable', 'parlour', 'sidetable', 10.5, 7.0, 0, 0.5, 0.5, 0.62, 0.25),
+  piece('parlour-piano', 'parlour', 'piano', 8.7, 11.6, FACE_N, 1.5, 0.6, 1.3, 0.3),
+  piece('parlour-rug', 'parlour', 'rug', 11.2, 7.0, FACE_S, 2.4, 3.2, 0.012, 0, 'rugRed'),
+  // the bedroom: a big bed, a wardrobe, a chest of drawers, a bedside table, a rug
+  piece('bedroom-bed', 'bedroom', 'bed', 0.85, -12.0, FACE_W, 1.6, 2.1, 1.1, 0.75),
+  piece('bedroom-bedside', 'bedroom', 'bedside', 1.62, -13.25, FACE_W, 0.45, 0.45, 0.62, 0.22),
+  piece('bedroom-wardrobe', 'bedroom', 'wardrobe', -6.4, -15.6, FACE_S, 1.3, 0.6, 2.05, 0.3),
+  piece('bedroom-drawers', 'bedroom', 'drawers', -0.6, -15.65, FACE_S, 1.1, 0.5, 0.95, 0.25),
+  piece('bedroom-rug', 'bedroom', 'rug', -2.6, -12.0, FACE_S, 2.4, 2.0, 0.012, 0, 'rugBlue'),
+  // the attic: boxes stacked no higher than 1.4 m, an old trunk, an old rocking chair, a rug
+  piece('attic-boxes-a', 'attic', 'boxes', -15.0, -15.3, FACE_S, 1.6, 1.0, 1.35, 0.5),
+  piece('attic-boxes-b', 'attic', 'boxes', -23.2, -7.0, FACE_N, 1.2, 1.4, 1.1, 0.55),
+  piece('attic-trunk', 'attic', 'trunk', -19.8, -15.58, FACE_S, 1.1, 0.64, 0.62, 0.32),
+  piece('attic-chair', 'attic', 'chair', -21.9, -12.6, 1.2, 0.5, 0.7, 0.95, 0.3, 'rocking'),
+  piece('attic-rug', 'attic', 'rug', -19.5, -12.2, FACE_S, 2.4, 1.8, 0.012, 0, 'rugBlue'),
+  // the cellar: jar shelves, barrels, crates and cobwebs in its corners
+  piece('cellar-shelf-a', 'cellar', 'jarshelf', 23.2, -9.68, FACE_S, 1.8, 0.44, 1.9, 0.22),
+  piece('cellar-shelf-b', 'cellar', 'jarshelf', 25.6, -9.68, FACE_S, 1.8, 0.44, 1.9, 0.22),
+  piece('cellar-barrels', 'cellar', 'barrels', 24.6, -0.52, FACE_N, 2.3, 0.84, 0.95, 0.4),
+  piece('cellar-crates', 'cellar', 'crates', 28.95, -0.85, FACE_N, 1.5, 1.3, 1.25, 0.6),
+  piece('cellar-web-nw', 'cellar', 'cobweb', 20.1 + WEB / 2, -9.9 + WEB / 2, 0, WEB, WEB, 0.5, 0),
+  piece('cellar-web-ne', 'cellar', 'cobweb', 29.9 - WEB / 2, -9.9 + WEB / 2, -Math.PI / 2, WEB, WEB, 0.5, 0),
+  piece('cellar-web-se', 'cellar', 'cobweb', 29.9 - WEB / 2, -0.1 - WEB / 2, Math.PI, WEB, WEB, 0.5, 0),
+  piece('cellar-web-sw', 'cellar', 'cobweb', 20.1 + WEB / 2, -0.1 - WEB / 2, Math.PI / 2, WEB, WEB, 0.5, 0),
+]);
+
+// A piece's colliders: circles of its r down the middle of its long side, no
+// further apart than r, the end ones r in from its ends (one circle if it is short).
+function furnitureColliders(f) {
+  if (!(f.r > 0)) return [];
+  const wide = f.w >= f.d;
+  const len = wide ? f.w : f.d;
+  const ax = wide ? Math.cos(f.rotY) : Math.sin(f.rotY);
+  const az = wide ? -Math.sin(f.rotY) : Math.cos(f.rotY);
+  const half = Math.max(0, len / 2 - f.r);
+  const n = half > 1e-9 ? Math.ceil((2 * half) / f.r - 1e-9) : 0;
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = n === 0 ? 0 : -half + (2 * half * i) / n;
+    out.push({ x: f.x + ax * t, z: f.z + az * t, r: f.r, level: f.level });
+  }
+  return out;
+}
 
 // ---- ground ----
 
@@ -311,7 +419,8 @@ export function houseColliders() {
       out.push({ x: s.x0 + (s.x1 - s.x0) * t, z: s.z0 + (s.z1 - s.z0) * t, r: COLLIDER_R, level: s.level });
     }
   }
-  for (const f of HOUSE_FURNITURE) if (f.r > 0) out.push({ x: f.x, z: f.z, r: f.r, level: f.level });
+  for (const f of HOUSE_FURNITURE) out.push(...furnitureColliders(f));
+  for (const l of HOUSE_LAMPS) out.push({ x: l.x, z: l.z, r: LAMP_R, level: roomById(l.room).level });
   return out;
 }
 

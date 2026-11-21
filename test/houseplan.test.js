@@ -16,11 +16,12 @@ const H = await import('../src/world/houseplan.js');
 const { validateGround, MAX_PATH_GRADE } = await import('../src/ground.js');
 const { isWalkableAt } = await import('../src/player.js');
 const { houseFlood } = await import('./helpers/houseflood.js');
+const { LAMP_LOOK } = await import('../src/render/dusk.js');
 
 const {
   HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, LEVEL_LINKS, HOUSE_DOORWAYS, HOUSE_WINDOWS, HOUSE_BOUNDS,
   HOUSE_SPAWN, HOUSE_FRONT_DOOR, HOUSE_FURNITURE, LAWN_Y, SECTION_MAX, DOOR_H, WALL_H, STUB_H, COLLIDER_R,
-  COLLIDER_STEP, houseGroundSpec, houseSections, houseColliders, roomAt, stairAt, houseArea,
+  COLLIDER_STEP, TALL_H, HOUSE_LAMPS, LAMP_R, houseGroundSpec, houseSections, houseColliders, roomAt, stairAt, houseArea,
 } = H;
 
 const area = houseArea();
@@ -234,3 +235,132 @@ describe('the plan of the house', () => {
     expect(HOUSE_BOUNDS).toEqual({ minX: -24, maxX: 30, minZ: -16, maxZ: 12 });
   });
 });
+
+// A piece's footprint as a world rectangle (w across its front, d deep, turned by rotY).
+function footprintOf(f) {
+  const c = Math.abs(Math.cos(f.rotY));
+  const sn = Math.abs(Math.sin(f.rotY));
+  const hx = (f.w * c + f.d * sn) / 2;
+  const hz = (f.w * sn + f.d * c) / 2;
+  return { minX: f.x - hx, maxX: f.x + hx, minZ: f.z - hz, maxZ: f.z + hz };
+}
+const roomOf = (id) => HOUSE_ROOMS.find((r) => r.id === id);
+const edgeDistances = (r, x, z) => ({ w: x - r.minX, e: r.maxX - x, n: z - r.minZ, s: r.maxZ - z });
+
+describe('the furniture', () => {
+  it('furnishes every room with the named pieces, each in its own room on its own level', () => {
+    const kinds = (room) => HOUSE_FURNITURE.filter((f) => f.room === room).map((f) => f.kind);
+    const has = (room, kind, n = 1) => expect(kinds(room).filter((k) => k === kind).length, `${room} ${kind}`).toBeGreaterThanOrEqual(n);
+    has('hall', 'clock'); has('hall', 'console'); has('hall', 'bench'); has('hall', 'umbrellas'); has('hall', 'runner');
+    has('library', 'bookcase', 3); has('library', 'ladder'); has('library', 'armchair'); has('library', 'desk'); has('library', 'globe'); has('library', 'rug');
+    has('kitchen', 'counter'); has('kitchen', 'range'); has('kitchen', 'table'); has('kitchen', 'chair', 2); has('kitchen', 'dresser'); has('kitchen', 'sink');
+    has('parlour', 'fireplace'); has('parlour', 'armchair', 2); has('parlour', 'piano'); has('parlour', 'sidetable'); has('parlour', 'rug');
+    has('bedroom', 'bed'); has('bedroom', 'wardrobe'); has('bedroom', 'drawers'); has('bedroom', 'bedside'); has('bedroom', 'rug');
+    has('attic', 'boxes'); has('attic', 'trunk'); has('attic', 'chair'); has('attic', 'rug');
+    has('cellar', 'barrels'); has('cellar', 'jarshelf'); has('cellar', 'crates'); has('cellar', 'cobweb');
+    const ids = HOUSE_FURNITURE.map((f) => f.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const f of HOUSE_FURNITURE) {
+      const room = roomOf(f.room);
+      expect(room, f.id).toBeTruthy();
+      expect(f.level, f.id).toBe(room.level);
+      const fp = footprintOf(f);
+      expect(fp.minX, f.id).toBeGreaterThanOrEqual(room.minX + 0.1 - 1e-6);
+      expect(fp.maxX, f.id).toBeLessThanOrEqual(room.maxX - 0.1 + 1e-6);
+      expect(fp.minZ, f.id).toBeGreaterThanOrEqual(room.minZ + 0.1 - 1e-6);
+      expect(fp.maxZ, f.id).toBeLessThanOrEqual(room.maxZ - 0.1 + 1e-6);
+      expect(f.h, f.id).toBeGreaterThan(0);
+      expect(f.r, f.id).toBeGreaterThanOrEqual(0);
+    }
+    // the attic's boxes are stacked no higher than 1.4 m
+    for (const f of HOUSE_FURNITURE.filter((q) => q.room === 'attic' && q.kind === 'boxes')) expect(f.h, f.id).toBeLessThanOrEqual(1.4);
+  });
+
+  it('stands every tall piece with its back to its room\'s wall', () => {
+    const tall = HOUSE_FURNITURE.filter((f) => f.h >= TALL_H);
+    expect(tall.length).toBeGreaterThanOrEqual(8);
+    for (const f of tall) {
+      const d = edgeDistances(roomOf(f.room), f.x, f.z);
+      const [side, near] = Object.entries(d).sort((a, b) => a[1] - b[1])[0];
+      expect(near, f.id).toBeLessThanOrEqual(0.8);
+      // and it faces away from that wall: its front (local +z turned by rotY) points into the room
+      const fx = Math.sin(f.rotY);
+      const fz = Math.cos(f.rotY);
+      const inward = { w: [1, 0], e: [-1, 0], n: [0, 1], s: [0, -1] }[side];
+      expect(fx * inward[0] + fz * inward[1], f.id).toBeGreaterThan(0.99);
+    }
+  });
+
+  it('never stands a tall piece in front of a window', () => {
+    for (const f of HOUSE_FURNITURE.filter((q) => q.h >= TALL_H)) {
+      const fp = footprintOf(f);
+      const room = roomOf(f.room);
+      for (const w of HOUSE_WINDOWS.filter((q) => q.room === f.room)) {
+        const line = { n: room.minZ, s: room.maxZ, w: room.minX, e: room.maxX }[w.side];
+        const ns = w.side === 'n' || w.side === 's';
+        const off = ns ? Math.min(Math.abs(fp.minZ - line), Math.abs(fp.maxZ - line)) : Math.min(Math.abs(fp.minX - line), Math.abs(fp.maxX - line));
+        if (off > 1.2) continue; // nowhere near that wall
+        const [lo, hi] = ns ? [fp.minX, fp.maxX] : [fp.minZ, fp.maxZ];
+        const apart = hi <= w.at - w.width / 2 - 0.1 || lo >= w.at + w.width / 2 + 0.1;
+        expect(apart, `${f.id} / ${w.room}-${w.side}@${w.at}`).toBe(true);
+      }
+    }
+  });
+
+  it('gives every solid piece colliders on its own level, and walks over the flat ones', () => {
+    for (const f of HOUSE_FURNITURE) {
+      const near = area.colliders.filter((c) => c.r === f.r && Math.hypot(c.x - f.x, c.z - f.z) <= Math.max(f.w, f.d) / 2 + 1e-6);
+      if (f.r === 0) continue;
+      expect(near.length, f.id).toBeGreaterThanOrEqual(1);
+      for (const c of near) expect(c.level, f.id).toBe(f.level);
+      // a piece's own centre is never walkable
+      expect(isWalkableAt(area, f.x, f.z), f.id).toBe(false);
+    }
+    for (const f of HOUSE_FURNITURE.filter((q) => q.r === 0)) expect(f.h, f.id).toBeLessThanOrEqual(0.7);
+  });
+
+  it('keeps every stair mouth and the front door\'s arrival spot clear', () => {
+    const f = houseFlood(area, area.spawn, 0.25);
+    for (const s of HOUSE_STAIRS) {
+      const alongZ = Math.abs(s.z1 - s.z0) >= Math.abs(s.x1 - s.x0);
+      const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0);
+      const ux = (s.x1 - s.x0) / len;
+      const uz = (s.z1 - s.z0) / len;
+      // a metre out of each end, into its room, across the middle of the stair
+      for (const [px, pz, out] of [[s.x0, s.z0, -1], [s.x1, s.z1, 1]]) {
+        for (const o of [-0.5, 0, 0.5]) {
+          const x = px + ux * out * 1.0 + (alongZ ? o : 0);
+          const z = pz + uz * out * 1.0 + (alongZ ? 0 : o);
+          expect(isWalkableAt(area, x, z), `${s.id} ${out} ${o}`).toBe(true);
+          expect(f.reachesWithin(x, z, 0.26), `${s.id} ${out} ${o}`).toBe(true);
+        }
+      }
+    }
+    const a = HOUSE_FRONT_DOOR.arrive;
+    for (const [dx, dz] of [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) {
+      expect(isWalkableAt(area, a.x + dx, a.z + dz), `arrive ${dx},${dz}`).toBe(true);
+    }
+  });
+});
+
+describe('the lamps', () => {
+  it('stands every lamp in its room, its collider in the plan\'s colliders', () => {
+    for (const r of HOUSE_ROOMS) expect(HOUSE_LAMPS.filter((l) => l.room === r.id).length, r.id).toBeGreaterThanOrEqual(r.id === 'cellar' ? 2 : 1);
+    for (const l of HOUSE_LAMPS) {
+      expect(roomAt(l.x, l.z), `${l.room} lamp`).toBe(l.room);
+      const c = houseColliders().find((q) => q.x === l.x && q.z === l.z && q.r === LAMP_R);
+      expect(c, `${l.room} lamp`).toBeTruthy();
+      expect(c.level).toBe(roomOf(l.room).level);
+    }
+  });
+
+  it('keeps a raised room\'s lamp a whole pool radius from its walls, so no glow hangs over the lawn', () => {
+    const R = LAMP_LOOK.poolRadius;
+    const raised = HOUSE_LAMPS.filter((l) => levelY(roomOf(l.room).level) > LAWN_Y);
+    expect(raised.map((l) => l.room).sort()).toEqual(['attic', 'bedroom']);
+    for (const l of raised) {
+      for (const [side, d] of Object.entries(edgeDistances(roomOf(l.room), l.x, l.z))) expect(d, `${l.room} ${side}`).toBeGreaterThanOrEqual(R);
+    }
+  });
+});
+

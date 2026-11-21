@@ -10,8 +10,10 @@
 // raised rooms are top-level meshes. Window panes are top-level meshes too: the
 // tree fade takes any group holding a window for a building and would fade a whole
 // floor of the house. One lamp per room, two in the cellar, always drawn; at dusk
-// their globes glow (render/dusk.js) and the walk paints a pool under each.
-// Outside: the lawn (a hole where the cellar and its stair go down), a hedge ring,
+// their globes glow (render/dusk.js) and the walk paints a pool under each
+// (houseplan.js HOUSE_LAMPS keeps a raised room's lamp a pool radius off its walls).
+// The furniture: a top-level group per tall piece and per room, and a stand-in per
+// level, all tagged for the level drawing (furnish, below). Outside: the lawn (a hole where the cellar and its stair go down), a hedge ring,
 // three neighbours' houses and four trees, all at least 8 m outside the bounds.
 //
 // No people, no resident cat, no strays (U12, U14): critterSpawns is empty and
@@ -27,12 +29,14 @@ import { litMaterial, tileMetres } from '../render/materials.js';
 import { withLocalUuids } from './localuuids.js';
 import { words } from '../wordset.js';
 import {
-  HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_BOUNDS, HOUSE_FRONT_DOOR, LAWN_Y, WALL_T, houseArea,
+  HOUSE_LEVELS, HOUSE_ROOMS, HOUSE_STAIRS, HOUSE_BOUNDS, HOUSE_FRONT_DOOR, HOUSE_LAMPS, HOUSE_FURNITURE, LEVEL_LINKS,
+  LAWN_Y, WALL_T, TALL_H, houseArea,
 } from './houseplan.js';
 import {
   HOUSE_ATLAS_CELLS as CELL, createHouseAtlas, houseMaterial, sectionMesh, paneMesh, floorMesh, stairMesh,
-  skirtMesh, lampGroup, partsKit, kitBox, kitFace, kitMesh, FRONT_DOOR_W,
+  skirtMesh, lampGroup, partsKit, kitBox, kitFace, kitMesh, FRONT_DOOR_W, furnitureMesh, flatsMesh, standInMesh,
 } from './houseparts.js';
+import { fullLevels } from '../houselevels.js';
 
 const freeze = Object.freeze;
 
@@ -46,20 +50,6 @@ export const HOUSE_DUSK_LIGHT = freeze({
   groundDim: 0.8, envScale: 0.6, fogNear: 60, fogFar: 160,
 });
 
-// One lamp per room, two in the cellar, each 1.6 m out of a corner clear of the
-// doors and stairs (its dusk pool is 3.4 m across: render/dusk.js LAMP_LOOK, so a
-// lamp nearer a wall spills more of its pool through it).
-export const HOUSE_LAMPS = freeze([
-  { room: 'hall', kind: 'table', x: 2.4, z: 10.4 },
-  { room: 'library', kind: 'standard', x: -12.4, z: 3.6 },
-  { room: 'parlour', kind: 'standard', x: 12.4, z: 10.4 },
-  { room: 'kitchen', kind: 'table', x: 5.6, z: 0.4 },
-  { room: 'bedroom', kind: 'table', x: 0.4, z: -14.4 },
-  { room: 'attic', kind: 'lantern', x: -22.4, z: -7.6 },
-  { room: 'cellar', kind: 'lantern', x: 21.6, z: -1.6 },
-  { room: 'cellar', kind: 'lantern', x: 28.4, z: -8.4 },
-].map((l) => freeze(l)));
-const LAMP_R = 0.22; // a lamp's collider
 
 // The garden, round the bounds: the hedge ring 9 m out, the neighbours and trees past it.
 const HEDGE_OUT = 9;
@@ -227,6 +217,61 @@ function drawTrees(scene, wind) {
   });
 }
 
+const START_LEVEL = 'ground';
+
+// The rooms furnished (houseplan.js HOUSE_FURNITURE, houseparts.js draws each piece).
+// A tall piece (TALL_H and up) is a top-level group of its own at its spot, turned
+// by rotY, with a fadeOccluder cylinder round its footprint, so the tree fade takes
+// it when it stands between the camera and the cat (ruling H8). The rest of a room
+// is one top-level group the walk's prop merge makes one mesh of; its walked-over
+// pieces (rugs, the runner, cobwebs) are one more mesh in it, noMerge and noCast.
+// Every one is tagged houseDetail with its level, for the level drawing (H6); each
+// level also has one plain stand-in (houseSimple) shown when it is far. The drawing
+// starts as on the ground level; house life (Task 6) keeps it up from there.
+function furnish(scene, material, start) {
+  const full = fullLevels(start, LEVEL_LINKS);
+  const tag = (o, level) => {
+    o.userData.houseDetail = true;
+    o.userData.houseLevel = level;
+    o.visible = full.has(level);
+  };
+  for (const room of HOUSE_ROOMS) {
+    const y = levelY(room.level);
+    const group = new THREE.Group();
+    group.name = `houseFurniture:${room.id}`;
+    tag(group, room.level);
+    group.userData.houseRoom = room.id;
+    const flats = [];
+    for (const f of HOUSE_FURNITURE.filter((q) => q.room === room.id)) {
+      if (f.r === 0) { flats.push(f); continue; }
+      const mesh = furnitureMesh(f, material);
+      if (f.h >= TALL_H) {
+        const tall = new THREE.Group();
+        tall.name = `houseTall:${f.id}`;
+        tall.position.set(f.x, y, f.z);
+        tall.rotation.y = f.rotY;
+        tall.userData.fadeOccluder = [{ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h }];
+        tag(tall, room.level);
+        tall.add(mesh);
+        scene.add(tall);
+        continue;
+      }
+      mesh.position.set(f.x, y, f.z);
+      mesh.rotation.y = f.rotY;
+      group.add(mesh);
+    }
+    if (flats.length) group.add(flatsMesh(flats, y, material, `houseFlats:${room.id}`));
+    scene.add(group);
+  }
+  for (const l of HOUSE_LEVELS) {
+    const solid = HOUSE_FURNITURE.filter((f) => f.level === l.id && f.r > 0);
+    if (!solid.length) continue;
+    const m = standInMesh(l.id, solid, l.y);
+    m.visible = !full.has(l.id);
+    scene.add(m);
+  }
+}
+
 // eslint-disable-next-line no-unused-vars
 export function build(scene, { wind, gateEnds } = {}) {
   // gateEnds: step 4 opens the front door when a house-town end comes in. Step 1 ignores it.
@@ -262,14 +307,13 @@ export function build(scene, { wind, gateEnds } = {}) {
     }
     for (const s of HOUSE_STAIRS) scene.add(stairMesh(s, material));
 
-    const colliders = plan.colliders;
     HOUSE_LAMPS.forEach((l, i) => {
       const room = HOUSE_ROOMS.find((r) => r.id === l.room);
       const g = lampGroup(l.kind, l.x, levelY(room.level), l.z, material);
       g.name = `houseLamp:${l.room}:${i}`;
       scene.add(g);
-      colliders.push({ x: l.x, z: l.z, r: LAMP_R, level: room.level });
     });
+    furnish(scene, material, START_LEVEL);
 
     drawLawn(scene);
     drawHedge(scene);
@@ -280,7 +324,7 @@ export function build(scene, { wind, gateEnds } = {}) {
     return {
       name: words().PLACE_WORDS.house,
       ground: plan.ground,
-      colliders,
+      colliders: plan.colliders, // the walls', the furniture's and the lamps' (houseColliders)
       bounds: { ...HOUSE_BOUNDS },
       spawn: { ...plan.spawn },
       pois: [],
@@ -300,7 +344,7 @@ export function build(scene, { wind, gateEnds } = {}) {
         levels: plan.levels,
         links: plan.links,
         sections: plan.sections,
-        start: 'ground',
+        start: START_LEVEL,
         sectionMeshes,
         panes,
       },
