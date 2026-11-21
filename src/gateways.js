@@ -148,8 +148,10 @@ export const GATE_FENCE_GAP = 0.25;
 // GATE_HALF + GATE_FENCE_GAP either side of its centre out of the run, so the
 // fence's last post stands just beside each gate post and nothing of the fence
 // is left in the opening. Every other run, and every other key, comes back as
-// it was. Pure: the area builders call it with endsFor(their id), so a gate
-// set into a fence and the gap in that fence can never drift apart.
+// it was. Pure: the Fair's and the Farm's builders call it with the `gateEnds`
+// walk.js hands them, the very ends it then draws (Clan Edition only), so a
+// gate set into a fence and the gap in that fence can never drift apart, and a
+// Legacy walk keeps its fence whole.
 export function cutForGates(runs, ends) {
   const out = [];
   const cut = GATE_HALF + GATE_FENCE_GAP;

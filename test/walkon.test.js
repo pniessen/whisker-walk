@@ -256,6 +256,41 @@ describe('walking on through a gate', () => {
     expect(atGates).toHaveLength(0);
   }, WALK_MS);
 
+  // Placement fix round 1: the Fair's and the Farm's gates to the Park are set
+  // into their front fences, and only where a gate is drawn: a Clan walk's
+  // fence is cut for it, a Legacy walk's runs on whole.
+  it('the Fair\'s and the Farm\'s front fences are cut for their gates in Clan Edition, and whole in Legacy', () => {
+    const fenceAcross = (s, meshName, x) => {
+      const mesh = s.scene.getObjectByName(meshName);
+      mesh.updateWorldMatrix(true, false);
+      const pos = mesh.geometry.attributes.position;
+      let n = 0;
+      for (let i = 0; i < pos.count; i++) {
+        const v = { x: pos.getX(i), z: pos.getZ(i) };
+        const w = { x: v.x * mesh.matrixWorld.elements[0] + v.z * mesh.matrixWorld.elements[8] + mesh.matrixWorld.elements[12],
+          z: v.x * mesh.matrixWorld.elements[2] + v.z * mesh.matrixWorld.elements[10] + mesh.matrixWorld.elements[14] };
+        if (Math.abs(w.z - 45) <= 0.3 && Math.abs(w.x - x) < 1.0) n++;
+      }
+      return n;
+    };
+    for (const [area, mesh, x] of [['fair', 'fairFence', 8], ['farm', 'farmFences', -8]]) {
+      const clan = walkHarness({ save: parkSave });
+      clan.w.startWalk({ areaOverride: area });
+      const cs = clan.getSession();
+      expect(cs.areaId).toBe(area);
+      expect(cs.scene.children.some((c) => c.name === 'gateway' && c.userData.endId === `${area}-park`)).toBe(true);
+      expect(fenceAcross(cs, mesh, x), `${area}: Clan fence in the gate's opening`).toBe(0);
+      clan.w.endWalk();
+      const legacy = walkHarness({ save: legacyParkSave });
+      legacy.w.startWalk({ areaOverride: area });
+      const ls = legacy.getSession();
+      expect(ls.areaId).toBe(area);
+      expect(ls.gates).toBe(NO_GATES);
+      expect(fenceAcross(ls, mesh, x), `${area}: Legacy fence where the gate would stand`).toBeGreaterThan(0);
+      legacy.w.endWalk();
+    }
+  }, WALK_MS);
+
   it('a session holds its walk-on fields: no room, no handlers, no gate she came in by', () => {
     const h = walkHarness({ save: parkSave });
     h.w.startWalk({});

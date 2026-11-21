@@ -40,6 +40,7 @@ const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
 const { addGatewayDressing } = await import('../src/world/gateway.js');
+const { endsFor } = await import('../src/gateways.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
 // ---------------------------------------------------------------------------
@@ -594,7 +595,9 @@ describe('with the gateways (world map step 3)', () => {
     const merged = MERGED_AREAS.find(([n]) => n === name);
     it(`${name}: dressed, still under ${meshCeiling} / ${casterCeiling} / ${triangleCeiling}, merged under ${merged[2]} / ${merged[3]}`, () => {
       const scene = new THREE.Scene();
-      build(scene);
+      // as walk.js builds a Clan walk: the gate ends go to the builder too
+      // (the Fair and the Farm cut their front fences for them)
+      build(scene, { gateEnds: endsFor(name) });
       if (name === 'neighborhood') addBorderDressing(scene, name);
       addGatewayDressing(scene, name);
       const before = budgetStats(scene);

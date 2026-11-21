@@ -8,7 +8,7 @@ import { withLocalUuids } from './localuuids.js';
 import { seedFromCode } from '../rng.js';
 import * as parts from './farmparts.js';
 import { BARN, BALE, TRACTOR, STAND, SCARECROW, GRAIN_STORE, FARM_COLORS } from './farmparts.js';
-import { endsFor, cutForGates } from '../gateways.js';
+import { cutForGates } from '../gateways.js';
 
 // =============================================================================
 // Appletree Farm (docs/superpowers/specs/2026-11-18-farm-design.md), step 1:
@@ -214,12 +214,13 @@ const FENCE_RUNS = Object.freeze([
   ...ring(PASTURE, { side: 'w', from: PASTURE_GATE.z - 1.4, to: PASTURE_GATE.z + 1.4 }).map(([x1, z1, x2, z2]) => ({ a: [x1, z1], b: [x2, z2], style: 'rail' })),
   ...ring(GOAT_PADDOCK, { side: 'e', from: GOAT_GATE.z - 1.7, to: GOAT_GATE.z + 1.7 }).map(([x1, z1, x2, z2]) => ({ a: [x1, z1], b: [x2, z2], style: 'rail' })),
   ...ring(HEN_RUN, { side: 'e', from: COOP_AT.z - 0.8, to: COOP_AT.z + 0.8 }).map(([x1, z1, x2, z2]) => ({ a: [x1, z1], b: [x2, z2], style: 'wire' })),
-  // The front fence, with the gate back to the Park set into it (its place is
-  // fixed data in gateways.js; walk.js draws the gate itself after the build).
-  ...cutForGates([
-    { a: [-44, GATE_AT.z], b: [-2.6, GATE_AT.z], style: 'picket' },
-    { a: [2.6, GATE_AT.z], b: [44, GATE_AT.z], style: 'picket' },
-  ], endsFor('farm')),
+]);
+// The front fence. build() cuts it where a gate walk.js draws is set into it
+// (`gateEnds`: the gate ends this walk draws; a walk that draws no gates, and
+// a bare build, keep it whole). Visual only: no fence here has a collider.
+const FRONT_RUNS = Object.freeze([
+  { a: [-44, GATE_AT.z], b: [-2.6, GATE_AT.z], style: 'picket' },
+  { a: [2.6, GATE_AT.z], b: [44, GATE_AT.z], style: 'picket' },
 ]);
 const GATES = Object.freeze([
   { x: PASTURE_GATE.x, z: PASTURE_GATE.z + 1.4, len: 2.7, yaw: Math.PI * 0.72 },
@@ -280,7 +281,7 @@ export const FARM_HIDES = Object.freeze([
   pt(6.5, 21.5),                                  // under the bush at the orchard's corner
 ]);
 
-export function build(scene, { water = {}, wind } = {}) {
+export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
   // A bright farm morning: a clear blue over a pale, hazy horizon.
   b.applySky(scene, 0x9ad0ee, 0xdcefe4);
   const lawn = b.ground(120, FARM_GRASS, { surface: 'grass' });
@@ -336,7 +337,7 @@ export function build(scene, { water = {}, wind } = {}) {
     kennel: parts.kennel(KENNEL_AT.x, KENNEL_AT.z, EAST),
     tractor: parts.tractor(TRACTOR_AT.x, TRACTOR_AT.z, WEST),
     bales: parts.hayBales([...BARN_BALES, ...ROUND_BALES]),
-    fences: parts.fences(FENCE_RUNS, GATES),
+    fences: parts.fences([...FENCE_RUNS, ...cutForGates(FRONT_RUNS, gateEnds)], GATES),
     gate: parts.gateArch(GATE_AT.x, GATE_AT.z, 2.6),
     scarecrow: parts.scarecrow(SCARECROW_AT.x, SCARECROW_AT.z, 0.5),
     scarecrowHat: parts.scarecrowHat(SCARECROW_AT.x, SCARECROW_AT.z, 0.5),

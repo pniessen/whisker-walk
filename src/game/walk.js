@@ -818,9 +818,13 @@ export function createWalkLifecycle({
     // fence run at z ~ -18 — and that garden is the one thing in the room a
     // breeze should reach. It gets no `water` because it has none. Passing an
     // extra key is inert until den.js asks for it.
+    // The gates this walk draws (world map step 3: Clan Edition only, see
+    // `gates` below). The Fair and the Farm cut their front fences for exactly
+    // these, so a Legacy walk (none) keeps its fence whole, as it always was.
+    const gateEnds = !isDen && isClanEdition(state) ? liveEndsFor(areaId, CATALOG) : [];
     const areaData = isDen
       ? pack.world.build(scene, { placed: progression.state.den.placed, wind })
-      : pack.world.build(scene, { water: { quality: tier, reducedMotion }, wind });
+      : pack.world.build(scene, { water: { quality: tier, reducedMotion }, wind, gateEnds });
     // Gorge part 1: the area's walkable height, FLAT_GROUND on every map today.
     const ground = groundOf(areaData);
     // Gorge G9: the goat comes on about half the days. On a no-goat day it and
@@ -840,7 +844,7 @@ export function createWalkLifecycle({
     // every path. A gate is open where she can go now (gateStatus 'go'). Its
     // colliders join the live list below, beside the posts'.
     const gates = !isDen && isClanEdition(state)
-      ? addGatewayDressing(scene, areaId, { ground, ends: liveEndsFor(areaId, CATALOG), isOpen: (e) => gateStatus(e, state, CATALOG).kind === 'go' })
+      ? addGatewayDressing(scene, areaId, { ground, ends: gateEnds, isOpen: (e) => gateStatus(e, state, CATALOG).kind === 'go' })
       : NO_GATES;
     // The fill light, added here rather than beside the sun because its ground
     // term is the AREA'S OWN dominant ground colour and only areaData knows it:

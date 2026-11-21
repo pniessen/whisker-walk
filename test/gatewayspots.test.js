@@ -43,7 +43,10 @@ const T = 60000;
 setGrow(false);
 const areas = {};
 const scenes = {};
-for (const id of IDS) areas[id] = MODS[id].build(scenes[id] = new THREE.Scene());
+// Built as a Clan Edition walk builds them: walk.js hands each builder the
+// gate ends it then draws (`gateEnds`), and the Fair and the Farm cut their
+// front fences for them. A Legacy walk (and a bare build) hands none.
+for (const id of IDS) areas[id] = MODS[id].build(scenes[id] = new THREE.Scene(), { gateEnds: endsFor(id) });
 
 const floods = {};
 const flood = (id) => (floods[id] ??= floodFrom(areas[id], MODS[id].SPAWN, (x, z) => isWalkableAt(areas[id], x, z)));
@@ -199,16 +202,39 @@ describe('P1: the Fair\'s and the Farm\'s gates to the Park are set into the fro
       const right = Math.min(...xs.filter((x) => x >= hi));
       expect(p.x - GATE_POST_R - left, `${id}: gap between the fence and the post at x ${p.x}`).toBeLessThan(CAT_RADIUS);
       expect(right - (q.x + GATE_POST_R), `${id}: gap between the fence and the post at x ${q.x}`).toBeLessThan(CAT_RADIUS);
-      // No collider of the place in the opening either; and if the fence ever
-      // gets colliders, they meet each post too (today it has none).
+      // No collider of the place on the fence line near the gate: the fence
+      // has none (a cat slips between the pickets). If it ever gets them, this
+      // fails, and the check that they meet each post with no cat-sized gap
+      // (and leave the opening clear) has to be written then, on purpose.
       const onLine = areas[a].colliders.filter((c) => Math.abs(c.z - line) < c.r + 0.3 && Math.abs(c.x - e.x) < 12);
-      for (const c of onLine) {
-        expect(c.x + c.r <= lo || c.x - c.r >= hi, `${a} collider (${c.x}, ${c.z}) in the opening of ${id}`).toBe(true);
+      expect(onLine, `${a} colliders on the front fence line by ${id}`).toEqual([]);
+    });
+  }
+
+  // Legacy Edition draws no gates (walk.js: Clan Edition only), so its builds
+  // get no `gateEnds` and keep the front fence whole, as it always was.
+  for (const [a, id, meshName] of [['fair', 'fair-park', 'fairFence'], ['farm', 'farm-park', 'farmFences']]) {
+    it(`${a}: built for Legacy (no gate ends), the front fence runs on unbroken where ${id} would stand`, () => {
+      const scene = new THREE.Scene();
+      MODS[a].build(scene);
+      const e = endById(id).end;
+      const line = FENCE_LINE[a];
+      const mesh = scene.getObjectByName(meshName);
+      mesh.updateWorldMatrix(true, false);
+      const pos = mesh.geometry.attributes.position;
+      const v = new THREE.Vector3();
+      const xs = [];
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+        if (Math.abs(v.z - line) <= 0.3 && Math.abs(v.x - e.x) <= GATE_HALF + 1) xs.push(v.x);
       }
-      const westC = onLine.filter((c) => c.x < e.x);
-      const eastC = onLine.filter((c) => c.x > e.x);
-      if (westC.length) expect(p.x - GATE_POST_R - Math.max(...westC.map((c) => c.x + c.r))).toBeLessThan(2 * CAT_RADIUS);
-      if (eastC.length) expect(Math.min(...eastC.map((c) => c.x - c.r)) - (q.x + GATE_POST_R)).toBeLessThan(2 * CAT_RADIUS);
+      // pickets all the way across where the opening would be: no stretch of
+      // more than half a metre without fence
+      const sorted = [...new Set(xs.map((x) => +x.toFixed(3)))].sort((p, q) => p - q);
+      expect(sorted[0]).toBeLessThanOrEqual(e.x - GATE_HALF - 0.5);
+      expect(sorted.at(-1)).toBeGreaterThanOrEqual(e.x + GATE_HALF + 0.5);
+      const gaps = sorted.slice(1).map((x, i) => x - sorted[i]);
+      expect(Math.max(...gaps), `${a}: widest stretch with no fence by ${id}`).toBeLessThan(0.5);
     });
   }
 });
