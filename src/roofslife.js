@@ -59,11 +59,19 @@
 // sills (area.sleepers, roofs.js) breathe, every frame and under reduced
 // motion too: scale.y = 1 + BREATH.amp * sin(BREATH.rate * t + i), t walk
 // seconds, i the sleeper's place in the list. Nothing else reads them.
+//
+// THE SIX FINDS (Rooftops step 5, world/roofsmoments.js): where the place has
+// its discoveries (area.anchors.discoveries) the life makes the moments with
+// the walk's log, progression and hud (walk.js's context; a picture page has
+// none, and then nothing is noted), and hands them her spot, the camera and
+// her session every frame, after the flock: update's fifth argument (main.js).
+// An older caller's four arguments still work (no session: no perch).
 // =============================================================================
 import { skyBackground } from './render/sky.js';
 import { BUS } from './world/roofsplan.js';
 import { createRoofsBirds } from './world/roofsbirds.js';
 import { WASH, createRoofsSmoke } from './world/roofsair.js';
+import { createRoofsMoments } from './world/roofsmoments.js';
 
 export const EVENING_RAMP = 240; // s, sunset to dusk
 export const EVENING_STEPS = 6; // the sky's rebuilds on the way
@@ -101,13 +109,13 @@ export function busAt(t, out = {}) {
   return out;
 }
 
-// createRoofsLife(area) -> (ctx) => { update(dt, t, catPos, camera), dispose() }.
+// createRoofsLife(area) -> (ctx) => { update(dt, t, catPos, camera, session), dispose() }.
 // `area` is the built record (its skySunset, skyDusk, skyGlow, markGlow, bus,
-// birdPerches, washSway, smokePots and sleepers); ctx is walk.js's life context ({ scene, sun, fill,
-// critters, visits, reducedMotion, ... }), or a picture page's (which may add
-// a `guideStore`).
+// birdPerches, washSway, smokePots, sleepers and anchors); ctx is walk.js's life context ({ scene, sun, fill,
+// critters, visits, reducedMotion, log, progression, hud, ... }), or a picture
+// page's (which may add a `guideStore`).
 export function createRoofsLife(area) {
-  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore }) => {
+  return ({ scene, sun, fill, critters, visits, reducedMotion, guideStore, log, progression, hud, doc }) => {
     const from = area.skySunset;
     const to = area.skyDusk;
     const sunEnd = sun.intensity;
@@ -176,18 +184,24 @@ export function createRoofsLife(area) {
       for (let i = 0; i < sleepers.length; i++) sleepers[i].scale.y = 1 + BREATH.amp * Math.sin(BREATH.rate * walk + i);
     }
 
+    const moments = area.anchors?.discoveries
+      ? createRoofsMoments(area, { log, progression, hud, birds, scene, reducedMotion: reducedMotion ?? false, doc })
+      : null;
+
     apply(); // the first frame is already sunset
     wind();
     breathe();
     return {
-      update(dt, t, catPos = null, camera = null) {
+      update(dt, t, catPos = null, camera = null, session = null) {
         walk += dt;
         apply();
         wind();
         breathe();
         birds?.update(dt, catPos, camera);
+        moments?.update(dt, catPos, camera, session);
       },
       dispose() {
+        moments?.dispose();
         birds?.dispose();
         smoke?.dispose();
         for (const s of sleepers) s.scale.y = 1;

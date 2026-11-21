@@ -50,3 +50,15 @@ describe('the area life\'s context', () => {
     life.w.endWalk();
   });
 });
+
+describe('the area life\'s context (Rooftops step 5)', () => {
+  it('the walk hands the life its log, progression and hud', () => {
+    const life = lifecycle({ areas });
+    life.w.startWalk({ duskMode: false, areaOverride: 'roofs' });
+    const ctx = seen.ctx.at(-1);
+    expect(ctx.log).toBe(life.log);
+    expect(ctx.progression).toBe(life.progression);
+    expect(ctx.hud).toBe(life.hud);
+    life.w.endWalk();
+  }, 90_000);
+});

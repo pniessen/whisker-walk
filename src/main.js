@@ -1274,7 +1274,7 @@ function init() {
       }
       session.weather.update(dt, camera.position, camera);
       // After the weather: a rainbow's sun write becomes the base the Gorge shades.
-      session.areaLife.update(dt, t, session.cat.position, camera);
+      session.areaLife.update(dt, t, session.cat.position, camera, session);
       session.secrets.update(dt, t, session.cat.position, player.speed);
       session.goldMice.update(t);
       // After player.update: a chase scamper overrides the cat's position.
