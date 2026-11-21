@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { box, cyl, ball, sheet, stripes, stripedSlab, sweep, placed, bulb, meshOf, canvasOf, glowMesh, recentre, BULB_COLORS } from './fairkit.js';
+import { box, cyl, ball, sheet, stripes, stripedSlab, sweep, placed, bulb, meshOf, canvasOf, glowMesh, recentre, chaseOf, BULB_COLORS, GLOW_LOOK } from './fairkit.js';
 import { loft, at, mix } from '../farmshapes.js';
 
 // =============================================================================
@@ -353,13 +353,17 @@ export function merryGoRound(x, z, glow) {
   cyl(P, MGR.drumR + 0.12, MGR.drumR + 0.12, 0.18, 0, MGR.deckY, 0, PAINT.gold, { sides: 12 });
   cyl(P, MGR.drumR + 0.1, MGR.drumR + 0.1, 0.12, 0, 2.5, 0, PAINT.gold, { sides: 12 });
   cyl(P, MGR.drumR + 0.3, MGR.drumR + 0.08, 0.34, 0, MGR.canopyY - 0.44, 0, PAINT.red, { sides: 12 });
-  // an oval mirror in a gold frame on each of the drum's panels
+  // an oval mirror in a gold frame on each of the drum's panels. The mirrors
+  // and the rounding board's painted ovals are on the bulbs' material (L):
+  // at dusk they shine softly in their own colours, as a lit carousel's
+  // mirrors and panels do (fairkit.js GLOW_LOOK.pane), and by day they are paint.
+  const L = [];
   const out = (a, r, y) => [Math.cos(a) * r, y, Math.sin(a) * r];
   const along = (a) => [Math.sin(a), 0, -Math.cos(a)]; // across a panel facing out at angle a
   ring(12, (a) => {
     const r = MGR.drumR * Math.cos(Math.PI / 12);
     decal(P, out(a, r + 0.004, 1.6), along(a), [0, 1, 0], 0.17, 0.3, PAINT.gold, 8);
-    decal(P, out(a, r + 0.008, 1.6), along(a), [0, 1, 0], 0.125, 0.25, 0xbfe6f4, 8);
+    decal(L, out(a, r + 0.008, 1.6), along(a), [0, 1, 0], 0.125, 0.25, 0xbfe6f4, 8);
   }, Math.PI / 12);
   // the canopy's ribs, seen from under it
   ring(16, (a, i) => {
@@ -376,7 +380,7 @@ export function merryGoRound(x, z, glow) {
   for (let j = 0; j < BOARD / 3; j++) {
     const a = ((3 * j + 1) / BOARD) * Math.PI * 2;
     decal(P, out(a, MGR.canopyR + 0.026, MGR.canopyY - 0.2), along(a), [0, 1, 0], 0.24, 0.15, PAINT.gold, 8);
-    decal(P, out(a, MGR.canopyR + 0.03, MGR.canopyY - 0.2), along(a), [0, 1, 0], 0.19, 0.11, OVALS[j % OVALS.length], 8);
+    decal(L, out(a, MGR.canopyR + 0.03, MGR.canopyY - 0.2), along(a), [0, 1, 0], 0.19, 0.11, OVALS[j % OVALS.length], 8);
   }
   // sleeves where the poles come up through the deck
   const places = [];
@@ -395,7 +399,6 @@ export function merryGoRound(x, z, glow) {
   stripes(C, MGR.canopyR + 0.03, MGR.canopyY - 0.42, MGR.canopyR + 0.03, MGR.canopyY - 0.42, [PAINT.cream, PAINT.red], 0, 0, 0, { sides: 32, scallop: 0.26 });
   turn.add(canvasOf(C, 'mgrCanopy'));
 
-  const L = [];
   // a row of bulbs along the top of the rounding board, and one on each pilaster
   ring(32, (a, i) => bulb(L, Math.cos(a) * (MGR.canopyR + 0.09), MGR.canopyY - 0.03, Math.sin(a) * (MGR.canopyR + 0.09), BULB_COLORS[i % 2]));
   for (let j = 0; j < 16; j++) {
@@ -403,7 +406,11 @@ export function merryGoRound(x, z, glow) {
     bulb(L, Math.cos(a) * (MGR.canopyR + 0.09), MGR.canopyY - 0.2, Math.sin(a) * (MGR.canopyR + 0.09), BULB_COLORS[(j % 3) + 1]);
   }
   ring(12, (a, i) => bulb(L, Math.cos(a) * (MGR.drumR + 0.2), 2.66, Math.sin(a) * (MGR.drumR + 0.2), BULB_COLORS[i % BULB_COLORS.length]));
-  turn.add(glowMesh(L, 'mgrBulbs', glow));
+  // (by day its bulbs and mirrors take the canopy's shade like the paint round
+  // them; a shadow never dims the dusk glow, which is emissive)
+  const lit = glowMesh(L, 'mgrBulbs', glow);
+  lit.receiveShadow = true;
+  turn.add(lit);
 
   const horses = [];
   for (const h of places) {
@@ -581,6 +588,17 @@ export function ferrisWheel(x, z, glow, yaw = 0) {
   }
   cyl(W, 0.62, 0.62, half * 2 + 0.3, 0, 0, 0, PAINT.red, { c: true, pitch: Math.PI / 2, sides: 14 });
   cyl(W, 0.3, 0.3, half * 2 + 0.36, 0, 0, 0, PAINT.gold, { c: true, pitch: Math.PI / 2, sides: 10 });
+  // (beauty round two) a painted sunburst round the hub on both faces: red and
+  // yellow rays between the spokes, a gold ring under them
+  for (const sz of [-1, 1]) {
+    const z = sz * (half + 0.17);
+    ring(16, (a, i) => {
+      const da = Math.PI / 16;
+      sheet(W, [[Math.cos(a - da) * 0.6, Math.sin(a - da) * 0.6, z], [Math.cos(a + da) * 0.6, Math.sin(a + da) * 0.6, z],
+        [Math.cos(a) * 1.55, Math.sin(a) * 1.55, z]], i % 2 ? PAINT.yellow : PAINT.red, { both: true });
+    }, Math.PI / 16);
+    cyl(W, 0.72, 0.72, 0.04, 0, 0, sz * (half + 0.17), PAINT.gold, { c: true, pitch: Math.PI / 2, sides: 14 });
+  }
   ring(FERRIS.gondolas, (a) => box(W, 0.07, 0.07, half * 2 + 0.1, Math.cos(a) * R, Math.sin(a) * R, 0, PAINT.steel, { c: true }), -Math.PI / 2);
   turn.add(meshOf(W, 'ferrisRim', { roughness: 0.5 }));
 
@@ -641,8 +659,9 @@ export function teacups(x, z, glow, yaw = 0) {
   const { baseR, r, deckY } = TEACUPS;
   // the kerb and a low rail round it, open at the front (+z)
   const B = [];
-  stripes(B, baseR, 0, baseR - 0.05, 0.16, [PAINT.sky, PAINT.cream], 0, 0, 0, { sides: 32 });
-  stripes(B, baseR - 0.05, 0.16, r - 0.02, 0.16, [PAINT.cream], 0, 0, 0, { sides: 32 });
+  // (beauty pass: narrow kerb stripes and a blue top, not wide blue slabs under a white ring)
+  stripes(B, baseR, 0, baseR - 0.05, 0.16, [PAINT.sky, PAINT.cream], 0, 0, 0, { sides: 64 });
+  stripes(B, baseR - 0.05, 0.16, r - 0.02, 0.16, [PAINT.sky], 0, 0, 0, { sides: 64 }); // as many sides as the kerb: no slivers between them
   const POSTS = 18;
   for (let i = 0; i < POSTS; i++) {
     const a = Math.PI / 2 + 0.34 + (i / (POSTS - 1)) * (Math.PI * 2 - 0.68);
@@ -656,13 +675,16 @@ export function teacups(x, z, glow, yaw = 0) {
       bar(B, ['+x', '-x'], len, 0.06, 0.05, mx, 0.74, mz, PAINT.cream, { c: true, yaw: -Math.atan2(Math.sin(b) - Math.sin(a), Math.cos(b) - Math.cos(a)) });
     }
   }
-  g.add(meshOf(B, 'teacupsBase', { roughness: 0.6 }));
+  g.add(meshOf(B, 'teacupsBase', { roughness: 0.82 })); // matt paint: no white glare on the kerb top
 
   const turn = new THREE.Group();
   turn.name = 'teacupsTurn';
   g.add(turn);
   const P = [];
-  lathe(P, [[r, 0.12], [r, deckY], [0, deckY]], 32, PAINT.cream, 0, 0, 0);
+  lathe(P, [[r, deckY], [0, deckY]], 32, PAINT.cream, 0, 0, 0);
+  // its skirt, panelled pink and cream like a china saucer's rim, under a gold edge
+  stripes(P, r, 0.12, r, deckY - 0.035, [PAINT.pink, PAINT.cream], 0, 0, 0, { sides: 32 });
+  stripes(P, r, deckY - 0.035, r, deckY + 0.004, [PAINT.gold], 0, 0, 0, { sides: 32 });
   // the floor, painted like a tablecloth in wedges
   stripes(P, r - 0.04, deckY + 0.004, 0, deckY + 0.004, [PAINT.pink, PAINT.cream, PAINT.mint, PAINT.cream], 0, 0, 0, { sides: 24 });
   // the big teapot in the middle
@@ -692,7 +714,7 @@ export function teacups(x, z, glow, yaw = 0) {
   turn.add(meshOf(P, 'teacupsDeck', { roughness: 0.75 }));
   const L = [];
   ring(16, (a, i) => bulb(L, Math.cos(a) * 1.16, deckY + 0.2, Math.sin(a) * 1.16, BULB_COLORS[i % BULB_COLORS.length]));
-  ring(24, (a, i) => bulb(L, Math.cos(a) * (r - 0.12), deckY + 0.06, Math.sin(a) * (r - 0.12), BULB_COLORS[i % 2]));
+  ring(24, (a, i) => bulb(L, Math.cos(a) * (r - 0.12), deckY + 0.075, Math.sin(a) * (r - 0.12), BULB_COLORS[i % 2]));
   turn.add(glowMesh(L, 'teacupsBulbs', glow));
 
   const cups = [];
@@ -971,7 +993,7 @@ export function railPoints(pts, { tol = 0.02, most = 4 } = {}) {
   return out;
 }
 
-export function coasterTrack(track, { skip = () => false } = {}) {
+export function coasterTrack(track, { skip = () => false, glow = null } = {}) {
   const pts = track.points;
   const P = [];
   const g = COASTER.gauge;
@@ -993,6 +1015,8 @@ export function coasterTrack(track, { skip = () => false } = {}) {
     if (i % COASTER.postEvery !== 0 || skip(p)) continue;
     const top = p.y - 0.36;
     if (top < 0.25) continue;
+    // (beauty round two) a red cap where each post meets the track
+    box(S, 0.26, 0.14, 0.26, p.x, top - 0.14, p.z, PAINT.red, { yaw });
     if (top > 2.6) {
       // a tall support: two legs spread to a wide foot, with a tie
       placed(S, p.x, 0, p.z, yaw, (Q) => {
@@ -1009,7 +1033,27 @@ export function coasterTrack(track, { skip = () => false } = {}) {
   }
   const rails = canvasOf(P, 'coasterRails');
   rails.material.roughness = 0.5;
-  return { rails, supports: meshOf(S, 'coasterSupports', { roughness: 0.6 }) };
+  // (beauty round two) the track outlined in bulbs at the ends of sleepers,
+  // LIGHTS a side spaced evenly round the loop (about 3 m apart), chasing
+  // round it at dusk: the caterpillar's whole run drawn in lights. The chase
+  // is per bulb, LIGHTS_PER_WAVE to a wave, so the loop holds a whole number
+  // of waves and has no seam. Static (the track does not move); one mesh, no shadow.
+  const L = [];
+  const LIGHTS = 49;
+  const LIGHTS_PER_WAVE = 7;
+  for (let j = 0; j < LIGHTS; j++) {
+    const i = 2 * Math.round((j * n) / LIGHTS / 2); // a sleeper's point (sleepers are on even points)
+    const a = pts[(i - 1 + n) % n];
+    const b = pts[(i + 1) % n];
+    const p = pts[i];
+    const yaw = Math.atan2(b.x - a.x, b.z - a.z);
+    for (const s of [-1, 1]) {
+      const x = p.x + Math.cos(yaw) * s * (g + 0.16);
+      const z = p.z - Math.sin(yaw) * s * (g + 0.16);
+      chaseOf(bulb(L, x, p.y - 0.12, z, BULB_COLORS[(j + (s > 0 ? 1 : 0)) % BULB_COLORS.length]), j / LIGHTS_PER_WAVE);
+    }
+  }
+  return { rails, supports: meshOf(S, 'coasterSupports', { roughness: 0.6 }), lights: glow ? glowMesh(L, 'coasterLights', glow) : null };
 }
 
 // One car of the caterpillar. Local frame: the rails' top at y 0, nose on +z.
@@ -1081,7 +1125,8 @@ export function coasterStation(r, trackX, glow) {
   const w = r.maxX - r.minX;
   const d = r.maxZ - r.minZ;
   const P = [];
-  box(P, w, deckY - 0.06, d, cx, 0, cz, PAINT.sky, { shade: 0.9 });
+  // the platform's skirt, panelled blue and cream (beauty pass: it was one flat blue slab)
+  stripedSlab(P, d, deckY - 0.06, w, [PAINT.sky, PAINT.cream], cx, 0, cz, { yaw: Math.PI / 2, n: 13, shade: 0.9 });
   box(P, w + 0.1, 0.06, d + 0.1, cx, deckY - 0.06, cz, PAINT.wood);
   box(P, 0.2, 0.02, d, r.maxX - 0.12, deckY, cz, PAINT.yellow);
   // two steps up from the west

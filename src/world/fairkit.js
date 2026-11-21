@@ -151,12 +151,13 @@ export function stripes(P, r0, y0, r1, y1, colors, x, y, z, o = {}) {
   return g;
 }
 
-// A flat awning of stripes: w along x by d along z, its top face at y + t.
+// A slab of stripes (an awning, or a skirt stood on end): w along x by d
+// along z, its top face at y + t; o: n stripes, yaw/pitch/roll, shade.
 export function stripedSlab(P, w, t, d, colors, x, y, z, o = {}) {
   const n = o.n ?? Math.max(2, Math.round(w / 0.45));
   const sub = [];
   for (let i = 0; i < n; i++) {
-    box(sub, w / n, t, d, -w / 2 + (i + 0.5) * (w / n), 0, 0, colors[i % colors.length]);
+    box(sub, w / n, t, d, -w / 2 + (i + 0.5) * (w / n), 0, 0, colors[i % colors.length], { shade: o.shade });
   }
   const m = matrixOf(x, y, z, o);
   for (const g of sub) { g.applyMatrix4(m); P.push(g); }
@@ -209,7 +210,7 @@ function setFloat(g, name, values) {
 function swayOf(g, w) {
   return setFloat(g, SWAY, w);
 }
-function chaseOf(g, c) {
+export function chaseOf(g, c) {
   return setFloat(g, CHASE, new Float32Array(g.attributes.position.count).fill(c));
 }
 function fillMissing(P) {
@@ -221,7 +222,7 @@ function fillMissing(P) {
 
 // A light bulb: eight triangles. Its colour is also the colour it glows.
 export const BULB_COLORS = Object.freeze([0xfff0b8, 0xffd75a, 0xff8f6a, 0x8fd8ff, 0xfff0b8, 0xa8f0a0]);
-export function bulb(P, x, y, z, hex = BULB_COLORS[0], r = 0.06) {
+export function bulb(P, x, y, z, hex = BULB_COLORS[0], r = 0.072) {
   const g = new THREE.OctahedronGeometry(r, 0);
   // normals pointing straight out from the centre: the same eight triangles
   // shade like a round bead, not a cut gem
@@ -246,7 +247,7 @@ export function bulbString(P, W, a, b, { sag = 0.4, every = 0.7, salt = 0, wire 
     const p = pts[i];
     const q = pts[i + 1];
     if (W) sheet(W, [[p[0], p[1] + 0.012, p[2]], [q[0], q[1] + 0.012, q[2]], [q[0], q[1] - 0.012, q[2]], [p[0], p[1] - 0.012, p[2]]], wire);
-    if (i > 0) chaseOf(bulb(P, p[0], p[1] - 0.06, p[2], colors[(i + salt) % colors.length]), (i * len) / n / GLOW_LOOK.wave);
+    if (i > 0) chaseOf(bulb(P, p[0], p[1] - 0.072, p[2], colors[(i + salt) % colors.length]), (i * len) / n / GLOW_LOOK.wave);
   }
 }
 

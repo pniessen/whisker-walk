@@ -2112,7 +2112,7 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
   const { CLOUD_AREAS, AREA_SKY } = await import('../src/render/clouds.js');
   const { ambientKind } = await import('../src/render/ambient.js');
   const { AREA_RULES } = await import('../src/render/pawprints.js');
-  const { GRASS_STYLES, GROUND_TINTS } = await import('../src/render/grass.js');
+  const { GRASS_STYLES } = await import('../src/render/grass.js');
   const { COLONY_AREAS, feedsHere } = await import('../src/colony.js');
   const { LEGENDARY_BY_AREA } = await import('../src/legendary.js');
   const { CATALOG, createProgression } = await import('../src/progression.js');
@@ -2139,7 +2139,7 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     return null;
   };
 
-  it('each registration row is in its table', () => {
+  it('each registration row is in its table', async () => {
     expect(REG.id).toBe('roofs');
     expect(propsFor('roofs')).toEqual(plain(set));
     expect(yarnSpotsFor('roofs')).toEqual(plain(REG.yarnSpots));
@@ -2155,7 +2155,7 @@ describe('The Rooftops: in every per-area list (ROOFS_REGISTRATION)', async () =
     expect(emptyMarks().roofs).toEqual([]);
     // no grass, no ground tint
     expect(Object.hasOwn(GRASS_STYLES, 'roofs')).toBe(false);
-    expect(Object.hasOwn(GROUND_TINTS, 'roofs')).toBe(false);
+    expect((await import('../src/world/roofs.js')).GRASS_HOOKS).toBeUndefined();
   });
 
   it('holds its row out of the catalog (R1); its view is the card shot', async () => {

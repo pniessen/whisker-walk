@@ -151,7 +151,7 @@
   // pictures stay reproducible.
   const params0 = new URLSearchParams(location.search);
   const grass = params0.has('grass')
-    ? createGrass(scene, { areaId: id, areaData: area, tier: LADDER[params0.get('grass') === 'low' ? 3 : 0], camera })
+    ? createGrass(scene, { areaId: id, areaData: area, tier: LADDER[params0.get('grass') === 'low' ? 3 : 0], camera, hooks: AREAS[id]?.GRASS_HOOKS })
     : null;
   // ?paws[=low] lays a short hand-placed trail of paw prints
   // (render/pawprints.js) by walking an invisible cat along PAW_TRAILS at a

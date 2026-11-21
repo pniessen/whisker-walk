@@ -1791,7 +1791,7 @@ describe('createStrayCats — homes (Gorge part 3, C8)', () => {
   // waits for the child, and one in a mouth is hers.
   it('a playful stray leaves a found ball alone until someone plays with it, and never takes one from a mouth', () => {
     for (const [claimed, held, runs] of [[false, false, false], [true, true, false], [true, false, true]]) {
-      const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME] });
+      const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME], roomSeed: 1 });
       const [s] = cats.strays;
       const toy = { active: true, claimed, held, mesh: { position: new THREE.Vector3(HOME.x + 5, 0, HOME.z) }, bat() {} };
       let toward = 0;
@@ -1803,8 +1803,28 @@ describe('createStrayCats — homes (Gorge part 3, C8)', () => {
     }
   });
 
+  it('a found ball nobody has played with never changes a stray\'s path (seeds 1-40)', () => {
+    // The test above measures how far a stray goes toward the ball's side; an
+    // ordinary wander also goes that way now and then (about 2% of room
+    // seeds), so this one compares against the same stray with no ball at all.
+    const ball = (claimed, held) => ({ active: true, claimed, held, mesh: { position: new THREE.Vector3(HOME.x + 5, 0, HOME.z) }, bat() {} });
+    for (let seed = 1; seed <= 40; seed++) {
+      const path = (toy) => {
+        const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME], roomSeed: seed });
+        const [s] = cats.strays;
+        const out = [];
+        for (let f = 0; f < 300; f++) {
+          cats.update(1 / 30, f / 30, FAR, { ...NO_OPTS, toy });
+          if (f % 30 === 0) out.push(s.group.position.x, s.group.position.z);
+        }
+        return out;
+      };
+      expect(path(ball(false, false)), `seed ${seed}`).toEqual(path(null));
+    }
+  });
+
   it('a homed stray\'s recoil never pushes it past its roam', () => {
-    const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME] });
+    const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME], roomSeed: 1 });
     const [s] = cats.strays;
     // at the edge of its roam, and she stands on its home side
     s.group.position.set(HOME.x + HOME.roam, 0, HOME.z);

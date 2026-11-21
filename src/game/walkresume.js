@@ -213,6 +213,40 @@ export function markTried(storage, data) {
   return tried;
 }
 
+// main.js's boot picks the walk up with this. The try is counted BEFORE the
+// build (markTried), so a walk that cannot be rebuilt is settled on a later
+// launch (RESUME_MAX_TRIES) rather than tried forever. The walk waits for its
+// place like any start (walk.js startWalkWhenReady), with home up meanwhile:
+//   - a place that does not come ('failed') leaves the note, already counted,
+//     for a later launch, and she stays home;
+//   - a build that throws, straight away (a place already here builds in the
+//     same tick) or once the place has come, is settled now: the walk counts
+//     as finished and is forgotten, and if it got as far as a half-built
+//     session the page starts again clean (`reload`), which with the note
+//     gone opens at home, once.
+// Never throws, never rejects: resolves to startWalkWhenReady's answer, or
+// 'settled'.
+// Every dependency comes in as an argument (`note` is diagnostics.js's), so
+// this file pulls nothing new into start-up.
+export function pickUpWalk({ storage, data, startWalkWhenReady, progression, getSession, reload, note = () => {} }) {
+  const left = markTried(storage, data);
+  const giveUp = (err) => {
+    console.warn('Whisker Walk: could not pick the walk up', err);
+    try { note('resume', err); } catch { /* noting must not stop the settle */ }
+    clearResume(storage);
+    settleAbandoned(progression, left);
+    if (getSession()) reload();
+    return 'settled';
+  };
+  let started;
+  try {
+    started = startWalkWhenReady({ duskMode: left.dusk, areaOverride: left.areaId, resume: left });
+  } catch (err) {
+    return Promise.resolve(giveUp(err));
+  }
+  return Promise.resolve(started).catch(giveUp);
+}
+
 // The walk's three goals, put back as they were. The goals are rebuilt from
 // the note's own ids (`pool` is goals.js's GOAL_POOL), not trusted to the
 // seeded stream: the stream is shared with draws that depend on the save

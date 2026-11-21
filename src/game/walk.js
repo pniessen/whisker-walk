@@ -14,19 +14,11 @@
 // lands after endWalk sees the torn-down session exactly as it always did.
 
 import * as THREE from 'three';
-import * as neighborhood from '../world/neighborhood.js';
-import * as park from '../world/park.js';
-import * as seaside from '../world/seaside.js';
-import * as farm from '../world/farm.js';
-import * as fair from '../world/fair.js';
-import * as den from '../world/den.js';
-import * as docks from '../world/docks.js';
-import * as woods from '../world/woods.js';
-import * as river from '../world/river.js';
-import * as moor from '../world/moor.js';
-import * as pines from '../world/pines.js';
-import * as gorge from '../world/gorge.js';
-import { roofsOn, loadRoofs, loadedRoofs } from '../roofsflag.js';
+// Every place is its own download (F6): world/areas.js lists them,
+// game/areaload.js fetches and keeps them, and startWalk builds from the
+// loaded pack. No area module is imported here.
+import { createAreaLoader } from './areaload.js';
+import { roofsOn } from '../roofsflag.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
@@ -46,7 +38,7 @@ import { createCritters, goatForDay } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes, borderWarriorFor } from '../clancast.js';
-import { campLayout, campDiscs } from '../world/camp.js';
+import { campLayout, campDiscs } from '../world/camplayout.js';
 import { clanWalkableFor } from '../world/clanground.js';
 import { DISCS, isTrespassing } from '../rivalclans.js';
 import { createRemoteCats } from '../remotecats.js';
@@ -81,13 +73,12 @@ import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
 import { clampZoomStep, maxZoomStep, zoomView } from '../camzoom.js';
 import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
-import { createFarmAnimals, NO_FARM } from '../farmanimals.js';
+import { NO_FARM } from '../farmnone.js';
 import { handleFarmEvent, addFarmHat, restoreFarmJobs } from './farmplay.js';
-import { createFairLive, NO_FAIR } from '../fairlive.js';
+import { NO_FAIR } from '../fairnone.js';
 import { handleFairEvent, addBalloonRibbon, restoreFairGames } from './fairplay.js';
 import { createTraversalLive, NO_TRAVERSAL, traversalEventEffects } from '../traversallive.js';
 import { moveAbilities } from '../traversal.js';
-import { createFairShow } from '../fairshow.js';
 import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
@@ -178,23 +169,18 @@ import { metOnly, deviceMetPlayers } from '../metplayers.js';
 import { createSession } from './session.js';
 import { walkDusk } from './session.js'; // its own line: test/session.test.js pins the one above
 
-// Every walkable area the game can build. Registering here is the last of
-// the three steps that make an area real: the builder module, the
-// CATALOG.areas entry + state.walks key in progression.js (which give it a
-// home-base card, a price and an unlock gate), and this map, which is what
-// startWalk indexes with state.area. An area missing from here is a fully
-// built world nothing can ever call.
-// `roofs` is here so a walk can build it, and nowhere a child picks from:
-// AREAS is read only to build (AREAS[areaId], AREAS.den); every list a child
-// sees comes from CATALOG.areas, which has no Rooftops row until step 4.
-// Its drawing is a separate download (roofsflag.js's loadRoofs): the entry
-// reads the module once it has come, and every Rooftops start waits for it.
-const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines, gorge, farm, fair, get roofs() { return roofsBuilder(); } };
-function roofsBuilder() {
-  const m = loadedRoofs();
-  if (!m) throw new Error('The Rooftops are not loaded yet (roofsflag.js loadRoofs)');
-  return m;
-}
+// The recipe for a new area (builder, AREA_LOADERS line, catalog row) is in src/world/areas.js.
+// A walk builds from its place's pack (areas.loaded(id): { id, world, life }),
+// which startWalkWhenReady fetches first. The Rooftops (`roofs`) is a pack like
+// any other, and in no list a child picks from: every such list comes from
+// CATALOG.areas, which has no Rooftops row until step 4.
+//
+// startWalkWhenReady's two numbers (F6): how long a wait goes before the
+// Explore button says "Getting ready…" (a quicker load never shows it), and
+// how many failed loads, online, before the next Explore starts the
+// page again fresh (a deploy that swapped the files underneath).
+export const GETTING_READY_DELAY_MS = 150;
+export const RELOAD_AFTER_FAILURES = 1;
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
@@ -361,6 +347,13 @@ export function createWalkLifecycle({
   onWalkEnded = () => {},
   // ui/buttonwords.js: which touch buttons still show their small word.
   buttonUses = null,
+  // F6: the area loader (game/areaload.js) every walk builds its place from;
+  // the home screen's gentle line (a place that did not come); a fresh start
+  // of the page; and whether the device is online (it picks the line).
+  areas = createAreaLoader(),
+  homeToast = () => {},
+  reloadPage = () => window.location.reload(),
+  isOnline = () => navigator.onLine !== false,
 }) {
   // ------------------------------------------------------------------
   // v18 Task 2.7 — the in-walk skill-unlock celebration.
@@ -527,48 +520,119 @@ export function createWalkLifecycle({
   // state.area keeps the Woods for when they flip back.
   //
   // ?roofs=1: a solo Rooftops walk, never in a room (ruling R1). Its drawing
-  // is its own download, fetched at boot with the switch on (main.js); a press
-  // before it has come waits for it (home stays up meanwhile) and the promise
-  // it returns settles once the walk has started. A fetch that fails walks her
-  // own place instead, so Explore always goes somewhere.
+  // is its own download like every place's (fetched at boot with the switch
+  // on, main.js), so it starts through startWalkWhenReady like any solo walk:
+  // home stays up while it comes, and a load that fails keeps her home with
+  // the same gentle line as any place.
+  //
+  // A solo start returns startWalkWhenReady's promise (it settles once the
+  // walk has started, or not); a room start returns nothing.
   function beginWalkFromHomebase({ duskMode }) {
-    if (roofsOn() && !getPendingRoom()) {
-      if (loadedRoofs()) {
-        startWalk({ duskMode, areaOverride: 'roofs' });
-        return undefined;
-      }
-      return loadRoofs().then(
-        () => {
-          // a second press, or a walk picked up, may have started one meanwhile
-          if (!getSession()) beginWalkFromHomebase({ duskMode });
-        },
-        (err) => {
-          console.warn('Whisker Walk: the Rooftops did not load', err);
-          note('roofs', err);
-          if (!getSession()) beginOwnPlace({ duskMode });
-        },
-      );
-    }
-    return beginOwnPlace({ duskMode });
-  }
-  function beginOwnPlace({ duskMode }) {
+    if (roofsOn() && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'roofs' });
     const area = effectiveArea(progression.state, CATALOG);
     if (!getPendingRoom()) {
-      startWalk(area === progression.state.area ? { duskMode } : { duskMode, areaOverride: area });
-      return;
+      return startWalkWhenReady(area === progression.state.area ? { duskMode } : { duskMode, areaOverride: area });
     }
     startRoomTogether({ area, dusk: !!duskMode });
+    return undefined;
   }
 
   // The den button's variant (Task 7.2): the den never joins a room walk
   // (homebase hides the button while a room is pending — see
   // the Visit your den button's `roomState` check), so this bypasses
-  // beginWalkFromHomebase's host/joiner room branch entirely and calls
-  // startWalk directly with areaOverride: 'den' — same mechanism a room
-  // joiner's areaOverride uses to walk somewhere without persisting it as
-  // state.area (main.js:974-ish, see startWalk's areaId comment).
+  // beginWalkFromHomebase's host/joiner room branch entirely and starts
+  // straight away (once the den has loaded) with areaOverride: 'den' — same
+  // mechanism a room joiner's areaOverride uses to walk somewhere without
+  // persisting it as state.area (see startWalk's areaId comment).
   function beginDenWalk() {
-    startWalk({ areaOverride: 'den' });
+    return startWalkWhenReady({ areaOverride: 'den' });
+  }
+
+  // F6: the one door every walk start goes through (Explore, the den, a room
+  // start, a walk picked up again). A place already loaded starts in the same
+  // tick, exactly as startWalk always did, and a throw from the build comes
+  // straight out. Otherwise the place is fetched first and home stays up:
+  //   - the sound context is made now, inside the tap (iOS lets it start only
+  //     there), not after the wait;
+  //   - a wait longer than GETTING_READY_DELAY_MS says "Getting ready…" on
+  //     the Explore button (a quicker one never shows it);
+  //   - a second start while one waits is ignored ('busy'): one load, one walk;
+  //   - the place came: the walk starts, unless one has started some other
+  //     way meanwhile, the room it belonged to has changed (a room start whose
+  //     room went, or another took its place; a solo, den or Rooftops start
+  //     made before she joined one: startWalk would put her solo world on the
+  //     room's line), or her place changed while it came (Change place, a
+  //     room's start) ('dropped');
+  //   - it did not: she stays home with one gentle line ('failed'). Online,
+  //     the first failure (RELOAD_AFTER_FAILURES; any walk that starts clears
+  //     the count) makes the line say the game will start fresh, and the next
+  //     Explore reloads the page: the browser remembers a failed import, so
+  //     trying again cannot help while the page lives. A failure offline
+  //     says the place needs the internet, never counts and never reloads;
+  //     back online, one tap tries (and fails fast) before the line appears.
+  //     Only her own tap for a place not
+  //     here reloads: a place already here just starts, and a room start
+  //     (heard from the room, no tap of hers) never reloads, never counts and
+  //     never offers it: it stays home with the plain line. A place this build
+  //     does not have at all (AreaLoadError 'unknown') never counts: a reload
+  //     cannot bring it.
+  // Nothing here draws a random number, so a walk that waited is the same
+  // walk, draw for draw, as one whose place was already here.
+  // Resolves to 'started' | 'busy' | 'failed' | 'dropped'; a build throw on the
+  // waiting path rejects it.
+  let waiting = null; // the token of the start now waiting, else null
+  let waitTokens = 0;
+  let failures = 0;
+  function startWalkWhenReady(opts = {}) {
+    const areaId = opts.areaOverride ?? progression.state.area;
+    const inRoom = opts.roomSeed !== undefined;
+    // Every start belongs to the room it was made in, or to none: a room left
+    // (and perhaps another joined), or one joined, during the wait drops it.
+    const roomAtCall = getPendingRoom();
+    if (waiting !== null) return Promise.resolve('busy');
+    if (areas.loaded(areaId)) {
+      startWalk(opts);
+      failures = 0;
+      return Promise.resolve('started');
+    }
+    if (!inRoom && failures >= RELOAD_AFTER_FAILURES && isOnline()) {
+      reloadPage();
+      return Promise.resolve('failed');
+    }
+    audio?.getContext?.();
+    const token = ++waitTokens;
+    waiting = token;
+    const timer = setTimeout(() => {
+      if (waiting === token) getHomebase()?.setGettingReady?.(true);
+    }, GETTING_READY_DELAY_MS);
+    const done = () => {
+      clearTimeout(timer);
+      if (waiting === token) waiting = null;
+      getHomebase()?.setGettingReady?.(false);
+    };
+    return areas.ensure(areaId).then(
+      () => {
+        const stale = waiting !== token;
+        done();
+        if (stale || getSession() || getPendingRoom() !== roomAtCall || (inRoom && !roomAtCall)) return 'dropped';
+        // startWalk reads her place again when there is no override: a place
+        // changed during the wait would build somewhere other than what came.
+        if ((opts.areaOverride ?? progression.state.area) !== areaId) return 'dropped';
+        startWalk(opts);
+        failures = 0;
+        return 'started';
+      },
+      (err) => {
+        done();
+        note('area', err);
+        const online = isOnline();
+        const counts = !inRoom && err?.kind !== 'unknown' && online;
+        if (counts) failures += 1;
+        const reload = counts && failures >= RELOAD_AFTER_FAILURES;
+        homeToast(reload ? phrase('start.notReadyReload') : !online ? phrase('start.notReadyOffline') : phrase('start.notReady'));
+        return 'failed';
+      },
+    );
   }
 
 
@@ -576,6 +640,13 @@ export function createWalkLifecycle({
   // the same seed and stamp build the same walk, then the cat, the treasures,
   // the goals and the tallies are put back. Solo only; never with a roomSeed.
   function startWalk({ duskMode = false, roomSeed, areaOverride, resume = null } = {}) {
+    // The place's pack (F6), before anything touches the save: a start whose
+    // place has not come is a mistake in the caller (every start goes
+    // through startWalkWhenReady), and it must leave nothing half-done.
+    const pack = areas.loaded(areaOverride ?? progression.state.area);
+    if (!pack) throw new Error(`Whisker Walk: area "${areaOverride ?? progression.state.area}" is not loaded; start walks with startWalkWhenReady`);
+    // The Farm's animals and the Fair's rides and games come with their place.
+    const { createFarmAnimals, createFairLive, createFairShow } = pack.life;
     // A visit prize held for the tap (styles A and C) goes on FIRST, before
     // anything below reads state.equipped (the avatar, the collar/crown
     // perks). Style C never dims and A lets go after its reveal, so Start,
@@ -703,8 +774,8 @@ export function createWalkLifecycle({
     // breeze should reach. It gets no `water` because it has none. Passing an
     // extra key is inert until den.js asks for it.
     const areaData = isDen
-      ? AREAS.den.build(scene, { placed: progression.state.den.placed, wind })
-      : AREAS[areaId].build(scene, { water: { quality: tier, reducedMotion }, wind });
+      ? pack.world.build(scene, { placed: progression.state.den.placed, wind })
+      : pack.world.build(scene, { water: { quality: tier, reducedMotion }, wind });
     // Gorge part 1: the area's walkable height, FLAT_GROUND on every map today.
     const ground = groundOf(areaData);
     // Gorge G9: the goat comes on about half the days. On a no-goat day it and
@@ -848,7 +919,7 @@ export function createWalkLifecycle({
     setCatRimLight({ dusk: !!duskLookNow }); // polish-catlight: dusk rim weaker, cooler
     // The Fairground's bulbs (world/fair.js): every one shares one material,
     // lit in a dusk walk and plain coloured glass by day. No real lights.
-    if (areaId === 'fair') fair.setFairGlow(areaData, duskLookNow ? 1 : 0);
+    if (areaId === 'fair') pack.world.setFairGlow(areaData, duskLookNow ? 1 : 0);
 
     // v18 Night Eyes ('night-eyes', Task 2.3): dusk walks brighten. This has
     // to run AFTER walkDusk above (a solo dusk walk only counts as dusk with
@@ -1570,7 +1641,7 @@ export function createWalkLifecycle({
       // the yarn ball's spot: it should be seen from a little way off
       ...(yarnSpot ? [{ x: yarnSpot.x, z: yarnSpot.z, r: GRASS_FIND_CLEAR }] : []),
     ] : [];
-    const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
+    const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut, hooks: pack.world.GRASS_HOOKS });
     // The blades dominate a lawn's look, so a rainy walk darkens them too.
     if (grass.mesh) weather.tintWet?.(grass.mesh.material);
     const duskLawn = duskLookNow
@@ -1796,6 +1867,7 @@ export function createWalkLifecycle({
       freezeTime: 0,
       boxTime: 0,
       perched: null,
+      perchHold: null,
       pounceTime: 0,
       pounceCooldown: 0,
       landTime: 0,
@@ -2338,9 +2410,13 @@ export function createWalkLifecycle({
       // Who was here when the walk began; anyone after that is toasted, so a
       // child always knows who has come into her walk.
       let rosterSeen = null;
+      // The roster as last heard (net.onRoster replays it at once), for a
+      // co-walker drawn again by its state below.
+      let rosterNow = [];
       net.onRoster((roster) => {
         const session = getSession();
         if (!session) return; // presence sync can land after endWalk tore the session down
+        rosterNow = Array.isArray(roster) ? roster : [];
         const liveIds = new Set(roster.filter((p) => !blockList.has(p.playerId)).map((p) => p.playerId));
         for (const r of remotes.list) {
           if (!liveIds.has(r.playerId)) { remotes.remove(r.playerId); session.intruders.dropHolder(r.playerId); }
@@ -2369,7 +2445,22 @@ export function createWalkLifecycle({
       });
       net.onState((state) => {
         const session = getSession();
+        if (!session) return; // a state can land after endWalk tore the session down
         if (state.id === session.playerId) return; // explicit self-filter; applyState is a no-op for us anyway
+        // F6: a co-walker whose device was still loading its place sent no
+        // state, so its cat went after remotecats' DESPAWN_AFTER, and its
+        // presence never changed, so no roster sync brings it back. Its first
+        // state draws it again from the roster, where it is. State for anyone
+        // not in the roster, or hidden, is still dropped (applyState ignores
+        // an id it has no cat for).
+        if (!remotes.list.some((r) => r.playerId === state.id) && !blockList.has(state.id)) {
+          const p = rosterNow.find((m) => m?.playerId === state.id);
+          if (p) {
+            remotes.upsert(p, nowSec());
+            hud.setRoster(remotes.list.map((r) => r.petName));
+            session.chatWheel?.refresh();
+          }
+        }
         remotes.applyState(state, nowSec());
         // yarn-rally ghost tracking: remember the latest reported position of
         // whichever remote is currently broadcasting an active toy. Only the
@@ -2759,5 +2850,5 @@ export function createWalkLifecycle({
     if (renderer) noteMemory(renderer.info);
   }
 
-  return { beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing };
+  return { beginWalkFromHomebase, beginDenWalk, startWalk, startWalkWhenReady, endWalk, takeCrossing };
 }

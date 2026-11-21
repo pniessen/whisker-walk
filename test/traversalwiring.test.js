@@ -379,21 +379,27 @@ describe("the paw's climb badge", () => {
 
   it('in the press’s own order: a ride’s seat before the moves, never while they are busy', () => {
     const l = yardWalk({ at: [3, -7.0], face: [0, 1] });
-    const canBoard = vi.fn(() => true);
-    const fair = { canBoard };
+    const pawKind = vi.fn(() => 'up');
+    const fair = { pawKind };
     // the press would board the ride before the moves could leap, so the badge says up
     expect(l.live.pressKind(l.ctx)).toBe('leap');
     expect(climbBadge({ ...badgeSession(l), fair }, l.player, state)).toBe('up');
-    expect(canBoard).toHaveBeenCalledWith(l.cat, l.player, expect.objectContaining({ fair }));
+    expect(pawKind).toHaveBeenCalledWith(l.cat, l.player, expect.objectContaining({ fair }));
     // mid-hop the press boards nothing, and the badge says nothing; the ride is not asked
     l.jump();
-    canBoard.mockClear();
+    pawKind.mockClear();
     expect(climbBadge({ ...badgeSession(l), fair }, l.player, state)).toBeNull();
-    expect(canBoard).not.toHaveBeenCalled();
+    expect(pawKind).not.toHaveBeenCalled();
     // NO_TRAVERSAL (every shipped area): a seat in reach is up, none is nothing, as before
     const n = { ...badgeSession(l), traversal: NO_TRAVERSAL };
     expect(climbBadge({ ...n, fair }, l.player, state)).toBe('up');
-    expect(climbBadge({ ...n, fair: { canBoard: () => false } }, l.player, state)).toBeNull();
-    expect(climbBadge({ ...n, perched: { y: 1 }, fair }, l.player, state)).toBe('down'); // a seat is boarded from the ground only
+    expect(climbBadge({ ...n, fair: { pawKind: () => null } }, l.player, state)).toBeNull();
+    expect(climbBadge({ ...n, perched: { y: 1 }, fair: { pawKind: () => null } }, l.player, state)).toBe('down'); // not the rides': hop down
+    // on a perch or a seat the rides answer too (fair-jumps, 2026-11-20): the
+    // coaster's platform with the train in is up, a horse's next hop is up,
+    // waiting for the train is nothing at all, and getting off a seat is down
+    expect(climbBadge({ ...n, perched: { y: 1 }, fair }, l.player, state)).toBe('up');
+    expect(climbBadge({ ...n, perched: { y: 1 }, fair: { pawKind: () => 'none' } }, l.player, state)).toBeNull();
+    expect(climbBadge({ ...n, perched: { y: 1 }, fair: { pawKind: () => 'down' } }, l.player, state)).toBe('down');
   });
 });
