@@ -38,12 +38,12 @@ function builtFair() {
 
 // A show with the kit, a stand-in cat (a head part to look at) and a camera
 // that follows her as the walk's does.
-function fair({ seed = 'people', strays = 22, reducedMotion = false, lodNear, camera = true } = {}) {
+function fair({ seed = 'people', strays = 22, reducedMotion = false, lodNear, camera = true, people = createPeopleKit } = {}) {
   const made = builtFair();
   const cam = camera ? new THREE.PerspectiveCamera(70, 16 / 9, 0.1, 300) : null;
   const sim = createFairSim(made.area);
   const show = createFairShow(made.scene, made.area, {
-    people: createPeopleKit, swept: sim.swept, strays, camera: cam, seed, reducedMotion, ...(lodNear ? { lodNear } : {}),
+    people, swept: sim.swept, strays, camera: cam, seed, reducedMotion, ...(lodNear ? { lodNear } : {}),
   });
   const cat = new THREE.Group();
   const head = new THREE.Group();
@@ -56,13 +56,14 @@ function fair({ seed = 'people', strays = 22, reducedMotion = false, lodNear, ca
   const w = { ...made, show, cat, head, player, session, camera: cam, t: 0 };
   w.frame = (dt = DT) => {
     w.t += dt;
+    const c = w.cat;
     if (cam) {
-      cam.position.set(cat.position.x, 2.5, cat.position.z + 4.5);
-      cam.lookAt(cat.position.x, 0.8, cat.position.z - 3);
+      cam.position.set(c.position.x, 2.5, c.position.z + 4.5);
+      cam.lookAt(c.position.x, 0.8, c.position.z - 3);
       cam.updateMatrixWorld(true);
     }
-    cat.updateMatrixWorld(true);
-    show.update(dt, w.t, { cat, player, session });
+    c.updateMatrixWorld(true);
+    show.update(dt, w.t, { cat: c, player, session });
   };
   w.run = (s) => { for (let i = 0; i < Math.round(s / DT); i++) w.frame(); };
   return w;
@@ -155,6 +156,8 @@ describe('the Fairground drawn as lifelike people', () => {
         if (p.juggler) continue;
         // (a hello stops the stride first: no grown-up says hello mid-stride)
         if (!p.child && p.v.hello > 0) expect(p.mode).not.toBe('walk');
+        // a child waves only once its grown-up does (after the grown-up's stride has stopped)
+        if (p.child && p.mode === 'wave') expect(w.show.people.find((q) => q.v === p.v && !q.child).mode).toBe('wave');
         if (!p.person.inView) continue; // (out of view, no one is posed: their look waits)
         if (p.mode === 'walk') {
           walked++;
@@ -380,6 +383,7 @@ describe('a fast cat at a child, with the bumps on', () => {
     let reached = Infinity;
     let worstMiddle = Infinity;
     let worstHead = Infinity;
+    let sway = 0; // her head's largest move in one frame's animation, on the ground
     let t = 0;
     for (let i = 0; i < 30 * 300; i++) {
       t += DT;
@@ -401,9 +405,13 @@ describe('a fast cat at a child, with the bumps on', () => {
       const kid = childCircles(used);
       const all = used.map((c) => ({ ...c }));
       player.update(DT, area.colliders, area.bounds, area.waters, used);
+      // (where the push left her head, before this frame's animation moves it)
+      cat.updateMatrixWorld(true);
+      HEADV.copy(catVolumes(cat).head.center);
       animateCat(cat, 'follow', t, 4, false);
       cat.updateMatrixWorld(true);
       const head = catVolumes(cat).head.center;
+      sway = Math.max(sway, Math.hypot(head.x - HEADV.x, head.z - HEADV.z));
       for (const c of kid) {
         const m = Math.hypot(cat.position.x - c.x, cat.position.z - c.z) - (c.r + CAT_RADIUS);
         const hd = Math.hypot(head.x - c.x, head.z - c.z) - (c.r + hr);
@@ -415,6 +423,185 @@ describe('a fast cat at a child, with the bumps on', () => {
     }
     expect(reached).toBeLessThan(0.03); // she did run up against the child (her middle or her head)
     expect(worstMiddle).toBeGreaterThanOrEqual(-1e-6);
-    expect(worstHead).toBeGreaterThanOrEqual(-0.01);
+    // her head: the frame's animation does not move it on the ground (sway
+    // 0: so the push's own result is what is measured), and player.update
+    // pushes it out of each circle once, in order: wedged between two
+    // people's circles (the grown-up's back-foot circle and its child's body,
+    // side by side), the later push can leave it a little inside the
+    // earlier. Measured 9.6 mm at the worst frame (frame 1206); 5 mm to spare.
+    // (A second pass in player.update would close it: a question for the
+    // owner, as it would move town's pinned touch timings.)
+    expect(sway).toBe(0);
+    expect(worstHead).toBeGreaterThanOrEqual(-0.015);
   }, 90_000);
+});
+
+// R41: with the people, a visitor saying hello holds still, and her soft bump
+// keeps her off it, as in town. Her real cat walks straight at a visitor who
+// kneels to say hello (a grown-up, visitor 2) and at one who bows (visitor 6,
+// made older for this: today's spots have no older visitor), head-on and from
+// 45 degrees either side, at 0.3, 1 and 3 m/s: the figure never moves while it
+// holds, its arms and legs (their centre lines, every 0.02 m, as the town's
+// touch tests measure the arm) stay 5 mm or more outside her head and body,
+// and her head and middle stay out of the people's circles.
+const LIMB = new THREE.Vector3();
+const LA = new THREE.Vector3();
+const LB = new THREE.Vector3();
+const SEG = new THREE.Vector3();
+function limbClearance(p, vol) {
+  const B = p.bones;
+  const d = p.look.dims;
+  p.figure.updateMatrixWorld(true);
+  const segDist = (pt) => {
+    SEG.subVectors(vol.body.b, vol.body.a);
+    const k = Math.max(0, Math.min(1, LIMB.copy(pt).sub(vol.body.a).dot(SEG) / SEG.lengthSq()));
+    return SEG.multiplyScalar(k).add(vol.body.a).distanceTo(pt) - vol.body.r;
+  };
+  let worst = Infinity;
+  const chains = [
+    [B.upperArmL, B.forearmL, B.handL, [0, -d.hand * 0.96, 0]], [B.upperArmR, B.forearmR, B.handR, [0, -d.hand * 0.96, 0]],
+    [B.thighL, B.shinL, B.footL, [0, 0, -0.74 * d.footLen]], [B.thighR, B.shinR, B.footR, [0, 0, -0.74 * d.footLen]],
+  ];
+  const tip = new THREE.Vector3();
+  for (const [a, b, c, end] of chains) {
+    const pts = [a, b, c];
+    c.localToWorld(tip.set(end[0], end[1], end[2]));
+    for (let i = 0; i < 3; i++) {
+      pts[i].getWorldPosition(LA);
+      if (i < 2) pts[i + 1].getWorldPosition(LB); else LB.copy(tip);
+      const n = Math.max(1, Math.ceil(LA.distanceTo(LB) / 0.02));
+      for (let k = 0; k <= n; k++) {
+        const pt = new THREE.Vector3().lerpVectors(LA, LB, k / n);
+        worst = Math.min(worst, pt.distanceTo(vol.head.center) - vol.head.radius, segDist(pt));
+      }
+    }
+  }
+  return worst;
+}
+
+const OLDER_AT = { x: 100 + 5 * 7.3, z: 200 + 5 * 3.1 }; // visitor 6's look spot
+const withOlder = (opts) => {
+  const k = createPeopleKit(opts);
+  const build = k.buildSpot;
+  k.buildSpot = (def) => build(Math.abs(def.x - OLDER_AT.x) < 1e-9 && Math.abs(def.z - OLDER_AT.z) < 1e-9 ? { ...def, kind: 'older' } : def);
+  return k;
+};
+
+function approach({ speed, angle, older }) {
+  const w = fair({ seed: 'kneel', camera: false, people: older ? withOlder : createPeopleKit });
+  const area = w.area;
+  w.scene.remove(w.cat);
+  const cat = buildCat('tabby');
+  w.scene.add(cat);
+  const player = createPlayer(new THREE.PerspectiveCamera(), { addEventListener() {} });
+  cat.position.set(40, 0, -40);
+  player.setAvatar(cat, 3);
+  player.enable();
+  const runner = { speed, inWater: false };
+  const still = { speed: 0, inWater: false };
+  let t = 0;
+  const step = (who) => { t += DT; cat.updateMatrixWorld(true); w.show.update(DT, t, { cat, player: who, session: w.session }); };
+  for (let i = 0; i < 30; i++) step(still);
+  const id = older ? 'fair-visitor-6' : 'fair-visitor-2';
+  const p = w.show.people.find((q) => q.v.id === id);
+  expect(p.person.look.kind).toBe(older ? 'older' : 'adult');
+  const v = p.v;
+  // she stops 1.3 m off, round from where it faces by `angle`, and meows
+  const a = v.yaw + angle;
+  cat.position.set(v.x + Math.sin(a) * 1.3, 0, v.z + Math.cos(a) * 1.3);
+  cat.rotation.y = Math.atan2(-(v.x - cat.position.x), -(v.z - cat.position.z));
+  step(still);
+  w.show.meow(cat.position);
+  const hr = (() => { cat.updateMatrixWorld(true); return catVolumes(cat).headFlat; })();
+  const res = { moved: 0, holding: 0, limbs: Infinity, middle: Infinity, head: Infinity, reached: Infinity, modes: new Set() };
+  let lx = p.group.position.x, lz = p.group.position.z;
+  for (let i = 0; i < 30 * 3.6; i++) {
+    t += DT;
+    // she walks straight at its middle
+    const dx = v.x - cat.position.x, dz = v.z - cat.position.z, d = Math.hypot(dx, dz);
+    if (d > 0.05) {
+      const s = Math.min(d, speed * DT);
+      cat.position.x += (dx / d) * s; cat.position.z += (dz / d) * s;
+      cat.rotation.y = Math.atan2(-dx, -dz);
+    }
+    const used = w.show.bumps.map((c) => ({ ...c }));
+    player.update(DT, area.colliders, area.bounds, area.waters, w.show.bumps);
+    animateCat(cat, 'follow', t, speed, false);
+    cat.updateMatrixWorld(true);
+    const head = catVolumes(cat).head.center;
+    for (const c of used) {
+      const m = Math.hypot(cat.position.x - c.x, cat.position.z - c.z) - (c.r + CAT_RADIUS);
+      const h = Math.hypot(head.x - c.x, head.z - c.z) - (c.r + hr);
+      res.middle = Math.min(res.middle, m);
+      res.head = Math.min(res.head, h);
+      res.reached = Math.min(res.reached, m, h);
+    }
+    t -= DT;
+    step(runner);
+    res.modes.add(p.mode);
+    const gx = p.group.position.x, gz = p.group.position.z;
+    if (p.mode === 'kneel' || p.mode === 'bow' || v.holdT > 0) {
+      res.holding++;
+      res.moved = Math.max(res.moved, Math.hypot(gx - lx, gz - lz));
+    }
+    lx = gx; lz = gz;
+    cat.updateMatrixWorld(true);
+    res.limbs = Math.min(res.limbs, limbClearance(p.person, catVolumes(cat)));
+  }
+  // she walks off; once she is KEEP away it goes on its way, smoothly (no jump)
+  res.after = 0;
+  const ox = cat.position.x - v.x, oz = cat.position.z - v.z, ol = Math.hypot(ox, oz) || 1;
+  cat.rotation.y = Math.atan2(-ox, -oz) + Math.PI;
+  for (let i = 0; i < 30 * 4; i++) {
+    cat.position.x += (ox / ol) * 1 * DT; cat.position.z += (oz / ol) * 1 * DT;
+    step({ speed: 1, inWater: false });
+    res.after = Math.max(res.after, Math.hypot(p.group.position.x - lx, p.group.position.z - lz));
+    lx = p.group.position.x; lz = p.group.position.z;
+  }
+  return res;
+}
+
+describe('allocates nothing per frame', () => {
+  it('a few hundred frames of the show with the people, a hello among them: no Vector3, Quaternion, Matrix4, Euler or Color cloned', () => {
+    const w = fair({ seed: 'alloc' });
+    w.scene.remove(w.cat);
+    const cat = buildCat('tabby'); // a real cat: her volumes for the held hand
+    w.scene.add(cat);
+    w.cat = cat;
+    cat.position.set(3.4, 0, 25.5);
+    w.run(2);
+    w.show.meow(cat.position); // (a fresh scratch state per hello is made here, once)
+    w.run(0.5);
+    const spies = [THREE.Vector3, THREE.Quaternion, THREE.Matrix4, THREE.Euler, THREE.Color].map((C) => vi.spyOn(C.prototype, 'clone'));
+    try {
+      for (let i = 0; i < 300; i++) {
+        cat.updateMatrixWorld(true);
+        w.frame();
+      }
+      for (const sp of spies) expect(sp).not.toHaveBeenCalled();
+    } finally {
+      for (const sp of spies) sp.mockRestore();
+    }
+  }, 60_000);
+});
+
+describe('a hello holds still (ruling R41)', () => {
+  for (const older of [false, true]) {
+    for (const speed of [0.3, 1, 3]) {
+      for (const angle of [0, Math.PI / 4, -Math.PI / 4]) {
+        it(`${older ? 'a bow' : 'a kneel'}: she walks at it at ${speed} m/s from ${Math.round((angle * 180) / Math.PI)} degrees`, () => {
+          const r = approach({ speed, angle, older });
+          expect(r.modes.has(older ? 'bow' : 'kneel')).toBe(true);
+          expect(r.holding).toBeGreaterThan(60);
+          expect(r.moved).toBe(0); // it never moves while it holds
+          expect(r.limbs).toBeGreaterThanOrEqual(0.005); // its arms and legs never in her
+          expect(r.middle).toBeGreaterThanOrEqual(-1e-6); // her middle out of every circle
+          expect(r.head).toBeGreaterThanOrEqual(-0.01); // and her head (the frame's animation moves it ~1 cm after the push)
+          expect(r.reached).toBeLessThan(0.03); // she did come up against it
+          // and when she walks off it goes on its way at a walk, never a jump
+          expect(r.after).toBeLessThan((VISITOR.WALK * 1.15 + VISITOR.SIDE_SPEED) * DT + 1e-9);
+        }, 60_000);
+      }
+    }
+  }
 });

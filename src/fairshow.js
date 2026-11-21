@@ -90,7 +90,10 @@ export function createFairShow(scene, area, {
   reducedMotion = false, onEvent = () => {}, ground = FLAT_GROUND, seed, people: makeKit = null, lodNear,
 } = {}) {
   const games = createFairGames(area, seed === undefined ? {} : { seed: `${seed}-games` });
-  const visitors = createFairVisitors(area, { count: visitorCount(strays), swept, ...(seed === undefined ? {} : { seed: `${seed}-visitors` }) });
+  // (with the people, a visitor saying hello holds still: ruling R41)
+  const visitors = createFairVisitors(area, {
+    count: visitorCount(strays), swept, ...(seed === undefined ? {} : { seed: `${seed}-visitors` }), ...(typeof makeKit === 'function' ? { holdHello: true } : {}),
+  });
   const A = area.anchors;
   const gy = (x, z) => (ground.flat ? 0 : ground.y(x, z));
   const added = [];
@@ -134,7 +137,7 @@ export function createFairShow(scene, area, {
       return group;
     };
     const figureOf = (person, group, v, child, juggler) => {
-      const f = { person, group, v, child, juggler, mode: 'stand', walked: 0, walkFor: 0, stopFor: 0, lastX: 0, lastZ: 0,
+      const f = { person, group, v, child, juggler, mode: 'stand', walked: 0, walkFor: 0, stopFor: 0, lastX: 0, lastZ: 0, sc: null,
         gaze: kit.createGaze(person.look), circles: kit.bumpCircles(person.look), at: bumps.length, upper: null };
       for (const c of f.circles) bumps.push({ x: 0, z: 0, r: c.r });
       figures.push(f);
@@ -352,6 +355,13 @@ export function createFairShow(scene, area, {
   const gazeOpts = { target: null, reducedMotion, near: null, turnBody: false };
   const seeAll = !camera; // (no camera, in a test: everyone counts as in view)
   const HER = new THREE.Vector3();
+  // The held-out hand of a kneel or a bow (ruling R41): the head scratch's
+  // held state and its guard (src/people/reach.js stepScratch), with no head
+  // to reach for (no touch at the Fairground: the hand is held out low and
+  // still), kept clear of her volumes and drawn back, rising, when she comes
+  // close. One options object; her volumes filled in place once a frame.
+  const scratchOpts = { headTop: null, volumes: null, mayPlan: false };
+  let herVol = null;
 
   // Each person where the simulation has them (a pair's child at its own
   // spot, facing its own way), and whether they are walking: a grown-up while
@@ -409,8 +419,10 @@ export function createFairShow(scene, area, {
   // the grown-up is: R27). Only people in view are posed; the choice is made
   // for all.
   function poseFigures(t, dt, cat) {
-    const head = cat?.userData?.parts?.head;
+    const parts = cat?.userData?.parts;
+    const head = parts?.head;
     const her = head ? head.getWorldPosition(HER) : null;
+    let volsDone = false;
     const figs = built.figures;
     let adult = null; // the last grown-up: a child follows its own
     let adultLooks = false;
@@ -432,10 +444,14 @@ export function createFairShow(scene, area, {
         adult = f;
         adultLooks = looks;
       } else {
-        mode = walking ? 'walk' : v.hello > 0 && v.helloKind === 'wave' ? 'wave' : 'stand';
+        // (it waves when its grown-up does: after the grown-up's stride has stopped)
+        mode = walking ? 'walk' : adult.mode === 'wave' ? 'wave' : 'stand';
         looks = adultLooks && mode !== 'walk';
       }
       f.mode = mode;
+      const holding = mode === 'kneel' || mode === 'bow';
+      if (!holding) f.sc = null;
+      else if (!f.sc) f.sc = kit.createScratch(); // a fresh one each hello (R18)
       if (!seeAll && !f.person.inView) continue;
       spec.mode = mode;
       spec.t = t;
@@ -446,6 +462,12 @@ export function createFairShow(scene, area, {
       gazeOpts.near = f.child && looks ? adult.gaze.near : null;
       gazeOpts.turnBody = mode === 'kneel';
       kit.stepGaze(f.person, f.gaze, dt, t, gazeOpts);
+      if (holding) {
+        if (!volsDone && head && parts.body) herVol = kit.catVolumes(cat, herVol);
+        volsDone = true;
+        scratchOpts.volumes = head && parts.body ? herVol : null;
+        kit.stepScratch(f.person, f.sc, dt, scratchOpts);
+      }
     }
   }
 

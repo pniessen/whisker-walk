@@ -58,6 +58,7 @@ export const VISITOR = Object.freeze({
   STROLL_MIN: 35, STROLL_MAX: 110, // metres strolled between two watches
   HELLO_R: 5,         // a meow this near gets a hello
   HELLO_TIME: 2.4,    // seconds it lasts
+  HELLO_RISE: 0.8,    // with holdHello: seconds it still holds still after (the kneel's way up)
   MARGIN: 0.12,       // clear of every collider by its radius and this
 });
 
@@ -138,9 +139,17 @@ function closedLine(points) {
 //   opts.count    how many (visitorCount(tier.strays))
 //   opts.seed     their own dice
 //   opts.swept    (x, z) => true where a ride sweeps (src/fairsim.js `swept`)
+//   opts.holdHello  true (the lifelike people, src/fairshow.js with the people
+//                 kit; ruling R41): a visitor saying hello holds still, it and
+//                 its child, for the hello and HELLO_RISE after it (the
+//                 kneel's way up), and for as long after that as she is
+//                 within KEEP of it; it turns to face her while the hello
+//                 lasts, and takes no step aside: her soft bump (drawn by the
+//                 show) keeps her off it, as in town. False (today's figure):
+//                 exactly as ever.
 // step(dt, cat): cat { x, z, y, speed }.
 // meow(pos) → how many said hello.
-export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-visitors', swept = () => false } = {}) {
+export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-visitors', swept = () => false, holdHello = false } = {}) {
   const rng = mulberry32(seedFromCode(String(seed)));
   const A = area.anchors;
   const colliders = area.colliders ?? [];
@@ -203,6 +212,7 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
       x: P.x, z: P.z, yaw: Math.atan2(P.hx, P.hz),
       moving: false, waiting: false, walked: 0,
       hello: 0, helloKind: i % 2 ? 'crouch' : 'wave',
+      holdT: 0,          // with holdHello: seconds it still holds still for its hello
     };
   });
 
@@ -250,7 +260,31 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
     return false;
   }
 
+  // With holdHello, a visitor saying hello (and its child) holds still: it
+  // turns to face her while the hello lasts, and stays where it is until the
+  // hold is over and she is KEEP off it (no step aside: her soft bump keeps
+  // her off it). Returns whether it held.
+  function holdStill(v, dt, cat, catNear) {
+    if (!holdHello || v.holdT <= 0) return false;
+    v.moving = false;
+    v.waiting = false;
+    const saying = v.hello > 0;
+    if (saying) v.hello = Math.max(0, v.hello - dt);
+    v.holdT = Math.max(0, v.holdT - dt);
+    // (it goes on its way only once she is KEEP off it and its child)
+    if (v.holdT <= 0 && catNear) {
+      const d = Math.min(Math.hypot(v.x - cat.x, v.z - cat.z), v.pair ? Math.hypot(v.childX - cat.x, v.childZ - cat.z) : Infinity);
+      if (d < VISITOR.KEEP) v.holdT = Number.MIN_VALUE;
+    }
+    if (saying) {
+      v.yaw = turn(v.yaw, Math.atan2(cat.x - v.x, cat.z - v.z), 4 * dt);
+      if (v.pair) v.childYaw = turn(v.childYaw, Math.atan2(cat.x - v.childX, cat.z - v.childZ), 4 * dt);
+    }
+    return true;
+  }
+
   function stepOne(v, dt, cat, catNear) {
+    if (holdStill(v, dt, cat, catNear)) return;
     const ax0 = v.x;
     const az0 = v.z;
     v.moving = false;
@@ -577,6 +611,7 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
       for (const v of list) {
         if (Math.hypot(v.x - pos.x, v.z - pos.z) > VISITOR.HELLO_R) continue;
         v.hello = VISITOR.HELLO_TIME;
+        if (holdHello) v.holdT = VISITOR.HELLO_TIME + VISITOR.HELLO_RISE;
         said++;
       }
       if (said > 0) events.push({ type: 'visitor-hello', n: said });
