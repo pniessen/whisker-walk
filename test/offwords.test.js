@@ -441,6 +441,125 @@ describe('the everyday badges (A2): five small drawings of their own', () => {
   });
 });
 
+// V1 (the owner, from the pictures): the oak leaf's cream midrib is a short
+// curve inside the leaf, never a line through it, and the heather has three or
+// four bigger bells, each a dot of its own at 22 px on a 1x screen. Read from
+// the exported strings (numbers parsed out of the data, no source text).
+describe('the everyday badges (V1): an oak midrib inside the leaf, heather bells apart', () => {
+  // One badge unit is 22/24 px at 22 px on a 1x screen.
+  const PX = 22 / 24;
+  const attr = (tag, name) => (tag.match(new RegExp(`\\s${name}="([^"]*)"`)) || [])[1];
+  const tags = (svg, name) => [...svg.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'g'))].map((m) => m[0]);
+  // An absolute or relative M/L/H/V/C/Q/Z path, as points: each curve sampled.
+  function pathPoints(d, steps = 40) {
+    const toks = d.match(/[MLHVCQZmlhvcqz]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?/g);
+    const out = [];
+    let i = 0; let cmd = ''; let x = 0; let y = 0; let sx = 0; let sy = 0;
+    const num = () => Number(toks[i++]);
+    while (i < toks.length) {
+      if (/[A-Za-z]/.test(toks[i])) cmd = toks[i++];
+      const rel = cmd === cmd.toLowerCase();
+      const ox = rel ? x : 0; const oy = rel ? y : 0;
+      switch (cmd.toUpperCase()) {
+        case 'M': x = ox + num(); y = oy + num(); sx = x; sy = y; out.push([x, y]); cmd = rel ? 'l' : 'L'; break;
+        case 'L': x = ox + num(); y = oy + num(); out.push([x, y]); break;
+        case 'H': x = (rel ? x : 0) + num(); out.push([x, y]); break;
+        case 'V': y = (rel ? y : 0) + num(); out.push([x, y]); break;
+        case 'Q': case 'C': {
+          const n = cmd.toUpperCase() === 'Q' ? 2 : 3;
+          const p = [[x, y]];
+          for (let k = 0; k < n; k++) p.push([ox + num(), oy + num()]);
+          for (let s = 1; s <= steps; s++) {
+            const t = s / steps;
+            let q = p.map((v) => [...v]);
+            while (q.length > 1) q = q.slice(1).map((v, k) => [q[k][0] + (v[0] - q[k][0]) * t, q[k][1] + (v[1] - q[k][1]) * t]);
+            out.push(q[0]);
+          }
+          [x, y] = p[n];
+          break;
+        }
+        case 'Z': x = sx; y = sy; out.push([x, y]); break;
+        default: throw new Error(`path command ${cmd}`);
+      }
+    }
+    return out;
+  }
+  const inside = ([px, py], poly) => {
+    let hit = false;
+    for (let a = 0, b = poly.length - 1; a < poly.length; b = a++) {
+      const [xa, ya] = poly[a]; const [xb, yb] = poly[b];
+      if ((ya > py) !== (yb > py) && px < ((xb - xa) * (py - ya)) / (yb - ya) + xa) hit = !hit;
+    }
+    return hit;
+  };
+  const segDist = ([px, py], [xa, ya], [xb, yb]) => {
+    const dx = xb - xa; const dy = yb - ya;
+    const t = Math.max(0, Math.min(1, ((px - xa) * dx + (py - ya) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(px - (xa + t * dx), py - (ya + t * dy));
+  };
+  const edgeDist = (p, poly) => Math.min(...poly.map((v, k) => segDist(p, poly[k ? k - 1 : poly.length - 1], v)));
+
+  it('the oak leaf\'s midrib is a short curve inside the leaf, clear of its edge and apart from the stem', () => {
+    const svg = off.EMBLEMS.woods;
+    const paths = tags(svg, 'path');
+    const leaf = paths.find((t) => attr(t, 'fill') === '#2f5a33');
+    const rib = paths.filter((t) => attr(t, 'stroke') === '#f1e0c2');
+    const stem = paths.find((t) => attr(t, 'stroke') === '#2f5a33');
+    expect(rib).toHaveLength(1);
+    const outline = pathPoints(attr(leaf, 'd'));
+    const ribPts = pathPoints(attr(rib[0], 'd'));
+    const half = Number(attr(rib[0], 'stroke-width')) / 2;
+    // Every point of the midrib's centre line is inside the leaf, and the
+    // stroke's own edge stays at least 0.9 leaf units (about 0.9 px at 22 px:
+    // the group's scale is 1.15, 1.15 x 22/24 = 1.05 px a unit) from the
+    // leaf's edge, so a band of green shows all round the cream at 1x.
+    const CLEAR = 0.9;
+    for (const p of ribPts) {
+      expect(inside(p, outline), `midrib point ${p} inside the leaf`).toBe(true);
+      expect(edgeDist(p, outline) - half, `midrib point ${p} clear of the edge`).toBeGreaterThanOrEqual(CLEAR);
+    }
+    // a curve, not a ruler line: its middle bows at least 0.4 units off its chord
+    const [a, b] = [ribPts[0], ribPts[ribPts.length - 1]];
+    const bow = Math.max(...ribPts.map((p) => segDist(p, a, b)));
+    expect(bow).toBeGreaterThanOrEqual(0.4);
+    // short of the leaf: it runs at most 60% of the leaf's height
+    const ys = outline.map((p) => p[1]);
+    expect(Math.abs(b[1] - a[1])).toBeLessThanOrEqual(0.6 * (Math.max(...ys) - Math.min(...ys)));
+    // apart from the stem: a green gap of at least 1.5 units from the midrib's
+    // lower end to where the stem starts, so the two never read as one stroke
+    const stemStart = pathPoints(attr(stem, 'd'))[0];
+    const lower = a[1] > b[1] ? a : b;
+    expect(Math.hypot(stemStart[0] - lower[0], stemStart[1] - lower[1])).toBeGreaterThanOrEqual(1.5);
+  });
+
+  it('the heather has three or four bigger bells, each a dot of its own at 22 px on a 1x screen', () => {
+    const svg = off.EMBLEMS.moor;
+    const bells = tags(svg, 'circle').map((t) => ['cx', 'cy', 'r'].map((k) => Number(attr(t, k))));
+    expect(bells.length).toBeGreaterThanOrEqual(3);
+    expect(bells.length).toBeLessThanOrEqual(4);
+    // R_MIN 2: a bell is at least 4 units (3.7 px) across, a solid dot of
+    // three or more whole pixels at 1x.
+    const R_MIN = 2;
+    // GAP_MIN 2.2: 2.2 x 22/24 = 2.02 px between two bells. A gap of 2 px holds
+    // at least one pixel that no bell touches, wherever the bells fall on the
+    // pixel grid; a 1 px gap can land as two half-grey pixels and close up.
+    const GAP_MIN = 2.2;
+    expect(GAP_MIN * PX).toBeGreaterThanOrEqual(2);
+    for (const [cx, cy, r] of bells) {
+      expect(r, `bell at ${cx},${cy}`).toBeGreaterThanOrEqual(R_MIN);
+      // the whole bell is inside the 24-unit drawing
+      expect(Math.min(cx - r, cy - r)).toBeGreaterThanOrEqual(0);
+      expect(Math.max(cx + r, cy + r)).toBeLessThanOrEqual(24);
+    }
+    for (let k = 0; k < bells.length; k++) {
+      for (let j = k + 1; j < bells.length; j++) {
+        const [x1, y1, r1] = bells[k]; const [x2, y2, r2] = bells[j];
+        expect(Math.hypot(x2 - x1, y2 - y1) - r1 - r2, `gap between bells ${k} and ${j}`).toBeGreaterThanOrEqual(GAP_MIN);
+      }
+    }
+  });
+});
+
 describe('5. the island is a quiet place in words; its rule is the same', () => {
   it('no label on it says truce or meeting', () => {
     withOffWords(() => {

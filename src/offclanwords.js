@@ -73,15 +73,16 @@ export const BADGE_WORDS = Object.freeze({
 // #f1e0c2 for the details): whole <svg> strings in the same form as the
 // family's (clanwords.js EMBLEMS), drawn on the cream badge circle at 22 px.
 // Cream details sit on a group-colour shape, so they read on the cream.
-//   woods  oak leaf: three round lobes a side, a cream midrib, a short stem, tilted 30°
-//   moor   heather sprig: a gently curved stem, bells along one side
+//   woods  oak leaf: three round lobes a side, a short curved cream midrib inside the
+//          leaf (clear of its edge and of the stem), a short stem, tilted 30°
+//   moor   heather sprig: a gently curved stem, four big bells along one side, apart
 //   river  reed: two tall blades and a bulrush head on its own stem
 //   pines  pine cone: an egg-shaped cone, three rows of cream scales, a stub of stem
 //   gorge  crag: a jagged rock with two peaks and a cream crack, no flat top
 const SVG = (inner) => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">${inner}</svg>`;
 export const EMBLEMS = Object.freeze({
-  woods: SVG('<g transform="rotate(30 12 12) translate(12 12) scale(1.15) translate(-12 -11.6)"><path fill="#2f5a33" d="M10.5 5C9.9 1.4 14.1 1.4 13.5 5C16.76 3.8 16.76 8.24 13.7 8.6C18.02 7.4 18.02 12.04 13.8 12.4C17.04 11.4 17.04 16.3 12.6 16.6H11.4C6.96 16.3 6.96 11.4 10.2 12.4C5.98 12.04 5.98 7.4 10.3 8.6C7.24 8.24 7.24 3.8 10.5 5z"/><path fill="none" stroke="#f1e0c2" stroke-width="1" stroke-linecap="round" d="M12 5.4v9.8"/><path fill="none" stroke="#2f5a33" stroke-width="1.6" stroke-linecap="round" d="M12 16v4.6"/></g>'),
-  moor: SVG('<path fill="none" stroke="#5c3f68" stroke-width="2.1" stroke-linecap="round" d="M8 22C8 14 12 7.5 20.5 4"/><g fill="#5c3f68"><circle cx="5.7" cy="19.1" r="2"/><circle cx="6.5" cy="15" r="1.95"/><circle cx="8.3" cy="11.1" r="1.85"/><circle cx="10.8" cy="7.6" r="1.75"/><circle cx="14" cy="4.8" r="1.6"/><circle cx="17.5" cy="2.6" r="1.45"/></g>'),
+  woods: SVG('<g transform="rotate(30 12 12) translate(12 12) scale(1.15) translate(-12 -11.6)"><path fill="#2f5a33" d="M10.3 5C9.7 1.4 14.3 1.4 13.7 5C17.04 3.8 17.04 8.24 14.3 8.6C18.3 7.4 18.3 12.04 14.4 12.4C17.32 11.4 17.32 16.3 12.7 16.6H11.3C6.68 16.3 6.68 11.4 9.6 12.4C5.7 12.04 5.7 7.4 9.7 8.6C6.96 8.24 6.96 3.8 10.3 5z"/><path fill="none" stroke="#f1e0c2" stroke-width="1.2" stroke-linecap="round" d="M12.7 6.8Q10.7 10.4 12 14"/><path fill="none" stroke="#2f5a33" stroke-width="1.6" stroke-linecap="round" d="M12 16.2q.2 2.4-1 4.4"/></g>'),
+  moor: SVG('<path fill="none" stroke="#5c3f68" stroke-width="2.1" stroke-linecap="round" d="M8 22.5C8 15 12 8.5 21 5.5"/><g fill="#5c3f68"><circle cx="5.6" cy="19.3" r="2.35"/><circle cx="7.9" cy="12.6" r="2.3"/><circle cx="12.5" cy="7.1" r="2.2"/><circle cx="18.5" cy="3.7" r="2.1"/></g>'),
   river: SVG('<g fill="#24516b"><path d="M10.4 22C9.5 15 7.5 9 4 3.5C8.8 8.3 11.8 14.5 13 22z"/><path d="M13.2 22C14 16 16.3 10.5 20.3 6C18.4 11 16.6 16 15.8 22z"/><rect x="9.8" y="5.5" width="4.4" height="9.5" rx="2.2"/></g><path fill="none" stroke="#24516b" stroke-width="1.5" stroke-linecap="round" d="M12 22V2.5"/>'),
   pines: SVG('<path fill="#353d68" d="M12 4.5C16.5 4.5 18.5 8.5 18 12.5C17.5 17 14.5 21.5 12 21.5S6.5 17 6 12.5C5.5 8.5 7.5 4.5 12 4.5z"/><rect x="11" y="1.8" width="2" height="3.5" rx=".6" fill="#353d68"/><path fill="none" stroke="#f1e0c2" stroke-width="1.2" stroke-linecap="round" d="M7.5 8.5a1.5 1.5 0 0 0 3 0a1.5 1.5 0 0 0 3 0a1.5 1.5 0 0 0 3 0M7 12.5a1.25 1.25 0 0 0 2.5 0a1.25 1.25 0 0 0 2.5 0a1.25 1.25 0 0 0 2.5 0a1.25 1.25 0 0 0 2.5 0M8.1 16a1.3 1.3 0 0 0 2.6 0a1.3 1.3 0 0 0 2.6 0a1.3 1.3 0 0 0 2.6 0"/>'),
   gorge: SVG('<polygon fill="#6b4128" points="2.5,20.5 5.5,14 8,12.5 10,4 13,10.5 16.5,5.5 19,12 18,13.5 21.5,20.5"/><path fill="none" stroke="#f1e0c2" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" d="M13 11.2l-1.3 3 1.8 2.1-1 2"/>'),
