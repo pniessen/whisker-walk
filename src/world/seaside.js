@@ -178,6 +178,20 @@ function bandTone(band, salt) {
   }
   return prev;
 }
+// BoxGeometry's group 3 is its -y face. The cliff's lies under the sand and is
+// never seen: 60 x 6 segments, 720 triangles, which is what the Seaside's
+// gateway (world map step 3) was paid for with. Only the index drops it: the
+// vertices (so the bounding box), the strata colours and the colliders stay.
+function dropBottomFace(geo) {
+  const g = geo.groups[3];
+  const idx = geo.index.array;
+  const kept = new idx.constructor(idx.length - g.count);
+  kept.set(idx.subarray(0, g.start), 0);
+  kept.set(idx.subarray(g.start + g.count), g.start);
+  geo.setIndex(new THREE.BufferAttribute(kept, 1));
+  geo.clearGroups();
+  return geo;
+}
 function strata(geo, worldX, salt) {
   const pos = geo.attributes.position;
   const nrm = geo.attributes.normal;
@@ -666,7 +680,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // A 1m x 0.33m grid on the faces (Task 3): fine enough for gullies every
   // ~3.5m and for metre-thick bands that change tone in a third of a metre
   // rather than smearing across a whole metre-tall row.
-  const cliff = new THREE.Mesh(strata(new THREE.BoxGeometry(60, 8, 18, 60, 24, 6), -10, 1.7),
+  const cliff = new THREE.Mesh(dropBottomFace(strata(new THREE.BoxGeometry(60, 8, 18, 60, 24, 6), -10, 1.7)),
     cliffMat(60, 8));
   cliff.position.set(-10, 4, -46);
   cliff.userData.duskTint = true; // dims and cools at dusk like the ground (render/dusk.js tintDuskLawn)

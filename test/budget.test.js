@@ -39,6 +39,7 @@ const { build: buildFair } = await import('../src/world/fair.js');
 const { build: buildRoofs } = await import('../src/world/roofs.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
+const { addGatewayDressing } = await import('../src/world/gateway.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
 // ---------------------------------------------------------------------------
@@ -577,6 +578,45 @@ describe('with the Clan dressing', () => {
       if (process.env.BUDGET_LOG) console.log(name, JSON.stringify({ before, after }));
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// World map step 3 (gateways): a street place's gates are added by walk.js
+// after the build, like the border posts, so the bare rows above stay as they
+// are. Each gate is at most 400 triangles. This holds every gated place, built
+// with its gates, to the SAME ceilings, as built and as merged; no ceiling
+// rose. The Seaside, with about 490 triangles left of 30,000, paid first: its
+// cliff lost the hidden bottom face (720 triangles), so
+//   seaside bare triangles   29,29513 -> 28793 (see the test below)
+// ---------------------------------------------------------------------------
+describe('with the gateways (world map step 3)', () => {
+  for (const [name, build, meshCeiling, casterCeiling, triangleCeiling] of AREAS.filter(([n]) => ['neighborhood', 'park', 'fair', 'farm', 'docks', 'seaside'].includes(n))) {
+    const merged = MERGED_AREAS.find(([n]) => n === name);
+    it(`${name}: dressed, still under ${meshCeiling} / ${casterCeiling} / ${triangleCeiling}, merged under ${merged[2]} / ${merged[3]}`, () => {
+      const scene = new THREE.Scene();
+      build(scene);
+      if (name === 'neighborhood') addBorderDressing(scene, name);
+      addGatewayDressing(scene, name);
+      const before = budgetStats(scene);
+      if (process.env.BUDGET_LOG) console.log(name, JSON.stringify(before));
+      expect(before.meshes).toBeLessThanOrEqual(meshCeiling);
+      expect(before.casters).toBeLessThanOrEqual(casterCeiling);
+      expect(before.triangles).toBeLessThanOrEqual(triangleCeiling);
+      mergeStaticProps(scene);
+      const after = budgetStats(scene);
+      if (process.env.BUDGET_LOG) console.log(name, 'merged', JSON.stringify(after));
+      expect(after.meshes).toBeLessThanOrEqual(merged[2]);
+      expect(after.casters).toBeLessThanOrEqual(merged[3]);
+    });
+  }
+  it('the Seaside paid for its gate first: 28793 bare, and dressed it is at or under the 29513 it had before the trim', () => {
+    const scene = new THREE.Scene();
+    buildSeaside(scene);
+    expect(budgetStats(scene).triangles).toBe(28793);
+    addGatewayDressing(scene, 'seaside');
+    if (process.env.BUDGET_LOG) console.log('seaside dressed', JSON.stringify(budgetStats(scene)));
+    expect(budgetStats(scene).triangles).toBeLessThanOrEqual(29513);
+  });
 });
 
 // ---------------------------------------------------------------------------
