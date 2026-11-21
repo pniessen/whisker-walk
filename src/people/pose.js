@@ -7,6 +7,7 @@
 // (the blend state is made once per person, on its first pose).
 import * as THREE from 'three';
 import { JOINTS, JOINT_INDEX, SEGMENTS } from './parts.js';
+import { VMAX as ARM_VMAX } from './reach.js'; // m/s: the scratch's hand's most (ruling R13)
 
 const TAU = Math.PI * 2;
 const N = JOINTS.length;
@@ -360,7 +361,6 @@ const ARM_R = [RIGHT.upperArm, RIGHT.forearm, RIGHT.hand];
 const ARM_R_BONES = ['upperArmR', 'forearmR', 'handR'];
 const ARM_MASK = new Uint8Array(N * 3);
 for (const j of ARM_R) ARM_MASK[j] = ARM_MASK[j + 1] = ARM_MASK[j + 2] = 1;
-const ARM_VMAX = 1.2; // m/s: the scratch's hand's most (reach.js VMAX, ruling R13)
 const ARM_PEAK = 1.5 * 1.05; // a smoothstep blend's top speed is 1.5 times its mean (and some to spare)
 const wrapNear = (a, to) => a + TAU * Math.round((to - a) / TAU);
 function armFromBones(person, from, cur, r) {

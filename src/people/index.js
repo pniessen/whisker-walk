@@ -18,7 +18,8 @@ export { BUMP, bumpCircles } from './bumps.js';
 // bundler decides where shared modules live by which chunks reach them. Reaching
 // the builder and the ground the way every place does keeps start-up in the same
 // few files as before; without these two lines it splits start-up into ten
-// files (+4 kB gzipped). Task 10 and 14 will use both for real.
+// files (+4 kB gzipped). They are here for that placement only: nothing in
+// the people uses them.
 export { puddle } from '../world/builder.js';
 export { STEP_MAX } from '../ground.js';
 

@@ -6,6 +6,7 @@
 // them at rest). Everything comes from the spot and the clock, never a roll,
 // and nothing here allocates per frame (module-level scratch).
 import * as THREE from 'three';
+import { REACH } from './reach.js';
 
 const DEG = Math.PI / 180;
 
@@ -238,6 +239,14 @@ export function stepGaze(person, gaze, dt, t, opts = NO_OPTS) {
     QA.multiply(QB.setFromAxisAngle(X_AXIS, g.pitch * upTo));
     EUL.setFromQuaternion(QA, 'YXZ');
     const r = B[T[0]].rotation;
+    // (the chest's nod never takes its whole lean forward, the pose's and the
+    // hips' included, past REACH.LEAN_MAX, as the head scratch's lean never
+    // does: an older person's bow, 0.42 of its own, looking down at her
+    // close by)
+    if (i === 0) {
+      const most = Math.min(r.x, -REACH.LEAN_MAX - B.pelvis.rotation.x);
+      if (r.x + EUL.x < most) EUL.x = most - r.x;
+    }
     r.set(r.x + EUL.x, r.y + EUL.y, r.z + EUL.z);
     const j = i * 3;
     g.wrote[j] = r.x; g.wrote[j + 1] = r.y; g.wrote[j + 2] = r.z;

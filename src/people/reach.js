@@ -69,7 +69,7 @@ const READY_FWD = 0.06; // just in front of the chest (x s),
 const READY_DROP = 0.15; // m: this far under the shoulder
 const BACK_FWD = 0.12; // the guard's drawn-back hand: just in front of the person (x s)
 const BACK_X = 0.3; // and out to the side of the hip (x s)
-const VMAX = 1.2; // m/s: the palm never moves faster than this (ruling R13)
+export const VMAX = 1.2; // m/s: the palm never moves faster than this (ruling R13; pose.js's arm blends too)
 const HOLD_TAU = 0.06; // s: the held hand follows its place this closely, at the last
 const HOLD_BRAKE = 0.7; // of HOLD_ACC: how hard it plans to brake
 const HOLD_ACC = 6; // m/s2: and its speed changes no faster than this
@@ -1100,7 +1100,7 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
       else { sc.blocked = true; sc.blockedAt.copy(headTop); sc.readyTried = false; sc.toReady = false; sc.planWait = PLAN_RETRY; }
     }
   } else if (sc.state === 'held') {
-    sc.readyTried = soon && !sc.blocked;
+    sc.readyTried = soon; // (never blocked here: that ends when she cannot be reached, above)
     sc.toReady = sc.readyTried;
   } else if (sc.state === 'reaching') { if (!canStay || headJumped) begin(sc, 'withdrawing'); else if (sc.t >= sc.dur) begin(sc, 'resting'); }
   else if (sc.state === 'resting') { if (!canStay || headJumped) begin(sc, 'withdrawing'); }

@@ -473,7 +473,8 @@ export function createFairShow(scene, area, {
 
   // The juggler: the juggle's forearms forward, each hand's height following
   // the nearest ball (eased, within a hand's reach of its place), by the
-  // upper arm's pitch about the shoulder; his eyes blink, he watches the balls.
+  // upper arm's pitch about the shoulder; his eyes blink, and his head keeps
+  // to the juggle's own (it looks at no one: the gaze is given no target).
   const BALL_AT = new THREE.Vector3();
   function poseJugglerFigure(t, dt) {
     const f = built.jugFig;

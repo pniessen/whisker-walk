@@ -316,6 +316,42 @@ describe('people gaze', () => {
     expect(headAdded(r.p)).toBeCloseTo(added, 3);
   });
 
+  // The spec's bow leans the chest 0.5 rad at the most. The bow's own lean
+  // is 0.42 and the gaze's nod puts 18% of itself on the chest, so with her
+  // close and low (her head 0.25 m up, 0.75 m off) the chest went to 0.54.
+  // The chest's whole lean in a bow, nod included, stays within 0.5; the
+  // head still nods down to her (the neck and the head take their shares).
+  it('an older person\'s bow, looking down at her close by: the chest leans 0.5 rad at the most', () => {
+    const { people } = buildSpot(spotOf('older'), { material });
+    const p = people[0];
+    expect(p.look.kind).toBe('older');
+    p.setDetail('near');
+    const group = new THREE.Group();
+    group.add(p.figure);
+    const up = new THREE.Vector3();
+    const Y = new THREE.Vector3(0, 1, 0);
+    for (const dist of [0.75, 0.9, 1.2]) {
+      for (const yaw of [0, 0.5, -0.5]) {
+        const gaze = createGaze(p.look);
+        const target = new THREE.Vector3(-Math.sin(yaw) * dist, CAT_HEAD, -Math.cos(yaw) * dist);
+        let worst = 0;
+        let t = 0;
+        for (let i = 0; i < Math.round(3 / DT); i++) {
+          t += DT;
+          pose(p, { mode: 'bow', t });
+          applyPose(p, DT);
+          group.updateMatrixWorld(true);
+          stepGaze(p, gaze, DT, t, { target });
+          p.figure.updateMatrixWorld(true);
+          up.set(0, 1, 0).transformDirection(p.bones.chest.matrixWorld);
+          worst = Math.max(worst, up.angleTo(Y));
+        }
+        expect(worst, `her ${dist} m off, ${yaw} rad round`).toBeLessThanOrEqual(0.5 + 1e-9);
+        expect(gaze.pitch, 'the head nods down to her').toBeLessThan(-0.3);
+      }
+    }
+  });
+
   it('allocates nothing per frame', () => {
     const r = rig();
     const target = around(r, 0.6, 2);

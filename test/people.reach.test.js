@@ -464,8 +464,13 @@ describe('the head scratch', () => {
   // siamese exactly head-on to an older person (the bump stops her at
   // 0.84 m, the bow's hand reaches her only to about 0.82 m; walked up, she
   // slides a little round the circle and is touched, test/bumps.test.js).
+  // And a tabby 0.03 m further out than the bump stops her (0.90 m), since
+  // the bow's chest keeps to the spec's 0.5 rad (final review, finding 5:
+  // the gaze's nod had leaned it to 0.55, and that lean was what reached
+  // her there); from where the bump stops her (0.87 m) she is touched.
   const TOUCH_BY = 2.4;
   const HELD_OUT = ['older siamese'];
+  const HELD_OUT_FURTHER = ['older tabby'];
   const WORST_TOUCH = 2.4; // (2.35 before R32: the woman's skirt's circles keep her 0.97 m off)
   it('touch within 2.4 s of the word to kneel: men, women, older people, a tabby and a siamese, from where the bump stops her', () => {
     let worst = 0;
@@ -503,7 +508,7 @@ describe('the head scratch', () => {
             want.copy(headTopOf(cat)).addScaledVector(UP, REACH.CLEAR);
             if (s === 'resting' && palm.distanceTo(want) < 0.02) when = i * DT;
           }
-          if (HELD_OUT.includes(`${who} ${breed}`)) { expect(when, at).toBe(Infinity); continue; }
+          if (HELD_OUT.includes(`${who} ${breed}`) || (d > stop && HELD_OUT_FURTHER.includes(`${who} ${breed}`))) { expect(when, at).toBe(Infinity); continue; }
           if (when > worst) { worst = when; worstAt = at; }
         }
       }
