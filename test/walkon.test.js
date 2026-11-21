@@ -15,6 +15,7 @@ import { phrase } from '../src/clanphrases.js';
 import { diagnostics } from '../src/diagnostics.js';
 import { mulberry32 } from '../src/rng.js';
 import { headingToward } from '../src/game/guidewalk.js';
+import { takeStartLines } from '../src/game/walk.js';
 import { DISCS } from '../src/rivalclans.js';
 import { SPAWN as MOOR_SPAWN } from '../src/world/moor.js';
 import { SPAWN as WOODS_SPAWN } from '../src/world/woods.js';
@@ -167,7 +168,8 @@ describe('walking on through a gate', () => {
     await h.w.walkOn({ via: 'park-farm' });
     vi.advanceTimersByTime(GATE_MOMENT_MS);
     expect(walked).toHaveLength(1);
-    expect(walked[0]).toContain('NEW BEST! 🏆');
+    // a desktop: kept for the Farm walk's first engage (its Ready? card covers toasts)
+    expect(takeStartLines(h.getSession())).toContain('NEW BEST! 🏆');
   }, WALK_MS);
 
   it('a walk started some other way during the moment is not replaced', async () => {
@@ -423,18 +425,52 @@ describe('the summary card', () => {
     expect(html).toContain("<div class=\"best-line\">You brought the pine cone home. It's in the den now.&nbsp;🏠</div>");
   }, WALK_MS);
 
-  it('a walk-on hands the same lines on as text', async () => {
+  const BANKED = [
+    'NEW BEST! 🏆',
+    '🔥 day 1 streak — +5 bonus 🐾',
+    'Mochi the kitten followed you home! 🐱',
+    "You brought the pine cone home. It's in the den now.\u00a0🏠",
+  ];
+  // A touch device that engages the walk as main.js does: startWalk's
+  // setTouchEngaged(true) is the first engage, which marks the walk started
+  // and toasts its start lines (takeStartLines).
+  function touchHarness(opts) {
+    const engaged = [];
+    let get = () => null;
+    const player = anything({
+      setTouchEngaged: (on) => {
+        const s = get();
+        if (on && s && !s.started) { s.started = true; engaged.push(takeStartLines(s)); }
+      },
+    });
+    const h = walkHarness({ ...opts, isTouch: true, player });
+    get = h.getSession;
+    return { h, engaged };
+  }
+
+  it('a walk-on on touch toasts the same lines as text, as the next walk starts', async () => {
+    const walked = [];
+    const { h } = touchHarness({ save: parkSave, onWalkedOn: (l) => walked.push(l) });
+    bankedWalk(h);
+    await h.w.walkOn({ via: 'park-farm' });
+    vi.advanceTimersByTime(GATE_MOMENT_MS);
+    expect(h.getSession().started).toBe(true);
+    expect(walked).toEqual([BANKED]);
+  }, WALK_MS);
+
+  // Fix 2: on a desktop the next walk waits on its Ready? card, which covers
+  // the toasts: the lines wait with its start lines for the first engage.
+  it("a walk-on on a desktop keeps the lines for the next walk's first engage", async () => {
     const walked = [];
     const h = walkHarness({ save: parkSave, onWalkedOn: (l) => walked.push(l) });
     bankedWalk(h);
     await h.w.walkOn({ via: 'park-farm' });
     vi.advanceTimersByTime(GATE_MOMENT_MS);
-    expect(walked).toEqual([[
-      'NEW BEST! 🏆',
-      '🔥 day 1 streak — +5 bonus 🐾',
-      'Mochi the kitten followed you home! 🐱',
-      "You brought the pine cone home. It's in the den now.\u00a0🏠",
-    ]]);
+    const s = h.getSession();
+    expect(s.started).toBeFalsy();
+    expect(h.overlay.innerHTML).toContain('btn-resume'); // the Ready? card
+    expect(walked).toEqual([[]]); // nothing toasted under the card (the save still goes up)
+    expect(takeStartLines(s)).toEqual(BANKED);
   }, WALK_MS);
 
   it('a plain walk has none of them', async () => {

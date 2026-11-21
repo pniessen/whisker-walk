@@ -378,7 +378,9 @@ export function createWalkLifecycle({
   isOnline = () => navigator.onLine !== false,
   // World map step 3: a walk walked on through a gate has started in the next
   // place; `lines` are the walk just left's own lines (a new best, a streak
-  // bonus, the kitten, what she brought home) for main.js to toast. And the
+  // bonus, the kitten, what she brought home) for main.js to toast now. A
+  // walk not yet begun (a desktop's Ready? card) keeps them in its
+  // startLines for the first engage instead, and `lines` is empty. And the
   // walk's pause (main.js: the ⏸ action), for a walk-on that waits for its place.
   onWalkedOn = () => {},
   releaseControl = () => {},
@@ -3032,7 +3034,14 @@ export function createWalkLifecycle({
         failures = 0;
         const next = getSession();
         if (next) next.arrivedVia = twin;
-        onWalkedOn(lines);
+        // A touch walk has begun at once (its engage toasted its start
+        // lines): the lines are toasted now. A desktop walk waits on its
+        // Ready? card, which covers toasts, so they wait with its start
+        // lines for the first engage (main.js takeStartLines).
+        if (next && !next.started && lines.length) {
+          next.startLines = [...(Array.isArray(next.startLines) ? next.startLines : []), ...lines];
+          onWalkedOn([]);
+        } else onWalkedOn(lines);
       }, Math.max(0, GATE_MOMENT_MS - (Date.now() - shownAt)));
     };
     if (areas.loaded(to)) {
