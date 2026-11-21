@@ -2,7 +2,7 @@
 // docs/superpowers/specs/2026-11-20-lifelike-people-design.md, "Movement",
 // "Behaviour details", "Pairs", "The Fairground's test pins"): createFairShow
 // is handed the kit's factory (opts.people, from the fair's pack, as walk.js
-// does with the switch on). Each visitor is the person its look spot gives (a
+// does). Each visitor is the person its look spot gives (a
 // pair: the grown-up and the child, the child placed where the simulation has
 // it), walking by its own metres walked, saying hello with a wave or a kneel
 // (an older person bows), looking at her only when stopped; the juggler is

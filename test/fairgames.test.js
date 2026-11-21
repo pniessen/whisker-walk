@@ -30,7 +30,7 @@ const { createFairGames, GAME, GAME_STATES, FAIR_GAME_IDS, FAIR_FIND_IDS } = awa
 const { createFairVisitors, VISITOR, PAIR, visitorCount, isChildSpot } = await import('../src/fairvisitors.js');
 const { spotKind } = await import('../src/people/look.js');
 const { createFairShow } = await import('../src/fairshow.js');
-const { createPeopleKit } = await import('../src/people/index.js');
+const { createPeopleKit, BUMP } = await import('../src/people/index.js');
 const { createFairLive, NO_FAIR } = await import('../src/fairlive.js');
 const { FAIR_PRIZES, FAIR_PRIZE_IDS, FAIR_JOURNAL_TYPES, gameJournalId, fairFindJournalId, fairPrizesWonBy } = await import('../src/fairprizes.js');
 const {
@@ -42,7 +42,7 @@ const { createProgression, JOURNAL_TYPES, CATALOG, isPrizeAccessory, isTradeable
 const { createDiscoveryLog, AWARDS } = await import('../src/discoveries.js');
 const { CRITTER_INFO, renderJournalHtml } = await import('../src/journal.js');
 const { discoveryText } = await import('../src/ui/hud.js');
-const { isWalkableAt } = await import('../src/player.js');
+const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 const { CAT_WALK, clearance } = await import('../src/farmsim.js');
 const { createCarryables } = await import('../src/carryables.js');
 const { createMouth } = await import('../src/carry.js');
@@ -988,10 +988,15 @@ describe('the visitors', () => {
   const childAt = (p) => ({ x: p.childX, z: p.childZ });
   // A pair's child holds every rule a visitor does: on free ground (inside
   // the bounds, clear of everything solid by its own radius, out of the pool,
-  // off every ride). KEEP, as a child can: with a cat about who comes no
-  // faster than the grown-ups step aside, never within KEEP of her middle. (A
-  // cat who runs at it faster can reach it: it never steps towards her and
-  // steps away at its pace, see `moves`, and its soft bump stops her, Task 14.)
+  // off every ride). Away from her, as a child can: it never steps towards
+  // her within arm's length (`moves`), and steps away at its grown-up's pace;
+  // but its grown-up may be holding still for a hello or walking round her
+  // (ruling R41), so a cat who walks after it can come within KEEP of it. In
+  // the walk its soft bump stops her at its reach (BUMP.CHILD + CAT_RADIUS,
+  // test/fairshow.people.test.js); here, with no bump, a cat who comes no
+  // faster than the grown-ups step aside (`slow`) still never gets that near.
+  // (A cat who runs at it faster can: then only the bump stops her, Task 14.)
+  const CHILD_REACH = BUMP.CHILD + CAT_RADIUS;
   const childRules = (p, cat, t, area = AREA, slow = true) => {
     const c = childAt(p);
     const at = `${p.id}'s child at ${t.toFixed(1)} s`;
@@ -1000,7 +1005,7 @@ describe('the visitors', () => {
     expect(SIM.swept(c.x, c.z), `${at} on a ride`).toBe(false);
     expect(inPool(c.x, c.z, PAIR.CHILD_R), `${at} in the pool`).toBe(false);
     expect(c.x > AREA.bounds.minX && c.x < AREA.bounds.maxX && c.z > AREA.bounds.minZ && c.z < AREA.bounds.maxZ, at).toBe(true);
-    if (cat && slow) expect(dist(c, cat), at).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
+    if (cat && slow) expect(dist(c, cat), at).toBeGreaterThanOrEqual(CHILD_REACH);
     // and it is with its grown-up: never wandered off, never through it (it
     // never steps nearer it than APART, see `moves`; its grown-up, walking
     // round a cat, may come up against it)
@@ -1035,6 +1040,31 @@ describe('the visitors', () => {
       get worst() { return worst; },
       get towards() { return towards; },
       get through() { return through; },
+    };
+  };
+
+  // KEEP, as a grown-up keeps it (ruling R41: the lifelike people). It never
+  // steps to within KEEP of her middle, nor nearer her once she is there: a
+  // visitor walking round her, or holding still for its hello, may have her
+  // come within KEEP of it, by her doing (her soft bump stops her in the walk,
+  // src/fairshow.js), never by its own. Checked against where each one stood
+  // before its step, and where she is now (she has moved, it has not yet).
+  const keeps = (v) => {
+    const last = v.list.map((p) => ({ x: p.x, z: p.z }));
+    let inside = 0;
+    return {
+      check(cat, t) {
+        v.list.forEach((p, k) => {
+          const d = dist(p, cat);
+          if (d < VISITOR.KEEP - 1e-6) {
+            inside++;
+            expect(d, `${p.id} stepped nearer her within KEEP at ${t.toFixed(1)} s`).toBeGreaterThanOrEqual(dist(last[k], cat) - 1e-9);
+          }
+          last[k].x = p.x;
+          last[k].z = p.z;
+        });
+      },
+      get inside() { return inside; },
     };
   };
 
@@ -1162,19 +1192,19 @@ describe('the visitors', () => {
     let stopped = 0;
     CATS[name](cat, 0);
     const mv = moves(v, cat);
+    const kp = keeps(v);
     for (let i = 0; i < 15 * 60 * 12; i++) {
       const t = i / 15;
       CATS[name](cat, t);
       v.step(1 / 15, cat);
       mv.check(1 / 15);
+      kp.check(cat, t);
       for (const p of pairs(v)) {
         childRules(p, cat, t, AREA, !name.startsWith('running')); // (a running cat can reach a child: see the hunts below)
         nearest = Math.min(nearest, dist(childAt(p), cat));
       }
       for (const p of v.list) {
-        const d = dist(p, cat);
-        nearest = Math.min(nearest, d);
-        expect(d, `${p.id} at ${t.toFixed(1)} s`).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
+        nearest = Math.min(nearest, dist(p, cat));
         expect(clearance(AREA.colliders, p.x, p.z), `${p.id} in something solid`).toBeGreaterThanOrEqual(VISITOR.R);
         expect(SIM.swept(p.x, p.z), `${p.id} on a ride`).toBe(false);
         expect(inPool(p.x, p.z, VISITOR.R)).toBe(false);
@@ -1183,6 +1213,7 @@ describe('the visitors', () => {
     }
     expect(nearest).toBeLessThan(2.5); // they did meet
     expect(stopped).toBeGreaterThan(0); // and somebody gave way
+    if (name.startsWith('sitting')) expect(kp.inside).toBe(0); // a cat who sits is never within anyone's KEEP
     // nobody is stuck for good behind a cat who sits: every one still gets round
     for (const p of v.list) expect(p.walked, p.id).toBeGreaterThan(name.startsWith('sitting') ? 250 : 60);
     expect(mv.worst).toBeLessThanOrEqual(1e-9); // a child steps out of her way smoothly too
@@ -1190,11 +1221,12 @@ describe('the visitors', () => {
     expect(mv.towards).toBe(0);
   }, 90_000);
 
-  it('a cat who chases one visitor for five minutes never touches it, and it never comes after her', () => {
+  it('a cat who chases one visitor for five minutes: it never comes after her, never a step nearer her', () => {
     const v = visitors(8, 'chased');
     const target = v.list[2];
     const cat = { x: 0, z: 20, y: 0, speed: 0 };
     let approached = 0;
+    const kp = keeps(v);
     for (let i = 0; i < 30 * 300; i++) {
       const d = dist(cat, target);
       if (d > 0.3) {
@@ -1205,7 +1237,7 @@ describe('the visitors', () => {
       }
       const gap = dist(target, cat); // once she has moved, before it does
       v.step(DT, cat);
-      for (const p of v.list) expect(dist(p, cat)).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
+      kp.check(cat, i * DT);
       for (const p of pairs(v)) childRules(p, cat, i * DT, AREA, false); // (she runs: see the hunts below)
       expect(v.free(target.x, target.z)).toBe(true);
       // with her within arm's length and coming on, it never takes a step towards her
@@ -1222,6 +1254,7 @@ describe('the visitors', () => {
     const cat = { x: 0, z: 20, y: 0, speed: 0 };
     let nearest = Infinity;
     const mv = moves(v, cat);
+    const kp = keeps(v);
     for (let i = 0; i < 30 * 300; i++) {
       const kid = childAt(pair);
       const d = dist(cat, kid);
@@ -1234,7 +1267,7 @@ describe('the visitors', () => {
       v.step(DT, cat);
       mv.check(DT);
       nearest = Math.min(nearest, dist(childAt(pair), cat));
-      for (const p of v.list) expect(dist(p, cat)).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
+      kp.check(cat, i * DT);
       for (const p of pairs(v)) childRules(p, cat, i * DT, AREA, speed <= VISITOR.SIDE_SPEED);
     }
     // it never hops, and never steps towards her
@@ -1244,9 +1277,9 @@ describe('the visitors', () => {
     return nearest;
   }
 
-  it('a cat who walks after a child for five minutes never comes within KEEP of it: it steps away', () => {
+  it('a cat who walks after a child for five minutes never comes within its soft bump\'s reach: it steps away', () => {
     const nearest = hunt(1, 'walked after');
-    expect(nearest).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
+    expect(nearest).toBeGreaterThanOrEqual(CHILD_REACH);
     expect(nearest).toBeLessThan(1.2); // she did come up to it
   }, 90_000);
 
@@ -1257,13 +1290,15 @@ describe('the visitors', () => {
 
   // A stretch of the midway fenced in to a narrow way (posts either side, a
   // test's own copy of the place): too narrow for the two side by side, wide
-  // enough for the pair one behind the other.
+  // enough for the pair one behind the other. The posts stand either side of
+  // the way they walk: the loop with its corners rounded (closedLine's
+  // `round`), so a fence at a corner does not stand across it.
   function fenced() {
     const v0 = visitors();
     const P = { x: 0, z: 0, hx: 0, hz: 1 };
     const clearAround = (s) => {
       for (let d = -3; d <= 3; d += 0.25) {
-        v0.loop.at(s + d, P);
+        v0.loop.at(s + d, P, true);
         if (clearance(AREA.colliders, P.x, P.z) < 2.6 || SIM.swept(P.x, P.z)) return false;
       }
       return true;
@@ -1272,10 +1307,10 @@ describe('the visitors', () => {
     while (!clearAround(at)) at += 0.5;
     const posts = [];
     for (let d = -1.5; d <= 1.5; d += 0.5) {
-      v0.loop.at(at + d, P);
+      v0.loop.at(at + d, P, true);
       for (const side of [1, -1]) posts.push({ x: P.x + P.hz * side * 1.05, z: P.z - P.hx * side * 1.05, r: 0.2 });
     }
-    v0.loop.at(at, P);
+    v0.loop.at(at, P, true);
     return { area: { ...AREA, colliders: [...AREA.colliders, ...posts] }, mid: { x: P.x, z: P.z } };
   }
 
@@ -1347,7 +1382,7 @@ describe('the visitors', () => {
     expect(v.takeEvents()).toEqual([]);
   });
 
-  // With the lifelike people (holdHello, ruling R41) a visitor saying hello
+  // With the lifelike people (ruling R41) a visitor saying hello
   // holds still for the hello and the kneel's way up. If she is still close
   // then (she sits 0.5 to 0.8 m off, in front of it, beside it, behind it),
   // it walks round her calmly and on its way: it never froze there for good
@@ -1359,7 +1394,7 @@ describe('the visitors', () => {
     // (strolling and going out to watch, alone and with a child, and one at a corner of the loop)
     for (const who of [0, 1, 3, 4, 6]) {
       for (const [ang, r] of cases) {
-        const v = createFairVisitors(AREA, { count: 8, seed: 'people', swept: SIM.swept, holdHello: true });
+        const v = createFairVisitors(AREA, { count: 8, seed: 'people', swept: SIM.swept });
         for (let i = 0; i < 300 + who * 37; i++) v.step(DT, far);
         const held = v.list[who];
         const cat = { x: held.x + Math.sin(held.yaw + ang) * r, z: held.z + Math.cos(held.yaw + ang) * r, y: 0, speed: 0 };
@@ -1695,9 +1730,10 @@ describe('in the walk: the real pieces, the real prompt and E, a real save', () 
     expect(w.live.meow(w.cat.position)).toBeGreaterThanOrEqual(1);
     expect(w.toasts.filter((t) => t === 'A visitor says hello to you! 👋')).toHaveLength(1);
     w.run(0.5);
-    // the figure turned to her and is saying hello (a raised arm or a crouch)
-    const person = w.scene.getObjectByName(v.id);
-    expect(person.children[0].scale.y < 0.95 || person.children[0].children[2].rotation.z > 1).toBe(true);
+    // the person turned to her and is saying hello (a wave, a kneel on one knee, or a bow)
+    const person = w.show.people.find((f) => f.v === v && !f.child);
+    expect(['wave', 'kneel', 'bow']).toContain(person.mode);
+    expect(person.group).toBe(w.scene.getObjectByName(v.id));
     // it pays nothing and fills no page: a visitor is not an animal to spot
     expect(w.progression.state.points).toBe(0);
     expect(w.progression.state.journal.villager ?? 0).toBe(0);
@@ -1758,63 +1794,37 @@ describe('what it costs to draw', () => {
     }
     return { meshes, casters, triangles: Math.round(triangles) };
   }
-  const showFor = (strays, people = null) => {
+  const showFor = (strays) => {
     const made = builtFair();
-    const show = createFairShow(made.scene, made.area, { strays, seed: 'budget', people });
+    const show = createFairShow(made.scene, made.area, { strays, seed: 'budget', people: createPeopleKit });
     return { ...made, show };
   };
 
-  it('pins what the games, the finds and the visitors add: MEASURED on each tier, and nothing that casts a shadow', () => {
-    // Measured 2026-11-19. A visitor is the villager's three meshes; the
-    // juggler is one more figure and three balls; the balloon is one mesh;
-    // the wisp is on her head only once it sticks; the ball's picture is a sprite.
+  it('drawn as lifelike people: one mesh a person (a pair is two), built far, MEASURED_PEOPLE on each tier, nothing that casts a shadow, under the show\'s cap', () => {
+    // Measured 2026-11-21. Eight visitors (three of them pairs: 11 people) and
+    // the juggler, each one skinned mesh at the far geometry (the kit's LOD
+    // swaps near within 12 m), the juggler's three balls and the balloon; the
+    // wisp is on her head only once it sticks; the ball's picture is a sprite.
+    // The show's own cap rose to 8,000 with the lifelike people's pairs (spec,
+    // "The Fairground's test pins").
     const high = stats(showFor(22).show.meshes);
     const mid = stats(showFor(14).show.meshes);
     const low = stats(showFor(8).show.meshes);
-    expect(high).toEqual({ meshes: 31, casters: 0, triangles: MEASURED.high });
-    expect(mid).toEqual({ meshes: 22, casters: 0, triangles: MEASURED.mid });
-    expect(low).toEqual({ meshes: 16, casters: 0, triangles: MEASURED.low });
-    // the Farm's animals are 40-odd meshes and about 6,000 triangles; the
-    // show's own cap rose to 8,000 with the lifelike people's pairs (spec,
-    // "The Fairground's test pins")
-    expect(high.meshes).toBeLessThanOrEqual(34);
-    expect(high.triangles).toBeLessThanOrEqual(SHOW_CAP);
-  });
-
-  it('drawn as lifelike people: one mesh a person (a pair is two), built far, MEASURED_PEOPLE on each tier, under the show\'s cap', () => {
-    // Measured 2026-11-21. Eight visitors (three of them pairs: 11 people) and
-    // the juggler, each one skinned mesh at the far geometry (the kit's LOD
-    // swaps near within 12 m), the juggler's three balls and the balloon.
-    const high = stats(showFor(22, createPeopleKit).show.meshes);
-    const mid = stats(showFor(14, createPeopleKit).show.meshes);
-    const low = stats(showFor(8, createPeopleKit).show.meshes);
     expect(high).toEqual({ meshes: 16, casters: 0, triangles: MEASURED_PEOPLE.high });
     expect(mid).toEqual({ meshes: 12, casters: 0, triangles: MEASURED_PEOPLE.mid }); // five visitors, two of them pairs
     expect(low).toEqual({ meshes: 8, casters: 0, triangles: MEASURED_PEOPLE.low }); // three visitors, no pair
     expect(high.triangles).toBeLessThanOrEqual(SHOW_CAP);
   });
 
-  it('with the place itself, stays inside the Fairground’s ceilings on the high tier', () => {
-    const { scene, show } = showFor(22);
-    const all = stats(scene.children);
-    const added = stats(show.meshes);
-    expect(all.meshes).toBeLessThanOrEqual(260);
-    expect(all.casters).toBeLessThanOrEqual(180);
-    expect(all.triangles).toBeLessThanOrEqual(75000);
-    // the place alone (test/fair.test.js pins it) is what is left
-    expect(all.meshes - added.meshes).toBe(175);
-    expect(all.casters).toBe(109);
-    expect(all.triangles - added.triangles).toBe(68572);
-  });
-
   it('as lifelike people with the place itself, stays inside the owner\'s 75,000 on the high tier, and under 74,500 (ruling R21)', () => {
-    const { scene, show } = showFor(22, createPeopleKit);
+    const { scene, show } = showFor(22);
     const all = stats(scene.children);
     const added = stats(show.meshes);
     expect(all.triangles).toBeLessThanOrEqual(75000);
     expect(all.triangles).toBeLessThanOrEqual(74500); // room left for the Fairground's other builders
     expect(all.meshes).toBeLessThanOrEqual(260);
     expect(all.casters).toBe(109); // the people cast none
+    // the place alone (test/fair.test.js pins it) is what is left
     expect(all.meshes - added.meshes).toBe(175);
     expect(all.triangles - added.triangles).toBe(68572);
   });
@@ -1844,27 +1854,33 @@ describe('what it costs to draw', () => {
     expect(head.children).toHaveLength(0);
   });
 
-  it('gives every person the villager’s look, varied, and no shadow but the contact shadow the walk lays under them', () => {
+  it('gives every person a villager’s look from their spot, varied, and no shadow but the contact shadow the walk lays under them', () => {
     const { show } = showFor(22);
-    expect(show.groups).toHaveLength(9); // eight visitors and the juggler
-    const coats = new Set();
-    for (const g of show.groups) {
+    // eight visitors (three with a child, each in a group of its own) and the juggler
+    expect(show.groups).toHaveLength(12);
+    expect(show.people).toHaveLength(12);
+    const HEIGHTS = { child: [1.16, 1.42], older: [1.55, 1.78], adult: [1.6, 1.85] };
+    const tops = new Set();
+    const again = createPeopleKit(); // the same spot through another kit: the same person
+    for (const f of show.people) {
+      expect(show.groups).toContain(f.group);
       const meshes = [];
-      g.traverse((m) => { if (m.isMesh) meshes.push(m); });
-      expect(meshes).toHaveLength(3); // body, head, arm: the villager's figure, and no new model
+      f.group.traverse((m) => { if (m.isMesh) meshes.push(m); });
+      expect(meshes).toEqual([f.person.mesh]); // one mesh a person: the town's people, no model of the show's own
       for (const m of meshes) { expect(m.castShadow).toBe(false); expect(m.userData.noCast).toBe(true); }
-      const c = meshes[0].geometry.attributes.color;
-      coats.add([c.getX(c.count - 40), c.getY(c.count - 40), c.getZ(c.count - 40)].map((v) => v.toFixed(2)).join());
-      // a person's height
-      const box = new THREE.Box3().setFromObject(g);
-      expect(box.max.y - box.min.y).toBeGreaterThan(1.5);
-      expect(box.max.y - box.min.y).toBeLessThan(1.9);
+      // the look is the spot's (the juggler is dressed by hand, at 1.76 m)
+      if (f.juggler) expect(f.person.look.height).toBe(1.76);
+      else expect(f.person.look).toEqual(again.buildSpot(f.v.look).people[f.child ? 1 : 0].look);
+      expect(f.person.look.kind === 'child').toBe(f.child);
+      // a person's height, for their kind
+      const [lo, hi] = HEIGHTS[f.person.look.kind];
+      expect(f.person.look.height).toBeGreaterThanOrEqual(lo);
+      expect(f.person.look.height).toBeLessThanOrEqual(hi);
+      tops.add(`${f.person.look.top.kind} ${f.person.look.top.color}`);
     }
-    expect(coats.size).toBeGreaterThanOrEqual(3);
-    expect(code('fairshow.js')).toMatch(/buildTwolegFigure/);
+    expect(tops.size).toBeGreaterThanOrEqual(3);
   });
 });
 
-const MEASURED = { high: 4554, mid: 3158, low: 2278 };
 const MEASURED_PEOPLE = { high: 5706, mid: 3934, low: 2130 };
 const SHOW_CAP = 8000;

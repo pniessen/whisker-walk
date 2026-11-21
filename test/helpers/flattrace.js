@@ -64,7 +64,6 @@ const { applyWaterLook } = await import('../../src/cat/waterlook.js');
 const { createStrayCats, strayStream } = await import('../../src/straycats.js');
 const { createCritters } = await import('../../src/critters.js');
 const { createPeopleKit } = await import('../../src/people/index.js');
-const { setPeople } = await import('../../src/peopleflag.js');
 const { createToy } = await import('../../src/toy.js');
 const { createClanCats } = await import('../../src/clancats.js');
 const { castFor, clanCountFor, roamHomes } = await import('../../src/clancast.js');
@@ -170,7 +169,7 @@ function buildMoorKeepingDraws(world, scene, pin) {
 
 // traceArea(areaId, world, motion, { pinMoorDraws }) -> { gameplay: frame[], render: frame[] }.
 // Call with Math.random already seeded (traceAsRecorded does).
-export function traceArea(areaId, world, motion = MOTION(areaId), { pinMoorDraws = true, people = false } = {}) {
+export function traceArea(areaId, world, motion = MOTION(areaId), { pinMoorDraws = true } = {}) {
   const scene = new THREE.Scene();
   const area = areaId === 'moor' ? buildMoorKeepingDraws(world, scene, pinMoorDraws) : world.build(scene);
   const decals = createContactShadows(scene);
@@ -187,8 +186,8 @@ export function traceArea(areaId, world, motion = MOTION(areaId), { pinMoorDraws
   const critters = createCritters(scene, area.critterSpawns, {
     rng: motion.critterPlace, motionRng: motion.critterMotion, hides: propsFor(areaId).hides,
     area, // as the walk passes it: a pair's child is placed clear of the colliders and water
-    // the people switch on: villagers are the new people, with soft bumps
-    people: people ? createPeopleKit : null, camera: people ? camera : undefined,
+    // as the walk passes them: villagers are the people, with soft bumps
+    people: createPeopleKit, camera,
   });
   const strays = createStrayCats(scene, area, 3, motion.stray, { roomSeed: 12345 });
   const cast = castFor(areaId).slice(0, clanCountFor(TIER.strays, 0));
@@ -322,11 +321,10 @@ export function traceArea(areaId, world, motion = MOTION(areaId), { pinMoorDraws
 //                 when the Moor is built after the six maps before it.
 //   uuidSeed      Math.random's seed (UUID_SEED)
 //   motion        (areaId) => the moving systems' streams (MOTION)
-//   people        the people switch on, the kit passed to the critters (false)
 //   pinMoorDraws  assert the Moor build's draw count (true when inOrder, or
 //                 when the Moor is the first area traced in the process)
 export function traceAsRecorded(areaId, {
-  grow = false, inOrder = false, uuidSeed = UUID_SEED, motion = MOTION, pinMoorDraws = inOrder, people = false,
+  grow = false, inOrder = false, uuidSeed = UUID_SEED, motion = MOTION, pinMoorDraws = inOrder,
 } = {}) {
   if (inOrder) {
     for (const before of Object.keys(WORLDS)) {
@@ -336,14 +334,12 @@ export function traceAsRecorded(areaId, {
   }
   const realRandom = Math.random;
   setGrow(grow);
-  setPeople(people);
   try {
     Math.random = mulberry32(uuidSeed);
-    return traceArea(areaId, WORLDS[areaId], motion(areaId), { pinMoorDraws, people });
+    return traceArea(areaId, WORLDS[areaId], motion(areaId), { pinMoorDraws });
   } finally {
     Math.random = realRandom;
     setGrow(null);
-    setPeople(null);
   }
 }
 

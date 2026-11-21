@@ -4,8 +4,6 @@ import { litMaterial } from './render/materials.js';
 import { FLAT_GROUND } from './ground.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { standSpot } from './keepout.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { withLocalUuids } from './world/localuuids.js';
 import { waterClearance } from './world/builder.js';
 
 const mat = (color) => litMaterial(color);
@@ -95,149 +93,26 @@ export function goatForDay(area, date) {
   };
 }
 
-// ---- The villager Twoleg (polish-edges Task 4) -----------------------------
-const TWOLEG_COATS = [0x6a8ac0, 0xc8604a, 0x5e9a6a, 0xd8a640, 0x8a6ab0];
-const TWOLEG_TROUSERS = [0x4a5468, 0x6a5a48, 0x3e4a5a];
-const TWOLEG_SKINS = [0xe8c8a8, 0xc89a74, 0x8e6446, 0xf0d2b8];
-const TWOLEG_HAIR = [0x5a3a24, 0x2a2220, 0xb8643a, 0xb0aca4];
-const TWOLEG_HATS = [0xd8503a, 0xe8b83a, 0x4a9ad0, 0x5ab06a, 0xd070a0]; // bobble hats: bright
-const TWOLEG_CAP = 0x8a7a5a;   // a tweedy flat cap
-const TWOLEG_SHOES = 0x3a3330;
-const TWOLEG_EYES = 0x2a2420;
-
-// An integer hash of the spawn spot (to the centimetre) and a salt, in [0, 1).
-// Pure: the same spawn gives the same Twoleg on every device, no rng drawn.
-function twolegHash(x, z, salt) {
+// An integer hash of a spot (to the centimetre) and a salt, in [0, 1): the
+// people's own (src/people/look.js spotHash), kept here because start-up code
+// never imports src/people. Pure: the same spot gives the same answer on
+// every device, no rng drawn.
+function spotHash(x, z, salt) {
   let h = Math.imul(Math.round(x * 100) | 0, 0x27d4eb2d) ^ Math.imul(Math.round(z * 100) | 0, 0x165667b1) ^ Math.imul(salt + 1, 0x9e3779b1);
   h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
   h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-function twolegLook(def) {
-  const x = Number.isFinite(def.x) ? def.x : 0;
-  const z = Number.isFinite(def.z) ? def.z : 0;
-  const pick = (list, salt) => list[Math.floor(twolegHash(x, z, salt) * list.length)];
-  const coatIndex = Math.floor(twolegHash(x, z, 1) * TWOLEG_COATS.length);
-  return {
-    coat: TWOLEG_COATS[coatIndex],
-    scarf: TWOLEG_COATS[(coatIndex + 2) % TWOLEG_COATS.length], // never the coat's own colour
-    trousers: pick(TWOLEG_TROUSERS, 2),
-    skin: pick(TWOLEG_SKINS, 3),
-    top: pick(['bobble', 'cap', 'hair'], 4),
-    hat: pick(TWOLEG_HATS, 5),
-    hair: pick(TWOLEG_HAIR, 6),
-  };
-}
-
-const twolegMat = () => litMaterial(0xffffff, { vertexColors: true, flatShading: true });
-
-// One part: an (indexed) geometry painted one colour. Box, cylinder and
-// sphere all carry position, normal and uv, so every part merges.
-function tpart(geo, hex) {
-  const c = new THREE.Color(hex);
-  const n = geo.getAttribute('position').count;
-  const col = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return geo;
-}
-
-function twolegBody(look) {
-  const parts = [];
-  for (const side of [-1, 1]) {
-    // Trouser leg from 0.05 m to the hip at 0.75 m, and a shoe a little forward.
-    parts.push(tpart(new THREE.CylinderGeometry(0.13, 0.11, 0.7, 6).translate(side * 0.13, 0.4, 0), look.trousers));
-    parts.push(tpart(new THREE.BoxGeometry(0.2, 0.1, 0.32).translate(side * 0.13, 0.05, -0.05), TWOLEG_SHOES));
-  }
-  // The coat, tapered from the hips (0.75 m) to the shoulders (1.35 m).
-  parts.push(tpart(new THREE.CylinderGeometry(0.21, 0.26, 0.6, 8).translate(0, 1.05, 0), look.coat));
-  // A scarf ring at the collar.
-  parts.push(tpart(new THREE.CylinderGeometry(0.15, 0.2, 0.07, 8).translate(0, 1.37, 0), look.scarf));
-  // The far arm, hanging at the side: sleeve and hand, a little out from the coat.
-  parts.push(tpart(new THREE.CylinderGeometry(0.065, 0.075, 0.45, 6).translate(0, -0.225, 0).rotateZ(-0.2).translate(-0.27, 1.3, 0), look.coat));
-  parts.push(tpart(new THREE.SphereGeometry(0.06, 6, 4).translate(0, -0.5, 0).rotateZ(-0.2).translate(-0.27, 1.3, 0), look.skin));
-  return parts;
-}
-
-// Exported for the critters tests (the hair-over-the-eyes check).
-export function twolegHead(look) {
-  const parts = [
-    tpart(new THREE.CylinderGeometry(0.07, 0.07, 0.1, 6).translate(0, 1.38, 0), look.skin),
-    tpart(new THREE.SphereGeometry(0.15, 8, 6).translate(0, 1.47, 0), look.skin),
-  ];
-  for (const side of [-1, 1]) {
-    parts.push(tpart(new THREE.BoxGeometry(0.03, 0.035, 0.02).translate(side * 0.055, 1.49, -0.14), TWOLEG_EYES));
-  }
-  if (look.top === 'bobble') {
-    // A knitted bobble hat: a snug crown and a bobble on top (to 1.74 m).
-    parts.push(tpart(new THREE.CylinderGeometry(0.13, 0.155, 0.12, 8).translate(0, 1.6, 0), look.hat));
-    parts.push(tpart(new THREE.SphereGeometry(0.05, 6, 4).translate(0, 1.69, 0), 0xf4f0e8));
-  } else if (look.top === 'cap') {
-    // A flat cap: a low crown and a peak over the eyes.
-    parts.push(tpart(new THREE.CylinderGeometry(0.15, 0.158, 0.07, 8).translate(0, 1.59, 0), TWOLEG_CAP));
-    parts.push(tpart(new THREE.BoxGeometry(0.2, 0.025, 0.12).translate(0, 1.575, -0.15), TWOLEG_CAP));
-  } else {
-    // Hair: a cap over the crown and a fall at the back of the head. The cap
-    // stops at 0.42 pi, so its rim (y ~1.514) sits above the eyes' tops (1.5075)
-    // instead of cutting through them as 0.45 pi (rim ~1.500) did.
-    parts.push(tpart(new THREE.SphereGeometry(0.158, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.42).translate(0, 1.475, 0), look.hair));
-    parts.push(tpart(new THREE.BoxGeometry(0.26, 0.14, 0.08).translate(0, 1.44, 0.11), look.hair));
-  }
-  return parts;
-}
-
-// The waving arm, in its pivot's frame: from the shoulder straight down, a
-// sleeve and the hand at its end, 0.55 m in all.
-function twolegArm(look) {
-  return [
-    tpart(new THREE.CylinderGeometry(0.065, 0.075, 0.45, 6).translate(0, -0.225, 0), look.coat),
-    tpart(new THREE.SphereGeometry(0.06, 6, 4).translate(0, -0.49, 0), look.skin),
-  ];
-}
-
-// The Twoleg's figure: a Group of three meshes (body, head, and the arm that
-// waves, on its shoulder pivot). critters.js stands one at each villager
-// spawn; the Fairground's visitors and its juggler are the same figure
-// (src/fairshow.js). Returns { figure, arm }.
-export function buildTwolegFigure(def) {
-    // A Twoleg: legs, shoes, a coat, hands, a hat or hair. Still the peg's
-    // three meshes (body, head, arm), each one merged vertex-coloured geometry
-    // whose parts are made inside withLocalUuids, so the draw calls and the
-    // real Math.random draws are exactly the peg's. The look comes from the
-    // spawn's position, never a roll. Faces -z, like the other critters.
-    const look = twolegLook(def);
-    // The figure Group holds body, head and arm so a spawn can ask the Twoleg
-    // to stand off its spawn point (def.standOff, metres, group frame). The
-    // group itself never moves: critter positions are recorded in the flat
-    // trace. Ranges (wave, dismay, scratch, quest) measure from the figure's
-    // world spot instead, via villagerPos().
-    const figure = withLocalUuids('twoleg-figure', () => new THREE.Group());
-    figure.position.x = def.standOff?.x ?? 0;
-    figure.position.z = def.standOff?.z ?? 0;
-    const body = new THREE.Mesh(mergeGeometries(withLocalUuids('twoleg-body', () => twolegBody(look)), false), twolegMat());
-    figure.add(body);
-    const head = new THREE.Mesh(mergeGeometries(withLocalUuids('twoleg-head', () => twolegHead(look)), false), twolegMat());
-    figure.add(head);
-    // The arm hangs DOWN from its shoulder pivot. Baked 0.2 rad inward, so
-    // update()'s rest pose (rotation.z 0.4) holds it a little out from the
-    // coat and its wave (2.6 +/- 0.3) swings the hand up and out.
-    const armGeo = mergeGeometries(withLocalUuids('twoleg-arm', () => twolegArm(look)), false);
-    armGeo.rotateZ(-0.2);
-    const arm = new THREE.Mesh(armGeo, twolegMat());
-    arm.position.set(0.27, 1.3, 0);
-    arm.rotation.z = 0.4;
-    figure.add(arm);
-    return { figure, arm };
-}
-
 // ---- People in town (lifelike people, Task 10) -------------------------------
-// With the people switch on, createCritters is handed the people kit's
-// factory (opts.people, from the place's pack: src/people never rides in
-// start-up) and a villager is a jointed person instead. A spot whose look says
-// "child" is a pair: the grown-up stands where today's figure stands (its
-// standOff) and the child is a second figure in the same group, beside them.
-// The group never moves, as today; every movement is a bone.
+// createCritters is handed the people kit's factory (opts.people, from the
+// place's pack: src/people never rides in start-up) and a villager is a
+// jointed person. A spot whose look says "child" is a pair: the grown-up
+// stands at the spot's standOff and the child is a second figure in the same
+// group, beside them. The group never moves; every movement is a bone.
+// Without the kit (a Node test that passes none) a villager is its group
+// alone: no figure, no person, no draws but its idle phase and the group's
+// uuid. Every walk passes the kit.
 
 // The child stands this far to the grown-up's side (m), on the side whose
 // spot is clear of the area's colliders and waters by the child's soft bump
@@ -252,8 +127,8 @@ export const SCRATCH_MIN = 2.5;
 export const SCRATCH_UP = 0.6;
 // The dismayed "oh!" lasts as long as the wave dismayNear starts.
 const DISMAY_TIME = 1.5;
-// Today's figure carries the quest marker at a fixed height; a person 0.35 m
-// above their own head.
+// A person carries the quest marker 0.35 m above their own head; a villager
+// with no person (no kit) at a fixed height above its group.
 const QUEST_MARKER_FIXED = 2.1;
 const QUEST_MARKER_ABOVE = 0.35;
 
@@ -273,7 +148,7 @@ function clearForChild(area, x, z) {
 function childOffset(def, sx, sz, area) {
   const ax = def.x + sx;
   const az = def.z + sz;
-  const first = twolegHash(def.x, def.z, 41) < 0.5 ? 1 : -1;
+  const first = spotHash(def.x, def.z, 41) < 0.5 ? 1 : -1;
   for (const side of [first, -first]) {
     if (clearForChild(area, ax + side * PAIR_SIDE, az)) return { x: side * PAIR_SIDE, z: 0 };
   }
@@ -426,11 +301,6 @@ function buildCritter(type, def = {}, kit = null, area = null) {
     }
   } else if (type === 'villager' && kit) {
     buildPeopleVillager(g, def, kit, area);
-  } else if (type === 'villager') {
-    const { figure, arm } = buildTwolegFigure(def);
-    g.add(figure);
-    g.userData.figure = figure;
-    g.userData.arm = arm;
   }
   return g;
 }
@@ -494,12 +364,12 @@ export function createCritters(scene, spawns, opts = {}) {
   let clock = 0; // tracks critters.update's own `t` so pounceCatch can time the 20s catch cooldown without a caller-supplied clock
   const list = [];
   // The soft bumps (Task 11): { x, z, r } for each person, for player.update.
-  // Empty with the switch off (today's figure keeps today's world exactly).
+  // Empty without the kit (no people, no bumps).
   const bumps = [];
 
   // Lifelike people (Task 10): one kit per walk, from the factory the place's
-  // pack hands over (opts.people; null with the switch off, and then every
-  // villager is today's figure). camera: the walk's, for the LOD switch and
+  // pack hands over (opts.people; without it a villager is its group alone,
+  // see buildCritter). camera: the walk's, for the LOD switch and
   // the view test (none in a Node test: then everyone counts as in view).
   // lodNear: the live rung's switch distance. One pose spec and one gaze
   // options object for every person, every frame: nothing is made per frame.
@@ -747,8 +617,8 @@ export function createCritters(scene, spawns, opts = {}) {
       }
     },
     // The head scratch she asked for (interactions.js, the 'scratch' prompt):
-    // the villager kneels at their own spot (see posePeople). Today's figure
-    // has no kneel, so with the switch off this does nothing. A fresh state
+    // the villager kneels at their own spot (see posePeople). A villager with
+    // no person (no kit) has no kneel, and this does nothing. A fresh state
     // per kneel; a hello while they already kneel keeps the kneel going.
     scratchHello(c) {
       if (!c?.people) return false;
@@ -1025,21 +895,16 @@ export function createCritters(scene, spawns, opts = {}) {
           p.x = c.anchor.x + Math.sin(t * 1.5 + c.phase) * 1.2;
           if (!ground.flat) p.y = ground.y(p.x, p.z);
         } else if (c.type === 'villager') {
-          const arm = c.group.userData.arm;
           if (c.meowWaveT > 0) c.meowWaveT -= dt;
           if (c.dismayT > 0) c.dismayT -= dt;
           const dWave = villagerPos(c, _vp).distanceTo(playerPos);
           const waving = dWave < 5 || c.meowWaveT > 0;
           if (waving) {
-            if (arm) arm.rotation.z = 2.6 + Math.sin(t * 6) * 0.3; // wave
             if (!c.waved && dWave < 5) {
               c.waved = true;
               bus.emit('villager:wave', { id: c.id });
             }
-          } else {
-            if (arm) arm.rotation.z = 0.4;
-            if (dWave > 8) c.waved = false;
-          }
+          } else if (dWave > 8) c.waved = false;
           if (c.people) posePeople(c, dt, t, waving, _vp, catPos, herHead, cat);
         }
       }

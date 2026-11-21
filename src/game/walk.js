@@ -19,7 +19,6 @@ import * as THREE from 'three';
 // loaded pack. No area module is imported here.
 import { createAreaLoader } from './areaload.js';
 import { roofsOn } from '../roofsflag.js';
-import { peopleOn } from '../peopleflag.js';
 import { birthdayDue, BDAY_AREA, BDAY_START, BRIDGE_ISLAND_END, speakerFor, birthdayCatName, noteCandlesBlown, bdayCountsWalk, saveBirthdayPhoto, BDAY_PHOTO_KEY } from '../birthday.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
@@ -1068,7 +1067,7 @@ export function createWalkLifecycle({
       : createSecrets(scene, areaData, rollSecrets(walkRng, { eveningLight: duskActive || weather.condition === 'sunset' }), walkRng);
 
     const critters = createCritters(scene, areaData.critterSpawns, {
-      people: peopleOn() ? createPeopleKit : null,
+      people: createPeopleKit,
       camera,
       reducedMotion,
       lodNear: () => lodNearFor(qualityAdapter.status?.rung), // the live rung's switch
@@ -1652,7 +1651,7 @@ export function createWalkLifecycle({
       if (!fairToasted.has(key)) { fairToasted.add(key); hud.toast(text); }
     }
     const fairShow = areaId !== 'fair' ? null : createFairShow(scene, areaData, {
-      people: peopleOn() ? createPeopleKit : null,
+      people: createPeopleKit,
       lodNear: () => lodNearFor(qualityAdapter.status?.rung), // the live rung's switch
       swept: fairLive.sim.swept,
       strays: tier.strays,

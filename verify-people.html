@@ -6,18 +6,17 @@
 <title>People picture sheet</title>
 <!-- The picture sheet for the lifelike people
      (docs/superpowers/specs/2026-11-20-lifelike-people-design.md). It draws the
-     real module (src/people/index.js, the kit) next to today's Twoleg
-     (src/critters.js buildTwolegFigure), with the game's own light. Not game
-     code: nothing in the game imports src/people/ yet.
+     real module (src/people/index.js, the kit) with the game's own light.
+     Not game code.
      Each frame, for every person: pose(), applyPose(), stepGaze() (her head is
      the target), on the scratch shots stepScratch() (her head's top and her
      volumes), then the world matrices, then kit.update() (near/far, view).
      A still runs that loop for 2.5 s of simulated time at 1/60 s before it
      renders, so the eases settle and the gaze turns complete.
      URL params:
-       scene=sheet (default)   a lineup on a lawn: today's figure, then a man, a woman with a girl at her side (one spot: a pair), an older man, and a tabby for scale
-       scene=fair&fig=new|old  the real Fairground (world/fair.js) with the game's own show (src/fairshow.js: its visitors,
-                               run on 40 s, and the juggler), drawn by the people kit (new) or today's figure (old)
+       scene=sheet (default)   a lineup on a lawn: a man, a woman with a girl at her side (one spot: a pair), an older man, and a tabby for scale
+       scene=fair              the real Fairground (world/fair.js) with the game's own show (src/fairshow.js: its visitors,
+                               run on 40 s, and the juggler), drawn by the people kit
        scene=neighborhood|park|docks|seaside
                                the street place built from its world module, its villagers made by the game's own
                                createCritters with the people kit (the head scratch, the bumps, the pairs, the gaze
@@ -59,7 +58,7 @@
 <div id="caption">loading…</div>
 <script type="module">
   import * as THREE from 'three';
-  import { buildTwolegFigure, villagerPos } from '/src/critters.js';
+  import { villagerPos } from '/src/critters.js';
   import { buildCat } from '/src/cat/model.js';
   import { animateCat } from '/src/cat/animator.js';
   import { createSun, createFill, SUN_BIAS, assignShadowCasters, DEFAULT_GROUND_BOUNCE } from '/src/render/rig.js';
@@ -77,7 +76,6 @@
   const PLACES = ['neighborhood', 'park', 'docks', 'seaside'];
   let town = null; // a street place: { crit, player, cat, decals, clear }
   let fairWorld = null; // the Fairground: { show, cat, decals, player, session }
-  const figKind = params.get('fig') || 'new';
   const [W, H] = (params.get('size') || '1280x720').split('x').map(Number);
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(W, H);
@@ -102,7 +100,7 @@
   scene.add(sun);
   const camera = new THREE.PerspectiveCamera(55, W / H, 0.05, 300);
   const kit = createPeopleKit({ camera, reducedMotion: false });
-  // What is drawn: { id, group, members: [{ person, gaze, label }], old?, oldPose?, spot?, label? }.
+  // What is drawn: { id, group, members: [{ person, gaze, label }], spot?, label? }.
   // A new item's group holds its people's figures (a pair: two, side by side).
   const items = [];
   const cats = [];
@@ -128,35 +126,12 @@
     items.push(item);
     return item;
   }
-  // Today's figure, posed as critters.js and fairshow.js pose it.
-  function oldItem(id, def, label) {
-    const { figure, arm } = buildTwolegFigure(def);
-    const group = new THREE.Group();
-    group.add(figure);
-    const oldPose = (spec) => {
-      const t = spec.t ?? 0;
-      figure.position.y = 0; figure.scale.y = 1; figure.rotation.x = 0;
-      arm.rotation.x = 0;
-      if (spec.mode === 'wave') arm.rotation.z = 2.6 + Math.sin(t * 6) * 0.3;
-      else if (spec.mode === 'kneel') { figure.scale.y = 0.7; figure.rotation.x = -0.28; arm.rotation.z = 1.2; }
-      else if (spec.mode === 'juggle') arm.rotation.z = 1.0 + Math.sin(t * 4.6) * 0.35;
-      else {
-        arm.rotation.z = 0.4;
-        if (spec.mode === 'walk') { arm.rotation.x = Math.sin(spec.oldStride ?? 0) * 0.45; figure.position.y = Math.abs(Math.sin(spec.oldStride ?? 0)) * 0.03; }
-      }
-    };
-    const item = { id, group, members: [], old: true, oldPose, label };
-    scene.add(group);
-    items.push(item);
-    return item;
-  }
 
   // ---- the sheet's cast ---------------------------------------------------------------
   // The woman and the girl are one spot (an explicit 'child' kind always
   // pairs): the kit builds both, the girl 0.65 m to her side. The pair's
   // overrides go to both, so only the shared ones (sex, hair colour).
   const SHEET = [
-    { id: 'today', old: true, def: { x: -16, z: 12 }, label: "today's Twoleg" },
     { id: 'man', def: { x: 1, z: 1, kind: 'adult', sex: 'm', height: 1.8, hairStyle: 'short', hairColor: 'dark', top: { kind: 'jumper', color: 0x3e5a7a }, bottom: { kind: 'trousers', color: 0x4a4a52 }, shoes: 0x5a3a28, hat: null, skin: 0xe6bf9e }, label: 'man, 1.80 m' },
     { id: 'pair', def: { x: 2, z: 1, kind: 'child', sex: 'f', hairColor: 'auburn', hat: null } },
     // only in the walk tour: a woman on her own
@@ -197,7 +172,6 @@
     pave.rotation.x = -Math.PI / 2; pave.position.set(0, 0.002, 0); pave.receiveShadow = true;
     scene.add(pave);
     for (const c of SHEET) {
-      if (c.old) { oldItem(c.id, c.def, c.label); continue; }
       const it = spotItem(c.id, c.def, { gap: 0.65, labels: c.id === 'pair' ? [] : [c.label] });
       if (c.extra) { it.extra = true; it.group.visible = false; }
       if (it.pair) {
@@ -264,8 +238,8 @@
     town = { crit, player, cat, decals, clear };
   } else {
     // ---- the Fairground: the game's own show (src/fairshow.js), its visitors
-    // and juggler drawn by the people kit (fig=new, as walk.js with the switch
-    // on) or today's figure (fig=old), the walk's contact shadows ----
+    // and juggler drawn by the people kit, as walk.js has them, the walk's
+    // contact shadows ----
     const fair = await import('/src/world/fair.js');
     const { createFairShow } = await import('/src/fairshow.js');
     const { createFairSim } = await import('/src/fairsim.js');
@@ -281,7 +255,7 @@
     const sim = createFairSim(area);
     const decals = createContactShadows(scene);
     const show = createFairShow(scene, area, {
-      people: figKind === 'old' ? null : createPeopleKit, swept: sim.swept, strays: 22, camera, seed: 'people-proto',
+      people: createPeopleKit, swept: sim.swept, strays: 22, camera, seed: 'people-proto',
     });
     const cat = buildCat('tabby');
     scene.add(cat);
@@ -332,7 +306,7 @@
     const target = herHead();
     const top = herTop();
     for (const it of items) {
-      if (!it.group.visible || it.old) continue;
+      if (!it.group.visible) continue;
       const s = current.spec(it);
       it.group.updateMatrixWorld(true);
       for (const m of it.members) {
@@ -366,7 +340,6 @@
     let s = 0;
     for (; s < seconds; s += DT) step(DT);
     if (until) for (; s < most && !until(); s += DT) step(DT);
-    for (const it of items) if (it.old && it.group.visible) it.oldPose({ ...current.spec(it), t: clock });
     return s;
   }
   const cam = (px, py, pz, lx, ly, lz, fov = 55) => {
@@ -390,10 +363,7 @@
     };
     for (const it of items) {
       if (!it.group.visible) continue;
-      if (it.old && it.label) {
-        const top = new THREE.Box3().setFromObject(it.group).max.y;
-        put(it.label, new THREE.Vector3(it.group.position.x, top + 0.08, it.group.position.z));
-      } else if (it.spot && it.label) {
+      if (it.spot && it.label) {
         put(it.label, LBL.set(it.group.position.x, 2.0, it.group.position.z));
       } else {
         for (const m of it.members) {
@@ -415,9 +385,9 @@
 
   // ---- the sheet's layouts ------------------------------------------------------
   const byId = (id) => items.find((it) => it.id === id);
-  const newCast = (it) => !it.spot && !it.old && !it.extra;
-  // today's figure, the man, the woman with the girl at her side, the older man
-  const LINE_X = { today: -3.2, man: -1.65, pair: -0.2, older: 2.0 };
+  const newCast = (it) => !it.spot && !it.extra;
+  // the man, the woman with the girl at her side, the older man
+  const LINE_X = { man: -1.65, pair: -0.2, older: 2.0 };
   function lineup(z = 0) {
     for (const it of items) if (!it.spot && LINE_X[it.id] !== undefined) { it.group.position.set(LINE_X[it.id], 0, z); it.group.rotation.y = Math.PI; }
     const pair = byId('pair');
@@ -449,20 +419,20 @@
 
   const SHOTS = {
     // the walk's normal camera: 4.5 m behind and 2.2 m above the cat, looking past her
-    'lineup-day': () => { dayLight(); cam(0.2, 2.6, 6.7, 0, 0.8, -0.3); settle({ mode: 'stand' }); return 'Standing, the game\'s normal camera, day. Left: today\'s figure. The cat is 2 m in front of them: they look at her.'; },
+    'lineup-day': () => { dayLight(); cam(0.2, 2.6, 6.7, 0, 0.8, -0.3); settle({ mode: 'stand' }); return 'Standing, the game\'s normal camera, day. The cat is 2 m in front of them: they look at her.'; },
     'lineup-cateye-day': () => { dayLight(); cam(0.2, 0.3, 3.6, 0, 0.95, 0, 60); settle({ mode: 'stand' }); return 'From the cat\'s eye height (0.3 m), day. The new people look down at her, eyes and head, and smile.'; },
     'stride-day': () => {
       dayLight();
       for (const it of items) it.group.rotation.y = Math.PI / 2 + 0.35; // walking to the left, a little toward us
       cam(1.2, 1.9, 6.6, 0, 0.8, 0);
-      settle((it) => ({ mode: 'walk', walked: (m) => (1.1 + (it.id.length % 3) * 0.3) / strideFor(m.person, 1), oldStride: 1.2 }));
+      settle((it) => ({ mode: 'walk', walked: (m) => (1.1 + (it.id.length % 3) * 0.3) / strideFor(m.person, 1) }));
       return 'Mid-stride, three-quarter view, day (she sits off to the right).';
     },
     'wave-cateye-day': () => { dayLight(); cam(0.2, 0.3, 3.6, 0, 1.0, 0, 60); settle({ mode: 'wave' }); return 'Waving to the cat, from her eye height, day.'; },
-    'crouch-cateye-day': () => { dayLight(); cam(0.2, 0.3, 3.6, 0, 0.7, 0, 60); settle({ mode: 'kneel' }); return 'The Fairground\'s hello, from her eye height: the new people kneel on one knee (the older man bows); today\'s figure squashes.'; },
+    'crouch-cateye-day': () => { dayLight(); cam(0.2, 0.3, 3.6, 0, 0.7, 0, 60); settle({ mode: 'kneel' }); return 'The Fairground\'s hello, from her eye height: the new people kneel on one knee (the older man bows).'; },
     'dismay-day': () => {
       dayLight();
-      for (const it of items) if (!it.old) it.group.rotation.y = Math.PI - 0.6; // three-quarters
+      for (const it of items) it.group.rotation.y = Math.PI - 0.6; // three-quarters
       cats[0].position.set(1.0, 0, 1.5); // she sits off to the right, out of the way of the view
       cam(0.4, 1.5, 4.4, 0, 1.0, 0, 50);
       settle({ mode: 'dismay' });
@@ -474,7 +444,7 @@
       sunsetLight();
       for (const it of items) it.group.rotation.y = Math.PI / 2 + 0.35;
       cam(1.2, 1.9, 6.6, 0, 0.8, 0);
-      settle((it) => ({ mode: 'walk', walked: (m) => (4.2 + (it.id.length % 3) * 0.3) / strideFor(m.person, 1), oldStride: 4.2 }));
+      settle((it) => ({ mode: 'walk', walked: (m) => (4.2 + (it.id.length % 3) * 0.3) / strideFor(m.person, 1) }));
       return 'Mid-stride (the other step), sunset.';
     },
     'far-day': () => {
@@ -702,7 +672,7 @@
     if (!fairWarm) { fairWarm = true; fairRun(40); }
   }
   const fairCam = () => { const c = cats[0].position; cam(c.x - 0.5, 2.5, c.z + 4.5, c.x - 1.9, 0.8, c.z - 10); };
-  const who = () => (figKind === 'old' ? "today's figure" : 'the new figure');
+  const who = () => 'the new figure';
   const modes = () => (fairWorld.show.people.length
     ? fairWorld.show.people.map((p) => `${p.juggler ? 'juggler' : p.v.id.replace('fair-visitor-', 'v') + (p.child ? 'c' : '')} ${p.mode}${p.gaze.looking ? ' (looks)' : ''}`).join(', ')
     : '');
@@ -712,7 +682,7 @@
     'fair-day': () => { dayLight(); fairSit(MIDWAY.x, MIDWAY.z, 0.15); fairCam(); fairRun(2.5); return `The Fairground with ${who()}: the walk's normal camera behind the cat on the midway, day. [${modes()}]`; },
     'fair-dusk': () => { sunsetLight(); fairSit(MIDWAY.x, MIDWAY.z, 0.15); fairCam(); fairRun(2.5); return `The Fairground at dusk, ${who()}: the walk's normal camera. [${modes()}]`; },
     'fair-close': () => { dayLight(); fairSit(MIDWAY.x, MIDWAY.z, 0.15); cats[0].visible = false; const c = cats[0].position; cam(c.x, 0.3, c.z - 0.25, c.x - 1.4, 1.0, c.z - 8, 60); fairRun(2.5); return `The Fairground from the cat's eye height, ${who()}. [${modes()}]`; },
-    // she meows 1.2 m in front of a visitor who crouches today: the new figure kneels on one knee
+    // she meows 1.2 m in front of a visitor who says hello: the new figure kneels on one knee
     'fair-kneel': () => {
       dayLight();
       fairSit(MIDWAY.x, MIDWAY.z, 0.15);

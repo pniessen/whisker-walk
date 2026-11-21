@@ -291,7 +291,7 @@ describe('the circles of a person', () => {
     });
   });
 
-  it('is empty with the switch off (today\'s figure keeps today\'s world)', () => {
+  it('is empty when no people are handed over (a villager with no person)', () => {
     const adult = spotOf('adult');
     const c = createCritters(scene, [{ type: 'villager', ...adult }], { rng: mulberry32(7), motionRng: mulberry32(11) });
     expect(c.bumps).toEqual([]);

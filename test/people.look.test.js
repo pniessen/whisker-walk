@@ -13,7 +13,7 @@ describe('people look', () => {
 
   it('hash is in [0, 1) and matches the critters formula on a known value', () => {
     for (const s of spots) { const h = spotHash(s.x, s.z, 3); expect(h).toBeGreaterThanOrEqual(0); expect(h).toBeLessThan(1); }
-    // literal values of critters.js twolegHash (n / 2^32, exact)
+    // literal values of the old figure's hash, critters.js spotHash's copy (n / 2^32, exact)
     expect(spotHash(14, 34, 20)).toBe(31749306 / 4294967296);
     expect(spotHash(-8, -22, 20)).toBe(333922356 / 4294967296);
     expect(spotHash(12.34, -5.67, 3)).toBe(1280859189 / 4294967296);

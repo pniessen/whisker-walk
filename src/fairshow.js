@@ -8,28 +8,28 @@
 // act() on E; a meow goes to meow().
 //
 // WHAT IT ADDS TO THE SCENE (test/fairgames.test.js pins the totals): the
-// visitors (the villager's figure, three meshes each), the juggler and his
-// three balls, the runaway balloon, the wisp of candyfloss, and the picture in
-// the crystal ball. None of them casts a shadow; the people get the same
-// contact shadow a villager has (`groups`, followed by the walk's decals). The
-// tins, the ducks and the bell's marker are the meshes world/fair.js built.
-// update() allocates nothing.
+// visitors (one mesh a person), the juggler and his three balls, the runaway
+// balloon, the wisp of candyfloss, and the picture in the crystal ball. None
+// of them casts a shadow; the people get the same contact shadow a villager
+// has (`groups`, followed by the walk's decals). The tins, the ducks and the
+// bell's marker are the meshes world/fair.js built. update() allocates
+// nothing.
 //
-// WITH THE PEOPLE SWITCH ON (opts.people, the people kit's factory from the
-// fair's pack; lifelike people, Task 14): each visitor is the person its look
-// spot gives, one mesh a person, a pair's child a second person with a group
-// of its own where the simulation has it (childX/childZ/childYaw). They walk
-// by their own metres walked, say hello with a wave or a kneel on one knee (an
-// older person bows), look at her only when stopped (watching or saying
-// hello), never while walking; the juggler is dressed by hand at 1.76 m and
-// each hand follows the nearest ball. Their soft bumps (each person's fixed
-// circles, rulings R30/R32/R36) are one list updated in place, `bumps`, that
-// the walk hands to player.update (test/fairshow.people.test.js).
+// THE PEOPLE (the people kit, src/people/, in the fair's pack with this file;
+// lifelike people, Task 14): each visitor is the person its look spot gives,
+// one mesh a person, a pair's child a second person with a group of its own
+// where the simulation has it (childX/childZ/childYaw). They walk by their
+// own metres walked, say hello with a wave or a kneel on one knee (an older
+// person bows), look at her only when stopped (watching or saying hello),
+// never while walking; the juggler is dressed by hand at 1.76 m and each hand
+// follows the nearest ball. Their soft bumps (each person's fixed circles,
+// rulings R30/R32/R36) are one list updated in place, `bumps`, that the walk
+// hands to player.update (test/fairshow.people.test.js).
 // =============================================================================
 import * as THREE from 'three';
 import { createFairGames, GAME } from './fairgames.js';
 import { createFairVisitors, visitorCount, VISITOR } from './fairvisitors.js';
-import { buildTwolegFigure } from './critters.js';
+import { createPeopleKit } from './people/index.js';
 import { litMaterial } from './render/materials.js';
 import { withLocalUuids } from './world/localuuids.js';
 import { FLAT_GROUND } from './ground.js';
@@ -82,17 +82,16 @@ const JUGGLE_COLORS = Object.freeze([0xe2433a, 0x4eb86a, 0xf7c93b]);
 //   opts.coat          her coat's colour, for the crystal ball when there is no picture
 //   opts.onEvent(e)    every event of the games, the finds and the visitors
 //   opts.seed          their own dice
-//   opts.people        the people kit's factory (src/people/index.js createPeopleKit), or null
-//                      for today's figure (the people switch off)
+//   opts.people        the people kit's factory (src/people/index.js createPeopleKit, its default)
 //   opts.lodNear()     the live rung's near/far switch distance (the kit's own 12 m without it)
 export function createFairShow(scene, area, {
   swept = () => false, strays = 22, camera = null, portrait = () => null, coat = 0xc8a070,
-  reducedMotion = false, onEvent = () => {}, ground = FLAT_GROUND, seed, people: makeKit = null, lodNear,
+  reducedMotion = false, onEvent = () => {}, ground = FLAT_GROUND, seed, people: makeKit = createPeopleKit, lodNear,
 } = {}) {
   const games = createFairGames(area, seed === undefined ? {} : { seed: `${seed}-games` });
-  // (with the people, a visitor saying hello holds still: ruling R41)
+  // (a visitor saying hello holds still: ruling R41, src/fairvisitors.js)
   const visitors = createFairVisitors(area, {
-    count: visitorCount(strays), swept, ...(seed === undefined ? {} : { seed: `${seed}-visitors` }), ...(typeof makeKit === 'function' ? { holdHello: true } : {}),
+    count: visitorCount(strays), swept, ...(seed === undefined ? {} : { seed: `${seed}-visitors` }),
   });
   const A = area.anchors;
   const gy = (x, z) => (ground.flat ? 0 : ground.y(x, z));
@@ -101,14 +100,14 @@ export function createFairShow(scene, area, {
   const disposable = [];
   const noCast = (o) => { o.traverse((m) => { if (m.isMesh) { m.castShadow = false; m.userData.noCast = true; } }); return o; };
   const place = (o) => { scene.add(o); added.push(o); return o; };
-  // the people kit (the switch on): built inside the show's own uuid block,
-  // so its draws come from that local stream and the real count is unchanged
+  // the people kit: built inside the show's own uuid block, so its draws
+  // come from that local stream and the real count is unchanged
   let kit = null;
   // the soft bumps: every person's circles, world x/z, updated in place
   const bumps = [];
 
   const built = withLocalUuids('fair-show', () => {
-    if (typeof makeKit === 'function') kit = makeKit({ camera, reducedMotion, ...(typeof lodNear === 'function' ? { lodNear } : {}) });
+    kit = (typeof makeKit === 'function' ? makeKit : createPeopleKit)({ camera, reducedMotion, ...(typeof lodNear === 'function' ? { lodNear } : {}) });
     const mat = litMaterial(0xffffff, { vertexColors: true, flatShading: true });
     disposable.push(mat);
     const tinted = (geo, hex) => {
@@ -122,8 +121,8 @@ export function createFairShow(scene, area, {
     };
 
     // ---- the visitors ----
-    // (the people: each person in a group of its own, the figure at its
-    // middle, so a pair's child stands where the simulation has it)
+    // (each person in a group of its own, the figure at its middle, so a
+    // pair's child stands where the simulation has it)
     const figures = [];
     const personGroup = (name, person, x, z, yaw) => {
       const group = new THREE.Group();
@@ -143,55 +142,27 @@ export function createFairShow(scene, area, {
       figures.push(f);
       return f;
     };
-    const people = visitors.list.map((v) => {
-      if (kit) {
-        const spot = kit.buildSpot({ x: v.look.x, z: v.look.z });
-        const group = personGroup(v.id, spot.people[0], v.x, v.z, v.yaw);
-        figureOf(spot.people[0], group, v, false, false);
-        if (spot.people[1]) {
-          const kid = figureOf(spot.people[1], personGroup(`${v.id}-child`, spot.people[1], v.childX, v.childZ, v.childYaw), v, true, false);
-          kid.lastX = v.childX;
-          kid.lastZ = v.childZ;
-        }
-        return { v, group };
+    for (const v of visitors.list) {
+      const spot = kit.buildSpot({ x: v.look.x, z: v.look.z });
+      figureOf(spot.people[0], personGroup(v.id, spot.people[0], v.x, v.z, v.yaw), v, false, false);
+      if (spot.people[1]) {
+        const kid = figureOf(spot.people[1], personGroup(`${v.id}-child`, spot.people[1], v.childX, v.childZ, v.childYaw), v, true, false);
+        kid.lastX = v.childX;
+        kid.lastZ = v.childZ;
       }
-      const { figure, arm } = buildTwolegFigure({ x: v.look.x, z: v.look.z });
-      const group = new THREE.Group();
-      group.name = v.id;
-      group.add(figure);
-      group.position.set(v.x, gy(v.x, v.z), v.z);
-      group.rotation.y = v.yaw + Math.PI;
-      noCast(group);
-      place(group);
-      groups.push(group);
-      return { v, group, figure, arm, crouch: 0 };
-    });
+    }
 
     // ---- the juggler, and his three balls ----
     // he faces where a cat would watch him from
     const jugYaw = Math.atan2(A.jugglerWatch.x - A.juggler.x, A.jugglerWatch.z - A.juggler.z);
-    let jug = null;
-    let juggler;
-    if (kit) {
-      // dressed by hand, at 1.76 m
-      const spot = kit.buildSpot(JUGGLER);
-      juggler = personGroup('fair-juggler', spot.people[0], A.juggler.x, A.juggler.z, jugYaw);
-      jug = figureOf(spot.people[0], juggler, null, false, true);
-      // where in the pose's rotations each upper arm's pitch is (the bones are in the pose's order)
-      const order = spot.people[0].skeleton.bones;
-      jug.upper = [order.indexOf(spot.people[0].bones.upperArmL) * 3, order.indexOf(spot.people[0].bones.upperArmR) * 3];
-      jug.hands = [0, 0]; // each hand's height, eased (m, from the ground)
-    } else {
-      jug = buildTwolegFigure({ x: 311.5, z: 77.25 });
-      juggler = new THREE.Group();
-      juggler.name = 'fair-juggler';
-      juggler.add(jug.figure);
-      juggler.position.set(A.juggler.x, gy(A.juggler.x, A.juggler.z), A.juggler.z);
-      juggler.rotation.y = jugYaw + Math.PI;
-      noCast(juggler);
-      place(juggler);
-      groups.push(juggler);
-    }
+    // dressed by hand, at 1.76 m
+    const jugSpot = kit.buildSpot(JUGGLER);
+    const juggler = personGroup('fair-juggler', jugSpot.people[0], A.juggler.x, A.juggler.z, jugYaw);
+    const jug = figureOf(jugSpot.people[0], juggler, null, false, true);
+    // where in the pose's rotations each upper arm's pitch is (the bones are in the pose's order)
+    const order = jugSpot.people[0].skeleton.bones;
+    jug.upper = [order.indexOf(jugSpot.people[0].bones.upperArmL) * 3, order.indexOf(jugSpot.people[0].bones.upperArmR) * 3];
+    jug.hands = [0, 0]; // each hand's height, eased (m, from the ground)
     const balls = JUGGLE_COLORS.map((hex, i) => {
       const m = new THREE.Mesh(tinted(new THREE.IcosahedronGeometry(GAME.BALL_R, 1), hex), mat);
       m.name = `fair-juggle-ball-${i}`;
@@ -233,12 +204,12 @@ export function createFairShow(scene, area, {
     face.visible = false;
     place(face);
 
-    return { people, figures, jugFig: kit ? jug : null, juggler, jugArm: kit ? null : jug.arm, balls, balloon, wisp, face, faceMat };
+    return { figures, jugFig: jug, juggler, balls, balloon, wisp, face, faceMat };
   });
 
   // the bumps are where everyone stands before the first frame (the walk's
   // first player.update comes before the show's first update)
-  if (kit) placeBumps();
+  placeBumps();
 
   // ---- the game pieces world/fair.js built ---------------------------------------------
   const tinMeshes = area.rides.tinCans ?? [];
@@ -349,7 +320,7 @@ export function createFairShow(scene, area, {
     marker.position.y = markerFrom + (markerTo - markerFrom) * mark.shown;
   }
 
-  // ---- the people (the switch on) --------------------------------------------------------
+  // ---- the people --------------------------------------------------------------------------
   // One pose spec and one gaze options object for everyone, every frame.
   const spec = { mode: 'stand', t: 0, walked: 0, reducedMotion };
   const gazeOpts = { target: null, reducedMotion, near: null, turnBody: false };
@@ -531,30 +502,6 @@ export function createFairShow(scene, area, {
     kit.stepGaze(p, f.gaze, dt, t, gazeOpts);
   }
 
-  function posePeople(t, dt) {
-    for (let i = 0; i < built.people.length; i++) {
-      const p = built.people[i];
-      const v = p.v;
-      p.group.position.set(v.x, gy(v.x, v.z), v.z);
-      p.group.rotation.y = v.yaw + Math.PI;
-      const stride = v.walked * 3.4 + i;
-      const hello = v.hello > 0;
-      // a crouch down to her height, or a wave
-      const wantCrouch = hello && v.helloKind === 'crouch' ? 1 : 0;
-      p.crouch += (wantCrouch - p.crouch) * Math.min(1, dt * 6);
-      p.figure.scale.y = 1 - 0.3 * p.crouch;
-      p.figure.position.y = v.moving && !reducedMotion ? Math.abs(Math.sin(stride)) * 0.03 : 0;
-      p.figure.rotation.x = -0.28 * p.crouch; // leaning in towards her (the figure faces -z)
-      if (hello) {
-        p.arm.rotation.x = 0;
-        p.arm.rotation.z = v.helloKind === 'wave' ? 2.6 + Math.sin(t * 9) * 0.3 : 1.2 + Math.sin(t * 5) * 0.15;
-      } else {
-        p.arm.rotation.z = 0.4;
-        p.arm.rotation.x = v.moving && !reducedMotion ? Math.sin(stride) * 0.45 : 0;
-      }
-    }
-  }
-
   function poseJuggler(t, dt) {
     const out = games.ball.out;
     const jy = built.juggler.position.y;
@@ -564,7 +511,6 @@ export function createFairShow(scene, area, {
     const fx = Math.sin(yaw);   // and the way he faces
     const fz = Math.cos(yaw);
     const n = out ? 2 : 3;
-    if (built.jugArm) built.jugArm.rotation.z = 1.0 + Math.sin(t * SHOW.JUGGLE * 2) * 0.35;
     for (let i = 0; i < 3; i++) {
       const b = built.balls[i];
       if (out && i === 2) {
@@ -579,7 +525,7 @@ export function createFairShow(scene, area, {
       const up = 1.22 + Math.abs(Math.cos(p)) * 0.5;
       b.position.set(A.juggler.x + rx * side + fx * 0.3, jy + up, A.juggler.z + rz * side + fz * 0.3);
     }
-    if (kit) poseJugglerFigure(t, dt);
+    poseJugglerFigure(t, dt);
   }
 
   function poseBalloon(t, dt) {
@@ -649,7 +595,7 @@ export function createFairShow(scene, area, {
     visitors,
     groups,
     get meshes() { return added; },
-    // with the people kit: each person ({ person, group, v, child, juggler,
+    // each person ({ person, group, v, child, juggler,
     // mode, walked, gaze }), and their soft bumps, one list of { x, z, r }
     // updated in place each frame (walk.js hands it to player.update)
     get people() { return built.figures; },
@@ -673,12 +619,10 @@ export function createFairShow(scene, area, {
       poseTins(dt);
       poseDucks(t, cat);
       poseMarker(dt);
-      if (kit) {
-        placeFigures(dt);
-        if (!seeAll) kit.update();
-        poseFigures(t, dt, cat);
-        placeBumps();
-      } else posePeople(t, dt);
+      placeFigures(dt);
+      if (!seeAll) kit.update();
+      poseFigures(t, dt, cat);
+      placeBumps();
       poseJuggler(t, dt);
       poseBalloon(t, dt);
       poseWisp(cat);
@@ -711,11 +655,7 @@ export function createFairShow(scene, area, {
       for (const o of added) scene.remove(o);
       built.wisp.parent?.remove(built.wisp);
       for (const d of disposable) d.dispose?.();
-      if (kit) kit.dispose(); // every person's geometries, skeletons and the shared material
-      else {
-        for (const p of built.people) p.group.traverse((m) => { if (m.isMesh) { m.geometry.dispose(); m.material.dispose(); } });
-        built.juggler.traverse((m) => { if (m.isMesh) { m.geometry.dispose(); m.material.dispose(); } });
-      }
+      kit.dispose(); // every person's geometries, skeletons and the shared material
       // the tins back on their shelf, the ducks and the marker as they were built
       for (const t of tins) { const h = t.mesh.userData.home; t.mesh.position.set(h.x, h.y, h.z); t.mesh.rotation.set(0, 0, 0); t.k = 0; }
       if (marker) marker.position.y = markerFrom;

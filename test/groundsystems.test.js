@@ -1394,7 +1394,7 @@ describe('the whole branch stands on the ground', () => {
   // group (the group itself is placed on the ground), a measuring pose, or a
   // sky object. Per file: the receivers allowed to take a literal, and why.
   const ALLOWED = {
-    'critters.js': [['ear', 'snout', 'tail', 'body', 'head', 'eye', 'leg', 'claw', 'arm'], 'mesh parts of a critter group; the group is placed on ground.y'],
+    'critters.js': [['ear', 'snout', 'tail', 'body', 'head', 'eye', 'leg', 'claw'], 'mesh parts of a critter group; the group is placed on ground.y'],
     'gifts.js': [['body', 'bandA', 'bandB', 'bow'], 'gift box parts; the gift group is placed on ground.y'],
     'goldmice.js': [['nose', 'tail'], 'golden mouse parts; the mouse group sits at worldY'],
     'tippables.js': [['pot', 'plant', 'bloom', 'canBody', 'spout', 'bin', 'lid'], 'tippable parts; the group sits at gy'],

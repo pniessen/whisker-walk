@@ -11,8 +11,8 @@ import { createPlayer } from '../src/player.js';
 
 vi.stubGlobal('document', canvasStub); // (the player listens on it)
 
-// Villagers in town with the people switch on: createCritters is handed the
-// kit factory (opts.people), as walk.js does from a place's pack.
+// Villagers in town as people: createCritters is handed the kit factory
+// (opts.people), as walk.js does from a place's pack.
 const scene = { add() {}, remove() {} };
 const DT = 1 / 60;
 
@@ -70,8 +70,8 @@ const run = (crit, frames, cat, t0 = 0) => {
 const worldOf = (o) => o.getWorldPosition(new THREE.Vector3());
 const AWAY = (c) => herCat(c.def.x + 30, c.def.z + 30);
 
-describe('villagers in town (people switch on)', () => {
-  it('41 draws, switch on: a single and a pair spot cost what the old figure did', () => {
+describe('villagers in town (the people)', () => {
+  it('41 draws: a single and a pair spot cost what the old figure did', () => {
     expect(countDraws(() => createCritters(scene, [{ type: 'villager', ...ADULT }], { people: createPeopleKit }))).toBe(41);
     expect(countDraws(() => createCritters(scene, [{ type: 'villager', ...CHILD }], { people: createPeopleKit }))).toBe(41);
     expect(countDraws(() => createCritters(scene, [{ type: 'villager', ...ADULT, standOff: { x: 1, z: -1 } }], { people: createPeopleKit }))).toBe(41);
@@ -99,10 +99,10 @@ describe('villagers in town (people switch on)', () => {
     expect(at.x).toBeCloseTo(CHILD.x + 1.2, 9);
     expect(at.z).toBeCloseTo(CHILD.z - 0.8, 9);
     expect(questMarkerY(c)).toBeCloseTo(adult.look.height + 0.35, 9);
-    // the switch off: today's figure, today's 2.1 m
-    const old = createCritters(scene, [{ type: 'villager', ...CHILD }]).list[0];
-    expect(old.people).toBeUndefined();
-    expect(questMarkerY(old)).toBe(2.1);
+    // with no kit (no person), a fixed 2.1 m above the group
+    const none = createCritters(scene, [{ type: 'villager', ...CHILD }]).list[0];
+    expect(none.people).toBeUndefined();
+    expect(questMarkerY(none)).toBe(2.1);
     // dismay is measured from the adult, not the child
     crit.dismayNear(at, 0.5);
     expect(c.dismayT).toBe(1.5);
@@ -234,10 +234,10 @@ describe('villagers in town (people switch on)', () => {
     expect(c.poseMode).toBe('kneel');
     t = run(crit, 4, gone, t); // 0.616 s
     expect(c.poseMode).toBe('wave');
-    // a hello with the switch off does nothing
-    const old = createCritters(scene, [{ type: 'villager', ...ADULT }]);
-    expect(() => old.scratchHello(old.list[0])).not.toThrow();
-    expect(old.list[0].scratch ?? null).toBe(null);
+    // a hello to a villager with no person (no kit) does nothing
+    const none = createCritters(scene, [{ type: 'villager', ...ADULT }]);
+    expect(none.scratchHello(none.list[0])).toBe(false);
+    expect(none.list[0].scratch ?? null).toBe(null);
   });
 
   it('gaze goes to the local cat only: a remote cat closer than hers, the head turns to hers', () => {
@@ -344,11 +344,13 @@ describe('villagers in town (people switch on)', () => {
     for (const s of spies) s.mockRestore();
   });
 
-  it('with no people, today\'s figure exactly as now', () => {
-    const c = createCritters(scene, [{ type: 'villager', ...CHILD }], { camera: cameraAt(0, 0) }).list[0];
+  it('handed no people, a villager is its group alone: no figure, no person, no bumps', () => {
+    const crit = createCritters(scene, [{ type: 'villager', ...CHILD }], { camera: cameraAt(0, 0) });
+    const c = crit.list[0];
     expect(c.people).toBeUndefined();
-    expect(c.figure.children).toHaveLength(3);
-    expect(c.group.userData.arm).toBeTruthy();
+    expect(c.figure).toBeUndefined();
+    expect(c.group.children).toEqual([]);
+    expect(crit.bumps).toEqual([]);
   });
 });
 

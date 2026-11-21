@@ -3,7 +3,8 @@
 // centimetre and a salt, never a roll, so two co-walkers see the same person.
 // No Math.random, no three.js. Faces -z, metres.
 
-// The same integer hash today's figure dresses from (critters.js twolegHash).
+// The integer hash the old figure dressed from; critters.js keeps a copy
+// (spotHash: start-up code never imports src/people) for a pair's side.
 export function spotHash(x, z, salt) {
   let h = Math.imul(Math.round(x * 100) | 0, 0x27d4eb2d) ^ Math.imul(Math.round(z * 100) | 0, 0x165667b1) ^ Math.imul(salt + 1, 0x9e3779b1);
   h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);

@@ -31,6 +31,12 @@ import {
 // shadows only (the cat's body, outline, ears, face and fur, and the Twolegs'
 // and plumed cats' shadow radii). Review S2 split it and re-recorded it ONCE,
 // checked field by field against the old file: no value in either part moved.
+// 2026-11-21 (lifelike people, Task 16: the old figure retired): the render
+// part re-recorded, checked field by field: only the villagers' contact
+// shadows moved (each now the person's, a pair's child with one of its own,
+// at the villager spots of the Neighborhood, the Park, Seaside and the
+// Docks); the paw prints, the knockables' decals and the other four maps did
+// not change, and the gameplay part did not move.
 
 describe('the flat trace', () => {
   let trace;
@@ -60,18 +66,4 @@ describe('the flat trace', () => {
     const other = traceAll({ uuidSeed: (UUID_SEED ^ 0x5eed5) >>> 0, pinMoorDraws: false });
     expect(closeDiffs(other.gameplay, recordedGameplay())).toEqual([]);
   }, 90_000);
-
-  // The people switch on (soft bumps in play): the villagers are the new
-  // people and her walk is passed their bumps; the frozen fixture must hold.
-  // The scripted cat comes no nearer than 13 m to any villager.
-  it('gameplay with the people switch on is the same frozen fixture', () => {
-    const want = recordedGameplay();
-    const got = {};
-    const exp = {};
-    for (const areaId of ['neighborhood', 'park', 'docks', 'seaside']) {
-      got[areaId] = traceAsRecorded(areaId, { people: true, pinMoorDraws: false }).gameplay;
-      exp[areaId] = want[areaId];
-    }
-    expect(closeDiffs(got, exp)).toEqual([]);
-  }, 90000);
 });

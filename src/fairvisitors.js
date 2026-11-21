@@ -58,7 +58,7 @@ export const VISITOR = Object.freeze({
   STROLL_MIN: 35, STROLL_MAX: 110, // metres strolled between two watches
   HELLO_R: 5,         // a meow this near gets a hello
   HELLO_TIME: 2.4,    // seconds it lasts
-  HELLO_RISE: 0.8,    // with holdHello: seconds it still holds still after (the kneel's way up)
+  HELLO_RISE: 0.8,    // seconds it still holds still after (the kneel's way up)
   MARGIN: 0.12,       // clear of every collider by its radius and this
 });
 
@@ -161,21 +161,18 @@ function closedLine(points) {
 //   opts.count    how many (visitorCount(tier.strays))
 //   opts.seed     their own dice
 //   opts.swept    (x, z) => true where a ride sweeps (src/fairsim.js `swept`)
-//   opts.holdHello  true (the lifelike people, src/fairshow.js with the people
-//                 kit; ruling R41): a visitor saying hello holds still, it and
-//                 its child, for the hello and HELLO_RISE after it (the
-//                 kneel's way up); it turns to face her while the hello
-//                 lasts, and takes no step aside: her soft bump (drawn by the
-//                 show) keeps her off it, as in town. If she is still within
-//                 KEEP of it when the hold ends, it walks round her calmly
-//                 (SIDE_SPEED at most, never the step aside's jump, never
-//                 nearer her) and back onto its way; her bump stops her if
-//                 she follows. And every step it takes is a calm one
-//                 (stepCareful): never a jump to catch up with its way. False
-//                 (today's figure): exactly as ever.
+// A visitor saying hello (the lifelike people; ruling R41) holds still, it
+// and its child, for the hello and HELLO_RISE after it (the kneel's way up);
+// it turns to face her while the hello lasts, and takes no step aside: her
+// soft bump (drawn by the show, src/fairshow.js) keeps her off it, as in
+// town. If she is still within KEEP of it when the hold ends, it walks round
+// her calmly (SIDE_SPEED at most, never the step aside's jump, never nearer
+// her) and back onto its way; her bump stops her if she follows. And every
+// step it takes is a calm one (stepCareful): never a jump to catch up with
+// its way.
 // step(dt, cat): cat { x, z, y, speed }.
 // meow(pos) → how many said hello.
-export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-visitors', swept = () => false, holdHello = false } = {}) {
+export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-visitors', swept = () => false } = {}) {
   const rng = mulberry32(seedFromCode(String(seed)));
   const A = area.anchors;
   const colliders = area.colliders ?? [];
@@ -215,7 +212,7 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
   const list = Array.from({ length: n }, (_, i) => {
     const s = ((i + 0.15 + rng() * 0.5) / n) * loop.length;
     loop.at(s, P);
-    const look = { x: 100 + i * 7.3, z: 200 + i * 3.1 }; // what the figure is dressed from (critters.js twolegLook)
+    const look = { x: 100 + i * 7.3, z: 200 + i * 3.1 }; // the spot the person is dressed from (src/people/look.js)
     const pair = isChildSpot(look.x, look.z);
     return {
       id: `fair-visitor-${i + 1}`,
@@ -238,8 +235,8 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
       x: P.x, z: P.z, yaw: Math.atan2(P.hx, P.hz),
       moving: false, waiting: false, walked: 0,
       hello: 0, helloKind: i % 2 ? 'crouch' : 'wave',
-      holdT: 0,          // with holdHello: seconds it still holds still for its hello
-      away: false,       // with holdHello: walking round her (stepRound)
+      holdT: 0,          // seconds it still holds still for its hello
+      away: false,       // walking round her (stepRound)
       roundWay: 0,       // which way round her (0: not yet chosen)
     };
   });
@@ -289,14 +286,13 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
     return false;
   }
 
-  // With holdHello, a visitor saying hello (and its child) holds still: it
-  // turns to face her while the hello lasts, and stays where it is for the
-  // hello and HELLO_RISE (no step aside: her soft bump keeps her off it).
-  // When the hold ends with her still within KEEP of it, it steps away from
-  // her calmly (stepRound below; its child steps away by its own rules).
-  // Returns whether it held.
+  // A visitor saying hello (and its child) holds still: it turns to face her
+  // while the hello lasts, and stays where it is for the hello and HELLO_RISE
+  // (no step aside: her soft bump keeps her off it). When the hold ends with
+  // her still within KEEP of it, it steps away from her calmly (stepRound
+  // below; its child steps away by its own rules). Returns whether it held.
   function holdStill(v, dt, cat, catNear) {
-    if (!holdHello || v.holdT <= 0) return false;
+    if (v.holdT <= 0) return false;
     v.moving = false;
     v.waiting = false;
     const saying = v.hello > 0;
@@ -397,18 +393,17 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
     return out;
   }
 
-  // With holdHello (the lifelike people), every step is a calm one: never
-  // further than its pace along its way and SIDE_SPEED to the side, and
-  // never a step its way has taken that it has not (where it waits, its way
-  // waits with it, so it never catches up in a jump). It goes on along its
-  // way (if it may) with the side step it has just taken (round her, on the
-  // side she is not), or takes the side step alone: the first of the two
-  // that is free ground, never a step towards her within arm's length, and
-  // never into KEEP of her; else it waits where it is. If where its way has
-  // it is further off than one such step (after a step aside), it walks
-  // there at that pace. Stuck in front of her (within arm's length, and it
-  // can neither go on nor take its side step), it walks round her
-  // (stepRound).
+  // Every step is a calm one: never further than its pace along its way and
+  // SIDE_SPEED to the side, and never a step its way has taken that it has
+  // not (where it waits, its way waits with it, so it never catches up in a
+  // jump). It goes on along its way (if it may) with the side step it has
+  // just taken (round her, on the side she is not), or takes the side step
+  // alone: the first of the two that is free ground, never a step towards her
+  // within arm's length, and never into KEEP of her; else it waits where it
+  // is. If where its way has it is further off than one such step (after a
+  // step aside), it walks there at that pace. Stuck in front of her (within
+  // arm's length, and it can neither go on nor take its side step), it walks
+  // round her (stepRound).
   const T = { x: 0, z: 0 };
   function stepCareful(v, dt, cat, go, side0) {
     const px = v.x;
@@ -451,17 +446,16 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
     wayAhead(v, 0, v.side, T);
   }
 
-  // Walking round her (`away`, with holdHello): she was still within KEEP of
-  // it when its hello ended, or it was stuck in front of her. It makes for
-  // the first spot on its way past her that is clear of her (watching a
-  // ride, or none within FAR: a spot straight away from her), at SIDE_SPEED
-  // at most: each step the one of a ring round it that is free ground,
-  // never towards her within arm's length, never into KEEP of her, close by
-  // her only ever the one way round her, and nearest that spot (else it
-  // waits where it is); it turns to the way it steps first. Never aside()'s
-  // jump. Once there (or KEEP and a little more from her, making straight
-  // away), its way goes on from where it stands. If she follows, her soft
-  // bump stops her (src/fairshow.js).
+  // Walking round her (`away`): she was still within KEEP of it when its
+  // hello ended, or it was stuck in front of her. It makes for the first spot
+  // on its way past her that is clear of her (watching a ride, or none within
+  // FAR: a spot straight away from her), at SIDE_SPEED at most: each step the
+  // one of a ring round it that is free ground, never towards her within
+  // arm's length, never into KEEP of her, close by her only ever the one way
+  // round her, and nearest that spot (else it waits where it is); it turns to
+  // the way it steps first. Never aside()'s jump. Once there (or KEEP and a
+  // little more from her, making straight away), its way goes on from where
+  // it stands. If she follows, her soft bump stops her (src/fairshow.js).
   const AWAY_CLEAR = 0.1;
   const PAST = VISITOR.KEEP + 0.6;  // how far past her, along its way, it makes for (at the least)
   const FAR = 10;                    // and at the most
@@ -616,18 +610,8 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
     if (v.mode === 'watch') {
       v.until -= dt;
       if (v.until <= 0) v.mode = 'back';
-    } else if (go && !holdHello) advance(v, v.pace * dt);
-    if (holdHello) stepCareful(v, dt, catNear ? cat : null, go && v.mode !== 'watch', side0);
-    else {
-      // where that puts it
-      wayOf(v, Q);
-      const tx = Q.x + Q.hz * v.side;
-      const tz = Q.z - Q.hx * v.side;
-      // (never a step TOWARDS a cat who is within arm's length: it waits where it is)
-      const gap = catNear ? Math.hypot(px - cat.x, pz - cat.z) : Infinity;
-      if (free(tx, tz) && !(gap < VISITOR.NEAR && Math.hypot(tx - cat.x, tz - cat.z) < gap)) { v.x = tx; v.z = tz; }
-      else if (v.moving) { v.moving = false; v.waiting = true; }
     }
+    stepCareful(v, dt, catNear ? cat : null, go && v.mode !== 'watch', side0);
     // NEVER where the cat is: if that is nearer her than KEEP, a step aside
     if (catNear && Math.hypot(v.x - cat.x, v.z - cat.z) < VISITOR.KEEP) {
       v.x = px; v.z = pz;
@@ -847,7 +831,7 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
       for (const v of list) {
         if (Math.hypot(v.x - pos.x, v.z - pos.z) > VISITOR.HELLO_R) continue;
         v.hello = VISITOR.HELLO_TIME;
-        if (holdHello) v.holdT = VISITOR.HELLO_TIME + VISITOR.HELLO_RISE;
+        v.holdT = VISITOR.HELLO_TIME + VISITOR.HELLO_RISE;
         said++;
       }
       if (said > 0) events.push({ type: 'visitor-hello', n: said });
