@@ -41,6 +41,14 @@ const GENTLE = (mode) => mode === 'kneel' || mode === 'bow';
 // back: the hips go down steadily (half way at half the time)
 const KNEEL_SQUAT = 0.35;
 const KNEEL_TOE = 0.7;
+// the kneel's raised (left) leg (ruling R29): the hip turned out this far
+// (rad), so the knee stands out to the left, about 50 degrees round from the
+// front; the foot planted this far out to the left of the hip and forward of
+// it (thigh lengths), and turned out this far (rad)
+const KNEEL_TURN = 1.15;
+const KNEEL_FOOT_X = 0.35;
+const KNEEL_FOOT_Z = 0.45;
+const KNEEL_FOOT_TURN = 0.6;
 
 // ---- per-person blend state ----------------------------------------------------
 // cur: what the bones were last given (before grounding); from: where a blend
@@ -223,10 +231,17 @@ function footAt(u) {
 
 // Two-joint solve: thigh (x, z) and knee for the ankle at G.ax/ay/az, then
 // the foot's local rotation so its sole has pitch G.pitch in the figure frame.
-function legTo(r, S, pelvisY) {
+// turn (rad, about the vertical, + to the figure's left): the hip turned out
+// so the knee bends that way round (the kneel's raised knee, R29); footTurn:
+// the foot turned the same way. Both 0 for the walk and the stand (the thigh
+// then has no turn of its own, exactly as ever).
+const Q_T = new THREE.Quaternion();
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+function legTo(r, S, pelvisY, turn = 0, footTurn = 0) {
   HIP.set(S.sd * G.hipX, 0, 0).applyQuaternion(Q_PEL);
   HIP.y += pelvisY;
-  TGT.set(G.ax - HIP.x, G.ay - HIP.y, G.az - HIP.z).applyQuaternion(Q_A.copy(Q_PEL).invert());
+  if (turn) Q_T.setFromAxisAngle(Y_AXIS, turn); else Q_T.identity();
+  TGT.set(G.ax - HIP.x, G.ay - HIP.y, G.az - HIP.z).applyQuaternion(Q_A.copy(Q_PEL).multiply(Q_T).invert());
   const { Lt, Ls } = G;
   const dist = Math.min(Math.max(TGT.length(), Math.abs(Lt - Ls) + 1e-4), G.Lmax);
   const ck = (dist * dist - Lt * Lt - Ls * Ls) / (2 * Lt * Ls);
@@ -239,11 +254,19 @@ function legTo(r, S, pelvisY) {
   const m = p * Math.cos(beta);
   let th = Math.atan2(TGT.z, TGT.y) - Math.atan2(q, -m);
   if (th > Math.PI) th -= TAU; else if (th < -Math.PI) th += TAU;
-  r[S.thigh] = th; r[S.thigh + 1] = 0; r[S.thigh + 2] = beta;
+  // the thigh: (turn . (th, 0, beta)) in the pelvis's frame
+  Q_B.setFromEuler(EUL.set(th, 0, beta, 'XYZ'));
+  if (turn) {
+    EUL.setFromQuaternion(Q_A.copy(Q_T).multiply(Q_B), 'XYZ');
+    r[S.thigh] = EUL.x; r[S.thigh + 1] = EUL.y; r[S.thigh + 2] = EUL.z;
+  } else {
+    r[S.thigh] = th; r[S.thigh + 1] = 0; r[S.thigh + 2] = beta;
+  }
   r[S.shin] = -knee;
-  // the foot: (pelvis . thigh . shin)^-1 . pitch
-  Q_A.copy(Q_PEL).multiply(Q_B.setFromEuler(EUL.set(th, 0, beta, 'XYZ')));
+  // the foot: (pelvis . thigh . shin)^-1 . footTurn . pitch
+  Q_A.copy(Q_PEL).multiply(Q_T).multiply(Q_B);
   Q_A.multiply(Q_B.setFromEuler(EUL.set(-knee, 0, 0, 'XYZ'))).invert();
+  if (footTurn) Q_A.multiply(Q_B.setFromAxisAngle(Y_AXIS, footTurn));
   Q_A.multiply(Q_B.setFromEuler(EUL.set(G.pitch, 0, 0, 'XYZ')));
   EUL.setFromQuaternion(Q_A, 'XYZ');
   r[S.foot] = EUL.x; r[S.foot + 1] = EUL.y; r[S.foot + 2] = EUL.z;
@@ -439,9 +462,10 @@ function juggling(r, t) {
 }
 
 function kneeling(r, p, look) {
-  // down on one knee at their own spot: the right knee on the ground, the
-  // right foot pointed behind, the left foot flat in front, a hand held out
-  // low and still, palm down
+  // down on one knee at their own spot: the right knee on the ground (the
+  // reaching arm's side), the right foot pointed behind, the left knee up and
+  // turned out to the left, its foot flat, forward and out to the left, a
+  // hand held out low and still, palm down
   const d = look.dims;
   gaitFor(look);
   const thR = -0.05; // the right thigh about upright
@@ -453,8 +477,11 @@ function kneeling(r, p, look) {
   const hip = G.Lt * Math.cos(thR) + Math.max(d.thR[1] * 1.05, d.shR[0]);
   p[1] = hip - d.hipY;
   Q_PEL.identity();
-  G.ax = -d.hipX; G.ay = G.flatY; G.az = -0.95 * G.Lt; G.pitch = 0;
-  legTo(r, LEFT, hip);
+  // the left leg (ruling R29): the knee up and turned out to the left, the
+  // foot planted forward-left, so no part of the legs is in front of the
+  // person where she stands
+  G.ax = -d.hipX - KNEEL_FOOT_X * G.Lt; G.ay = G.flatY; G.az = -KNEEL_FOOT_Z * G.Lt; G.pitch = 0;
+  legTo(r, LEFT, hip, KNEEL_TURN, KNEEL_FOOT_TURN);
   r[CHEST] = -0.22;
   r[NECK] = 0.12;
   r[RIGHT.upperArm] = 0.72; r[RIGHT.upperArm + 2] = 0.08; r[RIGHT.forearm] = 0.3; r[RIGHT.hand + 1] = -1.3;

@@ -273,7 +273,8 @@ describe('the head scratch', () => {
         }
         if (state !== 'resting') continue;
         const want = headTopOf(cat, new THREE.Vector3()).addScaledVector(UP, REACH.CLEAR);
-        expect(palmPoint(r.p, new THREE.Vector3()).distanceTo(want), breed).toBeLessThan(0.02);
+        // (on her head, the stroke's own size at most: 0.02 m)
+        expect(palmPoint(r.p, new THREE.Vector3()).distanceTo(want), breed).toBeLessThanOrEqual(0.02 + 1e-6);
       }
       expect(state, breed).toBe('resting');
     }

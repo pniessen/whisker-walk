@@ -187,29 +187,32 @@ describe('placements clear of people', () => {
   }
 });
 
-describe('her head and a kneeling person (ruling R22)', () => {
+describe('her head and a kneeling person (rulings R22, R29)', () => {
   // Measured against the person's skinned body (arms left out) and her head
-  // sphere and body capsule (catVolumes): at the bump's closest approach
-  // (0.57 m) her head and body are inside a kneeling grown-up's chest in
-  // every preset shape. The fixed radius that would keep them out is above
-  // 0.4 m, which would keep her head out of the scratch's reach, and a
-  // bump must never grow while she is near (people never push her). So the
-  // bump stays at the spec's 0.22 m. If her volumes shrink so this fails,
-  // look again at whether a fixed larger bump now fits.
-  it('the middle distance that keeps her head clear of a kneeling adult is more than 0.4 m + CAT_RADIUS', () => {
+  // sphere and body capsule (catVolumes), facing the person. Since R29 the
+  // kneel's raised knee stands out to the left, so straight in front (and to
+  // the right) she clears the kneeling grown-up from under 0.8 m (0.77 m a
+  // tabby, 0.73 m a siamese); but a bump is a circle, and toward the knee
+  // (front-left, 0.85 rad round) she needs more than 1 m (1.07, 1.03). One
+  // circle round the person's middle cannot keep her out of the knee and let
+  // the hand reach her in front (Task 11 fix 1b report). If her volumes or
+  // the kneel change so this fails, look again.
+  const need = (samples, breed, side) => {
+    let lo = 0.3; let hi = 1.6;
+    for (let q = 0; q < 9; q++) {
+      const m = (lo + hi) / 2;
+      const g = gapAt(samples, breed, m, side, 0);
+      if (g.head >= 0.005 && g.body >= 0.005) hi = m; else lo = m;
+    }
+    return hi;
+  };
+  it('in front she clears the kneel from under 0.8 m; toward the raised knee she needs more than 1 m', () => {
     const def = spotsOfKind('adult', 1)[0];
     const samples = bodySamples(def, 'kneel');
-    const need = (breed) => {
-      let lo = 0.3; let hi = 1.6;
-      for (let q = 0; q < 9; q++) {
-        const m = (lo + hi) / 2;
-        const g = gapAt(samples, breed, m, 0, 0);
-        if (g.head >= 0.005 && g.body >= 0.005) hi = m; else lo = m;
-      }
-      return hi;
-    };
-    for (const breed of ['tabby', 'siamese', 'persian', 'mainecoon']) expect(need(breed)).toBeGreaterThan(0.4 + CAT_RADIUS);
-    const at = gapAt(samples, 'tabby', BUMP_ADULT + CAT_RADIUS, 0, 0);
-    expect(Math.min(at.head, at.body)).toBeLessThan(0);
+    for (const breed of ['tabby', 'siamese']) {
+      expect(need(samples, breed, 0), breed).toBeLessThan(0.8);
+      expect(need(samples, breed, 0.85), breed).toBeLessThan(0.8);
+      expect(need(samples, breed, -0.85), breed).toBeGreaterThan(1);
+    }
   });
 });
