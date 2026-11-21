@@ -1145,12 +1145,19 @@ function partyhat(simple) {
 }
 
 // Birthday Hat (a gift outfit, hers alone: the birthday event gives it): a
-// lilac cone a little taller than the Party Hat, leaning the other way, with
-// raised white and gold polka dots on it, a gold trim round its foot on the
-// skull, and a big poofy pom-pom of five soft white lumps on top.
-const BDAYHAT = { at: [-0.006, 0.004], r: 0.052, h: 0.141, lean: -0.042, trim: 0.0062, dot: 0.0115 };
+// real party hat, its wide foot sitting across the top of the head between
+// the ears, a lilac cone with straight sides narrowing to a slim tip, standing
+// straight up the head's own up axis (no sideways lean: the owner,
+// 2026-11-21; the tip raked back only a hair). Raised white and gold polka
+// dots, a gold trim round its foot on the skull, and a small fluffy tuft of
+// eight little lumps on the tip (not a scoop: the owner, 2026-11-21).
+// Measured from its rim, so the wider foot sitting lower on the dome does not
+// lift the tip past the shop picture's top.
+const BDAYHAT = { at: [0, 0.004], r: 0.068, h: 0.158, rake: 0.006, trim: 0.0066, dot: 0.012, taper: 1.18 };
 const BDAYHAT_LILAC = 0xc39be8, BDAYHAT_SHADE = 0xa97fd6, BDAYHAT_DOTS = [0xfffaf2, 0xfffaf2, 0xf5c518], BDAYHAT_TRIM = 0xf5c518;
-const BDAYHAT_POM = [[0, 0.012, 0, 0.017], [0.013, 0.002, 0.004, 0.013], [-0.012, 0.003, -0.005, 0.013], [0.003, 0.001, -0.014, 0.012], [-0.004, 0.004, 0.013, 0.012]];
+// the tuft: [x, y, z, r] round the tip, a low ring of five and three above
+const BDAYHAT_TUFT = [[0, 0.005, -0.009, 0.0102], [0.0086, 0.005, -0.0028, 0.0102], [0.0053, 0.005, 0.0073, 0.0102], [-0.0053, 0.005, 0.0073, 0.0102], [-0.0086, 0.005, -0.0028, 0.0102],
+  [0.0045, 0.0135, 0.002, 0.009], [-0.0045, 0.0135, 0.002, 0.009], [0, 0.0145, -0.0045, 0.009]];
 function birthdayhat(simple) {
   const segs = simple ? 10 : 20, rows = simple ? 4 : 6;
   const [cx, cz] = BDAYHAT.at, R = BDAYHAT.r;
@@ -1158,10 +1165,17 @@ function birthdayhat(simple) {
     const x = cx + Math.sin(th) * R, z = cz - Math.cos(th) * R;
     return drape(new THREE.Vector3(x, skullY(x, z), z), 0.002)[0];
   };
-  const tip = new THREE.Vector3(cx + BDAYHAT.lean, skullY(cx, cz) + BDAYHAT.h, cz);
-  const axis = new THREE.Vector3(cx, skullY(cx, cz), cz);
-  const surface = (th, t) => footAt(th).lerp(tip, t);
-  const outAt = (p, t) => p.clone().sub(axis.clone().lerp(tip, t));
+  const rimY = skullY(cx + R, cz);
+  const tip = new THREE.Vector3(cx, rimY + BDAYHAT.h, cz + BDAYHAT.rake);
+  const axis = new THREE.Vector3(cx, rimY, cz);
+  // straight up from the foot to the tip, the girth narrowing a little faster
+  // than a plain cone toward the top (taper), so the tip is slim
+  const surface = (th, t) => {
+    const foot = footAt(th), onAxis = axis.clone().lerp(tip, t);
+    const k = (1 - t) ** BDAYHAT.taper;
+    return onAxis.add(foot.sub(axis).multiplyScalar(k));
+  };
+  const outAt = (p, t) => { const o = p.clone().sub(axis.clone().lerp(tip, t)); o.y = 0; return o; };
   const cone = grid(segs, rows, { wrapU: true }, (i, j) => {
     const t = j / (rows - 1), th = (i / segs) * Math.PI * 2, p = surface(th, t);
     return { p, c: mix(BDAYHAT_SHADE, BDAYHAT_LILAC, Math.min(1, 0.4 + t)), out: outAt(p, t) };
@@ -1174,21 +1188,21 @@ function birthdayhat(simple) {
     centres.push(p); normals.push(n);
   }
   const trim = tube(centres, normals, { closed: true, sides: simple ? 3 : 4, radius: () => BDAYHAT.trim, colour: () => BDAYHAT_TRIM });
-  // the polka dots: raised beads half sunk in the cone, in three staggered rings
+  // the polka dots: raised beads half sunk in the cone, in staggered rings
   const parts = [cone, trim];
-  const rings = simple ? [[0.2, 4], [0.5, 3]] : [[0.15, 6], [0.37, 5], [0.58, 4], [0.78, 2]];
+  const rings = simple ? [[0.18, 4], [0.45, 3]] : [[0.14, 6], [0.35, 5], [0.55, 4], [0.74, 2]];
   let k = 0;
   rings.forEach(([t, n], r) => {
     for (let i = 0; i < n; i++) {
       const th = ((i + (r % 2) * 0.5) / n) * Math.PI * 2 + 0.4;
       const p = surface(th, t), out = outAt(p, t).normalize();
-      const size = BDAYHAT.dot * (1 - 0.35 * t);
+      const size = BDAYHAT.dot * (1 - 0.4 * t);
       parts.push(blob(size, simple ? 4 : 5, simple ? 2 : 3, p.addScaledVector(out, size * 0.15), [1, 1, 1], BDAYHAT_DOTS[k++ % BDAYHAT_DOTS.length]));
     }
   });
-  // the pom-pom: soft lumps round the tip, whiter on top
-  for (const [x, y, z, r] of simple ? BDAYHAT_POM.slice(0, 4) : BDAYHAT_POM) {
-    parts.push(blob(r * 1.15, simple ? 5 : 6, simple ? 3 : 4, tip.clone().add(new THREE.Vector3(x, y + 0.002, z)), [1, 0.92, 1], (uy) => mix(0xece2f2, 0xfffcf6, (uy + 1) / 2)));
+  // the tuft: little soft lumps on the tip, creamy below and whiter on top
+  for (const [x, y, z, r] of simple ? BDAYHAT_TUFT.slice(0, 5) : BDAYHAT_TUFT) {
+    parts.push(blob(r, simple ? 4 : 5, 3, tip.clone().add(new THREE.Vector3(x, y, z)), [1, 0.9, 1], (uy) => mix(0xe6dcef, 0xfffcf6, (uy + 1) / 2)));
   }
   return finish('birthdayhat', parts);
 }
