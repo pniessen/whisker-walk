@@ -849,6 +849,13 @@ export function createInteractions({
           : `E — pick up ${c.label}`);
       }
     }
+    // Her birthday (world/birthdaygathering.js): beside the cake, anywhere
+    // round it, while its candles are lit. Right after 'collect', so a find
+    // lying at her paws still comes first; never from a perch.
+    if (!s.prompt && !s.perched && s.birthday?.promptAt(catP)) {
+      s.prompt = { kind: 'bday-candles' };
+      setPrompt(phrase('bday.prompt'));
+    }
     // v21 3b Task 10 — knock it off the ledge. Right after 'collect': only
     // while perched, beside a thing still standing on a ledge at the cat's own
     // height (knockables.nearest checks the height). Carry is never offered
@@ -1705,7 +1712,9 @@ export function createInteractions({
     // first, so nothing is done by a cat still drawn asleep. The 'rest' prompt
     // itself never shows while a rest is on (restInReach).
     if (s.rest && s.prompt.kind !== 'rest') s.rest = null;
-    if (s.prompt.kind === 'carry') {
+    if (s.prompt.kind === 'bday-candles') {
+      s.birthday?.blow();
+    } else if (s.prompt.kind === 'carry') {
       pickUpCarryable(s, s.prompt.data);
     } else if (s.prompt.kind === 'yarn-pick') {
       pickUpYarn(s);

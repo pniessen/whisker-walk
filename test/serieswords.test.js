@@ -630,6 +630,7 @@ function phraseSamples() {
     'pick.both': [group],
     'pick.lineBoth': [group],
     'home.welcome': [group],
+    'bday.announce': [mate],
     'map.camp': [group],
     'place.groupLand': [group],
     'patrol.prompt': [mate],

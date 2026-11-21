@@ -6058,6 +6058,15 @@
   "landmark.river.warmRocks": "heron rocks",
   "landmark.river.warmPebble": "a warm pebble on the low rock",
   "landmark.island.ring": "the stone ring under the old ash",
-  "landmark.island.stoneFind": "a bright beetle wing on a flat stone"
+  "landmark.island.stoneFind": "a bright beetle wing on a flat stone",
+  "bday.home": "Everyone is coming to the island for your birthday! 🎂",
+  "bday.announce": "Everyone, come and sit round! Today is Conker's birthday!",
+  "bday.cheer.one": "Happy birthday!",
+  "bday.cheer.two": "Hooray! 🎉",
+  "bday.cheer.three": "Happy birthday! 🎂",
+  "bday.prompt": "E — Blow out the candles 🎂",
+  "bday.wish": "Make a wish! 🎂",
+  "bday.photo": "My birthday 2026",
+  "bday.photoSaved": "📸 Saved to your Album!"
  }
 }

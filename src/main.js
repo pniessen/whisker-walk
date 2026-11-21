@@ -519,6 +519,7 @@ function init() {
     MP, pid, coarse, envMap, overlay, blockList,
     renderer, camera, composerRig,
     player, progression, settings, hud, audio, music, log, touchUI, catVoice,
+    album,
     getCloud,
     getSession: () => session,
     setSession: (next) => { session = next; },
@@ -1228,6 +1229,7 @@ function init() {
         toy: session.toy,
       });
       session.clanCats.update(wdt, t, session.cat.position);
+      session.birthday?.update(wdt, t, session.cat.position);
       session.intruders.update(dt, session.cat.position);
       session.toy.update(dt, session.areaData.bounds);
       // THE YARN BALL FLOATS — v20.

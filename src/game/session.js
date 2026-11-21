@@ -96,6 +96,8 @@ const FIELDS = [
   ['ghosts', "friends' ghost cats (NO_GHOSTS until rolled)"],
   ['remotes', "co-walkers' cats"],
   ['clanBuddy', 'the clanmate on patrol with me, or null (interactions.js)'],
+  ['birthday', "late (walk.js): her birthday Gathering on the island (world/birthdaygathering.js), or null"],
+  ['birthdayVisit', 'late (walk.js): a birthday walk in a place she has not opened, so endWalk counts no walk there'],
   ['intruders', 'late (walk.js): a neighbouring territory\'s cat crossing this one, or NO_INTRUDERS'],
   ['clanFight', 'late (walk.js): the territory fight / border-patrol fight, or NO_CLAN_FIGHT'],
   ['awayFights', "late (walk.js): the walk's book of away fights with the roaming cats (awayfights.js), or null"],

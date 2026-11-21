@@ -742,6 +742,15 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       src.start(t0);
       src.stop(t0 + dur);
     },
+    // Her birthday fireworks (world/birthdaygathering.js): a soft, far-off
+    // boom and a little crackle. Through the master, so the sound switch
+    // and the volume hold it like every other sound.
+    firework() {
+      tone(70, 0.45, { type: 'sine', gain: 0.07, slideTo: 38 });
+      tone(1800, 0.05, { gain: 0.012, delay: 0.12 });
+      tone(2300, 0.04, { gain: 0.01, delay: 0.2 });
+      tone(1500, 0.05, { gain: 0.01, delay: 0.29 });
+    },
     // Low thud on landing after a pounce.
     landThump() {
       tone(90, 0.1, { type: 'sine', gain: 0.08, slideTo: 55 });

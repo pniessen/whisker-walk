@@ -5989,6 +5989,15 @@
   "landmark.river.warmRocks": "sun-warmed rocks",
   "landmark.river.warmPebble": "a sun-warmed pebble on the low rock",
   "landmark.island.ring": "the meeting ring under the old ash",
-  "landmark.island.stoneFind": "a bright beetle wing on a meeting stone"
+  "landmark.island.stoneFind": "a bright beetle wing on a meeting stone",
+  "bday.home": "The clans are gathering for your birthday! 🎂",
+  "bday.announce": "Cats of all the clans, gather! Today is Conkerbelly's birthday!",
+  "bday.cheer.one": "Happy birthday!",
+  "bday.cheer.two": "Hooray! 🎉",
+  "bday.cheer.three": "Happy birthday! 🎂",
+  "bday.prompt": "E — Blow out the candles 🎂",
+  "bday.wish": "Make a wish! 🎂",
+  "bday.photo": "My birthday 2026",
+  "bday.photoSaved": "📸 Saved to your Album!"
  }
 }
