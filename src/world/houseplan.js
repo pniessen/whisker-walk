@@ -261,7 +261,42 @@ export function houseGroundSpec() {
     const z = (r.minZ + r.maxZ) / 2;
     strips.push({ x0: r.minX, z0: z, x1: r.maxX, z1: z, width: r.maxZ - r.minZ, y: LAWN_Y });
   }
+  strips.push(...wallFeet());
   return { base: BASE_Y, strips, discs: [], ceilings: [] };
+}
+
+// Under every wall of a raised room or stair, its floor's ground reaches WALL_FOOT past the
+// wall's line (Task 6). Why: the camera's rock rule (camzoom.js cameraClearFraction) stops a low
+// camera, coming from the lawn, where raised ground starts. Ending at the wall's line, that left
+// the camera inside the outer half of the wall and its skirt (the kitchen looking at the
+// bedroom). From WALL_FOOT out the camera stops clear of the wall's box and the house's 0.1 m
+// camera pad. Only the camera meets these strips: the walls' colliders keep her centre 0.53 m
+// from their lines, and a stair's side follows its slope and stops at its ends, so every
+// mouth keeps its own ramp.
+export const WALL_FOOT = 0.3;
+function wallFeet() {
+  const out = [];
+  for (const s of houseSections()) {
+    if (s.kind === 'lintel') continue;
+    const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0);
+    const ux = (s.x1 - s.x0) / len;
+    const uz = (s.z1 - s.z0) / len;
+    if (s.kind === 'wall') {
+      if (!(s.base > LAWN_Y + 1e-9)) continue;
+      // past each end too, to cover its corners
+      out.push({ x0: s.x0 - ux * WALL_FOOT, z0: s.z0 - uz * WALL_FOOT, x1: s.x1 + ux * WALL_FOOT, z1: s.z1 + uz * WALL_FOOT, width: 2 * WALL_FOOT, y: s.base });
+      continue;
+    }
+    // a stair's side: its slope along it (no further, so the stair's own mouths keep their ramp)
+    const st = HOUSE_STAIRS.find((q) => q.id === s.owner);
+    const sl = Math.hypot(st.x1 - st.x0, st.z1 - st.z0);
+    const at = (x, z) => ((x - st.x0) * (st.x1 - st.x0) + (z - st.z0) * (st.z1 - st.z0)) / (sl * sl);
+    const ya = levelY(st.from) + (levelY(st.to) - levelY(st.from)) * at(s.x0, s.z0);
+    const yb = levelY(st.from) + (levelY(st.to) - levelY(st.from)) * at(s.x1, s.z1);
+    if (!(Math.max(ya, yb) > LAWN_Y + 1e-9)) continue;
+    out.push({ x0: s.x0, z0: s.z0, x1: s.x1, z1: s.z1, width: 2 * WALL_FOOT, y0: ya, y1: yb });
+  }
+  return out;
 }
 
 // ---- lookups ----

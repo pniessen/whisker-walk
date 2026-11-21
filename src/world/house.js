@@ -37,6 +37,7 @@ import {
   skirtMesh, lampGroup, partsKit, kitBox, kitFace, kitMesh, FRONT_DOOR_W, furnitureMesh, flatsMesh, standInMesh,
 } from './houseparts.js';
 import { fullLevels } from '../houselevels.js';
+import { createHouseLife } from './houselife.js';
 
 const freeze = Object.freeze;
 
@@ -321,7 +322,7 @@ export function build(scene, { wind, gateEnds } = {}) {
     drawNeighbours(scene);
     drawTrees(scene, wind);
 
-    return {
+    const areaData = {
       name: words().PLACE_WORDS.house,
       ground: plan.ground,
       colliders: plan.colliders, // the walls', the furniture's and the lamps' (houseColliders)
@@ -348,7 +349,9 @@ export function build(scene, { wind, gateEnds } = {}) {
         sectionMeshes,
         panes,
       },
-      // life: Task 6 (the walls sinking and the levels drawn, every frame)
     };
+    // every frame: the walls between the camera and the cat sink, and the levels are drawn for hers
+    areaData.life = ({ scene: lifeScene, reducedMotion }) => createHouseLife(lifeScene, areaData.house, { reducedMotion });
+    return areaData;
   });
 }

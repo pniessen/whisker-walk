@@ -71,7 +71,7 @@ describe('the record', () => {
     for (const k of ['pois', 'collectibles', 'scenics', 'moments', 'puddles', 'boxes', 'perches', 'tippables']) {
       expect(area[k], k).toEqual([]);
     }
-    expect(area.life).toBeUndefined();
+    expect(typeof area.life).toBe('function'); // house life (Task 6): the walls sink and the levels are drawn
     expect(area.groundBounce).toBe(HOUSE_GROUND_BOUNCE);
     expect(area.skyDusk).toBe(HOUSE_SKY_DUSK);
     expect(area.duskLight).toBe(HOUSE_DUSK_LIGHT);

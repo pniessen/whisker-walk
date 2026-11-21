@@ -4,7 +4,7 @@ import { WALL_T } from './world/houseplan.js';
 
 export const SINK = Object.freeze({
   downS: 0.2, holdS: 0.5, upS: 0.6, linePad: 0.25, nearCamera: 1.2,
-  cutawayDist: 5.75, frontMargin: 0.5, paneHide: 0.5,
+  cutawayDist: 5.75, frontMargin: 0.5, paneHide: 0.5, stubPad: 0.05,
 });
 export const PAWS_Y = 0.2;
 
@@ -79,16 +79,30 @@ export function wantsDown(s, view) {
   return false;
 }
 
+// Does the section's own stub still stand in the line to her paws or her look point? Only when
+// she is below the stub's floor: on a stair just under the upper room's floor, or on the ground
+// beside a raised room, with the camera over that floor. On her own floor it never does: her
+// colliders keep her 0.43 m from a wall's face, and the lowest camera's line to her paws is
+// above a stub's top that far out (stubPad keeps it so).
+function stubInLine(s, view) {
+  if (!(s.stub > 0)) return false;
+  return segmentMeetsSection(view.cam, view.paws, s, SINK.stubPad, s.stub) || segmentMeetsSection(view.cam, view.look, s, SINK.stubPad, s.stub);
+}
+
 export function createWallSink(sections, { reducedMotion = false } = {}) {
   const n = sections.length;
   const index = new Map();
   const frac = new Float64Array(n);
   const lo = new Float64Array(n);
+  // the floor it is sinking to: its stub, or 0 once that stub itself was in the line (Task 6);
+  // kept at 0 until the wall rises again, so a stub never pumps as she walks
+  const floor = new Float64Array(n);
   const unwanted = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     const s = sections[i];
     index.set(s.id, i);
     lo[i] = s.height > 0 ? Math.min(1, (s.stub || 0) / s.height) : 0;
+    floor[i] = lo[i];
     frac[i] = 1;
     unwanted[i] = SINK.holdS; // standing and settled
   }
@@ -98,10 +112,13 @@ export function createWallSink(sections, { reducedMotion = false } = {}) {
         const span = 1 - lo[i];
         if (wantsDown(sections[i], view)) {
           unwanted[i] = 0;
-          frac[i] = reducedMotion ? lo[i] : Math.max(lo[i], frac[i] - (span / SINK.downS) * dt);
+          if (floor[i] > 0 && stubInLine(sections[i], view)) floor[i] = 0;
+          // never up while wanted (caught rising from below its stub, it holds there)
+          frac[i] = Math.min(frac[i], reducedMotion ? floor[i] : Math.max(floor[i], frac[i] - (span / SINK.downS) * dt));
         } else {
           unwanted[i] += dt;
           if (unwanted[i] >= SINK.holdS - 1e-9 && frac[i] < 1) {
+            floor[i] = lo[i];
             frac[i] = reducedMotion ? 1 : Math.min(1, frac[i] + (span / SINK.upS) * dt);
           }
         }
