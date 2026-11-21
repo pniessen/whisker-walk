@@ -80,10 +80,11 @@ export function lifecycle({ collar = false, areas = createAreaLoader(), online =
   expect(progression.buy('accessories', 'glow')).toBe(true);
   if (collar) progression.equipAccessory('glow');
   const homebase = anything({ setGettingReady: (on) => rec.gettingReady.push(on) });
+  const camera = new THREE.PerspectiveCamera(); // the walk's camera, as walk.js places it at the start
   const w = createWalkLifecycle({
     // MP on, so a solo walk asks the cloud for friends who could visit as ghosts
     MP: true, pid: 'me', coarse: false, envMap: new THREE.Texture(), overlay: anything({ classList: anything() }), blockList,
-    renderer: null, camera: new THREE.PerspectiveCamera(),
+    renderer: null, camera,
     composerRig: anything({ applyLighting: (_scene, o) => rec.lighting.push(o.dusk) }),
     player: anything(), progression,
     settings: { get: (k) => (k === 'muted' ? true : null) },
@@ -104,6 +105,6 @@ export function lifecycle({ collar = false, areas = createAreaLoader(), online =
     reloadPage: () => { rec.reloads++; },
     isOnline: online,
   });
-  return { w, rec, progression, areas, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
+  return { w, rec, progression, areas, camera, getSession: () => session, setPendingRoom: (r) => { pendingRoom = r; } };
 }
 

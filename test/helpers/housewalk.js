@@ -11,8 +11,11 @@ import { stickToWorld } from '../../src/traversal.js';
 // yardWalk, without the traversal runtime (the house has no crossings).
 //
 // place() puts her at a spot with a view yaw, zoom step and pitch, and starts a
-// FRESH sink (every wall standing), so each spot is judged from a standing
-// house and never helped by walls a previous spot left down; then one frame.
+// FRESH sink, so each spot is never helped by walls a previous spot left down;
+// then the player's frame puts the camera on her spot and the sink settles on
+// that view at once, as a walk's start does in the game (game/walk.js calls the
+// house life's settle). Settling does not depend on reduced motion: with
+// easing on, the first picture is just as clear.
 //
 // The importing test file must stub `document` first (test/flattrace.test.js's
 // stub) and load this with `await import(...)`: createPlayer listens on it.
@@ -50,7 +53,8 @@ export function createHouseWalk({ reducedMotion = true, pace = 3.5 } = {}) {
       player.addOrbit(0, (pitch - DEFAULT_PITCH) / 0.004);
       player.enable();
       sink = createWallSink(area.sections, { reducedMotion });
-      frame();
+      player.update(1 / 60, area.colliders, area.bounds, []);
+      sink.settle(view());
     },
     frame,
     run(seconds, dt = 1 / 60) {

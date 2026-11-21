@@ -92,6 +92,9 @@ function stubInLine(s, view) {
 // The sink: each section eases between full height (fraction 1) and its stub (stub / height),
 // down in downS, up in upS after holdS unwanted. A wall whose own stub stood in the line to her
 // (stubInLine) is latched to 0 instead, so its fraction can reach 0, until it rises (Task 6).
+// settle(view) is the start of a walk (final fix F1): every wanted wall is at its floor at once
+// (its stub, or 0 when that stub is in the line too), every other wall stands, no easing, so the
+// first picture is never of a wall. Allocates nothing.
 export function createWallSink(sections, { reducedMotion = false } = {}) {
   const n = sections.length;
   const index = new Map();
@@ -124,6 +127,19 @@ export function createWallSink(sections, { reducedMotion = false } = {}) {
             floor[i] = lo[i];
             frac[i] = reducedMotion ? 1 : Math.min(1, frac[i] + (span / SINK.upS) * dt);
           }
+        }
+      }
+    },
+    settle(view) {
+      for (let i = 0; i < n; i++) {
+        if (wantsDown(sections[i], view)) {
+          unwanted[i] = 0;
+          floor[i] = lo[i] > 0 && stubInLine(sections[i], view) ? 0 : lo[i];
+          frac[i] = floor[i];
+        } else {
+          unwanted[i] = SINK.holdS;
+          floor[i] = lo[i];
+          frac[i] = 1;
         }
       }
     },

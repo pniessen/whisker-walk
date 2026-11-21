@@ -328,7 +328,10 @@ describe('the life hook', () => {
     };
     const rest = new Map(withPane.map((s) => [s.id, rel(s, panes.get(s.id)[0])]));
     let seen = 0;
+    // the walk starts with the camera inside (every hall-s wall settled standing), then
     // down (the camera outside), then up (the camera inside), at the picture page's step
+    life.settle(cat, inside);
+    for (const s of withPane) expect(life.sink.fraction(s.id), s.id).toBe(1);
     for (const cam of [outside, inside]) {
       for (let k = 0; k < 60; k++) {
         life.update(1 / 30, 0, cat, cam);

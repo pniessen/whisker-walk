@@ -60,6 +60,13 @@ export function createLevelDrawing(scene, { levels, links, start }) {
       const id = nextLevel(current, pawsY, levels);
       if (id !== current) apply(id);
     },
+    // The start of a walk (final fix F1): the level whose floor is nearest her paws, at once,
+    // with no 0.3 m hold, so a walk picked up in the attic opens on the attic drawn in full.
+    settle(pawsY) {
+      let best = levels[0];
+      for (const l of levels) if (Math.abs(pawsY - l.y) < Math.abs(pawsY - best.y)) best = l;
+      if (best.id !== current) apply(best.id);
+    },
     get current() { return current; },
     get full() { return full; },
   };

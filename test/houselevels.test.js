@@ -59,6 +59,23 @@ describe('house levels', () => {
     expect(fx.per.attic.simple.visible).toBe(true);
     expect(fx.per.ground.detail.visible).toBe(true);
   });
+  // Final fix F1: a walk's start (a walk picked up in the attic) draws her level at once.
+  it('settles on the nearest level at once, with no 0.3 m hold', () => {
+    const fx = fixture();
+    const d = createLevelDrawing(fx.scene, { levels: HOUSE_LEVELS, links: LEVEL_LINKS, start: 'ground' });
+    d.settle(4.2);
+    expect(d.current).toBe('attic');
+    expect(fx.per.attic.detail.visible).toBe(true);
+    expect(fx.per.attic.simple.visible).toBe(false);
+    expect(fx.per.ground.detail.visible).toBe(false);
+    expect(fx.per.ground.simple.visible).toBe(true);
+    // a step past a stair's midpoint is enough (update would hold the old level there)
+    d.settle(1.25);
+    expect(d.current).toBe('upstairs');
+    expect(nextLevel('ground', 1.25, HOUSE_LEVELS)).toBe('ground');
+    d.settle(-1.7);
+    expect(d.current).toBe('cellar');
+  });
   it('finds tagged objects nested in groups', () => {
     const inner = obj({ houseDetail: true, houseLevel: 'attic' });
     const group = obj();

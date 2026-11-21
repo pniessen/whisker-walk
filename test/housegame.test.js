@@ -13,6 +13,9 @@ import { MAX_ZOOM_STEP, DEN_MAX_ZOOM_STEP } from '../src/camzoom.js';
 import { cameraOffset } from '../src/catcam.js';
 import { words } from '../src/wordset.js';
 import { roomAt } from '../src/world/houseplan.js';
+import { makeView, blockers } from '../src/housewalls.js';
+import { CAT_LOOK_Y } from '../src/cat/model.js';
+import { behindYaw } from '../src/traversal.js';
 import { lifecycle, fakeEl, memStorage } from './helpers/walklife.js';
 
 // =============================================================================
@@ -361,10 +364,37 @@ describe('a walk in the house', () => {
         const north = sections.filter((x) => x.id.startsWith('hall-n-'));
         expect(south.length).toBeGreaterThan(0);
         expect(north.length).toBeGreaterThan(0);
-        for (const x of [...south, ...north]) expect(mesh(x.id).scale.y, x.id).toBe(1);
         for (let i = 0; i < 20; i++) s.areaLife.update(1 / 30, i / 30, cat, camera);
         for (const x of south) expect(mesh(x.id).scale.y, x.id).toBeLessThan(0.5);
         for (const x of north) expect(mesh(x.id).scale.y, x.id).toBe(1);
+      },
+    });
+  }, 90_000);
+
+  // Final fix F1: the Ready card shows the walk before any engaged frame, and
+  // main.js runs no area life behind it, so the start itself must leave the
+  // view clear. These walks ease their walls (the lifecycle's device has no
+  // reduced motion), so nothing here is a snap hiding the fault.
+  it('opens on her, not the front wall: before any frame, nothing stands between the camera and her', () => {
+    const life = lifecycleHere();
+    houseWalk(life, false, {
+      keep: (s) => {
+        expect(s.reducedMotion).toBeFalsy();
+        const { sections } = s.areaData.house;
+        const mesh = (id) => s.scene.getObjectByName(`houseWall:${id}`);
+        const cat = s.cat.position;
+        // the start camera hangs outside the hall's south wall
+        expect(life.camera.position.z).toBeGreaterThan(12);
+        const view = makeView(cat, life.camera.position, CAT_LOOK_Y);
+        expect(blockers(sections, s.areaLife.sink, view)).toEqual([]);
+        // and the meshes show what the sink says: the south wall down, the north wall up
+        const south = sections.filter((x) => x.id.startsWith('hall-s-') && x.kind === 'wall'
+          && Math.min(x.x0, x.x1) <= cat.x && Math.max(x.x0, x.x1) >= cat.x);
+        expect(south.length).toBeGreaterThan(0);
+        for (const x of south) expect(mesh(x.id).scale.y, x.id).toBeLessThan(0.5);
+        for (const x of sections.filter((q) => q.id.startsWith('hall-n-'))) expect(mesh(x.id).scale.y, x.id).toBe(1);
+        for (const x of sections) if (mesh(x.id)) expect(mesh(x.id).scale.y, x.id).toBe(s.areaLife.sink.fraction(x.id));
+        expect(s.areaLife.drawing.current).toBe('ground');
       },
     });
   }, 90_000);
@@ -417,6 +447,49 @@ describe('a house walk left in the middle', () => {
     expect(s.soloSeed).toBe(snap.seed);
     // the HUD's and the card's name: no catalog row, so the house's own (PLACE_WORDS)
     expect(s.welcome).toBe(resumeWelcome(words().PLACE_WORDS.house));
+    again.w.endWalk();
+  }, 90_000);
+
+  // Final fix F1: a walk picked up in the attic opens on its "Welcome back!"
+  // card, paused, with no area life running: the attic must already be drawn
+  // in full, and the camera behind her there with nothing in the way.
+  it('picked up in the attic: the card shows the attic in full and her, with no wall between', async () => {
+    const life = lifecycleHere();
+    let snap = null;
+    houseWalk(life, false, { keep: (s) => { snap = snapshotWalk(s, { yaw: 0, now: Date.now() }); } });
+    const yaw = behindYaw(-1, 0); // looking west down the attic, as its shot does
+    snap = { ...snap, x: -19, z: -10, yaw };
+    const storage = memStorage();
+    writeResume(storage, snap);
+    setHouse(true);
+    const left = readResume(storage, { now: Date.now(), areaIds: ids() });
+    const again = lifecycleHere();
+    expect(await pickUpWalk({
+      storage, data: left.data, startWalkWhenReady: again.w.startWalkWhenReady, progression: again.progression,
+      getSession: again.getSession, reload: () => {},
+    })).toBe('started');
+    const s = again.getSession();
+    expect(s.resumed).toBe(true);
+    expect(s.reducedMotion).toBeFalsy();
+    const cat = s.cat.position;
+    expect(roomAt(cat.x, cat.z)).toBe('attic');
+    expect(cat.y).toBeGreaterThan(4);
+    // the level drawing: the attic and the floor its stair joins drawn in full, the rest stand-ins
+    const drawing = s.areaLife.drawing;
+    expect(drawing.current).toBe('attic');
+    expect([...drawing.full].sort()).toEqual(['attic', 'upstairs']);
+    let atticDetails = 0;
+    s.scene.traverse((o) => {
+      if (o.userData.houseDetail && o.userData.houseLevel === 'attic') { atticDetails++; expect(o.visible, o.name).toBe(true); }
+      if (o.userData.houseSimple === 'attic') expect(o.visible, o.name).toBe(false);
+      if (o.userData.houseDetail && o.userData.houseLevel === 'ground') expect(o.visible, o.name).toBe(false);
+    });
+    expect(atticDetails).toBeGreaterThan(0);
+    // the camera behind her in the attic (not left at the front door), and nothing in the way
+    const cam = again.camera.position;
+    expect(Math.hypot(cam.x - cat.x, cam.z - cat.z)).toBeLessThan(6);
+    expect(cam.x).toBeGreaterThan(cat.x); // east of her, as she looks west
+    expect(blockers(s.areaData.house.sections, s.areaLife.sink, makeView(cat, cam, CAT_LOOK_Y))).toEqual([]);
     again.w.endWalk();
   }, 90_000);
 });

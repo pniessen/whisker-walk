@@ -2629,6 +2629,18 @@ export function createWalkLifecycle({
       camera.position.copy(cat.position).add(cameraOffset(lesson.heading, 0.18, startView.dist, startView.height));
       camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
     }
+    // A place whose life keeps the view clear (the Old House: its walls sink and
+    // its levels are drawn for hers) settles it on this start view at once, so
+    // the Ready and "Welcome back!" cards, which run no area life, show her and
+    // not a wall. A walk picked up again gets its camera behind her first (the
+    // one above is still on the spawn). No other place's life has a settle.
+    if (session.areaLife.settle) {
+      if (resume) {
+        camera.position.copy(cat.position).add(cameraOffset(resume.yaw, 0.18, startView.dist, startView.height));
+        camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+      }
+      session.areaLife.settle(cat.position, camera);
+    }
     session.minimap = indoor ? null : createMinimap(hud.mapHost, {
       areaId,
       layer: buildMapLayer(areaData, scene),

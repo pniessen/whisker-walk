@@ -10,7 +10,11 @@
 // shows only while its section stands at least SINK.paneHide (ruling H1), and
 // sinks with its wall (scaled about the wall's base, like the wall), so it never
 // hangs in the air above a wall on its way down or up.
-// update allocates nothing.
+// settle(catPos, camera) is the start of a walk (final fix F1): walk.js calls it
+// once she and the camera are placed, before the Ready (or Welcome back) card,
+// so the first picture already has the walls between the camera and her down
+// and her own level drawn in full; nothing eases. The first update settles
+// too if nothing has (a backstop). update and settle allocate nothing.
 
 import { makeView, createWallSink, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
@@ -28,28 +32,44 @@ export function createHouseLife(scene, house, { reducedMotion = false } = {}) {
   const bases = sections.map((s) => s.base);
   const paneRest = paneLists.map((list) => list.map((p) => p.position.y)); // each pane's standing height
   const view = {};
+  let settled = false;
+
+  // The meshes and the panes, as the sink stands now.
+  function write() {
+    for (let i = 0; i < ids.length; i++) {
+      const f = sink.fraction(ids[i]);
+      const m = meshes[i];
+      if (m) {
+        m.scale.y = f;
+        m.visible = f > 0;
+      }
+      const list = paneLists[i];
+      for (let k = 0; k < list.length; k++) {
+        const p = list[k];
+        p.visible = f >= SINK.paneHide;
+        p.scale.y = f;
+        p.position.y = bases[i] + (paneRest[i][k] - bases[i]) * f;
+      }
+    }
+  }
+
+  function settle(catPos, camera) {
+    settled = true;
+    makeView(catPos, camera.position, CAT_LOOK_Y, view);
+    sink.settle(view);
+    write();
+    drawing.settle(catPos.y);
+  }
 
   return {
     sink,
     drawing,
+    settle,
     update(dt, t, catPos, camera) {
+      if (!settled) { settle(catPos, camera); return; }
       makeView(catPos, camera.position, CAT_LOOK_Y, view);
       sink.update(dt, view);
-      for (let i = 0; i < ids.length; i++) {
-        const f = sink.fraction(ids[i]);
-        const m = meshes[i];
-        if (m) {
-          m.scale.y = f;
-          m.visible = f > 0;
-        }
-        const list = paneLists[i];
-        for (let k = 0; k < list.length; k++) {
-          const p = list[k];
-          p.visible = f >= SINK.paneHide;
-          p.scale.y = f;
-          p.position.y = bases[i] + (paneRest[i][k] - bases[i]) * f;
-        }
-      }
+      write();
       drawing.update(catPos.y);
     },
     dispose() {

@@ -32,8 +32,8 @@
        __ready              true after the first frame
        __shot(name) → name  one of HOUSE_SHOTS (src/world/housetour.js), or this page's own
                             "standins" (from the attic at Farther, back over the far levels'
-                            stand-ins): a fresh walk (every
-                            wall standing) at the shot's spot, facing, and zoom step, run
+                            stand-ins): a fresh walk at the shot's spot, facing, and zoom step,
+                            settled at once as a walk's start is (game/walk.js), run
                             SETTLE s in fixed 1/30 s steps with her standing, then rendered
        __tour(name) → name  starts a tour from its start, for __frame to drive
        __frame() → { done, caption }   one fixed 1/30 s step (the tour's pilot first, if
@@ -92,7 +92,8 @@
 
   // This page's own short tour (not the game's), for judging the sink's calm:
   // just inside the front door the camera hangs outside the hall's south wall,
-  // which sinks; she walks into the hall (the camera comes inside, and the wall
+  // which is down from the first frame (the walk's start settles it, as the
+  // game's does); she walks into the hall (the camera comes inside, and the wall
   // rises behind it, out of sight); the Far step cuts the near walls away
   // (down), the Middle step brings them back (up).
   const f = Object.freeze;
@@ -100,7 +101,7 @@
     sink: f({
       start: f({ x: 0, z: 10.5, face: f([0, -1]) }),
       steps: f([
-        f({ zoom: 1, hold: 1.2, caption: 'The front wall sinks down' }),
+        f({ zoom: 1, hold: 1.2, caption: 'The front wall is down' }),
         f({ to: f([0, 6.5]), caption: 'She walks in' }),
         f({ zoom: 1, hold: 1.2 }),
         f({ zoom: 2, hold: 1.8, caption: 'Farther out: the near walls go down' }),
@@ -163,7 +164,7 @@
   const fadeLook = { x: 0, y: 0, z: 0 };
 
   // The house's life: made fresh for every walk (reset), so each shot and tour
-  // starts with every wall standing.
+  // starts from its own settled view, never helped by walls the last one left.
   let life = null;
   const standing = { fraction: () => 1, isDown: () => false }; // sink=0
   const sinkNow = () => (SINK_ON ? life.sink : standing);
@@ -186,7 +187,9 @@
     player.setTouchMove(null);
     player.enable();
     player.update(0, area.colliders, area.bounds, area.waters ?? []); // the camera on her spot
-    lifeStep(0);
+    // settled on that view at once, as game/walk.js does at a walk's start
+    if (SINK_ON) life.settle(cat.position, camera);
+    else life.drawing.settle(cat.position.y);
     shadows.update(ground.y(x, z), 1e3); // the shadow fit settled on her level at once
   }
 

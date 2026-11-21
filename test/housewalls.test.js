@@ -91,3 +91,46 @@ describe('easing', () => {
     expect(blockers([wall], sink, wanting)).toEqual([]);
   });
 });
+
+// Final fix F1: a walk's start settles the sink on its first view, with no easing.
+describe('settling at a walk\'s start', () => {
+  it('drops a wanted wall straight to its stub, eased sink or not, and stands an unwanted one', () => {
+    for (const reducedMotion of [false, true]) {
+      const sink = createWallSink([wall, { ...wall, id: 'far', z0: -4, z1: -4 }], { reducedMotion });
+      sink.settle(wanting);
+      expect(sink.fraction('w')).toBeCloseTo(stubF, 12);
+      expect(sink.fraction('far')).toBe(1);
+      expect(blockers([wall], sink, wanting)).toEqual([]);
+      // a wall left down stands again at once when the settled view does not want it
+      sink.settle(idle);
+      expect(sink.fraction('w')).toBe(1);
+      expect(sink.isDown('w')).toBe(false);
+    }
+  });
+  it('after settling, the sink goes on as ever: it waits 0.5 s, then eases up', () => {
+    const sink = createWallSink([wall]);
+    sink.settle(wanting);
+    run(sink, 0.5 - 2 * DT, null, idle);
+    expect(sink.fraction('w')).toBeCloseTo(stubF, 9);
+    run(sink, 4 * DT, null, idle);
+    expect(sink.fraction('w')).toBeGreaterThan(stubF + 0.01);
+    expect(sink.fraction('w')).toBeLessThan(1);
+    run(sink, 0.7, null, idle);
+    expect(sink.fraction('w')).toBe(1);
+  });
+  it('a wall whose own stub stands in the line drops to nothing, as a lintel does', () => {
+    // an upper floor's wall (base 2.4), she on the stair below it: the line to her paws crosses the stub
+    const upper = { ...wall, id: 'u', base: 2.4 };
+    const low = makeView({ x: 0, y: 1.8, z: -2 }, { x: 0, y: 3.0, z: 2.4 }, 0.74);
+    expect(wantsDown(upper, low)).toBe(true);
+    const sink = createWallSink([upper, wall]);
+    sink.settle(low);
+    expect(sink.fraction('u')).toBe(0);
+    expect(blockers([upper], sink, low)).toEqual([]);
+    // the same view on her own floor's wall: its stub is below the line, so the stub stays
+    sink.settle(behind);
+    expect(sink.fraction('w')).toBeCloseTo(stubF, 12);
+    expect(sink.fraction('u')).toBe(1);
+  });
+});
+
