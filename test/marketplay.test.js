@@ -1,14 +1,37 @@
 // The Market Square's words (Task 10): each treat has its name and its prompt,
 // and every line says the same in both word sets and holds no series word.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as on from '../src/clanwords.js';
 import * as off from '../src/offclanwords.js';
-import { inEachWordSet, seriesModes, words } from '../src/wordset.js';
+import { inEachWordSet, seriesModes } from '../src/wordset.js';
 import { TREAT_WORDS, MARKET_LINES } from '../src/marketwords.js';
-import { MARKET_COLLECTIBLES } from '../src/world/marketplan.js';
+import * as THREE from 'three';
 import { withStandInWords } from './helpers/standinwords.js';
 import { withOffWords } from './helpers/offwords.js';
 import { seriesFilter, stringsIn } from './helpers/serieswords.js';
+
+// The same headless canvas stub every world test uses (test/roofs.test.js):
+// the ground's and the lamp posts' tiles paint on a canvas.
+vi.stubGlobal('document', {
+  createElement: () => ({
+    width: 0,
+    height: 0,
+    getContext: () => new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
+        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
+          return () => ({ addColorStop: () => {} });
+        }
+        if (key === 'measureText') return () => ({ width: 10 });
+        return () => {};
+      },
+      set: () => true,
+    }),
+  }),
+});
+
+const { build } = await import('../src/world/market.js');
+const area = build(new THREE.Scene());
 
 const KINDS = ['fishhead', 'sausageroll', 'cheddar', 'cream', 'crumbs'];
 
@@ -56,9 +79,10 @@ describe('the market words', () => {
     const tableWords = [...new Set([...on.PREFIXES, ...off.PREFIXES, on.CLAN_SUFFIX, off.CLAN_SUFFIX,
       ...Object.values(on.RANK_WORDS), ...Object.values(off.RANK_WORDS)])].filter((w) => w && w.length > 2);
     const found = seriesFilter(tableWords);
-    const texts = [...stringsIn(everyLine()), ...MARKET_COLLECTIBLES.map((c) => c.label)];
+    const texts = [...stringsIn(everyLine()), ...area.collectibles.map((c) => c.label), ...area.scenics.map((c) => c.label)];
     expect(texts.length).toBeGreaterThan(10);
     for (const t of texts) expect(found(t), t).toBe(false);
-    expect(typeof words()).toBe('object');
+    expect(area.scenics.length).toBeGreaterThan(0);
+    expect(area.collectibles.length).toBeGreaterThan(0);
   });
 });
