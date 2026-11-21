@@ -5,6 +5,10 @@
    "touch": "Push the circle to walk. Drag to look around.",
    "keys": "Push the circle to walk. Drag to look around."
   },
+  "hint.roofs": {
+   "touch": "Follow the white pigeon up onto the roofs!",
+   "keys": "Follow the white pigeon up onto the roofs!"
+  },
   "hint.look": {
    "touch": "Drag here to look around.",
    "keys": "Move the mouse to look around."
@@ -323,6 +327,10 @@
   "start.touch": {
    "touch": "Push the circle to walk. Drag to look around.",
    "keys": "Push the circle to walk. Drag to look around."
+  },
+  "hint.roofs": {
+   "touch": "Follow the white pigeon up onto the roofs!",
+   "keys": "Follow the white pigeon up onto the roofs!"
   },
   "hint.look": {
    "touch": "Drag here to look around.",
