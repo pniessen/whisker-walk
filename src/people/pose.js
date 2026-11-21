@@ -34,12 +34,8 @@ export const POSE_MODES = Object.freeze(['stand', 'walk', 'wave', 'dismay', 'kne
 // (the owner, 2026-11-21: about 0.7 s, so the kneel is gentle).
 export const POSE_TIMES = Object.freeze({ KNEEL: 0.7 });
 const GENTLE = (mode) => mode === 'kneel' || mode === 'bow';
-// on the way into or out of a kneel (rad, at the blend's middle, none at
-// either end): both legs bend this much more (a squat: the thigh forward, the
-// knee back twice as far, the foot's pitch kept), and the right foot's toe
-// comes up this much, so its toe never props the hips up as the shin swings
-// back: the hips go down steadily (half way at half the time)
-const KNEEL_SQUAT = 0.35;
+// on the way into or out of a kneel (rad, at the middle of its step): the
+// right foot's toe comes up this much (see kneelLegs)
 const KNEEL_TOE = 0.7;
 // the kneel's raised (left) leg (ruling R29): the hip turned out this far
 // (rad), so the knee stands out to the left, about 50 degrees round from the
@@ -564,23 +560,65 @@ export function applyPose(person, dt, ease = 0.3) {
     cur[i] = w >= 1 ? rot[i] : from[i] + (rot[i] - from[i]) * w;
   }
   for (let i = 0; i < 3; i++) cur[R + i] = k >= 1 ? pelvis[i] : from[R + i] + (pelvis[i] - from[R + i]) * k;
-  // into or out of a kneel, the knees bend a little more on the way (and the
-  // kneeling foot's toe comes up), so the hips go down (and up) steadily
-  // rather than rising onto the toes first
+  // into or out of a kneel, the legs take turns, so no foot slides on the
+  // ground (Task 12 pictures): going down, the left leg bends where it stands
+  // (its foot planted) while the right foot is lifted back, its toe up; then,
+  // the right knee down, the left foot is lifted out and forward to its place.
+  // Getting up is the same backwards.
   if (st.kneelPath && k < 1) {
-    const b = Math.sin(Math.PI * k);
-    for (let i = 0; i < 2; i++) {
-      const S = SIDES[i];
-      const a = KNEEL_SQUAT * b;
-      cur[S.thigh] += a; cur[S.shin] -= 2 * a; cur[S.foot] += a; // the foot keeps its pitch
-      if (S === RIGHT) cur[S.foot] += KNEEL_TOE * b;
-    }
+    const into = st.mode === 'kneel';
+    kneelLegs(cur, from, rot, into ? st.w : 1 - st.w, into, person.look.dims, into ? pelvis[1] : from[R + 1]);
   }
   const B = person.bones;
   for (let j = 0; j < N; j++) B[JOINTS[j]].rotation.set(cur[j * 3], cur[j * 3 + 1], cur[j * 3 + 2]);
   const rp = person.rest.pelvis;
   B.pelvis.position.set(rp.x + cur[R], rp.y + cur[R + 1], rp.z + cur[R + 2]);
   ground(person);
+}
+
+// The legs on the way into (or out of) a kneel, at progress s (0 standing, 1
+// kneeling; getting up runs s back from 1 to 0). `into`: from is the stand's
+// end and rot the kneel's (out of it, the other way round); kneelHipY the
+// kneel's pelvis offset (down). Three steps, so no foot slides on the ground
+// (ruling R33): the right foot is lifted back (over the first KNEEL_R of the
+// way) while the left knee bends where its foot stands (a squat, the foot
+// kept under the hip), down until the right knee is on the ground (by
+// KNEEL_DOWN); then the left foot is lifted out and forward to its place.
+// Each foot comes up before it goes anywhere (KNEEL_UP_FIRST). Allocates
+// nothing.
+const KNEEL_R = 0.82;
+const KNEEL_DOWN = 0.82;
+const KNEEL_LIFT_R = 0.25; // rad: the right foot's lift (the hip and the knee bent) at the middle of its step
+const KNEEL_LIFT_L = 0.25; // and the left's
+const KNEEL_UP_FIRST = 0.2; // of its step: the foot comes up before it goes anywhere
+const ss = (x) => { const c = x < 0 ? 0 : x > 1 ? 1 : x; return c * c * (3 - 2 * c); };
+const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+function kneelLegs(cur, from, rot, s, into, d, kneelHipY) {
+  const uA = clamp01(s / KNEEL_R);
+  const uB = clamp01((s - KNEEL_DOWN) / (1 - KNEEL_DOWN));
+  const kR = ss((uA - KNEEL_UP_FIRST) / (1 - 2 * KNEEL_UP_FIRST));
+  const kL = ss((uB - KNEEL_UP_FIRST) / (1 - 2 * KNEEL_UP_FIRST));
+  // the squat that takes the hips down to the kneel's height on the left
+  // foot (a little more, so the right knee is down before the left foot goes)
+  const legLen = d.hipY - d.ankleY;
+  const squat = 1.05 * Math.acos(Math.max(-1, 1 - Math.max(0, -kneelHipY) / legLen));
+  const bendL = squat * ss(s / KNEEL_DOWN) * (1 - kL) + KNEEL_LIFT_L * Math.sin(Math.PI * uB);
+  const bendR = KNEEL_LIFT_R * Math.sin(Math.PI * uA);
+  const toeR = KNEEL_TOE * Math.sin(Math.PI * uA);
+  for (let i = 0; i < 2; i++) {
+    const S = SIDES[i];
+    const kk = S === RIGHT ? kR : kL;
+    for (let j = S.thigh; j <= S.foot; j += 3) { // the thigh, the shin, the foot (one after another in JOINTS)
+      for (let c = 0; c < 3; c++) {
+        const stand = into ? from[j + c] : rot[j + c];
+        const kneel = into ? rot[j + c] : from[j + c];
+        cur[j + c] = stand + (kneel - stand) * kk;
+      }
+    }
+  }
+  // a bend: the thigh forward, the knee back twice as far, the foot's pitch kept
+  cur[LEFT.thigh] += bendL; cur[LEFT.shin] -= 2 * bendL; cur[LEFT.foot] += bendL;
+  cur[RIGHT.thigh] += bendR; cur[RIGHT.shin] -= 2 * bendR; cur[RIGHT.foot] += bendR + toeR;
 }
 
 // ---- grounding -----------------------------------------------------------------

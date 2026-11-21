@@ -859,9 +859,9 @@ describe('the hand-offs between the pose and the scratch', () => {
         expect(worst.up, msg).toBeLessThanOrEqual(STEP_MAX);
         expect(worst.first, msg).toBeLessThanOrEqual(STEP_MAX);
         expect(worst.rel, msg).toBeLessThanOrEqual(STEP_MAX);
-        // in the world too (R17 allowed the body's own rise on top: with the
-        // 0.7 s stand of Task 8a the palm keeps within R13's step all along)
-        expect(worst.world, msg).toBeLessThanOrEqual(STEP_MAX);
+        // in the world too: R13's step on top of the body's own rise (ruling
+        // R17, as first ruled; R33's stepping kneel rises a little faster)
+        expect(worst.world, msg).toBeLessThanOrEqual(worst.plain + STEP_MAX);
         // the scratch did its work in between (a touch when in reach)
         expect([...seen], msg).toEqual(dist < 1 ? expect.arrayContaining(['resting']) : ['held']);
       });

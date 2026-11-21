@@ -350,6 +350,41 @@ describe('people poses', () => {
     expect(half, 'ease 0.1').toBeLessThan(0.7);
   });
 
+  // ruling R33: the kneel's feet take turns; a foot on the ground (its
+  // shoe's lowest point within 1 cm of the floor, this frame and the last)
+  // moves at most 3.5 cm all told, down and up, a big man and a small woman
+  it('no foot slides on the ground going down into the kneel or up out of it (R33)', () => {
+    for (const over of [{ sex: 'm', height: 1.85, girth: 1.08 }, { sex: 'f', height: 1.6, girth: 0.94 }]) {
+      const { people } = buildSpot({ ...spotOf('adult'), ...over }, { material });
+      const p = people[0];
+      p.setDetail('near');
+      const feet = { L: skinnedVerts(p, ['footL']), R: skinnedVerts(p, ['footR']) };
+      const at = (vs) => {
+        let lo = Infinity, x = 0, z = 0;
+        for (const i of vs) { p.mesh.getVertexPosition(i, V); lo = Math.min(lo, V.y); x += V.x; z += V.z; }
+        return { lo, x: x / vs.length, z: z / vs.length };
+      };
+      poseAt(p, { mode: 'stand', t: 1 }, 60);
+      for (const mode of ['kneel', 'stand']) {
+        let last = { L: at(feet.L), R: at(feet.R) };
+        const slid = { L: 0, R: 0 };
+        let lifted = 0;
+        for (let i = 0; i < 50; i++) {
+          poseAt(p, { mode, t: 1 + i / 60 });
+          for (const f of ['L', 'R']) {
+            const now = at(feet[f]);
+            if (now.lo < 0.01 && last[f].lo < 0.01) slid[f] += Math.hypot(now.x - last[f].x, now.z - last[f].z);
+            lifted = Math.max(lifted, now.lo);
+            last[f] = now;
+          }
+        }
+        expect(slid.L, `${over.sex} to ${mode}: the left foot`).toBeLessThanOrEqual(0.035);
+        expect(slid.R, `${over.sex} to ${mode}: the right foot`).toBeLessThanOrEqual(0.035);
+        expect(lifted, `${over.sex} to ${mode}: a foot is lifted on its way`).toBeGreaterThan(0.05);
+      }
+    }
+  });
+
   it('other changes keep their ease: wave to stand still blends over 0.3 s', () => {
     const p = personOf('adult');
     const spec = (mode) => ({ mode, t: 1, reducedMotion: true });
