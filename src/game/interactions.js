@@ -37,6 +37,7 @@ import { nowSec } from './util.js';
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
 import { farmPromptText, farmObjective, hatAtDoor } from './farmplay.js';
 import { fairPromptText } from './fairplay.js';
+import { treatItemId } from '../marketnone.js';
 import { JOB_WORDS } from '../farmwords.js';
 import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
@@ -917,6 +918,16 @@ export function createInteractions({
         setPrompt(text);
       }
     }
+    // The Market Square's treats (marketlive.js): a treat out within reach,
+    // from the ground, with no treat already in her mouth. NO_MARKET (every
+    // other place) offers nothing; a stand-in session without one, nothing.
+    if (!s.prompt && s.market) {
+      const action = s.market.actionFor(s);
+      if (action) {
+        s.prompt = { kind: 'market', data: action };
+        setPrompt(action.prompt);
+      }
+    }
     if (!s.prompt) {
       // v20 Ruffled Fur. ONE branch, in the exact slot the greet prompt has
       // always occupied, offering one of two mutually exclusive things to the
@@ -1795,6 +1806,13 @@ export function createInteractions({
         // she turns to the shelf to bat at the tins
         const tin = s.areaData?.anchors?.tinCans?.[1];
         if (tin) s.cat.rotation.y = Math.atan2(-(tin.x - s.cat.position.x), -(tin.z - s.cat.position.z));
+      }
+    } else if (s.prompt.kind === 'market') {
+      // A treat grabbed (anything in her mouth set down first), or, seen, a
+      // shoo. What it pays and says comes with the events (game/marketplay.js);
+      // a grab goes out as the existing carry-pick, nothing new (M7).
+      if (s.market.act(s.prompt.data, s, { dropHeld: () => putDownCarried(s, { kick: false }) }) && s.net) {
+        s.net.sendEvent({ v: 1, id: s.playerId, type: 'carry-pick', itemId: treatItemId(s.prompt.data.stall) });
       }
     } else if (s.prompt.kind === 'quest-accept') {
       s.quest.accept();

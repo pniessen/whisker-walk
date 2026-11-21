@@ -1285,6 +1285,10 @@ function init() {
       // The Fairground's rides, likewise: they turn, and a cat on a seat is
       // carried by it from here (fairlive.js). They also place the camera.
       session.fair.update(dt, t, { cat: session.cat, player, session });
+      // The Market Square's stallholders and its treats (marketlive.js): the
+      // rhythm, the coo and the shoo read where she is now; the hop is added
+      // to her own walk (NO_MARKET elsewhere).
+      session.market?.update(dt, t, { cat: session.cat, player, session });
       // Clan Life Part 2: the clan fight, after everything that can move the
       // cat (player.update, a chase): it writes the fighting cat's spot.
       session.clanFight.update(dt, session);

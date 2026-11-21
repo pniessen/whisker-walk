@@ -33,6 +33,12 @@ export const AWARDS = {
   // call: 5 coins)" (the coins are 🐾). Once a walk (foundwear/play.js), and
   // the same number as foundwear/rules.js POUCH_COINS.
   pouch: 5,
+  // The Market Square (step 2, M9): a treat eaten, once per stall per walk
+  // (game/marketplay.js, key 'market-treat-<stall>'), and teamwork, paid on
+  // the distracter's own device when her partner grabs the treat at the stall
+  // cooing at her (once per stall per walk, 'market-team-<stall>').
+  treat: 6,
+  teamtreat: 6,
 };
 
 export function createDiscoveryLog(progression) {

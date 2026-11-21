@@ -102,6 +102,7 @@ const FIELDS = [
   ['dog', 'late (walk.js): the yard dog'],
   ['farm', "Appletree Farm's animals (farmanimals.js), or NO_FARM anywhere else"],
   ['fair', "the Fairground's rides (fairlive.js), or NO_FAIR anywhere else"],
+  ['market', "the Market Square's stallholders and treats (marketlive.js), or NO_MARKET"],
   ['traversal', 'the balance walk, leaps, drops and climb-ups (traversallive.js), or NO_TRAVERSAL where the area places none'],
   ['farmObjective', "late (interactions.js): whether the HUD's objective line is showing a Farm job"],
   ['kittenEnc', 'late (walk.js): the lost-kitten encounter, or null'],

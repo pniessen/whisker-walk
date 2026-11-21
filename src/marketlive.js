@@ -944,7 +944,8 @@ export function createMarketLive(scene, area, opts = {}) {
     // a walk picked up again: the tally is the treats this walk already paid for
     restore(log) {
       let n = 0;
-      const entries = typeof log?.entries === 'function' ? log.entries() : [];
+      const got = typeof log?.entries === 'function' ? log.entries() : null;
+      const entries = Array.isArray(got) ? got : [];
       for (const e of entries) {
         if (Array.isArray(e) && typeof e[0] === 'string' && e[0].startsWith(TREAT_ITEM_PREFIX) && e[1] > 0) n++;
       }
