@@ -66,7 +66,7 @@
 //            walk's discovery log has paid (log.entries()).
 //   update also writes (Task 7): session.lookAt, one reused { x, y, z } at the
 //            face of the stallholder cooing at her cat (else null), with her
-//            idle clock held at 0 while it lasts; and the same on a partner's
+//            idle clock held where the coo found it (her pose holds); and the same on a partner's
 //            entry (its lookAt) while a stall here coos at that cat.
 //
 // EVENTS (onEvent), for the walk (Task 13) to turn into lines and pay:
@@ -749,18 +749,28 @@ export function createMarketLive(scene, area, opts = {}) {
   // ---- She looks up at the stallholder cooing at her (Task 7, ruling V10). -----
   // While a stall coos at her cat, session.lookAt is her record's `look` at
   // that stallholder's face (the keeper's spot, ground + headY · FACE_SHARE)
-  // and her idle clock is held at 0, so no groom, sit or nap breaks into the
-  // look-up (avatar.js's aimHead turns her head to it). The same for a
+  // and her idle clock is held where it was when the coo began (idleHold), so
+  // the pose she was in holds for the whole coo: standing she stays standing
+  // (no groom or sit breaks into the look-up), sitting she stays sitting and
+  // looks up from the sit, napping she naps on; nothing snaps (avatar.js's
+  // aimHead turns her head to it). The walk's avatar adds the frame's dt after
+  // the life, so the clock is set that much under the held value and lands on
+  // it. After the coo it carries on from there. The same for a
   // partner's cat cooed at on this screen: that entry's lookAt (remotecats.js
   // aimHead). Each device works out its own coos: nothing is sent. Every coo's
   // end puts it back to null (endCoo, unlook).
-  function lookUp() {
+  const idleHold = { on: false, at: 0 };
+  function lookUp(dt) {
     const s = seen.session;
     const mine = cooingAt(me);
     if (mine && s) {
       s.lookAt = faceOf(mine, me.look);
-      s.idleTime = 0;
-    }
+      if (!idleHold.on) {
+        idleHold.on = true;
+        idleHold.at = Number.isFinite(s.idleTime) && s.idleTime > 0 ? s.idleTime : 0;
+      }
+      s.idleTime = Math.max(0, idleHold.at - dt);
+    } else idleHold.on = false;
     for (let k = 0; k < remoteRecs.length; k++) {
       const rec = remoteRecs[k];
       const row = cooingAt(rec);
@@ -901,7 +911,7 @@ export function createMarketLive(scene, area, opts = {}) {
     readCats(dt);
     for (let i = 0; i < N; i++) think(treatRows[i], dt);
     for (let i = 0; i < N; i++) show(treatRows[i], dt, clock);
-    lookUp();
+    lookUp(dt);
     stepHop(dt);
     stepMunch(dt);
     for (let k = 0; k < remoteRecs.length; k++) stepRemoteMunch(remoteRecs[k], dt);

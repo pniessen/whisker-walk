@@ -1834,6 +1834,11 @@ describe('she looks up at the stallholder cooing at her (Market step 3, Task 7)'
     expect(r.session.net.sendEvent, 'nothing is sent').not.toHaveBeenCalled();
   }, 60_000);
 
+  // avatar.js's idle poses for a napper (the quickest: groom at 3 s, sit at 5, nap at 8)
+  const idlePose = (idle) => (idle > 8 ? 'nap' : idle > 5 ? 'requestPet' : idle > 3 ? 'groom' : 'follow');
+  // one walk frame in main.js's order: the life, then the avatar counts her idle clock and picks her pose
+  const walkFrame = (r) => { r.step(DT); r.session.idleTime += DT; return idlePose(r.session.idleTime); };
+
   it('cooed, she stays standing: no groom or sit', () => {
     const id = 'baker';
     const s = S(id);
@@ -1843,26 +1848,63 @@ describe('she looks up at the stallholder cooing at her (Market step 3, Task 7)'
     const p = r.local(id, 0, s.d / 2 + 1.4);
     r.place(p.x, p.z);
     r.session.idleTime = 0;
-    let most = 0;
+    let cooPose = null;
     let cooFrames = 0;
     let ended = false;
     for (let i = 0; i < Math.round((MARKET.STILL_S + MARKET.COO_S + 1) / DT); i++) {
-      r.session.idleTime += DT; // avatar.js counts it up after the life, every frame
-      r.step(DT);
+      const pose = walkFrame(r);
       if (st.cooing) {
         cooFrames++;
-        most = Math.max(most, r.session.idleTime);
+        cooPose ??= pose;
+        expect(pose, `coo frame ${cooFrames}`).toBe(cooPose);
       } else if (cooFrames > 0) ended = true;
     }
+    expect(cooPose, 'standing when the coo began').toBe('follow');
     expect(cooFrames * DT).toBeGreaterThan(MARKET.COO_S - 2 * DT);
     expect(ended).toBe(true);
-    // a napper grooms after 3 s still and an easy-going cat after 6: held at 0, neither ever comes
-    expect(most, 'held at 0 the whole coo').toBeLessThanOrEqual(1e-9);
-    // after the coo her idle clock runs again (no hold without a coo)
+    // after the coo her idle clock carries on from where it was held (about STILL_S), no jump either way
     const after = r.session.idleTime;
-    r.session.idleTime += DT;
-    r.step(DT);
-    expect(r.session.idleTime).toBeGreaterThan(after);
+    expect(after).toBeGreaterThan(MARKET.STILL_S - 0.1);
+    expect(after).toBeLessThan(MARKET.STILL_S + 1.2);
+    walkFrame(r);
+    expect(r.session.idleTime).toBeCloseTo(after + DT, 9);
+    r.live.dispose();
+  }, 60_000);
+
+  it('sitting when the coo begins, she stays sitting and looks up from the sit (nothing snaps)', async () => {
+    const { buildCat } = await import('../src/cat/model.js');
+    const { animateCat } = await import('../src/cat/animator.js');
+    const { aimHead } = await import('../src/cat/headaim.js');
+    const id = 'baker';
+    const s = S(id);
+    const r = marketRig();
+    const st = r.stall(id);
+    r.setPhase(id, 'serve', 0);
+    const p = r.local(id, 0, s.d / 2 + 1.4);
+    r.place(p.x, p.z);
+    r.cat.rotation.y = Math.atan2(s.face.x, s.face.z); // facing the counter
+    r.session.idleTime = 6; // already sitting (a napper sits at 5 s, naps at 8)
+    let cooFrames = 0;
+    let look = null;
+    for (let i = 0; i < Math.round((MARKET.STILL_S + MARKET.COO_S + 0.5) / DT); i++) {
+      const pose = walkFrame(r);
+      if (st.cooing) {
+        cooFrames++;
+        expect(pose, `coo frame ${cooFrames}: no nap, no standing up`).toBe('requestPet');
+        look ??= r.session.lookAt && { ...r.session.lookAt };
+      }
+    }
+    expect(cooFrames * DT).toBeGreaterThan(MARKET.COO_S - 2 * DT);
+    expect(look, 'a target while she sits').toBeTruthy();
+    // her head, sitting: tipped up toward the stallholder's face, more than the sit alone
+    const cat = buildCat('tabby');
+    cat.position.copy(r.cat.position);
+    cat.rotation.y = r.cat.rotation.y;
+    animateCat(cat, 'requestPet', 1.3, 0, false);
+    const sitTip = cat.userData.parts.head.rotation.x;
+    for (let i = 0; i < 30; i++) { animateCat(cat, 'requestPet', 1.3, 0, false); aimHead(cat, look, DT, 'requestPet'); }
+    expect(cat.userData.parts.head.rotation.x - sitTip).toBeGreaterThan(0.3);
+    // and after the coo the clock runs on from the sit: in time she naps, as she would have
     r.live.dispose();
   }, 60_000);
 
