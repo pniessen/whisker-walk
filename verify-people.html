@@ -28,7 +28,7 @@
      Tours (scripts/record-page.mjs --tour name): window.__tour(name), then window.__frame() steps 1/30 s
      (two 1/60 s steps) and renders, and answers { done, caption }.
        sheet: gaze (she walks past the lineup 3 m away, 8 s), walk (a man, a woman and a pair walk past, 6 s),
-              scratch (she walks up to the kneeling man from 2 m, is touched, turns away, 6 s)
+              scratch (she walks up to the kneeling man from 2 m, is touched, turns away, 7.5 s)
      window.__info() renders and returns { calls, triangles } (renderer.info, shadow passes included);
      window.__stats is the people's triangle counts. -->
 <style>
@@ -513,7 +513,7 @@
       dayLight();
       scratchScene('man', 0.85);
       cam(0.9, 2.3, 0.85 + 4.5, 0, 0.75, 0.2);
-      settle(SCRATCH, { which: only('man'), seconds: 3 });
+      settle(SCRATCH, { which: only('man'), seconds: 4 });
       return `The head scratch, the game's normal camera behind her: he kneels, his hand rests on her head. ${touchNote('man')}`;
     },
     'scratch-touch-cateye': () => {
@@ -521,45 +521,46 @@
       scratchScene('man', 0.85);
       cats[0].visible = true;
       cam(1.3, 0.3, 1.25, -0.05, 0.85, 0.35, 55);
-      settle(SCRATCH, { which: only('man'), seconds: 3 });
+      settle(SCRATCH, { which: only('man'), seconds: 4 });
       return `The head scratch from low beside her (0.3 m up): the hand on top of her head, palm down, between her ears. ${touchNote('man')}`;
     },
     'scratch-touch-side': () => {
       dayLight();
       scratchScene('man', 0.85);
       cam(-1.9, 1.0, 0.5, 0, 0.8, 0.42, 34); // from his right
-      settle(SCRATCH, { which: only('man'), seconds: 3.2 });
+      settle(SCRATCH, { which: only('man'), seconds: 4 });
       return `The head scratch from the side, close (for judging the touch): only the hand comes to her; his chest stays back. ${touchNote('man')}`;
     },
     'scratch-touch-ears': () => {
       dayLight();
       scratchScene('man', 0.85);
       cam(0.3, 1.55, 0.85 + 1.1, 0, 0.88, 0.5, 30);
-      settle(SCRATCH, { which: only('man'), seconds: 3 });
+      settle(SCRATCH, { which: only('man'), seconds: 4 });
       return `Close over her back (the normal camera's view, nearer): the hand lies along her head between her ears. ${touchNote('man')}`;
     },
     'scratch-touch-mainecoon': () => {
+      // (the man is 1.80 m; a kneeling adult under about 1.70 m cannot reach over her head clear of it)
       dayLight();
       cats[0].visible = false;
       her = 1;
       cats[1].visible = true;
       scratchScene('man', 1.0);
       cam(-2.0, 1.25, 1.6, 0, 0.95, 0.5, 38); // from his right, in front
-      settle(SCRATCH, { which: only('man'), seconds: 3 });
+      settle(SCRATCH, { which: only('man'), seconds: 4 });
       return `The head scratch on a Maine Coon, the biggest preset cat (her head's top 1.17 m, above his kneeling shoulder): the hand comes over and rests on her head. ${touchNote('man')}`;
     },
     'scratch-held-day': () => {
       dayLight();
       scratchScene('man', 1.5);
       cam(-2.3, 1.7, 3.0, 0, 0.55, 0.6, 45); // from his right, in front
-      settle(SCRATCH, { which: only('man'), seconds: 3 });
+      settle(SCRATCH, { which: only('man'), seconds: 4 });
       return `She sits 1.5 m away (her middle), out of his reach: he kneels and holds his hand out, low, palm down, toward her (${byId('man').members[0].scratchState}).`;
     },
     'scratch-older-day': () => {
       dayLight();
       scratchScene('older', 0.75);
       cam(1.7, 1.5, 2.3, 0, 0.85, 0.3, 45);
-      settle(SCRATCH, { which: only('older'), seconds: 3 });
+      settle(SCRATCH, { which: only('older'), seconds: 4 });
       return `The older man's hello is a bow, not a kneel; his hand reaches her head the same way. ${touchNote('older')}`;
     },
     'crowd-spots': () => {
@@ -723,7 +724,7 @@
     man.group.position.set(0, 0, 0);
     man.group.rotation.y = Math.PI;
     current = { spec: () => SCRATCH, detail: null };
-    const START = 2.0, STOP = 0.85, IN = 0.6, OUT_AT = 4.2, TURN = 0.6, OFF = 0.8, AWAY = -2.0;
+    const START = 2.0, STOP = 0.85, IN = 0.6, OUT_AT = 5.6, TURN = 0.6, OFF = 0.8, AWAY = -2.0;
     let tt = 0;
     let z = START, x = 0, yaw = 0;
     // he is already kneeling when the film starts (she asked from 2 m)
@@ -731,7 +732,7 @@
     animateCat(cat, 'follow', 0, 0, false);
     for (let i = 0; i < 60; i++) step(DT);
     return {
-      seconds: 6,
+      seconds: 7.5,
       tick(dt) {
         tt += dt;
         let state = 'requestPet', speed = 0;

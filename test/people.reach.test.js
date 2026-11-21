@@ -17,6 +17,8 @@ const material = new THREE.MeshStandardMaterial({ vertexColors: true });
 const DT = 1 / 60;
 const UP = new THREE.Vector3(0, 1, 0);
 const CATS = ['tabby', 'siamese', 'persian', 'mainecoon', 'hagrid'];
+const REACH_FRAMES = 150; // 2.5 s: a touch rests by then (R13's eased 1.2 m/s hand)
+const STEP_MAX = 0.025; // m: the palm's most in one 1/60 s frame (R13)
 
 function spotOf(kind) {
   for (let x = 0; x < 400; x++) {
@@ -91,7 +93,7 @@ function armSamples(p, each) {
     chain[i].getWorldPosition(A);
     if (i < 2) chain[i + 1].getWorldPosition(Bv); else Bv.copy(TIP);
     const n = Math.max(1, Math.ceil(A.distanceTo(Bv) / 0.02));
-    for (let k = 0; k <= n; k++) each(P.lerpVectors(A, Bv, k / n), radii[i][0] + (radii[i][1] - radii[i][0]) * (k / n));
+    for (let k = 0; k <= n; k++) each(P.lerpVectors(A, Bv, k / n), radii[i][0] + (radii[i][1] - radii[i][0]) * (k / n), i);
   }
 }
 // the closest distance between segments p1-q1 and p2-q2, by sampling (a test's check)
@@ -102,11 +104,39 @@ function segSeg(p1, q1, p2, q2) {
   return best;
 }
 const Q = new THREE.Vector3();
+const EA = new THREE.Vector3();
+const EQ = new THREE.Vector3();
+// her ear's tapered capsule (radius r0 at its base a, r1 at its tip b); a
+// flat limb (rSide: the palm-down hand, an ellipse across, rThick up and down)
+function earClearance(point, e, rThick = 0, rSide = 0) {
+  EA.subVectors(e.b, e.a);
+  const t = Math.min(1, Math.max(0, EQ.subVectors(point, e.a).dot(EA) / EA.lengthSq()));
+  EQ.copy(e.a).addScaledVector(EA, t);
+  const d = EQ.distanceTo(point);
+  let r = rThick;
+  if (rSide > rThick && d > 1e-6) {
+    const sn = Math.abs(EQ.y - point.y) / d;
+    r = 1 / Math.sqrt((1 - sn * sn) / (rSide * rSide) + (sn * sn) / (rThick * rThick));
+  }
+  return d - r - (e.r0 + (e.r1 - e.r0) * t);
+}
 function clearance(point, vol) {
   const head = point.distanceTo(vol.head.center) - vol.head.radius;
   Q.copy(point);
   const body = segPointDist(vol.body.a, vol.body.b, Q) - vol.body.r;
-  return Math.min(head, body);
+  let ears = Infinity;
+  for (let i = 0; i < (vol.earN ?? 0); i++) ears = Math.min(ears, earClearance(point, vol.ears[i]));
+  return Math.min(head, body, ears);
+}
+// the ears alone (the hand as wide as it is, with its thumb: 0.36 of its
+// length to the sides, its thickness up and down)
+function worstEar(p, vol) {
+  let worst = Infinity;
+  armSamples(p, (pt, rad, limb) => {
+    const side = limb === 2 ? 0.36 * p.look.dims.hand : 0;
+    for (let i = 0; i < vol.earN; i++) worst = Math.min(worst, earClearance(pt, vol.ears[i], rad, side));
+  });
+  return worst;
 }
 function worstClearance(p, vol) {
   let worst = Infinity;
@@ -195,14 +225,21 @@ describe('the head scratch', () => {
     for (const k of ['REACH', 'headTopOffset', 'catVolumes', 'createScratch', 'stepScratch']) expect(kit[k]).toBeDefined();
   });
 
-  it('touches when in reach: resting within 1 s, the palm CLEAR above her head', () => {
+  // R13: the palm never goes faster than 1.2 m/s, eased; the held hand
+  // settles, may go to the ready place, and the way in takes its time, so a
+  // touch is resting within about 2 s (REACH_TIME)
+  it('touches when in reach: resting within REACH_TIME, the palm CLEAR above her head', () => {
     for (const kind of ['adult', 'older']) {
       const r = rig(kind);
       const cat = buildCat('tabby');
       animateCat(cat, 'requestPet', 1, 0, false);
       place(r, cat, 0.65);
       let state;
-      for (let i = 0; i < 60; i++) state = frame(r, cat);
+      for (let i = 0; i < REACH_FRAMES; i++) {
+        state = frame(r, cat);
+        expect(worstClearance(r.p, r.vol), `${kind} frame ${i}`).toBeGreaterThan(0.005);
+        expect(worstEar(r.p, r.vol), `${kind} frame ${i}`).toBeGreaterThan(0);
+      }
       expect(state, kind).toBe('resting');
       const want = headTopOf(cat, new THREE.Vector3()).addScaledVector(UP, REACH.CLEAR);
       expect(palmPoint(r.p, new THREE.Vector3()).distanceTo(want), kind).toBeLessThan(0.02);
@@ -215,20 +252,24 @@ describe('the head scratch', () => {
   // out of the person and the hand has room to rise in front of her face (a
   // Maine Coon's head, 0.62 m across and 0.52 m in front of her middle, is in
   // the person's chest at 0.65 m).
+  // (the Maine Coon by a 1.70 m adult: a shorter kneeling adult's arm cannot
+  // go over her head's sphere, 1.17 m up and 0.62 m across, clear of it)
   it('touches every preset cat standing about 0.65 m in front of a 1.61 m adult', () => {
     const at = {};
     for (const breed of CATS) {
       const cat = buildCat(breed);
       animateCat(cat, 'follow', 1, 0, false);
+      const tall = breed === 'mainecoon' ? 1.7 : 1.61;
       let state;
       for (let d = 0.65; d <= 1.1 + 1e-9 && state !== 'resting'; d = Math.round((d + 0.05) * 100) / 100) {
-        const r = rig('adult', { height: 1.61 });
-        expect(r.p.look.height).toBeCloseTo(1.61, 5);
+        const r = rig('adult', { height: tall });
+        expect(r.p.look.height).toBeCloseTo(tall, 5);
         if (standOff(r, cat, d) !== d) continue;
         at[breed] = d;
-        for (let i = 0; i < 60; i++) {
+        for (let i = 0; i < REACH_FRAMES; i++) {
           state = frame(r, cat);
           expect(worstClearance(r.p, r.vol), `${breed} ${d} m frame ${i}`).toBeGreaterThan(0.005);
+          expect(worstEar(r.p, r.vol), `${breed} ${d} m frame ${i}`).toBeGreaterThan(0);
         }
         if (state !== 'resting') continue;
         const want = headTopOf(cat, new THREE.Vector3()).addScaledVector(UP, REACH.CLEAR);
@@ -236,7 +277,7 @@ describe('the head scratch', () => {
       }
       expect(state, breed).toBe('resting');
     }
-    console.info(`every preset cat touched within 1 s, her middle this far in front: ${JSON.stringify(at)}`);
+    console.info(`every preset cat touched within 2.5 s, her middle this far in front: ${JSON.stringify(at)}`);
     for (const breed of CATS) expect(at[breed], breed).toBeLessThanOrEqual(breed === 'mainecoon' ? 1.1 : 0.8);
   });
 
@@ -248,7 +289,7 @@ describe('the head scratch', () => {
     const top = headTopOf(cat, new THREE.Vector3());
     const n = new THREE.Vector3();
     let wentAbove = false;
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < REACH_FRAMES; i++) {
       frame(r, cat);
       const palm = palmPoint(r.p, new THREE.Vector3());
       const flat = Math.hypot(palm.x - top.x, palm.z - top.z);
@@ -267,7 +308,7 @@ describe('the head scratch', () => {
     const cat = buildCat('tabby');
     animateCat(cat, 'requestPet', 1, 0, false);
     place(r, cat, 0.65);
-    for (let i = 0; i < 90; i++) frame(r, cat);
+    for (let i = 0; i < REACH_FRAMES + 30; i++) frame(r, cat);
     expect(r.sc.state).toBe('resting');
     const step = new THREE.Vector3(0.03, 0, 0).applyAxisAngle(UP, r.group.rotation.y); // to the person's right
     for (let i = 0; i < 10; i++) {
@@ -283,13 +324,14 @@ describe('the head scratch', () => {
     const cat = buildCat('tabby');
     animateCat(cat, 'requestPet', 1, 0, false);
     place(r, cat, 0.65);
-    for (let i = 0; i < 60; i++) frame(r, cat);
+    for (let i = 0; i < REACH_FRAMES; i++) frame(r, cat);
     const want = headTopOf(cat, new THREE.Vector3()).addScaledVector(UP, REACH.CLEAR);
     let most = 0;
     for (let i = 0; i < 120; i++) {
       frame(r, cat);
       most = Math.max(most, palmPoint(r.p, new THREE.Vector3()).distanceTo(want));
       expect(worstClearance(r.p, r.vol)).toBeGreaterThan(0.005);
+      expect(worstEar(r.p, r.vol)).toBeGreaterThan(0);
     }
     expect(most).toBeGreaterThan(0.015);
     expect(most).toBeLessThan(0.02 + 1e-6);
@@ -360,6 +402,21 @@ describe('the head scratch', () => {
     expect(s).toBe('resting');
   });
 
+  it('no way in (a Maine Coon 1 m in front of a 1.61 m adult): the hand goes back to held out, not parked at the chest', () => {
+    const r = rig('adult', { height: 1.61 });
+    const cat = buildCat('mainecoon');
+    animateCat(cat, 'follow', 1, 0, false);
+    place(r, cat, 1.0);
+    for (let i = 0; i < 180; i++) {
+      expect(frame(r, cat)).toBe('held');
+      expect(worstClearance(r.p, r.vol), `frame ${i}`).toBeGreaterThan(0.005);
+    }
+    expect(r.sc.blocked).toBe(true); // not planned again till she moves
+    const l = local(r, palmPoint(r.p, new THREE.Vector3()));
+    expect(-l.z).toBeGreaterThan(0.2); // held out toward her
+    expect(-l.z).toBeLessThanOrEqual(REACH.HELD_MAX);
+  });
+
   it('with no cat (headTop null) the hand is held out ahead', () => {
     const r = rig('adult');
     for (let i = 0; i < 30; i++) expect(frame(r, null, { headTop: null })).toBe('held');
@@ -369,9 +426,10 @@ describe('the head scratch', () => {
   });
 
   for (const [what, move] of [
-    // (to the person's left: her head goes out of the right hand's reach; turned
-    // the other way it stays in reach, and the hand stays on it)
-    ['she turns 90 degrees in one frame', (r, cat) => { cat.rotation.y -= Math.PI / 2; }],
+    // to the person's left her head goes out of the right hand's reach; to the
+    // right it swings toward the arm (and may stay in reach, the hand on it)
+    ['she turns 90 degrees to his left in one frame', (r, cat) => { cat.rotation.y -= Math.PI / 2; }],
+    ['she turns 90 degrees to his right in one frame', (r, cat) => { cat.rotation.y += Math.PI / 2; }],
     ['she moves her head 0.5 m away in one frame', (r, cat) => { cat.position.add(new THREE.Vector3(0, 0, -0.5).applyAxisAngle(UP, r.group.rotation.y)); }],
   ]) {
     it(`${what} mid-touch: it withdraws, then holds out, never through her`, () => {
@@ -381,25 +439,36 @@ describe('the head scratch', () => {
           const cat = buildCat(breed);
           animateCat(cat, 'requestPet', 1, 0, false);
           place(r, cat, 0.65);
-          for (let i = 0; i < 90; i++) frame(r, cat);
+          for (let i = 0; i < REACH_FRAMES; i++) frame(r, cat);
           expect(r.sc.state, `${breed} ${kind}`).toBe('resting');
           move(r, cat);
           cat.updateMatrixWorld(true);
           const seen = [];
-          for (let i = 0; i < 90; i++) {
+          const last = palmPoint(r.p, new THREE.Vector3());
+          for (let i = 0; i < 120; i++) {
             const s = frame(r, cat);
             if (seen[seen.length - 1] !== s) seen.push(s);
             expect(worstClearance(r.p, r.vol), `${breed} ${kind} frame ${i}`).toBeGreaterThan(0.005);
+            expect(worstEar(r.p, r.vol), `${breed} ${kind} frame ${i}`).toBeGreaterThan(0);
+            const palm = palmPoint(r.p, new THREE.Vector3());
+            expect(palm.distanceTo(last), `${breed} ${kind} frame ${i}: a step`).toBeLessThanOrEqual(STEP_MAX);
+            last.copy(palm);
           }
-          expect(seen, `${breed} ${kind}`).toEqual(['withdrawing', 'held']);
+          // she went out of reach: withdrawn and held out; or (turned to his
+          // right) still in reach: the hand stays on her, or comes back
+          if (seen.includes('withdrawing')) expect(seen.slice(0, 2), `${breed} ${kind}`).toEqual(['withdrawing', 'held']);
+          else expect(seen, `${breed} ${kind}`).toEqual(['resting']);
+          if (/0\.5 m/.test(what) || /left/.test(what)) expect(seen.slice(0, 2), `${breed} ${kind}`).toEqual(['withdrawing', 'held']);
         }
       }
     });
   }
 
   it('never through her: every cat, a grid of places and headings, an adult and an older person', () => {
-    const vol = { head: new THREE.Sphere(), body: { a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 } };
+    const vol = catVolumes(buildCat('tabby'));
     let worst = Infinity;
+    let ear = Infinity;
+    let earAt = '';
     let worstAt = '';
     let surface = Infinity;
     let surfaceAt = '';
@@ -419,12 +488,13 @@ describe('the head scratch', () => {
               animateCat(cat, catPose, 1, 0, false);
               cat.updateMatrixWorld(true);
               catVolumes(cat, vol);
-              // she inside the person (her head in the shoulder, or her head
+              // she inside the person (ruling R12: her head or an ear at the
+              // shoulder, within two upper arms' thickness of it, or her head
               // or body in the chest): no arm can be clear of her there, and
               // she cannot be there (the person's soft bump and body)
               pose(r.p, { mode: 'kneel', t: 0 }); applyPose(r.p, DT, 0);
               const sh = r.p.bones.upperArmR.getWorldPosition(new THREE.Vector3());
-              if (insidePerson(r, vol) || clearance(sh, vol) < r.p.look.dims.uaR[0]) { skipped++; continue; }
+              if (insidePerson(r, vol) || clearance(sh, vol) < 2 * r.p.look.dims.uaR[0]) { skipped++; continue; }
               configs++;
               r.vol = vol;
               let rested = false;
@@ -433,6 +503,8 @@ describe('the head scratch', () => {
                 const s = frame(r, cat);
                 const palm = palmPoint(r.p, new THREE.Vector3());
                 if (i > 0) { const j = palm.distanceTo(last); if (j > jump) { jump = j; jumpAt = `${breed} ${catPose} ${kind} ${d10 / 10} m ${h * 45} deg frame ${i} ${s}`; } }
+                const ec = worstEar(r.p, vol);
+                if (ec < ear) { ear = ec; earAt = `${breed} ${catPose} ${kind} ${d10 / 10} m ${h * 45} deg frame ${i} ${s}`; }
                 last.copy(palm);
                 if (s === 'resting') rested = true;
                 const c = worstClearance(r.p, vol);
@@ -446,9 +518,11 @@ describe('the head scratch', () => {
         }
       }
     }
-    console.info(`never through her: ${configs} places (${skipped} skipped: she inside the person), ${touched} touched; worst clearance ${worst.toFixed(4)} m at ${worstAt}; worst surface ${surface.toFixed(4)} m at ${surfaceAt}; fastest hand ${(jump * 60).toFixed(2)} m/s at ${jumpAt}`);
+    console.info(`never through her: ${configs} places (${skipped} skipped: she inside the person), ${touched} touched; worst clearance ${worst.toFixed(4)} m at ${worstAt}; worst surface ${surface.toFixed(4)} m at ${surfaceAt}; worst ear (skin) ${ear.toFixed(4)} m at ${earAt}; biggest palm step ${jump.toFixed(4)} m at ${jumpAt}`);
     expect(worst, worstAt).toBeGreaterThan(0.005); // the arm's middle line, as the spec words it
     expect(surface, surfaceAt).toBeGreaterThan(0); // and its skin
+    expect(ear, earAt).toBeGreaterThan(0); // her ears too
+    expect(jump, jumpAt).toBeLessThanOrEqual(STEP_MAX); // never a jump (R13)
     expect(touched).toBeGreaterThan(configs * 0.15); // the sweep covers real touches
     expect(skipped).toBeLessThan(configs * 0.25);
   }, 240000);
@@ -481,7 +555,7 @@ describe('the head scratch', () => {
     place(r, cat, 1.05); // far enough that the chest leans to reach
     const top = headTopOf(cat, new THREE.Vector3());
     const vol = catVolumes(cat);
-    for (let i = 0; i < 80; i++) { pose(r.p, { mode: 'kneel', t: 0 }); applyPose(r.p, DT); stepScratch(r.p, r.sc, DT, { headTop: top, volumes: vol }); }
+    for (let i = 0; i < 200; i++) { pose(r.p, { mode: 'kneel', t: 0 }); applyPose(r.p, DT); stepScratch(r.p, r.sc, DT, { headTop: top, volumes: vol }); }
     expect(r.sc.lean).toBeGreaterThan(0.01);
     const posed = r.p.target.rot[2 * 3]; // the chest's x as the pose has it (JOINTS: root, pelvis, chest)
     expect(r.p.bones.chest.rotation.x).toBeCloseTo(posed - r.sc.lean, 9);
