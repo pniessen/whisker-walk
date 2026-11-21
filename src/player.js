@@ -480,6 +480,21 @@ export function isWadeableAt(area, x, z) {
   return shallowExcess(waters, x, z) <= WADE_EPS;
 }
 
+// Her middle out of each collider in turn, to c.r + CAT_RADIUS from it (a
+// slide, never a shove).
+function pushOutOfColliders(pos, colliders) {
+  for (const c of colliders) {
+    const dx = pos.x - c.x;
+    const dz = pos.z - c.z;
+    const d = Math.hypot(dx, dz);
+    const min = c.r + CAT_RADIUS;
+    if (d < min && d > 0.0001) {
+      pos.x = c.x + (dx / d) * min;
+      pos.z = c.z + (dz / d) * min;
+    }
+  }
+}
+
 // Push `pos` (a THREE.Vector3, mutated in place) out to WATER_MARGIN clear of
 // every water; returns whether it had to.
 //
@@ -1048,19 +1063,12 @@ export function createPlayer(camera, canvas) {
       // INCLUDING mid-hop, because the hop is a render offset and never
       // reaches perchY. A pouncing cat cannot pass through a wall.
       if (api.perchY === 0) {
-        for (const c of colliders) {
-          const dx = avatar.position.x - c.x;
-          const dz = avatar.position.z - c.z;
-          const d = Math.hypot(dx, dz);
-          const min = c.r + CAT_RADIUS;
-          if (d < min && d > 0.0001) {
-            avatar.position.x = c.x + (dx / d) * min;
-            avatar.position.z = c.z + (dz / d) * min;
-          }
-        }
+        pushOutOfColliders(avatar.position, colliders);
         // The soft bumps (people): the same push, after the colliders, for
         // her middle and then her head and her body's ends (catPoints).
         if (bumps.length) {
+          const bx0 = avatar.position.x;
+          const bz0 = avatar.position.z;
           // her points only when a circle is near enough to reach one
           nPts = 1;
           PTS[2] = CAT_RADIUS;
@@ -1091,6 +1099,11 @@ export function createPlayer(camera, canvas) {
               }
             }
           }
+          // A bump that moved her may have pushed her into a collider (wedged
+          // between a person and a wall): the colliders' push once more, so
+          // a wall is never given up for a person. (Only then: a frame no
+          // bump moved her is as it was.)
+          if (avatar.position.x !== bx0 || avatar.position.z !== bz0) pushOutOfColliders(avatar.position, colliders);
         }
       }
       // The water pass. AFTER the collider push, so a cat shoved off a crate

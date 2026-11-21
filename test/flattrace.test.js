@@ -34,11 +34,12 @@ import {
 
 describe('the flat trace', () => {
   let trace;
+  // (every map traced: ~4 s alone, far more under a loaded full suite)
   beforeAll(() => {
     trace = traceAll();
     const update = process.env.UPDATE_TRACE;
     if (update === 'gameplay' || update === 'render') writeFixture(update, trace[update]);
-  });
+  }, 90_000);
 
   it('gameplay: every moving thing on every shipped map is where it was (frozen)', () => {
     expect(closeDiffs(trace.gameplay, recordedGameplay())).toEqual([]);
@@ -58,7 +59,7 @@ describe('the flat trace', () => {
   it('gameplay does not read Math.random (THREE uuid draws move nothing)', () => {
     const other = traceAll({ uuidSeed: (UUID_SEED ^ 0x5eed5) >>> 0, pinMoorDraws: false });
     expect(closeDiffs(other.gameplay, recordedGameplay())).toEqual([]);
-  });
+  }, 90_000);
 
   // The people switch on (soft bumps in play): the villagers are the new
   // people and her walk is passed their bumps; the frozen fixture must hold.

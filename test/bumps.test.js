@@ -73,9 +73,11 @@ function spotOf(kind, z = 6) {
   throw new Error('no spot');
 }
 
-function town(defs) {
+// (`area`, as the walk passes it: a pair's child is placed clear of its
+// colliders and water)
+function town(defs, area = null) {
   return createCritters(scene, defs, {
-    people: createPeopleKit, rng: mulberry32(7), motionRng: mulberry32(11),
+    people: createPeopleKit, rng: mulberry32(7), motionRng: mulberry32(11), area,
   });
 }
 
@@ -157,6 +159,56 @@ describe('the soft bumps', () => {
     }
     // (nothing hands her a bump list: the only caller of the push is player.update)
     expect(Math.hypot(remotes.list[0].group.position.x - at[0], remotes.list[0].group.position.z - at[1])).toBeLessThan(0.05);
+  });
+
+  // A wedge between a person and a wall: the Neighborhood's (14, 34)
+  // grown-up's knee circle and the collider at (12, 30), r 3.4, leave a gap
+  // of 0.54 m, too narrow for her. The bump push comes after the colliders',
+  // so without a second collider push it left her up to 0.16 m inside the
+  // wall. Driven through the gap from either side, and straight in, at a
+  // walk and at a run: never inside the collider; and a frame no bump moved
+  // her is the colliders' push alone, as ever.
+  it('a wedge between a person and a wall: she is never left inside the wall', () => {
+    const wall = { x: 12, z: 30, r: 3.4 };
+    const knee = { x: 13.64, z: 33.7, r: 0.1 };
+    const ux = (knee.x - wall.x) / Math.hypot(knee.x - wall.x, knee.z - wall.z);
+    const uz = (knee.z - wall.z) / Math.hypot(knee.x - wall.x, knee.z - wall.z);
+    const mid = { x: wall.x + ux * (wall.r + 0.27), z: wall.z + uz * (wall.r + 0.27) };
+    let worst = Infinity;
+    let wedged = 0;
+    for (const [sx, sz] of [[uz, -ux], [-uz, ux], [ux, uz]]) {
+      for (const mag of [0.6, 1]) {
+        const w = walker(mid.x + sx * 1.5, mid.z + sz * 1.5);
+        for (let i = 0; i < 240; i++) {
+          // (she makes for the gap's middle, then on through it)
+          const tx = i < 90 ? mid.x : mid.x - sx * 1.5;
+          const tz = i < 90 ? mid.z : mid.z - sz * 1.5;
+          const dx = tx - w.cat.position.x, dz = tz - w.cat.position.z, d = Math.hypot(dx, dz) || 1;
+          w.player.setTouchMove({ x: dx / d, z: dz / d, mag });
+          w.t += DT;
+          w.player.update(DT, [wall], null, [], [knee]);
+          animateCat(w.cat, 'follow', w.t, 1, false);
+          w.cat.updateMatrixWorld(true);
+          const inWall = Math.hypot(w.cat.position.x - wall.x, w.cat.position.z - wall.z) - (wall.r + CAT_RADIUS);
+          worst = Math.min(worst, inWall);
+          if (Math.hypot(w.cat.position.x - knee.x, w.cat.position.z - knee.z) < knee.r + CAT_RADIUS + 0.05 && inWall < 0.05) wedged++;
+        }
+      }
+    }
+    expect(wedged).toBeGreaterThan(10); // she was in the wedge
+    expect(worst).toBeGreaterThanOrEqual(-1e-6); // and never inside the wall
+    // a frame no bump moves her: exactly the colliders' push alone
+    const a = walker(mid.x + uz * 1.5, mid.z - ux * 1.5);
+    const b = walker(mid.x + uz * 1.5, mid.z - ux * 1.5);
+    const far = [{ x: 40, z: 40, r: 0.22 }];
+    for (let i = 0; i < 120; i++) {
+      for (const [w, bumps] of [[a, far], [b, []]]) {
+        w.player.setTouchMove({ x: -uz, z: ux, mag: 1 });
+        w.player.update(DT, [wall], null, [], bumps);
+      }
+      expect(a.cat.position.x).toBe(b.cat.position.x);
+      expect(a.cat.position.z).toBe(b.cat.position.z);
+    }
   });
 
   it('allocates nothing per frame in the push', () => {
@@ -295,7 +347,7 @@ describe('placements clear of people', () => {
     it(`${areaId}: gold mice, finds, yarn, scenics, pois and the spawn`, async () => {
       const world = await import(`../src/world/${areaId}.js`);
       const area = world.build(new THREE.Scene());
-      const c = town(area.critterSpawns.filter((s) => s.type === 'villager').map((s) => ({ ...s })));
+      const c = town(area.critterSpawns.filter((s) => s.type === 'villager').map((s) => ({ ...s })), area);
       expect(c.bumps.length).toBeGreaterThan(0);
       const spots = [
         ...(GOLD_MICE[areaId] ?? []).map((m) => ['gold', m]),

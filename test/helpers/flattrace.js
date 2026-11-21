@@ -186,6 +186,7 @@ export function traceArea(areaId, world, motion = MOTION(areaId), { pinMoorDraws
 
   const critters = createCritters(scene, area.critterSpawns, {
     rng: motion.critterPlace, motionRng: motion.critterMotion, hides: propsFor(areaId).hides,
+    area, // as the walk passes it: a pair's child is placed clear of the colliders and water
     // the people switch on: villagers are the new people, with soft bumps
     people: people ? createPeopleKit : null, camera: people ? camera : undefined,
   });
