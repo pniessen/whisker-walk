@@ -41,6 +41,7 @@ const { JOURNAL_TYPES, createProgression } = await import('../src/progression.js
 const { CRITTER_INFO } = await import('../src/journal.js');
 const { createDiscoveryLog } = await import('../src/discoveries.js');
 const { containsBanned } = await import('../src/blocklist.js').catch(() => ({ containsBanned: null }));
+const { stickTakesOff } = await import('../src/climbing.js');
 
 // One built Fairground, as the walk has it: the props' own colliders are in
 // the list too (walk.js adds the rests' and the flaps' frames).
@@ -892,7 +893,7 @@ function walk({ at = { x: 0, z: 8 }, clock = { T: 2000 }, reducedMotion = false 
     camera.position.set(cat.position.x + Math.sin(player.yaw) * 5, cat.position.y + 3, cat.position.z + Math.cos(player.yaw) * 5);
     camera.lookAt(cat.position.x, cat.position.y + 0.5, cat.position.z);
     live.update(DT, clock.T, ctx);
-    if (session.perched && player.inputActive) { session.perched = null; player.perchY = 0; }
+    if (stickTakesOff(session, player.inputActive)) { session.perched = null; player.perchY = 0; }
     cat.position.y = player.perchY;
     cat.rotation.z = 0;
     live.late(DT, clock.T, ctx);

@@ -38,8 +38,13 @@ export const RIDE = Object.freeze({
   MGR_DECK_R: 4.1,     // where the cat stands on the platform: outside the outer horses, inside the rim
   MGR_DECK_SPOTS: 16,  // close enough together that one is always in reach of a cat beside the ride
   // A jump's reach, in metres. From the ground she reaches the platform; a
-  // horse is reached from the platform or from another horse.
-  REACH_DECK: 1.6,
+  // horse is reached from the platform or from another horse. The platform's
+  // reach is measured out from the ring of standing places (MGR_DECK_R), so
+  // it is the same wherever the ride has turned to: a cat up to about 1.3 m
+  // short of where the plinth stops her gets on, at every moment, onto the
+  // standing place nearest her. (It was 1.6 to the nearest standing place,
+  // which reached only from the last half metre: fair-jumps, 2026-11-20.)
+  REACH_DECK: 2.3,
   REACH_HORSE: 2.75,
   // A hop to a seat ahead (the way the ride turns) is preferred by this much,
   // so hopping again and again works round the ride instead of to and fro.
@@ -76,8 +81,25 @@ export const RIDE = Object.freeze({
   BOARD_SPEED: 3.0,    // she can hop in while the train stands or goes slower than this
   PLATFORM_SPEED: 0.6, // and out onto the platform only while it is as good as stopped
   TRACK_SWEEP: 1.3,    // nobody lands this near the track's centre line
+  // The station's plaza side: the ground in front of the deck as far out as
+  // the foot of its steps (this far west of the deck's edge), the steps and
+  // the platform. While the train can be boarded, a jump from anywhere there
+  // puts her in the car nearest her, one press, as a child expects.
+  STATION_FRONT: 2.0,
+  // ...but no further than this (flat): from the foot of the steps to the end
+  // car of a standing train, and never down the line to a train coming in or
+  // leaving, however slowly.
+  STATION_CAR: 5.8,
   // the camera that follows the train: behind and above, eased
   CHASE_BACK: 5.4, CHASE_UP: 2.7, CHASE_TURN: 0.7, CHASE_MOVE: 0.3, CHASE_LOOK: 0.15,
+  // ---- the jump and the paw ----
+  // How much further a JUMP reaches than the paw's 'up' says (src/game/tips.js
+  // asks with none). The paw is redrawn four times a second and a seat keeps
+  // moving, so a jump pressed the moment the paw said 'up' still finds the
+  // seat it promised: at the fastest boardable seat (a slowing train, 3 m/s)
+  // a quarter of a second is 0.75 m, and every seat here is reached by its
+  // nearest point, which moves less.
+  JUMP_SLACK: 0.6,
   // ---- getting off ----
   LAND_MARGIN: 0.1,    // clear of every collider by the cat's radius and this
   BOUNDS_MARGIN: 0.5,
@@ -347,7 +369,7 @@ export function createFairSim(area) {
     for (let i = 0; i <= N; i++) fastest = Math.max(fastest, v[i]);
     return {
       track: tr, length: L, stationS: g.stationS, cars, N, ds, v, at, scale: k, fastest, hillTop: top * ds,
-      platform: areaPerch(area.anchors.coasterPlatform), s: g.stationS, d: 0, speed: 0, waiting: true,
+      platform: areaPerch(area.anchors.coasterPlatform), station: area.anchors.coasterStation ?? null, s: g.stationS, d: 0, speed: 0, waiting: true,
     };
   })();
   seats.push(...coaster.cars);
@@ -463,11 +485,36 @@ export function createFairSim(area) {
     return best;
   }
 
-  // jumpTarget(cat, from, last) → what the jump button does now, or null when
+  // In front of the coaster's station (STATION_FRONT): on the ground before
+  // its deck, on its steps or on the platform, never higher.
+  function atStation(cat) {
+    const st = coaster.station;
+    const p = coaster.platform;
+    if (!st || !p || (cat.y ?? 0) > p.y + 0.05) return false;
+    return cat.x >= st.minX - RIDE.STATION_FRONT && cat.x <= p.x + 0.05 && cat.z >= st.minZ && cat.z <= st.maxZ;
+  }
+  // The car of the train that is alongside the station's deck (`slack`
+  // metres beyond either end of it) and nearest `cat`, or null.
+  function stationCar(cat, slack) {
+    const st = coaster.station;
+    let best = null;
+    let bestD = Infinity;
+    for (let i = 0; i < coaster.cars.length; i++) {
+      const c = coaster.cars[i];
+      if (c.z < st.minZ - slack || c.z > st.maxZ + slack || c.x < st.minX || c.x > st.maxX + 2) continue;
+      const d = flat(c, cat);
+      if (d < RIDE.STATION_CAR + slack && d < bestD) { best = c; bestD = d; }
+    }
+    return best;
+  }
+
+  // jumpTarget(cat, from, last, slack) → what the jump button does now, or null when
   // no ride has anything to say (the game's ordinary jump then runs).
   //   cat    { x, y, z }: where her paws are (y: metres above the ground)
   //   from   the perch she is on (a seat of ours, one of the area's, or null)
   //   last   the seat she last hopped from, or null
+  //   slack  metres added to every reach onto a ride from outside it: 0 for
+  //          the paw's badge, RIDE.JUMP_SLACK for the jump itself
   // The answer is ONE reused object: { type, seat, perch }.
   //   'board'   from the ground or an ordinary perch onto `seat`
   //   'hop'     from one seat to `seat`
@@ -476,7 +523,7 @@ export function createFairSim(area) {
   //             on the boarding deck or the lookout for the next gondola)
   //   'slide'   from the helter-skelter's gallery onto `seat`, the chute: the slide starts
   //   'off'     off the ride, to the ground
-  function jumpTarget(cat, from, last = null) {
+  function jumpTarget(cat, from, last = null, slack = 0) {
     if (from && from.fair) {
       if (from.rideId === 'mgr') {
         const h = nextHorse(from, last);
@@ -509,19 +556,22 @@ export function createFairSim(area) {
     let best = null;
     let bestD = Infinity;
     if ((cat.y ?? 0) < mgr.deckY + 0.6) {
-      for (let i = 0; i < mgr.deck.length; i++) {
-        const d = flat(mgr.deck[i], cat);
-        if (d < RIDE.REACH_DECK && d < bestD) { best = mgr.deck[i]; bestD = d; }
+      // out from the ring of standing places, whichever way the ride has turned
+      if (Math.hypot(cat.x - mgr.cx, cat.z - mgr.cz) - RIDE.MGR_DECK_R < RIDE.REACH_DECK) {
+        for (let i = 0; i < mgr.deck.length; i++) {
+          const d = flat(mgr.deck[i], cat);
+          if (d < bestD) { best = mgr.deck[i]; bestD = d; }
+        }
       }
     }
     if ((cat.y ?? 0) < 0.6) {
       for (let i = 0; i < cups.list.length; i++) {
         const d = flat(cups.list[i], cat);
-        if (d < RIDE.REACH_CUP && d < bestD) { best = cups.list[i]; bestD = d; }
+        if (d < RIDE.REACH_CUP + slack && d < bestD) { best = cups.list[i]; bestD = d; }
       }
     }
     {
-      const g = gondolaNear(cat, RIDE.REACH_GONDOLA);
+      const g = gondolaNear(cat, RIDE.REACH_GONDOLA + slack);
       if (g && g.y - (cat.y ?? 0) <= RIDE.GONDOLA_STEP_UP) {
         const d = apart(g, cat);
         if (d < bestD) { best = g; bestD = d; }
@@ -531,8 +581,11 @@ export function createFairSim(area) {
       for (let i = 0; i < coaster.cars.length; i++) {
         const c = coaster.cars[i];
         const d = apart(c, cat);
-        if (d < RIDE.REACH_CAR && c.y - (cat.y ?? 0) <= RIDE.CAR_STEP_UP && d < bestD) { best = c; bestD = d; }
+        if (d < RIDE.REACH_CAR + slack && c.y - (cat.y ?? 0) <= RIDE.CAR_STEP_UP && d < bestD) { best = c; bestD = d; }
       }
+      // In front of the station, the car nearest her, from the ground at the
+      // foot of the steps as well as from the platform: one press, not three.
+      if (!best && atStation(cat)) best = stationCar(cat, slack);
     }
     if (best) return answer('board', best);
     // On the boarding deck with no gondola in reach, or the coaster's platform
