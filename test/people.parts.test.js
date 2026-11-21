@@ -256,6 +256,34 @@ describe('people parts', () => {
     }
   });
 
+  it('no arm through a short sleeve', () => {
+    // the sleeve's round top stays outside the arm's own (a cone over a
+    // round cap let the skin show through at the shoulder)
+    const jointOf = (part) => part.geo.getAttribute('skinIndex').getX(0);
+    for (const kind of KINDS) for (const sex of SEXES) for (const top of ['tshirt']) {
+      const look = personFor({ x: 2, z: 1, kind, sex, top: { kind: top } });
+      const d = look.dims;
+      for (const detail of DETAILS) {
+        const parts = personParts(look, detail);
+        for (const [sd, L] of [[-1, 'L'], [1, 'R']]) {
+          const j = JOINT_INDEX[`upperArm${L}`];
+          const sleeve = tagged(parts, 'sleeve').filter((p) => jointOf(p) === j);
+          const arm = tagged(parts, 'arm').filter((p) => jointOf(p) === j);
+          expect(sleeve.length, `${kind} ${sex} ${detail}`).toBe(1);
+          const ax = sd * d.shoulderX;
+          const bottom = d.shoulderY - d.upperArm * 0.5;
+          for (const [x, y, z] of verts(arm)) {
+            const r = Math.hypot(x - ax, z);
+            if (y < bottom || r < 1e-6) continue;
+            const p = hit(sleeve, [ax, y, 0], [x - ax, 0, z]);
+            expect(p, `${kind} ${sex} ${detail} ${L}: the arm at y ${y.toFixed(3)} is above the sleeve`).toBeTruthy();
+            expect(Math.hypot(p.x - ax, p.z), `${kind} ${sex} ${detail} ${L} at y ${y.toFixed(3)}`).toBeGreaterThanOrEqual(r - 1e-6);
+          }
+        }
+      }
+    }
+  });
+
   it('triangle targets', () => {
     const counts = { near: [Infinity, 0], far: [Infinity, 0] };
     const add = (look) => {

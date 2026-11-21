@@ -3,19 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>People picture sheet (prototype)</title>
-<!-- PROTOTYPE picture sheet for the lifelike people design
-     (docs/superpowers/specs/2026-11-20-lifelike-people-design.md). Throwaway:
-     it draws prototype/people-figure.js (not game code) next to today's
-     Twoleg (src/critters.js buildTwolegFigure), with the game's own light.
+<title>People picture sheet</title>
+<!-- The picture sheet for the lifelike people
+     (docs/superpowers/specs/2026-11-20-lifelike-people-design.md). It draws the
+     real module (src/people/index.js, the kit) next to today's Twoleg
+     (src/critters.js buildTwolegFigure), with the game's own light. Not game
+     code: nothing in the game imports src/people/ yet.
+     Each frame, for every person: pose(), applyPose(), stepGaze() (her head is
+     the target), then the world matrices, then kit.update() (near/far, view).
+     A still runs that loop for 2.5 s of simulated time at 1/60 s before it
+     renders, so the eases settle and the gaze turns complete.
      URL params:
-       scene=sheet (default)   a lineup on a lawn: today's figure, then a man, a woman, a child, an older person, and a tabby for scale
+       scene=sheet (default)   a lineup on a lawn: today's figure, then a man, a woman with a girl at her side (one spot: a pair), an older man, and a tabby for scale
        scene=fair&fig=new|old  the real Fairground (world/fair.js) with its visitors (src/fairvisitors.js, run on 40 s) and the juggler
        size=WxH                the canvas (default 1280x720)
      Shots (scripts/record-page.mjs --shots a,b): window.__shot(name) poses, lights and frames, and answers the name.
-       sheet: lineup-day lineup-cateye-day stride-day wave-cateye-day crouch-cateye-day lineup-sunset wave-cateye-sunset
-              stride-sunset far-day lod-close faces-day back-day
+       sheet: lineup-day lineup-cateye-day faces-front-day faces-near-day blink-day glance-day stride-day
+              wave-cateye-day crouch-cateye-day dismay-day lineup-sunset wave-cateye-sunset stride-sunset
+              neck-side-day neck-far-day far-day lod-close faces-day back-day crowd-spots
        fair:  fair-day fair-dusk fair-close
+     Tours (scripts/record-page.mjs --tour name): window.__tour(name), then window.__frame() steps 1/30 s
+     (two 1/60 s steps) and renders, and answers { done, caption }.
+       sheet: gaze (she walks past the lineup 3 m away, 8 s), walk (a man, a woman and a pair walk past, 6 s)
      window.__info() renders and returns { calls, triangles } (renderer.info, shadow passes included);
      window.__stats is the people's triangle counts. -->
 <style>
@@ -41,7 +50,7 @@
   import { applyDusk, duskEnv } from '/src/render/dusk.js';
   import { skyBackground } from '/src/render/sky.js';
   import { createWind } from '/src/render/wind.js';
-  import { buildPerson, pose, lookAngles, strideFor, personFor } from '/prototype/people-figure.js';
+  import { createPeopleKit, pose, applyPose, strideFor, createGaze, stepGaze } from '/src/people/index.js';
 
   const params = new URLSearchParams(location.search);
   const sceneId = params.get('scene') || 'sheet';
@@ -69,72 +78,66 @@
   const sun = createSun();
   scene.add(sun);
   const camera = new THREE.PerspectiveCamera(55, W / H, 0.05, 300);
-  const people = [];   // { kind: 'new'|'old', p (new) | fig (old), group, label }
+  const kit = createPeopleKit({ camera, reducedMotion: false });
+  // What is drawn: { id, group, members: [{ person, gaze, label }], old?, oldPose?, spot?, label? }.
+  // A new item's group holds its people's figures (a pair: two, side by side).
+  const items = [];
   const cats = [];
   let area = null;
   let fill = null;
   let sky = { top: 0x8fcbf0, horizon: 0xe4f1e2 };
   let skyDusk = { top: 0x2b3560, horizon: 0x9a6a78 };
 
-  // ---- the two figures, one interface -------------------------------------------
-  // makeNew(def) / makeOld(def): a Group facing -z with .poseAs(spec)
-  function makeNew(def) {
-    const p = buildPerson(def);
+  // ---- the figures --------------------------------------------------------------
+  // One spot, through the kit: one person, or a pair (the grown-up and the
+  // child from the same spot), `gap` apart across the group (the pair's middle
+  // is the group's origin).
+  function spotItem(id, def, { gap = 0.66, labels = [] } = {}) {
+    const spot = kit.buildSpot(def);
     const group = new THREE.Group();
-    group.add(p.figure);
-    group.userData.person = p;
-    group.userData.persons = [p];
-    group.poseAs = (spec) => {
-      let s = { ...spec };
-      if (spec.walked !== undefined) s.phase = strideFor(p, spec.walked); // each walker's own stride
-      if (spec.lookAt) Object.assign(s, (({ yaw, pitch }) => ({ lookYaw: yaw, lookPitch: pitch }))(lookAngles(p, spec.lookAt)));
-      if (spec.detail) p.setDetail(spec.detail);
-      pose(p, s);
-    };
-    return group;
+    const members = spot.people.map((person, i) => {
+      if (spot.pair) person.figure.position.x = i === 0 ? -gap / 2 : gap / 2;
+      group.add(person.figure);
+      return { person, gaze: createGaze(person.look), label: labels[i] };
+    });
+    const item = { id, group, members, pair: spot.pair };
+    scene.add(group);
+    items.push(item);
+    return item;
   }
-  // The owner (2026-11-20): children appear only next to a grown-up. A spot
-  // whose hash says "child" is a pair: a grown-up from the same spot and the
-  // child at their side (same hair colour: a family look). The pair's middle is
-  // the spot; the grown-up stands 0.33 m to one side, the child 0.33 m to the other.
-  function makePair(def) {
-    const group = new THREE.Group();
-    const adult = makeNew({ ...def, kind: 'adult' });
-    const child = makeNew({ ...def, kind: 'child' });
-    adult.position.x = -0.33; child.position.x = 0.33;
-    group.add(adult, child);
-    group.userData.persons = [adult.userData.person, child.userData.person];
-    group.userData.pair = true;
-    group.poseAs = (spec) => { adult.poseAs(spec); child.poseAs(spec); };
-    return group;
-  }
-  const makeFromSpot = (def) => (personFor(def).kind === 'child' ? makePair(def) : makeNew(def));
-  function makeOld(def) {
+  // Today's figure, posed as critters.js and fairshow.js pose it.
+  function oldItem(id, def, label) {
     const { figure, arm } = buildTwolegFigure(def);
     const group = new THREE.Group();
     group.add(figure);
-    group.poseAs = (spec) => {
-      // as critters.js and fairshow.js pose it today
+    const oldPose = (spec) => {
       const t = spec.t ?? 0;
       figure.position.y = 0; figure.scale.y = 1; figure.rotation.x = 0;
       arm.rotation.x = 0;
       if (spec.mode === 'wave') arm.rotation.z = 2.6 + Math.sin(t * 6) * 0.3;
-      else if (spec.mode === 'crouch') { figure.scale.y = 0.7; figure.rotation.x = -0.28; arm.rotation.z = 1.2; }
+      else if (spec.mode === 'kneel') { figure.scale.y = 0.7; figure.rotation.x = -0.28; arm.rotation.z = 1.2; }
       else if (spec.mode === 'juggle') arm.rotation.z = 1.0 + Math.sin(t * 4.6) * 0.35;
       else {
         arm.rotation.z = 0.4;
         if (spec.mode === 'walk') { arm.rotation.x = Math.sin(spec.oldStride ?? 0) * 0.45; figure.position.y = Math.abs(Math.sin(spec.oldStride ?? 0)) * 0.03; }
       }
     };
-    return group;
+    const item = { id, group, members: [], old: true, oldPose, label };
+    scene.add(group);
+    items.push(item);
+    return item;
   }
 
-  // ---- the lineup ------------------------------------------------------------------
-  const CAST = [
+  // ---- the sheet's cast ---------------------------------------------------------------
+  // The woman and the girl are one spot (an explicit 'child' kind always
+  // pairs): the kit builds both, the girl 0.65 m to her side. The pair's
+  // overrides go to both, so only the shared ones (sex, hair colour).
+  const SHEET = [
     { id: 'today', old: true, def: { x: -16, z: 12 }, label: "today's Twoleg" },
     { id: 'man', def: { x: 1, z: 1, kind: 'adult', sex: 'm', height: 1.8, hairStyle: 'short', hairColor: 'dark', top: { kind: 'jumper', color: 0x3e5a7a }, bottom: { kind: 'trousers', color: 0x4a4a52 }, shoes: 0x5a3a28, hat: null, skin: 0xe6bf9e }, label: 'man, 1.80 m' },
-    { id: 'woman', def: { x: 2, z: 1, kind: 'adult', sex: 'f', height: 1.66, hairStyle: 'ponytail', hairColor: 'auburn', top: { kind: 'tshirt', color: 0xd27a96 }, bottom: { kind: 'trousers', color: 0x3e4a66 }, shoes: 0xe8e4dc, hat: null, skin: 0xefcfb4 }, label: 'woman, 1.66 m' },
-    { id: 'child', def: { x: 3, z: 1, kind: 'child', sex: 'f', height: 1.3, hairStyle: 'pigtails', hairColor: 'blond', top: { kind: 'tshirt', color: 0xf7c93b }, bottom: { kind: 'shorts', color: 0x4a9ad0 }, shoes: 0xd8503a, hat: null, skin: 0xcf9d74 }, label: 'child, 1.30 m' },
+    { id: 'pair', def: { x: 2, z: 1, kind: 'child', sex: 'f', hairColor: 'auburn', hat: null } },
+    // only in the walk tour: a woman on her own
+    { id: 'woman', extra: true, def: { x: 2.5, z: 1, kind: 'adult', sex: 'f', height: 1.66, hairStyle: 'ponytail', hairColor: 'dark', top: { kind: 'tshirt', color: 0xd27a96 }, bottom: { kind: 'trousers', color: 0x3e4a66 }, shoes: 0xe8e4dc, hat: null, skin: 0xefcfb4 }, label: 'woman, 1.66 m' },
     { id: 'older', def: { x: 4, z: 1, kind: 'older', sex: 'm', height: 1.7, hairStyle: 'short', hairColor: 'white', top: { kind: 'coat', color: 0x7a8a4a }, bottom: { kind: 'trousers', color: 0x7a6a50 }, shoes: 0x3a3330, hat: null, glasses: true, skin: 0xa8734c }, label: 'older man, 1.70 m' },
   ];
   // a second lineup, dressed from spawn spots only (no overrides): how crowds vary
@@ -166,20 +169,24 @@
     const pave = new THREE.Mesh(new THREE.PlaneGeometry(9, 2.2), new THREE.MeshStandardMaterial({ color: 0xc9c2b4, roughness: 0.9 }));
     pave.rotation.x = -Math.PI / 2; pave.position.set(0, 0.002, 0); pave.receiveShadow = true;
     scene.add(pave);
-    CAST.forEach((c, i) => {
-      const g = c.old ? makeOld(c.def) : makeNew(c.def);
-      g.position.set(-3.2 + i * 1.55, 0, 0);
-      g.rotation.y = Math.PI; // face the camera (+z)
-      scene.add(g);
-      people.push({ ...c, group: g });
-    });
+    for (const c of SHEET) {
+      if (c.old) { oldItem(c.id, c.def, c.label); continue; }
+      const it = spotItem(c.id, c.def, { gap: 0.65, labels: c.id === 'pair' ? [] : [c.label] });
+      if (c.extra) { it.extra = true; it.group.visible = false; }
+      if (it.pair) {
+        const [a, k] = it.members;
+        a.label = `woman, ${a.person.look.height.toFixed(2)} m`;
+        k.label = `girl, ${k.person.look.height.toFixed(2)} m (same spot)`;
+        // the woman at the group's origin, the girl to her side (screen right when facing us)
+        a.person.figure.position.x = 0;
+        k.person.figure.position.x = -0.65;
+      }
+    }
     SPOTS.forEach(([x, z], i) => {
-      const g = makeFromSpot({ x, z });
-      g.position.set(-5.6 + i * 1.6, 0, -2.6);
-      g.rotation.y = Math.PI;
-      g.visible = false;
-      scene.add(g);
-      people.push({ id: `spot${i}`, spot: true, def: { x, z }, group: g, label: g.userData.pair ? `spot ${x},${z}: a pair` : `spot ${x},${z}` });
+      const it = spotItem(`spot${i}`, { x, z }, { gap: 0.66 });
+      it.spot = true;
+      it.label = it.pair ? `spot ${x},${z}: a pair` : `spot ${x},${z}`;
+      it.group.visible = false;
     });
     const cat = buildCat('tabby');
     cat.position.set(0.2, 0, 2.0);
@@ -214,68 +221,110 @@
     animateCat(cat, 'follow', 0.5, 0, false);
     const A = area.anchors;
     for (const v of visitors.list) {
-      const g = figKind === 'old' ? makeOld({ x: v.look.x, z: v.look.z }) : makeFromSpot({ x: v.look.x, z: v.look.z });
-      g.position.set(v.x, 0, v.z);
-      g.rotation.y = v.yaw + Math.PI;
-      g.traverse((m) => { if (m.isMesh) { m.castShadow = false; m.userData.noCast = true; } });
-      scene.add(g);
-      people.push({ id: v.id, v, group: g });
+      // a pair: the grown-up 0.33 m to one side of the visitor's way, the child 0.33 m to the other
+      const it = figKind === 'old' ? oldItem(v.id, { x: v.look.x, z: v.look.z }) : spotItem(v.id, { x: v.look.x, z: v.look.z }, { gap: 0.66 });
+      it.v = v;
+      it.group.position.set(v.x, 0, v.z);
+      it.group.rotation.y = v.yaw + Math.PI;
     }
-    const jg = figKind === 'old' ? makeOld({ x: 311.5, z: 77.25 }) : makeNew({ x: 311.5, z: 77.25, kind: 'adult', sex: 'm', top: { kind: 'tshirt', color: 0xe2433a } });
-    jg.position.set(A.juggler.x, 0, A.juggler.z);
-    jg.rotation.y = Math.atan2(A.jugglerWatch.x - A.juggler.x, A.jugglerWatch.z - A.juggler.z) + Math.PI;
-    jg.traverse((m) => { if (m.isMesh) { m.castShadow = false; m.userData.noCast = true; } });
-    scene.add(jg);
-    people.push({ id: 'juggler', juggler: true, group: jg });
+    const jg = figKind === 'old' ? oldItem('juggler', { x: 311.5, z: 77.25 }) : spotItem('juggler', { x: 311.5, z: 77.25, kind: 'adult', sex: 'm', top: { kind: 'tshirt', color: 0xe2433a } });
+    jg.juggler = true;
+    jg.group.position.set(A.juggler.x, 0, A.juggler.z);
+    jg.group.rotation.y = Math.atan2(A.jugglerWatch.x - A.juggler.x, A.jugglerWatch.z - A.juggler.z) + Math.PI;
     shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
     sun.shadow.bias = SUN_BIAS;
     assignShadowCasters(scene);
-    for (const p of people) p.group.traverse((m) => { if (m.isMesh) m.castShadow = false; });
+    // as the Fairground's visitors are today: no shadow pass for people
+    for (const it of items) it.group.traverse((m) => { if (m.isMesh) { m.castShadow = false; m.userData.noCast = true; } });
     window.__visitors = visitors;
     dayLight();
   }
 
-  // ---- posing and framing ------------------------------------------------------
-  // where her eyes are: on the cat-eye shots the camera stands there (0.2, 0.3, 3.6)
-  const catEye = () => { const c = cats[0]; return c.visible ? new THREE.Vector3(c.position.x, 0.3, c.position.z) : new THREE.Vector3(0.2, 0.3, 3.6); };
-  // stand the main cast in a row `gap` apart at depth z (the faces shot packs them close)
-  // today's figure, the man, the woman with the child at her side, the older man
-  const LINE_X = { today: -3.2, man: -1.65, woman: -0.2, child: 0.5, older: 2.0 };
-  function lineup(z = 0) {
-    for (const p of people) if (!p.spot) { p.group.position.set(LINE_X[p.id], 0, z); p.group.rotation.y = Math.PI; }
+  // ---- the frame loop -----------------------------------------------------------
+  const DT = 1 / 60;
+  let clock = 0; // the walk clock every pose and blink reads
+  const HEAD_AT = new THREE.Vector3();
+  // her head (the gaze's target); on cat-eye shots the camera is her eyes
+  function herHead() {
+    const c = cats[0];
+    if (!c.visible) return HEAD_AT.copy(camera.position);
+    c.updateMatrixWorld(true);
+    return c.userData.parts.head.getWorldPosition(HEAD_AT);
   }
-  function poseAll(spec, { which = (p) => !p.spot } = {}) {
-    for (const p of people) {
-      p.group.visible = !!which(p); // three draws anything not exactly false
-      if (!p.group.visible) continue;
-      const s = typeof spec === 'function' ? spec(p) : spec;
-      p.group.updateMatrixWorld(true);
-      p.group.poseAs({ ...s, lookAt: s.lookPoint ?? (s.lookCat ? catEye() : undefined) });
+  let current = { spec: () => ({ mode: 'stand' }), detail: null };
+  // one step of every shown person: pose, applyPose, stepGaze; then the
+  // world matrices and the kit's near/far and view test
+  function step(dt) {
+    clock += dt;
+    const target = herHead();
+    for (const it of items) {
+      if (!it.group.visible || it.old) continue;
+      const s = current.spec(it);
+      it.group.updateMatrixWorld(true);
+      for (const m of it.members) {
+        const walked = typeof s.walked === 'function' ? s.walked(m) : s.walked;
+        pose(m.person, { mode: s.mode, t: clock + (s.tOff ?? 0), walked, reducedMotion: false });
+        applyPose(m.person, dt, 0.3);
+        stepGaze(m.person, m.gaze, dt, clock, { target: s.noLook ? null : target });
+      }
+    }
+    for (const it of items) if (it.group.visible) it.group.updateMatrixWorld(true);
+    kit.update();
+    if (current.detail) {
+      for (const it of items) for (const m of it.members) {
+        const d = current.detail(it, m);
+        if (d && m.person.detail !== d) m.person.setDetail(d);
+      }
     }
   }
-  function lodByDistance(near = 12) {
-    for (const p of people) {
-      for (const person of p.group.userData.persons ?? []) person.setDetail(camera.position.distanceTo(p.group.position) > near ? 'far' : 'near');
+  // A still: who is shown, the spec per item, and 2.5 s of the loop (then on,
+  // up to `most` seconds, until `until()` says so). Gazes start fresh.
+  function settle(spec, { which = (it) => !it.spot && !it.extra, detail = null, seconds = 2.5, until = null, most = 12 } = {}) {
+    current = { spec: typeof spec === 'function' ? spec : () => spec, detail };
+    for (const it of items) {
+      it.group.visible = !!which(it); // three draws anything not exactly false
+      for (const m of it.members) m.gaze = createGaze(m.person.look);
     }
+    let s = 0;
+    for (; s < seconds; s += DT) step(DT);
+    if (until) for (; s < most && !until(); s += DT) step(DT);
+    for (const it of items) if (it.old && it.group.visible) it.oldPose({ ...current.spec(it), t: clock });
+    return s;
   }
   const cam = (px, py, pz, lx, ly, lz, fov = 55) => {
     camera.fov = fov; camera.updateProjectionMatrix();
     camera.position.set(px, py, pz); camera.lookAt(lx, ly, lz);
+    camera.updateMatrixWorld(true);
   };
+  const LBL = new THREE.Vector3();
   function labels(on = true) {
     labelsEl.innerHTML = '';
     if (!on) return;
     camera.updateMatrixWorld(true);
-    for (const p of people) {
-      if (!p.group.visible || !p.label) continue;
-      const top = new THREE.Box3().setFromObject(p.group).max.y;
-      const v = new THREE.Vector3(p.group.position.x, top + 0.08, p.group.position.z).project(camera);
-      if (v.z > 1) continue;
+    const put = (text, v) => {
+      v.project(camera);
+      if (v.z > 1) return;
       const span = document.createElement('span');
-      span.textContent = p.label;
+      span.textContent = text;
       span.style.left = `${(v.x * 0.5 + 0.5) * W}px`;
       span.style.top = `${(-v.y * 0.5 + 0.5) * H}px`;
       labelsEl.appendChild(span);
+    };
+    for (const it of items) {
+      if (!it.group.visible) continue;
+      if (it.old && it.label) {
+        const top = new THREE.Box3().setFromObject(it.group).max.y;
+        put(it.label, new THREE.Vector3(it.group.position.x, top + 0.08, it.group.position.z));
+      } else if (it.spot && it.label) {
+        put(it.label, LBL.set(it.group.position.x, 2.0, it.group.position.z));
+      } else {
+        for (const m of it.members) {
+          if (!m.label) continue;
+          m.person.figure.getWorldPosition(LBL);
+          LBL.y += m.person.look.height + 0.1;
+          put(m.label, LBL);
+        }
+      }
     }
   }
   function render() {
@@ -284,130 +333,303 @@
     renderer.render(scene, camera);
   }
 
-  const T = 2.3; // the idle clock for every still
+  // ---- the sheet's layouts ------------------------------------------------------
+  const byId = (id) => items.find((it) => it.id === id);
+  const newCast = (it) => !it.spot && !it.old && !it.extra;
+  // today's figure, the man, the woman with the girl at her side, the older man
+  const LINE_X = { today: -3.2, man: -1.65, pair: -0.2, older: 2.0 };
+  function lineup(z = 0) {
+    for (const it of items) if (!it.spot && LINE_X[it.id] !== undefined) { it.group.position.set(LINE_X[it.id], 0, z); it.group.rotation.y = Math.PI; }
+    const pair = byId('pair');
+    if (pair) pair.members[1].person.figure.position.x = -0.65;
+  }
+  // the new cast in a row, figures `gap` apart, centred on x0 (the pair's girl takes her own place)
+  function row(gap, x0 = 0, rotY = Math.PI) {
+    const cast = items.filter(newCast);
+    const n = cast.reduce((k, it) => k + it.members.length, 0);
+    let i = 0;
+    // a row along world x: each figure's offset in its group, undone by the group's turn
+    for (const it of cast) {
+      const x = x0 + (i - (n - 1) / 2) * gap;
+      it.group.position.set(x, 0, 0);
+      it.group.rotation.y = rotY;
+      i++;
+      if (it.members.length === 2) {
+        // the girl `gap` further along world x: that offset in the group's turned frame
+        it.members[1].person.figure.position.set(gap * Math.cos(rotY), 0, gap * Math.sin(rotY));
+        i++;
+      }
+    }
+  }
+  const T = 2.3; // where the idle clock starts for every still
+  const reset = () => { clock = T - 2.5; };
+  const eyeShut = (m) => m.person.bones.eyeL.scale.y;
+  const anyGlancing = () => items.some((it) => it.group.visible && it.members.some((m) => m.gaze.glanceT >= 0.75));
+  const facesCam = () => cam(0.0, 1.32, 2.4, 0.0, 1.26, 0, 36);
+
   const SHOTS = {
     // the walk's normal camera: 4.5 m behind and 2.2 m above the cat, looking past her
-    'lineup-day': () => { dayLight(); poseAll({ mode: 'stand', t: T, detail: 'near' }); cam(0.2, 2.6, 6.7, 0, 0.8, -0.3); return 'Standing, the game\'s normal camera, day. Left: today\'s figure.'; },
-    'lineup-cateye-day': () => { dayLight(); poseAll({ mode: 'stand', t: T, lookCat: true, detail: 'near' }); cam(0.2, 0.3, 3.6, 0, 0.95, 0, 60); return 'From the cat\'s eye height (0.3 m), day. The new people turn their heads to look down at her.'; },
+    'lineup-day': () => { dayLight(); cam(0.2, 2.6, 6.7, 0, 0.8, -0.3); settle({ mode: 'stand' }); return 'Standing, the game\'s normal camera, day. Left: today\'s figure. The cat is 2 m in front of them: they look at her.'; },
+    'lineup-cateye-day': () => { dayLight(); cam(0.2, 0.3, 3.6, 0, 0.95, 0, 60); settle({ mode: 'stand' }); return 'From the cat\'s eye height (0.3 m), day. The new people look down at her, eyes and head, and smile.'; },
     'stride-day': () => {
       dayLight();
-      poseAll((p) => ({ mode: 'walk', phase: 1.1 + (p.id.length % 3) * 0.3, oldStride: 1.2, t: T, detail: 'near' }));
-      for (const p of people) p.group.rotation.y = Math.PI / 2 + 0.35; // walking to the left, a little toward us
+      for (const it of items) it.group.rotation.y = Math.PI / 2 + 0.35; // walking to the left, a little toward us
       cam(1.2, 1.9, 6.6, 0, 0.8, 0);
-      const r = 'Mid-stride, three-quarter view, day.';
-      return r;
+      settle((it) => ({ mode: 'walk', walked: (m) => (1.1 + (it.id.length % 3) * 0.3) / strideFor(m.person, 1), oldStride: 1.2 }));
+      return 'Mid-stride, three-quarter view, day (she sits off to the right).';
     },
-    'wave-cateye-day': () => { dayLight(); poseAll({ mode: 'wave', t: T, lookCat: true, detail: 'near' }); cam(0.2, 0.3, 3.6, 0, 1.0, 0, 60); return 'Waving to the cat, from her eye height, day.'; },
-    'crouch-cateye-day': () => { dayLight(); poseAll({ mode: 'crouch', t: T, lookCat: true, detail: 'near' }); cam(0.2, 0.3, 3.6, 0, 0.7, 0, 60); return 'The Fairground\'s crouch hello, from her eye height (today\'s figure squashes; the new one bends its knees).'; },
-    'lineup-sunset': () => { sunsetLight(); poseAll({ mode: 'stand', t: T, detail: 'near' }); cam(0.2, 2.6, 6.7, 0, 0.8, -0.3); return 'Standing, normal camera, the walk\'s sunset light.'; },
-    'wave-cateye-sunset': () => { sunsetLight(); poseAll({ mode: 'wave', t: T + 0.2, lookCat: true, detail: 'near' }); cam(0.2, 0.3, 3.6, 0, 1.0, 0, 60); return 'Waving, cat\'s eye height, sunset.'; },
+    'wave-cateye-day': () => { dayLight(); cam(0.2, 0.3, 3.6, 0, 1.0, 0, 60); settle({ mode: 'wave' }); return 'Waving to the cat, from her eye height, day.'; },
+    'crouch-cateye-day': () => { dayLight(); cam(0.2, 0.3, 3.6, 0, 0.7, 0, 60); settle({ mode: 'kneel' }); return 'The Fairground\'s hello, from her eye height: the new people kneel on one knee (the older man bows); today\'s figure squashes.'; },
+    'dismay-day': () => {
+      dayLight();
+      for (const it of items) if (!it.old) it.group.rotation.y = Math.PI - 0.6; // three-quarters
+      cats[0].position.set(1.0, 0, 1.5); // she sits off to the right, out of the way of the view
+      cam(0.4, 1.5, 4.4, 0, 1.0, 0, 50);
+      settle({ mode: 'dismay' });
+      return 'Dismay ("oh!"), three-quarter view, day: both hands up, palms out, never a scold.';
+    },
+    'lineup-sunset': () => { sunsetLight(); cam(0.2, 2.6, 6.7, 0, 0.8, -0.3); settle({ mode: 'stand' }); return 'Standing, normal camera, the walk\'s sunset light.'; },
+    'wave-cateye-sunset': () => { sunsetLight(); cam(0.2, 0.3, 3.6, 0, 1.0, 0, 60); settle({ mode: 'wave', tOff: 0.2 }); return 'Waving, cat\'s eye height, sunset.'; },
     'stride-sunset': () => {
       sunsetLight();
-      poseAll((p) => ({ mode: 'walk', phase: 4.2 + (p.id.length % 3) * 0.3, oldStride: 4.2, t: T, detail: 'near' }));
-      for (const p of people) p.group.rotation.y = Math.PI / 2 + 0.35;
+      for (const it of items) it.group.rotation.y = Math.PI / 2 + 0.35;
       cam(1.2, 1.9, 6.6, 0, 0.8, 0);
+      settle((it) => ({ mode: 'walk', walked: (m) => (4.2 + (it.id.length % 3) * 0.3) / strideFor(m.person, 1), oldStride: 4.2 }));
       return 'Mid-stride (the other step), sunset.';
     },
     'far-day': () => {
-      dayLight(); poseAll({ mode: 'stand', t: T, detail: 'far' });
-      for (const p of people) p.group.rotation.y = Math.PI;
+      dayLight();
       cats[0].visible = false;
       cam(0.2, 2.6, 14.5, 0, 0.9, -0.3, 30);
+      settle({ mode: 'stand' }, { detail: () => 'far' });
       return 'The far build at 14 m (just past the 12 m switch), a narrow lens so it is big enough to judge, day (eyes only, fewer sides).';
     },
     'lod-close': () => {
       dayLight();
-      poseAll((p) => ({ mode: 'stand', t: T, detail: p.group.position.x > 0 ? 'far' : 'near' }));
+      cats[0].visible = false; // out of the way: they look at us
       cam(0.2, 1.5, 4.6, 0, 1.0, 0, 45);
+      const xw = new THREE.Vector3();
+      settle({ mode: 'stand' }, { detail: (it, m) => (m.person.figure.getWorldPosition(xw).x > 0 ? 'far' : 'near') });
       return 'Near build (left of middle) and far build (right of middle) side by side, close up, to show what the far build drops.';
     },
     'faces-day': () => {
       dayLight();
-      let i = 0;
-      for (const p of people) if (!p.spot && !p.old) { p.group.position.set(-0.75 + i * 0.5, 0, 0); i++; }
-      poseAll({ mode: 'stand', t: 0, detail: 'near', lookCat: true }, { which: (p) => !p.spot && !p.old });
+      row(0.5, 0);
       cam(0.0, 1.35, 1.7, 0.0, 1.3, 0, 40);
-      return 'Faces, close up (closer than the game\'s camera ever comes), day.';
+      settle({ mode: 'stand' }, { which: newCast });
+      return 'Faces, close up (closer than the game\'s camera ever comes), the cat 2 m in front of them (behind us), day.';
+    },
+    'faces-front-day': () => {
+      dayLight();
+      row(0.5, 0);
+      cats[0].visible = false; // they look at us: the camera is the target
+      facesCam();
+      settle({ mode: 'stand' }, { which: newCast });
+      return 'Faces straight on, looking at us, day: for judging the faces (the game never comes this close).';
+    },
+    'faces-near-day': () => {
+      dayLight();
+      row(0.5, 0);
+      cats[0].position.set(0.0, 0, 2.0); // she sits 2 m in front of them, just below the picture
+      facesCam();
+      settle({ mode: 'stand' }, { which: newCast });
+      return 'Faces straight on, she sits 2 m in front of them (just out of the picture): eyes and heads turned down to her, the smile widened.';
+    },
+    'blink-day': () => {
+      dayLight();
+      row(0.5, 0);
+      cats[0].position.set(0.0, 0, 2.0);
+      // closer on the man and the woman, and on until the man (the clearest face) is mid-blink
+      cam(-0.5, 1.45, 1.5, -0.5, 1.42, 0, 30);
+      const man = byId('man').members[0];
+      // his own clock's blink (not the one a gaze shift starts with), while he looks at her
+      const s = settle({ mode: 'stand' }, { which: newCast, most: 20, until: () => eyeShut(man) < 0.13 && man.gaze.shiftT > 0.3 && man.gaze.glanceT < 0 });
+      const woman = byId('pair').members[0];
+      return `Mid-blink: the man's eyes shut, ${s.toFixed(2)} s after she came; the woman's are ${eyeShut(woman) < 0.9 ? 'closing too' : 'open'}. Blinks are 0.12 s, every 2.5-5.5 s, each face on its own clock.`;
+    },
+    'glance-day': () => {
+      dayLight();
+      row(0.5, 0);
+      cats[0].position.set(0.0, 0, 2.0);
+      facesCam();
+      const s = settle({ mode: 'stand' }, { which: newCast, until: anyGlancing });
+      return `A glance away: after 4 s of looking at her they glance aside for 1.2 s (${s.toFixed(2)} s after she came), so they never stare.`;
     },
     'neck-side-day': () => {
-      dayLight(); poseAll({ mode: 'stand', t: T, detail: 'near' }, { which: (p) => !p.spot && !p.old });
-      let i = 0;
-      for (const p of people) if (!p.spot && !p.old) { p.group.position.set(-1.5 + i * 0.95, 0, 0); p.group.rotation.y = Math.PI / 2 + 0.25; i++; } // facing left, a little toward us
-      poseAll({ mode: 'stand', t: T, detail: 'near' }, { which: (p) => !p.spot && !p.old });
+      dayLight();
+      row(0.95, -0.1, Math.PI / 2 + 0.25); // facing left, a little toward us
       cats[0].visible = false;
       cam(-0.1, 1.3, 3.4, -0.1, 1.15, 0, 42);
+      settle({ mode: 'stand', noLook: true }, { which: newCast });
       return 'Side view, day: the neck from root to jaw, its slight forward set, the shoulders sloping up to it.';
     },
     'neck-far-day': () => {
       dayLight();
-      let i = 0;
-      for (const p of people) if (!p.spot && !p.old) { p.group.position.set(-1.5 + i * 0.95, 0, 0); p.group.rotation.y = Math.PI / 2 + 0.25; i++; }
-      poseAll({ mode: 'stand', t: T, detail: 'far' }, { which: (p) => !p.spot && !p.old });
+      row(0.95, -0.1, Math.PI / 2 + 0.25);
       cats[0].visible = false;
       cam(-0.1, 1.3, 3.4, -0.1, 1.15, 0, 42);
+      settle({ mode: 'stand', noLook: true }, { which: newCast, detail: () => 'far' });
       return 'The same side view with the far build: the neck is kept.';
     },
-    'faces-front-day': () => {
-      dayLight();
-      let i = 0;
-      for (const p of people) if (!p.spot && !p.old) { p.group.position.set(-0.75 + i * 0.5, 0, 0); i++; }
-      cats[0].visible = false;
-      poseAll({ mode: 'stand', t: 0, detail: 'near', lookPoint: new THREE.Vector3(0, 1.45, 1.6) }, { which: (p) => !p.spot && !p.old });
-      cam(0.0, 1.45, 1.6, 0.0, 1.38, 0, 34);
-      return 'Faces straight on, looking at us, day: for judging the faces (the game never comes this close).';
-    },
     'back-day': () => {
-      dayLight(); poseAll({ mode: 'stand', t: T, detail: 'near' });
-      for (const p of people) p.group.rotation.y = 0.5; // backs to us, a little turned
+      dayLight();
+      for (const it of items) it.group.rotation.y = 0.5; // backs to us, a little turned
       cam(0.2, 2.0, 6.0, 0, 0.9, 0);
+      settle({ mode: 'stand' });
       return 'From behind, day (hair and coats from the back).';
     },
     'crowd-spots': () => {
       dayLight();
-      poseAll({ mode: 'stand', t: T, detail: 'near' }, { which: (p) => p.spot });
-      for (const p of people) if (p.spot) p.group.rotation.y = Math.PI;
+      SPOTS.forEach((_, i) => { const it = byId(`spot${i}`); it.group.position.set(-5.6 + i * 1.6, 0, -2.6); it.group.rotation.y = Math.PI; });
       cam(0.0, 2.6, 6.2, 0, 0.8, -2.6, 60);
-      return 'Eight people dressed only from their spawn spots (age, height, clothes, hair: no rolls).';
+      settle({ mode: 'stand' }, { which: (it) => it.spot });
+      return 'Eight spots dressed only from their spawn spots (age, height, clothes, hair: no rolls); a child spot is a pair.';
     },
   };
   // the Fairground
-  function fairPose(t) {
-    for (const p of people) {
-      p.group.visible = true;
-      if (p.juggler) { p.group.poseAs({ mode: 'juggle', t }); continue; }
-      const v = p.v;
-      p.group.poseAs({ mode: v.moving ? 'walk' : 'stand', walked: v.walked, oldStride: v.walked * 3.4, t: t + v.index, lookAt: v.moving ? undefined : catEye() });
-    }
-  }
+  const fairSpec = (it) => {
+    if (it.juggler) return { mode: 'juggle', noLook: true };
+    const v = it.v;
+    return { mode: v.moving ? 'walk' : 'stand', walked: v.walked, oldStride: v.walked * 3.4, tOff: v.index };
+  };
+  const fairCam = () => { const c = cats[0].position; cam(c.x - 0.5, 2.5, c.z + 4.5, c.x - 1.9, 0.8, c.z - 10); };
+  const who = () => (figKind === 'old' ? "today's figure" : 'the new figure');
   const FAIR = {
-    'fair-day': () => { dayLight(); fairPose(T); const c = cats[0].position; cam(c.x - 0.5, 2.5, c.z + 4.5, c.x - 1.9, 0.8, c.z - 10); lodByDistance(); return `The Fairground with ${figKind === 'old' ? "today's figure" : 'the new figure'}: the walk's normal camera behind the cat on the midway, day.`; },
-    'fair-dusk': () => { sunsetLight(); fairPose(T); const c = cats[0].position; cam(c.x - 0.5, 2.5, c.z + 4.5, c.x - 1.9, 0.8, c.z - 10); lodByDistance(); return `The Fairground at dusk, ${figKind === 'old' ? "today's figure" : 'the new figure'}.`; },
-    'fair-close': () => { dayLight(); cats[0].visible = false; fairPose(T); const c = cats[0].position; cam(c.x, 0.3, c.z - 0.25, c.x - 1.4, 1.0, c.z - 8, 60); lodByDistance(); return `The Fairground from the cat's eye height, ${figKind === 'old' ? "today's figure" : 'the new figure'}.`; },
+    'fair-day': () => { dayLight(); fairCam(); settle(fairSpec, { which: () => true }); return `The Fairground with ${who()}: the walk's normal camera behind the cat on the midway, day.`; },
+    'fair-dusk': () => { sunsetLight(); fairCam(); settle(fairSpec, { which: () => true }); return `The Fairground at dusk, ${who()}.`; },
+    'fair-close': () => { dayLight(); cats[0].visible = false; const c = cats[0].position; cam(c.x, 0.3, c.z - 0.25, c.x - 1.4, 1.0, c.z - 8, 60); settle(fairSpec, { which: () => true }); return `The Fairground from the cat's eye height, ${who()}.`; },
+  };
+
+  // on the stride shots the girl walks a little behind the woman, so both strides show
+  const girlBehind = () => byId('pair').members[1].person.figure.position.set(0, 0, 0.9);
+  function sheetDefaults(name) {
+    cats[0].visible = !/cateye/.test(name); // from her eye height the camera IS her eyes
+    for (const it of items) if (!it.spot) for (const m of it.members) m.person.figure.position.set(0, 0, 0);
+    lineup();
+    // on the stride shots she sits off to one side, out of the walkers' way
+    if (/stride/.test(name)) { girlBehind(); cats[0].position.set(2.6, 0, 2.3); cats[0].rotation.y = 0.6; } else { cats[0].position.set(0.2, 0, 2.0); cats[0].rotation.y = 0; }
+    animateCat(cats[0], 'follow', 0.5, 0, false);
+  }
+  const drawCaption = (name, text) => {
+    const { calls, triangles } = renderer.info.render;
+    caption.textContent = `src/people · ${name} · ${text}  [${calls} draws, ${triangles.toLocaleString()} triangles this frame]`;
   };
 
   window.__shot = async (name) => {
     const f = (sceneId === 'fair' ? FAIR : SHOTS)[name];
     if (!f) throw new Error(`no shot ${name}`);
+    tour = null;
     cats[0].visible = true;
-    // from her eye height the camera IS her eyes: the cat herself is hidden
-    if (sceneId === 'sheet') {
-      cats[0].visible = !/cateye/.test(name);
-      lineup();
-      // on the stride shots she sits off to one side, out of the walkers' way
-      if (/stride/.test(name)) { cats[0].position.set(2.6, 0, 2.3); cats[0].rotation.y = 0.6; } else { cats[0].position.set(0.2, 0, 2.0); cats[0].rotation.y = 0; }
-    }
+    if (sceneId === 'sheet') sheetDefaults(name);
+    reset();
     const text = f();
     render();
-    labels(sceneId === 'sheet');
-    const { calls, triangles } = renderer.info.render;
-    caption.textContent = `PROTOTYPE · ${name} · ${text}  [${calls} draws, ${triangles.toLocaleString()} triangles this frame]`;
+    labels(sceneId === 'sheet' && !/^(faces|blink|glance)/.test(name));
+    drawCaption(name, text);
     return name;
   };
+
+  // ---- tours (films): __tour(name), then __frame() until done ---------------------
+  let tour = null;
+  const TOURS = {
+    // She walks past the lineup 3 m in front of it, left to right, at 1.2 m/s.
+    gaze: () => {
+      sheetDefaults('gaze');
+      const cat = cats[0];
+      const x0 = -6, speed = 1.2;
+      cat.rotation.y = -Math.PI / 2; // walking toward +x
+      current = { spec: () => ({ mode: 'stand' }), detail: null };
+      for (const it of items) {
+        it.group.visible = newCast(it);
+        for (const m of it.members) m.gaze = createGaze(m.person.look);
+      }
+      let tt = 0;
+      return {
+        seconds: 8,
+        tick(dt) {
+          tt += dt;
+          cat.position.set(x0 + speed * tt, 0, 3);
+          animateCat(cat, 'follow', tt, speed, false);
+          step(dt);
+        },
+        frame() {
+          // a little behind and above her, drifting with her, the lineup's faces in the upper half
+          const x = Math.min(0.3, Math.max(-2.5, cat.position.x * 0.5));
+          cam(x, 1.7, 7.0, x, 0.6, 0, 24);
+          return 'She walks past 3 m away: the eyes lead, the heads follow, a glance away after 4 s (with a blink), then they ease back as she goes.';
+        },
+      };
+    },
+    // A man, a woman and a pair (a woman and a girl from one spot) walk past
+    // her; she sits on the paving's edge, near enough that they look.
+    walk: () => {
+      sheetDefaults('walk');
+      const cat = cats[0];
+      cat.position.set(-1.6, 0, 2.6);
+      cat.rotation.y = -0.5;
+      animateCat(cat, 'follow', 0.5, 0, false);
+      const lanes = {
+        man: { x0: 5.0, z: -0.4, dir: -1, speed: 1.35 },
+        woman: { x0: -4.6, z: 0.8, dir: 1, speed: 1.25 },
+        pair: { x0: 7.6, z: -1.6, dir: -1, speed: 1.05 },
+      };
+      for (const it of items) {
+        it.group.visible = !!lanes[it.id];
+        if (!lanes[it.id]) continue;
+        it.group.rotation.y = lanes[it.id].dir < 0 ? Math.PI / 2 : -Math.PI / 2;
+        for (const m of it.members) m.gaze = createGaze(m.person.look);
+      }
+      // the pair walks side by side, 0.33 m either side of their way (as at
+      // the Fairground), the girl on our side so she is not hidden
+      const pair = byId('pair');
+      pair.members[0].person.figure.position.set(0.33, 0, 0);
+      pair.members[1].person.figure.position.set(-0.33, 0, 0);
+      let tt = 0;
+      current = { spec: (it) => ({ mode: 'walk', walked: lanes[it.id].speed * tt }), detail: null };
+      return {
+        seconds: 6,
+        tick(dt) {
+          tt += dt;
+          for (const it of items) {
+            const L = lanes[it.id];
+            if (L) it.group.position.set(L.x0 + L.dir * L.speed * tt, 0, L.z);
+          }
+          step(dt);
+        },
+        frame() {
+          cam(1.6, 1.45, 6.0, 0.1, 0.85, -0.4, 44);
+          return 'A man, a woman, and a woman with a girl (a pair from one spot) walk past her: heels strike, the arms swing against the legs; near her they look.';
+        },
+      };
+    },
+  };
+  window.__tour = (name) => {
+    if (sceneId !== 'sheet') throw new Error('tours run on scene=sheet');
+    const make = TOURS[name];
+    if (!make) throw new Error(`no tour ${name}`);
+    clock = 0;
+    tour = { name, ...make(), t: 0, frames: 0 };
+    labels(false);
+    return name;
+  };
+  window.__frame = () => {
+    if (!tour) throw new Error('call __tour(name) first');
+    tour.tick(DT); tour.tick(DT); // 1/30 s a frame, in 1/60 s steps
+    tour.t += 2 * DT;
+    tour.frames++;
+    const text = tour.frame();
+    render();
+    drawCaption(`${tour.name} ${tour.t.toFixed(2)} s`, text);
+    return { done: tour.t >= tour.seconds - 1e-6, caption: text };
+  };
+
   window.__info = () => { render(); const { calls, triangles } = renderer.info.render; return { calls, triangles }; };
-  window.__stats = people.flatMap((p) => (p.group.userData.persons ?? []).map((q) => ({ id: p.id, ...q.stats, kind: q.look.kind, h: +q.look.height.toFixed(2) })));
-  window.__people = people;
+  window.__stats = items.flatMap((it) => it.members.map((m) => ({ id: it.id, ...m.person.stats, kind: m.person.look.kind, h: +m.person.look.height.toFixed(2) })));
+  window.__items = items;
+  window.__kit = kit;
   window.__scene = scene;
   window.__render = render;
+  window.__camera = camera;
   await window.__shot(sceneId === 'fair' ? 'fair-day' : 'lineup-day');
   window.__ready = true;
 </script>

@@ -233,7 +233,9 @@ export function personParts(look, detail = 'near') {
     add(limbGeo(d.upperArm, d.uaR[0], d.uaR[1], { segs: S.limb, rings: S.ring, capN: S.cap, capTop: 0.3, bulge: 0.004 * d.s, bulgeAt: 0.35 })
       .translate(x, d.shoulderY, 0), longSleeve ? top.color : skin, `upperArm${L}`, 'arm');
     if (!longSleeve) {
-      add(limbGeo(d.upperArm * 0.5, d.uaR[0] * 1.05, d.uaR[0] * 1.02, { ...hem, capTop: 0.3, capBot: 0.15 })
+      // its top as round as the arm's own (S.cap): a flatter cone let the
+      // arm's round top show through at the shoulder
+      add(limbGeo(d.upperArm * 0.5, d.uaR[0] * 1.05, d.uaR[0] * 1.02, { ...hem, capN: S.cap, capTop: 0.3, capBot: 0.15 })
         .translate(x, d.shoulderY, 0), top.color, `upperArm${L}`, 'sleeve');
     }
     add(limbGeo(d.forearm, d.faR[0], d.faR[1], { segs: S.limb, rings: S.ring, capN: S.cap, bulge: 0.006 * d.s, bulgeAt: 0.25 })
