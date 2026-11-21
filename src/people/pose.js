@@ -608,9 +608,13 @@ export function applyPose(person, dt, ease = 0.3) {
 // nothing.
 const KNEEL_R = 0.82;
 const KNEEL_DOWN = 0.82;
-const KNEEL_LIFT_R = 0.25; // rad: the right foot's lift (the hip and the knee bent) at the middle of its step
-const KNEEL_LIFT_L = 0.25; // and the left's
-const KNEEL_BACK_FROM = 0.55; // of the right foot's step: by then its lift is all back, none forward
+// rad, at the middle of the right foot's step: its lift straight up (the hip
+// bent forward, the knee twice as far back), and its swing back (the hip
+// straightened back, the knee bent twice as far)
+const KNEEL_LIFT_R = 0.35;
+const KNEEL_BACK_R = 0.1;
+const KNEEL_LIFT_L = 0.25; // rad: the left foot's lift at the middle of its step
+const KNEEL_BACK_FROM = 0.45; // of the right foot's step: by then it is all going back, none lifting
 const KNEEL_SWING = 1; // of the kneel's knee turn: the squat's knee goes out that way
 const KNEEL_UP_FIRST = 0.2; // of its step: the foot comes up before it goes anywhere
 const ss = (x) => { const c = x < 0 ? 0 : x > 1 ? 1 : x; return c * c * (3 - 2 * c); };
@@ -670,12 +674,12 @@ function kneelLegs(cur, from, rot, s, into, look, kneelHipY) {
   const bendL = squat * ss(s / KNEEL_DOWN) * (1 - kL) + KNEEL_LIFT_L * Math.sin(Math.PI * uB);
   // the right foot comes straight up off the ground (the hip and the knee
   // bent, the foot kept under the hip), then, in the air, goes back (the hip
-  // straightened back, the knee bent more), so the thigh never swings the
-  // front of a skirt forward on the way down
-  const liftR = KNEEL_LIFT_R * Math.sin(Math.PI * uA);
+  // straightened back, the knee bent more): a low, calm step (its sole about
+  // 10 cm up), never a kick up behind. (The lift swings the front of a skirt
+  // forward a little: test/bumps.test.js holds her head out of it.)
   const back = ss(uA / KNEEL_BACK_FROM);
-  const upR = liftR * (1 - back);
-  const backR = liftR * back;
+  const upR = KNEEL_LIFT_R * Math.sin(Math.PI * uA) * (1 - back);
+  const backR = KNEEL_BACK_R * Math.sin(Math.PI * uA) * back;
   const toeR = KNEEL_TOE * Math.sin(Math.PI * uA);
   for (let i = 0; i < 2; i++) {
     const S = SIDES[i];

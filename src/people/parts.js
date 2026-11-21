@@ -163,9 +163,11 @@ export function drapeWeights(look, hemY, x, y, z, out) {
   let wr = w * t;
   const mirror = look.kind === 'adult' ? wl * back * DRAPE.MIRROR : 0;
   wl -= mirror; wr -= mirror;
-  // below the knee, part of the own side's thigh share goes to its shin
+  // below the knee, part of the own side's thigh share goes to its shin;
+  // none at the middle, where the halves meet, so the shin a point follows
+  // (its own side's) changes over without a step
   const right = t > 0.5;
-  const below = hemY < d.kneeY ? DRAPE.SHIN * smooth01((d.kneeY - y) / (d.kneeY - hemY)) : 0;
+  const below = hemY < d.kneeY ? DRAPE.SHIN * smooth01((d.kneeY - y) / (d.kneeY - hemY)) * smooth01(Math.abs(2 * t - 1) / 0.5) : 0;
   const shin = (right ? wr : wl) * below;
   if (right) wr -= shin; else wl -= shin;
   out[0] = 1 - wl - wr - shin; out[1] = wl; out[2] = wr; out[3] = shin; out[4] = right ? 1 : 0;
