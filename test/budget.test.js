@@ -456,7 +456,11 @@ const AREAS = [
   // alley: no mesh or caster added, +687 triangles in the buckets it had);
   // 113 / 68 / 34,023 after round two's Task E (the shop's string courses
   // and the garden bench's uprights, +96, in noCast buckets it had; the far
-  // town's lower back rows, -6: no mesh or caster added). Held to the territories' ceilings,
+  // town's lower back rows, -6: no mesh or caster added); 113 / 68 / 36,065
+  // after round two's Task F (what she walks on: the ridges in single tiles,
+  // the felt's drip edges, patches, flashing and outlets, the crates' slats
+  // and the bin bags' knots, +2,042 in noCast buckets it had: no mesh or
+  // caster added). Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],

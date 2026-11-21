@@ -10,6 +10,7 @@ import {
   LEVELS as L, BLOCKS, GROUNDS, ROOFS_BOUNDS, ROOFS_SPAWN, ROOFS_COLLIDERS, ROOFS_TRAVERSAL, roofsArea,
   ALLEY_LAMP, BIN_2, BIN_3, BIN_BAGS, ALLEY_CRATES, ALLEY_CLUTTER, ALLEY_CHANNEL, YARD, YARD_WALLS, WASHING_POSTS,
   VANE, VANE_TIP, TELESCOPE, GARDEN, SKYLIGHT, TELESCOPE_CRATE, ROOFS_DISCOVERIES, STREETS, PAVEMENT, STREET_LAMPS, BUS,
+  ROOFS_PERCHES,
 } from './roofsplan.js';
 import { STEP_MAX } from '../ground.js';
 import { createRoofsLife, mixHex } from '../roofslife.js';
@@ -525,8 +526,8 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     const north = new THREE.Group();
     north.name = 'roofsNorth';
     const NK = makeKit('roofsNorth');
-    drawShop(NK, north, M, win);
-    drawWarehouse(NK, north, M, win, upWin);
+    drawShop(NK, north, M, win, ground);
+    drawWarehouse(NK, north, M, win, upWin, ground);
     drawTower(NK, north, M, scene);
     drawDiscoveries(NK, north, M, upWin);
     for (const m of NK.meshes()) north.add(m);
@@ -581,12 +582,137 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
   });
 }
 
+// ---------------------------------------------------------------------------
+// Round two, Task F (critique finding 5): the felt she walks most was an empty
+// grey plain with hard box corners. On every felt roof she walks, a few repair
+// patches; on the extensions, the outriggers and the garages a dark drip edge
+// down the felt's outer faces; on the warehouse, lead flashing at the
+// parapets' feet and four rainwater outlets, each with its stain. Drawing only,
+// in the noCast paint bucket of the kit that owns the roof: the flat pieces lie
+// FELT.*Y up (under the pawprints' 0.012 and the glows' 0.03), clear of every
+// take-off by FELT.clear; the drip edges are on vertical faces, never on top.
+// ---------------------------------------------------------------------------
+const FELT = Object.freeze({
+  stainY: 0.006, patchY: 0.008, flashY: 0.009, outletY: 0.011,
+  clear: 0.6, // m from every take-off (its glow is 0.45 across)
+  patchR: Object.freeze([0.25, 0.5]), patchDark: 0x3a3936, patchLight: 0x57544e,
+  drip: Object.freeze({ h: 0.05, out: 0.008, color: 0x1c1d20 }),
+  flash: Object.freeze({ w: 0.16, in: 0.005, color: 0x5d6368 }),
+  outlet: Object.freeze({ r: 0.1, in: 0.24, color: 0x121315 }),
+  stain: Object.freeze({ r: 0.55, wide: 0.6, color: 0x242321 }),
+});
+// how many patches each roof gets (by its id, or its kind's prefix)
+const FELT_PATCHES = Object.freeze({ garages: 3, shed: 1, ext: 3, out: 1, flatHouse: 2, dormer: 1, cornerShop: 3, warehouse: 12 });
+// and their size, times FELT.patchR, on the two big roofs
+const FELT_PATCH_SIZE = Object.freeze({ cornerShop: 1.3, warehouse: 1.7 });
+const TAKEOFFS = Object.freeze([...ROOFS_TRAVERSAL.gaps, ...ROOFS_TRAVERSAL.climbs, ...ROOFS_TRAVERSAL.drops].map((h) => {
+  const len = Math.hypot(h.to.x - h.from.x, h.to.z - h.from.z) || 1;
+  return Object.freeze({ x: h.from.x, z: h.from.z, ux: (h.to.x - h.from.x) / len, uz: (h.to.z - h.from.z) / len });
+}));
+// What a patch keeps clear of ({ x, z, r }): every take-off (and its first
+// metre ahead, where a mark may lie at the edge), the crossings' rails, the
+// colliders, the perches and the discoveries.
+const FELT_KEEP_OUT = Object.freeze((() => {
+  const out = [];
+  for (const t of TAKEOFFS) {
+    out.push({ x: t.x, z: t.z, r: FELT.clear });
+    for (const s of [0.4, 0.7, 1.0]) out.push({ x: t.x + t.ux * s, z: t.z + t.uz * s, r: 0.4 });
+  }
+  for (const c of ROOFS_TRAVERSAL.crossings) {
+    for (let i = 0; i + 1 < c.points.length; i++) {
+      const [a, q] = [c.points[i], c.points[i + 1]];
+      const n = Math.max(1, Math.ceil(Math.hypot(q.x - a.x, q.z - a.z) / 0.25));
+      for (let k = 0; k <= n; k++) out.push({ x: a.x + ((q.x - a.x) * k) / n, z: a.z + ((q.z - a.z) * k) / n, r: 0.35 });
+    }
+  }
+  for (const c of ROOFS_COLLIDERS) out.push({ x: c.x, z: c.z, r: c.r + 0.3 });
+  for (const p of ROOFS_PERCHES) out.push({ x: p.x, z: p.z, r: 0.6 });
+  for (const d of Object.values(ROOFS_DISCOVERIES)) out.push({ x: d.x, z: d.z, r: 1.2 });
+  return out;
+})());
+// Whether a disc (x, z, r) lies on the roof at y alone (nothing else's ground
+// within it) and clear of `avoid`.
+function feltClear(ground, y, x, z, r, avoid) {
+  if (avoid.some((k) => Math.hypot(k.x - x, k.z - z) < k.r + r)) return false;
+  for (let gx = -r; gx <= r + 1e-9; gx += 0.1) {
+    for (let gz = -r; gz <= r + 1e-9; gz += 0.1) {
+      if (gx * gx + gz * gz <= r * r && Math.abs(ground.y(x + gx, z + gz) - y) > 1e-6) return false;
+    }
+  }
+  return true;
+}
+// A flat convex polygon facing up: n corners on an ellipse (rx, rz, turned
+// `turn`) round (x, z), at y, a little off even spacing (hash01 of `seed`).
+function feltPolygon(x, z, y, n, rx, rz, turn, seed) {
+  const pts = [];
+  for (let k = 0; k < n; k++) {
+    const a = ((k + 0.7 * (hash01(seed, k, 71) - 0.5)) / n) * 2 * Math.PI;
+    const [u, v] = [rx * Math.cos(a), rz * Math.sin(a)];
+    pts.push([x + u * Math.cos(turn) - v * Math.sin(turn), y, z + u * Math.sin(turn) + v * Math.cos(turn)]);
+  }
+  const tris = [];
+  for (let k = 1; k + 1 < n; k++) {
+    const t = [pts[0], pts[k], pts[k + 1]];
+    tris.push(...(cross(sub(t[1], t[0]), sub(t[2], t[0]))[1] >= 0 ? t : [t[0], t[2], t[1]]));
+  }
+  return triangles(tris);
+}
+// A roof's repair patches: its count of FELT_PATCHES, spread over it (the roof
+// cut into that many cells, one patch tried in each), placed by hash01 where
+// each is clear (feltClear, 0.15 m round it) and apart from the others; a
+// shade darker or lighter than the felt. `put(geo, color, item)`.
+function feltPatches(put, roof, ground, extra = []) {
+  const want = FELT_PATCHES[roof.id] ?? FELT_PATCHES[roof.id.split('-')[0]] ?? 0;
+  if (!want) return;
+  const avoid = [...FELT_KEEP_OUT, ...extra];
+  const size = FELT_PATCH_SIZE[roof.id] ?? 1;
+  const [W, D] = [roof.x1 - roof.x0, roof.z1 - roof.z0];
+  const cols = Math.max(1, Math.min(want, Math.round(Math.sqrt((want * W) / D))));
+  const rows = Math.ceil(want / cols);
+  const placed = [];
+  for (let c = 0; c < cols * rows && placed.length < want; c++) {
+    const [cx0, cz0] = [roof.x0 + (W * (c % cols)) / cols, roof.z0 + (D * Math.floor(c / cols)) / rows];
+    for (let j = 0; j < 24; j++) {
+      const seed = roof.x0 + roof.z0 + 7 * c;
+      const r = size * (FELT.patchR[0] + (FELT.patchR[1] - FELT.patchR[0]) * hash01(j, seed, 61));
+      const m = r + 0.15;
+      const x = Math.min(roof.x1 - m, Math.max(roof.x0 + m, cx0 + (W / cols) * hash01(seed, j, 63)));
+      const z = Math.min(roof.z1 - m, Math.max(roof.z0 + m, cz0 + (D / rows) * hash01(j, seed, 67)));
+      if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + r + 0.3) || !feltClear(ground, roof.y, x, z, m, avoid)) continue;
+      placed.push({ x, z, r });
+      const at = x * 3.1 + z;
+      const n = 4 + Math.floor(3 * hash01(at, 1, 73));
+      const color = hash01(at, 2, 79) < 0.6 ? FELT.patchDark : FELT.patchLight;
+      put(feltPolygon(x, z, roof.y + FELT.patchY, n, r, r * (0.55 + 0.4 * hash01(at, 3, 83)), Math.PI * hash01(at, 4, 89), at), color, { id: `feltPatch:${roof.id}:${placed.length}`, kind: 'feltPatch', roof: roof.id });
+      break;
+    }
+  }
+}
+// The dark drip edge down the top FELT.drip.h of a felt roof's outer vertical
+// faces: `faces` is { x0, x1, z0, z1 }, each true or the [from, to] of it to
+// trim (along z for x0 / x1, along x for z0 / z1). Just outside the felt.
+function dripEdges(put, roof, faces) {
+  const D = FELT.drip;
+  const [y0, y1, o] = [roof.y - D.h, roof.y, D.out];
+  const span = (f, a, c) => (f === true ? [a - o, c + o] : f);
+  const item = { id: `dripEdge:${roof.id}`, kind: 'dripEdge', roof: roof.id };
+  if (faces.x0) put(faceX(...span(faces.x0, roof.z0, roof.z1), y0, y1, roof.x0 - o, -1), D.color, item);
+  if (faces.x1) put(faceX(...span(faces.x1, roof.z0, roof.z1), y0, y1, roof.x1 + o, 1), D.color, item);
+  if (faces.z0) put(faceZ(...span(faces.z0, roof.x0, roof.x1), y0, y1, roof.z0 - o, -1), D.color, item);
+  if (faces.z1) put(faceZ(...span(faces.z1, roof.x0, roof.x1), y0, y1, roof.z1 + o, 1), D.color, item);
+}
+
 const CHANNEL_Y = 0.012;
+// Round two, Task F (critique finding 6): the cobbles' tile in the alley, the
+// shop yard and the ginnel, 1.6 times smaller than the house tile (TILE.cobble,
+// 1.2 m, whose stones are pillows bigger than her head at cat height), so the
+// setts are small stones. The shared texture and every other place are unchanged.
+const SETT_TILE = 0.75;
 // --- the ground at 0: cobbles in the alley, flags in the yards, grass in the
 // west garden. Top-level, as builder.ground is, and casting nothing.
 function drawGround(scene, M) {
   const looks = {
-    alley: ['cobble', M.cobble, TILE.cobble], shopYard: ['cobble', M.cobble, TILE.cobble], ginnel: ['cobble', M.cobble, TILE.cobble],
+    alley: ['cobble', M.cobble, SETT_TILE], shopYard: ['cobble', M.cobble, SETT_TILE], ginnel: ['cobble', M.cobble, SETT_TILE],
     backYards: ['flags', M.flags, TILE.flagstone], westGarden: ['grass', M.grass, TILE.grass],
   };
   const kit = new Map();
@@ -640,6 +766,9 @@ function drawAlley(K, group, M, ground) {
   const gTop = G.y - 0.15;
   wall(box(G.x0, G.x1, 0, gTop, G.z0, G.z1));
   group.add(own('garages', M.felt, [box(G.x0, G.x1, gTop, G.y, G.z0, G.z1)], { tile: TILE.gravel, tag: { block: 'garages' } }));
+  const felt = (geo, color, item) => K.put('paint', M.paint, geo, { color, noCast: true, item }); // round two, Task F
+  dripEdges(felt, G, { x0: true, x1: true, z0: true, z1: true });
+  feltPatches(felt, G, ground);
   stone(box(G.x0, G.x1, gTop - 0.12, gTop - 0.02, G.z1, G.z1 + 0.06)); // the fascia under the felt
   const doors = Math.floor((G.x1 - G.x0) / 3);
   let last = null;
@@ -669,6 +798,7 @@ function drawAlley(K, group, M, ground) {
   const S = BLOCK.shed;
   K.put('shed', M.shed, box(S.x0, S.x1, 0, S.y - 0.1, S.z0, S.z1), { tile: TILE.wood });
   group.add(own('shed', M.felt, [box(S.x0, S.x1 + 0.08, S.y - 0.1, S.y, S.z0 - 0.08, S.z1 + 0.08)], { tile: TILE.gravel, tag: { block: 'shed' } }));
+  feltPatches(felt, S, ground);
   painted(box(S.x1 - 1.3, S.x1 - 0.45, 0, 1.75, S.z1, S.z1 + 0.04), 0x2f5a3a);
   // a fascia board round the felt in the door's green (Task B), so the roof's
   // edge reads from the alley: inside the felt's own overhang, under its top
@@ -698,16 +828,12 @@ function drawAlley(K, group, M, ground) {
   // the channel's gully: a dark line down the flags' middle
   stone(flatStrip(ALLEY_CHANNEL.x0, ALLEY_CHANNEL.x1, ALLEY_CHANNEL.z - 0.07, ALLEY_CHANNEL.z + 0.07, CHANNEL_Y + 0.004), 0x4a4540);
 
-  // The crates, and the bin bags she drops onto from the garages.
-  for (const c of ALLEY_CRATES) K.put('wood', M.wood, turnedBox(c.x, c.z, c.y, c.s, c.s, c.s, c.yaw), { noCast: true });
-  const bags = BIN_BAGS;
-  [[-0.35, 0, 0.42], [0.3, 0.1, 0.38], [0, -0.3, 0.36], [0.05, 0.35, 0.33], [-0.1, 0.05, 0.3, 0.32]].forEach(([dx, dz, r, y = 0], i) => {
-    const g = new THREE.IcosahedronGeometry(r, 1);
-    g.scale(1, 0.75, 1);
-    g.rotateY(i * 1.3);
-    g.translate(bags.x + dx, y + r * 0.7, bags.z + dz);
-    painted(g, i === 4 ? 0x3a4a3a : 0x1f2023);
-  });
+  // The crates (slatted, round two's Task F), and the bin bags she drops onto from the garages.
+  for (const c of ALLEY_CRATES) {
+    K.put('wood', M.wood, turnedBox(c.x, c.z, c.y, c.s, c.s, c.s, c.yaw), { noCast: true });
+    crateSlats(K, M, c);
+  }
+  drawBinBags(K, M);
 
   // The fire escape: one iron flight up to a landing at the garages' west end.
   const ST = BLOCK.alleyStair;
@@ -743,6 +869,63 @@ function drawAlley(K, group, M, ground) {
   const zm = (F.z0 + F.z1) / 2;
   for (const x of [F.x0 + 0.08, F.x1 - 0.08]) legs.push([x, zm, ground.y(fx, zm) - 0.3]);
   for (const [x, z, top] of legs) iron(box(x - 0.05, x + 0.05, 0, top, z - 0.05, z + 0.05));
+}
+
+// --- Round two, Task F (critique finding 4): the bin bags were five glossy
+// boulders taller than a cat, and the drop from the garages (garages-bags,
+// unchanged) ended with her standing inside them. Now a slumped heap: each
+// bag flattened and sunk into the cobbles so its top is BAGS[i].top (the
+// middle one, where she lands, the flattest), a knot tied on each (two
+// four-sided cones point to point, the neck pinched), black or dark green.
+// [dx, dz, r, top]: its middle off BIN_BAGS, its radius, its top's height.
+const BAGS = Object.freeze([[-0.4, 0, 0.483, 0.15], [0.345, 0.115, 0.437, 0.14], [0, -0.345, 0.414, 0.13], [0.06, 0.4, 0.38, 0.12], [-0.115, 0.058, 0.345, 0.1]]);
+const BAG = Object.freeze({ squash: [0.38, 0.45], knot: Object.freeze({ at: 0.11, sink: 0.012, neck: 0.03, tuft: 0.03, foot: 0.035, top: 0.03 }), black: 0x18191c, green: 0x222e24 });
+function drawBinBags(K, M) {
+  const B = BAG;
+  BAGS.forEach(([dx, dz, r, top], i) => {
+    const [cx, cz] = [BIN_BAGS.x + dx, BIN_BAGS.z + dz];
+    const sy = B.squash[0] + (B.squash[1] - B.squash[0]) * hash01(i, BIN_BAGS.z, 52);
+    const cy = top - r * sy; // its middle, under the cobbles
+    const g = new THREE.IcosahedronGeometry(r, 1);
+    g.scale(1, sy, 1);
+    g.rotateY(i * 1.3);
+    g.translate(cx, cy, cz);
+    const base = new THREE.Color(hash01(i, BIN_BAGS.x, 53) < 0.3 ? B.green : B.black);
+    K.put('paint', M.paint, g, { color: base.multiplyScalar(0.82 + 0.36 * hash01(i, 7, 57)), noCast: true, item: { id: `bag:${i}`, kind: 'bag' } });
+    // the knot: on its side away from the heap's middle (the middle bag's, away
+    // from where she lands), where its top has fallen to B.knot.at
+    const k = B.knot;
+    const ky = Math.min(top - 0.01, k.at);
+    const d = r * Math.sqrt(Math.max(0, 1 - ((ky - cy) / (r * sy)) ** 2));
+    const away = Math.hypot(dx, dz) > 0.2 ? Math.atan2(dz, dx) : Math.atan2(dz, dx) + Math.PI * (hash01(i, 3, 55) - 0.5);
+    const [kx, kz] = [cx + d * Math.cos(away), cz + d * Math.sin(away)];
+    const foot = ky - k.sink;
+    const neck = new THREE.CylinderGeometry(0, k.foot, k.neck, 4, 1, true).translate(kx, foot + k.neck / 2, kz);
+    const tuft = new THREE.CylinderGeometry(k.top, 0, k.tuft, 4, 1, true).translate(kx, foot + k.neck + k.tuft / 2, kz);
+    K.put('paint', M.paint, mergeGeometries([neck.toNonIndexed(), tuft.toNonIndexed()]), { color: base.clone().multiplyScalar(0.9), noCast: true, item: { id: `bagKnot:${i}`, kind: 'bagKnot' } });
+  });
+}
+
+// --- Round two, Task F (critique finding 13, its drawing): the crates read
+// as plain brown boxes. Two dark gaps between boards across each side face
+// and a darker batten up each corner, flush on the faces (a millimetre or two
+// proud): the box, its top (the perch, where the knockables stand) and its
+// size are as they were. The walk-through is the owner's call (a collider).
+const CRATE = Object.freeze({ gaps: Object.freeze([1 / 3, 2 / 3]), gap: 0.022, gapOut: 0.001, gapColor: 0x2a1c10, batten: 0.05, battenOut: 0.002, battenColor: 0x5e4329 });
+function crateSlats(K, M, c) {
+  const C = CRATE;
+  const h = c.s / 2;
+  const put = (geo, color, kind) => {
+    geo.rotateY(c.yaw);
+    geo.translate(c.x, c.y, c.z);
+    K.put('paint', M.paint, geo, { color, noCast: true, item: { id: `${kind}:${c.x}`, kind } });
+  };
+  for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    // a face's strip from a to b along it (-h..h), y0..y1 up it, `out` proud
+    const strip = (a, b, y0, y1, out) => (nx ? faceX(a, b, y0, y1, nx * (h + out), nx) : faceZ(a, b, y0, y1, nz * (h + out), nz));
+    for (const f of C.gaps) put(strip(-h, h, c.s * f - C.gap / 2, c.s * f + C.gap / 2, C.gapOut), C.gapColor, 'crateSlat');
+    for (const e of [-1, 1]) put(strip(e < 0 ? -h : h - C.batten, e < 0 ? -h + C.batten : h, 0, c.s, C.battenOut), C.battenColor, 'crateBatten');
+  }
 }
 
 // --- Task D (critique finding 8): the alley lived in.
@@ -1030,6 +1213,7 @@ function drawTerrace(group, M, win, ground) {
   const iron = (geo) => K.put('iron', M.iron, geo, { noCast: true });
   const painted = (geo, color) => K.put('paint', M.paint, geo, { color, noCast: true });
   const pots = painted;
+  const felt = (geo, color, item) => K.put('paint', M.paint, geo, { color, noCast: true, item }); // round two, Task F
   const T = TERRACE;
   const sill = (x, y, z, w, nz) => stone(box(x - w / 2 - 0.06, x + w / 2 + 0.06, y - 0.07, y, nz > 0 ? z : z - 0.08, nz > 0 ? z + 0.08 : z));
   // a window with a stone sill under it, on a wall facing +z or -z
@@ -1059,6 +1243,7 @@ function drawTerrace(group, M, win, ground) {
   for (const f of flats) {
     wall(box(f.x0, f.x1, EAVE_Y - 0.05, f.y - 0.08, f.z0, f.z1), brickOf(f.house));
     group.add(own(f.id, M.felt, [box(f.x0, f.x1, f.y - 0.08, f.y, f.z0, f.z1)], { tile: TILE.gravel, tag: { block: f.id } }));
+    feltPatches(felt, f, ground);
     const full = f.z0 <= T.z0;
     const cheek = full ? gable : [[f.z0, EAVE_Y - 0.05], [f.z0, slopeY(f.z0)], [T.z1, EAVE_Y], [T.z1, EAVE_Y - 0.05]];
     const top = full ? gable : [[f.z0, slopeY(f.z0)], [T.z1, EAVE_Y]];
@@ -1182,6 +1367,10 @@ function drawTerrace(group, M, win, ground) {
     const ecx = (e.x0 + e.x1) / 2;
     wall(box(e.x0, e.x1, 0, e.y - 0.1, e.z0, e.z1), brickOf(k));
     group.add(own(e.id, M.felt, [box(e.x0, e.x1, e.y - 0.1, e.y, e.z0, e.z1)], { tile: TILE.gravel, tag: { block: e.id } }));
+    // its drip edge round the yard's three sides (by an outrigger, only past it), its patches
+    const past = o ? [o.z1, e.z1 + FELT.drip.out] : true;
+    dripEdges(felt, e, { x0: past, x1: past, z1: true });
+    feltPatches(felt, e, ground);
     // the kitchen window over the yard, its sill clear above a bunker's lid
     const bunker = BLOCK[`bunker-${k}`];
     zWin(ecx, bunker ? 2.15 : 1.85, e.z1, 1, 1.0, 1.0);
@@ -1193,6 +1382,8 @@ function drawTerrace(group, M, win, ground) {
     if (o) {
       wall(box(o.x0, o.x1, e.y - 0.1, o.y - 0.1, o.z0, o.z1), brickOf(k));
       group.add(own(o.id, M.felt, [box(o.x0, o.x1, o.y - 0.1, o.y, o.z0, o.z1)], { tile: TILE.gravel, tag: { block: o.id } }));
+      dripEdges(felt, o, { x0: true, x1: true, z1: true });
+      feltPatches(felt, o, ground);
       // the jettied overhang over the side return, on a corbelled course
       if (o.x1 > e.x1) wall(box(e.x1, o.x1 - 0.12, e.y - 0.3, e.y - 0.1, o.z0, o.z1), brickOf(k));
       if (o.x0 < e.x0) wall(box(o.x0 + 0.12, e.x0, e.y - 0.3, e.y - 0.1, o.z0, o.z1), brickOf(k));
@@ -1219,9 +1410,52 @@ function drawTerrace(group, M, win, ground) {
   for (const m of K.meshes()) group.add(m);
 }
 
-// A ridge tile's section (dz across the ridge, dy below the rail): its lips
-// 0.2 m out either side, 4 cm proud of the slopes, its foot under the slates.
-const RIDGE_CAP = Object.freeze([[-0.2, -0.085], [-0.2, -0.03], [-0.12, -0.008], [0, 0], [0.12, -0.008], [0.2, -0.03], [0.2, -0.085]]);
+// A ridge tile's section at its spigot end (dz across the ridge, dy below the
+// rail), six faces from lip to lip: its crown the rail, round-shouldered, its
+// flanks 3 cm and more proud of the slopes at 0.15 m out (Task B's guard), its
+// feet 0.16 m out, under the slates. Round two, Task F (critique finding 2):
+// it was one 0.4 m extrusion the length of the ridge, a flat red carpet at
+// cat height; now each ridge is laid in tiles RIDGE_TILES.len long or less.
+const RIDGE_CAP = Object.freeze([[-0.16, -0.11], [-0.153, -0.022], [-0.1, -0.008], [0, 0], [0.1, -0.008], [0.153, -0.022], [0.16, -0.11]]);
+// A tile's socket end is `socket` m larger than its spigot (the section scaled
+// about the crown, so the crown stays on the rail): every joint steps out at
+// the flanks. Each tile its own shade of RIDGE_TILE (`shade`, from hash01 of
+// where it lies); at each socket the bedding mortar shows on both flanks.
+const RIDGE_TILES = Object.freeze({ len: 0.45, socket: 0.012, shade: Object.freeze([0.9, 1.08]), mortar: 0xb8ad9c });
+
+// The tiles of a ridge from x0 to x1, its crown (the rail) at y over z: as
+// many as RIDGE_TILES.len goes into its length, each a tapered half-round
+// (six quads, its socket at its west end) and two mortar triangles, the
+// socket's mouth on its flanks: 14 triangles a tile. Pieces for own().
+function ridgeTiles(x0, x1, y, z) {
+  const R = RIDGE_TILES;
+  const n = Math.ceil((x1 - x0) / R.len - 1e-9);
+  const len = (x1 - x0) / n;
+  const big = 1 + R.socket / RIDGE_CAP[RIDGE_CAP.length - 1][0];
+  const at = (x, [dz, dy], k) => [x, y + dy * k, z + dz * k];
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const [xs, xe] = [x0 + i * len, x0 + (i + 1) * len];
+    const tris = [];
+    for (let j = 0; j + 1 < RIDGE_CAP.length; j++) {
+      const [p, q] = [RIDGE_CAP[j], RIDGE_CAP[j + 1]];
+      const want = [0, q[0] - p[0], -(q[1] - p[1])]; // out of the section, square to this face
+      tris.push(...quadTris(at(xs, p, big), at(xs, q, big), at(xe, q, 1), at(xe, p, 1), want));
+    }
+    const shade = R.shade[0] + (R.shade[1] - R.shade[0]) * hash01(xs, z, 51);
+    out.push({ geo: triangles(tris), color: new THREE.Color(RIDGE_TILE).multiplyScalar(shade) });
+    // the mortar in the socket's mouth, facing the tile before it: from the
+    // socket's flank top to the spigot's flank top, down to the socket's foot
+    const mortar = [];
+    for (const [top, foot] of [[RIDGE_CAP[1], RIDGE_CAP[0]], [RIDGE_CAP[RIDGE_CAP.length - 2], RIDGE_CAP[RIDGE_CAP.length - 1]]]) {
+      const tri = [at(xs, top, big), at(xs, top, 1), at(xs, foot, big)];
+      const nrm = cross(sub(tri[1], tri[0]), sub(tri[2], tri[0]));
+      mortar.push(...(nrm[0] <= 0 ? tri : [tri[0], tri[2], tri[1]]));
+    }
+    out.push({ geo: triangles(mortar), color: R.mortar });
+  }
+  return out;
+}
 
 // --- the crossings: planks, ridge tiles, lead gutters, washing lines. One
 // mesh each along its rail; the line's cloths in one mesh of their own.
@@ -1238,12 +1472,11 @@ function drawCrossings(group, M) {
       for (let i = 0; i + 1 < p.length; i++) pieces.push({ geo: beam(p[i], p[i + 1], 0.28, 0.04), color: 0xb8986a });
     } else if (c.kind === 'ridge') {
       // ridge tiles on the slates, stack to stack (the plan runs no ridge over
-      // a flat roof): a capping 0.4 m across, its lips proud of the slates
-      // either side (Task B), its crown the rail she walks
+      // a flat roof): laid one by one (round two, Task F: ridgeTiles), their
+      // flanks proud of the slates either side (Task B), their crown the rail she walks
       const x0 = Math.min(first.x, last.x);
       const x1 = Math.max(first.x, last.x);
-      const section = RIDGE_CAP.map(([dz, dy]) => [first.z + dz, first.y + dy]);
-      pieces.push({ geo: extrudeX(section, x0, x1), color: RIDGE_TILE });
+      pieces.push(...ridgeTiles(x0, x1, first.y, first.z));
     } else if (c.kind === 'gutter') {
       // a lead-lined box gutter at the back eave, its rim the rail
       const x0 = Math.min(first.x, last.x);
@@ -1468,7 +1701,7 @@ const SHOP_DRESS = Object.freeze({
   h: 0.15, out: 0.06, stone: 0xcdc4b2, // the stone's own colour
   cornice: Object.freeze({ h: 0.2, out: 0.3 }), // tall, and proud of the wall (the parapets stand 0.25 out)
 });
-function drawShop(K, group, M, win) {
+function drawShop(K, group, M, win, ground) {
   const wall = (g) => K.put('wall', M.wall, g, { tile: TILE.brick, color: NORTH.shop }); // painted (Task B)
   const stone = (g) => K.put('stone', M.stone, g);
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
@@ -1478,6 +1711,7 @@ function drawShop(K, group, M, win) {
   const top = S.y - 0.15;
   wall(box(S.x0, S.x1, L.STREET, top, S.z0, S.z1));
   group.add(own('cornerShop', M.felt, [box(S.x0, S.x1, top, S.y, S.z0, S.z1)], { tile: TILE.gravel, tag: { block: 'cornerShop' } }));
+  feltPatches((geo, color, item) => K.put('paint', M.paint, geo, { color, noCast: true, item }), S, ground); // round two, Task F
   // a stone cornice under the parapets, on the faces over the street, the shop yard and the back
   // yards (round two, Task E: SHOP_DRESS.cornice proud, past the parapet's face; it was a 0.1 m band)
   const D = SHOP_DRESS;
@@ -1515,10 +1749,61 @@ function drawShop(K, group, M, win) {
   K.put('ironSmall', M.iron, box(S.x1, S.x1 + 0.1, 0, top, S.z1 - 0.45, S.z1 - 0.35), { noCast: true }); // a downpipe
 }
 
+// Round two, Task F (critique finding 5c): the warehouse roof, the biggest she
+// reaches. Lead flashing along the parapets' feet (where a parapet stands:
+// not by the tower, the stair or the gap she climbs through), cut round every
+// take-off; four rainwater outlets near the parapets, each with a darker
+// stain spreading from it; and its patches (clear of the roof lights).
+const WAREHOUSE_OUTLETS = Object.freeze([[-40, -24, 1, 0], [-22, -50, 0, 1], [14, -50, 0, 1], [-6, -13, 0, -1]]); // [x, z, inward nx, nz]: on the parapet's line
+function warehouseFelt(put, W, ground, lights, stairZ, gapX) {
+  const F = FELT;
+  const tower = BLOCK['tower-1'];
+  const y = W.y + F.flashY;
+  const [i0, i1] = [F.flash.in, F.flash.in + F.flash.w];
+  // [from, to] along the edge, the edge, and which: runs where a parapet stands
+  const runs = [
+    ...[[W.x0, tower.x0], ...runsAround(tower.x1, W.x1, [gapX], 0.7)].map(([a, c]) => ['z', W.z1, -1, a, c]),
+    ['z', W.z0, 1, W.x0, W.x1],
+    ['x', W.x0, 1, W.z0, W.z1],
+    ...[[W.z0, stairZ[0]], [stairZ[1], W.z1]].map(([a, c]) => ['x', W.x1, -1, a, c]),
+  ];
+  let n = 0;
+  for (const [axis, e, inward, a0, c0] of runs) {
+    // cut round every take-off within reach of the strip
+    let pieces = [[a0 + i0, c0 - i0]];
+    for (const t of TAKEOFFS) {
+      const [along, across] = axis === 'z' ? [t.x, t.z] : [t.z, t.x];
+      const off = (across - e) * inward; // how far in from the edge
+      const reach = F.clear + 0.05;
+      const d = off < i0 ? i0 - off : off > i1 ? off - i1 : 0;
+      if (d >= reach) continue;
+      const half = Math.sqrt(reach * reach - d * d);
+      pieces = pieces.flatMap(([p, q]) => (along + half <= p || along - half >= q ? [[p, q]] : [[p, along - half], [along + half, q]].filter(([u, v]) => v - u > 0.2)));
+    }
+    for (const [p, q] of pieces) {
+      const [z0, z1] = [e + inward * i0, e + inward * i1].sort((u, v) => u - v);
+      const geo = axis === 'z' ? flatStrip(p, q, z0, z1, y) : flatStrip(z0, z1, p, q, y);
+      put(geo, F.flash.color, { id: `flashing:${n++}`, kind: 'flashing' });
+    }
+  }
+  // the outlets and their stains
+  WAREHOUSE_OUTLETS.forEach(([ex, ez, nx, nz], i) => {
+    const [x, z] = [ex + nx * F.outlet.in, ez + nz * F.outlet.in];
+    const disc = new THREE.CircleGeometry(F.outlet.r, 8);
+    disc.rotateX(-Math.PI / 2);
+    disc.translate(x, W.y + F.outletY, z);
+    put(disc, F.outlet.color, { id: `outlet:${i}`, kind: 'outlet' });
+    const S = F.stain;
+    const [sx, sz] = [x + nx * S.r * 0.55, z + nz * S.r * 0.55];
+    put(feltPolygon(sx, sz, W.y + F.stainY, 6, S.r, S.r * S.wide, Math.atan2(nz, nx), i + 0.5), S.color, { id: `stain:${i}`, kind: 'stain' });
+  });
+  feltPatches(put, W, ground, [...lights, ...WAREHOUSE_OUTLETS.map(([ex, ez, nx, nz]) => ({ x: ex + nx * 0.6, z: ez + nz * 0.6, r: 0.8 }))]);
+}
+
 const TANK_PLANK = Object.freeze({ thick: 0.018, wide: 0.26, color: 0xc9ad7e, hoop: 0xb9c0c4 }); // a pale, sun-bleached plank on the dark lid
 // --- the warehouse, and what stands on its roof: the tank, the loft, the
 // lantern, roof lights; its stair down to the ginnel.
-function drawWarehouse(K, group, M, win, upWin) {
+function drawWarehouse(K, group, M, win, upWin, ground) {
   const wall = (g, color = NORTH.warehouse) => K.put('wall', M.wall, g, { tile: TILE.brick, color }); // a darker brick (Task B)
   const stone = (g) => K.put('stone', M.stone, g);
   const iron = (g, noCast = false) => K.put(noCast ? 'ironSmall' : 'iron', M.iron, g, { noCast });
@@ -1572,12 +1857,15 @@ function drawWarehouse(K, group, M, win, upWin) {
   // roof lights, flush with the felt, lit from below: the iron frame runs round
   // the glass's edge (Task C: it was one slab over the whole light, so the glass
   // never showed)
+  const lights = [];
   for (const x of [-12, -4, 4]) {
     for (const z of [-22, -40]) {
       upWin(x, W.y + 0.02, z, 1.0, 2.2, warmCell(x, z));
       iron(frameRing(x - 0.5, x + 0.5, z - 1.1, z + 1.1, 0.06, W.y, W.y + 0.04), true);
+      lights.push({ x, z, r: 1.5 });
     }
   }
+  warehouseFelt((geo, color, item) => K.put('paint', M.paint, geo, { color, noCast: true, item }), W, ground, lights, stairZ, climbTo('warehouse').x);
 
   // the water tank: wooden staves, iron hoops, a hatch
   const T = BLOCK.tank;

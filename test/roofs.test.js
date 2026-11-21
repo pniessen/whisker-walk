@@ -28,7 +28,7 @@ const { build, ALLEY_WEEDS } = await import('../src/world/roofs.js');
 const {
   BLOCKS, LEVELS, ROOFS_TRAVERSAL, ROOFS_COLLIDERS, YARD, STREETS, VANE, VANE_TIP, ROOFS_SPAWN,
   ROOFS_POIS, ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_DISCOVERIES, BIN_BAGS,
-  ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS, GARDEN,
+  ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS, GARDEN, ALLEY_CRATES,
 } = await import('../src/world/roofsplan.js');
 const { CAT_RADIUS, isWalkableAt } = await import('../src/player.js');
 const { createRoofsLife, EVENING_RAMP } = await import('../src/roofslife.js');
@@ -40,6 +40,7 @@ const { clearSpot } = await import('../src/world/spots.js');
 const { BASE_ABILITIES } = await import('../src/traversal.js');
 const { floodTraversal } = await import('./helpers/traversalflood.js');
 const { WINDOW_CELLS, markMesh } = await import('../src/world/roofsparts.js');
+const { tileMetres } = await import('../src/render/materials.js');
 
 // =============================================================================
 // The Rooftops drawn (Rooftops step 2). Task 7: part one, the alley and the
@@ -111,8 +112,17 @@ const centreOf = (b) => {
 // lower, so their fronts have room for three lit windows fewer, -6; the shop's cornice is its
 // old stone band reshaped; the plant, the glow, the bulbs, the sky, the town's
 // haze and lights and the palette cost nothing) -> 113 / 68 / 34,023 (merged 56 / 30).
-const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 34023 };
-const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 34023 };
+// Round two, Task F (what she walks on): no mesh and no caster added, every
+// piece in a noCast bucket the place already had (the ridges' own noCast
+// meshes, the alley's, terrace's and north's paint); +2,042 triangles (the
+// ridges laid in 120 tiles of 14 triangles, 1,680 in place of the six
+// extrusions' 144, +1,536; the felt's 52 drip edges +104, 58 patches +172,
+// the warehouse's flashing +14, four outlets +32 and their stains +16, +338;
+// the crates' gaps and battens, 4 x 32 = +128; the bin bags' knots, +40, the
+// bags themselves reshaped at their 400; the alley's smaller setts cost
+// nothing) -> 113 / 68 / 36,065 (merged 56 / 30).
+const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 36065 };
+const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 36065 };
 const MEASURED_DRAWS = 0;
 const TOWN_TRIANGLES = 4958; // the far town's one mesh (Task A: 3,992 before; 4,964 until round two, Task E: its back rows lower, so their fronts have room for three lit windows fewer)
 
@@ -271,7 +281,9 @@ describe('the Rooftops drawn', () => {
       if (near) bad.push([h.id, near[0]]);
     }
     expect(bad).toEqual([]);
-    // and the real thing is drawn: its block's own mesh, or the bin bags at their spot
+    // and the real thing is drawn: its block's own mesh, or the bin bags at
+    // their spot (round two, Task F, critique finding 4: a slumped heap under
+    // 0.17 m now, where it stood 0.3 to 0.9 m, boulders she landed inside)
     for (const id of new Set(withProp.map((h) => propOf.get(h.id)))) {
       if (id === 'binBags') {
         const v = new THREE.Vector3();
@@ -279,7 +291,7 @@ describe('the Rooftops drawn', () => {
           const pos = m.geometry.attributes.position;
           for (let i = 0; i < pos.count; i++) {
             v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
-            if (Math.hypot(v.x - BIN_BAGS.x, v.z - BIN_BAGS.z) < BIN_BAGS.r && v.y > 0.3 && v.y < 0.9) return true;
+            if (Math.hypot(v.x - BIN_BAGS.x, v.z - BIN_BAGS.z) < BIN_BAGS.r && v.y > 0.08 && v.y < 0.17) return true;
           }
           return false;
         })());
@@ -1218,6 +1230,242 @@ describe('the Rooftops drawn', () => {
       let cornice = 0;
       for (let y = top - 0.3; y <= top - 0.03; y += 0.02) cornice = Math.max(cornice, proudAt(y)[0]);
       expect(cornice, `${ax} ${face} cornice`).toBeGreaterThanOrEqual(0.15);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Round two, Task F (critique findings 2, 4, 5, 6 and 13's drawing): what she
+  // walks on. Looks only: the rails, the ground, the hops and the perches are
+  // the plan's, so these read the drawing where she stands and lands.
+  // ---------------------------------------------------------------------------
+  const itemsOf = (...kinds) => meshes.filter((m) => m.userData.itemRanges)
+    .flatMap((m) => m.userData.itemRanges.filter((r) => kinds.includes(r.kind)).map((r) => [m, r]));
+  const verticesOf = ([m, r]) => {
+    const pos = m.geometry.attributes.position;
+    return Array.from({ length: r.count }, (_, i) => new THREE.Vector3().fromBufferAttribute(pos, r.start + i).applyMatrix4(m.matrixWorld));
+  };
+  // which item of the kit a ray hit (its face's first vertex in the item's range)
+  const itemHit = (hit) => (hit?.object.userData.itemRanges ?? []).find((r) => hit.face.a >= r.start && hit.face.a < r.start + r.count) ?? null;
+
+  // Critique finding 2: one smooth extrusion read as a red carpet down the ridge.
+  it('the ridge she walks is capped in single tiles, each its own shade, stepped and pointed at every joint, its crown the rail', () => {
+    const ridges = ROOFS_TRAVERSAL.crossings.filter((c) => c.kind === 'ridge');
+    const tileLum = lum(new THREE.Color(0x763a2b));
+    let joints = 0;
+    for (const c of ridges) {
+      const m = meshes.find((o) => o.userData.crossing === c.id);
+      expect(m.castShadow, c.id).toBe(false);
+      expect(m.userData.noCast, c.id).toBe(true);
+      const { y, z } = c.points[0];
+      const x0 = Math.min(c.points[0].x, c.points[1].x);
+      const x1 = Math.max(c.points[0].x, c.points[1].x);
+      const len = x1 - x0;
+      const tiles = Math.ceil(len / 0.45 - 1e-9);
+      // the crown is the rail she walks, at 20 places along it, and nothing is higher
+      expect(boxOf(m).max.y, c.id).toBeLessThanOrEqual(y + 0.001);
+      for (let k = 0; k < 20; k++) {
+        const x = x0 + ((k + 0.5) * len) / 20;
+        const top = firstHit([x, y + 2, z], [0, -1, 0], [m]);
+        expect(Math.abs(top.point.y - y), `${c.id} crown at ${x.toFixed(2)}`).toBeLessThanOrEqual(0.001);
+      }
+      // a level ray at each flank, every 1 cm along it: each tile's socket end
+      // stands out past the spigot end of the tile before it, so the side steps
+      // out once at every joint
+      const steps = { [-1]: [], 1: [] };
+      for (const side of [-1, 1]) {
+        let last = null;
+        for (let x = x0 + 0.005; x < x1; x += 0.01) {
+          const h = firstHit([x, y - 0.04, z + side], [0, 0, -side], [m]);
+          const out = h ? side * (h.point.z - z) : 0;
+          if (last !== null && out - last > 0.004) steps[side].push(x);
+          last = out;
+        }
+        expect(steps[side].length + 1, `${c.id} ${side}: tiles`).toBe(tiles);
+      }
+      // each tile its own shade of the terracotta, read at its crown
+      const shades = [];
+      for (let i = 0; i < tiles; i++) {
+        const top = firstHit([x0 + ((i + 0.5) * len) / tiles, y + 2, z], [0, -1, 0], [m]);
+        const col = colourAt(top);
+        expect(col.r > col.g && col.g > col.b, `${c.id} tile ${i}`).toBe(true);
+        expect(lum(col) / tileLum, `${c.id} tile ${i}`).toBeGreaterThan(0.8 * 0.9);
+        expect(lum(col) / tileLum, `${c.id} tile ${i}`).toBeLessThan(1.25 * 1.08);
+        shades.push(lum(col).toFixed(4));
+      }
+      expect(new Set(shades).size, c.id).toBeGreaterThanOrEqual(Math.ceil(tiles * 0.6));
+      // and the bedding mortar pale at every joint, looking along the flank
+      for (const side of [-1, 1]) {
+        for (const xj of steps[side]) {
+          const h = firstHit([xj - 0.1, y - 0.04, z + side * 0.161], [1, 0, 0], [m]);
+          expect(h, `${c.id} ${side} joint at ${xj.toFixed(2)}`).toBeTruthy();
+          expect(Math.abs(h.point.x - xj), `${c.id} ${side} joint at ${xj.toFixed(2)}`).toBeLessThan(0.02);
+          expect(lum(colourAt(h)), `${c.id} ${side} mortar`).toBeGreaterThan(3 * tileLum);
+          joints++;
+        }
+      }
+    }
+    expect(joints).toBeGreaterThan(200);
+  });
+
+  // Critique finding 4: five glossy boulders taller than a cat, and she ended
+  // the drop standing inside them.
+  it('the bin bags are a slumped heap of knotted bags under 17 cm, the flattest where she lands', () => {
+    const bags = itemsOf('bag');
+    const knots = itemsOf('bagKnot');
+    expect(bags).toHaveLength(5);
+    expect(knots).toHaveLength(5);
+    for (const it of [...bags, ...knots]) for (const v of verticesOf(it)) expect(v.y, it[1].id).toBeLessThan(0.17);
+    // her landing (the drop's own spot, unchanged): on a bag, its top 0.05-0.11 m up
+    const drop = area.traversal.hops.find((h) => h.id === 'garages-bags');
+    expect([drop.x1, drop.z1]).toEqual([BIN_BAGS.x, BIN_BAGS.z]);
+    const under = firstHit([drop.x1, 1, drop.z1], [0, -1, 0]);
+    expect(itemHit(under)?.kind).toBe('bag');
+    expect(under.point.y).toBeGreaterThan(0.05);
+    expect(under.point.y).toBeLessThanOrEqual(0.11);
+    // the heap's footprint covers the spot all round, half a metre across
+    for (let a = 0; a < 8; a++) {
+      const h = firstHit([drop.x1 + 0.25 * Math.cos(a), 1, drop.z1 + 0.25 * Math.sin(a)], [0, -1, 0]);
+      expect(itemHit(h)?.kind, `round the landing ${a}`).toBe('bag');
+    }
+    // each knot is pinched: narrower at its middle than at its foot and its top, and above its bag
+    for (const it of knots) {
+      const vs = verticesOf(it);
+      const lo = Math.min(...vs.map((v) => v.y));
+      const hi = Math.max(...vs.map((v) => v.y));
+      expect(hi - lo, it[1].id).toBeGreaterThan(0.045);
+      const c = vs.reduce((s, v) => s.add(v), new THREE.Vector3()).divideScalar(vs.length);
+      const spread = (f) => Math.max(...vs.filter((v) => Math.abs(v.y - (lo + (hi - lo) * f)) < 0.004).map((v) => Math.hypot(v.x - c.x, v.z - c.z)), 0);
+      expect(spread(0.5), it[1].id).toBeLessThan(0.5 * Math.min(spread(0), spread(1)));
+    }
+    // the shades: black and dark green, not one paint
+    const shades = bags.map(([m, r]) => {
+      const col = m.geometry.attributes.color;
+      return new THREE.Color(col.getX(r.start), col.getY(r.start), col.getZ(r.start));
+    });
+    expect(new Set(shades.map((s) => s.getHexString())).size).toBe(5);
+    expect(shades.some((s) => s.g > 1.15 * s.r)).toBe(true);
+    for (const s of shades) expect(lum(s)).toBeLessThan(0.05);
+  });
+
+  // Critique finding 5: the felt she walks most was an empty grey plain.
+  it('the felt roofs have drip edges, repair patches and, on the warehouse, lead flashing and outlets: all flush and clear of every take-off', () => {
+    const flat = itemsOf('feltPatch', 'flashing', 'outlet', 'stain');
+    const takeoffs = area.traversal.hops.map((h) => [h.x0, h.z0]);
+    const bad = [];
+    for (const it of flat) {
+      const vs = verticesOf(it);
+      // the triangles' middles too, so no piece spans a spot between its corners
+      const mids = [];
+      for (let i = 0; i + 2 < vs.length; i += 3) mids.push(vs[i].clone().add(vs[i + 1]).add(vs[i + 2]).divideScalar(3));
+      for (const v of [...vs, ...mids]) {
+        const up = v.y - area.ground.y(v.x, v.z);
+        if (!(up > 0.002 && up <= 0.015)) bad.push([it[1].id, 'up', +up.toFixed(4)]);
+        const near = Math.min(...takeoffs.map(([x, z]) => Math.hypot(v.x - x, v.z - z)));
+        if (near < 0.6) bad.push([it[1].id, 'take-off', +near.toFixed(2)]);
+      }
+    }
+    expect(bad.slice(0, 6)).toEqual([]);
+    // patches on every felt roof she walks: two or more on each big one
+    const per = new Map();
+    for (const [, r] of itemsOf('feltPatch')) per.set(r.roof, (per.get(r.roof) ?? 0) + 1);
+    // (an extension with an outrigger on it has half its roof free: one there)
+    const exts = BLOCKS.filter((q) => /^ext-/.test(q.id));
+    const outs = ['out-2', 'out-5', 'out-7', 'out-10'];
+    const underOut = new Set(outs.map((id) => `ext-${id.slice(4)}`));
+    for (const id of ['garages', 'warehouse', 'cornerShop', 'flatHouse', ...exts.map((q) => q.id).filter((id) => !underOut.has(id))]) expect(per.get(id) ?? 0, id).toBeGreaterThanOrEqual(2);
+    for (const id of ['shed', 'dormer', ...outs, ...underOut]) expect(per.get(id) ?? 0, id).toBeGreaterThanOrEqual(1);
+    // the warehouse: four outlets, each with its stain, and flashing at the parapets' feet
+    expect(itemsOf('outlet')).toHaveLength(4);
+    expect(itemsOf('stain')).toHaveLength(4);
+    const W = BLOCKS.find((q) => q.id === 'warehouse');
+    const fl = itemsOf('flashing');
+    expect(fl.length).toBeGreaterThanOrEqual(4);
+    for (const it of fl) {
+      const vs = verticesOf(it);
+      const edge = Math.min(...vs.map((v) => Math.min(v.x - W.x0, W.x1 - v.x, v.z - W.z0, W.z1 - v.z)));
+      expect(edge, it[1].id).toBeLessThan(0.01); // along an edge, at the parapet's foot
+    }
+    // the drip edges: on the outer vertical faces of every extension, outrigger
+    // and the garages, the top 5 cm of the felt's edge, never on top
+    const trims = itemsOf('dripEdge');
+    const roofs = ['garages', ...exts.map((q) => q.id), 'out-2', 'out-5', 'out-7', 'out-10'].map((id) => BLOCKS.find((q) => q.id === id));
+    expect(new Set(trims.map(([, r]) => r.roof))).toEqual(new Set(roofs.map((q) => q.id)));
+    for (const it of trims) {
+      const R = roofs.find((q) => q.id === it[1].roof);
+      const [m, r] = it;
+      const nor = m.geometry.attributes.normal;
+      for (let i = r.start; i < r.start + r.count; i++) expect(Math.abs(nor.getY(i)), it[1].id).toBeLessThan(1e-4);
+      for (const v of verticesOf(it)) {
+        expect(v.y, it[1].id).toBeLessThanOrEqual(R.y + 1e-6);
+        expect(v.y, it[1].id).toBeGreaterThanOrEqual(R.y - 0.06);
+        const outside = Math.max(R.x0 - v.x, v.x - R.x1, R.z0 - v.z, v.z - R.z1);
+        expect(outside, it[1].id).toBeGreaterThan(0.002);
+        expect(outside, it[1].id).toBeLessThan(0.02);
+      }
+    }
+    // a ray at each extension's back edge, just under its top, meets the trim
+    for (const e of exts) {
+      const h = firstHit([(e.x0 + e.x1) / 2 + 0.6, e.y - 0.025, e.z1 + 1], [0, 0, -1]);
+      expect(itemHit(h)?.kind, e.id).toBe('dripEdge');
+    }
+  });
+
+  // Critique finding 6: the alley's cobbles were pillows at cat height.
+  it('the alley\'s setts are smaller (a 0.75 m tile, not the 1.2 m house tile), the yards\' flags as they were', () => {
+    const uvTile = (m) => {
+      const pos = m.geometry.attributes.position;
+      const uv = m.geometry.attributes.uv;
+      const ks = new Set();
+      for (let i = 0; i < pos.count; i++) {
+        if (Math.abs(pos.getX(i)) > 1) ks.add((pos.getX(i) / uv.getX(i)).toFixed(4));
+        if (Math.abs(pos.getZ(i)) > 1) ks.add((pos.getZ(i) / uv.getY(i)).toFixed(4));
+      }
+      return [...ks];
+    };
+    expect(uvTile(named('roofsGround:cobble')[0])).toEqual(['0.7500']);
+    expect(uvTile(named('roofsGround:flags')[0])).toEqual([tileMetres('flagstone').toFixed(4)]);
+    // the ground she walks is the plan's: the alley at 0
+    for (const [x, z] of [[-40, 36], [0, 41], [40, 45], [42, 0], [45, -20]]) expect(area.ground.y(x, z)).toBe(0);
+  });
+
+  // Critique finding 13 (its drawing only; the walk-through is the owner's call):
+  // a plain brown box, no slats.
+  it('the alley crates are slatted, dark gaps across each side and darker battens at the corners, their tops where the perches are', () => {
+    const noGlow = meshes.filter((m) => !m.userData.markGlow);
+    const woodMesh = named('roofsAlley:wood')[0];
+    const woodLum = lum(woodMesh.material.color);
+    for (const c of ALLEY_CRATES) {
+      // the perch is the drawn top, wood, not a slat
+      const top = firstHit([c.x, 3, c.z], [0, -1, 0], noGlow);
+      expect(top.object, `crate ${c.x}`).toBe(woodMesh);
+      expect(Math.abs(top.point.y - (c.y + c.s)), `crate ${c.x}`).toBeLessThan(0.001);
+      expect(ROOFS_PERCHES.some((p) => p.x === c.x && p.z === c.z && Math.abs(p.y - top.point.y) < 0.001)).toBe(true);
+      // each side face, read with level rays from 5 cm out
+      const [cs, sn] = [Math.cos(c.yaw), Math.sin(c.yaw)];
+      const toWorld = (lx, lz) => [c.x + lx * cs + lz * sn, c.z - lx * sn + lz * cs];
+      for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const [tx, tz] = [-nz, nx]; // along the face
+        const read = (along, h) => {
+          const [ox, oz] = toWorld(nx * (c.s / 2 + 0.05) + tx * along, nz * (c.s / 2 + 0.05) + tz * along);
+          const [dx, dz] = toWorld(-nx, -nz).map((q, i) => q - [c.x, c.z][i]);
+          const hit = firstHit([ox, c.y + h, oz], [dx, 0, dz], noGlow);
+          return hit && hit.distance < 0.08 ? hit : null;
+        };
+        const kinds = [];
+        for (let f = 0.1; f < 0.95; f += 0.02) {
+          const hit = read(0, c.s * f);
+          kinds.push(hit && itemHit(hit)?.kind === 'crateSlat' && lum(colourAt(hit)) < 0.5 * woodLum ? 'gap' : hit?.object === woodMesh ? 'wood' : '?');
+        }
+        const runs = kinds.join(',').split(/(?:wood,?)+/).filter((s) => s.includes('gap')).length;
+        expect(runs, `crate ${c.x} face ${nx},${nz}: ${kinds.join(' ')}`).toBe(2);
+        expect(kinds.filter((k) => k === '?'), `crate ${c.x} face ${nx},${nz}`).toEqual([]);
+        // a batten up each corner, darker than the boards
+        for (const end of [-1, 1]) {
+          const hit = read(end * (c.s / 2 - 0.02), c.s * 0.25);
+          expect(itemHit(hit)?.kind, `crate ${c.x} face ${nx},${nz} corner ${end}`).toBe('crateBatten');
+          expect(lum(colourAt(hit))).toBeLessThan(0.85 * woodLum);
+        }
+      }
     }
   });
 
