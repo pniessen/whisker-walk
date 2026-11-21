@@ -55,8 +55,10 @@ import { MGR, FERRIS, TEACUPS, HELTER, COASTER, STATION, MUSIC_BOX } from './fai
 // =============================================================================
 
 export const FAIR_GRASS = 0x62ac50;
-// The midway, the plaza and the paths: pale trodden earth and sawdust.
-export const FAIR_PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xdcc79a });
+// The midway, the plaza and the paths: pale trodden earth and sawdust
+// (world/pathribbon.js SAWDUST_LOOK: scuffed patches, a darker trodden
+// margin, sawdust chips and crumbs of earth).
+export const FAIR_PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xdcc79a, look: 'sawdust' });
 export const FAIR_PATH_EXTEND = 17;
 
 // Just outside the gate, on the lane: the walk opens looking in under the
@@ -211,6 +213,11 @@ export const FAIR_TRAILS = Object.freeze([
 export const FAIR_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 36,
   color: 0x86b874, salt: 83,
+  // (beauty pass) the far hills differ by side, so the country round the
+  // field has depth instead of one green going on for ever: hazy blue-green
+  // behind the big wheel, ripe barley gold to the east, deep summer green
+  // behind the gate, olive to the west
+  sideTints: Object.freeze({ north: 0x8db0a0, east: 0xb4b872, south: 0x6f9f5e, west: 0x93a46a }),
   nearColor: FAIR_GRASS,
   edge: Object.freeze({
     half: 60, style: 'hedge',

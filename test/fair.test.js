@@ -1516,6 +1516,72 @@ describe('The Fairground: what the shared tables will need (FAIR_REGISTRATION)',
   });
 });
 
+// The beauty pass (2026-11-20): what a child sees from the ground.
+describe('The Fairground: the beauty pass', () => {
+  const v = new THREE.Vector3();
+  // the distinct colours of a mesh's vertices that pass `keep` (world positions)
+  const coloursWhere = (mesh, keep) => {
+    mesh.updateWorldMatrix(true, false);
+    const pos = mesh.geometry.getAttribute('position');
+    const col = mesh.geometry.getAttribute('color');
+    const out = new Set();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      if (keep(v)) out.add([col.getX(i), col.getY(i), col.getZ(i)].map((c) => c.toFixed(3)).join());
+    }
+    return out;
+  };
+
+  it('the midway and the plaza are sawdust, not a plain trail', () => {
+    const trail = scene.children.find((o) => o.name === 'pathTrail');
+    expect(trail.userData.trailLook).toBe('sawdust');
+  });
+
+  it('the teacups stand on a painted skirt, not a plain white drum', () => {
+    const deck = scene.getObjectByName('teacupsDeck');
+    const at = scene.getObjectByName('teacups').position;
+    // the skirt's lower corners (the deck's top starts at deckY, the kerb is wider)
+    const skirt = coloursWhere(deck, (p) => Math.abs(Math.hypot(p.x - at.x, p.z - at.z) - TEACUPS.r) < 0.02
+      && Math.abs(p.y - 0.12) < 0.005);
+    expect(skirt.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it('the coaster platform’s skirt is panelled in two colours', () => {
+    const station = scene.getObjectByName('coasterStation');
+    // the skirt's west face, along its foot
+    const west = coloursWhere(station, (p) => Math.abs(p.x - STATION_DECK.minX) < 0.01
+      && Math.abs(p.y) < 0.005 && p.z > STATION_DECK.minZ && p.z < STATION_DECK.maxZ);
+    expect(west.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it('the carousel’s mirrors and painted ovals are on the bulbs’ material, as steady panes', () => {
+    const bulbs = scene.getObjectByName('mgrBulbs');
+    expect(bulbs.material).toBe(area.glow.material);
+    const r = bulbs.geometry.getAttribute('fairBulbR');
+    let panes = 0;
+    for (let i = 0; i < r.count; i++) if (r.getX(i) === 0) panes++;
+    // 12 mirrors on the drum and 16 ovals on the rounding board, octagons of 6 triangles
+    expect(panes).toBe((12 + 16) * 6 * 3);
+  });
+
+  it('the far hills differ by side: more yellow to the east than behind the big wheel', () => {
+    const band = scene.children.find((o) => o.name === 'horizonBand');
+    const mean = (keep) => {
+      const pos = band.geometry.getAttribute('position');
+      const col = band.geometry.getAttribute('color');
+      let n = 0, rg = 0;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), z = pos.getZ(i);
+        if (keep(x, z) && pos.getY(i) > 2) { n++; rg += col.getX(i) / Math.max(1e-6, col.getZ(i)); }
+      }
+      return rg / n;
+    };
+    const east = mean((x, z) => x > 70 && Math.abs(z) < 30);
+    const north = mean((x, z) => z < -70 && Math.abs(x) < 30);
+    expect(east).toBeGreaterThan(north * 1.3);
+  });
+});
+
 describe('The Fairground: the drawing budget', () => {
   const built = budgetStats(scene);
   const mergedScene = new THREE.Scene();
@@ -1532,7 +1598,9 @@ describe('The Fairground: the drawing budget', () => {
     // Polish pass (2026-11-19): carved horses, stall trims, glow and a cull of
     // the faces lying on the ground; the four builder flower patches (48
     // meshes, 48 casters) became flower tubs in the props' mesh.
-    expect(built).toEqual({ meshes: 174, casters: 109, triangles: 66692 });
+    // Beauty pass (2026-11-20): the teacups' painted skirt, gold edge and
+    // finer kerb stripes, the coaster platform's panelled skirt: +248.
+    expect(built).toEqual({ meshes: 174, casters: 109, triangles: 66940 });
     expect({ meshes: merged.meshes, casters: merged.casters }).toEqual({ meshes: 159, casters: 104 });
   });
 

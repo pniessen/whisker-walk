@@ -765,6 +765,22 @@ describe('gravel trail look (polish-park2)', async () => {
     }
   });
 
+  // The Fairground's midway and plaza (fair beauty pass): trodden earth and sawdust.
+  it('sawdust: registered, has every default key, emits its dark crumbs, its own program', () => {
+    const { SAWDUST_LOOK } = TRAIL_LOOKS.sawdust ? { SAWDUST_LOOK: TRAIL_LOOKS.sawdust } : {};
+    expect(SAWDUST_LOOK).toBeDefined();
+    for (const k of Object.keys(TRAIL_LOOK)) expect(SAWDUST_LOOK).toHaveProperty(k);
+    expect(SAWDUST_LOOK.edgeLine).toBeUndefined();
+    const { m, s } = compiled('sawdust');
+    expect(s.fragmentShader).toContain('trailHash(tCell, 9.0)');
+    expect(s.fragmentShader).not.toContain('tLine');
+    expect(s.fragmentShader).not.toBe(compiled('gravel').s.fragmentShader);
+    expect(m.customProgramCacheKey()).toBe('sawdust' + segs.length);
+    // patchier and more strewn than a country trail
+    expect(SAWDUST_LOOK.blotch).toBeGreaterThan(TRAIL_LOOK.blotch);
+    expect(SAWDUST_LOOK.pebbleChance).toBeGreaterThan(TRAIL_LOOK.pebbleChance);
+  });
+
   it('addTrails: style.look names the look, extend overrides the edge run-on', () => {
     const scene = new THREE.Scene();
     const { mesh, segs: got } = addTrails(scene, [{ segs: [[0, 48, 0, 20]], w: 3 }],
