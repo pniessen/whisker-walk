@@ -27,7 +27,7 @@ const { castFor, roamHomes } = await import('../src/clancast.js');
 const { DISCS } = await import('../src/rivalclans.js');
 const { PRINT_Y } = await import('../src/render/pawprints.js');
 const { TRAIL_RENDER_ORDER } = await import('../src/world/pathribbon.js');
-const { HIGH_STONE_TRIS, HIGH_STONE_BOULDER_TRIS } = await import('../src/world/camp.js');
+const { HIGH_STONE_TRIS, HIGH_STONE_BOULDER_TRIS, campLook } = await import('../src/world/camp.js');
 const { setTextureTier } = await import('../src/render/textures.js');
 const { withOffWords } = await import('./helpers/offwords.js');
 
@@ -934,13 +934,83 @@ describe('the everyday camps\' High Stone', () => {
         // and it narrows: no corner of the boulder is further out than one below it by more than a hair
         const ringR = new Map();
         for (const v of verts.slice(0, n)) {
-          const y = Math.round(v.y * 100);
+          const y = Math.round(v.y * 20); // 5 cm bands (the worn rim's corners dip unevenly)
           ringR.set(y, Math.max(ringR.get(y) ?? 0, Math.hypot(v.x, v.z)));
         }
         const ys = [...ringR.keys()].sort((p, q) => p - q);
         for (let k = 1; k < ys.length; k++) expect(ringR.get(ys[k]), `${a} y ${ys[k]}`).toBeLessThanOrEqual(ringR.get(ys[k - 1]) + 0.02);
       }
     });
+  });
+
+  // V2 (the owner, from the pictures): an old meeting stone with character.
+  // The stone's own corners (first in the geometry), with their colour, the
+  // luminance of that colour and their distance off the grey-and-lichen plane
+  // (how much moss is in them).
+  const stoneCorners = (a) => {
+    const { rock, verts } = build(a);
+    const look = campLook(a);
+    const r = new THREE.Color(look.rock);
+    const li = new THREE.Color(0xc9c79a);
+    const plane = new THREE.Vector3(1, 1, 1).cross(new THREE.Vector3(li.r / r.r, li.g / r.g, li.b / r.b)).normalize();
+    const col = rock.geometry.attributes.color;
+    const nrm = rock.geometry.attributes.normal;
+    const out = [];
+    for (let i = 0; i < 3 * HIGH_STONE_BOULDER_TRIS; i++) {
+      const c = new THREE.Vector3(col.getX(i), col.getY(i), col.getZ(i));
+      const v = verts[i];
+      out.push({
+        ...v, c, ny: nrm.getY(i), d: Math.hypot(v.x, v.z), th: Math.atan2(v.z, v.x),
+        lum: 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z, moss: Math.abs(plane.dot(c)),
+      });
+    }
+    return { corners: out, look };
+  };
+
+  it('has a weathered crack: a narrow seam of dark corners up one side, from near the foot to the rim', () => {
+    for (const a of ROCK_CAMPS) {
+      const { corners } = withOffWords(() => stoneCorners(a));
+      // the bare stone's sides (moss is dark in some clans; the crack runs through it unmossed)
+      const side = corners.filter((k) => k.y > 0.04 && k.y < 0.77 && k.moss < 1e-4);
+      const median = (ks) => { const ls = ks.map((k) => k.lum).sort((p, q) => p - q); return ls[ls.length >> 1]; };
+      const dark = side.filter((k) => k.lum < 0.62 * median(side.filter((o) => Math.abs(o.y - k.y) <= 0.05)));
+      expect(dark.length, a).toBeGreaterThan(0);
+      // up the side: dark corners at five or more heights, from below 0.3 m to above 0.6 m
+      const bins = new Set(dark.map((k) => Math.floor(k.y * 10)));
+      expect(bins.size, a).toBeGreaterThanOrEqual(5);
+      expect(Math.min(...dark.map((k) => k.y)), a).toBeLessThan(0.3);
+      expect(Math.max(...dark.map((k) => k.y)), a).toBeGreaterThan(0.6);
+      // one narrow seam: every dark corner within 0.35 rad of their mean direction
+      const mx = dark.reduce((t, k) => t + Math.cos(k.th), 0);
+      const mz = dark.reduce((t, k) => t + Math.sin(k.th), 0);
+      const mean = Math.atan2(mz, mx);
+      for (const k of dark) {
+        const dth = Math.abs(Math.atan2(Math.sin(k.th - mean), Math.cos(k.th - mean)));
+        expect(dth, `${a} dark corner at y ${k.y.toFixed(2)}`).toBeLessThanOrEqual(0.35);
+      }
+    }
+  });
+
+  it('has moss on its top in patches that spill over the rim; its middle is worn bare; the sides keep lichen only', () => {
+    for (const a of ROCK_CAMPS) {
+      const { corners, look } = withOffWords(() => stoneCorners(a));
+      const rim = corners.filter((k) => k.y >= 0.79 && k.d >= 0.25);
+      const mossy = rim.filter((k) => k.moss > 0.02); // (bare corners lie on the plane, ~1e-16 off)
+      const bare = rim.filter((k) => k.moss < 1e-4);
+      // patches, not a tint: some of the top's edge is moss and some is not
+      expect(mossy.length, a).toBeGreaterThanOrEqual(3);
+      expect(bare.length, a).toBeGreaterThanOrEqual(3);
+      // over the rim, where the normal camera sees it
+      expect(corners.some((k) => k.y < 0.78 && k.y > 0.6 && k.ny > 0.3 && k.moss > 0.02), a).toBe(true);
+      // the middle of the top, where the leader sits, is worn bare
+      for (const k of corners.filter((o) => o.y >= 0.79 && o.d < 0.2)) expect(k.moss, `${a} middle`).toBeLessThan(1e-4);
+      // the sides: no moss
+      for (const k of corners.filter((o) => o.ny < 0.3)) expect(k.moss, `${a} side y ${k.y.toFixed(2)}`).toBeLessThan(1e-4);
+      // the moss is the clan's: greener than the rock where the clan's moss is green
+      const r = new THREE.Color(look.rock);
+      const m = new THREE.Color(look.rockMoss ?? look.nest.moss);
+      if (m.g / m.r > 1.15) expect(mossy.some((k) => (k.c.y * r.g) / (k.c.x * r.r) > Math.max(1.15, 1.15 * r.g / r.r)), a).toBe(true);
+    }
   });
 
   it('takes the Math.random draws the family\'s camps take, and keeps the Woods group under MAX_SPAN', async () => {
