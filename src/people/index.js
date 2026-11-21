@@ -7,6 +7,7 @@ import { buildSpot } from './figure.js';
 export { personFor, pairFor, spotKind } from './look.js';
 export { pose, applyPose, strideFor } from './pose.js';
 export { createGaze, stepGaze, GAZE } from './gaze.js';
+export { REACH, headTopOffset, catVolumes, createScratch, stepScratch } from './reach.js';
 
 export const LOD = Object.freeze({ NEAR: 12, NEAR_LOW: 7, HYSTERESIS: 1 });
 

@@ -10,7 +10,8 @@
      (src/critters.js buildTwolegFigure), with the game's own light. Not game
      code: nothing in the game imports src/people/ yet.
      Each frame, for every person: pose(), applyPose(), stepGaze() (her head is
-     the target), then the world matrices, then kit.update() (near/far, view).
+     the target), on the scratch shots stepScratch() (her head's top and her
+     volumes), then the world matrices, then kit.update() (near/far, view).
      A still runs that loop for 2.5 s of simulated time at 1/60 s before it
      renders, so the eases settle and the gaze turns complete.
      URL params:
@@ -21,10 +22,12 @@
        sheet: lineup-day lineup-cateye-day faces-front-day faces-near-day blink-day glance-day stride-day
               wave-cateye-day crouch-cateye-day dismay-day lineup-sunset wave-cateye-sunset stride-sunset
               neck-side-day neck-far-day far-day lod-close faces-day back-day crowd-spots
+              scratch-touch-day scratch-touch-cateye scratch-touch-side scratch-touch-ears scratch-held-day scratch-older-day
        fair:  fair-day fair-dusk fair-close
      Tours (scripts/record-page.mjs --tour name): window.__tour(name), then window.__frame() steps 1/30 s
      (two 1/60 s steps) and renders, and answers { done, caption }.
-       sheet: gaze (she walks past the lineup 3 m away, 8 s), walk (a man, a woman and a pair walk past, 6 s)
+       sheet: gaze (she walks past the lineup 3 m away, 8 s), walk (a man, a woman and a pair walk past, 6 s),
+              scratch (she walks up to the kneeling man from 2 m, is touched, turns away, 6 s)
      window.__info() renders and returns { calls, triangles } (renderer.info, shadow passes included);
      window.__stats is the people's triangle counts. -->
 <style>
@@ -50,7 +53,8 @@
   import { applyDusk, duskEnv } from '/src/render/dusk.js';
   import { skyBackground } from '/src/render/sky.js';
   import { createWind } from '/src/render/wind.js';
-  import { createPeopleKit, pose, applyPose, strideFor, createGaze, stepGaze } from '/src/people/index.js';
+  import { createPeopleKit, pose, applyPose, strideFor, createGaze, stepGaze, REACH, headTopOffset, catVolumes, createScratch, stepScratch } from '/src/people/index.js';
+  import { palmPoint } from '/src/people/reach.js';
 
   const params = new URLSearchParams(location.search);
   const sceneId = params.get('scene') || 'sheet';
@@ -251,12 +255,26 @@
     c.updateMatrixWorld(true);
     return c.userData.parts.head.getWorldPosition(HEAD_AT);
   }
+  // her head's top (the scratch's target, as the walk will pass it) and her volumes
+  const TOP_AT = new THREE.Vector3();
+  let VOL = null;
+  function herTop() {
+    const c = cats[0];
+    if (!c.visible) return null;
+    c.updateMatrixWorld(true);
+    c.userData.parts.head.getWorldPosition(TOP_AT);
+    TOP_AT.y += headTopOffset(c);
+    VOL = catVolumes(c, VOL);
+    return TOP_AT;
+  }
   let current = { spec: () => ({ mode: 'stand' }), detail: null };
-  // one step of every shown person: pose, applyPose, stepGaze; then the
+  // one step of every shown person: pose, applyPose, stepGaze (and on the
+  // scratch shots stepScratch, a grown-up's right hand to her head); then the
   // world matrices and the kit's near/far and view test
   function step(dt) {
     clock += dt;
     const target = herHead();
+    const top = herTop();
     for (const it of items) {
       if (!it.group.visible || it.old) continue;
       const s = current.spec(it);
@@ -266,6 +284,10 @@
         pose(m.person, { mode: s.mode, t: clock + (s.tOff ?? 0), walked, reducedMotion: false });
         applyPose(m.person, dt, 0.3);
         stepGaze(m.person, m.gaze, dt, clock, { target: s.noLook ? null : target });
+        if (s.scratch && m.person.look.kind !== 'child') {
+          m.scratch = m.scratch ?? createScratch();
+          m.scratchState = stepScratch(m.person, m.scratch, dt, { headTop: top, volumes: top ? VOL : undefined });
+        }
       }
     }
     for (const it of items) if (it.group.visible) it.group.updateMatrixWorld(true);
@@ -283,7 +305,7 @@
     current = { spec: typeof spec === 'function' ? spec : () => spec, detail };
     for (const it of items) {
       it.group.visible = !!which(it); // three draws anything not exactly false
-      for (const m of it.members) m.gaze = createGaze(m.person.look);
+      for (const m of it.members) { m.gaze = createGaze(m.person.look); m.scratch = null; }
     }
     let s = 0;
     for (; s < seconds; s += DT) step(DT);
@@ -478,6 +500,51 @@
       settle({ mode: 'stand' });
       return 'From behind, day (hair and coats from the back).';
     },
+    // ---- the head scratch: the man (or the older man) alone at the middle,
+    // facing us, kneeling (the older man bows); she sits up in front of him
+    'scratch-touch-day': () => {
+      dayLight();
+      scratchScene('man', 0.85);
+      cam(0.9, 2.3, 0.85 + 4.5, 0, 0.75, 0.2);
+      settle(SCRATCH, { which: only('man'), seconds: 3 });
+      return `The head scratch, the game's normal camera behind her: he kneels, his hand rests on her head. ${touchNote('man')}`;
+    },
+    'scratch-touch-cateye': () => {
+      dayLight();
+      scratchScene('man', 0.85);
+      cats[0].visible = true;
+      cam(1.3, 0.3, 1.25, -0.05, 0.85, 0.35, 55);
+      settle(SCRATCH, { which: only('man'), seconds: 3 });
+      return `The head scratch from low beside her (0.3 m up): the hand on top of her head, palm down, between her ears. ${touchNote('man')}`;
+    },
+    'scratch-touch-side': () => {
+      dayLight();
+      scratchScene('man', 0.85);
+      cam(-1.9, 1.0, 0.5, 0, 0.8, 0.42, 34); // from his right
+      settle(SCRATCH, { which: only('man'), seconds: 3.2 });
+      return `The head scratch from the side, close (for judging the touch): only the hand comes to her; his chest stays back. ${touchNote('man')}`;
+    },
+    'scratch-touch-ears': () => {
+      dayLight();
+      scratchScene('man', 0.85);
+      cam(0.3, 1.55, 0.85 + 1.1, 0, 0.88, 0.5, 30);
+      settle(SCRATCH, { which: only('man'), seconds: 3 });
+      return `Close over her back (the normal camera's view, nearer): the hand lies along her head between her ears. ${touchNote('man')}`;
+    },
+    'scratch-held-day': () => {
+      dayLight();
+      scratchScene('man', 1.5);
+      cam(-2.3, 1.7, 3.0, 0, 0.55, 0.6, 45); // from his right, in front
+      settle(SCRATCH, { which: only('man'), seconds: 3 });
+      return `She sits 1.5 m away (her middle), out of his reach: he kneels and holds his hand out, low, palm down, toward her (${byId('man').members[0].scratchState}).`;
+    },
+    'scratch-older-day': () => {
+      dayLight();
+      scratchScene('older', 0.75);
+      cam(1.7, 1.5, 2.3, 0, 0.85, 0.3, 45);
+      settle(SCRATCH, { which: only('older'), seconds: 3 });
+      return `The older man's hello is a bow, not a kneel; his hand reaches her head the same way. ${touchNote('older')}`;
+    },
     'crowd-spots': () => {
       dayLight();
       SPOTS.forEach((_, i) => { const it = byId(`spot${i}`); it.group.position.set(-5.6 + i * 1.6, 0, -2.6); it.group.rotation.y = Math.PI; });
@@ -486,6 +553,27 @@
       return 'Eight spots dressed only from their spawn spots (age, height, clothes, hair: no rolls); a child spot is a pair.';
     },
   };
+  // the scratch shots: one person at the middle facing us, she `dist` m in
+  // front of him (her middle), sitting up, facing him (heading 0)
+  const SCRATCH = { mode: 'kneel', scratch: true };
+  const only = (id) => (it) => it.id === id;
+  function scratchScene(id, dist, heading = 0) {
+    const it = byId(id);
+    it.group.position.set(0, 0, 0);
+    it.group.rotation.y = Math.PI;
+    const cat = cats[0];
+    cat.position.set(0, 0, dist);
+    cat.rotation.y = heading;
+    animateCat(cat, 'requestPet', 1, 0, false);
+  }
+  // how the hand sits on her head: its state, and the palm from where it rests
+  function touchNote(id) {
+    const m = byId(id).members[0];
+    const top = herTop();
+    const gap = top ? palmPoint(m.person, new THREE.Vector3()).distanceTo(top.clone().addScaledVector(new THREE.Vector3(0, 1, 0), REACH.CLEAR)) : NaN;
+    return `[${m.scratchState}, palm ${(gap * 100).toFixed(1)} cm from its rest ${(REACH.CLEAR * 100).toFixed(0)} cm over her head (the stroke is +-2 cm), chest lean +${m.scratch.lean.toFixed(2)} rad]`;
+  }
+
   // the Fairground
   const fairSpec = (it) => {
     if (it.juggler) return { mode: 'juggle', noLook: true };
@@ -602,6 +690,50 @@
         },
       };
     },
+  };
+  // She walks up to the kneeling man from 2 m, sits up and is touched, then
+  // turns away (to his left, out of his right hand's reach) and walks off.
+  TOURS.scratch = () => {
+    sheetDefaults('scratch');
+    const cat = cats[0];
+    const man = byId('man');
+    for (const it of items) {
+      it.group.visible = it.id === 'man';
+      for (const m of it.members) { m.gaze = createGaze(m.person.look); m.scratch = null; }
+    }
+    man.group.position.set(0, 0, 0);
+    man.group.rotation.y = Math.PI;
+    current = { spec: () => SCRATCH, detail: null };
+    const START = 2.0, STOP = 0.85, IN = 0.6, OUT_AT = 4.2, TURN = 0.6, OFF = 0.8, AWAY = -2.0;
+    let tt = 0;
+    let z = START, x = 0, yaw = 0;
+    // he is already kneeling when the film starts (she asked from 2 m)
+    cat.position.set(x, 0, z); cat.rotation.y = yaw;
+    animateCat(cat, 'follow', 0, 0, false);
+    for (let i = 0; i < 60; i++) step(DT);
+    return {
+      seconds: 6,
+      tick(dt) {
+        tt += dt;
+        let state = 'requestPet', speed = 0;
+        if (z > STOP && tt < OUT_AT) { z = Math.max(STOP, z - IN * dt); state = 'follow'; speed = IN; }
+        if (tt >= OUT_AT) {
+          const k = Math.min(1, (tt - OUT_AT) / TURN);
+          yaw = AWAY * k * k * (3 - 2 * k);
+          state = 'follow';
+          if (k >= 1) { x += -Math.sin(yaw) * OFF * dt; z += -Math.cos(yaw) * OFF * dt; speed = OFF; }
+        }
+        cat.position.set(x, 0, z);
+        cat.rotation.y = yaw;
+        animateCat(cat, state, tt, speed, false);
+        step(dt);
+      },
+      frame() {
+        cam(1.9, 1.45, 2.9, -0.1, 0.72, 0.6, 44);
+        const m = man.members[0];
+        return `She walks up from 2 m and sits; he kneels, holds his hand out, then it comes to her head over the top and rests there; she turns away and it withdraws, rising first [${m.scratchState}].`;
+      },
+    };
   };
   window.__tour = (name) => {
     if (sceneId !== 'sheet') throw new Error('tours run on scene=sheet');
