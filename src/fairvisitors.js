@@ -22,19 +22,19 @@
 // "Pairs"): a visitor whose `look` spot is a child spot (src/people/look.js
 // spotKind, computed here by the same hash) is a grown-up with a child, still
 // one visitor: the grown-up walks as any visitor does (the same way, the same
-// seeded dice). The child keeps
-// every rule above on its own: free ground by its own radius, never in a
-// ride, never within KEEP of the cat (KEEP is to the nearer of the two). Side
+// seeded dice). The child keeps the rules above on its own: free ground by
+// its own radius, never in a ride, and KEEP as a child can: it never steps
+// towards her within KEEP (nor within arm's length), and steps away at the
+// grown-ups' pace. A cat who runs at it faster can reach it; then the child's
+// soft bump (its body circle from the people kit, drawn by src/fairshow.js,
+// Task 14) stops her, as in town. Side
 // by side the pair is PAIR.R wide round its middle, so the child walks beside
 // only where that is clear and the way PAIR.CLEAR wide (of two clear sides,
 // the one further from a cat near), a step behind where it is not. It moves
 // smoothly: never further in a step than the grown-up did and the grown-ups'
 // own SIDE_SPEED, never a hop, and never a step towards a cat within arm's
-// length. Where that is not enough (a cat running at the child faster than
-// it can walk), the pair steps aside together, as one visitor alone steps
-// aside, and a grown-up waits for a child that trails PAIR.WAIT behind: so a
-// pair's grown-up leaves its way only when a cat comes at its child. Where the
-// child stands comes from the grown-up's spot and the ground, never a roll.
+// length. Where it stands comes from the grown-up's spot and the ground,
+// never a roll.
 //
 // PER DEVICE and seeded, like the Farm's animals: nothing here is sent to a
 // co-walker, and the same seed gives the same strollers.
@@ -68,7 +68,6 @@ export const PAIR = Object.freeze({
   BEHIND: 0.6,        // a step behind, where beside is not clear
   CLEAR: 1.6,         // beside only where the way is this wide: clear this far across the pair's middle
   TRAIL: 2.5,         // never further from its grown-up than this (pinned by a cat, it trails)
-  WAIT: 2.0,          // a child this far behind: its grown-up waits for it
   APART: 0.45,        // nor nearer, middle to middle: it goes round its grown-up, never through
   NEAR_CAT: 3,        // a cat this near the grown-up: of two clear sides, the one further from her
   LEAD: 0.6,          // up to this much further than KEEP from a cat on the move, where it means to stand
@@ -262,8 +261,6 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
     const nz = -P.hx;
     let want = 0;      // how far to the side it would like to be
     let go = v.mode !== 'watch' && v.hello <= 0;
-    // a grown-up waits for its child when it trails behind (a cat in its way)
-    if (v.pair && Math.hypot(v.childX - v.x, v.childZ - v.z) > PAIR.WAIT) { go = false; v.waiting = true; }
     if (catNear) {
       // the cat, as its own way sees her: `along` ahead of it, `across` to its right
       const cx = cat.x - P.x;
@@ -378,52 +375,7 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
     if (v.hello > 0) face = Math.atan2(cat.x - v.x, cat.z - v.z);
     else if (v.mode === 'watch') face = Math.atan2(v.spot.look.x - v.x, v.spot.look.z - v.z);
     v.yaw = turn(v.yaw, face, 4 * dt);
-    if (v.pair) {
-      const cx0 = v.childX;
-      const cz0 = v.childZ;
-      stepChild(v, dt, catNear ? cat : null, ax0, az0, face, cat);
-      // KEEP is to the nearer of the two: if she is within it of the child
-      // still, the pair steps aside together, as a visitor alone steps aside
-      if (catNear && Math.hypot(v.childX - cat.x, v.childZ - cat.z) < VISITOR.KEEP && pairAside(v, cat, ax0, az0, cx0, cz0)) {
-        v.waiting = true;
-        v.moving = false;
-        wayOf(v, Q);
-        const ox = v.x - Q.x;
-        const oz = v.z - Q.z;
-        v.side = Math.max(-VISITOR.ROUND * 2, Math.min(VISITOR.ROUND * 2, ox * Q.hz - oz * Q.hx));
-      }
-    }
-  }
-
-  // The pair's step aside: the shortest move of the two together (this step,
-  // the child goes just as far as its grown-up, the same way) that puts each
-  // on good ground and at least KEEP from her, neither a step towards her
-  // within arm's length. (Where the child stood, from (cx0, cz0).)
-  function pairAside(v, cat, ax0, az0, cx0, cz0) {
-    const gapA = Math.hypot(ax0 - cat.x, az0 - cat.z);
-    const gapC = Math.hypot(cx0 - cat.x, cz0 - cat.z);
-    const base = Math.atan2(v.childX - cat.x, v.childZ - cat.z);
-    for (let r = 0.05; r <= 4; r += 0.05) {
-      for (let k = 0; k <= 12; k++) {
-        for (let sgn = 1; sgn >= (k === 0 ? 1 : -1); sgn -= 2) {
-          const a = base + sgn * k * (Math.PI / 12);
-          const tx = Math.sin(a) * r;
-          const tz = Math.cos(a) * r;
-          const x = v.x + tx;
-          const z = v.z + tz;
-          const da = Math.hypot(x - cat.x, z - cat.z);
-          if (da < VISITOR.KEEP + 0.02 || (gapA < VISITOR.NEAR && da < gapA) || !free(x, z)) continue;
-          const kx = cx0 + x - ax0;
-          const kz = cz0 + z - az0;
-          // (its place by its grown-up is as it was: only the ground and the cat to check)
-          const dc = Math.hypot(kx - cat.x, kz - cat.z);
-          if (dc < VISITOR.KEEP + 0.02 || (gapC < VISITOR.NEAR && dc < gapC) || !childOk(kx, kz, cat)) continue;
-          v.x = x; v.z = z; v.childX = kx; v.childZ = kz;
-          return true;
-        }
-      }
-    }
-    return false;
+    if (v.pair) stepChild(v, dt, catNear ? cat : null, ax0, az0, face, cat);
   }
 
   // ---- a pair's child -------------------------------------------------------
@@ -435,9 +387,12 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
   // Whether the child may step to (x, z): good ground, with its grown-up (never
   // through it, never further than PAIR.TRAIL), and never a step towards a cat
   // who is within arm's length (`gap`: how far she is from where it stands).
-  const stepOk = (v, x, z, cat, gap) => {
+  // `keep`: how near her it may end the step (KEEP; nearer only while she is
+  // already within KEEP and the step takes it further from her); `apart`, the
+  // same for its grown-up (who may walk up against it while it is pinned).
+  const stepOk = (v, x, z, cat, gap, keep = VISITOR.KEEP, apart = PAIR.APART) => {
     const d = Math.hypot(x - v.x, z - v.z);
-    if (d > PAIR.TRAIL || d < PAIR.APART || !childOk(x, z, cat)) return false;
+    if (d > PAIR.TRAIL || d < apart || !childOk(x, z, cat, keep)) return false;
     return !(cat && gap < VISITOR.NEAR && Math.hypot(x - cat.x, z - cat.z) < gap);
   };
 
@@ -511,9 +466,16 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
 
   // Where it stands is no good any more (a cat came at it, or its grown-up
   // turned into it): the best good spot within a step, all the way round and
-  // nearer in too, the one furthest from her (or, with no cat, nearest its
-  // spot). Never a hop: if there is none, it stays.
+  // nearer in too: the one furthest from its grown-up if that came up against
+  // it, else furthest from her and not far from its grown-up (or, with no
+  // cat, nearest its spot). Never a
+  // hop: if there is none, it stays.
+  // (A cat who ran at it faster than it walks may be within KEEP: then any
+  // good step further from her will do. Her own stop is the child's soft
+  // bump, src/fairshow.js, Task 14.)
   function childAway(v, cat, gap, reach) {
+    const keep = cat && gap < VISITOR.KEEP ? gap : VISITOR.KEEP;
+    const apart = Math.min(PAIR.APART, Math.hypot(v.childX - v.x, v.childZ - v.z));
     let best = -Infinity;
     let bx = 0;
     let bz = 0;
@@ -523,8 +485,11 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
         const a = k * (TAU / 24);
         const x = v.childX + Math.sin(a) * r;
         const z = v.childZ + Math.cos(a) * r;
-        if (!stepOk(v, x, z, cat, gap)) continue;
-        const score = cat ? Math.hypot(x - cat.x, z - cat.z) : -Math.hypot(x - C.x, z - C.z);
+        if (!stepOk(v, x, z, cat, gap, keep, apart)) continue;
+        // (its grown-up came up against it: away from its grown-up first)
+        // (away from her, but not away from its grown-up)
+        const score = apart < PAIR.APART ? Math.hypot(x - v.x, z - v.z)
+          : cat ? Math.hypot(x - cat.x, z - cat.z) - 0.5 * Math.hypot(x - v.x, z - v.z) : -Math.hypot(x - C.x, z - C.z);
         if (score > best) { best = score; bx = x; bz = z; }
       }
     }
@@ -578,7 +543,9 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
           || (stepOk(v, cx + v.x - ax0, cz + v.z - az0, cat, gap) && ((v.childX = cx + v.x - ax0), (v.childZ = cz + v.z - az0), true));
     }
     // else it stays, if it may; if not, the best spot within a step
-    if (!moved && !stepOk(v, cx, cz, cat, Infinity)) childAway(v, cat, gap, reach);
+    // (with her coming on, it does not wait for her to be at KEEP: a little sooner)
+    const keepNow = VISITOR.KEEP + (cat ? Math.min(PAIR.LEAD, (cat.speed ?? 0) * 0.15) : 0);
+    if (!moved && !stepOk(v, cx, cz, cat, Infinity, keepNow)) childAway(v, cat, gap, reach);
     // it faces the way its grown-up does: the cat while they say hello, the ride while they watch
     let want = face;
     if (v.hello > 0) want = Math.atan2(anyCat.x - v.childX, anyCat.z - v.childZ);

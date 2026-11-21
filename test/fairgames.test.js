@@ -986,8 +986,11 @@ describe('the visitors', () => {
   const childAt = (p) => ({ x: p.childX, z: p.childZ });
   // A pair's child holds every rule a visitor does: on free ground (inside
   // the bounds, clear of everything solid by its own radius, out of the pool,
-  // off every ride), and, with a cat about, never within KEEP of her middle.
-  const childRules = (p, cat, t, area = AREA) => {
+  // off every ride). KEEP, as a child can: with a cat about who comes no
+  // faster than the grown-ups step aside, never within KEEP of her middle. (A
+  // cat who runs at it faster can reach it: it never steps towards her and
+  // steps away at its pace, see `moves`, and its soft bump stops her, Task 14.)
+  const childRules = (p, cat, t, area = AREA, slow = true) => {
     const c = childAt(p);
     const at = `${p.id}'s child at ${t.toFixed(1)} s`;
     expect(Number.isFinite(c.x) && Number.isFinite(c.z) && Number.isFinite(p.childYaw), at).toBe(true);
@@ -995,10 +998,13 @@ describe('the visitors', () => {
     expect(SIM.swept(c.x, c.z), `${at} on a ride`).toBe(false);
     expect(inPool(c.x, c.z, PAIR.CHILD_R), `${at} in the pool`).toBe(false);
     expect(c.x > AREA.bounds.minX && c.x < AREA.bounds.maxX && c.z > AREA.bounds.minZ && c.z < AREA.bounds.maxZ, at).toBe(true);
-    if (cat) expect(dist(c, cat), at).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
-    // and it is with its grown-up: never wandered off, never through it
+    if (cat && slow) expect(dist(c, cat), at).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
+    // and it is with its grown-up: never wandered off, never through it (it
+    // never steps nearer it than APART, see `moves`; its grown-up, walking
+    // round a cat, may come up against it)
     expect(dist(c, p), at).toBeLessThanOrEqual(PAIR.TRAIL + 1e-9);
-    expect(dist(c, p), at).toBeGreaterThanOrEqual(PAIR.APART - 1e-9);
+    // (and even then their two soft bumps, 0.22 + 0.18, never overlap: measured 0.41 m)
+    expect(dist(c, p), at).toBeGreaterThanOrEqual(0.22 + PAIR.CHILD_R);
   };
   // How far each child moved this step, against its grown-up: a child never
   // moves further in a step than its grown-up did and the grown-ups' own
@@ -1008,9 +1014,13 @@ describe('the visitors', () => {
     const last = new Map(pairs(v).map((p) => [p, { x: p.x, z: p.z, cx: p.childX, cz: p.childZ }]));
     let worst = -Infinity;
     let towards = 0;
+    let through = 0;
     return {
       check(dt) {
         for (const [p, o] of last) {
+          // never a step nearer its grown-up (where it now is) within APART
+          const near = Math.hypot(p.childX - p.x, p.childZ - p.z);
+          if (near < PAIR.APART - 1e-9 && near < Math.hypot(o.cx - p.x, o.cz - p.z) - 1e-9) through++;
           const over = Math.hypot(p.childX - o.cx, p.childZ - o.cz) - Math.hypot(p.x - o.x, p.z - o.z) - VISITOR.SIDE_SPEED * dt;
           worst = Math.max(worst, over);
           if (cat) {
@@ -1022,6 +1032,7 @@ describe('the visitors', () => {
       },
       get worst() { return worst; },
       get towards() { return towards; },
+      get through() { return through; },
     };
   };
 
@@ -1130,6 +1141,7 @@ describe('the visitors', () => {
     expect(placed.has('beside')).toBe(true);
     expect(placed.has('behind')).toBe(true);
     expect(mv.worst).toBeLessThanOrEqual(1e-9);
+    expect(mv.through).toBe(0);
   }, 90_000);
 
   // The cats that try them: sitting in the way, crossing, running straight at
@@ -1154,7 +1166,7 @@ describe('the visitors', () => {
       v.step(1 / 15, cat);
       mv.check(1 / 15);
       for (const p of pairs(v)) {
-        childRules(p, cat, t);
+        childRules(p, cat, t, AREA, !name.startsWith('running')); // (a running cat can reach a child: see the hunts below)
         nearest = Math.min(nearest, dist(childAt(p), cat));
       }
       for (const p of v.list) {
@@ -1172,6 +1184,7 @@ describe('the visitors', () => {
     // nobody is stuck for good behind a cat who sits: every one still gets round
     for (const p of v.list) expect(p.walked, p.id).toBeGreaterThan(name.startsWith('sitting') ? 250 : 60);
     expect(mv.worst).toBeLessThanOrEqual(1e-9); // a child steps out of her way smoothly too
+    expect(mv.through).toBe(0);
     expect(mv.towards).toBe(0);
   }, 90_000);
 
@@ -1191,7 +1204,7 @@ describe('the visitors', () => {
       const gap = dist(target, cat); // once she has moved, before it does
       v.step(DT, cat);
       for (const p of v.list) expect(dist(p, cat)).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
-      for (const p of pairs(v)) childRules(p, cat, i * DT);
+      for (const p of pairs(v)) childRules(p, cat, i * DT, AREA, false); // (she runs: see the hunts below)
       expect(v.free(target.x, target.z)).toBe(true);
       // with her within arm's length and coming on, it never takes a step towards her
       if (gap < VISITOR.NEAR && gap >= VISITOR.KEEP && dist(target, cat) < gap - 1e-6) approached++;
@@ -1199,8 +1212,9 @@ describe('the visitors', () => {
     expect(approached).toBe(0);
   });
 
-  it('a cat who chases a child for five minutes never touches it or its grown-up', () => {
-    const v = visitors(8, 'chased child');
+  // A cat who hunts a child, at a walk and at a run.
+  function hunt(speed, seed) {
+    const v = visitors(8, seed);
     const pair = v.list[3];
     expect(pair.pair).toBe(true);
     const cat = { x: 0, z: 20, y: 0, speed: 0 };
@@ -1210,21 +1224,33 @@ describe('the visitors', () => {
       const kid = childAt(pair);
       const d = dist(cat, kid);
       if (d > 0.3) {
-        const stepLen = Math.min(d, 4 * DT);
+        const stepLen = Math.min(d, speed * DT);
         const nx = cat.x + ((kid.x - cat.x) / d) * stepLen;
         const nz = cat.z + ((kid.z - cat.z) / d) * stepLen;
-        if (isWalkableAt(AREA, nx, nz)) { cat.x = nx; cat.z = nz; cat.speed = 4; } else cat.speed = 0;
+        if (isWalkableAt(AREA, nx, nz)) { cat.x = nx; cat.z = nz; cat.speed = speed; } else cat.speed = 0;
       }
       v.step(DT, cat);
       mv.check(DT);
       nearest = Math.min(nearest, dist(childAt(pair), cat));
       for (const p of v.list) expect(dist(p, cat)).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
-      for (const p of pairs(v)) childRules(p, cat, i * DT);
+      for (const p of pairs(v)) childRules(p, cat, i * DT, AREA, speed <= VISITOR.SIDE_SPEED);
     }
-    expect(nearest).toBeLessThan(1.2); // she did catch up with it
-    // hunted, it still never hops, and never steps towards her
+    // it never hops, and never steps towards her
     expect(mv.worst).toBeLessThanOrEqual(1e-9);
+    expect(mv.through).toBe(0);
     expect(mv.towards).toBe(0);
+    return nearest;
+  }
+
+  it('a cat who walks after a child for five minutes never comes within KEEP of it: it steps away', () => {
+    const nearest = hunt(1, 'walked after');
+    expect(nearest).toBeGreaterThanOrEqual(VISITOR.KEEP - 1e-6);
+    expect(nearest).toBeLessThan(1.2); // she did come up to it
+  }, 90_000);
+
+  it('a cat who runs at a child for five minutes: it steps away at its grown-up’s pace, never towards her, never a hop', () => {
+    // she is faster, so she can reach it: then the child's soft bump stops her (Task 14)
+    expect(hunt(4, 'chased child')).toBeLessThan(VISITOR.KEEP);
   }, 90_000);
 
   // A stretch of the midway fenced in to a narrow way (posts either side, a
@@ -1278,6 +1304,7 @@ describe('the visitors', () => {
     expect(besideIn).toBe(0); // never side by side between the fences
     expect(seen.has('behind')).toBe(true);
     expect(mv.worst).toBeLessThanOrEqual(1e-9); // and the child moved there and back without a jump
+    expect(mv.through).toBe(0);
   }, 90_000);
 
   it('take no notice of a cat up on a counter or a horse, and walk past underneath', () => {
