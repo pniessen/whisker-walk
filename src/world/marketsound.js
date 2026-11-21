@@ -31,7 +31,10 @@
 //   * THE CHATTER (CHATTER): by each of the four treat stalls, a murmur of two
 //     or three short bursts of softly filtered noise every 1.4 to 3.6 s, heard
 //     within CHATTER.ear: a busy, calm market, never words.
-//   * THE BELL (BELL): bell() rings the bicycle's bell twice, at once.
+//   * THE BELL (BELL): bell(level) rings the bicycle's bell twice, at once:
+//     at its full gain when she lands in its basket (level 1), at
+//     loudness(d, BELL.ear) when her partner does, d her distance from it
+//     (marketlife.js); level 0 rings nothing.
 //
 // THE SCHEDULE. Each caller keeps its clock in walk seconds (the sum of the dt
 // it is given): the tune's first play starts MUSIC.rest x hash01(0, 0, salt)
@@ -65,8 +68,8 @@ export const MUSIC = Object.freeze({
 });
 const TUNE_LEN = MUSIC.notes.at(-1).at + MUSIC.notes.at(-1).dur;
 // The bicycle's bell: two strikes `gap` s apart, each a bright tone and its
-// overtone dying away over `ring` s
-export const BELL = Object.freeze({ gain: 0.04, gap: 0.16, ring: 0.45, f: 2350, over: 1.4, overGain: 0.5 });
+// overtone dying away over `ring` s; a partner's ring is heard within `ear` m
+export const BELL = Object.freeze({ gain: 0.04, gap: 0.16, ring: 0.45, f: 2350, over: 1.4, overGain: 0.5, ear: 14 });
 // The murmur of the market: bursts of noise through a band-pass, low and soft
 export const CHATTER = Object.freeze({
   ear: 9,
@@ -310,14 +313,16 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
         if (pigeonDue[i] <= walk) pigeonDue[i] = walk + gapOf(PIGEON_N + i, pigeonCount[i], CALLS.pigeon.every);
       }
     },
-    // The bicycle's bell, twice, at once (she is in its basket)
-    bell() {
-      if (gone || muted()) return;
+    // The bicycle's bell, twice, at once: `level` 1 (she is in its basket) or
+    // her partner's loudness at her distance (0 rings nothing)
+    bell(level = 1) {
+      const l = Math.min(1, Math.max(0, Number.isFinite(level) ? level : 0));
+      if (gone || l <= 0 || muted()) return;
       withBus((c, now) => {
         for (let s = 0; s < 2; s++) {
           const t0 = now + s * BELL.gap;
-          tone(c, 'sine', BELL.f, BELL.f, t0, BELL.ring, 0.004, BELL.gain);
-          tone(c, 'sine', BELL.f * BELL.over, BELL.f * BELL.over, t0, BELL.ring * 0.7, 0.004, BELL.gain * BELL.overGain);
+          tone(c, 'sine', BELL.f, BELL.f, t0, BELL.ring, 0.004, BELL.gain * l);
+          tone(c, 'sine', BELL.f * BELL.over, BELL.f * BELL.over, t0, BELL.ring * 0.7, 0.004, BELL.gain * BELL.overGain * l);
         }
       });
     },

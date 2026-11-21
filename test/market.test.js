@@ -28,6 +28,7 @@ const { buildAppleCrate } = await import('../src/world/marketfruit.js');
 const {
   MARKET_BOUNDS, MARKET_SPAWN, MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, STALLS, TREAT_STALLS, CAFE,
   stallById, toStall, MARKET_LAMPS, FRUIT_CRATE, MARKET_PERCHES, stallClimb, RIM_PERCHES, MARKET_REGISTRATION,
+  PIGEON_PATCH,
 } = await import('../src/world/marketplan.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { spotsIn } = await import('../src/foundwear/spots/index.js');
@@ -89,8 +90,11 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // Step 3, Task 3 (2026-11-21): the six climbing stacks (three crates each, drawn into the
 // clutter's kit, casting nothing) and each one's invisible contact-shadow box: +6 meshes
 // that draw nothing, +288 triangles (216 drawn).
-const MEASURED_BUILT = { meshes: 108, casters: 27, triangles: 38341 };
-const MEASURED_MERGED = { meshes: 105, casters: 24, triangles: 38341 };
+// Step 3, Task 6 (2026-11-21): the bicycle is its own child (two meshes, never merged,
+// casting nothing) so the life can rock it, and needs no invisible box: +1 mesh,
+// -12 triangles (the box's, never drawn).
+const MEASURED_BUILT = { meshes: 109, casters: 27, triangles: 38329 };
+const MEASURED_MERGED = { meshes: 106, casters: 24, triangles: 38329 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -140,12 +144,23 @@ describe('the Market Square drawn', () => {
     expect(area.skyDusk).toEqual({ top: 0x2a3358, horizon: 0xa86e62 });
     expect(area.groundBounce).toBe(MARKET_COBBLE);
     expect(typeof area.life).toBe('function');
-    // two birds only (the pigeons are step 3), on open cobbles out of every counter's zone
-    expect(area.critterSpawns.map((c) => c.type)).toEqual(['bird', 'bird']);
+    // two birds and (step 3) five pigeons, on open cobbles out of every counter's zone
+    expect(area.critterSpawns.map((c) => c.type)).toEqual(['bird', 'bird', 'bird', 'bird', 'bird', 'bird', 'bird']);
+    expect(area.critterSpawns.map((c) => c.labelAs ?? null)).toEqual([null, null, 'pigeon', 'pigeon', 'pigeon', 'pigeon', 'pigeon']);
     for (const c of area.critterSpawns) {
       expect(clearOf(c.x, c.z, area.colliders), `${c.x},${c.z}`).toBeGreaterThan(1);
       expect(keepOutPoint(area, c.x, c.z)).toEqual({ x: c.x, z: c.z });
     }
+    // the pigeons peck inside their patch, 1.5 m and more from every golden
+    // mouse and found-outfit spot, 1 m apart from none of each other
+    const pigeons = area.critterSpawns.filter((c) => c.labelAs === 'pigeon');
+    for (const c of pigeons) {
+      expect(Math.hypot(c.x - PIGEON_PATCH.x, c.z - PIGEON_PATCH.z), `${c.x},${c.z}`).toBeLessThanOrEqual(PIGEON_PATCH.r - 0.3);
+      for (const q of [...GOLD_MICE.market, ...spotsIn('market')]) {
+        expect(Math.hypot(c.x - q.x, c.z - q.z), `${c.x},${c.z} by ${q.id}`).toBeGreaterThanOrEqual(1.5);
+      }
+    }
+    expect(new Set(pigeons.map((c) => `${c.x},${c.z}`)).size).toBe(5);
     // every scenic is a spot she can stand on
     for (const s of area.scenics) expect(isWalkableAt(area, s.x, s.z), s.id).toBe(true);
   });
@@ -460,6 +475,16 @@ describe('the Market Square drawn', () => {
       if (c.kind === 'board') {
         // the one that casts: its own child, drawn
         a.traverse((o) => { if (o.isMesh) expect(o.castShadow, c.id).toBe(true); });
+      } else if (c.kind === 'bicycle') {
+        // step 3 (V8): its own child, drawn, casting nothing, never merged (the life rocks it)
+        expect(a.visible).toBe(true);
+        expect(a.userData.noMerge).toBe(true);
+        expect(area.bicycle).toBe(a);
+        let n = 0;
+        a.traverse((o) => { if (o.isMesh) { n++; expect([o.castShadow, o.userData.noCast]).toEqual([false, true]); } });
+        expect(n).toBeGreaterThan(0);
+        expect(n).toBeLessThanOrEqual(2);
+        expect(merged.getObjectByName('marketClutter:bicycle').children.filter((o) => o.isMesh)).toHaveLength(n);
       } else expect([c.id, a.visible, a.castShadow]).toEqual([c.id, false, false]);
       const b = boxOf(a);
       expect(qualifies(b), c.id).toBe(true);

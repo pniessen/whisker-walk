@@ -14,6 +14,7 @@ import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, fromStall,
   MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, FRUIT_CRATE, MARKET_LAMPS, FLOUR_SACKS,
   MARKET_CLUTTER, BENCH_AT, BICYCLE_AT, MILK_SHAFTS, AWNING, awningHeight, BIKE, BICYCLE_BASKET_AT, CLIMB_STACK, MARKET_PERCHES,
+  PIGEON_PATCH,
 } from './marketplan.js';
 
 // =============================================================================
@@ -54,6 +55,9 @@ import {
 //   * the baskets of produce (hidden at dusk) and the packing-up (shown at
 //     dusk): one group each, noMerge, casting nothing;
 //   * the bunting: one noCast mesh, every pennant and string;
+//   * the parked bicycle (record.bicycle), its own group, noMerge, casting
+//     nothing, so the life can rock it on its stand when she lands in its
+//     basket (step 3, V8); the rest of the clutter is one kit;
 //   * the shop fronts, one vertex-coloured mesh a side, casting nothing;
 //   * the far town: builder.horizonBand's skyline, noCast.
 //
@@ -189,6 +193,14 @@ const MARKET_BIRDS = Object.freeze([
   Object.freeze({ type: 'bird', x: -2.5, z: 12 }),
   Object.freeze({ type: 'bird', x: 14, z: -14 }),
 ]);
+// Step 3 (V6): five pigeons pecking their patch between the fountain and its
+// bench (marketplan.js PIGEON_PATCH), each a 'bird' that reads as a pigeon
+// (labelAs, as the Rooftops' are: game/labels.js). Fixed spots, inside the
+// patch; they take off as she comes near (critters.js), and run at them is
+// the pigeons' find (marketfinds.js).
+const MARKET_PIGEONS = Object.freeze([[0, 0], [0.55, 0.3], [-0.5, 0.35], [0.3, -0.55], [-0.4, -0.45]].map(([dx, dz]) => Object.freeze({
+  type: 'bird', x: PIGEON_PATCH.x + dx, z: PIGEON_PATCH.z + dz, labelAs: 'pigeon',
+})));
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -370,7 +382,25 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
     const clutterKit = makeKit('marketClutter');
     const anchorGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
     const anchorMat = new THREE.MeshBasicMaterial();
+    let bicycle = null;
     for (const c of MARKET_CLUTTER) {
+      if (c.kind === 'bicycle') {
+        // its own group at its spot (no anchor: the group is its own contact
+        // shadow's), drawn about its origin, rocked about its own length (x)
+        const bk = makeKit(`marketClutter:${c.id}`);
+        drawClutter({ ...c, x: 0, z: 0, yaw: 0 }, bk, { PARTS, M, paint, barrel, wheel, tyre, disc, quad });
+        bicycle = new THREE.Group();
+        bicycle.name = `marketClutter:${c.id}`;
+        bicycle.userData.clutter = c.kind;
+        bicycle.userData.noMerge = true;
+        bicycle.userData.noCast = true;
+        bicycle.position.set(c.x, 0, c.z);
+        bicycle.rotation.order = 'YXZ'; // its yaw outermost, so a rock (x) is about its own length
+        bicycle.rotation.y = c.yaw;
+        for (const m of bk.meshes()) bicycle.add(m);
+        scene.add(bicycle);
+        continue;
+      }
       if (c.kind === 'board') {
         const bk = makeKit(`marketClutter:${c.id}`);
         drawClutter(c, bk, { PARTS, M, paint, barrel, wheel, tyre, disc, quad });
@@ -451,7 +481,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       pois: MARKET_POIS.map((p) => ({ ...p })),
       collectibles: MARKET_COLLECTIBLES.map((c) => ({ ...c })),
       scenics: MARKET_SCENICS.map((c) => ({ ...c })),
-      critterSpawns: MARKET_BIRDS.map((c) => ({ ...c })), // two birds; the pigeons are step 3
+      critterSpawns: [...MARKET_BIRDS, ...MARKET_PIGEONS].map((c) => ({ ...c })), // two birds and five pigeons at their patch
       moments: [],
       puddles: [],
       groundBounce: MARKET_COBBLE,
@@ -470,6 +500,8 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       // and the top of the stall's roof and sign over them (the bubble floats above it)
       keepers: Object.fromEntries(STALLS.filter((s) => s.keeper).map((s) => [s.id, { x: s.keeper.x, z: s.keeper.z, yaw: yawOf(s), roof: stallRoof(s) }])),
       anchors: Object.fromEntries(Object.entries(MARKET_ANCHORS).map(([k, v]) => [k, { ...v }])),
+      // the parked bicycle's group: the life rocks it when she lands in its basket (V8)
+      bicycle,
       // what setMarketDusk drives
       look: { lantern: M.lantern, windows: winLit, packing, baskets, level: 0 },
     };
