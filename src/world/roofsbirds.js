@@ -10,9 +10,10 @@
 // BIRD_KINDS scale, casting nothing, never culled. Made inside
 // withLocalUuids, so making them draws nothing on Math.random.
 //
-// PERCHED. A bird stands with its feet on its perch's spot. A pigeon on a
-// `roof` perch (a peck spot on a flat roof) pecks: its nose dips 0.35 rad for
-// 0.25 s, every 1.5 to 3 s. Any other bird sits and looks about: every 2 to
+// PERCHED. A bird stands with its feet on its perch's spot. A pigeon or a
+// sparrow on a `roof` perch (a peck spot on a flat roof) pecks: its nose dips
+// 0.35 rad for 0.25 s, every 1.5 to 3 s ("Pigeons and sparrows ... peck on
+// flat roofs"). Any other bird sits and looks about: every 2 to
 // 5 s it turns its head (the bird turns as one: it is one instance) to a new
 // look within LOOK.reach of its rest heading. Within 6 m of her it stops
 // and faces her. Its wings lie folded along its sides. All of it is hash01
@@ -38,7 +39,7 @@ export const BIRD_LOOK = Object.freeze({
   gull: Object.freeze({ body: 0xeceae4, wing: 0xb8bcc2 }),
 });
 
-export const PECK = Object.freeze({ pitch: 0.35, time: 0.25, every: Object.freeze([1.5, 3]) });
+export const PECK = Object.freeze({ pitch: 0.35, time: 0.25, every: Object.freeze([1.5, 3]), kinds: Object.freeze(['pigeon', 'sparrow']) });
 // how far a sitting bird looks round from its rest heading (rad), how often
 // (s), how fast it turns (rad/s); and how near her it faces her (m)
 export const LOOK = Object.freeze({ reach: 0.8, every: Object.freeze([2, 5]), turn: 5, near: 6 });
@@ -187,7 +188,7 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
       s.look = (hash01(i, s.lookK, SALT.look) * 2 - 1) * LOOK.reach;
       s.lookAt += lookTime(i, s.lookK);
     }
-    const pecks = !near && b.kind === 'pigeon' && index.get(b.at)?.kind === 'roof';
+    const pecks = !near && PECK.kinds.includes(b.kind) && index.get(b.at)?.kind === 'roof';
     const want = near ? Math.atan2(cat.x - p.x, cat.z - p.z) : pecks ? s.rest : s.rest + s.look;
     const off = wrap(want - s.yaw);
     const step = LOOK.turn * dt;

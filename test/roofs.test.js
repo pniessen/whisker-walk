@@ -860,20 +860,14 @@ describe('the Rooftops drawn', () => {
     const ray = new THREE.Raycaster();
     const down = new THREE.Vector3(0, -1, 0);
     expect(area.birdPerches.length).toBeGreaterThan(150);
-    // where she drops onto the bin bags the perch is the ground she lands on
-    // (0), and the soft heap drawn over it stands up to 0.17 m: a bird sits
-    // in its top
-    const onBags = new Set(ROOFS_TRAVERSAL.drops.filter((h) => h.prop === 'binBags').map((h) => `${h.id}:to`));
-    expect(onBags.size).toBe(1);
+    // (the bin bags' landing too: its perch is lifted onto the heap, roofsflock.js PERCH_LIFT)
     const off = [];
     for (const p of area.birdPerches) {
       ray.set(new THREE.Vector3(p.x, p.y + 0.3, p.z), down);
       ray.far = 0.6;
       const hit = ray.intersectObjects(solid, false)[0];
-      const dy = hit ? hit.point.y - p.y : null;
-      const bags = [p.id, ...p.aliases].some((id) => onBags.has(id));
       if (!hit) off.push(`${p.id}: nothing under it`);
-      else if (bags ? dy < -0.06 || dy > 0.17 : Math.abs(dy) > 0.06) off.push(`${p.id} (${p.kind}) on ${hit.object.name} at ${hit.point.y.toFixed(3)}, not ${p.y.toFixed(3)}`);
+      else if (Math.abs(hit.point.y - p.y) > 0.06) off.push(`${p.id} (${p.kind}) on ${hit.object.name} at ${hit.point.y.toFixed(3)}, not ${p.y.toFixed(3)}`);
     }
     expect(off).toEqual([]);
   });

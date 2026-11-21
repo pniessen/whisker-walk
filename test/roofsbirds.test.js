@@ -26,7 +26,7 @@ const {
   BIRD_KINDS, ROOFS_BIRDS, GUIDE, FLIGHT,
   flockPerches, perchIndex, flightGraph, flightPlan, flightPoint, chooseFlight, roofsCritterSpawns,
 } = await import('../src/world/roofsflock.js');
-const { ROOFS_TRAVERSAL, BLOCKS, STREETS, ROOFS_BOUNDS, YARD } = await import('../src/world/roofsplan.js');
+const { ROOFS_TRAVERSAL, BLOCKS, STREETS, ROOFS_BOUNDS, LEVELS, YARD } = await import('../src/world/roofsplan.js');
 
 // =============================================================================
 // The flock drawn, perched (Rooftops step 3, Task 3): fourteen birds in two
@@ -167,33 +167,39 @@ describe('the flock drawn, perched', () => {
     expect(disposed.sort()).toEqual(['roofsFlock', 'roofsFlock:material', 'roofsFlockWings', 'roofsFlockWings:material']);
   });
 
-  it('a pigeon on a flat roof pecks; a bird on a ridge or a pot sits; near her, each faces her', () => {
+  it('pigeons and sparrows on the flat roofs peck; a bird on a ridge, a pot or an aerial sits; near her, each faces her', () => {
     const scene = new THREE.Scene();
     const f = createRoofsBirds(area, { scene });
     const [flock] = f.meshes;
-    const roof = P.find((p) => p.kind === 'roof' && p.id.startsWith('roof:warehouse:'));
-    const ridge = P.find((p) => p.kind === 'ridge');
-    const pot = P.find((p) => p.kind === 'pot');
-    const pigeon = f.birds.findIndex((b) => b.kind === 'pigeon');
-    const sitters = [f.birds.findIndex((b, i) => b.kind === 'pigeon' && i !== pigeon), f.birds.findIndex((b) => b.kind === 'gull')];
-    placeOn(f.birds[pigeon], roof);
-    placeOn(f.birds[sitters[0]], ridge);
-    placeOn(f.birds[sitters[1]], pot);
+    const kindAt = (b) => I.get(b.at).kind;
+    // the first view, at their homes: a pigeon and two sparrows on peck spots, a pigeon on an aerial
+    const peckers = f.birds.map((b, i) => i).filter((i) => kindAt(f.birds[i]) === 'roof');
+    expect(peckers.map((i) => f.birds[i].kind).sort()).toEqual(['pigeon', 'sparrow', 'sparrow']);
+    const onAerial = f.birds.findIndex((b) => kindAt(b) === 'aerial');
+    expect(f.birds[onAerial].kind).toBe('pigeon');
+    // and two more sitters put on a ridge and a pot
+    const ridgeBird = f.birds.findIndex((b) => b.kind === 'pigeon' && kindAt(b) === 'move');
+    const potBird = f.birds.findIndex((b) => b.kind === 'gull');
+    placeOn(f.birds[ridgeBird], P.find((p) => p.kind === 'ridge'));
+    placeOn(f.birds[potBird], P.find((p) => p.kind === 'pot'));
+    const sitters = [onAerial, ridgeBird, potBird];
     // twenty seconds alone (she is nowhere near)
     const dt = 1 / 60;
-    const pecks = [];
-    let peaked = 0;
+    const pecks = peckers.map(() => []);
+    const peaked = peckers.map(() => 0);
     const yaws = sitters.map(() => []);
     run(f, 20, null, dt, (k) => {
-      const p = pose(flock, pigeon);
       const t = (k + 1) * dt;
-      if (p.pitch > 0.01) {
-        const last = pecks.at(-1);
-        if (!last || t - last.end > 2 * dt) pecks.push({ start: t, end: t });
-        else last.end = t;
-      }
-      peaked = Math.max(peaked, p.pitch);
-      expect(p.x).toBeCloseTo(roof.x, 4); // it pecks where it stands
+      peckers.forEach((i, j) => {
+        const p = pose(flock, i);
+        if (p.pitch > 0.01) {
+          const last = pecks[j].at(-1);
+          if (!last || t - last.end > 2 * dt) pecks[j].push({ start: t, end: t });
+          else last.end = t;
+        }
+        peaked[j] = Math.max(peaked[j], p.pitch);
+        expect(p.x).toBeCloseTo(f.birds[i].pos.x, 4); // it pecks where it stands
+      });
       sitters.forEach((i, j) => {
         const s = pose(flock, i);
         expect(Math.abs(s.pitch), f.birds[i].id).toBeLessThan(1e-6); // a sitter never dips
@@ -201,16 +207,19 @@ describe('the flock drawn, perched', () => {
       });
     });
     // a peck: its nose down 0.35 rad for 0.25 s, every 1.5 to 3 s
-    expect(peaked).toBeGreaterThan(0.34);
-    expect(peaked).toBeLessThanOrEqual(0.35 + 1e-9);
-    expect(pecks.length).toBeGreaterThanOrEqual(6);
-    expect(pecks.length).toBeLessThanOrEqual(14);
-    for (const p of pecks) expect(p.end - p.start).toBeLessThanOrEqual(0.25 + 1e-9);
-    for (let k = 1; k < pecks.length; k++) {
-      const gap = pecks[k].start - pecks[k - 1].start;
-      expect(gap).toBeGreaterThanOrEqual(1.5 - 2 * dt);
-      expect(gap).toBeLessThanOrEqual(3 + 2 * dt);
-    }
+    peckers.forEach((i, j) => {
+      const id = f.birds[i].id;
+      expect(peaked[j], id).toBeGreaterThan(0.34);
+      expect(peaked[j], id).toBeLessThanOrEqual(0.35 + 1e-9);
+      expect(pecks[j].length, id).toBeGreaterThanOrEqual(6);
+      expect(pecks[j].length, id).toBeLessThanOrEqual(14);
+      for (const p of pecks[j]) expect(p.end - p.start, id).toBeLessThanOrEqual(0.25 + 1e-9);
+      for (let k = 1; k < pecks[j].length; k++) {
+        const gap = pecks[j][k].start - pecks[j][k - 1].start;
+        expect(gap, id).toBeGreaterThanOrEqual(1.5 - 2 * dt);
+        expect(gap, id).toBeLessThanOrEqual(3 + 2 * dt);
+      }
+    });
     // a sitter turns its head every few seconds: several looks, none a full turn round
     for (const ys of yaws) {
       const turns = ys.filter((y, k) => k > 0 && angle(y, ys[k - 1]) > 1e-6 && (k < 2 || angle(ys[k - 1], ys[k - 2]) <= 1e-6)).length;
@@ -304,6 +313,18 @@ describe('the flock on the built place (R3)', () => {
       return p.id;
     });
     expect(new Set(homes).size).toBe(14);
+    // the pigeons' rules: at least four at a move's far end, two on the
+    // warehouse or higher, one on a chimney's aerial and one pecking on the
+    // warehouse roof (the first view's, Task 3's C3)
+    const farEnds = new Set([
+      ...ROOFS_TRAVERSAL.crossings.map((c) => `${c.id}:1`),
+      ...[...ROOFS_TRAVERSAL.gaps, ...ROOFS_TRAVERSAL.climbs, ...ROOFS_TRAVERSAL.drops].filter((h) => !h.requires).map((h) => `${h.id}:to`),
+    ]);
+    const pigeons = ROOFS_BIRDS.filter((r) => r.kind === 'pigeon').map((r) => I.get(r.home));
+    expect(pigeons.filter((p) => p.kind === 'move' && [p.id, ...p.aliases].some((id) => farEnds.has(id))).length).toBeGreaterThanOrEqual(4);
+    expect(pigeons.filter((p) => p.y >= LEVELS.WAREHOUSE).length).toBeGreaterThanOrEqual(2);
+    expect(pigeons.filter((p) => p.kind === 'aerial')).toHaveLength(1);
+    expect(pigeons.filter((p) => p.kind === 'roof' && p.id.startsWith('roof:warehouse:'))).toHaveLength(1);
     const spawns = roofsCritterSpawns(ROOFS_BIRDS, I);
     expect(spawns).toHaveLength(14);
   });

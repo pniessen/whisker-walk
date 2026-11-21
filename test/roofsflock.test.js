@@ -5,7 +5,7 @@ import {
   ROOFS_COLLIDERS, ROOFS_DISCOVERIES, ROOFS_PERCHES, WASHING_POSTS, YARD_WALLS,
 } from '../src/world/roofsplan.js';
 import {
-  FLIGHT, BIRD_KINDS, ROOFS_BIRDS, GUIDE, LOFT_REST, OUT_OF_SIGHT, DRAWN_ID,
+  FLIGHT, BIRD_KINDS, ROOFS_BIRDS, GUIDE, LOFT_REST, OUT_OF_SIGHT, DRAWN_ID, PERCH_LIFT,
   flockPerches, perchIndex, flightGraph, flightPlan, flightPoint, chooseFlight, roofsCritterSpawns,
 } from '../src/world/roofsflock.js';
 
@@ -155,7 +155,8 @@ describe('the flock’s plan', () => {
         const p = I.get(`${h.id}:${k}`);
         expect(p, `${h.id}:${k}`).toBeDefined();
         expect(p.kind).toBe('move');
-        expect(Math.abs(p.y - ground.y(q.x, q.z)), `${h.id}:${k}`).toBeLessThan(0.02);
+        // on the ground there, or on the soft heap drawn over it (PERCH_LIFT: the bin bags)
+        expect(Math.abs(p.y - ground.y(q.x, q.z) - (PERCH_LIFT[p.id] ?? 0)), `${h.id}:${k}`).toBeLessThan(0.02);
         expect(d2(p, q)).toBeLessThan(0.5);
       }
     }
@@ -377,7 +378,8 @@ describe('the flock’s plan', () => {
   });
 
   it('every pigeon’s home has a way to the loft', () => {
-    for (const b of ROOFS_BIRDS.filter((r) => r.kind === 'pigeon')) {
+    // on the plan alone: the drawn home (an aerial) is test/roofsbirds.test.js's, on the built place (R3)
+    for (const b of ROOFS_BIRDS.filter((r) => r.kind === 'pigeon' && !r.home.startsWith('aerial:'))) {
       expect(I.get(b.home), b.home).toBeDefined();
       expect(Number.isFinite(G.homeDist.get(I.get(b.home).id)), b.home).toBe(true);
     }
@@ -402,9 +404,11 @@ describe('the flock’s plan', () => {
       if (I.has(b.home)) expect(I.get(b.home).y).toBeLessThan(BIRD_KINDS[b.kind].below);
     }
     const pigeons = of('pigeon').map((b) => b.home);
-    expect(pigeons.every((h) => I.has(h))).toBe(true);
+    // every pigeon on the plan's perches but one on a chimney's aerial (drawn), and one pecking on the warehouse
+    expect(pigeons.filter((h) => !I.has(h))).toEqual([DRAWN_ID.aerial(5)]);
+    expect(pigeons.filter((h) => I.get(h)?.kind === 'roof' && h.startsWith('roof:warehouse:')).length).toBe(1);
     expect(pigeons.filter((h) => FAR_ENDS.has(h) && I.get(h).kind === 'move').length).toBeGreaterThanOrEqual(4);
-    expect(pigeons.filter((h) => I.get(h).y >= L.WAREHOUSE).length).toBeGreaterThanOrEqual(2);
+    expect(pigeons.filter((h) => I.get(h)?.y >= L.WAREHOUSE).length).toBeGreaterThanOrEqual(2);
     const sparrows = of('sparrow').map((b) => b.home);
     expect(sparrows.filter((h) => /^(post|wall):/.test(h)).length).toBe(2);
     for (const h of sparrows.filter((s) => s.startsWith('post:'))) {
@@ -479,7 +483,7 @@ describe('the flock’s plan', () => {
       expect(Object.isFrozen(spawns[i])).toBe(true);
     });
     // a home that is not a perch fails loudly, naming it
-    expect(() => roofsCritterSpawns(ROOFS_BIRDS, I)).toThrow(/parapet:|post:|wall:/);
+    expect(() => roofsCritterSpawns(ROOFS_BIRDS, I)).toThrow(/aerial:|parapet:|post:|wall:/);
   });
 
   it('no flight ends nearer her than it began, and none passes within 1.5 m of her', () => {
@@ -519,7 +523,9 @@ describe('the flock’s plan', () => {
     const starts = [['plank-1:1', 'plank-1:0'], ...ROOFS_BIRDS
       .filter((b) => b.kind === 'pigeon' && FAR_ENDS.has(b.home) && b.home !== 'plank-1:1')
       .map((b) => [b.home, b.home.replace(/:1$/, ':0').replace(/:to$/, ':from')])];
-    expect(starts.length).toBe(7);
+    // five: the roster's far-end pigeons (pigeon-5 and pigeon-6 moved to an
+    // aerial and a warehouse peck spot, Task 3's C3), plank-1:1 among them
+    expect(starts.length).toBe(5);
     let flights = 0;
     let onEnds = 0;
     let moves = 0;
@@ -541,8 +547,9 @@ describe('the flock’s plan', () => {
       expect(landed, start).toBe(true);
     });
     // on the way they wait where her moves end, and fly her moves. Measured
-    // 2026-11-21 over these seven chases: 58 of 135 landings (43%) on a move
-    // end and 16 move flights; without the move-end term, 27 of 111 (24%) and 5
+    // 2026-11-21 over the seven chases then: 58 of 135 landings (43%) on a move
+    // end and 16 move flights; without the move-end term, 27 of 111 (24%) and 5.
+    // Over these five (Task 3's C3): 52 of 109 (48%) and 16
     expect(onEnds / flights).toBeGreaterThanOrEqual(0.38);
     expect(moves).toBeGreaterThanOrEqual(12);
   });

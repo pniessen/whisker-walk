@@ -16,7 +16,9 @@
 //     posts' T-bars, yard walls' copings (their ids: DRAWN_ID).
 // Two perches within 0.5 m and 0.3 m of height are one: the first keeps its
 // id, the other's goes in its `aliases`. No perch is over the street, low
-// over a pitched roof's slates (the void, R4) or on a smoking pot.
+// over a pitched roof's slates (the void, R4) or on a smoking pot. A move
+// perch on something soft drawn over the ground she lands on is lifted to its
+// top (PERCH_LIFT: the bin bags' heap).
 //
 // A LINK is a flight between two perches, { to, kind, d, shape }, of two kinds:
 //   * move: along a move she makes, up to 12 m: a crossing's two ends both
@@ -114,8 +116,12 @@ export const ROOFS_BIRDS = Object.freeze([
   { id: 'pigeon-2', kind: 'pigeon', home: 'plank-2:1' },
   { id: 'pigeon-3', kind: 'pigeon', home: 'return-4-east:to' },
   { id: 'pigeon-4', kind: 'pigeon', home: 'gutter-2:1' },
-  { id: 'pigeon-5', kind: 'pigeon', home: 'cornerShop-up:to' },
-  { id: 'pigeon-6', kind: 'pigeon', home: 'warehouse-up:to' },
+  // on a chimney's TV aerial over the alley, and pecking on the warehouse
+  // roof, so the place's first view has a bird on an aerial and birds
+  // pecking (the spec's "perch on ridges, chimneys, aerials and gutters, and
+  // peck on flat roofs"; the controller's ruling on Task 3's C3)
+  { id: 'pigeon-5', kind: 'pigeon', home: DRAWN_ID.aerial(5) },
+  { id: 'pigeon-6', kind: 'pigeon', home: 'roof:warehouse:0' },
   { id: 'pigeon-7', kind: 'pigeon', home: 'loft:0' },
   { id: 'sparrow-1', kind: 'sparrow', home: DRAWN_ID.post(0, 1) }, // in house 3's back yard
   { id: 'sparrow-2', kind: 'sparrow', home: DRAWN_ID.wall(13) }, // the wall between yards 7 and 8, by the garages
@@ -143,6 +149,10 @@ const MERGE_Y = 0.3;
 const OVER_SLATES = new Set(['ridge', 'pot', 'aerial']); // the only perches over a pitched roof under FLAT
 const RIDGE_EVERY = 2; // m
 const GUIDE_SPOT = Object.freeze({ x: 5.5, z: 36.5 });
+// How far a move perch sits over the ground there, by its id: the bin bags'
+// heap is drawn 0.08 m over the cobbles where she lands on it (roofs.js
+// drawBinBags), so a bird stands on the bags, not in them.
+export const PERCH_LIFT = Object.freeze({ 'garages-bags:to': 0.08 });
 
 // The peck spots (`roof`): about where each lies, as [x, z]; the spot is the
 // point of the roof's 1 m grid within PECK_NEAR of it, clear of the rules
@@ -241,8 +251,10 @@ export function flockPerches({ traversal, ground, drawn = [], smoking = [] }) {
     add(`${c.id}:1`, 'move', pts[pts.length - 1].x, pts[pts.length - 1].y, pts[pts.length - 1].z);
   }
   for (const h of hopsOf(traversal)) {
-    add(`${h.id}:from`, 'move', h.from.x, ground.y(h.from.x, h.from.z), h.from.z);
-    add(`${h.id}:to`, 'move', h.to.x, ground.y(h.to.x, h.to.z), h.to.z);
+    for (const [end, q] of [['from', h.from], ['to', h.to]]) {
+      const id = `${h.id}:${end}`;
+      add(id, 'move', q.x, ground.y(q.x, q.z) + (PERCH_LIFT[id] ?? 0), q.z);
+    }
   }
 
   // every 2 m along each ridge rail, between its ends
