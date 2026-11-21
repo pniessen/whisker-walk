@@ -399,6 +399,57 @@ describe('walking on to a place not here yet', () => {
   }, WALK_MS);
 });
 
+// Fix 5: the next walk's build throwing at the end of the moment. "Off to
+// ..." must not stay up with no button: she goes home with the gentle
+// line, as a start whose place did not come does, or, when a walk got
+// half-built, the page starts fresh (as a walk picked up again does).
+describe('the next walk cannot be built', () => {
+  // A loader whose Farm pack throws when the walk builds from it.
+  const brokenFarm = () => ({
+    loaded: (id) => (id === 'farm' ? { get life() { throw new Error('a broken Farm'); } } : areas.loaded(id)),
+    ensure: (id) => areas.ensure(id),
+    prefetch() {},
+  });
+  function homeScreen() {
+    const calls = { show: 0 };
+    let hideThrows = false;
+    const homebase = anything({
+      show: () => { calls.show += 1; },
+      hide: () => { if (hideThrows) throw new Error('a broken home screen'); },
+    });
+    return { homebase, calls, breakHide: () => { hideThrows = true; } };
+  }
+
+  it('no walk built: home, with the not-ready line, and it is noted', async () => {
+    const home = homeScreen();
+    const walked = [];
+    const h = walkHarness({ save: parkSave, areas: brokenFarm(), homebase: home.homebase, onWalkedOn: (l) => walked.push(l) });
+    h.w.startWalk({});
+    expect(await h.w.walkOn({ via: 'park-farm' })).toBe('walked');
+    expect(() => vi.advanceTimersByTime(GATE_MOMENT_MS)).not.toThrow();
+    expect(h.getSession()).toBeNull();
+    expect(h.overlay.innerHTML).not.toContain('Off to');
+    expect(h.overlay.classList.contains('hidden')).toBe(true);
+    expect(home.calls.show).toBe(1);
+    expect(h.homeToasts).toEqual([phrase('start.notReady')]);
+    expect(h.reloads()).toBe(0);
+    expect(diagnostics.entries().map((e) => e.kind)).toContain('walk');
+    expect(h.progression.state.walks.park).toBe(3); // the Park walk stays banked
+    expect(walked).toEqual([[]]); // the save still goes up
+  }, WALK_MS);
+
+  it('a walk half-built: the page starts fresh', async () => {
+    const home = homeScreen();
+    const h = walkHarness({ save: parkSave, homebase: home.homebase });
+    h.w.startWalk({});
+    expect(await h.w.walkOn({ via: 'park-farm' })).toBe('walked');
+    home.breakHide();
+    expect(() => vi.advanceTimersByTime(GATE_MOMENT_MS)).not.toThrow();
+    expect(h.reloads()).toBe(1);
+    expect(diagnostics.entries().map((e) => e.kind)).toContain('walk');
+  }, WALK_MS);
+});
+
 // The lines a walk banks have one source (walk.js bankedLines): the summary
 // card wraps them in its HTML, a walk-on hands them to main.js as plain text.
 describe('the summary card', () => {

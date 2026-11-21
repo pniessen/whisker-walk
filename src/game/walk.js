@@ -2971,6 +2971,23 @@ export function createWalkLifecycle({
     return [best, streak, mochi, brought].filter(Boolean);
   }
 
+  // The next walk of a walk-on could not be built (a throw in startWalk at
+  // the moment's end): "Off to ..." must not stay up with no way on. As a
+  // start whose place did not come, she goes home with the gentle line (the
+  // walk just left is already banked, so the save still goes up); a walk
+  // left half-built starts the page fresh, as a walk picked up again does
+  // (walkresume.js pickUpWalk).
+  function cannotStart(err) {
+    note('walk', err);
+    console.warn('Whisker Walk: the walk-on could not start the next walk', err);
+    if (getSession()) { reloadPage(); return; }
+    overlay.innerHTML = '';
+    overlay.classList.add('hidden');
+    try { getHomebase()?.show?.(); } catch (homeErr) { note('walk', homeErr); }
+    homeToast(phrase(isOnline() ? 'start.notReady' : 'start.notReadyOffline'));
+    onWalkedOn([]);
+  }
+
   // walkOn({ via, ledBy, guest }) -> Promise of 'walked' | 'refused' |
   // 'failed' | 'dropped'. THE one way through a gate (world map step 3) or a
   // border post (Task 10): the walk is banked quietly (no summary), a short
@@ -3030,7 +3047,12 @@ export function createWalkLifecycle({
       const startsAtMoment = walksStarted;
       setTimeout(() => {
         if (getSession() || walksStarted !== startsAtMoment) return;
-        startWalk({ duskMode, roomSeed, areaOverride: progression.state.area === to ? undefined : to, arrive });
+        try {
+          startWalk({ duskMode, roomSeed, areaOverride: progression.state.area === to ? undefined : to, arrive });
+        } catch (err) {
+          cannotStart(err);
+          return;
+        }
         failures = 0;
         const next = getSession();
         if (next) next.arrivedVia = twin;
