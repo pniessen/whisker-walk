@@ -47,6 +47,22 @@ describe('gateStatus and gatePrompt', () => {
     for (const [shown, table] of [...lines(), ...withOffWords(lines)]) expect(shown).toBe(table);
     expect(phrase('gate.thisWay', 'Appletree Farm')).toBe('Appletree Farm is this way 🧭');
   });
+  // Rooftops step 4: the town's north signpost and the Rooftops' alley door.
+  it("the town's Rooftops gate: shut, short, open to buy, owned; the alley door is always open", () => {
+    const town = endById('town-roofs').end;
+    const at = (o) => save({ area: 'neighborhood', points: 0, ...o });
+    expect(gateStatus(town, at({ walks: { neighborhood: 4, fair: 1 } }), CATALOG))
+      .toMatchObject({ kind: 'shut', to: 'roofs', line: 'Opens after 2 walks in the Fairground. 1 to go!' });
+    expect(gateStatus(town, at({ walks: { fair: 2 }, points: 100 }), CATALOG)).toMatchObject({ kind: 'buy', to: 'roofs', price: 100, name: 'The Rooftops' });
+    expect(gateStatus(town, at({ walks: { fair: 2 }, points: 60 }), CATALOG))
+      .toMatchObject({ kind: 'short', need: 40, line: 'You need 40 more 🐾. Keep exploring!' });
+    expect(gateStatus(town, at({ walks: { fair: 2 }, unlocked: { areas: ['neighborhood', 'park', 'fair', 'roofs'] } }), CATALOG))
+      .toMatchObject({ kind: 'go', to: 'roofs', name: 'The Rooftops' });
+    const door = endById('roofs-town').end;
+    for (const st of [at({ area: 'roofs' }), at({ area: 'roofs', walks: {}, unlocked: { areas: ['neighborhood'] } }), at({ area: 'roofs', edition: 'legacy' })]) {
+      expect(gateStatus(door, st, CATALOG)).toMatchObject({ kind: 'go', to: 'neighborhood' });
+    }
+  });
   it('the town gate names the town in the word set in use', () => {
     const back = gateStatus(endById('park-town').end, save(), CATALOG);
     expect(back).toMatchObject({ kind: 'go', name: PLACE_WORDS.town });
@@ -63,6 +79,7 @@ describe('the cards', () => {
     for (const s of ['Open Appletree Farm for 75 🐾?', 'You’ll have 25 🐾 left.', 'Yes, open it', 'Not now']) expect(ask).toContain(s);
     expect(ask.indexOf('confirm-card-no')).toBeLessThan(ask.indexOf('confirm-card-yes'));
     expect(gateMomentHtml({ name: 'The Fairground' })).toContain('<h1>Off to the Fairground!</h1>');
+    expect(gateMomentHtml({ name: 'The Rooftops' })).toContain('<h1>Off to the Rooftops!</h1>');
     // Fix 9: "The" mid-sentence is lower case, as in every other gate line.
     // The shared Get it? card (spendAsk) keeps the name as given, as the
     // map's own card does; the gate's two lines lower it.
@@ -123,17 +140,20 @@ describe('the room', () => {
     // Fix 6: a way this build does not know (a newer build's gate), or one to
     // a place it has no row for, is answered "no" at once: { to: null }
     expect(decideWalkOnAsk({ ...ev, via: 'nope' }, ctx)).toEqual({ via: 'nope', to: null });
-    expect(decideWalkOnAsk({ ...ev, via: 'town-roofs' }, ctx)).toEqual({ via: 'town-roofs', to: null });
+    expect(decideWalkOnAsk({ ...ev, via: 'town-house' }, ctx)).toEqual({ via: 'town-house', to: null });
     const { farm: _farm, ...noFarm } = CATALOG.areas;
     expect(decideWalkOnAsk(ev, { ...ctx, catalog: { ...CATALOG, areas: noFarm } })).toEqual({ via: 'park-farm', to: null });
     // a way this build knows, but of another place, is stale: no answer
-    for (const bad of [{ v: 2 }, { from: 'fair' }, { via: 'fair-park' }, { via: 'woods-moor-path' }, { via: 7 }, { via: 'x'.repeat(65) }, { type: 'walk-on' }, { type: 'walk-on-have' }, { id: 'z' }]) {
+    for (const bad of [{ v: 2 }, { from: 'fair' }, { via: 'fair-park' }, { via: 'woods-moor-path' }, { via: 'town-roofs' }, { via: 7 }, { via: 'x'.repeat(65) }, { type: 'walk-on' }, { type: 'walk-on-have' }, { id: 'z' }]) {
       expect(decideWalkOnAsk({ ...ev, ...bad }, ctx), JSON.stringify(bad)).toBeNull();
     }
     expect(decideWalkOnAsk(ev, { ...ctx, selfId: '0' })).toBeNull(); // not from the host
     expect(decideWalkOnAsk(ev, { ...ctx, remoteIds: ['a', null] })).toBeNull(); // a member with no id
     expect(decideWalkOnAsk(null, ctx)).toBeNull();
-    expect(decideWalkOnAsk(ev, { ...ctx, areaId: 'roofs' })).toBeNull(); // a place with no gates
+    expect(decideWalkOnAsk(ev, { ...ctx, areaId: 'roofs' })).toBeNull(); // not this walk's place
+    // the town's Rooftops gate and the alley door, each from its own place
+    expect(decideWalkOnAsk({ ...ev, from: 'neighborhood', via: 'town-roofs' }, { ...ctx, areaId: 'neighborhood' })).toEqual({ via: 'town-roofs', to: 'roofs' });
+    expect(decideWalkOnAsk({ ...ev, from: 'roofs', via: 'roofs-town' }, { ...ctx, areaId: 'roofs' })).toEqual({ via: 'roofs-town', to: 'neighborhood' });
   });
   it("the host goes only when it has the place and every friend still in the room said yes", () => {
     const have = (id, ok = true, o = {}) => ({ v: 1, id, type: 'walk-on-have', via: 'park-farm', ok, ...o });

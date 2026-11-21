@@ -16,9 +16,8 @@
 // AREA_GZIP_CEILING_KB in scripts/buildjson.mjs), and test/areas.test.js and
 // test/lazybuild.test.js fail if step 1 or 2 was missed.
 //
-// `roofs` is here so a walk can build it, and nowhere a child picks from:
-// every list a child sees comes from CATALOG.areas, which has no Rooftops row
-// until step 4. `den` is not in the catalog either; it is built from home.
+// `roofs` has its own row in CATALOG.areas (Rooftops step 4), so the place
+// lists show it. `den` is not in the catalog; it is built from home.
 //
 // An AreaPack is { id, world, life }: world is the builder module, life the
 // area's live-animal factories ({} when it has none). This file imports

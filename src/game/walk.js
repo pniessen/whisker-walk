@@ -178,8 +178,7 @@ import { walkDusk } from './session.js'; // its own line: test/session.test.js p
 // The recipe for a new area (builder, AREA_LOADERS line, catalog row) is in src/world/areas.js.
 // A walk builds from its place's pack (areas.loaded(id): { id, world, life }),
 // which startWalkWhenReady fetches first. The Rooftops (`roofs`) is a pack like
-// any other, and in no list a child picks from: every such list comes from
-// CATALOG.areas, which has no Rooftops row until step 4.
+// any other, with its own row in CATALOG.areas (Rooftops step 4).
 //
 // startWalkWhenReady's two numbers (F6): how long a wait goes before the
 // Explore button says "Getting ready…" (a quicker load never shows it), and
@@ -856,7 +855,8 @@ export function createWalkLifecycle({
     // every path. A gate is open where she can go now (gateStatus 'go'). Its
     // colliders join the live list below, beside the posts'.
     const gates = !isDen && isClanEdition(state)
-      ? addGatewayDressing(scene, areaId, { ground, ends: gateEnds, isOpen: (e) => gateStatus(e, state, CATALOG).kind === 'go' })
+      ? addGatewayDressing(scene, areaId, { ground, ends: gateEnds, isOpen: (e) => gateStatus(e, state, CATALOG).kind === 'go',
+        nameFor: (e) => placeName(e.to, state.edition, CATALOG) }) // a gate's name board (Rooftops step 4)
       : NO_GATES;
     // The fill light, added here rather than beside the sun because its ground
     // term is the AREA'S OWN dominant ground colour and only areaData knows it:

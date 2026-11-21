@@ -5,6 +5,10 @@
    "touch": "Push the circle to walk. Drag to look around.",
    "keys": "Push the circle to walk. Drag to look around."
   },
+  "hint.roofs": {
+   "touch": "Follow the white pigeon up onto the roofs!",
+   "keys": "Follow the white pigeon up onto the roofs!"
+  },
   "hint.look": {
    "touch": "Drag here to look around.",
    "keys": "Move the mouse to look around."
@@ -323,6 +327,10 @@
   "start.touch": {
    "touch": "Push the circle to walk. Drag to look around.",
    "keys": "Push the circle to walk. Drag to look around."
+  },
+  "hint.roofs": {
+   "touch": "Follow the white pigeon up onto the roofs!",
+   "keys": "Follow the white pigeon up onto the roofs!"
   },
   "hint.look": {
    "touch": "Drag here to look around.",
@@ -654,6 +662,7 @@
     "park": "rule 7: Explore here again to open City Park!",
     "farm": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
+    "roofs": "rule 7: Explore here again to open the Rooftops!",
     "seaside": "rule 7: Explore here again to open Seaside!",
     "docks": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "woods": "rule 7: Explore here again to open City Park!",
@@ -693,6 +702,7 @@
     "park": "rule 7: Explore here again to open City Park!",
     "farm": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "fair": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
+    "roofs": "rule 7: Explore here again to open the Rooftops!",
     "seaside": "rule 7: Explore here again to open Seaside!",
     "docks": "rule 7: Explore here again to open Appletree Farm, the Fairground and the Old Docks!",
     "woods": "rule 7: Explore here again to open City Park!",

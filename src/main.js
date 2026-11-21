@@ -603,7 +603,7 @@ function init() {
   homebase.show();
   // F6: fetch her own place and the den now, so Explore and the den button
   // usually find them already here. ?roofs=1 fetches the Rooftops too (her
-  // Explore goes there); without the switch nothing fetches it. A failure here
+  // Explore goes there); otherwise a Rooftops choice or the gate prefetch does. A failure here
   // is quiet: the start itself tries again, and says so if it cannot.
   areas.prefetch(effectiveArea(progression.state, CATALOG));
   areas.prefetch('den');
