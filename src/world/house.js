@@ -473,10 +473,10 @@ export function build(scene, { wind, gateEnds } = {}) {
     areaData.restSpot = (x, z) => (isWalkableAt(areaData, x, z) ? { x, z } : null);
     // every frame: the walls between the camera and the cat sink, and the levels are drawn for hers
     // and the six finds, and the yarn ball kept out of the walls (step 2, Task 6): the walk's
-    // log, HUD, sound and ball, and its live colliders (the bookcase's row swaps there)
+    // log, sound and ball, and its live colliders (the bookcase's row swaps there)
     // `now` is the clock the clock strikes by (the picture page pins it; the walk passes none)
-    areaData.life = ({ scene: lifeScene, reducedMotion, log, hud, audio, toy, dusk, now }) => createHouseLife(lifeScene, areaData.house, {
-      reducedMotion, log, hud, audio, toy, dusk, now, colliders: areaData.colliders,
+    areaData.life = ({ scene: lifeScene, reducedMotion, log, audio, toy, dusk, now }) => createHouseLife(lifeScene, areaData.house, {
+      reducedMotion, log, audio, toy, dusk, now, colliders: areaData.colliders,
     });
     return areaData;
   });

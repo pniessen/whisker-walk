@@ -520,7 +520,7 @@ describe('never lost on a climb', () => {
       && fading.some((p) => toLedge(p, c.x, c.z) > 0 && toLedge(p, c.x, c.z) <= 0.8 && Math.abs(w.area.ground.y(c.x, c.z) - p.minY) < 1e-6));
     expect(cells.length).toBeGreaterThan(300);
     const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: true });
-    const life = record.life({ scene, reducedMotion: true, log: null, hud: null, audio: null, toy: null, dusk: false });
+    const life = record.life({ scene, reducedMotion: true, log: null, audio: null, toy: null, dusk: false });
     const look = new THREE.Vector3();
     const bad = [];
     let tallInLine = 0;
@@ -594,7 +594,7 @@ describe('never lost on a climb', () => {
     const scene = new THREE.Scene();
     const record = build(scene);
     const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: true });
-    const life = record.life({ scene, reducedMotion: true, log: null, hud: null, audio: null, toy: null, dusk: false });
+    const life = record.life({ scene, reducedMotion: true, log: null, audio: null, toy: null, dusk: false });
     const camera = new THREE.PerspectiveCamera();
     const cat = new THREE.Vector3();
     const look = new THREE.Vector3();
@@ -658,7 +658,7 @@ describe('never lost on a climb', () => {
     const record = build(scene);
     const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: true });
     // the house life's fade hold runs first, as the game runs it (Task 10 review)
-    const life = record.life({ scene, reducedMotion: true, log: null, hud: null, audio: null, toy: null, dusk: false });
+    const life = record.life({ scene, reducedMotion: true, log: null, audio: null, toy: null, dusk: false });
     let t = 0;
     const w = createHouseWalk({ moves: true });
     const groups = new Map(fadingLedges(scene).map(({ l, g }) => [l.id, g]));

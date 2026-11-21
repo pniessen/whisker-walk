@@ -27,7 +27,7 @@
 // handoff), never stopped. Task 7: the clock's tick and the creaks (housesound.js, under the
 // walk's mute) and the sunbeams with their dust motes (houseair.js: none at `dusk`, still
 // under reduced motion), drawn for the levels in full. `colliders` is the walk's own live list (the bookcase's
-// row swaps in it); `log`, `hud`, `audio` and `toy` are the walk's.
+// row swaps in it); `log`, `audio` and `toy` are the walk's.
 // Task 10 (from the pictures): the furniture's fade hold. The tree fade (treefade.js) fades a
 // piece when its line from the camera, run on PAST_LOOK beyond her, passes it, so a piece
 // just beyond her faded: the piano when she stood on its keys, the clock as she stood at it,
@@ -71,7 +71,7 @@ const OPEN = Object.freeze({ secretOpen: true });
 const SHUT = Object.freeze({ secretOpen: false });
 
 export function createHouseLife(scene, house, {
-  reducedMotion = false, log = null, hud = null, audio = null, toy = null, colliders = [], now, dusk = false,
+  reducedMotion = false, log = null, audio = null, toy = null, colliders = [], now, dusk = false,
 } = {}) {
   const { sections, sectionMeshes, panes } = house;
   const lid = house.lid ? createCellarLid(house.lid, sections) : null;
@@ -90,7 +90,7 @@ export function createHouseLife(scene, house, {
   const view = {};
   let settled = false;
   const finds = createHouseFinds({
-    finds: house.finds ?? [], secret: house.secret, colliders, parts: house.parts, log, hud, audio, reducedMotion, now,
+    finds: house.finds ?? [], secret: house.secret, colliders, parts: house.parts, log, audio, reducedMotion, now,
   });
   const sound = createHouseSound(audio, {
     clock: HOUSE_FINDS.find((f) => f.id === 'clock'),
@@ -123,7 +123,9 @@ export function createHouseLife(scene, house, {
     const p = toy.mesh.position;
     if (ballSeen && Math.hypot(p.x - ballX, p.z - ballZ) <= TELEPORT * Math.max(dt, 1 / 60)) {
       const stop = toyStop(ballX, ballZ, p.x, p.z, finds.open ? OPEN : SHUT);
-      if (stop) toy.setPosition({ x: stop.x, y: 0, z: stop.z });
+      // set down on the floor under the stop (toy.setPosition lifts it onto any ledge): the
+      // cellar and its stair are below the lawn, so a height of 0 had it fall from up there
+      if (stop) { stop.y = floorY(stop); toy.setPosition(stop); }
     }
     ballSeen = true;
     ballX = p.x;

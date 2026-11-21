@@ -9,10 +9,10 @@ vi.stubGlobal('document', canvasStub);
 const { createHouseFinds, FIND_KEY, PIANO_SCALE, STILL } = await import('../src/world/housefinds.js');
 const { HOUSE_FINDS } = await import('../src/world/housethings.js');
 const {
-  HOUSE_LEDGES, HOUSE_ROOMS, HOUSE_LEVELS, SECRET_BOOKCASE, SECRET_OPEN_ROT_Y, secretColliders, roomAt, houseSections,
+  HOUSE_LEDGES, HOUSE_ROOMS, HOUSE_LEVELS, SECRET_BOOKCASE, SECRET_OPEN_ROT_Y, secretColliders, roomAt, stairAt, houseSections, HOUSE_STAIRS,
 } = await import('../src/world/houseplan.js');
 const { createDiscoveryLog } = await import('../src/discoveries.js');
-const { createToy } = await import('../src/toy.js');
+const { createToy, TOY_RADIUS } = await import('../src/toy.js');
 const { isWalkableAt } = await import('../src/player.js');
 const { phrase } = await import('../src/clanphrases.js');
 const { withOffWords } = await import('./helpers/offwords.js');
@@ -435,40 +435,110 @@ describe('the yarn ball', () => {
     .sort((a, b) => Math.abs(b.z1 - b.z0) - Math.abs(a.z1 - a.z0))[0];
   const wallZ = (wall.z0 + wall.z1) / 2;
 
-  const batAtWall = (withLife) => {
+  // the ball batted from (x, z) along (dx, dz) at 6 m/s for 3 s, with or without house life:
+  // the regions it was in, and its height over the floor under it at its highest after the bat
+  const bat = (withLife, x, z, dx, dz) => {
     const scene = new THREE.Scene();
     const record = build(scene);
     const toy = createToy(scene, { ground: record.ground, rng: () => 0.5 });
-    const life = withLife ? record.life({ scene, reducedMotion: true, toy, audio: recorder(['playTune', 'musicBoxNote', 'purr']), hud: recorder(['toast']) }) : null;
+    const life = withLife ? record.life({ scene, reducedMotion: true, toy, audio: recorder(['playTune', 'musicBoxNote', 'purr']) }) : null;
     const camera = new THREE.PerspectiveCamera();
     const cat = new THREE.Vector3(2, 0, 9.5);
     camera.position.set(2, 2, 13);
     let t = 0;
     life?.update(DT, t, cat, camera); // the first frame settles
-    toy.placeAt({ x: -3, z: wallZ });
-    toy.throwFrom(new THREE.Vector3(-3, 0.3, wallZ), new THREE.Vector3(-1, 0, 0), 6);
+    toy.placeAt({ x, z });
+    const y0 = record.house.floor.y(x, z);
+    toy.throwFrom(new THREE.Vector3(x, y0 + 0.3, z), new THREE.Vector3(dx, 0, dz).normalize(), 6);
     const rooms = new Set();
+    let over = -Infinity;
     for (let i = 0; i < 180; i++) {
       t += DT;
       toy.update(DT, record.bounds);
       life?.update(DT, t, cat, camera);
       const p = toy.mesh.position;
-      rooms.add(roomAt(p.x, p.z));
+      rooms.add(roomAt(p.x, p.z) ?? stairAt(p.x, p.z));
+      over = Math.max(over, p.y - record.house.floor.y(p.x, p.z));
     }
     life?.dispose();
-    return { rooms, toy };
+    return { rooms, toy, over };
   };
+  const batAtWall = (withLife) => bat(withLife, -3, wallZ, -1, 0);
+  // thrown 0.3 m up at 4 m/s, the ball tops out about 1.1 m over the floor; never set down higher
+  const RISE = 1.3;
 
   it('the life stops it at the wall: it stays in the hall', () => {
     expect(wall).toBeTruthy();
-    const { rooms, toy } = batAtWall(true);
+    const { rooms, toy, over } = batAtWall(true);
     expect([...rooms]).toEqual(['hall']);
     expect(toy.mesh.position.x).toBeGreaterThan(-4);
+    expect(over).toBeLessThan(RISE);
   }, 60_000);
 
   it('without the life it would have rolled through into the library', () => {
     const { rooms } = batAtWall(false);
     expect(rooms.has('library')).toBe(true);
+  }, 60_000);
+
+  // The ball rolled by hand along the floor across a wall line, as if a bat had sent it
+  // there: house life puts it back on the floor under it, 0.3 m inside the wall.
+  const rollOver = (x, z, dx, dz) => {
+    const scene = new THREE.Scene();
+    const record = build(scene);
+    const g = record.ground;
+    const toy = createToy(scene, { ground: g, rng: () => 0.5 });
+    const life = record.life({ scene, reducedMotion: true, toy, audio: null });
+    const camera = new THREE.PerspectiveCamera();
+    const cat = new THREE.Vector3(2, 0, 9.5);
+    camera.position.set(2, 2, 13);
+    let t = 0;
+    life.update(DT, t, cat, camera);
+    const p = toy.mesh.position;
+    toy.setPosition({ x, y: g.y(x, z), z });
+    const r0 = roomAt(x, z) ?? stairAt(x, z);
+    for (let i = 0; i < 90; i++) {
+      const nx = p.x + dx * 3 * DT, nz = p.z + dz * 3 * DT;
+      p.set(nx, g.y(nx, nz) + TOY_RADIUS, nz);
+      t += DT;
+      life.update(DT, t, cat, camera);
+      if (Math.hypot(p.x - nx, p.z - nz) > 1e-9) { // the life stopped it
+        const out = { region: roomAt(p.x, p.z) ?? stairAt(p.x, p.z), over: p.y - g.y(p.x, p.z), y: p.y, from: r0 };
+        life.dispose();
+        return out;
+      }
+    }
+    life.dispose();
+    return null;
+  };
+
+  it('in the cellar (1.8 m down) a wall stops it on the cellar floor, never up at the lawn\'s height', () => {
+    for (const [x, z, dx, dz] of [[28.5, -5, 1, 0], [25, -8.5, 0, -1], [25, -1.5, 0, 1]]) {
+      const s = rollOver(x, z, dx, dz);
+      expect(s, `${x},${z}`).not.toBe(null);
+      expect(s.region, `${x},${z}`).toBe('cellar');
+      expect(s.over, `${x},${z}`).toBeCloseTo(TOY_RADIUS, 6);
+      expect(s.y, `${x},${z}`).toBeLessThan(levelY('cellar') + 0.2);
+    }
+    // and batted for real (the toy's own rolling), it stays down there
+    const { rooms, over } = bat(true, 28.5, -5, 1, 0);
+    expect([...rooms]).toEqual(['cellar']);
+    expect(over).toBeLessThan(RISE);
+  }, 60_000);
+
+  it('on the cellar stair a side wall stops it on the steps, at their height', () => {
+    const st = HOUSE_STAIRS.find((q) => q.to === 'cellar');
+    for (const [x, side] of [[14.6, -1], [16, 1], [17.5, -1], [19, 1]]) {
+      const s = rollOver(x, st.z0 - side * 0.6, 0, side);
+      expect(s, `${x},${side}`).not.toBe(null);
+      expect(s.from, `${x},${side}`).toBe('cellar'); // the stair's region is named for the cellar
+      expect(s.region, `${x},${side}`).toBe('cellar');
+      expect(s.over, `${x},${side}`).toBeCloseTo(TOY_RADIUS, 6);
+    }
+    for (const [x, side] of [[16, -1], [17.5, 1]]) {
+      const { rooms, over } = bat(true, x, st.z0 - side * 0.6, 0, side);
+      expect([...rooms], `${x},${side}`).toEqual(['cellar']);
+      expect(over, `${x},${side}`).toBeLessThan(RISE);
+    }
   }, 60_000);
 });
 
@@ -500,7 +570,7 @@ describe('the furniture fades only when it is in the way', () => {
     const record = build(scene);
     mergeStaticProps(scene);
     const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: true });
-    const life = record.life({ scene, reducedMotion: true, log: null, hud: null, audio: null, toy: null, dusk: false });
+    const life = record.life({ scene, reducedMotion: true, log: null, audio: null, toy: null, dusk: false });
     const camera = new THREE.PerspectiveCamera();
     const cat = new THREE.Vector3();
     const look = { x: 0, y: 0, z: 0 };

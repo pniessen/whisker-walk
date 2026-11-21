@@ -58,8 +58,7 @@ describe('the area life\'s context (Rooftops step 5)', () => {
     const ctx = seen.ctx.at(-1);
     expect(ctx.log).toBe(life.log);
     expect(ctx.progression).toBe(life.progression);
-    // the hud is in the context for the Old House's finds; the Rooftops' moments never use it (fix wave, M5)
-    expect(ctx.hud).toBe(life.hud);
+    expect('hud' in ctx).toBe(false); // the moments never used it (fix wave, M5)
     // viewYaw reads and sets the player's own view heading (fix wave, I2)
     let yaw = 0.4;
     life.player.viewYaw = () => yaw;
