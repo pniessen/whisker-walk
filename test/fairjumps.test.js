@@ -287,7 +287,7 @@ describe('the paw and the jump agree', () => {
     let w = walkAt({ ...plat, perch: plat }, RIDE.COASTER_LAP * 330 + 1);
     w.frame();
     expect(climbBadge(w.session, w.player, state)).toBe('up');
-    w = walkAt({ ...plat, perch: plat }, RIDE.COASTER_LAP * 330 + 20);
+    w = walkAt({ ...plat, perch: plat }, RIDE.COASTER_LAP * 330 + RIDE.COASTER_WAIT + 14); // 14 s out on the track
     w.frame();
     expect(climbBadge(w.session, w.player, state)).toBeNull();
     expect(live.jump(w.ctx)).toBe(true); // the press does nothing: she waits
@@ -308,7 +308,7 @@ describe('the paw and the jump agree', () => {
     w = walkAt({ ...plat, perch: plat }, RIDE.COASTER_LAP * 340 + 1);
     w.frame();
     live.jump(w.ctx);
-    for (let i = 0; i < 30 * 15; i++) w.frame();
+    for (let i = 0; i < 30 * (RIDE.COASTER_WAIT + 9); i++) w.frame(); // 10 s out on the track
     expect(live.riding.seatKind).toBe('car');
     expect(climbBadge(w.session, w.player, state)).toBe('down');
   });
