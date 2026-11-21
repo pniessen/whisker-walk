@@ -82,11 +82,11 @@ const JUGGLE_COLORS = Object.freeze([0xe2433a, 0x4eb86a, 0xf7c93b]);
 //   opts.coat          her coat's colour, for the crystal ball when there is no picture
 //   opts.onEvent(e)    every event of the games, the finds and the visitors
 //   opts.seed          their own dice
-//   opts.people        the people kit's factory (src/people/index.js createPeopleKit, its default)
+//   opts.people        the people kit's factory (src/people/index.js createPeopleKit when not a function)
 //   opts.lodNear()     the live rung's near/far switch distance (the kit's own 12 m without it)
 export function createFairShow(scene, area, {
   swept = () => false, strays = 22, camera = null, portrait = () => null, coat = 0xc8a070,
-  reducedMotion = false, onEvent = () => {}, ground = FLAT_GROUND, seed, people: makeKit = createPeopleKit, lodNear,
+  reducedMotion = false, onEvent = () => {}, ground = FLAT_GROUND, seed, people: makeKit, lodNear,
 } = {}) {
   const games = createFairGames(area, seed === undefined ? {} : { seed: `${seed}-games` });
   // (a visitor saying hello holds still: ruling R41, src/fairvisitors.js)

@@ -5,18 +5,23 @@
 // A handful of people strolling the midway and the plaza (the area's
 // `visitorLoop`), now and then stepping off to one of the `visitorWatch` spots
 // to watch a ride, then strolling on. No THREE, no DOM: src/fairshow.js draws
-// them with the villager's figure (src/critters.js).
+// them as the lifelike people (the people kit, src/people/), as in town.
 //
 // THE RULES (the design's anti-goals; test/fairgames.test.js holds each):
-//   * A visitor is never where the cat is. Its middle is always at least KEEP
-//     from hers: it stops for a cat crossing its way, walks round a cat who is
-//     sitting in it, and steps aside for a cat who runs at it. It never pushes
-//     her (it has no collider), never shoos her, and never follows her.
+//   * A visitor is never where the cat is. It never steps to within KEEP of
+//     her middle, nor nearer her once she is there (ruling R41): it stops for
+//     a cat crossing its way, walks round a cat who is sitting in it, and
+//     steps aside for a cat who runs at it. Saying hello it holds still, and
+//     walking round her it never comes nearer, so she can come within KEEP
+//     of it by her own doing; then her soft bump (drawn by src/fairshow.js)
+//     stops her, as in town. It never pushes her (it has no collider), never
+//     shoos her, and never follows her.
 //   * It only ever stands on free ground: inside the bounds, clear of every
 //     collider, out of the water, and out of everything a ride sweeps over.
 //   * It is not an animal: it is not in src/critters.js, so nothing can stalk
 //     it, pounce on it or spot it, and it pays nothing.
-//   * A meow near one gets a hello: a wave, or a crouch down to her height.
+//   * A meow near one gets a hello: a wave, or a kneel on one knee (an older
+//     person bows; `helloKind` 'crouch', src/fairshow.js poses it).
 //
 // PAIRS (docs/superpowers/specs/2026-11-20-lifelike-people-design.md,
 // "Pairs"): a visitor whose `look` spot is a child spot (src/people/look.js
@@ -825,7 +830,7 @@ export function createFairVisitors(area, { count = VISITOR.MAX, seed = 'fair-vis
       for (const v of list) stepOne(v, step, cat, !high);
     },
 
-    // A meow: everyone near enough says hello, a wave or a crouch.
+    // A meow: everyone near enough says hello, a wave or a kneel (a bow, if older).
     meow(pos) {
       let said = 0;
       for (const v of list) {

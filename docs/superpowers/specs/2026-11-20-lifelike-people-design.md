@@ -705,6 +705,9 @@ under 6,000.) The prototype's far build is 748-976 triangles in v2, so the
   `setPeople(true | false | null)` for tests, like `src/roofsflag.js` and
   `src/grow.js`. `?people=1` turns it on; after step 4 it defaults on and
   `?people=0` turns it off; step 5 removes it.
+- Step 5 is done on branch `people-retire` (Task 16): today's figure and the
+  switch are removed; a villager handed no kit is its group alone, and every
+  place with villagers carries the kit (`test/areas.test.js`).
 
 ## Build steps (each ends in pictures for the owner)
 

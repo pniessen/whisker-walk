@@ -55,4 +55,20 @@ describe('the area registry', () => {
       expect((await AREA_LOADERS[id]()).life.createPeopleKit, id).toBeUndefined();
     }
   });
+  // A villager handed no people is its group alone (src/critters.js): nothing
+  // to see, though it still waves, takes a head-scratch prompt and can give a
+  // quest. So every place whose world spawns a villager must carry the people
+  // in its pack: built here through the pack, as the walk builds it.
+  it('every place whose world spawns a villager carries the people in its pack', async () => {
+    const { Scene } = await import('three');
+    const withVillagers = [];
+    for (const id of Object.keys(AREA_LOADERS)) {
+      const pack = await AREA_LOADERS[id]();
+      const area = pack.world.build(new Scene());
+      if (!(area.critterSpawns ?? []).some((c) => c.type === 'villager')) continue;
+      withVillagers.push(id);
+      expect(typeof pack.life?.createPeopleKit, id).toBe('function');
+    }
+    expect(withVillagers.length).toBeGreaterThan(0); // (the street places have them)
+  }, 90_000);
 });

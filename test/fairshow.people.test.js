@@ -177,7 +177,7 @@ describe('the Fairground drawn as lifelike people', () => {
   it('the crouch hello is a kneel on one knee (an older person bows), the hand held out low, never within 0.45 m of her middle', () => {
     const w = fair({ seed: 'kneel', camera: false }); // (everyone posed, in view or not)
     const people = w.show.people;
-    // a visitor who crouches today, on its own (no child), a grown-up
+    // a visitor whose hello is the kneel (helloKind 'crouch'), on its own (no child), a grown-up
     const p = people.find((q) => !q.child && !q.juggler && q.v.helloKind === 'crouch' && q.person.look.kind === 'adult' && !q.v.pair);
     expect(p).toBeTruthy();
     // she sits 1.2 m in front of it, where it faces

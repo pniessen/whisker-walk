@@ -673,9 +673,7 @@
   }
   const fairCam = () => { const c = cats[0].position; cam(c.x - 0.5, 2.5, c.z + 4.5, c.x - 1.9, 0.8, c.z - 10); };
   const who = () => 'the new figure';
-  const modes = () => (fairWorld.show.people.length
-    ? fairWorld.show.people.map((p) => `${p.juggler ? 'juggler' : p.v.id.replace('fair-visitor-', 'v') + (p.child ? 'c' : '')} ${p.mode}${p.gaze.looking ? ' (looks)' : ''}`).join(', ')
-    : '');
+  const modes = () => fairWorld.show.people.map((p) => `${p.juggler ? 'juggler' : p.v.id.replace('fair-visitor-', 'v') + (p.child ? 'c' : '')} ${p.mode}${p.gaze.looking ? ' (looks)' : ''}`).join(', ');
   // the visitor nearest (x, z), from `list`
   const nearestTo = (list, x, z) => list.reduce((b, p) => (Math.hypot(p.v.x - x, p.v.z - z) < Math.hypot(b.v.x - x, b.v.z - z) ? p : b));
   const FAIR = {
@@ -686,8 +684,8 @@
     'fair-kneel': () => {
       dayLight();
       fairSit(MIDWAY.x, MIDWAY.z, 0.15);
-      const list = fairWorld.show.people.length ? fairWorld.show.people.filter((p) => !p.child && !p.juggler && p.v.helloKind === 'crouch' && !p.v.pair) : [];
-      const v = list.length ? nearestTo(list, MIDWAY.x, MIDWAY.z).v : fairWorld.show.visitors.list.find((q) => q.helloKind === 'crouch' && !q.pair);
+      const list = fairWorld.show.people.filter((p) => !p.child && !p.juggler && p.v.helloKind === 'crouch' && !p.v.pair);
+      const v = nearestTo(list, MIDWAY.x, MIDWAY.z).v;
       const x = v.x + Math.sin(v.yaw) * 1.2, z = v.z + Math.cos(v.yaw) * 1.2;
       const yaw = Math.atan2(-(v.x - x), -(v.z - z));
       const cat = cats[0];
@@ -699,7 +697,7 @@
       fairWorld.show.meow(cat.position);
       fairRun(1.4);
       cam(x + Math.sin(yaw) * 0.15, 0.3, z + Math.cos(yaw) * 0.15, v.x, 0.75, v.z, 60);
-      return `She meows 1.2 m in front of ${v.id}: the crouch hello, from her eye height (${who()}). [${modes()}]`;
+      return `She meows 1.2 m in front of ${v.id}: the kneel hello, from her eye height (${who()}). [${modes()}]`;
     },
     'fair-juggler': () => {
       dayLight();
