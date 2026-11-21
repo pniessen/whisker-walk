@@ -410,8 +410,9 @@ describe('the furniture', () => {
       expect(e.obj.userData.houseDetail).toBe(true);
       expect(e.obj.userData.houseLevel).toBe(f.level);
       const [cyl] = e.obj.userData.fadeOccluder;
-      // a ledge piece's reaches LEDGE_FADE_OVER above its top (step 2, ruling S2-4)
-      expect(cyl).toEqual({ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h + (f.ledge ? LEDGE_FADE_OVER : 0) });
+      // it reaches LEDGE_FADE_OVER above its top: a ledge piece's since step 2 (ruling S2-4),
+      // every fading piece's since the Task 10 review (a line grazing a tall piece's top)
+      expect(cyl).toEqual({ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h + LEDGE_FADE_OVER });
       expect(e.shapes[0].y0).toBeCloseTo(levelY(f.level), 6);
     }
     // every houseDetail object is top-level and has a level; one top-level furniture group per room

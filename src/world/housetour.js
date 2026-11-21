@@ -68,7 +68,7 @@ export const HOUSE_SHOTS = freeze({
   // the mice as a still cat sees them (the picture page has her sitting still: a mouse
   // notices a still cat at 1.2 m, critters.js PREY_NOTICE_STALKED)
   mice: shot([10.0, -1.5], [1, 0.1], 0, 'Mice by the pantry'),
-  'mice-cellar': shot([24.5, -4.6], [-0.4, -1], 0, 'Mice in the cellar'),
+  'mice-cellar': shot([23.4, -4.6], [0, -1], 0, 'Mice in the cellar'),
   // the golden mice, seen from the tops she leaps to them from (and the cellar floor)
   'gold-library': shot([-12.2, 2.6], [-0.3, 1], 1, 'A golden mouse on the bookcase', { ledge: 'library-books-n1' }),
   'gold-wardrobe': shot([-4.45, -15.4], [-1, 0.15], 1, 'A golden mouse on the wardrobe', { ledge: 'bedroom-shelf' }),
@@ -137,24 +137,24 @@ const LIBRARY_CLIMB = [
 const CLIMB_STEPS = [...LIBRARY_CLIMB, t(-9.5, 7.5, 'Back on the floor')];
 
 // The film of everything to do. It opens at the clock's foot, where it strikes.
-// The parlour: up onto the keys and along them end to end (a tune), down, round the
+// The parlour: up onto the keys and along them, west end and back (six keys: a tune), down, round the
 // armchairs to the hearth cushion and still on it. The library climb, then the
 // bookcase: she waits at it, it swings open and she goes up the secret stair into the
 // bedroom, up the chest and the shelf, the leap to the wardrobe (the second golden
 // mouse) and back, down in steps, up the back stair to the attic, onto the window
 // seat and down, the box of old toys, and the zoom out.
 const THINGS_STEPS = [
-  wait(2, 'The clock strikes the hour'),
+  wait(1.5, 'The clock strikes the hour'),
   t(4, 7, 'Into the parlour'), t(8.7, 10.0), jump('A tune on the piano'),
-  t(8.12, 11.15, null, 0.06), t(9.28, 11.15, null, 0.06), jump(),
+  t(8.12, 11.15, null, 0.06), t(8.92, 11.15, null, 0.06), jump(),
   t(12.0, 9.6, 'A dent in an old cushion'), t(12.68, 7.3, null, 0.1), wait(2.0),
   t(10.75, 7.68), t(4, 7), t(-4, 7, 'The library'),
   ...LIBRARY_CLIMB,
-  t(-6.0, 2.8, 'A bookcase that opens'), wait(2.0), t(-6.0, -1, 'A secret stair!'), t(-6.0, -6.0),
+  t(-6.0, 2.8, 'A bookcase that opens'), wait(1.0), t(-6.0, -1, 'A secret stair!'), t(-6.0, -6.0),
   t(-4.2, -13.85, 'Up to the wardrobe'), jump(), jump(), jump('Leap!'), jump(), jump(), jump(),
-  t(-8, -11, 'Up the back stairs'), t(-14, -11), t(-22.3, -11.0, 'The view from the attic'), jump(), wait(0.4), jump(),
-  t(-17.6, -14.1, 'A box of old toys'), wait(1.0),
-  zoom(2, 2.0, 'The attic from farther out'),
+  t(-8, -11, 'Up the back stairs'), t(-14, -11), t(-22.3, -11.0, 'The view from the attic'), jump(), wait(0.2), jump(),
+  t(-17.6, -14.1, 'A box of old toys'), wait(0.7),
+  zoom(2, 1.2, 'The attic from farther out'),
 ];
 
 export const HOUSE_TOURS = freeze({

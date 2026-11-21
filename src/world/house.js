@@ -257,8 +257,10 @@ function houseWords() {
 // A piece that fades (houseplan.js fades: every tall piece, TALL_H and up, ruling H8, and
 // the low ledge pieces the camera can come down inside, ruling S2-4) is a top-level group
 // of its own at its spot, turned by rotY, with a fadeOccluder cylinder round its
-// footprint, so the tree fade takes it when it stands between the camera and the cat; a
-// ledge piece's cylinder reaches LEDGE_FADE_OVER above its top (houseplan.js). The rest of a room
+// footprint, so the tree fade takes it when it stands between the camera and the cat; its
+// cylinder reaches LEDGE_FADE_OVER above its top (houseplan.js): a ledge piece's since step 2,
+// every piece's since the Task 10 review (a line grazing the ladder's top passed over the
+// fade's own line, which runs on level past her). The rest of a room
 // is one top-level group the walk's prop merge makes one mesh of; its walked-over
 // pieces (rugs, the runner, cobwebs) are one more mesh in it, noMerge and noCast.
 // Every one is tagged houseDetail with its level, for the level drawing (H6); each
@@ -267,7 +269,7 @@ function houseWords() {
 // Step 2 (Task 6): a find's moving parts (houseparts.js findParts: the clock's pendulum,
 // the piano's keys, the toy box's lid and toys) stand with their piece, kept out of the
 // prop merge; furnish hands them back by name for house life. Task 10: it hands back
-// the fading pieces too, each group with its footprint, for house life's fade hold.
+// the fading pieces too, each group with its box, for house life's fade hold.
 function furnish(scene, material, start, traversal) {
   const parts = {};
   const fading = [];
@@ -294,7 +296,7 @@ function furnish(scene, material, start, traversal) {
         tall.name = `houseFade:${f.id}`;
         tall.position.set(f.x, y, f.z);
         tall.rotation.y = f.rotY;
-        tall.userData.fadeOccluder = [{ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h + (f.ledge ? LEDGE_FADE_OVER : 0) }];
+        tall.userData.fadeOccluder = [{ t: 'cyl', r: Math.hypot(f.w, f.d) / 2, y0: 0, y1: f.h + LEDGE_FADE_OVER }];
         tag(tall, room.level);
         tall.add(mesh);
         if (moving) tall.add(...moving.objects);
@@ -302,7 +304,8 @@ function furnish(scene, material, start, traversal) {
         const turned = Math.abs(Math.sin(f.rotY)) > 0.5; // every fading piece stands square to the walls
         const hx = (turned ? f.d : f.w) / 2;
         const hz = (turned ? f.w : f.d) / 2;
-        fading.push(freeze({ obj: tall, minX: f.x - hx, maxX: f.x + hx, minZ: f.z - hz, maxZ: f.z + hz }));
+        // its box: the footprint, from its floor to its top
+        fading.push(freeze({ id: f.id, obj: tall, minX: f.x - hx, maxX: f.x + hx, minY: y, maxY: y + f.h, minZ: f.z - hz, maxZ: f.z + hz }));
         continue;
       }
       mesh.position.set(f.x, y, f.z);
@@ -460,7 +463,7 @@ export function build(scene, { wind, gateEnds } = {}) {
         // the six discoveries' spots (step 2, D6) and their moving parts: house life runs them
         finds: HOUSE_FINDS,
         parts,
-        // the pieces that fade, with their footprints: house life holds each solid unless it
+        // the pieces that fade, with their boxes: house life holds each solid unless it
         // stands between the camera and her (Task 10)
         fading,
       },
@@ -471,8 +474,9 @@ export function build(scene, { wind, gateEnds } = {}) {
     // every frame: the walls between the camera and the cat sink, and the levels are drawn for hers
     // and the six finds, and the yarn ball kept out of the walls (step 2, Task 6): the walk's
     // log, HUD, sound and ball, and its live colliders (the bookcase's row swaps there)
-    areaData.life = ({ scene: lifeScene, reducedMotion, log, hud, audio, toy, dusk }) => createHouseLife(lifeScene, areaData.house, {
-      reducedMotion, log, hud, audio, toy, dusk, colliders: areaData.colliders,
+    // `now` is the clock the clock strikes by (the picture page pins it; the walk passes none)
+    areaData.life = ({ scene: lifeScene, reducedMotion, log, hud, audio, toy, dusk, now }) => createHouseLife(lifeScene, areaData.house, {
+      reducedMotion, log, hud, audio, toy, dusk, now, colliders: areaData.colliders,
     });
     return areaData;
   });

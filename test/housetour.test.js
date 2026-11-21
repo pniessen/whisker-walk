@@ -292,7 +292,7 @@ describe('step 2: the climb and the things film', () => {
     expect(r.worst).toBeLessThanOrEqual(8);
   }, 90_000);
 
-  it('the things film shows every find and the secret stair in 40 to 60 s', () => {
+  it('the things film shows every find and the secret stair in 40 to 57 s', () => {
     const r = walkMoves('things');
     expect(r.result.done).toBe(true);
     expect(r.result.failed).toBe(null);
@@ -304,7 +304,7 @@ describe('step 2: the climb and the things film', () => {
     expect(r.gold.has('gm-house-1')).toBe(true);
     expect(r.gold.has('gm-house-2')).toBe(true);
     expect(r.seconds).toBeGreaterThanOrEqual(40);
-    expect(r.seconds).toBeLessThanOrEqual(60);
+    expect(r.seconds).toBeLessThanOrEqual(57); // under 60 with the picture page's 1 s tail, and slack
     expect(r.worst).toBeLessThanOrEqual(8);
     for (const s of HOUSE_TOURS.things.steps) {
       if (s.caption) {

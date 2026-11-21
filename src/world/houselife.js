@@ -31,16 +31,19 @@
 // Task 10 (from the pictures): the furniture's fade hold. The tree fade (treefade.js) fades a
 // piece when its line from the camera, run on PAST_LOOK beyond her, passes it, so a piece
 // just beyond her faded: the piano when she stood on its keys, the clock as she stood at it,
-// a bookcase she faced. Each fading piece (house.fading) is held solid (fadeHold) unless,
-// seen from above, the line from the camera to her (stopped HOLD_SHY short of her middle, so
-// a piece at her back is not in the way) passes within HOLD_PAD of its footprint, or the
-// camera stands over it: then the tree fade decides as before. The secret bookcase's leaf,
+// a bookcase she faced. Each fading piece (house.fading) is held solid (fadeHold) unless the
+// line from the camera to her look point meets its box, or, seen from above, the line from
+// the camera to her (stopped HOLD_SHY short of her middle, so a piece at her back is not in
+// the way) passes within HOLD_PAD of its footprint, or the camera stands over it: then the
+// tree fade decides as before. The box test is the one that counts when she stands just off a
+// piece's corner and the line grazes it within HOLD_SHY of her (review). The secret bookcase's leaf,
 // which turns, is housefinds.js's.
 
 import { makeView, createWallSink, createCellarLid, SINK } from '../housewalls.js';
 import { createLevelDrawing } from '../houselevels.js';
 import { CAT_LOOK_Y } from '../cat/model.js';
-import { createHouseFinds } from './housefinds.js';
+import { createHouseFinds, HOLD_PAD } from './housefinds.js';
+import { segmentHitsBox } from '../treefade.js';
 import { toyStop, HOUSE_FINDS } from './housethings.js';
 import { HOUSE_WINDOWS, HOUSE_ROOMS, HOUSE_STAIRS } from './houseplan.js';
 import { createHouseSound } from './housesound.js';
@@ -48,7 +51,6 @@ import { createHouseAir } from './houseair.js';
 
 const NO_PANES = Object.freeze([]);
 const NO_FADING = Object.freeze([]);
-export const HOLD_PAD = 0.1; // m round a fading piece's footprint: a line this near it may fade it
 export const HOLD_SHY = 0.3; // m: the line stops this short of her middle (her body), toward the camera
 
 // Whether the segment a-b, seen from above, meets the rectangle grown by pad (slab clipping).
@@ -100,14 +102,18 @@ export function createHouseLife(scene, house, {
   const fading = house.fading ?? NO_FADING;
 
   // Each fading piece held solid unless it stands in the camera's line to her (see the top).
+  const look = { x: 0, y: 0, z: 0 };
   function holdFades(catPos, cam) {
+    look.x = catPos.x;
+    look.y = catPos.y + CAT_LOOK_Y;
+    look.z = catPos.z;
     const d = Math.hypot(cam.x - catPos.x, cam.z - catPos.z);
     const k = d > HOLD_SHY ? HOLD_SHY / d : 0;
     const ex = catPos.x + (cam.x - catPos.x) * k;
     const ez = catPos.z + (cam.z - catPos.z) * k;
     for (let i = 0; i < fading.length; i++) {
       const p = fading[i];
-      p.obj.userData.fadeHold = !segmentNearRect(cam.x, cam.z, ex, ez, p, HOLD_PAD);
+      p.obj.userData.fadeHold = !(segmentHitsBox(cam, look, p) || segmentNearRect(cam.x, cam.z, ex, ez, p, HOLD_PAD));
     }
   }
 

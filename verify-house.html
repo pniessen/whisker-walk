@@ -47,6 +47,8 @@
        seed=N               (step 2) the walk's seed: the goals, the mice's and the golden mice's
                             own streams (default 20261121)
        yarn=0|1             (step 2) the yarn ball's spot: the hall (0, default) or the kitchen
+       now=H|date           (step 2) the clock the grandfather clock strikes by: an hour 0-23 or a
+                            date; by default 3 o'clock, so pictures and films strike 3
        label=0              (step 2) no caption under a shot (by default a shot shows its own
                             caption, or a find's toast when one paid while it settled)
        tour=…|climb|things|bookcase|cellar   (step 2) HOUSE_TOURS' climb and things, and this
@@ -78,12 +80,13 @@
                             one is running) plus a render
        __snap(q) → a JPEG data URL of the view
        __place(x, z, fx, fz, zoom) → __info()   a shot at any spot (for looking around)
-       __info() → { level, full, down, lid, blockers, move, perched, paid, gold, open }   her
+       __info() → { level, full, down, lid, blockers, move, perched, paid, gold, mice, open }   her
                             level, the levels drawn in full, the wall sections not standing,
                             the cellar's lid on or off, and the sections (at their present
                             height, and the lid when it is on) between the camera and her look
                             or paws; step 2: the move she is on, her perch, what paid this walk,
-                            the golden mice still there, and whether the bookcase is open
+                            the golden mice still there, where each mouse is (or hidden), and
+                            whether the bookcase is open
        __jump() → bool      the jump button (Space) -->
 <style>
   html, body { margin: 0; background: #1c2431; overflow: hidden; font: 12px/1.35 Avenir, system-ui, sans-serif; color: #f1e0c2; }
@@ -150,6 +153,15 @@
   const SEED = params.has('seed') ? Number(params.get('seed')) >>> 0 : 20261121;
   const YARN = params.get('yarn') === '1' ? 1 : 0;
   const LABEL = params.get('label') !== '0';
+  // The clock strikes by this, not the device's clock, so a film strikes the same count every
+  // time: 3 o'clock (3 bongs) unless `now` gives an hour (0-23) or a date the browser reads.
+  const NOW_AT = (() => {
+    const v = params.get('now');
+    if (v && /^\d{1,2}$/.test(v)) return new Date(2026, 10, 21, Number(v), 0);
+    const d = v ? new Date(v) : null;
+    return d && !Number.isNaN(d.getTime()) ? d : new Date(2026, 10, 21, 15, 0);
+  })();
+  const now = () => NOW_AT;
   const TOAST_S = 2.5; // s a find's line stays up as the caption
   const KNOCK_REACH = 1.0; // game/interactions.js
   const PERCH_REACH = 1.3; // m: Space hops onto a perch this near
@@ -334,7 +346,7 @@
       knockables: createKnockables(scene, area.knockables, { ground }),
       goldMice: createGoldMice(scene, 'house', new Set(), { ground, rng: ownStream(SEED, 0x601d), list: area.goldMice }),
       critters: createCritters(scene, area.critterSpawns, {
-        rng: ownStream(SEED, 0xc417), motionRng: ownStream(SEED, 0x3071), hides: area.hides,
+        ground, rng: ownStream(SEED, 0xc417), motionRng: ownStream(SEED, 0x3071), hides: area.hides,
       }),
     };
     toy.retrieve();
@@ -378,7 +390,7 @@
   function reset(x, z, fx, fz, zoom, { perch = null, open = OPEN } = {}) {
     life?.dispose();
     freshThings();
-    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: null, toy, dusk: DUSK });
+    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: null, toy, dusk: DUSK, now });
     if (open) openBookcase();
     cat.position.set(x, ground.y(x, z) + (perch ? perch.y : 0), z);
     cat.rotation.set(0, facingYaw(fx, fz), 0);
@@ -491,6 +503,8 @@
       perched: session.perched?.id ?? null,
       paid: [...paid],
       gold: things.goldMice.list.map((m) => m.id),
+      mice: things.critters.list.filter((c) => c.type === 'mouse').map((c) => (c.hidden ? 'hidden'
+        : `${c.group.position.x.toFixed(1)},${c.group.position.z.toFixed(1)}${c.group.visible ? '' : ' (not drawn)'}`)),
       open: life.finds?.open ?? false,
     };
   }
@@ -584,7 +598,7 @@
     setCaption(null);
     life?.dispose();
     freshThings();
-    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: null, toy, dusk: DUSK });
+    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: null, toy, dusk: DUSK, now });
     cat.position.set(x, ground.y(x, z), z);
     cat.rotation.set(0, yaw, 0); // she faces the way the note looked (walk.js, owner's fix C)
     player.setAvatar(cat, PACE);

@@ -45,15 +45,18 @@ const LID_SHARE = 0.4; // of TOYS_S, the lid's tip
 const TOYS_WAIT = 0.25; // of TOYS_S, before the toys tumble (the lid is well up by then)
 const DIP = 0.01; // m: a key under her paws
 const TOY_HOP = 0.5; // m: how high a toy tumbles over the rim
-const HOLD_PAD = 0.1; // m past the leaf's half depth: a sight line this near it may fade it
+// m past a fading piece's footprint (the leaf's: past its half depth) that a sight line may
+// pass and fade it; house life's furniture hold uses the same (houselife.js imports it)
+export const HOLD_PAD = 0.1;
 
-// The least distance, seen from above, between the segments a-b and c-d (0 when they cross).
+// The distance, seen from above, from (px, pz) to the segment a-b.
 function pointSeg(px, pz, ax, az, bx, bz) {
   const dx = bx - ax, dz = bz - az;
   const l2 = dx * dx + dz * dz;
   const k = l2 > 0 ? Math.min(1, Math.max(0, ((px - ax) * dx + (pz - az) * dz) / l2)) : 0;
   return Math.hypot(px - (ax + dx * k), pz - (az + dz * k));
 }
+// The least distance, seen from above, between the segments a-b and c-d (0 when they cross).
 function segSeg(ax, az, bx, bz, cx, cz, dx, dz) {
   const side = (px, pz, qx, qz, rx, rz) => (qx - px) * (rz - pz) - (qz - pz) * (rx - px);
   const d1 = side(cx, cz, dx, dz, ax, az), d2 = side(cx, cz, dx, dz, bx, bz);
