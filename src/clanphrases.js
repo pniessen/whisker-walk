@@ -165,6 +165,8 @@ const LATER = Object.freeze({
   'gate.buyPrompt': (name, price) => `E — Open ${name} for ${price} 🐾?`,
   'gate.keep': 'You keep everything you found.',
   'gate.off': (place) => `Off to ${place}!`,
+  // a room guest's prompt at a gate her host may open (she reads, never chooses)
+  'gate.thisWay': (name) => `${name} is this way 🧭`,
   // a room's host whose friend's game could not get the place ready (Task 9)
   'gate.friendNotReady': (name) => `${name}'s game isn't ready for that place yet. Try again in a moment! 🐾`,
 

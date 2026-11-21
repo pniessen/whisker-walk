@@ -46,11 +46,11 @@ export function gateStatus(end, state, catalog) {
 export function gatePrompt(status, { inRoom = false, isHost = false } = {}) {
   const guest = inRoom && !isHost;
   if (status.kind === 'go') {
-    if (guest) return { text: `${status.name} is this way 🧭`, kind: 'gate-info' };
+    if (guest) return { text: phrase('gate.thisWay', status.name), kind: 'gate-info' };
     return { text: 'E — ' + headTo(status.name), kind: 'gate' };
   }
   if (status.kind === 'buy') {
-    if (guest) return { text: `${status.name} is this way 🧭`, kind: 'gate-info' };
+    if (guest) return { text: phrase('gate.thisWay', status.name), kind: 'gate-info' };
     return { text: phrase('gate.buyPrompt', status.name, status.price), kind: 'gate-buy' };
   }
   return { text: status.line, kind: 'gate-info' };

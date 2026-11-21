@@ -3,6 +3,7 @@ import { CATALOG, createProgression } from '../src/progression.js';
 import { PLACE_WORDS } from '../src/clanwords.js';
 import { words } from '../src/wordset.js';
 import { withOffWords } from './helpers/offwords.js';
+import { phrase } from '../src/clanphrases.js';
 import { endById } from '../src/gateways.js';
 import {
   gateStatus, gatePrompt, gateCardHtml, gateBuyHtml, gateMomentHtml, walkOnMove, pickOnCrossing,
@@ -32,6 +33,19 @@ describe('gateStatus and gatePrompt', () => {
     expect(gatePrompt(go, { inRoom: true, isHost: false })).toEqual({ text: 'Appletree Farm is this way 🧭', kind: 'gate-info' });
     expect(gatePrompt(buy, { inRoom: true, isHost: false }).kind).toBe('gate-info');
     expect(gatePrompt(buy, { inRoom: true, isHost: true }).kind).toBe('gate-buy');
+  });
+  // Fix 7 (ruling R19): a guest's line at an open gate is the word tables'
+  // ('gate.thisWay'), in both word sets.
+  it("a guest's line at an open gate comes from the word tables, in both sets", () => {
+    const st = save({ walks: { park: 2 }, points: 100 });
+    const lines = () => {
+      const buy = gateStatus(farm, st, CATALOG);
+      const go = gateStatus(farm, { ...st, unlocked: { areas: ['neighborhood', 'park', 'farm'] } }, CATALOG);
+      const town = gateStatus(endById('park-town').end, st, CATALOG);
+      return [buy, go, town].map((status) => [gatePrompt(status, { inRoom: true, isHost: false }).text, phrase('gate.thisWay', status.name)]);
+    };
+    for (const [shown, table] of [...lines(), ...withOffWords(lines)]) expect(shown).toBe(table);
+    expect(phrase('gate.thisWay', 'Appletree Farm')).toBe('Appletree Farm is this way 🧭');
   });
   it('the town gate names the town in the word set in use', () => {
     const back = gateStatus(endById('park-town').end, save(), CATALOG);
