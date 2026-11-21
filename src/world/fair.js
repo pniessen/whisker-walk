@@ -6,7 +6,7 @@ import { sureClawsTreePerch } from '../climbing.js';
 import { tintGround, rectDist, smoothField, smoothstep, lerp3, lin } from './dressing.js';
 import { lawnMottle } from './park.js';
 import { withLocalUuids } from './localuuids.js';
-import { glowMaterial, GLOW_MAX } from './fairkit.js';
+import { glowMaterial, GLOW_MAX, LAMP_LOOK } from './fairkit.js';
 import * as parts from './fairparts.js';
 import * as rides from './fairrides.js';
 import * as edge from './fairedge.js';
@@ -536,6 +536,8 @@ const GAP_BALE_COLLIDERS = Object.freeze([-1, 1].flatMap((side) => [0.3, 0.75, 1
 export function setFairGlow(area, t) {
   const k = Math.min(1, Math.max(0, Number.isFinite(t) ? t : 0));
   if (area?.glow?.material) area.glow.material.emissiveIntensity = GLOW_MAX * k;
+  // the stalls' counters and goods, lit from inside (fairkit.js LAMP_LOOK)
+  if (area?.glow?.lamp) area.glow.lamp.emissiveIntensity = LAMP_LOOK.max * k;
   if (area?.glow) area.glow.level = k;
   return k;
 }
@@ -836,7 +838,8 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
   const fortuneBall = world(FORTUNE_AT, WEST, FORTUNE.tableX, FORTUNE.tableZ);
   const candy = stallById('candyfloss');
   const tinStall = stallById('tinCans');
-  const glowState = { material: made.glow, level: 0 };
+  // the bulbs' one material, and the props' (its lamp-lit counters): setFairGlow drives both
+  const glowState = { material: made.glow, lamp: made.out.find((m) => m.name === 'fairProps')?.material ?? null, level: 0 };
   return {
     name: 'The Fairground',
     colliders,

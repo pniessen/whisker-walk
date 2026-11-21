@@ -202,7 +202,10 @@ export function bunting(P, a, b, { sag = 0.5, every = 0.55, size = 0.34, salt = 
 const SWAY = 'fairSway';
 const CHASE = 'fairChase';
 const BULB_R = 'fairBulbR'; // a bulb's radius (0: not a bulb), so the shader can find its centre
-const FILL = Object.freeze({ [SWAY]: 0, [CHASE]: -1, [BULB_R]: 0 });
+// `fairLamp` (props): how much a stall's lamps light a piece at dusk, 0 to 1
+// (0: out in the field, lit by nothing but the sky). See LAMP_LOOK below.
+const LAMP = 'fairLamp';
+const FILL = Object.freeze({ [SWAY]: 0, [CHASE]: -1, [BULB_R]: 0, [LAMP]: 0 });
 function setFloat(g, name, values) {
   g.setAttribute(name, new THREE.BufferAttribute(values instanceof Float32Array ? values : new Float32Array(values), 1));
   return g;
@@ -212,6 +215,10 @@ function swayOf(g, w) {
 }
 export function chaseOf(g, c) {
   return setFloat(g, CHASE, new Float32Array(g.attributes.position.count).fill(c));
+}
+// Marks every piece of P from index `from` on as lit by a stall's lamps, `w` (0..1).
+export function lampLit(P, from, w = 1) {
+  for (let i = from; i < P.length; i++) setFloat(P[i], LAMP, new Float32Array(P[i].attributes.position.count).fill(w));
 }
 function fillMissing(P) {
   for (const name of Object.keys(FILL)) {
@@ -523,6 +530,34 @@ if (fairBulbR > 0.0) {
     .replace('#include <common>', '#include <common>\nvarying vec3 vFairGlow;')
     .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vFairGlow;');
 }
+// ---- the stalls' lamps -----------------------------------------------------------------
+// At dusk a stall's counter and everything on it, and the prizes on its back
+// shelf, are lit from inside by the stall's lamps. They stay in the props'
+// mesh (no new draw, no new caster): the props' material gains an emissive
+// in a lamp's warm colour, times each piece's own paint and its lamp weight
+// (`fairLamp`, 0 on everything else), so a white counter glows amber, a red
+// apple red, and nothing at all glows by day (setFairGlow sets the strength:
+// `max` at dusk, 0 by day). Kept well under the bloom.
+export const LAMP_LOOK = Object.freeze({ color: 0xffa65a, max: 0.65, front: 0.5 });
+export function lampMaterial(m) {
+  m.emissive.set(LAMP_LOOK.color);
+  m.emissiveIntensity = 0;
+  m.onBeforeCompile = lampShader;
+  m.customProgramCacheKey = () => 'fair-lamp-v1';
+  return m;
+}
+function lampShader(shader) {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>
+attribute float ${LAMP};
+varying float vFairLamp;`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>
+vFairLamp = ${LAMP};`);
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nvarying float vFairLamp;')
+    .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb * vFairLamp;');
+}
+
 export function glowMesh(P, name, material) {
   chaseBulbs(P);
   // every piece carries both, so a list with no bulb at all still reads as steady panes
