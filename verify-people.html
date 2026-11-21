@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>People picture sheet (prototype)</title>
+<!-- PROTOTYPE picture sheet for the lifelike people design
+     (docs/superpowers/specs/2026-11-20-lifelike-people-design.md). Throwaway:
+     it draws prototype/people-figure.js (not game code) next to today's
+     Twoleg (src/critters.js buildTwolegFigure), with the game's own light.
+     URL params:
+       scene=sheet (default)   a lineup on a lawn: today's figure, then a man, a woman, a child, an older person, and a tabby for scale
+       scene=fair&fig=new|old  the real Fairground (world/fair.js) with its visitors (src/fairvisitors.js, run on 40 s) and the juggler
+       size=WxH                the canvas (default 1280x720)
+     Shots (scripts/record-page.mjs --shots a,b): window.__shot(name) poses, lights and frames, and answers the name.
+       sheet: lineup-day lineup-cateye-day stride-day wave-cateye-day crouch-cateye-day lineup-sunset wave-cateye-sunset
+              stride-sunset far-day lod-close faces-day back-day
+       fair:  fair-day fair-dusk fair-close
+     window.__info() renders and returns { calls, triangles } (renderer.info, shadow passes included);
+     window.__stats is the people's triangle counts. -->
+<style>
+  html, body { margin: 0; height: 100%; background: #cfd6dc; overflow: hidden; font: 13px/1.3 system-ui, sans-serif; color: #222; }
+  canvas { display: block; }
+  #labels { position: fixed; inset: 0; pointer-events: none; }
+  #labels span { position: absolute; transform: translate(-50%, -100%); background: rgba(255,255,255,.85); padding: 1px 6px; border-radius: 4px; white-space: nowrap; font-size: 12px; }
+  #caption { position: fixed; left: 0; right: 0; bottom: 0; padding: 4px 10px; background: rgba(255,255,255,.88); font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="labels"></div>
+<div id="caption">loading…</div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildTwolegFigure } from '/src/critters.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters, DEFAULT_GROUND_BOUNCE } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
+  import { applyDusk, duskEnv } from '/src/render/dusk.js';
+  import { skyBackground } from '/src/render/sky.js';
+  import { createWind } from '/src/render/wind.js';
+  import { buildPerson, pose, lookAngles, strideFor } from '/prototype/people-figure.js';
+
+  const params = new URLSearchParams(location.search);
+  const sceneId = params.get('scene') || 'sheet';
+  const figKind = params.get('fig') || 'new';
+  const [W, H] = (params.get('size') || '1280x720').split('x').map(Number);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  renderer.info.autoReset = true;
+  setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+  setTextureTier({ name: 'high', envIntensity: 0.45 });
+  document.body.prepend(renderer.domElement);
+  const caption = document.getElementById('caption');
+  const labelsEl = document.getElementById('labels');
+
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  const ENV = 0.45;
+  scene.environmentIntensity = ENV;
+  const sun = createSun();
+  scene.add(sun);
+  const camera = new THREE.PerspectiveCamera(55, W / H, 0.05, 300);
+  const people = [];   // { kind: 'new'|'old', p (new) | fig (old), group, label }
+  const cats = [];
+  let area = null;
+  let fill = null;
+  let sky = { top: 0x8fcbf0, horizon: 0xe4f1e2 };
+  let skyDusk = { top: 0x2b3560, horizon: 0x9a6a78 };
+
+  // ---- the two figures, one interface -------------------------------------------
+  // makeNew(def) / makeOld(def): a Group facing -z with .poseAs(spec)
+  function makeNew(def) {
+    const p = buildPerson(def);
+    const group = new THREE.Group();
+    group.add(p.figure);
+    group.userData.person = p;
+    group.poseAs = (spec) => {
+      let s = { ...spec };
+      if (spec.lookAt) Object.assign(s, (({ yaw, pitch }) => ({ lookYaw: yaw, lookPitch: pitch }))(lookAngles(p, spec.lookAt)));
+      if (spec.detail) p.setDetail(spec.detail);
+      pose(p, s);
+    };
+    return group;
+  }
+  function makeOld(def) {
+    const { figure, arm } = buildTwolegFigure(def);
+    const group = new THREE.Group();
+    group.add(figure);
+    group.poseAs = (spec) => {
+      // as critters.js and fairshow.js pose it today
+      const t = spec.t ?? 0;
+      figure.position.y = 0; figure.scale.y = 1; figure.rotation.x = 0;
+      arm.rotation.x = 0;
+      if (spec.mode === 'wave') arm.rotation.z = 2.6 + Math.sin(t * 6) * 0.3;
+      else if (spec.mode === 'crouch') { figure.scale.y = 0.7; figure.rotation.x = -0.28; arm.rotation.z = 1.2; }
+      else if (spec.mode === 'juggle') arm.rotation.z = 1.0 + Math.sin(t * 4.6) * 0.35;
+      else {
+        arm.rotation.z = 0.4;
+        if (spec.mode === 'walk') { arm.rotation.x = Math.sin(spec.oldStride ?? 0) * 0.45; figure.position.y = Math.abs(Math.sin(spec.oldStride ?? 0)) * 0.03; }
+      }
+    };
+    return group;
+  }
+
+  // ---- the lineup ------------------------------------------------------------------
+  const CAST = [
+    { id: 'today', old: true, def: { x: -16, z: 12 }, label: "today's Twoleg" },
+    { id: 'man', def: { x: 1, z: 1, kind: 'adult', sex: 'm', height: 1.8, hairStyle: 'short', hairColor: 'dark', top: { kind: 'jumper', color: 0x3e5a7a }, bottom: { kind: 'trousers', color: 0x4a4a52 }, shoes: 0x5a3a28, hat: null, skin: 0xe6bf9e }, label: 'man, 1.80 m' },
+    { id: 'woman', def: { x: 2, z: 1, kind: 'adult', sex: 'f', height: 1.66, hairStyle: 'ponytail', hairColor: 'auburn', top: { kind: 'tshirt', color: 0xd27a96 }, bottom: { kind: 'trousers', color: 0x3e4a66 }, shoes: 0xe8e4dc, hat: null, skin: 0xefcfb4 }, label: 'woman, 1.66 m' },
+    { id: 'child', def: { x: 3, z: 1, kind: 'child', sex: 'f', height: 1.3, hairStyle: 'pigtails', hairColor: 'blond', top: { kind: 'tshirt', color: 0xf7c93b }, bottom: { kind: 'shorts', color: 0x4a9ad0 }, shoes: 0xd8503a, hat: null, skin: 0xcf9d74 }, label: 'child, 1.30 m' },
+    { id: 'older', def: { x: 4, z: 1, kind: 'older', sex: 'm', height: 1.7, hairStyle: 'short', hairColor: 'white', top: { kind: 'coat', color: 0x7a8a4a }, bottom: { kind: 'trousers', color: 0x7a6a50 }, shoes: 0x3a3330, hat: null, glasses: true, skin: 0xa8734c }, label: 'older man, 1.70 m' },
+  ];
+  // a second lineup, dressed from spawn spots only (no overrides): how crowds vary
+  const SPOTS = [[-16, 12], [14, 34], [4, 27], [-8, -22], [18, 16], [32, -10], [14, 7], [-10, -8]];
+
+  const sunsetLight = () => {
+    const look = applyDusk({ scene, sun, fill, areaData: { skyDusk, groundBounce: area?.groundBounce } });
+    scene.environmentIntensity = duskEnv(ENV, look);
+  };
+  const dayLight = () => {
+    scene.background = skyBackground(sky.top, sky.horizon);
+    scene.fog = sceneId === 'fair' ? new THREE.Fog(sky.horizon, 60, 180) : null;
+    const f0 = createFill(area?.groundBounce ?? DEFAULT_GROUND_BOUNCE);
+    fill.color.copy(f0.color); fill.groundColor.copy(f0.groundColor); fill.intensity = f0.intensity;
+    const s0 = createSun();
+    sun.color.copy(s0.color); sun.intensity = s0.intensity;
+    scene.environmentIntensity = ENV;
+  };
+
+  let shadows;
+  if (sceneId === 'sheet') {
+    fill = createFill(DEFAULT_GROUND_BOUNCE);
+    scene.add(fill);
+    const lawn = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x6f9a48, roughness: 0.95 }));
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.receiveShadow = true;
+    scene.add(lawn);
+    // a paving strip to stand on, so feet read against something
+    const pave = new THREE.Mesh(new THREE.PlaneGeometry(9, 2.2), new THREE.MeshStandardMaterial({ color: 0xc9c2b4, roughness: 0.9 }));
+    pave.rotation.x = -Math.PI / 2; pave.position.set(0, 0.002, 0); pave.receiveShadow = true;
+    scene.add(pave);
+    CAST.forEach((c, i) => {
+      const g = c.old ? makeOld(c.def) : makeNew(c.def);
+      g.position.set(-3.2 + i * 1.55, 0, 0);
+      g.rotation.y = Math.PI; // face the camera (+z)
+      scene.add(g);
+      people.push({ ...c, group: g });
+    });
+    SPOTS.forEach(([x, z], i) => {
+      const g = makeNew({ x, z });
+      g.position.set(-5.6 + i * 1.6, 0, -2.6);
+      g.rotation.y = Math.PI;
+      g.visible = false;
+      scene.add(g);
+      people.push({ id: `spot${i}`, spot: true, def: { x, z }, group: g, label: `spot ${x},${z}` });
+    });
+    const cat = buildCat('tabby');
+    cat.position.set(0.2, 0, 2.0);
+    scene.add(cat);
+    cats.push(cat);
+    animateCat(cat, 'follow', 0.5, 0, false);
+    shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+    sun.shadow.bias = SUN_BIAS;
+    assignShadowCasters(scene);
+    dayLight();
+  } else {
+    // ---- the Fairground ----
+    const fair = await import('/src/world/fair.js');
+    const { createFairVisitors, visitorCount } = await import('/src/fairvisitors.js');
+    const { createFairSim } = await import('/src/fairsim.js');
+    const wind = createWind({ reducedMotion: true });
+    area = fair.build(scene, { water: { quality: { name: 'high' }, reducedMotion: true }, wind });
+    sky = { top: 0x8fcbf0, horizon: 0xe4f1e2 };
+    skyDusk = area.skyDusk ?? skyDusk;
+    fill = createFill(area.groundBounce);
+    scene.add(fill);
+    const sim = createFairSim(area);
+    const visitors = createFairVisitors(area, { count: visitorCount(22), swept: sim.swept, seed: 'people-proto' });
+    const cat = buildCat('tabby');
+    scene.add(cat);
+    cats.push(cat);
+    // the cat waits on the midway's east side while the visitors stroll 40 s round her
+    const catAt = { x: 3.4, y: 0, z: 25.5, speed: 0, perched: false, inWater: false, pouncing: false };
+    for (let s = 0; s < 40; s += 1 / 30) visitors.step(1 / 30, catAt);
+    cat.position.set(catAt.x, 0, catAt.z);
+    cat.rotation.y = 0.15;
+    animateCat(cat, 'follow', 0.5, 0, false);
+    const A = area.anchors;
+    for (const v of visitors.list) {
+      const g = figKind === 'old' ? makeOld({ x: v.look.x, z: v.look.z }) : makeNew({ x: v.look.x, z: v.look.z });
+      g.position.set(v.x, 0, v.z);
+      g.rotation.y = v.yaw + Math.PI;
+      g.traverse((m) => { if (m.isMesh) { m.castShadow = false; m.userData.noCast = true; } });
+      scene.add(g);
+      people.push({ id: v.id, v, group: g });
+    }
+    const jg = figKind === 'old' ? makeOld({ x: 311.5, z: 77.25 }) : makeNew({ x: 311.5, z: 77.25, kind: 'adult', sex: 'm', top: { kind: 'tshirt', color: 0xe2433a } });
+    jg.position.set(A.juggler.x, 0, A.juggler.z);
+    jg.rotation.y = Math.atan2(A.jugglerWatch.x - A.juggler.x, A.jugglerWatch.z - A.juggler.z) + Math.PI;
+    jg.traverse((m) => { if (m.isMesh) { m.castShadow = false; m.userData.noCast = true; } });
+    scene.add(jg);
+    people.push({ id: 'juggler', juggler: true, group: jg });
+    shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+    sun.shadow.bias = SUN_BIAS;
+    assignShadowCasters(scene);
+    for (const p of people) p.group.traverse((m) => { if (m.isMesh) m.castShadow = false; });
+    window.__visitors = visitors;
+    dayLight();
+  }
+
+  // ---- posing and framing ------------------------------------------------------
+  // where her eyes are: on the cat-eye shots the camera stands there (0.2, 0.3, 3.6)
+  const catEye = () => { const c = cats[0]; return c.visible ? new THREE.Vector3(c.position.x, 0.3, c.position.z) : new THREE.Vector3(0.2, 0.3, 3.6); };
+  // stand the main cast in a row `gap` apart at depth z (the faces shot packs them close)
+  function lineup(gap = 1.55, z = 0) {
+    let i = 0;
+    for (const p of people) if (!p.spot) { p.group.position.set(-3.2 + i * gap, 0, z); p.group.rotation.y = Math.PI; i++; }
+  }
+  function poseAll(spec, { which = (p) => !p.spot } = {}) {
+    for (const p of people) {
+      p.group.visible = !!which(p); // three draws anything not exactly false
+      if (!p.group.visible) continue;
+      const s = typeof spec === 'function' ? spec(p) : spec;
+      p.group.updateMatrixWorld(true);
+      p.group.poseAs({ ...s, lookAt: s.lookCat ? catEye() : undefined });
+    }
+  }
+  function lodByDistance(near = 12) {
+    for (const p of people) {
+      const person = p.group.userData.person;
+      if (!person) continue;
+      person.setDetail(camera.position.distanceTo(p.group.position) > near ? 'far' : 'near');
+    }
+  }
+  const cam = (px, py, pz, lx, ly, lz, fov = 55) => {
+    camera.fov = fov; camera.updateProjectionMatrix();
+    camera.position.set(px, py, pz); camera.lookAt(lx, ly, lz);
+  };
+  function labels(on = true) {
+    labelsEl.innerHTML = '';
+    if (!on) return;
+    camera.updateMatrixWorld(true);
+    for (const p of people) {
+      if (!p.group.visible || !p.label) continue;
+      const top = new THREE.Box3().setFromObject(p.group).max.y;
+      const v = new THREE.Vector3(p.group.position.x, top + 0.08, p.group.position.z).project(camera);
+      if (v.z > 1) continue;
+      const span = document.createElement('span');
+      span.textContent = p.label;
+      span.style.left = `${(v.x * 0.5 + 0.5) * W}px`;
+      span.style.top = `${(-v.y * 0.5 + 0.5) * H}px`;
+      labelsEl.appendChild(span);
+    }
+  }
+  function render() {
+    scene.updateMatrixWorld(true);
+    shadows?.update();
+    renderer.render(scene, camera);
+  }
+
+  const T = 2.3; // the idle clock for every still
+  const SHOTS = {
+    // the walk's normal camera: 4.5 m behind and 2.2 m above the cat, looking past her
+    'lineup-day': () => { dayLight(); poseAll({ mode: 'stand', t: T, detail: 'near' }); cam(0.2, 2.6, 6.7, 0, 0.8, -0.3); return 'Standing, the game\'s normal camera, day. Left: today\'s figure.'; },
+    'lineup-cateye-day': () => { dayLight(); poseAll({ mode: 'stand', t: T, lookCat: true, detail: 'near' }); cam(0.2, 0.3, 3.6, 0, 0.95, 0, 60); return 'From the cat\'s eye height (0.3 m), day. The new people turn their heads to look down at her.'; },
+    'stride-day': () => {
+      dayLight();
+      poseAll((p) => ({ mode: 'walk', phase: 1.1 + (p.id.length % 3) * 0.3, oldStride: 1.2, t: T, detail: 'near' }));
+      for (const p of people) p.group.rotation.y = Math.PI / 2 + 0.35; // walking to the left, a little toward us
+      cam(1.2, 1.9, 6.6, 0, 0.8, 0);
+      const r = 'Mid-stride, three-quarter view, day.';
+      return r;
+    },
+    'wave-cateye-day': () => { dayLight(); poseAll({ mode: 'wave', t: T, lookCat: true, detail: 'near' }); cam(0.2, 0.3, 3.6, 0, 1.0, 0, 60); return 'Waving to the cat, from her eye height, day.'; },
+    'crouch-cateye-day': () => { dayLight(); poseAll({ mode: 'crouch', t: T, lookCat: true, detail: 'near' }); cam(0.2, 0.3, 3.6, 0, 0.7, 0, 60); return 'The Fairground\'s crouch hello, from her eye height (today\'s figure squashes; the new one bends its knees).'; },
+    'lineup-sunset': () => { sunsetLight(); poseAll({ mode: 'stand', t: T, detail: 'near' }); cam(0.2, 2.6, 6.7, 0, 0.8, -0.3); return 'Standing, normal camera, the walk\'s sunset light.'; },
+    'wave-cateye-sunset': () => { sunsetLight(); poseAll({ mode: 'wave', t: T + 0.2, lookCat: true, detail: 'near' }); cam(0.2, 0.3, 3.6, 0, 1.0, 0, 60); return 'Waving, cat\'s eye height, sunset.'; },
+    'stride-sunset': () => {
+      sunsetLight();
+      poseAll((p) => ({ mode: 'walk', phase: 4.2 + (p.id.length % 3) * 0.3, oldStride: 4.2, t: T, detail: 'near' }));
+      for (const p of people) p.group.rotation.y = Math.PI / 2 + 0.35;
+      cam(1.2, 1.9, 6.6, 0, 0.8, 0);
+      return 'Mid-stride (the other step), sunset.';
+    },
+    'far-day': () => {
+      dayLight(); poseAll({ mode: 'stand', t: T, detail: 'far' });
+      for (const p of people) p.group.rotation.y = Math.PI;
+      cats[0].visible = false;
+      cam(0.2, 2.6, 14.5, 0, 0.9, -0.3, 30);
+      return 'The far build at 14 m (just past the 12 m switch), a narrow lens so it is big enough to judge, day (eyes only, fewer sides).';
+    },
+    'lod-close': () => {
+      dayLight();
+      poseAll((p) => ({ mode: 'stand', t: T, detail: p.group.position.x > 0 ? 'far' : 'near' }));
+      cam(0.2, 1.5, 4.6, 0, 1.0, 0, 45);
+      return 'Near build (left of middle) and far build (right of middle) side by side, close up, to show what the far build drops.';
+    },
+    'faces-day': () => {
+      dayLight();
+      let i = 0;
+      for (const p of people) if (!p.spot && !p.old) { p.group.position.set(-0.75 + i * 0.5, 0, 0); i++; }
+      poseAll({ mode: 'stand', t: 0, detail: 'near', lookCat: true }, { which: (p) => !p.spot && !p.old });
+      cam(0.0, 1.35, 1.7, 0.0, 1.3, 0, 40);
+      return 'Faces, close up (closer than the game\'s camera ever comes), day.';
+    },
+    'back-day': () => {
+      dayLight(); poseAll({ mode: 'stand', t: T, detail: 'near' });
+      for (const p of people) p.group.rotation.y = 0.5; // backs to us, a little turned
+      cam(0.2, 2.0, 6.0, 0, 0.9, 0);
+      return 'From behind, day (hair and coats from the back).';
+    },
+    'crowd-spots': () => {
+      dayLight();
+      poseAll({ mode: 'stand', t: T, detail: 'near' }, { which: (p) => p.spot });
+      for (const p of people) if (p.spot) p.group.rotation.y = Math.PI;
+      cam(0.0, 2.6, 6.2, 0, 0.8, -2.6, 60);
+      return 'Eight people dressed only from their spawn spots (age, height, clothes, hair: no rolls).';
+    },
+  };
+  // the Fairground
+  function fairPose(t) {
+    for (const p of people) {
+      p.group.visible = true;
+      if (p.juggler) { p.group.poseAs({ mode: 'juggle', t }); continue; }
+      const v = p.v;
+      const person = p.group.userData.person;
+      const phase = person ? strideFor(person, v.walked) : 0;
+      p.group.poseAs({ mode: v.moving ? 'walk' : 'stand', phase, oldStride: v.walked * 3.4, t: t + v.index, lookAt: v.moving ? undefined : catEye() });
+    }
+  }
+  const FAIR = {
+    'fair-day': () => { dayLight(); fairPose(T); const c = cats[0].position; cam(c.x - 0.5, 2.5, c.z + 4.5, c.x - 1.9, 0.8, c.z - 10); lodByDistance(); return `The Fairground with ${figKind === 'old' ? "today's figure" : 'the new figure'}: the walk's normal camera behind the cat on the midway, day.`; },
+    'fair-dusk': () => { sunsetLight(); fairPose(T); const c = cats[0].position; cam(c.x - 0.5, 2.5, c.z + 4.5, c.x - 1.9, 0.8, c.z - 10); lodByDistance(); return `The Fairground at dusk, ${figKind === 'old' ? "today's figure" : 'the new figure'}.`; },
+    'fair-close': () => { dayLight(); cats[0].visible = false; fairPose(T); const c = cats[0].position; cam(c.x, 0.3, c.z - 0.25, c.x - 1.4, 1.0, c.z - 8, 60); lodByDistance(); return `The Fairground from the cat's eye height, ${figKind === 'old' ? "today's figure" : 'the new figure'}.`; },
+  };
+
+  window.__shot = async (name) => {
+    const f = (sceneId === 'fair' ? FAIR : SHOTS)[name];
+    if (!f) throw new Error(`no shot ${name}`);
+    cats[0].visible = true;
+    // from her eye height the camera IS her eyes: the cat herself is hidden
+    if (sceneId === 'sheet') {
+      cats[0].visible = !/cateye/.test(name);
+      lineup();
+      // on the stride shots she sits off to one side, out of the walkers' way
+      if (/stride/.test(name)) { cats[0].position.set(2.6, 0, 2.3); cats[0].rotation.y = 0.6; } else { cats[0].position.set(0.2, 0, 2.0); cats[0].rotation.y = 0; }
+    }
+    const text = f();
+    render();
+    labels(sceneId === 'sheet');
+    const { calls, triangles } = renderer.info.render;
+    caption.textContent = `PROTOTYPE · ${name} · ${text}  [${calls} draws, ${triangles.toLocaleString()} triangles this frame]`;
+    return name;
+  };
+  window.__info = () => { render(); const { calls, triangles } = renderer.info.render; return { calls, triangles }; };
+  window.__stats = people.filter((p) => p.group.userData.person).map((p) => ({ id: p.id, ...p.group.userData.person.stats, kind: p.group.userData.person.look.kind, h: +p.group.userData.person.look.height.toFixed(2) }));
+  window.__people = people;
+  window.__scene = scene;
+  window.__render = render;
+  await window.__shot(sceneId === 'fair' ? 'fair-day' : 'lineup-day');
+  window.__ready = true;
+</script>
+</body>
+</html>

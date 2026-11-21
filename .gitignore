@@ -27,6 +27,8 @@ verify-*.html
 !verify-finds.html
 # Found outfits step 2's picture sheets: imports src/render/rig.js, so kept where a rig change cannot leave it behind.
 !verify-wear.html
+# The lifelike people PROTOTYPE picture sheet (prototype/people-figure.js beside today's Twoleg): the design's pictures. Throwaway with the prototype.
+!verify-people.html
 
 # Brainstorming visual-companion scratch (mockups, server state)
 .superpowers/
