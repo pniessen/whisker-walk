@@ -440,11 +440,6 @@ let nextId = 1;
 // Where a villager visibly stands: its figure (offset by the spawn's standOff)
 // when it has one, else the group. `out` is filled and returned. Interaction
 // ranges for villagers measure from here, never from group.position.
-// The soft bump of a person (m): a body and arms' half width. Her own
-// CAT_RADIUS is added by player.update, as for every collider.
-export const BUMP_ADULT = 0.22;
-export const BUMP_CHILD = 0.18;
-
 export function villagerPos(c, out) {
   return c.figure ? c.figure.getWorldPosition(out) : out.copy(c.group.position);
 }
@@ -561,12 +556,16 @@ export function createCritters(scene, spawns, opts = {}) {
       c.childMode = 'stand'; // and the child
     }
     if (c.people) {
-      // The soft bumps (Task 11): one fixed circle per person, from the spot
-      // (a villager's group never moves nor turns, so its world spot is the
-      // group's plus the figure's own). Made once, here, never again.
-      for (let i = 0; i < c.people.length; i++) {
-        const f = c.people[i].figure;
-        bumps.push({ x: group.position.x + f.position.x, z: group.position.z + f.position.z, r: i === 0 ? BUMP_ADULT : BUMP_CHILD });
+      // The soft bumps (Task 11, R30): each person's fixed circles from the
+      // kit (figure frame; a grown-up who kneels has three), placed by the
+      // spot (a villager's group never moves nor turns, and the figure faces
+      // -z, so a circle's world spot is the group's plus the figure's plus
+      // its own). Made once, here, never again.
+      for (const p of c.people) {
+        const f = p.figure;
+        for (const b of kit.bumpCircles(p.look)) {
+          bumps.push({ x: group.position.x + f.position.x + b.x, z: group.position.z + f.position.z + b.z, r: b.r });
+        }
       }
     }
     list.push(c);

@@ -8,6 +8,7 @@ import { pose, applyPose } from '../src/people/pose.js';
 import { createGaze, stepGaze } from '../src/people/gaze.js';
 import { REACH, headTopOffset, catVolumes, createScratch, stepScratch, palmPoint } from '../src/people/reach.js';
 import * as kit from '../src/people/index.js';
+import { bumpCircles } from '../src/people/bumps.js';
 
 // The head scratch (spec "The head scratch"): the person kneels (an older
 // person bows), and the right hand comes to her head, slowly, from in front
@@ -161,6 +162,28 @@ function standOff(r, cat, want) {
     catVolumes(cat, vol);
     if (!insidePerson(r, vol, 0) && clearance(r.p.bones.upperArmR.getWorldPosition(new THREE.Vector3()), vol) > dm.uaR[0] * 1.06) return d;
   }
+}
+// Where the soft bump stops her walked straight at the person (R30), as
+// player.update pushes her: her middle, her head's middle and her body's ends
+// outside every one of the person's circles (figure frame), she walking up
+// (follow). The distance, in 0.01 m steps from outside.
+function bumpStop(r, breed) {
+  const cat = buildCat(breed);
+  animateCat(cat, 'follow', 1, 1, false);
+  const circles = bumpCircles(r.p.look);
+  const vol = { head: new THREE.Sphere(), body: { a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 } };
+  const pts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const clear = (d) => {
+    place(r, cat, d);
+    catVolumes(cat, vol);
+    pts[0].copy(local(r, cat.position)); pts[1].copy(local(r, vol.head.center));
+    pts[2].copy(local(r, vol.body.a)); pts[3].copy(local(r, vol.body.b));
+    const own = [0.35, vol.head.radius, vol.body.r, vol.body.r];
+    return circles.every((c) => pts.every((p, i) => Math.hypot(p.x - c.x, p.z - c.z) >= c.r + own[i]));
+  };
+  let d = 2;
+  while (d > 0.3 && clear(Math.round((d - 0.01) * 100) / 100)) d = Math.round((d - 0.01) * 100) / 100;
+  return d;
 }
 // her head or body in the person's chest (the pelvis-neck line, give the chest's depth)
 function insidePerson(r, vol, give = r.p.look.dims.chestR * r.p.look.dims.torsoZ) {
@@ -339,26 +362,30 @@ describe('the head scratch', () => {
   });
 
   // Task 8a (the owner, 2026-11-21): the kneel takes 0.7 s now, and the hand
-  // still rests on her head within about 2 s of the word to kneel (2.2 s at
-  // the latest), counted from the frame the person is told to kneel (a fresh
-  // scratch then, R18), she standing still in front. WORST_TOUCH pins the
-  // slowest it measures (s).
-  const TOUCH_BY = 2.2;
-  const WORST_TOUCH = 2.0;
-  it('touch within about 2 s of the word to kneel: men, women, older people, a tabby and a siamese, 0.6-0.75 m', () => {
+  // still rests on her head soon after the word to kneel, counted from the
+  // frame the person is told to kneel (a fresh scratch then, R18), she
+  // standing still in front. Since R30 she stands where the soft bump stops
+  // her (bumpStop) and 0.03 m further out, and the touch takes about
+  // 2 s: 2.4 s at the latest (R29; 2.2 s no longer holds there). WORST_TOUCH
+  // pins the slowest it measures (s). Held out (R30, the fix 1c report): a
+  // siamese exactly head-on to an older person (the bump stops her at
+  // 0.84 m, the bow's hand reaches her only to about 0.82 m; walked up, she
+  // slides a little round the circle and is touched, test/bumps.test.js).
+  const TOUCH_BY = 2.4;
+  const HELD_OUT = ['older siamese'];
+  const WORST_TOUCH = 2.35;
+  it('touch within 2.4 s of the word to kneel: men, women, older people, a tabby and a siamese, from where the bump stops her', () => {
     let worst = 0;
     let worstAt = '';
     for (const [who, kind, over] of [['man', 'adult', { sex: 'm' }], ['woman', 'adult', { sex: 'f' }], ['older', 'older', {}]]) {
       for (const breed of ['tabby', 'siamese']) {
         const cat = buildCat(breed);
         animateCat(cat, 'requestPet', 1, 0, false);
-        for (const dist of [0.6, 0.65, 0.7, 0.75]) {
-          // (or as near as she can stand: a tabby's head is in a kneeling
-          // adult's shoulder at 0.6 m, so she stands at 0.65 m)
-          const d = standOff(rig(kind, over), cat, dist);
+        const stop = bumpStop(rig(kind, over), breed);
+        for (const d of [stop, stop + 0.03]) {
           const r = rig(kind, over);
           place(r, cat, d);
-          const at = `${who} ${breed} ${d} m`;
+          const at = `${who} ${breed} ${d.toFixed(2)} m`;
           // standing a second, looking at her
           for (let i = 0; i < 60; i++) {
             r.t += DT;
@@ -383,6 +410,7 @@ describe('the head scratch', () => {
             want.copy(headTopOf(cat)).addScaledVector(UP, REACH.CLEAR);
             if (s === 'resting' && palm.distanceTo(want) < 0.02) when = i * DT;
           }
+          if (HELD_OUT.includes(`${who} ${breed}`)) { expect(when, at).toBe(Infinity); continue; }
           if (when > worst) { worst = when; worstAt = at; }
         }
       }

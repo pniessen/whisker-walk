@@ -505,6 +505,40 @@ function bowing(r, look) {
   r[LEFT.upperArm] = lean * 0.8; r[LEFT.upperArm + 2] = -0.08; r[LEFT.forearm] = 0.2;
 }
 
+// ---- where the kneel's legs are ---------------------------------------------------
+// The kneel's raised knee and its back foot (the right foot's middle, pointed
+// behind), figure frame, from the look alone: the kneel's own rotations,
+// carried down the legs from the hips (the kneel turns no hips, and grounding
+// only moves it up and down). The soft bumps put a circle on each (R30), made
+// once per person, so this may allocate; it touches no person and no blend.
+const KS_ROT = new Float32Array(N * 3);
+const KS_PEL = new Float32Array(3);
+const KS_Q = new THREE.Quaternion();
+const KS_P = new THREE.Vector3();
+const KS_V = new THREE.Vector3();
+export function kneelSpots(look, out = { kneeX: 0, kneeZ: 0, footX: 0, footZ: 0 }) {
+  const d = look.dims;
+  KS_ROT.fill(0); KS_PEL.fill(0);
+  kneeling(KS_ROT, KS_PEL, look);
+  const rot = (j, q) => q.multiply(Q_B.setFromEuler(EUL.set(KS_ROT[j], KS_ROT[j + 1], KS_ROT[j + 2], 'XYZ')));
+  // the left knee: the thigh's turn on its length
+  KS_Q.identity(); rot(LEFT.thigh, KS_Q);
+  KS_V.set(0, d.kneeY - d.hipY, 0).applyQuaternion(KS_Q);
+  out.kneeX = KS_PEL[0] - d.hipX + KS_V.x;
+  out.kneeZ = KS_PEL[2] + KS_V.z;
+  // the right foot's middle: down the thigh and the shin to the ankle, then
+  // along the foot to the middle of its sole
+  KS_Q.identity(); rot(RIGHT.thigh, KS_Q);
+  KS_P.set(0, d.kneeY - d.hipY, 0).applyQuaternion(KS_Q);
+  rot(RIGHT.shin, KS_Q);
+  KS_P.add(KS_V.set(0, d.ankleY - d.kneeY, 0).applyQuaternion(KS_Q));
+  rot(RIGHT.foot, KS_Q);
+  KS_P.add(KS_V.set(0, 0, -0.24 * d.footLen).applyQuaternion(KS_Q));
+  out.footX = KS_PEL[0] + d.hipX + KS_P.x;
+  out.footZ = KS_PEL[2] + KS_P.z;
+  return out;
+}
+
 // ---- applyPose() ----------------------------------------------------------------
 const smooth = (k) => k * k * (3 - 2 * k);
 

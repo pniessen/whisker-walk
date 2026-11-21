@@ -18,6 +18,122 @@ import { underCeiling } from './caves.js';
 export const CAT_RADIUS = 0.35;
 // No soft bumps (people): the default, one frozen list shared.
 const NO_BUMPS = Object.freeze([]);
+
+// ---- her points for the soft bumps (rulings R28-R30) --------------------------
+// The bumps keep four points of her out of each circle, each pushed as a
+// collider pushes her middle (a slide, never a shove): her middle by
+// r + CAT_RADIUS, her head's middle by r + her head's radius, and each end of
+// her body by r + her body's radius. The head and the body are where her
+// pose has them now (a stalk or a sniff carries her head forward), turned as
+// she turns this frame. Her head's box (every mesh on the head part but ears
+// wholly off her midline, as the people kit measures it) is measured once per
+// head part, in its own frame; the body's box once per body part.
+const HEAD_BOX = new WeakMap(); // head part -> [cx, cy, cz, r] (head frame, r in metres)
+const BODY_BOX = new WeakMap(); // body part -> its geometry's box
+const EAR_OFF = 0.03; // (head frame) an ear wholly this far off her midline is left out
+const _box = new THREE.Box3();
+const _earBox = new THREE.Box3();
+const _inv = new THREE.Matrix4();
+const _rel = new THREE.Matrix4();
+const _pt = new THREE.Vector3();
+const _sc = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+// her points as offsets from her middle (x, z) and their own radius, filled per frame
+const PTS = new Float64Array(12);
+let nPts = 1;
+// her points are looked at only with a circle this near her middle (m, past
+// its r): her head's and her body's ends' reach is under 1 m for every cat
+const BUMP_NEAR = 1.5;
+
+function boxInFrame(frame, obj, box, skipA, skipB) {
+  _inv.copy(frame.matrixWorld).invert();
+  obj.traverse((o) => {
+    if (!o.isMesh || o.isSprite) return;
+    for (let q = o; q && q !== obj; q = q.parent) if (q === skipA || q === skipB) return;
+    const pos = o.geometry?.attributes?.position;
+    if (!pos) return;
+    _rel.multiplyMatrices(_inv, o.matrixWorld);
+    for (let i = 0; i < pos.count; i++) box.expandByPoint(_pt.fromBufferAttribute(pos, i).applyMatrix4(_rel));
+  });
+  return box;
+}
+const inside = (o, root) => { for (let q = o; q; q = q.parent) if (q === root) return true; return false; };
+
+function headBoxOf(parts) {
+  const head = parts.head;
+  let hb = HEAD_BOX.get(head);
+  if (hb) return hb;
+  head.updateWorldMatrix(true, true);
+  let offL = null; let offR = null;
+  for (const ear of [parts.earL, parts.earR]) {
+    if (!ear || !inside(ear, head)) continue;
+    boxInFrame(head, ear, _earBox.makeEmpty());
+    if (!_earBox.isEmpty() && (_earBox.min.x >= EAR_OFF || _earBox.max.x <= -EAR_OFF)) {
+      if (ear === parts.earL) offL = ear; else offR = ear;
+    }
+  }
+  boxInFrame(head, head, _box.makeEmpty(), offL, offR);
+  head.matrixWorld.decompose(_pt, _q, _sc);
+  const rLoc = Math.max(_box.max.x - _box.min.x, _box.max.y - _box.min.y, _box.max.z - _box.min.z) / 2;
+  hb = [(_box.min.x + _box.max.x) / 2, _box.max.y - rLoc, (_box.min.z + _box.max.z) / 2, rLoc * Math.max(_sc.x, _sc.y, _sc.z)];
+  HEAD_BOX.set(head, hb);
+  return hb;
+}
+
+function bodyBoxOf(body) {
+  let bb = BODY_BOX.get(body);
+  if (bb) return bb;
+  const g = body.geometry;
+  if (!g.boundingBox) g.computeBoundingBox();
+  bb = g.boundingBox.clone();
+  BODY_BOX.set(body, bb);
+  return bb;
+}
+
+// one point of hers (world x, z, own radius) into PTS, as an offset from her
+// middle (ptX/ptZ) turned by this frame's turn (ptC, ptS)
+let ptX = 0, ptZ = 0, ptC = 1, ptS = 0;
+function put(x, z, r) {
+  const ox = x - ptX, oz = z - ptZ;
+  PTS[nPts * 3] = ox * ptC + oz * ptS;
+  PTS[nPts * 3 + 1] = -ox * ptS + oz * ptC;
+  PTS[nPts * 3 + 2] = r;
+  nPts++;
+}
+
+// Fills PTS for this frame: her middle, then (when she has the parts) her
+// head's middle and her body's two ends, as offsets from her middle turned
+// to `yaw`, the heading she takes this frame.
+function catPoints(cat, yaw) {
+  PTS[0] = 0; PTS[1] = 0; PTS[2] = CAT_RADIUS;
+  nPts = 1;
+  const parts = cat.userData?.parts;
+  if (!parts?.head || !parts?.body) return;
+  // her matrices as she stands now (before this frame's turn): only near a
+  // person, so a walk elsewhere pays nothing
+  cat.updateMatrixWorld(true);
+  ptX = cat.position.x; ptZ = cat.position.z;
+  const turn = yaw - cat.rotation.y;
+  ptC = Math.cos(turn); ptS = Math.sin(turn);
+  const hb = headBoxOf(parts);
+  _pt.set(hb[0], hb[1], hb[2]).applyMatrix4(parts.head.matrixWorld);
+  put(_pt.x, _pt.z, hb[3]);
+  // the body's capsule (as the people kit has it): along the box's longest
+  // side, as wide as the larger of the other two, its ends a radius in
+  const bb = bodyBoxOf(parts.body);
+  const e = parts.body.matrixWorld.elements;
+  const sx = Math.hypot(e[0], e[1], e[2]), sy = Math.hypot(e[4], e[5], e[6]), sz = Math.hypot(e[8], e[9], e[10]);
+  const hx = ((bb.max.x - bb.min.x) / 2) * sx, hy = ((bb.max.y - bb.min.y) / 2) * sy, hz = ((bb.max.z - bb.min.z) / 2) * sz;
+  let half, rad, col, len;
+  if (hz >= hx && hz >= hy) { half = hz; rad = Math.max(hx, hy); col = 8; len = sz; }
+  else if (hx >= hy) { half = hx; rad = Math.max(hy, hz); col = 0; len = sx; }
+  else { half = hy; rad = Math.max(hx, hz); col = 4; len = sy; }
+  _pt.set((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, (bb.min.z + bb.max.z) / 2).applyMatrix4(parts.body.matrixWorld);
+  const k = Math.max(0, half - rad) / (len || 1);
+  put(_pt.x + e[col] * k, _pt.z + e[col + 2] * k, rad);
+  put(_pt.x - e[col] * k, _pt.z - e[col + 2] * k, rad);
+}
+
 // The camera's pitch at the start of a walk (radians).
 export const DEFAULT_PITCH = 0.18;
 // The highest the camera may be pitched up over the cat (radians).
@@ -965,15 +1081,38 @@ export function createPlayer(camera, canvas) {
             avatar.position.z = c.z + (dz / d) * min;
           }
         }
-        // The soft bumps (people): the same push, after the colliders.
-        for (const c of bumps) {
-          const dx = avatar.position.x - c.x;
-          const dz = avatar.position.z - c.z;
-          const d = Math.hypot(dx, dz);
-          const min = c.r + CAT_RADIUS;
-          if (d < min && d > 0.0001) {
-            avatar.position.x = c.x + (dx / d) * min;
-            avatar.position.z = c.z + (dz / d) * min;
+        // The soft bumps (people): the same push, after the colliders, for
+        // her middle and then her head and her body's ends (catPoints).
+        if (bumps.length) {
+          // her points only when a circle is near enough to reach one
+          nPts = 1;
+          PTS[2] = CAT_RADIUS;
+          for (const c of bumps) {
+            if (Math.abs(avatar.position.x - c.x) < c.r + BUMP_NEAR && Math.abs(avatar.position.z - c.z) < c.r + BUMP_NEAR) {
+              catPoints(avatar, velocity.length() > 0.15 ? Math.atan2(velocity.x, velocity.z) + Math.PI : avatar.rotation.y);
+              break;
+            }
+          }
+          for (const c of bumps) {
+            const dx = avatar.position.x - c.x;
+            const dz = avatar.position.z - c.z;
+            const d = Math.hypot(dx, dz);
+            const min = c.r + CAT_RADIUS;
+            if (d < min && d > 0.0001) {
+              avatar.position.x = c.x + (dx / d) * min;
+              avatar.position.z = c.z + (dz / d) * min;
+            }
+            for (let k = 1; k < nPts; k++) {
+              const px = avatar.position.x + PTS[k * 3] - c.x;
+              const pz = avatar.position.z + PTS[k * 3 + 1] - c.z;
+              const pd = Math.hypot(px, pz);
+              const reach = c.r + PTS[k * 3 + 2];
+              if (pd < reach && pd > 0.0001) {
+                const push = (reach - pd) / pd;
+                avatar.position.x += px * push;
+                avatar.position.z += pz * push;
+              }
+            }
           }
         }
       }

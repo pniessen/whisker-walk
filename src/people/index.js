@@ -5,11 +5,13 @@ import { LOW_RUNG } from '../render/quality.js';
 import { buildSpot } from './figure.js';
 import { pose, applyPose } from './pose.js';
 import { createGaze, stepGaze } from './gaze.js';
+import { bumpCircles } from './bumps.js';
 
 export { personFor, pairFor, spotKind } from './look.js';
 export { pose, applyPose, strideFor, POSE_TIMES } from './pose.js';
 export { createGaze, stepGaze, GAZE } from './gaze.js';
 export { REACH, headTopOffset, catVolumes, createScratch, stepScratch } from './reach.js';
+export { BUMP, bumpCircles } from './bumps.js';
 
 // Chunk placement, not behaviour. This chunk is loaded by five places, and the
 // bundler decides where shared modules live by which chunks reach them. Reaching
@@ -55,6 +57,7 @@ export function createPeopleKit({ camera, reducedMotion = false, lodNear = () =>
     applyPose,
     createGaze,
     stepGaze,
+    bumpCircles,
     buildSpot(def) {
       const spot = buildSpot(def, { material });
       for (const p of spot.people) kit.people.push(p);

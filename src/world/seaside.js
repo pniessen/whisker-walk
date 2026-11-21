@@ -758,8 +758,10 @@ export function build(scene, { water = {}, wind } = {}) {
       // The pickup gate is 1.6 horizontal, so it needed a cat standing on the
       // sea. Now on the deck itself, 0.9 in from its south edge (z -11.5) —
       // once the water is solid the cat is pushed no further north than
-      // z -11.15, so it can stand directly on top of this.
-      { id: 'fish-1', x: 33, z: -10.6, label: 'a shiny little fish' },
+      // z -11.15, so it can stand directly on top of this. Task 11 fix 1c:
+      // 1.6 m further out along the deck (was x 33), clear of the soft bumps
+      // of the person standing on the pier at (32, -10).
+      { id: 'fish-1', x: 34.6, z: -10.6, label: 'a shiny little fish' },
       { id: 'fish-2', x: -9, z: 8.5, label: 'a striped shell-fish' },
       { id: 'fish-3', x: -29, z: 16.5, label: 'a silver sardine' },
       { id: 'fish-4', x: 19, z: -31, label: 'a lost lure-fish' },

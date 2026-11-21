@@ -21,10 +21,11 @@ export function spotsOfKind(kind, n, z = 7) {
   return out;
 }
 
-// the person's body samples (world, arms left out), in the mode, settled
-export function bodySamples(def, mode) {
+// the person's body samples (world, arms left out), in the mode, settled;
+// `which`: the spot's person (1: a pair's child)
+export function bodySamples(def, mode, which = 0) {
   const { people } = buildSpot(def, { material });
-  const p = people[0];
+  const p = people[which];
   p.setDetail('near');
   const group = new THREE.Group();
   group.add(p.figure);
@@ -75,7 +76,13 @@ export function gapAt(samples, breed, dist, side, heading) {
   cat.position.set(dist * Math.sin(side), 0, -dist * Math.cos(side));
   cat.rotation.y = Math.PI - side + heading;
   cat.updateMatrixWorld(true);
-  const vol = catVolumes(cat);
+  return gapsFor(samples, cat);
+}
+
+// The same for a cat as she stands (her matrices up to date).
+const _vol = { head: new THREE.Sphere(), body: { a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 } };
+export function gapsFor(samples, cat) {
+  const vol = catVolumes(cat, _vol);
   const hc = vol.head.center; const hr = vol.head.radius;
   const a = vol.body.a; const b = vol.body.b;
   const abx = b.x - a.x; const aby = b.y - a.y; const abz = b.z - a.z;

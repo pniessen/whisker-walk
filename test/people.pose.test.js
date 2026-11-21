@@ -4,7 +4,7 @@ import { buildSpot } from '../src/people/figure.js';
 import { JOINT_INDEX } from '../src/people/parts.js';
 import { spotKind } from '../src/people/look.js';
 import { neckFrame } from '../src/people/shapes.js';
-import { pose, applyPose, strideFor, POSE_MODES, POSE_TIMES } from '../src/people/pose.js';
+import { pose, applyPose, strideFor, POSE_MODES, POSE_TIMES, kneelSpots } from '../src/people/pose.js';
 import * as peopleKit from '../src/people/index.js';
 import { createGaze, stepGaze, GAZE } from '../src/people/gaze.js';
 
@@ -175,6 +175,25 @@ describe('people poses', () => {
       expect(front).toBeGreaterThan(0.2); // held out
       // on the right knee
       expect(world(p.bones.shinR).y).toBeLessThan(0.08);
+    }
+  });
+
+  it('kneelSpots: where the kneel puts the raised knee (out to the front-left) and the back foot\'s middle', () => {
+    for (const over of [{ sex: 'm', height: 1.85, girth: 1.08 }, { sex: 'f', height: 1.6, girth: 0.94 }]) {
+      const { people } = buildSpot({ ...spotOf('adult'), ...over }, { material });
+      const p = people[0];
+      poseAt(p, { mode: 'kneel', t: 1 }, 120);
+      const knee = world(p.bones.shinL);
+      const foot = p.bones.footR.localToWorld(new THREE.Vector3(0, 0, -0.24 * p.look.dims.footLen));
+      const k = kneelSpots(p.look);
+      expect(k.kneeX).toBeCloseTo(knee.x, 5);
+      expect(k.kneeZ).toBeCloseTo(knee.z, 5);
+      expect(k.footX).toBeCloseTo(foot.x, 5);
+      expect(k.footZ).toBeCloseTo(foot.z, 5);
+      // R29: the knee about 50 degrees round to the left, nothing straight in front
+      const round = Math.atan2(-knee.x, -knee.z);
+      expect(round).toBeGreaterThan(0.6);
+      expect(round).toBeLessThan(1.05);
     }
   });
 
