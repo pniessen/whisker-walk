@@ -201,9 +201,12 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   const songStore = () => { try { return globalThis.localStorage ?? null; } catch { return null; } };
   const songPlayedToday = () => { try { return songStore()?.getItem(SONG_DAY_KEY) === localDay(); } catch { return false; } };
   const partyOn = () => birthdayPartyOn(progression);
+  // The day is spent only when the song really played (muted, or music at
+  // 0, it waits for a later tap when she is home again).
   function playBirthdaySong() {
-    try { songStore()?.setItem(SONG_DAY_KEY, localDay()); } catch { /* this visit only */ }
-    try { onBirthdaySong?.(); } catch (err) { console.warn('Whisker Walk: the birthday song failed', err); note('audio', err); }
+    let played = 0;
+    try { played = Number(onBirthdaySong?.()) || 0; } catch (err) { console.warn('Whisker Walk: the birthday song failed', err); note('audio', err); }
+    if (played > 0) { try { songStore()?.setItem(SONG_DAY_KEY, localDay()); } catch { /* this visit only */ } }
   }
   let songArmed = false;
   function onSongTap() {
@@ -212,10 +215,9 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     songArmed = false;
     try { onAudioWake?.(); } catch { /* the song just stays quiet */ }
     // After the tap has done its work: a tap on Start leaves home, and the
-    // song waits for the next time she is home.
+    // song waits for the next time she is home (show() arms it again).
     setTimeout(() => {
       if (homeVisible() && partyOn() && !songPlayedToday()) playBirthdaySong();
-      else if (partyOn() && !songPlayedToday()) armSong();
     }, 0);
   }
   function armSong() {

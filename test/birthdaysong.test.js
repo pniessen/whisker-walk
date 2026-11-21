@@ -16,7 +16,7 @@ function fakeNode(extra = {}) {
 function fakeCtx() {
   const ctx = {
     currentTime: 10, sampleRate: 8000, state: 'suspended', resumed: 0, destination: fakeNode(), oscs: [],
-    resume() { ctx.resumed++; return Promise.resolve(); },
+    resume() { ctx.resumed++; ctx.state = 'running'; return Promise.resolve(); },
     createGain: () => fakeNode({ gain: fakeParam(1) }),
     createOscillator() { const o = fakeNode({ frequency: fakeParam(440), type: 'sine' }); ctx.oscs.push(o); return o; },
     createDynamicsCompressor: () => fakeNode({ threshold: fakeParam(), knee: fakeParam(), ratio: fakeParam(), attack: fakeParam(), release: fakeParam() }),
@@ -48,15 +48,25 @@ describe('the birthday song', () => {
     for (let i = 1; i < tune.length; i++) expect(tune[i].at).toBeGreaterThan(tune[i - 1].at);
     expect(tune[0].freq).toBeCloseTo(392, 0); // G above middle C
   });
-  it('audio.playTune schedules each note (and its octave) from now, and wakes a suspended context', () => {
+  it('audio.playTune wakes a suspended context, then schedules each note (and its octave) from then', async () => {
     const ctx = fakeCtx();
     const audio = createAudio({ contextFactory: () => ctx });
     const tune = birthdayTune();
     expect(audio.playTune(tune, 0.5)).toBe(tune.length);
+    expect(ctx.oscs).toHaveLength(0); // nothing queued on a held context
+    await Promise.resolve(); await Promise.resolve();
     expect(ctx.oscs).toHaveLength(tune.length * 2);
     expect(ctx.oscs.filter((o, i) => i % 2 === 0).map((o) => o.startedAt)).toEqual(tune.map((n) => 10 + n.at));
     expect(ctx.oscs[0].frequency.events[0][1]).toBeCloseTo(tune[0].freq, 6);
     expect(ctx.resumed).toBe(1);
+  });
+  it('a context that will not start plays nothing later', async () => {
+    const ctx = fakeCtx();
+    ctx.resume = () => Promise.reject(new Error('no'));
+    const audio = createAudio({ contextFactory: () => ctx });
+    audio.playTune(birthdayTune(), 1);
+    await Promise.resolve(); await Promise.resolve();
+    expect(ctx.oscs).toHaveLength(0);
   });
   it('muted, or at music volume 0, it makes nothing', () => {
     const ctx = fakeCtx();

@@ -70,11 +70,16 @@ export function createHomeParty({ doc = globalThis.document, reduced = () => fal
 
   function mount(stage, text) {
     if (!stage || !doc) return;
+    const still = reduced();
+    // Already up with the same words and stillness: left as it is, so the
+    // banner does not fade in again on every render.
+    const up = stage.querySelector?.('.party-layer');
+    if (up && up.querySelector('.party-banner')?.textContent === text && up.classList.contains('still') === still) return;
     unmount(stage);
     const layer = doc.createElement('div');
-    layer.className = 'party-layer';
+    layer.className = `party-layer${still ? ' still' : ''}`;
     layer.setAttribute('aria-hidden', 'true');
-    layer.innerHTML = `<div class="party-balloons${reduced() ? ' still' : ''}">${balloonsHtml(Date.now() - t0)}</div>`;
+    layer.innerHTML = `<div class="party-balloons">${balloonsHtml(Date.now() - t0)}</div>`;
     const banner = doc.createElement('div');
     banner.className = 'party-banner';
     banner.setAttribute('role', 'status');
