@@ -78,8 +78,15 @@ const centreOf = (b) => {
 // redrawn (3,992 -> 4,964 triangles: lit windows, roof lights, street lights
 // down side streets, landmarks, tree clumps; still one mesh casting nothing):
 // -> 113 / 68 / 32,382 (merged 55 -> 56).
-const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 32382 };
-const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 32382 };
+// Beauty pass Task B (houses that differ, real roof edges): no mesh and no
+// caster added, every new piece in a bucket the place already had; +536
+// triangles (each house's own front and back, +40 on the old body box; the
+// slates split at the party walls with their edge, +72; eave boards and
+// soffits, +80; half-round gutters, +16 on the box ones; ridge caps, -48 on
+// the round rods; six TV aerials, +180; two dishes, +160; the shed's fascia, +36)
+// -> 113 / 68 / 32,918 (merged 56 / 30).
+const MEASURED_BUILT = { meshes: 113, casters: 68, triangles: 32918 };
+const MEASURED_MERGED = { meshes: 56, casters: 30, triangles: 32918 };
 const MEASURED_DRAWS = 0;
 const TOWN_TRIANGLES = 4964; // the far town's one mesh (Task A: 3,992 before)
 
@@ -521,6 +528,272 @@ describe('the Rooftops drawn', () => {
     // the rest is darker than the dusk sky's horizon (linear luminance)
     const h = new THREE.Color(area.skyDusk.horizon);
     expect(darkMax).toBeLessThan(0.6 * (0.2126 * h.r + 0.7152 * h.g + 0.0722 * h.b));
+  });
+
+  // ---------------------------------------------------------------------------
+  // Beauty pass, Task B (critique findings 3 and 5): houses that differ, and
+  // real roof edges. Looks only: the ground, the rails and the hops are the
+  // plan's, so these tests read the drawing where the cat looks and walks.
+  // ---------------------------------------------------------------------------
+  const T = BLOCKS.find((b) => b.id === 'terrace');
+  const HOUSE_W = 5;
+  const houseX0 = (k) => T.x0 + HOUSE_W * (k - 1);
+  const FLAT_HOUSE = 7; // the flat house: no slates over it
+  const EAVE_Y = 6.45;
+  const EAVE_OVER = 0.15;
+  const PITCH = (LEVELS.RIDGE - EAVE_Y) / (T.z1 - T.ridgeZ);
+  const slopeY = (z) => (z >= T.ridgeZ ? EAVE_Y + (T.z1 - z) * PITCH : EAVE_Y + (z - T.z0) * PITCH);
+  const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  const named = (n) => meshes.filter((m) => m.name === n);
+  // what a ray hits first among `list` (default: every mesh)
+  const rcB = new THREE.Raycaster();
+  const firstHit = (from, dir, list = meshes) => {
+    rcB.set(new THREE.Vector3(...from), new THREE.Vector3(...dir).normalize());
+    rcB.far = 50;
+    return rcB.intersectObjects(list, false)[0] ?? null;
+  };
+  // the drawn colour where a ray hits a mesh: its material colour times its
+  // vertex colour there (white when it has none)
+  const colourAt = (hit) => {
+    const m = hit.object;
+    const out = m.material.color.clone();
+    const col = m.geometry.attributes.color;
+    if (!m.material.vertexColors || !col) return out;
+    const { a, b, c } = hit.face;
+    const pos = m.geometry.attributes.position;
+    const P = [a, b, c].map((i) => new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld));
+    const w = new THREE.Triangle(...P).getBarycoord(hit.point, new THREE.Vector3());
+    const v = new THREE.Color(0, 0, 0);
+    [a, b, c].forEach((i, j) => { v.r += col.getX(i) * w.getComponent(j); v.g += col.getY(i) * w.getComponent(j); v.b += col.getZ(i) * w.getComponent(j); });
+    return out.multiply(v);
+  };
+  const differs = (p, q) => Math.abs(p.r - q.r) + Math.abs(p.g - q.g) + Math.abs(p.b - q.b) > 0.03;
+
+  it('every house of the terrace has its own brick and its own slates, darker at the eave than at the ridge', () => {
+    const wall = named('roofsTerrace:wall');
+    const slates = meshes.filter((m) => m.userData.block === 'terrace');
+    expect(wall).toHaveLength(1);
+    expect(slates).toHaveLength(1);
+    // the street front of each house, between its floors' windows
+    const front = [];
+    for (let k = 1; k <= 12; k++) {
+      const hit = firstHit([houseX0(k) + 2.5, 3.0, -2], [0, 0, 1], wall);
+      expect(hit, `house ${k} front`).toBeTruthy();
+      expect(hit.point.z).toBeCloseTo(T.z0, 2);
+      front.push(colourAt(hit));
+    }
+    for (let k = 1; k < 12; k++) expect(differs(front[k - 1], front[k]), `houses ${k} and ${k + 1}`).toBe(true);
+    // a few kinds of house, not twelve random colours: at least four, and two painted
+    const kinds = [];
+    for (const c of front) if (!kinds.some((q) => !differs(q, c))) kinds.push(c);
+    expect(kinds.length).toBeGreaterThanOrEqual(4);
+    expect(kinds.length).toBeLessThanOrEqual(6);
+    // the back of each house is the same house as its front
+    for (const k of [1, 4, 9, 12]) {
+      const hit = firstHit([houseX0(k) + 3.0, 1.0, 30], [0, 0, -1], wall);
+      expect(hit, `house ${k} back`).toBeTruthy();
+      expect(differs(colourAt(hit), front[k - 1]), `house ${k} back`).toBe(false);
+    }
+    // the slates: each house's own, and darker at the eave than at the ridge
+    const roofs = [];
+    for (let k = 1; k <= 12; k++) {
+      if (k === FLAT_HOUSE) { roofs.push(null); continue; }
+      const x = houseX0(k) + 2.5;
+      const eave = firstHit([x, 20, T.z0 + 0.3], [0, -1, 0], slates);
+      const ridge = firstHit([x, 20, T.ridgeZ - 0.6], [0, -1, 0], slates);
+      expect(eave && ridge, `house ${k} slates`).toBeTruthy();
+      const [ce, cr] = [colourAt(eave), colourAt(ridge)];
+      expect(lum(ce), `house ${k} eave darker`).toBeLessThan(lum(cr) * 0.9);
+      roofs.push(cr);
+    }
+    for (let k = 1; k < 12; k++) {
+      const [p, q] = [roofs[k - 1], roofs[k] ?? roofs[k + 1]];
+      if (p && q) expect(differs(p, q), `slates ${k} and next`).toBe(true);
+    }
+  });
+
+  it('the warehouse is a darker brick and the corner shop is painted; what the pass left alone looks as before', () => {
+    const terraceDefault = new THREE.Color(0x9a5640);
+    // the warehouse's front over the street, between its first two floors' windows
+    const wh = firstHit([0, 3.25, -5], [0, 0, -1], named('roofsNorth:wall'));
+    expect(wh).toBeTruthy();
+    expect(wh.point.z).toBeCloseTo(-13, 2);
+    // the corner shop's end over the street
+    const shop = firstHit([25, 3.0, -6], [1, 0, 0], named('roofsNorth:wall'));
+    expect(shop).toBeTruthy();
+    expect(shop.point.x).toBeCloseTo(30, 2);
+    const [cw, cs] = [colourAt(wh), colourAt(shop)];
+    expect(lum(cw)).toBeLessThan(lum(terraceDefault) * 0.8);
+    expect(lum(cs)).toBeGreaterThan(lum(terraceDefault) * 1.8);
+    expect(differs(cw, cs)).toBe(true);
+    // the alley's walls and the yard walls: the brick they always had
+    for (const m of [...named('roofsAlley:wall'), ...meshes.filter((o) => o.userData.yardWalls)]) {
+      const col = m.geometry.attributes.color;
+      const c = new THREE.Color();
+      for (let i = 0; i < m.geometry.attributes.position.count; i += 7) {
+        c.copy(m.material.color);
+        if (m.material.vertexColors) c.multiply(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)));
+        expect(c.r).toBeCloseTo(terraceDefault.r, 4);
+        expect(c.g).toBeCloseTo(terraceDefault.g, 4);
+        expect(c.b).toBeCloseTo(terraceDefault.b, 4);
+      }
+    }
+    // the colours are the plan's: built twice, every colour the same
+    const s2 = new THREE.Scene();
+    build(s2);
+    const cols = (s) => { const out = []; s.traverse((o) => { if (o.isMesh && o.geometry.attributes.color) out.push([o.name, Array.from(o.geometry.attributes.color.array)]); }); return out; };
+    expect(cols(s2)).toEqual(cols(scene));
+  });
+
+  it('the eaves have an edge: a slate edge, a board and soffit under it, and a round gutter hanging in front', () => {
+    const eaves = [];
+    for (let k = 1; k <= 12; k++) if (k !== FLAT_HOUSE) eaves.push([k, T.z0 - EAVE_OVER, -1]);
+    // the back eave runs where no flat roof cuts it (the dormer: house 5; the roof terrace: house 10)
+    for (const k of [1, 2, 3, 4, 8, 11, 12]) eaves.push([k, T.z1 + EAVE_OVER, 1]);
+    const leadAt = (x) => ROOFS_TRAVERSAL.crossings.some((c) => c.kind === 'gutter' && x >= Math.min(c.points[0].x, c.points[1].x) && x <= Math.max(c.points[0].x, c.points[1].x));
+    for (const [k, zE, s] of eaves) {
+      const x = houseX0(k) + 2.7; // clear of the windows' sills and the dishes
+      const yE = slopeY(zE);
+      const tag = `house ${k} ${s < 0 ? 'front' : 'back'}`;
+      // from below, the overhang is closed just under the slates' edge
+      const up = firstHit([x, EAVE_Y - 1.2, zE - s * 0.08], [0, 1, 0]); // from over the outriggers' felt
+      expect(up, `${tag} soffit`).toBeTruthy();
+      expect(up.point.y, `${tag} soffit`).toBeGreaterThan(yE - 0.3);
+      expect(up.point.y, `${tag} soffit`).toBeLessThan(yE + 0.01);
+      // from outside, just under the edge, the slates have thickness at their edge
+      const edge = firstHit([x, yE - 0.02, zE + s * 2], [0, 0, -s]);
+      expect(edge, `${tag} slate edge`).toBeTruthy();
+      expect(Math.abs(edge.point.z - zE), `${tag} slate edge`).toBeLessThanOrEqual(0.02);
+      if (leadAt(x)) continue;
+      // the hanging gutter: round (its front further out near its top than its bottom), in front of the edge
+      const hi = firstHit([x, yE - 0.075, zE + s * 2], [0, 0, -s]);
+      const lo = firstHit([x, yE - 0.14, zE + s * 2], [0, 0, -s]);
+      expect(hi && lo, `${tag} gutter`).toBeTruthy();
+      expect(s * (hi.point.z - zE), `${tag} gutter out`).toBeGreaterThan(0.08);
+      expect(s * (hi.point.z - lo.point.z), `${tag} gutter round`).toBeGreaterThan(0.03);
+    }
+  });
+
+  it('the ridge tiles sit proud of the slates, a darker terracotta, their top on the rail', () => {
+    const ridges = ROOFS_TRAVERSAL.crossings.filter((c) => c.kind === 'ridge');
+    for (const c of ridges) {
+      const m = meshes.find((o) => o.userData.crossing === c.id);
+      const y = c.points[0].y;
+      const x = (c.points[0].x + c.points[1].x) / 2;
+      expect(boxOf(m).max.y, c.id).toBeCloseTo(y, 2); // she walks on the rail, as before
+      for (const dz of [-0.15, 0.15]) {
+        const hit = firstHit([x, y + 2, T.ridgeZ + dz], [0, -1, 0], [m]);
+        expect(hit, `${c.id} ${dz}`).toBeTruthy();
+        expect(hit.point.y - slopeY(T.ridgeZ + dz), `${c.id} proud at ${dz}`).toBeGreaterThan(0.03);
+      }
+      const top = firstHit([x, y + 2, T.ridgeZ], [0, -1, 0], [m]);
+      const col = colourAt(top);
+      expect(col.r).toBeGreaterThan(col.g);
+      expect(col.g).toBeGreaterThan(col.b);
+      expect(lum(col), c.id).toBeLessThan(lum(new THREE.Color(0x8e4b38)));
+    }
+  });
+
+  it('the shed has a board round its felt that reads from the alley, never above its roof', () => {
+    const S = BLOCKS.find((b) => b.id === 'shed');
+    const y = S.y - 0.13; // under the felt
+    const south = firstHit([14.5, y, S.z1 + 3], [0, 0, -1]);
+    const north = firstHit([14.5, y, S.z0 - 3], [0, 0, 1]);
+    const east = firstHit([S.x1 + 3, y, 31.5], [-1, 0, 0]);
+    expect(south.point.z).toBeGreaterThan(S.z1 + 0.05);
+    expect(north.point.z).toBeLessThan(S.z0 - 0.05);
+    expect(east.point.x).toBeGreaterThan(S.x1 + 0.05);
+    for (const h of [south, north, east]) {
+      expect(h.object.userData.block, 'not the felt itself').toBeUndefined();
+      const c = colourAt(h);
+      expect(c.g).toBeGreaterThan(c.r); // the door's green
+    }
+    // nothing round the shed's edge rises above its roof, and nothing reaches past its felt
+    const v = new THREE.Vector3();
+    for (const m of meshes) {
+      if (m.userData.block || m.userData.crossing || m.userData.markRanges || m.userData.townBand || m.userData.skyGlow) continue;
+      const pos = m.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+        const near = v.x > S.x0 - 0.01 && v.x < S.x1 + 0.3 && v.z > S.z0 - 0.3 && v.z < S.z1 + 0.3;
+        const out = v.x > S.x1 + 0.001 || v.z < S.z0 - 0.001 || v.z > S.z1 + 0.001;
+        if (!near || !out || v.y < S.y - 0.3 || v.y > S.y + 0.5) continue;
+        expect(v.y, `${m.name} above the shed's edge`).toBeLessThanOrEqual(S.y + 1e-6);
+        expect(Math.max(v.x - S.x1, S.z0 - v.z, v.z - S.z1), `${m.name} past the felt`).toBeLessThanOrEqual(0.1 + 1e-6); // the felt's 0.08, the downpipe's 0.1
+      }
+    }
+  });
+
+  it('six stacks carry a TV aerial and two back walls a dish, over the slates', () => {
+    const stacks = BLOCKS.filter((b) => b.id.startsWith('stack-'));
+    const v = new THREE.Vector3();
+    const others = meshes.filter((m) => !m.userData.block && !m.userData.crossing && !m.userData.townBand && !m.userData.skyGlow);
+    let withAerial = 0;
+    for (const s of stacks) {
+      let found = false;
+      for (const m of others) {
+        const pos = m.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+          const r = Math.hypot(v.x - s.x, v.z - s.z);
+          if (r > 1.6 || v.y < s.y - 0.6) continue;
+          // beside the stack, never over its top she stands on (its pots and the warm cowl reach 0.74)
+          if (v.y > s.y && v.y < s.y + 0.9) expect(r > s.r + 0.02 || v.y < s.y + 0.8, `${m.name} on ${s.id}`).toBe(true);
+          // an aerial: high over the slates beside it (not the corner shop's parapet by stack-29.4, a taller block's wall)
+          const byTaller = BLOCKS.some((b) => b.kind === 'flat' && b.y > s.y && v.x > b.x0 - 0.35 && v.x < b.x1 + 0.35 && v.z > b.z0 - 0.35 && v.z < b.z1 + 0.35);
+          if (v.y > s.y + 0.9 && r > s.r + 0.02 && !byTaller && Math.abs(area.ground.y(v.x, v.z) - LEVELS.VOID) < 1e-6) found = true;
+        }
+      }
+      if (found) withAerial++;
+    }
+    expect(withAerial).toBe(6);
+    // the dishes: on the back walls, between the upstairs windows and the eave
+    const houses = new Set();
+    for (const m of others) {
+      const pos = m.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+        if (v.z > T.z1 + 0.25 && v.z < T.z1 + 1 && v.y > 5.2 && v.y < 6.15 && v.x > T.x0 && v.x < T.x1) houses.add(Math.floor((v.x - T.x0) / HOUSE_W) + 1);
+      }
+    }
+    expect(houses.size).toBe(2);
+  });
+
+  it('nothing drawn stands where she walks a rail or makes a hop', () => {
+    // her body's space above every rail and along every hop (at the higher
+    // end's level), 0.25 m either side: only the rail's own drawing, the
+    // blocks' tops and the take-off marks may be there. From 0.07 m up: the
+    // gables' and cheeks' stone copings have always met the stacks 0.06 m
+    // above their tops (Task 7), inside the stack where she stands.
+    const others = meshes.filter((m) => !m.userData.block && !m.userData.crossing && !m.userData.markRanges && !m.userData.townBand && !m.userData.skyGlow && !m.userData.ground);
+    const paths = [];
+    for (const c of ROOFS_TRAVERSAL.crossings) for (let i = 0; i + 1 < c.points.length; i++) paths.push([c.id, c.points[i], c.points[i + 1]]);
+    for (const h of area.traversal.hops) {
+      const y = Math.max(h.y0, h.y1);
+      paths.push([h.id, { x: h.x0, z: h.z0, y }, { x: h.x1, z: h.z1, y }]);
+    }
+    const v = new THREE.Vector3();
+    const bad = [];
+    const boxes = others.map((m) => boxOf(m).expandByScalar(0.3));
+    for (const [id, a, c] of paths) {
+      const len = Math.hypot(c.x - a.x, c.z - a.z) || 1e-9;
+      const lo = Math.min(a.y, c.y) + 0.07;
+      const hi = Math.max(a.y, c.y) + 0.45;
+      others.forEach((m, j) => {
+        const bb = boxes[j];
+        if (bb.max.y < lo || bb.min.y > hi) return;
+        if (bb.max.x < Math.min(a.x, c.x) || bb.min.x > Math.max(a.x, c.x) || bb.max.z < Math.min(a.z, c.z) || bb.min.z > Math.max(a.z, c.z)) return;
+        const pos = m.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+          const t = Math.max(0, Math.min(1, ((v.x - a.x) * (c.x - a.x) + (v.z - a.z) * (c.z - a.z)) / (len * len)));
+          const d = Math.hypot(v.x - (a.x + (c.x - a.x) * t), v.z - (a.z + (c.z - a.z) * t));
+          const y = a.y + (c.y - a.y) * t;
+          if (d < 0.25 && v.y > y + 0.07 && v.y < y + 0.45) { bad.push([id, m.name, +v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2)]); break; }
+        }
+      });
+    }
+    expect(bad.slice(0, 6)).toEqual([]);
   });
 
   it('every POI is in the walk region of the spawn', () => {

@@ -448,7 +448,9 @@ const AREAS = [
   // follow-up 3 (stack-5 on the flat house, its ridge beam gone); 112 / 68 /
   // 31,218 after follow-up 2 (calmer take-off marks); 113 / 68 / 32,382 after
   // the beauty pass's Task A (the sky glow band, +1 mesh casting nothing, and
-  // the far town's lights and landmarks). Held to the territories' ceilings,
+  // the far town's lights and landmarks); 113 / 68 / 32,918 after Task B
+  // (houses that differ and real roof edges: no mesh or caster added, +536
+  // triangles in the buckets it had). Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],

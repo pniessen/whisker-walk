@@ -118,6 +118,69 @@ const PAINTS = Object.freeze([0x2f5d8a, 0x7a2b2b, 0x2f5a3a, 0x2a2a2e, 0xd8c9a0, 
 const CLOTHS = Object.freeze([0xf2efe6, 0xd9534f, 0x5b8fd1, 0xf3c94b, 0x7cc47a, 0xe9a3c4, 0xffffff, 0x9b7fd1]);
 const paint = (x, z, salt) => PAINTS[Math.floor(hash01(x, z, salt) * PAINTS.length) % PAINTS.length];
 
+// --- Beauty pass, Task B: houses that differ (critique finding 3). The
+// palette, and each house's look as a pure function of the plan (hash01 of
+// its number): four bricks, one house in cream render and one painted pale
+// blue, never the same brick twice side by side; slates in three greys, darker
+// at the eave than at the ridge; eave boards white or black. The north's
+// buildings have their own: the warehouse a darker brick, the corner shop
+// painted. What the pass did not touch (the alley's walls, the yard walls)
+// keeps the old brick, BRICK.red, and the old slate, SLATE[0].
+const BRICK = Object.freeze({ red: 0x9a5640, brownRed: 0x7c4434, sooty: 0x6b4739, yellow: 0xb39468 });
+const BRICKS = Object.freeze([BRICK.red, BRICK.brownRed, BRICK.red, BRICK.sooty, BRICK.yellow, BRICK.brownRed]); // red and brown-red the commonest
+const RENDERS = Object.freeze({ cream: 0xe4dac4, blue: 0x8eaac4 });
+const SLATE = Object.freeze([0x55606e, 0x625a6c, 0x58635a]); // blue-grey, purple-grey, green-grey
+const SLATE_SHADE = Object.freeze({ eave: 0.72, ridge: 1.12, edge: 0.62 }); // times the slate, by height
+const TRIM = Object.freeze({ white: 0xe9e5da, black: 0x26272b });
+const STACK_SOOT = 0.84; // a stack is its house's brick, a little sooty
+const NORTH = Object.freeze({ shop: 0xdcc59a, warehouse: 0x6a3a2c, endHouse: BRICK.sooty, endSlates: SLATE[1] });
+const RIDGE_TILE = 0x763a2b; // a darker terracotta than the old 0x8e4b38
+const DISH = 0xd6d4cc;
+
+const houseAt = (x) => Math.min(12, Math.max(1, Math.floor((x - TERRACE.x0) / HOUSE_W) + 1));
+const HOUSE_LOOKS = (() => {
+  const cream = 1 + Math.floor(hash01(3.7, 1.9, 71) * 12) % 12;
+  let blue = 1 + Math.floor(hash01(5.3, 2.9, 73) * 12) % 12;
+  while (Math.abs(blue - cream) < 3) blue = (blue % 12) + 1; // apart, not side by side
+  const looks = [];
+  let brick = null;
+  let slate = -1;
+  for (let k = 1; k <= 12; k++) {
+    let wall;
+    if (k === cream || k === blue) {
+      wall = k === cream ? RENDERS.cream : RENDERS.blue;
+      brick = null;
+    } else {
+      let i = Math.floor(hash01(k, 2.3, 43) * BRICKS.length) % BRICKS.length;
+      while (BRICKS[i] === brick) i = (i + 1) % BRICKS.length; // never the same brick side by side
+      brick = BRICKS[i];
+      wall = brick;
+    }
+    const painted = k === cream || k === blue;
+    let j = Math.floor(hash01(k, 8.3, 53) * SLATE.length) % SLATE.length;
+    if (j === slate) j = (j + 1) % SLATE.length;
+    if (k !== BLOCK.flatHouse.house) slate = j; // the flat house has no slates; its neighbours still differ
+    const slateColor = new THREE.Color(SLATE[j]).multiplyScalar(0.94 + 0.12 * hash01(k, 9.7, 59));
+    const trim = painted || hash01(k, 5.1, 47) < 0.6 ? TRIM.white : TRIM.black;
+    looks.push(Object.freeze({ k, wall, painted, slate: slateColor, trim }));
+  }
+  return Object.freeze(looks);
+})();
+const lookOf = (k) => HOUSE_LOOKS[k - 1];
+// the brick of a stack on a party wall: its west house's, or its east one's when that one is painted
+function stackBrick(s) {
+  const [w, e] = [lookOf(houseAt(s.x - 0.01)), lookOf(houseAt(s.x + 0.01))];
+  const pick = !w.painted ? w.wall : !e.painted ? e.wall : BRICK.red;
+  return new THREE.Color(pick).multiplyScalar(STACK_SOOT);
+}
+// a house's slates at a height: darker toward the eave, lighter toward the ridge
+const SLATE_EAVE_Y = EAVE_Y - EAVE_OVER * PITCH; // the eaves' edge, slopeY(z0 - EAVE_OVER)
+const _slate = new THREE.Color();
+const slateShade = (k, f = 1) => (x, y) => {
+  const t = Math.min(1, Math.max(0, (y - SLATE_EAVE_Y) / (L.RIDGE - SLATE_EAVE_Y)));
+  return _slate.copy(lookOf(k).slate).multiplyScalar(f * (SLATE_SHADE.eave + (SLATE_SHADE.ridge - SLATE_SHADE.eave) * t));
+};
+
 export { ALLEY_CRATES }; // the plan's, for Task 8's perches
 
 // ---------------------------------------------------------------------------
@@ -155,10 +218,15 @@ function prep(geo, { color = null, tile = 0 } = {}) {
   if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
   if (tile) worldUV(g, tile);
   if (color !== null) {
-    const c = new THREE.Color(color);
-    const n = g.attributes.position.count;
+    // a colour (hex or THREE.Color), or a function (x, y, z) -> THREE.Color of each vertex
+    const fixed = typeof color === 'function' ? null : new THREE.Color(color);
+    const p = g.attributes.position;
+    const n = p.count;
     const col = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    for (let i = 0; i < n; i++) {
+      const c = fixed ?? color(p.getX(i), p.getY(i), p.getZ(i));
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   }
   return g;
@@ -215,6 +283,35 @@ function rod(a, c, r, seg = 6) {
   const g = new THREE.CylinderGeometry(r, r, len, seg);
   g.rotateZ(-Math.PI / 2);
   return g.applyMatrix4(matrix);
+}
+
+// A thin open wire from a to b (an aerial's rods): three sides, no caps.
+function wire(a, c, r) {
+  const { matrix, len } = along(a, c);
+  const g = new THREE.CylinderGeometry(r, r, len, 3, 1, true);
+  g.rotateZ(-Math.PI / 2);
+  return g.applyMatrix4(matrix);
+}
+// One face of a wall: x0..x1 by y0..y1 at z, facing +z (nz 1) or -z (nz -1).
+function faceZ(x0, x1, y0, y1, z, nz) {
+  const g = new THREE.PlaneGeometry(x1 - x0, y1 - y0);
+  if (nz < 0) g.rotateY(Math.PI);
+  g.translate((x0 + x1) / 2, (y0 + y1) / 2, z);
+  return g;
+}
+// z0..z1 by y0..y1 at x, facing +x (nx 1) or -x (nx -1).
+function faceX(z0, z1, y0, y1, x, nx) {
+  const g = new THREE.PlaneGeometry(z1 - z0, y1 - y0);
+  g.rotateY((nx * Math.PI) / 2);
+  g.translate(x, (y0 + y1) / 2, (z0 + z1) / 2);
+  return g;
+}
+// x0..x1 by z0..z1 at y, facing down (a soffit).
+function faceDown(x0, x1, z0, z1, y) {
+  const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0);
+  g.rotateX(Math.PI / 2);
+  g.translate((x0 + x1) / 2, y, (z0 + z1) / 2);
+  return g;
 }
 
 function triangles(list) {
@@ -278,7 +375,7 @@ function makeKit(prefix) {
       const full = noCast ? `${key}` : `${key}:cast`;
       let k = buckets.get(full);
       if (!k) buckets.set(full, (k = { key, mat, noCast, geos: [], count: 0, ranges: [] }));
-      const g = prep(geo, { color, tile });
+      const g = prep(geo, { color: color ?? mat.userData.vcBase ?? null, tile });
       const count = g.attributes.position.count;
       if (mark) k.ranges.push({ ...mark, start: k.count, count });
       k.count += count;
@@ -297,7 +394,7 @@ function makeKit(prefix) {
 
 // One mesh of its own, from pieces, tagged for the tests.
 function own(name, mat, pieces, { noCast = false, color = null, tile = 0, tag = {} } = {}) {
-  const geos = pieces.map((p) => prep(p.geo ?? p, { color: p.color ?? color, tile }));
+  const geos = pieces.map((p) => prep(p.geo ?? p, { color: p.color ?? color ?? mat.userData.vcBase ?? null, tile }));
   const m = finish(new THREE.Mesh(merged(geos, name), mat), noCast);
   m.name = name;
   Object.assign(m.userData, tag);
@@ -309,13 +406,21 @@ function own(name, mat, pieces, { noCast = false, color = null, tile = 0, tag = 
 // ground, made once per build.
 // ---------------------------------------------------------------------------
 
+// A vertex-coloured material whose pieces are `base` unless given a colour.
+function tinted(mat, base) {
+  mat.userData.vcBase = base;
+  return mat;
+}
+
 function buildMaterials() {
   const M = roofsMaterials();
   const tiled = (color, surface, extra = {}) => litMaterial(color, { surface, repeat: [1, 1], ...extra });
   return {
     ...M,
-    wall: tiled(0x9a5640, 'brick'),
-    slates: tiled(0x55606e, 'shingle'),
+    // vertex-coloured (beauty pass, Task B): each piece carries its own brick
+    // or slate (HOUSE_LOOKS); a piece given none is the colour these always were
+    wall: tinted(tiled(0xffffff, 'brick', { vertexColors: true }), BRICK.red),
+    slates: tinted(tiled(0xffffff, 'shingle', { vertexColors: true }), SLATE[0]),
     felt: tiled(0x5a5752, 'gravel'),
     cobble: tiled(ROOFS_GROUND_COLOR, 'cobble'),
     flags: tiled(0x958f85, 'flagstone'),
@@ -457,6 +562,11 @@ function drawGround(scene, M) {
   }
 }
 
+// The shed's fascia (m): how far below its top it reaches, how far below
+// the top it stops (the felt shows above it), how far out it sits (the felt
+// overhangs 0.08) and how thick it is.
+const SHED_FASCIA = Object.freeze({ depth: 0.18, below: 0.03, out: 0.065, thick: 0.02 });
+
 // --- the alley: its walls, the garages, the shed, the bins, the crates, the
 // bin bags, a drainpipe and the fire escape.
 function drawAlley(K, group, M, ground) {
@@ -495,6 +605,13 @@ function drawAlley(K, group, M, ground) {
   K.put('shed', M.shed, box(S.x0, S.x1, 0, S.y - 0.1, S.z0, S.z1), { tile: TILE.wood });
   group.add(own('shed', M.felt, [box(S.x0, S.x1 + 0.08, S.y - 0.1, S.y, S.z0 - 0.08, S.z1 + 0.08)], { tile: TILE.gravel, tag: { block: 'shed' } }));
   painted(box(S.x1 - 1.3, S.x1 - 0.45, 0, 1.75, S.z1, S.z1 + 0.04), 0x2f5a3a);
+  // a fascia board round the felt in the door's green (Task B), so the roof's
+  // edge reads from the alley: inside the felt's own overhang, under its top
+  const SF = SHED_FASCIA;
+  const [fo, fe, fy0, fy1] = [SF.out, SF.out + SF.thick, S.y - SF.depth, S.y - SF.below];
+  painted(box(S.x0, S.x1 + fe, fy0, fy1, S.z1 + fo, S.z1 + fe), 0x2f5a3a); // over the alley
+  painted(box(S.x0, S.x1 + fe, fy0, fy1, S.z0 - fe, S.z0 - fo), 0x2f5a3a); // over the yards
+  painted(box(S.x1 + fo, S.x1 + fe, fy0, fy1, S.z0 - fe, S.z1 + fe), 0x2f5a3a); // the east end
   iron(box(S.x1 - 0.12, S.x1 - 0.04, 0, S.y - 0.12, S.z1 + 0.02, S.z1 + 0.1), true);
 
   // The bins: the round one she climbs (bin-1), a dustbin, a wheelie bin.
@@ -637,11 +754,60 @@ function stackQuarters(s, ground) {
   return out;
 }
 
+// --- Beauty pass, Task B (finding 5): what the roofs' edges carry. The eave's
+// layers, under and in front of the slates' edge (m): the slates' own edge,
+// the eave board's depth and how far it sits back, the gutter's drop below
+// the edge, how far out its middle hangs and its radius.
+const EAVE = Object.freeze({ slate: 0.04, inset: 0.04, board: 0.22, gutterDrop: 0.06, gutterOut: 0.05, gutterR: 0.085 });
+// TV aerials on six stacks (hash01's pick), each on the stack's street face
+// on the side over the slates, every one pointing the same way (at the same
+// transmitter): a mast, a boom and three elements, all thin open wires.
+const AERIAL = Object.freeze({ count: 6, off: 0.3, foot: 0.6, tall: 1.15, extra: 0.35, mast: 0.022, rod: 0.011, yaw: 0.55, boom: [-0.35, 0.65], elements: [[-0.25, 0.27], [0.15, 0.22], [0.5, 0.17]] });
+const AERIAL_STACKS = new Set([...STACKS].sort((p, q) => hash01(p.x, 7.1, 61) - hash01(q.x, 7.1, 61)).slice(0, AERIAL.count).map((s) => s.id));
+function aerial(put, s, quarters, ground) {
+  const first = hash01(s.x, 2.2, 67) < 0.5 ? -1 : 1;
+  for (const sx of [first, -first]) {
+    const mx = s.x + sx * AERIAL.off;
+    const front = quarters.filter((q) => q.z1 <= s.z + 1e-6 && q.x0 <= mx && q.x1 >= mx);
+    if (!front.length) continue;
+    const mz = Math.min(...front.map((q) => q.z0)) - AERIAL.mast;
+    if (Math.abs(ground.y(mx, mz - 0.05) - L.VOID) > 1e-6) continue; // over the slates only
+    const top = s.y + AERIAL.tall + AERIAL.extra * hash01(s.x, 4.4, 69);
+    put(wire({ x: mx, y: s.y - AERIAL.foot, z: mz }, { x: mx, y: top, z: mz }, AERIAL.mast));
+    const [dx, dz] = [Math.cos(AERIAL.yaw), Math.sin(AERIAL.yaw)];
+    const y = top - 0.1;
+    const at = (t, u = 0) => ({ x: mx + dx * t - dz * u, y, z: mz + dz * t + dx * u });
+    put(wire(at(AERIAL.boom[0]), at(AERIAL.boom[1]), AERIAL.rod));
+    for (const [t, half] of AERIAL.elements) put(wire(at(t, -half), at(t, half), AERIAL.rod * 0.8));
+    return;
+  }
+}
+// A satellite dish on two back walls (hash01's pick of the houses with no
+// outrigger), between the upstairs window and the eave, facing south and up.
+const DISH_AT = Object.freeze({ dx: 3.3, y: 5.75, out: 0.3, r: 0.27, tilt: 0.35 });
+const DISH_HOUSES = new Set([1, 3, 4, 8, 9, 11, 12].sort((p, q) => hash01(p, 6.6, 79) - hash01(q, 6.6, 79)).slice(0, 2));
+function dish(put, x, y, z) {
+  const { out, r, tilt } = DISH_AT;
+  const bowl = new THREE.CylinderGeometry(r, 0.05, 0.09, 10);
+  bowl.rotateX(Math.PI / 2 - tilt); // its open face to the south (+z), tilted up
+  bowl.translate(x, y, z + out);
+  put(bowl, DISH);
+  put(rod({ x, y, z }, { x, y, z: z + out - 0.03 }, 0.02, 4), DISH); // its arm off the wall
+  // the arm from the rim's foot to the head at its focus
+  const [ay, az] = [Math.sin(tilt), Math.cos(tilt)];
+  const foot = { x, y: y - r * az, z: z + out + r * ay };
+  const head = { x, y: y + ay * 0.32, z: z + out + az * 0.32 };
+  put(rod(foot, head, 0.009, 3), DISH);
+  put(box(x - 0.03, x + 0.03, head.y - 0.03, head.y + 0.03, head.z - 0.04, head.z + 0.04), 0x3a3b40);
+}
+
 // --- the terrace: the houses, their extensions and outriggers, the slates,
 // the flat roofs, the stacks and every window.
 function drawTerrace(group, M, win, ground) {
   const K = makeKit('roofsTerrace');
-  const wall = (geo) => K.put('wall', M.wall, geo, { tile: TILE.brick });
+  // `color`: whose brick (lookOf(k).wall), or a colour of its own
+  const wall = (geo, color = null) => K.put('wall', M.wall, geo, { tile: TILE.brick, color });
+  const brickOf = (k) => lookOf(k).wall;
   const stone = (geo) => K.put('stone', M.stone, geo);
   const iron = (geo) => K.put('iron', M.iron, geo, { noCast: true });
   const painted = (geo, color) => K.put('paint', M.paint, geo, { color, noCast: true });
@@ -651,31 +817,38 @@ function drawTerrace(group, M, win, ground) {
   // a window with a stone sill under it, on a wall facing +z or -z
   const zWin = (x, y, z, nz, w, h) => { win(x, y, z, 0, nz, w, h); sill(x, y - h / 2, z, w, nz); };
 
-  // The houses' body, from the street below up to the eaves, and the gables.
-  wall(box(T.x0, T.x1, L.STREET, EAVE_Y, T.z0, T.z1));
+  // The houses' body, from the street below up to the eaves, and the gables:
+  // each house its own front and back (Task B: split at the party walls, so
+  // the brick can change there; the top is under the slates, the foot under
+  // the street, so neither is drawn), the two ends of the row.
+  for (let k = 1; k <= 12; k++) {
+    for (const [z, nz] of [[T.z0, -1], [T.z1, 1]]) wall(faceZ(houseX0(k), houseX0(k) + HOUSE_W, L.STREET, EAVE_Y, z, nz), brickOf(k));
+  }
+  wall(faceX(T.z0, T.z1, L.STREET, EAVE_Y, T.x0, -1), brickOf(1));
+  wall(faceX(T.z0, T.z1, L.STREET, EAVE_Y, T.x1, 1), brickOf(12));
   const gable = [[T.z0, EAVE_Y], [RIDGE_Z, L.RIDGE], [T.z1, EAVE_Y]];
   const coping = (x, pts, width = 0.32) => {
     for (let i = 0; i + 1 < pts.length; i++) {
       stone(beam({ x, y: pts[i][1] + 0.06, z: pts[i][0] }, { x, y: pts[i + 1][1] + 0.06, z: pts[i + 1][0] }, width, 0.1));
     }
   };
-  wall(extrudeX(gable, T.x0, T.x0 + 0.2)); coping(T.x0 + 0.1, gable);
-  wall(extrudeX(gable, T.x1 - 0.2, T.x1)); coping(T.x1 - 0.1, gable);
+  wall(extrudeX(gable, T.x0, T.x0 + 0.2), brickOf(1)); coping(T.x0 + 0.1, gable);
+  wall(extrudeX(gable, T.x1 - 0.2, T.x1), brickOf(12)); coping(T.x1 - 0.1, gable);
 
   // The three flat roofs: felt on a brick course; brick cheeks where the
   // neighbours' slopes end against them (see the header).
   const flats = ['flatHouse', 'dormer', 'roofTerrace'].map((id) => BLOCK[id]);
   for (const f of flats) {
-    wall(box(f.x0, f.x1, EAVE_Y - 0.05, f.y - 0.08, f.z0, f.z1));
+    wall(box(f.x0, f.x1, EAVE_Y - 0.05, f.y - 0.08, f.z0, f.z1), brickOf(f.house));
     group.add(own(f.id, M.felt, [box(f.x0, f.x1, f.y - 0.08, f.y, f.z0, f.z1)], { tile: TILE.gravel, tag: { block: f.id } }));
     const full = f.z0 <= T.z0;
     const cheek = full ? gable : [[f.z0, EAVE_Y - 0.05], [f.z0, slopeY(f.z0)], [T.z1, EAVE_Y], [T.z1, EAVE_Y - 0.05]];
     const top = full ? gable : [[f.z0, slopeY(f.z0)], [T.z1, EAVE_Y]];
     // each cheek's coping is flush with the flat roof's edge, never over it
-    for (const [x0, x1, cx] of [[f.x0 - 0.15, f.x0, f.x0 - 0.11], [f.x1, f.x1 + 0.15, f.x1 + 0.11]]) { wall(extrudeX(cheek, x0, x1)); coping(cx, top, 0.22); }
+    for (const [x0, x1, cx] of [[f.x0 - 0.15, f.x0, f.x0 - 0.11], [f.x1, f.x1 + 0.15, f.x1 + 0.11]]) { wall(extrudeX(cheek, x0, x1), brickOf(houseAt(cx))); coping(cx, top, 0.22); }
     if (!full) {
       // the back wall where the slope rises behind the flat roof, with a window or a door
-      wall(box(f.x0, f.x1, EAVE_Y - 0.05, slopeY(f.z0), f.z0 - 0.15, f.z0));
+      wall(box(f.x0, f.x1, EAVE_Y - 0.05, slopeY(f.z0), f.z0 - 0.15, f.z0), brickOf(f.house));
       const cx = (f.x0 + f.x1) / 2;
       if (f.id === 'dormer') zWin(cx, 7.2, f.z0, 1, 1.3, 0.65);
       else win(cx, 7.15, f.z0, 0, 1, 1.0, 0.95);
@@ -683,15 +856,24 @@ function drawTerrace(group, M, win, ground) {
   }
 
   // The slates: the front slope and the back, round the flat roofs. One mesh,
-  // its top the ridge.
-  const quads = [];
-  const slope = (x0, x1, zEave, zTop) => {
+  // its top the ridge; each house's own slates (Task B), split at the party
+  // walls, darker toward the eave (a vertex gradient: depth for free).
+  const slatePieces = [];
+  const perHouse = (x0, x1, fn) => {
+    for (let k = houseAt(x0 + 0.01); k <= houseAt(x1 - 0.01); k++) {
+      const a = Math.max(x0, houseX0(k));
+      const c = Math.min(x1, houseX0(k) + HOUSE_W);
+      if (c - a > 0.01) fn(a, c, k);
+    }
+  };
+  const slope = (x0, x1, zEave, zTop) => perHouse(x0, x1, (a, c, k) => {
     const yE = slopeY(zEave);
     const yT = slopeY(zTop);
-    quads.push(...quadTris([x0, yE, zEave], [x1, yE, zEave], [x1, yT, zTop], [x0, yT, zTop], [0, 1, 0]));
-  };
+    slatePieces.push({ geo: triangles(quadTris([a, yE, zEave], [c, yE, zEave], [c, yT, zTop], [a, yT, zTop], [0, 1, 0])), color: slateShade(k) });
+  });
   const flatHouse = BLOCK.flatHouse;
-  for (const [x0, x1] of [[T.x0, flatHouse.x0], [flatHouse.x1, T.x1]]) slope(x0, x1, T.z0 - EAVE_OVER, RIDGE_Z);
+  const frontSpans = [[T.x0, flatHouse.x0], [flatHouse.x1, T.x1]];
+  for (const [x0, x1] of frontSpans) slope(x0, x1, T.z0 - EAVE_OVER, RIDGE_Z);
   const backCuts = [BLOCK.dormer, flatHouse, BLOCK.roofTerrace].sort((p, q) => p.x0 - q.x0);
   let x = T.x0;
   for (const f of backCuts) {
@@ -700,33 +882,60 @@ function drawTerrace(group, M, win, ground) {
     x = f.x1;
   }
   if (x < T.x1) slope(x, T.x1, T.z1 + EAVE_OVER, RIDGE_Z);
-  // slopeY past the eave: the overhang carries on down the same pitch
-  const slates = own('terrace', M.slates, [triangles(quads)], { tile: TILE.shingle, tag: { block: 'terrace' } });
-  group.add(slates);
-
-  // Hanging gutters along the eaves, where no lead gutter (a crossing) runs.
-  const leadSpans = ROOFS_TRAVERSAL.crossings.filter((c) => c.kind === 'gutter').map((c) => [Math.min(c.points[0].x, c.points[1].x), Math.max(c.points[0].x, c.points[1].x)]);
-  const gutterRuns = (spans, z0, z1) => {
-    for (const [a, c] of spans) iron(box(a, c, EAVE_Y - 0.2, EAVE_Y - 0.06, z0, z1));
-  };
-  gutterRuns([[T.x0, flatHouse.x0], [flatHouse.x1, T.x1]], T.z0 - EAVE_OVER - 0.14, T.z0 - EAVE_OVER + 0.02);
   const backSpans = [];
   let bx = T.x0;
   for (const f of backCuts) { if (f.x0 > bx) backSpans.push([bx, f.x0]); bx = f.x1; }
   backSpans.push([bx, T.x1]);
+
+  // The eaves (Task B, finding 5): along every eave, the slates' own edge
+  // (EAVE.slate thick, in their darkest shade, in the slates' mesh); under it
+  // the eave board, white or black by house, set back EAVE.inset, and the
+  // soffit back to the wall; the hanging gutter in front (below). All of it
+  // under the slates' edge and outside the walls: nothing she walks on.
+  const eaves = [[frontSpans, T.z0 - EAVE_OVER, T.z0, -1], [backSpans, T.z1 + EAVE_OVER, T.z1, 1]];
+  for (const [spans, zE, zW, sz] of eaves) {
+    const yE = slopeY(zE);
+    for (const [x0, x1] of spans) {
+      perHouse(x0, x1, (a, c, k) => {
+        slatePieces.push({ geo: faceZ(a, c, yE - EAVE.slate, yE, zE, sz), color: slateShade(k, SLATE_SHADE.edge) });
+        const zF = zE - sz * EAVE.inset;
+        painted(faceZ(a, c, yE - EAVE.board, yE, zF, sz), lookOf(k).trim);
+        painted(faceDown(a, c, Math.min(zF, zW), Math.max(zF, zW), yE - EAVE.board), lookOf(k).trim);
+      });
+    }
+  }
+  // slopeY past the eave: the overhang carries on down the same pitch
+  const slates = own('terrace', M.slates, slatePieces, { tile: TILE.shingle, tag: { block: 'terrace' } });
+  group.add(slates);
+
+  // Hanging gutters along the eaves, where no lead gutter (a crossing) runs:
+  // half-round (Task B: a D in section, its flat top just under the slates'
+  // edge), hung out in front of the eave board.
+  const leadSpans = ROOFS_TRAVERSAL.crossings.filter((c) => c.kind === 'gutter').map((c) => [Math.min(c.points[0].x, c.points[1].x), Math.max(c.points[0].x, c.points[1].x)]);
+  const gutterRuns = (spans, zE, sz) => {
+    const yc = slopeY(zE) - EAVE.gutterDrop;
+    const zc = zE + sz * EAVE.gutterOut;
+    const r = EAVE.gutterR;
+    const d = Array.from({ length: 5 }, (_, i) => -Math.PI * (i / 4)); // 0 .. -pi, the half under its top
+    const section = d.map((t) => [zc + sz * r * Math.cos(t), yc + r * Math.sin(t)]);
+    for (const [a, c] of spans) iron(extrudeX(section, a, c));
+  };
+  gutterRuns(frontSpans, T.z0 - EAVE_OVER, -1);
   const free = backSpans.flatMap(([a, c]) => {
     let pieces = [[a, c]];
     for (const [la, lc] of leadSpans) pieces = pieces.flatMap(([p, q]) => (lc <= p || la >= q ? [[p, q]] : [[p, Math.max(p, la)], [Math.min(q, lc), q]].filter(([u, v]) => v - u > 0.05)));
     return pieces;
   });
-  gutterRuns(free, T.z1 + EAVE_OVER - 0.02, T.z1 + EAVE_OVER + 0.14);
+  gutterRuns(free, T.z1 + EAVE_OVER, 1);
 
   // The chimney stacks on the party walls, across the ridge, with their pots
   // (the header: four quarters, each inside what the ground lets it cover).
   for (const s of STACKS) {
     const quarters = stackQuarters(s, ground);
-    group.add(own(s.id, M.wall, quarters.map((q) => box(q.x0, q.x1, q.y0, s.y, q.z0, q.z1)), { tile: TILE.brick, tag: { block: s.id } }));
-    for (const q of quarters) wall(box(q.x0 - 0.06, q.x1 + 0.06, s.y - 0.16, s.y - 0.06, q.z0 - 0.06, q.z1 + 0.06)); // the oversailing course
+    const brick = stackBrick(s);
+    group.add(own(s.id, M.wall, quarters.map((q) => box(q.x0, q.x1, q.y0, s.y, q.z0, q.z1)), { tile: TILE.brick, color: brick, tag: { block: s.id } }));
+    for (const q of quarters) wall(box(q.x0 - 0.06, q.x1 + 0.06, s.y - 0.16, s.y - 0.06, q.z0 - 0.06, q.z1 + 0.06), brick); // the oversailing course
+    if (AERIAL_STACKS.has(s.id)) aerial(iron, s, quarters, ground);
     for (const side of [-1, 1]) {
       // a pot each side of the ridge's line, on the quarters that reach it
       const reach = quarters.filter((q) => (side < 0 ? s.z - q.z0 : q.z1 - s.z) >= STACK.pot + 0.13);
@@ -753,7 +962,7 @@ function drawTerrace(group, M, win, ground) {
     const e = extOf(k);
     const o = outOf(k);
     const ecx = (e.x0 + e.x1) / 2;
-    wall(box(e.x0, e.x1, 0, e.y - 0.1, e.z0, e.z1));
+    wall(box(e.x0, e.x1, 0, e.y - 0.1, e.z0, e.z1), brickOf(k));
     group.add(own(e.id, M.felt, [box(e.x0, e.x1, e.y - 0.1, e.y, e.z0, e.z1)], { tile: TILE.gravel, tag: { block: e.id } }));
     // the kitchen window over the yard, its sill clear above a bunker's lid
     const bunker = BLOCK[`bunker-${k}`];
@@ -764,11 +973,11 @@ function drawTerrace(group, M, win, ground) {
     painted(box(ret - 0.42, ret + 0.42, 0, 2.0, T.z1, T.z1 + 0.05), paint(x0, T.z1, 5)); // the back door
     zWin(ret, 4.8, T.z1, 1, 0.7, 1.0);
     if (o) {
-      wall(box(o.x0, o.x1, e.y - 0.1, o.y - 0.1, o.z0, o.z1));
+      wall(box(o.x0, o.x1, e.y - 0.1, o.y - 0.1, o.z0, o.z1), brickOf(k));
       group.add(own(o.id, M.felt, [box(o.x0, o.x1, o.y - 0.1, o.y, o.z0, o.z1)], { tile: TILE.gravel, tag: { block: o.id } }));
       // the jettied overhang over the side return, on a corbelled course
-      if (o.x1 > e.x1) wall(box(e.x1, o.x1 - 0.12, e.y - 0.3, e.y - 0.1, o.z0, o.z1));
-      if (o.x0 < e.x0) wall(box(o.x0 + 0.12, e.x0, e.y - 0.3, e.y - 0.1, o.z0, o.z1));
+      if (o.x1 > e.x1) wall(box(e.x1, o.x1 - 0.12, e.y - 0.3, e.y - 0.1, o.z0, o.z1), brickOf(k));
+      if (o.x0 < e.x0) wall(box(o.x0 + 0.12, e.x0, e.y - 0.3, e.y - 0.1, o.z0, o.z1), brickOf(k));
       zWin(ecx, 4.35, o.z1, 1, 0.7, 0.8);
       zWin(ecx + 0.25, 5.8, T.z1, 1, 0.8, 0.7); // the back window over it, whose sill she climbs by
     } else {
@@ -776,6 +985,7 @@ function drawTerrace(group, M, win, ground) {
     }
     // the drainpipe at the party wall, from the eave down to the extension
     iron(box(x0 + 0.06, x0 + 0.15, e.y, EAVE_Y - 0.1, T.z1, T.z1 + 0.09));
+    if (DISH_HOUSES.has(k)) dish(painted, x0 + DISH_AT.dx, DISH_AT.y, T.z1);
     // the front, over the street: a door and a window below, two above each floor
     for (const y of [L.STREET + 1.7, 0.9, 4.1]) {
       zWin(x0 + 1.3, y, T.z0, -1, 0.9, 1.3);
@@ -791,6 +1001,10 @@ function drawTerrace(group, M, win, ground) {
   for (const m of K.meshes()) group.add(m);
 }
 
+// A ridge tile's section (dz across the ridge, dy below the rail): its lips
+// 0.2 m out either side, 4 cm proud of the slopes, its foot under the slates.
+const RIDGE_CAP = Object.freeze([[-0.2, -0.085], [-0.2, -0.03], [-0.12, -0.008], [0, 0], [0.12, -0.008], [0.2, -0.03], [0.2, -0.085]]);
+
 // --- the crossings: planks, ridge tiles, lead gutters, washing lines. One
 // mesh each along its rail; the line's cloths in one mesh of their own.
 function drawCrossings(group, M) {
@@ -805,12 +1019,13 @@ function drawCrossings(group, M) {
       noCast = false;
       for (let i = 0; i + 1 < p.length; i++) pieces.push({ geo: beam(p[i], p[i + 1], 0.28, 0.04), color: 0xb8986a });
     } else if (c.kind === 'ridge') {
-      // half-round ridge tiles on the slates, stack to stack (the plan runs
-      // no ridge over a flat roof)
-      const r = 0.13;
+      // ridge tiles on the slates, stack to stack (the plan runs no ridge over
+      // a flat roof): a capping 0.4 m across, its lips proud of the slates
+      // either side (Task B), its crown the rail she walks
       const x0 = Math.min(first.x, last.x);
       const x1 = Math.max(first.x, last.x);
-      pieces.push({ geo: rod({ x: x0, y: first.y - r, z: first.z }, { x: x1, y: first.y - r, z: first.z }, r, 8), color: 0x8e4b38 });
+      const section = RIDGE_CAP.map(([dz, dy]) => [first.z + dz, first.y + dy]);
+      pieces.push({ geo: extrudeX(section, x0, x1), color: RIDGE_TILE });
     } else if (c.kind === 'gutter') {
       // a lead-lined box gutter at the back eave, its rim the rail
       const x0 = Math.min(first.x, last.x);
@@ -878,6 +1093,13 @@ function edgeAhead(ground, h) {
   while (s < h.dist && Math.abs(ground.y(h.x0 + dx * s, h.z0 + dz * s) - h.y0) < 0.05) s += 0.01;
   return s;
 }
+// The brick of the wall a mark lies on (a side return's lip: its extension's house).
+function brickUnder(geo) {
+  geo.computeBoundingBox();
+  const c = geo.boundingBox.getCenter(new THREE.Vector3());
+  const onTerrace = c.x > TERRACE.x0 && c.x < TERRACE.x1 && c.z > TERRACE.z0 && c.z < BLOCK['ext-1'].z1 + 0.5;
+  return onTerrace ? lookOf(houseAt(c.x)).wall : null;
+}
 function drawMarks(group, M, traversal, ground) {
   const K = makeKit('roofsMarks');
   const names = new Map(Object.entries(M).map(([k, v]) => [v, k]));
@@ -899,7 +1121,8 @@ function drawMarks(group, M, traversal, ground) {
         glows.push(geo);
         glowMat = c.material;
       } else {
-        K.put(`mark-${names.get(c.material) ?? c.material.uuid}`, c.material, bake(c.geometry, c.matrixWorld), { noCast: true, mark });
+        const geo = bake(c.geometry, c.matrixWorld);
+        K.put(`mark-${names.get(c.material) ?? c.material.uuid}`, c.material, geo, { noCast: true, mark, color: c.material === M.wall ? brickUnder(geo) : null });
       }
     });
   }
@@ -1012,7 +1235,7 @@ const climbTo = (id) => climbOf(id).to;
 // --- the corner shop: brick to the street, a shopfront and the bus's arch,
 // lit windows, parapets.
 function drawShop(K, group, M, win) {
-  const wall = (g) => K.put('wall', M.wall, g, { tile: TILE.brick });
+  const wall = (g) => K.put('wall', M.wall, g, { tile: TILE.brick, color: NORTH.shop }); // painted (Task B)
   const stone = (g) => K.put('stone', M.stone, g);
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
   const fw = (x, y, z, nx, nz, w, h, cell) => faceWindow(win, stone, x, y, z, nx, nz, w, h, cell);
@@ -1052,7 +1275,7 @@ function drawShop(K, group, M, win) {
 // --- the warehouse, and what stands on its roof: the tank, the loft, the
 // lantern, roof lights; its stair down to the ginnel.
 function drawWarehouse(K, group, M, win, upWin) {
-  const wall = (g) => K.put('wall', M.wall, g, { tile: TILE.brick });
+  const wall = (g, color = NORTH.warehouse) => K.put('wall', M.wall, g, { tile: TILE.brick, color }); // a darker brick (Task B)
   const stone = (g) => K.put('stone', M.stone, g);
   const iron = (g, noCast = false) => K.put(noCast ? 'ironSmall' : 'iron', M.iron, g, { noCast });
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
@@ -1076,8 +1299,8 @@ function drawWarehouse(K, group, M, win, upWin) {
   parapet(wall, stone, W.x0, W.x1 + 0.25, W.z0 - 0.25, W.z0, W.y, 0.5);
   for (const [z0, z1] of [[W.z0, stairZ[0]], [stairZ[1], W.z1]]) parapet(wall, stone, W.x1, W.x1 + 0.25, z0, z1, W.y, 0.5);
   // the ginnel's far wall and its end
-  wall(box(ROOFS_BOUNDS.maxX, ROOFS_BOUNDS.maxX + 0.3, 0, 2.4, W.z0 - 0.3, W.z1)); stone(box(ROOFS_BOUNDS.maxX - 0.05, ROOFS_BOUNDS.maxX + 0.35, 2.4, 2.5, W.z0 - 0.3, W.z1));
-  wall(box(W.x1, ROOFS_BOUNDS.maxX, 0, 2.4, W.z0 - 0.3, W.z0)); stone(box(W.x1, ROOFS_BOUNDS.maxX, 2.4, 2.5, W.z0 - 0.35, W.z0 + 0.05));
+  wall(box(ROOFS_BOUNDS.maxX, ROOFS_BOUNDS.maxX + 0.3, 0, 2.4, W.z0 - 0.3, W.z1), BRICK.red); stone(box(ROOFS_BOUNDS.maxX - 0.05, ROOFS_BOUNDS.maxX + 0.35, 2.4, 2.5, W.z0 - 0.3, W.z1));
+  wall(box(W.x1, ROOFS_BOUNDS.maxX, 0, 2.4, W.z0 - 0.3, W.z0), BRICK.red); stone(box(W.x1, ROOFS_BOUNDS.maxX, 2.4, 2.5, W.z0 - 0.35, W.z0 + 0.05));
 
   // the windows: four floors over the street and the side street, three over the ginnel
   const rows = [L.STREET + 2.0, 1.6, 4.9, 8.2];
@@ -1398,7 +1621,7 @@ function drawDiscoveries(K, group, M, upWin) {
 // the end house over the street's west end, and the bus. Returns the bus.
 function drawStreet(scene, group, M, win) {
   const K = makeKit('roofsStreet');
-  const wall = (g) => K.put('wall', M.wall, g, { tile: TILE.brick });
+  const wall = (g) => K.put('wall', M.wall, g, { tile: TILE.brick, color: NORTH.endHouse });
   const stone = (g) => K.put('stone', M.stone, g);
   const painted = (g, color) => K.put('paint', M.paint, g, { color, noCast: true });
   const pave = (x0, x1, z0, z1) => {
@@ -1449,7 +1672,7 @@ function drawStreet(scene, group, M, win) {
   const eave = 7;
   wall(box(E.x0, E.x1, y, eave, E.z0, E.z1));
   const ridge = [[E.z0 - 0.2, eave], [(E.z0 + E.z1) / 2, eave + 2.6], [E.z1 + 0.2, eave]];
-  K.put('slates', M.slates, extrudeX(ridge, E.x0 - 0.2, E.x1 + 0.2), { tile: TILE.shingle });
+  K.put('slates', M.slates, extrudeX(ridge, E.x0 - 0.2, E.x1 + 0.2), { tile: TILE.shingle, color: NORTH.endSlates });
   const arch = { z0: BUS.z - BUS.width / 2 - 0.95, z1: BUS.z + BUS.width / 2 + 0.95, y1: y + BUS.height + 0.3 };
   painted(box(E.x1, E.x1 + 0.02, y, arch.y1, arch.z0, arch.z1), 0x0e0d10);
   stone(box(E.x1, E.x1 + 0.12, y, arch.y1, arch.z0 - 0.3, arch.z0));
