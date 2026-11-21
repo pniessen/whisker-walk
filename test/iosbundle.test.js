@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { fileURLToPath } from 'node:url';
-import { build } from 'vite';
+import { realBuild } from './helpers/realbuild.js';
+import { AREA_ENTRY_MODULES } from '../src/world/areas.js';
+import { lazyProblems } from '../scripts/buildjson.mjs';
 import { IOS_MODE } from '../vite.config.js';
 
 // Builds the real bundles in memory (write: false) and reads what ships.
@@ -9,29 +10,28 @@ import { IOS_MODE } from '../vite.config.js';
 // already, so the app build must not register sw.js; the website build must
 // keep doing so. The check is written inline in src/main.js rather than in a
 // helper so the website bundle stays byte-for-byte what it was.
-const root = fileURLToPath(new URL('..', import.meta.url));
-
-// Vitest runs with NODE_ENV=test, which would make Vite build a non-PROD
-// bundle (and drop the PROD-only service worker code from both builds, so
-// nothing would be tested). npm run build runs with production; so must this.
 async function shippedCode(mode) {
-  const saved = process.env.NODE_ENV;
-  process.env.NODE_ENV = 'production';
-  try {
-    const out = await build({ root, mode, logLevel: 'silent', build: { write: false } });
-    const outputs = (Array.isArray(out) ? out : [out]).flatMap((o) => o.output);
-    return outputs.filter((o) => o.type === 'chunk').map((o) => o.code).join('\n');
-  } finally {
-    process.env.NODE_ENV = saved;
-  }
+  const b = await realBuild(mode);
+  return b.chunks.map((o) => o.code).join('\n');
 }
 
 describe('service worker in the shipped bundles', () => {
   it('the website build registers sw.js', async () => {
     expect(await shippedCode('production')).toMatch(/serviceWorker\.register/);
-  });
+  }, 300_000);
 
   it('the app build never registers a service worker', async () => {
     expect(await shippedCode(IOS_MODE)).not.toMatch(/serviceWorker\.register/);
-  });
+  }, 300_000);
+});
+
+describe('places in the app bundle', () => {
+  it('ships a dynamic chunk for every place, and no precache list', async () => {
+    const b = await realBuild(IOS_MODE);
+    expect(lazyProblems(b.manifest)).toEqual([]);
+    for (const [id, mods] of Object.entries(AREA_ENTRY_MODULES)) {
+      for (const m of mods) expect(b.manifest[m]?.isDynamicEntry, `${id}: ${m}`).toBe(true);
+    }
+    expect(b.files.has('precache.json')).toBe(false);
+  }, 300_000);
 });

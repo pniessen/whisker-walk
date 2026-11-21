@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { defineConfig } from 'vite';
+import { precacheManifest } from './scripts/precache.mjs';
 import { HEAVY_TESTS, HeavyFirst } from './test/heavy.js';
 
 // The iOS app (ios/) bundles its own copy of the game: `npm run build:ios`
@@ -13,13 +14,23 @@ export const IOS_OUT_DIR = 'ios/web';
 
 // The app does not need the offline service worker (src/swpolicy.js never
 // registers it in the app).
-const IOS_PRUNE = ['sw.js'];
+const IOS_PRUNE = ['sw.js', '.vite'];
+
+// Lists every file under assets/ for the service worker (website build only).
+function precacheList() {
+  return {
+    name: 'precache-list',
+    generateBundle(_, bundle) {
+      this.emitFile({ type: 'asset', fileName: 'precache.json', source: JSON.stringify(precacheManifest(Object.keys(bundle))) });
+    },
+  };
+}
 
 function iosPrune() {
   return {
     name: 'ios-prune',
     closeBundle() {
-      for (const file of IOS_PRUNE) rmSync(join(IOS_OUT_DIR, file), { force: true });
+      for (const file of IOS_PRUNE) rmSync(join(IOS_OUT_DIR, file), { force: true, recursive: true });
     },
   };
 }
@@ -46,10 +57,9 @@ export function buildStamp(now = new Date()) {
 export default defineConfig(({ command, mode }) => ({
   define: { __BUILD_STAMP__: JSON.stringify(buildStamp()) },
   base: mode === IOS_MODE ? './' : command === 'build' ? '/whisker-walk/' : '/',
-  ...(mode === IOS_MODE && {
-    build: { outDir: IOS_OUT_DIR, emptyOutDir: true },
-    plugins: [iosPrune()],
-  }),
+  // The manifest is how scripts/buildjson.mjs and the tests tell start-up from places.
+  build: { manifest: true, ...(mode === IOS_MODE && { outDir: IOS_OUT_DIR, emptyOutDir: true }) },
+  plugins: mode === IOS_MODE ? [iosPrune()] : [precacheList()],
   test: {
     // Without this a bare `npm test` also collects the copies of tests inside
     // .worktrees/ and .claude/worktrees/.
