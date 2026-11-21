@@ -27,7 +27,8 @@
 //     'on' set carries none of these, so the family's game is what it was:
 //       RULES       switches read with wordRule(): storedNames (a cat is shown
 //                   under the name it is stored with, never a composed one),
-//                   noStarNames (no top-rank names are offered)
+//                   noStarNames (no top-rank names are offered), stoneSeat
+//                   (the camps' leader sits on the High Stone, world/camp.js)
 //       RANK_AS     rank id -> the rank id it is shown as, for a set with
 //                   fewer ranks (rankShown, rankWord)
 //       LINES       guided-walk lines of its own, keyed as tutorialwords.js is

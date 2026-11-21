@@ -91,7 +91,7 @@ describe('the everyday set is whole, and is not in any build yet', () => {
       expect(slots(entry.keys), id).toEqual(slots(TUTORIAL[id].keys));
     }
     expect(Object.keys(off.BADGE_WORDS).sort()).toEqual([...CLANS].sort());
-    for (const rule of Object.keys(off.RULES)) expect(['storedNames', 'noStarNames']).toContain(rule);
+    for (const rule of Object.keys(off.RULES)) expect(['storedNames', 'noStarNames', 'stoneSeat']).toContain(rule);
     for (const [from, to] of Object.entries(off.RANK_AS)) {
       expect(Object.values(RANK_KEYS)).toContain(from);
       expect(Object.values(RANK_KEYS)).toContain(to);
@@ -569,6 +569,7 @@ describe('with the family\'s words in use, none of this is there', () => {
     for (const extra of ['RULES', 'RANK_AS', 'LINES', 'BADGE_WORDS', 'PHRASES']) expect(words()[extra], extra).toBeUndefined();
     expect(wordRule('storedNames')).toBe(false);
     expect(wordRule('noStarNames')).toBe(false);
+    expect(wordRule('stoneSeat')).toBe(false);
     expect(wordRule('toString')).toBe(false);
     for (const k of Object.values(RANK_KEYS)) {
       expect(rankShown(k)).toBe(k);

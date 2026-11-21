@@ -169,6 +169,7 @@ export const PLACE_WORDS = Object.freeze({
 export const RULES = Object.freeze({
   storedNames: true, // a cat keeps one name; its rank is a title beside it
   noStarNames: true, // no top-rank names are offered for the player's cat
+  stoneSeat: true, // the camps' leader sits on the High Stone, not the stepped rock (world/camp.js)
 });
 
 // ---- lines ----------------------------------------------------------------------------
