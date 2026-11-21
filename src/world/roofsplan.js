@@ -538,6 +538,23 @@ export function downwind() {
 // stacks, on the yards' side (the alley sees them). No bird perches on them.
 export const SMOKE_POTS = Object.freeze([`pot:${ROOFS_DISCOVERIES.chimney.x}:-1`, 'pot:10:1', 'pot:-30:1']);
 
+// Two house cats asleep on warm back-window sills (Rooftops step 3, S1):
+// scenery only. No name, no label, no prompt, in no cat list; they never move
+// but breathe (roofslife.js). Each lies on the deep stone sill of the window
+// over a side return (roofs.js draws it lit, warm), 4.3 m up the terrace's
+// back wall, with no extension or outrigger beside it: out of her reach. `y`
+// is the sill's top, `z` SLEEPER_SILL.out from the wall (clear of the
+// window's glass); head toward +x, face out to the yards; `coat` its two colours.
+const SIDE_RETURN_X = (k) => (EXT_X1(k) + EXT_X0(k + 1)) / 2; // the side return beside house k's extension
+export const SLEEPER_SILL = Object.freeze({ y: 4.3, depth: 0.32, out: 0.17 });
+const sleeper = (id, k, yaw, fur, pale) => Object.freeze({
+  id, x: SIDE_RETURN_X(k), y: SLEEPER_SILL.y, z: TERRACE.z1 + SLEEPER_SILL.out, yaw, coat: Object.freeze({ fur, pale }),
+});
+export const ROOFS_SLEEPERS = Object.freeze([
+  sleeper('ginger', 8, 0.12, 0xc8783a, 0xeadbc0), // between the second plank and the third
+  sleeper('greyWhite', 3, -0.1, 0x8a8c90, 0xe8e6e0), // over the west yards
+]);
+
 // The street below (R3): its pavements, three lamps, and the bus's route. The
 // bus runs east along the near lane from x0 to x1 every `every` seconds,
 // taking `run` of them, and is seen while any of it is out in the street:
@@ -716,7 +733,7 @@ export const ROOFS_REGISTRATION = Object.freeze({
   pawprints: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   // The measured counts test/budget.test.js and test/roofs.test.js pin:
   // [meshes, casters, triangles] built, [meshes, casters] merged
-  budget: Object.freeze({ built: Object.freeze([114, 68, 36707]), merged: Object.freeze([57, 30]) }),
+  budget: Object.freeze({ built: Object.freeze([116, 68, 37335]), merged: Object.freeze([59, 30]) }),
   // verify-places.html VIEWS.roofs and the card picture (public/places/roofs.jpg)
   view: ROOFS_SHOTS.card,
   // src/marks.js MARK_AREAS and emptyMarks(): add 'roofs'

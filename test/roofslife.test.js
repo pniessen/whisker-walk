@@ -353,3 +353,36 @@ describe('what the wind moves, in the life', () => {
     life2.dispose();
   });
 });
+
+// Rooftops step 3, Task 6 (S1): the two house cats asleep on warm sills.
+describe('the sleeping cats, in the life', () => {
+  it('they breathe: a slow rise and fall under 3%, still under reduced motion', () => {
+    for (const reducedMotion of [false, true]) {
+      const w = walk();
+      const sleepers = [new THREE.Object3D(), new THREE.Object3D()];
+      const scales = sleepers.map((o) => o.scale);
+      const life = createRoofsLife({ ...w.area, sleepers })({ scene: w.scene, sun: w.sun, fill: w.fill, reducedMotion });
+      // the first frame already breathes, at walk second 0
+      sleepers.forEach((o, i) => expect(o.scale.y).toBeCloseTo(1 + 0.02 * Math.sin(i), 12));
+      let t = 0;
+      const ys = sleepers.map(() => []);
+      for (let k = 0; k < 300; k++) {
+        const dt = k % 7 === 3 ? 0.25 : 1 / 30;
+        t += dt;
+        life.update(dt, 7000 + t); // the app's clock is not the walk's
+        sleepers.forEach((o, i) => {
+          expect(o.scale.y).toBeCloseTo(1 + 0.02 * Math.sin(1.3 * t + i), 9);
+          expect(Math.abs(o.scale.y - 1)).toBeLessThan(0.03);
+          expect([o.scale.x, o.scale.z]).toEqual([1, 1]);
+          expect(o.scale).toBe(scales[i]);
+          ys[i].push(o.scale.y);
+        });
+      }
+      // slow (a breath every 4.8 s), and the two out of step
+      for (const y of ys) expect(Math.max(...y) - Math.min(...y)).toBeGreaterThan(0.035);
+      expect(ys[0].some((y, k) => Math.abs(y - ys[1][k]) > 0.01)).toBe(true);
+      life.dispose();
+      for (const o of sleepers) expect(o.scale.y).toBe(1);
+    }
+  });
+});

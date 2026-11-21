@@ -54,6 +54,11 @@
 // Where the place has smoking pots (area.smokePots) the life makes the smoke,
 // runs it on walk seconds (half speed under reduced motion: roofsair.js) and
 // takes it away at the walk's end.
+//
+// THE SLEEPING CATS (Rooftops step 3, Task 6, S1): the two house cats on their
+// sills (area.sleepers, roofs.js) breathe, every frame and under reduced
+// motion too: scale.y = 1 + BREATH.amp * sin(BREATH.rate * t + i), t walk
+// seconds, i the sleeper's place in the list. Nothing else reads them.
 // =============================================================================
 import { skyBackground } from './render/sky.js';
 import { BUS } from './world/roofsplan.js';
@@ -64,6 +69,7 @@ export const EVENING_RAMP = 240; // s, sunset to dusk
 export const EVENING_STEPS = 6; // the sky's rebuilds on the way
 export const SUNSET_SUN = 1.8; // x the dusk sun, at the start
 export const SUNSET_FILL = 1.3; // x the dusk fill, at the start
+export const BREATH = Object.freeze({ amp: 0.02, rate: 1.3 }); // the sleeping cats': under 3%, a breath every 4.8 s
 
 const smoothstep = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -97,7 +103,7 @@ export function busAt(t, out = {}) {
 
 // createRoofsLife(area) -> (ctx) => { update(dt, t, catPos, camera), dispose() }.
 // `area` is the built record (its skySunset, skyDusk, skyGlow, markGlow, bus,
-// birdPerches, washSway and smokePots); ctx is walk.js's life context ({ scene, sun, fill,
+// birdPerches, washSway, smokePots and sleepers); ctx is walk.js's life context ({ scene, sun, fill,
 // critters, visits, reducedMotion, ... }), or a picture page's (which may add
 // a `guideStore`).
 export function createRoofsLife(area) {
@@ -165,18 +171,26 @@ export function createRoofsLife(area) {
       smoke?.update(walk);
     }
 
+    const sleepers = area.sleepers ?? [];
+    function breathe() {
+      for (let i = 0; i < sleepers.length; i++) sleepers[i].scale.y = 1 + BREATH.amp * Math.sin(BREATH.rate * walk + i);
+    }
+
     apply(); // the first frame is already sunset
     wind();
+    breathe();
     return {
       update(dt, t, catPos = null, camera = null) {
         walk += dt;
         apply();
         wind();
+        breathe();
         birds?.update(dt, catPos, camera);
       },
       dispose() {
         birds?.dispose();
         smoke?.dispose();
+        for (const s of sleepers) s.scale.y = 1;
       },
     };
   };

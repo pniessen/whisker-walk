@@ -29,7 +29,7 @@ const {
   BLOCKS, LEVELS, ROOFS_TRAVERSAL, ROOFS_COLLIDERS, YARD, STREETS, VANE, VANE_TIP, ROOFS_SPAWN,
   ROOFS_POIS, ROOFS_COLLECTIBLES, ROOFS_SCENICS, ROOFS_PERCHES, ROOFS_DISCOVERIES, BIN_BAGS,
   ROOFS_TOURS, ROOFS_REGISTRATION, ALLEY_CLUTTER, ALLEY_CHANNEL, WASHING_POSTS, GARDEN, ALLEY_CRATES, PAVEMENT,
-  SMOKE_POTS, downwind,
+  SMOKE_POTS, downwind, ROOFS_SLEEPERS,
 } = await import('../src/world/roofsplan.js');
 const { CAT_RADIUS, isWalkableAt } = await import('../src/player.js');
 const { createRoofsLife, EVENING_RAMP } = await import('../src/roofslife.js');
@@ -131,8 +131,13 @@ const centreOf = (b) => {
 // three bars +48, two eight-sided covers +16, +72; the far town's back row
 // up to 11.5 m again, so its fronts have room for one more lit window, +2;
 // the felt patches' shades cost nothing) -> 114 / 68 / 36,707 (merged 57 / 30).
-const MEASURED_BUILT = { meshes: 114, casters: 68, triangles: 36707 };
-const MEASURED_MERGED = { meshes: 57, casters: 30, triangles: 36707 };
+// Rooftops step 3, Task 6 (S1, the two house cats asleep on warm sills): +2
+// meshes, never merged and casting nothing, 314 triangles each (a body 100,
+// a head 80, two ears 6, two paws 48, the tail 80), +628; their two deep sills
+// are the old sills' boxes deepened, in the stone bucket the terrace had, at no
+// cost -> 116 / 68 / 37,335 (merged 57 -> 59 / 30).
+const MEASURED_BUILT = { meshes: 116, casters: 68, triangles: 37335 };
+const MEASURED_MERGED = { meshes: 59, casters: 30, triangles: 37335 };
 const MEASURED_DRAWS = 0;
 const TOWN_TRIANGLES = 4960; // the far town's one mesh (Task A: 3,992 before; 4,964 until round two, Task E: its back rows lower, so their fronts have room for three lit windows fewer; 4,958 until Task G: its back row's tallest 2 m higher again, one window more)
 
@@ -2126,6 +2131,113 @@ describe('the Rooftops drawn', () => {
     // the warm stack's aerial, 0.12 m from its smoking pot and over it, is no perch
     expect(index.has('aerial:-10')).toBe(false);
     for (const b of ROOFS_BIRDS) expect(SMOKE_POTS, b.id).not.toContain(b.home);
+  });
+
+  // Rooftops step 3, Task 6 (S1): two house cats asleep on warm back-window
+  // sills. Scenery only: no name, no label, no prompt, out of her reach.
+  const sleeperMeshes = () => meshes.filter((m) => m.name.startsWith('roofsSleeper:'));
+  it('two house cats sleep on warm sills, out of her reach', { timeout: 60000 }, () => {
+    expect(ROOFS_SLEEPERS).toHaveLength(2);
+    expect(Object.isFrozen(ROOFS_SLEEPERS)).toBe(true);
+    const coats = ROOFS_SLEEPERS.map((s) => [s.coat.fur, s.coat.pale]).sort((p, q) => p[0] - q[0]);
+    expect(coats).toEqual([[0x8a8c90, 0xe8e6e0], [0xc8783a, 0xeadbc0]]);
+    const solid = meshes.filter((m) => !m.userData.skyGlow && !m.userData.townBand && !m.name.startsWith('roofsSleeper:'));
+    const ray = new THREE.Raycaster();
+    const f = floodTraversal(area, { abilities: { longLeap: true, steady: true, climb: 2.2 } });
+    const got = f.reachable(f.regionAt(ROOFS_SPAWN.x, ROOFS_SPAWN.z));
+    // every spot a game system reads: the rails, the hops' ends, the POIs,
+    // collectibles, scenics, perches, discoveries, the birds' spawns and perches, the props
+    const P = ROOFS_REGISTRATION.propSet;
+    const spots = [
+      ...area.pois, ...area.collectibles, ...area.scenics, ...area.perches, ...Object.values(ROOFS_DISCOVERIES),
+      ...area.critterSpawns, ...area.birdPerches,
+      ...P.carryables, ...P.knockables, ...P.markables, ...P.flaps, ...P.rests, ...P.hides,
+      ...area.traversal.hops.flatMap((h) => [{ x: h.x0, z: h.z0 }, { x: h.x1, z: h.z1 }]),
+    ];
+    const segDist = (s, a, c) => {
+      const len2 = (c.x - a.x) ** 2 + (c.z - a.z) ** 2 || 1e-12;
+      const t = Math.max(0, Math.min(1, ((s.x - a.x) * (c.x - a.x) + (s.z - a.z) * (c.z - a.z)) / len2));
+      return Math.hypot(s.x - (a.x + (c.x - a.x) * t), s.z - (a.z + (c.z - a.z) * t));
+    };
+    for (const s of ROOFS_SLEEPERS) {
+      // on a drawn sill: the ray down from over it (the sleeper aside) lands on stone at its y
+      ray.set(new THREE.Vector3(s.x, s.y + 0.3, s.z), new THREE.Vector3(0, -1, 0));
+      ray.far = 0.6;
+      const hit = ray.intersectObjects(solid, false)[0];
+      expect([s.id, hit?.object.name]).toEqual([s.id, 'roofsTerrace:stone']);
+      expect(Math.abs(hit.point.y - s.y), s.id).toBeLessThan(0.02);
+      // on the terrace's back wall, under a warm lit window
+      expect([s.id, s.z > 12 && s.z < 12.4]).toEqual([s.id, true]);
+      const pane = firstHit([s.x, s.y + 0.7, s.z + 1.5], [0, 0, -1], solid);
+      expect([s.id, pane?.object.name]).toEqual([s.id, 'roofsWindows']);
+      const cell = Math.floor(pane.uv.x * 4) + 4 * Math.floor(pane.uv.y * 4);
+      expect([s.id, WINDOW_CELLS[cell].light, WINDOW_CELLS[cell].kind === 'cat']).toEqual([s.id, 'warm', false]);
+      // out of her reach: no ground she can walk to (every ability) within
+      // 0.6 m beside it, and none less than 1.0 m below it there
+      const near = [];
+      for (let dx = -0.6; dx <= 0.6 + 1e-9; dx += 0.05) {
+        for (let dz = -0.6; dz <= 0.6 + 1e-9; dz += 0.05) {
+          if (Math.hypot(dx, dz) > 0.6) continue;
+          const [x, z] = [s.x + dx, s.z + dz];
+          const y = area.ground.y(x, z);
+          if (got.has(f.regionAt(x, z)) && y > s.y - 1.0) near.push([+x.toFixed(2), +z.toFixed(2), y]);
+        }
+      }
+      expect([s.id, near.slice(0, 3)]).toEqual([s.id, []]);
+      // 0.5 m clear of every rail and of every spot a game system reads
+      for (const c of ROOFS_TRAVERSAL.crossings) {
+        for (let i = 0; i + 1 < c.points.length; i++) expect([s.id, c.id, segDist(s, c.points[i], c.points[i + 1]) >= 0.5]).toEqual([s.id, c.id, true]);
+      }
+      for (const q of spots) expect([s.id, q.id ?? q.kind ?? `${q.x},${q.z}`, Math.hypot(q.x - s.x, q.z - s.z) >= 0.5]).toEqual([s.id, q.id ?? q.kind ?? `${q.x},${q.z}`, true]);
+    }
+  });
+
+  it('the sleepers are their own meshes, never merged, casting nothing', () => {
+    const own = sleeperMeshes();
+    expect(own.map((m) => m.name).sort()).toEqual(ROOFS_SLEEPERS.map((s) => `roofsSleeper:${s.id}`).sort());
+    expect(area.sleepers).toHaveLength(2);
+    ROOFS_SLEEPERS.forEach((s, i) => expect(area.sleepers[i]).toBe(own.find((m) => m.name === `roofsSleeper:${s.id}`)));
+    const lin = (hex) => new THREE.Color(hex);
+    for (const [i, s] of ROOFS_SLEEPERS.entries()) {
+      const m = area.sleepers[i];
+      expect([m.castShadow, m.userData.noCast, m.userData.noMerge, m.material.vertexColors]).toEqual([false, true, true, true]);
+      expect([m.position.x, m.position.y, m.position.z, m.rotation.y]).toEqual([s.x, s.y, s.z, s.yaw]);
+      const g = m.geometry;
+      const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
+      expect(tris, s.id).toBeLessThanOrEqual(320);
+      // a curled loaf about 0.5 m long, lower than it is deep, sitting on its sill (its origin)
+      g.computeBoundingBox();
+      const size = g.boundingBox.getSize(new THREE.Vector3());
+      expect(size.x, s.id).toBeGreaterThan(0.4);
+      expect(size.x, s.id).toBeLessThan(0.6);
+      expect(size.z, s.id).toBeGreaterThan(0.25);
+      expect(size.z, s.id).toBeLessThan(size.x);
+      expect(size.y, s.id).toBeGreaterThan(0.18);
+      expect(size.y, s.id).toBeLessThan(size.z);
+      expect(Math.abs(g.boundingBox.min.y), s.id).toBeLessThan(0.02);
+      // in its coat's two colours, and only those
+      const col = g.attributes.color;
+      const seen = new Set();
+      for (let k = 0; k < col.count; k++) {
+        const c = [lin(s.coat.fur), lin(s.coat.pale)].findIndex((q) => Math.abs(q.r - col.getX(k)) + Math.abs(q.g - col.getY(k)) + Math.abs(q.b - col.getZ(k)) < 1e-4);
+        expect(c, `${s.id} vertex ${k}`).toBeGreaterThanOrEqual(0);
+        seen.add(c);
+      }
+      expect(seen.size, s.id).toBe(2);
+    }
+    // nobody's: no label, no prompt, no spawn, no list a game system reads
+    for (const k of ['pois', 'collectibles', 'scenics', 'perches', 'critterSpawns', 'tippables', 'moments', 'boxes']) {
+      for (const q of area[k]) for (const s of ROOFS_SLEEPERS) expect(Object.values(q), k).not.toContain(s.id);
+    }
+    // through the walk's prop merge: still the record's own two meshes, in the scene, not cast
+    const s2 = new THREE.Scene();
+    const rec = build(s2);
+    mergeStaticProps(s2);
+    const kept = [];
+    s2.traverse((o) => { if (o.isMesh && o.name.startsWith('roofsSleeper:')) kept.push(o); });
+    expect(kept).toHaveLength(2);
+    for (const m of rec.sleepers) expect(kept).toContain(m);
+    for (const m of kept) expect(m.castShadow).toBe(false);
   });
 
   it('every POI is in the walk region of the spawn', () => {

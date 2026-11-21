@@ -10,7 +10,7 @@ import {
   LEVELS as L, BLOCKS, GROUNDS, ROOFS_BOUNDS, ROOFS_SPAWN, ROOFS_COLLIDERS, ROOFS_TRAVERSAL, roofsArea,
   ALLEY_LAMP, BIN_2, BIN_3, BIN_BAGS, ALLEY_CRATES, ALLEY_CLUTTER, ALLEY_CHANNEL, YARD, YARD_WALLS, WASHING_POSTS,
   VANE, VANE_TIP, TELESCOPE, GARDEN, SKYLIGHT, TELESCOPE_CRATE, ROOFS_DISCOVERIES, STREETS, PAVEMENT, STREET_LAMPS, BUS,
-  ROOFS_PERCHES, ROOFS_WIND, SMOKE_POTS,
+  ROOFS_PERCHES, ROOFS_WIND, SMOKE_POTS, ROOFS_SLEEPERS, SLEEPER_SILL,
 } from './roofsplan.js';
 import { STEP_MAX } from '../ground.js';
 import { createRoofsLife, mixHex } from '../roofslife.js';
@@ -551,6 +551,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
     const terrace = new THREE.Group();
     terrace.name = 'roofsTerrace';
     drawTerrace(terrace, M, win, ground, drawn);
+    const sleepers = drawSleepers(terrace);
     const moves = new THREE.Group();
     moves.name = 'roofsMoves';
     drawCrossings(moves, M);
@@ -622,6 +623,8 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       }),
       // the washing's sway (roofsair.js): the cloth material's uniforms; the life sets its clock
       washSway: M.cloth.userData.wash,
+      // the two house cats asleep on their sills (S1): scenery, which only the life breathes
+      sleepers,
     };
     // the fourteen birds as the walk's critters (tag, the bell, a meow, the
     // journal: critters.js), each at its home; the life flies them
@@ -1444,7 +1447,14 @@ function drawTerrace(group, M, win, ground, drawn) {
     stone(box(e.x1, e.x1 + 0.08, 1.0, 1.05, 16.1, 16.9));
     const ret = (e.x1 + x0 + HOUSE_W) / 2; // the middle of the side return
     painted(box(ret - 0.42, ret + 0.42, 0, 2.0, T.z1, T.z1 + 0.05), paint(x0, T.z1, 5)); // the back door
-    zWin(ret, 4.8, T.z1, 1, 0.7, 1.0);
+    // its window, or, where a house cat sleeps (S1, ROOFS_SLEEPERS), a deep
+    // stone sill under a window lit warm (a plain one: no cat in it too)
+    if (ROOFS_SLEEPERS.some((q) => Math.abs(q.x - ret) < 1e-6)) {
+      win(ret, SLEEPER_SILL.y + 0.5, T.z1, 0, 1, 0.7, 1.0, warmCell(ret, T.z1));
+      stone(box(ret - 0.41, ret + 0.41, SLEEPER_SILL.y - 0.07, SLEEPER_SILL.y, T.z1, T.z1 + SLEEPER_SILL.depth));
+    } else {
+      zWin(ret, 4.8, T.z1, 1, 0.7, 1.0);
+    }
     if (o) {
       wall(box(o.x0, o.x1, e.y - 0.1, o.y - 0.1, o.z0, o.z1), brickOf(k));
       group.add(own(o.id, M.felt, [box(o.x0, o.x1, o.y - 0.1, o.y, o.z0, o.z1)], { tile: TILE.gravel, tag: { block: o.id } }));
@@ -1474,6 +1484,124 @@ function drawTerrace(group, M, win, ground, drawn) {
   win(S.x1, 1.25, (S.z0 + S.z1) / 2, 1, 0, 0.8, 0.5);
 
   for (const m of K.meshes()) group.add(m);
+}
+
+// --- the two house cats asleep on their sills (Rooftops step 3, S1;
+// roofsplan.js ROOFS_SLEEPERS). Each is one mesh of its own in its coat's two
+// vertex colours, at most 320 triangles: a loaf of a body (flat underneath),
+// the head down on its front paws at the +x end, its face turned out to the
+// yards (+z), two ears, and the tail wrapped round the front to the paws. Its
+// origin is on the sill, so the life's breathing (scale.y) lifts its back and
+// never sinks it into the stone. Never merged (the life breathes it), casting
+// nothing; no label, no prompt, in no list a game system reads.
+const SLEEPER = Object.freeze({
+  body: Object.freeze({ at: [-0.03, 0.075, 0], r: [0.2, 0.105, 0.13], flat: 0.7, seg: [10, 6] }),
+  head: Object.freeze({ at: [0.17, 0.1, 0.05], r: [0.084, 0.072, 0.08], seg: [8, 6] }),
+  face: Object.freeze([0.55, 0.835]), // the way its face turns, level (unit)
+  ear: Object.freeze({ up: 0.05, apart: 0.035, back: 0.012, half: 0.024, deep: 0.022, tall: 0.05 }),
+  paws: Object.freeze([[0.19, 0.025, 0.08], [0.17, 0.025, 0.13]]),
+  paw: Object.freeze({ r: [0.055, 0.025, 0.03], seg: [6, 3] }),
+  tail: Object.freeze({
+    points: Object.freeze([[-0.2, 0.05, -0.06], [-0.245, 0.04, 0.05], [-0.17, 0.035, 0.135], [-0.04, 0.03, 0.165], [0.08, 0.03, 0.16], [0.14, 0.035, 0.135]]),
+    r: 0.032, tip: 0.45, seg: [10, 4],
+  }),
+});
+
+// An ellipsoid of radii r at `at`, as a sphere of seg[0] x seg[1].
+function ellipsoid(at, r, seg) {
+  const g = new THREE.SphereGeometry(1, seg[0], seg[1]);
+  g.scale(r[0], r[1], r[2]);
+  g.translate(at[0], at[1], at[2]);
+  return g;
+}
+
+// One ear: a three-sided pyramid, its base inside the head, each face turned out.
+function earGeometry(base, side, face) {
+  const E = SLEEPER.ear;
+  const v = (x, y, z) => new THREE.Vector3(x, y, z);
+  const foot = [
+    v(base.x + side[0] * E.half, base.y, base.z + side[1] * E.half),
+    v(base.x - side[0] * E.half, base.y, base.z - side[1] * E.half),
+    v(base.x - face[0] * E.deep, base.y, base.z - face[1] * E.deep),
+  ];
+  const apex = v(base.x + face[0] * 0.004, base.y + E.tall, base.z + face[1] * 0.004);
+  const mid = foot.reduce((t, p) => t.add(p), apex.clone()).multiplyScalar(0.25);
+  const pos = [];
+  for (let i = 0; i < 3; i++) {
+    let [a, c] = [foot[i], foot[(i + 1) % 3]];
+    const n = new THREE.Vector3().subVectors(c, a).cross(new THREE.Vector3().subVectors(apex, a));
+    const centre = a.clone().add(c).add(apex).multiplyScalar(1 / 3);
+    if (n.dot(centre.sub(mid)) < 0) [a, c] = [c, a];
+    pos.push(a.x, a.y, a.z, c.x, c.y, c.z, apex.x, apex.y, apex.z);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
+
+// The tail: a tube along its points, thinning to `tip` of its root's radius.
+function tailGeometry() {
+  const T = SLEEPER.tail;
+  const curve = new THREE.CatmullRomCurve3(T.points.map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+  const [n, radial] = T.seg;
+  const g = new THREE.TubeGeometry(curve, n, T.r, radial, false);
+  const p = g.attributes.position;
+  const at = new THREE.Vector3();
+  for (let i = 0; i <= n; i++) {
+    curve.getPointAt(i / n, at);
+    const k = 1 - (1 - T.tip) * (i / n) ** 1.5;
+    for (let j = 0; j <= radial; j++) {
+      const q = i * (radial + 1) + j;
+      p.setXYZ(q, at.x + (p.getX(q) - at.x) * k, at.y + (p.getY(q) - at.y) * k, at.z + (p.getZ(q) - at.z) * k);
+    }
+  }
+  return g;
+}
+
+// A sleeper's geometry in its coat: `fur` all over, `pale` on its chest, its
+// muzzle and its paws.
+function sleeperGeometry(coat) {
+  const S = SLEEPER;
+  const fur = new THREE.Color(coat.fur);
+  const pale = new THREE.Color(coat.pale);
+  const [fx, fz] = S.face;
+  const body = ellipsoid(S.body.at, S.body.r, S.body.seg);
+  const bp = body.attributes.position;
+  for (let i = 0; i < bp.count; i++) {
+    const y = bp.getY(i);
+    if (y < S.body.at[1]) bp.setY(i, S.body.at[1] + (y - S.body.at[1]) * S.body.flat); // a loaf: flat underneath
+  }
+  const h = S.head.at;
+  const head = ellipsoid(h, S.head.r, S.head.seg);
+  const side = [fz, -fx];
+  const ears = [1, -1].map((k) => earGeometry(
+    { x: h[0] + side[0] * k * S.ear.apart - fx * S.ear.back, y: h[1] + S.ear.up, z: h[2] + side[1] * k * S.ear.apart - fz * S.ear.back },
+    side, S.face,
+  ));
+  const chest = (x, y, z) => (x > 0.04 && z > 0.03 && y < 0.13 ? pale : fur);
+  const muzzle = (x, y, z) => ((x - h[0]) * fx + (z - h[2]) * fz > 0.035 && y - h[1] < 0.015 ? pale : fur);
+  return mergeGeometries([
+    prep(body, { color: chest }),
+    prep(head, { color: muzzle }),
+    ...ears.map((e) => prep(e, { color: fur })),
+    ...S.paws.map((at) => prep(ellipsoid(at, S.paw.r, S.paw.seg), { color: pale })),
+    prep(tailGeometry(), { color: fur }),
+  ]);
+}
+
+// The two sleepers, each its own mesh added to `group`; returned in
+// ROOFS_SLEEPERS' order (the record's `sleepers`).
+function drawSleepers(group) {
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+  return ROOFS_SLEEPERS.map((s) => {
+    const m = finish(new THREE.Mesh(sleeperGeometry(s.coat), mat), true);
+    m.name = `roofsSleeper:${s.id}`;
+    m.userData.noMerge = true;
+    m.position.set(s.x, s.y, s.z);
+    m.rotation.y = s.yaw;
+    group.add(m);
+    return m;
+  });
 }
 
 // A ridge tile's section at its spigot end (dz across the ridge, dy below the

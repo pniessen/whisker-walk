@@ -463,8 +463,10 @@ const AREAS = [
   // caster added); 114 / 68 / 36,707 after round two's Task G (the street
   // lit: the lamps' halo, +1 mesh casting nothing and never merged, 8
   // triangles; the copings' joints, the road's lines, grates and covers, +632
-  // in noCast buckets it had; the far town's back row a little taller, +2).
-  // Held to the territories' ceilings,
+  // in noCast buckets it had; the far town's back row a little taller, +2);
+  // 116 / 68 / 37,335 after Rooftops step 3's Task 6 (two house cats asleep
+  // on warm sills: +2 meshes casting nothing and never merged, 314 triangles
+  // each). Held to the territories' ceilings,
   // never raised; the place aims for 300 / 120 / 60,000 (test/roofs.test.js
   // pins the exact numbers).
   ['roofs', buildRoofs, 450, 380, 70000],
@@ -512,7 +514,7 @@ const MERGED_AREAS = [
   ['gorge', buildGorge, 260, 205],
   ['farm', buildFarm, 200, 135], // measured 176 / 119
   ['fair', buildFair, 200, 140], // measured 178 / 124
-  ['roofs', buildRoofs, 64, 34], // measured 57 / 30 (56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
+  ['roofs', buildRoofs, 64, 34], // measured 59 / 30 (57 / 30 before Rooftops step 3's two sleeping cats, Task 6, never merged; 56 / 30 before round two's lamp halo, Task G; 55 / 30 before the beauty pass's sky glow; 57 / 30 before follow-up 2's calmer marks), ceiling unchanged
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {
