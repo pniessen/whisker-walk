@@ -107,6 +107,22 @@ describe('the Rooftops\' moments: noting a find', () => {
     mb.dispose();
   });
 
+  it('the loft find asks the flock for its follower, once a walk, from where she is; nothing else does', () => {
+    const { progression, log } = save();
+    const calls = [];
+    const birds = { follow: (p) => { calls.push({ x: p.x, y: p.y, z: p.z }); return 'pigeon-7'; } };
+    const m = createRoofsMoments(area, { log, progression, birds });
+    run(m, offLoft(), 3);
+    expect(calls).toEqual([]);
+    run(m, onLoft(), 3);
+    expect(calls).toEqual([{ x: LOFT.x, y: LOFT.y, z: LOFT.z }]);
+    run(m, offLoft(), 3);
+    run(m, onLoft(), 3);
+    expect(calls).toHaveLength(1); // once a walk
+    // a flock without a follower (a stub), or none: nothing throws
+    for (const b of [{}, null]) run(createRoofsMoments(area, { log: save().log, progression, birds: b }), onLoft(), 2);
+  });
+
   it('no log, no progression: nothing is noted and nothing throws', () => {
     const spy = vi.spyOn(bus, 'emit');
     const m = createRoofsMoments(area, {});

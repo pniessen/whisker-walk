@@ -74,6 +74,20 @@
 // later walks in that session start it retired. In the walk she crosses in,
 // nothing changes for the guide.
 //
+// THE FOLLOWER (Rooftops step 5, ruling R5): follow(catPos), on her first
+// loft find of a walk (roofsmoments.js), picks the perched pigeon on a loft
+// perch nearest her (never the guide on its route; null if there is none, or
+// no critters to fly with) and it comes along with her (`following`, its id).
+// Settled, and while she is more than FOLLOW.far from it, it takes the flight
+// roofsflock.js chooseFollow gives it: landing near FOLLOW.sit from her, never
+// nearer than FOLLOW.near, and only where that gains on her; else it waits.
+// Perched, it is off (flushed, as the guide is at GUIDE_FLUSH) whenever she
+// comes within FOLLOW.near, so it is never sat at her heels, and a flush is
+// any bird's (chooseFlight: away from her); landed, it follows on. It stops,
+// an ordinary pigeon again, after FOLLOW.time walk seconds from the find,
+// FOLLOW.flights flights of any kind since, or once she is more than
+// FOLLOW.lost from it, whichever comes first. Per device, nothing saved.
+//
 // THE LOFT (S8): a pigeon on a loft perch rests there. After LOFT_REST s it
 // is back on its home perch, but only while she is more than OUT_OF_SIGHT
 // from both and, with a camera, neither is in its view: no bird vanishes or
@@ -84,7 +98,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
-import { BIRD_KINDS, ROOFS_BIRDS, GUIDE, FLIGHT, LOFT_REST, OUT_OF_SIGHT, perchIndex, flightGraph, flightPlan, flightPoint, chooseFlight } from './roofsflock.js';
+import { BIRD_KINDS, ROOFS_BIRDS, GUIDE, FLIGHT, FOLLOW, LOFT_REST, OUT_OF_SIGHT, perchIndex, flightGraph, flightPlan, flightPoint, chooseFlight, chooseFollow } from './roofsflock.js';
 import { ROOFS_TRAVERSAL } from './roofsplan.js';
 
 // Each kind's body and wing colours (the instances' colours).
@@ -122,6 +136,10 @@ export const FLUTTER = Object.freeze({ time: 0.8, up: 0.4 });
 // it from the west), and it would have to skip ahead or leave its route.
 export const GUIDE_FLUSH = 3.2;
 const CRITTER_FLUSH_COOLDOWN = 18; // s, as critters.js sets on a flushed bird
+// How the follower reads her pace: smoothed over this (s), and never taken
+// as faster than this (m/s: a sprint; a hop down or a teleport is not a pace).
+const FOLLOW_SMOOTH = 0.5;
+const FOLLOW_TOP = 4;
 
 // The guide's memory (per device, never the save): she has crossed plank-3.
 export const GUIDE_KEY = 'whisker-walk-roofs-guide';
@@ -253,6 +271,11 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
   const index = perchIndex(area.birdPerches);
   const memory = readGuide(guideStore);
   const guideWaits = !crossedThisPage && (memory.readable ? !memory.crossed : visits === 0);
+  // the follower: its bird's index (-1: none), how long it has followed (walk
+  // seconds), and its flights when it started
+  let followI = -1;
+  let followT = 0;
+  let followFlights = 0;
   const birds = ROOFS_BIRDS.map((r) => {
     const home = index.get(r.home);
     if (!home) throw new Error(`roofsbirds: ${r.id}'s home ${r.home} is not a perch`);
@@ -376,6 +399,48 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     q.flights = b.flights;
     q.guideStep = b.guideStep;
     return chooseFlight(graph, index, q, cat, takenBy(i));
+  }
+
+  // Where chooseFollow sends the follower i from its perch, or null.
+  function chooseNext(i, cat) {
+    const b = birds[i];
+    const q = idle[i].ask;
+    q.at = b.at;
+    q.flights = b.flights;
+    q.guideStep = b.guideStep;
+    return chooseFollow(graph, index, q, cat, takenBy(i), herVel);
+  }
+
+  // Her velocity (m/s), smoothed over about FOLLOW_SMOOTH s of her spots and
+  // at most FOLLOW_TOP: where the follower expects her when it lands.
+  const herVel = { x: 0, y: 0, z: 0 };
+  const herLast = { x: 0, y: 0, z: 0, set: false };
+  function pace(dt, cat) {
+    if (!cat || !(dt > 0)) return;
+    if (herLast.set) {
+      const k = Math.min(1, dt / FOLLOW_SMOOTH);
+      herVel.x += ((cat.x - herLast.x) / dt - herVel.x) * k;
+      herVel.y += ((cat.y - herLast.y) / dt - herVel.y) * k;
+      herVel.z += ((cat.z - herLast.z) / dt - herVel.z) * k;
+      const v = Math.hypot(herVel.x, herVel.y, herVel.z);
+      if (v > FOLLOW_TOP) {
+        herVel.x *= FOLLOW_TOP / v;
+        herVel.y *= FOLLOW_TOP / v;
+        herVel.z *= FOLLOW_TOP / v;
+      }
+    }
+    herLast.x = cat.x;
+    herLast.y = cat.y;
+    herLast.z = cat.z;
+    herLast.set = true;
+  }
+
+  // The follower gives up: time, flights, or she is out of its reach.
+  function followOn(dt, cat) {
+    if (followI < 0) return;
+    const b = birds[followI];
+    followT += dt > 0 ? dt : 0;
+    if (followT >= FOLLOW.time || b.flights - followFlights >= FOLLOW.flights || (cat && dist3(cat, b.pos) > FOLLOW.lost)) followI = -1;
   }
 
   // Off on flight f (chooseFlight's).
@@ -565,14 +630,41 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
   return {
     birds,
     meshes,
+    // The follower's id, or null.
+    get following() {
+      return followI >= 0 ? birds[followI].id : null;
+    },
+    // On her loft find: the perched pigeon on a loft perch nearest her comes
+    // along (its id), never the guide on its route; null if none (or no
+    // critters: nothing flies). One at a time: while one follows, its id.
+    follow(catPos) {
+      if (followI >= 0) return birds[followI].id;
+      if (!graph || !catPos) return null;
+      let best = -1;
+      let bestD = Infinity;
+      for (let i = 0; i < birds.length; i++) {
+        const b = birds[i];
+        if (b.kind !== 'pigeon' || b.flying || b.guideStep >= 0 || index.get(b.at)?.kind !== 'loft') continue;
+        const d = dist3(catPos, b.pos);
+        if (d < bestD) { best = i; bestD = d; }
+      }
+      if (best < 0) return null;
+      followI = best;
+      followT = 0;
+      followFlights = birds[best].flights;
+      return birds[best].id;
+    },
     update(dt, catPos = null, camera = null) {
       walk += dt;
       if (catPos) track(catPos);
+      followOn(dt, catPos);
+      if (followI >= 0) pace(dt, catPos);
       for (let i = 0; i < birds.length; i++) {
         const b = birds[i];
         const c = proxies[i];
-        if (c && !b.flying && !c.fleeing && b.guideStep >= 0 && catPos && dist3(catPos, b.pos) < GUIDE_FLUSH) {
-          c.fleeing = true; // the guide keeps its distance: flushed, as critters.js flushes a bird
+        const keep = b.guideStep >= 0 ? GUIDE_FLUSH : i === followI ? FOLLOW.near : 0;
+        if (c && !b.flying && !c.fleeing && keep > 0 && catPos && dist3(catPos, b.pos) < keep) {
+          c.fleeing = true; // the guide and the follower keep their distance: flushed, as critters.js flushes a bird
           c.cooldown = CRITTER_FLUSH_COOLDOWN;
         }
         if (!b.flying && c?.fleeing) flush(i, catPos);
@@ -591,6 +683,9 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
               }
             }
           }
+        } else if (i === followI && !b.flying && catPos) {
+          const f = chooseNext(i, catPos); // null while she is within FOLLOW.far: it waits
+          if (f) takeOff(i, f);
         }
         if (b.flying) fly(i, dt);
         else rest(i, dt, catPos, camera);
@@ -602,6 +697,7 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
       wings.instanceMatrix.needsUpdate = true;
     },
     dispose() {
+      followI = -1;
       for (const mesh of meshes) {
         scene.remove(mesh);
         mesh.geometry.dispose();

@@ -502,10 +502,19 @@ const planTmp = { d: 0, h: 0, time: 0, shape: 'arc', top: 0 };
 function keepsOff(from, to, cat, shape) {
   const end = dist3(to, cat);
   if (end < FLIGHT.landFromCat || end <= dist3(from, cat) + 0.5) return false;
+  return passesOff(from, to, cat, shape);
+}
+// ... and on the way, never within FLIGHT.clearCat of her (the follower's
+// flights too: chooseFollow). With `vel` (her velocity, m/s) she is taken to
+// walk on at it while the bird flies: at s she is at cat + vel x s x time.
+function passesOff(from, to, cat, shape, vel = null) {
   const plan = flightPlan(from, to, shape, planTmp);
   for (let i = 0; i <= CAT_SAMPLES; i++) {
-    flightPoint(from, to, plan, CAT_S0 + ((CAT_S1 - CAT_S0) * i) / CAT_SAMPLES, tmp);
-    if (dist3(tmp, cat) < FLIGHT.clearCat) return false;
+    const s = CAT_S0 + ((CAT_S1 - CAT_S0) * i) / CAT_SAMPLES;
+    flightPoint(from, to, plan, s, tmp);
+    const k = vel ? s * plan.time : 0;
+    const d = vel ? Math.hypot(tmp.x - cat.x - vel.x * k, tmp.y - cat.y - vel.y * k, tmp.z - cat.z - vel.z * k) : dist3(tmp, cat);
+    if (d < FLIGHT.clearCat) return false;
   }
   return true;
 }
@@ -564,6 +573,59 @@ export function chooseFlight(graph, index, bird, cat, taken) {
   }
   if (!best) return null;
   return guiding ? { to: best.to, kind: best.kind, shape: best.shape, guideStep: bird.guideStep } : { to: best.to, kind: best.kind, shape: best.shape };
+}
+
+// ---------------------------------------------------------------------------
+// THE FOLLOWER (Rooftops step 5, ruling R5): at the loft one pigeon comes
+// along with her for a while. Settled, and while she is more than `far` from
+// it, it takes the link from its perch that lands nearest `sit` from her:
+// never nearer her than `near`, only if that lands at least `gain` nearer her
+// than it is now, and never within FLIGHT.clearCat of her on the way. So it
+// lands beside her route and keeps its distance; with no such link it waits.
+// It stops (roofsbirds.js) after `time` walk seconds, `flights` flights, or
+// once she is more than `lost` from it: an ordinary pigeon again.
+export const FOLLOW = Object.freeze({ time: 75, flights: 14, near: 3.5, sit: 4.5, far: 7, lost: 30 });
+const FOLLOW_GAIN = 1; // m nearer her a follower's landing must be than its perch
+
+// Where a follower flies next: { to, kind, shape }, or null (it waits).
+// `bird`, `cat` and `taken` as chooseFlight's. The same links a flushed bird
+// may take (usable, landable, not taken), scored -|dist(to, her) - sit| plus
+// chooseFlight's own hash01 tie-break: no randomness, no clock.
+// `vel`, if given, is her velocity (m/s; roofsbirds.js smooths it from her
+// spots): then "her" is where she will be when it lands, cat + vel x the
+// flight's time, and the landing keeps `near` from both that spot and where
+// she is now, and FLIGHT.clearCat from her all the way as she walks on. So a
+// follower never lands at her feet on the way she is walking.
+const followPlan = { d: 0, h: 0, time: 0, shape: 'arc', top: 0 };
+const ahead = { x: 0, y: 0, z: 0 };
+export function chooseFollow(graph, index, bird, cat, taken, vel = null) {
+  const from = index.get(bird.at);
+  if (!from) throw new Error(`roofsflock: ${bird.at} is not a perch`);
+  const here = dist3(from, cat);
+  if (here <= FOLLOW.far) return null;
+  const K = BIRD_KINDS[bird.kind];
+  const lands = graph.landable[bird.kind];
+  let best = null;
+  let bestScore = -Infinity;
+  for (const l of graph.links.get(from.id) || NO_LINKS) {
+    const to = index.get(l.to);
+    if (!usable(K, l, to) || !lands.has(to.id) || isTaken(to, taken)) continue;
+    const now = dist3(to, cat);
+    if (now < FOLLOW.near || now > here - FOLLOW_GAIN) continue;
+    let end = now;
+    if (vel) {
+      const t = flightPlan(from, to, l.shape, followPlan).time;
+      ahead.x = cat.x + vel.x * t;
+      ahead.y = cat.y + vel.y * t;
+      ahead.z = cat.z + vel.z * t;
+      end = dist3(to, ahead);
+      if (end < FOLLOW.near) continue;
+    }
+    if (!passesOff(from, to, cat, l.shape, vel)) continue;
+    const score = -Math.abs(end - FOLLOW.sit) + TIE * hash01(bird.index + to.x, bird.flights + to.z, TIE_SALT);
+    if (score > bestScore) { best = l; bestScore = score; }
+  }
+  return best ? { to: best.to, kind: best.kind, shape: best.shape } : null;
 }
 
 // ---------------------------------------------------------------------------

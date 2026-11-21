@@ -29,6 +29,7 @@ const { createRoofsBirds, BIRD_LOOK, GUIDE_LOOK, GUIDE_BOB, WINGBEAT, FLUTTER, G
 const {
   BIRD_KINDS, ROOFS_BIRDS, GUIDE, FLIGHT, LOFT_REST, OUT_OF_SIGHT,
   flockPerches, perchIndex, flightGraph, flightPlan, flightPoint, chooseFlight, roofsCritterSpawns,
+  FOLLOW,
 } = await import('../src/world/roofsflock.js');
 const { ROOFS_TRAVERSAL, BLOCKS, STREETS, ROOFS_BOUNDS, LEVELS, YARD, ROOFS_SPAWN, ROOFS_TOURS } = await import('../src/world/roofsplan.js');
 const { createCritters } = await import('../src/critters.js');
@@ -1449,5 +1450,143 @@ describe('following the guide', () => {
     expect(store.value()).toBe(GUIDE_CROSSED);
     const p = w.cat.position;
     expect(area.ground.y(p.x, p.z)).toBe(LEVELS.EXTENSION);
+  });
+});
+
+// =============================================================================
+// Rooftops step 5, Task 6 (ruling R5): at the loft one pigeon comes along with
+// her for a while, keeping its distance, and gives up on its own.
+// =============================================================================
+describe('the pigeon that follows her from the loft', () => {
+  const DT = 1 / 30;
+  const LOFT_FIND = { x: -33, y: LEVELS.TANK, z: -45.5 }; // the loft's find, on its roof
+  // her way from the loft south-east along the warehouse roof: down the loft's
+  // crate, past the tank and the lantern, east along the roof to its far end
+  const WAY = [LOFT_FIND, { x: -33, y: LEVELS.WAREHOUSE, z: -41 }, { x: -22, y: LEVELS.WAREHOUSE, z: -28 }, { x: 36, y: LEVELS.WAREHOUSE, z: -24 }];
+  const wayAt = (m) => {
+    for (let k = 1; k < WAY.length; k++) {
+      const [a, b] = [WAY[k - 1], WAY[k]];
+      const n = d3(a, b);
+      if (m <= n) return new THREE.Vector3(a.x + ((b.x - a.x) * m) / n, a.y + ((b.y - a.y) * m) / n, a.z + ((b.z - a.z) * m) / n);
+      m -= n;
+    }
+    const e = WAY[WAY.length - 1];
+    return new THREE.Vector3(e.x, e.y, e.z); // at its end she stands still
+  };
+
+  it('after the loft one pigeon follows her across the warehouse roof, then is a pigeon again', { timeout: 90000 }, () => {
+    const live = liveFlock();
+    const f = live.flock;
+    expect(f.following).toBe(null);
+    const id = f.follow(v3(LOFT_FIND));
+    expect(id).toBe('pigeon-7'); // the loft's own pigeon
+    expect(f.following).toBe(id); // at once
+    const b = live.bird(id);
+    const flights0 = b.flights;
+    let at30 = null;
+    let stoppedAt = null;
+    let nearest = Infinity;
+    let followFlights = 0;
+    const n = Math.round(90 / DT);
+    for (let k = 1; k <= n; k++) {
+      const t = k * DT;
+      const cat = wayAt(1.2 * t);
+      const was = b.flights;
+      live.step(DT, cat);
+      if (!b.flying) nearest = Math.min(nearest, d3(cat, b.pos)); // never perched at her heels
+      if (b.flights > was && f.following) followFlights++;
+      if (at30 === null && t >= 30 - 1e-9) at30 = d3(cat, b.pos);
+      if (stoppedAt === null && f.following === null) stoppedAt = t;
+    }
+    expect(at30).toBeLessThan(10);
+    expect(nearest).toBeGreaterThanOrEqual(FOLLOW.near);
+    expect(stoppedAt).not.toBe(null);
+    expect(stoppedAt).toBeLessThanOrEqual(FOLLOW.time + 1e-6);
+    expect(f.following).toBe(null);
+    expect(b.flights - flights0).toBeGreaterThanOrEqual(3); // it did come along
+    expect(b.flights - flights0).toBeLessThanOrEqual(FOLLOW.flights + 1);
+    // given up, it is an ordinary pigeon: she walks 20 m off and it stays where it is
+    const after = b.flights;
+    const end = wayAt(1e9);
+    const away = new THREE.Vector3(end.x - 20, end.y, end.z);
+    expect(d3(away, b.pos)).toBeGreaterThan(FOLLOW.far);
+    live.run(10, away);
+    expect(b.flights).toBe(after);
+    expect(f.following).toBe(null);
+  });
+
+  it('never the guide, and nothing when no pigeon is on the loft', () => {
+    const loft = P.filter((p) => p.kind === 'loft');
+    // the guide, waiting on its route, put on the loft next to her; the loft's own pigeon off it
+    {
+      const live = liveFlock(); // her first walk: the guide waits (guideStep 0)
+      const g = live.bird(GUIDE.bird);
+      expect(g.guideStep).toBe(0);
+      putOn(live, GUIDE.bird, loft[2]); // the loft's perch nearest her
+      putOn(live, 'pigeon-7', I.get('roof:warehouse:2'));
+      expect(live.flock.follow(v3(LOFT_FIND))).toBe(null);
+      expect(live.flock.following).toBe(null);
+      // the loft's pigeon back, further from her than the guide: it is the one
+      putOn(live, 'pigeon-7', loft[3]);
+      expect(d3(loft[3], LOFT_FIND)).toBeGreaterThan(d3(loft[2], LOFT_FIND));
+      expect(live.flock.follow(v3(LOFT_FIND))).toBe('pigeon-7');
+      expect(live.flock.following).toBe('pigeon-7');
+    }
+    // nothing on the loft at all
+    {
+      const live = liveFlock({ guideStore: memStore(GUIDE_CROSSED) });
+      putOn(live, 'pigeon-7', I.get('roof:warehouse:2'));
+      expect(live.flock.birds.filter((b) => I.get(b.at).kind === 'loft')).toEqual([]);
+      expect(live.flock.follow(v3(LOFT_FIND))).toBe(null);
+      expect(live.flock.following).toBe(null);
+      live.run(5, v3(LOFT_FIND));
+      expect(live.flock.following).toBe(null);
+    }
+    // the picture pages: no critters, nothing flies, nothing follows
+    const still = createRoofsBirds(area, { scene: new THREE.Scene(), guideStore: memStore(GUIDE_CROSSED) });
+    expect(still.follow(v3(LOFT_FIND))).toBe(null);
+    expect(still.following).toBe(null);
+  });
+
+  it('walking up to it flushes it as any bird; landed, it follows on', () => {
+    const live = liveFlock({ guideStore: memStore(GUIDE_CROSSED) });
+    const f = live.flock;
+    const loft = P.filter((p) => p.kind === 'loft');
+    // her on the warehouse roof 12 m south of the loft's pigeon: it comes towards her
+    const b = live.bird('pigeon-7');
+    const p0 = I.get(b.at);
+    const cat = new THREE.Vector3(p0.x, LEVELS.WAREHOUSE, p0.z + 12);
+    expect(f.follow(v3(LOFT_FIND))).toBe('pigeon-7');
+    const r = untilLanded(live, 'pigeon-7', cat, 4);
+    expect(r.landed).toBe(true);
+    expect(d3(r.to, cat)).toBeLessThanOrEqual(d3(p0, cat) - 1 + 1e-9);
+    expect(d3(r.to, cat)).toBeGreaterThanOrEqual(FOLLOW.near);
+    expect(loft).not.toContain(r.to);
+    // she stands there: it comes on while a flight gains on her, then waits, perched
+    live.run(10, cat);
+    const here = b.at;
+    expect(b.flying).toBe(false);
+    expect(d3(I.get(here), cat)).toBeLessThan(d3(p0, cat));
+    expect(d3(I.get(here), cat)).toBeGreaterThanOrEqual(FOLLOW.near);
+    const settled = b.flights;
+    live.run(5, cat);
+    expect(b.at).toBe(here);
+    expect(b.flights).toBe(settled);
+    // she walks right up to it: flushed, away from her, as any bird
+    const perch = I.get(b.at);
+    const up = new THREE.Vector3(perch.x + (cat.x - perch.x) * (2 / d3(perch, cat)), perch.y, perch.z + (cat.z - perch.z) * (2 / d3(perch, cat)));
+    const fl = untilLanded(live, 'pigeon-7', up, 4);
+    expect(fl.landed).toBe(true);
+    expect(d3(fl.to, up)).toBeGreaterThan(d3(perch, up));
+    expect(d3(fl.to, up)).toBeGreaterThanOrEqual(FLIGHT.landFromCat - 1e-9);
+    expect(f.following).toBe('pigeon-7'); // still with her
+    // landed, she walks on 10 m: it follows on, landing near her and no nearer than 3.5 m
+    const on = new THREE.Vector3(up.x + 10, up.y, up.z);
+    let nearest = Infinity;
+    const fo = untilLanded(live, 'pigeon-7', on, 6, { each: () => { if (!b.flying) nearest = Math.min(nearest, d3(on, b.pos)); } });
+    expect(fo.landed).toBe(true);
+    expect(d3(fo.to, on)).toBeLessThan(d3(fo.from, on));
+    expect(d3(fo.to, on)).toBeGreaterThanOrEqual(FOLLOW.near);
+    expect(nearest).toBeGreaterThanOrEqual(FOLLOW.near);
   });
 });

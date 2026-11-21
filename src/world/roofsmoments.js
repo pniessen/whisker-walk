@@ -418,7 +418,7 @@ function disposeAtticPane(scene, mesh) {
 // (area.potTops); `ring` stands in for it (a test's). The moon and the pane
 // are made where there is a page (`doc`).
 export function createRoofsMoments(area, opts = {}) {
-  const { log = null, progression = null, scene = null, reducedMotion = false, doc = null } = opts;
+  const { log = null, progression = null, scene = null, reducedMotion = false, doc = null, birds = null } = opts;
   const anchors = area?.anchors?.discoveries ?? null;
   const found = new Set(); // this walk's
   const spot = { x: 0, y: 0, z: 0, perched: null, still: 0 };
@@ -442,8 +442,12 @@ export function createRoofsMoments(area, opts = {}) {
   const blend = viewBlend();
   const last = { yaw: 0, face: 0, set: false }; // the follow camera's yaws last frame
 
-  // A find's once-a-walk moment, the first time it is found this walk (Task 6).
-  function start(_id) {}
+  // A find's once-a-walk moment, the first time it is found this walk: at the
+  // loft, one pigeon comes along with her for a while (Task 6, roofsbirds.js
+  // follow).
+  function start(id, p) {
+    if (id === 'loft') birds?.follow?.(p);
+  }
 
   function stillness(dt, p) {
     if (!rest.set || Math.hypot(p.x - rest.x, p.y - rest.y, p.z - rest.z) >= STILL_EPS) {
@@ -539,7 +543,7 @@ export function createRoofsMoments(area, opts = {}) {
       if (!here || found.has(here)) return;
       found.add(here);
       if (log && progression) noteRoofsFind(here, { log, progression });
-      start(here);
+      start(here, catPos);
     },
     dispose() {
       found.clear();
