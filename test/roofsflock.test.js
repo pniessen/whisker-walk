@@ -12,7 +12,7 @@ import {
 // The flock's plan (Rooftops step 3), pure: where the birds perch, the short
 // flights between perches, the fourteen birds, the guide's route, and the
 // choice of flight that leads her up the place and never toward her. On the
-// plan alone (ruling R3: no drawn spots here; test/roofs.test.js checks the
+// plan alone (ruling R3: no drawn spots here; test/roofsbirds.test.js checks the
 // built area's), except where a test passes its own SYNTHETIC drawn spots.
 
 const ground = createGround(ROOFS_GROUND);
@@ -97,7 +97,7 @@ function expectedChoice(b, cat, taken) {
   const scored = [];
   for (const l of G.links.get(from.id)) {
     const to = I.get(l.to);
-    if (!allowed(b.kind, to) || taken.has(to.id)) continue;
+    if (!allowed(b.kind, to) || !G.landable[b.kind].has(to.id) || taken.has(to.id)) continue;
     if (l.kind === 'hop' ? l.d < K.hop.min || l.d > K.hop.max : !K.leads && l.d > K.hop.max) continue;
     if (keepsOffHer(from, to, cat)) continue;
     const nearer = G.homeDist.get(to.id) < G.homeDist.get(from.id);
@@ -395,7 +395,7 @@ describe('the flock’s plan', () => {
     expect(of('gull').length).toBe(2);
     expect(new Set(ROOFS_BIRDS.map((b) => b.id)).size).toBe(14);
     expect(ROOFS_BIRDS.find((b) => b.id === GUIDE.bird)).toMatchObject({ kind: 'pigeon', home: 'plank-3:1' });
-    // a drawn home is named by the scheme (R3: test/roofs.test.js resolves it on the built area)
+    // a drawn home is named by the scheme (R3: test/roofsbirds.test.js resolves it on the built area)
     const DRAWN = /^(pot:-?\d+(\.\d+)?:-?1|aerial:-?\d+(\.\d+)?|parapet:(warehouse|cornerShop|tower-1):\d+|post:\d+:[01]|wall:\d+)$/;
     const kindOf = (home) => (I.has(home) ? I.get(home).kind : home.split(':')[0]);
     for (const b of ROOFS_BIRDS) {
@@ -663,11 +663,21 @@ describe('the flock’s plan', () => {
       const f = chooseFlight(G, I, { index: guideIndex, kind: 'pigeon', at: p.id, flights: k, guideStep: k }, cat, NONE);
       expect(f, `step ${k} from ${p.id}`).not.toBe(null);
       expect(f.to).toBe(stops[k + 1].id);
-      // too close to her for the next stop's flight: it flutters, never flies at her
+      expect(f.guideStep).toBe(k + 1 < GUIDE.route.length ? k + 1 : -1);
+      // she on the next stop: never there, never at her; on by the rules, or a flutter
       const near = { ...stops[k + 1], y: stops[k + 1].y };
-      expect(chooseFlight(G, I, { index: guideIndex, kind: 'pigeon', at: p.id, flights: k, guideStep: k }, near, NONE)).toBe(null);
-      // a bird on the next stop: it flutters
-      expect(chooseFlight(G, I, { index: guideIndex, kind: 'pigeon', at: p.id, flights: k, guideStep: k }, cat, new Set([stops[k + 1].id]))).toBe(null);
+      const g = chooseFlight(G, I, { index: guideIndex, kind: 'pigeon', at: p.id, flights: k, guideStep: k }, near, NONE);
+      if (g) {
+        expect(g.to).not.toBe(stops[k + 1].id);
+        expect(keepsOffHer(p, I.get(g.to), near)).toBe(null);
+      }
+      // a bird on the next stop: never there; it still flies on, except from
+      // plank-3's near end, whose only flights on the plan's perches alone are
+      // that stop and back past her (the built place's walls give it more:
+      // test/roofsbirds.test.js)
+      const t = chooseFlight(G, I, { index: guideIndex, kind: 'pigeon', at: p.id, flights: k, guideStep: k }, cat, new Set([stops[k + 1].id]));
+      if (k < 3) expect(t, `step ${k}, its next stop taken`).not.toBe(null);
+      if (t) expect(t.to).not.toBe(stops[k + 1].id);
     }
     // the route done (guideStep -1): the ordinary choice, by the rules
     let checked = 0;
@@ -684,6 +694,43 @@ describe('the flock’s plan', () => {
       }
     }
     expect(checked).toBeGreaterThan(100);
+  });
+
+  it('where its next stop will not do, the guide skips to a later one, else flies by the ordinary choice and keeps its step', () => {
+    const guideIndex = ROOFS_BIRDS.findIndex((b) => b.id === GUIDE.bird);
+    const guide = (at, guideStep) => ({ index: guideIndex, kind: 'pigeon', at, flights: 1, guideStep });
+    const stop = (k) => I.get(GUIDE.route[k]);
+    // on the shed's roof, plank-3's near end taken: on to its far end? (no flight
+    // reaches it from the shed) so the ordinary choice, its step kept
+    const shed = stop(1);
+    const cat = behind(shed, I.get('shed-up:from'), 2.2);
+    const f = chooseFlight(G, I, guide(shed.id, 2), { ...cat, y: ground.y(cat.x, cat.z) }, new Set([stop(2).id]));
+    expect(f).not.toBe(null);
+    expect(f.to).not.toBe(stop(2).id);
+    expect(f.guideStep).toBe(2);
+    // a later stop it can reach by the rules is taken before the ordinary choice:
+    // in the alley, the bin's lid taken, it flies straight on to the shed's roof
+    const alley = I.get(GUIDE.start);
+    const from = { x: ROOFS_SPAWN.x, y: 0, z: ROOFS_SPAWN.z };
+    const her = behind(alley, from, 2.2);
+    const skip = chooseFlight(G, I, guide(alley.id, 0), { ...her, y: ground.y(her.x, her.z) }, new Set([stop(0).id]));
+    expect(linkOf(alley, stop(1))).toBeDefined();
+    expect(skip).toEqual({ to: stop(1).id, kind: linkOf(alley, stop(1)).kind, shape: 'arc', guideStep: 2 });
+    // and the rules near her always hold, whatever it chooses
+    let flights = 0;
+    for (let k = 0; k < GUIDE.route.length; k++) {
+      const p = k === 0 ? alley : stop(k - 1);
+      for (const c of ring(p, 2.5, 24)) {
+        const her2 = { ...c, y: ground.y(c.x, c.z) };
+        const g = chooseFlight(G, I, guide(p.id, k), her2, NONE);
+        if (!g) continue;
+        flights++;
+        expect(keepsOffHer(p, I.get(g.to), her2), `${p.id} -> ${g.to}`).toBe(null);
+        const on = GUIDE.route.indexOf(g.to);
+        expect(g.guideStep).toBe(on >= k ? (on + 1 < GUIDE.route.length ? on + 1 : -1) : k);
+      }
+    }
+    expect(flights).toBeGreaterThan(40);
   });
 
   it('a perch another bird is on is never landed on', () => {

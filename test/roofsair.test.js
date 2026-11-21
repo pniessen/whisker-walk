@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { WASH, SMOKE, washSwayAt, swayAttribute, downwindSide, puffAt, createRoofsSmoke, makeWashMaterial } from '../src/world/roofsair.js';
+import { WASH, SMOKE, washSwayAt, swayAttribute, downwindSide, puffAt, puffShape, createRoofsSmoke, makeWashMaterial } from '../src/world/roofsair.js';
 import { ROOFS_WIND, downwind } from '../src/world/roofsplan.js';
 
 // =============================================================================
@@ -139,33 +139,57 @@ describe('the smoke', () => {
     expect(puffAt(pot, 0, 1, out)).toBe(out); // filled in place
   });
 
-  it('each puff is born and gone at size 0, and the column is the same at the same time', () => {
+  it('each puff is born and gone at alpha 0, only grows, and the column is the same at the same time', () => {
     const out = {};
-    // puff 0 is born at t 0, every SMOKE.life seconds
-    for (const k of [0, 1, 5]) {
-      puffAt(pot, 0, k * SMOKE.life, out);
-      expect(out.s).toBeCloseTo(0, 9);
-      expect(out.y).toBeCloseTo(pot.y, 9);
-      puffAt(pot, 0, (k + 1) * SMOKE.life - 1e-6, out);
-      expect(out.s).toBeLessThan(1e-4);
-    }
-    // never bigger than size[1]; grown over most of its life
-    let big = 0;
-    for (const t of TIMES) {
-      for (let i = 0; i < SMOKE.perPot; i++) {
-        const s = puffAt(pot, i, t, out).s;
-        expect(s).toBeGreaterThanOrEqual(0);
-        expect(s).toBeLessThanOrEqual(SMOKE.size[1] + 1e-12);
-        if (s >= SMOKE.size[0]) big++;
+    // puff i's birth: where its alpha is 0 and it is at the pot (found on a fine
+    // sweep of one life), then again every SMOKE.life seconds
+    for (let i = 0; i < SMOKE.perPot; i++) {
+      let born = 0;
+      let low = Infinity;
+      for (let t = 0; t < SMOKE.life; t += 0.001) {
+        const y = puffAt(pot, i, t, out).y - pot.y;
+        if (y < low) { low = y; born = t; }
       }
+      for (const k of [0, 1, 5]) {
+        puffAt(pot, i, born + k * SMOKE.life + 1e-4, out);
+        expect(out.a, `puff ${i} born`).toBeLessThan(0.01);
+        expect(out.y - pot.y).toBeLessThan(0.01);
+        expect(out.s).toBeCloseTo(SMOKE.size[0], 2);
+        puffAt(pot, i, born + (k + 1) * SMOKE.life - 1e-4, out);
+        expect(out.a, `puff ${i} gone`).toBeLessThan(0.01);
+      }
+      // over its life its alpha rises to 1 within the first 10%, holds, and
+      // falls over the last 40%; its size only grows
+      let last = -1;
+      for (let u = 0.001; u < 1; u += 0.001) {
+        puffAt(pot, i, born + u * SMOKE.life, out);
+        expect(out.s).toBeGreaterThanOrEqual(last - 1e-12);
+        last = out.s;
+        expect(out.a).toBeGreaterThanOrEqual(0);
+        expect(out.a).toBeLessThanOrEqual(1);
+        if (u > 0.11 && u < 0.59) expect(out.a).toBeCloseTo(1, 9);
+      }
+      expect(last).toBeLessThanOrEqual(SMOKE.size[1] + 1e-12);
+      expect(last).toBeGreaterThan(0.54);
     }
-    expect(big).toBeGreaterThan(0.75 * TIMES.length * SMOKE.perPot);
-    expect(Math.max(...TIMES.map((t) => puffAt(pot, 0, t, {}).s))).toBeGreaterThan(0.45);
-    // the same column at the same time; the seven spread over the column
+    // the same column at the same time; the seven spread over the column, unevenly
     const column = (t) => Array.from({ length: SMOKE.perPot }, (_, i) => puffAt(pot, i, t, {}));
     expect(column(12.34)).toEqual(column(12.34));
     const ys = column(2.5).map((q) => q.y).sort((a, b) => a - b);
     expect(ys.at(-1) - ys[0]).toBeGreaterThan(2);
+    const gaps = ys.slice(1).map((y, k) => y - ys[k]);
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeGreaterThan(0.05);
+    // each puff its own fixed turn and squash: the same every time, no two alike
+    const shapes = Array.from({ length: SMOKE.perPot }, (_, i) => [...puffShape(pot, i)]);
+    expect(shapes).toEqual(Array.from({ length: SMOKE.perPot }, (_, i) => [...puffShape(pot, i)]));
+    expect(new Set(shapes.map((m) => m.map((v) => v.toFixed(4)).join())).size).toBe(SMOKE.perPot);
+    for (const m of shapes) {
+      for (let c = 0; c < 3; c++) {
+        const len = Math.hypot(m[c * 3], m[c * 3 + 1], m[c * 3 + 2]);
+        expect(len).toBeGreaterThanOrEqual(0.75 - 1e-6);
+        expect(len).toBeLessThanOrEqual(1.15 + 1e-6);
+      }
+    }
   });
 
   it('the smoke is one mesh of 21 puffs, casting nothing; making it draws nothing on Math.random', () => {
@@ -192,11 +216,28 @@ describe('the smoke', () => {
     expect(m.castShadow).toBe(false);
     expect(m.userData.noCast).toBe(true);
     expect(m.frustumCulled).toBe(false);
-    expect(m.geometry.attributes.position.count / 3).toBe(20); // an icosahedron, flat
-    expect(m.material.color.getHex()).toBe(0xb8b4b0);
+    const g = m.geometry;
+    expect(g.attributes.position.count / 3).toBe(20); // an icosahedron
+    // smooth: each vertex's normal is the sphere's, its own spot
+    const [pos, nor] = [g.attributes.position, g.attributes.normal];
+    for (let k = 0; k < pos.count; k++) {
+      expect(Math.hypot(pos.getX(k), pos.getY(k), pos.getZ(k))).toBeCloseTo(1, 6);
+      expect([nor.getX(k), nor.getY(k), nor.getZ(k)]).toEqual([pos.getX(k), pos.getY(k), pos.getZ(k)]);
+    }
+    expect(m.material.flatShading).toBe(false);
+    expect(m.material.color.getHex()).toBe(0xc6c2be);
     expect(m.material.transparent).toBe(true);
-    expect(m.material.opacity).toBe(0.55);
+    expect(m.material.opacity).toBe(0.35);
     expect(m.material.depthWrite).toBe(false);
+    // its fragment shader fades the rim and the instance's aFade; its own program
+    const shader = { vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: '#include <common>\n#include <normal_fragment_begin>', uniforms: {} };
+    m.material.onBeforeCompile(shader);
+    expect(shader.vertexShader).toContain('vFade = aFade');
+    expect(shader.fragmentShader).toContain('diffuseColor.a *= vFade * smoothstep(0.1, 0.8, abs(dot(normalize(vNormal), normalize(vViewPosition))))');
+    expect(m.material.customProgramCacheKey()).toBe('roofs-smoke-v1');
+    const fade = g.attributes.aFade;
+    expect(fade.isInstancedBufferAttribute).toBe(true);
+    expect(fade.count).toBe(21);
     // each puff where puffAt puts it, at its size
     const mat = new THREE.Matrix4();
     const [p, q, s] = [new THREE.Vector3(), new THREE.Quaternion(), new THREE.Vector3()];
@@ -208,9 +249,20 @@ describe('the smoke', () => {
         expect(p.x).toBeCloseTo(want.x, 5);
         expect(p.y).toBeCloseTo(want.y, 5);
         expect(p.z).toBeCloseTo(want.z, 5);
-        expect(s.x).toBeCloseTo(want.s, 5);
+        // its size times its own fixed shape; its alpha
+        const shape = puffShape(pt, i);
+        for (let c = 0; c < 3; c++) {
+          for (let r = 0; r < 3; r++) expect(mat.elements[c * 4 + r]).toBeCloseTo(shape[c * 3 + r] * want.s, 5);
+        }
+        expect(fade.getX(k * SMOKE.perPot + i)).toBeCloseTo(want.a, 6);
       }
     });
+    // update allocates no new buffers
+    const [arr, farr] = [m.instanceMatrix.array, fade.array];
+    smoke.update(4.4);
+    expect(m.instanceMatrix.array).toBe(arr);
+    expect(fade.array).toBe(farr);
+    smoke.update(3.3);
     // under reduced motion it runs at half speed
     const slow = createRoofsSmoke(new THREE.Scene(), pots, { reducedMotion: true });
     slow.update(6.6);
@@ -219,6 +271,7 @@ describe('the smoke', () => {
       slow.mesh.getMatrixAt(n, a);
       m.getMatrixAt(n, b);
       expect(a.elements.map((v) => +v.toFixed(5))).toEqual(b.elements.map((v) => +v.toFixed(5)));
+      expect(slow.mesh.geometry.attributes.aFade.getX(n)).toBeCloseTo(fade.getX(n), 6);
     }
     // and it is taken away
     const disposed = [];

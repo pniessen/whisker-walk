@@ -92,7 +92,8 @@ import { makeWashMaterial, swayAttribute, downwindSide } from './roofsair.js';
 // T-bars and the yard walls' copings are pushed as drawn spots, `{ id, kind,
 // x, y, z }` with roofsflock.js's DRAWN_ID ids; with the plan's own they are
 // the record's `birdPerches` (roofsflock.js flockPerches), less the pots that
-// smoke (roofsplan.js SMOKE_POTS). Data only: no mesh.
+// smoke (roofsplan.js SMOKE_POTS) and anything in their smoke (roofsflock.js
+// SMOKE_CLEAR). Data only: no mesh.
 //
 // THE WIND (Rooftops step 3, Task 5; roofsair.js): the vane points where it is
 // from (roofsplan.js ROOFS_WIND). The cloth material is the washing's sway
@@ -613,7 +614,7 @@ export function build(scene, { water, wind } = {}) { // eslint-disable-line no-u
       skyGlow, // the band low round the sky; roofslife.js colours it
       markGlow, // the take-off glows; roofslife.js sets their opacity (Task D)
       // where the birds perch: the plan's spots and the drawn ones (step 3),
-      // less the pots that smoke
+      // less the pots that smoke and anything in their smoke (SMOKE_CLEAR)
       birdPerches: flockPerches({ traversal: ROOFS_TRAVERSAL, ground, drawn, smoking: SMOKE_POTS }),
       // every chimney pot's top, and the three that smoke (roofsair.js; the life makes the smoke)
       potTops,

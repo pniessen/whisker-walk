@@ -19,8 +19,12 @@
 // THE SMOKE (S3) is one InstancedMesh of puffs, seven over each smoking pot
 // (roofsplan.js SMOKE_POTS), always drawn (S12). Each puff is a pure function
 // of its pot, its number and the walk's time (puffAt): it rises, drifts
-// downwind with a small curl, grows and is gone, then is born again at the
-// pot. Made inside withLocalUuids, so it draws nothing on Math.random. Under
+// downwind with a small curl, grows, fades out and is gone, then is born
+// again at the pot, fading in. Soft wisps, not stones: smooth normals, a pale
+// thin colour, the rim of each puff faded in its fragment shader (an
+// onBeforeCompile patch, so its facets vanish), its fade per instance
+// (aFade), and each puff turned and squashed its own fixed way (puffShape).
+// Made inside withLocalUuids, so it draws nothing on Math.random. Under
 // reduced motion it runs at half speed.
 // =============================================================================
 import * as THREE from 'three';
@@ -101,36 +105,86 @@ export function washSwayAt(sway, t, amp, out = {}) {
 
 // --- the smoke ---------------------------------------------------------------
 
-export const SMOKE = Object.freeze({ perPot: 7, life: 6, rise: 0.45, drift: 0.35, top: 3.2, size: Object.freeze([0.12, 0.5]) });
+export const SMOKE = Object.freeze({ perPot: 7, life: 6, rise: 0.45, drift: 0.35, top: 3.2, size: Object.freeze([0.15, 0.55]), opacity: 0.35, color: 0xc6c2be });
 const CURL = Object.freeze({ amp: 0.15, rate: 1.3, wave: 0.5 }); // m across the wind at the column's top; per s of age; per s of time
-const BORN = 0.05; // of a puff's life, swelling from nothing
-const FADE = 0.15; // of a puff's life, shrinking back to nothing
+const FADE_IN = 0.1; // of a puff's life, fading in from nothing
+const FADE_OUT = 0.4; // of a puff's life, fading out to nothing
+const SPACING = 0.4; // of the gap between two puffs: how far each is shifted off the even spacing, at most
+// Each puff's fixed shape: a turn and a slight squash (x, y, z scale ranges)
+const SHAPE = Object.freeze({ x: Object.freeze([0.85, 1.15]), y: Object.freeze([0.75, 0.95]), z: Object.freeze([0.85, 1.15]) });
+const SALT = Object.freeze({ curl: 71, spacing: 73, turn: 79, squash: 89 });
+
+const ramp = (u) => {
+  const k = u <= 0 ? 0 : u >= 1 ? 1 : u;
+  return k * k * (3 - 2 * k);
+};
 
 // Puff `i` of `pot`'s column at walk second `t`: out.x, .y, .z (its centre),
-// .s (its radius). Pure: the same column at the same time on every device.
+// .s (its radius) and .a (its alpha, 0..1: the shader's aFade). It rises,
+// drifts downwind with a small curl and only grows (size[0] to size[1]); it
+// fades in over the first FADE_IN of its life and out over the last
+// FADE_OUT, so it is born and gone unseen. The puffs of a column are spread
+// unevenly (each shifted off the even spacing by its own hash), so the column
+// is no string of beads. Pure: the same column at the same time on every
+// device.
 export function puffAt(pot, i, t, out = {}) {
-  const f = (((t / SMOKE.life + i / SMOKE.perPot) % 1) + 1) % 1;
+  const phase = (i + SPACING * hash01(pot.x + i, pot.z, SALT.spacing)) / SMOKE.perPot;
+  const f = (((t / SMOKE.life + phase) % 1) + 1) % 1;
   const age = f * SMOKE.life;
-  const curl = CURL.amp * f * Math.sin(CURL.rate * age - CURL.wave * t + hash01(pot.x, pot.z, 71) * TAU);
+  const curl = CURL.amp * f * Math.sin(CURL.rate * age - CURL.wave * t + hash01(pot.x, pot.z, SALT.curl) * TAU);
   out.x = pot.x + WX * SMOKE.drift * age - WZ * curl;
   out.z = pot.z + WZ * SMOKE.drift * age + WX * curl;
   out.y = pot.y + Math.min(SMOKE.top, SMOKE.rise * age);
   const [s0, s1] = SMOKE.size;
-  const grown = s0 + (s1 - s0) * Math.min(1, f / (1 - FADE));
-  out.s = f < BORN ? grown * (f / BORN) : f > 1 - FADE ? s1 * ((1 - f) / FADE) : grown;
+  out.s = s0 + (s1 - s0) * f * (2 - f); // swelling fast, then slower
+  out.a = ramp(f / FADE_IN) * ramp((1 - f) / FADE_OUT);
   return out;
 }
 
+// Puff `i` of `pot`'s fixed shape, as a column-major 3x3 (its turn times its
+// squash) into `out` (9 numbers) from `o`. Pure.
+export function puffShape(pot, i, out = new Float32Array(9), o = 0) {
+  const h = (salt, k) => hash01(pot.x + i + 0.37 * k, pot.z - k, salt);
+  const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(h(SALT.turn, 0) * TAU, h(SALT.turn, 1) * TAU, h(SALT.turn, 2) * TAU));
+  const sq = [SHAPE.x, SHAPE.y, SHAPE.z].map(([lo, hi], k) => lo + (hi - lo) * h(SALT.squash, k));
+  const e = m.elements;
+  for (let c = 0; c < 3; c++) for (let r = 0; r < 3; r++) out[o + c * 3 + r] = e[c * 4 + r] * sq[c];
+  return out;
+}
+
+// The puff's material: soft, its normals the sphere's (smooth), its alpha the
+// instance's aFade, and the rim fading out so the silhouette's facets vanish.
+function smokeMaterial() {
+  const material = new THREE.MeshStandardMaterial({ color: SMOKE.color, roughness: 1, metalness: 0, flatShading: false, transparent: true, opacity: SMOKE.opacity, depthWrite: false });
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+attribute float aFade;
+varying float vFade;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vFade = aFade;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying float vFade;`)
+      .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+diffuseColor.a *= vFade * smoothstep(0.1, 0.8, abs(dot(normalize(vNormal), normalize(vViewPosition))));`);
+  };
+  material.customProgramCacheKey = () => 'roofs-smoke-v1';
+  return material;
+}
+
 // The smoke over `pots` ([{ x, y, z }]): one InstancedMesh (roofsSmoke) of
-// SMOKE.perPot puffs each. update(t) takes walk seconds.
+// SMOKE.perPot puffs each, an icosahedron (20 triangles) with smooth normals.
+// update(t) takes walk seconds and allocates nothing.
 export function createRoofsSmoke(scene, pots, { reducedMotion = false } = {}) {
   const count = pots.length * SMOKE.perPot;
+  const fade = new Float32Array(count);
   const mesh = withLocalUuids('roofs-smoke', () => {
-    const m = new THREE.InstancedMesh(
-      new THREE.IcosahedronGeometry(1, 0),
-      new THREE.MeshStandardMaterial({ color: 0xb8b4b0, roughness: 1, metalness: 0, flatShading: true, transparent: true, opacity: 0.55, depthWrite: false }),
-      count,
-    );
+    const geometry = new THREE.IcosahedronGeometry(1, 0);
+    // on a unit icosahedron the sphere's normal at a vertex is the vertex
+    geometry.setAttribute('normal', new THREE.BufferAttribute(geometry.attributes.position.array.slice(), 3));
+    const m = new THREE.InstancedMesh(geometry, smokeMaterial(), count);
+    geometry.setAttribute('aFade', new THREE.InstancedBufferAttribute(fade, 1).setUsage(THREE.DynamicDrawUsage));
     m.name = 'roofsSmoke';
     m.castShadow = false;
     m.receiveShadow = false;
@@ -139,29 +193,38 @@ export function createRoofsSmoke(scene, pots, { reducedMotion = false } = {}) {
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     return m;
   });
+  const shapes = new Float32Array(count * 9);
+  let n = 0;
+  for (const pot of pots) for (let i = 0; i < SMOKE.perPot; i++, n++) puffShape(pot, i, shapes, n * 9);
   const speed = reducedMotion ? 0.5 : 1;
-  const at = { x: 0, y: 0, z: 0, s: 0 };
+  const at = { x: 0, y: 0, z: 0, s: 0, a: 0 };
   const e = mesh.instanceMatrix.array;
+  const aFade = mesh.geometry.attributes.aFade;
 
   function update(t) {
     const tt = t * speed;
-    let n = 0;
+    let k = 0;
     for (const pot of pots) {
-      for (let i = 0; i < SMOKE.perPot; i++, n++) {
+      for (let i = 0; i < SMOKE.perPot; i++, k++) {
         puffAt(pot, i, tt, at);
-        // a scale and a place, written straight into the matrix (column-major)
-        const o = n * 16;
-        e.fill(0, o, o + 16);
-        e[o] = at.s;
-        e[o + 5] = at.s;
-        e[o + 10] = at.s;
+        // its shape times its size, and its place, straight into the matrix (column-major)
+        const o = k * 16;
+        const q = k * 9;
+        for (let c = 0; c < 3; c++) {
+          e[o + c * 4] = shapes[q + c * 3] * at.s;
+          e[o + c * 4 + 1] = shapes[q + c * 3 + 1] * at.s;
+          e[o + c * 4 + 2] = shapes[q + c * 3 + 2] * at.s;
+          e[o + c * 4 + 3] = 0;
+        }
         e[o + 12] = at.x;
         e[o + 13] = at.y;
         e[o + 14] = at.z;
         e[o + 15] = 1;
+        fade[k] = at.a;
       }
     }
     mesh.instanceMatrix.needsUpdate = true;
+    aFade.needsUpdate = true;
   }
 
   update(0);

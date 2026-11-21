@@ -38,7 +38,8 @@
 //
 // THE CHOICE: a flushed bird takes the best link from its perch that lands at
 // least 4 m from her and 0.5 m further from her than it was, never comes
-// within 1.5 m of her on the way, and ends on a perch no other bird is on.
+// within 1.5 m of her on the way, and ends on a perch no other bird is on
+// and with a flight on from it for its kind (flightGraph's landable).
 // A pigeon scores each link:
 //   2 for a move link (it flies a move of hers),
 //   + 1 if it lands a flight nearer the loft (homeDist),
@@ -57,10 +58,14 @@
 //
 // THE GUIDE (GUIDE): one pigeon starts in the alley in front of the spawn
 // and, each time she flushes it, flies to its next stop: the bin's lid, the
-// shed's roof, plank-3's near end, its far end. Then it is a pigeon like the
-// others. THE LOFT is the pigeons' home: homeDist counts the flights from
-// each perch to it, and a pigeon resting there goes home after LOFT_REST
-// seconds, out of her sight (roofsbirds.js).
+// shed's roof, plank-3's near end, its far end. Where the next stop will not
+// do (no flight there, another bird on it, or it would break the rules near
+// her: she ran straight at it, or got ahead of it) it flies to the first
+// later stop that will, and leads on from there; with none, it takes the
+// ordinary choice and leads on from wherever that lands. After the last stop
+// it is a pigeon like the others. THE LOFT is the pigeons' home: homeDist
+// counts the flights from each perch to it, and a pigeon resting there goes
+// home after LOFT_REST seconds, out of her sight (roofsbirds.js).
 // =============================================================================
 
 import { LEVELS, STREETS, PITCHED, BLOCKS, skylineY, ROOFS_COLLIDERS, ROOFS_DISCOVERIES, ROOFS_PERCHES } from './roofsplan.js';
@@ -109,7 +114,7 @@ export const DRAWN_ID = Object.freeze({
 // The fourteen birds (S2) and their homes. The pigeons wait at moves' far
 // ends and on the warehouse; the sparrows keep low, in the back yards and on
 // the low roofs; the gulls take the high places. Drawn homes are roofs.js's
-// (test/roofs.test.js resolves them on the built area).
+// (test/roofsbirds.test.js resolves them on the built area).
 export const ROOFS_BIRDS = Object.freeze([
   { id: 'pigeon-guide', kind: 'pigeon', home: 'plank-3:1' },
   { id: 'pigeon-1', kind: 'pigeon', home: 'plank-1:1' },
@@ -394,8 +399,20 @@ function railUnder(c) {
   };
 }
 
+// A link a bird of kind K may fly: onto a perch of its kinds, under its
+// `below`; a hop within its hop range; a move link of any length for a kind
+// that leads, else within its hop range too.
+function usable(K, l, to) {
+  if (!K.perches.includes(to.kind) || to.y >= K.below) return false;
+  return l.kind === 'hop' ? l.d >= K.hop.min && l.d <= K.hop.max : K.leads || l.d <= K.hop.max;
+}
+
 // The links from every perch, each perch's flights to the loft (homeDist),
-// and the perches at her moves' ends (moveEnds).
+// the perches at her moves' ends (moveEnds), and per kind the perches it may
+// land on (landable): those of its kinds with a usable flight on to another
+// of them, pruned until none is left without one, so no bird lands where it
+// could only flutter for ever (the bin bags under the garages' drop: one
+// flight in, none out).
 export function flightGraph(perches, traversal) {
   const index = perchIndex(perches);
   const links = new Map(perches.map((p) => [p.id, []]));
@@ -447,7 +464,22 @@ export function flightGraph(perches, traversal) {
   const moveEnds = new Set();
   for (const c of traversal.crossings || []) for (const k of [0, 1]) if (index.has(`${c.id}:${k}`)) moveEnds.add(index.get(`${c.id}:${k}`).id);
   for (const h of hopsOf(traversal)) if (!h.requires && index.has(`${h.id}:to`)) moveEnds.add(index.get(`${h.id}:to`).id);
-  return Object.freeze({ links, homeDist, moveEnds });
+
+  const landable = {};
+  for (const [kind, K] of Object.entries(BIRD_KINDS)) {
+    const set = new Set(perches.filter((p) => K.perches.includes(p.kind) && p.y < K.below).map((p) => p.id));
+    for (let pruned = true; pruned;) {
+      pruned = false;
+      for (const id of set) {
+        if (!links.get(id).some((l) => set.has(l.to) && usable(K, l, index.get(l.to)))) {
+          set.delete(id);
+          pruned = true;
+        }
+      }
+    }
+    landable[kind] = set;
+  }
+  return Object.freeze({ links, homeDist, moveEnds, landable: Object.freeze(landable) });
 }
 
 // ---------------------------------------------------------------------------
@@ -488,29 +520,38 @@ const NO_LINKS = Object.freeze([]);
 // Where a flushed bird flies: { to, kind, shape } (`to` a perch id; `shape`
 // for flightPlan), or null for a flutter where it is. `bird` is
 // { index, kind, at, flights, guideStep }; her spot `cat` is { x, y, z };
-// `taken` holds the perches other birds are on.
+// `taken` holds the perches other birds are on. For the guide on its route
+// the flight also carries `guideStep`, the bird's guideStep once it lands.
 export function chooseFlight(graph, index, bird, cat, taken) {
   const from = index.get(bird.at);
   if (!from) throw new Error(`roofsflock: ${bird.at} is not a perch`);
   const links = graph.links.get(from.id) || NO_LINKS;
 
-  // the guide, on its route: the next stop, or a flutter
-  if (bird.guideStep >= 0 && bird.guideStep < GUIDE.route.length) {
-    const stop = index.get(GUIDE.route[bird.guideStep]);
-    let link = null;
-    if (stop) for (const l of links) if (l.to === stop.id) { link = l; break; }
-    if (!link || isTaken(stop, taken) || !keepsOff(from, stop, cat, link.shape)) return null;
-    return { to: stop.id, kind: link.kind, shape: link.shape };
+  const K = BIRD_KINDS[bird.kind];
+  const lands = graph.landable[bird.kind];
+
+  // the guide, on its route: its next stop, else the first later stop it can
+  // reach by the rules (it skips ahead of her: `guideStep` is then the stop
+  // after the one it lands on); with none, the ordinary choice below, its
+  // guideStep kept, so it leads on from wherever it lands
+  const guiding = bird.guideStep >= 0 && bird.guideStep < GUIDE.route.length;
+  if (guiding) {
+    for (let k = bird.guideStep; k < GUIDE.route.length; k++) {
+      const stop = index.get(GUIDE.route[k]);
+      if (!stop || !lands.has(stop.id) || isTaken(stop, taken)) continue;
+      let link = null;
+      for (const l of links) if (l.to === stop.id) { link = l; break; }
+      if (!link || !keepsOff(from, stop, cat, link.shape)) continue;
+      return { to: stop.id, kind: link.kind, shape: link.shape, guideStep: k + 1 < GUIDE.route.length ? k + 1 : -1 };
+    }
   }
 
-  const K = BIRD_KINDS[bird.kind];
   const here = graph.homeDist.get(from.id);
   let best = null;
   let bestScore = -Infinity;
   for (const l of links) {
     const to = index.get(l.to);
-    if (!K.perches.includes(to.kind) || to.y >= K.below || isTaken(to, taken)) continue;
-    if (l.kind === 'hop' ? l.d < K.hop.min || l.d > K.hop.max : !K.leads && l.d > K.hop.max) continue;
+    if (!usable(K, l, to) || !lands.has(to.id) || isTaken(to, taken)) continue;
     if (!keepsOff(from, to, cat, l.shape)) continue;
     // the plan's hash01(index, flights, 7), offset by where the link lands
     // so that it breaks ties between links rather than adding the same to all
@@ -521,7 +562,8 @@ export function chooseFlight(graph, index, bird, cat, taken) {
     const score = K.leads ? 2 * move + (there < here) + END * waits + tie : -Math.abs(l.d - 5) / 5 + tie;
     if (score > bestScore) { best = l; bestScore = score; }
   }
-  return best && { to: best.to, kind: best.kind, shape: best.shape };
+  if (!best) return null;
+  return guiding ? { to: best.to, kind: best.kind, shape: best.shape, guideStep: bird.guideStep } : { to: best.to, kind: best.kind, shape: best.shape };
 }
 
 // ---------------------------------------------------------------------------

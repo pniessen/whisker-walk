@@ -54,17 +54,21 @@
 // she has once walked plank-3 from end to end (GUIDE_CROSSING), the guide
 // pigeon waits in the alley on every walk (at GUIDE.start, guideStep 0) and,
 // each time she flushes it, flies on to its route's next stop; after the last
-// it is a pigeon like the others (guideStep -1). On its route it keeps
-// GUIDE_FLUSH from her even when the bell lets her nearer the other birds:
-// nearer, no flight on would keep the cat rules, and it would not lead. The
-// walk after she has crossed, it starts at its home, retired. That is
-// remembered per device, not in the save, in `guideStore`: { get() -> the
-// stored string or null, set(v) }, either of which may throw where there is
-// no storage. The default
-// (deviceGuideStore) keeps it in window.localStorage, as main.js reads it,
-// under GUIDE_KEY. Where the store cannot be read, the spec's rule holds: the
-// guide waits in the alley only on her first walk there (visits 0). In the
-// walk she crosses in, nothing changes for the guide.
+// it is a pigeon like the others (guideStep -1). Where the next stop will not
+// do, it skips to a later one, or takes the ordinary choice and leads on from
+// there (roofsflock.js chooseFlight; the flight says its guideStep on
+// landing). On its route it keeps GUIDE_FLUSH from her even when the bell
+// lets her nearer the other birds: nearer, few flights on keep the cat rules,
+// and it would not lead. The walk after she has crossed, it starts at its
+// home, retired. That is remembered per device, not in the save, in
+// `guideStore`: { get() -> the stored string or null, set(v) }, either of
+// which may throw where there is no storage. The default (deviceGuideStore)
+// keeps it in window.localStorage, as main.js reads it, under GUIDE_KEY. Where the store cannot be read, the spec's rule holds: the
+// guide waits in the alley only on her first walk there (visits 0). Where it
+// can be read but not written (old Safari's private mode), her crossing is
+// kept for the page's life instead (module-level, per page load), so her
+// later walks in that session start it retired. In the walk she crosses in,
+// nothing changes for the guide.
 //
 // THE LOFT (S8): a pigeon on a loft perch rests there. After LOFT_REST s it
 // is back on its home perch, but only while she is more than OUT_OF_SIGHT
@@ -97,10 +101,12 @@ export const LOOK = Object.freeze({ reach: 0.8, every: Object.freeze([2, 5]), tu
 export const WINGBEAT = Object.freeze({ hz: 8, amp: 0.9, glide: 0.3, glideAngle: 0.12, reduced: Object.freeze({ hz: 3, amp: 0.4 }) });
 // A flushed bird with nowhere to go flutters where it is: up and back (m, s).
 export const FLUTTER = Object.freeze({ time: 0.8, up: 0.4 });
-// The guide, on its route, is off when she comes within this (m, as a bird
-// without the bell: critters.js's 2.5), bell or no bell: it cannot fly on
-// from nearer her (the cat rules), so it would only flutter where it is.
-export const GUIDE_FLUSH = 2.5;
+// The guide, on its route, is off when she comes within this (m, a little
+// more than a bird without the bell: critters.js's 2.5), bell or no bell:
+// from nearer her its next stop is often too near her to fly to by the cat
+// rules (the shed's roof is 2 m from the bin's lid, and she runs straight at
+// it from the west), and it would have to skip ahead or leave its route.
+export const GUIDE_FLUSH = 3.2;
 const CRITTER_FLUSH_COOLDOWN = 18; // s, as critters.js sets on a flushed bird
 
 // The guide's memory (per device, never the save): she has crossed plank-3.
@@ -123,6 +129,25 @@ export function deviceGuideStore() {
     get: () => storage().getItem(GUIDE_KEY),
     set: (v) => storage().setItem(GUIDE_KEY, v),
   };
+}
+
+// She crossed plank-3 in this page's life where the store could not keep it.
+let crossedThisPage = false;
+// For the tests: a fresh page load (it forgets the crossing above).
+export function resetGuidePage() {
+  crossedThisPage = false;
+}
+
+// The flights between the perches, made once per built place (11-26 ms on a
+// laptop, more on an iPad) and shared by its walks: keyed by its perches.
+const graphs = new WeakMap();
+function graphOf(perches) {
+  let g = graphs.get(perches);
+  if (!g) {
+    g = flightGraph(perches, ROOFS_TRAVERSAL);
+    graphs.set(perches, g);
+  }
+  return g;
 }
 
 const SALT = Object.freeze({ rest: 41, look: 43, lookAt: 47, peck: 53, wing: 59 });
@@ -213,7 +238,7 @@ function readGuide(store) {
 export function createRoofsBirds(area, { scene, critters = null, visits = 0, reducedMotion = false, guideStore = deviceGuideStore() } = {}) {
   const index = perchIndex(area.birdPerches);
   const memory = readGuide(guideStore);
-  const guideWaits = memory.readable ? !memory.crossed : visits === 0;
+  const guideWaits = !crossedThisPage && (memory.readable ? !memory.crossed : visits === 0);
   const birds = ROOFS_BIRDS.map((r) => {
     const home = index.get(r.home);
     if (!home) throw new Error(`roofsbirds: ${r.id}'s home ${r.home} is not a perch`);
@@ -231,6 +256,8 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
       scale: BIRD_KINDS[b.kind].scale, rest, yaw: rest, look: 0, lookK: 0, lookAt: lookTime(i, 0), peckK: 0, peckAt: peckTime(i, 0, 0), pitch: 0,
       wing: hash01(i, 2, SALT.wing) * Math.PI * 2, flight: null, from: null, dest: null, s: 0, flutterT: 0, restT: 0,
       owed: false, ask: { index: i, kind: b.kind, at: b.at, flights: 0, guideStep: -1 },
+      // its flight's plan (filled again on each take-off) and its guideStep on landing
+      plan: { d: 0, h: 0, time: 0, shape: 'arc', top: 0 }, nextStep: -1,
     };
   });
 
@@ -245,7 +272,7 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     settle(c, index.get(birds[i].at));
   }
   // the flights between the perches, only where a bird can be flushed
-  const graph = critters ? flightGraph(area.birdPerches, ROOFS_TRAVERSAL) : null;
+  const graph = critters ? graphOf(area.birdPerches) : null;
 
   const { flock, wings } = withLocalUuids('roofs-birds', () => {
     const mat = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, flatShading: true, side: THREE.DoubleSide });
@@ -347,7 +374,8 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     s.pitch = 0;
     b.flying = true;
     s.dest = index.get(f.to);
-    s.flight = flightPlan(from, s.dest, f.shape);
+    s.flight = flightPlan(from, s.dest, f.shape, s.plan);
+    s.nextStep = f.guideStep ?? b.guideStep;
     s.s = 0;
     b.to = f.to;
     if (s.flight.d > 0.05) s.yaw = Math.atan2(s.dest.x - from.x, s.dest.z - from.z);
@@ -379,7 +407,7 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     if (s.flight) {
       b.at = b.to;
       b.flights++;
-      if (b.guideStep >= 0) b.guideStep = b.guideStep + 1 < GUIDE.route.length ? b.guideStep + 1 : -1;
+      if (b.guideStep >= 0) b.guideStep = s.nextStep;
       s.rest = s.yaw;
     }
     b.pos.x = p.x;
@@ -439,7 +467,8 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     if (s.restT < LOFT_REST || !cat) return;
     const home = index.get(ROOFS_BIRDS[i].home);
     if (home === here || dist3(cat, home) <= OUT_OF_SIGHT || dist3(cat, here) <= OUT_OF_SIGHT) return;
-    if (takenBy(i).has(home.id) || home.aliases.some((a) => taken.has(a))) return;
+    if (takenBy(i).has(home.id)) return;
+    for (let k = 0; k < home.aliases.length; k++) if (taken.has(home.aliases[k])) return;
     if (camera) {
       camera.updateMatrixWorld();
       frustum.setFromProjectionMatrix(view.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
@@ -469,7 +498,11 @@ export function createRoofsBirds(area, { scene, critters = null, visits = 0, red
     if (end < 0) return;
     if (plankEnd >= 0 && end !== plankEnd) {
       crossed = true;
-      try { guideStore?.set(GUIDE_CROSSED); } catch { /* no storage: the visits rule */ }
+      try {
+        guideStore?.set(GUIDE_CROSSED);
+      } catch {
+        crossedThisPage = true; // nowhere to write it: kept for this page's life
+      }
     }
     plankEnd = end;
   }

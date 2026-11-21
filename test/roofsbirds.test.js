@@ -25,7 +25,7 @@ vi.stubGlobal('document', {
 });
 
 const { build } = await import('../src/world/roofs.js');
-const { createRoofsBirds, BIRD_LOOK, WINGBEAT, FLUTTER, GUIDE_KEY, GUIDE_CROSSED } = await import('../src/world/roofsbirds.js');
+const { createRoofsBirds, BIRD_LOOK, WINGBEAT, FLUTTER, GUIDE_KEY, GUIDE_CROSSED, GUIDE_FLUSH, resetGuidePage } = await import('../src/world/roofsbirds.js');
 const {
   BIRD_KINDS, ROOFS_BIRDS, GUIDE, FLIGHT, LOFT_REST, OUT_OF_SIGHT,
   flockPerches, perchIndex, flightGraph, flightPlan, flightPoint, chooseFlight, roofsCritterSpawns,
@@ -106,7 +106,10 @@ function memStore(value = null, { throws = false } = {}) {
   };
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  resetGuidePage(); // each test a fresh page load (the guide's in-session crossing)
+});
 
 describe('the flock drawn, perched', () => {
   it('the flock is two meshes, casting nothing, fourteen birds at their homes', () => {
@@ -388,6 +391,66 @@ describe('the flock on the built place (R3)', () => {
     }
     expect(Number.isFinite(G.homeDist.get(I.get(GUIDE.start).id))).toBe(true);
     for (const id of GUIDE.route) expect(I.get(id), id).toBeDefined();
+  });
+
+  it('every perch a kind can land on has a flight on from it for that kind, and no bird lands anywhere else', { timeout: 60000 }, () => {
+    const usable = (kind, l) => {
+      const K = BIRD_KINDS[kind];
+      const to = I.get(l.to);
+      if (!allowed(kind, to)) return false;
+      return l.kind === 'hop' ? l.d >= K.hop.min && l.d <= K.hop.max : K.leads || l.d <= K.hop.max;
+    };
+    for (const kind of Object.keys(BIRD_KINDS)) {
+      const lands = G.landable[kind];
+      expect(lands.size, kind).toBeGreaterThan(40);
+      for (const id of lands) {
+        const p = I.get(id);
+        expect(p.id).toBe(id);
+        expect(allowed(kind, p), `${kind} ${id}`).toBe(true);
+        expect(G.links.get(id).some((l) => lands.has(l.to) && usable(kind, l)), `${kind}: ${id} has no flight on`).toBe(true);
+      }
+      // every perch of its kinds left out has no such flight
+      for (const p of P.filter((q) => allowed(kind, q) && !lands.has(q.id))) {
+        expect(G.links.get(p.id).some((l) => lands.has(l.to) && usable(kind, l)), `${kind}: ${p.id}`).toBe(false);
+      }
+      // every home and the guide's spots are among them
+      for (const b of ROOFS_BIRDS.filter((r) => r.kind === kind)) expect(lands.has(I.get(b.home).id), b.home).toBe(true);
+    }
+    for (const id of [GUIDE.start, ...GUIDE.route]) expect(G.landable.pigeon.has(I.get(id).id), id).toBe(true);
+    // the bin bags under the garages' drop: one flight in, none out
+    const bags = I.get('garages-bags:to');
+    for (const kind of Object.keys(BIRD_KINDS)) expect(G.landable[kind].has(bags.id), kind).toBe(false);
+    // the choice keeps to them: from every perch, chased from all round
+    let flights = 0;
+    for (const p of P) {
+      for (const kind of Object.keys(BIRD_KINDS).filter((k) => allowed(k, p))) {
+        for (const cat of ring(p, 2.2, 8)) {
+          const f = chooseFlight(G, I, bird(kind, p.id), cat, NONE);
+          if (!f) continue;
+          flights++;
+          expect(G.landable[kind].has(f.to), `${kind} ${p.id} -> ${f.to}`).toBe(true);
+        }
+      }
+    }
+    expect(flights).toBeGreaterThan(1000);
+    // sparrow-3 chased off its garage roof from 16 ways, she following 2.2 m
+    // behind each flight: never stranded on the bags
+    const start = I.get('roof:garages:1');
+    for (const cat0 of ring(start, 2.2, 16)) {
+      let at = start;
+      let cat = { ...cat0, y: area.ground.y(cat0.x, cat0.z) };
+      for (let n = 0; n < 12; n++) {
+        const f = chooseFlight(G, I, bird('sparrow', at.id, { flights: n }), cat, NONE);
+        if (!f) break;
+        const to = I.get(f.to);
+        expect(to).not.toBe(bags);
+        const d = d2(at, to) || 1;
+        const x = to.x - (2.2 * (to.x - at.x)) / d;
+        const z = to.z - (2.2 * (to.z - at.z)) / d;
+        cat = { x, y: area.ground.y(x, z), z };
+        at = to;
+      }
+    }
   });
 
   it('sparrows and gulls make local hops among the built perches', () => {
@@ -854,6 +917,73 @@ describe('the guide pigeon', () => {
     expect(guideAt(undefined, 1)).toBe(home.id); // the device's: none in Node, so the visits rule
   });
 
+  it('a bird on its next stop does not strand it: it flies on, by the rules, and still leads', () => {
+    const stops = [GUIDE.start, ...GUIDE.route].map((id) => I.get(id));
+    for (let k = 0; k < GUIDE.route.length; k++) {
+      const live = liveFlock({ visits: 0 });
+      const g = guideAt(live);
+      putOn(live, GUIDE.bird, stops[k]);
+      g.guideStep = k;
+      putOn(live, 'pigeon-1', stops[k + 1]); // another bird on its next stop
+      const cat = behind(g, stops[k + 1]);
+      const r = untilLanded(live, GUIDE.bird, cat, 4);
+      expect(r.landed, `step ${k}: it flew`).toBe(true);
+      expect(r.to, `step ${k}`).not.toBe(stops[k + 1]);
+      expect(keepsOffHer(stops[k], r.to, cat), `step ${k} -> ${r.to.id}`).toBe(null);
+      // on to a later stop (and on from there), or off its route with its step kept
+      const on = GUIDE.route.indexOf(r.to.id);
+      expect(g.guideStep, `step ${k} -> ${r.to.id}`).toBe(on > k ? (on + 1 < GUIDE.route.length ? on + 1 : -1) : k);
+    }
+  });
+
+  it('where the store reads but cannot write (old Safari\'s private mode), her crossing retires it for the rest of the page\'s life', () => {
+    const home = I.get(ROOFS_BIRDS.find((b) => b.id === GUIDE.bird).home);
+    const readsOnly = () => ({ get: () => null, set() { throw new Error('QuotaExceededError'); } });
+    const startOf = (store, visits = 0) => {
+      const f = createRoofsBirds(area, { scene: new THREE.Scene(), visits, guideStore: store });
+      const g = f.birds.find((b) => b.id === GUIDE.bird);
+      const out = [g.at, g.guideStep];
+      f.dispose();
+      return out;
+    };
+    // along plank-3's rail, point to point, from end to end
+    const rail = ROOFS_TRAVERSAL.crossings.find((c) => c.id === 'plank-3').points;
+    const across = (store) => {
+      const f = createRoofsBirds(area, { scene: new THREE.Scene(), visits: 0, guideStore: store });
+      for (let k = 1; k < rail.length; k++) {
+        const [a, b] = [rail[k - 1], rail[k]];
+        for (let n = 0; n <= 20; n++) f.update(1 / 30, { x: a.x + ((b.x - a.x) * n) / 20, y: a.y + ((b.y - a.y) * n) / 20, z: a.z + ((b.z - a.z) * n) / 20 }, null);
+      }
+      f.dispose();
+    };
+    expect(startOf(readsOnly())).toEqual([GUIDE.start, 0]);
+    expect(startOf(readsOnly(), 3)).toEqual([GUIDE.start, 0]);
+    across(readsOnly());
+    // her later walks this session: retired, whatever the store says
+    expect(startOf(readsOnly())).toEqual([home.id, -1]);
+    expect(startOf(readsOnly(), 4)).toEqual([home.id, -1]);
+    expect(startOf(memStore(null, { throws: true }))).toEqual([home.id, -1]);
+    // the device's own store, where setItem throws
+    const storage = memStorage();
+    storage.setItem = () => { throw new Error('QuotaExceededError'); };
+    globalThis.window = { localStorage: storage };
+    try {
+      expect(startOf(undefined)).toEqual([home.id, -1]);
+      resetGuidePage(); // a new page load: the session's crossing is gone
+      expect(startOf(undefined)).toEqual([GUIDE.start, 0]);
+      across(undefined);
+      expect(startOf(undefined, 2)).toEqual([home.id, -1]);
+    } finally {
+      delete globalThis.window;
+    }
+    // a store that writes keeps it itself: nothing held for the page
+    resetGuidePage();
+    const ok = memStore();
+    across(ok);
+    expect(ok.value()).toBe(GUIDE_CROSSED);
+    expect(startOf(memStore())).toEqual([GUIDE.start, 0]);
+  });
+
   it('walking plank-3 end to end remembers she crossed; half-way and back does not', () => {
     const rail = ROOFS_TRAVERSAL.crossings.find((c) => c.id === 'plank-3').points;
     // her spot at share u of the rail, at its height
@@ -1007,6 +1137,25 @@ it('without critters (the picture pages) no bird is ever flushed', () => {
   f.dispose();
 });
 
+it('the life on the built place stays at or under 1,600 triangles in 3 meshes, casting nothing', async () => {
+  const { createRoofsLife } = await import('../src/roofslife.js');
+  const scene = new THREE.Scene();
+  const life = createRoofsLife(area)({ scene, sun: { intensity: 1 }, fill: { intensity: 1 }, visits: 0, guideStore: memStore() });
+  life.update(1 / 30, 0, null, null);
+  const meshes = [];
+  scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  expect(meshes.map((m) => m.name).sort()).toEqual(['roofsFlock', 'roofsFlockWings', 'roofsSmoke']);
+  let tris = 0;
+  for (const m of meshes) {
+    expect(m.castShadow, m.name).toBe(false);
+    expect(m.userData.noCast, m.name).toBe(true);
+    tris += triangles(m.geometry) * m.count;
+  }
+  expect(tris).toBeLessThanOrEqual(1600);
+  life.dispose();
+  expect(scene.children).toEqual([]);
+});
+
 describe('in a real walk', () => {
   const areas = createAreaLoader();
   let stream = null;
@@ -1066,7 +1215,11 @@ describe('following the guide', () => {
   const walkWithFlock = (store = memStore(), fleeScale = 1) => {
     const w = yardWalk({ area, at: [ROOFS_SPAWN.x, ROOFS_SPAWN.z], face: [0, -1], colliders: area.colliders });
     const live = liveFlock({ visits: 0, guideStore: store, fleeScale });
-    return { w, live, frame: () => { w.frame(DT); live.step(DT, w.cat.position); } };
+    return { w, live, frame: () => frame(w, live) };
+  };
+  const frame = (w, live) => {
+    w.frame(DT);
+    live.step(DT, w.cat.position);
   };
 
   it.each([['', 1], [', with the bell on', 0.5]])('following the guide pigeon%s, she is on a roof within a minute and over the first plank within ninety seconds', { timeout: 90000 }, (_, fleeScale) => {
@@ -1090,6 +1243,91 @@ describe('following the guide', () => {
     expect(ext10At).toBeLessThanOrEqual(90);
     // it led her the whole way: every stop of its route, in order
     expect(stops.slice(0, GUIDE.route.length + 1)).toEqual([GUIDE.start, ...GUIDE.route]);
+  });
+
+  // Her way straight at the guide (no detour round the bin): from the alley
+  // where it waits, due east at the bin's lid (z 35.4) up to the dustbin
+  // beside it, round that to the bin's foot, up the bin and the shed, and
+  // over plank-3. (From the west at 2.5 m the shed's roof is under 4 m from
+  // her, and the guide could only flutter: the review's probe.)
+  const STRAIGHT = Object.freeze({
+    start: ROOFS_TOURS.birds.start,
+    steps: [
+      { walk: [5.5, 36.5] }, { walk: [5.5, 35.4] }, { walk: [12.0, 35.4] }, { walk: [12.6, 36.6] }, { walk: [14.5, 36.6] }, { jump: true }, { jump: true },
+      { walk: [16, 29.3] }, { walk: [16, 19.0] }, { walk: [16, 17.6] },
+    ],
+  });
+  const flown = (live) => {
+    const g = live.bird(GUIDE.bird);
+    const out = { stops: [g.at], flutters: 0 };
+    let was = false;
+    return {
+      out,
+      watch() {
+        if (g.flying && !was && g.to === g.at) out.flutters++;
+        if (!g.flying && out.stops.at(-1) !== g.at) out.stops.push(g.at);
+        was = g.flying;
+      },
+    };
+  };
+
+  it.each([['', 1], [', with the bell on', 0.5]])('she runs straight at it from the alley%s: it is never stranded on the bin\'s lid, and waits on plank-3\'s far end before she gets there', { timeout: 90000 }, (_, fleeScale) => {
+    const { w, live, frame } = walkWithFlock(memStore(), fleeScale);
+    const g = live.bird(GUIDE.bird);
+    const pilot = createYardPilot(STRAIGHT);
+    const far = I.get('plank-3:1');
+    const seen = flown(live);
+    let landedFar = null;
+    let below21 = null;
+    let r;
+    let frames = 0;
+    do {
+      r = pilot.step(DT, w);
+      frame();
+      seen.watch();
+      frames++;
+      const t = frames * DT;
+      if (landedFar === null && !g.flying && I.get(g.at) === far) landedFar = t;
+      if (below21 === null && w.cat.position.z < 21) below21 = t;
+    } while (!r.done && frames < 60 / DT);
+    expect(r.done).toBe(true);
+    expect(r.failed ?? null).toBeNull();
+    expect(seen.out.stops.slice(0, GUIDE.route.length + 1)).toEqual([GUIDE.start, ...GUIDE.route]);
+    expect(seen.out.flutters).toBe(0);
+    expect(landedFar).not.toBe(null);
+    expect(below21).not.toBe(null);
+    expect(landedFar).toBeLessThan(below21);
+  });
+
+  it('put on the shed\'s roof ahead of it, she goes back down after it and it gets ahead of her again, onto plank-3\'s far end', { timeout: 90000 }, () => {
+    const w = yardWalk({ area, at: [14.5, 33.2], face: [0, -1], colliders: area.colliders });
+    const live = liveFlock({ visits: 0, guideStore: memStore() });
+    const g = live.bird(GUIDE.bird);
+    putOn(live, GUIDE.bird, I.get('bin-up:to')); // where its first flight left it
+    g.guideStep = 1;
+    expect(area.ground.y(w.cat.position.x, w.cat.position.z)).toBe(LEVELS.SHED);
+    expect(d3(w.cat.position, g.pos)).toBeLessThan(GUIDE_FLUSH);
+    // she waits on the shed (it is off, not at her and not past her), then
+    // drops back to the bin's lid and the alley, and follows it from there
+    const down = createYardPilot({ steps: [{ wait: 3 }, { walk: [14.5, 33.0] }, { walk: [14.5, 33.4] }, { jump: true }, { jump: true }] });
+    const seen = flown(live);
+    let r = { done: false };
+    let ahead = null;
+    let below21 = null;
+    for (let f = 0; f < 90 / DT && ahead === null; f++) {
+      if (!r.done) r = down.step(DT, w);
+      else followBird(w, () => g, area, DT);
+      frame(w, live);
+      seen.watch();
+      if (f === Math.round(3 / DT)) expect(I.get(g.at), 'it left the lid').not.toBe(I.get('bin-up:to'));
+      if (!g.flying && g.at === 'plank-3:1') ahead = (f + 1) * DT;
+      if (below21 === null && w.cat.position.z < 21) below21 = (f + 1) * DT;
+    }
+    expect(r.failed ?? null).toBeNull();
+    expect(ahead, seen.out.stops.join(' > ')).not.toBe(null);
+    expect(below21, 'it is on plank-3\'s far end before she is').toBe(null);
+    expect(seen.out.stops.slice(-3)).toEqual(['shed-up:to', 'plank-3:0', 'plank-3:1']);
+    expect(seen.out.flutters).toBe(0);
   });
 
   it.each([['', 1], [', with the bell on', 0.5]])('the birds tour (the film)%s: the guide is waiting at plank-3\'s far end before she gets there', { timeout: 90000 }, (_, fleeScale) => {
