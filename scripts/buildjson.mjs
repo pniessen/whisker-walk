@@ -1,6 +1,7 @@
 // Writes dist/build.json ({ commit, date }) after `vite build`, so the
 // post-deploy smoke check can tell which commit is actually live, and fails
-// the build if the main script has grown past its download ceiling. Runs as
+// the build if start-up (the entry plus its static imports) or any place's
+// own download has grown past its ceiling. Runs as
 // the npm `postbuild` hook, which fires for `npm run build` only: the iOS
 // build (`build:ios`) is untouched. GITHUB_SHA wins in CI; otherwise git HEAD.
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';

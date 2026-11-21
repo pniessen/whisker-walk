@@ -29,6 +29,8 @@ export async function realBuild(mode) {
       gz: (file) => gzipSync(bytes(file)).length,
     };
   } finally {
-    process.env.NODE_ENV = saved;
+    // assigning undefined would store the string "undefined"
+    if (saved === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = saved;
   }
 }
