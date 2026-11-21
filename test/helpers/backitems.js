@@ -35,11 +35,11 @@ export const isStrap = (col, i) => Math.abs(col.getX(i) - STRAP.r) + Math.abs(co
 // is worn) before the fur, and the vertex is outside both; its nearest
 // vertex is within 2 cm of the cover (no floating cube in the stalk).
 export const BREEDS = ['tabby', 'digit', 'persian', 'mainecoon', 'd2'];
-export const COVERS = [null, 'cape', 'hoodie', 'sweater'];
+export const COVERS = [null, 'cape', 'hoodie', 'sweater', 'doormatcape', 'fishermansjumper'];
 const POSES = [['follow', 1.3, 0], ['follow', 0.4, 1.5], ['follow', 1.3, 1.5], ['stalk', 1.3, 0], ['nap', 1.3, 0], ['perch', 1.3, 0], ['perch', 0.4, 0], ['requestPet', 1.3, 0], ['requestPet', 2.2, 0]];
 const coverOf = (cat, body) => {
   const kids = cat.userData.parts.body.children.filter((c) => c.isMesh && !c.userData.backItem && c !== cat.userData.parts.underside);
-  if (body === 'cape') return kids.find((c) => c.userData.cape);
+  if (body === 'cape' || body === 'doormatcape') return kids.find((c) => c.userData.cape);
   if (body) return kids.sort((a, b) => b.geometry.attributes.position.count - a.geometry.attributes.position.count)[0];
   return null;
 };

@@ -25,8 +25,21 @@ const DELTA = {
   streamerscarf: 6, goldbooties: 0,
   // the Fairground's prizes: the paper crown's band and six points, the rosette's four pieces; no balloon (as the others)
   papercrown: 7, prizerosette: 4, tailballoon: 0,
-  // the found outfits: the Acorn Cap's cup and stalk
-  acorncap: 2,
+  // the found hats (found outfits beauty pass): each is the cat's own hat, one
+  // vertex-coloured mesh, carried onto his skull (foundhead.js henHat)
+  acorncap: 1, paperboycap: 1, buckethat: 1, sailorcap: 1, strawhat: 1, stripedboater: 1, starfishclip: 1, featherplume: 1,
+  // lane F: the heart glasses' frames and lenses
+  heartglasses: 2,
+  // lane N: the found neck pieces' ring, and what rides it or hangs in front
+  daisychain: 2, gardenglovescarf: 3, shellnecklace: 2, neckerchief: 2, ticketgarland: 2,
+  // lane N, Task 6: the collars: ring + caps; the rope ring + its knot (beauty pass: the rope is the ring itself); ring + anchor
+  bottletopcollar: 2, ropecollar: 2, anchorcharm: 2,
+  // lane B: the capes' cloth and clasp; the jumper is one shell (Hagrid wears no body item)
+  doormatcape: 0, beachtowelcape: 0, fishermansjumper: 0,
+  // lane B, Task 8: the bale pack and the two floats (Hagrid wears no back item)
+  kitetailribbon: 0, haybalepack: 0, candyflosspuff: 0,
+  // lane P: the wellies (Hagrid wears no feet item)
+  puddlewellies: 0,
 };
 
 const hen = (acc = BARE) => {
@@ -391,15 +404,39 @@ describe('Hagrid rebuilt (Task 8)', () => {
       }
     });
 
-    it('the Acorn Cap sits on his head round the comb', () => {
-      const top = Math.max(...comb().pts.map((v) => v.y));
-      const c = hen({ ...BARE, head: 'acorncap' });
+    // Found outfits beauty pass: a found hat is the cat's own, carried onto
+    // his skull, so it sits ON his head (it used to perch on the comb, in the
+    // air), and the comb is inside it: straight up from every comb point
+    // above his skull there is hat.
+    const HEN_R = [0.13, 0.1365, 0.13];
+    const henRho = (v) => Math.hypot(v.x / HEN_R[0], v.y / HEN_R[1], v.z / HEN_R[2]);
+    it.each(['acorncap', 'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater'])('the %s sits on his head with the comb inside it', (id) => {
+      const { pts: combPts } = comb();
+      const c = hen({ ...BARE, head: id });
       const { head } = c.userData.parts;
-      const cap = head.children.filter((o) => o.isMesh && [0x8a5a2b, 0x5a3a1c].includes(hex(o)));
-      expect(cap).toHaveLength(2);
-      const b = boxOf(cap.flatMap((m) => pointsIn(m, head)));
-      expect(b.min.y).toBeLessThanOrEqual(top);
-      expect(b.max.y).toBeLessThanOrEqual(top + 0.13);
+      const pieces = head.children.filter((o) => o.isMesh && o.userData.foundWear === id);
+      expect(pieces.length).toBe(DELTA[id]);
+      const V = pieces.flatMap((m) => pointsIn(m, head)).sort((a, b) => a.y - b.y);
+      for (const v of V) expect(henRho(v), id).toBeGreaterThanOrEqual(0.95);
+      // its rim lies on his head: a ring of points within 6 mm of his skull
+      expect(V.filter((v) => Math.abs(henRho(v) - 1) * 0.13 <= 0.006).length, id).toBeGreaterThanOrEqual(8);
+      const hat = new THREE.Mesh(pieces[0].geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+      const ray = new THREE.Raycaster();
+      for (const q of combPts.filter((p) => p.y > HEN_R[1])) {
+        ray.set(q.clone().add(new THREE.Vector3(1e-4, 0, 1e-4)), new THREE.Vector3(0, 1, 0)); // a hair off the middle, where a flat top's fan closes on a point
+        expect(ray.intersectObject(hat).length, `${id} over ${q.toArray()}`).toBeGreaterThan(0);
+      }
+      expect(V[V.length - 1].y).toBeLessThanOrEqual(Math.max(...combPts.map((v) => v.y)) + 0.15);
+    });
+
+    it.each([['starfishclip', 1], ['featherplume', -1]])('the %s lies on his skull, on the side of its ear (x sign %i)', (id, sign) => {
+      const c = hen({ ...BARE, head: id });
+      const { head } = c.userData.parts;
+      const pieces = head.children.filter((o) => o.isMesh && o.userData.foundWear === id);
+      expect(pieces.length).toBe(DELTA[id]);
+      const b = boxOf(pieces.flatMap((m) => pointsIn(m, head)));
+      expect(b.min.x * sign).toBeGreaterThan(0);
+      expect(b.min.y).toBeGreaterThan(0.05);
     });
 
     it('the beanie covers the comb', () => {
@@ -471,6 +508,19 @@ describe('Hagrid rebuilt (Task 8)', () => {
       }
       expect(neckR).toBeGreaterThan(0.05);
       expect(ring.geometry.parameters.radius).toBeGreaterThan(neckR + 0.01);
+    });
+
+    it('the found neck pieces ring his neck', () => {
+      const NECKS = ['daisychain', 'gardenglovescarf', 'shellnecklace', 'neckerchief', 'ticketgarland'];
+      const { P0, P1, P2 } = hen().userData.parts.head.children[0].geometry.userData.neck;
+      const curve = new THREE.QuadraticBezierCurve3(...[P0, P1, P2].map((a) => new THREE.Vector3().fromArray(a)));
+      const line = curve.getPoint(0.45); // HEN_SCARF_U (model.js), where the streamer scarf's band rings the neck
+      for (const id of NECKS) {
+        const { head } = hen({ ...BARE, neck: id }).userData.parts;
+        const rings = head.children.filter((o) => o.isMesh && o.userData.foundWear === id && o.geometry.type === 'TorusGeometry');
+        expect(rings, id).toHaveLength(1);
+        expect([id, rings[0].position.distanceTo(line) <= 0.015]).toEqual([id, true]);
+      }
     });
 
     it.each(['bandana', 'necktie', 'bowtie', 'scarf'])('%s sits on the neck, outside it', (id) => {

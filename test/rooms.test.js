@@ -4,6 +4,7 @@ import { START_GATHER_MS, MEMBER_GATHER_MS, WALKING_FRESH_MS } from '../src/game
 import { createFakeHub, createNet } from '../src/net.js';
 import { createProgression } from '../src/progression.js';
 import { FIND_KEY } from '../src/foundwear/spots/index.js';
+import { diagnostics } from '../src/diagnostics.js';
 
 // v21 Stream 2, Task 12 — pair walks. Two siblings in a colony start a walk
 // together with no room code. Anyone in a room can press Start: it proposes a
@@ -22,7 +23,12 @@ function fakeStorage() {
   return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) };
 }
 
-function client(hub, { pid, petName, partner, colonyId = COLONY_ID, mode = 'paired', unlocked = [] }) {
+// `waits`: startWalk is main.js's startWalkWhenReady, which may wait for the
+// place to load. Each start then hands back a deferred the test settles with
+// what startWalkWhenReady would resolve ('started' builds the walk); `starts`
+// holds them in order. Without it a start builds the walk at once, as a place
+// already loaded does.
+function client(hub, { pid, petName, partner, colonyId = COLONY_ID, mode = 'paired', unlocked = [], getIsTouch, waits = false }) {
   const progression = createProgression(fakeStorage());
   progression.setPetName(petName);
   if (partner) progression.setColonyLink({ id: colonyId, partner: { playerId: partner.pid, petName: partner.petName, wardrobe: [] } });
@@ -30,18 +36,36 @@ function client(hub, { pid, petName, partner, colonyId = COLONY_ID, mode = 'pair
   let session = null;
   const walks = [];
   const toasts = [];
+  const prefetched = [];
+  const starts = [];
   const pull = vi.fn(() => new Promise(() => {})); // never settles: join must not wait for it
   const made = createRooms({
     MP: 1, pid, supabaseUrl: 'x', supabaseAnonKey: 'y',
     progression, getCloud: () => null, getPsecret: () => null,
     getSession: () => session,
-    startWalk: (opts) => { walks.push(opts); session = { opts }; },
+    startWalk: (opts) => {
+      walks.push(opts);
+      if (!waits) { session = { opts }; return undefined; }
+      let settle;
+      let fail;
+      const promise = new Promise((res, rej) => { settle = res; fail = rej; });
+      starts.push({
+        opts,
+        resolve: (result) => { if (result === 'started') session = { opts }; settle(result); },
+        reject: (err) => fail(err),
+      });
+      return promise;
+    },
+    prefetchArea: (id) => prefetched.push(id),
     colonySync: { status: () => ({ mode }), pull },
     toast: (text) => toasts.push(text),
     createTransport: () => hub.transport(),
+    getIsTouch,
   });
-  return { ...made, progression, walks, toasts, pull, endWalk: () => { session = null; } };
+  return { ...made, progression, walks, toasts, pull, prefetched, starts, endWalk: () => { session = null; } };
 }
+// A few turns of the microtask queue, so a settled start is seen.
+const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 
 function pair(hub, o = {}) {
   const host = client(hub, { pid: HOST, petName: 'Mittens', partner: { pid: KID, petName: 'Robin' }, unlocked: ['park'], ...o.host });
@@ -162,6 +186,7 @@ describe('anyone can press Start, and it starts everyone', () => {
     expect(host.walks).toEqual([{ duskMode: true, roomSeed: expect.any(Number), areaOverride: 'seaside' }]);
     expect(host.progression.state.area).toBe('neighborhood');
     expect(kid.walks).toEqual([{ duskMode: true, roomSeed: host.walks[0].roomSeed }]);
+    await flush();
     expect(kid.rooms.getState().starting).toBe(false);
   });
 
@@ -295,6 +320,16 @@ describe('anyone can press Start, and it starts everyone', () => {
     expect(host.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
   });
 
+  it('on a touch screen the walking-sister toast says Tap', async () => {
+    const kid = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' }, getIsTouch: () => true });
+    const walkingHost = createNet(hub.transport());
+    await walkingHost.join('P' + COLONY_ID, { playerId: HOST, petName: 'Mittens' });
+    await kid.rooms.walkWithPartner();
+    walkingHost.sendState({ v: 1, id: HOST, pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
+    expect(kid.toasts).toEqual(['Mittens is exploring. Tap Explore when they’re back.']);
+  });
+
   it("never starts a second world beside a sister who's already walking", async () => {
     const kid = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' } });
     const walkingHost = createNet(hub.transport());
@@ -302,7 +337,7 @@ describe('anyone can press Start, and it starts everyone', () => {
     await kid.rooms.walkWithPartner();
     walkingHost.sendState({ v: 1, id: HOST, pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
     expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
-    expect(kid.toasts).toEqual(['Mittens is exploring. Tap Explore when they’re back.']);
+    expect(kid.toasts).toEqual(['Mittens is exploring. Click Explore when they’re back.']);
     expect(kid.rooms.getState().starting).toBe(false);
     // Once she has been quiet a while (home again), Start works.
     vi.advanceTimersByTime(WALKING_FRESH_MS);
@@ -361,6 +396,216 @@ function equipEmber(c) {
   c.progression.equipCustom(id);
   return c.progression.state.customCats.find((x) => x.id === id).look;
 }
+
+// F6: every place is its own download, so a room start may wait for its
+// place (main.js hands rooms startWalkWhenReady). A slow device stays on
+// "Starting…" and joins late; one whose place does not come stays home and in
+// the room; neither starts anything twice, and neither throws.
+describe('a room start that waits for its place', () => {
+  let hub;
+  beforeEach(() => { hub = createFakeHub(); vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+
+  async function inPairRoom(o = {}) {
+    const p = pair(hub, { host: { waits: true, ...o.host }, kid: { waits: true, ...o.kid } });
+    await p.host.rooms.walkWithPartner();
+    await p.kid.rooms.walkWithPartner();
+    return p;
+  }
+
+  it('stays "Starting…" while the place loads, and starts nothing twice', async () => {
+    const a = client(hub, { pid: HOST, petName: 'Mittens', waits: true });
+    const b = client(hub, { pid: KID, petName: 'Robin', waits: true });
+    for (const x of [a, b]) await x.rooms.join('ABCD');
+    const other = createNet(hub.transport());
+    await other.join('ABCD', { playerId: 'cccc-cousin-03', petName: 'Pip' });
+    expect(b.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true);
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS);
+    for (const x of [a, b]) {
+      expect(x.walks).toHaveLength(1);
+      expect(x.rooms.getState().starting).toBe(true); // the place is still on its way
+      expect(x.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
+    }
+    // a Start heard from the room meanwhile opens no second start (and fetches nothing)
+    other.sendEvent({ v: 1, id: 'cccc-cousin-03', type: 'walk-config', area: 'park', dusk: true, seed: 5 });
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS * 3);
+    for (const x of [a, b]) {
+      expect(x.walks).toHaveLength(1);
+      expect(x.rooms.getState().starting).toBe(true);
+      expect(x.prefetched).toEqual(['neighborhood']);
+    }
+    // the fast one is walking; the slow one is still getting ready
+    a.starts[0].resolve('started');
+    await flush();
+    expect(a.rooms.getState().starting).toBe(false);
+    expect(b.rooms.getState().starting).toBe(true);
+    // ... and joins late, in the same world
+    b.starts[0].resolve('started');
+    await flush();
+    expect(b.rooms.getState().starting).toBe(false);
+    expect(b.walks[0].roomSeed).toBe(a.walks[0].roomSeed);
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS * 3);
+    expect(a.walks).toHaveLength(1);
+    expect(b.walks).toHaveLength(1);
+  });
+
+  it('fetches the place while the room gathers', async () => {
+    const { host, kid } = await inPairRoom({ kid: { unlocked: ['seaside'] } });
+    kid.startRoomTogether({ area: 'seaside', dusk: false }); // her own proposal
+    expect(kid.prefetched).toEqual(['seaside']);
+    expect(host.prefetched).toEqual(['seaside']); // a heard one
+    // both press before either hears the other: each fetches both places
+    // (only the winner is walked, and the other is likely her own anyway)
+    hub = createFakeHub(); // a fresh pair of devices
+    const both = await inPairRoom({ host: { unlocked: ['park'] }, kid: { unlocked: ['park', 'seaside'] } });
+    const held = [];
+    for (const c of [both.host, both.kid]) {
+      const net = c.getPendingRoom().net;
+      const real = net.sendEvent.bind(net);
+      vi.spyOn(net, 'sendEvent').mockImplementation((ev) => { held.push(() => real(ev)); });
+    }
+    both.kid.startRoomTogether({ area: 'seaside', dusk: false });
+    both.host.startRoomTogether({ area: 'park', dusk: false });
+    for (const send of held) send();
+    expect(both.kid.prefetched).toEqual(['seaside', 'park']);
+    expect(both.host.prefetched).toEqual(['park', 'seaside']);
+  });
+
+  it('a place that fails to load leaves the member home and in the room', async () => {
+    const { host, kid } = await inPairRoom();
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true);
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS);
+    expect(kid.rooms.getState().starting).toBe(true);
+    host.starts[0].resolve('started');
+    kid.starts[0].resolve('failed'); // walk.js already said the gentle line
+    await flush();
+    expect(kid.rooms.getState()).not.toBe(null);
+    expect(kid.getPendingRoom()).not.toBe(null);
+    expect(kid.rooms.getState().starting).toBe(false);
+    expect(kid.rooms.getState().roster.map((p) => p.playerId)).toEqual([HOST, KID]);
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS * 3);
+    expect(kid.walks).toHaveLength(1); // no second start on its own
+    // her sister is out walking: the next Explore says so, as it does today
+    host.getPendingRoom().net.sendState({ v: 1, id: HOST, pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
+    expect(kid.toasts).toEqual(['Mittens is exploring. Click Explore when they’re back.']);
+    expect(kid.walks).toHaveLength(1);
+  });
+
+  it('a start that was dropped or busy leaves the member home and in the room', async () => {
+    for (const result of ['dropped', 'busy']) {
+      hub = createFakeHub();
+      const { kid } = await inPairRoom();
+      kid.startRoomTogether({ area: 'neighborhood', dusk: false });
+      await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS);
+      expect(kid.rooms.getState().starting).toBe(true);
+      kid.starts[0].resolve(result);
+      await flush();
+      expect(kid.rooms.getState().starting).toBe(false);
+      expect(kid.getPendingRoom()).not.toBe(null);
+      await kid.rooms.leave();
+    }
+  });
+
+  it('a room left while its start waits: the next room is not "Starting…" and hears a proposal', async () => {
+    const a = client(hub, { pid: HOST, petName: 'Mittens', waits: true });
+    const b = client(hub, { pid: KID, petName: 'Robin', waits: true });
+    for (const x of [a, b]) await x.rooms.join('ABCD');
+    expect(b.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true);
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS);
+    expect(b.walks).toHaveLength(1);
+    expect(b.rooms.getState().starting).toBe(true); // her place is still on its way
+    await b.rooms.leave(); // she leaves during the wait ...
+    const cousin = createNet(hub.transport());
+    await cousin.join('WXYZ', { playerId: 'aaaa-cousin-03', petName: 'Pip' });
+    await b.rooms.join('WXYZ'); // ... and joins another room
+    expect(b.rooms.getState().starting).toBe(false);
+    // a proposal heard in the new room is gathered and starts her
+    cousin.sendEvent({ v: 1, id: 'aaaa-cousin-03', type: 'walk-config', area: 'neighborhood', dusk: false, seed: 5 });
+    expect(b.rooms.getState().starting).toBe(true);
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS);
+    expect(b.walks).toHaveLength(2);
+    expect(b.walks[1].roomSeed).toBe(5);
+    // the old start settling late leaves the new one "Starting…"
+    b.starts[0].resolve('dropped');
+    await flush();
+    expect(b.rooms.getState().starting).toBe(true);
+    b.starts[1].resolve('started');
+    await flush();
+    expect(b.rooms.getState().starting).toBe(false);
+  });
+
+  it('a walk ending (clearPendingRoom) during a start\'s wait leaves no "Starting…" behind', async () => {
+    const { kid } = await inPairRoom();
+    kid.startRoomTogether({ area: 'neighborhood', dusk: false });
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS);
+    expect(kid.rooms.getState().starting).toBe(true);
+    kid.clearPendingRoom();
+    const cousin = createNet(hub.transport());
+    await cousin.join('WXYZ', { playerId: 'aaaa-cousin-03', petName: 'Pip' });
+    await kid.rooms.join('WXYZ');
+    expect(kid.rooms.getState().starting).toBe(false);
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true); // her own Start works too
+  });
+
+  it('a start that throws or rejects is noted, never thrown, and Starting… ends', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const before = diagnostics.total;
+    // rejects (a build that throws once the place has come)
+    const { host, kid } = await inPairRoom();
+    kid.startRoomTogether({ area: 'neighborhood', dusk: false });
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS);
+    kid.starts[0].reject(new Error('build broke'));
+    await flush();
+    expect(kid.rooms.getState().starting).toBe(false);
+    expect(diagnostics.entries().at(-1).kind).toBe('room');
+    expect(diagnostics.total).toBe(before + 1);
+    await host.rooms.leave();
+    await kid.rooms.leave();
+    // throws in the same tick (a place already here whose build throws)
+    const c = client(hub, { pid: HOST, petName: 'Mittens' });
+    const d = createRooms({
+      MP: 1, pid: KID, progression: createProgression(fakeStorage()),
+      getCloud: () => null, getPsecret: () => null, getSession: () => null,
+      startWalk: () => { throw new Error('sync build broke'); },
+      createTransport: () => hub.transport(),
+    });
+    await c.rooms.join('WXYZ');
+    await d.rooms.join('WXYZ');
+    expect(d.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true);
+    await expect(vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS)).resolves.not.toThrow();
+    await flush();
+    expect(d.rooms.getState().starting).toBe(false);
+    expect(diagnostics.total).toBe(before + 2);
+  });
+
+  it('an older device that has no such place stays home, the other walks', async () => {
+    // A newer build's place: not in this build's catalog. The older device
+    // never hears it as a start, so it neither starts nor throws.
+    const { host, kid } = await inPairRoom();
+    expect(() => kid.startRoomTogether({ area: 'nowhere', dusk: false })).not.toThrow();
+    expect(host.rooms.getState().starting).toBe(false);
+    await vi.advanceTimersByTimeAsync(MEMBER_GATHER_MS * 3);
+    expect(host.walks).toEqual([]);
+    expect(host.rooms.getState().starting).toBe(false);
+    expect(host.getPendingRoom()).not.toBe(null);
+    expect(kid.walks).toEqual([{ duskMode: false, roomSeed: expect.any(Number), areaOverride: 'nowhere' }]);
+    kid.starts[0].resolve('started');
+    await flush();
+    expect(kid.rooms.getState().starting).toBe(false);
+    // A place the catalog names but this build cannot load: startWalkWhenReady
+    // resolves 'failed' (its gentle line), and she stays home in the room.
+    hub = createFakeHub(); // a fresh pair of devices
+    const old = await inPairRoom();
+    old.host.startRoomTogether({ area: 'nowhere', dusk: false });
+    await vi.advanceTimersByTimeAsync(START_GATHER_MS);
+    expect(old.host.rooms.getState().starting).toBe(true);
+    old.host.starts[0].resolve('failed');
+    await flush();
+    expect(old.host.rooms.getState().starting).toBe(false);
+    expect(old.host.getPendingRoom()).not.toBe(null);
+  });
+});
 
 describe('pushProfileNow shares the clan pick', () => {
   function pushing() {

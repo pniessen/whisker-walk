@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Badges harness</title>
+<!-- Series switch A2 (dev only, like the other verify-*.html: the build reads
+     index.html alone). The five group badges of both word sets side by side,
+     family's left, everyday right: at 22 px on the cream badge (on the card's
+     own colour, as a pick card draws it) and at 96 px, on a light and a dark
+     page. Below, the REAL renderers under each set with the real stylesheet:
+     the pick cards (renderClanPickerHtml) and the dressing room's today pill
+     (renderDressingRoomHtml), by day and at dusk. The everyday set is put in
+     use the way test/helpers/offwords.js does it, and taken out again.
+     URL: ?theme=dark. For scripts/record-page.mjs: window.__shot(name), name
+     one of badges-light, badges-dark, badge-today-pill,
+     badge-dressing-room-cards. -->
+<style>
+  :root { --bg: #ffffff; --ink: #1c2431; --muted: #5d6677; --rule: #d9cfbd; }
+  body[data-theme="dark"] { --bg: #1c2431; --ink: #f1e0c2; --muted: #a8b4c8; --rule: #33425e; }
+  /* the real stylesheet styles the game's body (dark, no scroll): this page's own wins */
+  html:root, html:root body { margin: 0; height: auto; overflow: auto; }
+  html:root body { background: var(--bg); color: var(--ink); font: 14px/1.4 Avenir, Nunito, 'Trebuchet MS', sans-serif; }
+  .sheet { padding: 14px 20px 24px; }
+  .sheet[hidden] { display: none; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .note { color: var(--muted); margin: 0 0 12px; font-size: 13px; }
+  table.badges { border-collapse: collapse; }
+  .badges th { font-size: 13px; text-align: left; padding: 4px 10px; color: var(--muted); font-weight: 600; }
+  .badges td { padding: 6px 10px; border-top: 1px solid var(--rule); vertical-align: middle; }
+  .badges td.split { border-left: 2px solid var(--rule); }
+  .lbl b { display: block; font-size: 15px; }
+  .lbl span { color: var(--muted); font-size: 12px; }
+  /* the 22 px badge as a pick card draws it: the real .dr-home-emblem on the card's gradient */
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; color: #fff; font-weight: 700; }
+  .chip-bare { display: inline-flex; padding: 8px; }
+  .big { display: inline-flex; align-items: center; justify-content: center; width: 131px; height: 131px; border-radius: 50%; background: #f1e0c2; }
+  .big svg { width: 96px; height: 96px; }
+  .pair { display: flex; gap: 18px; align-items: flex-start; }
+  .pair > div { flex: 1 1 0; min-width: 0; }
+  .pair h2 { font-size: 15px; margin: 0 0 8px; color: var(--ink); }
+  .pills { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pills .dr-today { grid-area: auto; margin: 0 !important; }
+  .pills .dr-today .dr-label { display: none; }
+  #homebase.real { background: none; overflow: visible; }
+  #homebase .dr { display: block; padding: 0; max-width: none; }
+  .line { margin-top: 10px; }
+  /* the clan moment as the game mounts it (.colony-news.join-moment, outside #homebase), in a box of its own */
+  .moment-box { position: relative; height: 560px; }
+</style>
+</head>
+<body>
+<div class="sheet" id="sheet-badges">
+  <h1>The five badges · <span id="theme-name"></span></h1>
+  <p class="note">Left: the family's set. Right: the everyday set. 22 px is the size on a pick card, the Change-place line and the today pill.</p>
+  <table class="badges" id="badge-table"></table>
+</div>
+<div id="homebase" class="real">
+  <div class="sheet" id="sheet-pill" hidden>
+    <h1>Today's place pill (real renderer) · by day and at dusk; below, the Change-place line</h1>
+    <div class="pair" id="pill-pair"></div>
+  </div>
+</div>
+<div class="sheet" id="sheet-cards" hidden>
+  <h1>The pick cards (real renderer, in the clan moment as the game shows it)</h1>
+  <div class="pair" id="card-pair"></div>
+</div>
+<script type="module">
+  import '/src/style.css';
+  import * as off from '/src/offclanwords.js';
+  import { addWordSet, removeWordSet, setSeriesMode, seriesMode, words, SERIES_ON } from '/src/wordset.js';
+  import { clanName, pickableClans } from '/src/clanhomes.js';
+  import { clanPickerModel, renderClanMomentHtml, clanLineHtml, emblemOf } from '/src/ui/clanpicker.js';
+  import { CATALOG, createProgression } from '/src/progression.js';
+  import { buildDressingModel, renderDressingRoomHtml } from '/src/ui/dressingroom.js';
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const CLANS = pickableClans();
+
+  // the everyday set in use for fn(), as test/helpers/offwords.js withOffWords does it
+  function withOff(fn) {
+    if (seriesMode() !== SERIES_ON) throw new Error('already inside another word set');
+    addWordSet(off.OFF_ID, off);
+    try { setSeriesMode(off.OFF_ID); return fn(); } finally { setSeriesMode(SERIES_ON); removeWordSet(off.OFF_ID); }
+  }
+  const inBoth = (fn) => ({ on: fn(), off: withOff(fn) });
+
+  // ---- the badge table ----
+  const read = inBoth(() => Object.fromEntries(CLANS.map((id) => [id, {
+    svg: emblemOf(id), name: clanName(id), word: words().BADGE_WORDS?.[id] ?? '',
+  }])));
+  const cell22 = (id, svg) => `<td><span class="chip dr-home-${id}"><span class="dr-home-emblem">${svg}</span></span>`
+    + ` <span class="chip-bare"><span class="dr-home-emblem">${svg}</span></span></td>`;
+  const cell96 = (svg) => `<td><span class="big">${svg}</span></td>`;
+  $('badge-table').innerHTML = '<tr><th>family: id · name</th><th>22 px</th><th>96 px</th><th class="split">everyday: id · badge</th><th>22 px</th><th>96 px</th></tr>'
+    + CLANS.map((id) => {
+      const a = read.on[id];
+      const b = read.off[id];
+      return `<tr><td class="lbl"><b>${esc(id)}</b><span>${esc(a.name)}</span></td>${cell22(id, a.svg)}${cell96(a.svg)}`
+        + `<td class="lbl split"><b>${esc(id)}</b><span>${esc(b.word)} · ${b.svg.length} chars</span></td>${cell22(id, b.svg)}${cell96(b.svg)}</tr>`;
+    }).join('');
+
+  // ---- the real renderers ----
+  function memoryStorage() {
+    const m = new Map();
+    return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  }
+  const blank = createProgression(memoryStorage()).state;
+  const stateIn = (area) => {
+    const s = JSON.parse(JSON.stringify(blank));
+    s.edition = 'canon';
+    s.area = area;
+    s.unlocked.areas = [...new Set([...(s.unlocked.areas || []), ...CLANS])];
+    return s;
+  };
+  const DUSK = '<label class="dusk"><input type="checkbox" id="dusk-toggle" checked /> Dusk walk ✨</label>';
+  const todayOf = (html) => {
+    const i = html.indexOf('<section class="dr-today">');
+    return html.slice(i, html.indexOf('</section>', i) + '</section>'.length);
+  };
+  const pills = inBoth(() => CLANS.map((id) => {
+    const model = buildDressingModel(stateIn(id), CATALOG);
+    return [todayOf(renderDressingRoomHtml({ model, ui: {} })), todayOf(renderDressingRoomHtml({ model, ui: {}, extrasHtml: DUSK }))];
+  }));
+  const picked = { ...stateIn('woods'), clanPick: { mine: 'moor', partner: null, partnerId: null } };
+  const lines = inBoth(() => clanLineHtml(clanPickerModel(picked), 'Robin'));
+  const pillCol = (title, list, line) => `<div><h2>${title}</h2><div class="dr"><div class="pills">${list.map(([day, dusk]) => day + dusk).join('')}</div><div class="line">${line}</div></div></div>`;
+  $('pill-pair').innerHTML = pillCol('family', pills.on, lines.on) + pillCol('everyday', pills.off, lines.off);
+
+  const moments = inBoth(() => renderClanMomentHtml(clanPickerModel({ ...stateIn('woods'), clanPick: { mine: 'woods', partner: null, partnerId: null } }), 'Robin'));
+  const momentCol = (title, html) => `<div><h2>${title}</h2><div class="moment-box"><div class="colony-news join-moment">${html}</div></div></div>`;
+  $('card-pair').innerHTML = momentCol('family', moments.on) + momentCol('everyday', moments.off);
+
+  // ---- themes and shots ----
+  function theme(t) {
+    document.body.dataset.theme = t;
+    $('theme-name').textContent = t === 'dark' ? 'dark page' : 'light page';
+  }
+  theme(new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'light');
+  const SHEETS = { 'badges-light': ['badges', 'light'], 'badges-dark': ['badges', 'dark'], 'badge-today-pill': ['pill', 'dark'], 'badge-dressing-room-cards': ['cards', 'dark'] };
+  window.__shot = (name) => {
+    const [sheet, t] = SHEETS[name];
+    theme(t);
+    for (const s of ['badges', 'pill', 'cards']) $(`sheet-${s}`).hidden = s !== sheet;
+    window.scrollTo(0, 0);
+    return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(name))));
+  };
+  const imgs = [...document.images].map((im) => (im.complete ? null : new Promise((r) => { im.addEventListener("load", r); im.addEventListener("error", r); })));
+  Promise.all(imgs).then(() => { window.__ready = true; });
+</script>
+</body>
+</html>

@@ -9,7 +9,7 @@ import { CATALOG } from '../progression.js';
 import { areaInEdition, accessoryName, placeName } from '../edition.js';
 import { spendAsk } from './confirmcard.js';
 import { areaOffer } from '../areaoffer.js';
-import { menuThumbnails, customThumbnails, accessoryFraming } from '../thumbnails.js';
+import { menuThumbnails, fillFoundThumbs, customThumbnails, accessoryFraming } from '../thumbnails.js';
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { CUSTOM_MAX, lookKey } from '../customcats.js';
 import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, renderPlacesSheetHtml, resolveSheet } from './dressingroom.js';
@@ -121,7 +121,7 @@ export function createDressingRoom({
   progression, catalog = CATALOG, stage = null, sync = null, thumbs = null,
   onChange = () => {}, onOpenSheet = null, onProfileChange = () => {}, snapCustom = customThumbnails, now = () => Date.now(),
   onCatSaved = () => {}, later = (fn, ms) => setTimeout(fn, ms), storage = defaultStorage(),
-  onPlaced = () => {}, confirmSpend = null,
+  onPlaced = () => {}, confirmSpend = null, getIsTouch = () => false,
 }) {
   let builderPose = readPose(storage); // 'stand' | 'sit'
   let doneAt = null; // when Done last closed the builder (Start then sits under her finger)
@@ -135,6 +135,7 @@ export function createDressingRoom({
   let focusAfter = null; // a keyboard tap's control, found again after the render it caused
   const getThumbs = () => {
     if (!thumbs) thumbs = menuThumbnails();
+    fillFoundThumbs(thumbs, progression.state?.unlocked?.accessories);
     if (!thumbs.mine) thumbs.mine = {};
     if (!thumbs.worn) thumbs.worn = {};
     if (!thumbs.outfits) thumbs.outfits = {};
@@ -156,7 +157,7 @@ export function createDressingRoom({
   const builderOp = (action) => { if (ui.builder) dispatch({ type: 'builder', builder: reduceBuilder(ui.builder, action) }); };
 
   function model() {
-    return buildDressingModel(progression.state, catalog, ui);
+    return buildDressingModel(progression.state, catalog, { ...ui, touch: !!getIsTouch() });
   }
 
   // Her cats' portraits: snapped once per key (one throwaway WebGL per batch).

@@ -22,7 +22,10 @@ export function createPhotoMode({ renderer, camera, player, album, hud, log, aud
     const dogAt = s.dog?.spotPos;
     if (dogAt) candidates.push({ key: 'critter-dog', label: labelFor('dog'), pos: new THREE.Vector3(dogAt.x, 0, dogAt.z) });
     for (const st of s.strayCats.strays) candidates.push({ key: 'stray', label: 'a stray cat', pos: st.group.position });
-    for (const r of s.remotes.list) candidates.push({ key: 'friend-pet', label: r.petName, pos: r.group.position });
+    for (const r of s.remotes.list) {
+      // a co-walker not drawn yet (no state: remotecats.js) is no subject
+      if (r.group.visible !== false) candidates.push({ key: 'friend-pet', label: r.petName, pos: r.group.position });
+    }
     for (const g of s.ghosts.list) candidates.push({ key: 'friend-pet', label: g.petName, pos: g.group.position });
     for (const sec of s.secrets?.list ?? []) {
       if (sec.group.visible) candidates.push({ key: sec.key, label: sec.label, pos: sec.group.position });

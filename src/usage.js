@@ -10,15 +10,20 @@
 // never opened has no entry. Pure helpers; progression.js owns the save and
 // the one verb (noteUse).
 
+import { phrase } from './clanphrases.js';
+
 // Every home sheet, plus the two parts of the dressing room that are not
 // sheets. Walks are not counted here: state.walks already counts them.
 export const USAGE_IDS = Object.freeze([
   'menu', 'places', 'together', 'colony', 'journal', 'album', 'skills', 'controls',
-  'settings', 'sync', 'code', 'dressup', 'builder',
+  'grownups', 'settings', 'sync', 'code', 'dressup', 'builder',
 ]);
+// colony is read when asked: the Menu door's own name (My clan / My cats).
 export const USAGE_NAME = Object.freeze({
-  menu: 'Menu', places: 'Change place', together: 'Play together', colony: 'Colony', journal: 'Journal',
-  album: 'Album', skills: 'Skills', controls: 'Sound & controls', settings: 'Game settings',
+  menu: 'Menu', places: 'Change place', together: 'Play together',
+  get colony() { return phrase('menu.myCats'); },
+  journal: 'Journal',
+  album: 'Album', skills: 'Skills', controls: 'Sound & controls', grownups: 'For grown-ups', settings: 'Game settings',
   sync: 'Cloud save', code: 'Gift code', dressup: 'Dress up', builder: 'Cat builder',
 });
 export const USAGE_MAX = 1e6;

@@ -308,8 +308,8 @@ describe('renderPairingHtml', () => {
 
   it('needs-name says a walking name comes first, with one button that leads to it and nothing else', () => {
     const html = renderPairingHtml(st('needs-name'), { hasPetName: false });
-    expect(html).toContain('To share your colony, you need a walking name first.');
-    expect(html).toContain('<button type="button" id="colony-pair-name" class="colony-pair-btn">Pick your walking name →</button>');
+    expect(html).toContain('To share your colony, you need a friend name first.');
+    expect(html).toContain('<button type="button" id="colony-pair-name" class="colony-pair-btn">Pick your friend name →</button>');
     expect(html.match(/<button/g)).toHaveLength(1);
     expect(html).not.toContain('disabled');
     expect(html).not.toContain('<input');
@@ -760,6 +760,15 @@ describe('walk together with your partner (Task 12)', () => {
     expect(renderStartButtonHtml(null, { as: '<b>' })).toContain('Explore as &lt;b&gt;');
     expect(renderStartButtonHtml(null, { as: null })).toContain(`Explore ${PAW}`);
     expect(renderStartButtonHtml(room({ starting: true }), { as: 'Tabby' })).toContain('Starting…');
+  });
+  it('while a place loads, Explore reads "Getting ready…" and is disabled; "Starting…" still wins; no flag is today\'s button', () => {
+    const ready = renderStartButtonHtml(null, { gettingReady: true });
+    expect(ready).toContain('disabled');
+    expect(ready).toContain('Getting ready…');
+    expect(ready).toMatch(/id="btn-start"/);
+    expect(renderStartButtonHtml({ starting: true }, { gettingReady: true })).toBe('<button id="btn-start" class="primary" disabled>Starting…</button>');
+    expect(renderStartButtonHtml(null)).toBe(`<button id="btn-start" class="primary">Explore ${PAW}</button>`);
+    expect(renderStartButtonHtml(null, { gettingReady: false })).toBe(`<button id="btn-start" class="primary">Explore ${PAW}</button>`);
   });
 
   it('a Start that is waiting for the host reads "Starting…" and cannot be pressed again', () => {

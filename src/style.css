@@ -659,13 +659,12 @@ body.touch-mode:not(.left-handed) .hud-top {
   background: #2c3d58; color: #f1e0c2; font: inherit; font-size: 15px; font-weight: 700;
 }
 .walk-together button:hover, .friend-code-block button:hover { background: #34486a; }
-.walk-together button.primary, .friend-code-block button.primary, .walk-together #wt-host {
+.walk-together button.primary, .friend-code-block button.primary {
   background: #f2c14e; color: #3a2a10; border-color: #f2c14e;
 }
-.walk-together button.primary:hover, .friend-code-block button.primary:hover, .walk-together #wt-host:hover { filter: brightness(1.06); background: #f2c14e; }
+.walk-together button.primary:hover, .friend-code-block button.primary:hover { filter: brightness(1.06); background: #f2c14e; }
 .walk-together button.danger { background: transparent; color: #e98a8a; border-color: #e98a8a; }
-/* #wt-host is gold by id, so its disabled look needs the id too. */
-.walk-together button:disabled, .friend-code-block button:disabled, .walk-together #wt-host:disabled {
+.walk-together button:disabled, .friend-code-block button:disabled {
   background: #2a3346; color: #8896b0; border-color: #3a4560; cursor: default; filter: none;
 }
 .walk-together button:focus-visible, .friend-code-block button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
@@ -886,9 +885,6 @@ body.touch-mode:not(.left-handed) .hud-top {
 .screen-actions button.quiet:hover, .screen-actions button.quiet:focus-visible { opacity: 1; }
 /* The guided first walk's lines on the summary card. */
 .best-line.guide-line { color: #ffe9b0; font-size: 1.05rem; font-weight: 600; }
-/* "Play the first walk again" in Settings. */
-.settings-row.settings-replay { display: block; }
-.settings-replay button { min-height: 44px; }
 .pause-card .primary, .pause-card .secondary {
   border-radius: 999px; min-height: 48px; min-width: 220px; padding: 12px 30px;
   font: inherit; font-weight: 700; font-size: 1.05rem; cursor: pointer;
@@ -1498,7 +1494,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   white-space: nowrap; }
 
 /* small caps label over a panel */
-.dr-label, .hb-grownups-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; opacity: .65; margin: 0 0 6px; }
+.dr-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; opacity: .65; margin: 0 0 6px; }
 
 /* Wearing: what she has on, and Dress up */
 .dr-wearing { grid-area: wearing; background: var(--frame); border-radius: 16px; padding: 12px 14px; }
@@ -1637,6 +1633,20 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .dr-dock .dusk { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px;
   padding: 6px 14px; border: 1.5px solid #5b6c88; border-radius: 999px; font-size: 14px; cursor: pointer; color: #c8b8f0; }
 .wt-first { margin: 0 0 6px; font-weight: 700; }
+/* Play together (menu review #8): small headings over Play now and Friends,
+   like the other sheets' section headings. */
+.walk-together .wt-heading { font-size: 0.9rem; color: #a8c0e0; margin: 0 0 8px; font-weight: 700; }
+.walk-together .wt-heading ~ .wt-heading { margin-top: 18px; }
+/* Start a room and Join a room: two big quiet choices side by side, even on a
+   phone (pink is only on Start). */
+.wt-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.walk-together .wt-choice { min-height: 64px; padding: 10px 12px; border-radius: 18px; font-size: 1.1rem; }
+.wt-choices + .wt-actions { margin-bottom: 12px; }
+.wt-join-error { margin-bottom: 12px; }
+/* Her friend name, saved: one quiet row with a pencil to change it. */
+.wt-name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.wt-name-saved { overflow-wrap: anywhere; }
+.walk-together .wt-name-edit { min-width: 44px; padding: 8px 12px; }
 /* Nearby one-tap joining: a room the app found on the local network, one row
    each, in Play together above the code box. The box is empty (and takes no
    room) when nothing is found. */
@@ -1652,7 +1662,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 /* The room code under the name: a name on the air can be anyone's. */
 .wt-nearby-code, .nearby-card-code { flex-basis: 100%; font-size: 0.95rem; opacity: 0.85; letter-spacing: 0.02em; }
 .wt-name-hint { margin-top: 6px; flex-basis: 100%; }
-/* "Your walking name" over the box, on a line of its own */
+/* "Your friend name" over the box, on a line of its own */
 .wt-name-label { flex-basis: 100%; font-weight: 700; }
 /* "Use {her cat's name}": an offer under the box; a long name may wrap */
 .wt-name-use { overflow-wrap: anywhere; }
@@ -1797,8 +1807,9 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 #homebase .hb-sheet-map .hb-places { margin-bottom: 0; }
 .hb-sheet-map .wm-frame { flex: 1 1 auto; min-height: 260px; margin: 0; }
 .wm-frame { position: relative; margin: 0 0 12px; }
+.wm-hint { margin: 0 0 8px; padding: 6px 12px; border-radius: 12px; background: rgba(241, 224, 194, .12); color: inherit; font-size: .9rem; line-height: 1.35; }
 .territory-map.world-map { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; border-radius: 12px;
-  background: #f3e4c4; /* the paper, before the pan first fits the view */
+  background: #d4e3b1; /* the meadow, before the pan first fits the view */
   /* the finger pans and pinches the map, never the page (else the browser
      takes the gesture and the map gets a pointercancel) */
   touch-action: none; -webkit-user-select: none; user-select: none; }
@@ -1818,6 +1829,32 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .world-map .wm-gate { fill: #b04a2e; }
 .world-map .tm-land.street.locked { fill: #cbbfa6; stroke-dasharray: 14 9; }
 .world-map .tm-line-small { font-size: 24px; }
+/* The countryside between the places (ui/countryside.js): meadow green
+   paper, a patchwork of fields with hedgerows and furrows, lanes, ponds,
+   flowers and tree clumps, fading paler toward the frame past the world;
+   a sandy shore where the land meets the sea; a paper rim and a soft shadow
+   under every place so the places stand off the green. All decoration: no
+   taps (a drag still pans), hidden from screen readers. */
+.world-map .tm-paper { fill: #d4e3b1; }
+.world-map .wm-country, .world-map .wm-rims { pointer-events: none; }
+.world-map .wm-field { stroke: none; }
+.world-map .wm-furrows { fill: none; stroke: #8fa45f; stroke-opacity: .32; stroke-width: 2; stroke-linecap: round; }
+.world-map .wm-hedges { fill: none; stroke: #8fb36c; stroke-width: 6; stroke-linecap: round; stroke-dasharray: 0 8; }
+.world-map .wm-lane-edge { fill: none; stroke: #c4b083; stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
+.world-map .wm-lane { fill: none; stroke: #efe3bd; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.world-map .wm-pond { fill: #a9d3e3; stroke: #79a9bb; stroke-width: 3; }
+.world-map .wm-flowers { fill: none; stroke-width: 5.5; stroke-linecap: round; }
+.world-map .wm-flowers-white { stroke: #fffaf0; }
+.world-map .wm-flowers-yellow { stroke: #f2d25c; }
+.world-map .wm-flowers-pink { stroke: #f0b4c8; }
+.world-map .wm-tree-shade { fill: #5f7f45; fill-opacity: .22; }
+.world-map .wm-trees { fill: #8fb86e; stroke: #5e8a4c; stroke-width: 2; }
+.world-map .wm-tree-shine { fill: #b2d290; }
+.world-map .wm-fade-in { stop-color: #e4ecd0; stop-opacity: 0; }
+.world-map .wm-fade-out { stop-color: #e4ecd0; stop-opacity: 1; }
+.world-map .tm-sea { stroke: #ecdcab; stroke-width: 16; stroke-linejoin: round; }
+.world-map .wm-shadow { fill: #b7ca93; stroke: #b7ca93; stroke-width: 16; stroke-linejoin: round; }
+.world-map .wm-rim { fill: #f3e4c4; stroke: #f6ecd2; stroke-width: 16; stroke-linejoin: round; }
 /* Zoom in / Zoom out: two round buttons at the map's top right */
 .wm-zoom { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
 .wm-frame .wm-zoom button { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1.5px solid #5b6c88;
@@ -1837,6 +1874,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
    room for all 16:10) */
 @media (max-width: 999px), (max-height: 860px) { .wm-card-pic { max-height: min(22vh, 160px); } }
 .wm-card h3 { margin: 10px 56px 4px 14px; font-size: 1.15rem; color: var(--cream, #f1e0c2); }
+.dr-town-note { display: block; margin: -4px 14px 6px; font-size: 13px; font-weight: 600; opacity: .8; }
+.dr-today-card .dr-town-note { margin: 0; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
 .wm-card-line { margin: 0 14px 10px; font-size: 15px; line-height: 1.35; }
 /* its one button: outlined and quiet (pink is Explore's alone) */
 .dr-where .wm-card .wm-card-go, .dr-where .wm-card .wm-card-buy { display: flex; align-items: center; justify-content: center;
@@ -1847,8 +1886,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   background: rgba(20, 28, 42, .78); color: #fff; font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
 .wm-card button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
-/* ===== phone: one column, no scrolling ===== */
-@media (max-width: 600px) {
+/* ===== phone and iPad portrait: one column, no scrolling ===== */
+@media (max-width: 600px), (orientation: portrait) and (max-width: 1100px) {
   .dr { column-gap: 10px; row-gap: 10px; padding: max(10px, env(safe-area-inset-top)) 14px 0;
     grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
     grid-template-rows: auto minmax(0, 1fr) auto auto;
@@ -1859,17 +1898,7 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   /* the wardrobe takes room from the cat, never the other way round */
   .dr-view-wardrobe .dr-hero { overflow: hidden; }
   .dr-view-wardrobe .dr-stage { min-height: 120px; }
-  /* the title is the splash's job on a phone: kept for screen readers only */
-  .dr-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
-    clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
-  .hb-rank { display: none; }
-  .dr .hb-menu-btn { padding: 6px 12px; }
-  .hb-menu-word { display: none; }
   .dr-stage { min-height: 200px; }
-  .dr-hero-name { font-size: 20px; }
-  /* under the name, the cat's personality, as on an iPad (the rank read like
-     a breed there: "Calico · Mythical Feline"); the rank is in the Menu */
-  .dr-hero-blurb { font-size: 13px; }
   .dr .dr-portrait { width: 46px; height: 46px; }
   .dr-make-more { display: none; } /* "＋ Make": the strip keeps "🔒 N more" in view */
   .dr-strip { margin-top: 8px; }
@@ -1890,8 +1919,8 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .dr-today-name { font-size: 15px; line-height: 1.15; gap: 6px; text-shadow: none; }
   .dr-today-emblem { display: none; }
   .dr-today-card .cap small { font-size: 12px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dr-today-card .cap small:not(.dr-today-change) { display: none; }
-  .dr-today-card .cap .dr-today-change { display: block; }
+  .dr-today-card .cap small:not(.dr-today-change, .dr-town-note) { display: none; }
+  .dr-today-card .cap .dr-today-change, .dr-today-card .cap .dr-town-note { display: block; }
   .dr-change { display: none; }
   /* the day/dusk switch: a round sun or moon at the tile's right end */
   .dr-today-extras { top: 50%; right: 6px; left: auto; transform: translateY(-50%); }
@@ -1915,6 +1944,22 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .dr .dr-dock .dr-together { flex: 0 0 58px; width: 58px; padding: 0; border-radius: 50%; font-size: 22px; }
   .dr-dock .dr-together-words { display: none; }
   .dr-dock .dusk { align-self: flex-start; }
+  .dr-today-card .dr-town-note { text-shadow: none; }
+}
+/* phone only (an iPad in portrait keeps them): the top bar's title, rank pill
+   and Menu word go, so the points and the Menu fit one row; the cat's name
+   and personality a size smaller */
+@media (max-width: 600px) {
+  /* the title is the splash's job on a phone: kept for screen readers only */
+  .dr-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
+  .hb-rank { display: none; }
+  .dr .hb-menu-btn { padding: 6px 12px; }
+  .hb-menu-word { display: none; }
+  .dr-hero-name { font-size: 20px; }
+  /* under the name, the cat's personality, as on an iPad (the rank read like
+     a breed there: "Calico · Mythical Feline"); the rank is in the Menu */
+  .dr-hero-blurb { font-size: 13px; }
 }
 /* very short phones (an SE in a browser): a smaller cat, the same doors */
 @media (max-width: 600px) and (max-height: 640px) {
@@ -1954,18 +1999,15 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
   .hb-sheet-dock .dr-together-words { display: none; }
 }
 
-/* the Menu: the stats line, six big kid tiles, a quiet grown-ups row */
-#homebase .hb-menu h2, #homebase .hb-places h2 { font-size: 1.5rem; color: #f1e0c2; margin-bottom: 8px; }
+/* the Menu: the stats line, six big kid tiles (My den last), a slim Sound &
+   controls row, one quiet For grown-ups door */
+#homebase .hb-menu h2, #homebase .hb-places h2, #homebase .hb-grownups h2 { font-size: 1.5rem; color: #f1e0c2; margin-bottom: 8px; }
 .hb-menu-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 16px; font-size: 14px; color: #f1e0c2; opacity: .9; }
 .hb-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 /* six columns so five tiles fill the grid: 2+2+2, then 3+3 (no hole) */
 .hb-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .hb-tile { grid-column: span 2; }
 .hb-tiles > .hb-tile:nth-child(4):nth-last-child(2), .hb-tiles > .hb-tile:nth-child(5):last-child { grid-column: span 3; }
-/* seven tiles (the den and Sound & controls joined): 3, then 2 and 2 */
-@media (min-width: 601px) {
-  .hb-tiles > .hb-tile:first-child:nth-last-child(7) ~ .hb-tile:nth-child(n+4) { grid-column: span 3; }
-}
 .hb-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 120px;
   padding: 14px 10px; border: 0; border-radius: 18px; background: #2c3d58; color: #f1e0c2; font: inherit; cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, .18); }
@@ -1973,12 +2015,31 @@ p.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0;
 .hb-tile-icon { font-size: 34px; line-height: 1.1; }
 .hb-tile-name { font-size: 18px; font-weight: 800; }
 .hb-tile small { font-size: 12px; opacity: .75; text-align: center; }
-.hb-grownups { margin-top: 26px; padding-top: 12px; border-top: 1px solid #33425e; }
-.hb-grownups-label { color: #f1e0c2; }
-.hb-grownups-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.hb-grownup { min-height: 44px; padding: 6px 16px; border: 1.5px solid #5b6c88; border-radius: 999px; background: transparent;
-  color: #f1e0c2; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
-.hb-grownup:hover { background: rgba(255, 255, 255, .06); }
+/* a slim full-width outlined row: Sound & controls under the tiles, and the
+   rows of For grown-ups */
+.hb-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; margin-top: 12px; padding: 8px 16px;
+  border: 1.5px solid #5b6c88; border-radius: 14px; background: transparent; color: #f1e0c2;
+  font: inherit; font-size: 16px; font-weight: 700; text-align: left; cursor: pointer; }
+.hb-row:hover { background: rgba(255, 255, 255, .06); }
+.hb-row-icon { font-size: 20px; line-height: 1; }
+.hb-row-name { flex: 1; min-width: 0; }
+.hb-row-go { opacity: .6; }
+/* For grown-ups: a small quiet door at the Menu's foot, in the old label's style */
+.hb-grownups-door { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 16px; padding: 6px 4px;
+  border: 0; background: transparent; color: #f1e0c2; font: inherit; font-size: 12px; font-weight: 700;
+  letter-spacing: .09em; text-transform: uppercase; opacity: .75; cursor: pointer; }
+.hb-grownups-door:hover, .hb-grownups-door:focus-visible { opacity: 1; }
+/* the Journal's quiet pointer to My clan, in the same quiet style */
+.hb-journal-friends { display: inline-flex; align-items: center; min-height: 44px; margin-top: 16px; padding: 6px 4px;
+  border: 0; background: transparent; color: #f1e0c2; font: inherit; font-size: 13px; font-weight: 700;
+  opacity: .75; cursor: pointer; text-align: left; }
+.hb-journal-friends:hover, .hb-journal-friends:focus-visible { opacity: 1; }
+.hb-grownups-door .hb-row-icon { font-size: 14px; }
+.hb-grownups-door .hb-row-name { flex: none; }
+/* the For grown-ups sheet: its rows, Do the first lesson again last */
+.hb-grownups { color: #f1e0c2; }
+.hb-rows { display: flex; flex-direction: column; gap: 10px; }
+.hb-rows .hb-row { margin-top: 0; }
 @media (max-width: 600px) {
   .hb-tiles { grid-template-columns: 1fr 1fr; gap: 10px; }
   .hb-tiles > .hb-tile:nth-child(4):nth-last-child(2), .hb-tiles > .hb-tile:nth-child(5):last-child { grid-column: auto; }
@@ -2055,7 +2116,7 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .hb-tiles { gap: 16px; }
   .hb-tile { min-height: 150px; }
-  .homebase-scroll.hb-sheet:is([data-sheet="settings"], [data-sheet="controls"]) { max-width: 760px; }
+  .homebase-scroll.hb-sheet:is([data-sheet="settings"], [data-sheet="controls"], [data-sheet="grownups"]) { max-width: 760px; }
 }
 @media (min-width: 1400px) {
   .hb-places .dr-where > .dr-places { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -2071,11 +2132,11 @@ button.hb-pick-line { width: 100%; min-height: 48px; padding: 10px 16px; border:
   .hb-sheet[data-sheet="skills"] .cards, .hb-sheet[data-sheet="colony"] .cards { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
   .hb-sheet[data-sheet="journal"] .journal-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
   .hb-sheet[data-sheet="album"] .photos { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
-  .hb-sheet:is([data-sheet="together"], [data-sheet="journal"]) .friends-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+  .hb-sheet[data-sheet="colony"] .friends-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
   .hb-sheet[data-sheet="colony"] .colony-section:has(.empty-state) :is(.colony-banner, .colony-mode) { text-align: center; }
   .hb-sheet[data-sheet="colony"] p.colony-empty, .hb-sheet[data-sheet="colony"] .colony-full,
-  .hb-sheet[data-sheet="journal"] .friends-section .empty-state, .hb-sheet[data-sheet="colony"] .empty-state { text-align: center; margin-left: auto; margin-right: auto; }
-  .hb-sheet:is([data-sheet="colony"], [data-sheet="album"]) .empty-state svg, .hb-sheet[data-sheet="journal"] .friends-section .empty-state svg { width: 160px; }
+  .hb-sheet[data-sheet="colony"] .friends-section .empty-state, .hb-sheet[data-sheet="colony"] .empty-state { text-align: center; margin-left: auto; margin-right: auto; }
+  .hb-sheet:is([data-sheet="colony"], [data-sheet="album"]) .empty-state svg, .hb-sheet[data-sheet="colony"] .friends-section .empty-state svg { width: 160px; }
 }
 
 /* the clan moment: a one-time story card over home (outside #homebase) */
@@ -2654,13 +2715,14 @@ body.touch-mode .fight-key { display: none; }
     padding: 6px max(20px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
   .hb-sheet-dock .where { flex: 0 1 auto; min-width: 0; }
   .hb-sheet-dock #btn-start { min-height: 48px; padding: 8px 22px; }
-  /* the Menu: four tiles to a row, so the grown-ups row is close */
+  /* the Menu: four tiles to a row, so the Sound & controls row and the grown-ups door are close */
   #homebase .hb-menu h2, #homebase .hb-places h2 { font-size: 1.25rem; margin-bottom: 4px; }
   .hb-menu-stats { margin-bottom: 10px; }
   .hb-tiles { display: flex; flex-wrap: wrap; gap: 10px; }
   .hb-tile { flex: 1 1 22%; min-height: 76px; padding: 8px 10px; gap: 2px; }
   .hb-tile-icon { font-size: 28px; }
-  .hb-grownups { margin-top: 14px; padding-top: 10px; }
+  .hb-row { margin-top: 8px; min-height: 44px; }
+  .hb-grownups-door { margin-top: 4px; }
 
   /* the clan moment: every clan in one row, so "Not yet" is on the card */
   .join-moment .join-moment-card { max-width: 780px; padding: 12px 16px 10px; }

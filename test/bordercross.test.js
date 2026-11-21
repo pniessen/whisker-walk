@@ -100,7 +100,9 @@ describe('crossingOutcome', () => {
   });
   it('guest who could not pick', () => {
     const r = crossingOutcome({ ...base, clan: true, ledBy: 'Pip', together: ['Pip'], pickPlace: () => false });
-    expect(r).toEqual({ picked: false, lines: ['Pip led the way to the Moor! 🧭', 'Ask Pip to tap Explore on the home screen to head there together.'] });
+    expect(r).toEqual({ picked: false, lines: ['Pip led the way to the Moor! 🧭', 'Ask Pip to click Explore on the home screen to head there together.'] });
+    const t = crossingOutcome({ ...base, clan: true, ledBy: 'Pip', together: ['Pip'], pickPlace: () => false, touch: true });
+    expect(t.lines[1]).toBe('Ask Pip to tap Explore on the home screen to head there together.');
   });
   it('legacy never picks', () => {
     const pickPlace = vi.fn();

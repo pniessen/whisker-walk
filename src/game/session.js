@@ -31,7 +31,8 @@ const FIELDS = [
   ['tier', "the render quality tier this walk was built at"],
   ['useComposer', 'whether frames go through the post-fx composer (tier.postFx; adaptquality.js may turn it off)'],
   ['duskMode', 'the walk was asked for at dusk'],
-  ['duskActive', 'the walk was ACTUALLY dusk (glow-collar gated) — endWalk credits duskWalks from this, not duskMode'],
+  ['duskActive', 'the walk was ACTUALLY dusk (glow-collar gated): the secrets roll, the fireflies, room configs'],
+  ['countsDusk', 'the walk counts as a dusk walk (walkDusk below) — endWalk credits duskWalks from this, and the resume note keeps it'],
   ['reducedMotion', 'the reduced-motion setting, read once per walk rather than per frame'],
   ['weather', "this walk's weather (condition, rain…)"],
   ['areaLife', "the area's own life (Gorge birds, cave glow, ambience mix) or NO_AREA_LIFE"],
@@ -71,6 +72,7 @@ const FIELDS = [
   ['freezeTime', 'seconds the cat is frozen (a scuffle, a fright)'],
   ['boxTime', 'seconds sitting in a box'],
   ['perched', 'the perch the cat is on, or null'],
+  ['perchHold', 'the perch a jump put her on with the stick already held, or null: a push does not take her off it until the stick is let go (climbing.js stickTakesOff)'],
   ['pounceTime', 'seconds left in the current pounce'],
   ['pounceCooldown', 'seconds until the next pounce'],
   ['landTime', 'seconds of landing squash left'],
@@ -207,6 +209,28 @@ const FIELDS = [
   ['arrivalLine', "late (walk.js): the wanderer's arrival line, or null"],
   ['moveLines', 'late (walk.js): toasts for newly unlocked fight moves, or null'],
 ];
+
+/**
+ * walkDusk({ duskMode, room, collar, evening }) → { duskActive, eveningLook, countsDusk }
+ * — what a walk makes of dusk, worked out once, in startWalk (game/walk.js).
+ *
+ *   duskActive   the walk was asked for at dusk and really is: a solo walk
+ *                only with the Glow Collar on; a room walk takes the host's
+ *                choice (`room`), already gated on the host's own collar, so
+ *                every device rolls the same weather and secrets.
+ *   eveningLook  the walk looks like dusk (the dusk light, sky, night sky,
+ *                ambience and music): a dusk walk, or an area that is always
+ *                evening (areaData.evening, the Rooftops), whatever was asked.
+ *   countsDusk   it counts as a dusk walk (Night Eyes' tally, the resume
+ *                note): a dusk walk, or an evening area with the Glow Collar
+ *                on — "only when the Glow Collar is on, as the rule is today".
+ */
+export function walkDusk({ duskMode, room, collar, evening }) {
+  const glow = collar === 'glow';
+  const duskActive = room ? !!duskMode : !!duskMode && glow;
+  const always = evening === true;
+  return { duskActive, eveningLook: duskActive || always, countsDusk: duskActive || (always && glow) };
+}
 
 /** Every field a walk session can hold, in the order above. */
 export const SESSION_FIELDS = Object.freeze(FIELDS.map(([name]) => name));

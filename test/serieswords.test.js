@@ -746,6 +746,7 @@ const OFF_IGNORE = [
   /^clanEdition\.lines\.campOnTheMap\./,   // typed out in lines(); what the map really says is in screens.map and phrases['map.camp']
   /^legacyEdition\.patrols\./,             // '(no patrol)' is this file's own note
   /^legacyEdition\.mapModelCamps\[/,       // 'camp' / 'no camp' is this file's own note
+  /^clanEdition\.vocabulary\.placeWords\.roofs$/, // 'The Rooftops' is plain words, the same in both sets (Rooftops step 2)
 ];
 describe('everyday words: the tables, names, tags, lines and screens', () => {
   it('shows exactly the recorded everyday words', () => {

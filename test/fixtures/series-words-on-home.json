@@ -15,7 +15,8 @@
     "Game edition",
     "Clan Edition",
     "Legacy Edition",
-    "Switching renames the places and shows or hides the clan territories. Nothing is lost."
+    "Switching renames the places and shows or hides the clan territories. Nothing is lost.",
+    "My clan"
    ],
    "together": [
     "Or pick a star name",
@@ -25,6 +26,7 @@
     "Twolegplace"
    ],
    "colony": [
+    "My clan 🐈",
     "ThistleClan",
     "Twolegplace"
    ],
@@ -35,27 +37,38 @@
    ],
    "journal": [
     "🛡️ Intruders chased off: 0",
+    "Twolegplace",
+    "Found in Twolegplace",
+    "Found in Twolegplace",
+    "Found in Twolegplace",
+    "Found in Twolegplace",
+    "Your cat friends are in My clan now ›",
     "Twolegplace"
    ]
   },
   "picked": {
    "woods": [
+    "My clan 🐈",
     "StormClan",
     "Twolegplace"
    ],
    "river": [
+    "My clan 🐈",
     "BrookClan",
     "Twolegplace"
    ],
    "moor": [
+    "My clan 🐈",
     "GaleClan",
     "Twolegplace"
    ],
    "pines": [
+    "My clan 🐈",
     "DuskClan",
     "Twolegplace"
    ],
    "gorge": [
+    "My clan 🐈",
     "CliffClan",
     "Twolegplace"
    ]
@@ -74,13 +87,18 @@
    "Game edition",
    "Clan Edition",
    "Legacy Edition",
-   "Switching renames the places and shows or hides the clan territories. Nothing is lost."
+   "Switching renames the places and shows or hides the clan territories. Nothing is lost.",
+   "My clan"
   ],
   "together": [],
-  "colony": [],
+  "colony": [
+   "My clan 🐈"
+  ],
   "skills": [
    "A scent trail drifts toward the nearest collectible you have not picked up yet."
   ],
-  "journal": []
+  "journal": [
+   "Your cat friends are in My clan now ›"
+  ]
  }
 }

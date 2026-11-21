@@ -8,6 +8,9 @@ import { SURE_CLAWS_ID } from '../climbing.js';
 import { tintGround } from './dressing.js';
 import { propsFor } from '../propsets.js';
 import { sandTint, dressBeach, KERB_COL } from './beachdress.js';
+import { wetness } from './seasidewet.js';
+
+export { wetness } from './seasidewet.js';
 
 // The edge dressing's dusk tint (render/dusk.js duskLawnColor): greyer and
 // darker than the default { desat 0.25, dark 0.72 }, and a touch cooler.
@@ -78,19 +81,6 @@ export const WET_TINT = [0.31, 0.28, 0.25];
 function hash1(n) {
   const v = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return v - Math.floor(v);
-}
-
-// The wet band's vertex colour at (x, z): 1 (dry, the beach itself) at
-// WET_FROM, WET_TINT at the waterline, with a wavy edge where the last wave
-// reached.
-export function wetness(x, z) {
-  // The wet edge wanders +-0.5m along the beach; the ramp itself runs 1.7m,
-  // and reaches full wet ~0.5m short of the foam strip's lace edge
-  // (waterdress.js, x ~24.1..25), so the soaked sand shows behind the foam
-  // instead of only under it (polish-water Task 4; it ran 22.4..24.4 before).
-  const reach = 0.32 * Math.sin(z * 0.33 + 1.3) + 0.16 * Math.sin(z * 0.91);
-  const t = Math.min(1, Math.max(0, (x - 22.2 + reach) / 1.7));
-  return t * t * (3 - 2 * t);
 }
 
 // Sky top for the bay: a deeper blue than the first pass so the pale horizon

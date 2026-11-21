@@ -60,8 +60,8 @@ const SHOWN = {
   PLACE_WORDS: 'whole',
   HOME_LINES: 'whole',
 };
-// Exports that are not shown as they stand: ids, a deny list, spare names.
-const NOT_SHOWN = ['RANK_KEYS', 'DENIED_NAMES', 'HOMAGE_CHOICES'];
+// Exports that are not shown as they stand: ids, a deny list, spare names, drawings.
+const NOT_SHOWN = ['RANK_KEYS', 'DENIED_NAMES', 'HOMAGE_CHOICES', 'EMBLEMS'];
 
 const valuesOf = (v) => (typeof v === 'string' ? [v] : v instanceof Set ? [...v] : Array.isArray(v) ? v.flatMap(valuesOf) : v && typeof v === 'object' ? Object.values(v).flatMap(valuesOf) : []);
 const appears = {
@@ -89,7 +89,8 @@ describe('series words: nothing in the word tables goes unrecorded', () => {
   it('every rank, outside and place word is recorded inside a line, not only as a bare word', () => {
     const bare = [];
     for (const name of ['RANK_WORDS', 'OUTSIDE_WORDS', 'PLACE_WORDS']) {
-      for (const w of valuesOf(words[name])) {
+      for (const [key, w] of Object.entries(words[name]).flatMap(([k, v]) => valuesOf(v).map((x) => [k, x]))) {
+        if (name === 'PLACE_WORDS' && key === 'roofs') continue; // plain words in both sets, shown as a bare name
         if (!recorded.some((s) => s.includes(w) && s !== w && /\s/.test(s.replace(w, '').trim()))) bare.push(`${name}: ${w}`);
       }
     }

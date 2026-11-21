@@ -18,4 +18,9 @@
 // validateFoundWear (index.js; test/foundwear.test.js runs it) checks all of it.
 // What else a new outfit needs, outside this file: see index.js, "ADDING ONE".
 
-export const FACE_WEAR = Object.freeze([]);
+import { phrase } from '../clanphrases.js';
+
+export const FACE_WEAR = Object.freeze([
+  // the Fairground: two heart lenses on a red frame (src/cat/foundface.js builds them)
+  Object.freeze({ id: 'heartglasses', slot: 'face', find: 'fair', emoji: '💕', name: () => phrase('wear.heartglasses.name') }),
+]);

@@ -21,10 +21,15 @@ vi.stubGlobal('document', {
 
 const {
   hashCell, snapCentre, chunkCellsFor, layoutRadius, capacityFor, flatFootprints,
-  buildGrassMask, grassAllowed, tuftAt, layoutTufts, createGrass, GRASS_AREAS,
+  buildGrassMask, grassAllowed, tuftAt, layoutTufts, createGrass: createGrassRaw, grassStyle, GRASS_AREAS,
   TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, marshDensity, moorDensity, pineFloorDensity, gorgeFloorDensity, groundFinds,
-  GROUND_TINTS, tintSampler, FLOWER_COLORS, TALL_STALK_MAX_H,
+  tintSampler, FLOWER_COLORS, TALL_STALK_MAX_H,
 } = await import('../src/render/grass.js');
+// Each area hands its own tint over (GRASS_HOOKS); walk.js passes it on. These
+// tests stand in for the walk and pass the area's hooks unless a test gives its own.
+const HOOKS = {};
+for (const id of ['neighborhood', 'park', 'woods', 'river', 'moor', 'pines', 'farm', 'fair']) HOOKS[id] = (await import(`../src/world/${id}.js`)).GRASS_HOOKS;
+const createGrass = (scene, opts) => createGrassRaw(scene, { hooks: HOOKS[opts.areaId], ...opts });
 const { duskLawnColor, DUSK } = await import('../src/render/dusk.js');
 const LAWN_STYLE = GRASS_STYLES.park;
 const { gorgeGround } = await import('../src/world/gorgeshape.js');
@@ -715,16 +720,18 @@ describe('ground tint under tufts', () => {
     expect(s.samples).toBe(n);
   });
 
-  it('the River, the Moor, the Woods, the Pines and the two lawns carry a ground tint, nothing else does', () => {
-    expect(GROUND_TINTS.river).toBe(riverGroundTint);
-    expect(GROUND_TINTS.moor).toBe(moorGroundTint);
-    expect(GROUND_TINTS.woods).toBe(woodsGroundTint);
-    expect(GROUND_TINTS.pines).toBe(pinesGroundTint);
-    // polish-sheen: the Park and Neighbourhood lawns' slow mottle
-    expect(GROUND_TINTS.park).toBe(parkLawnTint);
-    expect(GROUND_TINTS.neighborhood).toBe(neighborhoodLawnTint);
-    // ...and Appletree Farm's ground (mottle, wheat stubble, bed soil; test/farm.test.js)
-    expect(Object.keys(GROUND_TINTS).sort()).toEqual(['fair', 'farm', 'moor', 'neighborhood', 'park', 'pines', 'river', 'woods']);
+  it('every area that tints its tufts hands its tint over, and only those', async () => {
+    const want = { river: riverGroundTint, moor: moorGroundTint, woods: woodsGroundTint, pines: pinesGroundTint, park: parkLawnTint, neighborhood: neighborhoodLawnTint };
+    for (const [id, fn] of Object.entries(want)) expect((await import(`../src/world/${id}.js`)).GRASS_HOOKS.tint, id).toBe(fn);
+    for (const id of ['seaside', 'docks', 'gorge', 'den']) expect((await import(`../src/world/${id}.js`)).GRASS_HOOKS, id).toBeUndefined();
+  });
+  it('grassStyle keeps a style as it is without hooks and adds an area\'s bare', () => {
+    expect(grassStyle('park')).toEqual(GRASS_STYLES.park);
+    const bare = () => true;
+    expect(grassStyle('park', { tint: null, bare }).bare).toBe(bare);
+    expect(grassStyle('park', { tint: null, bare })).toBe(grassStyle('park', { tint: null, bare }));
+  });
+  it('the ground pull per area is unchanged', () => {
     expect(GRASS_STYLES.river.ground).toBe(0.9);
     expect(GRASS_STYLES.moor.ground).toBe(0.9);
     expect(GRASS_STYLES.woods.ground).toBe(0.8);

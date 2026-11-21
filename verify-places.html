@@ -36,11 +36,14 @@
   import * as gorge from '/src/world/gorge.js';
   import * as farm from '/src/world/farm.js';
   import * as fair from '/src/world/fair.js';
+  import * as roofs from '/src/world/roofs.js';
+  import { ROOFS_REGISTRATION, ROOFS_SHOTS } from '/src/world/roofsplan.js';
+  import { applyDusk, duskEnv, createLampPools } from '/src/render/dusk.js';
   import { createFarmAnimals } from '/src/farmanimals.js';
   import { buildCat } from '/src/cat/model.js';
   import { animateCat } from '/src/cat/animator.js';
 
-  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge, farm, fair };
+  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge, farm, fair, roofs };
   const id = new URLSearchParams(location.search).get('area') || 'neighborhood';
   // ?size=WxH renders bigger than the card pictures (for looking, not shipping).
   const [W, H] = (new URLSearchParams(location.search).get('size') || '640x360').split('x').map(Number);
@@ -63,7 +66,17 @@
   scene.add(sun);
   const wind = createWind({ reducedMotion: true });
   const area = AREAS[id].build(scene, { water: { quality: tier, reducedMotion: true }, wind });
-  scene.add(createFill(area.groundBounce));
+  const fill = createFill(area.groundBounce);
+  scene.add(fill);
+  // An area that is always evening (area.evening, the Rooftops) gets the walk's
+  // evening look (game/walk.js's eveningLook): render/dusk.js's light, sky, fog,
+  // windows and lamps, and the image light dimmed. Its life (area.life, the
+  // evening deepening and the bus) is made after the caster sweep, below.
+  const evening = area.evening === true;
+  if (evening) {
+    const look = applyDusk({ scene, sun, fill, areaData: area });
+    scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+  }
   if (id === 'fair') fair.setFairGlow(area, Number(new URLSearchParams(location.search).get('glow') || 0)); // &glow=1 lights the bulbs
   if (new URLSearchParams(location.search).has('nofog')) scene.fog = null; // for a picture from high above
 
@@ -100,6 +113,16 @@
   const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
   sun.shadow.bias = SUN_BIAS;
   assignShadowCasters(scene);
+  // The evening's life, run on to EVENING_T walk seconds in 1/30 s frames (the
+  // sum of dt is its walk time): the full dusk; ?evening=s for another moment
+  // (0 is the walk's start, at sunset). The lamp pools are added after the
+  // caster sweep, as walk.js does.
+  const EVENING_T = Number(new URLSearchParams(location.search).get('evening') ?? 240); // s (src/roofslife.js EVENING_RAMP)
+  const life = evening && area.life ? area.life({ scene, sun, fill }) : null;
+  let lifeT = 0;
+  const lifeTo = (t) => { while (lifeT < t - 1e-9) { const dt = Math.min(1 / 30, t - lifeT); life?.update(dt); lifeT += dt; } };
+  lifeTo(EVENING_T);
+  if (evening) createLampPools(scene);
   // Bigger areas: with ?grow=1 an area that has strips builds with them
   // (src/grow.js reads the address). ?strips=all draws every tile at once,
   // ?strips=x,z the tiles a cat at (x, z) would have; window.__strips(x, z)
@@ -119,7 +142,7 @@
   // pictures stay reproducible.
   const params0 = new URLSearchParams(location.search);
   const grass = params0.has('grass')
-    ? createGrass(scene, { areaId: id, areaData: area, tier: LADDER[params0.get('grass') === 'low' ? 3 : 0], camera })
+    ? createGrass(scene, { areaId: id, areaData: area, tier: LADDER[params0.get('grass') === 'low' ? 3 : 0], camera, hooks: AREAS[id]?.GRASS_HOOKS })
     : null;
   // ?paws[=low] lays a short hand-placed trail of paw prints
   // (render/pawprints.js) by walking an invisible cat along PAW_TRAILS at a
@@ -153,7 +176,7 @@
   // ?clouds[=low] adds walk.js's drifting sky clouds (render/clouds.js), after
   // the caster sweep as walk.js does; &dusk swaps in the area's dusk sky and
   // fog first (walk.js's dusk block). window.__cloudT drives their drift.
-  if (params0.has('dusk')) {
+  if (params0.has('dusk') && !evening) {
     scene.background = skyBackground(area.skyDusk.top, area.skyDusk.horizon);
     scene.fog = new THREE.Fog(area.skyDusk.horizon, 30, 110);
     sun.intensity = 0.7;
@@ -161,7 +184,7 @@
   const b0 = area.bounds;
   const clouds = params0.has('clouds')
     ? createClouds(scene, {
-      areaId: id, tier: LADDER[params0.get('clouds') === 'low' ? 3 : 0], camera, dusk: params0.has('dusk'),
+      areaId: id, tier: LADDER[params0.get('clouds') === 'low' ? 3 : 0], camera, dusk: params0.has('dusk') || evening,
       centre: { x: (b0.minX + b0.maxX) / 2, z: (b0.minZ + b0.maxZ) / 2 },
     })
     : null;
@@ -171,7 +194,7 @@
   // moths). window.__ambientStep(seconds) runs the simulation on
   // from __grassT in 1/30s steps, since leaves and mist are stateful.
   // (?dusk is applied once, above, the way walk.js does it.)
-  const dusk = params0.has('dusk');
+  const dusk = params0.has('dusk') || evening;
   const ambient = params0.has('ambient')
     ? createAmbient(scene, {
       areaId: id, areaData: area, tier: LADDER[params0.get('ambient') === 'low' ? 3 : 0], camera, dusk,
@@ -238,8 +261,31 @@
     // scarecrow to the right (the card picture)
     farm: '9.5,2.2,6,0.5,2.4,-12',
     fair: fair.FAIR_REGISTRATION.view,
+    // from the alley, up at the terrace backs and the clock tower (the card picture)
+    roofs: ROOFS_REGISTRATION.view,
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();
   window.__cam(...c);
+  // The picture views (scripts/record-page.mjs --shots): __shot(name) frames
+  // the area's shot `name` (ROOFS_SHOTS for the Rooftops; 'view' is ?cam or VIEWS[id])
+  // and answers the name. A shot in SHOT_T first runs the life on to that walk
+  // second (the edge's bus in the street; the evening is full dusk from 240 s
+  // on, so later shots look the same). __info() renders and returns
+  // renderer.info.render's { calls, triangles } (shadow passes included).
+  const SHOTS = id === 'roofs' ? ROOFS_SHOTS : {};
+  const SHOT_T = id === 'roofs' ? { edge: 276.4 } : {};
+  window.__shot = (name) => {
+    const v = name === 'view' ? (params.get('cam') || VIEWS[id]) : SHOTS[name];
+    if (!v) throw new Error(`no shot "${name}" for ${id}; there are ${['view', ...Object.keys(SHOTS)].join(', ')}`);
+    if (SHOT_T[name] !== undefined) lifeTo(SHOT_T[name]);
+    window.__cam(...v.split(',').map(Number));
+    return name;
+  };
+  window.__info = () => {
+    render();
+    const { calls, triangles } = renderer.info.render;
+    return { calls, triangles };
+  };
+  window.__ready = true;
 </script>

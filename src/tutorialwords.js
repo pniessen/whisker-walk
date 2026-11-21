@@ -40,6 +40,10 @@ export const WORDS = Object.freeze({
   // T used to throw the yarn; a keyboard player's first few presses after
   // the change get this as a toast (main.js), never as a bubble.
   'hint.tkey': same('Yarn balls lie around now. Find one! 🧶'),
+  // A twinkling find (found outfits), the line after keeping it, and the map.
+  'hint.find': same('Something is twinkling! Go and see.'),
+  'hint.find-kept': same('It\'s yours to keep! Change clothes in Dress up.'),
+  'hint.map': two('Tap a place to see it. Pinch to zoom.', 'Click a place to see it. Scroll to zoom.'),
   'hint.call': two('Tap 😺 to call a cat over.', 'Press V to call a cat over.'),
   'hint.sniff': same('You smell something! Follow the paw prints.'),
   'hint.box': same('Walk into the box and stop.'),
@@ -67,17 +71,18 @@ export const WORDS = Object.freeze({
   'how.pounce-play': two('Creep close. Then tap the paw.', 'Hold Shift to creep close. Then press Space.'),
 
   // ---- The home screen's "next thing" line (design section 6) --------------
-  // src/ui/nextthing.js has the rules; the number is the rule's.
-  'home.present': same('Tap the present! 🎁'),                                   // 1
-  'home.first': same('A friend is waiting outside. Tap Explore!'),                // 2
-  'home.part': same('{name} has more to show you. Tap Explore!'),                 // 3
+  // src/ui/nextthing.js has the rules; the number is the rule's. A line that
+  // names a tap says Click on a desktop (owner, 2026-11-20).
+  'home.present': two('Tap the present! 🎁', 'Click the present! 🎁'),             // 1
+  'home.first': two('A friend is waiting outside. Tap Explore!', 'A friend is waiting outside. Click Explore!'), // 2
+  'home.part': two('{name} has more to show you. Tap Explore!', '{name} has more to show you. Click Explore!'), // 3
   'home.pick': same('The wild cats have seen you. Pick your home!'),            // 4
   'home.camp': same('Your new home is {place}. Go and see your camp!'),         // 5
   'home.way': same('The way to your home starts in {place}.'),                  // 6
   'home.opens': same('Explore here again to open {place}!'),                     // 7
   'home.opens-two': same('Explore here again to open {place} and {place2}!'),         // 7, two to buy
   'home.opens-three': same('Explore here again to open {place}, {place2} and {place3}!'), // 7, three to buy
-  'home.wear': same('You have enough for the {thing}. Tap Dress up!'),          // 8
+  'home.wear': two('You have enough for the {thing}. Tap Dress up!', 'You have enough for the {thing}. Click Dress up!'), // 8
   'home.feed': same('Feed {name} again: {n} of 6.'),                            // 9
   'home.nearly': same('{n} more 🐾 and the {thing} is yours.'),                 // 10
   'home.den': same('{name} is waiting in your den.'),                           // 11
@@ -86,7 +91,7 @@ export const WORDS = Object.freeze({
   // reached, and the line is "always exactly one".
   'home.top': same('Your cat is ready to explore.'),
   // Rule 3 before the guide's name is known.
-  'home.part-friend': same('Your friend has more to show you. Tap Explore!'),
+  'home.part-friend': two('Your friend has more to show you. Tap Explore!', 'Your friend has more to show you. Click Explore!'),
 
   // ---- The guided first walk (design section 3). Step 3 of the build shows
   // these; they are here so the walk holds no text of its own. --------------

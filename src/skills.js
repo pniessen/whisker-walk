@@ -32,6 +32,8 @@
 // its zero-import property (see header). Nothing here may ever throw.
 // ---------------------------------------------------------------------------
 
+// Kept as a local copy of plainobject.js's isPlainObject on purpose: this
+// module's zero-import property (see header) outranks de-duplicating one line.
 function isPlainObject(v) {
   return !!v && typeof v === 'object' && !Array.isArray(v);
 }

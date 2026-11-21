@@ -83,6 +83,42 @@ Linux in CI, so float fixtures should compare with a tolerance.
 | `docs/VISUAL-PASS.md` | Running log of visual and performance passes |
 | `docs/superpowers/` | Specs, plans and handoffs for every wave |
 
+### Each place is its own download (F6)
+
+- **Start-up** is `index.html`'s module script plus every chunk it imports
+  statically. `npm run build` prints its gzipped size against
+  `MAIN_GZIP_CEILING_KB = 700` (the owner's choice, 2026-11-20) and each place
+  against `AREA_GZIP_CEILING_KB = 100`, both in `scripts/buildjson.mjs`. Start-up
+  was 896.3 kB before F6 and is about 667 kB after.
+- **Every walk starts through `startWalkWhenReady`** (`walk.js`), which loads
+  the place first (`src/game/areaload.js`, `src/world/areas.js`). `startWalk`
+  stays synchronous and throws if the place isn't loaded. A first entry may
+  show "Getting ready..."; a failed load stays home with a gentle line; the
+  first failure online makes the line offer a fresh start and the next Explore
+  reload the page (a failed import is remembered by the browser, so retrying
+  cannot help). Offline failures never count and never reload. The home toast
+  skips a line identical to one still showing.
+- **Offline.** `public/sw.js` caches every file listed in `dist/precache.json`
+  on install, tops up on every online page load, and keeps the newest three
+  builds' files (`KEEP_BUILDS`). The website build stamps `sw.js` with the
+  build id so each deploy installs a fresh worker.
+- **Rooftops** (`?roofs=1`) loads through the same loader; `src/roofsflag.js`
+  keeps only the switch.
+- **iOS app**: every chunk is bundled under `ios/web/assets/`; there is no
+  worker there.
+
+### Adding an area
+
+1. Build `src/world/<id>.js` (and its parts). Nothing outside it and
+   `src/world/areas.js` may import it. Facts the rest of the game needs go in
+   a small leaf module that both can import.
+2. Add its line to `AREA_LOADERS` (a literal `import()`) and to
+   `AREA_ENTRY_MODULES`, with any life module only it uses.
+3. If it grows grass with its own tint or bare ground, export `GRASS_HOOKS`.
+4. Add the catalog row and the `state.walks` key as before. `test/areas.test.js`
+   and `test/lazybuild.test.js` fail if step 1 or 2 was missed.
+5. `npm run build` prints the new place's download size (ceiling 100 kB).
+
 Security notes that still hold: the backend is capability-based with no
 accounts (a player secret and a save code), RLS denies direct table writes, and
 all access goes through `SECURITY DEFINER` RPCs. Escape every server-derived

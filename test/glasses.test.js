@@ -4,7 +4,7 @@ import { buildCat } from '../src/cat/model.js';
 import { GLASSES, buildGlasses } from '../src/cat/glasses.js';
 import { HEN_SKULL, henBeakGeometry } from '../src/cat/hen.js';
 import { SKULL } from '../src/cat/torso.js';
-import { meshCount } from './helpers/catfingerprint.js';
+import { meshCount, PRESETS } from './helpers/catfingerprint.js';
 
 // polish-catlooks (2026-11-02), Task 3: glasses that read. Thick frames, a
 // faint tinted lens, a small white glint, fitted per head: forward on a cat,
@@ -201,6 +201,49 @@ describe('glasses that read (polish-catlooks Task 3)', () => {
       for (const m of Object.values(partsOf(headOf(breed, face)))) {
         expect([breed, face, m.userData.glassesPart, m.castShadow, m.userData.noCast]).toEqual([breed, face, m.userData.glassesPart, false, true]);
       }
+    }
+  });
+});
+
+// Found outfits step 2, Task 4: the Heart-shaped Glasses (src/cat/foundface.js).
+describe('the heart glasses', () => {
+  const lensesOn = (cat) => {
+    const head = cat.userData.parts.head;
+    const mesh = head.children.find((o) => o.isMesh && o.userData.foundWear === 'heartglasses' && o.userData.heartPart === 'lenses');
+    return { head, mesh };
+  };
+  const centreOf = (mesh, side) => {
+    const pts = verts(mesh).filter((v) => Math.sign(v.x) === side);
+    const b = new THREE.Box3().setFromPoints(pts);
+    return b.getCenter(new THREE.Vector3());
+  };
+
+  it('sit at eye level on every preset, both lenses in front of the eyes', () => {
+    for (const breed of PRESETS) {
+      const cat = buildCat(breed, { ...BARE, face: 'heartglasses' });
+      const { head, mesh } = lensesOn(cat);
+      expect(mesh, breed).toBeTruthy();
+      const found = head.children.filter((o) => o.isMesh && o.userData.foundWear === 'heartglasses');
+      expect(found.length, breed).toBe(2);
+      for (const side of [-1, 1]) {
+        const eyes = head.children.filter((o) => o.isMesh && o.userData.eye && Math.sign(o.position.x) === side);
+        expect(eyes.length, breed).toBe(1);
+        const eye = eyes[0].position, lens = centreOf(mesh, side);
+        expect(Math.abs(lens.y - eye.y), `${breed} ${side} y`).toBeLessThanOrEqual(0.02);
+        expect(lens.z, `${breed} ${side} z`).toBeLessThan(eye.z);
+      }
+    }
+  });
+
+  it('on Hagrid they sit in front of his eyes too', () => {
+    const { head, mesh } = lensesOn(buildCat('hagrid', { ...BARE, face: 'heartglasses' }));
+    expect(mesh).toBeTruthy();
+    expect(head.children.filter((o) => o.isMesh && o.userData.foundWear === 'heartglasses').length).toBe(2);
+    for (const side of [-1, 1]) {
+      const c = new THREE.Vector3(side * 0.09, 0.03, -0.1), n = henNormal(side);
+      const lens = centreOf(mesh, side);
+      expect(Math.abs(lens.y - c.y)).toBeLessThanOrEqual(0.02);
+      expect(lens.clone().sub(c).dot(n)).toBeGreaterThan(0);
     }
   });
 });
