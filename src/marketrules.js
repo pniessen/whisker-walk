@@ -3,7 +3,7 @@
 // rng, the dogs' one shared idea and the plan's pure data.
 import { mulberry32 } from './rng.js';
 import { DOG_NOTICE_STALKED } from './dogs.js';
-import { TREAT_STALLS } from './world/marketplan.js';
+import { TREAT_STALLS, toStall } from './world/marketplan.js';
 
 export const MARKET = Object.freeze({
   BUSY_S: 1.6, TURN_S: 0.4, STILL_SPEED: 0.3, STILL_S: 1.0, APPROACH: 0.15, COO_S: 4.0,
@@ -57,4 +57,27 @@ export function stallPhase(id, offset, clock, out = {}) {
   out.bubble = phase === 'busy' || phase === 'turn' || phase === 'away';
   out.facing = phase === 'turn' ? ease(k) : phase === 'away' ? 1 : phase === 'back' ? 1 - ease(k) : 0;
   return out;
+}
+
+// ---- Noticing (Task 9). A cat as the rules see it: { x, z, stalking, high }.
+
+// In the stall's local frame: in front of the counter only, |lx| <= w/2 + WATCH_SIDE,
+// d/2 <= lz <= d/2 + depth; depth is half as much for a crouched (stalking) cat.
+export function inWatchZone(stall, x, z, stalking) {
+  const { lx, lz } = toStall(stall, x, z);
+  const depth = stalking === true ? MARKET.WATCH_DEPTH * MARKET.STALK_SHARE : MARKET.WATCH_DEPTH;
+  return Math.abs(lx) <= stall.w / 2 + MARKET.WATCH_SIDE && lz >= stall.d / 2 && lz <= stall.d / 2 + depth;
+}
+
+// Up on an awning (at or above HIGH_Y) is the cat's `high` flag; under a trestle is
+// within r of a hide's centre.
+export function isHidden(hides, cat) {
+  if (cat.high) return true;
+  for (const h of hides) if (Math.hypot(cat.x - h.x, cat.z - h.z) <= h.r) return true;
+  return false;
+}
+
+// look.cooing is set by the live stall (Task 12); the pure phase never sets it.
+export function stallSees(stall, look, cat, hides) {
+  return look.watching === true && !look.cooing && inWatchZone(stall, cat.x, cat.z, cat.stalking) && !isHidden(hides, cat);
 }

@@ -8,6 +8,7 @@ import { STREET_PLACES } from '../src/worldmap.js';
 import { nextThing } from '../src/ui/nextthing.js';
 import { readResume, writeResume, snapshotWalk } from '../src/game/walkresume.js';
 import { STALLS, TREAT_STALLS, stallById, toStall, MARKET_SPAWN } from '../src/world/marketplan.js';
+import { inWatchZone } from '../src/marketrules.js';
 import { createEnemyWalkLog } from '../src/enemies.js';
 import { lifecycle, fakeEl, memStorage } from './helpers/walklife.js';
 
@@ -136,11 +137,7 @@ describe('its own download', () => {
 });
 
 describe('strays in the square', () => {
-  // stall-local watch zone of a treat stall: |lx| <= w/2 + 1.0, d/2 <= lz <= d/2 + 3.2
-  const inZone = (s, p) => {
-    const { lx, lz } = toStall(s, p.x, p.z);
-    return Math.abs(lx) <= s.w / 2 + 1.0 && lz >= s.d / 2 && lz <= s.d / 2 + 3.2;
-  };
+  const inZone = (s, p) => inWatchZone(s, p.x, p.z, false);
   it('never stand in a counter\'s zone', async () => {
     setMarket(true);
     const l = life();

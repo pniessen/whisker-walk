@@ -4,14 +4,14 @@ import {
   MARKET_COLLIDERS, MARKET_HIDES, MARKET_KEEPOUT, marketArea, MARKET_REGISTRATION, MARKET_POIS, MARKET_COLLECTIBLES,
   MARKET_CLUTTER, MARKET_LAMPS,
 } from '../src/world/marketplan.js';
+import { MARKET } from '../src/marketrules.js';
 import { isWalkableAt } from '../src/player.js';
 import { keepOutPoint } from '../src/keepout.js';
 
 const a = marketArea();
 const TREAT_REACH = 0.8;
-// Task 9 replaces these with MARKET.WATCH_DEPTH and MARKET.WATCH_SIDE.
-const WATCH_DEPTH = 3.2;
-const WATCH_SIDE = 1.0;
+const WATCH_DEPTH = MARKET.WATCH_DEPTH;
+const WATCH_SIDE = MARKET.WATCH_SIDE;
 const dist = (p, q) => Math.hypot(p.x - q.x, p.z - q.z);
 const inZone = (s, x, z) => {
   const { lx, lz } = toStall(s, x, z);

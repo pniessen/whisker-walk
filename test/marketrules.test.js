@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { MARKET, STALL_TIMES, MARKET_STALL_SALT, periodOf, stallOffsets, stallPhase } from '../src/marketrules.js';
-import { TREAT_STALLS } from '../src/world/marketplan.js';
+import {
+  MARKET, STALL_TIMES, MARKET_STALL_SALT, periodOf, stallOffsets, stallPhase, inWatchZone, isHidden, stallSees,
+} from '../src/marketrules.js';
+import { TREAT_STALLS, STALLS, MARKET_HIDES, MARKET_KEEPOUT, stallById, fromStall } from '../src/world/marketplan.js';
 import { DOG_NOTICE_STALKED } from '../src/dogs.js';
 import { mulberry32 } from '../src/rng.js';
 
@@ -110,5 +112,90 @@ describe('the stall rhythm', () => {
     expect(Object.keys(a)).toEqual([...TREAT_STALLS]);
     const r = mulberry32(((77 >>> 0) ^ MARKET_STALL_SALT) >>> 0);
     for (const id of TREAT_STALLS) expect(a[id]).toBe(r() * periodOf(id));
+  });
+});
+
+describe('noticing', () => {
+  const fish = stallById('fish');
+  const at = (lx, lz) => fromStall(fish, lx, lz);
+  const front = (depth) => at(0, fish.d / 2 + depth);
+  const looking = { watching: true, cooing: false };
+  const walker = (p, extra = {}) => ({ x: p.x, z: p.z, stalking: false, high: false, ...extra });
+
+  it('a walking cat is seen anywhere in front of the counter, out to WATCH_DEPTH', () => {
+    for (const s of STALLS.filter((x) => TREAT_STALLS.includes(x.id))) {
+      for (const lx of [-(s.w / 2 + MARKET.WATCH_SIDE), 0, s.w / 2 + MARKET.WATCH_SIDE]) {
+        for (const lz of [s.d / 2 + 1e-6, s.d / 2 + 1, s.d / 2 + MARKET.WATCH_DEPTH - 1e-6]) {
+          const p = fromStall(s, lx - Math.sign(lx) * 1e-6, lz);
+          expect(inWatchZone(s, p.x, p.z, false)).toBe(true);
+        }
+      }
+    }
+    const far = front(MARKET.WATCH_DEPTH + 0.3);
+    expect(inWatchZone(fish, far.x, far.z, false)).toBe(false);
+  });
+
+  it('a crouched cat is seen only within half that', () => {
+    const half = MARKET.WATCH_DEPTH * MARKET.STALK_SHARE;
+    const near = front(half - 0.05), mid = front(half + 0.1);
+    expect(inWatchZone(fish, near.x, near.z, true)).toBe(true);
+    expect(inWatchZone(fish, mid.x, mid.z, true)).toBe(false);
+    expect(inWatchZone(fish, mid.x, mid.z, false)).toBe(true);
+  });
+
+  it('a stallholder turned away, turning, or cooing at someone sees nobody', () => {
+    const p = walker(front(1));
+    expect(stallSees(fish, looking, p, MARKET_HIDES)).toBe(true);
+    expect(stallSees(fish, { watching: false, cooing: false }, p, MARKET_HIDES)).toBe(false);
+    expect(stallSees(fish, { watching: true, cooing: true }, p, MARKET_HIDES)).toBe(false);
+    expect(stallSees(fish, { watching: true }, p, MARKET_HIDES)).toBe(true);
+    const out = {};
+    for (let u = 0; u < periodOf('fish'); u += 0.05) {
+      stallPhase('fish', 0, u, out);
+      if (out.phase === 'turn' || out.phase === 'away' || out.phase === 'back') expect(stallSees(fish, out, p, MARKET_HIDES)).toBe(false);
+    }
+  });
+
+  it('under a trestle or up on an awning, nobody sees her', () => {
+    const p = front(1);
+    expect(isHidden(MARKET_HIDES, walker(p))).toBe(false);
+    expect(isHidden([{ x: p.x + 0.3, z: p.z, r: 0.6 }], walker(p))).toBe(true);
+    expect(isHidden([{ x: p.x + 0.7, z: p.z, r: 0.6 }], walker(p))).toBe(false);
+    expect(isHidden([], walker(p, { high: true }))).toBe(true);
+    expect(stallSees(fish, looking, walker(p, { high: true }), MARKET_HIDES)).toBe(false);
+    expect(stallSees(fish, looking, walker(p), [{ x: p.x, z: p.z, r: 0.6 }])).toBe(false);
+  });
+
+  it('beside or behind the stall, nobody sees her', () => {
+    for (const [lx, lz] of [[0, -fish.d / 2 - 1], [0, fish.d / 2 - 0.1], [fish.w / 2 + MARKET.WATCH_SIDE + 0.3, fish.d / 2 + 1], [-(fish.w / 2 + MARKET.WATCH_SIDE + 0.3), fish.d / 2 + 1]]) {
+      const p = at(lx, lz);
+      expect(stallSees(fish, looking, walker(p), [])).toBe(false);
+    }
+  });
+
+  it('every treat spot is in its own stall\'s zone, walking and crouched', () => {
+    for (const id of TREAT_STALLS) {
+      const s = stallById(id);
+      expect(inWatchZone(s, s.treat.x, s.treat.z, false)).toBe(true);
+      expect(inWatchZone(s, s.treat.x, s.treat.z, true)).toBe(true);
+    }
+  });
+
+  it('the strays\' keep-out covers the whole watch zone', () => {
+    // marketplan cannot import the rules (the rules import the plan), so its literals are held to MARKET here
+    for (const id of TREAT_STALLS) {
+      const s = stallById(id);
+      for (let lx = -(s.w / 2 + MARKET.WATCH_SIDE); lx <= s.w / 2 + MARKET.WATCH_SIDE + 1e-9; lx += 0.25) {
+        for (let lz = s.d / 2; lz <= s.d / 2 + MARKET.WATCH_DEPTH + 1e-9; lz += 0.25) {
+          const p = fromStall(s, lx, lz);
+          const covered = MARKET_KEEPOUT.capsules.some((c) => {
+            const dx = c.x2 - c.x1, dz = c.z2 - c.z1, L = dx * dx + dz * dz;
+            const t = L === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - c.x1) * dx + (p.z - c.z1) * dz) / L));
+            return Math.hypot(p.x - (c.x1 + t * dx), p.z - (c.z1 + t * dz)) <= c.r;
+          });
+          expect(covered).toBe(true);
+        }
+      }
+    }
   });
 });

@@ -223,7 +223,9 @@ export const MARKET_HIDES = freeze(STALLS.filter((s) => s.hide).map((s) => s.hid
 
 // Strays keep out of every treat counter's watch zone (local |lx| <= w/2 + 1.0,
 // d/2 <= lz <= d/2 + 3.2) plus 0.5 m, and out of each treat stall's hide.
-// Task 9 replaces 3.2 and 1.0 with MARKET.WATCH_DEPTH and MARKET.WATCH_SIDE.
+// These are MARKET.WATCH_DEPTH and MARKET.WATCH_SIDE (src/marketrules.js), kept as
+// literals here because the rules import this plan; test/marketrules.test.js holds
+// MARKET_KEEPOUT to the real zone.
 const ZONE_DEPTH = 3.2;
 const ZONE_SIDE = 1.0;
 const ZONE_MARGIN = 0.5;
