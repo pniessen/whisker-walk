@@ -13,7 +13,7 @@ import {
 import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, fromStall,
   MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, FRUIT_CRATE, MARKET_LAMPS, FLOUR_SACKS,
-  MARKET_CLUTTER, BENCH_AT, BICYCLE_AT, MILK_SHAFTS,
+  MARKET_CLUTTER, BENCH_AT, BICYCLE_AT, MILK_SHAFTS, AWNING, awningHeight, BIKE, BICYCLE_BASKET_AT, CLIMB_STACK, MARKET_PERCHES,
 } from './marketplan.js';
 
 // =============================================================================
@@ -107,7 +107,7 @@ const TOP_BOWL_PROFILE = Object.freeze([
 // A stall's shape (the plan's w x d is its footprint: counter at the front,
 // the keeper behind it, the back shelf at the back).
 const COUNTER_H = 0.9;
-const AWNING = Object.freeze({ y: 2.35, rise: 2.5, over: 0.4, front: 0.45, back: 0.15 });
+// (the awning's shape, AWNING, is the plan's: its perches stand on it)
 // the stall's sign: a square board standing on the awning's front edge, `inset`
 // back from it, its middle `lift` over the sheet there
 const SIGN = Object.freeze({ size: 0.7, thick: 0.05, inset: 0.25, lift: 0.38 });
@@ -166,8 +166,7 @@ const CAFE_FRONT = Object.freeze({ x0: -10, x1: -5, depth: 2.2, y: 2.75 });
 
 // The clutter's shapes (marketplan.js MARKET_CLUTTER places them).
 const BENCH_SEAT_Y = 0.48;
-// the bicycle: its basket's centre is basketX along it, basketY up, before its lean (about x, to the wall)
-const BIKE = Object.freeze({ wheelR: 0.33, axle: 0.52, basketX: 0.62, basketY: 0.87, lean: 0.05 });
+// (the bicycle's shape, BIKE, is the plan's: its basket is a perch)
 
 // The anchors for step 3: where things will be, { x, z, y } (y their top).
 const FRUIT = stallById('fruit');
@@ -180,12 +179,9 @@ export const MARKET_ANCHORS = Object.freeze({
   // the bench facing the fountain (drawn here, MARKET_CLUTTER; step 3 makes it a perch): its seat
   bench: Object.freeze({ x: BENCH_AT.x, z: BENCH_AT.z, y: BENCH_SEAT_Y }),
   // the bicycle on its stand by the south row (drawn here, MARKET_CLUTTER): the centre of
-  // its basket, as drawn (its yaw is 0: the basket is basketX east of it, leaning to the wall)
-  basket: Object.freeze({
-    x: BICYCLE_AT.x + BIKE.basketX,
-    z: BICYCLE_AT.z + BIKE.basketY * Math.sin(BIKE.lean),
-    y: BIKE.basketY * Math.cos(BIKE.lean),
-  }),
+  // its basket, as drawn (its yaw is 0: the basket is basketX east of it, leaning to the
+  // wall); V8's perch (marketplan.js BICYCLE_BASKET)
+  basket: BICYCLE_BASKET_AT,
 });
 
 const MARKET_SCENICS = Object.freeze([Object.freeze({ id: 'market-fountain', x: 0, z: 5.6, label: 'the fountain' })]);
@@ -463,7 +459,9 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       // V1 (step 3): the fruit stall's apple crate, paw it over and its apples
       // roll (marketfruit.js, marketlife.js); still solid in MARKET_COLLIDERS
       tippables: [{ x: MARKET_ANCHORS.apples.x, z: MARKET_ANCHORS.apples.z, kind: 'applecrate', build: buildAppleCrate }],
-      perches: [],
+      // V5 (step 3): up the crates onto every awning, the flower trestle, the bicycle's
+      // basket, the two crate stacks' tops and the café tables (marketplan.js)
+      perches: MARKET_PERCHES,
       // U5: strays come as anywhere, kept off the counters' zones and the hides
       keepOut: MARKET_KEEPOUT,
       // one display treat per treat stall and the café (step 2 hides and shows them)
@@ -568,11 +566,7 @@ function awningGeom(s) {
   const z1 = s.d / 2 + AWNING.front;
   const sz = z1 - z0;
   const cz = (z0 + z1) / 2;
-  const yAt = (x, z) => {
-    const t = Math.min(1, Math.max(0, (z - z0) / sz));
-    const u = Math.min(1, Math.max(0, x / sx + 0.5));
-    return AWNING.y + AWNING.rise * (0.12 * (0.5 - t) - 0.05 * Math.sin(Math.PI * u) * t);
-  };
+  const yAt = (x, z) => awningHeight(s, -x, z); // group-local x is the plan's -lx (pl)
   return { sx, sz, cz, z1, yAt };
 }
 
@@ -859,6 +853,12 @@ function drawClutter(c, K, { PARTS, M, paint, barrel, wheel, tyre, disc, quad })
     wood(PARTS.bulb, mat4(0.34, 0.48, 0.08, { yaw: -0.3, sx: 0.34, sy: 0.38, sz: 0.28 }), 0xbfa77a);
     wood(PARTS.basket, mat4(-0.16, 0.88, 0, { sx: 0.32, sy: 0.18, sz: 0.32 }), WICKER);
     atlas(disc, mat4(-0.16, 1.04, 0, { sx: 0.3, sz: 0.3 }), 6);
+  } else if (c.kind === 'crates') {
+    // V5: a climbing stack, three crates to CLIMB_STACK.h, a flat top to stand on
+    const h = CLIMB_STACK.h / 3;
+    box(0, 0, 0, 0.42, h, 0.4, CRATE);
+    box(0.01, h, -0.01, 0.42, h, 0.4, CRATE, { yaw: 0.07 });
+    box(-0.01, 2 * h, 0.01, 0.42, h, 0.4, CRATE, { yaw: -0.05 });
   } else if (c.kind === 'board') {
     // the noticeboard: two posts, a green frame, a cork face with notes, a little roof
     for (const sx of [-1, 1]) box(sx * 0.55, 0, 0, 0.08, 1.95, 0.08, WOOD_DARK);

@@ -44,6 +44,15 @@
 // The treats' stands, the crate of apples and the lamp posts are small solid
 // circles too (MARKET_COLLIDERS), each well inside a cat's reach of its treat.
 //
+// V5 (step 3): THE CLIMBS. Beside each stall with a counter, on its side away
+// from its hide, a stack of crates (CLIMB_STACKS, solid) one hop up from the
+// cobbles; from its top the stall's awning is one hop up, at or over
+// MARKET.HIGH_Y, where nobody notices her. The flower trestle, the bicycle's
+// basket, the tops of stack-w and stack-e and the three café tables are one hop
+// up too (MARKET_PERCHES). The awning's perch is over the end of the counter by
+// its crates, so the button up there takes her back down to them (a drop in
+// reach), never bare into the counter's middle.
+//
 // STRAYS (U5) are allowed in the square. MARKET_KEEPOUT keeps them out of every
 // treat counter's watch zone and its hide, so they never blur a stallholder's
 // rhythm; her own cat ignores keepOut (isWalkableAt does not read it).
@@ -74,6 +83,21 @@ const unitToFountain = (x, z) => {
   const len = Math.hypot(x, z);
   return { x: -x / len, z: -z / len };
 };
+
+// A stall's awning (market.js draws it, marketparts.js's sheet scaled by `rise`
+// about `y`): `over` wider than the counter, `front` over its front and `back`
+// behind. awningHeight is the sheet's height over a stall's plan-local point,
+// its sag and its slope to the front, the one formula the drawing and the
+// perches share.
+export const AWNING = freeze({ y: 2.35, rise: 2.5, over: 0.4, front: 0.45, back: 0.15 });
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+export function awningHeight(s, lx, lz) {
+  const sx = s.w + AWNING.over;
+  const z0 = -s.d / 2 - AWNING.back;
+  const t = clamp01((lz - z0) / (s.d / 2 + AWNING.front - z0));
+  const u = clamp01(-lx / sx + 0.5); // the drawing's x is the plan's -lx (market.js pl)
+  return AWNING.y + AWNING.rise * (0.12 * (0.5 - t) - 0.05 * Math.sin(Math.PI * u) * t);
+}
 
 // Raw table: id, kind, at, face, w, d, treat (kind, y), hasHide, hideSide (default 1; step 3's fruit stall is -1), serving keeper.
 const RAW = [
@@ -201,7 +225,20 @@ const CLUTTER_RAW = [
   ['barrow-mid', 'barrow', 3.6, 13.6, 0.9], ['stack-mid', 'stack', -3.6, 10.4, 0.2],
   ['bench-sw', 'bench', -9.2, 9.6, 0], ['stack-sw', 'stack', -14, 7.6, -0.3], ['tub-sw-mid', 'tub', -11.6, 12.4, 0],
 ];
-const CLUTTER_HALF = freeze({ barrow: [1.26, 0.5], bench: [0.83, 0.25], tub: [0.4, 0.4], stack: [0.55, 0.5], board: [0.75, 0.15], bicycle: [0.85, 0.26] });
+// V5 (step 3): THE CLIMBING STACKS, `crates` (three crates, CLIMB_STACK.h high,
+// solid r 0.3), one beside each stall with a counter on the side away from its
+// hide, `out` past the counter's end, at `CLIMB_LZ` along its depth: clear of
+// its front (every view lane ends 0.5 m inside the front line) and, for the
+// baker, of the flour sacks behind; the milk cart's behind its shafts.
+export const CLIMB_STACK = freeze({ h: 0.95, r: 0.3, out: 0.55 });
+const CLIMB_LZ = freeze({ fish: 0.1, baker: 0.15, cheese: 0, milk: -0.9, flowers: -0.2, fruit: -0.6 });
+const climbAt = (s) => fromStall(s, -s.hideSide * (s.w / 2 + CLIMB_STACK.out), CLIMB_LZ[s.id]);
+const r2 = (v) => Math.round(v * 100) / 100;
+for (const s of STALLS.filter((q) => q.w > 0)) {
+  const p = climbAt(s);
+  CLUTTER_RAW.push([`crates-${s.id}`, 'crates', r2(p.x), r2(p.z), r2(Math.atan2(s.face.x, s.face.z) + 0.15)]);
+}
+const CLUTTER_HALF = freeze({ barrow: [1.26, 0.5], bench: [0.83, 0.25], tub: [0.4, 0.4], stack: [0.55, 0.5], board: [0.75, 0.15], bicycle: [0.85, 0.26], crates: [0.27, 0.27] });
 // a bench faces the fountain: its yaw turns its seat's front (+z) to (0, 0)
 const benchYaw = (x, z) => Math.atan2(FOUNTAIN.x - x, FOUNTAIN.z - z);
 function clutterSolid(kind, x, z, yaw) {
@@ -209,6 +246,7 @@ function clutterSolid(kind, x, z, yaw) {
   if (kind === 'barrow') return [-0.4, 0.4].map((d) => freeze({ ...along(d), r: 0.45 }));
   if (kind === 'tub') return [freeze({ x, z, r: 0.4 })];
   if (kind === 'stack') return [freeze({ x, z, r: 0.5 })];
+  if (kind === 'crates') return [freeze({ x, z, r: CLIMB_STACK.r })];
   if (kind === 'board') return [-0.55, 0.55].map((d) => freeze({ ...along(d), r: 0.1 }));
   if (kind === 'bicycle') return [-0.5, 0].map((d) => freeze({ ...along(d), r: 0.3 }));
   return [];
@@ -220,6 +258,17 @@ export const MARKET_CLUTTER = freeze(CLUTTER_RAW.map(([id, kind, x, z, y]) => {
 const clutterById = (id) => MARKET_CLUTTER.find((c) => c.id === id);
 export const BENCH_AT = clutterById('bench-fountain');
 export const BICYCLE_AT = clutterById('bicycle');
+// the climbing stacks (V5), one per stall with a counter, in STALLS' order: { ..., stall }
+export const CLIMB_STACKS = freeze(MARKET_CLUTTER.filter((c) => c.kind === 'crates').map((c) => freeze({ ...c, stall: c.id.slice('crates-'.length) })));
+// The bicycle's shape (market.js draws it): its basket's centre is basketX along
+// it, basketY up, before its lean (about x, to the wall). Its yaw is 0.
+export const BIKE = freeze({ wheelR: 0.33, axle: 0.52, basketX: 0.62, basketY: 0.87, lean: 0.05 });
+// the centre of its basket, as drawn (MARKET_ANCHORS.basket, V8's perch)
+export const BICYCLE_BASKET_AT = freeze({
+  x: BICYCLE_AT.x + BIKE.basketX,
+  z: BICYCLE_AT.z + BIKE.basketY * Math.sin(BIKE.lean),
+  y: BIKE.basketY * Math.cos(BIKE.lean),
+});
 const standColliders = (s) => (s.kind === 'treat' ? [freeze({ x: s.treat.x, z: s.treat.z, r: STAND_R })] : []);
 const FRUIT_CRATE_AT = fromStall(stallById('fruit'), FRUIT_CRATE.lx, FRUIT_CRATE.lz);
 // The milk cart's shafts (Task 6) lie out from its end away from the hide, down
@@ -275,7 +324,7 @@ export function marketArea() {
     spawn: MARKET_SPAWN,
     colliders: MARKET_COLLIDERS,
     waters: [],
-    perches: [],
+    perches: MARKET_PERCHES,
     pois: MARKET_POIS,
     collectibles: MARKET_COLLECTIBLES,
     keepOut: MARKET_KEEPOUT,
@@ -374,6 +423,72 @@ const PROP_ROWS = {
   ].map(freeze),
 };
 
+// V5 (step 3): THE PERCHES, { x, z, y, kind, label?, vantage? } (src/climbing.js;
+// every one of them reached with no skill, BASE_CLIMB_BUDGET).
+// Each stall with a counter: the crates' top (CLIMB_STACK.h, 0.1 m out past the
+// stack's middle, so a bare hop down sets her outside it), then the awning, at the
+// sheet's own height over the counter's end by the crates (0.3 m in from the end,
+// about 0.95 m from the crates: in reach both ways, so from the awning the button
+// is the crates again, and clear of the stallholder under it). The four treat stalls' awnings are lookouts, plainly named.
+const ROOF_LABELS = freeze({
+  fish: 'the fish stall’s awning', baker: 'the baker’s awning', cheese: 'the cheese stall’s awning', milk: 'the milk cart’s awning',
+});
+function stallPerches(s) {
+  const side = -s.hideSide;
+  const lz = CLIMB_LZ[s.id];
+  const crate = fromStall(s, side * (s.w / 2 + CLIMB_STACK.out + 0.1), lz);
+  const rlx = side * (s.w / 2 - 0.3);
+  const rlz = Math.max(lz, -s.d / 2 - AWNING.back + 0.25); // on the sheet (the milk cart's crates stand behind it)
+  const roof = fromStall(s, rlx, rlz);
+  const label = ROOF_LABELS[s.id];
+  return {
+    stack: CLIMB_STACKS.find((c) => c.stall === s.id),
+    crate: freeze({ x: r2(crate.x), z: r2(crate.z), y: CLIMB_STACK.h, kind: 'crate' }),
+    roof: freeze({ x: r2(roof.x), z: r2(roof.z), y: r2(awningHeight(s, rlx, rlz)), kind: 'roof', ...(label ? { label, vantage: true } : {}) }),
+  };
+}
+const CLIMBS = Object.fromEntries(STALLS.filter((s) => s.w > 0).map((s) => [s.id, freeze(stallPerches(s))]));
+// stallClimb(id) -> that stall's { stack, crate, roof } (the stack a MARKET_CLUTTER row)
+export const stallClimb = (id) => CLIMBS[id] ?? null;
+// The flower trestle's top (V2), its cloth's top, at its back end behind the bucket
+// (the bucket is knocked off from here: knockables.js's 0.3 m and the knock's 1 m)
+export const TRESTLE_PERCH = freeze({ ...(({ x, z }) => ({ x: r2(x), z: r2(z) }))(fromStall(FLOWERS, FLOWERS.w / 2 + 1.2, FLOWERS.d / 2 - 0.3 - 0.6)), y: BUCKET_Y, kind: 'crate' });
+// The bicycle's basket (V8): she sits in it
+export const BICYCLE_BASKET = freeze({ x: r2(BICYCLE_BASKET_AT.x), z: r2(BICYCLE_BASKET_AT.z), y: r2(BICYCLE_BASKET_AT.y), kind: 'crate' });
+// The tops of stack-w and stack-e (market.js draws a basket of apples on the top
+// crate, 0.16 m along from the stack's middle): she sits on the apples, 1.04 up
+const RIM_Y = 1.04;
+export const RIM_PERCHES = freeze(['stack-w', 'stack-e'].map((id) => {
+  const c = clutterById(id);
+  return freeze({ x: r2(c.x - 0.16 * Math.cos(c.yaw)), z: r2(c.z + 0.16 * Math.sin(c.yaw)), y: RIM_Y, kind: 'crate' });
+}));
+// The café tables' tops (marketparts.js cafeTable: 0.74): the cup on table 2 is
+// knocked off from beside it, 0.15 m the other way from its middle
+const TABLE_TOP = 0.74;
+export const TABLE_PERCHES = freeze(CAFE.tables.map((t, i) => freeze({
+  x: r2(t.x - (i === 2 ? 0.15 : 0)), z: r2(t.z - (i === 2 ? 0.15 : 0)), y: TABLE_TOP, kind: 'furniture',
+})));
+export const MARKET_PERCHES = freeze([
+  ...Object.values(CLIMBS).flatMap((c) => [c.crate, c.roof]),
+  TRESTLE_PERCH,
+  BICYCLE_BASKET,
+  ...RIM_PERCHES,
+  ...TABLE_PERCHES,
+]);
+
+// V12: THREE GOLDEN MICE (src/goldmice.js GOLD_MICE.market; test/market.test.js
+// holds the two equal). `y` is metres over the cobbles.
+const CHEESE = stallById('cheese');
+const GM1 = fromStall(CHEESE, -CHEESE.hideSide * 0.35, CLIMB_LZ.cheese);
+const MARKET_GOLD = freeze([
+  // on the cheese stall's awning, by its middle: up its crates, then onto the awning (2 hops)
+  freeze({ id: 'gm-market-1', x: r2(GM1.x), z: r2(GM1.z), y: r2(awningHeight(CHEESE, -CHEESE.hideSide * 0.35, CLIMB_LZ.cheese)) }),
+  // on the apples on top of stack-e, the east crate stack: one hop off the cobbles
+  freeze({ id: 'gm-market-2', x: RIM_PERCHES[1].x, z: RIM_PERCHES[1].z, y: RIM_Y }),
+  // hidden low at the foot of the west shop fronts, tucked at the end of the handcart there
+  freeze({ id: 'gm-market-3', x: -20.5, z: -4.3, y: 0 }),
+]);
+
 export const MARKET_REGISTRATION = freeze({
   id: 'market',
   // src/progression.js CATALOG.areas: nothing offers the Market until step 4 (M1)
@@ -400,4 +515,6 @@ export const MARKET_REGISTRATION = freeze({
   view: MARKET_SHOTS.card,
   // not a colony area; strays are allowed (U5) and kept out by MARKET_KEEPOUT
   colony: false,
+  // src/goldmice.js GOLD_MICE.market (V12)
+  goldMice: MARKET_GOLD,
 });

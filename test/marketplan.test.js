@@ -3,16 +3,46 @@ import {
   MARKET_BOUNDS, MARKET_SPAWN, FOUNTAIN, CAFE, STALLS, TREAT_STALLS, stallById, toStall, fromStall,
   MARKET_COLLIDERS, MARKET_HIDES, MARKET_KEEPOUT, marketArea, MARKET_REGISTRATION, MARKET_POIS, MARKET_COLLECTIBLES,
   MARKET_CLUTTER, MARKET_LAMPS, FRUIT_CRATE, FLOUR_SACKS,
+  MARKET_PERCHES, CLIMB_STACKS, CLIMB_STACK, AWNING, awningHeight, stallClimb, BICYCLE_BASKET, TRESTLE_PERCH, RIM_PERCHES, TABLE_PERCHES,
 } from '../src/world/marketplan.js';
 import { MARKET } from '../src/marketrules.js';
-import { isWalkableAt } from '../src/player.js';
+import { isWalkableAt, CAT_RADIUS } from '../src/player.js';
 import { keepOutPoint } from '../src/keepout.js';
+import { canReach, bestPerch, BASE_CLIMB_BUDGET } from '../src/climbing.js';
 
 const a = marketArea();
 const TREAT_REACH = 0.8;
 const WATCH_DEPTH = MARKET.WATCH_DEPTH;
 const WATCH_SIDE = MARKET.WATCH_SIDE;
 const dist = (p, q) => Math.hypot(p.x - q.x, p.z - q.z);
+const DRAWN = STALLS.filter((s) => s.w > 0);
+// a walkable point within r of p that `ok` accepts, or null
+function walkableNear(p, r, ok) {
+  for (let dx = -r; dx <= r + 1e-9; dx += 0.05) {
+    for (let dz = -r; dz <= r + 1e-9; dz += 0.05) {
+      const q = { x: p.x + dx, z: p.z + dz };
+      if (Math.hypot(dx, dz) <= r && isWalkableAt(a, q.x, q.z) && ok(q)) return q;
+    }
+  }
+  return null;
+}
+// where player.js's collider push (one pass a frame) leaves a grounded cat set down at x, z
+function pushOut(x, z) {
+  const p = { x, z };
+  for (let f = 0; f < 60; f++) {
+    for (const c of a.colliders) {
+      const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz), min = c.r + CAT_RADIUS;
+      if (d < min && d > 0.0001) { p.x = c.x + (dx / d) * min; p.z = c.z + (dz / d) * min; }
+    }
+  }
+  return p;
+}
+// the distance from p to the segment a-b
+function segDist(p, a0, b0) {
+  const vx = b0.x - a0.x, vz = b0.z - a0.z, L2 = vx * vx + vz * vz;
+  const t = Math.max(0, Math.min(1, ((p.x - a0.x) * vx + (p.z - a0.z) * vz) / L2));
+  return Math.hypot(p.x - (a0.x + vx * t), p.z - (a0.z + vz * t));
+}
 const inZone = (s, x, z) => {
   const { lx, lz } = toStall(s, x, z);
   return Math.abs(lx) <= s.w / 2 + WATCH_SIDE && lz >= s.d / 2 && lz <= s.d / 2 + WATCH_DEPTH;
@@ -299,6 +329,136 @@ describe('the plan of the Market Square', () => {
     expect(ps.markables).toHaveLength(2);
     expect(ps.carryables).toHaveLength(2);
     for (const p of [...ps.markables, ...ps.carryables]) expect(isWalkableAt(a, p.x, p.z), p.id).toBe(true);
+  });
+
+  // ---- Step 3, Task 3 (V5): up onto the awnings, and the things to hop on ----
+  it('every awning is two hops from the cobbles, with no skill', () => {
+    for (const s of DRAWN) {
+      const { stack, crate, roof } = stallClimb(s.id);
+      expect(MARKET_PERCHES, s.id).toContain(crate);
+      expect(MARKET_PERCHES, s.id).toContain(roof);
+      expect([crate.kind, roof.kind], s.id).toEqual(['crate', 'roof']);
+      // the crates' top, 0.9 to 1.0 up, one hop from a walkable spot beside the stack
+      expect(crate.y, s.id).toBeGreaterThanOrEqual(0.9);
+      expect(crate.y, s.id).toBeLessThanOrEqual(1.0);
+      expect(dist(crate, stack), s.id).toBeLessThan(CLIMB_STACK.r);
+      expect(walkableNear(stack, 1.2, (p) => canReach(crate, p, 0, BASE_CLIMB_BUDGET)), s.id).toBeTruthy();
+      // and from the crates' top the awning is one hop up
+      expect(canReach(roof, crate, crate.y, BASE_CLIMB_BUDGET), s.id).toBe(true);
+      // where nobody notices her (marketrules.js isHidden reads `high`)
+      expect(roof.y, s.id).toBeGreaterThanOrEqual(MARKET.HIGH_Y);
+      // on the awning's own sheet, inside its edges
+      const l = toStall(s, roof.x, roof.z);
+      expect(Math.abs(l.lx), s.id).toBeLessThanOrEqual((s.w + AWNING.over) / 2 - 0.2);
+      expect(l.lz, s.id).toBeGreaterThanOrEqual(-s.d / 2 - AWNING.back + 0.2);
+      expect(l.lz, s.id).toBeLessThanOrEqual(s.d / 2 + AWNING.front - 0.2);
+      expect(roof.y, s.id).toBeCloseTo(awningHeight(s, l.lx, l.lz), 2);
+      // never straight up off the cobbles: no walkable spot within the reach reaches it in one hop
+      for (let dx = -3; dx <= 3; dx += 0.25) {
+        for (let dz = -3; dz <= 3; dz += 0.25) {
+          const p = { x: roof.x + dx, z: roof.z + dz };
+          if (isWalkableAt(a, p.x, p.z)) expect(canReach(roof, p, 0, BASE_CLIMB_BUDGET), `${s.id} from ${p.x},${p.z}`).toBe(false);
+        }
+      }
+      // the four treat stalls' awnings are lookouts, with plain names; the two others are not
+      if (TREAT_STALLS.includes(s.id)) {
+        expect(roof.vantage, s.id).toBe(true);
+        expect(roof.label, s.id).toMatch(/^the [a-z’ ]+ awning$/);
+      } else {
+        expect(roof.label, s.id).toBeUndefined();
+        expect(roof.vantage, s.id).toBeUndefined();
+      }
+    }
+    expect(new Set(MARKET_PERCHES.filter((p) => p.label).map((p) => p.label)).size).toBe(4);
+  });
+
+  it('from an awning the button takes her back to its crates, never down into a counter or onto a stallholder', () => {
+    for (const s of DRAWN) {
+      const { crate, roof } = stallClimb(s.id);
+      // perched on the awning, the next press is the crates (a drop in reach), not a bare hop
+      // down into the counter's middle; perched on the crates, it is the awning again
+      expect(bestPerch(MARKET_PERCHES, roof, roof.y, roof), s.id).toBe(crate);
+      expect(bestPerch(MARKET_PERCHES, crate, crate.y, crate), s.id).toBe(roof);
+    }
+    // from every other perch a bare hop down lands her where the player's push puts her:
+    // on free cobbles, never inside a counter
+    const roofs = new Set(DRAWN.map((s) => stallClimb(s.id).roof));
+    for (const p of MARKET_PERCHES.filter((q) => !roofs.has(q))) {
+      const at = pushOut(p.x, p.z);
+      // (the push sets her exactly c.r + CAT_RADIUS off: within a hair of it is free)
+      const free = a.colliders.every((c) => Math.hypot(at.x - c.x, at.z - c.z) >= c.r + CAT_RADIUS - 1e-6);
+      expect(free, `${p.x},${p.z} lands at ${at.x},${at.z}`).toBe(true);
+      for (const s of DRAWN) {
+        const l = toStall(s, at.x, at.z);
+        const gx = Math.max(Math.abs(l.lx) - s.w / 2, 0), gz = Math.max(Math.abs(l.lz) - s.d / 2, 0);
+        expect(Math.hypot(gx, gz), `${p.x},${p.z} in ${s.id}'s counter`).toBeGreaterThan(0.2);
+      }
+    }
+    // and no perch is over a stallholder's spot
+    for (const p of MARKET_PERCHES) {
+      for (const s of STALLS.filter((q) => q.keeper)) expect(dist(p, s.keeper), `${p.x},${p.z} over ${s.id}'s keeper`).toBeGreaterThanOrEqual(0.8);
+    }
+  });
+
+  it("the stacks stand beside each stall, never in a watch zone, a lane or on a hide's line", () => {
+    expect(CLIMB_STACKS.map((c) => c.stall)).toEqual(DRAWN.map((s) => s.id));
+    const treat = TREAT_STALLS.map(stallById);
+    // the lines a cat dashes along: each treat stall's hide to its treat, each playable stall's hide to its front corner
+    const lines = DRAWN.filter((s) => s.hide).map((s) => [s.hide, s.treat ?? fromStall(s, s.hideSide * (s.w / 2 - 0.3), s.d / 2 + 0.35)]);
+    for (const c of CLIMB_STACKS) {
+      const s = stallById(c.stall);
+      expect(c.kind, c.id).toBe('crates');
+      expect(c.solid, c.id).toEqual([{ x: c.x, z: c.z, r: CLIMB_STACK.r }]);
+      expect(CLIMB_STACK.r).toBe(0.3);
+      for (const q of c.solid) expect(MARKET_COLLIDERS, c.id).toContainEqual(q);
+      // beside its own stall, on the side away from its hide, clear of the counter
+      const l = toStall(s, c.x, c.z);
+      expect(Math.sign(l.lx), c.id).toBe(-s.hideSide);
+      expect(Math.abs(l.lx), c.id).toBeGreaterThan(s.w / 2 + c.solid[0].r);
+      expect(Math.abs(l.lx), c.id).toBeLessThan(s.w / 2 + 1);
+      expect(l.lz, c.id).toBeGreaterThanOrEqual(-s.d / 2 - 0.5);
+      expect(l.lz, c.id).toBeLessThanOrEqual(s.d / 2);
+      const edge = Array.from({ length: 16 }, (_, k) => ({ x: c.x + c.solid[0].r * Math.cos((k * Math.PI) / 8), z: c.z + c.solid[0].r * Math.sin((k * Math.PI) / 8) }));
+      for (const p of [c, ...edge]) {
+        for (const o of treat) expect(inZone(o, p.x, p.z), `${c.id} in ${o.id}'s zone`).toBe(false);
+        // out of every counter's view lane (the lamps' rule)
+        for (const o of DRAWN) {
+          const q = toStall(o, p.x, p.z);
+          expect(q.lz > o.d / 2 - 0.5 && q.lz < o.d / 2 + 9 && Math.abs(q.lx) < o.w / 2 + 1.6, `${c.id} in front of ${o.id}'s counter`).toBe(false);
+        }
+      }
+      // a cat's width clear of every dash from a hide
+      for (const [h, t] of lines) expect(segDist(c, h, t), `${c.id} on a hide's line`).toBeGreaterThan(c.solid[0].r + CAT_RADIUS);
+      expect(dist(c, s.hide ?? c), c.id).toBeGreaterThan(1.5);
+    }
+  });
+
+  it('the basket, the trestle, the rims and the café tables are one hop from the cobbles', () => {
+    for (const p of [BICYCLE_BASKET, TRESTLE_PERCH, ...RIM_PERCHES, ...TABLE_PERCHES]) {
+      expect(MARKET_PERCHES, `${p.x},${p.z}`).toContain(p);
+      expect(walkableNear(p, 1.2, (q) => canReach(p, q, 0, BASE_CLIMB_BUDGET)), `${p.x},${p.z}`).toBeTruthy();
+    }
+    expect(BICYCLE_BASKET).toMatchObject({ kind: 'crate' });
+    expect(TRESTLE_PERCH).toMatchObject({ kind: 'crate' });
+    expect(RIM_PERCHES.map((p) => p.kind)).toEqual(['crate', 'crate']);
+    // the rims stand on stack-w and stack-e
+    for (const [p, id] of RIM_PERCHES.map((q, i) => [q, ['stack-w', 'stack-e'][i]])) {
+      const c = MARKET_CLUTTER.find((q) => q.id === id);
+      expect(dist(p, c), id).toBeLessThan(c.solid[0].r);
+    }
+    // the trestle's top is the flower stall's hide, and the café tables' tops are the tables
+    expect(dist(TRESTLE_PERCH, stallById('flowers').hide)).toBeLessThan(stallById('flowers').hide.r + 0.1);
+    TABLE_PERCHES.forEach((p, i) => expect(dist(p, CAFE.tables[i])).toBeLessThan(0.3));
+    expect(TABLE_PERCHES.map((p) => p.kind)).toEqual(['furniture', 'furniture', 'furniture']);
+  });
+
+  it('each knockable is knocked from a perch beside it at its own height, one hop up', () => {
+    // knockables.js nearest(): a perch within 0.3 m of the ledge's height; interactions.js KNOCK_REACH 1.0
+    for (const k of MARKET_REGISTRATION.propSet.knockables) {
+      const from = MARKET_PERCHES.filter((p) => Math.abs(p.y - k.y) < 0.3 && dist(p, k) <= 1.0 && dist(p, k) >= 0.25);
+      expect(from.length, k.id).toBeGreaterThan(0);
+      expect(from.some((p) => walkableNear(p, 1.2, (q) => canReach(p, q, 0, BASE_CLIMB_BUDGET))), k.id).toBe(true);
+    }
   });
 
   it('nothing offers it yet, and strays are allowed', () => {

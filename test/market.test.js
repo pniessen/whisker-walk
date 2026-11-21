@@ -27,8 +27,11 @@ const { createMarketLife } = await import('../src/world/marketlife.js');
 const { buildAppleCrate } = await import('../src/world/marketfruit.js');
 const {
   MARKET_BOUNDS, MARKET_SPAWN, MARKET_COLLIDERS, MARKET_KEEPOUT, MARKET_POIS, MARKET_COLLECTIBLES, STALLS, TREAT_STALLS, CAFE,
-  stallById, toStall, MARKET_LAMPS, FRUIT_CRATE,
+  stallById, toStall, MARKET_LAMPS, FRUIT_CRATE, MARKET_PERCHES, stallClimb, RIM_PERCHES, MARKET_REGISTRATION,
 } = await import('../src/world/marketplan.js');
+const { GOLD_MICE } = await import('../src/goldmice.js');
+const { spotsIn } = await import('../src/foundwear/spots/index.js');
+const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { findFadeOccluders } = await import('../src/treefade.js');
@@ -50,6 +53,13 @@ scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
 const boxOf = (o) => new THREE.Box3().setFromObject(o, true);
 const yawOf = (o) => new THREE.Euler().setFromQuaternion(o.getWorldQuaternion(new THREE.Quaternion()), 'YXZ').y;
 const angleGap = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+// the height of the first drawn thing straight down from 0.3 m over (x, y, z), or null
+const shownAll = (o) => { for (let q = o; q; q = q.parent) if (q.visible === false) return false; return true; };
+function drawnUnder(x, y, z) {
+  const ray = new THREE.Raycaster(new THREE.Vector3(x, y + 0.3, z), new THREE.Vector3(0, -1, 0), 0, 1.3);
+  const hit = ray.intersectObjects(scene.children, true).find((h) => h.object.isMesh && shownAll(h.object));
+  return hit ? hit.point.y : null;
+}
 const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot(x - c.x, z - c.z) - c.r));
 
 // Measured 2026-11-21 (Task 3), as test/budget.test.js counts it: the six
@@ -76,8 +86,11 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // and two baskets of apples): +1 mesh, +124 triangles; the lamps only moved.
 // Step 3, Task 2 (2026-11-21): the apples' crate is a tippable (made by the walk, not
 // the build), so the fruit stall's mesh loses its box and its apples' quad: -14 triangles.
-const MEASURED_BUILT = { meshes: 102, casters: 27, triangles: 38053 };
-const MEASURED_MERGED = { meshes: 99, casters: 24, triangles: 38053 };
+// Step 3, Task 3 (2026-11-21): the six climbing stacks (three crates each, drawn into the
+// clutter's kit, casting nothing) and each one's invisible contact-shadow box: +6 meshes
+// that draw nothing, +288 triangles (216 drawn).
+const MEASURED_BUILT = { meshes: 108, casters: 27, triangles: 38341 };
+const MEASURED_MERGED = { meshes: 105, casters: 24, triangles: 38341 };
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -116,7 +129,7 @@ describe('the Market Square drawn', () => {
     expect(area.waters).toEqual([]);
     expect(area.waterFx).toEqual([]);
     expect(area.moments).toEqual([]);
-    expect(area.perches).toEqual([]);
+    expect(area.perches).toEqual(MARKET_PERCHES);
     for (const k of ['boxes', 'pois', 'collectibles', 'scenics', 'puddles', 'tippables', 'perches', 'colliders', 'critterSpawns']) {
       expect(Array.isArray(area[k]), k).toBe(true);
     }
@@ -463,6 +476,52 @@ describe('the Market Square drawn', () => {
     const key = (x, z) => `${x.toFixed(2)},${z.toFixed(2)}`;
     const spots = found.map((f) => key(f.x, f.z)).sort();
     expect(spots).toEqual(MARKET_LAMPS.map((l) => key(l.x, l.z)).sort());
+  });
+
+  // Step 3, Task 3 (V5): the perches, read off the plan, each standing on something drawn
+  it("the record's perches are the plan's, each on something drawn", () => {
+    expect(area.perches).toEqual(MARKET_PERCHES);
+    for (const p of area.perches) {
+      const under = drawnUnder(p.x, p.y, p.z);
+      expect(under, `${p.x},${p.z}: nothing under it`).not.toBeNull();
+      // an awning's sheet within 3 cm; the crates, tables, trestle and rims within 2 cm;
+      // the bicycle basket (she sits in it, the fruit in it 8 cm over its middle) within 10
+      const tol = p.kind === 'roof' ? 0.03 : Math.hypot(p.x - area.anchors.basket.x, p.z - area.anchors.basket.z) < 0.05 ? 0.1 : 0.02;
+      expect(Math.abs(under - p.y), `${p.x},${p.z}: ${under.toFixed(3)} under a perch at ${p.y}`).toBeLessThan(tol);
+    }
+  });
+
+  it("three golden mice on the square's own spots, reached as the plan says", () => {
+    const mice = MARKET_REGISTRATION.goldMice;
+    expect(mice.map((m) => m.id)).toEqual(['gm-market-1', 'gm-market-2', 'gm-market-3']);
+    const [m1, m2, m3] = mice;
+    const hd = (p, q) => Math.hypot(p.x - q.x, p.z - q.z);
+    // gm-market-1 on the cheese stall's awning: crates, then the awning (two hops)
+    const { crate, roof } = stallClimb('cheese');
+    expect(Math.abs(m1.y - roof.y)).toBeLessThan(0.1);
+    expect(hd(m1, roof)).toBeLessThan(1.0);
+    expect(canReach(roof, crate, crate.y, BASE_CLIMB_BUDGET)).toBe(true);
+    // gm-market-2 on a crate stack's top (stack-e's), one hop off the cobbles
+    const rim = RIM_PERCHES[1];
+    expect(Math.abs(m2.y - rim.y)).toBeLessThan(0.1);
+    expect(hd(m2, rim)).toBeLessThan(1.0);
+    // the two up high lie on what is drawn there, not in the air
+    for (const m of [m1, m2]) expect(Math.abs(drawnUnder(m.x, m.y, m.z) - m.y), m.id).toBeLessThan(0.03);
+    // gm-market-3 on the ground, in a nook by the west shop fronts: clear of every collider
+    expect(m3.y).toBe(0);
+    expect(isWalkableAt(area, m3.x, m3.z)).toBe(true);
+    expect(m3.x).toBeLessThan(MARKET_BOUNDS.minX + 1.5);
+    // none beside a find spot, a collectible or a discovery anchor (the fountain's drink and the nap too)
+    const anchors = [...Object.values(area.anchors), ...MARKET_REGISTRATION.propSet.rests, ...area.scenics];
+    for (const m of mice) {
+      for (const q of [...spotsIn('market'), ...area.collectibles, ...anchors]) {
+        expect(hd(m, q), `${m.id} by ${q.id ?? `${q.x},${q.z}`}`).toBeGreaterThanOrEqual(1.5);
+      }
+    }
+  });
+
+  it("the gold rows are the registration's", () => {
+    expect(GOLD_MICE.market).toEqual(JSON.parse(JSON.stringify(MARKET_REGISTRATION.goldMice)));
   });
 
   it('the built counts are pinned, within the aim (180 / 110 / 45,000)', () => {

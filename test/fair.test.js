@@ -2088,9 +2088,9 @@ describe('The Fairground: registered everywhere a street area is', async () => {
 
   it('holds the golden mice, the prop set and the rest looks exactly as its rows say', () => {
     expect(GOLD_MICE.fair).toEqual(plain(REG.goldMice));
-    expect(GOLD_TOTAL).toBe(39); // 36 until the Rooftops added its three
-    expect(goldForEdition('canon', CATALOG).size).toBe(39);
-    expect(goldForEdition('legacy', CATALOG).size).toBe(21); // 18 until the Rooftops added its three
+    expect(GOLD_TOTAL).toBe(42); // 39 until the Market added its three, 36 until the Rooftops added its three
+    expect(goldForEdition('canon', CATALOG).size).toBe(42); // 39 until the Market added its three
+    expect(goldForEdition('legacy', CATALOG).size).toBe(24); // 21 until the Market added its three, and 21 again once its catalog row (Clan Edition only, step 4) keeps them out of Legacy: an area not in the catalog yet is counted; 18 until the Rooftops added its three
     const live = propsFor('fair');
     for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'hides', 'keepSlots']) expect(plain(live[k]), k).toEqual(plain(set[k]));
     expect(live.dogYard).toBeNull();

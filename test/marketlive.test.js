@@ -13,7 +13,7 @@ import { marketRig, buildSquare } from './helpers/marketrig.js';
 const { createMarketLive } = await import('../src/marketlive.js');
 const { twolegKeeper } = await import('../src/marketkeeper.js');
 const { TREAT_ITEM_PREFIX, treatItemId, treatStallOf, NO_MARKET } = await import('../src/marketnone.js');
-const { STALLS, TREAT_STALLS, stallById, toStall, fromStall, MARKET_SPAWN, MARKET_REGISTRATION } = await import('../src/world/marketplan.js');
+const { STALLS, TREAT_STALLS, stallById, toStall, fromStall, MARKET_SPAWN, MARKET_REGISTRATION, stallClimb } = await import('../src/world/marketplan.js');
 const { MARKET, STALL_TIMES, stallOffsets, stallPhase, periodOf } = await import('../src/marketrules.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 const { TREAT_WORDS } = await import('../src/marketwords.js');
@@ -1055,6 +1055,37 @@ describe('the sneak (Task 12)', () => {
       expect(ofType(b, 'shoo'), id).toEqual([]);
       expect(ofType(b, 'coo'), id).toEqual([]);
       b.live.dispose();
+    }
+  }, 60_000);
+
+  // Step 3, Task 3 (V5): the real awning perch (marketplan.js stallClimb), its own
+  // height, while the stall watches: across the whole zone below, then at the
+  // treat, then still.
+  it('perched on a real awning she is never shooed and never cooed at', () => {
+    for (const id of TREAT_STALLS) {
+      const s = S(id);
+      const T = treatOf(id);
+      const { roof } = stallClimb(id);
+      const r = marketRig();
+      r.setPhase(id, 'serve', 0.1);
+      const p0 = r.local(id, -(s.w / 2 + 0.8), s.d / 2 + 1.2);
+      const p1 = r.local(id, s.w / 2 + 0.8, s.d / 2 + 1.2);
+      r.place(p0.x, p0.z);
+      r.player.perchY = roof.y;
+      r.session.perched = roof;
+      r.step(DT);
+      expect(r.stall(id).watching, id).toBe(true);
+      r.walk(p1.x - p0.x, p1.z - p0.z, 1.2);
+      r.step(DT, Math.round(Math.hypot(p1.x - p0.x, p1.z - p0.z) / 1.2 / DT));
+      const q = pos(r.cat);
+      r.walk(T.x - q.x, T.z - q.z, 1.0);
+      r.step(DT, Math.round(1.0 / DT));
+      r.walk(0, 0, 0);
+      r.step(DT, Math.round(2 / DT));
+      expect(r.live.actionFor(r.session), id).toBeNull();
+      expect(ofType(r, 'shoo'), id).toEqual([]);
+      expect(ofType(r, 'coo'), id).toEqual([]);
+      r.live.dispose();
     }
   }, 60_000);
 
