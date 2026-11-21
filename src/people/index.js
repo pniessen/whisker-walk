@@ -9,6 +9,14 @@ export { pose, applyPose, strideFor, POSE_TIMES } from './pose.js';
 export { createGaze, stepGaze, GAZE } from './gaze.js';
 export { REACH, headTopOffset, catVolumes, createScratch, stepScratch } from './reach.js';
 
+// Chunk placement, not behaviour. This chunk is loaded by five places, and the
+// bundler decides where shared modules live by which chunks reach them. Reaching
+// the builder and the ground the way every place does keeps start-up in the same
+// few files as before; without these two lines it splits start-up into ten
+// files (+4 kB gzipped). Task 10 and 14 will use both for real.
+export { puddle } from '../world/builder.js';
+export { STEP_MAX } from '../ground.js';
+
 export const LOD = Object.freeze({ NEAR: 12, NEAR_LOW: 7, HYSTERESIS: 1 });
 
 export function lodNearFor(rung) {
