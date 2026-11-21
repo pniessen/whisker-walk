@@ -17,6 +17,11 @@
      URL params:
        scene=sheet (default)   a lineup on a lawn: today's figure, then a man, a woman with a girl at her side (one spot: a pair), an older man, and a tabby for scale
        scene=fair&fig=new|old  the real Fairground (world/fair.js) with its visitors (src/fairvisitors.js, run on 40 s) and the juggler
+       scene=neighborhood|park|docks|seaside
+                               the street place built from its world module, its villagers made by the game's own
+                               createCritters with the people kit (the head scratch, the bumps, the pairs, the gaze
+                               all the walk's code), her cat walked by the game's player (createPlayer, the bumps
+                               passed), the walk's contact shadows and its normal camera (the player's own)
        size=WxH                the canvas (default 1280x720)
      Shots (scripts/record-page.mjs --shots a,b): window.__shot(name) poses, lights and frames, and answers the name.
        sheet: lineup-day lineup-cateye-day faces-front-day faces-near-day blink-day glance-day stride-day
@@ -24,11 +29,19 @@
               neck-side-day neck-far-day far-day lod-close faces-day back-day crowd-spots
               scratch-touch-day scratch-touch-cateye scratch-touch-side scratch-touch-ears scratch-touch-mainecoon
               scratch-held-day scratch-older-day
+              kneel-front-day kneel-left-day dress-scratch-day dress-scratch-side dress-scratch-front dress-kneel-back
+              skirt-scratch-day skirt-scratch-side coat-scratch-side dress-stride-day skirt-stride-day
        fair:  fair-day fair-dusk fair-close
+       place: wave wave-eye (a villager waving, the normal camera and her eye height, 0.3 m)
+              pair pair-eye (the place's pair: the Neighborhood, the Park and the Docks)
      Tours (scripts/record-page.mjs --tour name): window.__tour(name), then window.__frame() steps 1/30 s
      (two 1/60 s steps) and renders, and answers { done, caption }.
        sheet: gaze (she walks past the lineup 3 m away, 8 s), walk (a man, a woman and a pair walk past, 6 s),
-              scratch (she walks up to the kneeling man from 2 m, is touched, turns away, 7.5 s)
+              scratch (she walks up to the kneeling man from 2 m, is touched, turns away, 7.5 s),
+              kneel (the man kneels and stands again, from his left side, 3 s)
+       place: slide (she walks into a villager and slides round, 5 s),
+              scratch-town (she walks up, asks, is touched, walks away: the game's own head scratch, 11 s),
+              scratch-town-side (the same, from the villager's right)
      window.__info() renders and returns { calls, triangles } (renderer.info, shadow passes included);
      window.__stats is the people's triangle counts. -->
 <style>
@@ -44,7 +57,7 @@
 <div id="caption">loading…</div>
 <script type="module">
   import * as THREE from 'three';
-  import { buildTwolegFigure } from '/src/critters.js';
+  import { buildTwolegFigure, villagerPos } from '/src/critters.js';
   import { buildCat } from '/src/cat/model.js';
   import { animateCat } from '/src/cat/animator.js';
   import { createSun, createFill, SUN_BIAS, assignShadowCasters, DEFAULT_GROUND_BOUNCE } from '/src/render/rig.js';
@@ -59,6 +72,8 @@
 
   const params = new URLSearchParams(location.search);
   const sceneId = params.get('scene') || 'sheet';
+  const PLACES = ['neighborhood', 'park', 'docks', 'seaside'];
+  let town = null; // a street place: { crit, player, cat, decals, clear }
   const figKind = params.get('fig') || 'new';
   const [W, H] = (params.get('size') || '1280x720').split('x').map(Number);
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -143,6 +158,10 @@
     { id: 'pair', def: { x: 2, z: 1, kind: 'child', sex: 'f', hairColor: 'auburn', hat: null } },
     // only in the walk tour: a woman on her own
     { id: 'woman', extra: true, def: { x: 2.5, z: 1, kind: 'adult', sex: 'f', height: 1.66, hairStyle: 'ponytail', hairColor: 'dark', top: { kind: 'tshirt', color: 0xd27a96 }, bottom: { kind: 'trousers', color: 0x3e4a66 }, shoes: 0xe8e4dc, hat: null, skin: 0xefcfb4 }, label: 'woman, 1.66 m' },
+    // only on the skirt and dress shots
+    { id: 'dress', extra: true, def: { x: 3, z: 1, kind: 'adult', sex: 'f', height: 1.68, hairStyle: 'bun', hairColor: 'auburn', top: { kind: 'dress', color: 0x5a7ab0 }, bottom: { kind: 'skirt', color: 0x5a7ab0 }, shoes: 0x3a3330, hat: null, skin: 0xe6bf9e }, label: 'woman in a dress, 1.68 m' },
+    { id: 'skirt', extra: true, def: { x: 3.5, z: 1, kind: 'adult', sex: 'f', height: 1.62, hairStyle: 'long', hairColor: 'dark', top: { kind: 'jumper', color: 0xc8604a }, bottom: { kind: 'skirt', color: 0x3e4a66 }, shoes: 0x5a3a28, hat: null, skin: 0xa8734c }, label: 'woman in a skirt, 1.62 m' },
+    { id: 'coat', extra: true, def: { x: 4.5, z: 1, kind: 'adult', sex: 'm', height: 1.78, hairStyle: 'crop', hairColor: 'dark', top: { kind: 'coat', color: 0x8a6a4a }, bottom: { kind: 'trousers', color: 0x3e4a5a }, shoes: 0x3a3330, hat: null, skin: 0xf0d2b8 }, label: 'man in a coat, 1.78 m' },
     { id: 'older', def: { x: 4, z: 1, kind: 'older', sex: 'm', height: 1.7, hairStyle: 'short', hairColor: 'white', top: { kind: 'coat', color: 0x7a8a4a }, bottom: { kind: 'trousers', color: 0x7a6a50 }, shoes: 0x3a3330, hat: null, glasses: true, skin: 0xa8734c }, label: 'older man, 1.70 m' },
   ];
   // a second lineup, dressed from spawn spots only (no overrides): how crowds vary
@@ -207,6 +226,39 @@
     sun.shadow.bias = SUN_BIAS;
     assignShadowCasters(scene);
     dayLight();
+  } else if (PLACES.includes(sceneId)) {
+    // ---- a street place: the game's own villagers and player ----
+    const world = await import(`/src/world/${sceneId}.js`);
+    const { createCritters } = await import('/src/critters.js');
+    const { createPlayer, CAT_RADIUS } = await import('/src/player.js');
+    const { createContactShadows } = await import('/src/render/contactshadows.js');
+    const { waterClearance } = await import('/src/world/builder.js');
+    const { mulberry32 } = await import('/src/rng.js');
+    const wind = createWind({ reducedMotion: true });
+    area = world.build(scene, { water: { quality: { name: 'high' }, reducedMotion: true }, wind });
+    fill = createFill(area.groundBounce);
+    scene.add(fill);
+    const decals = createContactShadows(scene);
+    const crit = createCritters(scene, area.critterSpawns.filter((d) => d.type === 'villager'), {
+      people: createPeopleKit, camera, area, rng: mulberry32(7), motionRng: mulberry32(11),
+    });
+    const cat = buildCat('tabby');
+    scene.add(cat);
+    cats.push(cat);
+    const player = createPlayer(camera, renderer.domElement);
+    player.setAvatar(cat, 3);
+    player.enable();
+    decals.follow(cat);
+    for (const c of crit.list) decals.follow(c.figure ?? c.group);
+    for (const c of crit.list) if (c.people?.[1]) decals.follow(c.people[1].figure); // as walk.js (R26)
+    shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+    sun.shadow.bias = SUN_BIAS;
+    assignShadowCasters(scene);
+    const clear = (x, z) => area.colliders.every((k) => Math.hypot(x - k.x, z - k.z) >= k.r + CAT_RADIUS + 0.15)
+      && waterClearance(area.waters, x, z) >= CAT_RADIUS + 0.15
+      && crit.bumps.every((b) => Math.hypot(x - b.x, z - b.z) >= b.r + CAT_RADIUS + 0.1)
+      && (area.perches ?? []).every((q) => Math.hypot(x - q.x, z - q.z) >= 1.0); // (a bench is a perch, not a collider)
+    town = { crit, player, cat, decals, clear };
   } else {
     // ---- the Fairground ----
     const fair = await import('/src/world/fair.js');
@@ -358,6 +410,7 @@
   }
   function render() {
     scene.updateMatrixWorld(true);
+    town?.decals.update();
     shadows?.update();
     renderer.render(scene, camera);
   }
@@ -563,6 +616,32 @@
       settle(SCRATCH, { which: only('older'), seconds: 4 });
       return `The older man's hello is a bow, not a kneel; his hand reaches her head the same way. ${touchNote('older')}`;
     },
+    // the kneel (ruling R29: the right knee down, the left knee up and turned
+    // out to his left), she sitting in front of him, from in front and from
+    // his left
+    'kneel-front-day': () => {
+      dayLight();
+      scratchScene('man', 0.85);
+      cam(0.5, 0.95, 3.1, 0.1, 0.55, 0.3, 40);
+      settle(SCRATCH, { which: only('man'), seconds: 4 });
+      return `The kneel from in front: his right knee down, his left knee up and turned out to his left (our right), no leg in front of him where she sits. ${touchNote('man')}`;
+    },
+    'kneel-left-day': () => {
+      dayLight();
+      scratchScene('man', 0.85);
+      cam(2.6, 0.85, 0.5, 0, 0.55, 0.3, 40);
+      settle(SCRATCH, { which: only('man'), seconds: 4 });
+      return `The kneel from his left: the raised knee turned out toward us, the foot flat; the right knee and the pointed right foot behind. ${touchNote('man')}`;
+    },
+    'dress-scratch-front': () => { dayLight(); scratchScene('dress', 0.85, 0); cats[0].position.x = 0.35; cam(-0.9, 1.0, 3.0, 0, 0.55, 0.2, 40); settle(SCRATCH, { which: only('dress'), seconds: 4 }); return `The dress over the kneel from in front and to her right, she a little to one side. ${touchNote('dress')}`; },
+    'dress-kneel-back': () => { dayLight(); scratchScene('dress', 0.85); cam(-1.2, 1.2, -2.4, 0, 0.5, 0.2, 40); settle(SCRATCH, { which: only('dress'), seconds: 4 }); return `The dress over the kneel from behind her. ${touchNote('dress')}`; },
+    'dress-scratch-day': () => { dayLight(); scratchScene('dress', 0.85); cam(0.9, 2.3, 5.35, 0, 0.75, 0.2); settle(SCRATCH, { which: only('dress'), seconds: 4 }); return `A woman in a dress kneels for the head scratch, the normal camera behind her. ${touchNote('dress')}`; },
+    'dress-scratch-side': () => { dayLight(); scratchScene('dress', 0.85); cam(2.4, 0.85, 0.7, 0, 0.55, 0.3, 40); settle(SCRATCH, { which: only('dress'), seconds: 4 }); return `The dress over the kneel, from her left (the raised knee's side). ${touchNote('dress')}`; },
+    'skirt-scratch-day': () => { dayLight(); scratchScene('skirt', 0.85); cam(0.9, 2.3, 5.35, 0, 0.75, 0.2); settle(SCRATCH, { which: only('skirt'), seconds: 4 }); return `A woman in a skirt kneels for the head scratch, the normal camera behind her. ${touchNote('skirt')}`; },
+    'skirt-scratch-side': () => { dayLight(); scratchScene('skirt', 0.85); cam(2.4, 0.85, 0.7, 0, 0.55, 0.3, 40); settle(SCRATCH, { which: only('skirt'), seconds: 4 }); return `The skirt over the kneel, from her left (the raised knee's side). ${touchNote('skirt')}`; },
+    'coat-scratch-side': () => { dayLight(); scratchScene('coat', 0.85); cam(2.4, 0.85, 0.7, 0, 0.55, 0.3, 40); settle(SCRATCH, { which: only('coat'), seconds: 4 }); return `A man in a coat kneeling, from his left (the raised knee's side). ${touchNote('coat')}`; },
+    'dress-stride-day': () => strideOf('dress', 'A woman in a dress mid-stride, three-quarter view: the skirt over the stride.'),
+    'skirt-stride-day': () => strideOf('skirt', 'A woman in a skirt mid-stride, three-quarter view.'),
     'crowd-spots': () => {
       dayLight();
       SPOTS.forEach((_, i) => { const it = byId(`spot${i}`); it.group.position.set(-5.6 + i * 1.6, 0, -2.6); it.group.rotation.y = Math.PI; });
@@ -571,6 +650,18 @@
       return 'Eight spots dressed only from their spawn spots (age, height, clothes, hair: no rolls); a child spot is a pair.';
     },
   };
+  // one of the extra cast walking, alone, three-quarter view (she sits off to the right)
+  function strideOf(id, text) {
+    dayLight();
+    const it = byId(id);
+    it.group.position.set(0, 0, 0);
+    it.group.rotation.y = Math.PI / 2 + 0.35;
+    cats[0].position.set(-1.4, 0, 1.2); cats[0].rotation.y = 0.6;
+    animateCat(cats[0], 'follow', 0.5, 0, false);
+    cam(0.9, 1.45, 4.0, 0, 0.8, 0, 40);
+    settle({ mode: 'walk', walked: (m) => 1.25 / strideFor(m.person, 1) }, { which: only(id) });
+    return text;
+  }
   // the scratch shots: one person at the middle facing us, she `dist` m in
   // front of him (her middle), sitting up, facing him (heading 0)
   const SCRATCH = { mode: 'kneel', scratch: true };
@@ -621,8 +712,120 @@
     caption.textContent = `src/people · ${name} · ${text}  [${calls} draws, ${triangles.toLocaleString()} triangles this frame]`;
   };
 
+  // ---- a street place: the game's own villagers, her cat walked by the player ----
+  const TV = new THREE.Vector3();
+  const TV2 = new THREE.Vector3();
+  const singles = () => town.crit.list.filter((c) => c.people && !c.people[1]);
+  const pairs = () => town.crit.list.filter((c) => c.people?.[1]);
+  // her spot `dist` m from the grown-up: in front if it (and 4 m behind her,
+  // for the camera) is clear, else the nearest way round that is
+  function spotBy(c, dist) {
+    const at = villagerPos(c, TV);
+    for (const a of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4, 1.8, -1.8, 2.3, -2.3, Math.PI]) {
+      const sx = Math.sin(a), sz = -Math.cos(a);
+      let ok = true;
+      for (let k = 0; ok && k <= 4; k++) ok = town.clear(at.x + sx * (dist + k), at.z + sz * (dist + k));
+      // and nothing between her and the grown-up
+      for (let d = 0.9; ok && d < dist; d += 0.3) {
+        const px = at.x + sx * d, pz = at.z + sz * d;
+        ok = area.colliders.every((k) => Math.hypot(px - k.x, pz - k.z) >= k.r + 0.1) && (area.perches ?? []).every((q) => Math.hypot(px - q.x, pz - q.z) >= 0.8);
+      }
+      if (ok) return { x: at.x + sx * dist, z: at.z + sz * dist, a };
+    }
+    return { x: at.x, z: at.z - dist, a: 0 };
+  }
+  function townStep(dt, anim = 'follow') {
+    clock += dt;
+    const { player, cat, crit } = town;
+    player.update(dt, area.colliders, area.bounds, area.waters, crit.bumps);
+    animateCat(cat, anim, clock, player.speed, false);
+    cat.updateMatrixWorld(true);
+    crit.update(dt, clock, cat.position, cat.position, cat);
+  }
+  // she at `spot`, facing the grown-up, the camera's heading hers
+  function townPlace(c, spot) {
+    const { player, cat } = town;
+    camera.fov = 70; camera.updateProjectionMatrix(); // the game's (main.js)
+    const at = villagerPos(c, TV);
+    const yaw = Math.atan2(-(at.x - spot.x), -(at.z - spot.z));
+    cat.position.set(spot.x, 0, spot.z);
+    cat.rotation.y = yaw;
+    player.setViewYaw(yaw);
+    player.setTouchMove(null);
+    return yaw;
+  }
+  function eyeCam(c) {
+    const at = villagerPos(c, TV);
+    const head = town.cat.userData.parts.head.getWorldPosition(TV2);
+    const toX = at.x - head.x, toZ = at.z - head.z, L = Math.hypot(toX, toZ);
+    cats[0].visible = false; // the camera is her eyes
+    cam(head.x - (toX / L) * 0.15, 0.3, head.z - (toZ / L) * 0.15, at.x, 0.95, at.z, 60);
+  }
+  const placeName = sceneId[0].toUpperCase() + sceneId.slice(1);
+  const TOWN = {
+    wave: () => { const c = singles()[0] ?? town.crit.list[0]; townPlace(c, spotBy(c, 3)); for (let s = 0; s < 2.5; s += DT) townStep(DT); return `${placeName}: a villager waves to her, 3 m away; the game's normal camera.`; },
+    'wave-eye': () => { const c = singles()[0] ?? town.crit.list[0]; townPlace(c, spotBy(c, 3)); for (let s = 0; s < 2.5; s += DT) townStep(DT); eyeCam(c); return `${placeName}: the villager waving, from her eye height (0.3 m).`; },
+    pair: () => { const c = pairs()[0]; if (!c) throw new Error(`no pair in ${sceneId}`); townPlace(c, spotBy(c, 3)); for (let s = 0; s < 2.5; s += DT) townStep(DT); return `${placeName}: a grown-up with a child (one spot, a pair), she 3 m away; the normal camera. Both wave and look at her.`; },
+    'pair-eye': () => { const c = pairs()[0]; if (!c) throw new Error(`no pair in ${sceneId}`); townPlace(c, spotBy(c, 3)); for (let s = 0; s < 2.5; s += DT) townStep(DT); eyeCam(c); return `${placeName}: the pair from her eye height (0.3 m).`; },
+  };
+  function townTour(name) {
+    const c = singles()[0] ?? town.crit.list[0];
+    const { player, cat, crit } = town;
+    const at = villagerPos(c, new THREE.Vector3());
+    const side = name === 'scratch-town-side';
+    if (name !== 'slide' && name !== 'scratch-town' && !side) throw new Error(`no tour ${name}`);
+    clock = 0;
+    const spot = spotBy(c, name === 'slide' ? 3.2 : 3);
+    const yaw = townPlace(c, spot);
+    if (name === 'slide') {
+      // to his right of his middle (his raised knee's circle is on his left),
+      // so she slides round him
+      let rx = Math.cos(yaw), rz = -Math.sin(yaw);
+      if (rx < 0) { rx = -rx; rz = -rz; }
+      cat.position.x += rx * 0.3; cat.position.z += rz * 0.3;
+    }
+    for (let i = 0; i < 45; i++) townStep(DT);
+    let tt = 0;
+    let phase = 'in', sitAt = 0, most = 0, lastD = cat.position.distanceTo(at);
+    player.setTouchMove({ x: 0, z: -1, mag: 1 });
+    tour = {
+      name, t: 0, frames: 0,
+      seconds: name === 'slide' ? 5 : 11,
+      tick(dt) {
+        tt += dt;
+        let anim = 'follow';
+        if (name !== 'slide') {
+          const d = cat.position.distanceTo(at);
+          if (phase === 'in') {
+            const inBy = lastD - d;
+            most = Math.max(most, inBy);
+            if (d < 1.6 && inBy < most / 3) { phase = 'sit'; sitAt = tt; player.setTouchMove(null); }
+          } else if (phase === 'sit') {
+            anim = 'requestPet';
+            if (tt - sitAt > 0.5 && !c.scratch) crit.scratchHello(c); // she presses E (interactions.js)
+            if (tt - sitAt > 5.5) { phase = 'out'; player.setTouchMove({ x: 0, z: 1, mag: 1 }); }
+          }
+          lastD = d;
+        }
+        townStep(dt, anim);
+      },
+      frame() {
+        if (side) {
+          // from the villager's right, a little in front, low
+          cam(at.x + 2.1, 1.05, at.z - 1.1, at.x - 0.05, 0.55, at.z - 0.55, 42);
+        }
+        const what = name === 'slide'
+          ? 'She walks straight into a villager and slides round him, as round a post.'
+          : 'She walks up and stops where the soft bump stops her, asks (E), he kneels and his hand comes to her head and rests there; she walks away and it withdraws; he stands 0.6 s after she is 2.5 m off.';
+        return `${placeName}: ${what} [${c.poseMode}${c.scratchState ? `, ${c.scratchState}` : ''}]`;
+      },
+    };
+    labels(false);
+    return name;
+  }
+
   window.__shot = async (name) => {
-    const f = (sceneId === 'fair' ? FAIR : SHOTS)[name];
+    const f = (sceneId === 'fair' ? FAIR : town ? TOWN : SHOTS)[name];
     if (!f) throw new Error(`no shot ${name}`);
     tour = null;
     her = 0;
@@ -755,8 +958,34 @@
       },
     };
   };
+  // The man kneels at 0.3 s and stands again at 1.6 s, from his left, low:
+  // for the feet (a planted foot must not skate).
+  TOURS.kneel = () => {
+    sheetDefaults('kneel');
+    cats[0].visible = false;
+    const man = byId('man');
+    for (const it of items) {
+      it.group.visible = it.id === 'man';
+      for (const m of it.members) { m.gaze = createGaze(m.person.look); m.scratch = null; }
+    }
+    man.group.position.set(0, 0, 0);
+    man.group.rotation.y = Math.PI;
+    let tt = 0;
+    current = { spec: () => ({ mode: tt > 0.3 && tt < 1.6 ? 'kneel' : 'stand', noLook: true }), detail: null };
+    for (let i = 0; i < 60; i++) step(DT);
+    return {
+      seconds: 3,
+      tick(dt) { tt += dt; step(dt); },
+      frame() {
+        cam(2.4, 0.6, 0.35, 0, 0.45, 0.1, 38);
+        return `He kneels (from 0.3 s, 0.7 s down) and stands again (from 1.6 s), from his left: the feet [${tt > 0.3 && tt < 1.6 ? 'kneel' : 'stand'}].`;
+      },
+    };
+  };
+
   window.__tour = (name) => {
-    if (sceneId !== 'sheet') throw new Error('tours run on scene=sheet');
+    if (town) return townTour(name);
+    if (sceneId !== 'sheet') throw new Error('tours run on scene=sheet or a street place');
     const make = TOURS[name];
     if (!make) throw new Error(`no tour ${name}`);
     clock = 0;
@@ -784,7 +1013,7 @@
   window.__scene = scene;
   window.__render = render;
   window.__camera = camera;
-  await window.__shot(sceneId === 'fair' ? 'fair-day' : 'lineup-day');
+  await window.__shot(sceneId === 'fair' ? 'fair-day' : town ? 'wave' : 'lineup-day');
   window.__ready = true;
 </script>
 </body>

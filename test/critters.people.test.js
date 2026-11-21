@@ -488,6 +488,42 @@ describe('the head scratch in town', () => {
     }
   }, 90000);
 
+  it('the free hand rests on the raised knee, out of her way: while the touch rests, his left arm keeps 2 cm clear of her (every preset cat, a man and a woman)', () => {
+    const P2 = new THREE.Vector3();
+    for (const breed of ['tabby', 'siamese', 'persian', 'mainecoon']) {
+      for (const sex of ['m', 'f']) {
+        const crit = town([{ type: 'villager', ...ADULT, sex }]);
+        const c = crit.list[0];
+        const w = walkUp(crit, c, breed);
+        crit.scratchHello(c);
+        const p = c.people[0];
+        const B = p.bones;
+        const d = p.look.dims;
+        let worst = Infinity;
+        for (let i = 0; i < 240; i++) {
+          walkFrame(w, crit, 'requestPet');
+          const vol = catVolumes(w.cat);
+          const chain = [B.upperArmL, B.forearmL, B.handL];
+          const radii = [d.uaR[0], d.faR[0], 0.18 * d.hand];
+          B.handL.localToWorld(TIP.set(0, -d.hand * 0.96, 0));
+          for (let k = 0; k < 3; k++) {
+            chain[k].getWorldPosition(A);
+            if (k < 2) chain[k + 1].getWorldPosition(Bv); else Bv.copy(TIP);
+            for (let j = 0; j <= 10; j++) {
+              P2.lerpVectors(A, Bv, j / 10);
+              worst = Math.min(worst, P2.distanceTo(vol.head.center) - vol.head.radius - radii[k], segPointDist(vol.body.a, vol.body.b, P2) - vol.body.r - radii[k]);
+            }
+          }
+        }
+        expect(worst, `${breed} ${sex}`).toBeGreaterThan(0.02);
+        // and the hand is on the knee: the palm within 0.06 m of the top of it
+        const knee = B.shinL.getWorldPosition(new THREE.Vector3());
+        const palm = B.handL.localToWorld(new THREE.Vector3(0, -d.hand * 0.5, 0));
+        expect(palm.distanceTo(knee.addScaledVector(UP, d.thR[1])), `${breed} ${sex}`).toBeLessThan(0.06);
+      }
+    }
+  }, 90000);
+
   it('stepScratch is given her volumes: with her standing where the held hand would be, the arm keeps clear of her (and without them it would not)', () => {
     // her head about where the held-out hand goes (0.4 m in front of the
     // middle, a little to the right, low): placed by hand, past the bumps

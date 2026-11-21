@@ -485,7 +485,9 @@ function kneeling(r, p, look) {
   r[CHEST] = -0.22;
   r[NECK] = 0.12;
   r[RIGHT.upperArm] = 0.72; r[RIGHT.upperArm + 2] = 0.08; r[RIGHT.forearm] = 0.3; r[RIGHT.hand + 1] = -1.3;
-  r[LEFT.upperArm] = 0.5; r[LEFT.upperArm + 2] = -0.1; r[LEFT.forearm] = 1.0;
+  // the free (left) hand rests on the raised knee, out to the left with it,
+  // not in front of him where she sits (Task 12 pictures)
+  r[LEFT.upperArm] = 0.0; r[LEFT.upperArm + 2] = -0.47; r[LEFT.forearm] = 1.3;
 }
 
 function bowing(r, look) {
