@@ -61,6 +61,18 @@ describe('make-code script helpers', () => {
     expect(four.every((m) => m.startsWith('Warning:'))).toBe(true);
   });
 
+  it('gift events and confetti: parsed, checked and written', () => {
+    const r = parseArgs(['--event', 'bday-2026-11-21', '--confetti', 'yes', '--acc', 'partyhat']);
+    expect(r.events).toEqual(['bday-2026-11-21']);
+    expect(r.confetti).toBe(true);
+    expect(() => parseArgs(['--confetti', 'no'])).toThrow(/yes/);
+    expect(validateReward({ ...r, label: '' })).toEqual([]); // a gift outfit is a prize a code may give
+    expect(validateReward({ events: ['nope'], label: '' }).join('|')).toMatch(/Unknown event/);
+    expect(validateReward({ events: ['bday-2026-11-21'], label: '' })).toEqual([]);
+    const line = entryLine('a'.repeat(64), { ...r, points: 0, cats: [], label: 'x' });
+    expect(eval(`({ ${line} })`)['a'.repeat(64)]).toEqual({ label: 'x', points: 0, accessories: ['partyhat'], cats: [], events: ['bday-2026-11-21'], confetti: true });
+  });
+
   it('warns when the hash is already in the table', () => {
     expect(duplicateWarning('abc', { abc: {} })).toMatch(/^Warning:.*already in src\/redeemcodes\.js/);
     expect(duplicateWarning('xyz', { abc: {} })).toBe(null);
