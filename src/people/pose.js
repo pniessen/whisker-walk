@@ -36,7 +36,7 @@ const STATE = new WeakMap();
 function stateOf(person) {
   let st = STATE.get(person);
   if (!st) {
-    st = { mode: null, applied: false, w: 1, from: new Float32Array(N * 3 + 3), cur: new Float32Array(N * 3 + 3) };
+    st = { mode: null, applied: false, w: 1, wa: 1, armEase: 0, from: new Float32Array(N * 3 + 3), cur: new Float32Array(N * 3 + 3) };
     STATE.set(person, st);
   }
   return st;
@@ -293,8 +293,9 @@ export function pose(person, spec) {
   if (mode === 'kneel' && look.kind === 'older') mode = 'bow'; // older people never kneel
 
   const st = stateOf(person);
+  let changed = false;
   if (st.mode !== mode) {
-    if (st.applied) { st.from.set(st.cur); st.w = 0; }
+    if (st.applied) { st.from.set(st.cur); st.w = 0; st.wa = 0; st.armEase = 0; changed = true; }
     st.mode = mode;
   }
 
@@ -307,6 +308,71 @@ export function pose(person, spec) {
     else if (mode === 'dismay') dismayed(r, look);
     else if (mode === 'juggle') juggling(r, t);
   }
+  if (changed && armFromBones(person, st.from, st.cur, r)) st.armEase = ARM_PEAK * armPath(person, st.from, r) / ARM_VMAX;
+}
+
+// A blend starts from the right arm as the bones have it, not as the last
+// pose had it: the head scratch sets that arm outright after applyPose (the
+// gaze never touches the arms), so standing up from a scratch eases the arm
+// from where it was seen. Each joint's Euler is taken in the form nearest
+// the new pose's (an Euler has two forms, and each angle its turns of 2 pi),
+// so the blend goes the short way. True when the bones were not as the pose
+// had them (cur): then the arm's own blend takes long enough that the palm,
+// in the chest's frame, goes no faster than the scratch's hand may
+// (ARM_VMAX, eased: ARM_PEAK), and longer than the body's when it must.
+const ARM_R = [RIGHT.upperArm, RIGHT.forearm, RIGHT.hand];
+const ARM_R_BONES = ['upperArmR', 'forearmR', 'handR'];
+const ARM_MASK = new Uint8Array(N * 3);
+for (const j of ARM_R) ARM_MASK[j] = ARM_MASK[j + 1] = ARM_MASK[j + 2] = 1;
+const ARM_VMAX = 1.2; // m/s: the scratch's hand's most (reach.js VMAX, ruling R13)
+const ARM_PEAK = 1.5 * 1.05; // a smoothstep blend's top speed is 1.5 times its mean (and some to spare)
+const wrapNear = (a, to) => a + TAU * Math.round((to - a) / TAU);
+function armFromBones(person, from, cur, r) {
+  // (the bones as applyPose left them: the blend is the pose's own, as ever)
+  let moved = false;
+  for (let i = 0; i < 3 && !moved; i++) {
+    const e = person.bones[ARM_R_BONES[i]].rotation, j = ARM_R[i];
+    moved = Math.abs(e.x - cur[j]) > 1e-6 || Math.abs(e.y - cur[j + 1]) > 1e-6 || Math.abs(e.z - cur[j + 2]) > 1e-6;
+  }
+  if (!moved) return false;
+  for (let i = 0; i < 3; i++) {
+    const e = person.bones[ARM_R_BONES[i]].rotation;
+    const j = ARM_R[i];
+    const tx = r[j], ty = r[j + 1], tz = r[j + 2];
+    // the two forms of an XYZ Euler: (x, y, z) and (x + pi, pi - y, z + pi)
+    const ax = wrapNear(e.x, tx), ay = wrapNear(e.y, ty), az = wrapNear(e.z, tz);
+    const bx = wrapNear(e.x + Math.PI, tx), by = wrapNear(Math.PI - e.y, ty), bz = wrapNear(e.z + Math.PI, tz);
+    const da = Math.abs(ax - tx) + Math.abs(ay - ty) + Math.abs(az - tz);
+    const db = Math.abs(bx - tx) + Math.abs(by - ty) + Math.abs(bz - tz);
+    if (da <= db) { from[j] = ax; from[j + 1] = ay; from[j + 2] = az; }
+    else { from[j] = bx; from[j + 1] = by; from[j + 2] = bz; }
+  }
+  return true;
+}
+
+// The palm's way (the hand's middle, in the chest's frame) as the right arm
+// blends from `from` to `r`: its length, from 8 steps.
+const ARM_P = new THREE.Vector3();
+const ARM_Q = new THREE.Vector3();
+const Q_C = new THREE.Quaternion();
+function armPath(person, from, r) {
+  const B = person.bones;
+  const hr = person.look.dims.hand * 0.5;
+  let L = 0;
+  for (let s = 0; s <= 8; s++) {
+    const k = s / 8;
+    // from the hand in, each joint's turn and its offset from its parent
+    ARM_P.set(0, -0.92 * hr, 0);
+    for (let i = 2; i >= 0; i--) {
+      const j = ARM_R[i];
+      EUL.set(from[j] + (r[j] - from[j]) * k, from[j + 1] + (r[j + 1] - from[j + 1]) * k, from[j + 2] + (r[j + 2] - from[j + 2]) * k, 'XYZ');
+      ARM_P.applyQuaternion(Q_C.setFromEuler(EUL));
+      if (i > 0) ARM_P.add(B[ARM_R_BONES[i]].position);
+    }
+    if (s > 0) L += ARM_P.distanceTo(ARM_Q);
+    ARM_Q.copy(ARM_P);
+  }
+  return L;
 }
 
 function waving(r, t, still) {
@@ -399,12 +465,17 @@ export function applyPose(person, dt, ease = 0.3) {
   const st = stateOf(person);
   const { rot, pelvis } = person.target;
   const cur = st.cur;
-  if (!st.applied) { st.applied = true; st.w = 1; }
+  if (!st.applied) { st.applied = true; st.w = 1; st.wa = 1; }
   if (st.w < 1) st.w = ease > 0 ? Math.min(1, st.w + dt / ease) : 1;
+  if (st.wa < 1) st.wa = ease > 0 ? Math.min(1, st.wa + dt / Math.max(ease, st.armEase)) : 1;
   const k = smooth(st.w);
+  const ka = smooth(st.wa);
   const from = st.from;
   const R = N * 3;
-  for (let i = 0; i < R; i++) cur[i] = k >= 1 ? rot[i] : from[i] + (rot[i] - from[i]) * k;
+  for (let i = 0; i < R; i++) {
+    const w = ARM_MASK[i] ? ka : k;
+    cur[i] = w >= 1 ? rot[i] : from[i] + (rot[i] - from[i]) * w;
+  }
   for (let i = 0; i < 3; i++) cur[R + i] = k >= 1 ? pelvis[i] : from[R + i] + (pelvis[i] - from[R + i]) * k;
 
   const B = person.bones;

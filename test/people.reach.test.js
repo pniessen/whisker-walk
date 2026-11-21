@@ -398,7 +398,8 @@ describe('the head scratch', () => {
     const r2 = rig('adult');
     const below = r2.p.figure.localToWorld(new THREE.Vector3(0.05, sh.y + REACH.PERCHED_ABOVE - 0.05, -0.45));
     let s;
-    for (let i = 0; i < 90; i++) s = frame(r2, null, { headTop: below });
+    // (resting within R15's 2.5 s; the hand first turns palm down from the pose's)
+    for (let i = 0; i < REACH_FRAMES; i++) s = frame(r2, null, { headTop: below });
     expect(s).toBe('resting');
   });
 
@@ -616,4 +617,73 @@ describe('the head scratch', () => {
     // and the chest's whole lean stays within LEAN_MAX
     expect(-r.p.bones.chest.rotation.x).toBeLessThanOrEqual(REACH.LEAN_MAX + 1e-9);
   });
+});
+
+// Finding 1 (final review): the hand-offs between the pose and the scratch.
+// Standing, then kneeling (an older person bows) with the scratch from its
+// first frame, then standing again without it. Up to the stand the palm
+// never steps further than R13 allows in a frame; standing up, the body
+// rises as every pose change does (over 0.3 s, the spec's "Pose priority"),
+// and the arm comes from where the scratch left it: no jump at the hand-off,
+// and the palm's own way (in the chest's frame) within R13 all along.
+describe('the hand-offs between the pose and the scratch', () => {
+  const palmInChest = (p, out) => {
+    const c = p.bones.chest;
+    c.updateWorldMatrix(true, false);
+    palmPoint(p, out).sub(c.getWorldPosition(new THREE.Vector3()));
+    return out.applyQuaternion(c.getWorldQuaternion(new THREE.Quaternion()).invert());
+  };
+  for (const kind of ['adult', 'older']) {
+    for (const [what, dist] of [['in reach', 0.65], ['out of reach', 1.5]]) {
+      it(`${kind}, the cat ${what}: stand 1 s, kneel with the scratch 3 s, stand 2 s: no jump, the hand within R13`, () => {
+        const r = rig(kind);
+        const cat = buildCat('tabby');
+        animateCat(cat, 'requestPet', 1, 0, false);
+        place(r, cat, dist);
+        const palm = new THREE.Vector3(), last = new THREE.Vector3();
+        const rel = new THREE.Vector3(), lastRel = new THREE.Vector3();
+        const worst = { up: 0, upAt: -1, rel: 0, relAt: -1, first: 0, world: 0 };
+        const seen = new Set();
+        const step = (mode, scratch, i) => {
+          r.t += DT;
+          pose(r.p, { mode, t: r.t });
+          applyPose(r.p, DT);
+          const top = headTopOf(cat);
+          stepGaze(r.p, r.gaze, DT, r.t, { target: top });
+          if (scratch) seen.add(stepScratch(r.p, r.sc, DT, { headTop: top, volumes: (r.vol = catVolumes(cat, r.vol)) }));
+          palmPoint(r.p, palm);
+          palmInChest(r.p, rel);
+          const d = palm.distanceTo(last), dr = rel.distanceTo(lastRel);
+          if (i > 0 && i < 240 && d > worst.up) { worst.up = d; worst.upAt = i; }
+          if (i === 240) worst.first = d;
+          if (i >= 240) { worst.world = Math.max(worst.world, d); if (dr > worst.rel) { worst.rel = dr; worst.relAt = i; } }
+          last.copy(palm); lastRel.copy(rel);
+        };
+        let n = 0;
+        for (let i = 0; i < 60; i++) step('stand', false, n++);
+        for (let i = 0; i < 180; i++) step('kneel', true, n++);
+        for (let i = 0; i < 120; i++) step('stand', false, n++);
+        // the pose's own stand-up from its own kneel (no scratch): the body's share
+        const b = rig(kind);
+        let plain = 0;
+        for (let i = 0; i < 240; i++) {
+          b.t += DT;
+          pose(b.p, { mode: i < 120 ? 'kneel' : 'stand', t: b.t });
+          applyPose(b.p, DT);
+          palmPoint(b.p, palm);
+          if (i > 120) plain = Math.max(plain, palm.distanceTo(last));
+          last.copy(palm);
+        }
+        worst.plain = plain;
+        const msg = `${kind} ${what}: ${JSON.stringify(worst)}`;
+        expect(worst.up, msg).toBeLessThanOrEqual(STEP_MAX);
+        expect(worst.first, msg).toBeLessThanOrEqual(STEP_MAX);
+        expect(worst.rel, msg).toBeLessThanOrEqual(STEP_MAX);
+        // in the world, the arm's own way on top of the body's rise at most
+        expect(worst.world, msg).toBeLessThanOrEqual(Math.max(STEP_MAX, plain + STEP_MAX));
+        // the scratch did its work in between (a touch when in reach)
+        expect([...seen], msg).toEqual(dist < 1 ? expect.arrayContaining(['resting']) : ['held']);
+      });
+    }
+  }
 });

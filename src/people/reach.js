@@ -18,6 +18,13 @@
 // does not see its last turn (the lean changed the chest after it), so with
 // the gaze running too, applyPose must run every frame, as the kit's loop does.
 //
+// The hand-offs (final review, finding 1): the scratch's first frame takes
+// the hand where the pose has it (the body may be only one frame into the
+// kneel) and its turn, which eases to palm down over HANDOFF while the held
+// follower (at most VMAX) carries it out; no way in starts until the hand is
+// palm down and the shoulder still. Standing up again, pose() blends the
+// right arm from where the bones are (see armFromBones in pose.js).
+//
 // "Never through her": given her volumes (catVolumes), a guard keeps every
 // limb's surface clear of her head sphere and body capsule on every frame:
 // the held hand draws back toward the person and then rises; on the way to
@@ -67,6 +74,7 @@ const PLAN_RETRY = 0.25; // s: a way in that could not be planned is tried again
 const BLOCK_MOVE = 0.1; // m: she moves this far and a blocked way in is tried again
 const CUSHION = 0.015; // m: the held hand's place keeps this much more room, so it can move off it
 const HEAD_STILL = 0.15; // m/s: a way in starts only with her head slower than this
+const SHOULDER_STILL = 0.15; // m/s: and the person's shoulder slower than this
 const HEAD_LET_GO = 3; // m/s: her head faster than this and the hand lets go
 const SETTLED = 0.05; // m/s: the held hand is settled under this
 const DRAW_IN = 0.3; // the way in draws in toward the shoulder this much as it rises
@@ -75,6 +83,7 @@ const LIFT_MAX = 0.6; // m: the guard lifts the hand at most this far
 const RISE = 0.1; // m: a withdrawal rises this far first
 const GAP = 0.004; // m: each limb's surface stays this clear of her volumes
 const STROKE_IN = 0.5; // s: the stroke grows to its size over this
+const HANDOFF = 0.4; // s: at the start the hand turns from the pose's to palm down over this
 // the elbow's way (chest frame): out, down and back with the arm reaching
 // far; out to the side, a little down, with it folded (a close head)
 const POLE_FAR = Object.freeze([0.55, -1, 0.25]);
@@ -362,9 +371,34 @@ const yawOf = (v) => Math.atan2(v.x, v.z);
 // at rest), 0.36 hr from the middle.
 const palmLocal = (hr, out) => out.set(0.004 - 0.36 * hr, -0.92 * hr, 0);
 
+// The hand-off (see HANDOFF): for a moment at the start the hand is not yet
+// palm down but turning to it from the pose's own turn (START_HQ, world), by
+// HAND_K (0..1, 1 = palm down: the solve's usual hand). Module state, set by
+// stepScratch for its frame.
+let HAND_K = 1;
+const START_HQ = new THREE.Quaternion();
+const _hq = new THREE.Quaternion();
+const _hl = new THREE.Vector3();
+const _hx = new THREE.Vector3();
+const _hy = new THREE.Vector3();
+const _hz = new THREE.Vector3();
+const _hb = new THREE.Matrix4();
+// the hand's world turn, palm down along f (its x up, its -y along f), turned
+// back toward START_HQ while HAND_K < 1
+function handQ(f, out) {
+  _hx.copy(UP);
+  _hy.copy(f).negate();
+  _hz.crossVectors(_hx, _hy);
+  out.setFromRotationMatrix(_hb.makeBasis(_hx, _hy, _hz));
+  if (HAND_K < 1) out.slerpQuaternions(START_HQ, _hq2.copy(out), HAND_K);
+  return out;
+}
+const _hq2 = new THREE.Quaternion();
+
 // The palm where the solved arm puts it (ARM.W), palm down along f.
 function palmOfArm(f, out) {
   const hr = ARM.hr;
+  if (HAND_K < 1) return out.copy(ARM.W).add(palmLocal(hr, _hl).applyQuaternion(handQ(f, _hq)));
   return out.copy(ARM.W).addScaledVector(UP, -(0.36 * hr - 0.004)).addScaledVector(f, 0.92 * hr);
 }
 
@@ -372,6 +406,7 @@ function palmOfArm(f, out) {
 // its -y is f.
 function wristFor(P, f, out) {
   const hr = ARM.hr;
+  if (HAND_K < 1) return out.copy(P).sub(palmLocal(hr, _hl).applyQuaternion(handQ(f, _hq)));
   return out.copy(P).addScaledVector(UP, 0.36 * hr - 0.004).addScaledVector(f, -0.92 * hr);
 }
 
@@ -457,7 +492,8 @@ function solveArm(P, f, lean, vol) {
   ARM.reached = d <= dMax + 1e-9 && !ARM.folded;
   d = clamp(d, dMin, dMax);
   ARM.W.copy(ARM.S).addScaledVector(_n, d);
-  ARM.tip.copy(ARM.W).addScaledVector(f, 1.92 * ARM.hr);
+  if (HAND_K < 1) ARM.tip.copy(ARM.W).add(_hl.set(0, -1.92 * ARM.hr, 0).applyQuaternion(handQ(f, _hq)));
+  else ARM.tip.copy(ARM.W).addScaledVector(f, 1.92 * ARM.hr);
   const k = smooth(clamp((d / (a + b) - 0.55) / 0.35, 0, 1));
   _p0.set(POLE_NEAR[0] + (POLE_FAR[0] - POLE_NEAR[0]) * k, POLE_NEAR[1] + (POLE_FAR[1] - POLE_NEAR[1]) * k,
     POLE_NEAR[2] + (POLE_FAR[2] - POLE_NEAR[2]) * k).applyQuaternion(_qcw);
@@ -816,6 +852,10 @@ export function createScratch() {
     gh: 0,
     wrote: new Float64Array(3).fill(NaN), // the chest's rotation after the lean, and before it
     before: new Float64Array(3),
+    lastS0: new THREE.Vector3(), // the shoulder last frame (unleaned)
+    hadS0: false,
+    handoff: 1, // 0..1: the hand turns from the pose's to palm down (see HANDOFF)
+    handFrom: new THREE.Quaternion(), // the hand's world turn as the pose had it, at the start
   };
 }
 
@@ -919,6 +959,12 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
   if (r.x === w[0] && r.y === w[1] && r.z === w[2]) r.set(sc.before[0], sc.before[1], sc.before[2]);
   chest.updateWorldMatrix(true, false);
   armOf(person);
+  // the hand-off (see HANDOFF): this frame's share of the turn to palm down
+  if (sc.handoff < 1 && sc.started) {
+    if (dt > 0) sc.handoff = Math.min(1, sc.handoff + dt / HANDOFF);
+    HAND_K = smooth(sc.handoff);
+    START_HQ.copy(sc.handFrom);
+  } else HAND_K = 1;
   ARM.avail = Math.max(0, REACH.LEAN_MAX + r.x + B.pelvis.rotation.x);
   const s = person.look.dims.s;
   const fig = person.figure;
@@ -985,12 +1031,23 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
   const heldYaw = yawOf(_ft.set(Math.sin(psi), 0, -Math.cos(psi)).applyQuaternion(_fq));
 
   if (!sc.started) {
+    // the hand starts where the pose has it this frame (the body may be one
+    // frame into kneeling), heading as its fingers do, and the held follower
+    // (at most VMAX) carries it out: never a jump at the hand-off
+    // (if she is where the pose has the hand, it starts at the first clear
+    // place out from there: never in her)
     sc.started = true;
-    sc.yaw = heldYaw;
-    dirOf(sc.yaw, _f);
-    sc.palm.copy(guard(_held, _f, vol, _back, 0, 0, CUSHION));
-    sc.gs = GUARD_S;
+    _ft.set(0, -1, 0).applyQuaternion(B.handR.getWorldQuaternion(sc.handFrom));
+    _ft.y = 0;
+    sc.yaw = _ft.lengthSq() > 0.04 ? yawOf(_ft) : heldYaw;
+    sc.handoff = 0;
+    HAND_K = 0;
+    START_HQ.copy(sc.handFrom);
+    palmPoint(person, _pa);
+    sc.palm.copy(vol ? guard(_pa, dirOf(sc.yaw, _f), vol, _back, 0, 0, CUSHION) : _pa);
+    sc.gs = 0;
     sc.from.copy(sc.palm);
+    sc.vel.set(0, 0, 0);
   }
 
   // ---- what happens ----
@@ -1000,6 +1057,13 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
   const headJumped = headMoved > HEAD_LET_GO;
   // (a way in is planned with her still: none starts while she is moving)
   if (headMoved > HEAD_STILL) canStart = false;
+  // nor while the person is still going down into the kneel (or the bow), or
+  // the arm is still easing in from the pose's: the way is planned from
+  // where the shoulder is
+  const shoulderMoved = sc.hadS0 && dt > 0 ? sc.lastS0.distanceTo(_s0) / dt : 0;
+  sc.hadS0 = true;
+  sc.lastS0.copy(_s0);
+  if (shoulderMoved > SHOULDER_STILL || sc.handoff < 1) canStart = false;
   sc.hadTop = !!headTop;
   if (headTop) sc.lastTop.copy(headTop);
   sc.t += dt;
@@ -1101,6 +1165,8 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
   setArm(person, _f);
   chest.updateMatrixWorld(true);
   palmPoint(person, sc.palm);
+  HAND_K = 1;
+  PERSON = null;
   return sc.state;
 }
 
@@ -1135,6 +1201,7 @@ function setArm(person, f) {
   _ez.crossVectors(_ex, _ey);
   _mb.makeBasis(_ex, _ey, _ez);
   _qh.setFromRotationMatrix(_mb);
+  if (HAND_K < 1) handQ(f, _qh);
   // local = (chest . upper arm . forearm)^-1 . hand
   _qb.copy(_qcw).multiply(B.upperArmR.quaternion).multiply(_qa.setFromAxisAngle(_X, beta)).invert();
   B.handR.quaternion.multiplyQuaternions(_qb, _qh);
