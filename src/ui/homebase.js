@@ -228,17 +228,16 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   }
   // The present (ui/party.js presentDue): one tap opens it with a burst and
   // the fanfare (muted, silent), and the birthday kitten is hers and on show.
-  let presentOpening = false;
+  // The kitten is hers the moment the box is tapped (a Start pressed during
+  // the 0.9 s of unwrapping walks with her); the screen shows her after it.
   function openPresentNow(box) {
-    if (presentOpening) return;
-    presentOpening = true;
+    const cat = progression.openPresent(BIRTHDAY_EVENT);
+    if (!cat) { box?.remove?.(); return; }
+    try { rooms?.retrackProfile?.(); } catch { /* her room sees the kitten on the next push */ }
     party.burst();
     try { onCelebrate?.(); } catch (err) { console.warn('Whisker Walk: the present sound failed', err); note('audio', err); }
     setTimeout(() => {
-      presentOpening = false;
-      const cat = progression.openPresent(BIRTHDAY_EVENT);
-      if (!cat) { box?.classList?.remove?.('opening'); return; }
-      try { rooms?.retrackProfile?.(); } catch { /* her room sees the kitten on the next push */ }
+      if (!homeVisible()) return; // a walk started: home shows her when it is back
       render();
       try { toast?.(phrase('present.opened', CATALOG.cats[cat].name)); } catch { /* a toast is never worth a crash */ }
     }, reducedNow() ? 0 : 900);
