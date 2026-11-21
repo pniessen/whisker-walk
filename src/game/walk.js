@@ -19,6 +19,7 @@ import * as THREE from 'three';
 // loaded pack. No area module is imported here.
 import { createAreaLoader } from './areaload.js';
 import { roofsOn } from '../roofsflag.js';
+import { peopleOn } from '../peopleflag.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
@@ -646,7 +647,7 @@ export function createWalkLifecycle({
     const pack = areas.loaded(areaOverride ?? progression.state.area);
     if (!pack) throw new Error(`Whisker Walk: area "${areaOverride ?? progression.state.area}" is not loaded; start walks with startWalkWhenReady`);
     // The Farm's animals and the Fair's rides and games come with their place.
-    const { createFarmAnimals, createFairLive, createFairShow } = pack.life;
+    const { createFarmAnimals, createFairLive, createFairShow, createPeopleKit } = pack.life;
     // A visit prize held for the tap (styles A and C) goes on FIRST, before
     // anything below reads state.equipped (the avatar, the collar/crown
     // perks). Style C never dims and A lets go after its reveal, so Start,
@@ -996,6 +997,7 @@ export function createWalkLifecycle({
       : createSecrets(scene, areaData, rollSecrets(walkRng, { eveningLight: duskActive || weather.condition === 'sunset' }), walkRng);
 
     const critters = createCritters(scene, areaData.critterSpawns, {
+      people: peopleOn() ? createPeopleKit : null,
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
       spawnFireflies: duskActive,                              // glow: dusk fireflies
       trailButterflies: equipped.head === 'crown',              // crown: butterflies trail the cat
@@ -1555,6 +1557,7 @@ export function createWalkLifecycle({
       if (!fairToasted.has(key)) { fairToasted.add(key); hud.toast(text); }
     }
     const fairShow = areaId !== 'fair' ? null : createFairShow(scene, areaData, {
+      people: peopleOn() ? createPeopleKit : null,
       swept: fairLive.sim.swept,
       strays: tier.strays,
       camera,

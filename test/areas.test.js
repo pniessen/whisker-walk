@@ -44,4 +44,14 @@ describe('the area registry', () => {
     expect(fair.createFairLive).toBe((await import('../src/fairlive.js')).createFairLive);
     expect(fair.createFairShow).toBe((await import('../src/fairshow.js')).createFairShow);
   });
+  it('the five places with people carry the figure in their life, and it names its module', async () => {
+    const { createPeopleKit } = await import('../src/people/index.js');
+    for (const id of ['neighborhood', 'park', 'docks', 'seaside', 'fair']) {
+      expect((await AREA_LOADERS[id]()).life.createPeopleKit, id).toBe(createPeopleKit);
+      expect(AREA_ENTRY_MODULES[id], id).toContain('src/people/index.js');
+    }
+    for (const id of ['den', 'woods', 'river', 'moor', 'pines', 'gorge', 'farm', 'roofs']) {
+      expect((await AREA_LOADERS[id]()).life.createPeopleKit, id).toBeUndefined();
+    }
+  });
 });
