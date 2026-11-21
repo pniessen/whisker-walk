@@ -998,7 +998,7 @@ function init() {
     pickUpWalk({
       storage: window.localStorage, data: leftWalk.data, progression,
       startWalkWhenReady, getSession: () => session,
-      reload: () => window.location.reload(),
+      reload: () => window.location.reload(), note,
     });
   }
   // The frame guard (src/game/recovery.js holds the policy and its numbers).

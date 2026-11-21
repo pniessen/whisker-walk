@@ -69,7 +69,8 @@ export function controlledLoader() {
 // A save past the guided first walk, with the Glow Collar bought, and on
 // when `collar` says so. `areas` is the walk's area loader (a fresh one, with
 // nothing loaded, by default); `online` answers isOnline.
-export function lifecycle({ collar = false, areas = createAreaLoader(), online = () => true } = {}) {
+// `blockList`: the hidden visitors (src/blocklist.js), a Set of player ids.
+export function lifecycle({ collar = false, areas = createAreaLoader(), online = () => true, blockList = new Set() } = {}) {
   let session = null;
   let pendingRoom = null;
   const rec = { lighting: [], sound: [], music: [], roomStarts: [], friendFetches: 0, gettingReady: [], toasts: [], reloads: 0, soundContexts: 0 };
@@ -81,7 +82,7 @@ export function lifecycle({ collar = false, areas = createAreaLoader(), online =
   const homebase = anything({ setGettingReady: (on) => rec.gettingReady.push(on) });
   const w = createWalkLifecycle({
     // MP on, so a solo walk asks the cloud for friends who could visit as ghosts
-    MP: true, pid: 'me', coarse: false, envMap: new THREE.Texture(), overlay: anything({ classList: anything() }), blockList: new Set(),
+    MP: true, pid: 'me', coarse: false, envMap: new THREE.Texture(), overlay: anything({ classList: anything() }), blockList,
     renderer: null, camera: new THREE.PerspectiveCamera(),
     composerRig: anything({ applyLighting: (_scene, o) => rec.lighting.push(o.dusk) }),
     player: anything(), progression,

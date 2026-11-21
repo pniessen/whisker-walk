@@ -558,7 +558,8 @@ export function createWalkLifecycle({
   //     the Explore button (a quicker one never shows it);
   //   - a second start while one waits is ignored ('busy'): one load, one walk;
   //   - the place came: the walk starts, unless one has started some other
-  //     way meanwhile, the room it was for has gone, or her place changed
+  //     way meanwhile, the room it was for has gone (or another room has
+  //     taken its place), or her place changed
   //     while it came (Change place, a room's start) ('dropped');
   //   - it did not: she stays home with one gentle line ('failed'), and the
   //     next Explore tries again; after RELOAD_AFTER_FAILURES of them in a
@@ -575,6 +576,9 @@ export function createWalkLifecycle({
   let failures = 0;
   function startWalkWhenReady(opts = {}) {
     const areaId = opts.areaOverride ?? progression.state.area;
+    // A room start belongs to the room it was made in: one left (and perhaps
+    // another joined) during the wait drops it.
+    const room = opts.roomSeed !== undefined ? getPendingRoom() : null;
     if (waiting !== null) return Promise.resolve('busy');
     if (failures >= RELOAD_AFTER_FAILURES && isOnline()) {
       reloadPage();
@@ -600,7 +604,7 @@ export function createWalkLifecycle({
       () => {
         const stale = waiting !== token;
         done();
-        if (stale || getSession() || (opts.roomSeed !== undefined && !getPendingRoom())) return 'dropped';
+        if (stale || getSession() || (opts.roomSeed !== undefined && (!room || getPendingRoom() !== room))) return 'dropped';
         // startWalk reads her place again when there is no override: a place
         // changed during the wait would build somewhere other than what came.
         if ((opts.areaOverride ?? progression.state.area) !== areaId) return 'dropped';
@@ -2394,9 +2398,13 @@ export function createWalkLifecycle({
       // Who was here when the walk began; anyone after that is toasted, so a
       // child always knows who has come into her walk.
       let rosterSeen = null;
+      // The roster as last heard (net.onRoster replays it at once), for a
+      // co-walker drawn again by its state below.
+      let rosterNow = [];
       net.onRoster((roster) => {
         const session = getSession();
         if (!session) return; // presence sync can land after endWalk tore the session down
+        rosterNow = Array.isArray(roster) ? roster : [];
         const liveIds = new Set(roster.filter((p) => !blockList.has(p.playerId)).map((p) => p.playerId));
         for (const r of remotes.list) {
           if (!liveIds.has(r.playerId)) { remotes.remove(r.playerId); session.intruders.dropHolder(r.playerId); }
@@ -2425,7 +2433,22 @@ export function createWalkLifecycle({
       });
       net.onState((state) => {
         const session = getSession();
+        if (!session) return; // a state can land after endWalk tore the session down
         if (state.id === session.playerId) return; // explicit self-filter; applyState is a no-op for us anyway
+        // F6: a co-walker whose device was still loading its place sent no
+        // state, so its cat went after remotecats' DESPAWN_AFTER, and its
+        // presence never changed, so no roster sync brings it back. Its first
+        // state draws it again from the roster, where it is. State for anyone
+        // not in the roster, or hidden, is still dropped (applyState ignores
+        // an id it has no cat for).
+        if (!remotes.list.some((r) => r.playerId === state.id) && !blockList.has(state.id)) {
+          const p = rosterNow.find((m) => m?.playerId === state.id);
+          if (p) {
+            remotes.upsert(p, nowSec());
+            hud.setRoster(remotes.list.map((r) => r.petName));
+            session.chatWheel?.refresh();
+          }
+        }
         remotes.applyState(state, nowSec());
         // yarn-rally ghost tracking: remember the latest reported position of
         // whichever remote is currently broadcasting an active toy. Only the

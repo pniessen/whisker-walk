@@ -6,6 +6,8 @@ import { NO_FAIR } from '../src/fairnone.js';
 import { createAreaLoader } from '../src/game/areaload.js';
 import { GETTING_READY_DELAY_MS, RELOAD_AFTER_FAILURES } from '../src/game/walk.js';
 import { lifecycle, controlledLoader, fakeEl, memStorage } from './helpers/walklife.js';
+import { createFakeHub, createNet } from '../src/net.js';
+import { nowSec } from '../src/game/util.js';
 import { RESUME_KEY, pickUpWalk, readResume, snapshotWalk, writeResume } from '../src/game/walkresume.js';
 
 // =============================================================================
@@ -279,6 +281,99 @@ describe('a place that does not come', () => {
   });
 });
 
+describe('a room start that waited', () => {
+  it('a room left and another joined while the place came starts nothing in the new room', async () => {
+    const ctl = controlledLoader();
+    const fair = ctl.hold('fair');
+    const life = lifecycle({ areas: ctl.areas });
+    life.setPendingRoom({ code: 'ABCD', roster: [] });
+    const p = life.w.startWalkWhenReady({ roomSeed: 99, areaOverride: 'fair' });
+    life.setPendingRoom(null); // she left the room ...
+    life.setPendingRoom({ code: 'WXYZ', roster: [] }); // ... and joined another
+    fair.release();
+    expect(await p).toBe('dropped');
+    expect(life.getSession()).toBe(null);
+  });
+
+  it('the same room still there starts the walk', async () => {
+    const ctl = controlledLoader();
+    const fair = ctl.hold('fair');
+    const life = lifecycle({ areas: ctl.areas });
+    const room = { code: 'ABCD', roster: [] };
+    life.setPendingRoom(room);
+    const p = life.w.startWalkWhenReady({ roomSeed: 99, areaOverride: 'fair' });
+    room.roster = [{ playerId: 'me' }]; // the room object changes inside; it is still the same room
+    fair.release();
+    expect(await p).toBe('started');
+    end(life);
+  });
+});
+
+// A co-walker whose device is still loading its place sends no state, so the
+// walk already under way lets its cat go after DESPAWN_AFTER (remotecats.js).
+// When it does arrive, its first state draws it again from the room's roster.
+describe('a co-walker who arrives late', () => {
+  const PEER = 'bbbb-peer-0002';
+  async function roomWalk({ blockList } = {}) {
+    const hub = createFakeHub();
+    const mine = createNet(hub.transport());
+    await mine.join('ABCD', { playerId: 'me', petName: 'Mittens' });
+    const peer = createNet(hub.transport());
+    await peer.join('ABCD', { playerId: PEER, petName: 'Robin' });
+    const ctl = controlledLoader();
+    await ctl.areas.ensure('park');
+    const life = lifecycle({ areas: ctl.areas, blockList });
+    life.setPendingRoom({ net: mine, code: 'ABCD', roster: [] });
+    expect(await life.w.startWalkWhenReady({ roomSeed: 7, areaOverride: 'park' })).toBe('started');
+    return { life, peer };
+  }
+  const ids = (s) => s.remotes.list.map((r) => r.playerId);
+  const state = (pos) => ({ v: 1, id: PEER, pos, yaw: 0, pose: 'follow', speed: 1 });
+
+  it('a member silent past DESPAWN_AFTER is drawn again, where it is, when its state comes', async () => {
+    const { life, peer } = await roomWalk();
+    const s = life.getSession();
+    expect(ids(s)).toEqual([PEER]); // in the room from the start
+    s.remotes.update(0.1, nowSec() + 6); // still loading: quiet for more than 5 s
+    expect(ids(s)).toEqual([]);
+    peer.sendState(state([3, -4]));
+    expect(ids(s)).toEqual([PEER]);
+    const cat = s.remotes.list[0];
+    expect(cat.petName).toBe('Robin');
+    expect([cat.group.position.x, cat.group.position.z]).toEqual([3, -4]);
+    end(life);
+  });
+
+  it('a hidden visitor is not drawn again by its state', async () => {
+    const { life, peer } = await roomWalk({ blockList: new Set([PEER]) });
+    const s = life.getSession();
+    expect(ids(s)).toEqual([]);
+    peer.sendState(state([3, -4]));
+    expect(ids(s)).toEqual([]);
+    end(life);
+  });
+
+  it('state for someone not in the room is still dropped', async () => {
+    // net.js admits state only from the roster; the walk's handler holds the
+    // same line on its own (the roster it last heard), fed here directly.
+    const hub = createFakeHub();
+    const mine = createNet(hub.transport());
+    await mine.join('ABCD', { playerId: 'me', petName: 'Mittens' });
+    const handlers = [];
+    const real = mine.onState.bind(mine);
+    mine.onState = (fn) => { handlers.push(fn); real(fn); };
+    const ctl = controlledLoader();
+    await ctl.areas.ensure('park');
+    const life = lifecycle({ areas: ctl.areas });
+    life.setPendingRoom({ net: mine, code: 'ABCD', roster: [] });
+    expect(await life.w.startWalkWhenReady({ roomSeed: 7, areaOverride: 'park' })).toBe('started');
+    expect(handlers).toHaveLength(1);
+    handlers[0]({ v: 1, id: 'zzzz-stranger', pos: [1, 1], yaw: 0, pose: 'follow', speed: 1 });
+    expect(life.getSession().remotes.list).toEqual([]);
+    end(life);
+  });
+});
+
 describe('a walk that waited is the same walk', () => {
   // What a walk's draws decided: the weather, the secrets, the strays, the
   // goals and the critters, with where each one is.
@@ -389,12 +484,13 @@ describe('a walk picked up again waits for its place', () => {
   }
   const read = (storage) => readResume(storage, { now: Date.now(), areaIds: ['park'] });
   function pickUp(life, storage, data) {
-    const rec = { reloads: 0 };
+    const rec = { reloads: 0, notes: [] };
     const p = pickUpWalk({
       storage, data, progression: life.progression,
       startWalkWhenReady: life.w.startWalkWhenReady,
       getSession: life.getSession,
       reload: () => { rec.reloads++; },
+      note: (kind, err) => rec.notes.push([kind, err?.message]),
     });
     return { p, rec };
   }
@@ -431,6 +527,7 @@ describe('a walk picked up again waits for its place', () => {
     expect(read(storage)).toEqual({ kind: 'resume', data: { ...data, tries: 1 } });
     expect(life.progression.state.walks.park ?? 0).toBe(walked); // not settled yet
     expect(rec.reloads).toBe(0);
+    expect(rec.notes).toEqual([]);
   });
 
   it('a build that throws once the place has come settles the walk, and never throws out', async () => {
@@ -450,6 +547,7 @@ describe('a walk picked up again waits for its place', () => {
     expect(life.progression.state.walks.park).toBe(walked + 1); // it counts as walked
     expect(life.getSession()).toBe(null);
     expect(rec.reloads).toBe(0); // nothing half-built: home is fine as it is
+    expect(rec.notes).toEqual([['resume', 'build broke']]);
   });
 
   it('a build that throws in the same tick is settled the same way', async () => {

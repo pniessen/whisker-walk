@@ -21,7 +21,6 @@
 // Points need none of this: they are saved as they are earned.
 
 import { sanitizeAway } from '../awayfights.js';
-import { note } from '../diagnostics.js';
 
 export const RESUME_KEY = 'whisker-walk-resume';
 // A walk waits this long. Past it the walk is settled instead (it counts as a
@@ -227,11 +226,13 @@ export function markTried(storage, data) {
 //     gone opens at home, once.
 // Never throws, never rejects: resolves to startWalkWhenReady's answer, or
 // 'settled'.
-export function pickUpWalk({ storage, data, startWalkWhenReady, progression, getSession, reload }) {
+// Every dependency comes in as an argument (`note` is diagnostics.js's), so
+// this file pulls nothing new into start-up.
+export function pickUpWalk({ storage, data, startWalkWhenReady, progression, getSession, reload, note = () => {} }) {
   const left = markTried(storage, data);
   const giveUp = (err) => {
     console.warn('Whisker Walk: could not pick the walk up', err);
-    note('resume', err);
+    try { note('resume', err); } catch { /* noting must not stop the settle */ }
     clearResume(storage);
     settleAbandoned(progression, left);
     if (getSession()) reload();
