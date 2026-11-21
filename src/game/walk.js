@@ -1603,6 +1603,7 @@ export function createWalkLifecycle({
     for (const stray of strayCats.strays) decals.follow(stray.group);
     for (const c of clanCats.list) decals.follow(c.group);
     for (const critter of critters.list) decals.follow(critter.figure ?? critter.group);
+    for (const critter of critters.list) if (critter.people?.[1]) decals.follow(critter.people[1].figure); // a pair's child (R26)
     for (const g of farm.groups) decals.follow(g);
     if (fairShow) for (const g of fairShow.groups) decals.follow(g);
     for (const dc of denCats.list) decals.follow(dc.group);

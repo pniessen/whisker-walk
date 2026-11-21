@@ -389,6 +389,37 @@ describe('the head scratch', () => {
     expect(n.y).toBeLessThan(-0.99);
   });
 
+  it('mayPlan false: no way in is planned (wantPlan says one would be); allowed again, it plans and the touch comes', () => {
+    const r = rig('adult');
+    const cat = buildCat('tabby');
+    animateCat(cat, 'requestPet', 1, 0, false);
+    place(r, cat, 0.65);
+    const step = (mayPlan) => {
+      r.t += DT;
+      pose(r.p, { mode: 'kneel', t: r.t });
+      applyPose(r.p, DT);
+      const top = headTopOf(cat);
+      stepGaze(r.p, r.gaze, DT, r.t, { target: top });
+      r.vol = catVolumes(cat, r.vol);
+      return stepScratch(r.p, r.sc, DT, { headTop: top, volumes: r.vol, mayPlan });
+    };
+    let wanted = 0;
+    for (let i = 0; i < REACH_FRAMES; i++) {
+      expect(step(false)).toBe('held');
+      expect(r.sc.planned).toBe(false);
+      if (r.sc.wantPlan) wanted++;
+    }
+    expect(wanted).toBeGreaterThan(0);
+    let planned = 0;
+    for (let i = 0; i < REACH_FRAMES; i++) {
+      step(true);
+      if (r.sc.planned) planned++;
+      expect(r.sc.wantPlan).toBe(false);
+    }
+    expect(planned).toBeGreaterThan(0);
+    expect(r.sc.state).toBe('resting');
+  });
+
   it('follows her head: moved 0.03 m a frame for 10 frames, the palm stays on it', () => {
     const r = rig('adult');
     const cat = buildCat('tabby');

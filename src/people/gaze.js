@@ -32,6 +32,12 @@ export const GAZE = Object.freeze({
 // How the turn is shared down the body: [joint, its share, the shares above
 // it so far]. They add to 1, so the head faces her.
 const TURNED = Object.freeze([['chest', 0.18, 0], ['neck', 0.37, 0.18], ['head', 0.45, 0.55]]);
+// Kneeling for the head scratch (opts.turnBody; rulings R25, R31) the turn
+// toward her is shared lower down: the chest takes more of it, so the body
+// turns to her by its own joints above the hips (the legs and the hips stay
+// as built). Only the turn about the upright: the nod is shared as ever, so
+// the chest leans no further. These add to 1 too, so the head still faces her.
+const KNEEL_YAW = Object.freeze([0.45, 0.3, 0.25]);
 const NOD_MIN = -0.7; // the nod down toward her (rad, + is up)
 const NOD_MAX = 0.4;
 const BEHIND_GIVE = 0.05; // rad: once looking, she may go this much past BEHIND
@@ -83,6 +89,7 @@ export function createGaze(look) {
     yaw: 0, yawV: 0, pitch: 0, pitchV: 0, // the whole turn, figure frame
     eyeYaw: 0, eyeYawV: 0, eyePitch: 0, eyePitchV: 0, // the eyes in the head
     smile: 0, // 0..1, linear in time
+    body: 0, // 0..1, linear in time: how far the turn has gone over to the kneel's shares
     // what the gaze last wrote to chest, neck and head (x, y, z each) and
     // what it added, so a frame without applyPose does not add the turn twice
     wrote: new Float64Array(9).fill(NaN),
@@ -125,9 +132,14 @@ const D = new THREE.Vector3();
 const NO_OPTS = Object.freeze({});
 
 // target: her head's world position (the local cat only), or null.
+// near (optional): true or false says outright whether she is near, in place
+// of the person's own 4 m / 5 m (a pair's child is near exactly when its
+// grown-up is: ruling R27). turnBody: kneeling for the head scratch, the
+// chest takes more of the turn (KNEEL_YAW), eased in and out over HEAD_IN.
 export function stepGaze(person, gaze, dt, t, opts = NO_OPTS) {
   const target = opts.target ?? null;
   const reduced = !!opts.reducedMotion;
+  const forced = opts.near ?? null;
   const B = person.bones;
   const g = gaze;
 
@@ -146,7 +158,7 @@ export function stepGaze(person, gaze, dt, t, opts = NO_OPTS) {
     person.figure.getWorldPosition(FIG);
     const gx = target.x - FIG.x, gz = target.z - FIG.z;
     const ground = Math.sqrt(gx * gx + gz * gz);
-    g.near = g.near ? ground <= GAZE.FAR : ground < GAZE.NEAR;
+    g.near = forced !== null ? !!forced : g.near ? ground <= GAZE.FAR : ground < GAZE.NEAR;
     if (g.near) {
       person.figure.getWorldQuaternion(Q).invert();
       B.head.getWorldPosition(HEAD);
@@ -210,16 +222,19 @@ export function stepGaze(person, gaze, dt, t, opts = NO_OPTS) {
 
   // the turn, shared down the body, on top of the pose. Each joint takes its
   // share of the yaw about the upright and of the nod, so that after joint i
-  // the body has turned Ry(yaw * S) Rx(pitch * S), S the shares so far: its
-  // own part is Rx(-pitch * before) Ry(yaw * share) Rx(pitch * S). (Adding
-  // plain angles would turn each yaw about an axis the nods below have
-  // tipped, and the head would overshoot her by a few degrees.)
+  // the body has turned Ry(yaw * Y) Rx(pitch * S), Y and S the yaw and nod
+  // shares so far: its own part is Rx(-pitch * before) Ry(yaw * its yaw
+  // share) Rx(pitch * S). (Adding plain angles would turn each yaw about an
+  // axis the nods below have tipped, and the head would overshoot her by a
+  // few degrees.) The yaw shares go over to the kneel's as `body` comes up.
+  g.body = clamp(g.body + (opts.turnBody ? dt : -dt) / (GAZE.HEAD_IN * slow), 0, 1);
+  const kb = smooth(g.body);
   for (let i = 0; i < 3; i++) {
     const T = TURNED[i];
     const share = T[1], before = T[2];
     const upTo = before + share;
     QA.setFromAxisAngle(X_AXIS, -g.pitch * before);
-    QA.multiply(QB.setFromAxisAngle(Y_AXIS, g.yaw * share));
+    QA.multiply(QB.setFromAxisAngle(Y_AXIS, g.yaw * (share + (KNEEL_YAW[i] - share) * kb)));
     QA.multiply(QB.setFromAxisAngle(X_AXIS, g.pitch * upTo));
     EUL.setFromQuaternion(QA, 'YXZ');
     const r = B[T[0]].rotation;

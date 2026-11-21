@@ -836,6 +836,8 @@ export function createScratch() {
     via: 0, // which of WAYS the way in is
     dur: 0, // the move's time (s)
     planWait: 0, // s until the way in may be planned again
+    planned: false, // a way in was planned this frame (the walk lets one person plan a frame)
+    wantPlan: false, // one would have been, but opts.mayPlan said not this frame
     readyTried: false, // the way in from the held hand failed: try it from the ready place
     toReady: false, // the held hand is going to the ready place
     inReach: false, // her head can be touched from here (this frame)
@@ -939,13 +941,19 @@ function stepClear(sc, P, f, vol, dt) {
   return OUT;
 }
 
-// stepScratch(person, sc, dt, { headTop, volumes }): headTop is her head's
-// top this frame (world; the head part's position plus headTopOffset, up), or
-// null when she is not there; volumes (catVolumes) keep the arm clear of her.
+// stepScratch(person, sc, dt, { headTop, volumes, mayPlan }): headTop is her
+// head's top this frame (world; the head part's position plus headTopOffset,
+// up), or null when she is not there; volumes (catVolumes) keep the arm clear
+// of her. mayPlan false: no way in is planned this frame (planning is the one
+// costly step, 1-3 ms; the walk lets one person plan a frame), and
+// sc.wantPlan says one would have been; sc.planned says one was.
 // Returns the state: 'held' | 'reaching' | 'resting' | 'withdrawing'.
 export function stepScratch(person, sc, dt, opts = NO_OPTS) {
   const headTop = opts.headTop ?? null;
   const vol = opts.volumes ?? null;
+  const mayPlan = opts.mayPlan !== false;
+  sc.planned = false;
+  sc.wantPlan = false;
   const B = person.bones;
   const chest = B.chest;
   const r = chest.rotation;
@@ -1082,7 +1090,10 @@ export function stepScratch(person, sc, dt, opts = NO_OPTS) {
     sc.toReady = sc.readyTried && !sc.blocked;
     const settled = sc.vel.lengthSq() < SETTLED * SETTLED;
     const atReady = sc.palm.distanceTo(sc.target) < 0.03; // (its guarded place)
-    if (settled && sc.planWait <= 0 && (sc.blocked || !sc.readyTried || atReady)) {
+    const due = settled && sc.planWait <= 0 && (sc.blocked || !sc.readyTried || atReady);
+    if (due && !mayPlan) sc.wantPlan = true; // (tried again next frame)
+    else if (due) {
+      sc.planned = true;
       if (planWay(sc, touchYaw, vol)) { begin(sc, 'reaching'); sc.readyTried = false; sc.blocked = false; }
       else if (sc.blocked) sc.planWait = PLAN_RETRY;
       else if (!sc.readyTried) { sc.readyTried = true; sc.toReady = true; }

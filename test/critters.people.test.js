@@ -1,7 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { canvasStub } from './helpers/growriver.js';
 import { createCritters, villagerPos, questMarkerY } from '../src/critters.js';
-import { createPeopleKit, pose, spotKind, GAZE } from '../src/people/index.js';
+import { createPeopleKit, pose, applyPose, spotKind, GAZE, REACH, headTopOffset, catVolumes } from '../src/people/index.js';
+import { palmPoint } from '../src/people/reach.js';
+import { buildCat } from '../src/cat/model.js';
+import { animateCat } from '../src/cat/animator.js';
+import { redressCat } from '../src/cat/redress.js';
+import { createPlayer } from '../src/player.js';
+
+vi.stubGlobal('document', canvasStub); // (the player listens on it)
 
 // Villagers in town with the people switch on: createCritters is handed the
 // kit factory (opts.people), as walk.js does from a place's pack.
@@ -342,4 +350,334 @@ describe('villagers in town (people switch on)', () => {
     expect(c.figure.children).toHaveLength(3);
     expect(c.group.userData.arm).toBeTruthy();
   });
+});
+
+// ---- the head scratch in town (Task 12) ---------------------------------------------
+// Her real cat (her head part's top and her volumes are what the touch
+// needs), walked by the player as the walk does, the bumps passed in.
+const UP = new THREE.Vector3(0, 1, 0);
+
+function walker(x, z, breed = 'tabby', head = null) {
+  const player = createPlayer(new THREE.PerspectiveCamera(), { addEventListener() {} });
+  const cat = buildCat(breed, head ? { head } : undefined);
+  cat.position.set(x, 0, z);
+  cat.rotation.y = Math.PI; // facing +z
+  player.setAvatar(cat, 3);
+  player.enable();
+  return { player, cat, t: 0 };
+}
+
+// one frame as the walk runs it: the player, her pose, the villagers
+function walkFrame(w, crit, anim = 'follow') {
+  w.t += DT;
+  w.player.update(DT, [], null, [], crit.bumps);
+  animateCat(w.cat, anim, w.t, anim === 'follow' ? 1 : 0, false);
+  w.cat.updateMatrixWorld(true);
+  crit.update(DT, w.t, w.cat.position, w.cat.position, w.cat);
+}
+
+const TOP = new THREE.Vector3();
+const headTopOf = (cat) => cat.userData.parts.head.getWorldPosition(TOP).addScaledVector(UP, headTopOffset(cat));
+
+// the right arm's centre line, every 0.02 m (upper arm, forearm, hand),
+// against her head sphere and body capsule: the least clearance
+const A = new THREE.Vector3();
+const Bv = new THREE.Vector3();
+const P = new THREE.Vector3();
+const D = new THREE.Vector3();
+const PT = new THREE.Vector3();
+const TIP = new THREE.Vector3();
+function segPointDist(a, b, c) {
+  D.subVectors(b, a);
+  const L2 = D.lengthSq();
+  const k = L2 > 0 ? Math.min(1, Math.max(0, P.copy(c).sub(a).dot(D) / L2)) : 0;
+  return D.multiplyScalar(k).add(a).distanceTo(c);
+}
+function worstClearance(p, vol) {
+  const B = p.bones;
+  p.figure.updateMatrixWorld(true);
+  const chain = [B.upperArmR, B.forearmR, B.handR];
+  B.handR.localToWorld(TIP.set(0, -p.look.dims.hand * 0.96, 0));
+  let worst = Infinity;
+  for (let i = 0; i < 3; i++) {
+    chain[i].getWorldPosition(A);
+    if (i < 2) chain[i + 1].getWorldPosition(Bv); else Bv.copy(TIP);
+    const n = Math.max(1, Math.ceil(A.distanceTo(Bv) / 0.02));
+    for (let k = 0; k <= n; k++) {
+      PT.lerpVectors(A, Bv, k / n);
+      const head = PT.distanceTo(vol.head.center) - vol.head.radius;
+      const body = segPointDist(vol.body.a, vol.body.b, PT) - vol.body.r;
+      worst = Math.min(worst, head, body);
+    }
+  }
+  return worst;
+}
+
+// She walks straight at the grown-up from 2.5 m in front until the bump
+// stops her (she lets go as her way in slows to under a third), then sits.
+function walkUp(crit, c, breed = 'tabby', head = null) {
+  const at = villagerPos(c, new THREE.Vector3());
+  const w = walker(at.x, at.z - 2.5, breed, head);
+  w.player.setTouchMove({ x: 0, z: 1, mag: 1 });
+  let most = 0;
+  for (let i = 0; i < 300; i++) {
+    const was = at.z - w.cat.position.z;
+    walkFrame(w, crit);
+    const inBy = was - (at.z - w.cat.position.z);
+    most = Math.max(most, inBy);
+    if (at.z - w.cat.position.z < 2 && inBy < most / 3) break;
+  }
+  w.player.setTouchMove(null);
+  for (let i = 0; i < 60; i++) walkFrame(w, crit, 'requestPet');
+  return w;
+}
+
+// frames until the hand rests on her head's top (or Infinity); the arm's
+// least clearance from her, every frame, into worst.v
+function untilResting(w, crit, c, frames, worst) {
+  const palm = new THREE.Vector3();
+  for (let i = 1; i <= frames; i++) {
+    walkFrame(w, crit, 'requestPet');
+    worst.v = Math.min(worst.v, worstClearance(c.people[0], catVolumes(w.cat)));
+    palmPoint(c.people[0], palm);
+    if (c.scratchState === 'resting' && palm.distanceTo(headTopOf(w.cat).addScaledVector(UP, REACH.CLEAR)) < 0.02) return i;
+  }
+  return Infinity;
+}
+
+describe('the head scratch in town', () => {
+  // (in the walk she asks within the wave's 5 m, so the kneel starts from
+  // the wave: the hand comes down from it first, at the gesture's 1.2 m/s,
+  // and the touch comes about 0.25 s later than from standing: 2.38-2.45 s
+  // for a grown-up, 1.75-1.85 s for an older person who bows)
+  const OLDER = spotOf('older');
+  it('she walks up, asks, and the hand rests on her head within 2.5 s; she walks away, it withdraws, they stand 0.6 s after she is past 2.5 m', () => {
+    for (const [sex, spot] of [['m', ADULT], ['f', ADULT], ['f', OLDER]]) {
+      const crit = town([{ type: 'villager', ...spot, sex }]);
+      const c = crit.list[0];
+      const w = walkUp(crit, c);
+      expect(c.poseMode).toBe('wave');
+      expect(c.scratchState).toBe(null); // no touch without the hello
+      crit.scratchHello(c);
+      const worst = { v: Infinity };
+      const n = untilResting(w, crit, c, 150, worst);
+      expect(n * DT, sex).toBeLessThanOrEqual(spot === OLDER ? 1.9 : 2.5);
+      // it stays while she does (and strokes)
+      for (let i = 0; i < 60; i++) {
+        walkFrame(w, crit, 'requestPet');
+        worst.v = Math.min(worst.v, worstClearance(c.people[0], catVolumes(w.cat)));
+      }
+      expect(c.scratchState).toBe('resting');
+      // she walks away: the hand withdraws, never through her
+      const at = villagerPos(c, new THREE.Vector3());
+      w.player.setTouchMove({ x: 0, z: -1, mag: 1 });
+      const seen = new Set();
+      let past = null;
+      for (let i = 0; i < 240 && c.poseMode === 'kneel'; i++) {
+        walkFrame(w, crit);
+        if (c.scratchState) seen.add(c.scratchState);
+        if (c.poseMode === 'kneel') worst.v = Math.min(worst.v, worstClearance(c.people[0], catVolumes(w.cat)));
+        if (past === null && w.cat.position.distanceTo(at) > REACH.HOLD_R) past = w.t;
+      }
+      expect(seen.has('withdrawing')).toBe(true);
+      expect(c.poseMode).toBe('wave');
+      // (counting the first frame she is past it)
+      expect(w.t - past + DT).toBeGreaterThanOrEqual(0.6 - 1e-9);
+      expect(w.t - past + DT).toBeLessThan(0.6 + DT);
+      expect(worst.v, sex).toBeGreaterThan(0.005);
+    }
+  }, 90000);
+
+  it('stepScratch is given her volumes: with her standing where the held hand would be, the arm keeps clear of her (and without them it would not)', () => {
+    // her head about where the held-out hand goes (0.4 m in front of the
+    // middle, a little to the right, low): placed by hand, past the bumps
+    const run = (strip) => {
+      const factory = (o) => {
+        const k = createPeopleKit(o);
+        if (strip) { const real = k.stepScratch; k.stepScratch = (p, sc, dt, opts) => real(p, sc, dt, { ...opts, volumes: null }); }
+        return k;
+      };
+      let worst = Infinity;
+      for (const [side, fwd] of [[0.12, 0.75], [0.2, 0.7], [0.05, 0.8], [0.15, 0.85]]) {
+        const crit = createCritters(scene, [{ type: 'villager', ...ADULT, sex: 'm' }], { people: factory });
+        const c = crit.list[0];
+        const at = villagerPos(c, new THREE.Vector3());
+        const cat = buildCat('tabby');
+        cat.position.set(at.x + side, 0, at.z - fwd);
+        cat.rotation.y = Math.PI;
+        let t = 0;
+        crit.scratchHello(c);
+        for (let i = 0; i < 150; i++) {
+          t += DT;
+          animateCat(cat, 'requestPet', t, 0, false);
+          cat.updateMatrixWorld(true);
+          crit.update(DT, t, cat.position, cat.position, cat);
+          if (i > 45) worst = Math.min(worst, worstClearance(c.people[0], catVolumes(cat)));
+        }
+      }
+      return worst;
+    };
+    expect(run(false)).toBeGreaterThan(0.005);
+    expect(run(true)).toBeLessThan(0);
+  }, 90000);
+
+  it('a hat put on mid-walk (a find she wears): a new head, measured afresh; the hand works out of the new hat at once and comes to rest on it', () => {
+    const crit = town([{ type: 'villager', ...ADULT, sex: 'f' }]);
+    const c = crit.list[0];
+    const w = walkUp(crit, c);
+    crit.scratchHello(c);
+    const worst = { v: Infinity };
+    expect(untilResting(w, crit, c, 150, worst)).toBeLessThan(Infinity);
+    expect(worst.v).toBeGreaterThan(0.005);
+    const bare = headTopOf(w.cat).y;
+    const oldHead = w.cat.userData.parts.head;
+    // the find card's Wear it (game/findcard.js): her cat redressed inside
+    // the same object, while the hand rests on her head
+    redressCat(w.cat, 'tabby', { head: 'tophat' });
+    animateCat(w.cat, 'requestPet', w.t, 0, false);
+    w.cat.updateMatrixWorld(true);
+    expect(w.cat.userData.parts.head).not.toBe(oldHead); // a new head part
+    expect(headTopOf(w.cat).y).toBeGreaterThan(bare + 0.1); // its top is the hat's
+    // the hat appears round the resting hand: it comes out within 0.25 s,
+    // and from then on keeps clear, and comes to rest on the hat's top
+    let out = Infinity;
+    const palm = new THREE.Vector3();
+    let rest = Infinity;
+    const after = { v: Infinity };
+    for (let i = 1; i <= 240 && rest === Infinity; i++) {
+      walkFrame(w, crit, 'requestPet');
+      const g = worstClearance(c.people[0], catVolumes(w.cat));
+      if (out === Infinity && g > 0.005) out = i;
+      if (out < i) after.v = Math.min(after.v, g);
+      palmPoint(c.people[0], palm);
+      if (c.scratchState === 'resting' && palm.distanceTo(headTopOf(w.cat).addScaledVector(UP, REACH.CLEAR)) < 0.02) rest = i;
+    }
+    expect(out * DT).toBeLessThanOrEqual(0.25);
+    expect(after.v).toBeGreaterThan(0.005);
+    expect(rest).toBeLessThan(Infinity);
+    expect(c.poseMode).toBe('kneel');
+  }, 90000);
+
+  it('kneeling, the grown-up turns to her above the hips only: the chest takes more of the turn, eased; the hips and legs stay as built', () => {
+    const crit = town([{ type: 'villager', ...ADULT, sex: 'm' }]);
+    const c = crit.list[0];
+    const p = c.people[0];
+    const at = villagerPos(c, new THREE.Vector3());
+    const cat = herCat(at.x + 1.4, at.z - 1.4); // 45 degrees to his right
+    let t = run(crit, 90, cat);
+    const standChest = p.bones.chest.rotation.y;
+    crit.scratchHello(c);
+    let most = 0;
+    let last = p.bones.chest.rotation.y;
+    for (let i = 0; i < 90; i++) {
+      t = run(crit, 1, cat, t);
+      most = Math.max(most, Math.abs(p.bones.chest.rotation.y - last));
+      last = p.bones.chest.rotation.y;
+    }
+    expect(c.poseMode).toBe('kneel');
+    // turned to his right (- yaw), more than standing, and eased (no jump)
+    expect(p.bones.chest.rotation.y).toBeLessThan(standChest - 0.1);
+    expect(most).toBeLessThan(0.02);
+    // the head still faces her
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(p.bones.head.getWorldQuaternion(new THREE.Quaternion()));
+    const to = new THREE.Vector3().subVectors(worldOf(cat.userData.parts.head), worldOf(p.bones.head));
+    expect(Math.abs(Math.atan2(-fwd.x, -fwd.z) - Math.atan2(-to.x, -to.z))).toBeLessThan(0.08);
+    // the hips and the legs: the kneel's own, as a fresh twin is given it
+    const twin = createPeopleKit({}).buildSpot({ ...ADULT, sex: 'm' }).people[0];
+    pose(twin, { mode: 'kneel', t, walked: 0, reducedMotion: false });
+    applyPose(twin, DT, 0);
+    for (const b of ['pelvis', 'thighL', 'shinL', 'footL', 'thighR', 'shinR', 'footR']) {
+      for (let k = 0; k < 3; k++) expect(p.bones[b].rotation.toArray()[k], `${b} ${k}`).toBeCloseTo(twin.bones[b].rotation.toArray()[k], 9);
+      for (let k = 0; k < 3; k++) expect(p.bones[b].position.getComponent(k), `${b} ${k}`).toBeCloseTo(twin.bones[b].position.getComponent(k), 9);
+    }
+    // the group and the figure never turn
+    expect(c.group.rotation.y).toBe(0);
+    expect(p.figure.rotation.y).toBe(0);
+  });
+
+  it('a pair\'s child is near her exactly when the grown-up is: at the 4 m edge, on the far side from the child', () => {
+    const crit = town([{ type: 'villager', ...CHILD }]);
+    const c = crit.list[0];
+    const adult = worldOf(c.people[0].figure);
+    const kid = worldOf(c.people[1].figure);
+    const away = Math.sign(adult.x - kid.x); // the side away from the child
+    const flat = (cat, o) => { const h = worldOf(cat.userData.parts.head); return Math.hypot(h.x - o.x, h.z - o.z); };
+    // within 4 m of the grown-up, past 4 m from the child
+    const cat = herCat(adult.x + away * 3.6, adult.z - 1.3);
+    expect(flat(cat, adult)).toBeLessThan(GAZE.NEAR);
+    expect(flat(cat, kid)).toBeGreaterThan(GAZE.NEAR);
+    let t = run(crit, 60, cat);
+    expect(c.gazes[0].near).toBe(true);
+    expect(c.gazes[1].near).toBe(true);
+    expect(Math.abs(c.gazes[1].yaw)).toBeGreaterThan(0.5); // the child looks round at her
+    // past 5 m from the child, under 5 from the grown-up (still near): still near
+    const on = herCat(adult.x + away * 4.5, adult.z - 1.3);
+    expect(flat(on, adult)).toBeLessThan(GAZE.FAR);
+    expect(flat(on, kid)).toBeGreaterThan(GAZE.FAR);
+    t = run(crit, 30, on, t);
+    expect(c.gazes[0].near).toBe(true);
+    expect(c.gazes[1].near).toBe(true);
+    // the grown-up lets her go: so does the child
+    run(crit, 30, herCat(adult.x + away * 5.6, adult.z - 1.3), t);
+    expect(c.gazes[0].near).toBe(false);
+    expect(c.gazes[1].near).toBe(false);
+    // on the child's side, within 4 m of the child but not the grown-up: neither
+    const crit2 = town([{ type: 'villager', ...CHILD }]);
+    const c2 = crit2.list[0];
+    const there = herCat(kid.x - away * 3.6, kid.z - 1.3);
+    expect(flat(there, kid)).toBeLessThan(GAZE.NEAR);
+    expect(flat(there, adult)).toBeGreaterThan(GAZE.NEAR);
+    run(crit2, 60, there);
+    expect(c2.gazes[0].near).toBe(false);
+    expect(c2.gazes[1].near).toBe(false);
+  });
+
+  it('one way in is planned a frame across all villagers, the one that has waited longest first', () => {
+    // a touch that always wants to plan
+    const plans = [];
+    let frame = 0;
+    const factory = (o) => {
+      const k = createPeopleKit(o);
+      k.stepScratch = (p, sc, dt, opts) => {
+        sc.planned = opts.mayPlan !== false;
+        sc.wantPlan = !sc.planned;
+        if (sc.planned) plans.push([frame, p]);
+        return 'held';
+      };
+      return k;
+    };
+    const defs = [0, 3, 6].map((dx) => ({ type: 'villager', ...ADULT, x: ADULT.x + dx }));
+    const crit = createCritters(scene, defs, { people: factory });
+    for (const c of crit.list) crit.scratchHello(c);
+    const cat = herCat(ADULT.x + 3, ADULT.z - 1.5);
+    let t = 0;
+    for (frame = 0; frame < 30; frame++) { t += DT; crit.update(DT, t, cat.position, cat.position, cat); }
+    const perFrame = new Map();
+    for (const [f] of plans) perFrame.set(f, (perFrame.get(f) ?? 0) + 1);
+    expect(Math.max(...perFrame.values())).toBe(1);
+    expect(plans).toHaveLength(30); // one every frame
+    // round and round: each of the three every third frame
+    const who = plans.map(([, p]) => crit.list.findIndex((c) => c.people[0] === p));
+    expect(new Set(who.slice(0, 3)).size).toBe(3);
+    for (let i = 3; i < who.length; i++) expect(who[i]).toBe(who[i - 3]);
+  });
+
+  it('posing and touching with her real cat allocates nothing per frame', () => {
+    const crit = town([{ type: 'villager', ...ADULT, sex: 'm' }]);
+    const c = crit.list[0];
+    const w = walkUp(crit, c);
+    crit.scratchHello(c);
+    for (let i = 0; i < 5; i++) walkFrame(w, crit, 'requestPet');
+    const spies = [
+      vi.spyOn(THREE.Vector3.prototype, 'clone'),
+      vi.spyOn(THREE.Matrix4.prototype, 'clone'),
+      vi.spyOn(THREE.Quaternion.prototype, 'clone'),
+    ];
+    // (the villagers' update and the touch, not her own walk)
+    let t = w.t;
+    for (let i = 0; i < 150; i++) { t += DT; crit.update(DT, t, w.cat.position, w.cat.position, w.cat); }
+    for (const s of spies) expect(s).toHaveBeenCalledTimes(0);
+    for (const s of spies) s.mockRestore();
+    expect(c.scratchState).toBe('resting');
+  }, 60000);
 });

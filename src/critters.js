@@ -446,6 +446,7 @@ export function villagerPos(c, out) {
 
 const _vp = new THREE.Vector3();
 const _head = new THREE.Vector3();
+const _top = new THREE.Vector3();
 
 export function createCritters(scene, spawns, opts = {}) {
   const fleeScale = opts.fleeScale ?? 1;
@@ -509,7 +510,20 @@ export function createCritters(scene, spawns, opts = {}) {
   let kitDisposed = false;
   const seeAll = !opts.camera;
   const poseSpec = { mode: 'stand', t: 0, walked: 0, reducedMotion };
-  const gazeOpts = { target: null, reducedMotion };
+  const gazeOpts = { target: null, reducedMotion, near: null, turnBody: false };
+  // The head scratch's touch (Task 12): one options object, and her volumes
+  // filled in place (made on first use), once a frame for every kneeler.
+  // Planning a way in is the touch's one costly step (1-3 ms), so one person
+  // a frame may plan: whoever has waited longest (frames turned away in a
+  // row) goes first, so with several kneeling each has a turn.
+  const scratchOpts = { headTop: null, volumes: null, mayPlan: true };
+  let herVol = null;
+  let herTopUp = 0;
+  let frameNo = 0;
+  let volFrame = -1;
+  let planTaken = false;
+  let waitLast = 0; // the longest any kneeler had waited to plan, last frame
+  let waitNow = 0;
 
   function spawn(def) {
     const group = buildCritter(def.type, def, kit, opts.area);
@@ -551,7 +565,8 @@ export function createCritters(scene, spawns, opts = {}) {
       c.people = group.userData.people; // the grown-up first: c.figure is theirs
       c.gazes = c.people.map((p) => kit.createGaze(p.look));
       c.dismayT = 0;
-      c.scratch = null; // the head-scratch kneel under way: { t, away }
+      c.scratch = null; // the head-scratch kneel under way: { t, away, sc, waited }
+      c.scratchState = null; // the touch's state on its last frame (stepScratch's)
       c.poseMode = 'stand'; // what the grown-up was last given
       c.childMode = 'stand'; // and the child
     }
@@ -572,12 +587,40 @@ export function createCritters(scene, spawns, opts = {}) {
     return c;
   }
 
+  // The touch, on a kneeling grown-up (after the pose and the look): her
+  // head's top and her volumes from her own cat (a real one, with a head
+  // and a body; else, or with no cat, the hand is held out).
+  function stepTouch(c, p, dt, cat, herHead) {
+    const parts = cat?.userData?.parts;
+    scratchOpts.headTop = null;
+    scratchOpts.volumes = null;
+    if (herHead && parts?.head && parts.body) {
+      if (volFrame !== frameNo) {
+        volFrame = frameNo;
+        herVol = kit.catVolumes(cat, herVol);
+        herTopUp = kit.headTopOffset(cat);
+      }
+      scratchOpts.headTop = _top.copy(herHead);
+      _top.y += herTopUp;
+      scratchOpts.volumes = herVol;
+    }
+    const s = c.scratch;
+    scratchOpts.mayPlan = !planTaken && s.waited >= waitLast;
+    c.scratchState = kit.stepScratch(p, s.sc, dt, scratchOpts);
+    if (s.sc.planned) planTaken = true;
+    s.waited = s.sc.wantPlan ? s.waited + 1 : 0;
+    if (s.waited > waitNow) waitNow = s.waited;
+  }
+
   // One villager's people, posed by the priority (the head-scratch kneel,
   // the dismayed "oh!", the wave, standing), each change eased; then the
-  // look, on top, at her head. The child waves when the grown-up waves (it
-  // never kneels: the scratch is the grown-up's) and looks at her when the
-  // grown-up does. Only people in view are posed; the choice is made for all.
-  function posePeople(c, dt, t, waving, adultPos, catPos, herHead) {
+  // look, on top, at her head; then, kneeling, the touch (ruling R18: every
+  // kneeling frame, stopped on the frame the pose changes). The child waves
+  // when the grown-up waves (it never kneels: the scratch is the grown-up's)
+  // and is near her exactly when the grown-up is (R27). Kneeling, the
+  // grown-up turns to her above the hips (R25, R31). Only people in view are
+  // posed; the choice is made for all.
+  function posePeople(c, dt, t, waving, adultPos, catPos, herHead, cat) {
     const s = c.scratch;
     if (s) {
       s.t += dt;
@@ -586,6 +629,7 @@ export function createCritters(scene, spawns, opts = {}) {
     }
     const mode = c.scratch ? 'kneel' : c.dismayT > 0 ? 'dismay' : waving ? 'wave' : 'stand';
     c.poseMode = mode;
+    if (mode !== 'kneel') c.scratchState = null;
     c.childMode = mode === 'kneel' ? (waving ? 'wave' : 'stand') : mode;
     const people = c.people;
     for (let i = 0; i < people.length; i++) {
@@ -596,7 +640,10 @@ export function createCritters(scene, spawns, opts = {}) {
       kit.pose(p, poseSpec);
       kit.applyPose(p, dt);
       gazeOpts.target = i === 0 || c.gazes[0].near ? herHead : null;
+      gazeOpts.near = i === 0 ? null : c.gazes[0].near;
+      gazeOpts.turnBody = i === 0 && mode === 'kneel';
       kit.stepGaze(p, c.gazes[i], dt, t, gazeOpts);
+      if (i === 0 && mode === 'kneel') stepTouch(c, p, dt, cat, herHead);
     }
   }
 
@@ -705,7 +752,7 @@ export function createCritters(scene, spawns, opts = {}) {
     // per kneel; a hello while they already kneel keeps the kneel going.
     scratchHello(c) {
       if (!c?.people) return false;
-      if (!c.scratch) c.scratch = { t: 0, away: 0 };
+      if (!c.scratch) c.scratch = { t: 0, away: 0, sc: kit.createScratch(), waited: 0 };
       return true;
     },
     // reactToMeow(pos, { far }) — someone meowed at `pos`. The villager wave
@@ -811,6 +858,10 @@ export function createCritters(scene, spawns, opts = {}) {
     // null for no look at all. A co-walker's cat is never passed.
     update(dt, t, playerPos, catPos, cat = null) {
       clock = t;
+      frameNo++;
+      planTaken = false;
+      waitLast = waitNow;
+      waitNow = 0;
       // the people's LOD and view test, once a frame, and her head
       let herHead = null;
       if (kit && kit.people.length) {
@@ -989,7 +1040,7 @@ export function createCritters(scene, spawns, opts = {}) {
             if (arm) arm.rotation.z = 0.4;
             if (dWave > 8) c.waved = false;
           }
-          if (c.people) posePeople(c, dt, t, waving, _vp, catPos, herHead);
+          if (c.people) posePeople(c, dt, t, waving, _vp, catPos, herHead, cat);
         }
       }
     },

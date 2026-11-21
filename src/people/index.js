@@ -6,6 +6,7 @@ import { buildSpot } from './figure.js';
 import { pose, applyPose } from './pose.js';
 import { createGaze, stepGaze } from './gaze.js';
 import { bumpCircles } from './bumps.js';
+import { headTopOffset, catVolumes, createScratch, stepScratch } from './reach.js';
 
 export { personFor, pairFor, spotKind } from './look.js';
 export { pose, applyPose, strideFor, POSE_TIMES } from './pose.js';
@@ -58,6 +59,10 @@ export function createPeopleKit({ camera, reducedMotion = false, lodNear = () =>
     createGaze,
     stepGaze,
     bumpCircles,
+    headTopOffset,
+    catVolumes,
+    createScratch,
+    stepScratch,
     buildSpot(def) {
       const spot = buildSpot(def, { material });
       for (const p of spot.people) kit.people.push(p);
