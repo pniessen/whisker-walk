@@ -25,7 +25,7 @@ const ids = HOUSE_LEVELS.map((l) => l.id);
 
 // The scene as the walk renders it: the build, the prop merge, dusk, then the walk's own
 // things (knock-overs, golden mice, mice, the yarn ball) and the house life's air.
-async function renderedHouse(light, secret = 'shut', cats = 1) {
+async function renderedHouse(light, secret = 'shut', cats = 1, kitten = false) {
   const scene = new THREE.Scene();
   const area = build(scene);
   mergeStaticProps(scene); // walk.js's order: merge, then dusk
@@ -33,11 +33,11 @@ async function renderedHouse(light, secret = 'shut', cats = 1) {
     applyDusk({ scene, sun: createSun(), fill: createFill(area.groundBounce), areaData: area });
     createLampPools(scene);
   }
-  const dispose = await houseWalkThings(scene, area, { dusk: light === 'dusk', open: secret === 'open', cats });
+  const dispose = await houseWalkThings(scene, area, { dusk: light === 'dusk', open: secret === 'open', cats, kitten });
   return { scene, dispose, area };
 }
-async function measured(light, secret, cats = 1) {
-  const { scene, dispose, area } = await renderedHouse(light, secret, cats);
+async function measured(light, secret, cats = 1, kitten = false) {
+  const { scene, dispose, area } = await renderedHouse(light, secret, cats, kitten);
   const m = measureHouse(scene, rig);
   const points = new Map(); // houseLevel -> Points drawn there
   scene.traverse((o) => { if (o.isPoints) points.set(o.userData.houseLevel, (points.get(o.userData.houseLevel) ?? 0) + 1); });
@@ -48,8 +48,10 @@ async function measured(light, secret, cats = 1) {
 
 describe('the worst spot in the house', () => {
   for (const light of ['day', 'dusk']) for (const secret of ['shut', 'open']) {
-    it(`every level's drawn set, with the walk's own things, is under 450 meshes, 380 casters, 70,000 triangles (${light}, bookcase ${secret})`, async () => {
-      const { m } = await measured(light, secret);
+    // Mochi comes on every house walk once the save has her (kittenPlan: her home is every
+    // place's from stage 2; the house is solo, H7), so the ceiling holds with her in it
+    it(`every level's drawn set, with the walk's own things and Mochi, is under 450 meshes, 380 casters, 70,000 triangles (${light}, bookcase ${secret})`, async () => {
+      const { m } = await measured(light, secret, 1, true);
       for (const id of ids) {
         const s = m.at(id);
         expect(s.meshes, id).toBeLessThanOrEqual(450);
@@ -89,15 +91,20 @@ describe('the worst spot in the house', () => {
     }
   }, 60_000);
 
+  // The aims are held with her cat alone; with Mochi too the figures are reported, not held
+  // (BUDGET_LOG=1): she adds about 30 meshes and 8,800 triangles, no casters, on every level.
   it('every level is near the aims with everything in it: 300 meshes, 200 casters, 55,000 triangles', async () => {
     for (const light of ['day', 'dusk']) {
       const { m } = await measured(light, 'shut');
+      const { m: withMochi } = await measured(light, 'shut', 1, true);
       for (const id of ids) {
         const s = m.at(id);
         expect(s.meshes, `${light} ${id}`).toBeLessThanOrEqual(300);
         expect(s.casters, `${light} ${id}`).toBeLessThanOrEqual(200);
         expect(s.triangles, `${light} ${id}`).toBeLessThanOrEqual(55000);
+        expect(withMochi.at(id).triangles, `${light} ${id}`).toBeGreaterThan(s.triangles); // she is drawn
       }
+      if (process.env.BUDGET_LOG) console.log(light, 'with Mochi', JSON.stringify(houseWorstSpot(withMochi, ids)));
     }
   }, 90_000);
 

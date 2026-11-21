@@ -64,13 +64,14 @@ export function houseWorstSpot(measure, levelIds) {
 // knock-overs, the golden mice, the mice, the yarn ball at its first spot, and the
 // house life (the finds' parts are the build's; the life adds the sunbeams and the
 // dust motes), settled once. Call after the merge and dusk. Returns dispose().
-export async function houseWalkThings(scene, area, { dusk = false, open = false, cats = 1 } = {}) {
+export async function houseWalkThings(scene, area, { dusk = false, open = false, cats = 1, kitten = false } = {}) {
   const { createKnockables } = await import('../../src/knockables.js');
   const { createGoldMice } = await import('../../src/goldmice.js');
   const { createCritters } = await import('../../src/critters.js');
   const { HOUSE_FINDS } = await import('../../src/world/housethings.js');
   const { createToy } = await import('../../src/toy.js');
   const { buildCat } = await import('../../src/cat/model.js');
+  const { kittenPlan, createKittenEncounter } = await import('../../src/kitten.js');
   const ground = area.ground;
   const things = [];
   things.push(createKnockables(scene, area.knockables, { ground }));
@@ -85,12 +86,15 @@ export async function houseWalkThings(scene, area, { dusk = false, open = false,
     scene.add(cat);
     catList.push(cat);
   }
+  // `kitten`: Mochi at home, as walk.js adds her on a solo walk once the save has her (stage 2 on:
+  // kittenPlan gives every place her home), circling the house's kittenHome
+  const mochi = kitten ? createKittenEncounter(scene, kittenPlan(3, 'house'), area.kittenHome, { onMew() {}, ground }) : null;
   const toy = createToy(scene, { ground });
   const spot = area.yarnSpots[0];
   toy.spot = { x: spot.x, z: spot.z };
   toy.placeAt(spot);
   toy.mesh.visible = true;
-  const life = area.life({ scene, reducedMotion: open, log: null, hud: null, audio: null, toy, dusk });
+  const life = area.life({ scene, reducedMotion: open, log: null, audio: null, toy, dusk });
   const cam = { position: new THREE.Vector3(area.spawn.x, 3, area.spawn.z + 4) };
   life.settle(new THREE.Vector3(area.spawn.x, 0, area.spawn.z), cam);
   if (open) {
@@ -102,6 +106,7 @@ export async function houseWalkThings(scene, area, { dusk = false, open = false,
   return () => {
     life.dispose?.();
     for (const c of catList) scene.remove(c);
+    mochi?.dispose();
     for (const t of things) t.dispose?.();
   };
 }
