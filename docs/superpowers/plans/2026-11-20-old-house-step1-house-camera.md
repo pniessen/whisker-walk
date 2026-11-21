@@ -16,6 +16,102 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-20-old-house-design.md`, "Build order" item 1. Sections used: "How it is built", "Calls I made after the builder check" (1 and 4), "Constraints", "Look and feel", "Anti-goals", "Non-goals", "Fit with the game" (Clan Edition only). Steps 2–4 get their own plans.
 
+## Updates (2026-11-21)
+
+This plan was written at `d320bd72`. Four things have landed on main since then, and `a906522d` merged them into `house`. These updates win over anything they contradict below. Line numbers are now from `a906522d`.
+
+### How work runs now
+
+- **U1. No symlink.** The worktree has its own `node_modules`. The "Setup, once" bullet in Global Constraints is withdrawn. Never run npm through a symlinked `node_modules`.
+- **U2. The full suite** is `WW_PGLITE=/Users/pniessen/.npm/_npx/90d26507e643fcc0/node_modules/@electric-sql/pglite/dist/index.js npx vitest run`.
+  - Before it, `ps -ax -o command | grep -E "^node .*vitest|/vitest/vitest.mjs"` must show no other real vitest. Never use `pgrep -fl`, and never write an unbounded wait loop.
+  - No full suite from 18:30 to 19:30.
+  - A single timeout while another suite runs is load: re-run that file alone. A run is judged by its "failed" count.
+- **U3. No source-text tests** (rule S1, `docs/SESSION-HANDOFF.md`): no `readFileSync` of `src/`, and no pins on lines or comments. Task 8's tests are rewritten as behaviour on real walks (U12).
+- **U4. Words, both sets.** Every child-facing word goes through the word tables, for both word sets. This replaces the "Words" bullet in Global Constraints.
+  - Task 4 adds `house` to `PLACE_WORDS` in both tables: `'The Old House'` in `src/offclanwords.js` and `'The Old Twoleg Nest'` in `src/clanwords.js` (the spec's "an old Twoleg nest"; a placeholder the owner can rename). `areaData.name` is `words().PLACE_WORDS.house`, read in `build`. No string literal holds either name. `test/clanwords.test.js` already flags every clan `PLACE_WORDS` value found in a `src/` literal.
+  - Refresh the snapshots with `UPDATE_SERIES_SNAPSHOT=1 UPDATE_OFF_SNAPSHOT=1 npx vitest run test/serieswords`, then revert any drift that isn't yours. `series-words-on-source.json` always picks up spurious `notReached` entries: revert those.
+  - The test page's captions are plain words and contain no series word.
+- **U5. Determinism.** `test/fixtures/flat-trace.gameplay.json` must not move.
+- **U6. Long tests.** Long whole-walk tests carry explicit 60–90 s timeouts. Float fixtures compare with `closeDiffs`, because CI runs on Linux.
+- **U7. Real-game checks** use a dev server on port **5404** with `--strictPort`, not 5381. The game stays muted: seed `muted: true`, run Chrome with `--mute-audio`, and never press M.
+- **U8. Builds.** Task 9 runs both `npm run build` and `npm run build:ios`. The "900 kB" ceiling is withdrawn (U9).
+
+### F6: every place is its own download
+
+- **U9. The house is its own place chunk.** Each place loads through `src/world/areas.js` and `startWalkWhenReady` (`src/game/walk.js`, `src/game/areaload.js`). `startWalk` throws if the place isn't loaded.
+  - Ceilings, from `scripts/buildjson.mjs`: start-up is at most 700 kB gzipped (`MAIN_GZIP_CEILING_KB`), and the house chunk is at most 100 kB (`AREA_GZIP_CEILING_KB`).
+  - Task 8 adds the house to the registry: `house: () => import('./house.js').then((w) => own('house', w)),` in `AREA_LOADERS`, and `house: Object.freeze(['src/world/house.js']),` in `AREA_ENTRY_MODULES`.
+  - Task 8 adds `if (houseOn()) areas.prefetch('house');` to `main.js`, beside `if (roofsOn()) areas.prefetch('roofs');`.
+  - Outside tests and the picture page, only `src/world/areas.js` imports `src/world/house.js`.
+  - `houseplan.js`, `houseparts.js`, `houselife.js`, `housewalls.js` and `houselevels.js` are reached only from `house.js`, so they all land in its chunk.
+  - `houseflag.js` and `indoor.js` are in start-up and import nothing of the house. `housetour.js` is imported only by tests and the picture page.
+  - `test/areas.test.js` and `test/lazybuild.test.js` must pass.
+- **U10. The start goes through the loader.** There is no `const AREAS = { ... }` in `walk.js` any more. Task 8's `beginWalkFromHomebase` line goes right after the Rooftops line, `if (roofsOn() && !getPendingRoom()) return startWalkWhenReady(...)`, and reads:
+  ```js
+  if (houseOn() && isClanEdition(progression.state) && !getPendingRoom()) return startWalkWhenReady({ duskMode, areaOverride: 'house' });
+  ```
+  With both switches on, the Rooftops wins.
+
+### Rooftops steps 2 and 3 (the "rooftops-2" of the shared-files table)
+
+Both have landed. The shared-files table below is history. What actually landed is this:
+
+- **U11. Files shared with the Rooftops.**
+  - `walk.js`: the weather line is now `if (!duskActive && !isDen && areaData.evening !== true) {`. With `indoor` it becomes `if (!duskActive && !indoor && areaData.evening !== true) {`. The other six guards in Task 8 are found by their quoted code, as before.
+  - `main.js`: `resumableAreaIds` already exists, in `src/roofsflag.js`. It takes the walks object, and `main.js` calls `readResume(..., { areaIds: resumableAreaIds(progression.state.walks) })`.
+    - So `src/houseflag.js` exports `resumableHouseIds(ids) → ids.filter((id) => id !== 'house' || houseOn())` (an array in, an array out) and does **not** export a second `resumableAreaIds`.
+    - `main.js` becomes `areaIds: resumableHouseIds(resumableAreaIds(progression.state.walks))`.
+  - `progression.js`: `walks` ends `fair: 0, roofs: 0`. Add `house: 0` last, and add the clause to the comment above it.
+  - `test/progression.test.js` has eight `walks` objects that end `roofs: 0`, not three. Each one gets `house: 0`.
+    - Any other test whose fixed per-area table iterates `AREA_LOADERS` or the walks keys gets a `house` entry (for example `test/waterlooks.test.js` `BUILD_DRAWS`, if it fails).
+    - Nothing else in an existing test is edited, except the snapshot refresh (U4).
+  - `audio.js`: the two lines read exactly as quoted in Task 8. A Rooftops branch sits between them.
+  - `src/traversal.js` exports `stickToWorld`, `facingYaw` and `behindYaw` (checked).
+- **U12. What the Rooftops taught the walk.** An area record with `strays: false` gets no strays, no wanderer and no ghosts.
+  - Task 4 adds `strays: false` to the house's `areaData`.
+  - Task 8's tests follow `test/roofswalk.test.js` and `test/roofsload.test.js`: the real `createWalkLifecycle` through `test/helpers/walklife.js` `lifecycle()`, with real walks started and ended. The tests show that:
+    - `?house=1` starts a solo house walk in Clan Edition and nowhere else (Legacy, or a room, walks as before);
+    - a house walk waits for its download, and a failed download stays home with the gentle line;
+    - a house walk note is dropped without the flag;
+    - a house walk counts `walks.house`;
+    - indoors there are no weather, secrets, strays, wanderer, legend, ghosts, goals, sky birds or corner map;
+    - zoom step 3 is kept in the house;
+    - the house sounds like the den (the fire, no crickets at dusk).
+  - **Task 8 audit.** Check every `isDen` that Task 8 leaves in `walk.js`, and every system keyed by area, against a house walk: the grass (`GRASS_STYLES`), paw prints, gifts, carryables (`propsFor`), the villager giver, colony cats, the border and gate dressing, and the dusk lamp pools. For each one, record in the report whether it holds by data (the house hands it empty lists) or needs `indoor`.
+    - Expected: no grass grows inside a room.
+    - Expected: the lamp pools do come at dusk (`!isDen` already allows them).
+
+### Map gateways (world map step 3)
+
+- **U13. Only a seam in step 1.** `src/gateways.js` already reserves the end pair `town-house` / `house-town` for House step 4: `placement: 'inside'`, an explicit `arrive`, and `look: 'none'`, because the house draws its own door.
+  - Step 1 adds no `GATEWAY_ENDS` row and no catalog row, so `liveEndsFor('house')` is `[]` and no gate is drawn. `gateways.js` does not change.
+  - The seam is data. Task 1 adds to `houseplan.js`:
+    ```js
+    HOUSE_FRONT_DOOR = Object.freeze({ x: 0, z: 12, faces: 'south', arrive: Object.freeze({ x: 0, z: 9.5, yaw: 0 }) })
+    ```
+    This is the shut door on the Hall's south wall, and the spot and facing where she lands coming in (yaw 0 faces −z). `HOUSE_SPAWN` is the `arrive`'s x and z.
+  - A Task 1 test checks that the door's x lies on the hall's south wall line, inside a `hall-s` section, and that the `arrive` spot is reachable.
+  - Task 4 draws the shut door at `HOUSE_FRONT_DOOR`. `build` accepts the `gateEnds` that `walk.js` passes and, in step 1, ignores it. Step 4 opens the door when a `house-town` end comes in.
+
+### Lifelike people (branch `people`, not merged)
+
+- **U14. No people in step 1.** The house has no people and no resident cat yet.
+  - No house module imports `buildTwolegFigure`, `src/critters.js`'s villager or `src/fairshow.js`. The house's `critterSpawns` is `[]`.
+  - The neighbour houses come from `builder.js` `house()`, which draws no figure. Task 4 checks this.
+  - The old cat (step 3) goes in her own module, apart from anything the people work will replace.
+
+### The pictures and the film (Tasks 7 and 9)
+
+- **U15. Shots.** `HOUSE_SHOTS` adds:
+  - `dollhouse-far`: the parlour at zoom 2 (Far). `dollhouse` stays at zoom 3 (Farther). Owner question 2 is answered by the pair.
+  - `stairs-back` and `stairs-cellar`, on those stairs at zoom 1.
+  - `levels`: zoom 3 from the main stair's foot, so the split levels read.
+  - Every shot passes the Task 7 shot test.
+- **U16. Output.** The pictures go to `/private/tmp/claude-501/-Users-pniessen--claude-spares-spare-gcns3j/e37e3895-a9b0-4a89-9360-a15387ffb2e4/scratchpad/house/`, with `dusk/` and `before/` (`sink=0`) beneath it.
+  - The film is **30–45 s**, not 40–90 s. If the grand tour runs longer at real time, Task 7 adds a shorter `film` tour. It shows every room, a stair up and a stair down, a wall sinking, and the zoom out to Farther, and it is walked by the same pilot and passes the same test as `grand`.
+  - Step 1 sinks walls and never fades them (H1), so there is no fade picture. The `before/` picture is the comparison.
+
 ## Rulings (my calls; the owner can overturn each)
 
 - **H1. Walls sink, never fade.** A section between the camera and the cat sinks to a 0.25 m stub. It goes down in 0.2 s. It rises only after it has not been wanted for 0.5 s, then takes 0.6 s.
