@@ -43,8 +43,10 @@
 //     weight viewWeight eases toward 1 at TOWER_VIEW.rate per second, and
 //     back to 0 when she moves. The blend is in angles round her (yaw the
 //     short way, distance, height and pitch by lerp: viewBlend), never
-//     turning faster than TOWER_BLEND.turn, and it eases in only while the
-//     follow camera already faces within TOWER_BLEND.face of the view's way.
+//     turning faster than TOWER_BLEND.turn on top of the follow camera's own
+//     turn, and it eases in only while the follow camera already faces
+//     within TOWER_BLEND.face of the view's way and the stick is not turning
+//     it.
 //     Never more than max(the follow camera's own pitch, maxPitch) down, no
 //     roll, no lens change; none at all under reduced motion.
 //   * The garden and the loft have no extra look (their lights are the
@@ -91,16 +93,28 @@ export function towerView(cat, outPos, outLook) {
   return outPos;
 }
 
-// How the view takes over from the follow camera (fix round 1): in angles
-// round her, never in straight lines (which swing through her and look
-// steeply down when the two cameras are on different sides of her).
-//   face  the view eases in only while the follow camera already faces
-//         within this of the view's way (so the stick never fights the
-//         screen); it eases out whatever the angle
-//   turn  the most the blend turns the camera, per second, in or out
-export const TOWER_BLEND = Object.freeze({ face: (75 * Math.PI) / 180, turn: (150 * Math.PI) / 180 });
+// How the view takes over from the follow camera (fix rounds 1 and 2): in
+// angles round her, never in straight lines (which swing through her and
+// look steeply down when the two cameras are on different sides of her).
+//   face    the view eases in only while the follow camera already faces
+//           within this of the view's way (so the stick never fights the
+//           screen); it eases out whatever the angle
+//   steady  and only while the follow camera is turning slower than this:
+//           the stick turning the camera lets the view go
+//   turn    the most the blend itself turns the camera, per second, in or
+//           out, on top of the follow camera's own turn
+//   slack   how far past half a turn the two may drift apart before their
+//           difference is taken the short way again (so two cameras on
+//           opposite sides of her do not flip side every frame)
+export const TOWER_BLEND = Object.freeze({
+  face: (75 * Math.PI) / 180,
+  steady: (20 * Math.PI) / 180,
+  turn: (150 * Math.PI) / 180,
+  slack: (15 * Math.PI) / 180,
+});
 
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const clampAbs = (v, m) => (v > m ? m : v < -m ? -m : v);
 
 // A camera as seen from her paws: where it is round her (yaw, along-ground
 // distance r, height h over her paws) and which way it looks (face yaw,
@@ -128,35 +142,63 @@ function orbit() {
   return o;
 }
 
-// The blend of two orbits by weight w: yaw round her and face yaw the short
-// way (kept the same way round from frame to frame, so two cameras on
-// opposite sides never flip), distance, height and pitch by lerp, the pitch
-// never more than the follow camera's own or maxPitch, whichever is more.
-// lookAt keeps the camera level (no roll); the lens is never touched.
+// The blend of two orbits by weight w.
+//   * The difference from the follow camera to the view, in yaw round her and
+//     in face yaw, is the short way: it keeps last frame's side only while it
+//     is within half a turn and `slack` (two cameras on opposite sides of her
+//     never flip side), and is taken the short way again beyond that, so it
+//     never winds up however the stick spins the follow camera.
+//   * The camera's own yaws follow the follow camera plus w times that
+//     difference, the short way, never faster than the follow camera's own
+//     turn plus TOWER_BLEND.turn a second: when the difference is taken the
+//     short way again, the camera swings there smoothly, never snaps.
+//   * Distance, height and pitch blend by lerp, the pitch never more than the
+//     follow camera's own or maxPitch, whichever is more. lookAt keeps the
+//     camera level (no roll); the lens is never touched.
 function viewBlend() {
+  let on = false;
   let dYaw = null;
   let dFace = null;
-  const keep = (d, prev) => (prev === null ? d : d + 2 * Math.PI * Math.round((prev - d) / (2 * Math.PI)));
+  let yawC = 0;
+  let faceC = 0;
+  const short = (d, prev) => {
+    if (prev === null) return d;
+    const kept = d + 2 * Math.PI * Math.round((prev - d) / (2 * Math.PI));
+    return Math.abs(kept) <= Math.PI + TOWER_BLEND.slack ? kept : d;
+  };
   const look = new THREE.Vector3();
   const b = {
-    reset() { dYaw = null; dFace = null; },
+    get on() { return on; },
+    reset() { on = false; dYaw = null; dFace = null; },
     // the larger of the two turns the whole blend makes (radians)
     span(a, t) {
-      const y = keep(wrapAngle(t.yaw - a.yaw), dYaw);
-      const f = keep(wrapAngle(t.face - a.face), dFace);
-      return Math.max(Math.abs(y), Math.abs(f));
+      return Math.max(Math.abs(short(wrapAngle(t.yaw - a.yaw), dYaw)), Math.abs(short(wrapAngle(t.face - a.face), dFace)));
     },
-    apply(a, t, w, p, camera) {
-      dYaw = keep(wrapAngle(t.yaw - a.yaw), dYaw);
-      dFace = keep(wrapAngle(t.face - a.face), dFace);
-      const yaw = a.yaw + dYaw * w;
+    // turnYaw, turnFace: how far the follow camera itself turned this frame
+    apply(a, t, w, p, camera, dt, turnYaw, turnFace) {
+      if (!on) {
+        if (w === 0) return;
+        on = true;
+        yawC = a.yaw;
+        faceC = a.face;
+      }
+      dYaw = short(wrapAngle(t.yaw - a.yaw), dYaw);
+      dFace = short(wrapAngle(t.face - a.face), dFace);
+      const most = TOWER_BLEND.turn * dt;
+      const goYaw = wrapAngle(a.yaw + dYaw * w - yawC);
+      const goFace = wrapAngle(a.face + dFace * w - faceC);
+      yawC += clampAbs(goYaw, Math.abs(turnYaw) + most);
+      faceC += clampAbs(goFace, Math.abs(turnFace) + most);
+      if (w === 0 && Math.abs(goYaw) <= Math.abs(turnYaw) + most && Math.abs(goFace) <= Math.abs(turnFace) + most) {
+        b.reset(); // all the follow camera's again: leave it as player.update placed it
+        return;
+      }
       const r = a.r + (t.r - a.r) * w;
       const h = a.h + (t.h - a.h) * w;
-      const face = a.face + dFace * w;
       const pitch = Math.min(a.pitch + (t.pitch - a.pitch) * w, Math.max(a.pitch, TOWER_VIEW.maxPitch));
-      camera.position.set(p.x + Math.sin(yaw) * r, p.y + h, p.z + Math.cos(yaw) * r);
+      camera.position.set(p.x + Math.sin(yawC) * r, p.y + h, p.z + Math.cos(yawC) * r);
       const c = Math.cos(pitch);
-      look.set(Math.sin(face) * c, -Math.sin(pitch), Math.cos(face) * c).add(camera.position);
+      look.set(Math.sin(faceC) * c, -Math.sin(pitch), Math.cos(faceC) * c).add(camera.position);
       camera.lookAt(look);
     },
   };
@@ -398,6 +440,7 @@ export function createRoofsMoments(area, opts = {}) {
   const follow = orbit();
   const target = orbit();
   const blend = viewBlend();
+  const last = { yaw: 0, face: 0, set: false }; // the follow camera's yaws last frame
 
   // A find's once-a-walk moment, the first time it is found this walk (Task 6).
   function start(_id) {}
@@ -445,30 +488,37 @@ export function createRoofsMoments(area, opts = {}) {
     if (!camera) {
       viewW = 0;
       blend.reset();
+      last.set = false;
       return;
     }
     towerView(p, viewPos, viewLook);
     follow.from(camera, p);
     target.at(viewPos, viewLook, p);
-    // in only while the screen already faces near the view's way, so the
-    // stick never fights the picture; out whenever she is not settled there
+    // how far the follow camera itself turned since last frame
+    const turnYaw = last.set ? wrapAngle(follow.yaw - last.yaw) : 0;
+    const turnFace = last.set ? wrapAngle(follow.face - last.face) : 0;
+    last.yaw = follow.yaw;
+    last.face = follow.face;
+    last.set = true;
+    // in only while the screen already faces near the view's way and the
+    // stick is not turning it, so the stick never fights the picture; out
+    // whenever she is not settled there
     const settled = !reducedMotion && onTop(p) && spot.still >= TOWER_VIEW.settle && !session?.traversal?.busy;
     const facing = Math.abs(wrapAngle(target.face - follow.face)) <= TOWER_BLEND.face;
-    const want = settled && facing ? 1 : 0;
+    const steady = Math.abs(turnFace) <= TOWER_BLEND.steady * dt + 1e-9;
+    const want = settled && facing && steady ? 1 : 0;
     let dw = (want - viewW) * Math.min(1, dt * TOWER_VIEW.rate);
-    // never turn faster than TOWER_BLEND.turn, however far apart the two are
-    const span = Math.max(Math.abs(blend.span(follow, target)), 1e-6);
+    // the blend never turns faster than TOWER_BLEND.turn, however far apart the two are
+    const span = Math.max(blend.span(follow, target), 1e-6);
     const most = (TOWER_BLEND.turn * dt) / span;
     if (Math.abs(dw) > most) dw = Math.sign(dw) * most;
     viewW += dw;
     if (want === 0 && viewW < 0.002) viewW = 0;
     else if (want === 1 && viewW > 0.998) viewW = 1;
-    if (viewW === 0) {
-      blend.reset();
-      return;
-    }
-    blend.apply(follow, target, viewW, p, camera);
+    if (viewW === 0 && !blend.on) return;
+    blend.apply(follow, target, viewW, p, camera, dt, turnYaw, turnFace);
   }
+
 
 
   return {

@@ -320,17 +320,27 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
       const cap = Math.max(followPitch, TOWER_VIEW.maxPitch) + 1e-6;
       return { camera, follow, cap };
     };
-    // one frame: the follow camera, then the moments; the bounds checked on what they leave
-    const watch = (camera, cap) => {
+    // one frame: the follow camera, then the moments; the bounds checked on
+    // what they leave. The turn: the blend's own at most 150 degrees a second
+    // (frame-rate aware), on top of whatever the follow camera turned itself.
+    const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+    const faceOf = (camera, dir = new THREE.Vector3()) => {
+      camera.getWorldDirection(dir);
+      return Math.atan2(dir.x, dir.z);
+    };
+    const watch = (camera, cap, dt = 1 / 30) => {
       let last = null;
+      let lastFollow = null;
       const dir = new THREE.Vector3();
-      return (c) => {
+      return (c, followFace = null) => {
         camera.getWorldDirection(dir);
         const pitch = Math.atan2(-dir.y, Math.hypot(dir.x, dir.z));
         expect(pitch).toBeLessThanOrEqual(cap);
         const face = Math.atan2(dir.x, dir.z);
-        if (last !== null) expect(Math.abs(Math.atan2(Math.sin(face - last), Math.cos(face - last)))).toBeLessThanOrEqual(6 * DEG);
+        const own = followFace !== null && lastFollow !== null ? Math.abs(wrap(followFace - lastFollow)) : 0;
+        if (last !== null) expect(Math.abs(wrap(face - last))).toBeLessThanOrEqual(own + 150 * DEG * dt + 0.2 * DEG);
         last = face;
+        lastFollow = followFace;
         expect(camera.position.distanceTo(c)).toBeGreaterThanOrEqual(1.5);
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
         expect(Math.abs(right.y)).toBeLessThan(1e-6);
@@ -363,6 +373,84 @@ describe('the Rooftops\' moments: the ring, the view and the pane', () => {
         expect(m.viewWeight, `${off / DEG} degrees out`).toBeLessThan(0.05);
         m.dispose();
       }
+    });
+
+    // Fix round 2: the stick spins the follow camera round her while the
+    // view is fully in. One frame: the follow camera placed, then the moments.
+    const spin = async ({ turns, rate, fps }) => {
+      const { camera, follow, cap } = await setup();
+      const dt = 1 / fps;
+      const m = createRoofsMoments(area, {});
+      for (let i = 0; i < 5 * fps; i++) { follow(cat, 0); m.update(dt, cat, camera, session()); }
+      expect(m.viewWeight).toBe(1);
+      const check = watch(camera, cap, dt);
+      const dir = new THREE.Vector3();
+      const frame = (off) => {
+        follow(cat, off);
+        const ff = faceOf(camera, dir);
+        m.update(dt, cat, camera, session());
+        check(cat, ff);
+      };
+      check(cat, faceOf(camera, dir));
+      // spinning: it only ever eases out
+      const steps = Math.round((turns * 2 * Math.PI) / (rate * dt));
+      const ws = [];
+      for (let k = 1; k <= steps; k++) {
+        frame(k * rate * dt);
+        ws.push(m.viewWeight);
+      }
+      for (let k = 1; k < ws.length; k++) expect(ws[k]).toBeLessThanOrEqual(ws[k - 1] + 1e-12);
+      // stopped on the view's own side: back in, the short way round her
+      const yawOf = () => Math.atan2(camera.position.x - cat.x, camera.position.z - cat.z);
+      let orbit = 0;
+      let prev = yawOf();
+      for (let i = 0; i < 6 * fps; i++) {
+        frame(steps * rate * dt);
+        const y = yawOf();
+        orbit += Math.abs(wrap(y - prev));
+        prev = y;
+      }
+      expect(m.viewWeight).toBe(1);
+      m.dispose();
+      return { ws, orbit, dt };
+    };
+
+    it('the stick spins the follow camera a full turn at 180 degrees a second: it lets go, then comes back the short way', async () => {
+      const { ws, orbit, dt } = await spin({ turns: 1, rate: 180 * DEG, fps: 30 });
+      const below = ws.findIndex((w) => w < 0.1);
+      expect(below).toBeGreaterThanOrEqual(0);
+      expect(below * dt).toBeLessThanOrEqual(2); // within the one turn
+      expect(orbit).toBeLessThanOrEqual(180 * DEG);
+    });
+
+    it('two full turns, and a fast turn at 300 degrees a second: the same', async () => {
+      const two = await spin({ turns: 2, rate: 180 * DEG, fps: 30 });
+      expect(two.ws[two.ws.length - 1]).toBeLessThan(0.1);
+      expect(two.orbit).toBeLessThanOrEqual(180 * DEG);
+      // a 1.2 s turn: it is letting go by the end (eased out, never back), and comes back the short way
+      const fast = await spin({ turns: 1, rate: 300 * DEG, fps: 30 });
+      expect(fast.ws[fast.ws.length - 1]).toBeLessThan(0.25);
+      expect(fast.orbit).toBeLessThanOrEqual(180 * DEG);
+    });
+
+    it('at 20 frames a second the bounds hold too', async () => {
+      const { ws, orbit } = await spin({ turns: 1, rate: 180 * DEG, fps: 20 });
+      expect(ws[ws.length - 1]).toBeLessThan(0.1);
+      expect(orbit).toBeLessThanOrEqual(180 * DEG);
+      // and easing in from 60 degrees off, then out, at 20 fps
+      const { camera, follow, cap } = await setup();
+      const m = createRoofsMoments(area, {});
+      const check = watch(camera, cap, 1 / 20);
+      for (let i = 0; i < 100; i++) { follow(cat, 60 * DEG); m.update(1 / 20, cat, camera, session()); check(cat); }
+      expect(m.viewWeight).toBe(1);
+      for (let i = 0; i < 80; i++) {
+        const c = new THREE.Vector3(V.x + (i % 2 ? 0.1 : -0.1), V.y, V.z);
+        follow(c, 60 * DEG);
+        m.update(1 / 20, c, camera, session());
+        check(c);
+      }
+      expect(m.viewWeight).toBe(0);
+      m.dispose();
     });
 
     it('easing out after it was fully in, with the follow camera moved 120 degrees away, keeps the same bounds', async () => {
