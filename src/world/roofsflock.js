@@ -233,12 +233,18 @@ function peckSpot(blockId, [cx, cz], ground, traversal) {
 
 // The perches: the moves' ends, then the plan's own (ridges, peck spots, the
 // loft, the guide's spot), then the drawn spots roofs.js passes, less any
-// pot in `smoking`.
+// pot in `smoking` and anything in its smoke: within SMOKE_CLEAR.r (2D) of
+// a smoking pot's top (its drawn spot) and no lower than SMOKE_CLEAR.below
+// under it (the smoke rises; a perch beside and below the pot stays).
+export const SMOKE_CLEAR = Object.freeze({ r: 0.6, below: 0.3 }); // m
 export function flockPerches({ traversal, ground, drawn = [], smoking = [] }) {
   const out = [];
   const smoke = new Set(smoking);
+  const smokeTops = drawn.filter((d) => smoke.has(d.id));
+  const inSmoke = (x, y, z) => smokeTops.some((t) => Math.hypot(t.x - x, t.z - z) < SMOKE_CLEAR.r && y >= t.y - SMOKE_CLEAR.below);
   const add = (id, kind, x, y, z) => {
     if (STREETS.some((s) => inRect(s, x, z))) return;
+    if (inSmoke(x, y, z)) return;
     if (!OVER_SLATES.has(kind) && y < L.FLAT && PITCHED.some((r) => inRect(r, x, z))) return;
     const same = out.find((p) => Math.hypot(p.x - x, p.z - z) < MERGE_2D && Math.abs(p.y - y) <= MERGE_Y);
     if (same) same.aliases.push(id);
@@ -278,7 +284,7 @@ export function flockPerches({ traversal, ground, drawn = [], smoking = [] }) {
 
   for (const d of drawn) {
     if (!DRAWN_KINDS.has(d.kind)) throw new Error(`roofsflock: a drawn perch of kind ${d.kind} (${d.id})`);
-    if (!smoke.has(d.id)) add(d.id, d.kind, d.x, d.y, d.z);
+    add(d.id, d.kind, d.x, d.y, d.z); // (a smoking pot is in its own smoke)
   }
   return Object.freeze(out.map((p) => Object.freeze({ ...p, aliases: Object.freeze(p.aliases) })));
 }

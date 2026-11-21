@@ -895,7 +895,10 @@ describe('the Rooftops drawn', () => {
     expect(of('pot').find((p) => p.id === warmId)).toBeUndefined();
     expect(warm.y).toBeGreaterThan(Math.max(...Object.entries(area.potTops).filter(([id]) => id !== warmId).map(([, p]) => p.y)));
     // an aerial on each of the six stacks that carries one, high over its stack
-    expect(of('aerial')).toHaveLength(6);
+    // (five perches: aerial:-10 stands in the warm chimney's smoke, 0.12 m from
+    // its pot's top, so no bird perches on it while that pot smokes, Task 5)
+    expect(of('aerial').map((p) => p.id)).not.toContain('aerial:-10');
+    expect(of('aerial')).toHaveLength(5);
     for (const p of of('aerial')) {
       const s = stacks.find((k) => `aerial:${k.x}` === p.id);
       expect(s, p.id).toBeDefined();
@@ -2095,7 +2098,7 @@ describe('the Rooftops drawn', () => {
     expect(Object.keys(rec.washSway).sort()).toEqual(['uWashAmp', 'uWashRest', 'uWashT']);
   });
 
-  it('three pots smoke, the warm chimney\'s among them, each a drawn pot, and no bird perches on one', () => {
+  it('three pots smoke, the warm chimney\'s among them, each a drawn pot, and no bird perch within 0.6 m and above 0.3 m under a smoking pot\'s top', () => {
     expect(SMOKE_POTS).toHaveLength(3);
     expect(SMOKE_POTS).toContain(`pot:${ROOFS_DISCOVERIES.chimney.x}:-1`);
     // every pot the build draws has its top in potTops; the smoking three among them
@@ -2110,14 +2113,18 @@ describe('the Rooftops drawn', () => {
     });
     // on three different stacks
     expect(new Set(SMOKE_POTS.map((id) => id.split(':')[1])).size).toBe(3);
-    // no bird perches on one, under any name, nor so near it a perch is the same spot
+    // no bird perches on one under any name, nor in its smoke: within 0.6 m
+    // (2D) of its top and no lower than 0.3 m under it (the smoke rises; the
+    // stack tops beside and below a pot stay perches)
     const index = perchIndex(area.birdPerches);
     for (const q of area.smokePots) {
       expect(index.has(q.id), q.id).toBe(false);
       for (const p of area.birdPerches) {
-        expect([q.id, p.id, Math.hypot(p.x - q.x, p.z - q.z) < 0.5 && Math.abs(p.y - q.y) <= 0.3]).toEqual([q.id, p.id, false]);
+        expect([q.id, p.id, Math.hypot(p.x - q.x, p.z - q.z) < 0.6 && p.y >= q.y - 0.3]).toEqual([q.id, p.id, false]);
       }
     }
+    // the warm stack's aerial, 0.12 m from its smoking pot and over it, is no perch
+    expect(index.has('aerial:-10')).toBe(false);
     for (const b of ROOFS_BIRDS) expect(SMOKE_POTS, b.id).not.toContain(b.home);
   });
 
