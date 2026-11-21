@@ -314,7 +314,9 @@ function chaseBulbs(P) {
 // the profile's strips in turn (stripes running along the path); `bands`
 // ({ every, colors: [stripsA, stripsB, ...] }) paints it in bands across the
 // path instead, `every` quads long, each band's strips from the next list in
-// turn. The quads are the same either way: a band costs no triangle.
+// turn. The quads are the same either way: a band costs no triangle. (Bands
+// are for an open sweep: on a `closed` one the last band meets the first
+// evenly only if the quads divide by every x the number of lists.)
 export function sweep(P, pts, profile, hex, { closed = false, colors = null, sides = null, bands = null } = {}) {
   const n = pts.length;
   const frames = [];
@@ -336,8 +338,8 @@ export function sweep(P, pts, profile, hex, { closed = false, colors = null, sid
   const last = closed ? n : n - 1;
   for (let i = 0; i < last; i++) {
     const j = (i + 1) % n;
+    const strips = bands ? bands.colors[Math.floor(i / bands.every) % bands.colors.length] : colors;
     for (let k = 0; k < profile.length - 1; k++) {
-      const strips = bands ? bands.colors[Math.floor(i / bands.every) % bands.colors.length] : colors;
       sheet(P, [at(i, k), at(j, k), at(j, k + 1), at(i, k + 1)], strips ? strips[k % strips.length] : hex);
     }
   }
