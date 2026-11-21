@@ -81,8 +81,10 @@ export function createCrossing({
   ensureArea = () => Promise.resolve(),
   isOnline = () => globalThis.navigator?.onLine !== false,
 }) {
-  function restoreCard(s) {
-    overlay.innerHTML = pauseCardFor(s, getIsTouch(), getSound());
+  // The pause card back; `note` is the line why nobody moved, carried on
+  // the card (a toast would sit under it).
+  function restoreCard(s, note = null) {
+    overlay.innerHTML = pauseCardFor(s, getIsTouch(), getSound(), note);
     s.crossing = null;
   }
 
@@ -284,7 +286,7 @@ export function createCrossing({
   function stayHere(s, room, line) {
     room.done = true;
     room.off();
-    restoreCard(s);
+    restoreCard(s, line);
     hud.toast(line);
   }
 

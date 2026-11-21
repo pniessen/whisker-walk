@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createCrossing, swallowsCanvasClick, CROSS_RESEND_MS, CROSS_END_MS, WALK_ON_WAIT_MS } from '../src/game/crossing.js';
 import { AREA_LOAD_TIMEOUT_MS, AreaLoadError } from '../src/game/areaload.js';
 import { phrase } from '../src/clanphrases.js';
+import { escapeHtml } from '../src/escapehtml.js';
 import { pauseCardHtml, pauseCardFor } from '../src/game/walk.js';
 import { CATALOG } from '../src/progression.js';
 import { postStatus } from '../src/bordercross.js';
@@ -706,7 +707,13 @@ describe('walking on together', () => {
   const SEED = nextRoomSeed(7, 'park-farm');
   const WALK_ON = { v: 1, id: 'a', type: 'walk-on', from: 'park', via: 'park-farm', seed: SEED };
   // The pause card of a room walk (the chat keys are on it).
-  const pause = (s) => pauseCardFor(s, false, null);
+  const pause = (s, note) => pauseCardFor(s, false, null, note);
+  // Fix 8: the line why nobody moved is on the pause card itself (a toast
+  // sits under the card, so she would see "Paused" with no reason).
+  const onCard = (h, line) => {
+    expect(h.overlay.innerHTML).toBe(pause(h.s, line));
+    expect(h.overlay.innerHTML).toContain(`<p class="pause-note" role="status">${escapeHtml(line)}</p>`);
+  };
 
   it("the host's yes shows the moment, asks the room twice and fetches its own place", () => {
     const h = together();
@@ -761,7 +768,7 @@ describe('walking on together', () => {
     const h = together();
     h.yes();
     h.crossing.onWalkOnHave(h.s, h.have({ ok: false }));
-    expect(h.overlay.innerHTML).toBe(pause(h.s));
+    onCard(h, phrase('gate.friendNotReady', 'Pip'));
     expect(h.overlay.innerHTML).toContain('btn-resume');
     expect(h.s.crossing).toBe(null);
     expect(h.toasts).toEqual(["Pip's game isn't ready for that place yet. Try again in a moment! 🐾"]);
@@ -774,9 +781,12 @@ describe('walking on together', () => {
     expect(h.endWalk).not.toHaveBeenCalled();
     expect(h.resume).not.toHaveBeenCalled();
     expect(h.toasts).toHaveLength(1);
-    // she can ask again
+    // she can ask again; the card her answer puts back has no line
     h.crossing.askGate(h.s, farmGo());
     expect(h.s.crossing).toMatchObject({ kind: 'gate', via: 'park-farm' });
+    h.crossing.cancel();
+    expect(h.overlay.innerHTML).toBe(pause(h.s));
+    expect(h.overlay.innerHTML).not.toContain('pause-note');
   });
 
   it("the host's own place does not come: the pause card, its own line, nobody moves", async () => {
@@ -786,7 +796,7 @@ describe('walking on together', () => {
       h.crossing.onWalkOnHave(h.s, h.have());
       h.loads.fail('farm');
       await vi.advanceTimersByTimeAsync(0);
-      expect(h.overlay.innerHTML).toBe(pause(h.s));
+      onCard(h, phrase(line));
       expect(h.overlay.innerHTML).toContain('btn-resume');
       expect(h.s.crossing).toBe(null);
       expect(h.toasts).toEqual([phrase(line)]);
@@ -808,7 +818,7 @@ describe('walking on together', () => {
     expect(h.overlay.innerHTML).toContain('Off to Appletree Farm!');
     expect(h.toasts).toEqual([]);
     await vi.advanceTimersByTimeAsync(1);
-    expect(h.overlay.innerHTML).toBe(pause(h.s));
+    onCard(h, phrase('gate.friendNotReady', 'Moss'));
     expect(h.overlay.innerHTML).toContain('btn-resume');
     expect(h.s.crossing).toBe(null);
     expect(h.toasts).toEqual([phrase('gate.friendNotReady', 'Moss')]);
@@ -823,7 +833,7 @@ describe('walking on together', () => {
     h.yes();
     h.crossing.onWalkOnHave(h.s, h.have());
     await vi.advanceTimersByTimeAsync(WALK_ON_WAIT_MS);
-    expect(h.overlay.innerHTML).toBe(pause(h.s));
+    onCard(h, phrase('start.notReady'));
     expect(h.overlay.innerHTML).toContain('btn-resume');
     expect(h.toasts).toEqual([phrase('start.notReady')]);
     expect(h.walkOn).not.toHaveBeenCalled();
@@ -884,6 +894,7 @@ describe('walking on together', () => {
       no.yes();
       no.crossing.onWalkOnHave(no.s, no.have({ ok: false }));
       expect(no.toasts).toEqual([phrase('gate.friendNotReady', 'A friend')]);
+      onCard(no, phrase('gate.friendNotReady', 'A friend'));
       const quiet = hidden();
       quiet.yes();
       quiet.loads.come('farm');
@@ -1085,7 +1096,7 @@ describe('walking on together', () => {
       h.crossing.onWalkOnHave(h.s, h.have({ via: 'woods-moor-path', ok: false }));
       await vi.advanceTimersByTimeAsync(0);
       expect(h.toasts).toEqual([phrase('gate.friendNotReady', 'Pip')]);
-      expect(h.overlay.innerHTML).toBe(pause(h.s));
+      onCard(h, phrase('gate.friendNotReady', 'Pip'));
       expect(h.s.crossing).toBeNull();
       expect(h.walkOn).not.toHaveBeenCalled();
       expect(h.ofType('walk-on')).toEqual([]);

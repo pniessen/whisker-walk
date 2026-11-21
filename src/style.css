@@ -857,6 +857,12 @@ body.touch-mode:not(.left-handed) .hud-top {
 .pause-card { display: grid; place-items: center; align-content: center; gap: 12px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .pause-card h1 { font-size: 2.2rem; }
+/* The line on the pause card when a walk-on could not go (walk.js
+   pauseCardHtml's note): a toast would sit under the card. */
+.pause-card .pause-note {
+  margin: 0; padding: 8px 14px; max-width: 34ch; border-radius: 14px;
+  background: rgba(255,244,220,0.12); color: #fff4dc; font-weight: 700; line-height: 1.35;
+}
 /* The find card (game/findcard.js) on the pause card's panel: her cat
    wearing it, or the outfit's emoji when no portrait could be drawn. */
 .find-card .find-portrait { width: 160px; height: 160px; }

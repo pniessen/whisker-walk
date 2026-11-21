@@ -248,7 +248,10 @@ export function cardMode(s) {
 // and this is where the view is picked now. The den stops at Middle
 // (camzoom.js), so Far and Farther are greyed there. In a walk together the
 // key list adds the chat keys.
-export function pauseCardFor(s, touch, sound = null) {
+// `note`: one line why she is back on the card (a walk-on that could not
+// go). A toast would sit under the card, so the card carries it; it is drawn
+// only when passed, so the next time the card is drawn it is gone.
+export function pauseCardFor(s, touch, sound = null, note = null) {
   const mode = cardMode(s);
   const L = s.lesson;
   const max = maxZoomStep(s.areaId === 'den');
@@ -257,7 +260,7 @@ export function pauseCardFor(s, touch, sound = null) {
     welcome: mode === 'paused' ? null : s.welcome, touch, portrait: s.portrait, mode,
     skip: !!L && !L.finished && !L.skipped,
     oneLine: mode === 'ready' && !touch && L?.kind === 'first' && !L.skipped,
-    sound, view, room: !!s.net,
+    sound, view, room: !!s.net, note,
   });
 }
 // The switches' state from settings: Sound is "Mute all sound" turned round,
@@ -281,11 +284,12 @@ function pauseViewHtml({ step, max }) {
   return `
       <div class="pause-view" role="group" aria-label="View"><span class="pause-view-label">👀 View</span><div class="pause-view-chips">${chips}</div></div>`;
 }
-export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null, view = null, room = false }) {
+export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready', skip = false, oneLine = false, sound = null, view = null, room = false, note = null }) {
   return `<div class="pause-card"><div class="screen-panel">
     ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
     <div class="screen-body"><h1>${CARD_TITLE[mode] ?? CARD_TITLE.ready}</h1>
-    ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
+    ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}${note ? `
+    <p class="pause-note" role="status">${escapeHtml(note)}</p>` : ''}
     <div class="screen-actions">
       <button id="btn-resume" class="primary">${resumeLabel(mode, touch)}</button>${sound && mode !== 'ready' ? pauseSoundHtml(sound, view) : ''}
       <button id="btn-end" class="secondary">Head home</button>${skip ? `
@@ -3091,9 +3095,10 @@ export function createWalkLifecycle({
         if (online && err?.kind !== 'unknown' && !guest && !s.net) failures += 1;
         // Back in her walk: the pause card. The crossing card's state is
         // crossing.js's own, cleared there on this answer.
-        overlay.innerHTML = pauseCardFor(s, getIsTouch(), pauseSoundOf(settings));
+        const line = phrase(online ? 'start.notReady' : 'start.notReadyOffline');
+        overlay.innerHTML = pauseCardFor(s, getIsTouch(), pauseSoundOf(settings), line);
         overlay.classList.remove('hidden');
-        hud.toast(phrase(online ? 'start.notReady' : 'start.notReadyOffline'));
+        hud.toast(line);
         return 'failed';
       },
     );

@@ -15,7 +15,10 @@ import { phrase } from '../src/clanphrases.js';
 import { diagnostics } from '../src/diagnostics.js';
 import { mulberry32 } from '../src/rng.js';
 import { headingToward } from '../src/game/guidewalk.js';
-import { takeStartLines } from '../src/game/walk.js';
+import { takeStartLines, pauseCardFor, pauseCardHtml, pauseSoundOf } from '../src/game/walk.js';
+import { escapeHtml } from '../src/escapehtml.js';
+// the walk harness's settings: muted, nothing else set
+const SETTINGS = { get: (k) => (k === 'muted' ? true : null) };
 import { DISCS } from '../src/rivalclans.js';
 import { SPAWN as MOOR_SPAWN } from '../src/world/moor.js';
 import { SPAWN as WOODS_SPAWN } from '../src/world/woods.js';
@@ -265,6 +268,21 @@ describe('walking on through a gate', () => {
   }, WALK_MS);
 });
 
+// Fix 8: a line on the pause card, for a walk-on that could not go. It is
+// drawn only when asked for, so the next time the card is drawn it is gone.
+describe("the pause card's line", () => {
+  it('draws one escaped line under the title (and the welcome), and none when not asked', () => {
+    const plain = pauseCardHtml({ welcome: null, touch: true, mode: 'paused' });
+    const noted = pauseCardHtml({ welcome: null, touch: true, mode: 'paused', note: "Pip's <game>" });
+    expect(plain).not.toContain('pause-note');
+    expect(noted).toContain('<h1>Paused</h1>\n    \n    <p class="pause-note" role="status">Pip&#39;s &lt;game&gt;</p>');
+    expect(noted.replace(/\n    <p class="pause-note"[^\n]*<\/p>/, '')).toBe(plain);
+    const s = { welcome: 'Hi', started: true, areaId: 'park' };
+    expect(pauseCardFor(s, false, null, 'x')).toBe(pauseCardHtml({ welcome: null, touch: false, mode: 'paused', note: 'x' }));
+    expect(pauseCardFor(s, false, null)).not.toContain('pause-note');
+  });
+});
+
 describe('walking on to a place not here yet', () => {
   it('a slow Farm: the moment shows over the paused Park walk, then the Farm walk starts', async () => {
     const walked = [];
@@ -319,6 +337,9 @@ describe('walking on to a place not here yet', () => {
     expect(ended).toBe(0);
     expect(h.overlay.innerHTML).toContain('btn-resume');
     expect(h.overlay.innerHTML).not.toContain('Off to');
+    // Fix 8: the line is on the card itself (a toast sits under the card)
+    expect(h.overlay.innerHTML).toBe(pauseCardFor(park, false, pauseSoundOf(SETTINGS), phrase('start.notReady')));
+    expect(h.overlay.innerHTML).toContain(`<p class="pause-note" role="status">${escapeHtml(phrase('start.notReady'))}</p>`);
     expect(h.toasts).toEqual([phrase('start.notReady')]);
     expect(h.homeToasts).toEqual([]);
     vi.advanceTimersByTime(GATE_MOMENT_MS * 2);
@@ -333,6 +354,7 @@ describe('walking on to a place not here yet', () => {
     h.w.startWalk({});
     expect(await h.w.walkOn({ via: 'park-farm' })).toBe('failed');
     expect(h.toasts).toEqual([phrase('start.notReadyOffline')]);
+    expect(h.overlay.innerHTML).toContain(`<p class="pause-note" role="status">${escapeHtml(phrase('start.notReadyOffline'))}</p>`);
     expect(h.reloads()).toBe(0);
   }, WALK_MS);
 
