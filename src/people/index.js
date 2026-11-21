@@ -29,7 +29,7 @@ const _sphere = new THREE.Sphere();
 // scratch has no reduced-motion form (its hand is slow and eased already).
 export function createPeopleKit({ camera, reducedMotion = false, lodNear = () => LOD.NEAR } = {}) {
   // one material for everyone, its uuid drawn locally (no real Math.random)
-  const material = withLocalUuids('people-kit', () => new THREE.MeshStandardMaterial({
+  const material = withLocalUuids('people-shared',() => new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.86,
     flatShading: false,
